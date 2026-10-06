@@ -15,6 +15,7 @@ import {
 	unique
 } from 'drizzle-orm/pg-core';
 import type { AudioTrack, SubtitleTrack } from '#lib/languages.ts';
+import type { SubtitleStyle } from '#lib/subtitle-style.ts';
 import { user } from './auth.schema';
 
 export const series = pgTable('series', {
@@ -122,7 +123,9 @@ export const userSettings = pgTable('user_settings', {
 	/** ISO 639-2, e.g. `spa`. Null means the episode's default. */
 	audioLang: text('audio_lang'),
 	/** ISO 639-2, or null for no subtitles. */
-	subtitleLang: text('subtitle_lang')
+	subtitleLang: text('subtitle_lang'),
+	/** Partial; missing keys use the defaults. */
+	subtitleStyle: jsonb('subtitle_style').$type<Partial<SubtitleStyle>>()
 });
 
 export * from './auth.schema';

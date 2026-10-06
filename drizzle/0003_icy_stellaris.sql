@@ -1,0 +1,1 @@
+ALTER TABLE "user_settings" ADD COLUMN "subtitle_style" jsonb;
