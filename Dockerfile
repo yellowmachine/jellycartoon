@@ -3,6 +3,9 @@ WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 COPY . .
+# The public URL is baked into the build (SvelteKit's paths.origin, used for CSRF checks).
+ARG APP_ORIGIN
+ENV APP_ORIGIN=$APP_ORIGIN
 # Real values are injected at runtime; the build only needs them to be present.
 RUN DATABASE_URL=postgres://build/build ORIGIN=http://localhost BETTER_AUTH_SECRET=build bun run build
 

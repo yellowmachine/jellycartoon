@@ -65,6 +65,9 @@ En `.env`: `APP_ORIGIN=http://<ip-del-servidor>:3000`, `HOST_MEDIA_DIR` (tus ví
 docker compose --profile app up -d --build
 ```
 
+`APP_ORIGIN` se fija al construir la imagen (SvelteKit lo usa para la protección CSRF de los
+formularios): si lo cambias, vuelve a lanzar el comando con `--build`. Entra siempre por esa URL.
+
 Cuando hayas creado tu cuenta, pon `ALLOW_SIGNUP=false`. La fecha de "hoy" usa `TZ` (por defecto `Europe/Madrid`).
 
 ## Pendiente
