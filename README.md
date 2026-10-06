@@ -13,7 +13,11 @@ SvelteKit 3 + Bun · Tailwind · Better Auth · Drizzle + Postgres · ffmpeg.
    - Lo que ya es H.264/AAC se copia sin recodificar.
    - DVD: desentrelaza (`bwdif`) y pasa a píxeles cuadrados.
    - Con varias pistas de audio elige `AUDIO_LANG` (por defecto `spa`).
-3. **Reproducir**: `/api/stream/<id>` sirve el MP4 con HTTP Range. El progreso se guarda por usuario.
+3. **Programación de hoy** (`/today`): playlist diaria por usuario de 30/60/90 min. Las series
+   "con continuidad" aportan su siguiente episodio pendiente; las de "episodios sueltos" (se cambia
+   en la ficha de la serie) aportan uno al azar, priorizando lo no visto. Nunca dos seguidos de la
+   misma serie. Lo visto se apunta al dueño de la playlist (pensando en el envío a otro dispositivo).
+4. **Reproducir**: `/api/stream/<id>` sirve el MP4 con HTTP Range. El progreso se guarda por usuario.
 
 Los originales nunca se modifican (en Docker se montan en solo lectura).
 
@@ -35,7 +39,7 @@ bun run db:start            # Postgres en Docker
 bun run dev                 # http://localhost:5173 (las migraciones se aplican al arrancar)
 ```
 
-Al cambiar el esquema: `bun run db:generate` (crea la migración en `drizzle/`).
+Al cambiar el esquema: `bun run db:generate` (crea la migración en `drizzle/`). Tests: `bun run test`.
 Necesitas `ffmpeg` y `ffprobe` en el PATH.
 
 ## Producción (todo en Docker)
@@ -47,7 +51,7 @@ En `.env`: `APP_ORIGIN=http://<ip-del-servidor>:3000`, `HOST_MEDIA_DIR` (tus ví
 docker compose --profile app up -d --build
 ```
 
-Cuando hayas creado tu cuenta, pon `ALLOW_SIGNUP=false`.
+Cuando hayas creado tu cuenta, pon `ALLOW_SIGNUP=false`. La fecha de "hoy" usa `TZ` (por defecto `Europe/Madrid`).
 
 ## Pendiente
 

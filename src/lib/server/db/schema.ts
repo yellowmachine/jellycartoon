@@ -1,6 +1,7 @@
 import {
 	bigint,
 	boolean,
+	date,
 	index,
 	integer,
 	pgEnum,
@@ -9,7 +10,8 @@ import {
 	real,
 	serial,
 	text,
-	timestamp
+	timestamp,
+	unique
 } from 'drizzle-orm/pg-core';
 import { user } from './auth.schema';
 
@@ -18,6 +20,8 @@ export const series = pgTable('series', {
 	/** Folder name inside MEDIA_DIR. */
 	folder: text('folder').notNull().unique(),
 	title: text('title').notNull(),
+	/** Episodes follow a story: playlists pick the next unwatched one instead of a random one. */
+	serialized: boolean('serialized').notNull().default(true),
 	createdAt: timestamp('created_at').notNull().defaultNow()
 });
 
@@ -73,6 +77,36 @@ export const watchProgress = pgTable(
 		primaryKey({ columns: [t.userId, t.episodeId] }),
 		index('watch_progress_user_idx').on(t.userId, t.updatedAt)
 	]
+);
+
+/** One per user and day; regenerating replaces its items. */
+export const playlist = pgTable(
+	'playlist',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		day: date('day').notNull(),
+		targetMinutes: integer('target_minutes').notNull(),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [unique('playlist_user_day').on(t.userId, t.day)]
+);
+
+export const playlistItem = pgTable(
+	'playlist_item',
+	{
+		playlistId: integer('playlist_id')
+			.notNull()
+			.references(() => playlist.id, { onDelete: 'cascade' }),
+		position: integer('position').notNull(),
+		episodeId: integer('episode_id')
+			.notNull()
+			.references(() => episode.id, { onDelete: 'cascade' }),
+		watched: boolean('watched').notNull().default(false)
+	},
+	(t) => [primaryKey({ columns: [t.playlistId, t.position] })]
 );
 
 export * from './auth.schema';

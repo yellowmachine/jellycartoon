@@ -1,7 +1,9 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { watchProgress } from '#lib/server/db/schema.ts';
+import { playlist, playlistItem, watchProgress } from '#lib/server/db/schema.ts';
+import { today } from '#lib/server/playlist.ts';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const { episodeId, positionSec, durationSec } = await request.json();
@@ -23,5 +25,25 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.values(values)
 		.onConflictDoUpdate({ target: [watchProgress.userId, watchProgress.episodeId], set: values });
 
-	return json({ ok: true });
+	if (completed) {
+		// Ticks it off today's playlist. Attributed to the playlist owner, which is also who will
+		// get the credit when a playlist is played on another device.
+		await db
+			.update(playlistItem)
+			.set({ watched: true })
+			.where(
+				and(
+					eq(playlistItem.episodeId, episodeId),
+					inArray(
+						playlistItem.playlistId,
+						db
+							.select({ id: playlist.id })
+							.from(playlist)
+							.where(and(eq(playlist.userId, locals.user!.id), eq(playlist.day, today())))
+					)
+				)
+			);
+	}
+
+	return json({ ok: true, completed });
 };

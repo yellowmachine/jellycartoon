@@ -1,12 +1,13 @@
 import { sql } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
+import { getTodayPlaylist } from '#lib/server/playlist.ts';
 import { episode, series, watchProgress } from '#lib/server/db/schema.ts';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
 
-	const [allSeries, continueWatching] = await Promise.all([
+	const [allSeries, continueWatching, today] = await Promise.all([
 		db.execute<{
 			id: number;
 			title: string;
@@ -42,8 +43,19 @@ export const load: PageServerLoad = async ({ locals }) => {
 			where p.user_id = ${userId} and not p.completed
 			order by p.updated_at desc
 			limit 8
-		`)
+		`),
+		getTodayPlaylist(userId)
 	]);
 
-	return { series: [...allSeries], continueWatching: [...continueWatching] };
+	const pending = today?.items.filter((i) => !i.watched) ?? [];
+	return {
+		series: [...allSeries],
+		continueWatching: [...continueWatching],
+		today: today && {
+			total: today.items.length,
+			pending: pending.length,
+			pendingSec: pending.reduce((sum, i) => sum + (i.durationSec ?? 0), 0),
+			next: pending[0] ?? null
+		}
+	};
 };

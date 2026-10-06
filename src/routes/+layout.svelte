@@ -8,6 +8,7 @@
 
 	const links = [
 		{ href: '/', label: 'Catálogo' },
+		{ href: '/today', label: 'Hoy' },
 		{ href: '/library', label: 'Biblioteca' }
 	];
 </script>
