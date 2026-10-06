@@ -3,6 +3,7 @@ import { and, eq, gt, or, asc } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { episode, series, watchProgress } from '#lib/server/db/schema.ts';
+import { getSettings } from '#lib/server/settings.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const id = Number(params.id);
@@ -15,6 +16,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			title: episode.title,
 			status: episode.status,
 			durationSec: episode.durationSec,
+			audioTracks: episode.audioTracks,
+			subtitles: episode.subtitles,
 			seriesTitle: series.title,
 			positionSec: watchProgress.positionSec
 		})
@@ -44,5 +47,5 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		.orderBy(asc(episode.season), asc(episode.number))
 		.limit(1);
 
-	return { episode: ep, nextId: next?.id ?? null };
+	return { episode: ep, nextId: next?.id ?? null, settings: await getSettings(locals.user!.id) };
 };

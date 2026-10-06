@@ -1,15 +1,142 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import type Hls from 'hls.js';
+	import { normalizeLang, type AudioTrack, type SubtitleTrack } from '#lib/languages.ts';
+
 	interface Props {
 		episodeId: number;
 		startAt?: number | null;
+		audioTracks: AudioTrack[];
+		subtitles: SubtitleTrack[];
+		settings: { audioLang: string | null; subtitleLang: string | null };
 		autoplay?: boolean;
 		/** Called after the final position has been saved. */
 		onended?: () => void;
 	}
 
-	let { episodeId, startAt = 0, autoplay = true, onended }: Props = $props();
+	let {
+		episodeId,
+		startAt = 0,
+		audioTracks,
+		subtitles,
+		settings,
+		autoplay = true,
+		onended
+	}: Props = $props();
+
 	let video = $state<HTMLVideoElement>();
+	let hls: Hls | null = null;
 	let lastSaved = 0;
+
+	const pick = <T extends { lang: string }>(tracks: T[], lang: string | null) =>
+		lang ? tracks.findIndex((t) => t.lang === normalizeLang(lang)) : -1;
+
+	// Overridden locally on change (and saved); fresh server data resets them.
+	let audioLang = $derived(settings.audioLang);
+	let subtitleLang = $derived(settings.subtitleLang);
+	let audioIndex = $derived(Math.max(0, pick(audioTracks, audioLang)));
+	let subtitleIndex = $derived(pick(subtitles, subtitleLang));
+
+	const src = $derived(`/api/hls/${episodeId}/master.m3u8`);
+
+	$effect(() => {
+		const el = video;
+		const url = src;
+		if (!el) return;
+		// Only a new episode (src) or <video> should reload the stream.
+		const start = untrack(() => (startAt && startAt > 5 ? startAt : 0));
+		let cancelled = false;
+
+		(async () => {
+			const { default: Hls } = await import('hls.js');
+			if (cancelled) return;
+			if (Hls.isSupported()) {
+				const instance = new Hls({ startPosition: start || -1 });
+				hls = instance;
+				// The audio track list is not known yet at MANIFEST_PARSED.
+				instance.once(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
+					instance.audioTrack = untrack(() => audioIndex);
+				});
+				instance.on(Hls.Events.MANIFEST_PARSED, () => {
+					if (untrack(() => autoplay)) el.play().catch(() => {});
+				});
+				instance.loadSource(url);
+				instance.attachMedia(el);
+			} else if (el.canPlayType('application/vnd.apple.mpegurl')) {
+				// Safari plays HLS natively.
+				el.src = url;
+				el.addEventListener(
+					'loadedmetadata',
+					() => {
+						if (start) el.currentTime = start;
+						selectNativeAudio(untrack(() => audioIndex));
+						if (untrack(() => autoplay)) el.play().catch(() => {});
+					},
+					{ once: true }
+				);
+			}
+		})();
+
+		return () => {
+			cancelled = true;
+			hls?.destroy();
+			hls = null;
+		};
+	});
+
+	function selectNativeAudio(index: number) {
+		const tracks = (
+			video as HTMLVideoElement & {
+				audioTracks?: { length: number; [i: number]: { enabled: boolean } };
+			}
+		)?.audioTracks;
+		if (!tracks) return;
+		for (let i = 0; i < tracks.length; i++) tracks[i].enabled = i === index;
+	}
+
+	function saveSetting(values: { audioLang?: string | null; subtitleLang?: string | null }) {
+		fetch('/api/settings', {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(values)
+		}).catch(() => {});
+	}
+
+	function chooseAudio(index: number) {
+		audioLang = audioTracks[index].lang;
+		if (hls) hls.audioTrack = index;
+		else selectNativeAudio(index);
+		saveSetting({ audioLang });
+	}
+
+	function chooseSubtitle(index: number) {
+		subtitleLang = index < 0 ? null : subtitles[index].lang;
+		saveSetting({ subtitleLang });
+	}
+
+	// Show the chosen subtitle track, hide the rest.
+	$effect(() => {
+		const tracks = video?.textTracks;
+		if (!tracks) return;
+		for (let i = 0; i < tracks.length; i++) {
+			tracks[i].mode = i === subtitleIndex ? 'showing' : 'disabled';
+		}
+	});
+
+	// Follow changes made from the browser's own captions menu.
+	function onTextTrackChange() {
+		const tracks = video?.textTracks;
+		if (!tracks) return;
+		let showing = -1;
+		for (let i = 0; i < tracks.length; i++) if (tracks[i].mode === 'showing') showing = i;
+		if (showing !== subtitleIndex) chooseSubtitle(showing);
+	}
+
+	$effect(() => {
+		const tracks = video?.textTracks;
+		tracks?.addEventListener('change', onTextTrackChange);
+		return () => tracks?.removeEventListener('change', onTextTrackChange);
+	});
 
 	function save() {
 		if (!video?.currentTime) return Promise.resolve();
@@ -25,12 +152,6 @@
 				durationSec: video.duration
 			})
 		}).catch(() => {});
-	}
-
-	function onLoaded() {
-		if (!video) return;
-		if (startAt && startAt > 5) video.currentTime = startAt;
-		if (autoplay) video.play().catch(() => {});
 	}
 
 	function onTimeUpdate() {
@@ -49,15 +170,63 @@
 	<!-- svelte-ignore a11y_media_has_caption -->
 	<video
 		bind:this={video}
-		src="/api/stream/{episodeId}"
 		poster="/api/thumb/{episodeId}"
 		controls
-		preload="metadata"
+		crossorigin="anonymous"
 		class="aspect-video w-full rounded-md bg-black"
-		onloadedmetadata={onLoaded}
 		ontimeupdate={onTimeUpdate}
 		onpause={save}
 		onseeked={save}
 		onended={onEnded}
-	></video>
+	>
+		{#each subtitles as sub, i (sub.file)}
+			<track
+				kind="subtitles"
+				src="/api/hls/{episodeId}/{sub.file}"
+				srclang={sub.lang}
+				label={sub.label}
+				default={i === subtitleIndex}
+			/>
+		{/each}
+	</video>
 {/key}
+
+{#if audioTracks.length > 1 || subtitles.length}
+	<div class="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+		{#if audioTracks.length > 1}
+			<div class="flex items-center gap-1">
+				<span class="mr-1 text-zinc-400">Audio</span>
+				{#each audioTracks as track, i (i)}
+					<button
+						class={[
+							'rounded px-2 py-0.5',
+							i === audioIndex ? 'bg-amber-500 text-zinc-950' : 'text-zinc-300 hover:bg-zinc-800'
+						]}
+						onclick={() => chooseAudio(i)}>{track.label}</button
+					>
+				{/each}
+			</div>
+		{/if}
+		{#if subtitles.length}
+			<div class="flex items-center gap-1">
+				<span class="mr-1 text-zinc-400">Subtítulos</span>
+				<button
+					class={[
+						'rounded px-2 py-0.5',
+						subtitleIndex < 0 ? 'bg-amber-500 text-zinc-950' : 'text-zinc-300 hover:bg-zinc-800'
+					]}
+					onclick={() => chooseSubtitle(-1)}>No</button
+				>
+				{#each subtitles as sub, i (sub.file)}
+					<button
+						class={[
+							'rounded px-2 py-0.5',
+							i === subtitleIndex ? 'bg-amber-500 text-zinc-950' : 'text-zinc-300 hover:bg-zinc-800'
+						]}
+						onclick={() => chooseSubtitle(i)}>{sub.label}</button
+					>
+				{/each}
+			</div>
+		{/if}
+	</div>
+{/if}

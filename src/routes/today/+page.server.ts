@@ -1,11 +1,16 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { generatePlaylist, getTodayPlaylist } from '#lib/server/playlist.ts';
+import { getSettings } from '#lib/server/settings.ts';
 
 const DURATIONS = [30, 60, 90];
 
 export const load: PageServerLoad = async ({ locals }) => {
-	return { playlist: await getTodayPlaylist(locals.user!.id), durations: DURATIONS };
+	const [playlist, settings] = await Promise.all([
+		getTodayPlaylist(locals.user!.id),
+		getSettings(locals.user!.id)
+	]);
+	return { playlist, settings, durations: DURATIONS };
 };
 
 export const actions: Actions = {

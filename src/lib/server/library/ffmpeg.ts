@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { AUDIO_LANG, X264_CRF, X264_PRESET } from '$app/env/private';
+import { languageLabel, normalizeLang, type AudioTrack } from '#lib/languages.ts';
 
 interface ProbeStream {
 	index: number;
@@ -19,13 +20,17 @@ export interface Probe {
 	format: { format_name: string; duration?: string };
 }
 
-function run(cmd: string, args: string[], onStdout?: (chunk: string) => void) {
+export function run(
+	cmd: string,
+	args: string[],
+	options: { cwd?: string; onStdout?: (chunk: string) => void } = {}
+) {
 	return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-		const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+		const child = spawn(cmd, args, { cwd: options.cwd, stdio: ['ignore', 'pipe', 'pipe'] });
 		let stdout = '';
 		let stderr = '';
 		child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
-			if (onStdout) onStdout(chunk);
+			if (options.onStdout) options.onStdout(chunk);
 			else stdout += chunk;
 		});
 		child.stderr.setEncoding('utf8').on('data', (chunk: string) => {
@@ -52,46 +57,62 @@ export async function probe(file: string): Promise<Probe> {
 	return JSON.parse(stdout);
 }
 
-function pickAudio(streams: ProbeStream[]) {
+/** Every audio stream, with the preferred language (AUDIO_LANG) first: it becomes the default. */
+function orderedAudio(streams: ProbeStream[]) {
+	const preferred = normalizeLang(AUDIO_LANG);
 	const audio = streams.filter((s) => s.codec_type === 'audio');
-	return (
-		audio.find((s) => s.tags?.language === AUDIO_LANG) ??
+	const first =
+		audio.find((s) => normalizeLang(s.tags?.language) === preferred) ??
 		audio.find((s) => s.disposition?.default) ??
-		audio[0]
+		audio[0];
+	return first ? [first, ...audio.filter((s) => s !== first)] : [];
+}
+
+/** Subtitle codecs that can become WebVTT. Bitmap ones (DVD/Blu-ray) would need OCR. */
+const TEXT_SUBTITLES = new Set(['subrip', 'ass', 'ssa', 'webvtt', 'mov_text', 'text']);
+
+export function textSubtitleStreams(info: Probe) {
+	return info.streams.filter(
+		(s) => s.codec_type === 'subtitle' && TEXT_SUBTITLES.has(s.codec_name ?? '')
 	);
 }
 
 const INTERLACED = new Set(['tt', 'bb', 'tb', 'bt']);
+const SEGMENT_SECONDS = 6;
+
+function videoFilters(video: ProbeStream) {
+	return [
+		...(INTERLACED.has(video.field_order ?? '') ? ['bwdif=mode=send_frame'] : []),
+		// DVDs use non-square pixels; convert to square so every player gets the aspect right.
+		"scale='trunc(iw*sar/2)*2':'trunc(ih/2)*2'",
+		'setsar=1'
+	];
+}
 
 /**
- * Builds the ffmpeg arguments to produce a browser-friendly MP4 (H.264 + AAC, faststart).
- * Streams that are already compatible are copied instead of re-encoded.
+ * ffmpeg arguments to produce VOD HLS (fMP4) in the current directory: one video stream and one
+ * audio rendition per source audio track, so the player can switch language. Streams that are
+ * already compatible are copied instead of re-encoded.
  */
-export function buildTranscodeArgs(input: string, output: string, info: Probe) {
+export function buildHlsArgs(input: string, info: Probe) {
 	const video = info.streams.find((s) => s.codec_type === 'video' && !s.disposition?.attached_pic);
 	if (!video) throw new Error('El fichero no tiene pista de vídeo');
-	const audio = pickAudio(info.streams);
+	const audio = orderedAudio(info.streams);
 
 	const interlaced = INTERLACED.has(video.field_order ?? '');
 	const squarePixels =
 		!video.sample_aspect_ratio || ['1:1', '0:1'].includes(video.sample_aspect_ratio);
 	const copyVideo =
 		video.codec_name === 'h264' && video.pix_fmt === 'yuv420p' && !interlaced && squarePixels;
-	const copyAudio = audio?.codec_name === 'aac';
+	const copyAudio = audio.length > 0 && audio.every((a) => a.codec_name === 'aac');
 
 	const args = ['-hide_banner', '-nostats', '-y', '-i', input, '-map', `0:${video.index}`];
-	if (audio) args.push('-map', `0:${audio.index}`);
+	for (const a of audio) args.push('-map', `0:${a.index}`);
 	args.push('-map_metadata', '-1', '-map_chapters', '-1', '-sn', '-dn');
 
 	if (copyVideo) {
 		args.push('-c:v', 'copy');
 	} else {
-		const filters = [
-			...(interlaced ? ['bwdif=mode=send_frame'] : []),
-			// DVDs use non-square pixels; convert to square so every player gets the aspect right.
-			"scale='trunc(iw*sar/2)*2':'trunc(ih/2)*2'",
-			'setsar=1'
-		];
 		args.push(
 			'-c:v',
 			'libx264',
@@ -106,38 +127,92 @@ export function buildTranscodeArgs(input: string, output: string, info: Probe) {
 			'-pix_fmt',
 			'yuv420p',
 			'-vf',
-			filters.join(',')
+			videoFilters(video).join(','),
+			// Keyframes on segment boundaries, so every segment starts cleanly.
+			'-force_key_frames',
+			`expr:gte(t,n_forced*${SEGMENT_SECONDS})`
 		);
 	}
 
-	if (audio) {
+	if (audio.length) {
 		if (copyAudio) args.push('-c:a', 'copy');
-		else args.push('-c:a', 'aac', '-b:a', '160k', '-ac', '2');
+		else args.push('-c:a', 'aac', '-b:a', '128k', '-ac', '2');
 	}
 
-	args.push('-movflags', '+faststart', '-f', 'mp4', '-progress', 'pipe:1', output);
-	return { args, copyVideo, copyAudio, interlaced };
+	const tracks: AudioTrack[] = audio.map((a) => ({
+		lang: normalizeLang(a.tags?.language),
+		label: languageLabel(a.tags?.language)
+	}));
+	const streamMap = [
+		`v:0${audio.length ? ',agroup:aud' : ''},name:video`,
+		...tracks.map(
+			(t, i) => `a:${i},agroup:aud,language:${t.lang},name:a${i}${i === 0 ? ',default:yes' : ''}`
+		)
+	];
+
+	args.push(
+		'-f',
+		'hls',
+		'-hls_time',
+		String(SEGMENT_SECONDS),
+		'-hls_playlist_type',
+		'vod',
+		'-hls_segment_type',
+		'fmp4',
+		'-hls_fmp4_init_filename',
+		'init.mp4',
+		'-hls_segment_filename',
+		'%v/seg_%05d.m4s',
+		'-master_pl_name',
+		'master.m3u8',
+		'-var_stream_map',
+		streamMap.join(' '),
+		'-progress',
+		'pipe:1',
+		'%v/index.m3u8'
+	);
+	return { args, tracks, copyVideo, copyAudio, interlaced };
 }
 
-export async function transcode(
+/** Converts `input` into HLS inside `outDir` (which must exist). */
+export async function transcodeHls(
 	input: string,
-	output: string,
+	outDir: string,
+	info: Probe,
 	onProgress: (ratio: number) => void
 ) {
-	const info = await probe(input);
 	const duration = Number(info.format.duration) || 0;
-	const { args } = buildTranscodeArgs(input, output, info);
+	const { args, tracks } = buildHlsArgs(input, info);
 
-	await run('ffmpeg', args, (chunk) => {
-		const match = chunk.match(/out_time_us=(\d+)/g)?.at(-1);
-		if (match && duration > 0) {
-			onProgress(Math.min(1, Number(match.split('=')[1]) / 1e6 / duration));
+	await run('ffmpeg', args, {
+		cwd: outDir,
+		onStdout: (chunk) => {
+			const match = chunk.match(/out_time_us=(\d+)/g)?.at(-1);
+			if (match && duration > 0) {
+				onProgress(Math.min(1, Number(match.split('=')[1]) / 1e6 / duration));
+			}
 		}
 	});
-	return { duration };
+	return { duration, audioTracks: tracks };
 }
 
-export async function thumbnail(input: string, output: string, atSec: number) {
+/** Converts an embedded subtitle stream or a sidecar .srt/.vtt/.ass file to WebVTT. */
+export async function toWebVtt(input: string, output: string, streamIndex?: number) {
+	await run('ffmpeg', [
+		'-hide_banner',
+		'-y',
+		'-i',
+		input,
+		...(streamIndex === undefined ? [] : ['-map', `0:${streamIndex}`]),
+		'-c:s',
+		'webvtt',
+		output
+	]);
+}
+
+export async function thumbnail(input: string, output: string, info: Probe, atSec: number) {
+	const video = info.streams.find((s) => s.codec_type === 'video' && !s.disposition?.attached_pic);
+	const filters = [...(video ? videoFilters(video) : []), 'scale=480:-2'];
 	await run('ffmpeg', [
 		'-hide_banner',
 		'-y',
@@ -148,7 +223,7 @@ export async function thumbnail(input: string, output: string, atSec: number) {
 		'-frames:v',
 		'1',
 		'-vf',
-		'scale=480:-2',
+		filters.join(','),
 		'-q:v',
 		'4',
 		output

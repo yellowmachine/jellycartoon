@@ -9,3 +9,9 @@
 		@apply min-h-screen bg-zinc-950 text-zinc-100 antialiased;
 	}
 }
+
+video::cue {
+	background: rgb(0 0 0 / 0.75);
+	font-size: 1.1em;
+	line-height: 1.4;
+}

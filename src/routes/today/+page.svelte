@@ -54,6 +54,9 @@
 				<Player
 					episodeId={item.id}
 					startAt={item.watched ? 0 : item.positionSec}
+					audioTracks={item.audioTracks}
+					subtitles={item.subtitles}
+					settings={data.settings}
 					onended={invalidateAll}
 				/>
 				<p class="mt-3 text-sm text-zinc-400">{item.seriesTitle}</p>

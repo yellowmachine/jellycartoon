@@ -3,6 +3,7 @@ import {
 	boolean,
 	date,
 	index,
+	jsonb,
 	integer,
 	pgEnum,
 	pgTable,
@@ -13,6 +14,7 @@ import {
 	timestamp,
 	unique
 } from 'drizzle-orm/pg-core';
+import type { AudioTrack, SubtitleTrack } from '#lib/languages.ts';
 import { user } from './auth.schema';
 
 export const series = pgTable('series', {
@@ -49,6 +51,10 @@ export const episode = pgTable(
 		error: text('error'),
 		durationSec: real('duration_sec'),
 		outputSize: bigint('output_size', { mode: 'number' }),
+		/** In the same order as the HLS master playlist. */
+		audioTracks: jsonb('audio_tracks').$type<AudioTrack[]>().notNull().default([]),
+		/** WebVTT files inside the episode's HLS folder. */
+		subtitles: jsonb('subtitles').$type<SubtitleTrack[]>().notNull().default([]),
 		updatedAt: timestamp('updated_at')
 			.notNull()
 			.defaultNow()
@@ -108,5 +114,15 @@ export const playlistItem = pgTable(
 	},
 	(t) => [primaryKey({ columns: [t.playlistId, t.position] })]
 );
+
+export const userSettings = pgTable('user_settings', {
+	userId: text('user_id')
+		.primaryKey()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	/** ISO 639-2, e.g. `spa`. Null means the episode's default. */
+	audioLang: text('audio_lang'),
+	/** ISO 639-2, or null for no subtitles. */
+	subtitleLang: text('subtitle_lang')
+});
 
 export * from './auth.schema';

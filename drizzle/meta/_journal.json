@@ -15,6 +15,13 @@
       "when": 1791295737827,
       "tag": "0001_amusing_silver_surfer",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791298106006,
+      "tag": "0002_talented_shen",
+      "breakpoints": true
     }
   ]
 }

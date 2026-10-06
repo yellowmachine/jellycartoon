@@ -18,6 +18,9 @@
 <Player
 	episodeId={data.episode.id}
 	startAt={data.episode.positionSec}
+	audioTracks={data.episode.audioTracks}
+	subtitles={data.episode.subtitles}
+	settings={data.settings}
 	onended={() => data.nextId && goto(`/watch/${data.nextId}`)}
 />
 

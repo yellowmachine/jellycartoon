@@ -143,6 +143,8 @@ export async function getTodayPlaylist(userId: string) {
 			season: episode.season,
 			number: episode.number,
 			durationSec: episode.durationSec,
+			audioTracks: episode.audioTracks,
+			subtitles: episode.subtitles,
 			seriesTitle: series.title,
 			positionSec: watchProgress.positionSec
 		})
