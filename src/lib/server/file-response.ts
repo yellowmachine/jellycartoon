@@ -4,7 +4,7 @@ import { Readable } from 'node:stream';
 import { error } from '@sveltejs/kit';
 
 function body(path: string, start: number, end: number): BodyInit {
-	return Readable.toWeb(createReadStream(path, { start, end })) as ReadableStream;
+	return Readable.toWeb(createReadStream(path, { start, end })) as unknown as ReadableStream;
 }
 
 /** Serves a file with HTTP Range support, which `<video>` needs to seek. */
