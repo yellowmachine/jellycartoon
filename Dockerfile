@@ -11,8 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -r
 WORKDIR /app
 COPY --from=build /app/build ./build
 COPY --from=build /app/drizzle ./drizzle
+COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
 ENV NODE_ENV=production PORT=3000
 EXPOSE 3000
-CMD ["bun", "build/index.js"]
+# Migrate first; the app only starts if that succeeds.
+CMD ["sh", "-c", "bun scripts/migrate.ts && exec bun build/index.js"]

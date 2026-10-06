@@ -36,10 +36,11 @@ media/
 cp .env.example .env        # y rellena BETTER_AUTH_SECRET (openssl rand -base64 32)
 bun install
 bun run db:start            # Postgres en Docker
-bun run dev                 # http://localhost:5173 (las migraciones se aplican al arrancar)
+bun run dev                 # aplica migraciones y arranca en http://localhost:5173
 ```
 
-Al cambiar el esquema: `bun run db:generate` (crea la migración en `drizzle/`). Tests: `bun run test`.
+Al cambiar el esquema: `bun run db:generate` crea la migración en `drizzle/` y `bun run db:migrate`
+la aplica (también lo hacen `bun run dev` y el contenedor antes de arrancar la app). Tests: `bun run test`.
 Necesitas `ffmpeg` y `ffprobe` en el PATH.
 
 ## Producción (todo en Docker)

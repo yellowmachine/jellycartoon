@@ -1,15 +1,12 @@
 import { redirect } from '@sveltejs/kit';
 import type { Handle, ServerInit } from '@sveltejs/kit/hooks';
 import { building } from '$app/env';
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { auth } from '#lib/server/auth.ts';
-import { db } from '#lib/server/db/index.ts';
 import { startWorker } from '#lib/server/library/worker.ts';
 
 export const init: ServerInit = async () => {
 	if (building) return;
-	await migrate(db, { migrationsFolder: 'drizzle' });
 	await startWorker();
 };
 
