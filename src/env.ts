@@ -32,6 +32,11 @@ export const variables = defineEnvVars({
 		description: 'x264 quality (lower is better and bigger). 20 is a good default for SD sources.',
 		schema: withDefault('20')
 	},
+	DELETE_SOURCES: {
+		description:
+			'Set to `true` to delete originals (and their subtitle files) from MEDIA_DIR once converted.',
+		schema: (value) => value === 'true'
+	},
 	ALLOW_SIGNUP: {
 		description: 'Set to `false` to disable creating new accounts.',
 		schema: (value) => value !== 'false'

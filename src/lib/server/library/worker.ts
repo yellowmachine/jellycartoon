@@ -1,4 +1,5 @@
-import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
+import { access, mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
+import { DELETE_SOURCES } from '$app/env/private';
 import path from 'node:path';
 import { eq, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
@@ -13,6 +14,7 @@ import {
 	type Probe
 } from './ffmpeg.ts';
 import { hlsDir, legacyVideoFile, sourceFile, thumbFile } from './paths.ts';
+import { removeSource, sidecarSubtitles } from './sources.ts';
 
 let started = false;
 let wake: (() => void) | null = null;
@@ -49,23 +51,6 @@ export async function startWorker() {
 			wake = null;
 		}
 	})();
-}
-
-const SUBTITLE_EXTENSIONS = new Set(['.srt', '.vtt', '.ass', '.ssa']);
-
-/** Subtitle files next to the video: `Name.en.vtt`, `Name.es-419.srt`, `Name.srt`… */
-async function sidecarSubtitles(input: string) {
-	const dir = path.dirname(input);
-	const base = path.basename(input, path.extname(input));
-	const entries = await readdir(dir);
-	return entries
-		.filter(
-			(f) => f.startsWith(`${base}.`) && SUBTITLE_EXTENSIONS.has(path.extname(f).toLowerCase())
-		)
-		.map((f) => ({
-			file: path.join(dir, f),
-			lang: f.slice(base.length + 1, -path.extname(f).length)
-		}));
 }
 
 async function extractSubtitles(input: string, outDir: string, info: Probe) {
@@ -108,7 +93,7 @@ async function directorySize(dir: string): Promise<number> {
 }
 
 async function processNext() {
-	const [job] = await db.execute<{ id: number; source_path: string }>(sql`
+	const [claimed] = await db.execute<{ id: number }>(sql`
 		update ${episode} set status = 'processing', progress = 0, error = null, updated_at = now()
 		where id = (
 			select id from ${episode}
@@ -117,20 +102,36 @@ async function processNext() {
 			limit 1
 			for update skip locked
 		)
-		returning id, source_path
+		returning id
 	`);
-	if (!job) return false;
+	if (!claimed) return false;
 
-	const input = sourceFile(job.source_path);
+	// Read through Drizzle: raw rows would parse the UTC `timestamp` as local time.
+	const [job] = await db
+		.select({
+			id: episode.id,
+			sourcePath: episode.sourcePath,
+			sourceSize: episode.sourceSize,
+			sourceMtime: episode.sourceMtime
+		})
+		.from(episode)
+		.where(eq(episode.id, claimed.id));
+
+	const input = sourceFile(job.sourcePath);
 	const output = hlsDir(job.id);
 	const partial = `${output}.part`;
-	console.log(`[worker] #${job.id} ${job.source_path}`);
+	console.log(`[worker] #${job.id} ${job.sourcePath}`);
 
 	try {
 		await rm(partial, { recursive: true, force: true });
 		await mkdir(partial, { recursive: true });
 		await mkdir(path.dirname(thumbFile(job.id)), { recursive: true });
 
+		await access(input).catch(() => {
+			throw new Error(
+				'No se encuentra el original. Si se borró tras convertirlo, cópialo de nuevo a la carpeta de medios.'
+			);
+		});
 		const info = await probe(input);
 		let lastWrite = 0;
 		const { duration, audioTracks } = await transcodeHls(input, partial, info, (ratio) => {
@@ -163,6 +164,7 @@ async function processNext() {
 		console.log(
 			`[worker] #${job.id} listo (${(size / 1e6).toFixed(1)} MB, audio: ${audioTracks.map((t) => t.lang).join('/') || '—'}, subtítulos: ${subtitles.map((t) => t.lang).join('/') || '—'})`
 		);
+		if (DELETE_SOURCES) await deleteSourceAfterConversion(job);
 	} catch (error) {
 		await rm(partial, { recursive: true, force: true });
 		await db
@@ -172,4 +174,34 @@ async function processNext() {
 		console.error(`[worker] #${job.id} error`, error);
 	}
 	return true;
+}
+
+async function deleteSourceAfterConversion(job: {
+	id: number;
+	sourcePath: string;
+	sourceSize: number;
+	sourceMtime: Date;
+}) {
+	try {
+		const result = await removeSource(job);
+		if (result === 'removed') {
+			console.log(`[worker] #${job.id} original borrado: ${job.sourcePath}`);
+		} else if (result === 'changed') {
+			const info = await stat(sourceFile(job.sourcePath));
+			if (Date.now() - info.mtime.getTime() >= 60_000) {
+				// Not being written to, so this isn't a copy in progress: keep the original rather
+				// than risk converting the same file in a loop.
+				console.warn(`[worker] #${job.id} el original no coincide con lo convertido; no se borra`);
+				return;
+			}
+			// Still being copied: convert the final file again once it settles.
+			console.warn(`[worker] #${job.id} el original cambió durante la conversión; se repite`);
+			await db
+				.update(episode)
+				.set({ status: 'pending', progress: 0, sourceSize: info.size, sourceMtime: info.mtime })
+				.where(eq(episode.id, job.id));
+		}
+	} catch (error) {
+		console.warn(`[worker] #${job.id} no se pudo borrar el original`, error);
+	}
 }

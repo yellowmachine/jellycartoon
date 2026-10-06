@@ -81,6 +81,11 @@ docker compose -f compose.prod.yaml logs -f app
   Entra siempre por esa URL.
 - La app corre como `PUID:PGID` (por defecto `1000:1000`), que es el dueño de `HOST_DATA_DIR`.
 - Para fijar una versión concreta: `IMAGE_TAG=sha-abc1234` en el `.env`.
+- `DELETE_SOURCES=true` borra de `HOST_MEDIA_DIR` cada original (y sus subtítulos externos) en
+  cuanto se convierte; el episodio sigue en el catálogo. Útil si guardas copia en otro disco.
+  Los ficheros modificados hace menos de un minuto se ignoran al escanear (copias en curso).
+  En Biblioteca aparece un botón para borrar los que ya estaban convertidos. Ojo: para
+  reconvertir (cambios de formato o de calidad) habrá que volver a copiar los originales.
 - Cuando estén creadas las cuentas, pon `ALLOW_SIGNUP=false`. "Hoy" usa `TZ` (por defecto
   `Europe/Madrid`).
 - `compose.yaml` es solo para desarrollo (Postgres con el puerto abierto). Ambos ficheros

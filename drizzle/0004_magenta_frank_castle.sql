@@ -1,0 +1,1 @@
+ALTER TABLE "episode" ADD COLUMN "source_removed" boolean DEFAULT false NOT NULL;

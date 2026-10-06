@@ -44,9 +44,11 @@ services:
       X264_PRESET: ${X264_PRESET:-medium}
       X264_CRF: ${X264_CRF:-20}
       ALLOW_SIGNUP: ${ALLOW_SIGNUP:-true}
+      DELETE_SOURCES: ${DELETE_SOURCES:-false}
       TZ: ${TZ:-Europe/Madrid}
     volumes:
-      - ${HOST_MEDIA_DIR:?HOST_MEDIA_DIR is required}:/media:ro
+      # Writable only so DELETE_SOURCES can remove converted originals.
+      - ${HOST_MEDIA_DIR:?HOST_MEDIA_DIR is required}:/media
       - ${HOST_DATA_DIR:?HOST_DATA_DIR is required}:/data
 
 volumes:

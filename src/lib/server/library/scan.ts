@@ -127,7 +127,11 @@ export interface ScanResult {
 	added: number;
 	changed: number;
 	missing: number;
+	/** Modified less than a minute ago (probably still being copied); picked up by a later scan. */
+	waiting: number;
 }
+
+const SETTLE_MS = 60_000;
 
 let scanning: Promise<ScanResult> | null = null;
 
@@ -138,7 +142,7 @@ export function scanLibrary() {
 }
 
 async function runScan(): Promise<ScanResult> {
-	const result: ScanResult = { series: 0, added: 0, changed: 0, missing: 0 };
+	const result: ScanResult = { series: 0, added: 0, changed: 0, missing: 0, waiting: 0 };
 	const seen: string[] = [];
 
 	const folders = (await readdir(mediaRoot, { withFileTypes: true }))
@@ -159,23 +163,53 @@ async function runScan(): Promise<ScanResult> {
 			.onConflictDoUpdate({ target: series.folder, set: { folder } })
 			.returning({ id: series.id });
 
-		const noise = noiseSegments(files);
-		const nextNumber = new Map<number, number>();
-		for (const file of files) {
-			const relative = path.relative(mediaRoot, file);
-			const parsed = parseEpisode(path.relative(path.join(mediaRoot, folder), file), noise);
-			const number = parsed.number ?? (nextNumber.get(parsed.season) ?? 0) + 1;
-			nextNumber.set(parsed.season, Math.max(number, nextNumber.get(parsed.season) ?? 0));
-			const info = await stat(file);
-			seen.push(relative);
+		const known = await db
+			.select({
+				id: episode.id,
+				sourcePath: episode.sourcePath,
+				size: episode.sourceSize,
+				mtime: episode.sourceMtime,
+				season: episode.season,
+				number: episode.number
+			})
+			.from(episode)
+			.where(eq(episode.seriesId, s.id));
+		const byPath = new Map(known.map((e) => [e.sourcePath, e]));
 
-			const [existing] = await db
-				.select({ id: episode.id, size: episode.sourceSize, mtime: episode.sourceMtime })
-				.from(episode)
-				.where(eq(episode.sourcePath, relative));
+		// Originals deleted after converting still count, so titles and numbering stay consistent.
+		const relativeFiles = files.map((f) => path.relative(mediaRoot, f));
+		const noise = noiseSegments([...new Set([...relativeFiles, ...byPath.keys()])]);
+		const lastNumber = new Map<number, number>();
+		for (const e of known)
+			lastNumber.set(e.season, Math.max(e.number, lastNumber.get(e.season) ?? 0));
+
+		for (const [i, file] of files.entries()) {
+			const relative = relativeFiles[i];
+			seen.push(relative);
+			const info = await stat(file);
+			if (Date.now() - info.mtime.getTime() < SETTLE_MS) {
+				result.waiting++;
+				continue;
+			}
+
+			const existing = byPath.get(relative);
+			const parsed = parseEpisode(path.relative(path.join(mediaRoot, folder), file), noise);
+			// Files without a number keep the one they got; new ones continue after the last.
+			const number =
+				parsed.number ??
+				(existing && existing.season === parsed.season
+					? existing.number
+					: (lastNumber.get(parsed.season) ?? 0) + 1);
+			lastNumber.set(parsed.season, Math.max(number, lastNumber.get(parsed.season) ?? 0));
 
 			// Naming is always re-derived so parser improvements apply to existing episodes too.
-			const naming = { season: parsed.season, number, title: parsed.title, missing: false };
+			const naming = {
+				season: parsed.season,
+				number,
+				title: parsed.title,
+				missing: false,
+				sourceRemoved: false
+			};
 
 			if (!existing) {
 				await db.insert(episode).values({
@@ -211,6 +245,7 @@ async function runScan(): Promise<ScanResult> {
 		.where(
 			and(
 				eq(episode.missing, false),
+				eq(episode.sourceRemoved, false),
 				seen.length ? notInArray(episode.sourcePath, seen) : sql`true`
 			)
 		)

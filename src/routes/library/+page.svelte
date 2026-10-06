@@ -6,6 +6,7 @@
 
 	let { data, form }: PageProps = $props();
 	let scanning = $state(false);
+	let confirmRemove = $state(false);
 
 	// Refresh while something is converting.
 	$effect(() => {
@@ -43,10 +44,49 @@
 			</button>
 		</form>
 	{/if}
+	{#if data.deleteSources && data.totals.removable}
+		{#if confirmRemove}
+			<form
+				method="post"
+				action="?/removeSources"
+				use:enhance={() => {
+					return async ({ update }) => {
+						confirmRemove = false;
+						await update();
+					};
+				}}
+				class="flex items-center gap-2"
+			>
+				<button class="rounded-md bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-500">
+					Sí, borrar {data.totals.removable} originales ({formatBytes(data.totals.removableBytes)})
+				</button>
+				<button
+					type="button"
+					class="rounded-md px-3 py-2 text-zinc-400 hover:text-white"
+					onclick={() => (confirmRemove = false)}>Cancelar</button
+				>
+			</form>
+		{:else}
+			<button
+				class="rounded-md border border-zinc-700 px-4 py-2 hover:bg-zinc-900"
+				onclick={() => (confirmRemove = true)}
+			>
+				Borrar originales ya convertidos
+			</button>
+		{/if}
+	{/if}
 	{#if form && 'scan' in form && form.scan}
 		<p class="text-sm text-zinc-400">
 			{form.scan.series} series · {form.scan.added} nuevos · {form.scan.changed} modificados ·
 			{form.scan.missing} desaparecidos
+			{#if form.scan.waiting}
+				<br />{form.scan.waiting} aún se están copiando: vuelve a escanear en un minuto.
+			{/if}
+		</p>
+	{:else if form && 'removed' in form && form.removed}
+		<p class="text-sm text-zinc-400">
+			{form.removed.removed} originales borrados{#if form.removed.skipped}
+				· {form.removed.skipped} no se tocaron (cambiaron o falta lo convertido){/if}
 		</p>
 	{:else if form && 'message' in form}
 		<p class="text-sm text-red-400">{form.message}</p>

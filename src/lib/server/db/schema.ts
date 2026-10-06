@@ -46,6 +46,8 @@ export const episode = pgTable(
 		sourceMtime: timestamp('source_mtime').notNull(),
 		/** Set when the source is missing from the last scan. */
 		missing: boolean('missing').notNull().default(false),
+		/** The original was deleted on purpose after converting (DELETE_SOURCES); not "missing". */
+		sourceRemoved: boolean('source_removed').notNull().default(false),
 		status: episodeStatus('status').notNull().default('pending'),
 		/** 0..1 while processing. */
 		progress: real('progress').notNull().default(0),
