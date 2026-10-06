@@ -1,0 +1,11 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/forms';
+
+@layer base {
+	html {
+		color-scheme: dark;
+	}
+	body {
+		@apply min-h-screen bg-zinc-950 text-zinc-100 antialiased;
+	}
+}

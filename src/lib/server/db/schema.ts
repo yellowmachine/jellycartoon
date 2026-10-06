@@ -1,0 +1,78 @@
+import {
+	bigint,
+	boolean,
+	index,
+	integer,
+	pgEnum,
+	pgTable,
+	primaryKey,
+	real,
+	serial,
+	text,
+	timestamp
+} from 'drizzle-orm/pg-core';
+import { user } from './auth.schema';
+
+export const series = pgTable('series', {
+	id: serial('id').primaryKey(),
+	/** Folder name inside MEDIA_DIR. */
+	folder: text('folder').notNull().unique(),
+	title: text('title').notNull(),
+	createdAt: timestamp('created_at').notNull().defaultNow()
+});
+
+export const episodeStatus = pgEnum('episode_status', ['pending', 'processing', 'ready', 'error']);
+
+export const episode = pgTable(
+	'episode',
+	{
+		id: serial('id').primaryKey(),
+		seriesId: integer('series_id')
+			.notNull()
+			.references(() => series.id, { onDelete: 'cascade' }),
+		season: integer('season').notNull(),
+		number: integer('number').notNull(),
+		title: text('title').notNull(),
+		/** Path relative to MEDIA_DIR. */
+		sourcePath: text('source_path').notNull().unique(),
+		sourceSize: bigint('source_size', { mode: 'number' }).notNull(),
+		sourceMtime: timestamp('source_mtime').notNull(),
+		/** Set when the source is missing from the last scan. */
+		missing: boolean('missing').notNull().default(false),
+		status: episodeStatus('status').notNull().default('pending'),
+		/** 0..1 while processing. */
+		progress: real('progress').notNull().default(0),
+		error: text('error'),
+		durationSec: real('duration_sec'),
+		outputSize: bigint('output_size', { mode: 'number' }),
+		updatedAt: timestamp('updated_at')
+			.notNull()
+			.defaultNow()
+			.$onUpdate(() => new Date())
+	},
+	(t) => [
+		index('episode_series_idx').on(t.seriesId, t.season, t.number),
+		index('episode_status_idx').on(t.status)
+	]
+);
+
+export const watchProgress = pgTable(
+	'watch_progress',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		episodeId: integer('episode_id')
+			.notNull()
+			.references(() => episode.id, { onDelete: 'cascade' }),
+		positionSec: real('position_sec').notNull(),
+		completed: boolean('completed').notNull().default(false),
+		updatedAt: timestamp('updated_at').notNull().defaultNow()
+	},
+	(t) => [
+		primaryKey({ columns: [t.userId, t.episodeId] }),
+		index('watch_progress_user_idx').on(t.userId, t.updatedAt)
+	]
+);
+
+export * from './auth.schema';

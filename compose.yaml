@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:5432:5432
+    environment:
+      POSTGRES_USER: jellycartoon
+      POSTGRES_PASSWORD: jellycartoon
+      POSTGRES_DB: jellycartoon
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U jellycartoon']
+      interval: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    profiles: [app]
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - 3000:3000
+    environment:
+      DATABASE_URL: postgres://jellycartoon:jellycartoon@db:5432/jellycartoon
+      ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
+      MEDIA_DIR: /media
+      DATA_DIR: /data
+      AUDIO_LANG: ${AUDIO_LANG:-spa}
+      X264_PRESET: ${X264_PRESET:-medium}
+      X264_CRF: ${X264_CRF:-20}
+      ALLOW_SIGNUP: ${ALLOW_SIGNUP:-true}
+    volumes:
+      - ${HOST_MEDIA_DIR:-./media}:/media:ro
+      - ${HOST_DATA_DIR:-./data}:/data
+
+volumes:
+  pgdata:

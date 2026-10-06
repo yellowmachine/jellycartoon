@@ -1,0 +1,43 @@
+<script lang="ts">
+	import './layout.css';
+	import favicon from '#lib/assets/favicon.svg';
+	import { page } from '$app/state';
+	import type { LayoutProps } from './$types';
+
+	let { children, data }: LayoutProps = $props();
+
+	const links = [
+		{ href: '/', label: 'Catálogo' },
+		{ href: '/library', label: 'Biblioteca' }
+	];
+</script>
+
+<svelte:head>
+	<link rel="icon" href={favicon} />
+	<title>JellyCartoon</title>
+</svelte:head>
+
+{#if data.user}
+	<header class="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur">
+		<nav class="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3">
+			<a href="/" class="text-lg font-bold text-amber-400">JellyCartoon</a>
+			{#each links as link (link.href)}
+				<a
+					href={link.href}
+					class={[
+						'text-sm hover:text-white',
+						page.url.pathname === link.href ? 'text-white' : 'text-zinc-400'
+					]}>{link.label}</a
+				>
+			{/each}
+			<form method="post" action="/logout" class="ml-auto flex items-center gap-3">
+				<span class="text-sm text-zinc-400">{data.user.name}</span>
+				<button class="text-sm text-zinc-400 hover:text-white">Salir</button>
+			</form>
+		</nav>
+	</header>
+{/if}
+
+<main class="mx-auto max-w-6xl px-4 py-6">
+	{@render children()}
+</main>

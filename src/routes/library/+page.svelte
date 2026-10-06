@@ -1,0 +1,89 @@
+<script lang="ts">
+	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
+	import { formatBytes } from '#lib/format.ts';
+	import type { PageProps } from './$types';
+
+	let { data, form }: PageProps = $props();
+	let scanning = $state(false);
+
+	// Refresh while something is converting.
+	$effect(() => {
+		if (data.totals.pending === 0 && !data.active.some((e) => e.status === 'processing')) return;
+		const timer = setInterval(invalidateAll, 3000);
+		return () => clearInterval(timer);
+	});
+</script>
+
+<h1 class="mb-6 text-2xl font-bold">Biblioteca</h1>
+
+<div class="mb-6 flex flex-wrap items-center gap-3">
+	<form
+		method="post"
+		action="?/scan"
+		use:enhance={() => {
+			scanning = true;
+			return async ({ update }) => {
+				await update();
+				scanning = false;
+			};
+		}}
+	>
+		<button
+			disabled={scanning}
+			class="rounded-md bg-amber-500 px-4 py-2 font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
+		>
+			{scanning ? 'Escaneando…' : 'Escanear carpeta'}
+		</button>
+	</form>
+	{#if data.totals.errors}
+		<form method="post" action="?/retry" use:enhance>
+			<button class="rounded-md border border-zinc-700 px-4 py-2 hover:bg-zinc-900">
+				Reintentar errores
+			</button>
+		</form>
+	{/if}
+	{#if form && 'scan' in form && form.scan}
+		<p class="text-sm text-zinc-400">
+			{form.scan.series} series · {form.scan.added} nuevos · {form.scan.changed} modificados ·
+			{form.scan.missing} desaparecidos
+		</p>
+	{:else if form && 'message' in form}
+		<p class="text-sm text-red-400">{form.message}</p>
+	{/if}
+</div>
+
+<dl class="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+	{#each [['Episodios', data.totals.total], ['Listos', data.totals.ready], ['En cola', data.totals.pending], ['Errores', data.totals.errors]] as [label, value] (label)}
+		<div class="rounded-md border border-zinc-800 p-3">
+			<dt class="text-xs text-zinc-400">{label}</dt>
+			<dd class="text-2xl font-semibold">{value}</dd>
+		</div>
+	{/each}
+	<div class="col-span-2 rounded-md border border-zinc-800 p-3">
+		<dt class="text-xs text-zinc-400">Originales</dt>
+		<dd class="text-lg">{formatBytes(data.totals.sourceBytes)}</dd>
+	</div>
+	<div class="col-span-2 rounded-md border border-zinc-800 p-3">
+		<dt class="text-xs text-zinc-400">Convertidos</dt>
+		<dd class="text-lg">{formatBytes(data.totals.outputBytes)}</dd>
+	</div>
+</dl>
+
+{#if data.active.length}
+	<ul class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
+		{#each data.active as ep (ep.id)}
+			<li class="p-3 text-sm">
+				<p class="truncate">{ep.sourcePath}</p>
+				{#if ep.status === 'processing'}
+					<div class="mt-2 h-1.5 rounded bg-zinc-800">
+						<div class="h-full rounded bg-amber-400" style:width="{ep.progress * 100}%"></div>
+					</div>
+				{:else}
+					<pre
+						class="mt-2 max-h-32 overflow-auto text-xs whitespace-pre-wrap text-red-400">{ep.error}</pre>
+				{/if}
+			</li>
+		{/each}
+	</ul>
+{/if}
