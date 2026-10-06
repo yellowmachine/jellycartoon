@@ -39,6 +39,7 @@
 	</header>
 {/if}
 
-<main class="mx-auto max-w-6xl px-4 py-6">
+<!-- overflow-x-clip: the "cinema" player is 100vw wide, which includes the scrollbar. -->
+<main class="mx-auto max-w-6xl overflow-x-clip px-4 py-6">
 	{@render children()}
 </main>

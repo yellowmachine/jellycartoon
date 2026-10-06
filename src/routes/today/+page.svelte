@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import Player from '#lib/components/Player.svelte';
+	import { playerSize } from '#lib/player-size.svelte.ts';
 	import { formatDuration } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
@@ -48,7 +49,8 @@
 		{#if remainingSec && remainingSec < totalSec}· quedan {formatDuration(remainingSec)}{/if}
 	</p>
 
-	<div class="grid gap-6 lg:grid-cols-[1fr_20rem]">
+	<!-- In "cinema" the video takes the full width and the list goes below it. -->
+	<div class={['grid gap-6', playerSize.value !== 'cinema' && 'lg:grid-cols-[1fr_20rem]']}>
 		<div>
 			{#if item}
 				<Player

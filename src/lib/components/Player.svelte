@@ -1,11 +1,18 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import type Hls from 'hls.js';
 	import '@fontsource/atkinson-hyperlegible/400.css';
 	import '@fontsource/comic-neue/400.css';
 	import { normalizeLang, type AudioTrack, type SubtitleTrack } from '#lib/languages.ts';
 	import { subtitleCss, type SubtitleStyle } from '#lib/subtitle-style.ts';
 	import SubtitleStylePanel from './SubtitleStylePanel.svelte';
+	import {
+		PLAYER_SIZES,
+		loadPlayerSize,
+		playerSize,
+		setPlayerSize,
+		type PlayerSize
+	} from '#lib/player-size.svelte.ts';
 
 	interface Props {
 		episodeId: number;
@@ -55,6 +62,48 @@
 	let subtitleIndex = $derived(pick(subtitles, subtitleLang));
 
 	const src = $derived(`/api/hls/${episodeId}/master.m3u8`);
+
+	let wrapper = $state<HTMLDivElement>();
+
+	async function chooseSize(size: PlayerSize) {
+		setPlayerSize(size);
+		if (size !== 'cinema' || !wrapper) return;
+		// The video is as tall as the window minus the header: line it up right below it.
+		await tick();
+		const header = document.querySelector('header')?.offsetHeight ?? 0;
+		window.scrollTo({ top: wrapper.getBoundingClientRect().top + window.scrollY - header });
+	}
+
+	let pipSupported = $state(false);
+	let inPip = $state(false);
+
+	onMount(() => {
+		loadPlayerSize();
+		pipSupported = 'pictureInPictureEnabled' in document && document.pictureInPictureEnabled;
+	});
+
+	$effect(() => {
+		const el = video;
+		if (!el) return;
+		const enter = () => (inPip = true);
+		const leave = () => (inPip = false);
+		el.addEventListener('enterpictureinpicture', enter);
+		el.addEventListener('leavepictureinpicture', leave);
+		return () => {
+			el.removeEventListener('enterpictureinpicture', enter);
+			el.removeEventListener('leavepictureinpicture', leave);
+		};
+	});
+
+	async function togglePip() {
+		if (!video) return;
+		try {
+			if (document.pictureInPictureElement) await document.exitPictureInPicture();
+			else await video.requestPictureInPicture();
+		} catch (error) {
+			console.warn('[player] picture-in-picture', error);
+		}
+	}
 
 	$effect(() => {
 		const el = video;
@@ -200,78 +249,114 @@
 	{@html cueStylesheet}
 </svelte:head>
 
-{#key episodeId}
-	<!-- svelte-ignore a11y_media_has_caption -->
-	<video
-		bind:this={video}
-		poster="/api/thumb/{episodeId}"
-		controls
-		crossorigin="anonymous"
-		class="jc-video aspect-video w-full rounded-md bg-black"
-		ontimeupdate={onTimeUpdate}
-		onpause={save}
-		onseeked={save}
-		onended={onEnded}
-	>
-		{#each subtitles as sub, i (sub.file)}
-			<track
-				kind="subtitles"
-				src="/api/hls/{episodeId}/{sub.file}"
-				srclang={sub.lang}
-				label={sub.label}
-				default={i === subtitleIndex}
-			/>
-		{/each}
-	</video>
-{/key}
+<div
+	bind:this={wrapper}
+	class={[
+		playerSize.value === 'small' && 'mx-auto max-w-2xl',
+		// Breaks out of the page container to the full window width, without needing fullscreen.
+		playerSize.value === 'cinema' && 'relative left-1/2 w-screen -translate-x-1/2 bg-black'
+	]}
+>
+	{#key episodeId}
+		<!-- svelte-ignore a11y_media_has_caption -->
+		<video
+			bind:this={video}
+			poster="/api/thumb/{episodeId}"
+			controls
+			crossorigin="anonymous"
+			class={[
+				'jc-video w-full bg-black',
+				playerSize.value === 'cinema'
+					? 'mx-auto block max-h-[calc(100dvh-3.5rem)]'
+					: 'aspect-video rounded-md'
+			]}
+			ontimeupdate={onTimeUpdate}
+			onpause={save}
+			onseeked={save}
+			onended={onEnded}
+		>
+			{#each subtitles as sub, i (sub.file)}
+				<track
+					kind="subtitles"
+					src="/api/hls/{episodeId}/{sub.file}"
+					srclang={sub.lang}
+					label={sub.label}
+					default={i === subtitleIndex}
+				/>
+			{/each}
+		</video>
+	{/key}
+</div>
 
-{#if audioTracks.length > 1 || subtitles.length}
-	<div class="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-		{#if audioTracks.length > 1}
-			<div class="flex items-center gap-1">
-				<span class="mr-1 text-zinc-400">Audio</span>
-				{#each audioTracks as track, i (i)}
-					<button
-						class={[
-							'rounded px-2 py-0.5',
-							i === audioIndex ? 'bg-amber-500 text-zinc-950' : 'text-zinc-300 hover:bg-zinc-800'
-						]}
-						onclick={() => chooseAudio(i)}>{track.label}</button
-					>
-				{/each}
-			</div>
+<div class="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+	<div class="flex items-center gap-1">
+		<span class="mr-1 text-zinc-400">Tamaño</span>
+		{#each PLAYER_SIZES as size (size.value)}
+			<button
+				class={[
+					'rounded px-2 py-0.5',
+					playerSize.value === size.value
+						? 'bg-amber-500 text-zinc-950'
+						: 'text-zinc-300 hover:bg-zinc-800'
+				]}
+				onclick={() => chooseSize(size.value)}>{size.label}</button
+			>
+		{/each}
+		{#if pipSupported}
+			<button
+				class={[
+					'ml-2 rounded px-2 py-0.5',
+					inPip ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:bg-zinc-800'
+				]}
+				title="Sacar el vídeo a una ventana flotante"
+				onclick={togglePip}>⧉ Flotante</button
+			>
 		{/if}
-		{#if subtitles.length}
-			<div class="flex items-center gap-1">
-				<span class="mr-1 text-zinc-400">Subtítulos</span>
+	</div>
+	{#if audioTracks.length > 1}
+		<div class="flex items-center gap-1">
+			<span class="mr-1 text-zinc-400">Audio</span>
+			{#each audioTracks as track, i (i)}
 				<button
 					class={[
 						'rounded px-2 py-0.5',
-						subtitleIndex < 0 ? 'bg-amber-500 text-zinc-950' : 'text-zinc-300 hover:bg-zinc-800'
+						i === audioIndex ? 'bg-amber-500 text-zinc-950' : 'text-zinc-300 hover:bg-zinc-800'
 					]}
-					onclick={() => chooseSubtitle(-1)}>No</button
+					onclick={() => chooseAudio(i)}>{track.label}</button
 				>
-				{#each subtitles as sub, i (sub.file)}
-					<button
-						class={[
-							'rounded px-2 py-0.5',
-							i === subtitleIndex ? 'bg-amber-500 text-zinc-950' : 'text-zinc-300 hover:bg-zinc-800'
-						]}
-						onclick={() => chooseSubtitle(i)}>{sub.label}</button
-					>
-				{/each}
+			{/each}
+		</div>
+	{/if}
+	{#if subtitles.length}
+		<div class="flex items-center gap-1">
+			<span class="mr-1 text-zinc-400">Subtítulos</span>
+			<button
+				class={[
+					'rounded px-2 py-0.5',
+					subtitleIndex < 0 ? 'bg-amber-500 text-zinc-950' : 'text-zinc-300 hover:bg-zinc-800'
+				]}
+				onclick={() => chooseSubtitle(-1)}>No</button
+			>
+			{#each subtitles as sub, i (sub.file)}
 				<button
 					class={[
-						'ml-2 rounded px-2 py-0.5',
-						showStylePanel ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:bg-zinc-800'
+						'rounded px-2 py-0.5',
+						i === subtitleIndex ? 'bg-amber-500 text-zinc-950' : 'text-zinc-300 hover:bg-zinc-800'
 					]}
-					aria-expanded={showStylePanel}
-					onclick={() => (showStylePanel = !showStylePanel)}>⚙ Estilo</button
+					onclick={() => chooseSubtitle(i)}>{sub.label}</button
 				>
-			</div>
-		{/if}
-	</div>
-{/if}
+			{/each}
+			<button
+				class={[
+					'ml-2 rounded px-2 py-0.5',
+					showStylePanel ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:bg-zinc-800'
+				]}
+				aria-expanded={showStylePanel}
+				onclick={() => (showStylePanel = !showStylePanel)}>⚙ Estilo</button
+			>
+		</div>
+	{/if}
+</div>
 
 {#if showStylePanel && subtitles.length}
 	<SubtitleStylePanel
