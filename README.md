@@ -36,9 +36,9 @@ Los originales nunca se modifican (en Docker se montan en solo lectura).
 
 ```
 media/
-  Dexter's lab/
-    Temporada 2/
-      Conference [KXyRzBhm4Jw].webm
+  Superman (1941)/
+    Temporada 1/
+      S01E01 - The Mad Scientist.mp4
   Otra serie/
     Otra serie S01E01 - Piloto.mkv
 ```

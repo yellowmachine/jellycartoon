@@ -39,7 +39,7 @@
 			style:background={css.background}
 			style:text-shadow={css.textShadow}
 		>
-			Hello, Dee Dee! ¿Qué estás haciendo?
+			Look out below! ¿Qué estás haciendo?
 		</span>
 	</div>
 
