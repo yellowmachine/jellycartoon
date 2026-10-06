@@ -70,6 +70,12 @@ formularios): si lo cambias, vuelve a lanzar el comando con `--build`. Entra sie
 
 Cuando hayas creado tu cuenta, pon `ALLOW_SIGNUP=false`. La fecha de "hoy" usa `TZ` (por defecto `Europe/Madrid`).
 
+## Imagen en GitHub
+
+Cada push a `main` construye la imagen y la publica en `ghcr.io/yellowmachine/jellycartoon`
+(etiquetas `latest` y `sha-<commit>`), mediante `.github/workflows/docker.yml`. Usa la variable de
+repositorio `APP_ORIGIN` (Settings → Secrets and variables → Actions → Variables) como origen.
+
 ## Pendiente
 
 - Control remoto (dispositivos + comandos play/pause/seek por SSE).
