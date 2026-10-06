@@ -29,39 +29,83 @@ interface ParsedEpisode {
 	title: string;
 }
 
+/** yt-dlp turns `|` and `:` into their full-width forms; titles look like `Episode | Show | Channel`. */
+const SEGMENT_SEPARATOR = /\s*[|｜：]\s*/;
+
+const baseName = (file: string) =>
+	path
+		.basename(file, path.extname(file))
+		// yt-dlp appends `[videoId]`.
+		.replace(/\[[^\]]*\]/g, '');
+
+const normalize = (segment: string) => cleanTitle(segment).toLowerCase();
+
 /**
- * Accepts `S01E02`, `1x02` or a `Temporada 1` / `Season 1` folder plus the first number in the
- * filename. Anything else ends up in season 1, numbered by file order.
+ * Title segments repeated across many files of a series (the show's name, the channel,
+ * "FULL EPISODE"…) are noise, not episode titles.
  */
-export function parseEpisode(relativeToSeries: string): ParsedEpisode {
-	const name = path
-		.basename(relativeToSeries, path.extname(relativeToSeries))
-		// yt-dlp appends `[videoId]`, and YouTube titles look like `Episode | Show | Channel`.
-		.replace(/\[[^\]]*\]/g, '')
-		.split(/\s[|｜]\s/)[0];
+export function noiseSegments(files: string[]) {
+	const counts = new Map<string, number>();
+	for (const file of files) {
+		const title = baseName(file)
+			// Only the title part counts, not the `S01E07 - ` / `07 - ` prefix.
+			.replace(/^.*?(?:s\d{1,2}\s*e\d{1,3}|\b\d{1,2}x\d{1,3}\b)/i, '')
+			.replace(/^\s*\d{1,3}\b/, '');
+		const segments = new Set(title.split(SEGMENT_SEPARATOR).map(normalize));
+		for (const segment of segments) counts.set(segment, (counts.get(segment) ?? 0) + 1);
+	}
+	const threshold = Math.max(3, files.length * 0.3);
+	return new Set([...counts].filter(([, count]) => count >= threshold).map(([segment]) => segment));
+}
+
+function pickTitle(raw: string, noise: Set<string>) {
+	const segments = raw.split(SEGMENT_SEPARATOR).map(cleanTitle).filter(Boolean);
+	return segments.find((s) => !noise.has(s.toLowerCase())) ?? segments[0] ?? '';
+}
+
+/**
+ * Accepts `S01E02` or `1x02` anywhere in the name. Otherwise the season comes from a
+ * `Temporada 1` / `Season 1` folder and the episode from a leading number (`03 - Title`);
+ * files without one are numbered by file order.
+ */
+export function parseEpisode(relativeToSeries: string, noise = new Set<string>()): ParsedEpisode {
+	const name = baseName(relativeToSeries);
 	const dirs = path.dirname(relativeToSeries);
 
 	const sxe = name.match(/s(\d{1,2})\s*e(\d{1,3})/i) ?? name.match(/\b(\d{1,2})x(\d{1,3})\b/i);
 	if (sxe) {
+		const number = Number(sxe[2]);
 		return {
 			season: Number(sxe[1]),
-			number: Number(sxe[2]),
-			title: cleanTitle(name.slice(sxe.index! + sxe[0].length)) || `Episodio ${Number(sxe[2])}`
+			number,
+			title: pickTitle(name.slice(sxe.index! + sxe[0].length), noise) || `Episodio ${number}`
 		};
 	}
 
-	const seasonDir = dirs.match(/(?:temporada|season|t|s)\s*(\d{1,2})/i);
-	const num = name.match(/(\d{1,3})/);
+	const seasonDir = dirs.match(/\b(?:temporada|season|t|s)\s*(\d{1,2})\b/i);
+	const leading = name.match(/^\s*(\d{1,3})\b/);
 	return {
 		season: seasonDir ? Number(seasonDir[1]) : 1,
-		number: num ? Number(num[1]) : null,
-		title: cleanTitle(num ? name.slice(num.index! + num[0].length) : name) || cleanTitle(name)
+		number: leading ? Number(leading[1]) : null,
+		title: pickTitle(leading ? name.slice(leading[0].length) : name, noise) || cleanTitle(name)
 	};
 }
 
+/** Characters yt-dlp replaces because they are not allowed in file names. */
+const FULL_WIDTH: Record<string, string> = {
+	'？': '?',
+	'＂': '"',
+	'⧸': '/',
+	'＊': '*',
+	'＜': '<',
+	'＞': '>'
+};
+
 function cleanTitle(raw: string) {
 	return raw
-		.replace(/[._]+/g, ' ')
+		.replace(/[？＂⧸＊＜＞]/g, (c) => FULL_WIDTH[c])
+		.replace(/_+|\.(?=\S)/g, ' ')
+		.replace(/\s+/g, ' ')
 		.replace(/^[\s\-–:]+|[\s\-–:]+$/g, '')
 		.trim();
 }
@@ -115,10 +159,11 @@ async function runScan(): Promise<ScanResult> {
 			.onConflictDoUpdate({ target: series.folder, set: { folder } })
 			.returning({ id: series.id });
 
+		const noise = noiseSegments(files);
 		const nextNumber = new Map<number, number>();
 		for (const file of files) {
 			const relative = path.relative(mediaRoot, file);
-			const parsed = parseEpisode(path.relative(path.join(mediaRoot, folder), file));
+			const parsed = parseEpisode(path.relative(path.join(mediaRoot, folder), file), noise);
 			const number = parsed.number ?? (nextNumber.get(parsed.season) ?? 0) + 1;
 			nextNumber.set(parsed.season, Math.max(number, nextNumber.get(parsed.season) ?? 0));
 			const info = await stat(file);
@@ -129,12 +174,13 @@ async function runScan(): Promise<ScanResult> {
 				.from(episode)
 				.where(eq(episode.sourcePath, relative));
 
+			// Naming is always re-derived so parser improvements apply to existing episodes too.
+			const naming = { season: parsed.season, number, title: parsed.title, missing: false };
+
 			if (!existing) {
 				await db.insert(episode).values({
+					...naming,
 					seriesId: s.id,
-					season: parsed.season,
-					number,
-					title: parsed.title,
 					sourcePath: relative,
 					sourceSize: info.size,
 					sourceMtime: info.mtime
@@ -144,9 +190,9 @@ async function runScan(): Promise<ScanResult> {
 				await db
 					.update(episode)
 					.set({
+						...naming,
 						sourceSize: info.size,
 						sourceMtime: info.mtime,
-						missing: false,
 						status: 'pending',
 						progress: 0,
 						error: null
@@ -154,7 +200,7 @@ async function runScan(): Promise<ScanResult> {
 					.where(eq(episode.id, existing.id));
 				result.changed++;
 			} else {
-				await db.update(episode).set({ missing: false }).where(eq(episode.id, existing.id));
+				await db.update(episode).set(naming).where(eq(episode.id, existing.id));
 			}
 		}
 	}
