@@ -1,0 +1,53 @@
+# Production: runs the image built by GitHub Actions (ghcr.io). Only this file and a .env are
+# needed on the server.
+#
+#   docker compose -f compose.prod.yaml pull
+#   docker compose -f compose.prod.yaml up -d
+#
+# Same project name as compose.yaml, so both use the same database volume.
+name: jellycartoon
+
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jellycartoon
+      # Not exposed outside the compose network. Only applied when the volume is first created.
+      POSTGRES_PASSWORD: jellycartoon
+      POSTGRES_DB: jellycartoon
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U jellycartoon']
+      interval: 5s
+      retries: 10
+
+  app:
+    image: ghcr.io/yellowmachine/jellycartoon:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    # Files in DATA_DIR belong to this user instead of root.
+    user: '${PUID:-1000}:${PGID:-1000}'
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - 3000:3000
+    environment:
+      DATABASE_URL: postgres://jellycartoon:jellycartoon@db:5432/jellycartoon
+      # Must match the APP_ORIGIN the image was built with (GitHub repository variable).
+      ORIGIN: ${APP_ORIGIN:?APP_ORIGIN is required}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
+      MEDIA_DIR: /media
+      DATA_DIR: /data
+      AUDIO_LANG: ${AUDIO_LANG:-spa}
+      X264_PRESET: ${X264_PRESET:-medium}
+      X264_CRF: ${X264_CRF:-20}
+      ALLOW_SIGNUP: ${ALLOW_SIGNUP:-true}
+      TZ: ${TZ:-Europe/Madrid}
+    volumes:
+      - ${HOST_MEDIA_DIR:?HOST_MEDIA_DIR is required}:/media:ro
+      - ${HOST_DATA_DIR:?HOST_DATA_DIR is required}:/data
+
+volumes:
+  pgdata:

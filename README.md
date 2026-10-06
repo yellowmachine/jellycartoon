@@ -56,25 +56,35 @@ Al cambiar el esquema: `bun run db:generate` crea la migración en `drizzle/` y 
 la aplica (también lo hacen `bun run dev` y el contenedor antes de arrancar la app). Tests: `bun run test`.
 Necesitas `ffmpeg` y `ffprobe` en el PATH.
 
-## Producción (todo en Docker)
+## Producción
 
-En `.env`: `APP_ORIGIN=http://<ip-del-servidor>:3000`, `HOST_MEDIA_DIR` (tus vídeos) y
-`HOST_DATA_DIR` (dónde guardar los convertidos), y luego:
+Usa la imagen que construye GitHub Actions en cada push a `main`
+(`ghcr.io/yellowmachine/jellycartoon`, etiquetas `latest` y `sha-<commit>`). En el servidor solo
+hacen falta `compose.prod.yaml` y un `.env` con:
 
 ```sh
-docker compose --profile app up -d --build
+APP_ORIGIN="http://<ip-del-servidor>:3000"   # el mismo que la variable APP_ORIGIN del repo
+BETTER_AUTH_SECRET="..."                     # openssl rand -base64 32
+HOST_MEDIA_DIR="/ruta/a/los/videos"
+HOST_DATA_DIR="/ruta/a/los/convertidos"
 ```
 
-`APP_ORIGIN` se fija al construir la imagen (SvelteKit lo usa para la protección CSRF de los
-formularios): si lo cambias, vuelve a lanzar el comando con `--build`. Entra siempre por esa URL.
+```sh
+docker compose -f compose.prod.yaml pull     # descarga la última imagen
+docker compose -f compose.prod.yaml up -d    # arranca o actualiza
+docker compose -f compose.prod.yaml logs -f app
+```
 
-Cuando hayas creado tu cuenta, pon `ALLOW_SIGNUP=false`. La fecha de "hoy" usa `TZ` (por defecto `Europe/Madrid`).
-
-## Imagen en GitHub
-
-Cada push a `main` construye la imagen y la publica en `ghcr.io/yellowmachine/jellycartoon`
-(etiquetas `latest` y `sha-<commit>`), mediante `.github/workflows/docker.yml`. Usa la variable de
-repositorio `APP_ORIGIN` (Settings → Secrets and variables → Actions → Variables) como origen.
+- **`APP_ORIGIN` va grabado en la imagen** (SvelteKit lo usa para la protección CSRF de los
+  formularios). Se toma de la variable de repositorio `APP_ORIGIN` (Settings → Secrets and
+  variables → Actions → Variables). Si cambia, actualízala allí, lanza la action y ajusta el `.env`.
+  Entra siempre por esa URL.
+- La app corre como `PUID:PGID` (por defecto `1000:1000`), que es el dueño de `HOST_DATA_DIR`.
+- Para fijar una versión concreta: `IMAGE_TAG=sha-abc1234` en el `.env`.
+- Cuando estén creadas las cuentas, pon `ALLOW_SIGNUP=false`. "Hoy" usa `TZ` (por defecto
+  `Europe/Madrid`).
+- `compose.yaml` es solo para desarrollo (Postgres con el puerto abierto). Ambos ficheros
+  comparten la base de datos; usa uno u otro, no los dos a la vez.
 
 ## Pendiente
 
