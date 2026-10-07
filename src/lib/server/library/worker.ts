@@ -14,7 +14,7 @@ import {
 	transcodeHls,
 	type Probe
 } from './ffmpeg.ts';
-import { hlsDir, legacyVideoFile, sourceFile, thumbFile } from './paths.ts';
+import { hlsDir, legacyVideoFile, removeEpisodeOutput, sourceFile, thumbFile } from './paths.ts';
 import { removeSource, sidecarSubtitles } from './sources.ts';
 
 export type WorkerState = (typeof worker.$inferSelect)['state'];
@@ -68,6 +68,11 @@ export async function restartCurrent() {
 	if (!current) return;
 	await moveToFront(current.id);
 	current.abort.abort();
+}
+
+/** Cancels the conversion in progress if it is one of these episodes (e.g. they were deleted). */
+export function cancelEpisodes(ids: number[]) {
+	if (current && ids.includes(current.id)) current.abort.abort();
 }
 
 /** The episode is converted next, after the current one. */
@@ -220,7 +225,7 @@ async function processNext() {
 		await thumbnail(input, thumbFile(job.id), info, duration * 0.15, signal);
 
 		const size = await directorySize(output);
-		await db
+		const [updated] = await db
 			.update(episode)
 			.set({
 				status: 'ready',
@@ -231,7 +236,13 @@ async function processNext() {
 				audioTracks,
 				subtitles
 			})
-			.where(eq(episode.id, job.id));
+			.where(eq(episode.id, job.id))
+			.returning({ id: episode.id });
+		if (!updated) {
+			// The series was deleted while converting.
+			await removeEpisodeOutput(job.id);
+			return true;
+		}
 		console.log(
 			`[worker] #${job.id} listo (${(size / 1e6).toFixed(1)} MB, audio: ${audioTracks.map((t) => t.lang).join('/') || '—'}, subtítulos: ${subtitles.map((t) => t.lang).join('/') || '—'})`
 		);
@@ -240,10 +251,13 @@ async function processNext() {
 		await rm(partial, { recursive: true, force: true });
 		if (signal.aborted) {
 			// Stopped or restarted from the library page: back to the queue, not an error.
-			await db
+			const [requeued] = await db
 				.update(episode)
 				.set({ status: 'pending', progress: 0 })
-				.where(eq(episode.id, job.id));
+				.where(eq(episode.id, job.id))
+				.returning({ id: episode.id });
+			// Gone means its series was deleted: drop whatever was already written.
+			if (!requeued) await removeEpisodeOutput(job.id);
 			console.log(`[worker] #${job.id} cancelado`);
 		} else {
 			await db

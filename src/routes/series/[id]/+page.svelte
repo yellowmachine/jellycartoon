@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { formatDuration } from '#lib/format.ts';
+	import { formatBytes, formatDuration } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
+	let confirmDelete = $state(false);
 </script>
 
 <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
@@ -78,3 +79,31 @@
 		{/each}
 	</ul>
 {/each}
+
+<section class="mt-10 border-t border-zinc-800 pt-6">
+	{#if confirmDelete}
+		<p class="mb-3 text-sm text-zinc-400">
+			Se borran {data.stored.episodes} episodios convertidos ({formatBytes(
+				data.stored.outputBytes
+			)}) y el progreso de visionado. Los originales no se tocan: si siguen en la carpeta de medios,
+			la serie volverá en el próximo escaneo.
+		</p>
+		<form method="post" action="?/delete" use:enhance class="flex items-center gap-2">
+			<button class="rounded-md bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-500">
+				Sí, borrar la serie
+			</button>
+			<button
+				type="button"
+				class="rounded-md px-3 py-2 text-zinc-400 hover:text-white"
+				onclick={() => (confirmDelete = false)}>Cancelar</button
+			>
+		</form>
+	{:else}
+		<button
+			class="rounded-md border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900"
+			onclick={() => (confirmDelete = true)}
+		>
+			Borrar serie
+		</button>
+	{/if}
+</section>

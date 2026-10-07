@@ -1,8 +1,9 @@
-import { error } from '@sveltejs/kit';
-import { and, asc, eq } from 'drizzle-orm';
+import { error, redirect } from '@sveltejs/kit';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { episode, series, watchProgress } from '#lib/server/db/schema.ts';
+import { deleteSeries } from '#lib/server/library/delete-series.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const id = Number(params.id);
@@ -29,11 +30,28 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		.where(and(eq(episode.seriesId, id), eq(episode.missing, false)))
 		.orderBy(asc(episode.season), asc(episode.number));
 
+	// What deleting the series frees up (missing episodes included: their files are there too).
+	const [stored] = await db
+		.select({
+			episodes: sql<number>`count(*)::int`,
+			outputBytes: sql<number>`coalesce(sum(${episode.outputSize}), 0)::bigint`
+		})
+		.from(episode)
+		.where(eq(episode.seriesId, id));
+
 	const seasons = Map.groupBy(episodes, (e) => e.season);
-	return { series: s, seasons: [...seasons].map(([season, episodes]) => ({ season, episodes })) };
+	return {
+		series: s,
+		stored: { episodes: stored.episodes, outputBytes: Number(stored.outputBytes) },
+		seasons: [...seasons].map(([season, episodes]) => ({ season, episodes }))
+	};
 };
 
 export const actions: Actions = {
+	delete: async ({ params }) => {
+		await deleteSeries(Number(params.id));
+		redirect(303, '/');
+	},
 	serialized: async ({ params, request }) => {
 		const value = (await request.formData()).get('serialized') === 'true';
 		await db
