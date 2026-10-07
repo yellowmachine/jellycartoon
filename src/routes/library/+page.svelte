@@ -8,6 +8,30 @@
 	let scanning = $state(false);
 	let confirmRemove = $state(false);
 
+	const STATE_LABELS = { running: 'En marcha', paused: 'En pausa', stopped: 'Parada' };
+
+	/** Series filter for the queue; the number shown is still the position in the whole queue. */
+	let queueSeries = $state<number | null>(null);
+	const queueSeriesOptions = $derived.by(() => {
+		const counts = new Map<number, { title: string; count: number }>();
+		for (const ep of data.queue) {
+			const entry = counts.get(ep.seriesId) ?? { title: ep.seriesTitle, count: 0 };
+			entry.count++;
+			counts.set(ep.seriesId, entry);
+		}
+		return [...counts].sort(([, a], [, b]) => a.title.localeCompare(b.title));
+	});
+	// Once the chosen series is fully converted it leaves the queue: show everything again.
+	$effect(() => {
+		if (queueSeries !== null && !queueSeriesOptions.some(([id]) => id === queueSeries))
+			queueSeries = null;
+	});
+	const visibleQueue = $derived(
+		data.queue
+			.map((ep, i) => ({ ...ep, position: i + 1 }))
+			.filter((ep) => queueSeries === null || ep.seriesId === queueSeries)
+	);
+
 	// Refresh while something is converting.
 	$effect(() => {
 		if (data.totals.pending === 0 && !data.active.some((e) => e.status === 'processing')) return;
@@ -15,6 +39,14 @@
 		return () => clearInterval(timer);
 	});
 </script>
+
+{#snippet workerButton(action: string, label: string)}
+	<form method="post" action="?/{action}" use:enhance>
+		<button class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900">
+			{label}
+		</button>
+	</form>
+{/snippet}
 
 <h1 class="mb-6 text-2xl font-bold">Biblioteca</h1>
 
@@ -110,11 +142,36 @@
 	</div>
 </dl>
 
+<section class="mb-6 flex flex-wrap items-center gap-3 rounded-md border border-zinc-800 p-3">
+	<p class="mr-auto text-sm">
+		Conversión:
+		<strong class:text-amber-400={data.worker.state !== 'running'}>
+			{STATE_LABELS[data.worker.state]}
+		</strong>
+	</p>
+	{#if data.worker.state === 'running'}
+		{@render workerButton('pause', 'Pausar')}
+	{:else}
+		{@render workerButton('resume', data.worker.state === 'paused' ? 'Reanudar' : 'Iniciar')}
+	{/if}
+	{#if data.worker.currentId !== null}
+		{@render workerButton('restart', 'Reiniciar episodio')}
+	{/if}
+	{#if data.worker.state !== 'stopped'}
+		{@render workerButton('stop', 'Parar')}
+	{/if}
+</section>
+
 {#if data.active.length}
 	<ul class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
 		{#each data.active as ep (ep.id)}
 			<li class="p-3 text-sm">
-				<p class="truncate">{ep.sourcePath}</p>
+				<p class="truncate">
+					{ep.sourcePath}
+					{#if ep.status === 'processing' && data.worker.state === 'paused'}
+						<span class="text-amber-400">(en pausa)</span>
+					{/if}
+				</p>
 				{#if ep.status === 'processing'}
 					<div class="mt-2 h-1.5 rounded bg-zinc-800">
 						<div class="h-full rounded bg-amber-400" style:width="{ep.progress * 100}%"></div>
@@ -126,4 +183,40 @@
 			</li>
 		{/each}
 	</ul>
+{/if}
+
+{#if data.queue.length}
+	<details class="mt-6 rounded-md border border-zinc-800">
+		<summary class="cursor-pointer p-3 text-sm">En cola ({data.queue.length})</summary>
+		<div class="border-t border-zinc-800 p-3">
+			<select
+				bind:value={queueSeries}
+				aria-label="Filtrar por serie"
+				class="w-full rounded-md border-zinc-700 bg-zinc-900 text-sm sm:w-auto"
+			>
+				<option value={null}>Todas las series</option>
+				{#each queueSeriesOptions as [id, { title, count }] (id)}
+					<option value={id}>{title} ({count})</option>
+				{/each}
+			</select>
+		</div>
+		<ol class="max-h-96 divide-y divide-zinc-800 overflow-auto border-t border-zinc-800">
+			{#each visibleQueue as ep (ep.id)}
+				<li class="flex items-center gap-3 p-3 text-sm">
+					<span class="w-8 shrink-0 text-right text-zinc-500">{ep.position}</span>
+					<p class="min-w-0 flex-1 truncate" title={ep.sourcePath}>{ep.sourcePath}</p>
+					{#if ep.position > 1}
+						<form method="post" action="?/moveToFront" use:enhance>
+							<input type="hidden" name="id" value={ep.id} />
+							<button
+								class="shrink-0 rounded-md border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
+							>
+								Siguiente
+							</button>
+						</form>
+					{/if}
+				</li>
+			{/each}
+		</ol>
+	</details>
 {/if}

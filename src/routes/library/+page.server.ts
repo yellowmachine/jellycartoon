@@ -1,10 +1,18 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { DELETE_SOURCES } from '$app/env/private';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { episode, series } from '#lib/server/db/schema.ts';
 import { scanLibrary } from '#lib/server/library/scan.ts';
-import { wakeWorker } from '#lib/server/library/worker.ts';
+import {
+	moveToFront,
+	pauseWorker,
+	restartCurrent,
+	resumeWorker,
+	stopWorker,
+	wakeWorker,
+	workerStatus
+} from '#lib/server/library/worker.ts';
 import { removeSource } from '#lib/server/library/sources.ts';
 import { fail } from '@sveltejs/kit';
 
@@ -38,7 +46,27 @@ export const load: PageServerLoad = async () => {
 		.where(sql`${episode.status} in ('processing', 'error') and not ${episode.missing}`)
 		.orderBy(asc(episode.status), asc(episode.sourcePath));
 
+	// Same order as the worker takes them.
+	const queue = await db
+		.select({
+			id: episode.id,
+			sourcePath: episode.sourcePath,
+			seriesId: episode.seriesId,
+			seriesTitle: series.title
+		})
+		.from(episode)
+		.innerJoin(series, eq(series.id, episode.seriesId))
+		.where(and(eq(episode.status, 'pending'), eq(episode.missing, false)))
+		.orderBy(
+			desc(episode.priority),
+			asc(episode.seriesId),
+			asc(episode.season),
+			asc(episode.number)
+		);
+
 	return {
+		worker: workerStatus(),
+		queue,
 		totals: {
 			...totals,
 			sourceBytes: Number(totals.sourceBytes),
@@ -84,6 +112,23 @@ export const actions: Actions = {
 			else counts.skipped++;
 		}
 		return { removed: counts };
+	},
+	resume: async () => {
+		await resumeWorker();
+	},
+	pause: async () => {
+		await pauseWorker();
+	},
+	stop: async () => {
+		await stopWorker();
+	},
+	restart: async () => {
+		await restartCurrent();
+	},
+	moveToFront: async ({ request }) => {
+		const id = Number((await request.formData()).get('id'));
+		if (!Number.isInteger(id)) return fail(400, { message: 'Episodio no válido' });
+		await moveToFront(id);
 	},
 	retry: async () => {
 		await db

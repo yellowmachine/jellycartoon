@@ -49,6 +49,8 @@ export const episode = pgTable(
 		/** The original was deleted on purpose after converting (DELETE_SOURCES); not "missing". */
 		sourceRemoved: boolean('source_removed').notNull().default(false),
 		status: episodeStatus('status').notNull().default('pending'),
+		/** Higher goes first in the conversion queue; 0 keeps series/season/number order. */
+		priority: integer('priority').notNull().default(0),
 		/** 0..1 while processing. */
 		progress: real('progress').notNull().default(0),
 		error: text('error'),
@@ -117,6 +119,14 @@ export const playlistItem = pgTable(
 	},
 	(t) => [primaryKey({ columns: [t.playlistId, t.position] })]
 );
+
+export const workerState = pgEnum('worker_state', ['running', 'paused', 'stopped']);
+
+/** Single row (id 1): survives restarts, so a stopped worker stays stopped. */
+export const worker = pgTable('worker', {
+	id: integer('id').primaryKey().default(1),
+	state: workerState('state').notNull().default('running')
+});
 
 export const userSettings = pgTable('user_settings', {
 	userId: text('user_id')

@@ -36,6 +36,13 @@
       "when": 1791302820177,
       "tag": "0004_magenta_frank_castle",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791371637373,
+      "tag": "0005_red_moondragon",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { AUDIO_LANG, X264_CRF, X264_PRESET } from '$app/env/private';
 import { languageLabel, normalizeLang, type AudioTrack } from '#lib/languages.ts';
 
@@ -20,13 +20,31 @@ export interface Probe {
 	format: { format_name: string; duration?: string };
 }
 
+const children = new Set<ChildProcess>();
+let suspended = false;
+
+/** Freezes (SIGSTOP) or resumes (SIGCONT) every running ffmpeg/ffprobe, and the ones started later. */
+export function setSuspended(value: boolean) {
+	suspended = value;
+	for (const child of children) child.kill(value ? 'SIGSTOP' : 'SIGCONT');
+}
+
 export function run(
 	cmd: string,
 	args: string[],
-	options: { cwd?: string; onStdout?: (chunk: string) => void } = {}
+	options: { cwd?: string; onStdout?: (chunk: string) => void; signal?: AbortSignal } = {}
 ) {
 	return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-		const child = spawn(cmd, args, { cwd: options.cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+		const child = spawn(cmd, args, {
+			cwd: options.cwd,
+			stdio: ['ignore', 'pipe', 'pipe'],
+			signal: options.signal,
+			// A frozen process only handles SIGTERM once resumed; SIGKILL works right away.
+			killSignal: 'SIGKILL'
+		});
+		children.add(child);
+		for (const event of ['close', 'error']) child.on(event, () => children.delete(child));
+		if (suspended) child.kill('SIGSTOP');
 		let stdout = '';
 		let stderr = '';
 		child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
@@ -44,16 +62,12 @@ export function run(
 	});
 }
 
-export async function probe(file: string): Promise<Probe> {
-	const { stdout } = await run('ffprobe', [
-		'-v',
-		'error',
-		'-print_format',
-		'json',
-		'-show_format',
-		'-show_streams',
-		file
-	]);
+export async function probe(file: string, signal?: AbortSignal): Promise<Probe> {
+	const { stdout } = await run(
+		'ffprobe',
+		['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', file],
+		{ signal }
+	);
 	return JSON.parse(stdout);
 }
 
@@ -179,13 +193,15 @@ export async function transcodeHls(
 	input: string,
 	outDir: string,
 	info: Probe,
-	onProgress: (ratio: number) => void
+	onProgress: (ratio: number) => void,
+	signal?: AbortSignal
 ) {
 	const duration = Number(info.format.duration) || 0;
 	const { args, tracks } = buildHlsArgs(input, info);
 
 	await run('ffmpeg', args, {
 		cwd: outDir,
+		signal,
 		onStdout: (chunk) => {
 			const match = chunk.match(/out_time_us=(\d+)/g)?.at(-1);
 			if (match && duration > 0) {
@@ -197,35 +213,54 @@ export async function transcodeHls(
 }
 
 /** Converts an embedded subtitle stream or a sidecar .srt/.vtt/.ass file to WebVTT. */
-export async function toWebVtt(input: string, output: string, streamIndex?: number) {
-	await run('ffmpeg', [
-		'-hide_banner',
-		'-y',
-		'-i',
-		input,
-		...(streamIndex === undefined ? [] : ['-map', `0:${streamIndex}`]),
-		'-c:s',
-		'webvtt',
-		output
-	]);
+export async function toWebVtt(
+	input: string,
+	output: string,
+	streamIndex: number | undefined,
+	signal?: AbortSignal
+) {
+	await run(
+		'ffmpeg',
+		[
+			'-hide_banner',
+			'-y',
+			'-i',
+			input,
+			...(streamIndex === undefined ? [] : ['-map', `0:${streamIndex}`]),
+			'-c:s',
+			'webvtt',
+			output
+		],
+		{ signal }
+	);
 }
 
-export async function thumbnail(input: string, output: string, info: Probe, atSec: number) {
+export async function thumbnail(
+	input: string,
+	output: string,
+	info: Probe,
+	atSec: number,
+	signal?: AbortSignal
+) {
 	const video = info.streams.find((s) => s.codec_type === 'video' && !s.disposition?.attached_pic);
 	const filters = [...(video ? videoFilters(video) : []), 'scale=480:-2'];
-	await run('ffmpeg', [
-		'-hide_banner',
-		'-y',
-		'-ss',
-		atSec.toFixed(2),
-		'-i',
-		input,
-		'-frames:v',
-		'1',
-		'-vf',
-		filters.join(','),
-		'-q:v',
-		'4',
-		output
-	]);
+	await run(
+		'ffmpeg',
+		[
+			'-hide_banner',
+			'-y',
+			'-ss',
+			atSec.toFixed(2),
+			'-i',
+			input,
+			'-frames:v',
+			'1',
+			'-vf',
+			filters.join(','),
+			'-q:v',
+			'4',
+			output
+		],
+		{ signal }
+	);
 }
