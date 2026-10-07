@@ -3,9 +3,6 @@ WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 COPY . .
-# The public URL is baked into the build (SvelteKit's paths.origin, used for CSRF checks).
-ARG APP_ORIGIN
-ENV APP_ORIGIN=$APP_ORIGIN
 # Real values are injected at runtime; the build only needs them to be present.
 RUN DATABASE_URL=postgres://build/build ORIGIN=http://localhost BETTER_AUTH_SECRET=build bun run build
 
@@ -20,4 +17,4 @@ COPY --from=build /app/node_modules ./node_modules
 ENV NODE_ENV=production PORT=3000
 EXPOSE 3000
 # Migrate first; the app only starts if that succeeds.
-CMD ["sh", "-c", "bun scripts/migrate.ts && exec bun build/index.js"]
+CMD ["sh", "-c", "bun scripts/migrate.ts && exec bun scripts/start.ts"]

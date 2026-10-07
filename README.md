@@ -63,8 +63,8 @@ Usa la imagen que construye GitHub Actions en cada push a `main`
 hacen falta `compose.prod.yaml` y un `.env` con:
 
 ```sh
-APP_ORIGIN="http://<ip-del-servidor>:3000"   # el mismo que la variable APP_ORIGIN del repo
-BETTER_AUTH_SECRET="..."                     # openssl rand -base64 32
+ORIGIN="http://<ip-del-servidor>:3000"   # URL desde la que se abre la app
+BETTER_AUTH_SECRET="..."                 # openssl rand -base64 32
 HOST_MEDIA_DIR="/ruta/a/los/videos"
 HOST_DATA_DIR="/ruta/a/los/convertidos"
 ```
@@ -75,10 +75,9 @@ docker compose -f compose.prod.yaml up -d    # arranca o actualiza
 docker compose -f compose.prod.yaml logs -f app
 ```
 
-- **`APP_ORIGIN` va grabado en la imagen** (SvelteKit lo usa para la protección CSRF de los
-  formularios). Se toma de la variable de repositorio `APP_ORIGIN` (Settings → Secrets and
-  variables → Actions → Variables). Si cambia, actualízala allí, lanza la action y ajusta el `.env`.
-  Entra siempre por esa URL.
+- `ORIGIN` se lee al arrancar: la misma imagen sirve en cualquier dirección. Si cambia, edita el
+  `.env` y `docker compose -f compose.prod.yaml up -d`. También se puede entrar por
+  `http://localhost:3000` desde el propio servidor.
 - La app corre como `PUID:PGID` (por defecto `1000:1000`), que es el dueño de `HOST_DATA_DIR`.
 - Para fijar una versión concreta: `IMAGE_TAG=sha-abc1234` en el `.env`.
 - `DELETE_SOURCES=true` borra de `HOST_MEDIA_DIR` cada original (y sus subtítulos externos) en

@@ -20,14 +20,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # APP_ORIGIN is baked into the build (SvelteKit's paths.origin, used for CSRF checks).
-      # Without it, logging in fails with 403. Set it under Settings → Variables → Actions.
-      - name: Check APP_ORIGIN
-        if: vars.APP_ORIGIN == ''
-        run: |
-          echo "::error::Define la variable de repositorio APP_ORIGIN (p. ej. http://192.168.68.60:3000)"
-          exit 1
-
       - uses: actions/checkout@v7
 
       - uses: docker/setup-buildx-action@v4
@@ -51,7 +43,6 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
-          build-args: APP_ORIGIN=${{ vars.APP_ORIGIN }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

@@ -35,8 +35,8 @@ services:
       - 3000:3000
     environment:
       DATABASE_URL: postgres://jellycartoon:jellycartoon@db:5432/jellycartoon
-      # Must match the APP_ORIGIN the image was built with (GitHub repository variable).
-      ORIGIN: ${APP_ORIGIN:?APP_ORIGIN is required}
+      # The URL the app is opened from, read at startup.
+      ORIGIN: ${ORIGIN:?ORIGIN is required}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
       MEDIA_DIR: /media
       DATA_DIR: /data
