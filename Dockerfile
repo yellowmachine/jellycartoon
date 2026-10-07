@@ -17,4 +17,4 @@ COPY --from=build /app/node_modules ./node_modules
 ENV NODE_ENV=production PORT=3000
 EXPOSE 3000
 # Migrate first; the app only starts if that succeeds.
-CMD ["sh", "-c", "bun scripts/migrate.ts && exec bun scripts/start.ts"]
+CMD ["sh", "-c", "bun scripts/migrate.ts && exec bun build/index.js"]

@@ -31,11 +31,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - 3000:3000
     environment:
+      # Caddy sends the real protocol; adapter-node assumes https without it (CSRF 403 over http).
+      PROTOCOL_HEADER: x-forwarded-proto
       DATABASE_URL: postgres://jellycartoon:jellycartoon@db:5432/jellycartoon
-      # The URL the app is opened from, read at startup.
+      # The URL the app is opened from (Better Auth's baseURL).
       ORIGIN: ${ORIGIN:?ORIGIN is required}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
       MEDIA_DIR: /media
@@ -51,5 +51,21 @@ services:
       - ${HOST_MEDIA_DIR:?HOST_MEDIA_DIR is required}:/media
       - ${HOST_DATA_DIR:?HOST_DATA_DIR is required}:/data
 
+  # Reverse proxy in front of the app. Only a port, so plain HTTP (no automatic HTTPS). Passes
+  # the Host header through and sets X-Forwarded-Proto, ignoring any sent by the client.
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    command: caddy reverse-proxy --from :3000 --to app:3000
+    ports:
+      - 3000:3000
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:

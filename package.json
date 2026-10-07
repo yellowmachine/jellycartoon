@@ -17,7 +17,7 @@
 		"db:migrate": "bun scripts/migrate.ts",
 		"db:studio": "bun --bun drizzle-kit studio",
 		"auth:schema": "bun --bun auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes",
-		"start": "bun scripts/start.ts",
+		"start": "bun build/index.js",
 		"test": "bun test src"
 	},
 	"devDependencies": {

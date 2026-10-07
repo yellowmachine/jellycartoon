@@ -76,8 +76,11 @@ docker compose -f compose.prod.yaml logs -f app
 ```
 
 - `ORIGIN` se lee al arrancar: la misma imagen sirve en cualquier dirección. Si cambia, edita el
-  `.env` y `docker compose -f compose.prod.yaml up -d`. También se puede entrar por
-  `http://localhost:3000` desde el propio servidor.
+  `.env` y `docker compose -f compose.prod.yaml up -d`.
+- Delante de la app va Caddy (`caddy reverse-proxy`), que es quien expone el puerto 3000. Le pasa
+  a la app el protocolo real en `X-Forwarded-Proto` (`PROTOCOL_HEADER`, como indica la
+  [documentación de adapter-node](https://svelte.dev/docs/kit/adapter-node)); sin eso SvelteKit
+  supone https y rechaza los formularios enviados por http.
 - La app corre como `PUID:PGID` (por defecto `1000:1000`), que es el dueño de `HOST_DATA_DIR`.
 - Para fijar una versión concreta: `IMAGE_TAG=sha-abc1234` en el `.env`.
 - `DELETE_SOURCES=true` borra de `HOST_MEDIA_DIR` cada original (y sus subtítulos externos) en
