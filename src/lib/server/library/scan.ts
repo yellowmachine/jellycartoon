@@ -170,7 +170,8 @@ async function runScan(): Promise<ScanResult> {
 				size: episode.sourceSize,
 				mtime: episode.sourceMtime,
 				season: episode.season,
-				number: episode.number
+				number: episode.number,
+				manualNumbering: episode.manualNumbering
 			})
 			.from(episode)
 			.where(eq(episode.seriesId, s.id));
@@ -200,12 +201,13 @@ async function runScan(): Promise<ScanResult> {
 				(existing && existing.season === parsed.season
 					? existing.number
 					: (lastNumber.get(parsed.season) ?? 0) + 1);
-			lastNumber.set(parsed.season, Math.max(number, lastNumber.get(parsed.season) ?? 0));
+			if (!existing?.manualNumbering)
+				lastNumber.set(parsed.season, Math.max(number, lastNumber.get(parsed.season) ?? 0));
 
-			// Naming is always re-derived so parser improvements apply to existing episodes too.
+			// Naming is always re-derived so parser improvements apply to existing episodes too,
+			// except a season and number set by hand.
 			const naming = {
-				season: parsed.season,
-				number,
+				...(existing?.manualNumbering ? {} : { season: parsed.season, number }),
 				title: parsed.title,
 				missing: false,
 				sourceRemoved: false
@@ -214,6 +216,8 @@ async function runScan(): Promise<ScanResult> {
 			if (!existing) {
 				await db.insert(episode).values({
 					...naming,
+					season: parsed.season,
+					number,
 					seriesId: s.id,
 					sourcePath: relative,
 					sourceSize: info.size,

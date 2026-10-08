@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { SvelteSet } from 'svelte/reactivity';
 	import TitleForm from '#lib/components/TitleForm.svelte';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
 	import type { PageProps } from './$types';
@@ -9,6 +10,23 @@
 	/** What is being renamed: the series, an episode id, or nothing. */
 	let editing = $state<'series' | number | null>(null);
 	let inList = $derived(new Set(data.inList));
+
+	/** Selection mode, to move episodes to another season. */
+	let selecting = $state(false);
+	const selected = new SvelteSet<number>();
+	let targetSeason = $state<number | null>(null);
+
+	function toggleSeason(ids: number[], on: boolean) {
+		for (const id of ids) {
+			if (on) selected.add(id);
+			else selected.delete(id);
+		}
+	}
+
+	function stopSelecting() {
+		selecting = false;
+		selected.clear();
+	}
 </script>
 
 {#snippet editButton(target: 'series' | number, label: string)}
@@ -53,19 +71,39 @@
 	<p class="-mt-4 mb-4 text-sm text-red-400">{form.message}</p>
 {/if}
 
-<p class="mb-2 text-sm text-zinc-400">
-	{#if data.activeList}
-		Añadiendo a la lista
-		<a href="/lists/{data.activeList.id}" class="text-amber-400 hover:underline"
-			>{data.activeList.name}</a
+<div class="mb-2 flex flex-wrap items-center justify-between gap-3">
+	<p class="text-sm text-zinc-400">
+		{#if data.activeList}
+			Añadiendo a la lista
+			<a href="/lists/{data.activeList.id}" class="text-amber-400 hover:underline"
+				>{data.activeList.name}</a
+			>
+		{:else}
+			<a href="/lists" class="hover:text-white">Activa una lista</a> para añadirle capítulos de esta serie.
+		{/if}
+	</p>
+	{#if !selecting}
+		<button
+			class="rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900"
+			onclick={() => (selecting = true)}>Organizar temporadas</button
 		>
-	{:else}
-		<a href="/lists" class="hover:text-white">Activa una lista</a> para añadirle capítulos de esta serie.
 	{/if}
-</p>
+</div>
 
 {#each data.seasons as { season, episodes } (season)}
-	<h2 class="mt-6 mb-3 font-semibold text-zinc-300">Temporada {season}</h2>
+	{@const ids = episodes.map((e) => e.id)}
+	<h2 class="mt-6 mb-3 flex items-center gap-3 font-semibold text-zinc-300">
+		{#if selecting}
+			<input
+				type="checkbox"
+				class="rounded border-zinc-600 bg-zinc-900 text-amber-500"
+				aria-label="Seleccionar toda la temporada {season}"
+				checked={ids.every((id) => selected.has(id))}
+				onchange={(e) => toggleSeason(ids, e.currentTarget.checked)}
+			/>
+		{/if}
+		Temporada {season}
+	</h2>
 	<ul class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
 		{#each episodes as ep (ep.id)}
 			{@const ready = ep.status === 'ready'}
@@ -83,13 +121,22 @@
 					</div>
 				{:else}
 					<svelte:element
-						this={ready ? 'a' : 'div'}
-						href={ready ? `/watch/${ep.id}` : undefined}
+						this={selecting ? 'label' : ready ? 'a' : 'div'}
+						href={ready && !selecting ? `/watch/${ep.id}` : undefined}
 						class={[
 							'flex min-w-0 flex-1 items-center gap-4 p-3',
-							ready ? 'hover:bg-zinc-900' : 'opacity-60'
+							selecting && 'cursor-pointer',
+							ready || selecting ? 'hover:bg-zinc-900' : 'opacity-60'
 						]}
 					>
+						{#if selecting}
+							<input
+								type="checkbox"
+								class="rounded border-zinc-600 bg-zinc-900 text-amber-500"
+								checked={selected.has(ep.id)}
+								onchange={(e) => toggleSeason([ep.id], e.currentTarget.checked)}
+							/>
+						{/if}
 						<div class="relative aspect-video w-32 shrink-0 overflow-hidden rounded bg-zinc-800">
 							{#if ready}
 								<img
@@ -133,7 +180,7 @@
 							</p>
 						</div>
 					</svelte:element>
-					{#if ready && data.activeList}
+					{#if ready && data.activeList && !selecting}
 						{@const added = inList.has(ep.id)}
 						<form method="post" action="?/toggleList" use:enhance>
 							<input type="hidden" name="id" value={ep.id} />
@@ -152,12 +199,59 @@
 							</button>
 						</form>
 					{/if}
-					{@render editButton(ep.id, 'Cambiar título del capítulo')}
+					{#if !selecting}
+						{@render editButton(ep.id, 'Cambiar título del capítulo')}
+					{/if}
 				{/if}
 			</li>
 		{/each}
 	</ul>
 {/each}
+
+{#if selecting}
+	<form
+		method="post"
+		action="?/moveToSeason"
+		use:enhance={() =>
+			async ({ result, update }) => {
+				await update({ reset: false });
+				if (result.type === 'success') selected.clear();
+			}}
+		class="sticky bottom-0 z-10 mt-6 flex flex-wrap items-center gap-3 rounded-t-md border border-zinc-700 bg-zinc-950/95 p-3 backdrop-blur"
+	>
+		{#each selected as id (id)}
+			<input type="hidden" name="id" value={id} />
+		{/each}
+		<span class="text-sm">{selected.size} seleccionados</span>
+		<label class="flex items-center gap-2 text-sm">
+			Mover a la temporada
+			<input
+				type="number"
+				name="season"
+				min="0"
+				max="999"
+				required
+				bind:value={targetSeason}
+				class="w-20 rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm"
+			/>
+		</label>
+		<button
+			disabled={selected.size === 0 || targetSeason === null}
+			class="rounded-md bg-amber-500 px-3 py-1 text-sm font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
+		>
+			Mover
+		</button>
+		<button
+			type="button"
+			class="rounded-md px-2 py-1 text-sm text-zinc-400 hover:text-white"
+			onclick={stopSelecting}>Terminar</button
+		>
+		<p class="w-full text-xs text-zinc-500">
+			Se ponen al final de esa temporada, en el orden que tienen ahora. Si la temporada no existe,
+			se crea.
+		</p>
+	</form>
+{/if}
 
 <section class="mt-10 border-t border-zinc-800 pt-6">
 	{#if confirmDelete}

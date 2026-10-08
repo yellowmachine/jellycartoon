@@ -44,6 +44,8 @@ export const episode = pgTable(
 		title: text('title').notNull(),
 		/** Set by hand; shown instead of `title` and kept across scans. */
 		customTitle: text('custom_title'),
+		/** Season and number were set by hand: scans no longer derive them from the path. */
+		manualNumbering: boolean('manual_numbering').notNull().default(false),
 		/** Path relative to MEDIA_DIR. */
 		sourcePath: text('source_path').notNull().unique(),
 		sourceSize: bigint('source_size', { mode: 'number' }).notNull(),

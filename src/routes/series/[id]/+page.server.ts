@@ -1,5 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
@@ -78,6 +78,44 @@ export const actions: Actions = {
 		const id = Number((await request.formData()).get('id'));
 		if (!Number.isInteger(id)) return fail(400, { message: 'Capítulo no válido' });
 		await toggleInActiveList(locals.user!.id, id);
+	},
+	/**
+	 * Moves the selected episodes to the end of another season, numbered in their current order.
+	 * Scans no longer change their season and number.
+	 */
+	moveToSeason: async ({ params, request }) => {
+		const form = await request.formData();
+		const seriesId = Number(params.id);
+		const season = Number(form.get('season'));
+		const ids = form.getAll('id').map(Number);
+		if (!Number.isInteger(season) || season < 0 || season > 999)
+			return fail(400, { message: 'Temporada no válida' });
+		if (!ids.length || !ids.every(Number.isInteger))
+			return fail(400, { message: 'No hay capítulos seleccionados' });
+
+		await db.transaction(async (tx) => {
+			const selected = await tx
+				.select({ id: episode.id })
+				.from(episode)
+				.where(and(eq(episode.seriesId, seriesId), inArray(episode.id, ids)))
+				.orderBy(asc(episode.season), asc(episode.number));
+			const [{ last }] = await tx
+				.select({ last: sql<number>`coalesce(max(${episode.number}), 0)::int` })
+				.from(episode)
+				.where(
+					and(
+						eq(episode.seriesId, seriesId),
+						eq(episode.season, season),
+						notInArray(episode.id, ids)
+					)
+				);
+			for (const [i, ep] of selected.entries()) {
+				await tx
+					.update(episode)
+					.set({ season, number: last + i + 1, manualNumbering: true })
+					.where(eq(episode.id, ep.id));
+			}
+		});
 	},
 	/** An empty title goes back to the one taken from the file name. */
 	renameEpisode: async ({ params, request }) => {

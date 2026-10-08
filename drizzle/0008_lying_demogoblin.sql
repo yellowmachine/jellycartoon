@@ -1,0 +1,1 @@
+ALTER TABLE "episode" ADD COLUMN "manual_numbering" boolean DEFAULT false NOT NULL;
