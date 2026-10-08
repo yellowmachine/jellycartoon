@@ -35,7 +35,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			position_sec: number;
 			duration_sec: number;
 		}>(sql`
-			select e.id, e.title, e.season, e.number, s.title as series_title,
+			select e.id, coalesce(e.custom_title, e.title) as title, e.season, e.number, s.title as series_title,
 				p.position_sec, e.duration_sec
 			from ${watchProgress} p
 			join ${episode} e on e.id = p.episode_id and e.status = 'ready' and not e.missing

@@ -2,7 +2,7 @@ import { error } from '@sveltejs/kit';
 import { and, eq, gt, or, asc } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
-import { episode, series, watchProgress } from '#lib/server/db/schema.ts';
+import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
 import { getSettings } from '#lib/server/settings.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -13,7 +13,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			seriesId: episode.seriesId,
 			season: episode.season,
 			number: episode.number,
-			title: episode.title,
+			title: episodeTitle,
 			status: episode.status,
 			durationSec: episode.durationSec,
 			audioTracks: episode.audioTracks,

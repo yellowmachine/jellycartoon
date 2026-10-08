@@ -1,6 +1,13 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { episode, playlist, playlistItem, series, watchProgress } from '#lib/server/db/schema.ts';
+import {
+	episode,
+	episodeTitle,
+	playlist,
+	playlistItem,
+	series,
+	watchProgress
+} from '#lib/server/db/schema.ts';
 
 export interface Candidate {
 	id: number;
@@ -139,7 +146,7 @@ export async function getTodayPlaylist(userId: string) {
 			position: playlistItem.position,
 			watched: playlistItem.watched,
 			id: episode.id,
-			title: episode.title,
+			title: episodeTitle,
 			season: episode.season,
 			number: episode.number,
 			durationSec: episode.durationSec,

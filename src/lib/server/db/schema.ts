@@ -14,6 +14,7 @@ import {
 	timestamp,
 	unique
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import type { AudioTrack, SubtitleTrack } from '#lib/languages.ts';
 import type { SubtitleStyle } from '#lib/subtitle-style.ts';
 import { user } from './auth.schema';
@@ -39,7 +40,10 @@ export const episode = pgTable(
 			.references(() => series.id, { onDelete: 'cascade' }),
 		season: integer('season').notNull(),
 		number: integer('number').notNull(),
+		/** Derived from the file name on every scan. */
 		title: text('title').notNull(),
+		/** Set by hand; shown instead of `title` and kept across scans. */
+		customTitle: text('custom_title'),
 		/** Path relative to MEDIA_DIR. */
 		sourcePath: text('source_path').notNull().unique(),
 		sourceSize: bigint('source_size', { mode: 'number' }).notNull(),
@@ -70,6 +74,9 @@ export const episode = pgTable(
 		index('episode_status_idx').on(t.status)
 	]
 );
+
+/** The title to show: the one set by hand, or the one from the file name. */
+export const episodeTitle = sql<string>`coalesce(${episode.customTitle}, ${episode.title})`;
 
 export const watchProgress = pgTable(
 	'watch_progress',

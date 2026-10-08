@@ -1,8 +1,8 @@
-import { error, redirect } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
-import { episode, series, watchProgress } from '#lib/server/db/schema.ts';
+import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
 import { deleteSeries } from '#lib/server/library/delete-series.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -15,7 +15,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			id: episode.id,
 			season: episode.season,
 			number: episode.number,
-			title: episode.title,
+			title: episodeTitle,
+			autoTitle: episode.title,
 			status: episode.status,
 			progress: episode.progress,
 			durationSec: episode.durationSec,
@@ -58,5 +59,22 @@ export const actions: Actions = {
 			.update(series)
 			.set({ serialized: value })
 			.where(eq(series.id, Number(params.id)));
+	},
+	renameSeries: async ({ params, request }) => {
+		const title = String((await request.formData()).get('title') ?? '').trim();
+		if (!title) return fail(400, { message: 'El título no puede estar vacío' });
+		await db
+			.update(series)
+			.set({ title })
+			.where(eq(series.id, Number(params.id)));
+	},
+	/** An empty title goes back to the one taken from the file name. */
+	renameEpisode: async ({ params, request }) => {
+		const form = await request.formData();
+		const title = String(form.get('title') ?? '').trim();
+		await db
+			.update(episode)
+			.set({ customTitle: title || null })
+			.where(and(eq(episode.id, Number(form.get('id'))), eq(episode.seriesId, Number(params.id))));
 	}
 };
