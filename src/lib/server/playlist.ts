@@ -153,7 +153,9 @@ export async function getTodayPlaylist(userId: string) {
 			audioTracks: episode.audioTracks,
 			subtitles: episode.subtitles,
 			seriesTitle: series.title,
-			positionSec: watchProgress.positionSec
+			positionSec: watchProgress.positionSec,
+			/** Watched at some point, not necessarily from this playlist. */
+			completedBefore: watchProgress.completed
 		})
 		.from(playlistItem)
 		.innerJoin(episode, eq(episode.id, playlistItem.episodeId))

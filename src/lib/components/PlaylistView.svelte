@@ -12,6 +12,8 @@
 		seriesTitle: string;
 		positionSec: number | null;
 		watched: boolean;
+		/** Watched at some point outside this playlist; it still plays. */
+		completedBefore?: boolean | null;
 	}
 </script>
 
@@ -82,7 +84,12 @@
 							class="aspect-video w-20 shrink-0 rounded bg-zinc-800 object-cover"
 						/>
 						<span class="min-w-0 flex-1">
-							<span class="block truncate text-sm">{it.seriesTitle}</span>
+							<span class="flex gap-1 text-sm">
+								<span class="truncate">{it.seriesTitle}</span>
+								{#if it.completedBefore && !it.watched}
+									<span class="shrink-0 text-xs leading-5 text-amber-400/80">· visto antes</span>
+								{/if}
+							</span>
 							<span class="block truncate text-xs text-zinc-400">
 								{it.watched ? '✓ ' : ''}T{it.season} E{it.number} · {it.title}
 							</span>

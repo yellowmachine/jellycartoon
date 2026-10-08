@@ -48,7 +48,9 @@ export async function getList(userId: string, listId: number) {
 			audioTracks: episode.audioTracks,
 			subtitles: episode.subtitles,
 			seriesTitle: series.title,
-			positionSec: watchProgress.positionSec
+			positionSec: watchProgress.positionSec,
+			/** Watched at some point, not necessarily from this list. */
+			completedBefore: watchProgress.completed
 		})
 		.from(userListItem)
 		.innerJoin(episode, and(eq(episode.id, userListItem.episodeId), playable))

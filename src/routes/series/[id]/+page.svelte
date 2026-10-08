@@ -99,11 +99,20 @@
 									loading="lazy"
 								/>
 							{/if}
-							{#if ep.positionSec && ep.durationSec}
+							{#if ep.completed}
+								<span
+									class="absolute top-1 left-1 rounded bg-zinc-950/80 px-1.5 py-0.5 text-xs font-medium text-amber-400"
+									>✓ Visto</span
+								>
+							{/if}
+							<!-- A watched episode has its position reset to 0 (next time starts over): full bar. -->
+							{#if (ep.completed || ep.positionSec) && ep.durationSec}
 								<div class="absolute inset-x-0 bottom-0 h-1 bg-zinc-700">
 									<div
 										class="h-full bg-amber-400"
-										style:width="{ep.completed ? 100 : (ep.positionSec / ep.durationSec) * 100}%"
+										style:width="{ep.completed
+											? 100
+											: ((ep.positionSec ?? 0) / ep.durationSec) * 100}%"
 									></div>
 								</div>
 							{/if}
