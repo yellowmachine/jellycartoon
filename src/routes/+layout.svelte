@@ -9,6 +9,7 @@
 	const links = [
 		{ href: '/', label: 'Catálogo' },
 		{ href: '/today', label: 'Hoy' },
+		{ href: '/lists', label: 'Listas' },
 		{ href: '/library', label: 'Biblioteca' }
 	];
 </script>
@@ -27,7 +28,9 @@
 					href={link.href}
 					class={[
 						'text-sm hover:text-white',
-						page.url.pathname === link.href ? 'text-white' : 'text-zinc-400'
+						page.url.pathname === link.href || page.url.pathname.startsWith(`${link.href}/`)
+							? 'text-white'
+							: 'text-zinc-400'
 					]}>{link.label}</a
 				>
 			{/each}

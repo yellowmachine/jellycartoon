@@ -2,7 +2,13 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { playlist, playlistItem, watchProgress } from '#lib/server/db/schema.ts';
+import {
+	playlist,
+	playlistItem,
+	userList,
+	userListItem,
+	watchProgress
+} from '#lib/server/db/schema.ts';
 import { today } from '#lib/server/playlist.ts';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -40,6 +46,22 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 							.select({ id: playlist.id })
 							.from(playlist)
 							.where(and(eq(playlist.userId, locals.user!.id), eq(playlist.day, today())))
+					)
+				)
+			);
+		// And off the user's own lists, wherever it was played from.
+		await db
+			.update(userListItem)
+			.set({ watched: true })
+			.where(
+				and(
+					eq(userListItem.episodeId, episodeId),
+					inArray(
+						userListItem.listId,
+						db
+							.select({ id: userList.id })
+							.from(userList)
+							.where(eq(userList.userId, locals.user!.id))
 					)
 				)
 			);

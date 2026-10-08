@@ -1,16 +1,12 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
-	import Player from '#lib/components/Player.svelte';
-	import { playerSize } from '#lib/player-size.svelte.ts';
+	import PlaylistView from '#lib/components/PlaylistView.svelte';
 	import { formatDuration } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
 	let items = $derived(data.playlist?.items ?? []);
-	let current = $derived(items.findIndex((i) => !i.watched));
-	let item = $derived(items[current]);
 	let totalSec = $derived(items.reduce((sum, i) => sum + (i.durationSec ?? 0), 0));
 	let remainingSec = $derived(
 		items.filter((i) => !i.watched).reduce((sum, i) => sum + (i.durationSec ?? 0), 0)
@@ -49,60 +45,12 @@
 		{#if remainingSec && remainingSec < totalSec}· quedan {formatDuration(remainingSec)}{/if}
 	</p>
 
-	<!-- In "cinema" the video takes the full width and the list goes below it. -->
-	<div class={['grid gap-6', playerSize.value !== 'cinema' && 'lg:grid-cols-[1fr_20rem]']}>
-		<div>
-			{#if item}
-				<Player
-					episodeId={item.id}
-					startAt={item.watched ? 0 : item.positionSec}
-					audioTracks={item.audioTracks}
-					subtitles={item.subtitles}
-					settings={data.settings}
-					onended={invalidateAll}
-				/>
-				<p class="mt-3 text-sm text-zinc-400">{item.seriesTitle}</p>
-				<h2 class="text-lg font-semibold">
-					T{item.season} E{item.number} · {item.title}
-				</h2>
-			{:else}
-				<div
-					class="flex aspect-video flex-col items-center justify-center gap-4 rounded-md bg-zinc-900"
-				>
-					<p class="text-lg">¡Programación terminada!</p>
-				</div>
-			{/if}
-		</div>
-
-		<aside>
-			<ol class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
-				{#each items as it, index (it.position)}
-					<li>
-						<button
-							class={[
-								'flex w-full items-center gap-3 p-2 text-left hover:bg-zinc-900',
-								index === current && 'bg-zinc-900',
-								it.watched && index !== current && 'opacity-50'
-							]}
-							onclick={() => (current = index)}
-						>
-							<img
-								src="/api/thumb/{it.id}"
-								alt=""
-								class="aspect-video w-20 shrink-0 rounded bg-zinc-800 object-cover"
-							/>
-							<span class="min-w-0 flex-1">
-								<span class="block truncate text-sm">{it.seriesTitle}</span>
-								<span class="block truncate text-xs text-zinc-400">
-									{it.watched ? '✓ ' : ''}T{it.season} E{it.number} · {it.title}
-								</span>
-							</span>
-							<span class="text-xs text-zinc-500">{formatDuration(it.durationSec)}</span>
-						</button>
-					</li>
-				{/each}
-			</ol>
+	<PlaylistView {items} settings={data.settings}>
+		{#snippet finished()}
+			<p class="text-lg">¡Programación terminada!</p>
+		{/snippet}
+		{#snippet footer()}
 			<div class="mt-4">{@render generator('Otra:')}</div>
-		</aside>
-	</div>
+		{/snippet}
+	</PlaylistView>
 {/if}

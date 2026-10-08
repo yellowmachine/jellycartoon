@@ -8,6 +8,7 @@
 	let confirmDelete = $state(false);
 	/** What is being renamed: the series, an episode id, or nothing. */
 	let editing = $state<'series' | number | null>(null);
+	let inList = $derived(new Set(data.inList));
 </script>
 
 {#snippet editButton(target: 'series' | number, label: string)}
@@ -51,6 +52,17 @@
 {#if form?.message}
 	<p class="-mt-4 mb-4 text-sm text-red-400">{form.message}</p>
 {/if}
+
+<p class="mb-2 text-sm text-zinc-400">
+	{#if data.activeList}
+		Añadiendo a la lista
+		<a href="/lists/{data.activeList.id}" class="text-amber-400 hover:underline"
+			>{data.activeList.name}</a
+		>
+	{:else}
+		<a href="/lists" class="hover:text-white">Activa una lista</a> para añadirle capítulos de esta serie.
+	{/if}
+</p>
 
 {#each data.seasons as { season, episodes } (season)}
 	<h2 class="mt-6 mb-3 font-semibold text-zinc-300">Temporada {season}</h2>
@@ -112,6 +124,25 @@
 							</p>
 						</div>
 					</svelte:element>
+					{#if ready && data.activeList}
+						{@const added = inList.has(ep.id)}
+						<form method="post" action="?/toggleList" use:enhance>
+							<input type="hidden" name="id" value={ep.id} />
+							<button
+								class={[
+									'shrink-0 rounded-md border px-2 py-1 text-xs',
+									added
+										? 'border-amber-500/60 text-amber-400 hover:border-red-500/60 hover:text-red-400'
+										: 'border-zinc-700 text-zinc-300 hover:bg-zinc-900'
+								]}
+								title={added
+									? `Quitar de «${data.activeList.name}»`
+									: `Añadir a «${data.activeList.name}»`}
+							>
+								{added ? '✓ En la lista' : '+ Lista'}
+							</button>
+						</form>
+					{/if}
 					{@render editButton(ep.id, 'Cambiar título del capítulo')}
 				{/if}
 			</li>

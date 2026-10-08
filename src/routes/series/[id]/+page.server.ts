@@ -4,6 +4,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
 import { deleteSeries } from '#lib/server/library/delete-series.ts';
+import { getActiveList, listEpisodeIds, toggleInActiveList } from '#lib/server/lists.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const id = Number(params.id);
@@ -40,9 +41,14 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		.from(episode)
 		.where(eq(episode.seriesId, id));
 
+	const activeList = await getActiveList(locals.user!.id);
+	const inList = activeList ? await listEpisodeIds(activeList.id) : [];
+
 	const seasons = Map.groupBy(episodes, (e) => e.season);
 	return {
 		series: s,
+		activeList,
+		inList,
 		stored: { episodes: stored.episodes, outputBytes: Number(stored.outputBytes) },
 		seasons: [...seasons].map(([season, episodes]) => ({ season, episodes }))
 	};
@@ -67,6 +73,11 @@ export const actions: Actions = {
 			.update(series)
 			.set({ title })
 			.where(eq(series.id, Number(params.id)));
+	},
+	toggleList: async ({ request, locals }) => {
+		const id = Number((await request.formData()).get('id'));
+		if (!Number.isInteger(id)) return fail(400, { message: 'Capítulo no válido' });
+		await toggleInActiveList(locals.user!.id, id);
 	},
 	/** An empty title goes back to the one taken from the file name. */
 	renameEpisode: async ({ params, request }) => {

@@ -127,6 +127,36 @@ export const playlistItem = pgTable(
 	(t) => [primaryKey({ columns: [t.playlistId, t.position] })]
 );
 
+/** Made by hand: episodes are added one by one from a series page to the active list. */
+export const userList = pgTable(
+	'user_list',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [index('user_list_user_idx').on(t.userId)]
+);
+
+export const userListItem = pgTable(
+	'user_list_item',
+	{
+		listId: integer('list_id')
+			.notNull()
+			.references(() => userList.id, { onDelete: 'cascade' }),
+		/** Part of the key: an episode is in a list at most once. */
+		episodeId: integer('episode_id')
+			.notNull()
+			.references(() => episode.id, { onDelete: 'cascade' }),
+		position: integer('position').notNull(),
+		watched: boolean('watched').notNull().default(false)
+	},
+	(t) => [primaryKey({ columns: [t.listId, t.episodeId] })]
+);
+
 export const workerState = pgEnum('worker_state', ['running', 'paused', 'stopped']);
 
 /** Single row (id 1): survives restarts, so a stopped worker stays stopped. */
@@ -144,7 +174,9 @@ export const userSettings = pgTable('user_settings', {
 	/** ISO 639-2, or null for no subtitles. */
 	subtitleLang: text('subtitle_lang'),
 	/** Partial; missing keys use the defaults. */
-	subtitleStyle: jsonb('subtitle_style').$type<Partial<SubtitleStyle>>()
+	subtitleStyle: jsonb('subtitle_style').$type<Partial<SubtitleStyle>>(),
+	/** Where "add to list" on a series page puts episodes. */
+	activeListId: integer('active_list_id').references(() => userList.id, { onDelete: 'set null' })
 });
 
 export * from './auth.schema';
