@@ -19,6 +19,11 @@ export const variables = defineEnvVars({
 		description: 'Writable directory for transcoded videos and thumbnails.',
 		schema: withDefault('./data')
 	},
+	HOST_DATA_DIR: {
+		description:
+			'Absolute path of DATA_DIR on the host when running in a container. Lets the app show where each converted episode is, to open it with a native player (mpv…). Ignored if relative: it would depend on where compose ran.',
+		schema: (value) => (value?.startsWith('/') ? value : undefined)
+	},
 	AUDIO_LANG: {
 		description:
 			'Preferred audio language (ISO 639-2, e.g. `spa`) when a source has several audio tracks.',

@@ -40,6 +40,8 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
       MEDIA_DIR: /media
       DATA_DIR: /data
+      # Shown on each episode, to open it with a native player on this PC.
+      HOST_DATA_DIR: ${HOST_DATA_DIR}
       AUDIO_LANG: ${AUDIO_LANG:-spa}
       X264_PRESET: ${X264_PRESET:-medium}
       X264_CRF: ${X264_CRF:-20}

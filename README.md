@@ -81,6 +81,9 @@ docker compose -f compose.prod.yaml logs -f app
   a la app el protocolo real en `X-Forwarded-Proto` (`PROTOCOL_HEADER`, como indica la
   [documentación de adapter-node](https://svelte.dev/docs/kit/adapter-node)); sin eso SvelteKit
   supone https y rechaza los formularios enviados por http.
+- Si `HOST_DATA_DIR` es una ruta absoluta, cada capítulo convertido tiene un botón ⧉ que copia
+  la ruta de su `master.m3u8` para abrirlo en el mismo PC con mpv u otro reproductor
+  (`mpv <ruta>`). Por http desde otra IP el navegador no deja copiar: muestra la ruta seleccionada.
 - La app corre como `PUID:PGID` (por defecto `1000:1000`), que es el dueño de `HOST_DATA_DIR`.
 - Para fijar una versión concreta: `IMAGE_TAG=sha-abc1234` en el `.env`.
 - `DELETE_SOURCES=true` borra de `HOST_MEDIA_DIR` cada original (y sus subtítulos externos) en

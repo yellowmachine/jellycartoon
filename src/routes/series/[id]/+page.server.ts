@@ -4,6 +4,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
 import { deleteSeries } from '#lib/server/library/delete-series.ts';
+import { hostPlaylist } from '#lib/server/library/paths.ts';
 import { getActiveList, listEpisodeIds, toggleInActiveList } from '#lib/server/lists.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -44,7 +45,10 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	const activeList = await getActiveList(locals.user!.id);
 	const inList = activeList ? await listEpisodeIds(activeList.id) : [];
 
-	const seasons = Map.groupBy(episodes, (e) => e.season);
+	const seasons = Map.groupBy(
+		episodes.map((e) => ({ ...e, playlist: e.status === 'ready' ? hostPlaylist(e.id) : null })),
+		(e) => e.season
+	);
 	return {
 		series: s,
 		activeList,

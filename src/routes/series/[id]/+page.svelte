@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { SvelteSet } from 'svelte/reactivity';
+	import CopyPath from '#lib/components/CopyPath.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
 	import type { PageProps } from './$types';
@@ -200,6 +201,12 @@
 								{added ? '✓ En la lista' : '+ Lista'}
 							</button>
 						</form>
+					{/if}
+					{#if ep.playlist && !selecting}
+						<CopyPath
+							path={ep.playlist}
+							label="Copiar ruta del vídeo (para mpv u otro reproductor)"
+						/>
 					{/if}
 					{#if !selecting}
 						{@render editButton(ep.id, 'Cambiar título del capítulo')}
