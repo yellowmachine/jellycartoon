@@ -273,7 +273,7 @@
 		</form>
 	{:else}
 		<button
-			class="rounded-md border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900"
+			class="rounded-md border border-red-800 px-4 py-2 text-sm text-red-400 hover:border-red-600 hover:bg-red-950 hover:text-red-300"
 			onclick={() => (confirmDelete = true)}
 		>
 			Borrar serie
