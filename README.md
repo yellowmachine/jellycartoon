@@ -96,6 +96,44 @@ docker compose -f compose.prod.yaml logs -f app
 - `compose.yaml` es solo para desarrollo (Postgres con el puerto abierto). Ambos ficheros
   comparten la base de datos; usa uno u otro, no los dos a la vez.
 
+## Copia de seguridad
+
+Qué hay que guardar:
+
+- **Base de datos**: usuarios, progreso, listas, títulos y numeración cambiados a mano. Se copia
+  con [`pg_dump`](https://www.postgresql.org/docs/current/app-pgdump.html), no copiando el
+  volumen.
+- **`HOST_DATA_DIR`**: los vídeos convertidos y las miniaturas. Va con la base de datos (cada
+  episodio es `hls/<id>`). Con `DELETE_SOURCES=true` es la única copia de los vídeos.
+- **`.env`**: la configuración y `BETTER_AUTH_SECRET`. Guárdalo en un sitio seguro.
+- **`HOST_MEDIA_DIR`**, opcional: los originales. Con ellos se puede regenerar `HOST_DATA_DIR`,
+  pero son horas de conversión.
+
+`scripts/backup.sh` lo hace todo, con la app en marcha. Ejecútalo desde la carpeta de
+`compose.prod.yaml` y `.env` (necesita `jq` y `rsync`):
+
+```sh
+scripts/backup.sh /ruta/del/backup            # base de datos, convertidos y .env
+scripts/backup.sh --media /ruta/del/backup    # además, los originales
+```
+
+Deja `jellycartoon.dump`, `data/`, `.env` y, con `--media`, `media/`. Las carpetas son un espejo:
+cada copia sustituye a la anterior en el mismo destino. Primero hace el volcado y luego copia
+los ficheros; un episodio que termine de convertirse entre medias se volvería a convertir al
+restaurar, pero nunca queda uno listo sin sus ficheros.
+
+Para restaurar, con el `.env` de la copia en su sitio y las carpetas de `HOST_DATA_DIR` (y
+`HOST_MEDIA_DIR`) vueltas a copiar:
+
+```sh
+docker compose -f compose.prod.yaml up -d db
+docker compose -f compose.prod.yaml exec -T db \
+  pg_restore -U jellycartoon -d jellycartoon --clean --if-exists --no-owner < /ruta/del/backup/jellycartoon.dump
+docker compose -f compose.prod.yaml up -d
+```
+
+La app aplica al arrancar las migraciones posteriores a la copia.
+
 ## Pendiente
 
 - Control remoto (dispositivos + comandos play/pause/seek por SSE).
