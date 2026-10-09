@@ -29,7 +29,14 @@ export const series = pgTable('series', {
 	createdAt: timestamp('created_at').notNull().defaultNow()
 });
 
-export const episodeStatus = pgEnum('episode_status', ['pending', 'processing', 'ready', 'error']);
+/** `ignored`: failed and set aside by hand; not retried until its file changes. */
+export const episodeStatus = pgEnum('episode_status', [
+	'pending',
+	'processing',
+	'ready',
+	'error',
+	'ignored'
+]);
 
 export const episode = pgTable(
 	'episode',

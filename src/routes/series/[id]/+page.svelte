@@ -174,6 +174,8 @@
 									Convirtiendo… {Math.round(ep.progress * 100)}%
 								{:else if ep.status === 'error'}
 									<span class="text-red-400">Error al convertir</span>
+								{:else if ep.status === 'ignored'}
+									No se convertirá
 								{:else}
 									En cola
 								{/if}

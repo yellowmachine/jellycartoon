@@ -34,11 +34,20 @@
 
 	// Refresh while something is converting.
 	$effect(() => {
-		if (data.totals.pending === 0 && !data.active.some((e) => e.status === 'processing')) return;
+		if (data.totals.pending === 0 && data.active.length === 0) return;
 		const timer = setInterval(invalidateAll, 3000);
 		return () => clearInterval(timer);
 	});
 </script>
+
+{#snippet episodeButton(action: string, id: number, label: string)}
+	<form method="post" action="?/{action}" use:enhance>
+		<input type="hidden" name="id" value={id} />
+		<button class="shrink-0 rounded-md border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900">
+			{label}
+		</button>
+	</form>
+{/snippet}
 
 {#snippet workerButton(action: string, label: string)}
 	<form method="post" action="?/{action}" use:enhance>
@@ -171,21 +180,59 @@
 			<li class="p-3 text-sm">
 				<p class="truncate">
 					{ep.sourcePath}
-					{#if ep.status === 'processing' && data.worker.state === 'paused'}
+					{#if data.worker.state === 'paused'}
 						<span class="text-amber-400">(en pausa)</span>
 					{/if}
 				</p>
-				{#if ep.status === 'processing'}
-					<div class="mt-2 h-1.5 rounded bg-zinc-800">
-						<div class="h-full rounded bg-amber-400" style:width="{ep.progress * 100}%"></div>
-					</div>
-				{:else}
-					<pre
-						class="mt-2 max-h-32 overflow-auto text-xs whitespace-pre-wrap text-red-400">{ep.error}</pre>
-				{/if}
+				<div class="mt-2 h-1.5 rounded bg-zinc-800">
+					<div class="h-full rounded bg-amber-400" style:width="{ep.progress * 100}%"></div>
+				</div>
 			</li>
 		{/each}
 	</ul>
+{/if}
+
+{#if data.errors.length}
+	<details class="mt-6 rounded-md border border-zinc-800">
+		<summary class="cursor-pointer p-3 text-sm text-red-400">Errores ({data.errors.length})</summary
+		>
+		<ul class="max-h-96 divide-y divide-zinc-800 overflow-auto border-t border-zinc-800">
+			{#each data.errors as ep (ep.id)}
+				<li class="p-3 text-sm">
+					<div class="flex items-center gap-2">
+						<p class="min-w-0 flex-1 truncate" title={ep.sourcePath}>{ep.sourcePath}</p>
+						{@render episodeButton('retryOne', ep.id, 'Reintentar')}
+						{@render episodeButton('ignore', ep.id, 'Ignorar')}
+					</div>
+					<pre
+						class="mt-2 max-h-32 overflow-auto text-xs whitespace-pre-wrap text-red-400">{ep.error}</pre>
+				</li>
+			{/each}
+		</ul>
+	</details>
+{/if}
+
+{#if data.ignored.length}
+	<details class="mt-6 rounded-md border border-zinc-800">
+		<summary class="cursor-pointer p-3 text-sm text-zinc-400">
+			Ignorados ({data.ignored.length})
+		</summary>
+		<p class="border-t border-zinc-800 p-3 text-xs text-zinc-400">
+			No se vuelven a intentar salvo que el fichero cambie o los reintentes aquí.
+		</p>
+		<ul class="max-h-96 divide-y divide-zinc-800 overflow-auto border-t border-zinc-800">
+			{#each data.ignored as ep (ep.id)}
+				<li class="p-3 text-sm">
+					<div class="flex items-center gap-2">
+						<p class="min-w-0 flex-1 truncate" title={ep.sourcePath}>{ep.sourcePath}</p>
+						{@render episodeButton('retryOne', ep.id, 'Reintentar')}
+					</div>
+					<pre
+						class="mt-2 max-h-32 overflow-auto text-xs whitespace-pre-wrap text-zinc-500">{ep.error}</pre>
+				</li>
+			{/each}
+		</ul>
+	</details>
 {/if}
 
 {#if data.queue.length}

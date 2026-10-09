@@ -34,18 +34,20 @@ export const load: PageServerLoad = async () => {
 		.where(eq(episode.missing, false));
 
 	const active = await db
+		.select({ id: episode.id, progress: episode.progress, sourcePath: episode.sourcePath })
+		.from(episode)
+		.where(and(eq(episode.status, 'processing'), eq(episode.missing, false)));
+
+	const failed = await db
 		.select({
 			id: episode.id,
 			status: episode.status,
-			progress: episode.progress,
 			error: episode.error,
-			sourcePath: episode.sourcePath,
-			seriesTitle: series.title
+			sourcePath: episode.sourcePath
 		})
 		.from(episode)
-		.innerJoin(series, eq(series.id, episode.seriesId))
-		.where(sql`${episode.status} in ('processing', 'error') and not ${episode.missing}`)
-		.orderBy(asc(episode.status), asc(episode.sourcePath));
+		.where(sql`${episode.status} in ('error', 'ignored') and not ${episode.missing}`)
+		.orderBy(asc(episode.sourcePath));
 
 	// Same order as the worker takes them.
 	const queue = await db
@@ -108,6 +110,8 @@ export const load: PageServerLoad = async () => {
 			removableBytes: Number(totals.removableBytes)
 		},
 		active,
+		errors: failed.filter((e) => e.status === 'error'),
+		ignored: failed.filter((e) => e.status === 'ignored'),
 		deleteSources: DELETE_SOURCES
 	};
 };
@@ -163,6 +167,25 @@ export const actions: Actions = {
 		const id = Number((await request.formData()).get('id'));
 		if (!Number.isInteger(id)) return fail(400, { message: 'Episodio no válido' });
 		await moveToFront(id);
+	},
+	/** Back to the queue: one failed or ignored episode. */
+	retryOne: async ({ request }) => {
+		const id = Number((await request.formData()).get('id'));
+		if (!Number.isInteger(id)) return fail(400, { message: 'Episodio no válido' });
+		await db
+			.update(episode)
+			.set({ status: 'pending', error: null })
+			.where(and(eq(episode.id, id), sql`${episode.status} in ('error', 'ignored')`));
+		wakeWorker();
+	},
+	/** Sets a failed episode aside: hidden and not retried until its file changes. */
+	ignore: async ({ request }) => {
+		const id = Number((await request.formData()).get('id'));
+		if (!Number.isInteger(id)) return fail(400, { message: 'Episodio no válido' });
+		await db
+			.update(episode)
+			.set({ status: 'ignored' })
+			.where(and(eq(episode.id, id), eq(episode.status, 'error')));
 	},
 	retry: async () => {
 		await db
