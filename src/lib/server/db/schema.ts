@@ -26,6 +26,8 @@ export const series = pgTable('series', {
 	title: text('title').notNull(),
 	/** Episodes follow a story: playlists pick the next unwatched one instead of a random one. */
 	serialized: boolean('serialized').notNull().default(true),
+	/** Position in the conversion queue, set by dragging in Biblioteca; null goes last. */
+	queueOrder: integer('queue_order'),
 	createdAt: timestamp('created_at').notNull().defaultNow()
 });
 

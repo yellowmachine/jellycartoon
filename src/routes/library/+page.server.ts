@@ -63,10 +63,21 @@ export const load: PageServerLoad = async () => {
 		.where(and(eq(episode.status, 'pending'), eq(episode.missing, false)))
 		.orderBy(
 			desc(episode.priority),
+			sql`${series.queueOrder} nulls last`,
 			asc(episode.seriesId),
 			asc(episode.season),
 			asc(episode.number)
 		);
+
+	// Series with pending episodes, in the order the worker takes them (episodes moved to the
+	// front with "Siguiente" aside).
+	const queueSeries = await db
+		.select({ id: series.id, title: series.title, count: sql<number>`count(*)::int` })
+		.from(episode)
+		.innerJoin(series, eq(series.id, episode.seriesId))
+		.where(and(eq(episode.status, 'pending'), eq(episode.missing, false)))
+		.groupBy(series.id)
+		.orderBy(sql`${series.queueOrder} nulls last`, asc(series.id));
 
 	// Seconds of video converted per second, over the latest conversions.
 	const recent = db
@@ -103,6 +114,7 @@ export const load: PageServerLoad = async () => {
 		worker,
 		queueEta,
 		queue,
+		queueSeries,
 		totals: {
 			...totals,
 			sourceBytes: Number(totals.sourceBytes),
@@ -186,6 +198,16 @@ export const actions: Actions = {
 			.update(episode)
 			.set({ status: 'ignored' })
 			.where(and(eq(episode.id, id), eq(episode.status, 'error')));
+	},
+	/** New series order for the queue; the rest go back to the end, so new ones don't jump ahead. */
+	reorderSeries: async ({ request }) => {
+		const ids = (await request.formData()).getAll('id').map(Number);
+		if (!ids.every(Number.isInteger)) return fail(400, { message: 'Serie no válida' });
+		await db.transaction(async (tx) => {
+			await tx.update(series).set({ queueOrder: null });
+			for (const [i, id] of ids.entries())
+				await tx.update(series).set({ queueOrder: i }).where(eq(series.id, id));
+		});
 	},
 	retry: async () => {
 		await db

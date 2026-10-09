@@ -3,7 +3,7 @@ import { DELETE_SOURCES } from '$app/env/private';
 import path from 'node:path';
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { episode, worker } from '#lib/server/db/schema.ts';
+import { episode, series, worker } from '#lib/server/db/schema.ts';
 import { languageLabel, normalizeLang, type SubtitleTrack } from '#lib/languages.ts';
 import {
 	probe,
@@ -185,11 +185,12 @@ async function processNext() {
 	const [claimed] = await db.execute<{ id: number }>(sql`
 		update ${episode} set status = 'processing', progress = 0, error = null, updated_at = now()
 		where id = (
-			select id from ${episode}
-			where status = 'pending' and missing = false
-			order by priority desc, series_id, season, number
+			select e.id from ${episode} e
+			join ${series} s on s.id = e.series_id
+			where e.status = 'pending' and e.missing = false
+			order by e.priority desc, s.queue_order nulls last, e.series_id, e.season, e.number
 			limit 1
-			for update skip locked
+			for update of e skip locked
 		)
 		returning id
 	`);

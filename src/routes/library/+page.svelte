@@ -12,20 +12,33 @@
 
 	/** Series filter for the queue; the number shown is still the position in the whole queue. */
 	let queueSeries = $state<number | null>(null);
-	const queueSeriesOptions = $derived.by(() => {
-		const counts = new Map<number, { title: string; count: number }>();
-		for (const ep of data.queue) {
-			const entry = counts.get(ep.seriesId) ?? { title: ep.seriesTitle, count: 0 };
-			entry.count++;
-			counts.set(ep.seriesId, entry);
-		}
-		return [...counts].sort(([, a], [, b]) => a.title.localeCompare(b.title));
-	});
 	// Once the chosen series is fully converted it leaves the queue: show everything again.
 	$effect(() => {
-		if (queueSeries !== null && !queueSeriesOptions.some(([id]) => id === queueSeries))
+		if (queueSeries !== null && !data.queueSeries.some((s) => s.id === queueSeries))
 			queueSeries = null;
 	});
+
+	/** Series order, rearranged live while dragging and saved on drop. */
+	let seriesOrder = $derived(data.queueSeries);
+	let dragged = $state<number | null>(null);
+	let reorderForm = $state<HTMLFormElement>();
+
+	function dragOver(event: DragEvent, overId: number) {
+		if (dragged === null) return;
+		event.preventDefault();
+		if (overId === dragged) return;
+		const next = [...seriesOrder];
+		const from = next.findIndex((s) => s.id === dragged);
+		const to = next.findIndex((s) => s.id === overId);
+		next.splice(to, 0, ...next.splice(from, 1));
+		seriesOrder = next;
+	}
+
+	function dragEnd() {
+		dragged = null;
+		const changed = seriesOrder.some((s, i) => s.id !== data.queueSeries[i]?.id);
+		if (changed) reorderForm?.requestSubmit();
+	}
 	const visibleQueue = $derived(
 		data.queue
 			.map((ep, i) => ({ ...ep, position: i + 1 }))
@@ -35,7 +48,8 @@
 	// Refresh while something is converting.
 	$effect(() => {
 		if (data.totals.pending === 0 && data.active.length === 0) return;
-		const timer = setInterval(invalidateAll, 3000);
+		// Not while dragging: the series list would jump back mid-drag.
+		const timer = setInterval(() => dragged === null && invalidateAll(), 3000);
 		return () => clearInterval(timer);
 	});
 </script>
@@ -238,18 +252,53 @@
 {#if data.queue.length}
 	<details class="mt-6 rounded-md border border-zinc-800">
 		<summary class="cursor-pointer p-3 text-sm">En cola ({data.queue.length})</summary>
-		<div class="border-t border-zinc-800 p-3">
-			<select
-				bind:value={queueSeries}
-				aria-label="Filtrar por serie"
-				class="w-full rounded-md border-zinc-700 bg-zinc-900 text-sm sm:w-auto"
-			>
-				<option value={null}>Todas las series</option>
-				{#each queueSeriesOptions as [id, { title, count }] (id)}
-					<option value={id}>{title} ({count})</option>
+		<form
+			bind:this={reorderForm}
+			method="post"
+			action="?/reorderSeries"
+			use:enhance={() =>
+				async ({ update }) => {
+					await update({ reset: false });
+				}}
+			class="border-t border-zinc-800 p-3"
+		>
+			<p class="mb-2 text-xs text-zinc-400">
+				Arrastra las series para cambiar el orden en que se convierten. Pulsa una para ver solo sus
+				episodios.
+			</p>
+			<ul class="flex flex-col gap-1">
+				{#each seriesOrder as s (s.id)}
+					{@const active = queueSeries === s.id}
+					<li
+						draggable="true"
+						ondragstart={(e) => {
+							dragged = s.id;
+							e.dataTransfer!.effectAllowed = 'move';
+						}}
+						ondragover={(e) => dragOver(e, s.id)}
+						ondrop={(e) => e.preventDefault()}
+						ondragend={dragEnd}
+						class={[
+							'flex items-center rounded-md border text-sm',
+							active ? 'border-amber-500/60 bg-zinc-900' : 'border-zinc-800',
+							dragged === s.id && 'opacity-50'
+						]}
+					>
+						<input type="hidden" name="id" value={s.id} />
+						<span class="cursor-grab px-2 text-zinc-500 select-none" aria-hidden="true">⠿</span>
+						<button
+							type="button"
+							class="flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-3 text-left"
+							aria-pressed={active}
+							onclick={() => (queueSeries = active ? null : s.id)}
+						>
+							<span class="min-w-0 flex-1 truncate" class:text-amber-400={active}>{s.title}</span>
+							<span class="shrink-0 text-xs text-zinc-500">{s.count}</span>
+						</button>
+					</li>
 				{/each}
-			</select>
-		</div>
+			</ul>
+		</form>
 		<ol class="max-h-96 divide-y divide-zinc-800 overflow-auto border-t border-zinc-800">
 			{#each visibleQueue as ep (ep.id)}
 				<li class="flex items-center gap-3 p-3 text-sm">
