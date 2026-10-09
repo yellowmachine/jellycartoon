@@ -14,6 +14,7 @@ import {
 	workerStatus
 } from '#lib/server/library/worker.ts';
 import { removeSource } from '#lib/server/library/sources.ts';
+import { estimateQueue } from '#lib/server/library/estimate.ts';
 import { fail } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async () => {
@@ -52,7 +53,8 @@ export const load: PageServerLoad = async () => {
 			id: episode.id,
 			sourcePath: episode.sourcePath,
 			seriesId: episode.seriesId,
-			seriesTitle: series.title
+			seriesTitle: series.title,
+			durationSec: episode.durationSec
 		})
 		.from(episode)
 		.innerJoin(series, eq(series.id, episode.seriesId))
@@ -64,8 +66,40 @@ export const load: PageServerLoad = async () => {
 			asc(episode.number)
 		);
 
+	// Seconds of video converted per second, over the latest conversions.
+	const recent = db
+		.select({ durationSec: episode.durationSec, convertSec: episode.convertSec })
+		.from(episode)
+		.where(
+			sql`${episode.status} = 'ready' and ${episode.convertSec} > 0 and ${episode.durationSec} > 0`
+		)
+		.orderBy(desc(episode.updatedAt))
+		.limit(20)
+		.as('recent');
+	const [{ speed }] = await db
+		.select({ speed: sql<number | null>`sum(${recent.durationSec}) / sum(${recent.convertSec})` })
+		.from(recent);
+
+	const worker = workerStatus();
+	const processing = active.find((e) => e.id === worker.currentId);
+	const queueEta =
+		worker.state === 'running'
+			? estimateQueue({
+					speed,
+					current: processing
+						? {
+								durationSec: worker.currentDurationSec,
+								elapsedSec: worker.currentElapsedSec,
+								progress: processing.progress
+							}
+						: null,
+					pending: queue.map((e) => e.durationSec)
+				})
+			: null;
+
 	return {
-		worker: workerStatus(),
+		worker,
+		queueEta,
 		queue,
 		totals: {
 			...totals,

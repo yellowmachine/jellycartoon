@@ -32,7 +32,13 @@ export function setSuspended(value: boolean) {
 export function run(
 	cmd: string,
 	args: string[],
-	options: { cwd?: string; onStdout?: (chunk: string) => void; signal?: AbortSignal } = {}
+	options: {
+		cwd?: string;
+		onStdout?: (chunk: string) => void;
+		signal?: AbortSignal;
+		/** Frozen with the worker; off for work that isn't the worker's, like scanning. */
+		pausable?: boolean;
+	} = {}
 ) {
 	return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
 		const child = spawn(cmd, args, {
@@ -42,9 +48,11 @@ export function run(
 			// A frozen process only handles SIGTERM once resumed; SIGKILL works right away.
 			killSignal: 'SIGKILL'
 		});
-		children.add(child);
-		for (const event of ['close', 'error']) child.on(event, () => children.delete(child));
-		if (suspended) child.kill('SIGSTOP');
+		if (options.pausable !== false) {
+			children.add(child);
+			for (const event of ['close', 'error']) child.on(event, () => children.delete(child));
+			if (suspended) child.kill('SIGSTOP');
+		}
 		let stdout = '';
 		let stderr = '';
 		child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
@@ -69,6 +77,16 @@ export async function probe(file: string, signal?: AbortSignal): Promise<Probe> 
 		{ signal }
 	);
 	return JSON.parse(stdout);
+}
+
+/** Length in seconds, or null if ffprobe can't tell. Not frozen when the worker is paused. */
+export async function probeDuration(file: string): Promise<number | null> {
+	const { stdout } = await run(
+		'ffprobe',
+		['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file],
+		{ pausable: false }
+	);
+	return Number(stdout.trim()) || null;
 }
 
 /** Every audio stream, with the preferred language (AUDIO_LANG) first: it becomes the default. */

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { and, eq, notInArray, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { episode, series } from '#lib/server/db/schema.ts';
+import { probeDuration } from './ffmpeg.ts';
 import { mediaRoot } from './paths.ts';
 import { wakeWorker } from './worker.ts';
 
@@ -171,7 +172,8 @@ async function runScan(): Promise<ScanResult> {
 				mtime: episode.sourceMtime,
 				season: episode.season,
 				number: episode.number,
-				manualNumbering: episode.manualNumbering
+				manualNumbering: episode.manualNumbering,
+				durationSec: episode.durationSec
 			})
 			.from(episode)
 			.where(eq(episode.seriesId, s.id));
@@ -213,6 +215,15 @@ async function runScan(): Promise<ScanResult> {
 				sourceRemoved: false
 			};
 
+			const changed =
+				existing &&
+				(existing.size !== info.size || existing.mtime.getTime() !== info.mtime.getTime());
+			// Known before converting, to estimate how long the queue takes.
+			const durationSec =
+				!existing || changed || existing.durationSec === null
+					? await probeDuration(file).catch(() => null)
+					: existing.durationSec;
+
 			if (!existing) {
 				await db.insert(episode).values({
 					...naming,
@@ -221,16 +232,18 @@ async function runScan(): Promise<ScanResult> {
 					seriesId: s.id,
 					sourcePath: relative,
 					sourceSize: info.size,
-					sourceMtime: info.mtime
+					sourceMtime: info.mtime,
+					durationSec
 				});
 				result.added++;
-			} else if (existing.size !== info.size || existing.mtime.getTime() !== info.mtime.getTime()) {
+			} else if (changed) {
 				await db
 					.update(episode)
 					.set({
 						...naming,
 						sourceSize: info.size,
 						sourceMtime: info.mtime,
+						durationSec,
 						status: 'pending',
 						progress: 0,
 						error: null
@@ -238,7 +251,10 @@ async function runScan(): Promise<ScanResult> {
 					.where(eq(episode.id, existing.id));
 				result.changed++;
 			} else {
-				await db.update(episode).set(naming).where(eq(episode.id, existing.id));
+				await db
+					.update(episode)
+					.set({ ...naming, durationSec })
+					.where(eq(episode.id, existing.id));
 			}
 		}
 	}

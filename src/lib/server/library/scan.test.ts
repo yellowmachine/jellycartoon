@@ -2,6 +2,7 @@ import { describe, expect, mock, test } from 'bun:test';
 
 mock.module('#lib/server/db/index.ts', () => ({ db: {} }));
 mock.module('./worker.ts', () => ({ wakeWorker() {} }));
+mock.module('./ffmpeg.ts', () => ({ probeDuration: async () => null }));
 mock.module('./paths.ts', () => ({ mediaRoot: '/' }));
 const { parseEpisode, noiseSegments } = await import('./scan.ts');
 

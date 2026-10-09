@@ -60,7 +60,10 @@ export const episode = pgTable(
 		/** 0..1 while processing. */
 		progress: real('progress').notNull().default(0),
 		error: text('error'),
+		/** Probed when scanned, so the queue can be estimated before converting. */
 		durationSec: real('duration_sec'),
+		/** Seconds the conversion took, not counting pauses. */
+		convertSec: real('convert_sec'),
 		outputSize: bigint('output_size', { mode: 'number' }),
 		/** In the same order as the HLS master playlist. */
 		audioTracks: jsonb('audio_tracks').$type<AudioTrack[]>().notNull().default([]),

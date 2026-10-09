@@ -22,8 +22,23 @@ export type WorkerState = (typeof worker.$inferSelect)['state'];
 let started = false;
 let state: WorkerState = 'running';
 let wake: (() => void) | null = null;
-/** The episode being converted and how to cancel it. */
-let current: { id: number; abort: AbortController } | null = null;
+/** The episode being converted, how to cancel it and how long it has been converting. */
+let current: {
+	id: number;
+	abort: AbortController;
+	durationSec: number | null;
+	/** Converting time before the last pause. */
+	activeMs: number;
+	/** Null while paused. */
+	runningSince: number | null;
+} | null = null;
+
+/** Seconds spent converting the current episode, not counting pauses. */
+function activeSeconds() {
+	if (!current) return 0;
+	const running = current.runningSince === null ? 0 : Date.now() - current.runningSince;
+	return (current.activeMs + running) / 1000;
+}
 
 /** Nudges the worker to look for pending episodes right away. */
 export function wakeWorker() {
@@ -31,7 +46,12 @@ export function wakeWorker() {
 }
 
 export function workerStatus() {
-	return { state, currentId: current?.id ?? null };
+	return {
+		state,
+		currentId: current?.id ?? null,
+		currentDurationSec: current?.durationSec ?? null,
+		currentElapsedSec: activeSeconds()
+	};
 }
 
 async function setState(next: WorkerState) {
@@ -46,6 +66,7 @@ async function setState(next: WorkerState) {
 export async function resumeWorker() {
 	await setState('running');
 	setSuspended(false);
+	if (current && current.runningSince === null) current.runningSince = Date.now();
 	wakeWorker();
 }
 
@@ -54,6 +75,10 @@ export async function pauseWorker() {
 	if (state !== 'running') return;
 	await setState('paused');
 	setSuspended(true);
+	if (current && current.runningSince !== null) {
+		current.activeMs += Date.now() - current.runningSince;
+		current.runningSince = null;
+	}
 }
 
 /** Cancels the current conversion (back to the queue) and starts nothing new. */
@@ -183,7 +208,7 @@ async function processNext() {
 
 	const abort = new AbortController();
 	const { signal } = abort;
-	current = { id: job.id, abort };
+	current = { id: job.id, abort, durationSec: null, activeMs: 0, runningSince: Date.now() };
 
 	const input = sourceFile(job.sourcePath);
 	const output = hlsDir(job.id);
@@ -201,6 +226,7 @@ async function processNext() {
 			);
 		});
 		const info = await probe(input, signal);
+		current.durationSec = Number(info.format.duration) || null;
 		let lastWrite = 0;
 		const { duration, audioTracks } = await transcodeHls(
 			input,
@@ -232,6 +258,7 @@ async function processNext() {
 				progress: 1,
 				priority: 0,
 				durationSec: duration,
+				convertSec: activeSeconds(),
 				outputSize: size,
 				audioTracks,
 				subtitles

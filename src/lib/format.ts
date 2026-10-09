@@ -14,3 +14,12 @@ export function formatBytes(bytes: number | null | undefined) {
 	const i = Math.min(units.length - 1, Math.floor(Math.log10(bytes) / 3));
 	return `${(bytes / 1000 ** i).toFixed(i >= 3 ? 2 : 0)} ${units[i]}`;
 }
+
+/** Rough time left, like `3 h 20 min` or `12 min`. */
+export function formatRemaining(seconds: number) {
+	const minutes = Math.ceil(seconds / 60);
+	if (minutes < 60) return `${minutes} min`;
+	const h = Math.floor(minutes / 60);
+	const m = minutes % 60;
+	return m ? `${h} h ${m} min` : `${h} h`;
+}

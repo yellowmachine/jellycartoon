@@ -64,6 +64,13 @@
       "when": 1791476173073,
       "tag": "0008_lying_demogoblin",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791544450688,
+      "tag": "0009_cooing_the_renegades",
+      "breakpoints": true
     }
   ]
 }

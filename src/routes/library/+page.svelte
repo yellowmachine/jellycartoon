@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
-	import { formatBytes } from '#lib/format.ts';
+	import { formatBytes, formatRemaining } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -148,6 +148,9 @@
 		<strong class:text-amber-400={data.worker.state !== 'running'}>
 			{STATE_LABELS[data.worker.state]}
 		</strong>
+		{#if data.queueEta}
+			<span class="text-zinc-400">· quedan ≈ {formatRemaining(data.queueEta)}</span>
+		{/if}
 	</p>
 	{#if data.worker.state === 'running'}
 		{@render workerButton('pause', 'Pausar')}
