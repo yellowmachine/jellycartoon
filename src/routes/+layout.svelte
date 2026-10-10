@@ -6,13 +6,14 @@
 
 	let { children, data }: LayoutProps = $props();
 
-	const links = [
+	const links = $derived([
 		{ href: '/', label: 'Catálogo' },
+		...(data.cinema ? [{ href: '/cine', label: 'Cine' }] : []),
 		{ href: '/today', label: 'Hoy' },
 		{ href: '/lists', label: 'Listas' },
 		{ href: '/library', label: 'Biblioteca' },
 		{ href: '/logs', label: 'Registro' }
-	];
+	]);
 </script>
 
 <svelte:head>

@@ -10,8 +10,11 @@ interface ProbeStream {
 	pix_fmt?: string;
 	field_order?: string;
 	sample_aspect_ratio?: string;
+	width?: number;
+	height?: number;
+	color_transfer?: string;
 	channels?: number;
-	disposition?: { default?: number; attached_pic?: number };
+	disposition?: { default?: number; attached_pic?: number; forced?: number };
 	tags?: { language?: string };
 }
 
@@ -115,6 +118,21 @@ export function textSubtitleStreams(info: Probe) {
 
 const INTERLACED = new Set(['tt', 'bb', 'tb', 'bt']);
 const SEGMENT_SECONDS = 6;
+
+/** PQ (HDR10, Dolby Vision base) and HLG. */
+const HDR_TRANSFERS = new Set(['smpte2084', 'arib-std-b67']);
+
+export const isHdr = (video: ProbeStream) => HDR_TRANSFERS.has(video.color_transfer ?? '');
+
+/** HDR to SDR, so a thumbnail of an HDR film doesn't come out washed out. */
+const TONEMAP = [
+	'zscale=t=linear:npl=100',
+	'format=gbrpf32le',
+	'zscale=p=bt709',
+	'tonemap=tonemap=hable:desat=0',
+	'zscale=t=bt709:m=bt709:r=tv',
+	'format=yuv420p'
+];
 
 function videoFilters(video: ProbeStream) {
 	return [
@@ -274,7 +292,11 @@ export async function thumbnail(
 ) {
 	const video = info.streams.find((s) => s.codec_type === 'video' && !s.disposition?.attached_pic);
 	// JPEG is full range: ffmpeg 7.1 refuses to encode limited-range video, which ours is.
-	const filters = [...(video ? videoFilters(video) : []), 'scale=480:-2:out_range=full'];
+	const filters = [
+		...(video && isHdr(video) ? TONEMAP : []),
+		...(video ? videoFilters(video) : []),
+		'scale=480:-2:out_range=full'
+	];
 	const seek = ['-ss', atSec.toFixed(2)];
 	await run(
 		'ffmpeg',
@@ -298,4 +320,37 @@ export async function thumbnail(
 		],
 		{ signal: options.signal, pausable: options.pausable }
 	);
+}
+
+const CHANNELS: Record<number, string> = { 1: 'mono', 2: 'estéreo', 6: '5.1', 8: '7.1' };
+
+/**
+ * What a film has, to show it without converting anything: e.g. `1920×1080 · h264 · HDR`, audio
+ * `English · 5.1` and subtitles `Español (forzados)`.
+ */
+export function describeStreams(info: Probe) {
+	const video = info.streams.find((s) => s.codec_type === 'video' && !s.disposition?.attached_pic);
+	const track = (s: ProbeStream, extra: string | undefined) => ({
+		lang: normalizeLang(s.tags?.language),
+		label: [languageLabel(s.tags?.language), extra].filter(Boolean).join(' · ')
+	});
+	return {
+		video: video
+			? [
+					video.width && video.height ? `${video.width}×${video.height}` : null,
+					video.codec_name,
+					isHdr(video) ? 'HDR' : null
+				]
+					.filter(Boolean)
+					.join(' · ')
+			: null,
+		audioTracks: info.streams
+			.filter((s) => s.codec_type === 'audio')
+			.map((s) =>
+				track(s, CHANNELS[s.channels ?? 0] ?? (s.channels ? `${s.channels} canales` : undefined))
+			),
+		subtitles: info.streams
+			.filter((s) => s.codec_type === 'subtitle')
+			.map((s) => track(s, s.disposition?.forced ? 'forzados' : undefined))
+	};
 }

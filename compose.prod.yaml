@@ -42,6 +42,9 @@ services:
       DATA_DIR: /data
       # Shown on each episode, to open it with a native player on this PC.
       HOST_DATA_DIR: ${HOST_DATA_DIR}
+      # Optional films folder, catalogued but not converted: only with HOST_CINEMA_DIR.
+      CINEMA_DIR: ${HOST_CINEMA_DIR:+/cinema}
+      HOST_CINEMA_DIR: ${HOST_CINEMA_DIR:-}
       AUDIO_LANG: ${AUDIO_LANG:-spa}
       X264_PRESET: ${X264_PRESET:-medium}
       X264_CRF: ${X264_CRF:-20}
@@ -52,6 +55,9 @@ services:
       # Writable only so DELETE_SOURCES can remove converted originals.
       - ${HOST_MEDIA_DIR:?HOST_MEDIA_DIR is required}:/media
       - ${HOST_DATA_DIR:?HOST_DATA_DIR is required}:/data
+      # Read-only: films are never modified. Without HOST_CINEMA_DIR an empty folder is mounted
+      # instead, and the app has no Cine section (CINEMA_DIR is unset).
+      - ${HOST_CINEMA_DIR:-./no-cinema}:/cinema:ro
 
   # Reverse proxy in front of the app. Only a port, so plain HTTP (no automatic HTTPS). Passes
   # the Host header through and sets X-Forwarded-Proto, ignoring any sent by the client.

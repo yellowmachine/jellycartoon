@@ -24,6 +24,16 @@ export const variables = defineEnvVars({
 			'Absolute path of DATA_DIR on the host when running in a container. Lets the app show where each converted episode is, to open it with a native player (mpv…). Ignored if relative: it would depend on where compose ran.',
 		schema: (value) => (value?.startsWith('/') ? value : undefined)
 	},
+	CINEMA_DIR: {
+		description:
+			'Optional read-only directory with films (big .mkv files). They are only catalogued, never converted: played with mpv on the host. Without it there is no Cine section.',
+		schema: (value) => value || undefined
+	},
+	HOST_CINEMA_DIR: {
+		description:
+			'Absolute path of CINEMA_DIR on the host, which is what mpv on the host needs. Ignored if relative, like HOST_DATA_DIR.',
+		schema: (value) => (value?.startsWith('/') ? value : undefined)
+	},
 	AUDIO_LANG: {
 		description:
 			'Preferred audio language (ISO 639-2, e.g. `spa`) when a source has several audio tracks.',

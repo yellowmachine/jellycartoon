@@ -96,6 +96,20 @@ docker compose -f compose.prod.yaml logs -f app
 - `compose.yaml` es solo para desarrollo (Postgres con el puerto abierto). Ambos ficheros
   comparten la base de datos; usa uno u otro, no los dos a la vez.
 
+### Cine
+
+Una carpeta aparte de películas (mkv grandes) que solo se catalogan: nunca se convierten ni se
+borran. Con `HOST_CINEMA_DIR="/ruta/a/las/peliculas"` en el `.env` se monta de solo lectura y
+aparece la sección Cine; sin ella, no. En desarrollo se usa `CINEMA_DIR` con la ruta.
+
+- «Escanear carpeta» busca vídeos en la carpeta y sus subcarpetas. Una subcarpeta con un único
+  vídeo se cataloga con el nombre de la carpeta. Las copias de disco (`BDMV`, `VIDEO_TS`) se
+  saltan y se avisa en el Registro.
+- El título sale del nombre del fichero, quitando lo que añade MakeMKV (`_t00`, ` T01`,
+  `Disc 1`); un año entre paréntesis al final, `Título (1964)`, se guarda aparte. Se puede editar.
+- En segundo plano, de una en una, se saca la duración, las pistas de audio y subtítulos y una
+  miniatura (con tone mapping si la película es HDR).
+
 ## Copia de seguridad
 
 Qué hay que guardar:

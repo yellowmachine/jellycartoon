@@ -4,11 +4,15 @@ import { building } from '$app/env';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { auth } from '#lib/server/auth.ts';
 import { startWorker } from '#lib/server/library/worker.ts';
+import { wakeCatalog } from '#lib/server/cinema/catalog.ts';
+import { cinemaRoot } from '#lib/server/library/paths.ts';
 import { log, startLogCleanup } from '#lib/server/log.ts';
 
 export const init: ServerInit = async () => {
 	if (building) return;
 	startLogCleanup();
+	// Films left half catalogued by a restart.
+	if (cinemaRoot) wakeCatalog();
 	await startWorker();
 };
 

@@ -8,7 +8,7 @@ import { mediaRoot } from './paths.ts';
 import { wakeWorker } from './worker.ts';
 import { log } from '#lib/server/log.ts';
 
-const VIDEO_EXTENSIONS = new Set([
+export const VIDEO_EXTENSIONS = new Set([
 	'.mkv',
 	'.mp4',
 	'.m4v',

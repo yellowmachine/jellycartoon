@@ -179,6 +179,40 @@ export const worker = pgTable('worker', {
 	state: workerState('state').notNull().default('running')
 });
 
+/** `pending`: found by the scan, not yet probed nor with a thumbnail. */
+export const movieStatus = pgEnum('movie_status', ['pending', 'ready', 'error']);
+
+/** A film in CINEMA_DIR: catalogued as is, never converted. */
+export const movie = pgTable(
+	'movie',
+	{
+		id: serial('id').primaryKey(),
+		/** Path relative to CINEMA_DIR. */
+		path: text('path').notNull().unique(),
+		/** Derived from the file name on every scan. */
+		title: text('title').notNull(),
+		/** Set by hand; shown instead of `title` and kept across scans. */
+		customTitle: text('custom_title'),
+		year: integer('year'),
+		size: bigint('size', { mode: 'number' }).notNull(),
+		mtime: timestamp('mtime').notNull(),
+		/** Set when the file is missing from the last scan. */
+		missing: boolean('missing').notNull().default(false),
+		status: movieStatus('status').notNull().default('pending'),
+		error: text('error'),
+		durationSec: real('duration_sec'),
+		/** e.g. `1920×1080 · h264 · HDR`. */
+		video: text('video'),
+		audioTracks: jsonb('audio_tracks').$type<AudioTrack[]>().notNull().default([]),
+		subtitles: jsonb('subtitles').$type<AudioTrack[]>().notNull().default([]),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [index('movie_status_idx').on(t.status)]
+);
+
+/** The title to show: the one set by hand, or the one from the file name. */
+export const movieTitle = sql<string>`coalesce(${movie.customTitle}, ${movie.title})`;
+
 export const logLevel = pgEnum('log_level', ['info', 'warn', 'error']);
 
 /** What the server did and what went wrong, shown in /logs. Older than 30 days is deleted. */
