@@ -110,6 +110,20 @@ aparece la sección Cine; sin ella, no. En desarrollo se usa `CINEMA_DIR` con la
 - En segundo plano, de una en una, se saca la duración, las pistas de audio y subtítulos y una
   miniatura (con tone mapping si la película es HDR).
 
+#### Ficha de cada película
+
+Al pulsar una película se abre su ficha. La primera vez se busca en
+[Wikidata](https://www.wikidata.org) (director, reparto, año, género, país, enlace a IMDb) y
+Wikipedia en español o, si no hay artículo, en inglés (sinopsis); queda guardada en la base de
+datos. Las dos son gratuitas y sin clave.
+
+- Para acertar se usa el título, el año del nombre del fichero y la duración. Si no está claro
+  pregunta «¿Cuál de estas es?», y siempre se puede buscar a mano por otro título.
+- Con una clave de OpenRouter en Ajustes, una IA identifica primero la película a partir del
+  nombre del fichero (erratas, títulos españoles, restos de MakeMKV): da el título original, el año
+  y el director, y con eso se busca en Wikidata. Los datos de la ficha nunca los inventa la IA;
+  solo escribe la sinopsis si no hay artículo en Wikipedia, y lo indica.
+
 #### Ver en el salón
 
 Las películas se ven con mpv en la pantalla del PC donde corre la app. Allí queda un mpv

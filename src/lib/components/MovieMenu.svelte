@@ -46,7 +46,7 @@
 				<form method="post" action="?/play" use:enhance={closeAfter(close)}>
 					<input type="hidden" name="id" value={movie.id} />
 					<button class={menuItem}>
-						▶ Continuar en el salón desde {formatDuration(resumeAt)}
+						▶︎ Continuar en el salón desde {formatDuration(resumeAt)}
 					</button>
 				</form>
 			{/if}
@@ -54,7 +54,7 @@
 				<input type="hidden" name="id" value={movie.id} />
 				<input type="hidden" name="from" value="start" />
 				<button class={menuItem}>
-					{resumeAt ? 'Empezar desde el principio' : '▶ Ver en el salón'}
+					{resumeAt ? 'Empezar desde el principio' : '▶︎ Ver en el salón'}
 				</button>
 			</form>
 		{/if}

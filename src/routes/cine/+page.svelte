@@ -64,7 +64,7 @@
 </div>
 
 {#if form && 'playing' in form && form.playing}
-	<p class="-mt-4 mb-4 text-sm text-amber-400">▶ En el salón: {form.playing}</p>
+	<p class="-mt-4 mb-4 text-sm text-amber-400">▶︎ En el salón: {form.playing}</p>
 {/if}
 {#if form && 'message' in form && form.message}
 	<p class="-mt-4 mb-4 text-sm text-red-400">{form.message}</p>
@@ -96,7 +96,10 @@
 	<ul class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
 		{#each shown as movie (movie.id)}
 			<li class="min-w-0">
-				<div class="relative aspect-video overflow-hidden rounded-md bg-zinc-800">
+				<a
+					href="/cine/{movie.id}"
+					class="relative block aspect-video overflow-hidden rounded-md bg-zinc-800 hover:opacity-80"
+				>
 					{#if movie.status === 'ready'}
 						<img
 							src="/api/movie-thumb/{movie.id}"
@@ -127,7 +130,7 @@
 							{movie.status === 'error' ? 'No se pudo catalogar' : 'Catalogando…'}
 						</p>
 					{/if}
-				</div>
+				</a>
 				{#if editing === movie.id}
 					<div class="mt-1 flex">
 						<TitleForm
@@ -141,7 +144,11 @@
 				{:else}
 					<div class="mt-1 flex items-start gap-1">
 						<div class="min-w-0 flex-1">
-							<p class="truncate text-sm" title={movie.title}>{movie.title}</p>
+							<a
+								href="/cine/{movie.id}"
+								class="block truncate text-sm hover:text-amber-400"
+								title={movie.title}>{movie.title}</a
+							>
 							<p class="text-xs text-zinc-400">
 								{[movie.year, formatDuration(movie.durationSec)].filter(Boolean).join(' · ') || ' '}
 							</p>

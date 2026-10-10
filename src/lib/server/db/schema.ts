@@ -227,6 +227,45 @@ export const movieProgress = pgTable(
 	(t) => [primaryKey({ columns: [t.userId, t.movieId] })]
 );
 
+/** `ambiguous`: several films could be it, the user chooses (`candidates`). */
+export const movieInfoStatus = pgEnum('movie_info_status', ['found', 'ambiguous', 'not_found']);
+
+/** What a film is, from Wikidata and Wikipedia: looked up once, the first time its page is opened. */
+export const movieInfo = pgTable('movie_info', {
+	movieId: integer('movie_id')
+		.primaryKey()
+		.references(() => movie.id, { onDelete: 'cascade' }),
+	status: movieInfoStatus('status').notNull(),
+	wikidataId: text('wikidata_id'),
+	title: text('title'),
+	originalTitle: text('original_title'),
+	year: integer('year'),
+	minutes: integer('minutes'),
+	directors: jsonb('directors').$type<string[]>().notNull().default([]),
+	cast: jsonb('cast').$type<string[]>().notNull().default([]),
+	genres: jsonb('genres').$type<string[]>().notNull().default([]),
+	countries: jsonb('countries').$type<string[]>().notNull().default([]),
+	imdbId: text('imdb_id'),
+	synopsis: text('synopsis'),
+	/** `wikipedia`, or `ai` when there was no article and the AI wrote it. */
+	synopsisSource: text('synopsis_source').$type<'wikipedia' | 'ai'>(),
+	wikipediaUrl: text('wikipedia_url'),
+	/** For `ambiguous`: the films to choose from, best first. */
+	candidates: jsonb('candidates')
+		.$type<
+			{
+				id: string;
+				title: string;
+				year: number | null;
+				directors: string[];
+				description: string | null;
+			}[]
+		>()
+		.notNull()
+		.default([]),
+	updatedAt: timestamp('updated_at').notNull().defaultNow()
+});
+
 /** The title to show: the one set by hand, or the one from the file name. */
 export const movieTitle = sql<string>`coalesce(${movie.customTitle}, ${movie.title})`;
 

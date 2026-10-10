@@ -1,14 +1,12 @@
 import { error, fail } from '@sveltejs/kit';
 import { and, eq } from 'drizzle-orm';
-import { AUDIO_LANG } from '$app/env/private';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { movie, movieProgress, movieTitle } from '#lib/server/db/schema.ts';
 import { wakeCatalog } from '#lib/server/cinema/catalog.ts';
-import { mpvEnabled, playMovie } from '#lib/server/cinema/mpv.ts';
+import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
+import { play, setWatched } from '#lib/server/cinema/film-actions.ts';
 import { scanCinema } from '#lib/server/cinema/scan.ts';
-import { getSettings } from '#lib/server/settings.ts';
-import { log } from '#lib/server/log.ts';
 import { cinemaRoot, hostMoviePath } from '#lib/server/library/paths.ts';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -65,63 +63,8 @@ export const actions: Actions = {
 			.set({ customTitle: title || null })
 			.where(eq(movie.id, Number(form.get('id'))));
 	},
-	/** On the host's screen, from where it was left or (`from=start`) from the beginning. */
-	play: async ({ request, locals }) => {
-		if (!mpvEnabled) return fail(400, { message: 'No hay mpv configurado (MPV_SOCKET)' });
-		const form = await request.formData();
-		const userId = locals.user!.id;
-		const [film] = await db
-			.select({
-				id: movie.id,
-				title: movieTitle,
-				path: movie.path,
-				durationSec: movie.durationSec,
-				positionSec: movieProgress.positionSec
-			})
-			.from(movie)
-			.leftJoin(
-				movieProgress,
-				and(eq(movieProgress.movieId, movie.id), eq(movieProgress.userId, userId))
-			)
-			.where(eq(movie.id, Number(form.get('id'))));
-		const hostPath = film && hostMoviePath(film.path);
-		if (!film || !hostPath) return fail(400, { message: 'Película no válida' });
-
-		const settings = await getSettings(userId);
-		try {
-			await playMovie({
-				userId,
-				movieId: film.id,
-				title: film.title,
-				hostPath,
-				startSec: form.get('from') === 'start' ? 0 : (film.positionSec ?? 0),
-				durationSec: film.durationSec,
-				audioLang: settings.audioLang ?? AUDIO_LANG,
-				subtitleLang: settings.subtitleLang
-			});
-		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-			log.error('mpv', `No se pudo reproducir ${film.path}`, { movieId: film.id, error: err });
-			return fail(500, { message });
-		}
-		return { playing: film.title };
-	},
-	setWatched: async ({ request, locals }) => {
-		const form = await request.formData();
-		const movieId = Number(form.get('id'));
-		const userId = locals.user!.id;
-		if (form.get('watched') === 'true') {
-			const values = { userId, movieId, positionSec: 0, completed: true, updatedAt: new Date() };
-			await db
-				.insert(movieProgress)
-				.values(values)
-				.onConflictDoUpdate({ target: [movieProgress.userId, movieProgress.movieId], set: values });
-		} else {
-			await db
-				.delete(movieProgress)
-				.where(and(eq(movieProgress.userId, userId), eq(movieProgress.movieId, movieId)));
-		}
-	},
+	play,
+	setWatched,
 	retry: async ({ request }) => {
 		const id = Number((await request.formData()).get('id'));
 		await db
