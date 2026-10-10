@@ -132,7 +132,7 @@
 
 		<button
 			class="w-full rounded-md border border-zinc-700 py-3 text-zinc-300 hover:bg-zinc-900"
-			onclick={() => salon.send({ action: 'stop' })}>■ Parar</button
+			onclick={() => salon.send({ action: 'stop' })}>■ Parar y cerrar la pantalla</button
 		>
 	{/if}
 

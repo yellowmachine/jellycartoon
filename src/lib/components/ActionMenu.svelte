@@ -15,13 +15,20 @@
 </script>
 
 <!-- Native popover: closes with Esc or a click outside, positioned next to its button. -->
+<!-- Big enough for a finger and visible on the dark background. -->
 <button
-	class="shrink-0 rounded-md px-2 py-1 text-zinc-500 hover:bg-zinc-800 hover:text-white"
+	class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-zinc-200 hover:bg-zinc-700 hover:text-white"
 	title="Más acciones"
 	aria-label="Más acciones"
 	popovertarget={id}
-	style:anchor-name="--{id}">⋯</button
+	style:anchor-name="--{id}"
 >
+	<svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor" aria-hidden="true">
+		<circle cx="5" cy="12" r="2.2" />
+		<circle cx="12" cy="12" r="2.2" />
+		<circle cx="19" cy="12" r="2.2" />
+	</svg>
+</button>
 
 <div
 	bind:this={menu}
