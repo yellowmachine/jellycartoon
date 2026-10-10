@@ -70,11 +70,15 @@ export function run(
 	});
 }
 
-export async function probe(file: string, signal?: AbortSignal): Promise<Probe> {
+export async function probe(
+	file: string,
+	signal?: AbortSignal,
+	pausable?: boolean
+): Promise<Probe> {
 	const { stdout } = await run(
 		'ffprobe',
 		['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', file],
-		{ signal }
+		{ signal, pausable }
 	);
 	return JSON.parse(stdout);
 }
@@ -258,20 +262,33 @@ export async function thumbnail(
 	output: string,
 	info: Probe,
 	atSec: number,
-	signal?: AbortSignal
+	options: {
+		signal?: AbortSignal;
+		/**
+		 * Decodes from the start up to `atSec` instead of seeking. Slower, but ffmpeg 7.1 (the one in
+		 * the image) writes no frame when seeking into our HLS output.
+		 */
+		fromStart?: boolean;
+		pausable?: boolean;
+	} = {}
 ) {
 	const video = info.streams.find((s) => s.codec_type === 'video' && !s.disposition?.attached_pic);
-	const filters = [...(video ? videoFilters(video) : []), 'scale=480:-2'];
+	// JPEG is full range: ffmpeg 7.1 refuses to encode limited-range video, which ours is.
+	const filters = [...(video ? videoFilters(video) : []), 'scale=480:-2:out_range=full'];
+	const seek = ['-ss', atSec.toFixed(2)];
 	await run(
 		'ffmpeg',
 		[
 			'-hide_banner',
 			'-y',
-			'-ss',
-			atSec.toFixed(2),
+			...(options.fromStart ? [] : seek),
 			'-i',
 			input,
+			...(options.fromStart ? seek : []),
+			'-an',
 			'-frames:v',
+			'1',
+			'-update',
 			'1',
 			'-vf',
 			filters.join(','),
@@ -279,6 +296,6 @@ export async function thumbnail(
 			'4',
 			output
 		],
-		{ signal }
+		{ signal: options.signal, pausable: options.pausable }
 	);
 }

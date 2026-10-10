@@ -13,8 +13,9 @@ export async function takeThumbnail(episodeId: number, atSec: number) {
 	// Written aside and then renamed, so the page never gets half an image.
 	const partial = output.replace(/\.jpg$/, '.part.jpg');
 	try {
-		const info = await probe(input);
-		await thumbnail(input, partial, info, atSec);
+		// Not the worker's: it must not freeze when the queue is paused.
+		const info = await probe(input, undefined, false);
+		await thumbnail(input, partial, info, atSec, { fromStart: true, pausable: false });
 		await rename(partial, output);
 	} finally {
 		await rm(partial, { force: true });

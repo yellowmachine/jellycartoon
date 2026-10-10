@@ -266,7 +266,7 @@ async function processNext() {
 		await rm(output, { recursive: true, force: true });
 		await rename(partial, output);
 		await rm(legacyVideoFile(job.id), { force: true });
-		await thumbnail(input, thumbFile(job.id), info, duration * 0.15, signal);
+		await thumbnail(input, thumbFile(job.id), info, duration * 0.15, { signal });
 
 		const size = await directorySize(output);
 		const [updated] = await db
