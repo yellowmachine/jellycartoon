@@ -124,7 +124,7 @@ datos. Las dos son gratuitas y sin clave.
   persona, género y país lleva a Cine filtrado por ella.
 - Para acertar se usa el título, el año del nombre del fichero y la duración. Si no está claro
   pregunta «¿Cuál de estas es?», y siempre se puede buscar a mano por otro título.
-- Con una clave de OpenRouter en Ajustes, una IA identifica primero la película a partir del
+- Con una clave de OpenRouter (en Ajustes, o `OPENROUTER_API_KEY` en el `.env`), una IA identifica primero la película a partir del
   nombre del fichero (erratas, títulos españoles, restos de MakeMKV): da el título original, el año
   y el director, y con eso se busca en Wikidata. Los datos de la ficha nunca los inventa la IA;
   solo escribe la sinopsis si no hay artículo en Wikipedia, y lo indica.

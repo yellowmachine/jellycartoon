@@ -41,7 +41,7 @@ export const variables = defineEnvVars({
 	},
 	OPENROUTER_API_KEY: {
 		description:
-			'Optional OpenRouter key, used to identify films. It can also be set in Ajustes; this one takes precedence.',
+			'Optional OpenRouter key, used to identify films and to talk about them. It can also be set in Ajustes; this one takes precedence.',
 		schema: (value) => value || undefined
 	},
 	OPENROUTER_MODEL: {

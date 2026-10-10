@@ -53,6 +53,9 @@ services:
       ALLOW_SIGNUP: ${ALLOW_SIGNUP:-true}
       DELETE_SOURCES: ${DELETE_SOURCES:-false}
       TZ: ${TZ:-Europe/Madrid}
+      # Optional: the AI for films (identifying them, talking about them). Also settable in Ajustes.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
     volumes:
       # Writable only so DELETE_SOURCES can remove converted originals.
       - ${HOST_MEDIA_DIR:?HOST_MEDIA_DIR is required}:/media
