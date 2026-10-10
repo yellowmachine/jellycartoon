@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import MovieMenu from '#lib/components/MovieMenu.svelte';
+	import SalonBar from '#lib/components/SalonBar.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
 	import { formatDuration } from '#lib/format.ts';
 	import type { PageProps } from './$types';
@@ -151,4 +152,8 @@
 			</li>
 		{/each}
 	</ul>
+{/if}
+
+{#if data.mpv}
+	<SalonBar />
 {/if}

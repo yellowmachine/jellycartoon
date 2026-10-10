@@ -133,6 +133,9 @@ systemctl --user enable --now jellycartoon-mpv
   llegar al final queda como vista.
 - Con el ratón o el teclado se controla mpv como siempre; `q` lo cierra y el servicio lo deja
   esperando otra vez.
+- Mando a distancia: la página Salón (pensada para el móvil) pausa, salta, cambia el volumen y
+  las pistas de audio y subtítulos, y para. Lo que hace mpv llega en directo con Server-Sent
+  Events, también si se toca con el ratón. En Cine hay una barra con la película en curso.
 - Si no se ve nada: `systemctl --user status jellycartoon-mpv` y el Registro de la app.
 
 ## Copia de seguridad

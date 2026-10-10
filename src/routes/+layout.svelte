@@ -9,6 +9,7 @@
 	const links = $derived([
 		{ href: '/', label: 'Catálogo' },
 		...(data.cinema ? [{ href: '/cine', label: 'Cine' }] : []),
+		...(data.salon ? [{ href: '/salon', label: 'Salón' }] : []),
 		{ href: '/today', label: 'Hoy' },
 		{ href: '/lists', label: 'Listas' },
 		{ href: '/library', label: 'Biblioteca' },

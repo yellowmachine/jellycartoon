@@ -27,7 +27,8 @@ export const movieFile = (relative: string) => path.join(cinemaRoot!, relative);
 export const movieThumbFile = (movieId: number) =>
 	path.join(dataRoot, 'movie-thumb', `${movieId}.jpg`);
 
-const hostCinemaRoot = dev ? cinemaRoot : HOST_CINEMA_DIR;
+/** CINEMA_DIR as the host sees it, which is how mpv names the files. */
+export const hostCinemaRoot = dev ? cinemaRoot : (HOST_CINEMA_DIR ?? null);
 
 /** The film as a path on the host, which is what mpv there needs. */
 export const hostMoviePath = (relative: string) =>

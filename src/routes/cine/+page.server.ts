@@ -92,6 +92,7 @@ export const actions: Actions = {
 			await playMovie({
 				userId,
 				movieId: film.id,
+				title: film.title,
 				hostPath,
 				startSec: form.get('from') === 'start' ? 0 : (film.positionSec ?? 0),
 				durationSec: film.durationSec,
