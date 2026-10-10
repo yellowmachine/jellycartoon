@@ -11,6 +11,18 @@
 	/** What is being renamed: the series, an episode id, or nothing. */
 	let editing = $state<'series' | number | null>(null);
 	/** `listId:episodeId` of every episode of the series already in one of the user's lists. */
+	/** For each episode, how many before it in the series are not watched yet. */
+	let previousUnwatched = $derived.by(() => {
+		const counts = new Map<number, number>();
+		let unwatched = 0;
+		for (const { episodes } of data.seasons) {
+			for (const ep of episodes) {
+				counts.set(ep.id, unwatched);
+				if (!ep.completed) unwatched++;
+			}
+		}
+		return counts;
+	});
 	let inList = $derived(new Set(data.listItems.map((i) => `${i.listId}:${i.episodeId}`)));
 
 	/** Selection mode, to move episodes to another season. */
@@ -206,6 +218,7 @@
 					{#if !selecting}
 						<EpisodeMenu
 							episode={ep}
+							previousUnwatched={previousUnwatched.get(ep.id) ?? 0}
 							lists={data.lists.map((l) => ({ ...l, added: inList.has(`${l.id}:${ep.id}`) }))}
 							onrename={() => (editing = ep.id)}
 						/>

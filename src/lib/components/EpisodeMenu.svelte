@@ -11,12 +11,14 @@
 			/** Path to the video on the host, for mpv; only once converted. */
 			playlist?: string | null;
 		};
+		/** Episodes before this one in the series not watched yet. */
+		previousUnwatched: number;
 		/** The user's lists, and whether this episode is in each one. */
 		lists: { id: number; name: string; added: boolean }[];
 		onrename: () => void;
 	}
 
-	let { episode, lists, onrename }: Props = $props();
+	let { episode, previousUnwatched, lists, onrename }: Props = $props();
 
 	const id = $derived(`episode-menu-${episode.id}`);
 	const ready = $derived(episode.status === 'ready');
@@ -93,6 +95,26 @@
 				{@render item(episode.completed ? 'Marcar como no visto' : 'Marcar como visto')}
 			</button>
 		</form>
+		{#if previousUnwatched}
+			<form
+				method="post"
+				action="?/markPreviousWatched"
+				use:enhance={() =>
+					async ({ update }) => {
+						await update();
+						close();
+					}}
+			>
+				<input type="hidden" name="id" value={episode.id} />
+				<button class="w-full">
+					{@render item(
+						previousUnwatched === 1
+							? 'Marcar el anterior como visto'
+							: `Marcar los ${previousUnwatched} anteriores como vistos`
+					)}
+				</button>
+			</form>
+		{/if}
 
 		<hr class="my-1 border-zinc-800" />
 		<p class="px-3 pt-1 pb-0.5 text-xs text-zinc-500">Añadir a</p>

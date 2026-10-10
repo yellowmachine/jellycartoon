@@ -1,12 +1,12 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { and, asc, eq, inArray, notInArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, lt, notInArray, or, sql } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
 import { deleteSeries } from '#lib/server/library/delete-series.ts';
 import { hostPlaylist } from '#lib/server/library/paths.ts';
 import { getActiveList, getListNames, seriesListItems, toggleInList } from '#lib/server/lists.ts';
-import { clearProgress, saveProgress } from '#lib/server/progress.ts';
+import { clearProgress, markWatched, saveProgress } from '#lib/server/progress.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const id = Number(params.id);
@@ -104,6 +104,33 @@ export const actions: Actions = {
 		if (!ep) return fail(400, { message: 'Capítulo no válido' });
 		if (form.get('watched') === 'true') await saveProgress(locals.user!.id, id, 0, true);
 		else await clearProgress(locals.user!.id, id);
+	},
+	/** Every episode before this one in the series, in season and number order. */
+	markPreviousWatched: async ({ params, request, locals }) => {
+		const id = Number((await request.formData()).get('id'));
+		const seriesId = Number(params.id);
+		const [ep] = await db
+			.select({ season: episode.season, number: episode.number })
+			.from(episode)
+			.where(and(eq(episode.id, id), eq(episode.seriesId, seriesId)));
+		if (!ep) return fail(400, { message: 'Capítulo no válido' });
+		const previous = await db
+			.select({ id: episode.id })
+			.from(episode)
+			.where(
+				and(
+					eq(episode.seriesId, seriesId),
+					eq(episode.missing, false),
+					or(
+						lt(episode.season, ep.season),
+						and(eq(episode.season, ep.season), lt(episode.number, ep.number))
+					)
+				)
+			);
+		await markWatched(
+			locals.user!.id,
+			previous.map((e) => e.id)
+		);
 	},
 	/**
 	 * Moves the selected episodes to the end of another season, numbered in their current order.
