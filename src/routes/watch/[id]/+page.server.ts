@@ -5,7 +5,7 @@ import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
 import { getSettings } from '#lib/server/settings.ts';
 
-export const load: PageServerLoad = async ({ params, locals }) => {
+export const load: PageServerLoad = async ({ params, url, locals }) => {
 	const id = Number(params.id);
 	const [ep] = await db
 		.select({
@@ -46,6 +46,10 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		)
 		.orderBy(asc(episode.season), asc(episode.number))
 		.limit(1);
+
+	// `?t=0` starts from there instead of where it was left.
+	const t = url.searchParams.get('t');
+	if (t !== null) ep.positionSec = Number(t) || 0;
 
 	return { episode: ep, nextId: next?.id ?? null, settings: await getSettings(locals.user!.id) };
 };

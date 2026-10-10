@@ -5,7 +5,8 @@ import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
 import { deleteSeries } from '#lib/server/library/delete-series.ts';
 import { hostPlaylist } from '#lib/server/library/paths.ts';
-import { getActiveList, listEpisodeIds, toggleInActiveList } from '#lib/server/lists.ts';
+import { getActiveList, getListNames, seriesListItems, toggleInList } from '#lib/server/lists.ts';
+import { clearProgress, saveProgress } from '#lib/server/progress.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const id = Number(params.id);
@@ -42,8 +43,11 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		.from(episode)
 		.where(eq(episode.seriesId, id));
 
-	const activeList = await getActiveList(locals.user!.id);
-	const inList = activeList ? await listEpisodeIds(activeList.id) : [];
+	const [activeList, lists, listItems] = await Promise.all([
+		getActiveList(locals.user!.id),
+		getListNames(locals.user!.id),
+		seriesListItems(locals.user!.id, id)
+	]);
 
 	const seasons = Map.groupBy(
 		episodes.map((e) => ({ ...e, playlist: e.status === 'ready' ? hostPlaylist(e.id) : null })),
@@ -52,7 +56,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	return {
 		series: s,
 		activeList,
-		inList,
+		lists,
+		listItems,
 		stored: { episodes: stored.episodes, outputBytes: Number(stored.outputBytes) },
 		seasons: [...seasons].map(([season, episodes]) => ({ season, episodes }))
 	};
@@ -78,10 +83,27 @@ export const actions: Actions = {
 			.set({ title })
 			.where(eq(series.id, Number(params.id)));
 	},
+	/** Into the given list, or the active one if none is given. */
 	toggleList: async ({ request, locals }) => {
-		const id = Number((await request.formData()).get('id'));
+		const form = await request.formData();
+		const id = Number(form.get('id'));
 		if (!Number.isInteger(id)) return fail(400, { message: 'Capítulo no válido' });
-		await toggleInActiveList(locals.user!.id, id);
+		const listId = form.has('list')
+			? Number(form.get('list'))
+			: (await getActiveList(locals.user!.id))?.id;
+		if (!Number.isInteger(listId)) return fail(400, { message: 'Lista no válida' });
+		await toggleInList(locals.user!.id, listId!, id);
+	},
+	setWatched: async ({ params, request, locals }) => {
+		const form = await request.formData();
+		const id = Number(form.get('id'));
+		const [ep] = await db
+			.select({ id: episode.id })
+			.from(episode)
+			.where(and(eq(episode.id, id), eq(episode.seriesId, Number(params.id))));
+		if (!ep) return fail(400, { message: 'Capítulo no válido' });
+		if (form.get('watched') === 'true') await saveProgress(locals.user!.id, id, 0, true);
+		else await clearProgress(locals.user!.id, id);
 	},
 	/**
 	 * Moves the selected episodes to the end of another season, numbered in their current order.

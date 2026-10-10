@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { SvelteSet } from 'svelte/reactivity';
-	import CopyPath from '#lib/components/CopyPath.svelte';
+	import EpisodeMenu from '#lib/components/EpisodeMenu.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
 	import type { PageProps } from './$types';
@@ -10,7 +10,8 @@
 	let confirmDelete = $state(false);
 	/** What is being renamed: the series, an episode id, or nothing. */
 	let editing = $state<'series' | number | null>(null);
-	let inList = $derived(new Set(data.inList));
+	/** `listId:episodeId` of every episode of the series already in one of the user's lists. */
+	let inList = $derived(new Set(data.listItems.map((i) => `${i.listId}:${i.episodeId}`)));
 
 	/** Selection mode, to move episodes to another season. */
 	let selecting = $state(false);
@@ -184,7 +185,7 @@
 						</div>
 					</svelte:element>
 					{#if ready && data.activeList && !selecting}
-						{@const added = inList.has(ep.id)}
+						{@const added = inList.has(`${data.activeList.id}:${ep.id}`)}
 						<form method="post" action="?/toggleList" use:enhance>
 							<input type="hidden" name="id" value={ep.id} />
 							<button
@@ -202,14 +203,12 @@
 							</button>
 						</form>
 					{/if}
-					{#if ep.playlist && !selecting}
-						<CopyPath
-							path={ep.playlist}
-							label="Copiar ruta del vídeo (para mpv u otro reproductor)"
-						/>
-					{/if}
 					{#if !selecting}
-						{@render editButton(ep.id, 'Cambiar título del capítulo')}
+						<EpisodeMenu
+							episode={ep}
+							lists={data.lists.map((l) => ({ ...l, added: inList.has(`${l.id}:${ep.id}`) }))}
+							onrename={() => (editing = ep.id)}
+						/>
 					{/if}
 				{/if}
 			</li>

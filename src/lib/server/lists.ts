@@ -74,13 +74,23 @@ export async function getActiveList(userId: string) {
 	return list ?? null;
 }
 
-/** Episode ids already in the list, to show which ones can still be added. */
-export async function listEpisodeIds(listId: number) {
-	const rows = await db
-		.select({ id: userListItem.episodeId })
+/** Lists to pick from when adding an episode, newest first like on the lists page. */
+export async function getListNames(userId: string) {
+	return db
+		.select({ id: userList.id, name: userList.name })
+		.from(userList)
+		.where(eq(userList.userId, userId))
+		.orderBy(desc(userList.createdAt));
+}
+
+/** Which of the user's lists each episode of the series is already in. */
+export async function seriesListItems(userId: string, seriesId: number) {
+	return db
+		.select({ listId: userListItem.listId, episodeId: userListItem.episodeId })
 		.from(userListItem)
-		.where(eq(userListItem.listId, listId));
-	return rows.map((r) => r.id);
+		.innerJoin(userList, eq(userList.id, userListItem.listId))
+		.innerJoin(episode, eq(episode.id, userListItem.episodeId))
+		.where(and(eq(userList.userId, userId), eq(episode.seriesId, seriesId)));
 }
 
 async function ownsList(userId: string, listId: number) {
@@ -117,23 +127,22 @@ export async function deleteList(userId: string, listId: number) {
 	await db.delete(userList).where(and(eq(userList.id, listId), eq(userList.userId, userId)));
 }
 
-/** Adds the episode at the end of the active list, or removes it if it was already there. */
-export async function toggleInActiveList(userId: string, episodeId: number) {
-	const active = await getActiveList(userId);
-	if (!active) return;
+/** Adds the episode at the end of the list, or removes it if it was already there. */
+export async function toggleInList(userId: string, listId: number, episodeId: number) {
+	if (!(await ownsList(userId, listId))) return;
 
 	const removed = await db
 		.delete(userListItem)
-		.where(and(eq(userListItem.listId, active.id), eq(userListItem.episodeId, episodeId)))
+		.where(and(eq(userListItem.listId, listId), eq(userListItem.episodeId, episodeId)))
 		.returning({ id: userListItem.episodeId });
 	if (removed.length) return;
 
 	await db
 		.insert(userListItem)
 		.values({
-			listId: active.id,
+			listId,
 			episodeId,
-			position: sql`(select coalesce(max(${userListItem.position}) + 1, 0) from ${userListItem} where ${userListItem.listId} = ${active.id})`
+			position: sql`(select coalesce(max(${userListItem.position}) + 1, 0) from ${userListItem} where ${userListItem.listId} = ${listId})`
 		})
 		.onConflictDoNothing();
 }
