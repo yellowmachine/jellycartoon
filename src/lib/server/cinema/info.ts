@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { movie, movieInfo, movieTitle } from '#lib/server/db/schema.ts';
 import { openRouterConfig } from '#lib/server/app-settings.ts';
@@ -25,6 +25,42 @@ export function lookUp(movieId: number) {
 		running.set(movieId, lookup);
 	}
 	return lookup;
+}
+
+const PAUSE_MS = 3000;
+let filling: Promise<void> | null = null;
+
+/**
+ * Looks up the films that have no info yet, one at a time and with a pause between them, so that
+ * they can be searched by director or actor without opening each one first. After each scan.
+ */
+export function wakeInfo() {
+	filling ??= fillPending()
+		.catch((error) => log.error('cine', 'Fallo inesperado al buscar las fichas', { error }))
+		.finally(() => (filling = null));
+}
+
+async function fillPending() {
+	// Lookups that failed (e.g. Wikidata was down) are tried again on the next scan.
+	const failed = new Set<number>();
+	for (;;) {
+		const pending = await db
+			.select({ id: movie.id, path: movie.path })
+			.from(movie)
+			.leftJoin(movieInfo, eq(movieInfo.movieId, movie.id))
+			// Catalogued first: the runtime helps to tell films apart.
+			.where(and(eq(movie.status, 'ready'), eq(movie.missing, false), isNull(movieInfo.movieId)))
+			.orderBy(asc(movie.id));
+		const next = pending.find((m) => !failed.has(m.id));
+		if (!next) return;
+		try {
+			await lookUp(next.id);
+		} catch (error) {
+			failed.add(next.id);
+			log.warn('cine', `No se pudo buscar la ficha de ${next.path}`, { movieId: next.id, error });
+		}
+		await new Promise((resolve) => setTimeout(resolve, PAUSE_MS));
+	}
 }
 
 async function clues(

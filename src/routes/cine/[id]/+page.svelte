@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
+	import { filterHref, type FilterName } from '#lib/film-search.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -29,6 +30,15 @@
 <svelte:head>
 	<title>{film.title} · JellyCartoon</title>
 </svelte:head>
+
+{#snippet links(filter: FilterName, names: string[])}
+	{#each names as name, i (name)}
+		{#if i > 0},{' '}{/if}<a
+			href={filterHref(filter, name)}
+			class="hover:text-amber-400 hover:underline">{name}</a
+		>
+	{/each}
+{/snippet}
 
 {#snippet searchForm(label: string)}
 	<form
@@ -149,19 +159,19 @@
 			<dl class="mt-6 grid max-w-3xl gap-x-6 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">
 				{#if info.directors.length}
 					<dt class="text-zinc-400">Dirección</dt>
-					<dd>{info.directors.join(', ')}</dd>
+					<dd>{@render links('persona', info.directors)}</dd>
 				{/if}
 				{#if info.cast.length}
 					<dt class="text-zinc-400">Reparto</dt>
-					<dd>{info.cast.join(', ')}</dd>
+					<dd>{@render links('persona', info.cast)}</dd>
 				{/if}
 				{#if info.genres.length}
 					<dt class="text-zinc-400">Género</dt>
-					<dd>{info.genres.join(', ')}</dd>
+					<dd>{@render links('genero', info.genres)}</dd>
 				{/if}
 				{#if info.countries.length}
 					<dt class="text-zinc-400">País</dt>
-					<dd>{info.countries.join(', ')}</dd>
+					<dd>{@render links('pais', info.countries)}</dd>
 				{/if}
 				{#if info.minutes}
 					<dt class="text-zinc-400">Duración</dt>

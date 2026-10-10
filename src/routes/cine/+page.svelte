@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
 	import MovieMenu from '#lib/components/MovieMenu.svelte';
 	import SalonBar from '#lib/components/SalonBar.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
 	import { formatDuration } from '#lib/format.ts';
+	import { activeFilters, FILTERS, matchReason } from '#lib/film-search.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -13,13 +15,20 @@
 	let editing = $state<number | null>(null);
 	let search = $state('');
 
-	/** Without accents or case: `dalmatas` finds `101 dálmatas`. */
-	const normalize = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+	const filters = $derived(activeFilters(new URLSearchParams(page.url.search)));
+	/** Without a filter, the URL that removes it. */
+	const withoutFilter = (index: number) => {
+		const params = new URLSearchParams();
+		filters.forEach((f, i) => i !== index && params.append(f.name, f.value));
+		return `/cine${params.size ? `?${params}` : ''}`;
+	};
 
+	/** With why each film matches the search, when its title does not say it. */
 	const shown = $derived(
-		search.trim()
-			? data.movies.filter((m) => normalize(m.title).includes(normalize(search.trim())))
-			: data.movies
+		data.movies
+			.filter((m) => filters.every((f) => FILTERS[f.name].matches(m, f.value)))
+			.map((m) => ({ ...m, reason: matchReason(m, search) }))
+			.filter((m) => m.reason !== null)
 	);
 
 	// Refresh while films are being catalogued; not while a title is being edited.
@@ -39,8 +48,8 @@
 	<input
 		type="search"
 		bind:value={search}
-		placeholder="Buscar película"
-		aria-label="Buscar película"
+		placeholder="Título, director o actor"
+		aria-label="Buscar por título, director o actor"
 		class="w-56 rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm"
 	/>
 	<form
@@ -88,10 +97,36 @@
 	</p>
 {/if}
 
+{#if data.withoutInfo}
+	<p class="mb-4 text-sm text-zinc-400">
+		{data.withoutInfo === 1 ? 'Hay 1 película' : `Hay ${data.withoutInfo} películas`} sin ficha: hasta
+		que la tengan no se pueden buscar por director ni actor. Se buscan después de escanear, en segundo
+		plano, o al abrir cada una.
+	</p>
+{/if}
+{#if filters.length}
+	<div class="mb-4 flex flex-wrap gap-2">
+		{#each filters as filter, i (`${filter.name}=${filter.value}`)}
+			<a
+				href={withoutFilter(i)}
+				class="rounded-full bg-zinc-800 px-3 py-1 text-sm hover:bg-zinc-700"
+				aria-label="Quitar el filtro {FILTERS[filter.name].label}: {filter.value}"
+			>
+				<span class="text-zinc-400">{FILTERS[filter.name].label}:</span>
+				{filter.value} ✕
+			</a>
+		{/each}
+	</div>
+{/if}
+
 {#if data.movies.length === 0}
 	<p class="text-zinc-400">No hay películas todavía. Pulsa «Escanear carpeta».</p>
 {:else if shown.length === 0}
-	<p class="text-zinc-400">Ninguna película coincide con «{search}».</p>
+	<p class="text-zinc-400">
+		{search.trim()
+			? `Ninguna película coincide con «${search.trim()}».`
+			: 'Ninguna película con ese filtro.'}
+	</p>
 {:else}
 	<ul class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
 		{#each shown as movie (movie.id)}
@@ -107,6 +142,12 @@
 							class="h-full w-full object-cover"
 							loading="lazy"
 						/>
+						{#if movie.infoStatus === 'ambiguous' || movie.infoStatus === 'not_found'}
+							<span
+								class="absolute top-1 right-1 rounded bg-zinc-950/80 px-1.5 py-0.5 text-xs text-zinc-300"
+								>{movie.infoStatus === 'ambiguous' ? 'Elegir ficha' : 'Sin ficha'}</span
+							>
+						{/if}
 						{#if movie.completed}
 							<span
 								class="absolute top-1 left-1 rounded bg-zinc-950/80 px-1.5 py-0.5 text-xs font-medium text-amber-400"
@@ -152,6 +193,9 @@
 							<p class="text-xs text-zinc-400">
 								{[movie.year, formatDuration(movie.durationSec)].filter(Boolean).join(' · ') || ' '}
 							</p>
+							{#if movie.reason}
+								<p class="truncate text-xs text-amber-400" title={movie.reason}>{movie.reason}</p>
+							{/if}
 						</div>
 						<MovieMenu {movie} mpv={data.mpv} onrename={() => (editing = movie.id)} />
 					</div>

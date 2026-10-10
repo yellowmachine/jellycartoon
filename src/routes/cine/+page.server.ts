@@ -2,7 +2,7 @@ import { error, fail } from '@sveltejs/kit';
 import { and, eq } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
-import { movie, movieProgress, movieTitle } from '#lib/server/db/schema.ts';
+import { movie, movieInfo, movieProgress, movieTitle } from '#lib/server/db/schema.ts';
 import { wakeCatalog } from '#lib/server/cinema/catalog.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { play, setWatched } from '#lib/server/cinema/film-actions.ts';
@@ -27,20 +27,37 @@ export const load: PageServerLoad = async ({ locals }) => {
 			audioTracks: movie.audioTracks,
 			subtitles: movie.subtitles,
 			positionSec: movieProgress.positionSec,
-			completed: movieProgress.completed
+			completed: movieProgress.completed,
+			infoStatus: movieInfo.status,
+			originalTitle: movieInfo.originalTitle,
+			directors: movieInfo.directors,
+			cast: movieInfo.cast,
+			genres: movieInfo.genres,
+			countries: movieInfo.countries
 		})
 		.from(movie)
 		.leftJoin(
 			movieProgress,
 			and(eq(movieProgress.movieId, movie.id), eq(movieProgress.userId, locals.user!.id))
 		)
+		.leftJoin(movieInfo, eq(movieInfo.movieId, movie.id))
 		.where(eq(movie.missing, false));
 
 	return {
 		movies: movies
-			.map((m) => ({ ...m, hostPath: hostMoviePath(m.path) }))
+			.map((m) => ({
+				...m,
+				// Films not looked up yet have no info.
+				directors: m.directors ?? [],
+				cast: m.cast ?? [],
+				genres: m.genres ?? [],
+				countries: m.countries ?? [],
+				hostPath: hostMoviePath(m.path)
+			}))
 			.sort((a, b) => a.title.localeCompare(b.title, 'es', { sensitivity: 'base' })),
 		pending: movies.filter((m) => m.status === 'pending').length,
+		/** Catalogued films without info yet: looked up after a scan, or when opened. */
+		withoutInfo: movies.filter((m) => m.status === 'ready' && !m.infoStatus).length,
 		/** Whether films can be played on the host's screen. */
 		mpv: mpvEnabled
 	};

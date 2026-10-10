@@ -7,6 +7,7 @@ import { VIDEO_EXTENSIONS } from '#lib/server/library/scan.ts';
 import { cinemaRoot } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 import { wakeCatalog } from './catalog.ts';
+import { wakeInfo } from './info.ts';
 import { parseMovieName } from './title.ts';
 
 /** Disc structures copied as is: hundreds of pieces that are not films on their own. */
@@ -127,6 +128,7 @@ async function runScan(): Promise<CinemaScanResult> {
 			discs: result.discs
 		});
 
-	wakeCatalog();
+	// Then the info of the films without it, new or not: the runtime helps to identify them.
+	void wakeCatalog().then(wakeInfo);
 	return result;
 }

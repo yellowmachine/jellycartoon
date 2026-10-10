@@ -117,6 +117,11 @@ Al pulsar una película se abre su ficha. La primera vez se busca en
 Wikipedia en español o, si no hay artículo, en inglés (sinopsis); queda guardada en la base de
 datos. Las dos son gratuitas y sin clave.
 
+- No hace falta abrirlas: después de cada escaneo se buscan en segundo plano, de una en una, las
+  fichas de las películas catalogadas que no la tengan, nuevas o no. Las que queden por confirmar llevan «Elegir ficha» en la
+  cuadrícula.
+- El buscador de Cine busca por título (también el original), director y actor. En la ficha, cada
+  persona, género y país lleva a Cine filtrado por ella.
 - Para acertar se usa el título, el año del nombre del fichero y la duración. Si no está claro
   pregunta «¿Cuál de estas es?», y siempre se puede buscar a mano por otro título.
 - Con una clave de OpenRouter en Ajustes, una IA identifica primero la película a partir del

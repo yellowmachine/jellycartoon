@@ -9,11 +9,15 @@ import { log } from '#lib/server/log.ts';
 
 let running: Promise<void> | null = null;
 
-/** Probes the films the scan found and takes their thumbnail, one at a time in the background. */
+/**
+ * Probes the films the scan found and takes their thumbnail, one at a time in the background.
+ * Resolves when there are none left.
+ */
 export function wakeCatalog() {
 	running ??= catalogPending()
 		.catch((error) => log.error('cine', 'Fallo inesperado al catalogar', { error }))
 		.finally(() => (running = null));
+	return running;
 }
 
 async function catalogPending() {
