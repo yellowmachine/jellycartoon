@@ -9,6 +9,7 @@ import { takeThumbnail } from '#lib/server/library/thumbnail.ts';
 import { ignoreEpisode, retryEpisode } from '#lib/server/library/worker.ts';
 import { getActiveList, getListNames, seriesListItems, toggleInList } from '#lib/server/lists.ts';
 import { clearProgress, markWatched, saveProgress } from '#lib/server/progress.ts';
+import { log } from '#lib/server/log.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const id = Number(params.id);
@@ -129,7 +130,7 @@ export const actions: Actions = {
 			// Somewhere in the middle: the start and end are usually credits.
 			await takeThumbnail(ep.id, ep.durationSec * (0.1 + Math.random() * 0.7));
 		} catch (err) {
-			console.error('[thumbnail]', err);
+			log.error('thumbnail', 'No se pudo sacar otra miniatura', { episodeId: ep.id, error: err });
 			return fail(500, { message: 'No se pudo sacar la miniatura' });
 		}
 	},

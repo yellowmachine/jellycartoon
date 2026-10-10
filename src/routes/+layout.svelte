@@ -10,7 +10,8 @@
 		{ href: '/', label: 'Catálogo' },
 		{ href: '/today', label: 'Hoy' },
 		{ href: '/lists', label: 'Listas' },
-		{ href: '/library', label: 'Biblioteca' }
+		{ href: '/library', label: 'Biblioteca' },
+		{ href: '/logs', label: 'Registro' }
 	];
 </script>
 

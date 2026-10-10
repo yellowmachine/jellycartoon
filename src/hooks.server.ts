@@ -1,13 +1,21 @@
 import { redirect } from '@sveltejs/kit';
-import type { Handle, ServerInit } from '@sveltejs/kit/hooks';
+import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit/hooks';
 import { building } from '$app/env';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { auth } from '#lib/server/auth.ts';
 import { startWorker } from '#lib/server/library/worker.ts';
+import { log, startLogCleanup } from '#lib/server/log.ts';
 
 export const init: ServerInit = async () => {
 	if (building) return;
+	startLogCleanup();
 	await startWorker();
+};
+
+/** Unexpected errors only: the ones thrown on purpose with `error()` (404, 400…) are not news. */
+export const handleError: HandleServerError = ({ kind, error, event }) => {
+	if (kind !== 'unknown') return;
+	log.error('http', `${event.request.method} ${event.url.pathname}`, { error });
 };
 
 const PUBLIC_PATHS = ['/login', '/api/auth'];

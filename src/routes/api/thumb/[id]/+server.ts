@@ -6,6 +6,7 @@ import { episode } from '#lib/server/db/schema.ts';
 import { fileResponse } from '#lib/server/file-response.ts';
 import { takeThumbnail } from '#lib/server/library/thumbnail.ts';
 import { thumbFile } from '#lib/server/library/paths.ts';
+import { log } from '#lib/server/log.ts';
 
 // Revalidated every time (a 304 when unchanged), so a new thumbnail shows up everywhere at once.
 export const GET: RequestHandler = ({ params, request }) =>
@@ -22,6 +23,15 @@ export const POST: RequestHandler = async ({ params, request }) => {
 	if (typeof atSec !== 'number' || atSec < 0 || (ep.durationSec && atSec > ep.durationSec))
 		error(400, 'Momento no válido');
 
-	await takeThumbnail(Number(params.id), atSec);
+	try {
+		await takeThumbnail(Number(params.id), atSec);
+	} catch (err) {
+		log.error('thumbnail', 'No se pudo usar el fotograma como miniatura', {
+			episodeId: Number(params.id),
+			atSec,
+			error: err
+		});
+		error(500, 'No se pudo sacar la miniatura');
+	}
 	return json({ ok: true });
 };

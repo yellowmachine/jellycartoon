@@ -6,6 +6,7 @@ import { episode, series } from '#lib/server/db/schema.ts';
 import { probeDuration } from './ffmpeg.ts';
 import { mediaRoot } from './paths.ts';
 import { wakeWorker } from './worker.ts';
+import { log } from '#lib/server/log.ts';
 
 const VIDEO_EXTENSIONS = new Set([
 	'.mkv',
@@ -273,5 +274,10 @@ async function runScan(): Promise<ScanResult> {
 	result.missing = gone.length;
 
 	wakeWorker();
+	log.info(
+		'scan',
+		`Escaneo: ${result.added} nuevos, ${result.changed} cambiados, ${result.missing} desaparecidos, ${result.waiting} copiándose`,
+		{ ...result }
+	);
 	return result;
 }

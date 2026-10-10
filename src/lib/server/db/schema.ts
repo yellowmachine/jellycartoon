@@ -179,6 +179,24 @@ export const worker = pgTable('worker', {
 	state: workerState('state').notNull().default('running')
 });
 
+export const logLevel = pgEnum('log_level', ['info', 'warn', 'error']);
+
+/** What the server did and what went wrong, shown in /logs. Older than 30 days is deleted. */
+export const logEntry = pgTable(
+	'log_entry',
+	{
+		id: serial('id').primaryKey(),
+		at: timestamp('at').notNull().defaultNow(),
+		level: logLevel('level').notNull(),
+		/** Part of the app it comes from: `worker`, `scan`, `thumbnail`, `http`… */
+		source: text('source').notNull(),
+		message: text('message').notNull(),
+		/** E.g. the episode id, or an error's message and stack (with ffmpeg's output). */
+		details: jsonb('details').$type<Record<string, unknown>>()
+	},
+	(t) => [index('log_entry_at_idx').on(t.at), index('log_entry_level_idx').on(t.level, t.at)]
+);
+
 export const userSettings = pgTable('user_settings', {
 	userId: text('user_id')
 		.primaryKey()

@@ -16,6 +16,7 @@ import {
 } from './ffmpeg.ts';
 import { hlsDir, legacyVideoFile, removeEpisodeOutput, sourceFile, thumbFile } from './paths.ts';
 import { removeSource, sidecarSubtitles } from './sources.ts';
+import { log } from '#lib/server/log.ts';
 
 export type WorkerState = (typeof worker.$inferSelect)['state'];
 
@@ -144,7 +145,7 @@ export async function startWorker() {
 			try {
 				if (state === 'running' && (await processNext())) continue;
 			} catch (error) {
-				console.error('[worker]', error);
+				log.error('worker', 'Fallo inesperado del worker', { error });
 			}
 			await new Promise<void>((resolve) => {
 				const timer = setTimeout(resolve, 30_000);
@@ -176,7 +177,7 @@ async function extractSubtitles(input: string, outDir: string, info: Probe, sign
 			await toWebVtt(source.file, path.join(outDir, file), source.stream, signal);
 		} catch (error) {
 			if (signal.aborted) throw error;
-			console.warn(`[worker] subtítulo ${source.file} (${lang}) descartado`, error);
+			log.warn('worker', `Subtítulo ${source.file} (${lang}) descartado`, { error });
 			continue;
 		}
 		const sameLang = tracks.filter((t) => t.lang === lang).length;
@@ -231,7 +232,7 @@ async function processNext() {
 	const input = sourceFile(job.sourcePath);
 	const output = hlsDir(job.id);
 	const partial = `${output}.part`;
-	console.log(`[worker] #${job.id} ${job.sourcePath}`);
+	log.info('worker', `Convirtiendo ${job.sourcePath}`, { episodeId: job.id });
 
 	try {
 		await rm(partial, { recursive: true, force: true });
@@ -288,8 +289,10 @@ async function processNext() {
 			await removeEpisodeOutput(job.id);
 			return true;
 		}
-		console.log(
-			`[worker] #${job.id} listo (${(size / 1e6).toFixed(1)} MB, audio: ${audioTracks.map((t) => t.lang).join('/') || '—'}, subtítulos: ${subtitles.map((t) => t.lang).join('/') || '—'})`
+		log.info(
+			'worker',
+			`Convertido ${job.sourcePath} (${(size / 1e6).toFixed(1)} MB, audio: ${audioTracks.map((t) => t.lang).join('/') || '—'}, subtítulos: ${subtitles.map((t) => t.lang).join('/') || '—'})`,
+			{ episodeId: job.id, convertSec: activeSeconds() }
 		);
 		if (DELETE_SOURCES) await deleteSourceAfterConversion(job);
 	} catch (error) {
@@ -303,7 +306,7 @@ async function processNext() {
 				.returning({ id: episode.id });
 			// Gone means its series was deleted: drop whatever was already written.
 			if (!requeued) await removeEpisodeOutput(job.id);
-			console.log(`[worker] #${job.id} cancelado`);
+			log.info('worker', `Cancelado ${job.sourcePath}`, { episodeId: job.id });
 		} else {
 			await db
 				.update(episode)
@@ -313,7 +316,7 @@ async function processNext() {
 					priority: 0
 				})
 				.where(eq(episode.id, job.id));
-			console.error(`[worker] #${job.id} error`, error);
+			log.error('worker', `Error al convertir ${job.sourcePath}`, { episodeId: job.id, error });
 		}
 	} finally {
 		current = null;
@@ -330,23 +333,34 @@ async function deleteSourceAfterConversion(job: {
 	try {
 		const result = await removeSource(job);
 		if (result === 'removed') {
-			console.log(`[worker] #${job.id} original borrado: ${job.sourcePath}`);
+			log.info('worker', `Original borrado: ${job.sourcePath}`, { episodeId: job.id });
 		} else if (result === 'changed') {
 			const info = await stat(sourceFile(job.sourcePath));
 			if (Date.now() - info.mtime.getTime() >= 60_000) {
 				// Not being written to, so this isn't a copy in progress: keep the original rather
 				// than risk converting the same file in a loop.
-				console.warn(`[worker] #${job.id} el original no coincide con lo convertido; no se borra`);
+				log.warn(
+					'worker',
+					`El original no coincide con lo convertido; no se borra: ${job.sourcePath}`,
+					{
+						episodeId: job.id
+					}
+				);
 				return;
 			}
 			// Still being copied: convert the final file again once it settles.
-			console.warn(`[worker] #${job.id} el original cambió durante la conversión; se repite`);
+			log.warn('worker', `El original cambió durante la conversión; se repite: ${job.sourcePath}`, {
+				episodeId: job.id
+			});
 			await db
 				.update(episode)
 				.set({ status: 'pending', progress: 0, sourceSize: info.size, sourceMtime: info.mtime })
 				.where(eq(episode.id, job.id));
 		}
 	} catch (error) {
-		console.warn(`[worker] #${job.id} no se pudo borrar el original`, error);
+		log.warn('worker', `No se pudo borrar el original: ${job.sourcePath}`, {
+			episodeId: job.id,
+			error
+		});
 	}
 }
