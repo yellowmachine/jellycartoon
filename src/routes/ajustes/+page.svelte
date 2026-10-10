@@ -73,7 +73,8 @@
 					target="_blank"
 					rel="noreferrer">OpenRouter</a
 				>
-				se identifica cada película a partir del nombre del fichero, para su ficha. Solo tú ves esta sección.
+				se identifica cada película a partir del nombre del fichero, para su ficha, y se le puede preguntar
+				sobre ella. Solo tú ves esta sección.
 			</p>
 
 			<h3 class="mb-2 text-sm text-zinc-300">Clave</h3>
@@ -105,26 +106,39 @@
 				</form>
 			{/if}
 
-			<h3 class="mb-2 text-sm text-zinc-300">Modelo</h3>
-			<form
-				method="post"
-				action="?/saveModel"
-				use:enhance={() =>
-					async ({ update }) =>
-						update({ reset: false })}
-				class="mb-1 flex flex-wrap gap-2"
-			>
-				<input
-					name="model"
-					value={data.ai.model === data.ai.defaultModel ? '' : data.ai.model}
-					placeholder={data.ai.defaultModel}
-					aria-label="Modelo de OpenRouter"
-					class="{select} min-w-0 flex-1 font-mono"
-				/>
-				<button class={secondary}>Guardar</button>
-			</form>
+			{#snippet modelForm(use: 'films' | 'chat', label: string, value: string, fallback: string)}
+				<form
+					method="post"
+					action="?/saveModel"
+					use:enhance={() =>
+						async ({ update }) =>
+							update({ reset: false })}
+					class="mb-1 flex flex-wrap gap-2"
+				>
+					<input type="hidden" name="use" value={use} />
+					<input
+						name="model"
+						value={value === fallback ? '' : value}
+						placeholder={fallback}
+						aria-label={label}
+						class="{select} min-w-0 flex-1 font-mono"
+					/>
+					<button class={secondary}>Guardar</button>
+					{#if form && 'saved' in form && form.saved === (use === 'chat' ? 'chatModel' : 'model')}
+						<span class="self-center text-sm text-amber-400">✓</span>
+					{/if}
+				</form>
+			{/snippet}
+
+			<h3 class="mb-2 text-sm text-zinc-300">Modelo para identificar películas</h3>
+			{@render modelForm(
+				'films',
+				'Modelo para identificar películas',
+				data.ai.model,
+				data.ai.defaultModel
+			)}
 			<p class="mb-4 text-xs text-zinc-500">
-				Vacío usa {data.ai.defaultModel}. Los identificadores están en
+				Vacío usa {data.ai.defaultModel}, barato y rápido. Los identificadores están en
 				<a
 					href="https://openrouter.ai/models"
 					class="hover:underline"
@@ -132,6 +146,43 @@
 					rel="noreferrer">openrouter.ai/models</a
 				>.
 			</p>
+
+			<h3 class="mb-2 text-sm text-zinc-300">Modelo para conversar sobre películas</h3>
+			{@render modelForm(
+				'chat',
+				'Modelo para conversar sobre películas',
+				data.ai.chatModel,
+				data.ai.defaultChatModel
+			)}
+			<p class="mb-3 text-xs text-zinc-500">
+				Vacío usa {data.ai.defaultChatModel}. Cada pregunta lleva los artículos de Wikipedia de la
+				película: unos pocos céntimos con este modelo.
+			</p>
+			<form
+				method="post"
+				action="?/saveChatWeb"
+				use:enhance={() =>
+					async ({ update }) =>
+						update({ reset: false })}
+				class="mb-4"
+			>
+				<label class="flex items-start gap-2 text-sm">
+					<input
+						type="checkbox"
+						name="web"
+						checked={data.ai.chatWeb}
+						onchange={(e) => e.currentTarget.form?.requestSubmit()}
+						class="mt-0.5 rounded border-zinc-700 bg-zinc-900 text-amber-500"
+					/>
+					<span>
+						Dejar que busque en la web
+						<span class="block text-xs text-zinc-500"
+							>Más completo y con enlaces a las fuentes, pero cuesta algo más por pregunta (unos 0,7
+							céntimos de búsqueda, más el texto que lee).</span
+						>
+					</span>
+				</label>
+			</form>
 
 			<form
 				method="post"

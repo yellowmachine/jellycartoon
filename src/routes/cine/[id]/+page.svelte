@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import FilmChat from '#lib/components/FilmChat.svelte';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
 	import { filterHref, type FilterName } from '#lib/film-search.ts';
 	import type { PageProps } from './$types';
@@ -245,6 +246,20 @@
 		{/if}
 	{/await}
 </section>
+
+{#if data.canChat}
+	<!-- Keyed: another film starts with its own conversation. -->
+	{#key film.id}
+		<FilmChat movieId={film.id} history={data.chat} />
+	{/key}
+{:else}
+	<p class="mt-8 max-w-3xl border-t border-zinc-800 pt-4 text-sm text-zinc-400">
+		Con una clave de OpenRouter en <a href="/ajustes" class="text-amber-400 hover:underline"
+			>Ajustes</a
+		>
+		podrás preguntarle a una IA sobre la película.
+	</p>
+{/if}
 
 <section class="mt-8 max-w-3xl border-t border-zinc-800 pt-4">
 	<h2 class="mb-2 text-sm font-semibold text-zinc-400">El fichero</h2>

@@ -213,3 +213,37 @@ async function wikipediaSummary(lang: string, title: string) {
 		url: (body.content_urls?.desktop?.page as string | undefined) ?? null
 	};
 }
+
+/** Enough for the history and the making of a film, without sending a whole book with each question. */
+const ARTICLE_CHARS = 25_000;
+
+export interface Article {
+	lang: 'es' | 'en';
+	title: string;
+	text: string;
+}
+
+/** The film's whole articles in the Spanish and English Wikipedias, as plain text. */
+export async function filmArticles(id: string): Promise<Article[]> {
+	const [entity] = await getEntities([id], 'sitelinks');
+	const links = (['es', 'en'] as const)
+		.map((lang) => ({ lang, title: entity?.sitelinks?.[`${lang}wiki`]?.title }))
+		.filter((l): l is { lang: 'es' | 'en'; title: string } => !!l.title);
+	const articles = await Promise.all(
+		links.map(async ({ lang, title }): Promise<Article | null> => {
+			// https://www.mediawiki.org/wiki/Extension:TextExtracts
+			const body = await getJson(`https://${lang}.wikipedia.org/w/api.php`, {
+				action: 'query',
+				prop: 'extracts',
+				explaintext: '1',
+				redirects: '1',
+				titles: title,
+				format: 'json',
+				formatversion: '2'
+			});
+			const text = (body.query?.pages?.[0]?.extract as string | undefined)?.trim();
+			return text ? { lang, title, text: text.slice(0, ARTICLE_CHARS) } : null;
+		})
+	);
+	return articles.filter((a): a is Article => a !== null);
+}

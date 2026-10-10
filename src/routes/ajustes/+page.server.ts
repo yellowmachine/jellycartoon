@@ -3,6 +3,8 @@ import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { userSettings } from '#lib/server/db/schema.ts';
 import {
+	chatConfig,
+	DEFAULT_CHAT_MODEL,
 	DEFAULT_MODEL,
 	isAdmin,
 	openRouterConfig,
@@ -19,8 +21,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	let ai = null;
 	if (admin) {
-		const config = await openRouterConfig();
+		const [config, chat] = await Promise.all([openRouterConfig(), chatConfig()]);
 		ai = {
+			chatModel: chat.model,
+			defaultChatModel: DEFAULT_CHAT_MODEL,
+			chatWeb: chat.web,
 			keySource: config.keySource,
 			// Never the key itself: only enough to recognise it.
 			keyHint: config.apiKey ? `…${config.apiKey.slice(-4)}` : null,
@@ -75,11 +80,19 @@ export const actions: Actions = {
 	/** An empty model goes back to the default one. */
 	saveModel: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);
-		const model = String((await request.formData()).get('model') ?? '').trim();
+		const form = await request.formData();
+		const model = String(form.get('model') ?? '').trim();
 		if (model && !/^[\w.~-]+\/[\w.:~-]+$/.test(model))
 			return fail(400, { section: 'ai', message: 'El modelo es como «proveedor/modelo»' });
-		await setAppSetting('openrouter_model', model || null);
-		return { saved: 'model' };
+		const chat = form.get('use') === 'chat';
+		await setAppSetting(chat ? 'openrouter_chat_model' : 'openrouter_model', model || null);
+		return { saved: chat ? 'chatModel' : 'model' };
+	},
+	saveChatWeb: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const web = (await request.formData()).get('web') === 'on';
+		await setAppSetting('openrouter_chat_web', web ? 'true' : null);
+		return { saved: 'chatWeb' };
 	},
 	/** A tiny request with the current key and model, to know they work before relying on them. */
 	testAi: async ({ locals }) => {

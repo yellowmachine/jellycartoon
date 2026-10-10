@@ -129,6 +129,20 @@ datos. Las dos son gratuitas y sin clave.
   y el director, y con eso se busca en Wikidata. Los datos de la ficha nunca los inventa la IA;
   solo escribe la sinopsis si no hay artículo en Wikipedia, y lo indica.
 
+#### Preguntarle a la IA
+
+Con la clave de OpenRouter, al final de cada ficha hay una conversación: «¿cómo se hizo?»,
+«háblame de su estilo visual»… Desde el móvil se puede dictar con el micrófono del teclado.
+
+- Cada pregunta lleva la ficha y los artículos completos de Wikipedia en español e inglés, y la IA
+  se basa en ellos; si añade algo que no viene de ahí, lo dice. Sabe si ya la has visto (o por
+  dónde vas) para no desvelarte el final.
+- Las respuestas van apareciendo mientras se escriben y la conversación queda guardada por usuario
+  y película. «Parar» corta la respuesta y guarda lo que llevaba; cerrar la página no la corta.
+- En Ajustes se elige un modelo aparte para conversar (por defecto uno mejor que el de identificar:
+  unos céntimos por pregunta) y si puede [buscar en la web](https://openrouter.ai/docs/guides/features/plugins/web-search),
+  que añade enlaces a las fuentes y cuesta algo más.
+
 #### Ver en el salón
 
 Las películas se ven con mpv en la pantalla del PC donde corre la app. Allí queda un mpv

@@ -294,6 +294,28 @@ export const logEntry = pgTable(
 	(t) => [index('log_entry_at_idx').on(t.at), index('log_entry_level_idx').on(t.level, t.at)]
 );
 
+export const chatRole = pgEnum('chat_role', ['user', 'assistant']);
+
+/** Conversations about a film with the AI, one per user and film. */
+export const movieChatMessage = pgTable(
+	'movie_chat_message',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		movieId: integer('movie_id')
+			.notNull()
+			.references(() => movie.id, { onDelete: 'cascade' }),
+		role: chatRole('role').notNull(),
+		content: text('content').notNull(),
+		/** Web pages the answer is based on, when the web search is on. */
+		sources: jsonb('sources').$type<{ url: string; title: string }[]>().notNull().default([]),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [index('movie_chat_message_user_movie_idx').on(t.userId, t.movieId, t.id)]
+);
+
 export const userSettings = pgTable('user_settings', {
 	userId: text('user_id')
 		.primaryKey()

@@ -3,6 +3,8 @@ import { and, eq } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { movie, movieProgress, movieTitle } from '#lib/server/db/schema.ts';
+import { chatConfig } from '#lib/server/app-settings.ts';
+import { chatHistory } from '#lib/server/cinema/chat.ts';
 import { play, setWatched } from '#lib/server/cinema/film-actions.ts';
 import { choose, forget, identify, lookUp, savedMovieInfo } from '#lib/server/cinema/info.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
@@ -34,8 +36,12 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		)
 		.where(and(eq(movie.id, id), eq(movie.missing, false)));
 	if (!film) error(404, 'Película no encontrada');
+	const [chat, { apiKey }] = await Promise.all([chatHistory(locals.user!.id, id), chatConfig()]);
 
 	return {
+		chat,
+		/** Talking about the film needs an OpenRouter key. */
+		canChat: Boolean(apiKey),
 		film: { ...film, hostPath: hostMoviePath(film.path) },
 		mpv: mpvEnabled,
 		// Saved: in the page itself. The first time it is streamed: the page shows at once and the

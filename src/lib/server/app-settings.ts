@@ -6,7 +6,11 @@ import { appSetting, user } from '#lib/server/db/schema.ts';
 /** Cheap, fast and knows films well; changeable in Ajustes. */
 export const DEFAULT_MODEL = 'anthropic/claude-haiku-5.5';
 
-type Key = 'openrouter_api_key' | 'openrouter_model';
+/** For talking about films: better than the one that identifies them, still a few cents a question. */
+export const DEFAULT_CHAT_MODEL = 'anthropic/claude-sonnet-5.5';
+
+type Key =
+	'openrouter_api_key' | 'openrouter_model' | 'openrouter_chat_model' | 'openrouter_chat_web';
 
 async function get(key: Key) {
 	const [row] = await db
@@ -37,6 +41,16 @@ export async function openRouterConfig() {
 		keySource: OPENROUTER_API_KEY ? ('env' as const) : panelKey ? ('panel' as const) : null,
 		model: panelModel ?? OPENROUTER_MODEL ?? DEFAULT_MODEL
 	};
+}
+
+/** The conversations about films: their model, and whether the AI may search the web. */
+export async function chatConfig() {
+	const [{ apiKey }, model, web] = await Promise.all([
+		openRouterConfig(),
+		get('openrouter_chat_model'),
+		get('openrouter_chat_web')
+	]);
+	return { apiKey, model: model ?? DEFAULT_CHAT_MODEL, web: web === 'true' };
 }
 
 /** There are no roles: the first account created is the one that manages the app. */
