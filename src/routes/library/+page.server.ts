@@ -5,10 +5,12 @@ import { db } from '#lib/server/db/index.ts';
 import { episode, series } from '#lib/server/db/schema.ts';
 import { scanLibrary } from '#lib/server/library/scan.ts';
 import {
+	ignoreEpisode,
 	moveToFront,
 	pauseWorker,
 	restartCurrent,
 	resumeWorker,
+	retryEpisode,
 	stopWorker,
 	wakeWorker,
 	workerStatus
@@ -180,24 +182,15 @@ export const actions: Actions = {
 		if (!Number.isInteger(id)) return fail(400, { message: 'Episodio no válido' });
 		await moveToFront(id);
 	},
-	/** Back to the queue: one failed or ignored episode. */
 	retryOne: async ({ request }) => {
 		const id = Number((await request.formData()).get('id'));
 		if (!Number.isInteger(id)) return fail(400, { message: 'Episodio no válido' });
-		await db
-			.update(episode)
-			.set({ status: 'pending', error: null })
-			.where(and(eq(episode.id, id), sql`${episode.status} in ('error', 'ignored')`));
-		wakeWorker();
+		await retryEpisode(id);
 	},
-	/** Sets a failed episode aside: hidden and not retried until its file changes. */
 	ignore: async ({ request }) => {
 		const id = Number((await request.formData()).get('id'));
 		if (!Number.isInteger(id)) return fail(400, { message: 'Episodio no válido' });
-		await db
-			.update(episode)
-			.set({ status: 'ignored' })
-			.where(and(eq(episode.id, id), eq(episode.status, 'error')));
+		await ignoreEpisode(id);
 	},
 	/** New series order for the queue; the rest go back to the end, so new ones don't jump ahead. */
 	reorderSeries: async ({ request }) => {

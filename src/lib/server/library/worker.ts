@@ -109,6 +109,23 @@ export async function moveToFront(id: number) {
 	wakeWorker();
 }
 
+/** Back to the queue: a failed or ignored episode. */
+export async function retryEpisode(id: number) {
+	await db
+		.update(episode)
+		.set({ status: 'pending', error: null })
+		.where(and(eq(episode.id, id), sql`${episode.status} in ('error', 'ignored')`));
+	wakeWorker();
+}
+
+/** Sets a failed episode aside: hidden and not retried until its file changes. */
+export async function ignoreEpisode(id: number) {
+	await db
+		.update(episode)
+		.set({ status: 'ignored' })
+		.where(and(eq(episode.id, id), eq(episode.status, 'error')));
+}
+
 export async function startWorker() {
 	if (started) return;
 	started = true;
