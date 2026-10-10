@@ -275,6 +275,62 @@ export async function toWebVtt(
 	);
 }
 
+/** One frame as a JPEG `width` pixels wide, with HDR tone mapped and DVDs deinterlaced. */
+function frameFilters(info: Probe, width: number) {
+	const video = info.streams.find((s) => s.codec_type === 'video' && !s.disposition?.attached_pic);
+	// JPEG is full range: ffmpeg 7.1 refuses to encode limited-range video, which ours is.
+	return [
+		...(video && isHdr(video) ? TONEMAP : []),
+		...(video ? videoFilters(video) : []),
+		`scale=${width}:-2:out_range=full`
+	];
+}
+
+/**
+ * A frame of a video file, kept in memory (nothing is written to disk). Never frozen with the
+ * worker: someone is waiting for it.
+ */
+export function frame(input: string, info: Probe, atSec: number, width: number) {
+	return new Promise<Buffer>((resolve, reject) => {
+		const child = spawn(
+			'ffmpeg',
+			[
+				'-hide_banner',
+				'-ss',
+				atSec.toFixed(2),
+				'-i',
+				input,
+				'-an',
+				'-sn',
+				'-frames:v',
+				'1',
+				'-vf',
+				frameFilters(info, width).join(','),
+				'-q:v',
+				'4',
+				'-f',
+				'image2pipe',
+				'-c:v',
+				'mjpeg',
+				'pipe:1'
+			],
+			{ stdio: ['ignore', 'pipe', 'pipe'] }
+		);
+		const chunks: Buffer[] = [];
+		let stderr = '';
+		child.stdout.on('data', (chunk: Buffer) => chunks.push(chunk));
+		child.stderr.setEncoding('utf8').on('data', (chunk: string) => {
+			stderr = (stderr + chunk).slice(-4000);
+		});
+		child.on('error', reject);
+		child.on('close', (code) => {
+			const jpeg = Buffer.concat(chunks);
+			if (code === 0 && jpeg.length) resolve(jpeg);
+			else reject(new Error(`ffmpeg exited with code ${code}\n${stderr}`));
+		});
+	});
+}
+
 export async function thumbnail(
 	input: string,
 	output: string,
@@ -290,13 +346,7 @@ export async function thumbnail(
 		pausable?: boolean;
 	} = {}
 ) {
-	const video = info.streams.find((s) => s.codec_type === 'video' && !s.disposition?.attached_pic);
-	// JPEG is full range: ffmpeg 7.1 refuses to encode limited-range video, which ours is.
-	const filters = [
-		...(video && isHdr(video) ? TONEMAP : []),
-		...(video ? videoFilters(video) : []),
-		'scale=480:-2:out_range=full'
-	];
+	const filters = frameFilters(info, 480);
 	const seek = ['-ss', atSec.toFixed(2)];
 	await run(
 		'ffmpeg',

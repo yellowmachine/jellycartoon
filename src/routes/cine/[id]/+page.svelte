@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import BirdsEye from '#lib/components/BirdsEye.svelte';
 	import FilmChat from '#lib/components/FilmChat.svelte';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
 	import { filterHref, type FilterName } from '#lib/film-search.ts';
@@ -246,6 +247,12 @@
 		{/if}
 	{/await}
 </section>
+
+{#if ready && film.durationSec}
+	{#key film.id}
+		<BirdsEye movieId={film.id} durationSec={film.durationSec} mpv={data.mpv} />
+	{/key}
+{/if}
 
 {#if data.canChat}
 	<!-- Keyed: another film starts with its own conversation. -->

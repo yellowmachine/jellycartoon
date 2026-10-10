@@ -129,6 +129,13 @@ datos. Las dos son gratuitas y sin clave.
   y el director, y con eso se busca en Wikidata. Los datos de la ficha nunca los inventa la IA;
   solo escribe la sinopsis si no hay artículo en Wikipedia, y lo indica.
 
+#### Vista de pájaro
+
+En la ficha, «Ver 20 fotogramas» muestra la película de un vistazo: fotogramas repartidos de
+principio a fin, saltando logos y créditos. Se sacan del fichero al pedirlos, de tres en tres, y no
+se guardan en el servidor (el navegador los recuerda un día). Al pulsar uno se ve en grande, se pasa
+al anterior o al siguiente, y «Ver desde aquí en el salón» la empieza en ese momento.
+
 #### Preguntarle a la IA
 
 Con la clave de OpenRouter, al final de cada ficha hay una conversación: «¿cómo se hizo?»,

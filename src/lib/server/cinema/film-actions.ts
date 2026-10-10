@@ -10,7 +10,10 @@ import { mpvEnabled, playMovie } from './mpv.ts';
 
 /** Form actions shared by the Cine page and each film's page. */
 
-/** On the host's screen, from where it was left or (`from=start`) from the beginning. */
+/**
+ * On the host's screen, from where it was left, from the beginning (`from=start`) or from a moment
+ * (`at`, in seconds: a frame of the bird's-eye view).
+ */
 export const play: Action = async ({ request, locals }) => {
 	if (!mpvEnabled) return fail(400, { message: 'No hay mpv configurado (MPV_SOCKET)' });
 	const form = await request.formData();
@@ -32,6 +35,13 @@ export const play: Action = async ({ request, locals }) => {
 	const hostPath = film && hostMoviePath(film.path);
 	if (!film || !hostPath) return fail(400, { message: 'Película no válida' });
 
+	const at = Number(form.get('at'));
+	const startSec =
+		form.has('at') && Number.isFinite(at) && at >= 0
+			? at
+			: form.get('from') === 'start'
+				? 0
+				: (film.positionSec ?? 0);
 	const settings = await getSettings(userId);
 	try {
 		await playMovie({
@@ -39,7 +49,7 @@ export const play: Action = async ({ request, locals }) => {
 			movieId: film.id,
 			title: film.title,
 			hostPath,
-			startSec: form.get('from') === 'start' ? 0 : (film.positionSec ?? 0),
+			startSec,
 			durationSec: film.durationSec,
 			audioLang: settings.audioLang ?? AUDIO_LANG,
 			subtitleLang: settings.subtitleLang
