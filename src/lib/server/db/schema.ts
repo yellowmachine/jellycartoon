@@ -210,6 +210,23 @@ export const movie = pgTable(
 	(t) => [index('movie_status_idx').on(t.status)]
 );
 
+/** Where each user is in each film, saved while mpv plays it. Like watch_progress. */
+export const movieProgress = pgTable(
+	'movie_progress',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		movieId: integer('movie_id')
+			.notNull()
+			.references(() => movie.id, { onDelete: 'cascade' }),
+		positionSec: real('position_sec').notNull(),
+		completed: boolean('completed').notNull().default(false),
+		updatedAt: timestamp('updated_at').notNull().defaultNow()
+	},
+	(t) => [primaryKey({ columns: [t.userId, t.movieId] })]
+);
+
 /** The title to show: the one set by hand, or the one from the file name. */
 export const movieTitle = sql<string>`coalesce(${movie.customTitle}, ${movie.title})`;
 

@@ -62,6 +62,9 @@
 	</form>
 </div>
 
+{#if form && 'playing' in form && form.playing}
+	<p class="-mt-4 mb-4 text-sm text-amber-400">▶ En el salón: {form.playing}</p>
+{/if}
 {#if form && 'message' in form && form.message}
 	<p class="-mt-4 mb-4 text-sm text-red-400">{form.message}</p>
 {/if}
@@ -100,6 +103,19 @@
 							class="h-full w-full object-cover"
 							loading="lazy"
 						/>
+						{#if movie.completed}
+							<span
+								class="absolute top-1 left-1 rounded bg-zinc-950/80 px-1.5 py-0.5 text-xs font-medium text-amber-400"
+								>✓ Vista</span
+							>
+						{:else if movie.positionSec && movie.durationSec}
+							<div class="absolute inset-x-0 bottom-0 h-1 bg-zinc-700">
+								<div
+									class="h-full bg-amber-400"
+									style:width="{(movie.positionSec / movie.durationSec) * 100}%"
+								></div>
+							</div>
+						{/if}
 					{:else}
 						<p
 							class={[
@@ -129,7 +145,7 @@
 								{[movie.year, formatDuration(movie.durationSec)].filter(Boolean).join(' · ') || ' '}
 							</p>
 						</div>
-						<MovieMenu {movie} onrename={() => (editing = movie.id)} />
+						<MovieMenu {movie} mpv={data.mpv} onrename={() => (editing = movie.id)} />
 					</div>
 				{/if}
 			</li>

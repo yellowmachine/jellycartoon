@@ -45,6 +45,8 @@ services:
       # Optional films folder, catalogued but not converted: only with HOST_CINEMA_DIR.
       CINEMA_DIR: ${HOST_CINEMA_DIR:+/cinema}
       HOST_CINEMA_DIR: ${HOST_CINEMA_DIR:-}
+      # mpv on this PC (deploy/jellycartoon-mpv.service) leaves its socket in HOST_DATA_DIR.
+      MPV_SOCKET: ${HOST_CINEMA_DIR:+/data/mpv.sock}
       AUDIO_LANG: ${AUDIO_LANG:-spa}
       X264_PRESET: ${X264_PRESET:-medium}
       X264_CRF: ${X264_CRF:-20}

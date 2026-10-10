@@ -110,6 +110,31 @@ aparece la sección Cine; sin ella, no. En desarrollo se usa `CINEMA_DIR` con la
 - En segundo plano, de una en una, se saca la duración, las pistas de audio y subtítulos y una
   miniatura (con tone mapping si la película es HDR).
 
+#### Ver en el salón
+
+Las películas se ven con mpv en la pantalla del PC donde corre la app. Allí queda un mpv
+esperando, sin ventana, como servicio de usuario de systemd; la app le manda la película por su
+socket ([JSON IPC](https://mpv.io/manual/stable/#json-ipc)) y guarda por dónde vas cada 5
+segundos. Hace falta una sesión gráfica iniciada (Wayland o X11) y mpv instalado. Para instalarlo,
+desde el repositorio y con la ruta de `HOST_DATA_DIR`:
+
+```sh
+mkdir -p ~/.config/systemd/user
+sed 's|@SOCKET@|/ruta/a/los/convertidos/mpv.sock|' deploy/jellycartoon-mpv.service \
+  > ~/.config/systemd/user/jellycartoon-mpv.service
+systemctl --user daemon-reload
+systemctl --user enable --now jellycartoon-mpv
+```
+
+- El socket va en `HOST_DATA_DIR`, que ya está montado en el contenedor (`/data/mpv.sock`) y es
+  del mismo usuario (`PUID`), así que no hace falta montar nada más.
+- En el menú ⋯ de cada película: «Ver en el salón», o «Continuar desde…» y «Empezar desde el
+  principio» si ya la empezaste. Se usan tus idiomas de audio y subtítulos. Al pasar del 92 % o
+  llegar al final queda como vista.
+- Con el ratón o el teclado se controla mpv como siempre; `q` lo cierra y el servicio lo deja
+  esperando otra vez.
+- Si no se ve nada: `systemctl --user status jellycartoon-mpv` y el Registro de la app.
+
 ## Copia de seguridad
 
 Qué hay que guardar:

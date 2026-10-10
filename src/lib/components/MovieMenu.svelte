@@ -20,17 +20,54 @@
 			subtitles: AudioTrack[];
 			/** Where the file is on the host, for mpv. */
 			hostPath: string | null;
+			positionSec: number | null;
+			completed: boolean | null;
 		};
+		/** Whether it can be played on the host's screen. */
+		mpv: boolean;
 		onrename: () => void;
 	}
 
-	let { movie, onrename }: Props = $props();
+	let { movie, mpv, onrename }: Props = $props();
+
+	const ready = $derived(movie.status === 'ready');
+	// mpv starts over below that too.
+	const resumeAt = $derived(
+		!movie.completed && movie.positionSec && movie.positionSec > 5 ? movie.positionSec : 0
+	);
 
 	let info = $state<InfoDialog>();
 </script>
 
 <ActionMenu id="movie-menu-{movie.id}">
 	{#snippet children(close)}
+		{#if ready && mpv}
+			{#if resumeAt}
+				<form method="post" action="?/play" use:enhance={closeAfter(close)}>
+					<input type="hidden" name="id" value={movie.id} />
+					<button class={menuItem}>
+						▶ Continuar en el salón desde {formatDuration(resumeAt)}
+					</button>
+				</form>
+			{/if}
+			<form method="post" action="?/play" use:enhance={closeAfter(close)}>
+				<input type="hidden" name="id" value={movie.id} />
+				<input type="hidden" name="from" value="start" />
+				<button class={menuItem}>
+					{resumeAt ? 'Empezar desde el principio' : '▶ Ver en el salón'}
+				</button>
+			</form>
+		{/if}
+		{#if ready}
+			<form method="post" action="?/setWatched" use:enhance={closeAfter(close)}>
+				<input type="hidden" name="id" value={movie.id} />
+				<input type="hidden" name="watched" value={String(!movie.completed)} />
+				<button class={menuItem}>
+					{movie.completed ? 'Marcar como no vista' : 'Marcar como vista'}
+				</button>
+			</form>
+			<hr class="my-1 border-zinc-800" />
+		{/if}
 		{#if movie.status === 'error'}
 			<form method="post" action="?/retry" use:enhance={closeAfter(close)}>
 				<input type="hidden" name="id" value={movie.id} />

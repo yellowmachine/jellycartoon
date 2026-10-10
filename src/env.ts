@@ -34,6 +34,11 @@ export const variables = defineEnvVars({
 			'Absolute path of CINEMA_DIR on the host, which is what mpv on the host needs. Ignored if relative, like HOST_DATA_DIR.',
 		schema: (value) => (value?.startsWith('/') ? value : undefined)
 	},
+	MPV_SOCKET: {
+		description:
+			'IPC socket of an mpv left waiting on the host (`mpv --idle --input-ipc-server=…`). With it, films can be played on that screen from the Cine page and their progress is saved.',
+		schema: (value) => value || undefined
+	},
 	AUDIO_LANG: {
 		description:
 			'Preferred audio language (ISO 639-2, e.g. `spa`) when a source has several audio tracks.',
