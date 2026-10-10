@@ -230,6 +230,13 @@ export const movieProgress = pgTable(
 /** The title to show: the one set by hand, or the one from the file name. */
 export const movieTitle = sql<string>`coalesce(${movie.customTitle}, ${movie.title})`;
 
+/** App-wide settings changed from the panel, only by the first user: e.g. the OpenRouter key. */
+export const appSetting = pgTable('app_setting', {
+	key: text('key').primaryKey(),
+	value: text('value').notNull(),
+	updatedAt: timestamp('updated_at').notNull().defaultNow()
+});
+
 export const logLevel = pgEnum('log_level', ['info', 'warn', 'error']);
 
 /** What the server did and what went wrong, shown in /logs. Older than 30 days is deleted. */

@@ -39,6 +39,16 @@ export const variables = defineEnvVars({
 			'IPC socket of an mpv left waiting on the host (`mpv --idle --input-ipc-server=…`). With it, films can be played on that screen from the Cine page and their progress is saved.',
 		schema: (value) => value || undefined
 	},
+	OPENROUTER_API_KEY: {
+		description:
+			'Optional OpenRouter key, used to identify films. It can also be set in Ajustes; this one takes precedence.',
+		schema: (value) => value || undefined
+	},
+	OPENROUTER_MODEL: {
+		description:
+			'Optional OpenRouter model id (e.g. `anthropic/claude-haiku-5.5`), unless set in Ajustes.',
+		schema: (value) => value || undefined
+	},
 	AUDIO_LANG: {
 		description:
 			'Preferred audio language (ISO 639-2, e.g. `spa`) when a source has several audio tracks.',

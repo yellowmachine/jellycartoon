@@ -46,7 +46,14 @@
 				>
 			{/each}
 			<form method="post" action="/logout" class="ml-auto hidden items-center gap-3 lg:flex">
-				<span class="text-sm text-zinc-400">{data.user.name}</span>
+				<a
+					href="/ajustes"
+					title="Ajustes"
+					class={[
+						'text-sm hover:text-white',
+						isCurrent('/ajustes') ? 'text-white' : 'text-zinc-400'
+					]}>{data.user.name}</a
+				>
 				<button class="text-sm text-zinc-400 hover:text-white">Salir</button>
 			</form>
 
@@ -81,7 +88,11 @@
 				{/each}
 			</ul>
 			<form method="post" action="/logout" class="mt-2 flex items-center justify-between">
-				<span class="text-sm text-zinc-400">{data.user.name}</span>
+				<a
+					href="/ajustes"
+					onclick={() => menu?.hidePopover()}
+					class="py-2 text-sm text-zinc-300 hover:text-white">{data.user.name} · Ajustes</a
+				>
 				<button class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900">
 					Salir
 				</button>

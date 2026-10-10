@@ -22,6 +22,9 @@ const LABELS: Record<string, string> = {
 	cat: 'Català'
 };
 
+/** The languages with a name, to choose from in Ajustes. */
+export const KNOWN_LANGUAGES = Object.keys(LABELS);
+
 /** Normalizes `en`, `en-US`, `eng`… to an ISO 639-2 code (`eng`). */
 export function normalizeLang(code: string | null | undefined) {
 	const base = (code ?? '').toLowerCase().split(/[-_]/)[0];
