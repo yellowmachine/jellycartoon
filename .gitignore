@@ -26,3 +26,4 @@ vite.config.ts.timestamp-*
 /media
 /data
 /no-cinema
+/tmp
