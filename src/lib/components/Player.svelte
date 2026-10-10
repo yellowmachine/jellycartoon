@@ -233,6 +233,21 @@
 		}).catch(() => {});
 	}
 
+	let thumbnailState = $state<'idle' | 'saving' | 'done' | 'failed'>('idle');
+
+	/** The frame on screen becomes the episode's thumbnail; taken by the server from the video. */
+	async function useAsThumbnail() {
+		if (!video) return;
+		thumbnailState = 'saving';
+		const res = await fetch(`/api/thumb/${episodeId}`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ atSec: video.currentTime })
+		}).catch(() => null);
+		thumbnailState = res?.ok ? 'done' : 'failed';
+		setTimeout(() => (thumbnailState = 'idle'), 2000);
+	}
+
 	function onTimeUpdate() {
 		if (Date.now() - lastSaved > 10_000) save();
 	}
@@ -312,6 +327,19 @@
 				onclick={togglePip}>⧉ Flotante</button
 			>
 		{/if}
+		<button
+			class="ml-2 rounded px-2 py-0.5 text-zinc-400 hover:bg-zinc-800 disabled:opacity-50"
+			title="Usar el fotograma que se ve ahora como miniatura del capítulo"
+			disabled={thumbnailState === 'saving'}
+			onclick={useAsThumbnail}
+		>
+			{{
+				idle: '▣ Usar como miniatura',
+				saving: 'Guardando…',
+				done: '✓ Miniatura cambiada',
+				failed: 'No se pudo cambiar'
+			}[thumbnailState]}
+		</button>
 	</div>
 	{#if audioTracks.length > 1}
 		<div class="flex items-center gap-1">

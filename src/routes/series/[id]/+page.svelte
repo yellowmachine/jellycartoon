@@ -154,7 +154,7 @@
 						<div class="relative aspect-video w-32 shrink-0 overflow-hidden rounded bg-zinc-800">
 							{#if ready}
 								<img
-									src="/api/thumb/{ep.id}?v={ep.updatedAt.getTime()}"
+									src="/api/thumb/{ep.id}"
 									alt=""
 									class="h-full w-full object-cover"
 									loading="lazy"

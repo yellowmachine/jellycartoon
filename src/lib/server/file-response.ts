@@ -7,8 +7,16 @@ function body(path: string, start: number, end: number): BodyInit {
 	return Readable.toWeb(createReadStream(path, { start, end })) as unknown as ReadableStream;
 }
 
-/** Serves a file with HTTP Range support, which `<video>` needs to seek. */
-export async function fileResponse(request: Request, path: string, contentType: string) {
+/**
+ * Serves a file with HTTP Range support, which `<video>` needs to seek, and answers 304 when the
+ * browser's copy is still current.
+ */
+export async function fileResponse(
+	request: Request,
+	path: string,
+	contentType: string,
+	cacheControl = 'private, max-age=3600'
+) {
 	const info = await stat(path).catch(() => null);
 	if (!info?.isFile()) error(404, 'Not found');
 
@@ -17,8 +25,14 @@ export async function fileResponse(request: Request, path: string, contentType: 
 		'Content-Type': contentType,
 		'Accept-Ranges': 'bytes',
 		'Last-Modified': info.mtime.toUTCString(),
-		'Cache-Control': 'private, max-age=3600'
+		'Cache-Control': cacheControl
 	});
+
+	// Last-Modified has whole seconds only.
+	const since = Date.parse(request.headers.get('if-modified-since') ?? '');
+	if (since && Math.floor(info.mtimeMs / 1000) * 1000 <= since) {
+		return new Response(null, { status: 304, headers });
+	}
 
 	const range = request.headers.get('range')?.match(/^bytes=(\d*)-(\d*)$/);
 	if (!range || (!range[1] && !range[2])) {

@@ -5,7 +5,7 @@ import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
 import { deleteSeries } from '#lib/server/library/delete-series.ts';
 import { hostPlaylist } from '#lib/server/library/paths.ts';
-import { regenerateThumbnail } from '#lib/server/library/thumbnail.ts';
+import { takeThumbnail } from '#lib/server/library/thumbnail.ts';
 import { ignoreEpisode, retryEpisode } from '#lib/server/library/worker.ts';
 import { getActiveList, getListNames, seriesListItems, toggleInList } from '#lib/server/lists.ts';
 import { clearProgress, markWatched, saveProgress } from '#lib/server/progress.ts';
@@ -34,9 +34,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			outputSize: episode.outputSize,
 			convertSec: episode.convertSec,
 			audioTracks: episode.audioTracks,
-			subtitles: episode.subtitles,
-			/** Changes when the thumbnail is regenerated: busts the browser cache. */
-			updatedAt: episode.updatedAt
+			subtitles: episode.subtitles
 		})
 		.from(episode)
 		.leftJoin(
@@ -128,12 +126,12 @@ export const actions: Actions = {
 		if (!ep || ep.status !== 'ready' || !ep.durationSec)
 			return fail(400, { message: 'Capítulo no válido' });
 		try {
-			await regenerateThumbnail(ep.id, ep.durationSec);
+			// Somewhere in the middle: the start and end are usually credits.
+			await takeThumbnail(ep.id, ep.durationSec * (0.1 + Math.random() * 0.7));
 		} catch (err) {
 			console.error('[thumbnail]', err);
 			return fail(500, { message: 'No se pudo sacar la miniatura' });
 		}
-		await db.update(episode).set({ updatedAt: new Date() }).where(eq(episode.id, ep.id));
 	},
 	/** Every episode before this one in the series, in season and number order. */
 	markPreviousWatched: async ({ params, request, locals }) => {
