@@ -34,7 +34,8 @@ export async function completeJson<T>(request: {
 				{ role: 'system', content: request.system },
 				{ role: 'user', content: request.prompt }
 			],
-			temperature: 0,
+			// No `temperature`: the newest models do not take it, and with `require_parameters` a
+			// parameter no provider supports leaves no provider at all.
 			response_format: {
 				type: 'json_schema',
 				json_schema: { name: request.name, strict: true, schema: request.schema }
