@@ -27,6 +27,9 @@ export const movieFile = (relative: string) => path.join(cinemaRoot!, relative);
 export const movieThumbFile = (movieId: number) =>
 	path.join(dataRoot, 'movie-thumb', `${movieId}.jpg`);
 
+/** Clips of films to watch in the browser, made when asked for; only the last ones are kept. */
+export const movieClipDir = path.join(dataRoot, 'movie-clip');
+
 /** CINEMA_DIR as the host sees it, which is how mpv names the files. */
 export const hostCinemaRoot = dev ? cinemaRoot : (HOST_CINEMA_DIR ?? null);
 

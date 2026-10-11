@@ -24,7 +24,7 @@ export async function inTurn<T>(work: () => Promise<T>): Promise<T> {
 /** The streams of the last films looked at: the 20 frames of a view need the same probe. */
 const probes = new Map<number, Promise<Probe>>();
 
-function cachedProbe(movieId: number, file: string) {
+export function cachedProbe(movieId: number, file: string) {
 	let cached = probes.get(movieId);
 	if (!cached) {
 		cached = probe(file, undefined, false);

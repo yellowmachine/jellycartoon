@@ -108,8 +108,8 @@ export async function probeDuration(file: string): Promise<number | null> {
 }
 
 /** Every audio stream, with the preferred language (AUDIO_LANG) first: it becomes the default. */
-function orderedAudio(streams: ProbeStream[]) {
-	const preferred = normalizeLang(AUDIO_LANG);
+function orderedAudio(streams: ProbeStream[], lang = AUDIO_LANG) {
+	const preferred = normalizeLang(lang);
 	const audio = streams.filter((s) => s.codec_type === 'audio');
 	const first =
 		audio.find((s) => normalizeLang(s.tags?.language) === preferred) ??
@@ -382,6 +382,82 @@ export async function thumbnail(
 			output
 		],
 		{ signal: options.signal, pausable: options.pausable }
+	);
+}
+
+/**
+ * `seconds` of a video file from `atSec`, as an MP4 any browser plays: H.264 copied when it can be
+ * (then it starts at the keyframe before `atSec`) and otherwise made at most 1280 wide, with HDR
+ * tone mapped; the audio in `audioLang` (or the default track), as stereo AAC. Never frozen with
+ * the worker: someone is waiting for it.
+ */
+export async function clip(
+	input: string,
+	output: string,
+	info: Probe,
+	options: { atSec: number; seconds: number; audioLang?: string | null }
+) {
+	const video = info.streams.find((s) => s.codec_type === 'video' && !s.disposition?.attached_pic);
+	if (!video) throw new Error('El fichero no tiene pista de vídeo');
+	const [audio] = orderedAudio(info.streams, options.audioLang ?? AUDIO_LANG);
+	const squarePixels =
+		!video.sample_aspect_ratio || ['1:1', '0:1'].includes(video.sample_aspect_ratio);
+	const copyVideo =
+		video.codec_name === 'h264' &&
+		video.pix_fmt === 'yuv420p' &&
+		!INTERLACED.has(video.field_order ?? '') &&
+		squarePixels &&
+		!isHdr(video);
+
+	await run(
+		'ffmpeg',
+		[
+			'-hide_banner',
+			'-nostats',
+			'-y',
+			'-ss',
+			options.atSec.toFixed(2),
+			'-i',
+			input,
+			'-t',
+			String(options.seconds),
+			'-map',
+			`0:${video.index}`,
+			...(audio ? ['-map', `0:${audio.index}`] : []),
+			'-map_metadata',
+			'-1',
+			'-map_chapters',
+			'-1',
+			'-sn',
+			'-dn',
+			...(copyVideo
+				? ['-c:v', 'copy']
+				: [
+						'-c:v',
+						'libx264',
+						'-preset',
+						'veryfast',
+						'-crf',
+						'23',
+						'-profile:v',
+						'high',
+						'-vf',
+						[
+							...(isHdr(video) ? TONEMAP : []),
+							...videoFilters(video),
+							"scale='min(1280,iw)':-2",
+							'format=yuv420p'
+						].join(',')
+					]),
+			...(audio ? ['-c:a', 'aac', '-b:a', '128k', '-ac', '2'] : []),
+			// The index first, so the browser can start playing before it has the whole file.
+			'-movflags',
+			'+faststart',
+			'-f',
+			'mp4',
+			output
+		],
+		{ pausable: false }
 	);
 }
 

@@ -7,6 +7,9 @@ export const FRAME_COUNT: FrameCount = 20;
 /** Sizes the server makes frames in: the grid's, and the enlarged one's. */
 export const FRAME_WIDTHS = [480, 1280] as const;
 
+/** Length of the clip of a moment that plays in the browser. */
+export const CLIP_SECONDS = 30;
+
 /** Mulberry32: a small seeded generator of numbers in [0, 1), the same ones for the same seed. */
 function seededRandom(seed: number) {
 	let state = seed >>> 0;
