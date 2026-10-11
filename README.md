@@ -144,8 +144,10 @@ ven sin pedirlo si ya has visto la película.
 
 #### Vista de pájaro
 
-En la ficha, «Ver 20 fotogramas» muestra la película de un vistazo: fotogramas repartidos de
-principio a fin, saltando logos y créditos. Se sacan del fichero al pedirlos, de tres en tres, y no
+En la ficha, «Ver» muestra la película de un vistazo en 10, 20 o 30 fotogramas (a elegir en el
+desplegable) repartidos de principio a fin, saltando logos y créditos. Cada uno cae en un momento al
+azar de su tramo de la película, pero el azar sale del id de la película, así que siempre se ven los
+mismos. Se sacan del fichero al pedirlos, de tres en tres, y no
 se guardan en el servidor (el navegador los recuerda un día). Al pulsar uno se ve en grande, se pasa
 al anterior o al siguiente, y «Ver desde aquí en el salón» la empieza en ese momento.
 

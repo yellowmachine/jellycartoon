@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { frameTimes } from '#lib/birds-eye.ts';
+	import { FRAME_COUNT, FRAME_COUNTS, frameTimes, type FrameCount } from '#lib/birds-eye.ts';
 	import { formatDuration } from '#lib/format.ts';
 	import FrameViewer from './FrameViewer.svelte';
 
@@ -13,9 +13,10 @@
 	let { movieId, durationSec, mpv }: Props = $props();
 
 	let shown = $state(false);
+	let count = $state<FrameCount>(FRAME_COUNT);
 	let viewer = $state<FrameViewer>();
 
-	const times = $derived(frameTimes(durationSec));
+	const times = $derived(frameTimes(durationSec, movieId, count));
 
 	const button = 'rounded-md border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800';
 </script>
@@ -23,10 +24,17 @@
 <section class="mt-8">
 	<div class="mb-3 flex flex-wrap items-center gap-3">
 		<h2 class="font-semibold">Vista de pájaro</h2>
+		<select
+			bind:value={count}
+			aria-label="Cuántos fotogramas"
+			class="rounded-md border-zinc-700 bg-zinc-900 py-1.5 text-sm"
+		>
+			{#each FRAME_COUNTS as n (n)}
+				<option value={n}>{n} fotogramas</option>
+			{/each}
+		</select>
 		{#if !shown}
-			<button onclick={() => (shown = true)} class={button}>
-				Ver {times.length} fotogramas
-			</button>
+			<button onclick={() => (shown = true)} class={button}>Ver</button>
 		{/if}
 	</div>
 
