@@ -21,7 +21,7 @@
 	audioTracks={data.episode.audioTracks}
 	subtitles={data.episode.subtitles}
 	settings={data.settings}
-	onended={() => data.nextId && goto(`/watch/${data.nextId}`)}
+	onended={(autoNext) => autoNext && data.nextId && goto(`/watch/${data.nextId}`)}
 />
 
 {#if data.nextId}

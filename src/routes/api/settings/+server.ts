@@ -5,13 +5,14 @@ import { userSettings } from '#lib/server/db/schema.ts';
 import { normalizeLang } from '#lib/languages.ts';
 import { sanitizeSubtitleStyle, type SubtitleStyle } from '#lib/subtitle-style.ts';
 
-/** Partial update: `{ audioLang?, subtitleLang?, subtitleStyle? }`. */
+/** Partial update: `{ audioLang?, subtitleLang?, subtitleStyle?, autoNext? }`. */
 export const PATCH: RequestHandler = async ({ request, locals }) => {
 	const body = await request.json();
 	const values: {
 		audioLang?: string | null;
 		subtitleLang?: string | null;
 		subtitleStyle?: SubtitleStyle;
+		autoNext?: boolean;
 	} = {};
 	for (const key of ['audioLang', 'subtitleLang'] as const) {
 		if (!(key in body)) continue;
@@ -21,6 +22,10 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 	}
 
 	if ('subtitleStyle' in body) values.subtitleStyle = sanitizeSubtitleStyle(body.subtitleStyle);
+	if ('autoNext' in body) {
+		if (typeof body.autoNext !== 'boolean') error(400, 'Bad request');
+		values.autoNext = body.autoNext;
+	}
 
 	if (Object.keys(values).length === 0) error(400, 'Nothing to update');
 	await db

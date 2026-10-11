@@ -23,10 +23,14 @@
 			audioLang: string | null;
 			subtitleLang: string | null;
 			subtitleStyle: SubtitleStyle;
+			autoNext: boolean;
 		};
 		autoplay?: boolean;
-		/** Called after the final position has been saved. */
-		onended?: () => void;
+		/**
+		 * Called after the final position has been saved, with whether the next episode should
+		 * start (the user's choice, under the video).
+		 */
+		onended?: (autoNext: boolean) => void;
 	}
 
 	let {
@@ -50,6 +54,7 @@
 	let audioLang = $derived(settings.audioLang);
 	let subtitleLang = $derived(settings.subtitleLang);
 	let subtitleStyle = $derived(settings.subtitleStyle);
+	let autoNext = $derived(settings.autoNext);
 	let showStylePanel = $state(false);
 
 	// ::cue can't be styled inline, so the chosen style becomes a stylesheet. Values come from the
@@ -164,6 +169,7 @@
 		audioLang?: string | null;
 		subtitleLang?: string | null;
 		subtitleStyle?: SubtitleStyle;
+		autoNext?: boolean;
 	}) {
 		fetch('/api/settings', {
 			method: 'PATCH',
@@ -254,7 +260,12 @@
 
 	async function onEnded() {
 		await save();
-		onended?.();
+		onended?.(autoNext);
+	}
+
+	function chooseAutoNext(value: boolean) {
+		autoNext = value;
+		saveSetting({ autoNext });
 	}
 </script>
 
@@ -340,6 +351,18 @@
 				failed: 'No se pudo cambiar'
 			}[thumbnailState]}
 		</button>
+	</div>
+	<div class="flex items-center gap-1">
+		<span class="mr-1 text-zinc-400">Al terminar</span>
+		{#each [true, false] as value (value)}
+			<button
+				class={[
+					'rounded px-2 py-0.5',
+					autoNext === value ? 'bg-amber-500 text-zinc-950' : 'text-zinc-300 hover:bg-zinc-800'
+				]}
+				onclick={() => chooseAutoNext(value)}>{value ? 'Siguiente' : 'Parar'}</button
+			>
+		{/each}
 	</div>
 	{#if audioTracks.length > 1}
 		<div class="flex items-center gap-1">

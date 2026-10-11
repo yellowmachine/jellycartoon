@@ -365,6 +365,8 @@ export const userSettings = pgTable('user_settings', {
 	subtitleLang: text('subtitle_lang'),
 	/** Partial; missing keys use the defaults. */
 	subtitleStyle: jsonb('subtitle_style').$type<Partial<SubtitleStyle>>(),
+	/** When an episode ends, the next one starts (the series' or the playlist's). */
+	autoNext: boolean('auto_next').notNull().default(true),
 	/** Where "add to list" on a series page puts episodes. */
 	activeListId: integer('active_list_id').references(() => userList.id, { onDelete: 'set null' })
 });

@@ -40,6 +40,13 @@
 	// Starts at the first episode not watched yet; clicking another one plays it instead.
 	let current = $derived(items.findIndex((i) => !i.watched));
 	let item = $derived(items[current]);
+	/** Off when the last one ended with «Parar»: the next one is shown, waiting. */
+	let autoplay = $state(true);
+
+	function ended(autoNext: boolean) {
+		autoplay = autoNext;
+		invalidateAll();
+	}
 </script>
 
 <!-- In "cinema" the video takes the full width and the list goes below it. -->
@@ -52,7 +59,8 @@
 				audioTracks={item.audioTracks}
 				subtitles={item.subtitles}
 				{settings}
-				onended={invalidateAll}
+				{autoplay}
+				onended={ended}
 			/>
 			<p class="mt-3 text-sm text-zinc-400">{item.seriesTitle}</p>
 			<h2 class="text-lg font-semibold">
@@ -76,7 +84,10 @@
 							'flex min-w-0 flex-1 items-center gap-3 p-2 text-left hover:bg-zinc-900',
 							it.watched && index !== current && 'opacity-50'
 						]}
-						onclick={() => (current = index)}
+						onclick={() => {
+							current = index;
+							autoplay = true;
+						}}
 					>
 						<img
 							src="/api/thumb/{it.id}"

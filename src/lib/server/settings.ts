@@ -7,6 +7,7 @@ export interface PlaybackSettings {
 	audioLang: string | null;
 	subtitleLang: string | null;
 	subtitleStyle: SubtitleStyle;
+	autoNext: boolean;
 }
 
 export async function getSettings(userId: string): Promise<PlaybackSettings> {
@@ -14,6 +15,7 @@ export async function getSettings(userId: string): Promise<PlaybackSettings> {
 	return {
 		audioLang: row?.audioLang ?? null,
 		subtitleLang: row?.subtitleLang ?? null,
-		subtitleStyle: sanitizeSubtitleStyle(row?.subtitleStyle)
+		subtitleStyle: sanitizeSubtitleStyle(row?.subtitleStyle),
+		autoNext: row?.autoNext ?? true
 	};
 }
