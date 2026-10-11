@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { SvelteSet } from 'svelte/reactivity';
 	import EpisodeMenu from '#lib/components/EpisodeMenu.svelte';
+	import EpisodeTitles from '#lib/components/EpisodeTitles.svelte';
 	import SeriesInfo from '#lib/components/SeriesInfo.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
@@ -87,6 +88,12 @@
 {/if}
 
 <SeriesInfo info={data.info} />
+{#await data.info then info}
+	<EpisodeTitles
+		proposal={data.proposal}
+		canPropose={data.canPropose && 'status' in info && info.status === 'found'}
+	/>
+{/await}
 
 <div class="mb-2 flex flex-wrap items-center justify-between gap-3">
 	<p class="text-sm text-zinc-400">

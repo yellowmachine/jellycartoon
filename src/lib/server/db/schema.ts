@@ -19,6 +19,7 @@ import type { AudioTrack, SubtitleTrack } from '#lib/languages.ts';
 import type { Chapter, SceneName } from '#lib/scenes.ts';
 import type { SubtitleStyle } from '#lib/subtitle-style.ts';
 import type { WikiPage } from '#lib/server/cinema/wikidata.ts';
+import type { TitleProposal } from '#lib/episode-titles.ts';
 import { user } from './auth.schema';
 
 export const series = pgTable('series', {
@@ -55,6 +56,8 @@ export const episode = pgTable(
 		title: text('title').notNull(),
 		/** Set by hand; shown instead of `title` and kept across scans. */
 		customTitle: text('custom_title'),
+		/** Proposed by the AI and accepted in the series page; `customTitle` still wins over it. */
+		aiTitle: text('ai_title'),
 		/** Season and number were set by hand: scans no longer derive them from the path. */
 		manualNumbering: boolean('manual_numbering').notNull().default(false),
 		/** Path relative to MEDIA_DIR. */
@@ -91,8 +94,8 @@ export const episode = pgTable(
 	]
 );
 
-/** The title to show: the one set by hand, or the one from the file name. */
-export const episodeTitle = sql<string>`coalesce(${episode.customTitle}, ${episode.title})`;
+/** The title to show: the one set by hand, the AI's, or the one from the file name. */
+export const episodeTitle = sql<string>`coalesce(${episode.customTitle}, ${episode.aiTitle}, ${episode.title})`;
 
 /** `ambiguous`: several series could be it, the user chooses (`candidates`). */
 export const seriesInfoStatus = pgEnum('series_info_status', ['found', 'ambiguous', 'not_found']);
@@ -119,6 +122,8 @@ export const seriesInfo = pgTable('series_info', {
 		.$type<{ id: string; title: string; year: number | null; description: string | null }[]>()
 		.notNull()
 		.default([]),
+	/** Titles and numbering the AI proposes for its episodes, until accepted or discarded. */
+	titleProposal: jsonb('title_proposal').$type<TitleProposal[]>(),
 	updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 

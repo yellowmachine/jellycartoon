@@ -90,6 +90,8 @@ async function save(seriesId: number, values: Omit<typeof seriesInfo.$inferInser
 				wikipediaUrl: null,
 				episodePages: [],
 				candidates: [],
+				// Made from the previous series' episode list.
+				titleProposal: null,
 				...row
 			}
 		})

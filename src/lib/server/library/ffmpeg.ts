@@ -299,18 +299,20 @@ function frameFilters(info: Probe, width: number) {
 
 /**
  * A frame of a video file, kept in memory (nothing is written to disk). Never frozen with the
- * worker: someone is waiting for it.
+ * worker: someone is waiting for it. `fromStart`: decodes up to `atSec` instead of seeking, for our
+ * HLS output (see `thumbnail`).
  */
-export function frame(input: string, info: Probe, atSec: number, width: number) {
+export function frame(input: string, info: Probe, atSec: number, width: number, fromStart = false) {
+	const seek = ['-ss', atSec.toFixed(2)];
 	return new Promise<Buffer>((resolve, reject) => {
 		const child = spawn(
 			'ffmpeg',
 			[
 				'-hide_banner',
-				'-ss',
-				atSec.toFixed(2),
+				...(fromStart ? [] : seek),
 				'-i',
 				input,
+				...(fromStart ? seek : []),
 				'-an',
 				'-sn',
 				'-frames:v',

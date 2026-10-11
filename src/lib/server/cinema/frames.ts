@@ -9,7 +9,8 @@ const PARALLEL = 3;
 let active = 0;
 const waiting: (() => void)[] = [];
 
-async function inTurn<T>(work: () => Promise<T>): Promise<T> {
+/** Also for the frames of episodes the AI looks at. */
+export async function inTurn<T>(work: () => Promise<T>): Promise<T> {
 	if (active >= PARALLEL) await new Promise<void>((resolve) => waiting.push(resolve));
 	active++;
 	try {

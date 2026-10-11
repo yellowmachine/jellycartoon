@@ -1,3 +1,5 @@
+import { htmlToText } from './html-text.ts';
+
 /**
  * Films and TV series in Wikidata and their Wikipedia articles, through the public APIs (no key
  * needed): https://www.wikidata.org/w/api.php and https://es.wikipedia.org/api/rest_v1/
@@ -368,4 +370,24 @@ export async function seriesDetails(id: string): Promise<SeriesDetails> {
 			}))
 			.filter((p): p is WikiPage => !!p.title)
 	};
+}
+
+/**
+ * An article as plain text, tables included (the episodes are in tables, which TextExtracts drops),
+ * from its rendered HTML: https://www.mediawiki.org/wiki/API:Parsing_wikitext
+ */
+export async function wikipediaPageText(page: WikiPage) {
+	const body = await getJson(`https://${page.lang}.wikipedia.org/w/api.php`, {
+		action: 'parse',
+		page: page.title,
+		prop: 'text',
+		redirects: '1',
+		disablelimitreport: '1',
+		disableeditsection: '1',
+		format: 'json',
+		formatversion: '2'
+	});
+	const html = body.parse?.text as string | undefined;
+	if (!html) throw new Error(`No se pudo leer «${page.title}» de Wikipedia (${page.lang})`);
+	return htmlToText(html);
 }

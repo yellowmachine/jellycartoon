@@ -3,6 +3,7 @@ import { and, asc, eq, inArray, lt, notInArray, or, sql } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
+import { openRouterConfig } from '#lib/server/app-settings.ts';
 import { deleteSeries } from '#lib/server/library/delete-series.ts';
 import { hostPlaylist } from '#lib/server/library/paths.ts';
 import { takeThumbnail } from '#lib/server/library/thumbnail.ts';
@@ -17,6 +18,13 @@ import {
 	lookUpSeries,
 	savedSeriesInfo
 } from '#lib/server/library/series-info.ts';
+import {
+	applyProposal,
+	discardProposal,
+	proposalRows,
+	proposalState,
+	startProposal
+} from '#lib/server/library/episode-titles.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const id = Number(params.id);
@@ -29,7 +37,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			season: episode.season,
 			number: episode.number,
 			title: episodeTitle,
-			autoTitle: episode.title,
+			/** What an empty title goes back to. */
+			autoTitle: sql<string>`coalesce(${episode.aiTitle}, ${episode.title})`,
 			status: episode.status,
 			progress: episode.progress,
 			durationSec: episode.durationSec,
@@ -61,10 +70,12 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		.from(episode)
 		.where(eq(episode.seriesId, id));
 
-	const [activeList, lists, listItems] = await Promise.all([
+	const [activeList, lists, listItems, saved, { apiKey }] = await Promise.all([
 		getActiveList(locals.user!.id),
 		getListNames(locals.user!.id),
-		seriesListItems(locals.user!.id, id)
+		seriesListItems(locals.user!.id, id),
+		savedSeriesInfo(id),
+		openRouterConfig()
 	]);
 
 	const seasons = Map.groupBy(
@@ -78,10 +89,16 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		listItems,
 		stored: { episodes: stored.episodes, outputBytes: Number(stored.outputBytes) },
 		seasons: [...seasons].map(([season, episodes]) => ({ season, episodes })),
+		/** Proposing titles needs an OpenRouter key. */
+		canPropose: Boolean(apiKey),
+		proposal: {
+			...proposalState(id),
+			rows: await proposalRows(id, saved?.titleProposal ?? [])
+		},
 		// Saved: in the page itself. The first time it is streamed: the page shows at once and the
 		// info arrives when the lookup ends.
 		info:
-			(await savedSeriesInfo(id)) ??
+			saved ??
 			lookUpSeries(id).catch((err) => {
 				log.error('series', `No se pudo buscar la ficha de ${s.folder}`, {
 					seriesId: id,
@@ -116,6 +133,20 @@ export const actions: Actions = {
 	/** Look the series up again from scratch, e.g. after setting an OpenRouter key. */
 	refreshInfo: async ({ params }) => {
 		await forgetSeries(Number(params.id));
+	},
+	/** Titles and numbering from the AI, in the background: the page asks until it is done. */
+	proposeTitles: async ({ params }) => {
+		startProposal(Number(params.id));
+	},
+	/** The proposal, for the chosen episodes. */
+	applyTitles: async ({ params, request }) => {
+		const ids = (await request.formData()).getAll('id').map(Number);
+		if (!ids.length || !ids.every(Number.isInteger))
+			return fail(400, { message: 'No hay capítulos seleccionados' });
+		await applyProposal(Number(params.id), ids);
+	},
+	discardTitles: async ({ params }) => {
+		await discardProposal(Number(params.id));
 	},
 	delete: async ({ params }) => {
 		await deleteSeries(Number(params.id));
