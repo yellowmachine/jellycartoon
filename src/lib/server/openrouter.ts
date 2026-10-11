@@ -14,6 +14,8 @@ export async function completeJson<T>(request: {
 	/** Instead of the one in Ajustes. */
 	model?: string;
 	timeoutMs?: number;
+	/** Longest answer, in tokens; see `max_tokens` below. */
+	maxTokens?: number;
 	/** To cancel it before the timeout. */
 	signal?: AbortSignal;
 }): Promise<T> {
@@ -36,6 +38,10 @@ export async function completeJson<T>(request: {
 				{ role: 'system', content: request.system },
 				{ role: 'user', content: request.prompt }
 			],
+			// Without it, OpenRouter reserves credit for the model's longest answer (64k tokens) and
+			// refuses the request when the key has less left, however short the real answer:
+			// https://openrouter.ai/docs/api/reference/parameters#max-tokens
+			max_tokens: request.maxTokens ?? 4096,
 			// No `temperature`: the newest models do not take it, and with `require_parameters` a
 			// parameter no provider supports leaves no provider at all.
 			response_format: {
@@ -91,6 +97,8 @@ export async function* streamChat(request: {
 			model: request.model,
 			messages: request.messages,
 			stream: true,
+			// As in `completeJson`: a long answer, without reserving credit for 64k tokens.
+			max_tokens: 8192,
 			...(request.web && { plugins: [{ id: 'web' }] }),
 			// The film's articles are long and go with every question: Anthropic caches them only
 			// when asked (https://openrouter.ai/docs/guides/best-practices/prompt-caching); the

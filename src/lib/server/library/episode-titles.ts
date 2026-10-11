@@ -232,6 +232,8 @@ async function proposeTitles(
 			schema: SCHEMA,
 			model,
 			timeoutMs: 180_000,
+			// 25 episodes, each with its title: a few thousand tokens.
+			maxTokens: 8192,
 			signal
 		}).then(
 			(a) => a.episodes,

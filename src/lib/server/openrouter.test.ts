@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 
-mock.module('#lib/server/app-settings.ts', () => ({ openRouterConfig: async () => ({}) }));
-const { streamChat } = await import('./openrouter.ts');
+mock.module('#lib/server/app-settings.ts', () => ({
+	openRouterConfig: async () => ({ apiKey: 'k', model: 'anthropic/claude-haiku-5.5' })
+}));
+const { completeJson, streamChat } = await import('./openrouter.ts');
 
 const realFetch = globalThis.fetch;
 afterEach(() => (globalThis.fetch = realFetch));
@@ -102,5 +104,28 @@ describe('streamChat', () => {
 				{ status: 400 }
 			)) as unknown as typeof fetch;
 		await expect(collect()).rejects.toThrow('OpenRouter: Invalid model');
+	});
+});
+
+describe('completeJson', () => {
+	const ask = (maxTokens?: number) =>
+		completeJson<{ ok: boolean }>({
+			system: 's',
+			prompt: 'p',
+			name: 'test',
+			schema: {},
+			maxTokens
+		});
+
+	test('limits the answer, so the key is not asked for credit for the longest one', async () => {
+		let sent: RequestInit | undefined;
+		globalThis.fetch = (async (_url: string, init: RequestInit) => {
+			sent = init;
+			return Response.json({ choices: [{ message: { content: '{"ok":true}' } }] });
+		}) as typeof fetch;
+		expect(await ask()).toEqual({ ok: true });
+		expect(JSON.parse(String(sent!.body)).max_tokens).toBe(4096);
+		await ask(8192);
+		expect(JSON.parse(String(sent!.body)).max_tokens).toBe(8192);
 	});
 });
