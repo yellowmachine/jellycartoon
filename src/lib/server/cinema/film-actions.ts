@@ -62,6 +62,16 @@ export const play: Action = async ({ request, locals }) => {
 	return { playing: film.title };
 };
 
+/** An empty title goes back to the one taken from the file name. */
+export const rename: Action = async ({ request }) => {
+	const form = await request.formData();
+	const title = String(form.get('title') ?? '').trim();
+	await db
+		.update(movie)
+		.set({ customTitle: title || null })
+		.where(eq(movie.id, Number(form.get('id'))));
+};
+
 export const setWatched: Action = async ({ request, locals }) => {
 	const form = await request.formData();
 	const movieId = Number(form.get('id'));

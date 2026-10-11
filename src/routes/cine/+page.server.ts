@@ -5,7 +5,7 @@ import { db } from '#lib/server/db/index.ts';
 import { movie, movieInfo, movieProgress, movieTitle } from '#lib/server/db/schema.ts';
 import { wakeCatalog } from '#lib/server/cinema/catalog.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
-import { play, setWatched } from '#lib/server/cinema/film-actions.ts';
+import { play, rename, setWatched } from '#lib/server/cinema/film-actions.ts';
 import { scanCinema } from '#lib/server/cinema/scan.ts';
 import { cinemaRoot, hostMoviePath } from '#lib/server/library/paths.ts';
 
@@ -71,15 +71,7 @@ export const actions: Actions = {
 			return fail(500, { message: err instanceof Error ? err.message : String(err) });
 		}
 	},
-	/** An empty title goes back to the one taken from the file name. */
-	rename: async ({ request }) => {
-		const form = await request.formData();
-		const title = String(form.get('title') ?? '').trim();
-		await db
-			.update(movie)
-			.set({ customTitle: title || null })
-			.where(eq(movie.id, Number(form.get('id'))));
-	},
+	rename,
 	play,
 	setWatched,
 	retry: async ({ request }) => {

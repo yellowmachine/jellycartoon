@@ -3,6 +3,7 @@
 	import BirdsEye from '#lib/components/BirdsEye.svelte';
 	import FilmChat from '#lib/components/FilmChat.svelte';
 	import Scenes from '#lib/components/Scenes.svelte';
+	import TitleForm from '#lib/components/TitleForm.svelte';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
 	import { filterHref, type FilterName } from '#lib/film-search.ts';
 	import type { PageProps } from './$types';
@@ -16,6 +17,7 @@
 		!film.completed && film.positionSec && film.positionSec > 5 ? film.positionSec : 0
 	);
 
+	let editing = $state(false);
 	let searching = $state(false);
 	const searchEnhance = () => {
 		searching = true;
@@ -83,7 +85,27 @@
 	</div>
 
 	<div class="min-w-0">
-		<h1 class="text-2xl font-bold">{film.title}</h1>
+		{#if editing}
+			<div class="flex">
+				<TitleForm
+					action="?/rename"
+					value={film.title}
+					placeholder={film.autoTitle}
+					hidden={{ id: film.id }}
+					onclose={() => (editing = false)}
+				/>
+			</div>
+		{:else}
+			<h1 class="flex items-center gap-2 text-2xl font-bold">
+				{film.title}
+				<button
+					class="shrink-0 rounded-md px-2 py-1 text-base text-zinc-500 hover:bg-zinc-800 hover:text-white"
+					title="Cambiar título"
+					aria-label="Cambiar título"
+					onclick={() => (editing = true)}>✎</button
+				>
+			</h1>
+		{/if}
 		{#await data.info then info}
 			{#if 'status' in info && info.status === 'found'}
 				<p class="mt-1 text-sm text-zinc-400">

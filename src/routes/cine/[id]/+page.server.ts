@@ -5,7 +5,7 @@ import { db } from '#lib/server/db/index.ts';
 import { movie, movieProgress, movieTitle } from '#lib/server/db/schema.ts';
 import { chatConfig } from '#lib/server/app-settings.ts';
 import { chatHistory } from '#lib/server/cinema/chat.ts';
-import { play, setWatched } from '#lib/server/cinema/film-actions.ts';
+import { play, rename, setWatched } from '#lib/server/cinema/film-actions.ts';
 import { choose, forget, identify, lookUp, savedMovieInfo } from '#lib/server/cinema/info.ts';
 import { namingState, startNaming } from '#lib/server/cinema/scenes.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
@@ -19,6 +19,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		.select({
 			id: movie.id,
 			title: movieTitle,
+			autoTitle: movie.title,
 			year: movie.year,
 			path: movie.path,
 			size: movie.size,
@@ -63,6 +64,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 
 export const actions: Actions = {
 	play,
+	rename,
 	setWatched,
 	/** «It is this one», among the candidates. */
 	choose: async ({ params, request }) => {
