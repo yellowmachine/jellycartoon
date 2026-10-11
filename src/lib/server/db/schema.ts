@@ -16,6 +16,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import type { AudioTrack, SubtitleTrack } from '#lib/languages.ts';
+import type { Chapter, SceneName } from '#lib/scenes.ts';
 import type { SubtitleStyle } from '#lib/subtitle-style.ts';
 import { user } from './auth.schema';
 
@@ -205,6 +206,8 @@ export const movie = pgTable(
 		video: text('video'),
 		audioTracks: jsonb('audio_tracks').$type<AudioTrack[]>().notNull().default([]),
 		subtitles: jsonb('subtitles').$type<AudioTrack[]>().notNull().default([]),
+		/** The file's chapters (usually the disc's); `null` until the file has been read for them. */
+		chapters: jsonb('chapters').$type<Chapter[]>(),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [index('movie_status_idx').on(t.status)]
@@ -263,6 +266,8 @@ export const movieInfo = pgTable('movie_info', {
 		>()
 		.notNull()
 		.default([]),
+	/** Names the AI gave the chapters, by their start: `null` until asked for. */
+	scenes: jsonb('scenes').$type<SceneName[]>(),
 	updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 

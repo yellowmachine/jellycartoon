@@ -129,6 +129,19 @@ datos. Las dos son gratuitas y sin clave.
   y el director, y con eso se busca en Wikidata. Los datos de la ficha nunca los inventa la IA;
   solo escribe la sinopsis si no hay artículo en Wikipedia, y lo indica.
 
+#### Escenas
+
+Casi todas las películas copiadas de un disco traen sus capítulos, puestos por el estudio en los
+cambios de escena. Se leen al catalogar (las ya catalogadas, después del siguiente escaneo o
+arranque) y la ficha los muestra como «Escenas»: un fotograma de cada una y «Ver desde aquí en el
+salón», que empieza justo al principio de la escena.
+
+Los discos los llaman «Chapter 01, 02…». Con la clave de OpenRouter, «Ponerles nombre con la IA»
+manda un fotograma de cada escena y los artículos de Wikipedia al modelo de las conversaciones, que
+les pone un nombre corto («Pongo y Perdita se conocen en el parque»). Tarda un minuto o dos, se
+hace una vez por película y cuesta unos céntimos. Como cuentan el argumento, los nombres solo se
+ven sin pedirlo si ya has visto la película.
+
 #### Vista de pájaro
 
 En la ficha, «Ver 20 fotogramas» muestra la película de un vistazo: fotogramas repartidos de

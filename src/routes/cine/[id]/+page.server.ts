@@ -7,6 +7,7 @@ import { chatConfig } from '#lib/server/app-settings.ts';
 import { chatHistory } from '#lib/server/cinema/chat.ts';
 import { play, setWatched } from '#lib/server/cinema/film-actions.ts';
 import { choose, forget, identify, lookUp, savedMovieInfo } from '#lib/server/cinema/info.ts';
+import { namingState, startNaming } from '#lib/server/cinema/scenes.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { cinemaRoot, hostMoviePath } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
@@ -26,6 +27,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			video: movie.video,
 			audioTracks: movie.audioTracks,
 			subtitles: movie.subtitles,
+			chapters: movie.chapters,
 			positionSec: movieProgress.positionSec,
 			completed: movieProgress.completed
 		})
@@ -42,6 +44,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		chat,
 		/** Talking about the film needs an OpenRouter key. */
 		canChat: Boolean(apiKey),
+		naming: namingState(id),
 		film: { ...film, hostPath: hostMoviePath(film.path) },
 		mpv: mpvEnabled,
 		// Saved: in the page itself. The first time it is streamed: the page shows at once and the
@@ -80,6 +83,10 @@ export const actions: Actions = {
 		} catch (err) {
 			return fail(502, { message: err instanceof Error ? err.message : String(err) });
 		}
+	},
+	/** Name the chapters with the AI, in the background: the page asks until it is done. */
+	nameScenes: async ({ params }) => {
+		startNaming(Number(params.id));
 	},
 	/** Look it up again from scratch, e.g. after setting an OpenRouter key. */
 	refresh: async ({ params }) => {

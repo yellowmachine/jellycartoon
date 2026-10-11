@@ -6,12 +6,18 @@ import { openRouterConfig } from '#lib/server/app-settings.ts';
  */
 export async function completeJson<T>(request: {
 	system: string;
-	prompt: string;
+	/** Text, or text and images: https://openrouter.ai/docs/guides/overview/multimodal/images */
+	prompt: string | ContentPart[];
 	/** Name of the schema, e.g. `film`. */
 	name: string;
 	schema: Record<string, unknown>;
+	/** Instead of the one in Ajustes. */
+	model?: string;
+	timeoutMs?: number;
 }): Promise<T> {
-	const { apiKey, model } = await openRouterConfig();
+	const config = await openRouterConfig();
+	const { apiKey } = config;
+	const model = request.model ?? config.model;
 	if (!apiKey) throw new Error('No hay clave de OpenRouter: ponla en Ajustes');
 
 	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -36,7 +42,7 @@ export async function completeJson<T>(request: {
 			// Only providers that honour the schema.
 			provider: { require_parameters: true }
 		}),
-		signal: AbortSignal.timeout(60_000)
+		signal: AbortSignal.timeout(request.timeoutMs ?? 60_000)
 	});
 	const body = await res.json().catch(() => null);
 	if (!res.ok) throw new Error(`OpenRouter: ${body?.error?.message ?? res.statusText}`);
@@ -44,6 +50,9 @@ export async function completeJson<T>(request: {
 	if (typeof content !== 'string') throw new Error('OpenRouter: respuesta vacía');
 	return JSON.parse(content) as T;
 }
+
+export type ContentPart =
+	{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
 
 export interface ChatMessage {
 	role: 'system' | 'user' | 'assistant';

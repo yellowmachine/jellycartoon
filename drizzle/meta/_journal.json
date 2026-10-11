@@ -127,6 +127,13 @@
       "when": 1791665366262,
       "tag": "0017_jazzy_onslaught",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791702371182,
+      "tag": "0018_goofy_lady_mastermind",
+      "breakpoints": true
     }
   ]
 }

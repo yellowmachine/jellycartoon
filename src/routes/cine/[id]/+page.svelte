@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import BirdsEye from '#lib/components/BirdsEye.svelte';
 	import FilmChat from '#lib/components/FilmChat.svelte';
+	import Scenes from '#lib/components/Scenes.svelte';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
 	import { filterHref, type FilterName } from '#lib/film-search.ts';
 	import type { PageProps } from './$types';
@@ -247,6 +248,30 @@
 		{/if}
 	{/await}
 </section>
+
+{#snippet scenes(info: Awaited<typeof data.info> | null)}
+	{@const found = info && 'status' in info && info.status === 'found' ? info : null}
+	<Scenes
+		movieId={film.id}
+		durationSec={film.durationSec!}
+		chapters={film.chapters!}
+		names={found?.scenes ?? null}
+		completed={film.completed ?? false}
+		mpv={data.mpv}
+		canName={data.canChat && !!found}
+		naming={data.naming}
+	/>
+{/snippet}
+
+{#if ready && film.durationSec && film.chapters?.length}
+	{#key film.id}
+		{#await data.info}
+			{@render scenes(null)}
+		{:then info}
+			{@render scenes(info)}
+		{/await}
+	{/key}
+{/if}
 
 {#if ready && film.durationSec}
 	{#key film.id}

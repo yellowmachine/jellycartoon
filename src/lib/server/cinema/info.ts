@@ -157,6 +157,7 @@ async function save(movieId: number, values: Omit<typeof movieInfo.$inferInsert,
 				synopsisSource: null,
 				wikipediaUrl: null,
 				candidates: [],
+				scenes: null,
 				...row
 			}
 		})

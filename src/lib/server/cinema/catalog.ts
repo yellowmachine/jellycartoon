@@ -1,9 +1,9 @@
 import { mkdir, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { movie } from '#lib/server/db/schema.ts';
-import { describeStreams, probe, thumbnail } from '#lib/server/library/ffmpeg.ts';
+import { describeChapters, describeStreams, probe, thumbnail } from '#lib/server/library/ffmpeg.ts';
 import { movieFile, movieThumbFile } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 
@@ -15,6 +15,7 @@ let running: Promise<void> | null = null;
  */
 export function wakeCatalog() {
 	running ??= catalogPending()
+		.then(readChapters)
 		.catch((error) => log.error('cine', 'Fallo inesperado al catalogar', { error }))
 		.finally(() => (running = null));
 	return running;
@@ -47,7 +48,13 @@ async function catalogPending() {
 			}
 			await db
 				.update(movie)
-				.set({ status: 'ready', error: null, durationSec, ...describeStreams(info) })
+				.set({
+					status: 'ready',
+					error: null,
+					durationSec,
+					...describeStreams(info),
+					chapters: describeChapters(info)
+				})
 				.where(eq(movie.id, next.id));
 			log.info('cine', `Catalogada ${next.path}`, { movieId: next.id });
 		} catch (error) {
@@ -58,4 +65,27 @@ async function catalogPending() {
 			log.error('cine', `No se pudo catalogar ${next.path}`, { movieId: next.id, error });
 		}
 	}
+}
+
+/** The chapters of the films catalogued before they were read: only the file's header. */
+async function readChapters() {
+	const films = await db
+		.select({ id: movie.id, path: movie.path })
+		.from(movie)
+		.where(and(eq(movie.status, 'ready'), eq(movie.missing, false), isNull(movie.chapters)));
+	for (const film of films) {
+		try {
+			const info = await probe(movieFile(film.path), undefined, false);
+			await db
+				.update(movie)
+				.set({ chapters: describeChapters(info) })
+				.where(eq(movie.id, film.id));
+		} catch (error) {
+			log.warn('cine', `No se pudieron leer los capítulos de ${film.path}`, {
+				movieId: film.id,
+				error
+			});
+		}
+	}
+	if (films.length) log.info('cine', `Leídos los capítulos de ${films.length} películas`);
 }

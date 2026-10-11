@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { AUDIO_LANG, X264_CRF, X264_PRESET } from '$app/env/private';
 import { languageLabel, normalizeLang, type AudioTrack } from '#lib/languages.ts';
+import { chapterTitle, type Chapter } from '#lib/scenes.ts';
 
 interface ProbeStream {
 	index: number;
@@ -21,6 +22,7 @@ interface ProbeStream {
 export interface Probe {
 	streams: ProbeStream[];
 	format: { format_name: string; duration?: string };
+	chapters?: { start_time: string; tags?: { title?: string } }[];
 }
 
 const children = new Set<ChildProcess>();
@@ -80,7 +82,16 @@ export async function probe(
 ): Promise<Probe> {
 	const { stdout } = await run(
 		'ffprobe',
-		['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', file],
+		[
+			'-v',
+			'error',
+			'-print_format',
+			'json',
+			'-show_format',
+			'-show_streams',
+			'-show_chapters',
+			file
+		],
 		{ signal, pausable }
 	);
 	return JSON.parse(stdout);
@@ -373,6 +384,13 @@ export async function thumbnail(
 }
 
 const CHANNELS: Record<number, string> = { 1: 'mono', 2: 'estéreo', 6: '5.1', 8: '7.1' };
+
+/** The file's chapters, in order: usually the disc's, with generic names. */
+export function describeChapters(info: Probe): Chapter[] {
+	return (info.chapters ?? [])
+		.map((c) => ({ startSec: Number(c.start_time) || 0, title: chapterTitle(c.tags?.title) }))
+		.sort((a, b) => a.startSec - b.startSec);
+}
 
 /**
  * What a film has, to show it without converting anything: e.g. `1920×1080 · h264 · HDR`, audio
