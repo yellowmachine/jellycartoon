@@ -83,8 +83,10 @@ export async function completeJson<T>(request: {
 			],
 			// Without it, OpenRouter reserves credit for the model's longest answer (64k tokens) and
 			// refuses the request when the key has less left, however short the real answer:
-			// https://openrouter.ai/docs/api/reference/parameters#max-tokens
-			max_tokens: request.maxTokens ?? 4096,
+			// https://openrouter.ai/docs/api/reference/parameters#max-tokens. Room to spare: a
+			// reasoning model (GPT-5, o3…) spends them thinking too, and with none left it answers
+			// nothing: https://openrouter.ai/docs/guides/best-practices/reasoning-tokens
+			max_tokens: request.maxTokens ?? 16_384,
 			// No `temperature`: the newest models do not take it, and with `require_parameters` a
 			// parameter no provider supports leaves no provider at all.
 			response_format: {
@@ -106,17 +108,20 @@ export async function completeJson<T>(request: {
 	const choice = body?.choices?.[0];
 	const content = choice?.message?.content;
 	const provider = body?.provider ? ` (${body.provider})` : '';
+	// Billed even when it fails, e.g. a reasoning model that thought until it ran out of tokens.
+	if (body?.usage) logUsage(request.label, body, request.details);
 	if (typeof content !== 'string' || !content.trim()) {
 		const why =
 			body?.error?.message ??
 			choice?.error?.message ??
-			(choice?.finish_reason &&
-				`terminó con ${choice.native_finish_reason ?? choice.finish_reason}`);
+			(choice?.finish_reason === 'length'
+				? 'se quedó sin tokens (razonando) antes de responder'
+				: choice?.finish_reason &&
+					`terminó con ${choice.native_finish_reason ?? choice.finish_reason}`);
 		throw new Error(`OpenRouter: respuesta vacía${provider}${why ? `: ${why}` : ''}`);
 	}
 	if (choice.finish_reason === 'length')
 		throw new Error(`OpenRouter: la respuesta se cortó por larga${provider}`);
-	logUsage(request.label, body, request.details);
 	return JSON.parse(content) as T;
 }
 
@@ -157,8 +162,9 @@ export async function* streamChat(request: {
 			model: request.model,
 			messages: request.messages,
 			stream: true,
-			// As in `completeJson`: a long answer, without reserving credit for 64k tokens.
-			max_tokens: 8192,
+			// As in `completeJson`: a long answer and the thinking of a reasoning model, without
+			// reserving credit for 64k tokens.
+			max_tokens: 16_384,
 			...(request.web && { plugins: [{ id: 'web' }] }),
 			// The film's articles are long and go with every question: Anthropic caches them only
 			// when asked (https://openrouter.ai/docs/guides/best-practices/prompt-caching); the

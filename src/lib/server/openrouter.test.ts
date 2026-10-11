@@ -131,9 +131,9 @@ describe('completeJson', () => {
 			return Response.json({ choices: [{ message: { content: '{"ok":true}' } }] });
 		}) as typeof fetch;
 		expect(await ask()).toEqual({ ok: true });
-		expect(JSON.parse(String(sent!.body)).max_tokens).toBe(4096);
-		await ask(8192);
-		expect(JSON.parse(String(sent!.body)).max_tokens).toBe(8192);
+		expect(JSON.parse(String(sent!.body)).max_tokens).toBe(16_384);
+		await ask(32_768);
+		expect(JSON.parse(String(sent!.body)).max_tokens).toBe(32_768);
 	});
 
 	test('says why an answer came empty', async () => {
@@ -155,6 +155,21 @@ describe('completeJson', () => {
 				choices: [{ message: { content: '' }, error: { code: 502, message: 'Upstream error' } }]
 			})) as typeof fetch;
 		await expect(ask()).rejects.toThrow('OpenRouter: respuesta vacía: Upstream error');
+
+		globalThis.fetch = (async (_url: string) =>
+			Response.json({
+				provider: 'Azure',
+				choices: [
+					{
+						message: { content: null },
+						finish_reason: 'length',
+						native_finish_reason: 'max_tokens'
+					}
+				]
+			})) as typeof fetch;
+		await expect(ask()).rejects.toThrow(
+			'OpenRouter: respuesta vacía (Azure): se quedó sin tokens (razonando) antes de responder'
+		);
 	});
 });
 
