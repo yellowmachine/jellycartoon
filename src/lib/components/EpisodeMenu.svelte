@@ -30,9 +30,10 @@
 		/** The user's lists, and whether this episode is in each one. */
 		lists: { id: number; name: string; added: boolean }[];
 		onrename: () => void;
+		ondelete: () => void;
 	}
 
-	let { episode, previousUnwatched, lists, onrename }: Props = $props();
+	let { episode, previousUnwatched, lists, onrename, ondelete }: Props = $props();
 
 	const ready = $derived(episode.status === 'ready');
 	// The player ignores the first seconds too: it starts over below that.
@@ -167,6 +168,16 @@
 			}}
 		>
 			{@render item('Información')}
+		</button>
+		<hr class="my-1 border-zinc-800" />
+		<button
+			class="w-full text-red-400"
+			onclick={() => {
+				close();
+				ondelete();
+			}}
+		>
+			{@render item('Borrar capítulo…')}
 		</button>
 	{/snippet}
 </ActionMenu>

@@ -91,6 +91,10 @@ docker compose -f compose.prod.yaml logs -f app
   Los ficheros modificados hace menos de un minuto se ignoran al escanear (copias en curso).
   En Biblioteca aparece un botón para borrar los que ya estaban convertidos. Ojo: para
   reconvertir (cambios de formato o de calidad) habrá que volver a copiar los originales.
+- «Borrar capítulo…» (en el menú de cada uno, o varios con «Seleccionar capítulos») los borra para
+  siempre, original de `HOST_MEDIA_DIR` incluido, para que el escaneo no los vuelva a traer: útil
+  para la basura que viene con lo bajado de YouTube. Lo que la IA marca como «no es un episodio» va
+  a la temporada 0, y ahí se selecciona entera.
 - Cuando estén creadas las cuentas, pon `ALLOW_SIGNUP=false`. "Hoy" usa `TZ` (por defecto
   `Europe/Madrid`).
 - `compose.yaml` es solo para desarrollo (Postgres con el puerto abierto). Ambos ficheros

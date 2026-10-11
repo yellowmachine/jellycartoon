@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { SvelteSet } from 'svelte/reactivity';
+	import DeleteEpisodesDialog from '#lib/components/DeleteEpisodesDialog.svelte';
 	import EpisodeMenu from '#lib/components/EpisodeMenu.svelte';
 	import EpisodeTitles from '#lib/components/EpisodeTitles.svelte';
 	import SeriesInfo from '#lib/components/SeriesInfo.svelte';
@@ -31,6 +32,7 @@
 	let selecting = $state(false);
 	const selected = new SvelteSet<number>();
 	let targetSeason = $state<number | null>(null);
+	let deleteDialog = $state<DeleteEpisodesDialog>();
 
 	function toggleSeason(ids: number[], on: boolean) {
 		for (const id of ids) {
@@ -109,7 +111,7 @@
 	{#if !selecting}
 		<button
 			class="rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900"
-			onclick={() => (selecting = true)}>Organizar temporadas</button
+			onclick={() => (selecting = true)}>Seleccionar capítulos</button
 		>
 	{/if}
 </div>
@@ -231,6 +233,7 @@
 							previousUnwatched={previousUnwatched.get(ep.id) ?? 0}
 							lists={data.lists.map((l) => ({ ...l, added: inList.has(`${l.id}:${ep.id}`) }))}
 							onrename={() => (editing = ep.id)}
+							ondelete={() => deleteDialog?.open([ep.id], ep.title)}
 						/>
 					{/if}
 				{/if}
@@ -274,6 +277,12 @@
 		</button>
 		<button
 			type="button"
+			disabled={selected.size === 0}
+			class="rounded-md border border-red-800 px-3 py-1 text-sm text-red-400 hover:border-red-600 hover:bg-red-950 disabled:opacity-50"
+			onclick={() => deleteDialog?.open([...selected])}>Borrar</button
+		>
+		<button
+			type="button"
 			class="rounded-md px-2 py-1 text-sm text-zinc-400 hover:text-white"
 			onclick={stopSelecting}>Terminar</button
 		>
@@ -283,6 +292,8 @@
 		</p>
 	</form>
 {/if}
+
+<DeleteEpisodesDialog bind:this={deleteDialog} ondeleted={() => selected.clear()} />
 
 <section class="mt-10 border-t border-zinc-800 pt-6">
 	{#if confirmDelete}

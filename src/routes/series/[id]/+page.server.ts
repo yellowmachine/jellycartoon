@@ -5,6 +5,7 @@ import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
 import { openRouterConfig } from '#lib/server/app-settings.ts';
 import { deleteSeries } from '#lib/server/library/delete-series.ts';
+import { deleteEpisodes } from '#lib/server/library/delete-episodes.ts';
 import { hostPlaylist } from '#lib/server/library/paths.ts';
 import { takeThumbnail } from '#lib/server/library/thumbnail.ts';
 import { ignoreEpisodes, retryEpisode } from '#lib/server/library/worker.ts';
@@ -271,6 +272,17 @@ export const actions: Actions = {
 					.where(eq(episode.id, ep.id));
 			}
 		});
+	},
+	/** For good, originals included. */
+	deleteEpisodes: async ({ params, request }) => {
+		const ids = (await request.formData()).getAll('id').map(Number);
+		if (!ids.length || !ids.every(Number.isInteger))
+			return fail(400, { message: 'No hay capítulos seleccionados' });
+		const { failed } = await deleteEpisodes(Number(params.id), ids);
+		if (failed.length)
+			return fail(500, {
+				message: `No se pudo borrar el original de ${failed.length === 1 ? failed[0] : `${failed.length} capítulos`}: mira el Registro`
+			});
 	},
 	/** An empty title goes back to the one taken from the file name. */
 	renameEpisode: async ({ params, request }) => {
