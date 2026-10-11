@@ -17,7 +17,7 @@
 	interface Props {
 		proposal: {
 			/** Batches sent to the AI, while it works. */
-			progress: { done: number; total: number } | null;
+			progress: { done: number; total: number; stopping: boolean } | null;
 			failed: string | null;
 			rows: Row[];
 			titled: number;
@@ -59,10 +59,25 @@
 
 <section class="mb-8">
 	{#if proposal.progress}
-		<p class="text-sm text-amber-400">
-			La IA está leyendo la lista de episodios y mirando unos fotogramas de cada uno{#if proposal.progress.total}:
-				lote {proposal.progress.done + 1} de {proposal.progress.total}{/if}…
-		</p>
+		<div class="flex flex-wrap items-center gap-3">
+			<p class="text-sm text-amber-400">
+				{#if proposal.progress.stopping}
+					Parando…
+				{:else}
+					La IA está leyendo la lista de episodios y mirando unos fotogramas de cada uno{#if proposal.progress.total}:
+						lote {proposal.progress.done + 1} de {proposal.progress.total}{/if}…
+				{/if}
+			</p>
+			{#if !proposal.progress.stopping}
+				<form method="post" action="?/stopTitles" use:enhance>
+					<button
+						class={button}
+						title="Lo que ya han propuesto los lotes terminados se queda para revisarlo"
+						>Parar</button
+					>
+				</form>
+			{/if}
+		</div>
 	{:else if proposal.rows.length}
 		<h2 class="mb-1 font-semibold">Títulos propuestos por la IA</h2>
 		<p class="mb-3 text-sm text-zinc-400">

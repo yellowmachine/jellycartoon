@@ -18,12 +18,24 @@ import { hlsDir, thumbFile } from './paths.ts';
  * Series whose titles are being proposed, in the background: a request to the AI for every batch
  * of episodes, minutes for a long series. `done` of `total` batches.
  */
-const proposing = new Map<number, { done: number; total: number }>();
+const proposing = new Map<number, { done: number; total: number; stop: AbortController }>();
 /** Why the last attempt failed, until it is tried again. */
 const failures = new Map<number, string>();
 
 export function proposalState(seriesId: number) {
-	return { progress: proposing.get(seriesId) ?? null, failed: failures.get(seriesId) ?? null };
+	const job = proposing.get(seriesId);
+	return {
+		progress: job ? { done: job.done, total: job.total, stopping: job.stop.signal.aborted } : null,
+		failed: failures.get(seriesId) ?? null
+	};
+}
+
+/**
+ * Stops after cancelling the request in progress. What the finished batches proposed is kept, to
+ * be reviewed like a whole proposal.
+ */
+export function stopProposal(seriesId: number) {
+	proposing.get(seriesId)?.stop.abort();
 }
 
 /**
@@ -33,8 +45,9 @@ export function proposalState(seriesId: number) {
 export function startProposal(seriesId: number, all = false) {
 	if (proposing.has(seriesId)) return;
 	failures.delete(seriesId);
-	proposing.set(seriesId, { done: 0, total: 0 });
-	proposeTitles(seriesId, all)
+	const job = { done: 0, total: 0, stop: new AbortController() };
+	proposing.set(seriesId, job);
+	proposeTitles(seriesId, all, job)
 		.catch((error) => {
 			failures.set(seriesId, error instanceof Error ? error.message : String(error));
 			log.error('series', 'No se pudieron proponer los títulos', { seriesId, error });
@@ -127,7 +140,12 @@ async function episodeFrames(ep: Episode) {
 
 const numbering = (p: { season: number; number: number }) => `T${p.season}x${p.number}`;
 
-async function proposeTitles(seriesId: number, all: boolean) {
+async function proposeTitles(
+	seriesId: number,
+	all: boolean,
+	job: { done: number; total: number; stop: AbortController }
+) {
+	const { signal } = job.stop;
 	const [info] = await db.select().from(seriesInfo).where(eq(seriesInfo.seriesId, seriesId));
 	if (info?.status !== 'found') throw new Error('Primero tiene que tener ficha');
 	const episodes = await seriesEpisodes(seriesId);
@@ -167,11 +185,11 @@ async function proposeTitles(seriesId: number, all: boolean) {
 		.join('\n');
 
 	const batches = titleBatches(pending);
-	const progress = { done: 0, total: batches.length };
-	proposing.set(seriesId, progress);
+	job.total = batches.length;
 	const proposal: TitleProposal[] = [];
 
 	for (const batch of batches) {
+		if (signal.aborted) break;
 		const frames = await Promise.all(batch.map(episodeFrames));
 		const ordered = [...done, ...proposal];
 		const prompt: ContentPart[] = [
@@ -199,7 +217,7 @@ async function proposeTitles(seriesId: number, all: boolean) {
 			])
 		];
 
-		const { episodes: answer } = await completeJson<{
+		const answer = await completeJson<{
 			episodes: {
 				file: number;
 				isEpisode: boolean;
@@ -207,7 +225,22 @@ async function proposeTitles(seriesId: number, all: boolean) {
 				number: number;
 				title: string;
 			}[];
-		}>({ system: SYSTEM, prompt, name: 'episodes', schema: SCHEMA, model, timeoutMs: 180_000 });
+		}>({
+			system: SYSTEM,
+			prompt,
+			name: 'episodes',
+			schema: SCHEMA,
+			model,
+			timeoutMs: 180_000,
+			signal
+		}).then(
+			(a) => a.episodes,
+			(error) => {
+				if (signal.aborted) return null;
+				throw error;
+			}
+		);
+		if (!answer) break;
 		const seen = new Set<number>();
 		for (const a of answer) {
 			const ep = batch[a.file - 1];
@@ -222,9 +255,16 @@ async function proposeTitles(seriesId: number, all: boolean) {
 				title
 			});
 		}
-		progress.done++;
+		job.done++;
 	}
 
+	if (signal.aborted) {
+		log.info('series', `Detenida la propuesta de títulos de ${info.title}`, {
+			seriesId,
+			batches: `${job.done}/${job.total}`
+		});
+		if (!proposal.length) return;
+	}
 	if (!proposal.length) throw new Error('La IA no devolvió ningún título');
 	await db
 		.update(seriesInfo)

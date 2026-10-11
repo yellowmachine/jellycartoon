@@ -24,7 +24,8 @@ import {
 	discardProposal,
 	proposalRows,
 	proposalState,
-	startProposal
+	startProposal,
+	stopProposal
 } from '#lib/server/library/episode-titles.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -142,6 +143,9 @@ export const actions: Actions = {
 	/** Titles and numbering from the AI, in the background: the page asks until it is done. */
 	proposeTitles: async ({ params, request }) => {
 		startProposal(Number(params.id), (await request.formData()).get('all') === 'true');
+	},
+	stopTitles: async ({ params }) => {
+		stopProposal(Number(params.id));
 	},
 	/** The proposal, for the chosen episodes. */
 	applyTitles: async ({ params, request }) => {

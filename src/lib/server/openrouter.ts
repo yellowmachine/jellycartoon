@@ -14,6 +14,8 @@ export async function completeJson<T>(request: {
 	/** Instead of the one in Ajustes. */
 	model?: string;
 	timeoutMs?: number;
+	/** To cancel it before the timeout. */
+	signal?: AbortSignal;
 }): Promise<T> {
 	const config = await openRouterConfig();
 	const { apiKey } = config;
@@ -43,7 +45,10 @@ export async function completeJson<T>(request: {
 			// Only providers that honour the schema.
 			provider: { require_parameters: true }
 		}),
-		signal: AbortSignal.timeout(request.timeoutMs ?? 60_000)
+		signal: AbortSignal.any([
+			AbortSignal.timeout(request.timeoutMs ?? 60_000),
+			...(request.signal ? [request.signal] : [])
+		])
 	});
 	const body = await res.json().catch(() => null);
 	if (!res.ok) throw new Error(`OpenRouter: ${body?.error?.message ?? res.statusText}`);
