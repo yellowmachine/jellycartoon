@@ -96,6 +96,15 @@ docker compose -f compose.prod.yaml logs -f app
 - `compose.yaml` es solo para desarrollo (Postgres con el puerto abierto). Ambos ficheros
   comparten la base de datos; usa uno u otro, no los dos a la vez.
 
+### Ficha de cada serie
+
+La primera vez que se abre una serie se busca en [Wikidata](https://www.wikidata.org) (años,
+temporadas, número de episodios) y Wikipedia (resumen), como las películas: si no está claro
+pregunta «¿Cuál de estas series es?», y siempre se puede buscar a mano por otro título. Con la clave
+de OpenRouter, la IA identifica antes la serie a partir de la carpeta y de algunos nombres de
+fichero. La ficha guarda también dónde están listados sus episodios: el anexo de episodios de
+Wikipedia en español y en inglés si lo hay, o si no el artículo de la serie.
+
 ### Cine
 
 Una carpeta aparte de películas (mkv grandes) que solo se catalogan: nunca se convierten ni se

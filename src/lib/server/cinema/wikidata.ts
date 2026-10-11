@@ -1,6 +1,6 @@
 /**
- * Films in Wikidata and their Wikipedia articles, through the public APIs (no key needed):
- * https://www.wikidata.org/w/api.php and https://es.wikipedia.org/api/rest_v1/
+ * Films and TV series in Wikidata and their Wikipedia articles, through the public APIs (no key
+ * needed): https://www.wikidata.org/w/api.php and https://es.wikipedia.org/api/rest_v1/
  */
 
 /** Wikimedia asks every client to identify itself: https://meta.wikimedia.org/wiki/User-Agent_policy */
@@ -58,7 +58,9 @@ async function getEntities(ids: string[], props: string): Promise<Entity[]> {
 			action: 'wbgetentities',
 			ids: ids.slice(i, i + 50).join('|'),
 			props,
-			languages: 'es|en',
+			// `mul`: the label for every language, which some items have instead of an English one
+			// (https://www.wikidata.org/wiki/Help:Default_values_for_labels_and_aliases).
+			languages: 'es|en|mul',
 			sitefilter: 'eswiki|enwiki'
 		});
 		entities.push(...Object.values(body.entities as Record<string, Entity>));
@@ -67,7 +69,7 @@ async function getEntities(ids: string[], props: string): Promise<Entity[]> {
 }
 
 const text = (map: Record<string, { value: string }> | undefined) =>
-	map?.es?.value ?? map?.en?.value ?? null;
+	map?.es?.value ?? map?.en?.value ?? map?.mul?.value ?? null;
 
 function values(entity: Entity, property: string) {
 	return (entity.claims?.[property] ?? [])
@@ -246,4 +248,124 @@ export async function filmArticles(id: string): Promise<Article[]> {
 		})
 	);
 	return articles.filter((a): a is Article => a !== null);
+}
+
+/**
+ * TV series, animated series, anime, miniseries, web series, sitcoms and film series (the cartoon
+ * shorts of the cinemas, like Tom and Jerry's). Several values are an OR:
+ * https://www.mediawiki.org/wiki/Help:Extension:WikibaseCirrusSearch#haswbstatement
+ */
+const SERIES_FILTER =
+	'haswbstatement:' +
+	[
+		'Q5398426',
+		'Q581714',
+		'Q117467246',
+		'Q63952888',
+		'Q1259759',
+		'Q15416',
+		'Q526877',
+		'Q170238',
+		'Q24856'
+	]
+		.map((type) => `P31=${type}`)
+		.join('|');
+
+/** Ids of series whose label or aliases match `query`, best first. */
+export async function searchSeries(query: string, limit = 10): Promise<string[]> {
+	const body = await wikidata({
+		action: 'query',
+		list: 'search',
+		srsearch: `${query} ${SERIES_FILTER}`,
+		srlimit: String(limit)
+	});
+	return (body.query?.search ?? []).map((r: { title: string }) => r.title);
+}
+
+/** When it started: the year of its first broadcast (P580), or else of its publication. */
+function startYear(entity: Entity) {
+	const [start] = values(entity, 'P580') as { time: string }[];
+	return Number(start?.time.match(/^[+-](\d{4})/)?.[1]) || year(entity);
+}
+
+function count(entity: Entity, property: string) {
+	const [amount] = values(entity, property) as { amount: string }[];
+	return amount ? Number(amount.amount) : null;
+}
+
+/** The series as candidates: with their names, start year and description to tell them apart. */
+export async function describeSeries(ids: string[]): Promise<Candidate[]> {
+	if (!ids.length) return [];
+	const entities = await getEntities(ids, 'labels|descriptions|aliases|claims');
+	const byId = new Map(entities.map((e) => [e.id, e]));
+	return ids
+		.map((id) => byId.get(id))
+		.filter((e): e is Entity => Boolean(e && text(e.labels)))
+		.map((e) => ({
+			id: e.id,
+			title: text(e.labels)!,
+			names: [
+				...Object.values(e.labels ?? {}).map((l) => l.value),
+				...Object.values(e.aliases ?? {}).flatMap((a) => a.map((l) => l.value)),
+				...values(e, 'P1476').map((v) => (v as { text: string }).text)
+			],
+			description: text(e.descriptions),
+			year: startYear(e),
+			minutes: null,
+			directors: []
+		}));
+}
+
+export interface WikiPage {
+	lang: 'es' | 'en';
+	title: string;
+}
+
+export interface SeriesDetails {
+	wikidataId: string;
+	title: string;
+	originalTitle: string | null;
+	startYear: number | null;
+	endYear: number | null;
+	seasons: number | null;
+	episodes: number | null;
+	synopsis: string | null;
+	wikipediaUrl: string | null;
+	/**
+	 * Where its episodes are listed, in Spanish and in English: the list of episodes (P1811) if it
+	 * has its own article (`Anexo:Episodios de…`, `List of … episodes`), or else the series' article.
+	 */
+	episodePages: WikiPage[];
+}
+
+/** What the series page shows, and where to find its episodes. */
+export async function seriesDetails(id: string): Promise<SeriesDetails> {
+	const [entity] = await getEntities([id], 'labels|claims|sitelinks');
+	if (!entity || !text(entity.labels)) throw new Error(`${id} no existe en Wikidata`);
+	const [listId] = itemIds(entity, 'P1811');
+	const [list] = listId ? await getEntities([listId], 'sitelinks') : [];
+
+	const article = (['es', 'en'] as const)
+		.map((lang) => ({ lang, title: entity.sitelinks?.[`${lang}wiki`]?.title }))
+		.find((a): a is WikiPage => !!a.title);
+	const summary = article ? await wikipediaSummary(article.lang, article.title) : null;
+	const [end] = values(entity, 'P582') as { time: string }[];
+
+	return {
+		wikidataId: id,
+		title: text(entity.labels)!,
+		originalTitle: (values(entity, 'P1476')[0] as { text: string } | undefined)?.text ?? null,
+		startYear: startYear(entity),
+		endYear: Number(end?.time.match(/^[+-](\d{4})/)?.[1]) || null,
+		seasons: count(entity, 'P2437'),
+		episodes: count(entity, 'P1113'),
+		synopsis: summary?.extract ?? null,
+		wikipediaUrl: summary?.url ?? null,
+		episodePages: (['es', 'en'] as const)
+			.map((lang) => ({
+				lang,
+				title: list?.sitelinks?.[`${lang}wiki`]?.title ?? entity.sitelinks?.[`${lang}wiki`]?.title
+			}))
+			.filter((p): p is WikiPage => !!p.title)
+	};
 }

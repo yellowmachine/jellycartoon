@@ -18,6 +18,7 @@ import { sql } from 'drizzle-orm';
 import type { AudioTrack, SubtitleTrack } from '#lib/languages.ts';
 import type { Chapter, SceneName } from '#lib/scenes.ts';
 import type { SubtitleStyle } from '#lib/subtitle-style.ts';
+import type { WikiPage } from '#lib/server/cinema/wikidata.ts';
 import { user } from './auth.schema';
 
 export const series = pgTable('series', {
@@ -92,6 +93,34 @@ export const episode = pgTable(
 
 /** The title to show: the one set by hand, or the one from the file name. */
 export const episodeTitle = sql<string>`coalesce(${episode.customTitle}, ${episode.title})`;
+
+/** `ambiguous`: several series could be it, the user chooses (`candidates`). */
+export const seriesInfoStatus = pgEnum('series_info_status', ['found', 'ambiguous', 'not_found']);
+
+/** What a series is, from Wikidata and Wikipedia: looked up once, the first time its page is opened. */
+export const seriesInfo = pgTable('series_info', {
+	seriesId: integer('series_id')
+		.primaryKey()
+		.references(() => series.id, { onDelete: 'cascade' }),
+	status: seriesInfoStatus('status').notNull(),
+	wikidataId: text('wikidata_id'),
+	title: text('title'),
+	originalTitle: text('original_title'),
+	startYear: integer('start_year'),
+	endYear: integer('end_year'),
+	seasons: integer('seasons'),
+	episodes: integer('episodes'),
+	synopsis: text('synopsis'),
+	wikipediaUrl: text('wikipedia_url'),
+	/** Wikipedia articles that list its episodes, in Spanish and in English. */
+	episodePages: jsonb('episode_pages').$type<WikiPage[]>().notNull().default([]),
+	/** For `ambiguous`: the series to choose from, best first. */
+	candidates: jsonb('candidates')
+		.$type<{ id: string; title: string; year: number | null; description: string | null }[]>()
+		.notNull()
+		.default([]),
+	updatedAt: timestamp('updated_at').notNull().defaultNow()
+});
 
 export const watchProgress = pgTable(
 	'watch_progress',

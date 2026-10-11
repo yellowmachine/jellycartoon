@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { SvelteSet } from 'svelte/reactivity';
 	import EpisodeMenu from '#lib/components/EpisodeMenu.svelte';
+	import SeriesInfo from '#lib/components/SeriesInfo.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
 	import type { PageProps } from './$types';
@@ -84,6 +85,8 @@
 {#if form?.message}
 	<p class="-mt-4 mb-4 text-sm text-red-400">{form.message}</p>
 {/if}
+
+<SeriesInfo info={data.info} />
 
 <div class="mb-2 flex flex-wrap items-center justify-between gap-3">
 	<p class="text-sm text-zinc-400">

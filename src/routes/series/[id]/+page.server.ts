@@ -10,6 +10,13 @@ import { ignoreEpisodes, retryEpisode } from '#lib/server/library/worker.ts';
 import { getActiveList, getListNames, seriesListItems, toggleInList } from '#lib/server/lists.ts';
 import { clearProgress, markWatched, saveProgress } from '#lib/server/progress.ts';
 import { log } from '#lib/server/log.ts';
+import {
+	chooseSeries,
+	forgetSeries,
+	identifySeries,
+	lookUpSeries,
+	savedSeriesInfo
+} from '#lib/server/library/series-info.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const id = Number(params.id);
@@ -70,11 +77,46 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		lists,
 		listItems,
 		stored: { episodes: stored.episodes, outputBytes: Number(stored.outputBytes) },
-		seasons: [...seasons].map(([season, episodes]) => ({ season, episodes }))
+		seasons: [...seasons].map(([season, episodes]) => ({ season, episodes })),
+		// Saved: in the page itself. The first time it is streamed: the page shows at once and the
+		// info arrives when the lookup ends.
+		info:
+			(await savedSeriesInfo(id)) ??
+			lookUpSeries(id).catch((err) => {
+				log.error('series', `No se pudo buscar la ficha de ${s.folder}`, {
+					seriesId: id,
+					error: err
+				});
+				return { failed: err instanceof Error ? err.message : String(err) };
+			})
 	};
 };
 
 export const actions: Actions = {
+	/** «It is this one», among the candidates for the series' info. */
+	chooseInfo: async ({ params, request }) => {
+		const wikidataId = String((await request.formData()).get('wikidataId') ?? '');
+		if (!/^Q\d+$/.test(wikidataId)) return fail(400, { message: 'Serie no válida' });
+		try {
+			await chooseSeries(Number(params.id), wikidataId);
+		} catch (err) {
+			return fail(502, { message: err instanceof Error ? err.message : String(err) });
+		}
+	},
+	/** Look the series up by a title typed by the user. */
+	searchInfo: async ({ params, request }) => {
+		const title = String((await request.formData()).get('title') ?? '').trim();
+		if (!title) return fail(400, { message: 'Escribe un título' });
+		try {
+			await identifySeries(Number(params.id), title);
+		} catch (err) {
+			return fail(502, { message: err instanceof Error ? err.message : String(err) });
+		}
+	},
+	/** Look the series up again from scratch, e.g. after setting an OpenRouter key. */
+	refreshInfo: async ({ params }) => {
+		await forgetSeries(Number(params.id));
+	},
 	delete: async ({ params }) => {
 		await deleteSeries(Number(params.id));
 		redirect(303, '/');
