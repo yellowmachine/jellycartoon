@@ -5,7 +5,7 @@ import { db } from '#lib/server/db/index.ts';
 import { episode, series } from '#lib/server/db/schema.ts';
 import { scanLibrary } from '#lib/server/library/scan.ts';
 import {
-	ignoreEpisode,
+	ignoreEpisodes,
 	moveToFront,
 	pauseWorker,
 	restartCurrent,
@@ -187,10 +187,12 @@ export const actions: Actions = {
 		if (!Number.isInteger(id)) return fail(400, { message: 'Episodio no válido' });
 		await retryEpisode(id);
 	},
+	/** One error, or every one the page showed (not those that failed since). */
 	ignore: async ({ request }) => {
-		const id = Number((await request.formData()).get('id'));
-		if (!Number.isInteger(id)) return fail(400, { message: 'Episodio no válido' });
-		await ignoreEpisode(id);
+		const ids = (await request.formData()).getAll('id').map(Number);
+		if (!ids.length || !ids.every(Number.isInteger))
+			return fail(400, { message: 'Episodio no válido' });
+		await ignoreEpisodes(ids);
 	},
 	/** New series order for the queue; the rest go back to the end, so new ones don't jump ahead. */
 	reorderSeries: async ({ request }) => {

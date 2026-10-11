@@ -210,6 +210,26 @@
 	<details class="mt-6 rounded-md border border-zinc-800">
 		<summary class="cursor-pointer p-3 text-sm text-red-400">Errores ({data.errors.length})</summary
 		>
+		{#if data.errors.length > 1}
+			<form
+				method="post"
+				action="?/ignore"
+				use:enhance
+				class="flex items-center gap-2 border-t border-zinc-800 p-3"
+			>
+				<p class="flex-1 text-xs text-zinc-400">
+					Los ignorados no se vuelven a intentar salvo que el fichero cambie.
+				</p>
+				{#each data.errors as ep (ep.id)}
+					<input type="hidden" name="id" value={ep.id} />
+				{/each}
+				<button
+					class="shrink-0 rounded-md border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
+				>
+					Ignorar todos
+				</button>
+			</form>
+		{/if}
 		<ul class="max-h-96 divide-y divide-zinc-800 overflow-auto border-t border-zinc-800">
 			{#each data.errors as ep (ep.id)}
 				<li class="p-3 text-sm">

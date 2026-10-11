@@ -6,7 +6,7 @@ import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/sch
 import { deleteSeries } from '#lib/server/library/delete-series.ts';
 import { hostPlaylist } from '#lib/server/library/paths.ts';
 import { takeThumbnail } from '#lib/server/library/thumbnail.ts';
-import { ignoreEpisode, retryEpisode } from '#lib/server/library/worker.ts';
+import { ignoreEpisodes, retryEpisode } from '#lib/server/library/worker.ts';
 import { getActiveList, getListNames, seriesListItems, toggleInList } from '#lib/server/lists.ts';
 import { clearProgress, markWatched, saveProgress } from '#lib/server/progress.ts';
 import { log } from '#lib/server/log.ts';
@@ -120,7 +120,7 @@ export const actions: Actions = {
 	ignore: async ({ params, request }) => {
 		const ep = await seriesEpisode(params.id, await request.formData());
 		if (!ep) return fail(400, { message: 'Capítulo no válido' });
-		await ignoreEpisode(ep.id);
+		await ignoreEpisodes([ep.id]);
 	},
 	regenerateThumbnail: async ({ params, request }) => {
 		const ep = await seriesEpisode(params.id, await request.formData());

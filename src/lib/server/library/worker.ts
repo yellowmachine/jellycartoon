@@ -1,7 +1,7 @@
 import { access, mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
 import { DELETE_SOURCES } from '$app/env/private';
 import path from 'node:path';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { episode, series, worker } from '#lib/server/db/schema.ts';
 import { languageLabel, normalizeLang, type SubtitleTrack } from '#lib/languages.ts';
@@ -119,12 +119,13 @@ export async function retryEpisode(id: number) {
 	wakeWorker();
 }
 
-/** Sets a failed episode aside: hidden and not retried until its file changes. */
-export async function ignoreEpisode(id: number) {
+/** Sets failed episodes aside: hidden and not retried until their file changes. */
+export async function ignoreEpisodes(ids: number[]) {
+	if (!ids.length) return;
 	await db
 		.update(episode)
 		.set({ status: 'ignored' })
-		.where(and(eq(episode.id, id), eq(episode.status, 'error')));
+		.where(and(inArray(episode.id, ids), eq(episode.status, 'error')));
 }
 
 export async function startWorker() {
