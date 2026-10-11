@@ -9,8 +9,18 @@ export const DEFAULT_MODEL = 'anthropic/claude-haiku-5.5';
 /** For talking about films: better than the one that identifies them, still a few cents a question. */
 export const DEFAULT_CHAT_MODEL = 'anthropic/claude-sonnet-5.5';
 
+/**
+ * For what looks at frames: the names of a film's scenes and the titles of a series' episodes. Sees
+ * images well and does not reason first, which here costs a lot and adds little.
+ */
+export const DEFAULT_VISION_MODEL = 'anthropic/claude-sonnet-5.5';
+
 type Key =
-	'openrouter_api_key' | 'openrouter_model' | 'openrouter_chat_model' | 'openrouter_chat_web';
+	| 'openrouter_api_key'
+	| 'openrouter_model'
+	| 'openrouter_chat_model'
+	| 'openrouter_chat_web'
+	| 'openrouter_vision_model';
 
 async function get(key: Key) {
 	const [row] = await db
@@ -51,6 +61,11 @@ export async function chatConfig() {
 		get('openrouter_chat_web')
 	]);
 	return { apiKey, model: model ?? DEFAULT_CHAT_MODEL, web: web === 'true' };
+}
+
+/** The scenes and the episode titles: their own model, apart from the conversations'. */
+export async function visionModel() {
+	return (await get('openrouter_vision_model')) ?? DEFAULT_VISION_MODEL;
 }
 
 /** There are no roles: the first account created is the one that manages the app. */

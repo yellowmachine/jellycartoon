@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { movie, movieInfo, movieTitle } from '#lib/server/db/schema.ts';
-import { chatConfig } from '#lib/server/app-settings.ts';
+import { visionModel } from '#lib/server/app-settings.ts';
 import { completeJson, type ContentPart } from '#lib/server/openrouter.ts';
 import { log } from '#lib/server/log.ts';
 import { FRAME_WIDTHS } from '#lib/birds-eye.ts';
@@ -83,7 +83,7 @@ async function nameScenes(movieId: number) {
 		throw new Error('La película no tiene capítulos');
 	if (film.info?.status !== 'found' || !film.info.wikidataId)
 		throw new Error('Primero tiene que tener ficha');
-	const { model } = await chatConfig();
+	const model = await visionModel();
 	const duration = film.durationSec;
 
 	const [articles, frames] = await Promise.all([

@@ -106,7 +106,12 @@
 				</form>
 			{/if}
 
-			{#snippet modelForm(use: 'films' | 'chat', label: string, value: string, fallback: string)}
+			{#snippet modelForm(
+				use: 'films' | 'chat' | 'vision',
+				label: string,
+				value: string,
+				fallback: string
+			)}
 				<form
 					method="post"
 					action="?/saveModel"
@@ -124,7 +129,7 @@
 						class="{select} min-w-0 flex-1 font-mono"
 					/>
 					<button class={secondary}>Guardar</button>
-					{#if form && 'saved' in form && form.saved === (use === 'chat' ? 'chatModel' : 'model')}
+					{#if form && 'saved' in form && form.saved === { films: 'model', chat: 'chatModel', vision: 'visionModel' }[use]}
 						<span class="self-center text-sm text-amber-400">✓</span>
 					{/if}
 				</form>
@@ -145,6 +150,18 @@
 					target="_blank"
 					rel="noreferrer">openrouter.ai/models</a
 				>.
+			</p>
+
+			<h3 class="mb-2 text-sm text-zinc-300">Modelo para escenas y títulos de episodios</h3>
+			{@render modelForm(
+				'vision',
+				'Modelo para escenas y títulos de episodios',
+				data.ai.visionModel,
+				data.ai.defaultVisionModel
+			)}
+			<p class="mb-4 text-xs text-zinc-500">
+				Vacío usa {data.ai.defaultVisionModel}. Mira fotogramas: mejor uno que vea bien las imágenes
+				y no razone antes de responder (los que razonan, como GPT-5 u o3, cuestan mucho más aquí).
 			</p>
 
 			<h3 class="mb-2 text-sm text-zinc-300">Modelo para conversar sobre películas</h3>

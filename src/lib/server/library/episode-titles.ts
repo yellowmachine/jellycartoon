@@ -3,7 +3,7 @@ import path from 'node:path';
 import { and, asc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, seriesInfo } from '#lib/server/db/schema.ts';
-import { chatConfig } from '#lib/server/app-settings.ts';
+import { visionModel } from '#lib/server/app-settings.ts';
 import { completeJson, type ContentPart } from '#lib/server/openrouter.ts';
 import { log } from '#lib/server/log.ts';
 import { FRAME_WIDTHS } from '#lib/birds-eye.ts';
@@ -161,7 +161,7 @@ async function proposeTitles(
 			title: e.title
 		})
 	);
-	const { model } = await chatConfig();
+	const model = await visionModel();
 
 	const pages = await Promise.all(
 		info.episodePages.map(async (page) => {

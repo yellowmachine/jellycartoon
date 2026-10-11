@@ -6,9 +6,11 @@ import {
 	chatConfig,
 	DEFAULT_CHAT_MODEL,
 	DEFAULT_MODEL,
+	DEFAULT_VISION_MODEL,
 	isAdmin,
 	openRouterConfig,
-	setAppSetting
+	setAppSetting,
+	visionModel
 } from '#lib/server/app-settings.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
 import { getSettings } from '#lib/server/settings.ts';
@@ -21,7 +23,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	let ai = null;
 	if (admin) {
-		const [config, chat] = await Promise.all([openRouterConfig(), chatConfig()]);
+		const [config, chat, vision] = await Promise.all([
+			openRouterConfig(),
+			chatConfig(),
+			visionModel()
+		]);
 		ai = {
 			chatModel: chat.model,
 			defaultChatModel: DEFAULT_CHAT_MODEL,
@@ -30,7 +36,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 			// Never the key itself: only enough to recognise it.
 			keyHint: config.apiKey ? `…${config.apiKey.slice(-4)}` : null,
 			model: config.model,
-			defaultModel: DEFAULT_MODEL
+			defaultModel: DEFAULT_MODEL,
+			visionModel: vision,
+			defaultVisionModel: DEFAULT_VISION_MODEL
 		};
 	}
 
@@ -84,9 +92,15 @@ export const actions: Actions = {
 		const model = String(form.get('model') ?? '').trim();
 		if (model && !/^[\w.~-]+\/[\w.:~-]+$/.test(model))
 			return fail(400, { section: 'ai', message: 'El modelo es como «proveedor/modelo»' });
-		const chat = form.get('use') === 'chat';
-		await setAppSetting(chat ? 'openrouter_chat_model' : 'openrouter_model', model || null);
-		return { saved: chat ? 'chatModel' : 'model' };
+		const use = form.get('use');
+		const [key, saved] =
+			use === 'chat'
+				? (['openrouter_chat_model', 'chatModel'] as const)
+				: use === 'vision'
+					? (['openrouter_vision_model', 'visionModel'] as const)
+					: (['openrouter_model', 'model'] as const);
+		await setAppSetting(key, model || null);
+		return { saved };
 	},
 	saveChatWeb: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);

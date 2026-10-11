@@ -113,8 +113,7 @@ de OpenRouter, la IA identifica antes la serie a partir de la carpeta y de algun
 fichero. La ficha guarda también dónde están listados sus episodios: el anexo de episodios de
 Wikipedia en español y en inglés si lo hay, o si no el artículo de la serie.
 
-Con la ficha y la clave, «Poner títulos y numeración con la IA» manda al modelo de las
-conversaciones esas páginas de episodios y los ficheros en el orden de sus nombres, en lotes de 25:
+Con la ficha y la clave, «Poner títulos y numeración con la IA» manda al modelo de escenas y títulos esas páginas de episodios y los ficheros en el orden de sus nombres, en lotes de 25:
 cada uno con su ruta, su duración y tres fotogramas (a los 8 y 20 segundos, donde los dibujos
 clásicos enseñan el cartel con el título, y la miniatura). Sirve sobre todo para las copias de disco
 (`Disc 2_t06.mkv`) y lo bajado de YouTube sin número. La IA propone para cada fichero temporada,
@@ -177,7 +176,7 @@ arranque) y la ficha los muestra como «Escenas»: un fotograma de cada una y «
 salón», que empieza justo al principio de la escena.
 
 Los discos los llaman «Chapter 01, 02…». Con la clave de OpenRouter, «Ponerles nombre con la IA»
-manda un fotograma de cada escena y los artículos de Wikipedia al modelo de las conversaciones, que
+manda un fotograma de cada escena y los artículos de Wikipedia al modelo de escenas y títulos (en Ajustes), que
 les pone un nombre corto («Pongo y Perdita se conocen en el parque»). Tarda un minuto o dos, se
 hace una vez por película y cuesta unos céntimos. Como cuentan el argumento, los nombres solo se
 ven sin pedirlo si ya has visto la película.
