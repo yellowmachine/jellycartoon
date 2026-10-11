@@ -98,7 +98,7 @@ describe('streamChat', () => {
 	});
 
 	test('an error before answering', async () => {
-		globalThis.fetch = (async () =>
+		globalThis.fetch = (async (_url: string) =>
 			Response.json(
 				{ error: { message: 'Invalid model' } },
 				{ status: 400 }
@@ -127,5 +127,26 @@ describe('completeJson', () => {
 		expect(JSON.parse(String(sent!.body)).max_tokens).toBe(4096);
 		await ask(8192);
 		expect(JSON.parse(String(sent!.body)).max_tokens).toBe(8192);
+	});
+
+	test('says why an answer came empty', async () => {
+		globalThis.fetch = (async (_url: string) =>
+			Response.json({
+				provider: 'Google',
+				choices: [
+					{
+						message: { content: null },
+						finish_reason: 'content_filter',
+						native_finish_reason: 'SAFETY'
+					}
+				]
+			})) as typeof fetch;
+		await expect(ask()).rejects.toThrow('OpenRouter: respuesta vacía (Google): terminó con SAFETY');
+
+		globalThis.fetch = (async (_url: string) =>
+			Response.json({
+				choices: [{ message: { content: '' }, error: { code: 502, message: 'Upstream error' } }]
+			})) as typeof fetch;
+		await expect(ask()).rejects.toThrow('OpenRouter: respuesta vacía: Upstream error');
 	});
 });

@@ -58,8 +58,21 @@ export async function completeJson<T>(request: {
 	});
 	const body = await res.json().catch(() => null);
 	if (!res.ok) throw new Error(`OpenRouter: ${body?.error?.message ?? res.statusText}`);
-	const content = body?.choices?.[0]?.message?.content;
-	if (typeof content !== 'string') throw new Error('OpenRouter: respuesta vacía');
+	// Errors once the provider has started answering come with a 200, inside the choice:
+	// https://openrouter.ai/docs/api/reference/errors-and-debugging
+	const choice = body?.choices?.[0];
+	const content = choice?.message?.content;
+	const provider = body?.provider ? ` (${body.provider})` : '';
+	if (typeof content !== 'string' || !content.trim()) {
+		const why =
+			body?.error?.message ??
+			choice?.error?.message ??
+			(choice?.finish_reason &&
+				`terminó con ${choice.native_finish_reason ?? choice.finish_reason}`);
+		throw new Error(`OpenRouter: respuesta vacía${provider}${why ? `: ${why}` : ''}`);
+	}
+	if (choice.finish_reason === 'length')
+		throw new Error(`OpenRouter: la respuesta se cortó por larga${provider}`);
 	return JSON.parse(content) as T;
 }
 
