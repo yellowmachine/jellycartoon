@@ -4,7 +4,9 @@
 #   scripts/backup.sh /ruta/del/backup            # base de datos, DATA_DIR y .env
 #   scripts/backup.sh --media /ruta/del/backup    # además, los originales (MEDIA_DIR)
 #
-# Run it from the folder with compose.prod.yaml and .env (or set COMPOSE_FILE). The database
+# The destination must already exist: a folder on the backup disk (e.g. an external HDD), so that
+# with the disk unplugged nothing is copied to the internal one. Run it from the folder with
+# compose.prod.yaml and .env (or set COMPOSE_FILE). The database
 # goes first: an episode converted while copying is at worst converted again after a restore,
 # never marked as ready without its files. See "Copia de seguridad" in the README.
 set -euo pipefail
@@ -35,8 +37,20 @@ host_dir() {
 		jq -er --arg target "$1" '.services.app.volumes[] | select(.target == $target) | .source'
 }
 
+# The disk a path is on, e.g. /dev/sdb1 (without the [/subvolume] of btrfs).
+disk() {
+	findmnt -no SOURCE -T "$1" | sed 's/\[.*\]$//'
+}
+
 data_dir=$(host_dir /data)
-mkdir -p "$dest"
+if [[ ! -d $dest ]]; then
+	echo "No existe $dest: ¿está montado el disco de la copia? Si lo está, crea la carpeta." >&2
+	exit 1
+fi
+if [[ $(disk "$dest") == "$(disk "$data_dir")" ]]; then
+	echo "$dest está en el mismo disco que $data_dir: la copia no serviría si falla ese disco" >&2
+	exit 1
+fi
 
 echo "Base de datos → $dest/jellycartoon.dump"
 # Has password hashes and sessions: readable only by its owner, like .env below.

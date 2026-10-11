@@ -246,7 +246,10 @@ Qué hay que guardar:
   pero son horas de conversión.
 
 `scripts/backup.sh` lo hace todo, con la app en marcha. Ejecútalo desde la carpeta de
-`compose.prod.yaml` y `.env` (necesita `jq` y `rsync`):
+`compose.prod.yaml` y `.env` (necesita `jq` y `rsync`). Un HDD externo va bien: tras la primera
+copia, `rsync` solo copia lo nuevo. La carpeta de destino tiene que existir ya (créala una vez en
+el disco de la copia), así que con el disco desconectado no copia nada al disco interno; tampoco
+copia al mismo disco que `HOST_DATA_DIR`:
 
 ```sh
 scripts/backup.sh /ruta/del/backup            # base de datos, convertidos y .env
