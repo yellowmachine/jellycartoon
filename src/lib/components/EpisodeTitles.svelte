@@ -20,6 +20,8 @@
 			progress: { done: number; total: number } | null;
 			failed: string | null;
 			rows: Row[];
+			titled: number;
+			total: number;
 		};
 		/** There is an OpenRouter key and the series has its info. */
 		canPropose: boolean;
@@ -149,18 +151,36 @@
 			</div>
 		</form>
 	{:else if canPropose}
-		<form
-			method="post"
-			action="?/proposeTitles"
-			use:enhance
-			class="flex flex-wrap items-center gap-3"
-		>
-			<button class={button}>Poner títulos y numeración con la IA</button>
+		{@const missing = proposal.total - proposal.titled}
+		<div class="flex flex-wrap items-center gap-3">
+			{#if missing}
+				<form method="post" action="?/proposeTitles" use:enhance>
+					<button class={button}>
+						{proposal.titled
+							? `Poner títulos con la IA a los ${missing} que faltan`
+							: 'Poner títulos y numeración con la IA'}
+					</button>
+				</form>
+			{/if}
 			<span class="text-xs text-zinc-500">
-				Lee la lista de episodios de Wikipedia y mira unos fotogramas de cada uno. Lo revisas antes
-				de aplicarlo.
+				{#if proposal.titled}
+					{proposal.titled} de {proposal.total} ya tienen título de la IA{missing
+						? ': solo se le mandan los demás.'
+						: '.'}
+				{:else}
+					Lee la lista de episodios de Wikipedia y mira unos fotogramas de cada uno. Lo revisas
+					antes de aplicarlo.
+				{/if}
 			</span>
-		</form>
+			{#if proposal.titled}
+				<form method="post" action="?/proposeTitles" use:enhance>
+					<input type="hidden" name="all" value="true" />
+					<button class="text-xs text-zinc-400 hover:text-white hover:underline"
+						>Rehacer todos</button
+					>
+				</form>
+			{/if}
+		</div>
 	{/if}
 	{#if proposal.failed}
 		<p class="mt-2 text-sm text-red-400">No se pudieron proponer los títulos: {proposal.failed}</p>

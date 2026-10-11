@@ -40,6 +40,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			title: episodeTitle,
 			/** What an empty title goes back to. */
 			autoTitle: sql<string>`coalesce(${episode.aiTitle}, ${episode.title})`,
+			aiTitle: episode.aiTitle,
 			status: episode.status,
 			progress: episode.progress,
 			durationSec: episode.durationSec,
@@ -94,7 +95,10 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		canPropose: Boolean(apiKey),
 		proposal: {
 			...proposalState(id),
-			rows: await proposalRows(id, saved?.titleProposal ?? [])
+			rows: await proposalRows(id, saved?.titleProposal ?? []),
+			/** Episodes that already have a title from the AI: proposing again leaves them out. */
+			titled: episodes.filter((e) => e.aiTitle !== null).length,
+			total: episodes.length
 		},
 		// Saved: in the page itself. The first time it is streamed: the page shows at once and the
 		// info arrives when the lookup ends.
@@ -136,8 +140,8 @@ export const actions: Actions = {
 		await forgetSeries(Number(params.id));
 	},
 	/** Titles and numbering from the AI, in the background: the page asks until it is done. */
-	proposeTitles: async ({ params }) => {
-		startProposal(Number(params.id));
+	proposeTitles: async ({ params, request }) => {
+		startProposal(Number(params.id), (await request.formData()).get('all') === 'true');
 	},
 	/** The proposal, for the chosen episodes. */
 	applyTitles: async ({ params, request }) => {

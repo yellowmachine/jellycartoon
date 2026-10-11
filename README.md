@@ -121,6 +121,8 @@ clásicos enseñan el cartel con el título, y la miniatura). Sirve sobre todo p
 número y título, o dice que no es un episodio (openings, extras, otra cosa). Nada cambia hasta que
 lo revisas: se aplica lo que marques, y el resto se descarta.
 
+- Si se añaden capítulos después (otra temporada), solo se le mandan los que no tienen título de
+  la IA; los demás van como texto, para que siga la numeración. «Rehacer todos» los manda todos.
 - El título de la IA va aparte: el que pongas a mano sigue mandando, y si lo borras vuelve el de la
   IA.
 - La temporada y el número aplicados ya no los cambia el escaneo, como al organizar temporadas. Lo

@@ -26,11 +26,15 @@ export function proposalState(seriesId: number) {
 	return { progress: proposing.get(seriesId) ?? null, failed: failures.get(seriesId) ?? null };
 }
 
-export function startProposal(seriesId: number) {
+/**
+ * Only the episodes without a title from the AI (e.g. a season added later), unless `all`: the
+ * others go along as text, so the AI knows how they are numbered.
+ */
+export function startProposal(seriesId: number, all = false) {
 	if (proposing.has(seriesId)) return;
 	failures.delete(seriesId);
 	proposing.set(seriesId, { done: 0, total: 0 });
-	proposeTitles(seriesId)
+	proposeTitles(seriesId, all)
 		.catch((error) => {
 			failures.set(seriesId, error instanceof Error ? error.message : String(error));
 			log.error('series', 'No se pudieron proponer los títulos', { seriesId, error });
@@ -87,6 +91,7 @@ function seriesEpisodes(seriesId: number) {
 			number: episode.number,
 			title: episodeTitle,
 			sourcePath: episode.sourcePath,
+			aiTitle: episode.aiTitle,
 			status: episode.status,
 			durationSec: episode.durationSec
 		})
@@ -122,11 +127,22 @@ async function episodeFrames(ep: Episode) {
 
 const numbering = (p: { season: number; number: number }) => `T${p.season}x${p.number}`;
 
-async function proposeTitles(seriesId: number) {
+async function proposeTitles(seriesId: number, all: boolean) {
 	const [info] = await db.select().from(seriesInfo).where(eq(seriesInfo.seriesId, seriesId));
 	if (info?.status !== 'found') throw new Error('Primero tiene que tener ficha');
 	const episodes = await seriesEpisodes(seriesId);
 	if (!episodes.length) throw new Error('La serie no tiene episodios');
+	const pending = all ? episodes : episodes.filter((e) => !e.aiTitle);
+	if (!pending.length) throw new Error('Todos los capítulos tienen ya título de la IA');
+	// Not an episode, for the AI: what was applied as such went to season 0.
+	const done = (all ? [] : episodes.filter((e) => e.aiTitle)).map(
+		(e): Omit<TitleProposal, 'episodeId'> => ({
+			isEpisode: e.season !== 0,
+			season: e.season,
+			number: e.number,
+			title: e.title
+		})
+	);
 	const { model } = await chatConfig();
 
 	const pages = await Promise.all(
@@ -144,26 +160,28 @@ async function proposeTitles(seriesId: number) {
 		info.seasons ? `Temporadas: ${info.seasons}` : null,
 		info.episodes ? `Episodios: ${info.episodes}` : null,
 		`Ficheros en la colección: ${episodes.length}`,
+		done.length ? `Ya ordenados antes: ${done.length}; faltan: ${pending.length}` : null,
 		...pages
 	]
 		.filter(Boolean)
 		.join('\n');
 
-	const batches = titleBatches(episodes);
+	const batches = titleBatches(pending);
 	const progress = { done: 0, total: batches.length };
 	proposing.set(seriesId, progress);
 	const proposal: TitleProposal[] = [];
 
 	for (const batch of batches) {
 		const frames = await Promise.all(batch.map(episodeFrames));
+		const ordered = [...done, ...proposal];
 		const prompt: ContentPart[] = [
 			{
 				type: 'text',
 				text: [
 					header,
 					// So the numbering goes on where the previous batch left it.
-					proposal.length
-						? `\n## Ya ordenados\n\n${proposal
+					ordered.length
+						? `\n## Ya ordenados\n\n${ordered
 								.map((p) => `${p.isEpisode ? numbering(p) : 'No es un episodio'}: ${p.title}`)
 								.join('\n')}`
 						: null,
