@@ -165,6 +165,9 @@ datos. Las dos son gratuitas y sin clave.
   nombre del fichero (erratas, títulos españoles, restos de MakeMKV): da el título original, el año
   y el director, y con eso se busca en Wikidata. Los datos de la ficha nunca los inventa la IA;
   solo escribe la sinopsis si no hay artículo en Wikipedia, y lo indica.
+- Cada petición a la IA (identificar, sinopsis, escenas, títulos de episodios, conversaciones)
+  deja una línea en el Registro con la fuente `ia`: para qué era, los tokens y lo que costó según
+  OpenRouter.
 
 #### Escenas
 

@@ -191,6 +191,8 @@ async function aiGuess(known: Clues & { path: string; audio: string }) {
 				.filter(Boolean)
 				.join('\n'),
 			name: 'film',
+			label: `Identificar «${known.title}»`,
+			details: { path: known.path },
 			schema: {
 				type: 'object',
 				properties: {
@@ -227,6 +229,7 @@ async function aiSynopsis(details: {
 				'Eres un experto en cine. Escribes sinopsis breves en español, sin desvelar el final. Si no conoces la película, devuelve una cadena vacía.',
 			prompt: `Sinopsis de dos o tres frases de «${details.originalTitle ?? details.title}» (${[details.year, details.directors.join(', ')].filter(Boolean).join(', ')}).`,
 			name: 'synopsis',
+			label: `Sinopsis de «${details.title}»`,
 			schema: {
 				type: 'object',
 				properties: { synopsis: { type: 'string' } },

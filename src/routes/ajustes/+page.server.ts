@@ -102,6 +102,7 @@ export const actions: Actions = {
 				system: 'Responde solo con el JSON pedido.',
 				prompt: 'Devuelve ok a true.',
 				name: 'check',
+				label: 'Prueba de la clave',
 				schema: {
 					type: 'object',
 					properties: { ok: { type: 'boolean' } },

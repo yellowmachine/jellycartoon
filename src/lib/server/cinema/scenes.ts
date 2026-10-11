@@ -134,6 +134,8 @@ async function nameScenes(movieId: number) {
 		system: SYSTEM,
 		prompt,
 		name: 'scenes',
+		label: `Escenas de «${film.title}»`,
+		details: { movieId },
 		schema: SCHEMA,
 		model,
 		timeoutMs: 180_000

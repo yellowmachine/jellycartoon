@@ -121,7 +121,14 @@ export async function* ask(request: {
 	let answer = '';
 	const used: { url: string; title: string }[] = [];
 	try {
-		for await (const event of streamChat({ ...config, apiKey: config.apiKey, messages, signal })) {
+		for await (const event of streamChat({
+			...config,
+			apiKey: config.apiKey,
+			messages,
+			signal,
+			label: `Conversación sobre «${film.title}»`,
+			details: { movieId }
+		})) {
 			if ('text' in event) answer += event.text;
 			else used.push(...event.sources);
 			yield event;

@@ -3,7 +3,12 @@ import { afterEach, describe, expect, mock, test } from 'bun:test';
 mock.module('#lib/server/app-settings.ts', () => ({
 	openRouterConfig: async () => ({ apiKey: 'k', model: 'anthropic/claude-haiku-5.5' })
 }));
-const { completeJson, streamChat } = await import('./openrouter.ts');
+/** What was written to the Registro. */
+const logged: { source: string; message: string }[] = [];
+mock.module('#lib/server/log.ts', () => ({
+	log: { info: (source: string, message: string) => logged.push({ source, message }) }
+}));
+const { completeJson, describeUsage, streamChat } = await import('./openrouter.ts');
 
 const realFetch = globalThis.fetch;
 afterEach(() => (globalThis.fetch = realFetch));
@@ -33,6 +38,7 @@ async function collect(web = false, model = 'anthropic/claude-sonnet-5.5') {
 		model,
 		messages: [{ role: 'user', content: 'hola' }],
 		web,
+		label: 'Conversación',
 		signal: new AbortController().signal
 	}))
 		events.push(event);
@@ -113,6 +119,7 @@ describe('completeJson', () => {
 			system: 's',
 			prompt: 'p',
 			name: 'test',
+			label: 'Prueba',
 			schema: {},
 			maxTokens
 		});
@@ -148,5 +155,39 @@ describe('completeJson', () => {
 				choices: [{ message: { content: '' }, error: { code: 502, message: 'Upstream error' } }]
 			})) as typeof fetch;
 		await expect(ask()).rejects.toThrow('OpenRouter: respuesta vacía: Upstream error');
+	});
+});
+
+describe('usage', () => {
+	test('is described with tokens, cache and cost', () => {
+		expect(
+			describeUsage({
+				prompt_tokens: 12345,
+				completion_tokens: 678,
+				cost: 0.02134,
+				prompt_tokens_details: { cached_tokens: 10000 }
+			})
+		).toBe('12.345 + 678 tokens (10.000 de caché), 0,0213 $');
+		expect(describeUsage(undefined)).toBe('sin datos de uso');
+	});
+
+	test('of every request goes to the Registro', async () => {
+		logged.length = 0;
+		globalThis.fetch = (async (_url: string) =>
+			Response.json({
+				choices: [{ message: { content: '{"ok":true}' } }],
+				usage: { prompt_tokens: 100, completion_tokens: 5, cost: 0.001 }
+			})) as typeof fetch;
+		await completeJson({ system: 's', prompt: 'p', name: 'test', label: 'Prueba', schema: {} });
+		expect(logged).toEqual([{ source: 'ia', message: 'Prueba: 100 + 5 tokens, 0,001 $' }]);
+
+		logged.length = 0;
+		answer([
+			chunk({ content: 'Hola' }),
+			`data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 50, completion_tokens: 1, cost: 0.0005 } })}\n\n`,
+			'data: [DONE]\n\n'
+		]);
+		await collect();
+		expect(logged).toEqual([{ source: 'ia', message: 'Conversación: 50 + 1 tokens, 0,0005 $' }]);
 	});
 });

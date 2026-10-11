@@ -1,4 +1,43 @@
 import { openRouterConfig } from '#lib/server/app-settings.ts';
+import { log } from '#lib/server/log.ts';
+
+/** What OpenRouter says a request used and cost, in every answer: https://openrouter.ai/docs/guides/guides/usage-accounting */
+export interface Usage {
+	prompt_tokens?: number;
+	completion_tokens?: number;
+	/** In dollars (credits). */
+	cost?: number;
+	prompt_tokens_details?: { cached_tokens?: number };
+}
+
+const tokens = (n: number) => n.toLocaleString('es-ES');
+
+/** E.g. `12.345 + 678 tokens (10.000 de caché), 0,0213 $`. */
+export function describeUsage(usage: Usage | undefined) {
+	if (!usage) return 'sin datos de uso';
+	const cached = usage.prompt_tokens_details?.cached_tokens;
+	return [
+		`${tokens(usage.prompt_tokens ?? 0)} + ${tokens(usage.completion_tokens ?? 0)} tokens`,
+		cached ? ` (${tokens(cached)} de caché)` : '',
+		usage.cost !== undefined
+			? `, ${usage.cost.toLocaleString('es-ES', { maximumFractionDigits: 4 })} $`
+			: ''
+	].join('');
+}
+
+/** One line in the Registro for every request to the AI: what it was for, and what it cost. */
+function logUsage(
+	label: string,
+	body: { model?: string; provider?: string; usage?: Usage },
+	details?: Record<string, unknown>
+) {
+	log.info('ia', `${label}: ${describeUsage(body.usage)}`, {
+		model: body.model,
+		provider: body.provider,
+		usage: body.usage,
+		...details
+	});
+}
 
 /**
  * One request to OpenRouter's chat completions API, answered as JSON that follows `schema`
@@ -10,6 +49,10 @@ export async function completeJson<T>(request: {
 	prompt: string | ContentPart[];
 	/** Name of the schema, e.g. `film`. */
 	name: string;
+	/** What it is for, for the Registro: e.g. `Sinopsis de «Tiburón»`. */
+	label: string;
+	/** Also for the Registro: e.g. the film's id. */
+	details?: Record<string, unknown>;
 	schema: Record<string, unknown>;
 	/** Instead of the one in Ajustes. */
 	model?: string;
@@ -73,6 +116,7 @@ export async function completeJson<T>(request: {
 	}
 	if (choice.finish_reason === 'length')
 		throw new Error(`OpenRouter: la respuesta se cortó por larga${provider}`);
+	logUsage(request.label, body, request.details);
 	return JSON.parse(content) as T;
 }
 
@@ -96,6 +140,9 @@ export async function* streamChat(request: {
 	model: string;
 	messages: ChatMessage[];
 	web: boolean;
+	/** For the Registro, as in `completeJson`. */
+	label: string;
+	details?: Record<string, unknown>;
 	/** Aborting stops the generation (and its billing, with most providers). */
 	signal: AbortSignal;
 }): AsyncGenerator<ChatEvent> {
@@ -139,6 +186,8 @@ export async function* streamChat(request: {
 			const event = JSON.parse(data);
 			// Errors after the answer has started come inside the stream.
 			if (event.error) throw new Error(`OpenRouter: ${event.error.message ?? event.error.code}`);
+			// The usage comes in the last message, with no text.
+			if (event.usage) logUsage(request.label, event, request.details);
 			const delta = event.choices?.[0]?.delta;
 			if (delta?.content) yield { text: delta.content };
 			const sources = (

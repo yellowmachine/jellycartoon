@@ -229,6 +229,8 @@ async function proposeTitles(
 			system: SYSTEM,
 			prompt,
 			name: 'episodes',
+			label: `Títulos de «${info.title}», lote ${job.done + 1} de ${job.total}`,
+			details: { seriesId, files: batch.length },
 			schema: SCHEMA,
 			model,
 			timeoutMs: 180_000,
@@ -323,11 +325,23 @@ export async function applyProposal(seriesId: number, episodeIds: number[]) {
 			.set({ titleProposal: null })
 			.where(eq(seriesInfo.seriesId, seriesId));
 	});
+	log.info(
+		'series',
+		`Aplicados ${applied.length} títulos de la IA, descartados ${proposal.length - applied.length}`,
+		{ seriesId, episodeIds: applied.map((p) => p.episodeId) }
+	);
 	return applied.length;
 }
 
 export async function discardProposal(seriesId: number) {
-	await db.update(seriesInfo).set({ titleProposal: null }).where(eq(seriesInfo.seriesId, seriesId));
+	const [discarded] = await db
+		.update(seriesInfo)
+		.set({ titleProposal: null })
+		.where(eq(seriesInfo.seriesId, seriesId))
+		.returning({ title: seriesInfo.title });
+	log.info('series', `Descartada la propuesta de títulos de ${discarded?.title ?? 'una serie'}`, {
+		seriesId
+	});
 }
 
 /** The episodes of the proposal that still exist, with what they are called now. */

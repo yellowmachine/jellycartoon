@@ -132,6 +132,8 @@ async function aiGuess(seriesId: number, s: { title: string; folder: string }) {
 				'¿Qué serie es? Da su título original, su título en España y el año en que empezó.'
 			].join('\n'),
 			name: 'series',
+			label: `Identificar la serie «${s.title}»`,
+			details: { seriesId },
 			schema: {
 				type: 'object',
 				properties: {
