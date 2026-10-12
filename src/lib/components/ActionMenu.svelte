@@ -6,9 +6,11 @@
 		id: string;
 		/** The menu's rows, given a function that closes it. */
 		children: Snippet<[close: () => void]>;
+		/** Just the dots, without the circle behind them. */
+		plain?: boolean;
 	}
 
-	let { id, children }: Props = $props();
+	let { id, children, plain = false }: Props = $props();
 
 	let menu = $state<HTMLElement>();
 	const close = () => menu?.hidePopover();
@@ -17,7 +19,10 @@
 <!-- Native popover: closes with Esc or a click outside, positioned next to its button. -->
 <!-- Big enough for a finger and visible on the dark background. -->
 <button
-	class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-zinc-200 hover:bg-zinc-700 hover:text-white"
+	class={[
+		'flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-zinc-200 hover:text-white',
+		!plain && 'bg-zinc-800 hover:bg-zinc-700'
+	]}
 	title="Más acciones"
 	aria-label="Más acciones"
 	popovertarget={id}

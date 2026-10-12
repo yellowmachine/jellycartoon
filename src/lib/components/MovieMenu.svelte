@@ -39,7 +39,7 @@
 	let info = $state<InfoDialog>();
 </script>
 
-<ActionMenu id="movie-menu-{movie.id}">
+<ActionMenu id="movie-menu-{movie.id}" plain>
 	{#snippet children(close)}
 		{#if ready && mpv}
 			{#if resumeAt}
