@@ -26,6 +26,11 @@ interface Playing {
 }
 
 const playing = new Map<number, Playing>();
+/** Cine Club intros queued before a film: the film's title, by playlist entry id. */
+const intros = new Map<number, string>();
+/** Played by the app (a film or its intro), as opposed to something opened in mpv by hand. */
+const ours = (entryId: number | null) =>
+	entryId !== null && (playing.has(entryId) || intros.has(entryId));
 /** The entry on screen now. */
 let current: number | null = null;
 
@@ -34,6 +39,7 @@ const state: RemoteState = {
 	active: false,
 	movieId: null,
 	title: null,
+	intro: false,
 	paused: false,
 	positionSec: null,
 	durationSec: null,
@@ -100,9 +106,16 @@ function connect() {
 			pending.clear();
 			for (const entry of playing.values()) void save(entry, false);
 			playing.clear();
+			intros.clear();
 			current = null;
 			stopSaving();
-			Object.assign(state, { available: false, active: false, movieId: null, title: null });
+			Object.assign(state, {
+				available: false,
+				active: false,
+				movieId: null,
+				title: null,
+				intro: false
+			});
 			notify();
 			scheduleReconnect();
 		});
@@ -156,13 +169,16 @@ function onData(chunk: string) {
 		} else if (message.event === 'start-file') {
 			current = message.playlist_entry_id;
 			const entry = playing.get(message.playlist_entry_id);
+			const introOf = intros.get(message.playlist_entry_id);
 			Object.assign(state, {
 				active: true,
 				movieId: entry?.movieId ?? null,
-				title: entry?.title ?? state.title
+				title: entry?.title ?? introOf ?? state.title,
+				intro: introOf !== undefined
 			});
 			notify();
 		} else if (message.event === 'end-file') {
+			intros.delete(message.playlist_entry_id);
 			void ended(message.playlist_entry_id, message.reason);
 		}
 	}
@@ -184,11 +200,11 @@ function propertyChanged(name: string, data: unknown) {
 		// something was playing (e.g. the app restarted mid-film).
 		case 'idle-active':
 			state.active = data === false;
-			if (!state.active) Object.assign(state, { movieId: null, title: null, positionSec: null });
+			if (!state.active)
+				Object.assign(state, { movieId: null, title: null, intro: false, positionSec: null });
 			break;
 		case 'path':
-			if (typeof data === 'string' && (current === null || !playing.has(current)))
-				void identify(data);
+			if (typeof data === 'string' && !ours(current)) void identify(data);
 			return;
 		case 'pause':
 			state.paused = data === true;
@@ -226,8 +242,8 @@ function propertyChanged(name: string, data: unknown) {
 				}));
 			break;
 		case 'media-title':
-			// Films played from the app keep their catalogue title.
-			if (current === null || !playing.has(current)) state.title = (data as string) ?? null;
+			// Films played from the app (and their intro) keep their catalogue title.
+			if (!ours(current)) state.title = (data as string) ?? null;
 			break;
 	}
 	notify();
@@ -346,12 +362,17 @@ export async function control(remote: RemoteAction) {
 			return command(['set_property', 'aid', remote.value]);
 		case 'subtitle':
 			return command(['set_property', 'sid', remote.value ?? 'no']);
+		case 'skip':
+			return command(['playlist-next']);
 		case 'stop':
 			return command(['stop']);
 	}
 }
 
-/** Opens the film full screen on the host, replacing whatever was playing. */
+/**
+ * Opens the film full screen on the host, replacing whatever was playing. With `intro`, the Cine
+ * Club intro goes first and mpv moves on to the film when it ends (or is skipped).
+ */
 export async function playMovie(options: {
 	userId: string;
 	movieId: number;
@@ -363,15 +384,31 @@ export async function playMovie(options: {
 	/** ISO 639-2 codes, as tagged in the films' tracks. */
 	audioLang: string | null;
 	subtitleLang: string | null;
+	/** The intro's path on the host. */
+	intro: string | null;
 }) {
 	const mpvOptions: Record<string, string> = { start: String(Math.floor(options.startSec)) };
 	if (options.audioLang) mpvOptions.alang = options.audioLang;
 	if (options.subtitleLang) mpvOptions.slang = options.subtitleLang;
 
+	if (options.intro) {
+		const intro = (await command({
+			name: 'loadfile',
+			url: options.intro,
+			flags: 'replace'
+		})) as { playlist_entry_id: number };
+		intros.set(intro.playlist_entry_id, options.title);
+		if (current === intro.playlist_entry_id) {
+			Object.assign(state, { movieId: null, title: options.title, intro: true });
+			notify();
+		}
+	}
+	// Options given to loadfile are the file's own, so `start` and the languages leave the intro
+	// alone. append-play: the film still plays if the intro could not be opened.
 	const result = (await command({
 		name: 'loadfile',
 		url: options.hostPath,
-		flags: 'replace',
+		flags: options.intro ? 'append-play' : 'replace',
 		options: mpvOptions
 	})) as { playlist_entry_id: number };
 
@@ -384,11 +421,12 @@ export async function playMovie(options: {
 	});
 	// start-file may have arrived before the entry was known.
 	if (current === result.playlist_entry_id) {
-		Object.assign(state, { movieId: options.movieId, title: options.title });
+		Object.assign(state, { movieId: options.movieId, title: options.title, intro: false });
 		notify();
 	}
 	startSaving();
 	log.info('mpv', `Reproduciendo ${options.hostPath} desde ${mpvOptions.start} s`, {
+		intro: Boolean(options.intro),
 		movieId: options.movieId
 	});
 }

@@ -367,6 +367,8 @@ export const userSettings = pgTable('user_settings', {
 	subtitleStyle: jsonb('subtitle_style').$type<Partial<SubtitleStyle>>(),
 	/** When an episode ends, the next one starts (the series' or the playlist's). */
 	autoNext: boolean('auto_next').notNull().default(true),
+	/** Films in the living room start with the Cine Club intro (DATA_DIR/cortinilla.mp4), if present. */
+	intro: boolean('intro').notNull().default(true),
 	/** Where "add to list" on a series page puts episodes. */
 	activeListId: integer('active_list_id').references(() => userList.id, { onDelete: 'set null' })
 });

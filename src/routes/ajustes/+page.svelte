@@ -61,6 +61,33 @@
 				{/if}
 			</div>
 		</form>
+		{#if data.intro !== null}
+			<form
+				method="post"
+				action="?/intro"
+				use:enhance={() =>
+					async ({ update }) =>
+						update({ reset: false })}
+				class="mt-4"
+			>
+				<label class="flex items-start gap-2 text-sm">
+					<input
+						type="checkbox"
+						name="intro"
+						checked={data.intro}
+						onchange={(e) => e.currentTarget.form?.requestSubmit()}
+						class="mt-0.5 rounded border-zinc-700 bg-zinc-900 text-amber-500"
+					/>
+					<span>
+						Cortinilla de Cine Club
+						<span class="block text-xs text-zinc-500"
+							>Antes de las películas que empiezan desde el principio en el salón. Se puede saltar
+							desde el mando.</span
+						>
+					</span>
+				</label>
+			</form>
+		{/if}
 	</section>
 
 	{#if data.ai}

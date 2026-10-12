@@ -14,12 +14,18 @@ import {
 } from '#lib/server/app-settings.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
 import { getSettings } from '#lib/server/settings.ts';
+import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
+import { hasIntro } from '#lib/server/library/paths.ts';
 import { KNOWN_LANGUAGES, normalizeLang } from '#lib/languages.ts';
 import { log } from '#lib/server/log.ts';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
-	const [settings, admin] = await Promise.all([getSettings(userId), isAdmin(userId)]);
+	const [settings, admin, introFound] = await Promise.all([
+		getSettings(userId),
+		isAdmin(userId),
+		hasIntro()
+	]);
 
 	let ai = null;
 	if (admin) {
@@ -45,6 +51,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		account: { name: locals.user!.name, email: locals.user!.email },
 		playback: { audioLang: settings.audioLang, subtitleLang: settings.subtitleLang },
+		// Only with films in the living room and the intro in DATA_DIR.
+		intro: mpvEnabled && introFound ? settings.intro : null,
 		languages: KNOWN_LANGUAGES,
 		ai
 	};
@@ -70,6 +78,14 @@ export const actions: Actions = {
 			.values({ userId: locals.user!.id, ...values })
 			.onConflictDoUpdate({ target: userSettings.userId, set: values });
 		return { saved: 'playback' };
+	},
+	intro: async ({ request, locals }) => {
+		const values = { intro: (await request.formData()).get('intro') === 'on' };
+		await db
+			.insert(userSettings)
+			.values({ userId: locals.user!.id, ...values })
+			.onConflictDoUpdate({ target: userSettings.userId, set: values });
+		return { saved: 'intro' };
 	},
 	saveKey: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);

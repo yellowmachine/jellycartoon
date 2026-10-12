@@ -1,4 +1,4 @@
-import { rm } from 'node:fs/promises';
+import { access, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { dev } from '$app/env';
 import { CINEMA_DIR, DATA_DIR, HOST_CINEMA_DIR, HOST_DATA_DIR, MEDIA_DIR } from '$app/env/private';
@@ -20,6 +20,16 @@ const hostDataRoot = dev ? dataRoot : HOST_DATA_DIR;
 /** The episode's HLS playlist as a path on the host, to open with mpv or another native player. */
 export const hostPlaylist = (episodeId: number) =>
 	hostDataRoot && path.join(hostDataRoot, 'hls', String(episodeId), 'master.m3u8');
+
+/** The Cine Club intro played before films in the living room; put there by hand, never in git. */
+export const introFile = path.join(dataRoot, 'cortinilla.mp4');
+export const hostIntroFile = hostDataRoot ? path.join(hostDataRoot, 'cortinilla.mp4') : null;
+/** Looked up each time: it can be added or removed without restarting the app. */
+export const hasIntro = () =>
+	access(introFile).then(
+		() => Boolean(hostIntroFile),
+		() => false
+	);
 
 /** Films folder; null when there is no Cine section. */
 export const cinemaRoot = CINEMA_DIR ? path.resolve(CINEMA_DIR) : null;

@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { AUDIO_LANG } from '$app/env/private';
 import { db } from '#lib/server/db/index.ts';
 import { movie, movieProgress, movieTitle } from '#lib/server/db/schema.ts';
-import { hostMoviePath } from '#lib/server/library/paths.ts';
+import { hasIntro, hostIntroFile, hostMoviePath } from '#lib/server/library/paths.ts';
 import { getSettings } from '#lib/server/settings.ts';
 import { log } from '#lib/server/log.ts';
 import { mpvEnabled, playMovie } from './mpv.ts';
@@ -12,7 +12,8 @@ import { mpvEnabled, playMovie } from './mpv.ts';
 
 /**
  * On the host's screen, from where it was left, from the beginning (`from=start`) or from a moment
- * (`at`, in seconds: a frame of the bird's-eye view).
+ * (`at`, in seconds: a frame of the bird's-eye view). Only from the beginning does the Cine Club
+ * intro go first, if the user wants it.
  */
 export const play: Action = async ({ request, locals }) => {
 	if (!mpvEnabled) return fail(400, { message: 'No hay mpv configurado (MPV_SOCKET)' });
@@ -43,6 +44,7 @@ export const play: Action = async ({ request, locals }) => {
 				? 0
 				: (film.positionSec ?? 0);
 	const settings = await getSettings(userId);
+	const intro = startSec === 0 && !form.has('at') && settings.intro && (await hasIntro());
 	try {
 		await playMovie({
 			userId,
@@ -52,7 +54,8 @@ export const play: Action = async ({ request, locals }) => {
 			startSec,
 			durationSec: film.durationSec,
 			audioLang: settings.audioLang ?? AUDIO_LANG,
-			subtitleLang: settings.subtitleLang
+			subtitleLang: settings.subtitleLang,
+			intro: intro ? hostIntroFile : null
 		});
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);

@@ -35,99 +35,114 @@
 	{:else}
 		<h2 class="mb-4 text-xl font-semibold">{mpv.title}</h2>
 
-		<input
-			type="range"
-			min="0"
-			max={mpv.durationSec ?? 0}
-			step="1"
-			value={dragging ?? mpv.positionSec ?? 0}
-			aria-label="Posición"
-			class="w-full accent-amber-500"
-			oninput={(e) => (dragging = Number(e.currentTarget.value))}
-			onchange={(e) => {
-				salon.send({ action: 'seekTo', value: Number(e.currentTarget.value) });
-				dragging = null;
-			}}
-		/>
-		<div class="mb-5 flex justify-between font-mono text-sm text-zinc-400 tabular-nums">
-			<span>{formatDuration(dragging ?? mpv.positionSec) || '0:00'}</span>
-			<span>{formatDuration(mpv.durationSec)}</span>
-		</div>
-
-		<div class="mb-3 grid grid-cols-5 gap-2">
-			<button
-				class={button}
-				aria-label="Atrás 1 minuto"
-				onclick={() => salon.send({ action: 'seek', value: -60 })}>−1m</button
-			>
-			<button
-				class={button}
-				aria-label="Atrás 10 segundos"
-				onclick={() => salon.send({ action: 'seek', value: -10 })}>−10</button
-			>
-			<button
-				class={mainButton}
-				aria-label={mpv.paused ? 'Seguir' : 'Pausa'}
-				onclick={() => salon.send({ action: 'pause', value: !mpv.paused })}
-				>{mpv.paused ? '▶\uFE0E' : '❚❚'}</button
-			>
-			<button
-				class={button}
-				aria-label="Adelante 10 segundos"
-				onclick={() => salon.send({ action: 'seek', value: 10 })}>+10</button
-			>
-			<button
-				class={button}
-				aria-label="Adelante 1 minuto"
-				onclick={() => salon.send({ action: 'seek', value: 60 })}>+1m</button
-			>
-		</div>
-
-		<div class="mb-6 flex items-center gap-3">
-			<span class="text-sm text-zinc-400">Volumen</span>
+		{#if mpv.intro}
+			<p class="mb-4 text-sm text-zinc-400">🎞️ Cortinilla de Cine Club…</p>
+			<div class="mb-6 grid grid-cols-[1fr_2fr] gap-2">
+				<button
+					class={mainButton}
+					aria-label={mpv.paused ? 'Seguir' : 'Pausa'}
+					onclick={() => salon.send({ action: 'pause', value: !mpv.paused })}
+					>{mpv.paused ? '▶\uFE0E' : '❚❚'}</button
+				>
+				<button class={button} onclick={() => salon.send({ action: 'skip' })}
+					>Saltar a la película {'⏭\uFE0E'}</button
+				>
+			</div>
+		{:else}
 			<input
 				type="range"
 				min="0"
-				max="100"
-				step="5"
-				value={mpv.volume ?? 100}
-				aria-label="Volumen"
-				class="flex-1 accent-amber-500"
-				onchange={(e) => salon.send({ action: 'volume', value: Number(e.currentTarget.value) })}
+				max={mpv.durationSec ?? 0}
+				step="1"
+				value={dragging ?? mpv.positionSec ?? 0}
+				aria-label="Posición"
+				class="w-full accent-amber-500"
+				oninput={(e) => (dragging = Number(e.currentTarget.value))}
+				onchange={(e) => {
+					salon.send({ action: 'seekTo', value: Number(e.currentTarget.value) });
+					dragging = null;
+				}}
 			/>
-			<span class="w-10 text-right font-mono text-sm text-zinc-400 tabular-nums"
-				>{Math.round(mpv.volume ?? 100)}</span
-			>
-		</div>
-
-		{#if audio.length > 1}
-			<h3 class="mb-2 text-sm text-zinc-400">Audio</h3>
-			<div class="mb-5 flex flex-wrap gap-2">
-				{#each audio as track (track.id)}
-					<button
-						class={choice(track.id === mpv.audioId)}
-						onclick={() => salon.send({ action: 'audio', value: track.id })}
-						>{trackLabel(track)}</button
-					>
-				{/each}
+			<div class="mb-5 flex justify-between font-mono text-sm text-zinc-400 tabular-nums">
+				<span>{formatDuration(dragging ?? mpv.positionSec) || '0:00'}</span>
+				<span>{formatDuration(mpv.durationSec)}</span>
 			</div>
-		{/if}
 
-		{#if subtitles.length}
-			<h3 class="mb-2 text-sm text-zinc-400">Subtítulos</h3>
-			<div class="mb-6 flex flex-wrap gap-2">
+			<div class="mb-3 grid grid-cols-5 gap-2">
 				<button
-					class={choice(mpv.subtitleId === null)}
-					onclick={() => salon.send({ action: 'subtitle', value: null })}>No</button
+					class={button}
+					aria-label="Atrás 1 minuto"
+					onclick={() => salon.send({ action: 'seek', value: -60 })}>−1m</button
 				>
-				{#each subtitles as track (track.id)}
-					<button
-						class={choice(track.id === mpv.subtitleId)}
-						onclick={() => salon.send({ action: 'subtitle', value: track.id })}
-						>{trackLabel(track)}</button
-					>
-				{/each}
+				<button
+					class={button}
+					aria-label="Atrás 10 segundos"
+					onclick={() => salon.send({ action: 'seek', value: -10 })}>−10</button
+				>
+				<button
+					class={mainButton}
+					aria-label={mpv.paused ? 'Seguir' : 'Pausa'}
+					onclick={() => salon.send({ action: 'pause', value: !mpv.paused })}
+					>{mpv.paused ? '▶\uFE0E' : '❚❚'}</button
+				>
+				<button
+					class={button}
+					aria-label="Adelante 10 segundos"
+					onclick={() => salon.send({ action: 'seek', value: 10 })}>+10</button
+				>
+				<button
+					class={button}
+					aria-label="Adelante 1 minuto"
+					onclick={() => salon.send({ action: 'seek', value: 60 })}>+1m</button
+				>
 			</div>
+
+			<div class="mb-6 flex items-center gap-3">
+				<span class="text-sm text-zinc-400">Volumen</span>
+				<input
+					type="range"
+					min="0"
+					max="100"
+					step="5"
+					value={mpv.volume ?? 100}
+					aria-label="Volumen"
+					class="flex-1 accent-amber-500"
+					onchange={(e) => salon.send({ action: 'volume', value: Number(e.currentTarget.value) })}
+				/>
+				<span class="w-10 text-right font-mono text-sm text-zinc-400 tabular-nums"
+					>{Math.round(mpv.volume ?? 100)}</span
+				>
+			</div>
+
+			{#if audio.length > 1}
+				<h3 class="mb-2 text-sm text-zinc-400">Audio</h3>
+				<div class="mb-5 flex flex-wrap gap-2">
+					{#each audio as track (track.id)}
+						<button
+							class={choice(track.id === mpv.audioId)}
+							onclick={() => salon.send({ action: 'audio', value: track.id })}
+							>{trackLabel(track)}</button
+						>
+					{/each}
+				</div>
+			{/if}
+
+			{#if subtitles.length}
+				<h3 class="mb-2 text-sm text-zinc-400">Subtítulos</h3>
+				<div class="mb-6 flex flex-wrap gap-2">
+					<button
+						class={choice(mpv.subtitleId === null)}
+						onclick={() => salon.send({ action: 'subtitle', value: null })}>No</button
+					>
+					{#each subtitles as track (track.id)}
+						<button
+							class={choice(track.id === mpv.subtitleId)}
+							onclick={() => salon.send({ action: 'subtitle', value: track.id })}
+							>{trackLabel(track)}</button
+						>
+					{/each}
+				</div>
+			{/if}
 		{/if}
 
 		<button

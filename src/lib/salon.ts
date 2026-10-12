@@ -17,6 +17,8 @@ export interface RemoteState {
 	active: boolean;
 	movieId: number | null;
 	title: string | null;
+	/** The Cine Club intro is on before the film (`title`); it can be skipped. */
+	intro: boolean;
 	paused: boolean;
 	positionSec: number | null;
 	durationSec: number | null;
@@ -33,4 +35,5 @@ export type RemoteAction =
 	| { action: 'volume'; value: number }
 	| { action: 'audio'; value: number }
 	| { action: 'subtitle'; value: number | null }
+	| { action: 'skip' }
 	| { action: 'stop' };

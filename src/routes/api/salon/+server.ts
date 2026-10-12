@@ -23,6 +23,7 @@ function parse(body: { action?: unknown; value?: unknown }): RemoteAction | null
 			return value === null || Number.isInteger(value)
 				? { action, value: value as number | null }
 				: null;
+		case 'skip':
 		case 'stop':
 			return { action };
 		default:

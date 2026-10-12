@@ -230,6 +230,10 @@ systemctl --user enable --now jellycartoon-mpv
 - Mando a distancia: la página Salón (pensada para el móvil) pausa, salta, cambia el volumen y
   las pistas de audio y subtítulos, y para (cierra la ventana de mpv). Lo que hace mpv llega en directo con Server-Sent
   Events, también si se toca con el ratón. En Cine hay una barra con la película en curso.
+- Cortinilla de Cine Club: con un vídeo en `HOST_DATA_DIR/cortinilla.mp4`, las películas que
+  empiezan desde el principio van precedidas de él (no al continuar ni al saltar a una escena).
+  Cada uno la quita en Ajustes, y el mando tiene «Saltar a la película». No se sube al repo:
+  `data/` está en `.gitignore`.
 - Si no se ve nada: `systemctl --user status jellycartoon-mpv` y el Registro de la app.
 
 ## Copia de seguridad
