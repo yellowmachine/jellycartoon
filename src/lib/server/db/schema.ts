@@ -138,6 +138,8 @@ export const watchProgress = pgTable(
 			.references(() => episode.id, { onDelete: 'cascade' }),
 		positionSec: real('position_sec').notNull(),
 		completed: boolean('completed').notNull().default(false),
+		/** Taken out of «Seguir viendo» by hand; playing it again brings it back. */
+		dismissed: boolean('dismissed').notNull().default(false),
 		updatedAt: timestamp('updated_at').notNull().defaultNow()
 	},
 	(t) => [

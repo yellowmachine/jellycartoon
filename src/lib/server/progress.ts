@@ -9,7 +9,10 @@ import {
 } from '#lib/server/db/schema.ts';
 import { today } from '#lib/server/playlist.ts';
 
-/** A watched episode has its position reset to 0: the next visit starts over. */
+/**
+ * A watched episode has its position reset to 0: the next visit starts over. Playing it brings it
+ * back to «Seguir viendo» if it had been taken out.
+ */
 export async function saveProgress(
 	userId: string,
 	episodeId: number,
@@ -21,6 +24,7 @@ export async function saveProgress(
 		episodeId,
 		positionSec: completed ? 0 : positionSec,
 		completed,
+		dismissed: false,
 		updatedAt: new Date()
 	};
 	await db
@@ -60,6 +64,14 @@ export async function markWatched(userId: string, episodeIds: number[]) {
 			userId,
 			marked.map((m) => m.episodeId)
 		);
+}
+
+/** Out of «Seguir viendo», keeping where it was left. */
+export async function dismissProgress(userId: string, episodeId: number) {
+	await db
+		.update(watchProgress)
+		.set({ dismissed: true })
+		.where(and(eq(watchProgress.userId, userId), eq(watchProgress.episodeId, episodeId)));
 }
 
 /** Back to never played: no position and not watched. Lists keep their own ticks. */

@@ -1,8 +1,9 @@
-import { sql } from 'drizzle-orm';
-import type { PageServerLoad } from './$types';
+import { and, desc, eq, sql } from 'drizzle-orm';
+import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { getTodayPlaylist } from '#lib/server/playlist.ts';
-import { episode, series, watchProgress } from '#lib/server/db/schema.ts';
+import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
+import { dismissProgress } from '#lib/server/progress.ts';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
@@ -26,31 +27,42 @@ export const load: PageServerLoad = async ({ locals }) => {
 			group by s.id
 			order by s.title
 		`),
-		db.execute<{
-			id: number;
-			title: string;
-			season: number;
-			number: number;
-			series_title: string;
-			position_sec: number;
-			duration_sec: number;
-		}>(sql`
-			select e.id, coalesce(e.custom_title, e.title) as title, e.season, e.number, s.title as series_title,
-				p.position_sec, e.duration_sec
-			from ${watchProgress} p
-			join ${episode} e on e.id = p.episode_id and e.status = 'ready' and not e.missing
-			join ${series} s on s.id = e.series_id
-			where p.user_id = ${userId} and not p.completed
-			order by p.updated_at desc
-			limit 8
-		`),
+		db
+			.select({
+				id: episode.id,
+				title: episodeTitle,
+				season: episode.season,
+				number: episode.number,
+				seriesTitle: series.title,
+				positionSec: watchProgress.positionSec,
+				durationSec: episode.durationSec
+			})
+			.from(watchProgress)
+			.innerJoin(
+				episode,
+				and(
+					eq(episode.id, watchProgress.episodeId),
+					eq(episode.status, 'ready'),
+					eq(episode.missing, false)
+				)
+			)
+			.innerJoin(series, eq(series.id, episode.seriesId))
+			.where(
+				and(
+					eq(watchProgress.userId, userId),
+					eq(watchProgress.completed, false),
+					eq(watchProgress.dismissed, false)
+				)
+			)
+			.orderBy(desc(watchProgress.updatedAt))
+			.limit(8),
 		getTodayPlaylist(userId)
 	]);
 
 	const pending = today?.items.filter((i) => !i.watched) ?? [];
 	return {
 		series: [...allSeries],
-		continueWatching: [...continueWatching],
+		continueWatching,
 		today: today && {
 			total: today.items.length,
 			pending: pending.length,
@@ -58,4 +70,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 			next: pending[0] ?? null
 		}
 	};
+};
+
+export const actions: Actions = {
+	/** Out of «Seguir viendo»; where it was left is kept. */
+	dismiss: async ({ request, locals }) => {
+		const id = Number((await request.formData()).get('id'));
+		if (Number.isInteger(id)) await dismissProgress(locals.user!.id, id);
+	}
 };
