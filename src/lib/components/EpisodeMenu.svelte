@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
+	import { thumbChanged } from '#lib/thumb.svelte.ts';
 	import type { AudioTrack, SubtitleTrack } from '#lib/languages.ts';
 	import ActionMenu from './ActionMenu.svelte';
 	import CopyPathItem from './CopyPathItem.svelte';
@@ -147,8 +148,9 @@
 				action="?/regenerateThumbnail"
 				use:enhance={() => {
 					regenerating = true;
-					return async ({ update }) => {
+					return async ({ result, update }) => {
 						await update();
+						if (result.type === 'success') thumbChanged(episode.id);
 						regenerating = false;
 						close();
 					};

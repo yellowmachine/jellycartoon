@@ -5,6 +5,7 @@
 	import '@fontsource/comic-neue/400.css';
 	import { normalizeLang, type AudioTrack, type SubtitleTrack } from '#lib/languages.ts';
 	import { subtitleCss, type SubtitleStyle } from '#lib/subtitle-style.ts';
+	import { thumbChanged, thumbUrl } from '#lib/thumb.svelte.ts';
 	import SubtitleStylePanel from './SubtitleStylePanel.svelte';
 	import {
 		PLAYER_SIZES,
@@ -251,6 +252,7 @@
 			body: JSON.stringify({ atSec: video.currentTime })
 		}).catch(() => null);
 		thumbnailState = res?.ok ? 'done' : 'failed';
+		if (res?.ok) thumbChanged(episodeId);
 		setTimeout(() => (thumbnailState = 'idle'), 2000);
 	}
 
@@ -287,7 +289,7 @@
 		<!-- svelte-ignore a11y_media_has_caption -->
 		<video
 			bind:this={video}
-			poster="/api/thumb/{episodeId}"
+			poster={thumbUrl(episodeId)}
 			controls
 			crossorigin="anonymous"
 			class={[
@@ -412,7 +414,7 @@
 {#if showStylePanel && subtitles.length}
 	<SubtitleStylePanel
 		style={subtitleStyle}
-		previewImage="/api/thumb/{episodeId}"
+		previewImage={thumbUrl(episodeId)}
 		onchange={chooseStyle}
 	/>
 {/if}

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { formatDuration } from '#lib/format.ts';
+	import { thumbUrl } from '#lib/thumb.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -11,7 +12,7 @@
 >
 	{#if data.today?.next}
 		<img
-			src="/api/thumb/{data.today.next.id}"
+			src={thumbUrl(data.today.next.id)}
 			alt=""
 			class="aspect-video w-32 shrink-0 rounded object-cover"
 		/>
@@ -41,7 +42,7 @@
 				<a href="/watch/{ep.id}" class="group">
 					<div class="relative aspect-video overflow-hidden rounded-md bg-zinc-800">
 						<img
-							src="/api/thumb/{ep.id}"
+							src={thumbUrl(ep.id)}
 							alt=""
 							class="h-full w-full object-cover group-hover:opacity-80"
 						/>
@@ -74,7 +75,7 @@
 					<div class="aspect-video overflow-hidden rounded-md bg-zinc-800">
 						{#if s.cover}
 							<img
-								src="/api/thumb/{s.cover}"
+								src={thumbUrl(s.cover)}
 								alt=""
 								class="h-full w-full object-cover group-hover:opacity-80"
 							/>

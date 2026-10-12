@@ -23,6 +23,7 @@
 	import Player from '#lib/components/Player.svelte';
 	import { playerSize } from '#lib/player-size.svelte.ts';
 	import { formatDuration } from '#lib/format.ts';
+	import { thumbUrl } from '#lib/thumb.svelte.ts';
 
 	interface Props {
 		items: PlaylistEntry[];
@@ -90,7 +91,7 @@
 						}}
 					>
 						<img
-							src="/api/thumb/{it.id}"
+							src={thumbUrl(it.id)}
 							alt=""
 							class="aspect-video w-20 shrink-0 rounded bg-zinc-800 object-cover"
 						/>
