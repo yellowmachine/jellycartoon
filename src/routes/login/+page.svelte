@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import favicon from '#lib/assets/favicon.svg';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -10,7 +11,9 @@
 </script>
 
 <div class="mx-auto mt-16 max-w-sm">
-	<h1 class="mb-8 text-center text-3xl font-bold text-amber-400">JellyCartoon</h1>
+	<img src={favicon} alt="" class="mx-auto mb-4 h-20 w-20 rounded-2xl" />
+	<h1 class="text-center text-3xl font-bold text-amber-400">JellyCartoon</h1>
+	<p class="mt-2 mb-8 text-center text-zinc-400">Tus series y películas, en casa.</p>
 	<form method="post" action="?/{mode}" use:enhance class="space-y-4">
 		{#if mode === 'signUp'}
 			<label class="block text-sm">
