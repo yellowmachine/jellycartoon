@@ -7,12 +7,12 @@
 	let { children, data }: LayoutProps = $props();
 
 	const links = $derived([
-		{ href: '/', label: 'Catálogo' },
+		{ href: '/', label: 'Series' },
 		...(data.cinema ? [{ href: '/cine', label: 'Cine' }] : []),
 		...(data.salon ? [{ href: '/salon', label: 'Salón' }] : []),
 		{ href: '/today', label: 'Hoy' },
 		{ href: '/lists', label: 'Listas' },
-		{ href: '/library', label: 'Biblioteca' },
+		{ href: '/library', label: 'Gestión' },
 		{ href: '/logs', label: 'Registro' }
 	]);
 
@@ -34,7 +34,10 @@
 {#if data.user}
 	<header class="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur">
 		<nav class="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3">
-			<a href="/" class="text-lg font-bold text-amber-400">JellyCartoon</a>
+			<a href="/" class="flex shrink-0 items-center gap-2 text-lg font-bold text-amber-400">
+				<img src={favicon} alt="" class="h-7 w-7 rounded-md" />
+				JellyCartoon
+			</a>
 			<!-- Wide screens: every link in a row. -->
 			{#each links as link (link.href)}
 				<a

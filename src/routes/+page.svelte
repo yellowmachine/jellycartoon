@@ -65,7 +65,7 @@
 	<h2 class="mb-3 text-lg font-semibold">Series</h2>
 	{#if data.series.length === 0}
 		<p class="text-zinc-400">
-			No hay nada todavía. Ve a <a href="/library" class="text-amber-400 underline">Biblioteca</a> y escanea
+			No hay nada todavía. Ve a <a href="/library" class="text-amber-400 underline">Gestión</a> y escanea
 			la carpeta de vídeos.
 		</p>
 	{:else}

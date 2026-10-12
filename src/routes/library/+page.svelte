@@ -71,7 +71,7 @@
 	</form>
 {/snippet}
 
-<h1 class="mb-6 text-2xl font-bold">Biblioteca</h1>
+<h1 class="mb-6 text-2xl font-bold">Gestión</h1>
 
 <div class="mb-6 flex flex-wrap items-center gap-3">
 	<form
