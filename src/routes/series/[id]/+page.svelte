@@ -231,6 +231,7 @@
 					{#if !selecting}
 						<EpisodeMenu
 							episode={ep}
+							salon={data.salon}
 							previousUnwatched={previousUnwatched.get(ep.id) ?? 0}
 							lists={data.lists.map((l) => ({ ...l, added: inList.has(`${l.id}:${ep.id}`) }))}
 							onrename={() => (editing = ep.id)}

@@ -12,6 +12,7 @@ import { ignoreEpisodes, retryEpisode } from '#lib/server/library/worker.ts';
 import { getActiveList, getListNames, seriesListItems, toggleInList } from '#lib/server/lists.ts';
 import { clearProgress, markWatched, saveProgress } from '#lib/server/progress.ts';
 import { log } from '#lib/server/log.ts';
+import { playEpisodes, seriesQueue } from '#lib/server/cinema/episode-actions.ts';
 import {
 	chooseSeries,
 	forgetSeries,
@@ -186,6 +187,13 @@ export const actions: Actions = {
 			: (await getActiveList(locals.user!.id))?.id;
 		if (!Number.isInteger(listId)) return fail(400, { message: 'Lista no válida' });
 		await toggleInList(locals.user!.id, listId!, id);
+	},
+	/** In the living room, with the ones after it; `from=start` starts it over. */
+	salon: async ({ request, locals }) => {
+		const form = await request.formData();
+		const userId = locals.user!.id;
+		const ids = await seriesQueue(userId, Number(form.get('id')));
+		return playEpisodes(userId, ids, form.get('from') === 'start' ? 0 : undefined);
 	},
 	setWatched: async ({ params, request, locals }) => {
 		const form = await request.formData();

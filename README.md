@@ -206,7 +206,7 @@ Con la clave de OpenRouter, al final de cada ficha hay una conversación: «¿c�
 
 #### Ver en el salón
 
-Las películas se ven con mpv en la pantalla del PC donde corre la app. Allí queda un mpv
+Las películas y los capítulos se ven con mpv en la pantalla del PC donde corre la app. Allí queda un mpv
 esperando, sin ventana, como servicio de usuario de systemd; la app le manda la película por su
 socket ([JSON IPC](https://mpv.io/manual/stable/#json-ipc)) y guarda por dónde vas cada 5
 segundos. Hace falta una sesión gráfica iniciada (Wayland o X11) y mpv instalado. Para instalarlo,
@@ -227,9 +227,15 @@ systemctl --user enable --now jellycartoon-mpv
   llegar al final queda como vista.
 - Con el ratón o el teclado se controla mpv como siempre; `q` lo cierra y el servicio lo deja
   esperando otra vez.
+- Capítulos: «Ver en el salón» en el menú ⋯ de cada capítulo convertido manda ese y, con
+  «siguiente automático», los siguientes de la serie. En Hoy y en las listas, «Ver lo que queda
+  en el salón» manda los que faltan por ver, y ▶︎ en cada uno empieza desde él. Van todos a la
+  lista de reproducción de mpv, que pasa solo al siguiente; cada uno empieza por donde se dejó y
+  al verlo se tacha en Hoy y en tus listas. Hace falta que `HOST_DATA_DIR` sea una ruta absoluta.
+  Sin carpeta de películas, el salón se activa con `MPV_SOCKET=/data/mpv.sock` en el `.env`.
 - Mando a distancia: la página Salón (pensada para el móvil) pausa, salta, cambia el volumen y
-  las pistas de audio y subtítulos, y para (cierra la ventana de mpv). Lo que hace mpv llega en directo con Server-Sent
-  Events, también si se toca con el ratón. En Cine hay una barra con la película en curso.
+  las pistas de audio y subtítulos, pasa al capítulo anterior o siguiente, y para (cierra la ventana de mpv). Lo que hace mpv llega en directo con Server-Sent
+  Events, también si se toca con el ratón. En todas las páginas hay una barra con lo que se está viendo.
 - Cortinilla de Cine Club: con un vídeo en `HOST_DATA_DIR/cortinilla.mp4`, las películas que
   empiezan desde el principio van precedidas de él (no al continuar ni al saltar a una escena).
   Cada uno la quita en Ajustes, y el mando tiene «Saltar a la película». No se sube al repo:

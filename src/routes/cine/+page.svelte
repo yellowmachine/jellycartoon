@@ -3,7 +3,6 @@
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import MovieMenu from '#lib/components/MovieMenu.svelte';
-	import SalonBar from '#lib/components/SalonBar.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
 	import { formatDuration } from '#lib/format.ts';
 	import { activeFilters, FILTERS, matchReason } from '#lib/film-search.ts';
@@ -203,8 +202,4 @@
 			</li>
 		{/each}
 	</ul>
-{/if}
-
-{#if data.mpv}
-	<SalonBar />
 {/if}

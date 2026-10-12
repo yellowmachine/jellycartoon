@@ -6,7 +6,7 @@ import { movie, movieProgress, movieTitle } from '#lib/server/db/schema.ts';
 import { hasIntro, hostIntroFile, hostMoviePath } from '#lib/server/library/paths.ts';
 import { getSettings } from '#lib/server/settings.ts';
 import { log } from '#lib/server/log.ts';
-import { mpvEnabled, playMovie } from './mpv.ts';
+import { mpvEnabled, play as playOnHost } from './mpv.ts';
 
 /** Form actions shared by the Cine page and each film's page. */
 
@@ -46,13 +46,18 @@ export const play: Action = async ({ request, locals }) => {
 	const settings = await getSettings(userId);
 	const intro = startSec === 0 && !form.has('at') && settings.intro && (await hasIntro());
 	try {
-		await playMovie({
+		await playOnHost({
 			userId,
-			movieId: film.id,
-			title: film.title,
-			hostPath,
-			startSec,
-			durationSec: film.durationSec,
+			items: [
+				{
+					target: { movieId: film.id },
+					title: film.title,
+					subtitle: null,
+					hostPath,
+					startSec,
+					durationSec: film.durationSec
+				}
+			],
 			audioLang: settings.audioLang ?? AUDIO_LANG,
 			subtitleLang: settings.subtitleLang,
 			intro: intro ? hostIntroFile : null

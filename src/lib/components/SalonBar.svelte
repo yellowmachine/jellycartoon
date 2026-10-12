@@ -18,7 +18,11 @@
 			>{mpv.paused ? '▶\uFE0E' : '❚❚'}</button
 		>
 		<div class="min-w-0 flex-1">
-			<p class="truncate text-sm">En el salón: {mpv.title}</p>
+			<p class="truncate text-sm">
+				En el salón: {mpv.title}{#if mpv.subtitle}<span class="text-zinc-400">
+						· {mpv.subtitle}</span
+					>{/if}
+			</p>
 			{#if mpv.intro}
 				<p class="text-xs text-zinc-400">Cortinilla de Cine Club…</p>
 			{:else}
@@ -30,7 +34,7 @@
 		{#if mpv.intro}
 			<button
 				class="shrink-0 rounded-md border border-zinc-700 px-2 py-1 text-sm hover:bg-zinc-900"
-				onclick={() => salon.send({ action: 'skip' })}>Saltar {'⏭\uFE0E'}</button
+				onclick={() => salon.send({ action: 'next' })}>Saltar {'⏭\uFE0E'}</button
 			>
 		{/if}
 		<a href="/salon" class="shrink-0 text-sm text-amber-400 hover:underline">Mando →</a>

@@ -26,6 +26,8 @@
 			/** Path to the video on the host, for mpv; only once converted. */
 			playlist?: string | null;
 		};
+		/** Whether it can be played on the host's screen. */
+		salon: boolean;
 		/** Episodes before this one in the series not watched yet. */
 		previousUnwatched: number;
 		/** The user's lists, and whether this episode is in each one. */
@@ -34,7 +36,7 @@
 		ondelete: () => void;
 	}
 
-	let { episode, previousUnwatched, lists, onrename, ondelete }: Props = $props();
+	let { episode, salon, previousUnwatched, lists, onrename, ondelete }: Props = $props();
 
 	const ready = $derived(episode.status === 'ready');
 	// The player ignores the first seconds too: it starts over below that.
@@ -69,6 +71,27 @@
 				>
 			{/if}
 			<a href="/watch/{episode.id}?t=0">{@render item('Empezar desde el principio')}</a>
+			{#if salon}
+				<hr class="my-1 border-zinc-800" />
+				{#if resumeAt}
+					<form method="post" action="?/salon" use:enhance={closeAfter(close)}>
+						<input type="hidden" name="id" value={episode.id} />
+						<button class="w-full">
+							{@render item(`▶︎ Continuar en el salón desde ${formatDuration(resumeAt)}`)}
+						</button>
+					</form>
+				{/if}
+				<form method="post" action="?/salon" use:enhance={closeAfter(close)}>
+					<input type="hidden" name="id" value={episode.id} />
+					<input type="hidden" name="from" value="start" />
+					<button class="w-full">
+						{@render item(
+							resumeAt ? 'Empezar en el salón desde el principio' : '▶︎ Ver en el salón'
+						)}
+					</button>
+				</form>
+				<hr class="my-1 border-zinc-800" />
+			{/if}
 			<form method="post" action="?/setWatched" use:enhance={closeAfter(close)}>
 				<input type="hidden" name="id" value={episode.id} />
 				<input type="hidden" name="watched" value={String(!episode.completed)} />

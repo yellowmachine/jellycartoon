@@ -19,6 +19,7 @@
 
 <script lang="ts">
 	import type { ComponentProps, Snippet } from 'svelte';
+	import { enhance, type SubmitFunction } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import Player from '#lib/components/Player.svelte';
 	import { playerSize } from '#lib/player-size.svelte.ts';
@@ -34,9 +35,19 @@
 		itemActions?: Snippet<[PlaylistEntry, number]>;
 		/** Below the list. */
 		footer?: Snippet;
+		/** Whether it can be played on the host's screen (the page has a `salon` action). */
+		salon?: boolean;
 	}
 
-	let { items, settings, finished, itemActions, footer }: Props = $props();
+	let { items, settings, finished, itemActions, footer, salon = false }: Props = $props();
+
+	/** Why the living room could not start it, e.g. mpv is not running. */
+	let salonError = $state<string | null>(null);
+	const sendToSalon: SubmitFunction =
+		() =>
+		async ({ result }) => {
+			salonError = result.type === 'failure' ? String(result.data?.message ?? 'Error') : null;
+		};
 
 	// Starts at the first episode not watched yet; clicking another one plays it instead.
 	let current = $derived(items.findIndex((i) => !i.watched));
@@ -77,6 +88,18 @@
 	</div>
 
 	<aside>
+		{#if salon && items.some((i) => !i.watched)}
+			<form method="post" action="?/salon" use:enhance={sendToSalon} class="mb-3">
+				<button
+					class="w-full rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-zinc-950 hover:bg-amber-400"
+				>
+					▶︎ Ver lo que queda en el salón
+				</button>
+			</form>
+		{/if}
+		{#if salonError}
+			<p class="mb-3 text-sm text-red-400">{salonError}</p>
+		{/if}
 		<ol class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
 			{#each items as it, index (it.id)}
 				<li class={['flex items-center', index === current && 'bg-zinc-900']}>
@@ -108,6 +131,16 @@
 						</span>
 						<span class="text-xs text-zinc-500">{formatDuration(it.durationSec)}</span>
 					</button>
+					{#if salon}
+						<form method="post" action="?/salon" use:enhance={sendToSalon} class="shrink-0">
+							<input type="hidden" name="episodeId" value={it.id} />
+							<button
+								class="px-2 py-3 text-xs text-zinc-500 hover:text-amber-400"
+								title="Ver desde aquí en el salón"
+								aria-label="Ver desde aquí en el salón">▶︎</button
+							>
+						</form>
+					{/if}
 					{@render itemActions?.(it, index)}
 				</li>
 			{/each}

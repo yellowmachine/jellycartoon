@@ -11,6 +11,7 @@ import {
 	setActiveList
 } from '#lib/server/lists.ts';
 import { getSettings } from '#lib/server/settings.ts';
+import { playEpisodes, playlistQueue } from '#lib/server/cinema/episode-actions.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const userId = locals.user!.id;
@@ -28,6 +29,14 @@ async function episodeId(request: Request) {
 }
 
 export const actions: Actions = {
+	/** In the living room, from `episodeId` (or the first not watched) on. */
+	salon: async ({ params, request, locals }) => {
+		const userId = locals.user!.id;
+		const list = await getList(userId, Number(params.id));
+		if (!list) error(404, 'Lista no encontrada');
+		const from = (await request.formData()).get('episodeId');
+		return playEpisodes(userId, playlistQueue(list.items, from ? Number(from) : null));
+	},
 	rename: async ({ params, request, locals }) => {
 		const name = String((await request.formData()).get('title') ?? '').trim();
 		if (!name) return fail(400, { message: 'El nombre no puede estar vacío' });

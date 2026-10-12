@@ -6,23 +6,44 @@ import { db } from '#lib/server/db/index.ts';
 import { movie, movieProgress, movieTitle } from '#lib/server/db/schema.ts';
 import { hostCinemaRoot } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
+import { saveProgress } from '#lib/server/progress.ts';
 import type { RemoteAction, RemoteState, Track } from '#lib/salon.ts';
 
 /**
- * Plays films on the host's screen through mpv's JSON IPC (https://mpv.io/manual/stable/#json-ipc):
- * an mpv left waiting with `--idle --input-ipc-server=<MPV_SOCKET>` (deploy/jellycartoon-mpv.service).
+ * Plays films and episodes on the host's screen through mpv's JSON IPC
+ * (https://mpv.io/manual/stable/#json-ipc): an mpv left waiting with `--idle --input-ipc-server=<MPV_SOCKET>` (deploy/jellycartoon-mpv.service).
  * Also the remote control: what mpv is doing, live, and commands to change it.
  */
 
 export const mpvEnabled = Boolean(MPV_SOCKET);
 
-/** Who is watching what, by mpv's playlist entry id: it outlives a replaced film's last events. */
-interface Playing {
-	userId: string;
-	movieId: number;
+/** A film, or an episode with its WebVTT files (outside its HLS playlist, so added by hand). */
+export type Target =
+	| { movieId: number }
+	| { episodeId: number; subtitles: { path: string; lang: string; label: string }[] };
+
+/** Something to play, in the order it is queued. */
+export interface QueueItem {
+	target: Target;
 	title: string;
+	/** Above the title, e.g. the series and episode number. */
+	subtitle: string | null;
+	/** The file's path on the host, which is where mpv runs. */
+	hostPath: string;
+	startSec: number;
 	durationSec: number | null;
+}
+
+/**
+ * Who is watching what, by mpv's playlist entry id. Kept while the entry is in mpv's playlist, which
+ * can go back to it, and until the last events of a replaced one.
+ */
+interface Playing extends QueueItem {
+	userId: string;
 	positionSec: number;
+	subtitlesAdded?: boolean;
+	/** Replaced by a new queue: forgotten once it ends. */
+	replaced?: boolean;
 }
 
 const playing = new Map<number, Playing>();
@@ -33,13 +54,19 @@ const ours = (entryId: number | null) =>
 	entryId !== null && (playing.has(entryId) || intros.has(entryId));
 /** The entry on screen now. */
 let current: number | null = null;
+/** The entry whose file mpv has finished opening (`file-loaded`): tracks can be added to it. */
+let loaded: number | null = null;
 
 const state: RemoteState = {
 	available: false,
 	active: false,
 	movieId: null,
+	episodeId: null,
 	title: null,
+	subtitle: null,
 	intro: false,
+	playlistPos: null,
+	playlistCount: null,
 	paused: false,
 	positionSec: null,
 	durationSec: null,
@@ -69,7 +96,9 @@ const OBSERVED = [
 	'aid',
 	'sid',
 	'track-list',
-	'media-title'
+	'media-title',
+	'playlist-pos',
+	'playlist-count'
 ];
 
 function connect() {
@@ -108,14 +137,9 @@ function connect() {
 			playing.clear();
 			intros.clear();
 			current = null;
+			loaded = null;
 			stopSaving();
-			Object.assign(state, {
-				available: false,
-				active: false,
-				movieId: null,
-				title: null,
-				intro: false
-			});
+			Object.assign(state, { available: false, ...NOTHING });
 			notify();
 			scheduleReconnect();
 		});
@@ -168,17 +192,11 @@ function onData(chunk: string) {
 			propertyChanged(message.name, message.data);
 		} else if (message.event === 'start-file') {
 			current = message.playlist_entry_id;
-			const entry = playing.get(message.playlist_entry_id);
-			const introOf = intros.get(message.playlist_entry_id);
-			Object.assign(state, {
-				active: true,
-				movieId: entry?.movieId ?? null,
-				title: entry?.title ?? introOf ?? state.title,
-				intro: introOf !== undefined
-			});
-			notify();
+			show(message.playlist_entry_id);
+		} else if (message.event === 'file-loaded') {
+			loaded = current;
+			if (loaded !== null) void addSubtitles(loaded);
 		} else if (message.event === 'end-file') {
-			intros.delete(message.playlist_entry_id);
 			void ended(message.playlist_entry_id, message.reason);
 		}
 	}
@@ -193,15 +211,60 @@ interface MpvTrack {
 	'demux-channel-count'?: number;
 }
 
+/** What the remotes show while nothing of ours is on. */
+const NOTHING = {
+	active: false,
+	movieId: null,
+	episodeId: null,
+	title: null,
+	subtitle: null,
+	intro: false
+} satisfies Partial<RemoteState>;
+
+/** The remotes show the entry now on screen: one of ours, its intro, or a file opened by hand. */
+function show(entryId: number) {
+	const entry = playing.get(entryId);
+	const introOf = intros.get(entryId);
+	Object.assign(state, {
+		active: true,
+		movieId: entry && 'movieId' in entry.target ? entry.target.movieId : null,
+		episodeId: entry && 'episodeId' in entry.target ? entry.target.episodeId : null,
+		title: entry?.title ?? introOf ?? state.title,
+		subtitle: entry?.subtitle ?? null,
+		intro: introOf !== undefined
+	});
+	notify();
+}
+
+/** Only the one in the user's language is selected; none when they want no subtitles. */
+let preferredSubtitle: string | null = null;
+
+/** Once per entry, when both its file is open and the entry is known (whichever comes last). */
+async function addSubtitles(entryId: number) {
+	const entry = playing.get(entryId);
+	if (!entry || !('subtitles' in entry.target) || entry.subtitlesAdded || loaded !== entryId)
+		return;
+	entry.subtitlesAdded = true;
+	let selected = false;
+	for (const sub of entry.target.subtitles) {
+		const select: boolean = !selected && sub.lang === preferredSubtitle;
+		selected ||= select;
+		await command(['sub-add', sub.path, select ? 'select' : 'auto', sub.label, sub.lang]).catch(
+			(error) => log.warn('mpv', `No se pudieron añadir los subtítulos ${sub.path}`, { error })
+		);
+	}
+}
+
 function propertyChanged(name: string, data: unknown) {
 	const number = typeof data === 'number' ? data : null;
 	switch (name) {
 		// Sent as soon as it is observed too: right after connecting, the remote already knows whether
 		// something was playing (e.g. the app restarted mid-film).
 		case 'idle-active':
-			state.active = data === false;
-			if (!state.active)
-				Object.assign(state, { movieId: null, title: null, intro: false, positionSec: null });
+			if (data !== false) {
+				Object.assign(state, { ...NOTHING, positionSec: null });
+				stopSaving();
+			} else state.active = true;
 			break;
 		case 'path':
 			if (typeof data === 'string' && !ours(current)) void identify(data);
@@ -217,8 +280,18 @@ function propertyChanged(name: string, data: unknown) {
 			notify(true);
 			return;
 		}
-		case 'duration':
+		case 'duration': {
 			state.durationSec = number;
+			// Episodes not probed yet still count as watched at the end.
+			const entry = current !== null ? playing.get(current) : undefined;
+			if (entry && !entry.durationSec) entry.durationSec = number;
+			break;
+		}
+		case 'playlist-pos':
+			state.playlistPos = number !== null && number >= 0 ? number + 1 : null;
+			break;
+		case 'playlist-count':
+			state.playlistCount = number;
 			break;
 		case 'volume':
 			state.volume = number;
@@ -242,7 +315,7 @@ function propertyChanged(name: string, data: unknown) {
 				}));
 			break;
 		case 'media-title':
-			// Films played from the app (and their intro) keep their catalogue title.
+			// What the app plays (and the intro) keeps its catalogue title.
 			if (!ours(current)) state.title = (data as string) ?? null;
 			break;
 	}
@@ -267,9 +340,8 @@ async function identify(hostPath: string) {
 async function ended(entryId: number, reason: string) {
 	const entry = playing.get(entryId);
 	if (!entry) return;
-	playing.delete(entryId);
+	if (entry.replaced) playing.delete(entryId);
 	if (current === entryId) current = null;
-	if (!playing.size) stopSaving();
 	await save(entry, reason === 'eof');
 }
 
@@ -277,9 +349,16 @@ async function ended(entryId: number, reason: string) {
 async function save(entry: Playing, reachedEnd: boolean) {
 	const completed =
 		reachedEnd || Boolean(entry.durationSec && entry.positionSec / entry.durationSec > 0.92);
+	if ('episodeId' in entry.target) {
+		const { episodeId } = entry.target;
+		// Also ticks it off today's playlist and the user's lists.
+		return saveProgress(entry.userId, episodeId, entry.positionSec, completed).catch((error) =>
+			log.error('mpv', 'No se pudo guardar el progreso', { episodeId, error })
+		);
+	}
 	const values = {
 		userId: entry.userId,
-		movieId: entry.movieId,
+		movieId: entry.target.movieId,
 		positionSec: completed ? 0 : entry.positionSec,
 		completed,
 		updatedAt: new Date()
@@ -362,71 +441,73 @@ export async function control(remote: RemoteAction) {
 			return command(['set_property', 'aid', remote.value]);
 		case 'subtitle':
 			return command(['set_property', 'sid', remote.value ?? 'no']);
-		case 'skip':
+		case 'next':
 			return command(['playlist-next']);
+		case 'previous':
+			return command(['playlist-prev']);
 		case 'stop':
 			return command(['stop']);
 	}
 }
 
 /**
- * Opens the film full screen on the host, replacing whatever was playing. With `intro`, the Cine
- * Club intro goes first and mpv moves on to the film when it ends (or is skipped).
+ * Opens what is queued full screen on the host, replacing whatever was playing; mpv moves on to the
+ * next item by itself. With `intro`, the Cine Club intro goes first.
  */
-export async function playMovie(options: {
+export async function play(options: {
 	userId: string;
-	movieId: number;
-	title: string;
-	/** The file's path on the host, which is where mpv runs. */
-	hostPath: string;
-	startSec: number;
-	durationSec: number | null;
-	/** ISO 639-2 codes, as tagged in the films' tracks. */
+	items: QueueItem[];
+	/** ISO 639-2 codes, as tagged in the tracks. */
 	audioLang: string | null;
 	subtitleLang: string | null;
 	/** The intro's path on the host. */
 	intro: string | null;
 }) {
-	const mpvOptions: Record<string, string> = { start: String(Math.floor(options.startSec)) };
-	if (options.audioLang) mpvOptions.alang = options.audioLang;
-	if (options.subtitleLang) mpvOptions.slang = options.subtitleLang;
-
+	preferredSubtitle = options.subtitleLang;
+	// The old queue goes: what ended is already saved, and what is on saves when it ends.
+	intros.clear();
+	for (const [id, entry] of playing) {
+		if (id === current) entry.replaced = true;
+		else playing.delete(id);
+	}
+	let first = true;
 	if (options.intro) {
 		const intro = (await command({
 			name: 'loadfile',
 			url: options.intro,
 			flags: 'replace'
 		})) as { playlist_entry_id: number };
-		intros.set(intro.playlist_entry_id, options.title);
-		if (current === intro.playlist_entry_id) {
-			Object.assign(state, { movieId: null, title: options.title, intro: true });
-			notify();
-		}
+		intros.set(intro.playlist_entry_id, options.items[0].title);
+		// start-file may have arrived before the entry was known.
+		if (current === intro.playlist_entry_id) show(intro.playlist_entry_id);
+		first = false;
 	}
-	// Options given to loadfile are the file's own, so `start` and the languages leave the intro
-	// alone. append-play: the film still plays if the intro could not be opened.
-	const result = (await command({
-		name: 'loadfile',
-		url: options.hostPath,
-		flags: options.intro ? 'append-play' : 'replace',
-		options: mpvOptions
-	})) as { playlist_entry_id: number };
-
-	playing.set(result.playlist_entry_id, {
-		userId: options.userId,
-		movieId: options.movieId,
-		title: options.title,
-		durationSec: options.durationSec,
-		positionSec: options.startSec
-	});
-	// start-file may have arrived before the entry was known.
-	if (current === result.playlist_entry_id) {
-		Object.assign(state, { movieId: options.movieId, title: options.title, intro: false });
-		notify();
+	for (const item of options.items) {
+		// Options given to loadfile are the file's own: each item starts where it was left.
+		const mpvOptions: Record<string, string> = { start: String(Math.floor(item.startSec)) };
+		if (options.audioLang) mpvOptions.alang = options.audioLang;
+		// Episodes' subtitles are added once loaded (addSubtitles).
+		if (options.subtitleLang && 'movieId' in item.target) mpvOptions.slang = options.subtitleLang;
+		const result = (await command({
+			name: 'loadfile',
+			url: item.hostPath,
+			// append-play: it still plays if the intro could not be opened.
+			flags: first ? 'replace' : 'append-play',
+			options: mpvOptions
+		})) as { playlist_entry_id: number };
+		first = false;
+		playing.set(result.playlist_entry_id, {
+			...item,
+			userId: options.userId,
+			positionSec: item.startSec
+		});
+		if (current === result.playlist_entry_id) show(result.playlist_entry_id);
+		void addSubtitles(result.playlist_entry_id);
 	}
 	startSaving();
-	log.info('mpv', `Reproduciendo ${options.hostPath} desde ${mpvOptions.start} s`, {
-		intro: Boolean(options.intro),
-		movieId: options.movieId
-	});
+	log.info(
+		'mpv',
+		`Reproduciendo ${options.items[0].hostPath} desde ${Math.floor(options.items[0].startSec)} s`,
+		{ more: options.items.length - 1, intro: Boolean(options.intro) }
+	);
 }

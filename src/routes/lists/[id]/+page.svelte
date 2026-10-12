@@ -64,7 +64,7 @@
 		{#if remainingSec && remainingSec < totalSec}· quedan {formatDuration(remainingSec)}{/if}
 	</p>
 
-	<PlaylistView {items} settings={data.settings}>
+	<PlaylistView {items} settings={data.settings} salon={data.salon}>
 		{#snippet finished()}
 			<p class="text-lg">¡Lista terminada!</p>
 			{@render listButton('restart', 'Volver a empezar')}

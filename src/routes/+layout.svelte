@@ -1,6 +1,7 @@
 <script lang="ts">
 	import './layout.css';
 	import favicon from '#lib/assets/favicon.svg';
+	import SalonBar from '#lib/components/SalonBar.svelte';
 	import { page } from '$app/state';
 	import type { LayoutProps } from './$types';
 
@@ -107,4 +108,8 @@
 <!-- overflow-x-clip: the "cinema" player is 100vw wide, which includes the scrollbar. -->
 <main class="mx-auto max-w-6xl overflow-x-clip px-4 py-6">
 	{@render children()}
+	<!-- What is on in the living room, everywhere but its remote. -->
+	{#if data.user && data.salon && !isCurrent('/salon')}
+		<SalonBar />
+	{/if}
 </main>

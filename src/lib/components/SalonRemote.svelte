@@ -8,6 +8,11 @@
 	/** While the bar is being dragged it shows the finger, not mpv. */
 	let dragging = $state<number | null>(null);
 
+	/** Several episodes queued: they can be gone through. */
+	const queue = $derived(
+		mpv?.episodeId != null && (mpv.playlistCount ?? 0) > 1 && mpv.playlistPos !== null
+	);
+
 	const audio = $derived(mpv?.tracks.filter((t) => t.type === 'audio') ?? []);
 	const subtitles = $derived(mpv?.tracks.filter((t) => t.type === 'sub') ?? []);
 
@@ -30,9 +35,17 @@
 		</p>
 	{:else if !mpv.active}
 		<p class="text-zinc-400">
-			No se está viendo nada. Elige una película en <a href="/cine" class="text-amber-400">Cine</a>.
+			No se está viendo nada. Elige una película en <a href="/cine" class="text-amber-400">Cine</a>
+			o un capítulo en una serie, en <a href="/today" class="text-amber-400">Hoy</a> o en tus
+			<a href="/lists" class="text-amber-400">Listas</a>.
 		</p>
 	{:else}
+		{#if mpv.subtitle}
+			<p class="text-sm text-zinc-400">
+				{mpv.subtitle}{#if queue}
+					· {mpv.playlistPos} de {mpv.playlistCount}{/if}
+			</p>
+		{/if}
 		<h2 class="mb-4 text-xl font-semibold">{mpv.title}</h2>
 
 		{#if mpv.intro}
@@ -44,7 +57,7 @@
 					onclick={() => salon.send({ action: 'pause', value: !mpv.paused })}
 					>{mpv.paused ? '▶\uFE0E' : '❚❚'}</button
 				>
-				<button class={button} onclick={() => salon.send({ action: 'skip' })}
+				<button class={button} onclick={() => salon.send({ action: 'next' })}
 					>Saltar a la película {'⏭\uFE0E'}</button
 				>
 			</div>
@@ -96,6 +109,21 @@
 					onclick={() => salon.send({ action: 'seek', value: 60 })}>+1m</button
 				>
 			</div>
+
+			{#if queue}
+				<div class="mb-3 grid grid-cols-2 gap-2">
+					<button
+						class={button}
+						disabled={mpv.playlistPos === 1}
+						onclick={() => salon.send({ action: 'previous' })}>{'⏮\uFE0E'} Anterior</button
+					>
+					<button
+						class={button}
+						disabled={mpv.playlistPos === mpv.playlistCount}
+						onclick={() => salon.send({ action: 'next' })}>Siguiente {'⏭\uFE0E'}</button
+					>
+				</div>
+			{/if}
 
 			<div class="mb-6 flex items-center gap-3">
 				<span class="text-sm text-zinc-400">Volumen</span>

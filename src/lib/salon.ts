@@ -16,9 +16,15 @@ export interface RemoteState {
 	/** Something is loaded (playing or paused). */
 	active: boolean;
 	movieId: number | null;
+	episodeId: number | null;
 	title: string | null;
+	/** Above the title, e.g. the series and episode number. */
+	subtitle: string | null;
 	/** The Cine Club intro is on before the film (`title`); it can be skipped. */
 	intro: boolean;
+	/** Where mpv's playlist is, from 1; more than one item with episodes and with the intro. */
+	playlistPos: number | null;
+	playlistCount: number | null;
 	paused: boolean;
 	positionSec: number | null;
 	durationSec: number | null;
@@ -35,5 +41,6 @@ export type RemoteAction =
 	| { action: 'volume'; value: number }
 	| { action: 'audio'; value: number }
 	| { action: 'subtitle'; value: number | null }
-	| { action: 'skip' }
+	| { action: 'next' }
+	| { action: 'previous' }
 	| { action: 'stop' };

@@ -17,9 +17,15 @@ export const legacyVideoFile = (episodeId: number) =>
 /** Where DATA_DIR is on this PC: DATA_DIR itself in development, HOST_DATA_DIR in the container. */
 const hostDataRoot = dev ? dataRoot : HOST_DATA_DIR;
 
+/** A file of the episode's HLS output as a path on the host, e.g. its subtitles. */
+export const hostHlsFile = (episodeId: number, file: string) =>
+	hostDataRoot && path.join(hostDataRoot, 'hls', String(episodeId), file);
+
 /** The episode's HLS playlist as a path on the host, to open with mpv or another native player. */
-export const hostPlaylist = (episodeId: number) =>
-	hostDataRoot && path.join(hostDataRoot, 'hls', String(episodeId), 'master.m3u8');
+export const hostPlaylist = (episodeId: number) => hostHlsFile(episodeId, 'master.m3u8');
+
+/** mpv on the host can open episodes: it needs to know where DATA_DIR is there. */
+export const hostEpisodesReady = Boolean(hostDataRoot && path.isAbsolute(hostDataRoot));
 
 /** The Cine Club intro played before films in the living room; put there by hand, never in git. */
 export const introFile = path.join(dataRoot, 'cortinilla.mp4');
