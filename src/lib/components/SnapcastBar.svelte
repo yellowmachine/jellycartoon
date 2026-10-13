@@ -2,10 +2,13 @@
 	import { formatDuration } from '#lib/format.ts';
 	import { coverUrl } from '#lib/music.ts';
 	import { musicTarget, watchSnapcast } from '#lib/music-target.svelte.ts';
+	import { COUNTRIES } from '#lib/radio.ts';
 
 	const snapcast = watchSnapcast();
 	const snap = $derived(snapcast.state);
 	const track = $derived(snap?.track);
+	/** A station is live: no position, no previous or next. */
+	const radio = $derived(snap?.radio);
 
 	const control =
 		'flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-zinc-800';
@@ -118,22 +121,32 @@
 				{/if}
 			</div>
 		{/if}
-		<input
-			type="range"
-			min="0"
-			max={snap.durationSec ?? track?.durationSec ?? 0}
-			step="1"
-			value={snap.positionSec ?? 0}
-			aria-label="Posición"
-			class="mb-1 block h-1 w-full accent-amber-500"
-			onchange={(e) => musicTarget.send({ action: 'seekTo', value: Number(e.currentTarget.value) })}
-		/>
+		{#if !radio}
+			<input
+				type="range"
+				min="0"
+				max={snap.durationSec ?? track?.durationSec ?? 0}
+				step="1"
+				value={snap.positionSec ?? 0}
+				aria-label="Posición"
+				class="mb-1 block h-1 w-full accent-amber-500"
+				onchange={(e) =>
+					musicTarget.send({ action: 'seekTo', value: Number(e.currentTarget.value) })}
+			/>
+		{/if}
 		<div class="flex items-center gap-3">
 			<a
-				href={track ? `/musica/${track.albumId}` : '/musica'}
+				href={radio ? '/radio' : track ? `/musica/${track.albumId}` : '/musica'}
 				class="flex min-w-0 flex-1 items-center gap-3"
 			>
-				{#if track?.hasCover}
+				{#if radio?.favicon}
+					<img
+						src={radio.favicon}
+						alt=""
+						class="h-10 w-10 shrink-0 rounded bg-white object-contain p-0.5"
+						onerror={(e) => e.currentTarget.classList.add('invisible')}
+					/>
+				{:else if track?.hasCover}
 					<img
 						src={coverUrl(track.albumId)}
 						alt=""
@@ -147,35 +160,45 @@
 				<span class="min-w-0">
 					<span class="block truncate text-sm">
 						<span class="text-amber-400">Snapcast:</span>
-						{track?.title ?? '…'}
+						{radio?.name ?? track?.title ?? '…'}
 					</span>
-					{#if track}
+					{#if radio}
+						<!-- What the station says is on, when it says it (not all do). -->
+						<span class="block truncate text-xs text-zinc-400" title={snap.nowPlaying}>
+							<span class="text-red-400">●</span>
+							{snap.nowPlaying ?? `En directo · ${COUNTRIES[radio.country] ?? radio.country}`}
+						</span>
+					{:else if track}
 						<span class="block truncate text-xs text-zinc-400">{track.artist} · {track.album}</span>
 					{/if}
 				</span>
 			</a>
-			<span class="hidden font-mono text-xs text-zinc-400 tabular-nums sm:inline">
-				{formatDuration(snap.positionSec) || '0:00'} / {formatDuration(
-					snap.durationSec ?? track?.durationSec
-				)}
-			</span>
-			<button
-				class={control}
-				aria-label="Anterior"
-				onclick={() => musicTarget.send({ action: 'previous' })}>{'⏮︎'}</button
-			>
+			{#if !radio}
+				<span class="hidden font-mono text-xs text-zinc-400 tabular-nums sm:inline">
+					{formatDuration(snap.positionSec) || '0:00'} / {formatDuration(
+						snap.durationSec ?? track?.durationSec
+					)}
+				</span>
+				<button
+					class={control}
+					aria-label="Anterior"
+					onclick={() => musicTarget.send({ action: 'previous' })}>{'⏮\uFE0E'}</button
+				>
+			{/if}
 			<button
 				class="{control} bg-amber-500 text-zinc-950 hover:bg-amber-400"
 				aria-label={snap.paused ? 'Seguir' : 'Pausa'}
 				onclick={() => musicTarget.send({ action: 'pause', value: !snap.paused })}
-				>{snap.paused ? '▶︎' : '❚❚'}</button
+				>{snap.paused ? '▶\uFE0E' : '❚❚'}</button
 			>
-			<button
-				class={control}
-				aria-label="Siguiente"
-				disabled={snap.playlistPos !== null && snap.playlistPos >= (snap.playlistCount ?? 0)}
-				onclick={() => musicTarget.send({ action: 'next' })}>{'⏭︎'}</button
-			>
+			{#if !radio}
+				<button
+					class={control}
+					aria-label="Siguiente"
+					disabled={snap.playlistPos !== null && snap.playlistPos >= (snap.playlistCount ?? 0)}
+					onclick={() => musicTarget.send({ action: 'next' })}>{'⏭\uFE0E'}</button
+				>
+			{/if}
 			<button
 				class={[control, showSpeakers ? 'text-amber-400' : 'text-zinc-400 hover:text-white']}
 				aria-label="Altavoces"

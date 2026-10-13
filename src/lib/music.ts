@@ -1,3 +1,5 @@
+import type { RadioStream } from '#lib/radio.ts';
+
 /** Music, shared by the server and the pages. */
 
 export interface MusicTrack {
@@ -42,6 +44,10 @@ export interface SnapcastState {
 	/** Something is loaded (playing or paused). */
 	active: boolean;
 	track: MusicTrack | null;
+	/** A station instead of a track. */
+	radio: RadioStream | null;
+	/** What the station says is on now (its ICY title), when it says so. */
+	nowPlaying: string | null;
 	paused: boolean;
 	positionSec: number | null;
 	durationSec: number | null;
@@ -55,6 +61,7 @@ export interface SnapcastState {
 export type SnapcastAction =
 	| { action: 'play'; trackIds: number[]; start: number }
 	| { action: 'append'; trackIds: number[] }
+	| { action: 'radio'; uuid: string }
 	| { action: 'pause'; value: boolean }
 	| { action: 'seekTo'; value: number }
 	| { action: 'next' }

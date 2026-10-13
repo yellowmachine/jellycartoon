@@ -1,23 +1,21 @@
 <script lang="ts">
+	import MusicTargetSwitch from '#lib/components/MusicTargetSwitch.svelte';
 	import { music } from '#lib/music-player.svelte.ts';
+	import { musicTarget } from '#lib/music-target.svelte.ts';
 	import { COUNTRIES, LANGUAGES, STATIONS, type RadioStation } from '#lib/radio.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
 	let loading = $state<string | null>(null);
-	let error = $state<string | null>(null);
+
+	/** Only where Snapcast is set up; elsewhere, always this device. */
+	const toSnapcast = $derived(data.snapcast && musicTarget.value === 'snapcast');
 
 	async function play(station: RadioStation) {
 		loading = station.uuid;
-		error = null;
-		const res = await fetch(`/api/radio/${station.uuid}`).catch(() => null);
+		await musicTarget.playRadio(station.uuid, toSnapcast);
 		loading = null;
-		if (!res?.ok) {
-			error = (await res?.json().catch(() => null))?.message ?? 'Sin conexión';
-			return;
-		}
-		music.playRadio(await res.json());
 	}
 </script>
 
@@ -35,8 +33,10 @@
 		No se puede consultar Radio Browser ahora mismo: puede que no suenen.
 	</p>
 {/if}
-{#if error}
-	<p class="mb-4 text-sm text-red-400">{error}</p>
+{#if data.snapcast}
+	<div class="mb-6"><MusicTargetSwitch /></div>
+{:else if musicTarget.error}
+	<p class="mb-4 text-sm text-red-400">{musicTarget.error}</p>
 {/if}
 
 {#each LANGUAGES as language (language.code)}

@@ -3,13 +3,14 @@ import { MUSIC_MPV_SOCKET, SNAPSERVER_CONTROL } from '$app/env/private';
 import { log } from '#lib/server/log.ts';
 import { MpvClient, StateBroadcast, type MpvMessage } from '#lib/server/mpv-client.ts';
 import type { MusicTrack, SnapcastAction, SnapcastState } from '#lib/music.ts';
+import type { RadioStream } from '#lib/radio.ts';
 import { SnapserverControl } from './snapserver.ts';
 
 /**
  * Music on Snapcast (https://github.com/badaix/snapcast): an mpv left waiting at MUSIC_MPV_SOCKET
  * whose output is the FIFO of snapserver's `pipe` source, as in Snapcast's player setup
- * (doc/player_setup.md). The app queues albums in it and follows what it plays. mpv keeps that
- * output open from one track to the next, so albums play without gaps.
+ * (doc/player_setup.md). The app queues albums in it, or opens a radio station, and follows what
+ * it plays. mpv keeps that output open from one track to the next, so albums play without gaps.
  */
 
 export const snapcastEnabled = Boolean(MUSIC_MPV_SOCKET);
@@ -17,8 +18,9 @@ export const snapcastEnabled = Boolean(MUSIC_MPV_SOCKET);
 /** Its mpv is there (the optional Snapcast services are running): Snapcast is offered. */
 export const snapcastReady = () => snapcastEnabled && existsSync(MUSIC_MPV_SOCKET!);
 
-/** The track of each of mpv's playlist entries. */
-const entries = new Map<number, MusicTrack>();
+/** What each of mpv's playlist entries is: a track, or a station. */
+type Entry = { track: MusicTrack } | { radio: RadioStream };
+const entries = new Map<number, Entry>();
 /** The entry playing now. */
 let current: number | null = null;
 
@@ -26,6 +28,8 @@ const state: SnapcastState = {
 	available: false,
 	active: false,
 	track: null,
+	radio: null,
+	nowPlaying: null,
 	paused: false,
 	positionSec: null,
 	durationSec: null,
@@ -35,6 +39,16 @@ const state: SnapcastState = {
 };
 
 const pages = new StateBroadcast(state);
+
+/** What the remotes show of the entry now playing. */
+function show(entry: Entry | undefined) {
+	Object.assign(state, {
+		track: entry && 'track' in entry ? entry.track : null,
+		radio: entry && 'radio' in entry ? entry.radio : null,
+		nowPlaying: null
+	});
+	pages.notify();
+}
 
 /** The speakers: only with SNAPSERVER_CONTROL. */
 const control = SNAPSERVER_CONTROL
@@ -50,7 +64,16 @@ const control = SNAPSERVER_CONTROL
 
 const mpv = new MpvClient(
 	MUSIC_MPV_SOCKET ?? '',
-	['idle-active', 'pause', 'time-pos', 'duration', 'playlist-pos', 'playlist-count'],
+	[
+		'idle-active',
+		'pause',
+		'time-pos',
+		'duration',
+		'playlist-pos',
+		'playlist-count',
+		// What many stations say is on (Icecast/Shoutcast's StreamTitle): the song or the programme.
+		'metadata/by-key/icy-title'
+	],
 	{
 		onConnect() {
 			state.available = true;
@@ -59,7 +82,13 @@ const mpv = new MpvClient(
 		onClose() {
 			entries.clear();
 			current = null;
-			Object.assign(state, { available: false, active: false, track: null });
+			Object.assign(state, {
+				available: false,
+				active: false,
+				track: null,
+				radio: null,
+				nowPlaying: null
+			});
 			pages.notify();
 		},
 		onProperty(name, data) {
@@ -67,7 +96,8 @@ const mpv = new MpvClient(
 			switch (name) {
 				case 'idle-active':
 					state.active = data === false;
-					if (!state.active) Object.assign(state, { track: null, positionSec: null });
+					if (!state.active)
+						Object.assign(state, { track: null, radio: null, nowPlaying: null, positionSec: null });
 					break;
 				case 'pause':
 					state.paused = data === true;
@@ -84,14 +114,16 @@ const mpv = new MpvClient(
 				case 'playlist-count':
 					state.playlistCount = number;
 					break;
+				case 'metadata/by-key/icy-title':
+					state.nowPlaying = typeof data === 'string' && data.trim() ? data.trim() : null;
+					break;
 			}
 			pages.notify();
 		},
 		onEvent(message: MpvMessage) {
 			if (message.event === 'start-file' && message.playlist_entry_id !== undefined) {
 				current = message.playlist_entry_id;
-				state.track = entries.get(current) ?? null;
-				pages.notify();
+				show(entries.get(current));
 			}
 		}
 	},
@@ -107,21 +139,31 @@ export function watchSnapcast(listener: (state: SnapcastState) => void) {
 	return unwatch;
 }
 
-/** Adds one track to mpv's playlist; `insert-at` needs mpv 0.38 or later. */
-async function load(
-	track: MusicTrack,
-	path: string,
+/** Adds a track or a station to mpv's playlist; `insert-at` needs mpv 0.38 or later. */
+async function loadEntry(
+	entry: Entry,
+	url: string,
 	how: { flags: 'replace' | 'append-play' } | { flags: 'insert-at'; index: number }
 ) {
-	const result = (await mpv.command({ name: 'loadfile', url: path, ...how })) as {
+	const result = (await mpv.command({ name: 'loadfile', url, ...how })) as {
 		playlist_entry_id: number;
 	};
-	entries.set(result.playlist_entry_id, track);
+	entries.set(result.playlist_entry_id, entry);
 	// start-file may have arrived before the entry was known.
-	if (current === result.playlist_entry_id) {
-		state.track = track;
-		pages.notify();
-	}
+	if (current === result.playlist_entry_id) show(entry);
+}
+
+const load = (track: MusicTrack, path: string, how: Parameters<typeof loadEntry>[2]) =>
+	loadEntry({ track }, path, how);
+
+/**
+ * A station, instead of whatever was on. mpv opens its stream as it is, HLS too; the container
+ * needs the network for it.
+ */
+export async function radioOnSnapcast(stream: RadioStream) {
+	entries.clear();
+	await loadEntry({ radio: stream }, stream.url, { flags: 'replace' });
+	log.info('música', `En Snapcast: ${stream.name}`, { url: stream.url });
 }
 
 /**
@@ -150,16 +192,24 @@ export async function queueOnSnapcast(
 }
 
 export async function controlSnapcast(
-	action: Exclude<SnapcastAction, { action: 'play' } | { action: 'append' }>
+	action: Exclude<SnapcastAction, { action: 'play' } | { action: 'append' } | { action: 'radio' }>
 ) {
 	switch (action.action) {
 		case 'pause':
+			// A station connects again: back to live, not to where it was paused.
+			// Loading it again does not unpause mpv: that goes first.
+			if (!action.value && state.radio) {
+				await mpv.command(['set_property', 'pause', false]);
+				return radioOnSnapcast(state.radio);
+			}
 			return mpv.command(['set_property', 'pause', action.value]);
 		case 'seekTo':
 			return mpv.command(['seek', action.value, 'absolute']);
 		case 'next':
+			if (state.radio) return;
 			return mpv.command(['playlist-next']);
 		case 'previous':
+			if (state.radio) return;
 			// Like the browser's: past the first seconds, back to the start of the track.
 			return (state.positionSec ?? 0) > 3 || state.playlistPos === 1
 				? mpv.command(['seek', 0, 'absolute'])

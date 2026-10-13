@@ -107,7 +107,7 @@ services:
     profiles: [snapcast]
     restart: unless-stopped
     user: '${PUID:-1000}:${PGID:-1000}'
-    network_mode: none
+    # The default network: radio stations are streamed from the internet.
     depends_on:
       snapserver:
         condition: service_healthy

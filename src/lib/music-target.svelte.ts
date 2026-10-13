@@ -37,6 +37,21 @@ class MusicTarget {
 		await this.send({ action: 'play', trackIds: tracks.map((t) => t.id), start });
 	}
 
+	/** A radio station: its stream is asked for when it is played, on the server for Snapcast. */
+	async playRadio(uuid: string, snapcast = this.value === 'snapcast') {
+		if (snapcast) {
+			music.stop();
+			return this.send({ action: 'radio', uuid });
+		}
+		const res = await fetch(`/api/radio/${uuid}`).catch(() => null);
+		if (!res?.ok) {
+			this.error = (await res?.json().catch(() => null))?.message ?? 'Sin conexión';
+			return;
+		}
+		this.error = null;
+		music.playRadio(await res.json());
+	}
+
 	async append(tracks: MusicTrack[], snapcast = this.value === 'snapcast') {
 		if (!snapcast) return music.append(tracks);
 		await this.send({ action: 'append', trackIds: tracks.map((t) => t.id) });

@@ -13,6 +13,7 @@ const FALLBACK_SERVER = 'de1.api.radio-browser.info';
 
 interface Station {
 	stationuuid: string;
+	url: string;
 	url_resolved: string;
 	favicon: string;
 	hls: number;
@@ -79,13 +80,17 @@ export async function streamFor(uuid: string): Promise<RadioStream | null> {
 	if (!station) return null;
 	const [found] = await byUuid([uuid]);
 	if (!found?.url_resolved) return null;
+	// The station's own link, which may redirect with a fresh token each time (RTVE's dispatcher);
+	// the resolved one only when the link is a playlist file the browser cannot open.
+	const playlistFile = /\.(pls|m3u|asx|xspf)(\?|$)/i.test(found.url);
+	const url = found.url && !playlistFile ? found.url : found.url_resolved;
 	void api(`/json/url/${uuid}`).catch(() => {});
 	return {
 		uuid,
 		name: station.name,
 		country: station.country,
 		favicon: found.favicon || null,
-		url: found.url_resolved,
+		url,
 		hls: found.hls === 1
 	};
 }

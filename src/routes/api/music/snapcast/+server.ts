@@ -5,7 +5,13 @@ import { db } from '#lib/server/db/index.ts';
 import { track } from '#lib/server/db/schema.ts';
 import { musicFile } from '#lib/server/library/paths.ts';
 import { getAlbums } from '#lib/server/music/albums.ts';
-import { controlSnapcast, queueOnSnapcast, snapcastEnabled } from '#lib/server/music/snapcast.ts';
+import {
+	controlSnapcast,
+	queueOnSnapcast,
+	radioOnSnapcast,
+	snapcastEnabled
+} from '#lib/server/music/snapcast.ts';
+import { streamFor } from '#lib/server/radio.ts';
 import type { MusicTrack, SnapcastAction } from '#lib/music.ts';
 
 const isIds = (value: unknown): value is number[] =>
@@ -13,7 +19,7 @@ const isIds = (value: unknown): value is number[] =>
 
 /** Only well-formed commands reach mpv. */
 function parse(body: Record<string, unknown>): SnapcastAction | null {
-	const { action, value, trackIds, start, speakerId, name } = body;
+	const { action, value, trackIds, start, speakerId, name, uuid } = body;
 	switch (action) {
 		case 'play':
 			return isIds(trackIds) && Number.isInteger(start)
@@ -21,6 +27,8 @@ function parse(body: Record<string, unknown>): SnapcastAction | null {
 				: null;
 		case 'append':
 			return isIds(trackIds) ? { action, trackIds } : null;
+		case 'radio':
+			return typeof uuid === 'string' ? { action, uuid } : null;
 		case 'pause':
 			return typeof value === 'boolean' ? { action, value } : null;
 		case 'seekTo':
@@ -70,7 +78,12 @@ export const POST: RequestHandler = async ({ request }) => {
 	const remote = parse(await request.json());
 	if (!remote) error(400, 'Orden no válida');
 	try {
-		if (remote.action === 'play' || remote.action === 'append') {
+		if (remote.action === 'radio') {
+			// Only our stations, and their stream as Radio Browser has it now.
+			const stream = await streamFor(remote.uuid);
+			if (!stream) error(404, 'Emisora no encontrada');
+			await radioOnSnapcast(stream);
+		} else if (remote.action === 'play' || remote.action === 'append') {
 			const tracks = await resolve(remote.trackIds);
 			if (!tracks.length) error(400, 'No hay canciones que poner');
 			await queueOnSnapcast(tracks, {
