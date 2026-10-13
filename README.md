@@ -277,8 +277,19 @@ altavoces que tengan snapclient (una Raspberry, Snapdroid en el móvil…). Con
 - `snapserver`, con una fuente `pipe` en `HOST_DATA_DIR/snapfifo` (44,1 kHz, como los CD) y su
   estado en `HOST_DATA_DIR/snapserver`. Va en la red del host: los clientes conectan a los
   puertos 1704 (audio) y 1705/1780 (control). Se anuncia por mDNS a través del Avahi del host
-  (monta `/run/dbus`); si el host no tiene Avahi, a los clientes se les da el nombre del equipo
-  (`snapclient -h salon.local`).
+  (monta `/run/dbus`); si el host no tiene Avahi, a los clientes se les da la dirección del equipo
+  (`snapclient tcp://salon.local:1704`, o con su IP si el nombre resuelve a una IPv6 `fe80::` que
+  no conecta).
+- **Cortafuegos:** al ir en la red del host, Docker no le abre puertos como hace con los publicados
+  (`ports:`). Con ufw, por ejemplo, para la red local:
+  `sudo ufw allow from 192.168.68.0/24 to any port 1704:1705 proto tcp`, lo mismo para el 1780, y
+  `5353/udp` para que los clientes lo encuentren por mDNS. Si no, los clientes se quedan
+  «Connecting…» sin error. La app también tiene que llegar al 1705, pero desde la red de Docker,
+  no desde la local: con la subred que da
+  `docker network inspect jellycartoon_default -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}'`,
+  `sudo ufw allow from 172.18.0.0/16 to any port 1705 proto tcp`. Si no, el panel 🔈 dice que no
+  puede conectar con el control de snapserver.
+- En un PC con PipeWire, el cliente va mejor con su salida por defecto: `snapclient -s default …`.
 - `mpv-music`, un mpv sin ventana que escribe en esa FIFO, como en la
   [guía de Snapcast](https://github.com/badaix/snapcast/blob/develop/doc/player_setup.md), y que
   la app controla por `HOST_DATA_DIR/mpv-music.sock`. Mantiene la salida abierta entre canciones,

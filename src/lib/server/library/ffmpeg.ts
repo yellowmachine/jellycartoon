@@ -1,7 +1,9 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { setPriority } from 'node:os';
 import { AUDIO_LANG, X264_CRF, X264_PRESET } from '$app/env/private';
 import { languageLabel, normalizeLang, type AudioTrack } from '#lib/languages.ts';
 import { chapterTitle, type Chapter } from '#lib/scenes.ts';
+import { log } from '#lib/server/log.ts';
 
 interface ProbeStream {
 	index: number;
@@ -54,6 +56,15 @@ export function run(
 			killSignal: 'SIGKILL'
 		});
 		if (options.pausable !== false) {
+			// The worker's (conversions) at the lowest priority: they only take the CPU nobody else
+			// wants, so the music on Snapcast, the app and the rest of the PC keep going smoothly.
+			if (child.pid !== undefined) {
+				try {
+					setPriority(child.pid, 19);
+				} catch (error) {
+					log.warn('worker', 'No se pudo bajar la prioridad de ffmpeg', { error });
+				}
+			}
 			children.add(child);
 			for (const event of ['close', 'error']) child.on(event, () => children.delete(child));
 			if (suspended) child.kill('SIGSTOP');
