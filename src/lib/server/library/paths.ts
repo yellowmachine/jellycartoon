@@ -1,7 +1,14 @@
 import { access, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { dev } from '$app/env';
-import { CINEMA_DIR, DATA_DIR, HOST_CINEMA_DIR, HOST_DATA_DIR, MEDIA_DIR } from '$app/env/private';
+import {
+	CINEMA_DIR,
+	DATA_DIR,
+	HOST_CINEMA_DIR,
+	HOST_DATA_DIR,
+	MEDIA_DIR,
+	MUSIC_DIR
+} from '$app/env/private';
 
 export const mediaRoot = path.resolve(MEDIA_DIR);
 export const dataRoot = path.resolve(DATA_DIR);
@@ -52,6 +59,13 @@ export const hostCinemaRoot = dev ? cinemaRoot : (HOST_CINEMA_DIR ?? null);
 /** The film as a path on the host, which is what mpv there needs. */
 export const hostMoviePath = (relative: string) =>
 	hostCinemaRoot ? path.join(hostCinemaRoot, relative) : null;
+
+/** Music folder; null when there is no Música section. */
+export const musicRoot = MUSIC_DIR ? path.resolve(MUSIC_DIR) : null;
+export const musicFile = (relative: string) => path.join(musicRoot!, relative);
+/** Front covers from the Cover Art Archive. */
+export const albumCoverFile = (albumId: number) =>
+	path.join(dataRoot, 'album-cover', `${albumId}.jpg`);
 
 /** Everything converted for an episode; the original in MEDIA_DIR is left alone. */
 export async function removeEpisodeOutput(episodeId: number) {

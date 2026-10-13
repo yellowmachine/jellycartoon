@@ -1,6 +1,7 @@
 <script lang="ts">
 	import './layout.css';
 	import favicon from '#lib/assets/favicon.svg';
+	import MusicBar from '#lib/components/MusicBar.svelte';
 	import SalonBar from '#lib/components/SalonBar.svelte';
 	import { page } from '$app/state';
 	import type { LayoutProps } from './$types';
@@ -10,6 +11,7 @@
 	const links = $derived([
 		{ href: '/', label: 'Series' },
 		...(data.cinema ? [{ href: '/cine', label: 'Cine' }] : []),
+		...(data.music ? [{ href: '/musica', label: 'Música' }] : []),
 		...(data.salon ? [{ href: '/salon', label: 'Salón' }] : []),
 		{ href: '/today', label: 'Hoy' },
 		{ href: '/lists', label: 'Listas' },
@@ -108,8 +110,17 @@
 <!-- overflow-x-clip: the "cinema" player is 100vw wide, which includes the scrollbar. -->
 <main class="mx-auto max-w-6xl overflow-x-clip px-4 py-6">
 	{@render children()}
-	<!-- What is on in the living room, everywhere but its remote. -->
-	{#if data.user && data.salon && !isCurrent('/salon')}
-		<SalonBar />
-	{/if}
 </main>
+
+<!-- Stays on while moving around: what is on in the living room, and the music in this browser. -->
+{#if data.user}
+	<div class="sticky bottom-0 z-10 mx-auto flex max-w-6xl flex-col gap-1 px-4">
+		<!-- Everywhere but its remote. -->
+		{#if data.salon && !isCurrent('/salon')}
+			<SalonBar />
+		{/if}
+		{#if data.music}
+			<MusicBar />
+		{/if}
+	</div>
+{/if}

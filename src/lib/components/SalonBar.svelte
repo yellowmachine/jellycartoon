@@ -9,7 +9,7 @@
 <!-- Only while something is on screen in the living room. -->
 {#if mpv?.active}
 	<div
-		class="sticky bottom-0 z-10 mt-6 flex items-center gap-3 rounded-t-md border border-zinc-700 bg-zinc-950/95 p-3 backdrop-blur"
+		class="flex items-center gap-3 rounded-t-md border border-zinc-700 bg-zinc-950/95 p-3 backdrop-blur"
 	>
 		<button
 			class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500 text-zinc-950 hover:bg-amber-400"

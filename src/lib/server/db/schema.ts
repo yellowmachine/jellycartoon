@@ -375,4 +375,55 @@ export const userSettings = pgTable('user_settings', {
 	activeListId: integer('active_list_id').references(() => userList.id, { onDelete: 'set null' })
 });
 
+/** `ignored`: no album tag, e.g. a download rather than a CD rip; not shown. */
+export const trackStatus = pgEnum('track_status', ['pending', 'ready', 'ignored', 'error']);
+
+/** `not_found`: neither MusicBrainz nor the Cover Art Archive had it. */
+export const coverStatus = pgEnum('cover_status', ['pending', 'found', 'not_found']);
+
+/** A folder of MUSIC_DIR: one album, or one disc of a double album. */
+export const album = pgTable('album', {
+	id: serial('id').primaryKey(),
+	/** Relative to MUSIC_DIR. */
+	folder: text('folder').notNull().unique(),
+	/** From its tracks' tags, refreshed as they are read. */
+	title: text('title').notNull(),
+	artist: text('artist').notNull(),
+	/** MusicBrainz disc id, from the CDTOC tag some rippers (fre:ac) write. */
+	discId: text('disc_id'),
+	coverStatus: coverStatus('cover_status').notNull().default('pending'),
+	updatedAt: timestamp('updated_at')
+		.notNull()
+		.defaultNow()
+		.$onUpdate(() => new Date())
+});
+
+/** A FLAC file in MUSIC_DIR; its tags are read in the background after a scan. */
+export const track = pgTable(
+	'track',
+	{
+		id: serial('id').primaryKey(),
+		/** Known once its tags are read. */
+		albumId: integer('album_id').references(() => album.id, { onDelete: 'set null' }),
+		/** Relative to MUSIC_DIR. */
+		path: text('path').notNull().unique(),
+		size: bigint('size', { mode: 'number' }).notNull(),
+		mtime: timestamp('mtime').notNull(),
+		/** Set when the file is missing from the last scan. */
+		missing: boolean('missing').notNull().default(false),
+		status: trackStatus('status').notNull().default('pending'),
+		error: text('error'),
+		/** From the tags; the file name until they are read. */
+		title: text('title').notNull(),
+		artist: text('artist'),
+		/** ALBUMARTIST, when the ripper wrote it. */
+		albumArtist: text('album_artist'),
+		/** ALBUM as tagged: the album's title comes from it. */
+		albumTitle: text('album_title'),
+		number: integer('number'),
+		durationSec: real('duration_sec')
+	},
+	(t) => [index('track_album_idx').on(t.albumId, t.number)]
+);
+
 export * from './auth.schema';

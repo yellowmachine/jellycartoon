@@ -21,7 +21,7 @@ interface ProbeStream {
 
 export interface Probe {
 	streams: ProbeStream[];
-	format: { format_name: string; duration?: string };
+	format: { format_name: string; duration?: string; tags?: Record<string, string> };
 	chapters?: { start_time: string; tags?: { title?: string } }[];
 }
 

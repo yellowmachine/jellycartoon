@@ -5,7 +5,8 @@ import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { auth } from '#lib/server/auth.ts';
 import { startWorker } from '#lib/server/library/worker.ts';
 import { wakeCatalog } from '#lib/server/cinema/catalog.ts';
-import { cinemaRoot } from '#lib/server/library/paths.ts';
+import { wakeMusicCatalog } from '#lib/server/music/catalog.ts';
+import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
 import { log, startLogCleanup } from '#lib/server/log.ts';
 
 export const init: ServerInit = async () => {
@@ -13,6 +14,8 @@ export const init: ServerInit = async () => {
 	startLogCleanup();
 	// Films left half catalogued by a restart.
 	if (cinemaRoot) wakeCatalog();
+	// Tracks whose tags were not read yet, and covers not looked up.
+	if (musicRoot) wakeMusicCatalog();
 	await startWorker();
 };
 

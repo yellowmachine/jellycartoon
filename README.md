@@ -242,6 +242,28 @@ systemctl --user enable --now jellycartoon-mpv
   `data/` está en `.gitignore`.
 - Si no se ve nada: `systemctl --user status jellycartoon-mpv` y el Registro de la app.
 
+### Música
+
+Una carpeta de música ripeada de CD, en FLAC con sus etiquetas, que se escucha en el navegador.
+Con `HOST_MUSIC_DIR="/ruta/a/la/musica"` en el `.env` se monta de solo lectura y aparece la
+sección Música; en desarrollo se usa `MUSIC_DIR`.
+
+- «Escanear carpeta» busca los FLAC de la carpeta y sus subcarpetas, y en segundo plano lee sus
+  etiquetas. Solo se catalogan los que tienen etiqueta de álbum: las descargas de YouTube (que no
+  la tienen, y cuyo nombre acaba con el id del vídeo, `[ix5Ntnavdgg]`) se dejan fuera solas.
+- Cada carpeta es un álbum, y cada CD de un disco doble, uno aparte. El título sale de la etiqueta
+  ALBUM; el artista, de ALBUMARTIST, o del artista de todas las pistas, o «Varios artistas».
+- Las portadas se buscan en [MusicBrainz](https://musicbrainz.org/doc/MusicBrainz_API) (por el
+  id del disco si el ripeador escribió `CDTOC`, como fre:ac; si no, por título y artista) y se
+  descargan del [Cover Art Archive](https://musicbrainz.org/doc/Cover_Art_Archive/API) a
+  `DATA_DIR/album-cover`. MusicBrainz admite una petición por segundo: la primera vez tarda.
+- El buscador ([MiniSearch](https://lucaong.github.io/minisearch/)) busca en el navegador, mientras
+  escribes, en artistas, álbumes y canciones, sin importar tildes ni pequeñas erratas.
+- Los FLAC se mandan tal cual: los navegadores actuales los reproducen. La barra de abajo sigue
+  sonando al cambiar de página, y se controla también desde la pantalla de bloqueo del móvil y los
+  botones de los auriculares ([Media Session](https://developer.mozilla.org/docs/Web/API/Media_Session_API)).
+- Entre canción y canción hay un pequeño silencio (el navegador no hace «gapless»).
+
 ## Copia de seguridad
 
 Qué hay que guardar:

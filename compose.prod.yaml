@@ -45,6 +45,8 @@ services:
       # Optional films folder, catalogued but not converted: only with HOST_CINEMA_DIR.
       CINEMA_DIR: ${HOST_CINEMA_DIR:+/cinema}
       HOST_CINEMA_DIR: ${HOST_CINEMA_DIR:-}
+      # Optional music folder (FLAC ripped from CDs), played in the browser: only with HOST_MUSIC_DIR.
+      MUSIC_DIR: ${HOST_MUSIC_DIR:+/music}
       # mpv on this PC (deploy/jellycartoon-mpv.service) leaves its socket in HOST_DATA_DIR. On by
       # default with films; with series only, MPV_SOCKET=/data/mpv.sock in the .env.
       MPV_SOCKET: ${MPV_SOCKET:-${HOST_CINEMA_DIR:+/data/mpv.sock}}
@@ -64,6 +66,8 @@ services:
       # Read-only: films are never modified. Without HOST_CINEMA_DIR an empty folder is mounted
       # instead, and the app has no Cine section (CINEMA_DIR is unset).
       - ${HOST_CINEMA_DIR:-./no-cinema}:/cinema:ro
+      # Read-only too, and an empty folder without HOST_MUSIC_DIR (no Música section).
+      - ${HOST_MUSIC_DIR:-./no-music}:/music:ro
 
   # Reverse proxy in front of the app. Only a port, so plain HTTP (no automatic HTTPS). Passes
   # the Host header through and sets X-Forwarded-Proto, ignoring any sent by the client.
