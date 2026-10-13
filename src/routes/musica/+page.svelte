@@ -2,6 +2,7 @@
 	import MiniSearch from 'minisearch';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
+	import AddToPlaylist from '#lib/components/AddToPlaylist.svelte';
 	import AlbumCover from '#lib/components/AlbumCover.svelte';
 	import MusicTargetSwitch from '#lib/components/MusicTargetSwitch.svelte';
 	import { formatDuration } from '#lib/format.ts';
@@ -169,10 +170,10 @@
 		<h2 class="mb-3 text-lg font-semibold">Canciones</h2>
 		<ol class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
 			{#each results.tracks as t (t.id)}
-				<li>
+				<li class="flex items-center pr-1">
 					<button
 						class={[
-							'flex w-full items-center gap-3 p-2 text-left hover:bg-zinc-900',
+							'flex min-w-0 flex-1 items-center gap-3 p-2 text-left hover:bg-zinc-900',
 							music.current?.id === t.id && 'text-amber-400'
 						]}
 						onclick={() => playTrack(t)}
@@ -187,6 +188,7 @@
 						</span>
 						<span class="text-xs text-zinc-500">{formatDuration(t.durationSec)}</span>
 					</button>
+					<AddToPlaylist trackId={t.id} key="search-{t.id}" playlists={data.playlists} />
 				</li>
 			{/each}
 		</ol>

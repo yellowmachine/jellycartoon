@@ -426,4 +426,27 @@ export const track = pgTable(
 	(t) => [index('track_album_idx').on(t.albumId, t.number)]
 );
 
+/** A playlist of tracks, shared by the whole house. */
+export const musicPlaylist = pgTable('music_playlist', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	createdAt: timestamp('created_at').notNull().defaultNow()
+});
+
+/** A track in a playlist; the same one can be there more than once. */
+export const musicPlaylistItem = pgTable(
+	'music_playlist_item',
+	{
+		id: serial('id').primaryKey(),
+		playlistId: integer('playlist_id')
+			.notNull()
+			.references(() => musicPlaylist.id, { onDelete: 'cascade' }),
+		trackId: integer('track_id')
+			.notNull()
+			.references(() => track.id, { onDelete: 'cascade' }),
+		position: integer('position').notNull()
+	},
+	(t) => [index('music_playlist_item_playlist_idx').on(t.playlistId, t.position)]
+);
+
 export * from './auth.schema';

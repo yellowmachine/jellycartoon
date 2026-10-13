@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AddToPlaylist from '#lib/components/AddToPlaylist.svelte';
 	import AlbumCover from '#lib/components/AlbumCover.svelte';
 	import MusicTargetSwitch from '#lib/components/MusicTargetSwitch.svelte';
 	import { formatDuration } from '#lib/format.ts';
@@ -47,10 +48,10 @@
 
 <ol class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
 	{#each album.tracks as t, i (t.id)}
-		<li>
+		<li class="flex items-center pr-1">
 			<button
 				class={[
-					'flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-zinc-900',
+					'flex min-w-0 flex-1 items-center gap-3 px-3 py-2 text-left hover:bg-zinc-900',
 					music.current?.id === t.id && 'text-amber-400'
 				]}
 				onclick={() => musicTarget.play(album.tracks, i, toSnapcast)}
@@ -66,6 +67,7 @@
 				</span>
 				<span class="text-xs text-zinc-500">{formatDuration(t.durationSec)}</span>
 			</button>
+			<AddToPlaylist trackId={t.id} key="album-{t.id}" playlists={data.playlists} />
 		</li>
 	{/each}
 </ol>
