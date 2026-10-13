@@ -5,6 +5,7 @@ import { db } from '#lib/server/db/index.ts';
 import { album, track } from '#lib/server/db/schema.ts';
 import { albumCoverFile } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
+import { musicProgress } from './status.ts';
 import { searchTitles, titlesMatch, VARIOUS_ARTISTS } from './tags.ts';
 
 /**
@@ -103,7 +104,9 @@ export async function findCovers() {
 			)
 		);
 
+	Object.assign(musicProgress, { phase: 'covers', coversDone: 0, coversTotal: pending.length });
 	for (const a of pending) {
+		musicProgress.coversDone++;
 		try {
 			let found = false;
 			const groups = new Set<string>();

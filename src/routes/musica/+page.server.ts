@@ -1,21 +1,31 @@
-import { error, fail } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
+import { and, eq } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
+import { db } from '#lib/server/db/index.ts';
+import { track } from '#lib/server/db/schema.ts';
 import { musicRoot } from '#lib/server/library/paths.ts';
-import { getAlbums, pendingTracks } from '#lib/server/music/albums.ts';
+import { getAlbums, musicTotals } from '#lib/server/music/albums.ts';
+import { wakeMusicCatalog } from '#lib/server/music/catalog.ts';
 import { scanMusic } from '#lib/server/music/scan.ts';
+import { musicProgress } from '#lib/server/music/status.ts';
 
 export const load: PageServerLoad = async () => {
 	if (!musicRoot) error(404, 'No hay carpeta de música (MUSIC_DIR)');
-	const [albums, pending] = await Promise.all([getAlbums(), pendingTracks()]);
-	return { albums, pending };
+	const [albums, totals] = await Promise.all([getAlbums(), musicTotals()]);
+	return { albums, totals, progress: { ...musicProgress } };
 };
 
 export const actions: Actions = {
+	/** Not waited for: the page follows it, also on other devices. */
 	scan: async () => {
-		try {
-			return { scan: await scanMusic() };
-		} catch (err) {
-			return fail(500, { message: err instanceof Error ? err.message : String(err) });
-		}
+		scanMusic().catch(() => {});
+		return { started: true };
+	},
+	retry: async () => {
+		await db
+			.update(track)
+			.set({ status: 'pending', error: null })
+			.where(and(eq(track.status, 'error'), eq(track.missing, false)));
+		void wakeMusicCatalog();
 	}
 };

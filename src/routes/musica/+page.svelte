@@ -11,17 +11,31 @@
 	import { musicTarget } from '#lib/music-target.svelte.ts';
 	import type { PageProps } from './$types';
 
-	let { data, form }: PageProps = $props();
+	let { data }: PageProps = $props();
 
 	let search = $state('');
-	let scanning = $state(false);
 
-	// While tags are being read, the page fills in by itself.
+	const progress = $derived(data.progress);
+	const totals = $derived(data.totals);
+	const busy = $derived(progress.phase !== 'idle' || totals.pending > 0);
+	/** Tags read so far, of every file found. */
+	const read = $derived(totals.ready + totals.ignored + totals.errors);
+
+	// While something is going on, the page follows it (also on other devices).
 	$effect(() => {
-		if (data.pending === 0) return;
+		if (!busy) return;
 		const timer = setInterval(() => invalidateAll(), 3000);
 		return () => clearInterval(timer);
 	});
+
+	const sinceScan = (at: number) => {
+		const minutes = Math.round((Date.now() - at) / 60_000);
+		return minutes < 1
+			? 'hace un momento'
+			: minutes < 60
+				? `hace ${minutes} min`
+				: `hace ${Math.round(minutes / 60)} h`;
+	};
 
 	interface Doc {
 		id: string;
@@ -113,22 +127,12 @@
 		aria-label="Buscar por artista, álbum o canción"
 		class="w-56 rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm"
 	/>
-	<form
-		method="post"
-		action="?/scan"
-		use:enhance={() => {
-			scanning = true;
-			return async ({ update }) => {
-				await update();
-				scanning = false;
-			};
-		}}
-	>
+	<form method="post" action="?/scan" use:enhance>
 		<button
-			disabled={scanning}
+			disabled={progress.phase === 'scanning'}
 			class="rounded-md bg-amber-500 px-3 py-1 text-sm font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
 		>
-			{scanning ? 'Escaneando…' : 'Escanear carpeta'}
+			{progress.phase === 'scanning' ? 'Escaneando…' : 'Escanear carpeta'}
 		</button>
 	</form>
 </div>
@@ -137,25 +141,85 @@
 	<div class="-mt-2 mb-6"><MusicTargetSwitch /></div>
 {/if}
 
-{#if form && 'message' in form && form.message}
-	<p class="-mt-4 mb-4 text-sm text-red-400">{form.message}</p>
-{/if}
-{#if form && 'scan' in form && form.scan}
-	<p class="-mt-4 mb-4 text-sm text-zinc-400">
-		{form.scan.added} nuevas · {form.scan.changed} cambiadas · {form.scan.missing} desaparecidas
-		{#if form.scan.waiting}
-			<br />{form.scan.waiting} aún se están copiando: vuelve a escanear en un minuto.
+<!-- Like Gestión: totals, what is going on now, and the errors. -->
+<details class="mb-6 rounded-md border border-zinc-800" open={busy || undefined}>
+	<summary class="cursor-pointer p-3 text-sm">
+		<span class="text-zinc-400">Catálogo:</span>
+		{#if progress.phase === 'scanning'}
+			<span class="text-amber-400">buscando ficheros… {progress.found} FLAC</span>
+		{:else if progress.phase === 'reading' || totals.pending}
+			<span class="text-amber-400">leyendo etiquetas · quedan {totals.pending}</span>
+		{:else if progress.phase === 'covers'}
+			<span class="text-amber-400"
+				>buscando portadas · {progress.coversDone} de {progress.coversTotal}</span
+			>
+		{:else}
+			{totals.ready} canciones · {totals.albums} álbumes
+			{#if totals.errors}<span class="text-red-400"> · {totals.errors} errores</span>{/if}
 		{/if}
-	</p>
-{/if}
-{#if data.pending}
-	<p class="mb-4 text-sm text-amber-400">
-		Leyendo etiquetas: quedan {data.pending}. Luego se buscan las portadas en MusicBrainz.
-	</p>
-{/if}
+	</summary>
+	<div class="border-t border-zinc-800 p-3">
+		{#if progress.phase === 'reading' || totals.pending}
+			<div class="mb-3 h-1.5 rounded bg-zinc-800">
+				<div
+					class="h-full rounded bg-amber-400"
+					style:width="{(read / (read + totals.pending || 1)) * 100}%"
+				></div>
+			</div>
+		{:else if progress.phase === 'covers'}
+			<div class="mb-3 h-1.5 rounded bg-zinc-800">
+				<div
+					class="h-full rounded bg-amber-400"
+					style:width="{(progress.coversDone / (progress.coversTotal || 1)) * 100}%"
+				></div>
+			</div>
+		{/if}
+		<dl class="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
+			{#each [['Canciones', totals.ready], ['Álbumes', totals.albums], ['Con portada', totals.found], ['Sin etiqueta de álbum', totals.ignored], ['Errores', totals.errors]] as [label, value] (label)}
+				<div class="rounded-md border border-zinc-800 p-2">
+					<dt class="text-xs text-zinc-400">{label}</dt>
+					<dd class="text-xl font-semibold">{value}</dd>
+				</div>
+			{/each}
+		</dl>
+		<p class="text-xs text-zinc-500">
+			{#if progress.lastScan}
+				Último escaneo {sinceScan(progress.lastScan.at)}: {progress.lastScan.added} nuevas · {progress
+					.lastScan.changed} cambiadas · {progress.lastScan.missing} desaparecidas
+				{#if progress.lastScan.waiting}
+					· {progress.lastScan.waiting} aún se están copiando: vuelve a escanear en un minuto.
+				{/if}
+			{/if}
+			{#if totals.notFound}
+				<br />{totals.notFound} álbumes sin portada en MusicBrainz.
+			{/if}
+			Las descargas (sin etiqueta de álbum, o con el id de YouTube en el nombre) no se catalogan.
+		</p>
+		{#if progress.lastError}
+			<p class="mt-2 text-sm text-red-400">No se pudo escanear: {progress.lastError}</p>
+		{/if}
+		{#if totals.errors}
+			<div class="mt-3">
+				<form method="post" action="?/retry" use:enhance class="mb-2">
+					<button class="rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900">
+						Reintentar errores
+					</button>
+				</form>
+				<ul class="space-y-1 text-xs">
+					{#each totals.errorsList as e (e.id)}
+						<li>
+							<span class="font-mono break-all">{e.path}</span>
+							<span class="block text-red-400">{e.error}</span>
+						</li>
+					{/each}
+				</ul>
+			</div>
+		{/if}
+	</div>
+</details>
 
 {#if data.albums.length === 0}
-	{#if !data.pending}
+	{#if !busy}
 		<p class="text-zinc-400">
 			No hay música todavía. Pulsa «Escanear carpeta». Se catalogan los FLAC con etiqueta de álbum,
 			como los ripeados de CD; las descargas de YouTube se dejan fuera.

@@ -6,6 +6,7 @@ import { track } from '#lib/server/db/schema.ts';
 import { musicRoot } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 import { wakeMusicCatalog } from './catalog.ts';
+import { musicProgress } from './status.ts';
 import { isDownload } from './tags.ts';
 
 /** Modified less than a minute ago: probably still being copied. */
@@ -24,8 +25,10 @@ async function walk(dir: string, files: string[]) {
 		if (entry.name.startsWith('.')) continue;
 		const full = path.join(dir, entry.name);
 		if (entry.isDirectory()) await walk(full, files);
-		else if (path.extname(entry.name).toLowerCase() === '.flac' && !isDownload(entry.name))
+		else if (path.extname(entry.name).toLowerCase() === '.flac' && !isDownload(entry.name)) {
 			files.push(path.relative(musicRoot!, full));
+			musicProgress.found = files.length;
+		}
 	}
 }
 
@@ -33,12 +36,26 @@ let scanning: Promise<MusicScanResult> | null = null;
 
 /** Scans MUSIC_DIR; the tags are read afterwards, in the background. Concurrent calls share it. */
 export function scanMusic() {
-	scanning ??= runScan().finally(() => (scanning = null));
+	scanning ??= runScan()
+		.then((result) => {
+			Object.assign(musicProgress, { lastScan: { at: Date.now(), ...result }, lastError: null });
+			return result;
+		})
+		.catch((error) => {
+			musicProgress.lastError = error instanceof Error ? error.message : String(error);
+			log.error('música', 'No se pudo escanear la carpeta de música', { error });
+			throw error;
+		})
+		.finally(() => {
+			scanning = null;
+			if (musicProgress.phase === 'scanning') musicProgress.phase = 'idle';
+		});
 	return scanning;
 }
 
 async function runScan(): Promise<MusicScanResult> {
 	const result: MusicScanResult = { added: 0, changed: 0, missing: 0, waiting: 0 };
+	Object.assign(musicProgress, { phase: 'scanning', found: 0 });
 	const files: string[] = [];
 	await walk(musicRoot!, files);
 

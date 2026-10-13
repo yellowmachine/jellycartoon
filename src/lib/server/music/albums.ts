@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { album, track } from '#lib/server/db/schema.ts';
 import type { MusicAlbum } from '#lib/music.ts';
@@ -51,7 +51,34 @@ export async function getAlbums(albumId?: number): Promise<MusicAlbum[]> {
 	return [...albums.values()].sort((a, b) => by(a.artist, b.artist) || by(a.title, b.title));
 }
 
-/** Tracks whose tags are still being read, to show the scan's progress. */
-export async function pendingTracks() {
-	return db.$count(track, and(eq(track.status, 'pending'), eq(track.missing, false)));
+/** Counts for the Música page, like Gestión's for the episodes. */
+export async function musicTotals() {
+	const [tracks] = await db
+		.select({
+			ready: sql<number>`count(*) filter (where ${track.status} = 'ready')::int`,
+			pending: sql<number>`count(*) filter (where ${track.status} = 'pending')::int`,
+			ignored: sql<number>`count(*) filter (where ${track.status} = 'ignored')::int`,
+			errors: sql<number>`count(*) filter (where ${track.status} = 'error')::int`
+		})
+		.from(track)
+		.where(eq(track.missing, false));
+	// Albums with something to play, and how their cover search went.
+	const [covers] = await db
+		.select({
+			albums: sql<number>`count(distinct ${album.id})::int`,
+			found: sql<number>`count(distinct ${album.id}) filter (where ${album.coverStatus} = 'found')::int`,
+			notFound: sql<number>`count(distinct ${album.id}) filter (where ${album.coverStatus} = 'not_found')::int`
+		})
+		.from(album)
+		.innerJoin(
+			track,
+			and(eq(track.albumId, album.id), eq(track.status, 'ready'), eq(track.missing, false))
+		);
+	const errorsList = await db
+		.select({ id: track.id, path: track.path, error: track.error })
+		.from(track)
+		.where(and(eq(track.status, 'error'), eq(track.missing, false)))
+		.orderBy(desc(track.id))
+		.limit(50);
+	return { ...tracks, ...covers, errorsList };
 }

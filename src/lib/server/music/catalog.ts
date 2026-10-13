@@ -6,6 +6,7 @@ import { probe } from '#lib/server/library/ffmpeg.ts';
 import { musicFile } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 import { findCovers } from './covers.ts';
+import { musicProgress } from './status.ts';
 import { albumArtist, discIdFromToc, normalizeTags, trackNumber } from './tags.ts';
 
 let running: Promise<void> | null = null;
@@ -18,11 +19,15 @@ export function wakeMusicCatalog() {
 	running ??= readPending()
 		.then(findCovers)
 		.catch((error) => log.error('música', 'Fallo inesperado al catalogar la música', { error }))
-		.finally(() => (running = null));
+		.finally(() => {
+			running = null;
+			musicProgress.phase = 'idle';
+		});
 	return running;
 }
 
 async function readPending() {
+	musicProgress.phase = 'reading';
 	for (;;) {
 		const [next] = await db
 			.select({ id: track.id, path: track.path })
