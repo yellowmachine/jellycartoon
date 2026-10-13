@@ -27,6 +27,9 @@
 			: page.url.pathname === href || page.url.pathname.startsWith(`${href}/`);
 	const current = $derived(links.find((l) => l.href !== '/' && isCurrent(l.href)));
 
+	/** The user's initial, for their round badge (accents and all: «Á» for «Álvaro»). */
+	const initial = $derived([...(data.user?.name.trim() ?? '')][0]?.toLocaleUpperCase('es') ?? '?');
+
 	/** The phone menu; closed when one of its links is followed. */
 	let menu = $state<HTMLElement>();
 </script>
@@ -56,11 +59,12 @@
 			<form method="post" action="/logout" class="ml-auto hidden items-center gap-3 lg:flex">
 				<a
 					href="/ajustes"
-					title="Ajustes"
+					title="{data.user.name} · Ajustes"
+					aria-label="{data.user.name} · Ajustes"
 					class={[
-						'text-sm hover:text-white',
-						isCurrent('/ajustes') ? 'text-white' : 'text-zinc-400'
-					]}>{data.user.name}</a
+						'flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-sm font-semibold text-zinc-950 hover:bg-amber-400',
+						isCurrent('/ajustes') && 'ring-2 ring-amber-300 ring-offset-2 ring-offset-zinc-950'
+					]}>{initial}</a
 				>
 				<button class="text-sm text-zinc-400 hover:text-white">Salir</button>
 			</form>
@@ -99,8 +103,14 @@
 				<a
 					href="/ajustes"
 					onclick={() => menu?.hidePopover()}
-					class="py-2 text-sm text-zinc-300 hover:text-white">{data.user.name} · Ajustes</a
+					class="flex items-center gap-2 py-2 text-sm text-zinc-300 hover:text-white"
 				>
+					<span
+						class="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 font-semibold text-zinc-950"
+						aria-hidden="true">{initial}</span
+					>
+					{data.user.name} · Ajustes
+				</a>
 				<button class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900">
 					Salir
 				</button>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import MediaIcon from './MediaIcon.svelte';
 	import { formatDuration } from '#lib/format.ts';
 	import { coverUrl } from '#lib/music.ts';
 	import { musicTarget, watchSnapcast } from '#lib/music-target.svelte.ts';
@@ -10,8 +11,12 @@
 	/** A station is live: no position, no previous or next. */
 	const radio = $derived(snap?.radio);
 
-	const control =
-		'flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-zinc-800';
+	// Rectangular with rounded corners, all the size of «play», like the app's other buttons.
+	const base =
+		'flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-40';
+	const control = `${base} bg-zinc-800 text-zinc-200 hover:bg-zinc-700`;
+	const primary = `${base} bg-amber-500 text-zinc-950 hover:bg-amber-400`;
+	const ghost = `${base} text-zinc-400 hover:bg-zinc-800 hover:text-white`;
 
 	let showSpeakers = $state(false);
 	/** The speaker whose name is being edited. */
@@ -182,35 +187,41 @@
 				<button
 					class={control}
 					aria-label="Anterior"
-					onclick={() => musicTarget.send({ action: 'previous' })}>{'⏮\uFE0E'}</button
+					onclick={() => musicTarget.send({ action: 'previous' })}
+					><MediaIcon name="previous" /></button
 				>
 			{/if}
 			<button
-				class="{control} bg-amber-500 text-zinc-950 hover:bg-amber-400"
+				class={primary}
 				aria-label={snap.paused ? 'Seguir' : 'Pausa'}
 				onclick={() => musicTarget.send({ action: 'pause', value: !snap.paused })}
-				>{snap.paused ? '▶\uFE0E' : '❚❚'}</button
+				><MediaIcon name={snap.paused ? 'play' : 'pause'} /></button
 			>
 			{#if !radio}
 				<button
 					class={control}
 					aria-label="Siguiente"
 					disabled={snap.playlistPos !== null && snap.playlistPos >= (snap.playlistCount ?? 0)}
-					onclick={() => musicTarget.send({ action: 'next' })}>{'⏭\uFE0E'}</button
+					onclick={() => musicTarget.send({ action: 'next' })}><MediaIcon name="next" /></button
 				>
 			{/if}
 			<button
-				class={[control, showSpeakers ? 'text-amber-400' : 'text-zinc-400 hover:text-white']}
+				class={[
+					base,
+					showSpeakers
+						? 'bg-zinc-800 text-amber-400'
+						: 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+				]}
 				aria-label="Altavoces"
 				aria-expanded={showSpeakers}
 				title="Altavoces"
 				onclick={() => (showSpeakers = !showSpeakers)}>🔈</button
 			>
 			<button
-				class="{control} text-zinc-400 hover:text-white"
+				class={ghost}
 				aria-label="Parar"
 				title="Parar Snapcast"
-				onclick={() => musicTarget.send({ action: 'stop' })}>■</button
+				onclick={() => musicTarget.send({ action: 'stop' })}><MediaIcon name="stop" /></button
 			>
 		</div>
 	</div>

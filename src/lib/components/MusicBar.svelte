@@ -1,4 +1,5 @@
 <script lang="ts">
+	import MediaIcon from './MediaIcon.svelte';
 	import type Hls from 'hls.js';
 	import { formatDuration } from '#lib/format.ts';
 	import { coverUrl, trackUrl } from '#lib/music.ts';
@@ -139,8 +140,12 @@
 		}
 	}
 
-	const control =
-		'flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-zinc-800';
+	// Rectangular with rounded corners, all the size of «play», like the app's other buttons.
+	const base =
+		'flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-40';
+	const control = `${base} bg-zinc-800 text-zinc-200 hover:bg-zinc-700`;
+	const primary = `${base} bg-amber-500 text-zinc-950 hover:bg-amber-400`;
+	const ghost = `${base} text-zinc-400 hover:bg-zinc-800 hover:text-white`;
 </script>
 
 <audio
@@ -175,15 +180,12 @@
 			</span>
 		</a>
 		<button
-			class="{control} bg-amber-500 text-zinc-950 hover:bg-amber-400"
+			class={primary}
 			aria-label={music.playing ? 'Pausa' : 'Seguir'}
-			onclick={() => music.toggle()}>{music.playing ? '❚❚' : '▶\uFE0E'}</button
+			onclick={() => music.toggle()}><MediaIcon name={music.playing ? 'pause' : 'play'} /></button
 		>
-		<button
-			class="{control} text-zinc-400 hover:text-white"
-			aria-label="Cerrar"
-			title="Parar y cerrar"
-			onclick={() => music.stop()}>✕</button
+		<button class={ghost} aria-label="Cerrar" title="Parar y cerrar" onclick={() => music.stop()}
+			><MediaIcon name="close" /></button
 		>
 	</div>
 {:else if current}
@@ -223,23 +225,22 @@
 					music.durationSec ?? current.durationSec
 				)}
 			</span>
-			<button class={control} aria-label="Anterior" onclick={() => music.previous()}>{'⏮︎'}</button>
+			<button class={control} aria-label="Anterior" onclick={() => music.previous()}
+				><MediaIcon name="previous" /></button
+			>
 			<button
-				class="{control} bg-amber-500 text-zinc-950 hover:bg-amber-400"
+				class={primary}
 				aria-label={music.playing ? 'Pausa' : 'Seguir'}
-				onclick={() => music.toggle()}>{music.playing ? '❚❚' : '▶︎'}</button
+				onclick={() => music.toggle()}><MediaIcon name={music.playing ? 'pause' : 'play'} /></button
 			>
 			<button
 				class={control}
 				aria-label="Siguiente"
 				disabled={music.index >= music.queue.length - 1}
-				onclick={() => music.next()}>{'⏭︎'}</button
+				onclick={() => music.next()}><MediaIcon name="next" /></button
 			>
-			<button
-				class="{control} text-zinc-400 hover:text-white"
-				aria-label="Cerrar"
-				title="Parar y cerrar"
-				onclick={() => music.stop()}>✕</button
+			<button class={ghost} aria-label="Cerrar" title="Parar y cerrar" onclick={() => music.stop()}
+				><MediaIcon name="close" /></button
 			>
 		</div>
 	</div>
