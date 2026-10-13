@@ -13,6 +13,7 @@
 		{ href: '/', label: 'Series' },
 		...(data.cinema ? [{ href: '/cine', label: 'Cine' }] : []),
 		...(data.music ? [{ href: '/musica', label: 'Música' }] : []),
+		{ href: '/radio', label: 'Radio' },
 		...(data.salon ? [{ href: '/salon', label: 'Salón' }] : []),
 		{ href: '/today', label: 'Hoy' },
 		{ href: '/lists', label: 'Listas' },
@@ -123,8 +124,7 @@
 		{#if data.snapcast}
 			<SnapcastBar />
 		{/if}
-		{#if data.music}
-			<MusicBar />
-		{/if}
+		<!-- Music, and the radio. -->
+		<MusicBar />
 	</div>
 {/if}

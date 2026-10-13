@@ -1,10 +1,14 @@
 <script lang="ts">
+	import type Hls from 'hls.js';
 	import { formatDuration } from '#lib/format.ts';
 	import { coverUrl, trackUrl } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
+	import { COUNTRIES } from '#lib/radio.ts';
 
 	let audio = $state<HTMLAudioElement>();
 	const current = $derived(music.current);
+	const radio = $derived(music.radio);
+	let hls: Hls | null = null;
 
 	$effect(() => {
 		music.attach(audio ?? null);
@@ -13,7 +17,7 @@
 
 	// A new track: load it and play it. Changing `src` pauses, so play() goes after.
 	$effect(() => {
-		if (!audio) return;
+		if (!audio || radio) return;
 		if (!current) {
 			audio.removeAttribute('src');
 			audio.load();
@@ -24,6 +28,35 @@
 			audio.src = src;
 			void audio.play().catch(() => {});
 		}
+	});
+
+	// A station: its stream as is (MP3, AAC), or through hls.js where the browser has no HLS of its
+	// own (all but Safari). Their servers allow it (CORS).
+	$effect(() => {
+		const el = audio;
+		const stream = radio;
+		if (!el || !stream) return;
+		let cancelled = false;
+		(async () => {
+			if (stream.hls && !el.canPlayType('application/vnd.apple.mpegurl')) {
+				const { default: Hls } = await import('hls.js');
+				if (cancelled || !Hls.isSupported()) return;
+				hls = new Hls();
+				hls.on(Hls.Events.MANIFEST_PARSED, () => void el.play().catch(() => {}));
+				hls.loadSource(stream.url);
+				hls.attachMedia(el);
+			} else {
+				el.src = stream.url;
+				void el.play().catch(() => {});
+			}
+		})();
+		return () => {
+			cancelled = true;
+			hls?.destroy();
+			hls = null;
+			el.removeAttribute('src');
+			el.load();
+		};
 	});
 
 	// The phone's lock screen, notifications and headphone buttons:
@@ -61,16 +94,22 @@
 
 	$effect(() => {
 		if (!('mediaSession' in navigator)) return;
-		navigator.mediaSession.metadata = current
+		navigator.mediaSession.metadata = radio
 			? new MediaMetadata({
-					title: current.title,
-					artist: current.artist,
-					album: current.album,
-					artwork: current.hasCover
-						? [{ src: coverUrl(current.albumId), sizes: '500x500', type: 'image/jpeg' }]
-						: []
+					title: radio.name,
+					artist: `Radio · ${COUNTRIES[radio.country] ?? radio.country}`,
+					artwork: radio.favicon ? [{ src: radio.favicon }] : []
 				})
-			: null;
+			: current
+				? new MediaMetadata({
+						title: current.title,
+						artist: current.artist,
+						album: current.album,
+						artwork: current.hasCover
+							? [{ src: coverUrl(current.albumId), sizes: '500x500', type: 'image/jpeg' }]
+							: []
+					})
+				: null;
 	});
 
 	$effect(() => {
@@ -111,10 +150,43 @@
 	onpause={() => (music.playing = false)}
 	ontimeupdate={timeUpdate}
 	ondurationchange={timeUpdate}
-	onended={() => music.next()}
+	onended={() => !radio && music.next()}
 ></audio>
 
-{#if current}
+{#if radio}
+	<div
+		class="flex items-center gap-3 rounded-t-md border border-zinc-700 bg-zinc-950/95 p-2 backdrop-blur"
+	>
+		<a href="/radio" class="flex min-w-0 flex-1 items-center gap-3">
+			{#if radio.favicon}
+				<img
+					src={radio.favicon}
+					alt=""
+					class="h-10 w-10 shrink-0 rounded bg-white object-contain p-0.5"
+					onerror={(e) => e.currentTarget.classList.add('hidden')}
+				/>
+			{/if}
+			<span class="min-w-0">
+				<span class="block truncate text-sm">{radio.name}</span>
+				<span class="block truncate text-xs text-zinc-400">
+					<span class="text-red-400">●</span> En directo · {COUNTRIES[radio.country] ??
+						radio.country}
+				</span>
+			</span>
+		</a>
+		<button
+			class="{control} bg-amber-500 text-zinc-950 hover:bg-amber-400"
+			aria-label={music.playing ? 'Pausa' : 'Seguir'}
+			onclick={() => music.toggle()}>{music.playing ? '❚❚' : '▶\uFE0E'}</button
+		>
+		<button
+			class="{control} text-zinc-400 hover:text-white"
+			aria-label="Cerrar"
+			title="Parar y cerrar"
+			onclick={() => music.stop()}>✕</button
+		>
+	</div>
+{:else if current}
 	<div class="rounded-t-md border border-zinc-700 bg-zinc-950/95 p-2 backdrop-blur">
 		<input
 			type="range"

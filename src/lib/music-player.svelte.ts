@@ -1,11 +1,15 @@
 import type { MusicTrack } from '#lib/music.ts';
+import type { RadioStream } from '#lib/radio.ts';
 
 /**
- * What is playing in this browser: a queue of tracks and the `<audio>` of the layout (MusicBar),
- * so it goes on while moving around the app. Only changed in the browser, from what the user does.
+ * What is playing in this browser: a queue of tracks, or a radio station, and the `<audio>` of the
+ * layout (MusicBar), so it goes on while moving around the app. Only changed in the browser, from
+ * what the user does.
  */
 class MusicPlayer {
 	queue = $state<MusicTrack[]>([]);
+	/** Live, instead of the queue. */
+	radio = $state<RadioStream | null>(null);
 	index = $state(0);
 	/** As the `<audio>` reports it. */
 	playing = $state(false);
@@ -25,8 +29,16 @@ class MusicPlayer {
 
 	/** Replaces the queue and starts it at `start`. */
 	play(tracks: MusicTrack[], start = 0) {
+		this.radio = null;
 		this.queue = tracks;
 		this.index = Math.min(Math.max(start, 0), tracks.length - 1);
+	}
+
+	/** Instead of whatever was on. */
+	playRadio(stream: RadioStream) {
+		this.queue = [];
+		this.index = 0;
+		this.radio = stream;
 	}
 
 	/** At the end of the queue; starts it if nothing was on. */
@@ -37,16 +49,19 @@ class MusicPlayer {
 
 	toggle() {
 		if (!this.#audio) return;
-		if (this.#audio.paused) void this.#audio.play().catch(() => {});
-		else this.#audio.pause();
+		if (!this.#audio.paused) this.#audio.pause();
+		else if (this.radio) this.resume();
+		else void this.#audio.play().catch(() => {});
 	}
 
 	pause() {
 		this.#audio?.pause();
 	}
 
+	/** A station connects again: back to live, not to where it was paused. */
 	resume() {
-		void this.#audio?.play().catch(() => {});
+		if (this.radio) this.radio = { ...this.radio };
+		else void this.#audio?.play().catch(() => {});
 	}
 
 	next() {
@@ -66,6 +81,7 @@ class MusicPlayer {
 
 	stop() {
 		this.#audio?.pause();
+		this.radio = null;
 		this.queue = [];
 		this.index = 0;
 	}

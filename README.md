@@ -289,6 +289,20 @@ En Música aparece entonces «Sonar en: Este dispositivo / Snapcast» (cada disp
 suyo), y una barra con lo que suena en Snapcast, lo mande quien lo mande. Por el búfer de audio,
 pausar o cambiar de canción tarda uno o dos segundos en oírse.
 
+### Radio
+
+Emisoras en directo de Reino Unido, Estados Unidos, Francia, Italia y España, para escuchar y
+para acostumbrar el oído a otros idiomas. La lista está elegida a mano en `src/lib/radio.ts`
+(primero las habladas de cada idioma) y no hace falta configurar nada.
+
+- Cada emisora se guarda por su id en [Radio Browser](https://www.radio-browser.info), una base
+  de datos comunitaria con [API pública](https://api.radio-browser.info). Al pulsar una se pide
+  allí su stream actual: si la emisora lo cambia, sigue funcionando en cuanto la comunidad lo
+  actualiza. El servidor de Radio Browser se elige por su registro DNS SRV, como pide.
+- Suena en la misma barra que la música. Los streams MP3/AAC van tal cual; los HLS (BBC, Radio
+  France, RTVE), con hls.js. Al reanudar tras una pausa se vuelve al directo.
+- Para añadir una emisora: buscar su `stationuuid` en radio-browser.info y añadirla a la lista.
+
 ## Copia de seguridad
 
 Qué hay que guardar:
