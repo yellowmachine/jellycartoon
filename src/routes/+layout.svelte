@@ -3,6 +3,7 @@
 	import favicon from '#lib/assets/favicon.svg';
 	import MusicBar from '#lib/components/MusicBar.svelte';
 	import SalonBar from '#lib/components/SalonBar.svelte';
+	import SnapcastBar from '#lib/components/SnapcastBar.svelte';
 	import { page } from '$app/state';
 	import type { LayoutProps } from './$types';
 
@@ -112,12 +113,15 @@
 	{@render children()}
 </main>
 
-<!-- Stays on while moving around: what is on in the living room, and the music in this browser. -->
+<!-- Stays on while moving around: the living room, the music on Snapcast and in this browser. -->
 {#if data.user}
 	<div class="sticky bottom-0 z-10 mx-auto flex max-w-6xl flex-col gap-1 px-4">
 		<!-- Everywhere but its remote. -->
 		{#if data.salon && !isCurrent('/salon')}
 			<SalonBar />
+		{/if}
+		{#if data.snapcast}
+			<SnapcastBar />
 		{/if}
 		{#if data.music}
 			<MusicBar />

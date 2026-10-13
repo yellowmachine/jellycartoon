@@ -264,6 +264,26 @@ sección Música; en desarrollo se usa `MUSIC_DIR`.
   botones de los auriculares ([Media Session](https://developer.mozilla.org/docs/Web/API/Media_Session_API)).
 - Entre canción y canción hay un pequeño silencio (el navegador no hace «gapless»).
 
+#### Snapcast
+
+La música también puede sonar en [Snapcast](https://github.com/badaix/snapcast), en los
+altavoces que tengan snapclient (una Raspberry, Snapdroid en el móvil…). Con
+`COMPOSE_PROFILES=snapcast` en el `.env` se arrancan dos servicios más, con la misma imagen:
+
+- `snapserver`, con una fuente `pipe` en `HOST_DATA_DIR/snapfifo` (44,1 kHz, como los CD) y su
+  estado en `HOST_DATA_DIR/snapserver`. Va en la red del host: los clientes conectan a los
+  puertos 1704 (audio) y 1705/1780 (control). Se anuncia por mDNS a través del Avahi del host
+  (monta `/run/dbus`); si el host no tiene Avahi, a los clientes se les da el nombre del equipo
+  (`snapclient -h salon.local`).
+- `mpv-music`, un mpv sin ventana que escribe en esa FIFO, como en la
+  [guía de Snapcast](https://github.com/badaix/snapcast/blob/develop/doc/player_setup.md), y que
+  la app controla por `HOST_DATA_DIR/mpv-music.sock`. Mantiene la salida abierta entre canciones,
+  así que en Snapcast los álbumes suenan sin cortes.
+
+En Música aparece entonces «Sonar en: Este dispositivo / Snapcast» (cada dispositivo recuerda el
+suyo), y una barra con lo que suena en Snapcast, lo mande quien lo mande. Por el búfer de audio,
+pausar o cambiar de canción tarda uno o dos segundos en oírse.
+
 ## Copia de seguridad
 
 Qué hay que guardar:

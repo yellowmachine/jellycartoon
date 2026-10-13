@@ -7,7 +7,11 @@ COPY . .
 RUN DATABASE_URL=postgres://build/build ORIGIN=http://localhost BETTER_AUTH_SECRET=build bun run build
 
 FROM oven/bun:1-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+# mpv and snapserver are only for the optional Snapcast services of compose.prod.yaml, which run
+# this same image with another command.
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends ffmpeg mpv snapserver \
+	&& rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/build ./build
 COPY --from=build /app/drizzle ./drizzle

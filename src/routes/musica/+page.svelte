@@ -3,9 +3,11 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import AlbumCover from '#lib/components/AlbumCover.svelte';
+	import MusicTargetSwitch from '#lib/components/MusicTargetSwitch.svelte';
 	import { formatDuration } from '#lib/format.ts';
 	import type { MusicAlbum, MusicTrack } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
+	import { musicTarget } from '#lib/music-target.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -77,9 +79,10 @@
 	function playTrack(t: MusicTrack) {
 		const a = albumsById.get(t.albumId);
 		if (!a) return;
-		music.play(
+		void musicTarget.play(
 			a.tracks,
-			a.tracks.findIndex((x) => x.id === t.id)
+			a.tracks.findIndex((x) => x.id === t.id),
+			data.snapcast && musicTarget.value === 'snapcast'
 		);
 	}
 </script>
@@ -128,6 +131,10 @@
 		</button>
 	</form>
 </div>
+
+{#if data.snapcast}
+	<div class="-mt-2 mb-6"><MusicTargetSwitch /></div>
+{/if}
 
 {#if form && 'message' in form && form.message}
 	<p class="-mt-4 mb-4 text-sm text-red-400">{form.message}</p>

@@ -1,4 +1,3 @@
-import net from 'node:net';
 import path from 'node:path';
 import { eq } from 'drizzle-orm';
 import { MPV_SOCKET } from '$app/env/private';
@@ -6,13 +5,14 @@ import { db } from '#lib/server/db/index.ts';
 import { movie, movieProgress, movieTitle } from '#lib/server/db/schema.ts';
 import { hostCinemaRoot } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
+import { MpvClient, StateBroadcast, type MpvMessage } from '#lib/server/mpv-client.ts';
 import { saveProgress } from '#lib/server/progress.ts';
 import type { RemoteAction, RemoteState, Track } from '#lib/salon.ts';
 
 /**
- * Plays films and episodes on the host's screen through mpv's JSON IPC
- * (https://mpv.io/manual/stable/#json-ipc): an mpv left waiting with `--idle --input-ipc-server=<MPV_SOCKET>` (deploy/jellycartoon-mpv.service).
- * Also the remote control: what mpv is doing, live, and commands to change it.
+ * Plays films and episodes on the host's screen: an mpv left waiting at MPV_SOCKET
+ * (deploy/jellycartoon-mpv.service). Also the remote control: what mpv is doing, live, and
+ * commands to change it.
  */
 
 export const mpvEnabled = Boolean(MPV_SOCKET);
@@ -76,12 +76,6 @@ const state: RemoteState = {
 	tracks: []
 };
 
-let socket: net.Socket | null = null;
-let connecting: Promise<net.Socket> | null = null;
-let buffer = '';
-let nextRequestId = 1;
-const pending = new Map<number, { resolve: (data: unknown) => void; reject: (e: Error) => void }>();
-
 const SAVE_MS = 5_000;
 let saveTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -101,38 +95,20 @@ const OBSERVED = [
 	'playlist-count'
 ];
 
-function connect() {
-	if (socket) return Promise.resolve(socket);
-	connecting ??= new Promise<net.Socket>((resolve, reject) => {
-		const s = net.createConnection(MPV_SOCKET!);
-		s.setEncoding('utf8');
-		s.once('connect', () => {
-			socket = s;
-			connecting = null;
+// Every open /salon page and salon bar gets the state as it changes.
+const remotes = new StateBroadcast(state);
+const notify = (positionOnly = false) => remotes.notify(positionOnly);
+
+const mpv = new MpvClient(
+	MPV_SOCKET ?? '',
+	OBSERVED,
+	{
+		onConnect() {
 			state.available = true;
-			OBSERVED.forEach((name, i) =>
-				s.write(`${JSON.stringify({ command: ['observe_property', i + 1, name] })}\n`)
-			);
 			notify();
-			resolve(s);
-		});
-		s.on('error', (error: NodeJS.ErrnoException) => {
-			if (socket === s) return;
-			connecting = null;
-			reject(
-				['ENOENT', 'ECONNREFUSED'].includes(error.code ?? '')
-					? new Error('mpv no está esperando en el salón: ¿está arrancado jellycartoon-mpv?')
-					: error
-			);
-		});
-		s.on('data', (chunk: string) => onData(chunk));
+		},
 		// mpv was closed (or restarted): whatever was playing keeps its last known position.
-		s.on('close', () => {
-			if (socket !== s) return;
-			socket = null;
-			buffer = '';
-			for (const { reject } of pending.values()) reject(new Error('mpv se ha cerrado'));
-			pending.clear();
+		onClose() {
 			for (const entry of playing.values()) void save(entry, false);
 			playing.clear();
 			intros.clear();
@@ -141,66 +117,25 @@ function connect() {
 			stopSaving();
 			Object.assign(state, { available: false, ...NOTHING });
 			notify();
-			scheduleReconnect();
-		});
-	});
-	return connecting;
-}
-
-async function command(cmd: unknown) {
-	const s = await connect();
-	const requestId = nextRequestId++;
-	return new Promise<unknown>((resolve, reject) => {
-		const timer = setTimeout(() => {
-			pending.delete(requestId);
-			reject(new Error('mpv no responde'));
-		}, 5000);
-		pending.set(requestId, {
-			resolve: (data) => {
-				clearTimeout(timer);
-				resolve(data);
-			},
-			reject: (error) => {
-				clearTimeout(timer);
-				reject(error);
+		},
+		onProperty: (name, data) => propertyChanged(name, data),
+		onEvent: (message: MpvMessage) => {
+			const entryId = message.playlist_entry_id;
+			if (message.event === 'start-file' && entryId !== undefined) {
+				current = entryId;
+				show(entryId);
+			} else if (message.event === 'file-loaded') {
+				loaded = current;
+				if (loaded !== null) void addSubtitles(loaded);
+			} else if (message.event === 'end-file' && entryId !== undefined) {
+				void ended(entryId, message.reason ?? '');
 			}
-		});
-		s.write(`${JSON.stringify({ command: cmd, request_id: requestId })}\n`);
-	});
-}
-
-function onData(chunk: string) {
-	buffer += chunk;
-	let newline: number;
-	while ((newline = buffer.indexOf('\n')) >= 0) {
-		const line = buffer.slice(0, newline);
-		buffer = buffer.slice(newline + 1);
-		if (!line.trim()) continue;
-		let message;
-		try {
-			message = JSON.parse(line);
-		} catch {
-			log.warn('mpv', 'Mensaje de mpv ilegible', { line });
-			continue;
 		}
-		if (typeof message.request_id === 'number' && pending.has(message.request_id)) {
-			const { resolve, reject } = pending.get(message.request_id)!;
-			pending.delete(message.request_id);
-			if (message.error === 'success') resolve(message.data);
-			else reject(new Error(`mpv: ${message.error}`));
-		} else if (message.event === 'property-change') {
-			propertyChanged(message.name, message.data);
-		} else if (message.event === 'start-file') {
-			current = message.playlist_entry_id;
-			show(message.playlist_entry_id);
-		} else if (message.event === 'file-loaded') {
-			loaded = current;
-			if (loaded !== null) void addSubtitles(loaded);
-		} else if (message.event === 'end-file') {
-			void ended(message.playlist_entry_id, message.reason);
-		}
-	}
-}
+	},
+	'mpv no está esperando en el salón: ¿está arrancado jellycartoon-mpv?',
+	() => remotes.size > 0
+);
+const command = (cmd: unknown) => mpv.command(cmd);
 
 interface MpvTrack {
 	id: number;
@@ -383,48 +318,11 @@ function stopSaving() {
 	saveTimer = null;
 }
 
-// --- Remotes: every open /salon page (and the bar on /cine) gets the state as it changes. ---
-
-const listeners = new Set<(state: RemoteState) => void>();
-let lastPositionSent = 0;
-let positionTimer: ReturnType<typeof setTimeout> | null = null;
-
-/** `positionOnly`: just a new `time-pos`, sent at most once a second. */
-function notify(positionOnly = false) {
-	if (positionOnly) {
-		const wait = 1000 - (Date.now() - lastPositionSent);
-		if (wait > 0) {
-			positionTimer ??= setTimeout(() => {
-				positionTimer = null;
-				notify();
-			}, wait);
-			return;
-		}
-	}
-	lastPositionSent = Date.now();
-	const snapshot = structuredClone(state);
-	for (const listener of listeners) listener(snapshot);
-}
-
-let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-
-/** While a remote is open, keeps trying to reach mpv (e.g. while its service restarts). */
-function scheduleReconnect() {
-	if (!listeners.size || reconnectTimer) return;
-	reconnectTimer = setTimeout(() => {
-		reconnectTimer = null;
-		connect().catch(() => scheduleReconnect());
-	}, 5000);
-}
-
 /** Calls `listener` with the current state and on every change; returns the unsubscribe. */
 export function watchRemote(listener: (state: RemoteState) => void) {
-	listeners.add(listener);
-	listener(structuredClone(state));
-	connect().catch(() => scheduleReconnect());
-	return () => {
-		listeners.delete(listener);
-	};
+	const unwatch = remotes.watch(listener);
+	mpv.connect().catch(() => mpv.keepTrying());
+	return unwatch;
 }
 
 export async function control(remote: RemoteAction) {

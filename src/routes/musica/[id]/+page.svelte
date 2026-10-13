@@ -1,12 +1,16 @@
 <script lang="ts">
 	import AlbumCover from '#lib/components/AlbumCover.svelte';
+	import MusicTargetSwitch from '#lib/components/MusicTargetSwitch.svelte';
 	import { formatDuration } from '#lib/format.ts';
 	import { music } from '#lib/music-player.svelte.ts';
+	import { musicTarget } from '#lib/music-target.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
 	const album = $derived(data.album);
+	/** Only where Snapcast is set up; elsewhere, always this device. */
+	const toSnapcast = $derived(data.snapcast && musicTarget.value === 'snapcast');
 	const totalSec = $derived(album.tracks.reduce((sum, t) => sum + (t.durationSec ?? 0), 0));
 </script>
 
@@ -27,15 +31,19 @@
 		<div class="flex flex-wrap gap-2">
 			<button
 				class="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-zinc-950 hover:bg-amber-400"
-				onclick={() => music.play(album.tracks)}>▶︎ Reproducir</button
+				onclick={() => musicTarget.play(album.tracks, 0, toSnapcast)}>▶︎ Reproducir</button
 			>
 			<button
 				class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900"
-				onclick={() => music.append(album.tracks)}>+ Añadir a la cola</button
+				onclick={() => musicTarget.append(album.tracks, toSnapcast)}>+ Añadir a la cola</button
 			>
 		</div>
 	</div>
 </div>
+
+{#if data.snapcast}
+	<div class="mb-4"><MusicTargetSwitch /></div>
+{/if}
 
 <ol class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
 	{#each album.tracks as t, i (t.id)}
@@ -45,7 +53,7 @@
 					'flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-zinc-900',
 					music.current?.id === t.id && 'text-amber-400'
 				]}
-				onclick={() => music.play(album.tracks, i)}
+				onclick={() => musicTarget.play(album.tracks, i, toSnapcast)}
 			>
 				<span class="w-6 shrink-0 text-right font-mono text-xs text-zinc-500 tabular-nums">
 					{music.current?.id === t.id && music.playing ? '♪' : (t.number ?? i + 1)}

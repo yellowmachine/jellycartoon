@@ -47,6 +47,8 @@ services:
       HOST_CINEMA_DIR: ${HOST_CINEMA_DIR:-}
       # Optional music folder (FLAC ripped from CDs), played in the browser: only with HOST_MUSIC_DIR.
       MUSIC_DIR: ${HOST_MUSIC_DIR:+/music}
+      # The mpv of the Snapcast services below; the app offers Snapcast only while it is there.
+      MUSIC_MPV_SOCKET: ${HOST_MUSIC_DIR:+/data/mpv-music.sock}
       # mpv on this PC (deploy/jellycartoon-mpv.service) leaves its socket in HOST_DATA_DIR. On by
       # default with films; with series only, MPV_SOCKET=/data/mpv.sock in the .env.
       MPV_SOCKET: ${MPV_SOCKET:-${HOST_CINEMA_DIR:+/data/mpv.sock}}
@@ -69,6 +71,60 @@ services:
       # Read-only too, and an empty folder without HOST_MUSIC_DIR (no Música section).
       - ${HOST_MUSIC_DIR:-./no-music}:/music:ro
 
+  # Optional, with COMPOSE_PROFILES=snapcast in the .env: the music, to Snapcast clients
+  # (snapclient, Snapdroid…). Both run the app's image with another command, and share HOST_DATA_DIR
+  # with the app: snapserver's FIFO and state, and the socket of the mpv that plays into it.
+  snapserver:
+    image: ghcr.io/yellowmachine/jellycartoon:${IMAGE_TAG:-latest}
+    profiles: [snapcast]
+    restart: unless-stopped
+    user: '${PUID:-1000}:${PGID:-1000}'
+    # On the host's network: clients reach it on 1704 (audio) and 1705/1780 (control).
+    network_mode: host
+    command: ['snapserver', '-c', '/etc/jellycartoon/snapserver.conf']
+    configs:
+      - source: snapserver
+        target: /etc/jellycartoon/snapserver.conf
+    volumes:
+      - ${HOST_DATA_DIR:?HOST_DATA_DIR is required}:/data
+      # The host's D-Bus, so that it announces itself through the host's Avahi (mDNS) and clients
+      # find it on their own. Without Avahi on the host, clients are given the host's name.
+      - /run/dbus:/run/dbus
+    # mpv must not open the FIFO before snapserver creates it: it would make a plain file.
+    healthcheck:
+      test: ['CMD', 'test', '-p', '/data/snapfifo']
+      interval: 2s
+      retries: 15
+
+  mpv-music:
+    image: ghcr.io/yellowmachine/jellycartoon:${IMAGE_TAG:-latest}
+    profiles: [snapcast]
+    restart: unless-stopped
+    user: '${PUID:-1000}:${PGID:-1000}'
+    network_mode: none
+    depends_on:
+      snapserver:
+        condition: service_healthy
+    # As in Snapcast's player setup (doc/player_setup.md), at the CDs' 44.1 kHz so that they are
+    # not resampled. The output stays open from track to track: albums play without gaps.
+    command:
+      - mpv
+      - --idle
+      - --no-config
+      - --no-video
+      - --audio-display=no
+      - --audio-channels=stereo
+      - --audio-samplerate=44100
+      - --audio-format=s16
+      - --ao=pcm
+      - --ao-pcm-waveheader=no
+      - --ao-pcm-file=/data/snapfifo
+      - --input-ipc-server=/data/mpv-music.sock
+    volumes:
+      - ${HOST_DATA_DIR:?HOST_DATA_DIR is required}:/data
+      # Where the app sees it too: the app sends it the files by their path.
+      - ${HOST_MUSIC_DIR:-./no-music}:/music:ro
+
   # Reverse proxy in front of the app. Only a port, so plain HTTP (no automatic HTTPS). Passes
   # the Host header through and sets X-Forwarded-Proto, ignoring any sent by the client.
   caddy:
@@ -87,3 +143,13 @@ volumes:
   pgdata:
   caddy_data:
   caddy_config:
+
+configs:
+  snapserver:
+    content: |
+      [server]
+      datadir = /data/snapserver
+      [http]
+      doc_root = /usr/share/snapserver/snapweb
+      [stream]
+      source = pipe:///data/snapfifo?name=JellyCartoon&sampleformat=44100:16:2

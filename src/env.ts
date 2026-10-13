@@ -39,6 +39,11 @@ export const variables = defineEnvVars({
 			'Optional read-only directory with music ripped from CDs (FLAC, tagged), one folder per album or disc. Without it there is no Música section.',
 		schema: (value) => value || undefined
 	},
+	MUSIC_MPV_SOCKET: {
+		description:
+			'IPC socket of an mpv that plays music into Snapcast (its output is the FIFO of a snapserver `pipe` source). With it, albums can be sent to Snapcast from the Música page.',
+		schema: (value) => value || undefined
+	},
 	MPV_SOCKET: {
 		description:
 			'IPC socket of an mpv left waiting on the host (`mpv --idle --input-ipc-server=…`). With it, films can be played on that screen from the Cine page and their progress is saved.',
