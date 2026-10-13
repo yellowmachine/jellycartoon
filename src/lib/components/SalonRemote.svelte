@@ -1,4 +1,5 @@
 <script lang="ts">
+	import MediaIcon from './MediaIcon.svelte';
 	import { formatDuration } from '#lib/format.ts';
 	import { trackLabel, watchSalon } from '#lib/salon.svelte.ts';
 
@@ -16,7 +17,7 @@
 	const audio = $derived(mpv?.tracks.filter((t) => t.type === 'audio') ?? []);
 	const subtitles = $derived(mpv?.tracks.filter((t) => t.type === 'sub') ?? []);
 
-	const shape = 'flex h-14 items-center justify-center rounded-md';
+	const shape = 'flex h-14 items-center justify-center gap-2 rounded-md';
 	const button = `${shape} bg-zinc-800 text-lg hover:bg-zinc-700 active:bg-zinc-600`;
 	const mainButton = `${shape} bg-amber-500 text-2xl text-zinc-950 hover:bg-amber-400 active:bg-amber-300`;
 	const choice = (selected: boolean) => [
@@ -55,10 +56,10 @@
 					class={mainButton}
 					aria-label={mpv.paused ? 'Seguir' : 'Pausa'}
 					onclick={() => salon.send({ action: 'pause', value: !mpv.paused })}
-					>{mpv.paused ? '▶\uFE0E' : '❚❚'}</button
+					><MediaIcon name={mpv.paused ? 'play' : 'pause'} class="h-7 w-7" /></button
 				>
 				<button class={button} onclick={() => salon.send({ action: 'next' })}
-					>Saltar a la película {'⏭\uFE0E'}</button
+					>Saltar a la película <MediaIcon name="next" class="h-5 w-5" /></button
 				>
 			</div>
 		{:else}
@@ -96,7 +97,7 @@
 					class={mainButton}
 					aria-label={mpv.paused ? 'Seguir' : 'Pausa'}
 					onclick={() => salon.send({ action: 'pause', value: !mpv.paused })}
-					>{mpv.paused ? '▶\uFE0E' : '❚❚'}</button
+					><MediaIcon name={mpv.paused ? 'play' : 'pause'} class="h-7 w-7" /></button
 				>
 				<button
 					class={button}
@@ -115,12 +116,14 @@
 					<button
 						class={button}
 						disabled={mpv.playlistPos === 1}
-						onclick={() => salon.send({ action: 'previous' })}>{'⏮\uFE0E'} Anterior</button
+						onclick={() => salon.send({ action: 'previous' })}
+						><MediaIcon name="previous" class="h-5 w-5" /> Anterior</button
 					>
 					<button
 						class={button}
 						disabled={mpv.playlistPos === mpv.playlistCount}
-						onclick={() => salon.send({ action: 'next' })}>Siguiente {'⏭\uFE0E'}</button
+						onclick={() => salon.send({ action: 'next' })}
+						>Siguiente <MediaIcon name="next" class="h-5 w-5" /></button
 					>
 				</div>
 			{/if}
@@ -174,8 +177,9 @@
 		{/if}
 
 		<button
-			class="w-full rounded-md border border-zinc-700 py-3 text-zinc-300 hover:bg-zinc-900"
-			onclick={() => salon.send({ action: 'stop' })}>■ Parar y cerrar la pantalla</button
+			class="flex w-full items-center justify-center gap-2 rounded-md border border-zinc-700 py-3 text-zinc-300 hover:bg-zinc-900"
+			onclick={() => salon.send({ action: 'stop' })}
+			><MediaIcon name="stop" /> Parar y cerrar la pantalla</button
 		>
 	{/if}
 
