@@ -19,7 +19,7 @@
 
 <!-- Only while something plays on Snapcast, whoever sent it. -->
 {#if snap?.active}
-	<div class="rounded-t-md border border-zinc-700 bg-zinc-950/95 p-2 backdrop-blur">
+	<div class="rounded-md border border-zinc-700 bg-zinc-900/80 p-2 backdrop-blur">
 		{#if showSpeakers}
 			<div class="mb-2 border-b border-zinc-800 pb-2">
 				{#if !snap.speakers}

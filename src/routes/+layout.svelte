@@ -106,6 +106,19 @@
 				</button>
 			</form>
 		</div>
+		<!-- In the sticky header, under the menu: what is on stays in view on every page. Only with
+		     a bar showing does it take room (MusicBar's <audio> is always there, but not a div). -->
+		<div class="mx-auto flex max-w-6xl flex-col gap-1 px-4 has-[>div]:pb-2">
+			<!-- Everywhere but its remote. -->
+			{#if data.salon && !isCurrent('/salon')}
+				<SalonBar />
+			{/if}
+			{#if data.snapcast}
+				<SnapcastBar />
+			{/if}
+			<!-- Music, and the radio. -->
+			<MusicBar />
+		</div>
 	</header>
 {/if}
 
@@ -113,18 +126,3 @@
 <main class="mx-auto max-w-6xl overflow-x-clip px-4 py-6">
 	{@render children()}
 </main>
-
-<!-- Stays on while moving around: the living room, the music on Snapcast and in this browser. -->
-{#if data.user}
-	<div class="sticky bottom-0 z-10 mx-auto flex max-w-6xl flex-col gap-1 px-4">
-		<!-- Everywhere but its remote. -->
-		{#if data.salon && !isCurrent('/salon')}
-			<SalonBar />
-		{/if}
-		{#if data.snapcast}
-			<SnapcastBar />
-		{/if}
-		<!-- Music, and the radio. -->
-		<MusicBar />
-	</div>
-{/if}

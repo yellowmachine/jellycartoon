@@ -155,7 +155,7 @@
 
 {#if radio}
 	<div
-		class="flex items-center gap-3 rounded-t-md border border-zinc-700 bg-zinc-950/95 p-2 backdrop-blur"
+		class="flex items-center gap-3 rounded-md border border-zinc-700 bg-zinc-900/80 p-2 backdrop-blur"
 	>
 		<a href="/radio" class="flex min-w-0 flex-1 items-center gap-3">
 			{#if radio.favicon}
@@ -187,7 +187,7 @@
 		>
 	</div>
 {:else if current}
-	<div class="rounded-t-md border border-zinc-700 bg-zinc-950/95 p-2 backdrop-blur">
+	<div class="rounded-md border border-zinc-700 bg-zinc-900/80 p-2 backdrop-blur">
 		<input
 			type="range"
 			min="0"
