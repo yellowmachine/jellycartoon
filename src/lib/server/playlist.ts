@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import {
 	episode,
@@ -6,6 +6,7 @@ import {
 	playlist,
 	playlistItem,
 	series,
+	seriesTag,
 	watchProgress
 } from '#lib/server/db/schema.ts';
 
@@ -92,8 +93,21 @@ export function today() {
 	return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 }
 
-export async function generatePlaylist(userId: string, targetMinutes: number) {
-	const candidates = await db
+export interface TagFilter {
+	/** Only series with at least one of these tags; empty: any series. */
+	include: number[];
+	/** Never series with any of these tags. */
+	exclude: number[];
+}
+
+/** Episodes that can be played, with the user's progress, from the series the tags allow. */
+export async function getCandidates(
+	userId: string,
+	tags: TagFilter = { include: [], exclude: [] }
+): Promise<Candidate[]> {
+	const withTags = (ids: number[]) =>
+		db.select({ id: seriesTag.seriesId }).from(seriesTag).where(inArray(seriesTag.tagId, ids));
+	return db
 		.select({
 			id: episode.id,
 			seriesId: episode.seriesId,
@@ -110,8 +124,18 @@ export async function generatePlaylist(userId: string, targetMinutes: number) {
 			watchProgress,
 			and(eq(watchProgress.episodeId, episode.id), eq(watchProgress.userId, userId))
 		)
-		.where(and(eq(episode.status, 'ready'), eq(episode.missing, false)));
+		.where(
+			and(
+				eq(episode.status, 'ready'),
+				eq(episode.missing, false),
+				tags.include.length ? inArray(series.id, withTags(tags.include)) : undefined,
+				tags.exclude.length ? notInArray(series.id, withTags(tags.exclude)) : undefined
+			)
+		);
+}
 
+export async function generatePlaylist(userId: string, targetMinutes: number) {
+	const candidates = await getCandidates(userId);
 	const picked = pickEpisodes(candidates, targetMinutes * 60);
 
 	return db.transaction(async (tx) => {

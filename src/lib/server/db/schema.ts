@@ -34,6 +34,26 @@ export const series = pgTable('series', {
 	createdAt: timestamp('created_at').notNull().defaultNow()
 });
 
+/** Labels for series, shared by every user: e.g. «infantil», to build lists for children. */
+export const tag = pgTable('tag', {
+	id: serial('id').primaryKey(),
+	/** Lowercase: «Infantil» and «infantil» are the same tag. */
+	name: text('name').notNull().unique()
+});
+
+export const seriesTag = pgTable(
+	'series_tag',
+	{
+		seriesId: integer('series_id')
+			.notNull()
+			.references(() => series.id, { onDelete: 'cascade' }),
+		tagId: integer('tag_id')
+			.notNull()
+			.references(() => tag.id, { onDelete: 'cascade' })
+	},
+	(t) => [primaryKey({ columns: [t.seriesId, t.tagId] }), index('series_tag_tag_idx').on(t.tagId)]
+);
+
 /** `ignored`: failed and set aside by hand; not retried until its file changes. */
 export const episodeStatus = pgEnum('episode_status', [
 	'pending',

@@ -9,6 +9,7 @@ import {
 	userSettings,
 	watchProgress
 } from '#lib/server/db/schema.ts';
+import { getCandidates, pickEpisodes, type TagFilter } from '#lib/server/playlist.ts';
 
 /** Only episodes that can be played count; the rest stay in the list until they come back. */
 const playable = and(eq(episode.status, 'ready'), eq(episode.missing, false));
@@ -114,6 +115,26 @@ export async function createList(userId: string, name: string) {
 	const [list] = await db.insert(userList).values({ userId, name }).returning({ id: userList.id });
 	await setActiveList(userId, list.id);
 	return list.id;
+}
+
+/**
+ * A list filled like today's playlist (about `minutes` long, mixing series, picking up serialized
+ * ones where the user left them) but only from the series the tags allow. It does not become the
+ * active list: it is meant to be watched, not filled by hand. Returns null if nothing fits.
+ */
+export async function generateList(userId: string, name: string, minutes: number, tags: TagFilter) {
+	const picked = pickEpisodes(await getCandidates(userId, tags), minutes * 60);
+	if (!picked.length) return null;
+	return db.transaction(async (tx) => {
+		const [list] = await tx
+			.insert(userList)
+			.values({ userId, name })
+			.returning({ id: userList.id });
+		await tx
+			.insert(userListItem)
+			.values(picked.map((e, position) => ({ listId: list.id, episodeId: e.id, position })));
+		return list.id;
+	});
 }
 
 export async function renameList(userId: string, listId: number, name: string) {

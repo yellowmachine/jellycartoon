@@ -108,6 +108,39 @@
 		</button>
 	</form>
 </div>
+<div class="-mt-2 mb-6 flex flex-wrap items-center gap-2 text-sm">
+	{#each data.tags as tag (tag.id)}
+		<form method="post" action="?/removeTag" use:enhance>
+			<input type="hidden" name="tagId" value={tag.id} />
+			<span
+				class="flex items-center gap-1 rounded-full border border-zinc-700 bg-zinc-900 py-0.5 pr-1 pl-3"
+			>
+				{tag.name}
+				<button
+					class="rounded-full px-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-red-400"
+					title="Quitar la etiqueta «{tag.name}»"
+					aria-label="Quitar la etiqueta «{tag.name}»">×</button
+				>
+			</span>
+		</form>
+	{/each}
+	<form method="post" action="?/addTag" use:enhance>
+		<input
+			name="name"
+			list="all-tags"
+			maxlength="40"
+			autocomplete="off"
+			placeholder="+ Etiqueta"
+			aria-label="Añadir etiqueta"
+			class="w-36 rounded-full border-zinc-700 bg-zinc-900 px-3 py-0.5 text-sm"
+		/>
+		<datalist id="all-tags">
+			{#each data.allTags.filter((name) => !data.tags.some((t) => t.name === name)) as name (name)}
+				<option value={name}></option>
+			{/each}
+		</datalist>
+	</form>
+</div>
 {#if form?.message}
 	<p class="-mt-4 mb-4 text-sm text-red-400">{form.message}</p>
 {/if}
