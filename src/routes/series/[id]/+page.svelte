@@ -34,6 +34,27 @@
 	const selected = new SvelteSet<number>();
 	let targetSeason = $state<number | null>(null);
 	let deleteDialog = $state<DeleteEpisodesDialog>();
+	/** While selecting, only the episodes whose title contains this text are shown. */
+	let filter = $state('');
+	let matchCase = $state(false);
+	let visibleSeasons = $derived.by(() => {
+		if (!selecting || !filter) return data.seasons;
+		const needle = matchCase ? filter : filter.toLocaleLowerCase();
+		return data.seasons
+			.map(({ season, episodes }) => ({
+				season,
+				episodes: episodes.filter((ep) =>
+					(matchCase ? ep.title : ep.title.toLocaleLowerCase()).includes(needle)
+				)
+			}))
+			.filter(({ episodes }) => episodes.length > 0);
+	});
+	let visibleIds = $derived(visibleSeasons.flatMap(({ episodes }) => episodes.map((e) => e.id)));
+	/** What the filter hides is unselected too: a hidden selection would be confusing. */
+	function unselectHidden() {
+		const visible = new Set(visibleIds);
+		for (const id of selected) if (!visible.has(id)) selected.delete(id);
+	}
 
 	function toggleSeason(ids: number[], on: boolean) {
 		for (const id of ids) {
@@ -45,6 +66,7 @@
 	function stopSelecting() {
 		selecting = false;
 		selected.clear();
+		filter = '';
 	}
 </script>
 
@@ -116,8 +138,53 @@
 		>
 	{/if}
 </div>
+{#if selecting}
+	<div class="mb-2 flex flex-wrap items-center gap-2">
+		<input
+			type="search"
+			placeholder="Filtrar por título"
+			aria-label="Filtrar capítulos por título"
+			bind:value={
+				() => filter,
+				(v) => {
+					filter = v;
+					unselectHidden();
+				}
+			}
+			class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm"
+		/>
+		<button
+			type="button"
+			class={[
+				'rounded-md border px-2 py-1 font-mono text-sm',
+				matchCase
+					? 'border-amber-500/60 text-amber-400'
+					: 'border-zinc-700 text-zinc-400 hover:text-white'
+			]}
+			title="Distinguir mayúsculas y minúsculas"
+			aria-label="Distinguir mayúsculas y minúsculas"
+			aria-pressed={matchCase}
+			onclick={() => {
+				matchCase = !matchCase;
+				unselectHidden();
+			}}>Aa</button
+		>
+		{#if filter}
+			<button
+				type="button"
+				disabled={visibleIds.length === 0}
+				class="rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900 disabled:opacity-50"
+				onclick={() => toggleSeason(visibleIds, true)}
+				>Seleccionar los {visibleIds.length} que coinciden</button
+			>
+		{/if}
+	</div>
+	{#if filter && visibleIds.length === 0}
+		<p class="mt-4 text-sm text-zinc-500">Ningún capítulo coincide con «{filter}».</p>
+	{/if}
+{/if}
 
-{#each data.seasons as { season, episodes } (season)}
+{#each visibleSeasons as { season, episodes } (season)}
 	{@const ids = episodes.map((e) => e.id)}
 	<h2 class="mt-6 mb-3 flex items-center gap-3 font-semibold text-zinc-300">
 		{#if selecting}
