@@ -49,6 +49,9 @@ services:
       MUSIC_DIR: ${HOST_MUSIC_DIR:+/music}
       # The mpv of the Snapcast services below; the app offers Snapcast only while it is there.
       MUSIC_MPV_SOCKET: ${HOST_MUSIC_DIR:+/data/mpv-music.sock}
+      # snapserver's control API, to list its clients and set their volume. It is on the host's
+      # network, which the app reaches as host.docker.internal (extra_hosts below).
+      SNAPSERVER_CONTROL: ${HOST_MUSIC_DIR:+host.docker.internal:1705}
       # mpv on this PC (deploy/jellycartoon-mpv.service) leaves its socket in HOST_DATA_DIR. On by
       # default with films; with series only, MPV_SOCKET=/data/mpv.sock in the .env.
       MPV_SOCKET: ${MPV_SOCKET:-${HOST_CINEMA_DIR:+/data/mpv.sock}}
@@ -70,6 +73,9 @@ services:
       - ${HOST_CINEMA_DIR:-./no-cinema}:/cinema:ro
       # Read-only too, and an empty folder without HOST_MUSIC_DIR (no Música section).
       - ${HOST_MUSIC_DIR:-./no-music}:/music:ro
+    # The host, from inside the container: https://docs.docker.com/reference/compose-file/services/#extra_hosts
+    extra_hosts:
+      - host.docker.internal:host-gateway
 
   # Optional, with COMPOSE_PROFILES=snapcast in the .env: the music, to Snapcast clients
   # (snapclient, Snapdroid…). Both run the app's image with another command, and share HOST_DATA_DIR

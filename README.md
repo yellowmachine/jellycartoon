@@ -280,6 +280,11 @@ altavoces que tengan snapclient (una Raspberry, Snapdroid en el móvil…). Con
   la app controla por `HOST_DATA_DIR/mpv-music.sock`. Mantiene la salida abierta entre canciones,
   así que en Snapcast los álbumes suenan sin cortes.
 
+La app se conecta además a la API de control de snapserver (puerto 1705, en
+`host.docker.internal`): el botón 🔈 de la barra de Snapcast muestra sus clientes, conectados o
+no, con su volumen y silencio, y permite cambiarles el nombre (vacío vuelve al del equipo). Lo que
+se cambie desde otro sitio, como Snapdroid, se ve al momento.
+
 En Música aparece entonces «Sonar en: Este dispositivo / Snapcast» (cada dispositivo recuerda el
 suyo), y una barra con lo que suena en Snapcast, lo mande quien lo mande. Por el búfer de audio,
 pausar o cambiar de canción tarda uno o dos segundos en oírse.

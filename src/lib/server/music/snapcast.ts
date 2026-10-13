@@ -1,8 +1,9 @@
 import { existsSync } from 'node:fs';
-import { MUSIC_MPV_SOCKET } from '$app/env/private';
+import { MUSIC_MPV_SOCKET, SNAPSERVER_CONTROL } from '$app/env/private';
 import { log } from '#lib/server/log.ts';
 import { MpvClient, StateBroadcast, type MpvMessage } from '#lib/server/mpv-client.ts';
-import type { MusicTrack, SnapcastState } from '#lib/music.ts';
+import type { MusicTrack, SnapcastAction, SnapcastState } from '#lib/music.ts';
+import { SnapserverControl } from './snapserver.ts';
 
 /**
  * Music on Snapcast (https://github.com/badaix/snapcast): an mpv left waiting at MUSIC_MPV_SOCKET
@@ -29,10 +30,23 @@ const state: SnapcastState = {
 	positionSec: null,
 	durationSec: null,
 	playlistPos: null,
-	playlistCount: null
+	playlistCount: null,
+	speakers: null
 };
 
 const pages = new StateBroadcast(state);
+
+/** The speakers: only with SNAPSERVER_CONTROL. */
+const control = SNAPSERVER_CONTROL
+	? new SnapserverControl(
+			SNAPSERVER_CONTROL,
+			(speakers) => {
+				state.speakers = speakers;
+				pages.notify();
+			},
+			() => pages.size > 0
+		)
+	: null;
 
 const mpv = new MpvClient(
 	MUSIC_MPV_SOCKET ?? '',
@@ -89,6 +103,7 @@ const mpv = new MpvClient(
 export function watchSnapcast(listener: (state: SnapcastState) => void) {
 	const unwatch = pages.watch(listener);
 	mpv.connect().catch(() => mpv.keepTrying());
+	control?.connect().catch(() => control.keepTrying());
 	return unwatch;
 }
 
@@ -135,12 +150,7 @@ export async function queueOnSnapcast(
 }
 
 export async function controlSnapcast(
-	action:
-		| { action: 'pause'; value: boolean }
-		| { action: 'seekTo'; value: number }
-		| {
-				action: 'next' | 'previous' | 'stop';
-		  }
+	action: Exclude<SnapcastAction, { action: 'play' } | { action: 'append' }>
 ) {
 	switch (action.action) {
 		case 'pause':
@@ -156,5 +166,16 @@ export async function controlSnapcast(
 				: mpv.command(['playlist-prev']);
 		case 'stop':
 			return mpv.command(['stop']);
+		case 'volume':
+			return speakers().setVolume(action.speakerId, { percent: action.value });
+		case 'mute':
+			return speakers().setVolume(action.speakerId, { muted: action.value });
+		case 'rename':
+			return speakers().setName(action.speakerId, action.name);
 	}
+}
+
+function speakers() {
+	if (!control) throw new Error('No hay control de snapserver configurado (SNAPSERVER_CONTROL)');
+	return control;
 }

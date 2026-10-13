@@ -13,7 +13,7 @@ const isIds = (value: unknown): value is number[] =>
 
 /** Only well-formed commands reach mpv. */
 function parse(body: Record<string, unknown>): SnapcastAction | null {
-	const { action, value, trackIds, start } = body;
+	const { action, value, trackIds, start, speakerId, name } = body;
 	switch (action) {
 		case 'play':
 			return isIds(trackIds) && Number.isInteger(start)
@@ -29,6 +29,18 @@ function parse(body: Record<string, unknown>): SnapcastAction | null {
 		case 'previous':
 		case 'stop':
 			return { action };
+		case 'volume':
+			return typeof speakerId === 'string' && typeof value === 'number' && Number.isFinite(value)
+				? { action, speakerId, value: Math.round(Math.min(Math.max(value, 0), 100)) }
+				: null;
+		case 'mute':
+			return typeof speakerId === 'string' && typeof value === 'boolean'
+				? { action, speakerId, value }
+				: null;
+		case 'rename':
+			return typeof speakerId === 'string' && typeof name === 'string'
+				? { action, speakerId, name: name.trim().slice(0, 100) }
+				: null;
 		default:
 			return null;
 	}
