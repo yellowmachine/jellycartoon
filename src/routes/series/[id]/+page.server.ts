@@ -12,6 +12,7 @@ import { ignoreEpisodes, retryEpisode } from '#lib/server/library/worker.ts';
 import { getActiveList, getListNames, seriesListItems, toggleInList } from '#lib/server/lists.ts';
 import { clearProgress, markWatched, saveProgress } from '#lib/server/progress.ts';
 import { log } from '#lib/server/log.ts';
+import { EPISODE_VIEW_COOKIE, parseEpisodeView } from '#lib/episode-view.ts';
 import { addSeriesTag, getTags, removeSeriesTag, seriesTags, tagName } from '#lib/server/tags.ts';
 import { playEpisodes, seriesQueue } from '#lib/server/cinema/episode-actions.ts';
 import {
@@ -30,7 +31,7 @@ import {
 	stopProposal
 } from '#lib/server/library/episode-titles.ts';
 
-export const load: PageServerLoad = async ({ params, locals }) => {
+export const load: PageServerLoad = async ({ params, locals, cookies }) => {
 	const id = Number(params.id);
 	const [s] = await db.select().from(series).where(eq(series.id, id));
 	if (!s) error(404, 'Serie no encontrada');
@@ -91,6 +92,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	);
 	return {
 		series: s,
+		view: parseEpisodeView(cookies.get(EPISODE_VIEW_COOKIE)),
 		tags,
 		/** To suggest while typing a tag. */
 		allTags: allTags.map((t) => t.name),

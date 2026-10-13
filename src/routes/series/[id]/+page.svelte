@@ -6,11 +6,15 @@
 	import EpisodeTitles from '#lib/components/EpisodeTitles.svelte';
 	import SeriesInfo from '#lib/components/SeriesInfo.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
+	import { saveEpisodeView } from '#lib/episode-view.ts';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
 	import { thumbUrl } from '#lib/thumb.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+	/** From the cookie; changed here at once when an icon is clicked. */
+	let view = $derived(data.view);
+	let grid = $derived(view === 'grid');
 	let confirmDelete = $state(false);
 	/** What is being renamed: the series, an episode id, or nothing. */
 	let editing = $state<'series' | number | null>(null);
@@ -27,6 +31,7 @@
 		}
 		return counts;
 	});
+	let otherTags = $derived(data.allTags.filter((name) => !data.tags.some((t) => t.name === name)));
 	let inList = $derived(new Set(data.listItems.map((i) => `${i.listId}:${i.episodeId}`)));
 
 	/** Selection mode, to move episodes to another season. */
@@ -124,21 +129,25 @@
 			</span>
 		</form>
 	{/each}
+	<!-- Tags other series already have: one click instead of typing them again. -->
+	{#each otherTags as name (name)}
+		<form method="post" action="?/addTag" use:enhance>
+			<input type="hidden" name="name" value={name} />
+			<button
+				class="rounded-full border border-dashed border-zinc-700 px-3 py-0.5 text-zinc-500 hover:border-zinc-500 hover:text-white"
+				title="Añadir la etiqueta «{name}»">+ {name}</button
+			>
+		</form>
+	{/each}
 	<form method="post" action="?/addTag" use:enhance>
 		<input
 			name="name"
-			list="all-tags"
 			maxlength="40"
 			autocomplete="off"
-			placeholder="+ Etiqueta"
-			aria-label="Añadir etiqueta"
+			placeholder="Nueva etiqueta"
+			aria-label="Nueva etiqueta"
 			class="w-36 rounded-full border-zinc-700 bg-zinc-900 px-3 py-0.5 text-sm"
 		/>
-		<datalist id="all-tags">
-			{#each data.allTags.filter((name) => !data.tags.some((t) => t.name === name)) as name (name)}
-				<option value={name}></option>
-			{/each}
-		</datalist>
 	</form>
 </div>
 {#if form?.message}
@@ -164,12 +173,44 @@
 			<a href="/lists" class="hover:text-white">Activa una lista</a> para añadirle capítulos de esta serie.
 		{/if}
 	</p>
-	{#if !selecting}
-		<button
-			class="rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900"
-			onclick={() => (selecting = true)}>Seleccionar capítulos</button
-		>
-	{/if}
+	<div class="flex items-center gap-2">
+		<div class="flex rounded-md border border-zinc-700 p-0.5" role="group" aria-label="Vista">
+			{#each [{ value: 'list', label: 'Ver en lista' }, { value: 'grid', label: 'Ver en cuadrícula' }] as const as { value, label } (value)}
+				<button
+					class={[
+						'rounded px-1.5 py-1',
+						view === value ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-white'
+					]}
+					title={label}
+					aria-label={label}
+					aria-pressed={view === value}
+					onclick={() => {
+						view = value;
+						saveEpisodeView(value);
+					}}
+				>
+					<svg viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor" aria-hidden="true">
+						{#if value === 'list'}
+							<rect x="4" y="5" width="16" height="3" rx="1" />
+							<rect x="4" y="10.5" width="16" height="3" rx="1" />
+							<rect x="4" y="16" width="16" height="3" rx="1" />
+						{:else}
+							<rect x="4" y="4" width="7" height="7" rx="1" />
+							<rect x="13" y="4" width="7" height="7" rx="1" />
+							<rect x="4" y="13" width="7" height="7" rx="1" />
+							<rect x="13" y="13" width="7" height="7" rx="1" />
+						{/if}
+					</svg>
+				</button>
+			{/each}
+		</div>
+		{#if !selecting}
+			<button
+				class="rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900"
+				onclick={() => (selecting = true)}>Seleccionar capítulos</button
+			>
+		{/if}
+	</div>
 </div>
 {#if selecting}
 	<div class="mb-2 flex flex-wrap items-center gap-2">
@@ -231,10 +272,18 @@
 		{/if}
 		Temporada {season}
 	</h2>
-	<ul class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
+	<ul
+		class={grid
+			? 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4'
+			: 'divide-y divide-zinc-800 rounded-md border border-zinc-800'}
+	>
 		{#each episodes as ep (ep.id)}
 			{@const ready = ep.status === 'ready'}
-			<li class="flex items-center pr-3">
+			<li
+				class={grid
+					? 'flex flex-col overflow-hidden rounded-md border border-zinc-800'
+					: 'flex items-center pr-3'}
+			>
 				{#if editing === ep.id}
 					<div class="flex min-w-0 flex-1 items-center gap-3 p-3">
 						<span class="shrink-0 text-zinc-400">{ep.number}.</span>
@@ -251,7 +300,8 @@
 						this={selecting ? 'label' : ready ? 'a' : 'div'}
 						href={ready && !selecting ? `/watch/${ep.id}` : undefined}
 						class={[
-							'flex min-w-0 flex-1 items-center gap-4 p-3',
+							'relative flex min-w-0 flex-1',
+							grid ? 'flex-col gap-2 p-2' : 'items-center gap-4 p-3',
 							selecting && 'cursor-pointer',
 							ready || selecting ? 'hover:bg-zinc-900' : 'opacity-60'
 						]}
@@ -259,12 +309,20 @@
 						{#if selecting}
 							<input
 								type="checkbox"
-								class="rounded border-zinc-600 bg-zinc-900 text-amber-500"
+								class={[
+									'rounded border-zinc-600 bg-zinc-900 text-amber-500',
+									grid && 'absolute top-3 right-3 z-10'
+								]}
 								checked={selected.has(ep.id)}
 								onchange={(e) => toggleSeason([ep.id], e.currentTarget.checked)}
 							/>
 						{/if}
-						<div class="relative aspect-video w-32 shrink-0 overflow-hidden rounded bg-zinc-800">
+						<div
+							class={[
+								'relative aspect-video shrink-0 overflow-hidden rounded bg-zinc-800',
+								grid ? 'w-full' : 'w-32'
+							]}
+						>
 							{#if ready}
 								<img
 									src={thumbUrl(ep.id)}
@@ -292,7 +350,7 @@
 							{/if}
 						</div>
 						<div class="min-w-0 flex-1">
-							<p class="truncate">{ep.number}. {ep.title}</p>
+							<p class={grid ? 'line-clamp-2 text-sm' : 'truncate'}>{ep.number}. {ep.title}</p>
 							<p class="text-xs text-zinc-400">
 								{#if ready}
 									{formatDuration(ep.durationSec)}{#if ep.completed}
@@ -309,35 +367,38 @@
 							</p>
 						</div>
 					</svelte:element>
-					{#if ready && data.activeList && !selecting}
-						{@const added = inList.has(`${data.activeList.id}:${ep.id}`)}
-						<form method="post" action="?/toggleList" use:enhance>
-							<input type="hidden" name="id" value={ep.id} />
-							<button
-								class={[
-									'shrink-0 rounded-md border px-2 py-1 text-xs',
-									added
-										? 'border-amber-500/60 text-amber-400 hover:border-red-500/60 hover:text-red-400'
-										: 'border-zinc-700 text-zinc-300 hover:bg-zinc-900'
-								]}
-								title={added
-									? `Quitar de «${data.activeList.name}»`
-									: `Añadir a «${data.activeList.name}»`}
-							>
-								{added ? '✓ En la lista' : '+ Lista'}
-							</button>
-						</form>
-					{/if}
-					{#if !selecting}
-						<EpisodeMenu
-							episode={ep}
-							salon={data.salon}
-							previousUnwatched={previousUnwatched.get(ep.id) ?? 0}
-							lists={data.lists.map((l) => ({ ...l, added: inList.has(`${l.id}:${ep.id}`) }))}
-							onrename={() => (editing = ep.id)}
-							ondelete={() => deleteDialog?.open([ep.id], ep.title)}
-						/>
-					{/if}
+					<!-- In the grid, the buttons go in a row under the card. -->
+					<div class={grid ? 'mt-auto flex items-center justify-end gap-2 px-2 pb-2' : 'contents'}>
+						{#if ready && data.activeList && !selecting}
+							{@const added = inList.has(`${data.activeList.id}:${ep.id}`)}
+							<form method="post" action="?/toggleList" use:enhance>
+								<input type="hidden" name="id" value={ep.id} />
+								<button
+									class={[
+										'shrink-0 rounded-md border px-2 py-1 text-xs',
+										added
+											? 'border-amber-500/60 text-amber-400 hover:border-red-500/60 hover:text-red-400'
+											: 'border-zinc-700 text-zinc-300 hover:bg-zinc-900'
+									]}
+									title={added
+										? `Quitar de «${data.activeList.name}»`
+										: `Añadir a «${data.activeList.name}»`}
+								>
+									{added ? '✓ En la lista' : '+ Lista'}
+								</button>
+							</form>
+						{/if}
+						{#if !selecting}
+							<EpisodeMenu
+								episode={ep}
+								salon={data.salon}
+								previousUnwatched={previousUnwatched.get(ep.id) ?? 0}
+								lists={data.lists.map((l) => ({ ...l, added: inList.has(`${l.id}:${ep.id}`) }))}
+								onrename={() => (editing = ep.id)}
+								ondelete={() => deleteDialog?.open([ep.id], ep.title)}
+							/>
+						{/if}
+					</div>
 				{/if}
 			</li>
 		{/each}
