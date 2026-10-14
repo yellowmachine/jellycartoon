@@ -188,6 +188,11 @@
 			class="w-36 rounded-full border-zinc-700 bg-zinc-900 px-3 py-0.5 text-sm"
 		/>
 	</form>
+	<a
+		href="/library/etiquetas"
+		class="text-zinc-500 hover:text-white"
+		title="Renombrar, juntar o borrar etiquetas en todas las series">Gestionar etiquetas</a
+	>
 </div>
 {#if form?.message}
 	<p class="-mt-4 mb-4 text-sm text-red-400">{form.message}</p>
