@@ -9,6 +9,7 @@
 	import TitleForm from '#lib/components/TitleForm.svelte';
 	import { saveView } from '#lib/views.ts';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
+	import { languageLabel, normalizeLang } from '#lib/languages.ts';
 	import { thumbUrl } from '#lib/thumb.svelte.ts';
 	import type { PageProps } from './$types';
 
@@ -42,12 +43,33 @@
 	let deleteDialog = $state<DeleteEpisodesDialog>();
 	/** The only season shown, or all. */
 	let season = $state<number | null>(null);
+	/** Only the episodes with an audio track in this language, or all. */
+	let audio = $state<string | null>(null);
 	// Kept when coming back to the page (e.g. from an episode), and back to all when entering a
 	// series anew: https://svelte.dev/docs/kit/$app-navigation#snapshot
 	snapshot({
-		capture: () => season,
-		restore: (value) => (season = value),
-		reset: () => (season = null)
+		capture: () => ({ season, audio }),
+		restore: (value) => ({ season, audio } = value),
+		reset: () => {
+			season = null;
+			audio = null;
+		}
+	});
+	const audioLangs = (ep: { audioTracks: { lang: string }[] }) =>
+		new Set(ep.audioTracks.map((t) => normalizeLang(t.lang)));
+	/**
+	 * The audio languages of the series, worth filtering by: those that some episodes have and
+	 * others do not. Only converted episodes have their tracks.
+	 */
+	let audioOptions = $derived.by(() => {
+		const episodes = data.seasons.flatMap((s) => s.episodes);
+		const counts = new Map<string, number>();
+		for (const ep of episodes)
+			for (const lang of audioLangs(ep)) counts.set(lang, (counts.get(lang) ?? 0) + 1);
+		const langs = [...counts.keys()].sort((a, b) =>
+			languageLabel(a).localeCompare(languageLabel(b))
+		);
+		return langs.some((lang) => counts.get(lang)! < episodes.length) ? langs : [];
 	});
 	/** While selecting, only the episodes whose title contains this text are shown. */
 	let filter = $state('');
@@ -57,13 +79,16 @@
 		const seasons = data.seasons.some((s) => s.season === season)
 			? data.seasons.filter((s) => s.season === season)
 			: data.seasons;
-		if (!selecting || !filter) return seasons;
-		const needle = matchCase ? filter : filter.toLocaleLowerCase();
+		const lang = audio && audioOptions.includes(audio) ? audio : null;
+		const needle = selecting && filter ? (matchCase ? filter : filter.toLocaleLowerCase()) : '';
+		if (!lang && !needle) return seasons;
 		return seasons
 			.map(({ season, episodes }) => ({
 				season,
-				episodes: episodes.filter((ep) =>
-					(matchCase ? ep.title : ep.title.toLocaleLowerCase()).includes(needle)
+				episodes: episodes.filter(
+					(ep) =>
+						(!lang || audioLangs(ep).has(lang)) &&
+						(matchCase ? ep.title : ep.title.toLocaleLowerCase()).includes(needle)
 				)
 			}))
 			.filter(({ episodes }) => episodes.length > 0);
@@ -203,6 +228,24 @@
 				<option value={null}>Todas las temporadas</option>
 				{#each data.seasons as { season: number } (number)}
 					<option value={number}>Temporada {number}</option>
+				{/each}
+			</select>
+		{/if}
+		{#if audioOptions.length}
+			<select
+				aria-label="Idioma de audio"
+				bind:value={
+					() => audio,
+					(v) => {
+						audio = v;
+						unselectHidden();
+					}
+				}
+				class="rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm"
+			>
+				<option value={null}>Todos los audios</option>
+				{#each audioOptions as lang (lang)}
+					<option value={lang}>Audio: {languageLabel(lang)}</option>
 				{/each}
 			</select>
 		{/if}
