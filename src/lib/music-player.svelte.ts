@@ -1,6 +1,17 @@
 import type { MusicTrack } from '#lib/music.ts';
 import type { RadioStream } from '#lib/radio.ts';
 
+/** In random order, with `first` first, so that the whole queue still comes after it. */
+function shuffled(tracks: MusicTrack[], first: number) {
+	const rest = tracks.filter((_, i) => i !== first);
+	// Fisher–Yates.
+	for (let i = rest.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[rest[i], rest[j]] = [rest[j], rest[i]];
+	}
+	return tracks[first] ? [tracks[first], ...rest] : rest;
+}
+
 /**
  * What is playing in this browser: a queue of tracks, or a radio station, and the `<audio>` of the
  * layout (MusicBar), so it goes on while moving around the app. Only changed in the browser, from
@@ -15,7 +26,15 @@ class MusicPlayer {
 	playing = $state(false);
 	positionSec = $state(0);
 	durationSec = $state<number | null>(null);
+	/** The queue in random order. */
+	shuffle = $state(false);
+	/** At the end, back to the start: of the queue, or of the track with `single`. */
+	repeat = $state(false);
+	/** Only the track that is on: it stops at its end, or starts again with `repeat`. */
+	single = $state(false);
 
+	/** The queue in its own order, while it is shuffled. */
+	#ordered: MusicTrack[] = [];
 	#audio: HTMLAudioElement | null = null;
 
 	get current(): MusicTrack | undefined {
@@ -30,8 +49,24 @@ class MusicPlayer {
 	/** Replaces the queue and starts it at `start`. */
 	play(tracks: MusicTrack[], start = 0) {
 		this.radio = null;
-		this.queue = tracks;
-		this.index = Math.min(Math.max(start, 0), tracks.length - 1);
+		start = Math.min(Math.max(start, 0), tracks.length - 1);
+		this.#ordered = tracks;
+		this.queue = this.shuffle ? shuffled(tracks, start) : tracks;
+		this.index = this.shuffle ? 0 : start;
+	}
+
+	setShuffle(value: boolean) {
+		this.shuffle = value;
+		if (!this.queue.length) return;
+		const current = this.current;
+		if (value) {
+			this.#ordered = this.queue;
+			this.queue = shuffled(this.queue, this.index);
+			this.index = 0;
+		} else {
+			this.queue = this.#ordered;
+			this.index = Math.max(this.queue.indexOf(current!), 0);
+		}
 	}
 
 	/** Instead of whatever was on. */
@@ -45,6 +80,7 @@ class MusicPlayer {
 	append(tracks: MusicTrack[]) {
 		if (!this.current) return this.play(tracks);
 		this.queue = [...this.queue, ...tracks];
+		this.#ordered = [...this.#ordered, ...tracks];
 	}
 
 	toggle() {
@@ -66,7 +102,23 @@ class MusicPlayer {
 
 	next() {
 		if (this.index < this.queue.length - 1) this.index++;
-		else this.stop();
+		else if (!this.repeat) this.stop();
+		else if (this.index > 0) this.index = 0;
+		// Only one track: the same `src`, so it is started again here.
+		else this.#restart();
+	}
+
+	/**
+	 * The `<audio>` got to the end of the track. With single it stays there, and play starts it
+	 * again; single with repeat is the `<audio>`'s own `loop`, which never gets here.
+	 */
+	ended() {
+		if (!this.single) this.next();
+	}
+
+	#restart() {
+		this.seek(0);
+		void this.#audio?.play().catch(() => {});
 	}
 
 	/** Past the first seconds, back to the start of the track, as players do. */
@@ -83,6 +135,7 @@ class MusicPlayer {
 		this.#audio?.pause();
 		this.radio = null;
 		this.queue = [];
+		this.#ordered = [];
 		this.index = 0;
 	}
 }

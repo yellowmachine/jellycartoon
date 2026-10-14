@@ -1,5 +1,6 @@
 <script lang="ts">
 	import MediaIcon from './MediaIcon.svelte';
+	import PlayModes from './PlayModes.svelte';
 	import type Hls from 'hls.js';
 	import { formatDuration } from '#lib/format.ts';
 	import { coverUrl, trackUrl } from '#lib/music.ts';
@@ -155,7 +156,8 @@
 	onpause={() => (music.playing = false)}
 	ontimeupdate={timeUpdate}
 	ondurationchange={timeUpdate}
-	onended={() => !radio && music.next()}
+	loop={music.single && music.repeat}
+	onended={() => !radio && music.ended()}
 ></audio>
 
 {#if radio}
@@ -189,6 +191,17 @@
 		>
 	</div>
 {:else if current}
+	{#snippet modes()}
+		<PlayModes
+			shuffle={music.shuffle}
+			repeat={music.repeat}
+			single={music.single}
+			onchange={(mode, value) => {
+				if (mode === 'shuffle') music.setShuffle(value);
+				else music[mode] = value;
+			}}
+		/>
+	{/snippet}
 	<div class="rounded-md border border-zinc-700 bg-zinc-900/80 p-2 backdrop-blur">
 		<input
 			type="range"
@@ -225,6 +238,7 @@
 					music.durationSec ?? current.durationSec
 				)}
 			</span>
+			<span class="hidden gap-1 sm:flex">{@render modes()}</span>
 			<button class={control} aria-label="Anterior" onclick={() => music.previous()}
 				><MediaIcon name="previous" /></button
 			>
@@ -236,12 +250,21 @@
 			<button
 				class={control}
 				aria-label="Siguiente"
-				disabled={music.index >= music.queue.length - 1}
+				disabled={music.index >= music.queue.length - 1 && !music.repeat}
 				onclick={() => music.next()}><MediaIcon name="next" /></button
 			>
 			<button class={ghost} aria-label="Cerrar" title="Parar y cerrar" onclick={() => music.stop()}
 				><MediaIcon name="close" /></button
 			>
+		</div>
+		<!-- On the phone there is no room for them in the row above. -->
+		<div class="mt-1 flex items-center justify-between sm:hidden">
+			<span class="font-mono text-xs text-zinc-400 tabular-nums">
+				{formatDuration(music.positionSec) || '0:00'} / {formatDuration(
+					music.durationSec ?? current.durationSec
+				)}
+			</span>
+			<span class="flex gap-1">{@render modes()}</span>
 		</div>
 	</div>
 {/if}

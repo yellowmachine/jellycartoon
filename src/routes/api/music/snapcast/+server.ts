@@ -30,6 +30,9 @@ function parse(body: Record<string, unknown>): SnapcastAction | null {
 		case 'radio':
 			return typeof uuid === 'string' ? { action, uuid } : null;
 		case 'pause':
+		case 'shuffle':
+		case 'repeat':
+		case 'single':
 			return typeof value === 'boolean' ? { action, value } : null;
 		case 'seekTo':
 			return typeof value === 'number' && Number.isFinite(value) ? { action, value } : null;

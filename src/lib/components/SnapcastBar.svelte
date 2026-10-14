@@ -1,5 +1,6 @@
 <script lang="ts">
 	import MediaIcon from './MediaIcon.svelte';
+	import PlayModes from './PlayModes.svelte';
 	import { formatDuration } from '#lib/format.ts';
 	import { coverUrl } from '#lib/music.ts';
 	import { musicTarget, watchSnapcast } from '#lib/music-target.svelte.ts';
@@ -27,6 +28,14 @@
 
 <!-- Only while something plays on Snapcast, whoever sent it. -->
 {#if snap?.active}
+	{#snippet modes()}
+		<PlayModes
+			shuffle={snap.shuffle}
+			repeat={snap.repeat}
+			single={snap.single}
+			onchange={(action, value) => musicTarget.send({ action, value })}
+		/>
+	{/snippet}
 	<div class="rounded-md border border-zinc-700 bg-zinc-900/80 p-2 backdrop-blur">
 		{#if showSpeakers}
 			<div class="mb-2 border-b border-zinc-800 pb-2">
@@ -184,6 +193,7 @@
 						snap.durationSec ?? track?.durationSec
 					)}
 				</span>
+				<span class="hidden gap-1 sm:flex">{@render modes()}</span>
 				<button
 					class={control}
 					aria-label="Anterior"
@@ -201,7 +211,9 @@
 				<button
 					class={control}
 					aria-label="Siguiente"
-					disabled={snap.playlistPos !== null && snap.playlistPos >= (snap.playlistCount ?? 0)}
+					disabled={snap.playlistPos !== null &&
+						snap.playlistPos >= (snap.playlistCount ?? 0) &&
+						!snap.repeat}
 					onclick={() => musicTarget.send({ action: 'next' })}><MediaIcon name="next" /></button
 				>
 			{/if}
@@ -224,5 +236,16 @@
 				onclick={() => musicTarget.send({ action: 'stop' })}><MediaIcon name="stop" /></button
 			>
 		</div>
+		{#if !radio}
+			<!-- On the phone there is no room for them in the row above. -->
+			<div class="mt-1 flex items-center justify-between sm:hidden">
+				<span class="font-mono text-xs text-zinc-400 tabular-nums">
+					{formatDuration(snap.positionSec) || '0:00'} / {formatDuration(
+						snap.durationSec ?? track?.durationSec
+					)}
+				</span>
+				<span class="flex gap-1">{@render modes()}</span>
+			</div>
+		{/if}
 	</div>
 {/if}

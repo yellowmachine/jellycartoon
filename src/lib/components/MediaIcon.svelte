@@ -1,5 +1,6 @@
 <script lang="ts" module>
-	export type MediaIconName = 'play' | 'pause' | 'previous' | 'next' | 'stop' | 'close';
+	export type MediaIconName =
+		'play' | 'pause' | 'previous' | 'next' | 'stop' | 'close' | 'shuffle' | 'repeat' | 'single';
 </script>
 
 <script lang="ts">
@@ -34,5 +35,35 @@
 			stroke-width="2.5"
 			stroke-linecap="round"
 		/>
+	{:else if name === 'shuffle'}
+		<g
+			fill="none"
+			stroke="currentColor"
+			stroke-width="2"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+		>
+			<path
+				d="M4 7h3.5c4.5 0 4.5 10 9 10H20M4 17h3.5c1.6 0 2.6-1.3 3.4-3M13.1 10c.8-1.7 1.8-3 3.4-3H20"
+			/>
+			<path d="m17 4 3 3-3 3M17 14l3 3-3 3" />
+		</g>
+	{:else if name === 'repeat'}
+		<g
+			fill="none"
+			stroke="currentColor"
+			stroke-width="2"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+		>
+			<path d="M4 11V9a2 2 0 0 1 2-2h13M20 13v2a2 2 0 0 1-2 2H5" />
+			<path d="m16 4 3 3-3 3M8 20l-3-3 3-3" />
+		</g>
+	{:else if name === 'single'}
+		<!-- One track, and the stop at its end. -->
+		<path
+			d="M4 6.2v11.6a1 1 0 0 0 1.55.83l7.85-5.43a1.5 1.5 0 0 0 0-2.4L5.55 5.37A1 1 0 0 0 4 6.2Z"
+		/>
+		<rect x="15.5" y="5" width="4.5" height="14" rx="1" />
 	{/if}
 </svg>

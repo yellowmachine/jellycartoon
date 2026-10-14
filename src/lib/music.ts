@@ -80,6 +80,12 @@ export interface SnapcastState {
 	/** From 1. */
 	playlistPos: number | null;
 	playlistCount: number | null;
+	/** The queue in random order. */
+	shuffle: boolean;
+	/** At the end, back to the start: of the queue, or of the track with `single`. */
+	repeat: boolean;
+	/** Only the track that is on: it stops at its end, or starts again with `repeat`. */
+	single: boolean;
 	/** Snapserver's clients, connected or not; null while its control API cannot be reached. */
 	speakers: Speaker[] | null;
 }
@@ -93,6 +99,9 @@ export type SnapcastAction =
 	| { action: 'next' }
 	| { action: 'previous' }
 	| { action: 'stop' }
+	| { action: 'shuffle'; value: boolean }
+	| { action: 'repeat'; value: boolean }
+	| { action: 'single'; value: boolean }
 	| { action: 'volume'; speakerId: string; value: number }
 	| { action: 'mute'; speakerId: string; value: boolean }
 	| { action: 'rename'; speakerId: string; name: string };

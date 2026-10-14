@@ -23,6 +23,8 @@ type Entry = { track: MusicTrack } | { radio: RadioStream };
 const entries = new Map<number, Entry>();
 /** The entry playing now. */
 let current: number | null = null;
+/** Stopped at the end of a track, with `single`. */
+let eofReached = false;
 
 const state: SnapcastState = {
 	available: false,
@@ -35,6 +37,9 @@ const state: SnapcastState = {
 	durationSec: null,
 	playlistPos: null,
 	playlistCount: null,
+	shuffle: false,
+	repeat: false,
+	single: false,
 	speakers: null
 };
 
@@ -71,6 +76,11 @@ const mpv = new MpvClient(
 		'duration',
 		'playlist-pos',
 		'playlist-count',
+		// The modes, as mpv has them: shuffle is only remembered there (playlist-shuffle does it).
+		'shuffle',
+		'loop-playlist',
+		'keep-open',
+		'eof-reached',
 		// What many stations say is on (Icecast/Shoutcast's StreamTitle): the song or the programme.
 		'metadata/by-key/icy-title'
 	],
@@ -114,6 +124,19 @@ const mpv = new MpvClient(
 				case 'playlist-count':
 					state.playlistCount = number;
 					break;
+				case 'shuffle':
+					state.shuffle = data === true;
+					break;
+				// false or "no" when off, "inf" or a number of times when on.
+				case 'loop-playlist':
+					state.repeat = data !== false && data !== 'no';
+					break;
+				case 'keep-open':
+					state.single = data === 'always';
+					break;
+				case 'eof-reached':
+					eofReached = data === true;
+					return;
 				case 'metadata/by-key/icy-title':
 					state.nowPlaying = typeof data === 'string' && data.trim() ? data.trim() : null;
 					break;
@@ -187,8 +210,30 @@ export async function queueOnSnapcast(
 		for (const t of tracks.slice(start + 1)) await load(t.track, t.path, { flags: 'append-play' });
 		for (const [i, t] of tracks.slice(0, start).entries())
 			await load(t.track, t.path, { flags: 'insert-at', index: i });
+		if (state.shuffle) await shuffleQueue();
 	}
 	log.info('música', `En Snapcast: ${tracks.length} canciones`, { replace: options.replace });
+}
+
+/**
+ * mpv's playlist-shuffle, with the track that is on moved first, so that the whole queue still
+ * comes after it.
+ */
+async function shuffleQueue() {
+	await mpv.command(['playlist-shuffle']);
+	const pos = (await mpv.command(['get_property', 'playlist-pos'])) as number;
+	if (pos > 0) await mpv.command(['playlist-move', pos, 0]);
+}
+
+/**
+ * Repeat and single, with mpv's options (https://mpv.io/manual/stable/#options-loop-playlist):
+ * loop-playlist for repeat; keep-open=always for single, which stops at the end of each track
+ * instead of going on to the next; and both, loop-file, which starts the track again.
+ */
+async function setLoops(repeat: boolean, single: boolean) {
+	await mpv.command(['set_property', 'loop-playlist', repeat ? 'inf' : 'no']);
+	await mpv.command(['set_property', 'loop-file', repeat && single ? 'inf' : 'no']);
+	await mpv.command(['set_property', 'keep-open', single ? 'always' : 'no']);
 }
 
 export async function controlSnapcast(
@@ -202,6 +247,8 @@ export async function controlSnapcast(
 				await mpv.command(['set_property', 'pause', false]);
 				return radioOnSnapcast(state.radio);
 			}
+			// Stopped at the end of a track (single): mpv does not play it again by itself.
+			if (!action.value && eofReached) await mpv.command(['seek', 0, 'absolute']);
 			return mpv.command(['set_property', 'pause', action.value]);
 		case 'seekTo':
 			return mpv.command(['seek', action.value, 'absolute']);
@@ -216,6 +263,14 @@ export async function controlSnapcast(
 				: mpv.command(['playlist-prev']);
 		case 'stop':
 			return mpv.command(['stop']);
+		case 'shuffle':
+			await mpv.command(['set_property', 'shuffle', action.value]);
+			if (!state.active || state.radio) return;
+			return action.value ? shuffleQueue() : mpv.command(['playlist-unshuffle']);
+		case 'repeat':
+			return setLoops(action.value, state.single);
+		case 'single':
+			return setLoops(state.repeat, action.value);
 		case 'volume':
 			return speakers().setVolume(action.speakerId, { percent: action.value });
 		case 'mute':
