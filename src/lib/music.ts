@@ -22,6 +22,32 @@ export interface MusicAlbum {
 	tracks: MusicTrack[];
 }
 
+/** Accents and case do not matter: «heroes» finds «Héroes del Silencio». */
+export function fold(text: string) {
+	return text
+		.normalize('NFD')
+		.replace(/\p{Diacritic}/gu, '')
+		.toLowerCase();
+}
+
+export interface MusicArtist {
+	name: string;
+	albums: MusicAlbum[];
+}
+
+/** The albums by album artist, in the order they come; «AC/DC» and «Ac/Dc» are one artist. */
+export function groupByArtist(albums: MusicAlbum[]): MusicArtist[] {
+	const artists = new Map<string, MusicArtist>();
+	for (const a of albums) {
+		const key = fold(a.artist);
+		const artist = artists.get(key);
+		if (artist) artist.albums.push(a);
+		else artists.set(key, { name: a.artist, albums: [a] });
+	}
+	return [...artists.values()];
+}
+
+export const artistUrl = (name: string) => `/musica/artista/${encodeURIComponent(name)}`;
 export const trackUrl = (id: number) => `/api/music/track/${id}`;
 export const coverUrl = (albumId: number) => `/api/music/cover/${albumId}`;
 

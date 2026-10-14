@@ -4,6 +4,7 @@
 	import MusicTargetSwitch from '#lib/components/MusicTargetSwitch.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
 	import { formatDuration } from '#lib/format.ts';
+	import { artistUrl } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
 	import { musicTarget } from '#lib/music-target.svelte.ts';
 	import type { PageProps } from './$types';
@@ -51,7 +52,9 @@
 				{@render editButton('album', 'Cambiar título del álbum')}
 			</h1>
 		{/if}
-		<p class="text-zinc-300">{album.artist}</p>
+		<a href={artistUrl(album.artist)} class="text-zinc-300 hover:text-white hover:underline"
+			>{album.artist}</a
+		>
 		<p class="mb-3 text-sm text-zinc-400">
 			{album.tracks.length} canciones · {formatDuration(totalSec)}
 		</p>

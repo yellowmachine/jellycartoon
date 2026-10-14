@@ -2,18 +2,28 @@
 	import MiniSearch from 'minisearch';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
-	import AddToPlaylist from '#lib/components/AddToPlaylist.svelte';
 	import AlbumCover from '#lib/components/AlbumCover.svelte';
+	import AlbumGrid from '#lib/components/AlbumGrid.svelte';
 	import MusicTargetSwitch from '#lib/components/MusicTargetSwitch.svelte';
-	import { formatDuration } from '#lib/format.ts';
-	import type { MusicAlbum, MusicTrack } from '#lib/music.ts';
-	import { music } from '#lib/music-player.svelte.ts';
+	import TrackRows from '#lib/components/TrackRows.svelte';
+	import {
+		artistUrl,
+		fold,
+		groupByArtist,
+		type MusicAlbum,
+		type MusicArtist,
+		type MusicTrack
+	} from '#lib/music.ts';
 	import { musicTarget } from '#lib/music-target.svelte.ts';
+	import { saveView } from '#lib/views.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
 	let search = $state('');
+	/** From the cookie; changed here at once when switched. */
+	let view = $derived(data.view);
+	const artists = $derived(groupByArtist(data.albums));
 
 	const progress = $derived(data.progress);
 	const totals = $derived(data.totals);
@@ -44,13 +54,6 @@
 		album?: string;
 	}
 
-	/** Accents and case do not matter: «heroes» finds «Héroes del Silencio». */
-	const fold = (term: string) =>
-		term
-			.normalize('NFD')
-			.replace(/\p{Diacritic}/gu, '')
-			.toLowerCase();
-
 	// Albums and tracks in one index (https://lucaong.github.io/minisearch/), built in the browser.
 	const index = $derived.by(() => {
 		const ms = new MiniSearch<Doc>({
@@ -59,6 +62,7 @@
 			searchOptions: { prefix: true, fuzzy: 0.2, boost: { title: 2 }, combineWith: 'AND' }
 		});
 		ms.addAll([
+			...artists.map((a, i) => ({ id: `r${i}`, title: a.name, artist: a.name })),
 			...data.albums.map((a) => ({ id: `a${a.id}`, title: a.title, artist: a.artist })),
 			...data.albums.flatMap((a) =>
 				a.tracks.map((t) => ({ id: `t${t.id}`, title: t.title, artist: t.artist, album: a.title }))
@@ -75,11 +79,14 @@
 	const results = $derived.by(() => {
 		const query = search.trim();
 		if (!query) return null;
+		const found: MusicArtist[] = [];
 		const albums: MusicAlbum[] = [];
 		const tracks: MusicTrack[] = [];
 		for (const hit of index.search(query)) {
 			const id = Number(String(hit.id).slice(1));
-			if (String(hit.id).startsWith('a')) {
+			if (String(hit.id).startsWith('r')) {
+				found.push(artists[id]);
+			} else if (String(hit.id).startsWith('a')) {
 				const a = albumsById.get(id);
 				if (a) albums.push(a);
 			} else if (tracks.length < 50) {
@@ -87,7 +94,7 @@
 				if (t) tracks.push(t);
 			}
 		}
-		return { albums, tracks };
+		return { artists: found, albums, tracks };
 	});
 
 	/** The track and the rest of its album after it. */
@@ -106,13 +113,28 @@
 	<title>Música · JellyCartoon</title>
 </svelte:head>
 
-{#snippet albumGrid(albums: MusicAlbum[])}
+{#snippet artistGrid(artists: MusicArtist[])}
 	<div class="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
-		{#each albums as a (a.id)}
-			<a href="/musica/{a.id}" class="group">
-				<AlbumCover album={a} class="w-full rounded-md group-hover:opacity-80" />
-				<p class="mt-1 truncate text-sm">{a.title}</p>
-				<p class="truncate text-xs text-zinc-400">{a.artist}</p>
+		{#each artists as artist (artist.name)}
+			{@const covered = artist.albums.filter((a) => a.hasCover)}
+			<a href={artistUrl(artist.name)} class="group">
+				<!-- With four covers or more, a mosaic of them; else the first one. -->
+				{#if covered.length >= 4}
+					<div class="grid grid-cols-2 overflow-hidden rounded-md group-hover:opacity-80">
+						{#each covered.slice(0, 4) as a (a.id)}
+							<AlbumCover album={a} class="w-full" />
+						{/each}
+					</div>
+				{:else}
+					<AlbumCover
+						album={covered[0] ?? artist.albums[0]}
+						class="w-full rounded-md group-hover:opacity-80"
+					/>
+				{/if}
+				<p class="mt-1 truncate text-sm">{artist.name}</p>
+				<p class="truncate text-xs text-zinc-400">
+					{artist.albums.length === 1 ? '1 álbum' : `${artist.albums.length} álbumes`}
+				</p>
 			</a>
 		{/each}
 	</div>
@@ -226,41 +248,54 @@
 		</p>
 	{/if}
 {:else if results}
+	{#if results.artists.length}
+		<h2 class="mb-3 text-lg font-semibold">Artistas</h2>
+		<div class="mb-8">{@render artistGrid(results.artists)}</div>
+	{/if}
 	{#if results.albums.length}
 		<h2 class="mb-3 text-lg font-semibold">Álbumes</h2>
-		<div class="mb-8">{@render albumGrid(results.albums)}</div>
+		<div class="mb-8"><AlbumGrid albums={results.albums} /></div>
 	{/if}
 	{#if results.tracks.length}
 		<h2 class="mb-3 text-lg font-semibold">Canciones</h2>
-		<ol class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
-			{#each results.tracks as t (t.id)}
-				<li class="flex items-center pr-1">
-					<button
-						class={[
-							'flex min-w-0 flex-1 items-center gap-3 p-2 text-left hover:bg-zinc-900',
-							music.current?.id === t.id && 'text-amber-400'
-						]}
-						onclick={() => playTrack(t)}
-					>
-						<AlbumCover
-							album={{ id: t.albumId, hasCover: t.hasCover }}
-							class="w-10 shrink-0 rounded"
-						/>
-						<span class="min-w-0 flex-1">
-							<span class="block truncate text-sm">{t.title}</span>
-							<span class="block truncate text-xs text-zinc-400">{t.artist} · {t.album}</span>
-						</span>
-						<span class="text-xs text-zinc-500">{formatDuration(t.durationSec)}</span>
-					</button>
-					<AddToPlaylist trackId={t.id} key="search-{t.id}" playlists={data.playlists} />
-				</li>
-			{/each}
-		</ol>
+		<TrackRows
+			tracks={results.tracks}
+			key="search"
+			playlists={data.playlists}
+			onplay={(t) => playTrack(t)}
+		/>
 	{/if}
-	{#if !results.albums.length && !results.tracks.length}
+	{#if !results.artists.length && !results.albums.length && !results.tracks.length}
 		<p class="text-zinc-400">Nada coincide con «{search}».</p>
 	{/if}
 {:else}
-	<p class="mb-4 text-sm text-zinc-400">{data.albums.length} álbumes</p>
-	{@render albumGrid(data.albums)}
+	<div class="mb-4 flex items-center justify-between gap-3">
+		<p class="text-sm text-zinc-400">
+			{view === 'artists' ? `${artists.length} artistas · ` : ''}{data.albums.length} álbumes
+		</p>
+		<div
+			class="flex rounded-md border border-zinc-700 p-0.5 text-sm"
+			role="group"
+			aria-label="Vista"
+		>
+			{#each [{ value: 'albums', label: 'Álbumes' }, { value: 'artists', label: 'Artistas' }] as const as { value, label } (value)}
+				<button
+					class={[
+						'rounded px-2 py-0.5',
+						view === value ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-white'
+					]}
+					aria-pressed={view === value}
+					onclick={() => {
+						view = value;
+						saveView('music', value);
+					}}>{label}</button
+				>
+			{/each}
+		</div>
+	</div>
+	{#if view === 'artists'}
+		{@render artistGrid(artists)}
+	{:else}
+		<AlbumGrid albums={data.albums} />
+	{/if}
 {/if}

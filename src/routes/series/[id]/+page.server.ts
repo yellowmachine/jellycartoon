@@ -12,7 +12,7 @@ import { ignoreEpisodes, retryEpisode } from '#lib/server/library/worker.ts';
 import { getActiveList, getListNames, seriesListItems, toggleInList } from '#lib/server/lists.ts';
 import { clearProgress, markWatched, saveProgress } from '#lib/server/progress.ts';
 import { log } from '#lib/server/log.ts';
-import { EPISODE_VIEW_COOKIE, parseEpisodeView } from '#lib/episode-view.ts';
+import { parseView, viewCookie } from '#lib/views.ts';
 import { addSeriesTag, getTags, removeSeriesTag, seriesTags, tagName } from '#lib/server/tags.ts';
 import { playEpisodes, seriesQueue } from '#lib/server/cinema/episode-actions.ts';
 import {
@@ -92,7 +92,7 @@ export const load: PageServerLoad = async ({ params, locals, cookies }) => {
 	);
 	return {
 		series: s,
-		view: parseEpisodeView(cookies.get(EPISODE_VIEW_COOKIE)),
+		view: parseView('episodes', cookies.get(viewCookie('episodes'))),
 		tags,
 		/** To suggest while typing a tag. */
 		allTags: allTags.map((t) => t.name),

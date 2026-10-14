@@ -6,7 +6,7 @@
 	import EpisodeTitles from '#lib/components/EpisodeTitles.svelte';
 	import SeriesInfo from '#lib/components/SeriesInfo.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
-	import { saveEpisodeView } from '#lib/episode-view.ts';
+	import { saveView } from '#lib/views.ts';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
 	import { thumbUrl } from '#lib/thumb.svelte.ts';
 	import type { PageProps } from './$types';
@@ -186,7 +186,7 @@
 					aria-pressed={view === value}
 					onclick={() => {
 						view = value;
-						saveEpisodeView(value);
+						saveView('episodes', value);
 					}}
 				>
 					<svg viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor" aria-hidden="true">

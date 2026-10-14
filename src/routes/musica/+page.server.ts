@@ -8,11 +8,17 @@ import { getAlbums, musicTotals } from '#lib/server/music/albums.ts';
 import { wakeMusicCatalog } from '#lib/server/music/catalog.ts';
 import { scanMusic } from '#lib/server/music/scan.ts';
 import { musicProgress } from '#lib/server/music/status.ts';
+import { parseView, viewCookie } from '#lib/views.ts';
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async ({ cookies }) => {
 	if (!musicRoot) error(404, 'No hay carpeta de música (MUSIC_DIR)');
 	const [albums, totals] = await Promise.all([getAlbums(), musicTotals()]);
-	return { albums, totals, progress: { ...musicProgress } };
+	return {
+		albums,
+		totals,
+		progress: { ...musicProgress },
+		view: parseView('music', cookies.get(viewCookie('music')))
+	};
 };
 
 export const actions: Actions = {
