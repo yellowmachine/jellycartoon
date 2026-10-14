@@ -18,7 +18,7 @@ export function sseResponse<T>(
 				}
 			};
 			const unwatch = watch((state) => send(`data: ${JSON.stringify(state)}\n\n`));
-			// A comment now and then keeps proxies (Caddy) from closing an idle connection.
+			// A comment now and then keeps proxies (Tailscale Serve) from closing an idle connection.
 			const keepAlive = setInterval(() => send(': ping\n\n'), 25_000);
 			stop = () => {
 				unwatch();

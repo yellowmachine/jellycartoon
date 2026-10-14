@@ -31,11 +31,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Only on this machine: Tailscale Serve (`tailscale serve --bg 127.0.0.1:3000`) puts it on the
+    # tailnet over HTTPS. adapter-node assumes https, which is what the browser uses there.
+    ports:
+      - 127.0.0.1:3000:3000
     environment:
-      # Caddy sends the real protocol; adapter-node assumes https without it (CSRF 403 over http).
-      PROTOCOL_HEADER: x-forwarded-proto
       DATABASE_URL: postgres://jellycartoon:jellycartoon@db:5432/jellycartoon
-      # The URL the app is opened from (Better Auth's baseURL).
+      # The URL the app is opened from (Better Auth's baseURL): the one Tailscale Serve gives.
       ORIGIN: ${ORIGIN:?ORIGIN is required}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
       MEDIA_DIR: /media
@@ -131,24 +133,8 @@ services:
       # Where the app sees it too: the app sends it the files by their path.
       - ${HOST_MUSIC_DIR:-./no-music}:/music:ro
 
-  # Reverse proxy in front of the app. Only a port, so plain HTTP (no automatic HTTPS). Passes
-  # the Host header through and sets X-Forwarded-Proto, ignoring any sent by the client.
-  caddy:
-    image: caddy:2
-    restart: unless-stopped
-    depends_on:
-      - app
-    command: caddy reverse-proxy --from :3000 --to app:3000
-    ports:
-      - 3000:3000
-    volumes:
-      - caddy_data:/data
-      - caddy_config:/config
-
 volumes:
   pgdata:
-  caddy_data:
-  caddy_config:
 
 configs:
   snapserver:

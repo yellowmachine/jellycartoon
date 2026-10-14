@@ -67,7 +67,7 @@ Usa la imagen que construye GitHub Actions en cada push a `main`
 hacen falta `compose.prod.yaml` y un `.env` con:
 
 ```sh
-ORIGIN="http://<ip-del-servidor>:3000"   # URL desde la que se abre la app
+ORIGIN="https://<equipo>.<tailnet>.ts.net"  # URL desde la que se abre la app (Tailscale Serve)
 BETTER_AUTH_SECRET="..."                 # openssl rand -base64 32
 HOST_MEDIA_DIR="/ruta/a/los/videos"
 HOST_DATA_DIR="/ruta/a/los/convertidos"
@@ -81,10 +81,11 @@ docker compose -f compose.prod.yaml logs -f app
 
 - `ORIGIN` se lee al arrancar: la misma imagen sirve en cualquier dirección. Si cambia, edita el
   `.env` y `docker compose -f compose.prod.yaml up -d`.
-- Delante de la app va Caddy (`caddy reverse-proxy`), que es quien expone el puerto 3000. Le pasa
-  a la app el protocolo real en `X-Forwarded-Proto` (`PROTOCOL_HEADER`, como indica la
-  [documentación de adapter-node](https://svelte.dev/docs/kit/adapter-node)); sin eso SvelteKit
-  supone https y rechaza los formularios enviados por http.
+- La app solo escucha en `127.0.0.1:3000` del servidor. La pone en la tailnet, por HTTPS,
+  [Tailscale Serve](https://tailscale.com/kb/1242/tailscale-serve), instalado en el propio servidor:
+  `tailscale serve --bg 127.0.0.1:3000`. Su URL (`https://<equipo>.<tailnet>.ts.net`) es el
+  `ORIGIN`. Detrás de un proxy https, [adapter-node](https://svelte.dev/docs/kit/adapter-node)
+  supone https por defecto, así que no hace falta `PROTOCOL_HEADER`.
 - Si `HOST_DATA_DIR` es una ruta absoluta, cada capítulo convertido tiene un botón ⧉ que copia
   la ruta de su `master.m3u8` para abrirlo en el mismo PC con mpv u otro reproductor
   (`mpv <ruta>`). Por http desde otra IP el navegador no deja copiar: muestra la ruta seleccionada.
