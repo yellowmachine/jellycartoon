@@ -1,6 +1,13 @@
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { album, albumTitle, track, trackTitle } from '#lib/server/db/schema.ts';
+import {
+	album,
+	albumArtistName,
+	albumTitle,
+	track,
+	trackArtist,
+	trackTitle
+} from '#lib/server/db/schema.ts';
 import type { MusicAlbum } from '#lib/music.ts';
 import { wakeMusicCatalog } from './catalog.ts';
 
@@ -10,11 +17,11 @@ export async function getAlbums(albumId?: number): Promise<MusicAlbum[]> {
 		.select({
 			albumId: album.id,
 			album: albumTitle,
-			albumArtist: album.artist,
+			albumArtist: albumArtistName,
 			coverStatus: album.coverStatus,
 			id: track.id,
 			title: trackTitle,
-			artist: track.artist,
+			artist: trackArtist,
 			number: track.number,
 			durationSec: track.durationSec
 		})
@@ -40,7 +47,7 @@ export async function getAlbums(albumId?: number): Promise<MusicAlbum[]> {
 		a.tracks.push({
 			id: r.id,
 			title: r.title,
-			artist: r.artist ?? r.albumArtist,
+			artist: r.artist,
 			number: r.number,
 			durationSec: r.durationSec,
 			albumId: r.albumId,
@@ -86,23 +93,30 @@ export async function musicTotals() {
 
 /** The titles from the tags, which an empty title goes back to. */
 export async function tagTitles(albumId: number) {
-	const [a] = await db.select({ title: album.title }).from(album).where(eq(album.id, albumId));
+	const [a] = await db
+		.select({ title: album.title, artist: album.artist })
+		.from(album)
+		.where(eq(album.id, albumId));
 	const tracks = await db
 		.select({ id: track.id, title: track.title })
 		.from(track)
 		.where(eq(track.albumId, albumId));
-	return { album: a?.title ?? '', tracks: Object.fromEntries(tracks.map((t) => [t.id, t.title])) };
+	return {
+		album: a?.title ?? '',
+		artist: a?.artist ?? '',
+		tracks: Object.fromEntries(tracks.map((t) => [t.id, t.title]))
+	};
 }
 
 /**
- * An empty title goes back to the one from the tags. An album left without a cover is looked up
- * again: a corrected title may find it.
+ * Its title or its artist; empty goes back to the one from the tags. An album left without a cover
+ * is looked up again: a corrected title or artist may find it.
  */
-export async function renameAlbum(albumId: number, title: string) {
+export async function renameAlbum(albumId: number, field: 'title' | 'artist', value: string) {
 	const [renamed] = await db
 		.update(album)
 		.set({
-			customTitle: title || null,
+			[field === 'title' ? 'customTitle' : 'customArtist']: value || null,
 			coverStatus: sql`case when ${album.coverStatus} = 'not_found' then 'pending' else ${album.coverStatus} end`
 		})
 		.where(eq(album.id, albumId))

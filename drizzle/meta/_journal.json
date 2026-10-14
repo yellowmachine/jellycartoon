@@ -197,6 +197,13 @@
       "when": 1791959543553,
       "tag": "0027_outstanding_stingray",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1791960021352,
+      "tag": "0028_huge_baron_zemo",
+      "breakpoints": true
     }
   ]
 }

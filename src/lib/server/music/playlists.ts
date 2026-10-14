@@ -2,10 +2,12 @@ import { and, asc, desc, eq, gt, lt, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import {
 	album,
+	albumArtistName,
 	albumTitle,
 	musicPlaylist,
 	musicPlaylistItem,
 	track,
+	trackArtist,
 	trackTitle
 } from '#lib/server/db/schema.ts';
 import type { MusicTrack } from '#lib/music.ts';
@@ -51,12 +53,11 @@ export async function getPlaylist(id: number) {
 			itemId: musicPlaylistItem.id,
 			id: track.id,
 			title: trackTitle,
-			artist: track.artist,
+			artist: trackArtist,
 			number: track.number,
 			durationSec: track.durationSec,
 			albumId: album.id,
 			album: albumTitle,
-			albumArtist: album.artist,
 			coverStatus: album.coverStatus
 		})
 		.from(musicPlaylistItem)
@@ -71,7 +72,7 @@ export async function getPlaylist(id: number) {
 			track: {
 				id: r.id,
 				title: r.title,
-				artist: r.artist ?? r.albumArtist,
+				artist: r.artist,
 				number: r.number,
 				durationSec: r.durationSec,
 				albumId: r.albumId,

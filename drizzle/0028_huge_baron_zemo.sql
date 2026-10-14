@@ -1,0 +1,1 @@
+ALTER TABLE "album" ADD COLUMN "custom_artist" text;

@@ -411,6 +411,8 @@ export const album = pgTable('album', {
 	/** Set by hand; shown instead of `title` and kept across scans. */
 	customTitle: text('custom_title'),
 	artist: text('artist').notNull(),
+	/** Set by hand; shown instead of `artist` and kept across scans. */
+	customArtist: text('custom_artist'),
 	/** MusicBrainz disc id, from the CDTOC tag some rippers (fre:ac) write. */
 	discId: text('disc_id'),
 	coverStatus: coverStatus('cover_status').notNull().default('pending'),
@@ -453,6 +455,12 @@ export const track = pgTable(
 /** The titles to show: the one set by hand, or the one from the tags. */
 export const albumTitle = sql<string>`coalesce(${album.customTitle}, ${album.title})`;
 export const trackTitle = sql<string>`coalesce(${track.customTitle}, ${track.title})`;
+export const albumArtistName = sql<string>`coalesce(${album.customArtist}, ${album.artist})`;
+/**
+ * A track's artist: its own, unless it has none or it is the album's as tagged; then the album's,
+ * so renaming the album's artist renames its tracks' too (but not a compilation's).
+ */
+export const trackArtist = sql<string>`case when ${track.artist} is null or ${track.artist} = ${album.artist} then ${albumArtistName} else ${track.artist} end`;
 
 /** A playlist of tracks, shared by the whole house. */
 export const musicPlaylist = pgTable('music_playlist', {

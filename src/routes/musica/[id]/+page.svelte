@@ -14,8 +14,8 @@
 	const album = $derived(data.album);
 	/** Only where Snapcast is set up; elsewhere, always this device. */
 	const toSnapcast = $derived(data.snapcast && musicTarget.value === 'snapcast');
-	/** What is being renamed: the album, a track id, or nothing. */
-	let editing = $state<'album' | number | null>(null);
+	/** What is being renamed: the album, its artist, a track id, or nothing. */
+	let editing = $state<'album' | 'artist' | number | null>(null);
 	const totalSec = $derived(album.tracks.reduce((sum, t) => sum + (t.durationSec ?? 0), 0));
 </script>
 
@@ -23,7 +23,7 @@
 	<title>{album.title} · JellyCartoon</title>
 </svelte:head>
 
-{#snippet editButton(target: 'album' | number, label: string)}
+{#snippet editButton(target: 'album' | 'artist' | number, label: string)}
 	<button
 		class="shrink-0 rounded-md px-2 py-1 text-zinc-500 hover:bg-zinc-800 hover:text-white"
 		title={label}
@@ -52,9 +52,24 @@
 				{@render editButton('album', 'Cambiar título del álbum')}
 			</h1>
 		{/if}
-		<a href={artistUrl(album.artist)} class="text-zinc-300 hover:text-white hover:underline"
-			>{album.artist}</a
-		>
+		{#if editing === 'artist'}
+			<div class="flex">
+				<TitleForm
+					action="?/renameArtist"
+					value={album.artist}
+					placeholder={data.tagTitles.artist}
+					label="Artista"
+					onclose={() => (editing = null)}
+				/>
+			</div>
+		{:else}
+			<p class="flex items-center gap-1">
+				<a href={artistUrl(album.artist)} class="text-zinc-300 hover:text-white hover:underline"
+					>{album.artist}</a
+				>
+				{@render editButton('artist', 'Cambiar el artista del álbum')}
+			</p>
+		{/if}
 		<p class="mb-3 text-sm text-zinc-400">
 			{album.tracks.length} canciones · {formatDuration(totalSec)}
 		</p>

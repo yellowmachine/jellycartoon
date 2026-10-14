@@ -9,10 +9,12 @@
 		placeholder?: string;
 		/** Extra hidden fields, e.g. the episode id. */
 		hidden?: Record<string, string | number>;
+		/** For screen readers: what is being changed. */
+		label?: string;
 		onclose: () => void;
 	}
 
-	let { action, value, placeholder, hidden = {}, onclose }: Props = $props();
+	let { action, value, placeholder, hidden = {}, label = 'Título', onclose }: Props = $props();
 
 	let input = $state<HTMLInputElement>();
 	$effect(() => input?.select());
@@ -36,7 +38,7 @@
 		name="title"
 		{value}
 		{placeholder}
-		aria-label="Título"
+		aria-label={label}
 		class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm"
 		onkeydown={(e) => e.key === 'Escape' && onclose()}
 	/>

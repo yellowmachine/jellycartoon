@@ -2,7 +2,7 @@ import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { and, eq, exists } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { album, albumTitle, track } from '#lib/server/db/schema.ts';
+import { album, albumArtistName, albumTitle, track } from '#lib/server/db/schema.ts';
 import { albumCoverFile } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 import { musicProgress } from './status.ts';
@@ -88,7 +88,7 @@ async function downloadFront(kind: 'release' | 'release-group', id: string, file
 /** Albums with tracks and no cover looked up yet; a network failure leaves them for next time. */
 export async function findCovers() {
 	const pending = await db
-		.select({ id: album.id, title: albumTitle, artist: album.artist, discId: album.discId })
+		.select({ id: album.id, title: albumTitle, artist: albumArtistName, discId: album.discId })
 		.from(album)
 		.where(
 			and(

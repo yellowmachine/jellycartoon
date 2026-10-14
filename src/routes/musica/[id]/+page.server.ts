@@ -15,7 +15,12 @@ export const actions: Actions = {
 	/** An empty title goes back to the one from the tags. */
 	renameAlbum: async ({ params, request }) => {
 		const title = String((await request.formData()).get('title') ?? '').trim();
-		await renameAlbum(Number(params.id), title);
+		await renameAlbum(Number(params.id), 'title', title);
+	},
+	/** The album's artist, also its tracks' that had the same one. */
+	renameArtist: async ({ params, request }) => {
+		const artist = String((await request.formData()).get('title') ?? '').trim();
+		await renameAlbum(Number(params.id), 'artist', artist);
 	},
 	renameTrack: async ({ params, request }) => {
 		const form = await request.formData();
