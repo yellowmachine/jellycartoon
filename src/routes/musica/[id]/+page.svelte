@@ -2,6 +2,7 @@
 	import AddToPlaylist from '#lib/components/AddToPlaylist.svelte';
 	import AlbumCover from '#lib/components/AlbumCover.svelte';
 	import MusicTargetSwitch from '#lib/components/MusicTargetSwitch.svelte';
+	import TitleForm from '#lib/components/TitleForm.svelte';
 	import { formatDuration } from '#lib/format.ts';
 	import { music } from '#lib/music-player.svelte.ts';
 	import { musicTarget } from '#lib/music-target.svelte.ts';
@@ -12,6 +13,8 @@
 	const album = $derived(data.album);
 	/** Only where Snapcast is set up; elsewhere, always this device. */
 	const toSnapcast = $derived(data.snapcast && musicTarget.value === 'snapcast');
+	/** What is being renamed: the album, a track id, or nothing. */
+	let editing = $state<'album' | number | null>(null);
 	const totalSec = $derived(album.tracks.reduce((sum, t) => sum + (t.durationSec ?? 0), 0));
 </script>
 
@@ -19,12 +22,35 @@
 	<title>{album.title} · JellyCartoon</title>
 </svelte:head>
 
+{#snippet editButton(target: 'album' | number, label: string)}
+	<button
+		class="shrink-0 rounded-md px-2 py-1 text-zinc-500 hover:bg-zinc-800 hover:text-white"
+		title={label}
+		aria-label={label}
+		onclick={() => (editing = target)}>✎</button
+	>
+{/snippet}
+
 <a href="/musica" class="text-sm text-zinc-400 hover:text-white">← Música</a>
 
 <div class="mt-3 mb-6 flex flex-col gap-4 sm:flex-row sm:items-end">
 	<AlbumCover {album} class="w-48 shrink-0 rounded-md" />
 	<div class="min-w-0">
-		<h1 class="text-2xl font-bold">{album.title}</h1>
+		{#if editing === 'album'}
+			<div class="flex">
+				<TitleForm
+					action="?/renameAlbum"
+					value={album.title}
+					placeholder={data.tagTitles.album}
+					onclose={() => (editing = null)}
+				/>
+			</div>
+		{:else}
+			<h1 class="flex items-center gap-2 text-2xl font-bold">
+				{album.title}
+				{@render editButton('album', 'Cambiar título del álbum')}
+			</h1>
+		{/if}
 		<p class="text-zinc-300">{album.artist}</p>
 		<p class="mb-3 text-sm text-zinc-400">
 			{album.tracks.length} canciones · {formatDuration(totalSec)}
@@ -49,24 +75,40 @@
 <ol class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
 	{#each album.tracks as t, i (t.id)}
 		<li class="flex items-center pr-1">
-			<button
-				class={[
-					'flex min-w-0 flex-1 items-center gap-3 px-3 py-2 text-left hover:bg-zinc-900',
-					music.current?.id === t.id && 'text-amber-400'
-				]}
-				onclick={() => musicTarget.play(album.tracks, i, toSnapcast)}
-			>
-				<span class="w-6 shrink-0 text-right font-mono text-xs text-zinc-500 tabular-nums">
-					{music.current?.id === t.id && music.playing ? '♪' : (t.number ?? i + 1)}
-				</span>
-				<span class="min-w-0 flex-1">
-					<span class="block truncate text-sm">{t.title}</span>
-					{#if t.artist !== album.artist}
-						<span class="block truncate text-xs text-zinc-400">{t.artist}</span>
-					{/if}
-				</span>
-				<span class="text-xs text-zinc-500">{formatDuration(t.durationSec)}</span>
-			</button>
+			{#if editing === t.id}
+				<div class="flex min-w-0 flex-1 items-center gap-3 px-3 py-2">
+					<span class="w-6 shrink-0 text-right font-mono text-xs text-zinc-500 tabular-nums"
+						>{t.number ?? i + 1}</span
+					>
+					<TitleForm
+						action="?/renameTrack"
+						value={t.title}
+						placeholder={data.tagTitles.tracks[t.id]}
+						hidden={{ id: t.id }}
+						onclose={() => (editing = null)}
+					/>
+				</div>
+			{:else}
+				<button
+					class={[
+						'flex min-w-0 flex-1 items-center gap-3 px-3 py-2 text-left hover:bg-zinc-900',
+						music.current?.id === t.id && 'text-amber-400'
+					]}
+					onclick={() => musicTarget.play(album.tracks, i, toSnapcast)}
+				>
+					<span class="w-6 shrink-0 text-right font-mono text-xs text-zinc-500 tabular-nums">
+						{music.current?.id === t.id && music.playing ? '♪' : (t.number ?? i + 1)}
+					</span>
+					<span class="min-w-0 flex-1">
+						<span class="block truncate text-sm">{t.title}</span>
+						{#if t.artist !== album.artist}
+							<span class="block truncate text-xs text-zinc-400">{t.artist}</span>
+						{/if}
+					</span>
+					<span class="text-xs text-zinc-500">{formatDuration(t.durationSec)}</span>
+				</button>
+				{@render editButton(t.id, 'Cambiar título de la canción')}
+			{/if}
 			<AddToPlaylist trackId={t.id} key="album-{t.id}" playlists={data.playlists} />
 		</li>
 	{/each}

@@ -408,6 +408,8 @@ export const album = pgTable('album', {
 	folder: text('folder').notNull().unique(),
 	/** From its tracks' tags, refreshed as they are read. */
 	title: text('title').notNull(),
+	/** Set by hand; shown instead of `title` and kept across scans. */
+	customTitle: text('custom_title'),
 	artist: text('artist').notNull(),
 	/** MusicBrainz disc id, from the CDTOC tag some rippers (fre:ac) write. */
 	discId: text('disc_id'),
@@ -435,6 +437,8 @@ export const track = pgTable(
 		error: text('error'),
 		/** From the tags; the file name until they are read. */
 		title: text('title').notNull(),
+		/** Set by hand; shown instead of `title` and kept when the tags are read again. */
+		customTitle: text('custom_title'),
 		artist: text('artist'),
 		/** ALBUMARTIST, when the ripper wrote it. */
 		albumArtist: text('album_artist'),
@@ -445,6 +449,10 @@ export const track = pgTable(
 	},
 	(t) => [index('track_album_idx').on(t.albumId, t.number)]
 );
+
+/** The titles to show: the one set by hand, or the one from the tags. */
+export const albumTitle = sql<string>`coalesce(${album.customTitle}, ${album.title})`;
+export const trackTitle = sql<string>`coalesce(${track.customTitle}, ${track.title})`;
 
 /** A playlist of tracks, shared by the whole house. */
 export const musicPlaylist = pgTable('music_playlist', {

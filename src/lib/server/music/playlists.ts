@@ -1,6 +1,13 @@
 import { and, asc, desc, eq, gt, lt, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { album, musicPlaylist, musicPlaylistItem, track } from '#lib/server/db/schema.ts';
+import {
+	album,
+	albumTitle,
+	musicPlaylist,
+	musicPlaylistItem,
+	track,
+	trackTitle
+} from '#lib/server/db/schema.ts';
 import type { MusicTrack } from '#lib/music.ts';
 
 /** Playlists of tracks, shared by the whole house: anyone can change any of them. */
@@ -43,12 +50,12 @@ export async function getPlaylist(id: number) {
 		.select({
 			itemId: musicPlaylistItem.id,
 			id: track.id,
-			title: track.title,
+			title: trackTitle,
 			artist: track.artist,
 			number: track.number,
 			durationSec: track.durationSec,
 			albumId: album.id,
-			album: album.title,
+			album: albumTitle,
 			albumArtist: album.artist,
 			coverStatus: album.coverStatus
 		})
