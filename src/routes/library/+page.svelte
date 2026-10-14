@@ -324,6 +324,9 @@
 				<li class="flex items-center gap-3 p-3 text-sm">
 					<span class="w-8 shrink-0 text-right text-zinc-500">{ep.position}</span>
 					<p class="min-w-0 flex-1 truncate" title={ep.sourcePath}>{ep.sourcePath}</p>
+					<span class="shrink-0 text-xs text-zinc-500 tabular-nums"
+						>{formatBytes(ep.sourceSize)}</span
+					>
 					{#if ep.position > 1}
 						<form method="post" action="?/moveToFront" use:enhance>
 							<input type="hidden" name="id" value={ep.id} />

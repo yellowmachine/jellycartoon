@@ -58,7 +58,8 @@ export const load: PageServerLoad = async () => {
 			sourcePath: episode.sourcePath,
 			seriesId: episode.seriesId,
 			seriesTitle: series.title,
-			durationSec: episode.durationSec
+			durationSec: episode.durationSec,
+			sourceSize: episode.sourceSize
 		})
 		.from(episode)
 		.innerJoin(series, eq(series.id, episode.seriesId))
