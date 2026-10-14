@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { snapshot } from '$app/navigation';
 	import { SvelteSet } from 'svelte/reactivity';
 	import DeleteEpisodesDialog from '#lib/components/DeleteEpisodesDialog.svelte';
 	import EpisodeMenu from '#lib/components/EpisodeMenu.svelte';
@@ -39,13 +40,26 @@
 	const selected = new SvelteSet<number>();
 	let targetSeason = $state<number | null>(null);
 	let deleteDialog = $state<DeleteEpisodesDialog>();
+	/** The only season shown, or all. */
+	let season = $state<number | null>(null);
+	// Kept when coming back to the page (e.g. from an episode), and back to all when entering a
+	// series anew: https://svelte.dev/docs/kit/$app-navigation#snapshot
+	snapshot({
+		capture: () => season,
+		restore: (value) => (season = value),
+		reset: () => (season = null)
+	});
 	/** While selecting, only the episodes whose title contains this text are shown. */
 	let filter = $state('');
 	let matchCase = $state(false);
 	let visibleSeasons = $derived.by(() => {
-		if (!selecting || !filter) return data.seasons;
+		// A season left empty (its episodes moved away) shows them all.
+		const seasons = data.seasons.some((s) => s.season === season)
+			? data.seasons.filter((s) => s.season === season)
+			: data.seasons;
+		if (!selecting || !filter) return seasons;
 		const needle = matchCase ? filter : filter.toLocaleLowerCase();
-		return data.seasons
+		return seasons
 			.map(({ season, episodes }) => ({
 				season,
 				episodes: episodes.filter((ep) =>
@@ -174,6 +188,24 @@
 		{/if}
 	</p>
 	<div class="flex items-center gap-2">
+		{#if data.seasons.length > 1}
+			<select
+				aria-label="Temporada"
+				bind:value={
+					() => season,
+					(v) => {
+						season = v;
+						unselectHidden();
+					}
+				}
+				class="rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm"
+			>
+				<option value={null}>Todas las temporadas</option>
+				{#each data.seasons as { season: number } (number)}
+					<option value={number}>Temporada {number}</option>
+				{/each}
+			</select>
+		{/if}
 		<div class="flex rounded-md border border-zinc-700 p-0.5" role="group" aria-label="Vista">
 			{#each [{ value: 'list', label: 'Ver en lista' }, { value: 'grid', label: 'Ver en cuadrícula' }] as const as { value, label } (value)}
 				<button
