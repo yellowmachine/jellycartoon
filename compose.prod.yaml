@@ -1,8 +1,8 @@
-# Production: runs the image built by GitHub Actions (ghcr.io). Only this file and a .env are
+# Production: runs the images built by GitHub Actions (ghcr.io). Only this file and a .env are
 # needed on the server.
 #
-#   docker compose -f compose.prod.yaml pull --ignore-buildable
-#   docker compose -f compose.prod.yaml up -d --build
+#   docker compose -f compose.prod.yaml pull
+#   docker compose -f compose.prod.yaml up -d
 #
 # Same project name as compose.yaml, so both use the same database volume.
 name: jellycartoon
@@ -81,15 +81,10 @@ services:
 
   # HTTPS in front of the app, at ORIGIN's domain. Its DNS record points to this machine's Tailscale
   # IP, so only the tailnet reaches it; Let's Encrypt can't, and the certificate comes from
-  # Cloudflare's DNS-01 challenge instead. The official image doesn't have that module: it is built
-  # as https://hub.docker.com/_/caddy says ("Adding custom Caddy modules").
+  # Cloudflare's DNS-01 challenge instead. The official image doesn't have that module: GitHub
+  # Actions builds one with it (Dockerfile.caddy).
   caddy:
-    build:
-      dockerfile_inline: |
-        FROM caddy:2.11-builder AS builder
-        RUN xcaddy build --with github.com/caddy-dns/cloudflare
-        FROM caddy:2.11
-        COPY --from=builder /usr/bin/caddy /usr/bin/caddy
+    image: ghcr.io/yellowmachine/jellycartoon-caddy:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       - app
