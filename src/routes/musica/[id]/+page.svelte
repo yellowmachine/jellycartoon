@@ -32,7 +32,11 @@
 	>
 {/snippet}
 
-<a href="/musica" class="text-sm text-zinc-400 hover:text-white">← Música</a>
+<nav class="flex min-w-0 items-center gap-1.5 text-sm text-zinc-400">
+	<a href="/musica" class="shrink-0 hover:text-white">Música</a>
+	<span aria-hidden="true">›</span>
+	<a href={artistUrl(album.artist)} class="truncate hover:text-white">{album.artist}</a>
+</nav>
 
 <div class="mt-3 mb-6 flex flex-col gap-4 sm:flex-row sm:items-end">
 	<AlbumCover {album} class="w-48 shrink-0 rounded-md" />
