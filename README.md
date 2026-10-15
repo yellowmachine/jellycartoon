@@ -62,8 +62,8 @@ Necesitas `ffmpeg` y `ffprobe` en el PATH.
 
 ## Producción
 
-Usa la imagen que construye GitHub Actions en cada push a `main`
-(`ghcr.io/yellowmachine/jellycartoon`, etiquetas `latest` y `sha-<commit>`). En el servidor solo
+Usa las imágenes que construye GitHub Actions en cada push a `main`
+(`ghcr.io/yellowmachine/jellycartoon` y `-caddy`, etiquetas `latest` y `sha-<commit>`). En el servidor solo
 hacen falta `compose.prod.yaml` y un `.env` con:
 
 ```sh
@@ -75,8 +75,8 @@ HOST_DATA_DIR="/ruta/a/los/convertidos"
 ```
 
 ```sh
-docker compose -f compose.prod.yaml pull --ignore-buildable  # descarga la última imagen
-docker compose -f compose.prod.yaml up -d --build             # arranca o actualiza
+docker compose -f compose.prod.yaml pull     # descarga las últimas imágenes
+docker compose -f compose.prod.yaml up -d    # arranca o actualiza
 docker compose -f compose.prod.yaml logs -f app
 ```
 
@@ -90,7 +90,8 @@ docker compose -f compose.prod.yaml logs -f app
   nombre lo resuelve cualquier DNS (no depende del DNS de Tailscale, que falla en algunos
   móviles). Como Let's Encrypt no llega al servidor, el certificado se pide con el reto DNS-01
   de Cloudflare ([caddy-dns/cloudflare](https://github.com/caddy-dns/cloudflare)); la imagen de
-  Caddy con ese módulo se construye en el propio servidor (`--build`). Una vez:
+  Caddy con ese módulo (`Dockerfile.caddy`) la construye GitHub Actions junto a la de la app
+  (`ghcr.io/yellowmachine/jellycartoon-caddy`, mismas etiquetas). Una vez:
   1. En Cloudflare, un registro `A` del dominio → IP de Tailscale del servidor
      (`tailscale ip -4`), en modo **DNS only** (sin proxy).
   2. Un token de API (My Profile → API Tokens) con `Zone.Zone:Read` y `Zone.DNS:Edit` sobre esa
