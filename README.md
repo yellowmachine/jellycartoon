@@ -67,25 +67,36 @@ Usa la imagen que construye GitHub Actions en cada push a `main`
 hacen falta `compose.prod.yaml` y un `.env` con:
 
 ```sh
-ORIGIN="https://<equipo>.<tailnet>.ts.net"  # URL desde la que se abre la app (Tailscale Serve)
+ORIGIN="https://<tu-dominio>"            # URL desde la que se abre la app (la sirve Caddy)
+CF_API_TOKEN="..."                       # token de Cloudflare para el certificado (ver abajo)
 BETTER_AUTH_SECRET="..."                 # openssl rand -base64 32
 HOST_MEDIA_DIR="/ruta/a/los/videos"
 HOST_DATA_DIR="/ruta/a/los/convertidos"
 ```
 
 ```sh
-docker compose -f compose.prod.yaml pull     # descarga la última imagen
-docker compose -f compose.prod.yaml up -d    # arranca o actualiza
+docker compose -f compose.prod.yaml pull --ignore-buildable  # descarga la última imagen
+docker compose -f compose.prod.yaml up -d --build             # arranca o actualiza
 docker compose -f compose.prod.yaml logs -f app
 ```
 
 - `ORIGIN` se lee al arrancar: la misma imagen sirve en cualquier dirección. Si cambia, edita el
   `.env` y `docker compose -f compose.prod.yaml up -d`.
-- La app solo escucha en `127.0.0.1:3000` del servidor. La pone en la tailnet, por HTTPS,
-  [Tailscale Serve](https://tailscale.com/kb/1242/tailscale-serve), instalado en el propio servidor:
-  `tailscale serve --bg 127.0.0.1:3000`. Su URL (`https://<equipo>.<tailnet>.ts.net`) es el
-  `ORIGIN`. Detrás de un proxy https, [adapter-node](https://svelte.dev/docs/kit/adapter-node)
-  supone https por defecto, así que no hace falta `PROTOCOL_HEADER`.
+- La app solo escucha en `127.0.0.1:3000` del servidor. Delante va Caddy, que la sirve por HTTPS
+  en el dominio de `ORIGIN` (puerto 443). Detrás de un proxy https,
+  [adapter-node](https://svelte.dev/docs/kit/adapter-node) supone https por defecto, así que no
+  hace falta `PROTOCOL_HEADER`.
+- El dominio apunta a la IP de Tailscale del servidor: solo se llega desde la tailnet, pero el
+  nombre lo resuelve cualquier DNS (no depende del DNS de Tailscale, que falla en algunos
+  móviles). Como Let's Encrypt no llega al servidor, el certificado se pide con el reto DNS-01
+  de Cloudflare ([caddy-dns/cloudflare](https://github.com/caddy-dns/cloudflare)); la imagen de
+  Caddy con ese módulo se construye en el propio servidor (`--build`). Una vez:
+  1. En Cloudflare, un registro `A` del dominio → IP de Tailscale del servidor
+     (`tailscale ip -4`), en modo **DNS only** (sin proxy).
+  2. Un token de API (My Profile → API Tokens) con `Zone.Zone:Read` y `Zone.DNS:Edit` sobre esa
+     zona, en `CF_API_TOKEN`.
+  3. Si estaba Tailscale Serve, liberar el 443: `sudo tailscale serve --https=443 off`.
+  4. `docker compose -f compose.prod.yaml logs -f caddy` hasta ver `certificate obtained successfully`.
 - Si `HOST_DATA_DIR` es una ruta absoluta, cada capítulo convertido tiene un botón ⧉ que copia
   la ruta de su `master.m3u8` para abrirlo en el mismo PC con mpv u otro reproductor
   (`mpv <ruta>`). Por http desde otra IP el navegador no deja copiar: muestra la ruta seleccionada.

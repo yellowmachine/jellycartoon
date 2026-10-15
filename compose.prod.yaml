@@ -1,8 +1,8 @@
 # Production: runs the image built by GitHub Actions (ghcr.io). Only this file and a .env are
 # needed on the server.
 #
-#   docker compose -f compose.prod.yaml pull
-#   docker compose -f compose.prod.yaml up -d
+#   docker compose -f compose.prod.yaml pull --ignore-buildable
+#   docker compose -f compose.prod.yaml up -d --build
 #
 # Same project name as compose.yaml, so both use the same database volume.
 name: jellycartoon
@@ -31,13 +31,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    # Only on this machine: Tailscale Serve (`tailscale serve --bg 127.0.0.1:3000`) puts it on the
-    # tailnet over HTTPS. adapter-node assumes https, which is what the browser uses there.
+    # Only on this machine, to debug: browsers reach it through Caddy (below), over HTTPS.
+    # adapter-node assumes https, which is what the browser uses there.
     ports:
       - 127.0.0.1:3000:3000
     environment:
       DATABASE_URL: postgres://jellycartoon:jellycartoon@db:5432/jellycartoon
-      # The URL the app is opened from (Better Auth's baseURL): the one Tailscale Serve gives.
+      # The URL the app is opened from (Better Auth's baseURL), served by Caddy.
       ORIGIN: ${ORIGIN:?ORIGIN is required}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
       MEDIA_DIR: /media
@@ -78,6 +78,35 @@ services:
     # The host, from inside the container: https://docs.docker.com/reference/compose-file/services/#extra_hosts
     extra_hosts:
       - host.docker.internal:host-gateway
+
+  # HTTPS in front of the app, at ORIGIN's domain. Its DNS record points to this machine's Tailscale
+  # IP, so only the tailnet reaches it; Let's Encrypt can't, and the certificate comes from
+  # Cloudflare's DNS-01 challenge instead. The official image doesn't have that module: it is built
+  # as https://hub.docker.com/_/caddy says ("Adding custom Caddy modules").
+  caddy:
+    build:
+      dockerfile_inline: |
+        FROM caddy:2.11-builder AS builder
+        RUN xcaddy build --with github.com/caddy-dns/cloudflare
+        FROM caddy:2.11
+        COPY --from=builder /usr/bin/caddy /usr/bin/caddy
+    restart: unless-stopped
+    depends_on:
+      - app
+    # On every interface rather than just the Tailscale IP: Docker may start before tailscaled.
+    ports:
+      - 443:443
+      - 443:443/udp
+    environment:
+      # Cloudflare API token with Zone.Zone:Read and Zone.DNS:Edit on the domain's zone.
+      CF_API_TOKEN: ${CF_API_TOKEN:?CF_API_TOKEN is required}
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
+    volumes:
+      # Certificates and the ACME account: without them, a new certificate on every start.
+      - caddy_data:/data
+      - caddy_config:/config
 
   # Optional, with COMPOSE_PROFILES=snapcast in the .env: the music, to Snapcast clients
   # (snapclient, Snapdroid…). Both run the app's image with another command, and share HOST_DATA_DIR
@@ -135,8 +164,19 @@ services:
 
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:
 
 configs:
+  # ORIGIN is the site address (https://<domain>), filled in by compose.
+  caddyfile:
+    content: |
+      ${ORIGIN} {
+      	tls {
+      		dns cloudflare {env.CF_API_TOKEN}
+      	}
+      	reverse_proxy app:3000
+      }
   snapserver:
     content: |
       [server]
