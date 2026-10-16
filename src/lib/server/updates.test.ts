@@ -6,7 +6,7 @@ mock.module('$app/env/private', () => ({
 	WUD_PASSWORD: 'secreto'
 }));
 mock.module('#lib/server/log.ts', () => ({ log: { info() {}, warn() {}, error() {} } }));
-const { startUpdate } = await import('./updates.ts');
+const { startUpdate, versionInfo } = await import('./updates.ts');
 
 const app = (updateAvailable: boolean) => ({
 	id: 'app1',
@@ -88,4 +88,26 @@ describe('startUpdate', () => {
 		};
 		expect(await startUpdate()).toBe('not-ready');
 	});
+});
+
+test('versionInfo: the notice remembers GitHub for hours; Ajustes asks it again', async () => {
+	const release = (tag: string) => ({
+		tag_name: tag,
+		name: tag,
+		body: 'Novedades',
+		html_url: `https://github.com/yellowmachine/jellycartoon/releases/tag/${tag}`
+	});
+	const latest = 'GET /repos/yellowmachine/jellycartoon/releases/latest';
+
+	routes = { [latest]: release('v1.0.0') };
+	expect((await versionInfo()).update).toBeNull();
+
+	// 1.0.1 is published: the notice still says nothing, from what it remembers…
+	routes = { [latest]: release('v1.0.1') };
+	expect((await versionInfo()).update).toBeNull();
+	// …but opening Ajustes asks again,
+	expect((await versionInfo({ fresh: true })).update?.version).toBe('1.0.1');
+	// and from then on the notice knows it too.
+	routes = {};
+	expect((await versionInfo()).update?.version).toBe('1.0.1');
 });

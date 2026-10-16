@@ -26,11 +26,12 @@ import { startUpdate, versionInfo } from '#lib/server/updates.ts';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
-	const [settings, admin, introFound, version] = await Promise.all([
+	const admin = await isAdmin(userId);
+	const [settings, introFound, version] = await Promise.all([
 		getSettings(userId),
-		isAdmin(userId),
 		hasIntro(),
-		versionInfo()
+		// Only who manages the app sees the new version: for them, asked now (#20).
+		versionInfo({ fresh: admin })
 	]);
 
 	let ai = null;
