@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { describe, expect, mock, test } from 'bun:test';
 
 mock.module('$app/env/private', () => ({ APP_VERSION: '1.2.0' }));
@@ -7,7 +7,8 @@ const { passwordMatches, plainPassword } = await import('./protocol.ts');
 const { artistKey, buildLibrary, indexLetter, matches, parseId } = await import('./library.ts');
 
 describe('passwordMatches', () => {
-	const password = 'abcde-fghjk-mnpqr-stuvw';
+	// A new one each run, as Ajustes makes them: none is written here.
+	const password = randomBytes(12).toString('hex');
 	const md5 = (text: string) => createHash('md5').update(text).digest('hex');
 
 	test('token and salt: md5(password + salt), as the apps send it', () => {
