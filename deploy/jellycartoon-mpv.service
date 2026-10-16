@@ -7,7 +7,9 @@ After=graphical-session.target
 
 [Service]
 # @SOCKET@ is replaced on install: <HOST_DATA_DIR>/mpv.sock, which the app sees as /data/mpv.sock.
-ExecStart=/usr/bin/mpv --idle --fs --input-ipc-server=@SOCKET@
+# Escape stops, as the remote's «Parar», instead of leaving fullscreen: on a TV remote it is «back»,
+# and back is the app (the /tv view) under the window.
+ExecStart=/usr/bin/mpv --idle --fs --input-ipc-server=@SOCKET@ --input-commands="keybind ESC stop"
 # Closing mpv (q) leaves it waiting again.
 Restart=always
 RestartSec=1
