@@ -1,7 +1,7 @@
-import { eq, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { user, watchTime } from '#lib/server/db/schema.ts';
-import { isKid } from '#lib/server/kids.ts';
+import { watchTime } from '#lib/server/db/schema.ts';
+import { isKidAccount } from '#lib/server/kids.ts';
 import { log } from '#lib/server/log.ts';
 import { today } from '#lib/server/playlist.ts';
 
@@ -18,18 +18,6 @@ type Target = { episodeId: number } | { movieId: number };
 
 /** The last position saved of each user and thing; kept in memory, a restart only loses one step. */
 const last = new Map<string, number>();
-/** Whether each user is a child; roles do not change once the account is created. */
-const kids = new Map<string, boolean>();
-
-async function isKidAccount(userId: string) {
-	let kid = kids.get(userId);
-	if (kid === undefined) {
-		const [row] = await db.select({ role: user.role }).from(user).where(eq(user.id, userId));
-		kid = isKid(row);
-		kids.set(userId, kid);
-	}
-	return kid;
-}
 
 /** `positionSec`: where playing is now, before a finished one goes back to 0. */
 export async function addWatchTime(userId: string, target: Target, positionSec: number) {

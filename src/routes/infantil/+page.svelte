@@ -1,8 +1,10 @@
 <script lang="ts">
+	import KidRulesForm from '#lib/components/KidRulesForm.svelte';
 	import { formatRemaining } from '#lib/format.ts';
+	import { clock, closedText } from '#lib/kid-time.ts';
 	import type { PageProps } from './$types';
 
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 
 	const weekday = new Intl.DateTimeFormat('es', { weekday: 'short', timeZone: 'UTC' });
 	const dayMonth = new Intl.DateTimeFormat('es', {
@@ -61,6 +63,22 @@
 			<p>
 				<span class="block text-3xl font-semibold">{formatRemaining(week)}</span>
 				<span class="text-sm text-zinc-400">en {data.days.length} días</span>
+			</p>
+			<p class="self-center text-sm">
+				{#if !kid.video.allowed}
+					<span class="text-red-400">{closedText(kid.video, data.weekday)}</span>
+				{:else if kid.video.until !== null}
+					Ahora puede ver vídeos hasta las {clock(kid.video.until)}.
+				{:else if kid.rules.dailyMinutes !== null}
+					Ahora puede ver vídeos.
+				{:else}
+					<span class="text-zinc-400">Sin horario ni límite.</span>
+				{/if}
+				{#if kid.video.allowed && kid.rules.dailyMinutes !== null}
+					Le quedan {formatRemaining(
+						Math.max(0, kid.rules.dailyMinutes * 60 - (kid.perDay[data.today] ?? 0))
+					)} hoy.
+				{/if}
 			</p>
 		</div>
 
@@ -153,5 +171,17 @@
 				{/if}
 			</div>
 		</div>
+
+		<details class="mt-8 border-t border-zinc-800 pt-4" open={form?.userId === kid.id}>
+			<summary class="cursor-pointer font-semibold">Horario</summary>
+			<div class="mt-4">
+				<KidRulesForm
+					userId={kid.id}
+					rules={kid.rules}
+					message={form?.userId === kid.id && 'message' in form ? form.message : undefined}
+					saved={form?.userId === kid.id && 'saved' in form}
+				/>
+			</div>
+		</details>
 	</section>
 {/each}

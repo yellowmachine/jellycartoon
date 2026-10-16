@@ -327,6 +327,42 @@ export const watchTime = pgTable(
 	]
 );
 
+/**
+ * When a child may watch video (#18): slots per weekday, in the server's time zone. A child with no
+ * slots at all has no schedule; with some, a day without slots has no video.
+ */
+export const kidSchedule = pgTable(
+	'kid_schedule',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		/** 0 Monday … 6 Sunday. */
+		weekday: integer('weekday').notNull(),
+		/** Minutes since midnight; the end is not included. */
+		startMinute: integer('start_minute').notNull(),
+		endMinute: integer('end_minute').notNull()
+	},
+	(t) => [
+		index('kid_schedule_user_idx').on(t.userId),
+		check('kid_schedule_weekday', sql`${t.weekday} between 0 and 6`),
+		check(
+			'kid_schedule_minutes',
+			sql`0 <= ${t.startMinute} and ${t.startMinute} < ${t.endMinute} and ${t.endMinute} <= 1440`
+		)
+	]
+);
+
+/** A child's other rules (#18). */
+export const kidSettings = pgTable('kid_settings', {
+	userId: text('user_id')
+		.primaryKey()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	/** Video a day at most; null: no limit. */
+	dailyMinutes: integer('daily_minutes')
+});
+
 /** `ambiguous`: several films could be it, the user chooses (`candidates`). */
 export const movieInfoStatus = pgEnum('movie_info_status', ['found', 'ambiguous', 'not_found']);
 

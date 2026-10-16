@@ -5,6 +5,7 @@ import { db } from '#lib/server/db/index.ts';
 import { movie, movieProgress, movieTitle } from '#lib/server/db/schema.ts';
 import { hasIntro, hostIntroFile, hostMoviePath } from '#lib/server/library/paths.ts';
 import { allowedMovies } from '#lib/server/kids.ts';
+import { videoClosed } from '#lib/server/kid-time.ts';
 import { getSettings } from '#lib/server/settings.ts';
 import { log } from '#lib/server/log.ts';
 import { mpvEnabled, play as playOnHost } from './mpv.ts';
@@ -20,6 +21,8 @@ export const play: Action = async ({ request, locals }) => {
 	if (!mpvEnabled) return fail(400, { message: 'No hay mpv configurado (MPV_SOCKET)' });
 	const form = await request.formData();
 	const userId = locals.user!.id;
+	const closed = await videoClosed(userId);
+	if (closed) return fail(403, { message: closed });
 	const [film] = await db
 		.select({
 			id: movie.id,

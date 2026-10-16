@@ -24,6 +24,20 @@ export async function hasKids() {
 	return Boolean(row);
 }
 
+/** Whether each user is a child; roles do not change once the account is created. */
+const kidAccounts = new Map<string, boolean>();
+
+/** For what runs outside a request, like mpv's saves: by the user's id. */
+export async function isKidAccount(userId: string) {
+	let kid = kidAccounts.get(userId);
+	if (kid === undefined) {
+		const [row] = await db.select({ role: user.role }).from(user).where(eq(user.id, userId));
+		kid = isKid(row);
+		kidAccounts.set(userId, kid);
+	}
+	return kid;
+}
+
 /** Whether the request being answered is a child's. */
 export const kidsOnly = () => isKid(getRequestEvent().locals.user);
 
@@ -83,6 +97,7 @@ type Check = 'series' | 'episode' | 'movie';
 const KIDS_ROUTES: Record<string, { id?: Check; actions?: string[]; methods?: string[] }> = {
 	'/': { actions: ['dismiss'] },
 	'/login': {},
+	'/descanso': {},
 	'/logout': { actions: ['default'] },
 	'/ajustes': { actions: ['playback', 'intro'] },
 	'/series/[id]': {
@@ -126,6 +141,13 @@ const KIDS_ROUTES: Record<string, { id?: Check; actions?: string[]; methods?: st
 	'/api/music/snapcast': {},
 	'/api/music/snapcast/events': {}
 };
+
+/** Where a child watches video in the browser: only at its times (see kid-time.ts). */
+export const VIDEO_ROUTES = new Set([
+	'/watch/[id]',
+	'/api/hls/[id]/[...file]',
+	'/api/movie-clip/[id]/[at]'
+]);
 
 const CHECKS: Record<Check, (id: number) => Promise<boolean>> = {
 	series: seriesAllowed,

@@ -8,6 +8,7 @@ import { log } from '#lib/server/log.ts';
 import { MpvClient, StateBroadcast, type MpvMessage } from '#lib/server/mpv-client.ts';
 import { saveProgress } from '#lib/server/progress.ts';
 import { addWatchTime } from '#lib/server/watch-time.ts';
+import { videoAllowed } from '#lib/server/kid-time.ts';
 import type { RemoteAction, RemoteState, Track } from '#lib/salon.ts';
 
 /**
@@ -310,9 +311,22 @@ async function save(entry: Playing, reachedEnd: boolean) {
 function startSaving() {
 	saveTimer ??= setInterval(() => {
 		const entry = current !== null ? playing.get(current) : undefined;
-		if (entry) void save(entry, false);
+		if (entry) void save(entry, false).then(() => stopIfClosed(entry));
 	}, SAVE_MS);
 	saveTimer.unref();
+}
+
+/** A child's time is over (#18): what plays stops, with what was watched already saved. */
+async function stopIfClosed(entry: Playing) {
+	try {
+		if ((await videoAllowed(entry.userId)).allowed) return;
+		log.info('mpv', 'Parado: se acabó el tiempo de vídeo de una cuenta infantil', {
+			userId: entry.userId
+		});
+		await command(['stop']);
+	} catch (error) {
+		log.warn('mpv', 'No se pudo comprobar el horario infantil', { error });
+	}
 }
 
 function stopSaving() {
