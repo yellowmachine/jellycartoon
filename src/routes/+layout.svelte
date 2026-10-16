@@ -5,10 +5,19 @@
 	import SalonBar from '#lib/components/SalonBar.svelte';
 	import SnapcastBar from '#lib/components/SnapcastBar.svelte';
 	import TvIcon from '#lib/components/TvIcon.svelte';
-	import { page } from '$app/state';
+	import { beforeNavigate } from '$app/navigation';
+	import { page, updated } from '$app/state';
 	import type { LayoutProps } from './$types';
 
 	let { children, data }: LayoutProps = $props();
+
+	// After an update (#20), a tab left open (the TV's /tv) still runs the old code: the next
+	// navigation loads the whole page, the new version, instead. SvelteKit notices the new version on
+	// server responses, when the tab is shown again, and every hour.
+	// https://svelte.dev/docs/kit/configuration#version
+	beforeNavigate(({ willUnload, to }) => {
+		if (updated.current && !willUnload && to?.url) location.href = to.url.href;
+	});
 
 	const links = $derived([
 		{ href: '/', label: 'Series' },
