@@ -1,11 +1,25 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { updated } from '$app/state';
 	import { languageLabel } from '#lib/languages.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
 	let testing = $state(false);
+
+	/**
+	 * While WUD updates (#20): asks every few seconds whether the new version is up, and then loads
+	 * it. Meanwhile the app is restarting, so some of those questions fail: that is expected.
+	 */
+	const updating = $derived(Boolean(form && 'updating' in form && form.updating));
+	$effect(() => {
+		if (!updating) return;
+		const timer = setInterval(async () => {
+			if (await updated.check().catch(() => false)) location.reload();
+		}, 5000);
+		return () => clearInterval(timer);
+	});
 
 	const section = 'mb-8 rounded-md border border-zinc-800 p-4';
 	const select = 'rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm';
@@ -306,6 +320,61 @@
 			{/if}
 		</section>
 	{/if}
+
+	<section class={section} id="version">
+		<h2 class="mb-1 font-semibold">Versión</h2>
+		<p class="text-sm text-zinc-400">
+			{#if data.version.release}
+				Tienes la {data.version.current}.
+			{:else}
+				Versión de pruebas ({data.version.current.slice(0, 11)}): se actualiza con cada cambio, sin
+				versiones numeradas.
+			{/if}
+		</p>
+		{#if data.version.update}
+			{@const update = data.version.update}
+			<div class="mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
+				<p class="font-medium text-amber-300">Hay una versión nueva: la {update.version}</p>
+				{#if update.notes}
+					<p class="mt-2 max-h-64 overflow-y-auto text-sm whitespace-pre-line text-zinc-300">
+						{update.notes}
+					</p>
+				{/if}
+				<a
+					href={update.url}
+					target="_blank"
+					rel="noreferrer"
+					class="mt-2 inline-block text-sm text-amber-400 hover:underline">Ver en GitHub</a
+				>
+				{#if updating}
+					<p class="mt-3 text-sm">
+						Actualizando… La app se reinicia y esta página se recargará sola cuando esté lista.
+						Puede tardar unos minutos.
+					</p>
+				{:else if data.version.canUpdate}
+					<form
+						method="post"
+						action="?/update"
+						use:enhance
+						class="mt-3 flex flex-wrap items-center gap-3"
+					>
+						<button class={primary}>Actualizar ahora</button>
+						<span class="text-xs text-zinc-400"
+							>Antes se hace una copia de la base de datos. Si no, se instalará sola esta madrugada.</span
+						>
+					</form>
+				{:else}
+					<p class="mt-3 text-sm text-zinc-400">
+						Para instalarla, en el equipo: <code>docker compose -f compose.prod.yaml pull</code> y
+						<code>up -d</code>.
+					</p>
+				{/if}
+				{#if form && 'section' in form && form.section === 'version'}
+					<p class="mt-3 text-sm break-words text-red-400">{form.message}</p>
+				{/if}
+			</div>
+		{/if}
+	</section>
 
 	<section class={section}>
 		<h2 class="mb-3 font-semibold">Cuenta</h2>

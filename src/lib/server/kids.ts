@@ -130,6 +130,7 @@ const KIDS_ROUTES: Record<string, { id?: Check; actions?: string[]; methods?: st
 	'/api/movie-thumb/[id]': { id: 'movie' },
 	'/api/movie-frame/[id]/[at]': { id: 'movie' },
 	'/api/movie-clip/[id]/[at]': { id: 'movie' },
+	'/api/health': {},
 	'/api/progress': {},
 	'/api/settings': {},
 	'/api/salon': {},

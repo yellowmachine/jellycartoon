@@ -22,13 +22,15 @@ import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { hasIntro } from '#lib/server/library/paths.ts';
 import { KNOWN_LANGUAGES, normalizeLang } from '#lib/languages.ts';
 import { log } from '#lib/server/log.ts';
+import { startUpdate, versionInfo } from '#lib/server/updates.ts';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
-	const [settings, admin, introFound] = await Promise.all([
+	const [settings, admin, introFound, version] = await Promise.all([
 		getSettings(userId),
 		isAdmin(userId),
-		hasIntro()
+		hasIntro(),
+		versionInfo()
 	]);
 
 	let ai = null;
@@ -67,7 +69,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 		languages: KNOWN_LANGUAGES,
 		ai,
 		/** Children's accounts (#17): only who manages the app creates them. */
-		kids
+		kids,
+		/** The new version and its button, only for who manages the app (#20). */
+		version: admin ? version : { ...version, update: null, canUpdate: false }
 	};
 };
 
@@ -80,6 +84,25 @@ const lang = (value: FormDataEntryValue | null) =>
 	typeof value === 'string' && value ? normalizeLang(value) : null;
 
 export const actions: Actions = {
+	/** Now, instead of at night: WUD replaces the container, and the page reloads on its own. */
+	update: async ({ locals }) => {
+		await requireAdmin(locals.user!.id);
+		try {
+			if ((await startUpdate()) === 'not-ready')
+				return fail(409, {
+					section: 'version',
+					message:
+						'La imagen de la versión nueva todavía no está lista: se publica unos minutos después. Prueba un poco más tarde.'
+				});
+		} catch (err) {
+			log.error('versiones', 'No se pudo pedir la actualización a WUD', { error: err });
+			return fail(502, {
+				section: 'version',
+				message: err instanceof Error ? err.message : String(err)
+			});
+		}
+		return { updating: true };
+	},
 	/**
 	 * A child's account, «infantil» from the start: with the admin plugin, from the server, so its
 	 * role is not something the account can change.

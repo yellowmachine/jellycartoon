@@ -62,9 +62,14 @@ Necesitas `ffmpeg` y `ffprobe` en el PATH.
 
 ## Producción
 
-Usa las imágenes que construye GitHub Actions en cada push a `main`
-(`ghcr.io/yellowmachine/jellycartoon` y `-caddy`, etiquetas `latest` y `sha-<commit>`). En el servidor solo
-hacen falta `compose.prod.yaml` y un `.env` con:
+Usa las imágenes que construye GitHub Actions (`ghcr.io/yellowmachine/jellycartoon` y `-caddy`), en
+dos canales:
+
+- **`stable`**, el que se usa por defecto: la última versión publicada. Cada _release_ de GitHub
+  (`v1.2.0`) construye `1.2.0`, `1.2` y `stable`, con sus novedades en las notas del release.
+- **`latest`**: cada push a `main`, para probar cambios. Se elige con `IMAGE_TAG=latest` en el `.env`.
+
+En el servidor solo hacen falta `compose.prod.yaml` y un `.env` con:
 
 ```sh
 ORIGIN="https://<tu-dominio>"            # URL desde la que se abre la app (la sirve Caddy)
@@ -383,6 +388,33 @@ docker compose -f compose.prod.yaml up -d
 ```
 
 La app aplica al arrancar las migraciones posteriores a la copia.
+
+## Actualizaciones
+
+Con el perfil `updates`, [WUD (What's Up Docker)](https://github.com/getwud/wud) instala cada versión
+nueva del canal `stable`: de madrugada, o cuando el administrador lo pide desde la app. En el `.env`:
+
+```sh
+COMPOSE_PROFILES="updates"        # o "snapcast,updates"
+WUD_PASSWORD="..."                # contraseña del usuario admin de WUD; sin «:»
+# UPDATE_CRON="0 4 * * *"         # cuándo mira si hay versión nueva (por defecto, a las 4:00)
+```
+
+- **El aviso:** la app compara su versión con el último release de GitHub. Al administrador le sale
+  un aviso arriba y, en Ajustes → Versión, las novedades y el botón «Actualizar ahora».
+- **Antes de actualizar**, WUD hace una copia de la base de datos en `update-backups/`, junto al
+  compose, con la hora en UTC en el nombre, y guarda las cuatro últimas. Si la copia falla, no
+  actualiza.
+- **Si la versión nueva no arranca sana**, vuelve a la anterior. Para deshacer una actualización
+  que sí arrancó, con la imagen anterior (`IMAGE_TAG=1.1.0`) y esa copia: el `pg_restore` de
+  arriba con el fichero de `update-backups/`, y `up -d`.
+- **Solo toca** los servicios con la etiqueta `wud.watch=true` (la app, Caddy y Snapcast), nunca
+  Postgres. Su web está en `http://127.0.0.1:3001`, solo en el propio equipo.
+- **Control de Docker:** WUD necesita el socket de Docker, así que quien controla WUD controla los
+  contenedores del equipo. Por eso su web no sale del equipo y lleva contraseña.
+- **Limitación:** después de una vuelta atrás, WUD deja de seguir a la app, porque la imagen
+  anterior se queda sin la etiqueta `stable`. Hasta el próximo
+  `docker compose -f compose.prod.yaml pull` y `up -d` hechos a mano, no se actualiza sola.
 
 ## Pendiente
 

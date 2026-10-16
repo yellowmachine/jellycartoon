@@ -176,6 +176,13 @@
 				<MusicBar />
 			</div>
 		</header>
+		{#if data.newVersion && !isCurrent('/ajustes')}
+			<a
+				href="/ajustes#version"
+				class="block border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-sm text-amber-300 hover:bg-amber-500/20"
+				>Hay una versión nueva de JellyCartoon, la {data.newVersion}. Ver novedades y actualizar →</a
+			>
+		{/if}
 	{/if}
 
 	<!-- overflow-x-clip: the "cinema" player is 100vw wide, which includes the scrollbar. -->

@@ -27,7 +27,7 @@ export const handleError: HandleServerError = ({ kind, error, event }) => {
 	log.error('http', `${event.request.method} ${event.url.pathname}`, { error });
 };
 
-const PUBLIC_PATHS = ['/login', '/api/auth'];
+const PUBLIC_PATHS = ['/login', '/api/auth', '/api/health'];
 
 const handleBetterAuth: Handle = async ({ event, resolve }) => {
 	const session = await auth.api.getSession({ headers: event.request.headers });
