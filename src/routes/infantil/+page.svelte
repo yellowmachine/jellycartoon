@@ -1,10 +1,17 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import KidRulesForm from '#lib/components/KidRulesForm.svelte';
 	import { formatRemaining } from '#lib/format.ts';
-	import { clock, closedText } from '#lib/kid-time.ts';
+	import { clock, closedText, type VideoAccess } from '#lib/kid-time.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+
+	const ACCESS: { value: VideoAccess; label: string }[] = [
+		{ value: 'yes', label: 'Sí' },
+		{ value: 'no', label: 'No' },
+		{ value: 'until-tomorrow', label: 'No, hasta mañana' }
+	];
 
 	const weekday = new Intl.DateTimeFormat('es', { weekday: 'short', timeZone: 'UTC' });
 	const dayMonth = new Intl.DateTimeFormat('es', {
@@ -52,6 +59,34 @@
 					: 'Todavía no ha visto nada'}
 			</p>
 		</div>
+
+		<!-- Over the schedule: off is no video at all, and the schedule stays as it is. -->
+		<form
+			method="post"
+			action="?/access"
+			use:enhance={() =>
+				async ({ update }) =>
+					update({ reset: false })}
+			class="mb-6 flex flex-wrap items-center gap-2 text-sm"
+		>
+			<input type="hidden" name="userId" value={kid.id} />
+			<span class="mr-1 text-zinc-300">Puede ver vídeos</span>
+			{#each ACCESS as option (option.value)}
+				<button
+					name="access"
+					value={option.value}
+					aria-pressed={kid.rules.access === option.value}
+					class={[
+						'rounded-full border px-3 py-1',
+						kid.rules.access === option.value
+							? option.value === 'yes'
+								? 'border-amber-500 text-amber-400'
+								: 'border-red-500 text-red-400'
+							: 'border-zinc-700 hover:bg-zinc-900'
+					]}>{option.label}</button
+				>
+			{/each}
+		</form>
 
 		<div class="mb-6 flex flex-wrap gap-8">
 			<p>

@@ -360,7 +360,11 @@ export const kidSettings = pgTable('kid_settings', {
 		.primaryKey()
 		.references(() => user.id, { onDelete: 'cascade' }),
 	/** Video a day at most; null: no limit. */
-	dailyMinutes: integer('daily_minutes')
+	dailyMinutes: integer('daily_minutes'),
+	/** «Puede ver vídeos»: off, no video at all, whatever the schedule. */
+	videoEnabled: boolean('video_enabled').notNull().default(true),
+	/** «No, hasta mañana»: off until this day (server time zone, like `playlist.day`). */
+	videoOffUntil: date('video_off_until')
 });
 
 /** `ambiguous`: several films could be it, the user chooses (`candidates`). */

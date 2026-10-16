@@ -9,10 +9,30 @@ import {
 	videoTime,
 	type KidRules,
 	type Moment,
+	type VideoAccess,
 	type VideoTime
 } from '#lib/kid-time.ts';
 
-/** A child's schedule and daily limit (#18). */
+/** `YYYY-MM-DD`, the day after `day`. */
+function nextDay(day: string) {
+	const date = new Date(`${day}T00:00:00Z`);
+	date.setUTCDate(date.getUTCDate() + 1);
+	return date.toISOString().slice(0, 10);
+}
+
+/** «Puede ver vídeos»: «No, hasta mañana» is off until tomorrow's date, then back on by itself. */
+export async function setVideoAccess(userId: string, access: VideoAccess) {
+	const values = {
+		videoEnabled: access !== 'no',
+		videoOffUntil: access === 'until-tomorrow' ? nextDay(today()) : null
+	};
+	await db
+		.insert(kidSettings)
+		.values({ userId, ...values })
+		.onConflictDoUpdate({ target: kidSettings.userId, set: values });
+}
+
+/** A child's schedule, daily limit and whether it may watch at all (#18). */
 export async function kidRules(userId: string): Promise<KidRules> {
 	const [slots, [settings]] = await Promise.all([
 		db
@@ -25,11 +45,21 @@ export async function kidRules(userId: string): Promise<KidRules> {
 			.where(eq(kidSchedule.userId, userId))
 			.orderBy(asc(kidSchedule.weekday), asc(kidSchedule.startMinute)),
 		db
-			.select({ dailyMinutes: kidSettings.dailyMinutes })
+			.select({
+				dailyMinutes: kidSettings.dailyMinutes,
+				videoEnabled: kidSettings.videoEnabled,
+				videoOffUntil: kidSettings.videoOffUntil
+			})
 			.from(kidSettings)
 			.where(eq(kidSettings.userId, userId))
 	]);
-	return { slots, dailyMinutes: settings?.dailyMinutes ?? null };
+	const access: VideoAccess =
+		settings?.videoEnabled === false
+			? 'no'
+			: settings?.videoOffUntil && today() < settings.videoOffUntil
+				? 'until-tomorrow'
+				: 'yes';
+	return { slots, dailyMinutes: settings?.dailyMinutes ?? null, access };
 }
 
 /** Seconds of video watched today. */
