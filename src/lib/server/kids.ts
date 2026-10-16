@@ -95,19 +95,19 @@ type Check = 'series' | 'episode' | 'movie';
  * or action does not exist for it. `id` says what the route's `[id]` is, to check its tag.
  */
 const KIDS_ROUTES: Record<string, { id?: Check; actions?: string[]; methods?: string[] }> = {
-	'/': { actions: ['dismiss'] },
+	'/(series)': { actions: ['dismiss'] },
 	'/login': {},
 	'/descanso': {},
 	'/logout': { actions: ['default'] },
 	'/ajustes': { actions: ['playback', 'intro'] },
-	'/series/[id]': {
+	'/(series)/series/[id]': {
 		id: 'series',
 		actions: ['toggleList', 'salon', 'setWatched', 'markPreviousWatched']
 	},
 	'/watch/[id]': { id: 'episode' },
-	'/today': { actions: ['salon', 'generate'] },
-	'/lists': { actions: ['create', 'generate', 'activate'] },
-	'/lists/[id]': {
+	'/(series)/today': { actions: ['salon', 'generate'] },
+	'/(series)/lists': { actions: ['create', 'generate', 'activate'] },
+	'/(series)/lists/[id]': {
 		actions: ['salon', 'rename', 'activate', 'restart', 'remove', 'up', 'down', 'delete']
 	},
 	'/cine': { actions: ['play', 'setWatched'] },

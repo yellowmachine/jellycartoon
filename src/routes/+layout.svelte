@@ -20,13 +20,12 @@
 	});
 
 	const links = $derived([
-		{ href: '/', label: 'Series' },
+		// With Hoy and Listas in its tabs.
+		{ href: '/', label: 'Series', also: ['/series', '/today', '/lists'] },
 		...(data.cinema ? [{ href: '/cine', label: 'Cine' }] : []),
 		...(data.music ? [{ href: '/musica', label: 'Música' }] : []),
 		{ href: '/radio', label: 'Radio' },
 		...(data.salon ? [{ href: '/salon', label: 'Salón' }] : []),
-		{ href: '/today', label: 'Hoy' },
-		{ href: '/lists', label: 'Listas' },
 		...(data.kidsPage ? [{ href: '/infantil', label: 'Infantil' }] : []),
 		// Not for a child's account: they do not exist for it.
 		...(data.kid
@@ -37,10 +36,12 @@
 				])
 	]);
 
-	const isCurrent = (href: string) =>
-		href === '/'
-			? page.url.pathname === '/'
-			: page.url.pathname === href || page.url.pathname.startsWith(`${href}/`);
+	const under = (path: string, href: string) => path === href || path.startsWith(`${href}/`);
+	const isCurrent = (href: string) => {
+		const path = page.url.pathname;
+		if (href !== '/') return under(path, href);
+		return path === '/' || links[0].also!.some((h) => under(path, h));
+	};
 	const current = $derived(links.find((l) => l.href !== '/' && isCurrent(l.href)));
 
 	/** The user's initial, for their round badge (accents and all: «Á» for «Álvaro»). */
