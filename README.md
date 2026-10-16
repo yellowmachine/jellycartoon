@@ -239,7 +239,8 @@ systemctl --user enable --now jellycartoon-mpv
   principio» si ya la empezaste. Se usan tus idiomas de audio y subtítulos. Al pasar del 92 % o
   llegar al final queda como vista.
 - Con el ratón o el teclado se controla mpv como siempre; `q` lo cierra y el servicio lo deja
-  esperando otra vez.
+  esperando otra vez. Esc para, como «Parar» en el mando, en lugar de salir de pantalla completa:
+  en un mando a distancia es «atrás».
 - Capítulos: «Ver en el salón» en el menú ⋯ de cada capítulo convertido manda ese y, con
   «siguiente automático», los siguientes de la serie. En Hoy y en las listas, «Ver lo que queda
   en el salón» manda los que faltan por ver, y ▶︎ en cada uno empieza desde él. Van todos a la
