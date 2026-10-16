@@ -149,7 +149,7 @@
 		aria-label="Buscar por artista, álbum o canción"
 		class="w-56 rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm"
 	/>
-	<form method="post" action="?/scan" use:enhance>
+	<form method="post" action="?/scan" use:enhance hidden={data.kid}>
 		<button
 			disabled={progress.phase === 'scanning'}
 			class="rounded-md bg-amber-500 px-3 py-1 text-sm font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
@@ -222,7 +222,7 @@
 		{/if}
 		{#if totals.errors}
 			<div class="mt-3">
-				<form method="post" action="?/retry" use:enhance class="mb-2">
+				<form method="post" action="?/retry" use:enhance class="mb-2" hidden={data.kid}>
 					<button class="rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900">
 						Reintentar errores
 					</button>

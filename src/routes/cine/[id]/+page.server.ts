@@ -11,6 +11,7 @@ import { namingState, startNaming } from '#lib/server/cinema/scenes.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { cinemaRoot, hostMoviePath } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
+import { addMovieTag, getTags, movieTags, removeMovieTag, tagName } from '#lib/server/tags.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	if (!cinemaRoot) error(404, 'No hay carpeta de películas (CINEMA_DIR)');
@@ -39,10 +40,18 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		)
 		.where(and(eq(movie.id, id), eq(movie.missing, false)));
 	if (!film) error(404, 'Película no encontrada');
-	const [chat, { apiKey }] = await Promise.all([chatHistory(locals.user!.id, id), chatConfig()]);
+	const [chat, { apiKey }, tags, allTags] = await Promise.all([
+		chatHistory(locals.user!.id, id),
+		chatConfig(),
+		movieTags(id),
+		getTags()
+	]);
 
 	return {
 		chat,
+		tags,
+		/** To suggest while typing a tag. */
+		allTags: allTags.map((t) => t.name),
 		/** Talking about the film needs an OpenRouter key. */
 		canChat: Boolean(apiKey),
 		naming: namingState(id),
@@ -66,6 +75,17 @@ export const actions: Actions = {
 	play,
 	rename,
 	setWatched,
+	addTag: async ({ params, request }) => {
+		const name = tagName(String((await request.formData()).get('name') ?? ''));
+		if (!name) return fail(400, { message: 'Escribe una etiqueta' });
+		if (name.length > 40) return fail(400, { message: 'Etiqueta demasiado larga' });
+		await addMovieTag(Number(params.id), name);
+	},
+	removeTag: async ({ params, request }) => {
+		const tagId = Number((await request.formData()).get('tagId'));
+		if (!Number.isInteger(tagId)) return fail(400, { message: 'Etiqueta no válida' });
+		await removeMovieTag(Number(params.id), tagId);
+	},
 	/** «It is this one», among the candidates. */
 	choose: async ({ params, request }) => {
 		const wikidataId = String((await request.formData()).get('wikidataId') ?? '');

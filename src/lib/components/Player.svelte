@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, tick, untrack } from 'svelte';
 	import type Hls from 'hls.js';
+	import { goto } from '$app/navigation';
 	import '@fontsource/atkinson-hyperlegible/400.css';
 	import '@fontsource/comic-neue/400.css';
 	import { normalizeLang, type AudioTrack, type SubtitleTrack } from '#lib/languages.ts';
@@ -131,6 +132,10 @@
 				});
 				instance.on(Hls.Events.MANIFEST_PARSED, () => {
 					if (untrack(() => autoplay)) el.play().catch(() => {});
+				});
+				// Out of a child's time (#18) the server refuses the video's pieces: the notice says why.
+				instance.on(Hls.Events.ERROR, (_event, data) => {
+					if (data.response?.code === 403) void goto('/descanso');
 				});
 				instance.loadSource(url);
 				instance.attachMedia(el);

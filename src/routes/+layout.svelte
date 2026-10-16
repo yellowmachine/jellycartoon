@@ -18,8 +18,14 @@
 		...(data.salon ? [{ href: '/salon', label: 'Salón' }] : []),
 		{ href: '/today', label: 'Hoy' },
 		{ href: '/lists', label: 'Listas' },
-		{ href: '/library', label: 'Gestión' },
-		{ href: '/logs', label: 'Registro' }
+		...(data.kidsPage ? [{ href: '/infantil', label: 'Infantil' }] : []),
+		// Not for a child's account: they do not exist for it.
+		...(data.kid
+			? []
+			: [
+					{ href: '/library', label: 'Gestión' },
+					{ href: '/logs', label: 'Registro' }
+				])
 	]);
 
 	const isCurrent = (href: string) =>

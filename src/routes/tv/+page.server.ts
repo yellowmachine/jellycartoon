@@ -6,6 +6,7 @@ import { movie } from '#lib/server/db/schema.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { playEpisodes, playlistQueue, seriesQueue } from '#lib/server/cinema/episode-actions.ts';
 import { cinemaRoot } from '#lib/server/library/paths.ts';
+import { allowedMovies } from '#lib/server/kids.ts';
 import { getTodayPlaylist } from '#lib/server/playlist.ts';
 import { stationsInfo } from '#lib/server/radio.ts';
 import { allSeries, continueWatching } from '#lib/server/watching.ts';
@@ -26,14 +27,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 			? db
 					.select({ count: sql<number>`count(*)::int` })
 					.from(movie)
-					.where(and(eq(movie.status, 'ready'), eq(movie.missing, false)))
+					.where(and(eq(movie.status, 'ready'), eq(movie.missing, false), allowedMovies()))
 			: [null],
 		// The newest, for the Cine card's mosaic.
 		cinemaRoot
 			? db
 					.select({ id: movie.id })
 					.from(movie)
-					.where(and(eq(movie.status, 'ready'), eq(movie.missing, false)))
+					.where(and(eq(movie.status, 'ready'), eq(movie.missing, false), allowedMovies()))
 					.orderBy(desc(movie.id))
 					.limit(MOSAIC)
 			: [],

@@ -204,6 +204,27 @@
       "when": 1791960021352,
       "tag": "0028_huge_baron_zemo",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792155671247,
+      "tag": "0029_bent_gamora",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792156715896,
+      "tag": "0030_nasty_dracula",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792157140841,
+      "tag": "0031_white_omega_red",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 import {
 	bigint,
 	boolean,
+	check,
 	date,
 	index,
 	jsonb,
@@ -34,7 +35,7 @@ export const series = pgTable('series', {
 	createdAt: timestamp('created_at').notNull().defaultNow()
 });
 
-/** Labels for series, shared by every user: e.g. «infantil», to build lists for children. */
+/** Labels for series and films, shared by every user: e.g. «infantil», what a child's account sees. */
 export const tag = pgTable('tag', {
 	id: serial('id').primaryKey(),
 	/** Lowercase: «Infantil» and «infantil» are the same tag. */
@@ -269,6 +270,20 @@ export const movie = pgTable(
 	(t) => [index('movie_status_idx').on(t.status)]
 );
 
+/** The same tags as series': «infantil» is what a child's account may see (#17). */
+export const movieTag = pgTable(
+	'movie_tag',
+	{
+		movieId: integer('movie_id')
+			.notNull()
+			.references(() => movie.id, { onDelete: 'cascade' }),
+		tagId: integer('tag_id')
+			.notNull()
+			.references(() => tag.id, { onDelete: 'cascade' })
+	},
+	(t) => [primaryKey({ columns: [t.movieId, t.tagId] }), index('movie_tag_tag_idx').on(t.tagId)]
+);
+
 /** Where each user is in each film, saved while mpv plays it. Like watch_progress. */
 export const movieProgress = pgTable(
 	'movie_progress',
@@ -285,6 +300,68 @@ export const movieProgress = pgTable(
 	},
 	(t) => [primaryKey({ columns: [t.userId, t.movieId] })]
 );
+
+/**
+ * Time actually watched, per user, day and episode or film: what the positions saved while playing
+ * moved forward. Only for children's accounts, for the adults' page (#17).
+ */
+export const watchTime = pgTable(
+	'watch_time',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		/** In the server's time zone, like `playlist.day`. */
+		day: date('day').notNull(),
+		episodeId: integer('episode_id').references(() => episode.id, { onDelete: 'cascade' }),
+		movieId: integer('movie_id').references(() => movie.id, { onDelete: 'cascade' }),
+		seconds: real('seconds').notNull().default(0)
+	},
+	(t) => [
+		// One of the two is null: they are compared as equal, so there is one row per thing and day.
+		unique('watch_time_user_day_item')
+			.on(t.userId, t.day, t.episodeId, t.movieId)
+			.nullsNotDistinct(),
+		check('watch_time_one_item', sql`(${t.episodeId} is null) <> (${t.movieId} is null)`)
+	]
+);
+
+/**
+ * When a child may watch video (#18): slots per weekday, in the server's time zone. A child with no
+ * slots at all has no schedule; with some, a day without slots has no video.
+ */
+export const kidSchedule = pgTable(
+	'kid_schedule',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		/** 0 Monday … 6 Sunday. */
+		weekday: integer('weekday').notNull(),
+		/** Minutes since midnight; the end is not included. */
+		startMinute: integer('start_minute').notNull(),
+		endMinute: integer('end_minute').notNull()
+	},
+	(t) => [
+		index('kid_schedule_user_idx').on(t.userId),
+		check('kid_schedule_weekday', sql`${t.weekday} between 0 and 6`),
+		check(
+			'kid_schedule_minutes',
+			sql`0 <= ${t.startMinute} and ${t.startMinute} < ${t.endMinute} and ${t.endMinute} <= 1440`
+		)
+	]
+);
+
+/** A child's other rules (#18). */
+export const kidSettings = pgTable('kid_settings', {
+	userId: text('user_id')
+		.primaryKey()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	/** Video a day at most; null: no limit. */
+	dailyMinutes: integer('daily_minutes')
+});
 
 /** `ambiguous`: several films could be it, the user chooses (`candidates`). */
 export const movieInfoStatus = pgEnum('movie_info_status', ['found', 'ambiguous', 'not_found']);

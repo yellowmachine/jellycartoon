@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
+import { allowedSeries } from '#lib/server/kids.ts';
 import {
 	episode,
 	episodeTitle,
@@ -129,7 +130,8 @@ export async function getCandidates(
 				eq(episode.status, 'ready'),
 				eq(episode.missing, false),
 				tags.include.length ? inArray(series.id, withTags(tags.include)) : undefined,
-				tags.exclude.length ? notInArray(series.id, withTags(tags.exclude)) : undefined
+				tags.exclude.length ? notInArray(series.id, withTags(tags.exclude)) : undefined,
+				allowedSeries()
 			)
 		);
 }
@@ -188,7 +190,7 @@ export async function getTodayPlaylist(userId: string) {
 			watchProgress,
 			and(eq(watchProgress.episodeId, episode.id), eq(watchProgress.userId, userId))
 		)
-		.where(eq(playlistItem.playlistId, p.id))
+		.where(and(eq(playlistItem.playlistId, p.id), allowedSeries()))
 		.orderBy(asc(playlistItem.position));
 
 	return { ...p, items };

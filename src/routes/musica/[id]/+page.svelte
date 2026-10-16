@@ -25,6 +25,7 @@
 
 {#snippet editButton(target: 'album' | 'artist' | number, label: string)}
 	<button
+		hidden={data.kid}
 		class="shrink-0 rounded-md px-2 py-1 text-zinc-500 hover:bg-zinc-800 hover:text-white"
 		title={label}
 		aria-label={label}

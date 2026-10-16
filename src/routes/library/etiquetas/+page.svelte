@@ -8,9 +8,17 @@
 	/** The tag whose deletion is being confirmed. */
 	let deleting = $state<number | null>(null);
 	/** Renaming to a name another tag has: waiting for «Juntar». */
-	let merge = $state<{ name: string; series: number } | null>(null);
-	/** The tag whose series are shown. */
+	let merge = $state<{ name: string; series: number; films: number } | null>(null);
+	/** The tag whose series and films are shown. */
 	let open = $state<number | null>(null);
+
+	const count = (t: { series: unknown[]; films: unknown[] }) =>
+		[
+			t.series.length && `${t.series.length} ${t.series.length === 1 ? 'serie' : 'series'}`,
+			t.films.length && `${t.films.length} ${t.films.length === 1 ? 'película' : 'películas'}`
+		]
+			.filter(Boolean)
+			.join(' y ') || 'nada';
 
 	function edit(id: number | null) {
 		editing = id;
@@ -20,12 +28,15 @@
 
 <h1 class="mb-2 text-2xl font-bold">Etiquetas</h1>
 <p class="mb-6 text-sm text-zinc-400">
-	Las comparten todos. Cambiar o borrar una etiqueta la cambia en todas sus series; si le pones el
-	nombre de otra que ya existe, se juntan en una.
+	Las comparten todos. Cambiar o borrar una etiqueta la cambia en todas sus series y películas; si
+	le pones el nombre de otra que ya existe, se juntan en una. Las cuentas infantiles solo ven lo
+	etiquetado «infantil».
 </p>
 
 {#if !data.tags.length}
-	<p class="text-sm text-zinc-500">No hay etiquetas. Se ponen desde la página de cada serie.</p>
+	<p class="text-sm text-zinc-500">
+		No hay etiquetas. Se ponen desde la página de cada serie o película.
+	</p>
 {:else}
 	<ul class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
 		{#each data.tags as t (t.id)}
@@ -40,7 +51,7 @@
 								await update({ reset: false });
 								if (result.type === 'success') edit(null);
 								else if (result.type === 'failure' && result.data?.merge)
-									merge = result.data.merge as { name: string; series: number };
+									merge = result.data.merge as { name: string; series: number; films: number };
 							}}
 						class="flex flex-wrap items-center gap-2"
 					>
@@ -49,7 +60,7 @@
 							<input type="hidden" name="name" value={merge.name} />
 							<input type="hidden" name="merge" value="1" />
 							<span class="min-w-0 flex-1">
-								Ya existe «{merge.name}»: las series de «{t.name}» pasan a ella y «{t.name}»
+								Ya existe «{merge.name}»: lo etiquetado «{t.name}» pasa a ella y «{t.name}»
 								desaparece.
 							</span>
 							<button class="rounded-md bg-amber-500 px-3 py-1 font-medium text-zinc-950"
@@ -93,8 +104,7 @@
 					>
 						<input type="hidden" name="tagId" value={t.id} />
 						<span class="min-w-0 flex-1">
-							¿Borrar «{t.name}»? Se quita de {t.series.length}
-							{t.series.length === 1 ? 'serie' : 'series'}.
+							¿Borrar «{t.name}»? Se quita de {count(t)}.
 						</span>
 						<button class="rounded-md bg-red-600 px-3 py-1 font-medium text-white hover:bg-red-500"
 							>Sí, borrar</button
@@ -111,8 +121,7 @@
 						<button
 							class="shrink-0 rounded-md px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-white"
 							aria-expanded={open === t.id}
-							onclick={() => (open = open === t.id ? null : t.id)}
-							>{t.series.length} {t.series.length === 1 ? 'serie' : 'series'}</button
+							onclick={() => (open = open === t.id ? null : t.id)}>{count(t)}</button
 						>
 						<button
 							class="shrink-0 rounded-md px-2 py-1 text-zinc-500 hover:bg-zinc-800 hover:text-white"
@@ -141,6 +150,15 @@
 										href="/series/{s.id}"
 										class="block rounded-full border border-zinc-700 px-3 py-0.5 text-zinc-300 hover:border-zinc-500 hover:text-white"
 										>{s.title}</a
+									>
+								</li>
+							{/each}
+							{#each t.films as f (f.id)}
+								<li>
+									<a
+										href="/cine/{f.id}"
+										class="block rounded-full border border-zinc-700 px-3 py-0.5 text-zinc-300 hover:border-zinc-500 hover:text-white"
+										>🎬 {f.title}</a
 									>
 								</li>
 							{/each}

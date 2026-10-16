@@ -114,6 +114,12 @@ docker compose -f compose.prod.yaml logs -f app
   a la temporada 0, y ahí se selecciona entera.
 - Cuando estén creadas las cuentas, pon `ALLOW_SIGNUP=false`. "Hoy" usa `TZ` (por defecto
   `Europe/Madrid`).
+- Las cuentas infantiles las crea quien creó la primera cuenta, desde Ajustes. Solo ven las series
+  y películas con la etiqueta «infantil», no gestionan nada ni hablan con la IA, y la propia cuenta
+  no puede dejar de ser infantil.
+- En «Infantil» (para cualquier adulto) se ve lo que ven, y se les pone horario por días y un
+  límite de minutos al día. Fuera de él no hay vídeo, tampoco en el salón: lo que suena se para.
+  Las horas son las de `TZ`.
 - `compose.yaml` es solo para desarrollo (Postgres con el puerto abierto). Ambos ficheros
   comparten la base de datos; usa uno u otro, no los dos a la vez.
 

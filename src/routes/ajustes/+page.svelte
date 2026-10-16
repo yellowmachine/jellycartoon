@@ -253,6 +253,60 @@
 		</section>
 	{/if}
 
+	{#if data.kids}
+		<section class={section}>
+			<h2 class="mb-1 font-semibold">Cuentas infantiles</h2>
+			<p class="mb-4 text-sm text-zinc-400">
+				Solo ven las series y películas con la etiqueta «infantil», y no pueden gestionar nada ni
+				hablar con la IA. Se crean aquí, y la propia cuenta no puede dejar de ser infantil. Solo tú
+				ves esta sección.
+			</p>
+			{#if data.kids.length}
+				<ul class="mb-4 divide-y divide-zinc-800 rounded-md border border-zinc-800 text-sm">
+					{#each data.kids as kid (kid.id)}
+						<li class="p-2">{kid.name} · <span class="text-zinc-400">{kid.email}</span></li>
+					{/each}
+				</ul>
+			{/if}
+			<form
+				method="post"
+				action="?/createKid"
+				use:enhance
+				class="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]"
+			>
+				<input name="name" required placeholder="Nombre" aria-label="Nombre" class={select} />
+				<input
+					name="email"
+					type="email"
+					required
+					autocomplete="off"
+					placeholder="lucia@casa.local"
+					aria-label="Email para entrar"
+					class={select}
+				/>
+				<input
+					name="password"
+					type="password"
+					required
+					minlength="8"
+					autocomplete="new-password"
+					placeholder="Contraseña"
+					aria-label="Contraseña"
+					class={select}
+				/>
+				<button class={primary}>Crear</button>
+			</form>
+			<p class="mt-2 text-xs text-zinc-500">
+				El email solo sirve para entrar: no hace falta que exista.
+			</p>
+			{#if form && 'section' in form && form.section === 'kids'}
+				<p class="mt-3 text-sm break-words text-red-400">{form.message}</p>
+			{:else if form && 'saved' in form && form.saved === 'kids'}
+				<p class="mt-3 text-sm text-amber-400">✓ Cuenta creada</p>
+			{/if}
+		</section>
+	{/if}
+
 	<section class={section}>
 		<h2 class="mb-3 font-semibold">Cuenta</h2>
 		<form method="post" action="/logout" class="flex flex-wrap items-center justify-between gap-3">

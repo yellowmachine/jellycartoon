@@ -3,6 +3,8 @@ import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit/hooks'
 import { building } from '$app/env';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { auth } from '#lib/server/auth.ts';
+import { guardKids } from '#lib/server/kids.ts';
+import { guardVideoTime } from '#lib/server/kid-time.ts';
 import { startWorker } from '#lib/server/library/worker.ts';
 import { wakeCatalog } from '#lib/server/cinema/catalog.ts';
 import { wakeMusicCatalog } from '#lib/server/music/catalog.ts';
@@ -33,6 +35,8 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 	if (session) {
 		event.locals.session = session.session;
 		event.locals.user = session.user;
+		await guardKids(event);
+		await guardVideoTime(event);
 	} else if (!PUBLIC_PATHS.some((p) => event.url.pathname.startsWith(p))) {
 		if (event.url.pathname.startsWith('/api/')) {
 			return new Response('Unauthorized', { status: 401 });

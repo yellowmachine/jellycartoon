@@ -1,7 +1,11 @@
 import { error, fail } from '@sveltejs/kit';
+import { APIError } from 'better-auth/api';
+import { asc, eq } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
-import { userSettings } from '#lib/server/db/schema.ts';
+import { user, userSettings } from '#lib/server/db/schema.ts';
+import { auth } from '#lib/server/auth.ts';
+import { KIDS_ROLE } from '#lib/server/kids.ts';
 import {
 	chatConfig,
 	DEFAULT_CHAT_MODEL,
@@ -28,12 +32,19 @@ export const load: PageServerLoad = async ({ locals }) => {
 	]);
 
 	let ai = null;
+	let kids = null;
 	if (admin) {
-		const [config, chat, vision] = await Promise.all([
+		const [config, chat, vision, kidAccounts] = await Promise.all([
 			openRouterConfig(),
 			chatConfig(),
-			visionModel()
+			visionModel(),
+			db
+				.select({ id: user.id, name: user.name, email: user.email })
+				.from(user)
+				.where(eq(user.role, KIDS_ROLE))
+				.orderBy(asc(user.name))
 		]);
+		kids = kidAccounts;
 		ai = {
 			chatModel: chat.model,
 			defaultChatModel: DEFAULT_CHAT_MODEL,
@@ -54,7 +65,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 		// Only with films in the living room and the intro in DATA_DIR.
 		intro: mpvEnabled && introFound ? settings.intro : null,
 		languages: KNOWN_LANGUAGES,
-		ai
+		ai,
+		/** Children's accounts (#17): only who manages the app creates them. */
+		kids
 	};
 };
 
@@ -67,6 +80,29 @@ const lang = (value: FormDataEntryValue | null) =>
 	typeof value === 'string' && value ? normalizeLang(value) : null;
 
 export const actions: Actions = {
+	/**
+	 * A child's account, «infantil» from the start: with the admin plugin, from the server, so its
+	 * role is not something the account can change.
+	 */
+	createKid: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const form = await request.formData();
+		const name = String(form.get('name') ?? '').trim();
+		const email = String(form.get('email') ?? '').trim();
+		const password = String(form.get('password') ?? '');
+		if (!name || !email) return fail(400, { section: 'kids', message: 'Escribe nombre y email' });
+		// Better Auth's own minimum, which creating it from the server does not check.
+		if (password.length < 8)
+			return fail(400, { section: 'kids', message: 'La contraseña, de 8 caracteres o más' });
+		try {
+			await auth.api.createUser({ body: { name, email, password, role: KIDS_ROLE } });
+		} catch (err) {
+			if (err instanceof APIError) return fail(400, { section: 'kids', message: err.message });
+			throw err;
+		}
+		log.info('ajustes', `Cuenta infantil creada: ${name}`);
+		return { saved: 'kids' };
+	},
 	playback: async ({ request, locals }) => {
 		const form = await request.formData();
 		const values = {

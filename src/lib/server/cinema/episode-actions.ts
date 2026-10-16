@@ -4,6 +4,8 @@ import { AUDIO_LANG } from '$app/env/private';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
 import { hostEpisodesReady, hostHlsFile, hostPlaylist } from '#lib/server/library/paths.ts';
+import { allowedEpisodes } from '#lib/server/kids.ts';
+import { videoClosed } from '#lib/server/kid-time.ts';
 import { getSettings } from '#lib/server/settings.ts';
 import { log } from '#lib/server/log.ts';
 import { mpvEnabled, play as playOnHost } from './mpv.ts';
@@ -22,6 +24,8 @@ export async function playEpisodes(userId: string, ids: number[], firstStartSec?
 		return fail(400, {
 			message: 'Para ver capítulos en el salón, HOST_DATA_DIR tiene que ser una ruta absoluta'
 		});
+	const closed = await videoClosed(userId);
+	if (closed) return fail(403, { message: closed });
 
 	const rows = ids.length
 		? await db
@@ -43,7 +47,12 @@ export async function playEpisodes(userId: string, ids: number[], firstStartSec?
 					and(eq(watchProgress.episodeId, episode.id), eq(watchProgress.userId, userId))
 				)
 				.where(
-					and(inArray(episode.id, ids), eq(episode.status, 'ready'), eq(episode.missing, false))
+					and(
+						inArray(episode.id, ids),
+						eq(episode.status, 'ready'),
+						eq(episode.missing, false),
+						allowedEpisodes()
+					)
 				)
 		: [];
 	const byId = new Map(rows.map((r) => [r.id, r]));

@@ -6,6 +6,7 @@
 	import EpisodeMenu from '#lib/components/EpisodeMenu.svelte';
 	import EpisodeTitles from '#lib/components/EpisodeTitles.svelte';
 	import SeriesInfo from '#lib/components/SeriesInfo.svelte';
+	import TagBar from '#lib/components/TagBar.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
 	import { saveView } from '#lib/views.ts';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
@@ -33,7 +34,6 @@
 		}
 		return counts;
 	});
-	let otherTags = $derived(data.allTags.filter((name) => !data.tags.some((t) => t.name === name)));
 	let inList = $derived(new Set(data.listItems.map((i) => `${i.listId}:${i.episodeId}`)));
 
 	/** Selection mode, to move episodes to another season. */
@@ -129,81 +129,46 @@
 	{:else}
 		<h1 class="flex items-center gap-2 text-2xl font-bold">
 			{data.series.title}
-			{@render editButton('series', 'Cambiar título de la serie')}
+			{#if !data.kid}{@render editButton('series', 'Cambiar título de la serie')}{/if}
 		</h1>
 	{/if}
-	<form method="post" action="?/serialized" use:enhance class="text-sm">
-		<input type="hidden" name="serialized" value={String(!data.series.serialized)} />
-		<button class="flex items-center gap-2 text-zinc-400 hover:text-white">
-			<span
-				class={[
-					'relative h-5 w-9 rounded-full transition',
-					data.series.serialized ? 'bg-amber-500' : 'bg-zinc-700'
-				]}
-			>
+	{#if !data.kid}
+		<form method="post" action="?/serialized" use:enhance class="text-sm">
+			<input type="hidden" name="serialized" value={String(!data.series.serialized)} />
+			<button class="flex items-center gap-2 text-zinc-400 hover:text-white">
 				<span
 					class={[
-						'absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all',
-						data.series.serialized ? 'left-4.5' : 'left-0.5'
+						'relative h-5 w-9 rounded-full transition',
+						data.series.serialized ? 'bg-amber-500' : 'bg-zinc-700'
 					]}
-				></span>
-			</span>
-			{data.series.serialized ? 'Con continuidad: en orden' : 'Episodios sueltos: al azar'}
-		</button>
-	</form>
-</div>
-<div class="-mt-2 mb-6 flex flex-wrap items-center gap-2 text-sm">
-	{#each data.tags as tag (tag.id)}
-		<form method="post" action="?/removeTag" use:enhance>
-			<input type="hidden" name="tagId" value={tag.id} />
-			<span
-				class="flex items-center gap-1 rounded-full border border-zinc-700 bg-zinc-900 py-0.5 pr-1 pl-3"
-			>
-				{tag.name}
-				<button
-					class="rounded-full px-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-red-400"
-					title="Quitar la etiqueta «{tag.name}»"
-					aria-label="Quitar la etiqueta «{tag.name}»">×</button
 				>
-			</span>
+					<span
+						class={[
+							'absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all',
+							data.series.serialized ? 'left-4.5' : 'left-0.5'
+						]}
+					></span>
+				</span>
+				{data.series.serialized ? 'Con continuidad: en orden' : 'Episodios sueltos: al azar'}
+			</button>
 		</form>
-	{/each}
-	<!-- Tags other series already have: one click instead of typing them again. -->
-	{#each otherTags as name (name)}
-		<form method="post" action="?/addTag" use:enhance>
-			<input type="hidden" name="name" value={name} />
-			<button
-				class="rounded-full border border-dashed border-zinc-700 px-3 py-0.5 text-zinc-500 hover:border-zinc-500 hover:text-white"
-				title="Añadir la etiqueta «{name}»">+ {name}</button
-			>
-		</form>
-	{/each}
-	<form method="post" action="?/addTag" use:enhance>
-		<input
-			name="name"
-			maxlength="40"
-			autocomplete="off"
-			placeholder="Nueva etiqueta"
-			aria-label="Nueva etiqueta"
-			class="w-36 rounded-full border-zinc-700 bg-zinc-900 px-3 py-0.5 text-sm"
-		/>
-	</form>
-	<a
-		href="/library/etiquetas"
-		class="text-zinc-500 hover:text-white"
-		title="Renombrar, juntar o borrar etiquetas en todas las series">Gestionar etiquetas</a
-	>
+	{/if}
 </div>
+{#if !data.kid}
+	<TagBar tags={data.tags} allTags={data.allTags} class="-mt-2 mb-6" />
+{/if}
 {#if form?.message}
 	<p class="-mt-4 mb-4 text-sm text-red-400">{form.message}</p>
 {/if}
 
 <SeriesInfo info={data.info} />
 {#await data.info then info}
-	<EpisodeTitles
-		proposal={data.proposal}
-		canPropose={data.canPropose && 'status' in info && info.status === 'found'}
-	/>
+	{#if !data.kid}
+		<EpisodeTitles
+			proposal={data.proposal}
+			canPropose={data.canPropose && 'status' in info && info.status === 'found'}
+		/>
+	{/if}
 {/await}
 
 <div class="mb-2 flex flex-wrap items-center justify-between gap-3">
@@ -284,7 +249,7 @@
 				</button>
 			{/each}
 		</div>
-		{#if !selecting}
+		{#if !selecting && !data.kid}
 			<button
 				class="rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900"
 				onclick={() => (selecting = true)}>Seleccionar capítulos</button
@@ -538,30 +503,32 @@
 
 <DeleteEpisodesDialog bind:this={deleteDialog} ondeleted={() => selected.clear()} />
 
-<section class="mt-10 border-t border-zinc-800 pt-6">
-	{#if confirmDelete}
-		<p class="mb-3 text-sm text-zinc-400">
-			Se borran {data.stored.episodes} episodios convertidos ({formatBytes(
-				data.stored.outputBytes
-			)}) y el progreso de visionado. Los originales no se tocan: si siguen en la carpeta de medios,
-			la serie volverá en el próximo escaneo.
-		</p>
-		<form method="post" action="?/delete" use:enhance class="flex items-center gap-2">
-			<button class="rounded-md bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-500">
-				Sí, borrar la serie
-			</button>
+{#if !data.kid}
+	<section class="mt-10 border-t border-zinc-800 pt-6">
+		{#if confirmDelete}
+			<p class="mb-3 text-sm text-zinc-400">
+				Se borran {data.stored.episodes} episodios convertidos ({formatBytes(
+					data.stored.outputBytes
+				)}) y el progreso de visionado. Los originales no se tocan: si siguen en la carpeta de
+				medios, la serie volverá en el próximo escaneo.
+			</p>
+			<form method="post" action="?/delete" use:enhance class="flex items-center gap-2">
+				<button class="rounded-md bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-500">
+					Sí, borrar la serie
+				</button>
+				<button
+					type="button"
+					class="rounded-md px-3 py-2 text-zinc-400 hover:text-white"
+					onclick={() => (confirmDelete = false)}>Cancelar</button
+				>
+			</form>
+		{:else}
 			<button
-				type="button"
-				class="rounded-md px-3 py-2 text-zinc-400 hover:text-white"
-				onclick={() => (confirmDelete = false)}>Cancelar</button
+				class="rounded-md border border-red-800 px-4 py-2 text-sm text-red-400 hover:border-red-600 hover:bg-red-950 hover:text-red-300"
+				onclick={() => (confirmDelete = true)}
 			>
-		</form>
-	{:else}
-		<button
-			class="rounded-md border border-red-800 px-4 py-2 text-sm text-red-400 hover:border-red-600 hover:bg-red-950 hover:text-red-300"
-			onclick={() => (confirmDelete = true)}
-		>
-			Borrar serie
-		</button>
-	{/if}
-</section>
+				Borrar serie
+			</button>
+		{/if}
+	</section>
+{/if}
