@@ -71,10 +71,7 @@
 	</form>
 {/snippet}
 
-<div class="mb-6 flex flex-wrap items-baseline justify-between gap-3">
-	<h1 class="text-2xl font-bold">Gestión</h1>
-	<a href="/library/etiquetas" class="text-sm text-zinc-400 hover:text-white">Etiquetas →</a>
-</div>
+<h1 class="mb-6 text-2xl font-bold">Conversión</h1>
 
 <div class="mb-6 flex flex-wrap items-center gap-3">
 	<form
