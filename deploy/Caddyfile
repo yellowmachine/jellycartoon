@@ -2,6 +2,14 @@
 # so that it is still there when WUD recreates the container. The site address comes from the
 # environment when Caddy starts (https://caddyserver.com/docs/caddyfile/concepts#environment-variables):
 # the same image for every install, each with its own ORIGIN in its .env.
+{
+	# On stopping (an update), open connections get this long to end, not forever: the app's live
+	# events (the remote, the Snapcast bar) never end on their own, and Docker would kill Caddy after
+	# 10 s with the site down. The pages connect again by themselves.
+	# https://caddyserver.com/docs/caddyfile/options#grace-period
+	grace_period 2s
+}
+
 {$ORIGIN} {
 	tls {
 		dns cloudflare {env.CF_API_TOKEN}

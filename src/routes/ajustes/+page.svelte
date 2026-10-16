@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { updated } from '$app/state';
+	import { onMount } from 'svelte';
 	import MusicBackgroundSettings from '#lib/components/MusicBackgroundSettings.svelte';
+	import UpdateProgress from '#lib/components/UpdateProgress.svelte';
 	import { languageLabel } from '#lib/languages.ts';
 	import type { PageProps } from './$types';
 
@@ -9,17 +10,19 @@
 
 	let testing = $state(false);
 
-	/**
-	 * While WUD updates (#20): asks every few seconds whether the new version is up, and then loads
-	 * it. Meanwhile the app is restarting, so some of those questions fail: that is expected.
-	 */
+	/** WUD is updating (#20): UpdateProgress follows it, over the page. */
 	const updating = $derived(Boolean(form && 'updating' in form && form.updating));
-	$effect(() => {
-		if (!updating) return;
-		const timer = setInterval(async () => {
-			if (await updated.check().catch(() => false)) location.reload();
-		}, 5000);
-		return () => clearInterval(timer);
+
+	/** After an update, the page loaded the new version: from which one, said once. */
+	let justUpdated = $state<{ from: string; to: string } | null>(null);
+	onMount(() => {
+		try {
+			const done = JSON.parse(sessionStorage.getItem('jellycartoon:updated') ?? 'null');
+			sessionStorage.removeItem('jellycartoon:updated');
+			if (done?.to === data.version.current) justUpdated = done;
+		} catch {
+			// Private window: no message, the version says it all the same.
+		}
 	});
 
 	const section = 'mb-8 rounded-md border border-zinc-800 p-4';
@@ -387,6 +390,14 @@
 
 	<section class={section} id="version">
 		<h2 class="mb-1 font-semibold">Versión</h2>
+		{#if justUpdated}
+			<p
+				class="mb-3 rounded-md border border-green-500/40 bg-green-500/10 p-3 text-sm text-green-300"
+				role="status"
+			>
+				✓ Actualizado de la {justUpdated.from} a la {justUpdated.to}.
+			</p>
+		{/if}
 		<p class="text-sm text-zinc-400">
 			{#if data.version.release}
 				Tienes la {data.version.current}.
@@ -411,10 +422,8 @@
 					class="mt-2 inline-block text-sm text-amber-400 hover:underline">Ver en GitHub</a
 				>
 				{#if updating}
-					<p class="mt-3 text-sm">
-						Actualizando… La app se reinicia y esta página se recargará sola cuando esté lista.
-						Puede tardar unos minutos.
-					</p>
+					<p class="mt-3 text-sm">Actualizando…</p>
+					<UpdateProgress current={data.version.current} target={update.version} />
 				{:else if data.version.canUpdate}
 					<form
 						method="post"
