@@ -62,3 +62,10 @@
 		{/each}
 	</div>
 </section>
+
+<!-- At the end, so the remote starts on what to watch: the whole app, for the rest. -->
+<p class="mt-16 text-center">
+	<a href="/" class="rounded-lg px-4 py-2 text-xl text-zinc-500 hover:text-zinc-300"
+		>Ir a la app completa</a
+	>
+</p>
