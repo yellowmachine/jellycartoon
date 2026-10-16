@@ -9,6 +9,7 @@ import {
 	userSettings,
 	watchProgress
 } from '#lib/server/db/schema.ts';
+import { allowedEpisodes } from '#lib/server/kids.ts';
 import { getCandidates, pickEpisodes, type TagFilter } from '#lib/server/playlist.ts';
 
 /** Only episodes that can be played count; the rest stay in the list until they come back. */
@@ -54,7 +55,7 @@ export async function getList(userId: string, listId: number) {
 			completedBefore: watchProgress.completed
 		})
 		.from(userListItem)
-		.innerJoin(episode, and(eq(episode.id, userListItem.episodeId), playable))
+		.innerJoin(episode, and(eq(episode.id, userListItem.episodeId), playable, allowedEpisodes()))
 		.innerJoin(series, eq(series.id, episode.seriesId))
 		.leftJoin(
 			watchProgress,
@@ -151,6 +152,13 @@ export async function deleteList(userId: string, listId: number) {
 /** Adds the episode at the end of the list, or removes it if it was already there. */
 export async function toggleInList(userId: string, listId: number, episodeId: number) {
 	if (!(await ownsList(userId, listId))) return;
+	if (allowedEpisodes()) {
+		const [allowed] = await db
+			.select({ id: episode.id })
+			.from(episode)
+			.where(and(eq(episode.id, episodeId), allowedEpisodes()));
+		if (!allowed) return;
+	}
 
 	const removed = await db
 		.delete(userListItem)

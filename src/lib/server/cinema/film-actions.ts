@@ -4,6 +4,7 @@ import { AUDIO_LANG } from '$app/env/private';
 import { db } from '#lib/server/db/index.ts';
 import { movie, movieProgress, movieTitle } from '#lib/server/db/schema.ts';
 import { hasIntro, hostIntroFile, hostMoviePath } from '#lib/server/library/paths.ts';
+import { allowedMovies } from '#lib/server/kids.ts';
 import { getSettings } from '#lib/server/settings.ts';
 import { log } from '#lib/server/log.ts';
 import { mpvEnabled, play as playOnHost } from './mpv.ts';
@@ -32,7 +33,7 @@ export const play: Action = async ({ request, locals }) => {
 			movieProgress,
 			and(eq(movieProgress.movieId, movie.id), eq(movieProgress.userId, userId))
 		)
-		.where(eq(movie.id, Number(form.get('id'))));
+		.where(and(eq(movie.id, Number(form.get('id'))), allowedMovies()));
 	const hostPath = film && hostMoviePath(film.path);
 	if (!film || !hostPath) return fail(400, { message: 'Película no válida' });
 

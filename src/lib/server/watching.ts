@@ -1,11 +1,13 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
+import { allowedSeries } from '#lib/server/kids.ts';
 
 /** What the home page and the TV view start with: the series, and what was left half watched. */
 
 /** Every series, with how many episodes are ready and the first one's for a cover. */
 export async function allSeries() {
+	const allowed = allowedSeries();
 	return [
 		...(await db.execute<{
 			id: number;
@@ -14,16 +16,17 @@ export async function allSeries() {
 			ready: number;
 			cover: number | null;
 		}>(sql`
-			select s.id, s.title,
+			select ${series.id} as id, ${series.title} as title,
 				count(e.id)::int as total,
 				count(e.id) filter (where e.status = 'ready')::int as ready,
 				(select e2.id from ${episode} e2
-					where e2.series_id = s.id and e2.status = 'ready' and not e2.missing
+					where e2.series_id = ${series.id} and e2.status = 'ready' and not e2.missing
 					order by e2.season, e2.number limit 1) as cover
-			from ${series} s
-			join ${episode} e on e.series_id = s.id and not e.missing
-			group by s.id
-			order by s.title
+			from ${series}
+			join ${episode} e on e.series_id = ${series.id} and not e.missing
+			${allowed ? sql`where ${allowed}` : sql``}
+			group by ${series.id}
+			order by ${series.title}
 		`))
 	];
 }
@@ -54,7 +57,8 @@ export function continueWatching(userId: string, limit = 8) {
 			and(
 				eq(watchProgress.userId, userId),
 				eq(watchProgress.completed, false),
-				eq(watchProgress.dismissed, false)
+				eq(watchProgress.dismissed, false),
+				allowedSeries()
 			)
 		)
 		.orderBy(desc(watchProgress.updatedAt))

@@ -1,6 +1,7 @@
 import { describe, expect, mock, test } from 'bun:test';
 
 mock.module('#lib/server/db/index.ts', () => ({ db: {} }));
+mock.module('#lib/server/kids.ts', () => ({ allowedSeries: () => undefined }));
 const { pickEpisodes } = await import('./playlist.ts');
 type Candidate = import('./playlist.ts').Candidate;
 

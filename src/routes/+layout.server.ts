@@ -2,10 +2,13 @@ import type { LayoutServerLoad } from './$types';
 import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { snapcastReady } from '#lib/server/music/snapcast.ts';
+import { isKid } from '#lib/server/kids.ts';
 
 export const load: LayoutServerLoad = ({ locals }) => {
 	return {
 		user: locals.user ? { name: locals.user.name } : null,
+		/** A child's account (#17): only what is tagged «infantil», and nothing to manage. */
+		kid: isKid(locals.user),
 		/** Only with a films folder (CINEMA_DIR). */
 		cinema: Boolean(cinemaRoot),
 		/** Only with a music folder (MUSIC_DIR). */

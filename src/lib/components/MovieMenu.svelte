@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
 	import type { AudioTrack } from '#lib/languages.ts';
@@ -29,6 +30,8 @@
 	}
 
 	let { movie, mpv, onrename }: Props = $props();
+	/** A child's account only watches (#17). */
+	const manage = $derived(!page.data.kid);
 
 	const ready = $derived(movie.status === 'ready');
 	// mpv starts over below that too.
@@ -68,20 +71,22 @@
 			</form>
 			<hr class="my-1 border-zinc-800" />
 		{/if}
-		{#if movie.status === 'error'}
+		{#if movie.status === 'error' && manage}
 			<form method="post" action="?/retry" use:enhance={closeAfter(close)}>
 				<input type="hidden" name="id" value={movie.id} />
 				<button class={menuItem}>Volver a catalogar</button>
 			</form>
 			<hr class="my-1 border-zinc-800" />
 		{/if}
-		<button
-			class={menuItem}
-			onclick={() => {
-				close();
-				onrename();
-			}}>Editar título</button
-		>
+		{#if manage}
+			<button
+				class={menuItem}
+				onclick={() => {
+					close();
+					onrename();
+				}}>Editar título</button
+			>
+		{/if}
 		{#if movie.hostPath}
 			<CopyPathItem path={movie.hostPath} label="Copiar ruta (para mpv)" onclose={close} />
 		{/if}

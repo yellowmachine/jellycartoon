@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
 	import { thumbChanged } from '#lib/thumb.svelte.ts';
 	import type { AudioTrack, SubtitleTrack } from '#lib/languages.ts';
@@ -39,6 +40,8 @@
 	let { episode, salon, previousUnwatched, lists, onrename, ondelete }: Props = $props();
 
 	const ready = $derived(episode.status === 'ready');
+	/** A child's account only watches (#17). */
+	const manage = $derived(!page.data.kid);
 	// The player ignores the first seconds too: it starts over below that.
 	const resumeAt = $derived(
 		!episode.completed && episode.positionSec && episode.positionSec > 5 ? episode.positionSec : 0
@@ -131,7 +134,7 @@
 				<a href="/lists">{@render item('Crear una lista…')}</a>
 			{/each}
 			<hr class="my-1 border-zinc-800" />
-		{:else if episode.status === 'error' || episode.status === 'ignored'}
+		{:else if manage && (episode.status === 'error' || episode.status === 'ignored')}
 			<form method="post" action="?/retry" use:enhance={closeAfter(close)}>
 				<input type="hidden" name="id" value={episode.id} />
 				<button class="w-full">
@@ -149,15 +152,17 @@
 			<hr class="my-1 border-zinc-800" />
 		{/if}
 
-		<button
-			class="w-full"
-			onclick={() => {
-				close();
-				onrename();
-			}}
-		>
-			{@render item('Editar título')}
-		</button>
+		{#if manage}
+			<button
+				class="w-full"
+				onclick={() => {
+					close();
+					onrename();
+				}}
+			>
+				{@render item('Editar título')}
+			</button>
+		{/if}
 		{#if episode.playlist}
 			<CopyPathItem
 				path={episode.playlist}
@@ -165,7 +170,7 @@
 				onclose={close}
 			/>
 		{/if}
-		{#if ready}
+		{#if ready && manage}
 			<form
 				method="post"
 				action="?/regenerateThumbnail"
@@ -194,16 +199,18 @@
 		>
 			{@render item('Información')}
 		</button>
-		<hr class="my-1 border-zinc-800" />
-		<button
-			class="w-full text-red-400"
-			onclick={() => {
-				close();
-				ondelete();
-			}}
-		>
-			{@render item('Borrar capítulo…')}
-		</button>
+		{#if manage}
+			<hr class="my-1 border-zinc-800" />
+			<button
+				class="w-full text-red-400"
+				onclick={() => {
+					close();
+					ondelete();
+				}}
+			>
+				{@render item('Borrar capítulo…')}
+			</button>
+		{/if}
 	{/snippet}
 </ActionMenu>
 

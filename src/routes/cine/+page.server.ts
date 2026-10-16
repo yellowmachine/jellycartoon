@@ -8,6 +8,7 @@ import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { play, rename, setWatched } from '#lib/server/cinema/film-actions.ts';
 import { scanCinema } from '#lib/server/cinema/scan.ts';
 import { cinemaRoot, hostMoviePath } from '#lib/server/library/paths.ts';
+import { allowedMovies } from '#lib/server/kids.ts';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!cinemaRoot) error(404, 'No hay carpeta de películas (CINEMA_DIR)');
@@ -41,7 +42,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			and(eq(movieProgress.movieId, movie.id), eq(movieProgress.userId, locals.user!.id))
 		)
 		.leftJoin(movieInfo, eq(movieInfo.movieId, movie.id))
-		.where(eq(movie.missing, false));
+		.where(and(eq(movie.missing, false), allowedMovies()));
 
 	return {
 		movies: movies

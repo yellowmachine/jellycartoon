@@ -34,7 +34,7 @@ export const series = pgTable('series', {
 	createdAt: timestamp('created_at').notNull().defaultNow()
 });
 
-/** Labels for series, shared by every user: e.g. «infantil», to build lists for children. */
+/** Labels for series and films, shared by every user: e.g. «infantil», what a child's account sees. */
 export const tag = pgTable('tag', {
 	id: serial('id').primaryKey(),
 	/** Lowercase: «Infantil» and «infantil» are the same tag. */
@@ -267,6 +267,20 @@ export const movie = pgTable(
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [index('movie_status_idx').on(t.status)]
+);
+
+/** The same tags as series': «infantil» is what a child's account may see (#17). */
+export const movieTag = pgTable(
+	'movie_tag',
+	{
+		movieId: integer('movie_id')
+			.notNull()
+			.references(() => movie.id, { onDelete: 'cascade' }),
+		tagId: integer('tag_id')
+			.notNull()
+			.references(() => tag.id, { onDelete: 'cascade' })
+	},
+	(t) => [primaryKey({ columns: [t.movieId, t.tagId] }), index('movie_tag_tag_idx').on(t.tagId)]
 );
 
 /** Where each user is in each film, saved while mpv plays it. Like watch_progress. */

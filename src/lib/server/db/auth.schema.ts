@@ -10,7 +10,11 @@ export const user = pgTable('user', {
 	createdAt: timestamp('created_at').notNull(),
 	updatedAt: timestamp('updated_at')
 		.$onUpdate(() => new Date())
-		.notNull()
+		.notNull(),
+	role: text('role'),
+	banned: boolean('banned').default(false),
+	banReason: text('ban_reason'),
+	banExpires: timestamp('ban_expires')
 });
 
 export const session = pgTable(
@@ -27,7 +31,8 @@ export const session = pgTable(
 		userAgent: text('user_agent'),
 		userId: text('user_id')
 			.notNull()
-			.references(() => user.id, { onDelete: 'cascade' })
+			.references(() => user.id, { onDelete: 'cascade' }),
+		impersonatedBy: text('impersonated_by')
 	},
 	(table) => [index('session_userId_idx').on(table.userId)]
 );

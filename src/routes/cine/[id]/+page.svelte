@@ -3,6 +3,7 @@
 	import BirdsEye from '#lib/components/BirdsEye.svelte';
 	import FilmChat from '#lib/components/FilmChat.svelte';
 	import Scenes from '#lib/components/Scenes.svelte';
+	import TagBar from '#lib/components/TagBar.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
 	import { filterHref, type FilterName } from '#lib/film-search.ts';
@@ -98,12 +99,14 @@
 		{:else}
 			<h1 class="flex items-center gap-2 text-2xl font-bold">
 				{film.title}
-				<button
-					class="shrink-0 rounded-md px-2 py-1 text-base text-zinc-500 hover:bg-zinc-800 hover:text-white"
-					title="Cambiar título"
-					aria-label="Cambiar título"
-					onclick={() => (editing = true)}>✎</button
-				>
+				{#if !data.kid}
+					<button
+						class="shrink-0 rounded-md px-2 py-1 text-base text-zinc-500 hover:bg-zinc-800 hover:text-white"
+						title="Cambiar título"
+						aria-label="Cambiar título"
+						onclick={() => (editing = true)}>✎</button
+					>
+				{/if}
 			</h1>
 		{/if}
 		{#await data.info then info}
@@ -122,6 +125,9 @@
 		<p class="mt-1 text-sm text-zinc-400">
 			{[film.year, formatDuration(film.durationSec)].filter(Boolean).join(' · ')}
 		</p>
+		{#if !data.kid}
+			<TagBar tags={data.tags} allTags={data.allTags} class="mt-3" />
+		{/if}
 
 		{#if ready && data.mpv}
 			<div class="mt-4 flex flex-wrap gap-2">
@@ -162,7 +168,8 @@
 	{#await data.info}
 		<p class="text-sm text-zinc-400">Buscando la película en Wikidata y Wikipedia…</p>
 	{:then info}
-		{#if 'failed' in info}
+		<!-- A child's account sees the info, not how to fix it. -->
+		{#if data.kid && !('status' in info && info.status === 'found')}{:else if 'failed' in info}
 			<p class="text-sm text-red-400">No se pudo buscar la ficha: {info.failed}</p>
 			<form method="post" action="?/refresh" use:enhance class="mt-2">
 				<button class={secondary}>Reintentar</button>
@@ -229,15 +236,17 @@
 				{/if}
 			</p>
 
-			<details class="mt-6 text-sm text-zinc-400">
-				<summary class="cursor-pointer hover:text-white">¿No es esta película?</summary>
-				{@render searchForm('Buscar otra')}
-				<form method="post" action="?/refresh" use:enhance class="mt-2">
-					<button class="text-xs hover:text-white hover:underline"
-						>Volver a identificarla desde cero</button
-					>
-				</form>
-			</details>
+			{#if !data.kid}
+				<details class="mt-6 text-sm text-zinc-400">
+					<summary class="cursor-pointer hover:text-white">¿No es esta película?</summary>
+					{@render searchForm('Buscar otra')}
+					<form method="post" action="?/refresh" use:enhance class="mt-2">
+						<button class="text-xs hover:text-white hover:underline"
+							>Volver a identificarla desde cero</button
+						>
+					</form>
+				</details>
+			{/if}
 		{:else if info.status === 'ambiguous'}
 			<h2 class="mb-3 font-semibold">¿Cuál de estas es?</h2>
 			<ul class="max-w-3xl divide-y divide-zinc-800 rounded-md border border-zinc-800">
@@ -280,7 +289,7 @@
 		names={found?.scenes ?? null}
 		completed={film.completed ?? false}
 		mpv={data.mpv}
-		canName={data.canChat && !!found}
+		canName={data.canChat && !!found && !data.kid}
 		naming={data.naming}
 	/>
 {/snippet}
@@ -301,7 +310,9 @@
 	{/key}
 {/if}
 
-{#if data.canChat}
+{#if data.kid}
+	<!-- No AI conversations for a child's account (#17). -->
+{:else if data.canChat}
 	<!-- Keyed: another film starts with its own conversation. -->
 	{#key film.id}
 		<FilmChat movieId={film.id} history={data.chat} />

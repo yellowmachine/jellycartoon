@@ -51,24 +51,26 @@
 		aria-label="Buscar por título, director o actor"
 		class="w-56 rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm"
 	/>
-	<form
-		method="post"
-		action="?/scan"
-		use:enhance={() => {
-			scanning = true;
-			return async ({ update }) => {
-				await update();
-				scanning = false;
-			};
-		}}
-	>
-		<button
-			disabled={scanning}
-			class="rounded-md bg-amber-500 px-3 py-1 text-sm font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
+	{#if !data.kid}
+		<form
+			method="post"
+			action="?/scan"
+			use:enhance={() => {
+				scanning = true;
+				return async ({ update }) => {
+					await update();
+					scanning = false;
+				};
+			}}
 		>
-			{scanning ? 'Escaneando…' : 'Escanear carpeta'}
-		</button>
-	</form>
+			<button
+				disabled={scanning}
+				class="rounded-md bg-amber-500 px-3 py-1 text-sm font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
+			>
+				{scanning ? 'Escaneando…' : 'Escanear carpeta'}
+			</button>
+		</form>
+	{/if}
 </div>
 
 {#if form && 'playing' in form && form.playing}
