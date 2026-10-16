@@ -1,11 +1,12 @@
 import net from 'node:net';
 import { log } from '#lib/server/log.ts';
-import type { Speaker } from '#lib/music.ts';
+import { scaleVolumes, type Speaker } from '#lib/music.ts';
 
 /**
  * Snapserver's clients, through its JSON-RPC control API over TCP, one message per line
  * (https://github.com/badaix/snapcast/blob/develop/doc/json_rpc_api/control.md): who is there,
- * and their volume and name. Changes made elsewhere (Snapdroid, Snapweb) arrive as notifications.
+ * their volume and name, and their groups' mute. Changes made elsewhere (Snapdroid, Snapweb)
+ * arrive as notifications.
  */
 
 interface SnapClient {
@@ -15,17 +16,25 @@ interface SnapClient {
 	config: { name: string; volume: { percent: number; muted: boolean } };
 }
 
-interface SnapServerStatus {
-	groups: { clients: SnapClient[] }[];
+interface SnapGroup {
+	id: string;
+	muted: boolean;
+	clients: SnapClient[];
 }
 
-const toSpeaker = (c: SnapClient): Speaker => ({
+interface SnapServerStatus {
+	groups: SnapGroup[];
+}
+
+const toSpeaker = (c: SnapClient, group: { id: string; muted: boolean }): Speaker => ({
 	id: c.id,
 	name: c.config.name || c.host.name,
 	hostName: c.host.name,
 	connected: c.connected,
 	volume: c.config.volume.percent,
-	muted: c.config.volume.muted
+	muted: c.config.volume.muted,
+	groupId: group.id,
+	groupMuted: group.muted
 });
 
 export class SnapserverControl {
@@ -59,9 +68,7 @@ export class SnapserverControl {
 				this.#socket = s;
 				this.#connecting = null;
 				resolve(s);
-				this.request('Server.GetStatus')
-					.then((result) => this.#replaceAll((result as { server: SnapServerStatus }).server))
-					.catch((error) => log.warn('música', 'snapserver no da su estado', { error }));
+				this.#refresh();
 			});
 			s.on('error', (error: NodeJS.ErrnoException) => {
 				if (this.#socket === s) return;
@@ -127,6 +134,25 @@ export class SnapserverControl {
 		this.#update(id, { volume: next.percent, muted: next.muted });
 	}
 
+	/** All the speakers that are on, keeping their balance (see scaleVolumes). */
+	async setMasterVolume(value: number) {
+		const volumes = scaleVolumes([...this.#speakers.values()], value);
+		await Promise.all(volumes.map((v) => this.setVolume(v.id, { percent: v.volume })));
+	}
+
+	/** Mutes the groups of the speakers that are on, or unmutes them: Group.SetMute, as Snapweb. */
+	async setGroupsMuted(mute: boolean) {
+		const groups = new Set(
+			[...this.#speakers.values()].filter((s) => s.connected).map((s) => s.groupId)
+		);
+		await Promise.all(
+			[...groups].map(async (id) => {
+				await this.request('Group.SetMute', { id, mute });
+				this.#groupMuted(id, mute);
+			})
+		);
+	}
+
 	/** An empty name goes back to the host's. */
 	async setName(id: string, name: string) {
 		const current = this.#speakers.get(id);
@@ -173,7 +199,13 @@ export class SnapserverControl {
 			case 'Client.OnConnect':
 			case 'Client.OnDisconnect': {
 				const client = params.client as SnapClient;
-				this.#speakers.set(client.id, toSpeaker(client));
+				const known = this.#speakers.get(client.id);
+				// A new one: its group comes only with the whole status.
+				if (!known) return this.#refresh();
+				this.#speakers.set(
+					client.id,
+					toSpeaker(client, { id: known.groupId, muted: known.groupMuted })
+				);
 				return this.#emit();
 			}
 			case 'Client.OnVolumeChanged': {
@@ -186,15 +218,29 @@ export class SnapserverControl {
 					name: (params.name as string) || current?.hostName
 				});
 			}
+			case 'Group.OnMute':
+				return this.#groupMuted(params.id as string, params.mute as boolean);
 			case 'Server.OnUpdate':
 				return this.#replaceAll(params.server as SnapServerStatus);
 		}
 	}
 
+	#refresh() {
+		this.request('Server.GetStatus')
+			.then((result) => this.#replaceAll((result as { server: SnapServerStatus }).server))
+			.catch((error) => log.warn('música', 'snapserver no da su estado', { error }));
+	}
+
 	#replaceAll(server: SnapServerStatus) {
 		this.#speakers = new Map(
-			server.groups.flatMap((g) => g.clients).map((c) => [c.id, toSpeaker(c)])
+			server.groups.flatMap((g) => g.clients.map((c) => [c.id, toSpeaker(c, g)] as const))
 		);
+		this.#emit();
+	}
+
+	#groupMuted(groupId: string, muted: boolean) {
+		for (const [id, s] of this.#speakers)
+			if (s.groupId === groupId) this.#speakers.set(id, { ...s, groupMuted: muted });
 		this.#emit();
 	}
 

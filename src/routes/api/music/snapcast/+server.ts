@@ -44,6 +44,12 @@ function parse(body: Record<string, unknown>): SnapcastAction | null {
 			return typeof speakerId === 'string' && typeof value === 'number' && Number.isFinite(value)
 				? { action, speakerId, value: Math.round(Math.min(Math.max(value, 0), 100)) }
 				: null;
+		case 'masterVolume':
+			return typeof value === 'number' && Number.isFinite(value)
+				? { action, value: Math.round(Math.min(Math.max(value, 0), 100)) }
+				: null;
+		case 'masterMute':
+			return typeof value === 'boolean' ? { action, value } : null;
 		case 'mute':
 			return typeof speakerId === 'string' && typeof value === 'boolean'
 				? { action, speakerId, value }
