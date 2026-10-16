@@ -11,10 +11,15 @@ export interface Slot {
 	endMinute: number;
 }
 
+/** «Puede ver vídeos»: yes, no, or not until tomorrow. */
+export type VideoAccess = 'yes' | 'no' | 'until-tomorrow';
+
 export interface KidRules {
 	slots: Slot[];
 	/** null: no limit. */
 	dailyMinutes: number | null;
+	/** Over the schedule and the limit: with anything but `yes`, no video. */
+	access: VideoAccess;
 }
 
 /** A moment in the server's time zone. */
@@ -34,7 +39,7 @@ export type VideoTime =
 			allowed: true;
 			/** The current slot ends then, today; null: no slot, no end. */ until: number | null;
 	  }
-	| { allowed: false; reason: 'schedule' | 'limit'; next: Opening | null };
+	| { allowed: false; reason: 'schedule' | 'limit' | 'off'; next: Opening | null };
 
 export const WEEKDAYS = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
 
@@ -63,6 +68,13 @@ function firstStart(slots: Slot[], weekday: number, daysAhead: number, after = -
 /** Whether a child may watch now, having watched `watchedSec` today; and if not, until when. */
 export function videoTime(rules: KidRules, watchedSec: number, now: Moment): VideoTime {
 	const { slots, dailyMinutes } = rules;
+	if (rules.access === 'no') return { allowed: false, reason: 'off', next: null };
+	if (rules.access === 'until-tomorrow') {
+		// From tomorrow, the schedule again: its first slot, or midnight without one.
+		let next: Opening | null = slots.length ? null : { daysAhead: 1, minute: 0 };
+		for (let days = 1; !next && days <= 7; days++) next = firstStart(slots, now.weekday, days);
+		return { allowed: false, reason: 'off', next };
+	}
 	const limitReached = dailyMinutes !== null && watchedSec >= dailyMinutes * 60;
 	const current = slots.filter(
 		(s) => s.weekday === now.weekday && s.startMinute <= now.minute && now.minute < s.endMinute
@@ -96,6 +108,7 @@ export function openingText(next: Opening, weekday: number) {
 /** Why not now, and when: for the notice and for what the living room refuses. */
 export function closedText(time: Extract<VideoTime, { allowed: false }>, weekday: number) {
 	const when = time.next ? ` Se puede volver ${openingText(time.next, weekday)}.` : '';
+	if (time.reason === 'off') return `Ahora no se pueden ver vídeos.${when}`;
 	return time.reason === 'limit'
 		? `Por hoy ya se ha acabado el tiempo de ver vídeos.${when}`
 		: `Ahora no toca ver vídeos.${when}`;

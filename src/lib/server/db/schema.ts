@@ -360,7 +360,11 @@ export const kidSettings = pgTable('kid_settings', {
 		.primaryKey()
 		.references(() => user.id, { onDelete: 'cascade' }),
 	/** Video a day at most; null: no limit. */
-	dailyMinutes: integer('daily_minutes')
+	dailyMinutes: integer('daily_minutes'),
+	/** «Puede ver vídeos»: off, no video at all, whatever the schedule. */
+	videoEnabled: boolean('video_enabled').notNull().default(true),
+	/** «No, hasta mañana»: off until this day (server time zone, like `playlist.day`). */
+	videoOffUntil: date('video_off_until')
 });
 
 /** `ambiguous`: several films could be it, the user chooses (`candidates`). */
@@ -563,3 +567,16 @@ export const musicPlaylistItem = pgTable(
 );
 
 export * from './auth.schema';
+
+/**
+ * The password for music apps (Subsonic, #27): apart from the account's, which Better Auth keeps
+ * only as a hash. The apps send md5(password + salt), and checking it needs the password itself.
+ * Random, generated in Ajustes, and revoked there; it only opens the music API.
+ */
+export const appPassword = pgTable('app_password', {
+	userId: text('user_id')
+		.primaryKey()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	password: text('password').notNull(),
+	createdAt: timestamp('created_at').notNull().defaultNow()
+});

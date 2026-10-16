@@ -119,11 +119,10 @@ services:
       - 443:443
       - 443:443/udp
     environment:
+      # The site address (https://<domain>), for the Caddyfile in the image (deploy/Caddyfile).
+      ORIGIN: ${ORIGIN:?ORIGIN is required}
       # Cloudflare API token with Zone.Zone:Read and Zone.DNS:Edit on the domain's zone.
       CF_API_TOKEN: ${CF_API_TOKEN:?CF_API_TOKEN is required}
-    configs:
-      - source: caddyfile
-        target: /etc/caddy/Caddyfile
     volumes:
       # Certificates and the ACME account: without them, a new certificate on every start.
       - caddy_data:/data
@@ -142,9 +141,6 @@ services:
     command: ['snapserver', '-c', '/etc/jellycartoon/snapserver.conf']
     labels:
       - wud.watch=true
-    configs:
-      - source: snapserver
-        target: /etc/jellycartoon/snapserver.conf
     volumes:
       - ${HOST_DATA_DIR:?HOST_DATA_DIR is required}:/data
       # The host's D-Bus, so that it announces itself through the host's Avahi (mDNS) and clients
@@ -248,22 +244,3 @@ volumes:
   caddy_data:
   caddy_config:
   wud_store:
-
-configs:
-  # ORIGIN is the site address (https://<domain>), filled in by compose.
-  caddyfile:
-    content: |
-      ${ORIGIN} {
-      	tls {
-      		dns cloudflare {env.CF_API_TOKEN}
-      	}
-      	reverse_proxy app:3000
-      }
-  snapserver:
-    content: |
-      [server]
-      datadir = /data/snapserver
-      [http]
-      doc_root = /usr/share/snapserver/snapweb
-      [stream]
-      source = pipe:///data/snapfifo?name=JellyCartoon&sampleformat=44100:16:2

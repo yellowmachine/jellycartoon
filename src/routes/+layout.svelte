@@ -30,17 +30,16 @@
 		// Not for a child's account: they do not exist for it.
 		...(data.kid
 			? []
-			: [
-					{ href: '/library', label: 'Gestión' },
-					{ href: '/logs', label: 'Registro' }
-				])
+			: // With Etiquetas and Registro in its tabs.
+				[{ href: '/library', label: 'Gestión', also: ['/logs'] }])
 	]);
 
 	const under = (path: string, href: string) => path === href || path.startsWith(`${href}/`);
+	/** The section a page is in: its own address or, for those with tabs, any of theirs. */
 	const isCurrent = (href: string) => {
 		const path = page.url.pathname;
-		if (href !== '/') return under(path, href);
-		return path === '/' || links[0].also!.some((h) => under(path, h));
+		const also = links.find((l) => l.href === href)?.also ?? [];
+		return (href === '/' ? path === '/' : under(path, href)) || also.some((h) => under(path, h));
 	};
 	const current = $derived(links.find((l) => l.href !== '/' && isCurrent(l.href)));
 

@@ -27,7 +27,8 @@ export const handleError: HandleServerError = ({ kind, error, event }) => {
 	log.error('http', `${event.request.method} ${event.url.pathname}`, { error });
 };
 
-const PUBLIC_PATHS = ['/login', '/api/auth', '/api/health'];
+// /rest: the Subsonic API logs in with its own parameters (#27).
+const PUBLIC_PATHS = ['/login', '/api/auth', '/api/health', '/rest/'];
 
 const handleBetterAuth: Handle = async ({ event, resolve }) => {
 	const session = await auth.api.getSession({ headers: event.request.headers });

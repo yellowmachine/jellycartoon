@@ -5,3 +5,6 @@ RUN xcaddy build --with github.com/caddy-dns/cloudflare
 
 FROM caddy:2.11
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
+# The site, with ORIGIN and CF_API_TOKEN from the environment: inside the image, not in the compose,
+# so that it is still there when WUD recreates the container (#20).
+COPY deploy/Caddyfile /etc/caddy/Caddyfile

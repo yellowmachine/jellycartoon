@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { openingText, parseClock, videoTime, type Slot } from './kid-time.ts';
+import { closedText, openingText, parseClock, videoTime, type Slot } from './kid-time.ts';
 
 const at = (weekday: number, time: string) => ({ weekday, minute: parseClock(time)! });
 const slot = (weekday: number, start: string, end: string): Slot => ({
@@ -17,26 +17,32 @@ const week = [
 
 describe('videoTime', () => {
 	test('no slots and no limit: always', () => {
-		expect(videoTime({ slots: [], dailyMinutes: null }, 99_999, at(6, '3:00'))).toEqual({
+		expect(
+			videoTime({ slots: [], dailyMinutes: null, access: 'yes' }, 99_999, at(6, '3:00'))
+		).toEqual({
 			allowed: true,
 			until: null
 		});
 	});
 
 	test('inside a slot, until its end', () => {
-		expect(videoTime({ slots: week, dailyMinutes: null }, 0, at(2, '18:30'))).toEqual({
+		expect(
+			videoTime({ slots: week, dailyMinutes: null, access: 'yes' }, 0, at(2, '18:30'))
+		).toEqual({
 			allowed: true,
 			until: parseClock('19:00')
 		});
 	});
 
 	test('the end is not included', () => {
-		const time = videoTime({ slots: week, dailyMinutes: null }, 0, at(2, '19:00'));
+		const time = videoTime({ slots: week, dailyMinutes: null, access: 'yes' }, 0, at(2, '19:00'));
 		expect(time.allowed).toBe(false);
 	});
 
 	test('before a slot: later today', () => {
-		expect(videoTime({ slots: week, dailyMinutes: null }, 0, at(5, '14:00'))).toEqual({
+		expect(
+			videoTime({ slots: week, dailyMinutes: null, access: 'yes' }, 0, at(5, '14:00'))
+		).toEqual({
 			allowed: false,
 			reason: 'schedule',
 			next: { daysAhead: 0, minute: parseClock('17:00')! }
@@ -45,7 +51,9 @@ describe('videoTime', () => {
 
 	test('a day without slots: the next day with one', () => {
 		// Saturday night → Sunday has none → Monday 17:00.
-		expect(videoTime({ slots: week, dailyMinutes: null }, 0, at(5, '21:00'))).toEqual({
+		expect(
+			videoTime({ slots: week, dailyMinutes: null, access: 'yes' }, 0, at(5, '21:00'))
+		).toEqual({
 			allowed: false,
 			reason: 'schedule',
 			next: { daysAhead: 2, minute: parseClock('17:00')! }
@@ -53,7 +61,9 @@ describe('videoTime', () => {
 	});
 
 	test('the limit, inside a slot: not until the next day', () => {
-		expect(videoTime({ slots: week, dailyMinutes: 60 }, 3600, at(5, '11:00'))).toEqual({
+		expect(
+			videoTime({ slots: week, dailyMinutes: 60, access: 'yes' }, 3600, at(5, '11:00'))
+		).toEqual({
 			allowed: false,
 			reason: 'limit',
 			next: { daysAhead: 2, minute: parseClock('17:00')! }
@@ -61,15 +71,48 @@ describe('videoTime', () => {
 	});
 
 	test('the limit without slots: tomorrow', () => {
-		expect(videoTime({ slots: [], dailyMinutes: 30 }, 1800, at(3, '12:00'))).toEqual({
+		expect(videoTime({ slots: [], dailyMinutes: 30, access: 'yes' }, 1800, at(3, '12:00'))).toEqual(
+			{
+				allowed: false,
+				reason: 'limit',
+				next: { daysAhead: 1, minute: 0 }
+			}
+		);
+	});
+
+	test('«No»: no video, inside a slot too, and nothing said about when', () => {
+		const time = videoTime({ slots: week, dailyMinutes: null, access: 'no' }, 0, at(2, '18:00'));
+		expect(time).toEqual({ allowed: false, reason: 'off', next: null });
+		expect(closedText(time as Extract<typeof time, { allowed: false }>, 2)).toBe(
+			'Ahora no se pueden ver vídeos.'
+		);
+	});
+
+	test("«No, hasta mañana»: back with tomorrow's first slot", () => {
+		// Friday inside a slot → Saturday 10:00.
+		expect(
+			videoTime({ slots: week, dailyMinutes: null, access: 'until-tomorrow' }, 0, at(4, '18:00'))
+		).toEqual({
 			allowed: false,
-			reason: 'limit',
+			reason: 'off',
+			next: { daysAhead: 1, minute: parseClock('10:00')! }
+		});
+	});
+
+	test('«No, hasta mañana» without a schedule: back at midnight', () => {
+		expect(
+			videoTime({ slots: [], dailyMinutes: null, access: 'until-tomorrow' }, 0, at(3, '12:00'))
+		).toEqual({
+			allowed: false,
+			reason: 'off',
 			next: { daysAhead: 1, minute: 0 }
 		});
 	});
 
 	test('under the limit', () => {
-		expect(videoTime({ slots: [], dailyMinutes: 30 }, 1799, at(3, '12:00')).allowed).toBe(true);
+		expect(
+			videoTime({ slots: [], dailyMinutes: 30, access: 'yes' }, 1799, at(3, '12:00')).allowed
+		).toBe(true);
 	});
 });
 

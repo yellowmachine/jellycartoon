@@ -16,7 +16,7 @@ import {
 	watchTime
 } from '#lib/server/db/schema.ts';
 import { isKidAccount, KIDS_ROLE } from '#lib/server/kids.ts';
-import { kidRules, now, videoAllowed } from '#lib/server/kid-time.ts';
+import { kidRules, now, setVideoAccess, videoAllowed } from '#lib/server/kid-time.ts';
 import { log } from '#lib/server/log.ts';
 import { parseClock, type Slot } from '#lib/kid-time.ts';
 import { today } from '#lib/server/playlist.ts';
@@ -185,6 +185,19 @@ async function stats(userId: string, from: string) {
 }
 
 export const actions: Actions = {
+	/** «Puede ver vídeos»: yes, no, or no until tomorrow; the schedule is kept as it is. */
+	access: async ({ request }) => {
+		const form = await request.formData();
+		const userId = String(form.get('userId') ?? '');
+		const access = String(form.get('access') ?? '');
+		if (!(await isKidAccount(userId)))
+			return fail(400, { userId, message: 'No es una cuenta infantil' });
+		if (access !== 'yes' && access !== 'no' && access !== 'until-tomorrow')
+			return fail(400, { userId, message: 'Opción no válida' });
+		await setVideoAccess(userId, access);
+		log.info('infantil', 'Acceso al vídeo cambiado', { userId, access });
+		return { userId, access };
+	},
 	/**
 	 * A child's schedule and daily limit, replaced whole (#18): `slot` as `weekday|17:00|19:00`, and
 	 * `dailyMinutes` empty for no limit. Any adult may change them.

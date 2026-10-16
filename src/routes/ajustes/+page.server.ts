@@ -23,15 +23,23 @@ import { hasIntro } from '#lib/server/library/paths.ts';
 import { KNOWN_LANGUAGES, normalizeLang } from '#lib/languages.ts';
 import { log } from '#lib/server/log.ts';
 import { startUpdate, versionInfo } from '#lib/server/updates.ts';
+import {
+	appPasswordCreated,
+	generateAppPassword,
+	revokeAppPassword
+} from '#lib/server/subsonic/auth.ts';
+import { musicRoot } from '#lib/server/library/paths.ts';
+import { ORIGIN } from '$app/env/private';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
 	const admin = await isAdmin(userId);
-	const [settings, introFound, version] = await Promise.all([
+	const [settings, introFound, version, appPassword] = await Promise.all([
 		getSettings(userId),
 		hasIntro(),
 		// Only who manages the app sees the new version: for them, asked now (#20).
-		versionInfo({ fresh: admin })
+		versionInfo({ fresh: admin }),
+		musicRoot ? appPasswordCreated(userId) : null
 	]);
 
 	let ai = null;
@@ -71,6 +79,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		ai,
 		/** Children's accounts (#17): only who manages the app creates them. */
 		kids,
+		/** Music in apps such as Tempus (#27): with the account's email and a password of their own. */
+		musicApps: musicRoot
+			? { server: ORIGIN, username: locals.user!.email, since: appPassword }
+			: null,
 		/** The new version and its button, only for who manages the app (#20). */
 		version: admin ? version : { ...version, update: null, canUpdate: false }
 	};
@@ -85,6 +97,17 @@ const lang = (value: FormDataEntryValue | null) =>
 	typeof value === 'string' && value ? normalizeLang(value) : null;
 
 export const actions: Actions = {
+	/** A new password for music apps: shown once, and the one before stops working. */
+	appPassword: async ({ locals }) => {
+		const password = await generateAppPassword(locals.user!.id);
+		log.info('ajustes', 'Contraseña para apps de música nueva');
+		return { appPassword: password };
+	},
+	revokeAppPassword: async ({ locals }) => {
+		await revokeAppPassword(locals.user!.id);
+		log.info('ajustes', 'Contraseña para apps de música quitada');
+		return { saved: 'musicApps' };
+	},
 	/** Now, instead of at night: WUD replaces the container, and the page reloads on its own. */
 	update: async ({ locals }) => {
 		await requireAdmin(locals.user!.id);

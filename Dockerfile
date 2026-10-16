@@ -16,6 +16,9 @@ WORKDIR /app
 COPY --from=build /app/build ./build
 COPY --from=build /app/drizzle ./drizzle
 COPY --from=build /app/scripts ./scripts
+# For the snapserver service, which runs this image: inside it, so that it is still there when WUD
+# recreates the container (#20).
+COPY deploy/snapserver.conf /etc/jellycartoon/snapserver.conf
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
 ENV NODE_ENV=production PORT=3000
