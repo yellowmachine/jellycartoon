@@ -1,0 +1,10 @@
+# HTTPS in front of the app (compose.prod.yaml, caddy service), in its image (Dockerfile.caddy):
+# so that it is still there when WUD recreates the container. The site address comes from the
+# environment when Caddy starts (https://caddyserver.com/docs/caddyfile/concepts#environment-variables):
+# the same image for every install, each with its own ORIGIN in its .env.
+{$ORIGIN} {
+	tls {
+		dns cloudflare {env.CF_API_TOKEN}
+	}
+	reverse_proxy app:3000
+}
