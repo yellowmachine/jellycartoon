@@ -18,6 +18,7 @@
 		...(data.salon ? [{ href: '/salon', label: 'Salón' }] : []),
 		{ href: '/today', label: 'Hoy' },
 		{ href: '/lists', label: 'Listas' },
+		...(data.kidsPage ? [{ href: '/infantil', label: 'Infantil' }] : []),
 		// Not for a child's account: they do not exist for it.
 		...(data.kid
 			? []

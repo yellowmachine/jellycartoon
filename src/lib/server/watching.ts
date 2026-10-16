@@ -39,6 +39,7 @@ export function continueWatching(userId: string, limit = 8) {
 			title: episodeTitle,
 			season: episode.season,
 			number: episode.number,
+			seriesId: series.id,
 			seriesTitle: series.title,
 			positionSec: watchProgress.positionSec,
 			durationSec: episode.durationSec

@@ -2,7 +2,7 @@ import { error, type RequestEvent } from '@sveltejs/kit';
 import { and, eq, exists, sql } from 'drizzle-orm';
 import { getRequestEvent } from '$app/server';
 import { db } from '#lib/server/db/index.ts';
-import { episode, movie, movieTag, series, seriesTag, tag } from '#lib/server/db/schema.ts';
+import { episode, movie, movieTag, series, seriesTag, tag, user } from '#lib/server/db/schema.ts';
 
 /**
  * Children's accounts (#17): created from Ajustes with the role «infantil», they only see the series
@@ -13,6 +13,16 @@ export const KIDS_ROLE = 'infantil';
 
 export const isKid = (user: { role?: string | null } | undefined | null) =>
 	user?.role === KIDS_ROLE;
+
+/** Whether any child's account exists. */
+export async function hasKids() {
+	const [row] = await db
+		.select({ one: sql`1` })
+		.from(user)
+		.where(eq(user.role, KIDS_ROLE))
+		.limit(1);
+	return Boolean(row);
+}
 
 /** Whether the request being answered is a child's. */
 export const kidsOnly = () => isKid(getRequestEvent().locals.user);

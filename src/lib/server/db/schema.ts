@@ -1,6 +1,7 @@
 import {
 	bigint,
 	boolean,
+	check,
 	date,
 	index,
 	jsonb,
@@ -298,6 +299,32 @@ export const movieProgress = pgTable(
 		updatedAt: timestamp('updated_at').notNull().defaultNow()
 	},
 	(t) => [primaryKey({ columns: [t.userId, t.movieId] })]
+);
+
+/**
+ * Time actually watched, per user, day and episode or film: what the positions saved while playing
+ * moved forward. Only for children's accounts, for the adults' page (#17).
+ */
+export const watchTime = pgTable(
+	'watch_time',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		/** In the server's time zone, like `playlist.day`. */
+		day: date('day').notNull(),
+		episodeId: integer('episode_id').references(() => episode.id, { onDelete: 'cascade' }),
+		movieId: integer('movie_id').references(() => movie.id, { onDelete: 'cascade' }),
+		seconds: real('seconds').notNull().default(0)
+	},
+	(t) => [
+		// One of the two is null: they are compared as equal, so there is one row per thing and day.
+		unique('watch_time_user_day_item')
+			.on(t.userId, t.day, t.episodeId, t.movieId)
+			.nullsNotDistinct(),
+		check('watch_time_one_item', sql`(${t.episodeId} is null) <> (${t.movieId} is null)`)
+	]
 );
 
 /** `ambiguous`: several films could be it, the user chooses (`candidates`). */

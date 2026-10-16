@@ -7,6 +7,7 @@ import { hostCinemaRoot } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 import { MpvClient, StateBroadcast, type MpvMessage } from '#lib/server/mpv-client.ts';
 import { saveProgress } from '#lib/server/progress.ts';
+import { addWatchTime } from '#lib/server/watch-time.ts';
 import type { RemoteAction, RemoteState, Track } from '#lib/salon.ts';
 
 /**
@@ -284,6 +285,7 @@ async function ended(entryId: number, reason: string) {
 async function save(entry: Playing, reachedEnd: boolean) {
 	const completed =
 		reachedEnd || Boolean(entry.durationSec && entry.positionSec / entry.durationSec > 0.92);
+	await addWatchTime(entry.userId, entry.target, entry.positionSec);
 	if ('episodeId' in entry.target) {
 		const { episodeId } = entry.target;
 		// Also ticks it off today's playlist and the user's lists.
