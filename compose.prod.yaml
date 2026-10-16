@@ -71,8 +71,9 @@ services:
       # Optional: the AI for films (identifying them, talking about them). Also settable in Ajustes.
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
-      # With the `updates` profile: the admin updates from the notice of a new version.
-      WUD_URL: ${WUD_PASSWORD:+http://wud:3000}
+      # With the `updates` profile: the admin updates from the notice of a new version. Without
+      # WUD_PASSWORD in the .env the app does not offer it, so the address can always be here.
+      WUD_URL: http://wud:3000
       WUD_PASSWORD: ${WUD_PASSWORD:-}
     labels:
       # Updated by WUD to each release (#20), and given back its previous version if it does not
