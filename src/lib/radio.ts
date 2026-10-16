@@ -150,6 +150,33 @@ export const STATIONS: RadioStation[] = [
 		description: 'Actualidad y tertulias'
 	},
 	{
+		// «Cope Madrid FM» in Radio Browser, but its stream is the national one (net1).
+		uuid: '00526b4f-47a3-432d-baca-f914c1273f0b',
+		name: 'COPE',
+		language: 'es',
+		country: 'ES',
+		kind: 'talk',
+		description: 'Actualidad, tertulias y deporte'
+	},
+	{
+		// «Onda Cero Madrid» in Radio Browser: the national stream, and the entry with a logo.
+		uuid: 'ad534068-9b96-4ece-a015-a310832b1453',
+		name: 'Onda Cero',
+		language: 'es',
+		country: 'ES',
+		kind: 'talk',
+		description: 'Actualidad, tertulias y magacines'
+	},
+	{
+		// The entry with an https stream: the page is served over https.
+		uuid: '93db812b-3732-459e-ae33-1af18062066d',
+		name: 'esRadio',
+		language: 'es',
+		country: 'ES',
+		kind: 'talk',
+		description: 'Actualidad y tertulias'
+	},
+	{
 		uuid: 'd8b6ba19-f431-471e-9598-94f42af0d3ac',
 		name: 'RNE Radio 3',
 		language: 'es',
