@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { updated } from '$app/state';
+	import MusicBackgroundSettings from '#lib/components/MusicBackgroundSettings.svelte';
 	import { languageLabel } from '#lib/languages.ts';
 	import type { PageProps } from './$types';
 
@@ -103,6 +104,17 @@
 			</form>
 		{/if}
 	</section>
+
+	{#if data.music}
+		<section class={section}>
+			<h2 class="mb-1 font-semibold">Fondo de Música</h2>
+			<p class="mb-4 text-sm text-zinc-400">
+				Formas con los colores de la portada de lo que suena, detrás de las páginas de Música. Se
+				mueven mientras suena. Solo en este dispositivo: la tele puede tener uno y el móvil ninguno.
+			</p>
+			<MusicBackgroundSettings />
+		</section>
+	{/if}
 
 	{#if data.ai}
 		<section class={section}>

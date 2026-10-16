@@ -1,7 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { coverPalette, drawAurora, mixPalette, type Palette } from '#lib/aurora.ts';
+	import {
+		coverPalette,
+		drawBackground,
+		mixPalette,
+		pace,
+		type Palette
+	} from '#lib/music-background.ts';
+	import { musicBackground } from '#lib/music-background-settings.svelte.ts';
 	import { coverUrl } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
 	import { watchSnapcast } from '#lib/music-target.svelte.ts';
@@ -13,10 +20,6 @@
 	let { snapcast }: { snapcast: boolean } = $props();
 	// svelte-ignore state_referenced_locally
 	const snap = snapcast ? watchSnapcast() : null;
-
-	/** How strong the colours are, and how fast they drift: the ones chosen in the trial page. */
-	const INTENSITY = 0.55;
-	const PACE = 2;
 
 	const source = $derived.by(() => {
 		const s = snap?.state;
@@ -44,7 +47,8 @@
 	let visible = $state(false);
 
 	$effect(() => {
-		const url = source?.hasCover ? coverUrl(source.albumId) : null;
+		const url =
+			source?.hasCover && musicBackground.style !== 'none' ? coverUrl(source.albumId) : null;
 		if (!url) {
 			visible = false;
 			return;
@@ -84,14 +88,24 @@
 		let h = 0;
 
 		function resize() {
-			// Small on purpose: it is a blur, and the browser scales it up.
-			const scale = Math.min(devicePixelRatio || 1, 1) * 0.5;
+			// The aurora small on purpose: it is a blur, and the browser scales it up. Lines and dots,
+			// at the screen's size.
+			const scale =
+				Math.min(devicePixelRatio || 1, 1) * (musicBackground.style === 'aurora' ? 0.5 : 1);
 			w = Math.max(1, Math.round(innerWidth * scale));
 			h = Math.max(1, Math.round(innerHeight * scale));
 			canvas!.width = w;
 			canvas!.height = h;
-			if (shown) drawAurora(ctx, w, h, clock, shown, INTENSITY);
+			dirty = true;
 		}
+
+		const draw = (p: Palette) => {
+			const style = musicBackground.style;
+			if (style !== 'none')
+				drawBackground(ctx, w, h, style, source?.albumId ?? 0, clock, p, musicBackground.intensity);
+		};
+		// A change in Ajustes on another tab is not seen here; one here, at once.
+		let drawnWith = '';
 
 		function frame(now: number) {
 			raf = requestAnimationFrame(frame);
@@ -99,7 +113,13 @@
 			last = now;
 			if (!target) return;
 			const moving = Boolean(source?.playing) && !reduced.matches;
-			if (moving) clock += dt * PACE;
+			if (moving) clock += dt * pace(musicBackground.speed);
+			const settings = `${musicBackground.style}:${musicBackground.intensity}:${source?.albumId}`;
+			if (settings !== drawnWith) {
+				if (!drawnWith.startsWith(musicBackground.style)) resize();
+				drawnWith = settings;
+				dirty = true;
+			}
 			// From one album's colours to the next in two seconds.
 			if (blend < 1) blend = Math.min(1, blend + dt / 2);
 			// About 20 frames a second is plenty for something this slow.
@@ -108,7 +128,7 @@
 			dirty = false;
 			shown =
 				blend < 1 && from ? mixPalette(from, target, blend * blend * (3 - 2 * blend)) : target;
-			drawAurora(ctx, w, h, clock, shown, INTENSITY);
+			draw(shown);
 		}
 
 		resize();
