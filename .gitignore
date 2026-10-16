@@ -27,4 +27,6 @@ vite.config.ts.timestamp-*
 /data
 /no-cinema
 /no-music
+# WUD's copies of the database before each update (compose.prod.yaml).
+/update-backups
 /tmp

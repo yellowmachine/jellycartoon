@@ -103,10 +103,20 @@ async function wud(path: string, init: RequestInit = {}) {
 export async function startUpdate(): Promise<'started' | 'not-ready'> {
 	if (!WUD_URL || !WUD_PASSWORD) throw new Error('No hay WUD configurado (WUD_URL, WUD_PASSWORD)');
 	type Container = { id: string; updateAvailable: boolean; labels?: Record<string, string> };
-	const containers: Container[] = await wud('/api/containers');
 	// The app's service in compose.prod.yaml. Not by hostname: WUD's new container keeps the old one's.
-	const self = containers.find((c) => c.labels?.['com.docker.compose.service'] === 'app');
-	if (!self) throw new Error('WUD no vigila la app (falta la etiqueta wud.watch=true)');
+	const app = (containers: Container[]) =>
+		containers.find((c) => c.labels?.['com.docker.compose.service'] === 'app');
+	const self = app(await wud('/api/containers'));
+
+	if (!self) {
+		// WUD starts with the app and may have looked before it was up: until its next look it does
+		// not know it. Asked to look at everything now, it also installs on its own what it finds.
+		const fresh = app(await wud('/api/containers/watch', { method: 'POST' }));
+		if (!fresh) throw new Error('WUD no vigila la app (falta la etiqueta wud.watch=true)');
+		if (!fresh.updateAvailable) return 'not-ready';
+		log.info('versiones', 'WUD ha encontrado la versión nueva y la está instalando');
+		return 'started';
+	}
 
 	if (self.updateAvailable) {
 		log.info('versiones', 'Actualización pedida a WUD');
