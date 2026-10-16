@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import MusicBackground from '#lib/components/MusicBackground.svelte';
 	import type { LayoutProps } from './$types';
 
 	let { children }: LayoutProps = $props();
@@ -10,6 +11,8 @@
 		selected ? 'border-amber-500 text-white' : 'border-transparent text-zinc-400 hover:text-white'
 	];
 </script>
+
+<MusicBackground snapcast={Boolean(page.data.snapcast)} />
 
 <!-- Tabs that are links: each view has its own address, and «back» works. -->
 <nav class="mb-6 flex gap-6 border-b border-zinc-800">
