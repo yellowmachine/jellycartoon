@@ -71,21 +71,32 @@ class MusicTarget {
 
 export const musicTarget = new MusicTarget();
 
+/** One connection for every component that watches Snapcast: the bar and the Música background. */
+let snapcastState = $state<SnapcastState | null>(null);
+let watchers = 0;
+let source: EventSource | null = null;
+
 /**
  * Live state of the music on Snapcast, from /api/music/snapcast/events. Call it while a component
- * is being created: the connection closes when the component goes away.
+ * is being created: the connection closes when the last component watching goes away.
  */
 export function watchSnapcast() {
-	let state = $state<SnapcastState | null>(null);
 	$effect(() => {
 		// EventSource reconnects by itself if the connection drops.
-		const source = new EventSource('/api/music/snapcast/events');
-		source.onmessage = (event) => (state = JSON.parse(event.data));
-		return () => source.close();
+		if (watchers++ === 0) {
+			source = new EventSource('/api/music/snapcast/events');
+			source.onmessage = (event) => (snapcastState = JSON.parse(event.data));
+		}
+		return () => {
+			if (--watchers > 0) return;
+			source?.close();
+			source = null;
+			snapcastState = null;
+		};
 	});
 	return {
 		get state() {
-			return state;
+			return snapcastState;
 		}
 	};
 }

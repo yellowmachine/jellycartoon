@@ -34,9 +34,12 @@ function newer(a: number[], b: number[]) {
 
 let cached: { at: number; release: Release | null } | null = null;
 
-/** The latest published release (not drafts nor pre-releases); null if GitHub cannot be asked. */
-async function latestRelease(): Promise<Release | null> {
-	if (cached && Date.now() - cached.at < CHECK_MS) return cached.release;
+/**
+ * The latest published release (not drafts nor pre-releases); null if GitHub cannot be asked.
+ * `fresh` asks GitHub now, and what it says is remembered for the notice on every page.
+ */
+async function latestRelease(fresh = false): Promise<Release | null> {
+	if (!fresh && cached && Date.now() - cached.at < CHECK_MS) return cached.release;
 	let release: Release | null = null;
 	try {
 		const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
@@ -62,13 +65,16 @@ async function latestRelease(): Promise<Release | null> {
 	return release;
 }
 
-/** This version, and the release to update to if there is a newer one. */
-export async function versionInfo() {
+/**
+ * This version, and the release to update to if there is a newer one. `fresh`: whoever opens
+ * Ajustes to check gets GitHub's answer now, not the one from up to six hours ago.
+ */
+export async function versionInfo({ fresh = false } = {}) {
 	const current = semver(APP_VERSION);
 	// `sha-…` (the `latest` channel) or `dev`: there are no releases to compare with.
 	if (!current)
 		return { current: APP_VERSION, release: false as const, update: null, canUpdate: false };
-	const latest = await latestRelease();
+	const latest = await latestRelease(fresh);
 	const version = latest && semver(latest.version);
 	return {
 		current: APP_VERSION,
