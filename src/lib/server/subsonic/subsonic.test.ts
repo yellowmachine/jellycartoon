@@ -40,9 +40,10 @@ describe('ids', () => {
 			expect(parseId(artistKey(name))).toEqual({ kind: 'artist', name });
 	});
 
-	test('albums and tracks; anything else, nothing', () => {
+	test('albums, tracks and playlists; anything else, nothing', () => {
 		expect(parseId('al-187')).toEqual({ kind: 'album', id: 187 });
 		expect(parseId('tr-5021')).toEqual({ kind: 'track', id: 5021 });
+		expect(parseId('pl-3')).toEqual({ kind: 'playlist', id: 3 });
 		expect(parseId('187')).toBeNull();
 		expect(parseId('al-x')).toBeNull();
 		expect(parseId(null)).toBeNull();

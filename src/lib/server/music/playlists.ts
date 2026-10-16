@@ -147,3 +147,14 @@ export async function moveInPlaylist(playlistId: number, itemId: number, directi
 			.where(eq(musicPlaylistItem.id, neighbour.id));
 	});
 }
+
+/** Its tracks become these, in this order: what a music app sends when it saves a whole playlist. */
+export async function replacePlaylistTracks(playlistId: number, trackIds: number[]) {
+	await db.transaction(async (tx) => {
+		await tx.delete(musicPlaylistItem).where(eq(musicPlaylistItem.playlistId, playlistId));
+		if (trackIds.length)
+			await tx
+				.insert(musicPlaylistItem)
+				.values(trackIds.map((trackId, position) => ({ playlistId, trackId, position })));
+	});
+}

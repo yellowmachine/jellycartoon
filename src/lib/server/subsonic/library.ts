@@ -51,17 +51,28 @@ export interface Library {
 export const artistKey = (name: string) => `ar-${Buffer.from(name, 'utf8').toString('base64url')}`;
 export const albumKey = (id: number) => `al-${id}`;
 export const trackKey = (id: number) => `tr-${id}`;
+export const playlistKey = (id: number) => `pl-${id}`;
+/** A radio station, by its Radio Browser id. */
+export const radioKey = (uuid: string) => `rd-${uuid}`;
 
 /** What an id points to; null if it is none of ours. */
 export function parseId(id: string | null) {
-	const match = /^(ar|al|tr)-(.+)$/.exec(id ?? '');
+	const match = /^(ar|al|tr|pl|rd)-(.+)$/.exec(id ?? '');
 	if (!match) return null;
+	if (match[1] === 'rd') return { kind: 'radio' as const, uuid: match[2] };
 	if (match[1] === 'ar')
 		return { kind: 'artist' as const, name: Buffer.from(match[2], 'base64url').toString('utf8') };
 	const n = Number(match[2]);
 	if (!Number.isInteger(n)) return null;
-	return { kind: match[1] === 'al' ? ('album' as const) : ('track' as const), id: n };
+	const kind = ({ al: 'album', tr: 'track', pl: 'playlist' } as const)[
+		match[1] as 'al' | 'tr' | 'pl'
+	];
+	return { kind, id: n };
 }
+
+/** The user's favourites, by id: when each was marked. */
+export type Stars = Map<string, Date>;
+const starredAt = (stars: Stars | undefined, key: string) => stars?.get(key)?.toISOString();
 
 /** The index an artist goes under: its first letter without accents, or «#». */
 export function indexLetter(name: string) {
@@ -161,8 +172,9 @@ const albumDuration = (a: Album) =>
 	Math.round(a.tracks.reduce((s, t) => s + (t.durationSec ?? 0), 0));
 
 /** An artist as the protocol has it (ID3). */
-export const artistJson = (artist: Artist) => ({
+export const artistJson = (artist: Artist, stars?: Stars) => ({
 	id: artistKey(artist.name),
+	starred: starredAt(stars, artistKey(artist.name)),
 	name: artist.name,
 	albumCount: artist.albums.length,
 	coverArt: artist.albums.find((a) => a.hasCover)
@@ -170,8 +182,9 @@ export const artistJson = (artist: Artist) => ({
 		: undefined
 });
 
-export const albumJson = (a: Album) => ({
+export const albumJson = (a: Album, stars?: Stars) => ({
 	id: albumKey(a.id),
+	starred: starredAt(stars, albumKey(a.id)),
 	name: a.title,
 	title: a.title,
 	album: a.title,
@@ -184,8 +197,9 @@ export const albumJson = (a: Album) => ({
 	isDir: true
 });
 
-export const songJson = (t: Track, a: Album) => ({
+export const songJson = (t: Track, a: Album, stars?: Stars) => ({
 	id: trackKey(t.id),
+	starred: starredAt(stars, trackKey(t.id)),
 	parent: albumKey(a.id),
 	isDir: false,
 	title: t.title,

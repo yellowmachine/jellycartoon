@@ -61,7 +61,10 @@ export async function stationsInfo(): Promise<Record<string, RadioStationInfo> |
 	try {
 		const stations = await byUuid(STATIONS.map((s) => s.uuid));
 		const info = Object.fromEntries(
-			stations.map((s) => [s.stationuuid, { favicon: s.favicon || null, ok: s.lastcheckok === 1 }])
+			stations.map((s) => [
+				s.stationuuid,
+				{ favicon: s.favicon || null, ok: s.lastcheckok === 1, hls: s.hls === 1 }
+			])
 		);
 		cached = { at: Date.now(), info };
 		return info;
