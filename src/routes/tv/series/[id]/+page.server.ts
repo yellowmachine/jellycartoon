@@ -5,6 +5,7 @@ import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { playEpisodes, seriesQueue } from '#lib/server/cinema/episode-actions.ts';
+import { savedSeriesInfo } from '#lib/server/library/series-info.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	if (!mpvEnabled) error(404, 'No hay mpv configurado (MPV_SOCKET)');
@@ -30,7 +31,22 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		.orderBy(asc(episode.season), asc(episode.number));
 	// Where to go on: the first one not finished.
 	const next = episodes.find((e) => !e.completed) ?? null;
-	return { title: s.title, episodes, next, started: episodes.some((e) => e.positionSec) };
+	// Only what is already known: looking it up is for the whole app's page.
+	const info = await savedSeriesInfo(id);
+	return {
+		title: s.title,
+		episodes,
+		next,
+		started: episodes.some((e) => e.positionSec),
+		info: info && {
+			originalTitle: info.originalTitle,
+			startYear: info.startYear,
+			endYear: info.endYear,
+			seasons: info.seasons,
+			episodes: info.episodes,
+			synopsis: info.synopsis
+		}
+	};
 };
 
 export const actions: Actions = {
