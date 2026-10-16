@@ -61,6 +61,36 @@ export interface Speaker {
 	/** 0–100. */
 	volume: number;
 	muted: boolean;
+	/** Its Snapcast group, which can be muted as a whole. */
+	groupId: string;
+	groupMuted: boolean;
+}
+
+/** What the master volume moves: the speakers that are on, as Snapweb's group slider. */
+export const masterSpeakers = (speakers: Speaker[]) => speakers.filter((s) => s.connected);
+
+/** The master volume as Snapweb shows it: the average of its speakers. */
+export function masterVolume(speakers: Speaker[]) {
+	const on = masterSpeakers(speakers);
+	return on.length ? Math.round(on.reduce((sum, s) => sum + s.volume, 0) / on.length) : 0;
+}
+
+/**
+ * Each speaker's volume for a master volume of `value`, as Snapweb does it: down, all lose the
+ * same share of what they have; up, the same share of what they lack. So they keep their balance,
+ * and 0 or 100 takes them all there.
+ */
+export function scaleVolumes(speakers: Speaker[], value: number) {
+	const on = masterSpeakers(speakers);
+	const from = on.reduce((sum, s) => sum + s.volume, 0) / on.length;
+	const ratio =
+		value < from ? (from - value) / from : value > from ? (value - from) / (100 - from) : 0;
+	return on.map((s) => ({
+		id: s.id,
+		volume: Math.round(
+			value < from ? s.volume - ratio * s.volume : s.volume + ratio * (100 - s.volume)
+		)
+	}));
 }
 
 /** The music on Snapcast: what its mpv is doing. Sent to every open page whenever it changes. */
@@ -104,4 +134,6 @@ export type SnapcastAction =
 	| { action: 'single'; value: boolean }
 	| { action: 'volume'; speakerId: string; value: number }
 	| { action: 'mute'; speakerId: string; value: boolean }
+	| { action: 'masterVolume'; value: number }
+	| { action: 'masterMute'; value: boolean }
 	| { action: 'rename'; speakerId: string; name: string };

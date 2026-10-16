@@ -2,7 +2,7 @@
 	import MediaIcon from './MediaIcon.svelte';
 	import PlayModes from './PlayModes.svelte';
 	import { formatDuration } from '#lib/format.ts';
-	import { coverUrl } from '#lib/music.ts';
+	import { coverUrl, masterSpeakers, masterVolume } from '#lib/music.ts';
 	import { musicTarget, watchSnapcast } from '#lib/music-target.svelte.ts';
 	import { COUNTRIES } from '#lib/radio.ts';
 
@@ -24,6 +24,11 @@
 	let renaming = $state<string | null>(null);
 	/** While a volume is being dragged it shows the finger, not snapserver. */
 	let dragging = $state<{ id: string; value: number } | null>(null);
+	let draggingMaster = $state<number | null>(null);
+
+	const on = $derived(masterSpeakers(snap?.speakers ?? []));
+	/** Their groups muted, as Snapweb's group mute. */
+	const allMuted = $derived(on.length > 0 && on.every((s) => s.groupMuted));
 </script>
 
 <!-- Only while something plays on Snapcast, whoever sent it. -->
@@ -48,6 +53,39 @@
 						No hay altavoces. Arranca snapclient en alguno, apuntando a este equipo.
 					</p>
 				{:else}
+					<!-- As Snapweb, only with more than one; or to unmute what was muted from here. -->
+					{#if on.length > 1 || on.some((s) => s.groupMuted)}
+						<div class="mb-1 flex items-center gap-3 border-b border-zinc-800 pb-1">
+							<span class="min-w-0 flex-1 truncate pl-5 text-sm font-medium">Todos</span>
+							<button
+								class="w-6 shrink-0 text-sm"
+								aria-label={allMuted ? 'Quitar silencio a todos' : 'Silenciar todos'}
+								title={allMuted ? 'Quitar silencio a todos' : 'Silenciar todos'}
+								onclick={() => musicTarget.send({ action: 'masterMute', value: !allMuted })}
+								>{allMuted ? '🔇' : '🔊'}</button
+							>
+							<input
+								type="range"
+								min="0"
+								max="100"
+								step="1"
+								value={draggingMaster ?? masterVolume(on)}
+								aria-label="Volumen de todos"
+								class="w-28 shrink-0 accent-amber-500 sm:w-40"
+								oninput={(e) => (draggingMaster = Number(e.currentTarget.value))}
+								onchange={(e) => {
+									void musicTarget.send({
+										action: 'masterVolume',
+										value: Number(e.currentTarget.value)
+									});
+									draggingMaster = null;
+								}}
+							/>
+							<span class="w-8 shrink-0 text-right font-mono text-xs text-zinc-400 tabular-nums"
+								>{draggingMaster ?? masterVolume(on)}</span
+							>
+						</div>
+					{/if}
 					<ul class="space-y-1">
 						{#each snap.speakers as speaker (speaker.id)}
 							<li class={['flex items-center gap-3', !speaker.connected && 'opacity-50']}>
@@ -94,15 +132,20 @@
 									>
 								{/if}
 								<button
-									class="w-6 shrink-0 text-sm"
+									class="w-6 shrink-0 text-sm disabled:opacity-50"
+									disabled={speaker.groupMuted}
 									aria-label={speaker.muted ? 'Quitar silencio' : 'Silenciar'}
-									title={speaker.muted ? 'Quitar silencio' : 'Silenciar'}
+									title={speaker.groupMuted
+										? 'Silenciados todos'
+										: speaker.muted
+											? 'Quitar silencio'
+											: 'Silenciar'}
 									onclick={() =>
 										musicTarget.send({
 											action: 'mute',
 											speakerId: speaker.id,
 											value: !speaker.muted
-										})}>{speaker.muted ? '🔇' : '🔊'}</button
+										})}>{speaker.muted || speaker.groupMuted ? '🔇' : '🔊'}</button
 								>
 								<input
 									type="range"

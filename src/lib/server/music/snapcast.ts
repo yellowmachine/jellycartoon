@@ -275,6 +275,10 @@ export async function controlSnapcast(
 			return speakers().setVolume(action.speakerId, { percent: action.value });
 		case 'mute':
 			return speakers().setVolume(action.speakerId, { muted: action.value });
+		case 'masterVolume':
+			return speakers().setMasterVolume(action.value);
+		case 'masterMute':
+			return speakers().setGroupsMuted(action.value);
 		case 'rename':
 			return speakers().setName(action.speakerId, action.name);
 	}
