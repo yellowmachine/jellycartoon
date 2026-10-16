@@ -30,9 +30,25 @@
 	/** The user's initial, for their round badge (accents and all: «Á» for «Álvaro»). */
 	const initial = $derived([...(data.user?.name.trim() ?? '')][0]?.toLocaleUpperCase('es') ?? '?');
 
+	/**
+	 * Escape or Backspace go back, as a TV's «back» (a remote in the living room, which has no
+	 * browser buttons). Not while typing, or while a dialog, a menu or fullscreen is open: Escape
+	 * closes those itself.
+	 */
+	function back(e: KeyboardEvent) {
+		if ((e.key !== 'Escape' && e.key !== 'Backspace') || e.defaultPrevented) return;
+		const target = e.target as HTMLElement;
+		if (target.isContentEditable || target.closest('input, textarea, select')) return;
+		if (document.querySelector('dialog[open], :popover-open') || document.fullscreenElement) return;
+		e.preventDefault();
+		history.back();
+	}
+
 	/** The phone menu; closed when one of its links is followed. */
 	let menu = $state<HTMLElement>();
 </script>
+
+<svelte:window onkeydown={back} />
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
