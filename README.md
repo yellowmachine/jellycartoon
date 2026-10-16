@@ -62,8 +62,8 @@ Necesitas `ffmpeg` y `ffprobe` en el PATH.
 
 ## Producción
 
-Usa las imágenes que construye GitHub Actions (`ghcr.io/yellowmachine/jellycartoon` y `-caddy`), en
-dos canales:
+Usa las imágenes que construye GitHub Actions (`ghcr.io/yellowmachine/jellycartoon`, `-caddy` y
+`-backup`), en dos canales:
 
 - **`stable`**, el que se usa por defecto: la última versión publicada. Cada _release_ de GitHub
   (`v1.2.0`) construye `1.2.0`, `1.2` y `stable`, con sus novedades en las notas del release.
@@ -357,7 +357,10 @@ Qué hay que guardar:
   volumen.
 - **`HOST_DATA_DIR`**: los vídeos convertidos y las miniaturas. Va con la base de datos (cada
   episodio es `hls/<id>`). Con `DELETE_SOURCES=true` es la única copia de los vídeos.
-- **`.env`**: la configuración y `BETTER_AUTH_SECRET`. Guárdalo en un sitio seguro.
+- **`.env`**: la configuración y las claves (`BETTER_AUTH_SECRET`, la de Cloudflare, las de R2…).
+  Guárdalo en tu gestor de contraseñas, como nota segura. Nunca en git, ni en una nube sin cifrado de
+  extremo a extremo. Perderlo no es grave (las claves se pueden volver a crear); que se filtre, sí: si
+  pasa, cambia las de Cloudflare, R2 y OpenRouter, `WUD_PASSWORD` y `BETTER_AUTH_SECRET`.
 - **`HOST_MEDIA_DIR`**, opcional: los originales. Con ellos se puede regenerar `HOST_DATA_DIR`,
   pero son horas de conversión.
 
@@ -426,6 +429,9 @@ BACKUP_AGE_RECIPIENT="age1..."
 # BACKUP_TIME="03:30"               # a qué hora (la de TZ)
 ```
 
+Las claves de R2 van, como el resto del `.env`, en el gestor de contraseñas; la de age también, en
+la misma nota o en otra.
+
 Para probarla sin esperar a la noche:
 
 ```sh
@@ -440,6 +446,14 @@ sigue los pasos de arriba con el fichero que sale:
 
 ```sh
 age -d -i jellycartoon-copias.key jellycartoon-<fecha>.dump.age > jellycartoon.dump
+```
+
+Si una copia falla y el log no basta, esto enseña cada petición a R2 y su respuesta, sin claves ni
+firmas:
+
+```sh
+docker compose -f compose.prod.yaml run --rm -e RCLONE_DUMP=headers -e RCLONE_VERBOSE=2 backup now 2>&1 \
+  | grep -E ': (PUT|POST|GET|HEAD|DELETE) |: HTTP/1|Subida|Attempt'
 ```
 
 ## Actualizaciones
@@ -461,13 +475,35 @@ WUD_PASSWORD="..."                # contraseña del usuario admin de WUD; sin «
 - **Si la versión nueva no arranca sana**, vuelve a la anterior. Para deshacer una actualización
   que sí arrancó, con la imagen anterior (`IMAGE_TAG=1.1.0`) y esa copia: el `pg_restore` de
   arriba con el fichero de `update-backups/`, y `up -d`.
-- **Solo toca** los servicios con la etiqueta `wud.watch=true` (la app, Caddy y Snapcast), nunca
-  Postgres. Su web está en `http://127.0.0.1:3001`, solo en el propio equipo.
+- **Solo toca** los servicios con la etiqueta `wud.watch=true` (la app, Caddy, Snapcast y la copia en
+  R2), nunca Postgres. Su web está en `http://127.0.0.1:3001`, solo en el propio equipo.
 - **Control de Docker:** WUD necesita el socket de Docker, así que quien controla WUD controla los
   contenedores del equipo. Por eso su web no sale del equipo y lleva contraseña.
 - **Limitación:** después de una vuelta atrás, WUD deja de seguir a la app, porque la imagen
   anterior se queda sin la etiqueta `stable`. Hasta el próximo
   `docker compose -f compose.prod.yaml pull` y `up -d` hechos a mano, no se actualiza sola.
+
+### Publicar una versión
+
+1. **PR de `development` a `main`**, y merge.
+2. **Un release en GitHub sobre `main`**, con la versión como `vX.Y.Z` (tres números): _patch_ para
+   arreglos, _minor_ para novedades, _major_ si algo deja de funcionar como antes. Las notas, en
+   español: son las que ve el administrador en el aviso de la app. No lo marques como _pre-release_,
+   o no mueve `stable`. Desde la web (Releases → Draft a new release) o con:
+
+   ```sh
+   gh release create v1.2.0 --target main --title "1.2.0" --notes "…"
+   ```
+
+3. **Espera a que Actions construya las imágenes** (unos minutos). Desde ahí, WUD las instala esa
+   madrugada, o el administrador con «Actualizar ahora».
+
+WUD actualiza las imágenes, nunca `compose.prod.yaml` ni el `.env`. Si un cambio necesita tocarlos,
+dilo en las notas («requiere actualizar el compose»): en cada casa hay que traer el compose nuevo
+(`git pull`), completar el `.env` y hacer `pull` y `up -d`.
+
+Una imagen nueva (como lo fue `-backup`) puede quedar privada en GitHub la primera vez. Si `pull`
+dice _denied_, en GitHub: Packages → la imagen → Package settings → Change visibility → Public.
 
 ## Pendiente
 

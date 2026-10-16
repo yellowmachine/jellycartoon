@@ -21,7 +21,9 @@ done
 
 # rclone's remote `r2:` from the environment (https://rclone.org/docs/#config-file), as Cloudflare
 # documents it for R2 (https://developers.cloudflare.com/r2/examples/rclone/). A token limited to
-# one bucket cannot check that it exists, hence no_check_bucket.
+# one bucket cannot check that it exists, hence no_check_bucket. no_head: after uploading, rclone
+# asks for the file by its version (`HEAD …?versionId=`), which R2 answers with 501 Not Implemented;
+# the upload already carries its MD5, which R2 checks.
 # No config file: everything comes from here, and rclone does not warn that it is missing.
 export RCLONE_CONFIG=/dev/null
 export RCLONE_CONFIG_R2_TYPE=${RCLONE_CONFIG_R2_TYPE:-s3}
@@ -30,6 +32,8 @@ export RCLONE_CONFIG_R2_ACCESS_KEY_ID=$R2_ACCESS_KEY_ID
 export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY=$R2_SECRET_ACCESS_KEY
 export RCLONE_CONFIG_R2_ENDPOINT=https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com
 export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
+export RCLONE_CONFIG_R2_NO_HEAD=true
+export RCLONE_CONFIG_R2_ACL=private
 
 # What the healthcheck looks at: the time of the last copy that went up.
 ok=/tmp/last-backup-ok
