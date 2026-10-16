@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { music } from '#lib/music-player.svelte.ts';
 	import { thumbUrl } from '#lib/thumb.svelte.ts';
 
 	/** An episode on the TV view: OK plays it in the living room. */
@@ -22,9 +23,18 @@
 	} = $props();
 </script>
 
-<form method="post" {action} use:enhance>
+<!-- The radio, if it is on, stops: the episode is what is watched now. -->
+<form
+	method="post"
+	{action}
+	use:enhance={() => {
+		music.stop();
+	}}
+>
 	<input type="hidden" name="id" value={id} />
-	<button class="group block w-full rounded-lg text-left">
+	<button
+		class="group block w-full rounded-lg text-left transition-transform duration-150 focus-visible:scale-105"
+	>
 		<div class="relative aspect-video overflow-hidden rounded-lg bg-zinc-800">
 			<img src={thumbUrl(id)} alt="" class="h-full w-full object-cover" />
 			{#if completed}
