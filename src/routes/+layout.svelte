@@ -5,10 +5,19 @@
 	import SalonBar from '#lib/components/SalonBar.svelte';
 	import SnapcastBar from '#lib/components/SnapcastBar.svelte';
 	import TvIcon from '#lib/components/TvIcon.svelte';
-	import { page } from '$app/state';
+	import { beforeNavigate } from '$app/navigation';
+	import { page, updated } from '$app/state';
 	import type { LayoutProps } from './$types';
 
 	let { children, data }: LayoutProps = $props();
+
+	// After an update (#20), a tab left open (the TV's /tv) still runs the old code: the next
+	// navigation loads the whole page, the new version, instead. SvelteKit notices the new version on
+	// server responses, when the tab is shown again, and every hour.
+	// https://svelte.dev/docs/kit/configuration#version
+	beforeNavigate(({ willUnload, to }) => {
+		if (updated.current && !willUnload && to?.url) location.href = to.url.href;
+	});
 
 	const links = $derived([
 		{ href: '/', label: 'Series' },
@@ -167,6 +176,13 @@
 				<MusicBar />
 			</div>
 		</header>
+		{#if data.newVersion && !isCurrent('/ajustes')}
+			<a
+				href="/ajustes#version"
+				class="block border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-sm text-amber-300 hover:bg-amber-500/20"
+				>Hay una versión nueva de JellyCartoon, la {data.newVersion}. Ver novedades y actualizar →</a
+			>
+		{/if}
 	{/if}
 
 	<!-- overflow-x-clip: the "cinema" player is 100vw wide, which includes the scrollbar. -->

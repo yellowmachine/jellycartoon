@@ -4,6 +4,9 @@
 #   docker compose -f compose.prod.yaml pull
 #   docker compose -f compose.prod.yaml up -d
 #
+# IMAGE_TAG chooses the channel: `stable` (the default) is the latest release; `latest`, every
+# change to main. With the `updates` profile, WUD keeps it up to date (see the wud service).
+#
 # Same project name as compose.yaml, so both use the same database volume.
 name: jellycartoon
 
@@ -18,13 +21,15 @@ services:
       POSTGRES_DB: jellycartoon
     volumes:
       - pgdata:/var/lib/postgresql
+      # The copies WUD makes right before updating (the app's labels below).
+      - ./update-backups:/backups
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U jellycartoon']
       interval: 5s
       retries: 10
 
   app:
-    image: ghcr.io/yellowmachine/jellycartoon:${IMAGE_TAG:-latest}
+    image: ghcr.io/yellowmachine/jellycartoon:${IMAGE_TAG:-stable}
     restart: unless-stopped
     # Files in DATA_DIR belong to this user instead of root.
     user: '${PUID:-1000}:${PGID:-1000}'
@@ -66,6 +71,25 @@ services:
       # Optional: the AI for films (identifying them, talking about them). Also settable in Ajustes.
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
+      # With the `updates` profile: the admin updates from the notice of a new version. Without
+      # WUD_PASSWORD in the .env the app does not offer it, so the address can always be here.
+      WUD_URL: http://wud:3000
+      WUD_PASSWORD: ${WUD_PASSWORD:-}
+    labels:
+      # Updated by WUD to each release (#20), and given back its previous version if it does not
+      # start healthy (the image's HEALTHCHECK).
+      - wud.watch=true
+      - wud.rollback.enable=true
+      # Before updating, a copy of the database, kept with the three before it; if it fails, the
+      # update is cancelled. Migrations cannot be undone: this copy and the previous image can.
+      - wud.hook.1.phase=pre
+      - wud.hook.1.type=exec
+      - wud.hook.1.target=jellycartoon-db-1
+      - wud.hook.1.timeout=600000
+      - >-
+        wud.hook.1.command=umask 077 && f=/backups/antes-de-actualizar-$$(date -u +%Y%m%dT%H%MZ).dump &&
+        pg_dump -U jellycartoon -Fc jellycartoon > $$f.part && mv $$f.part $$f &&
+        ls -1t /backups/antes-de-actualizar-*.dump | tail -n +5 | xargs -r rm --
     volumes:
       # Writable only so DELETE_SOURCES can remove converted originals.
       - ${HOST_MEDIA_DIR:?HOST_MEDIA_DIR is required}:/media
@@ -84,8 +108,10 @@ services:
   # Cloudflare's DNS-01 challenge instead. The official image doesn't have that module: GitHub
   # Actions builds one with it (Dockerfile.caddy).
   caddy:
-    image: ghcr.io/yellowmachine/jellycartoon-caddy:${IMAGE_TAG:-latest}
+    image: ghcr.io/yellowmachine/jellycartoon-caddy:${IMAGE_TAG:-stable}
     restart: unless-stopped
+    labels:
+      - wud.watch=true
     depends_on:
       - app
     # On every interface rather than just the Tailscale IP: Docker may start before tailscaled.
@@ -107,13 +133,15 @@ services:
   # (snapclient, Snapdroid…). Both run the app's image with another command, and share HOST_DATA_DIR
   # with the app: snapserver's FIFO and state, and the socket of the mpv that plays into it.
   snapserver:
-    image: ghcr.io/yellowmachine/jellycartoon:${IMAGE_TAG:-latest}
+    image: ghcr.io/yellowmachine/jellycartoon:${IMAGE_TAG:-stable}
     profiles: [snapcast]
     restart: unless-stopped
     user: '${PUID:-1000}:${PGID:-1000}'
     # On the host's network: clients reach it on 1704 (audio) and 1705/1780 (control).
     network_mode: host
     command: ['snapserver', '-c', '/etc/jellycartoon/snapserver.conf']
+    labels:
+      - wud.watch=true
     configs:
       - source: snapserver
         target: /etc/jellycartoon/snapserver.conf
@@ -129,7 +157,7 @@ services:
       retries: 15
 
   mpv-music:
-    image: ghcr.io/yellowmachine/jellycartoon:${IMAGE_TAG:-latest}
+    image: ghcr.io/yellowmachine/jellycartoon:${IMAGE_TAG:-stable}
     profiles: [snapcast]
     restart: unless-stopped
     user: '${PUID:-1000}:${PGID:-1000}'
@@ -137,6 +165,11 @@ services:
     depends_on:
       snapserver:
         condition: service_healthy
+    labels:
+      - wud.watch=true
+    # The image's is the app's, which does not run here.
+    healthcheck:
+      disable: true
     # As in Snapcast's player setup (doc/player_setup.md), at the CDs' 44.1 kHz so that they are
     # not resampled. The output stays open from track to track: albums play without gaps.
     command:
@@ -157,10 +190,38 @@ services:
       # Where the app sees it too: the app sends it the files by their path.
       - ${HOST_MUSIC_DIR:-./no-music}:/music:ro
 
+  # Optional, with `updates` in COMPOSE_PROFILES (e.g. `snapcast,updates`) and WUD_PASSWORD in the
+  # .env: WUD (What's Up Docker, https://github.com/getwud/wud) installs each new release of
+  # JellyCartoon (#20), at night (UPDATE_CRON) or when the admin asks from the app. It only touches
+  # the services labelled wud.watch=true: not Postgres, nor anything else on the machine.
+  wud:
+    image: getwud/wud:9
+    profiles: [updates]
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Europe/Madrid}
+      WUD_WATCHER_LOCAL_CRON: ${UPDATE_CRON:-0 4 * * *}
+      WUD_WATCHER_LOCAL_WATCHBYDEFAULT: 'false'
+      # Pulls the new image and recreates each container as it was, then removes the old image. The
+      # `docker` trigger and not `dockercompose`: in WUD 9.4.1 only it applies a new image under the
+      # same tag (`stable`), and it does not need to see this folder.
+      WUD_TRIGGER_DOCKER_JELLYCARTOON_PRUNE: 'true'
+      # Its web (http://127.0.0.1:3001 on this machine) and the API the app uses.
+      WUD_AUTH_ADMIN_USER: admin
+      WUD_AUTH_ADMIN_PASSWORD: ${WUD_PASSWORD:-}
+    volumes:
+      # Control of Docker: whoever controls WUD controls this machine's containers.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - wud_store:/store
+    # Only on this machine; the app reaches it on the compose network.
+    ports:
+      - 127.0.0.1:3001:3000
+
 volumes:
   pgdata:
   caddy_data:
   caddy_config:
+  wud_store:
 
 configs:
   # ORIGIN is the site address (https://<domain>), filled in by compose.

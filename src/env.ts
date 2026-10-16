@@ -85,5 +85,19 @@ export const variables = defineEnvVars({
 	ALLOW_SIGNUP: {
 		description: 'Set to `false` to disable creating new accounts.',
 		schema: (value) => value !== 'false'
+	},
+	APP_VERSION: {
+		description:
+			'The version this build is: `1.2.0` in the images of a release, `sha-…` in the others. Set by the image, not by hand.',
+		schema: withDefault('dev')
+	},
+	WUD_URL: {
+		description:
+			"Optional address of WUD (What's Up Docker), which updates the app: with it, the admin can update from the notice of a new version.",
+		schema: (value) => value || undefined
+	},
+	WUD_PASSWORD: {
+		description: "Password of WUD's `admin` user, for its API.",
+		schema: (value) => value || undefined
 	}
 });

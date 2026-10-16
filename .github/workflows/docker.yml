@@ -1,8 +1,12 @@
 name: Docker image
 
+# Two channels (#20): every push to main is `latest`, for trying things; a published release
+# (`v1.2.0`) is `1.2.0`, `1.2` and `stable`, which installs follow and WUD updates them to.
 on:
   push:
     branches: [main]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -35,8 +39,11 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
           tags: |
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ github.event_name != 'release' }}
             type=sha
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=stable,enable=${{ github.event_name == 'release' && !github.event.release.prerelease }}
 
       - uses: docker/build-push-action@v7
         with:
@@ -45,6 +52,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # What the app shows and compares with the latest release.
+          build-args: |
+            APP_VERSION=${{ github.event_name == 'release' && steps.meta.outputs.version || format('sha-{0}', github.sha) }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -67,8 +77,11 @@ jobs:
         with:
           images: ${{ env.IMAGE }}-caddy
           tags: |
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ github.event_name != 'release' }}
             type=sha
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=stable,enable=${{ github.event_name == 'release' && !github.event.release.prerelease }}
 
       - uses: docker/build-push-action@v7
         with:

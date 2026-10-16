@@ -19,6 +19,14 @@ COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
 ENV NODE_ENV=production PORT=3000
+# The release (`1.2.0`) or the commit (`sha-…`): GitHub Actions passes it (#20).
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
 EXPOSE 3000
+# WUD keeps an update only once the new container is healthy, and goes back otherwise (#20). Long
+# enough at first for the migrations. The Snapcast services run this image with another command and
+# turn it off in compose.prod.yaml.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=2m --retries=3 \
+	CMD ["bun", "-e", "fetch('http://localhost:3000/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
 # Migrate first; the app only starts if that succeeds.
 CMD ["sh", "-c", "bun scripts/migrate.ts && exec bun build/index.js"]
