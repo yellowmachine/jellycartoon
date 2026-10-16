@@ -10,6 +10,8 @@ import {
 	renamePlaylist,
 	replacePlaylistTracks
 } from '#lib/server/music/playlists.ts';
+import { stationsInfo } from '#lib/server/radio.ts';
+import { STATIONS } from '#lib/radio.ts';
 import { ERROR, failed, ok } from './protocol.ts';
 import {
 	albumJson,
@@ -21,6 +23,7 @@ import {
 	matches,
 	parseId,
 	playlistKey,
+	radioKey,
 	songJson,
 	sortedArtists,
 	type Album,
@@ -335,7 +338,7 @@ export const METHODS: Record<string, Method> = {
 		if (!album?.hasCover) return new Response('Sin portada', { status: 404 });
 		return fileResponse(request, albumCoverFile(album.id), 'image/jpeg', 'private, max-age=86400');
 	},
-	/** The FLAC as it is, with Range so the app can seek; converting it comes in phase 3. */
+	/** The FLAC as it is, with Range so the app can seek. */
 	stream: async (params, request) => {
 		const id = parseId(params.get('id'));
 		const track = id?.kind === 'track' ? (await loadLibrary()).tracks.get(id.id) : undefined;
@@ -446,7 +449,26 @@ export const METHODS: Record<string, Method> = {
 	getLyrics: () => ok({ lyrics: {} }),
 	getBookmarks: () => ok({ bookmarks: { bookmark: [] } }),
 	getShares: () => ok({ shares: { share: [] } }),
-	getInternetRadioStations: () => ok({ internetRadioStations: { internetRadioStation: [] } }),
+	/**
+	 * JellyCartoon's stations, each at /rest/radio/<uuid> with the same login as this request: where
+	 * it streams is looked up when it is played, so a station that moves keeps working. The HLS ones
+	 * end in `.m3u8`, which is how Tempus knows to open them as HLS.
+	 */
+	getInternetRadioStations: async (params, request) => {
+		const info = await stationsInfo();
+		const login = new URLSearchParams();
+		for (const key of ['u', 't', 's', 'p', 'v', 'c'])
+			if (params.get(key)) login.set(key, params.get(key)!);
+		return ok({
+			internetRadioStations: {
+				internetRadioStation: STATIONS.map((s) => {
+					const file = `${s.uuid}${info?.[s.uuid]?.hls ? '.m3u8' : ''}`;
+					const url = new URL(`/rest/radio/${file}?${login}`, request.url);
+					return { id: radioKey(s.uuid), name: s.name, streamUrl: url.href };
+				})
+			}
+		});
+	},
 	getPodcasts: () => ok({ podcasts: { channel: [] } }),
 	getNewestPodcasts: () => ok({ newestPodcasts: { episode: [] } }),
 	getScanStatus: () => ok({ scanStatus: { scanning: false } })

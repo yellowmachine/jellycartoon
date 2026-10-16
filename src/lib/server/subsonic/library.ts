@@ -52,11 +52,14 @@ export const artistKey = (name: string) => `ar-${Buffer.from(name, 'utf8').toStr
 export const albumKey = (id: number) => `al-${id}`;
 export const trackKey = (id: number) => `tr-${id}`;
 export const playlistKey = (id: number) => `pl-${id}`;
+/** A radio station, by its Radio Browser id. */
+export const radioKey = (uuid: string) => `rd-${uuid}`;
 
 /** What an id points to; null if it is none of ours. */
 export function parseId(id: string | null) {
-	const match = /^(ar|al|tr|pl)-(.+)$/.exec(id ?? '');
+	const match = /^(ar|al|tr|pl|rd)-(.+)$/.exec(id ?? '');
 	if (!match) return null;
+	if (match[1] === 'rd') return { kind: 'radio' as const, uuid: match[2] };
 	if (match[1] === 'ar')
 		return { kind: 'artist' as const, name: Buffer.from(match[2], 'base64url').toString('utf8') };
 	const n = Number(match[2]);

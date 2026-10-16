@@ -214,6 +214,8 @@ export interface RadioStationInfo {
 	favicon: string | null;
 	/** It worked in Radio Browser's last check. */
 	ok: boolean;
+	/** Its stream is HLS (`.m3u8`): music apps need to know before they open it. */
+	hls: boolean;
 }
 
 /** A station to play: where its stream is right now. */
