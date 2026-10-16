@@ -580,3 +580,20 @@ export const appPassword = pgTable('app_password', {
 	password: text('password').notNull(),
 	createdAt: timestamp('created_at').notNull().defaultNow()
 });
+
+/**
+ * What each user marks as a favourite in music apps (Subsonic's star, #27): an artist, an album or
+ * a track, by the protocol's id (`ar-…`, `al-…`, `tr-…`). An artist has no row of its own: its id
+ * is its name.
+ */
+export const musicStar = pgTable(
+	'music_star',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		itemId: text('item_id').notNull(),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [primaryKey({ columns: [t.userId, t.itemId] })]
+);

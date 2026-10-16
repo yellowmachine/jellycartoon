@@ -24,5 +24,5 @@ export const GET: RequestHandler = async ({ request, params: route, url }) => {
 		log.info('subsonic', `Método no soportado: ${name}`, { client: params.get('c') });
 		return failed(ERROR.generic, `No soportado: ${name}`);
 	}
-	return run(params, request);
+	return run(params, request, user);
 };
