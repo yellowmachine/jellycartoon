@@ -4,6 +4,7 @@
 	import MusicBar from '#lib/components/MusicBar.svelte';
 	import SalonBar from '#lib/components/SalonBar.svelte';
 	import SnapcastBar from '#lib/components/SnapcastBar.svelte';
+	import TvIcon from '#lib/components/TvIcon.svelte';
 	import { page } from '$app/state';
 	import type { LayoutProps } from './$types';
 
@@ -77,6 +78,16 @@
 					>
 				{/each}
 				<form method="post" action="/logout" class="ml-auto hidden items-center gap-3 lg:flex">
+					<!-- The view for the living room's TV and its remote (#11): only with mpv, as Salón. -->
+					{#if data.salon}
+						<a
+							href="/tv"
+							title="Vista TV"
+							aria-label="Vista TV"
+							class="rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+							><TvIcon name="series" class="h-6 w-6" /></a
+						>
+					{/if}
 					<a
 						href="/ajustes"
 						title="{data.user.name} · Ajustes"
