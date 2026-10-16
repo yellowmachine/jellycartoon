@@ -217,6 +217,32 @@ services:
     ports:
       - 127.0.0.1:3001:3000
 
+  # Optional, with `backup` in COMPOSE_PROFILES and the R2_* and BACKUP_AGE_RECIPIENT of the .env:
+  # every night, the database to a Cloudflare R2 bucket, encrypted with age before it leaves (see
+  # «Copia en Cloudflare R2» in the README). Old copies go by the bucket's lifecycle rule.
+  backup:
+    image: ghcr.io/yellowmachine/jellycartoon-backup:${IMAGE_TAG:-stable}
+    profiles: [backup]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      TZ: ${TZ:-Europe/Madrid}
+      BACKUP_TIME: ${BACKUP_TIME:-03:30}
+      PGHOST: db
+      PGUSER: jellycartoon
+      PGPASSWORD: jellycartoon
+      PGDATABASE: jellycartoon
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      R2_BUCKET: ${R2_BUCKET:-}
+      # The public key (age1…): it encrypts, it cannot decrypt.
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:-}
+    labels:
+      - wud.watch=true
+
 volumes:
   pgdata:
   caddy_data:

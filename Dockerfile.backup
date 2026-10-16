@@ -1,0 +1,13 @@
+# The nightly copy of the database to Cloudflare R2 (compose.prod.yaml, `backup` profile). On the
+# same Postgres as the database, so pg_dump is its version; with rclone to upload and age to encrypt.
+FROM postgres:18
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends age rclone ca-certificates \
+	&& rm -rf /var/lib/apt/lists/*
+COPY scripts/backup-r2.sh /usr/local/bin/backup-r2.sh
+# Not the database's own user: this one only connects to it.
+USER postgres
+# Unhealthy when a whole day has gone by without a copy going up (26 h: a slow night still counts).
+HEALTHCHECK --interval=30m --timeout=10s \
+	CMD ["sh", "-c", "test -n \"$(find /tmp/last-backup-ok -mmin -1560)\""]
+ENTRYPOINT ["backup-r2.sh"]

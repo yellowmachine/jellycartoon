@@ -389,6 +389,59 @@ docker compose -f compose.prod.yaml up -d
 
 La app aplica al arrancar las migraciones posteriores a la copia.
 
+### Copia en Cloudflare R2
+
+Con el perfil `backup`, cada noche se sube la base de datos a un bucket de
+[R2](https://developers.cloudflare.com/r2/). Antes de salir del equipo se cifra con
+[age](https://age-encryption.org): el servidor solo tiene la clave pública, que cifra pero no
+descifra, y la privada la guardas tú aparte. Solo va la base de datos (unos MB), no los vídeos; la
+copia completa sigue siendo `scripts/backup.sh`.
+
+Una vez, en Cloudflare (R2 en el panel):
+
+1. **Crea un bucket**, por ejemplo `jellycartoon`, con location **Automatic** (no una jurisdicción
+   como la UE, que usa otra dirección) y storage class **Standard**: es la que entra en la capa
+   gratuita, y Infrequent Access cobra cada descarga y un mínimo de 30 días por fichero.
+2. **En el bucket, Settings → Object lifecycle rules**: una regla que borre los objetos de más de 30
+   días, limitada al prefijo `backups/`. Así las copias viejas se van solas, y nada más del bucket.
+3. **R2 → Manage API tokens → Create API token**, con el permiso **Object Read & Write** y solo
+   **ese bucket**. Apunta el _Access Key ID_, el _Secret Access Key_ y el _Account ID_.
+
+En tu ordenador, la clave para cifrar (`age-keygen` viene con [age](https://github.com/FiloSottile/age)):
+
+```sh
+age-keygen -o jellycartoon-copias.key
+```
+
+Guarda el fichero entero en tu gestor de contraseñas: sin él no se pueden leer las copias. La línea
+`# public key: age1…` es la que va en el `.env`:
+
+```sh
+COMPOSE_PROFILES="updates,backup"   # los que uses, separados por comas
+R2_ACCOUNT_ID="..."
+R2_ACCESS_KEY_ID="..."
+R2_SECRET_ACCESS_KEY="..."
+R2_BUCKET="jellycartoon/backups"      # bucket y carpeta (prefijo): aparece sola con la primera copia
+BACKUP_AGE_RECIPIENT="age1..."
+# BACKUP_TIME="03:30"               # a qué hora (la de TZ)
+```
+
+Para probarla sin esperar a la noche:
+
+```sh
+docker compose -f compose.prod.yaml up -d
+docker compose -f compose.prod.yaml run --rm backup now
+```
+
+La copia aparece en el bucket como `backups/jellycartoon-<fecha UTC>.dump.age`. Si una noche no se sube,
+`docker compose -f compose.prod.yaml ps backup` la muestra _unhealthy_ al día siguiente, y
+`logs backup` dice por qué. Para restaurar, descarga la copia desde el panel de R2, descífrala y
+sigue los pasos de arriba con el fichero que sale:
+
+```sh
+age -d -i jellycartoon-copias.key jellycartoon-<fecha>.dump.age > jellycartoon.dump
+```
+
 ## Actualizaciones
 
 Con el perfil `updates`, [WUD (What's Up Docker)](https://github.com/getwud/wud) instala cada versión
