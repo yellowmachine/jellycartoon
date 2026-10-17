@@ -71,6 +71,8 @@ services:
       # Optional: the AI for films (identifying them, talking about them). Also settable in Ajustes.
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
+      # With the `voz` profile (WHISPER_MODEL in the .env): the whisper service below, for voice.
+      WHISPER_URL: ${WHISPER_MODEL:+http://whisper:8080}
       # With the `updates` profile: the admin updates from the notice of a new version. Without
       # WUD_PASSWORD in the .env the app does not offer it, so the address can always be here.
       WUD_URL: http://wud:3000
@@ -186,6 +188,35 @@ services:
       # Where the app sees it too: the app sends it the files by their path.
       - ${HOST_MUSIC_DIR:-./no-music}:/music:ro
 
+  # Optional, with `voz` in COMPOSE_PROFILES and WHISPER_MODEL in the .env: speech to text for voice
+  # commands (#33), with whisper.cpp's own server on the GPU (Vulkan, /dev/dri). Only the app
+  # reaches it, on the compose network: its README asks not to expose it, as it takes files and
+  # runs ffmpeg. Pinned to the image of a release (v1.9.5); WUD does not touch it.
+  whisper:
+    image: ghcr.io/ggml-org/whisper.cpp:main-vulkan-d1be6fde11ac6e0407606b4e42fe72d34add8037
+    profiles: [voz]
+    restart: unless-stopped
+    devices:
+      - /dev/dri
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+    # The model, the first time, with the image's download-ggml-model.sh (as in its README), to a
+    # folder apart and then moved, so that a download cut halfway is not taken for the model. Then
+    # the server: in Spanish, and converting with ffmpeg what the browser records (--convert).
+    command:
+      - bash
+      - -c
+      - >-
+        m=/models/ggml-$$WHISPER_MODEL.bin;
+        if [ ! -f $$m ]; then
+        rm -rf /models/.download && mkdir /models/.download &&
+        download-ggml-model.sh $$WHISPER_MODEL /models/.download &&
+        mv /models/.download/ggml-$$WHISPER_MODEL.bin $$m || exit 1;
+        fi;
+        exec whisper-server --host 0.0.0.0 --port 8080 -m $$m -l es --convert
+    volumes:
+      - whisper_models:/models
+
   # Optional, with `updates` in COMPOSE_PROFILES (e.g. `snapcast,updates`) and WUD_PASSWORD in the
   # .env: WUD (What's Up Docker, https://github.com/getwud/wud) installs each new release of
   # JellyCartoon (#20), at night (UPDATE_CRON) or when the admin asks from the app. It only touches
@@ -244,3 +275,4 @@ volumes:
   caddy_data:
   caddy_config:
   wud_store:
+  whisper_models:
