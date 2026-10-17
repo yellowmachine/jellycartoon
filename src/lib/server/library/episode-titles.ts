@@ -11,6 +11,7 @@ import { formatDuration } from '#lib/format.ts';
 import { titleBatches, type TitleProposal } from '#lib/episode-titles.ts';
 import { inTurn } from '#lib/server/cinema/frames.ts';
 import { wikipediaPageText } from '#lib/server/cinema/wikidata.ts';
+import { withoutProse } from '#lib/server/cinema/html-text.ts';
 import { frame, probe } from './ffmpeg.ts';
 import { hlsDir, thumbFile } from './paths.ts';
 
@@ -55,7 +56,10 @@ export function startProposal(seriesId: number, all = false) {
 		.finally(() => proposing.delete(seriesId));
 }
 
-/** Enough of a long list of episodes (Shin Chan has hundreds) without sending a whole book. */
+/**
+ * Enough of a long list of episodes, without its synopses, and not a whole book: Dragon Ball's 153
+ * are 36,000 characters, Shin Chan has hundreds.
+ */
 const PAGE_CHARS = 80_000;
 
 /** Seconds of the frames from the start: classic cartoons show their title card there. */
@@ -165,7 +169,7 @@ async function proposeTitles(
 
 	const pages = await Promise.all(
 		info.episodePages.map(async (page) => {
-			const text = await wikipediaPageText(page);
+			const text = withoutProse(await wikipediaPageText(page));
 			return `\n## Wikipedia (${page.lang}): ${page.title}\n\n${text.slice(0, PAGE_CHARS)}`;
 		})
 	);
