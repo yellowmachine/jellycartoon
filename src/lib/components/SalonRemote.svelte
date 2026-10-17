@@ -63,53 +63,62 @@
 				>
 			</div>
 		{:else}
-			<input
-				type="range"
-				min="0"
-				max={mpv.durationSec ?? 0}
-				step="1"
-				value={dragging ?? mpv.positionSec ?? 0}
-				aria-label="Posición"
-				class="w-full accent-amber-500"
-				oninput={(e) => (dragging = Number(e.currentTarget.value))}
-				onchange={(e) => {
-					salon.send({ action: 'seekTo', value: Number(e.currentTarget.value) });
-					dragging = null;
-				}}
-			/>
-			<div class="mb-5 flex justify-between font-mono text-sm text-zinc-400 tabular-nums">
-				<span>{formatDuration(dragging ?? mpv.positionSec) || '0:00'}</span>
-				<span>{formatDuration(mpv.durationSec)}</span>
-			</div>
-
-			<div class="mb-3 grid grid-cols-5 gap-2">
+			{#if mpv.live}
 				<button
-					class={button}
-					aria-label="Atrás 1 minuto"
-					onclick={() => salon.send({ action: 'seek', value: -60 })}>−1m</button
-				>
-				<button
-					class={button}
-					aria-label="Atrás 10 segundos"
-					onclick={() => salon.send({ action: 'seek', value: -10 })}>−10</button
-				>
-				<button
-					class={mainButton}
+					class={[mainButton, 'mb-3 w-full']}
 					aria-label={mpv.paused ? 'Seguir' : 'Pausa'}
 					onclick={() => salon.send({ action: 'pause', value: !mpv.paused })}
 					><MediaIcon name={mpv.paused ? 'play' : 'pause'} class="h-7 w-7" /></button
 				>
-				<button
-					class={button}
-					aria-label="Adelante 10 segundos"
-					onclick={() => salon.send({ action: 'seek', value: 10 })}>+10</button
-				>
-				<button
-					class={button}
-					aria-label="Adelante 1 minuto"
-					onclick={() => salon.send({ action: 'seek', value: 60 })}>+1m</button
-				>
-			</div>
+			{:else}
+				<input
+					type="range"
+					min="0"
+					max={mpv.durationSec ?? 0}
+					step="1"
+					value={dragging ?? mpv.positionSec ?? 0}
+					aria-label="Posición"
+					class="w-full accent-amber-500"
+					oninput={(e) => (dragging = Number(e.currentTarget.value))}
+					onchange={(e) => {
+						salon.send({ action: 'seekTo', value: Number(e.currentTarget.value) });
+						dragging = null;
+					}}
+				/>
+				<div class="mb-5 flex justify-between font-mono text-sm text-zinc-400 tabular-nums">
+					<span>{formatDuration(dragging ?? mpv.positionSec) || '0:00'}</span>
+					<span>{formatDuration(mpv.durationSec)}</span>
+				</div>
+
+				<div class="mb-3 grid grid-cols-5 gap-2">
+					<button
+						class={button}
+						aria-label="Atrás 1 minuto"
+						onclick={() => salon.send({ action: 'seek', value: -60 })}>−1m</button
+					>
+					<button
+						class={button}
+						aria-label="Atrás 10 segundos"
+						onclick={() => salon.send({ action: 'seek', value: -10 })}>−10</button
+					>
+					<button
+						class={mainButton}
+						aria-label={mpv.paused ? 'Seguir' : 'Pausa'}
+						onclick={() => salon.send({ action: 'pause', value: !mpv.paused })}
+						><MediaIcon name={mpv.paused ? 'play' : 'pause'} class="h-7 w-7" /></button
+					>
+					<button
+						class={button}
+						aria-label="Adelante 10 segundos"
+						onclick={() => salon.send({ action: 'seek', value: 10 })}>+10</button
+					>
+					<button
+						class={button}
+						aria-label="Adelante 1 minuto"
+						onclick={() => salon.send({ action: 'seek', value: 60 })}>+1m</button
+					>
+				</div>
+			{/if}
 
 			{#if queue}
 				<div class="mb-3 grid grid-cols-2 gap-2">

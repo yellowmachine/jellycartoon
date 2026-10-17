@@ -22,6 +22,8 @@ export interface RemoteState {
 	subtitle: string | null;
 	/** The Cine Club intro is on before the film (`title`); it can be skipped. */
 	intro: boolean;
+	/** A TV channel (`title`), live: no position to move to. */
+	live: boolean;
 	/** Where mpv's playlist is, from 1; more than one item with episodes and with the intro. */
 	playlistPos: number | null;
 	playlistCount: number | null;

@@ -37,11 +37,16 @@ export function watchSalon() {
 
 const CHANNELS: Record<number, string> = { 1: 'mono', 2: 'estéreo', 6: '5.1', 8: '7.1' };
 
+/** Not languages, as TV channels tag them (RTVE). */
+const BROADCAST: Record<string, string> = { qaa: 'Versión original', ads: 'Audiodescripción' };
+
 /** e.g. `Español · 5.1` or `English · Commentary`; `forzados` for forced subtitles. */
 export function trackLabel(track: Track) {
+	// Their title only says it again in English («visual impaired»).
+	const broadcast = track.lang ? BROADCAST[track.lang] : undefined;
 	return [
-		languageLabel(track.lang),
-		track.title,
+		broadcast ?? languageLabel(track.lang),
+		broadcast ? null : track.title,
 		track.channels ? CHANNELS[track.channels] : null,
 		track.forced ? 'forzados' : null
 	]
