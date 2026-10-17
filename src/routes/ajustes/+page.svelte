@@ -215,7 +215,7 @@
 			{/if}
 
 			{#snippet modelForm(
-				use: 'films' | 'chat' | 'vision',
+				use: 'films' | 'chat' | 'vision' | 'voice',
 				label: string,
 				value: string,
 				fallback: string
@@ -237,7 +237,7 @@
 						class="{select} min-w-0 flex-1 font-mono"
 					/>
 					<button class={secondary}>Guardar</button>
-					{#if form && 'saved' in form && form.saved === { films: 'model', chat: 'chatModel', vision: 'visionModel' }[use]}
+					{#if form && 'saved' in form && form.saved === { films: 'model', chat: 'chatModel', vision: 'visionModel', voice: 'voiceModel' }[use]}
 						<span class="self-center text-sm text-amber-400">✓</span>
 					{/if}
 				</form>
@@ -271,6 +271,20 @@
 				Vacío usa {data.ai.defaultVisionModel}. Mira fotogramas: mejor uno que vea bien las imágenes
 				y no razone antes de responder (los que razonan, como GPT-5 u o3, cuestan mucho más aquí).
 			</p>
+
+			{#if data.ai.voice}
+				<h3 class="mb-2 text-sm text-zinc-300">Modelo para la voz</h3>
+				{@render modelForm(
+					'voice',
+					'Modelo para la voz',
+					data.ai.voiceModel,
+					data.ai.defaultVoiceModel
+				)}
+				<p class="mb-4 text-xs text-zinc-500">
+					Vacío usa {data.ai.defaultVoiceModel}. Convierte lo que se dice en /voz en acciones: mejor
+					uno rápido, porque se espera con el móvil en la mano, y que use bien las herramientas.
+				</p>
+			{/if}
 
 			<h3 class="mb-2 text-sm text-zinc-300">Modelo para conversar sobre películas</h3>
 			{@render modelForm(

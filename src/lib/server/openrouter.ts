@@ -206,3 +206,77 @@ export async function* streamChat(request: {
 		}
 	}
 }
+
+/** A function the model can call: https://openrouter.ai/docs/guides/features/tool-calling */
+export interface Tool {
+	type: 'function';
+	function: { name: string; description: string; parameters: Record<string, unknown> };
+}
+
+export interface ToolCall {
+	id: string;
+	type: 'function';
+	/** `arguments` is JSON, as the model wrote it: it may not follow the schema. */
+	function: { name: string; arguments: string };
+}
+
+/**
+ * Text in parts; a part with `cache_control` is cached up to it, for Anthropic's models:
+ * https://openrouter.ai/docs/guides/best-practices/prompt-caching
+ */
+export type TextPart = { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } };
+
+export type ToolChatMessage =
+	| { role: 'system' | 'user'; content: string | TextPart[] }
+	| { role: 'assistant'; content: string | null; tool_calls?: ToolCall[] }
+	| { role: 'tool'; tool_call_id: string; content: string };
+
+/**
+ * One turn of a conversation with tools: the model answers with text, or with the tools it wants
+ * called. The caller runs them, adds their results as `tool` messages and asks again.
+ */
+export async function chatWithTools(request: {
+	model: string;
+	messages: ToolChatMessage[];
+	tools: Tool[];
+	/** For the Registro, as in `completeJson`. */
+	label: string;
+	details?: Record<string, unknown>;
+	timeoutMs?: number;
+}): Promise<{ content: string | null; toolCalls: ToolCall[] }> {
+	const { apiKey } = await openRouterConfig();
+	if (!apiKey) throw new Error('No hay clave de OpenRouter: ponla en Ajustes');
+
+	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+		method: 'POST',
+		headers: {
+			Authorization: `Bearer ${apiKey}`,
+			'Content-Type': 'application/json',
+			'X-OpenRouter-Title': 'JellyCartoon'
+		},
+		body: JSON.stringify({
+			model: request.model,
+			messages: request.messages,
+			tools: request.tools,
+			// As in `completeJson`; short answers here, but room for a model that reasons.
+			max_tokens: 4_096,
+			// Only providers that take tools.
+			provider: { require_parameters: true }
+			// No caching of its own: the caller marks what does not change (a `TextPart`).
+		}),
+		signal: AbortSignal.timeout(request.timeoutMs ?? 30_000)
+	});
+	const body = await res.json().catch(() => null);
+	if (!res.ok) throw new Error(`OpenRouter: ${body?.error?.message ?? res.statusText}`);
+	if (body?.usage) logUsage(request.label, body, request.details);
+	const choice = body?.choices?.[0];
+	const message = choice?.message;
+	if (!message) {
+		const why = body?.error?.message ?? choice?.error?.message;
+		throw new Error(`OpenRouter: respuesta vacía${why ? `: ${why}` : ''}`);
+	}
+	return {
+		content: typeof message.content === 'string' && message.content.trim() ? message.content : null,
+		toolCalls: Array.isArray(message.tool_calls) ? message.tool_calls : []
+	};
+}

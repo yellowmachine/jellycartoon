@@ -11,11 +11,14 @@ import {
 	DEFAULT_CHAT_MODEL,
 	DEFAULT_MODEL,
 	DEFAULT_VISION_MODEL,
+	DEFAULT_VOICE_MODEL,
 	isAdmin,
 	openRouterConfig,
 	setAppSetting,
-	visionModel
+	visionModel,
+	voiceModel
 } from '#lib/server/app-settings.ts';
+import { voiceEnabled } from '#lib/server/voice/whisper.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
 import { getSettings } from '#lib/server/settings.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
@@ -45,10 +48,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 	let ai = null;
 	let kids = null;
 	if (admin) {
-		const [config, chat, vision, kidAccounts] = await Promise.all([
+		const [config, chat, vision, voice, kidAccounts] = await Promise.all([
 			openRouterConfig(),
 			chatConfig(),
 			visionModel(),
+			voiceModel(),
 			db
 				.select({ id: user.id, name: user.name, email: user.email })
 				.from(user)
@@ -66,7 +70,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 			model: config.model,
 			defaultModel: DEFAULT_MODEL,
 			visionModel: vision,
-			defaultVisionModel: DEFAULT_VISION_MODEL
+			defaultVisionModel: DEFAULT_VISION_MODEL,
+			/** Only where there is voice (WHISPER_URL). */
+			voice: voiceEnabled,
+			voiceModel: voice,
+			defaultVoiceModel: DEFAULT_VOICE_MODEL
 		};
 	}
 
@@ -197,7 +205,9 @@ export const actions: Actions = {
 				? (['openrouter_chat_model', 'chatModel'] as const)
 				: use === 'vision'
 					? (['openrouter_vision_model', 'visionModel'] as const)
-					: (['openrouter_model', 'model'] as const);
+					: use === 'voice'
+						? (['openrouter_voice_model', 'voiceModel'] as const)
+						: (['openrouter_model', 'model'] as const);
 		await setAppSetting(key, model || null);
 		return { saved };
 	},
