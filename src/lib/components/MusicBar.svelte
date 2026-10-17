@@ -1,10 +1,12 @@
 <script lang="ts">
 	import MediaIcon from './MediaIcon.svelte';
 	import PlayModes from './PlayModes.svelte';
+	import { untrack } from 'svelte';
 	import type Hls from 'hls.js';
 	import { formatDuration } from '#lib/format.ts';
 	import { coverUrl, trackUrl } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
+	import { keepQueue } from '#lib/music-queue.svelte.ts';
 	import { COUNTRIES } from '#lib/radio.ts';
 
 	let audio = $state<HTMLAudioElement>();
@@ -12,12 +14,15 @@
 	const radio = $derived(music.radio);
 	let hls: Hls | null = null;
 
+	keepQueue();
+
 	$effect(() => {
 		music.attach(audio ?? null);
 		return () => music.attach(null);
 	});
 
-	// A new track: load it and play it. Changing `src` pauses, so play() goes after.
+	// A new track: load it and play it. Changing `src` pauses, so play() goes after. Brought back
+	// from the server, it waits where it was (before loading, currentTime is where it starts).
 	$effect(() => {
 		if (!audio || radio) return;
 		if (!current) {
@@ -28,16 +33,19 @@
 		const src = trackUrl(current.id);
 		if (audio.getAttribute('src') !== src) {
 			audio.src = src;
-			void audio.play().catch(() => {});
+			const restored = untrack(() => music.restored);
+			if (restored) audio.currentTime = restored.positionSec;
+			else void audio.play().catch(() => {});
 		}
 	});
 
 	// A station: its stream as is (MP3, AAC), or through hls.js where the browser has no HLS of its
-	// own (all but Safari). Their servers allow it (CORS).
+	// own (all but Safari). Their servers allow it (CORS). Brought back from the server, it connects
+	// when it is played.
 	$effect(() => {
 		const el = audio;
 		const stream = radio;
-		if (!el || !stream) return;
+		if (!el || !stream || untrack(() => music.restored)) return;
 		let cancelled = false;
 		(async () => {
 			if (stream.hls && !el.canPlayType('application/vnd.apple.mpegurl')) {
@@ -152,7 +160,10 @@
 <audio
 	bind:this={audio}
 	preload="auto"
-	onplay={() => (music.playing = true)}
+	onplay={() => {
+		music.playing = true;
+		music.restored = null;
+	}}
 	onpause={() => (music.playing = false)}
 	ontimeupdate={timeUpdate}
 	ondurationchange={timeUpdate}
@@ -176,8 +187,12 @@
 			<span class="min-w-0">
 				<span class="block truncate text-sm">{radio.name}</span>
 				<span class="block truncate text-xs text-zinc-400">
-					<span class="text-red-400">●</span> En directo · {COUNTRIES[radio.country] ??
-						radio.country}
+					{#if music.restored}
+						Sonaba en {music.restored.changedBy}
+					{:else}
+						<span class="text-red-400">●</span> En directo
+					{/if}
+					· {COUNTRIES[radio.country] ?? radio.country}
 				</span>
 			</span>
 		</a>
@@ -229,7 +244,9 @@
 				<span class="min-w-0">
 					<span class="block truncate text-sm">{current.title}</span>
 					<span class="block truncate text-xs text-zinc-400"
-						>{current.artist} · {current.album}</span
+						>{music.restored
+							? `Sonaba en ${music.restored.changedBy} · ${current.artist}`
+							: `${current.artist} · ${current.album}`}</span
 					>
 				</span>
 			</a>

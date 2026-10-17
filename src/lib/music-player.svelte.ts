@@ -1,4 +1,4 @@
-import type { MusicTrack } from '#lib/music.ts';
+import type { MusicTrack, SavedQueue } from '#lib/music.ts';
 import type { RadioStream } from '#lib/radio.ts';
 
 /** In random order, with `first` first, so that the whole queue still comes after it. */
@@ -32,6 +32,11 @@ class MusicPlayer {
 	repeat = $state(false);
 	/** Only the track that is on: it stops at its end, or starts again with `repeat`. */
 	single = $state(false);
+	/**
+	 * Brought back from the server (music_queue), paused where it was, until it is played: the
+	 * browser does not let it sound by itself. Where it was playing, to say so.
+	 */
+	restored = $state<{ positionSec: number; changedBy: string } | null>(null);
 
 	/** The queue in its own order, while it is shuffled. */
 	#ordered: MusicTrack[] = [];
@@ -46,8 +51,22 @@ class MusicPlayer {
 		this.#audio = audio;
 	}
 
+	/** What was playing on this or another device, paused; the station, already asked for. */
+	restore(saved: SavedQueue, radio: RadioStream | null) {
+		this.restored = { positionSec: saved.positionSec, changedBy: saved.changedBy };
+		this.shuffle = saved.shuffle;
+		this.repeat = saved.repeat;
+		this.single = saved.single;
+		this.positionSec = saved.positionSec;
+		if (radio) return this.playRadio(radio, true);
+		this.#ordered = saved.tracks;
+		this.queue = saved.tracks;
+		this.index = saved.index;
+	}
+
 	/** Replaces the queue and starts it at `start`. */
 	play(tracks: MusicTrack[], start = 0) {
+		this.restored = null;
 		this.radio = null;
 		start = Math.min(Math.max(start, 0), tracks.length - 1);
 		this.#ordered = tracks;
@@ -70,7 +89,8 @@ class MusicPlayer {
 	}
 
 	/** Instead of whatever was on. */
-	playRadio(stream: RadioStream) {
+	playRadio(stream: RadioStream, restored = false) {
+		if (!restored) this.restored = null;
 		this.queue = [];
 		this.index = 0;
 		this.radio = stream;
@@ -96,11 +116,13 @@ class MusicPlayer {
 
 	/** A station connects again: back to live, not to where it was paused. */
 	resume() {
+		this.restored = null;
 		if (this.radio) this.radio = { ...this.radio };
 		else void this.#audio?.play().catch(() => {});
 	}
 
 	next() {
+		this.restored = null;
 		if (this.index < this.queue.length - 1) this.index++;
 		else if (!this.repeat) this.stop();
 		else if (this.index > 0) this.index = 0;
@@ -123,6 +145,7 @@ class MusicPlayer {
 
 	/** Past the first seconds, back to the start of the track, as players do. */
 	previous() {
+		this.restored = null;
 		if (this.positionSec > 3 || this.index === 0) this.seek(0);
 		else this.index--;
 	}
@@ -132,6 +155,7 @@ class MusicPlayer {
 	}
 
 	stop() {
+		this.restored = null;
 		this.#audio?.pause();
 		this.radio = null;
 		this.queue = [];

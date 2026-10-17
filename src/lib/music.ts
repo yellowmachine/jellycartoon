@@ -137,3 +137,48 @@ export type SnapcastAction =
 	| { action: 'masterVolume'; value: number }
 	| { action: 'masterMute'; value: boolean }
 	| { action: 'rename'; speakerId: string; name: string };
+
+/** What a browser saves of what it plays (music_queue), to go on with it on any device. */
+export interface QueueSave {
+	/** In the order they sound. */
+	trackIds: number[];
+	index: number;
+	positionSec: number;
+	shuffle: boolean;
+	repeat: boolean;
+	single: boolean;
+	/** A station instead of the tracks. */
+	radio: string | null;
+	/** Where it was saved from, as it is shown: «la TV», «el móvil». */
+	changedBy: string;
+}
+
+/** The saved queue, as the page gets it back: the tracks that are still there. */
+export interface SavedQueue extends Omit<QueueSave, 'trackIds'> {
+	tracks: MusicTrack[];
+	updatedAt: string;
+}
+
+/** A save from a page, only if it is well formed; the index within the queue. */
+export function parseQueueSave(body: unknown): QueueSave | null {
+	if (!body || typeof body !== 'object') return null;
+	const b = body as Record<string, unknown>;
+	const { trackIds, index, positionSec, radio, changedBy } = b;
+	if (!Array.isArray(trackIds) || trackIds.length > 5000) return null;
+	if (!trackIds.every((id) => Number.isInteger(id))) return null;
+	if (!Number.isInteger(index) || typeof positionSec !== 'number' || !Number.isFinite(positionSec))
+		return null;
+	if (radio !== null && typeof radio !== 'string') return null;
+	if (!trackIds.length && radio === null) return null;
+	if (typeof changedBy !== 'string' || !changedBy.trim()) return null;
+	return {
+		trackIds,
+		index: trackIds.length ? Math.min(Math.max(index as number, 0), trackIds.length - 1) : 0,
+		positionSec: Math.max(positionSec, 0),
+		shuffle: b.shuffle === true,
+		repeat: b.repeat === true,
+		single: b.single === true,
+		radio,
+		changedBy: changedBy.trim().slice(0, 50)
+	};
+}

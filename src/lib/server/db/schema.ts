@@ -597,3 +597,26 @@ export const musicStar = pgTable(
 	},
 	(t) => [primaryKey({ columns: [t.userId, t.itemId] })]
 );
+
+/**
+ * Each user's music queue, to go on where it was on any device: saved by the browser that plays
+ * it, and by music apps (Subsonic's play queue, #27). The last one saved is the one that counts.
+ */
+export const musicQueue = pgTable('music_queue', {
+	userId: text('user_id')
+		.primaryKey()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	/** In the order they sound, shuffled or not. */
+	trackIds: integer('track_ids').array().notNull(),
+	currentIndex: integer('current_index').notNull().default(0),
+	positionSec: real('position_sec').notNull().default(0),
+	shuffle: boolean('shuffle').notNull().default(false),
+	repeat: boolean('repeat').notNull().default(false),
+	single: boolean('single').notNull().default(false),
+	/** A station instead of the tracks. */
+	radioUuid: text('radio_uuid'),
+	/** Where it was saved from, as it is shown: «la TV», «el móvil», «Tempus». */
+	changedBy: text('changed_by').notNull(),
+	/** Set by the app, to the millisecond: closing the player only clears its own save. */
+	updatedAt: timestamp('updated_at', { precision: 3 }).notNull()
+});

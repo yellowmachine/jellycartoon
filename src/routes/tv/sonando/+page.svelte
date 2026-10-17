@@ -14,10 +14,13 @@
 		music.durationSec ? Math.min(1, music.positionSec / music.durationSec) : 0
 	);
 
-	// Stopped, or at the end of the queue: the remote needs something with the focus again.
+	// Stopped, or at the end of the queue: the remote needs something with the focus again. And
+	// the other way, when the queue comes back from the server after the page was opened.
 	let choose = $state<HTMLElement>();
+	let toggle = $state<HTMLElement>();
 	$effect(() => {
 		if (!current) choose?.focus();
+		else if (document.activeElement === document.body) toggle?.focus();
 	});
 
 	const control =
@@ -53,6 +56,11 @@
 			<p class="truncate text-6xl font-bold">{current.title}</p>
 			<p class="mt-3 truncate text-4xl text-zinc-300">{current.artist}</p>
 			<p class="mt-1 truncate text-3xl text-zinc-500">{current.album}</p>
+			{#if music.restored}
+				<p class="mt-4 text-2xl text-violet-300">
+					Sonaba en {music.restored.changedBy} · OK para seguir
+				</p>
+			{/if}
 
 			<div class="mt-10 h-2 overflow-hidden rounded-full bg-white/15">
 				<div class="h-full bg-violet-400" style:width="{progress * 100}%"></div>
@@ -73,6 +81,7 @@
 					class={[control, 'h-28 w-28 bg-violet-500 text-zinc-950']}
 					aria-label={music.playing ? 'Pausa' : 'Seguir'}
 					data-focus
+					bind:this={toggle}
 					onclick={() => music.toggle()}
 					><MediaIcon name={music.playing ? 'pause' : 'play'} class="h-12 w-12" /></button
 				>

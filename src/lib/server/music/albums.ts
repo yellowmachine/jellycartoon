@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import {
 	album,
@@ -8,7 +8,8 @@ import {
 	trackArtist,
 	trackTitle
 } from '#lib/server/db/schema.ts';
-import type { MusicAlbum } from '#lib/music.ts';
+import { musicFile } from '#lib/server/library/paths.ts';
+import type { MusicAlbum, MusicTrack } from '#lib/music.ts';
 import { wakeMusicCatalog } from './catalog.ts';
 
 /** Albums with their tracks in order, by artist and title; one, or all of them. */
@@ -57,6 +58,28 @@ export async function getAlbums(albumId?: number): Promise<MusicAlbum[]> {
 	}
 	const by = (a: string, b: string) => a.localeCompare(b, 'es', { sensitivity: 'base' });
 	return [...albums.values()].sort((a, b) => by(a.artist, b.artist) || by(a.title, b.title));
+}
+
+/**
+ * The tracks, in the order asked, with their files; the ones no longer there are left out. Paths
+ * come from the catalogue, never the page.
+ */
+export async function tracksById(ids: number[]) {
+	if (!ids.length) return [];
+	const rows = await db
+		.select({ id: track.id, path: track.path, albumId: track.albumId })
+		.from(track)
+		.where(and(inArray(track.id, ids), eq(track.status, 'ready'), eq(track.missing, false)));
+	const albumIds = [...new Set(rows.map((r) => r.albumId!))];
+	const tracks = new Map<number, MusicTrack>();
+	for (const id of albumIds)
+		for (const a of await getAlbums(id)) for (const t of a.tracks) tracks.set(t.id, t);
+	const paths = new Map(rows.map((r) => [r.id, musicFile(r.path)]));
+	return ids.flatMap((id) => {
+		const t = tracks.get(id);
+		const path = paths.get(id);
+		return t && path ? [{ track: t, path }] : [];
+	});
 }
 
 /** For the TV view's Música card: how many albums can be played, and the newest covers. */
