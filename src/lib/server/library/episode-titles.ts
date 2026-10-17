@@ -191,6 +191,8 @@ async function proposeTitles(
 	const batches = titleBatches(pending);
 	job.total = batches.length;
 	const proposal: TitleProposal[] = [];
+	/** A batch that failed (no credit left, a timeout…) ends it, keeping what the others proposed. */
+	let failure: Error | null = null;
 
 	for (const batch of batches) {
 		if (signal.aborted) break;
@@ -246,8 +248,8 @@ async function proposeTitles(
 		}).then(
 			(a) => a.episodes,
 			(error) => {
-				if (signal.aborted) return null;
-				throw error;
+				if (!signal.aborted) failure = error instanceof Error ? error : new Error(String(error));
+				return null;
 			}
 		);
 		if (!answer) break;
@@ -275,6 +277,7 @@ async function proposeTitles(
 		});
 		if (!proposal.length) return;
 	}
+	if (failure && !proposal.length) throw failure;
 	if (!proposal.length) throw new Error('La IA no devolvió ningún título');
 	await db
 		.update(seriesInfo)
@@ -282,8 +285,11 @@ async function proposeTitles(
 		.where(eq(seriesInfo.seriesId, seriesId));
 	log.info('series', `Propuestos ${proposal.length} títulos para ${info.title}`, {
 		seriesId,
-		model
+		model,
+		batches: `${job.done}/${job.total}`
 	});
+	// After saving: the page shows why it stopped, and the proposal to review.
+	if (failure) throw failure;
 }
 
 /**
