@@ -42,3 +42,18 @@ export function htmlToText(html: string) {
 		.filter(Boolean)
 		.join('\n');
 }
+
+/** Longer than any title; a synopsis or a paragraph about the series is longer. */
+const PROSE_CHARS = 200;
+
+/**
+ * Without the synopses and paragraphs, which are most of a list of episodes and say nothing about
+ * their titles: long lines that are not table rows. Dragon Ball's list goes from 136,000 to 36,000
+ * characters.
+ */
+export function withoutProse(text: string) {
+	return text
+		.split('\n')
+		.filter((line) => line.length <= PROSE_CHARS || line.includes(' | '))
+		.join('\n');
+}
