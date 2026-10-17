@@ -348,6 +348,26 @@ para acostumbrar el oído a otros idiomas. La lista está elegida a mano en `src
   de RTVE); el ya resuelto, solo si el enlace es un fichero de lista (`.pls`, `.m3u`).
 - Para añadir una emisora: buscar su `stationuuid` en radio-browser.info y añadirla a la lista.
 
+### Voz
+
+Órdenes habladas desde el móvil (#33), pensadas para personas mayores: en `/voz`, un botón grande
+que se mantiene pulsado mientras se habla, como los audios de WhatsApp. De momento solo muestra lo
+que ha entendido; lo siguiente es que lo haga.
+
+Con `voz` en `COMPOSE_PROFILES` y `WHISPER_MODEL` en el `.env` arranca el servicio `whisper`: el
+servidor de [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (`whisper-server`, de su imagen
+oficial para Vulkan) en la GPU, en español.
+
+- La primera vez descarga el modelo al volumen `whisper_models` (`small`, unos 490 MB). `medium`
+  entiende mejor, a cambio de más memoria y más tiempo.
+- Solo lo alcanza la app, por la red de Docker: no publica puertos. El audio no sale de casa.
+- Convierte con ffmpeg lo que graba el navegador: WebM/Opus en Android, MP4/AAC en iPhone.
+- El micrófono del navegador necesita HTTPS, que ya da Caddy.
+- La imagen va fijada a la de una versión (v1.9.5) y WUD no la actualiza: se cambia a mano en el
+  compose.
+
+Con una RX 7800 XT, una orden de unos segundos tarda alrededor de 150 ms.
+
 ## Copia de seguridad
 
 Qué hay que guardar:
