@@ -21,6 +21,7 @@ import { log } from '#lib/server/log.ts';
 import { parseClock, type Slot } from '#lib/kid-time.ts';
 import { today } from '#lib/server/playlist.ts';
 import { continueWatching } from '#lib/server/watching.ts';
+import { CHANNELS } from '#lib/channels.ts';
 
 /** Days in the chart, today included. */
 const DAYS = 7;
@@ -66,6 +67,7 @@ async function stats(userId: string, from: string) {
 				.select({
 					episodeId: watchTime.episodeId,
 					movieId: watchTime.movieId,
+					channelId: watchTime.channelId,
 					title: sql<string>`coalesce(${movieTitle}, ${episodeTitle})`,
 					seriesId: series.id,
 					seriesTitle: series.title,
@@ -79,7 +81,14 @@ async function stats(userId: string, from: string) {
 				.leftJoin(series, eq(series.id, episode.seriesId))
 				.leftJoin(movie, eq(movie.id, watchTime.movieId))
 				.where(recent)
-				.groupBy(watchTime.episodeId, watchTime.movieId, episode.id, series.id, movie.id)
+				.groupBy(
+					watchTime.episodeId,
+					watchTime.movieId,
+					watchTime.channelId,
+					episode.id,
+					series.id,
+					movie.id
+				)
 				.orderBy(desc(max(watchTime.day)), desc(sql`sum(${watchTime.seconds})`))
 				.limit(15),
 			continueWatching(userId, 6),
@@ -147,7 +156,12 @@ async function stats(userId: string, from: string) {
 		video,
 		/** Seconds watched each day, by `YYYY-MM-DD`. */
 		perDay: Object.fromEntries(perDay.map((d) => [d.day, d.seconds])),
-		watched,
+		// A channel's name is in channels.ts, not in the database.
+		watched: watched.map((w) =>
+			w.channelId
+				? { ...w, title: CHANNELS.find((c) => c.id === w.channelId)?.name ?? w.channelId }
+				: w
+		),
 		halfway: [
 			...halfway.map((e) => ({
 				href: `/series/${e.seriesId}`,

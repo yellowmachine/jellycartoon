@@ -1,11 +1,10 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import TvHeader from '#lib/components/TvHeader.svelte';
-	import { CHANNELS } from '#lib/channels.ts';
 	import { music } from '#lib/music-player.svelte.ts';
 	import type { PageProps } from './$types';
 
-	let { form }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 
 	let loading = $state<string | null>(null);
 </script>
@@ -21,7 +20,7 @@
 {/if}
 
 <div class="grid grid-cols-2 gap-8">
-	{#each CHANNELS as channel (channel.id)}
+	{#each data.channels as channel (channel.id)}
 		<form
 			method="post"
 			action="?/play"

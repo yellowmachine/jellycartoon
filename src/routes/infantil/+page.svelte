@@ -138,17 +138,23 @@
 				<h3 class="mb-2 font-semibold">Estos días</h3>
 				{#if kid.watched.length}
 					<ul class="space-y-2 text-sm">
-						{#each kid.watched as item (`${item.episodeId}:${item.movieId}`)}
+						{#each kid.watched as item (`${item.episodeId}:${item.movieId}:${item.channelId}`)}
 							<li>
 								<a
-									href={item.movieId ? `/cine/${item.movieId}` : `/series/${item.seriesId}`}
+									href={item.channelId
+										? '/canales'
+										: item.movieId
+											? `/cine/${item.movieId}`
+											: `/series/${item.seriesId}`}
 									class="block hover:text-amber-400"
 								>
 									<span class="block truncate">{item.title}</span>
 									<span class="block truncate text-xs text-zinc-400">
-										{item.movieId
-											? 'Película'
-											: `${item.seriesTitle} · T${item.season} E${item.number}`}
+										{item.channelId
+											? 'Canal, en directo'
+											: item.movieId
+												? 'Película'
+												: `${item.seriesTitle} · T${item.season} E${item.number}`}
 										· {formatRemaining(item.seconds)} · {dayLabel(item.lastDay!)}
 									</span>
 								</a>

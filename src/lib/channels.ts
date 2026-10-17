@@ -10,6 +10,8 @@ export interface Channel {
 	description: string;
 	/** HLS. */
 	url: string;
+	/** Children's accounts can watch it too, within their time. */
+	kids?: boolean;
 }
 
 export const CHANNELS: Channel[] = [
@@ -37,5 +39,15 @@ export const CHANNELS: Channel[] = [
 		// What it has no rights to show on the internet is a notice instead, even when on the air.
 		description: 'Deportes; algunas retransmisiones solo por antena',
 		url: 'https://rtvelivestream.rtve.es/rtvesec/tdp/tdp_main.m3u8'
+	},
+	{
+		id: 'clan',
+		name: 'Clan',
+		description: 'Dibujos y series infantiles',
+		url: 'https://rtvelivestream.rtve.es/rtvesec/clan/clan_main_dvr.m3u8',
+		kids: true
 	}
 ];
+
+/** The channels this account can watch: a child's, only those for children. */
+export const channelsFor = (kid: boolean) => CHANNELS.filter((c) => !kid || c.kids);

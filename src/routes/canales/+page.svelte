@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import LivePlayer from '#lib/components/LivePlayer.svelte';
-	import { CHANNELS, type Channel } from '#lib/channels.ts';
+	import type { Channel } from '#lib/channels.ts';
 	import { music } from '#lib/music-player.svelte.ts';
 	import type { PageProps } from './$types';
 
@@ -23,8 +23,9 @@
 
 <h1 class="mb-1 text-2xl font-bold">Canales</h1>
 <p class="mb-6 text-sm text-zinc-400">
-	Los canales de RTVE, en directo. La mayoría tienen versión original y subtítulos, también en
-	inglés.
+	{data.kid
+		? 'Clan, en directo.'
+		: 'Los canales de RTVE, en directo. La mayoría tienen versión original y subtítulos, también en inglés.'}
 </p>
 
 {#if form && 'message' in form}
@@ -41,13 +42,13 @@
 			{watching.name} <span class="text-sm font-normal text-zinc-400">· En directo</span>
 		</h2>
 		{#key watching.id}
-			<LivePlayer url={watching.url} subtitleStyle={data.subtitleStyle} />
+			<LivePlayer channelId={watching.id} url={watching.url} subtitleStyle={data.subtitleStyle} />
 		{/key}
 	</section>
 {/if}
 
 <div class="grid gap-3 sm:grid-cols-2">
-	{#each CHANNELS as channel (channel.id)}
+	{#each data.channels as channel (channel.id)}
 		{@const on = watching?.id === channel.id}
 		<div
 			class={[

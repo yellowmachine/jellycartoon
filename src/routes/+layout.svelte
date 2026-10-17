@@ -25,8 +25,7 @@
 		...(data.cinema ? [{ href: '/cine', label: 'Cine' }] : []),
 		...(data.music ? [{ href: '/musica', label: 'Música' }] : []),
 		{ href: '/radio', label: 'Radio' },
-		// Not for a child's account yet.
-		...(data.kid ? [] : [{ href: '/canales', label: 'Canales' }]),
+		{ href: '/canales', label: 'Canales' },
 		...(data.salon ? [{ href: '/salon', label: 'Salón' }] : []),
 		...(data.voice ? [{ href: '/voz', label: 'Hablar' }] : []),
 		...(data.kidsPage ? [{ href: '/infantil', label: 'Infantil' }] : []),

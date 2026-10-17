@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type Hls from 'hls.js';
+	import { goto } from '$app/navigation';
 	import '@fontsource/atkinson-hyperlegible/400.css';
 	import '@fontsource/comic-neue/400.css';
 	import { BROADCAST_TRACKS, languageLabel } from '#lib/languages.ts';
@@ -7,10 +8,18 @@
 
 	/**
 	 * A TV channel, live, in this browser: its own audios (the original version) and subtitles, as the
-	 * stream brings them, with the user's subtitle style.
+	 * stream brings them, with the user's subtitle style. Where it is goes to /api/progress every
+	 * few seconds, for a child's time (#18): out of it, «/descanso».
 	 */
 
-	let { url, subtitleStyle }: { url: string; subtitleStyle: SubtitleStyle } = $props();
+	let {
+		channelId,
+		url,
+		subtitleStyle
+	}: { channelId: string; url: string; subtitleStyle: SubtitleStyle } = $props();
+
+	/** As often as the episodes' player saves: a child's time is counted from these. */
+	const EVERY_MS = 10_000;
 
 	let video = $state<HTMLVideoElement>();
 	let hls = $state<Hls | null>(null);
@@ -74,14 +83,29 @@
 			}
 		})();
 
+		// Paused, the position stays: nothing counts.
+		const timer = setInterval(() => {
+			if (!el.paused) void report(channelId, el.currentTime);
+		}, EVERY_MS);
+
 		return () => {
 			cancelled = true;
+			clearInterval(timer);
 			instance?.destroy();
 			hls = null;
 			audios = [];
 			subtitles = [];
 		};
 	});
+
+	async function report(channelId: string, positionSec: number) {
+		const res = await fetch('/api/progress', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ channelId, positionSec })
+		}).catch(() => null);
+		if (res?.status === 403) void goto('/descanso');
+	}
 
 	const choice = (on: boolean) => [
 		'rounded px-2 py-0.5',

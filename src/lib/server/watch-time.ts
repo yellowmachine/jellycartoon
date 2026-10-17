@@ -14,7 +14,13 @@ import { today } from '#lib/server/playlist.ts';
 /** More than this between two saves is a jump, not watching: they come every 5–10 seconds. */
 const MAX_STEP_SEC = 60;
 
-type Target = { episodeId: number } | { movieId: number };
+type Target = { episodeId: number } | { movieId: number } | { channelId: string };
+
+function keyOf(target: Target) {
+	if ('episodeId' in target) return `e${target.episodeId}`;
+	if ('movieId' in target) return `m${target.movieId}`;
+	return `c${target.channelId}`;
+}
 
 /** The last position saved of each user and thing; kept in memory, a restart only loses one step. */
 const last = new Map<string, number>();
@@ -23,7 +29,7 @@ const last = new Map<string, number>();
 export async function addWatchTime(userId: string, target: Target, positionSec: number) {
 	try {
 		if (!(await isKidAccount(userId))) return;
-		const key = `${userId}:${'episodeId' in target ? `e${target.episodeId}` : `m${target.movieId}`}`;
+		const key = `${userId}:${keyOf(target)}`;
 		const previous = last.get(key);
 		last.set(key, positionSec);
 		const step = previous === undefined ? 0 : positionSec - previous;
@@ -36,10 +42,17 @@ export async function addWatchTime(userId: string, target: Target, positionSec: 
 				day: today(),
 				episodeId: 'episodeId' in target ? target.episodeId : null,
 				movieId: 'movieId' in target ? target.movieId : null,
+				channelId: 'channelId' in target ? target.channelId : null,
 				seconds: step
 			})
 			.onConflictDoUpdate({
-				target: [watchTime.userId, watchTime.day, watchTime.episodeId, watchTime.movieId],
+				target: [
+					watchTime.userId,
+					watchTime.day,
+					watchTime.episodeId,
+					watchTime.movieId,
+					watchTime.channelId
+				],
 				set: { seconds: sql`${watchTime.seconds} + ${step}` }
 			});
 	} catch (error) {

@@ -316,14 +316,19 @@ export const watchTime = pgTable(
 		day: date('day').notNull(),
 		episodeId: integer('episode_id').references(() => episode.id, { onDelete: 'cascade' }),
 		movieId: integer('movie_id').references(() => movie.id, { onDelete: 'cascade' }),
+		/** A TV channel, live: its id in channels.ts. */
+		channelId: text('channel_id'),
 		seconds: real('seconds').notNull().default(0)
 	},
 	(t) => [
-		// One of the two is null: they are compared as equal, so there is one row per thing and day.
+		// Two of the three are null: they are compared as equal, so there is one row per thing and day.
 		unique('watch_time_user_day_item')
-			.on(t.userId, t.day, t.episodeId, t.movieId)
+			.on(t.userId, t.day, t.episodeId, t.movieId, t.channelId)
 			.nullsNotDistinct(),
-		check('watch_time_one_item', sql`(${t.episodeId} is null) <> (${t.movieId} is null)`)
+		check(
+			'watch_time_one_item',
+			sql`num_nonnulls(${t.episodeId}, ${t.movieId}, ${t.channelId}) = 1`
+		)
 	]
 );
 

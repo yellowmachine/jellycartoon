@@ -52,8 +52,16 @@ interface Playing extends QueueItem {
 const playing = new Map<number, Playing>();
 /** Cine Club intros queued before a film: the film's title, by playlist entry id. */
 const intros = new Map<number, string>();
-/** TV channels, live: the channel's name, by playlist entry id. Nothing to save. */
-const live = new Map<number, string>();
+/**
+ * TV channels, live, by playlist entry id: no progress to save, only a child's time (counted from
+ * how far the position moves, as with the rest).
+ */
+interface Live {
+	channel: Channel;
+	userId: string;
+	positionSec: number | null;
+}
+const live = new Map<number, Live>();
 /** Played by the app (a film, its intro, a channel), as opposed to something opened in mpv by hand. */
 const ours = (entryId: number | null) =>
 	entryId !== null && (playing.has(entryId) || intros.has(entryId) || live.has(entryId));
@@ -171,7 +179,7 @@ const NOTHING = {
 function show(entryId: number) {
 	const entry = playing.get(entryId);
 	const introOf = intros.get(entryId);
-	const channel = live.get(entryId);
+	const channel = live.get(entryId)?.channel.name;
 	Object.assign(state, {
 		active: true,
 		movieId: entry && 'movieId' in entry.target ? entry.target.movieId : null,
@@ -222,7 +230,7 @@ function propertyChanged(name: string, data: unknown) {
 			break;
 		case 'time-pos': {
 			state.positionSec = number;
-			const entry = current !== null ? playing.get(current) : undefined;
+			const entry = current !== null ? (playing.get(current) ?? live.get(current)) : undefined;
 			if (entry && number !== null) entry.positionSec = number;
 			// Many per second: the remotes get it once a second at most.
 			notify(true);
@@ -333,18 +341,23 @@ async function save(entry: Playing, reachedEnd: boolean) {
 function startSaving() {
 	saveTimer ??= setInterval(() => {
 		const entry = current !== null ? playing.get(current) : undefined;
-		if (entry) void save(entry, false).then(() => stopIfClosed(entry));
+		if (entry) void save(entry, false).then(() => stopIfClosed(entry.userId));
+		const channel = current !== null ? live.get(current) : undefined;
+		if (channel?.positionSec != null)
+			void addWatchTime(
+				channel.userId,
+				{ channelId: channel.channel.id },
+				channel.positionSec
+			).then(() => stopIfClosed(channel.userId));
 	}, SAVE_MS);
 	saveTimer.unref();
 }
 
 /** A child's time is over (#18): what plays stops, with what was watched already saved. */
-async function stopIfClosed(entry: Playing) {
+async function stopIfClosed(userId: string) {
 	try {
-		if ((await videoAllowed(entry.userId)).allowed) return;
-		log.info('mpv', 'Parado: se acabó el tiempo de vídeo de una cuenta infantil', {
-			userId: entry.userId
-		});
+		if ((await videoAllowed(userId)).allowed) return;
+		log.info('mpv', 'Parado: se acabó el tiempo de vídeo de una cuenta infantil', { userId });
 		await command(['stop']);
 	} catch (error) {
 		log.warn('mpv', 'No se pudo comprobar el horario infantil', { error });
@@ -454,12 +467,13 @@ export async function play(options: {
 }
 
 /** A TV channel, live, full screen on the host: replacing whatever was playing. */
-export async function playChannel(channel: Channel) {
+export async function playChannel(userId: string, channel: Channel) {
 	forgetQueue();
 	const result = (await command({ name: 'loadfile', url: channel.url, flags: 'replace' })) as {
 		playlist_entry_id: number;
 	};
-	live.set(result.playlist_entry_id, channel.name);
+	live.set(result.playlist_entry_id, { channel, userId, positionSec: null });
 	if (current === result.playlist_entry_id) show(result.playlist_entry_id);
+	startSaving();
 	log.info('mpv', `En directo: ${channel.name}`, { url: channel.url });
 }
