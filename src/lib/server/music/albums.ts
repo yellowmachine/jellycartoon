@@ -59,6 +59,23 @@ export async function getAlbums(albumId?: number): Promise<MusicAlbum[]> {
 	return [...albums.values()].sort((a, b) => by(a.artist, b.artist) || by(a.title, b.title));
 }
 
+/** For the TV view's Música card: how many albums can be played, and the newest covers. */
+export async function albumCovers(limit: number) {
+	const rows = await db
+		.select({ id: album.id, coverStatus: album.coverStatus })
+		.from(album)
+		.innerJoin(
+			track,
+			and(eq(track.albumId, album.id), eq(track.status, 'ready'), eq(track.missing, false))
+		)
+		.groupBy(album.id)
+		.orderBy(desc(album.id));
+	return {
+		count: rows.length,
+		covers: rows.flatMap((r) => (r.coverStatus === 'found' ? r.id : [])).slice(0, limit)
+	};
+}
+
 /** Counts for the Música page, like Gestión's for the episodes. */
 export async function musicTotals() {
 	const [tracks] = await db
