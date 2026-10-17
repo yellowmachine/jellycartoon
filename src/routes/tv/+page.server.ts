@@ -5,8 +5,9 @@ import { db } from '#lib/server/db/index.ts';
 import { movie } from '#lib/server/db/schema.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { playEpisodes, playlistQueue, seriesQueue } from '#lib/server/cinema/episode-actions.ts';
-import { cinemaRoot } from '#lib/server/library/paths.ts';
+import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
 import { allowedMovies } from '#lib/server/kids.ts';
+import { albumCovers } from '#lib/server/music/albums.ts';
 import { getTodayPlaylist } from '#lib/server/playlist.ts';
 import { stationsInfo } from '#lib/server/radio.ts';
 import { allSeries, continueWatching } from '#lib/server/watching.ts';
@@ -19,7 +20,7 @@ const MOSAIC = 6;
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!mpvEnabled) error(404, 'No hay mpv configurado (MPV_SOCKET)');
 	const userId = locals.user!.id;
-	const [seriesList, watching, today, [films], newestFilms, info] = await Promise.all([
+	const [seriesList, watching, today, [films], newestFilms, info, albums] = await Promise.all([
 		allSeries(),
 		continueWatching(userId),
 		getTodayPlaylist(userId),
@@ -38,7 +39,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 					.orderBy(desc(movie.id))
 					.limit(MOSAIC)
 			: [],
-		stationsInfo()
+		stationsInfo(),
+		musicRoot ? albumCovers(MOSAIC) : null
 	]);
 	const ready = seriesList.filter((s) => s.ready > 0);
 	const pending = today?.items.filter((i) => !i.watched) ?? [];
@@ -46,12 +48,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 		counts: {
 			series: ready.length,
 			films: films?.count ?? null,
+			albums: albums?.count ?? null,
 			stations: STATIONS.length
 		},
 		/** Behind each card, what is inside: thumbnails, and the stations' logos. */
 		mosaic: {
 			series: ready.flatMap((s) => s.cover ?? []).slice(0, MOSAIC),
 			films: newestFilms.map((f) => f.id),
+			albums: albums?.covers ?? [],
 			stations: STATIONS.flatMap((s) => info?.[s.uuid]?.favicon ?? []).slice(0, MOSAIC)
 		},
 		continueWatching: watching,

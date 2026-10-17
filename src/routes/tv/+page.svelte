@@ -3,6 +3,7 @@
 	import TvEpisode from '#lib/components/TvEpisode.svelte';
 	import TvHeader from '#lib/components/TvHeader.svelte';
 	import TvIcon from '#lib/components/TvIcon.svelte';
+	import { coverUrl } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
 	import { thumbUrl } from '#lib/thumb.svelte.ts';
 	import type { PageProps } from './$types';
@@ -44,7 +45,21 @@
 			logos: true,
 			text: 'text-emerald-300',
 			tone: 'from-emerald-500/45 via-teal-600/25'
-		}
+		},
+		...(data.counts.albums !== null
+			? [
+					{
+						href: '/tv/musica',
+						icon: 'musica' as const,
+						label: 'Música',
+						count: plural(data.counts.albums, 'álbum', 'álbumes'),
+						images: data.mosaic.albums.map(coverUrl),
+						logos: false,
+						text: 'text-violet-300',
+						tone: 'from-violet-500/45 via-fuchsia-600/25'
+					}
+				]
+			: [])
 	]);
 </script>
 
@@ -54,7 +69,7 @@
 	<p class="mb-8 rounded-lg bg-red-950 p-4 text-red-200">{form.message}</p>
 {/if}
 
-<!-- As many columns as sections: without films, two wide ones and no gap. -->
+<!-- As many columns as sections: without films or music, fewer and wider ones, and no gap. -->
 <nav
 	class="mb-14 grid gap-8"
 	style:grid-template-columns="repeat({sections.length}, minmax(0, 1fr))"
