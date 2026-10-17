@@ -1,5 +1,6 @@
 import { onMount, untrack } from 'svelte';
 import { page } from '$app/state';
+import { shownDeviceName } from '#lib/device-name.svelte.ts';
 import type { QueueSave, SavedQueue } from '#lib/music.ts';
 import { music } from '#lib/music-player.svelte.ts';
 import type { RadioStream } from '#lib/radio.ts';
@@ -16,10 +17,9 @@ const EVERY_MS = 15_000;
 /** Once per page load: going between the TV view and the rest does not bring it back again. */
 let restoredOnce = false;
 
-/** As the queue says where it was saved from: «Sonaba en la TV». */
+/** As the queue says where it was saved from: «Sonaba en la TV», or the name given in Ajustes. */
 function deviceName() {
-	if (page.url.pathname === '/tv' || page.url.pathname.startsWith('/tv/')) return 'la TV';
-	return matchMedia('(pointer: coarse)').matches ? 'el móvil' : 'el ordenador';
+	return shownDeviceName(page.url.pathname === '/tv' || page.url.pathname.startsWith('/tv/'));
 }
 
 /** The saved queue, paused, if nothing is on; when it was saved, if it was brought back. */

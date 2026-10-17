@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { onMount } from 'svelte';
+	import { DEVICE_NAME_MAX, deviceName, shownDeviceName } from '#lib/device-name.svelte.ts';
 	import MusicBackgroundSettings from '#lib/components/MusicBackgroundSettings.svelte';
 	import UpdateProgress from '#lib/components/UpdateProgress.svelte';
 	import { languageLabel } from '#lib/languages.ts';
@@ -15,7 +16,10 @@
 
 	/** After an update, the page loaded the new version: from which one, said once. */
 	let justUpdated = $state<{ from: string; to: string } | null>(null);
+	/** This device's name and what it is are only known in the browser. */
+	let mounted = $state(false);
 	onMount(() => {
+		mounted = true;
 		try {
 			const done = JSON.parse(sessionStorage.getItem('jellycartoon:updated') ?? 'null');
 			sessionStorage.removeItem('jellycartoon:updated');
@@ -109,6 +113,30 @@
 	</section>
 
 	{#if data.music}
+		<section class={section}>
+			<h2 class="mb-1 font-semibold">Este dispositivo</h2>
+			<p class="mb-4 text-sm text-zinc-400">
+				Cómo se llama al seguir con la música en otro: escríbelo como quieres que salga, con el
+				artículo. Vacío, se dice la TV, el móvil o el ordenador, según dónde suene.
+			</p>
+			<label for="deviceName" class="mb-1 block text-sm text-zinc-300">Nombre</label>
+			<input
+				id="deviceName"
+				type="text"
+				value={deviceName.value}
+				oninput={(e) => deviceName.set(e.currentTarget.value)}
+				maxlength={DEVICE_NAME_MAX}
+				placeholder="el salón"
+				autocomplete="off"
+				class="w-full rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm sm:w-64"
+			/>
+			{#if mounted}
+				<p class="mt-2 text-sm text-zinc-400">
+					Se verá así: <span class="text-zinc-200">«Sonaba en {shownDeviceName(false)}»</span>
+				</p>
+			{/if}
+		</section>
+
 		<section class={section}>
 			<h2 class="mb-1 font-semibold">Fondo de Música</h2>
 			<p class="mb-4 text-sm text-zinc-400">
