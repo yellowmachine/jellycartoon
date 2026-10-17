@@ -1,7 +1,17 @@
 <script lang="ts">
+	import { music } from '#lib/music-player.svelte.ts';
+	import { musicTarget } from '#lib/music-target.svelte.ts';
+	import {
+		HISTORY_TURNS,
+		type VoiceAction,
+		type VoiceOption,
+		type VoiceReply,
+		type VoiceTurn
+	} from '#lib/voice.ts';
+
 	/**
 	 * Voice commands (#33): held down, it listens, as WhatsApp's voice notes; let go, it is sent.
-	 * For now it only says what it understood: the AI that acts on it comes next.
+	 * What was understood goes to the AI, which does it; its answer is shown big and read aloud.
 	 */
 
 	/** Shorter than this, the button was tapped, not held: nothing was said. */
@@ -9,7 +19,13 @@
 
 	let phase = $state<'idle' | 'listening' | 'thinking'>('idle');
 	let heard = $state<string | null>(null);
+	let reply = $state<string | null>(null);
+	let options = $state<VoiceOption[]>([]);
 	let problem = $state<string | null>(null);
+	/** Written instead of said: to try a sentence, or where there is no microphone. */
+	let typed = $state('');
+	/** The exchanges before, so that «no, eso no» means something. */
+	let history: VoiceTurn[] = [];
 
 	let recorder: MediaRecorder | null = null;
 	let chunks: Blob[] = [];
@@ -57,17 +73,86 @@
 			return;
 		}
 		phase = 'thinking';
+		reply = null;
+		options = [];
 		const res = await fetch('/api/voice/transcribe', { method: 'POST', body: audio }).catch(
 			() => null
 		);
 		const body = await res?.json().catch(() => null);
-		phase = 'idle';
 		if (!res?.ok) {
+			phase = 'idle';
 			problem = body?.message ?? 'Sin conexión';
 			return;
 		}
-		heard = body.text || null;
-		if (!heard) problem = 'No he oído nada. Prueba otra vez, más cerca.';
+		if (!body.text) {
+			phase = 'idle';
+			heard = null;
+			problem = 'No he oído nada. Prueba otra vez, más cerca.';
+			return;
+		}
+		await command(body.text);
+	}
+
+	/** What sounds on this device, for the AI: «quita eso» is about it. */
+	function playingHere() {
+		const what = music.radio
+			? `la radio ${music.radio.name}`
+			: music.current
+				? `«${music.current.title}» de ${music.current.artist}`
+				: null;
+		return what && !music.playing ? `${what} (en pausa)` : what;
+	}
+
+	async function command(text: string) {
+		phase = 'thinking';
+		problem = null;
+		reply = null;
+		options = [];
+		heard = text;
+		const res = await fetch('/api/voice/command', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ text, here: playingHere(), history })
+		}).catch(() => null);
+		const body: VoiceReply | { message?: string } | null = await res?.json().catch(() => null);
+		phase = 'idle';
+		if (!res?.ok || !body || !('reply' in body)) {
+			problem = (body && 'message' in body && body.message) || 'Sin conexión';
+			return;
+		}
+		for (const action of body.actions) await act(action);
+		reply = body.reply;
+		options = body.options;
+		history = [
+			...history,
+			{ role: 'user' as const, content: text },
+			{ role: 'assistant' as const, content: body.reply }
+		].slice(-HISTORY_TURNS);
+		speak(body.reply);
+	}
+
+	/** What the server cannot do: play in this browser. */
+	async function act(action: VoiceAction) {
+		switch (action.kind) {
+			case 'play':
+				music.setShuffle(action.shuffle);
+				return music.play(action.tracks, action.start);
+			case 'radio':
+				return musicTarget.playRadio(action.uuid, false);
+			case 'control':
+				if (action.action === 'pause') return music.pause();
+				if (action.action === 'resume') return music.resume();
+				return music[action.action]();
+		}
+	}
+
+	/** Read aloud with the device's own voice: https://developer.mozilla.org/docs/Web/API/SpeechSynthesis */
+	function speak(text: string) {
+		if (!('speechSynthesis' in window)) return;
+		speechSynthesis.cancel();
+		const utterance = new SpeechSynthesisUtterance(text);
+		utterance.lang = 'es-ES';
+		speechSynthesis.speak(utterance);
 	}
 </script>
 
@@ -125,11 +210,46 @@
 	</button>
 
 	<div class="min-h-24 max-w-xl text-2xl" aria-live="polite">
+		{#if heard}
+			<p class="text-xl text-zinc-400">«{heard}»</p>
+		{/if}
 		{#if problem}
-			<p class="text-amber-300">{problem}</p>
-		{:else if heard}
-			<p class="text-zinc-400">Has dicho:</p>
-			<p class="mt-1 text-3xl font-semibold">«{heard}»</p>
+			<p class="mt-3 text-amber-300">{problem}</p>
+		{:else if reply}
+			<p class="mt-3 text-3xl font-semibold">{reply}</p>
+		{/if}
+		{#if options.length}
+			<!-- What was not clear: a tap on one is the same as saying it. -->
+			<div class="mt-6 flex flex-col gap-3">
+				{#each options as option (option.command)}
+					<button
+						class="rounded-2xl bg-zinc-800 px-6 py-4 text-2xl font-semibold transition hover:bg-zinc-700 active:scale-95"
+						disabled={phase !== 'idle'}
+						onclick={() => command(option.command)}>{option.label}</button
+					>
+				{/each}
+			</div>
 		{/if}
 	</div>
+
+	<form
+		class="flex w-full max-w-xl gap-2"
+		onsubmit={(e) => {
+			e.preventDefault();
+			if (!typed.trim() || phase !== 'idle') return;
+			void command(typed.trim());
+			typed = '';
+		}}
+	>
+		<input
+			bind:value={typed}
+			placeholder="O escríbelo aquí"
+			aria-label="Escribir la orden"
+			class="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-base"
+		/>
+		<button
+			class="rounded-md bg-zinc-800 px-4 py-2 text-base hover:bg-zinc-700"
+			disabled={phase !== 'idle'}>Enviar</button
+		>
+	</form>
 </div>

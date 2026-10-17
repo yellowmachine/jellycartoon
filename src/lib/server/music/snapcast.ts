@@ -154,6 +154,12 @@ const mpv = new MpvClient(
 	() => pages.size > 0
 );
 
+/**
+ * What Snapcast is doing now, as last known: live while a page watches it (the Snapcast bar of
+ * every page does).
+ */
+export const snapcastNow = (): SnapcastState => structuredClone(state);
+
 /** Calls `listener` with the current state and on every change; returns the unsubscribe. */
 export function watchSnapcast(listener: (state: SnapcastState) => void) {
 	const unwatch = pages.watch(listener);

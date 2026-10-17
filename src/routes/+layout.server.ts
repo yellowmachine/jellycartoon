@@ -5,6 +5,7 @@ import { snapcastReady } from '#lib/server/music/snapcast.ts';
 import { hasKids, isKid } from '#lib/server/kids.ts';
 import { isAdmin } from '#lib/server/app-settings.ts';
 import { versionInfo } from '#lib/server/updates.ts';
+import { voiceEnabled } from '#lib/server/voice/whisper.ts';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
 	const kid = isKid(locals.user);
@@ -23,6 +24,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		snapcast: Boolean(musicRoot) && snapcastReady(),
 		/** Only with an mpv on the host (MPV_SOCKET). */
 		salon: mpvEnabled,
+		/** Voice commands (#33): only with Whisper (WHISPER_URL), and not for a child's account yet. */
+		voice: voiceEnabled && !kid,
 		/** A newer release, for who manages the app to install it (#20). */
 		newVersion: admin ? ((await versionInfo()).update?.version ?? null) : null
 	};

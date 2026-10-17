@@ -26,6 +26,7 @@
 		...(data.music ? [{ href: '/musica', label: 'Música' }] : []),
 		{ href: '/radio', label: 'Radio' },
 		...(data.salon ? [{ href: '/salon', label: 'Salón' }] : []),
+		...(data.voice ? [{ href: '/voz', label: 'Hablar' }] : []),
 		...(data.kidsPage ? [{ href: '/infantil', label: 'Infantil' }] : []),
 		// Not for a child's account: they do not exist for it.
 		...(data.kid

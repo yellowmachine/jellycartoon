@@ -351,8 +351,23 @@ para acostumbrar el oído a otros idiomas. La lista está elegida a mano en `src
 ### Voz
 
 Órdenes habladas desde el móvil (#33), pensadas para personas mayores: en `/voz`, un botón grande
-que se mantiene pulsado mientras se habla, como los audios de WhatsApp. De momento solo muestra lo
-que ha entendido; lo siguiente es que lo haga.
+que se mantiene pulsado mientras se habla, como los audios de WhatsApp. También se puede escribir
+la orden, para probar una frase.
+
+Lo que se dice pasa a texto con Whisper (abajo) y de ahí a un modelo de OpenRouter, con la clave de
+Ajustes y su «Modelo para la voz» (por defecto, Claude Haiku 5.5: rápido, y bueno eligiendo
+herramientas). El modelo tiene las acciones de la app como herramientas: buscar en la música, poner
+un artista, álbum, lista o canción, poner una emisora, pausar, seguir, siguiente, anterior, parar
+y el volumen de toda la casa.
+
+- **Dónde**: aquí (el dispositivo, que lo pone en su propia barra) o toda la casa (Snapcast, si
+  está). Sin decirlo, aquí.
+- **La respuesta**, una frase corta, se ve en grande y se lee en voz alta con la voz del propio
+  dispositivo (`speechSynthesis`). Si duda entre pocas opciones, pregunta con botones; si no
+  encuentra algo, lo dice y propone lo más parecido.
+- Recuerda los últimos turnos: «no, eso no, los Pegamoides» funciona.
+- La biblioteca, las listas y las emisoras van en sus instrucciones, que se cachean; con Haiku 5.5,
+  unos 0,0003 $ por orden y unos 2 s. El coste de cada una queda en el Registro.
 
 Con `voz` en `COMPOSE_PROFILES` y `WHISPER_MODEL` en el `.env` arranca el servicio `whisper`: el
 servidor de [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (`whisper-server`, de su imagen

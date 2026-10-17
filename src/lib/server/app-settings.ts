@@ -15,12 +15,19 @@ export const DEFAULT_CHAT_MODEL = 'anthropic/claude-sonnet-5.5';
  */
 export const DEFAULT_VISION_MODEL = 'anthropic/claude-sonnet-5.5';
 
+/**
+ * For voice commands (#33): someone waits with the phone in the hand, so fast; and it has to pick
+ * the right tool from a vague sentence («lo de Raphael»), so good at using tools.
+ */
+export const DEFAULT_VOICE_MODEL = 'anthropic/claude-haiku-5.5';
+
 type Key =
 	| 'openrouter_api_key'
 	| 'openrouter_model'
 	| 'openrouter_chat_model'
 	| 'openrouter_chat_web'
-	| 'openrouter_vision_model';
+	| 'openrouter_vision_model'
+	| 'openrouter_voice_model';
 
 async function get(key: Key) {
 	const [row] = await db
@@ -66,6 +73,11 @@ export async function chatConfig() {
 /** The scenes and the episode titles: their own model, apart from the conversations'. */
 export async function visionModel() {
 	return (await get('openrouter_vision_model')) ?? DEFAULT_VISION_MODEL;
+}
+
+/** Voice commands: their own model. */
+export async function voiceModel() {
+	return (await get('openrouter_voice_model')) ?? DEFAULT_VOICE_MODEL;
 }
 
 /** There are no roles: the first account created is the one that manages the app. */
