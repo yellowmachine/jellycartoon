@@ -1,4 +1,4 @@
-import { languageLabel } from '#lib/languages.ts';
+import { BROADCAST_TRACKS, languageLabel } from '#lib/languages.ts';
 import type { RemoteAction, RemoteState, Track } from '#lib/salon.ts';
 
 /**
@@ -37,13 +37,10 @@ export function watchSalon() {
 
 const CHANNELS: Record<number, string> = { 1: 'mono', 2: 'estéreo', 6: '5.1', 8: '7.1' };
 
-/** Not languages, as TV channels tag them (RTVE). */
-const BROADCAST: Record<string, string> = { qaa: 'Versión original', ads: 'Audiodescripción' };
-
 /** e.g. `Español · 5.1` or `English · Commentary`; `forzados` for forced subtitles. */
 export function trackLabel(track: Track) {
 	// Their title only says it again in English («visual impaired»).
-	const broadcast = track.lang ? BROADCAST[track.lang] : undefined;
+	const broadcast = track.lang ? BROADCAST_TRACKS[track.lang] : undefined;
 	return [
 		broadcast ?? languageLabel(track.lang),
 		broadcast ? null : track.title,

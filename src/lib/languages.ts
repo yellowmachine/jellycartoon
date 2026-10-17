@@ -32,6 +32,12 @@ export function normalizeLang(code: string | null | undefined) {
 	return ALIASES[base] ?? base;
 }
 
+/** Not languages, as TV channels tag their tracks (RTVE). */
+export const BROADCAST_TRACKS: Record<string, string> = {
+	qaa: 'Versión original',
+	ads: 'Audiodescripción'
+};
+
 export function languageLabel(code: string | null | undefined) {
 	const lang = normalizeLang(code);
 	return LABELS[lang] ?? (lang === 'und' ? 'Desconocido' : lang);
