@@ -17,6 +17,11 @@ describe('htmlToText', () => {
 		);
 	});
 
+	test('drops the list of footnotes', () => {
+		const html = `<p>Texto</p><div class="mw-references-wrap"><ol class="references"><li id="cite_note-1"><span>↑</span> «Season Rankings». Deadline.</li></ol></div><p>Fin</p>`;
+		expect(htmlToText(html)).toBe('Texto\nFin');
+	});
+
 	test('decodes entities and drops styles and comments', () => {
 		const html = `<style>.a{color:red}</style><!-- x --><p>Tom &amp; Jerry&nbsp;&#8212; &#x2018;Puss&#39;</p>`;
 		expect(htmlToText(html)).toBe("Tom & Jerry — ‘Puss'");

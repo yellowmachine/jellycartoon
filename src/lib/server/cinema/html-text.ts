@@ -19,13 +19,15 @@ function decode(text: string) {
 
 /**
  * A Wikipedia article rendered by MediaWiki, as plain text for the AI: tables stay as rows with
- * their cells separated by `|`, and headings start with `##`. Footnotes and edit links are dropped.
+ * their cells separated by `|`, and headings start with `##`. Footnotes, their list at the end and
+ * edit links are dropped.
  */
 export function htmlToText(html: string) {
 	const text = html
 		.replace(/<!--[\s\S]*?-->/g, '')
 		.replace(/<(style|script)\b[\s\S]*?<\/\1>/gi, '')
 		.replace(/<sup\b[^>]*class="[^"]*reference[\s\S]*?<\/sup>/gi, '')
+		.replace(/<ol\b[^>]*class="[^"]*\breferences\b[\s\S]*?<\/ol>/gi, '')
 		.replace(/<span\b[^>]*class="[^"]*mw-editsection[\s\S]*?<\/span>\s*<\/span>/gi, '')
 		.replace(/<h[1-6]\b[^>]*>/gi, '\n## ')
 		.replace(/<\/t[dh]>/gi, ' | ')
