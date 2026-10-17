@@ -10,6 +10,7 @@ import {
 	renamePlaylist,
 	replacePlaylistTracks
 } from '#lib/server/music/playlists.ts';
+import { clearQueue, getQueue, saveQueue } from '#lib/server/music/queue.ts';
 import { stationsInfo } from '#lib/server/radio.ts';
 import { STATIONS } from '#lib/radio.ts';
 import { ERROR, failed, ok } from './protocol.ts';
@@ -26,6 +27,7 @@ import {
 	radioKey,
 	songJson,
 	sortedArtists,
+	trackKey,
 	type Album,
 	type Artist,
 	type Library,
@@ -36,6 +38,7 @@ import { getStars, star, unstar } from './stars.ts';
 /**
  * The Subsonic methods of #27. Phase 1: logging in, browsing, searching and listening. Phase 2: the
  * house's playlists, each user's favourites, and valid answers for the rest of what Tempus asks.
+ * The play queue is the web's own, to go on from one to the other.
  */
 
 export interface SubsonicUser {
@@ -434,8 +437,50 @@ export const METHODS: Record<string, Method> = {
 	// Valid answers without data behind them yet: nothing is broken by asking.
 	scrobble: () => ok(),
 	setRating: () => ok(),
-	savePlayQueue: () => ok(),
-	getPlayQueue: () => ok(),
+	// The same queue as the web's: what was playing in the browser goes on in the app, and back.
+	savePlayQueue: async (params, _, user) => {
+		const ids = trackIds(params, 'id');
+		if (!ids.length) {
+			await clearQueue(user.id);
+			return ok();
+		}
+		const current = parseId(params.get('current'));
+		const index = current?.kind === 'track' ? Math.max(ids.indexOf(current.id), 0) : 0;
+		const position = Number(params.get('position') ?? 0);
+		await saveQueue(user.id, {
+			trackIds: ids,
+			index,
+			positionSec: Number.isFinite(position) && position > 0 ? position / 1000 : 0,
+			shuffle: false,
+			repeat: false,
+			single: false,
+			radio: null,
+			changedBy: params.get('c')?.trim().slice(0, 50) || 'una app'
+		});
+		return ok();
+	},
+	getPlayQueue: async (_, __, user) => {
+		const queue = await getQueue(user.id);
+		// A station is not something a play queue can hold.
+		if (!queue || queue.radioUuid) return ok();
+		const [library, stars] = await Promise.all([loadLibrary(), getStars(user.id)]);
+		const entry = queue.trackIds.flatMap((id) => {
+			const t = library.tracks.get(id);
+			return t ? [songJson(t, library.albums.get(t.albumId)!, stars)] : [];
+		});
+		if (!entry.length) return ok();
+		const currentId = queue.trackIds[queue.currentIndex];
+		return ok({
+			playQueue: {
+				current: library.tracks.has(currentId) ? trackKey(currentId) : entry[0].id,
+				position: Math.round(queue.positionSec * 1000),
+				username: user.email,
+				changed: queue.updatedAt.toISOString(),
+				changedBy: queue.changedBy,
+				entry
+			}
+		});
+	},
 	getNowPlaying: () => ok({ nowPlaying: { entry: [] } }),
 	getGenres: () => ok({ genres: { genre: [] } }),
 	getSongsByGenre: () => ok({ songsByGenre: { song: [] } }),

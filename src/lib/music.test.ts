@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
 	groupByArtist,
 	masterVolume,
+	parseQueueSave,
 	scaleVolumes,
 	type MusicAlbum,
 	type Speaker
@@ -67,5 +68,46 @@ describe('master volume', () => {
 		expect(scaleVolumes(speakers, 0).map((v) => v.volume)).toEqual([0, 0]);
 		expect(scaleVolumes(speakers, 100).map((v) => v.volume)).toEqual([100, 100]);
 		expect(scaleVolumes([speaker('a', 100)], 100)).toEqual([{ id: 'a', volume: 100 }]);
+	});
+});
+
+describe('parseQueueSave', () => {
+	const queue = {
+		trackIds: [3, 1, 2],
+		index: 1,
+		positionSec: 42.5,
+		shuffle: true,
+		repeat: false,
+		single: false,
+		radio: null,
+		changedBy: 'la TV'
+	};
+
+	test('a queue as the page sends it, as it is', () => {
+		expect(parseQueueSave(queue)).toEqual(queue);
+	});
+
+	test('the index within the queue, and no position before the start', () => {
+		expect(parseQueueSave({ ...queue, index: 7 })?.index).toBe(2);
+		expect(parseQueueSave({ ...queue, index: -1 })?.index).toBe(0);
+		expect(parseQueueSave({ ...queue, positionSec: -3 })?.positionSec).toBe(0);
+	});
+
+	test('a station, without tracks', () => {
+		expect(parseQueueSave({ ...queue, trackIds: [], index: 0, radio: 'abc' })).toMatchObject({
+			trackIds: [],
+			index: 0,
+			radio: 'abc'
+		});
+	});
+
+	test('nothing to save, or not well formed: nothing', () => {
+		expect(parseQueueSave({ ...queue, trackIds: [] })).toBeNull();
+		expect(parseQueueSave({ ...queue, trackIds: [1, 'x'] })).toBeNull();
+		expect(parseQueueSave({ ...queue, index: 1.5 })).toBeNull();
+		expect(parseQueueSave({ ...queue, positionSec: Number.NaN })).toBeNull();
+		expect(parseQueueSave({ ...queue, changedBy: '  ' })).toBeNull();
+		expect(parseQueueSave({ ...queue, radio: 3 })).toBeNull();
+		expect(parseQueueSave(null)).toBeNull();
 	});
 });
