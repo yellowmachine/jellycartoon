@@ -125,8 +125,7 @@ export async function completeJson<T>(request: {
 	return JSON.parse(content) as T;
 }
 
-export type ContentPart =
-	{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
+export type ContentPart = TextPart | { type: 'image_url'; image_url: { url: string } };
 
 export interface ChatMessage {
 	role: 'system' | 'user' | 'assistant';

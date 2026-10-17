@@ -197,10 +197,11 @@ async function proposeTitles(
 		const frames = await Promise.all(batch.map(episodeFrames));
 		const ordered = [...done, ...proposal];
 		const prompt: ContentPart[] = [
+			// The same in every batch: read from the cache after the first one.
+			{ type: 'text', text: header, cache_control: { type: 'ephemeral' } },
 			{
 				type: 'text',
 				text: [
-					header,
 					// So the numbering goes on where the previous batch left it.
 					ordered.length
 						? `\n## Ya ordenados\n\n${ordered
