@@ -37,6 +37,16 @@
 				]
 			: []),
 		{
+			href: '/tv/canales',
+			icon: 'canales' as const,
+			label: 'Canales',
+			count: plural(data.counts.channels, 'canal', 'canales'),
+			images: [],
+			logos: false,
+			text: 'text-orange-300',
+			tone: 'from-orange-500/45 via-amber-600/25'
+		},
+		{
 			href: '/tv/radio',
 			icon: 'radio' as const,
 			label: 'Radio',

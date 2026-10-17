@@ -117,12 +117,14 @@ const KIDS_ROUTES: Record<string, { id?: Check; actions?: string[]; methods?: st
 	'/tv/series/[id]': { id: 'series', actions: ['episode'] },
 	'/tv/cine': { actions: ['play'] },
 	'/tv/cine/[id]': { id: 'movie', actions: ['play'] },
+	'/tv/canales': { actions: ['play'] },
 	'/tv/radio': {},
 	'/tv/musica': {},
 	'/tv/musica/[id]': {},
 	'/tv/musica/listas/[id]': {},
 	'/tv/sonando': {},
 	'/radio': {},
+	'/canales': { actions: ['salon'] },
 	'/salon': {},
 	'/musica': {},
 	'/musica/[id]': {},
@@ -151,6 +153,7 @@ const KIDS_ROUTES: Record<string, { id?: Check; actions?: string[]; methods?: st
 /** Where a child watches video in the browser: only at its times (see kid-time.ts). */
 export const VIDEO_ROUTES = new Set([
 	'/watch/[id]',
+	'/canales',
 	'/api/hls/[id]/[...file]',
 	'/api/movie-clip/[id]/[at]'
 ]);

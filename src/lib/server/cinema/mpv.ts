@@ -9,10 +9,11 @@ import { MpvClient, StateBroadcast, type MpvMessage } from '#lib/server/mpv-clie
 import { saveProgress } from '#lib/server/progress.ts';
 import { addWatchTime } from '#lib/server/watch-time.ts';
 import { videoAllowed } from '#lib/server/kid-time.ts';
+import type { Channel } from '#lib/channels.ts';
 import type { RemoteAction, RemoteState, Track } from '#lib/salon.ts';
 
 /**
- * Plays films and episodes on the host's screen: an mpv left waiting at MPV_SOCKET
+ * Plays films, episodes and TV channels on the host's screen: an mpv left waiting at MPV_SOCKET
  * (deploy/jellycartoon-mpv.service). Also the remote control: what mpv is doing, live, and
  * commands to change it.
  */
@@ -51,9 +52,19 @@ interface Playing extends QueueItem {
 const playing = new Map<number, Playing>();
 /** Cine Club intros queued before a film: the film's title, by playlist entry id. */
 const intros = new Map<number, string>();
-/** Played by the app (a film or its intro), as opposed to something opened in mpv by hand. */
+/**
+ * TV channels, live, by playlist entry id: no progress to save, only a child's time (counted from
+ * how far the position moves, as with the rest).
+ */
+interface Live {
+	channel: Channel;
+	userId: string;
+	positionSec: number | null;
+}
+const live = new Map<number, Live>();
+/** Played by the app (a film, its intro, a channel), as opposed to something opened in mpv by hand. */
 const ours = (entryId: number | null) =>
-	entryId !== null && (playing.has(entryId) || intros.has(entryId));
+	entryId !== null && (playing.has(entryId) || intros.has(entryId) || live.has(entryId));
 /** The entry on screen now. */
 let current: number | null = null;
 /** The entry whose file mpv has finished opening (`file-loaded`): tracks can be added to it. */
@@ -67,6 +78,7 @@ const state: RemoteState = {
 	title: null,
 	subtitle: null,
 	intro: false,
+	live: false,
 	playlistPos: null,
 	playlistCount: null,
 	paused: false,
@@ -114,6 +126,7 @@ const mpv = new MpvClient(
 			for (const entry of playing.values()) void save(entry, false);
 			playing.clear();
 			intros.clear();
+			live.clear();
 			current = null;
 			loaded = null;
 			stopSaving();
@@ -155,20 +168,26 @@ const NOTHING = {
 	episodeId: null,
 	title: null,
 	subtitle: null,
-	intro: false
+	intro: false,
+	live: false
 } satisfies Partial<RemoteState>;
 
-/** The remotes show the entry now on screen: one of ours, its intro, or a file opened by hand. */
+/**
+ * The remotes show the entry now on screen: one of ours, its intro, a channel, or a file opened by
+ * hand.
+ */
 function show(entryId: number) {
 	const entry = playing.get(entryId);
 	const introOf = intros.get(entryId);
+	const channel = live.get(entryId)?.channel.name;
 	Object.assign(state, {
 		active: true,
 		movieId: entry && 'movieId' in entry.target ? entry.target.movieId : null,
 		episodeId: entry && 'episodeId' in entry.target ? entry.target.episodeId : null,
-		title: entry?.title ?? introOf ?? state.title,
-		subtitle: entry?.subtitle ?? null,
-		intro: introOf !== undefined
+		title: entry?.title ?? introOf ?? channel ?? state.title,
+		subtitle: entry?.subtitle ?? (channel ? 'En directo' : null),
+		intro: introOf !== undefined,
+		live: channel !== undefined
 	});
 	notify();
 }
@@ -211,7 +230,7 @@ function propertyChanged(name: string, data: unknown) {
 			break;
 		case 'time-pos': {
 			state.positionSec = number;
-			const entry = current !== null ? playing.get(current) : undefined;
+			const entry = current !== null ? (playing.get(current) ?? live.get(current)) : undefined;
 			if (entry && number !== null) entry.positionSec = number;
 			// Many per second: the remotes get it once a second at most.
 			notify(true);
@@ -239,9 +258,19 @@ function propertyChanged(name: string, data: unknown) {
 		case 'sid':
 			state.subtitleId = number;
 			break;
-		case 'track-list':
+		case 'track-list': {
+			// A channel has the same audio once per quality (RTVE: Spanish four times): one is enough.
+			const channelOn = current !== null && live.has(current);
+			const seen = new Set<string>();
 			state.tracks = ((data as MpvTrack[] | null) ?? [])
 				.filter((t) => t.type === 'audio' || t.type === 'sub')
+				.filter((t) => {
+					if (!channelOn) return true;
+					const key = [t.type, t.lang, t.title, t['demux-channel-count']].join('|');
+					if (seen.has(key)) return false;
+					seen.add(key);
+					return true;
+				})
 				.map((t) => ({
 					id: t.id,
 					type: t.type as Track['type'],
@@ -251,6 +280,7 @@ function propertyChanged(name: string, data: unknown) {
 					channels: t['demux-channel-count'] ?? null
 				}));
 			break;
+		}
 		case 'media-title':
 			// What the app plays (and the intro) keeps its catalogue title.
 			if (!ours(current)) state.title = (data as string) ?? null;
@@ -311,18 +341,23 @@ async function save(entry: Playing, reachedEnd: boolean) {
 function startSaving() {
 	saveTimer ??= setInterval(() => {
 		const entry = current !== null ? playing.get(current) : undefined;
-		if (entry) void save(entry, false).then(() => stopIfClosed(entry));
+		if (entry) void save(entry, false).then(() => stopIfClosed(entry.userId));
+		const channel = current !== null ? live.get(current) : undefined;
+		if (channel?.positionSec != null)
+			void addWatchTime(
+				channel.userId,
+				{ channelId: channel.channel.id },
+				channel.positionSec
+			).then(() => stopIfClosed(channel.userId));
 	}, SAVE_MS);
 	saveTimer.unref();
 }
 
 /** A child's time is over (#18): what plays stops, with what was watched already saved. */
-async function stopIfClosed(entry: Playing) {
+async function stopIfClosed(userId: string) {
 	try {
-		if ((await videoAllowed(entry.userId)).allowed) return;
-		log.info('mpv', 'Parado: se acabó el tiempo de vídeo de una cuenta infantil', {
-			userId: entry.userId
-		});
+		if ((await videoAllowed(userId)).allowed) return;
+		log.info('mpv', 'Parado: se acabó el tiempo de vídeo de una cuenta infantil', { userId });
 		await command(['stop']);
 	} catch (error) {
 		log.warn('mpv', 'No se pudo comprobar el horario infantil', { error });
@@ -364,6 +399,16 @@ export async function control(remote: RemoteAction) {
 	}
 }
 
+/** What was queued goes: what ended is already saved, and what is on saves when it ends. */
+function forgetQueue() {
+	intros.clear();
+	live.clear();
+	for (const [id, entry] of playing) {
+		if (id === current) entry.replaced = true;
+		else playing.delete(id);
+	}
+}
+
 /**
  * Opens what is queued full screen on the host, replacing whatever was playing; mpv moves on to the
  * next item by itself. With `intro`, the Cine Club intro goes first.
@@ -378,12 +423,7 @@ export async function play(options: {
 	intro: string | null;
 }) {
 	preferredSubtitle = options.subtitleLang;
-	// The old queue goes: what ended is already saved, and what is on saves when it ends.
-	intros.clear();
-	for (const [id, entry] of playing) {
-		if (id === current) entry.replaced = true;
-		else playing.delete(id);
-	}
+	forgetQueue();
 	let first = true;
 	if (options.intro) {
 		const intro = (await command({
@@ -424,4 +464,16 @@ export async function play(options: {
 		`Reproduciendo ${options.items[0].hostPath} desde ${Math.floor(options.items[0].startSec)} s`,
 		{ more: options.items.length - 1, intro: Boolean(options.intro) }
 	);
+}
+
+/** A TV channel, live, full screen on the host: replacing whatever was playing. */
+export async function playChannel(userId: string, channel: Channel) {
+	forgetQueue();
+	const result = (await command({ name: 'loadfile', url: channel.url, flags: 'replace' })) as {
+		playlist_entry_id: number;
+	};
+	live.set(result.playlist_entry_id, { channel, userId, positionSec: null });
+	if (current === result.playlist_entry_id) show(result.playlist_entry_id);
+	startSaving();
+	log.info('mpv', `En directo: ${channel.name}`, { url: channel.url });
 }

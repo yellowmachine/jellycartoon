@@ -26,7 +26,7 @@
 			</p>
 			{#if mpv.intro}
 				<p class="text-xs text-zinc-400">Cortinilla de Cine Club…</p>
-			{:else}
+			{:else if !mpv.live}
 				<p class="font-mono text-xs text-zinc-400 tabular-nums">
 					{formatDuration(mpv.positionSec) || '0:00'} / {formatDuration(mpv.durationSec)}
 				</p>

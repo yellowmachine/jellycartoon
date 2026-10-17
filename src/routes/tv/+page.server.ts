@@ -11,6 +11,8 @@ import { albumCovers } from '#lib/server/music/albums.ts';
 import { getTodayPlaylist } from '#lib/server/playlist.ts';
 import { stationsInfo } from '#lib/server/radio.ts';
 import { allSeries, continueWatching } from '#lib/server/watching.ts';
+import { isKid } from '#lib/server/kids.ts';
+import { channelsFor } from '#lib/channels.ts';
 import { STATIONS } from '#lib/radio.ts';
 
 /** Tiles in each card's mosaic: 3 × 2. */
@@ -49,7 +51,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			series: ready.length,
 			films: films?.count ?? null,
 			albums: albums?.count ?? null,
-			stations: STATIONS.length
+			stations: STATIONS.length,
+			channels: channelsFor(isKid(locals.user)).length
 		},
 		/** Behind each card, what is inside: thumbnails, and the stations' logos. */
 		mosaic: {
