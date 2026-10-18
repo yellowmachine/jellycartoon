@@ -4,6 +4,7 @@ import { MPV_SOCKET } from '$app/env/private';
 import { db } from '#lib/server/db/index.ts';
 import { movie, movieProgress, movieTitle } from '#lib/server/db/schema.ts';
 import { hostCinemaRoot } from '#lib/server/library/paths.ts';
+import { inOrder } from '#lib/server/in-order.ts';
 import { log } from '#lib/server/log.ts';
 import { MpvClient, StateBroadcast, type MpvMessage } from '#lib/server/mpv-client.ts';
 import { saveProgress } from '#lib/server/progress.ts';
@@ -399,6 +400,12 @@ export async function control(remote: RemoteAction) {
 	}
 }
 
+/**
+ * One order to play at a time: each one is several commands to mpv, and two at once (OK pressed
+ * twice) would mix their queues. The second waits for the first, and then replaces it whole.
+ */
+const oneOrder = inOrder();
+
 /** What was queued goes: what ended is already saved, and what is on saves when it ends. */
 function forgetQueue() {
 	intros.clear();
@@ -413,7 +420,11 @@ function forgetQueue() {
  * Opens what is queued full screen on the host, replacing whatever was playing; mpv moves on to the
  * next item by itself. With `intro`, the Cine Club intro goes first.
  */
-export async function play(options: {
+export function play(options: Parameters<typeof playNow>[0]) {
+	return oneOrder(() => playNow(options));
+}
+
+async function playNow(options: {
 	userId: string;
 	items: QueueItem[];
 	/** ISO 639-2 codes, as tagged in the tracks. */
@@ -467,7 +478,11 @@ export async function play(options: {
 }
 
 /** A TV channel, live, full screen on the host: replacing whatever was playing. */
-export async function playChannel(userId: string, channel: Channel) {
+export function playChannel(userId: string, channel: Channel) {
+	return oneOrder(() => playChannelNow(userId, channel));
+}
+
+async function playChannelNow(userId: string, channel: Channel) {
 	forgetQueue();
 	const result = (await command({ name: 'loadfile', url: channel.url, flags: 'replace' })) as {
 		playlist_entry_id: number;

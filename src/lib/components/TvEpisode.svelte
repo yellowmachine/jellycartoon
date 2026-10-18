@@ -21,14 +21,26 @@
 		completed?: boolean | null;
 		action?: string;
 	} = $props();
+
+	/**
+	 * A second OK while the first is on its way is left out. Not disabled: the button would lose the
+	 * focus, and the remote with it.
+	 */
+	let sending = false;
 </script>
 
 <!-- The radio, if it is on, stops: the episode is what is watched now. -->
 <form
 	method="post"
 	{action}
-	use:enhance={() => {
+	use:enhance={({ cancel }) => {
+		if (sending) return cancel();
+		sending = true;
 		music.stop();
+		return async ({ update }) => {
+			await update();
+			sending = false;
+		};
 	}}
 >
 	<input type="hidden" name="id" value={id} />

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { enhance, type SubmitFunction } from '$app/forms';
 	import TvHeader from '#lib/components/TvHeader.svelte';
 	import { formatDuration } from '#lib/format.ts';
 	import { music } from '#lib/music-player.svelte.ts';
@@ -14,6 +14,21 @@
 
 	const button =
 		'rounded-2xl px-8 py-5 text-3xl font-semibold transition duration-150 focus-visible:scale-105';
+
+	/**
+	 * The radio, if it is on, stops. A second OK while the first is on its way is left out; not
+	 * disabled, so the button keeps the focus, and the remote with it.
+	 */
+	let sending = false;
+	const once: SubmitFunction = ({ cancel }) => {
+		if (sending) return cancel();
+		sending = true;
+		music.stop();
+		return async ({ update }) => {
+			await update();
+			sending = false;
+		};
+	};
 </script>
 
 <svelte:head>
@@ -40,28 +55,16 @@
 			{/if}
 		</div>
 
-		<!-- The first button gets the focus: OK and it plays. The radio, if it is on, stops. -->
+		<!-- The first button gets the focus: OK and it plays. -->
 		<div class="mt-8 flex flex-wrap gap-6">
-			<form
-				method="post"
-				action="?/play"
-				use:enhance={() => {
-					music.stop();
-				}}
-			>
+			<form method="post" action="?/play" use:enhance={once}>
 				<input type="hidden" name="id" value={film.id} />
 				<button class="{button} bg-amber-500 text-zinc-950">
 					{resume ? `▶ Seguir desde ${formatDuration(film.positionSec)}` : '▶ Ver'}
 				</button>
 			</form>
 			{#if resume}
-				<form
-					method="post"
-					action="?/play"
-					use:enhance={() => {
-						music.stop();
-					}}
-				>
+				<form method="post" action="?/play" use:enhance={once}>
 					<input type="hidden" name="id" value={film.id} />
 					<input type="hidden" name="from" value="start" />
 					<button class="{button} bg-zinc-800 text-zinc-100">Desde el principio</button>
