@@ -73,7 +73,26 @@
 	</form>
 {/snippet}
 
-<h1 class="mb-6 text-2xl font-bold">Conversión</h1>
+<h1 class="mb-2 text-2xl font-bold">Conversión</h1>
+<p class="mb-6 text-sm text-zinc-400">
+	Las carpetas se escanean solas cada noche a las {data.nightlyHour}:00; lo nuevo se convierte
+	después.
+	{#if data.lastScan}
+		{@const scan = data.lastScan}
+		Último escaneo: {new Date(scan.at).toLocaleString('es', {
+			dateStyle: 'medium',
+			timeStyle: 'short'
+		})} · {scan.added} nuevos{scan.changed ? ` · ${scan.changed} cambiados` : ''}{scan.missing
+			? ` · ${scan.missing} desaparecidos`
+			: ''}.
+		{#if scan.unmounted}
+			<span class="block text-amber-400">
+				Encontró muy pocos ficheros: ¿la carpeta de medios no estaba montada? No se marcó nada como
+				desaparecido.
+			</span>
+		{/if}
+	{/if}
+</p>
 
 <div class="mb-6 flex flex-wrap items-center gap-3">
 	<form

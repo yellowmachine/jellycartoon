@@ -28,7 +28,10 @@ type Key =
 	| 'openrouter_chat_web'
 	| 'openrouter_vision_model'
 	| 'openrouter_voice_model'
-	| 'subtitles_paused';
+	| 'subtitles_paused'
+	| 'last_scan_series'
+	| 'last_scan_films'
+	| 'auto_subtitle_langs';
 
 async function get(key: Key) {
 	const [row] = await db
@@ -88,6 +91,28 @@ export async function subtitlesPaused() {
 
 export async function setSubtitlesPaused(paused: boolean) {
 	await setAppSetting('subtitles_paused', paused ? 'true' : null);
+}
+
+/** How the last scan of a folder went (Gestión says it), as JSON with its time. */
+export async function lastScan<T extends object>(kind: 'series' | 'films') {
+	const value = await get(kind === 'series' ? 'last_scan_series' : 'last_scan_films');
+	return value ? (JSON.parse(value) as T & { at: string }) : null;
+}
+
+export async function setLastScan(kind: 'series' | 'films', result: object) {
+	await setAppSetting(
+		kind === 'series' ? 'last_scan_series' : 'last_scan_films',
+		JSON.stringify({ ...result, at: new Date().toISOString() })
+	);
+}
+
+/** Gestión → Subtítulos: the audio languages new episodes and films get Whisper's subtitles in. */
+export async function autoSubtitleLanguages() {
+	return ((await get('auto_subtitle_langs')) ?? '').split(',').filter(Boolean);
+}
+
+export async function setAutoSubtitleLanguages(langs: string[]) {
+	await setAppSetting('auto_subtitle_langs', langs.length ? langs.join(',') : null);
 }
 
 /** There are no roles: the first account created is the one that manages the app. */

@@ -5,7 +5,7 @@
 	import { formatRemaining } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 	const queue = $derived(data.queue);
 
 	const dateTime = new Intl.DateTimeFormat('es', { dateStyle: 'short', timeStyle: 'short' });
@@ -53,6 +53,46 @@
 		No hay Whisper configurado (WHISPER_URL): sin él no se pueden hacer subtítulos automáticos.
 	</p>
 {:else}
+	<!-- New ones, after the nightly scan: converted, then subtitled in these languages. -->
+	<form
+		method="post"
+		action="?/autoLangs"
+		use:enhance={() =>
+			async ({ update }) =>
+				update({ reset: false })}
+		class="mb-6 rounded-md border border-zinc-800 p-3 text-sm"
+	>
+		<p class="mb-2">
+			<strong>Para lo nuevo</strong>
+			<span class="text-zinc-400">
+				· al terminar de convertirse cada capítulo o de catalogarse cada película, se hacen sus
+				subtítulos si tiene audio en uno de estos idiomas sin subtítulos propios:
+			</span>
+		</p>
+		<div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+			{#each data.knownLanguages as language (language.lang)}
+				<label class="flex items-center gap-1.5">
+					<input
+						type="checkbox"
+						name="lang"
+						value={language.lang}
+						checked={data.autoLangs.includes(language.lang)}
+						onchange={(e) => e.currentTarget.form?.requestSubmit()}
+						class="rounded border-zinc-700 bg-zinc-900 text-amber-500"
+					/>
+					{language.label}
+				</label>
+			{/each}
+			{#if form && 'autoSaved' in form}
+				<span class="text-amber-400">✓ Guardado</span>
+			{/if}
+		</div>
+		<p class="mt-2 text-xs text-zinc-500">
+			Ninguno marcado: solo los que pidas a mano. Lo que ya está convertido no cambia; para eso,
+			selecciona los capítulos en su serie.
+		</p>
+	</form>
+
 	<section class="mb-6 flex flex-wrap items-center gap-3 rounded-md border border-zinc-800 p-3">
 		<p class="mr-auto text-sm">
 			Cola:

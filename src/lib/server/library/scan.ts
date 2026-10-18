@@ -7,6 +7,7 @@ import { probeDuration } from './ffmpeg.ts';
 import { mediaRoot } from './paths.ts';
 import { wakeWorker } from './worker.ts';
 import { log } from '#lib/server/log.ts';
+import { looksUnmounted } from '#lib/scan-safety.ts';
 
 export const VIDEO_EXTENSIONS = new Set([
 	'.mkv',
@@ -131,6 +132,8 @@ export interface ScanResult {
 	missing: number;
 	/** Modified less than a minute ago (probably still being copied); picked up by a later scan. */
 	waiting: number;
+	/** So few files were found that MEDIA_DIR looks unmounted: none was marked missing. */
+	unmounted?: boolean;
 }
 
 const SETTLE_MS = 60_000;
@@ -260,18 +263,26 @@ async function runScan(): Promise<ScanResult> {
 		}
 	}
 
-	const gone = await db
-		.update(episode)
-		.set({ missing: true })
-		.where(
-			and(
-				eq(episode.missing, false),
-				eq(episode.sourceRemoved, false),
-				seen.length ? notInArray(episode.sourcePath, seen) : sql`true`
-			)
-		)
-		.returning({ id: episode.id });
-	result.missing = gone.length;
+	// The originals still expected in MEDIA_DIR (those deleted after converting are not).
+	const expected = and(eq(episode.missing, false), eq(episode.sourceRemoved, false));
+	const [known] = await db
+		.select({ count: sql<number>`count(*)::int` })
+		.from(episode)
+		.where(expected);
+	if (looksUnmounted(seen.length, known?.count ?? 0)) {
+		result.unmounted = true;
+		log.warn(
+			'scan',
+			`Solo ${seen.length} de ${known?.count} ficheros: ¿carpeta de medios sin montar? No se marca nada como desaparecido`
+		);
+	} else {
+		const gone = await db
+			.update(episode)
+			.set({ missing: true })
+			.where(and(expected, seen.length ? notInArray(episode.sourcePath, seen) : sql`true`))
+			.returning({ id: episode.id });
+		result.missing = gone.length;
+	}
 
 	wakeWorker();
 	log.info(

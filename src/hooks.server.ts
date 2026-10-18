@@ -7,6 +7,7 @@ import { guardKids } from '#lib/server/kids.ts';
 import { guardVideoTime } from '#lib/server/kid-time.ts';
 import { startWorker } from '#lib/server/library/worker.ts';
 import { startSubtitles } from '#lib/server/auto-subtitles.ts';
+import { startNightlyScan } from '#lib/server/library/nightly.ts';
 import { wakeCatalog } from '#lib/server/cinema/catalog.ts';
 import { wakeMusicCatalog } from '#lib/server/music/catalog.ts';
 import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
@@ -22,6 +23,8 @@ export const init: ServerInit = async () => {
 	await startWorker();
 	// Subtitles left waiting, or half made, by a restart.
 	await startSubtitles();
+	// Every night, what was added to the folders: converted and subtitled by the morning.
+	startNightlyScan();
 };
 
 /** Unexpected errors only: the ones thrown on purpose with `error()` (404, 400…) are not news. */

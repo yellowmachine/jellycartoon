@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, tick, untrack } from 'svelte';
+	import { onMount, tick, untrack, type Snippet } from 'svelte';
 	import type Hls from 'hls.js';
 	import { goto } from '$app/navigation';
 	import '@fontsource/atkinson-hyperlegible/400.css';
@@ -37,6 +37,10 @@
 		 * start (the user's choice, under the video).
 		 */
 		onended?: (autoNext: boolean) => void;
+		/** «Siguiente automático» changed, under the video: the page shows what goes with each. */
+		onautonextchange?: (autoNext: boolean) => void;
+		/** Over the video while it is given, e.g. the next episode with a countdown. */
+		overlay?: Snippet;
 	}
 
 	let {
@@ -46,7 +50,9 @@
 		subtitles,
 		settings,
 		autoplay = true,
-		onended
+		onended,
+		onautonextchange,
+		overlay
 	}: Props = $props();
 
 	let video = $state<HTMLVideoElement>();
@@ -316,6 +322,7 @@
 
 	function chooseAutoNext(value: boolean) {
 		autoNext = value;
+		onautonextchange?.(value);
 		saveSetting({ autoNext });
 	}
 </script>
@@ -329,6 +336,7 @@
 <div
 	bind:this={wrapper}
 	class={[
+		'relative',
 		playerSize.value === 'small' && 'mx-auto max-w-2xl',
 		// Breaks out of the page container to the full window width, without needing fullscreen.
 		playerSize.value === 'cinema' && 'relative left-1/2 w-screen -translate-x-1/2 bg-black'
@@ -363,6 +371,11 @@
 			{/each}
 		</video>
 	{/key}
+	{#if overlay}
+		<div class="absolute inset-0 flex items-center justify-center rounded-md bg-black/75 p-4">
+			{@render overlay()}
+		</div>
+	{/if}
 </div>
 
 {#if problem ?? saveProblem}
