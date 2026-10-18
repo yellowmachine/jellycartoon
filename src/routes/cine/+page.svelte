@@ -8,6 +8,7 @@
 	import { formatDuration } from '#lib/format.ts';
 	import {
 		activeFilters,
+		awardFamily,
 		decadeOf,
 		DURATIONS,
 		FILTERS,
@@ -73,15 +74,38 @@
 				.filter((m) => filters.every((f) => FILTERS[f.name].matches(m, f.value)))
 				.map((m) => ({ ...m, reason: matchReason(m, search) }))
 				.filter((m) => m.reason !== null),
-			sort
+			sort,
+			page.url.searchParams.get('saga')
 		)
 	);
 
+	/** The awards won (by family), sagas and kinds there are in these films. */
+	// The awards most films have first: the big ones on top, local critics' at the bottom.
+	const awardFamilies = $derived.by(() => {
+		const films = new Map<string, number>();
+		for (const m of data.movies)
+			for (const family of new Set(m.awards.filter((a) => a.won).map((a) => awardFamily(a.name))))
+				films.set(family, (films.get(family) ?? 0) + 1);
+		return [...films]
+			.sort(([a, n], [b, m]) => m - n || a.localeCompare(b, 'es'))
+			.map(([family, count]) => ({ family, count }));
+	});
+	const sagas = $derived(
+		[...new Set(data.movies.flatMap((m) => m.sagas.map((s) => s.name)))].sort((a, b) =>
+			a.localeCompare(b, 'es')
+		)
+	);
+	const kinds = $derived({
+		bn: data.movies.some((m) => m.blackAndWhite),
+		muda: data.movies.some((m) => m.silent)
+	});
+
 	const dropdown = 'rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm';
 
-	// Refresh while films are being catalogued; not while a title is being edited.
+	// Refresh while films are being catalogued or their info completed; not while a title is
+	// being edited.
 	$effect(() => {
-		if (data.pending === 0) return;
+		if (data.pending === 0 && data.extras.total === 0) return;
 		return poll(() => editing === null && invalidateAll(), 3000);
 	});
 </script>
@@ -95,8 +119,8 @@
 	<input
 		type="search"
 		bind:value={search}
-		placeholder="Título, director o actor"
-		aria-label="Buscar por título, director o actor"
+		placeholder="Título o persona"
+		aria-label="Buscar por título, director, actor, guion, música o fotografía"
 		class="w-56 rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm"
 	/>
 	{#if !data.kid}
@@ -210,6 +234,45 @@
 				{/each}
 			</select>
 		{/if}
+		{#if awardFamilies.length}
+			<select
+				aria-label="Premios"
+				class="{dropdown} max-w-48"
+				value={chosen('premio')}
+				onchange={(e) => choose('premio', e.currentTarget.value)}
+			>
+				<option value="">Con o sin premios</option>
+				<option value="*">Con algún premio</option>
+				{#each awardFamilies as { family, count } (family)}
+					<option value={family}>{family} ({count})</option>
+				{/each}
+			</select>
+		{/if}
+		{#if sagas.length}
+			<select
+				aria-label="Saga"
+				class="{dropdown} max-w-48"
+				value={chosen('saga')}
+				onchange={(e) => choose('saga', e.currentTarget.value)}
+			>
+				<option value="">Cualquier saga</option>
+				{#each sagas as saga (saga)}
+					<option value={saga}>{saga}</option>
+				{/each}
+			</select>
+		{/if}
+		{#if kinds.bn || kinds.muda}
+			<select
+				aria-label="Tipo"
+				class={dropdown}
+				value={chosen('tipo')}
+				onchange={(e) => choose('tipo', e.currentTarget.value)}
+			>
+				<option value="">Color o no</option>
+				{#if kinds.bn}<option value="bn">En blanco y negro</option>{/if}
+				{#if kinds.muda}<option value="muda">Muda</option>{/if}
+			</select>
+		{/if}
 		<!-- How many, out of all: «1 de 5 películas» with filters or a search. -->
 		<span class="text-sm text-zinc-400 sm:ml-auto" aria-live="polite">
 			{shown.length === data.movies.length
@@ -227,6 +290,13 @@
 			{/each}
 		</select>
 	</div>
+{/if}
+
+{#if data.extras.total}
+	<p class="mb-4 text-sm text-zinc-400">
+		Completando las fichas con premios, sagas, guion, música y fotografía: {data.extras.done} de
+		{data.extras.total}.
+	</p>
 {/if}
 
 {#if data.withoutInfo}

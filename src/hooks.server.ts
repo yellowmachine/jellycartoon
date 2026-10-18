@@ -9,6 +9,7 @@ import { startWorker } from '#lib/server/library/worker.ts';
 import { startSubtitles } from '#lib/server/auto-subtitles.ts';
 import { startNightlyScan } from '#lib/server/library/nightly.ts';
 import { wakeCatalog } from '#lib/server/cinema/catalog.ts';
+import { wakeExtras } from '#lib/server/cinema/info.ts';
 import { wakeMusicCatalog } from '#lib/server/music/catalog.ts';
 import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
 import { log, startLogCleanup } from '#lib/server/log.ts';
@@ -18,6 +19,8 @@ export const init: ServerInit = async () => {
 	startLogCleanup();
 	// Films left half catalogued by a restart.
 	if (cinemaRoot) wakeCatalog();
+	// Info saved before Wikidata's awards, sagas and crew were read: completed in the background.
+	if (cinemaRoot) void wakeExtras();
 	// Tracks whose tags were not read yet, and covers not looked up.
 	if (musicRoot) wakeMusicCatalog();
 	await startWorker();

@@ -422,6 +422,23 @@ export const movieInfo = pgTable('movie_info', {
 		.default([]),
 	/** Names the AI gave the chapters, by their start: `null` until asked for. */
 	scenes: jsonb('scenes').$type<SceneName[]>(),
+	/** Awards won (`won`) and nominations, with their year when Wikidata has it. */
+	awards: jsonb('awards')
+		.$type<{ name: string; year: number | null; won: boolean }[]>()
+		.notNull()
+		.default([]),
+	/** The film series it is part of, with its place in each when known. */
+	sagas: jsonb('sagas').$type<{ name: string; order: number | null }[]>().notNull().default([]),
+	writers: jsonb('writers').$type<string[]>().notNull().default([]),
+	composers: jsonb('composers').$type<string[]>().notNull().default([]),
+	cinematographers: jsonb('cinematographers').$type<string[]>().notNull().default([]),
+	blackAndWhite: boolean('black_and_white').notNull().default(false),
+	silent: boolean('silent').notNull().default(false),
+	/**
+	 * Which of Wikidata's details it has (`FILM_DETAILS_VERSION`): older ones are read again in
+	 * the background, by their saved id.
+	 */
+	detailsVersion: integer('details_version').notNull().default(0),
 	updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 

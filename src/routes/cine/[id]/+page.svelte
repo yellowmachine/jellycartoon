@@ -8,7 +8,7 @@
 	import TagBar from '#lib/components/TagBar.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
-	import { filterHref, type FilterName } from '#lib/film-search.ts';
+	import { awardFamily, filterHref, type FilterName } from '#lib/film-search.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -217,6 +217,73 @@
 				{#if info.minutes}
 					<dt class="text-zinc-400">Duración</dt>
 					<dd>{info.minutes} min</dd>
+				{/if}
+				{#if info.writers.length}
+					<dt class="text-zinc-400">Guion</dt>
+					<dd>{@render links('persona', info.writers)}</dd>
+				{/if}
+				{#if info.composers.length}
+					<dt class="text-zinc-400">Música</dt>
+					<dd>{@render links('persona', info.composers)}</dd>
+				{/if}
+				{#if info.cinematographers.length}
+					<dt class="text-zinc-400">Fotografía</dt>
+					<dd>{@render links('persona', info.cinematographers)}</dd>
+				{/if}
+				{#if info.blackAndWhite || info.silent}
+					<dt class="text-zinc-400">Tipo</dt>
+					<dd>
+						{#if info.blackAndWhite}<a
+								href={filterHref('tipo', 'bn')}
+								class="hover:text-amber-400 hover:underline">En blanco y negro</a
+							>{/if}{#if info.blackAndWhite && info.silent},{' '}{/if}{#if info.silent}<a
+								href={filterHref('tipo', 'muda')}
+								class="hover:text-amber-400 hover:underline">Muda</a
+							>{/if}
+					</dd>
+				{/if}
+				{#if info.sagas.length}
+					<!-- The saga's films, in its order. -->
+					<dt class="text-zinc-400">Saga</dt>
+					<dd>
+						{#each info.sagas as saga, i (saga.name)}
+							{#if i},{' '}{/if}<a
+								href={filterHref('saga', saga.name)}
+								class="hover:text-amber-400 hover:underline">{saga.name}</a
+							>{#if saga.order}<span class="ml-1 text-zinc-400">(n.º {saga.order})</span>{/if}
+						{/each}
+					</dd>
+				{/if}
+				{#if info.awards.length}
+					{@const won = info.awards.filter((a) => a.won)}
+					{@const nominated = info.awards.filter((a) => !a.won)}
+					<dt class="text-zinc-400">Premios</dt>
+					<dd>
+						{#if won.length}
+							<ul class="space-y-0.5">
+								{#each won as award (award.name)}
+									<li>
+										🏆 <a
+											href={filterHref('premio', awardFamily(award.name))}
+											class="hover:text-amber-400 hover:underline">{award.name}</a
+										>{#if award.year}<span class="ml-1 text-zinc-400">({award.year})</span>{/if}
+									</li>
+								{/each}
+							</ul>
+						{/if}
+						{#if nominated.length}
+							<details class={won.length ? 'mt-1' : ''}>
+								<summary class="cursor-pointer text-zinc-400">
+									{nominated.length === 1 ? '1 candidatura' : `${nominated.length} candidaturas`}
+								</summary>
+								<ul class="mt-1 space-y-0.5 text-zinc-400">
+									{#each nominated as award (award.name)}
+										<li>{award.name}{award.year ? ` (${award.year})` : ''}</li>
+									{/each}
+								</ul>
+							</details>
+						{/if}
+					</dd>
 				{/if}
 			</dl>
 
