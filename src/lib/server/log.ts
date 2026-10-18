@@ -37,11 +37,21 @@ export const log = {
 		write('error', source, message, details)
 };
 
+/** What is older than KEEP_DAYS, out: said when there was any. */
 async function deleteOld() {
-	await db
-		.delete(logEntry)
-		.where(lt(logEntry.at, sql`now() - make_interval(days => ${KEEP_DAYS})`))
-		.catch((error) => console.error('[log] no se pudieron borrar los antiguos', error));
+	try {
+		const gone = await db
+			.delete(logEntry)
+			.where(lt(logEntry.at, sql`now() - make_interval(days => ${KEEP_DAYS})`))
+			.returning({ id: logEntry.id });
+		if (gone.length)
+			await log.info(
+				'registro',
+				`Borradas ${gone.length} entradas de hace más de ${KEEP_DAYS} días`
+			);
+	} catch (error) {
+		console.error('[log] no se pudieron borrar los antiguos', error);
+	}
 }
 
 /** Deletes entries older than KEEP_DAYS now and then once a day. */

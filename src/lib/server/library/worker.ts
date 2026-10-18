@@ -142,10 +142,17 @@ export async function startWorker() {
 	state = saved?.state ?? 'running';
 
 	// Anything left half-done by a previous run starts over.
-	await db
+	const resumed = await db
 		.update(episode)
 		.set({ status: 'pending', progress: 0 })
-		.where(eq(episode.status, 'processing'));
+		.where(eq(episode.status, 'processing'))
+		.returning({ id: episode.id });
+	if (resumed.length)
+		log.info(
+			'worker',
+			`Retoma ${resumed.length === 1 ? 'el capítulo que quedó' : `los ${resumed.length} capítulos que quedaron`} a medias al reiniciar`,
+			{ episodeIds: resumed.map((r) => r.id) }
+		);
 
 	(async () => {
 		while (true) {
