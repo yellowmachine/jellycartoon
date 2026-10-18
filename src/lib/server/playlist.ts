@@ -52,6 +52,27 @@ function seriesQueue(episodes: Candidate[]) {
 }
 
 /**
+ * Up to `count` episodes to suggest after watching one of `currentSeries`: from other series, one
+ * each, the one that is their turn (as in a playlist), from those in `preferred` first (e.g. the
+ * ones sharing a tag), the rest at random.
+ */
+export function suggestEpisodes(
+	candidates: Candidate[],
+	currentSeries: number,
+	count: number,
+	preferred: Set<number> = new Set()
+) {
+	const bySeries = [...Map.groupBy(candidates, (c) => c.seriesId)].filter(
+		([seriesId]) => seriesId !== currentSeries
+	);
+	const order = [
+		...shuffle(bySeries.filter(([id]) => preferred.has(id))),
+		...shuffle(bySeries.filter(([id]) => !preferred.has(id)))
+	];
+	return order.slice(0, count).map(([, episodes]) => seriesQueue(episodes)[0]);
+}
+
+/**
  * Picks episodes until the target duration is reached, choosing a random series each time and
  * never the same series twice in a row (unless it is the only one left).
  */

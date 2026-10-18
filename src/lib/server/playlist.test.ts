@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from 'bun:test';
 
 mock.module('#lib/server/db/index.ts', () => ({ db: {} }));
 mock.module('#lib/server/kids.ts', () => ({ allowedSeries: () => undefined }));
-const { pickEpisodes } = await import('./playlist.ts');
+const { pickEpisodes, suggestEpisodes } = await import('./playlist.ts');
 type Candidate = import('./playlist.ts').Candidate;
 
 function make(seriesId: number, count: number, opts: Partial<Candidate> = {}, watched = 0) {
@@ -58,5 +58,33 @@ describe('pickEpisodes', () => {
 	test('everything watched in a serialized series starts over', () => {
 		const picked = pickEpisodes(make(1, 5, {}, 5), 20 * 60);
 		expect(picked.map((e) => e.number)).toEqual([1, 2]);
+	});
+});
+
+describe('suggestEpisodes', () => {
+	const candidates = [
+		...make(1, 5, {}, 2), // the one being watched
+		...make(2, 4, {}, 1), // shares a tag: its 2nd is next
+		...make(3, 3, {}, 3), // shares a tag, all watched: starts over
+		...make(4, 6), // no tag in common: its 1st
+		...make(5, 2)
+	];
+
+	test('one per other series, the one that is its turn; tag-sharing ones first', () => {
+		const picked = suggestEpisodes(candidates, 1, 3, new Set([2, 3]));
+		expect(picked).toHaveLength(3);
+		expect(picked.map((e) => e.seriesId)).not.toContain(1);
+		expect(new Set(picked.map((e) => e.seriesId)).size).toBe(3);
+		expect(
+			picked
+				.slice(0, 2)
+				.map((e) => e.id)
+				.sort()
+		).toEqual([202, 301]);
+		expect([401, 501]).toContain(picked[2]!.id);
+	});
+
+	test('fewer series than asked: as many as there are', () => {
+		expect(suggestEpisodes(make(1, 3).concat(make(2, 2)), 1, 3)).toHaveLength(1);
 	});
 });
