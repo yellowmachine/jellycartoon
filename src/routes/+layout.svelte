@@ -6,6 +6,7 @@
 	import SnapcastBar from '#lib/components/SnapcastBar.svelte';
 	import SectionIcon, { type Section } from '#lib/components/SectionIcon.svelte';
 	import VoiceBubble from '#lib/components/VoiceBubble.svelte';
+	import TimerBar from '#lib/components/TimerBar.svelte';
 	import { beforeNavigate, goto } from '$app/navigation';
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { page, updated } from '$app/state';
@@ -289,6 +290,10 @@
 				<!-- What the header's microphone heard and answered; /voz shows it big itself. -->
 				{#if data.voice && page.url.pathname !== '/voz'}
 					<VoiceBubble />
+				{/if}
+				<!-- Kitchen timers set by voice, counting down; the one that ended, big. -->
+				{#if data.voice}
+					<TimerBar />
 				{/if}
 				<!-- Everywhere but its remote. -->
 				{#if data.salon && !isCurrent('/salon')}

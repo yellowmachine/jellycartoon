@@ -19,7 +19,8 @@ describe('parseVoiceRequest', () => {
 			history: [
 				{ role: 'user', content: 'Pon la radio' },
 				{ role: 'assistant', content: 'Pongo la BBC aquí' }
-			]
+			],
+			timers: []
 		});
 	});
 
@@ -28,8 +29,17 @@ describe('parseVoiceRequest', () => {
 			text: 'Para',
 			here: null,
 			video: null,
-			history: []
+			history: [],
+			timers: []
 		});
+	});
+
+	test("this browser's timers, only text and not too many", () => {
+		const timers = (value: unknown) =>
+			parseVoiceRequest({ text: 'cuánto queda', timers: value })?.timers;
+		expect(timers(['la pasta, quedan 7 min', 3, '  '])).toEqual(['la pasta, quedan 7 min']);
+		expect(timers(Array.from({ length: 30 }, (_, i) => `t${i}`))).toHaveLength(20);
+		expect(timers('no')).toEqual([]);
 	});
 
 	test('only well-formed turns, and the last ones', () => {

@@ -30,14 +30,15 @@ import {
 } from '#lib/server/watch-history.ts';
 import { fold, masterVolume, type MusicAlbum, type MusicTrack } from '#lib/music.ts';
 import { COUNTRIES, STATIONS } from '#lib/radio.ts';
-import type {
-	VoiceAction,
-	VoiceControl,
-	VoiceOption,
-	VoiceReply,
-	VoiceRequest,
-	VoiceTarget,
-	VideoHere
+import {
+	MAX_TIMER_SEC,
+	type VoiceAction,
+	type VoiceControl,
+	type VoiceOption,
+	type VoiceReply,
+	type VoiceRequest,
+	type VoiceTarget,
+	type VideoHere
 } from '#lib/voice.ts';
 
 /**
@@ -190,6 +191,57 @@ function tools(house: boolean): Tool[] {
 			['kind', 'id', 'where']
 		),
 		fn(
+			'set_timer',
+			'Pone un temporizador en el dispositivo desde el que se habla: al acabar suena hasta que lo paren. Uno con el mismo nombre empieza de nuevo con el tiempo nuevo.',
+			{
+				minutes: {
+					type: 'number',
+					description: 'Cuántos minutos; 0.5 son 30 segundos, 90 es hora y media.'
+				},
+				label: {
+					type: 'string',
+					description:
+						'Para qué es, corto y como lo diría: «la pasta», «el horno». Vacío si no lo dice.'
+				}
+			},
+			['minutes']
+		),
+		fn(
+			'prepare_timer',
+			'Deja preparado un temporizador que arrancará cuando pase algo que dirá luego («cuando hierva», «cuando esté hecho el sofrito»). No arranca ahora: sale en la lista de temporizadores como preparado.',
+			{
+				minutes: { type: 'number', description: 'Cuántos minutos durará cuando arranque.' },
+				label: {
+					type: 'string',
+					description:
+						'Para qué es, corto: «la pasta», «el arroz». Si no lo dice, lo que se va a cocinar.'
+				},
+				trigger: {
+					type: 'string',
+					description:
+						'Lo que espera, para completar «arranca cuando…»: «hierva el agua», «esté hecho el sofrito».'
+				}
+			},
+			['minutes', 'label', 'trigger']
+		),
+		fn(
+			'kitchen_mode',
+			'Enciende o apaga el modo cocina en el dispositivo desde el que se habla: la pantalla no se apaga, para el móvil en la pared de la cocina.',
+			{ on: { type: 'boolean' } },
+			['on']
+		),
+		fn(
+			'cancel_timer',
+			'Quita un temporizador de este dispositivo por su nombre, o todos: en marcha, preparados o el que está sonando.',
+			{
+				label: {
+					type: 'string',
+					description: 'El nombre de la lista de temporizadores; vacío: todos.'
+				}
+			},
+			[]
+		),
+		fn(
 			'ask',
 			'Cuando no está claro qué se pide entre unas pocas opciones: pregunta, y cada opción es un botón. No se hace nada más.',
 			{
@@ -241,16 +293,31 @@ function instructions(context: {
 				)
 			: [...byArtist.keys()].map((artist) => `- ${artist}`);
 
-	return `Eres el asistente de voz de JellyCartoon, la app de música y vídeo de una casa. Te habla una persona mayor desde el móvil; lo que dice viene de un reconocimiento de voz y puede traer nombres mal escritos: busca por cómo suenan.
+	return `Eres el asistente de voz de JellyCartoon, la app de música y vídeo de una casa. Te hablan desde el móvil, a veces una persona mayor, a veces alguien con las manos ocupadas (cocinando, por ejemplo); lo que dice viene de un reconocimiento de voz y puede traer nombres mal escritos: busca por cómo suenan.
 
 Cómo responder:
 - Trátala de tú.
 - Haz lo que pide con las herramientas, sin pedir confirmación. Si se equivoca, lo dirá («no, eso no», «para»).
-- Al terminar, contesta en español con una sola frase corta que diga lo que has hecho y dónde, p. ej. «Pongo Alaska y Dinarama aquí». Se lee en voz alta: sin listas, emojis, ids ni formato.
+- Al terminar una orden, contesta en español con una sola frase corta que diga lo que has hecho y dónde, p. ej. «Pongo Alaska y Dinarama aquí». Se lee en voz alta: sin listas, emojis, ids ni formato.
 - Si duda entre pocas opciones, usa «ask». Si no encuentras algo, dilo y propón lo más parecido que haya.
 - Si no dice dónde, es aquí${house ? ', salvo que lo que quiere controlar solo esté sonando en toda la casa' : ''}.
 - «Quita eso», «para», «más alto»…: se refiere a lo que está sonando. Con cada orden va lo que suena en cada sitio.
 - Sitios: aquí (el dispositivo desde el que se habla)${house ? ' y toda la casa (Snapcast)' : '; toda la casa no está disponible'}.
+
+Otras preguntas (de cocina, de lo que sea): si no pide nada de la app, contesta tú, como un asistente general, sin herramientas.
+- Es para oírlo mientras hace otra cosa: dos o tres frases cortas como mucho, con lo esencial primero. Números y cantidades claros («doscientos gramos», «diez minutos»).
+- Nada de listas, tablas ni formato. Si la respuesta es larga (una receta entera, unos pasos), da el primero o lo esencial y ofrece seguir: «¿Te digo el siguiente paso?».
+- Si pregunta por algo de lo que suena (el podcast, la canción), contesta con lo que sepas sin cambiar lo que suena.
+- Una pregunta no es una orden: «¿cuánto tiempo cuezo la pasta?» se contesta; «pon Más de uno» se hace.
+- Si es de salud o de seguridad (alergias, algo que ha comido mal, un corte), contesta con prudencia y, si puede ser serio, dile que llame al médico o al 112.
+
+Temporizadores («avísame en 10 minutos», «pon un temporizador de 20 minutos para el horno»): «set_timer», sin preguntar. Con cada orden va la lista de los que hay en este dispositivo.
+- «¿Cuánto le queda (a la pasta)?»: contesta con esa lista, sin herramientas.
+- «Quita el temporizador», «ya está», «para la alarma»: «cancel_timer»; si hay varios y no está claro cuál, usa «ask».
+- Di cuánto y para qué, corto: «Te aviso en diez minutos para la pasta».
+- «Cuando hierva, pon 8 minutos para la pasta»: «prepare_timer», uno por cada cosa que espera. Di lo que queda preparado, corto: «Vale: ocho minutos cuando hierva y media hora cuando esté el sofrito».
+- «Modo cocina», «que no se apague la pantalla»: «kitchen_mode». Se apaga solo a las tres horas sin temporizadores.
+- Cuando diga que ya ha pasado lo que espera uno preparado («ya hierve», «ya está el sofrito»), arráncalo con «set_timer» con su mismo nombre y sus minutos. Si no está claro cuál, usa «ask».
 
 Lo que ha visto en vídeo (series, películas, canales de tele), solo de su cuenta: «watch_time», «sessions», «finished» y «halfway».
 - Si pregunta por eso («¿qué capítulo de Friends vi el viernes?», «¿por dónde voy en…?»), contesta a la pregunta, corto, en vez de decir lo que has hecho.
@@ -511,6 +578,34 @@ async function runTool(
 		}
 		case 'play_video':
 			return playVideo(args, ctx);
+		case 'set_timer': {
+			const minutes = Number(args.minutes);
+			if (!Number.isFinite(minutes) || minutes <= 0) return 'Falta cuántos minutos.';
+			const seconds = Math.round(Math.min(minutes * 60, MAX_TIMER_SEC));
+			const label = typeof args.label === 'string' ? args.label.trim().slice(0, 60) : '';
+			ctx.outcome.actions.push({ kind: 'timer', label, seconds });
+			return `Temporizador${label ? ` «${label}»` : ''} de ${seconds} segundos puesto en el dispositivo.`;
+		}
+		case 'prepare_timer': {
+			const minutes = Number(args.minutes);
+			if (!Number.isFinite(minutes) || minutes <= 0) return 'Falta cuántos minutos.';
+			const trigger = typeof args.trigger === 'string' ? args.trigger.trim().slice(0, 100) : '';
+			if (!trigger) return 'Falta cuándo tiene que arrancar.';
+			const seconds = Math.round(Math.min(minutes * 60, MAX_TIMER_SEC));
+			const label = typeof args.label === 'string' ? args.label.trim().slice(0, 60) : '';
+			ctx.outcome.actions.push({ kind: 'prepareTimer', label, seconds, trigger });
+			return `Preparado${label ? ` «${label}»` : ''}: ${seconds} segundos cuando ${trigger}.`;
+		}
+		case 'kitchen_mode':
+			ctx.outcome.actions.push({ kind: 'kitchenMode', on: args.on !== false });
+			return args.on !== false
+				? 'Modo cocina encendido: la pantalla no se apaga.'
+				: 'Modo cocina apagado.';
+		case 'cancel_timer': {
+			const label = typeof args.label === 'string' && args.label.trim() ? args.label.trim() : null;
+			ctx.outcome.actions.push({ kind: 'cancelTimer', label });
+			return label ? `Quitado el temporizador «${label}».` : 'Quitados todos los temporizadores.';
+		}
 		case 'ask': {
 			const options = (Array.isArray(args.options) ? args.options : [])
 				.filter(
@@ -558,6 +653,10 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 			content: [
 				{ type: 'text', text: `[${todayText()}]` },
 				{ type: 'text', text: soundingNow(request.here, house) },
+				{
+					type: 'text',
+					text: `[Temporizadores aquí: ${request.timers.length ? request.timers.join('; ') : 'ninguno'}.]`
+				},
 				...(watchingHere ? [{ type: 'text' as const, text: watchingHere }] : []),
 				{ type: 'text', text: request.text }
 			]

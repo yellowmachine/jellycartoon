@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 
 	/**
@@ -118,4 +119,24 @@
 			disabled={voice.phase !== 'idle'}>Enviar</button
 		>
 	</form>
+
+	<!-- The phone on the kitchen wall: the screen stays on, to see the timers and press here. -->
+	<div class="flex flex-col items-center gap-1">
+		<button
+			class={[
+				'rounded-full border px-4 py-2 text-base',
+				kitchenMode.on
+					? 'border-amber-500 bg-amber-500/15 text-amber-300'
+					: 'border-zinc-700 text-zinc-300 hover:bg-zinc-900'
+			]}
+			aria-pressed={kitchenMode.on}
+			onclick={() => kitchenMode.set(!kitchenMode.on)}
+			>🍳 Modo cocina{kitchenMode.on ? ': pantalla siempre encendida' : ''}</button
+		>
+		{#if kitchenMode.problem}
+			<p class="text-sm text-amber-400">{kitchenMode.problem}</p>
+		{:else if !kitchenMode.on}
+			<p class="text-xs text-zinc-500">Para el móvil en la cocina: la pantalla no se apaga.</p>
+		{/if}
+	</div>
 </div>
