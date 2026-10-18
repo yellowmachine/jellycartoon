@@ -4,6 +4,7 @@ import path from 'node:path';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { episode, series, worker } from '#lib/server/db/schema.ts';
+import { subtitleIfWanted } from '#lib/server/auto-subtitles.ts';
 import {
 	assumeLanguage,
 	languageLabel,
@@ -303,6 +304,8 @@ async function processNext() {
 			`Convertido ${job.sourcePath} (${(size / 1e6).toFixed(1)} MB, audio: ${audioTracks.map((t) => t.lang).join('/') || '—'}, subtítulos: ${subtitles.map((t) => t.lang).join('/') || '—'})`,
 			{ episodeId: job.id, convertSec: activeSeconds() }
 		);
+		// Its subtitles, if Gestión → Subtítulos asks for them for new ones.
+		void subtitleIfWanted('episode', job.id);
 		if (DELETE_SOURCES) await deleteSourceAfterConversion(job);
 	} catch (error) {
 		await rm(partial, { recursive: true, force: true });

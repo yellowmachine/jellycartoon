@@ -1,5 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { autoSubtitleLanguages, setAutoSubtitleLanguages } from '#lib/server/app-settings.ts';
+import { KNOWN_LANGUAGES, languageLabel } from '#lib/languages.ts';
 import {
 	cancelAllQueued,
 	cancelJob,
@@ -12,7 +14,12 @@ import {
 } from '#lib/server/auto-subtitles.ts';
 
 /** Gestión → Subtítulos: the subtitles Whisper makes, all of them in one place. */
-export const load: PageServerLoad = async () => ({ queue: await subtitleQueue() });
+export const load: PageServerLoad = async () => ({
+	queue: await subtitleQueue(),
+	/** New episodes and films get them in these audio languages, once converted or catalogued. */
+	autoLangs: await autoSubtitleLanguages(),
+	knownLanguages: KNOWN_LANGUAGES.map((lang) => ({ lang, label: languageLabel(lang) }))
+});
 
 /** The job a button is about. */
 async function jobId(request: Request) {
@@ -36,5 +43,10 @@ export const actions: Actions = {
 	cancel: onJob(cancelJob),
 	first: onJob(moveJobFirst),
 	retry: onJob(retryJob),
-	dismiss: onJob(dismissJob)
+	dismiss: onJob(dismissJob),
+	autoLangs: async ({ request }) => {
+		const chosen = (await request.formData()).getAll('lang').map(String);
+		await setAutoSubtitleLanguages(KNOWN_LANGUAGES.filter((l) => chosen.includes(l)));
+		return { autoSaved: true };
+	}
 };

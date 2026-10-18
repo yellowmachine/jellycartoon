@@ -3,7 +3,7 @@ import { DELETE_SOURCES } from '$app/env/private';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { episode, series } from '#lib/server/db/schema.ts';
-import { scanLibrary } from '#lib/server/library/scan.ts';
+import type { ScanResult } from '#lib/server/library/scan.ts';
 import {
 	ignoreEpisodes,
 	moveToFront,
@@ -18,6 +18,8 @@ import {
 import { removeSource } from '#lib/server/library/sources.ts';
 import { estimateQueue } from '#lib/server/library/estimate.ts';
 import { forgetMissingEpisodes, missingEpisodes } from '#lib/server/library/delete-episodes.ts';
+import { NIGHTLY_SCAN_HOUR, scanSeries } from '#lib/server/library/nightly.ts';
+import { lastScan } from '#lib/server/app-settings.ts';
 import { fail } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async () => {
@@ -130,14 +132,17 @@ export const load: PageServerLoad = async () => {
 		ignored: failed.filter((e) => e.status === 'ignored'),
 		deleteSources: DELETE_SOURCES,
 		/** Episodes whose file is gone, by series: they can be forgotten. */
-		missing: await missingEpisodes()
+		missing: await missingEpisodes(),
+		/** Folders are also scanned every night at this hour; and how the last scan went. */
+		nightlyHour: NIGHTLY_SCAN_HOUR,
+		lastScan: await lastScan<ScanResult>('series')
 	};
 };
 
 export const actions: Actions = {
 	scan: async () => {
 		try {
-			return { scan: await scanLibrary() };
+			return { scan: await scanSeries() };
 		} catch (error) {
 			return fail(500, { message: error instanceof Error ? error.message : String(error) });
 		}

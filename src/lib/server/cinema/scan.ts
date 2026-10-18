@@ -1,11 +1,12 @@
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { and, eq, notInArray } from 'drizzle-orm';
+import { and, eq, notInArray, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { movie } from '#lib/server/db/schema.ts';
 import { VIDEO_EXTENSIONS } from '#lib/server/library/scan.ts';
 import { cinemaRoot } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
+import { looksUnmounted } from '#lib/scan-safety.ts';
 import { wakeCatalog } from './catalog.ts';
 import { wakeInfo } from './info.ts';
 import { parseMovieName } from './title.ts';
@@ -23,6 +24,8 @@ export interface CinemaScanResult {
 	waiting: number;
 	/** Folders with a disc structure (BDMV, VIDEO_TS), which are skipped. */
 	discs: string[];
+	/** So few films were found that CINEMA_DIR looks unmounted: none was marked missing. */
+	unmounted?: boolean;
 }
 
 async function walk(dir: string, found: { files: string[]; discs: string[] }) {
@@ -111,12 +114,24 @@ async function runScan(): Promise<CinemaScanResult> {
 		}
 	}
 
-	const gone = await db
-		.update(movie)
-		.set({ missing: true })
-		.where(and(eq(movie.missing, false), seen.length ? notInArray(movie.path, seen) : undefined))
-		.returning({ id: movie.id });
-	result.missing = gone.length;
+	const [present] = await db
+		.select({ count: sql<number>`count(*)::int` })
+		.from(movie)
+		.where(eq(movie.missing, false));
+	if (looksUnmounted(seen.length, present?.count ?? 0)) {
+		result.unmounted = true;
+		log.warn(
+			'cine',
+			`Solo ${seen.length} de ${present?.count} películas: ¿carpeta sin montar? No se marca nada como desaparecido`
+		);
+	} else {
+		const gone = await db
+			.update(movie)
+			.set({ missing: true })
+			.where(and(eq(movie.missing, false), seen.length ? notInArray(movie.path, seen) : undefined))
+			.returning({ id: movie.id });
+		result.missing = gone.length;
+	}
 
 	log.info(
 		'cine',

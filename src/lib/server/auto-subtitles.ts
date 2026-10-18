@@ -2,7 +2,11 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { and, asc, desc, eq, inArray, isNotNull, max, min, notInArray, sql } from 'drizzle-orm';
-import { setSubtitlesPaused, subtitlesPaused } from '#lib/server/app-settings.ts';
+import {
+	autoSubtitleLanguages,
+	setSubtitlesPaused,
+	subtitlesPaused
+} from '#lib/server/app-settings.ts';
 import { db } from '#lib/server/db/index.ts';
 import {
 	episode,
@@ -156,6 +160,35 @@ export async function requestSubtitles(kind: SubtitleKind, id: number, lang: str
 	});
 	if (added) wake?.();
 	return added;
+}
+
+/**
+ * For one just converted or catalogued: into the queue if it has audio, without subtitles of its
+ * own, in one of the languages Gestión asks new ones to get them in (the first of them it has).
+ */
+export async function subtitleIfWanted(kind: SubtitleKind, id: number) {
+	if (!voiceEnabled) return;
+	try {
+		const langs = await autoSubtitleLanguages();
+		if (!langs.length) return;
+		const [item] =
+			kind === 'episode'
+				? await db
+						.select({ audioTracks: episode.audioTracks, subtitles: episode.subtitles })
+						.from(episode)
+						.where(eq(episode.id, id))
+				: await db
+						.select({ audioTracks: movie.audioTracks, subtitles: movie.subtitles })
+						.from(movie)
+						.where(eq(movie.id, id));
+		if (!item) return;
+		const missing = new Set(tracksWithoutSubtitles(item).map((t) => t.lang));
+		const lang = langs.find((l) => missing.has(l));
+		if (lang && (await requestSubtitles(kind, id, lang)))
+			log.info('subtitulos', `En cola, por ser nuevo: ${kind} ${id} (${lang})`);
+	} catch (error) {
+		log.error('subtitulos', 'No se pudieron pedir los subtítulos de lo nuevo', { kind, id, error });
+	}
 }
 
 /** Takes these out of the queue, if they are waiting; how many were. The one being made goes on. */

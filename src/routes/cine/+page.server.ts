@@ -6,7 +6,7 @@ import { movie, movieInfo, movieProgress, movieTitle } from '#lib/server/db/sche
 import { wakeCatalog } from '#lib/server/cinema/catalog.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { play, rename, setWatched } from '#lib/server/cinema/film-actions.ts';
-import { scanCinema } from '#lib/server/cinema/scan.ts';
+import { scanFilms } from '#lib/server/library/nightly.ts';
 import { cinemaRoot, hostMoviePath } from '#lib/server/library/paths.ts';
 import { allowedMovies } from '#lib/server/kids.ts';
 
@@ -67,7 +67,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 export const actions: Actions = {
 	scan: async () => {
 		try {
-			return { scan: await scanCinema() };
+			return { scan: await scanFilms() };
 		} catch (err) {
 			return fail(500, { message: err instanceof Error ? err.message : String(err) });
 		}

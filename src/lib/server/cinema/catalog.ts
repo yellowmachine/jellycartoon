@@ -6,6 +6,7 @@ import { movie } from '#lib/server/db/schema.ts';
 import { describeChapters, describeStreams, probe, thumbnail } from '#lib/server/library/ffmpeg.ts';
 import { movieFile, movieThumbFile } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
+import { subtitleIfWanted } from '#lib/server/auto-subtitles.ts';
 
 let running: Promise<void> | null = null;
 
@@ -57,6 +58,8 @@ async function catalogPending() {
 				})
 				.where(eq(movie.id, next.id));
 			log.info('cine', `Catalogada ${next.path}`, { movieId: next.id });
+			// Its subtitles, if Gestión → Subtítulos asks for them for new ones.
+			void subtitleIfWanted('film', next.id);
 		} catch (error) {
 			await db
 				.update(movie)
