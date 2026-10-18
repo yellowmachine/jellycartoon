@@ -488,6 +488,9 @@ export const userSettings = pgTable('user_settings', {
 	theme: text('theme').notNull().default('jellycartoon'),
 	/** What an adult watches is kept in watch_time, for them to ask about; a child's, always. */
 	keepHistory: boolean('keep_history').notNull().default(true),
+	/** Langua, the language app: where to send audio clips (`send_clip` in voice commands), and its token. */
+	languaUrl: text('langua_url'),
+	languaToken: text('langua_token'),
 	/** Where "add to list" on a series page puts episodes. */
 	activeListId: integer('active_list_id').references(() => userList.id, { onDelete: 'set null' })
 });

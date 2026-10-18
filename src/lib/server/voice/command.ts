@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { voiceModel } from '#lib/server/app-settings.ts';
 import { searchVideo, seriesEpisodes } from '#lib/server/voice/video.ts';
+import { MAX_CLIP_MINUTES, sendClip } from '#lib/server/langua.ts';
 import { playEpisodes, seriesQueue } from '#lib/server/cinema/episode-actions.ts';
 import { playFilm } from '#lib/server/cinema/film-actions.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
@@ -139,6 +140,22 @@ function tools(house: boolean): Tool[] {
 				]
 			: []),
 		fn(
+			'send_clip',
+			`Manda a Langua (su app de idiomas) el audio de los últimos minutos del capítulo o la película que está viendo, con lo que se dice (los subtítulos). No sirve para la radio ni los canales en directo, ni para la música.`,
+			{
+				minutes: {
+					type: 'number',
+					description: `Cuántos minutos hacia atrás, hasta ${MAX_CLIP_MINUTES}.`
+				},
+				language: {
+					type: 'string',
+					description:
+						'El idioma del audio, ISO 639-2 («eng», «spa»…), solo si lo pide; si no, el de sus ajustes.'
+				}
+			},
+			['minutes']
+		),
+		fn(
 			'search_video',
 			'Busca series y películas por el título (también el original de las películas). Da sus ids y si cada película está vista o a medias. Busca por cómo suena: el reconocimiento de voz escribe mal los nombres.',
 			{ query: { type: 'string', description: 'El título, o parte, p. ej. «friends».' } },
@@ -237,6 +254,8 @@ Cómo responder:
 Lo que ha visto en vídeo (series, películas, canales de tele), solo de su cuenta: «watch_time», «sessions», «finished» y «halfway».
 - Si pregunta por eso («¿qué capítulo de Friends vi el viernes?», «¿por dónde voy en…?»), contesta a la pregunta, corto, en vez de decir lo que has hecho.
 - Si quiere volver a verlo, búscalo con esas herramientas y ponlo con «play_video». Si no dice dónde, aquí${mpvEnabled ? '; una película, en el salón' : ''}.
+
+Langua: «manda los últimos 5 minutos a Langua», «guárdame esto para estudiar» → «send_clip». Sin minutos, 2. Dile qué se ha mandado, corto.
 
 Series y películas: «search_video» para encontrarlas, «series_episodes» para elegir capítulo, «play_video» para ponerlas.
 - «Pon Friends»: el capítulo que tenga a medias, o el siguiente al último visto; si no ha visto ninguno, el primero.
@@ -450,6 +469,14 @@ async function runTool(
 			const to = Math.round(Math.min(Math.max(value, 0), 100));
 			await controlSnapcast({ action: 'masterVolume', value: to });
 			return `Volumen de la casa de ${now} a ${to}.`;
+		}
+		case 'send_clip': {
+			const minutes = Number(args.minutes);
+			if (!Number.isFinite(minutes) || minutes <= 0) return 'Faltan los minutos.';
+			return sendClip(ctx.user.id, {
+				minutes,
+				language: typeof args.language === 'string' ? args.language : null
+			});
 		}
 		case 'search_video':
 			return typeof args.query === 'string' && args.query.trim()
