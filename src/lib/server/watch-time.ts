@@ -3,6 +3,7 @@ import { db } from '#lib/server/db/index.ts';
 import { watchTime } from '#lib/server/db/schema.ts';
 import { isKidAccount } from '#lib/server/kids.ts';
 import { keepsHistory } from '#lib/server/settings.ts';
+import { noteWatching } from '#lib/server/live-watching.ts';
 import { log } from '#lib/server/log.ts';
 import { today } from '#lib/server/playlist.ts';
 import { WatchSteps } from '#lib/server/watch-steps.ts';
@@ -39,15 +40,21 @@ function slotNow() {
 /** Where playing goes on: `salon` for mpv, the browser's session id for the app. */
 export type Source = string;
 
-/** `positionSec`: where playing is now, before a finished one goes back to 0. */
+/**
+ * `positionSec`: where playing is now, before a finished one goes back to 0. `device`: where, as
+ * the adults see it in /infantil's «Ahora» (a child's only).
+ */
 export async function addWatchTime(
 	userId: string,
 	target: Target,
 	positionSec: number,
-	source: Source
+	source: Source,
+	device: string
 ) {
 	try {
-		if (!(await isKidAccount(userId)) && !(await keepsHistory(userId))) return;
+		const kid = await isKidAccount(userId);
+		if (kid) noteWatching(userId, target, positionSec, device);
+		if (!kid && !(await keepsHistory(userId))) return;
 		const step = steps.step(`${userId}:${keyOf(target)}:${source}`, positionSec);
 		if (!step) return;
 

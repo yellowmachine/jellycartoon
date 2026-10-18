@@ -23,6 +23,7 @@ import { parseClock, type Slot } from '#lib/kid-time.ts';
 import { today } from '#lib/server/playlist.ts';
 import { continueWatching } from '#lib/server/watching.ts';
 import { CHANNELS } from '#lib/channels.ts';
+import { watchingNow } from '#lib/server/live-watching.ts';
 
 /** Days in the chart, today included. */
 const DAYS = 7;
@@ -50,7 +51,9 @@ export const load: PageServerLoad = async () => {
 		/** Questions to the AI about what they watch, with a key for OpenRouter. */
 		ai: Boolean((await openRouterConfig()).apiKey),
 		days: Array.from({ length: DAYS }, (_, i) => daysBefore(day, DAYS - 1 - i)),
-		kids: await Promise.all(kids.map(async (kid) => ({ ...kid, ...(await stats(kid.id, from)) })))
+		kids: await Promise.all(kids.map(async (kid) => ({ ...kid, ...(await stats(kid.id, from)) }))),
+		/** What they are watching right now; the page asks again every few seconds. */
+		watchingNow: await watchingNow(kids.map((k) => k.id))
 	};
 };
 

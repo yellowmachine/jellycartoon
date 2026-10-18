@@ -9,6 +9,8 @@
 	import { subtitleCss, type SubtitleStyle } from '#lib/subtitle-style.ts';
 	import { thumbChanged, thumbUrl } from '#lib/thumb.svelte.ts';
 	import { videoHere } from '#lib/video-here.svelte.ts';
+	import { shownDeviceName } from '#lib/device-name.svelte.ts';
+	import { page } from '$app/state';
 	import SubtitleStylePanel from './SubtitleStylePanel.svelte';
 	import {
 		PLAYER_SIZES,
@@ -278,7 +280,9 @@
 			body: JSON.stringify({
 				episodeId,
 				positionSec: video.currentTime,
-				durationSec: video.duration
+				durationSec: video.duration,
+				// Where, for a child's: /infantil says «Lucía está viendo… en el móvil».
+				device: shownDeviceName(page.url.pathname.startsWith('/tv'))
 			})
 		})
 			.catch(() => null)
