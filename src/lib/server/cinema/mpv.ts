@@ -355,7 +355,7 @@ async function ended(entryId: number, reason: string) {
 async function save(entry: Playing, reachedEnd: boolean) {
 	const completed =
 		reachedEnd || Boolean(entry.durationSec && entry.positionSec / entry.durationSec > 0.92);
-	await addWatchTime(entry.userId, entry.target, entry.positionSec);
+	await addWatchTime(entry.userId, entry.target, entry.positionSec, 'salon');
 	if ('episodeId' in entry.target) {
 		const { episodeId } = entry.target;
 		// Also ticks it off today's playlist and the user's lists.
@@ -386,7 +386,8 @@ function startSaving() {
 			void addWatchTime(
 				channel.userId,
 				{ channelId: channel.channel.id },
-				channel.positionSec
+				channel.positionSec,
+				'salon'
 			).then(() => stopIfClosed(channel.userId));
 	}, SAVE_MS);
 	saveTimer.unref();
