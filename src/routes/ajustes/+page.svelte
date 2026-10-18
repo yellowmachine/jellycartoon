@@ -150,7 +150,8 @@
 			<p class="mb-4 text-sm text-zinc-400">
 				Tu app de idiomas. {data.voice
 					? 'Desde Hablar se le manda el audio de lo que estás viendo, con su texto: «manda los últimos 5 minutos a Langua».'
-					: 'Se le manda el audio de lo que estás viendo, con su texto.'} El token se crea en Langua.
+					: 'Se le manda el audio de lo que estás viendo, con su texto.'} El token se crea en Langua,
+				en Mi cuenta → Integraciones.
 			</p>
 			<form
 				method="post"
@@ -177,7 +178,7 @@
 					autocomplete="off"
 					placeholder={data.langua.tokenHint
 						? `Guardado (${data.langua.tokenHint}): escribe otro para cambiarlo`
-						: 'El de Langua'}
+						: 'lng_…'}
 					class="{select} font-mono"
 				/>
 				<div class="flex flex-wrap items-center gap-3 sm:col-start-2">

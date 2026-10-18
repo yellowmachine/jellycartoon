@@ -106,6 +106,21 @@ const headers = (config: LanguaConfig) => ({
 	'User-Agent': 'JellyCartoon'
 });
 
+/** Langua's tokens (`lng_…`) are made there: what to do when one is refused. */
+const TOKEN_REFUSED =
+	'Langua no acepta el token: crea uno nuevo en Langua, en Mi cuenta → Integraciones, y ponlo en Ajustes.';
+
+/**
+ * Why Langua said no, to be read aloud: its own words for what it refuses (4xx, short and in
+ * Spanish), a generic sentence for its own failures (5xx, whose body says nothing useful).
+ */
+async function refusal(res: Response) {
+	if (res.status === 401 || res.status === 403) return TOKEN_REFUSED;
+	if (res.status >= 500) return `Langua ha fallado (${res.status}). Prueba otra vez más tarde.`;
+	const body = await res.json().catch(() => null);
+	return `Langua no lo aceptó: ${body?.message ?? `${res.status} ${res.statusText}`}`;
+}
+
 /** Null if Langua accepts the token; otherwise why not, to show in Ajustes. */
 export async function pingLangua(config: LanguaConfig) {
 	const res = await fetch(`${config.url}/api/v1/ping`, {
@@ -113,9 +128,7 @@ export async function pingLangua(config: LanguaConfig) {
 		signal: AbortSignal.timeout(10_000)
 	}).catch((err) => err as Error);
 	if (res instanceof Error) return `No se pudo conectar con Langua: ${res.message}`;
-	if (res.status === 401 || res.status === 403) return 'Langua no acepta el token';
-	if (!res.ok) return `Langua respondió ${res.status} ${res.statusText}`;
-	return null;
+	return res.ok ? null : refusal(res);
 }
 
 /** The episode or film the user played last, if it was a moment ago, and up to where. */
@@ -249,13 +262,15 @@ export async function sendClip(
 		} else {
 			const input = movieFile(watching.path);
 			const info = await cachedProbe(watching.id, input);
-			const [lang, sub] = await inTurn(() =>
-				Promise.all([
-					audioClip(input, output, { atSec: startSec, seconds, info, audioLang: wanted }),
-					subtitleClip(input, info, { atSec: startSec, seconds, lang: wanted })
-				])
+			// One after the other: the subtitles, in the language of the track used, which may not
+			// be the one asked for. Langua only takes them as the text in that language.
+			const lang = await inTurn(() =>
+				audioClip(input, output, { atSec: startSec, seconds, info, audioLang: wanted })
 			);
 			language = lang ?? 'und';
+			const sub = await inTurn(() =>
+				subtitleClip(input, info, { atSec: startSec, seconds, lang: language })
+			);
 			if (sub)
 				subtitles = { cues: cuesBetween(parseVtt(sub.vtt), startSec, endSec), lang: sub.lang };
 		}
@@ -264,7 +279,8 @@ export async function sendClip(
 		const metadata: ClipMetadata = {
 			source: 'jellycartoon',
 			kind: watching.kind,
-			title: watching.title,
+			// Langua takes 1 to 300 characters.
+			title: (watching.title.trim() || 'Sin título').slice(0, 300),
 			series: watching.kind === 'episode' ? watching.seriesTitle : null,
 			season: watching.kind === 'episode' ? watching.season : null,
 			episode: watching.kind === 'episode' ? watching.number : null,
@@ -286,13 +302,12 @@ export async function sendClip(
 			body: form,
 			signal: AbortSignal.timeout(60_000)
 		}).catch((err) => err as Error);
-		if (res instanceof Error) return `No se pudo conectar con Langua: ${res.message}`;
-		if (res.status === 401 || res.status === 403)
-			return 'Langua no acepta el token: hay que cambiarlo en Ajustes.';
-		if (!res.ok) {
-			const body = await res.json().catch(() => null);
-			return `Langua no lo aceptó: ${body?.message ?? `${res.status} ${res.statusText}`}`;
-		}
+		// Langua does not tell a resent clip from a new one: never sent again by itself.
+		if (res instanceof Error)
+			return res.name === 'TimeoutError'
+				? 'Langua no ha contestado a tiempo. Puede que sí haya llegado: míralo en Langua antes de mandarlo otra vez.'
+				: `No se pudo conectar con Langua: ${res.message}`;
+		if (!res.ok) return refusal(res);
 
 		const name =
 			watching.kind === 'episode'
@@ -305,7 +320,14 @@ export async function sendClip(
 			language,
 			transcript: Boolean(metadata.transcript)
 		});
-		return `Mandado a Langua: ${name}, de ${clock(startSec)} a ${clock(endSec)} (${Math.round(seconds / 60)} min), audio en ${language}${metadata.transcript ? `, con el texto (subtítulos en ${metadata.transcriptLanguage})` : ', sin texto (no tiene subtítulos)'}.`;
+		// Langua takes the subtitles as the text only in the audio's language; otherwise it
+		// transcribes the audio itself, and keeps them as a translation.
+		const text = !metadata.transcript
+			? 'sin subtítulos: Langua lo transcribirá'
+			: metadata.transcriptLanguage === language && language !== 'und'
+				? 'con el texto de los subtítulos'
+				: `Langua lo transcribirá, y los subtítulos (en ${metadata.transcriptLanguage}) quedan como traducción`;
+		return `Mandado a Langua: ${name}, de ${clock(startSec)} a ${clock(endSec)} (${Math.round(seconds / 60)} min), audio en ${language}, ${text}.`;
 	} catch (err) {
 		log.error('langua', 'No se pudo hacer el clip', { userId, error: err });
 		return `No se pudo hacer el clip: ${err instanceof Error ? err.message : String(err)}`;
