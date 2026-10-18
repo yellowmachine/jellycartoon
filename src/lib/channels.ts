@@ -92,6 +92,30 @@ export const CHANNELS: Channel[] = [
 		url: 'https://live.france24.com/hls/live/2037218/F24_EN_HI_HLS/master_5000.m3u8'
 	},
 	{
+		id: 'cbs-news',
+		name: 'CBS News',
+		description: 'American news, around the clock',
+		url: 'https://cbsn-us.cbsnstream.cbsnews.com/out/v1/55a8648e8f134e82a470f83d562deeca/master.m3u8'
+	},
+	{
+		id: 'bloomberg-us',
+		name: 'Bloomberg',
+		description: 'Business and markets, from New York',
+		url: 'https://www.bloomberg.com/media-manifest/streams/us.m3u8'
+	},
+	{
+		id: 'cheddar',
+		name: 'Cheddar',
+		description: 'Tech, business and culture news',
+		url: 'https://hls.livecdn.io/cheddar.com/cheddar/playlist.m3u8'
+	},
+	{
+		id: 'abc-news-au',
+		name: 'ABC News Australia',
+		description: 'Australian public news, with English subtitles',
+		url: 'https://abc-news-dmd-streams-1.akamaized.net/out/v1/abc83881886746b0802dc3e7ca2bc792/index.m3u8'
+	},
+	{
 		id: 'france24-fr',
 		name: 'France 24 Français',
 		description: "L'actualité internationale, depuis Paris",
