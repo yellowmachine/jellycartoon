@@ -9,9 +9,13 @@ const PARALLEL = 3;
 let active = 0;
 const waiting: (() => void)[] = [];
 
-/** Also for the frames of episodes the AI looks at. */
-export async function inTurn<T>(work: () => Promise<T>): Promise<T> {
-	if (active >= PARALLEL) await new Promise<void>((resolve) => waiting.push(resolve));
+/**
+ * Also for the frames of episodes the AI looks at. With `signal`, given up while waiting when it
+ * is aborted, e.g. the browser no longer wants the frame: its turn goes to the next one.
+ */
+export async function inTurn<T>(work: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+	signal?.throwIfAborted();
+	if (active >= PARALLEL) await turn(signal);
 	active++;
 	try {
 		return await work();
@@ -19,6 +23,21 @@ export async function inTurn<T>(work: () => Promise<T>): Promise<T> {
 		active--;
 		waiting.shift()?.();
 	}
+}
+
+function turn(signal?: AbortSignal) {
+	return new Promise<void>((resolve, reject) => {
+		const go = () => {
+			signal?.removeEventListener('abort', leave);
+			resolve();
+		};
+		const leave = () => {
+			waiting.splice(waiting.indexOf(go), 1);
+			reject(signal!.reason);
+		};
+		waiting.push(go);
+		signal?.addEventListener('abort', leave, { once: true });
+	});
 }
 
 /** The streams of the last films looked at: the 20 frames of a view need the same probe. */
@@ -35,8 +54,16 @@ export function cachedProbe(movieId: number, file: string) {
 	return cached;
 }
 
-/** A frame of the film at `atSec`, as a JPEG; `null` if there is no such film or moment. */
-export async function movieFrame(movieId: number, atSec: number, width: number) {
+/**
+ * A frame of the film at `atSec`, as a JPEG; `null` if there is no such film or moment. With
+ * `signal`, not made, or its ffmpeg killed, once nobody wants it.
+ */
+export async function movieFrame(
+	movieId: number,
+	atSec: number,
+	width: number,
+	signal?: AbortSignal
+) {
 	const [film] = await db
 		.select({ path: movie.path, durationSec: movie.durationSec, status: movie.status })
 		.from(movie)
@@ -44,5 +71,8 @@ export async function movieFrame(movieId: number, atSec: number, width: number) 
 	if (!film || film.status !== 'ready' || !film.durationSec || atSec > film.durationSec)
 		return null;
 	const file = movieFile(film.path);
-	return inTurn(async () => frame(file, await cachedProbe(movieId, file), atSec, width));
+	return inTurn(
+		async () => frame(file, await cachedProbe(movieId, file), atSec, width, false, signal),
+		signal
+	);
 }

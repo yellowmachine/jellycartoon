@@ -308,12 +308,22 @@ function frameFilters(info: Probe, width: number) {
 	];
 }
 
+/** A frame that takes longer has ffmpeg stuck: it is killed, so its turn is not taken forever. */
+const FRAME_TIMEOUT_MS = 60_000;
+
 /**
  * A frame of a video file, kept in memory (nothing is written to disk). Never frozen with the
  * worker: someone is waiting for it. `fromStart`: decodes up to `atSec` instead of seeking, for our
- * HLS output (see `thumbnail`).
+ * HLS output (see `thumbnail`). `signal`: ffmpeg is killed when it is aborted.
  */
-export function frame(input: string, info: Probe, atSec: number, width: number, fromStart = false) {
+export function frame(
+	input: string,
+	info: Probe,
+	atSec: number,
+	width: number,
+	fromStart = false,
+	signal?: AbortSignal
+) {
 	const seek = ['-ss', atSec.toFixed(2)];
 	return new Promise<Buffer>((resolve, reject) => {
 		const child = spawn(
@@ -338,7 +348,14 @@ export function frame(input: string, info: Probe, atSec: number, width: number, 
 				'mjpeg',
 				'pipe:1'
 			],
-			{ stdio: ['ignore', 'pipe', 'pipe'] }
+			{
+				stdio: ['ignore', 'pipe', 'pipe'],
+				signal: AbortSignal.any([
+					AbortSignal.timeout(FRAME_TIMEOUT_MS),
+					...(signal ? [signal] : [])
+				]),
+				killSignal: 'SIGKILL'
+			}
 		);
 		const chunks: Buffer[] = [];
 		let stderr = '';
