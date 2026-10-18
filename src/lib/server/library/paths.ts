@@ -52,6 +52,11 @@ export const movieThumbFile = (movieId: number) =>
 
 /** Clips of films to watch in the browser, made when asked for; only the last ones are kept. */
 export const movieClipDir = path.join(dataRoot, 'movie-clip');
+/** Subtitles made by Whisper for a film (its own are inside its file). */
+export const movieSubsDir = (movieId: number) => path.join(dataRoot, 'movie-subs', String(movieId));
+/** One of them as a path on the host, for mpv. */
+export const hostMovieSubFile = (movieId: number, file: string) =>
+	hostDataRoot && path.join(hostDataRoot, 'movie-subs', String(movieId), file);
 
 /** CINEMA_DIR as the host sees it, which is how mpv names the files. */
 export const hostCinemaRoot = dev ? cinemaRoot : (HOST_CINEMA_DIR ?? null);

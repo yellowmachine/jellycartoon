@@ -12,6 +12,13 @@ import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { cinemaRoot, hostMoviePath } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 import { addMovieTag, getTags, movieTags, removeMovieTag, tagName } from '#lib/server/tags.ts';
+import {
+	filmAutoSubtitles,
+	requestSubtitles,
+	subtitleJob,
+	tracksWithoutSubtitles
+} from '#lib/server/auto-subtitles.ts';
+import { voiceEnabled } from '#lib/server/voice/whisper.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	if (!cinemaRoot) error(404, 'No hay carpeta de películas (CINEMA_DIR)');
@@ -40,11 +47,12 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		)
 		.where(and(eq(movie.id, id), eq(movie.missing, false)));
 	if (!film) error(404, 'Película no encontrada');
-	const [chat, { apiKey }, tags, allTags] = await Promise.all([
+	const [chat, { apiKey }, tags, allTags, autoSubtitles] = await Promise.all([
 		chatHistory(locals.user!.id, id),
 		chatConfig(),
 		movieTags(id),
-		getTags()
+		getTags(),
+		filmAutoSubtitles(id)
 	]);
 
 	return {
@@ -55,6 +63,17 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		/** Talking about the film needs an OpenRouter key. */
 		canChat: Boolean(apiKey),
 		naming: namingState(id),
+		/**
+		 * Subtitles made by Whisper (only with it, WHISPER_URL), which mpv adds: those there are,
+		 * whether the film has audio in a language without its own, and how the last request goes.
+		 */
+		autoSubtitles: voiceEnabled
+			? {
+					made: autoSubtitles,
+					languages: film.status === 'ready' ? tracksWithoutSubtitles(film) : [],
+					job: subtitleJob('film', id)
+				}
+			: null,
 		film: { ...film, hostPath: hostMoviePath(film.path) },
 		mpv: mpvEnabled,
 		// Saved: in the page itself. The first time it is streamed: the page shows at once and the
@@ -109,6 +128,12 @@ export const actions: Actions = {
 	/** Name the chapters with the AI, in the background: the page asks until it is done. */
 	nameScenes: async ({ params }) => {
 		startNaming(Number(params.id));
+	},
+	/** In the background: the page follows how it goes (`autoSubtitles.job`). */
+	autoSubtitles: async ({ params, request }) => {
+		if (!voiceEnabled) return fail(400, { message: 'No hay Whisper configurado (WHISPER_URL)' });
+		const lang = String((await request.formData()).get('lang') ?? '');
+		requestSubtitles('film', Number(params.id), lang);
 	},
 	/** Look it up again from scratch, e.g. after setting an OpenRouter key. */
 	refresh: async ({ params }) => {

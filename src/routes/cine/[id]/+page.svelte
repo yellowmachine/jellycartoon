@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
+	import { poll } from '#lib/poll.ts';
 	import BirdsEye from '#lib/components/BirdsEye.svelte';
 	import FilmChat from '#lib/components/FilmChat.svelte';
 	import Scenes from '#lib/components/Scenes.svelte';
@@ -10,6 +12,13 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+
+	const subtitlesJob = $derived(data.autoSubtitles?.job ?? null);
+	// While Whisper makes subtitles, the page follows how it goes.
+	$effect(() => {
+		if (subtitlesJob?.state !== 'queued' && subtitlesJob?.state !== 'running') return;
+		return poll(invalidateAll, 3000);
+	});
 
 	const film = $derived(data.film);
 	const ready = $derived(film.status === 'ready');
@@ -334,7 +343,36 @@
 		<dt class="text-zinc-400">Audio</dt>
 		<dd>{film.audioTracks.map((t) => t.label).join(', ') || '—'}</dd>
 		<dt class="text-zinc-400">Subtítulos</dt>
-		<dd>{film.subtitles.map((t) => t.label).join(', ') || 'Ninguno'}</dd>
+		<dd>
+			{[...film.subtitles, ...(data.autoSubtitles?.made ?? [])].map((t) => t.label).join(', ') ||
+				'Ninguno'}
+			<!-- Whisper's, for what has none in the language of its audio: mpv adds them. -->
+			{#if data.autoSubtitles && !data.kid}
+				{#if subtitlesJob?.state === 'queued'}
+					<span class="block text-zinc-400">Subtítulos automáticos: esperando turno…</span>
+				{:else if subtitlesJob?.state === 'running'}
+					<span class="block text-zinc-400">
+						Haciendo subtítulos… {subtitlesJob.total
+							? `${Math.round((subtitlesJob.done / subtitlesJob.total) * 100)} %`
+							: ''}
+					</span>
+				{:else if data.autoSubtitles.languages.length}
+					{#if subtitlesJob?.state === 'failed'}
+						<span class="block text-red-400">No se pudieron hacer: {subtitlesJob.message}</span>
+					{/if}
+					<!-- One per language: with eight tracks, only the one watched is worth the work. -->
+					<form method="post" action="?/autoSubtitles" use:enhance class="mt-1">
+						<span class="text-zinc-400">Hacer automáticos en</span>
+						{#each data.autoSubtitles.languages as language, i (language.lang)}
+							{#if i},{/if}
+							<button name="lang" value={language.lang} class="text-amber-400 hover:underline"
+								>{language.label}</button
+							>
+						{/each}
+					</form>
+				{/if}
+			{/if}
+		</dd>
 		<dt class="text-zinc-400">Fichero</dt>
 		<dd class="font-mono text-xs break-all">{film.path} · {formatBytes(film.size)}</dd>
 	</dl>

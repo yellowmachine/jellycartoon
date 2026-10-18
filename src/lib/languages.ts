@@ -25,6 +25,15 @@ const LABELS: Record<string, string> = {
 /** The languages with a name, to choose from in Ajustes. */
 export const KNOWN_LANGUAGES = Object.keys(LABELS);
 
+/**
+ * The ISO 639-1 code (`en`) Whisper takes for a language, or `auto` for it to find out: for one
+ * without a two-letter alias here, or untagged (`und`).
+ */
+export function whisperLanguage(code: string | null | undefined) {
+	const lang = normalizeLang(code);
+	return Object.keys(ALIASES).find((k) => k.length === 2 && ALIASES[k] === lang) ?? 'auto';
+}
+
 /** Normalizes `en`, `en-US`, `eng`… to an ISO 639-2 code (`eng`). */
 export function normalizeLang(code: string | null | undefined) {
 	const base = (code ?? '').toLowerCase().split(/[-_]/)[0];

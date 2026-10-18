@@ -16,6 +16,12 @@ import { parseView, viewCookie } from '#lib/views.ts';
 import { addSeriesTag, getTags, removeSeriesTag, seriesTags, tagName } from '#lib/server/tags.ts';
 import { playEpisodes, seriesQueue } from '#lib/server/cinema/episode-actions.ts';
 import {
+	requestSubtitles,
+	subtitleJob,
+	tracksWithoutSubtitles
+} from '#lib/server/auto-subtitles.ts';
+import { voiceEnabled } from '#lib/server/voice/whisper.ts';
+import {
 	chooseSeries,
 	forgetSeries,
 	identifySeries,
@@ -87,7 +93,20 @@ export const load: PageServerLoad = async ({ params, locals, cookies }) => {
 	]);
 
 	const seasons = Map.groupBy(
-		episodes.map((e) => ({ ...e, playlist: e.status === 'ready' ? hostPlaylist(e.id) : null })),
+		episodes.map((e) => ({
+			...e,
+			playlist: e.status === 'ready' ? hostPlaylist(e.id) : null,
+			/**
+			 * Subtitles Whisper can make (only with it, WHISPER_URL): the languages of its audio
+			 * without subtitles of their own, and how the last request is going.
+			 */
+			autoSubtitles: voiceEnabled
+				? {
+						languages: e.status === 'ready' ? tracksWithoutSubtitles(e) : [],
+						job: subtitleJob('episode', e.id)
+					}
+				: null
+		})),
 		(e) => e.season
 	);
 	return {
@@ -230,6 +249,14 @@ export const actions: Actions = {
 		const ep = await seriesEpisode(params.id, await request.formData());
 		if (!ep) return fail(400, { message: 'Capítulo no válido' });
 		await ignoreEpisodes([ep.id]);
+	},
+	/** In the background: the page follows how it goes (`autoSubtitles.job`). */
+	autoSubtitles: async ({ params, request }) => {
+		if (!voiceEnabled) return fail(400, { message: 'No hay Whisper configurado (WHISPER_URL)' });
+		const form = await request.formData();
+		const ep = await seriesEpisode(params.id, form);
+		if (!ep || ep.status !== 'ready') return fail(400, { message: 'Capítulo no válido' });
+		requestSubtitles('episode', ep.id, String(form.get('lang') ?? ''));
 	},
 	regenerateThumbnail: async ({ params, request }) => {
 		const ep = await seriesEpisode(params.id, await request.formData());

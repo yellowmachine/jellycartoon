@@ -1,4 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { readdir } from 'node:fs/promises';
+import path from 'node:path';
 import { setPriority } from 'node:os';
 import { AUDIO_LANG, X264_CRF, X264_PRESET } from '$app/env/private';
 import { languageLabel, normalizeLang, type AudioTrack } from '#lib/languages.ts';
@@ -549,6 +551,49 @@ export async function audioClip(
 			`ffmpeg sacó ${duration ? `${Math.round(duration)} s` : 'un audio vacío'} en vez de ${options.seconds} s`
 		);
 	return audio ? normalizeLang(audio.tags?.language) : null;
+}
+
+/**
+ * An audio track as WAV pieces of `chunkSec` (16 kHz mono, what Whisper wants), in `outDir`: one
+ * pass over the file, and the pieces in order. `audio`: which audio track, in order (a film's);
+ * an episode's rendition has only its own, the first.
+ */
+export async function speechChunks(
+	input: string,
+	outDir: string,
+	options: { chunkSec: number; audio?: number; signal?: AbortSignal }
+) {
+	await run(
+		'ffmpeg',
+		[
+			'-hide_banner',
+			'-nostats',
+			'-y',
+			'-i',
+			input,
+			'-map',
+			`0:a:${options.audio ?? 0}`,
+			'-vn',
+			'-sn',
+			'-dn',
+			'-ac',
+			'1',
+			'-ar',
+			'16000',
+			'-c:a',
+			'pcm_s16le',
+			'-f',
+			'segment',
+			'-segment_time',
+			String(options.chunkSec),
+			path.join(outDir, 'trozo_%05d.wav')
+		],
+		{ signal: options.signal, pausable: false }
+	);
+	return (await readdir(outDir))
+		.filter((f) => /^trozo_\d+\.wav$/.test(f))
+		.sort()
+		.map((f) => path.join(outDir, f));
 }
 
 /** Seeking lands on the keyframe before: read from earlier, so no cue of the stretch is missed. */

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { snapshot } from '$app/navigation';
+	import { invalidateAll, snapshot } from '$app/navigation';
 	import { SvelteSet } from 'svelte/reactivity';
 	import DeleteEpisodesDialog from '#lib/components/DeleteEpisodesDialog.svelte';
 	import EpisodeMenu from '#lib/components/EpisodeMenu.svelte';
@@ -11,10 +11,22 @@
 	import { saveView } from '#lib/views.ts';
 	import { formatBytes, formatDuration } from '#lib/format.ts';
 	import { languageLabel, normalizeLang } from '#lib/languages.ts';
+	import { poll } from '#lib/poll.ts';
 	import { thumbUrl } from '#lib/thumb.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+
+	// While Whisper makes subtitles, the page follows how it goes.
+	const makingSubtitles = $derived(
+		data.seasons.some((s) =>
+			s.episodes.some((e) => e.autoSubtitles?.job && e.autoSubtitles.job.state !== 'failed')
+		)
+	);
+	$effect(() => {
+		if (!makingSubtitles) return;
+		return poll(invalidateAll, 3000);
+	});
 	/** From the cookie; changed here at once when an icon is clicked. */
 	let view = $derived(data.view);
 	let grid = $derived(view === 'grid');
@@ -398,8 +410,15 @@
 							<p class={grid ? 'line-clamp-2 text-sm' : 'truncate'}>{ep.number}. {ep.title}</p>
 							<p class="text-xs text-zinc-400">
 								{#if ready}
+									{@const subs = ep.autoSubtitles?.job}
 									{formatDuration(ep.durationSec)}{#if ep.completed}
-										· visto{/if}
+										· visto{/if}{#if subs?.state === 'queued'}
+										· subtítulos en cola{:else if subs?.state === 'running'}
+										· haciendo subtítulos… {subs.total
+											? `${Math.round((subs.done / subs.total) * 100)}%`
+											: ''}{:else if subs?.state === 'failed'}
+										· <span class="text-red-400" title={subs.message}>subtítulos fallidos</span
+										>{/if}
 								{:else if ep.status === 'processing'}
 									Convirtiendo… {Math.round(ep.progress * 100)}%
 								{:else if ep.status === 'error'}
