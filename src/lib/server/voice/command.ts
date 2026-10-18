@@ -201,7 +201,7 @@ function tools(house: boolean): Tool[] {
 				label: {
 					type: 'string',
 					description:
-						'Para qué es, corto y como lo diría: «la pasta», «el horno». Vacío si no lo dice.'
+						'Para qué es, corto y como lo diría: «la pasta», «el horno». Vacío si no lo dice, aunque ya haya otro del mismo tiempo: se llamará por su tiempo, «5 minutos», o «5 minutos (2)». El nombre de uno de la lista solo para volver a empezar ese.'
 				}
 			},
 			['minutes']
@@ -313,6 +313,8 @@ Otras preguntas (de cocina, de lo que sea): si no pide nada de la app, contesta 
 
 Temporizadores («avísame en 10 minutos», «pon un temporizador de 20 minutos para el horno»): «set_timer», sin preguntar. Con cada orden va la lista de los que hay en este dispositivo.
 - «¿Cuánto le queda (a la pasta)?»: contesta con esa lista, sin herramientas.
+- «Otro de 5 minutos» es uno nuevo (nombre vacío), no el que ya hay de 5 minutos; «vuelve a empezar el de la pasta» sí usa su nombre.
+- Haz solo lo que pide la orden de ahora: los temporizadores de órdenes anteriores ya se pusieron. Uno que ya sonó o se quitó no se vuelve a poner si no lo pide otra vez.
 - «Quita el temporizador», «ya está», «para la alarma»: «cancel_timer»; si hay varios y no está claro cuál, usa «ask».
 - Di cuánto y para qué, corto: «Te aviso en diez minutos para la pasta».
 - «Cuando hierva, pon 8 minutos para la pasta»: «prepare_timer», uno por cada cosa que espera. Di lo que queda preparado, corto: «Vale: ocho minutos cuando hierva y media hora cuando esté el sofrito».
