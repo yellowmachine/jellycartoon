@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { page } from '$app/state';
+	import { shownDeviceName } from '#lib/device-name.svelte.ts';
 	import type Hls from 'hls.js';
 	import { goto } from '$app/navigation';
 	import '@fontsource/atkinson-hyperlegible/400.css';
@@ -115,7 +117,11 @@
 		const res = await fetch('/api/progress', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ channelId, positionSec })
+			body: JSON.stringify({
+				channelId,
+				positionSec,
+				device: shownDeviceName(page.url.pathname.startsWith('/tv'))
+			})
 		}).catch(() => null);
 		return res?.status === 403;
 	}
