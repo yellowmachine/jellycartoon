@@ -17,6 +17,7 @@ import {
 } from '#lib/server/library/worker.ts';
 import { removeSource } from '#lib/server/library/sources.ts';
 import { estimateQueue } from '#lib/server/library/estimate.ts';
+import { forgetMissingEpisodes, missingEpisodes } from '#lib/server/library/delete-episodes.ts';
 import { fail } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async () => {
@@ -127,7 +128,9 @@ export const load: PageServerLoad = async () => {
 		active,
 		errors: failed.filter((e) => e.status === 'error'),
 		ignored: failed.filter((e) => e.status === 'ignored'),
-		deleteSources: DELETE_SOURCES
+		deleteSources: DELETE_SOURCES,
+		/** Episodes whose file is gone, by series: they can be forgotten. */
+		missing: await missingEpisodes()
 	};
 };
 
@@ -139,6 +142,8 @@ export const actions: Actions = {
 			return fail(500, { message: error instanceof Error ? error.message : String(error) });
 		}
 	},
+	/** Episodes whose file is gone, for good: confirmed in the page first. */
+	forgetMissing: async () => ({ forgotten: await forgetMissingEpisodes() }),
 	/** For episodes converted before DELETE_SOURCES was enabled. */
 	removeSources: async () => {
 		if (!DELETE_SOURCES) return fail(400, { message: 'DELETE_SOURCES no está activado' });
