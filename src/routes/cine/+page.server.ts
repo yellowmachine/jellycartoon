@@ -1,5 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { movie, movieInfo, movieProgress, movieTitle } from '#lib/server/db/schema.ts';
@@ -18,7 +18,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 			id: movie.id,
 			title: movieTitle,
 			autoTitle: movie.title,
-			year: movie.year,
+			// The one in its info, when it has one: the file name's may be missing or wrong.
+			year: sql<number | null>`coalesce(${movieInfo.year}, ${movie.year})`,
+			/** For «añadidas hace poco». */
+			addedAt: movie.createdAt,
 			path: movie.path,
 			size: movie.size,
 			status: movie.status,

@@ -267,8 +267,10 @@
 			class="mb-1 block h-1 w-full accent-amber-500"
 			onchange={(e) => music.seek(Number(e.currentTarget.value))}
 		/>
-		<div class="flex items-center gap-3">
-			<a href="/musica/{current.albumId}" class="flex min-w-0 flex-1 items-center gap-3">
+		<!-- On the phone, two rows: what sounds, with all the width it can get (the title was barely
+		     readable next to five buttons), then the time and the controls. One row from sm. -->
+		<div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 sm:flex-nowrap sm:gap-3">
+			<a href="/musica/{current.albumId}" class="order-1 flex min-w-0 flex-1 items-center gap-3">
 				{#if current.hasCover}
 					<img
 						src={coverUrl(current.albumId)}
@@ -293,38 +295,41 @@
 					{/if}
 				</span>
 			</a>
-			<span class="hidden font-mono text-xs text-zinc-400 tabular-nums sm:inline">
+			<button
+				class="{ghost} order-2 sm:order-9"
+				aria-label="Cerrar"
+				title="Parar y cerrar"
+				onclick={() => music.stop()}><MediaIcon name="close" /></button
+			>
+			<span class="order-3 basis-full sm:hidden" aria-hidden="true"></span>
+			<span class="order-4 font-mono text-[11px] text-zinc-400 tabular-nums sm:text-xs">
 				{formatDuration(music.positionSec) || '0:00'} / {formatDuration(
 					music.durationSec ?? current.durationSec
 				)}
 			</span>
-			<span class="hidden gap-1 sm:flex">{@render modes()}</span>
-			<button class={control} aria-label="Anterior" onclick={() => music.previous()}
-				><MediaIcon name="previous" /></button
+			<!-- A bit smaller on the phone, so the time and every control fit in one row at 360px. -->
+			<span class="order-5 flex gap-1 max-sm:[&>button]:h-8 max-sm:[&>button]:w-8"
+				>{@render modes()}</span
 			>
-			<button
-				class={primary}
-				aria-label={music.playing ? 'Pausa' : 'Seguir'}
-				onclick={() => music.toggle()}><MediaIcon name={music.playing ? 'pause' : 'play'} /></button
-			>
-			<button
-				class={control}
-				aria-label="Siguiente"
-				disabled={music.index >= music.queue.length - 1 && !music.repeat}
-				onclick={() => music.next()}><MediaIcon name="next" /></button
-			>
-			<button class={ghost} aria-label="Cerrar" title="Parar y cerrar" onclick={() => music.stop()}
-				><MediaIcon name="close" /></button
-			>
-		</div>
-		<!-- On the phone there is no room for them in the row above. -->
-		<div class="mt-1 flex items-center justify-between sm:hidden">
-			<span class="font-mono text-xs text-zinc-400 tabular-nums">
-				{formatDuration(music.positionSec) || '0:00'} / {formatDuration(
-					music.durationSec ?? current.durationSec
-				)}
+			<span class="order-6 ml-auto flex items-center gap-1.5 sm:ml-0 sm:gap-2">
+				<button
+					class="{control} max-sm:h-8 max-sm:w-8"
+					aria-label="Anterior"
+					onclick={() => music.previous()}><MediaIcon name="previous" /></button
+				>
+				<button
+					class={primary}
+					aria-label={music.playing ? 'Pausa' : 'Seguir'}
+					onclick={() => music.toggle()}
+					><MediaIcon name={music.playing ? 'pause' : 'play'} /></button
+				>
+				<button
+					class="{control} max-sm:h-8 max-sm:w-8"
+					aria-label="Siguiente"
+					disabled={music.index >= music.queue.length - 1 && !music.repeat}
+					onclick={() => music.next()}><MediaIcon name="next" /></button
+				>
 			</span>
-			<span class="flex gap-1">{@render modes()}</span>
 		</div>
 	</div>
 {/if}

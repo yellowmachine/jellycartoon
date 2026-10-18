@@ -609,9 +609,16 @@
 					method="post"
 					action="?seccion={tab}&/createKid"
 					use:enhance
-					class="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]"
+					class="grid gap-2 sm:grid-cols-2"
 				>
-					<input name="name" required placeholder="Nombre" aria-label="Nombre" class={select} />
+					<!-- Two rows: three fields and the button in one overflowed the section. -->
+					<input
+						name="name"
+						required
+						placeholder="Nombre"
+						aria-label="Nombre"
+						class="{select} min-w-0"
+					/>
 					<input
 						name="email"
 						type="email"
@@ -619,7 +626,7 @@
 						autocomplete="off"
 						placeholder="lucia@casa.local"
 						aria-label="Email para entrar"
-						class={select}
+						class="{select} min-w-0"
 					/>
 					<input
 						name="password"
@@ -629,9 +636,9 @@
 						autocomplete="new-password"
 						placeholder="Contraseña"
 						aria-label="Contraseña"
-						class={select}
+						class="{select} min-w-0"
 					/>
-					<button class={primary}>Crear</button>
+					<button class="{primary} justify-self-start">Crear</button>
 				</form>
 				<p class="mt-2 text-xs text-zinc-500">
 					El email solo sirve para entrar: no hace falta que exista.

@@ -1,12 +1,25 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { poll } from '#lib/poll.ts';
 	import { page } from '$app/state';
 	import MovieMenu from '#lib/components/MovieMenu.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
 	import { formatDuration } from '#lib/format.ts';
-	import { activeFilters, FILTERS, matchReason } from '#lib/film-search.ts';
+	import {
+		activeFilters,
+		decadeOf,
+		DURATIONS,
+		FILTERS,
+		filterLabel,
+		matchReason,
+		SORTS,
+		sortFilms,
+		WATCH_STATES,
+		type FilterName,
+		type SortName
+	} from '#lib/film-search.ts';
+	import { languageLabel, normalizeLang } from '#lib/languages.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -16,20 +29,55 @@
 	let search = $state('');
 
 	const filters = $derived(activeFilters(new URLSearchParams(page.url.search)));
-	/** Without a filter, the URL that removes it. */
+	const sort = $derived.by((): SortName => {
+		const wanted = page.url.searchParams.get('orden');
+		return wanted && wanted in SORTS ? (wanted as SortName) : 'titulo';
+	});
+	/** Without a filter, the URL that removes it (the order stays). */
 	const withoutFilter = (index: number) => {
 		const params = new URLSearchParams();
 		filters.forEach((f, i) => i !== index && params.append(f.name, f.value));
+		if (sort !== 'titulo') params.set('orden', sort);
 		return `/cine${params.size ? `?${params}` : ''}`;
 	};
 
+	/** A filter's dropdown: one value or none, in the URL like the rest (so «back» undoes it). */
+	function choose(name: FilterName | 'orden', value: string) {
+		const params = new URLSearchParams(page.url.search);
+		params.delete(name);
+		if (value && !(name === 'orden' && value === 'titulo')) params.set(name, value);
+		// A history entry each: «back» undoes the last one. Scroll and focus stay where they were.
+		void goto(`/cine${params.size ? `?${params}` : ''}`, { reset: false });
+	}
+	const chosen = (name: FilterName) => page.url.searchParams.get(name) ?? '';
+
+	/** Only what there is: the decades, genres and audio languages of these films. */
+	const decades = $derived(
+		[...new Set(data.movies.flatMap((m) => (m.year ? [decadeOf(m.year)] : [])))].sort(
+			(a, b) => b - a
+		)
+	);
+	const genres = $derived(
+		[...new Set(data.movies.flatMap((m) => m.genres))].sort((a, b) => a.localeCompare(b, 'es'))
+	);
+	const audioLangs = $derived(
+		[...new Set(data.movies.flatMap((m) => m.audioTracks.map((t) => normalizeLang(t.lang))))]
+			.filter((l) => l !== 'und')
+			.sort((a, b) => languageLabel(a).localeCompare(languageLabel(b), 'es'))
+	);
+
 	/** With why each film matches the search, when its title does not say it. */
 	const shown = $derived(
-		data.movies
-			.filter((m) => filters.every((f) => FILTERS[f.name].matches(m, f.value)))
-			.map((m) => ({ ...m, reason: matchReason(m, search) }))
-			.filter((m) => m.reason !== null)
+		sortFilms(
+			data.movies
+				.filter((m) => filters.every((f) => FILTERS[f.name].matches(m, f.value)))
+				.map((m) => ({ ...m, reason: matchReason(m, search) }))
+				.filter((m) => m.reason !== null),
+			sort
+		)
 	);
+
+	const dropdown = 'rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm';
 
 	// Refresh while films are being catalogued; not while a title is being edited.
 	$effect(() => {
@@ -98,6 +146,89 @@
 	</p>
 {/if}
 
+{#if data.movies.length}
+	<!-- What is usually looked for: not watched yet, a decade, how long, a genre, the audio. -->
+	<div class="mb-4 flex flex-wrap items-center gap-2">
+		<select
+			aria-label="Estado"
+			class={dropdown}
+			value={chosen('estado')}
+			onchange={(e) => choose('estado', e.currentTarget.value)}
+		>
+			<option value="">Vistas o no</option>
+			{#each Object.entries(WATCH_STATES) as [value, label] (value)}
+				<option {value}>{label}</option>
+			{/each}
+		</select>
+		{#if decades.length > 1}
+			<select
+				aria-label="Década"
+				class={dropdown}
+				value={chosen('decada')}
+				onchange={(e) => choose('decada', e.currentTarget.value)}
+			>
+				<option value="">Cualquier década</option>
+				{#each decades as decade (decade)}
+					<option value={String(decade)}>{filterLabel('decada', String(decade))}</option>
+				{/each}
+			</select>
+		{/if}
+		<select
+			aria-label="Duración"
+			class={dropdown}
+			value={chosen('duracion')}
+			onchange={(e) => choose('duracion', e.currentTarget.value)}
+		>
+			<option value="">Cualquier duración</option>
+			{#each Object.entries(DURATIONS) as [value, { label }] (value)}
+				<option {value}>{label}</option>
+			{/each}
+		</select>
+		{#if genres.length}
+			<select
+				aria-label="Género"
+				class="{dropdown} max-w-48"
+				value={chosen('genero')}
+				onchange={(e) => choose('genero', e.currentTarget.value)}
+			>
+				<option value="">Cualquier género</option>
+				{#each genres as genre (genre)}
+					<option value={genre}>{genre}</option>
+				{/each}
+			</select>
+		{/if}
+		{#if audioLangs.length > 1}
+			<select
+				aria-label="Idioma del audio"
+				class={dropdown}
+				value={chosen('audio')}
+				onchange={(e) => choose('audio', e.currentTarget.value)}
+			>
+				<option value="">Cualquier audio</option>
+				{#each audioLangs as lang (lang)}
+					<option value={lang}>Audio en {languageLabel(lang)}</option>
+				{/each}
+			</select>
+		{/if}
+		<!-- How many, out of all: «1 de 5 películas» with filters or a search. -->
+		<span class="text-sm text-zinc-400 sm:ml-auto" aria-live="polite">
+			{shown.length === data.movies.length
+				? `${data.movies.length} ${data.movies.length === 1 ? 'película' : 'películas'}`
+				: `${shown.length} de ${data.movies.length} películas`}
+		</span>
+		<select
+			aria-label="Ordenar"
+			class={dropdown}
+			value={sort}
+			onchange={(e) => choose('orden', e.currentTarget.value)}
+		>
+			{#each Object.entries(SORTS) as [value, label] (value)}
+				<option {value}>{label}</option>
+			{/each}
+		</select>
+	</div>
+{/if}
+
 {#if data.withoutInfo}
 	<p class="mb-4 text-sm text-zinc-400">
 		{data.withoutInfo === 1 ? 'Hay 1 película' : `Hay ${data.withoutInfo} películas`} sin ficha: hasta
@@ -111,10 +242,13 @@
 			<a
 				href={withoutFilter(i)}
 				class="rounded-full bg-zinc-800 px-3 py-1 text-sm hover:bg-zinc-700"
-				aria-label="Quitar el filtro {FILTERS[filter.name].label}: {filter.value}"
+				aria-label="Quitar el filtro {FILTERS[filter.name].label}: {filterLabel(
+					filter.name,
+					filter.value
+				)}"
 			>
 				<span class="text-zinc-400">{FILTERS[filter.name].label}:</span>
-				{filter.value} ✕
+				{filterLabel(filter.name, filter.value)} ✕
 			</a>
 		{/each}
 	</div>
