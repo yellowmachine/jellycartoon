@@ -477,6 +477,8 @@ export const userSettings = pgTable('user_settings', {
 	autoNext: boolean('auto_next').notNull().default(true),
 	/** Films in the living room start with the Cine Club intro (DATA_DIR/cortinilla.mp4), if present. */
 	intro: boolean('intro').notNull().default(true),
+	/** The app's colours (themes.ts); unknown ones are the default. */
+	theme: text('theme').notNull().default('jellycartoon'),
 	/** Where "add to list" on a series page puts episodes. */
 	activeListId: integer('active_list_id').references(() => userList.id, { onDelete: 'set null' })
 });

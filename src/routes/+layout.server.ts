@@ -6,12 +6,16 @@ import { hasKids, isKid } from '#lib/server/kids.ts';
 import { isAdmin } from '#lib/server/app-settings.ts';
 import { versionInfo } from '#lib/server/updates.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
+import { getSettings } from '#lib/server/settings.ts';
+import { DEFAULT_THEME } from '#lib/themes.ts';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
 	const kid = isKid(locals.user);
 	const admin = Boolean(locals.user) && !kid && (await isAdmin(locals.user!.id));
 	return {
 		user: locals.user ? { name: locals.user.name } : null,
+		/** The account's colours (Ajustes), painted from the server: no flash of the default. */
+		theme: locals.user ? (await getSettings(locals.user.id)).theme : DEFAULT_THEME,
 		/** A child's account (#17): only what is tagged «infantil», and nothing to manage. */
 		kid,
 		/** The adults' page about what children watch, once there is a child's account. */
