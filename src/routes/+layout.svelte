@@ -191,7 +191,11 @@
 							isCurrent('/ajustes') && 'ring-2 ring-amber-300 ring-offset-2 ring-offset-zinc-950'
 						]}>{initial}</a
 					>
-					<button class="text-sm text-zinc-400 hover:text-white">Salir</button>
+					<!-- Not for a child's account: out by mistake, they cannot get back in. An adult switching
+					     accounts on that device has it at the end of Ajustes. -->
+					{#if !data.kid}
+						<button class="text-sm text-zinc-400 hover:text-white">Salir</button>
+					{/if}
 				</form>
 
 				<!-- Phone: the section you are in and a menu with the rest. -->
@@ -236,9 +240,11 @@
 						>
 						{data.user.name} · Ajustes
 					</a>
-					<button class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900">
-						Salir
-					</button>
+					{#if !data.kid}
+						<button class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900">
+							Salir
+						</button>
+					{/if}
 				</form>
 			</div>
 			<!-- In the sticky header, under the menu: what is on stays in view on every page. Only with
