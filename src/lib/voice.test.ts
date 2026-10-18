@@ -38,7 +38,7 @@ describe('parseVoiceRequest', () => {
 		const timers = (value: unknown) =>
 			parseVoiceRequest({ text: 'cuánto queda', timers: value })?.timers;
 		expect(timers(['la pasta, quedan 7 min', 3, '  '])).toEqual(['la pasta, quedan 7 min']);
-		expect(timers(Array.from({ length: 20 }, (_, i) => `t${i}`))).toHaveLength(10);
+		expect(timers(Array.from({ length: 30 }, (_, i) => `t${i}`))).toHaveLength(20);
 		expect(timers('no')).toEqual([]);
 	});
 

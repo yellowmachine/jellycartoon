@@ -5,6 +5,9 @@ import { music } from '#lib/music-player.svelte.ts';
  * each with its name, shown in the header counting down. At the end a chime rings until it is
  * stopped, and what plays here pauses meanwhile. Kept in this browser (localStorage), so that
  * reloading the page does not lose them.
+ *
+ * Also prepared ones, waiting for something: «cuando hierva, pon 8 minutos para la pasta». The AI
+ * gets them with each command and starts one when told «ya hierve»; a tap on it starts it too.
  */
 
 export interface Timer {
@@ -15,11 +18,21 @@ export interface Timer {
 	endsAt: number;
 }
 
+/** Waiting to be started, by voice or by a tap. */
+export interface PreparedTimer {
+	id: string;
+	label: string;
+	seconds: number;
+	/** What it waits for, as the AI wrote it: «hierva el agua», «esté hecho el sofrito». */
+	trigger: string;
+}
+
 /** More than this ringing, it stops sounding (it still shows): no one is in the kitchen. */
 const RING_MAX_MS = 3 * 60_000;
 /** One chime every so often while it rings. */
 const CHIME_EVERY_MS = 2500;
 const STORAGE_KEY = 'kitchen-timers';
+const PREPARED_KEY = 'kitchen-timers-prepared';
 export const DEFAULT_LABEL = 'temporizador';
 
 /** «7:05», «1:02:30». */
@@ -42,6 +55,7 @@ const sameLabel = (a: string, b: string) => a.localeCompare(b, 'es', { sensitivi
 
 class Timers {
 	list = $state<Timer[]>([]);
+	prepared = $state<PreparedTimer[]>([]);
 	/** Those that got to their end and were not stopped yet. */
 	ringing = $state<Timer[]>([]);
 	/** Ticks every second while there is any: what the countdowns are drawn from. */
@@ -64,6 +78,15 @@ class Timers {
 					(t): t is Timer =>
 						typeof t?.id === 'string' && typeof t.label === 'string' && Number.isFinite(t.endsAt)
 				);
+			const prepared = JSON.parse(localStorage.getItem(PREPARED_KEY) ?? '[]');
+			if (Array.isArray(prepared))
+				this.prepared = prepared.filter(
+					(t): t is PreparedTimer =>
+						typeof t?.id === 'string' &&
+						typeof t.label === 'string' &&
+						typeof t.trigger === 'string' &&
+						Number.isFinite(t.seconds)
+				);
 		} catch {
 			// Private windows, or something else saved there.
 		}
@@ -73,6 +96,7 @@ class Timers {
 	#save() {
 		try {
 			localStorage.setItem(STORAGE_KEY, JSON.stringify(this.list));
+			localStorage.setItem(PREPARED_KEY, JSON.stringify(this.prepared));
 		} catch {
 			// Same.
 		}
@@ -92,22 +116,46 @@ class Timers {
 		}
 	}
 
-	/** A new one; one with the same name starts over with the new time. */
+	/**
+	 * A new one; one with the same name starts over with the new time. A prepared one with that
+	 * name is the one starting: it is no longer waiting.
+	 */
 	start(label: string, seconds: number) {
 		label = label.trim() || DEFAULT_LABEL;
 		const timer = { id: crypto.randomUUID(), label, endsAt: Date.now() + seconds * 1000 };
 		this.list = [...this.list.filter((t) => !sameLabel(t.label, label)), timer];
 		this.ringing = this.ringing.filter((t) => !sameLabel(t.label, label));
+		this.prepared = this.prepared.filter((t) => !sameLabel(t.label, label));
 		this.#save();
 		this.#update();
 	}
 
-	/** That one (by its name), or all of them with null; how many went. */
+	/** Waiting for `trigger`; one with the same name is replaced. */
+	prepare(label: string, seconds: number, trigger: string) {
+		label = label.trim() || DEFAULT_LABEL;
+		this.prepared = [
+			...this.prepared.filter((t) => !sameLabel(t.label, label)),
+			{ id: crypto.randomUUID(), label, seconds, trigger: trigger.trim() }
+		];
+		this.#save();
+	}
+
+	/** Tapped: the prepared one starts now. */
+	startPrepared(id: string) {
+		const timer = this.prepared.find((t) => t.id === id);
+		if (timer) this.start(timer.label, timer.seconds);
+	}
+
+	/** That one (by its name), or all of them with null, running or prepared; how many went. */
 	cancel(label: string | null) {
-		const gone = (t: Timer) => label === null || sameLabel(t.label, label);
-		const count = this.list.filter(gone).length + this.ringing.filter(gone).length;
+		const gone = (t: { label: string }) => label === null || sameLabel(t.label, label);
+		const count =
+			this.list.filter(gone).length +
+			this.ringing.filter(gone).length +
+			this.prepared.filter(gone).length;
 		this.list = this.list.filter((t) => !gone(t));
 		this.ringing = this.ringing.filter((t) => !gone(t));
+		this.prepared = this.prepared.filter((t) => !gone(t));
 		this.#save();
 		this.#update();
 		return count;
@@ -125,7 +173,10 @@ class Timers {
 		const now = Date.now();
 		return [
 			...this.list.map((t) => `${t.label}, quedan ${spokenLeft((t.endsAt - now) / 1000)}`),
-			...this.ringing.map((t) => `${t.label}, ya ha terminado y está sonando`)
+			...this.ringing.map((t) => `${t.label}, ya ha terminado y está sonando`),
+			...this.prepared.map(
+				(t) => `${t.label}, ${spokenLeft(t.seconds)}, preparado: arranca cuando ${t.trigger}`
+			)
 		];
 	}
 

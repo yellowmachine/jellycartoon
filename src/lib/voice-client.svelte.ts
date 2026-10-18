@@ -227,6 +227,8 @@ async function act(action: VoiceAction) {
 			return musicTarget.playRadio(action.uuid, false);
 		case 'timer':
 			return timers.start(action.label, action.seconds);
+		case 'prepareTimer':
+			return timers.prepare(action.label, action.seconds, action.trigger);
 		case 'cancelTimer':
 			return void timers.cancel(action.label);
 		case 'control':

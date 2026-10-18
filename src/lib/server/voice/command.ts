@@ -207,8 +207,26 @@ function tools(house: boolean): Tool[] {
 			['minutes']
 		),
 		fn(
+			'prepare_timer',
+			'Deja preparado un temporizador que arrancará cuando pase algo que dirá luego («cuando hierva», «cuando esté hecho el sofrito»). No arranca ahora: sale en la lista de temporizadores como preparado.',
+			{
+				minutes: { type: 'number', description: 'Cuántos minutos durará cuando arranque.' },
+				label: {
+					type: 'string',
+					description:
+						'Para qué es, corto: «la pasta», «el arroz». Si no lo dice, lo que se va a cocinar.'
+				},
+				trigger: {
+					type: 'string',
+					description:
+						'Lo que espera, para completar «arranca cuando…»: «hierva el agua», «esté hecho el sofrito».'
+				}
+			},
+			['minutes', 'label', 'trigger']
+		),
+		fn(
 			'cancel_timer',
-			'Quita un temporizador de este dispositivo por su nombre, o todos; también para el que está sonando.',
+			'Quita un temporizador de este dispositivo por su nombre, o todos: en marcha, preparados o el que está sonando.',
 			{
 				label: {
 					type: 'string',
@@ -291,6 +309,8 @@ Temporizadores («avísame en 10 minutos», «pon un temporizador de 20 minutos 
 - «¿Cuánto le queda (a la pasta)?»: contesta con esa lista, sin herramientas.
 - «Quita el temporizador», «ya está», «para la alarma»: «cancel_timer»; si hay varios y no está claro cuál, usa «ask».
 - Di cuánto y para qué, corto: «Te aviso en diez minutos para la pasta».
+- «Cuando hierva, pon 8 minutos para la pasta»: «prepare_timer», uno por cada cosa que espera. Di lo que queda preparado, corto: «Vale: ocho minutos cuando hierva y media hora cuando esté el sofrito».
+- Cuando diga que ya ha pasado lo que espera uno preparado («ya hierve», «ya está el sofrito»), arráncalo con «set_timer» con su mismo nombre y sus minutos. Si no está claro cuál, usa «ask».
 
 Lo que ha visto en vídeo (series, películas, canales de tele), solo de su cuenta: «watch_time», «sessions», «finished» y «halfway».
 - Si pregunta por eso («¿qué capítulo de Friends vi el viernes?», «¿por dónde voy en…?»), contesta a la pregunta, corto, en vez de decir lo que has hecho.
@@ -558,6 +578,16 @@ async function runTool(
 			const label = typeof args.label === 'string' ? args.label.trim().slice(0, 60) : '';
 			ctx.outcome.actions.push({ kind: 'timer', label, seconds });
 			return `Temporizador${label ? ` «${label}»` : ''} de ${seconds} segundos puesto en el dispositivo.`;
+		}
+		case 'prepare_timer': {
+			const minutes = Number(args.minutes);
+			if (!Number.isFinite(minutes) || minutes <= 0) return 'Falta cuántos minutos.';
+			const trigger = typeof args.trigger === 'string' ? args.trigger.trim().slice(0, 100) : '';
+			if (!trigger) return 'Falta cuándo tiene que arrancar.';
+			const seconds = Math.round(Math.min(minutes * 60, MAX_TIMER_SEC));
+			const label = typeof args.label === 'string' ? args.label.trim().slice(0, 60) : '';
+			ctx.outcome.actions.push({ kind: 'prepareTimer', label, seconds, trigger });
+			return `Preparado${label ? ` «${label}»` : ''}: ${seconds} segundos cuando ${trigger}.`;
 		}
 		case 'cancel_timer': {
 			const label = typeof args.label === 'string' && args.label.trim() ? args.label.trim() : null;

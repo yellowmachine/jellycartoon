@@ -4,7 +4,7 @@
 
 	/**
 	 * The kitchen timers (#60), in the header: each counting down, with an × to take it away; one
-	 * that ended, big, with «Parar».
+	 * that ended, big, with «Parar»; the prepared ones, waiting, after them.
 	 */
 
 	onMount(() => {
@@ -31,7 +31,7 @@
 		>
 	</div>
 {/if}
-{#if timers.list.length}
+{#if timers.list.length || timers.prepared.length}
 	<div class="flex flex-wrap gap-2" aria-label="Temporizadores">
 		{#each timers.list.toSorted((a, b) => a.endsAt - b.endsAt) as timer (timer.id)}
 			<span
@@ -45,6 +45,29 @@
 				<button
 					class="flex h-6 w-6 items-center justify-center rounded-full text-zinc-400 hover:bg-zinc-800 hover:text-white"
 					aria-label="Quitar el temporizador {timer.label}"
+					onclick={() => timers.cancel(timer.label)}>×</button
+				>
+			</span>
+		{/each}
+		<!-- Prepared, waiting for «ya hierve»: grey, and a tap starts it (wet hands, no voice). -->
+		{#each timers.prepared as timer (timer.id)}
+			<span
+				class="flex items-center gap-1 rounded-full border border-dashed border-zinc-700 py-1 pr-1 pl-1 text-sm text-zinc-400"
+			>
+				<button
+					class="flex items-center gap-2 rounded-full px-2 hover:bg-zinc-800 hover:text-white"
+					title="Arrancarlo ya"
+					aria-label="Arrancar el temporizador {timer.label}: {formatLeft(timer.seconds)}"
+					onclick={() => timers.startPrepared(timer.id)}
+				>
+					<span aria-hidden="true">▶︎</span>
+					<span class="max-w-32 truncate">{timer.label}</span>
+					<span class="font-mono tabular-nums">{formatLeft(timer.seconds)}</span>
+					<span class="max-w-40 truncate text-xs text-zinc-500">cuando {timer.trigger}</span>
+				</button>
+				<button
+					class="flex h-6 w-6 items-center justify-center rounded-full text-zinc-500 hover:bg-zinc-800 hover:text-white"
+					aria-label="Quitar el temporizador preparado {timer.label}"
 					onclick={() => timers.cancel(timer.label)}>×</button
 				>
 			</span>

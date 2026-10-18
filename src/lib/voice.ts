@@ -19,6 +19,8 @@ export type VoiceAction =
 	| { kind: 'watch'; episodeId: number; startSec: number | null }
 	/** A kitchen timer in this browser (#60); one with the same name starts over. */
 	| { kind: 'timer'; label: string; seconds: number }
+	/** Waiting for something to be said («cuando hierva»): it is started by voice or a tap. */
+	| { kind: 'prepareTimer'; label: string; seconds: number; trigger: string }
 	/** That one by its name, or all of them with null. */
 	| { kind: 'cancelTimer'; label: string | null };
 
@@ -49,7 +51,10 @@ export interface VoiceRequest {
 	here: string | null;
 	video: VideoHere | null;
 	history: VoiceTurn[];
-	/** This browser's timers, as it says them: «la pasta, quedan 7 min 5 s». */
+	/**
+	 * This browser's timers, as it says them: «la pasta, quedan 7 min 5 s», or prepared, «el
+	 * arroz, 30 min, preparado: arranca cuando esté hecho el sofrito».
+	 */
 	timers: string[];
 }
 
@@ -94,6 +99,6 @@ export function parseVoiceRequest(body: unknown): VoiceRequest | null {
 		history: history.slice(-HISTORY_TURNS),
 		timers: (Array.isArray(b.timers) ? b.timers : [])
 			.flatMap((t: unknown) => text(t, 100) ?? [])
-			.slice(0, 10)
+			.slice(0, 20)
 	};
 }
