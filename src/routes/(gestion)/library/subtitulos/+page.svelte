@@ -37,8 +37,7 @@
 {#snippet what(job: { title: string; detail: string; href: string; language: string })}
 	<p class="min-w-0 flex-1 truncate">
 		<a href={job.href} class="hover:text-amber-400">{job.title}</a>
-		<span class="text-zinc-400">· {job.language}</span>
-		<span class="block truncate text-xs text-zinc-500">{job.detail}</span>
+		<span class="block truncate text-xs text-zinc-500">{job.detail} · {job.language}</span>
 	</p>
 {/snippet}
 

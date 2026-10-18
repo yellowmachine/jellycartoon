@@ -254,10 +254,11 @@ export async function subtitleQueue() {
 		error: r.error,
 		cues: r.cues,
 		finishedAt: r.finishedAt,
+		// The episode's own title first (the AI's, if it made one), then where it is from.
 		...(r.episodeId !== null
 			? {
-					title: `${r.seriesTitle} · T${r.season} E${r.number}`,
-					detail: r.episodeTitle ?? '',
+					title: r.episodeTitle ?? '',
+					detail: `${r.seriesTitle} · T${r.season} E${r.number}`,
 					href: `/series/${r.seriesId}`
 				}
 			: { title: r.movieTitle ?? '', detail: 'Película', href: `/cine/${r.movieId}` })

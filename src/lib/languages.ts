@@ -61,4 +61,19 @@ export interface SubtitleTrack {
 export interface AudioTrack {
 	lang: string;
 	label: string;
+	/** The file did not say (`und`): the language set for its series was assumed. */
+	assumed?: boolean;
+}
+
+/**
+ * The series' audio language (`series.audioLang`) for the tracks whose file did not say, and
+ * those that had it assumed before; null takes them back to unknown. The others stay as they are.
+ */
+export function assumeLanguage(tracks: AudioTrack[], lang: string | null): AudioTrack[] {
+	return tracks.map((t) => {
+		if (t.lang !== 'und' && !t.assumed) return t;
+		if (!lang) return { lang: 'und', label: languageLabel('und') };
+		const code = normalizeLang(lang);
+		return { lang: code, label: languageLabel(code), assumed: true };
+	});
 }

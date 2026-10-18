@@ -22,7 +22,7 @@ import {
 	tracksWithoutSubtitles
 } from '#lib/server/auto-subtitles.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
-import { normalizeLang } from '#lib/languages.ts';
+import { assumeLanguage, KNOWN_LANGUAGES, normalizeLang } from '#lib/languages.ts';
 import {
 	chooseSeries,
 	forgetSeries,
@@ -119,6 +119,13 @@ export const load: PageServerLoad = async ({ params, locals, cookies }) => {
 	);
 	return {
 		series: s,
+		/**
+		 * Some episode has audio whose file does not say its language, or it was assumed: the
+		 * series' language can be set for them (`audioLang`).
+		 */
+		unmarkedAudio: episodes.some((e) => e.audioTracks.some((t) => t.lang === 'und' || t.assumed)),
+		/** The languages to choose from, for the series' audio. */
+		knownLanguages: KNOWN_LANGUAGES,
 		view: parseView('episodes', cookies.get(viewCookie('episodes'))),
 		tags,
 		/** To suggest while typing a tag. */
@@ -203,6 +210,31 @@ export const actions: Actions = {
 			.update(series)
 			.set({ serialized: value })
 			.where(eq(series.id, Number(params.id)));
+	},
+	/**
+	 * The language of the audio whose file does not say it: for every episode now, and those
+	 * converted later. Empty: unknown again.
+	 */
+	audioLang: async ({ params, request }) => {
+		const value = String((await request.formData()).get('audioLang') ?? '');
+		const lang = value ? normalizeLang(value) : null;
+		if (lang && !KNOWN_LANGUAGES.includes(lang)) return fail(400, { message: 'Idioma no válido' });
+		const seriesId = Number(params.id);
+		await db.transaction(async (tx) => {
+			await tx.update(series).set({ audioLang: lang }).where(eq(series.id, seriesId));
+			const rows = await tx
+				.select({ id: episode.id, audioTracks: episode.audioTracks })
+				.from(episode)
+				.where(eq(episode.seriesId, seriesId));
+			for (const row of rows) {
+				if (!row.audioTracks.some((t) => t.lang === 'und' || t.assumed)) continue;
+				await tx
+					.update(episode)
+					.set({ audioTracks: assumeLanguage(row.audioTracks, lang) })
+					.where(eq(episode.id, row.id));
+			}
+		});
+		log.info('series', `Idioma del audio sin marcar: ${lang ?? 'desconocido'}`, { seriesId });
 	},
 	renameSeries: async ({ params, request }) => {
 		const title = String((await request.formData()).get('title') ?? '').trim();

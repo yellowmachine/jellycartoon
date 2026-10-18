@@ -1,0 +1,1 @@
+ALTER TABLE "series" ADD COLUMN "audio_lang" text;

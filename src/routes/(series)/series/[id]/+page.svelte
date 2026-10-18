@@ -192,6 +192,31 @@
 </div>
 {#if !data.kid}
 	<TagBar tags={data.tags} allTags={data.allTags} class="-mt-2 mb-6" />
+	<!-- The files do not say what language its audio is in: told here, it is assumed for them. -->
+	{#if data.unmarkedAudio || data.series.audioLang}
+		<form
+			method="post"
+			action="?/audioLang"
+			use:enhance={() =>
+				async ({ update }) =>
+					update({ reset: false })}
+			class="-mt-3 mb-6 flex flex-wrap items-center gap-2 text-sm text-zinc-400"
+		>
+			<label for="audioLang">Idioma del audio que los ficheros no indican</label>
+			<select
+				id="audioLang"
+				name="audioLang"
+				value={data.series.audioLang ?? ''}
+				onchange={(e) => e.currentTarget.form?.requestSubmit()}
+				class="rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm text-zinc-200"
+			>
+				<option value="">Desconocido</option>
+				{#each data.knownLanguages as lang (lang)}
+					<option value={lang}>{languageLabel(lang)}</option>
+				{/each}
+			</select>
+		</form>
+	{/if}
 {/if}
 {#if form?.message}
 	<p class="-mt-4 mb-4 text-sm text-red-400">{form.message}</p>
