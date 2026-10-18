@@ -1,4 +1,5 @@
 import { music } from '#lib/music-player.svelte.ts';
+import { sameLabel, spokenLeft, timeLabel } from '#lib/timer-names.ts';
 
 /**
  * Kitchen timers (#60), set by voice («avísame en 10 minutos para la pasta»): in this browser,
@@ -12,7 +13,7 @@ import { music } from '#lib/music-player.svelte.ts';
 
 export interface Timer {
 	id: string;
-	/** As it was said: «la pasta», «el horno»; «temporizador» if none. */
+	/** As it was said: «la pasta», «el horno»; its time if none, «5 minutos». */
 	label: string;
 	/** When it ends, in ms (Date.now()). */
 	endsAt: number;
@@ -27,35 +28,26 @@ export interface PreparedTimer {
 	trigger: string;
 }
 
+/**
+ * How long one that rang and was stopped, or was taken away, is still told to the AI: with the
+ * conversation before it sees «avísame en 2 minutos», and without this it would set it again.
+ */
+const RECENT_MS = 30 * 60_000;
+
 /** More than this ringing, it stops sounding (it still shows): no one is in the kitchen. */
 const RING_MAX_MS = 3 * 60_000;
 /** One chime every so often while it rings. */
 const CHIME_EVERY_MS = 2500;
 const STORAGE_KEY = 'kitchen-timers';
 const PREPARED_KEY = 'kitchen-timers-prepared';
-export const DEFAULT_LABEL = 'temporizador';
-
-/** «7:05», «1:02:30». */
-export function formatLeft(sec: number) {
-	sec = Math.max(0, Math.ceil(sec));
-	const h = Math.floor(sec / 3600);
-	const m = Math.floor((sec % 3600) / 60);
-	const s = String(sec % 60).padStart(2, '0');
-	return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
-}
-
-/** For the AI: «7 min 5 s». */
-function spokenLeft(sec: number) {
-	sec = Math.max(0, Math.round(sec));
-	const m = Math.floor(sec / 60);
-	return m ? `${m} min${sec % 60 ? ` ${sec % 60} s` : ''}` : `${sec} s`;
-}
-
-const sameLabel = (a: string, b: string) => a.localeCompare(b, 'es', { sensitivity: 'base' }) === 0;
+/** What the AI may still call one with no name: as if it had none. */
+const DEFAULT_LABEL = 'temporizador';
 
 class Timers {
 	list = $state<Timer[]>([]);
 	prepared = $state<PreparedTimer[]>([]);
+	/** Rang and stopped, or taken away, lately: only for the AI (see RECENT_MS). */
+	#done: { label: string; how: 'sonó' | 'quitado'; at: number }[] = [];
 	/** Those that got to their end and were not stopped yet. */
 	ringing = $state<Timer[]>([]);
 	/** Ticks every second while there is any: what the countdowns are drawn from. */
@@ -121,7 +113,7 @@ class Timers {
 	 * name is the one starting: it is no longer waiting.
 	 */
 	start(label: string, seconds: number) {
-		label = label.trim() || DEFAULT_LABEL;
+		label = this.#name(label, seconds);
 		const timer = { id: crypto.randomUUID(), label, endsAt: Date.now() + seconds * 1000 };
 		this.list = [...this.list.filter((t) => !sameLabel(t.label, label)), timer];
 		this.ringing = this.ringing.filter((t) => !sameLabel(t.label, label));
@@ -132,12 +124,28 @@ class Timers {
 
 	/** Waiting for `trigger`; one with the same name is replaced. */
 	prepare(label: string, seconds: number, trigger: string) {
-		label = label.trim() || DEFAULT_LABEL;
+		label = this.#name(label, seconds);
 		this.prepared = [
 			...this.prepared.filter((t) => !sameLabel(t.label, label)),
 			{ id: crypto.randomUUID(), label, seconds, trigger: trigger.trim() }
 		];
 		this.#save();
+	}
+
+	/**
+	 * The name it goes by. Without one, its time («5 minutos»), and «5 minutos (2)» if that one is
+	 * taken: two with no name are two timers, not one replacing the other. With one, as said, so
+	 * that «pon 10 minutos para la pasta» again starts the pasta's over.
+	 */
+	#name(label: string, seconds: number) {
+		label = label.trim();
+		if (label && !sameLabel(label, DEFAULT_LABEL)) return label;
+		const base = timeLabel(seconds);
+		const taken = (name: string) =>
+			[...this.list, ...this.ringing, ...this.prepared].some((t) => sameLabel(t.label, name));
+		let name = base;
+		for (let n = 2; taken(name); n++) name = `${base} (${n})`;
+		return name;
 	}
 
 	/** Tapped: the prepared one starts now. */
@@ -153,6 +161,8 @@ class Timers {
 			this.list.filter(gone).length +
 			this.ringing.filter(gone).length +
 			this.prepared.filter(gone).length;
+		this.#remember([...this.list, ...this.prepared].filter(gone), 'quitado');
+		this.#remember(this.ringing.filter(gone), 'sonó');
 		this.list = this.list.filter((t) => !gone(t));
 		this.ringing = this.ringing.filter((t) => !gone(t));
 		this.prepared = this.prepared.filter((t) => !gone(t));
@@ -164,14 +174,34 @@ class Timers {
 	/** Touched, or the microphone pressed: the ringing ones stop. */
 	silence() {
 		if (!this.ringing.length) return;
+		this.#remember(this.ringing, 'sonó');
 		this.ringing = [];
 		this.#update();
+	}
+
+	#remember(gone: { label: string }[], how: 'sonó' | 'quitado') {
+		const at = Date.now();
+		this.#done = [
+			...this.#done.filter(
+				(d) => at - d.at < RECENT_MS && !gone.some((g) => sameLabel(g.label, d.label))
+			),
+			...gone.map((g) => ({ label: g.label, how, at }))
+		];
 	}
 
 	/** For the AI, with each command: «¿cuánto le queda?» is answered from it. */
 	describe() {
 		const now = Date.now();
+		const done = this.#done.filter(
+			(d) =>
+				now - d.at < RECENT_MS &&
+				![...this.list, ...this.ringing, ...this.prepared].some((t) => sameLabel(t.label, d.label))
+		);
 		return [
+			...done.map(
+				(d) =>
+					`${d.label}, ya ${d.how === 'sonó' ? 'sonó y se paró' : 'se quitó'} hace ${spokenLeft((now - d.at) / 1000)}: no lo vuelvas a poner si no lo pide`
+			),
 			...this.list.map((t) => `${t.label}, quedan ${spokenLeft((t.endsAt - now) / 1000)}`),
 			...this.ringing.map((t) => `${t.label}, ya ha terminado y está sonando`),
 			...this.prepared.map(

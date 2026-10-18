@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
-	import { formatLeft, timers } from '#lib/timers.svelte.ts';
+	import { formatLeft } from '#lib/timer-names.ts';
+	import { timers } from '#lib/timers.svelte.ts';
 
 	/**
 	 * The kitchen timers (#60), in the header: each counting down, with an × to take it away; one
