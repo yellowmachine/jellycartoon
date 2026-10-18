@@ -12,6 +12,7 @@ export interface PlaybackSettings {
 	intro: boolean;
 	/** One the app no longer has is the default. */
 	theme: ThemeId;
+	keepHistory: boolean;
 }
 
 export async function getSettings(userId: string): Promise<PlaybackSettings> {
@@ -22,6 +23,28 @@ export async function getSettings(userId: string): Promise<PlaybackSettings> {
 		subtitleStyle: sanitizeSubtitleStyle(row?.subtitleStyle),
 		autoNext: row?.autoNext ?? true,
 		intro: row?.intro ?? true,
-		theme: isTheme(row?.theme) ? row.theme : DEFAULT_THEME
+		theme: isTheme(row?.theme) ? row.theme : DEFAULT_THEME,
+		keepHistory: row?.keepHistory ?? true
 	};
+}
+
+/** Whether each adult keeps what they watch: asked every few seconds while playing, so in memory. */
+const keepsHistoryCache = new Map<string, boolean>();
+
+export async function keepsHistory(userId: string) {
+	let keep = keepsHistoryCache.get(userId);
+	if (keep === undefined) {
+		keep = (await getSettings(userId)).keepHistory;
+		keepsHistoryCache.set(userId, keep);
+	}
+	return keep;
+}
+
+/** «Guardar lo que veo», in Ajustes: off deletes nothing already kept. */
+export async function setKeepHistory(userId: string, keepHistory: boolean) {
+	await db
+		.insert(userSettings)
+		.values({ userId, keepHistory })
+		.onConflictDoUpdate({ target: userSettings.userId, set: { keepHistory } });
+	keepsHistoryCache.set(userId, keepHistory);
 }

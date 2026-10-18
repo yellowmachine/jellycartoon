@@ -10,6 +10,16 @@ import {
 } from '#lib/server/music/snapcast.ts';
 import { chatWithTools, type Tool, type ToolChatMessage } from '#lib/server/openrouter.ts';
 import { streamFor } from '#lib/server/radio.ts';
+import { keepsHistory } from '#lib/server/settings.ts';
+import {
+	HISTORY_TOOLS,
+	historyRules,
+	historySince,
+	historyTools,
+	runHistoryTool,
+	todayText,
+	type Person
+} from '#lib/server/watch-history.ts';
 import { fold, masterVolume, type MusicAlbum, type MusicTrack } from '#lib/music.ts';
 import { COUNTRIES, STATIONS } from '#lib/radio.ts';
 import type {
@@ -24,7 +34,8 @@ import type {
 /**
  * Voice commands (#33): what was said, to a model with the app's actions as tools. It searches the
  * music, plays it here (the device, which does it itself) or in the whole house (Snapcast, done
- * here), and answers in a sentence to be read aloud.
+ * here), answers about what the person watched (only their own, see watch-history.ts), and says it
+ * in a sentence to be read aloud.
  */
 
 /** Turns with the model before giving up: a search, an action and the answer are three. */
@@ -153,8 +164,12 @@ function instructions(context: {
 	albums: MusicAlbum[];
 	playlists: { id: number; name: string; total: number }[];
 	house: boolean;
+	/** Since when what they watch has hours; null: only days, or nothing. */
+	hoursSince: string | null;
+	/** «Guardar lo que veo», in Ajustes. */
+	keepHistory: boolean;
 }) {
-	const { albums, playlists, house } = context;
+	const { albums, playlists, house, hoursSince, keepHistory } = context;
 	const byArtist = new Map<string, MusicAlbum[]>();
 	for (const a of albums) byArtist.set(a.artist, [...(byArtist.get(a.artist) ?? []), a]);
 	const library =
@@ -176,6 +191,10 @@ Cómo responder:
 - «Quita eso», «para», «más alto»…: se refiere a lo que está sonando. Con cada orden va lo que suena en cada sitio.
 - Sitios: aquí (el dispositivo desde el que se habla)${house ? ' y toda la casa (Snapcast)' : '; toda la casa no está disponible'}.
 
+Lo que ha visto en vídeo (series, películas, canales de tele), solo de su cuenta: «watch_time», «sessions», «finished» y «halfway».
+- Si pregunta por eso («¿qué capítulo de Friends vi el viernes?», «¿por dónde voy en…?»), contesta a la pregunta, corto, en vez de decir lo que has hecho.
+${historyRules(hoursSince)}
+${keepHistory ? '' : '- Tiene apagado «Guardar lo que veo» en Ajustes: lo que vea ahora no se guarda. Si pregunta y no hay datos, díselo.\n'}
 Biblioteca de música (artista: álbumes):
 ${library.join('\n') || '(vacía)'}
 
@@ -277,8 +296,10 @@ async function runTool(
 		playlists: { id: number; name: string }[];
 		house: boolean;
 		outcome: Outcome;
+		user: Person;
 	}
 ): Promise<ToolResult> {
+	if (HISTORY_TOOLS.has(name)) return runHistoryTool(name, args, { self: ctx.user });
 	const where = args.where === 'house' && ctx.house ? 'house' : 'here';
 	if (args.where === 'house' && !ctx.house) return 'Toda la casa (Snapcast) no está disponible.';
 	switch (name) {
@@ -343,12 +364,17 @@ async function runTool(
 	}
 }
 
-/** What was said, done: what the device must do, and the sentence to read aloud. */
-export async function runVoiceCommand(request: VoiceRequest): Promise<VoiceReply> {
-	const [albums, playlists, model] = await Promise.all([
+/**
+ * What was said, done: what the device must do, and the sentence to read aloud. `user`: who speaks,
+ * from the session; an adult, a child's account has no voice.
+ */
+export async function runVoiceCommand(request: VoiceRequest, user: Person): Promise<VoiceReply> {
+	const [albums, playlists, model, { hoursSince }, keepHistory] = await Promise.all([
 		getAlbums(),
 		listPlaylists(),
-		voiceModel()
+		voiceModel(),
+		historySince([user]),
+		keepsHistory(user.id)
 	]);
 	const house = snapcastReady();
 	const outcome: Outcome = { actions: [], options: [], asked: null };
@@ -358,7 +384,7 @@ export async function runVoiceCommand(request: VoiceRequest): Promise<VoiceReply
 			content: [
 				{
 					type: 'text',
-					text: instructions({ albums, playlists, house }),
+					text: instructions({ albums, playlists, house, hoursSince, keepHistory }),
 					cache_control: { type: 'ephemeral' }
 				}
 			]
@@ -367,12 +393,13 @@ export async function runVoiceCommand(request: VoiceRequest): Promise<VoiceReply
 		{
 			role: 'user',
 			content: [
+				{ type: 'text', text: `[${todayText()}]` },
 				{ type: 'text', text: soundingNow(request.here, house) },
 				{ type: 'text', text: request.text }
 			]
 		}
 	];
-	const available = tools(house);
+	const available = [...tools(house), ...historyTools({ self: user })];
 
 	for (let round = 0; round < MAX_ROUNDS; round++) {
 		const answer = await chatWithTools({
@@ -390,7 +417,13 @@ export async function runVoiceCommand(request: VoiceRequest): Promise<VoiceReply
 			let result: ToolResult;
 			try {
 				const args = JSON.parse(call.function.arguments || '{}');
-				result = await runTool(call.function.name, args, { albums, playlists, house, outcome });
+				result = await runTool(call.function.name, args, {
+					albums,
+					playlists,
+					house,
+					outcome,
+					user
+				});
 			} catch (err) {
 				result = `Error: ${err instanceof Error ? err.message : String(err)}`;
 			}

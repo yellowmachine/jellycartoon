@@ -303,7 +303,8 @@ export const movieProgress = pgTable(
 
 /**
  * Time actually watched, per user, day, slot and episode or film: what the positions saved while playing
- * moved forward. Only for children's accounts, for the adults' page (#17).
+ * moved forward. Children's, for the adults' page (#17); adults' own, for them to ask about,
+ * unless they turn it off (`userSettings.keepHistory`).
  */
 export const watchTime = pgTable(
 	'watch_time',
@@ -485,6 +486,8 @@ export const userSettings = pgTable('user_settings', {
 	intro: boolean('intro').notNull().default(true),
 	/** The app's colours (themes.ts); unknown ones are the default. */
 	theme: text('theme').notNull().default('jellycartoon'),
+	/** What an adult watches is kept in watch_time, for them to ask about; a child's, always. */
+	keepHistory: boolean('keep_history').notNull().default(true),
 	/** Where "add to list" on a series page puts episodes. */
 	activeListId: integer('active_list_id').references(() => userList.id, { onDelete: 'set null' })
 });

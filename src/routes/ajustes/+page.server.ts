@@ -5,7 +5,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { user, userSettings } from '#lib/server/db/schema.ts';
 import { auth } from '#lib/server/auth.ts';
-import { KIDS_ROLE } from '#lib/server/kids.ts';
+import { isKid, KIDS_ROLE } from '#lib/server/kids.ts';
 import {
 	chatConfig,
 	DEFAULT_CHAT_MODEL,
@@ -20,7 +20,7 @@ import {
 } from '#lib/server/app-settings.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
-import { getSettings } from '#lib/server/settings.ts';
+import { getSettings, setKeepHistory } from '#lib/server/settings.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { hasIntro } from '#lib/server/library/paths.ts';
 import { KNOWN_LANGUAGES, normalizeLang } from '#lib/languages.ts';
@@ -85,6 +85,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		// Only with films in the living room and the intro in DATA_DIR.
 		intro: mpvEnabled && introFound ? settings.intro : null,
 		languages: KNOWN_LANGUAGES,
+		/** «Guardar lo que veo»: adults only, a child's is always kept for the adults (#17). */
+		keepHistory: isKid(locals.user) ? null : settings.keepHistory,
 		ai,
 		/** Children's accounts (#17): only who manages the app creates them. */
 		kids,
@@ -188,6 +190,11 @@ export const actions: Actions = {
 			.values({ userId: locals.user!.id, ...values })
 			.onConflictDoUpdate({ target: userSettings.userId, set: values });
 		return { saved: 'intro' };
+	},
+	history: async ({ request, locals }) => {
+		if (isKid(locals.user)) error(404, 'No encontrado');
+		await setKeepHistory(locals.user!.id, (await request.formData()).get('keepHistory') === 'on');
+		return { saved: 'history' };
 	},
 	saveKey: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);
