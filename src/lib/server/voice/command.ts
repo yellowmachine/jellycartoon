@@ -146,7 +146,7 @@ function tools(house: boolean): Tool[] {
 			{
 				minutes: {
 					type: 'number',
-					description: `Cuántos minutos hacia atrás, hasta ${MAX_CLIP_MINUTES}.`
+					description: `Cuántos minutos hacia atrás, hasta ${MAX_CLIP_MINUTES}; 0.5 son 30 segundos.`
 				},
 				language: {
 					type: 'string',
@@ -256,7 +256,7 @@ Lo que ha visto en vídeo (series, películas, canales de tele), solo de su cuen
 - Si pregunta por eso («¿qué capítulo de Friends vi el viernes?», «¿por dónde voy en…?»), contesta a la pregunta, corto, en vez de decir lo que has hecho.
 - Si quiere volver a verlo, búscalo con esas herramientas y ponlo con «play_video». Si no dice dónde, aquí${mpvEnabled ? '; una película, en el salón' : ''}.
 
-Langua: «manda los últimos 5 minutos a Langua», «guárdame esto para estudiar» → «send_clip». Sin minutos, 2. Dile qué se ha mandado, corto.
+Langua: «manda los últimos 5 minutos a Langua», «manda a Langua», «guárdame esto para estudiar», o solo «Langua» → «send_clip», sin preguntar. Sin tiempo, 30 segundos (minutes 0.5). El reconocimiento de voz puede escribir «lengua» o «la lengua»: es Langua. Dile qué se ha mandado, corto.
 
 Series y películas: «search_video» para encontrarlas, «series_episodes» para elegir capítulo, «play_video» para ponerlas.
 - «Pon Friends»: el capítulo que tenga a medias, o el siguiente al último visto; si no ha visto ninguno, el primero.
