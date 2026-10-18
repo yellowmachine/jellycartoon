@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { voiceModel } from '#lib/server/app-settings.ts';
+import { searchVideo, seriesEpisodes } from '#lib/server/voice/video.ts';
 import { playEpisodes, seriesQueue } from '#lib/server/cinema/episode-actions.ts';
 import { playFilm } from '#lib/server/cinema/film-actions.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
@@ -40,12 +41,15 @@ import type {
 /**
  * Voice commands (#33): what was said, to a model with the app's actions as tools. It searches the
  * music, plays it here (the device, which does it itself) or in the whole house (Snapcast, done
- * here), answers about what the person watched (only their own, see watch-history.ts), plays an
- * episode here or an episode or film in the living room, and says it in a sentence to be read aloud.
+ * here), answers about what the person watched (only their own, see watch-history.ts), finds and plays
+ * an episode here or an episode or film in the living room (video.ts), and says it in a sentence to be read aloud.
  */
 
-/** Turns with the model before giving up: a search, an action and the answer are three. */
-const MAX_ROUNDS = 5;
+/**
+ * Turns with the model before giving up: a search, an action and the answer are three; an episode
+ * by its series and season, five.
+ */
+const MAX_ROUNDS = 7;
 /** With more albums than this, the instructions list only the artists, and it searches the rest. */
 const LISTED_ALBUMS = 400;
 /** «Más alto» and «más bajo», on the 0–100 of Snapcast's master volume. */
@@ -135,8 +139,23 @@ function tools(house: boolean): Tool[] {
 				]
 			: []),
 		fn(
+			'search_video',
+			'Busca series y películas por el título (también el original de las películas). Da sus ids y si cada película está vista o a medias. Busca por cómo suena: el reconocimiento de voz escribe mal los nombres.',
+			{ query: { type: 'string', description: 'El título, o parte, p. ej. «friends».' } },
+			['query']
+		),
+		fn(
+			'series_episodes',
+			'Las temporadas de una serie, con cuántos capítulos tiene cada una y cuántos ha visto; con «season», los capítulos de esa temporada, con sus ids y si los ha visto o los tiene a medias.',
+			{
+				series_id: { type: 'integer', description: 'De «search_video».' },
+				season: { type: 'integer' }
+			},
+			['series_id']
+		),
+		fn(
 			'play_video',
-			`Pone un capítulo o una película. El id sale de las herramientas de lo visto («[episodio 12]», «[película 3]»). ${mpvEnabled ? 'Los capítulos, aquí (en el navegador del dispositivo) o en el salón (la tele); las películas, solo en el salón.' : 'Solo capítulos, aquí (en el navegador del dispositivo): no hay salón.'}`,
+			`Pone un capítulo o una película. El id sale de «search_video», «series_episodes» o las herramientas de lo visto («[episodio 12]», «[película 3]»). ${mpvEnabled ? 'Los capítulos, aquí (en el navegador del dispositivo) o en el salón (la tele); las películas, solo en el salón.' : 'Solo capítulos, aquí (en el navegador del dispositivo): no hay salón.'}`,
 			{
 				kind: { type: 'string', enum: ['episode', 'film'] },
 				id: { type: 'integer' },
@@ -218,6 +237,11 @@ Cómo responder:
 Lo que ha visto en vídeo (series, películas, canales de tele), solo de su cuenta: «watch_time», «sessions», «finished» y «halfway».
 - Si pregunta por eso («¿qué capítulo de Friends vi el viernes?», «¿por dónde voy en…?»), contesta a la pregunta, corto, en vez de decir lo que has hecho.
 - Si quiere volver a verlo, búscalo con esas herramientas y ponlo con «play_video». Si no dice dónde, aquí${mpvEnabled ? '; una película, en el salón' : ''}.
+
+Series y películas: «search_video» para encontrarlas, «series_episodes» para elegir capítulo, «play_video» para ponerlas.
+- «Pon Friends»: el capítulo que tenga a medias, o el siguiente al último visto; si no ha visto ninguno, el primero.
+- «Temporada 3, capítulo 7»: búscalo en esa temporada con «series_episodes».
+- Si hay varias que encajan (dos películas con el mismo título, una serie y una película…), usa «ask».
 ${historyRules(hoursSince)}
 ${keepHistory ? '' : '- Tiene apagado «Guardar lo que veo» en Ajustes: lo que vea ahora no se guarda. Si pregunta y no hay datos, díselo.\n'}
 Biblioteca de música (artista: álbumes):
@@ -426,6 +450,17 @@ async function runTool(
 			const to = Math.round(Math.min(Math.max(value, 0), 100));
 			await controlSnapcast({ action: 'masterVolume', value: to });
 			return `Volumen de la casa de ${now} a ${to}.`;
+		}
+		case 'search_video':
+			return typeof args.query === 'string' && args.query.trim()
+				? searchVideo(ctx.user.id, args.query)
+				: 'Falta qué buscar.';
+		case 'series_episodes': {
+			const seriesId = Number(args.series_id);
+			if (!Number.isInteger(seriesId)) return 'Falta el id de la serie.';
+			const season = args.season === undefined ? undefined : Number(args.season);
+			if (season !== undefined && !Number.isInteger(season)) return 'Temporada no válida.';
+			return seriesEpisodes(ctx.user.id, seriesId, season);
 		}
 		case 'play_video':
 			return playVideo(args, ctx);
