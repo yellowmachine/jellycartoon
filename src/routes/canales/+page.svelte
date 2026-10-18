@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import LivePlayer from '#lib/components/LivePlayer.svelte';
-	import type { Channel } from '#lib/channels.ts';
+	import { channelWash, type Channel } from '#lib/channels.ts';
 	import { music } from '#lib/music-player.svelte.ts';
 	import type { PageProps } from './$types';
 
@@ -24,8 +24,8 @@
 <h1 class="mb-1 text-2xl font-bold">Canales</h1>
 <p class="mb-6 text-sm text-zinc-400">
 	{data.kid
-		? 'Clan, en directo.'
-		: 'Los canales de RTVE, en directo. La mayoría tienen versión original y subtítulos, también en inglés.'}
+		? 'Clan y SX3, en directo.'
+		: 'En directo, de aquí y de fuera. Muchos tienen versión original o subtítulos, también en inglés.'}
 </p>
 
 {#if form && 'message' in form}
@@ -55,6 +55,7 @@
 				'flex items-center gap-3 rounded-md border p-3',
 				on ? 'border-amber-500 bg-amber-500/10' : 'border-zinc-800'
 			]}
+			style:background-image={channelWash(channel)}
 		>
 			<button class="min-w-0 flex-1 text-left" onclick={() => watch(channel)}>
 				<span class="block font-semibold">{channel.name}</span>
