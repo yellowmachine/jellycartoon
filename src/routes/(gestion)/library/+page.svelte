@@ -258,13 +258,19 @@
 				Su fichero ya no está en la carpeta de medios. No se ven en ningún sitio, pero si el fichero
 				vuelve (un disco que no estaba montado al escanear), el próximo escaneo los recupera con su
 				progreso. Olvidarlos borra lo que la app sabe de ellos: lo convertido, el progreso, el
-				tiempo visto y su sitio en las listas; si el fichero volviera, sería un capítulo nuevo.
+				tiempo visto y su sitio en las listas; si el fichero volviera, sería un capítulo nuevo. Si a
+				una serie le faltan todos, mira antes si su disco está montado.
 			</p>
 			<ul class="mb-3 space-y-0.5">
 				{#each data.missing as s (s.seriesId)}
 					<li>
 						<a href="/series/{s.seriesId}" class="hover:text-amber-400">{s.seriesTitle}</a>
-						<span class="text-zinc-500">· {s.count}</span>
+						{#if s.count === s.total}
+							<!-- The whole series: more likely a disk not mounted than files gone for good. -->
+							<span class="text-amber-400">· todos sus {s.total} capítulos</span>
+						{:else}
+							<span class="text-zinc-500">· {s.count} de {s.total} capítulos</span>
+						{/if}
 					</li>
 				{/each}
 			</ul>

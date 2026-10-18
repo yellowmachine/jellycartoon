@@ -51,20 +51,22 @@ export async function deleteEpisodes(seriesId: number, ids: number[]) {
 
 /**
  * The episodes whose original is no longer in MEDIA_DIR (and was not deleted after converting), by
- * series: what «olvidar los desaparecidos» would take.
+ * series, out of all of its own: what «olvidar los desaparecidos» would take. A series missing all
+ * of them is the one to look at twice (a disk not mounted when scanning).
  */
 export async function missingEpisodes() {
-	return db
+	const rows = await db
 		.select({
 			seriesId: series.id,
 			seriesTitle: series.title,
-			count: sql<number>`count(*)::int`
+			count: sql<number>`(count(*) filter (where ${episode.missing}))::int`,
+			total: sql<number>`count(*)::int`
 		})
 		.from(episode)
 		.innerJoin(series, eq(series.id, episode.seriesId))
-		.where(eq(episode.missing, true))
 		.groupBy(series.id)
 		.orderBy(asc(series.title));
+	return rows.filter((r) => r.count > 0);
 }
 
 /**
