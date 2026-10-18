@@ -88,7 +88,8 @@ const state: RemoteState = {
 	volume: null,
 	audioId: null,
 	subtitleId: null,
-	tracks: []
+	tracks: [],
+	failed: null
 };
 
 const SAVE_MS = 5_000;
@@ -139,11 +140,13 @@ const mpv = new MpvClient(
 			const entryId = message.playlist_entry_id;
 			if (message.event === 'start-file' && entryId !== undefined) {
 				current = entryId;
+				showFailed(null);
 				show(entryId);
 			} else if (message.event === 'file-loaded') {
 				loaded = current;
 				if (loaded !== null) void addSubtitles(loaded);
 			} else if (message.event === 'end-file' && entryId !== undefined) {
+				if (message.reason === 'error') failedToOpen(entryId, message.file_error);
 				void ended(entryId, message.reason ?? '');
 			}
 		}
@@ -191,6 +194,41 @@ function show(entryId: number) {
 		live: channel !== undefined
 	});
 	notify();
+}
+
+/** An entry that failed before it was known as ours. */
+let failedEarly: { entryId: number; error: string | undefined } | null = null;
+
+/** Now that `entryId` is known: if it already failed, said now. */
+function checkFailedEarly(entryId: number) {
+	if (failedEarly?.entryId !== entryId) return;
+	const { error } = failedEarly;
+	failedEarly = null;
+	failedToOpen(entryId, error);
+}
+
+/** How long the remotes say what could not be opened, unless something plays before. */
+const FAILED_MS = 30_000;
+let failedTimer: ReturnType<typeof setTimeout> | undefined;
+
+function showFailed(text: string | null) {
+	clearTimeout(failedTimer);
+	if (state.failed === text) return;
+	state.failed = text;
+	if (text) failedTimer = setTimeout(() => showFailed(null), FAILED_MS);
+	notify();
+}
+
+/**
+ * One of ours that mpv could not open: a channel off the air, a file that is gone… Without this it
+ * would only go back to nothing, as if it had ended. Not the intro: the film goes on after it.
+ */
+function failedToOpen(entryId: number, error: string | undefined) {
+	const name = playing.get(entryId)?.title ?? live.get(entryId)?.channel.name;
+	// Its end may come before loadfile's answer, as start-file does: told once it is known.
+	if (!name) return void (failedEarly = { entryId, error });
+	log.warn('mpv', `No se pudo abrir ${name}`, { error });
+	showFailed(`No se pudo abrir ${name}`);
 }
 
 /** Only the one in the user's language is selected; none when they want no subtitles. */
@@ -467,6 +505,7 @@ async function playNow(options: {
 			positionSec: item.startSec
 		});
 		if (current === result.playlist_entry_id) show(result.playlist_entry_id);
+		checkFailedEarly(result.playlist_entry_id);
 		void addSubtitles(result.playlist_entry_id);
 	}
 	startSaving();
@@ -489,6 +528,7 @@ async function playChannelNow(userId: string, channel: Channel) {
 	};
 	live.set(result.playlist_entry_id, { channel, userId, positionSec: null });
 	if (current === result.playlist_entry_id) show(result.playlist_entry_id);
+	checkFailedEarly(result.playlist_entry_id);
 	startSaving();
 	log.info('mpv', `En directo: ${channel.name}`, { url: channel.url });
 }

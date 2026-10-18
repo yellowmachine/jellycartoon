@@ -35,6 +35,9 @@
 			<code class="text-xs">systemctl --user status jellycartoon-mpv</code>
 		</p>
 	{:else if !mpv.active}
+		{#if mpv.failed}
+			<p class="mb-4 text-red-400">{mpv.failed}.</p>
+		{/if}
 		<p class="text-zinc-400">
 			No se está viendo nada. Elige una película en <a href="/cine" class="text-amber-400">Cine</a>
 			o un capítulo en una serie, en <a href="/today" class="text-amber-400">Hoy</a> o en tus

@@ -7,7 +7,7 @@
 	const mpv = $derived(salon.state);
 </script>
 
-<!-- Only while something is on screen in the living room. -->
+<!-- Only while something is on screen in the living room, or it could not be opened. -->
 {#if mpv?.active}
 	<div
 		class="flex items-center gap-3 rounded-md border border-zinc-700 bg-zinc-900/80 p-3 backdrop-blur"
@@ -41,4 +41,9 @@
 		{/if}
 		<a href="/salon" class="shrink-0 text-sm text-amber-400 hover:underline">Mando →</a>
 	</div>
+{:else if mpv?.failed}
+	<!-- What was sent did not open: without this, the bar would just not be there. -->
+	<p class="rounded-md border border-red-900 bg-red-950/80 p-3 text-sm text-red-200 backdrop-blur">
+		En el salón: {mpv.failed}
+	</p>
 {/if}

@@ -2,6 +2,7 @@
 	import { afterNavigate, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import MusicBar from '#lib/components/MusicBar.svelte';
+	import TvSalonFailed from '#lib/components/TvSalonFailed.svelte';
 	import { music } from '#lib/music-player.svelte.ts';
 
 	let { children } = $props();
@@ -22,6 +23,10 @@
 <main bind:this={main} class="min-h-screen px-12 py-10 text-2xl">
 	{@render children()}
 </main>
+
+{#if page.data.salon}
+	<TvSalonFailed />
+{/if}
 
 <!-- The music sounds through its <audio>; its bar is for the whole app, not for the TV. -->
 <div class="hidden"><MusicBar /></div>
