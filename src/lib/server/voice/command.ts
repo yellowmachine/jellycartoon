@@ -36,7 +36,8 @@ import type {
 	VoiceOption,
 	VoiceReply,
 	VoiceRequest,
-	VoiceTarget
+	VoiceTarget,
+	VideoHere
 } from '#lib/voice.ts';
 
 /**
@@ -274,6 +275,23 @@ ${STATIONS.map((s) => `- ${s.name} [${s.uuid}]: ${s.description}, ${COUNTRIES[s.
 }
 
 /** What sounds in each place now, with each command: it is not what the person said. */
+/** The episode in this device's player, for the AI: «manda esto a Langua» is about it. */
+async function videoText(video: VideoHere | null) {
+	if (!video) return null;
+	const [ep] = await db
+		.select({
+			title: episodeTitle,
+			seriesTitle: series.title,
+			season: episode.season,
+			number: episode.number
+		})
+		.from(episode)
+		.innerJoin(series, eq(series.id, episode.seriesId))
+		.where(eq(episode.id, video.episodeId));
+	if (!ep) return null;
+	return `[Viendo aquí, en pausa mientras habla: «${ep.seriesTitle}» T${ep.season} E${ep.number} «${ep.title}» [episodio ${video.episodeId}], minuto ${Math.floor(video.positionSec / 60)}.]`;
+}
+
 function soundingNow(here: string | null, house: boolean) {
 	const snap = house ? snapcastNow() : null;
 	const inHouse = !snap?.active
@@ -418,6 +436,7 @@ async function runTool(
 		house: boolean;
 		outcome: Outcome;
 		user: Person;
+		video: VideoHere | null;
 	}
 ): Promise<ToolResult> {
 	if (HISTORY_TOOLS.has(name)) return runHistoryTool(name, args, { self: ctx.user });
@@ -475,7 +494,8 @@ async function runTool(
 			if (!Number.isFinite(minutes) || minutes <= 0) return 'Faltan los minutos.';
 			return sendClip(ctx.user.id, {
 				minutes,
-				language: typeof args.language === 'string' ? args.language : null
+				language: typeof args.language === 'string' ? args.language : null,
+				video: ctx.video
 			});
 		}
 		case 'search_video':
@@ -511,12 +531,13 @@ async function runTool(
  * from the session; an adult, a child's account has no voice.
  */
 export async function runVoiceCommand(request: VoiceRequest, user: Person): Promise<VoiceReply> {
-	const [albums, playlists, model, { hoursSince }, keepHistory] = await Promise.all([
+	const [albums, playlists, model, { hoursSince }, keepHistory, watchingHere] = await Promise.all([
 		getAlbums(),
 		listPlaylists(),
 		voiceModel(),
 		historySince([user]),
-		keepsHistory(user.id)
+		keepsHistory(user.id),
+		videoText(request.video)
 	]);
 	const house = snapcastReady();
 	const outcome: Outcome = { actions: [], options: [], asked: null };
@@ -537,6 +558,7 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 			content: [
 				{ type: 'text', text: `[${todayText()}]` },
 				{ type: 'text', text: soundingNow(request.here, house) },
+				...(watchingHere ? [{ type: 'text' as const, text: watchingHere }] : []),
 				{ type: 'text', text: request.text }
 			]
 		}
@@ -564,7 +586,8 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 					playlists,
 					house,
 					outcome,
-					user
+					user,
+					video: request.video
 				});
 			} catch (err) {
 				result = `Error: ${err instanceof Error ? err.message : String(err)}`;

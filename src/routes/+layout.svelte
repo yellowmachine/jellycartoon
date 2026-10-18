@@ -5,7 +5,9 @@
 	import SalonBar from '#lib/components/SalonBar.svelte';
 	import SnapcastBar from '#lib/components/SnapcastBar.svelte';
 	import TvIcon from '#lib/components/TvIcon.svelte';
-	import { beforeNavigate } from '$app/navigation';
+	import VoiceBubble from '#lib/components/VoiceBubble.svelte';
+	import { beforeNavigate, goto } from '$app/navigation';
+	import { voice } from '#lib/voice-client.svelte.ts';
 	import { page, updated } from '$app/state';
 	import { themeColor, themeCss } from '#lib/themes.ts';
 	import type { LayoutProps } from './$types';
@@ -35,6 +37,35 @@
 			: // With Etiquetas and Registro in its tabs.
 				[{ href: '/library', label: 'Gestión', also: ['/logs'] }])
 	]);
+
+	/** Held this long, the header's microphone listens; let go sooner, it was a tap: /voz opens. */
+	const HOLD_MS = 250;
+	/** Pressed, and not yet long enough to listen: a tap so far. */
+	let holdTimer: ReturnType<typeof setTimeout> | undefined;
+	/** Listening: let go, and what was said is sent. */
+	let holding = false;
+
+	/** A tap does not wake the microphone (nor ask for its permission): only holding it does. */
+	function pressMic() {
+		clearTimeout(holdTimer);
+		holdTimer = setTimeout(() => {
+			holdTimer = undefined;
+			holding = true;
+			void voice.start();
+		}, HOLD_MS);
+	}
+
+	function releaseMic(cancelled: boolean) {
+		if (holdTimer !== undefined) {
+			clearTimeout(holdTimer);
+			holdTimer = undefined;
+			if (!cancelled) void goto('/voz');
+			return;
+		}
+		if (!holding) return;
+		holding = false;
+		voice.stop();
+	}
 
 	const under = (path: string, href: string) => path === href || path.startsWith(`${href}/`);
 	/** The section a page is in: its own address or, for those with tabs, any of theirs. */
@@ -87,17 +118,36 @@
 					<img src={favicon} alt="" class="h-7 w-7 rounded-md" />
 					JellyCartoon
 				</a>
-				<!-- Voice commands (#33): a microphone by the name, on every screen, phones too. -->
+				<!-- Voice commands (#33): a microphone by the name, on every screen, phones too. Held down,
+				     it listens without leaving the page (an episode playing pauses); tapped, it opens /voz. -->
 				{#if data.voice}
 					<a
 						href="/voz"
-						title="Hablar"
+						title="Mantén pulsado para hablar · Pulsa para abrir Hablar"
 						aria-label="Hablar"
 						aria-current={page.url.pathname === '/voz' ? 'page' : undefined}
+						draggable="false"
+						style="-webkit-touch-callout: none"
 						class={[
-							'-ml-3 shrink-0 rounded-md p-1 hover:bg-zinc-800 hover:text-white',
-							page.url.pathname === '/voz' ? 'text-amber-400' : 'text-zinc-400'
+							'-ml-3 shrink-0 touch-none rounded-md p-1 select-none hover:bg-zinc-800 hover:text-white',
+							voice.phase === 'listening'
+								? 'bg-red-500 text-white hover:bg-red-500'
+								: page.url.pathname === '/voz'
+									? 'text-amber-400'
+									: 'text-zinc-400'
 						]}
+						onpointerdown={(e) => {
+							if (e.button !== 0) return;
+							e.currentTarget.setPointerCapture(e.pointerId);
+							pressMic();
+						}}
+						onpointerup={() => releaseMic(false)}
+						onpointercancel={() => releaseMic(true)}
+						onclick={(e) => {
+							// The pointer's own handlers go or talk; only the keyboard (Enter) follows the link.
+							if (e.detail !== 0) e.preventDefault();
+						}}
+						oncontextmenu={(e) => e.preventDefault()}
 					>
 						<svg viewBox="0 0 24 24" class="h-6 w-6" fill="currentColor" aria-hidden="true">
 							<rect x="9" y="2.5" width="6" height="12" rx="3" />
@@ -194,6 +244,10 @@
 			<!-- In the sticky header, under the menu: what is on stays in view on every page. Only with
 		     a bar showing does it take room (MusicBar's <audio> is always there, but not a div). -->
 			<div class="mx-auto flex max-w-6xl flex-col gap-1 px-4 has-[>div]:pb-2">
+				<!-- What the header's microphone heard and answered; /voz shows it big itself. -->
+				{#if data.voice && page.url.pathname !== '/voz'}
+					<VoiceBubble />
+				{/if}
 				<!-- Everywhere but its remote. -->
 				{#if data.salon && !isCurrent('/salon')}
 					<SalonBar />

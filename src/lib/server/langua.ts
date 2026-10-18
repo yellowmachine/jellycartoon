@@ -21,6 +21,7 @@ import { log } from '#lib/server/log.ts';
 import { getSettings } from '#lib/server/settings.ts';
 import { normalizeLang } from '#lib/languages.ts';
 import { cuesBetween, cuesText, parseVtt, type Cue } from '#lib/vtt.ts';
+import type { VideoHere } from '#lib/voice.ts';
 
 /**
  * Langua, the user's language app (langua.scholio.review): a stretch of what they are watching,
@@ -118,18 +119,34 @@ export async function pingLangua(config: LanguaConfig) {
 }
 
 /** The episode or film the user played last, if it was a moment ago, and up to where. */
-async function nowWatching(userId: string) {
+const episodeColumns = {
+	id: episode.id,
+	title: episodeTitle,
+	seriesTitle: series.title,
+	season: episode.season,
+	number: episode.number,
+	audioTracks: episode.audioTracks,
+	subtitles: episode.subtitles,
+	durationSec: episode.durationSec
+};
+
+/**
+ * What the user is watching, and up to where: the episode the page says plays in its player, at
+ * its exact second; otherwise the last one played, if it was a moment ago, up to its last save.
+ */
+async function nowWatching(userId: string, video: VideoHere | null) {
+	if (video) {
+		const [ep] = await db
+			.select(episodeColumns)
+			.from(episode)
+			.innerJoin(series, eq(series.id, episode.seriesId))
+			.where(and(eq(episode.id, video.episodeId), eq(episode.status, 'ready')));
+		if (ep) return { kind: 'episode' as const, ...ep, endSec: video.positionSec };
+	}
 	const [[ep], [film]] = await Promise.all([
 		db
 			.select({
-				id: episode.id,
-				title: episodeTitle,
-				seriesTitle: series.title,
-				season: episode.season,
-				number: episode.number,
-				audioTracks: episode.audioTracks,
-				subtitles: episode.subtitles,
-				durationSec: episode.durationSec,
+				...episodeColumns,
 				positionSec: watchProgress.positionSec,
 				completed: watchProgress.completed,
 				at: watchProgress.updatedAt
@@ -186,12 +203,12 @@ const clock = (sec: number) => {
  */
 export async function sendClip(
 	userId: string,
-	options: { minutes: number; language?: string | null }
+	options: { minutes: number; language?: string | null; video?: VideoHere | null }
 ): Promise<string> {
 	const config = await languaConfig(userId);
 	if (!config)
 		return 'Langua no está configurado: se pone en Ajustes, con su dirección y su token.';
-	const watching = await nowWatching(userId);
+	const watching = await nowWatching(userId, options.video ?? null);
 	if (!watching)
 		return 'No está viendo ningún capítulo ni película (nada en la última media hora). La radio y los canales en directo todavía no se pueden mandar.';
 

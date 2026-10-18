@@ -30,10 +30,17 @@ export interface VoiceTurn {
 	content: string;
 }
 
+/** The episode playing in this browser's player, and where: what «los últimos 5 minutos» are of. */
+export interface VideoHere {
+	episodeId: number;
+	positionSec: number;
+}
+
 export interface VoiceRequest {
 	text: string;
 	/** What sounds on this device now, as the page shows it; null if nothing. */
 	here: string | null;
+	video: VideoHere | null;
 	history: VoiceTurn[];
 }
 
@@ -63,5 +70,18 @@ export function parseVoiceRequest(body: unknown): VoiceRequest | null {
 			? [{ role: t.role, content } as VoiceTurn]
 			: [];
 	});
-	return { text: said, here: text(b.here, 200), history: history.slice(-HISTORY_TURNS) };
+	const v = b.video as Record<string, unknown> | null | undefined;
+	const video =
+		v &&
+		Number.isInteger(v.episodeId) &&
+		Number.isFinite(v.positionSec) &&
+		Number(v.positionSec) >= 0
+			? { episodeId: Number(v.episodeId), positionSec: Number(v.positionSec) }
+			: null;
+	return {
+		text: said,
+		here: text(b.here, 200),
+		video,
+		history: history.slice(-HISTORY_TURNS)
+	};
 }

@@ -15,6 +15,7 @@ describe('parseVoiceRequest', () => {
 		).toEqual({
 			text: 'Pon Alaska',
 			here: '«Rosas» de La Oreja de Van Gogh',
+			video: null,
 			history: [
 				{ role: 'user', content: 'Pon la radio' },
 				{ role: 'assistant', content: 'Pongo la BBC aquí' }
@@ -26,6 +27,7 @@ describe('parseVoiceRequest', () => {
 		expect(parseVoiceRequest({ text: 'Para', here: null })).toEqual({
 			text: 'Para',
 			here: null,
+			video: null,
 			history: []
 		});
 	});
@@ -41,6 +43,18 @@ describe('parseVoiceRequest', () => {
 		});
 		expect(parsed?.history).toHaveLength(HISTORY_TURNS);
 		expect(parsed?.history.at(-1)).toEqual({ role: 'assistant', content: 'turno 9' });
+	});
+
+	test('the episode playing here, only if well formed', () => {
+		const video = (value: unknown) => parseVoiceRequest({ text: 'manda', video: value })?.video;
+		expect(video({ episodeId: 12, positionSec: 300.5 })).toEqual({
+			episodeId: 12,
+			positionSec: 300.5
+		});
+		expect(video({ episodeId: '12', positionSec: 300 })).toBeNull();
+		expect(video({ episodeId: 12, positionSec: -1 })).toBeNull();
+		expect(video({ episodeId: 12 })).toBeNull();
+		expect(video(null)).toBeNull();
 	});
 
 	test('without words, nothing', () => {
