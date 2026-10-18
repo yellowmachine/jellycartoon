@@ -192,6 +192,7 @@ function watchedRows(where: SQL | undefined) {
 			title: sql<string>`coalesce(${movieTitle}, ${episodeTitle})`,
 			season: episode.season,
 			number: episode.number,
+			episodeId: watchTime.episodeId,
 			movieId: watchTime.movieId,
 			channelId: watchTime.channelId,
 			day: watchTime.day,
@@ -207,13 +208,23 @@ function watchedRows(where: SQL | undefined) {
 
 type WatchedRow = Awaited<ReturnType<typeof watchedRows>>[number];
 
+/** With its id, for a tool that plays it (`play_video` in voice commands). */
+const episodeLabel = (e: {
+	id: number | null;
+	seriesTitle: string | null;
+	season: number | null;
+	number: number | null;
+	title: string;
+}) => `«${e.seriesTitle}» T${e.season} E${e.number} «${e.title}» [episodio ${e.id}]`;
+
+const filmLabel = (f: { id: number | null; title: string }) =>
+	`Película «${f.title}» [película ${f.id}]`;
+
 /** `bySeries`: the series, not the episode. */
 function labelOf(r: WatchedRow, bySeries = false) {
 	if (r.channelId) return `Canal ${channelName(r.channelId)}`;
-	if (r.movieId) return `Película «${r.title}»`;
-	return bySeries
-		? `Serie «${r.seriesTitle}»`
-		: `«${r.seriesTitle}» T${r.season} E${r.number} «${r.title}»`;
+	if (r.movieId) return filmLabel({ id: r.movieId, title: r.title });
+	return bySeries ? `Serie «${r.seriesTitle}»` : episodeLabel({ ...r, id: r.episodeId });
 }
 
 async function watchTimeTool(userId: string, from: string, to: string, groupBy: string) {
@@ -305,6 +316,7 @@ async function finishedTool(userId: string, from: string, to: string) {
 	const [episodes, films] = await Promise.all([
 		db
 			.select({
+				id: episode.id,
 				title: episodeTitle,
 				seriesTitle: series.title,
 				season: episode.season,
@@ -323,7 +335,7 @@ async function finishedTool(userId: string, from: string, to: string) {
 				)
 			),
 		db
-			.select({ title: movieTitle, at: movieProgress.updatedAt })
+			.select({ id: movie.id, title: movieTitle, at: movieProgress.updatedAt })
 			.from(movieProgress)
 			.innerJoin(movie, eq(movie.id, movieProgress.movieId))
 			.where(
@@ -337,10 +349,10 @@ async function finishedTool(userId: string, from: string, to: string) {
 	]);
 	const all = [
 		...episodes.map((e) => ({
-			what: `«${e.seriesTitle}» T${e.season} E${e.number} «${e.title}»`,
+			what: episodeLabel(e),
 			at: e.at
 		})),
-		...films.map((f) => ({ what: `Película «${f.title}»`, at: f.at }))
+		...films.map((f) => ({ what: filmLabel(f), at: f.at }))
 	].sort((a, b) => a.at.getTime() - b.at.getTime());
 	return {
 		count: all.length,
@@ -353,6 +365,7 @@ async function halfwayTool(userId: string) {
 	const [episodes, films] = await Promise.all([
 		db
 			.select({
+				id: episode.id,
 				title: episodeTitle,
 				seriesTitle: series.title,
 				season: episode.season,
@@ -375,6 +388,7 @@ async function halfwayTool(userId: string) {
 			.limit(10),
 		db
 			.select({
+				id: movie.id,
 				title: movieTitle,
 				position: movieProgress.positionSec,
 				duration: movie.durationSec,
@@ -396,12 +410,12 @@ async function halfwayTool(userId: string) {
 		duration ? `${Math.round((position / duration) * 100)} %` : `${minutes(position)} min`;
 	return [
 		...episodes.map((e) => ({
-			what: `«${e.seriesTitle}» T${e.season} E${e.number} «${e.title}»`,
+			what: episodeLabel(e),
 			seen: percent(e.position, e.duration),
 			last: e.at
 		})),
 		...films.map((f) => ({
-			what: `Película «${f.title}»`,
+			what: filmLabel(f),
 			seen: percent(f.position, f.duration),
 			last: f.at
 		}))

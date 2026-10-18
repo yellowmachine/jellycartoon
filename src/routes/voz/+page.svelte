@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { music } from '#lib/music-player.svelte.ts';
 	import { musicTarget } from '#lib/music-target.svelte.ts';
 	import {
@@ -134,6 +135,11 @@
 	/** What the server cannot do: play in this browser. */
 	async function act(action: VoiceAction) {
 		switch (action.kind) {
+			case 'watch':
+				// The answer is still read aloud: speechSynthesis outlives the page change.
+				return goto(
+					`/watch/${action.episodeId}${action.startSec === null ? '' : `?t=${action.startSec}`}`
+				);
 			case 'play':
 				music.setShuffle(action.shuffle);
 				return music.play(action.tracks, action.start);

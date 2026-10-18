@@ -1,4 +1,10 @@
+import { and, eq } from 'drizzle-orm';
 import { voiceModel } from '#lib/server/app-settings.ts';
+import { playEpisodes, seriesQueue } from '#lib/server/cinema/episode-actions.ts';
+import { playFilm } from '#lib/server/cinema/film-actions.ts';
+import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
+import { db } from '#lib/server/db/index.ts';
+import { episode, episodeTitle, series } from '#lib/server/db/schema.ts';
 import { getAlbums, tracksById } from '#lib/server/music/albums.ts';
 import { getPlaylist, listPlaylists } from '#lib/server/music/playlists.ts';
 import {
@@ -34,8 +40,8 @@ import type {
 /**
  * Voice commands (#33): what was said, to a model with the app's actions as tools. It searches the
  * music, plays it here (the device, which does it itself) or in the whole house (Snapcast, done
- * here), answers about what the person watched (only their own, see watch-history.ts), and says it
- * in a sentence to be read aloud.
+ * here), answers about what the person watched (only their own, see watch-history.ts), plays an
+ * episode here or an episode or film in the living room, and says it in a sentence to be read aloud.
  */
 
 /** Turns with the model before giving up: a search, an action and the answer are three. */
@@ -129,6 +135,24 @@ function tools(house: boolean): Tool[] {
 				]
 			: []),
 		fn(
+			'play_video',
+			`Pone un capítulo o una película. El id sale de las herramientas de lo visto («[episodio 12]», «[película 3]»). ${mpvEnabled ? 'Los capítulos, aquí (en el navegador del dispositivo) o en el salón (la tele); las películas, solo en el salón.' : 'Solo capítulos, aquí (en el navegador del dispositivo): no hay salón.'}`,
+			{
+				kind: { type: 'string', enum: ['episode', 'film'] },
+				id: { type: 'integer' },
+				start_minute: {
+					type: 'number',
+					description: 'Desde qué minuto; 0 es desde el principio. Sin él, sigue donde lo dejó.'
+				},
+				where: {
+					type: 'string',
+					enum: mpvEnabled ? ['here', 'salon'] : ['here'],
+					description: '«here»: el dispositivo desde el que se habla. «salon»: la tele del salón.'
+				}
+			},
+			['kind', 'id', 'where']
+		),
+		fn(
 			'ask',
 			'Cuando no está claro qué se pide entre unas pocas opciones: pregunta, y cada opción es un botón. No se hace nada más.',
 			{
@@ -193,6 +217,7 @@ Cómo responder:
 
 Lo que ha visto en vídeo (series, películas, canales de tele), solo de su cuenta: «watch_time», «sessions», «finished» y «halfway».
 - Si pregunta por eso («¿qué capítulo de Friends vi el viernes?», «¿por dónde voy en…?»), contesta a la pregunta, corto, en vez de decir lo que has hecho.
+- Si quiere volver a verlo, búscalo con esas herramientas y ponlo con «play_video». Si no dice dónde, aquí${mpvEnabled ? '; una película, en el salón' : ''}.
 ${historyRules(hoursSince)}
 ${keepHistory ? '' : '- Tiene apagado «Guardar lo que veo» en Ajustes: lo que vea ahora no se guarda. Si pregunta y no hay datos, díselo.\n'}
 Biblioteca de música (artista: álbumes):
@@ -288,6 +313,59 @@ async function controlHouse(action: VoiceControl) {
 }
 
 /** Runs one call of the model; what the device must do and the options, into `outcome`. */
+/** An episode here (the device opens its player) or in the living room; a film, only there. */
+async function playVideo(args: Record<string, unknown>, ctx: { outcome: Outcome; user: Person }) {
+	const id = Number(args.id);
+	if (!Number.isInteger(id)) return 'Falta el id del capítulo o la película.';
+	const minute = Number(args.start_minute);
+	const startSec =
+		args.start_minute === undefined || !Number.isFinite(minute)
+			? null
+			: Math.max(0, Math.round(minute * 60));
+	const salon = args.where === 'salon';
+	if (salon && !mpvEnabled) return 'No hay salón (mpv) configurado.';
+
+	if (args.kind === 'film') {
+		if (!salon) return 'Las películas solo se ven en el salón: pregúntale si la pones allí.';
+		const result = await playFilm(
+			ctx.user.id,
+			id,
+			startSec === null ? 'resume' : startSec === 0 ? 'start' : { atSec: startSec }
+		);
+		return played(result, startSec);
+	}
+	if (args.kind !== 'episode') return `Tipo no válido: «${args.kind}».`;
+
+	if (salon) {
+		const result = await playEpisodes(
+			ctx.user.id,
+			await seriesQueue(ctx.user.id, id),
+			startSec ?? undefined
+		);
+		return played(result, startSec);
+	}
+	const [ep] = await db
+		.select({ title: episodeTitle, seriesTitle: series.title })
+		.from(episode)
+		.innerJoin(series, eq(series.id, episode.seriesId))
+		.where(and(eq(episode.id, id), eq(episode.status, 'ready'), eq(episode.missing, false)));
+	if (!ep) return `No hay ningún capítulo listo con id ${id}.`;
+	ctx.outcome.actions.push({ kind: 'watch', episodeId: id, startSec });
+	return `Abriendo «${ep.seriesTitle}: ${ep.title}» aquí${fromMinute(startSec)}.`;
+}
+
+const fromMinute = (startSec: number | null) =>
+	startSec ? ` desde el minuto ${Math.round(startSec / 60)}` : '';
+
+/** What the living room's actions answered, in words: they fail as a form action does. */
+const played = (
+	result: { playing: string } | { data: { message: string } },
+	startSec: number | null
+) =>
+	'playing' in result
+		? `Poniendo «${result.playing}» en el salón${fromMinute(startSec)}.`
+		: `No se pudo: ${result.data.message}`;
+
 async function runTool(
 	name: string,
 	args: Record<string, unknown>,
@@ -349,6 +427,8 @@ async function runTool(
 			await controlSnapcast({ action: 'masterVolume', value: to });
 			return `Volumen de la casa de ${now} a ${to}.`;
 		}
+		case 'play_video':
+			return playVideo(args, ctx);
 		case 'ask': {
 			const options = (Array.isArray(args.options) ? args.options : [])
 				.filter(

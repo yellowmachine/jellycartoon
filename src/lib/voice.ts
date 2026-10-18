@@ -14,7 +14,9 @@ export type VoiceControl = 'pause' | 'resume' | 'next' | 'previous' | 'stop';
 export type VoiceAction =
 	| { kind: 'play'; tracks: MusicTrack[]; start: number; shuffle: boolean }
 	| { kind: 'radio'; uuid: string }
-	| { kind: 'control'; action: VoiceControl };
+	| { kind: 'control'; action: VoiceControl }
+	/** An episode in this browser's player; `startSec` null: from where it was left. */
+	| { kind: 'watch'; episodeId: number; startSec: number | null };
 
 /** A choice when the order was not clear: tapped, its `command` is sent as if it had been said. */
 export interface VoiceOption {
