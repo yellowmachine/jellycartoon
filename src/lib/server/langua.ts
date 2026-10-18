@@ -327,7 +327,7 @@ export async function sendClip(
 			: metadata.transcriptLanguage === language && language !== 'und'
 				? 'con el texto de los subtítulos'
 				: `Langua lo transcribirá, y los subtítulos (en ${metadata.transcriptLanguage}) quedan como traducción`;
-		return `Mandado a Langua: ${name}, de ${clock(startSec)} a ${clock(endSec)} (${Math.round(seconds / 60)} min), audio en ${language}, ${text}.`;
+		return `Mandado a Langua: ${name}, de ${clock(startSec)} a ${clock(endSec)} (${seconds < 90 ? `${seconds} s` : `${Math.round(seconds / 60)} min`}), audio en ${language}, ${text}.`;
 	} catch (err) {
 		log.error('langua', 'No se pudo hacer el clip', { userId, error: err });
 		return `No se pudo hacer el clip: ${err instanceof Error ? err.message : String(err)}`;
