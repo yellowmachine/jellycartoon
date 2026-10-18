@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, gte, lte, min, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, isNotNull, lte, min, sql, type SQL } from 'drizzle-orm';
 import { voiceModel } from '#lib/server/app-settings.ts';
 import { db } from '#lib/server/db/index.ts';
 import {
@@ -17,7 +17,7 @@ import { kidRules, now, videoAllowed, watchedToday } from '#lib/server/kid-time.
 import { chatWithTools, type Tool, type ToolChatMessage } from '#lib/server/openrouter.ts';
 import { today } from '#lib/server/playlist.ts';
 import { CHANNELS } from '#lib/channels.ts';
-import { clock, closedText, WEEKDAYS } from '#lib/kid-time.ts';
+import { clock, closedText, joinSlots, SLOT_MINUTES, WEEKDAYS } from '#lib/kid-time.ts';
 import type { KidQuestion } from '#lib/kid-questions.ts';
 
 /**
@@ -77,7 +77,7 @@ function tools(kids: Kid[]): Tool[] {
 	return [
 		fn(
 			'watch_time',
-			'Tiempo de vídeo que de verdad ha avanzado (sin pausas ni saltos) entre dos días, en minutos: el total y desglosado. Solo hay días, no horas.',
+			'Tiempo de vídeo que de verdad ha avanzado (sin pausas ni saltos) entre dos días, en minutos: el total y desglosado. Para las horas, «sessions».',
 			{
 				kid_id: kid,
 				from: day('Primer día'),
@@ -90,6 +90,12 @@ function tools(kids: Kid[]): Tool[] {
 				}
 			},
 			['kid_id', 'from', 'to', 'group_by']
+		),
+		fn(
+			'sessions',
+			`Los ratos que vio vídeo entre dos días, con la hora de empezar y de acabar y lo que vio en cada uno. La hora va en tramos de ${SLOT_MINUTES} minutos: «de 21:10 a 21:50» es que empezó entre las 21:10 y las 21:20 y acabó entre las 21:40 y las 21:50. Los días de antes de guardar horas salen en «daysWithoutHours».`,
+			{ kid_id: kid, from: day('Primer día'), to: day('Último día') },
+			['kid_id', 'from', 'to']
 		),
 		fn(
 			'finished',
@@ -112,7 +118,7 @@ function tools(kids: Kid[]): Tool[] {
 	];
 }
 
-function instructions(kids: Kid[], since: Map<string, string>) {
+function instructions(kids: Kid[], since: Map<string, string>, hoursSince: string | null) {
 	const moment = now();
 	return [
 		'Eres el asistente de la página «Infantil» de JellyCartoon, una app de vídeo para casa. Te pregunta un adulto (madre, padre…) sobre lo que ven sus hijos en sus cuentas infantiles.',
@@ -125,7 +131,10 @@ function instructions(kids: Kid[], since: Map<string, string>) {
 		'',
 		'Reglas:',
 		'- Las cifras salen siempre de las herramientas: nunca las inventes ni las estimes. Si hace falta, llama a varias o compara dos periodos.',
-		'- El tiempo visto se guarda por día, no por hora: si preguntan a qué hora vio algo, dilo, y ofrece lo que sí sabes (el día, o la hora a la que terminó un episodio con «finished»).',
+		hoursSince
+			? `- Las horas a las que ve vídeo («sessions») se guardan desde el ${hoursSince}, en tramos de ${SLOT_MINUTES} minutos: di las horas con esa aproximación («sobre las nueve y diez»). De antes solo hay días; si preguntan por horas de entonces, dilo.`
+			: '- Todavía no hay horas guardadas, solo días: si preguntan a qué hora vio algo, dilo.',
+		'- «Después de cenar», «antes del cole» y parecidos: si no han dicho a qué hora es eso, supón una hora razonable en España (cenar, sobre las 21:00) y di cuál has supuesto.',
 		'- Si la pregunta no dice qué niño y hay más de uno, contesta de todos, o pregunta si no tiene sentido.',
 		'- Si piden cambiar algo (el horario, más tiempo…), di que eso se hace en esta misma página, más abajo: tú solo consultas.',
 		'- Contesta en español, corto y natural, como hablando: se puede leer en voz alta. Minutos y horas redondeados («una hora y cuarto»), sin listas largas, sin markdown ni ids.',
@@ -139,17 +148,56 @@ async function kidsAndSince() {
 		.from(user)
 		.where(eq(user.role, KIDS_ROLE))
 		.orderBy(asc(user.name));
-	const firsts = await db
-		.select({ userId: watchTime.userId, day: min(watchTime.day) })
-		.from(watchTime)
-		.groupBy(watchTime.userId);
+	const [firsts, [timed]] = await Promise.all([
+		db
+			.select({ userId: watchTime.userId, day: min(watchTime.day) })
+			.from(watchTime)
+			.groupBy(watchTime.userId),
+		db
+			.select({ day: min(watchTime.day) })
+			.from(watchTime)
+			.where(isNotNull(watchTime.minute))
+	]);
 	return {
 		kids,
+		hoursSince: timed?.day ?? null,
 		since: new Map(firsts.flatMap((f) => (f.day ? [[f.userId, f.day] as const] : [])))
 	};
 }
 
 const channelName = (id: string) => CHANNELS.find((c) => c.id === id)?.name ?? id;
+
+/** Each row of watch_time, with what it was. */
+function watchedRows(where: SQL | undefined) {
+	return db
+		.select({
+			seriesTitle: series.title,
+			title: sql<string>`coalesce(${movieTitle}, ${episodeTitle})`,
+			season: episode.season,
+			number: episode.number,
+			movieId: watchTime.movieId,
+			channelId: watchTime.channelId,
+			day: watchTime.day,
+			minute: watchTime.minute,
+			seconds: watchTime.seconds
+		})
+		.from(watchTime)
+		.leftJoin(episode, eq(episode.id, watchTime.episodeId))
+		.leftJoin(series, eq(series.id, episode.seriesId))
+		.leftJoin(movie, eq(movie.id, watchTime.movieId))
+		.where(where);
+}
+
+type WatchedRow = Awaited<ReturnType<typeof watchedRows>>[number];
+
+/** `bySeries`: the series, not the episode. */
+function labelOf(r: WatchedRow, bySeries = false) {
+	if (r.channelId) return `Canal ${channelName(r.channelId)}`;
+	if (r.movieId) return `Película «${r.title}»`;
+	return bySeries
+		? `Serie «${r.seriesTitle}»`
+		: `«${r.seriesTitle}» T${r.season} E${r.number} «${r.title}»`;
+}
 
 async function watchTimeTool(kidId: string, from: string, to: string, groupBy: string) {
 	const where = and(eq(watchTime.userId, kidId), gte(watchTime.day, from), lte(watchTime.day, to));
@@ -175,33 +223,10 @@ async function watchTimeTool(kidId: string, from: string, to: string, groupBy: s
 		return { rows: rows.map((r) => ({ kind: r.kind, minutes: minutes(r.seconds) })) };
 	}
 
-	const rows = await db
-		.select({
-			seriesTitle: series.title,
-			title: sql<string>`coalesce(${movieTitle}, ${episodeTitle})`,
-			season: episode.season,
-			number: episode.number,
-			movieId: watchTime.movieId,
-			channelId: watchTime.channelId,
-			day: watchTime.day,
-			seconds: watchTime.seconds
-		})
-		.from(watchTime)
-		.leftJoin(episode, eq(episode.id, watchTime.episodeId))
-		.leftJoin(series, eq(series.id, episode.seriesId))
-		.leftJoin(movie, eq(movie.id, watchTime.movieId))
-		.where(where);
-
 	// Added up here: few rows for a child, and the label of each group is simpler to make in code.
 	const groups = new Map<string, { label: string; seconds: number; days: Set<string> }>();
-	for (const r of rows) {
-		const label = r.channelId
-			? `Canal ${channelName(r.channelId)}`
-			: r.movieId
-				? `Película «${r.title}»`
-				: groupBy === 'series'
-					? `Serie «${r.seriesTitle}»`
-					: `«${r.seriesTitle}» T${r.season} E${r.number} «${r.title}»`;
+	for (const r of await watchedRows(where)) {
+		const label = labelOf(r, groupBy === 'series');
 		const group = groups.get(label) ?? { label, seconds: 0, days: new Set() };
 		group.seconds += r.seconds;
 		group.days.add(r.day);
@@ -217,6 +242,40 @@ async function watchTimeTool(kidId: string, from: string, to: string, groupBy: s
 		...(sorted.length > MAX_ROWS && { more: sorted.length - MAX_ROWS })
 	};
 }
+
+/** The stretches it watched, from the 10-minute slots in a row with time; days before slots, apart. */
+async function sessionsTool(kidId: string, from: string, to: string) {
+	const rows = await watchedRows(
+		and(eq(watchTime.userId, kidId), gte(watchTime.day, from), lte(watchTime.day, to))
+	);
+	const timed = rows.flatMap((r) =>
+		r.minute === null
+			? []
+			: [{ day: r.day, minute: r.minute, seconds: r.seconds, label: labelOf(r) }]
+	);
+	// Less than half a minute is a look, not watching: it would only be «0 min».
+	const sessions = joinSlots(timed)
+		.filter((s) => minutes(s.seconds) > 0)
+		.map((s) => ({
+			day: `${WEEKDAYS[weekdayOf(s.day)]} ${s.day}`,
+			from: clock(s.start),
+			to: clock(s.end),
+			minutes: minutes(s.seconds),
+			watched: [...s.items]
+				.filter(([, seconds]) => minutes(seconds) > 0)
+				.sort((a, b) => b[1] - a[1])
+				.map(([what, seconds]) => `${what}: ${minutes(seconds)} min`)
+		}));
+	const untimed = [...new Set(rows.filter((r) => r.minute === null).map((r) => r.day))];
+	return {
+		sessions: sessions.slice(-MAX_ROWS),
+		...(sessions.length > MAX_ROWS && { earlierNotListed: sessions.length - MAX_ROWS }),
+		...(untimed.length && { daysWithoutHours: untimed.sort() })
+	};
+}
+
+/** 0 Monday … 6 Sunday, of a `YYYY-MM-DD`. */
+const weekdayOf = (day: string) => (new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7;
 
 /** From the first moment of `from` to the last of `to`, in the server's time zone. */
 const bounds = (from: string, to: string) => ({
@@ -388,6 +447,8 @@ async function runTool(name: string, args: Record<string, unknown>, kids: Kid[])
 				...(await watchTimeTool(kid.id, from, to, groupBy))
 			});
 		}
+		case 'sessions':
+			return JSON.stringify({ kid: kid.name, from, to, ...(await sessionsTool(kid.id, from, to)) });
 		case 'finished':
 			return JSON.stringify({ kid: kid.name, from, to, ...(await finishedTool(kid.id, from, to)) });
 		default:
@@ -397,13 +458,17 @@ async function runTool(name: string, args: Record<string, unknown>, kids: Kid[])
 
 /** What was asked, answered: a few sentences, to be shown and read aloud. */
 export async function answerKidQuestion(question: KidQuestion): Promise<string> {
-	const [{ kids, since }, model] = await Promise.all([kidsAndSince(), voiceModel()]);
+	const [{ kids, since, hoursSince }, model] = await Promise.all([kidsAndSince(), voiceModel()]);
 	if (!kids.length) return 'No hay cuentas infantiles todavía.';
 	const messages: ToolChatMessage[] = [
 		{
 			role: 'system',
 			content: [
-				{ type: 'text', text: instructions(kids, since), cache_control: { type: 'ephemeral' } }
+				{
+					type: 'text',
+					text: instructions(kids, since, hoursSince),
+					cache_control: { type: 'ephemeral' }
+				}
 			]
 		},
 		...question.history,

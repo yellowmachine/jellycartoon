@@ -88,9 +88,8 @@ export function pickEpisodes(candidates: Candidate[], targetSec: number) {
 	return picked;
 }
 
-/** Today's date in the server's time zone (TZ), as `YYYY-MM-DD`. */
-export function today() {
-	const now = new Date();
+/** Today's date (or `now`'s) in the server's time zone (TZ), as `YYYY-MM-DD`. */
+export function today(now = new Date()) {
 	return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 }
 

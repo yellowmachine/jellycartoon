@@ -267,6 +267,13 @@
       "when": 1792306604525,
       "tag": "0037_old_thunderbolt",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1792310937064,
+      "tag": "0038_first_black_widow",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ import { isKidAccount } from '#lib/server/kids.ts';
 import { log } from '#lib/server/log.ts';
 import { today } from '#lib/server/playlist.ts';
 import { WatchSteps } from '#lib/server/watch-steps.ts';
+import { SLOT_MINUTES } from '#lib/kid-time.ts';
 
 /**
  * How long children watch (#17), from the positions saved while playing: every few seconds in the
@@ -22,6 +23,16 @@ function keyOf(target: Target) {
 
 /** The last position saved of each user, thing and source; in memory, a restart only loses one step. */
 const steps = new WatchSteps();
+
+/** The day and the slot of now, in the server's time zone (TZ), from the same instant. */
+function slotNow() {
+	const date = new Date();
+	const minute = date.getHours() * 60 + date.getMinutes();
+	return {
+		day: today(date),
+		minute: minute - (minute % SLOT_MINUTES)
+	};
+}
 
 /** Where playing goes on: `salon` for mpv, the browser's session id for the app. */
 export type Source = string;
@@ -42,7 +53,7 @@ export async function addWatchTime(
 			.insert(watchTime)
 			.values({
 				userId,
-				day: today(),
+				...slotNow(),
 				episodeId: 'episodeId' in target ? target.episodeId : null,
 				movieId: 'movieId' in target ? target.movieId : null,
 				channelId: 'channelId' in target ? target.channelId : null,
@@ -52,6 +63,7 @@ export async function addWatchTime(
 				target: [
 					watchTime.userId,
 					watchTime.day,
+					watchTime.minute,
 					watchTime.episodeId,
 					watchTime.movieId,
 					watchTime.channelId

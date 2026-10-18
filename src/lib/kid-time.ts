@@ -41,6 +41,48 @@ export type VideoTime =
 	  }
 	| { allowed: false; reason: 'schedule' | 'limit' | 'off'; next: Opening | null };
 
+/** The time watched is kept in slots of this many minutes (`watch_time.minute`). */
+export const SLOT_MINUTES = 10;
+
+/** Time watched in a slot of a day, and what it was. */
+export interface SlotTime {
+	day: string;
+	/** Where the slot starts, in minutes since midnight. */
+	minute: number;
+	seconds: number;
+	label: string;
+}
+
+/** Slots in a row with time, as one stretch: from where the first starts to where the last ends. */
+export interface Stretch {
+	day: string;
+	start: number;
+	end: number;
+	seconds: number;
+	/** Seconds of each thing watched. */
+	items: Map<string, number>;
+}
+
+/**
+ * The stretches in which something was watched, in order: a slot without time between two ends a
+ * stretch, so a pause shorter than a slot does not split it, and one longer always does.
+ */
+export function joinSlots(slots: SlotTime[]): Stretch[] {
+	const sorted = [...slots].sort((a, b) => a.day.localeCompare(b.day) || a.minute - b.minute);
+	const stretches: Stretch[] = [];
+	for (const slot of sorted) {
+		let last = stretches.at(-1);
+		if (!last || last.day !== slot.day || slot.minute > last.end) {
+			last = { day: slot.day, start: slot.minute, end: slot.minute, seconds: 0, items: new Map() };
+			stretches.push(last);
+		}
+		last.end = slot.minute + SLOT_MINUTES;
+		last.seconds += slot.seconds;
+		last.items.set(slot.label, (last.items.get(slot.label) ?? 0) + slot.seconds);
+	}
+	return stretches;
+}
+
 export const WEEKDAYS = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
 
 /** `minute` as `17:05`. */
