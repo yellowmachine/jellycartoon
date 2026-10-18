@@ -87,15 +87,22 @@
 			}
 		})();
 
-		// Paused, the position stays: nothing counts.
-		const timer = setInterval(() => {
-			if (!el.paused) void report(channelId, el.currentTime);
+		// Paused, the position stays: nothing counts. Out of time, to /descanso; not if the channel
+		// was left meanwhile, which would take the user away from wherever they went.
+		const timer = setInterval(async () => {
+			if (!el.paused && (await outOfTime(channelId, el.currentTime)) && !cancelled)
+				void goto('/descanso');
 		}, EVERY_MS);
 
 		return () => {
 			cancelled = true;
 			clearInterval(timer);
 			instance?.destroy();
+			// Safari's own HLS: without its source the <video> lets go of the stream.
+			if (!instance) {
+				el.removeAttribute('src');
+				el.load();
+			}
 			hls = null;
 			audios = [];
 			subtitles = [];
@@ -103,13 +110,14 @@
 		};
 	});
 
-	async function report(channelId: string, positionSec: number) {
+	/** Where it is, for a child's time; whether that time is over. */
+	async function outOfTime(channelId: string, positionSec: number) {
 		const res = await fetch('/api/progress', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({ channelId, positionSec })
 		}).catch(() => null);
-		if (res?.status === 403) void goto('/descanso');
+		return res?.status === 403;
 	}
 
 	const choice = (on: boolean) => [

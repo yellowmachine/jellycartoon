@@ -139,6 +139,9 @@ export type ChatEvent = { text: string } | { sources: { url: string; title: stri
  * https://openrouter.ai/docs/api/reference/streaming. With `web`, the model can search the web
  * and the pages it used come as sources: https://openrouter.ai/docs/guides/features/plugins/web-search
  */
+/** Nothing from OpenRouter in this long, not even its keep-alives: the answer is stuck. */
+const STREAM_IDLE_MS = 60_000;
+
 export async function* streamChat(request: {
 	apiKey: string;
 	model: string;
@@ -150,59 +153,75 @@ export async function* streamChat(request: {
 	/** Aborting stops the generation (and its billing, with most providers). */
 	signal: AbortSignal;
 }): AsyncGenerator<ChatEvent> {
-	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-		method: 'POST',
-		headers: {
-			Authorization: `Bearer ${request.apiKey}`,
-			'Content-Type': 'application/json',
-			'X-OpenRouter-Title': 'JellyCartoon'
-		},
-		body: JSON.stringify({
-			model: request.model,
-			messages: request.messages,
-			stream: true,
-			// As in `completeJson`: a long answer and the thinking of a reasoning model, without
-			// reserving credit for 64k tokens.
-			max_tokens: 16_384,
-			...(request.web && { plugins: [{ id: 'web' }] }),
-			// The film's articles are long and go with every question: Anthropic caches them only
-			// when asked (https://openrouter.ai/docs/guides/best-practices/prompt-caching); the
-			// other providers do it by themselves.
-			...(request.model.startsWith('anthropic/') && { cache_control: { type: 'ephemeral' } })
-		}),
-		signal: request.signal
-	});
-	if (!res.ok || !res.body) {
-		const body = await res.json().catch(() => null);
-		throw new Error(`OpenRouter: ${body?.error?.message ?? res.statusText}`);
-	}
-
-	const seen = new Set<string>();
-	let buffer = '';
-	for await (const chunk of res.body.pipeThrough(new TextDecoderStream())) {
-		buffer += chunk;
-		const lines = buffer.split('\n');
-		buffer = lines.pop()!;
-		for (const line of lines) {
-			// Lines starting with `:` are keep-alives (`: OPENROUTER PROCESSING`).
-			if (!line.startsWith('data: ')) continue;
-			const data = line.slice(6).trim();
-			if (data === '[DONE]') return;
-			const event = JSON.parse(data);
-			// Errors after the answer has started come inside the stream.
-			if (event.error) throw new Error(`OpenRouter: ${event.error.message ?? event.error.code}`);
-			// The usage comes in the last message, with no text.
-			if (event.usage) logUsage(request.label, event, request.details);
-			const delta = event.choices?.[0]?.delta;
-			if (delta?.content) yield { text: delta.content };
-			const sources = (
-				(delta?.annotations ?? []) as { url_citation?: { url: string; title?: string } }[]
-			)
-				.map((a) => a.url_citation)
-				.filter((c): c is { url: string; title?: string } => !!c?.url && !seen.has(c.url))
-				.map((c) => (seen.add(c.url), { url: c.url, title: c.title || new URL(c.url).hostname }));
-			if (sources.length) yield { sources };
+	// Without it, a stream that stops halfway would keep the answer «being written» for good.
+	const idle = new AbortController();
+	let idleTimer: ReturnType<typeof setTimeout> | undefined;
+	const stillAlive = () => {
+		clearTimeout(idleTimer);
+		idleTimer = setTimeout(
+			() => idle.abort(new Error('OpenRouter ha dejado de responder')),
+			STREAM_IDLE_MS
+		);
+	};
+	stillAlive();
+	try {
+		const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${request.apiKey}`,
+				'Content-Type': 'application/json',
+				'X-OpenRouter-Title': 'JellyCartoon'
+			},
+			body: JSON.stringify({
+				model: request.model,
+				messages: request.messages,
+				stream: true,
+				// As in `completeJson`: a long answer and the thinking of a reasoning model, without
+				// reserving credit for 64k tokens.
+				max_tokens: 16_384,
+				...(request.web && { plugins: [{ id: 'web' }] }),
+				// The film's articles are long and go with every question: Anthropic caches them only
+				// when asked (https://openrouter.ai/docs/guides/best-practices/prompt-caching); the
+				// other providers do it by themselves.
+				...(request.model.startsWith('anthropic/') && { cache_control: { type: 'ephemeral' } })
+			}),
+			signal: AbortSignal.any([request.signal, idle.signal])
+		});
+		if (!res.ok || !res.body) {
+			const body = await res.json().catch(() => null);
+			throw new Error(`OpenRouter: ${body?.error?.message ?? res.statusText}`);
 		}
+
+		const seen = new Set<string>();
+		let buffer = '';
+		for await (const chunk of res.body.pipeThrough(new TextDecoderStream())) {
+			stillAlive();
+			buffer += chunk;
+			const lines = buffer.split('\n');
+			buffer = lines.pop()!;
+			for (const line of lines) {
+				// Lines starting with `:` are keep-alives (`: OPENROUTER PROCESSING`).
+				if (!line.startsWith('data: ')) continue;
+				const data = line.slice(6).trim();
+				if (data === '[DONE]') return;
+				const event = JSON.parse(data);
+				// Errors after the answer has started come inside the stream.
+				if (event.error) throw new Error(`OpenRouter: ${event.error.message ?? event.error.code}`);
+				// The usage comes in the last message, with no text.
+				if (event.usage) logUsage(request.label, event, request.details);
+				const delta = event.choices?.[0]?.delta;
+				if (delta?.content) yield { text: delta.content };
+				const sources = (
+					(delta?.annotations ?? []) as { url_citation?: { url: string; title?: string } }[]
+				)
+					.map((a) => a.url_citation)
+					.filter((c): c is { url: string; title?: string } => !!c?.url && !seen.has(c.url))
+					.map((c) => (seen.add(c.url), { url: c.url, title: c.title || new URL(c.url).hostname }));
+				if (sources.length) yield { sources };
+			}
+		}
+	} finally {
+		clearTimeout(idleTimer);
 	}
 }
 

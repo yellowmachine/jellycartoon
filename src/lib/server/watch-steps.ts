@@ -1,5 +1,5 @@
-/** More than this between two saves is a jump, not watching: they come every 5–10 seconds. */
-export const MAX_STEP_SEC = 60;
+/** For the clocks: a save takes a moment to arrive, so a step may be a little over the time between. */
+const SLACK_SEC = 1;
 
 /** A source not heard from in this long is forgotten: it would only start from 0 again. */
 const STALE_MS = 60 * 60 * 1000;
@@ -14,13 +14,19 @@ const PRUNE_AT = 200;
 export class WatchSteps {
 	#last = new Map<string, { positionSec: number; at: number }>();
 
-	/** Seconds watched since the last save of `key`; 0 for the first, going back or a jump. */
+	/**
+	 * Seconds watched since the last save of `key`: what the position moved forward, but never more
+	 * than the time that went by, so jumping ahead counts only the moments really watched. 0 for the
+	 * first save and for going back.
+	 */
 	step(key: string, positionSec: number, now = Date.now()) {
 		const previous = this.#last.get(key);
 		this.#last.set(key, { positionSec, at: now });
 		if (this.#last.size > PRUNE_AT) this.#prune(now);
-		const step = previous === undefined ? 0 : positionSec - previous.positionSec;
-		return step <= 0 || step > MAX_STEP_SEC ? 0 : step;
+		if (!previous) return 0;
+		const moved = positionSec - previous.positionSec;
+		const elapsed = (now - previous.at) / 1000 + SLACK_SEC;
+		return moved <= 0 ? 0 : Math.min(moved, elapsed);
 	}
 
 	get size() {

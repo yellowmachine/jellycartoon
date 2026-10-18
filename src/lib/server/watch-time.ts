@@ -8,8 +8,8 @@ import { WatchSteps } from '#lib/server/watch-steps.ts';
 
 /**
  * How long children watch (#17), from the positions saved while playing: every few seconds in the
- * browser and in mpv. What the position moved forward since the last save is time watched; going
- * back, staying (paused) or jumping ahead do not count.
+ * browser and in mpv. What the position moved forward since the last save is time watched, up to
+ * the time that went by (see `WatchSteps`); going back or staying (paused) do not count.
  */
 
 type Target = { episodeId: number } | { movieId: number } | { channelId: string };

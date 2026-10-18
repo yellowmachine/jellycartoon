@@ -45,6 +45,20 @@
 	/** Something changed while it stands still: one frame to draw it. */
 	let dirty = false;
 	let visible = $state(false);
+	/** Draws again if it had stopped: it only runs while something moves or changes. */
+	let wake = () => {};
+
+	// What it is drawn with changed: in Ajustes, or what is playing.
+	$effect(() => {
+		void [
+			musicBackground.style,
+			musicBackground.intensity,
+			musicBackground.speed,
+			source?.albumId,
+			source?.playing
+		];
+		wake();
+	});
 
 	$effect(() => {
 		const url =
@@ -69,6 +83,7 @@
 			target = p;
 			dirty = true;
 			visible = true;
+			wake();
 		});
 		return () => {
 			current = false;
@@ -97,6 +112,7 @@
 			canvas!.width = w;
 			canvas!.height = h;
 			dirty = true;
+			wake();
 		}
 
 		const draw = (p: Palette) => {
@@ -108,9 +124,10 @@
 		let drawnWith = '';
 
 		function frame(now: number) {
-			raf = requestAnimationFrame(frame);
+			raf = 0;
 			const dt = Math.min(0.1, (now - last) / 1000);
 			last = now;
+			// Nothing to draw yet: it is woken when the colours arrive.
 			if (!target) return;
 			const moving = Boolean(source?.playing) && !reduced.matches;
 			if (moving) clock += dt * pace(musicBackground.speed);
@@ -122,8 +139,12 @@
 			}
 			// From one album's colours to the next in two seconds.
 			if (blend < 1) blend = Math.min(1, blend + dt / 2);
+			// Standing still, with nothing new: no more frames until something wakes it.
+			if (!(moving || blend < 1 || dirty)) return;
+			// resize() above may have woken it already: one loop only.
+			raf ||= requestAnimationFrame(frame);
 			// About 20 frames a second is plenty for something this slow.
-			if (!(moving || blend < 1 || dirty) || now - lastFrame < 50) return;
+			if (now - lastFrame < 50) return;
 			lastFrame = now;
 			dirty = false;
 			shown =
@@ -131,12 +152,21 @@
 			draw(shown);
 		}
 
+		wake = () => {
+			if (raf) return;
+			last = performance.now();
+			raf = requestAnimationFrame(frame);
+		};
+		const motionChanged = () => wake();
 		resize();
 		addEventListener('resize', resize);
-		raf = requestAnimationFrame(frame);
+		reduced.addEventListener('change', motionChanged);
 		return () => {
 			cancelAnimationFrame(raf);
+			raf = 0;
+			wake = () => {};
 			removeEventListener('resize', resize);
+			reduced.removeEventListener('change', motionChanged);
 		};
 	});
 </script>
