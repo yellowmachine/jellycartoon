@@ -324,10 +324,15 @@ export async function subtitleQueue() {
 export async function startSubtitles() {
 	if (!voiceEnabled) return;
 	paused = await subtitlesPaused();
-	await db
+	const resumed = await db
 		.update(subtitleJob)
 		.set({ state: 'queued', startedAt: null })
-		.where(eq(subtitleJob.state, 'running'));
+		.where(eq(subtitleJob.state, 'running'))
+		.returning({ id: subtitleJob.id });
+	if (resumed.length)
+		log.info('subtitulos', 'Vuelve a la cola el que quedó a medias al reiniciar', {
+			jobIds: resumed.map((r) => r.id)
+		});
 	void (async () => {
 		while (true) {
 			try {

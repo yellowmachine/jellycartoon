@@ -8,8 +8,11 @@ import { guardVideoTime } from '#lib/server/kid-time.ts';
 import { startWorker } from '#lib/server/library/worker.ts';
 import { startSubtitles } from '#lib/server/auto-subtitles.ts';
 import { startNightlyScan } from '#lib/server/library/nightly.ts';
+import { logStartup } from '#lib/server/startup.ts';
 import { wakeCatalog } from '#lib/server/cinema/catalog.ts';
+import { wakeExtras } from '#lib/server/cinema/info.ts';
 import { wakeMusicCatalog } from '#lib/server/music/catalog.ts';
+import { startPodcastRefresh } from '#lib/server/podcasts/podcasts.ts';
 import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
 import { log, startLogCleanup } from '#lib/server/log.ts';
 
@@ -18,6 +21,8 @@ export const init: ServerInit = async () => {
 	startLogCleanup();
 	// Films left half catalogued by a restart.
 	if (cinemaRoot) wakeCatalog();
+	// Info saved before Wikidata's awards, sagas and crew were read: completed in the background.
+	if (cinemaRoot) void wakeExtras();
 	// Tracks whose tags were not read yet, and covers not looked up.
 	if (musicRoot) wakeMusicCatalog();
 	await startWorker();
@@ -25,6 +30,10 @@ export const init: ServerInit = async () => {
 	await startSubtitles();
 	// Every night, what was added to the folders: converted and subtitled by the morning.
 	startNightlyScan();
+	// New episodes of the followed podcasts, every few hours.
+	startPodcastRefresh();
+	// In the Registro: which version started, and how each of the above starts.
+	await logStartup();
 };
 
 /** Unexpected errors only: the ones thrown on purpose with `error()` (404, 400…) are not news. */

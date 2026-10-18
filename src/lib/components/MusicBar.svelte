@@ -8,11 +8,14 @@
 	import { coverUrl, trackUrl } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
 	import { keepQueue } from '#lib/music-queue.svelte.ts';
+	import { keepPodcastProgress, podcastEnded } from '#lib/podcast-player.svelte.ts';
+	import { SKIP_BACK, SKIP_FORWARD, SPEEDS, type Speed } from '#lib/podcasts.ts';
 	import { COUNTRIES } from '#lib/radio.ts';
 
 	let audio = $state<HTMLAudioElement>();
 	const current = $derived(music.current);
 	const radio = $derived(music.radio);
+	const podcast = $derived(music.podcast);
 	let hls: Hls | null = null;
 	/** A station off the air or a dropped connection, said while it is tried again. */
 	let problem = $state<string | null>(null);
@@ -21,6 +24,39 @@
 	let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
 	keepQueue();
+	keepPodcastProgress();
+
+	/** The speed chosen for podcasts, kept in this browser. */
+	const SPEED_KEY = 'podcast-speed';
+	$effect(() => {
+		try {
+			const saved = Number(localStorage.getItem(SPEED_KEY));
+			if (SPEEDS.includes(saved as Speed)) music.speed = saved as Speed;
+		} catch {
+			// Private windows.
+		}
+	});
+
+	function nextSpeed() {
+		music.speed = SPEEDS[(SPEEDS.indexOf(music.speed) + 1) % SPEEDS.length]!;
+		try {
+			localStorage.setItem(SPEED_KEY, String(music.speed));
+		} catch {
+			// Same.
+		}
+	}
+
+	/** «1,25×», as it is written in Spanish. */
+	const speedLabel = (speed: number) => `${String(speed).replace('.', ',')}×`;
+
+	// Podcasts at the chosen speed (talk keeps its pitch); music as it is. Loading a new `src`
+	// goes back to defaultPlaybackRate, so both.
+	$effect(() => {
+		if (!audio) return;
+		const rate = podcast ? music.speed : 1;
+		audio.defaultPlaybackRate = rate;
+		audio.playbackRate = rate;
+	});
 
 	/**
 	 * The `<audio>` failed with its own `src` (hls.js handles its own): a station connects again,
@@ -29,7 +65,10 @@
 	function failed() {
 		if (hls || !audio?.getAttribute('src')) return;
 		clearTimeout(retryTimer);
-		if (!radio) return void (problem = 'No se pudo reproducir esta canción.');
+		if (!radio)
+			return void (problem = podcast
+				? 'No se pudo reproducir este episodio.'
+				: 'No se pudo reproducir esta canción.');
 		if (tries >= TRIES) return void (problem = GAVE_UP);
 		tries++;
 		problem = RETRYING;
@@ -42,6 +81,7 @@
 	$effect(() => {
 		void current;
 		void radioId;
+		void podcast?.id;
 		clearTimeout(retryTimer);
 		tries = 0;
 		problem = null;
@@ -52,21 +92,23 @@
 		return () => music.attach(null);
 	});
 
-	// A new track: load it and play it. Changing `src` pauses, so play() goes after. Brought back
-	// from the server, it waits where it was (before loading, currentTime is where it starts).
+	// A new track or episode: load it and play it. Changing `src` pauses, so play() goes after.
+	// Brought back from the server, it waits where it was (before loading, currentTime is where it
+	// starts); an episode starts where the user left it, from the podcast's own server.
 	$effect(() => {
 		if (!audio || radio) return;
-		if (!current) {
+		const src = podcast ? podcast.audioUrl : current ? trackUrl(current.id) : null;
+		if (!src) {
 			audio.removeAttribute('src');
 			audio.load();
 			return;
 		}
-		const src = trackUrl(current.id);
 		if (audio.getAttribute('src') !== src) {
 			audio.src = src;
 			const restored = untrack(() => music.restored);
-			if (restored) audio.currentTime = restored.positionSec;
-			else void audio.play().catch(() => {});
+			const startAt = restored?.positionSec ?? untrack(() => podcast?.positionSec) ?? 0;
+			if (startAt) audio.currentTime = startAt;
+			if (!restored) void audio.play().catch(() => {});
 		}
 	});
 
@@ -109,8 +151,9 @@
 		const handlers: [MediaSessionAction, MediaSessionActionHandler][] = [
 			['play', () => music.resume()],
 			['pause', () => music.pause()],
-			['previoustrack', () => music.previous()],
-			['nexttrack', () => music.next()],
+			// Headphones' buttons: in an episode, back and forward a little.
+			['previoustrack', () => (music.podcast ? music.skip(-SKIP_BACK) : music.previous())],
+			['nexttrack', () => (music.podcast ? music.skip(SKIP_FORWARD) : music.next())],
 			['seekto', (d) => d.seekTime !== undefined && music.seek(d.seekTime)],
 			['seekbackward', (d) => music.seek(Math.max(0, music.positionSec - (d.seekOffset ?? 10)))],
 			['seekforward', (d) => music.seek(music.positionSec + (d.seekOffset ?? 10))],
@@ -142,30 +185,36 @@
 					artist: `Radio · ${COUNTRIES[radio.country] ?? radio.country}`,
 					artwork: radio.favicon ? [{ src: radio.favicon }] : []
 				})
-			: current
+			: podcast
 				? new MediaMetadata({
-						title: current.title,
-						artist: current.artist,
-						album: current.album,
-						artwork: current.hasCover
-							? [{ src: coverUrl(current.albumId), sizes: '500x500', type: 'image/jpeg' }]
-							: []
+						title: podcast.title,
+						artist: podcast.podcastTitle,
+						artwork: podcast.imageUrl ? [{ src: podcast.imageUrl }] : []
 					})
-				: null;
+				: current
+					? new MediaMetadata({
+							title: current.title,
+							artist: current.artist,
+							album: current.album,
+							artwork: current.hasCover
+								? [{ src: coverUrl(current.albumId), sizes: '500x500', type: 'image/jpeg' }]
+								: []
+						})
+					: null;
 	});
 
 	$effect(() => {
 		if ('mediaSession' in navigator)
-			navigator.mediaSession.playbackState = !current
-				? 'none'
-				: music.playing
-					? 'playing'
-					: 'paused';
+			navigator.mediaSession.playbackState =
+				!current && !podcast ? 'none' : music.playing ? 'playing' : 'paused';
 	});
 
 	function timeUpdate() {
 		if (!audio) return;
 		music.positionSec = audio.currentTime;
+		// The episode's own position, only while its own audio is loaded (see podcast-player).
+		if (podcast && audio.getAttribute('src') === podcast.audioUrl)
+			podcast.positionSec = audio.currentTime;
 		const duration = Number.isFinite(audio.duration) ? audio.duration : null;
 		music.durationSec = duration;
 		if (duration && 'mediaSession' in navigator) {
@@ -205,7 +254,7 @@
 	ontimeupdate={timeUpdate}
 	ondurationchange={timeUpdate}
 	loop={music.single && music.repeat}
-	onended={() => (radio ? failed() : music.ended())}
+	onended={() => (radio ? failed() : podcast ? podcastEnded() : music.ended())}
 ></audio>
 
 {#if radio}
@@ -243,6 +292,86 @@
 		<button class={ghost} aria-label="Cerrar" title="Parar y cerrar" onclick={() => music.stop()}
 			><MediaIcon name="close" /></button
 		>
+	</div>
+{:else if podcast}
+	<div class="rounded-md border border-zinc-700 bg-zinc-900/80 p-2 backdrop-blur">
+		<input
+			type="range"
+			min="0"
+			max={music.durationSec ?? podcast.durationSec ?? 0}
+			step="1"
+			value={music.positionSec}
+			aria-label="Posición"
+			class="mb-1 block h-1 w-full accent-amber-500"
+			onchange={(e) => music.seek(Number(e.currentTarget.value))}
+		/>
+		<!-- Two rows on the phone, as with music: the episode, then the time and the controls. -->
+		<div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 sm:flex-nowrap sm:gap-3">
+			<a
+				href="/radio/podcasts/{podcast.podcastId}"
+				class="order-1 flex min-w-0 flex-1 items-center gap-3"
+			>
+				{#if podcast.imageUrl}
+					<img
+						src={podcast.imageUrl}
+						alt=""
+						class="h-10 w-10 shrink-0 rounded bg-zinc-800 object-cover"
+					/>
+				{:else}
+					<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-zinc-800"
+						>🎙</span
+					>
+				{/if}
+				<span class="min-w-0">
+					<span class="block truncate text-sm">{podcast.title}</span>
+					{#if problem}
+						<span class="block truncate text-xs text-amber-400">{problem}</span>
+					{:else}
+						<span class="block truncate text-xs text-zinc-400"
+							>{music.restored
+								? `Sonaba en ${music.restored.changedBy} · ${podcast.podcastTitle}`
+								: podcast.podcastTitle}</span
+						>
+					{/if}
+				</span>
+			</a>
+			<button
+				class="{ghost} order-2 sm:order-9"
+				aria-label="Cerrar"
+				title="Parar y cerrar"
+				onclick={() => music.stop()}><MediaIcon name="close" /></button
+			>
+			<span class="order-3 basis-full sm:hidden" aria-hidden="true"></span>
+			<span class="order-4 font-mono text-[11px] text-zinc-400 tabular-nums sm:text-xs">
+				{formatDuration(music.positionSec) || '0:00'} / {formatDuration(
+					music.durationSec ?? podcast.durationSec
+				)}
+			</span>
+			<span class="order-6 ml-auto flex items-center gap-1.5 sm:ml-0 sm:gap-2">
+				<button
+					class="{ghost} w-auto! px-2 font-mono text-xs tabular-nums max-sm:h-8"
+					title="Velocidad"
+					aria-label="Velocidad: {speedLabel(music.speed)}"
+					onclick={nextSpeed}>{speedLabel(music.speed)}</button
+				>
+				<button
+					class="{control} w-auto! px-2 text-xs max-sm:h-8"
+					aria-label="Atrás {SKIP_BACK} segundos"
+					onclick={() => music.skip(-SKIP_BACK)}>−{SKIP_BACK}</button
+				>
+				<button
+					class={primary}
+					aria-label={music.playing ? 'Pausa' : 'Seguir'}
+					onclick={() => music.toggle()}
+					><MediaIcon name={music.playing ? 'pause' : 'play'} /></button
+				>
+				<button
+					class="{control} w-auto! px-2 text-xs max-sm:h-8"
+					aria-label="Adelante {SKIP_FORWARD} segundos"
+					onclick={() => music.skip(SKIP_FORWARD)}>+{SKIP_FORWARD}</button
+				>
+			</span>
+		</div>
 	</div>
 {:else if current}
 	{#snippet modes()}

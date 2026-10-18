@@ -14,7 +14,29 @@ export interface SearchableFilm {
 	audioTracks?: { lang: string }[];
 	positionSec?: number | null;
 	completed?: boolean | null;
+	awards?: { name: string; year: number | null; won: boolean }[];
+	sagas?: { name: string; order: number | null }[];
+	writers?: string[];
+	composers?: string[];
+	cinematographers?: string[];
+	blackAndWhite?: boolean;
+	silent?: boolean;
 }
+
+/**
+ * The award an award category belongs to, from its Spanish (or English) name: «Óscar a la mejor
+ * película» and «Óscar a la mejor banda sonora» are both «Óscar»; «Palma de Oro» is itself.
+ */
+export function awardFamily(name: string) {
+	return name.split(/\s(?:a la|al|a los|a las|a|for|para|por|en la|en el)\s|\s[-–(]/i)[0]!.trim();
+}
+
+/** The crew a search also finds, and how a match says it. */
+const CREW = [
+	['writers', 'Guion'],
+	['composers', 'Música'],
+	['cinematographers', 'Fotografía']
+] as const;
 
 /** Watched, started, or not: as the user sees it (a few seconds in is not «started»). */
 export function watchState(film: SearchableFilm) {
@@ -59,6 +81,10 @@ export function matchReason(film: SearchableFilm, search: string): string | null
 	if (director) return `Dir. ${director}`;
 	const actor = film.cast.find(has);
 	if (actor) return `Con ${actor}`;
+	for (const [key, label] of CREW) {
+		const person = (film[key] ?? []).find(has);
+		if (person) return `${label}: ${person}`;
+	}
 	return null;
 }
 
@@ -67,7 +93,9 @@ export const FILTERS = {
 	persona: {
 		label: 'Persona',
 		matches: (film: SearchableFilm, value: string) =>
-			film.directors.includes(value) || film.cast.includes(value)
+			film.directors.includes(value) ||
+			film.cast.includes(value) ||
+			CREW.some(([key]) => (film[key] ?? []).includes(value))
 	},
 	genero: {
 		label: 'Género',
@@ -92,6 +120,27 @@ export const FILTERS = {
 		label: 'Duración',
 		show: (value: string) => DURATIONS[value as keyof typeof DURATIONS]?.label ?? value,
 		matches: (film: SearchableFilm, value: string) => durationOf(film) === value
+	},
+	premio: {
+		label: 'Premio',
+		show: (value: string) => (value === '*' ? 'Cualquiera' : value),
+		/** `*`: any award won; otherwise an award (its family) or one of its categories. */
+		matches: (film: SearchableFilm, value: string) =>
+			(film.awards ?? []).some(
+				(a) => a.won && (value === '*' || a.name === value || awardFamily(a.name) === value)
+			)
+	},
+	saga: {
+		label: 'Saga',
+		matches: (film: SearchableFilm, value: string) =>
+			(film.sagas ?? []).some((s) => s.name === value)
+	},
+	tipo: {
+		label: 'Tipo',
+		show: (value: string) =>
+			({ bn: 'En blanco y negro', muda: 'Muda' })[value as 'bn' | 'muda'] ?? value,
+		matches: (film: SearchableFilm, value: string) =>
+			value === 'bn' ? Boolean(film.blackAndWhite) : value === 'muda' && Boolean(film.silent)
 	},
 	audio: {
 		label: 'Audio',
@@ -122,11 +171,25 @@ export const SORTS = {
 };
 export type SortName = keyof typeof SORTS;
 
-/** In the chosen order; by title (Spanish rules) within the same year, date or length. */
+/** A film's place in a saga; those without one go last. */
+export const sagaOrder = (film: SearchableFilm, saga: string) =>
+	film.sagas?.find((s) => s.name === saga)?.order ?? Infinity;
+
+/**
+ * In the chosen order; by title (Spanish rules) within the same year, date or length. With a saga
+ * chosen and no other order, in the saga's order.
+ */
 export function sortFilms<T extends SearchableFilm & { addedAt?: Date | string | null }>(
 	films: T[],
-	sort: SortName
+	sort: SortName,
+	saga?: string | null
 ) {
+	if (saga && sort === 'titulo')
+		return films.toSorted(
+			(a, b) =>
+				sagaOrder(a, saga) - sagaOrder(b, saga) ||
+				a.title.localeCompare(b.title, 'es', { sensitivity: 'base' })
+		);
 	const byTitle = (a: T, b: T) => a.title.localeCompare(b.title, 'es', { sensitivity: 'base' });
 	const time = (d: Date | string | null | undefined) => (d ? new Date(d).getTime() : 0);
 	const key: Record<SortName, (a: T, b: T) => number> = {

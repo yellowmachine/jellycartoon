@@ -3,6 +3,7 @@ import { page } from '$app/state';
 import { shownDeviceName } from '#lib/device-name.svelte.ts';
 import type { QueueSave, SavedQueue } from '#lib/music.ts';
 import { music } from '#lib/music-player.svelte.ts';
+import type { PodcastPlaying } from '#lib/podcasts.ts';
 import type { RadioStream } from '#lib/radio.ts';
 
 /**
@@ -28,7 +29,7 @@ async function restore() {
 		.then((res) => (res.ok ? res.json() : null))
 		.catch(() => null);
 	// Something started while it was being asked for: that one.
-	if (!saved || music.current || music.radio) return null;
+	if (!saved || music.current || music.radio || music.podcast) return null;
 	let radio: RadioStream | null = null;
 	if (saved.radio) {
 		radio = await fetch(`/api/radio/${saved.radio}`)
@@ -36,8 +37,15 @@ async function restore() {
 			.catch(() => null);
 		if (!radio) return null;
 	}
-	if (music.current || music.radio) return null;
-	music.restore(saved, radio);
+	let podcast: PodcastPlaying | null = null;
+	if (saved.podcast) {
+		podcast = await fetch(`/api/podcasts/episodes/${saved.podcast}`)
+			.then((res) => (res.ok ? res.json() : null))
+			.catch(() => null);
+		if (!podcast) return null;
+	}
+	if (music.current || music.radio || music.podcast) return null;
+	music.restore(saved, radio, podcast);
 	return saved.updatedAt;
 }
 
@@ -60,6 +68,7 @@ export function keepQueue() {
 			repeat: music.repeat,
 			single: music.single,
 			radio: music.radio?.uuid ?? null,
+			podcast: music.podcast?.id ?? null,
 			changedBy: untrack(deviceName)
 		};
 	}
@@ -67,8 +76,16 @@ export function keepQueue() {
 	/** Saves sent so far: only the last one's answer says when the server's copy was saved. */
 	let sent = 0;
 
+	/** The last save, until it is answered: clearing waits for it (see clear). */
+	let saving: Promise<void> = Promise.resolve();
+
+	function save(queue: QueueSave) {
+		saving = send(queue);
+		return saving;
+	}
+
 	// keepalive: the last one, from pagehide, still arrives after the page has gone.
-	async function save(queue: QueueSave) {
+	async function send(queue: QueueSave) {
 		const mine = ++sent;
 		const res = await fetch('/api/music/queue', {
 			method: 'POST',
@@ -81,17 +98,25 @@ export function keepQueue() {
 		if (res?.ok && mine === sent) savedAt = (await res.json()).savedAt;
 	}
 
+	/**
+	 * After the save that is on its way, if there is one: at the end of an episode or of the queue,
+	 * the pause is saved a moment before it closes, and clearing with the savedAt from before left
+	 * that save on the server, to come back the next time.
+	 */
 	function clear() {
-		if (savedAt)
-			void fetch(`/api/music/queue?savedAt=${encodeURIComponent(savedAt)}`, {
-				method: 'DELETE',
-				keepalive: true
-			}).catch(() => {});
-		savedAt = null;
+		void saving.then(() => {
+			const at = savedAt;
+			savedAt = null;
+			if (at)
+				void fetch(`/api/music/queue?savedAt=${encodeURIComponent(at)}`, {
+					method: 'DELETE',
+					keepalive: true
+				}).catch(() => {});
+		});
 	}
 
 	onMount(() => {
-		if (!restoredOnce && !music.current && !music.radio) {
+		if (!restoredOnce && !music.current && !music.radio && !music.podcast) {
 			restoredOnce = true;
 			void restore().then((at) => {
 				if (at) savedAt = at;
@@ -109,7 +134,7 @@ export function keepQueue() {
 		const queue = snapshot();
 		const playing = music.playing;
 		if (playing) owner = true;
-		if (!queue.trackIds.length && !queue.radio) {
+		if (!queue.trackIds.length && !queue.radio && !queue.podcast) {
 			// Closed, or at the end of the queue.
 			owner = false;
 			clear();

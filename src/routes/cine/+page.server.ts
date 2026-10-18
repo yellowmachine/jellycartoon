@@ -9,6 +9,7 @@ import { play, rename, setWatched } from '#lib/server/cinema/film-actions.ts';
 import { scanFilms } from '#lib/server/library/nightly.ts';
 import { cinemaRoot, hostMoviePath } from '#lib/server/library/paths.ts';
 import { allowedMovies } from '#lib/server/kids.ts';
+import { extrasProgress } from '#lib/server/cinema/info.ts';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!cinemaRoot) error(404, 'No hay carpeta de películas (CINEMA_DIR)');
@@ -37,7 +38,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 			directors: movieInfo.directors,
 			cast: movieInfo.cast,
 			genres: movieInfo.genres,
-			countries: movieInfo.countries
+			countries: movieInfo.countries,
+			awards: movieInfo.awards,
+			sagas: movieInfo.sagas,
+			writers: movieInfo.writers,
+			composers: movieInfo.composers,
+			cinematographers: movieInfo.cinematographers,
+			blackAndWhite: movieInfo.blackAndWhite,
+			silent: movieInfo.silent
 		})
 		.from(movie)
 		.leftJoin(
@@ -56,6 +64,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 				cast: m.cast ?? [],
 				genres: m.genres ?? [],
 				countries: m.countries ?? [],
+				awards: m.awards ?? [],
+				sagas: m.sagas ?? [],
+				writers: m.writers ?? [],
+				composers: m.composers ?? [],
+				cinematographers: m.cinematographers ?? [],
+				blackAndWhite: m.blackAndWhite ?? false,
+				silent: m.silent ?? false,
 				hostPath: hostMoviePath(m.path)
 			}))
 			.sort((a, b) => a.title.localeCompare(b.title, 'es', { sensitivity: 'base' })),
@@ -63,7 +78,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 		/** Catalogued films without info yet: looked up after a scan, or when opened. */
 		withoutInfo: movies.filter((m) => m.status === 'ready' && !m.infoStatus).length,
 		/** Whether films can be played on the host's screen. */
-		mpv: mpvEnabled
+		mpv: mpvEnabled,
+		/** Info found before awards, sagas and crew were read, being completed in the background. */
+		extras: { ...extrasProgress }
 	};
 };
 

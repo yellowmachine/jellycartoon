@@ -41,9 +41,11 @@ export async function searchFilms(query: string, limit = 8): Promise<string[]> {
 interface Snak {
 	mainsnak: { datavalue?: { value: unknown } };
 	rank: string;
+	/** E.g. the year of an award (P585), the place in a series (P1545). */
+	qualifiers?: Record<string, { datavalue?: { value: unknown } }[]>;
 }
 
-interface Entity {
+export interface Entity {
 	id: string;
 	labels?: Record<string, { value: string }>;
 	descriptions?: Record<string, { value: string }>;
@@ -148,7 +150,122 @@ async function labels(ids: string[]) {
 	return new Map(entities.map((e) => [e.id, text(e.labels) ?? e.id]));
 }
 
-export interface FilmDetails {
+/** Black-and-white (a value of P462, color), and silent film (a genre, or what it is). */
+const BLACK_AND_WHITE = 'Q838368';
+const SILENT_FILM = 'Q226730';
+
+/**
+ * The details the second set of Cine filters needs, as Wikidata ids still to be named: awards
+ * won (P166) and nominations (P1411) with their year (P585), the series it is part of (P179) with
+ * its place (P1545), screenwriters (P58), composers (P86), cinematographers (P344), and whether it
+ * is black and white or silent. Pure, from the entity.
+ */
+export function rawFilmExtras(entity: Entity) {
+	const statements = (property: string) =>
+		(entity.claims?.[property] ?? []).filter(
+			(s) => s.rank !== 'deprecated' && s.mainsnak.datavalue
+		);
+	const qualifier = (s: Snak, property: string) => s.qualifiers?.[property]?.[0]?.datavalue?.value;
+	const yearOf = (s: Snak) => {
+		const time = (qualifier(s, 'P585') as { time?: string } | undefined)?.time;
+		return Number(time?.match(/^[+-](\d{4})/)?.[1]) || null;
+	};
+	const awards = (property: string, won: boolean) =>
+		statements(property).map((s) => ({
+			id: (s.mainsnak.datavalue!.value as { id: string }).id,
+			year: yearOf(s),
+			won
+		}));
+	return {
+		awards: [...awards('P166', true), ...awards('P1411', false)],
+		sagas: statements('P179').map((s) => ({
+			id: (s.mainsnak.datavalue!.value as { id: string }).id,
+			order: Number(qualifier(s, 'P1545')) || null
+		})),
+		writers: itemIds(entity, 'P58'),
+		composers: itemIds(entity, 'P86'),
+		cinematographers: itemIds(entity, 'P344'),
+		blackAndWhite: itemIds(entity, 'P462').includes(BLACK_AND_WHITE),
+		silent: [...itemIds(entity, 'P136'), ...itemIds(entity, 'P31')].includes(SILENT_FILM)
+	};
+}
+
+type RawExtras = ReturnType<typeof rawFilmExtras>;
+
+/** Every id the extras need named. */
+const extrasIds = (raw: RawExtras) => [
+	...raw.awards.map((a) => a.id),
+	...raw.sagas.map((s) => s.id),
+	...raw.writers,
+	...raw.composers,
+	...raw.cinematographers
+];
+
+export type FilmExtras = {
+	awards: { name: string; year: number | null; won: boolean }[];
+	sagas: { name: string; order: number | null }[];
+	writers: string[];
+	composers: string[];
+	cinematographers: string[];
+	blackAndWhite: boolean;
+	silent: boolean;
+};
+
+/**
+ * A label as it should read: some carry a Wikipedia page's prefix («Anexo:Premio Annie…») or
+ * start in lower case («premio Hugo»).
+ */
+export function cleanLabel(label: string) {
+	const text = label.replace(/^(Anexo|List of|Lista de):\s*/i, '').trim();
+	return text.charAt(0).toLocaleUpperCase('es') + text.slice(1);
+}
+
+/** «Part of the series» is also used for rankings and lists: those are no saga. */
+const NOT_A_SAGA = /^(lista|list|anexo|ranking)\b|\b(mejores|best|greatest|top \d+)\b/i;
+
+/** The extras with names instead of ids; an award won is not also listed as a nomination. */
+export function nameFilmExtras(raw: RawExtras, names: Map<string, string>): FilmExtras {
+	const name = (id: string) => {
+		const label = names.get(id);
+		return label ? cleanLabel(label) : null;
+	};
+	const people = (ids: string[]) => [
+		...new Set(ids.map(name).filter((n): n is string => Boolean(n)))
+	];
+	const won = new Set(raw.awards.filter((a) => a.won).map((a) => a.id));
+	const seen = new Set<string>();
+	return {
+		awards: raw.awards.flatMap((a) => {
+			const key = `${a.id}:${a.won}`;
+			const label = name(a.id);
+			if (!label || seen.has(key) || (!a.won && won.has(a.id))) return [];
+			seen.add(key);
+			return [{ name: label, year: a.year, won: a.won }];
+		}),
+		sagas: raw.sagas.flatMap((s) => {
+			const label = name(s.id);
+			return label && !NOT_A_SAGA.test(label) ? [{ name: label, order: s.order }] : [];
+		}),
+		writers: people(raw.writers),
+		composers: people(raw.composers),
+		cinematographers: people(raw.cinematographers),
+		blackAndWhite: raw.blackAndWhite,
+		silent: raw.silent
+	};
+}
+
+/**
+ * The extras of several films at once, by their Wikidata ids: up to 50 per request, for those
+ * looked up before the extras existed.
+ */
+export async function filmsExtras(ids: string[]): Promise<Map<string, FilmExtras>> {
+	const entities = await getEntities(ids, 'claims');
+	const raws = new Map(entities.map((e) => [e.id, rawFilmExtras(e)]));
+	const names = await labels([...new Set([...raws.values()].flatMap(extrasIds))]);
+	return new Map([...raws].map(([id, raw]) => [id, nameFilmExtras(raw, names)]));
+}
+
+export interface FilmDetails extends FilmExtras {
 	wikidataId: string;
 	title: string;
 	originalTitle: string | null;
@@ -169,12 +286,14 @@ export async function filmDetails(id: string): Promise<FilmDetails> {
 	if (!entity?.labels) throw new Error(`${id} no existe en Wikidata`);
 
 	const castIds = itemIds(entity, 'P161').slice(0, 8);
+	const extras = rawFilmExtras(entity);
 	const names = await labels([
 		...new Set([
 			...itemIds(entity, 'P57'),
 			...castIds,
 			...itemIds(entity, 'P136'),
-			...itemIds(entity, 'P495')
+			...itemIds(entity, 'P495'),
+			...extrasIds(extras)
 		])
 	]);
 	// The same person can be listed twice (e.g. with different qualifiers).
@@ -201,7 +320,8 @@ export async function filmDetails(id: string): Promise<FilmDetails> {
 		countries: named(itemIds(entity, 'P495')),
 		imdbId: (values(entity, 'P345')[0] as string | undefined) ?? null,
 		synopsis: summary?.extract ?? null,
-		wikipediaUrl: summary?.url ?? null
+		wikipediaUrl: summary?.url ?? null,
+		...nameFilmExtras(extras, names)
 	};
 }
 

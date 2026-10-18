@@ -1,4 +1,5 @@
 <script lang="ts">
+	import RadioTabs from '#lib/components/RadioTabs.svelte';
 	import MusicTargetSwitch from '#lib/components/MusicTargetSwitch.svelte';
 	import { music } from '#lib/music-player.svelte.ts';
 	import { musicTarget } from '#lib/music-target.svelte.ts';
@@ -23,7 +24,8 @@
 	<title>Radio · JellyCartoon</title>
 </svelte:head>
 
-<h1 class="mb-1 text-2xl font-bold">Radio</h1>
+<h1 class="mb-4 text-2xl font-bold">Radio</h1>
+<RadioTabs />
 <p class="mb-6 text-sm text-zinc-400">
 	Emisoras de otros países, en directo. Las habladas van primero: son las mejores para acostumbrar
 	el oído a un idioma.

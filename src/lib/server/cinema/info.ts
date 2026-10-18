@@ -1,11 +1,18 @@
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, isNull, lt } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { movie, movieInfo, movieTitle } from '#lib/server/db/schema.ts';
 import { openRouterConfig } from '#lib/server/app-settings.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
 import { log } from '#lib/server/log.ts';
 import { pick, queries, type Clues } from './match.ts';
-import { describeCandidates, filmDetails, searchFilms } from './wikidata.ts';
+import { describeCandidates, filmDetails, filmsExtras, searchFilms } from './wikidata.ts';
+
+/**
+ * What a film's info has from Wikidata: 1, awards, sagas, screenwriters, composers,
+ * cinematographers and black and white or silent. Info saved with an older one gets them read
+ * again in the background (`wakeExtras`), by its Wikidata id.
+ */
+export const FILM_DETAILS_VERSION = 1;
 
 export type MovieInfo = typeof movieInfo.$inferSelect;
 
@@ -61,6 +68,61 @@ async function fillPending() {
 		}
 		await new Promise((resolve) => setTimeout(resolve, PAUSE_MS));
 	}
+}
+
+/** Wikidata's API takes up to 50 items per request. */
+const EXTRAS_BATCH = 50;
+
+/** How the background reading of the extras goes, for Cine to say it. */
+export const extrasProgress = { done: 0, total: 0 };
+let extrasRun: Promise<void> | null = null;
+
+/**
+ * The extras (awards, sagas…) of the films found before they existed: by their Wikidata id, so
+ * nothing is identified again, in batches of 50 with a pause between them. At the server's start;
+ * films found later already get them.
+ */
+export function wakeExtras() {
+	extrasRun ??= fillExtras()
+		.catch((error) => log.error('cine', 'Fallo al completar las fichas', { error }))
+		.finally(() => {
+			extrasRun = null;
+			Object.assign(extrasProgress, { done: 0, total: 0 });
+		});
+	return extrasRun;
+}
+
+async function fillExtras() {
+	const stale = await db
+		.select({ movieId: movieInfo.movieId, wikidataId: movieInfo.wikidataId })
+		.from(movieInfo)
+		.where(
+			and(
+				eq(movieInfo.status, 'found'),
+				isNotNull(movieInfo.wikidataId),
+				lt(movieInfo.detailsVersion, FILM_DETAILS_VERSION)
+			)
+		)
+		.orderBy(asc(movieInfo.movieId));
+	if (!stale.length) return;
+	Object.assign(extrasProgress, { done: 0, total: stale.length });
+	log.info('cine', `Completando ${stale.length} fichas con premios, sagas y más`);
+	for (let i = 0; i < stale.length; i += EXTRAS_BATCH) {
+		const batch = stale.slice(i, i + EXTRAS_BATCH);
+		const extras = await filmsExtras(batch.map((b) => b.wikidataId!));
+		for (const film of batch) {
+			const found = extras.get(film.wikidataId!);
+			// Not in the answer (the item was deleted or merged): tried again at the next start.
+			if (!found) continue;
+			await db
+				.update(movieInfo)
+				.set({ ...found, detailsVersion: FILM_DETAILS_VERSION })
+				.where(eq(movieInfo.movieId, film.movieId));
+		}
+		extrasProgress.done = Math.min(i + EXTRAS_BATCH, stale.length);
+		if (i + EXTRAS_BATCH < stale.length) await new Promise((r) => setTimeout(r, PAUSE_MS));
+	}
+	log.info('cine', `Fichas completadas: ${stale.length}`);
 }
 
 async function clues(
@@ -126,7 +188,14 @@ export async function choose(movieId: number, wikidataId: string): Promise<Movie
 		synopsis = await aiSynopsis(details);
 		if (synopsis) synopsisSource = 'ai';
 	}
-	return save(movieId, { status: 'found', ...details, synopsis, synopsisSource, candidates: [] });
+	return save(movieId, {
+		status: 'found',
+		...details,
+		synopsis,
+		synopsisSource,
+		candidates: [],
+		detailsVersion: FILM_DETAILS_VERSION
+	});
 }
 
 /** Forgets it: the next visit looks it up again. */
@@ -158,6 +227,14 @@ async function save(movieId: number, values: Omit<typeof movieInfo.$inferInsert,
 				wikipediaUrl: null,
 				candidates: [],
 				scenes: null,
+				awards: [],
+				sagas: [],
+				writers: [],
+				composers: [],
+				cinematographers: [],
+				blackAndWhite: false,
+				silent: false,
+				detailsVersion: 0,
 				...row
 			}
 		})

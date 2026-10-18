@@ -28,13 +28,23 @@ export function wakeMusicCatalog() {
 
 async function readPending() {
 	musicProgress.phase = 'reading';
+	// Said once, when done: a line per track would fill the Registro.
+	const read = { ready: 0, ignored: 0 };
 	for (;;) {
 		const [next] = await db
 			.select({ id: track.id, path: track.path })
 			.from(track)
 			.where(and(eq(track.status, 'pending'), eq(track.missing, false)))
 			.limit(1);
-		if (!next) return;
+		if (!next) {
+			if (read.ready || read.ignored)
+				log.info(
+					'música',
+					`Leídas las etiquetas de ${read.ready} pistas${read.ignored ? ` (${read.ignored} sin álbum, apartadas)` : ''}`,
+					{ ...read }
+				);
+			return;
+		}
 
 		try {
 			// Not the worker's: it must not freeze when the conversion queue is paused.
@@ -45,6 +55,7 @@ async function readPending() {
 					.update(track)
 					.set({ status: 'ignored', albumId: null, error: null })
 					.where(eq(track.id, next.id));
+				read.ignored++;
 				continue;
 			}
 
@@ -70,6 +81,7 @@ async function readPending() {
 				})
 				.where(eq(track.id, next.id));
 			await refreshAlbum(albumId, discIdFromToc(tags.cdtoc));
+			read.ready++;
 		} catch (error) {
 			await db
 				.update(track)

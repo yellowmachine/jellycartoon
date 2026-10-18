@@ -1,4 +1,5 @@
 import type { MusicTrack, SavedQueue } from '#lib/music.ts';
+import type { PodcastPlaying, Speed } from '#lib/podcasts.ts';
 import type { RadioStream } from '#lib/radio.ts';
 
 /** In random order, with `first` first, so that the whole queue still comes after it. */
@@ -13,7 +14,7 @@ function shuffled(tracks: MusicTrack[], first: number) {
 }
 
 /**
- * What is playing in this browser: a queue of tracks, or a radio station, and the `<audio>` of the
+ * What is playing in this browser: a queue of tracks, a radio station or a podcast episode, and the `<audio>` of the
  * layout (MusicBar), so it goes on while moving around the app. Only changed in the browser, from
  * what the user does.
  */
@@ -21,6 +22,10 @@ class MusicPlayer {
 	queue = $state<MusicTrack[]>([]);
 	/** Live, instead of the queue. */
 	radio = $state<RadioStream | null>(null);
+	/** A podcast episode, instead of the queue. */
+	podcast = $state<PodcastPlaying | null>(null);
+	/** Podcasts only: music always sounds as it is. */
+	speed = $state<Speed>(1);
 	index = $state(0);
 	/** As the `<audio>` reports it. */
 	playing = $state(false);
@@ -52,13 +57,14 @@ class MusicPlayer {
 	}
 
 	/** What was playing on this or another device, paused; the station, already asked for. */
-	restore(saved: SavedQueue, radio: RadioStream | null) {
+	restore(saved: SavedQueue, radio: RadioStream | null, podcast: PodcastPlaying | null = null) {
 		this.restored = { positionSec: saved.positionSec, changedBy: saved.changedBy };
 		this.shuffle = saved.shuffle;
 		this.repeat = saved.repeat;
 		this.single = saved.single;
 		this.positionSec = saved.positionSec;
 		if (radio) return this.playRadio(radio, true);
+		if (podcast) return this.playPodcast(podcast, true);
 		this.#ordered = saved.tracks;
 		this.queue = saved.tracks;
 		this.index = saved.index;
@@ -68,6 +74,7 @@ class MusicPlayer {
 	play(tracks: MusicTrack[], start = 0) {
 		this.restored = null;
 		this.radio = null;
+		this.podcast = null;
 		start = Math.min(Math.max(start, 0), tracks.length - 1);
 		this.#ordered = tracks;
 		this.queue = this.shuffle ? shuffled(tracks, start) : tracks;
@@ -93,7 +100,24 @@ class MusicPlayer {
 		if (!restored) this.restored = null;
 		this.queue = [];
 		this.index = 0;
+		this.podcast = null;
 		this.radio = stream;
+	}
+
+	/** Instead of whatever was on, from where the user left it. */
+	playPodcast(episode: PodcastPlaying, restored = false) {
+		if (!restored) this.restored = null;
+		this.queue = [];
+		this.#ordered = [];
+		this.index = 0;
+		this.radio = null;
+		this.podcast = episode;
+	}
+
+	/** Back or forward that many seconds, within the episode. */
+	skip(sec: number) {
+		const end = this.durationSec ?? this.podcast?.durationSec ?? Infinity;
+		this.seek(Math.min(Math.max(this.positionSec + sec, 0), end));
 	}
 
 	/** At the end of the queue; starts it if nothing was on. */
@@ -158,6 +182,7 @@ class MusicPlayer {
 		this.restored = null;
 		this.#audio?.pause();
 		this.radio = null;
+		this.podcast = null;
 		this.queue = [];
 		this.#ordered = [];
 		this.index = 0;

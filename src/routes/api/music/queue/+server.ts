@@ -9,7 +9,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 	const queue = await getQueue(locals.user!.id);
 	if (!queue) return json(null);
 	const tracks = (await tracksById(queue.trackIds)).map((t) => t.track);
-	if (!tracks.length && !queue.radioUuid) return json(null);
+	if (!tracks.length && !queue.radioUuid && !queue.podcastEpisodeId) return json(null);
 	// The one it was on, where it is now if some went away; the start of the next if it did.
 	const currentId = queue.trackIds[queue.currentIndex];
 	const index = tracks.findIndex((t) => t.id === currentId);
@@ -21,6 +21,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 		repeat: queue.repeat,
 		single: queue.single,
 		radio: queue.radioUuid,
+		podcast: queue.podcastEpisodeId,
 		changedBy: queue.changedBy,
 		updatedAt: queue.updatedAt.toISOString()
 	} satisfies SavedQueue);

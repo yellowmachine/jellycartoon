@@ -80,6 +80,7 @@ describe('parseQueueSave', () => {
 		repeat: false,
 		single: false,
 		radio: null,
+		podcast: null,
 		changedBy: 'la TV'
 	};
 
@@ -99,6 +100,14 @@ describe('parseQueueSave', () => {
 			index: 0,
 			radio: 'abc'
 		});
+	});
+
+	test('a podcast episode, without tracks', () => {
+		expect(parseQueueSave({ ...queue, trackIds: [], index: 0, podcast: 7 })).toMatchObject({
+			trackIds: [],
+			podcast: 7
+		});
+		expect(parseQueueSave({ ...queue, podcast: 'x' })).toBeNull();
 	});
 
 	test('nothing to save, or not well formed: nothing', () => {

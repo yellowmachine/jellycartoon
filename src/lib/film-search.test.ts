@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	activeFilters,
+	awardFamily,
 	durationOf,
 	FILTERS,
 	filterLabel,
@@ -79,5 +80,56 @@ describe('the Cine filters', () => {
 		expect(sortFilms(films, 'anio').map((f) => f.title)).toEqual(['C', 'A', 'B']);
 		expect(sortFilms(films, 'duracion').map((f) => f.title)).toEqual(['A', 'B', 'C']);
 		expect(sortFilms(films, 'titulo').map((f) => f.title)).toEqual(['A', 'B', 'C']);
+	});
+});
+
+describe('the second set of Cine filters', () => {
+	const back = (over: Partial<SearchableFilm> = {}): SearchableFilm => ({
+		...jaws,
+		title: 'Regreso al futuro',
+		awards: [
+			{ name: 'Óscar a la mejor edición de sonido', year: 1986, won: true },
+			{ name: 'Óscar al mejor guion original', year: 1986, won: false }
+		],
+		sagas: [{ name: 'Regreso al futuro', order: 1 }],
+		composers: ['Alan Silvestri'],
+		...over
+	});
+
+	test('award families from their categories', () => {
+		expect(awardFamily('Óscar a la mejor película')).toBe('Óscar');
+		expect(awardFamily('Óscar al mejor guion original')).toBe('Óscar');
+		expect(awardFamily('Premio Goya a la mejor película')).toBe('Premio Goya');
+		expect(awardFamily('Globo de Oro a la mejor película - Drama')).toBe('Globo de Oro');
+		expect(awardFamily('Palma de Oro')).toBe('Palma de Oro');
+		expect(awardFamily('Academy Award for Best Picture')).toBe('Academy Award');
+	});
+
+	test('awards: only those won, by family, category or any', () => {
+		expect(FILTERS.premio.matches(back(), 'Óscar')).toBe(true);
+		expect(FILTERS.premio.matches(back(), '*')).toBe(true);
+		expect(FILTERS.premio.matches(back(), 'Óscar al mejor guion original')).toBe(false);
+		expect(FILTERS.premio.matches(back({ awards: [] }), '*')).toBe(false);
+	});
+
+	test('saga, type and crew', () => {
+		expect(FILTERS.saga.matches(back(), 'Regreso al futuro')).toBe(true);
+		expect(FILTERS.tipo.matches(back({ blackAndWhite: true }), 'bn')).toBe(true);
+		expect(FILTERS.tipo.matches(back(), 'muda')).toBe(false);
+		expect(FILTERS.persona.matches(back(), 'Alan Silvestri')).toBe(true);
+		expect(matchReason(back(), 'silvestri')).toBe('Música: Alan Silvestri');
+	});
+
+	test('with a saga chosen, in its order', () => {
+		const films = [
+			back({ title: 'Regreso al futuro III', sagas: [{ name: 'Regreso al futuro', order: 3 }] }),
+			back(),
+			back({ title: 'Regreso al futuro II', sagas: [{ name: 'Regreso al futuro', order: 2 }] })
+		];
+		expect(sortFilms(films, 'titulo', 'Regreso al futuro').map((f) => f.title)).toEqual([
+			'Regreso al futuro',
+			'Regreso al futuro II',
+			'Regreso al futuro III'
+		]);
 	});
 });
