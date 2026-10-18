@@ -20,6 +20,7 @@ export async function saveQueue(userId: string, queue: QueueSave) {
 		repeat: queue.repeat,
 		single: queue.single,
 		radioUuid: queue.radio,
+		podcastEpisodeId: queue.podcast,
 		changedBy: queue.changedBy,
 		updatedAt: new Date()
 	};

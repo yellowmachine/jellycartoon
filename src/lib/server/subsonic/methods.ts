@@ -455,14 +455,15 @@ export const METHODS: Record<string, Method> = {
 			repeat: false,
 			single: false,
 			radio: null,
+			podcast: null,
 			changedBy: params.get('c')?.trim().slice(0, 50) || 'una app'
 		});
 		return ok();
 	},
 	getPlayQueue: async (_, __, user) => {
 		const queue = await getQueue(user.id);
-		// A station is not something a play queue can hold.
-		if (!queue || queue.radioUuid) return ok();
+		// A station or a podcast is not something a play queue can hold.
+		if (!queue || queue.radioUuid || queue.podcastEpisodeId) return ok();
 		const [library, stars] = await Promise.all([loadLibrary(), getStars(user.id)]);
 		const entry = queue.trackIds.flatMap((id) => {
 			const t = library.tracks.get(id);

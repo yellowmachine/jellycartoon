@@ -692,8 +692,82 @@ export const musicQueue = pgTable('music_queue', {
 	single: boolean('single').notNull().default(false),
 	/** A station instead of the tracks. */
 	radioUuid: text('radio_uuid'),
+	/** A podcast episode instead of the tracks. */
+	podcastEpisodeId: integer('podcast_episode_id').references(() => podcastEpisode.id, {
+		onDelete: 'set null'
+	}),
 	/** Where it was saved from, as it is shown: «la TV», «el móvil», «Tempus». */
 	changedBy: text('changed_by').notNull(),
 	/** Set by the app, to the millisecond: closing the player only clears its own save. */
 	updatedAt: timestamp('updated_at', { precision: 3 }).notNull()
 });
+
+/** A public podcast, from its RSS feed; one row however many users follow it. */
+export const podcast = pgTable('podcast', {
+	id: serial('id').primaryKey(),
+	feedUrl: text('feed_url').notNull().unique(),
+	title: text('title').notNull(),
+	author: text('author'),
+	description: text('description'),
+	imageUrl: text('image_url'),
+	/** The feed's own page, for the credits. */
+	link: text('link'),
+	/** When its feed was last read, and why it failed then, if it did. */
+	checkedAt: timestamp('checked_at'),
+	lastError: text('last_error'),
+	createdAt: timestamp('created_at').notNull().defaultNow()
+});
+
+export const podcastEpisode = pgTable(
+	'podcast_episode',
+	{
+		id: serial('id').primaryKey(),
+		podcastId: integer('podcast_id')
+			.notNull()
+			.references(() => podcast.id, { onDelete: 'cascade' }),
+		/** The feed's own id for it (its audio URL when it has none). */
+		guid: text('guid').notNull(),
+		title: text('title').notNull(),
+		description: text('description'),
+		audioUrl: text('audio_url').notNull(),
+		durationSec: integer('duration_sec'),
+		publishedAt: timestamp('published_at'),
+		imageUrl: text('image_url')
+	},
+	(t) => [
+		unique('podcast_episode_guid_unique').on(t.podcastId, t.guid),
+		index('podcast_episode_published_idx').on(t.podcastId, t.publishedAt)
+	]
+);
+
+/** The podcasts each user follows. */
+export const podcastSubscription = pgTable(
+	'podcast_subscription',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		podcastId: integer('podcast_id')
+			.notNull()
+			.references(() => podcast.id, { onDelete: 'cascade' }),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [primaryKey({ columns: [t.userId, t.podcastId] })]
+);
+
+/** Where each user is in each episode, to go on from there. */
+export const podcastProgress = pgTable(
+	'podcast_progress',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		episodeId: integer('episode_id')
+			.notNull()
+			.references(() => podcastEpisode.id, { onDelete: 'cascade' }),
+		positionSec: real('position_sec').notNull(),
+		completed: boolean('completed').notNull().default(false),
+		updatedAt: timestamp('updated_at').notNull().defaultNow()
+	},
+	(t) => [primaryKey({ columns: [t.userId, t.episodeId] })]
+);

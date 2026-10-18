@@ -149,6 +149,8 @@ export interface QueueSave {
 	single: boolean;
 	/** A station instead of the tracks. */
 	radio: string | null;
+	/** A podcast episode instead of the tracks. */
+	podcast: number | null;
 	/** Where it was saved from, as it is shown: «la TV», «el móvil». */
 	changedBy: string;
 }
@@ -164,12 +166,14 @@ export function parseQueueSave(body: unknown): QueueSave | null {
 	if (!body || typeof body !== 'object') return null;
 	const b = body as Record<string, unknown>;
 	const { trackIds, index, positionSec, radio, changedBy } = b;
+	const podcast = b.podcast ?? null;
 	if (!Array.isArray(trackIds) || trackIds.length > 5000) return null;
 	if (!trackIds.every((id) => Number.isInteger(id))) return null;
 	if (!Number.isInteger(index) || typeof positionSec !== 'number' || !Number.isFinite(positionSec))
 		return null;
 	if (radio !== null && typeof radio !== 'string') return null;
-	if (!trackIds.length && radio === null) return null;
+	if (podcast !== null && !Number.isInteger(podcast)) return null;
+	if (!trackIds.length && radio === null && podcast === null) return null;
 	if (typeof changedBy !== 'string' || !changedBy.trim()) return null;
 	return {
 		trackIds,
@@ -179,6 +183,7 @@ export function parseQueueSave(body: unknown): QueueSave | null {
 		repeat: b.repeat === true,
 		single: b.single === true,
 		radio,
+		podcast: podcast as number | null,
 		changedBy: changedBy.trim().slice(0, 50)
 	};
 }

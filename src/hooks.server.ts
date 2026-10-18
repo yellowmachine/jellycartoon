@@ -12,6 +12,7 @@ import { logStartup } from '#lib/server/startup.ts';
 import { wakeCatalog } from '#lib/server/cinema/catalog.ts';
 import { wakeExtras } from '#lib/server/cinema/info.ts';
 import { wakeMusicCatalog } from '#lib/server/music/catalog.ts';
+import { startPodcastRefresh } from '#lib/server/podcasts/podcasts.ts';
 import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
 import { log, startLogCleanup } from '#lib/server/log.ts';
 
@@ -29,6 +30,8 @@ export const init: ServerInit = async () => {
 	await startSubtitles();
 	// Every night, what was added to the folders: converted and subtitled by the morning.
 	startNightlyScan();
+	// New episodes of the followed podcasts, every few hours.
+	startPodcastRefresh();
 	// In the Registro: which version started, and how each of the above starts.
 	await logStartup();
 };
