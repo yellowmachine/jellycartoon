@@ -28,7 +28,6 @@
 		{ href: '/radio', label: 'Radio' },
 		{ href: '/canales', label: 'Canales' },
 		...(data.salon ? [{ href: '/salon', label: 'Salón' }] : []),
-		...(data.voice ? [{ href: '/voz', label: 'Hablar' }] : []),
 		...(data.kidsPage ? [{ href: '/infantil', label: 'Infantil' }] : []),
 		// Not for a child's account: they do not exist for it.
 		...(data.kid
@@ -88,6 +87,30 @@
 					<img src={favicon} alt="" class="h-7 w-7 rounded-md" />
 					JellyCartoon
 				</a>
+				<!-- Voice commands (#33): a microphone by the name, on every screen, phones too. -->
+				{#if data.voice}
+					<a
+						href="/voz"
+						title="Hablar"
+						aria-label="Hablar"
+						aria-current={page.url.pathname === '/voz' ? 'page' : undefined}
+						class={[
+							'-ml-3 shrink-0 rounded-md p-1 hover:bg-zinc-800 hover:text-white',
+							page.url.pathname === '/voz' ? 'text-amber-400' : 'text-zinc-400'
+						]}
+					>
+						<svg viewBox="0 0 24 24" class="h-6 w-6" fill="currentColor" aria-hidden="true">
+							<rect x="9" y="2.5" width="6" height="12" rx="3" />
+							<path
+								d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+							/>
+						</svg>
+					</a>
+				{/if}
 				<!-- Wide screens: every link in a row. -->
 				{#each links as link (link.href)}
 					<a
