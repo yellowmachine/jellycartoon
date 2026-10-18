@@ -21,6 +21,8 @@ export type VoiceAction =
 	| { kind: 'timer'; label: string; seconds: number }
 	/** Waiting for something to be said («cuando hierva»): it is started by voice or a tap. */
 	| { kind: 'prepareTimer'; label: string; seconds: number; trigger: string }
+	/** The screen stays on in this browser (the phone on the kitchen wall), or no longer. */
+	| { kind: 'kitchenMode'; on: boolean }
 	/** That one by its name, or all of them with null. */
 	| { kind: 'cancelTimer'; label: string | null };
 

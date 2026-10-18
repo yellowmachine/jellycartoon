@@ -1,5 +1,6 @@
 import { goto } from '$app/navigation';
 import { music } from '#lib/music-player.svelte.ts';
+import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 import { timers } from '#lib/timers.svelte.ts';
 import { musicTarget } from '#lib/music-target.svelte.ts';
 import { videoHere } from '#lib/video-here.svelte.ts';
@@ -227,6 +228,8 @@ async function act(action: VoiceAction) {
 			return musicTarget.playRadio(action.uuid, false);
 		case 'timer':
 			return timers.start(action.label, action.seconds);
+		case 'kitchenMode':
+			return kitchenMode.set(action.on);
 		case 'prepareTimer':
 			return timers.prepare(action.label, action.seconds, action.trigger);
 		case 'cancelTimer':

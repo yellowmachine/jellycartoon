@@ -225,6 +225,12 @@ function tools(house: boolean): Tool[] {
 			['minutes', 'label', 'trigger']
 		),
 		fn(
+			'kitchen_mode',
+			'Enciende o apaga el modo cocina en el dispositivo desde el que se habla: la pantalla no se apaga, para el móvil en la pared de la cocina.',
+			{ on: { type: 'boolean' } },
+			['on']
+		),
+		fn(
 			'cancel_timer',
 			'Quita un temporizador de este dispositivo por su nombre, o todos: en marcha, preparados o el que está sonando.',
 			{
@@ -310,6 +316,7 @@ Temporizadores («avísame en 10 minutos», «pon un temporizador de 20 minutos 
 - «Quita el temporizador», «ya está», «para la alarma»: «cancel_timer»; si hay varios y no está claro cuál, usa «ask».
 - Di cuánto y para qué, corto: «Te aviso en diez minutos para la pasta».
 - «Cuando hierva, pon 8 minutos para la pasta»: «prepare_timer», uno por cada cosa que espera. Di lo que queda preparado, corto: «Vale: ocho minutos cuando hierva y media hora cuando esté el sofrito».
+- «Modo cocina», «que no se apague la pantalla»: «kitchen_mode». Se apaga solo a las tres horas sin temporizadores.
 - Cuando diga que ya ha pasado lo que espera uno preparado («ya hierve», «ya está el sofrito»), arráncalo con «set_timer» con su mismo nombre y sus minutos. Si no está claro cuál, usa «ask».
 
 Lo que ha visto en vídeo (series, películas, canales de tele), solo de su cuenta: «watch_time», «sessions», «finished» y «halfway».
@@ -589,6 +596,11 @@ async function runTool(
 			ctx.outcome.actions.push({ kind: 'prepareTimer', label, seconds, trigger });
 			return `Preparado${label ? ` «${label}»` : ''}: ${seconds} segundos cuando ${trigger}.`;
 		}
+		case 'kitchen_mode':
+			ctx.outcome.actions.push({ kind: 'kitchenMode', on: args.on !== false });
+			return args.on !== false
+				? 'Modo cocina encendido: la pantalla no se apaga.'
+				: 'Modo cocina apagado.';
 		case 'cancel_timer': {
 			const label = typeof args.label === 'string' && args.label.trim() ? args.label.trim() : null;
 			ctx.outcome.actions.push({ kind: 'cancelTimer', label });
