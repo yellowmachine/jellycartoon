@@ -430,6 +430,42 @@ export const appSetting = pgTable('app_setting', {
 	updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
+export const subtitleJobState = pgEnum('subtitle_job_state', [
+	'queued',
+	'running',
+	'done',
+	'failed'
+]);
+
+/**
+ * Subtitles made by Whisper (auto-subtitles.ts): what was asked for, in the order it is made, and
+ * how it went; shown and managed in Gestión → Subtítulos. Kept, so a restart goes on with the
+ * queue; the last ones done and every failure stay as its history.
+ */
+export const subtitleJob = pgTable(
+	'subtitle_job',
+	{
+		id: serial('id').primaryKey(),
+		episodeId: integer('episode_id').references(() => episode.id, { onDelete: 'cascade' }),
+		movieId: integer('movie_id').references(() => movie.id, { onDelete: 'cascade' }),
+		/** ISO 639-2, of the audio track to subtitle. */
+		lang: text('lang').notNull(),
+		state: subtitleJobState('state').notNull().default('queued'),
+		/** In the queue, the lowest first: «ponerlo el primero» gives it one below the lowest. */
+		position: real('position').notNull(),
+		error: text('error'),
+		/** Phrases made, once done. */
+		cues: integer('cues'),
+		createdAt: timestamp('created_at').notNull().defaultNow(),
+		startedAt: timestamp('started_at'),
+		finishedAt: timestamp('finished_at')
+	},
+	(t) => [
+		index('subtitle_job_state_idx').on(t.state, t.position),
+		check('subtitle_job_one_item', sql`num_nonnulls(${t.episodeId}, ${t.movieId}) = 1`)
+	]
+);
+
 export const logLevel = pgEnum('log_level', ['info', 'warn', 'error']);
 
 /** What the server did and what went wrong, shown in /logs. Older than 30 days is deleted. */

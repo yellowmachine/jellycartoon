@@ -57,6 +57,25 @@ export function cuesBetween(cues: Cue[], from: number, to: number): Cue[] {
 		}));
 }
 
+/** `3725.5` as `01:02:05.500`. */
+function timestamp(sec: number) {
+	const ms = Math.round(sec * 1000);
+	const pad = (n: number, width = 2) => String(n).padStart(width, '0');
+	return `${pad(Math.floor(ms / 3_600_000))}:${pad(Math.floor(ms / 60_000) % 60)}:${pad(Math.floor(ms / 1000) % 60)}.${pad(ms % 1000, 3)}`;
+}
+
+/** Cues as a WebVTT file, for the players; `<`, `>` and `&` in their text, escaped. */
+export function serializeVtt(cues: Cue[]) {
+	const escape = (text: string) =>
+		text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	return (
+		[
+			'WEBVTT',
+			...cues.map((c) => `${timestamp(c.start)} --> ${timestamp(c.end)}\n${escape(c.text)}`)
+		].join('\n\n') + '\n'
+	);
+}
+
 /** The cues as running text: one line each, repeated ones (karaoke-style updates) once. */
 export const cuesText = (cues: Cue[]) =>
 	cues

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { cuesBetween, cuesText, parseVtt } from './vtt.ts';
+import { cuesBetween, cuesText, parseVtt, serializeVtt } from './vtt.ts';
 
 const VTT = `WEBVTT
 
@@ -61,4 +61,18 @@ test('cuesText: one line per cue, repeats once', () => {
 			{ start: 2, end: 3, text: 'Bye' }
 		])
 	).toBe('Two lines of text\nBye');
+});
+
+describe('serializeVtt', () => {
+	test('times and escaped text, read back the same', () => {
+		const cues = [
+			{ start: 1.5, end: 3.25, text: 'Tom & Jerry <3' },
+			{ start: 3725.5, end: 3727, text: 'Two\nlines' }
+		];
+		const vtt = serializeVtt(cues);
+		expect(vtt).toBe(
+			'WEBVTT\n\n00:00:01.500 --> 00:00:03.250\nTom &amp; Jerry &lt;3\n\n01:02:05.500 --> 01:02:07.000\nTwo\nlines\n'
+		);
+		expect(parseVtt(vtt)).toEqual(cues);
+	});
 });

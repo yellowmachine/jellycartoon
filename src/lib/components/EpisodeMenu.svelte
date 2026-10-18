@@ -26,6 +26,18 @@
 			subtitles: SubtitleTrack[];
 			/** Path to the video on the host, for mpv; only once converted. */
 			playlist?: string | null;
+			/**
+			 * Subtitles made by Whisper, where there is one: the languages of its audio without
+			 * subtitles of their own, and how the last request goes.
+			 */
+			autoSubtitles?: {
+				languages: { lang: string; label: string }[];
+				job:
+					| { state: 'queued'; lang: string }
+					| { state: 'running'; lang: string; done: number; total: number }
+					| { state: 'failed'; lang: string; message: string }
+					| null;
+			} | null;
 		};
 		/** Whether it can be played on the host's screen. */
 		salon: boolean;
@@ -169,6 +181,33 @@
 				label="Copiar ruta (para mpv u otro reproductor)"
 				onclose={close}
 			/>
+		{/if}
+		{#if ready && manage && episode.autoSubtitles}
+			{@const job = episode.autoSubtitles.job}
+			{#if job?.state === 'running' || job?.state === 'queued'}
+				<p class="px-3 py-1.5 text-sm text-zinc-400">
+					{job.state === 'queued'
+						? 'Subtítulos: esperando turno…'
+						: `Haciendo subtítulos… ${job.total ? `${Math.round((job.done / job.total) * 100)} %` : ''}`}
+				</p>
+			{:else}
+				<!-- One per language: a film may have eight tracks, and only the one watched matters. -->
+				{#each episode.autoSubtitles.languages as language (language.lang)}
+					{@const remake = episode.subtitles.some(
+						(s) => s.file === `sub_auto_${language.lang}.vtt`
+					)}
+					{@const failed = job?.state === 'failed' && job.lang === language.lang ? job : null}
+					<form method="post" action="?/autoSubtitles" use:enhance={closeAfter(close)}>
+						<input type="hidden" name="id" value={episode.id} />
+						<input type="hidden" name="lang" value={language.lang} />
+						<button class="w-full" title={failed?.message}>
+							{@render item(
+								`${failed ? 'Reintentar subtítulos' : remake ? 'Rehacer subtítulos' : 'Subtítulos automáticos'} en ${language.label}`
+							)}
+						</button>
+					</form>
+				{/each}
+			{/if}
 		{/if}
 		{#if ready && manage}
 			<form

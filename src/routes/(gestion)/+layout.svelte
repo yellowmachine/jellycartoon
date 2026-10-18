@@ -4,13 +4,21 @@
 
 	let { children }: LayoutProps = $props();
 
-	/** Looking after the app, in one place: the videos' conversion, the tags and the log. */
+	/**
+	 * Looking after the app, in one place: the videos' conversion, the tags, the subtitles Whisper
+	 * makes and the log.
+	 */
 	const tabs = [
 		{ href: '/library', label: 'Conversión', match: (p: string) => p === '/library' },
 		{
 			href: '/library/etiquetas',
 			label: 'Etiquetas',
 			match: (p: string) => p === '/library/etiquetas'
+		},
+		{
+			href: '/library/subtitulos',
+			label: 'Subtítulos',
+			match: (p: string) => p === '/library/subtitulos'
 		},
 		{ href: '/logs', label: 'Registro', match: (p: string) => p === '/logs' }
 	];

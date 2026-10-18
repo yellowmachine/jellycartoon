@@ -21,10 +21,12 @@ import type { RemoteAction, RemoteState, Track } from '#lib/salon.ts';
 
 export const mpvEnabled = Boolean(MPV_SOCKET);
 
-/** A film, or an episode with its WebVTT files (outside its HLS playlist, so added by hand). */
+/** WebVTT files to add by hand: an episode's (outside its HLS playlist), a film's made ones. */
+type ExtraSubtitles = { path: string; lang: string; label: string }[];
+
+/** A film (its own subtitles are inside its file), or an episode. */
 export type Target =
-	| { movieId: number }
-	| { episodeId: number; subtitles: { path: string; lang: string; label: string }[] };
+	{ movieId: number; subtitles: ExtraSubtitles } | { episodeId: number; subtitles: ExtraSubtitles };
 
 /** Something to play, in the order it is queued. */
 export interface QueueItem {
@@ -490,7 +492,7 @@ async function playNow(options: {
 		// Options given to loadfile are the file's own: each item starts where it was left.
 		const mpvOptions: Record<string, string> = { start: String(Math.floor(item.startSec)) };
 		if (options.audioLang) mpvOptions.alang = options.audioLang;
-		// Episodes' subtitles are added once loaded (addSubtitles).
+		// Extra .vtt files (an episode's, a film's made ones) are added once loaded (addSubtitles).
 		if (options.subtitleLang && 'movieId' in item.target) mpvOptions.slang = options.subtitleLang;
 		const result = (await command({
 			name: 'loadfile',

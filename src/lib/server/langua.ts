@@ -16,7 +16,8 @@ import {
 } from '#lib/server/db/schema.ts';
 import { cachedProbe, inTurn } from '#lib/server/cinema/frames.ts';
 import { audioClip, subtitleClip } from '#lib/server/library/ffmpeg.ts';
-import { hlsDir, movieFile } from '#lib/server/library/paths.ts';
+import { hlsDir, movieFile, movieSubsDir } from '#lib/server/library/paths.ts';
+import { filmAutoSubtitles } from '#lib/server/auto-subtitles.ts';
 import { log } from '#lib/server/log.ts';
 import { getSettings } from '#lib/server/settings.ts';
 import { normalizeLang } from '#lib/languages.ts';
@@ -271,8 +272,19 @@ export async function sendClip(
 			const sub = await inTurn(() =>
 				subtitleClip(input, info, { atSec: startSec, seconds, lang: language })
 			);
-			if (sub)
-				subtitles = { cues: cuesBetween(parseVtt(sub.vtt), startSec, endSec), lang: sub.lang };
+			// Its own in another language, or none: Whisper's in the audio's, if they were made.
+			const made =
+				sub?.lang === language
+					? undefined
+					: (await filmAutoSubtitles(watching.id)).find((s) => s.lang === language);
+			const vtt = made
+				? await readFile(path.join(movieSubsDir(watching.id), made.file), 'utf8')
+				: sub?.vtt;
+			if (vtt)
+				subtitles = {
+					cues: cuesBetween(parseVtt(vtt), startSec, endSec),
+					lang: made ? made.lang : sub!.lang
+				};
 		}
 
 		const cues = subtitles?.cues ?? [];

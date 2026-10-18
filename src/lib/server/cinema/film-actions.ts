@@ -3,7 +3,13 @@ import { and, eq } from 'drizzle-orm';
 import { AUDIO_LANG } from '$app/env/private';
 import { db } from '#lib/server/db/index.ts';
 import { movie, movieProgress, movieTitle } from '#lib/server/db/schema.ts';
-import { hasIntro, hostIntroFile, hostMoviePath } from '#lib/server/library/paths.ts';
+import {
+	hasIntro,
+	hostIntroFile,
+	hostMoviePath,
+	hostMovieSubFile
+} from '#lib/server/library/paths.ts';
+import { filmAutoSubtitles } from '#lib/server/auto-subtitles.ts';
 import { allowedMovies } from '#lib/server/kids.ts';
 import { videoClosed } from '#lib/server/kid-time.ts';
 import { getSettings } from '#lib/server/settings.ts';
@@ -68,7 +74,14 @@ export async function playFilm(
 			userId,
 			items: [
 				{
-					target: { movieId: film.id },
+					target: {
+						movieId: film.id,
+						// Whisper's, for what has none in the language of its audio.
+						subtitles: (await filmAutoSubtitles(film.id)).flatMap((s) => {
+							const file = hostMovieSubFile(film.id, s.file);
+							return file ? [{ path: file, lang: s.lang, label: s.label }] : [];
+						})
+					},
 					title: film.title,
 					subtitle: null,
 					hostPath,

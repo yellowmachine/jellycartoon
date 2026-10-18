@@ -6,6 +6,7 @@ import { auth } from '#lib/server/auth.ts';
 import { guardKids } from '#lib/server/kids.ts';
 import { guardVideoTime } from '#lib/server/kid-time.ts';
 import { startWorker } from '#lib/server/library/worker.ts';
+import { startSubtitles } from '#lib/server/auto-subtitles.ts';
 import { wakeCatalog } from '#lib/server/cinema/catalog.ts';
 import { wakeMusicCatalog } from '#lib/server/music/catalog.ts';
 import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
@@ -19,6 +20,8 @@ export const init: ServerInit = async () => {
 	// Tracks whose tags were not read yet, and covers not looked up.
 	if (musicRoot) wakeMusicCatalog();
 	await startWorker();
+	// Subtitles left waiting, or half made, by a restart.
+	await startSubtitles();
 };
 
 /** Unexpected errors only: the ones thrown on purpose with `error()` (404, 400…) are not news. */

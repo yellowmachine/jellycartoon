@@ -16,6 +16,14 @@ import { parseView, viewCookie } from '#lib/views.ts';
 import { addSeriesTag, getTags, removeSeriesTag, seriesTags, tagName } from '#lib/server/tags.ts';
 import { playEpisodes, seriesQueue } from '#lib/server/cinema/episode-actions.ts';
 import {
+	cancelSubtitles,
+	requestSubtitles,
+	subtitleJobs,
+	tracksWithoutSubtitles
+} from '#lib/server/auto-subtitles.ts';
+import { voiceEnabled } from '#lib/server/voice/whisper.ts';
+import { normalizeLang } from '#lib/languages.ts';
+import {
 	chooseSeries,
 	forgetSeries,
 	identifySeries,
@@ -86,8 +94,27 @@ export const load: PageServerLoad = async ({ params, locals, cookies }) => {
 		getTags()
 	]);
 
+	const subtitleJobsNow = voiceEnabled
+		? await subtitleJobs(
+				'episode',
+				episodes.map((e) => e.id)
+			)
+		: new Map();
 	const seasons = Map.groupBy(
-		episodes.map((e) => ({ ...e, playlist: e.status === 'ready' ? hostPlaylist(e.id) : null })),
+		episodes.map((e) => ({
+			...e,
+			playlist: e.status === 'ready' ? hostPlaylist(e.id) : null,
+			/**
+			 * Subtitles Whisper can make (only with it, WHISPER_URL): the languages of its audio
+			 * without subtitles of their own, and how the last request is going.
+			 */
+			autoSubtitles: voiceEnabled
+				? {
+						languages: e.status === 'ready' ? tracksWithoutSubtitles(e) : [],
+						job: subtitleJobsNow.get(e.id) ?? null
+					}
+				: null
+		})),
 		(e) => e.season
 	);
 	return {
@@ -230,6 +257,55 @@ export const actions: Actions = {
 		const ep = await seriesEpisode(params.id, await request.formData());
 		if (!ep) return fail(400, { message: 'Capítulo no válido' });
 		await ignoreEpisodes([ep.id]);
+	},
+	/** In the background: the page follows how it goes (`autoSubtitles.job`). */
+	autoSubtitles: async ({ params, request }) => {
+		if (!voiceEnabled) return fail(400, { message: 'No hay Whisper configurado (WHISPER_URL)' });
+		const form = await request.formData();
+		const ep = await seriesEpisode(params.id, form);
+		if (!ep || ep.status !== 'ready') return fail(400, { message: 'Capítulo no válido' });
+		await requestSubtitles('episode', ep.id, String(form.get('lang') ?? ''));
+	},
+	/**
+	 * The selected episodes, in one language: each into the queue only if it has audio in it
+	 * without subtitles of its own. Says how many went and how many were left out.
+	 */
+	autoSubtitlesMany: async ({ params, request }) => {
+		if (!voiceEnabled) return fail(400, { message: 'No hay Whisper configurado (WHISPER_URL)' });
+		const form = await request.formData();
+		const lang = normalizeLang(String(form.get('lang') ?? ''));
+		const ids = form.getAll('id').map(Number).filter(Number.isInteger);
+		const rows = ids.length
+			? await db
+					.select({
+						id: episode.id,
+						status: episode.status,
+						audioTracks: episode.audioTracks,
+						subtitles: episode.subtitles
+					})
+					.from(episode)
+					.where(and(eq(episode.seriesId, Number(params.id)), inArray(episode.id, ids)))
+			: [];
+		const wanted = rows.filter(
+			(ep) => ep.status === 'ready' && tracksWithoutSubtitles(ep).some((t) => t.lang === lang)
+		);
+		// One waiting or being made for an episode is not asked for again: it counts as left out.
+		let queued = 0;
+		for (const ep of wanted) if (await requestSubtitles('episode', ep.id, lang)) queued++;
+		return { subtitlesQueued: queued, subtitlesSkipped: ids.length - queued };
+	},
+	/** Those of this series still waiting; the one being made goes on. */
+	cancelSubtitles: async ({ params }) => {
+		const ids = await db
+			.select({ id: episode.id })
+			.from(episode)
+			.where(eq(episode.seriesId, Number(params.id)));
+		return {
+			subtitlesCancelled: await cancelSubtitles(
+				'episode',
+				ids.map((e) => e.id)
+			)
+		};
 	},
 	regenerateThumbnail: async ({ params, request }) => {
 		const ep = await seriesEpisode(params.id, await request.formData());

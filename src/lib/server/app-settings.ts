@@ -27,7 +27,8 @@ type Key =
 	| 'openrouter_chat_model'
 	| 'openrouter_chat_web'
 	| 'openrouter_vision_model'
-	| 'openrouter_voice_model';
+	| 'openrouter_voice_model'
+	| 'subtitles_paused';
 
 async function get(key: Key) {
 	const [row] = await db
@@ -78,6 +79,15 @@ export async function visionModel() {
 /** Voice commands: their own model. */
 export async function voiceModel() {
 	return (await get('openrouter_voice_model')) ?? DEFAULT_VOICE_MODEL;
+}
+
+/** Gestión → Subtítulos: paused, Whisper starts nothing new until it is resumed. */
+export async function subtitlesPaused() {
+	return (await get('subtitles_paused')) === 'true';
+}
+
+export async function setSubtitlesPaused(paused: boolean) {
+	await setAppSetting('subtitles_paused', paused ? 'true' : null);
 }
 
 /** There are no roles: the first account created is the one that manages the app. */

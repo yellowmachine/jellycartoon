@@ -28,3 +28,25 @@ export async function transcribe(audio: Blob) {
 		throw new Error(`Whisper: ${body?.error ?? res.statusText}`);
 	return cleanTranscript(body.text);
 }
+
+/**
+ * Subtitles for a stretch of speech (a WAV file): WebVTT, timed from its start. `language`: the
+ * ISO 639-1 code (see `whisperLanguage`), instead of the one the server started with, or `auto`.
+ */
+export async function transcribeVtt(file: string, language: string, signal?: AbortSignal) {
+	const form = new FormData();
+	form.append('file', Bun.file(file), 'trozo.wav');
+	form.append('language', language);
+	form.append('response_format', 'vtt');
+	form.append('temperature', '0');
+	const res = await fetch(`${WHISPER_URL}/inference`, {
+		method: 'POST',
+		body: form,
+		signal: AbortSignal.any([AbortSignal.timeout(120_000), ...(signal ? [signal] : [])])
+	}).catch((err) => {
+		throw new Error(`No se pudo hablar con Whisper: ${err instanceof Error ? err.message : err}`);
+	});
+	const text = await res.text();
+	if (!res.ok) throw new Error(`Whisper: ${text.slice(0, 200) || res.statusText}`);
+	return text;
+}
