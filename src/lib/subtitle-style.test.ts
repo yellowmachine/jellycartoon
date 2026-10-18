@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { DEFAULT_SUBTITLE_STYLE, sanitizeSubtitleStyle, subtitleCss } from './subtitle-style.ts';
+import {
+	DEFAULT_SUBTITLE_STYLE,
+	mpvSubtitleProperties,
+	sanitizeSubtitleStyle,
+	SUBTITLE_PRESETS,
+	subtitleCss
+} from './subtitle-style.ts';
 
 describe('sanitizeSubtitleStyle', () => {
 	test('fills missing keys with defaults', () => {
@@ -18,5 +24,32 @@ describe('sanitizeSubtitleStyle', () => {
 		});
 		expect(style).toEqual({ ...DEFAULT_SUBTITLE_STYLE, size: 'xl' });
 		expect(Object.values(subtitleCss(style)).join()).not.toContain('<');
+	});
+});
+
+describe('mpvSubtitleProperties', () => {
+	const props = (style: Partial<import('./subtitle-style.ts').SubtitleStyle>) =>
+		Object.fromEntries(mpvSubtitleProperties({ ...DEFAULT_SUBTITLE_STYLE, ...style }));
+
+	test('the original version look: yellow Liberation Sans in bold, thick outline, no box', () => {
+		expect(props(SUBTITLE_PRESETS[0]!.style)).toEqual({
+			'sub-font': 'Liberation Sans',
+			'sub-bold': true,
+			'sub-scale': 1,
+			'sub-color': '#FFFFE14D',
+			'sub-border-style': 'outline-and-shadow',
+			'sub-back-color': '#E6000000',
+			'sub-border-color': '#FF000000',
+			'sub-border-size': 3.5,
+			'sub-shadow-offset': 0
+		});
+	});
+
+	test('a box is mpv background-box, with the opacity as alpha first', () => {
+		const solid = props({ background: 'solid', size: 'xl' });
+		expect(solid['sub-border-style']).toBe('background-box');
+		expect(solid['sub-back-color']).toBe('#D9000000');
+		expect(solid['sub-scale']).toBe(1.5);
+		expect(solid['sub-bold']).toBe(false);
 	});
 });

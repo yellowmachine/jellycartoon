@@ -2,14 +2,15 @@
 	import {
 		DEFAULT_SUBTITLE_STYLE,
 		SUBTITLE_OPTIONS,
+		SUBTITLE_PRESETS,
 		subtitleCss,
 		type SubtitleStyle
 	} from '#lib/subtitle-style.ts';
 
 	interface Props {
 		style: SubtitleStyle;
-		/** Thumbnail shown behind the preview text. */
-		previewImage: string;
+		/** Thumbnail shown behind the preview text; without one, a plain grey. */
+		previewImage?: string;
 		onchange: (style: SubtitleStyle) => void;
 	}
 
@@ -29,11 +30,12 @@
 <div class="mt-3 rounded-md border border-zinc-800 bg-zinc-900/60 p-4">
 	<div
 		class="@container relative mb-4 flex aspect-[16/5] items-end justify-center overflow-hidden rounded bg-zinc-800 bg-cover bg-center pb-3"
-		style:background-image="url({previewImage})"
+		style:background-image={previewImage ? `url(${previewImage})` : undefined}
 	>
 		<span
 			class="px-1.5 leading-snug"
 			style:font-family={css.fontFamily}
+			style:font-weight={css.fontWeight}
 			style:font-size="{css.fontScale * 2.6}cqw"
 			style:color={css.color}
 			style:background={css.background}
@@ -44,6 +46,19 @@
 	</div>
 
 	<div class="grid gap-3 text-sm sm:grid-cols-[auto_1fr] sm:items-center">
+		<span class="text-zinc-400">Estilo</span>
+		<div class="flex flex-wrap gap-1">
+			{#each SUBTITLE_PRESETS as preset (preset.label)}
+				{@const on = options.every(([key]) => style[key] === preset.style[key])}
+				<button
+					class={[
+						'rounded px-2 py-0.5',
+						on ? 'bg-amber-500 text-zinc-950' : 'text-zinc-300 hover:bg-zinc-800'
+					]}
+					onclick={() => onchange({ ...preset.style })}>{preset.label}</button
+				>
+			{/each}
+		</div>
 		{#each options as [key, option] (key)}
 			<span class="text-zinc-400">{option.label}</span>
 			<div class="flex flex-wrap gap-1">

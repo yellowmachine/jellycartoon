@@ -8,6 +8,8 @@
 	let { data, form }: PageProps = $props();
 	let scanning = $state(false);
 	let confirmRemove = $state(false);
+	let confirmForget = $state(false);
+	const missingTotal = $derived(data.missing.reduce((n, s) => n + s.count, 0));
 
 	const STATE_LABELS = { running: 'En marcha', paused: 'En pausa', stopped: 'Parada' };
 
@@ -244,6 +246,61 @@
 			{/each}
 		</ul>
 	</details>
+{/if}
+
+{#if missingTotal}
+	<details class="mt-6 rounded-md border border-zinc-800">
+		<summary class="cursor-pointer p-3 text-sm text-zinc-400">
+			Desaparecidos ({missingTotal})
+		</summary>
+		<div class="border-t border-zinc-800 p-3 text-sm">
+			<p class="mb-2 text-xs text-zinc-400">
+				Su fichero ya no está en la carpeta de medios. No se ven en ningún sitio, pero si el fichero
+				vuelve (un disco que no estaba montado al escanear), el próximo escaneo los recupera con su
+				progreso. Olvidarlos borra lo que la app sabe de ellos: lo convertido, el progreso, el
+				tiempo visto y su sitio en las listas; si el fichero volviera, sería un capítulo nuevo.
+			</p>
+			<ul class="mb-3 space-y-0.5">
+				{#each data.missing as s (s.seriesId)}
+					<li>
+						<a href="/series/{s.seriesId}" class="hover:text-amber-400">{s.seriesTitle}</a>
+						<span class="text-zinc-500">· {s.count}</span>
+					</li>
+				{/each}
+			</ul>
+			{#if confirmForget}
+				<form
+					method="post"
+					action="?/forgetMissing"
+					use:enhance={() =>
+						async ({ update }) => {
+							confirmForget = false;
+							await update();
+						}}
+					class="flex flex-wrap items-center gap-2"
+				>
+					<button class="rounded-md bg-red-600 px-3 py-1.5 font-medium text-white hover:bg-red-500">
+						Sí, olvidar {missingTotal === 1 ? '1 capítulo' : `${missingTotal} capítulos`}
+					</button>
+					<button
+						type="button"
+						class="rounded-md px-3 py-1.5 text-zinc-400 hover:text-white"
+						onclick={() => (confirmForget = false)}>Cancelar</button
+					>
+				</form>
+			{:else}
+				<button
+					class="rounded-md border border-zinc-700 px-3 py-1.5 hover:bg-zinc-900"
+					onclick={() => (confirmForget = true)}>Olvidar los desaparecidos</button
+				>
+			{/if}
+		</div>
+	</details>
+{/if}
+{#if form && 'forgotten' in form}
+	<p class="mt-3 text-sm text-amber-400">
+		{form.forgotten === 1 ? 'Olvidado 1 capítulo.' : `Olvidados ${form.forgotten} capítulos.`}
+	</p>
 {/if}
 
 {#if data.ignored.length}

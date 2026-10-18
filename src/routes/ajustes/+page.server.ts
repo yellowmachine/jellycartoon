@@ -89,6 +89,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		account: { name: locals.user!.name, email: locals.user!.email },
 		playback: { audioLang: settings.audioLang, subtitleLang: settings.subtitleLang },
+		/** Also for mpv in the living room, where films are watched. */
+		subtitleStyle: settings.subtitleStyle,
 		// Only with films in the living room and the intro in DATA_DIR.
 		intro: mpvEnabled && introFound ? settings.intro : null,
 		languages: KNOWN_LANGUAGES,

@@ -4,7 +4,12 @@ import path from 'node:path';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { episode, series, worker } from '#lib/server/db/schema.ts';
-import { languageLabel, normalizeLang, type SubtitleTrack } from '#lib/languages.ts';
+import {
+	assumeLanguage,
+	languageLabel,
+	normalizeLang,
+	type SubtitleTrack
+} from '#lib/languages.ts';
 import {
 	probe,
 	setSuspended,
@@ -221,9 +226,12 @@ async function processNext() {
 			id: episode.id,
 			sourcePath: episode.sourcePath,
 			sourceSize: episode.sourceSize,
-			sourceMtime: episode.sourceMtime
+			sourceMtime: episode.sourceMtime,
+			/** For audio the file does not say the language of. */
+			seriesAudioLang: series.audioLang
 		})
 		.from(episode)
+		.innerJoin(series, eq(series.id, episode.seriesId))
 		.where(eq(episode.id, claimed.id));
 
 	const abort = new AbortController();
@@ -280,7 +288,7 @@ async function processNext() {
 				durationSec: duration,
 				convertSec: activeSeconds(),
 				outputSize: size,
-				audioTracks,
+				audioTracks: assumeLanguage(audioTracks, job.seriesAudioLang),
 				subtitles
 			})
 			.where(eq(episode.id, job.id))

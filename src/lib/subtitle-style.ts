@@ -10,7 +10,13 @@ export const SUBTITLE_OPTIONS = {
 			legible: { label: 'Legible', css: '"Atkinson Hyperlegible", system-ui, sans-serif' },
 			comic: { label: 'Cómic', css: '"Comic Neue", "Comic Sans MS", cursive' },
 			serif: { label: 'Serif', css: 'Georgia, "Times New Roman", serif' },
-			mono: { label: 'Mono', css: 'ui-monospace, "DejaVu Sans Mono", monospace' }
+			mono: { label: 'Mono', css: 'ui-monospace, "DejaVu Sans Mono", monospace' },
+			/** Arial in bold, as subtitled films had them; Liberation Sans is its free twin. */
+			classic: {
+				label: 'Clásica',
+				css: '"Liberation Sans", Arial, Helvetica, sans-serif',
+				bold: true
+			}
 		}
 	},
 	size: {
@@ -75,15 +81,67 @@ export function sanitizeSubtitleStyle(value: unknown): SubtitleStyle {
 	return style as SubtitleStyle;
 }
 
+/** Whole styles, chosen at once. */
+export const SUBTITLE_PRESETS: { label: string; style: SubtitleStyle }[] = [
+	{
+		// Films in original version on TV and on video: yellow, bold, outlined, no box.
+		label: 'Versión original',
+		style: { font: 'classic', size: 'm', color: 'yellow', background: 'none', outline: 'thick' }
+	}
+];
+
+const choice = <K extends keyof Options>(style: SubtitleStyle, key: K) =>
+	(SUBTITLE_OPTIONS[key].choices as Record<string, { css: string; bold?: boolean }>)[
+		style[key] as string
+	];
+
 export function subtitleCss(style: SubtitleStyle) {
-	const css = <K extends keyof Options>(key: K) =>
-		(SUBTITLE_OPTIONS[key].choices as Record<string, { css: string }>)[style[key] as string].css;
+	const css = <K extends keyof Options>(key: K) => choice(style, key).css;
 	return {
 		fontFamily: css('font'),
+		fontWeight: choice(style, 'font').bold ? 700 : 400,
 		/** Multiplier over the browser's default cue size. */
 		fontScale: Number(css('size')),
 		color: css('color'),
 		background: css('background'),
 		textShadow: css('outline')
 	};
+}
+
+/** For mpv: the font family it asks fontconfig for, by the browser's choice. */
+const MPV_FONTS: Record<SubtitleStyle['font'], string> = {
+	sans: 'sans-serif',
+	legible: 'Atkinson Hyperlegible',
+	comic: 'Comic Neue',
+	serif: 'serif',
+	mono: 'monospace',
+	classic: 'Liberation Sans'
+};
+
+/** `#rrggbb` and an opacity as mpv's `#AARRGGBB` (alpha first). */
+const mpvColor = (hex: string, opacity = 1) =>
+	`#${Math.round(opacity * 255)
+		.toString(16)
+		.padStart(2, '0')}${hex.slice(1)}`.toUpperCase();
+
+/**
+ * The same style for mpv in the living room, as its properties: https://mpv.io/manual/stable/#subtitles.
+ * They apply to text subtitles (SRT, WebVTT, the made ones); ASS keep their own look and image
+ * ones (DVD, Blu-ray) cannot change.
+ */
+export function mpvSubtitleProperties(style: SubtitleStyle): [string, string | number | boolean][] {
+	const box = { none: 0, soft: 0.45, solid: 0.85 }[style.background];
+	const outline = { none: [0, 0], shadow: [1, 2], thick: [3.5, 0] }[style.outline];
+	return [
+		['sub-font', MPV_FONTS[style.font]],
+		['sub-bold', Boolean(choice(style, 'font').bold)],
+		['sub-scale', Number(choice(style, 'size').css)],
+		['sub-color', mpvColor(choice(style, 'color').css)],
+		// A box behind the text, or the outline and its shadow.
+		['sub-border-style', box ? 'background-box' : 'outline-and-shadow'],
+		['sub-back-color', box ? mpvColor('#000000', box) : mpvColor('#000000', 0.9)],
+		['sub-border-color', '#FF000000'],
+		['sub-border-size', outline[0]!],
+		['sub-shadow-offset', outline[1]!]
+	];
 }

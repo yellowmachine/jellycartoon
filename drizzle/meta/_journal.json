@@ -295,6 +295,13 @@
       "when": 1792338418656,
       "tag": "0041_charming_black_bolt",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1792340349319,
+      "tag": "0042_ambitious_the_captain",
+      "breakpoints": true
     }
   ]
 }

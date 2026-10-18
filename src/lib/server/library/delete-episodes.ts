@@ -1,7 +1,7 @@
 import { rm } from 'node:fs/promises';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { episode } from '#lib/server/db/schema.ts';
+import { episode, series } from '#lib/server/db/schema.ts';
 import { log } from '#lib/server/log.ts';
 import { removeEpisodeOutput, sourceFile } from './paths.ts';
 import { sidecarSubtitles } from './sources.ts';
@@ -47,4 +47,43 @@ export async function deleteEpisodes(seriesId: number, ids: number[]) {
 			paths: episodes.filter((e) => deleted.includes(e.id)).map((e) => e.sourcePath)
 		});
 	return { deleted: deleted.length, failed };
+}
+
+/**
+ * The episodes whose original is no longer in MEDIA_DIR (and was not deleted after converting), by
+ * series: what «olvidar los desaparecidos» would take.
+ */
+export async function missingEpisodes() {
+	return db
+		.select({
+			seriesId: series.id,
+			seriesTitle: series.title,
+			count: sql<number>`count(*)::int`
+		})
+		.from(episode)
+		.innerJoin(series, eq(series.id, episode.seriesId))
+		.where(eq(episode.missing, true))
+		.groupBy(series.id)
+		.orderBy(asc(series.title));
+}
+
+/**
+ * Forgets the episodes whose original is gone: what was converted of them and the episode itself,
+ * with its progress, its time watched and its place in lists. If the file comes back, a scan adds
+ * it as a new one. How many were forgotten.
+ */
+export async function forgetMissingEpisodes() {
+	const gone = await db
+		.select({ id: episode.id, sourcePath: episode.sourcePath })
+		.from(episode)
+		.where(eq(episode.missing, true));
+	if (!gone.length) return 0;
+	const ids = gone.map((e) => e.id);
+	cancelEpisodes(ids);
+	await db.delete(episode).where(inArray(episode.id, ids));
+	for (const id of ids) await removeEpisodeOutput(id);
+	log.info('library', `Olvidados ${ids.length} capítulos desaparecidos`, {
+		paths: gone.map((e) => e.sourcePath)
+	});
+	return ids.length;
 }

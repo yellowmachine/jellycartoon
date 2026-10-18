@@ -32,6 +32,11 @@ export const series = pgTable('series', {
 	serialized: boolean('serialized').notNull().default(true),
 	/** Position in the conversion queue, set by dragging in Gestión; null goes last. */
 	queueOrder: integer('queue_order'),
+	/**
+	 * ISO 639-2 of its audio when the files do not say (`und`): assumed for those tracks, also for
+	 * episodes converted later. Null: unknown.
+	 */
+	audioLang: text('audio_lang'),
 	createdAt: timestamp('created_at').notNull().defaultNow()
 });
 
