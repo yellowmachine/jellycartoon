@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import LivePlayer from '#lib/components/LivePlayer.svelte';
-	import type { Channel } from '#lib/channels.ts';
+	import { channelWash, type Channel } from '#lib/channels.ts';
 	import { music } from '#lib/music-player.svelte.ts';
 	import type { PageProps } from './$types';
 
@@ -55,6 +55,7 @@
 				'flex items-center gap-3 rounded-md border p-3',
 				on ? 'border-amber-500 bg-amber-500/10' : 'border-zinc-800'
 			]}
+			style:background-image={channelWash(channel)}
 		>
 			<button class="min-w-0 flex-1 text-left" onclick={() => watch(channel)}>
 				<span class="block font-semibold">{channel.name}</span>

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { channelWash } from '#lib/channels.ts';
 	import TvHeader from '#lib/components/TvHeader.svelte';
 	import { music } from '#lib/music-player.svelte.ts';
 	import type { PageProps } from './$types';
@@ -36,6 +37,7 @@
 			<input type="hidden" name="id" value={channel.id} />
 			<button
 				class="flex h-40 w-full flex-col justify-center rounded-2xl border-2 border-white/10 bg-zinc-900 px-8 text-left transition duration-150 focus-visible:scale-105 focus-visible:border-orange-400 focus-visible:bg-zinc-800"
+				style:background-image={channelWash(channel)}
 				disabled={loading !== null}
 			>
 				<span class="block text-5xl font-bold text-orange-300">{channel.name}</span>
