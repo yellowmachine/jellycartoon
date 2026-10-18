@@ -24,8 +24,8 @@
 <h1 class="mb-1 text-2xl font-bold">Canales</h1>
 <p class="mb-6 text-sm text-zinc-400">
 	{data.kid
-		? 'Clan, en directo.'
-		: 'Los canales de RTVE, en directo. La mayoría tienen versión original y subtítulos, también en inglés.'}
+		? 'Clan y SX3, en directo.'
+		: 'En directo, de aquí y de fuera. Muchos tienen versión original o subtítulos, también en inglés.'}
 </p>
 
 {#if form && 'message' in form}

@@ -1,7 +1,8 @@
 /**
- * TV channels, live: the streams RTVE gives away on its own CDN, as listed by TDTChannels
- * (https://www.tdtchannels.com). Open, with no sign-in; most also have the original version and
- * subtitles. Other channels keep theirs inside their own platforms.
+ * TV channels, live: the streams each broadcaster gives away on its own CDN, as listed by
+ * TDTChannels (https://www.tdtchannels.com). Open, with no sign-in, playable from Spain and in a
+ * browser (CORS). Those only on FAST platforms (Samsung TV Plus, Xumo…) are left out: their links
+ * change, and their ad segments have no extension, which mpv's FFmpeg refuses.
  */
 
 export interface Channel {
@@ -46,6 +47,55 @@ export const CHANNELS: Channel[] = [
 		description: 'Dibujos y series infantiles',
 		url: 'https://rtvelivestream.rtve.es/rtvesec/clan/clan_main_dvr.m3u8',
 		kids: true
+	},
+	{
+		id: 'sx3',
+		name: 'SX3',
+		description: 'Dibujos y series infantiles, en catalán',
+		url: 'https://directes-tv-cat.3catdirectes.cat/live-content/super3-hls/master.m3u8',
+		kids: true
+	},
+	{
+		id: 'tve-internacional',
+		name: 'TVE Internacional',
+		description: 'Lo mejor de La 1 y La 2, para Europa',
+		url: 'https://rtvelivestream.rtve.es/rtvesec/int/tvei_eu_main_dvr.m3u8'
+	},
+	{
+		id: 'star-tve',
+		name: 'Star TVE',
+		description: 'Series y cine españoles',
+		url: 'https://rtvelivestream.rtve.es/rtvesec/int/star_main_dvr.m3u8'
+	},
+	{
+		id: 'dw-es',
+		name: 'DW Español',
+		description: 'Noticias y reportajes desde Alemania',
+		url: 'https://dwamdstream104.akamaized.net/hls/live/2015530/dwstream104/index.m3u8'
+	},
+	{
+		id: 'france24-es',
+		name: 'France 24 Español',
+		description: 'Noticias internacionales desde París',
+		url: 'https://live.france24.com/hls/live/2037220/F24_ES_HI_HLS/master_5000.m3u8'
+	},
+	{
+		id: 'dw-en',
+		name: 'DW English',
+		description: 'News and documentaries, with English subtitles',
+		url: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8'
+	},
+	{
+		id: 'france24-en',
+		name: 'France 24 English',
+		description: 'International news from Paris',
+		url: 'https://live.france24.com/hls/live/2037218/F24_EN_HI_HLS/master_5000.m3u8'
+	},
+	{
+		id: 'france24-fr',
+		name: 'France 24 Français',
+		description: "L'actualité internationale, depuis Paris",
+		url: 'https://live.france24.com/hls/live/2037179/F24_FR_HI_HLS/master_5000.m3u8'
 	}
 ];
 
