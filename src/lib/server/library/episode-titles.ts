@@ -124,20 +124,21 @@ const jpeg = (image: Buffer): ContentPart => ({
 
 /**
  * Frames from the start and the thumbnail (from the middle). Only of converted episodes, from
- * their HLS output: the original may be gone. A missing one is not worth failing for.
+ * their HLS output: the original may be gone. A missing one is not worth failing for. «Parar»
+ * (`signal`) gives up their turn, or kills their ffmpeg.
  */
-async function episodeFrames(ep: Episode) {
+async function episodeFrames(ep: Episode, signal: AbortSignal) {
 	if (ep.status !== 'ready' || !ep.durationSec) return [];
 	const input = path.join(hlsDir(ep.id), 'master.m3u8');
 	const duration = ep.durationSec;
 	const early = await inTurn(async () => {
-		const info = await probe(input, undefined, false);
+		const info = await probe(input, signal, false);
 		return Promise.all(
 			EARLY_FRAMES.filter((at) => at < duration - 1).map((at) =>
-				frame(input, info, at, FRAME_WIDTHS[0], true)
+				frame(input, info, at, FRAME_WIDTHS[0], true, signal)
 			)
 		);
-	}).catch(() => []);
+	}, signal).catch(() => []);
 	const thumb = await readFile(thumbFile(ep.id)).catch(() => null);
 	return [...early, ...(thumb ? [thumb] : [])];
 }
@@ -196,7 +197,8 @@ async function proposeTitles(
 
 	for (const batch of batches) {
 		if (signal.aborted) break;
-		const frames = await Promise.all(batch.map(episodeFrames));
+		const frames = await Promise.all(batch.map((ep) => episodeFrames(ep, signal)));
+		if (signal.aborted) break;
 		const ordered = [...done, ...proposal];
 		const prompt: ContentPart[] = [
 			// The same in every batch: read from the cache after the first one.
