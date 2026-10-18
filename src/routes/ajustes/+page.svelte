@@ -166,6 +166,7 @@
 					id="languaUrl"
 					name="url"
 					type="url"
+					autocomplete="url"
 					value={data.langua.url ?? ''}
 					placeholder="https://langua.scholio.review"
 					class={select}
@@ -175,7 +176,7 @@
 					id="languaToken"
 					name="token"
 					type="password"
-					autocomplete="off"
+					autocomplete="new-password"
 					placeholder={data.langua.tokenHint
 						? `Guardado (${data.langua.tokenHint}): escribe otro para cambiarlo`
 						: 'lng_…'}
@@ -363,7 +364,7 @@
 					<input
 						type="password"
 						name="key"
-						autocomplete="off"
+						autocomplete="new-password"
 						placeholder={data.ai.keyHint ? 'Nueva clave' : 'sk-or-…'}
 						aria-label="Clave de OpenRouter"
 						class="{select} min-w-0 flex-1 font-mono"

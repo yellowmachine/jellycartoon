@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import TvEpisode from '#lib/components/TvEpisode.svelte';
 	import TvHeader from '#lib/components/TvHeader.svelte';
-	import TvIcon from '#lib/components/TvIcon.svelte';
+	import SectionIcon from '#lib/components/SectionIcon.svelte';
 	import { coverUrl } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
 	import { thumbUrl } from '#lib/thumb.svelte.ts';
@@ -116,7 +116,7 @@
 				class="absolute inset-0 bg-gradient-to-t from-zinc-950/95 via-zinc-950/40 to-zinc-950/10"
 				aria-hidden="true"
 			></span>
-			<TvIcon name={s.icon} class="relative h-20 w-20 drop-shadow-lg" />
+			<SectionIcon name={s.icon} class="relative h-20 w-20 drop-shadow-lg" />
 			<span class="relative">
 				<span class="block text-5xl font-bold text-white drop-shadow-lg">{s.label}</span>
 				<span class="mt-1 block text-xl text-zinc-200">{s.count}</span>
