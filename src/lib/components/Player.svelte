@@ -4,6 +4,7 @@
 	import { goto } from '$app/navigation';
 	import '@fontsource/atkinson-hyperlegible/400.css';
 	import '@fontsource/comic-neue/400.css';
+	import { recoverFromErrors } from '#lib/hls-recovery.ts';
 	import { normalizeLang, type AudioTrack, type SubtitleTrack } from '#lib/languages.ts';
 	import { subtitleCss, type SubtitleStyle } from '#lib/subtitle-style.ts';
 	import { thumbChanged, thumbUrl } from '#lib/thumb.svelte.ts';
@@ -47,6 +48,8 @@
 
 	let video = $state<HTMLVideoElement>();
 	let hls: Hls | null = null;
+	/** The connection lost or the server restarting: said, while it is tried again. */
+	let problem = $state<string | null>(null);
 	let lastSaved = 0;
 
 	const pick = <T extends { lang: string }>(tracks: T[], lang: string | null) =>
@@ -138,6 +141,7 @@
 				instance.on(Hls.Events.ERROR, (_event, data) => {
 					if (data.response?.code === 403) void goto('/descanso');
 				});
+				recoverFromErrors(instance, Hls, (text) => (problem = text));
 				instance.loadSource(url);
 				instance.attachMedia(el);
 			} else if (el.canPlayType('application/vnd.apple.mpegurl')) {
@@ -163,6 +167,7 @@
 			if (el.played.length) void saveAt(id, el);
 			hls?.destroy();
 			hls = null;
+			problem = null;
 		};
 	});
 
@@ -327,6 +332,10 @@
 		</video>
 	{/key}
 </div>
+
+{#if problem}
+	<p class="mt-2 text-sm text-amber-400" role="status">{problem}</p>
+{/if}
 
 <div class="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
 	<div class="flex items-center gap-1">

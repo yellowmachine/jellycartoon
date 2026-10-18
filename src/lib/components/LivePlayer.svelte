@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import '@fontsource/atkinson-hyperlegible/400.css';
 	import '@fontsource/comic-neue/400.css';
+	import { recoverFromErrors } from '#lib/hls-recovery.ts';
 	import { BROADCAST_TRACKS, languageLabel } from '#lib/languages.ts';
 	import { subtitleCss, type SubtitleStyle } from '#lib/subtitle-style.ts';
 
@@ -32,6 +33,8 @@
 	let audioIndex = $state(-1);
 	let subtitles = $state<Choice[]>([]);
 	let subtitleIndex = $state(-1);
+	/** A channel off the air, or the connection lost: said, while it is tried again. */
+	let problem = $state<string | null>(null);
 
 	/** The same audio comes once per quality (RTVE: «Castellano» four times): one is enough. */
 	function choices(tracks: { name: string; lang?: string }[]) {
@@ -74,6 +77,7 @@
 				});
 				instance.on(Hls.Events.SUBTITLE_TRACK_SWITCH, (_event, data) => (subtitleIndex = data.id));
 				instance.on(Hls.Events.MANIFEST_PARSED, () => el.play().catch(() => {}));
+				recoverFromErrors(instance, Hls, (text) => (problem = text));
 				instance.loadSource(src);
 				instance.attachMedia(el);
 			} else if (el.canPlayType('application/vnd.apple.mpegurl')) {
@@ -95,6 +99,7 @@
 			hls = null;
 			audios = [];
 			subtitles = [];
+			problem = null;
 		};
 	});
 
@@ -125,6 +130,10 @@
 	crossorigin="anonymous"
 	class="jc-video aspect-video w-full rounded-md bg-black"
 ></video>
+
+{#if problem}
+	<p class="mt-2 text-sm text-amber-400" role="status">{problem}</p>
+{/if}
 
 {#if audios.length > 1 || subtitles.length}
 	<div class="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
