@@ -40,7 +40,7 @@ class VoiceClient {
 	/** A tap, not speech: what was recorded, if anything, is thrown away. */
 	#discard = false;
 
-	/** Pressed: the episode playing here pauses, and the microphone listens. */
+	/** Pressed: what plays here (an episode, music, a podcast) pauses, and the microphone listens. */
 	async start() {
 		if (this.phase !== 'idle') return;
 		this.#pressed = performance.now();
@@ -48,12 +48,13 @@ class VoiceClient {
 		this.#discard = false;
 		this.problem = null;
 		videoHere.pauseForVoice();
+		music.pauseForVoice();
 		let stream: MediaStream;
 		try {
 			// https://developer.mozilla.org/docs/Web/API/MediaDevices/getUserMedia
 			stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 		} catch {
-			videoHere.resumeAfterVoice();
+			resumeAfterVoice();
 			// Let go already: it was a tap, and whoever tapped is told nothing.
 			if (!this.#discard)
 				this.problem = 'No se puede usar el micrófono. Hay que darle permiso a la página.';
@@ -88,7 +89,7 @@ class VoiceClient {
 		const tap = performance.now() - this.#pressed < MIN_MS;
 		if (tap) {
 			this.#discard = true;
-			videoHere.resumeAfterVoice();
+			resumeAfterVoice();
 		}
 		if (this.#recorder?.state === 'recording') this.#recorder.stop();
 		return tap ? 'tap' : 'sent';
@@ -113,7 +114,7 @@ class VoiceClient {
 	#fail(problem: string) {
 		this.phase = 'idle';
 		this.problem = problem;
-		videoHere.resumeAfterVoice();
+		resumeAfterVoice();
 	}
 
 	/** Said or written: to the AI, and what it answers done here and read aloud. */
@@ -139,6 +140,8 @@ class VoiceClient {
 		this.phase = 'idle';
 		// Something else to watch: the episode that was paused stays so.
 		if (body.actions.some((a) => a.kind === 'watch')) videoHere.forgetPause();
+		// Something else to hear, or «para»: what was paused does not come back over it.
+		if (body.actions.some((a) => a.kind !== 'watch')) music.forgetPause();
 		for (const action of body.actions) await act(action);
 		this.reply = body.reply;
 		this.options = body.options;
@@ -164,7 +167,7 @@ class VoiceClient {
 	 */
 	#speak(text: string) {
 		if (!('speechSynthesis' in window)) {
-			videoHere.resumeAfterVoice();
+			resumeAfterVoice();
 			return;
 		}
 		speechSynthesis.cancel();
@@ -173,20 +176,31 @@ class VoiceClient {
 		this.speaking = true;
 		utterance.onend = utterance.onerror = () => {
 			this.speaking = false;
-			videoHere.resumeAfterVoice();
+			resumeAfterVoice();
 		};
 		speechSynthesis.speak(utterance);
 	}
 }
 
-/** What sounds on this device, for the AI: «quita eso» is about it. */
+/** What was paused to speak, back where it was. */
+function resumeAfterVoice() {
+	videoHere.resumeAfterVoice();
+	music.resumeAfterVoice();
+}
+
+/**
+ * What sounds on this device, for the AI: «quita eso» is about it. Paused only to speak, it is
+ * still what the person is listening to.
+ */
 function playingHere() {
 	const what = music.radio
 		? `la radio ${music.radio.name}`
-		: music.current
-			? `«${music.current.title}» de ${music.current.artist}`
-			: null;
-	return what && !music.playing ? `${what} (en pausa)` : what;
+		: music.podcast
+			? `el podcast «${music.podcast.podcastTitle}», episodio «${music.podcast.title}»`
+			: music.current
+				? `«${music.current.title}» de ${music.current.artist}`
+				: null;
+	return what && !music.playing && !music.pausedForVoice ? `${what} (en pausa)` : what;
 }
 
 /** What the server cannot do: play in this browser. */

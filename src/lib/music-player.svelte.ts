@@ -2,6 +2,9 @@ import type { MusicTrack, SavedQueue } from '#lib/music.ts';
 import type { PodcastPlaying, Speed } from '#lib/podcasts.ts';
 import type { RadioStream } from '#lib/radio.ts';
 
+/** Seconds an episode goes back after being paused to speak to the voice assistant. */
+const VOICE_REWIND = 3;
+
 /** In random order, with `first` first, so that the whole queue still comes after it. */
 function shuffled(tracks: MusicTrack[], first: number) {
 	const rest = tracks.filter((_, i) => i !== first);
@@ -43,6 +46,8 @@ class MusicPlayer {
 	 */
 	restored = $state<{ positionSec: number; changedBy: string } | null>(null);
 
+	/** Paused while the user speaks to the voice assistant and it answers: it plays again after. */
+	#pausedByVoice = false;
 	/** The queue in its own order, while it is shuffled. */
 	#ordered: MusicTrack[] = [];
 	#audio: HTMLAudioElement | null = null;
@@ -172,6 +177,33 @@ class MusicPlayer {
 		this.restored = null;
 		if (this.positionSec > 3 || this.index === 0) this.seek(0);
 		else this.index--;
+	}
+
+	/**
+	 * Pressed to speak: what plays here pauses, so that the microphone hears the question and the
+	 * answer is heard (a podcast while cooking).
+	 */
+	pauseForVoice() {
+		if (!this.playing) return;
+		this.pause();
+		this.#pausedByVoice = true;
+	}
+
+	get pausedForVoice() {
+		return this.#pausedByVoice;
+	}
+
+	/** The answer was read: it goes on; an episode, a little before, to pick up the thread. */
+	resumeAfterVoice() {
+		if (!this.#pausedByVoice) return;
+		this.#pausedByVoice = false;
+		if (this.podcast) this.skip(-VOICE_REWIND);
+		this.resume();
+	}
+
+	/** What was said changed what plays (another song, «para»): it is left as it is now. */
+	forgetPause() {
+		this.#pausedByVoice = false;
 	}
 
 	seek(sec: number) {
