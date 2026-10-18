@@ -30,14 +30,15 @@ import {
 } from '#lib/server/watch-history.ts';
 import { fold, masterVolume, type MusicAlbum, type MusicTrack } from '#lib/music.ts';
 import { COUNTRIES, STATIONS } from '#lib/radio.ts';
-import type {
-	VoiceAction,
-	VoiceControl,
-	VoiceOption,
-	VoiceReply,
-	VoiceRequest,
-	VoiceTarget,
-	VideoHere
+import {
+	MAX_TIMER_SEC,
+	type VoiceAction,
+	type VoiceControl,
+	type VoiceOption,
+	type VoiceReply,
+	type VoiceRequest,
+	type VoiceTarget,
+	type VideoHere
 } from '#lib/voice.ts';
 
 /**
@@ -190,6 +191,33 @@ function tools(house: boolean): Tool[] {
 			['kind', 'id', 'where']
 		),
 		fn(
+			'set_timer',
+			'Pone un temporizador en el dispositivo desde el que se habla: al acabar suena hasta que lo paren. Uno con el mismo nombre empieza de nuevo con el tiempo nuevo.',
+			{
+				minutes: {
+					type: 'number',
+					description: 'Cuántos minutos; 0.5 son 30 segundos, 90 es hora y media.'
+				},
+				label: {
+					type: 'string',
+					description:
+						'Para qué es, corto y como lo diría: «la pasta», «el horno». Vacío si no lo dice.'
+				}
+			},
+			['minutes']
+		),
+		fn(
+			'cancel_timer',
+			'Quita un temporizador de este dispositivo por su nombre, o todos; también para el que está sonando.',
+			{
+				label: {
+					type: 'string',
+					description: 'El nombre de la lista de temporizadores; vacío: todos.'
+				}
+			},
+			[]
+		),
+		fn(
 			'ask',
 			'Cuando no está claro qué se pide entre unas pocas opciones: pregunta, y cada opción es un botón. No se hace nada más.',
 			{
@@ -258,6 +286,11 @@ Otras preguntas (de cocina, de lo que sea): si no pide nada de la app, contesta 
 - Si pregunta por algo de lo que suena (el podcast, la canción), contesta con lo que sepas sin cambiar lo que suena.
 - Una pregunta no es una orden: «¿cuánto tiempo cuezo la pasta?» se contesta; «pon Más de uno» se hace.
 - Si es de salud o de seguridad (alergias, algo que ha comido mal, un corte), contesta con prudencia y, si puede ser serio, dile que llame al médico o al 112.
+
+Temporizadores («avísame en 10 minutos», «pon un temporizador de 20 minutos para el horno»): «set_timer», sin preguntar. Con cada orden va la lista de los que hay en este dispositivo.
+- «¿Cuánto le queda (a la pasta)?»: contesta con esa lista, sin herramientas.
+- «Quita el temporizador», «ya está», «para la alarma»: «cancel_timer»; si hay varios y no está claro cuál, usa «ask».
+- Di cuánto y para qué, corto: «Te aviso en diez minutos para la pasta».
 
 Lo que ha visto en vídeo (series, películas, canales de tele), solo de su cuenta: «watch_time», «sessions», «finished» y «halfway».
 - Si pregunta por eso («¿qué capítulo de Friends vi el viernes?», «¿por dónde voy en…?»), contesta a la pregunta, corto, en vez de decir lo que has hecho.
@@ -518,6 +551,19 @@ async function runTool(
 		}
 		case 'play_video':
 			return playVideo(args, ctx);
+		case 'set_timer': {
+			const minutes = Number(args.minutes);
+			if (!Number.isFinite(minutes) || minutes <= 0) return 'Falta cuántos minutos.';
+			const seconds = Math.round(Math.min(minutes * 60, MAX_TIMER_SEC));
+			const label = typeof args.label === 'string' ? args.label.trim().slice(0, 60) : '';
+			ctx.outcome.actions.push({ kind: 'timer', label, seconds });
+			return `Temporizador${label ? ` «${label}»` : ''} de ${seconds} segundos puesto en el dispositivo.`;
+		}
+		case 'cancel_timer': {
+			const label = typeof args.label === 'string' && args.label.trim() ? args.label.trim() : null;
+			ctx.outcome.actions.push({ kind: 'cancelTimer', label });
+			return label ? `Quitado el temporizador «${label}».` : 'Quitados todos los temporizadores.';
+		}
 		case 'ask': {
 			const options = (Array.isArray(args.options) ? args.options : [])
 				.filter(
@@ -565,6 +611,10 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 			content: [
 				{ type: 'text', text: `[${todayText()}]` },
 				{ type: 'text', text: soundingNow(request.here, house) },
+				{
+					type: 'text',
+					text: `[Temporizadores aquí: ${request.timers.length ? request.timers.join('; ') : 'ninguno'}.]`
+				},
 				...(watchingHere ? [{ type: 'text' as const, text: watchingHere }] : []),
 				{ type: 'text', text: request.text }
 			]

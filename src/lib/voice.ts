@@ -16,7 +16,14 @@ export type VoiceAction =
 	| { kind: 'radio'; uuid: string }
 	| { kind: 'control'; action: VoiceControl }
 	/** An episode in this browser's player; `startSec` null: from where it was left. */
-	| { kind: 'watch'; episodeId: number; startSec: number | null };
+	| { kind: 'watch'; episodeId: number; startSec: number | null }
+	/** A kitchen timer in this browser (#60); one with the same name starts over. */
+	| { kind: 'timer'; label: string; seconds: number }
+	/** That one by its name, or all of them with null. */
+	| { kind: 'cancelTimer'; label: string | null };
+
+/** The longest timer: a day. */
+export const MAX_TIMER_SEC = 24 * 3600;
 
 /** A choice when the order was not clear: tapped, its `command` is sent as if it had been said. */
 export interface VoiceOption {
@@ -42,6 +49,8 @@ export interface VoiceRequest {
 	here: string | null;
 	video: VideoHere | null;
 	history: VoiceTurn[];
+	/** This browser's timers, as it says them: «la pasta, quedan 7 min 5 s». */
+	timers: string[];
 }
 
 export interface VoiceReply {
@@ -82,6 +91,9 @@ export function parseVoiceRequest(body: unknown): VoiceRequest | null {
 		text: said,
 		here: text(b.here, 200),
 		video,
-		history: history.slice(-HISTORY_TURNS)
+		history: history.slice(-HISTORY_TURNS),
+		timers: (Array.isArray(b.timers) ? b.timers : [])
+			.flatMap((t: unknown) => text(t, 100) ?? [])
+			.slice(0, 10)
 	};
 }

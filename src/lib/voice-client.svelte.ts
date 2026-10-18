@@ -1,5 +1,6 @@
 import { goto } from '$app/navigation';
 import { music } from '#lib/music-player.svelte.ts';
+import { timers } from '#lib/timers.svelte.ts';
 import { musicTarget } from '#lib/music-target.svelte.ts';
 import { videoHere } from '#lib/video-here.svelte.ts';
 import {
@@ -47,6 +48,10 @@ class VoiceClient {
 		this.#released = false;
 		this.#discard = false;
 		this.problem = null;
+		// A timer ringing stops (and what it paused plays again, to pause it now for the voice);
+		// the press also lets the timers about to be set ring later.
+		timers.silence();
+		timers.unlockSound();
 		videoHere.pauseForVoice();
 		music.pauseForVoice();
 		let stream: MediaStream;
@@ -119,6 +124,8 @@ class VoiceClient {
 
 	/** Said or written: to the AI, and what it answers done here and read aloud. */
 	async command(text: string) {
+		// Typed or tapped: that touch lets a timer set now ring later.
+		timers.unlockSound();
 		this.phase = 'thinking';
 		this.problem = null;
 		this.reply = null;
@@ -131,7 +138,8 @@ class VoiceClient {
 				text,
 				here: playingHere(),
 				video: videoHere.position(),
-				history: this.#history
+				history: this.#history,
+				timers: timers.describe()
 			})
 		}).catch(() => null);
 		const body: VoiceReply | { message?: string } | null = await res?.json().catch(() => null);
@@ -141,7 +149,8 @@ class VoiceClient {
 		// Something else to watch: the episode that was paused stays so.
 		if (body.actions.some((a) => a.kind === 'watch')) videoHere.forgetPause();
 		// Something else to hear, or «para»: what was paused does not come back over it.
-		if (body.actions.some((a) => a.kind !== 'watch')) music.forgetPause();
+		if (body.actions.some((a) => ['play', 'radio', 'control'].includes(a.kind)))
+			music.forgetPause();
 		for (const action of body.actions) await act(action);
 		this.reply = body.reply;
 		this.options = body.options;
@@ -216,6 +225,10 @@ async function act(action: VoiceAction) {
 			return music.play(action.tracks, action.start);
 		case 'radio':
 			return musicTarget.playRadio(action.uuid, false);
+		case 'timer':
+			return timers.start(action.label, action.seconds);
+		case 'cancelTimer':
+			return void timers.cancel(action.label);
 		case 'control':
 			if (action.action === 'pause') return music.pause();
 			if (action.action === 'resume') return music.resume();
