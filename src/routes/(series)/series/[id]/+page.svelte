@@ -119,6 +119,30 @@
 		}
 	}
 
+	/** The languages that some selected episode has audio in without subtitles of its own. */
+	const subtitleLanguages = $derived.by(() => {
+		const found = new Map<string, string>();
+		for (const { episodes } of data.seasons)
+			for (const ep of episodes)
+				if (selected.has(ep.id))
+					for (const l of ep.autoSubtitles?.languages ?? []) found.set(l.lang, l.label);
+		return [...found].map(([lang, label]) => ({ lang, label }));
+	});
+	let subtitleLang = $state('');
+	// The first one there is, until one is chosen; another if the chosen one is no longer offered.
+	$effect(() => {
+		if (!subtitleLanguages.some((l) => l.lang === subtitleLang))
+			subtitleLang = subtitleLanguages[0]?.lang ?? '';
+	});
+
+	/** This series' episodes waiting for their subtitles: they can be taken out of the queue. */
+	const waitingSubtitles = $derived(
+		data.seasons.reduce(
+			(n, s) => n + s.episodes.filter((e) => e.autoSubtitles?.job?.state === 'queued').length,
+			0
+		)
+	);
+
 	function stopSelecting() {
 		selecting = false;
 		selected.clear();
@@ -315,6 +339,22 @@
 	{/if}
 {/if}
 
+{#if waitingSubtitles && !data.kid}
+	<form
+		method="post"
+		action="?/cancelSubtitles"
+		use:enhance
+		class="mt-4 flex flex-wrap items-center gap-3 rounded-md border border-zinc-800 px-3 py-2 text-sm"
+	>
+		<span class="text-zinc-400">
+			{waitingSubtitles === 1
+				? '1 capítulo espera sus subtítulos automáticos.'
+				: `${waitingSubtitles} capítulos esperan sus subtítulos automáticos.`}
+		</span>
+		<button class="text-amber-400 hover:underline">Cancelar los que esperan</button>
+	</form>
+{/if}
+
 {#each visibleSeasons as { season, episodes } (season)}
 	{@const ids = episodes.map((e) => e.id)}
 	<h2 class="mt-6 mb-3 flex items-center gap-3 font-semibold text-zinc-300">
@@ -508,6 +548,26 @@
 			class="rounded-md border border-red-800 px-3 py-1 text-sm text-red-400 hover:border-red-600 hover:bg-red-950 disabled:opacity-50"
 			onclick={() => deleteDialog?.open([...selected])}>Borrar</button
 		>
+		<!-- Whisper's, for those without subtitles of their own in that language; the rest are skipped. -->
+		{#if subtitleLanguages.length}
+			<span class="flex items-center gap-2 text-sm">
+				Subtítulos automáticos en
+				<select
+					name="lang"
+					bind:value={subtitleLang}
+					class="rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm"
+				>
+					{#each subtitleLanguages as language (language.lang)}
+						<option value={language.lang}>{language.label}</option>
+					{/each}
+				</select>
+				<button
+					formaction="?/autoSubtitlesMany"
+					formnovalidate
+					class="rounded-md border border-zinc-700 px-3 py-1 hover:bg-zinc-900">Hacer</button
+				>
+			</span>
+		{/if}
 		<button
 			type="button"
 			class="rounded-md px-2 py-1 text-sm text-zinc-400 hover:text-white"
@@ -517,6 +577,16 @@
 			Se ponen al final de esa temporada, en el orden que tienen ahora. Si la temporada no existe,
 			se crea.
 		</p>
+		{#if form && 'subtitlesQueued' in form}
+			<p class="w-full text-sm text-amber-400">
+				{form.subtitlesQueued === 1
+					? '1 capítulo en cola'
+					: `${form.subtitlesQueued} capítulos en cola`}
+				para subtítulos{form.subtitlesSkipped
+					? ` · ${form.subtitlesSkipped} ya los tenían, ya estaban en cola o no están convertidos`
+					: ''}.
+			</p>
+		{/if}
 	</form>
 {/if}
 

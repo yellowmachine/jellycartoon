@@ -16,11 +16,13 @@ import { parseView, viewCookie } from '#lib/views.ts';
 import { addSeriesTag, getTags, removeSeriesTag, seriesTags, tagName } from '#lib/server/tags.ts';
 import { playEpisodes, seriesQueue } from '#lib/server/cinema/episode-actions.ts';
 import {
+	cancelSubtitles,
 	requestSubtitles,
 	subtitleJob,
 	tracksWithoutSubtitles
 } from '#lib/server/auto-subtitles.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
+import { normalizeLang } from '#lib/languages.ts';
 import {
 	chooseSeries,
 	forgetSeries,
@@ -257,6 +259,52 @@ export const actions: Actions = {
 		const ep = await seriesEpisode(params.id, form);
 		if (!ep || ep.status !== 'ready') return fail(400, { message: 'Capítulo no válido' });
 		requestSubtitles('episode', ep.id, String(form.get('lang') ?? ''));
+	},
+	/**
+	 * The selected episodes, in one language: each into the queue only if it has audio in it
+	 * without subtitles of its own. Says how many went and how many were left out.
+	 */
+	autoSubtitlesMany: async ({ params, request }) => {
+		if (!voiceEnabled) return fail(400, { message: 'No hay Whisper configurado (WHISPER_URL)' });
+		const form = await request.formData();
+		const lang = normalizeLang(String(form.get('lang') ?? ''));
+		const ids = form.getAll('id').map(Number).filter(Number.isInteger);
+		const rows = ids.length
+			? await db
+					.select({
+						id: episode.id,
+						status: episode.status,
+						audioTracks: episode.audioTracks,
+						subtitles: episode.subtitles
+					})
+					.from(episode)
+					.where(and(eq(episode.seriesId, Number(params.id)), inArray(episode.id, ids)))
+			: [];
+		const busy = (id: number) => {
+			const state = subtitleJob('episode', id)?.state;
+			return state === 'queued' || state === 'running';
+		};
+		const wanted = rows.filter(
+			(ep) =>
+				ep.status === 'ready' &&
+				!busy(ep.id) &&
+				tracksWithoutSubtitles(ep).some((t) => t.lang === lang)
+		);
+		for (const ep of wanted) requestSubtitles('episode', ep.id, lang);
+		return { subtitlesQueued: wanted.length, subtitlesSkipped: ids.length - wanted.length };
+	},
+	/** Those of this series still waiting; the one being made goes on. */
+	cancelSubtitles: async ({ params }) => {
+		const ids = await db
+			.select({ id: episode.id })
+			.from(episode)
+			.where(eq(episode.seriesId, Number(params.id)));
+		return {
+			subtitlesCancelled: cancelSubtitles(
+				'episode',
+				ids.map((e) => e.id)
+			)
+		};
 	},
 	regenerateThumbnail: async ({ params, request }) => {
 		const ep = await seriesEpisode(params.id, await request.formData());

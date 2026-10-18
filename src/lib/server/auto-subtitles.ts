@@ -50,7 +50,10 @@ export type SubtitleJob =
 
 export function subtitleJob(kind: SubtitleKind, id: number): SubtitleJob | null {
 	const key: Key = `${kind}:${id}`;
-	if (running?.key === key) return { state: 'running', ...running };
+	if (running?.key === key) {
+		const { lang, done, total } = running;
+		return { state: 'running', lang, done, total };
+	}
 	const queued = queue.find((q) => q.key === key);
 	if (queued) return { state: 'queued', lang: queued.lang };
 	const failed = failures.get(key);
@@ -98,6 +101,21 @@ export function requestSubtitles(kind: SubtitleKind, id: number, lang: string) {
 	failures.delete(key);
 	queue.push({ key, lang: normalizeLang(lang) });
 	if (!running) void work();
+}
+
+/**
+ * Takes these out of the queue, if they are waiting; how many were. The one being made goes on:
+ * Whisper is halfway through it.
+ */
+export function cancelSubtitles(kind: SubtitleKind, ids: number[]) {
+	const keys = new Set(ids.map((id): Key => `${kind}:${id}`));
+	let cancelled = 0;
+	for (let i = queue.length - 1; i >= 0; i--) {
+		if (!keys.has(queue[i]!.key)) continue;
+		queue.splice(i, 1);
+		cancelled++;
+	}
+	return cancelled;
 }
 
 async function work() {
