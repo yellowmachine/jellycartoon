@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
+	import { poll } from '#lib/poll.ts';
 	import { page } from '$app/state';
 	import MovieMenu from '#lib/components/MovieMenu.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
@@ -33,8 +34,7 @@
 	// Refresh while films are being catalogued; not while a title is being edited.
 	$effect(() => {
 		if (data.pending === 0) return;
-		const timer = setInterval(() => editing === null && invalidateAll(), 3000);
-		return () => clearInterval(timer);
+		return poll(() => editing === null && invalidateAll(), 3000);
 	});
 </script>
 

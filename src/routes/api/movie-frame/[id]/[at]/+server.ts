@@ -5,7 +5,7 @@ import { movieFrame } from '#lib/server/cinema/frames.ts';
 import { log } from '#lib/server/log.ts';
 
 /** A frame of the film, made when asked for and not saved: the browser keeps it for a day. */
-export const GET: RequestHandler = async ({ params, url }) => {
+export const GET: RequestHandler = async ({ params, url, request }) => {
 	const movieId = Number(params.id);
 	const atSec = Number(params.at);
 	const width = Number(url.searchParams.get('w') ?? FRAME_WIDTHS[0]);
@@ -15,8 +15,11 @@ export const GET: RequestHandler = async ({ params, url }) => {
 
 	let jpeg;
 	try {
-		jpeg = await movieFrame(movieId, atSec, width);
+		// Leaving the page cancels its frames still to be made.
+		jpeg = await movieFrame(movieId, atSec, width, request.signal);
 	} catch (err) {
+		// Nobody to answer.
+		if (request.signal.aborted) error(499, 'Cancelado');
 		log.warn('cine', `No se pudo sacar el fotograma del segundo ${atSec}`, { movieId, error: err });
 		error(500, 'No se pudo sacar el fotograma');
 	}

@@ -4,6 +4,7 @@
 	import { untrack } from 'svelte';
 	import type Hls from 'hls.js';
 	import { formatDuration } from '#lib/format.ts';
+	import { GAVE_UP, RETRYING, TRIES, recoverFromErrors, retryDelay } from '#lib/hls-recovery.ts';
 	import { coverUrl, trackUrl } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
 	import { keepQueue } from '#lib/music-queue.svelte.ts';
@@ -13,8 +14,38 @@
 	const current = $derived(music.current);
 	const radio = $derived(music.radio);
 	let hls: Hls | null = null;
+	/** A station off the air or a dropped connection, said while it is tried again. */
+	let problem = $state<string | null>(null);
+	/** Reconnections of a station played as is (not HLS) since it last played. */
+	let tries = 0;
+	let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
 	keepQueue();
+
+	/**
+	 * The `<audio>` failed with its own `src` (hls.js handles its own): a station connects again,
+	 * a few times and each a little later; a track only says so.
+	 */
+	function failed() {
+		if (hls || !audio?.getAttribute('src')) return;
+		clearTimeout(retryTimer);
+		if (!radio) return void (problem = 'No se pudo reproducir esta canción.');
+		if (tries >= TRIES) return void (problem = GAVE_UP);
+		tries++;
+		problem = RETRYING;
+		retryTimer = setTimeout(() => music.resume(), retryDelay(tries));
+	}
+
+	// Something else on: what was said of the last one goes. By the station's id: connecting it
+	// again (resume) is a new object of the same one, and must not start its tries over.
+	const radioId = $derived(radio?.uuid);
+	$effect(() => {
+		void current;
+		void radioId;
+		clearTimeout(retryTimer);
+		tries = 0;
+		problem = null;
+	});
 
 	$effect(() => {
 		music.attach(audio ?? null);
@@ -53,6 +84,7 @@
 				if (cancelled || !Hls.isSupported()) return;
 				hls = new Hls();
 				hls.on(Hls.Events.MANIFEST_PARSED, () => void el.play().catch(() => {}));
+				recoverFromErrors(hls, Hls, (text) => (problem = text));
 				hls.loadSource(stream.url);
 				hls.attachMedia(el);
 			} else {
@@ -164,11 +196,16 @@
 		music.playing = true;
 		music.restored = null;
 	}}
+	onplaying={() => {
+		tries = 0;
+		problem = null;
+	}}
+	onerror={failed}
 	onpause={() => (music.playing = false)}
 	ontimeupdate={timeUpdate}
 	ondurationchange={timeUpdate}
 	loop={music.single && music.repeat}
-	onended={() => !radio && music.ended()}
+	onended={() => (radio ? failed() : music.ended())}
 ></audio>
 
 {#if radio}
@@ -187,7 +224,9 @@
 			<span class="min-w-0">
 				<span class="block truncate text-sm">{radio.name}</span>
 				<span class="block truncate text-xs text-zinc-400">
-					{#if music.restored}
+					{#if problem}
+						<span class="text-amber-400">{problem}</span>
+					{:else if music.restored}
 						Sonaba en {music.restored.changedBy}
 					{:else}
 						<span class="text-red-400">●</span> En directo
@@ -243,11 +282,15 @@
 				{/if}
 				<span class="min-w-0">
 					<span class="block truncate text-sm">{current.title}</span>
-					<span class="block truncate text-xs text-zinc-400"
-						>{music.restored
-							? `Sonaba en ${music.restored.changedBy} · ${current.artist}`
-							: `${current.artist} · ${current.album}`}</span
-					>
+					{#if problem}
+						<span class="block truncate text-xs text-amber-400">{problem}</span>
+					{:else}
+						<span class="block truncate text-xs text-zinc-400"
+							>{music.restored
+								? `Sonaba en ${music.restored.changedBy} · ${current.artist}`
+								: `${current.artist} · ${current.album}`}</span
+						>
+					{/if}
 				</span>
 			</a>
 			<span class="hidden font-mono text-xs text-zinc-400 tabular-nums sm:inline">

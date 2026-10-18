@@ -4,6 +4,7 @@
 	import { goto } from '$app/navigation';
 	import '@fontsource/atkinson-hyperlegible/400.css';
 	import '@fontsource/comic-neue/400.css';
+	import { recoverFromErrors } from '#lib/hls-recovery.ts';
 	import { normalizeLang, type AudioTrack, type SubtitleTrack } from '#lib/languages.ts';
 	import { subtitleCss, type SubtitleStyle } from '#lib/subtitle-style.ts';
 	import { thumbChanged, thumbUrl } from '#lib/thumb.svelte.ts';
@@ -47,6 +48,18 @@
 
 	let video = $state<HTMLVideoElement>();
 	let hls: Hls | null = null;
+	/** The connection lost or the server restarting: said, while it is tried again. */
+	let problem = $state<string | null>(null);
+	/** Where it is or a setting could not be saved (the connection, the session…): said, until one is. */
+	let saveProblem = $state<string | null>(null);
+
+	/** Saves go on in the background: a failed one is said, and the next that works takes it back. */
+	function saved(failure: string) {
+		return (res: Response | null) => {
+			// 403: a child's time is over, which /descanso says.
+			saveProblem = res?.ok || res?.status === 403 ? null : failure;
+		};
+	}
 	let lastSaved = 0;
 
 	const pick = <T extends { lang: string }>(tracks: T[], lang: string | null) =>
@@ -118,6 +131,7 @@
 		if (!el) return;
 		// Only a new episode (src) or <video> should reload the stream.
 		const start = untrack(() => (startAt && startAt > 5 ? startAt : 0));
+		const id = untrack(() => episodeId);
 		let cancelled = false;
 
 		(async () => {
@@ -137,6 +151,7 @@
 				instance.on(Hls.Events.ERROR, (_event, data) => {
 					if (data.response?.code === 403) void goto('/descanso');
 				});
+				recoverFromErrors(instance, Hls, (text) => (problem = text));
 				instance.loadSource(url);
 				instance.attachMedia(el);
 			} else if (el.canPlayType('application/vnd.apple.mpegurl')) {
@@ -156,8 +171,18 @@
 
 		return () => {
 			cancelled = true;
+			// Leaving the page or the episode inside the app: where it was, before hls.js empties the
+			// <video>. Closing the tab is pagehide's. Only if it played: opened and left (the browser
+			// may not let it start by itself), it stays as it was, e.g. out of «Seguir viendo».
+			if (el.played.length) void saveAt(id, el);
+			// Safari's own HLS: without its source the <video> lets go of the stream.
+			if (!hls) {
+				el.removeAttribute('src');
+				el.load();
+			}
 			hls?.destroy();
 			hls = null;
+			problem = null;
 		};
 	});
 
@@ -181,7 +206,9 @@
 			method: 'PATCH',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify(values)
-		}).catch(() => {});
+		})
+			.catch(() => null)
+			.then(saved('No se pudo guardar el ajuste.'));
 	}
 
 	function chooseAudio(index: number) {
@@ -229,7 +256,9 @@
 		return () => tracks?.removeEventListener('change', onTextTrackChange);
 	});
 
-	function save() {
+	const save = () => saveAt(episodeId, video);
+
+	function saveAt(episodeId: number, video: HTMLVideoElement | undefined) {
 		if (!video?.currentTime) return Promise.resolve();
 		lastSaved = Date.now();
 		// keepalive lets the request finish even if the page is being closed.
@@ -242,7 +271,9 @@
 				positionSec: video.currentTime,
 				durationSec: video.duration
 			})
-		}).catch(() => {});
+		})
+			.catch(() => null)
+			.then(saved('No se pudo guardar por dónde vas.'));
 	}
 
 	let thumbnailState = $state<'idle' | 'saving' | 'done' | 'failed'>('idle');
@@ -320,6 +351,10 @@
 		</video>
 	{/key}
 </div>
+
+{#if problem ?? saveProblem}
+	<p class="mt-2 text-sm text-amber-400" role="status">{problem ?? saveProblem}</p>
+{/if}
 
 <div class="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
 	<div class="flex items-center gap-1">

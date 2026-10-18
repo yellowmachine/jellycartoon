@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { userSettings } from '#lib/server/db/schema.ts';
 import { sanitizeSubtitleStyle, type SubtitleStyle } from '#lib/subtitle-style.ts';
+import { DEFAULT_THEME, isTheme, type ThemeId } from '#lib/themes.ts';
 
 export interface PlaybackSettings {
 	audioLang: string | null;
@@ -9,6 +10,8 @@ export interface PlaybackSettings {
 	subtitleStyle: SubtitleStyle;
 	autoNext: boolean;
 	intro: boolean;
+	/** One the app no longer has is the default. */
+	theme: ThemeId;
 }
 
 export async function getSettings(userId: string): Promise<PlaybackSettings> {
@@ -18,6 +21,7 @@ export async function getSettings(userId: string): Promise<PlaybackSettings> {
 		subtitleLang: row?.subtitleLang ?? null,
 		subtitleStyle: sanitizeSubtitleStyle(row?.subtitleStyle),
 		autoNext: row?.autoNext ?? true,
-		intro: row?.intro ?? true
+		intro: row?.intro ?? true,
+		theme: isTheme(row?.theme) ? row.theme : DEFAULT_THEME
 	};
 }

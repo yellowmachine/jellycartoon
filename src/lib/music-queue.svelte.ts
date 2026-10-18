@@ -64,15 +64,21 @@ export function keepQueue() {
 		};
 	}
 
+	/** Saves sent so far: only the last one's answer says when the server's copy was saved. */
+	let sent = 0;
+
 	// keepalive: the last one, from pagehide, still arrives after the page has gone.
 	async function save(queue: QueueSave) {
+		const mine = ++sent;
 		const res = await fetch('/api/music/queue', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify(queue),
 			keepalive: true
 		}).catch(() => null);
-		if (res?.ok) savedAt = (await res.json()).savedAt;
+		// An older one answering late would leave a savedAt that is no longer the server's: closing
+		// the player would then not clear the queue, and it would come back (#45).
+		if (res?.ok && mine === sent) savedAt = (await res.json()).savedAt;
 	}
 
 	function clear() {

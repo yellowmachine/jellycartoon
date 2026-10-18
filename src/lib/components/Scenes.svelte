@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
+	import { poll } from '#lib/poll.ts';
 	import { formatDuration } from '#lib/format.ts';
 	import { sceneFrameAt, sceneNames, type Chapter, type SceneName } from '#lib/scenes.ts';
 	import FrameViewer from './FrameViewer.svelte';
@@ -39,8 +40,7 @@
 	// Until the AI is done.
 	$effect(() => {
 		if (!naming.naming) return;
-		const timer = setInterval(invalidateAll, 3000);
-		return () => clearInterval(timer);
+		return poll(invalidateAll, 3000);
 	});
 
 	const button = 'rounded-md border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800';

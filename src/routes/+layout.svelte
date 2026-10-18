@@ -7,6 +7,7 @@
 	import TvIcon from '#lib/components/TvIcon.svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { page, updated } from '$app/state';
+	import { themeColor, themeCss } from '#lib/themes.ts';
 	import type { LayoutProps } from './$types';
 
 	let { children, data }: LayoutProps = $props();
@@ -71,6 +72,9 @@
 <svelte:head>
 	<link rel="icon" href={favicon} />
 	<title>JellyCartoon</title>
+	<meta name="theme-color" content={themeColor(data.theme)} />
+	<!-- The account's colours (Ajustes): values only from the themes' table. -->
+	{@html themeCss(data.theme)}
 </svelte:head>
 
 <!-- The TV view (#11) is the whole screen, without the site around it. -->

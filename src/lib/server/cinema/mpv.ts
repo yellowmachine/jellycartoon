@@ -4,6 +4,7 @@ import { MPV_SOCKET } from '$app/env/private';
 import { db } from '#lib/server/db/index.ts';
 import { movie, movieProgress, movieTitle } from '#lib/server/db/schema.ts';
 import { hostCinemaRoot } from '#lib/server/library/paths.ts';
+import { inOrder } from '#lib/server/in-order.ts';
 import { log } from '#lib/server/log.ts';
 import { MpvClient, StateBroadcast, type MpvMessage } from '#lib/server/mpv-client.ts';
 import { saveProgress } from '#lib/server/progress.ts';
@@ -87,7 +88,8 @@ const state: RemoteState = {
 	volume: null,
 	audioId: null,
 	subtitleId: null,
-	tracks: []
+	tracks: [],
+	failed: null
 };
 
 const SAVE_MS = 5_000;
@@ -138,11 +140,13 @@ const mpv = new MpvClient(
 			const entryId = message.playlist_entry_id;
 			if (message.event === 'start-file' && entryId !== undefined) {
 				current = entryId;
+				showFailed(null);
 				show(entryId);
 			} else if (message.event === 'file-loaded') {
 				loaded = current;
 				if (loaded !== null) void addSubtitles(loaded);
 			} else if (message.event === 'end-file' && entryId !== undefined) {
+				if (message.reason === 'error') failedToOpen(entryId, message.file_error);
 				void ended(entryId, message.reason ?? '');
 			}
 		}
@@ -190,6 +194,41 @@ function show(entryId: number) {
 		live: channel !== undefined
 	});
 	notify();
+}
+
+/** An entry that failed before it was known as ours. */
+let failedEarly: { entryId: number; error: string | undefined } | null = null;
+
+/** Now that `entryId` is known: if it already failed, said now. */
+function checkFailedEarly(entryId: number) {
+	if (failedEarly?.entryId !== entryId) return;
+	const { error } = failedEarly;
+	failedEarly = null;
+	failedToOpen(entryId, error);
+}
+
+/** How long the remotes say what could not be opened, unless something plays before. */
+const FAILED_MS = 30_000;
+let failedTimer: ReturnType<typeof setTimeout> | undefined;
+
+function showFailed(text: string | null) {
+	clearTimeout(failedTimer);
+	if (state.failed === text) return;
+	state.failed = text;
+	if (text) failedTimer = setTimeout(() => showFailed(null), FAILED_MS);
+	notify();
+}
+
+/**
+ * One of ours that mpv could not open: a channel off the air, a file that is gone… Without this it
+ * would only go back to nothing, as if it had ended. Not the intro: the film goes on after it.
+ */
+function failedToOpen(entryId: number, error: string | undefined) {
+	const name = playing.get(entryId)?.title ?? live.get(entryId)?.channel.name;
+	// Its end may come before loadfile's answer, as start-file does: told once it is known.
+	if (!name) return void (failedEarly = { entryId, error });
+	log.warn('mpv', `No se pudo abrir ${name}`, { error });
+	showFailed(`No se pudo abrir ${name}`);
 }
 
 /** Only the one in the user's language is selected; none when they want no subtitles. */
@@ -316,7 +355,7 @@ async function ended(entryId: number, reason: string) {
 async function save(entry: Playing, reachedEnd: boolean) {
 	const completed =
 		reachedEnd || Boolean(entry.durationSec && entry.positionSec / entry.durationSec > 0.92);
-	await addWatchTime(entry.userId, entry.target, entry.positionSec);
+	await addWatchTime(entry.userId, entry.target, entry.positionSec, 'salon');
 	if ('episodeId' in entry.target) {
 		const { episodeId } = entry.target;
 		// Also ticks it off today's playlist and the user's lists.
@@ -347,7 +386,8 @@ function startSaving() {
 			void addWatchTime(
 				channel.userId,
 				{ channelId: channel.channel.id },
-				channel.positionSec
+				channel.positionSec,
+				'salon'
 			).then(() => stopIfClosed(channel.userId));
 	}, SAVE_MS);
 	saveTimer.unref();
@@ -399,6 +439,12 @@ export async function control(remote: RemoteAction) {
 	}
 }
 
+/**
+ * One order to play at a time: each one is several commands to mpv, and two at once (OK pressed
+ * twice) would mix their queues. The second waits for the first, and then replaces it whole.
+ */
+const oneOrder = inOrder();
+
 /** What was queued goes: what ended is already saved, and what is on saves when it ends. */
 function forgetQueue() {
 	intros.clear();
@@ -413,7 +459,11 @@ function forgetQueue() {
  * Opens what is queued full screen on the host, replacing whatever was playing; mpv moves on to the
  * next item by itself. With `intro`, the Cine Club intro goes first.
  */
-export async function play(options: {
+export function play(options: Parameters<typeof playNow>[0]) {
+	return oneOrder(() => playNow(options));
+}
+
+async function playNow(options: {
 	userId: string;
 	items: QueueItem[];
 	/** ISO 639-2 codes, as tagged in the tracks. */
@@ -456,6 +506,7 @@ export async function play(options: {
 			positionSec: item.startSec
 		});
 		if (current === result.playlist_entry_id) show(result.playlist_entry_id);
+		checkFailedEarly(result.playlist_entry_id);
 		void addSubtitles(result.playlist_entry_id);
 	}
 	startSaving();
@@ -467,13 +518,18 @@ export async function play(options: {
 }
 
 /** A TV channel, live, full screen on the host: replacing whatever was playing. */
-export async function playChannel(userId: string, channel: Channel) {
+export function playChannel(userId: string, channel: Channel) {
+	return oneOrder(() => playChannelNow(userId, channel));
+}
+
+async function playChannelNow(userId: string, channel: Channel) {
 	forgetQueue();
 	const result = (await command({ name: 'loadfile', url: channel.url, flags: 'replace' })) as {
 		playlist_entry_id: number;
 	};
 	live.set(result.playlist_entry_id, { channel, userId, positionSec: null });
 	if (current === result.playlist_entry_id) show(result.playlist_entry_id);
+	checkFailedEarly(result.playlist_entry_id);
 	startSaving();
 	log.info('mpv', `En directo: ${channel.name}`, { url: channel.url });
 }

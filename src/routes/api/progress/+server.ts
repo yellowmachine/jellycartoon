@@ -14,7 +14,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (channelId !== undefined) {
 		const channel = channelsFor(isKid(locals.user)).find((c) => c.id === channelId);
 		if (!channel || typeof positionSec !== 'number') error(400, 'Bad request');
-		await addWatchTime(userId, { channelId: channel.id }, positionSec);
+		await addWatchTime(userId, { channelId: channel.id }, positionSec, locals.session!.id);
 		if (!(await videoAllowed(userId)).allowed) error(403, 'Ahora no toca ver vídeos');
 		return json({ ok: true });
 	}
@@ -26,7 +26,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		typeof durationSec === 'number' && durationSec > 0 && positionSec / durationSec > 0.92;
 	await Promise.all([
 		saveProgress(userId, episodeId, positionSec, completed),
-		addWatchTime(userId, { episodeId }, positionSec)
+		addWatchTime(userId, { episodeId }, positionSec, locals.session!.id)
 	]);
 
 	return json({ ok: true, completed });

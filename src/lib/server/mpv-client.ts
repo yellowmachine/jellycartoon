@@ -8,6 +8,8 @@ export interface MpvMessage {
 	data?: unknown;
 	playlist_entry_id?: number;
 	reason?: string;
+	/** With `end-file` and reason `error`, e.g. «loading failed». */
+	file_error?: string;
 }
 
 interface Handlers {

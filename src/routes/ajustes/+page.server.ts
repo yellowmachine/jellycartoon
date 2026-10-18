@@ -24,6 +24,7 @@ import { getSettings } from '#lib/server/settings.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { hasIntro } from '#lib/server/library/paths.ts';
 import { KNOWN_LANGUAGES, normalizeLang } from '#lib/languages.ts';
+import { isTheme } from '#lib/themes.ts';
 import { log } from '#lib/server/log.ts';
 import { startUpdate, versionInfo } from '#lib/server/updates.ts';
 import {
@@ -169,6 +170,16 @@ export const actions: Actions = {
 			.values({ userId: locals.user!.id, ...values })
 			.onConflictDoUpdate({ target: userSettings.userId, set: values });
 		return { saved: 'playback' };
+	},
+	/** The whole app changes at once: the layout reloads with it. */
+	theme: async ({ request, locals }) => {
+		const theme = (await request.formData()).get('theme');
+		if (!isTheme(theme)) return fail(400, { section: 'theme', message: 'Tema no válido' });
+		await db
+			.insert(userSettings)
+			.values({ userId: locals.user!.id, theme })
+			.onConflictDoUpdate({ target: userSettings.userId, set: { theme } });
+		return { saved: 'theme' };
 	},
 	intro: async ({ request, locals }) => {
 		const values = { intro: (await request.formData()).get('intro') === 'on' };

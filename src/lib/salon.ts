@@ -34,6 +34,8 @@ export interface RemoteState {
 	audioId: number | null;
 	subtitleId: number | null;
 	tracks: Track[];
+	/** What mpv could not open, e.g. «No se pudo abrir La 1»; for a while, or until something plays. */
+	failed: string | null;
 }
 
 export type RemoteAction =

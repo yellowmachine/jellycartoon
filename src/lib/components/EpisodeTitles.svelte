@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
+	import { poll } from '#lib/poll.ts';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { TitleProposal } from '#lib/episode-titles.ts';
 
@@ -50,8 +51,7 @@
 	// Until the AI is done.
 	$effect(() => {
 		if (!proposal.progress) return;
-		const timer = setInterval(invalidateAll, 3000);
-		return () => clearInterval(timer);
+		return poll(invalidateAll, 3000);
 	});
 
 	const button = 'rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900';
