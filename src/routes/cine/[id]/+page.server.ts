@@ -15,7 +15,7 @@ import { addMovieTag, getTags, movieTags, removeMovieTag, tagName } from '#lib/s
 import {
 	filmAutoSubtitles,
 	requestSubtitles,
-	subtitleJob,
+	subtitleJobs,
 	tracksWithoutSubtitles
 } from '#lib/server/auto-subtitles.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
@@ -47,12 +47,13 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		)
 		.where(and(eq(movie.id, id), eq(movie.missing, false)));
 	if (!film) error(404, 'Película no encontrada');
-	const [chat, { apiKey }, tags, allTags, autoSubtitles] = await Promise.all([
+	const [chat, { apiKey }, tags, allTags, autoSubtitles, jobs] = await Promise.all([
 		chatHistory(locals.user!.id, id),
 		chatConfig(),
 		movieTags(id),
 		getTags(),
-		filmAutoSubtitles(id)
+		filmAutoSubtitles(id),
+		voiceEnabled ? subtitleJobs('film', [id]) : null
 	]);
 
 	return {
@@ -71,7 +72,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			? {
 					made: autoSubtitles,
 					languages: film.status === 'ready' ? tracksWithoutSubtitles(film) : [],
-					job: subtitleJob('film', id)
+					job: jobs?.get(id) ?? null
 				}
 			: null,
 		film: { ...film, hostPath: hostMoviePath(film.path) },
@@ -133,7 +134,7 @@ export const actions: Actions = {
 	autoSubtitles: async ({ params, request }) => {
 		if (!voiceEnabled) return fail(400, { message: 'No hay Whisper configurado (WHISPER_URL)' });
 		const lang = String((await request.formData()).get('lang') ?? '');
-		requestSubtitles('film', Number(params.id), lang);
+		await requestSubtitles('film', Number(params.id), lang);
 	},
 	/** Look it up again from scratch, e.g. after setting an OpenRouter key. */
 	refresh: async ({ params }) => {

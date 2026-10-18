@@ -288,6 +288,13 @@
       "when": 1792312830510,
       "tag": "0040_jazzy_jigsaw",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792338418656,
+      "tag": "0041_charming_black_bolt",
+      "breakpoints": true
     }
   ]
 }

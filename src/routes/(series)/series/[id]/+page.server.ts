@@ -18,7 +18,7 @@ import { playEpisodes, seriesQueue } from '#lib/server/cinema/episode-actions.ts
 import {
 	cancelSubtitles,
 	requestSubtitles,
-	subtitleJob,
+	subtitleJobs,
 	tracksWithoutSubtitles
 } from '#lib/server/auto-subtitles.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
@@ -94,6 +94,12 @@ export const load: PageServerLoad = async ({ params, locals, cookies }) => {
 		getTags()
 	]);
 
+	const subtitleJobsNow = voiceEnabled
+		? await subtitleJobs(
+				'episode',
+				episodes.map((e) => e.id)
+			)
+		: new Map();
 	const seasons = Map.groupBy(
 		episodes.map((e) => ({
 			...e,
@@ -105,7 +111,7 @@ export const load: PageServerLoad = async ({ params, locals, cookies }) => {
 			autoSubtitles: voiceEnabled
 				? {
 						languages: e.status === 'ready' ? tracksWithoutSubtitles(e) : [],
-						job: subtitleJob('episode', e.id)
+						job: subtitleJobsNow.get(e.id) ?? null
 					}
 				: null
 		})),
@@ -258,7 +264,7 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const ep = await seriesEpisode(params.id, form);
 		if (!ep || ep.status !== 'ready') return fail(400, { message: 'Capítulo no válido' });
-		requestSubtitles('episode', ep.id, String(form.get('lang') ?? ''));
+		await requestSubtitles('episode', ep.id, String(form.get('lang') ?? ''));
 	},
 	/**
 	 * The selected episodes, in one language: each into the queue only if it has audio in it
@@ -280,18 +286,13 @@ export const actions: Actions = {
 					.from(episode)
 					.where(and(eq(episode.seriesId, Number(params.id)), inArray(episode.id, ids)))
 			: [];
-		const busy = (id: number) => {
-			const state = subtitleJob('episode', id)?.state;
-			return state === 'queued' || state === 'running';
-		};
 		const wanted = rows.filter(
-			(ep) =>
-				ep.status === 'ready' &&
-				!busy(ep.id) &&
-				tracksWithoutSubtitles(ep).some((t) => t.lang === lang)
+			(ep) => ep.status === 'ready' && tracksWithoutSubtitles(ep).some((t) => t.lang === lang)
 		);
-		for (const ep of wanted) requestSubtitles('episode', ep.id, lang);
-		return { subtitlesQueued: wanted.length, subtitlesSkipped: ids.length - wanted.length };
+		// One waiting or being made for an episode is not asked for again: it counts as left out.
+		let queued = 0;
+		for (const ep of wanted) if (await requestSubtitles('episode', ep.id, lang)) queued++;
+		return { subtitlesQueued: queued, subtitlesSkipped: ids.length - queued };
 	},
 	/** Those of this series still waiting; the one being made goes on. */
 	cancelSubtitles: async ({ params }) => {
@@ -300,7 +301,7 @@ export const actions: Actions = {
 			.from(episode)
 			.where(eq(episode.seriesId, Number(params.id)));
 		return {
-			subtitlesCancelled: cancelSubtitles(
+			subtitlesCancelled: await cancelSubtitles(
 				'episode',
 				ids.map((e) => e.id)
 			)
