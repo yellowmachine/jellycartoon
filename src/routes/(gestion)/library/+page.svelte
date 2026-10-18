@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
+	import { poll } from '#lib/poll.ts';
 	import { formatBytes, formatRemaining } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
@@ -49,8 +50,7 @@
 	$effect(() => {
 		if (data.totals.pending === 0 && data.active.length === 0) return;
 		// Not while dragging: the series list would jump back mid-drag.
-		const timer = setInterval(() => dragged === null && invalidateAll(), 3000);
-		return () => clearInterval(timer);
+		return poll(() => dragged === null && invalidateAll(), 3000);
 	});
 </script>
 

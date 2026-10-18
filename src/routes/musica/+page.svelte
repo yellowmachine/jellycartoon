@@ -2,6 +2,7 @@
 	import MiniSearch from 'minisearch';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
+	import { poll } from '#lib/poll.ts';
 	import AlbumCover from '#lib/components/AlbumCover.svelte';
 	import AlbumGrid from '#lib/components/AlbumGrid.svelte';
 	import MusicTargetSwitch from '#lib/components/MusicTargetSwitch.svelte';
@@ -34,8 +35,7 @@
 	// While something is going on, the page follows it (also on other devices).
 	$effect(() => {
 		if (!busy) return;
-		const timer = setInterval(() => invalidateAll(), 3000);
-		return () => clearInterval(timer);
+		return poll(invalidateAll, 3000);
 	});
 
 	const sinceScan = (at: number) => {
