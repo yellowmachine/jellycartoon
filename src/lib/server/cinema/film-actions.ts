@@ -14,13 +14,32 @@ import { mpvEnabled, play as playOnHost } from './mpv.ts';
 
 /**
  * On the host's screen, from where it was left, from the beginning (`from=start`) or from a moment
- * (`at`, in seconds: a frame of the bird's-eye view). Only from the beginning does the Cine Club
- * intro go first, if the user wants it.
+ * (`at`, in seconds: a frame of the bird's-eye view).
  */
 export const play: Action = async ({ request, locals }) => {
-	if (!mpvEnabled) return fail(400, { message: 'No hay mpv configurado (MPV_SOCKET)' });
 	const form = await request.formData();
-	const userId = locals.user!.id;
+	const at = Number(form.get('at'));
+	return playFilm(
+		locals.user!.id,
+		Number(form.get('id')),
+		form.has('at') && Number.isFinite(at) && at >= 0
+			? { atSec: at }
+			: form.get('from') === 'start'
+				? 'start'
+				: 'resume'
+	);
+};
+
+/**
+ * A film on the host's screen: also for voice commands. Only from the beginning does the Cine Club
+ * intro go first, if the user wants it; not from a moment, even the first second.
+ */
+export async function playFilm(
+	userId: string,
+	id: number,
+	from: 'resume' | 'start' | { atSec: number }
+) {
+	if (!mpvEnabled) return fail(400, { message: 'No hay mpv configurado (MPV_SOCKET)' });
 	const closed = await videoClosed(userId);
 	if (closed) return fail(403, { message: closed });
 	const [film] = await db
@@ -36,19 +55,14 @@ export const play: Action = async ({ request, locals }) => {
 			movieProgress,
 			and(eq(movieProgress.movieId, movie.id), eq(movieProgress.userId, userId))
 		)
-		.where(and(eq(movie.id, Number(form.get('id'))), allowedMovies()));
+		.where(and(eq(movie.id, id), allowedMovies()));
 	const hostPath = film && hostMoviePath(film.path);
 	if (!film || !hostPath) return fail(400, { message: 'Película no válida' });
 
-	const at = Number(form.get('at'));
 	const startSec =
-		form.has('at') && Number.isFinite(at) && at >= 0
-			? at
-			: form.get('from') === 'start'
-				? 0
-				: (film.positionSec ?? 0);
+		typeof from === 'object' ? from.atSec : from === 'start' ? 0 : (film.positionSec ?? 0);
 	const settings = await getSettings(userId);
-	const intro = startSec === 0 && !form.has('at') && settings.intro && (await hasIntro());
+	const intro = startSec === 0 && typeof from !== 'object' && settings.intro && (await hasIntro());
 	try {
 		await playOnHost({
 			userId,
@@ -72,7 +86,7 @@ export const play: Action = async ({ request, locals }) => {
 		return fail(500, { message });
 	}
 	return { playing: film.title };
-};
+}
 
 /** An empty title goes back to the one taken from the file name. */
 export const rename: Action = async ({ request }) => {

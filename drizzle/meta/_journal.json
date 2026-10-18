@@ -267,6 +267,27 @@
       "when": 1792306604525,
       "tag": "0037_old_thunderbolt",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1792310937064,
+      "tag": "0038_first_black_widow",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1792311344551,
+      "tag": "0039_special_white_tiger",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1792312830510,
+      "tag": "0040_jazzy_jigsaw",
+      "breakpoints": true
     }
   ]
 }

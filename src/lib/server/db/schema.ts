@@ -302,8 +302,9 @@ export const movieProgress = pgTable(
 );
 
 /**
- * Time actually watched, per user, day and episode or film: what the positions saved while playing
- * moved forward. Only for children's accounts, for the adults' page (#17).
+ * Time actually watched, per user, day, slot and episode or film: what the positions saved while playing
+ * moved forward. Children's, for the adults' page (#17); adults' own, for them to ask about,
+ * unless they turn it off (`userSettings.keepHistory`).
  */
 export const watchTime = pgTable(
 	'watch_time',
@@ -314,6 +315,11 @@ export const watchTime = pgTable(
 			.references(() => user.id, { onDelete: 'cascade' }),
 		/** In the server's time zone, like `playlist.day`. */
 		day: date('day').notNull(),
+		/**
+		 * The 10-minute slot of the day it was watched in, as the minute it starts (21:10 is 1270), so
+		 * that a finer slot later needs no migration. Null before slots were kept: the whole day.
+		 */
+		minute: integer('minute'),
 		episodeId: integer('episode_id').references(() => episode.id, { onDelete: 'cascade' }),
 		movieId: integer('movie_id').references(() => movie.id, { onDelete: 'cascade' }),
 		/** A TV channel, live: its id in channels.ts. */
@@ -323,8 +329,9 @@ export const watchTime = pgTable(
 	(t) => [
 		// Two of the three are null: they are compared as equal, so there is one row per thing and day.
 		unique('watch_time_user_day_item')
-			.on(t.userId, t.day, t.episodeId, t.movieId, t.channelId)
+			.on(t.userId, t.day, t.minute, t.episodeId, t.movieId, t.channelId)
 			.nullsNotDistinct(),
+		check('watch_time_minute', sql`${t.minute} between 0 and 1439`),
 		check(
 			'watch_time_one_item',
 			sql`num_nonnulls(${t.episodeId}, ${t.movieId}, ${t.channelId}) = 1`
@@ -479,6 +486,11 @@ export const userSettings = pgTable('user_settings', {
 	intro: boolean('intro').notNull().default(true),
 	/** The app's colours (themes.ts); unknown ones are the default. */
 	theme: text('theme').notNull().default('jellycartoon'),
+	/** What an adult watches is kept in watch_time, for them to ask about; a child's, always. */
+	keepHistory: boolean('keep_history').notNull().default(true),
+	/** Langua, the language app: where to send audio clips (`send_clip` in voice commands), and its token. */
+	languaUrl: text('langua_url'),
+	languaToken: text('langua_token'),
 	/** Where "add to list" on a series page puts episodes. */
 	activeListId: integer('active_list_id').references(() => userList.id, { onDelete: 'set null' })
 });

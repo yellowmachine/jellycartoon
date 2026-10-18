@@ -6,13 +6,14 @@ import { voiceEnabled } from '#lib/server/voice/whisper.ts';
 import { parseVoiceRequest } from '#lib/voice.ts';
 
 /** What was said (or written) in /voz, done: what the device must do, and what to answer. */
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!voiceEnabled) error(404, 'No hay voz configurada (WHISPER_URL)');
 	const command = parseVoiceRequest(await request.json().catch(() => null));
 	if (!command) error(400, 'Orden no válida');
 	try {
 		const started = performance.now();
-		const reply = await runVoiceCommand(command);
+		const { id, name } = locals.user!;
+		const reply = await runVoiceCommand(command, { id, name });
 		log.info('voz', `«${command.text}» → «${reply.reply}»`, {
 			ms: Math.round(performance.now() - started),
 			actions: reply.actions.map((a) => a.kind),

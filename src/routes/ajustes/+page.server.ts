@@ -5,7 +5,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { user, userSettings } from '#lib/server/db/schema.ts';
 import { auth } from '#lib/server/auth.ts';
-import { KIDS_ROLE } from '#lib/server/kids.ts';
+import { isKid, KIDS_ROLE } from '#lib/server/kids.ts';
 import {
 	chatConfig,
 	DEFAULT_CHAT_MODEL,
@@ -20,7 +20,13 @@ import {
 } from '#lib/server/app-settings.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
-import { getSettings } from '#lib/server/settings.ts';
+import { getSettings, setKeepHistory } from '#lib/server/settings.ts';
+import {
+	languaConfig,
+	normalizeLanguaUrl,
+	pingLangua,
+	setLanguaConfig
+} from '#lib/server/langua.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { hasIntro } from '#lib/server/library/paths.ts';
 import { KNOWN_LANGUAGES, normalizeLang } from '#lib/languages.ts';
@@ -38,12 +44,13 @@ import { ORIGIN } from '$app/env/private';
 export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
 	const admin = await isAdmin(userId);
-	const [settings, introFound, version, appPassword] = await Promise.all([
+	const [settings, introFound, version, appPassword, langua] = await Promise.all([
 		getSettings(userId),
 		hasIntro(),
 		// Only who manages the app sees the new version: for them, asked now (#20).
 		versionInfo({ fresh: admin }),
-		musicRoot ? appPasswordCreated(userId) : null
+		musicRoot ? appPasswordCreated(userId) : null,
+		languaConfig(userId)
 	]);
 
 	let ai = null;
@@ -85,6 +92,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 		// Only with films in the living room and the intro in DATA_DIR.
 		intro: mpvEnabled && introFound ? settings.intro : null,
 		languages: KNOWN_LANGUAGES,
+		/** «Guardar lo que veo»: adults only, a child's is always kept for the adults (#17). */
+		keepHistory: isKid(locals.user) ? null : settings.keepHistory,
+		/** Langua, the language app: adults only. Never the token itself, only its end. */
+		langua: isKid(locals.user)
+			? null
+			: langua
+				? { url: langua.url, tokenHint: `…${langua.token.slice(-4)}` }
+				: { url: null, tokenHint: null },
 		ai,
 		/** Children's accounts (#17): only who manages the app creates them. */
 		kids,
@@ -188,6 +203,35 @@ export const actions: Actions = {
 			.values({ userId: locals.user!.id, ...values })
 			.onConflictDoUpdate({ target: userSettings.userId, set: values });
 		return { saved: 'intro' };
+	},
+	history: async ({ request, locals }) => {
+		if (isKid(locals.user)) error(404, 'No encontrado');
+		await setKeepHistory(locals.user!.id, (await request.formData()).get('keepHistory') === 'on');
+		return { saved: 'history' };
+	},
+	saveLangua: async ({ request, locals }) => {
+		if (isKid(locals.user)) error(404, 'No encontrado');
+		const form = await request.formData();
+		const url = normalizeLanguaUrl(String(form.get('url') ?? ''));
+		if (!url) return fail(400, { section: 'langua', message: 'La dirección, como https://…' });
+		const token = String(form.get('token') ?? '').trim();
+		const hadToken = Boolean(await languaConfig(locals.user!.id));
+		if (!token && !hadToken) return fail(400, { section: 'langua', message: 'Falta el token' });
+		await setLanguaConfig(locals.user!.id, { url, ...(token && { token }) });
+		return { saved: 'langua' };
+	},
+	testLangua: async ({ locals }) => {
+		if (isKid(locals.user)) error(404, 'No encontrado');
+		const config = await languaConfig(locals.user!.id);
+		if (!config)
+			return fail(400, { section: 'langua', message: 'Primero la dirección y el token' });
+		const problem = await pingLangua(config);
+		return problem ? fail(502, { section: 'langua', message: problem }) : { languaOk: true };
+	},
+	forgetLangua: async ({ locals }) => {
+		if (isKid(locals.user)) error(404, 'No encontrado');
+		await setLanguaConfig(locals.user!.id, { url: null, token: null });
+		return { saved: 'langua-forgotten' };
 	},
 	saveKey: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);

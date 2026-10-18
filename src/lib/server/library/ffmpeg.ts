@@ -489,6 +489,102 @@ export async function clip(
 	);
 }
 
+/**
+ * Only the audio of a stretch, as AAC in .m4a (any browser plays it, Safari too): for the clips sent
+ * to Langua. With `info`, the track in `audioLang` (a film's file); without it, the first one (an
+ * episode's audio rendition, which has only its own).
+ */
+export async function audioClip(
+	input: string,
+	output: string,
+	options: { atSec: number; seconds: number; info?: Probe; audioLang?: string | null }
+) {
+	const [audio] = options.info
+		? orderedAudio(options.info.streams, options.audioLang ?? AUDIO_LANG)
+		: [];
+	if (options.info && !audio) throw new Error('El fichero no tiene audio');
+	await run(
+		'ffmpeg',
+		[
+			'-hide_banner',
+			'-nostats',
+			'-y',
+			'-ss',
+			options.atSec.toFixed(2),
+			'-i',
+			input,
+			'-t',
+			String(options.seconds),
+			'-map',
+			audio ? `0:${audio.index}` : '0:a:0',
+			'-vn',
+			'-sn',
+			'-dn',
+			'-map_metadata',
+			'-1',
+			'-c:a',
+			'aac',
+			'-b:a',
+			'96k',
+			'-ac',
+			'2',
+			'-movflags',
+			'+faststart',
+			'-f',
+			'mp4',
+			output
+		],
+		{ pausable: false }
+	);
+	return audio ? normalizeLang(audio.tags?.language) : null;
+}
+
+/** Seeking lands on the keyframe before: read from earlier, so no cue of the stretch is missed. */
+const SUBTITLE_MARGIN_SEC = 30;
+
+/**
+ * A stretch of a film's text subtitles in `lang` (or, without one in it, the first), as WebVTT
+ * with the film's own times: it also has cues from a bit before, for the caller to keep only the
+ * stretch's. Null if it has none.
+ */
+export async function subtitleClip(
+	input: string,
+	info: Probe,
+	options: { atSec: number; seconds: number; lang: string | null }
+) {
+	const streams = textSubtitleStreams(info);
+	const stream =
+		streams.find(
+			(s) => options.lang && normalizeLang(s.tags?.language) === normalizeLang(options.lang)
+		) ?? streams[0];
+	if (!stream) return null;
+	const { stdout } = await run(
+		'ffmpeg',
+		[
+			'-hide_banner',
+			'-nostats',
+			'-ss',
+			Math.max(0, options.atSec - SUBTITLE_MARGIN_SEC).toFixed(2),
+			'-i',
+			input,
+			// Times as in the film: from the stretch's start they would be wrong after the seek. With
+			// them, the end is a time in the film too (`-to`), not a length.
+			'-copyts',
+			'-to',
+			(options.atSec + options.seconds).toFixed(2),
+			'-map',
+			`0:${stream.index}`,
+			'-c:s',
+			'webvtt',
+			'-f',
+			'webvtt',
+			'pipe:1'
+		],
+		{ pausable: false }
+	);
+	return { vtt: stdout, lang: normalizeLang(stream.tags?.language) };
+}
+
 const CHANNELS: Record<number, string> = { 1: 'mono', 2: 'estéreo', 6: '5.1', 8: '7.1' };
 
 /** The file's chapters, in order: usually the disc's, with generic names. */

@@ -1,4 +1,12 @@
+import { and, eq } from 'drizzle-orm';
 import { voiceModel } from '#lib/server/app-settings.ts';
+import { searchVideo, seriesEpisodes } from '#lib/server/voice/video.ts';
+import { MAX_CLIP_MINUTES, sendClip } from '#lib/server/langua.ts';
+import { playEpisodes, seriesQueue } from '#lib/server/cinema/episode-actions.ts';
+import { playFilm } from '#lib/server/cinema/film-actions.ts';
+import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
+import { db } from '#lib/server/db/index.ts';
+import { episode, episodeTitle, series } from '#lib/server/db/schema.ts';
 import { getAlbums, tracksById } from '#lib/server/music/albums.ts';
 import { getPlaylist, listPlaylists } from '#lib/server/music/playlists.ts';
 import {
@@ -10,6 +18,16 @@ import {
 } from '#lib/server/music/snapcast.ts';
 import { chatWithTools, type Tool, type ToolChatMessage } from '#lib/server/openrouter.ts';
 import { streamFor } from '#lib/server/radio.ts';
+import { keepsHistory } from '#lib/server/settings.ts';
+import {
+	HISTORY_TOOLS,
+	historyRules,
+	historySince,
+	historyTools,
+	runHistoryTool,
+	todayText,
+	type Person
+} from '#lib/server/watch-history.ts';
 import { fold, masterVolume, type MusicAlbum, type MusicTrack } from '#lib/music.ts';
 import { COUNTRIES, STATIONS } from '#lib/radio.ts';
 import type {
@@ -18,17 +36,22 @@ import type {
 	VoiceOption,
 	VoiceReply,
 	VoiceRequest,
-	VoiceTarget
+	VoiceTarget,
+	VideoHere
 } from '#lib/voice.ts';
 
 /**
  * Voice commands (#33): what was said, to a model with the app's actions as tools. It searches the
  * music, plays it here (the device, which does it itself) or in the whole house (Snapcast, done
- * here), and answers in a sentence to be read aloud.
+ * here), answers about what the person watched (only their own, see watch-history.ts), finds and plays
+ * an episode here or an episode or film in the living room (video.ts), and says it in a sentence to be read aloud.
  */
 
-/** Turns with the model before giving up: a search, an action and the answer are three. */
-const MAX_ROUNDS = 5;
+/**
+ * Turns with the model before giving up: a search, an action and the answer are three; an episode
+ * by its series and season, five.
+ */
+const MAX_ROUNDS = 7;
 /** With more albums than this, the instructions list only the artists, and it searches the rest. */
 const LISTED_ALBUMS = 400;
 /** «Más alto» and «más bajo», on the 0–100 of Snapcast's master volume. */
@@ -118,6 +141,55 @@ function tools(house: boolean): Tool[] {
 				]
 			: []),
 		fn(
+			'send_clip',
+			`Manda a Langua (su app de idiomas) el audio de los últimos minutos del capítulo o la película que está viendo, con lo que se dice (los subtítulos). No sirve para la radio ni los canales en directo, ni para la música.`,
+			{
+				minutes: {
+					type: 'number',
+					description: `Cuántos minutos hacia atrás, hasta ${MAX_CLIP_MINUTES}.`
+				},
+				language: {
+					type: 'string',
+					description:
+						'El idioma del audio, ISO 639-2 («eng», «spa»…), solo si lo pide; si no, el de sus ajustes.'
+				}
+			},
+			['minutes']
+		),
+		fn(
+			'search_video',
+			'Busca series y películas por el título (también el original de las películas). Da sus ids y si cada película está vista o a medias. Busca por cómo suena: el reconocimiento de voz escribe mal los nombres.',
+			{ query: { type: 'string', description: 'El título, o parte, p. ej. «friends».' } },
+			['query']
+		),
+		fn(
+			'series_episodes',
+			'Las temporadas de una serie, con cuántos capítulos tiene cada una y cuántos ha visto; con «season», los capítulos de esa temporada, con sus ids y si los ha visto o los tiene a medias.',
+			{
+				series_id: { type: 'integer', description: 'De «search_video».' },
+				season: { type: 'integer' }
+			},
+			['series_id']
+		),
+		fn(
+			'play_video',
+			`Pone un capítulo o una película. El id sale de «search_video», «series_episodes» o las herramientas de lo visto («[episodio 12]», «[película 3]»). ${mpvEnabled ? 'Los capítulos, aquí (en el navegador del dispositivo) o en el salón (la tele); las películas, solo en el salón.' : 'Solo capítulos, aquí (en el navegador del dispositivo): no hay salón.'}`,
+			{
+				kind: { type: 'string', enum: ['episode', 'film'] },
+				id: { type: 'integer' },
+				start_minute: {
+					type: 'number',
+					description: 'Desde qué minuto; 0 es desde el principio. Sin él, sigue donde lo dejó.'
+				},
+				where: {
+					type: 'string',
+					enum: mpvEnabled ? ['here', 'salon'] : ['here'],
+					description: '«here»: el dispositivo desde el que se habla. «salon»: la tele del salón.'
+				}
+			},
+			['kind', 'id', 'where']
+		),
+		fn(
 			'ask',
 			'Cuando no está claro qué se pide entre unas pocas opciones: pregunta, y cada opción es un botón. No se hace nada más.',
 			{
@@ -153,8 +225,12 @@ function instructions(context: {
 	albums: MusicAlbum[];
 	playlists: { id: number; name: string; total: number }[];
 	house: boolean;
+	/** Since when what they watch has hours; null: only days, or nothing. */
+	hoursSince: string | null;
+	/** «Guardar lo que veo», in Ajustes. */
+	keepHistory: boolean;
 }) {
-	const { albums, playlists, house } = context;
+	const { albums, playlists, house, hoursSince, keepHistory } = context;
 	const byArtist = new Map<string, MusicAlbum[]>();
 	for (const a of albums) byArtist.set(a.artist, [...(byArtist.get(a.artist) ?? []), a]);
 	const library =
@@ -176,6 +252,18 @@ Cómo responder:
 - «Quita eso», «para», «más alto»…: se refiere a lo que está sonando. Con cada orden va lo que suena en cada sitio.
 - Sitios: aquí (el dispositivo desde el que se habla)${house ? ' y toda la casa (Snapcast)' : '; toda la casa no está disponible'}.
 
+Lo que ha visto en vídeo (series, películas, canales de tele), solo de su cuenta: «watch_time», «sessions», «finished» y «halfway».
+- Si pregunta por eso («¿qué capítulo de Friends vi el viernes?», «¿por dónde voy en…?»), contesta a la pregunta, corto, en vez de decir lo que has hecho.
+- Si quiere volver a verlo, búscalo con esas herramientas y ponlo con «play_video». Si no dice dónde, aquí${mpvEnabled ? '; una película, en el salón' : ''}.
+
+Langua: «manda los últimos 5 minutos a Langua», «guárdame esto para estudiar» → «send_clip». Sin minutos, 2. Dile qué se ha mandado, corto.
+
+Series y películas: «search_video» para encontrarlas, «series_episodes» para elegir capítulo, «play_video» para ponerlas.
+- «Pon Friends»: el capítulo que tenga a medias, o el siguiente al último visto; si no ha visto ninguno, el primero.
+- «Temporada 3, capítulo 7»: búscalo en esa temporada con «series_episodes».
+- Si hay varias que encajan (dos películas con el mismo título, una serie y una película…), usa «ask».
+${historyRules(hoursSince)}
+${keepHistory ? '' : '- Tiene apagado «Guardar lo que veo» en Ajustes: lo que vea ahora no se guarda. Si pregunta y no hay datos, díselo.\n'}
 Biblioteca de música (artista: álbumes):
 ${library.join('\n') || '(vacía)'}
 
@@ -187,6 +275,23 @@ ${STATIONS.map((s) => `- ${s.name} [${s.uuid}]: ${s.description}, ${COUNTRIES[s.
 }
 
 /** What sounds in each place now, with each command: it is not what the person said. */
+/** The episode in this device's player, for the AI: «manda esto a Langua» is about it. */
+async function videoText(video: VideoHere | null) {
+	if (!video) return null;
+	const [ep] = await db
+		.select({
+			title: episodeTitle,
+			seriesTitle: series.title,
+			season: episode.season,
+			number: episode.number
+		})
+		.from(episode)
+		.innerJoin(series, eq(series.id, episode.seriesId))
+		.where(eq(episode.id, video.episodeId));
+	if (!ep) return null;
+	return `[Viendo aquí, en pausa mientras habla: «${ep.seriesTitle}» T${ep.season} E${ep.number} «${ep.title}» [episodio ${video.episodeId}], minuto ${Math.floor(video.positionSec / 60)}.]`;
+}
+
 function soundingNow(here: string | null, house: boolean) {
 	const snap = house ? snapcastNow() : null;
 	const inHouse = !snap?.active
@@ -269,6 +374,59 @@ async function controlHouse(action: VoiceControl) {
 }
 
 /** Runs one call of the model; what the device must do and the options, into `outcome`. */
+/** An episode here (the device opens its player) or in the living room; a film, only there. */
+async function playVideo(args: Record<string, unknown>, ctx: { outcome: Outcome; user: Person }) {
+	const id = Number(args.id);
+	if (!Number.isInteger(id)) return 'Falta el id del capítulo o la película.';
+	const minute = Number(args.start_minute);
+	const startSec =
+		args.start_minute === undefined || !Number.isFinite(minute)
+			? null
+			: Math.max(0, Math.round(minute * 60));
+	const salon = args.where === 'salon';
+	if (salon && !mpvEnabled) return 'No hay salón (mpv) configurado.';
+
+	if (args.kind === 'film') {
+		if (!salon) return 'Las películas solo se ven en el salón: pregúntale si la pones allí.';
+		const result = await playFilm(
+			ctx.user.id,
+			id,
+			startSec === null ? 'resume' : startSec === 0 ? 'start' : { atSec: startSec }
+		);
+		return played(result, startSec);
+	}
+	if (args.kind !== 'episode') return `Tipo no válido: «${args.kind}».`;
+
+	if (salon) {
+		const result = await playEpisodes(
+			ctx.user.id,
+			await seriesQueue(ctx.user.id, id),
+			startSec ?? undefined
+		);
+		return played(result, startSec);
+	}
+	const [ep] = await db
+		.select({ title: episodeTitle, seriesTitle: series.title })
+		.from(episode)
+		.innerJoin(series, eq(series.id, episode.seriesId))
+		.where(and(eq(episode.id, id), eq(episode.status, 'ready'), eq(episode.missing, false)));
+	if (!ep) return `No hay ningún capítulo listo con id ${id}.`;
+	ctx.outcome.actions.push({ kind: 'watch', episodeId: id, startSec });
+	return `Abriendo «${ep.seriesTitle}: ${ep.title}» aquí${fromMinute(startSec)}.`;
+}
+
+const fromMinute = (startSec: number | null) =>
+	startSec ? ` desde el minuto ${Math.round(startSec / 60)}` : '';
+
+/** What the living room's actions answered, in words: they fail as a form action does. */
+const played = (
+	result: { playing: string } | { data: { message: string } },
+	startSec: number | null
+) =>
+	'playing' in result
+		? `Poniendo «${result.playing}» en el salón${fromMinute(startSec)}.`
+		: `No se pudo: ${result.data.message}`;
+
 async function runTool(
 	name: string,
 	args: Record<string, unknown>,
@@ -277,8 +435,11 @@ async function runTool(
 		playlists: { id: number; name: string }[];
 		house: boolean;
 		outcome: Outcome;
+		user: Person;
+		video: VideoHere | null;
 	}
 ): Promise<ToolResult> {
+	if (HISTORY_TOOLS.has(name)) return runHistoryTool(name, args, { self: ctx.user });
 	const where = args.where === 'house' && ctx.house ? 'house' : 'here';
 	if (args.where === 'house' && !ctx.house) return 'Toda la casa (Snapcast) no está disponible.';
 	switch (name) {
@@ -328,6 +489,28 @@ async function runTool(
 			await controlSnapcast({ action: 'masterVolume', value: to });
 			return `Volumen de la casa de ${now} a ${to}.`;
 		}
+		case 'send_clip': {
+			const minutes = Number(args.minutes);
+			if (!Number.isFinite(minutes) || minutes <= 0) return 'Faltan los minutos.';
+			return sendClip(ctx.user.id, {
+				minutes,
+				language: typeof args.language === 'string' ? args.language : null,
+				video: ctx.video
+			});
+		}
+		case 'search_video':
+			return typeof args.query === 'string' && args.query.trim()
+				? searchVideo(ctx.user.id, args.query)
+				: 'Falta qué buscar.';
+		case 'series_episodes': {
+			const seriesId = Number(args.series_id);
+			if (!Number.isInteger(seriesId)) return 'Falta el id de la serie.';
+			const season = args.season === undefined ? undefined : Number(args.season);
+			if (season !== undefined && !Number.isInteger(season)) return 'Temporada no válida.';
+			return seriesEpisodes(ctx.user.id, seriesId, season);
+		}
+		case 'play_video':
+			return playVideo(args, ctx);
 		case 'ask': {
 			const options = (Array.isArray(args.options) ? args.options : [])
 				.filter(
@@ -343,12 +526,18 @@ async function runTool(
 	}
 }
 
-/** What was said, done: what the device must do, and the sentence to read aloud. */
-export async function runVoiceCommand(request: VoiceRequest): Promise<VoiceReply> {
-	const [albums, playlists, model] = await Promise.all([
+/**
+ * What was said, done: what the device must do, and the sentence to read aloud. `user`: who speaks,
+ * from the session; an adult, a child's account has no voice.
+ */
+export async function runVoiceCommand(request: VoiceRequest, user: Person): Promise<VoiceReply> {
+	const [albums, playlists, model, { hoursSince }, keepHistory, watchingHere] = await Promise.all([
 		getAlbums(),
 		listPlaylists(),
-		voiceModel()
+		voiceModel(),
+		historySince([user]),
+		keepsHistory(user.id),
+		videoText(request.video)
 	]);
 	const house = snapcastReady();
 	const outcome: Outcome = { actions: [], options: [], asked: null };
@@ -358,7 +547,7 @@ export async function runVoiceCommand(request: VoiceRequest): Promise<VoiceReply
 			content: [
 				{
 					type: 'text',
-					text: instructions({ albums, playlists, house }),
+					text: instructions({ albums, playlists, house, hoursSince, keepHistory }),
 					cache_control: { type: 'ephemeral' }
 				}
 			]
@@ -367,12 +556,14 @@ export async function runVoiceCommand(request: VoiceRequest): Promise<VoiceReply
 		{
 			role: 'user',
 			content: [
+				{ type: 'text', text: `[${todayText()}]` },
 				{ type: 'text', text: soundingNow(request.here, house) },
+				...(watchingHere ? [{ type: 'text' as const, text: watchingHere }] : []),
 				{ type: 'text', text: request.text }
 			]
 		}
 	];
-	const available = tools(house);
+	const available = [...tools(house), ...historyTools({ self: user })];
 
 	for (let round = 0; round < MAX_ROUNDS; round++) {
 		const answer = await chatWithTools({
@@ -390,7 +581,14 @@ export async function runVoiceCommand(request: VoiceRequest): Promise<VoiceReply
 			let result: ToolResult;
 			try {
 				const args = JSON.parse(call.function.arguments || '{}');
-				result = await runTool(call.function.name, args, { albums, playlists, house, outcome });
+				result = await runTool(call.function.name, args, {
+					albums,
+					playlists,
+					house,
+					outcome,
+					user,
+					video: request.video
+				});
 			} catch (err) {
 				result = `Error: ${err instanceof Error ? err.message : String(err)}`;
 			}

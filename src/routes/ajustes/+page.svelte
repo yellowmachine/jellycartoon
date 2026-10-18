@@ -113,6 +113,95 @@
 		{/if}
 	</section>
 
+	{#if data.keepHistory !== null}
+		<section class={section}>
+			<h2 class="mb-1 font-semibold">Lo que veo</h2>
+			<form
+				method="post"
+				action="?/history"
+				use:enhance={() =>
+					async ({ update }) =>
+						update({ reset: false })}
+			>
+				<label class="flex items-start gap-2 text-sm">
+					<input
+						type="checkbox"
+						name="keepHistory"
+						checked={data.keepHistory}
+						onchange={(e) => e.currentTarget.form?.requestSubmit()}
+						class="mt-0.5 rounded border-zinc-700 bg-zinc-900 text-amber-500"
+					/>
+					<span>
+						Guardar lo que veo
+						<span class="block text-xs text-zinc-500"
+							>Qué series, películas y canales ves, cuánto rato y a qué horas{data.voice
+								? ', para preguntárselo a la IA en Hablar («¿qué capítulo vi el viernes?»)'
+								: ''}. Solo lo puedes consultar tú. Apagarlo no borra lo ya guardado.</span
+						>
+					</span>
+				</label>
+			</form>
+		</section>
+	{/if}
+
+	{#if data.langua}
+		<section class={section}>
+			<h2 class="mb-1 font-semibold">Langua</h2>
+			<p class="mb-4 text-sm text-zinc-400">
+				Tu app de idiomas. {data.voice
+					? 'Desde Hablar se le manda el audio de lo que estás viendo, con su texto: «manda los últimos 5 minutos a Langua».'
+					: 'Se le manda el audio de lo que estás viendo, con su texto.'} El token se crea en Langua,
+				en Mi cuenta → Integraciones.
+			</p>
+			<form
+				method="post"
+				action="?/saveLangua"
+				use:enhance={() =>
+					async ({ update }) =>
+						update({ reset: false })}
+				class="grid gap-3 sm:grid-cols-[auto_1fr] sm:items-center"
+			>
+				<label for="languaUrl" class="text-sm text-zinc-300">Dirección</label>
+				<input
+					id="languaUrl"
+					name="url"
+					type="url"
+					value={data.langua.url ?? ''}
+					placeholder="https://langua.scholio.review"
+					class={select}
+				/>
+				<label for="languaToken" class="text-sm text-zinc-300">Token</label>
+				<input
+					id="languaToken"
+					name="token"
+					type="password"
+					autocomplete="off"
+					placeholder={data.langua.tokenHint
+						? `Guardado (${data.langua.tokenHint}): escribe otro para cambiarlo`
+						: 'lng_…'}
+					class="{select} font-mono"
+				/>
+				<div class="flex flex-wrap items-center gap-3 sm:col-start-2">
+					<button class={primary}>Guardar</button>
+					{#if data.langua.tokenHint}
+						<button class={secondary} formaction="?/testLangua">Probar</button>
+						<button class="text-sm text-red-400 hover:underline" formaction="?/forgetLangua"
+							>Olvidar</button
+						>
+					{/if}
+					{#if form && 'saved' in form && form.saved === 'langua'}
+						<span class="text-sm text-amber-400">✓ Guardado</span>
+					{:else if form && 'languaOk' in form}
+						<span class="text-sm text-amber-400">✓ Langua acepta el token</span>
+					{/if}
+				</div>
+			</form>
+			{#if form && 'section' in form && form.section === 'langua'}
+				<p class="mt-3 text-sm break-words text-red-400">{form.message}</p>
+			{/if}
+		</section>
+	{/if}
+
 	<section class={section}>
 		<h2 class="mb-1 font-semibold">Colores</h2>
 		<p class="mb-4 text-sm text-zinc-400">

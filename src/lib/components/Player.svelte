@@ -8,6 +8,7 @@
 	import { normalizeLang, type AudioTrack, type SubtitleTrack } from '#lib/languages.ts';
 	import { subtitleCss, type SubtitleStyle } from '#lib/subtitle-style.ts';
 	import { thumbChanged, thumbUrl } from '#lib/thumb.svelte.ts';
+	import { videoHere } from '#lib/video-here.svelte.ts';
 	import SubtitleStylePanel from './SubtitleStylePanel.svelte';
 	import {
 		PLAYER_SIZES,
@@ -100,6 +101,14 @@
 	onMount(() => {
 		loadPlayerSize();
 		pipSupported = 'pictureInPictureEnabled' in document && document.pictureInPictureEnabled;
+	});
+
+	// For the header's microphone: what plays here, to pause it while someone speaks.
+	$effect(() => {
+		const el = video;
+		if (!el) return;
+		videoHere.set({ episodeId: untrack(() => episodeId), element: el });
+		return () => videoHere.clear(el);
 	});
 
 	$effect(() => {

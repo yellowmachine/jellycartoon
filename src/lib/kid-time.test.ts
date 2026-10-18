@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import { closedText, openingText, parseClock, videoTime, type Slot } from './kid-time.ts';
+import {
+	closedText,
+	joinSlots,
+	openingText,
+	parseClock,
+	videoTime,
+	type Slot
+} from './kid-time.ts';
 
 const at = (weekday: number, time: string) => ({ weekday, minute: parseClock(time)! });
 const slot = (weekday: number, start: string, end: string): Slot => ({
@@ -128,4 +135,47 @@ test('parseClock', () => {
 	expect(parseClock('24:30')).toBeNull();
 	expect(parseClock('7:75')).toBeNull();
 	expect(parseClock('mañana')).toBeNull();
+});
+
+describe('joinSlots', () => {
+	const watched = (day: string, minute: number, seconds: number, label = 'Bluey') => ({
+		day,
+		minute,
+		seconds,
+		label
+	});
+
+	test('slots in a row are one stretch, to where the last ends', () => {
+		const [stretch, ...rest] = joinSlots([
+			watched('2026-10-18', 1280, 600),
+			watched('2026-10-18', 1270, 300),
+			watched('2026-10-18', 1280, 120, 'Clan')
+		]);
+		expect(rest).toEqual([]);
+		expect(stretch).toMatchObject({ day: '2026-10-18', start: 1270, end: 1290, seconds: 1020 });
+		expect([...stretch!.items]).toEqual([
+			['Bluey', 900],
+			['Clan', 120]
+		]);
+	});
+
+	test('an empty slot between, or another day, starts another', () => {
+		const stretches = joinSlots([
+			watched('2026-10-18', 1270, 300),
+			watched('2026-10-18', 1290, 300),
+			watched('2026-10-19', 1300, 300)
+		]);
+		expect(stretches.map((s) => [s.day, s.start, s.end])).toEqual([
+			['2026-10-18', 1270, 1280],
+			['2026-10-18', 1290, 1300],
+			['2026-10-19', 1300, 1310]
+		]);
+	});
+
+	test('the last slot of the day ends at midnight', () => {
+		expect(joinSlots([watched('2026-10-18', 1430, 60)])[0]).toMatchObject({
+			start: 1430,
+			end: 1440
+		});
+	});
 });

@@ -15,6 +15,7 @@ import {
 	watchProgress,
 	watchTime
 } from '#lib/server/db/schema.ts';
+import { openRouterConfig } from '#lib/server/app-settings.ts';
 import { isKidAccount, KIDS_ROLE } from '#lib/server/kids.ts';
 import { kidRules, now, setVideoAccess, videoAllowed } from '#lib/server/kid-time.ts';
 import { log } from '#lib/server/log.ts';
@@ -46,6 +47,8 @@ export const load: PageServerLoad = async () => {
 		today: day,
 		/** For «hoy», «mañana» or a weekday in what is said about the schedule. */
 		weekday: now().weekday,
+		/** Questions to the AI about what they watch, with a key for OpenRouter. */
+		ai: Boolean((await openRouterConfig()).apiKey),
 		days: Array.from({ length: DAYS }, (_, i) => daysBefore(day, DAYS - 1 - i)),
 		kids: await Promise.all(kids.map(async (kid) => ({ ...kid, ...(await stats(kid.id, from)) })))
 	};
