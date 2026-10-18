@@ -118,6 +118,7 @@
 		if (!el) return;
 		// Only a new episode (src) or <video> should reload the stream.
 		const start = untrack(() => (startAt && startAt > 5 ? startAt : 0));
+		const id = untrack(() => episodeId);
 		let cancelled = false;
 
 		(async () => {
@@ -156,6 +157,10 @@
 
 		return () => {
 			cancelled = true;
+			// Leaving the page or the episode inside the app: where it was, before hls.js empties the
+			// <video>. Closing the tab is pagehide's. Only if it played: opened and left (the browser
+			// may not let it start by itself), it stays as it was, e.g. out of «Seguir viendo».
+			if (el.played.length) void saveAt(id, el);
 			hls?.destroy();
 			hls = null;
 		};
@@ -229,7 +234,9 @@
 		return () => tracks?.removeEventListener('change', onTextTrackChange);
 	});
 
-	function save() {
+	const save = () => saveAt(episodeId, video);
+
+	function saveAt(episodeId: number, video: HTMLVideoElement | undefined) {
 		if (!video?.currentTime) return Promise.resolve();
 		lastSaved = Date.now();
 		// keepalive lets the request finish even if the page is being closed.
