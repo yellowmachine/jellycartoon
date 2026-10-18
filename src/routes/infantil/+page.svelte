@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import KidQuestions from '#lib/components/KidQuestions.svelte';
 	import KidRulesForm from '#lib/components/KidRulesForm.svelte';
 	import { formatRemaining } from '#lib/format.ts';
 	import { clock, closedText, type VideoAccess } from '#lib/kid-time.ts';
@@ -45,6 +46,10 @@
 		No hay cuentas infantiles. Las crea quien creó la primera cuenta, desde
 		<a href="/ajustes" class="text-amber-400 hover:underline">Ajustes</a>.
 	</p>
+{/if}
+
+{#if data.kids.length && data.ai}
+	<KidQuestions voice={data.voice} />
 {/if}
 
 {#each data.kids as kid (kid.id)}
