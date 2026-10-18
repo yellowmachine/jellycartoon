@@ -77,7 +77,7 @@
 	// fixed option table in subtitle-style.ts, never from free text.
 	const cueStylesheet = $derived.by(() => {
 		const css = subtitleCss(subtitleStyle);
-		return `<style>.jc-video::cue{font-family:${css.fontFamily};font-size:${css.fontScale}em;color:${css.color};background:${css.background};text-shadow:${css.textShadow};line-height:1.35}</style>`;
+		return `<style>.jc-video::cue{font-family:${css.fontFamily};font-weight:${css.fontWeight};font-size:${css.fontScale}em;color:${css.color};background:${css.background};text-shadow:${css.textShadow};line-height:1.35}</style>`;
 	});
 	let audioIndex = $derived(Math.max(0, pick(audioTracks, audioLang)));
 	let subtitleIndex = $derived(pick(subtitles, subtitleLang));

@@ -3,6 +3,8 @@
 	import { onMount } from 'svelte';
 	import { DEVICE_NAME_MAX, deviceName, shownDeviceName } from '#lib/device-name.svelte.ts';
 	import MusicBackgroundSettings from '#lib/components/MusicBackgroundSettings.svelte';
+	import SubtitleStylePanel from '#lib/components/SubtitleStylePanel.svelte';
+	import type { SubtitleStyle } from '#lib/subtitle-style.ts';
 	import UpdateProgress from '#lib/components/UpdateProgress.svelte';
 	import { languageLabel } from '#lib/languages.ts';
 	import { THEMES, themeSwatches } from '#lib/themes.ts';
@@ -35,6 +37,23 @@
 	const primary =
 		'rounded-md bg-amber-500 px-3 py-1 text-sm font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50';
 	const secondary = 'rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900';
+
+	// Changed here at once; several quick clicks become one save, as in the player.
+	let subtitleStyle = $derived(data.subtitleStyle);
+	let styleTimer: ReturnType<typeof setTimeout> | undefined;
+	let styleProblem = $state(false);
+	function chooseSubtitleStyle(style: SubtitleStyle) {
+		subtitleStyle = style;
+		clearTimeout(styleTimer);
+		styleTimer = setTimeout(async () => {
+			const res = await fetch('/api/settings', {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ subtitleStyle: style })
+			}).catch(() => null);
+			styleProblem = !res?.ok;
+		}, 400);
+	}
 </script>
 
 <svelte:head>
@@ -47,8 +66,8 @@
 	<section class={section}>
 		<h2 class="mb-1 font-semibold">Reproducción</h2>
 		<p class="mb-4 text-sm text-zinc-400">
-			Idiomas que se eligen al empezar un capítulo o una película. El estilo de los subtítulos se
-			cambia desde el reproductor.
+			Idiomas que se eligen al empezar un capítulo o una película, y cómo se ven los subtítulos: en
+			el navegador y en el salón.
 		</p>
 		<form
 			method="post"
@@ -84,6 +103,15 @@
 				{/if}
 			</div>
 		</form>
+		<h3 class="mt-6 text-sm text-zinc-300">Subtítulos</h3>
+		<p class="text-xs text-zinc-500">
+			Para los de texto: los de imagen (DVD, Blu-ray) se ven siempre como vienen, y los de estilo
+			propio (ASS) conservan el suyo en el salón.
+		</p>
+		<SubtitleStylePanel style={subtitleStyle} onchange={chooseSubtitleStyle} />
+		{#if styleProblem}
+			<p class="mt-2 text-sm text-red-400">No se pudo guardar el estilo.</p>
+		{/if}
 		{#if data.intro !== null}
 			<form
 				method="post"

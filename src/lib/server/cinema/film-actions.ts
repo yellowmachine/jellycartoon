@@ -91,6 +91,7 @@ export async function playFilm(
 			],
 			audioLang: settings.audioLang ?? AUDIO_LANG,
 			subtitleLang: settings.subtitleLang,
+			subtitleStyle: settings.subtitleStyle,
 			intro: intro ? hostIntroFile : null
 		});
 	} catch (err) {

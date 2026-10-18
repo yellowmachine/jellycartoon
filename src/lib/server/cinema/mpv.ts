@@ -12,6 +12,7 @@ import { addWatchTime } from '#lib/server/watch-time.ts';
 import { videoAllowed } from '#lib/server/kid-time.ts';
 import type { Channel } from '#lib/channels.ts';
 import type { RemoteAction, RemoteState, Track } from '#lib/salon.ts';
+import { mpvSubtitleProperties, type SubtitleStyle } from '#lib/subtitle-style.ts';
 
 /**
  * Plays films, episodes and TV channels on the host's screen: an mpv left waiting at MPV_SOCKET
@@ -471,11 +472,17 @@ async function playNow(options: {
 	/** ISO 639-2 codes, as tagged in the tracks. */
 	audioLang: string | null;
 	subtitleLang: string | null;
+	/** How whoever plays it sees subtitles (Ajustes): mpv is shared, so set at every play. */
+	subtitleStyle: SubtitleStyle;
 	/** The intro's path on the host. */
 	intro: string | null;
 }) {
 	preferredSubtitle = options.subtitleLang;
 	forgetQueue();
+	for (const [name, value] of mpvSubtitleProperties(options.subtitleStyle))
+		await command(['set_property', name, value]).catch((error) =>
+			log.warn('mpv', `No se pudo poner ${name} de los subtítulos`, { value, error })
+		);
 	let first = true;
 	if (options.intro) {
 		const intro = (await command({

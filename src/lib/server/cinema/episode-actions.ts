@@ -86,6 +86,7 @@ export async function playEpisodes(userId: string, ids: number[], firstStartSec?
 			})),
 			audioLang: settings.audioLang ?? AUDIO_LANG,
 			subtitleLang: settings.subtitleLang,
+			subtitleStyle: settings.subtitleStyle,
 			intro: null
 		});
 	} catch (err) {
