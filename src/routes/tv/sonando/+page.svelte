@@ -2,7 +2,7 @@
 	import MediaIcon from '#lib/components/MediaIcon.svelte';
 	import MusicBackground from '#lib/components/MusicBackground.svelte';
 	import TvHeader from '#lib/components/TvHeader.svelte';
-	import TvIcon from '#lib/components/TvIcon.svelte';
+	import SectionIcon from '#lib/components/SectionIcon.svelte';
 	import { formatDuration } from '#lib/format.ts';
 	import { coverUrl } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
@@ -47,7 +47,7 @@
 			{:else}
 				<span
 					class="flex aspect-square w-full items-center justify-center rounded-2xl bg-zinc-800 text-zinc-600"
-					><TvIcon name="musica" class="h-1/3 w-1/3" /></span
+					><SectionIcon name="musica" class="h-1/3 w-1/3" /></span
 				>
 			{/if}
 		</div>

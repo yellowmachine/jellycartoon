@@ -1,6 +1,6 @@
 <script lang="ts">
 	import TvHeader from '#lib/components/TvHeader.svelte';
-	import TvIcon from '#lib/components/TvIcon.svelte';
+	import SectionIcon from '#lib/components/SectionIcon.svelte';
 	import { formatRemaining } from '#lib/format.ts';
 	import { coverUrl } from '#lib/music.ts';
 	import type { PageProps } from './$types';
@@ -26,7 +26,7 @@
 				>
 					<span
 						class="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-violet-500/20 text-violet-300"
-						><TvIcon name="musica" class="h-9 w-9" /></span
+						><SectionIcon name="musica" class="h-9 w-9" /></span
 					>
 					<span class="min-w-0">
 						<span class="block truncate text-3xl font-semibold">{p.name}</span>
@@ -57,7 +57,7 @@
 						<img src={coverUrl(a.id)} alt="" loading="lazy" class="h-full w-full object-cover" />
 					{:else}
 						<span class="flex h-full items-center justify-center text-zinc-600"
-							><TvIcon name="musica" class="h-1/3 w-1/3" /></span
+							><SectionIcon name="musica" class="h-1/3 w-1/3" /></span
 						>
 					{/if}
 				</div>

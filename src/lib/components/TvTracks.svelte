@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import MediaIcon from './MediaIcon.svelte';
-	import TvIcon from './TvIcon.svelte';
+	import SectionIcon from './SectionIcon.svelte';
 	import { formatDuration } from '#lib/format.ts';
 	import type { MusicTrack } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
@@ -50,7 +50,7 @@
 			>
 				<span class="w-12 shrink-0 text-right text-zinc-500 tabular-nums">
 					{#if on}
-						<TvIcon name="musica" class="ml-auto h-7 w-7 text-violet-300" />
+						<SectionIcon name="musica" class="ml-auto h-7 w-7 text-violet-300" />
 					{:else}
 						{artists ? i + 1 : (t.number ?? i + 1)}
 					{/if}

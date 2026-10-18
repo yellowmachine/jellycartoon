@@ -4,7 +4,7 @@
 	import MusicBar from '#lib/components/MusicBar.svelte';
 	import SalonBar from '#lib/components/SalonBar.svelte';
 	import SnapcastBar from '#lib/components/SnapcastBar.svelte';
-	import TvIcon from '#lib/components/TvIcon.svelte';
+	import SectionIcon, { type Section } from '#lib/components/SectionIcon.svelte';
 	import VoiceBubble from '#lib/components/VoiceBubble.svelte';
 	import { beforeNavigate, goto } from '$app/navigation';
 	import { voice } from '#lib/voice-client.svelte.ts';
@@ -22,20 +22,20 @@
 		if (updated.current && !willUnload && to?.url) location.href = to.url.href;
 	});
 
-	const links = $derived([
+	const links: { href: string; label: string; icon: Section; also?: string[] }[] = $derived([
 		// With Hoy and Listas in its tabs.
-		{ href: '/', label: 'Series', also: ['/series', '/today', '/lists'] },
-		...(data.cinema ? [{ href: '/cine', label: 'Cine' }] : []),
-		...(data.music ? [{ href: '/musica', label: 'Música' }] : []),
-		{ href: '/radio', label: 'Radio' },
-		{ href: '/canales', label: 'Canales' },
-		...(data.salon ? [{ href: '/salon', label: 'Salón' }] : []),
-		...(data.kidsPage ? [{ href: '/infantil', label: 'Infantil' }] : []),
+		{ href: '/', label: 'Series', icon: 'series', also: ['/series', '/today', '/lists'] },
+		...(data.cinema ? [{ href: '/cine', label: 'Cine', icon: 'cine' as const }] : []),
+		...(data.music ? [{ href: '/musica', label: 'Música', icon: 'musica' as const }] : []),
+		{ href: '/radio', label: 'Radio', icon: 'radio' },
+		{ href: '/canales', label: 'Canales', icon: 'canales' },
+		...(data.salon ? [{ href: '/salon', label: 'Salón', icon: 'salon' as const }] : []),
+		...(data.kidsPage ? [{ href: '/infantil', label: 'Infantil', icon: 'infantil' as const }] : []),
 		// Not for a child's account: they do not exist for it.
 		...(data.kid
 			? []
 			: // With Etiquetas and Registro in its tabs.
-				[{ href: '/library', label: 'Gestión', also: ['/logs'] }])
+				[{ href: '/library', label: 'Gestión', icon: 'gestion' as const, also: ['/logs'] }])
 	]);
 
 	/** Held this long, the header's microphone listens; let go sooner, it was a tap: /voz opens. */
@@ -161,14 +161,19 @@
 						</svg>
 					</a>
 				{/if}
-				<!-- Wide screens: every link in a row. -->
+				<!-- Wide screens: every link in a row; with its icon from xl, as with every section both do
+				     not fit in 1024px. -->
 				{#each links as link (link.href)}
 					<a
 						href={link.href}
 						class={[
-							'hidden text-sm hover:text-white lg:inline',
+							'hidden items-center gap-1.5 text-sm hover:text-white lg:inline-flex',
 							isCurrent(link.href) ? 'text-white' : 'text-zinc-400'
-						]}>{link.label}</a
+						]}
+						><SectionIcon
+							name={link.icon}
+							class="hidden h-[18px] w-[18px] shrink-0 xl:block"
+						/>{link.label}</a
 					>
 				{/each}
 				<form method="post" action="/logout" class="ml-auto hidden items-center gap-3 lg:flex">
@@ -179,7 +184,7 @@
 							title="Vista TV"
 							aria-label="Vista TV"
 							class="rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
-							><TvIcon name="series" class="h-6 w-6" /></a
+							><SectionIcon name="series" class="h-6 w-6" /></a
 						>
 					{/if}
 					<a
@@ -221,9 +226,9 @@
 								href={link.href}
 								onclick={() => menu?.hidePopover()}
 								class={[
-									'block py-3 text-base',
+									'flex items-center gap-3 py-3 text-base',
 									isCurrent(link.href) ? 'text-amber-400' : 'text-zinc-200'
-								]}>{link.label}</a
+								]}><SectionIcon name={link.icon} class="h-6 w-6 shrink-0" />{link.label}</a
 							>
 						</li>
 					{/each}
