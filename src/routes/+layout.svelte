@@ -67,6 +67,30 @@
 		voice.stop();
 	}
 
+	/**
+	 * Ctrl+Shift+Space, held: the same as holding the microphone, from any page (in a text box too:
+	 * it types nothing). Ctrl+Space switches the keyboard's language on Linux and macOS, and
+	 * Alt+Space opens the window's menu on Windows and KDE.
+	 */
+	const isVoiceKey = (e: KeyboardEvent) => e.code === 'Space' && e.ctrlKey && e.shiftKey;
+	let keyHolding = false;
+
+	function voiceKeyDown(e: KeyboardEvent) {
+		if (!data.voice || !isVoiceKey(e)) return;
+		e.preventDefault();
+		if (e.repeat || keyHolding) return;
+		keyHolding = true;
+		void voice.start();
+	}
+
+	/** Letting go of any of the three sends what was said; so does leaving the window. */
+	function voiceKeyUp(e?: KeyboardEvent) {
+		if (!keyHolding) return;
+		if (e && e.code !== 'Space' && e.key !== 'Control' && e.key !== 'Shift') return;
+		keyHolding = false;
+		voice.stop();
+	}
+
 	const under = (path: string, href: string) => path === href || path.startsWith(`${href}/`);
 	/** The section a page is in: its own address or, for those with tabs, any of theirs. */
 	const isCurrent = (href: string) => {
@@ -97,7 +121,14 @@
 	let menu = $state<HTMLElement>();
 </script>
 
-<svelte:window onkeydown={back} />
+<svelte:window
+	onkeydown={(e) => {
+		voiceKeyDown(e);
+		back(e);
+	}}
+	onkeyup={voiceKeyUp}
+	onblur={() => voiceKeyUp()}
+/>
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
@@ -123,7 +154,7 @@
 				{#if data.voice}
 					<a
 						href="/voz"
-						title="Mantén pulsado para hablar · Pulsa para abrir Hablar"
+						title="Mantén pulsado para hablar (o Ctrl+Mayús+Espacio) · Pulsa para abrir Hablar"
 						aria-label="Hablar"
 						aria-current={page.url.pathname === '/voz' ? 'page' : undefined}
 						draggable="false"

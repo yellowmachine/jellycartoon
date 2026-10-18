@@ -503,16 +503,21 @@ export async function audioClip(
 		? orderedAudio(options.info.streams, options.audioLang ?? AUDIO_LANG)
 		: [];
 	if (options.info && !audio) throw new Error('El fichero no tiene audio');
+	const seek = ['-ss', options.atSec.toFixed(2)];
+	// An episode's HLS: with -ss before -i, the ffmpeg in the image (7.1, Debian) reads it to the
+	// end and writes nothing. After -i it decodes from the start and drops what comes before:
+	// slower, but AAC decodes in seconds even for hours of it.
+	const hls = !options.info;
 	await run(
 		'ffmpeg',
 		[
 			'-hide_banner',
 			'-nostats',
 			'-y',
-			'-ss',
-			options.atSec.toFixed(2),
+			...(hls ? [] : seek),
 			'-i',
 			input,
+			...(hls ? seek : []),
 			'-t',
 			String(options.seconds),
 			'-map',
@@ -536,6 +541,13 @@ export async function audioClip(
 		],
 		{ pausable: false }
 	);
+	// ffmpeg says nothing when it writes no audio (a seek past what it found): an empty file is
+	// not a clip, and must not be sent as one.
+	const duration = await probeDuration(output);
+	if (!duration || duration < options.seconds / 2)
+		throw new Error(
+			`ffmpeg sacó ${duration ? `${Math.round(duration)} s` : 'un audio vacío'} en vez de ${options.seconds} s`
+		);
 	return audio ? normalizeLang(audio.tags?.language) : null;
 }
 

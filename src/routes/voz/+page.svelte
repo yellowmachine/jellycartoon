@@ -68,6 +68,13 @@
 		</svg>
 	</button>
 
+	<!-- With a mouse, a keyboard is likely: the shortcut, from any page. -->
+	<p class="-mt-6 hidden text-sm text-zinc-500 pointer-fine:block">
+		O mantén <kbd class="rounded border border-zinc-700 px-1">Ctrl</kbd> +
+		<kbd class="rounded border border-zinc-700 px-1">Mayús</kbd> +
+		<kbd class="rounded border border-zinc-700 px-1">Espacio</kbd>, en cualquier página.
+	</p>
+
 	<div class="min-h-24 max-w-xl text-2xl" aria-live="polite">
 		{#if voice.heard}
 			<p class="text-xl text-zinc-400">«{voice.heard}»</p>
