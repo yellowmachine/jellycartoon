@@ -59,20 +59,35 @@
 	});
 
 	/**
-	 * The `<audio>` failed with its own `src` (hls.js handles its own): a station connects again,
-	 * a few times and each a little later; a track only says so.
+	 * The `<audio>` failed with its own `src` (hls.js handles its own): it is tried again, a few
+	 * times and each a little later. A station connects again; a track or an episode is loaded
+	 * again from where it was, e.g. the next track asked for with the phone asleep. Brought back
+	 * from the server and not played yet, it only says so: play loads it again.
 	 */
 	function failed() {
 		if (hls || !audio?.getAttribute('src')) return;
 		clearTimeout(retryTimer);
-		if (!radio)
-			return void (problem = podcast
+		const gaveUp = radio
+			? GAVE_UP
+			: podcast
 				? 'No se pudo reproducir este episodio.'
-				: 'No se pudo reproducir esta canción.');
-		if (tries >= TRIES) return void (problem = GAVE_UP);
+				: 'No se pudo reproducir esta canción.';
+		if (tries >= TRIES || music.restored) return void (problem = gaveUp);
 		tries++;
 		problem = RETRYING;
-		retryTimer = setTimeout(() => music.resume(), retryDelay(tries));
+		retryTimer = setTimeout(retry, retryDelay(tries));
+	}
+
+	function retry() {
+		if (radio) music.resume();
+		else music.retry();
+	}
+
+	/** The connection is back: tried again now, not when its wait ends. */
+	function online() {
+		if (!tries || tries >= TRIES) return;
+		clearTimeout(retryTimer);
+		retry();
 	}
 
 	// Something else on: what was said of the last one goes. By the station's id: connecting it
@@ -237,6 +252,8 @@
 	const primary = `${base} bg-amber-500 text-zinc-950 hover:bg-amber-400`;
 	const ghost = `${base} text-zinc-400 hover:bg-zinc-800 hover:text-white`;
 </script>
+
+<svelte:window ononline={online} />
 
 <audio
 	bind:this={audio}
