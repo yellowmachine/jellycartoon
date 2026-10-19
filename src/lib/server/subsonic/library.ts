@@ -9,6 +9,7 @@ import {
 	trackTitle
 } from '#lib/server/db/schema.ts';
 import { fold } from '#lib/music.ts';
+import { audioType, isOpus } from '#lib/server/music/tags.ts';
 
 /**
  * The music library as Subsonic sees it: artists (the albums' artist), albums and tracks, with the
@@ -208,8 +209,8 @@ export const songJson = (t: Track, a: Album, stars?: Stars) => ({
 	track: t.number ?? undefined,
 	coverArt: a.hasCover ? albumKey(a.id) : undefined,
 	size: t.size,
-	contentType: 'audio/flac',
-	suffix: 'flac',
+	contentType: audioType(t.path),
+	suffix: isOpus(t.path) ? 'opus' : 'flac',
 	duration: t.durationSec ? Math.round(t.durationSec) : undefined,
 	path: t.path,
 	albumId: albumKey(a.id),

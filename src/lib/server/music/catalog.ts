@@ -52,7 +52,9 @@ async function readPending() {
 		try {
 			// Not the worker's: it must not freeze when the conversion queue is paused.
 			const info = await probe(musicFile(next.path), undefined, false);
-			const tags = normalizeTags(info.format.tags);
+			// FLAC keeps its tags in the format; Ogg (Opus) in its audio stream.
+			const audio = info.streams.find((s) => s.codec_type === 'audio');
+			const tags = normalizeTags({ ...audio?.tags, ...info.format.tags });
 			if (!tags.album) {
 				await db
 					.update(track)

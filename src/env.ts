@@ -36,7 +36,7 @@ export const variables = defineEnvVars({
 	},
 	MUSIC_DIR: {
 		description:
-			'Optional read-only directory with music ripped from CDs (FLAC, tagged), one folder per album or disc. Without it there is no Música section.',
+			'Optional read-only directory with music, one folder per album or disc: ripped from CDs (FLAC) or Opus (e.g. from yt-dlp), with album tags. Without it there is no Música section.',
 		schema: (value) => value || undefined
 	},
 	MUSIC_MPV_SOCKET: {

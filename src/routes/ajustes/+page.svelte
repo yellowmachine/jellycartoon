@@ -401,7 +401,7 @@
 					desde la siguiente canción.
 				</p>
 				<div class="flex flex-wrap gap-2">
-					{#each [['original', 'Original (FLAC)'], ['saver', 'Ahorro (Opus)']] as const as [value, label] (value)}
+					{#each [['original', 'Original'], ['saver', 'Ahorro (Opus)']] as const as [value, label] (value)}
 						<button
 							type="button"
 							aria-pressed={mounted && musicQuality.value === value}
@@ -417,10 +417,11 @@
 				</div>
 				<p class="mt-2 text-sm text-zinc-400">
 					{#if mounted && musicQuality.value === 'saver'}
-						Unas cinco veces menos datos y, al oído, igual; para escuchar con datos móviles. Las
-						canciones que aún no están comprimidas suenan en FLAC.
+						Los CD en Opus: unas cinco veces menos datos y, al oído, igual; para escuchar con datos
+						móviles. Los que aún no están comprimidos suenan en FLAC.
 					{:else}
-						Tal cual está en el disco, sin pérdida: unos 25 MB por canción. Para casa.
+						Tal cual está en el disco: los CD en FLAC, sin pérdida (unos 25 MB por canción). Para
+						casa. Lo que ya es Opus suena igual en los dos.
 					{/if}
 				</p>
 			</section>

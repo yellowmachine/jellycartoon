@@ -13,7 +13,7 @@ export const musicProgress = {
 		waiting: number;
 	} | null,
 	lastError: null as string | null,
-	/** FLAC files found so far while scanning. */
+	/** Music files (FLAC, Opus) found so far while scanning. */
 	found: 0,
 	coversDone: 0,
 	coversTotal: 0

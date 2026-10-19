@@ -20,7 +20,8 @@ interface ProbeStream {
 	color_transfer?: string;
 	channels?: number;
 	disposition?: { default?: number; attached_pic?: number; forced?: number };
-	tags?: { language?: string };
+	/** Ogg (Opus) keeps a file's tags here, not in the format's. */
+	tags?: { language?: string } & Record<string, string>;
 }
 
 export interface Probe {
@@ -578,6 +579,36 @@ export async function toOpus(input: string, output: string) {
 		'ogg',
 		output
 	]);
+}
+
+/**
+ * The picture inside a music file (stream `index`, an attached picture) as a 500 px square JPEG,
+ * like the Cover Art Archive's: the middle of it, as YouTube's thumbnails are 16:9. Quick, so not
+ * the worker's.
+ */
+export async function coverImage(input: string, index: number, output: string) {
+	await run(
+		'ffmpeg',
+		[
+			'-hide_banner',
+			'-nostats',
+			'-y',
+			'-i',
+			input,
+			'-map',
+			`0:${index}`,
+			'-frames:v',
+			'1',
+			'-vf',
+			"crop='min(iw,ih)':'min(iw,ih)',scale=500:500",
+			'-q:v',
+			'3',
+			'-f',
+			'image2',
+			output
+		],
+		{ pausable: false }
+	);
 }
 
 /**

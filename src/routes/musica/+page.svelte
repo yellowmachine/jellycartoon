@@ -168,7 +168,7 @@
 	<summary class="cursor-pointer p-3 text-sm">
 		<span class="text-zinc-400">Catálogo:</span>
 		{#if progress.phase === 'scanning'}
-			<span class="text-amber-400">buscando ficheros… {progress.found} FLAC</span>
+			<span class="text-amber-400">buscando ficheros… {progress.found} de música</span>
 		{:else if progress.phase === 'reading' || totals.pending}
 			<span class="text-amber-400">leyendo etiquetas · quedan {totals.pending}</span>
 		{:else if progress.phase === 'covers'}
@@ -227,7 +227,7 @@
 				<br />{totals.notFound} álbumes sin portada en MusicBrainz.
 			{/if}
 			Las descargas (sin etiqueta de álbum, o con el id de YouTube en el nombre) no se catalogan.
-			<br />Cada canción se comprime también en Opus, para escucharla con datos móviles (Ajustes →
+			<br />Cada FLAC se comprime también en Opus, para escucharlo con datos móviles (Ajustes →
 			Calidad de la música).
 		</p>
 		{#if progress.lastError}
@@ -256,8 +256,9 @@
 {#if data.albums.length === 0}
 	{#if !busy}
 		<p class="text-zinc-400">
-			No hay música todavía. Pulsa «Escanear carpeta». Se catalogan los FLAC con etiqueta de álbum,
-			como los ripeados de CD; las descargas de YouTube se dejan fuera.
+			No hay música todavía. Pulsa «Escanear carpeta». Se catalogan los FLAC y Opus con etiqueta de
+			álbum, como los ripeados de CD o lo bajado con yt-dlp guardando las etiquetas; las descargas
+			con el id del vídeo en el nombre se dejan fuera.
 		</p>
 	{/if}
 {:else if results}

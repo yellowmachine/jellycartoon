@@ -11,6 +11,7 @@ import {
 	replacePlaylistTracks
 } from '#lib/server/music/playlists.ts';
 import { clearQueue, getQueue, saveQueue } from '#lib/server/music/queue.ts';
+import { audioType } from '#lib/server/music/tags.ts';
 import { stationsInfo } from '#lib/server/radio.ts';
 import { STATIONS } from '#lib/radio.ts';
 import { ERROR, failed, ok } from './protocol.ts';
@@ -341,12 +342,17 @@ export const METHODS: Record<string, Method> = {
 		if (!album?.hasCover) return new Response('Sin portada', { status: 404 });
 		return fileResponse(request, albumCoverFile(album.id), 'image/jpeg', 'private, max-age=86400');
 	},
-	/** The FLAC as it is, with Range so the app can seek. */
+	/** The file as it is (FLAC or Opus), with Range so the app can seek. */
 	stream: async (params, request) => {
 		const id = parseId(params.get('id'));
 		const track = id?.kind === 'track' ? (await loadLibrary()).tracks.get(id.id) : undefined;
 		if (!track) return new Response('Canción no encontrada', { status: 404 });
-		return fileResponse(request, musicFile(track.path), 'audio/flac', 'private, max-age=86400');
+		return fileResponse(
+			request,
+			musicFile(track.path),
+			audioType(track.path),
+			'private, max-age=86400'
+		);
 	},
 	download: (params, request, user) => METHODS.stream(params, request, user),
 
