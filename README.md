@@ -464,7 +464,8 @@ recorrido en el mapa, y borrar uno o todos.
 
 Fotos (#81): 📷 junto al micrófono del modo carretera, o «haz una foto» por voz, hace una foto con
 la cámara trasera de la tablet (se abre al pedirla y se cierra al hacerla), con su hora y su
-posición, en el viaje que se esté guardando. Se reduce a 1920 px y se sube al momento; sin
+posición, en el viaje que se esté guardando. Se ve unos segundos en una esquina, para saber si ha
+salido bien, con «Guardando…» y luego «✓ Foto guardada». Se reduce a 1920 px y se sube al momento; sin
 cobertura, espera y se sube al volver. El JPEG va a `DATA_DIR/fotos` (entra en la copia de
 seguridad) y sus datos a Postgres. Solo las ve quien las hizo: en `/viajes`, sobre el recorrido de
 cada viaje y en una galería, donde se borran (el fichero también).

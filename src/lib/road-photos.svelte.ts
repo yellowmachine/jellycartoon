@@ -76,44 +76,62 @@ async function frame(): Promise<Blob> {
 	}
 }
 
+/** How long the last photo stays shown once it is known whether it was kept. */
+const SHOWN_MS = 3000;
+
 class RoadPhotos {
 	/** Taking one now. */
 	busy = $state(false);
-	/** What happened with the last one, for a moment: «📷 Foto guardada». */
-	said = $state<string | null>(null);
+	/**
+	 * The last one, for a moment: seen at once, to know whether it came out well (and take another),
+	 * and then whether it was kept. Its image as an object URL.
+	 */
+	last = $state<{ url: string; state: 'sending' | 'saved' | 'waiting' } | null>(null);
+	/** What went wrong, for a moment. */
+	problem = $state<string | null>(null);
 	/** Taken and not sent yet (no signal). */
 	waiting = $state(0);
 
 	#queue: Waiting[] = [];
 	#retry: ReturnType<typeof setInterval> | undefined;
-	#saidTimer: ReturnType<typeof setTimeout> | undefined;
 
-	#say(text: string) {
-		this.said = text;
-		clearTimeout(this.#saidTimer);
-		this.#saidTimer = setTimeout(() => (this.said = null), 4000);
+	/**
+	 * A photo, gone from the screen in a moment (and its image let go), if it is still the one
+	 * shown: another taken meanwhile has its own moment.
+	 */
+	#hideSoon(url: string | null) {
+		setTimeout(() => {
+			if (url) URL.revokeObjectURL(url);
+			if (this.last?.url !== url) return;
+			this.last = null;
+			this.problem = null;
+		}, SHOWN_MS);
 	}
 
 	async take() {
 		if (this.busy) return;
 		this.busy = true;
+		this.problem = null;
+		let url: string | null = null;
 		try {
 			const t = Date.now();
 			const [jpeg, at] = await Promise.all([frame(), position()]);
+			// Seen at once, while it goes up.
+			url = URL.createObjectURL(jpeg);
+			this.last = { url, state: 'sending' };
 			this.#queue.push({ jpeg, t, at });
 			this.waiting = this.#queue.length;
+			this.busy = false;
 			await this.send();
-			this.#say(
-				this.waiting ? '📷 Foto hecha: se guardará al volver la cobertura' : '📷 Foto guardada'
-			);
+			if (this.last?.url === url) this.last.state = this.waiting ? 'waiting' : 'saved';
 		} catch (err) {
-			this.#say(
+			this.problem =
 				err instanceof DOMException && err.name === 'NotAllowedError'
 					? 'Sin permiso para la cámara: dáselo a la página en el navegador.'
-					: 'No se pudo hacer la foto.'
-			);
+					: 'No se pudo hacer la foto.';
 		} finally {
 			this.busy = false;
+			this.#hideSoon(url);
 		}
 	}
 

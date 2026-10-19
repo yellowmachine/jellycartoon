@@ -547,8 +547,8 @@
 					onclick={() => void roadPhotos.take()}>{roadPhotos.busy ? '…' : '📷'}</button
 				>
 			</div>
-			{#if roadPhotos.said}
-				<p class="text-lg text-emerald-300" aria-live="polite">{roadPhotos.said}</p>
+			{#if roadPhotos.problem}
+				<p class="text-lg text-amber-300" aria-live="polite">{roadPhotos.problem}</p>
 			{/if}
 			<p class="min-h-7 text-center text-xl" aria-live="polite">
 				{#if voice.phase === 'listening'}
@@ -802,6 +802,36 @@
 		</section>
 	</div>
 </div>
+
+{#if roadPhotos.last}
+	<!-- The photo just taken, for a moment: whether it came out well, and whether it was kept. -->
+	<figure
+		class="fixed right-4 bottom-4 z-40 w-72 overflow-hidden rounded-2xl border-2 border-white/20 bg-zinc-900 shadow-2xl"
+		aria-live="polite"
+	>
+		<img
+			src={roadPhotos.last.url}
+			alt="La foto que acabas de hacer"
+			class="aspect-video w-full object-cover"
+		/>
+		<figcaption
+			class={[
+				'px-3 py-2 text-lg font-semibold',
+				roadPhotos.last.state === 'saved'
+					? 'bg-emerald-600 text-white'
+					: roadPhotos.last.state === 'waiting'
+						? 'bg-amber-600 text-white'
+						: 'text-zinc-300'
+			]}
+		>
+			{roadPhotos.last.state === 'saved'
+				? '✓ Foto guardada'
+				: roadPhotos.last.state === 'waiting'
+					? 'Sin cobertura: se guardará al volver'
+					: 'Guardando…'}
+		</figcaption>
+	</figure>
+{/if}
 
 <!-- The sound plays through MusicBar's <audio>; its bar is for the rest of the app. -->
 <div class="hidden"><MusicBar /></div>
