@@ -14,6 +14,7 @@
 	import { STATIONS, type RadioStation } from '#lib/radio.ts';
 	import { keepScreenOn } from '#lib/screen-on.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
+	import { distanceText, type LngLat, type Place, type Route } from '#lib/road.ts';
 	import type { PageProps } from './$types';
 
 	/**
@@ -24,7 +25,7 @@
 
 	let { data }: PageProps = $props();
 
-	type Tab = 'radio' | 'listas' | 'podcasts';
+	type Tab = 'radio' | 'listas' | 'podcasts' | 'ruta';
 	let tab = $state<Tab>('radio');
 	let loading = $state<string | null>(null);
 	let problem = $state<string | null>(null);
@@ -120,11 +121,78 @@
 		(a, b) => Number(b.language === 'es') - Number(a.language === 'es')
 	);
 
-	const TABS: { id: Tab; label: string }[] = [
+	const TABS: { id: Tab; label: string }[] = $derived([
 		{ id: 'radio', label: 'Radio' },
 		{ id: 'listas', label: 'Listas' },
-		{ id: 'podcasts', label: 'Podcasts' }
-	];
+		{ id: 'podcasts', label: 'Podcasts' },
+		// Only with the map beside, where the route is drawn.
+		...(mapShown ? [{ id: 'ruta' as const, label: 'Ruta' }] : [])
+	]);
+
+	/**
+	 * The route (phase 3b): the destination searched by its name, and the way there by car with its
+	 * steps, from openrouteservice through the server (/carretera/buscar, /carretera/ruta).
+	 */
+	let here = $state<LngLat | null>(null);
+	let query = $state('');
+	let places = $state<Place[] | null>(null);
+	let route = $state<Route | null>(null);
+	let destination = $state<Place | null>(null);
+	let routeProblem = $state<string | null>(null);
+	let routeBusy = $state<'search' | 'route' | null>(null);
+
+	async function search(e: SubmitEvent) {
+		e.preventDefault();
+		if (!query.trim()) return;
+		routeBusy = 'search';
+		routeProblem = null;
+		const params = new URLSearchParams({ q: query.trim() });
+		if (here) {
+			params.set('lon', String(here[0]));
+			params.set('lat', String(here[1]));
+		}
+		const res = await fetch(`/carretera/buscar?${params}`).catch(() => null);
+		const body = await res?.json().catch(() => null);
+		routeBusy = null;
+		if (!res?.ok) return void (routeProblem = body?.message ?? 'Sin conexión');
+		places = body;
+	}
+
+	async function go(place: Place) {
+		if (!here) return void (routeProblem = 'Esperando a saber dónde estás (el GPS)…');
+		routeBusy = 'route';
+		routeProblem = null;
+		const res = await fetch('/carretera/ruta', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ from: here, to: place.at })
+		}).catch(() => null);
+		const body = await res?.json().catch(() => null);
+		routeBusy = null;
+		if (!res?.ok) return void (routeProblem = body?.message ?? 'Sin conexión');
+		route = body;
+		destination = place;
+		places = null;
+	}
+
+	function clearRoute() {
+		route = null;
+		destination = null;
+		places = null;
+		query = '';
+	}
+
+	// The map hidden with the route open: back to the stations.
+	$effect(() => {
+		if (!mapShown && tab === 'ruta') tab = 'radio';
+	});
+
+	const clock = new Intl.DateTimeFormat('es', { timeStyle: 'short' });
+	/** «1 h 25 min», «12 min». */
+	function durationText(seconds: number) {
+		const minutes = Math.round(seconds / 60);
+		return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`;
+	}
 
 	const big =
 		'flex shrink-0 items-center justify-center rounded-2xl bg-zinc-800 text-zinc-100 active:scale-95 active:bg-zinc-700 disabled:opacity-40';
@@ -140,7 +208,7 @@
 	class={['bg-zinc-950 text-zinc-100 select-none', mapShown && 'grid h-dvh grid-cols-2 gap-4 p-4']}
 >
 	{#if mapShown}
-		<RoadMap />
+		<RoadMap {route} destination={destination?.at ?? null} onposition={(at) => (here = at)} />
 	{/if}
 	<div class={['flex flex-col gap-4', mapShown ? 'min-h-0 overflow-y-auto' : 'min-h-dvh p-4']}>
 		<div class="flex items-center justify-between gap-3">
@@ -290,7 +358,7 @@
 
 		<!-- One touch to put something on. -->
 		<section class="flex min-h-0 flex-1 flex-col gap-3">
-			<div class="grid grid-cols-3 gap-2" role="tablist">
+			<div class="grid auto-cols-fr grid-flow-col gap-2" role="tablist">
 				{#each TABS as t (t.id)}
 					<button
 						role="tab"
@@ -305,7 +373,72 @@
 			</div>
 
 			<div class="grid grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2" role="tabpanel">
-				{#if tab === 'radio'}
+				{#if tab === 'ruta'}
+					<div class="flex flex-col gap-3 sm:col-span-2">
+						{#if route && destination}
+							<div class="rounded-2xl bg-zinc-900 p-4">
+								<p class="truncate text-xl font-semibold">{destination.label}</p>
+								<p class="text-lg text-zinc-300">
+									{distanceText(route.distance)} · {durationText(route.duration)} · llegada a las
+									{clock.format(Date.now() + route.duration * 1000)}
+								</p>
+								<button
+									class="mt-3 rounded-xl bg-zinc-800 px-5 py-3 text-lg active:bg-zinc-700"
+									onclick={clearRoute}>Quitar ruta</button
+								>
+							</div>
+							<ol class="flex flex-col gap-2">
+								{#each route.steps as step, i (i)}
+									<li class="flex items-baseline gap-3 rounded-xl bg-zinc-900 px-4 py-3 text-lg">
+										<span class="min-w-0 flex-1">{step.instruction}</span>
+										{#if step.distance}
+											<span class="shrink-0 text-base text-zinc-400"
+												>{distanceText(step.distance)}</span
+											>
+										{/if}
+									</li>
+								{/each}
+							</ol>
+						{:else}
+							<form class="flex gap-2" onsubmit={search}>
+								<input
+									bind:value={query}
+									type="search"
+									enterkeyhint="search"
+									placeholder="¿A dónde vas?"
+									aria-label="Destino"
+									class="min-w-0 flex-1 rounded-xl border-zinc-700 bg-zinc-900 px-4 py-3 text-xl"
+								/>
+								<button
+									class="rounded-xl bg-amber-500 px-5 text-xl font-semibold text-zinc-950 disabled:opacity-50"
+									disabled={routeBusy !== null}
+									>{routeBusy === 'search' ? 'Buscando…' : 'Buscar'}</button
+								>
+							</form>
+							{#if !here}
+								<p class="text-lg text-zinc-400">Esperando a saber dónde estás (el GPS)…</p>
+							{/if}
+							{#each places ?? [] as place (place.label)}
+								<button
+									class="{tile} border-white/10 bg-zinc-900"
+									disabled={routeBusy !== null}
+									onclick={() => go(place)}
+								>
+									<span class="min-w-0 text-xl"
+										>{routeBusy === 'route' ? 'Calculando la ruta…' : place.label}</span
+									>
+								</button>
+							{:else}
+								{#if places}
+									<p class="text-lg text-zinc-400">No he encontrado ese sitio.</p>
+								{/if}
+							{/each}
+						{/if}
+						{#if routeProblem}
+							<p class="rounded-xl bg-red-950 p-3 text-red-200">{routeProblem}</p>
+						{/if}
+					</div>
+				{:else if tab === 'radio'}
 					{#each stations as station (station.uuid)}
 						{@const favicon = data.info?.[station.uuid]?.favicon}
 						{@const on = music.radio?.uuid === station.uuid}

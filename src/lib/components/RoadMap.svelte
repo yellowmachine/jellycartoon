@@ -3,7 +3,8 @@
 	// MapLibre's worker, bundled with what it imports, as Vite does workers:
 	// https://vite.dev/guide/features.html#import-with-query-suffixes
 	import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-	import type { Map as MapLibreMap, Marker } from 'maplibre-gl';
+	import type { GeoJSONSource, Map as MapLibreMap, Marker } from 'maplibre-gl';
+	import type { LngLat, Route } from '#lib/road.ts';
 
 	/**
 	 * The road mode's map (#78, phase 3a): Spain's map served by the app itself (DATA_DIR/mapa, see
@@ -12,6 +13,18 @@
 	 * «Recentrar».
 	 */
 
+	let {
+		route = null,
+		destination = null,
+		onposition
+	}: {
+		/** Drawn, and the map fitted to it when it is new (phase 3b). */
+		route?: Route | null;
+		destination?: LngLat | null;
+		/** Each position the GPS gives, for the route to start from it. */
+		onposition?: (at: LngLat) => void;
+	} = $props();
+
 	/** Moving faster than this (m/s, ~11 km/h), the heading is the way we go; slower, it jumps. */
 	const HEADING_SPEED = 3;
 	const FOLLOW_ZOOM = 16;
@@ -19,8 +32,9 @@
 	let container = $state<HTMLDivElement>();
 	let map: MapLibreMap | null = null;
 	let me: Marker | null = null;
-	/** The map exists: what places the arrow waits for it. */
+	/** The map exists, its style loaded: what places the arrow and the route waits for it. */
 	let ready = $state(false);
+	let flag: Marker | null = null;
 	let following = $state(true);
 	/** The last one the GPS gave, as plain values (a GeolocationPosition's are getters). */
 	let position = $state<{
@@ -87,7 +101,30 @@
 			arrow.className = 'road-map-me';
 			arrow.setAttribute('aria-label', 'Estás aquí');
 			me = new maplibregl.Marker({ element: arrow, rotationAlignment: 'map' });
-			ready = true;
+			flag = new maplibregl.Marker({ color: '#f59e0b' });
+			created.on('load', () => {
+				// The route, under the arrow; its data comes with each new route.
+				created.addSource('ruta', {
+					type: 'geojson',
+					data: { type: 'FeatureCollection', features: [] },
+					attribution: '© <a href="https://openrouteservice.org">openrouteservice.org</a> by HeiGIT'
+				});
+				created.addLayer({
+					id: 'ruta-borde',
+					type: 'line',
+					source: 'ruta',
+					layout: { 'line-join': 'round', 'line-cap': 'round' },
+					paint: { 'line-color': '#78350f', 'line-width': 11 }
+				});
+				created.addLayer({
+					id: 'ruta',
+					type: 'line',
+					source: 'ruta',
+					layout: { 'line-join': 'round', 'line-cap': 'round' },
+					paint: { 'line-color': '#f59e0b', 'line-width': 7 }
+				});
+				ready = true;
+			});
 		})();
 		return () => {
 			cancelled = true;
@@ -95,6 +132,7 @@
 			map?.remove();
 			map = null;
 			me = null;
+			flag = null;
 			removeProtocol();
 		};
 	});
@@ -110,6 +148,7 @@
 				const { latitude, longitude, heading, speed } = coords;
 				position = { latitude, longitude, heading, speed };
 				problem = null;
+				onposition?.([longitude, latitude]);
 			},
 			(err) => {
 				problem =
@@ -138,6 +177,34 @@
 			bearing: moving ? heading! : map.getBearing(),
 			duration: 1000
 		});
+	});
+
+	// A new route: drawn, with its flag, and the whole of it in view (following stops until
+	// «Recentrar»); none, gone.
+	$effect(() => {
+		const line = route?.line;
+		const to = destination;
+		if (!ready || !map || !flag) return;
+		const source = map.getSource<GeoJSONSource>('ruta');
+		source?.setData({
+			type: 'FeatureCollection',
+			features: line
+				? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: line } }]
+				: []
+		});
+		if (to) flag.setLngLat(to).addTo(map);
+		else flag.remove();
+		if (!line?.length) return;
+		const lons = line.map((p) => p[0]);
+		const lats = line.map((p) => p[1]);
+		following = false;
+		map.fitBounds(
+			[
+				[Math.min(...lons), Math.min(...lats)],
+				[Math.max(...lons), Math.max(...lats)]
+			],
+			{ padding: 60, bearing: 0, duration: 1000 }
+		);
 	});
 
 	function recenter() {

@@ -428,7 +428,15 @@ scripts/mapa.sh /ruta/a/los/convertidos --bbox=-4.06,39.84,-3.98,39.88   # solo 
 
 Solo baja los trozos de esa zona, no el planeta, y cambia el mapa cuando está entero: el de antes
 sigue funcionando mientras tanto. Sin ese fichero, el modo carretera va como siempre, sin mapa.
-Las rutas y los pasos (openrouteservice) son la siguiente fase (#78).
+
+Con el mapa, la pestaña «Ruta» busca el destino por su nombre o dirección y traza la ruta en coche
+desde donde estás, con [openrouteservice](https://openrouteservice.org): la línea en el mapa, la
+distancia, el tiempo, la hora de llegada y la lista de pasos en español. Su clave (gratis) va en
+Ajustes → Casa → «Rutas del modo carretera», o en el `.env` como `OPENROUTESERVICE_API_KEY` (manda
+esta), y no sale del servidor. Allí también se puede poner la dirección de un openrouteservice
+propio (Docker), para las rutas; buscar sitios sigue siendo el suyo. Su plan gratuito permite unas
+2.000 rutas y 1.000 búsquedas al día. El guiado paso a paso según avanzas y la voz son las
+siguientes fases (#78).
 
 ### Voz
 

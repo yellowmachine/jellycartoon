@@ -1,5 +1,5 @@
 import { asc, eq } from 'drizzle-orm';
-import { OPENROUTER_API_KEY, OPENROUTER_MODEL } from '$app/env/private';
+import { OPENROUTER_API_KEY, OPENROUTER_MODEL, OPENROUTESERVICE_API_KEY } from '$app/env/private';
 import { db } from '#lib/server/db/index.ts';
 import { appSetting, user } from '#lib/server/db/schema.ts';
 
@@ -31,7 +31,9 @@ type Key =
 	| 'subtitles_paused'
 	| 'last_scan_series'
 	| 'last_scan_films'
-	| 'auto_subtitle_langs';
+	| 'auto_subtitle_langs'
+	| 'ors_api_key'
+	| 'ors_url';
 
 async function get(key: Key) {
 	const [row] = await db
@@ -65,6 +67,22 @@ export async function openRouterConfig() {
 }
 
 /** The conversations about films: their model, and whether the AI may search the web. */
+/** openrouteservice's own, with the free key; a self-hosted one (Docker) goes in Ajustes. */
+export const DEFAULT_ORS_URL = 'https://api.openrouteservice.org';
+
+/**
+ * The road mode's routes (#78): openrouteservice's key and address. The key in .env wins over the
+ * one in Ajustes, as with OpenRouter.
+ */
+export async function orsConfig() {
+	const [panelKey, url] = await Promise.all([get('ors_api_key'), get('ors_url')]);
+	return {
+		apiKey: OPENROUTESERVICE_API_KEY ?? panelKey,
+		keySource: OPENROUTESERVICE_API_KEY ? ('env' as const) : panelKey ? ('panel' as const) : null,
+		url: url ?? DEFAULT_ORS_URL
+	};
+}
+
 export async function chatConfig() {
 	const [{ apiKey }, model, web] = await Promise.all([
 		openRouterConfig(),
