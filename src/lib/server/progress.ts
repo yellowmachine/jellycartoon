@@ -11,7 +11,8 @@ import { today } from '#lib/server/playlist.ts';
 
 /**
  * A watched episode has its position reset to 0: the next visit starts over. Playing it brings it
- * back to «Seguir viendo» if it had been taken out.
+ * back to «Seguir viendo» if it had been taken out. Once watched it stays so (#87): watching it again
+ * keeps where it goes, not undoing it.
  */
 export async function saveProgress(
 	userId: string,
@@ -30,7 +31,10 @@ export async function saveProgress(
 	await db
 		.insert(watchProgress)
 		.values(values)
-		.onConflictDoUpdate({ target: [watchProgress.userId, watchProgress.episodeId], set: values });
+		.onConflictDoUpdate({
+			target: [watchProgress.userId, watchProgress.episodeId],
+			set: { ...values, completed: sql`${watchProgress.completed} or excluded.completed` }
+		});
 	if (completed) await tickOff(userId, [episodeId]);
 }
 
