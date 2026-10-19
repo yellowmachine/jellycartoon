@@ -1,0 +1,11 @@
+# GREVA G20S Pro (receptor USB «HAOBO Technology» 4842:0001): las teclas del mando que Chromium no
+# recibe, como otras que sí recibe. Solo este mando. Formato: /usr/lib/udev/hwdb.d/60-keyboard.hwdb
+#   OK          KEY_SELECT (no llega)        → Enter: entra en lo que tiene el foco
+#   Play/Pausa  KEY_PLAYPAUSE ("Unidentified") → F8
+#   Micrófono   KEY_VOICECOMMAND (no llega)  → F9
+#   Inicio      KEY_HOMEPAGE (saca de la app) → F7
+evdev:input:b0003v4842p0001*
+ KEYBOARD_KEY_c0041=enter
+ KEYBOARD_KEY_c00cd=f8
+ KEYBOARD_KEY_c00cf=f9
+ KEYBOARD_KEY_c0223=f7

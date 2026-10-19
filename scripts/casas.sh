@@ -17,41 +17,8 @@
 # for a password): the user needs one of the two.
 set -euo pipefail
 
-config=${JELLYCARTOON_CASAS:-$HOME/.config/jellycartoon/casas}
-
-# name, ssh destination and compose project of every house, one per line.
-houses=()
-if [[ -f $config ]]; then
-	while read -r name dest project _; do
-		[[ -z $name || $name == \#* ]] && continue
-		houses+=("$name $dest ${project:-jellycartoon}")
-	done <"$config"
-fi
-
-selected=()
-if [[ $# -eq 0 ]]; then
-	selected=("${houses[@]}")
-	[[ ${#selected[@]} -gt 0 ]] || {
-		echo "No hay casas: créalas en $config (mira el principio de $0)" >&2
-		exit 1
-	}
-else
-	for arg in "$@"; do
-		if [[ $arg == *=* ]]; then
-			selected+=("${arg%%=*} ${arg#*=} jellycartoon")
-			continue
-		fi
-		found=
-		for house in "${houses[@]}"; do
-			[[ ${house%% *} == "$arg" ]] && found=$house
-		done
-		[[ -n $found ]] || {
-			echo "No conozco la casa «$arg» (mira $config)" >&2
-			exit 1
-		}
-		selected+=("$found")
-	done
-fi
+source "$(dirname "$0")/lib/casas.sh"
+select_houses "$@"
 
 # What runs in each house: bash, whatever the user's shell is (fish in the living room).
 read -r -d '' remote <<'EOF' || true

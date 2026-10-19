@@ -10,6 +10,8 @@ export interface MpvMessage {
 	reason?: string;
 	/** With `end-file` and reason `error`, e.g. «loading failed». */
 	file_error?: string;
+	/** With `client-message`: what `script-message` sent. */
+	args?: string[];
 }
 
 interface Handlers {

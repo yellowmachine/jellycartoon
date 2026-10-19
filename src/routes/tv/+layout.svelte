@@ -2,6 +2,7 @@
 	import { afterNavigate, goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import MusicBar from '#lib/components/MusicBar.svelte';
+	import TvDebug from '#lib/components/TvDebug.svelte';
 	import TvSalonFailed from '#lib/components/TvSalonFailed.svelte';
 	import TvVoice from '#lib/components/TvVoice.svelte';
 	import { music } from '#lib/music-player.svelte.ts';
@@ -37,6 +38,16 @@
 		}
 	}
 
+	/**
+	 * What gets the focus, in the middle of the screen. Chromium's spatial navigation only moves to
+	 * what is in view: with the next row below the screen, an arrow press scrolled the page and
+	 * only the next one moved the focus.
+	 */
+	function centerFocus(e: FocusEvent) {
+		if (e.target instanceof HTMLElement && main?.contains(e.target))
+			e.target.scrollIntoView({ block: 'center' });
+	}
+
 	// The remote needs something with the focus to start from: the first tile, or the one the page
 	// marks.
 	afterNavigate(() =>
@@ -55,6 +66,7 @@
 
 <!-- Back from mpv (the window gets the focus again): what was watched moved on. -->
 <svelte:window onfocus={() => invalidateAll()} onkeydown={remoteKey} />
+<svelte:document onfocusin={centerFocus} />
 
 <main bind:this={main} class="min-h-screen px-12 py-10 text-2xl">
 	{@render children()}
@@ -65,8 +77,10 @@
 {/if}
 
 {#if page.data.voice}
-	<TvVoice />
+	<TvVoice {salon} />
 {/if}
+
+<TvDebug />
 
 <!-- The music sounds through its <audio>; its bar is for the whole app, not for the TV. -->
 <div class="hidden"><MusicBar /></div>

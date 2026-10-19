@@ -8,6 +8,8 @@ import {
 	isOpus,
 	normalizeTags,
 	searchTitles,
+	albumOfDisc,
+	discNumber,
 	titlesMatch,
 	trackNumber
 } from './tags.ts';
@@ -115,4 +117,28 @@ test('titlesMatch: the same album with other words around, not another one', () 
 	).toBe(true);
 	expect(titlesMatch('Héroes del Silencio', 'Heroes del silencio')).toBe(true);
 	expect(titlesMatch('Del Rosa Al Amarillo', 'Historia del bikini')).toBe(false);
+});
+
+test('albumOfDisc: the album of each disc, by its title', () => {
+	expect(albumOfDisc('Sus 50 Mejores Canciones CD 1')).toBe('sus 50 mejores canciones');
+	expect(albumOfDisc('Sus 50 mejores canciones CD 3')).toBe('sus 50 mejores canciones');
+	expect(albumOfDisc('True Colors: The Best Of Cyndi Lauper CD1')).toBe(
+		'true colors: the best of cyndi lauper'
+	);
+	expect(albumOfDisc('Del Rosa Al Amarillo - CD 2')).toBe('del rosa al amarillo');
+	expect(albumOfDisc('En Directo Gira 1995 disco 2')).toBe('en directo gira 1995');
+	expect(albumOfDisc("Live - 2 CD Collector's Edition - CD 1 -")).toBe(
+		"live - 2 cd collector's edition"
+	);
+	expect(albumOfDisc('Greatest Hits I (CD1)')).toBe('greatest hits i');
+	expect(albumOfDisc('Blade Runner')).toBeNull();
+	expect(albumOfDisc('U2 - The Joshua Tree')).toBeNull();
+});
+
+test('discNumber: the disc of each title', () => {
+	expect(discNumber('Sus 50 Mejores Canciones CD 3')).toBe(3);
+	expect(discNumber('True Colors: The Best Of Cyndi Lauper CD1')).toBe(1);
+	expect(discNumber('En Directo Gira 1995 disco 2')).toBe(2);
+	expect(discNumber('Greatest Hits I (CD1)')).toBe(1);
+	expect(discNumber('Blade Runner')).toBeNull();
 });

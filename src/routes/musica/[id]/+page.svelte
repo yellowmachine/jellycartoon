@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import AddToPlaylist from '#lib/components/AddToPlaylist.svelte';
 	import AlbumCover from '#lib/components/AlbumCover.svelte';
 	import MusicTargetSwitch from '#lib/components/MusicTargetSwitch.svelte';
@@ -9,7 +10,7 @@
 	import { musicTarget } from '#lib/music-target.svelte.ts';
 	import type { PageProps } from './$types';
 
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 
 	const album = $derived(data.album);
 	/** Only where Snapcast is set up; elsewhere, always this device. */
@@ -17,6 +18,14 @@
 	/** What is being renamed: the album, its artist, a track id, or nothing. */
 	let editing = $state<'album' | 'artist' | number | null>(null);
 	const totalSec = $derived(album.tracks.reduce((sum, t) => sum + (t.durationSec ?? 0), 0));
+	/** Asking the AI and MusicBrainz for covers, or saving the chosen one. */
+	let coverBusy = $state<'search' | 'choose' | null>(null);
+	const proposals = $derived(form && 'proposals' in form ? (form.proposals ?? null) : null);
+	/** Saved: the other discs of the album that got it too. */
+	const alsoFor = $derived(form && 'alsoFor' in form ? (form.alsoFor ?? null) : null);
+	const renamed = $derived(form && 'renamed' in form && form.renamed);
+	/** The album takes the chosen edition's name too: «… CD1» of «Lauper, Cyndi» is dirty. */
+	let rename = $state(true);
 </script>
 
 <svelte:head>
@@ -90,6 +99,86 @@
 		</div>
 	</div>
 </div>
+
+{#if !data.kid && (!album.hasCover || form)}
+	<section class="mb-6">
+		{#if form && 'message' in form}
+			<p class="mb-2 text-sm text-red-300">{form.message}</p>
+		{/if}
+		{#if alsoFor}
+			<p class="text-sm text-emerald-300">
+				{renamed ? 'Carátula y nombre puestos' : 'Carátula puesta'}{alsoFor.length
+					? `, también en ${alsoFor.join(', ')}`
+					: ''}.
+			</p>
+		{:else if proposals}
+			{#if proposals.length}
+				<p class="mb-2 text-sm text-zinc-400">Elige la carátula:</p>
+				<label class="mb-3 flex items-center gap-2 text-sm text-zinc-300">
+					<input type="checkbox" bind:checked={rename} class="accent-amber-500" />
+					Poner también su nombre (se conserva el número de disco)
+				</label>
+				<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+					{#each proposals as p (p.releaseGroupId)}
+						<form
+							method="post"
+							action="?/chooseCover"
+							use:enhance={() => {
+								coverBusy = 'choose';
+								return async ({ update }) => {
+									await update();
+									coverBusy = null;
+								};
+							}}
+						>
+							<input type="hidden" name="releaseGroupId" value={p.releaseGroupId} />
+							{#if rename}
+								<input type="hidden" name="rename" value="1" />
+								<input type="hidden" name="title" value={p.title} />
+								<input type="hidden" name="artist" value={p.artist} />
+							{/if}
+							<button
+								class="w-full rounded-md p-1 text-left hover:bg-zinc-900 disabled:opacity-50"
+								disabled={coverBusy !== null}
+							>
+								<img
+									src={p.thumbUrl}
+									alt=""
+									class="aspect-square w-full rounded bg-zinc-800 object-cover"
+								/>
+								<span class="mt-1 block truncate text-sm">{p.title}</span>
+								<span class="block truncate text-xs text-zinc-400"
+									>{[p.artist, p.year].filter(Boolean).join(' · ')}</span
+								>
+							</button>
+						</form>
+					{/each}
+				</div>
+			{:else}
+				<p class="text-sm text-zinc-400">No he encontrado carátulas para este álbum.</p>
+			{/if}
+		{:else if !album.hasCover}
+			<form
+				method="post"
+				action="?/proposeCovers"
+				use:enhance={() => {
+					coverBusy = 'search';
+					return async ({ update }) => {
+						// The proposals stay: nothing on the page changed.
+						await update({ invalidateAll: false });
+						coverBusy = null;
+					};
+				}}
+			>
+				<button
+					class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900 disabled:opacity-50"
+					disabled={coverBusy !== null}
+					>{coverBusy === 'search' ? 'Buscando carátulas…' : 'Buscar carátula'}</button
+				>
+			</form>
+		{/if}
+	</section>
+{/if}
 
 {#if data.snapcast}
 	<div class="mb-4"><MusicTargetSwitch /></div>
