@@ -397,6 +397,21 @@ para acostumbrar el oído a otros idiomas. La lista está elegida a mano en `src
   de RTVE); el ya resuelto, solo si el enlace es un fichero de lista (`.pls`, `.m3u`).
 - Para añadir una emisora: buscar su `stationuuid` en radio-browser.info y añadirla a la lista.
 
+### Modo carretera
+
+Para una tablet fija junto al volante, en horizontal y con la pantalla partida de Android: a un
+lado el navegador (Google Maps u Organic Maps, que hacen la navegación y el tráfico), al otro
+`/carretera` («Modo carretera» en Música y en Radio). Solo sonido, y nunca vídeo:
+
+- Lo que suena en grande, con botones enormes (anterior, pausa y siguiente; en un podcast, −15 y
+  +30 s), y un micrófono gigante, como el de la cocina.
+- Debajo, un toque para poner algo: las emisoras (las españolas primero), las listas de música y
+  los podcasts (los empezados, y lo último de cada uno).
+- La voz sabe que va en el coche: respuestas muy cortas, solo aquí (no en los altavoces de
+  Snapcast), y sin vídeo, cocina ni recetas; aunque pidiera un capítulo, no se abre.
+- La pantalla no se apaga mientras está abierto (Wake Lock), y «Ahorro de datos» pone la música en
+  Opus, para los datos móviles hasta casa (Tailscale).
+
 ### Voz
 
 Órdenes habladas desde el móvil (#33), pensadas para personas mayores: en `/voz`, un botón grande

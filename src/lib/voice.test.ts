@@ -2,6 +2,11 @@ import { describe, expect, test } from 'bun:test';
 import { HISTORY_TURNS, parseVoiceRequest } from './voice.ts';
 
 describe('parseVoiceRequest', () => {
+	test('in the road mode, only when it says so', () => {
+		expect(parseVoiceRequest({ text: 'Pon la radio', car: true })?.car).toBe(true);
+		expect(parseVoiceRequest({ text: 'Pon la radio', car: 'sí' })?.car).toBe(false);
+	});
+
 	test('what was said, what sounds here and the turns before', () => {
 		expect(
 			parseVoiceRequest({
@@ -21,7 +26,8 @@ describe('parseVoiceRequest', () => {
 				{ role: 'assistant', content: 'Pongo la BBC aquí' }
 			],
 			timers: [],
-			recipe: null
+			recipe: null,
+			car: false
 		});
 	});
 
@@ -32,7 +38,8 @@ describe('parseVoiceRequest', () => {
 			video: null,
 			history: [],
 			timers: [],
-			recipe: null
+			recipe: null,
+			car: false
 		});
 	});
 
