@@ -27,8 +27,19 @@ describe('sanitizeSubtitleStyle', () => {
 	});
 });
 
+test('every preset is made of known choices, and each is different', () => {
+	for (const { style } of SUBTITLE_PRESETS)
+		expect(sanitizeSubtitleStyle({ ...style, position: 'bottom' })).toEqual({
+			...style,
+			position: 'bottom'
+		});
+	expect(new Set(SUBTITLE_PRESETS.map((p) => JSON.stringify(p.style))).size).toBe(
+		SUBTITLE_PRESETS.length
+	);
+});
+
 test('a preset keeps where they go', () => {
-	expect('position' in SUBTITLE_PRESETS[0]!.style).toBe(false);
+	for (const preset of SUBTITLE_PRESETS) expect('position' in preset.style).toBe(false);
 	expect(subtitleCss({ ...DEFAULT_SUBTITLE_STYLE, position: 'raised' }).line).toBe('88');
 	expect(subtitleCss(DEFAULT_SUBTITLE_STYLE).line).toBe('auto');
 });
