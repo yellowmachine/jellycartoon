@@ -321,6 +321,9 @@ sección Música; en desarrollo se usa `MUSIC_DIR`.
   sonando al cambiar de página, y se controla también desde la pantalla de bloqueo del móvil y los
   botones de los auriculares ([Media Session](https://developer.mozilla.org/docs/Web/API/Media_Session_API)).
 - Entre canción y canción hay un pequeño silencio (el navegador no hace «gapless»).
+- «+ Añadir a la cola» en un álbum lo pone detrás de lo que suena, sin cortarlo. El botón de la
+  cola (☰ con ▶︎) en la barra de abajo la abre: lo que suena, lo que viene y, en gris, lo que ya
+  sonó; tocar una canción salta a ella y ✕ la quita. En el navegador, no en Snapcast todavía.
 - Listas: en la pestaña «Listas» de Música se crean, renombran y borran listas de canciones,
   compartidas por toda la casa. El «+» de cada canción (en los álbumes y en el buscador) la añade a
   una lista, o a una nueva; una canción puede estar más de una vez. Dentro de la lista se ordena

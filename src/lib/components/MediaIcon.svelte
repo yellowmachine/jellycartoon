@@ -1,6 +1,15 @@
 <script lang="ts" module>
 	export type MediaIconName =
-		'play' | 'pause' | 'previous' | 'next' | 'stop' | 'close' | 'shuffle' | 'repeat' | 'single';
+		| 'play'
+		| 'pause'
+		| 'previous'
+		| 'next'
+		| 'stop'
+		| 'close'
+		| 'shuffle'
+		| 'repeat'
+		| 'single'
+		| 'queue';
 </script>
 
 <script lang="ts">
@@ -65,5 +74,15 @@
 			d="M4 6.2v11.6a1 1 0 0 0 1.55.83l7.85-5.43a1.5 1.5 0 0 0 0-2.4L5.55 5.37A1 1 0 0 0 4 6.2Z"
 		/>
 		<rect x="15.5" y="5" width="4.5" height="14" rx="1" />
+	{:else if name === 'queue'}
+		<!-- A list, with what plays now at the top. -->
+		<path d="M4 6.5l5 3-5 3Z" />
+		<path
+			d="M12 9.5h8M4 16.5h16M4 20.5h16"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="2"
+			stroke-linecap="round"
+		/>
 	{/if}
 </svg>

@@ -132,6 +132,25 @@ class MusicPlayer {
 		this.#ordered = [...this.#ordered, ...tracks];
 	}
 
+	/** That one of the queue, now; the one on, played if it was paused. */
+	jumpTo(i: number) {
+		if (i < 0 || i >= this.queue.length) return;
+		this.restored = null;
+		if (i === this.index) return this.resume();
+		this.index = i;
+	}
+
+	/** Out of the queue; not the one on, which «siguiente» or ✕ are for. */
+	remove(i: number) {
+		const track = this.queue[i];
+		if (!track || i === this.index) return;
+		this.queue = this.queue.filter((_, j) => j !== i);
+		// Shuffled, the same track in its own order; otherwise both orders are the same.
+		const k = this.shuffle ? this.#ordered.findIndex((t) => t.id === track.id) : i;
+		if (k >= 0) this.#ordered = this.#ordered.filter((_, j) => j !== k);
+		if (i < this.index) this.index--;
+	}
+
 	toggle() {
 		if (!this.#audio) return;
 		if (!this.#audio.paused) this.#audio.pause();
