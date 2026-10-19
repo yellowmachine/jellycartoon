@@ -435,8 +435,14 @@ distancia, el tiempo, la hora de llegada y la lista de pasos en español. Su cla
 Ajustes → Casa → «Rutas del modo carretera», o en el `.env` como `OPENROUTESERVICE_API_KEY` (manda
 esta), y no sale del servidor. Allí también se puede poner la dirección de un openrouteservice
 propio (Docker), para las rutas; buscar sitios sigue siendo el suyo. Su plan gratuito permite unas
-2.000 rutas y 1.000 búsquedas al día. El guiado paso a paso según avanzas y la voz son las
-siguientes fases (#78).
+2.000 rutas y 1.000 búsquedas al día.
+
+Con la ruta puesta, guía según avanzas: arriba del mapa, en grande, la próxima maniobra con su
+flecha y a cuántos metros; en la lista, el paso que toca, resaltado; y lo que queda y la hora de
+llegada, al día. Al elegir el destino se ve la ruta entera unos segundos y luego el mapa vuelve a
+seguirte. Si te sales más de 50 m durante unas posiciones, recalcula desde donde estés (como mucho
+una vez cada 20 s, por la cuota). Al llegar, «Has llegado». Leer los pasos en voz alta es la
+siguiente fase (#78).
 
 ### Voz
 

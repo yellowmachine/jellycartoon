@@ -19,6 +19,8 @@ export interface RouteStep {
 	distance: number;
 	/** Where it is done: the first point of the step. */
 	at: LngLat;
+	/** That point's index in the route's line, to know how far along it is. */
+	index: number;
 	/** openrouteservice's maneuver type (0 left, 1 right, 6 straight on, 10 arrival…). */
 	type: number;
 }

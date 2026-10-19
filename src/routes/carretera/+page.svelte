@@ -1,7 +1,9 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import MediaIcon from '#lib/components/MediaIcon.svelte';
 	import MusicBar from '#lib/components/MusicBar.svelte';
+	import ManeuverIcon from '#lib/components/ManeuverIcon.svelte';
 	import RoadMap from '#lib/components/RoadMap.svelte';
 	import type { MusicTrack } from '#lib/music.ts';
 	import { coverUrl } from '#lib/music.ts';
@@ -15,6 +17,7 @@
 	import { keepScreenOn } from '#lib/screen-on.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { distanceText, type LngLat, type Place, type Route } from '#lib/road.ts';
+	import { alongLine, guide } from '#lib/road-guide.ts';
 	import type { PageProps } from './$types';
 
 	/**
@@ -139,7 +142,7 @@
 	let route = $state<Route | null>(null);
 	let destination = $state<Place | null>(null);
 	let routeProblem = $state<string | null>(null);
-	let routeBusy = $state<'search' | 'route' | null>(null);
+	let routeBusy = $state<'search' | 'route' | 'reroute' | null>(null);
 
 	async function search(e: SubmitEvent) {
 		e.preventDefault();
@@ -158,9 +161,10 @@
 		places = body;
 	}
 
-	async function go(place: Place) {
+	/** `again`: recalculated on the way, off the route; the list stays as it is meanwhile. */
+	async function go(place: Place, again = false) {
 		if (!here) return void (routeProblem = 'Esperando a saber dónde estás (el GPS)…');
-		routeBusy = 'route';
+		routeBusy = again ? 'reroute' : 'route';
 		routeProblem = null;
 		const res = await fetch('/carretera/ruta', {
 			method: 'POST',
@@ -174,6 +178,38 @@
 		destination = place;
 		places = null;
 	}
+
+	/**
+	 * Guidance (phase 3c), at every position: the next maneuver and how far it is. Off the route for
+	 * a while, it is asked again from where we are; not too often, for the free plan's quota.
+	 */
+	const along = $derived(route ? alongLine(route.line) : null);
+	const guidance = $derived(route && along && here ? guide(route, along, here) : null);
+	/** Further than this from the line, and for this many positions in a row (~1 a second). */
+	const OFF_ROUTE_METRES = 50;
+	const OFF_ROUTE_POSITIONS = 3;
+	const REROUTE_EVERY_MS = 20_000;
+	let offPositions = 0;
+	let reroutedAt = 0;
+	$effect(() => {
+		const g = guidance;
+		if (!g || g.arrived) return;
+		offPositions = g.off > OFF_ROUTE_METRES ? offPositions + 1 : 0;
+		if (offPositions < OFF_ROUTE_POSITIONS || Date.now() - reroutedAt < REROUTE_EVERY_MS) return;
+		offPositions = 0;
+		reroutedAt = Date.now();
+		untrack(() => {
+			if (destination && routeBusy === null) void go(destination, true);
+		});
+	});
+
+	// The step being done, in view in the list.
+	let stepList = $state<HTMLOListElement>();
+	$effect(() => {
+		const index = guidance?.nextIndex;
+		if (index === undefined || index < 0) return;
+		stepList?.children[index]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+	});
 
 	function clearRoute() {
 		route = null;
@@ -208,7 +244,33 @@
 	class={['bg-zinc-950 text-zinc-100 select-none', mapShown && 'grid h-dvh grid-cols-2 gap-4 p-4']}
 >
 	{#if mapShown}
-		<RoadMap {route} destination={destination?.at ?? null} onposition={(at) => (here = at)} />
+		<div class="relative h-full min-h-0">
+			<RoadMap {route} destination={destination?.at ?? null} onposition={(at) => (here = at)} />
+			<!-- The next maneuver, big, over the map: what to do, and in how much. -->
+			{#if routeBusy === 'reroute'}
+				<p
+					class="absolute inset-x-3 top-3 rounded-2xl bg-zinc-950/90 p-4 text-2xl font-semibold text-amber-300"
+				>
+					Recalculando la ruta…
+				</p>
+			{:else if guidance?.arrived && destination}
+				<p
+					class="absolute inset-x-3 top-3 rounded-2xl bg-emerald-600/95 p-4 text-2xl font-semibold text-white"
+				>
+					Has llegado: {destination.label}
+				</p>
+			{:else if guidance?.next}
+				<div
+					class="absolute inset-x-3 top-3 flex items-center gap-4 rounded-2xl bg-zinc-950/90 p-4 shadow-xl"
+				>
+					<ManeuverIcon type={guidance.next.type} class="h-16 w-16 shrink-0 text-amber-400" />
+					<div class="min-w-0">
+						<p class="text-4xl font-bold tabular-nums">{distanceText(guidance.toNext)}</p>
+						<p class="line-clamp-2 text-xl text-zinc-200">{guidance.next.instruction}</p>
+					</div>
+				</div>
+			{/if}
+		</div>
 	{/if}
 	<div class={['flex flex-col gap-4', mapShown ? 'min-h-0 overflow-y-auto' : 'min-h-dvh p-4']}>
 		<div class="flex items-center justify-between gap-3">
@@ -379,17 +441,35 @@
 							<div class="rounded-2xl bg-zinc-900 p-4">
 								<p class="truncate text-xl font-semibold">{destination.label}</p>
 								<p class="text-lg text-zinc-300">
-									{distanceText(route.distance)} · {durationText(route.duration)} · llegada a las
-									{clock.format(Date.now() + route.duration * 1000)}
+									{distanceText(guidance?.remaining ?? route.distance)} · {durationText(
+										route.duration *
+											((guidance?.remaining ?? route.distance) / (route.distance || 1))
+									)} · llegada a las
+									{clock.format(
+										Date.now() +
+											route.duration *
+												((guidance?.remaining ?? route.distance) / (route.distance || 1)) *
+												1000
+									)}
 								</p>
 								<button
 									class="mt-3 rounded-xl bg-zinc-800 px-5 py-3 text-lg active:bg-zinc-700"
 									onclick={clearRoute}>Quitar ruta</button
 								>
 							</div>
-							<ol class="flex flex-col gap-2">
+							<ol bind:this={stepList} class="flex flex-col gap-2">
 								{#each route.steps as step, i (i)}
-									<li class="flex items-baseline gap-3 rounded-xl bg-zinc-900 px-4 py-3 text-lg">
+									<li
+										class={[
+											'flex items-baseline gap-3 rounded-xl px-4 py-3 text-lg',
+											i === guidance?.nextIndex
+												? 'bg-amber-500/20 ring-2 ring-amber-400'
+												: i < (guidance?.nextIndex ?? 0)
+													? 'bg-zinc-900 text-zinc-500'
+													: 'bg-zinc-900'
+										]}
+										aria-current={i === guidance?.nextIndex ? 'step' : undefined}
+									>
 										<span class="min-w-0 flex-1">{step.instruction}</span>
 										{#if step.distance}
 											<span class="shrink-0 text-base text-zinc-400"

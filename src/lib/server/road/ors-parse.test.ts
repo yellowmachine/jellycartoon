@@ -75,11 +75,11 @@ test('routeFromOrs: the line, the totals, and each step where it is done', () =>
 	expect(route?.distance).toBe(1830.4);
 	expect(route?.duration).toBe(245.1);
 	expect(route?.line).toHaveLength(3);
-	expect(route?.steps.map((s) => [s.instruction, s.at, s.type])).toEqual([
+	expect(route?.steps.map((s) => [s.instruction, s.at, s.type, s.index])).toEqual([
 		// Setting off, by car: «Sal», not «Camina».
-		['Sal hacia el este en Calle Real', [-4.03, 39.86], 11],
-		['Gira a la derecha por Paseo del Miradero', [-4.02, 39.861], 1],
-		['Llegada a tu destino', [-4.01, 39.862], 10]
+		['Sal hacia el este en Calle Real', [-4.03, 39.86], 11, 0],
+		['Gira a la derecha por Paseo del Miradero', [-4.02, 39.861], 1, 1],
+		['Llegada a tu destino', [-4.01, 39.862], 10, 2]
 	]);
 });
 

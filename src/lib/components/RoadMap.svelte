@@ -95,7 +95,10 @@
 			});
 			map = created;
 			// Moved by hand: it stops following.
-			created.on('dragstart', () => (following = false));
+			created.on('dragstart', () => {
+				following = false;
+				clearTimeout(refollow);
+			});
 
 			const arrow = document.createElement('div');
 			arrow.className = 'road-map-me';
@@ -129,6 +132,7 @@
 		return () => {
 			cancelled = true;
 			ready = false;
+			clearTimeout(refollow);
 			map?.remove();
 			map = null;
 			me = null;
@@ -179,8 +183,14 @@
 		});
 	});
 
-	// A new route: drawn, with its flag, and the whole of it in view (following stops until
-	// «Recentrar»); none, gone.
+	/** How long the whole route stays in view before following us again. */
+	const OVERVIEW_MS = 5000;
+	let refollow: ReturnType<typeof setTimeout> | undefined;
+	/** The destination last fitted: a route recalculated on the way is not shown whole again. */
+	let fitted: string | null = null;
+
+	// A route: drawn, with its flag. To a new destination, the whole of it in view for a moment,
+	// then following us again (unless the map was moved by hand). None, gone.
 	$effect(() => {
 		const line = route?.line;
 		const to = destination;
@@ -194,10 +204,15 @@
 		});
 		if (to) flag.setLngLat(to).addTo(map);
 		else flag.remove();
-		if (!line?.length) return;
+		const key = to ? to.join() : null;
+		if (!key) fitted = null;
+		if (!line?.length || key === fitted) return;
+		fitted = key;
 		const lons = line.map((p) => p[0]);
 		const lats = line.map((p) => p[1]);
 		following = false;
+		clearTimeout(refollow);
+		refollow = setTimeout(recenter, OVERVIEW_MS);
 		map.fitBounds(
 			[
 				[Math.min(...lons), Math.min(...lats)],

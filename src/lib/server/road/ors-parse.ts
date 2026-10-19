@@ -61,7 +61,8 @@ export function routeFromOrs(body: unknown): Route | null {
 			instruction: driving(s.instruction, s.type),
 			distance: s.distance,
 			type: s.type,
-			at: line[s.way_points[0]] ?? line[0]!
+			at: line[s.way_points[0]] ?? line[0]!,
+			index: Math.min(s.way_points[0], line.length - 1)
 		}))
 	};
 }
