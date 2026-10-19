@@ -742,10 +742,20 @@
 				{@const update = data.version.update}
 				<div class="mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
 					<p class="font-medium text-amber-300">Hay una versión nueva: la {update.version}</p>
-					{#if update.notes}
-						<p class="mt-2 max-h-64 overflow-y-auto text-sm whitespace-pre-line text-zinc-300">
-							{update.notes}
-						</p>
+					{#if update.notesHtml}
+						<!-- The release's Markdown as GitHub makes it HTML (updates.ts); its links, apart. -->
+						<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+						<div
+							class="release-notes mt-2 max-h-80 overflow-y-auto text-sm text-zinc-300"
+							onclick={(e) => {
+								const link = (e.target as HTMLElement).closest('a');
+								if (!link?.href) return;
+								e.preventDefault();
+								window.open(link.href, '_blank', 'noreferrer');
+							}}
+						>
+							{@html update.notesHtml}
+						</div>
 					{/if}
 					<a
 						href={update.url}
@@ -799,3 +809,46 @@
 		</section>
 	{/if}
 </div>
+
+<style>
+	/* A release's notes, as GitHub writes them in HTML: headings, lists, bold and links. */
+	.release-notes :global(:is(h1, h2, h3, h4)) {
+		margin: 0.9em 0 0.3em;
+		font-weight: 600;
+		color: var(--color-zinc-100);
+	}
+	.release-notes :global(h2) {
+		font-size: 1.05em;
+	}
+	.release-notes :global(:is(h1, h2, h3, h4):first-child) {
+		margin-top: 0;
+	}
+	.release-notes :global(:is(p, ul, ol)) {
+		margin: 0.4em 0;
+	}
+	.release-notes :global(ul) {
+		list-style: disc;
+		padding-left: 1.25em;
+	}
+	.release-notes :global(ol) {
+		list-style: decimal;
+		padding-left: 1.25em;
+	}
+	.release-notes :global(li + li) {
+		margin-top: 0.25em;
+	}
+	.release-notes :global(strong) {
+		color: var(--color-zinc-100);
+	}
+	.release-notes :global(a) {
+		color: var(--color-amber-400);
+	}
+	.release-notes :global(a:hover) {
+		text-decoration: underline;
+	}
+	.release-notes :global(code) {
+		border-radius: 0.25em;
+		background: var(--color-zinc-800);
+		padding: 0 0.3em;
+	}
+</style>
