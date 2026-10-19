@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
+	import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 	import { recipe } from '#lib/recipe.svelte.ts';
 	import { formatLeft } from '#lib/timer-names.ts';
@@ -12,10 +13,13 @@
 	 */
 
 	onMount(() => {
-		// Before the timers: one that ended while the page was closed moves the recipe on.
+		// Before the timers: one that ended while the page was closed moves the recipe on, and is
+		// written in the kitchen's session.
 		recipe.load();
-		timers.load();
+		kitchenLog.load();
+		// Kitchen mode before the timers too: whether what rings now is kept in its session.
 		kitchenMode.load();
+		timers.load();
 		// After a reload, sound needs a touch on the page first: any will do.
 		const unlock = () => timers.unlockSound();
 		addEventListener('pointerdown', unlock, { once: true });

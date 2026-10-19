@@ -1,3 +1,4 @@
+import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 import { afterTimer, describeRecipe, parseRecipe, type Recipe } from '#lib/recipe.ts';
 import { sameLabel } from '#lib/timer-names.ts';
 
@@ -74,7 +75,9 @@ class RecipeInProgress {
 	goAndSay(step: number) {
 		if (!this.current) return;
 		this.go(step);
-		say(this.current.steps[this.step]!.text);
+		const text = this.current.steps[this.step]!.text;
+		kitchenLog.add(null, `Paso ${this.step + 1}: ${text}`);
+		say(text);
 	}
 
 	/** For the AI, with each command; null without one. */

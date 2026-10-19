@@ -1,3 +1,4 @@
+import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 import { recipe } from '#lib/recipe.svelte.ts';
 import { timers } from '#lib/timers.svelte.ts';
 
@@ -36,6 +37,8 @@ class KitchenMode {
 		try {
 			const at = Number(localStorage.getItem(STORAGE_KEY));
 			if (at && Date.now() - at < AUTO_OFF_MS) void this.set(true, at);
+			// Gone off while the page was closed: its session too.
+			else kitchenLog.clear();
 		} catch {
 			// Private windows.
 		}
@@ -44,6 +47,9 @@ class KitchenMode {
 	async set(value: boolean, since = Date.now()) {
 		this.on = value;
 		this.problem = null;
+		// What is said is kept while it is on; off, the session is over.
+		kitchenLog.active = value;
+		if (!value) kitchenLog.clear();
 		clearInterval(this.#check);
 		if (!value) {
 			await this.#lock?.release().catch(() => {});

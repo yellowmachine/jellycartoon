@@ -1,5 +1,6 @@
 import { goto } from '$app/navigation';
 import { music } from '#lib/music-player.svelte.ts';
+import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 import { recipe } from '#lib/recipe.svelte.ts';
 import { timers } from '#lib/timers.svelte.ts';
@@ -178,6 +179,7 @@ class VoiceClient {
 		for (const action of body.actions) await act(action);
 		this.reply = body.reply;
 		this.options = body.options;
+		kitchenLog.add(text, body.reply);
 		this.#history = [
 			...this.#history,
 			{ role: 'user' as const, content: text },

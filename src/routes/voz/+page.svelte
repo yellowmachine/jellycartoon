@@ -1,5 +1,6 @@
 <script lang="ts">
 	import RecipeCard from '#lib/components/RecipeCard.svelte';
+	import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { recipe } from '#lib/recipe.svelte.ts';
@@ -18,6 +19,10 @@
 		if (micMode.tap) return;
 		if (voice.stop() === 'tap') voice.problem = 'Mantén pulsado el botón mientras hablas.';
 	}
+
+	/** «13:42»: in the kitchen's session, when each thing was said. */
+	const time = (at: number) =>
+		new Date(at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
 	/** Held down, or (Ajustes) a tap to start and another to send. */
 	function press() {
@@ -103,15 +108,7 @@
 			: ','} en cualquier página.
 	</p>
 
-	<div class="min-h-24 max-w-xl text-2xl" aria-live="polite">
-		{#if voice.heard}
-			<p class="text-xl text-zinc-400">«{voice.heard}»</p>
-		{/if}
-		{#if voice.problem}
-			<p class="mt-3 text-amber-300">{voice.problem}</p>
-		{:else if voice.reply}
-			<p class="mt-3 text-3xl font-semibold">{voice.reply}</p>
-		{/if}
+	{#snippet choices()}
 		{#if voice.options.length}
 			<!-- What was not clear: a tap on one is the same as saying it. -->
 			<div class="mt-6 flex flex-col gap-3">
@@ -124,7 +121,50 @@
 				{/each}
 			</div>
 		{/if}
+	{/snippet}
+
+	<!-- In kitchen mode, the answer is the session's first line, below: here only what is pending. -->
+	<div class={['max-w-xl text-2xl', !kitchenMode.on && 'min-h-24']} aria-live="polite">
+		{#if voice.heard && (!kitchenMode.on || voice.phase !== 'idle')}
+			<p class="text-xl text-zinc-400">«{voice.heard}»</p>
+		{/if}
+		{#if voice.problem}
+			<p class="mt-3 text-amber-300">{voice.problem}</p>
+		{:else if voice.reply && !kitchenMode.on}
+			<p class="mt-3 text-3xl font-semibold">{voice.reply}</p>
+		{/if}
+		{#if !kitchenMode.on}
+			{@render choices()}
+		{/if}
 	</div>
+
+	<!-- The kitchen's session (#60), the newest first and big: what was said, and when. -->
+	{#if kitchenMode.on && kitchenLog.entries.length}
+		<ol class="-mt-6 w-full max-w-2xl space-y-4 text-left" aria-label="Lo hablado en la cocina">
+			{#each kitchenLog.entries as entry, i (entry.id)}
+				<li
+					class={i === 0
+						? 'rounded-2xl border border-amber-500/40 bg-zinc-900 p-5'
+						: 'border-t border-zinc-800 px-5 pt-3'}
+				>
+					<p class="text-sm text-zinc-500 tabular-nums">
+						{time(entry.at)}{entry.said ? '' : ' · 🔔 aviso'}
+					</p>
+					{#if entry.said}
+						<p class={i === 0 ? 'text-xl text-zinc-400' : 'text-base text-zinc-500'}>
+							«{entry.said}»
+						</p>
+					{/if}
+					<p class={i === 0 ? 'mt-1 text-2xl font-semibold' : 'text-lg text-zinc-400'}>
+						{entry.reply}
+					</p>
+					{#if i === 0}
+						{@render choices()}
+					{/if}
+				</li>
+			{/each}
+		</ol>
+	{/if}
 
 	<form
 		class="flex w-full max-w-xl gap-2"
