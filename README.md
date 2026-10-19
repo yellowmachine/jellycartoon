@@ -428,7 +428,8 @@ Con algo en el mpv del salón a pantalla completa, las teclas le llegan a él. L
 menú de mpv (`select/menu`: audio, subtítulos...), que se maneja con las flechas y el OK. En
 `~/.config/mpv/input.conf` del PC del salón, para que Play/Pausa lo pause, el OK también abra el
 menú (por defecto pasaría al siguiente de la lista), Volver cierre el menú o, sin menú, pare
-(como Esc) y devuelva a la vista TV, e Inicio pare, y luego
+(como Esc) y devuelva a la vista TV, Inicio pare y los números del mando no hagan nada (cambiarían
+contraste, brillo, gamma, saturación y volumen de mpv sin querer), y luego
 `systemctl --user restart jellycartoon-mpv`:
 
 ```
@@ -436,6 +437,16 @@ F8 cycle pause
 ENTER script-binding select/menu
 GO_BACK keypress ESC
 F7 stop
+1 ignore
+2 ignore
+3 ignore
+4 ignore
+5 ignore
+6 ignore
+7 ignore
+8 ignore
+9 ignore
+0 ignore
 ```
 
 Volver es `keypress ESC` y no `stop` porque el menú de mpv solo se cierra con Esc.
