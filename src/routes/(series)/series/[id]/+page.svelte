@@ -4,6 +4,7 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import DeleteEpisodesDialog from '#lib/components/DeleteEpisodesDialog.svelte';
 	import EpisodeMenu from '#lib/components/EpisodeMenu.svelte';
+	import EpisodePreview from '#lib/components/EpisodePreview.svelte';
 	import EpisodeTitles from '#lib/components/EpisodeTitles.svelte';
 	import SeriesInfo from '#lib/components/SeriesInfo.svelte';
 	import TagBar from '#lib/components/TagBar.svelte';
@@ -452,6 +453,9 @@
 									class="h-full w-full object-cover"
 									loading="lazy"
 								/>
+								{#if !selecting}
+									<EpisodePreview id={ep.id} durationSec={ep.durationSec} />
+								{/if}
 							{/if}
 							{#if ep.completed}
 								<span

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import EpisodePreview from '#lib/components/EpisodePreview.svelte';
 	import { formatDuration } from '#lib/format.ts';
 	import { thumbUrl } from '#lib/thumb.svelte.ts';
 	import type { PageProps } from './$types';
@@ -49,6 +50,7 @@
 								alt=""
 								class="h-full w-full object-cover group-hover:opacity-80"
 							/>
+							<EpisodePreview id={ep.id} durationSec={ep.durationSec} />
 							<div class="absolute inset-x-0 bottom-0 h-1 bg-zinc-700">
 								<div
 									class="h-full bg-amber-400"
