@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 
 	/**
@@ -28,7 +29,9 @@
 	>
 		<div class="min-w-0 flex-1">
 			{#if voice.phase === 'listening'}
-				<p class="font-semibold text-red-400">Te escucho… suelta para enviar</p>
+				<p class="font-semibold text-red-400">
+					Te escucho… {micMode.tap ? 'toca otra vez para enviar' : 'suelta para enviar'}
+				</p>
 			{:else}
 				{#if voice.heard}
 					<p class="truncate text-zinc-400">«{voice.heard}»</p>

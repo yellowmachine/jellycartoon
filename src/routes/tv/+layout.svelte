@@ -1,12 +1,41 @@
 <script lang="ts">
-	import { afterNavigate, invalidateAll } from '$app/navigation';
+	import { afterNavigate, goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import MusicBar from '#lib/components/MusicBar.svelte';
 	import TvSalonFailed from '#lib/components/TvSalonFailed.svelte';
+	import TvVoice from '#lib/components/TvVoice.svelte';
 	import { music } from '#lib/music-player.svelte.ts';
+	import { watchSalon } from '#lib/salon.svelte.ts';
+	import { videoHere } from '#lib/video-here.svelte.ts';
+	import { voice } from '#lib/voice-client.svelte.ts';
 
 	let { children } = $props();
 	let main = $state<HTMLElement>();
+	const salon = watchSalon();
+
+	/**
+	 * The remote's keys that Chromium does not get as they are, remapped by udev (the README's
+	 * «Mando del salón»): F7 its Home, F8 its Play/Pause, F9 its microphone. Its OK is Enter and its
+	 * Back the browser's, which need nothing here.
+	 */
+	function remoteKey(e: KeyboardEvent) {
+		if (e.key === 'F7') {
+			e.preventDefault();
+			void goto('/tv');
+		} else if (e.key === 'F8') {
+			e.preventDefault();
+			// What is on: the living room's mpv first, then what sounds in this browser.
+			const mpv = salon.state;
+			if (mpv?.active) void salon.send({ action: 'pause', value: !mpv.paused });
+			else if (music.radio || music.podcast || music.current) music.toggle();
+			else videoHere.toggle();
+		} else if (e.key === 'F9' && page.data.voice) {
+			e.preventDefault();
+			// The remote sends its microphone key pressed and let go at once: a tap to start, another
+			// to send, whatever this device's setting is.
+			if (!e.repeat) voice.toggle();
+		}
+	}
 
 	// The remote needs something with the focus to start from: the first tile, or the one the page
 	// marks.
@@ -25,7 +54,7 @@
 </script>
 
 <!-- Back from mpv (the window gets the focus again): what was watched moved on. -->
-<svelte:window onfocus={() => invalidateAll()} />
+<svelte:window onfocus={() => invalidateAll()} onkeydown={remoteKey} />
 
 <main bind:this={main} class="min-h-screen px-12 py-10 text-2xl">
 	{@render children()}
@@ -33,6 +62,10 @@
 
 {#if page.data.salon}
 	<TvSalonFailed />
+{/if}
+
+{#if page.data.voice}
+	<TvVoice />
 {/if}
 
 <!-- The music sounds through its <audio>; its bar is for the whole app, not for the TV. -->

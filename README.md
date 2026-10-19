@@ -398,6 +398,36 @@ oficial para Vulkan) en la GPU, en español.
 - La imagen va fijada a la de una versión (v1.9.5) y WUD no la actualiza: se cambia a mano en el
   compose.
 
+#### Mando del salón
+
+Un mando con micrófono (el del salón es un GREVA G20S Pro, con receptor USB) para la vista TV. Las
+flechas mueven el foco y su Volver es el del navegador, pero varias de sus teclas son de mando a
+distancia y no llegan a Chromium: el OK es `KEY_SELECT` y el micrófono `KEY_VOICECOMMAND`, con
+códigos por encima de 255, que las aplicaciones de escritorio no reciben; Play/Pausa llega sin
+identificar, e Inicio (`BrowserHome`) saca de la app. Se traducen solo para ese mando con un
+fichero de [hwdb de udev](https://man.archlinux.org/man/hwdb.7), `/etc/udev/hwdb.d/70-mando-g20s.hwdb`:
+
+```
+# El receptor del mando: bus USB (0003), fabricante y producto de `lsusb`
+evdev:input:b0003v4842p0001*
+ KEYBOARD_KEY_c0041=enter   # OK
+ KEYBOARD_KEY_c00cd=f8      # Play/Pausa
+ KEYBOARD_KEY_c00cf=f9      # Micrófono
+ KEYBOARD_KEY_c0223=f7      # Inicio
+```
+
+Y `sudo systemd-hwdb update && sudo udevadm trigger --sysname-match="event*"` (o volver a enchufar
+el receptor). Con otro mando, sus scancodes salen de `evtest` (con `sudo`). En la vista TV: el OK
+entra en lo que tiene el foco, F7 vuelve a su portada, F8 pausa o sigue lo que suena (el mpv del
+salón, o la música, la radio o el podcast del navegador) y F9 habla: un toque empieza y otro
+envía, porque el mando manda su tecla pulsada y soltada a la vez, y lo que oye y contesta se ve en
+grande. Con el puntero del mando (modo ratón) apagado, para que mueva el foco. El micrófono del
+mando es una tarjeta de sonido USB más, y el del sistema si no hay otro.
+
+Con algo en el mpv del salón a pantalla completa, las teclas le llegan a él: para que Play/Pausa
+lo pause, `F8 cycle pause` en `~/.config/mpv/input.conf` del PC del salón, y reiniciar su servicio
+(`systemctl --user restart jellycartoon-mpv`).
+
 Con una RX 7800 XT, una orden de unos segundos tarda alrededor de 150 ms.
 
 ## Copia de seguridad
