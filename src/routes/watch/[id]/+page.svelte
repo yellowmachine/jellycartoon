@@ -77,6 +77,8 @@
 
 <Player
 	episodeId={data.episode.id}
+	title="{data.episode.seriesTitle} · T{data.episode.season} E{data.episode.number} · {data.episode
+		.title}"
 	startAt={data.episode.positionSec}
 	audioTracks={data.episode.audioTracks}
 	subtitles={data.episode.subtitles}

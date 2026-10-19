@@ -2,6 +2,7 @@ import { goto } from '$app/navigation';
 import { music } from '#lib/music-player.svelte.ts';
 import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
+import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
 import { recipe } from '#lib/recipe.svelte.ts';
 import { timers } from '#lib/timers.svelte.ts';
 import { musicTarget } from '#lib/music-target.svelte.ts';
@@ -254,6 +255,8 @@ async function act(action: VoiceAction) {
 		case 'timer':
 			return timers.start(action.label, action.seconds);
 		case 'kitchenMode':
+			// Turned on from another page (the news playing): the kitchen opens over it.
+			if (action.on) kitchenPanel.show();
 			return kitchenMode.set(action.on);
 		case 'prepareTimer':
 			return timers.prepare(action.label, action.seconds, action.trigger);
@@ -261,7 +264,8 @@ async function act(action: VoiceAction) {
 			return void timers.cancel(action.label);
 		case 'recipe':
 			recipe.start(action.recipe, action.step);
-			// Cooking: the screen stays on, to see the steps.
+			// Cooking: the screen stays on, to see the steps, over the page that is on.
+			kitchenPanel.show();
 			return kitchenMode.set(true);
 		case 'recipeStep':
 			return recipe.go(action.step);

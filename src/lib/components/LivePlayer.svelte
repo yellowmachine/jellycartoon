@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { shownDeviceName } from '#lib/device-name.svelte.ts';
 	import type Hls from 'hls.js';
@@ -8,6 +9,7 @@
 	import { recoverFromErrors } from '#lib/hls-recovery.ts';
 	import { BROADCAST_TRACKS, languageLabel } from '#lib/languages.ts';
 	import { subtitleCss, type SubtitleStyle } from '#lib/subtitle-style.ts';
+	import { videoHere } from '#lib/video-here.svelte.ts';
 
 	/**
 	 * A TV channel, live, in this browser: its own audios (the original version) and subtitles, as the
@@ -17,9 +19,16 @@
 
 	let {
 		channelId,
+		title,
 		url,
 		subtitleStyle
-	}: { channelId: string; url: string; subtitleStyle: SubtitleStyle } = $props();
+	}: {
+		channelId: string;
+		/** The channel's name: what plays, for the kitchen panel. */
+		title: string;
+		url: string;
+		subtitleStyle: SubtitleStyle;
+	} = $props();
 
 	/** As often as the episodes' player saves: a child's time is counted from these. */
 	const EVERY_MS = 10_000;
@@ -53,6 +62,14 @@
 	const cueStylesheet = $derived.by(() => {
 		const css = subtitleCss(subtitleStyle);
 		return `<style>.jc-video::cue{font-family:${css.fontFamily};font-size:${css.fontScale}em;color:${css.color};background:${css.background};text-shadow:${css.textShadow};line-height:1.35}</style>`;
+	});
+
+	// Like an episode's: the microphone and a kitchen timer pause it, the kitchen panel shows it.
+	$effect(() => {
+		const el = video;
+		if (!el) return;
+		videoHere.set({ episodeId: null, title: untrack(() => title), element: el });
+		return () => videoHere.clear(el);
 	});
 
 	$effect(() => {

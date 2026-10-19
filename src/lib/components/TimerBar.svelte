@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
+	import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
 	import { recipe } from '#lib/recipe.svelte.ts';
 	import { formatLeft } from '#lib/timer-names.ts';
 	import { timers } from '#lib/timers.svelte.ts';
@@ -44,8 +45,8 @@
 {/if}
 {#if timers.list.length || timers.prepared.length || kitchenMode.on || recipe.current}
 	<div class="flex flex-wrap gap-2" aria-label="Temporizadores">
-		{#if recipe.current && page.url.pathname !== '/voz'}
-			<!-- The recipe being cooked: its step, big, is in /voz. -->
+		{#if recipe.current && page.url.pathname !== '/voz' && !kitchenMode.on}
+			<!-- The recipe being cooked: its step, big, is in /voz (with kitchen mode, in its panel). -->
 			<a
 				href="/voz"
 				class="flex items-center gap-2 rounded-full border border-amber-500/50 bg-amber-500/10 px-3 py-1 text-sm text-amber-300 hover:bg-amber-500/20"
@@ -57,12 +58,31 @@
 			</a>
 		{/if}
 		{#if kitchenMode.on}
-			<!-- On every page, to see it is on and turn it off. -->
+			<!-- On every page, to see it is on and turn it off; a tap opens or closes the kitchen over
+			     the page (#60), so a video there goes on. -->
 			<span
-				class="flex items-center gap-2 rounded-full border border-amber-500/50 bg-amber-500/10 py-1 pr-1 pl-3 text-sm text-amber-300"
+				class="flex items-center gap-1 rounded-full border border-amber-500/50 bg-amber-500/10 py-1 pr-1 pl-1 text-sm text-amber-300"
 				title={kitchenMode.problem ?? 'La pantalla no se apaga'}
 			>
-				🍳 Modo cocina{kitchenMode.problem ? ' (sin pantalla encendida)' : ''}
+				{#if page.url.pathname === '/voz'}
+					<span class="px-2"
+						>🍳 Modo cocina{kitchenMode.problem ? ' (sin pantalla encendida)' : ''}</span
+					>
+				{:else}
+					<button
+						class="flex min-w-0 items-center gap-2 rounded-full px-2 hover:bg-amber-500/20"
+						aria-expanded={kitchenPanel.open}
+						onclick={() => kitchenPanel.toggle()}
+					>
+						🍳 {kitchenPanel.open ? 'Cerrar la cocina' : 'Abrir la cocina'}
+						{#if recipe.current && !kitchenPanel.open}
+							<span class="max-w-40 truncate text-amber-300/70"
+								>· {recipe.current.title}, paso {recipe.step + 1} de {recipe.current.steps
+									.length}</span
+							>
+						{/if}
+					</button>
+				{/if}
 				<button
 					class="flex h-6 w-6 items-center justify-center rounded-full text-amber-300/70 hover:bg-zinc-800 hover:text-white"
 					aria-label="Quitar el modo cocina"

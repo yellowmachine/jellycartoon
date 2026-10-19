@@ -1,4 +1,5 @@
 import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
+import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
 import { recipe } from '#lib/recipe.svelte.ts';
 import { timers } from '#lib/timers.svelte.ts';
 
@@ -49,7 +50,10 @@ class KitchenMode {
 		this.problem = null;
 		// What is said is kept while it is on; off, the session is over.
 		kitchenLog.active = value;
-		if (!value) kitchenLog.clear();
+		if (!value) {
+			kitchenLog.clear();
+			kitchenPanel.hide();
+		}
 		clearInterval(this.#check);
 		if (!value) {
 			await this.#lock?.release().catch(() => {});

@@ -1,6 +1,7 @@
 import { music } from '#lib/music-player.svelte.ts';
 import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 import { recipe } from '#lib/recipe.svelte.ts';
+import { videoHere } from '#lib/video-here.svelte.ts';
 import { sameLabel, spokenLeft, timeLabel } from '#lib/timer-names.ts';
 
 /**
@@ -230,12 +231,15 @@ class Timers {
 			clearInterval(this.#chime);
 			this.#chime = undefined;
 			music.resumeAfterVoice();
+			videoHere.resumeAfterVoice();
 		}
 	}
 
 	#ring(ended: Timer[]) {
 		this.ringing = [...this.ringing, ...ended];
+		// What plays here (music, the news on video) pauses, so the chime and its words are heard.
 		music.pauseForVoice();
+		videoHere.pauseForVoice();
 		this.#ringStarted = Date.now();
 		clearInterval(this.#chime);
 		this.#playChime();

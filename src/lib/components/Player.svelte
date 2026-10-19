@@ -22,6 +22,8 @@
 
 	interface Props {
 		episodeId: number;
+		/** «Friends · T1 E2 · El de la boda»: what plays, for the kitchen panel. */
+		title: string;
 		startAt?: number | null;
 		audioTracks: AudioTrack[];
 		subtitles: SubtitleTrack[];
@@ -45,6 +47,7 @@
 
 	let {
 		episodeId,
+		title,
 		startAt = 0,
 		audioTracks,
 		subtitles,
@@ -115,7 +118,11 @@
 	$effect(() => {
 		const el = video;
 		if (!el) return;
-		videoHere.set({ episodeId: untrack(() => episodeId), element: el });
+		videoHere.set({
+			episodeId: untrack(() => episodeId),
+			title: untrack(() => title),
+			element: el
+		});
 		return () => videoHere.clear(el);
 	});
 

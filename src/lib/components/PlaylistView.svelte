@@ -67,6 +67,7 @@
 		{#if item}
 			<Player
 				episodeId={item.id}
+				title="{item.seriesTitle} · T{item.season} E{item.number} · {item.title}"
 				startAt={item.watched ? 0 : item.positionSec}
 				audioTracks={item.audioTracks}
 				subtitles={item.subtitles}
