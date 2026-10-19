@@ -7,6 +7,20 @@ describe('parseVoiceRequest', () => {
 		expect(parseVoiceRequest({ text: 'Pon la radio', car: 'sí' })?.car).toBe(false);
 	});
 
+	test('the position and the route, only in the road mode and well formed', () => {
+		const car = parseVoiceRequest({
+			text: '¿Dónde estoy?',
+			car: true,
+			position: [-4.02, 39.86],
+			navigation: 'a Zocodover, quedan 2 km'
+		});
+		expect(car?.position).toEqual([-4.02, 39.86]);
+		expect(car?.navigation).toBe('a Zocodover, quedan 2 km');
+		expect(parseVoiceRequest({ text: 'x', position: [-4.02, 39.86] })?.position).toBeNull();
+		expect(parseVoiceRequest({ text: 'x', car: true, position: [500, 39] })?.position).toBeNull();
+		expect(parseVoiceRequest({ text: 'x', car: true, position: ['a', 1] })?.position).toBeNull();
+	});
+
 	test('what was said, what sounds here and the turns before', () => {
 		expect(
 			parseVoiceRequest({
@@ -27,7 +41,9 @@ describe('parseVoiceRequest', () => {
 			],
 			timers: [],
 			recipe: null,
-			car: false
+			car: false,
+			position: null,
+			navigation: null
 		});
 	});
 
@@ -39,7 +55,9 @@ describe('parseVoiceRequest', () => {
 			history: [],
 			timers: [],
 			recipe: null,
-			car: false
+			car: false,
+			position: null,
+			navigation: null
 		});
 	});
 

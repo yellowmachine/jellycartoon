@@ -13,7 +13,9 @@ import {
 	DEFAULT_VISION_MODEL,
 	DEFAULT_VOICE_MODEL,
 	isAdmin,
+	DEFAULT_ORS_URL,
 	openRouterConfig,
+	orsConfig,
 	setAppSetting,
 	visionModel,
 	voiceModel
@@ -55,7 +57,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	let ai = null;
 	let kids = null;
+	let routes = null;
 	if (admin) {
+		const ors = await orsConfig();
+		/** The road mode's routes (#78): openrouteservice. Never the key: only enough to recognise it. */
+		routes = {
+			keySource: ors.keySource,
+			keyHint: ors.apiKey ? `…${ors.apiKey.slice(-4)}` : null,
+			url: ors.url === DEFAULT_ORS_URL ? '' : ors.url,
+			defaultUrl: DEFAULT_ORS_URL
+		};
 		const [config, chat, vision, voice, kidAccounts] = await Promise.all([
 			openRouterConfig(),
 			chatConfig(),
@@ -103,6 +114,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				? { url: langua.url, tokenHint: `…${langua.token.slice(-4)}` }
 				: { url: null, tokenHint: null },
 		ai,
+		routes,
 		/** Children's accounts (#17): only who manages the app creates them. */
 		kids,
 		/** Music in apps such as Tempus (#27): with the account's email and a password of their own. */
@@ -248,6 +260,35 @@ export const actions: Actions = {
 		await setAppSetting('openrouter_api_key', null);
 		log.info('ajustes', 'Clave de OpenRouter borrada');
 		return { saved: 'key' };
+	},
+	saveOrsKey: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const key = String((await request.formData()).get('key') ?? '').trim();
+		if (!key) return fail(400, { section: 'routes', message: 'Escribe la clave' });
+		await setAppSetting('ors_api_key', key);
+		log.info('ajustes', 'Clave de openrouteservice cambiada');
+		return { saved: 'orsKey' };
+	},
+	deleteOrsKey: async ({ locals }) => {
+		await requireAdmin(locals.user!.id);
+		await setAppSetting('ors_api_key', null);
+		log.info('ajustes', 'Clave de openrouteservice borrada');
+		return { saved: 'orsKey' };
+	},
+	/** Empty: openrouteservice's own. Another: one's own, self-hosted (Docker). */
+	saveOrsUrl: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const url = String((await request.formData()).get('url') ?? '')
+			.trim()
+			.replace(/\/+$/, '');
+		if (url && !/^https?:\/\/\S+$/.test(url))
+			return fail(400, {
+				section: 'routes',
+				message: 'La dirección tiene que empezar por http:// o https://'
+			});
+		await setAppSetting('ors_url', url || null);
+		log.info('ajustes', 'Dirección de openrouteservice cambiada', { url: url || null });
+		return { saved: 'orsUrl' };
 	},
 	/** An empty model goes back to the default one. */
 	saveModel: async ({ request, locals }) => {

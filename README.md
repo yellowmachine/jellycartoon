@@ -412,6 +412,45 @@ lado el navegador (Google Maps u Organic Maps, que hacen la navegación y el tr�
 - La pantalla no se apaga mientras está abierto (Wake Lock), y «Ahorro de datos» pone la música en
   Opus, para los datos móviles hasta casa (Tailscale).
 
+Con la tablet entera en horizontal (la pantalla ancha, sin partir), a la izquierda va un mapa
+propio ([MapLibre](https://maplibre.org)), con dónde estás por el GPS del navegador: la flecha
+sigue la marcha y el mapa gira con ella; si se mueve con el dedo deja de seguirla hasta
+«Recentrar». En media pantalla no sale, ni se pide la posición. El mapa es de la propia app, sin
+depender de nadie: España recortada de las descargas diarias de
+[Protomaps](https://docs.protomaps.com) (OpenStreetMap), con las fuentes e iconos de su estilo, en
+`DATA_DIR/mapa`. Para ponerlo, o actualizar las calles de vez en cuando, en el servidor y desde el
+repositorio (con Docker):
+
+```sh
+scripts/mapa.sh /ruta/a/los/convertidos                  # HOST_DATA_DIR: España, Baleares y Canarias
+scripts/mapa.sh /ruta/a/los/convertidos --bbox=-4.06,39.84,-3.98,39.88   # solo una zona
+```
+
+Solo baja los trozos de esa zona, no el planeta, y cambia el mapa cuando está entero: el de antes
+sigue funcionando mientras tanto. Sin ese fichero, el modo carretera va como siempre, sin mapa.
+
+Con el mapa, la pestaña «Ruta» busca el destino por su nombre o dirección y traza la ruta en coche
+desde donde estás, con [openrouteservice](https://openrouteservice.org): la línea en el mapa, la
+distancia, el tiempo, la hora de llegada y la lista de pasos en español. Su clave (gratis) va en
+Ajustes → Casa → «Rutas del modo carretera», o en el `.env` como `OPENROUTESERVICE_API_KEY` (manda
+esta), y no sale del servidor. Allí también se puede poner la dirección de un openrouteservice
+propio (Docker), para las rutas; buscar sitios sigue siendo el suyo. Su plan gratuito permite unas
+2.000 rutas y 1.000 búsquedas al día.
+
+Con la ruta puesta, guía según avanzas: arriba del mapa, en grande, la próxima maniobra con su
+flecha y a cuántos metros; en la lista, el paso que toca, resaltado; y lo que queda y la hora de
+llegada, al día. Al elegir el destino se ve la ruta entera unos segundos y luego el mapa vuelve a
+seguirte. Si te sales más de 50 m durante unas posiciones, recalcula desde donde estés (como mucho
+una vez cada 20 s, por la cuota). Al llegar, «Has llegado».
+
+Y lo dice en voz alta, con la voz del dispositivo y la música más baja mientras habla: cada
+maniobra con antelación («En 300 metros, gira a la izquierda por Calle Real», unos 20 s antes según
+la velocidad) y al llegar a ella, y «Has llegado a tu destino»; «sigue todo recto», no. Los textos
+de openrouteservice se pasan a tú y a cómo suenan («toma la segunda salida», no «tome la 2a»).
+«Voz: no» en la ruta lo calla, y se recuerda en ese navegador. Por voz, en el modo carretera:
+«llévame a…» traza la ruta, «¿dónde estoy?» dice la dirección y «quita la ruta» la quita. Si
+se pide vídeo, contesta que en el coche no se pone.
+
 ### Voz
 
 Órdenes habladas desde el móvil (#33), pensadas para personas mayores: en `/voz`, un botón grande

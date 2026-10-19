@@ -2,6 +2,9 @@ import type { MusicTrack, SavedQueue } from '#lib/music.ts';
 import type { PodcastPlaying, Speed } from '#lib/podcasts.ts';
 import type { RadioStream } from '#lib/radio.ts';
 
+/** The volume under spoken directions. */
+const DUCKED_VOLUME = 0.25;
+
 /** Seconds an episode goes back after being paused to speak to the voice assistant. */
 const VOICE_REWIND = 3;
 
@@ -248,6 +251,14 @@ class MusicPlayer {
 
 	seek(sec: number) {
 		if (this.#audio) this.#audio.currentTime = sec;
+	}
+
+	/**
+	 * Lower while something else speaks over it (the road mode's directions, #78), and back: not
+	 * paused, as a station would connect again.
+	 */
+	duck(on: boolean) {
+		if (this.#audio) this.#audio.volume = on ? DUCKED_VOLUME : 1;
 	}
 
 	stop() {

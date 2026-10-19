@@ -64,6 +64,11 @@ export const variables = defineEnvVars({
 			'Optional OpenRouter model id (e.g. `anthropic/claude-haiku-5.5`), unless set in Ajustes.',
 		schema: (value) => value || undefined
 	},
+	OPENROUTESERVICE_API_KEY: {
+		description:
+			"Optional openrouteservice key, for the road mode's routes (#78). It can also be set in Ajustes; this one takes precedence.",
+		schema: (value) => value || undefined
+	},
 	WHISPER_URL: {
 		description:
 			'Optional address of a whisper.cpp server (`whisper-server`, started with `--convert`), for voice commands: it turns what is said into text. Without it there is no voice.',

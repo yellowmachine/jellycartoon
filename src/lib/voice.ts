@@ -1,5 +1,6 @@
 import type { MusicTrack } from '#lib/music.ts';
 import type { Recipe } from '#lib/recipe.ts';
+import type { LngLat, Place } from '#lib/road.ts';
 
 /** Voice commands (#33), shared by the server and /voz. */
 
@@ -30,7 +31,9 @@ export type VoiceAction =
 	| { kind: 'recipe'; recipe: Recipe; step: number }
 	/** The recipe here, on that step (an index). */
 	| { kind: 'recipeStep'; step: number }
-	| { kind: 'endRecipe' };
+	| { kind: 'endRecipe' }
+	/** The road mode's route (#78) to that place, from where we are; null, none. */
+	| { kind: 'navigate'; place: Place | null };
 
 /** The longest timer: a day. */
 export const MAX_TIMER_SEC = 24 * 3600;
@@ -68,6 +71,10 @@ export interface VoiceRequest {
 	recipe: string | null;
 	/** Said in the road mode (#78): driving, audio only, here only. */
 	car: boolean;
+	/** In the road mode, where we are (the GPS), for «llévame a…» and «¿dónde estoy?». */
+	position: LngLat | null;
+	/** In the road mode, the route on, described: «a Plaza de Zocodover, quedan 2,1 km». */
+	navigation: string | null;
 }
 
 export interface VoiceReply {
@@ -114,6 +121,16 @@ export function parseVoiceRequest(body: unknown): VoiceRequest | null {
 			.slice(0, 20),
 		// Thirty steps of a few lines each, and the ingredients.
 		recipe: text(b.recipe, 12_000),
-		car: b.car === true
+		car: b.car === true,
+		position:
+			b.car === true &&
+			Array.isArray(b.position) &&
+			b.position.length === 2 &&
+			b.position.every((n) => typeof n === 'number' && Number.isFinite(n)) &&
+			Math.abs(b.position[0]) <= 180 &&
+			Math.abs(b.position[1]) <= 90
+				? [b.position[0], b.position[1]]
+				: null,
+		navigation: b.car === true ? text(b.navigation, 300) : null
 	};
 }
