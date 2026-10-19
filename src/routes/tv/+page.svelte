@@ -56,6 +56,20 @@
 			text: 'text-emerald-300',
 			tone: 'from-emerald-500/45 via-teal-600/25'
 		},
+		...(data.counts.podcasts !== null
+			? [
+					{
+						href: '/tv/podcasts',
+						icon: 'podcasts' as const,
+						label: 'Podcasts',
+						count: plural(data.counts.podcasts, 'podcast', 'podcasts'),
+						images: data.mosaic.podcasts,
+						logos: false,
+						text: 'text-amber-300',
+						tone: 'from-amber-500/45 via-yellow-600/25'
+					}
+				]
+			: []),
 		...(data.counts.albums !== null
 			? [
 					{
