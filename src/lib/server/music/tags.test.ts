@@ -1,8 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	albumArtist,
+	audioType,
 	discIdFromToc,
 	isDownload,
+	isMusicFile,
+	isOpus,
 	normalizeTags,
 	searchTitles,
 	titlesMatch,
@@ -20,6 +23,17 @@ describe('isDownload', () => {
 			isDownload('Nirvana - MTV Unplugged in New York [DGCD-24727]/01 - About a Girl.flac')
 		).toBe(false);
 	});
+});
+
+test('music files: FLAC rips and Opus, served as they are', () => {
+	expect(isMusicFile('Queen/01 - Bohemian Rhapsody.flac')).toBe(true);
+	expect(isMusicFile('Movida/001 - Alaska y Dinarama - A quién le importa.OPUS')).toBe(true);
+	expect(isMusicFile('80s/Song [ix5Ntnavdgg].mp3')).toBe(false);
+	expect(isMusicFile('Queen/cover.jpg')).toBe(false);
+	expect(audioType('a/01.flac')).toBe('audio/flac');
+	expect(audioType('a/01.opus')).toBe('audio/ogg');
+	expect(isOpus('a/01.opus')).toBe(true);
+	expect(isOpus('a/01.flac')).toBe(false);
 });
 
 test('normalizeTags: keys in any case and with underscores', () => {

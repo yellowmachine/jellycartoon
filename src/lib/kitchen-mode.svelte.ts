@@ -1,3 +1,4 @@
+import { recipe } from '#lib/recipe.svelte.ts';
 import { timers } from '#lib/timers.svelte.ts';
 
 /**
@@ -80,9 +81,9 @@ class KitchenMode {
 		}
 	}
 
-	/** Timers keep it on; without them for AUTO_OFF_MS, off. */
+	/** Timers and a recipe being cooked keep it on; without them for AUTO_OFF_MS, off. */
 	#autoOff() {
-		if (timers.list.length || timers.prepared.length || timers.ringing.length) {
+		if (timers.list.length || timers.prepared.length || timers.ringing.length || recipe.current) {
 			this.#activeAt = Date.now();
 			this.#remember(this.#activeAt);
 		} else if (Date.now() - this.#activeAt > AUTO_OFF_MS) void this.set(false);

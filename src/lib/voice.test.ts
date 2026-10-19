@@ -20,7 +20,8 @@ describe('parseVoiceRequest', () => {
 				{ role: 'user', content: 'Pon la radio' },
 				{ role: 'assistant', content: 'Pongo la BBC aquí' }
 			],
-			timers: []
+			timers: [],
+			recipe: null
 		});
 	});
 
@@ -30,8 +31,19 @@ describe('parseVoiceRequest', () => {
 			here: null,
 			video: null,
 			history: [],
-			timers: []
+			timers: [],
+			recipe: null
 		});
+	});
+
+	test('the recipe being cooked here, as text', () => {
+		const recipe = (value: unknown) =>
+			parseVoiceRequest({ text: 'ya hierve', recipe: value })?.recipe;
+		expect(recipe('Carbonara.\nPasos:\n1. Pon agua a hervir ← va por aquí')).toBe(
+			'Carbonara.\nPasos:\n1. Pon agua a hervir ← va por aquí'
+		);
+		expect(recipe({ title: 'no' })).toBeNull();
+		expect(recipe('x'.repeat(20_000))).toHaveLength(12_000);
 	});
 
 	test("this browser's timers, only text and not too many", () => {

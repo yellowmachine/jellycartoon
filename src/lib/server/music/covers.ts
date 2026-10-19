@@ -1,17 +1,20 @@
 import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { and, eq, exists } from 'drizzle-orm';
+import { and, asc, eq, exists, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { album, albumArtistName, albumTitle, track } from '#lib/server/db/schema.ts';
-import { albumCoverFile } from '#lib/server/library/paths.ts';
+import { coverImage, probe } from '#lib/server/library/ffmpeg.ts';
+import { albumCoverFile, musicFile } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 import { musicProgress } from './status.ts';
-import { searchTitles, titlesMatch, VARIOUS_ARTISTS } from './tags.ts';
+import { isOpus, searchTitles, titlesMatch, VARIOUS_ARTISTS } from './tags.ts';
 
 /**
  * Album covers: the release in MusicBrainz (https://musicbrainz.org/doc/MusicBrainz_API), by disc
  * id or by title and artist, and its front cover in the Cover Art Archive
- * (https://musicbrainz.org/doc/Cover_Art_Archive/API). Both public, no key needed.
+ * (https://musicbrainz.org/doc/Cover_Art_Archive/API). Both public, no key needed. Or the picture
+ * inside its first track: first for Opus (yt-dlp's `--embed-thumbnail`, a playlist MusicBrainz
+ * does not know, and whose name could match another album), last for a CD rip.
  */
 
 /** MusicBrainz asks every client to identify itself, and for one request a second at most. */
@@ -85,6 +88,23 @@ async function downloadFront(kind: 'release' | 'release-group', id: string, file
 	return true;
 }
 
+/** The picture inside the album's first track, if it has one. */
+async function embeddedCover(albumId: number, file: string) {
+	const info = await probe(file, undefined, false);
+	const picture = info.streams.find((s) => s.codec_type === 'video' && s.disposition?.attached_pic);
+	if (!picture) return false;
+	const cover = albumCoverFile(albumId);
+	const partial = cover.replace(/\.jpg$/, '.part.jpg');
+	await mkdir(path.dirname(cover), { recursive: true });
+	try {
+		await coverImage(file, picture.index, partial);
+		await rename(partial, cover);
+	} finally {
+		await rm(partial, { force: true });
+	}
+	return true;
+}
+
 /** Albums with tracks and no cover looked up yet; a network failure leaves them for next time. */
 export async function findCovers() {
 	const pending = await db
@@ -108,9 +128,16 @@ export async function findCovers() {
 	for (const a of pending) {
 		musicProgress.coversDone++;
 		try {
-			let found = false;
+			const [first] = await db
+				.select({ path: track.path })
+				.from(track)
+				.where(and(eq(track.albumId, a.id), eq(track.status, 'ready'), eq(track.missing, false)))
+				.orderBy(sql`${track.number} nulls last`, asc(track.id))
+				.limit(1);
+			const opus = first ? isOpus(first.path) : false;
+			let found = first && opus ? await embeddedCover(a.id, musicFile(first.path)) : false;
 			const groups = new Set<string>();
-			for (const release of await candidates(a)) {
+			for (const release of found ? [] : await candidates(a)) {
 				found = await downloadFront('release', release.id, albumCoverFile(a.id));
 				if (found) break;
 				// Many releases have no art of their own, but another edition of the album does.
@@ -121,6 +148,7 @@ export async function findCovers() {
 					if (found) break;
 				}
 			}
+			if (!found && first && !opus) found = await embeddedCover(a.id, musicFile(first.path));
 			await db
 				.update(album)
 				.set({ coverStatus: found ? 'found' : 'not_found' })

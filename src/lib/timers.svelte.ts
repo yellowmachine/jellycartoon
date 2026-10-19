@@ -1,4 +1,5 @@
 import { music } from '#lib/music-player.svelte.ts';
+import { recipe } from '#lib/recipe.svelte.ts';
 import { sameLabel, spokenLeft, timeLabel } from '#lib/timer-names.ts';
 
 /**
@@ -245,11 +246,13 @@ class Timers {
 			}
 			this.#playChime();
 		}, CHIME_EVERY_MS);
-		// Said once too, after the first chime: which one it is.
+		// The recipe being cooked goes on to the step after it (#60), and says it.
+		const next = recipe.afterTimers(ended.map((t) => t.label));
+		// Said once too, after the first chime: which one it is, and what to do now.
 		setTimeout(() => {
 			if (!this.ringing.length || !('speechSynthesis' in window)) return;
 			const said = new SpeechSynthesisUtterance(
-				`Ya está: ${ended.map((t) => t.label).join(' y ')}.`
+				`Ya está: ${ended.map((t) => t.label).join(' y ')}.${next ? ` ${next}` : ''}`
 			);
 			said.lang = 'es-ES';
 			speechSynthesis.speak(said);

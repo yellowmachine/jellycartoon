@@ -1,6 +1,18 @@
 import { createHash } from 'node:crypto';
+import path from 'node:path';
 
 /** Pure helpers for the tags of ripped CDs, and for telling them apart from downloads. */
+
+/**
+ * The music files catalogued, and their type: CD rips in FLAC, and Opus, like what yt-dlp gets
+ * from YouTube with `-x --audio-format opus` (Ogg).
+ */
+const AUDIO_TYPES: Record<string, string> = { '.flac': 'audio/flac', '.opus': 'audio/ogg' };
+
+export const isMusicFile = (file: string) => path.extname(file).toLowerCase() in AUDIO_TYPES;
+export const audioType = (file: string) => AUDIO_TYPES[path.extname(file).toLowerCase()]!;
+/** Already Opus: it needs no copy for mobile data (#64), and recompressing it only loses. */
+export const isOpus = (file: string) => path.extname(file).toLowerCase() === '.opus';
 
 /** yt-dlp names files after the video, with its 11-character id: `Song [ix5Ntnavdgg].flac`. */
 export const isDownload = (file: string) => /\[[\w-]{11}\]\.\w+$/.test(file);
