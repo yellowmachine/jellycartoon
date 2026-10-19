@@ -453,15 +453,15 @@ cp deploy/mpv/scripts/mando.lua ~/.config/mpv/scripts/
 systemctl --user restart jellycartoon-mpv
 ```
 
-| Tecla del mando | En el mpv del salón |
-| --- | --- |
-| OK o Menú | Abre el menú; dentro, elige |
-| Flechas | En el menú, se mueven; sin menú, saltan 5 s (← →) o 1 min (↑ ↓) |
-| Volver | Cierra el menú; sin menú, para y se vuelve a la vista TV |
-| Play/Pausa | Pausa o sigue |
-| Inicio | Para y se vuelve a la vista TV |
-| Números | Nada |
-| Vol+ / Vol− | El volumen del sistema (no llegan a mpv) |
+| Tecla del mando | En el mpv del salón                                             |
+| --------------- | --------------------------------------------------------------- |
+| OK o Menú       | Abre el menú; dentro, elige                                     |
+| Flechas         | En el menú, se mueven; sin menú, saltan 5 s (← →) o 1 min (↑ ↓) |
+| Volver          | Cierra el menú; sin menú, para y se vuelve a la vista TV        |
+| Play/Pausa      | Pausa o sigue                                                   |
+| Inicio          | Para y se vuelve a la vista TV                                  |
+| Números         | Nada                                                            |
+| Vol+ / Vol−     | El volumen del sistema (no llegan a mpv)                        |
 
 - **El menú** tiene solo «Subtítulos» y «Audio», en español; si solo hay una de las dos cosas
   para elegir, va directo a ella. Los subtítulos empiezan por «Sin subtítulos», y las pistas se
