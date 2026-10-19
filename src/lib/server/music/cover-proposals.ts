@@ -6,7 +6,8 @@ import { albumCoverFile } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
 import { downloadFront, musicBrainz, quote, type Release } from './covers.ts';
-import { albumOfDisc, searchTitles, VARIOUS_ARTISTS } from './tags.ts';
+import { renameAlbum } from './albums.ts';
+import { albumOfDisc, discNumber, searchTitles, VARIOUS_ARTISTS } from './tags.ts';
 
 /**
  * Covers to choose from for an album the automatic search did not find one for (covers.ts): its
@@ -150,9 +151,14 @@ export async function proposeCovers(albumId: number): Promise<CoverProposal[]> {
 
 /**
  * The chosen cover, saved for the album and for the other discs of the same album (same artist,
- * same title but for the disc number) that have none. Returns the titles of those others.
+ * same title but for the disc number) that have none. With `name`, the edition's, they are renamed
+ * too, each keeping its disc number. Returns the titles those others had.
  */
-export async function chooseCover(albumId: number, releaseGroupId: string) {
+export async function chooseCover(
+	albumId: number,
+	releaseGroupId: string,
+	name?: { title: string; artist: string }
+) {
 	const [a] = await db
 		.select({ title: albumTitle, artist: albumArtistName })
 		.from(album)
@@ -175,17 +181,23 @@ export async function chooseCover(albumId: number, releaseGroupId: string) {
 		: [];
 
 	const source = `release-group/${releaseGroupId}`;
-	for (const { id } of [{ id: albumId }, ...siblings]) {
+	for (const { id, title } of [{ id: albumId, title: a.title }, ...siblings]) {
 		if (!(await downloadFront('release-group', releaseGroupId, albumCoverFile(id))))
 			throw new Error('El Cover Art Archive ya no tiene esa portada');
 		await db
 			.update(album)
 			.set({ coverStatus: 'found', coverSource: source })
 			.where(eq(album.id, id));
+		if (!name) continue;
+		// As the user would by hand: kept across scans, and undone by emptying it.
+		const disc = discNumber(title);
+		await renameAlbum(id, 'title', disc ? `${name.title} (CD ${disc})` : name.title);
+		if (name.artist) await renameAlbum(id, 'artist', name.artist);
 	}
 	log.info('música', `Portada elegida para «${a.title}»`, {
 		albumId,
 		source,
+		renamedTo: name,
 		alsoFor: siblings.map((s) => s.id)
 	});
 	return siblings.map((s) => s.title);

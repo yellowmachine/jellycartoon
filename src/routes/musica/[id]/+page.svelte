@@ -23,6 +23,9 @@
 	const proposals = $derived(form && 'proposals' in form ? (form.proposals ?? null) : null);
 	/** Saved: the other discs of the album that got it too. */
 	const alsoFor = $derived(form && 'alsoFor' in form ? (form.alsoFor ?? null) : null);
+	const renamed = $derived(form && 'renamed' in form && form.renamed);
+	/** The album takes the chosen edition's name too: «… CD1» of «Lauper, Cyndi» is dirty. */
+	let rename = $state(true);
 </script>
 
 <svelte:head>
@@ -104,11 +107,17 @@
 		{/if}
 		{#if alsoFor}
 			<p class="text-sm text-emerald-300">
-				Carátula puesta{alsoFor.length ? `, también en ${alsoFor.join(', ')}` : ''}.
+				{renamed ? 'Carátula y nombre puestos' : 'Carátula puesta'}{alsoFor.length
+					? `, también en ${alsoFor.join(', ')}`
+					: ''}.
 			</p>
 		{:else if proposals}
 			{#if proposals.length}
 				<p class="mb-2 text-sm text-zinc-400">Elige la carátula:</p>
+				<label class="mb-3 flex items-center gap-2 text-sm text-zinc-300">
+					<input type="checkbox" bind:checked={rename} class="accent-amber-500" />
+					Poner también su nombre (se conserva el número de disco)
+				</label>
 				<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 					{#each proposals as p (p.releaseGroupId)}
 						<form
@@ -123,6 +132,11 @@
 							}}
 						>
 							<input type="hidden" name="releaseGroupId" value={p.releaseGroupId} />
+							{#if rename}
+								<input type="hidden" name="rename" value="1" />
+								<input type="hidden" name="title" value={p.title} />
+								<input type="hidden" name="artist" value={p.artist} />
+							{/if}
 							<button
 								class="w-full rounded-md p-1 text-left hover:bg-zinc-900 disabled:opacity-50"
 								disabled={coverBusy !== null}

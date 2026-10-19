@@ -33,11 +33,16 @@ export const actions: Actions = {
 			return fail(503, { message: 'No se pudieron buscar portadas. Prueba otra vez.' });
 		}
 	},
+	/** With `rename`, the album takes the chosen edition's name too. */
 	chooseCover: async ({ params, request }) => {
-		const id = String((await request.formData()).get('releaseGroupId') ?? '');
+		const form = await request.formData();
+		const id = String(form.get('releaseGroupId') ?? '');
 		if (!/^[0-9a-f-]{36}$/.test(id)) return fail(400, { message: 'Portada no válida' });
+		const title = String(form.get('title') ?? '').trim();
+		const artist = String(form.get('artist') ?? '').trim();
+		const name = form.get('rename') && title ? { title, artist } : undefined;
 		try {
-			return { alsoFor: await chooseCover(Number(params.id), id) };
+			return { alsoFor: await chooseCover(Number(params.id), id, name), renamed: Boolean(name) };
 		} catch (error) {
 			log.warn('música', 'No se pudo guardar la portada', { albumId: params.id, error });
 			return fail(503, { message: 'No se pudo guardar la portada. Prueba otra vez.' });

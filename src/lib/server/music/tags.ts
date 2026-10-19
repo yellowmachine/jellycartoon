@@ -75,9 +75,17 @@ export function searchTitles(title: string) {
  * that «Sus 50 Mejores Canciones CD 1» and «… CD 3» are the same album. Null if it has none.
  */
 export function albumOfDisc(title: string) {
-	const album = title.replace(/[\s\-–([]*\b(?:CD|dis[ck]o?)\s*\d+[\s\-–)\]]*$/i, '').trim();
+	const album = title.replace(DISC, '').trim();
 	return album && album !== title.trim() ? album.toLowerCase() : null;
 }
+
+/** The disc number at the end of an album's title, as in `albumOfDisc`: 2 for «… - CD 2». */
+export function discNumber(title: string) {
+	const n = title.match(DISC)?.[1];
+	return n ? Number(n) : null;
+}
+
+const DISC = /[\s\-–([]*\b(?:CD|dis[ck]o?)\s*(\d+)[\s\-–)\]]*$/i;
 
 const words = (title: string) =>
 	title
