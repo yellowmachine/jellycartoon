@@ -101,6 +101,21 @@ export const SUBTITLE_PRESETS: { label: string; style: Omit<SubtitleStyle, 'posi
 		// Films in original version on TV and on video: yellow, bold, outlined, no box.
 		label: 'Versión original',
 		style: { font: 'classic', size: 'm', color: 'yellow', background: 'none', outline: 'thick' }
+	},
+	{
+		// Netflix, HBO and the like: white, plain, a soft shadow, no box.
+		label: 'Plataformas',
+		style: { font: 'sans', size: 'm', color: 'white', background: 'none', outline: 'shadow' }
+	},
+	{
+		// TVE's 888 and the BBC's: coloured letters on a black box.
+		label: 'Teletexto',
+		style: { font: 'mono', size: 'm', color: 'yellow', background: 'solid', outline: 'none' }
+	},
+	{
+		// To read fast: a font made for it, bigger, on a box.
+		label: 'Fácil de leer',
+		style: { font: 'legible', size: 'l', color: 'white', background: 'solid', outline: 'none' }
 	}
 ];
 

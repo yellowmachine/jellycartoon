@@ -28,12 +28,14 @@
 </script>
 
 <div class="mt-3 rounded-md border border-zinc-800 bg-zinc-900/60 p-4">
+	<!-- A screen's shape, to see where they go too: their bottom as in the video (placeCues). -->
 	<div
-		class="@container relative mb-4 flex aspect-[16/5] items-end justify-center overflow-hidden rounded bg-zinc-800 bg-cover bg-center pb-3"
+		class="@container relative mb-4 aspect-video max-h-64 w-full overflow-hidden rounded bg-zinc-800 bg-cover bg-center"
 		style:background-image={previewImage ? `url(${previewImage})` : undefined}
 	>
 		<span
-			class="px-1.5 leading-snug"
+			class="absolute left-1/2 max-w-[90%] -translate-x-1/2 px-1.5 text-center leading-snug"
+			style:bottom="{css.line === 'auto' ? 5 : 100 - Number(css.line)}%"
 			style:font-family={css.fontFamily}
 			style:font-weight={css.fontWeight}
 			style:font-size="{css.fontScale * 2.6}cqw"
