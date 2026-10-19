@@ -6,7 +6,7 @@
 	import '@fontsource/comic-neue/400.css';
 	import { recoverFromErrors } from '#lib/hls-recovery.ts';
 	import { normalizeLang, type AudioTrack, type SubtitleTrack } from '#lib/languages.ts';
-	import { subtitleCss, type SubtitleStyle } from '#lib/subtitle-style.ts';
+	import { placeCues, subtitleCss, type SubtitleStyle } from '#lib/subtitle-style.ts';
 	import { thumbChanged, thumbUrl } from '#lib/thumb.svelte.ts';
 	import { videoHere } from '#lib/video-here.svelte.ts';
 	import { shownDeviceName } from '#lib/device-name.svelte.ts';
@@ -255,6 +255,22 @@
 		clearTimeout(styleSaveTimer);
 		styleSaveTimer = setTimeout(() => saveSetting({ subtitleStyle }), 400);
 	}
+
+	// Their height (the panel, or Ajustes): set on each cue as it shows, and again when chosen.
+	let placing: ReturnType<typeof placeCues> | null = null;
+	$effect(() => {
+		const el = video;
+		if (!el) return;
+		placing = placeCues(el, () => untrack(() => subtitleCss(subtitleStyle).line));
+		return () => {
+			placing?.stop();
+			placing = null;
+		};
+	});
+	$effect(() => {
+		void subtitleStyle.position;
+		untrack(() => placing?.again());
+	});
 
 	// Show the chosen subtitle track, hide the rest.
 	$effect(() => {

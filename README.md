@@ -23,6 +23,9 @@ SvelteKit 3 + Bun · Tailwind · Better Auth · Drizzle + Postgres · ffmpeg.
    misma serie. Lo visto se apunta al dueño de la playlist (pensando en el envío a otro dispositivo).
 4. **Reproducir**: hls.js (Safari usa su HLS nativo). Bajo el vídeo se elige audio y subtítulos;
    la elección se guarda por usuario y se aplica a los siguientes episodios. El progreso también.
+   «⚙ Estilo» cambia cómo se ven los subtítulos (fuente, tamaño, color, fondo, contorno) y dónde:
+   abajo, algo más arriba o más arriba, para que los ojos viajen menos; vale también para los
+   canales y para el mpv del salón (`sub-pos`).
    «Al terminar: Siguiente / Parar» (también guardado por usuario) decide si al acabar un
    capítulo empieza el siguiente de la serie, o de la programación o la lista. Con «Parar» el
    capítulo se marca como visto igual; en la programación y las listas el siguiente queda cargado
