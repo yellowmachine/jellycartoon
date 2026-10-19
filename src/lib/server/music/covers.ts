@@ -31,23 +31,40 @@ export interface Release {
 	'release-group'?: { id: string };
 }
 
+/**
+ * Busy, MusicBrainz answers 503 even to clients within its pace, and asks them to slow down and
+ * try again: https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting. This many times more,
+ * after its Retry-After or 2, 4 and 8 s.
+ */
+const MB_RETRIES = 3;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export async function musicBrainz(pathAndQuery: string) {
-	const wait = lastRequest + MB_INTERVAL_MS - Date.now();
-	if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
-	lastRequest = Date.now();
 	const separator = pathAndQuery.includes('?') ? '&' : '?';
-	const res = await fetch(`https://musicbrainz.org/ws/2/${pathAndQuery}${separator}fmt=json`, {
-		headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-		signal: AbortSignal.timeout(20_000)
-	});
-	if (res.status === 404) return null;
-	if (!res.ok) throw new Error(`MusicBrainz respondió ${res.status}`);
-	return res.json() as Promise<{ releases?: Release[] }>;
+	for (let attempt = 0; ; attempt++) {
+		const wait = lastRequest + MB_INTERVAL_MS - Date.now();
+		if (wait > 0) await sleep(wait);
+		lastRequest = Date.now();
+		const res = await fetch(`https://musicbrainz.org/ws/2/${pathAndQuery}${separator}fmt=json`, {
+			headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+			signal: AbortSignal.timeout(20_000)
+		});
+		if (res.status === 503 && attempt < MB_RETRIES) {
+			const after = Number(res.headers.get('retry-after'));
+			await sleep((after > 0 ? after : 2 ** (attempt + 1)) * 1000);
+			continue;
+		}
+		if (res.status === 404) return null;
+		if (!res.ok) throw new Error(`MusicBrainz respondió ${res.status}`);
+		return res.json() as Promise<{ releases?: Release[] }>;
+	}
 }
 
 export const quote = (value: string) => `"${value.replace(/["\\]/g, '\\$&')}"`;
 /** Lucene's special characters out: the words alone. */
-const words = (value: string) => `(${value.replace(/[+\-&|!(){}[\]^"~*?:\\/]/g, ' ').trim()})`;
+export const words = (value: string) =>
+	`(${value.replace(/[+\-&|!(){}[\]^"~*?:\\/]/g, ' ').trim()})`;
 
 /**
  * Best first: the exact disc if its id is known, then a search by title (and artist), first as a

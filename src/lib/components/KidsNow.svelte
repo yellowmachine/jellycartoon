@@ -1,4 +1,5 @@
 <script lang="ts">
+	import KidMirror from '#lib/components/KidMirror.svelte';
 	import { formatDuration } from '#lib/format.ts';
 	import { poll } from '#lib/poll.ts';
 	import type { WatchingNow } from '#lib/server/live-watching.ts';
@@ -18,13 +19,23 @@
 
 	// From the page, then from each check.
 	let watching = $derived<WatchingNow[]>(initial);
+	/** When `watching` came: its positions have moved on since. */
+	let checkedAt = $state(Date.now());
 	let problem = $state(false);
+	/**
+	 * The children whose small copy is open. Each is a video coming to this device and made by the
+	 * server while open: only when asked for.
+	 */
+	let mirrors = $state<string[]>([]);
 
 	$effect(() =>
 		poll(async () => {
 			const res = await fetch('/infantil/ahora').catch(() => null);
 			problem = !res?.ok;
-			if (res?.ok) watching = await res.json();
+			if (res?.ok) {
+				watching = await res.json();
+				checkedAt = Date.now();
+			}
 		}, 10_000)
 	);
 
@@ -43,7 +54,7 @@
 	<ul class="space-y-3">
 		{#each kids as kid (kid.id)}
 			{@const now = watching.find((w) => w.userId === kid.id)}
-			<li class="flex items-start gap-3">
+			<li class="flex flex-wrap items-start gap-3">
 				<span
 					class={[
 						'mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full',
@@ -61,12 +72,26 @@
 								? ` · minuto ${Math.floor(now.positionSec / 60)}`
 								: ''} · en {now.device}
 						</span>
+						<button
+							class="mt-1 text-sm text-amber-400 hover:underline"
+							aria-expanded={mirrors.includes(kid.id)}
+							onclick={() =>
+								(mirrors = mirrors.includes(kid.id)
+									? mirrors.filter((id) => id !== kid.id)
+									: [...mirrors, kid.id])}
+							>{mirrors.includes(kid.id) ? 'Dejar de verlo' : 'Verlo en pequeño'}</button
+						>
 					{:else}
 						<span class="text-zinc-400">
 							no está viendo nada{kid.lastActivity ? ` · lo último, ${ago(kid.lastActivity)}` : ''}
 						</span>
 					{/if}
 				</p>
+				{#if now && mirrors.includes(kid.id)}
+					<div class="w-full sm:ml-auto sm:w-80">
+						<KidMirror {now} {checkedAt} />
+					</div>
+				{/if}
 			</li>
 		{/each}
 	</ul>
