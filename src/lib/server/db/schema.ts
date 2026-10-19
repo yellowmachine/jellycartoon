@@ -581,6 +581,11 @@ export const album = pgTable('album', {
 	/** MusicBrainz disc id, from the CDTOC tag some rippers (fre:ac) write. */
 	discId: text('disc_id'),
 	coverStatus: coverStatus('cover_status').notNull().default('pending'),
+	/**
+	 * Where its cover came from, to fetch it again: `release/<MusicBrainz id>` or
+	 * `release-group/<id>` in the Cover Art Archive, or `embedded` (its first track's picture).
+	 */
+	coverSource: text('cover_source'),
 	updatedAt: timestamp('updated_at')
 		.notNull()
 		.defaultNow()

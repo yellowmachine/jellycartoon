@@ -22,14 +22,16 @@ const USER_AGENT = 'JellyCartoon/1.0 (https://github.com/yellowmachine/jellycart
 const MB_INTERVAL_MS = 1100;
 let lastRequest = 0;
 
-interface Release {
+export interface Release {
 	id: string;
 	title: string;
 	score?: number;
+	date?: string;
+	'artist-credit'?: { name: string; joinphrase?: string }[];
 	'release-group'?: { id: string };
 }
 
-async function musicBrainz(pathAndQuery: string) {
+export async function musicBrainz(pathAndQuery: string) {
 	const wait = lastRequest + MB_INTERVAL_MS - Date.now();
 	if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
 	lastRequest = Date.now();
@@ -43,7 +45,7 @@ async function musicBrainz(pathAndQuery: string) {
 	return res.json() as Promise<{ releases?: Release[] }>;
 }
 
-const quote = (value: string) => `"${value.replace(/["\\]/g, '\\$&')}"`;
+export const quote = (value: string) => `"${value.replace(/["\\]/g, '\\$&')}"`;
 /** Lucene's special characters out: the words alone. */
 const words = (value: string) => `(${value.replace(/[+\-&|!(){}[\]^"~*?:\\/]/g, ' ').trim()})`;
 
@@ -70,7 +72,7 @@ async function candidates(a: { title: string; artist: string; discId: string | n
 }
 
 /** The 500 px front cover (always a JPEG) of a release or a release group, if there is one. */
-async function downloadFront(kind: 'release' | 'release-group', id: string, file: string) {
+export async function downloadFront(kind: 'release' | 'release-group', id: string, file: string) {
 	const res = await fetch(`https://coverartarchive.org/${kind}/${id}/front-500`, {
 		headers: { 'User-Agent': USER_AGENT },
 		signal: AbortSignal.timeout(30_000)
@@ -135,23 +137,30 @@ export async function findCovers() {
 				.orderBy(sql`${track.number} nulls last`, asc(track.id))
 				.limit(1);
 			const opus = first ? isOpus(first.path) : false;
-			let found = first && opus ? await embeddedCover(a.id, musicFile(first.path)) : false;
+			let source: string | null =
+				first && opus && (await embeddedCover(a.id, musicFile(first.path))) ? 'embedded' : null;
 			const groups = new Set<string>();
-			for (const release of found ? [] : await candidates(a)) {
-				found = await downloadFront('release', release.id, albumCoverFile(a.id));
-				if (found) break;
+			for (const release of source ? [] : await candidates(a)) {
+				if (await downloadFront('release', release.id, albumCoverFile(a.id))) {
+					source = `release/${release.id}`;
+					break;
+				}
 				// Many releases have no art of their own, but another edition of the album does.
 				const group = release['release-group']?.id;
 				if (group && !groups.has(group)) {
 					groups.add(group);
-					found = await downloadFront('release-group', group, albumCoverFile(a.id));
-					if (found) break;
+					if (await downloadFront('release-group', group, albumCoverFile(a.id))) {
+						source = `release-group/${group}`;
+						break;
+					}
 				}
 			}
-			if (!found && first && !opus) found = await embeddedCover(a.id, musicFile(first.path));
+			if (!source && first && !opus && (await embeddedCover(a.id, musicFile(first.path))))
+				source = 'embedded';
+			const found = source !== null;
 			await db
 				.update(album)
-				.set({ coverStatus: found ? 'found' : 'not_found' })
+				.set({ coverStatus: found ? 'found' : 'not_found', coverSource: source })
 				.where(eq(album.id, a.id));
 			if (!found)
 				log.info('música', `Sin portada para ${a.artist} - ${a.title}`, { albumId: a.id });

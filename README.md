@@ -309,6 +309,12 @@ sección Música; en desarrollo se usa `MUSIC_DIR`.
   id del disco si el ripeador escribió `CDTOC`, como fre:ac; si no, por título y artista) y se
   descargan del [Cover Art Archive](https://musicbrainz.org/doc/Cover_Art_Archive/API) a
   `DATA_DIR/album-cover`. MusicBrainz admite una petición por segundo: la primera vez tarda.
+- Si no la encuentra, casi siempre es por el nombre: «… CD1», «Lauper, Cyndi», «AC, DC». En el
+  álbum, «Buscar carátula» le pide a la IA (con la clave de OpenRouter de Ajustes; sin ella, con
+  el nombre tal cual) qué disco es, por su carpeta, su título, su artista y sus canciones, lo busca
+  así en MusicBrainz y propone hasta 4 carátulas de las ediciones que la tienen. La elegida se
+  guarda como las demás, una copia, con su id de MusicBrainz (`album.cover_source`), y también en
+  los otros discos del mismo álbum sin portada («Sus 50 mejores canciones CD 1» y «CD 3»).
 - El buscador ([MiniSearch](https://lucaong.github.io/minisearch/)) busca en el navegador, mientras
   escribes, en artistas, álbumes y canciones, sin importar tildes ni pequeñas erratas.
 - Los FLAC se mandan tal cual: los navegadores actuales los reproducen. La barra de abajo sigue
