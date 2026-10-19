@@ -9,6 +9,7 @@
 		| 'canales'
 		| 'radio'
 		| 'podcasts'
+		| 'recetas'
 		| 'musica'
 		| 'salon'
 		| 'infantil'
@@ -50,6 +51,10 @@
 		<!-- A microphone. -->
 		<rect x="9" y="2.5" width="6" height="11" rx="3" />
 		<path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" />
+	{:else if name === 'recetas'}
+		<!-- A pot. -->
+		<path d="M4 10h16v7a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z" />
+		<path d="M2 10h20M9 6.5c0-1 .8-1 .8-2M12.5 6.5c0-1 .8-1 .8-2" />
 	{:else if name === 'salon'}
 		<!-- A sofa. -->
 		<path d="M5 11V8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3" />

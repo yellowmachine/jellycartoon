@@ -31,6 +31,7 @@ import {
 import { fold, masterVolume, type MusicAlbum, type MusicTrack } from '#lib/music.ts';
 import { COUNTRIES, STATIONS } from '#lib/radio.ts';
 import { parseRecipe } from '#lib/recipe.ts';
+import { getRecipe, listRecipes } from '#lib/server/recipes/import.ts';
 import {
 	MAX_TIMER_SEC,
 	type VoiceAction,
@@ -290,6 +291,12 @@ function tools(house: boolean): Tool[] {
 			['title', 'ingredients', 'steps']
 		),
 		fn(
+			'cook_saved_recipe',
+			'Pone en este dispositivo una receta del recetario de la casa, desde el primer paso, como «start_recipe».',
+			{ id: { type: 'integer', description: 'El número de la receta en el recetario.' } },
+			['id']
+		),
+		fn(
 			'recipe_step',
 			'Lleva la receta en marcha a un paso: el siguiente cuando ha hecho el de ahora, o el que diga («vuelve al anterior»).',
 			{ step: { type: 'integer', description: 'El número del paso, desde 1.' } },
@@ -336,8 +343,10 @@ function instructions(context: {
 	hoursSince: string | null;
 	/** «Guardar lo que veo», in Ajustes. */
 	keepHistory: boolean;
+	/** The house's recipe book. */
+	recipes: { id: number; title: string; sourceName: string }[];
 }) {
-	const { albums, playlists, house, hoursSince, keepHistory } = context;
+	const { albums, playlists, house, hoursSince, keepHistory, recipes } = context;
 	const byArtist = new Map<string, MusicAlbum[]>();
 	for (const a of albums) byArtist.set(a.artist, [...(byArtist.get(a.artist) ?? []), a]);
 	const library =
@@ -376,7 +385,7 @@ Temporizadores («avísame en 10 minutos», «pon un temporizador de 20 minutos 
 - «Modo cocina», «que no se apague la pantalla»: «kitchen_mode». Se apaga solo a las tres horas sin temporizadores.
 - Cuando diga que ya ha pasado lo que espera uno preparado («ya hierve», «ya está el sofrito»), arráncalo con «set_timer» con su mismo nombre y sus minutos. Si no está claro cuál, usa «ask».
 
-Recetas para cocinar ahora («vamos a hacer una carbonara», «¿me ayudas con unas lentejas?»): escríbela entera con «start_recipe», sin preguntar. Si solo pregunta cómo se hace algo, contesta sin ella.
+Recetas para cocinar ahora («vamos a hacer una carbonara», «¿me ayudas con unas lentejas?»): mira primero el recetario de la casa (al final). Si está, ponla con «cook_saved_recipe»; si encajan varias, usa «ask». Si no está, escríbela entera con «start_recipe», sin preguntar, y dile que no estaba en el recetario. Si solo pregunta cómo se hace algo, contesta sin ellas.
 - Para las personas que diga; si no lo dice, para dos, y díselo.
 - Pasos cortos, en el orden en que se hacen, para oírlos de uno en uno. Un tiempo que esperar («cuece 9 minutos», «hornea 35») es el temporizador de su paso, con su nombre; con «timer_trigger» si empieza con algo que hará o pasará después («eches la pasta»).
 - Lo que se hace mientras corre un temporizador va en el texto de ese mismo paso («Echa los espaguetis. Mientras, dora el guanciale»): al acabar, la app pasa sola al paso siguiente, que tiene que ser lo que toca entonces («Escurre la pasta…»).
@@ -408,7 +417,10 @@ Listas de reproducción:
 ${playlists.map((p) => `- ${p.name} [lista ${p.id}, ${p.total} canciones]`).join('\n') || '(ninguna)'}
 
 Emisoras de radio:
-${STATIONS.map((s) => `- ${s.name} [${s.uuid}]: ${s.description}, ${COUNTRIES[s.country] ?? s.country}`).join('\n')}`;
+${STATIONS.map((s) => `- ${s.name} [${s.uuid}]: ${s.description}, ${COUNTRIES[s.country] ?? s.country}`).join('\n')}
+
+Recetario de la casa:
+${recipes.map((r) => `- ${r.title} [receta ${r.id}, de ${r.sourceName}]`).join('\n') || '(vacío)'}`;
 }
 
 /** What sounds in each place now, with each command: it is not what the person said. */
@@ -685,6 +697,18 @@ async function runTool(
 			ctx.outcome.actions.push({ kind: 'recipe', recipe, step: step - 1 });
 			return `Receta «${recipe.title}» en marcha en el dispositivo, en el paso ${step} de ${recipe.steps.length}.`;
 		}
+		case 'cook_saved_recipe': {
+			const saved = await getRecipe(Number(args.id));
+			if (!saved) return `No hay receta ${args.id} en el recetario.`;
+			const recipe = parseRecipe(saved);
+			if (typeof recipe === 'string') return recipe;
+			ctx.outcome.actions.push({ kind: 'recipe', recipe, step: 0 });
+			return [
+				`Receta «${recipe.title}» (de ${saved.sourceName}) en marcha en el dispositivo, en el paso 1 de ${recipe.steps.length}.`,
+				`Ingredientes: ${recipe.ingredients.join('; ') || 'no dichos'}.`,
+				`Paso 1: ${recipe.steps[0]!.text}`
+			].join('\n');
+		}
 		case 'recipe_step': {
 			if (!ctx.recipe) return 'No hay receta en marcha en este dispositivo.';
 			const step = Number(args.step);
@@ -716,14 +740,16 @@ async function runTool(
  * from the session; an adult, a child's account has no voice.
  */
 export async function runVoiceCommand(request: VoiceRequest, user: Person): Promise<VoiceReply> {
-	const [albums, playlists, model, { hoursSince }, keepHistory, watchingHere] = await Promise.all([
-		getAlbums(),
-		listPlaylists(),
-		voiceModel(),
-		historySince([user]),
-		keepsHistory(user.id),
-		videoText(request.video)
-	]);
+	const [albums, playlists, model, { hoursSince }, keepHistory, watchingHere, recipes] =
+		await Promise.all([
+			getAlbums(),
+			listPlaylists(),
+			voiceModel(),
+			historySince([user]),
+			keepsHistory(user.id),
+			videoText(request.video),
+			listRecipes()
+		]);
 	const house = snapcastReady();
 	const outcome: Outcome = { actions: [], options: [], asked: null };
 	const messages: ToolChatMessage[] = [
@@ -732,7 +758,7 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 			content: [
 				{
 					type: 'text',
-					text: instructions({ albums, playlists, house, hoursSince, keepHistory }),
+					text: instructions({ albums, playlists, house, hoursSince, keepHistory, recipes }),
 					cache_control: { type: 'ephemeral' }
 				}
 			]

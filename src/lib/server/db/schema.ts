@@ -21,6 +21,7 @@ import type { Chapter, SceneName } from '#lib/scenes.ts';
 import type { SubtitleStyle } from '#lib/subtitle-style.ts';
 import type { WikiPage } from '#lib/server/cinema/wikidata.ts';
 import type { TitleProposal } from '#lib/episode-titles.ts';
+import type { RecipeStep } from '#lib/recipe.ts';
 import { user } from './auth.schema';
 
 export const series = pgTable('series', {
@@ -780,3 +781,23 @@ export const podcastProgress = pgTable(
 	},
 	(t) => [primaryKey({ columns: [t.userId, t.episodeId] })]
 );
+
+/**
+ * The house's recipe book (#60): recipes saved from a cooking site's page, its schema.org Recipe
+ * read and its steps made ready for the kitchen (short, with their timers). The whole house's, not
+ * each person's; who saved it, for the credits.
+ */
+export const recipe = pgTable('recipe', {
+	id: serial('id').primaryKey(),
+	title: text('title').notNull(),
+	servings: integer('servings'),
+	ingredients: jsonb('ingredients').$type<string[]>().notNull().default([]),
+	steps: jsonb('steps').$type<RecipeStep[]>().notNull(),
+	imageUrl: text('image_url'),
+	/** The page it came from: one recipe per page. */
+	sourceUrl: text('source_url').notNull().unique(),
+	/** The site's name, or its host: «Las recetas de…». */
+	sourceName: text('source_name').notNull(),
+	createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+	createdAt: timestamp('created_at').notNull().defaultNow()
+});
