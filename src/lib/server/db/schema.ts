@@ -801,3 +801,40 @@ export const recipe = pgTable('recipe', {
 	createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
 	createdAt: timestamp('created_at').notNull().defaultNow()
 });
+
+/**
+ * The house's favourite cooking sites (#60): their sitemaps read, to search their recipes by the
+ * words of their addresses, by voice or in Recetas; one is imported (a `recipe`) when chosen.
+ */
+export const recipeSite = pgTable('recipe_site', {
+	id: serial('id').primaryKey(),
+	/** Without «www.»: «directoalpaladar.com». */
+	host: text('host').notNull().unique(),
+	/** og:site_name, or its title, or its host. */
+	name: text('name').notNull(),
+	/** How many pages its sitemaps listed, the last time they were read. */
+	pages: integer('pages').notNull().default(0),
+	/** When they were read, and why that failed, if it did. */
+	indexedAt: timestamp('indexed_at'),
+	lastError: text('last_error'),
+	createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+	createdAt: timestamp('created_at').notNull().defaultNow()
+});
+
+/** A page of a favourite site's sitemaps, by the words of its address. */
+export const recipeSitePage = pgTable(
+	'recipe_site_page',
+	{
+		id: serial('id').primaryKey(),
+		siteId: integer('site_id')
+			.notNull()
+			.references(() => recipeSite.id, { onDelete: 'cascade' }),
+		url: text('url').notNull(),
+		/** As shown: «Macarrones gratinados con bechamel». */
+		title: text('title').notNull(),
+		/** Folded (lower case, no accents) and between spaces, for searching. */
+		words: text('words').notNull()
+	},
+	// Also the index by site: it comes first.
+	(t) => [unique().on(t.siteId, t.url)]
+);

@@ -61,6 +61,35 @@ async function assertPublic(url: URL) {
 
 const MAX_REDIRECTS = 5;
 
+const decoder = new TextDecoder();
+
+/** A file served gzipped as it is (a sitemap's `.xml.gz`), not with Content-Encoding: by its magic bytes. */
+const isGzip = (bytes: Uint8Array) => bytes[0] === 0x1f && bytes[1] === 0x8b;
+
+/**
+ * https://developer.mozilla.org/docs/Web/API/DecompressionStream, stopped as soon as it goes over
+ * `max`: a small file can unpack into an enormous one.
+ */
+async function gunzip(bytes: Uint8Array<ArrayBuffer>, max: number) {
+	const reader = new Blob([bytes])
+		.stream()
+		.pipeThrough(new DecompressionStream('gzip'))
+		.getReader();
+	const chunks: Uint8Array[] = [];
+	let size = 0;
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		size += value.length;
+		if (size > max) {
+			await reader.cancel();
+			throw new Error('La página es demasiado grande');
+		}
+		chunks.push(value);
+	}
+	return decoder.decode(Buffer.concat(chunks));
+}
+
 /**
  * GET of a public web address, following its redirects (each checked), up to `maxBytes`. Why not,
  * in Spanish, if it cannot be.
@@ -92,8 +121,9 @@ export async function fetchPublic(
 		if (!res.ok) throw new Error(`La web respondió ${res.status}`);
 		if (Number(res.headers.get('content-length') ?? 0) > options.maxBytes)
 			throw new Error('La página es demasiado grande');
-		const body = await res.text();
-		if (body.length > options.maxBytes) throw new Error('La página es demasiado grande');
+		const bytes = new Uint8Array(await res.arrayBuffer());
+		if (bytes.length > options.maxBytes) throw new Error('La página es demasiado grande');
+		const body = isGzip(bytes) ? await gunzip(bytes, options.maxBytes) : decoder.decode(bytes);
 		return { url: url.href, body, contentType: res.headers.get('content-type') ?? '' };
 	}
 }
