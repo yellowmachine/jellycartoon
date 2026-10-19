@@ -81,10 +81,10 @@ async function runScan(): Promise<MusicScanResult> {
 			await db.insert(track).values({ path: file, title: path.parse(file).name, ...fileFields });
 			result.added++;
 		} else if (existing.size !== info.size || existing.mtime.getTime() !== info.mtime.getTime()) {
-			// Retagged or replaced: its tags are read again.
+			// Retagged or replaced: its tags are read again, and its Opus made again.
 			await db
 				.update(track)
-				.set({ ...fileFields, status: 'pending', error: null })
+				.set({ ...fileFields, status: 'pending', error: null, opus: 'pending', opusError: null })
 				.where(eq(track.id, existing.id));
 			result.changed++;
 		} else {

@@ -554,6 +554,33 @@ export async function audioClip(
 }
 
 /**
+ * A track as Opus at 160 kb/s (VBR, libopus' default), for listening away from home (#64): about a
+ * fifth of the FLAC, and the same to the ear. Only the audio: the cover in the FLAC is a video
+ * stream, which Ogg cannot hold. The worker's: low priority, and frozen with it.
+ */
+export async function toOpus(input: string, output: string) {
+	await run('ffmpeg', [
+		'-hide_banner',
+		'-nostats',
+		'-y',
+		'-i',
+		input,
+		'-map',
+		'0:a:0',
+		'-vn',
+		'-sn',
+		'-dn',
+		'-c:a',
+		'libopus',
+		'-b:a',
+		'160k',
+		'-f',
+		'ogg',
+		output
+	]);
+}
+
+/**
  * An audio track as WAV pieces of `chunkSec` (16 kHz mono, what Whisper wants), in `outDir`: one
  * pass over the file, and the pieces in order. `audio`: which audio track, in order (a film's);
  * an episode's rendition has only its own, the first.

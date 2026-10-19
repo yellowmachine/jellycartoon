@@ -136,7 +136,7 @@ class MusicPlayer {
 		if (!this.#audio) return;
 		if (!this.#audio.paused) this.#audio.pause();
 		else if (this.radio) this.resume();
-		else void this.#audio.play().catch(() => {});
+		else this.#play();
 	}
 
 	pause() {
@@ -147,7 +147,28 @@ class MusicPlayer {
 	resume() {
 		this.restored = null;
 		if (this.radio) this.radio = { ...this.radio };
-		else void this.#audio?.play().catch(() => {});
+		else this.#play();
+	}
+
+	/**
+	 * After a network error (the phone asleep, no signal) the `<audio>` does not ask for the track
+	 * again by itself, and play() does nothing: it is loaded again, from where it was.
+	 */
+	#play() {
+		const audio = this.#audio;
+		if (!audio) return;
+		if (audio.error) {
+			const at = audio.currentTime;
+			audio.load();
+			// Before loading, currentTime is where it starts.
+			audio.currentTime = at;
+		}
+		void audio.play().catch(() => {});
+	}
+
+	/** The track or episode failed: tried again, unless something else has been played since. */
+	retry() {
+		if (this.#audio?.error) this.#play();
 	}
 
 	next() {
@@ -169,7 +190,7 @@ class MusicPlayer {
 
 	#restart() {
 		this.seek(0);
-		void this.#audio?.play().catch(() => {});
+		this.#play();
 	}
 
 	/** Past the first seconds, back to the start of the track, as players do. */

@@ -4,7 +4,15 @@
 	 * Drawn rather than emoji, which depend on the fonts of the PC in the living room.
 	 */
 	export type Section =
-		'series' | 'cine' | 'canales' | 'radio' | 'musica' | 'salon' | 'infantil' | 'gestion';
+		| 'series'
+		| 'cine'
+		| 'canales'
+		| 'radio'
+		| 'podcasts'
+		| 'musica'
+		| 'salon'
+		| 'infantil'
+		| 'gestion';
 </script>
 
 <script lang="ts">
@@ -38,6 +46,10 @@
 		<path d="M9 18V5.5l11-2.5v12.5" />
 		<circle cx="6.5" cy="18" r="2.5" />
 		<circle cx="17.5" cy="15.5" r="2.5" />
+	{:else if name === 'podcasts'}
+		<!-- A microphone. -->
+		<rect x="9" y="2.5" width="6" height="11" rx="3" />
+		<path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" />
 	{:else if name === 'salon'}
 		<!-- A sofa. -->
 		<path d="M5 11V8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3" />

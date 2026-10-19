@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import {
 	album,
@@ -106,7 +106,10 @@ export async function musicTotals() {
 			ready: sql<number>`count(*) filter (where ${track.status} = 'ready')::int`,
 			pending: sql<number>`count(*) filter (where ${track.status} = 'pending')::int`,
 			ignored: sql<number>`count(*) filter (where ${track.status} = 'ignored')::int`,
-			errors: sql<number>`count(*) filter (where ${track.status} = 'error')::int`
+			errors: sql<number>`count(*) filter (where ${track.status} = 'error')::int`,
+			// The Opus copies (#64), of the tracks that play.
+			opusPending: sql<number>`count(*) filter (where ${track.status} = 'ready' and ${track.opus} = 'pending')::int`,
+			opusErrors: sql<number>`count(*) filter (where ${track.status} = 'ready' and ${track.opus} = 'error')::int`
 		})
 		.from(track)
 		.where(eq(track.missing, false));
@@ -122,10 +125,20 @@ export async function musicTotals() {
 			track,
 			and(eq(track.albumId, album.id), eq(track.status, 'ready'), eq(track.missing, false))
 		);
+	// With the ones of the Opus copies.
 	const errorsList = await db
-		.select({ id: track.id, path: track.path, error: track.error })
+		.select({
+			id: track.id,
+			path: track.path,
+			error: sql<string | null>`coalesce(${track.error}, 'Opus: ' || ${track.opusError})`
+		})
 		.from(track)
-		.where(and(eq(track.status, 'error'), eq(track.missing, false)))
+		.where(
+			and(
+				or(eq(track.status, 'error'), and(eq(track.status, 'ready'), eq(track.opus, 'error'))),
+				eq(track.missing, false)
+			)
+		)
 		.orderBy(desc(track.id))
 		.limit(50);
 	return { ...tracks, ...covers, errorsList };

@@ -68,6 +68,8 @@ export const hostMoviePath = (relative: string) =>
 /** Music folder; null when there is no Música section. */
 export const musicRoot = MUSIC_DIR ? path.resolve(MUSIC_DIR) : null;
 export const musicFile = (relative: string) => path.join(musicRoot!, relative);
+/** A track's Opus copy (#64), by its id: the FLAC in MUSIC_DIR is never touched. */
+export const opusFile = (trackId: number) => path.join(dataRoot, 'music-opus', `${trackId}.opus`);
 /** Front covers from the Cover Art Archive. */
 export const albumCoverFile = (albumId: number) =>
 	path.join(dataRoot, 'album-cover', `${albumId}.jpg`);

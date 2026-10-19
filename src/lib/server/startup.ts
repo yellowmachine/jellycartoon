@@ -26,7 +26,7 @@ const STATES = { running: 'en marcha', paused: 'en pausa', stopped: 'parada' };
 
 export async function logStartup() {
 	try {
-		const [episodes, subtitles, paused, films, stale, tracks] = await Promise.all([
+		const [episodes, subtitles, paused, films, stale, tracks, opus] = await Promise.all([
 			howMany(
 				db
 					.select({ n })
@@ -66,6 +66,16 @@ export async function logStartup() {
 							.from(track)
 							.where(and(eq(track.status, 'pending'), eq(track.missing, false)))
 					)
+				: 0,
+			musicRoot
+				? howMany(
+						db
+							.select({ n })
+							.from(track)
+							.where(
+								and(eq(track.status, 'ready'), eq(track.opus, 'pending'), eq(track.missing, false))
+							)
+					)
 				: 0
 		]);
 		const worker = workerStatus().state;
@@ -75,7 +85,7 @@ export async function logStartup() {
 				? [`subtítulos ${paused ? 'en pausa' : 'en marcha'}, ${subtitles} en cola`]
 				: []),
 			...(cinemaRoot ? [`películas: ${films} por catalogar, ${stale} fichas por completar`] : []),
-			...(musicRoot ? [`música: ${tracks} pistas por leer`] : []),
+			...(musicRoot ? [`música: ${tracks} pistas por leer, ${opus} por comprimir en Opus`] : []),
 			`escaneo nocturno a las ${NIGHTLY_SCAN_HOUR}:00`,
 			`podcasts cada ${REFRESH_HOURS} horas`
 		];
@@ -90,7 +100,8 @@ export async function logStartup() {
 				subtitlesPaused: paused,
 				films,
 				staleInfo: stale,
-				tracks
+				tracks,
+				opus
 			}
 		);
 	} catch (error) {

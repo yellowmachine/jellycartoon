@@ -28,7 +28,7 @@
 
 	const progress = $derived(data.progress);
 	const totals = $derived(data.totals);
-	const busy = $derived(progress.phase !== 'idle' || totals.pending > 0);
+	const busy = $derived(progress.phase !== 'idle' || totals.pending > 0 || totals.opusPending > 0);
 	/** Tags read so far, of every file found. */
 	const read = $derived(totals.ready + totals.ignored + totals.errors);
 
@@ -175,9 +175,13 @@
 			<span class="text-amber-400"
 				>buscando portadas · {progress.coversDone} de {progress.coversTotal}</span
 			>
+		{:else if totals.opusPending}
+			<span class="text-amber-400">comprimiendo para el móvil · quedan {totals.opusPending}</span>
 		{:else}
 			{totals.ready} canciones · {totals.albums} álbumes
-			{#if totals.errors}<span class="text-red-400"> · {totals.errors} errores</span>{/if}
+			{#if totals.errors + totals.opusErrors}<span class="text-red-400">
+					· {totals.errors + totals.opusErrors} errores</span
+				>{/if}
 		{/if}
 	</summary>
 	<div class="border-t border-zinc-800 p-3">
@@ -195,9 +199,16 @@
 					style:width="{(progress.coversDone / (progress.coversTotal || 1)) * 100}%"
 				></div>
 			</div>
+		{:else if totals.opusPending}
+			<div class="mb-3 h-1.5 rounded bg-zinc-800">
+				<div
+					class="h-full rounded bg-amber-400"
+					style:width="{((totals.ready - totals.opusPending) / (totals.ready || 1)) * 100}%"
+				></div>
+			</div>
 		{/if}
 		<dl class="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
-			{#each [['Canciones', totals.ready], ['Álbumes', totals.albums], ['Con portada', totals.found], ['Sin etiqueta de álbum', totals.ignored], ['Errores', totals.errors]] as [label, value] (label)}
+			{#each [['Canciones', totals.ready], ['Álbumes', totals.albums], ['Con portada', totals.found], ['Sin etiqueta de álbum', totals.ignored], ['Errores', totals.errors + totals.opusErrors]] as [label, value] (label)}
 				<div class="rounded-md border border-zinc-800 p-2">
 					<dt class="text-xs text-zinc-400">{label}</dt>
 					<dd class="text-xl font-semibold">{value}</dd>
@@ -216,11 +227,13 @@
 				<br />{totals.notFound} álbumes sin portada en MusicBrainz.
 			{/if}
 			Las descargas (sin etiqueta de álbum, o con el id de YouTube en el nombre) no se catalogan.
+			<br />Cada canción se comprime también en Opus, para escucharla con datos móviles (Ajustes →
+			Calidad de la música).
 		</p>
 		{#if progress.lastError}
 			<p class="mt-2 text-sm text-red-400">No se pudo escanear: {progress.lastError}</p>
 		{/if}
-		{#if totals.errors}
+		{#if totals.errors + totals.opusErrors}
 			<div class="mt-3">
 				<form method="post" action="?/retry" use:enhance class="mb-2" hidden={data.kid}>
 					<button class="rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900">
