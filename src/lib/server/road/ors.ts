@@ -53,6 +53,17 @@ export async function searchPlaces(text: string, near: LngLat | null): Promise<P
 	return placesFromOrs(await ors('search', `/geocode/search?${params}`));
 }
 
+/** What is at a point (reverse geocoding): «Calle Mayor 5, Toledo», for «¿dónde estoy?». */
+export async function whereIs(at: LngLat): Promise<string | null> {
+	const params = new URLSearchParams({
+		'point.lon': String(at[0]),
+		'point.lat': String(at[1]),
+		size: '1',
+		lang: 'es'
+	});
+	return placesFromOrs(await ors('search', `/geocode/reverse?${params}`))[0]?.label ?? null;
+}
+
 /** By car from `from` to `to`, with its steps in Spanish. */
 export async function drivingRoute(from: LngLat, to: LngLat): Promise<Route> {
 	const route = routeFromOrs(

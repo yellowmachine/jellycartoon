@@ -441,8 +441,15 @@ Con la ruta puesta, guía según avanzas: arriba del mapa, en grande, la próxim
 flecha y a cuántos metros; en la lista, el paso que toca, resaltado; y lo que queda y la hora de
 llegada, al día. Al elegir el destino se ve la ruta entera unos segundos y luego el mapa vuelve a
 seguirte. Si te sales más de 50 m durante unas posiciones, recalcula desde donde estés (como mucho
-una vez cada 20 s, por la cuota). Al llegar, «Has llegado». Leer los pasos en voz alta es la
-siguiente fase (#78).
+una vez cada 20 s, por la cuota). Al llegar, «Has llegado».
+
+Y lo dice en voz alta, con la voz del dispositivo y la música más baja mientras habla: cada
+maniobra con antelación («En 300 metros, gira a la izquierda por Calle Real», unos 20 s antes según
+la velocidad) y al llegar a ella, y «Has llegado a tu destino»; «sigue todo recto», no. Los textos
+de openrouteservice se pasan a tú y a cómo suenan («toma la segunda salida», no «tome la 2a»).
+«Voz: no» en la ruta lo calla, y se recuerda en ese navegador. Por voz, en el modo carretera:
+«llévame a…» traza la ruta, «¿dónde estoy?» dice la dirección y «quita la ruta» la quita. Si
+se pide vídeo, contesta que en el coche no se pone.
 
 ### Voz
 

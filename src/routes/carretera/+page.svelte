@@ -18,6 +18,7 @@
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { distanceText, type LngLat, type Place, type Route } from '#lib/road.ts';
 	import { alongLine, guide } from '#lib/road-guide.ts';
+	import { toSay } from '#lib/road-voice.ts';
 	import type { PageProps } from './$types';
 
 	/**
@@ -53,11 +54,23 @@
 	});
 	const mapShown = $derived(data.map && wide && showMap);
 
-	// The voice knows it is in the car: no video, no house's speakers, short answers.
+	// The voice knows it is in the car: no video, no house's speakers, short answers; and it can
+	// ask for a route («llévame a…») or say where we are, from here.
 	$effect(() => {
-		voice.car = true;
+		voice.road = {
+			position: () => here,
+			navigation: () =>
+				destination && route
+					? `a ${destination.label}, quedan ${distanceText(guidance?.remaining ?? route.distance)}`
+					: null,
+			navigate: (place) => {
+				if (!place) return clearRoute();
+				if (mapShown) tab = 'ruta';
+				void go(place);
+			}
+		};
 		return () => {
-			voice.car = false;
+			voice.road = null;
 		};
 	});
 
@@ -137,6 +150,8 @@
 	 * steps, from openrouteservice through the server (/carretera/buscar, /carretera/ruta).
 	 */
 	let here = $state<LngLat | null>(null);
+	/** m/s, as the GPS says it: how far ahead the directions are said. */
+	let speed = $state<number | null>(null);
 	let query = $state('');
 	let places = $state<Place[] | null>(null);
 	let route = $state<Route | null>(null);
@@ -203,6 +218,61 @@
 		});
 	});
 
+	/**
+	 * The directions aloud (phase 3d), with the device's voice, the music lower meanwhile: each
+	 * maneuver well before and at it, and the arrival. Remembered in this browser if turned off.
+	 */
+	const SPOKEN_KEY = 'carretera-voz';
+	let spoken = $state(true);
+	$effect(() => {
+		try {
+			spoken = localStorage.getItem(SPOKEN_KEY) !== 'no';
+		} catch {
+			// Private windows: on.
+		}
+	});
+	function setSpoken(value: boolean) {
+		spoken = value;
+		if (!value) speechSynthesis.cancel();
+		try {
+			if (value) localStorage.removeItem(SPOKEN_KEY);
+			else localStorage.setItem(SPOKEN_KEY, 'no');
+		} catch {
+			// Same.
+		}
+	}
+
+	/** What was said of this route: each thing once. A new route, said anew. */
+	let said = new Set<string>();
+	$effect(() => {
+		void route;
+		said = new Set();
+	});
+
+	function say(text: string) {
+		if (!('speechSynthesis' in window)) return;
+		const utterance = new SpeechSynthesisUtterance(text);
+		utterance.lang = 'es-ES';
+		music.duck(true);
+		utterance.onend = utterance.onerror = () => {
+			if (!speechSynthesis.speaking) music.duck(false);
+		};
+		speechSynthesis.speak(utterance);
+	}
+
+	$effect(() => {
+		const g = guidance;
+		if (!g || !spoken) return;
+		const next = toSay(
+			g,
+			untrack(() => speed),
+			said
+		);
+		if (!next) return;
+		said.add(next.key);
+		say(next.text);
+	});
+
 	// The step being done, in view in the list.
 	let stepList = $state<HTMLOListElement>();
 	$effect(() => {
@@ -245,7 +315,14 @@
 >
 	{#if mapShown}
 		<div class="relative h-full min-h-0">
-			<RoadMap {route} destination={destination?.at ?? null} onposition={(at) => (here = at)} />
+			<RoadMap
+				{route}
+				destination={destination?.at ?? null}
+				onposition={(at, metresPerSecond) => {
+					here = at;
+					speed = metresPerSecond;
+				}}
+			/>
 			<!-- The next maneuver, big, over the map: what to do, and in how much. -->
 			{#if routeBusy === 'reroute'}
 				<p
@@ -452,10 +529,20 @@
 												1000
 									)}
 								</p>
-								<button
-									class="mt-3 rounded-xl bg-zinc-800 px-5 py-3 text-lg active:bg-zinc-700"
-									onclick={clearRoute}>Quitar ruta</button
-								>
+								<div class="mt-3 flex flex-wrap gap-2">
+									<button
+										class="rounded-xl bg-zinc-800 px-5 py-3 text-lg active:bg-zinc-700"
+										onclick={clearRoute}>Quitar ruta</button
+									>
+									<button
+										class={[
+											'rounded-xl px-5 py-3 text-lg',
+											spoken ? 'bg-amber-500/20 text-amber-300' : 'bg-zinc-800 text-zinc-400'
+										]}
+										aria-pressed={spoken}
+										onclick={() => setSpoken(!spoken)}>{spoken ? 'Voz: sí' : 'Voz: no'}</button
+									>
+								</div>
 							</div>
 							<ol bind:this={stepList} class="flex flex-col gap-2">
 								{#each route.steps as step, i (i)}

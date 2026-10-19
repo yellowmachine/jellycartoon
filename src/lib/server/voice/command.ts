@@ -31,6 +31,8 @@ import {
 import { fold, masterVolume, type MusicAlbum, type MusicTrack } from '#lib/music.ts';
 import { COUNTRIES, STATIONS } from '#lib/radio.ts';
 import { parseRecipe } from '#lib/recipe.ts';
+import type { LngLat } from '#lib/road.ts';
+import { searchPlaces, whereIs } from '#lib/server/road/ors.ts';
 import { getRecipe, importRecipe, listRecipes } from '#lib/server/recipes/import.ts';
 import { isFavouritePage, listRecipeSites, searchRecipeSites } from '#lib/server/recipes/sites.ts';
 import {
@@ -144,6 +146,30 @@ function tools(house: boolean): Tool[] {
 					)
 				]
 			: []),
+		fn(
+			'navigate_to',
+			'Modo carretera: traza la ruta en coche desde donde está hasta un sitio, en el mapa, con los pasos y su voz. «Llévame a…», «vamos a…», «¿cómo llego a…?».',
+			{
+				destination: {
+					type: 'string',
+					description:
+						'El sitio, como se diría a un navegador: «Plaza de Zocodover, Toledo», «Calle Mayor 5, Madrid».'
+				}
+			},
+			['destination']
+		),
+		fn(
+			'where_am_i',
+			'Modo carretera: la dirección de donde está ahora, por su GPS. «¿Dónde estoy?», «¿por dónde vamos?».',
+			{},
+			[]
+		),
+		fn(
+			'stop_navigation',
+			'Modo carretera: quita la ruta que hay. «Quita la ruta», «ya no hace falta», «cancela la navegación».',
+			{},
+			[]
+		),
 		fn(
 			'send_clip',
 			`Manda a Langua (su app de idiomas) el audio de los últimos minutos del capítulo o la película que está viendo, con lo que se dice (los subtítulos). No sirve para la radio ni los canales en directo, ni para la música.`,
@@ -613,6 +639,8 @@ async function runTool(
 		video: VideoHere | null;
 		/** The recipe being cooked here, described; null if none. */
 		recipe: string | null;
+		/** Where we are, in the road mode. */
+		position?: LngLat | null;
 	}
 ): Promise<ToolResult> {
 	if (HISTORY_TOOLS.has(name)) return runHistoryTool(name, args, { self: ctx.user });
@@ -665,6 +693,23 @@ async function runTool(
 			await controlSnapcast({ action: 'masterVolume', value: to });
 			return `Volumen de la casa de ${now} a ${to}.`;
 		}
+		case 'navigate_to': {
+			const wanted = typeof args.destination === 'string' ? args.destination.trim() : '';
+			if (!wanted) return 'Falta el destino.';
+			const [place] = await searchPlaces(wanted, ctx.position ?? null);
+			if (!place)
+				return `No encuentro «${wanted}». Pídele que lo diga de otra forma (con el pueblo o la ciudad).`;
+			ctx.outcome.actions.push({ kind: 'navigate', place });
+			return `Ruta a ${place.label}: el mapa la traza y la va diciendo. Díselo corto.`;
+		}
+		case 'where_am_i': {
+			if (!ctx.position) return 'Todavía no se sabe dónde está: el GPS no ha dado la posición.';
+			const label = await whereIs(ctx.position);
+			return label ? `Está en ${label}.` : 'No sé qué hay en ese punto.';
+		}
+		case 'stop_navigation':
+			ctx.outcome.actions.push({ kind: 'navigate', place: null });
+			return 'Ruta quitada.';
 		case 'send_clip': {
 			const minutes = Number(args.minutes);
 			if (!Number.isFinite(minutes) || minutes <= 0) return 'Faltan los minutos.';
@@ -778,7 +823,10 @@ async function runTool(
 
 /** The road mode (#78): what is said while driving. */
 const CAR =
-	'[En el coche, conduciendo (modo carretera): solo audio, aquí. Nunca vídeo. Respuestas muy cortas: las oye quien conduce.]';
+	'[En el coche, conduciendo (modo carretera): solo audio, aquí. Nunca vídeo: si pide una serie, una película o un canal de televisión, dile que en el coche no se pone vídeo (no que no lo encuentras) y ofrécele música, radio o un podcast. Respuestas muy cortas: las oye quien conduce.]';
+
+/** Routes and where we are: only where there is a map and a GPS, the road mode. */
+const ONLY_IN_THE_CAR = new Set(['navigate_to', 'where_am_i', 'stop_navigation']);
 
 /** Nothing to see, cook or watch while driving: not even offered to the AI. */
 const NOT_IN_THE_CAR = new Set([
@@ -847,13 +895,21 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 					? [{ type: 'text' as const, text: `[Receta en marcha aquí:\n${request.recipe}]` }]
 					: []),
 				...(watchingHere ? [{ type: 'text' as const, text: watchingHere }] : []),
-				...(request.car ? [{ type: 'text' as const, text: CAR }] : []),
+				...(request.car
+					? [
+							{ type: 'text' as const, text: CAR },
+							{
+								type: 'text' as const,
+								text: `[Ruta: ${request.navigation ?? 'ninguna'}.]`
+							}
+						]
+					: []),
 				{ type: 'text', text: request.text }
 			]
 		}
 	];
-	const available = [...tools(house), ...historyTools({ self: user })].filter(
-		(t) => !(request.car && NOT_IN_THE_CAR.has(t.function.name))
+	const available = [...tools(house), ...historyTools({ self: user })].filter((t) =>
+		request.car ? !NOT_IN_THE_CAR.has(t.function.name) : !ONLY_IN_THE_CAR.has(t.function.name)
 	);
 
 	for (let round = 0; round < MAX_ROUNDS; round++) {
@@ -879,7 +935,8 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 					outcome,
 					user,
 					video: request.video,
-					recipe: request.recipe
+					recipe: request.recipe,
+					position: request.position
 				});
 			} catch (err) {
 				result = `Error: ${err instanceof Error ? err.message : String(err)}`;

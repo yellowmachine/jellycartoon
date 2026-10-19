@@ -20,15 +20,47 @@ export function placesFromOrs(body: unknown): Place[] {
 	});
 }
 
-/** openrouteservice's maneuver type for setting off. */
-const DEPART = 11;
+const ORDINALS: Record<string, string> = {
+	'1a': 'primera',
+	'2a': 'segunda',
+	'3a': 'tercera',
+	'4a': 'cuarta',
+	'5a': 'quinta',
+	'6a': 'sexta',
+	'7a': 'séptima',
+	'8a': 'octava',
+	'9a': 'novena',
+	'10a': 'décima'
+};
+
+/** Its turns, as they come before a street's name. */
+const TURNS =
+	'a la izquierda|a la derecha|bastante a la izquierda|bastante a la derecha|ligeramente a la izquierda|ligeramente a la derecha|todo recto|atrás';
 
 /**
- * Its Spanish for setting off is a walk, by car too («Camina hacia el suroeste en…»): said as
- * driving.
+ * Its Spanish (ors_es-ES.resources), as the app speaks: «tú», and as it sounds read aloud. Its
+ * setting off is a walk, by car too («Camina hacia…»); its streets come after «a» («Gire a la
+ * izquierda a Calle Real»); its exits are numbers («la 2a salida», read «dos a»).
  */
-function driving(instruction: string, type: number) {
-	return type === DEPART ? instruction.replace(/^Camina\b/, 'Sal') : instruction;
+export function spokenSpanish(instruction: string) {
+	return instruction
+		.replace(/^Camina hacia/, 'Sal hacia')
+		.replace(
+			/^Entre en la rotonda y tome la (\d+a) salida a /,
+			'Entra en la rotonda y toma la $1 salida hacia '
+		)
+		.replace(/^Entre en la rotonda y tome la/, 'Entra en la rotonda y toma la')
+		.replace(/^Entre en la rotonda y salga a/, 'Entra en la rotonda y sal hacia')
+		.replace(/^Entrar en la rotonda/, 'Entra en la rotonda')
+		.replace(/^Haga una vuelta en U a /, 'Da la vuelta hacia ')
+		.replace(/^Haga una vuelta en U/, 'Da la vuelta')
+		.replace(new RegExp(`^(Gire|Siga) (${TURNS}) a `), '$1 $2 por ')
+		.replace(/^Gire /, 'Gira ')
+		.replace(/^Siga /, 'Sigue ')
+		.replace(/^Llegar a su destino/, 'Llegas a tu destino')
+		.replace(/^Llegar a /, 'Llegas a ')
+		.replace(/, es recto$/, ', de frente')
+		.replace(/\b(\d+a)\b/g, (n) => ORDINALS[n] ?? n);
 }
 
 interface OrsStep {
@@ -58,7 +90,7 @@ export function routeFromOrs(body: unknown): Route | null {
 		distance: summary.distance ?? 0,
 		duration: summary.duration ?? 0,
 		steps: steps.map((s) => ({
-			instruction: driving(s.instruction, s.type),
+			instruction: spokenSpanish(s.instruction),
 			distance: s.distance,
 			type: s.type,
 			at: line[s.way_points[0]] ?? line[0]!,

@@ -7,6 +7,7 @@ import { recipe } from '#lib/recipe.svelte.ts';
 import { timers } from '#lib/timers.svelte.ts';
 import { musicTarget } from '#lib/music-target.svelte.ts';
 import { videoHere } from '#lib/video-here.svelte.ts';
+import type { LngLat, Place } from '#lib/road.ts';
 import {
 	HISTORY_TURNS,
 	type VoiceAction,
@@ -30,6 +31,15 @@ const MIN_MS = 400;
 /** Longer than this, it stops and sends by itself: a microphone forgotten open, with taps. */
 const MAX_MS = 30_000;
 
+/** What the road mode's page lends the voice (#78). */
+export interface Road {
+	position(): LngLat | null;
+	/** The route on, described for the AI; null if none. */
+	navigation(): string | null;
+	/** A route to there; null, none. */
+	navigate(place: Place | null): void;
+}
+
 class VoiceClient {
 	phase = $state<'idle' | 'listening' | 'thinking'>('idle');
 	heard = $state<string | null>(null);
@@ -38,8 +48,11 @@ class VoiceClient {
 	problem = $state<string | null>(null);
 	/** Being read aloud: the header's bubble stays until it ends. */
 	speaking = $state(false);
-	/** In the road mode (#78): the AI is told, and nothing to watch is opened. */
-	car = false;
+	/**
+	 * In the road mode (#78), set by its page: the AI is told, nothing to watch is opened, and its
+	 * route is asked for and shown there. Null elsewhere.
+	 */
+	road: Road | null = null;
 	/** The exchanges before, so that «no, eso no» means something. */
 	#history: VoiceTurn[] = [];
 
@@ -168,7 +181,9 @@ class VoiceClient {
 				history: this.#history,
 				timers: timers.describe(),
 				recipe: recipe.describe(),
-				car: this.car
+				car: this.road !== null,
+				position: this.road?.position() ?? null,
+				navigation: this.road?.navigation() ?? null
 			})
 		}).catch(() => null);
 		const body: VoiceReply | { message?: string } | null = await res?.json().catch(() => null);
@@ -182,7 +197,7 @@ class VoiceClient {
 			music.forgetPause();
 		for (const action of body.actions) {
 			// Driving: never a video, whatever the answer says.
-			if (this.car && action.kind === 'watch') continue;
+			if (this.road && action.kind === 'watch') continue;
 			await act(action);
 		}
 		this.reply = body.reply;
@@ -278,6 +293,8 @@ async function act(action: VoiceAction) {
 			return recipe.go(action.step);
 		case 'endRecipe':
 			return recipe.end();
+		case 'navigate':
+			return voice.road?.navigate(action.place);
 		case 'control':
 			if (action.action === 'pause') return music.pause();
 			if (action.action === 'resume') return music.resume();

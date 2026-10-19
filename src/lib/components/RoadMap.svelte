@@ -21,8 +21,8 @@
 		/** Drawn, and the map fitted to it when it is new (phase 3b). */
 		route?: Route | null;
 		destination?: LngLat | null;
-		/** Each position the GPS gives, for the route to start from it. */
-		onposition?: (at: LngLat) => void;
+		/** Each position the GPS gives, for the route to start from it; its speed in m/s, if known. */
+		onposition?: (at: LngLat, speed: number | null) => void;
 	} = $props();
 
 	/** Moving faster than this (m/s, ~11 km/h), the heading is the way we go; slower, it jumps. */
@@ -152,7 +152,7 @@
 				const { latitude, longitude, heading, speed } = coords;
 				position = { latitude, longitude, heading, speed };
 				problem = null;
-				onposition?.([longitude, latitude]);
+				onposition?.([longitude, latitude], speed);
 			},
 			(err) => {
 				problem =
