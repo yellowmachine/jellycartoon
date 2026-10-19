@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import { DEVICE_NAME_MAX, deviceName, shownDeviceName } from '#lib/device-name.svelte.ts';
+	import { musicQuality, type MusicQuality } from '#lib/music-quality.svelte.ts';
 	import MusicBackgroundSettings from '#lib/components/MusicBackgroundSettings.svelte';
 	import SubtitleStylePanel from '#lib/components/SubtitleStylePanel.svelte';
 	import type { SubtitleStyle } from '#lib/subtitle-style.ts';
@@ -393,6 +394,37 @@
 		</section>
 
 		{#if data.music}
+			<section class={section}>
+				<h2 class="mb-1 font-semibold">Calidad de la música</h2>
+				<p class="mb-4 text-sm text-zinc-400">
+					Solo en este dispositivo: el móvil puede ahorrar datos y la tele sonar como el CD. Se nota
+					desde la siguiente canción.
+				</p>
+				<div class="flex flex-wrap gap-2">
+					{#each [['original', 'Original (FLAC)'], ['saver', 'Ahorro (Opus)']] as const as [value, label] (value)}
+						<button
+							type="button"
+							aria-pressed={mounted && musicQuality.value === value}
+							onclick={() => musicQuality.set(value as MusicQuality)}
+							class={[
+								'rounded-full border px-3 py-1 text-sm',
+								mounted && musicQuality.value === value
+									? 'border-amber-500 text-amber-400'
+									: 'border-zinc-700 hover:bg-zinc-900'
+							]}>{label}</button
+						>
+					{/each}
+				</div>
+				<p class="mt-2 text-sm text-zinc-400">
+					{#if mounted && musicQuality.value === 'saver'}
+						Unas cinco veces menos datos y, al oído, igual; para escuchar con datos móviles. Las
+						canciones que aún no están comprimidas suenan en FLAC.
+					{:else}
+						Tal cual está en el disco, sin pérdida: unos 25 MB por canción. Para casa.
+					{/if}
+				</p>
+			</section>
+
 			<section class={section}>
 				<h2 class="mb-1 font-semibold">Fondo de Música</h2>
 				<p class="mb-4 text-sm text-zinc-400">

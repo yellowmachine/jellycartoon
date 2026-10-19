@@ -556,6 +556,9 @@ export const userSettings = pgTable('user_settings', {
 /** `ignored`: no album tag, e.g. a download rather than a CD rip; not shown. */
 export const trackStatus = pgEnum('track_status', ['pending', 'ready', 'ignored', 'error']);
 
+/** A track's Opus copy, for listening away from home (#64). Without it, the FLAC is played. */
+export const trackOpus = pgEnum('track_opus', ['pending', 'ready', 'error']);
+
 /** `not_found`: neither MusicBrainz nor the Cover Art Archive had it. */
 export const coverStatus = pgEnum('cover_status', ['pending', 'found', 'not_found']);
 
@@ -605,7 +608,10 @@ export const track = pgTable(
 		/** ALBUM as tagged: the album's title comes from it. */
 		albumTitle: text('album_title'),
 		number: integer('number'),
-		durationSec: real('duration_sec')
+		durationSec: real('duration_sec'),
+		/** Made again when the FLAC changes. */
+		opus: trackOpus('opus').notNull().default('pending'),
+		opusError: text('opus_error')
 	},
 	(t) => [index('track_album_idx').on(t.albumId, t.number)]
 );

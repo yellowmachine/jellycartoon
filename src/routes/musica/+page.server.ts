@@ -32,6 +32,11 @@ export const actions: Actions = {
 			.update(track)
 			.set({ status: 'pending', error: null })
 			.where(and(eq(track.status, 'error'), eq(track.missing, false)));
+		await db
+			.update(track)
+			.set({ opus: 'pending', opusError: null })
+			.where(and(eq(track.opus, 'error'), eq(track.missing, false)));
+		// The Opus copies, after it.
 		void wakeMusicCatalog();
 	}
 };

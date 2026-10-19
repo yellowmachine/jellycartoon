@@ -7,6 +7,7 @@
 	import { GAVE_UP, RETRYING, TRIES, recoverFromErrors, retryDelay } from '#lib/hls-recovery.ts';
 	import { coverUrl, trackUrl } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
+	import { musicQuality } from '#lib/music-quality.svelte.ts';
 	import { keepQueue } from '#lib/music-queue.svelte.ts';
 	import { keepPodcastProgress, podcastEnded } from '#lib/podcast-player.svelte.ts';
 	import { SKIP_BACK, SKIP_FORWARD, SPEEDS, type Speed } from '#lib/podcasts.ts';
@@ -109,10 +110,12 @@
 
 	// A new track or episode: load it and play it. Changing `src` pauses, so play() goes after.
 	// Brought back from the server, it waits where it was (before loading, currentTime is where it
-	// starts); an episode starts where the user left it, from the podcast's own server.
+	// starts); an episode starts where the user left it, from the podcast's own server. The quality
+	// chosen in Ajustes, from the next track: not starting this one again.
 	$effect(() => {
 		if (!audio || radio) return;
-		const src = podcast ? podcast.audioUrl : current ? trackUrl(current.id) : null;
+		const opus = untrack(() => musicQuality.value === 'saver');
+		const src = podcast ? podcast.audioUrl : current ? trackUrl(current.id, opus) : null;
 		if (!src) {
 			audio.removeAttribute('src');
 			audio.load();

@@ -6,6 +6,7 @@ import { probe } from '#lib/server/library/ffmpeg.ts';
 import { musicFile } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 import { findCovers } from './covers.ts';
+import { wakeOpus } from './opus.ts';
 import { musicProgress } from './status.ts';
 import { albumArtist, discIdFromToc, normalizeTags, trackNumber } from './tags.ts';
 
@@ -13,7 +14,8 @@ let running: Promise<void> | null = null;
 
 /**
  * Reads the tags of the tracks the scan found, one at a time in the background, and then looks
- * for the covers of the albums without one. Resolves when there is nothing left.
+ * for the covers of the albums without one. Resolves when there is nothing left; then their Opus
+ * copies are made, on their own.
  */
 export function wakeMusicCatalog() {
 	running ??= readPending()
@@ -22,6 +24,7 @@ export function wakeMusicCatalog() {
 		.finally(() => {
 			running = null;
 			musicProgress.phase = 'idle';
+			void wakeOpus();
 		});
 	return running;
 }

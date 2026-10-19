@@ -48,7 +48,9 @@ export function groupByArtist(albums: MusicAlbum[]): MusicArtist[] {
 }
 
 export const artistUrl = (name: string) => `/musica/artista/${encodeURIComponent(name)}`;
-export const trackUrl = (id: number) => `/api/music/track/${id}`;
+/** With `opus`, its copy for mobile data (#64), or the FLAC while it is not made. */
+export const trackUrl = (id: number, opus = false) =>
+	`/api/music/track/${id}${opus ? '?format=opus' : ''}`;
 export const coverUrl = (albumId: number) => `/api/music/cover/${albumId}`;
 
 /** A Snapcast client: a speaker somewhere in the house. */
