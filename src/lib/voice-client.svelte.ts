@@ -1,6 +1,7 @@
 import { goto } from '$app/navigation';
 import { music } from '#lib/music-player.svelte.ts';
 import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
+import { recipe } from '#lib/recipe.svelte.ts';
 import { timers } from '#lib/timers.svelte.ts';
 import { musicTarget } from '#lib/music-target.svelte.ts';
 import { videoHere } from '#lib/video-here.svelte.ts';
@@ -140,7 +141,8 @@ class VoiceClient {
 				here: playingHere(),
 				video: videoHere.position(),
 				history: this.#history,
-				timers: timers.describe()
+				timers: timers.describe(),
+				recipe: recipe.describe()
 			})
 		}).catch(() => null);
 		const body: VoiceReply | { message?: string } | null = await res?.json().catch(() => null);
@@ -234,6 +236,14 @@ async function act(action: VoiceAction) {
 			return timers.prepare(action.label, action.seconds, action.trigger);
 		case 'cancelTimer':
 			return void timers.cancel(action.label);
+		case 'recipe':
+			recipe.start(action.recipe, action.step);
+			// Cooking: the screen stays on, to see the steps.
+			return kitchenMode.set(true);
+		case 'recipeStep':
+			return recipe.go(action.step);
+		case 'endRecipe':
+			return recipe.end();
 		case 'control':
 			if (action.action === 'pause') return music.pause();
 			if (action.action === 'resume') return music.resume();

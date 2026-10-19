@@ -1,5 +1,7 @@
 <script lang="ts">
+	import RecipeCard from '#lib/components/RecipeCard.svelte';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
+	import { recipe } from '#lib/recipe.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 
 	/**
@@ -21,6 +23,11 @@
 </svelte:head>
 
 <div class="flex min-h-[70vh] flex-col items-center justify-center gap-10 py-8 text-center">
+	<!-- Cooking (#60): the step first; the microphone, smaller, under it. -->
+	{#if recipe.current}
+		<RecipeCard />
+	{/if}
+
 	<p class="text-3xl font-semibold text-zinc-200">
 		{voice.phase === 'listening'
 			? 'Te escucho…'
@@ -32,7 +39,8 @@
 	<!-- Touch: no selecting text nor the menu of a long press, and no scrolling while it is held. -->
 	<button
 		class={[
-			'flex h-56 w-56 touch-none items-center justify-center rounded-full shadow-2xl transition duration-150 select-none',
+			'flex touch-none items-center justify-center rounded-full shadow-2xl transition duration-150 select-none',
+			recipe.current ? 'h-40 w-40' : 'h-56 w-56',
 			voice.phase === 'listening'
 				? 'scale-110 bg-red-500 text-white'
 				: 'bg-amber-500 text-zinc-950 active:scale-95',

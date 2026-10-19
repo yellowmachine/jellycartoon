@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { page } from '$app/state';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
+	import { recipe } from '#lib/recipe.svelte.ts';
 	import { formatLeft } from '#lib/timer-names.ts';
 	import { timers } from '#lib/timers.svelte.ts';
 
@@ -10,6 +12,8 @@
 	 */
 
 	onMount(() => {
+		// Before the timers: one that ended while the page was closed moves the recipe on.
+		recipe.load();
 		timers.load();
 		kitchenMode.load();
 		// After a reload, sound needs a touch on the page first: any will do.
@@ -34,8 +38,20 @@
 		>
 	</div>
 {/if}
-{#if timers.list.length || timers.prepared.length || kitchenMode.on}
+{#if timers.list.length || timers.prepared.length || kitchenMode.on || recipe.current}
 	<div class="flex flex-wrap gap-2" aria-label="Temporizadores">
+		{#if recipe.current && page.url.pathname !== '/voz'}
+			<!-- The recipe being cooked: its step, big, is in /voz. -->
+			<a
+				href="/voz"
+				class="flex items-center gap-2 rounded-full border border-amber-500/50 bg-amber-500/10 px-3 py-1 text-sm text-amber-300 hover:bg-amber-500/20"
+			>
+				<span class="max-w-48 truncate">🍳 {recipe.current.title}</span>
+				<span class="text-amber-300/70"
+					>paso {recipe.step + 1} de {recipe.current.steps.length}</span
+				>
+			</a>
+		{/if}
 		{#if kitchenMode.on}
 			<!-- On every page, to see it is on and turn it off. -->
 			<span

@@ -1,4 +1,5 @@
 import type { MusicTrack } from '#lib/music.ts';
+import type { Recipe } from '#lib/recipe.ts';
 
 /** Voice commands (#33), shared by the server and /voz. */
 
@@ -24,7 +25,12 @@ export type VoiceAction =
 	/** The screen stays on in this browser (the phone on the kitchen wall), or no longer. */
 	| { kind: 'kitchenMode'; on: boolean }
 	/** That one by its name, or all of them with null. */
-	| { kind: 'cancelTimer'; label: string | null };
+	| { kind: 'cancelTimer'; label: string | null }
+	/** A recipe to cook here (#60), on that step (an index), instead of the one there was. */
+	| { kind: 'recipe'; recipe: Recipe; step: number }
+	/** The recipe here, on that step (an index). */
+	| { kind: 'recipeStep'; step: number }
+	| { kind: 'endRecipe' };
 
 /** The longest timer: a day. */
 export const MAX_TIMER_SEC = 24 * 3600;
@@ -58,6 +64,8 @@ export interface VoiceRequest {
 	 * arroz, 30 min, preparado: arranca cuando esté hecho el sofrito».
 	 */
 	timers: string[];
+	/** The recipe being cooked here, as recipe.ts describes it, and its step; null if none. */
+	recipe: string | null;
 }
 
 export interface VoiceReply {
@@ -101,6 +109,8 @@ export function parseVoiceRequest(body: unknown): VoiceRequest | null {
 		history: history.slice(-HISTORY_TURNS),
 		timers: (Array.isArray(b.timers) ? b.timers : [])
 			.flatMap((t: unknown) => text(t, 100) ?? [])
-			.slice(0, 20)
+			.slice(0, 20),
+		// Thirty steps of a few lines each, and the ingredients.
+		recipe: text(b.recipe, 12_000)
 	};
 }

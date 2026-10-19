@@ -30,6 +30,7 @@ import {
 } from '#lib/server/watch-history.ts';
 import { fold, masterVolume, type MusicAlbum, type MusicTrack } from '#lib/music.ts';
 import { COUNTRIES, STATIONS } from '#lib/radio.ts';
+import { parseRecipe } from '#lib/recipe.ts';
 import {
 	MAX_TIMER_SEC,
 	type VoiceAction,
@@ -242,6 +243,60 @@ function tools(house: boolean): Tool[] {
 			[]
 		),
 		fn(
+			'start_recipe',
+			'Pone en este dispositivo la receta que se va a cocinar ahora, entera, en lugar de la que hubiera: se ve en la pantalla de la cocina y va con cada orden, con el paso por el que va.',
+			{
+				title: { type: 'string', description: 'El plato: «Espaguetis a la carbonara».' },
+				servings: { type: 'integer', description: 'Para cuántas personas.' },
+				ingredients: {
+					type: 'array',
+					items: { type: 'string' },
+					description: 'Cada uno con su cantidad: «400 g de espaguetis».'
+				},
+				steps: {
+					type: 'array',
+					items: {
+						type: 'object',
+						properties: {
+							text: {
+								type: 'string',
+								description:
+									'Una o dos frases cortas, para oírlas: «Echa los espaguetis y remueve». Con temporizador, también lo que se hace mientras.'
+							},
+							timer_minutes: {
+								type: 'number',
+								description: 'Si el paso es esperar un tiempo: cuántos minutos.'
+							},
+							timer_label: {
+								type: 'string',
+								description: 'El nombre de ese temporizador, corto: «la pasta», «el horno».'
+							},
+							timer_trigger: {
+								type: 'string',
+								description:
+									'Si el tiempo empieza con algo que hará o pasará luego, para completar «arranca cuando…»: «eches la pasta». Vacío si empieza con el paso.'
+							}
+						},
+						required: ['text'],
+						additionalProperties: false
+					}
+				},
+				step: {
+					type: 'integer',
+					description:
+						'Por qué paso va, desde 1. Solo al reescribir la receta a mitad (otro ingrediente, otras personas); si no, la primera.'
+				}
+			},
+			['title', 'ingredients', 'steps']
+		),
+		fn(
+			'recipe_step',
+			'Lleva la receta en marcha a un paso: el siguiente cuando ha hecho el de ahora, o el que diga («vuelve al anterior»).',
+			{ step: { type: 'integer', description: 'El número del paso, desde 1.' } },
+			['step']
+		),
+		fn('end_recipe', 'Quita la receta en marcha: ha terminado o ya no la quiere.', {}, []),
+		fn(
 			'ask',
 			'Cuando no está claro qué se pide entre unas pocas opciones: pregunta, y cada opción es un botón. No se hace nada más.',
 			{
@@ -320,6 +375,19 @@ Temporizadores («avísame en 10 minutos», «pon un temporizador de 20 minutos 
 - «Cuando hierva, pon 8 minutos para la pasta»: «prepare_timer», uno por cada cosa que espera. Di lo que queda preparado, corto: «Vale: ocho minutos cuando hierva y media hora cuando esté el sofrito».
 - «Modo cocina», «que no se apague la pantalla»: «kitchen_mode». Se apaga solo a las tres horas sin temporizadores.
 - Cuando diga que ya ha pasado lo que espera uno preparado («ya hierve», «ya está el sofrito»), arráncalo con «set_timer» con su mismo nombre y sus minutos. Si no está claro cuál, usa «ask».
+
+Recetas para cocinar ahora («vamos a hacer una carbonara», «¿me ayudas con unas lentejas?»): escríbela entera con «start_recipe», sin preguntar. Si solo pregunta cómo se hace algo, contesta sin ella.
+- Para las personas que diga; si no lo dice, para dos, y díselo.
+- Pasos cortos, en el orden en que se hacen, para oírlos de uno en uno. Un tiempo que esperar («cuece 9 minutos», «hornea 35») es el temporizador de su paso, con su nombre; con «timer_trigger» si empieza con algo que hará o pasará después («eches la pasta»).
+- Lo que se hace mientras corre un temporizador va en el texto de ese mismo paso («Echa los espaguetis. Mientras, dora el guanciale»): al acabar, la app pasa sola al paso siguiente, que tiene que ser lo que toca entonces («Escurre la pasta…»).
+- Al ponerla, contesta con los ingredientes muy resumidos y el primer paso. Si ese paso tiene temporizador, ponlo («set_timer») o déjalo preparado («prepare_timer»).
+Con una receta en marcha, va con cada orden, con el paso por el que va:
+- Cuando diga que ha hecho el paso o que ha pasado algo («ya hierve el agua», «ya está», «siguiente»), llévala con «recipe_step» al paso que toca y dile ese paso, corto. Si ese paso tiene temporizador y ya puede empezar a contar, ponlo con «set_timer» con su nombre y sus minutos; si espera algo, «prepare_timer». Si hay algo que hacer mientras, díselo.
+- Ejemplo: va por «Pon agua a hervir» y el siguiente es «Echa los espaguetis. Mientras, dora el guanciale [temporizador «la pasta», 9 min, cuando eches la pasta]»; dice «ya está hirviendo»: «recipe_step» al siguiente, «set_timer» de 9 minutos «la pasta», y «Echa los espaguetis. Te aviso en nueve minutos; mientras, dora el guanciale».
+- Al acabar un temporizador de la receta, la app ya dice sola el paso siguiente y la lleva a él.
+- «¿Cuánto queso era?», «¿qué me falta?», «repítelo»: contesta con la receta, sin herramientas.
+- Si no tiene algo o quiere cambiarla (otro ingrediente, más personas): propón el cambio y, si lo acepta, reescríbela con «start_recipe» con el paso por el que va.
+- «Hemos terminado», «quita la receta»: «end_recipe».
 
 Lo que ha visto en vídeo (series, películas, canales de tele), solo de su cuenta: «watch_time», «sessions», «finished» y «halfway».
 - Si pregunta por eso («¿qué capítulo de Friends vi el viernes?», «¿por dónde voy en…?»), contesta a la pregunta, corto, en vez de decir lo que has hecho.
@@ -506,6 +574,8 @@ async function runTool(
 		outcome: Outcome;
 		user: Person;
 		video: VideoHere | null;
+		/** The recipe being cooked here, described; null if none. */
+		recipe: string | null;
 	}
 ): Promise<ToolResult> {
 	if (HISTORY_TOOLS.has(name)) return runHistoryTool(name, args, { self: ctx.user });
@@ -608,6 +678,24 @@ async function runTool(
 			ctx.outcome.actions.push({ kind: 'cancelTimer', label });
 			return label ? `Quitado el temporizador «${label}».` : 'Quitados todos los temporizadores.';
 		}
+		case 'start_recipe': {
+			const recipe = parseRecipe(args);
+			if (typeof recipe === 'string') return recipe;
+			const step = Math.min(Math.max(Number(args.step) || 1, 1), recipe.steps.length);
+			ctx.outcome.actions.push({ kind: 'recipe', recipe, step: step - 1 });
+			return `Receta «${recipe.title}» en marcha en el dispositivo, en el paso ${step} de ${recipe.steps.length}.`;
+		}
+		case 'recipe_step': {
+			if (!ctx.recipe) return 'No hay receta en marcha en este dispositivo.';
+			const step = Number(args.step);
+			if (!Number.isInteger(step) || step < 1) return 'Falta el número del paso, desde 1.';
+			ctx.outcome.actions.push({ kind: 'recipeStep', step: step - 1 });
+			return `La receta va por el paso ${step}.`;
+		}
+		case 'end_recipe':
+			if (!ctx.recipe) return 'No hay receta en marcha en este dispositivo.';
+			ctx.outcome.actions.push({ kind: 'endRecipe' });
+			return 'Receta quitada.';
 		case 'ask': {
 			const options = (Array.isArray(args.options) ? args.options : [])
 				.filter(
@@ -659,6 +747,9 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 					type: 'text',
 					text: `[Temporizadores aquí: ${request.timers.length ? request.timers.join('; ') : 'ninguno'}.]`
 				},
+				...(request.recipe
+					? [{ type: 'text' as const, text: `[Receta en marcha aquí:\n${request.recipe}]` }]
+					: []),
 				...(watchingHere ? [{ type: 'text' as const, text: watchingHere }] : []),
 				{ type: 'text', text: request.text }
 			]
@@ -688,7 +779,8 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 					house,
 					outcome,
 					user,
-					video: request.video
+					video: request.video,
+					recipe: request.recipe
 				});
 			} catch (err) {
 				result = `Error: ${err instanceof Error ? err.message : String(err)}`;
