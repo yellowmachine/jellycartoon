@@ -46,7 +46,7 @@ test('routeFromOrs: the line, the totals, and each step where it is done', () =>
 									distance: 900.2,
 									duration: 120,
 									type: 11,
-									instruction: 'Dirígete al este por Calle Real',
+									instruction: 'Camina hacia el este en Calle Real',
 									name: 'Calle Real',
 									way_points: [0, 1]
 								},
@@ -76,7 +76,8 @@ test('routeFromOrs: the line, the totals, and each step where it is done', () =>
 	expect(route?.duration).toBe(245.1);
 	expect(route?.line).toHaveLength(3);
 	expect(route?.steps.map((s) => [s.instruction, s.at, s.type])).toEqual([
-		['Dirígete al este por Calle Real', [-4.03, 39.86], 11],
+		// Setting off, by car: «Sal», not «Camina».
+		['Sal hacia el este en Calle Real', [-4.03, 39.86], 11],
 		['Gira a la derecha por Paseo del Miradero', [-4.02, 39.861], 1],
 		['Llegada a tu destino', [-4.01, 39.862], 10]
 	]);

@@ -20,6 +20,17 @@ export function placesFromOrs(body: unknown): Place[] {
 	});
 }
 
+/** openrouteservice's maneuver type for setting off. */
+const DEPART = 11;
+
+/**
+ * Its Spanish for setting off is a walk, by car too («Camina hacia el suroeste en…»): said as
+ * driving.
+ */
+function driving(instruction: string, type: number) {
+	return type === DEPART ? instruction.replace(/^Camina\b/, 'Sal') : instruction;
+}
+
 interface OrsStep {
 	distance: number;
 	type: number;
@@ -47,7 +58,7 @@ export function routeFromOrs(body: unknown): Route | null {
 		distance: summary.distance ?? 0,
 		duration: summary.duration ?? 0,
 		steps: steps.map((s) => ({
-			instruction: s.instruction,
+			instruction: driving(s.instruction, s.type),
 			distance: s.distance,
 			type: s.type,
 			at: line[s.way_points[0]] ?? line[0]!
