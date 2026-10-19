@@ -15,6 +15,7 @@
 	import { SKIP_BACK, SKIP_FORWARD } from '#lib/podcasts.ts';
 	import { STATIONS, type RadioStation } from '#lib/radio.ts';
 	import { keepScreenOn } from '#lib/screen-on.ts';
+	import { roadPhotos } from '#lib/road-photos.svelte.ts';
 	import { tripRecorder } from '#lib/trip-recorder.svelte.ts';
 	import { tripShare } from '#lib/trip-share.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
@@ -76,7 +77,8 @@
 				if (!place) return clearRoute();
 				if (mapShown) tab = 'ruta';
 				void go(place);
-			}
+			},
+			photo: () => void roadPhotos.take()
 		};
 		return () => {
 			voice.road = null;
@@ -501,41 +503,53 @@
 			{/if}
 		</section>
 
-		<!-- The microphone: what to use while driving. -->
+		<!-- The microphone: what to use while driving. And beside it, a photo (#81). -->
 		<section class="flex flex-col items-center gap-3">
-			<button
-				class={[
-					'flex h-32 w-32 touch-none items-center justify-center rounded-full shadow-2xl transition duration-150',
-					voice.phase === 'listening'
-						? 'scale-110 bg-red-500 text-white'
-						: 'bg-amber-500 text-zinc-950 active:scale-95',
-					voice.phase === 'thinking' && 'opacity-60'
-				]}
-				aria-label={micMode.tap
-					? voice.phase === 'listening'
-						? 'Toca para enviar'
-						: 'Toca para hablar'
-					: 'Mantén pulsado para hablar'}
-				disabled={voice.phase === 'thinking'}
-				onpointerdown={(e) => {
-					e.currentTarget.setPointerCapture(e.pointerId);
-					press();
-				}}
-				onpointerup={release}
-				onpointercancel={release}
-				oncontextmenu={(e) => e.preventDefault()}
-			>
-				<svg viewBox="0 0 24 24" class="h-16 w-16" fill="currentColor" aria-hidden="true">
-					<rect x="9" y="2.5" width="6" height="12" rx="3" />
-					<path
-						d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-						stroke-linecap="round"
-					/>
-				</svg>
-			</button>
+			<div class="flex items-center gap-6">
+				<button
+					class={[
+						'flex h-32 w-32 touch-none items-center justify-center rounded-full shadow-2xl transition duration-150',
+						voice.phase === 'listening'
+							? 'scale-110 bg-red-500 text-white'
+							: 'bg-amber-500 text-zinc-950 active:scale-95',
+						voice.phase === 'thinking' && 'opacity-60'
+					]}
+					aria-label={micMode.tap
+						? voice.phase === 'listening'
+							? 'Toca para enviar'
+							: 'Toca para hablar'
+						: 'Mantén pulsado para hablar'}
+					disabled={voice.phase === 'thinking'}
+					onpointerdown={(e) => {
+						e.currentTarget.setPointerCapture(e.pointerId);
+						press();
+					}}
+					onpointerup={release}
+					onpointercancel={release}
+					oncontextmenu={(e) => e.preventDefault()}
+				>
+					<svg viewBox="0 0 24 24" class="h-16 w-16" fill="currentColor" aria-hidden="true">
+						<rect x="9" y="2.5" width="6" height="12" rx="3" />
+						<path
+							d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+						/>
+					</svg>
+				</button>
+				<button
+					class="flex h-20 w-20 items-center justify-center rounded-full bg-zinc-800 text-4xl shadow-xl active:scale-95 disabled:opacity-50"
+					aria-label="Hacer una foto"
+					title="Una foto hacia la carretera, con dónde y cuándo (o di «haz una foto»)"
+					disabled={roadPhotos.busy}
+					onclick={() => void roadPhotos.take()}>{roadPhotos.busy ? '…' : '📷'}</button
+				>
+			</div>
+			{#if roadPhotos.said}
+				<p class="text-lg text-emerald-300" aria-live="polite">{roadPhotos.said}</p>
+			{/if}
 			<p class="min-h-7 text-center text-xl" aria-live="polite">
 				{#if voice.phase === 'listening'}
 					<span class="text-red-400">Te escucho…{micMode.tap ? ' toca para enviar' : ''}</span>

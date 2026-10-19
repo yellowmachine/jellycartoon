@@ -40,12 +40,16 @@
 	/** The trip opened, and its way once it comes. */
 	let opened = $state<number | null>(null);
 	let line = $state<StoredPoint[] | null>(null);
+	let photosOfTrip = $state<{ id: number; lon: number | null; lat: number | null }[]>([]);
 	async function open(id: number) {
 		if (opened === id) return void (opened = null);
 		opened = id;
 		line = null;
 		const res = await fetch(`/viajes/${id}/recorrido`).catch(() => null);
-		if (opened === id && res?.ok) line = await res.json();
+		if (opened !== id || !res?.ok) return;
+		const body = await res.json();
+		photosOfTrip = body.photos;
+		line = body.line;
 	}
 
 	/** «Borrar todos», asked twice, without a dialog. */
@@ -137,7 +141,7 @@
 						{#if !data.map}
 							<p class="text-sm text-zinc-400">No hay mapa (scripts/mapa.sh).</p>
 						{:else if line}
-							<TripMap {line} />
+							<TripMap {line} photos={photosOfTrip} />
 						{:else}
 							<p class="text-sm text-zinc-400">Cargando el recorrido…</p>
 						{/if}
@@ -166,4 +170,30 @@
 	</form>
 {:else}
 	<p class="text-zinc-400">Todavía no hay viajes guardados.</p>
+{/if}
+
+{#if data.photos.length}
+	<!-- The photos taken from the road mode (📷, or «haz una foto»). -->
+	<h2 class="mt-10 mb-3 text-xl font-semibold">Fotos</h2>
+	<ul class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+		{#each data.photos as photo (photo.id)}
+			<li class="overflow-hidden rounded-md border border-zinc-800">
+				<a href="/viajes/fotos/{photo.id}" target="_blank" rel="noopener">
+					<img
+						src="/viajes/fotos/{photo.id}"
+						alt=""
+						loading="lazy"
+						class="aspect-video w-full bg-zinc-900 object-cover"
+					/>
+				</a>
+				<div class="flex items-center justify-between gap-2 px-2 py-1.5 text-xs text-zinc-400">
+					<span>{day.format(new Date(photo.takenAt))}, {time.format(new Date(photo.takenAt))}</span>
+					<form method="post" action="?/deletePhoto" use:enhance>
+						<input type="hidden" name="id" value={photo.id} />
+						<button class="hover:text-red-400">Borrar</button>
+					</form>
+				</div>
+			</li>
+		{/each}
+	</ul>
 {/if}

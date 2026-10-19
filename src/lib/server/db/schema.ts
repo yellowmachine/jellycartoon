@@ -587,6 +587,26 @@ export const trip = pgTable(
 	(t) => [index('trip_user_started_idx').on(t.userId, t.startedAt)]
 );
 
+/**
+ * A photo taken from the road mode (#81): its JPEG in DATA_DIR/fotos (photoFile), here when and
+ * where, and the trip being kept then, if any. Only for whoever took it.
+ */
+export const tripPhoto = pgTable(
+	'trip_photo',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		tripId: integer('trip_id').references(() => trip.id, { onDelete: 'set null' }),
+		takenAt: timestamp('taken_at').notNull(),
+		/** Where, if the GPS said. */
+		lon: real('lon'),
+		lat: real('lat')
+	},
+	(t) => [index('trip_photo_user_taken_idx').on(t.userId, t.takenAt)]
+);
+
 /** `ignored`: no album tag, e.g. a download rather than a CD rip; not shown. */
 export const trackStatus = pgEnum('track_status', ['pending', 'ready', 'ignored', 'error']);
 

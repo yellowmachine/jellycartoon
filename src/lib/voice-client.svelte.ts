@@ -38,6 +38,8 @@ export interface Road {
 	navigation(): string | null;
 	/** A route to there; null, none. */
 	navigate(place: Place | null): void;
+	/** A photo with its camera. */
+	photo(): void;
 }
 
 class VoiceClient {
@@ -295,6 +297,8 @@ async function act(action: VoiceAction) {
 			return recipe.end();
 		case 'navigate':
 			return voice.road?.navigate(action.place);
+		case 'photo':
+			return voice.road?.photo();
 		case 'control':
 			if (action.action === 'pause') return music.pause();
 			if (action.action === 'resume') return music.resume();

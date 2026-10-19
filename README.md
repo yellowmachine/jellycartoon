@@ -462,6 +462,13 @@ En `/viajes`, solo los de cada uno: los km, viajes y horas al volante del mes y 
 cada viaje con su distancia, tiempo, velocidad media y máxima y destino (si había ruta), su
 recorrido en el mapa, y borrar uno o todos.
 
+Fotos (#81): 📷 junto al micrófono del modo carretera, o «haz una foto» por voz, hace una foto con
+la cámara trasera de la tablet (se abre al pedirla y se cierra al hacerla), con su hora y su
+posición, en el viaje que se esté guardando. Se reduce a 1920 px y se sube al momento; sin
+cobertura, espera y se sube al volver. El JPEG va a `DATA_DIR/fotos` (entra en la copia de
+seguridad) y sus datos a Postgres. Solo las ve quien las hizo: en `/viajes`, sobre el recorrido de
+cada viaje y en una galería, donde se borran (el fichero también).
+
 Compartir el viaje (#81): «Compartir viaje» en el modo carretera da un enlace para mandar (por
 WhatsApp, a un grupo…): quien lo abre ve el coche en el mapa, en directo, con el destino y la
 llegada si hay ruta, y cuánto hace de la última posición. Nunca se activa solo; la tablet lo dice

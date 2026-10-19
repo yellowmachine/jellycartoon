@@ -33,7 +33,9 @@ export type VoiceAction =
 	| { kind: 'recipeStep'; step: number }
 	| { kind: 'endRecipe' }
 	/** The road mode's route (#78) to that place, from where we are; null, none. */
-	| { kind: 'navigate'; place: Place | null };
+	| { kind: 'navigate'; place: Place | null }
+	/** A photo with the road mode's camera (#81). */
+	| { kind: 'photo' };
 
 /** The longest timer: a day. */
 export const MAX_TIMER_SEC = 24 * 3600;

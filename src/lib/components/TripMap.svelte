@@ -3,8 +3,15 @@
 	import { loadOurMap } from '#lib/our-map.ts';
 	import type { StoredPoint } from '#lib/trips.ts';
 
-	/** A kept trip (#81) on the app's own map: its way, from start (green) to end (red). */
-	let { line }: { line: StoredPoint[] } = $props();
+	/**
+	 * A kept trip (#81) on the app's own map: its way, from start (green) to end (red), and its photos
+	 * where they were taken (touched, shown).
+	 */
+	let {
+		line,
+		photos = []
+	}: { line: StoredPoint[]; photos?: { id: number; lon: number | null; lat: number | null }[] } =
+		$props();
 
 	let container = $state<HTMLDivElement>();
 	let problem = $state<string | null>(null);
@@ -51,6 +58,17 @@
 			});
 			new maplibregl.Marker({ color: '#22c55e' }).setLngLat(points[0]!).addTo(created);
 			new maplibregl.Marker({ color: '#ef4444' }).setLngLat(points.at(-1)!).addTo(created);
+			for (const photo of photos) {
+				if (photo.lon === null || photo.lat === null) continue;
+				const img = document.createElement('img');
+				img.src = `/viajes/fotos/${photo.id}`;
+				img.alt = '';
+				img.className = 'trip-photo';
+				new maplibregl.Marker({ color: '#0ea5e9', scale: 0.8 })
+					.setLngLat([photo.lon, photo.lat])
+					.setPopup(new maplibregl.Popup({ offset: 24, maxWidth: '320px' }).setDOMContent(img))
+					.addTo(created);
+			}
 		})();
 		return () => {
 			cancelled = true;
@@ -67,3 +85,12 @@
 		</p>
 	{/if}
 </div>
+
+<style>
+	:global(.trip-photo) {
+		display: block;
+		width: 280px;
+		max-width: 70vw;
+		border-radius: 6px;
+	}
+</style>
