@@ -174,8 +174,8 @@
 	{@html themeCss(data.theme)}
 </svelte:head>
 
-<!-- The TV view (#11) is the whole screen, without the site around it. -->
-{#if page.url.pathname === '/tv' || page.url.pathname.startsWith('/tv/')}
+<!-- The TV view (#11) and the road mode (#78) are the whole screen, without the site around it. -->
+{#if page.url.pathname === '/tv' || page.url.pathname.startsWith('/tv/') || page.url.pathname === '/carretera'}
 	{@render children()}
 {:else}
 	<!-- With the kitchen panel at its side (wide screens), the page takes the rest: a video in it

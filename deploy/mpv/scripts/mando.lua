@@ -86,6 +86,14 @@ local function audio()
 end
 
 mp.add_key_binding(nil, "menu", function ()
+    -- «¿Sigues ahí?» (#77) on the screen, put there by the app: OK answers it instead.
+    if mp.get_property_native("user-data/jellycartoon/asking") then
+        mp.commandv("script-message", "jellycartoon-sigo")
+        return
+    end
+    -- Someone is there: the app counts it (episodes in a row with nobody touching anything).
+    mp.commandv("script-message", "jellycartoon-tecla")
+
     local entries = {}
     if #tracks_of("sub") > 0 then
         entries[#entries + 1] = { "Subtítulos", subtitles }

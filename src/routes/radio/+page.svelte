@@ -24,7 +24,16 @@
 	<title>Radio · JellyCartoon</title>
 </svelte:head>
 
-<h1 class="mb-4 text-2xl font-bold">Radio</h1>
+<div class="mb-4 flex flex-wrap items-center gap-3">
+	<h1 class="mr-auto text-2xl font-bold">Radio</h1>
+	<a
+		href="/carretera"
+		hidden={data.kid}
+		class="rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900"
+		title="Para la tablet del coche: lo que suena en grande, el micrófono y nada de vídeo"
+		>Modo carretera</a
+	>
+</div>
 <RadioTabs />
 <p class="mb-6 text-sm text-zinc-400">
 	Emisoras de otros países, en directo. Las habladas van primero: son las mejores para acostumbrar

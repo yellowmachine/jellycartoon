@@ -6,6 +6,7 @@ import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/sch
 import { getSettings } from '#lib/server/settings.ts';
 import { getCandidates, suggestEpisodes } from '#lib/server/playlist.ts';
 import { seriesTags } from '#lib/server/tags.ts';
+import { askEvery } from '#lib/server/still-there.ts';
 
 export const load: PageServerLoad = async ({ params, url, locals }) => {
 	const id = Number(params.id);
@@ -54,9 +55,10 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 	if (t !== null) ep.positionSec = Number(t) || 0;
 
 	const userId = locals.user!.id;
-	const [settings, suggested] = await Promise.all([
+	const [settings, suggested, ask] = await Promise.all([
 		getSettings(userId),
-		suggestionsFor(userId, ep.seriesId)
+		suggestionsFor(userId, ep.seriesId),
+		askEvery(userId)
 	]);
 	const cards = await episodeCards(userId, [...(next ? [next.id] : []), ...suggested]);
 	return {
@@ -66,7 +68,9 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 		next: next ? (cards.get(next.id) ?? null) : null,
 		/** Without «siguiente automático»: other series' episodes to go on with. */
 		suggestions: suggested.flatMap((id) => cards.get(id) ?? []),
-		settings
+		settings,
+		/** «¿Sigues ahí?» after this many started by themselves (#77); null, never. */
+		askEvery: ask
 	};
 };
 

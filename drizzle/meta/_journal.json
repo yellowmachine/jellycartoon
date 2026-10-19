@@ -351,6 +351,13 @@
       "when": 1792422747297,
       "tag": "0049_friendly_vengeance",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1792427280316,
+      "tag": "0050_shocking_tag",
+      "breakpoints": true
     }
   ]
 }

@@ -11,14 +11,18 @@
 
 	let {
 		kids,
-		initial
+		initial,
+		initialStopped
 	}: {
 		kids: { id: string; name: string; lastActivity: Date | null }[];
 		initial: WatchingNow[];
+		/** Whose video stopped lately for nobody answering «¿Sigues ahí?» (#77), and when. */
+		initialStopped: { userId: string; at: number }[];
 	} = $props();
 
 	// From the page, then from each check.
 	let watching = $derived<WatchingNow[]>(initial);
+	let stopped = $derived(initialStopped);
 	/** When `watching` came: its positions have moved on since. */
 	let checkedAt = $state(Date.now());
 	let problem = $state(false);
@@ -33,13 +37,20 @@
 			const res = await fetch('/infantil/ahora').catch(() => null);
 			problem = !res?.ok;
 			if (res?.ok) {
-				watching = await res.json();
+				({ watching, stopped } = await res.json());
 				checkedAt = Date.now();
 			}
 		}, 10_000)
 	);
 
+	const time = new Intl.DateTimeFormat('es', { timeStyle: 'short' });
 	const since = new Intl.RelativeTimeFormat('es', { numeric: 'auto' });
+
+	/** «a las 19:42, hace 3 minutos», as of the last check. */
+	function touchedText(at: number) {
+		const minutes = Math.floor((checkedAt - at) / 60_000);
+		return `a las ${time.format(at)}, ${minutes < 1 ? 'hace un momento' : since.format(-minutes, 'minute')}`;
+	}
 	/** «hace 2 horas», «ayer»… */
 	function ago(date: Date) {
 		const minutes = Math.round((Date.now() - new Date(date).getTime()) / 60_000);
@@ -54,24 +65,35 @@
 	<ul class="space-y-3">
 		{#each kids as kid (kid.id)}
 			{@const now = watching.find((w) => w.userId === kid.id)}
+			{@const stoppedAt = stopped.find((s) => s.userId === kid.id)?.at}
 			<li class="flex flex-wrap items-start gap-3">
 				<span
 					class={[
 						'mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full',
-						now ? (now.paused ? 'bg-amber-400' : 'bg-green-500') : 'bg-zinc-700'
+						now ? (now.paused || now.asking ? 'bg-amber-400' : 'bg-green-500') : 'bg-zinc-700'
 					]}
 					aria-hidden="true"
 				></span>
 				<p class="min-w-0">
 					<span class="font-semibold">{kid.name}</span>
 					{#if now}
-						{now.paused ? 'tiene en pausa' : 'está viendo'}
+						{now.asking
+							? 'tiene sin contestar «¿Sigues ahí?» en'
+							: now.paused
+								? 'tiene en pausa'
+								: 'está viendo'}
 						<a href={now.href} class="text-amber-400 hover:underline">{now.title}</a>
 						<span class="block text-sm text-zinc-400">
 							{now.detail}{now.positionSec !== null
 								? ` · minuto ${Math.floor(now.positionSec / 60)}`
 								: ''} · en {now.device}
 						</span>
+						{#if now.touchedAt !== null}
+							<!-- With «siguiente automático», watching is not being there: when anyone was. -->
+							<span class="block text-sm text-zinc-400">
+								Última interacción {touchedText(now.touchedAt)}
+							</span>
+						{/if}
 						<button
 							class="mt-1 text-sm text-amber-400 hover:underline"
 							aria-expanded={mirrors.includes(kid.id)}
@@ -81,6 +103,11 @@
 									: [...mirrors, kid.id])}
 							>{mirrors.includes(kid.id) ? 'Dejar de verlo' : 'Verlo en pequeño'}</button
 						>
+					{:else if stoppedAt}
+						<span class="text-amber-300">
+							no está viendo nada: se paró a las {time.format(stoppedAt)} porque nadie contestó «¿Sigues
+							ahí?»
+						</span>
 					{:else}
 						<span class="text-zinc-400">
 							no está viendo nada{kid.lastActivity ? ` · lo último, ${ago(kid.lastActivity)}` : ''}

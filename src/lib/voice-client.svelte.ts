@@ -38,6 +38,8 @@ class VoiceClient {
 	problem = $state<string | null>(null);
 	/** Being read aloud: the header's bubble stays until it ends. */
 	speaking = $state(false);
+	/** In the road mode (#78): the AI is told, and nothing to watch is opened. */
+	car = false;
 	/** The exchanges before, so that «no, eso no» means something. */
 	#history: VoiceTurn[] = [];
 
@@ -165,7 +167,8 @@ class VoiceClient {
 				video: videoHere.position(),
 				history: this.#history,
 				timers: timers.describe(),
-				recipe: recipe.describe()
+				recipe: recipe.describe(),
+				car: this.car
 			})
 		}).catch(() => null);
 		const body: VoiceReply | { message?: string } | null = await res?.json().catch(() => null);
@@ -177,7 +180,11 @@ class VoiceClient {
 		// Something else to hear, or «para»: what was paused does not come back over it.
 		if (body.actions.some((a) => ['play', 'radio', 'control'].includes(a.kind)))
 			music.forgetPause();
-		for (const action of body.actions) await act(action);
+		for (const action of body.actions) {
+			// Driving: never a video, whatever the answer says.
+			if (this.car && action.kind === 'watch') continue;
+			await act(action);
+		}
 		this.reply = body.reply;
 		this.options = body.options;
 		kitchenLog.add(text, body.reply);

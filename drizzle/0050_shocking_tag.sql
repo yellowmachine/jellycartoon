@@ -1,0 +1,1 @@
+ALTER TABLE "kid_settings" ADD COLUMN "ask_every" integer DEFAULT 3;

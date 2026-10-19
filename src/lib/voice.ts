@@ -66,6 +66,8 @@ export interface VoiceRequest {
 	timers: string[];
 	/** The recipe being cooked here, as recipe.ts describes it, and its step; null if none. */
 	recipe: string | null;
+	/** Said in the road mode (#78): driving, audio only, here only. */
+	car: boolean;
 }
 
 export interface VoiceReply {
@@ -111,6 +113,7 @@ export function parseVoiceRequest(body: unknown): VoiceRequest | null {
 			.flatMap((t: unknown) => text(t, 100) ?? [])
 			.slice(0, 20),
 		// Thirty steps of a few lines each, and the ingredients.
-		recipe: text(b.recipe, 12_000)
+		recipe: text(b.recipe, 12_000),
+		car: b.car === true
 	};
 }

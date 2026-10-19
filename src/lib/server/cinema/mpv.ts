@@ -10,6 +10,9 @@ import { MpvClient, StateBroadcast, type MpvMessage } from '#lib/server/mpv-clie
 import { saveProgress } from '#lib/server/progress.ts';
 import { addWatchTime } from '#lib/server/watch-time.ts';
 import { videoAllowed } from '#lib/server/kid-time.ts';
+import { noteAsking, noteStopped, noteTouched } from '#lib/server/live-watching.ts';
+import { askEvery } from '#lib/server/still-there.ts';
+import { ANSWER_SECONDS, QUESTION } from '#lib/still-there.ts';
 import type { Channel } from '#lib/channels.ts';
 import type { RemoteAction, RemoteState, Track } from '#lib/salon.ts';
 import { mpvSubtitleProperties, type SubtitleStyle } from '#lib/subtitle-style.ts';
@@ -129,6 +132,8 @@ const mpv = new MpvClient(
 		},
 		// mpv was closed (or restarted): whatever was playing keeps its last known position.
 		onClose() {
+			if (question) clearTimeout(question.timer);
+			question = null;
 			for (const entry of playing.values()) void save(entry, false);
 			playing.clear();
 			intros.clear();
@@ -146,15 +151,27 @@ const mpv = new MpvClient(
 				current = entryId;
 				showFailed(null);
 				show(entryId);
+				void startedByItself(entryId);
 			} else if (message.event === 'file-loaded') {
 				loaded = current;
+				loadedAt = Date.now();
 				if (loaded !== null) void addSubtitles(loaded);
 			} else if (message.event === 'end-file' && entryId !== undefined) {
 				if (message.reason === 'error') failedToOpen(entryId, message.file_error);
+				// Stopped (Volver, Inicio) while asking: no question left on the next one.
+				const asked = entryId === current ? clearQuestion() : null;
+				if (asked) noteAsking(asked, false);
 				void ended(entryId, message.reason ?? '');
-			} else if (message.event === 'client-message' && message.args?.[0] === VOICE_MESSAGE) {
-				state.voiceKey++;
-				notify();
+			} else if (message.event === 'seek' && Date.now() - loadedAt > OWN_START_MS) {
+				someoneThere();
+			} else if (message.event === 'client-message') {
+				const [name] = message.args ?? [];
+				if (name === VOICE_MESSAGE) {
+					someoneThere();
+					state.voiceKey++;
+					notify();
+				} else if (name === KEY_MESSAGE) someoneThere();
+				else if (name === STILL_HERE_MESSAGE) answered();
 			}
 		}
 	},
@@ -165,6 +182,87 @@ const command = (cmd: unknown) => mpv.command(cmd);
 
 /** `script-message` of the remote's microphone key, in deploy/mpv/input.conf. */
 const VOICE_MESSAGE = 'jellycartoon-voz';
+/** mando.lua's: its menu opened (someone is there), or its OK answering «¿Sigues ahí?». */
+const KEY_MESSAGE = 'jellycartoon-tecla';
+const STILL_HERE_MESSAGE = 'jellycartoon-sigo';
+/** Read by mando.lua: while true, OK answers «¿Sigues ahí?» instead of opening its menu. */
+const ASKING_PROPERTY = 'user-data/jellycartoon/asking';
+/** Seeks this soon after a file opens are its own start (`start=`), not someone touching it. */
+const OWN_START_MS = 5000;
+
+/**
+ * «¿Sigues ahí?» (#77). Episodes mpv's list started by itself since anyone last touched anything:
+ * a key of the remote (a seek, Play/Pausa, the menu, the microphone) or the phone's remote.
+ */
+let unattended = 0;
+/** The first of the queue, started by whoever chose it: not by itself. */
+let queueFirst: number | null = null;
+/** Asked and not answered: whom, and the stop when time is up. */
+let question: { userId: string; timer: ReturnType<typeof setTimeout> } | null = null;
+/** When the file on screen opened. */
+let loadedAt = 0;
+
+/** Someone touched something: the count starts again, and a question is answered. */
+function someoneThere() {
+	unattended = 0;
+	const userId = current === null ? undefined : (playing.get(current) ?? live.get(current))?.userId;
+	if (userId) noteTouched(userId);
+	answered();
+}
+
+/** Each one mpv's list starts by itself counts; at this user's number of them, it asks. */
+async function startedByItself(entryId: number) {
+	const entry = playing.get(entryId);
+	if (!entry || entryId === queueFirst || question) return;
+	unattended++;
+	const every = await askEvery(entry.userId).catch(() => null);
+	if (!every || unattended < every || current !== entryId) return;
+	question = {
+		userId: entry.userId,
+		timer: setTimeout(() => void nobodyAnswered(), ANSWER_SECONDS * 1000)
+	};
+	noteAsking(entry.userId, true);
+	log.info('mpv', `${QUESTION} Tras ${unattended} capítulos seguidos`, { userId: entry.userId });
+	try {
+		await command(['set_property', 'pause', true]);
+		await command(['set_property', ASKING_PROPERTY, true]);
+		await command(['show-text', `${QUESTION}\nPulsa OK para seguir`, ANSWER_SECONDS * 1000]);
+	} catch (error) {
+		log.warn('mpv', `No se pudo preguntar «${QUESTION}»`, { error });
+	}
+}
+
+/** No question any more (answered, stopped or gone): whom it was for. */
+function clearQuestion() {
+	if (!question) return null;
+	clearTimeout(question.timer);
+	const { userId } = question;
+	question = null;
+	void command(['set_property', ASKING_PROPERTY, false]).catch(() => {});
+	void command(['show-text', '', 1]).catch(() => {});
+	return userId;
+}
+
+/** «Sigo aquí»: OK, Play/Pausa, or anything else. It plays again. */
+function answered() {
+	const userId = clearQuestion();
+	if (!userId) return;
+	unattended = 0;
+	noteAsking(userId, false);
+	void command(['set_property', 'pause', false]).catch(() => {});
+	log.info('mpv', 'Sigue ahí', { userId });
+}
+
+/** Time is up: it stops, and /infantil's «Ahora» says why. */
+async function nobodyAnswered() {
+	const userId = clearQuestion();
+	if (!userId) return;
+	noteStopped(userId);
+	log.info('mpv', `Nadie contestó a «${QUESTION}»: parado`, { userId });
+	await command(['stop']).catch(() => {});
+	// mpv's pause is the player's, not the file's: what is put on next would start paused.
+	await command(['set_property', 'pause', false]).catch(() => {});
+}
 /** A message stays this long at most: the one who wrote it takes it away before. */
 const MESSAGE_MS = 60_000;
 
@@ -278,6 +376,8 @@ function propertyChanged(name: string, data: unknown) {
 			return;
 		case 'pause':
 			state.paused = data === true;
+			// Play/Pausa: someone is there, and with a question, it answers it.
+			if (data === false || !question) someoneThere();
 			break;
 		case 'time-pos': {
 			state.positionSec = number;
@@ -430,6 +530,8 @@ export function watchRemote(listener: (state: RemoteState) => void) {
 }
 
 export async function control(remote: RemoteAction) {
+	// The phone's remote: someone is there. Not its text over the picture (the voice's own).
+	if (remote.action !== 'stop' && remote.action !== 'message') someoneThere();
 	switch (remote.action) {
 		case 'pause':
 			return command(['set_property', 'pause', remote.value]);
@@ -462,6 +564,11 @@ const oneOrder = inOrder();
 
 /** What was queued goes: what ended is already saved, and what is on saves when it ends. */
 function forgetQueue() {
+	// Chosen now: started by someone, and no question for what was on.
+	unattended = 0;
+	queueFirst = null;
+	const asked = clearQuestion();
+	if (asked) noteAsking(asked, false);
 	intros.clear();
 	live.clear();
 	for (const [id, entry] of playing) {
@@ -491,6 +598,9 @@ async function playNow(options: {
 }) {
 	preferredSubtitle = options.subtitleLang;
 	forgetQueue();
+	noteTouched(options.userId);
+	// Chosen now, to watch now: mpv's pause outlives what was paused (Volver while paused).
+	await command(['set_property', 'pause', false]).catch(() => {});
 	for (const [name, value] of mpvSubtitleProperties(options.subtitleStyle))
 		await command(['set_property', name, value]).catch((error) =>
 			log.warn('mpv', `No se pudo poner ${name} de los subtítulos`, { value, error })
@@ -520,6 +630,7 @@ async function playNow(options: {
 			flags: first ? 'replace' : 'append-play',
 			options: mpvOptions
 		})) as { playlist_entry_id: number };
+		queueFirst ??= result.playlist_entry_id;
 		first = false;
 		playing.set(result.playlist_entry_id, {
 			...item,
@@ -545,6 +656,8 @@ export function playChannel(userId: string, channel: Channel) {
 
 async function playChannelNow(userId: string, channel: Channel) {
 	forgetQueue();
+	noteTouched(userId);
+	await command(['set_property', 'pause', false]).catch(() => {});
 	const result = (await command({ name: 'loadfile', url: channel.url, flags: 'replace' })) as {
 		playlist_entry_id: number;
 	};

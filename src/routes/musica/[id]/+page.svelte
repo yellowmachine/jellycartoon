@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AddToQueue from '#lib/components/AddToQueue.svelte';
 	import { enhance } from '$app/forms';
 	import AddToPlaylist from '#lib/components/AddToPlaylist.svelte';
 	import AlbumCover from '#lib/components/AlbumCover.svelte';
@@ -92,10 +93,7 @@
 				class="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-zinc-950 hover:bg-amber-400"
 				onclick={() => musicTarget.play(album.tracks, 0, toSnapcast)}>▶︎ Reproducir</button
 			>
-			<button
-				class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900"
-				onclick={() => musicTarget.append(album.tracks, toSnapcast)}>+ Añadir a la cola</button
-			>
+			<AddToQueue tracks={album.tracks} {toSnapcast} />
 		</div>
 	</div>
 </div>

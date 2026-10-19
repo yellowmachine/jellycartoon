@@ -142,6 +142,13 @@ docker compose -f compose.prod.yaml logs -f app
 - En «Infantil» (para cualquier adulto) se ve lo que ven, y se les pone horario por días y un
   límite de minutos al día. Fuera de él no hay vídeo, tampoco en el salón: lo que suena se para.
   Las horas son las de `TZ`.
+- «¿Sigues ahí?» (por niño, en «Infantil»: nunca, o cada 2, 3 o 4 capítulos; 3 si no se elige):
+  tras esos capítulos seguidos empezados solos («siguiente automático» en el navegador, o la lista
+  del mpv del salón) sin que nadie toque nada, el siguiente espera a que conteste. Si en 2 minutos
+  nadie lo hace, se para, y «Ahora» dice a qué hora y por qué. Tocar algo pone la cuenta a cero: en
+  el navegador, cualquier toque o tecla; en el salón, Play/Pausa, saltar, el menú, el micrófono o
+  el mando del móvil. Allí la pregunta sale sobre el vídeo y se contesta con el OK. «Ahora» dice
+  también la última vez que alguien tocó algo: «Última interacción a las 19:42, hace 3 minutos».
 - En «Ahora», «Verlo en pequeño» abre al lado un vídeo sin sonido con lo que está viendo cada niño,
   en el mismo segundo y siguiéndolo: si salta, se recoloca; si pausa, se queda en ese fotograma
   (unos segundos tarde, cuando su posición deja de moverse). No es su pantalla, sino el mismo
@@ -390,6 +397,21 @@ para acostumbrar el oído a otros idiomas. La lista está elegida a mano en `src
   de RTVE); el ya resuelto, solo si el enlace es un fichero de lista (`.pls`, `.m3u`).
 - Para añadir una emisora: buscar su `stationuuid` en radio-browser.info y añadirla a la lista.
 
+### Modo carretera
+
+Para una tablet fija junto al volante, en horizontal y con la pantalla partida de Android: a un
+lado el navegador (Google Maps u Organic Maps, que hacen la navegación y el tráfico), al otro
+`/carretera` («Modo carretera» en Música y en Radio). Solo sonido, y nunca vídeo:
+
+- Lo que suena en grande, con botones enormes (anterior, pausa y siguiente; en un podcast, −15 y
+  +30 s), y un micrófono gigante, como el de la cocina.
+- Debajo, un toque para poner algo: las emisoras (las españolas primero), las listas de música y
+  los podcasts (los empezados, y lo último de cada uno).
+- La voz sabe que va en el coche: respuestas muy cortas, solo aquí (no en los altavoces de
+  Snapcast), y sin vídeo, cocina ni recetas; aunque pidiera un capítulo, no se abre.
+- La pantalla no se apaga mientras está abierto (Wake Lock), y «Ahorro de datos» pone la música en
+  Opus, para los datos móviles hasta casa (Tailscale).
+
 ### Voz
 
 Órdenes habladas desde el móvil (#33), pensadas para personas mayores: en `/voz`, un botón grande
@@ -478,7 +500,7 @@ systemctl --user restart jellycartoon-mpv
 
 | Tecla del mando | En el mpv del salón                                             |
 | --------------- | --------------------------------------------------------------- |
-| OK o Menú       | Abre el menú; dentro, elige                                     |
+| OK o Menú       | Abre el menú; dentro, elige; con «¿Sigues ahí?», contesta       |
 | Flechas         | En el menú, se mueven; sin menú, saltan 5 s (← →) o 1 min (↑ ↓) |
 | Volver          | Cierra el menú; sin menú, para y se vuelve a la vista TV        |
 | Play/Pausa      | Pausa o sigue                                                   |

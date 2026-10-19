@@ -26,20 +26,76 @@ interface Live {
 }
 
 const live = new Map<string, Live>();
+/**
+ * When each child last touched anything while watching: a key or a touch in the player, the remote
+ * in the living room, choosing what to watch. For the adults, as «Última interacción».
+ */
+const touched = new Map<string, number>();
+/** Asked «¿Sigues ahí?» (#77) and not answered yet: since when. */
+const asking = new Map<string, number>();
+/**
+ * Nobody answered «¿Sigues ahí?», and it stopped: when, and what was on. Until they watch again,
+ * which is not the last position the player saves as it stops.
+ */
+const stopped = new Map<string, { at: number; target?: Target; positionSec?: number }>();
+/** Said in «Ahora» for this long after stopping. */
+const STOPPED_MS = 6 * 60 * 60_000;
 
 const same = (a: Target, b: Target) => JSON.stringify(a) === JSON.stringify(b);
 
 /** Every position a child's player sends. */
 export function noteWatching(userId: string, target: Target, positionSec: number, device: string) {
 	const now = Date.now();
+	const left = stopped.get(userId);
+	if (
+		left?.target &&
+		same(left.target, target) &&
+		Math.abs((left.positionSec ?? 0) - positionSec) < 1
+	)
+		return;
 	const before = live.get(userId);
 	const moved = !before || !same(before.target, target) || before.positionSec !== positionSec;
+	if (moved) stopped.delete(userId);
+	// Playing on: answered. Not a new one starting, which is where the question is asked.
+	if (before && same(before.target, target) && before.positionSec !== positionSec)
+		asking.delete(userId);
 	live.set(userId, {
 		target,
 		positionSec,
 		device,
 		at: now,
 		movedAt: moved ? now : before.movedAt
+	});
+}
+
+/** «¿Sigues ahí?» asked (`true`), or answered (`false`, which is someone touching it too). */
+export function noteAsking(userId: string, on: boolean) {
+	if (on) asking.set(userId, Date.now());
+	else {
+		asking.delete(userId);
+		noteTouched(userId);
+	}
+}
+
+/** Someone touched something while this user watches (or chose what to watch). */
+export function noteTouched(userId: string) {
+	touched.set(userId, Date.now());
+}
+
+/** Nobody answered, and it stopped: not «watching» any more, and «Ahora» says so. */
+export function noteStopped(userId: string) {
+	const was = live.get(userId);
+	asking.delete(userId);
+	live.delete(userId);
+	stopped.set(userId, { at: Date.now(), target: was?.target, positionSec: was?.positionSec });
+}
+
+/** Those of `userIds` whose video stopped for nobody answering, lately: when. */
+export function stoppedLately(userIds: string[]) {
+	const now = Date.now();
+	return userIds.flatMap((userId) => {
+		const at = stopped.get(userId)?.at;
+		return at && now - at < STOPPED_MS ? [{ userId, at }] : [];
 	});
 }
 
@@ -55,6 +111,10 @@ export interface WatchingNow {
 	ageSec: number;
 	device: string;
 	paused: boolean;
+	/** Asked «¿Sigues ahí?» and not answered yet. */
+	asking: boolean;
+	/** When anyone last touched anything (ms since 1970); null, not since the app started. */
+	touchedAt: number | null;
 	/** What to play in the small, silent copy beside it (#75). */
 	mirror: { episodeId: number } | { movieId: number } | { channelUrl: string };
 }
@@ -95,6 +155,8 @@ export async function watchingNow(userIds: string[]): Promise<WatchingNow[]> {
 			userId: f.userId,
 			device: f.device,
 			paused: now - f.movedAt >= STILL_MS,
+			asking: asking.has(f.userId),
+			touchedAt: touched.get(f.userId) ?? null,
 			ageSec: (now - f.at) / 1000
 		};
 		if ('episodeId' in f.target) {

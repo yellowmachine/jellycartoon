@@ -6,6 +6,7 @@
 	import TvSalonFailed from '#lib/components/TvSalonFailed.svelte';
 	import TvVoice from '#lib/components/TvVoice.svelte';
 	import { music } from '#lib/music-player.svelte.ts';
+	import { stillThere } from '#lib/still-there.svelte.ts';
 	import { watchSalon } from '#lib/salon.svelte.ts';
 	import { videoHere } from '#lib/video-here.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
@@ -20,6 +21,8 @@
 	 * Back the browser's, which need nothing here.
 	 */
 	function remoteKey(e: KeyboardEvent) {
+		// Someone with the remote: for «¿Sigues ahí?» and /infantil's «Última interacción».
+		stillThere.someoneThere();
 		if (e.key === 'F7') {
 			e.preventDefault();
 			void goto('/tv');

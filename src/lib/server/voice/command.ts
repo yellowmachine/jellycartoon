@@ -776,6 +776,25 @@ async function runTool(
 	}
 }
 
+/** The road mode (#78): what is said while driving. */
+const CAR =
+	'[En el coche, conduciendo (modo carretera): solo audio, aquí. Nunca vídeo. Respuestas muy cortas: las oye quien conduce.]';
+
+/** Nothing to see, cook or watch while driving: not even offered to the AI. */
+const NOT_IN_THE_CAR = new Set([
+	'search_video',
+	'series_episodes',
+	'play_video',
+	'send_clip',
+	'kitchen_mode',
+	'start_recipe',
+	'cook_saved_recipe',
+	'search_recipe_sites',
+	'cook_from_web',
+	'recipe_step',
+	'end_recipe'
+]);
+
 /**
  * What was said, done: what the device must do, and the sentence to read aloud. `user`: who speaks,
  * from the session; an adult, a child's account has no voice.
@@ -792,7 +811,8 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 			listRecipes(),
 			listRecipeSites()
 		]);
-	const house = snapcastReady();
+	// In the car the house's speakers are far away.
+	const house = snapcastReady() && !request.car;
 	const outcome: Outcome = { actions: [], options: [], asked: null };
 	const messages: ToolChatMessage[] = [
 		{
@@ -827,11 +847,14 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 					? [{ type: 'text' as const, text: `[Receta en marcha aquí:\n${request.recipe}]` }]
 					: []),
 				...(watchingHere ? [{ type: 'text' as const, text: watchingHere }] : []),
+				...(request.car ? [{ type: 'text' as const, text: CAR }] : []),
 				{ type: 'text', text: request.text }
 			]
 		}
 	];
-	const available = [...tools(house), ...historyTools({ self: user })];
+	const available = [...tools(house), ...historyTools({ self: user })].filter(
+		(t) => !(request.car && NOT_IN_THE_CAR.has(t.function.name))
+	);
 
 	for (let round = 0; round < MAX_ROUNDS; round++) {
 		const answer = await chatWithTools({
