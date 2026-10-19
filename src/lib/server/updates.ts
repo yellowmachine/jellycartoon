@@ -16,8 +16,11 @@ const TRIGGER = 'docker/jellycartoon';
 export interface Release {
 	version: string;
 	name: string;
-	/** Markdown, as written in the release. */
-	notes: string;
+	/**
+	 * Its notes, written in Markdown, as HTML made by GitHub itself (and cleaned by it): the
+	 * `html` media type, https://docs.github.com/rest/releases/releases#get-the-latest-release
+	 */
+	notesHtml: string;
 	url: string;
 }
 
@@ -43,7 +46,7 @@ async function latestRelease(fresh = false): Promise<Release | null> {
 	let release: Release | null = null;
 	try {
 		const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
-			headers: { accept: 'application/vnd.github+json' },
+			headers: { accept: 'application/vnd.github.html+json' },
 			signal: AbortSignal.timeout(10_000)
 		});
 		// 404: no release yet.
@@ -52,7 +55,7 @@ async function latestRelease(fresh = false): Promise<Release | null> {
 			release = {
 				version: String(body.tag_name).replace(/^v/, ''),
 				name: body.name || body.tag_name,
-				notes: body.body ?? '',
+				notesHtml: body.body_html ?? '',
 				url: body.html_url
 			};
 		} else if (res.status !== 404) {

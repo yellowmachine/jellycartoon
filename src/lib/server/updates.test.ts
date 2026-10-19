@@ -94,7 +94,7 @@ test('versionInfo: the notice remembers GitHub for hours; Ajustes asks it again'
 	const release = (tag: string) => ({
 		tag_name: tag,
 		name: tag,
-		body: 'Novedades',
+		body_html: '<p>Novedades</p>',
 		html_url: `https://github.com/yellowmachine/jellycartoon/releases/tag/${tag}`
 	});
 	const latest = 'GET /repos/yellowmachine/jellycartoon/releases/latest';
@@ -107,6 +107,7 @@ test('versionInfo: the notice remembers GitHub for hours; Ajustes asks it again'
 	expect((await versionInfo()).update).toBeNull();
 	// …but opening Ajustes asks again,
 	expect((await versionInfo({ fresh: true })).update?.version).toBe('1.0.1');
+	expect((await versionInfo()).update?.notesHtml).toBe('<p>Novedades</p>');
 	// and from then on the notice knows it too.
 	routes = {};
 	expect((await versionInfo()).update?.version).toBe('1.0.1');
