@@ -61,6 +61,13 @@ async function assertPublic(url: URL) {
 
 const MAX_REDIRECTS = 5;
 
+/** The site answered with an error: its HTTP status, to tell «stop for a while» (429…) apart. */
+export class FetchError extends Error {
+	constructor(readonly status: number) {
+		super(`La web respondió ${status}`);
+	}
+}
+
 const decoder = new TextDecoder();
 
 /** A file served gzipped as it is (a sitemap's `.xml.gz`), not with Content-Encoding: by its magic bytes. */
@@ -118,7 +125,7 @@ export async function fetchPublic(
 			url = new URL(location, url);
 			continue;
 		}
-		if (!res.ok) throw new Error(`La web respondió ${res.status}`);
+		if (!res.ok) throw new FetchError(res.status);
 		if (Number(res.headers.get('content-length') ?? 0) > options.maxBytes)
 			throw new Error('La página es demasiado grande');
 		const bytes = new Uint8Array(await res.arrayBuffer());

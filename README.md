@@ -107,6 +107,23 @@ docker compose -f compose.prod.yaml logs -f app
   la ruta de su `master.m3u8` para abrirlo en el mismo PC con mpv u otro reproductor
   (`mpv <ruta>`). Por http desde otra IP el navegador no deja copiar: muestra la ruta seleccionada.
 - La app corre como `PUID:PGID` (por defecto `1000:1000`), que es el dueño de `HOST_DATA_DIR`.
+- **Instalar en casa de otra persona** sin que pueda estropearlo: lo que la protege es que su
+  usuario **no tenga `sudo` ni esté en el grupo `docker`**, que equivale a ser root
+  ([documentación de Docker](https://docs.docker.com/engine/security/#docker-daemon-attack-surface)).
+  Lo demás, de root y con un usuario propio para la app:
+  ```bash
+  sudo useradd --system --no-create-home --shell /usr/sbin/nologin jellycartoon
+  id jellycartoon                                   # su uid y gid: PUID y PGID del .env
+  sudo mkdir -p /opt/jellycartoon/data              # compose.prod.yaml y .env, de root
+  sudo chown jellycartoon:jellycartoon /opt/jellycartoon/data && sudo chmod 750 /opt/jellycartoon/data
+  sudo chmod 600 /opt/jellycartoon/.env             # secretos: sesiones, Cloudflare, OpenRouter
+  # Lo que ella rellena, aparte: escribe ella y la app lee por el grupo
+  sudo mkdir -p /srv/media/series && sudo chown <su-usuario>:jellycartoon /srv/media/series
+  sudo chmod 2775 /srv/media/series
+  ```
+  Con `HOST_DATA_DIR=/opt/jellycartoon/data` y `HOST_MEDIA_DIR=/srv/media/series`. Crea tú la
+  primera cuenta (la que administra) y luego `ALLOW_SIGNUP=false`; con el perfil `updates`, WUD
+  actualiza solo.
 - Para fijar una versión concreta: `IMAGE_TAG=sha-abc1234` en el `.env`.
 - `DELETE_SOURCES=true` borra de `HOST_MEDIA_DIR` cada original (y sus subtítulos externos) en
   cuanto se convierte; el episodio sigue en el catálogo. Útil si guardas copia en otro disco.

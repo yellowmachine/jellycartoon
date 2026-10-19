@@ -1,17 +1,19 @@
-import { and, asc, eq, ilike, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, asc, eq, ilike, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { recipeSite, recipeSitePage } from '#lib/server/db/schema.ts';
+import { recipeSite, recipeSitePage, recipeSiteSitemap } from '#lib/server/db/schema.ts';
 import { log } from '#lib/server/log.ts';
-import { fetchPublic } from '#lib/server/public-fetch.ts';
+import { FetchError, fetchPublic } from '#lib/server/public-fetch.ts';
 import { readPage } from './schema-org.ts';
 import {
+	crawlDelay,
 	fold,
 	parseSitemap,
 	searchWords,
 	sitemapsInRobots,
 	skipSitemap,
 	slugTitle,
-	USUAL_SITEMAPS
+	USUAL_SITEMAPS,
+	type SitemapEntry
 } from './sitemap.ts';
 
 /**
@@ -23,16 +25,25 @@ import {
 const USER_AGENT = 'JellyCartoon/1.0 (https://github.com/yellowmachine/jellycartoon)';
 /** The protocol's own limit for one sitemap, unpacked: https://www.sitemaps.org/protocol.html */
 const MAX_SITEMAP_BYTES = 50 * 1024 * 1024;
-const MAX_SITEMAPS = 300;
+/** Asked for in one reading: a site with more is read in parts, a part each night. */
+const MAX_SITEMAPS = 1000;
 const MAX_PAGES = 100_000;
-/** Between one sitemap and the next: a site is not a race. */
-const PAUSE_MS = 300;
+/** Between one sitemap and the next, at least: a site is not a race. */
+const PAUSE_MS = 1000;
+/** A Crawl-delay longer than this is taken as this: a reading would never end. */
+const MAX_PAUSE_MS = 30_000;
 const REFRESH_DAYS = 7;
 
 const headers = { 'User-Agent': USER_AGENT };
 
 /** Sites whose sitemaps are being read now. */
 const indexing = new Map<number, Promise<void>>();
+
+/**
+ * How the reading of each goes, for Recetas to show it: sitemaps done of those known so far (an
+ * index can bring more), and the pages found in them.
+ */
+const progress = new Map<number, { done: number; total: number; pages: number }>();
 
 export const isIndexing = (siteId: number) => indexing.has(siteId);
 
@@ -76,42 +87,110 @@ export async function addRecipeSite(address: string, userId: string) {
 export function indexSite(siteId: number) {
 	let running = indexing.get(siteId);
 	if (!running) {
-		running = readSitemaps(siteId).finally(() => indexing.delete(siteId));
+		running = readSitemaps(siteId).finally(() => {
+			indexing.delete(siteId);
+			progress.delete(siteId);
+		});
 		indexing.set(siteId, running);
 	}
 	return running;
 }
 
-const pause = () => new Promise((resolve) => setTimeout(resolve, PAUSE_MS));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * The site asked to stop (429), or refused (403) or could not (503): nothing more is asked of it
+ * now, nothing read so far is kept, and it is tried again the next night.
+ */
+class Throttled extends Error {
+	constructor(readonly status: number) {
+		super(
+			`La web pidió que esperáramos (respondió ${status}): se vuelve a intentar la noche siguiente`
+		);
+	}
+}
+const THROTTLED = new Set([403, 429, 503]);
+
+/** Its HTTP error, if it is a throttle; any other failure, nothing. */
+const throttle = (error: unknown) =>
+	error instanceof FetchError && THROTTLED.has(error.status) ? new Throttled(error.status) : null;
+
+/**
+ * Reads the site's sitemaps, politely: one at a time, with a pause between them (its robots.txt's
+ * Crawl-delay, if it says one longer), and stopping as soon as it asks to. A sitemap whose index
+ * says it has not changed since the last time (lastmod) is not asked for: its pages stay. All that
+ * was read is saved at the end, in one go, or nothing.
+ */
 async function readSitemaps(siteId: number) {
 	const [site] = await db.select().from(recipeSite).where(eq(recipeSite.id, siteId));
 	if (!site) return;
 	try {
 		const origin = `https://${site.host}`;
-		const robots = await fetchPublic(`${origin}/robots.txt`, { headers, maxBytes: 500_000 })
-			.then((r) => sitemapsInRobots(r.body))
-			.catch(() => []);
+		let robots = '';
+		try {
+			robots = (await fetchPublic(`${origin}/robots.txt`, { headers, maxBytes: 500_000 })).body;
+		} catch (error) {
+			// No robots.txt is fine; being told to stop is not.
+			const stop = throttle(error);
+			if (stop) throw stop;
+		}
+		const delay = Math.min(Math.max((crawlDelay(robots) ?? 0) * 1000, PAUSE_MS), MAX_PAUSE_MS);
+		const listed = sitemapsInRobots(robots);
 		// Listed in robots.txt: all of them. If not, the first of the usual places that is one.
-		const queue = robots.length ? robots : USUAL_SITEMAPS.map((p) => origin + p);
-		const firstOnly = !robots.length;
-		const seen = new Set<string>();
-		const pages = new Map<string, string>();
-		while (queue.length && seen.size < MAX_SITEMAPS && pages.size < MAX_PAGES) {
-			const address = queue.shift()!;
-			if (seen.has(address) || skipSitemap(address)) continue;
-			seen.add(address);
-			const read = await fetchPublic(address, {
-				headers,
-				maxBytes: MAX_SITEMAP_BYTES,
-				timeoutMs: 60_000
-			})
-				.then((r) => parseSitemap(r.body))
-				.catch(() => null);
-			await pause();
-			if (!read) continue;
-			queue.push(...read.sitemaps);
-			for (const page of read.pages) {
+		const queue: SitemapEntry[] = (
+			listed.length ? listed : USUAL_SITEMAPS.map((p) => origin + p)
+		).map((url) => ({ url, lastmod: null }));
+		const firstOnly = !listed.length;
+
+		const before = new Map(
+			(await db.select().from(recipeSiteSitemap).where(eq(recipeSiteSitemap.siteId, siteId))).map(
+				(s) => [s.url, s]
+			)
+		);
+		/** Every sitemap of this reading, asked for or kept as it was. */
+		const now = new Map<string, { lastmod: string | null; isIndex: boolean }>();
+		/** The pages of the sitemaps asked for, by sitemap. */
+		const read = new Map<string, Map<string, string>>();
+		let kept = 0;
+		let asked = 0;
+		let newPages = 0;
+
+		while (queue.length && asked < MAX_SITEMAPS) {
+			progress.set(siteId, {
+				done: now.size,
+				total: now.size + queue.filter((e) => !skipSitemap(e.url)).length,
+				pages: newPages
+			});
+			const entry = queue.shift()!;
+			if (now.has(entry.url) || skipSitemap(entry.url)) continue;
+			const last = before.get(entry.url);
+			if (last && !last.isIndex && entry.lastmod && last.lastmod === entry.lastmod) {
+				now.set(entry.url, { lastmod: entry.lastmod, isIndex: false });
+				kept++;
+				continue;
+			}
+			if (asked) await sleep(delay);
+			asked++;
+			let parsed;
+			try {
+				const res = await fetchPublic(entry.url, {
+					headers,
+					maxBytes: MAX_SITEMAP_BYTES,
+					timeoutMs: 60_000
+				});
+				parsed = parseSitemap(res.body);
+			} catch (error) {
+				const stop = throttle(error);
+				if (stop) throw stop;
+				continue;
+			}
+			if (!parsed) continue;
+			const isIndex = parsed.sitemaps.length > 0;
+			now.set(entry.url, { lastmod: entry.lastmod, isIndex });
+			queue.push(...parsed.sitemaps);
+			const pages = new Map<string, string>();
+			for (const page of parsed.pages) {
+				if (newPages >= MAX_PAGES) break;
 				let url: URL;
 				try {
 					url = new URL(page);
@@ -121,41 +200,76 @@ async function readSitemaps(siteId: number) {
 				// Only the site's own pages: a sitemap may list others.
 				if (!(hostOf(url) === site.host || url.hostname.endsWith(`.${site.host}`))) continue;
 				const title = slugTitle(page);
-				if (title && pages.size < MAX_PAGES) pages.set(url.href, title);
+				if (title && !pages.has(url.href)) {
+					pages.set(url.href, title);
+					newPages++;
+				}
 			}
-			if (firstOnly && (read.pages.length || read.sitemaps.length)) queue.length = 0;
+			if (!isIndex) read.set(entry.url, pages);
+			if (firstOnly && (parsed.pages.length || isIndex)) queue.length = 0;
 		}
-		if (!pages.size)
+		// Not reached (too many for one reading): as they were, until the next one.
+		for (const entry of queue) {
+			const last = before.get(entry.url);
+			if (last && !now.has(entry.url)) {
+				now.set(entry.url, { lastmod: last.lastmod, isIndex: last.isIndex });
+				if (!last.isIndex) kept++;
+			}
+		}
+		if (!read.size && !kept)
 			throw new Error(
-				seen.size ? 'Su mapa no tiene recetas que se puedan buscar' : 'No tiene mapa del sitio'
+				asked ? 'Su mapa no tiene recetas que se puedan buscar' : 'No tiene mapa del sitio'
 			);
-		const rows = [...pages].map(([url, title]) => ({
-			siteId,
-			url,
-			title,
-			words: ` ${fold(title)} `
-		}));
-		await db.transaction(async (tx) => {
-			await tx.delete(recipeSitePage).where(eq(recipeSitePage.siteId, siteId));
+
+		// The pages of what was read again, of what is gone, and of before this was kept (''): out.
+		const replaced = [...read.keys(), ...[...before.keys()].filter((url) => !now.has(url)), ''];
+		const rows = [...read].flatMap(([sitemap, pages]) =>
+			[...pages].map(([url, title]) => ({ siteId, url, sitemap, title, words: ` ${fold(title)} ` }))
+		);
+		const total = await db.transaction(async (tx) => {
+			for (let i = 0; i < replaced.length; i += 500)
+				await tx
+					.delete(recipeSitePage)
+					.where(
+						and(
+							eq(recipeSitePage.siteId, siteId),
+							inArray(recipeSitePage.sitemap, replaced.slice(i, i + 500))
+						)
+					);
 			for (let i = 0; i < rows.length; i += 1000)
 				await tx
 					.insert(recipeSitePage)
 					.values(rows.slice(i, i + 1000))
 					.onConflictDoNothing();
+			await tx.delete(recipeSiteSitemap).where(eq(recipeSiteSitemap.siteId, siteId));
+			const sitemaps = [...now].map(([url, s]) => ({ siteId, url, ...s }));
+			for (let i = 0; i < sitemaps.length; i += 1000)
+				await tx.insert(recipeSiteSitemap).values(sitemaps.slice(i, i + 1000));
+			const [{ n }] = await tx
+				.select({ n: sql<number>`count(*)::int` })
+				.from(recipeSitePage)
+				.where(eq(recipeSitePage.siteId, siteId));
 			await tx
 				.update(recipeSite)
-				.set({ pages: rows.length, indexedAt: new Date(), lastError: null })
+				.set({ pages: n, indexedAt: new Date(), lastError: null })
 				.where(eq(recipeSite.id, siteId));
+			return n;
 		});
-		log.info('recetas', `Leído el mapa de ${site.name}: ${rows.length} páginas`, {
-			siteId,
-			sitemaps: seen.size
-		});
+		log.info(
+			'recetas',
+			`Leído el mapa de ${site.name}: ${total} páginas (${asked} sitemaps pedidos, ${kept} sin cambios)`,
+			{ siteId, asked, kept, pages: total }
+		);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		await db
 			.update(recipeSite)
-			.set({ indexedAt: new Date(), lastError: message })
+			// Told to stop: indexedAt as it was, so that tonight's round tries again.
+			.set(
+				error instanceof Throttled
+					? { lastError: message }
+					: { indexedAt: new Date(), lastError: message }
+			)
 			.where(eq(recipeSite.id, siteId));
 		log.warn('recetas', `No se pudo leer el mapa de ${site.name}: ${message}`, { siteId });
 	}
@@ -177,7 +291,11 @@ export async function refreshRecipeSites() {
 
 export async function listRecipeSites() {
 	const sites = await db.select().from(recipeSite).orderBy(asc(recipeSite.name));
-	return sites.map((s) => ({ ...s, indexing: isIndexing(s.id) }));
+	return sites.map((s) => ({
+		...s,
+		indexing: isIndexing(s.id),
+		progress: progress.get(s.id) ?? null
+	}));
 }
 
 /** As the house calls it: the site's own name can be long («Recetas de cocina… Directo al Paladar»). */

@@ -830,6 +830,8 @@ export const recipeSitePage = pgTable(
 			.notNull()
 			.references(() => recipeSite.id, { onDelete: 'cascade' }),
 		url: text('url').notNull(),
+		/** The sitemap it was listed in: its pages are replaced only when that one changes. */
+		sitemap: text('sitemap').notNull().default(''),
 		/** As shown: «Macarrones gratinados con bechamel». */
 		title: text('title').notNull(),
 		/** Folded (lower case, no accents) and between spaces, for searching. */
@@ -837,4 +839,22 @@ export const recipeSitePage = pgTable(
 	},
 	// Also the index by site: it comes first.
 	(t) => [unique().on(t.siteId, t.url)]
+);
+
+/**
+ * The sitemaps a favourite site had the last time they were read, and when each changed, as its
+ * index said (lastmod): the next time, one that did not change is not asked for again.
+ */
+export const recipeSiteSitemap = pgTable(
+	'recipe_site_sitemap',
+	{
+		siteId: integer('site_id')
+			.notNull()
+			.references(() => recipeSite.id, { onDelete: 'cascade' }),
+		url: text('url').notNull(),
+		lastmod: text('lastmod'),
+		/** An index of other sitemaps: always read again, it is what says which ones changed. */
+		isIndex: boolean('is_index').notNull().default(false)
+	},
+	(t) => [primaryKey({ columns: [t.siteId, t.url] })]
 );

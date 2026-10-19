@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import { parseSitemap, searchWords, sitemapsInRobots, skipSitemap, slugTitle } from './sitemap.ts';
+import {
+	crawlDelay,
+	parseSitemap,
+	searchWords,
+	sitemapsInRobots,
+	skipSitemap,
+	slugTitle
+} from './sitemap.ts';
 
 test('sitemapsInRobots: every Sitemap line, in any case', () => {
 	expect(
@@ -17,14 +24,17 @@ describe('parseSitemap', () => {
 				`<?xml version="1.0"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${body}</sitemapindex>`
 			);
 		expect(index('<sitemap><loc>https://e.es/post-sitemap.xml</loc></sitemap>')).toEqual({
-			sitemaps: ['https://e.es/post-sitemap.xml'],
+			sitemaps: [{ url: 'https://e.es/post-sitemap.xml', lastmod: null }],
 			pages: []
 		});
 		expect(
 			index(
 				'<sitemap><loc> https://e.es/a.xml </loc><lastmod>2026-10-01</lastmod></sitemap><sitemap><loc>https://e.es/b.xml</loc></sitemap>'
 			)?.sitemaps
-		).toEqual(['https://e.es/a.xml', 'https://e.es/b.xml']);
+		).toEqual([
+			{ url: 'https://e.es/a.xml', lastmod: '2026-10-01' },
+			{ url: 'https://e.es/b.xml', lastmod: null }
+		]);
 	});
 
 	test('a urlset, with image tags in their own namespace', () => {
@@ -51,8 +61,26 @@ test('skipSitemap: images, categories, tags, authors and pages are not recipes',
 		'https://e.es/sitemap-images.xml'
 	])
 		expect(skipSitemap(url)).toBe(true);
-	for (const url of ['https://e.es/post-sitemap.xml', 'https://e.es/wp-sitemap-posts-post-1.xml'])
+	for (const url of [
+		'https://e.es/post-sitemap.xml',
+		'https://e.es/wp-sitemap-posts-post-1.xml',
+		'https://e.es/categoria/recetas-de-pasta/sitemap.xml',
+		'https://e.es/archivos/2026/10/sitemap.xml'
+	])
 		expect(skipSitemap(url)).toBe(false);
+});
+
+test('crawlDelay: for us, else for every bot', () => {
+	expect(crawlDelay('User-agent: *\nDisallow: /wp-admin/\nCrawl-delay: 5\n')).toBe(5);
+	expect(
+		crawlDelay(
+			'User-agent: Googlebot\nCrawl-delay: 1\n\nUser-agent: JellyCartoon\nUser-agent: Otro\nCrawl-delay: 10 # lento\n\nUser-agent: *\nCrawl-delay: 3'
+		)
+	).toBe(10);
+	expect(
+		crawlDelay('User-agent: Googlebot\nCrawl-delay: 1\nUser-agent: *\nDisallow: /x')
+	).toBeNull();
+	expect(crawlDelay('')).toBeNull();
 });
 
 test('slugTitle: the words of the address', () => {

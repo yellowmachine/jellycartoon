@@ -230,7 +230,11 @@
 					<span class="block truncate text-xs text-zinc-500">
 						{site.host} ·
 						{#if site.indexing}
-							<span class="text-amber-400">leyendo su mapa…</span>
+							<span class="text-amber-400"
+								>leyendo su mapa{site.progress?.total
+									? `: ${site.progress.done} de ${site.progress.total} · ${site.progress.pages.toLocaleString('es-ES')} páginas`
+									: '…'}</span
+							>
 						{:else if site.lastError}
 							<span class="text-amber-400">{site.lastError}</span>
 						{:else if site.indexedAt}
@@ -239,6 +243,14 @@
 							sin leer todavía
 						{/if}
 					</span>
+					{#if site.indexing && site.progress?.total}
+						<span class="mt-1 block h-1 overflow-hidden rounded bg-zinc-800">
+							<span
+								class="block h-full bg-amber-400"
+								style:width="{(site.progress.done / site.progress.total) * 100}%"
+							></span>
+						</span>
+					{/if}
 				</span>
 				{#if renaming !== site.id}
 					<button class={small} onclick={() => (renaming = site.id)}>Renombrar</button>
