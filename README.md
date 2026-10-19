@@ -412,6 +412,24 @@ lado el navegador (Google Maps u Organic Maps, que hacen la navegación y el tr�
 - La pantalla no se apaga mientras está abierto (Wake Lock), y «Ahorro de datos» pone la música en
   Opus, para los datos móviles hasta casa (Tailscale).
 
+Con la tablet entera en horizontal (la pantalla ancha, sin partir), a la izquierda va un mapa
+propio ([MapLibre](https://maplibre.org)), con dónde estás por el GPS del navegador: la flecha
+sigue la marcha y el mapa gira con ella; si se mueve con el dedo deja de seguirla hasta
+«Recentrar». En media pantalla no sale, ni se pide la posición. El mapa es de la propia app, sin
+depender de nadie: España recortada de las descargas diarias de
+[Protomaps](https://docs.protomaps.com) (OpenStreetMap), con las fuentes e iconos de su estilo, en
+`DATA_DIR/mapa`. Para ponerlo, o actualizar las calles de vez en cuando, en el servidor y desde el
+repositorio (con Docker):
+
+```sh
+scripts/mapa.sh /ruta/a/los/convertidos                  # HOST_DATA_DIR: España, Baleares y Canarias
+scripts/mapa.sh /ruta/a/los/convertidos --bbox=-4.06,39.84,-3.98,39.88   # solo una zona
+```
+
+Solo baja los trozos de esa zona, no el planeta, y cambia el mapa cuando está entero: el de antes
+sigue funcionando mientras tanto. Sin ese fichero, el modo carretera va como siempre, sin mapa.
+Las rutas y los pasos (openrouteservice) son la siguiente fase (#78).
+
 ### Voz
 
 Órdenes habladas desde el móvil (#33), pensadas para personas mayores: en `/voz`, un botón grande
