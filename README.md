@@ -142,6 +142,12 @@ docker compose -f compose.prod.yaml logs -f app
 - En «Infantil» (para cualquier adulto) se ve lo que ven, y se les pone horario por días y un
   límite de minutos al día. Fuera de él no hay vídeo, tampoco en el salón: lo que suena se para.
   Las horas son las de `TZ`.
+- «¿Sigues ahí?» (por niño, en «Infantil»: nunca, o cada 2, 3 o 4 capítulos; 3 si no se elige):
+  tras esos capítulos seguidos empezados solos («siguiente automático» en el navegador, o la lista
+  del mpv del salón) sin que nadie toque nada, el siguiente espera a que conteste. Si en 2 minutos
+  nadie lo hace, se para, y «Ahora» dice a qué hora y por qué. Tocar algo pone la cuenta a cero: en
+  el navegador, cualquier toque o tecla; en el salón, Play/Pausa, saltar, el menú, el micrófono o
+  el mando del móvil. Allí la pregunta sale sobre el vídeo y se contesta con el OK.
 - En «Ahora», «Verlo en pequeño» abre al lado un vídeo sin sonido con lo que está viendo cada niño,
   en el mismo segundo y siguiéndolo: si salta, se recoloca; si pausa, se queda en ese fotograma
   (unos segundos tarde, cuando su posición deja de moverse). No es su pantalla, sino el mismo
@@ -478,7 +484,7 @@ systemctl --user restart jellycartoon-mpv
 
 | Tecla del mando | En el mpv del salón                                             |
 | --------------- | --------------------------------------------------------------- |
-| OK o Menú       | Abre el menú; dentro, elige                                     |
+| OK o Menú       | Abre el menú; dentro, elige; con «¿Sigues ahí?», contesta       |
 | Flechas         | En el menú, se mueven; sin menú, saltan 5 s (← →) o 1 min (↑ ↓) |
 | Volver          | Cierra el menú; sin menú, para y se vuelve a la vista TV        |
 | Play/Pausa      | Pausa o sigue                                                   |

@@ -382,7 +382,12 @@ export const kidSettings = pgTable('kid_settings', {
 	/** «Puede ver vídeos»: off, no video at all, whatever the schedule. */
 	videoEnabled: boolean('video_enabled').notNull().default(true),
 	/** «No, hasta mañana»: off until this day (server time zone, like `playlist.day`). */
-	videoOffUntil: date('video_off_until')
+	videoOffUntil: date('video_off_until'),
+	/**
+	 * «¿Sigues ahí?» (#77): asked after this many episodes started by themselves, with nobody
+	 * touching anything; null, never.
+	 */
+	askEvery: integer('ask_every').default(3)
 });
 
 /** `ambiguous`: several films could be it, the user chooses (`candidates`). */

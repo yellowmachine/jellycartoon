@@ -5,9 +5,15 @@
 	import KidRulesForm from '#lib/components/KidRulesForm.svelte';
 	import { formatRemaining } from '#lib/format.ts';
 	import { clock, closedText, type VideoAccess } from '#lib/kid-time.ts';
+	import { ANSWER_SECONDS, ASK_EVERY_OPTIONS } from '#lib/still-there.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+
+	const ASK: { value: number | null; label: string }[] = [
+		{ value: null, label: 'Nunca' },
+		...ASK_EVERY_OPTIONS.map((n) => ({ value: n, label: `Cada ${n} capítulos` }))
+	];
 
 	const ACCESS: { value: VideoAccess; label: string }[] = [
 		{ value: 'yes', label: 'Sí' },
@@ -50,7 +56,7 @@
 {/if}
 
 {#if data.kids.length}
-	<KidsNow kids={data.kids} initial={data.watchingNow} />
+	<KidsNow kids={data.kids} initial={data.watchingNow} initialStopped={data.stoppedLately} />
 {/if}
 
 {#if data.kids.length && data.ai}
@@ -96,6 +102,38 @@
 					]}>{option.label}</button
 				>
 			{/each}
+		</form>
+
+		<!-- #77: with «siguiente automático», whether anyone is still there. -->
+		<form
+			method="post"
+			action="?/askEvery"
+			use:enhance={() =>
+				async ({ update }) =>
+					update({ reset: false })}
+			class="mb-6 text-sm"
+		>
+			<input type="hidden" name="userId" value={kid.id} />
+			<div class="flex flex-wrap items-center gap-2">
+				<span class="mr-1 text-zinc-300">Preguntar «¿Sigues ahí?»</span>
+				{#each ASK as option (option.value)}
+					<button
+						name="askEvery"
+						value={option.value ?? ''}
+						aria-pressed={kid.askEvery === option.value}
+						class={[
+							'rounded-full border px-3 py-1',
+							kid.askEvery === option.value
+								? 'border-amber-500 text-amber-400'
+								: 'border-zinc-700 hover:bg-zinc-900'
+						]}>{option.label}</button
+					>
+				{/each}
+			</div>
+			<p class="mt-1 text-zinc-500">
+				Tras esos capítulos seguidos sin tocar nada, el siguiente espera a que conteste; si en
+				{ANSWER_SECONDS / 60} minutos nadie lo hace, se para.
+			</p>
 		</form>
 
 		<div class="mb-6 flex flex-wrap gap-8">
