@@ -424,9 +424,15 @@ envía, porque el mando manda su tecla pulsada y soltada a la vez, y lo que oye 
 grande. Con el puntero del mando (modo ratón) apagado, para que mueva el foco. El micrófono del
 mando es una tarjeta de sonido USB más, y el del sistema si no hay otro.
 
-Con algo en el mpv del salón a pantalla completa, las teclas le llegan a él: para que Play/Pausa
-lo pause, `F8 cycle pause` en `~/.config/mpv/input.conf` del PC del salón, y reiniciar su servicio
-(`systemctl --user restart jellycartoon-mpv`).
+Con algo en el mpv del salón a pantalla completa, las teclas le llegan a él. En
+`~/.config/mpv/input.conf` del PC del salón, para que Play/Pausa lo pause y Volver e Inicio lo
+paren (como Esc) y devuelvan a la vista TV, y luego `systemctl --user restart jellycartoon-mpv`:
+
+```
+F8 cycle pause
+GO_BACK stop
+F7 stop
+```
 
 Con una RX 7800 XT, una orden de unos segundos tarda alrededor de 150 ms.
 
