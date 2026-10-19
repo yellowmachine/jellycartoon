@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { setPriority } from 'node:os';
+import { Readable } from 'node:stream';
 import { AUDIO_LANG, X264_CRF, X264_PRESET } from '$app/env/private';
 import { languageLabel, normalizeLang, type AudioTrack } from '#lib/languages.ts';
 import { chapterTitle, type Chapter } from '#lib/scenes.ts';
@@ -373,6 +374,87 @@ export function frame(
 			else reject(new Error(`ffmpeg exited with code ${code}\n${stderr}`));
 		});
 	});
+}
+
+/** The mirror's size: enough to see what it is, at a tenth of the film's data. */
+const MIRROR_HEIGHT = 360;
+const MIRROR_BITRATE = '250k';
+
+/**
+ * A small, silent copy of a video, made as it is sent and at the pace it plays: /infantil's
+ * mirror of what a child watches (#75). Fragmented MP4, which a `<video>` plays as it arrives.
+ * `seekSec`, a seek in the input (a film's file); `skipSec`, seconds decoded and left out at the
+ * start (our HLS, which cannot be seeked into, see hls-seek.ts), read at once and not at the
+ * pace of playing. `info`, for a film's original (HDR, DVD); none for our HLS, already plain
+ * H.264. ffmpeg is killed when `signal` aborts (the page closed or moved on).
+ */
+export function mirrorStream(
+	input: string,
+	info: Probe | null,
+	{ seekSec = 0, skipSec = 0 }: { seekSec?: number; skipSec?: number },
+	signal: AbortSignal
+) {
+	const video = info?.streams.find((s) => s.codec_type === 'video' && !s.disposition?.attached_pic);
+	const filters = [
+		...(video && isHdr(video) ? TONEMAP : []),
+		...(video ? videoFilters(video) : []),
+		`scale=-2:'min(${MIRROR_HEIGHT},ih)'`,
+		'format=yuv420p'
+	];
+	const child = spawn(
+		'ffmpeg',
+		[
+			'-hide_banner',
+			'-loglevel',
+			'error',
+			// At the pace it plays (as -re), after what is skipped.
+			'-readrate',
+			'1',
+			'-readrate_initial_burst',
+			String(Math.ceil(skipSec) + 2),
+			...(seekSec ? ['-ss', seekSec.toFixed(1)] : []),
+			'-i',
+			input,
+			...(skipSec ? ['-ss', skipSec.toFixed(1)] : []),
+			'-an',
+			'-sn',
+			'-dn',
+			'-vf',
+			filters.join(','),
+			'-c:v',
+			'libx264',
+			'-preset',
+			'veryfast',
+			'-tune',
+			'zerolatency',
+			'-b:v',
+			MIRROR_BITRATE,
+			'-maxrate',
+			MIRROR_BITRATE,
+			'-bufsize',
+			'500k',
+			// A keyframe every 2 s: each fragment starts on one, so the page can start playing soon.
+			'-g',
+			'50',
+			'-f',
+			'mp4',
+			'-movflags',
+			'frag_keyframe+empty_moov+default_base_moof',
+			'pipe:1'
+		],
+		{ stdio: ['ignore', 'pipe', 'pipe'], signal, killSignal: 'SIGKILL' }
+	);
+	let stderr = '';
+	child.stderr.setEncoding('utf8').on('data', (chunk: string) => {
+		stderr = (stderr + chunk).slice(-2000);
+	});
+	child.on('error', () => {});
+	child.on('close', (code) => {
+		if (code && !signal.aborted)
+			log.warn('infantil', 'El espejo se cortó', { input, code, stderr });
+	});
+	// Node's web stream type and the DOM's differ only in their typings.
+	return Readable.toWeb(child.stdout) as unknown as ReadableStream<Uint8Array>;
 }
 
 export async function thumbnail(

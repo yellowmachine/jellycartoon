@@ -142,6 +142,12 @@ docker compose -f compose.prod.yaml logs -f app
 - En «Infantil» (para cualquier adulto) se ve lo que ven, y se les pone horario por días y un
   límite de minutos al día. Fuera de él no hay vídeo, tampoco en el salón: lo que suena se para.
   Las horas son las de `TZ`.
+- En «Ahora», «Verlo en pequeño» abre al lado un vídeo sin sonido con lo que está viendo cada niño,
+  en el mismo segundo y siguiéndolo: si salta, se recoloca; si pausa, se queda en ese fotograma
+  (unos segundos tarde, cuando su posición deja de moverse). No es su pantalla, sino el mismo
+  vídeo: un menú no se ve. Lo hace el servidor mientras está abierto, con un ffmpeg por niño, a
+  360p y unos 250 kb/s (unos 110 MB por hora, una décima parte del vídeo); los canales, del propio
+  canal, en su calidad más baja.
 - `compose.yaml` es solo para desarrollo (Postgres con el puerto abierto). Ambos ficheros
   comparten la base de datos; usa uno u otro, no los dos a la vez.
 

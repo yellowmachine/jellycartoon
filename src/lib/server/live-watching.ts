@@ -51,8 +51,12 @@ export interface WatchingNow {
 	detail: string;
 	href: string;
 	positionSec: number | null;
+	/** Seconds since the player sent it: it has moved on since, unless paused. */
+	ageSec: number;
 	device: string;
 	paused: boolean;
+	/** What to play in the small, silent copy beside it (#75). */
+	mirror: { episodeId: number } | { movieId: number } | { channelUrl: string };
 }
 
 /** What these children are watching now, with its titles; those watching nothing, left out. */
@@ -90,7 +94,8 @@ export async function watchingNow(userIds: string[]): Promise<WatchingNow[]> {
 		const common = {
 			userId: f.userId,
 			device: f.device,
-			paused: now - f.movedAt >= STILL_MS
+			paused: now - f.movedAt >= STILL_MS,
+			ageSec: (now - f.at) / 1000
 		};
 		if ('episodeId' in f.target) {
 			const id = f.target.episodeId;
@@ -103,7 +108,8 @@ export async function watchingNow(userIds: string[]): Promise<WatchingNow[]> {
 					title: ep.title,
 					detail: `${ep.seriesTitle} · T${ep.season} E${ep.number}`,
 					href: `/series/${ep.seriesId}`,
-					positionSec: f.positionSec
+					positionSec: f.positionSec,
+					mirror: { episodeId: id }
 				}
 			];
 		}
@@ -118,19 +124,23 @@ export async function watchingNow(userIds: string[]): Promise<WatchingNow[]> {
 					title: film.title,
 					detail: 'Película',
 					href: `/cine/${id}`,
-					positionSec: f.positionSec
+					positionSec: f.positionSec,
+					mirror: { movieId: id }
 				}
 			];
 		}
 		const channelId = f.target.channelId;
+		const channel = CHANNELS.find((c) => c.id === channelId);
+		if (!channel) return [];
 		return [
 			{
 				...common,
 				kind: 'channel',
-				title: CHANNELS.find((c) => c.id === channelId)?.name ?? channelId,
+				title: channel.name,
 				detail: 'Canal en directo',
 				href: '/canales',
-				positionSec: null
+				positionSec: null,
+				mirror: { channelUrl: channel.url }
 			}
 		];
 	});
