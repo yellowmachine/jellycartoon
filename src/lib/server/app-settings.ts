@@ -1,5 +1,11 @@
 import { asc, eq } from 'drizzle-orm';
-import { OPENROUTER_API_KEY, OPENROUTER_MODEL, OPENROUTESERVICE_API_KEY } from '$app/env/private';
+import {
+	OPENROUTER_API_KEY,
+	OPENROUTER_MODEL,
+	OPENROUTESERVICE_API_KEY,
+	RELAY_PUBLISH_KEY,
+	RELAY_URL
+} from '$app/env/private';
 import { db } from '#lib/server/db/index.ts';
 import { appSetting, user } from '#lib/server/db/schema.ts';
 
@@ -33,7 +39,9 @@ type Key =
 	| 'last_scan_films'
 	| 'auto_subtitle_langs'
 	| 'ors_api_key'
-	| 'ors_url';
+	| 'ors_url'
+	| 'relay_url'
+	| 'relay_key';
 
 async function get(key: Key) {
 	const [row] = await db
@@ -80,6 +88,19 @@ export async function orsConfig() {
 		apiKey: OPENROUTESERVICE_API_KEY ?? panelKey,
 		keySource: OPENROUTESERVICE_API_KEY ? ('env' as const) : panelKey ? ('panel' as const) : null,
 		url: url ?? DEFAULT_ORS_URL
+	};
+}
+
+/**
+ * Sharing trips (#81): the relay's address and the key it expects, from .env (which wins) or
+ * Ajustes. Without both, there is no «Compartir viaje».
+ */
+export async function relayConfig() {
+	const [url, key] = await Promise.all([get('relay_url'), get('relay_key')]);
+	return {
+		url: (RELAY_URL ?? url)?.replace(/\/+$/, '') || null,
+		key: RELAY_PUBLISH_KEY ?? key,
+		fromEnv: Boolean(RELAY_URL || RELAY_PUBLISH_KEY)
 	};
 }
 

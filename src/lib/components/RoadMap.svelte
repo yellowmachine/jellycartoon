@@ -1,9 +1,8 @@
 <script lang="ts">
 	import 'maplibre-gl/dist/maplibre-gl.css';
-	// MapLibre's worker, bundled with what it imports, as Vite does workers:
-	// https://vite.dev/guide/features.html#import-with-query-suffixes
-	import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+	import { untrack } from 'svelte';
 	import type { GeoJSONSource, Map as MapLibreMap, Marker } from 'maplibre-gl';
+	import { loadOurMap } from '#lib/our-map.ts';
 	import type { LngLat, Route } from '#lib/road.ts';
 
 	/**
@@ -34,6 +33,33 @@
 	let me: Marker | null = null;
 	/** The map exists, its style loaded: what places the arrow and the route waits for it. */
 	let ready = $state(false);
+	/** Each time a style is loaded (light or dark): the route is drawn on it again. */
+	let styleLoads = $state(0);
+
+	/**
+	 * Light by day; dark at night, not to dazzle. Remembered in this browser. The map's own style,
+	 * not the app's theme.
+	 */
+	const LIGHT_KEY = 'carretera-mapa-claro';
+	let light = $state(true);
+	$effect(() => {
+		try {
+			light = localStorage.getItem(LIGHT_KEY) !== 'no';
+		} catch {
+			// Private windows: light.
+		}
+	});
+	function setLight(value: boolean) {
+		light = value;
+		try {
+			if (value) localStorage.removeItem(LIGHT_KEY);
+			else localStorage.setItem(LIGHT_KEY, 'no');
+		} catch {
+			// Same.
+		}
+	}
+	/** Set once the map exists: its style, light or dark. */
+	let restyle: ((light: boolean) => void) | null = null;
 	let flag: Marker | null = null;
 	let following = $state(true);
 	/** The last one the GPS gave, as plain values (a GeolocationPosition's are getters). */
@@ -50,24 +76,8 @@
 		const el = container;
 		if (!el) return;
 		let cancelled = false;
-		let removeProtocol = () => {};
 		(async () => {
-			const [maplibregl, { Protocol, PMTiles }, { layers, namedFlavor }] = await Promise.all([
-				import('maplibre-gl'),
-				import('pmtiles'),
-				import('@protomaps/basemaps')
-			]);
-			if (cancelled) return;
-			maplibregl.setWorkerUrl(workerUrl);
-			const origin = location.origin;
-			const url = `${origin}/mapa/espana.pmtiles`;
-			const protocol = new Protocol();
-			maplibregl.addProtocol('pmtiles', protocol.tile);
-			removeProtocol = () => maplibregl.removeProtocol('pmtiles');
-			// Where the map is, to start there until the GPS says where we are.
-			const archive = new PMTiles(url);
-			protocol.add(archive);
-			const header = await archive.getHeader().catch(() => null);
+			const { maplibregl, header, styleFor } = await loadOurMap();
 			if (cancelled) return;
 			if (!header) {
 				problem = 'No se pudo abrir el mapa.';
@@ -78,20 +88,7 @@
 				center: [header.centerLon, header.centerLat],
 				zoom: header.centerZoom,
 				attributionControl: { compact: true },
-				style: {
-					version: 8,
-					glyphs: `${origin}/mapa/fonts/{fontstack}/{range}.pbf`,
-					sprite: `${origin}/mapa/sprites/v4/dark`,
-					sources: {
-						protomaps: {
-							type: 'vector',
-							url: `pmtiles://${url}`,
-							attribution:
-								'<a href="https://protomaps.com">Protomaps</a> © <a href="https://openstreetmap.org/copyright">colaboradores de OpenStreetMap</a>'
-						}
-					},
-					layers: layers('protomaps', namedFlavor('dark'), { lang: 'es' })
-				}
+				style: styleFor(untrack(() => light))
 			});
 			map = created;
 			// Moved by hand: it stops following.
@@ -105,8 +102,11 @@
 			arrow.setAttribute('aria-label', 'Estás aquí');
 			me = new maplibregl.Marker({ element: arrow, rotationAlignment: 'map' });
 			flag = new maplibregl.Marker({ color: '#f59e0b' });
-			created.on('load', () => {
-				// The route, under the arrow; its data comes with each new route.
+			// Whole, not by differences: «style.load» comes again, and the route with it.
+			restyle = (light) => created.setStyle(styleFor(light), { diff: false });
+			// Its first style and each one after (light, dark): the route's layers on it, under the
+			// arrow; its data comes with each route, and again with each style.
+			created.on('style.load', () => {
 				created.addSource('ruta', {
 					type: 'geojson',
 					data: { type: 'FeatureCollection', features: [] },
@@ -127,17 +127,18 @@
 					paint: { 'line-color': '#f59e0b', 'line-width': 7 }
 				});
 				ready = true;
+				styleLoads++;
 			});
 		})();
 		return () => {
 			cancelled = true;
 			ready = false;
+			restyle = null;
 			clearTimeout(refollow);
 			map?.remove();
 			map = null;
 			me = null;
 			flag = null;
-			removeProtocol();
 		};
 	});
 
@@ -194,6 +195,7 @@
 	$effect(() => {
 		const line = route?.line;
 		const to = destination;
+		void styleLoads;
 		if (!ready || !map || !flag) return;
 		const source = map.getSource<GeoJSONSource>('ruta');
 		source?.setData({
@@ -222,6 +224,17 @@
 		);
 	});
 
+	// Light or dark, as chosen: the map's style changed, the rest stays.
+	let styled: boolean | null = null;
+	$effect(() => {
+		const value = light;
+		if (!ready || !restyle) return;
+		if (styled === null) styled = untrack(() => light);
+		if (value === styled) return;
+		styled = value;
+		restyle(value);
+	});
+
 	function recenter() {
 		following = true;
 		// The next position moves it; this one, now.
@@ -236,6 +249,12 @@
 			{problem}
 		</p>
 	{/if}
+	<button
+		class="absolute bottom-10 left-3 rounded-full bg-zinc-950/80 px-4 py-2 text-lg text-zinc-100 shadow-lg active:scale-95"
+		aria-pressed={!light}
+		title={light ? 'Mapa oscuro, para la noche' : 'Mapa claro'}
+		onclick={() => setLight(!light)}>{light ? '☾ Oscuro' : '☀ Claro'}</button
+	>
 	{#if !following && position}
 		<button
 			class="absolute bottom-10 left-1/2 -translate-x-1/2 rounded-full bg-amber-500 px-6 py-3 text-xl font-semibold text-zinc-950 shadow-xl active:scale-95"

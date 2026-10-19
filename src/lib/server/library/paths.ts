@@ -78,6 +78,9 @@ export const opusFile = (trackId: number) => path.join(dataRoot, 'music-opus', `
 export const mapDir = path.join(dataRoot, 'mapa');
 export const mapFile = path.join(mapDir, 'espana.pmtiles');
 
+/** A road mode's photo (#81), by its id in trip_photo. */
+export const photoFile = (photoId: number) => path.join(dataRoot, 'fotos', `${photoId}.jpg`);
+
 export const albumCoverFile = (albumId: number) =>
 	path.join(dataRoot, 'album-cover', `${albumId}.jpg`);
 

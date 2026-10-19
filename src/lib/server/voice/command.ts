@@ -165,6 +165,12 @@ function tools(house: boolean): Tool[] {
 			[]
 		),
 		fn(
+			'take_photo',
+			'Modo carretera: hace una foto con la cámara de la tablet, hacia la carretera, y la guarda con dónde y cuándo. «Haz una foto», «foto», «guarda esto».',
+			{},
+			[]
+		),
+		fn(
 			'stop_navigation',
 			'Modo carretera: quita la ruta que hay. «Quita la ruta», «ya no hace falta», «cancela la navegación».',
 			{},
@@ -707,6 +713,9 @@ async function runTool(
 			const label = await whereIs(ctx.position);
 			return label ? `Está en ${label}.` : 'No sé qué hay en ese punto.';
 		}
+		case 'take_photo':
+			ctx.outcome.actions.push({ kind: 'photo' });
+			return 'Foto hecha. Díselo en una palabra o dos.';
 		case 'stop_navigation':
 			ctx.outcome.actions.push({ kind: 'navigate', place: null });
 			return 'Ruta quitada.';
@@ -826,7 +835,7 @@ const CAR =
 	'[En el coche, conduciendo (modo carretera): solo audio, aquí. Nunca vídeo: si pide una serie, una película o un canal de televisión, dile que en el coche no se pone vídeo (no que no lo encuentras) y ofrécele música, radio o un podcast. Respuestas muy cortas: las oye quien conduce.]';
 
 /** Routes and where we are: only where there is a map and a GPS, the road mode. */
-const ONLY_IN_THE_CAR = new Set(['navigate_to', 'where_am_i', 'stop_navigation']);
+const ONLY_IN_THE_CAR = new Set(['navigate_to', 'where_am_i', 'stop_navigation', 'take_photo']);
 
 /** Nothing to see, cook or watch while driving: not even offered to the AI. */
 const NOT_IN_THE_CAR = new Set([

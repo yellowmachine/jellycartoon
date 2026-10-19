@@ -1,0 +1,11 @@
+{
+	"name": "jellycartoon-relay",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "bun server.ts"
+	},
+	"dependencies": {
+		"maplibre-gl": "6.12.0"
+	}
+}

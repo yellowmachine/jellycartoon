@@ -56,6 +56,19 @@ export const SUBTITLE_OPTIONS = {
 				css: '-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 0 6px #000'
 			}
 		}
+	},
+	/**
+	 * How high: some prefer them a little up, nearer the middle of the picture, for the eyes to
+	 * travel less. Its value is where their bottom goes, as a % of the height from the top; `auto`,
+	 * the player's own place.
+	 */
+	position: {
+		label: 'Posición',
+		choices: {
+			bottom: { label: 'Abajo', css: 'auto' },
+			raised: { label: 'Algo más arriba', css: '88' },
+			high: { label: 'Más arriba', css: '80' }
+		}
 	}
 } as const;
 
@@ -67,6 +80,7 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
 	size: 'm',
 	color: 'white',
 	background: 'soft',
+	position: 'bottom',
 	outline: 'shadow'
 };
 
@@ -81,8 +95,8 @@ export function sanitizeSubtitleStyle(value: unknown): SubtitleStyle {
 	return style as SubtitleStyle;
 }
 
-/** Whole styles, chosen at once. */
-export const SUBTITLE_PRESETS: { label: string; style: SubtitleStyle }[] = [
+/** Whole looks, chosen at once; where they go (position) stays as it was chosen. */
+export const SUBTITLE_PRESETS: { label: string; style: Omit<SubtitleStyle, 'position'> }[] = [
 	{
 		// Films in original version on TV and on video: yellow, bold, outlined, no box.
 		label: 'Versión original',
@@ -104,7 +118,51 @@ export function subtitleCss(style: SubtitleStyle) {
 		fontScale: Number(css('size')),
 		color: css('color'),
 		background: css('background'),
-		textShadow: css('outline')
+		textShadow: css('outline'),
+		/** Where their bottom goes (placeCues): % of the height, or `auto`. */
+		line: css('position')
+	};
+}
+
+/**
+ * The chosen height on a browser's cues: set on each one as it shows (`cuechange`), of every text
+ * track the video has or gets (hls.js adds them as it goes). `line()` is read each time, so a new
+ * choice applies from the next cue. Returns what stops it.
+ */
+export function placeCues(video: HTMLVideoElement, line: () => string) {
+	const place = (track: TextTrack) => {
+		const at = line();
+		for (const cue of Array.from(track.activeCues ?? []) as VTTCue[]) {
+			if (at === 'auto') {
+				cue.snapToLines = true;
+				cue.lineAlign = 'start';
+				cue.line = 'auto';
+			} else {
+				// Its bottom there, however many lines it has.
+				cue.snapToLines = false;
+				cue.lineAlign = 'end';
+				cue.line = Number(at);
+			}
+		}
+	};
+	const listeners = new Map<TextTrack, () => void>();
+	const follow = (track: TextTrack) => {
+		if (listeners.has(track)) return;
+		const listener = () => place(track);
+		listeners.set(track, listener);
+		track.addEventListener('cuechange', listener);
+	};
+	const tracks = video.textTracks;
+	for (const track of Array.from(tracks)) follow(track);
+	const added = (e: TrackEvent) => e.track && follow(e.track as TextTrack);
+	tracks.addEventListener('addtrack', added);
+	return {
+		/** Now, on the cues showing: the choice changed. */
+		again: () => listeners.forEach((_, track) => place(track)),
+		stop: () => {
+			tracks.removeEventListener('addtrack', added);
+			listeners.forEach((listener, track) => track.removeEventListener('cuechange', listener));
+		}
 	};
 }
 
@@ -142,6 +200,8 @@ export function mpvSubtitleProperties(style: SubtitleStyle): [string, string | n
 		['sub-back-color', box ? mpvColor('#000000', box) : mpvColor('#000000', 0.9)],
 		['sub-border-color', '#FF000000'],
 		['sub-border-size', outline[0]!],
-		['sub-shadow-offset', outline[1]!]
+		['sub-shadow-offset', outline[1]!],
+		// Where their bottom goes, in % of the height from the top, as for the browser's.
+		['sub-pos', { bottom: 100, raised: 88, high: 80 }[style.position]]
 	];
 }

@@ -49,13 +49,15 @@
 		<span class="text-zinc-400">Estilo</span>
 		<div class="flex flex-wrap gap-1">
 			{#each SUBTITLE_PRESETS as preset (preset.label)}
-				{@const on = options.every(([key]) => style[key] === preset.style[key])}
+				{@const on = Object.entries(preset.style).every(
+					([key, value]) => style[key as keyof SubtitleStyle] === value
+				)}
 				<button
 					class={[
 						'rounded px-2 py-0.5',
 						on ? 'bg-amber-500 text-zinc-950' : 'text-zinc-300 hover:bg-zinc-800'
 					]}
-					onclick={() => onchange({ ...preset.style })}>{preset.label}</button
+					onclick={() => onchange({ ...style, ...preset.style })}>{preset.label}</button
 				>
 			{/each}
 		</div>

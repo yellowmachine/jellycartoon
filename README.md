@@ -23,6 +23,9 @@ SvelteKit 3 + Bun · Tailwind · Better Auth · Drizzle + Postgres · ffmpeg.
    misma serie. Lo visto se apunta al dueño de la playlist (pensando en el envío a otro dispositivo).
 4. **Reproducir**: hls.js (Safari usa su HLS nativo). Bajo el vídeo se elige audio y subtítulos;
    la elección se guarda por usuario y se aplica a los siguientes episodios. El progreso también.
+   «⚙ Estilo» cambia cómo se ven los subtítulos (fuente, tamaño, color, fondo, contorno) y dónde:
+   abajo, algo más arriba o más arriba, para que los ojos viajen menos; vale también para los
+   canales y para el mpv del salón (`sub-pos`).
    «Al terminar: Siguiente / Parar» (también guardado por usuario) decide si al acabar un
    capítulo empieza el siguiente de la serie, o de la programación o la lista. Con «Parar» el
    capítulo se marca como visto igual; en la programación y las listas el siguiente queda cargado
@@ -415,7 +418,7 @@ lado el navegador (Google Maps u Organic Maps, que hacen la navegación y el tr�
 Con la tablet entera en horizontal (la pantalla ancha, sin partir), a la izquierda va un mapa
 propio ([MapLibre](https://maplibre.org)), con dónde estás por el GPS del navegador: la flecha
 sigue la marcha y el mapa gira con ella; si se mueve con el dedo deja de seguirla hasta
-«Recentrar». En media pantalla no sale, ni se pide la posición. El mapa es de la propia app, sin
+«Recentrar». El mapa es claro; «☾ Oscuro» lo pasa a oscuro para la noche (se recuerda). En media pantalla no sale, ni se pide la posición. El mapa es de la propia app, sin
 depender de nadie: España recortada de las descargas diarias de
 [Protomaps](https://docs.protomaps.com) (OpenStreetMap), con las fuentes e iconos de su estilo, en
 `DATA_DIR/mapa`. Para ponerlo, o actualizar las calles de vez en cuando, en el servidor y desde el
@@ -450,6 +453,39 @@ de openrouteservice se pasan a tú y a cómo suenan («toma la segunda salida»,
 «Voz: no» en la ruta lo calla, y se recuerda en ese navegador. Por voz, en el modo carretera:
 «llévame a…» traza la ruta, «¿dónde estoy?» dice la dirección y «quita la ruta» la quita. Si
 se pide vídeo, contesta que en el coche no se pone.
+
+Viajes (#81): con «Guardar mis viajes» en Ajustes (apagado si no se activa, solo adultos), el modo
+carretera guarda por dónde vas mientras está abierto, también a media pantalla: un punto cada
+~25 m (sin los de mala precisión ni los saltos del GPS), mandados cada 30 s; sin cobertura
+esperan, y al cerrar se mandan los que quedan. Más de 10 minutos sin moverse empieza otro viaje.
+En `/viajes`, solo los de cada uno: los km, viajes y horas al volante del mes y de los últimos 12,
+cada viaje con su distancia, tiempo, velocidad media y máxima y destino (si había ruta), su
+recorrido en el mapa, y borrar uno o todos.
+
+Fotos (#81): 📷 junto al micrófono del modo carretera, o «haz una foto» por voz, hace una foto con
+la cámara trasera de la tablet (se abre al pedirla y se cierra al hacerla), con su hora y su
+posición, en el viaje que se esté guardando. Se ve unos segundos en una esquina, para saber si ha
+salido bien, con «Guardando…» y luego «✓ Foto guardada». Se reduce a 1920 px y se sube al momento; sin
+cobertura, espera y se sube al volver. El JPEG va a `DATA_DIR/fotos` (entra en la copia de
+seguridad) y sus datos a Postgres. Solo las ve quien las hizo: en `/viajes`, sobre el recorrido de
+cada viaje y en una galería, donde se borran (el fichero también).
+
+Compartir el viaje (#81): «Compartir viaje» en el modo carretera da un enlace para mandar (por
+WhatsApp, a un grupo…): quien lo abre ve el coche en el mapa, en directo, con el destino y la
+llegada si hay ruta, y cuánto hace de la última posición. Nunca se activa solo; la tablet lo dice
+mientras dura, y se acaba al darle a «Dejar de compartir», al llegar o al cerrar el modo carretera
+(y si la tablet calla 15 minutos). Después, el enlace dice «Este viaje ya no se comparte».
+
+No abre la casa: la tablet manda sus posiciones a JellyCartoon, y este al **repetidor de viajes**
+(`relay/`), un programa pequeño en un servidor público que solo las repite (en memoria, sin
+guardarlas) a quien tiene el enlace. Cada enlace es un token aleatorio de un solo viaje; la vista
+previa de WhatsApp solo dice de quién es, no dónde. Para montarlo en un VPS con
+[Dokploy](https://dokploy.com): una aplicación desde este repositorio, con la carpeta `relay` como
+contexto de construcción (su `Dockerfile`), el puerto 3000, un dominio (`viaje.example.com`) y la
+variable `PUBLISH_KEY` (al menos 24 caracteres; por ejemplo, `openssl rand -base64 32`). En
+JellyCartoon, Ajustes → Casa → «Compartir viajes»: la dirección del repetidor y esa clave (o en el
+`.env`, `RELAY_URL` y `RELAY_PUBLISH_KEY`). El mapa del enlace es de
+[OpenFreeMap](https://openfreemap.org), libre y sin clave.
 
 ### Voz
 

@@ -22,6 +22,9 @@ COPY deploy/snapserver.conf /etc/jellycartoon/snapserver.conf
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
 ENV NODE_ENV=production PORT=3000
+# Bodies up to 10 MB (adapter-node's default is 512 KB): a road mode's photo can be more (#81). In the
+# image, not in each house's compose.
+ENV BODY_SIZE_LIMIT=10M
 # The release (`1.2.0`) or the commit (`sha-…`): GitHub Actions passes it (#20).
 ARG APP_VERSION=dev
 ENV APP_VERSION=$APP_VERSION

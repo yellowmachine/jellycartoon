@@ -556,8 +556,56 @@ export const userSettings = pgTable('user_settings', {
 	languaUrl: text('langua_url'),
 	languaToken: text('langua_token'),
 	/** Where "add to list" on a series page puts episodes. */
-	activeListId: integer('active_list_id').references(() => userList.id, { onDelete: 'set null' })
+	activeListId: integer('active_list_id').references(() => userList.id, { onDelete: 'set null' }),
+	/** The road mode's trips are kept (#81): where one has been, so off until turned on. */
+	recordTrips: boolean('record_trips').notNull().default(false)
 });
+
+/**
+ * A trip in the road mode (#81), from the browser's GPS while it is open: positions in a row, a new
+ * trip after a long stop. Only for whoever turned it on in Ajustes.
+ */
+export const trip = pgTable(
+	'trip',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		startedAt: timestamp('started_at').notNull(),
+		/** Its last position's time. */
+		endedAt: timestamp('ended_at').notNull(),
+		/** Metres, along its positions. */
+		distance: real('distance').notNull().default(0),
+		/** m/s, the fastest the GPS said. */
+		maxSpeed: real('max_speed'),
+		/** The road mode's route, if there was one: «Plaza de Zocodover, Toledo». */
+		destination: text('destination'),
+		/** Its positions, [longitude, latitude, seconds since 1970], one every ~25 m. */
+		line: jsonb('line').$type<[number, number, number][]>().notNull().default([])
+	},
+	(t) => [index('trip_user_started_idx').on(t.userId, t.startedAt)]
+);
+
+/**
+ * A photo taken from the road mode (#81): its JPEG in DATA_DIR/fotos (photoFile), here when and
+ * where, and the trip being kept then, if any. Only for whoever took it.
+ */
+export const tripPhoto = pgTable(
+	'trip_photo',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		tripId: integer('trip_id').references(() => trip.id, { onDelete: 'set null' }),
+		takenAt: timestamp('taken_at').notNull(),
+		/** Where, if the GPS said. */
+		lon: real('lon'),
+		lat: real('lat')
+	},
+	(t) => [index('trip_photo_user_taken_idx').on(t.userId, t.takenAt)]
+);
 
 /** `ignored`: no album tag, e.g. a download rather than a CD rip; not shown. */
 export const trackStatus = pgEnum('track_status', ['pending', 'ready', 'ignored', 'error']);

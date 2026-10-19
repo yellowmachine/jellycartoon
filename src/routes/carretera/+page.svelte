@@ -15,6 +15,9 @@
 	import { SKIP_BACK, SKIP_FORWARD } from '#lib/podcasts.ts';
 	import { STATIONS, type RadioStation } from '#lib/radio.ts';
 	import { keepScreenOn } from '#lib/screen-on.ts';
+	import { roadPhotos } from '#lib/road-photos.svelte.ts';
+	import { tripRecorder } from '#lib/trip-recorder.svelte.ts';
+	import { tripShare } from '#lib/trip-share.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { distanceText, type LngLat, type Place, type Route } from '#lib/road.ts';
 	import { alongLine, guide } from '#lib/road-guide.ts';
@@ -38,6 +41,13 @@
 	const broken = new SvelteSet<string>();
 
 	$effect(() => keepScreenOn((text) => (screenProblem = text)));
+
+	// The trip kept while this is open, for whoever turned it on (#81).
+	$effect(() => {
+		if (!data.recordTrips) return;
+		untrack(() => tripRecorder.start(() => destination?.label ?? null));
+		return () => tripRecorder.stop();
+	});
 
 	/**
 	 * The map (phase 3a), on the left with the screen wide enough: the tablet whole, sideways. In
@@ -67,7 +77,8 @@
 				if (!place) return clearRoute();
 				if (mapShown) tab = 'ruta';
 				void go(place);
-			}
+			},
+			photo: () => void roadPhotos.take()
 		};
 		return () => {
 			voice.road = null;
@@ -273,6 +284,34 @@
 		say(next.text);
 	});
 
+	/**
+	 * Sharing the trip (#81): its link to send (WhatsApp…), the route's destination and arrival with
+	 * each position. It stops on arriving and on leaving this page.
+	 */
+	function share() {
+		void tripShare.start(() => ({
+			destination: destination?.label ?? null,
+			arrivesAt:
+				route && guidance
+					? Date.now() + route.duration * (guidance.remaining / (route.distance || 1)) * 1000
+					: null
+		}));
+	}
+	$effect(() => {
+		if (guidance?.arrived) untrack(() => void tripShare.stop());
+	});
+	$effect(() => () => void tripShare.stop());
+	let copied = $state(false);
+	async function sendLink() {
+		const url = tripShare.url;
+		if (!url) return;
+		const shared = { title: 'Mi viaje', text: 'Por dónde voy, mientras conduzco:', url };
+		if (navigator.canShare?.(shared)) return navigator.share(shared).catch(() => {});
+		await navigator.clipboard?.writeText(url).catch(() => {});
+		copied = true;
+		setTimeout(() => (copied = false), 2500);
+	}
+
 	// The step being done, in view in the list.
 	let stepList = $state<HTMLOListElement>();
 	$effect(() => {
@@ -352,6 +391,22 @@
 	<div class={['flex flex-col gap-4', mapShown ? 'min-h-0 overflow-y-auto' : 'min-h-dvh p-4']}>
 		<div class="flex items-center justify-between gap-3">
 			<a href="/" class="rounded-xl px-3 py-2 text-lg text-zinc-400 active:bg-zinc-800">← Salir</a>
+			{#if data.shareable && !tripShare.url}
+				<button
+					class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300 disabled:opacity-50"
+					disabled={tripShare.busy}
+					onclick={share}>{tripShare.busy ? 'Compartiendo…' : 'Compartir viaje'}</button
+				>
+			{/if}
+			{#if data.recordTrips}
+				<!-- Kept, and said: where one goes is not kept without knowing it (#81). -->
+				<a
+					href="/viajes"
+					class="rounded-full px-3 py-2 text-base text-zinc-400 active:bg-zinc-800"
+					title="Se guarda este viaje (Ajustes); tus viajes, en /viajes"
+					>{tripRecorder.problem ? '⚠ No se guarda el viaje' : '● Guardando el viaje'}</a
+				>
+			{/if}
 			{#if data.map && wide}
 				<button
 					class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300"
@@ -371,6 +426,24 @@
 				>Ahorro de datos: {musicQuality.value === 'saver' ? 'sí' : 'no'}</button
 			>
 		</div>
+
+		{#if tripShare.url}
+			<!-- Shared: said, always in view, with its link and how to stop it (#81). -->
+			<div
+				class="flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-500/50 bg-emerald-500/10 p-3"
+			>
+				<span class="mr-auto text-lg text-emerald-300">● Compartiendo tu viaje</span>
+				<button class="rounded-xl bg-emerald-600 px-4 py-2 text-lg text-white" onclick={sendLink}
+					>{copied ? 'Enlace copiado' : 'Enviar enlace'}</button
+				>
+				<button
+					class="rounded-xl bg-zinc-800 px-4 py-2 text-lg"
+					onclick={() => void tripShare.stop()}>Dejar de compartir</button
+				>
+			</div>
+		{:else if tripShare.problem}
+			<p class="rounded-xl bg-red-950 p-3 text-red-200">{tripShare.problem}</p>
+		{/if}
 
 		{#if screenProblem}
 			<p class="rounded-xl bg-amber-950 p-3 text-amber-200">{screenProblem}</p>
@@ -430,41 +503,53 @@
 			{/if}
 		</section>
 
-		<!-- The microphone: what to use while driving. -->
+		<!-- The microphone: what to use while driving. And beside it, a photo (#81). -->
 		<section class="flex flex-col items-center gap-3">
-			<button
-				class={[
-					'flex h-32 w-32 touch-none items-center justify-center rounded-full shadow-2xl transition duration-150',
-					voice.phase === 'listening'
-						? 'scale-110 bg-red-500 text-white'
-						: 'bg-amber-500 text-zinc-950 active:scale-95',
-					voice.phase === 'thinking' && 'opacity-60'
-				]}
-				aria-label={micMode.tap
-					? voice.phase === 'listening'
-						? 'Toca para enviar'
-						: 'Toca para hablar'
-					: 'Mantén pulsado para hablar'}
-				disabled={voice.phase === 'thinking'}
-				onpointerdown={(e) => {
-					e.currentTarget.setPointerCapture(e.pointerId);
-					press();
-				}}
-				onpointerup={release}
-				onpointercancel={release}
-				oncontextmenu={(e) => e.preventDefault()}
-			>
-				<svg viewBox="0 0 24 24" class="h-16 w-16" fill="currentColor" aria-hidden="true">
-					<rect x="9" y="2.5" width="6" height="12" rx="3" />
-					<path
-						d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-						stroke-linecap="round"
-					/>
-				</svg>
-			</button>
+			<div class="flex items-center gap-6">
+				<button
+					class={[
+						'flex h-32 w-32 touch-none items-center justify-center rounded-full shadow-2xl transition duration-150',
+						voice.phase === 'listening'
+							? 'scale-110 bg-red-500 text-white'
+							: 'bg-amber-500 text-zinc-950 active:scale-95',
+						voice.phase === 'thinking' && 'opacity-60'
+					]}
+					aria-label={micMode.tap
+						? voice.phase === 'listening'
+							? 'Toca para enviar'
+							: 'Toca para hablar'
+						: 'Mantén pulsado para hablar'}
+					disabled={voice.phase === 'thinking'}
+					onpointerdown={(e) => {
+						e.currentTarget.setPointerCapture(e.pointerId);
+						press();
+					}}
+					onpointerup={release}
+					onpointercancel={release}
+					oncontextmenu={(e) => e.preventDefault()}
+				>
+					<svg viewBox="0 0 24 24" class="h-16 w-16" fill="currentColor" aria-hidden="true">
+						<rect x="9" y="2.5" width="6" height="12" rx="3" />
+						<path
+							d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+						/>
+					</svg>
+				</button>
+				<button
+					class="flex h-20 w-20 items-center justify-center rounded-full bg-zinc-800 text-4xl shadow-xl active:scale-95 disabled:opacity-50"
+					aria-label="Hacer una foto"
+					title="Una foto hacia la carretera, con dónde y cuándo (o di «haz una foto»)"
+					disabled={roadPhotos.busy}
+					onclick={() => void roadPhotos.take()}>{roadPhotos.busy ? '…' : '📷'}</button
+				>
+			</div>
+			{#if roadPhotos.problem}
+				<p class="text-lg text-amber-300" aria-live="polite">{roadPhotos.problem}</p>
+			{/if}
 			<p class="min-h-7 text-center text-xl" aria-live="polite">
 				{#if voice.phase === 'listening'}
 					<span class="text-red-400">Te escucho…{micMode.tap ? ' toca para enviar' : ''}</span>
@@ -717,6 +802,36 @@
 		</section>
 	</div>
 </div>
+
+{#if roadPhotos.last}
+	<!-- The photo just taken, for a moment: whether it came out well, and whether it was kept. -->
+	<figure
+		class="fixed right-4 bottom-4 z-40 w-72 overflow-hidden rounded-2xl border-2 border-white/20 bg-zinc-900 shadow-2xl"
+		aria-live="polite"
+	>
+		<img
+			src={roadPhotos.last.url}
+			alt="La foto que acabas de hacer"
+			class="aspect-video w-full object-cover"
+		/>
+		<figcaption
+			class={[
+				'px-3 py-2 text-lg font-semibold',
+				roadPhotos.last.state === 'saved'
+					? 'bg-emerald-600 text-white'
+					: roadPhotos.last.state === 'waiting'
+						? 'bg-amber-600 text-white'
+						: 'text-zinc-300'
+			]}
+		>
+			{roadPhotos.last.state === 'saved'
+				? '✓ Foto guardada'
+				: roadPhotos.last.state === 'waiting'
+					? 'Sin cobertura: se guardará al volver'
+					: 'Guardando…'}
+		</figcaption>
+	</figure>
+{/if}
 
 <!-- The sound plays through MusicBar's <audio>; its bar is for the rest of the app. -->
 <div class="hidden"><MusicBar /></div>

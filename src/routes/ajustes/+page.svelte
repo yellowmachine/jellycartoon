@@ -210,6 +210,36 @@
 						</span>
 					</label>
 				</form>
+				{#if data.recordTrips !== null}
+					<form
+						method="post"
+						action="?seccion={tab}&/recordTrips"
+						use:enhance={() =>
+							async ({ update }) =>
+								update({ reset: false })}
+						class="mt-4"
+					>
+						<label class="flex items-start gap-2 text-sm">
+							<input
+								type="checkbox"
+								name="recordTrips"
+								checked={data.recordTrips}
+								onchange={(e) => e.currentTarget.form?.requestSubmit()}
+								class="mt-0.5 rounded border-zinc-700 bg-zinc-900 text-amber-500"
+							/>
+							<span>
+								Guardar mis viajes
+								<span class="block text-xs text-zinc-500"
+									>Con el modo carretera abierto, por dónde vas: cada viaje con su recorrido,
+									distancia y tiempo, y los km al mes. Solo los ves tú, en <a
+										href="/viajes"
+										class="text-amber-400 hover:underline">Viajes</a
+									>, donde se borran. Apagarlo no borra lo ya guardado.</span
+								>
+							</span>
+						</label>
+					</form>
+				{/if}
 			</section>
 		{/if}
 	{/if}
@@ -731,6 +761,62 @@
 					casa, sin cuotas (la búsqueda de sitios sigue necesitando el suyo).
 				</p>
 				{#if form && 'section' in form && form.section === 'routes'}
+					<p class="mt-3 text-sm break-words text-red-400">{form.message}</p>
+				{/if}
+			</section>
+		{/if}
+
+		{#if data.relay}
+			<section class={section}>
+				<h2 class="mb-1 font-semibold">Compartir viajes</h2>
+				<p class="mb-4 text-sm text-zinc-400">
+					El modo carretera puede compartir el viaje con un enlace (para un grupo de WhatsApp, por
+					ejemplo): quien lo abre ve el coche en el mapa mientras lo compartes. Pasa por un
+					repetidor en un servidor público (<code>relay/</code> del repositorio), sin abrir la casa.
+					Su dirección y la clave que espera (su <code>PUBLISH_KEY</code>). Solo tú ves esta
+					sección.
+				</p>
+				{#if data.relay.fromEnv}
+					<p class="text-sm">
+						Configurado en el <code>.env</code> (RELAY_URL, RELAY_PUBLISH_KEY){data.relay.url
+							? ` · ${data.relay.url}`
+							: ''}.
+					</p>
+				{:else}
+					<form
+						method="post"
+						action="?seccion={tab}&/saveRelay"
+						use:enhance={() =>
+							async ({ update }) =>
+								update({ reset: false })}
+						class="flex flex-col gap-2"
+					>
+						<input
+							name="url"
+							value={data.relay.url}
+							placeholder="https://viaje.example.com"
+							aria-label="Dirección del repetidor"
+							class="{select} font-mono"
+						/>
+						<input
+							type="password"
+							name="key"
+							autocomplete="new-password"
+							placeholder={data.relay.hasKey
+								? 'Clave guardada (escribe otra para cambiarla)'
+								: 'Clave (PUBLISH_KEY)'}
+							aria-label="Clave del repetidor"
+							class="{select} font-mono"
+						/>
+						<div class="flex items-center gap-3">
+							<button class={primary}>Guardar</button>
+							{#if form && 'saved' in form && form.saved === 'relay'}
+								<span class="text-sm text-amber-400">✓</span>
+							{/if}
+						</div>
+					</form>
+				{/if}
+				{#if form && 'section' in form && form.section === 'relay'}
 					<p class="mt-3 text-sm break-words text-red-400">{form.message}</p>
 				{/if}
 			</section>

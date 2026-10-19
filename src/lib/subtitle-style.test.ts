@@ -27,6 +27,12 @@ describe('sanitizeSubtitleStyle', () => {
 	});
 });
 
+test('a preset keeps where they go', () => {
+	expect('position' in SUBTITLE_PRESETS[0]!.style).toBe(false);
+	expect(subtitleCss({ ...DEFAULT_SUBTITLE_STYLE, position: 'raised' }).line).toBe('88');
+	expect(subtitleCss(DEFAULT_SUBTITLE_STYLE).line).toBe('auto');
+});
+
 describe('mpvSubtitleProperties', () => {
 	const props = (style: Partial<import('./subtitle-style.ts').SubtitleStyle>) =>
 		Object.fromEntries(mpvSubtitleProperties({ ...DEFAULT_SUBTITLE_STYLE, ...style }));
@@ -41,8 +47,14 @@ describe('mpvSubtitleProperties', () => {
 			'sub-back-color': '#E6000000',
 			'sub-border-color': '#FF000000',
 			'sub-border-size': 3.5,
-			'sub-shadow-offset': 0
+			'sub-shadow-offset': 0,
+			'sub-pos': 100
 		});
+	});
+
+	test('a little higher: mpv sub-pos, where their bottom goes', () => {
+		expect(props({ position: 'raised' })['sub-pos']).toBe(88);
+		expect(props({ position: 'high' })['sub-pos']).toBe(80);
 	});
 
 	test('a box is mpv background-box, with the opacity as alpha first', () => {
