@@ -459,6 +459,23 @@ En `/viajes`, solo los de cada uno: los km, viajes y horas al volante del mes y 
 cada viaje con su distancia, tiempo, velocidad media y máxima y destino (si había ruta), su
 recorrido en el mapa, y borrar uno o todos.
 
+Compartir el viaje (#81): «Compartir viaje» en el modo carretera da un enlace para mandar (por
+WhatsApp, a un grupo…): quien lo abre ve el coche en el mapa, en directo, con el destino y la
+llegada si hay ruta, y cuánto hace de la última posición. Nunca se activa solo; la tablet lo dice
+mientras dura, y se acaba al darle a «Dejar de compartir», al llegar o al cerrar el modo carretera
+(y si la tablet calla 15 minutos). Después, el enlace dice «Este viaje ya no se comparte».
+
+No abre la casa: la tablet manda sus posiciones a JellyCartoon, y este al **repetidor de viajes**
+(`relay/`), un programa pequeño en un servidor público que solo las repite (en memoria, sin
+guardarlas) a quien tiene el enlace. Cada enlace es un token aleatorio de un solo viaje; la vista
+previa de WhatsApp solo dice de quién es, no dónde. Para montarlo en un VPS con
+[Dokploy](https://dokploy.com): una aplicación desde este repositorio, con la carpeta `relay` como
+contexto de construcción (su `Dockerfile`), el puerto 3000, un dominio (`viaje.example.com`) y la
+variable `PUBLISH_KEY` (al menos 24 caracteres; por ejemplo, `openssl rand -base64 32`). En
+JellyCartoon, Ajustes → Casa → «Compartir viajes»: la dirección del repetidor y esa clave (o en el
+`.env`, `RELAY_URL` y `RELAY_PUBLISH_KEY`). El mapa del enlace es de
+[OpenFreeMap](https://openfreemap.org), libre y sin clave.
+
 ### Voz
 
 Órdenes habladas desde el móvil (#33), pensadas para personas mayores: en `/voz`, un botón grande

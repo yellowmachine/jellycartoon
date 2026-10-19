@@ -16,6 +16,7 @@ import {
 	DEFAULT_ORS_URL,
 	openRouterConfig,
 	orsConfig,
+	relayConfig,
 	setAppSetting,
 	visionModel,
 	voiceModel
@@ -59,7 +60,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 	let ai = null;
 	let kids = null;
 	let routes = null;
+	let relay = null;
 	if (admin) {
+		const r = await relayConfig();
+		/** Sharing trips (#81): the relay. Never its key: only whether there is one. */
+		relay = { url: r.url ?? '', hasKey: Boolean(r.key), fromEnv: r.fromEnv };
 		const ors = await orsConfig();
 		/** The road mode's routes (#78): openrouteservice. Never the key: only enough to recognise it. */
 		routes = {
@@ -118,6 +123,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				: { url: null, tokenHint: null },
 		ai,
 		routes,
+		relay,
 		/** Children's accounts (#17): only who manages the app creates them. */
 		kids,
 		/** Music in apps such as Tempus (#27): with the account's email and a password of their own. */
@@ -268,6 +274,24 @@ export const actions: Actions = {
 		await setAppSetting('openrouter_api_key', null);
 		log.info('ajustes', 'Clave de OpenRouter borrada');
 		return { saved: 'key' };
+	},
+	/** The trips relay (#81): its address, and its key if one is written (empty keeps it). */
+	saveRelay: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const form = await request.formData();
+		const url = String(form.get('url') ?? '')
+			.trim()
+			.replace(/\/+$/, '');
+		const key = String(form.get('key') ?? '').trim();
+		if (url && !/^https:\/\/\S+$/.test(url))
+			return fail(400, {
+				section: 'relay',
+				message: 'La dirección tiene que empezar por https://'
+			});
+		await setAppSetting('relay_url', url || null);
+		if (key) await setAppSetting('relay_key', key);
+		log.info('ajustes', 'Repetidor de viajes cambiado', { url: url || null, key: Boolean(key) });
+		return { saved: 'relay' };
 	},
 	saveOrsKey: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);

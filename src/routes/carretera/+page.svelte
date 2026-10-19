@@ -16,6 +16,7 @@
 	import { STATIONS, type RadioStation } from '#lib/radio.ts';
 	import { keepScreenOn } from '#lib/screen-on.ts';
 	import { tripRecorder } from '#lib/trip-recorder.svelte.ts';
+	import { tripShare } from '#lib/trip-share.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { distanceText, type LngLat, type Place, type Route } from '#lib/road.ts';
 	import { alongLine, guide } from '#lib/road-guide.ts';
@@ -281,6 +282,34 @@
 		say(next.text);
 	});
 
+	/**
+	 * Sharing the trip (#81): its link to send (WhatsApp…), the route's destination and arrival with
+	 * each position. It stops on arriving and on leaving this page.
+	 */
+	function share() {
+		void tripShare.start(() => ({
+			destination: destination?.label ?? null,
+			arrivesAt:
+				route && guidance
+					? Date.now() + route.duration * (guidance.remaining / (route.distance || 1)) * 1000
+					: null
+		}));
+	}
+	$effect(() => {
+		if (guidance?.arrived) untrack(() => void tripShare.stop());
+	});
+	$effect(() => () => void tripShare.stop());
+	let copied = $state(false);
+	async function sendLink() {
+		const url = tripShare.url;
+		if (!url) return;
+		const shared = { title: 'Mi viaje', text: 'Por dónde voy, mientras conduzco:', url };
+		if (navigator.canShare?.(shared)) return navigator.share(shared).catch(() => {});
+		await navigator.clipboard?.writeText(url).catch(() => {});
+		copied = true;
+		setTimeout(() => (copied = false), 2500);
+	}
+
 	// The step being done, in view in the list.
 	let stepList = $state<HTMLOListElement>();
 	$effect(() => {
@@ -360,6 +389,13 @@
 	<div class={['flex flex-col gap-4', mapShown ? 'min-h-0 overflow-y-auto' : 'min-h-dvh p-4']}>
 		<div class="flex items-center justify-between gap-3">
 			<a href="/" class="rounded-xl px-3 py-2 text-lg text-zinc-400 active:bg-zinc-800">← Salir</a>
+			{#if data.shareable && !tripShare.url}
+				<button
+					class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300 disabled:opacity-50"
+					disabled={tripShare.busy}
+					onclick={share}>{tripShare.busy ? 'Compartiendo…' : 'Compartir viaje'}</button
+				>
+			{/if}
 			{#if data.recordTrips}
 				<!-- Kept, and said: where one goes is not kept without knowing it (#81). -->
 				<a
@@ -388,6 +424,24 @@
 				>Ahorro de datos: {musicQuality.value === 'saver' ? 'sí' : 'no'}</button
 			>
 		</div>
+
+		{#if tripShare.url}
+			<!-- Shared: said, always in view, with its link and how to stop it (#81). -->
+			<div
+				class="flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-500/50 bg-emerald-500/10 p-3"
+			>
+				<span class="mr-auto text-lg text-emerald-300">● Compartiendo tu viaje</span>
+				<button class="rounded-xl bg-emerald-600 px-4 py-2 text-lg text-white" onclick={sendLink}
+					>{copied ? 'Enlace copiado' : 'Enviar enlace'}</button
+				>
+				<button
+					class="rounded-xl bg-zinc-800 px-4 py-2 text-lg"
+					onclick={() => void tripShare.stop()}>Dejar de compartir</button
+				>
+			</div>
+		{:else if tripShare.problem}
+			<p class="rounded-xl bg-red-950 p-3 text-red-200">{tripShare.problem}</p>
+		{/if}
 
 		{#if screenProblem}
 			<p class="rounded-xl bg-amber-950 p-3 text-amber-200">{screenProblem}</p>

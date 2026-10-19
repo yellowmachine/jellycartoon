@@ -8,6 +8,7 @@ import { continueListening, userPodcasts } from '#lib/server/podcasts/podcasts.t
 import { stationsInfo } from '#lib/server/radio.ts';
 import { mapFile } from '#lib/server/library/paths.ts';
 import { recordsTrips } from '#lib/server/trips.ts';
+import { relayConfig } from '#lib/server/app-settings.ts';
 
 /**
  * The road mode (#78): what can be put on with one touch while driving. The stations, the music
@@ -15,7 +16,7 @@ import { recordsTrips } from '#lib/server/trips.ts';
  */
 export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
-	const [info, playlists, podcasts, inProgress, map, recordTrips] = await Promise.all([
+	const [info, playlists, podcasts, inProgress, map, recordTrips, relay] = await Promise.all([
 		stationsInfo(),
 		listPlaylists(),
 		userPodcasts(userId),
@@ -24,7 +25,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			() => true,
 			() => false
 		),
-		recordsTrips(userId)
+		recordsTrips(userId),
+		relayConfig()
 	]);
 	const latest = podcasts.length
 		? await db
@@ -53,6 +55,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		/** There is a map (scripts/mapa.sh): shown beside, with the screen wide enough. */
 		map,
 		/** This user keeps their trips (Ajustes, #81). */
-		recordTrips
+		recordTrips,
+		/** There is a trips relay (Ajustes): «Compartir viaje». */
+		shareable: Boolean(relay.url && relay.key)
 	};
 };
