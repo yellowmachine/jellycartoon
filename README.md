@@ -250,8 +250,18 @@ Con la clave de OpenRouter, al final de cada ficha hay una conversación: «¿c�
 Las películas y los capítulos se ven con mpv en la pantalla del PC donde corre la app. Allí queda un mpv
 esperando, sin ventana, como servicio de usuario de systemd; la app le manda la película por su
 socket ([JSON IPC](https://mpv.io/manual/stable/#json-ipc)) y guarda por dónde vas cada 5
-segundos. Hace falta una sesión gráfica iniciada (Wayland o X11) y mpv instalado. Para instalarlo,
-desde el repositorio y con la ruta de `HOST_DATA_DIR`:
+segundos. Hace falta una sesión gráfica iniciada (Wayland o X11) y mpv instalado. Se instala
+desde este PC por SSH, con lo del mando (abajo, «Mando del salón»), usando las casas de
+`scripts/casas.sh`:
+
+```sh
+scripts/pantalla.sh salon          # o padres=miguel@pc-padres, una que no está en la lista
+```
+
+Solo cambia lo que es distinto en el repositorio y enseña en qué. La ruta de `HOST_DATA_DIR` la
+saca del contenedor de la app. Reinicia mpv solo si no hay nada puesto; si se está viendo algo,
+lo avisa y no lo toca. Lo mismo a mano, en el PC de la pantalla, desde el repositorio y con la
+ruta de `HOST_DATA_DIR`:
 
 ```sh
 mkdir -p ~/.config/systemd/user
@@ -405,7 +415,7 @@ flechas mueven el foco y su Volver es el del navegador, pero varias de sus tecla
 distancia y no llegan a Chromium: el OK es `KEY_SELECT` y el micrófono `KEY_VOICECOMMAND`, con
 códigos por encima de 255, que las aplicaciones de escritorio no reciben; Play/Pausa llega sin
 identificar, e Inicio (`BrowserHome`) saca de la app. Se traducen solo para ese mando con un
-fichero de [hwdb de udev](https://man.archlinux.org/man/hwdb.7), `/etc/udev/hwdb.d/70-mando-g20s.hwdb`:
+fichero de [hwdb de udev](https://man.archlinux.org/man/hwdb.7), `deploy/70-mando-g20s.hwdb`:
 
 ```
 # El receptor del mando: bus USB (0003), fabricante y producto de `lsusb`
@@ -416,38 +426,61 @@ evdev:input:b0003v4842p0001*
  KEYBOARD_KEY_c0223=f7      # Inicio
 ```
 
-Y `sudo systemd-hwdb update && sudo udevadm trigger --sysname-match="event*"` (o volver a enchufar
-el receptor). Con otro mando, sus scancodes salen de `evtest` (con `sudo`). En la vista TV: el OK
+`scripts/pantalla.sh` lo instala si el receptor está enchufado, y pide ahí la contraseña de
+`sudo` de esa casa. A mano, desde el repositorio:
+
+```sh
+sudo cp deploy/70-mando-g20s.hwdb /etc/udev/hwdb.d/
+sudo systemd-hwdb update && sudo udevadm trigger --sysname-match="event*"
+```
+
+(O volver a enchufar el receptor en lugar de `udevadm trigger`). Con otro mando, sus scancodes
+salen de `evtest` (con `sudo`). En la vista TV: el OK
 entra en lo que tiene el foco, F7 vuelve a su portada, F8 pausa o sigue lo que suena (el mpv del
 salón, o la música, la radio o el podcast del navegador) y F9 habla: un toque empieza y otro
 envía, porque el mando manda su tecla pulsada y soltada a la vez, y lo que oye y contesta se ve en
 grande. Con el puntero del mando (modo ratón) apagado, para que mueva el foco. El micrófono del
 mando es una tarjeta de sonido USB más, y el del sistema si no hay otro.
 
-Con algo en el mpv del salón a pantalla completa, las teclas le llegan a él. La tecla Menú abre el
-menú de mpv (`select/menu`: audio, subtítulos...), que se maneja con las flechas y el OK. En
-`~/.config/mpv/input.conf` del PC del salón, para que Play/Pausa lo pause, el OK también abra el
-menú (por defecto pasaría al siguiente de la lista), Volver cierre el menú o, sin menú, pare
-(como Esc) y devuelva a la vista TV, Inicio pare y los números del mando no hagan nada (cambiarían
-contraste, brillo, gamma, saturación y volumen de mpv sin querer), y luego
-`systemctl --user restart jellycartoon-mpv`:
+Con algo en el mpv del salón a pantalla completa, las teclas le llegan a él, y se configuran en
+`deploy/mpv/`: `input.conf` (qué hace cada tecla) y `scripts/mando.lua` (el menú). También
+los instala `scripts/pantalla.sh`. A mano, desde el repositorio y con mpv sin nada puesto:
 
+```sh
+mkdir -p ~/.config/mpv/scripts
+cp deploy/mpv/input.conf ~/.config/mpv/
+cp deploy/mpv/scripts/mando.lua ~/.config/mpv/scripts/
+systemctl --user restart jellycartoon-mpv
 ```
-F8 cycle pause
-ENTER script-binding select/menu
-GO_BACK keypress ESC
-F7 stop
-1 ignore
-2 ignore
-3 ignore
-4 ignore
-5 ignore
-6 ignore
-7 ignore
-8 ignore
-9 ignore
-0 ignore
-```
+
+| Tecla del mando | En el mpv del salón |
+| --- | --- |
+| OK o Menú | Abre el menú; dentro, elige |
+| Flechas | En el menú, se mueven; sin menú, saltan 5 s (← →) o 1 min (↑ ↓) |
+| Volver | Cierra el menú; sin menú, para y se vuelve a la vista TV |
+| Play/Pausa | Pausa o sigue |
+| Inicio | Para y se vuelve a la vista TV |
+| Números | Nada |
+| Vol+ / Vol− | El volumen del sistema (no llegan a mpv) |
+
+- **El menú** tiene solo «Subtítulos» y «Audio», en español; si solo hay una de las dos cosas
+  para elegir, va directo a ella. Los subtítulos empiezan por «Sin subtítulos», y las pistas se
+  llaman como en la página Salón del móvil (`Español · 5.1`, `English · forzados`); ● es la que
+  está puesta. Al elegir, mpv lo dice abajo un momento. El menú de mpv (`select/menu`, su tecla
+  Menú por defecto) no sirve para esto: trae también atajos, ficheros de configuración,
+  historial... y su lista está fija en su código. `mando.lua` usa lo mismo que él
+  ([`mp.input`](https://mpv.io/manual/stable/#mp-input-functions)), así que se maneja igual.
+- **Volver** es `keypress ESC` y no `stop` porque los menús de mpv solo se cierran con Esc: con
+  `stop` paraba el vídeo desde dentro del menú. Sin menú, Esc para por el servicio
+  (`keybind ESC stop` en `deploy/jellycartoon-mpv.service`).
+- **OK** por defecto en mpv pasa al siguiente de la lista (`playlist-next`): un toque sin querer
+  saltaba al capítulo siguiente.
+- **Los números**: el mando tiene teclado numérico, y en mpv cambian contraste, brillo, gamma,
+  saturación y volumen; un toque sin querer oscurece la imagen hasta reiniciar mpv. Dentro del
+  menú, en cambio, escriben para filtrar la lista (como todo lo que se escribe en él); Volver lo
+  cierra igual.
+- Para ver qué tecla le llega a mpv (sin `sudo`): `mpv --input-test --force-window --idle` en la
+  sesión gráfica, que dice el nombre de cada una en pantalla.
 
 Volver es `keypress ESC` y no `stop` porque el menú de mpv solo se cierra con Esc.
 
