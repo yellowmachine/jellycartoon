@@ -31,6 +31,8 @@ import {
 import { fold, masterVolume, type MusicAlbum, type MusicTrack } from '#lib/music.ts';
 import { COUNTRIES, STATIONS } from '#lib/radio.ts';
 import { parseRecipe } from '#lib/recipe.ts';
+import { getRecipe, importRecipe, listRecipes } from '#lib/server/recipes/import.ts';
+import { isFavouritePage, listRecipeSites, searchRecipeSites } from '#lib/server/recipes/sites.ts';
 import {
 	MAX_TIMER_SEC,
 	type VoiceAction,
@@ -290,6 +292,27 @@ function tools(house: boolean): Tool[] {
 			['title', 'ingredients', 'steps']
 		),
 		fn(
+			'cook_saved_recipe',
+			'Pone en este dispositivo una receta del recetario de la casa, desde el primer paso, como «start_recipe».',
+			{ id: { type: 'integer', description: 'El número de la receta en el recetario.' } },
+			['id']
+		),
+		fn(
+			'search_recipe_sites',
+			'Busca recetas en las webs favoritas por las palabras de su dirección: devuelve título, web y dirección de cada una.',
+			{
+				query: { type: 'string', description: 'El plato: «macarrones gratinados».' },
+				site: { type: 'integer', description: 'Solo en esa web (su número); sin él, en todas.' }
+			},
+			['query']
+		),
+		fn(
+			'cook_from_web',
+			'Guarda en el recetario una receta de una web favorita (una dirección de «search_recipe_sites») y la pone en este dispositivo, desde el primer paso. Tarda unos segundos.',
+			{ url: { type: 'string', description: 'Su dirección, tal cual.' } },
+			['url']
+		),
+		fn(
 			'recipe_step',
 			'Lleva la receta en marcha a un paso: el siguiente cuando ha hecho el de ahora, o el que diga («vuelve al anterior»).',
 			{ step: { type: 'integer', description: 'El número del paso, desde 1.' } },
@@ -336,8 +359,12 @@ function instructions(context: {
 	hoursSince: string | null;
 	/** «Guardar lo que veo», in Ajustes. */
 	keepHistory: boolean;
+	/** The house's recipe book. */
+	recipes: { id: number; title: string; sourceName: string }[];
+	/** The house's favourite cooking sites. */
+	sites: { id: number; name: string; host: string }[];
 }) {
-	const { albums, playlists, house, hoursSince, keepHistory } = context;
+	const { albums, playlists, house, hoursSince, keepHistory, recipes, sites } = context;
 	const byArtist = new Map<string, MusicAlbum[]>();
 	for (const a of albums) byArtist.set(a.artist, [...(byArtist.get(a.artist) ?? []), a]);
 	const library =
@@ -376,7 +403,8 @@ Temporizadores («avísame en 10 minutos», «pon un temporizador de 20 minutos 
 - «Modo cocina», «que no se apague la pantalla»: «kitchen_mode». Se apaga solo a las tres horas sin temporizadores.
 - Cuando diga que ya ha pasado lo que espera uno preparado («ya hierve», «ya está el sofrito»), arráncalo con «set_timer» con su mismo nombre y sus minutos. Si no está claro cuál, usa «ask».
 
-Recetas para cocinar ahora («vamos a hacer una carbonara», «¿me ayudas con unas lentejas?»): escríbela entera con «start_recipe», sin preguntar. Si solo pregunta cómo se hace algo, contesta sin ella.
+Recetas para cocinar ahora («vamos a hacer una carbonara», «¿me ayudas con unas lentejas?»): mira primero el recetario de la casa (al final). Si está, ponla con «cook_saved_recipe»; si encajan varias, usa «ask». Si no está, escríbela entera con «start_recipe», sin preguntar, y dile que no estaba en el recetario. Si solo pregunta cómo se hace algo, contesta sin ellas.
+- Si la pide de una web («una receta de macarrones de [web]») o dice «búscala en tus webs»: «search_recipe_sites» en las webs favoritas (al final; reconócelas por cómo suenan). Ofrece con «ask» hasta tres de las que encuentre, cada opción con la orden «Cocina la receta de [su dirección]»; con esa orden, «cook_from_web». Si no hay ninguna, dilo y ofrece escribirla tú. Una web que no está entre las favoritas no se puede buscar: dile que la añada en Recetas.
 - Para las personas que diga; si no lo dice, para dos, y díselo.
 - Pasos cortos, en el orden en que se hacen, para oírlos de uno en uno. Un tiempo que esperar («cuece 9 minutos», «hornea 35») es el temporizador de su paso, con su nombre; con «timer_trigger» si empieza con algo que hará o pasará después («eches la pasta»).
 - Lo que se hace mientras corre un temporizador va en el texto de ese mismo paso («Echa los espaguetis. Mientras, dora el guanciale»): al acabar, la app pasa sola al paso siguiente, que tiene que ser lo que toca entonces («Escurre la pasta…»).
@@ -408,7 +436,13 @@ Listas de reproducción:
 ${playlists.map((p) => `- ${p.name} [lista ${p.id}, ${p.total} canciones]`).join('\n') || '(ninguna)'}
 
 Emisoras de radio:
-${STATIONS.map((s) => `- ${s.name} [${s.uuid}]: ${s.description}, ${COUNTRIES[s.country] ?? s.country}`).join('\n')}`;
+${STATIONS.map((s) => `- ${s.name} [${s.uuid}]: ${s.description}, ${COUNTRIES[s.country] ?? s.country}`).join('\n')}
+
+Recetario de la casa:
+${recipes.map((r) => `- ${r.title} [receta ${r.id}, de ${r.sourceName}]`).join('\n') || '(vacío)'}
+
+Webs de recetas favoritas:
+${sites.map((s) => `- ${s.name} [web ${s.id}, ${s.host}]`).join('\n') || '(ninguna)'}`;
 }
 
 /** What sounds in each place now, with each command: it is not what the person said. */
@@ -685,6 +719,34 @@ async function runTool(
 			ctx.outcome.actions.push({ kind: 'recipe', recipe, step: step - 1 });
 			return `Receta «${recipe.title}» en marcha en el dispositivo, en el paso ${step} de ${recipe.steps.length}.`;
 		}
+		case 'cook_saved_recipe': {
+			const saved = await getRecipe(Number(args.id));
+			if (!saved) return `No hay receta ${args.id} en el recetario.`;
+			const recipe = parseRecipe(saved);
+			if (typeof recipe === 'string') return recipe;
+			ctx.outcome.actions.push({ kind: 'recipe', recipe, step: 0 });
+			return [
+				`Receta «${recipe.title}» (de ${saved.sourceName}) en marcha en el dispositivo, en el paso 1 de ${recipe.steps.length}.`,
+				`Ingredientes: ${recipe.ingredients.join('; ') || 'no dichos'}.`,
+				`Paso 1: ${recipe.steps[0]!.text}`
+			].join('\n');
+		}
+		case 'search_recipe_sites': {
+			if (typeof args.query !== 'string' || !args.query.trim()) return 'Falta qué buscar.';
+			const site = Number.isInteger(args.site) ? Number(args.site) : undefined;
+			const found = await searchRecipeSites(args.query, site, 6);
+			return found.length
+				? found.map((r) => `- ${r.title} (${r.site}): ${r.url}`).join('\n')
+				: 'No hay ninguna con esas palabras en las webs favoritas.';
+		}
+		case 'cook_from_web': {
+			const url = typeof args.url === 'string' ? args.url.trim() : '';
+			// Only what the search found: not any address the model writes.
+			if (!url || !(await isFavouritePage(url)))
+				return 'Esa dirección no es de una web favorita: búscala antes con «search_recipe_sites».';
+			const { id } = await importRecipe(url, ctx.user.id);
+			return runTool('cook_saved_recipe', { id }, ctx);
+		}
 		case 'recipe_step': {
 			if (!ctx.recipe) return 'No hay receta en marcha en este dispositivo.';
 			const step = Number(args.step);
@@ -716,14 +778,17 @@ async function runTool(
  * from the session; an adult, a child's account has no voice.
  */
 export async function runVoiceCommand(request: VoiceRequest, user: Person): Promise<VoiceReply> {
-	const [albums, playlists, model, { hoursSince }, keepHistory, watchingHere] = await Promise.all([
-		getAlbums(),
-		listPlaylists(),
-		voiceModel(),
-		historySince([user]),
-		keepsHistory(user.id),
-		videoText(request.video)
-	]);
+	const [albums, playlists, model, { hoursSince }, keepHistory, watchingHere, recipes, sites] =
+		await Promise.all([
+			getAlbums(),
+			listPlaylists(),
+			voiceModel(),
+			historySince([user]),
+			keepsHistory(user.id),
+			videoText(request.video),
+			listRecipes(),
+			listRecipeSites()
+		]);
 	const house = snapcastReady();
 	const outcome: Outcome = { actions: [], options: [], asked: null };
 	const messages: ToolChatMessage[] = [
@@ -732,7 +797,15 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 			content: [
 				{
 					type: 'text',
-					text: instructions({ albums, playlists, house, hoursSince, keepHistory }),
+					text: instructions({
+						albums,
+						playlists,
+						house,
+						hoursSince,
+						keepHistory,
+						recipes,
+						sites
+					}),
 					cache_control: { type: 'ephemeral' }
 				}
 			]

@@ -42,7 +42,12 @@
 			{watching.name} <span class="text-sm font-normal text-zinc-400">· En directo</span>
 		</h2>
 		{#key watching.id}
-			<LivePlayer channelId={watching.id} url={watching.url} subtitleStyle={data.subtitleStyle} />
+			<LivePlayer
+				channelId={watching.id}
+				title={watching.name}
+				url={watching.url}
+				subtitleStyle={data.subtitleStyle}
+			/>
 		{/key}
 	</section>
 {/if}

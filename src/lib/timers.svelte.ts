@@ -1,5 +1,7 @@
 import { music } from '#lib/music-player.svelte.ts';
+import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 import { recipe } from '#lib/recipe.svelte.ts';
+import { videoHere } from '#lib/video-here.svelte.ts';
 import { sameLabel, spokenLeft, timeLabel } from '#lib/timer-names.ts';
 
 /**
@@ -229,12 +231,15 @@ class Timers {
 			clearInterval(this.#chime);
 			this.#chime = undefined;
 			music.resumeAfterVoice();
+			videoHere.resumeAfterVoice();
 		}
 	}
 
 	#ring(ended: Timer[]) {
 		this.ringing = [...this.ringing, ...ended];
+		// What plays here (music, the news on video) pauses, so the chime and its words are heard.
 		music.pauseForVoice();
+		videoHere.pauseForVoice();
 		this.#ringStarted = Date.now();
 		clearInterval(this.#chime);
 		this.#playChime();
@@ -248,12 +253,13 @@ class Timers {
 		}, CHIME_EVERY_MS);
 		// The recipe being cooked goes on to the step after it (#60), and says it.
 		const next = recipe.afterTimers(ended.map((t) => t.label));
+		const text = `Ya está: ${ended.map((t) => t.label).join(' y ')}.${next ? ` ${next}` : ''}`;
+		// In the kitchen's session, written: whether or not it was heard.
+		kitchenLog.add(null, text);
 		// Said once too, after the first chime: which one it is, and what to do now.
 		setTimeout(() => {
 			if (!this.ringing.length || !('speechSynthesis' in window)) return;
-			const said = new SpeechSynthesisUtterance(
-				`Ya está: ${ended.map((t) => t.label).join(' y ')}.${next ? ` ${next}` : ''}`
-			);
+			const said = new SpeechSynthesisUtterance(text);
 			said.lang = 'es-ES';
 			speechSynthesis.speak(said);
 		}, 1200);

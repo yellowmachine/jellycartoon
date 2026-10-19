@@ -7,6 +7,11 @@
 	import SectionIcon, { type Section } from '#lib/components/SectionIcon.svelte';
 	import VoiceBubble from '#lib/components/VoiceBubble.svelte';
 	import TimerBar from '#lib/components/TimerBar.svelte';
+	import VoicePanel from '#lib/components/VoicePanel.svelte';
+	import MediaIcon from '#lib/components/MediaIcon.svelte';
+	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
+	import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
+	import { videoHere } from '#lib/video-here.svelte.ts';
 	import { beforeNavigate, goto } from '$app/navigation';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
@@ -31,6 +36,8 @@
 		...(data.music ? [{ href: '/musica', label: 'Música', icon: 'musica' as const }] : []),
 		{ href: '/radio', label: 'Radio', icon: 'radio' },
 		{ href: '/canales', label: 'Canales', icon: 'canales' },
+		// The house's recipe book: not for a child's account.
+		...(data.kid ? [] : [{ href: '/recetas', label: 'Recetas', icon: 'recetas' as const }]),
 		...(data.salon ? [{ href: '/salon', label: 'Salón', icon: 'salon' as const }] : []),
 		...(data.kidsPage ? [{ href: '/infantil', label: 'Infantil', icon: 'infantil' as const }] : []),
 		// Not for a child's account: they do not exist for it.
@@ -140,6 +147,11 @@
 		history.back();
 	}
 
+	/** The kitchen panel (#60): over any page but /voz, which is the same thing. */
+	const panelShown = $derived(
+		Boolean(data.voice) && kitchenMode.on && kitchenPanel.open && page.url.pathname !== '/voz'
+	);
+
 	/** The phone menu; closed when one of its links is followed. */
 	let menu = $state<HTMLElement>();
 </script>
@@ -147,6 +159,7 @@
 <svelte:window
 	onkeydown={(e) => {
 		voiceKeyDown(e);
+		if (e.key === 'Escape' && panelShown) return kitchenPanel.hide();
 		back(e);
 	}}
 	onkeyup={voiceKeyUp}
@@ -165,182 +178,223 @@
 {#if page.url.pathname === '/tv' || page.url.pathname.startsWith('/tv/')}
 	{@render children()}
 {:else}
-	{#if data.user}
-		<header class="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur">
-			<nav class="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3">
-				<a href="/" class="flex shrink-0 items-center gap-2 text-lg font-bold text-amber-400">
-					<img src={favicon} alt="" class="h-7 w-7 rounded-md" />
-					JellyCartoon
-				</a>
-				<!-- Voice commands (#33): a microphone by the name, on every screen, phones too. Held down,
-				     it listens without leaving the page (an episode playing pauses); tapped, it opens /voz. -->
-				{#if data.voice}
-					<a
-						href="/voz"
-						title={micMode.tap
-							? 'Toca para hablar y otra vez para enviar (o Ctrl+Mayús+Espacio) · Mantén pulsado para abrir Hablar'
-							: 'Mantén pulsado para hablar (o Ctrl+Mayús+Espacio) · Pulsa para abrir Hablar'}
-						aria-label="Hablar"
-						aria-current={page.url.pathname === '/voz' ? 'page' : undefined}
-						draggable="false"
-						style="-webkit-touch-callout: none"
-						class={[
-							'-ml-3 shrink-0 touch-none rounded-md p-1 select-none hover:bg-zinc-800 hover:text-white',
-							voice.phase === 'listening'
-								? 'bg-red-500 text-white hover:bg-red-500'
-								: page.url.pathname === '/voz'
-									? 'text-amber-400'
-									: 'text-zinc-400'
-						]}
-						onpointerdown={(e) => {
-							if (e.button !== 0) return;
-							e.currentTarget.setPointerCapture(e.pointerId);
-							pressMic();
-						}}
-						onpointerup={() => releaseMic(false)}
-						onpointercancel={() => releaseMic(true)}
-						onclick={(e) => {
-							// The pointer's own handlers go or talk; only the keyboard (Enter) follows the link.
-							if (e.detail !== 0) e.preventDefault();
-						}}
-						oncontextmenu={(e) => e.preventDefault()}
-					>
-						<svg viewBox="0 0 24 24" class="h-6 w-6" fill="currentColor" aria-hidden="true">
-							<rect x="9" y="2.5" width="6" height="12" rx="3" />
-							<path
-								d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-								stroke-linecap="round"
-							/>
-						</svg>
+	<!-- With the kitchen panel at its side (wide screens), the page takes the rest: a video in it
+	     goes on being seen. -->
+	<div class={[panelShown && 'md:pr-[42%]']}>
+		{#if data.user}
+			<header class="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur">
+				<nav class="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3">
+					<a href="/" class="flex shrink-0 items-center gap-2 text-lg font-bold text-amber-400">
+						<img src={favicon} alt="" class="h-7 w-7 rounded-md" />
+						JellyCartoon
 					</a>
-				{/if}
-				<!-- Wide screens: every link in a row; with its icon from xl, as with every section both do
-				     not fit in 1024px. -->
-				{#each links as link (link.href)}
-					<a
-						href={link.href}
-						class={[
-							'hidden items-center gap-1.5 text-sm hover:text-white lg:inline-flex',
-							isCurrent(link.href) ? 'text-white' : 'text-zinc-400'
-						]}
-						><SectionIcon
-							name={link.icon}
-							class="hidden h-[18px] w-[18px] shrink-0 xl:block"
-						/>{link.label}</a
-					>
-				{/each}
-				<form method="post" action="/logout" class="ml-auto hidden items-center gap-3 lg:flex">
-					<!-- The view for the living room's TV and its remote (#11): only with mpv, as Salón. -->
-					{#if data.salon}
+					<!-- Voice commands (#33): a microphone by the name, on every screen, phones too. Held down,
+				     it listens without leaving the page (an episode playing pauses); tapped, it opens /voz. -->
+					{#if data.voice}
 						<a
-							href="/tv"
-							title="Vista TV"
-							aria-label="Vista TV"
-							class="rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
-							><SectionIcon name="series" class="h-6 w-6" /></a
+							href="/voz"
+							title={micMode.tap
+								? 'Toca para hablar y otra vez para enviar (o Ctrl+Mayús+Espacio) · Mantén pulsado para abrir Hablar'
+								: 'Mantén pulsado para hablar (o Ctrl+Mayús+Espacio) · Pulsa para abrir Hablar'}
+							aria-label="Hablar"
+							aria-current={page.url.pathname === '/voz' ? 'page' : undefined}
+							draggable="false"
+							style="-webkit-touch-callout: none"
+							class={[
+								'-ml-3 shrink-0 touch-none rounded-md p-1 select-none hover:bg-zinc-800 hover:text-white',
+								voice.phase === 'listening'
+									? 'bg-red-500 text-white hover:bg-red-500'
+									: page.url.pathname === '/voz'
+										? 'text-amber-400'
+										: 'text-zinc-400'
+							]}
+							onpointerdown={(e) => {
+								if (e.button !== 0) return;
+								e.currentTarget.setPointerCapture(e.pointerId);
+								pressMic();
+							}}
+							onpointerup={() => releaseMic(false)}
+							onpointercancel={() => releaseMic(true)}
+							onclick={(e) => {
+								// The pointer's own handlers go or talk; only the keyboard (Enter) follows the link.
+								if (e.detail !== 0) e.preventDefault();
+							}}
+							oncontextmenu={(e) => e.preventDefault()}
 						>
+							<svg viewBox="0 0 24 24" class="h-6 w-6" fill="currentColor" aria-hidden="true">
+								<rect x="9" y="2.5" width="6" height="12" rx="3" />
+								<path
+									d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+								/>
+							</svg>
+						</a>
 					{/if}
-					<a
-						href="/ajustes"
-						title="{data.user.name} · Ajustes"
-						aria-label="{data.user.name} · Ajustes"
-						class={[
-							'flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-sm font-semibold text-zinc-950 hover:bg-amber-400',
-							isCurrent('/ajustes') && 'ring-2 ring-amber-300 ring-offset-2 ring-offset-zinc-950'
-						]}>{initial}</a
-					>
-					<!-- Not for a child's account: out by mistake, they cannot get back in. An adult switching
-					     accounts on that device has it at the end of Ajustes. -->
-					{#if !data.kid}
-						<button class="text-sm text-zinc-400 hover:text-white">Salir</button>
-					{/if}
-				</form>
-
-				<!-- Phone: the section you are in and a menu with the rest. -->
-				{#if current}
-					<span class="-ml-3 truncate text-sm text-zinc-300 lg:hidden">{current.label}</span>
-				{/if}
-				<button
-					class="ml-auto rounded-md px-2 py-1 text-xl text-zinc-300 hover:bg-zinc-800 lg:hidden"
-					aria-label="Menú"
-					popovertarget="site-menu">☰</button
-				>
-			</nav>
-			<div
-				bind:this={menu}
-				id="site-menu"
-				popover="auto"
-				class="inset-x-0 top-14 bottom-auto m-0 w-auto border-b border-zinc-800 bg-zinc-950 px-4 pb-4 text-zinc-100 shadow-lg lg:hidden"
-			>
-				<ul class="divide-y divide-zinc-800">
+					<!-- Wide screens: every link in a row; with its icon from xl, as with every section both do
+				     not fit in 1024px. -->
 					{#each links as link (link.href)}
-						<li>
-							<a
-								href={link.href}
-								onclick={() => menu?.hidePopover()}
-								class={[
-									'flex items-center gap-3 py-3 text-base',
-									isCurrent(link.href) ? 'text-amber-400' : 'text-zinc-200'
-								]}><SectionIcon name={link.icon} class="h-6 w-6 shrink-0" />{link.label}</a
-							>
-						</li>
+						<a
+							href={link.href}
+							class={[
+								'hidden items-center gap-1.5 text-sm hover:text-white lg:inline-flex',
+								isCurrent(link.href) ? 'text-white' : 'text-zinc-400'
+							]}
+							><SectionIcon
+								name={link.icon}
+								class="hidden h-[18px] w-[18px] shrink-0 xl:block"
+							/>{link.label}</a
+						>
 					{/each}
-				</ul>
-				<form method="post" action="/logout" class="mt-2 flex items-center justify-between">
-					<a
-						href="/ajustes"
-						onclick={() => menu?.hidePopover()}
-						class="flex items-center gap-2 py-2 text-sm text-zinc-300 hover:text-white"
+					<form method="post" action="/logout" class="ml-auto hidden items-center gap-3 lg:flex">
+						<!-- The view for the living room's TV and its remote (#11): only with mpv, as Salón. -->
+						{#if data.salon}
+							<a
+								href="/tv"
+								title="Vista TV"
+								aria-label="Vista TV"
+								class="rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+								><SectionIcon name="series" class="h-6 w-6" /></a
+							>
+						{/if}
+						<a
+							href="/ajustes"
+							title="{data.user.name} · Ajustes"
+							aria-label="{data.user.name} · Ajustes"
+							class={[
+								'flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-sm font-semibold text-zinc-950 hover:bg-amber-400',
+								isCurrent('/ajustes') && 'ring-2 ring-amber-300 ring-offset-2 ring-offset-zinc-950'
+							]}>{initial}</a
+						>
+						<!-- Not for a child's account: out by mistake, they cannot get back in. An adult switching
+					     accounts on that device has it at the end of Ajustes. -->
+						{#if !data.kid}
+							<button class="text-sm text-zinc-400 hover:text-white">Salir</button>
+						{/if}
+					</form>
+
+					<!-- Phone: the section you are in and a menu with the rest. -->
+					{#if current}
+						<span class="-ml-3 truncate text-sm text-zinc-300 lg:hidden">{current.label}</span>
+					{/if}
+					<button
+						class="ml-auto rounded-md px-2 py-1 text-xl text-zinc-300 hover:bg-zinc-800 lg:hidden"
+						aria-label="Menú"
+						popovertarget="site-menu">☰</button
+					>
+				</nav>
+				<div
+					bind:this={menu}
+					id="site-menu"
+					popover="auto"
+					class="inset-x-0 top-14 bottom-auto m-0 w-auto border-b border-zinc-800 bg-zinc-950 px-4 pb-4 text-zinc-100 shadow-lg lg:hidden"
+				>
+					<ul class="divide-y divide-zinc-800">
+						{#each links as link (link.href)}
+							<li>
+								<a
+									href={link.href}
+									onclick={() => menu?.hidePopover()}
+									class={[
+										'flex items-center gap-3 py-3 text-base',
+										isCurrent(link.href) ? 'text-amber-400' : 'text-zinc-200'
+									]}><SectionIcon name={link.icon} class="h-6 w-6 shrink-0" />{link.label}</a
+								>
+							</li>
+						{/each}
+					</ul>
+					<form method="post" action="/logout" class="mt-2 flex items-center justify-between">
+						<a
+							href="/ajustes"
+							onclick={() => menu?.hidePopover()}
+							class="flex items-center gap-2 py-2 text-sm text-zinc-300 hover:text-white"
+						>
+							<span
+								class="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 font-semibold text-zinc-950"
+								aria-hidden="true">{initial}</span
+							>
+							{data.user.name} · Ajustes
+						</a>
+						{#if !data.kid}
+							<button
+								class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900"
+							>
+								Salir
+							</button>
+						{/if}
+					</form>
+				</div>
+				<!-- In the sticky header, under the menu: what is on stays in view on every page. Only with
+		     a bar showing does it take room (MusicBar's <audio> is always there, but not a div). -->
+				<div class="mx-auto flex max-w-6xl flex-col gap-1 px-4 has-[>div]:pb-2">
+					<!-- What the header's microphone heard and answered; /voz shows it big itself. -->
+					{#if data.voice && page.url.pathname !== '/voz' && !panelShown}
+						<VoiceBubble />
+					{/if}
+					<!-- Kitchen timers set by voice, counting down; the one that ended, big. -->
+					{#if data.voice}
+						<TimerBar />
+					{/if}
+					<!-- Everywhere but its remote. -->
+					{#if data.salon && !isCurrent('/salon')}
+						<SalonBar />
+					{/if}
+					{#if data.snapcast}
+						<SnapcastBar />
+					{/if}
+					<!-- Music, and the radio. -->
+					<MusicBar />
+				</div>
+			</header>
+			{#if data.newVersion && !isCurrent('/ajustes')}
+				<a
+					href="/ajustes?seccion=casa#version"
+					class="block border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-sm text-amber-300 hover:bg-amber-500/20"
+					>Hay una versión nueva de JellyCartoon, la {data.newVersion}. Ver novedades y actualizar →</a
+				>
+			{/if}
+		{/if}
+
+		<!-- overflow-x-clip: the "cinema" player is 100vw wide, which includes the scrollbar. -->
+		<main class="mx-auto max-w-6xl overflow-x-clip px-4 py-6">
+			{@render children()}
+		</main>
+	</div>
+
+	{#if panelShown}
+		<!-- Over the page, which stays as it is: what plays in it goes on. The whole screen on a
+		     phone; a side on a tablet lying down or a computer. -->
+		<aside
+			class="fixed inset-0 z-30 overflow-y-auto bg-zinc-950 md:left-auto md:w-[42%] md:border-l md:border-zinc-800"
+			aria-label="Cocina"
+		>
+			<div
+				class="sticky top-0 z-10 flex items-center gap-3 border-b border-zinc-800 bg-zinc-950/95 px-4 py-2 backdrop-blur"
+			>
+				<span class="shrink-0 font-semibold text-amber-300">🍳 Cocina</span>
+				{#if videoHere.current}
+					<!-- The video under it: paused or on with a tap, without going back to it. -->
+					<button
+						class="flex min-w-0 items-center gap-2 rounded-full bg-zinc-800 py-1 pr-3 pl-1 text-sm hover:bg-zinc-700"
+						aria-label="{videoHere.playing ? 'Pausar' : 'Seguir'}: {videoHere.current.title}"
+						onclick={() => videoHere.toggle()}
 					>
 						<span
-							class="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 font-semibold text-zinc-950"
-							aria-hidden="true">{initial}</span
+							class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500 text-zinc-950"
+							><MediaIcon name={videoHere.playing ? 'pause' : 'play'} class="h-4 w-4" /></span
 						>
-						{data.user.name} · Ajustes
-					</a>
-					{#if !data.kid}
-						<button class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900">
-							Salir
-						</button>
-					{/if}
-				</form>
+						<span class="truncate">{videoHere.current.title}</span>
+					</button>
+				{/if}
+				<button
+					class="ml-auto shrink-0 rounded-md px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800"
+					onclick={() => kitchenPanel.hide()}
+					>{videoHere.current ? 'Volver al vídeo' : 'Cerrar'}</button
+				>
 			</div>
-			<!-- In the sticky header, under the menu: what is on stays in view on every page. Only with
-		     a bar showing does it take room (MusicBar's <audio> is always there, but not a div). -->
-			<div class="mx-auto flex max-w-6xl flex-col gap-1 px-4 has-[>div]:pb-2">
-				<!-- What the header's microphone heard and answered; /voz shows it big itself. -->
-				{#if data.voice && page.url.pathname !== '/voz'}
-					<VoiceBubble />
-				{/if}
-				<!-- Kitchen timers set by voice, counting down; the one that ended, big. -->
-				{#if data.voice}
-					<TimerBar />
-				{/if}
-				<!-- Everywhere but its remote. -->
-				{#if data.salon && !isCurrent('/salon')}
-					<SalonBar />
-				{/if}
-				{#if data.snapcast}
-					<SnapcastBar />
-				{/if}
-				<!-- Music, and the radio. -->
-				<MusicBar />
-			</div>
-		</header>
-		{#if data.newVersion && !isCurrent('/ajustes')}
-			<a
-				href="/ajustes?seccion=casa#version"
-				class="block border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-sm text-amber-300 hover:bg-amber-500/20"
-				>Hay una versión nueva de JellyCartoon, la {data.newVersion}. Ver novedades y actualizar →</a
-			>
-		{/if}
+			<VoicePanel inPanel />
+		</aside>
 	{/if}
-
-	<!-- overflow-x-clip: the "cinema" player is 100vw wide, which includes the scrollbar. -->
-	<main class="mx-auto max-w-6xl overflow-x-clip px-4 py-6">
-		{@render children()}
-	</main>
 {/if}
