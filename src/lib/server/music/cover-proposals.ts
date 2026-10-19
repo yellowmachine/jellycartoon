@@ -5,9 +5,9 @@ import { openRouterConfig } from '#lib/server/app-settings.ts';
 import { albumCoverFile } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
-import { downloadFront, musicBrainz, quote, type Release } from './covers.ts';
+import { downloadFront, musicBrainz, quote, words, type Release } from './covers.ts';
 import { renameAlbum } from './albums.ts';
-import { albumOfDisc, discNumber, searchTitles, VARIOUS_ARTISTS } from './tags.ts';
+import { albumOfDisc, discNumber, searchTitles, titlesMatch, VARIOUS_ARTISTS } from './tags.ts';
 
 /**
  * Covers to choose from for an album the automatic search did not find one for (covers.ts): its
@@ -118,17 +118,41 @@ async function searches(albumId: number): Promise<Search[]> {
 const creditOf = (release: Release) =>
 	release['artist-credit']?.map((c) => c.name + (c.joinphrase ?? '')).join('') ?? '';
 
-/** Up to MAX_PROPOSALS covers, the most likely album first. */
+/**
+ * The releases for a search, best first: its title as a phrase, then by its words (MusicBrainz
+ * may have them in another order, «The Best of Dire Straits & Mark Knopfler: Private
+ * Investigations»), then by words without the artist (credited otherwise, «Mark Knopfler»). By
+ * words, only those with (almost) all of them: they score unrelated albums high too.
+ */
+async function releasesFor(search: Search) {
+	const artist = search.artist ? ` AND artist:${quote(search.artist)}` : '';
+	const queries = [
+		{ query: `release:${quote(search.title)}${artist}`, byWords: false },
+		{ query: `release:${words(search.title)}${artist}`, byWords: true },
+		...(artist ? [{ query: `release:${words(search.title)}`, byWords: true }] : [])
+	];
+	for (const { query, byWords } of queries) {
+		const found = await musicBrainz(`release?limit=25&query=${encodeURIComponent(query)}`);
+		const good = (found?.releases ?? []).filter(
+			(r) => (r.score ?? 0) >= 80 && (!byWords || titlesMatch(search.title, r.title))
+		);
+		if (good.length) return good;
+	}
+	return [];
+}
+
+/**
+ * Up to MAX_PROPOSALS covers, the most likely album first. The first search that finds the
+ * album is enough: its editions are the proposals, and each search is up to three requests to
+ * MusicBrainz, which allows one a second.
+ */
 export async function proposeCovers(albumId: number): Promise<CoverProposal[]> {
 	const groups = new Map<string, CoverProposal>();
-	for (const search of await searches(albumId)) {
-		if (groups.size >= MAX_CHECKED) break;
-		const artist = search.artist ? ` AND artist:${quote(search.artist)}` : '';
-		const query = `release:${quote(search.title)}${artist}`;
-		const found = await musicBrainz(`release?limit=25&query=${encodeURIComponent(query)}`);
-		for (const release of found?.releases ?? []) {
+	const tried = await searches(albumId);
+	for (const search of tried) {
+		for (const release of await releasesFor(search)) {
 			const id = release['release-group']?.id;
-			if (!id || groups.has(id) || (release.score ?? 0) < 80) continue;
+			if (!id || groups.has(id)) continue;
 			groups.set(id, {
 				releaseGroupId: id,
 				title: release.title,
@@ -138,12 +162,14 @@ export async function proposeCovers(albumId: number): Promise<CoverProposal[]> {
 			});
 			if (groups.size >= MAX_CHECKED) break;
 		}
+		if (groups.size) break;
 	}
 	const checked = [...groups.values()];
 	const withCover = await Promise.all(checked.map((p) => hasFront(p.releaseGroupId)));
 	const proposals = checked.filter((_, i) => withCover[i]).slice(0, MAX_PROPOSALS);
 	log.info('música', `Portadas propuestas para el álbum ${albumId}: ${proposals.length}`, {
 		albumId,
+		searches: tried,
 		releaseGroups: proposals.map((p) => p.releaseGroupId)
 	});
 	return proposals;
