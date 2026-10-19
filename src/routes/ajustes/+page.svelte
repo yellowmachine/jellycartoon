@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import { DEVICE_NAME_MAX, deviceName, shownDeviceName } from '#lib/device-name.svelte.ts';
+	import { micMode, type MicMode } from '#lib/mic-mode.svelte.ts';
 	import { musicQuality, type MusicQuality } from '#lib/music-quality.svelte.ts';
 	import MusicBackgroundSettings from '#lib/components/MusicBackgroundSettings.svelte';
 	import SubtitleStylePanel from '#lib/components/SubtitleStylePanel.svelte';
@@ -392,6 +393,41 @@
 				</p>
 			{/if}
 		</section>
+
+		{#if data.voice}
+			<section class={section}>
+				<h2 class="mb-1 font-semibold">Micrófono</h2>
+				<p class="mb-4 text-sm text-zinc-400">
+					Cómo se habla en este dispositivo, en Hablar, en el micrófono de arriba y con
+					Ctrl+Mayús+Espacio. Solo aquí: la tablet de la cocina puede ir con toques y el móvil
+					manteniendo pulsado.
+				</p>
+				<div class="flex flex-wrap gap-2">
+					{#each [['hold', 'Mantener pulsado'], ['tap', 'Tocar para empezar y para enviar']] as const as [value, label] (value)}
+						<button
+							type="button"
+							aria-pressed={mounted && micMode.value === value}
+							onclick={() => micMode.set(value as MicMode)}
+							class={[
+								'rounded-full border px-3 py-1 text-sm',
+								mounted && micMode.value === value
+									? 'border-amber-500 text-amber-400'
+									: 'border-zinc-700 hover:bg-zinc-900'
+							]}>{label}</button
+						>
+					{/each}
+				</div>
+				<p class="mt-2 text-sm text-zinc-400">
+					{#if mounted && micMode.tap}
+						Un toque empieza a escuchar y otro lo envía; si se olvida, se envía solo a los 30
+						segundos. Dos toques seguidos lo cancelan. El micrófono de arriba, mantenido, abre
+						Hablar.
+					{:else}
+						Hablas mientras lo mantienes pulsado y se envía al soltar, como un audio de WhatsApp.
+					{/if}
+				</p>
+			</section>
+		{/if}
 
 		{#if data.music}
 			<section class={section}>

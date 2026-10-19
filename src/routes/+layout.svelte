@@ -8,6 +8,7 @@
 	import VoiceBubble from '#lib/components/VoiceBubble.svelte';
 	import TimerBar from '#lib/components/TimerBar.svelte';
 	import { beforeNavigate, goto } from '$app/navigation';
+	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { page, updated } from '$app/state';
 	import { themeColor, themeCss } from '#lib/themes.ts';
@@ -39,8 +40,12 @@
 				[{ href: '/library', label: 'Gestión', icon: 'gestion' as const, also: ['/logs'] }])
 	]);
 
-	/** Held this long, the header's microphone listens; let go sooner, it was a tap: /voz opens. */
+	/**
+	 * Held this long, the header's microphone listens; let go sooner, it was a tap: /voz opens. With
+	 * taps (Ajustes), the other way round: a tap starts or sends, and held this long /voz opens.
+	 */
 	const HOLD_MS = 250;
+	const OPEN_MS = 600;
 	/** Pressed, and not yet long enough to listen: a tap so far. */
 	let holdTimer: ReturnType<typeof setTimeout> | undefined;
 	/** Listening: let go, and what was said is sent. */
@@ -49,6 +54,13 @@
 	/** A tap does not wake the microphone (nor ask for its permission): only holding it does. */
 	function pressMic() {
 		clearTimeout(holdTimer);
+		if (micMode.tap) {
+			holdTimer = setTimeout(() => {
+				holdTimer = undefined;
+				void goto('/voz');
+			}, OPEN_MS);
+			return;
+		}
 		holdTimer = setTimeout(() => {
 			holdTimer = undefined;
 			holding = true;
@@ -57,6 +69,14 @@
 	}
 
 	function releaseMic(cancelled: boolean) {
+		if (micMode.tap) {
+			// Held: /voz opened. A tap: it starts, or sends.
+			if (holdTimer === undefined) return;
+			clearTimeout(holdTimer);
+			holdTimer = undefined;
+			if (!cancelled) voice.toggle();
+			return;
+		}
 		if (holdTimer !== undefined) {
 			clearTimeout(holdTimer);
 			holdTimer = undefined;
@@ -80,6 +100,8 @@
 		if (!data.voice || !isVoiceKey(e)) return;
 		e.preventDefault();
 		if (e.repeat || keyHolding) return;
+		// With taps (Ajustes): once to start, once more to send.
+		if (micMode.tap) return void voice.toggle();
 		keyHolding = true;
 		void voice.start();
 	}
@@ -155,7 +177,9 @@
 				{#if data.voice}
 					<a
 						href="/voz"
-						title="Mantén pulsado para hablar (o Ctrl+Mayús+Espacio) · Pulsa para abrir Hablar"
+						title={micMode.tap
+							? 'Toca para hablar y otra vez para enviar (o Ctrl+Mayús+Espacio) · Mantén pulsado para abrir Hablar'
+							: 'Mantén pulsado para hablar (o Ctrl+Mayús+Espacio) · Pulsa para abrir Hablar'}
 						aria-label="Hablar"
 						aria-current={page.url.pathname === '/voz' ? 'page' : undefined}
 						draggable="false"

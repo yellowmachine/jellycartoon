@@ -20,8 +20,13 @@ import {
  * from one to the other.
  */
 
-/** Shorter than this, the button was tapped, not held: nothing was said. */
+/**
+ * Shorter than this, the button was tapped, not held: nothing was said. With taps (Ajustes), a
+ * second tap this soon cancels it.
+ */
 const MIN_MS = 400;
+/** Longer than this, it stops and sends by itself: a microphone forgotten open, with taps. */
+const MAX_MS = 30_000;
 
 class VoiceClient {
 	phase = $state<'idle' | 'listening' | 'thinking'>('idle');
@@ -42,13 +47,19 @@ class VoiceClient {
 	#released = false;
 	/** A tap, not speech: what was recorded, if anything, is thrown away. */
 	#discard = false;
+	/** Pressed and not let go yet (or, with taps, not tapped again): asking for the microphone too. */
+	#active = false;
+	#limit: ReturnType<typeof setTimeout> | undefined;
 
 	/** Pressed: what plays here (an episode, music, a podcast) pauses, and the microphone listens. */
 	async start() {
-		if (this.phase !== 'idle') return;
+		if (this.phase !== 'idle' || this.#active) return;
+		this.#active = true;
 		this.#pressed = performance.now();
 		this.#released = false;
 		this.#discard = false;
+		clearTimeout(this.#limit);
+		this.#limit = setTimeout(() => this.stop(), MAX_MS);
 		this.problem = null;
 		// A timer ringing stops (and what it paused plays again, to pause it now for the voice);
 		// the press also lets the timers about to be set ring later.
@@ -61,6 +72,8 @@ class VoiceClient {
 			// https://developer.mozilla.org/docs/Web/API/MediaDevices/getUserMedia
 			stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 		} catch {
+			this.#active = false;
+			clearTimeout(this.#limit);
 			resumeAfterVoice();
 			// Let go already: it was a tap, and whoever tapped is told nothing.
 			if (!this.#discard)
@@ -92,6 +105,8 @@ class VoiceClient {
 	 * the episode goes on.
 	 */
 	stop(): 'sent' | 'tap' {
+		this.#active = false;
+		clearTimeout(this.#limit);
 		this.#released = true;
 		const tap = performance.now() - this.#pressed < MIN_MS;
 		if (tap) {
@@ -100,6 +115,12 @@ class VoiceClient {
 		}
 		if (this.#recorder?.state === 'recording') this.#recorder.stop();
 		return tap ? 'tap' : 'sent';
+	}
+
+	/** With taps (Ajustes): the first starts, the next sends; one right after the first cancels. */
+	toggle() {
+		if (!this.#active) return void this.start();
+		return this.stop();
 	}
 
 	async #send(audio: Blob) {

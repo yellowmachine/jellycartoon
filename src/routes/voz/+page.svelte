@@ -1,6 +1,7 @@
 <script lang="ts">
 	import RecipeCard from '#lib/components/RecipeCard.svelte';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
+	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { recipe } from '#lib/recipe.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 
@@ -14,7 +15,14 @@
 	let typed = $state('');
 
 	function release() {
+		if (micMode.tap) return;
 		if (voice.stop() === 'tap') voice.problem = 'Mantén pulsado el botón mientras hablas.';
+	}
+
+	/** Held down, or (Ajustes) a tap to start and another to send. */
+	function press() {
+		if (micMode.tap) voice.toggle();
+		else void voice.start();
 	}
 </script>
 
@@ -30,10 +38,14 @@
 
 	<p class="text-3xl font-semibold text-zinc-200">
 		{voice.phase === 'listening'
-			? 'Te escucho…'
+			? micMode.tap
+				? 'Te escucho… toca para enviar'
+				: 'Te escucho…'
 			: voice.phase === 'thinking'
 				? 'Un momento…'
-				: 'Mantén pulsado y habla'}
+				: micMode.tap
+					? 'Toca y habla'
+					: 'Mantén pulsado y habla'}
 	</p>
 
 	<!-- Touch: no selecting text nor the menu of a long press, and no scrolling while it is held. -->
@@ -46,11 +58,15 @@
 				: 'bg-amber-500 text-zinc-950 active:scale-95',
 			voice.phase === 'thinking' && 'opacity-60'
 		]}
-		aria-label="Mantén pulsado para hablar"
+		aria-label={micMode.tap
+			? voice.phase === 'listening'
+				? 'Toca para enviar'
+				: 'Toca para hablar'
+			: 'Mantén pulsado para hablar'}
 		disabled={voice.phase === 'thinking'}
 		onpointerdown={(e) => {
 			e.currentTarget.setPointerCapture(e.pointerId);
-			void voice.start();
+			press();
 		}}
 		onpointerup={release}
 		onpointercancel={release}
@@ -58,7 +74,7 @@
 		onkeydown={(e) => {
 			if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) {
 				e.preventDefault();
-				void voice.start();
+				press();
 			}
 		}}
 		onkeyup={(e) => {
@@ -79,9 +95,12 @@
 
 	<!-- With a mouse, a keyboard is likely: the shortcut, from any page. -->
 	<p class="-mt-6 hidden text-sm text-zinc-500 pointer-fine:block">
-		O mantén <kbd class="rounded border border-zinc-700 px-1">Ctrl</kbd> +
+		O {micMode.tap ? 'pulsa' : 'mantén'} <kbd class="rounded border border-zinc-700 px-1">Ctrl</kbd>
+		+
 		<kbd class="rounded border border-zinc-700 px-1">Mayús</kbd> +
-		<kbd class="rounded border border-zinc-700 px-1">Espacio</kbd>, en cualquier página.
+		<kbd class="rounded border border-zinc-700 px-1">Espacio</kbd>{micMode.tap
+			? ': una vez para empezar y otra para enviar,'
+			: ','} en cualquier página.
 	</p>
 
 	<div class="min-h-24 max-w-xl text-2xl" aria-live="polite">
