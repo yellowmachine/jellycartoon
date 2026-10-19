@@ -451,6 +451,14 @@ de openrouteservice se pasan a tú y a cómo suenan («toma la segunda salida»,
 «llévame a…» traza la ruta, «¿dónde estoy?» dice la dirección y «quita la ruta» la quita. Si
 se pide vídeo, contesta que en el coche no se pone.
 
+Viajes (#81): con «Guardar mis viajes» en Ajustes (apagado si no se activa, solo adultos), el modo
+carretera guarda por dónde vas mientras está abierto, también a media pantalla: un punto cada
+~25 m (sin los de mala precisión ni los saltos del GPS), mandados cada 30 s; sin cobertura
+esperan, y al cerrar se mandan los que quedan. Más de 10 minutos sin moverse empieza otro viaje.
+En `/viajes`, solo los de cada uno: los km, viajes y horas al volante del mes y de los últimos 12,
+cada viaje con su distancia, tiempo, velocidad media y máxima y destino (si había ruta), su
+recorrido en el mapa, y borrar uno o todos.
+
 ### Voz
 
 Órdenes habladas desde el móvil (#33), pensadas para personas mayores: en `/voz`, un botón grande

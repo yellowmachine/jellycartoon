@@ -15,6 +15,7 @@
 	import { SKIP_BACK, SKIP_FORWARD } from '#lib/podcasts.ts';
 	import { STATIONS, type RadioStation } from '#lib/radio.ts';
 	import { keepScreenOn } from '#lib/screen-on.ts';
+	import { tripRecorder } from '#lib/trip-recorder.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { distanceText, type LngLat, type Place, type Route } from '#lib/road.ts';
 	import { alongLine, guide } from '#lib/road-guide.ts';
@@ -38,6 +39,13 @@
 	const broken = new SvelteSet<string>();
 
 	$effect(() => keepScreenOn((text) => (screenProblem = text)));
+
+	// The trip kept while this is open, for whoever turned it on (#81).
+	$effect(() => {
+		if (!data.recordTrips) return;
+		untrack(() => tripRecorder.start(() => destination?.label ?? null));
+		return () => tripRecorder.stop();
+	});
 
 	/**
 	 * The map (phase 3a), on the left with the screen wide enough: the tablet whole, sideways. In
@@ -352,6 +360,15 @@
 	<div class={['flex flex-col gap-4', mapShown ? 'min-h-0 overflow-y-auto' : 'min-h-dvh p-4']}>
 		<div class="flex items-center justify-between gap-3">
 			<a href="/" class="rounded-xl px-3 py-2 text-lg text-zinc-400 active:bg-zinc-800">← Salir</a>
+			{#if data.recordTrips}
+				<!-- Kept, and said: where one goes is not kept without knowing it (#81). -->
+				<a
+					href="/viajes"
+					class="rounded-full px-3 py-2 text-base text-zinc-400 active:bg-zinc-800"
+					title="Se guarda este viaje (Ajustes); tus viajes, en /viajes"
+					>{tripRecorder.problem ? '⚠ No se guarda el viaje' : '● Guardando el viaje'}</a
+				>
+			{/if}
 			{#if data.map && wide}
 				<button
 					class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300"

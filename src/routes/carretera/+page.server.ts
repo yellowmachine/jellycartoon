@@ -7,6 +7,7 @@ import { listPlaylists } from '#lib/server/music/playlists.ts';
 import { continueListening, userPodcasts } from '#lib/server/podcasts/podcasts.ts';
 import { stationsInfo } from '#lib/server/radio.ts';
 import { mapFile } from '#lib/server/library/paths.ts';
+import { recordsTrips } from '#lib/server/trips.ts';
 
 /**
  * The road mode (#78): what can be put on with one touch while driving. The stations, the music
@@ -14,7 +15,7 @@ import { mapFile } from '#lib/server/library/paths.ts';
  */
 export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
-	const [info, playlists, podcasts, inProgress, map] = await Promise.all([
+	const [info, playlists, podcasts, inProgress, map, recordTrips] = await Promise.all([
 		stationsInfo(),
 		listPlaylists(),
 		userPodcasts(userId),
@@ -22,7 +23,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		access(mapFile).then(
 			() => true,
 			() => false
-		)
+		),
+		recordsTrips(userId)
 	]);
 	const latest = podcasts.length
 		? await db
@@ -49,6 +51,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}),
 		inProgress,
 		/** There is a map (scripts/mapa.sh): shown beside, with the screen wide enough. */
-		map
+		map,
+		/** This user keeps their trips (Ajustes, #81). */
+		recordTrips
 	};
 };

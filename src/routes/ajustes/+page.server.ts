@@ -42,6 +42,7 @@ import {
 } from '#lib/server/subsonic/auth.ts';
 import { musicRoot } from '#lib/server/library/paths.ts';
 import { ORIGIN } from '$app/env/private';
+import { recordsTrips, setRecordTrips } from '#lib/server/trips.ts';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
@@ -107,6 +108,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		languages: KNOWN_LANGUAGES,
 		/** «Guardar lo que veo»: adults only, a child's is always kept for the adults (#17). */
 		keepHistory: isKid(locals.user) ? null : settings.keepHistory,
+		/** The road mode's trips kept (#81); adults only. */
+		recordTrips: isKid(locals.user) ? null : await recordsTrips(userId),
 		/** Langua, the language app: adults only. Never the token itself, only its end. */
 		langua: isKid(locals.user)
 			? null
@@ -217,6 +220,11 @@ export const actions: Actions = {
 			.values({ userId: locals.user!.id, ...values })
 			.onConflictDoUpdate({ target: userSettings.userId, set: values });
 		return { saved: 'intro' };
+	},
+	recordTrips: async ({ request, locals }) => {
+		if (isKid(locals.user)) error(404, 'No encontrado');
+		await setRecordTrips(locals.user!.id, (await request.formData()).get('recordTrips') === 'on');
+		return { saved: 'recordTrips' };
 	},
 	history: async ({ request, locals }) => {
 		if (isKid(locals.user)) error(404, 'No encontrado');

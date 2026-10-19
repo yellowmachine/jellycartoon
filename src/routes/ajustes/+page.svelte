@@ -210,6 +210,36 @@
 						</span>
 					</label>
 				</form>
+				{#if data.recordTrips !== null}
+					<form
+						method="post"
+						action="?seccion={tab}&/recordTrips"
+						use:enhance={() =>
+							async ({ update }) =>
+								update({ reset: false })}
+						class="mt-4"
+					>
+						<label class="flex items-start gap-2 text-sm">
+							<input
+								type="checkbox"
+								name="recordTrips"
+								checked={data.recordTrips}
+								onchange={(e) => e.currentTarget.form?.requestSubmit()}
+								class="mt-0.5 rounded border-zinc-700 bg-zinc-900 text-amber-500"
+							/>
+							<span>
+								Guardar mis viajes
+								<span class="block text-xs text-zinc-500"
+									>Con el modo carretera abierto, por dónde vas: cada viaje con su recorrido,
+									distancia y tiempo, y los km al mes. Solo los ves tú, en <a
+										href="/viajes"
+										class="text-amber-400 hover:underline">Viajes</a
+									>, donde se borran. Apagarlo no borra lo ya guardado.</span
+								>
+							</span>
+						</label>
+					</form>
+				{/if}
 			</section>
 		{/if}
 	{/if}

@@ -1,10 +1,8 @@
 <script lang="ts">
 	import 'maplibre-gl/dist/maplibre-gl.css';
-	// MapLibre's worker, bundled with what it imports, as Vite does workers:
-	// https://vite.dev/guide/features.html#import-with-query-suffixes
-	import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 	import { untrack } from 'svelte';
-	import type { GeoJSONSource, Map as MapLibreMap, Marker, StyleSpecification } from 'maplibre-gl';
+	import type { GeoJSONSource, Map as MapLibreMap, Marker } from 'maplibre-gl';
+	import { loadOurMap } from '#lib/our-map.ts';
 	import type { LngLat, Route } from '#lib/road.ts';
 
 	/**
@@ -78,44 +76,13 @@
 		const el = container;
 		if (!el) return;
 		let cancelled = false;
-		let removeProtocol = () => {};
 		(async () => {
-			const [maplibregl, { Protocol, PMTiles }, { layers, namedFlavor }] = await Promise.all([
-				import('maplibre-gl'),
-				import('pmtiles'),
-				import('@protomaps/basemaps')
-			]);
-			if (cancelled) return;
-			maplibregl.setWorkerUrl(workerUrl);
-			const origin = location.origin;
-			const url = `${origin}/mapa/espana.pmtiles`;
-			const protocol = new Protocol();
-			maplibregl.addProtocol('pmtiles', protocol.tile);
-			removeProtocol = () => maplibregl.removeProtocol('pmtiles');
-			// Where the map is, to start there until the GPS says where we are.
-			const archive = new PMTiles(url);
-			protocol.add(archive);
-			const header = await archive.getHeader().catch(() => null);
+			const { maplibregl, header, styleFor } = await loadOurMap();
 			if (cancelled) return;
 			if (!header) {
 				problem = 'No se pudo abrir el mapa.';
 				return;
 			}
-			// Protomaps' own style, light or dark, with its fonts and icons from the app too.
-			const styleFor = (light: boolean): StyleSpecification => ({
-				version: 8,
-				glyphs: `${origin}/mapa/fonts/{fontstack}/{range}.pbf`,
-				sprite: `${origin}/mapa/sprites/v4/${light ? 'light' : 'dark'}`,
-				sources: {
-					protomaps: {
-						type: 'vector',
-						url: `pmtiles://${url}`,
-						attribution:
-							'<a href="https://protomaps.com">Protomaps</a> © <a href="https://openstreetmap.org/copyright">colaboradores de OpenStreetMap</a>'
-					}
-				},
-				layers: layers('protomaps', namedFlavor(light ? 'light' : 'dark'), { lang: 'es' })
-			});
 			const created = new maplibregl.Map({
 				container: el,
 				center: [header.centerLon, header.centerLat],
@@ -172,7 +139,6 @@
 			map = null;
 			me = null;
 			flag = null;
-			removeProtocol();
 		};
 	});
 
