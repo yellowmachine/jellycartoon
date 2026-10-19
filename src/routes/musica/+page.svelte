@@ -224,12 +224,22 @@
 				{/if}
 			{/if}
 			{#if totals.notFound}
-				<br />{totals.notFound} álbumes sin portada en MusicBrainz.
+				<br />{totals.notFound} álbumes sin portada, ni en MusicBrainz ni dentro de sus ficheros.
 			{/if}
 			Las descargas (sin etiqueta de álbum, o con el id de YouTube en el nombre) no se catalogan.
 			<br />Cada FLAC se comprime también en Opus, para escucharlo con datos móviles (Ajustes →
 			Calidad de la música).
 		</p>
+		{#if totals.notFound}
+			<form method="post" action="?/covers" use:enhance class="mt-2" hidden={data.kid}>
+				<button
+					disabled={progress.phase !== 'idle'}
+					class="rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900 disabled:opacity-50"
+				>
+					Volver a buscar portadas
+				</button>
+			</form>
+		{/if}
 		{#if progress.lastError}
 			<p class="mt-2 text-sm text-red-400">No se pudo escanear: {progress.lastError}</p>
 		{/if}
