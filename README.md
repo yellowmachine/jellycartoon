@@ -442,6 +442,14 @@ envía, porque el mando manda su tecla pulsada y soltada a la vez, y lo que oye 
 grande. Con el puntero del mando (modo ratón) apagado, para que mueva el foco. El micrófono del
 mando es una tarjeta de sonido USB más, y el del sistema si no hay otro.
 
+Si una tecla no hace lo que debe, `?depurar` en la dirección (`/tv?depurar`) pone encima de la
+vista TV qué teclas llegan, a dónde va el foco (con un marco), si la página se desplazó en su
+lugar y cada paso de la voz: escuchando y cuánto, enviando, qué oyó y qué contestó. Sigue en esa
+ventana al cambiar de página, hasta `?depurar=no`. Como la ventana de la app no tiene barra de
+direcciones, en el salón hay otro lanzador igual con esa dirección, «JellyCartoon (depurar)»
+(`~/.local/share/applications/jellycartoon-depurar.desktop`, el mismo `Exec` con `/tv?depurar` y
+otra `--class`).
+
 Con algo en el mpv del salón a pantalla completa, las teclas le llegan a él, y se configuran en
 `deploy/mpv/`: `input.conf` (qué hace cada tecla) y `scripts/mando.lua` (el menú). También
 los instala `scripts/pantalla.sh`. A mano, desde el repositorio y con mpv sin nada puesto:
@@ -460,6 +468,7 @@ systemctl --user restart jellycartoon-mpv
 | Volver          | Cierra el menú; sin menú, para y se vuelve a la vista TV        |
 | Play/Pausa      | Pausa o sigue                                                   |
 | Inicio          | Para y se vuelve a la vista TV                                  |
+| Micrófono       | Habla, como en la vista TV; el vídeo se pausa mientras tanto    |
 | Números         | Nada                                                            |
 | Vol+ / Vol−     | El volumen del sistema (no llegan a mpv)                        |
 
@@ -479,6 +488,11 @@ systemctl --user restart jellycartoon-mpv
   saturación y volumen; un toque sin querer oscurece la imagen hasta reiniciar mpv. Dentro del
   menú, en cambio, escriben para filtrar la lista (como todo lo que se escribe en él); Volver lo
   cierra igual.
+- **El micrófono** (F9) con mpv delante: `script-message jellycartoon-voz`. mpv lo cuenta a quien
+  esté en su socket, la app, y la vista TV del navegador, debajo, escucha como siempre: «Langua dos
+  minutos» manda lo que se está viendo. Lo que dice la caja de la voz sale escrito sobre el vídeo,
+  que se pausa hasta que acaba de leer la respuesta. Si contesta con una pregunta, se responde con
+  el micrófono: los botones están en el navegador, tapados.
 - Para ver qué tecla le llega a mpv (sin `sudo`): `mpv --input-test --force-window --idle` en la
   sesión gráfica, que dice el nombre de cada una en pantalla.
 

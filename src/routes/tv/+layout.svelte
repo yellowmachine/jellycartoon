@@ -77,7 +77,7 @@
 {/if}
 
 {#if page.data.voice}
-	<TvVoice />
+	<TvVoice {salon} />
 {/if}
 
 <TvDebug />

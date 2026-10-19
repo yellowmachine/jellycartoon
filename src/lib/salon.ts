@@ -36,6 +36,11 @@ export interface RemoteState {
 	tracks: Track[];
 	/** What mpv could not open, e.g. «No se pudo abrir La 1»; for a while, or until something plays. */
 	failed: string | null;
+	/**
+	 * Times the remote's microphone key was pressed with mpv in front (deploy/mpv/input.conf): the
+	 * /tv view, under it, starts or sends the voice when it goes up.
+	 */
+	voiceKey: number;
 }
 
 export type RemoteAction =
@@ -47,4 +52,6 @@ export type RemoteAction =
 	| { action: 'subtitle'; value: number | null }
 	| { action: 'next' }
 	| { action: 'previous' }
-	| { action: 'stop' };
+	| { action: 'stop' }
+	/** Text over the picture, until another one; empty, none. */
+	| { action: 'message'; value: string };

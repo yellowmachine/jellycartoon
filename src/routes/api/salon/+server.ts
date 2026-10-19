@@ -27,6 +27,8 @@ function parse(body: { action?: unknown; value?: unknown }): RemoteAction | null
 		case 'previous':
 		case 'stop':
 			return { action };
+		case 'message':
+			return typeof value === 'string' ? { action, value: value.slice(0, 500) } : null;
 		default:
 			return null;
 	}

@@ -92,7 +92,8 @@ const state: RemoteState = {
 	audioId: null,
 	subtitleId: null,
 	tracks: [],
-	failed: null
+	failed: null,
+	voiceKey: 0
 };
 
 const SAVE_MS = 5_000;
@@ -151,6 +152,9 @@ const mpv = new MpvClient(
 			} else if (message.event === 'end-file' && entryId !== undefined) {
 				if (message.reason === 'error') failedToOpen(entryId, message.file_error);
 				void ended(entryId, message.reason ?? '');
+			} else if (message.event === 'client-message' && message.args?.[0] === VOICE_MESSAGE) {
+				state.voiceKey++;
+				notify();
 			}
 		}
 	},
@@ -158,6 +162,11 @@ const mpv = new MpvClient(
 	() => remotes.size > 0
 );
 const command = (cmd: unknown) => mpv.command(cmd);
+
+/** `script-message` of the remote's microphone key, in deploy/mpv/input.conf. */
+const VOICE_MESSAGE = 'jellycartoon-voz';
+/** A message stays this long at most: the one who wrote it takes it away before. */
+const MESSAGE_MS = 60_000;
 
 interface MpvTrack {
 	id: number;
@@ -440,6 +449,8 @@ export async function control(remote: RemoteAction) {
 			return command(['playlist-prev']);
 		case 'stop':
 			return command(['stop']);
+		case 'message':
+			return command(['show-text', remote.value, remote.value ? MESSAGE_MS : 1]);
 	}
 }
 
