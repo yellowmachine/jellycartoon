@@ -180,6 +180,11 @@ export async function listRecipeSites() {
 	return sites.map((s) => ({ ...s, indexing: isIndexing(s.id) }));
 }
 
+/** As the house calls it: the site's own name can be long («Recetas de cocina… Directo al Paladar»). */
+export async function renameRecipeSite(siteId: number, name: string) {
+	await db.update(recipeSite).set({ name }).where(eq(recipeSite.id, siteId));
+}
+
 export async function removeRecipeSite(siteId: number) {
 	await db.delete(recipeSite).where(eq(recipeSite.id, siteId));
 }

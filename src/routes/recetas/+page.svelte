@@ -12,6 +12,8 @@
 	/** The search result being saved, by its address. */
 	let importing = $state<string | null>(null);
 	let addingSite = $state(false);
+	/** The site whose name is being changed. */
+	let renaming = $state<number | null>(null);
 
 	// A site's map being read: the page follows it.
 	$effect(() => {
@@ -195,7 +197,36 @@
 		{#each data.sites as site (site.id)}
 			<li class="flex items-center gap-3 py-2">
 				<span class="min-w-0 flex-1">
-					<span class="block truncate">{site.name}</span>
+					{#if renaming === site.id}
+						<form
+							method="post"
+							action="?/renameSite"
+							class="flex gap-2"
+							use:enhance={() =>
+								async ({ update }) => {
+									await update();
+									renaming = null;
+								}}
+						>
+							<input type="hidden" name="id" value={site.id} />
+							<!-- svelte-ignore a11y_autofocus -->
+							<input
+								name="name"
+								value={site.name}
+								required
+								maxlength="80"
+								autofocus
+								aria-label="Nombre de la web"
+								onkeydown={(e) => e.key === 'Escape' && (renaming = null)}
+								class="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+							/>
+							<button class="rounded-md bg-zinc-800 px-3 py-1 text-sm hover:bg-zinc-700"
+								>Guardar</button
+							>
+						</form>
+					{:else}
+						<span class="block truncate">{site.name}</span>
+					{/if}
 					<span class="block truncate text-xs text-zinc-500">
 						{site.host} ·
 						{#if site.indexing}
@@ -209,6 +240,9 @@
 						{/if}
 					</span>
 				</span>
+				{#if renaming !== site.id}
+					<button class={small} onclick={() => (renaming = site.id)}>Renombrar</button>
+				{/if}
 				<form method="post" action="?/refreshSite" use:enhance>
 					<input type="hidden" name="id" value={site.id} />
 					<button class={small} disabled={site.indexing}>Volver a leer</button>

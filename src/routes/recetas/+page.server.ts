@@ -6,6 +6,7 @@ import {
 	indexSite,
 	listRecipeSites,
 	removeRecipeSite,
+	renameRecipeSite,
 	searchRecipeSites
 } from '#lib/server/recipes/sites.ts';
 
@@ -56,6 +57,14 @@ export const actions: Actions = {
 	},
 	refreshSite: async ({ request }) => {
 		void indexSite(await siteId(request));
+	},
+	renameSite: async ({ request }) => {
+		const form = await request.formData();
+		const name = String(form.get('name') ?? '')
+			.trim()
+			.slice(0, 80);
+		if (!name) return fail(400, { siteError: 'El nombre no puede quedar vacío' });
+		await renameRecipeSite(Number(form.get('id')), name);
 	},
 	removeSite: async ({ request }) => {
 		await removeRecipeSite(await siteId(request));
