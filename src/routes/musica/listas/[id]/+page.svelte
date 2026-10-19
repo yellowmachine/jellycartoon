@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AddToQueue from '#lib/components/AddToQueue.svelte';
 	import { enhance } from '$app/forms';
 	import AlbumCover from '#lib/components/AlbumCover.svelte';
 	import MusicTargetSwitch from '#lib/components/MusicTargetSwitch.svelte';
@@ -58,10 +59,7 @@
 			class="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-zinc-950 hover:bg-amber-400"
 			onclick={() => musicTarget.play(tracks, 0, toSnapcast)}>▶︎ Reproducir</button
 		>
-		<button
-			class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900"
-			onclick={() => musicTarget.append(tracks, toSnapcast)}>+ Añadir a la cola</button
-		>
+		<AddToQueue {tracks} {toSnapcast} />
 	</div>
 	{#if data.snapcast}
 		<div class="mb-4"><MusicTargetSwitch /></div>

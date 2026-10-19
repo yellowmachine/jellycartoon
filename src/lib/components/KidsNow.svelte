@@ -45,6 +45,12 @@
 
 	const time = new Intl.DateTimeFormat('es', { timeStyle: 'short' });
 	const since = new Intl.RelativeTimeFormat('es', { numeric: 'auto' });
+
+	/** «a las 19:42, hace 3 minutos», as of the last check. */
+	function touchedText(at: number) {
+		const minutes = Math.floor((checkedAt - at) / 60_000);
+		return `a las ${time.format(at)}, ${minutes < 1 ? 'hace un momento' : since.format(-minutes, 'minute')}`;
+	}
 	/** «hace 2 horas», «ayer»… */
 	function ago(date: Date) {
 		const minutes = Math.round((Date.now() - new Date(date).getTime()) / 60_000);
@@ -82,6 +88,12 @@
 								? ` · minuto ${Math.floor(now.positionSec / 60)}`
 								: ''} · en {now.device}
 						</span>
+						{#if now.touchedAt !== null}
+							<!-- With «siguiente automático», watching is not being there: when anyone was. -->
+							<span class="block text-sm text-zinc-400">
+								Última interacción {touchedText(now.touchedAt)}
+							</span>
+						{/if}
 						<button
 							class="mt-1 text-sm text-amber-400 hover:underline"
 							aria-expanded={mirrors.includes(kid.id)}

@@ -10,7 +10,7 @@ import { MpvClient, StateBroadcast, type MpvMessage } from '#lib/server/mpv-clie
 import { saveProgress } from '#lib/server/progress.ts';
 import { addWatchTime } from '#lib/server/watch-time.ts';
 import { videoAllowed } from '#lib/server/kid-time.ts';
-import { noteAsking, noteStopped } from '#lib/server/live-watching.ts';
+import { noteAsking, noteStopped, noteTouched } from '#lib/server/live-watching.ts';
 import { askEvery } from '#lib/server/still-there.ts';
 import { ANSWER_SECONDS, QUESTION } from '#lib/still-there.ts';
 import type { Channel } from '#lib/channels.ts';
@@ -205,6 +205,8 @@ let loadedAt = 0;
 /** Someone touched something: the count starts again, and a question is answered. */
 function someoneThere() {
 	unattended = 0;
+	const userId = current === null ? undefined : (playing.get(current) ?? live.get(current))?.userId;
+	if (userId) noteTouched(userId);
 	answered();
 }
 
@@ -596,6 +598,7 @@ async function playNow(options: {
 }) {
 	preferredSubtitle = options.subtitleLang;
 	forgetQueue();
+	noteTouched(options.userId);
 	// Chosen now, to watch now: mpv's pause outlives what was paused (Volver while paused).
 	await command(['set_property', 'pause', false]).catch(() => {});
 	for (const [name, value] of mpvSubtitleProperties(options.subtitleStyle))
@@ -653,6 +656,7 @@ export function playChannel(userId: string, channel: Channel) {
 
 async function playChannelNow(userId: string, channel: Channel) {
 	forgetQueue();
+	noteTouched(userId);
 	await command(['set_property', 'pause', false]).catch(() => {});
 	const result = (await command({ name: 'loadfile', url: channel.url, flags: 'replace' })) as {
 		playlist_entry_id: number;

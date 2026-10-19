@@ -147,7 +147,8 @@ docker compose -f compose.prod.yaml logs -f app
   del mpv del salón) sin que nadie toque nada, el siguiente espera a que conteste. Si en 2 minutos
   nadie lo hace, se para, y «Ahora» dice a qué hora y por qué. Tocar algo pone la cuenta a cero: en
   el navegador, cualquier toque o tecla; en el salón, Play/Pausa, saltar, el menú, el micrófono o
-  el mando del móvil. Allí la pregunta sale sobre el vídeo y se contesta con el OK.
+  el mando del móvil. Allí la pregunta sale sobre el vídeo y se contesta con el OK. «Ahora» dice
+  también la última vez que alguien tocó algo: «Última interacción a las 19:42, hace 3 minutos».
 - En «Ahora», «Verlo en pequeño» abre al lado un vídeo sin sonido con lo que está viendo cada niño,
   en el mismo segundo y siguiéndolo: si salta, se recoloca; si pausa, se queda en ese fotograma
   (unos segundos tarde, cuando su posición deja de moverse). No es su pantalla, sino el mismo
