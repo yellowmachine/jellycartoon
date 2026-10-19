@@ -415,7 +415,7 @@ lado el navegador (Google Maps u Organic Maps, que hacen la navegación y el tr�
 Con la tablet entera en horizontal (la pantalla ancha, sin partir), a la izquierda va un mapa
 propio ([MapLibre](https://maplibre.org)), con dónde estás por el GPS del navegador: la flecha
 sigue la marcha y el mapa gira con ella; si se mueve con el dedo deja de seguirla hasta
-«Recentrar». En media pantalla no sale, ni se pide la posición. El mapa es de la propia app, sin
+«Recentrar». El mapa es claro; «☾ Oscuro» lo pasa a oscuro para la noche (se recuerda). En media pantalla no sale, ni se pide la posición. El mapa es de la propia app, sin
 depender de nadie: España recortada de las descargas diarias de
 [Protomaps](https://docs.protomaps.com) (OpenStreetMap), con las fuentes e iconos de su estilo, en
 `DATA_DIR/mapa`. Para ponerlo, o actualizar las calles de vez en cuando, en el servidor y desde el
