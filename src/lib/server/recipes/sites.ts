@@ -308,13 +308,21 @@ export async function removeRecipeSite(siteId: number) {
 }
 
 /**
- * Pages of the favourite sites (or of one) with every word of `query` in their address, the
- * closest first: those that say «receta» (a site's articles are in its maps too), then the
- * shortest, which say less besides.
+ * Pages of the favourite sites (or of one) by the words of `query` in their address: a point for
+ * each, and at least half of them, so that «macarrones gratinados con magra picada de cerdo» finds
+ * «Macarrones gratinados con picadillo de matanza y carne picada». The most points first; then
+ * those that say «receta» (a site's articles are in its maps too), then the shortest, which say
+ * less besides.
  */
 export async function searchRecipeSites(query: string, siteId?: number, limit = 8) {
 	const words = searchWords(query);
 	if (!words.length) return [];
+	// Each word at the start of one: «pan» is not «empanada».
+	const has = (w: string) => ilike(recipeSitePage.words, `% ${w}%`);
+	const points = sql<number>`(${sql.join(
+		words.map((w) => sql`(${has(w)})::int`),
+		sql` + `
+	)})`;
 	return db
 		.select({
 			url: recipeSitePage.url,
@@ -326,11 +334,12 @@ export async function searchRecipeSites(query: string, siteId?: number, limit = 
 		.where(
 			and(
 				siteId === undefined ? undefined : eq(recipeSitePage.siteId, siteId),
-				// Each word at the start of one: «pan» is not «empanada».
-				...words.map((w) => ilike(recipeSitePage.words, `% ${w}%`))
+				or(...words.map(has)),
+				sql`${points} >= ${Math.ceil(words.length / 2)}`
 			)
 		)
 		.orderBy(
+			sql`${points} desc`,
 			sql`${recipeSitePage.words} not like '% receta%'`,
 			sql`length(${recipeSitePage.words})`,
 			asc(recipeSitePage.title)
