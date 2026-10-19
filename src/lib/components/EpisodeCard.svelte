@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { formatDuration } from '#lib/format.ts';
 	import { thumbUrl } from '#lib/thumb.svelte.ts';
+	import EpisodePreview from './EpisodePreview.svelte';
 
 	/**
 	 * An episode as its series' page shows it, as a link to watch it: thumbnail with how far it
@@ -37,6 +38,7 @@
 			loading="lazy"
 			class="h-full w-full object-cover transition group-hover:scale-105"
 		/>
+		<EpisodePreview id={episode.id} durationSec={episode.durationSec} />
 		{#if episode.completed}
 			<span
 				class="absolute top-1 left-1 rounded bg-zinc-950/80 px-1.5 py-0.5 text-xs font-medium text-amber-400"
