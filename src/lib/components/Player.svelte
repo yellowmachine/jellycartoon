@@ -467,11 +467,12 @@ same look in every browser, the app's colours, and the player's options in its â
 			</media-control-bar>
 
 			{#if menuOpen}
-				<!-- Inside the controller: still there in fullscreen. -->
+				<!-- Inside the controller: still there in fullscreen. Not role="dialog": Media Chrome leaves
+				those without pointer events, and a touch went through to the video (play/pause). -->
 				<div
 					bind:this={menu}
 					class="absolute right-3 bottom-14 z-10 max-h-[calc(100%-5rem)] w-72 space-y-3 overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-950/95 p-3 text-sm shadow-2xl"
-					role="dialog"
+					role="group"
 					aria-label="Opciones del vÃ­deo"
 				>
 					{#if audioTracks.length > 1}
