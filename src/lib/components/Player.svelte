@@ -340,6 +340,15 @@
 		setTimeout(() => (thumbnailState = 'idle'), 2000);
 	}
 
+	/** Its name, numbered if another has the same («English 1», «English 2»). */
+	function trackLabel(tracks: { label: string }[], i: number) {
+		const label = tracks[i]!.label;
+		const same = tracks.filter((t) => t.label === label);
+		return same.length > 1
+			? `${label} ${tracks.slice(0, i + 1).filter((t) => t.label === label).length}`
+			: label;
+	}
+
 	/** A clip sent to Langua: what it said (sent, or why not). */
 	let languaState = $state<string | null>(null);
 	async function toLangua(minutes: number) {
@@ -479,7 +488,7 @@ same look in every browser, the app's colours, and the player's options in its �
 						{@render choices(
 							'Audio',
 							audioTracks.map((t, i) => ({
-								label: t.label,
+								label: trackLabel(audioTracks, i),
 								on: i === audioIndex,
 								pick: () => chooseAudio(i)
 							}))
@@ -489,7 +498,7 @@ same look in every browser, the app's colours, and the player's options in its �
 						{@render choices('Subtítulos', [
 							{ label: 'No', on: subtitleIndex < 0, pick: () => chooseSubtitle(-1) },
 							...subtitles.map((s, i) => ({
-								label: s.label,
+								label: trackLabel(subtitles, i),
 								on: i === subtitleIndex,
 								pick: () => chooseSubtitle(i)
 							}))
@@ -557,7 +566,8 @@ same look in every browser, the app's colours, and the player's options in its �
 	<div>
 		<p class="mb-1 px-2 text-xs tracking-wide text-zinc-500 uppercase">{label}</p>
 		<div class="flex flex-wrap gap-1">
-			{#each options as option (option.label)}
+			<!-- By place: two tracks may have the same name (an extra with two «English»). -->
+			{#each options as option, i (i)}
 				<button
 					class={[
 						'rounded px-2 py-1',
