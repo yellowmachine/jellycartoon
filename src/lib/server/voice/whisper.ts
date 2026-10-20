@@ -1,4 +1,4 @@
-import { WHISPER_URL } from '$app/env/private';
+import { WHISPER_SUBTITLES_URL, WHISPER_URL } from '$app/env/private';
 import { cleanTranscript } from './transcript.ts';
 import { phrasesFromWhisper, type WhisperVerbose } from './whisper-cues.ts';
 
@@ -9,6 +9,12 @@ import { phrasesFromWhisper, type WhisperVerbose } from './whisper-cues.ts';
  */
 
 export const voiceEnabled = Boolean(WHISPER_URL);
+
+/**
+ * The automatic subtitles' server: a second one if there is (WHISPER_SUBTITLES_URL), so a voice
+ * command does not wait for a piece of a film to be done; a server takes one request at a time.
+ */
+const SUBTITLES_URL = WHISPER_SUBTITLES_URL ?? WHISPER_URL;
 
 /** What was said in `audio`; empty if nothing was. */
 export async function transcribe(audio: Blob) {
@@ -41,7 +47,7 @@ export async function transcribeCues(file: string, language: string, signal?: Ab
 	form.append('language', language);
 	form.append('response_format', 'verbose_json');
 	form.append('temperature', '0');
-	const res = await fetch(`${WHISPER_URL}/inference`, {
+	const res = await fetch(`${SUBTITLES_URL}/inference`, {
 		method: 'POST',
 		body: form,
 		// A whole episode at once: a few tens of seconds on a GPU, more on a slow one.
