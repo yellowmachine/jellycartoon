@@ -19,20 +19,20 @@ import {
 import { probeDuration, speechChunks } from '#lib/server/library/ffmpeg.ts';
 import { hlsDir, movieFile, movieSubsDir } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
-import { transcribeVtt, voiceEnabled } from '#lib/server/voice/whisper.ts';
+import { transcribeCues, voiceEnabled } from '#lib/server/voice/whisper.ts';
 import {
 	languageLabel,
 	normalizeLang,
 	whisperLanguage,
 	type SubtitleTrack
 } from '#lib/languages.ts';
-import { parseVtt, serializeVtt, type Cue } from '#lib/vtt.ts';
+import { serializeVtt, type Cue } from '#lib/vtt.ts';
 
 /**
  * Subtitles made by Whisper (the voice commands' server) for what has none in the language of its
  * audio, asked for in one language from an episode's menu, a series' selection or a film's page,
  * and managed in Gestión → Subtítulos. One at a time, in the background, in the order of the
- * queue (`subtitle_job`, kept, so a restart goes on with it); the track in pieces of a few minutes,
+ * queue (`subtitle_job`, kept, so a restart goes on with it); the track in pieces of ten minutes,
  * so a voice command waits for one piece at most, not for a whole film.
  *
  * An episode's go with the rest of its subtitles (`episode.subtitles`, a .vtt in its HLS folder),
@@ -41,8 +41,13 @@ import { parseVtt, serializeVtt, type Cue } from '#lib/vtt.ts';
  * clips take their text from either.
  */
 
-/** Seconds of audio per request to Whisper: a few seconds of work on the GPU. */
-const CHUNK_SEC = 180;
+/**
+ * Seconds of audio per request to Whisper: a few seconds of work on the GPU. Each piece starts
+ * without what came before, and Whisper often gets its first phrases wrong (repeated, early): in
+ * pieces of 3 minutes, a sitcom had nearly twice as many phrases a second or more early as in
+ * pieces of 10, which did about as well as the whole episode at once (#86).
+ */
+const CHUNK_SEC = 600;
 /** The files of the made ones; a converted episode's own are `sub_N_lang.vtt`. */
 const AUTO_PREFIX = 'sub_auto_';
 /** Done ones kept as history, the latest; failures stay until retried or dismissed. */
@@ -426,8 +431,7 @@ async function transcribeTrack(input: string, audio: number, lang: string, run: 
 		const cues: Cue[] = [];
 		let offset = 0;
 		for (const chunk of chunks) {
-			const vtt = await transcribeVtt(chunk, whisperLanguage(lang), signal);
-			for (const cue of parseVtt(vtt)) {
+			for (const cue of await transcribeCues(chunk, whisperLanguage(lang), signal)) {
 				const text = spoken(cue.text);
 				if (text) cues.push({ start: cue.start + offset, end: cue.end + offset, text });
 			}

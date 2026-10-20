@@ -1,5 +1,6 @@
 import { WHISPER_URL } from '$app/env/private';
 import { cleanTranscript } from './transcript.ts';
+import { cuesFromWhisper, type WhisperVerbose } from './whisper-cues.ts';
 
 /**
  * Speech to text for voice commands (#33), with whisper.cpp's server (whisper-server):
@@ -30,23 +31,27 @@ export async function transcribe(audio: Blob) {
 }
 
 /**
- * Subtitles for a stretch of speech (a WAV file): WebVTT, timed from its start. `language`: the
- * ISO 639-1 code (see `whisperLanguage`), instead of the one the server started with, or `auto`.
+ * Subtitles for a stretch of speech (a WAV file), timed from its start: each phrase from its first
+ * word when the server times words (`-dtw`, see `cuesFromWhisper`). `language`: the ISO 639-1 code
+ * (see `whisperLanguage`), instead of the one the server started with, or `auto`.
  */
-export async function transcribeVtt(file: string, language: string, signal?: AbortSignal) {
+export async function transcribeCues(file: string, language: string, signal?: AbortSignal) {
 	const form = new FormData();
 	form.append('file', Bun.file(file), 'trozo.wav');
 	form.append('language', language);
-	form.append('response_format', 'vtt');
+	form.append('response_format', 'verbose_json');
 	form.append('temperature', '0');
 	const res = await fetch(`${WHISPER_URL}/inference`, {
 		method: 'POST',
 		body: form,
-		signal: AbortSignal.any([AbortSignal.timeout(120_000), ...(signal ? [signal] : [])])
+		// A whole episode at once: a few tens of seconds on a GPU, more on a slow one.
+		signal: AbortSignal.any([AbortSignal.timeout(600_000), ...(signal ? [signal] : [])])
 	}).catch((err) => {
 		throw new Error(`No se pudo hablar con Whisper: ${err instanceof Error ? err.message : err}`);
 	});
 	const text = await res.text();
 	if (!res.ok) throw new Error(`Whisper: ${text.slice(0, 200) || res.statusText}`);
-	return text;
+	const body = JSON.parse(text) as WhisperVerbose;
+	if (!Array.isArray(body?.segments)) throw new Error('Whisper: respuesta sin frases');
+	return cuesFromWhisper(body);
 }
