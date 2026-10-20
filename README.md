@@ -544,8 +544,10 @@ Solo baja los trozos de esa zona, no el planeta, y cambia el mapa cuando está e
 sigue funcionando mientras tanto. Sin ese fichero, el modo carretera va como siempre, sin mapa.
 
 Con el mapa, el destino se escribe en el propio mapa («¿A dónde vas?», arriba; solo parado y sin
-ruta: en marcha se esconde, y se pide por voz, «llévame a…»), los sitios que coinciden salen en la
-sección Ruta para elegir con el dedo, y se traza la ruta en coche desde donde estás, con [openrouteservice](https://openrouteservice.org): la línea en el mapa, la
+ruta: en marcha se esconde, y se pide por voz, «llévame a…»). Al escribir, debajo, los últimos
+destinos de ese dispositivo (el cole, los abuelos…; también sin escribir nada) y las sugerencias de
+openrouteservice (su autocompletado, desde 3 letras): tocando una se traza la ruta. Con «Buscar», los
+sitios que coinciden salen en la sección Ruta para elegir con el dedo, y se traza la ruta en coche desde donde estás, con [openrouteservice](https://openrouteservice.org): la línea en el mapa, la
 distancia, el tiempo, la hora de llegada y la lista de pasos en español. Su clave (gratis) va en
 Ajustes → Casa → «Rutas del modo carretera», o en el `.env` como `OPENROUTESERVICE_API_KEY` (manda
 esta), y no sale del servidor. Allí también se puede poner la dirección de un openrouteservice
