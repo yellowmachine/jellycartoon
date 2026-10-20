@@ -74,6 +74,8 @@ test('routeFromOrs: the line, the totals, and each step where it is done', () =>
 	});
 	expect(route?.distance).toBe(1830.4);
 	expect(route?.duration).toBe(245.1);
+	// Each step's own time, for what is left stretch by stretch.
+	expect(route?.steps.map((s) => s.duration)).toEqual([120, 125.1, 0]);
 	expect(route?.line).toHaveLength(3);
 	expect(route?.steps.map((s) => [s.instruction, s.at, s.type, s.index])).toEqual([
 		// Setting off, by car: «Sal», not «Camina».

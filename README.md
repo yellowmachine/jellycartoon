@@ -551,6 +551,12 @@ esta), y no sale del servidor. Allí también se puede poner la dirección de un
 propio (Docker), para las rutas; buscar sitios sigue siendo el suyo. Su plan gratuito permite unas
 2.000 rutas y 1.000 búsquedas al día.
 
+El tiempo que queda y la hora de llegada van siempre a la vista, junto a la siguiente maniobra, y
+la voz los dice («¿cuánto falta?»). Se calculan tramo a tramo, con lo que openrouteservice calcula
+para cada uno (la autovía va más rápida que el pueblo), y, pasados unos 5 km, al ritmo de cada uno:
+lo que se tarda conduciendo (no parado) frente a lo que calculaba, entre un 15 % más rápido y un 40 %
+más lento. No sabe del tráfico que viene; del que ya se pasó, sí.
+
 Con la ruta puesta, guía según avanzas: arriba del mapa, en grande, la próxima maniobra con su
 flecha y a cuántos metros; en la lista, el paso que toca, resaltado; y lo que queda y la hora de
 llegada, al día. Al elegir el destino se ve la ruta entera unos segundos y luego el mapa vuelve a

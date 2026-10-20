@@ -17,6 +17,8 @@ export interface RouteStep {
 	instruction: string;
 	/** Metres from this step to the next. */
 	distance: number;
+	/** Seconds openrouteservice reckons it takes, at its roads' speeds (#78). */
+	duration: number;
 	/** Where it is done: the first point of the step. */
 	at: LngLat;
 	/** That point's index in the route's line, to know how far along it is. */

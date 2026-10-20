@@ -21,6 +21,7 @@
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { distanceText, type LngLat, type Place, type Route } from '#lib/road.ts';
 	import { alongLine, guide } from '#lib/road-guide.ts';
+	import { durationText, estimate, Pace } from '#lib/road-eta.ts';
 	import { toSay } from '#lib/road-voice.ts';
 	import type { PageProps } from './$types';
 
@@ -94,7 +95,11 @@
 			position: () => here,
 			navigation: () =>
 				destination && route
-					? `a ${destination.label}, quedan ${distanceText(guidance?.remaining ?? route.distance)}`
+					? `a ${destination.label}, quedan ${distanceText(guidance?.remaining ?? route.distance)}${
+							eta
+								? `, unos ${durationText(eta.seconds)}: llegada hacia las ${clock.format(eta.arrival)}`
+								: ''
+						}`
 					: null,
 			navigate: (place) => {
 				if (!place) return clearRoute();
@@ -266,6 +271,8 @@
 		const body = await res?.json().catch(() => null);
 		routeBusy = null;
 		if (!res?.ok) return void (routeProblem = body?.message ?? 'Sin conexión');
+		// Made again on the way (off it): one's pace so far stays for the new one.
+		pace.restart(again);
 		route = body;
 		destination = place;
 		places = null;
@@ -357,10 +364,7 @@
 	function share() {
 		void tripShare.start(() => ({
 			destination: destination?.label ?? null,
-			arrivesAt:
-				route && guidance
-					? Date.now() + route.duration * (guidance.remaining / (route.distance || 1)) * 1000
-					: null
+			arrivesAt: eta ? eta.arrival.getTime() : null
 		}));
 	}
 	$effect(() => {
@@ -406,10 +410,21 @@
 	const tabMap = $derived(mapInTab && (tab === 'ruta' || route !== null));
 
 	const clock = new Intl.DateTimeFormat('es', { timeStyle: 'short' });
-	/** «1 h 25 min», «12 min». */
-	function durationText(seconds: number) {
-		const minutes = Math.round(seconds / 60);
-		return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`;
+
+	/**
+	 * How long is left and when we arrive: stretch by stretch, and at one's pace once a few km are
+	 * driven (`Pace`, time moving only). Again at each position.
+	 */
+	const pace = new Pace();
+	const eta = $derived(
+		route && guidance && !guidance.arrived ? estimate(route, guidance, pace) : null
+	);
+
+	/** Each position from the GPS: where we are, how fast, and the time driving for one's pace. */
+	function positioned(at: LngLat, metresPerSecond: number | null) {
+		pace.tick(Date.now(), metresPerSecond);
+		here = at;
+		speed = metresPerSecond;
 	}
 
 	const big =
@@ -435,10 +450,17 @@
 	{:else if guidance?.next}
 		<div class="{where} flex items-center gap-4 rounded-2xl bg-zinc-950/90 p-4 text-left shadow-xl">
 			<ManeuverIcon type={guidance.next.type} class="h-16 w-16 shrink-0 text-amber-400" />
-			<div class="min-w-0">
+			<div class="min-w-0 flex-1">
 				<p class="text-4xl font-bold tabular-nums">{distanceText(guidance.toNext)}</p>
 				<p class="line-clamp-2 text-xl text-zinc-200">{guidance.next.instruction}</p>
 			</div>
+			{#if eta}
+				<!-- What is left, always in view: the time, and when. -->
+				<div class="shrink-0 text-right">
+					<p class="text-2xl font-semibold tabular-nums">{durationText(eta.seconds)}</p>
+					<p class="text-lg text-zinc-400 tabular-nums">llega {clock.format(eta.arrival)}</p>
+				</div>
+			{/if}
 		</div>
 	{/if}
 {/snippet}
@@ -553,14 +575,7 @@ the app's microphone, which the voice's big one right above would be taken for. 
 >
 	{#if mapShown}
 		<div class="relative h-full min-h-0">
-			<RoadMap
-				{route}
-				destination={destination?.at ?? null}
-				onposition={(at, metresPerSecond) => {
-					here = at;
-					speed = metresPerSecond;
-				}}
-			/>
+			<RoadMap {route} destination={destination?.at ?? null} onposition={positioned} />
 			{@render maneuver('absolute inset-x-3 top-3')}
 			{@render searchBox()}
 			<!-- Out of the way of the next maneuver, at the top; «Mapa» brings it back. -->
@@ -782,14 +797,7 @@ the app's microphone, which the voice's big one right above would be taken for. 
 		{#if tabMap}
 			<!-- Kept while a route is followed, out of sight elsewhere: its GPS guides. -->
 			<div class={tab === 'ruta' ? 'relative h-[45dvh] shrink-0' : 'h-0 overflow-hidden'}>
-				<RoadMap
-					{route}
-					destination={destination?.at ?? null}
-					onposition={(at, metresPerSecond) => {
-						here = at;
-						speed = metresPerSecond;
-					}}
-				/>
+				<RoadMap {route} destination={destination?.at ?? null} onposition={positioned} />
 				{@render maneuver('absolute inset-x-3 top-3')}
 				{@render searchBox()}
 			</div>
@@ -822,16 +830,8 @@ the app's microphone, which the voice's big one right above would be taken for. 
 							<div class="rounded-2xl bg-zinc-900 p-4">
 								<p class="truncate text-xl font-semibold">{destination.label}</p>
 								<p class="text-lg text-zinc-300">
-									{distanceText(guidance?.remaining ?? route.distance)} · {durationText(
-										route.duration *
-											((guidance?.remaining ?? route.distance) / (route.distance || 1))
-									)} · llegada a las
-									{clock.format(
-										Date.now() +
-											route.duration *
-												((guidance?.remaining ?? route.distance) / (route.distance || 1)) *
-												1000
-									)}
+									{distanceText(guidance?.remaining ?? route.distance)}{#if eta}
+										· {durationText(eta.seconds)} · llegada a las {clock.format(eta.arrival)}{/if}
 								</p>
 								<div class="mt-3 flex flex-wrap gap-2">
 									<button
