@@ -516,6 +516,9 @@ oficial para Vulkan) en la GPU, en español.
   entiende mejor, a cambio de más memoria y más tiempo.
 - Solo lo alcanza la app, por la red de Docker: no publica puertos. El audio no sale de casa.
 - Convierte con ffmpeg lo que graba el navegador: WebM/Opus en Android, MP4/AAC en iPhone.
+- Para los subtítulos automáticos, mide cuándo empieza cada palabra (`-dtw`, que va sin _flash
+  attention_): cada frase sale justo antes de que se diga, no hasta 2 s antes como pasaba con las
+  risas o el diálogo rápido (#86).
 - El micrófono del navegador necesita HTTPS, que ya da Caddy.
 - La imagen va fijada a la de una versión (v1.9.5) y WUD no la actualiza: se cambia a mano en el
   compose.

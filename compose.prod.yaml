@@ -202,7 +202,10 @@ services:
       WHISPER_MODEL: ${WHISPER_MODEL:-small}
     # The model, the first time, with the image's download-ggml-model.sh (as in its README), to a
     # folder apart and then moved, so that a download cut halfway is not taken for the model. Then
-    # the server: in Spanish, and converting with ffmpeg what the browser records (--convert).
+    # the server: in Spanish, and converting with ffmpeg what the browser records (--convert). With
+    # each word timed against the audio (-dtw, its model's name as whisper.cpp writes it, e.g.
+    # large-v3-turbo-q5_0 is large.v3.turbo), for subtitles that start when the words do (#86); it
+    # does not work with flash attention (-nfa).
     command:
       - bash
       - -c
@@ -213,7 +216,8 @@ services:
         download-ggml-model.sh $$WHISPER_MODEL /models/.download &&
         mv /models/.download/ggml-$$WHISPER_MODEL.bin $$m || exit 1;
         fi;
-        exec whisper-server --host 0.0.0.0 --port 8080 -m $$m -l es --convert
+        dtw=$${WHISPER_MODEL%-q[0-9]*}; dtw=$${dtw//-/.};
+        exec whisper-server --host 0.0.0.0 --port 8080 -m $$m -l es --convert -nfa -dtw $$dtw
     volumes:
       - whisper_models:/models
 
