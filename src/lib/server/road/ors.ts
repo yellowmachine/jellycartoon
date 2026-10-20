@@ -2,6 +2,7 @@ import { DEFAULT_ORS_URL, orsConfig } from '#lib/server/app-settings.ts';
 import { log } from '#lib/server/log.ts';
 import type { LngLat, Place, Route } from '#lib/road.ts';
 import { placesFromOrs, routeFromOrs } from './ors-parse.ts';
+import { withRetries } from './retry.ts';
 
 /**
  * openrouteservice (https://openrouteservice.org), for the road mode (#78): places by their name
@@ -21,18 +22,25 @@ async function ors(what: 'routes' | 'search', path: string, init: RequestInit = 
 	const { apiKey } = config;
 	if (!apiKey && url === DEFAULT_ORS_URL)
 		throw new OrsError('Falta la clave de openrouteservice: ponla en Ajustes.');
-	const res = await fetch(`${url}${path}`, {
-		...init,
-		headers: {
-			...(apiKey ? { Authorization: apiKey } : {}),
-			Accept: 'application/json, application/geo+json',
-			...(init.body ? { 'Content-Type': 'application/json' } : {}),
-			...init.headers
-		},
-		signal: AbortSignal.timeout(20_000)
-	}).catch((error) => {
-		throw new OrsError(`No se pudo hablar con openrouteservice: ${error.message}`);
+	const ask = () =>
+		fetch(`${url}${path}`, {
+			...init,
+			headers: {
+				...(apiKey ? { Authorization: apiKey } : {}),
+				Accept: 'application/json, application/geo+json',
+				...(init.body ? { 'Content-Type': 'application/json' } : {}),
+				...init.headers
+			},
+			signal: AbortSignal.timeout(20_000)
+		}).catch((error) => {
+			throw new OrsError(`No se pudo hablar con openrouteservice: ${error.message}`);
+		});
+	const { res, unavailable } = await withRetries(ask, {
+		onRetry: (status) =>
+			log.warn('rutas', `openrouteservice respondió ${status}: se pregunta otra vez`, { path })
 	});
+	if (unavailable)
+		throw new OrsError('openrouteservice no responde ahora mismo: prueba en un momento.');
 	const body = await res.json().catch(() => null);
 	if (res.status === 429 || res.status === 403)
 		throw new OrsError('Se ha acabado la cuota de openrouteservice por ahora: prueba más tarde.');
