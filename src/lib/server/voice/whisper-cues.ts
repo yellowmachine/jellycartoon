@@ -57,11 +57,13 @@ const readUntil = (phrase: Cue) =>
 /**
  * How the phrases are put on screen, chosen by each in «⚙ Estilo» (#86): with quick talk, a phrase
  * shown only while it is said could not be read, so two are on screen at once.
+ * - `single`: one line, each phrase alone until the next (or until read, with nobody talking): for
+ *   slow talk; with quick talk, a phrase may go before it is read.
  * - `blocks`: two lines that do not move; the second comes under the first, and then both go.
  * - `rollup`: the one being said at the bottom, the one before above it, as the TV's live ones.
  * - `rollupDim`: the same, the one before dimmed, so the eye finds the new one.
  */
-export const SUBTITLE_FORMS = ['blocks', 'rollup', 'rollupDim'] as const;
+export const SUBTITLE_FORMS = ['single', 'blocks', 'rollup', 'rollupDim'] as const;
 export type SubtitleForm = (typeof SUBTITLE_FORMS)[number];
 
 /** Said at once with the next one (a start this close): shown with it. */
@@ -121,9 +123,20 @@ function inBlocks(sorted: Cue[]): Cue[] {
 	return cues;
 }
 
+/** One at a time: each until the next comes, or until it can be read. */
+function oneByOne(sorted: Cue[]): Cue[] {
+	return sorted.flatMap((phrase, i) => {
+		const next = sorted[i + 1];
+		if (next && next.start - phrase.start < AT_ONCE_SEC) return [];
+		const until = readUntil(phrase);
+		return [cue(phrase.start, next && next.start < until ? next.start : until, phrase.text)];
+	});
+}
+
 /** The phrases as subtitles, in the form chosen. */
 export function formCues(phrases: Cue[], form: SubtitleForm): Cue[] {
 	const sorted = [...phrases].sort((a, b) => a.start - b.start);
+	if (form === 'single') return oneByOne(sorted);
 	return form === 'blocks' ? inBlocks(sorted) : rollUp(sorted);
 }
 

@@ -22,6 +22,7 @@
 	import { distanceText, type LngLat, type Place, type Route } from '#lib/road.ts';
 	import { alongLine, guide } from '#lib/road-guide.ts';
 	import { durationText, estimate, Pace } from '#lib/road-eta.ts';
+	import { loadRecent, matching, remember, saveRecent } from '#lib/recent-places.ts';
 	import { toSay } from '#lib/road-voice.ts';
 	import type { PageProps } from './$types';
 
@@ -276,6 +277,53 @@
 		route = body;
 		destination = place;
 		places = null;
+		if (!again) saveRecent((recent = remember(recent, place)));
+	}
+
+	/**
+	 * Below the box as one types (#78): the last places gone to, from this device, then
+	 * openrouteservice's suggestions (from 3 letters, once typing stops for a moment). One touched,
+	 * the route at once.
+	 */
+	let recent = $state<Place[]>([]);
+	$effect(() => {
+		recent = loadRecent();
+	});
+	let suggesting = $state(false);
+	let suggestions = $state<Place[]>([]);
+	const recentShown = $derived(matching(recent, query));
+	const suggestionsShown = $derived(
+		suggestions.filter((s) => !recentShown.some((r) => r.label === s.label))
+	);
+	$effect(() => {
+		const q = query.trim();
+		if (!suggesting || q.length < 3) return void (suggestions = []);
+		const asked = new AbortController();
+		const timer = setTimeout(async () => {
+			const params = new URLSearchParams({ q });
+			const at = untrack(() => here);
+			if (at) {
+				params.set('lon', String(at[0]));
+				params.set('lat', String(at[1]));
+			}
+			const res = await fetch(`/carretera/sugerencias?${params}`, { signal: asked.signal }).catch(
+				() => null
+			);
+			// Without them (the quota, no signal), the last places and «Buscar» are still there.
+			suggestions = res?.ok ? await res.json().catch(() => []) : [];
+		}, 300);
+		return () => {
+			clearTimeout(timer);
+			asked.abort();
+		};
+	});
+
+	function choose(place: Place) {
+		suggesting = false;
+		query = place.label;
+		// Beside: the route as it comes, or why not yet (the GPS).
+		tab = 'ruta';
+		void go(place);
 	}
 
 	/**
@@ -468,15 +516,87 @@
 <!-- Where to, written on the map: only parked and without a route; the places, in the panel. -->
 {#snippet searchBox()}
 	{#if !route && !moving}
-		<form class="absolute inset-x-3 top-3 flex gap-2" onsubmit={search}>
-			<input
-				bind:value={query}
-				type="search"
-				enterkeyhint="search"
-				placeholder="¿A dónde vas?"
-				aria-label="Destino"
-				class="min-w-0 flex-1 rounded-xl border-zinc-700 bg-zinc-950/90 px-4 py-3 text-xl shadow-xl"
-			/>
+		<form
+			class="absolute inset-x-3 top-3 flex gap-2"
+			onsubmit={(e) => {
+				suggesting = false;
+				void search(e);
+			}}
+		>
+			<div class="relative min-w-0 flex-1">
+				<input
+					bind:value={query}
+					type="search"
+					enterkeyhint="search"
+					autocomplete="off"
+					placeholder="¿A dónde vas?"
+					aria-label="Destino"
+					role="combobox"
+					aria-autocomplete="list"
+					aria-expanded={suggesting && (recentShown.length > 0 || suggestionsShown.length > 0)}
+					aria-controls="destinos"
+					class="w-full rounded-xl border-zinc-700 bg-zinc-950/90 px-4 py-3 text-xl shadow-xl"
+					onfocus={() => (suggesting = true)}
+					onblur={() => (suggesting = false)}
+					onkeydown={(e) => e.key === 'Escape' && (suggesting = false)}
+				/>
+				{#if suggesting && (recentShown.length || suggestionsShown.length)}
+					<!-- Kept open while touched: the press would blur the box first. -->
+					<ul
+						id="destinos"
+						class="absolute inset-x-0 top-full mt-1 max-h-[60vh] overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-950/95 shadow-2xl"
+					>
+						{#each recentShown as place (place.label)}
+							<li>
+								<button
+									type="button"
+									class="flex w-full items-center gap-3 px-4 py-3 text-left text-lg active:bg-zinc-800"
+									onpointerdown={(e) => e.preventDefault()}
+									onclick={() => choose(place)}
+								>
+									<!-- Gone to before. -->
+									<svg
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.5"
+										stroke-linecap="round"
+										class="h-6 w-6 shrink-0 text-zinc-400"
+										aria-hidden="true"
+										><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></svg
+									>
+									<span class="min-w-0 truncate">{place.label}</span>
+								</button>
+							</li>
+						{/each}
+						{#each suggestionsShown as place (place.label)}
+							<li>
+								<button
+									type="button"
+									class="flex w-full items-center gap-3 px-4 py-3 text-left text-lg active:bg-zinc-800"
+									onpointerdown={(e) => e.preventDefault()}
+									onclick={() => choose(place)}
+								>
+									<svg
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.5"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										class="h-6 w-6 shrink-0 text-zinc-500"
+										aria-hidden="true"
+										><path
+											d="M12 21s-6.5-6.2-6.5-11.2A6.5 6.5 0 0 1 12 3.3a6.5 6.5 0 0 1 6.5 6.5C18.5 14.8 12 21 12 21z"
+										/><circle cx="12" cy="9.8" r="2.3" /></svg
+									>
+									<span class="min-w-0 truncate">{place.label}</span>
+								</button>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</div>
 			<button
 				class="rounded-xl bg-amber-500 px-5 text-xl font-semibold text-zinc-950 shadow-xl disabled:opacity-50"
 				disabled={routeBusy !== null}>{routeBusy === 'search' ? 'Buscando…' : 'Buscar'}</button
@@ -587,48 +707,7 @@ the app's microphone, which the voice's big one right above would be taken for. 
 	{/if}
 	<div class={['flex flex-col gap-4', mapShown ? 'min-h-0' : 'min-h-dvh p-4']}>
 		{#if tab === null}
-			<!-- Little, out of the way: leaving, the map back, and whether the trip is kept. -->
-			<div class="flex items-center justify-between gap-3">
-				<a
-					href="/"
-					class="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 text-2xl text-zinc-300 active:bg-zinc-800"
-					aria-label="Salir del modo carretera"
-					title="Salir">←</a
-				>
-				<div class="flex items-center gap-2">
-					{#if data.map && wide && !showMap}
-						<button
-							class="rounded-full bg-zinc-900 px-4 py-2 text-base text-zinc-300 active:bg-zinc-800"
-							onclick={() => (showMap = true)}>Mapa</button
-						>
-					{/if}
-					{#if data.recordTrips}
-						<!-- Kept, and said: where one goes is not kept without knowing it (#81). -->
-						<button
-							class="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 active:bg-zinc-800"
-							aria-label={tripRecorder.problem ? 'No se guarda el viaje' : 'Se guarda este viaje'}
-							aria-expanded={tripNote}
-							onclick={() => (tripNote = !tripNote)}
-						>
-							{#if tripRecorder.problem}
-								<span
-									class="flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-sm font-bold text-zinc-950"
-									>!</span
-								>
-							{:else}
-								<span class="h-4 w-4 animate-pulse rounded-full bg-red-500"></span>
-							{/if}
-						</button>
-					{/if}
-				</div>
-			</div>
-			{#if tripNote && data.recordTrips}
-				<p class="-mt-2 text-right text-base text-zinc-400">
-					{tripRecorder.problem
-						? `No se guarda el viaje: ${tripRecorder.problem}`
-						: 'Se guarda este viaje («Guardar mis viajes», en Ajustes).'}
-				</p>
-			{/if}
+			<!-- Leaving, and whether the trip is kept: in what plays' own first line. -->
 		{:else}
 			<!-- In a section: the way back, big; what plays, to pause it; and the microphone, small. -->
 			<div class="flex items-center gap-3">
@@ -681,10 +760,17 @@ the app's microphone, which the voice's big one right above would be taken for. 
 
 		{#if tab === null}
 			<div class={['flex flex-col gap-4', mapShown && 'min-h-0 flex-1 overflow-y-auto']}>
-				<!-- What plays, with buttons a thumb finds without looking. -->
+				<!-- What plays, with buttons a thumb finds without looking; leaving, and the trip's dot, in
+				its first line. -->
 				<section class="rounded-3xl bg-zinc-900 p-4">
-					{#if playing}
-						<div class="flex items-center gap-4">
+					<div class="flex items-center gap-4">
+						<a
+							href="/"
+							class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-2xl text-zinc-300 active:bg-zinc-700"
+							aria-label="Salir del modo carretera"
+							title="Salir">←</a
+						>
+						{#if playing}
 							{#if playing.image}
 								<img
 									src={playing.image}
@@ -692,11 +778,54 @@ the app's microphone, which the voice's big one right above would be taken for. 
 									class="h-20 w-20 shrink-0 rounded-xl bg-zinc-800 object-cover"
 								/>
 							{/if}
-							<div class="min-w-0">
+							<div class="min-w-0 flex-1">
 								<p class="truncate text-2xl font-semibold">{playing.title}</p>
 								<p class="truncate text-lg text-zinc-400">{playing.detail}</p>
 							</div>
-						</div>
+						{:else}
+							<p class="min-w-0 flex-1 py-4 text-center text-xl text-zinc-400">
+								No suena nada. Elige abajo, o pídelo.
+							</p>
+						{/if}
+						{#if data.map && wide && !showMap}
+							<button
+								class="shrink-0 rounded-full bg-zinc-800 px-4 py-2 text-base text-zinc-300 active:bg-zinc-700"
+								onclick={() => (showMap = true)}>Mapa</button
+							>
+						{/if}
+						<!-- Kept or not, and said: where one goes is not kept without knowing it (#81). -->
+						<button
+							class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-800 active:bg-zinc-700"
+							aria-label={!data.recordTrips
+								? 'No se guardan tus viajes'
+								: tripRecorder.problem
+									? 'No se guarda el viaje'
+									: 'Se guarda este viaje'}
+							aria-expanded={tripNote}
+							onclick={() => (tripNote = !tripNote)}
+						>
+							{#if !data.recordTrips}
+								<span class="h-4 w-4 rounded-full bg-zinc-500"></span>
+							{:else if tripRecorder.problem}
+								<span
+									class="flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-sm font-bold text-zinc-950"
+									>!</span
+								>
+							{:else}
+								<span class="h-4 w-4 animate-pulse rounded-full bg-red-500"></span>
+							{/if}
+						</button>
+					</div>
+					{#if tripNote}
+						<p class="mt-2 text-right text-base text-zinc-400">
+							{!data.recordTrips
+								? 'No se guardan tus viajes: «Guardar mis viajes», en Ajustes.'
+								: tripRecorder.problem
+									? `No se guarda el viaje: ${tripRecorder.problem}`
+									: 'Se guarda este viaje («Guardar mis viajes», en Ajustes).'}
+						</p>
+					{/if}
+					{#if playing}
 						<div class="mt-4 flex items-center justify-center gap-4">
 							{#if music.podcast}
 								<button
@@ -733,10 +862,6 @@ the app's microphone, which the voice's big one right above would be taken for. 
 								>
 							{/if}
 						</div>
-					{:else}
-						<p class="py-6 text-center text-xl text-zinc-400">
-							No suena nada. Elige abajo, o pídelo.
-						</p>
 					{/if}
 				</section>
 

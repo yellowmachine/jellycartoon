@@ -61,6 +61,19 @@ export async function searchPlaces(text: string, near: LngLat | null): Promise<P
 	return placesFromOrs(await ors('search', `/geocode/search?${params}`));
 }
 
+/**
+ * Suggestions while the destination is typed: openrouteservice's autocomplete, quicker and meant
+ * for it, the nearest to `near` first. Its own quota (100 a minute), apart from searches'.
+ */
+export async function suggestPlaces(text: string, near: LngLat | null): Promise<Place[]> {
+	const params = new URLSearchParams({ text, size: '5', lang: 'es' });
+	if (near) {
+		params.set('focus.point.lon', String(near[0]));
+		params.set('focus.point.lat', String(near[1]));
+	}
+	return placesFromOrs(await ors('search', `/geocode/autocomplete?${params}`));
+}
+
 /** What is at a point (reverse geocoding): «Calle Mayor 5, Toledo», for «¿dónde estoy?». */
 export async function whereIs(at: LngLat): Promise<string | null> {
 	const params = new URLSearchParams({

@@ -21,15 +21,18 @@ SvelteKit 3 + Bun · Tailwind · Better Auth · Drizzle + Postgres · ffmpeg.
    "con continuidad" aportan su siguiente episodio pendiente; las de "episodios sueltos" (se cambia
    en la ficha de la serie) aportan uno al azar, priorizando lo no visto. Nunca dos seguidos de la
    misma serie. Lo visto se apunta al dueño de la playlist (pensando en el envío a otro dispositivo).
-4. **Reproducir**: hls.js (Safari usa su HLS nativo). Bajo el vídeo se elige audio y subtítulos;
-   la elección se guarda por usuario y se aplica a los siguientes episodios. El progreso también.
+4. **Reproducir**: hls.js (Safari usa su HLS nativo), con los controles de
+   [Media Chrome](https://www.media-chrome.org) en los colores de la app, iguales en todos los
+   navegadores y en español. En su menú ⚙ se elige audio y subtítulos (y su estilo), «Al terminar»,
+   el tamaño y «Usar este fotograma como miniatura»; la elección se guarda por usuario y se aplica
+   a los siguientes episodios. El progreso también.
    «⚙ Estilo» cambia cómo se ven los subtítulos (fuente, tamaño, color, fondo, contorno) y dónde:
    abajo, algo más arriba o más arriba, para que los ojos viajen menos; vale también para los
    canales y para el mpv del salón (`sub-pos`). Y, en los automáticos de Whisper, cómo se ven dos
-   frases seguidas: «Dos líneas fijas» (la segunda aparece debajo y no se mueve nada), «Suben»
+   frases seguidas: «Una línea» (cada frase sola, para el diálogo pausado), «Dos líneas fijas» (la segunda aparece debajo y no se mueve nada), «Suben»
    (la anterior sube y la nueva entra abajo) o «Suben, la de arriba en gris». Cada uno se monta
    al pedirlo a partir de las frases (`sub_auto_<idioma>.json`); para mpv, un fichero de cada
-   forma junto al de siempre. En mpv la gris se ve como «Suben».
+   forma junto al de siempre (la gris, en `.srt`, cuyo color mpv sí respeta).
    «Al terminar: Siguiente / Parar» (también guardado por usuario) decide si al acabar un
    capítulo empieza el siguiente de la serie, o de la programación o la lista. Con «Parar» el
    capítulo se marca como visto igual; en la programación y las listas el siguiente queda cargado
@@ -522,8 +525,9 @@ lado el navegador (Google Maps u Organic Maps, que hacen la navegación y el tr�
   Snapcast), y sin vídeo, cocina ni recetas; aunque pidiera un capítulo, no se abre.
 - La pantalla no se apaga mientras está abierto (Wake Lock). Para gastar menos datos móviles, la
   música en Opus: «Ahorro de datos» en Ajustes, en ese dispositivo.
-- Arriba, pequeños: «←» para salir y, si se guardan los viajes, un punto rojo (tocándolo dice qué
-  es; ámbar si algo falla). «Ocultar mapa» va sobre el mapa, y «Mapa» lo vuelve a poner.
+- En la misma línea que lo que suena: «←» para salir y un punto, rojo si se guarda el viaje y gris
+  si no (tocándolo dice qué es; ámbar si algo falla). «Ocultar mapa» va sobre el mapa, y «Mapa» lo
+  vuelve a poner.
 
 Con la tablet entera en horizontal (la pantalla ancha, sin partir), a la izquierda va un mapa
 propio ([MapLibre](https://maplibre.org)), con dónde estás por el GPS del navegador: la flecha
@@ -543,8 +547,10 @@ Solo baja los trozos de esa zona, no el planeta, y cambia el mapa cuando está e
 sigue funcionando mientras tanto. Sin ese fichero, el modo carretera va como siempre, sin mapa.
 
 Con el mapa, el destino se escribe en el propio mapa («¿A dónde vas?», arriba; solo parado y sin
-ruta: en marcha se esconde, y se pide por voz, «llévame a…»), los sitios que coinciden salen en la
-sección Ruta para elegir con el dedo, y se traza la ruta en coche desde donde estás, con [openrouteservice](https://openrouteservice.org): la línea en el mapa, la
+ruta: en marcha se esconde, y se pide por voz, «llévame a…»). Al escribir, debajo, los últimos
+destinos de ese dispositivo (el cole, los abuelos…; también sin escribir nada) y las sugerencias de
+openrouteservice (su autocompletado, desde 3 letras): tocando una se traza la ruta. Con «Buscar», los
+sitios que coinciden salen en la sección Ruta para elegir con el dedo, y se traza la ruta en coche desde donde estás, con [openrouteservice](https://openrouteservice.org): la línea en el mapa, la
 distancia, el tiempo, la hora de llegada y la lista de pasos en español. Su clave (gratis) va en
 Ajustes → Casa → «Rutas del modo carretera», o en el `.env` como `OPENROUTESERVICE_API_KEY` (manda
 esta), y no sale del servidor. Allí también se puede poner la dirección de un openrouteservice

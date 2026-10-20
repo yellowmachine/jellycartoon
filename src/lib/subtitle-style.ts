@@ -77,6 +77,7 @@ export const SUBTITLE_OPTIONS = {
 	automatic: {
 		label: 'Automáticos',
 		choices: {
+			single: { label: 'Una línea', css: '' },
 			blocks: { label: 'Dos líneas fijas', css: '' },
 			rollup: { label: 'Suben', css: '' },
 			rollupDim: { label: 'Suben, la de arriba en gris', css: '' }

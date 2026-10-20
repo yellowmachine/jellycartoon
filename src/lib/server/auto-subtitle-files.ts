@@ -1,7 +1,7 @@
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { formCues, phrasesFromVtt, type SubtitleForm } from '#lib/server/voice/whisper-cues.ts';
-import { parseVtt, serializeVtt, type Cue } from '#lib/vtt.ts';
+import { parseVtt, serializeSrt, serializeVtt, type Cue } from '#lib/vtt.ts';
 
 /**
  * Whisper's subtitles on disk (#86): their phrases (`sub_auto_<lang>.json`), and the .vtt in the
@@ -37,18 +37,24 @@ export async function writeAutoSubtitles(dir: string, file: string, phrases: Cue
 
 /**
  * The file of a form, beside it, for mpv, which reads them from disk (`sub_auto_eng.rollup.vtt`):
- * made again when the subtitles are newer. Its name.
+ * made again when the subtitles are newer. Its name. The dimmed one as .srt, whose colour mpv keeps.
  */
 export async function formFile(dir: string, file: string, form: SubtitleForm) {
 	if (form === DEFAULT_FORM && (await stat(path.join(dir, phrasesFile(file))).catch(() => null)))
 		return file;
-	const name = file.replace(/\.vtt$/, `.${form}.vtt`);
+	const dim = form === 'rollupDim';
+	const name = file.replace(/\.vtt$/, `.${form}.${dim ? 'srt' : 'vtt'}`);
 	const [made, source] = await Promise.all([
 		stat(path.join(dir, name)).catch(() => null),
 		stat(path.join(dir, file)).catch(() => null)
 	]);
 	if (!made || !source || made.mtimeMs < source.mtimeMs)
-		await writeFile(path.join(dir, name), formVtt(await readPhrases(dir, file), form));
+		await writeFile(
+			path.join(dir, name),
+			dim
+				? serializeSrt(formCues(await readPhrases(dir, file), form), { dim })
+				: formVtt(await readPhrases(dir, file), form)
+		);
 	return name;
 }
 
