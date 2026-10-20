@@ -6,28 +6,31 @@ import { podcastEpisode } from '#lib/server/db/schema.ts';
 import { listPlaylists } from '#lib/server/music/playlists.ts';
 import { continueListening, userPodcasts } from '#lib/server/podcasts/podcasts.ts';
 import { stationsInfo } from '#lib/server/radio.ts';
-import { mapFile } from '#lib/server/library/paths.ts';
+import { mapFile, musicRoot } from '#lib/server/library/paths.ts';
+import { getAlbums } from '#lib/server/music/albums.ts';
 import { recordsTrips } from '#lib/server/trips.ts';
 import { relayConfig } from '#lib/server/app-settings.ts';
 
 /**
- * The road mode (#78): what can be put on with one touch while driving. The stations, the music
- * lists, and the podcasts followed, each with its latest episode.
+ * The road mode (#78): what can be put on with one touch while driving. The stations, the albums,
+ * the music lists, and the podcasts followed, each with its latest episode.
  */
 export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
-	const [info, playlists, podcasts, inProgress, map, recordTrips, relay] = await Promise.all([
-		stationsInfo(),
-		listPlaylists(),
-		userPodcasts(userId),
-		continueListening(userId),
-		access(mapFile).then(
-			() => true,
-			() => false
-		),
-		recordsTrips(userId),
-		relayConfig()
-	]);
+	const [info, albums, playlists, podcasts, inProgress, map, recordTrips, relay] =
+		await Promise.all([
+			stationsInfo(),
+			musicRoot ? getAlbums() : [],
+			listPlaylists(),
+			userPodcasts(userId),
+			continueListening(userId),
+			access(mapFile).then(
+				() => true,
+				() => false
+			),
+			recordsTrips(userId),
+			relayConfig()
+		]);
 	const latest = podcasts.length
 		? await db
 				.selectDistinctOn([podcastEpisode.podcastId], {
@@ -46,6 +49,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		: [];
 	return {
 		info,
+		/** Without their tracks: those come when one is put on (/carretera/album). */
+		albums: albums.map(({ id, title, artist, hasCover }) => ({ id, title, artist, hasCover })),
 		playlists: playlists.filter((p) => p.total > 0),
 		podcasts: podcasts.flatMap((p) => {
 			const episode = latest.find((e) => e.podcastId === p.id);
