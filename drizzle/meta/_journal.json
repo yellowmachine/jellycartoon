@@ -379,6 +379,13 @@
       "when": 1792473887955,
       "tag": "0053_puzzling_rumiko_fujikawa",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1792506154876,
+      "tag": "0054_dapper_cerise",
+      "breakpoints": true
     }
   ]
 }

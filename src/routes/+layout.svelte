@@ -9,6 +9,7 @@
 	import TimerBar from '#lib/components/TimerBar.svelte';
 	import VoicePanel from '#lib/components/VoicePanel.svelte';
 	import MediaIcon from '#lib/components/MediaIcon.svelte';
+	import OpeningQuote from '#lib/components/OpeningQuote.svelte';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 	import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
 	import { videoHere } from '#lib/video-here.svelte.ts';
@@ -17,9 +18,15 @@
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { page, updated } from '$app/state';
 	import { themeColor, themeCss } from '#lib/themes.ts';
+	import { untrack } from 'svelte';
 	import type { LayoutProps } from './$types';
 
 	let { children, data }: LayoutProps = $props();
+
+	/** The title card when the app opens (Ajustes), once: not over a video opened from a link. */
+	let openingQuote = $state(
+		untrack(() => (page.url.pathname.startsWith('/watch') ? null : data.openingQuote))
+	);
 
 	// After an update (#20), a tab left open (the TV's /tv) still runs the old code: the next
 	// navigation loads the whole page, the new version, instead. SvelteKit notices the new version on
@@ -173,6 +180,10 @@
 	<!-- The account's colours (Ajustes): values only from the themes' table. -->
 	{@html themeCss(data.theme)}
 </svelte:head>
+
+{#if openingQuote}
+	<OpeningQuote quote={openingQuote} ondone={() => (openingQuote = null)} />
+{/if}
 
 <!-- The TV view (#11) and the road mode (#78) are the whole screen, without the site around it. -->
 {#if page.url.pathname === '/tv' || page.url.pathname.startsWith('/tv/') || page.url.pathname === '/carretera'}
