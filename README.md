@@ -29,7 +29,7 @@ SvelteKit 3 + Bun · Tailwind · Better Auth · Drizzle + Postgres · ffmpeg.
    frases seguidas: «Dos líneas fijas» (la segunda aparece debajo y no se mueve nada), «Suben»
    (la anterior sube y la nueva entra abajo) o «Suben, la de arriba en gris». Cada uno se monta
    al pedirlo a partir de las frases (`sub_auto_<idioma>.json`); para mpv, un fichero de cada
-   forma junto al de siempre. En mpv la gris se ve como «Suben».
+   forma junto al de siempre (la gris, en `.srt`, cuyo color mpv sí respeta).
    «Al terminar: Siguiente / Parar» (también guardado por usuario) decide si al acabar un
    capítulo empieza el siguiente de la serie, o de la programación o la lista. Con «Parar» el
    capítulo se marca como visto igual; en la programación y las listas el siguiente queda cargado

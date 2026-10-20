@@ -86,6 +86,25 @@ export function serializeVtt(cues: Cue[], { dim = false } = {}) {
 	);
 }
 
+/**
+ * Cues as SubRip (.srt), for mpv: its subtitles keep `<font color>` (a .vtt's classes are lost on
+ * the way to libass), so a rolled-up cue's phrase before can go grey there too, under the rest of
+ * the chosen style. Its own `<` and `>`, as look-alikes: SubRip has no escaping.
+ */
+export function serializeSrt(cues: Cue[], { dim = false } = {}) {
+	const srtTime = (sec: number) => timestamp(sec).replace('.', ',');
+	const plainText = (text: string) => text.replace(/</g, '‹').replace(/>/g, '›');
+	const text = (c: Cue) =>
+		c.previous === undefined
+			? plainText(c.text)
+			: `${dim ? `<font color="#9a9a9a">${plainText(c.previous)}</font>` : plainText(c.previous)}\n${plainText(c.text)}`;
+	return (
+		cues
+			.map((c, i) => `${i + 1}\n${srtTime(c.start)} --> ${srtTime(c.end)}\n${text(c)}`)
+			.join('\n\n') + '\n'
+	);
+}
+
 /** The cues as running text: one line each, repeated ones (karaoke-style updates) once. */
 export const cuesText = (cues: Cue[]) =>
 	cues

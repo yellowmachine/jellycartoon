@@ -42,6 +42,14 @@ describe('made now: its phrases kept', () => {
 		expect(await readFile(path.join(dir, name), 'utf8')).toContain('Nope.\nNo, it');
 	});
 
+	test('dimmed, for mpv: a .srt with the line before in grey, which mpv keeps', async () => {
+		const name = await formFile(dir, 'sub_auto_eng.vtt', 'rollupDim');
+		expect(name).toBe('sub_auto_eng.rollupDim.srt');
+		expect(await readFile(path.join(dir, name), 'utf8')).toContain(
+			'2\n00:00:02,400 --> 00:00:03,000\n<font color="#9a9a9a">Has she slept at all?</font>\nNope.'
+		);
+	});
+
 	test("made again, a form's file is made again too", async () => {
 		const beside = path.join(dir, 'sub_auto_eng.rollup.vtt');
 		await utimes(beside, new Date(0), new Date(0));
