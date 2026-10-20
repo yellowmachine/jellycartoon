@@ -136,8 +136,30 @@ export async function startUpdate(): Promise<'started' | 'not-ready'> {
 		}).catch((error) => log.warn('versiones', 'WUD no terminó la actualización', { error }));
 		return 'started';
 	}
-	const fresh: Container = await wud(`/api/containers/${self.id}/watch`, { method: 'POST' });
-	if (!fresh.updateAvailable) return 'not-ready';
+	// Every container, not only the app: what the others have new (Caddy…) is known before the app
+	// restarts, for UpdateProgress to wait for it too (`pendingUpdates`).
+	const fresh = app(await wud('/api/containers/watch', { method: 'POST' }));
+	if (!fresh?.updateAvailable) return 'not-ready';
 	log.info('versiones', 'WUD ha encontrado la versión nueva y la está instalando');
 	return 'started';
+}
+
+/**
+ * How many containers WUD still has to update: after the app it goes on with the rest (Caddy,
+ * Snapcast…), one by one, and while Caddy restarts the browser reaches nothing. Null without WUD
+ * or when it does not answer.
+ */
+export async function pendingUpdates(): Promise<number | null> {
+	if (!WUD_URL || !WUD_PASSWORD) return null;
+	try {
+		const containers: { updateAvailable: boolean }[] = await wud('/api/containers', {
+			signal: AbortSignal.timeout(5_000)
+		});
+		return containers.filter((c) => c.updateAvailable).length;
+	} catch (error) {
+		log.warn('versiones', 'No se pudo preguntar a WUD qué le queda por actualizar', {
+			error: String(error)
+		});
+		return null;
+	}
 }
