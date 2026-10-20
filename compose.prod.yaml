@@ -106,9 +106,10 @@ services:
       - host.docker.internal:host-gateway
 
   # HTTPS in front of the app, at ORIGIN's domain. Its DNS record points to this machine's Tailscale
-  # IP, so only the tailnet reaches it; Let's Encrypt can't, and the certificate comes from
-  # Cloudflare's DNS-01 challenge instead. The official image doesn't have that module: GitHub
-  # Actions builds one with it (Dockerfile.caddy).
+  # IP or its IP at home, so only the tailnet or the house's network reach it; Let's Encrypt can't,
+  # and the certificate comes from Cloudflare's DNS-01 challenge instead. The official image doesn't
+  # have that module: GitHub Actions builds one with it (Dockerfile.caddy). Without a domain, at
+  # home only, TLS=internal: Caddy's own authority signs it, and each device installs its root.
   caddy:
     image: ghcr.io/yellowmachine/jellycartoon-caddy:${IMAGE_TAG:-stable}
     restart: unless-stopped
@@ -124,7 +125,9 @@ services:
       # The site address (https://<domain>), for the Caddyfile in the image (deploy/Caddyfile).
       ORIGIN: ${ORIGIN:?ORIGIN is required}
       # Cloudflare API token with Zone.Zone:Read and Zone.DNS:Edit on the domain's zone.
-      CF_API_TOKEN: ${CF_API_TOKEN:?CF_API_TOKEN is required}
+      CF_API_TOKEN: ${CF_API_TOKEN:-}
+      # `cloudflare` (a domain, the default) or `internal` (at home only, without one): README.
+      TLS: ${TLS:-cloudflare}
     volumes:
       # Certificates and the ACME account: without them, a new certificate on every start.
       - caddy_data:/data

@@ -9,11 +9,19 @@ import { wakeMusicCatalog } from '#lib/server/music/catalog.ts';
 import { scanMusic } from '#lib/server/music/scan.ts';
 import { musicProgress } from '#lib/server/music/status.ts';
 import { parseView, viewCookie } from '#lib/views.ts';
+import { isKid } from '#lib/server/kids.ts';
+import { hasTripsPage } from '#lib/server/trips.ts';
 
-export const load: PageServerLoad = async ({ cookies }) => {
+export const load: PageServerLoad = async ({ cookies, locals }) => {
 	if (!musicRoot) error(404, 'No hay carpeta de música (MUSIC_DIR)');
-	const [albums, totals] = await Promise.all([getAlbums(), musicTotals()]);
+	const [albums, totals, trips] = await Promise.all([
+		getAlbums(),
+		musicTotals(),
+		!isKid(locals.user) && hasTripsPage(locals.user!.id)
+	]);
 	return {
+		/** «Mis viajes», beside «Modo carretera», for whoever has trips (#81). */
+		trips,
 		albums,
 		totals,
 		progress: { ...musicProgress },

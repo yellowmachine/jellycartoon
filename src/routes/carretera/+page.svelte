@@ -5,6 +5,7 @@
 	import MusicBar from '#lib/components/MusicBar.svelte';
 	import ManeuverIcon from '#lib/components/ManeuverIcon.svelte';
 	import RoadMap from '#lib/components/RoadMap.svelte';
+	import SectionIcon from '#lib/components/SectionIcon.svelte';
 	import type { MusicTrack } from '#lib/music.ts';
 	import { coverUrl } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
@@ -32,7 +33,7 @@
 
 	let { data }: PageProps = $props();
 
-	type Tab = 'radio' | 'listas' | 'podcasts' | 'ruta';
+	type Tab = 'radio' | 'musica' | 'listas' | 'podcasts' | 'ruta';
 	let tab = $state<Tab>('radio');
 	let loading = $state<string | null>(null);
 	let problem = $state<string | null>(null);
@@ -64,6 +65,22 @@
 	});
 	const mapShown = $derived(data.map && wide && showMap);
 
+	/**
+	 * A phone upright: no room beside, so the map has its own tab, Ruta. Told from the tablet in half
+	 * of the screen, as narrow, by the device's screen: under 600 px on its short side, as Android
+	 * tells phones from tablets. With the tablet in half, beside the navigator, no map nor GPS.
+	 */
+	let phone = $state(false);
+	$effect(() => {
+		const update = () => (phone = Math.min(screen.width, screen.height) < 600);
+		update();
+		addEventListener('resize', update);
+		return () => removeEventListener('resize', update);
+	});
+	const mapInTab = $derived(data.map && !wide && phone);
+	/** A route, beside or in its tab. */
+	const routable = $derived(mapShown || mapInTab);
+
 	// The voice knows it is in the car: no video, no house's speakers, short answers; and it can
 	// ask for a route («llévame a…») or say where we are, from here.
 	$effect(() => {
@@ -75,7 +92,7 @@
 					: null,
 			navigate: (place) => {
 				if (!place) return clearRoute();
-				if (mapShown) tab = 'ruta';
+				if (routable) tab = 'ruta';
 				void go(place);
 			},
 			photo: () => void roadPhotos.take()
@@ -118,15 +135,34 @@
 		});
 	}
 
-	function list(id: number) {
-		return busy(`lista-${id}`, async () => {
-			const res = await fetch(`/carretera/listas/${id}`).catch(() => null);
-			if (!res?.ok) return 'No se pudo cargar la lista.';
+	/**
+	 * What the music playing was put on from here (an album, «Todo aleatorio», a list): an album is
+	 * «Sonando» when it was put on, not because a random track is from it.
+	 */
+	let playingFrom = $state<string | null>(null);
+	const playingHere = (id: string) =>
+		playingFrom === id && Boolean(music.current) && !music.radio && !music.podcast;
+
+	/** Tracks asked for when put on, not all of them with the page. */
+	function playFrom(id: string, url: string, empty: string) {
+		if (playingHere(id)) return music.toggle();
+		return busy(id, async () => {
+			const res = await fetch(url).catch(() => null);
+			if (!res?.ok) return 'No se pudo cargar.';
 			const tracks: MusicTrack[] = await res.json();
-			if (!tracks.length) return 'La lista está vacía.';
+			if (!tracks.length) return empty;
 			music.play(tracks, 0);
+			playingFrom = id;
 		});
 	}
+
+	const list = (id: number) =>
+		playFrom(`lista-${id}`, `/carretera/listas/${id}`, 'La lista está vacía.');
+
+	const album = (id: number) =>
+		playFrom(`album-${id}`, `/carretera/album/${id}`, 'El álbum está vacío.');
+
+	const everything = () => playFrom('aleatorio', '/carretera/aleatorio', 'No hay música.');
 
 	function podcast(episodeId: number) {
 		if (music.podcast?.id === episodeId) return music.toggle();
@@ -148,12 +184,14 @@
 		(a, b) => Number(b.language === 'es') - Number(a.language === 'es')
 	);
 
+	/** Drawn, so they are seen at a glance; their names for whoever does not see them. */
 	const TABS: { id: Tab; label: string }[] = $derived([
 		{ id: 'radio', label: 'Radio' },
+		...(data.music ? [{ id: 'musica' as const, label: 'Música' }] : []),
 		{ id: 'listas', label: 'Listas' },
 		{ id: 'podcasts', label: 'Podcasts' },
-		// Only with the map beside, where the route is drawn.
-		...(mapShown ? [{ id: 'ruta' as const, label: 'Ruta' }] : [])
+		// Only with the map beside, or a phone's own tab for it: where the route is drawn.
+		...(routable ? [{ id: 'ruta' as const, label: 'Ruta' }] : [])
 	]);
 
 	/**
@@ -187,9 +225,21 @@
 		places = body;
 	}
 
+	/** Asked for before the GPS said where we are (by voice, on the phone): it goes then. */
+	let waiting = $state<Place | null>(null);
+	$effect(() => {
+		if (!here || !waiting) return;
+		const place = waiting;
+		waiting = null;
+		untrack(() => void go(place));
+	});
+
 	/** `again`: recalculated on the way, off the route; the list stays as it is meanwhile. */
 	async function go(place: Place, again = false) {
-		if (!here) return void (routeProblem = 'Esperando a saber dónde estás (el GPS)…');
+		if (!here) {
+			waiting = place;
+			return void (routeProblem = 'Esperando a saber dónde estás (el GPS)…');
+		}
 		routeBusy = again ? 'reroute' : 'route';
 		routeProblem = null;
 		const res = await fetch('/carretera/ruta', {
@@ -321,6 +371,7 @@
 	});
 
 	function clearRoute() {
+		waiting = null;
 		route = null;
 		destination = null;
 		places = null;
@@ -329,8 +380,14 @@
 
 	// The map hidden with the route open: back to the stations.
 	$effect(() => {
-		if (!mapShown && tab === 'ruta') tab = 'radio';
+		if (!routable && tab === 'ruta') tab = 'radio';
 	});
+
+	/**
+	 * On the phone, the map while it is looked at, or while a route is followed in another tab: its
+	 * GPS is what guides, so the directions go on with Radio or Música in view.
+	 */
+	const tabMap = $derived(mapInTab && (tab === 'ruta' || route !== null));
 
 	const clock = new Intl.DateTimeFormat('es', { timeStyle: 'short' });
 	/** «1 h 25 min», «12 min». */
@@ -349,6 +406,61 @@
 	<title>Carretera · JellyCartoon</title>
 </svelte:head>
 
+<!-- The next maneuver, big: what to do, and in how much. Over the map, or above the tabs. -->
+{#snippet maneuver(where: string)}
+	{#if routeBusy === 'reroute'}
+		<p class="{where} rounded-2xl bg-zinc-950/90 p-4 text-2xl font-semibold text-amber-300">
+			Recalculando la ruta…
+		</p>
+	{:else if guidance?.arrived && destination}
+		<p class="{where} rounded-2xl bg-emerald-600/95 p-4 text-2xl font-semibold text-white">
+			Has llegado: {destination.label}
+		</p>
+	{:else if guidance?.next}
+		<div class="{where} flex items-center gap-4 rounded-2xl bg-zinc-950/90 p-4 text-left shadow-xl">
+			<ManeuverIcon type={guidance.next.type} class="h-16 w-16 shrink-0 text-amber-400" />
+			<div class="min-w-0">
+				<p class="text-4xl font-bold tabular-nums">{distanceText(guidance.toNext)}</p>
+				<p class="line-clamp-2 text-xl text-zinc-200">{guidance.next.instruction}</p>
+			</div>
+		</div>
+	{/if}
+{/snippet}
+
+<!-- Each tab, drawn: Radio and Música as in the rest of the app; Podcasts as headphones here, not
+the app's microphone, which the voice's big one right above would be taken for. -->
+{#snippet tabIcon(id: Tab)}
+	{#if id === 'radio' || id === 'musica'}
+		<SectionIcon name={id} class="h-8 w-8" />
+	{:else}
+		<svg
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="1.5"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+			class="h-8 w-8"
+			aria-hidden="true"
+		>
+			{#if id === 'podcasts'}
+				<path d="M4 15v-3a8 8 0 0 1 16 0v3" />
+				<path
+					d="M4 15a2 2 0 0 1 2-2h1v7H6a2 2 0 0 1-2-2zM20 15a2 2 0 0 0-2-2h-1v7h1a2 2 0 0 0 2-2z"
+				/>
+			{:else if id === 'listas'}
+				<path d="M4 6h11M4 11h11M4 16h7" />
+				<path d="M18 19.5a2 2 0 1 1-2-2 2 2 0 0 1 2 2zM18 19.5V9l3-1" />
+			{:else}
+				<path
+					d="M12 21s-6.5-6.2-6.5-11.2A6.5 6.5 0 0 1 12 3.3a6.5 6.5 0 0 1 6.5 6.5C18.5 14.8 12 21 12 21z"
+				/>
+				<circle cx="12" cy="9.8" r="2.3" />
+			{/if}
+		</svg>
+	{/if}
+{/snippet}
+
 <div
 	class={['bg-zinc-950 text-zinc-100 select-none', mapShown && 'grid h-dvh grid-cols-2 gap-4 p-4']}
 >
@@ -362,34 +474,11 @@
 					speed = metresPerSecond;
 				}}
 			/>
-			<!-- The next maneuver, big, over the map: what to do, and in how much. -->
-			{#if routeBusy === 'reroute'}
-				<p
-					class="absolute inset-x-3 top-3 rounded-2xl bg-zinc-950/90 p-4 text-2xl font-semibold text-amber-300"
-				>
-					Recalculando la ruta…
-				</p>
-			{:else if guidance?.arrived && destination}
-				<p
-					class="absolute inset-x-3 top-3 rounded-2xl bg-emerald-600/95 p-4 text-2xl font-semibold text-white"
-				>
-					Has llegado: {destination.label}
-				</p>
-			{:else if guidance?.next}
-				<div
-					class="absolute inset-x-3 top-3 flex items-center gap-4 rounded-2xl bg-zinc-950/90 p-4 shadow-xl"
-				>
-					<ManeuverIcon type={guidance.next.type} class="h-16 w-16 shrink-0 text-amber-400" />
-					<div class="min-w-0">
-						<p class="text-4xl font-bold tabular-nums">{distanceText(guidance.toNext)}</p>
-						<p class="line-clamp-2 text-xl text-zinc-200">{guidance.next.instruction}</p>
-					</div>
-				</div>
-			{/if}
+			{@render maneuver('absolute inset-x-3 top-3')}
 		</div>
 	{/if}
 	<div class={['flex flex-col gap-4', mapShown ? 'min-h-0 overflow-y-auto' : 'min-h-dvh p-4']}>
-		<div class="flex items-center justify-between gap-3">
+		<div class="flex flex-wrap items-center justify-between gap-3">
 			<a href="/" class="rounded-xl px-3 py-2 text-lg text-zinc-400 active:bg-zinc-800">← Salir</a>
 			{#if data.shareable && !tripShare.url}
 				<button
@@ -400,11 +489,17 @@
 			{/if}
 			{#if data.recordTrips}
 				<!-- Kept, and said: where one goes is not kept without knowing it (#81). -->
+				<span
+					class="rounded-full px-3 py-2 text-base text-zinc-400"
+					title="Se guarda este viaje («Guardar mis viajes», en Ajustes)"
+					>{tripRecorder.problem ? '⚠ No se guarda el viaje' : '● Guardando el viaje'}</span
+				>
+			{/if}
+			{#if data.trips}
 				<a
 					href="/viajes"
-					class="rounded-full px-3 py-2 text-base text-zinc-400 active:bg-zinc-800"
-					title="Se guarda este viaje (Ajustes); tus viajes, en /viajes"
-					>{tripRecorder.problem ? '⚠ No se guarda el viaje' : '● Guardando el viaje'}</a
+					class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300 active:bg-zinc-800"
+					>Mis viajes</a
 				>
 			{/if}
 			{#if data.map && wide}
@@ -582,19 +677,42 @@
 
 		<!-- One touch to put something on. -->
 		<section class="flex min-h-0 flex-1 flex-col gap-3">
+			{#if mapInTab && route && tab !== 'ruta'}
+				<!-- The route goes on with another tab in view: its next step, and back to the map. -->
+				<button class="contents" aria-label="Ver la ruta" onclick={() => (tab = 'ruta')}>
+					{@render maneuver('w-full')}
+				</button>
+			{/if}
 			<div class="grid auto-cols-fr grid-flow-col gap-2" role="tablist">
 				{#each TABS as t (t.id)}
 					<button
 						role="tab"
 						aria-selected={tab === t.id}
+						aria-label={t.label}
+						title={t.label}
 						class={[
-							'rounded-xl py-3 text-xl font-semibold',
+							'flex items-center justify-center rounded-xl py-3',
 							tab === t.id ? 'bg-amber-500 text-zinc-950' : 'bg-zinc-900 text-zinc-300'
 						]}
-						onclick={() => (tab = t.id)}>{t.label}</button
+						onclick={() => (tab = t.id)}>{@render tabIcon(t.id)}</button
 					>
 				{/each}
 			</div>
+
+			{#if tabMap}
+				<!-- Kept while a route is followed, out of sight in other tabs: its GPS guides. -->
+				<div class={tab === 'ruta' ? 'relative h-[45dvh] shrink-0' : 'h-0 overflow-hidden'}>
+					<RoadMap
+						{route}
+						destination={destination?.at ?? null}
+						onposition={(at, metresPerSecond) => {
+							here = at;
+							speed = metresPerSecond;
+						}}
+					/>
+					{@render maneuver('absolute inset-x-3 top-3')}
+				</div>
+			{/if}
 
 			<div class="grid grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2" role="tabpanel">
 				{#if tab === 'ruta'}
@@ -724,6 +842,71 @@
 								>
 							</span>
 						</button>
+					{/each}
+				{:else if tab === 'musica'}
+					{@const shuffling = playingHere('aleatorio')}
+					<button
+						class={[
+							tile,
+							'sm:col-span-2',
+							shuffling
+								? 'border-emerald-400 bg-emerald-500/15'
+								: 'border-amber-400/60 bg-amber-500/10'
+						]}
+						disabled={loading !== null}
+						onclick={everything}
+					>
+						<span
+							class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-amber-300"
+							><MediaIcon name="shuffle" class="h-8 w-8" /></span
+						>
+						<span class="min-w-0">
+							<span class="block truncate text-xl font-semibold">
+								{loading === 'aleatorio' ? 'Cargando…' : 'Todo aleatorio'}
+							</span>
+							<span class="block truncate text-base text-zinc-400"
+								>{shuffling
+									? music.playing
+										? '● Sonando'
+										: 'En pausa'
+									: 'De toda tu música'}</span
+							>
+						</span>
+					</button>
+					{#each data.albums as a (a.id)}
+						{@const on = playingHere(`album-${a.id}`)}
+						<button
+							class={[
+								tile,
+								on ? 'border-emerald-400 bg-emerald-500/15' : 'border-white/10 bg-zinc-900'
+							]}
+							disabled={loading !== null}
+							onclick={() => album(a.id)}
+						>
+							{#if a.hasCover}
+								<img
+									src={coverUrl(a.id)}
+									alt=""
+									loading="lazy"
+									class="h-14 w-14 shrink-0 rounded-lg bg-zinc-800 object-cover"
+								/>
+							{:else}
+								<span
+									class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-2xl font-bold text-zinc-400"
+									>{a.title[0]}</span
+								>
+							{/if}
+							<span class="min-w-0">
+								<span class="block truncate text-xl font-semibold">
+									{loading === `album-${a.id}` ? 'Cargando…' : a.title}
+								</span>
+								<span class="block truncate text-base text-zinc-400"
+									>{on ? (music.playing ? '● Sonando' : 'En pausa') : a.artist}</span
+								>
+							</span>
+						</button>
+					{:else}
+						<p class="text-lg text-zinc-400">No hay música todavía.</p>
 					{/each}
 				{:else if tab === 'listas'}
 					{#each data.playlists as playlist (playlist.id)}

@@ -52,6 +52,30 @@
 		line = body.line;
 	}
 
+	/**
+	 * The last trip, first: back home, what was just kept is what is wanted. Its way and its photos
+	 * come by themselves.
+	 */
+	const latest = $derived(data.trips[0]);
+	let latestLine = $state<StoredPoint[] | null>(null);
+	let latestPhotos = $state<{ id: number; lon: number | null; lat: number | null }[]>([]);
+	$effect(() => {
+		const id = latest?.id;
+		latestLine = null;
+		latestPhotos = [];
+		if (id === undefined) return;
+		let gone = false;
+		void fetch(`/viajes/${id}/recorrido`)
+			.then((res) => (res.ok ? res.json() : null))
+			.then((body) => {
+				if (gone || !body) return;
+				latestPhotos = body.photos;
+				latestLine = body.line;
+			})
+			.catch(() => {});
+		return () => (gone = true);
+	});
+
 	/** «Borrar todos», asked twice, without a dialog. */
 	let sure = $state(false);
 </script>
@@ -72,6 +96,46 @@
 		> («Guardar mis viajes»).
 	{/if}
 </p>
+
+{#if latest}
+	<section class="mb-8 rounded-md border border-amber-500/40 p-4">
+		<p class="text-sm text-amber-300">Último viaje</p>
+		<p class="text-lg font-semibold">
+			{day.format(new Date(latest.startedAt))}, {time.format(
+				new Date(latest.startedAt)
+			)}–{time.format(new Date(latest.endedAt))}{latest.destination
+				? ` · a ${latest.destination}`
+				: ''}
+		</p>
+		<p class="mb-3 text-sm text-zinc-300">
+			{distanceText(latest.distance)} · {durationText(seconds(latest))} · {kmh(
+				latest.distance,
+				seconds(latest)
+			)} km/h de media{latest.maxSpeed ? ` · máx. ${Math.round(latest.maxSpeed * 3.6)} km/h` : ''}
+		</p>
+		{#if !data.map}
+			<p class="text-sm text-zinc-400">No hay mapa (scripts/mapa.sh).</p>
+		{:else if latestLine}
+			<TripMap line={latestLine} photos={latestPhotos} />
+		{:else}
+			<p class="text-sm text-zinc-400">Cargando el recorrido…</p>
+		{/if}
+		{#if latestPhotos.length}
+			<div class="mt-3 flex gap-2 overflow-x-auto">
+				{#each latestPhotos as photo (photo.id)}
+					<a href="/viajes/fotos/{photo.id}" target="_blank" rel="noopener" class="shrink-0">
+						<img
+							src="/viajes/fotos/{photo.id}"
+							alt="Foto de este viaje"
+							loading="lazy"
+							class="h-24 w-36 rounded object-cover"
+						/>
+					</a>
+				{/each}
+			</div>
+		{/if}
+	</section>
+{/if}
 
 {#if data.stats.length}
 	<section class="mb-8 grid gap-4 sm:grid-cols-2">

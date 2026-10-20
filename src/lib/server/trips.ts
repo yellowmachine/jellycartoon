@@ -16,6 +16,17 @@ export async function recordsTrips(userId: string) {
 	return row?.on ?? false;
 }
 
+/** Whether «Mis viajes» is offered (road mode, Música, Radio): trips kept, or being kept. */
+export async function hasTripsPage(userId: string) {
+	if (await recordsTrips(userId)) return true;
+	const [found] = await db
+		.select({ id: trip.id })
+		.from(trip)
+		.where(eq(trip.userId, userId))
+		.limit(1);
+	return Boolean(found);
+}
+
 /** «Guardar mis viajes», in Ajustes: off deletes nothing already kept. */
 export async function setRecordTrips(userId: string, on: boolean) {
 	await db

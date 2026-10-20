@@ -8,11 +8,25 @@
 	# 10 s with the site down. The pages connect again by themselves.
 	# https://caddyserver.com/docs/caddyfile/options#grace-period
 	grace_period 2s
+	# With TLS=internal, its own root is not put in the container's trust store, which is no use:
+	# it goes on each device by hand (README, «Solo en casa»).
+	skip_install_trust
 }
 
-{$ORIGIN} {
+# The certificate, by TLS in the .env: `cloudflare` (the default), a real one from Let's Encrypt
+# with Cloudflare's DNS-01 challenge, for a domain; `internal`, signed by Caddy's own authority,
+# for an install only at home without a domain, whose root each device installs.
+(tls-cloudflare) {
 	tls {
 		dns cloudflare {env.CF_API_TOKEN}
 	}
+}
+
+(tls-internal) {
+	tls internal
+}
+
+{$ORIGIN} {
+	import tls-{$TLS:cloudflare}
 	reverse_proxy app:3000
 }

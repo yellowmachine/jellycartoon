@@ -9,8 +9,12 @@ import type { Cue } from '#lib/vtt.ts';
 const LEAD_SEC = 0.45;
 /** At least this long on screen: less is hard to read. */
 const MIN_SEC = 1;
-/** Two phrases in one cue, a line each, if they are no longer than this together. */
-const MAX_CHARS = 80;
+/** How fast it can be read: characters a second, a little under what a native reads comfortably. */
+const READ_CPS = 15;
+/** Read alone, a phrase stays at least this long. */
+const MIN_READ_SEC = 1.5;
+/** The phrase before stays above the new one if it was said this little before the new one starts. */
+const ROLL_GAP_SEC = 1;
 
 export interface WhisperVerbose {
 	segments: {
@@ -43,33 +47,35 @@ export function phrasesFromWhisper(body: WhisperVerbose): Cue[] {
 	});
 }
 
+/** Until it can be read: its time saying it, or its reading time from when it starts. */
+const readUntil = (phrase: Cue) =>
+	Math.max(
+		phrase.end,
+		+(phrase.start + Math.max(MIN_READ_SEC, phrase.text.length / READ_CPS)).toFixed(3)
+	);
+
 /**
- * Phrases in order (a whole track's, so pieces' edges too) as subtitles: never two at once, as
- * they would be shown one above the other, so the one before goes when the next comes. If that
- * leaves it too short to read, both in one cue, a line each, as subtitles do with quick dialogue:
- * from when the first is said to when the second ends.
+ * Phrases in order (a whole track's, so pieces' edges too) as subtitles that roll up, as the TV's
+ * live ones and YouTube's (#86): the phrase being said at the bottom, the one before above it, so
+ * each is on screen for about two phrases, not only while it is said; with quick talk there was no
+ * time to read them. With nobody talking, the last one stays until it can be read, then goes.
  */
 export function readableCues(phrases: Cue[]): Cue[] {
+	const sorted = [...phrases].sort((a, b) => a.start - b.start);
 	const cues: Cue[] = [];
-	for (const phrase of phrases) {
-		const last = cues.at(-1);
-		if (!last || phrase.start >= last.end) {
-			cues.push(phrase);
-			continue;
-		}
-		const fits = !last.text.includes('\n') && last.text.length + phrase.text.length <= MAX_CHARS;
-		if (phrase.start - last.start < MIN_SEC && fits) {
-			cues[cues.length - 1] = {
-				start: last.start,
-				end: Math.max(last.end, phrase.end),
-				text: `${last.text}\n${phrase.text}`
-			};
-			continue;
-		}
-		// Too long for one cue: the next one waits until the one before has been on screen enough.
-		const start = Math.max(phrase.start, +(last.start + MIN_SEC).toFixed(3));
-		cues[cues.length - 1] = { ...last, end: start };
-		cues.push({ ...phrase, start, end: Math.max(phrase.end, +(start + MIN_SEC).toFixed(3)) });
-	}
+	sorted.forEach((phrase, i) => {
+		const next = sorted[i + 1];
+		// Said at once with the next: that one shows both.
+		if (next && next.start - phrase.start < 0.05) return;
+		const before = sorted[i - 1];
+		const above = before && phrase.start < readUntil(before) + ROLL_GAP_SEC;
+		const until = readUntil(phrase);
+		cues.push({
+			start: phrase.start,
+			// The next one rolls it up; without one soon, it goes once read.
+			end: next && next.start < until ? next.start : until,
+			text: above ? `${before.text}\n${phrase.text}` : phrase.text
+		});
+	});
 	return cues;
 }
