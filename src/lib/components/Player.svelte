@@ -108,11 +108,36 @@
 	}
 
 	let pipSupported = $state(false);
-	let inPip = $state(false);
+	/** The ⚙ menu over the video: audio, subtitles, what follows, its size. */
+	let menuOpen = $state(false);
+	let menu = $state<HTMLDivElement>();
 
 	onMount(() => {
 		loadPlayerSize();
 		pipSupported = 'pictureInPictureEnabled' in document && document.pictureInPictureEnabled;
+		// Custom elements: only in the browser. Its Spanish first: the buttons say their names when
+		// they are made.
+		void import('media-chrome/lang/es').then(() => import('media-chrome'));
+	});
+
+	// The menu closes on a touch outside it, or with Escape.
+	$effect(() => {
+		if (!menuOpen) return;
+		const outside = (e: PointerEvent) => {
+			const target = e.target as Element;
+			if (!menu?.contains(target) && !target.closest?.('.jc-menu-button')) menuOpen = false;
+		};
+		const escape = (e: KeyboardEvent) => {
+			if (e.key !== 'Escape') return;
+			e.preventDefault();
+			menuOpen = false;
+		};
+		addEventListener('pointerdown', outside, true);
+		addEventListener('keydown', escape, true);
+		return () => {
+			removeEventListener('pointerdown', outside, true);
+			removeEventListener('keydown', escape, true);
+		};
 	});
 
 	// For the header's microphone: what plays here, to pause it while someone speaks.
@@ -126,29 +151,6 @@
 		});
 		return () => videoHere.clear(el);
 	});
-
-	$effect(() => {
-		const el = video;
-		if (!el) return;
-		const enter = () => (inPip = true);
-		const leave = () => (inPip = false);
-		el.addEventListener('enterpictureinpicture', enter);
-		el.addEventListener('leavepictureinpicture', leave);
-		return () => {
-			el.removeEventListener('enterpictureinpicture', enter);
-			el.removeEventListener('leavepictureinpicture', leave);
-		};
-	});
-
-	async function togglePip() {
-		if (!video) return;
-		try {
-			if (document.pictureInPictureElement) await document.exitPictureInPicture();
-			else await video.requestPictureInPicture();
-		} catch (error) {
-			console.warn('[player] picture-in-picture', error);
-		}
-	}
 
 	$effect(() => {
 		const el = video;
@@ -357,6 +359,8 @@
 	{@html cueStylesheet}
 </svelte:head>
 
+<!-- Media Chrome's controls over our own <video> (hls.js, the subtitles' style, the saves): the
+same look in every browser, the app's colours, and the player's options in its ⚙ menu. -->
 <div
 	bind:this={wrapper}
 	class={[
@@ -367,142 +371,170 @@
 	]}
 >
 	{#key episodeId}
-		<!-- svelte-ignore a11y_media_has_caption -->
-		<video
-			bind:this={video}
-			poster={thumbUrl(episodeId)}
-			controls
-			crossorigin="anonymous"
+		<media-controller
+			lang="es"
 			class={[
-				'jc-video w-full bg-black',
+				'jc-player block w-full overflow-hidden bg-black',
 				playerSize.value === 'cinema'
-					? 'mx-auto block max-h-[calc(100dvh-3.5rem)]'
+					? 'mx-auto max-h-[calc(100dvh-3.5rem)]'
 					: 'aspect-video rounded-md'
 			]}
-			ontimeupdate={onTimeUpdate}
-			onpause={save}
-			onseeked={save}
-			onended={onEnded}
 		>
-			{#each subtitles as sub, i (sub.file)}
-				<!-- Whisper's in the form chosen in «⚙ Estilo»: two lines that stay, or rolling up. -->
-				<track
-					kind="subtitles"
-					src="/api/hls/{episodeId}/{sub.file}{sub.file.startsWith('sub_auto_')
-						? `?forma=${subtitleStyle.automatic}`
-						: ''}"
-					srclang={sub.lang}
-					label={sub.label}
-					default={i === subtitleIndex}
-				/>
-			{/each}
-		</video>
+			<!-- svelte-ignore a11y_media_has_caption -->
+			<video
+				slot="media"
+				bind:this={video}
+				poster={thumbUrl(episodeId)}
+				crossorigin="anonymous"
+				class="jc-video h-full w-full bg-black"
+				ontimeupdate={onTimeUpdate}
+				onpause={save}
+				onseeked={save}
+				onended={onEnded}
+			>
+				{#each subtitles as sub, i (sub.file)}
+					<!-- Whisper's in the form chosen in «⚙ Estilo»: two lines that stay, or rolling up. -->
+					<track
+						kind="subtitles"
+						src="/api/hls/{episodeId}/{sub.file}{sub.file.startsWith('sub_auto_')
+							? `?forma=${subtitleStyle.automatic}`
+							: ''}"
+						srclang={sub.lang}
+						label={sub.label}
+						default={i === subtitleIndex}
+					/>
+				{/each}
+			</video>
+			<media-loading-indicator slot="centered-chrome" noautohide></media-loading-indicator>
+			<media-control-bar>
+				<media-play-button></media-play-button>
+				<media-seek-backward-button seekoffset="10"></media-seek-backward-button>
+				<media-seek-forward-button seekoffset="10"></media-seek-forward-button>
+				<media-time-range></media-time-range>
+				<media-time-display showduration></media-time-display>
+				<media-mute-button></media-mute-button>
+				<media-volume-range></media-volume-range>
+				<button
+					class="jc-menu-button"
+					aria-label="Opciones"
+					aria-expanded={menuOpen}
+					title="Audio, subtítulos, tamaño…"
+					onclick={() => (menuOpen = !menuOpen)}
+				>
+					<svg
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.6"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						class="h-6 w-6"
+						aria-hidden="true"
+						><circle cx="12" cy="12" r="3" /><path
+							d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"
+						/></svg
+					>
+				</button>
+				{#if pipSupported}
+					<media-pip-button></media-pip-button>
+				{/if}
+				<media-fullscreen-button></media-fullscreen-button>
+			</media-control-bar>
+
+			{#if menuOpen}
+				<!-- Inside the controller: still there in fullscreen. -->
+				<div
+					bind:this={menu}
+					class="absolute right-3 bottom-14 z-10 max-h-[calc(100%-5rem)] w-72 space-y-3 overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-950/95 p-3 text-sm shadow-2xl"
+					role="dialog"
+					aria-label="Opciones del vídeo"
+				>
+					{#if audioTracks.length > 1}
+						{@render choices(
+							'Audio',
+							audioTracks.map((t, i) => ({
+								label: t.label,
+								on: i === audioIndex,
+								pick: () => chooseAudio(i)
+							}))
+						)}
+					{/if}
+					{#if subtitles.length}
+						{@render choices('Subtítulos', [
+							{ label: 'No', on: subtitleIndex < 0, pick: () => chooseSubtitle(-1) },
+							...subtitles.map((s, i) => ({
+								label: s.label,
+								on: i === subtitleIndex,
+								pick: () => chooseSubtitle(i)
+							}))
+						])}
+						<button
+							class="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800"
+							aria-expanded={showStylePanel}
+							onclick={() => {
+								showStylePanel = !showStylePanel;
+								menuOpen = false;
+							}}>{showStylePanel ? 'Ocultar el estilo' : 'Estilo de los subtítulos…'}</button
+						>
+					{/if}
+					{@render choices('Al terminar', [
+						{ label: 'Siguiente', on: autoNext, pick: () => chooseAutoNext(true) },
+						{ label: 'Parar', on: !autoNext, pick: () => chooseAutoNext(false) }
+					])}
+					{@render choices(
+						'Tamaño',
+						PLAYER_SIZES.map((s) => ({
+							label: s.label,
+							on: playerSize.value === s.value,
+							pick: () => chooseSize(s.value)
+						}))
+					)}
+					<button
+						class="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800 disabled:opacity-50"
+						title="Usar el fotograma que se ve ahora como miniatura del capítulo"
+						disabled={thumbnailState === 'saving'}
+						onclick={useAsThumbnail}
+					>
+						{{
+							idle: 'Usar este fotograma como miniatura',
+							saving: 'Guardando…',
+							done: '✓ Miniatura cambiada',
+							failed: 'No se pudo cambiar'
+						}[thumbnailState]}
+					</button>
+				</div>
+			{/if}
+
+			{#if overlay}
+				<div class="absolute inset-0 z-20 flex items-center justify-center bg-black/75 p-4">
+					{@render overlay()}
+				</div>
+			{/if}
+		</media-controller>
 	{/key}
-	{#if overlay}
-		<div class="absolute inset-0 flex items-center justify-center rounded-md bg-black/75 p-4">
-			{@render overlay()}
-		</div>
-	{/if}
 </div>
+
+{#snippet choices(label: string, options: { label: string; on: boolean; pick: () => void }[])}
+	<div>
+		<p class="mb-1 px-2 text-xs tracking-wide text-zinc-500 uppercase">{label}</p>
+		<div class="flex flex-wrap gap-1">
+			{#each options as option (option.label)}
+				<button
+					class={[
+						'rounded px-2 py-1',
+						option.on ? 'bg-amber-500 text-zinc-950' : 'text-zinc-300 hover:bg-zinc-800'
+					]}
+					aria-pressed={option.on}
+					onclick={option.pick}>{option.label}</button
+				>
+			{/each}
+		</div>
+	</div>
+{/snippet}
 
 {#if problem ?? saveProblem}
 	<p class="mt-2 text-sm text-amber-400" role="status">{problem ?? saveProblem}</p>
 {/if}
-
-<div class="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-	<div class="flex items-center gap-1">
-		<span class="mr-1 text-zinc-400">Tamaño</span>
-		{#each PLAYER_SIZES as size (size.value)}
-			<button
-				class={[
-					'rounded px-2 py-0.5',
-					playerSize.value === size.value
-						? 'bg-amber-500 text-zinc-950'
-						: 'text-zinc-300 hover:bg-zinc-800'
-				]}
-				onclick={() => chooseSize(size.value)}>{size.label}</button
-			>
-		{/each}
-		{#if pipSupported}
-			<button
-				class={[
-					'ml-2 rounded px-2 py-0.5',
-					inPip ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:bg-zinc-800'
-				]}
-				title="Sacar el vídeo a una ventana flotante"
-				onclick={togglePip}>⧉ Flotante</button
-			>
-		{/if}
-		<button
-			class="ml-2 rounded px-2 py-0.5 text-zinc-400 hover:bg-zinc-800 disabled:opacity-50"
-			title="Usar el fotograma que se ve ahora como miniatura del capítulo"
-			disabled={thumbnailState === 'saving'}
-			onclick={useAsThumbnail}
-		>
-			{{
-				idle: '▣ Usar como miniatura',
-				saving: 'Guardando…',
-				done: '✓ Miniatura cambiada',
-				failed: 'No se pudo cambiar'
-			}[thumbnailState]}
-		</button>
-	</div>
-	<div class="flex items-center gap-1">
-		<span class="mr-1 text-zinc-400">Al terminar</span>
-		{#each [true, false] as value (value)}
-			<button
-				class={[
-					'rounded px-2 py-0.5',
-					autoNext === value ? 'bg-amber-500 text-zinc-950' : 'text-zinc-300 hover:bg-zinc-800'
-				]}
-				onclick={() => chooseAutoNext(value)}>{value ? 'Siguiente' : 'Parar'}</button
-			>
-		{/each}
-	</div>
-	{#if audioTracks.length > 1}
-		<div class="flex items-center gap-1">
-			<span class="mr-1 text-zinc-400">Audio</span>
-			{#each audioTracks as track, i (i)}
-				<button
-					class={[
-						'rounded px-2 py-0.5',
-						i === audioIndex ? 'bg-amber-500 text-zinc-950' : 'text-zinc-300 hover:bg-zinc-800'
-					]}
-					onclick={() => chooseAudio(i)}>{track.label}</button
-				>
-			{/each}
-		</div>
-	{/if}
-	{#if subtitles.length}
-		<div class="flex items-center gap-1">
-			<span class="mr-1 text-zinc-400">Subtítulos</span>
-			<button
-				class={[
-					'rounded px-2 py-0.5',
-					subtitleIndex < 0 ? 'bg-amber-500 text-zinc-950' : 'text-zinc-300 hover:bg-zinc-800'
-				]}
-				onclick={() => chooseSubtitle(-1)}>No</button
-			>
-			{#each subtitles as sub, i (sub.file)}
-				<button
-					class={[
-						'rounded px-2 py-0.5',
-						i === subtitleIndex ? 'bg-amber-500 text-zinc-950' : 'text-zinc-300 hover:bg-zinc-800'
-					]}
-					onclick={() => chooseSubtitle(i)}>{sub.label}</button
-				>
-			{/each}
-			<button
-				class={[
-					'ml-2 rounded px-2 py-0.5',
-					showStylePanel ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:bg-zinc-800'
-				]}
-				aria-expanded={showStylePanel}
-				onclick={() => (showStylePanel = !showStylePanel)}>⚙ Estilo</button
-			>
-		</div>
-	{/if}
-</div>
 
 {#if showStylePanel && subtitles.length}
 	<SubtitleStylePanel
@@ -511,3 +543,36 @@
 		onchange={chooseStyle}
 	/>
 {/if}
+
+<style>
+	/* The app's colours on Media Chrome's controls: zinc, and amber for what moves. */
+	.jc-player {
+		--media-primary-color: var(--color-zinc-100);
+		--media-secondary-color: transparent;
+		--media-control-background: transparent;
+		--media-control-hover-background: rgb(255 255 255 / 0.1);
+		--media-range-bar-color: var(--color-amber-400);
+		--media-range-track-background: rgb(255 255 255 / 0.25);
+		--media-range-thumb-background: var(--color-amber-400);
+		--media-font-family: inherit;
+		--media-font-size: 0.875rem;
+		--media-tooltip-display: none;
+	}
+	.jc-player media-control-bar {
+		background: linear-gradient(transparent, rgb(9 9 11 / 0.85));
+		padding: 0 0.25rem;
+	}
+	.jc-menu-button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0 0.6rem;
+		color: var(--color-zinc-100);
+		background: transparent;
+	}
+	.jc-menu-button:hover,
+	.jc-menu-button[aria-expanded='true'] {
+		background: rgb(255 255 255 / 0.1);
+		color: var(--color-amber-400);
+	}
+</style>

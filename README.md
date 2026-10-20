@@ -21,8 +21,11 @@ SvelteKit 3 + Bun · Tailwind · Better Auth · Drizzle + Postgres · ffmpeg.
    "con continuidad" aportan su siguiente episodio pendiente; las de "episodios sueltos" (se cambia
    en la ficha de la serie) aportan uno al azar, priorizando lo no visto. Nunca dos seguidos de la
    misma serie. Lo visto se apunta al dueño de la playlist (pensando en el envío a otro dispositivo).
-4. **Reproducir**: hls.js (Safari usa su HLS nativo). Bajo el vídeo se elige audio y subtítulos;
-   la elección se guarda por usuario y se aplica a los siguientes episodios. El progreso también.
+4. **Reproducir**: hls.js (Safari usa su HLS nativo), con los controles de
+   [Media Chrome](https://www.media-chrome.org) en los colores de la app, iguales en todos los
+   navegadores y en español. En su menú ⚙ se elige audio y subtítulos (y su estilo), «Al terminar»,
+   el tamaño y «Usar este fotograma como miniatura»; la elección se guarda por usuario y se aplica
+   a los siguientes episodios. El progreso también.
    «⚙ Estilo» cambia cómo se ven los subtítulos (fuente, tamaño, color, fondo, contorno) y dónde:
    abajo, algo más arriba o más arriba, para que los ojos viajen menos; vale también para los
    canales y para el mpv del salón (`sub-pos`). Y, en los automáticos de Whisper, cómo se ven dos
