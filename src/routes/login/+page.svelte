@@ -1,13 +1,15 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import favicon from '#lib/assets/favicon.svg';
+	import PasswordInput from '#lib/components/PasswordInput.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 	let mode = $state<'signIn' | 'signUp'>('signIn');
 
-	const input =
-		'mt-1 block w-full rounded-md border-zinc-700 bg-zinc-900 text-zinc-100 focus:border-amber-400 focus:ring-amber-400';
+	const field =
+		'block w-full rounded-md border-zinc-700 bg-zinc-900 text-zinc-100 focus:border-amber-400 focus:ring-amber-400';
+	const input = `mt-1 ${field}`;
 </script>
 
 <div class="mx-auto mt-16 max-w-sm">
@@ -27,12 +29,12 @@
 		</label>
 		<label class="block text-sm">
 			Contraseña
-			<input
-				type="password"
+			<PasswordInput
 				name="password"
 				required
-				minlength="8"
-				class={input}
+				minlength={8}
+				box="mt-1"
+				class={field}
 				autocomplete={mode === 'signIn' ? 'current-password' : 'new-password'}
 			/>
 		</label>
