@@ -427,9 +427,10 @@
 	{/if}
 {/snippet}
 
-<!-- Each tab, drawn: Radio, Música and Podcasts as in the rest of the app. -->
+<!-- Each tab, drawn: Radio and Música as in the rest of the app; Podcasts as headphones here, not
+the app's microphone, which the voice's big one right above would be taken for. -->
 {#snippet tabIcon(id: Tab)}
-	{#if id === 'radio' || id === 'musica' || id === 'podcasts'}
+	{#if id === 'radio' || id === 'musica'}
 		<SectionIcon name={id} class="h-8 w-8" />
 	{:else}
 		<svg
@@ -442,7 +443,12 @@
 			class="h-8 w-8"
 			aria-hidden="true"
 		>
-			{#if id === 'listas'}
+			{#if id === 'podcasts'}
+				<path d="M4 15v-3a8 8 0 0 1 16 0v3" />
+				<path
+					d="M4 15a2 2 0 0 1 2-2h1v7H6a2 2 0 0 1-2-2zM20 15a2 2 0 0 0-2-2h-1v7h1a2 2 0 0 0 2-2z"
+				/>
+			{:else if id === 'listas'}
 				<path d="M4 6h11M4 11h11M4 16h7" />
 				<path d="M18 19.5a2 2 0 1 1-2-2 2 2 0 0 1 2 2zM18 19.5V9l3-1" />
 			{:else}
