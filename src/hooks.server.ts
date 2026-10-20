@@ -4,6 +4,7 @@ import { building } from '$app/env';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { auth } from '#lib/server/auth.ts';
 import { guardKids } from '#lib/server/kids.ts';
+import { allowedWhileSettingUp, mustSetUp, SETUP_PATH } from '#lib/server/two-factor.ts';
 import { guardVideoTime } from '#lib/server/kid-time.ts';
 import { startWorker } from '#lib/server/library/worker.ts';
 import { startSubtitles } from '#lib/server/auto-subtitles.ts';
@@ -51,6 +52,12 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 	if (session) {
 		event.locals.session = session.session;
 		event.locals.user = session.user;
+		// The administrator's first sign-in without a second step: nothing else until it is set up.
+		if (mustSetUp(session.session, session.user) && !allowedWhileSettingUp(event.url.pathname)) {
+			if (event.url.pathname.startsWith('/api/'))
+				return new Response('Falta la verificación en dos pasos', { status: 403 });
+			redirect(303, SETUP_PATH);
+		}
 		await guardKids(event);
 		await guardVideoTime(event);
 	} else if (!PUBLIC_PATHS.some((p) => event.url.pathname.startsWith(p))) {
