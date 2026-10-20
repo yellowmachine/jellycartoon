@@ -505,12 +505,14 @@ lado el navegador (Google Maps u Organic Maps, que hacen la navegación y el tr�
 
 - Lo que suena en grande, con botones enormes (anterior, pausa y siguiente; en un podcast, −15 y
   +30 s), y un micrófono gigante, como el de la cocina.
-- Debajo, en pestañas con iconos, un toque para poner algo: las emisoras (las españolas primero),
-  la música («Todo aleatorio», o un álbum desde el principio), las listas de música y los podcasts
-  (los empezados, y lo último de cada uno).
-- En un móvil en vertical no hay sitio para el mapa al lado: va en su propia pestaña, Ruta. Una ruta
-  en marcha sigue aunque se cambie de pestaña: la voz sigue dando las indicaciones, y encima de las
-  pestañas queda la siguiente maniobra, que lleva otra vez al mapa. Con la tablet en media
+- Debajo, un botón grande por sección: las emisoras (las españolas primero), la música («Todo
+  aleatorio», o un álbum desde el principio), las listas de música, los podcasts (los empezados, y
+  lo último de cada uno) y la ruta. Cada sección ocupa la pantalla (o su mitad, con el mapa) con su
+  lista, «← Inicio» y, arriba, lo que suena y un micrófono pequeño. Al poner algo se vuelve solo a
+  Inicio.
+- En un móvil en vertical no hay sitio para el mapa al lado: va en la sección Ruta. Una ruta en
+  marcha sigue aunque se cambie de sección: la voz sigue dando las indicaciones, y en Inicio queda
+  la siguiente maniobra, que lleva otra vez al mapa. Con la tablet en media
   pantalla, junto al navegador, no hay mapa ni GPS.
 - La voz sabe que va en el coche: respuestas muy cortas, solo aquí (no en los altavoces de
   Snapcast), y sin vídeo, cocina ni recetas; aunque pidiera un capítulo, no se abre.
@@ -618,9 +620,13 @@ oficial para Vulkan) en la GPU, en español.
   entiende mejor, a cambio de más memoria y más tiempo.
 - Solo lo alcanza la app, por la red de Docker: no publica puertos. El audio no sale de casa.
 - Convierte con ffmpeg lo que graba el navegador: WebM/Opus en Android, MP4/AAC en iPhone.
-- Para los subtítulos automáticos, mide cuándo empieza cada palabra (`-dtw`, que va sin _flash
-  attention_): cada frase sale justo antes de que se diga, no hasta 2 s antes como pasaba con las
-  risas o el diálogo rápido (#86).
+- Son dos servidores con el mismo modelo: `whisper` para la voz y `whisper-subtitulos` para los
+  subtítulos automáticos. Cada uno atiende una petición a la vez, y con uno solo una orden de voz
+  esperaba a que acabara un trozo de subtítulos (en el salón, hasta 20 s). Con `small`, el segundo
+  ocupa cerca de 1 GB más de la memoria de la GPU.
+- El de los subtítulos mide cuándo empieza cada palabra (`-dtw`, que va sin _flash attention_):
+  cada frase sale justo antes de que se diga, no hasta 2 s antes como pasaba con las risas o el
+  diálogo rápido (#86). El de la voz no lo necesita y va más rápido con _flash attention_.
 - El micrófono del navegador necesita HTTPS, que ya da Caddy.
 - La imagen va fijada a la de una versión (v1.9.5) y WUD no la actualiza: se cambia a mano en el
   compose.

@@ -84,6 +84,11 @@ export const variables = defineEnvVars({
 			'Optional address of a whisper.cpp server (`whisper-server`, started with `--convert`), for voice commands: it turns what is said into text. Without it there is no voice.',
 		schema: (value) => value || undefined
 	},
+	WHISPER_SUBTITLES_URL: {
+		description:
+			"Optional address of a second whisper.cpp server, started with `-dtw` and `-nfa`, only for the automatic subtitles: so a voice command does not wait behind them. Without it, WHISPER_URL's makes them too.",
+		schema: (value) => value || undefined
+	},
 	AUDIO_LANG: {
 		description:
 			'Preferred audio language (ISO 639-2, e.g. `spa`) when a source has several audio tracks.',

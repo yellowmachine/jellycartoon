@@ -73,6 +73,8 @@ services:
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
       # With the `voz` profile (WHISPER_MODEL in the .env): the whisper service below, for voice.
       WHISPER_URL: ${WHISPER_MODEL:+http://whisper:8080}
+      # Its twin, only for the automatic subtitles: the voice does not wait behind them.
+      WHISPER_SUBTITLES_URL: ${WHISPER_MODEL:+http://whisper-subtitulos:8080}
       # With the `updates` profile: the admin updates from the notice of a new version. Without
       # WUD_PASSWORD in the .env the app does not offer it, so the address can always be here.
       WUD_URL: http://wud:3000
@@ -195,7 +197,7 @@ services:
   # commands (#33), with whisper.cpp's own server on the GPU (Vulkan, /dev/dri). Only the app
   # reaches it, on the compose network: its README asks not to expose it, as it takes files and
   # runs ffmpeg. Pinned to the image of a release (v1.9.5); WUD does not touch it.
-  whisper:
+  whisper: &whisper
     image: ghcr.io/ggml-org/whisper.cpp:main-vulkan-d1be6fde11ac6e0407606b4e42fe72d34add8037
     profiles: [voz]
     restart: unless-stopped
@@ -204,25 +206,39 @@ services:
     environment:
       WHISPER_MODEL: ${WHISPER_MODEL:-small}
     # The model, the first time, with the image's download-ggml-model.sh (as in its README), to a
-    # folder apart and then moved, so that a download cut halfway is not taken for the model. Then
-    # the server: in Spanish, and converting with ffmpeg what the browser records (--convert). With
-    # each word timed against the audio (-dtw, its model's name as whisper.cpp writes it, e.g.
-    # large-v3-turbo-q5_0 is large.v3.turbo), for subtitles that start when the words do (#86); it
-    # does not work with flash attention (-nfa).
+    # folder apart (its own: two servers may start at once) and then moved, so that a download cut
+    # halfway is not taken for the model. Then the server: in Spanish, and converting with ffmpeg
+    # what the browser records (--convert). With WHISPER_DTW, each word timed against the audio
+    # (-dtw, its model's name as whisper.cpp writes it, e.g. large-v3-turbo-q5_0 is large.v3.turbo),
+    # for subtitles that start when the words do (#86); it does not work with flash attention (-nfa),
+    # which the voice keeps, being quicker.
     command:
       - bash
       - -c
       - >-
         m=/models/ggml-$$WHISPER_MODEL.bin;
         if [ ! -f $$m ]; then
-        rm -rf /models/.download && mkdir /models/.download &&
-        download-ggml-model.sh $$WHISPER_MODEL /models/.download &&
-        mv /models/.download/ggml-$$WHISPER_MODEL.bin $$m || exit 1;
+        d=/models/.download-$$HOSTNAME;
+        rm -rf $$d && mkdir $$d &&
+        download-ggml-model.sh $$WHISPER_MODEL $$d &&
+        mv $$d/ggml-$$WHISPER_MODEL.bin $$m && rm -rf $$d || exit 1;
         fi;
-        dtw=$${WHISPER_MODEL%-q[0-9]*}; dtw=$${dtw//-/.};
-        exec whisper-server --host 0.0.0.0 --port 8080 -m $$m -l es --convert -nfa -dtw $$dtw
+        extra=;
+        if [ -n "$$WHISPER_DTW" ]; then
+        dtw=$${WHISPER_MODEL%-q[0-9]*}; extra="-nfa -dtw $${dtw//-/.}";
+        fi;
+        exec whisper-server --host 0.0.0.0 --port 8080 -m $$m -l es --convert $$extra
     volumes:
       - whisper_models:/models
+
+  # The same, only for the automatic subtitles, with DTW: a server takes one request at a time, and
+  # a voice command waited behind a piece of a film (#86). The same model and volume; about 1 GB
+  # more of the GPU's memory with `small`.
+  whisper-subtitulos:
+    <<: *whisper
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      WHISPER_DTW: 'yes'
 
   # Optional, with `updates` in COMPOSE_PROFILES (e.g. `snapcast,updates`) and WUD_PASSWORD in the
   # .env: WUD (What's Up Docker, https://github.com/getwud/wud) installs each new release of
