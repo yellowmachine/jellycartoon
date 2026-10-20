@@ -1,6 +1,6 @@
 import { WHISPER_URL } from '$app/env/private';
 import { cleanTranscript } from './transcript.ts';
-import { cuesFromWhisper, type WhisperVerbose } from './whisper-cues.ts';
+import { phrasesFromWhisper, type WhisperVerbose } from './whisper-cues.ts';
 
 /**
  * Speech to text for voice commands (#33), with whisper.cpp's server (whisper-server):
@@ -31,8 +31,8 @@ export async function transcribe(audio: Blob) {
 }
 
 /**
- * Subtitles for a stretch of speech (a WAV file), timed from its start: each phrase from its first
- * word when the server times words (`-dtw`, see `cuesFromWhisper`). `language`: the ISO 639-1 code
+ * The phrases said in a stretch of speech (a WAV file), timed from its start: each from its first
+ * word when the server times words (`-dtw`, see `phrasesFromWhisper`). `language`: the ISO 639-1 code
  * (see `whisperLanguage`), instead of the one the server started with, or `auto`.
  */
 export async function transcribeCues(file: string, language: string, signal?: AbortSignal) {
@@ -53,5 +53,5 @@ export async function transcribeCues(file: string, language: string, signal?: Ab
 	if (!res.ok) throw new Error(`Whisper: ${text.slice(0, 200) || res.statusText}`);
 	const body = JSON.parse(text) as WhisperVerbose;
 	if (!Array.isArray(body?.segments)) throw new Error('Whisper: respuesta sin frases');
-	return cuesFromWhisper(body);
+	return phrasesFromWhisper(body);
 }

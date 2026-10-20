@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { cuesFromWhisper } from './whisper-cues.ts';
+import { phrasesFromWhisper, readableCues, type WhisperVerbose } from './whisper-cues.ts';
+
+const cuesFromWhisper = (body: WhisperVerbose) => readableCues(phrasesFromWhisper(body));
 
 // The start of Friends S3E17 as whisper-server (-dtw) gave it: phrases on whole seconds, before
 // they are said.
@@ -58,16 +60,60 @@ describe('cuesFromWhisper', () => {
 		});
 	});
 
-	test('gone when the next one comes, not both at once', () => {
-		const quick = {
+	/** A phrase as whisper-server gives it: Whisper's own times, and its first word by DTW. */
+	const phrase = (text: string, at: number, end = Math.ceil(at + 1)) => ({
+		start: Math.floor(at),
+		end,
+		text: ` ${text}`,
+		words: [{ word: ` ${text.split(' ')[0]}`, t_dtw: Math.round((at + 0.45) * 100) }]
+	});
+
+	test('two quick ones, too short apart to read, in one cue: a line each', () => {
+		const quick = { segments: [phrase('$6?', 7.69), phrase('I just had it.', 8.23)] };
+		expect(cuesFromWhisper(quick)).toEqual([{ start: 7.69, end: 10, text: '$6?\nI just had it.' }]);
+	});
+
+	test('a second or more apart: the one before goes when the next comes', () => {
+		const apart = { segments: [phrase('Hi.', 0, 3), phrase('How are you?', 1.5)] };
+		expect(cuesFromWhisper(apart)).toEqual([
+			{ start: 0, end: 1.5, text: 'Hi.' },
+			{ start: 1.5, end: 3, text: 'How are you?' }
+		]);
+	});
+
+	test('too long for one cue: the next waits until the one before has been a second on screen', () => {
+		const long = {
 			segments: [
-				{ start: 7, end: 8, text: ' $6?', words: [{ word: ' $6', t_dtw: 814 }] },
-				{ start: 8, end: 9, text: ' I just had it.', words: [{ word: ' I', t_dtw: 868 }] }
+				phrase('I met this really cute guy in the park, and he jogs and swims.', 10),
+				phrase('And what are you gonna do for him?', 10.3)
 			]
 		};
-		expect(cuesFromWhisper(quick)).toEqual([
-			{ start: 7.69, end: 8.23, text: '$6?' },
-			{ start: 8.23, end: 9.23, text: 'I just had it.' }
+		expect(cuesFromWhisper(long).map((c) => [c.start, c.end])).toEqual([
+			[10, 11],
+			[11, 12]
+		]);
+	});
+
+	test('never more than two lines', () => {
+		const burst = { segments: [phrase('Oh.', 5), phrase('Hey.', 5.2), phrase('Hi!', 5.4)] };
+		expect(cuesFromWhisper(burst)).toEqual([
+			{ start: 5, end: 6, text: 'Oh.\nHey.' },
+			{ start: 6, end: 7, text: 'Hi!' }
+		]);
+	});
+
+	test('noise and music are not words to read, nor cut the phrase before', () => {
+		const laughs = {
+			segments: [
+				phrase('Kiss her.', 20),
+				phrase('(audience laughing)', 20.3),
+				phrase("♪ I'll be there for you ♪", 22),
+				phrase('[music playing]', 25)
+			]
+		};
+		expect(cuesFromWhisper(laughs)).toEqual([
+			{ start: 20, end: 21, text: 'Kiss her.' },
+			{ start: 22, end: 23, text: "I'll be there for you" }
 		]);
 	});
 

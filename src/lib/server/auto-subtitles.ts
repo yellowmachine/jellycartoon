@@ -20,6 +20,7 @@ import { probeDuration, speechChunks } from '#lib/server/library/ffmpeg.ts';
 import { hlsDir, movieFile, movieSubsDir } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 import { transcribeCues, voiceEnabled } from '#lib/server/voice/whisper.ts';
+import { readableCues } from '#lib/server/voice/whisper-cues.ts';
 import {
 	languageLabel,
 	normalizeLang,
@@ -412,13 +413,6 @@ async function pruneDone() {
 		.where(and(eq(subtitleJob.state, 'done'), sql`${subtitleJob.id} not in (${keep})`));
 }
 
-/** Whisper marks noise and music between brackets, parentheses or notes: not words to read. */
-const spoken = (text: string) =>
-	text
-		.replace(/\[[^\]]*\]|\([^)]*\)|[♪♫]/g, ' ')
-		.replace(/\s+/g, ' ')
-		.trim();
-
 type Run = { done: number; total: number; abort: AbortController };
 
 /** A track's speech as cues, timed from the start. `audio`: its order among the file's tracks. */
@@ -428,19 +422,18 @@ async function transcribeTrack(input: string, audio: number, lang: string, run: 
 	try {
 		const chunks = await speechChunks(input, dir, { chunkSec: CHUNK_SEC, audio, signal });
 		run.total = chunks.length;
-		const cues: Cue[] = [];
+		const phrases: Cue[] = [];
 		let offset = 0;
 		for (const chunk of chunks) {
-			for (const cue of await transcribeCues(chunk, whisperLanguage(lang), signal)) {
-				const text = spoken(cue.text);
-				if (text) cues.push({ start: cue.start + offset, end: cue.end + offset, text });
-			}
+			for (const p of await transcribeCues(chunk, whisperLanguage(lang), signal))
+				phrases.push({ start: p.start + offset, end: p.end + offset, text: p.text });
 			// The real length of the piece: the last one is shorter, and a cut is never exact.
 			offset += (await probeDuration(chunk)) ?? CHUNK_SEC;
 			run.done++;
 			await rm(chunk, { force: true });
 		}
-		return cues;
+		// All of them at once: where a piece ends and the next starts, too.
+		return readableCues(phrases);
 	} finally {
 		await rm(dir, { recursive: true, force: true });
 	}
