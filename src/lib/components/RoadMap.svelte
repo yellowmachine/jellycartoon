@@ -244,8 +244,9 @@
 
 <div class="relative h-full w-full overflow-hidden rounded-3xl bg-zinc-900">
 	<div bind:this={container} class="h-full w-full"></div>
+	<!-- Below the top: the road mode writes where to there. -->
 	{#if problem}
-		<p class="absolute inset-x-3 top-3 rounded-xl bg-zinc-950/90 p-3 text-lg text-amber-300">
+		<p class="absolute inset-x-3 top-20 rounded-xl bg-zinc-950/90 p-3 text-lg text-amber-300">
 			{problem}
 		</p>
 	{/if}

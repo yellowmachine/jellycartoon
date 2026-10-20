@@ -216,6 +216,12 @@
 	let routeProblem = $state<string | null>(null);
 	let routeBusy = $state<'search' | 'route' | 'reroute' | null>(null);
 
+	/**
+	 * Moving (the GPS's speed over ~10 km/h): the search box goes, not to type while driving; it comes
+	 * back when stopped. Said by voice meanwhile.
+	 */
+	const moving = $derived((speed ?? 0) > 2.8);
+
 	async function search(e: SubmitEvent) {
 		e.preventDefault();
 		if (!query.trim()) return;
@@ -229,6 +235,8 @@
 		const res = await fetch(`/carretera/buscar?${params}`).catch(() => null);
 		const body = await res?.json().catch(() => null);
 		routeBusy = null;
+		// The places to choose, beside: big, for a finger; or why there are none.
+		tab = 'ruta';
 		if (!res?.ok) return void (routeProblem = body?.message ?? 'Sin conexión');
 		places = body;
 	}
@@ -435,6 +443,26 @@
 	{/if}
 {/snippet}
 
+<!-- Where to, written on the map: only parked and without a route; the places, in the panel. -->
+{#snippet searchBox()}
+	{#if !route && !moving}
+		<form class="absolute inset-x-3 top-3 flex gap-2" onsubmit={search}>
+			<input
+				bind:value={query}
+				type="search"
+				enterkeyhint="search"
+				placeholder="¿A dónde vas?"
+				aria-label="Destino"
+				class="min-w-0 flex-1 rounded-xl border-zinc-700 bg-zinc-950/90 px-4 py-3 text-xl shadow-xl"
+			/>
+			<button
+				class="rounded-xl bg-amber-500 px-5 text-xl font-semibold text-zinc-950 shadow-xl disabled:opacity-50"
+				disabled={routeBusy !== null}>{routeBusy === 'search' ? 'Buscando…' : 'Buscar'}</button
+			>
+		</form>
+	{/if}
+{/snippet}
+
 <!-- The microphone: held, or a tap to start and another to send (Ajustes). -->
 {#snippet mic(size: string, icon: string)}
 	<button
@@ -534,6 +562,7 @@ the app's microphone, which the voice's big one right above would be taken for. 
 				}}
 			/>
 			{@render maneuver('absolute inset-x-3 top-3')}
+			{@render searchBox()}
 			<!-- Out of the way of the next maneuver, at the top; «Mapa» brings it back. -->
 			<button
 				class="absolute right-3 bottom-10 rounded-full bg-zinc-950/80 px-4 py-2 text-lg text-zinc-200 shadow-lg active:bg-zinc-800"
@@ -762,6 +791,7 @@ the app's microphone, which the voice's big one right above would be taken for. 
 					}}
 				/>
 				{@render maneuver('absolute inset-x-3 top-3')}
+				{@render searchBox()}
 			</div>
 		{/if}
 
@@ -841,21 +871,15 @@ the app's microphone, which the voice's big one right above would be taken for. 
 								{/each}
 							</ol>
 						{:else}
-							<form class="flex gap-2" onsubmit={search}>
-								<input
-									bind:value={query}
-									type="search"
-									enterkeyhint="search"
-									placeholder="¿A dónde vas?"
-									aria-label="Destino"
-									class="min-w-0 flex-1 rounded-xl border-zinc-700 bg-zinc-900 px-4 py-3 text-xl"
-								/>
-								<button
-									class="rounded-xl bg-amber-500 px-5 text-xl font-semibold text-zinc-950 disabled:opacity-50"
-									disabled={routeBusy !== null}
-									>{routeBusy === 'search' ? 'Buscando…' : 'Buscar'}</button
-								>
-							</form>
+							{#if !places && routeBusy !== 'search'}
+								<!-- Written on the map, parked; driving, said. -->
+								<p class="text-lg text-zinc-400">
+									Di «llévame a…»{#if routable}, o escribe el destino en el mapa{/if}.
+								</p>
+							{/if}
+							{#if routeBusy === 'search'}
+								<p class="text-lg text-zinc-300">Buscando…</p>
+							{/if}
 							{#if !here}
 								<p class="text-lg text-zinc-400">Esperando a saber dónde estás (el GPS)…</p>
 							{/if}
