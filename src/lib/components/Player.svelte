@@ -429,6 +429,8 @@ same look in every browser, the app's colours, and the player's options in its â
 				{/each}
 			</video>
 			<media-loading-indicator slot="centered-chrome" noautohide></media-loading-indicator>
+			<!-- Touch: a tap shows the controls and this, big in the middle; a second, play or pause. -->
+			<media-play-button slot="centered-chrome" class="jc-center-play"></media-play-button>
 			<media-control-bar>
 				<media-play-button></media-play-button>
 				<media-seek-backward-button seekoffset="10"></media-seek-backward-button>
@@ -597,6 +599,14 @@ same look in every browser, the app's colours, and the player's options in its â
 	.jc-player media-control-bar {
 		background: linear-gradient(transparent, rgb(9 9 11 / 0.85));
 		padding: 0 0.25rem;
+	}
+	.jc-center-play {
+		--media-button-icon-width: 3.5rem;
+		--media-button-icon-height: 3.5rem;
+		--media-control-background: rgb(9 9 11 / 0.6);
+		--media-control-hover-background: rgb(9 9 11 / 0.8);
+		border-radius: 9999px;
+		padding: 1rem;
 	}
 	.jc-menu-button {
 		display: flex;
