@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { phrasesFromWhisper, readableCues } from './whisper-cues.ts';
+import { formCues, phrasesFromVtt, phrasesFromWhisper } from './whisper-cues.ts';
+import { serializeVtt } from '#lib/vtt.ts';
 
 // The start of Friends S3E17 as whisper-server (-dtw) gave it: phrases on whole seconds, before
 // they are said.
@@ -91,45 +92,111 @@ describe('phrasesFromWhisper', () => {
 	});
 });
 
-describe('readableCues: rolling up', () => {
-	const p = (start: number, end: number, text: string) => ({ start, end, text });
+const p = (start: number, end: number, text: string) => ({ start, end, text });
+/** What is on screen: each cue's lines. */
+const lines = (cues: ReturnType<typeof formCues>) =>
+	cues.map((c) => (c.previous === undefined ? c.text : `${c.previous}\n${c.text}`));
 
+describe('formCues: rolled up', () => {
 	test('quick talk: the one being said below, the one before above, until the next', () => {
 		const talk = [
 			p(103, 104, 'Has she slept at all?'),
 			p(104.4, 105, 'Nope.'),
 			p(105, 107, "No, it's been three nights in a row.")
 		];
-		expect(readableCues(talk)).toEqual([
+		expect(formCues(talk, 'rollup')).toEqual([
 			{ start: 103, end: 104.4, text: 'Has she slept at all?' },
-			{ start: 104.4, end: 105, text: 'Has she slept at all?\nNope.' },
-			{ start: 105, end: 107.4, text: "Nope.\nNo, it's been three nights in a row." }
+			{ start: 104.4, end: 105, text: 'Nope.', previous: 'Has she slept at all?' },
+			{ start: 105, end: 107.4, text: "No, it's been three nights in a row.", previous: 'Nope.' }
 		]);
 	});
 
 	test('with nobody talking, the last one stays until it can be read, then goes', () => {
 		// 48 characters at 15 a second: 3.2 s, though it was said in 2.
-		const [cue] = readableCues([
-			p(71.77, 73.77, 'I have to say "Toop-A-Lo Honey" by Van Morrison.')
-		]);
+		const [cue] = formCues(
+			[p(71.77, 73.77, 'I have to say "Toop-A-Lo Honey" by Van Morrison.')],
+			'rollup'
+		);
 		expect(cue!.end).toBe(74.97);
 		// A short one, at least a second and a half.
-		expect(readableCues([p(10, 10.5, 'Hi.')])[0]!.end).toBe(11.5);
+		expect(formCues([p(10, 10.5, 'Hi.')], 'rollup')[0]!.end).toBe(11.5);
 	});
 
 	test('after a pause, a new one starts alone', () => {
-		const [, second] = readableCues([p(10, 11, 'Hi.'), p(20, 21, 'Where were you?')]);
-		expect(second!.text).toBe('Where were you?');
+		const [, second] = formCues([p(10, 11, 'Hi.'), p(20, 21, 'Where were you?')], 'rollup');
+		expect(second!.previous).toBeUndefined();
 	});
 
-	test('never more than two lines', () => {
-		const burst = readableCues([p(5, 5.2, 'Oh.'), p(5.2, 5.4, 'Hey.'), p(5.4, 6, 'Hi!')]);
-		expect(burst.map((c) => c.text)).toEqual(['Oh.', 'Oh.\nHey.', 'Hey.\nHi!']);
+	test('never more than two lines; in order, though Whisper gave them out of it', () => {
+		const burst = formCues([p(5.4, 6, 'Hi!'), p(5, 5.2, 'Oh.'), p(5.2, 5.4, 'Hey.')], 'rollup');
+		expect(lines(burst)).toEqual(['Oh.', 'Oh.\nHey.', 'Hey.\nHi!']);
 		expect(burst.every((c) => c.end > c.start)).toBe(true);
 	});
+});
 
-	test('in order, though Whisper gave them out of it; two at once, shown together', () => {
-		const cues = readableCues([p(3, 4, 'B.'), p(1, 2, 'A.'), p(3.01, 4, 'C.')]);
-		expect(cues.map((c) => c.text)).toEqual(['A.', 'B.\nC.']);
+describe('formCues: in blocks', () => {
+	const talk = [
+		p(103, 104, 'Has she slept at all?'),
+		p(104.4, 105, 'Nope.'),
+		p(105, 107, "No, it's been three nights in a row."),
+		p(107.2, 109, 'Yeah, she finally stopped crying yesterday,')
+	];
+
+	test('the first alone, then the second under it: lines that do not move', () => {
+		expect(lines(formCues(talk, 'blocks'))).toEqual([
+			'Has she slept at all?',
+			'Has she slept at all?\nNope.',
+			"No, it's been three nights in a row.",
+			"No, it's been three nights in a row.\nYeah, she finally stopped crying yesterday,"
+		]);
 	});
+
+	test('a block goes when the next starts; the last, once read', () => {
+		const cues = formCues(talk, 'blocks');
+		expect(cues.map((c) => [c.start, c.end])).toEqual([
+			[103, 104.4],
+			[104.4, 105],
+			[105, 107.2],
+			[107.2, 110.067]
+		]);
+	});
+
+	test('after a pause, a block of its own', () => {
+		expect(lines(formCues([p(10, 11, 'Hi.'), p(20, 21, 'Where were you?')], 'blocks'))).toEqual([
+			'Hi.',
+			'Where were you?'
+		]);
+	});
+});
+
+describe('phrasesFromVtt: from subtitles made before the phrases were kept', () => {
+	test("rolled up: each cue's last line, when it starts", () => {
+		const vtt = formCues([p(1, 2, 'A.'), p(2.5, 3, 'B.'), p(3.2, 4, 'C.')], 'rollup').map((c) => ({
+			...c,
+			text: lines([c])[0]!,
+			previous: undefined
+		}));
+		expect(phrasesFromVtt(vtt).map((c) => [c.start, c.text])).toEqual([
+			[1, 'A.'],
+			[2.5, 'B.'],
+			[3.2, 'C.']
+		]);
+	});
+
+	test('two lines joined (not rolled up): two phrases, the second from halfway', () => {
+		expect(phrasesFromVtt([p(7.69, 10, '$6?\nI just had it.')])).toEqual([
+			{ start: 7.69, end: 8.845, text: '$6?' },
+			{ start: 8.845, end: 10, text: 'I just had it.' }
+		]);
+	});
+
+	test('one line: the phrase as it was', () => {
+		expect(phrasesFromVtt([p(1, 2, 'Hi.')])).toEqual([p(1, 2, 'Hi.')]);
+	});
+});
+
+test('rolled up and dimmed: the line before in a class the page dims', () => {
+	const [, second] = formCues([p(1, 2, 'A.'), p(2.5, 3, 'B.')], 'rollupDim');
+	expect(serializeVtt([second!], { dim: true })).toContain('<c.prev>A.</c>\nB.');
+	expect(serializeVtt([second!])).toContain('A.\nB.');
 });

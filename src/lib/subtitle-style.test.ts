@@ -29,9 +29,10 @@ describe('sanitizeSubtitleStyle', () => {
 
 test('every preset is made of known choices, and each is different', () => {
 	for (const { style } of SUBTITLE_PRESETS)
-		expect(sanitizeSubtitleStyle({ ...style, position: 'bottom' })).toEqual({
+		expect(sanitizeSubtitleStyle({ ...style, position: 'bottom', automatic: 'rollup' })).toEqual({
 			...style,
-			position: 'bottom'
+			position: 'bottom',
+			automatic: 'rollup'
 		});
 	expect(new Set(SUBTITLE_PRESETS.map((p) => JSON.stringify(p.style))).size).toBe(
 		SUBTITLE_PRESETS.length

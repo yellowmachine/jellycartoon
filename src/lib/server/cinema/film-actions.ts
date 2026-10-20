@@ -7,9 +7,11 @@ import {
 	hasIntro,
 	hostIntroFile,
 	hostMoviePath,
-	hostMovieSubFile
+	hostMovieSubFile,
+	movieSubsDir
 } from '#lib/server/library/paths.ts';
 import { filmAutoSubtitles } from '#lib/server/auto-subtitles.ts';
+import { formFile } from '#lib/server/auto-subtitle-files.ts';
 import { allowedMovies } from '#lib/server/kids.ts';
 import { videoClosed } from '#lib/server/kid-time.ts';
 import { getSettings } from '#lib/server/settings.ts';
@@ -77,10 +79,20 @@ export async function playFilm(
 					target: {
 						movieId: film.id,
 						// Whisper's, for what has none in the language of its audio.
-						subtitles: (await filmAutoSubtitles(film.id)).flatMap((s) => {
-							const file = hostMovieSubFile(film.id, s.file);
-							return file ? [{ path: file, lang: s.lang, label: s.label }] : [];
-						})
+						// In the form chosen in «⚙ Estilo» (#86): a file each, as mpv reads them from disk.
+						subtitles: (
+							await Promise.all(
+								(await filmAutoSubtitles(film.id)).map(async (s) => {
+									const name = await formFile(
+										movieSubsDir(film.id),
+										s.file,
+										settings.subtitleStyle.automatic
+									).catch(() => s.file);
+									const file = hostMovieSubFile(film.id, name);
+									return file ? [{ path: file, lang: s.lang, label: s.label }] : [];
+								})
+							)
+						).flat()
 					},
 					title: film.title,
 					subtitle: null,

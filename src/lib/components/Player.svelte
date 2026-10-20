@@ -88,7 +88,8 @@
 	// fixed option table in subtitle-style.ts, never from free text.
 	const cueStylesheet = $derived.by(() => {
 		const css = subtitleCss(subtitleStyle);
-		return `<style>.jc-video::cue{font-family:${css.fontFamily};font-weight:${css.fontWeight};font-size:${css.fontScale}em;color:${css.color};background:${css.background};text-shadow:${css.textShadow};line-height:1.35}</style>`;
+		// The phrase before, rolled up and dimmed (#86): the new one is the bright one.
+		return `<style>.jc-video::cue{font-family:${css.fontFamily};font-weight:${css.fontWeight};font-size:${css.fontScale}em;color:${css.color};background:${css.background};text-shadow:${css.textShadow};line-height:1.35}.jc-video::cue(.prev){opacity:0.55}</style>`;
 	});
 	let audioIndex = $derived(Math.max(0, pick(audioTracks, audioLang)));
 	let subtitleIndex = $derived(pick(subtitles, subtitleLang));
@@ -384,9 +385,12 @@
 			onended={onEnded}
 		>
 			{#each subtitles as sub, i (sub.file)}
+				<!-- Whisper's in the form chosen in «⚙ Estilo»: two lines that stay, or rolling up. -->
 				<track
 					kind="subtitles"
-					src="/api/hls/{episodeId}/{sub.file}"
+					src="/api/hls/{episodeId}/{sub.file}{sub.file.startsWith('sub_auto_')
+						? `?forma=${subtitleStyle.automatic}`
+						: ''}"
 					srclang={sub.lang}
 					label={sub.label}
 					default={i === subtitleIndex}

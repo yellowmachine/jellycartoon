@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { and, asc, desc, eq, inArray, isNotNull, max, min, notInArray, sql } from 'drizzle-orm';
@@ -20,14 +20,14 @@ import { probeDuration, speechChunks } from '#lib/server/library/ffmpeg.ts';
 import { hlsDir, movieFile, movieSubsDir } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 import { transcribeCues, voiceEnabled } from '#lib/server/voice/whisper.ts';
-import { readableCues } from '#lib/server/voice/whisper-cues.ts';
+import { AUTO_PREFIX, isAutoFile, writeAutoSubtitles } from '#lib/server/auto-subtitle-files.ts';
 import {
 	languageLabel,
 	normalizeLang,
 	whisperLanguage,
 	type SubtitleTrack
 } from '#lib/languages.ts';
-import { serializeVtt, type Cue } from '#lib/vtt.ts';
+import type { Cue } from '#lib/vtt.ts';
 
 /**
  * Subtitles made by Whisper (the voice commands' server) for what has none in the language of its
@@ -49,8 +49,6 @@ import { serializeVtt, type Cue } from '#lib/vtt.ts';
  * pieces of 10, which did about as well as the whole episode at once (#86).
  */
 const CHUNK_SEC = 600;
-/** The files of the made ones; a converted episode's own are `sub_N_lang.vtt`. */
-const AUTO_PREFIX = 'sub_auto_';
 /** Done ones kept as history, the latest; failures stay until retried or dismissed. */
 const KEEP_DONE = 50;
 
@@ -133,7 +131,7 @@ export function tracksWithoutSubtitles(item: {
 export async function filmAutoSubtitles(movieId: number): Promise<SubtitleTrack[]> {
 	const files = await readdir(movieSubsDir(movieId)).catch(() => [] as string[]);
 	return files
-		.filter((f) => f.startsWith(AUTO_PREFIX) && f.endsWith('.vtt'))
+		.filter(isAutoFile)
 		.sort()
 		.map((file) => {
 			const lang = file.slice(AUTO_PREFIX.length, -'.vtt'.length);
@@ -432,8 +430,7 @@ async function transcribeTrack(input: string, audio: number, lang: string, run: 
 			run.done++;
 			await rm(chunk, { force: true });
 		}
-		// All of them at once: where a piece ends and the next starts, too.
-		return readableCues(phrases);
+		return phrases.sort((a, b) => a.start - b.start);
 	} finally {
 		await rm(dir, { recursive: true, force: true });
 	}
@@ -456,7 +453,7 @@ async function make(
 	if (!cues.length) throw new Error('Whisper no oyó nada que se pudiera subtitular');
 	const file = `${AUTO_PREFIX}${track.lang}.vtt`;
 	await mkdir(dir, { recursive: true });
-	await writeFile(path.join(dir, file), serializeVtt(cues));
+	await writeAutoSubtitles(dir, file, cues);
 	log.info(
 		'subtitulos',
 		`Subtítulos automáticos de ${what} (${track.lang}): ${cues.length} frases`,
