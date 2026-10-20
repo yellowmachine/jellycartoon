@@ -15,7 +15,7 @@
 	/** Asked this often. */
 	const EVERY_MS = 3000;
 
-	let stage = $state<'preparing' | 'restarting'>('preparing');
+	let stage = $state<'preparing' | 'restarting' | 'finishing'>('preparing');
 	let failure = $state<string | null>(null);
 	let dialog = $state<HTMLDialogElement>();
 	/** «Cerrar» after a failure: the only way out on purpose. */
@@ -26,7 +26,20 @@
 		dialog?.showModal();
 		const started = Date.now();
 		let wentDown = false;
+		/** When the new version first answered. */
+		let upSince: number | null = null;
 		let timer: ReturnType<typeof setTimeout>;
+
+		/** How many containers WUD has left; undefined if it could not be asked (Caddy restarting). */
+		async function pendingUpdates(): Promise<number | null | undefined> {
+			try {
+				const res = await fetch('/api/update-status', { cache: 'no-store' });
+				if (res.ok) return (await res.json()).pending;
+			} catch {
+				// Nothing answers.
+			}
+			return undefined;
+		}
 
 		async function check() {
 			let version: string | null = null;
@@ -37,7 +50,16 @@
 				// Restarting: nothing answers for a few seconds.
 			}
 			if (version === null) wentDown = true;
-			const step = nextStep(version, { target, wentDown, elapsedMs: Date.now() - started });
+			// After the app, WUD goes on with the rest; while Caddy restarts the page reaches nothing.
+			const pending = version === target ? await pendingUpdates() : undefined;
+			if (version === target) upSince ??= Date.now();
+			const step = nextStep(version, {
+				target,
+				wentDown,
+				elapsedMs: Date.now() - started,
+				pending,
+				upForMs: upSince === null ? 0 : Date.now() - upSince
+			});
 			if (step.kind === 'done') {
 				try {
 					sessionStorage.setItem(DONE_KEY, JSON.stringify({ from: current, to: target }));
@@ -104,7 +126,9 @@
 				<p class="text-sm text-zinc-300">
 					{stage === 'preparing'
 						? 'Copia de la base de datos y descarga de la versión nueva.'
-						: 'Reiniciando la app. Vuelve en unos segundos.'}
+						: stage === 'restarting'
+							? 'Reiniciando la app. Vuelve en unos segundos.'
+							: 'La app ya está. Falta el resto (Caddy, Snapcast…): unos segundos más.'}
 				</p>
 				<p class="mt-3 text-xs text-zinc-500">
 					Puede tardar unos minutos. No cierres esta página: se recargará sola al terminar.

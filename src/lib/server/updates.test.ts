@@ -6,7 +6,7 @@ mock.module('$app/env/private', () => ({
 	WUD_PASSWORD: 'secreto'
 }));
 mock.module('#lib/server/log.ts', () => ({ log: { info() {}, warn() {}, error() {} } }));
-const { startUpdate, versionInfo } = await import('./updates.ts');
+const { pendingUpdates, startUpdate, versionInfo } = await import('./updates.ts');
 
 const app = (updateAvailable: boolean) => ({
 	id: 'app1',
@@ -72,22 +72,31 @@ describe('startUpdate', () => {
 		]);
 	});
 
-	test('a new one: WUD looks at the app and installs it on its own', async () => {
+	test('a new one: WUD looks at every container (Caddy too) and installs on its own', async () => {
 		routes = {
 			'GET /api/containers': [caddy, app(false)],
-			'POST /api/containers/app1/watch': app(true)
+			'POST /api/containers/watch': [caddy, app(true)]
 		};
 		expect(await startUpdate()).toBe('started');
-		expect(calls).toEqual(['GET /api/containers', 'POST /api/containers/app1/watch']);
+		expect(calls).toEqual(['GET /api/containers', 'POST /api/containers/watch']);
 	});
 
 	test('nothing new yet', async () => {
 		routes = {
 			'GET /api/containers': [caddy, app(false)],
-			'POST /api/containers/app1/watch': app(false)
+			'POST /api/containers/watch': [caddy, app(false)]
 		};
 		expect(await startUpdate()).toBe('not-ready');
 	});
+});
+
+test('pendingUpdates: what WUD has left after the app; null when it does not answer', async () => {
+	routes = { 'GET /api/containers': [app(false), { ...caddy, updateAvailable: true }] };
+	expect(await pendingUpdates()).toBe(1);
+	routes = { 'GET /api/containers': [app(false), caddy] };
+	expect(await pendingUpdates()).toBe(0);
+	routes = {};
+	expect(await pendingUpdates()).toBeNull();
 });
 
 test('versionInfo: the notice remembers GitHub for hours; Ajustes asks it again', async () => {
