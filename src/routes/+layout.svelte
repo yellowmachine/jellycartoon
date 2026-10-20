@@ -5,6 +5,8 @@
 	import SalonBar from '#lib/components/SalonBar.svelte';
 	import SnapcastBar from '#lib/components/SnapcastBar.svelte';
 	import SectionIcon, { type Section } from '#lib/components/SectionIcon.svelte';
+	import ActionMenu from '#lib/components/ActionMenu.svelte';
+	import { menuItem } from '#lib/components/menu.ts';
 	import VoiceBubble from '#lib/components/VoiceBubble.svelte';
 	import TimerBar from '#lib/components/TimerBar.svelte';
 	import VoicePanel from '#lib/components/VoicePanel.svelte';
@@ -45,14 +47,21 @@
 		{ href: '/canales', label: 'Canales', icon: 'canales' },
 		// The house's recipe book: not for a child's account.
 		...(data.kid ? [] : [{ href: '/recetas', label: 'Recetas', icon: 'recetas' as const }]),
+		// The road mode's trips, and the way into it: not for a child's account, as Modo carretera.
+		...(data.kid ? [] : [{ href: '/viajes', label: 'Viajes', icon: 'viajes' as const }]),
 		...(data.salon ? [{ href: '/salon', label: 'Salón', icon: 'salon' as const }] : []),
-		...(data.kidsPage ? [{ href: '/infantil', label: 'Infantil', icon: 'infantil' as const }] : []),
-		// Not for a child's account: they do not exist for it.
-		...(data.kid
-			? []
-			: // With Etiquetas and Registro in its tabs.
-				[{ href: '/library', label: 'Gestión', icon: 'gestion' as const, also: ['/logs'] }])
+		...(data.kidsPage ? [{ href: '/infantil', label: 'Infantil', icon: 'infantil' as const }] : [])
 	]);
+	/**
+	 * Not a section to watch or listen to: in the user's menu on wide screens, last in the phone's.
+	 * Not for a child's account: it does not exist for it. With Etiquetas and Registro in its tabs.
+	 */
+	const gestion = $derived(
+		data.kid
+			? undefined
+			: { href: '/library', label: 'Gestión', icon: 'gestion' as const, also: ['/logs'] }
+	);
+	const menuLinks = $derived(gestion ? [...links, gestion] : links);
 
 	/**
 	 * Held this long, the header's microphone listens; let go sooner, it was a tap: /voz opens. With
@@ -132,10 +141,10 @@
 	/** The section a page is in: its own address or, for those with tabs, any of theirs. */
 	const isCurrent = (href: string) => {
 		const path = page.url.pathname;
-		const also = links.find((l) => l.href === href)?.also ?? [];
+		const also = menuLinks.find((l) => l.href === href)?.also ?? [];
 		return (href === '/' ? path === '/' : under(path, href)) || also.some((h) => under(path, h));
 	};
-	const current = $derived(links.find((l) => l.href !== '/' && isCurrent(l.href)));
+	const current = $derived(menuLinks.find((l) => l.href !== '/' && isCurrent(l.href)));
 
 	/** The user's initial, for their round badge (accents and all: «Á» for «Álvaro»). */
 	const initial = $derived([...(data.user?.name.trim() ?? '')][0]?.toLocaleUpperCase('es') ?? '?');
@@ -259,32 +268,60 @@
 							/>{link.label}</a
 						>
 					{/each}
-					<form method="post" action="/logout" class="ml-auto hidden items-center gap-3 lg:flex">
-						<!-- The view for the living room's TV and its remote (#11): only with mpv, as Salón. -->
-						{#if data.salon}
+					<div class="ml-auto hidden items-center lg:flex">
+						<!-- A child's account has only Ajustes: the badge goes straight there. -->
+						{#if data.kid}
+							{#if data.salon}
+								<a
+									href="/tv"
+									title="Vista TV"
+									aria-label="Vista TV"
+									class="mr-3 rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+									><SectionIcon name="series" class="h-6 w-6" /></a
+								>
+							{/if}
 							<a
-								href="/tv"
-								title="Vista TV"
-								aria-label="Vista TV"
-								class="rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
-								><SectionIcon name="series" class="h-6 w-6" /></a
+								href="/ajustes"
+								title="{data.user.name} · Ajustes"
+								aria-label="{data.user.name} · Ajustes"
+								class={[
+									'flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-sm font-semibold text-zinc-950 hover:bg-amber-400',
+									isCurrent('/ajustes') &&
+										'ring-2 ring-amber-300 ring-offset-2 ring-offset-zinc-950'
+								]}>{initial}</a
 							>
+						{:else}
+							<!-- The user's menu: what is not a section to watch or listen to. -->
+							<ActionMenu id="user-menu" plain label="{data.user.name} · Menú">
+								{#snippet icon()}
+									<span
+										class={[
+											'flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-sm font-semibold text-zinc-950 hover:bg-amber-400',
+											(isCurrent('/ajustes') || (gestion && isCurrent(gestion.href))) &&
+												'ring-2 ring-amber-300 ring-offset-2 ring-offset-zinc-950'
+										]}>{initial}</span
+									>
+								{/snippet}
+								{#snippet children(close)}
+									<p class="truncate px-3 py-1.5 text-xs text-zinc-400">{data.user?.name}</p>
+									<a href="/ajustes" onclick={close} class={menuItem}>Ajustes</a>
+									{#if gestion}
+										<a href={gestion.href} onclick={close} class={menuItem}>{gestion.label}</a>
+									{/if}
+									<!-- The view for the living room's TV and its remote (#11): only with mpv, as Salón. -->
+									{#if data.salon}
+										<a href="/tv" onclick={close} class={menuItem}>Vista TV</a>
+									{/if}
+									<hr class="my-1 border-zinc-800" />
+									<!-- Not for a child's account: out by mistake, they cannot get back in. An adult
+									     switching accounts on that device has it at the end of Ajustes. -->
+									<form method="post" action="/logout">
+										<button class={menuItem}>Salir</button>
+									</form>
+								{/snippet}
+							</ActionMenu>
 						{/if}
-						<a
-							href="/ajustes"
-							title="{data.user.name} · Ajustes"
-							aria-label="{data.user.name} · Ajustes"
-							class={[
-								'flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-sm font-semibold text-zinc-950 hover:bg-amber-400',
-								isCurrent('/ajustes') && 'ring-2 ring-amber-300 ring-offset-2 ring-offset-zinc-950'
-							]}>{initial}</a
-						>
-						<!-- Not for a child's account: out by mistake, they cannot get back in. An adult switching
-					     accounts on that device has it at the end of Ajustes. -->
-						{#if !data.kid}
-							<button class="text-sm text-zinc-400 hover:text-white">Salir</button>
-						{/if}
-					</form>
+					</div>
 
 					<!-- Phone: the section you are in and a menu with the rest. -->
 					{#if current}
@@ -303,7 +340,7 @@
 					class="inset-x-0 top-14 bottom-auto m-0 w-auto border-b border-zinc-800 bg-zinc-950 px-4 pb-4 text-zinc-100 shadow-lg lg:hidden"
 				>
 					<ul class="divide-y divide-zinc-800">
-						{#each links as link (link.href)}
+						{#each menuLinks as link (link.href)}
 							<li>
 								<a
 									href={link.href}
