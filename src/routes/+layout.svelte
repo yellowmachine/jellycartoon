@@ -292,7 +292,12 @@
 							>
 						{:else}
 							<!-- The user's menu: what is not a section to watch or listen to. -->
-							<ActionMenu id="user-menu" plain label="{data.user.name} · Menú">
+							<ActionMenu
+								id="user-menu"
+								plain
+								label="{data.user.name} · Menú"
+								width="w-max min-w-40 max-w-64"
+							>
 								{#snippet icon()}
 									<span
 										class={[

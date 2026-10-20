@@ -12,9 +12,18 @@
 		icon?: Snippet;
 		/** The button's tooltip and label. */
 		label?: string;
+		/** The menu's width: wide for long rows, e.g. `w-max min-w-40` for short ones. */
+		width?: string;
 	}
 
-	let { id, children, plain = false, icon, label = 'Más acciones' }: Props = $props();
+	let {
+		id,
+		children,
+		plain = false,
+		icon,
+		label = 'Más acciones',
+		width = 'w-64'
+	}: Props = $props();
 
 	let menu = $state<HTMLElement>();
 	const close = () => menu?.hidePopover();
@@ -48,7 +57,10 @@
 	{id}
 	popover="auto"
 	style:position-anchor="--{id}"
-	class="action-menu inset-auto m-0 mt-1 w-64 rounded-md border border-zinc-700 bg-zinc-900 p-1 text-sm text-zinc-100 shadow-lg"
+	class={[
+		'action-menu inset-auto m-0 mt-1 rounded-md border border-zinc-700 bg-zinc-900 p-1 text-sm text-zinc-100 shadow-lg',
+		width
+	]}
 >
 	{@render children(close)}
 </div>
