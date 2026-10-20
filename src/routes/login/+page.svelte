@@ -1,56 +1,122 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import favicon from '#lib/assets/favicon.svg';
+	import PasswordInput from '#lib/components/PasswordInput.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 	let mode = $state<'signIn' | 'signUp'>('signIn');
+	/** The second step with a recovery code, instead of the app's. */
+	let recovery = $state(false);
+	$effect(() => {
+		if (form && 'recovery' in form) recovery = Boolean(form.recovery);
+	});
+	const twoFactor = $derived(Boolean(form && 'twoFactor' in form && form.twoFactor));
 
-	const input =
-		'mt-1 block w-full rounded-md border-zinc-700 bg-zinc-900 text-zinc-100 focus:border-amber-400 focus:ring-amber-400';
+	/** An action keeping where to go after (`?next=`), which «?/action» alone would drop. */
+	const action = (name: string) => {
+		const next = page.url.searchParams.get('next');
+		return `?${next ? `next=${encodeURIComponent(next)}&` : ''}/${name}`;
+	};
+
+	const field =
+		'block w-full rounded-md border-zinc-700 bg-zinc-900 text-zinc-100 focus:border-amber-400 focus:ring-amber-400';
+	const input = `mt-1 ${field}`;
+	const primary =
+		'w-full rounded-md bg-amber-500 py-2 font-medium text-zinc-950 hover:bg-amber-400';
 </script>
 
 <div class="mx-auto mt-16 max-w-sm">
 	<img src={favicon} alt="" class="mx-auto mb-4 h-20 w-20 rounded-2xl" />
 	<h1 class="text-center text-3xl font-bold text-amber-400">JellyCartoon</h1>
 	<p class="mt-2 mb-8 text-center text-zinc-400">Tus series y películas, en casa.</p>
-	<form method="post" action="?/{mode}" use:enhance class="space-y-4">
-		{#if mode === 'signUp'}
+	{#if twoFactor}
+		<!-- The second step: the code from the app (Proton Pass, Google Authenticator…). -->
+		<form method="post" action={action('verify')} use:enhance class="space-y-4">
 			<label class="block text-sm">
-				Nombre
-				<input name="name" class={input} autocomplete="name" />
+				{recovery ? 'Código de recuperación' : 'Código de tu app de verificación'}
+				{#if recovery}
+					<input
+						name="code"
+						required
+						autocomplete="off"
+						autocapitalize="off"
+						spellcheck="false"
+						class="{input} font-mono"
+					/>
+				{:else}
+					<!-- svelte-ignore a11y_autofocus -->
+					<input
+						name="code"
+						required
+						inputmode="numeric"
+						pattern="[0-9 ]*"
+						maxlength={7}
+						autocomplete="one-time-code"
+						autofocus
+						class="{input} font-mono text-lg tracking-widest"
+					/>
+				{/if}
 			</label>
-		{/if}
-		<label class="block text-sm">
-			Email
-			<input type="email" name="email" required class={input} autocomplete="email" />
-		</label>
-		<label class="block text-sm">
-			Contraseña
-			<input
-				type="password"
-				name="password"
-				required
-				minlength="8"
-				class={input}
-				autocomplete={mode === 'signIn' ? 'current-password' : 'new-password'}
-			/>
-		</label>
-		{#if form?.message}
-			<p class="text-sm text-red-400">{form.message}</p>
-		{/if}
-		<button
-			class="w-full rounded-md bg-amber-500 py-2 font-medium text-zinc-950 hover:bg-amber-400"
-		>
-			{mode === 'signIn' ? 'Entrar' : 'Crear cuenta'}
-		</button>
-	</form>
-	{#if data.allowSignup}
+			<input type="hidden" name="recovery" value={recovery ? 'on' : ''} />
+			<label class="flex items-center gap-2 text-sm text-zinc-300">
+				<input
+					type="checkbox"
+					name="trust"
+					checked
+					class="rounded border-zinc-600 bg-zinc-900 text-amber-500"
+				/>
+				Recordar este dispositivo 90 días
+			</label>
+			{#if form?.message}
+				<p class="text-sm text-red-400">{form.message}</p>
+			{/if}
+			<button class={primary}>Entrar</button>
+		</form>
 		<button
 			class="mt-4 w-full text-center text-sm text-zinc-400 hover:text-white"
-			onclick={() => (mode = mode === 'signIn' ? 'signUp' : 'signIn')}
+			onclick={() => (recovery = !recovery)}
 		>
-			{mode === 'signIn' ? '¿No tienes cuenta? Regístrate' : 'Ya tengo cuenta'}
+			{recovery ? 'Usar el código de la app' : '¿Sin el móvil? Usa un código de recuperación'}
 		</button>
+	{:else}
+		<form method="post" action={action(mode)} use:enhance class="space-y-4">
+			{#if mode === 'signUp'}
+				<label class="block text-sm">
+					Nombre
+					<input name="name" class={input} autocomplete="name" />
+				</label>
+			{/if}
+			<label class="block text-sm">
+				Email
+				<input type="email" name="email" required class={input} autocomplete="email" />
+			</label>
+			<label class="block text-sm">
+				Contraseña
+				<PasswordInput
+					name="password"
+					required
+					minlength={8}
+					box="mt-1"
+					class={field}
+					autocomplete={mode === 'signIn' ? 'current-password' : 'new-password'}
+				/>
+			</label>
+			{#if form?.message}
+				<p class="text-sm text-red-400">{form.message}</p>
+			{/if}
+			<button class={primary}>
+				{mode === 'signIn' ? 'Entrar' : 'Crear cuenta'}
+			</button>
+		</form>
+		{#if data.allowSignup}
+			<button
+				class="mt-4 w-full text-center text-sm text-zinc-400 hover:text-white"
+				onclick={() => (mode = mode === 'signIn' ? 'signUp' : 'signIn')}
+			>
+				{mode === 'signIn' ? '¿No tienes cuenta? Regístrate' : 'Ya tengo cuenta'}
+			</button>
+		{/if}
 	{/if}
 </div>

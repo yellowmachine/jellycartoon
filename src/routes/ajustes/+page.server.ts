@@ -44,6 +44,7 @@ import {
 import { musicRoot } from '#lib/server/library/paths.ts';
 import { ORIGIN } from '$app/env/private';
 import { recordsTrips, setRecordTrips } from '#lib/server/trips.ts';
+import { canUseTwoFactor } from '#lib/server/two-factor.ts';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
@@ -103,8 +104,22 @@ export const load: PageServerLoad = async ({ locals }) => {
 		};
 	}
 
+	const twoFactorOn = Boolean(locals.user!.twoFactorEnabled);
 	return {
 		account: { name: locals.user!.name, email: locals.user!.email },
+		/**
+		 * The second step after the password: not for children's accounts; the administrator always
+		 * has it. How many recovery codes are left, as each is used once.
+		 */
+		twoFactor: canUseTwoFactor(locals.user!)
+			? {
+					enabled: twoFactorOn,
+					required: admin,
+					codesLeft: twoFactorOn
+						? (await auth.api.viewBackupCodes({ body: { userId } })).backupCodes.length
+						: null
+				}
+			: null,
 		playback: { audioLang: settings.audioLang, subtitleLang: settings.subtitleLang },
 		/** Also for mpv in the living room, where films are watched. */
 		subtitleStyle: settings.subtitleStyle,
@@ -144,6 +159,33 @@ const lang = (value: FormDataEntryValue | null) =>
 	typeof value === 'string' && value ? normalizeLang(value) : null;
 
 export const actions: Actions = {
+	/** Ten new recovery codes, shown once; the ones before stop working. */
+	newBackupCodes: async ({ request }) => {
+		const password = String((await request.formData()).get('password') ?? '');
+		try {
+			const { backupCodes } = await auth.api.generateBackupCodes({
+				body: { password },
+				headers: request.headers
+			});
+			return { backupCodes };
+		} catch (err) {
+			if (err instanceof APIError) return fail(400, { twoFactorProblem: 'Contraseña incorrecta' });
+			throw err;
+		}
+	},
+	/** Without the second step again; not for the administrator, who always has it. */
+	disableTwoFactor: async ({ request, locals }) => {
+		if (await isAdmin(locals.user!.id))
+			return fail(403, { twoFactorProblem: 'El administrador siempre la lleva' });
+		const password = String((await request.formData()).get('password') ?? '');
+		try {
+			await auth.api.disableTwoFactor({ body: { password }, headers: request.headers });
+		} catch (err) {
+			if (err instanceof APIError) return fail(400, { twoFactorProblem: 'Contraseña incorrecta' });
+			throw err;
+		}
+		return { twoFactorOff: true };
+	},
 	/** A new password for music apps: shown once, and the one before stops working. */
 	appPassword: async ({ locals }) => {
 		const password = await generateAppPassword(locals.user!.id);

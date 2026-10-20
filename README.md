@@ -139,6 +139,17 @@ docker compose -f compose.prod.yaml logs -f app
   a la temporada 0, y ahí se selecciona entera.
 - Cuando estén creadas las cuentas, pon `ALLOW_SIGNUP=false`. "Hoy" usa `TZ` (por defecto
   `Europe/Madrid`).
+- **Verificación en dos pasos**: tras la contraseña, un código de 6 cifras de una app (Proton Pass,
+  Google Authenticator, Aegis…), con «Recordar este dispositivo» 90 días y 10 códigos de
+  recuperación de un solo uso. Cualquier cuenta la activa en Ajustes → Cuenta. Quien creó la
+  primera cuenta (la que administra) la lleva siempre: la primera vez que entra sin ella, la app le
+  pide configurarla antes de nada (las sesiones ya abiertas, como la de la tele, siguen igual). Las
+  infantiles no la tienen.
+- Si alguien pierde la app y sus códigos de recuperación, se le quita desde el servidor, y vuelve a
+  entrar solo con la contraseña (al administrador se le pide configurarla otra vez):
+  ```sh
+  docker compose -f compose.prod.yaml exec app bun run quitar-2fa su@email
+  ```
 - Las cuentas infantiles las crea quien creó la primera cuenta, desde Ajustes. Solo ven las series
   y películas con la etiqueta «infantil», no gestionan nada ni hablan con la IA, y la propia cuenta
   no puede dejar de ser infantil.

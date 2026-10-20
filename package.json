@@ -15,6 +15,7 @@
 		"db:start": "docker compose up -d db",
 		"db:generate": "bun --bun drizzle-kit generate",
 		"db:migrate": "bun scripts/migrate.ts",
+		"quitar-2fa": "bun scripts/quitar-2fa.ts",
 		"db:studio": "bun --bun drizzle-kit studio",
 		"auth:schema": "bun --bun x auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes",
 		"start": "bun build/index.js",
@@ -54,6 +55,7 @@
 		"hls.js": "^1.7.3",
 		"maplibre-gl": "^6.12.0",
 		"minisearch": "^7.2.0",
-		"pmtiles": "^4.5.0"
+		"pmtiles": "^4.5.0",
+		"uqr": "0.1.2"
 	}
 }
