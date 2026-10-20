@@ -62,6 +62,19 @@
 			: { href: '/library', label: 'Gestión', icon: 'gestion' as const, also: ['/logs'] }
 	);
 	const menuLinks = $derived(gestion ? [...links, gestion] : links);
+	/** The user's menu: a row with its icon, drawn as the sections' (Lucide's sliders and log-out). */
+	const userItem =
+		'flex w-full items-center gap-2.5 rounded px-3 py-1.5 text-left hover:bg-zinc-800';
+	const iconSvg = {
+		viewBox: '0 0 24 24',
+		fill: 'none',
+		stroke: 'currentColor',
+		'stroke-width': 1.5,
+		'stroke-linecap': 'round',
+		'stroke-linejoin': 'round',
+		class: 'h-[18px] w-[18px] shrink-0',
+		'aria-hidden': 'true'
+	} as const;
 
 	/**
 	 * Held this long, the header's microphone listens; let go sooner, it was a tap: /voz opens. With
@@ -309,19 +322,38 @@
 								{/snippet}
 								{#snippet children(close)}
 									<p class="truncate px-3 py-1.5 text-xs text-zinc-400">{data.user?.name}</p>
-									<a href="/ajustes" onclick={close} class={menuItem}>Ajustes</a>
+									<a href="/ajustes" onclick={close} class={userItem}
+										><svg {...iconSvg}
+											><path
+												d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"
+											/></svg
+										>Ajustes</a
+									>
 									{#if gestion}
-										<a href={gestion.href} onclick={close} class={menuItem}>{gestion.label}</a>
+										<a href={gestion.href} onclick={close} class={userItem}
+											><SectionIcon
+												name={gestion.icon}
+												class="h-[18px] w-[18px] shrink-0"
+											/>{gestion.label}</a
+										>
 									{/if}
 									<!-- The view for the living room's TV and its remote (#11): only with mpv, as Salón. -->
 									{#if data.salon}
-										<a href="/tv" onclick={close} class={menuItem}>Vista TV</a>
+										<a href="/tv" onclick={close} class={userItem}
+											><SectionIcon name="series" class="h-[18px] w-[18px] shrink-0" />Vista TV</a
+										>
 									{/if}
 									<hr class="my-1 border-zinc-800" />
 									<!-- Not for a child's account: out by mistake, they cannot get back in. An adult
 									     switching accounts on that device has it at the end of Ajustes. -->
 									<form method="post" action="/logout">
-										<button class={menuItem}>Salir</button>
+										<button class={userItem}
+											><svg {...iconSvg}
+												><path
+													d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"
+												/></svg
+											>Salir</button
+										>
 									</form>
 								{/snippet}
 							</ActionMenu>
