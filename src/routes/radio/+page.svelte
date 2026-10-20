@@ -33,6 +33,13 @@
 		title="Para la tablet del coche: lo que suena en grande, el micrófono y nada de vídeo"
 		>Modo carretera</a
 	>
+	{#if data.trips}
+		<a
+			href="/viajes"
+			class="rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900"
+			title="Tus viajes del modo carretera: recorridos, fotos y estadísticas">Mis viajes</a
+		>
+	{/if}
 </div>
 <RadioTabs />
 <p class="mb-6 text-sm text-zinc-400">

@@ -478,7 +478,7 @@ the app's microphone, which the voice's big one right above would be taken for. 
 		</div>
 	{/if}
 	<div class={['flex flex-col gap-4', mapShown ? 'min-h-0 overflow-y-auto' : 'min-h-dvh p-4']}>
-		<div class="flex items-center justify-between gap-3">
+		<div class="flex flex-wrap items-center justify-between gap-3">
 			<a href="/" class="rounded-xl px-3 py-2 text-lg text-zinc-400 active:bg-zinc-800">← Salir</a>
 			{#if data.shareable && !tripShare.url}
 				<button
@@ -489,11 +489,17 @@ the app's microphone, which the voice's big one right above would be taken for. 
 			{/if}
 			{#if data.recordTrips}
 				<!-- Kept, and said: where one goes is not kept without knowing it (#81). -->
+				<span
+					class="rounded-full px-3 py-2 text-base text-zinc-400"
+					title="Se guarda este viaje («Guardar mis viajes», en Ajustes)"
+					>{tripRecorder.problem ? '⚠ No se guarda el viaje' : '● Guardando el viaje'}</span
+				>
+			{/if}
+			{#if data.trips}
 				<a
 					href="/viajes"
-					class="rounded-full px-3 py-2 text-base text-zinc-400 active:bg-zinc-800"
-					title="Se guarda este viaje (Ajustes); tus viajes, en /viajes"
-					>{tripRecorder.problem ? '⚠ No se guarda el viaje' : '● Guardando el viaje'}</a
+					class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300 active:bg-zinc-800"
+					>Mis viajes</a
 				>
 			{/if}
 			{#if data.map && wide}
