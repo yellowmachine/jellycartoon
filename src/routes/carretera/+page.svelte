@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { beforeNavigate, goto } from '$app/navigation';
 	import { SvelteSet } from 'svelte/reactivity';
 	import MediaIcon from '#lib/components/MediaIcon.svelte';
 	import MusicBar from '#lib/components/MusicBar.svelte';
@@ -473,6 +474,45 @@
 		pace.tick(Date.now(), metresPerSecond);
 		here = at;
 		speed = metresPerSecond;
+	}
+
+	/**
+	 * Leaving by mistake while driving (a thumb on «←», Android's back gesture) stops the trip and
+	 * the screen: asked first, and «Seguir» by itself after a few seconds. Back from a section goes
+	 * to Inicio, as its «← Inicio». Moving inside the road mode, or a `goto` (a voice command), is
+	 * not asked. https://svelte.dev/docs/kit/$app-navigation#beforeNavigate
+	 */
+	const EXIT_ASK_MS = 3000;
+	let exitDialog = $state<HTMLDialogElement>();
+	let exitOpen = $state(false);
+	/** Where leaving was going: `back` for the browser's back. */
+	let exitTo: string | null = null;
+	let exitTimer: ReturnType<typeof setTimeout> | undefined;
+	/** «Salir» touched: the navigation it starts is not asked again. */
+	let exitConfirmed = false;
+
+	beforeNavigate((nav) => {
+		if (exitConfirmed || nav.willUnload || !nav.to) return;
+		if (nav.type !== 'link' && nav.type !== 'popstate') return;
+		const path = nav.to.url.pathname;
+		if (path === '/carretera' || path.startsWith('/carretera/')) return;
+		nav.cancel();
+		if (nav.type === 'popstate' && tab !== null) {
+			tab = null;
+			return;
+		}
+		exitTo = nav.type === 'popstate' ? 'back' : nav.to.url.href;
+		exitOpen = true;
+		exitDialog?.showModal();
+		clearTimeout(exitTimer);
+		exitTimer = setTimeout(() => exitDialog?.close(), EXIT_ASK_MS);
+	});
+
+	function exit() {
+		exitConfirmed = true;
+		exitDialog?.close();
+		if (exitTo === 'back') history.back();
+		else if (exitTo) void goto(exitTo);
 	}
 
 	const big =
@@ -1236,5 +1276,53 @@ the app's microphone, which the voice's big one right above would be taken for. 
 	</figure>
 {/if}
 
+<!-- Leaving, asked (see beforeNavigate): big, for a glance; «Seguir» first, and by itself. -->
+<dialog
+	bind:this={exitDialog}
+	closedby="any"
+	onclose={() => {
+		clearTimeout(exitTimer);
+		exitOpen = false;
+	}}
+	class="m-auto w-md max-w-[calc(100vw-2rem)] rounded-3xl border border-zinc-700 bg-zinc-900 p-6 text-zinc-100 shadow-lg backdrop:bg-zinc-950/80"
+>
+	<h2 class="text-2xl font-bold">¿Salir del modo carretera?</h2>
+	{#if data.recordTrips}
+		<p class="mt-2 text-lg text-zinc-400">Se deja de guardar el viaje.</p>
+	{/if}
+	<div class="mt-5 grid grid-cols-2 gap-3">
+		<button class="{big} h-20 text-2xl font-semibold" onclick={() => exitDialog?.close()}
+			>Seguir</button
+		>
+		<button
+			class="flex h-20 items-center justify-center rounded-2xl bg-red-700 text-2xl font-semibold text-white active:scale-95 active:bg-red-800"
+			onclick={exit}>Salir</button
+		>
+	</div>
+	{#if exitOpen}
+		<div
+			class="exit-countdown mt-5 h-1.5 rounded-full bg-amber-400"
+			style:animation-duration="{EXIT_ASK_MS}ms"
+		></div>
+	{/if}
+</dialog>
+
 <!-- The sound plays through MusicBar's <audio>; its bar is for the rest of the app. -->
 <div class="hidden"><MusicBar /></div>
+
+<style>
+	/* «Seguir» by itself when it runs out. */
+	.exit-countdown {
+		animation-name: exit-countdown;
+		animation-timing-function: linear;
+		animation-fill-mode: forwards;
+	}
+	@keyframes exit-countdown {
+		from {
+			width: 100%;
+		}
+		to {
+			width: 0;
+		}
+	}
+</style>
