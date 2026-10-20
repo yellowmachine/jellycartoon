@@ -157,6 +157,7 @@
 	audioTracks={data.episode.audioTracks}
 	subtitles={data.episode.subtitles}
 	settings={data.settings}
+	langua={data.langua}
 	onended={ended}
 	onautonextchange={(value) => (autoNext = value)}
 	autoplay={!asking}

@@ -7,6 +7,7 @@ import { getSettings } from '#lib/server/settings.ts';
 import { getCandidates, suggestEpisodes } from '#lib/server/playlist.ts';
 import { seriesTags } from '#lib/server/tags.ts';
 import { askEvery } from '#lib/server/still-there.ts';
+import { languaConfig } from '#lib/server/langua.ts';
 
 export const load: PageServerLoad = async ({ params, url, locals }) => {
 	const id = Number(params.id);
@@ -70,7 +71,9 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 		suggestions: suggested.flatMap((id) => cards.get(id) ?? []),
 		settings,
 		/** «¿Sigues ahí?» after this many started by themselves (#77); null, never. */
-		askEvery: ask
+		askEvery: ask,
+		/** Their Langua is set (Ajustes): «Mandar a Langua» in the player's menu. */
+		langua: Boolean(await languaConfig(locals.user!.id))
 	};
 };
 

@@ -43,6 +43,8 @@
 		onautonextchange?: (autoNext: boolean) => void;
 		/** Over the video while it is given, e.g. the next episode with a countdown. */
 		overlay?: Snippet;
+		/** Their Langua is set (Ajustes): Â«Mandar a LanguaÂ» in the menu. */
+		langua?: boolean;
 	}
 
 	let {
@@ -55,7 +57,8 @@
 		autoplay = true,
 		onended,
 		onautonextchange,
-		overlay
+		overlay,
+		langua = false
 	}: Props = $props();
 
 	let video = $state<HTMLVideoElement>();
@@ -337,6 +340,26 @@
 		setTimeout(() => (thumbnailState = 'idle'), 2000);
 	}
 
+	/** A clip sent to Langua: what it said (sent, or why not). */
+	let languaState = $state<string | null>(null);
+	async function toLangua(minutes: number) {
+		if (!video) return;
+		languaState = 'Mandandoâ€¦';
+		const res = await fetch('/api/langua/clip', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				episodeId,
+				positionSec: video.currentTime,
+				minutes,
+				// The audio heard, which may not be the one in Ajustes.
+				language: audioTracks[audioIndex]?.lang ?? null
+			})
+		}).catch(() => null);
+		const body = await res?.json().catch(() => null);
+		languaState = body?.message ?? 'No se pudo mandar.';
+	}
+
 	function onTimeUpdate() {
 		if (Date.now() - lastSaved > 10_000) save();
 	}
@@ -406,6 +429,8 @@ same look in every browser, the app's colours, and the player's options in its â
 				{/each}
 			</video>
 			<media-loading-indicator slot="centered-chrome" noautohide></media-loading-indicator>
+			<!-- Touch: a tap shows the controls and this, big in the middle; a second, play or pause. -->
+			<media-play-button slot="centered-chrome" class="jc-center-play"></media-play-button>
 			<media-control-bar>
 				<media-play-button></media-play-button>
 				<media-seek-backward-button seekoffset="10"></media-seek-backward-button>
@@ -489,6 +514,19 @@ same look in every browser, the app's colours, and the player's options in its â
 							pick: () => chooseSize(s.value)
 						}))
 					)}
+					{#if langua}
+						{@render choices(
+							'Mandar a Langua',
+							[1, 2, 5].map((m) => ({
+								label: `Ãšltimos ${m} min`,
+								on: false,
+								pick: () => toLangua(m)
+							}))
+						)}
+						{#if languaState}
+							<p class="px-2 text-zinc-400" role="status">{languaState}</p>
+						{/if}
+					{/if}
 					<button
 						class="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800 disabled:opacity-50"
 						title="Usar el fotograma que se ve ahora como miniatura del capÃ­tulo"
@@ -561,6 +599,14 @@ same look in every browser, the app's colours, and the player's options in its â
 	.jc-player media-control-bar {
 		background: linear-gradient(transparent, rgb(9 9 11 / 0.85));
 		padding: 0 0.25rem;
+	}
+	.jc-center-play {
+		--media-button-icon-width: 3.5rem;
+		--media-button-icon-height: 3.5rem;
+		--media-control-background: rgb(9 9 11 / 0.6);
+		--media-control-hover-background: rgb(9 9 11 / 0.8);
+		border-radius: 9999px;
+		padding: 1rem;
 	}
 	.jc-menu-button {
 		display: flex;
