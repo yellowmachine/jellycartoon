@@ -13,6 +13,8 @@ export interface PlaybackSettings {
 	/** One the app no longer has is the default. */
 	theme: ThemeId;
 	keepHistory: boolean;
+	/** A line from the library on a black screen when the app opens, as Frasier's title cards. */
+	openingQuote: boolean;
 }
 
 export async function getSettings(userId: string): Promise<PlaybackSettings> {
@@ -24,7 +26,8 @@ export async function getSettings(userId: string): Promise<PlaybackSettings> {
 		autoNext: row?.autoNext ?? true,
 		intro: row?.intro ?? true,
 		theme: isTheme(row?.theme) ? row.theme : DEFAULT_THEME,
-		keepHistory: row?.keepHistory ?? true
+		keepHistory: row?.keepHistory ?? true,
+		openingQuote: row?.openingQuote ?? true
 	};
 }
 

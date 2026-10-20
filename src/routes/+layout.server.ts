@@ -8,14 +8,24 @@ import { versionInfo } from '#lib/server/updates.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
 import { getSettings } from '#lib/server/settings.ts';
 import { DEFAULT_THEME } from '#lib/themes.ts';
+import { openingQuote } from '#lib/server/opening-quote.ts';
 
-export const load: LayoutServerLoad = async ({ locals }) => {
+export const load: LayoutServerLoad = async ({ locals, isDataRequest }) => {
 	const kid = isKid(locals.user);
+	const settings = locals.user ? await getSettings(locals.user.id) : null;
 	const admin = Boolean(locals.user) && !kid && (await isAdmin(locals.user!.id));
 	return {
 		user: locals.user ? { name: locals.user.name } : null,
 		/** The account's colours (Ajustes), painted from the server: no flash of the default. */
-		theme: locals.user ? (await getSettings(locals.user.id)).theme : DEFAULT_THEME,
+		theme: settings?.theme ?? DEFAULT_THEME,
+		/**
+		 * The title card when the app opens (Ajustes): only when the whole page loads, not when moving
+		 * around inside it.
+		 */
+		openingQuote:
+			settings?.openingQuote && !isDataRequest
+				? await openingQuote(locals.user!.id, settings.subtitleLang)
+				: null,
 		/** A child's account (#17): only what is tagged «infantil», and nothing to manage. */
 		kid,
 		/** The adults' page about what children watch, once there is a child's account. */

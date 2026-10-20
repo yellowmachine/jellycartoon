@@ -126,6 +126,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		// Only with films in the living room and the intro in DATA_DIR.
 		intro: mpvEnabled && introFound ? settings.intro : null,
 		languages: KNOWN_LANGUAGES,
+		/** The title card when the app opens, as Frasier's. */
+		openingQuoteOn: settings.openingQuote,
 		/** «Guardar lo que veo»: adults only, a child's is always kept for the adults (#17). */
 		keepHistory: isKid(locals.user) ? null : settings.keepHistory,
 		/** The road mode's trips kept (#81); adults only. */
@@ -268,6 +270,14 @@ export const actions: Actions = {
 			.values({ userId: locals.user!.id, ...values })
 			.onConflictDoUpdate({ target: userSettings.userId, set: values });
 		return { saved: 'intro' };
+	},
+	openingQuote: async ({ request, locals }) => {
+		const values = { openingQuote: (await request.formData()).get('openingQuote') === 'on' };
+		await db
+			.insert(userSettings)
+			.values({ userId: locals.user!.id, ...values })
+			.onConflictDoUpdate({ target: userSettings.userId, set: values });
+		return { saved: 'openingQuote' };
 	},
 	recordTrips: async ({ request, locals }) => {
 		if (isKid(locals.user)) error(404, 'No encontrado');

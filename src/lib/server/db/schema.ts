@@ -121,6 +121,20 @@ export const episode = pgTable(
 	]
 );
 
+/**
+ * The lines of an episode's subtitles the AI found witty enough to stand alone, for the opening
+ * title card. One row per episode looked at: no lines means it found none.
+ */
+export const episodeQuotes = pgTable('episode_quotes', {
+	episodeId: integer('episode_id')
+		.primaryKey()
+		.references(() => episode.id, { onDelete: 'cascade' }),
+	/** The WebVTT file they come from, in the episode's HLS folder. */
+	file: text('file').notNull(),
+	quotes: jsonb('quotes').$type<string[]>().notNull().default([]),
+	createdAt: timestamp('created_at').notNull().defaultNow()
+});
+
 /** The title to show: the one set by hand, the AI's, or the one from the file name. */
 export const episodeTitle = sql<string>`coalesce(${episode.customTitle}, ${episode.aiTitle}, ${episode.title})`;
 
@@ -558,7 +572,9 @@ export const userSettings = pgTable('user_settings', {
 	/** Where "add to list" on a series page puts episodes. */
 	activeListId: integer('active_list_id').references(() => userList.id, { onDelete: 'set null' }),
 	/** The road mode's trips are kept (#81): where one has been, so off until turned on. */
-	recordTrips: boolean('record_trips').notNull().default(false)
+	recordTrips: boolean('record_trips').notNull().default(false),
+	/** A line from the library's subtitles on a black screen when the app opens, as Frasier's title cards. */
+	openingQuote: boolean('opening_quote').notNull().default(true)
 });
 
 /**
