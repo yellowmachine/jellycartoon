@@ -587,48 +587,7 @@ the app's microphone, which the voice's big one right above would be taken for. 
 	{/if}
 	<div class={['flex flex-col gap-4', mapShown ? 'min-h-0' : 'min-h-dvh p-4']}>
 		{#if tab === null}
-			<!-- Little, out of the way: leaving, the map back, and whether the trip is kept. -->
-			<div class="flex items-center justify-between gap-3">
-				<a
-					href="/"
-					class="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 text-2xl text-zinc-300 active:bg-zinc-800"
-					aria-label="Salir del modo carretera"
-					title="Salir">←</a
-				>
-				<div class="flex items-center gap-2">
-					{#if data.map && wide && !showMap}
-						<button
-							class="rounded-full bg-zinc-900 px-4 py-2 text-base text-zinc-300 active:bg-zinc-800"
-							onclick={() => (showMap = true)}>Mapa</button
-						>
-					{/if}
-					{#if data.recordTrips}
-						<!-- Kept, and said: where one goes is not kept without knowing it (#81). -->
-						<button
-							class="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 active:bg-zinc-800"
-							aria-label={tripRecorder.problem ? 'No se guarda el viaje' : 'Se guarda este viaje'}
-							aria-expanded={tripNote}
-							onclick={() => (tripNote = !tripNote)}
-						>
-							{#if tripRecorder.problem}
-								<span
-									class="flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-sm font-bold text-zinc-950"
-									>!</span
-								>
-							{:else}
-								<span class="h-4 w-4 animate-pulse rounded-full bg-red-500"></span>
-							{/if}
-						</button>
-					{/if}
-				</div>
-			</div>
-			{#if tripNote && data.recordTrips}
-				<p class="-mt-2 text-right text-base text-zinc-400">
-					{tripRecorder.problem
-						? `No se guarda el viaje: ${tripRecorder.problem}`
-						: 'Se guarda este viaje («Guardar mis viajes», en Ajustes).'}
-				</p>
-			{/if}
+			<!-- Leaving, and whether the trip is kept: in what plays' own first line. -->
 		{:else}
 			<!-- In a section: the way back, big; what plays, to pause it; and the microphone, small. -->
 			<div class="flex items-center gap-3">
@@ -681,10 +640,17 @@ the app's microphone, which the voice's big one right above would be taken for. 
 
 		{#if tab === null}
 			<div class={['flex flex-col gap-4', mapShown && 'min-h-0 flex-1 overflow-y-auto']}>
-				<!-- What plays, with buttons a thumb finds without looking. -->
+				<!-- What plays, with buttons a thumb finds without looking; leaving, and the trip's dot, in
+				its first line. -->
 				<section class="rounded-3xl bg-zinc-900 p-4">
-					{#if playing}
-						<div class="flex items-center gap-4">
+					<div class="flex items-center gap-4">
+						<a
+							href="/"
+							class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-2xl text-zinc-300 active:bg-zinc-700"
+							aria-label="Salir del modo carretera"
+							title="Salir">←</a
+						>
+						{#if playing}
 							{#if playing.image}
 								<img
 									src={playing.image}
@@ -692,11 +658,54 @@ the app's microphone, which the voice's big one right above would be taken for. 
 									class="h-20 w-20 shrink-0 rounded-xl bg-zinc-800 object-cover"
 								/>
 							{/if}
-							<div class="min-w-0">
+							<div class="min-w-0 flex-1">
 								<p class="truncate text-2xl font-semibold">{playing.title}</p>
 								<p class="truncate text-lg text-zinc-400">{playing.detail}</p>
 							</div>
-						</div>
+						{:else}
+							<p class="min-w-0 flex-1 py-4 text-center text-xl text-zinc-400">
+								No suena nada. Elige abajo, o pídelo.
+							</p>
+						{/if}
+						{#if data.map && wide && !showMap}
+							<button
+								class="shrink-0 rounded-full bg-zinc-800 px-4 py-2 text-base text-zinc-300 active:bg-zinc-700"
+								onclick={() => (showMap = true)}>Mapa</button
+							>
+						{/if}
+						<!-- Kept or not, and said: where one goes is not kept without knowing it (#81). -->
+						<button
+							class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-800 active:bg-zinc-700"
+							aria-label={!data.recordTrips
+								? 'No se guardan tus viajes'
+								: tripRecorder.problem
+									? 'No se guarda el viaje'
+									: 'Se guarda este viaje'}
+							aria-expanded={tripNote}
+							onclick={() => (tripNote = !tripNote)}
+						>
+							{#if !data.recordTrips}
+								<span class="h-4 w-4 rounded-full bg-zinc-500"></span>
+							{:else if tripRecorder.problem}
+								<span
+									class="flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-sm font-bold text-zinc-950"
+									>!</span
+								>
+							{:else}
+								<span class="h-4 w-4 animate-pulse rounded-full bg-red-500"></span>
+							{/if}
+						</button>
+					</div>
+					{#if tripNote}
+						<p class="mt-2 text-right text-base text-zinc-400">
+							{!data.recordTrips
+								? 'No se guardan tus viajes: «Guardar mis viajes», en Ajustes.'
+								: tripRecorder.problem
+									? `No se guarda el viaje: ${tripRecorder.problem}`
+									: 'Se guarda este viaje («Guardar mis viajes», en Ajustes).'}
+						</p>
+					{/if}
+					{#if playing}
 						<div class="mt-4 flex items-center justify-center gap-4">
 							{#if music.podcast}
 								<button
@@ -733,10 +742,6 @@ the app's microphone, which the voice's big one right above would be taken for. 
 								>
 							{/if}
 						</div>
-					{:else}
-						<p class="py-6 text-center text-xl text-zinc-400">
-							No suena nada. Elige abajo, o pídelo.
-						</p>
 					{/if}
 				</section>
 

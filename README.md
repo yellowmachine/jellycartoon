@@ -522,8 +522,9 @@ lado el navegador (Google Maps u Organic Maps, que hacen la navegación y el tr�
   Snapcast), y sin vídeo, cocina ni recetas; aunque pidiera un capítulo, no se abre.
 - La pantalla no se apaga mientras está abierto (Wake Lock). Para gastar menos datos móviles, la
   música en Opus: «Ahorro de datos» en Ajustes, en ese dispositivo.
-- Arriba, pequeños: «←» para salir y, si se guardan los viajes, un punto rojo (tocándolo dice qué
-  es; ámbar si algo falla). «Ocultar mapa» va sobre el mapa, y «Mapa» lo vuelve a poner.
+- En la misma línea que lo que suena: «←» para salir y un punto, rojo si se guarda el viaje y gris
+  si no (tocándolo dice qué es; ámbar si algo falla). «Ocultar mapa» va sobre el mapa, y «Mapa» lo
+  vuelve a poner.
 
 Con la tablet entera en horizontal (la pantalla ancha, sin partir), a la izquierda va un mapa
 propio ([MapLibre](https://maplibre.org)), con dónde estás por el GPS del navegador: la flecha
