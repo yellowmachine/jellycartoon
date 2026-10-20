@@ -9,7 +9,6 @@
 	import type { MusicTrack } from '#lib/music.ts';
 	import { coverUrl } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
-	import { musicQuality } from '#lib/music-quality.svelte.ts';
 	import { musicTarget } from '#lib/music-target.svelte.ts';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { playEpisode } from '#lib/podcast-player.svelte.ts';
@@ -43,6 +42,8 @@
 	let loading = $state<string | null>(null);
 	let problem = $state<string | null>(null);
 	let screenProblem = $state<string | null>(null);
+	/** The trip's dot, touched: what it means, or what went wrong. */
+	let tripNote = $state(false);
 	/** Logos that did not load: the station's initial instead. */
 	const broken = new SvelteSet<string>();
 
@@ -482,8 +483,6 @@
 		<span class="text-amber-300">{voice.problem}</span>
 	{:else if voice.reply}
 		{voice.reply}
-	{:else}
-		<span class="text-zinc-500">«Pon Radio 3», «siguiente», «el último podcast de…»</span>
 	{/if}
 {/snippet}
 
@@ -535,54 +534,57 @@ the app's microphone, which the voice's big one right above would be taken for. 
 				}}
 			/>
 			{@render maneuver('absolute inset-x-3 top-3')}
+			<!-- Out of the way of the next maneuver, at the top; «Mapa» brings it back. -->
+			<button
+				class="absolute right-3 bottom-10 rounded-full bg-zinc-950/80 px-4 py-2 text-lg text-zinc-200 shadow-lg active:bg-zinc-800"
+				onclick={() => (showMap = false)}>Ocultar mapa</button
+			>
 		</div>
 	{/if}
 	<div class={['flex flex-col gap-4', mapShown ? 'min-h-0' : 'min-h-dvh p-4']}>
 		{#if tab === null}
-			<div class="flex flex-wrap items-center justify-between gap-3">
-				<a href="/" class="rounded-xl px-3 py-2 text-lg text-zinc-400 active:bg-zinc-800">← Salir</a
+			<!-- Little, out of the way: leaving, the map back, and whether the trip is kept. -->
+			<div class="flex items-center justify-between gap-3">
+				<a
+					href="/"
+					class="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 text-2xl text-zinc-300 active:bg-zinc-800"
+					aria-label="Salir del modo carretera"
+					title="Salir">←</a
 				>
-				{#if data.shareable && !tripShare.url}
-					<button
-						class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300 disabled:opacity-50"
-						disabled={tripShare.busy}
-						onclick={share}>{tripShare.busy ? 'Compartiendo…' : 'Compartir viaje'}</button
-					>
-				{/if}
-				{#if data.recordTrips}
-					<!-- Kept, and said: where one goes is not kept without knowing it (#81). -->
-					<span
-						class="rounded-full px-3 py-2 text-base text-zinc-400"
-						title="Se guarda este viaje («Guardar mis viajes», en Ajustes)"
-						>{tripRecorder.problem ? '⚠ No se guarda el viaje' : '● Guardando el viaje'}</span
-					>
-				{/if}
-				{#if data.trips}
-					<a
-						href="/viajes"
-						class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300 active:bg-zinc-800"
-						>Mis viajes</a
-					>
-				{/if}
-				{#if data.map && wide}
-					<button
-						class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300"
-						aria-pressed={showMap}
-						onclick={() => (showMap = !showMap)}>{showMap ? 'Ocultar mapa' : 'Mapa'}</button
-					>
-				{/if}
-				<button
-					class={[
-						'rounded-full border px-4 py-2 text-base',
-						musicQuality.value === 'saver'
-							? 'border-emerald-500/60 text-emerald-300'
-							: 'border-zinc-700 text-zinc-400'
-					]}
-					aria-pressed={musicQuality.value === 'saver'}
-					onclick={() => musicQuality.set(musicQuality.value === 'saver' ? 'original' : 'saver')}
-					>Ahorro de datos: {musicQuality.value === 'saver' ? 'sí' : 'no'}</button
-				>
+				<div class="flex items-center gap-2">
+					{#if data.map && wide && !showMap}
+						<button
+							class="rounded-full bg-zinc-900 px-4 py-2 text-base text-zinc-300 active:bg-zinc-800"
+							onclick={() => (showMap = true)}>Mapa</button
+						>
+					{/if}
+					{#if data.recordTrips}
+						<!-- Kept, and said: where one goes is not kept without knowing it (#81). -->
+						<button
+							class="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 active:bg-zinc-800"
+							aria-label={tripRecorder.problem ? 'No se guarda el viaje' : 'Se guarda este viaje'}
+							aria-expanded={tripNote}
+							onclick={() => (tripNote = !tripNote)}
+						>
+							{#if tripRecorder.problem}
+								<span
+									class="flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-sm font-bold text-zinc-950"
+									>!</span
+								>
+							{:else}
+								<span class="h-4 w-4 animate-pulse rounded-full bg-red-500"></span>
+							{/if}
+						</button>
+					{/if}
+				</div>
 			</div>
+			{#if tripNote && data.recordTrips}
+				<p class="-mt-2 text-right text-base text-zinc-400">
+					{tripRecorder.problem
+						? `No se guarda el viaje: ${tripRecorder.problem}`
+						: 'Se guarda este viaje («Guardar mis viajes», en Ajustes).'}
+				</p>
+			{/if}
 		{:else}
 			<!-- In a section: the way back, big; what plays, to pause it; and the microphone, small. -->
 			<div class="flex items-center gap-3">
@@ -709,7 +711,9 @@ the app's microphone, which the voice's big one right above would be taken for. 
 					{#if roadPhotos.problem}
 						<p class="text-lg text-amber-300" aria-live="polite">{roadPhotos.problem}</p>
 					{/if}
-					<p class="min-h-7 text-center text-xl" aria-live="polite">{@render voiceLine()}</p>
+					{#if voice.phase !== 'idle' || voice.problem || voice.reply}
+						<p class="text-center text-xl" aria-live="polite">{@render voiceLine()}</p>
+					{/if}
 					{#if voice.options.length}
 						<div class="flex flex-wrap justify-center gap-3">
 							{#each voice.options as option (option.command)}
@@ -776,6 +780,14 @@ the app's microphone, which the voice's big one right above would be taken for. 
 			>
 				{#if tab === 'ruta'}
 					<div class="flex flex-col gap-3 sm:col-span-2">
+						{#if data.shareable && !tripShare.url}
+							<!-- Who waits for you, with a link: where you are, live, until you arrive (#81). -->
+							<button
+								class="rounded-xl bg-zinc-900 px-5 py-3 text-left text-lg text-zinc-200 active:bg-zinc-800 disabled:opacity-50"
+								disabled={tripShare.busy}
+								onclick={share}>{tripShare.busy ? 'Compartiendo…' : 'Compartir viaje'}</button
+							>
+						{/if}
 						{#if route && destination}
 							<div class="rounded-2xl bg-zinc-900 p-4">
 								<p class="truncate text-xl font-semibold">{destination.label}</p>

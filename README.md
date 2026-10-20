@@ -520,8 +520,10 @@ lado el navegador (Google Maps u Organic Maps, que hacen la navegación y el tr�
   pantalla, junto al navegador, no hay mapa ni GPS.
 - La voz sabe que va en el coche: respuestas muy cortas, solo aquí (no en los altavoces de
   Snapcast), y sin vídeo, cocina ni recetas; aunque pidiera un capítulo, no se abre.
-- La pantalla no se apaga mientras está abierto (Wake Lock), y «Ahorro de datos» pone la música en
-  Opus, para los datos móviles hasta casa (Tailscale).
+- La pantalla no se apaga mientras está abierto (Wake Lock). Para gastar menos datos móviles, la
+  música en Opus: «Ahorro de datos» en Ajustes, en ese dispositivo.
+- Arriba, pequeños: «←» para salir y, si se guardan los viajes, un punto rojo (tocándolo dice qué
+  es; ámbar si algo falla). «Ocultar mapa» va sobre el mapa, y «Mapa» lo vuelve a poner.
 
 Con la tablet entera en horizontal (la pantalla ancha, sin partir), a la izquierda va un mapa
 propio ([MapLibre](https://maplibre.org)), con dónde estás por el GPS del navegador: la flecha
@@ -578,7 +580,7 @@ cobertura, espera y se sube al volver. El JPEG va a `DATA_DIR/fotos` (entra en l
 seguridad) y sus datos a Postgres. Solo las ve quien las hizo: en `/viajes`, sobre el recorrido de
 cada viaje y en una galería, donde se borran (el fichero también).
 
-Compartir el viaje (#81): «Compartir viaje» en el modo carretera da un enlace para mandar (por
+Compartir el viaje (#81): «Compartir viaje», en la sección Ruta del modo carretera, da un enlace para mandar (por
 WhatsApp, a un grupo…): quien lo abre ve el coche en el mapa, en directo, con el destino y la
 llegada si hay ruta, y cuánto hace de la última posición. Nunca se activa solo; la tablet lo dice
 mientras dura, y se acaba al darle a «Dejar de compartir», al llegar o al cerrar el modo carretera
