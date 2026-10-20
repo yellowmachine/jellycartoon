@@ -84,7 +84,15 @@
 	<title>Viajes · JellyCartoon</title>
 </svelte:head>
 
-<h1 class="mb-1 text-2xl font-bold">Viajes</h1>
+<div class="mb-1 flex flex-wrap items-center gap-3">
+	<h1 class="mr-auto text-2xl font-bold">Viajes</h1>
+	<a
+		href="/carretera"
+		class="rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900"
+		title="Para la tablet del coche: lo que suena en grande, el micrófono y nada de vídeo"
+		>Modo carretera</a
+	>
+</div>
 <p class="mb-6 text-sm text-zinc-400">
 	Lo que guarda el modo carretera de tus viajes, solo para ti.
 	{#if data.recordTrips}
