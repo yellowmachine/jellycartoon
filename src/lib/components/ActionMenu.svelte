@@ -48,7 +48,7 @@
 	{id}
 	popover="auto"
 	style:position-anchor="--{id}"
-	class="action-menu inset-auto m-0 mt-1 w-64 rounded-md border border-zinc-700 bg-zinc-900 p-1 text-sm shadow-lg"
+	class="action-menu inset-auto m-0 mt-1 w-64 rounded-md border border-zinc-700 bg-zinc-900 p-1 text-sm text-zinc-100 shadow-lg"
 >
 	{@render children(close)}
 </div>
