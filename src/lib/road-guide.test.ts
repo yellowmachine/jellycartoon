@@ -10,9 +10,23 @@ const route: Route = {
 	distance: 400,
 	duration: 60,
 	steps: [
-		{ instruction: 'Sal hacia el este', distance: 200, at: line[0]!, index: 0, type: 11 },
-		{ instruction: 'Gira a la derecha', distance: 200, at: line[2]!, index: 2, type: 1 },
-		{ instruction: 'Llegada', distance: 0, at: line[4]!, index: 4, type: 10 }
+		{
+			instruction: 'Sal hacia el este',
+			distance: 200,
+			duration: 30,
+			at: line[0]!,
+			index: 0,
+			type: 11
+		},
+		{
+			instruction: 'Gira a la derecha',
+			distance: 200,
+			duration: 30,
+			at: line[2]!,
+			index: 2,
+			type: 1
+		},
+		{ instruction: 'Llegada', distance: 0, duration: 0, at: line[4]!, index: 4, type: 10 }
 	]
 };
 const along = alongLine(line);

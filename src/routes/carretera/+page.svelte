@@ -9,7 +9,6 @@
 	import type { MusicTrack } from '#lib/music.ts';
 	import { coverUrl } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
-	import { musicQuality } from '#lib/music-quality.svelte.ts';
 	import { musicTarget } from '#lib/music-target.svelte.ts';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { playEpisode } from '#lib/podcast-player.svelte.ts';
@@ -22,6 +21,7 @@
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { distanceText, type LngLat, type Place, type Route } from '#lib/road.ts';
 	import { alongLine, guide } from '#lib/road-guide.ts';
+	import { durationText, estimate, Pace } from '#lib/road-eta.ts';
 	import { toSay } from '#lib/road-voice.ts';
 	import type { PageProps } from './$types';
 
@@ -43,6 +43,8 @@
 	let loading = $state<string | null>(null);
 	let problem = $state<string | null>(null);
 	let screenProblem = $state<string | null>(null);
+	/** The trip's dot, touched: what it means, or what went wrong. */
+	let tripNote = $state(false);
 	/** Logos that did not load: the station's initial instead. */
 	const broken = new SvelteSet<string>();
 
@@ -93,7 +95,11 @@
 			position: () => here,
 			navigation: () =>
 				destination && route
-					? `a ${destination.label}, quedan ${distanceText(guidance?.remaining ?? route.distance)}`
+					? `a ${destination.label}, quedan ${distanceText(guidance?.remaining ?? route.distance)}${
+							eta
+								? `, unos ${durationText(eta.seconds)}: llegada hacia las ${clock.format(eta.arrival)}`
+								: ''
+						}`
 					: null,
 			navigate: (place) => {
 				if (!place) return clearRoute();
@@ -215,6 +221,12 @@
 	let routeProblem = $state<string | null>(null);
 	let routeBusy = $state<'search' | 'route' | 'reroute' | null>(null);
 
+	/**
+	 * Moving (the GPS's speed over ~10 km/h): the search box goes, not to type while driving; it comes
+	 * back when stopped. Said by voice meanwhile.
+	 */
+	const moving = $derived((speed ?? 0) > 2.8);
+
 	async function search(e: SubmitEvent) {
 		e.preventDefault();
 		if (!query.trim()) return;
@@ -228,6 +240,8 @@
 		const res = await fetch(`/carretera/buscar?${params}`).catch(() => null);
 		const body = await res?.json().catch(() => null);
 		routeBusy = null;
+		// The places to choose, beside: big, for a finger; or why there are none.
+		tab = 'ruta';
 		if (!res?.ok) return void (routeProblem = body?.message ?? 'Sin conexión');
 		places = body;
 	}
@@ -257,6 +271,8 @@
 		const body = await res?.json().catch(() => null);
 		routeBusy = null;
 		if (!res?.ok) return void (routeProblem = body?.message ?? 'Sin conexión');
+		// Made again on the way (off it): one's pace so far stays for the new one.
+		pace.restart(again);
 		route = body;
 		destination = place;
 		places = null;
@@ -348,10 +364,7 @@
 	function share() {
 		void tripShare.start(() => ({
 			destination: destination?.label ?? null,
-			arrivesAt:
-				route && guidance
-					? Date.now() + route.duration * (guidance.remaining / (route.distance || 1)) * 1000
-					: null
+			arrivesAt: eta ? eta.arrival.getTime() : null
 		}));
 	}
 	$effect(() => {
@@ -397,10 +410,21 @@
 	const tabMap = $derived(mapInTab && (tab === 'ruta' || route !== null));
 
 	const clock = new Intl.DateTimeFormat('es', { timeStyle: 'short' });
-	/** «1 h 25 min», «12 min». */
-	function durationText(seconds: number) {
-		const minutes = Math.round(seconds / 60);
-		return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`;
+
+	/**
+	 * How long is left and when we arrive: stretch by stretch, and at one's pace once a few km are
+	 * driven (`Pace`, time moving only). Again at each position.
+	 */
+	const pace = new Pace();
+	const eta = $derived(
+		route && guidance && !guidance.arrived ? estimate(route, guidance, pace) : null
+	);
+
+	/** Each position from the GPS: where we are, how fast, and the time driving for one's pace. */
+	function positioned(at: LngLat, metresPerSecond: number | null) {
+		pace.tick(Date.now(), metresPerSecond);
+		here = at;
+		speed = metresPerSecond;
 	}
 
 	const big =
@@ -426,11 +450,38 @@
 	{:else if guidance?.next}
 		<div class="{where} flex items-center gap-4 rounded-2xl bg-zinc-950/90 p-4 text-left shadow-xl">
 			<ManeuverIcon type={guidance.next.type} class="h-16 w-16 shrink-0 text-amber-400" />
-			<div class="min-w-0">
+			<div class="min-w-0 flex-1">
 				<p class="text-4xl font-bold tabular-nums">{distanceText(guidance.toNext)}</p>
 				<p class="line-clamp-2 text-xl text-zinc-200">{guidance.next.instruction}</p>
 			</div>
+			{#if eta}
+				<!-- What is left, always in view: the time, and when. -->
+				<div class="shrink-0 text-right">
+					<p class="text-2xl font-semibold tabular-nums">{durationText(eta.seconds)}</p>
+					<p class="text-lg text-zinc-400 tabular-nums">llega {clock.format(eta.arrival)}</p>
+				</div>
+			{/if}
 		</div>
+	{/if}
+{/snippet}
+
+<!-- Where to, written on the map: only parked and without a route; the places, in the panel. -->
+{#snippet searchBox()}
+	{#if !route && !moving}
+		<form class="absolute inset-x-3 top-3 flex gap-2" onsubmit={search}>
+			<input
+				bind:value={query}
+				type="search"
+				enterkeyhint="search"
+				placeholder="¿A dónde vas?"
+				aria-label="Destino"
+				class="min-w-0 flex-1 rounded-xl border-zinc-700 bg-zinc-950/90 px-4 py-3 text-xl shadow-xl"
+			/>
+			<button
+				class="rounded-xl bg-amber-500 px-5 text-xl font-semibold text-zinc-950 shadow-xl disabled:opacity-50"
+				disabled={routeBusy !== null}>{routeBusy === 'search' ? 'Buscando…' : 'Buscar'}</button
+			>
+		</form>
 	{/if}
 {/snippet}
 
@@ -482,8 +533,6 @@
 		<span class="text-amber-300">{voice.problem}</span>
 	{:else if voice.reply}
 		{voice.reply}
-	{:else}
-		<span class="text-zinc-500">«Pon Radio 3», «siguiente», «el último podcast de…»</span>
 	{/if}
 {/snippet}
 
@@ -526,63 +575,60 @@ the app's microphone, which the voice's big one right above would be taken for. 
 >
 	{#if mapShown}
 		<div class="relative h-full min-h-0">
-			<RoadMap
-				{route}
-				destination={destination?.at ?? null}
-				onposition={(at, metresPerSecond) => {
-					here = at;
-					speed = metresPerSecond;
-				}}
-			/>
+			<RoadMap {route} destination={destination?.at ?? null} onposition={positioned} />
 			{@render maneuver('absolute inset-x-3 top-3')}
+			{@render searchBox()}
+			<!-- Out of the way of the next maneuver, at the top; «Mapa» brings it back. -->
+			<button
+				class="absolute right-3 bottom-10 rounded-full bg-zinc-950/80 px-4 py-2 text-lg text-zinc-200 shadow-lg active:bg-zinc-800"
+				onclick={() => (showMap = false)}>Ocultar mapa</button
+			>
 		</div>
 	{/if}
 	<div class={['flex flex-col gap-4', mapShown ? 'min-h-0' : 'min-h-dvh p-4']}>
 		{#if tab === null}
-			<div class="flex flex-wrap items-center justify-between gap-3">
-				<a href="/" class="rounded-xl px-3 py-2 text-lg text-zinc-400 active:bg-zinc-800">← Salir</a
+			<!-- Little, out of the way: leaving, the map back, and whether the trip is kept. -->
+			<div class="flex items-center justify-between gap-3">
+				<a
+					href="/"
+					class="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 text-2xl text-zinc-300 active:bg-zinc-800"
+					aria-label="Salir del modo carretera"
+					title="Salir">←</a
 				>
-				{#if data.shareable && !tripShare.url}
-					<button
-						class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300 disabled:opacity-50"
-						disabled={tripShare.busy}
-						onclick={share}>{tripShare.busy ? 'Compartiendo…' : 'Compartir viaje'}</button
-					>
-				{/if}
-				{#if data.recordTrips}
-					<!-- Kept, and said: where one goes is not kept without knowing it (#81). -->
-					<span
-						class="rounded-full px-3 py-2 text-base text-zinc-400"
-						title="Se guarda este viaje («Guardar mis viajes», en Ajustes)"
-						>{tripRecorder.problem ? '⚠ No se guarda el viaje' : '● Guardando el viaje'}</span
-					>
-				{/if}
-				{#if data.trips}
-					<a
-						href="/viajes"
-						class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300 active:bg-zinc-800"
-						>Mis viajes</a
-					>
-				{/if}
-				{#if data.map && wide}
-					<button
-						class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300"
-						aria-pressed={showMap}
-						onclick={() => (showMap = !showMap)}>{showMap ? 'Ocultar mapa' : 'Mapa'}</button
-					>
-				{/if}
-				<button
-					class={[
-						'rounded-full border px-4 py-2 text-base',
-						musicQuality.value === 'saver'
-							? 'border-emerald-500/60 text-emerald-300'
-							: 'border-zinc-700 text-zinc-400'
-					]}
-					aria-pressed={musicQuality.value === 'saver'}
-					onclick={() => musicQuality.set(musicQuality.value === 'saver' ? 'original' : 'saver')}
-					>Ahorro de datos: {musicQuality.value === 'saver' ? 'sí' : 'no'}</button
-				>
+				<div class="flex items-center gap-2">
+					{#if data.map && wide && !showMap}
+						<button
+							class="rounded-full bg-zinc-900 px-4 py-2 text-base text-zinc-300 active:bg-zinc-800"
+							onclick={() => (showMap = true)}>Mapa</button
+						>
+					{/if}
+					{#if data.recordTrips}
+						<!-- Kept, and said: where one goes is not kept without knowing it (#81). -->
+						<button
+							class="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 active:bg-zinc-800"
+							aria-label={tripRecorder.problem ? 'No se guarda el viaje' : 'Se guarda este viaje'}
+							aria-expanded={tripNote}
+							onclick={() => (tripNote = !tripNote)}
+						>
+							{#if tripRecorder.problem}
+								<span
+									class="flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-sm font-bold text-zinc-950"
+									>!</span
+								>
+							{:else}
+								<span class="h-4 w-4 animate-pulse rounded-full bg-red-500"></span>
+							{/if}
+						</button>
+					{/if}
+				</div>
 			</div>
+			{#if tripNote && data.recordTrips}
+				<p class="-mt-2 text-right text-base text-zinc-400">
+					{tripRecorder.problem
+						? `No se guarda el viaje: ${tripRecorder.problem}`
+						: 'Se guarda este viaje («Guardar mis viajes», en Ajustes).'}
+				</p>
+			{/if}
 		{:else}
 			<!-- In a section: the way back, big; what plays, to pause it; and the microphone, small. -->
 			<div class="flex items-center gap-3">
@@ -709,7 +755,9 @@ the app's microphone, which the voice's big one right above would be taken for. 
 					{#if roadPhotos.problem}
 						<p class="text-lg text-amber-300" aria-live="polite">{roadPhotos.problem}</p>
 					{/if}
-					<p class="min-h-7 text-center text-xl" aria-live="polite">{@render voiceLine()}</p>
+					{#if voice.phase !== 'idle' || voice.problem || voice.reply}
+						<p class="text-center text-xl" aria-live="polite">{@render voiceLine()}</p>
+					{/if}
 					{#if voice.options.length}
 						<div class="flex flex-wrap justify-center gap-3">
 							{#each voice.options as option (option.command)}
@@ -749,15 +797,9 @@ the app's microphone, which the voice's big one right above would be taken for. 
 		{#if tabMap}
 			<!-- Kept while a route is followed, out of sight elsewhere: its GPS guides. -->
 			<div class={tab === 'ruta' ? 'relative h-[45dvh] shrink-0' : 'h-0 overflow-hidden'}>
-				<RoadMap
-					{route}
-					destination={destination?.at ?? null}
-					onposition={(at, metresPerSecond) => {
-						here = at;
-						speed = metresPerSecond;
-					}}
-				/>
+				<RoadMap {route} destination={destination?.at ?? null} onposition={positioned} />
 				{@render maneuver('absolute inset-x-3 top-3')}
+				{@render searchBox()}
 			</div>
 		{/if}
 
@@ -776,20 +818,20 @@ the app's microphone, which the voice's big one right above would be taken for. 
 			>
 				{#if tab === 'ruta'}
 					<div class="flex flex-col gap-3 sm:col-span-2">
+						{#if data.shareable && !tripShare.url}
+							<!-- Who waits for you, with a link: where you are, live, until you arrive (#81). -->
+							<button
+								class="rounded-xl bg-zinc-900 px-5 py-3 text-left text-lg text-zinc-200 active:bg-zinc-800 disabled:opacity-50"
+								disabled={tripShare.busy}
+								onclick={share}>{tripShare.busy ? 'Compartiendo…' : 'Compartir viaje'}</button
+							>
+						{/if}
 						{#if route && destination}
 							<div class="rounded-2xl bg-zinc-900 p-4">
 								<p class="truncate text-xl font-semibold">{destination.label}</p>
 								<p class="text-lg text-zinc-300">
-									{distanceText(guidance?.remaining ?? route.distance)} · {durationText(
-										route.duration *
-											((guidance?.remaining ?? route.distance) / (route.distance || 1))
-									)} · llegada a las
-									{clock.format(
-										Date.now() +
-											route.duration *
-												((guidance?.remaining ?? route.distance) / (route.distance || 1)) *
-												1000
-									)}
+									{distanceText(guidance?.remaining ?? route.distance)}{#if eta}
+										· {durationText(eta.seconds)} · llegada a las {clock.format(eta.arrival)}{/if}
 								</p>
 								<div class="mt-3 flex flex-wrap gap-2">
 									<button
@@ -829,21 +871,15 @@ the app's microphone, which the voice's big one right above would be taken for. 
 								{/each}
 							</ol>
 						{:else}
-							<form class="flex gap-2" onsubmit={search}>
-								<input
-									bind:value={query}
-									type="search"
-									enterkeyhint="search"
-									placeholder="¿A dónde vas?"
-									aria-label="Destino"
-									class="min-w-0 flex-1 rounded-xl border-zinc-700 bg-zinc-900 px-4 py-3 text-xl"
-								/>
-								<button
-									class="rounded-xl bg-amber-500 px-5 text-xl font-semibold text-zinc-950 disabled:opacity-50"
-									disabled={routeBusy !== null}
-									>{routeBusy === 'search' ? 'Buscando…' : 'Buscar'}</button
-								>
-							</form>
+							{#if !places && routeBusy !== 'search'}
+								<!-- Written on the map, parked; driving, said. -->
+								<p class="text-lg text-zinc-400">
+									Di «llévame a…»{#if routable}, o escribe el destino en el mapa{/if}.
+								</p>
+							{/if}
+							{#if routeBusy === 'search'}
+								<p class="text-lg text-zinc-300">Buscando…</p>
+							{/if}
 							{#if !here}
 								<p class="text-lg text-zinc-400">Esperando a saber dónde estás (el GPS)…</p>
 							{/if}

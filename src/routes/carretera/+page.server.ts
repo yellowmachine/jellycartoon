@@ -8,7 +8,7 @@ import { continueListening, userPodcasts } from '#lib/server/podcasts/podcasts.t
 import { stationsInfo } from '#lib/server/radio.ts';
 import { mapFile, musicRoot } from '#lib/server/library/paths.ts';
 import { getAlbums } from '#lib/server/music/albums.ts';
-import { hasTripsPage, recordsTrips } from '#lib/server/trips.ts';
+import { recordsTrips } from '#lib/server/trips.ts';
 import { relayConfig } from '#lib/server/app-settings.ts';
 
 /**
@@ -17,7 +17,7 @@ import { relayConfig } from '#lib/server/app-settings.ts';
  */
 export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
-	const [info, albums, playlists, podcasts, inProgress, map, recordTrips, relay, trips] =
+	const [info, albums, playlists, podcasts, inProgress, map, recordTrips, relay] =
 		await Promise.all([
 			stationsInfo(),
 			musicRoot ? getAlbums() : [],
@@ -29,8 +29,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				() => false
 			),
 			recordsTrips(userId),
-			relayConfig(),
-			hasTripsPage(userId)
+			relayConfig()
 		]);
 	const latest = podcasts.length
 		? await db
@@ -62,8 +61,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 		map,
 		/** This user keeps their trips (Ajustes, #81). */
 		recordTrips,
-		/** «Mis viajes»: trips kept, or being kept. */
-		trips,
 		/** There is a trips relay (Ajustes): «Compartir viaje». */
 		shareable: Boolean(relay.url && relay.key)
 	};

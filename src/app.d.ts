@@ -15,7 +15,11 @@ declare global {
 
 		// interface Error {}
 		// interface PageData {}
-		// interface PageState {}
+		/** Shallow routing (pushState): what opens over a page, closed by «back». */
+		interface PageState {
+			/** The TV view's hidden snake (6 1 1 0 on the remote). */
+			snake?: boolean;
+		}
 		// interface Platform {}
 	}
 }

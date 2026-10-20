@@ -1,11 +1,13 @@
 <script lang="ts">
-	import { afterNavigate, goto, invalidateAll } from '$app/navigation';
+	import { afterNavigate, goto, invalidateAll, pushState } from '$app/navigation';
 	import { page } from '$app/state';
 	import MusicBar from '#lib/components/MusicBar.svelte';
 	import TvDebug from '#lib/components/TvDebug.svelte';
 	import TvSalonFailed from '#lib/components/TvSalonFailed.svelte';
+	import TvSnake from '#lib/components/TvSnake.svelte';
 	import TvVoice from '#lib/components/TvVoice.svelte';
 	import { music } from '#lib/music-player.svelte.ts';
+	import { CODE } from '#lib/snake.ts';
 	import { stillThere } from '#lib/still-there.svelte.ts';
 	import { watchSalon } from '#lib/salon.svelte.ts';
 	import { videoHere } from '#lib/video-here.svelte.ts';
@@ -20,9 +22,22 @@
 	 * «Mando del salón»): F7 its Home, F8 its Play/Pause, F9 its microphone. Its OK is Enter and its
 	 * Back the browser's, which need nothing here.
 	 */
+	/** The last digits typed on the remote's number pad, which does nothing else here. */
+	let digits = '';
+
 	function remoteKey(e: KeyboardEvent) {
 		// Someone with the remote: for «¿Sigues ahí?» and /infantil's «Última interacción».
 		stillThere.someoneThere();
+		// 6 1 1 0, the Nokia that made the snake famous: the hidden game, as a step in the history so
+		// the remote's Back closes it.
+		if (/^\d$/.test(e.key)) {
+			digits = (digits + e.key).slice(-CODE.length);
+			if (digits === CODE && !page.state.snake) {
+				digits = '';
+				pushState('', { snake: true });
+			}
+			return;
+		}
 		if (e.key === 'F7') {
 			e.preventDefault();
 			void goto('/tv');
@@ -84,6 +99,10 @@
 {/if}
 
 <TvDebug />
+
+{#if page.state.snake}
+	<TvSnake />
+{/if}
 
 <!-- The music sounds through its <audio>; its bar is for the whole app, not for the TV. -->
 <div class="hidden"><MusicBar /></div>

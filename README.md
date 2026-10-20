@@ -520,8 +520,10 @@ lado el navegador (Google Maps u Organic Maps, que hacen la navegación y el tr�
   pantalla, junto al navegador, no hay mapa ni GPS.
 - La voz sabe que va en el coche: respuestas muy cortas, solo aquí (no en los altavoces de
   Snapcast), y sin vídeo, cocina ni recetas; aunque pidiera un capítulo, no se abre.
-- La pantalla no se apaga mientras está abierto (Wake Lock), y «Ahorro de datos» pone la música en
-  Opus, para los datos móviles hasta casa (Tailscale).
+- La pantalla no se apaga mientras está abierto (Wake Lock). Para gastar menos datos móviles, la
+  música en Opus: «Ahorro de datos» en Ajustes, en ese dispositivo.
+- Arriba, pequeños: «←» para salir y, si se guardan los viajes, un punto rojo (tocándolo dice qué
+  es; ámbar si algo falla). «Ocultar mapa» va sobre el mapa, y «Mapa» lo vuelve a poner.
 
 Con la tablet entera en horizontal (la pantalla ancha, sin partir), a la izquierda va un mapa
 propio ([MapLibre](https://maplibre.org)), con dónde estás por el GPS del navegador: la flecha
@@ -540,13 +542,20 @@ scripts/mapa.sh /ruta/a/los/convertidos --bbox=-4.06,39.84,-3.98,39.88   # solo 
 Solo baja los trozos de esa zona, no el planeta, y cambia el mapa cuando está entero: el de antes
 sigue funcionando mientras tanto. Sin ese fichero, el modo carretera va como siempre, sin mapa.
 
-Con el mapa, la pestaña «Ruta» busca el destino por su nombre o dirección y traza la ruta en coche
-desde donde estás, con [openrouteservice](https://openrouteservice.org): la línea en el mapa, la
+Con el mapa, el destino se escribe en el propio mapa («¿A dónde vas?», arriba; solo parado y sin
+ruta: en marcha se esconde, y se pide por voz, «llévame a…»), los sitios que coinciden salen en la
+sección Ruta para elegir con el dedo, y se traza la ruta en coche desde donde estás, con [openrouteservice](https://openrouteservice.org): la línea en el mapa, la
 distancia, el tiempo, la hora de llegada y la lista de pasos en español. Su clave (gratis) va en
 Ajustes → Casa → «Rutas del modo carretera», o en el `.env` como `OPENROUTESERVICE_API_KEY` (manda
 esta), y no sale del servidor. Allí también se puede poner la dirección de un openrouteservice
 propio (Docker), para las rutas; buscar sitios sigue siendo el suyo. Su plan gratuito permite unas
 2.000 rutas y 1.000 búsquedas al día.
+
+El tiempo que queda y la hora de llegada van siempre a la vista, junto a la siguiente maniobra, y
+la voz los dice («¿cuánto falta?»). Se calculan tramo a tramo, con lo que openrouteservice calcula
+para cada uno (la autovía va más rápida que el pueblo), y, pasados unos 5 km, al ritmo de cada uno:
+lo que se tarda conduciendo (no parado) frente a lo que calculaba, entre un 15 % más rápido y un 40 %
+más lento. No sabe del tráfico que viene; del que ya se pasó, sí.
 
 Con la ruta puesta, guía según avanzas: arriba del mapa, en grande, la próxima maniobra con su
 flecha y a cuántos metros; en la lista, el paso que toca, resaltado; y lo que queda y la hora de
@@ -578,7 +587,7 @@ cobertura, espera y se sube al volver. El JPEG va a `DATA_DIR/fotos` (entra en l
 seguridad) y sus datos a Postgres. Solo las ve quien las hizo: en `/viajes`, sobre el recorrido de
 cada viaje y en una galería, donde se borran (el fichero también).
 
-Compartir el viaje (#81): «Compartir viaje» en el modo carretera da un enlace para mandar (por
+Compartir el viaje (#81): «Compartir viaje», en la sección Ruta del modo carretera, da un enlace para mandar (por
 WhatsApp, a un grupo…): quien lo abre ve el coche en el mapa, en directo, con el destino y la
 llegada si hay ruta, y cuánto hace de la última posición. Nunca se activa solo; la tablet lo dice
 mientras dura, y se acaba al darle a «Dejar de compartir», al llegar o al cerrar el modo carretera

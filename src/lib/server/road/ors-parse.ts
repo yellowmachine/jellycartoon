@@ -65,6 +65,7 @@ export function spokenSpanish(instruction: string) {
 
 interface OrsStep {
 	distance: number;
+	duration?: number;
 	type: number;
 	instruction: string;
 	way_points: [number, number];
@@ -92,6 +93,7 @@ export function routeFromOrs(body: unknown): Route | null {
 		steps: steps.map((s) => ({
 			instruction: spokenSpanish(s.instruction),
 			distance: s.distance,
+			duration: s.duration ?? 0,
 			type: s.type,
 			at: line[s.way_points[0]] ?? line[0]!,
 			index: Math.min(s.way_points[0], line.length - 1)

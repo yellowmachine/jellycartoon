@@ -7,7 +7,8 @@ const step = {
 	distance: 0,
 	at: [0, 0] as [number, number],
 	index: 5,
-	type: 0
+	type: 0,
+	duration: 30
 };
 const at = (toNext: number): Guidance => ({
 	next: step,
