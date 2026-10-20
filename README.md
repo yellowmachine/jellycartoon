@@ -505,12 +505,14 @@ lado el navegador (Google Maps u Organic Maps, que hacen la navegación y el tr�
 
 - Lo que suena en grande, con botones enormes (anterior, pausa y siguiente; en un podcast, −15 y
   +30 s), y un micrófono gigante, como el de la cocina.
-- Debajo, en pestañas con iconos, un toque para poner algo: las emisoras (las españolas primero),
-  la música («Todo aleatorio», o un álbum desde el principio), las listas de música y los podcasts
-  (los empezados, y lo último de cada uno).
-- En un móvil en vertical no hay sitio para el mapa al lado: va en su propia pestaña, Ruta. Una ruta
-  en marcha sigue aunque se cambie de pestaña: la voz sigue dando las indicaciones, y encima de las
-  pestañas queda la siguiente maniobra, que lleva otra vez al mapa. Con la tablet en media
+- Debajo, un botón grande por sección: las emisoras (las españolas primero), la música («Todo
+  aleatorio», o un álbum desde el principio), las listas de música, los podcasts (los empezados, y
+  lo último de cada uno) y la ruta. Cada sección ocupa la pantalla (o su mitad, con el mapa) con su
+  lista, «← Inicio» y, arriba, lo que suena y un micrófono pequeño. Al poner algo se vuelve solo a
+  Inicio.
+- En un móvil en vertical no hay sitio para el mapa al lado: va en la sección Ruta. Una ruta en
+  marcha sigue aunque se cambie de sección: la voz sigue dando las indicaciones, y en Inicio queda
+  la siguiente maniobra, que lleva otra vez al mapa. Con la tablet en media
   pantalla, junto al navegador, no hay mapa ni GPS.
 - La voz sabe que va en el coche: respuestas muy cortas, solo aquí (no en los altavoces de
   Snapcast), y sin vídeo, cocina ni recetas; aunque pidiera un capítulo, no se abre.

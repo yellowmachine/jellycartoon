@@ -34,7 +34,12 @@
 	let { data }: PageProps = $props();
 
 	type Tab = 'radio' | 'musica' | 'listas' | 'podcasts' | 'ruta';
-	let tab = $state<Tab>('radio');
+	/**
+	 * The right-hand side (or the whole screen, without the map beside): Inicio (`null`), with what
+	 * plays, the microphone and a big button for each section; or a section, its list filling it, with
+	 * «← Inicio». Putting something on goes back to Inicio by itself: chosen, and eyes on the road.
+	 */
+	let tab = $state<Tab | null>(null);
 	let loading = $state<string | null>(null);
 	let problem = $state<string | null>(null);
 	let screenProblem = $state<string | null>(null);
@@ -125,6 +130,8 @@
 		loading = id;
 		problem = (await work()) ?? null;
 		loading = null;
+		// On: back to Inicio, as in the car's own screens. A route stays, with its steps.
+		if (!problem && tab !== 'ruta') tab = null;
 	}
 
 	function radio(station: RadioStation) {
@@ -380,7 +387,7 @@
 
 	// The map hidden with the route open: back to the stations.
 	$effect(() => {
-		if (!routable && tab === 'ruta') tab = 'radio';
+		if (!routable && tab === 'ruta') tab = null;
 	});
 
 	/**
@@ -424,6 +431,59 @@
 				<p class="line-clamp-2 text-xl text-zinc-200">{guidance.next.instruction}</p>
 			</div>
 		</div>
+	{/if}
+{/snippet}
+
+<!-- The microphone: held, or a tap to start and another to send (Ajustes). -->
+{#snippet mic(size: string, icon: string)}
+	<button
+		class={[
+			'flex shrink-0 touch-none items-center justify-center rounded-full shadow-2xl transition duration-150',
+			size,
+			voice.phase === 'listening'
+				? 'scale-110 bg-red-500 text-white'
+				: 'bg-amber-500 text-zinc-950 active:scale-95',
+			voice.phase === 'thinking' && 'opacity-60'
+		]}
+		aria-label={micMode.tap
+			? voice.phase === 'listening'
+				? 'Toca para enviar'
+				: 'Toca para hablar'
+			: 'Mantén pulsado para hablar'}
+		disabled={voice.phase === 'thinking'}
+		onpointerdown={(e) => {
+			e.currentTarget.setPointerCapture(e.pointerId);
+			press();
+		}}
+		onpointerup={release}
+		onpointercancel={release}
+		oncontextmenu={(e) => e.preventDefault()}
+	>
+		<svg viewBox="0 0 24 24" class={icon} fill="currentColor" aria-hidden="true">
+			<rect x="9" y="2.5" width="6" height="12" rx="3" />
+			<path
+				d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+			/>
+		</svg>
+	</button>
+{/snippet}
+
+<!-- What the voice is doing, or said. -->
+{#snippet voiceLine()}
+	{#if voice.phase === 'listening'}
+		<span class="text-red-400">Te escucho…{micMode.tap ? ' toca para enviar' : ''}</span>
+	{:else if voice.phase === 'thinking'}
+		<span class="text-zinc-300">Un momento…</span>
+	{:else if voice.problem}
+		<span class="text-amber-300">{voice.problem}</span>
+	{:else if voice.reply}
+		{voice.reply}
+	{:else}
+		<span class="text-zinc-500">«Pon Radio 3», «siguiente», «el último podcast de…»</span>
 	{/if}
 {/snippet}
 
@@ -477,50 +537,79 @@ the app's microphone, which the voice's big one right above would be taken for. 
 			{@render maneuver('absolute inset-x-3 top-3')}
 		</div>
 	{/if}
-	<div class={['flex flex-col gap-4', mapShown ? 'min-h-0 overflow-y-auto' : 'min-h-dvh p-4']}>
-		<div class="flex flex-wrap items-center justify-between gap-3">
-			<a href="/" class="rounded-xl px-3 py-2 text-lg text-zinc-400 active:bg-zinc-800">← Salir</a>
-			{#if data.shareable && !tripShare.url}
+	<div class={['flex flex-col gap-4', mapShown ? 'min-h-0' : 'min-h-dvh p-4']}>
+		{#if tab === null}
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<a href="/" class="rounded-xl px-3 py-2 text-lg text-zinc-400 active:bg-zinc-800">← Salir</a
+				>
+				{#if data.shareable && !tripShare.url}
+					<button
+						class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300 disabled:opacity-50"
+						disabled={tripShare.busy}
+						onclick={share}>{tripShare.busy ? 'Compartiendo…' : 'Compartir viaje'}</button
+					>
+				{/if}
+				{#if data.recordTrips}
+					<!-- Kept, and said: where one goes is not kept without knowing it (#81). -->
+					<span
+						class="rounded-full px-3 py-2 text-base text-zinc-400"
+						title="Se guarda este viaje («Guardar mis viajes», en Ajustes)"
+						>{tripRecorder.problem ? '⚠ No se guarda el viaje' : '● Guardando el viaje'}</span
+					>
+				{/if}
+				{#if data.trips}
+					<a
+						href="/viajes"
+						class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300 active:bg-zinc-800"
+						>Mis viajes</a
+					>
+				{/if}
+				{#if data.map && wide}
+					<button
+						class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300"
+						aria-pressed={showMap}
+						onclick={() => (showMap = !showMap)}>{showMap ? 'Ocultar mapa' : 'Mapa'}</button
+					>
+				{/if}
 				<button
-					class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300 disabled:opacity-50"
-					disabled={tripShare.busy}
-					onclick={share}>{tripShare.busy ? 'Compartiendo…' : 'Compartir viaje'}</button
+					class={[
+						'rounded-full border px-4 py-2 text-base',
+						musicQuality.value === 'saver'
+							? 'border-emerald-500/60 text-emerald-300'
+							: 'border-zinc-700 text-zinc-400'
+					]}
+					aria-pressed={musicQuality.value === 'saver'}
+					onclick={() => musicQuality.set(musicQuality.value === 'saver' ? 'original' : 'saver')}
+					>Ahorro de datos: {musicQuality.value === 'saver' ? 'sí' : 'no'}</button
 				>
-			{/if}
-			{#if data.recordTrips}
-				<!-- Kept, and said: where one goes is not kept without knowing it (#81). -->
-				<span
-					class="rounded-full px-3 py-2 text-base text-zinc-400"
-					title="Se guarda este viaje («Guardar mis viajes», en Ajustes)"
-					>{tripRecorder.problem ? '⚠ No se guarda el viaje' : '● Guardando el viaje'}</span
+			</div>
+		{:else}
+			<!-- In a section: the way back, big; what plays, to pause it; and the microphone, small. -->
+			<div class="flex items-center gap-3">
+				<button class="{big} h-16 gap-2 px-5 text-xl font-semibold" onclick={() => (tab = null)}
+					>← Inicio</button
 				>
+				<div class="flex min-w-0 flex-1 items-center gap-3 rounded-2xl bg-zinc-900 p-2">
+					{#if playing}
+						<span class="min-w-0 flex-1 truncate pl-2 text-lg">{playing.title}</span>
+						<button
+							class="{big} h-12 w-12 bg-amber-500! text-zinc-950!"
+							aria-label={music.playing ? 'Pausa' : 'Seguir'}
+							onclick={() => music.toggle()}
+							><MediaIcon name={music.playing ? 'pause' : 'play'} class="h-7 w-7" /></button
+						>
+					{:else}
+						<span class="min-w-0 flex-1 truncate pl-2 text-lg text-zinc-400">
+							{TABS.find((t) => t.id === tab)?.label}
+						</span>
+					{/if}
+				</div>
+				{@render mic('h-16 w-16', 'h-9 w-9')}
+			</div>
+			{#if voice.phase !== 'idle' || voice.problem || voice.reply}
+				<p class="text-center text-lg" aria-live="polite">{@render voiceLine()}</p>
 			{/if}
-			{#if data.trips}
-				<a
-					href="/viajes"
-					class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300 active:bg-zinc-800"
-					>Mis viajes</a
-				>
-			{/if}
-			{#if data.map && wide}
-				<button
-					class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300"
-					aria-pressed={showMap}
-					onclick={() => (showMap = !showMap)}>{showMap ? 'Ocultar mapa' : 'Mapa'}</button
-				>
-			{/if}
-			<button
-				class={[
-					'rounded-full border px-4 py-2 text-base',
-					musicQuality.value === 'saver'
-						? 'border-emerald-500/60 text-emerald-300'
-						: 'border-zinc-700 text-zinc-400'
-				]}
-				aria-pressed={musicQuality.value === 'saver'}
-				onclick={() => musicQuality.set(musicQuality.value === 'saver' ? 'original' : 'saver')}
-				>Ahorro de datos: {musicQuality.value === 'saver' ? 'sí' : 'no'}</button
-			>
-		</div>
+		{/if}
 
 		{#if tripShare.url}
 			<!-- Shared: said, always in view, with its link and how to stop it (#81). -->
@@ -544,177 +633,147 @@ the app's microphone, which the voice's big one right above would be taken for. 
 			<p class="rounded-xl bg-amber-950 p-3 text-amber-200">{screenProblem}</p>
 		{/if}
 
-		<!-- What plays, with buttons a thumb finds without looking. -->
-		<section class="rounded-3xl bg-zinc-900 p-4">
-			{#if playing}
-				<div class="flex items-center gap-4">
-					{#if playing.image}
-						<img
-							src={playing.image}
-							alt=""
-							class="h-20 w-20 shrink-0 rounded-xl bg-zinc-800 object-cover"
-						/>
+		{#if tab === null}
+			<div class={['flex flex-col gap-4', mapShown && 'min-h-0 flex-1 overflow-y-auto']}>
+				<!-- What plays, with buttons a thumb finds without looking. -->
+				<section class="rounded-3xl bg-zinc-900 p-4">
+					{#if playing}
+						<div class="flex items-center gap-4">
+							{#if playing.image}
+								<img
+									src={playing.image}
+									alt=""
+									class="h-20 w-20 shrink-0 rounded-xl bg-zinc-800 object-cover"
+								/>
+							{/if}
+							<div class="min-w-0">
+								<p class="truncate text-2xl font-semibold">{playing.title}</p>
+								<p class="truncate text-lg text-zinc-400">{playing.detail}</p>
+							</div>
+						</div>
+						<div class="mt-4 flex items-center justify-center gap-4">
+							{#if music.podcast}
+								<button
+									class="{big} h-20 w-20 text-xl"
+									aria-label="Atrás {SKIP_BACK} segundos"
+									onclick={() => music.skip(-SKIP_BACK)}>−{SKIP_BACK}</button
+								>
+							{:else if !music.radio}
+								<button
+									class="{big} h-20 w-20"
+									aria-label="Anterior"
+									onclick={() => music.previous()}
+									><MediaIcon name="previous" class="h-9 w-9" /></button
+								>
+							{/if}
+							<button
+								class="{big} h-24 w-24 bg-amber-500! text-zinc-950!"
+								aria-label={music.playing ? 'Pausa' : 'Seguir'}
+								onclick={() => music.toggle()}
+								><MediaIcon name={music.playing ? 'pause' : 'play'} class="h-12 w-12" /></button
+							>
+							{#if music.podcast}
+								<button
+									class="{big} h-20 w-20 text-xl"
+									aria-label="Adelante {SKIP_FORWARD} segundos"
+									onclick={() => music.skip(SKIP_FORWARD)}>+{SKIP_FORWARD}</button
+								>
+							{:else if !music.radio}
+								<button
+									class="{big} h-20 w-20"
+									aria-label="Siguiente"
+									disabled={music.index >= music.queue.length - 1 && !music.repeat}
+									onclick={() => music.next()}><MediaIcon name="next" class="h-9 w-9" /></button
+								>
+							{/if}
+						</div>
+					{:else}
+						<p class="py-6 text-center text-xl text-zinc-400">
+							No suena nada. Elige abajo, o pídelo.
+						</p>
 					{/if}
-					<div class="min-w-0">
-						<p class="truncate text-2xl font-semibold">{playing.title}</p>
-						<p class="truncate text-lg text-zinc-400">{playing.detail}</p>
-					</div>
-				</div>
-				<div class="mt-4 flex items-center justify-center gap-4">
-					{#if music.podcast}
-						<button
-							class="{big} h-20 w-20 text-xl"
-							aria-label="Atrás {SKIP_BACK} segundos"
-							onclick={() => music.skip(-SKIP_BACK)}>−{SKIP_BACK}</button
-						>
-					{:else if !music.radio}
-						<button class="{big} h-20 w-20" aria-label="Anterior" onclick={() => music.previous()}
-							><MediaIcon name="previous" class="h-9 w-9" /></button
-						>
-					{/if}
-					<button
-						class="{big} h-24 w-24 bg-amber-500! text-zinc-950!"
-						aria-label={music.playing ? 'Pausa' : 'Seguir'}
-						onclick={() => music.toggle()}
-						><MediaIcon name={music.playing ? 'pause' : 'play'} class="h-12 w-12" /></button
-					>
-					{#if music.podcast}
-						<button
-							class="{big} h-20 w-20 text-xl"
-							aria-label="Adelante {SKIP_FORWARD} segundos"
-							onclick={() => music.skip(SKIP_FORWARD)}>+{SKIP_FORWARD}</button
-						>
-					{:else if !music.radio}
-						<button
-							class="{big} h-20 w-20"
-							aria-label="Siguiente"
-							disabled={music.index >= music.queue.length - 1 && !music.repeat}
-							onclick={() => music.next()}><MediaIcon name="next" class="h-9 w-9" /></button
-						>
-					{/if}
-				</div>
-			{:else}
-				<p class="py-6 text-center text-xl text-zinc-400">No suena nada. Elige abajo, o pídelo.</p>
-			{/if}
-		</section>
+				</section>
 
-		<!-- The microphone: what to use while driving. And beside it, a photo (#81). -->
-		<section class="flex flex-col items-center gap-3">
-			<div class="flex items-center gap-6">
-				<button
-					class={[
-						'flex h-32 w-32 touch-none items-center justify-center rounded-full shadow-2xl transition duration-150',
-						voice.phase === 'listening'
-							? 'scale-110 bg-red-500 text-white'
-							: 'bg-amber-500 text-zinc-950 active:scale-95',
-						voice.phase === 'thinking' && 'opacity-60'
-					]}
-					aria-label={micMode.tap
-						? voice.phase === 'listening'
-							? 'Toca para enviar'
-							: 'Toca para hablar'
-						: 'Mantén pulsado para hablar'}
-					disabled={voice.phase === 'thinking'}
-					onpointerdown={(e) => {
-						e.currentTarget.setPointerCapture(e.pointerId);
-						press();
-					}}
-					onpointerup={release}
-					onpointercancel={release}
-					oncontextmenu={(e) => e.preventDefault()}
-				>
-					<svg viewBox="0 0 24 24" class="h-16 w-16" fill="currentColor" aria-hidden="true">
-						<rect x="9" y="2.5" width="6" height="12" rx="3" />
-						<path
-							d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-							stroke-linecap="round"
-						/>
-					</svg>
-				</button>
-				<button
-					class="flex h-20 w-20 items-center justify-center rounded-full bg-zinc-800 text-4xl shadow-xl active:scale-95 disabled:opacity-50"
-					aria-label="Hacer una foto"
-					title="Una foto hacia la carretera, con dónde y cuándo (o di «haz una foto»)"
-					disabled={roadPhotos.busy}
-					onclick={() => void roadPhotos.take()}>{roadPhotos.busy ? '…' : '📷'}</button
-				>
-			</div>
-			{#if roadPhotos.problem}
-				<p class="text-lg text-amber-300" aria-live="polite">{roadPhotos.problem}</p>
-			{/if}
-			<p class="min-h-7 text-center text-xl" aria-live="polite">
-				{#if voice.phase === 'listening'}
-					<span class="text-red-400">Te escucho…{micMode.tap ? ' toca para enviar' : ''}</span>
-				{:else if voice.phase === 'thinking'}
-					<span class="text-zinc-300">Un momento…</span>
-				{:else if voice.problem}
-					<span class="text-amber-300">{voice.problem}</span>
-				{:else if voice.reply}
-					{voice.reply}
-				{:else}
-					<span class="text-zinc-500">«Pon Radio 3», «siguiente», «el último podcast de…»</span>
-				{/if}
-			</p>
-			{#if voice.options.length}
-				<div class="flex flex-wrap justify-center gap-3">
-					{#each voice.options as option (option.command)}
+				<!-- The microphone: what to use while driving. And beside it, a photo (#81). -->
+				<section class="flex flex-col items-center gap-3">
+					<div class="flex items-center gap-6">
+						{@render mic('h-32 w-32', 'h-16 w-16')}
 						<button
-							class="rounded-full bg-zinc-800 px-6 py-3 text-xl active:bg-amber-500 active:text-zinc-950"
-							disabled={voice.phase !== 'idle'}
-							onclick={() => voice.command(option.command)}>{option.label}</button
+							class="flex h-20 w-20 items-center justify-center rounded-full bg-zinc-800 text-4xl shadow-xl active:scale-95 disabled:opacity-50"
+							aria-label="Hacer una foto"
+							title="Una foto hacia la carretera, con dónde y cuándo (o di «haz una foto»)"
+							disabled={roadPhotos.busy}
+							onclick={() => void roadPhotos.take()}>{roadPhotos.busy ? '…' : '📷'}</button
+						>
+					</div>
+					{#if roadPhotos.problem}
+						<p class="text-lg text-amber-300" aria-live="polite">{roadPhotos.problem}</p>
+					{/if}
+					<p class="min-h-7 text-center text-xl" aria-live="polite">{@render voiceLine()}</p>
+					{#if voice.options.length}
+						<div class="flex flex-wrap justify-center gap-3">
+							{#each voice.options as option (option.command)}
+								<button
+									class="rounded-full bg-zinc-800 px-6 py-3 text-xl active:bg-amber-500 active:text-zinc-950"
+									disabled={voice.phase !== 'idle'}
+									onclick={() => voice.command(option.command)}>{option.label}</button
+								>
+							{/each}
+						</div>
+					{/if}
+				</section>
+
+				{#if problem}
+					<p class="rounded-xl bg-red-950 p-3 text-red-200">{problem}</p>
+				{/if}
+
+				{#if mapInTab && route}
+					<!-- The route goes on out of its section: its next step, and back to the map. -->
+					<button class="contents" aria-label="Ver la ruta" onclick={() => (tab = 'ruta')}>
+						{@render maneuver('w-full')}
+					</button>
+				{/if}
+
+				<!-- A big button for each section: one touch, and its list. -->
+				<nav class="grid grid-cols-2 gap-3 sm:grid-cols-3" aria-label="Secciones">
+					{#each TABS as t (t.id)}
+						<button
+							class="flex min-h-24 flex-col items-center justify-center gap-1 rounded-2xl bg-zinc-900 text-lg font-semibold text-zinc-200 active:scale-95 active:bg-zinc-800"
+							onclick={() => (tab = t.id)}>{@render tabIcon(t.id)}{t.label}</button
 						>
 					{/each}
-				</div>
-			{/if}
-		</section>
-
-		{#if problem}
-			<p class="rounded-xl bg-red-950 p-3 text-red-200">{problem}</p>
+				</nav>
+			</div>
 		{/if}
 
-		<!-- One touch to put something on. -->
-		<section class="flex min-h-0 flex-1 flex-col gap-3">
-			{#if mapInTab && route && tab !== 'ruta'}
-				<!-- The route goes on with another tab in view: its next step, and back to the map. -->
-				<button class="contents" aria-label="Ver la ruta" onclick={() => (tab = 'ruta')}>
-					{@render maneuver('w-full')}
-				</button>
-			{/if}
-			<div class="grid auto-cols-fr grid-flow-col gap-2" role="tablist">
-				{#each TABS as t (t.id)}
-					<button
-						role="tab"
-						aria-selected={tab === t.id}
-						aria-label={t.label}
-						title={t.label}
-						class={[
-							'flex items-center justify-center rounded-xl py-3',
-							tab === t.id ? 'bg-amber-500 text-zinc-950' : 'bg-zinc-900 text-zinc-300'
-						]}
-						onclick={() => (tab = t.id)}>{@render tabIcon(t.id)}</button
-					>
-				{/each}
+		{#if tabMap}
+			<!-- Kept while a route is followed, out of sight elsewhere: its GPS guides. -->
+			<div class={tab === 'ruta' ? 'relative h-[45dvh] shrink-0' : 'h-0 overflow-hidden'}>
+				<RoadMap
+					{route}
+					destination={destination?.at ?? null}
+					onposition={(at, metresPerSecond) => {
+						here = at;
+						speed = metresPerSecond;
+					}}
+				/>
+				{@render maneuver('absolute inset-x-3 top-3')}
 			</div>
+		{/if}
 
-			{#if tabMap}
-				<!-- Kept while a route is followed, out of sight in other tabs: its GPS guides. -->
-				<div class={tab === 'ruta' ? 'relative h-[45dvh] shrink-0' : 'h-0 overflow-hidden'}>
-					<RoadMap
-						{route}
-						destination={destination?.at ?? null}
-						onposition={(at, metresPerSecond) => {
-							here = at;
-							speed = metresPerSecond;
-						}}
-					/>
-					{@render maneuver('absolute inset-x-3 top-3')}
-				</div>
+		{#if tab !== null}
+			{#if problem}
+				<p class="rounded-xl bg-red-950 p-3 text-red-200">{problem}</p>
 			{/if}
-
-			<div class="grid grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2" role="tabpanel">
+			<!-- The section's list, filling the rest, and scrolled on its own beside the map. -->
+			<div
+				class={[
+					'grid grid-cols-1 content-start gap-3 sm:grid-cols-2',
+					mapShown && 'min-h-0 flex-1 overflow-y-auto'
+				]}
+				role="region"
+				aria-label={TABS.find((t) => t.id === tab)?.label}
+			>
 				{#if tab === 'ruta'}
 					<div class="flex flex-col gap-3 sm:col-span-2">
 						{#if route && destination}
@@ -982,7 +1041,7 @@ the app's microphone, which the voice's big one right above would be taken for. 
 					{/each}
 				{/if}
 			</div>
-		</section>
+		{/if}
 	</div>
 </div>
 
