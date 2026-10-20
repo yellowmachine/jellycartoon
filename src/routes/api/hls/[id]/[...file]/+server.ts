@@ -17,5 +17,13 @@ export const GET: RequestHandler = ({ params, request }) => {
 	if (!type || !/^(?:[\w-]+\/)?[\w.-]+$/.test(params.file) || params.file.includes('..')) {
 		error(404, 'Not found');
 	}
-	return fileResponse(request, path.join(hlsDir(Number(params.id)), params.file), type);
+	// Subtitles are made again (Whisper's, #86) and an episode can be converted again: asked each
+	// time whether they changed, a 304 if not. The video's pieces, kept an hour.
+	const changes = params.file.endsWith('.vtt') || params.file.endsWith('.m3u8');
+	return fileResponse(
+		request,
+		path.join(hlsDir(Number(params.id)), params.file),
+		type,
+		changes ? 'private, no-cache' : undefined
+	);
 };
