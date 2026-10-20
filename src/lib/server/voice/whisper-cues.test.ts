@@ -169,6 +169,16 @@ describe('formCues: in blocks', () => {
 	});
 });
 
+describe('formCues: one line', () => {
+	test('each alone, until the next; the last, once read', () => {
+		const cues = formCues([p(103, 104, 'Has she slept at all?'), p(104.4, 105, 'Nope.')], 'single');
+		expect(cues).toEqual([
+			{ start: 103, end: 104.4, text: 'Has she slept at all?' },
+			{ start: 104.4, end: 105.9, text: 'Nope.' }
+		]);
+	});
+});
+
 describe('phrasesFromVtt: from subtitles made before the phrases were kept', () => {
 	test("rolled up: each cue's last line, when it starts", () => {
 		const vtt = formCues([p(1, 2, 'A.'), p(2.5, 3, 'B.'), p(3.2, 4, 'C.')], 'rollup').map((c) => ({
