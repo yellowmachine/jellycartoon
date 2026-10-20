@@ -5,6 +5,8 @@ export interface Cue {
 	start: number;
 	end: number;
 	text: string;
+	/** Rolled-up subtitles (#86): the phrase before, shown above `text`. */
+	previous?: string;
 }
 
 /** `01:02:03.456` or `02:03.456` as seconds; null if it is not a time. */
@@ -64,14 +66,22 @@ function timestamp(sec: number) {
 	return `${pad(Math.floor(ms / 3_600_000))}:${pad(Math.floor(ms / 60_000) % 60)}:${pad(Math.floor(ms / 1000) % 60)}.${pad(ms % 1000, 3)}`;
 }
 
-/** Cues as a WebVTT file, for the players; `<`, `>` and `&` in their text, escaped. */
-export function serializeVtt(cues: Cue[]) {
+/**
+ * Cues as a WebVTT file, for the players; `<`, `>` and `&` in their text, escaped. A rolled-up
+ * cue's phrase before goes above it, with `dim` in a `prev` class, for the page to dim it
+ * (`::cue(.prev)`).
+ */
+export function serializeVtt(cues: Cue[], { dim = false } = {}) {
 	const escape = (text: string) =>
 		text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	const text = (c: Cue) =>
+		c.previous === undefined
+			? escape(c.text)
+			: `${dim ? `<c.prev>${escape(c.previous)}</c>` : escape(c.previous)}\n${escape(c.text)}`;
 	return (
 		[
 			'WEBVTT',
-			...cues.map((c) => `${timestamp(c.start)} --> ${timestamp(c.end)}\n${escape(c.text)}`)
+			...cues.map((c) => `${timestamp(c.start)} --> ${timestamp(c.end)}\n${text(c)}`)
 		].join('\n\n') + '\n'
 	);
 }

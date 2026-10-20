@@ -55,27 +55,99 @@ const readUntil = (phrase: Cue) =>
 	);
 
 /**
- * Phrases in order (a whole track's, so pieces' edges too) as subtitles that roll up, as the TV's
- * live ones and YouTube's (#86): the phrase being said at the bottom, the one before above it, so
- * each is on screen for about two phrases, not only while it is said; with quick talk there was no
- * time to read them. With nobody talking, the last one stays until it can be read, then goes.
+ * How the phrases are put on screen, chosen by each in «⚙ Estilo» (#86): with quick talk, a phrase
+ * shown only while it is said could not be read, so two are on screen at once.
+ * - `blocks`: two lines that do not move; the second comes under the first, and then both go.
+ * - `rollup`: the one being said at the bottom, the one before above it, as the TV's live ones.
+ * - `rollupDim`: the same, the one before dimmed, so the eye finds the new one.
  */
-export function readableCues(phrases: Cue[]): Cue[] {
-	const sorted = [...phrases].sort((a, b) => a.start - b.start);
+export const SUBTITLE_FORMS = ['blocks', 'rollup', 'rollupDim'] as const;
+export type SubtitleForm = (typeof SUBTITLE_FORMS)[number];
+
+/** Said at once with the next one (a start this close): shown with it. */
+const AT_ONCE_SEC = 0.05;
+
+/** A cue showing `lines`, the last one the phrase just said; `previous` above it, rolled up. */
+const cue = (start: number, end: number, text: string, previous?: string): Cue =>
+	previous === undefined ? { start, end, text } : { start, end, text, previous };
+
+/**
+ * Phrases in order (a whole track's, so pieces' edges too) rolled up: each on screen for about
+ * two phrases, not only while it is said. With nobody talking, the last one stays until it can be
+ * read, then goes.
+ */
+function rollUp(sorted: Cue[]): Cue[] {
 	const cues: Cue[] = [];
 	sorted.forEach((phrase, i) => {
 		const next = sorted[i + 1];
-		// Said at once with the next: that one shows both.
-		if (next && next.start - phrase.start < 0.05) return;
+		if (next && next.start - phrase.start < AT_ONCE_SEC) return;
 		const before = sorted[i - 1];
 		const above = before && phrase.start < readUntil(before) + ROLL_GAP_SEC;
 		const until = readUntil(phrase);
-		cues.push({
-			start: phrase.start,
-			// The next one rolls it up; without one soon, it goes once read.
-			end: next && next.start < until ? next.start : until,
-			text: above ? `${before.text}\n${phrase.text}` : phrase.text
-		});
+		// The next one rolls it up; without one soon, it goes once read.
+		const end = next && next.start < until ? next.start : until;
+		cues.push(cue(phrase.start, end, phrase.text, above ? before.text : undefined));
 	});
 	return cues;
+}
+
+/**
+ * Phrases in blocks of two lines that do not move: the first alone, then the second under it, and
+ * then the block goes for the next. A phrase after a pause starts a block of its own.
+ */
+function inBlocks(sorted: Cue[]): Cue[] {
+	const cues: Cue[] = [];
+	let i = 0;
+	while (i < sorted.length) {
+		const first = sorted[i]!;
+		const second = sorted[i + 1];
+		const paired = second && second.start < readUntil(first) + ROLL_GAP_SEC;
+		if (!paired) {
+			const until = readUntil(first);
+			cues.push(
+				cue(first.start, second && second.start < until ? second.start : until, first.text)
+			);
+			i += 1;
+			continue;
+		}
+		const after = sorted[i + 2];
+		if (second.start - first.start >= AT_ONCE_SEC)
+			cues.push(cue(first.start, second.start, first.text));
+		const until = Math.max(readUntil(first), readUntil(second));
+		const end = after && after.start < until ? after.start : until;
+		cues.push(cue(second.start, end, `${first.text}\n${second.text}`));
+		i += 2;
+	}
+	return cues;
+}
+
+/** The phrases as subtitles, in the form chosen. */
+export function formCues(phrases: Cue[], form: SubtitleForm): Cue[] {
+	const sorted = [...phrases].sort((a, b) => a.start - b.start);
+	return form === 'blocks' ? inBlocks(sorted) : rollUp(sorted);
+}
+
+/**
+ * The phrases back from a .vtt already made (#86), so its form can be chosen without making it
+ * again: rolled up, each cue's last line is a phrase said then; two lines that were not rolled up
+ * are two phrases (the second's start, not kept, halfway); one line, a phrase as it was.
+ */
+export function phrasesFromVtt(cues: Cue[]): Cue[] {
+	const phrases: Cue[] = [];
+	cues.forEach((c, i) => {
+		const lines = c.text.split('\n').filter(Boolean);
+		const before = cues[i - 1]?.text.split('\n').filter(Boolean).at(-1);
+		if (lines.length === 2 && lines[0] === before) {
+			phrases.push({ start: c.start, end: c.end, text: lines[1]! });
+			return;
+		}
+		if (lines.length === 2) {
+			const half = +((c.start + c.end) / 2).toFixed(3);
+			phrases.push({ start: c.start, end: half, text: lines[0]! });
+			phrases.push({ start: half, end: c.end, text: lines[1]! });
+			return;
+		}
+		phrases.push({ start: c.start, end: c.end, text: lines.join(' ') });
+	});
+	return phrases;
 }

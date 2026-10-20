@@ -21,6 +21,7 @@ import { filmAutoSubtitles } from '#lib/server/auto-subtitles.ts';
 import { log } from '#lib/server/log.ts';
 import { getSettings } from '#lib/server/settings.ts';
 import { normalizeLang } from '#lib/languages.ts';
+import { readCues } from '#lib/server/auto-subtitle-files.ts';
 import { cuesBetween, cuesText, parseVtt, type Cue } from '#lib/vtt.ts';
 import type { VideoHere } from '#lib/voice.ts';
 
@@ -253,13 +254,12 @@ export async function sendClip(
 			await inTurn(() => audioClip(input, output, { atSec: startSec, seconds }));
 			const sub =
 				watching.subtitles.find((s) => normalizeLang(s.lang) === language) ?? watching.subtitles[0];
-			if (sub) {
-				const vtt = await readFile(path.join(hlsDir(watching.id), sub.file), 'utf8');
+			// Whisper's as their phrases, once each, not as shown in two lines (#86).
+			if (sub)
 				subtitles = {
-					cues: cuesBetween(parseVtt(vtt), startSec, endSec),
+					cues: cuesBetween(await readCues(hlsDir(watching.id), sub.file), startSec, endSec),
 					lang: normalizeLang(sub.lang)
 				};
-			}
 		} else {
 			const input = movieFile(watching.path);
 			const info = await cachedProbe(watching.id, input);
@@ -277,12 +277,14 @@ export async function sendClip(
 				sub?.lang === language
 					? undefined
 					: (await filmAutoSubtitles(watching.id)).find((s) => s.lang === language);
-			const vtt = made
-				? await readFile(path.join(movieSubsDir(watching.id), made.file), 'utf8')
-				: sub?.vtt;
-			if (vtt)
+			const cues = made
+				? await readCues(movieSubsDir(watching.id), made.file)
+				: sub?.vtt
+					? parseVtt(sub.vtt)
+					: null;
+			if (cues)
 				subtitles = {
-					cues: cuesBetween(parseVtt(vtt), startSec, endSec),
+					cues: cuesBetween(cues, startSec, endSec),
 					lang: made ? made.lang : sub!.lang
 				};
 		}

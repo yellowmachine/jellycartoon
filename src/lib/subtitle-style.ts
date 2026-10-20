@@ -69,6 +69,18 @@ export const SUBTITLE_OPTIONS = {
 			raised: { label: 'Algo más arriba', css: '88' },
 			high: { label: 'Más arriba', css: '80' }
 		}
+	},
+	/**
+	 * Whisper's only (#86): with quick talk two are on screen, and how. Not CSS: the subtitles are
+	 * made in this form when asked for (`formCues`), also for mpv.
+	 */
+	automatic: {
+		label: 'Automáticos',
+		choices: {
+			blocks: { label: 'Dos líneas fijas', css: '' },
+			rollup: { label: 'Suben', css: '' },
+			rollupDim: { label: 'Suben, la de arriba en gris', css: '' }
+		}
 	}
 } as const;
 
@@ -81,7 +93,8 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
 	color: 'white',
 	background: 'soft',
 	position: 'bottom',
-	outline: 'shadow'
+	outline: 'shadow',
+	automatic: 'blocks'
 };
 
 /** Keeps only known keys and values, filling the rest with defaults. */
@@ -95,8 +108,11 @@ export function sanitizeSubtitleStyle(value: unknown): SubtitleStyle {
 	return style as SubtitleStyle;
 }
 
-/** Whole looks, chosen at once; where they go (position) stays as it was chosen. */
-export const SUBTITLE_PRESETS: { label: string; style: Omit<SubtitleStyle, 'position'> }[] = [
+/** Whole looks, chosen at once; where they go (position) and how Whisper's show stay as they were. */
+export const SUBTITLE_PRESETS: {
+	label: string;
+	style: Omit<SubtitleStyle, 'position' | 'automatic'>;
+}[] = [
 	{
 		// Films in original version on TV and on video: yellow, bold, outlined, no box.
 		label: 'Versión original',

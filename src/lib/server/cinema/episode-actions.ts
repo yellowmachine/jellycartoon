@@ -3,7 +3,8 @@ import { and, asc, eq, gt, inArray, or } from 'drizzle-orm';
 import { AUDIO_LANG } from '$app/env/private';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
-import { hostEpisodesReady, hostHlsFile, hostPlaylist } from '#lib/server/library/paths.ts';
+import { formFile, isAutoFile } from '#lib/server/auto-subtitle-files.ts';
+import { hlsDir, hostEpisodesReady, hostHlsFile, hostPlaylist } from '#lib/server/library/paths.ts';
 import { allowedEpisodes } from '#lib/server/kids.ts';
 import { videoClosed } from '#lib/server/kid-time.ts';
 import { getSettings } from '#lib/server/settings.ts';
@@ -60,17 +61,30 @@ export async function playEpisodes(userId: string, ids: number[], firstStartSec?
 	if (!episodes.length) return fail(400, { message: 'No hay capítulos listos para ver' });
 
 	const settings = await getSettings(userId);
+	// Whisper's in the form chosen in «⚙ Estilo» (#86): mpv reads them from disk, so a file each.
+	const subtitlesOf = async (e: (typeof episodes)[number]) =>
+		Promise.all(
+			e.subtitles.map(async (s) => ({
+				path: hostHlsFile(
+					e.id,
+					isAutoFile(s.file)
+						? await formFile(hlsDir(e.id), s.file, settings.subtitleStyle.automatic).catch(
+								() => s.file
+							)
+						: s.file
+				)!,
+				lang: s.lang,
+				label: s.label
+			}))
+		);
+	const subtitles = await Promise.all(episodes.map(subtitlesOf));
 	try {
 		await playOnHost({
 			userId,
 			items: episodes.map((e, i) => ({
 				target: {
 					episodeId: e.id,
-					subtitles: e.subtitles.map((s) => ({
-						path: hostHlsFile(e.id, s.file)!,
-						lang: s.lang,
-						label: s.label
-					}))
+					subtitles: subtitles[i]!
 				},
 				title: e.title,
 				subtitle: `${e.seriesTitle} · T${e.season} E${e.number}`,
