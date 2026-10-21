@@ -80,40 +80,43 @@
 
 <svelte:window onkeydowncapture={key} />
 
+<!-- The Nokia 3310's LCD: dark green squares, with a gap between them, on pale green. -->
 <div
-	class="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-zinc-950 p-10"
+	class="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-[#c7f0d8] p-10 font-mono font-bold text-[#43523d]"
 	role="application"
 	aria-label="La serpiente"
 >
-	<div class="flex w-full max-w-6xl items-baseline justify-between text-3xl">
-		<span class="font-bold text-lime-300">La serpiente</span>
-		<span class="tabular-nums">Manzanas: {snake.score} · Récord: {record}</span>
-	</div>
 	<div
-		class="relative aspect-[24/14] w-full max-w-6xl rounded-xl border-4 border-lime-400/60 bg-lime-950/40"
+		class="flex w-full max-w-6xl items-baseline justify-between border-b-4 border-[#43523d] pb-2 text-4xl tabular-nums"
 	>
-		<span class="absolute rounded-full bg-red-500" style={cell(...snake.food)}></span>
+		<span>{String(snake.score).padStart(4, '0')}</span>
+		<span>Récord {String(record).padStart(4, '0')}</span>
+	</div>
+	<div class="relative aspect-[24/14] w-full max-w-6xl border-4 border-[#43523d]">
+		<span class="absolute flex items-center justify-center" style={cell(...snake.food)}>
+			<span class="size-1/2 rotate-45 bg-[#43523d]"></span>
+		</span>
 		{#each snake.body as [x, y], i (i)}
-			<span
-				class={['absolute rounded-md', i === 0 ? 'bg-lime-300' : 'bg-lime-500']}
-				style={cell(x, y)}
-			></span>
+			<span class="absolute bg-[#43523d] bg-clip-content p-0.5" style={cell(x, y)}></span>
 		{/each}
 		{#if snake.over || paused}
-			<div
-				class="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-lg bg-zinc-950/70 text-center"
-			>
-				<p class="text-6xl font-bold">{snake.over ? '¡Fin!' : 'En pausa'}</p>
-				<p class="text-3xl text-zinc-300">
-					{snake.over
-						? `${snake.score} ${snake.score === 1 ? 'manzana' : 'manzanas'}${snake.score && snake.score >= record ? ' · ¡récord!' : ''}`
-						: ''}
-				</p>
-				<p class="text-2xl text-zinc-400">
-					OK: {snake.over ? 'otra partida' : 'seguir'} · Volver: salir
-				</p>
+			<div class="absolute inset-0 flex items-center justify-center">
+				<div
+					class="flex flex-col items-center gap-3 border-4 border-[#43523d] bg-[#c7f0d8] px-12 py-8 text-center"
+				>
+					<p class="text-6xl">{snake.over ? 'Fin' : 'Pausa'}</p>
+					{#if snake.over}
+						<p class="text-3xl">
+							{snake.score}
+							{snake.score === 1 ? 'manzana' : 'manzanas'}{snake.score && snake.score >= record
+								? ' · ¡récord!'
+								: ''}
+						</p>
+					{/if}
+					<p class="text-2xl">OK: {snake.over ? 'otra partida' : 'seguir'} · Volver: salir</p>
+				</div>
 			</div>
 		{/if}
 	</div>
-	<p class="text-2xl text-zinc-500">Flechas: girar · OK: pausa · Volver: salir</p>
+	<p class="text-2xl opacity-70">Flechas: girar · OK: pausa · Volver: salir</p>
 </div>
