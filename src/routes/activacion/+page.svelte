@@ -27,7 +27,10 @@
 	let since = $state<number | null>(null);
 	let now = $state(Date.now());
 
+	let level = $state(-90);
+	let info = $state<Listening['info'] | null>(null);
 	let listening: Listening | null = null;
+	let context: AudioContext | null = null;
 	let lock: WakeLockSentinel | null = null;
 	let lastAt = WORDS.map(() => 0);
 	let nextId = 1;
@@ -36,26 +39,35 @@
 	async function start() {
 		status = 'loading';
 		problem = null;
+		// Now, on the tap: made after loading the models, Android leaves it suspended.
+		context = new AudioContext();
 		try {
-			listening = await listen({
-				models: WORDS.map((w) => w.model),
-				processing,
-				onScores(s, took) {
-					scores = s;
-					peaks = peaks.map((p, i) => Math.max(p * 0.97, s[i]!));
-					ms = ms ? ms * 0.95 + took * 0.05 : took;
-					const t = Date.now();
-					s.forEach((score, i) => {
-						if (score < threshold || t - lastAt[i]! < QUIET_MS) return;
-						lastAt[i] = t;
-						detections = [
-							{ id: nextId++, word: WORDS[i]!.label, at: new Date(t), score, right: null },
-							...detections
-						];
-						navigator.vibrate?.(200);
-					});
-				}
-			});
+			listening = await listen(
+				{
+					models: WORDS.map((w) => w.model),
+					processing,
+					onScores(s, took) {
+						scores = s;
+						peaks = peaks.map((p, i) => Math.max(p * 0.97, s[i]!));
+						ms = ms ? ms * 0.95 + took * 0.05 : took;
+						const t = Date.now();
+						s.forEach((score, i) => {
+							if (score < threshold || t - lastAt[i]! < QUIET_MS) return;
+							lastAt[i] = t;
+							detections = [
+								{ id: nextId++, word: WORDS[i]!.label, at: new Date(t), score, right: null },
+								...detections
+							];
+							navigator.vibrate?.(200);
+						});
+					},
+					onLevel(db) {
+						level = Math.max(db, level - 1.5);
+					}
+				},
+				context
+			);
+			info = listening.info;
 			status = 'on';
 			since = Date.now();
 			clock = setInterval(() => (now = Date.now()), 1000);
@@ -70,6 +82,8 @@
 	function stop() {
 		listening?.stop();
 		listening = null;
+		if (context && context.state !== 'closed') void context.close();
+		context = null;
 		void lock?.release().catch(() => {});
 		lock = null;
 		clearInterval(clock);
@@ -140,6 +154,25 @@
 	</div>
 	{#if problem}
 		<p class="mb-4 text-sm text-red-400">{problem}</p>
+	{/if}
+	{#if status === 'on' && info}
+		<!-- What arrives: if the bars do not move, this says why. -->
+		<div class="mb-4 rounded-md border border-zinc-800 p-3 text-xs text-zinc-400">
+			<div class="mb-1 flex items-center gap-2">
+				<span class="w-24 shrink-0">Nivel {level.toFixed(0)} dB</span>
+				<div class="h-2 flex-1 overflow-hidden rounded bg-zinc-800">
+					<div
+						class="h-full bg-sky-500"
+						style:width="{Math.max(0, (level + 90) / 90) * 100}%"
+					></div>
+				</div>
+			</div>
+			<p>
+				Audio {info.state === 'running' ? 'en marcha' : `parado (${info.state})`} · {info.contextRate}
+				Hz (micrófono {info.micRate ?? '?'} Hz) · eco {info.echoCancellation ? 'sí' : 'no'} · ruido
+				{info.noiseSuppression ? 'sí' : 'no'} · volumen {info.autoGainControl ? 'sí' : 'no'}
+			</p>
+		</div>
 	{/if}
 
 	<label class="mb-4 flex items-center gap-3 text-sm">
