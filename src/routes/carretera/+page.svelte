@@ -869,7 +869,7 @@ the app's microphone, which the voice's big one right above would be taken for. 
 						<div class="mt-4 flex items-center justify-center gap-4 short:mt-2">
 							{#if music.podcast}
 								<button
-									class="{big} h-20 w-20 short:h-14 short:w-14 text-xl"
+									class="{big} h-20 w-20 text-xl short:h-14 short:w-14"
 									aria-label="Atrás {SKIP_BACK} segundos"
 									onclick={() => music.skip(-SKIP_BACK)}>−{SKIP_BACK}</button
 								>
@@ -882,14 +882,14 @@ the app's microphone, which the voice's big one right above would be taken for. 
 								>
 							{/if}
 							<button
-								class="{big} h-24 w-24 bg-amber-500! short:h-16 short:w-16 text-zinc-950!"
+								class="{big} h-24 w-24 bg-amber-500! text-zinc-950! short:h-16 short:w-16"
 								aria-label={music.playing ? 'Pausa' : 'Seguir'}
 								onclick={() => music.toggle()}
 								><MediaIcon name={music.playing ? 'pause' : 'play'} class="h-12 w-12" /></button
 							>
 							{#if music.podcast}
 								<button
-									class="{big} h-20 w-20 short:h-14 short:w-14 text-xl"
+									class="{big} h-20 w-20 text-xl short:h-14 short:w-14"
 									aria-label="Adelante {SKIP_FORWARD} segundos"
 									onclick={() => music.skip(SKIP_FORWARD)}>+{SKIP_FORWARD}</button
 								>
@@ -910,7 +910,7 @@ the app's microphone, which the voice's big one right above would be taken for. 
 					<div class="flex items-center gap-6">
 						{@render mic('h-32 w-32 short:h-20 short:w-20', 'h-16 w-16 short:h-10 short:w-10')}
 						<button
-							class="flex h-20 w-20 items-center justify-center rounded-full bg-zinc-800 text-4xl short:h-14 short:w-14 short:text-2xl shadow-xl active:scale-95 disabled:opacity-50"
+							class="flex h-20 w-20 items-center justify-center rounded-full bg-zinc-800 text-4xl shadow-xl active:scale-95 disabled:opacity-50 short:h-14 short:w-14 short:text-2xl"
 							aria-label="Hacer una foto"
 							title="Una foto hacia la carretera, con dónde y cuándo (o di «haz una foto»)"
 							disabled={roadPhotos.busy}
@@ -951,7 +951,7 @@ the app's microphone, which the voice's big one right above would be taken for. 
 				<nav class="grid grid-cols-2 gap-3 sm:grid-cols-3" aria-label="Secciones">
 					{#each TABS as t (t.id)}
 						<button
-							class="flex min-h-24 flex-col items-center short:min-h-16 justify-center gap-1 rounded-2xl bg-zinc-900 text-lg font-semibold text-zinc-200 active:scale-95 active:bg-zinc-800"
+							class="flex min-h-24 flex-col items-center justify-center gap-1 rounded-2xl bg-zinc-900 text-lg font-semibold text-zinc-200 active:scale-95 active:bg-zinc-800 short:min-h-16"
 							onclick={() => (tab = t.id)}>{@render tabIcon(t.id)}{t.label}</button
 						>
 					{/each}
@@ -961,7 +961,11 @@ the app's microphone, which the voice's big one right above would be taken for. 
 
 		{#if tabMap}
 			<!-- Kept while a route is followed, out of sight elsewhere: its GPS guides. -->
-			<div class={tab === 'ruta' ? 'relative h-[45dvh] shrink-0 short:h-[75dvh]' : 'h-0 overflow-hidden'}>
+			<div
+				class={tab === 'ruta'
+					? 'relative h-[45dvh] shrink-0 short:h-[75dvh]'
+					: 'h-0 overflow-hidden'}
+			>
 				<RoadMap {route} destination={destination?.at ?? null} onposition={positioned} />
 				{@render maneuver('absolute inset-x-3 top-3')}
 				{@render searchBox()}
