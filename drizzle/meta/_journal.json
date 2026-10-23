@@ -407,6 +407,13 @@
       "when": 1792781595119,
       "tag": "0057_rol-admin-del-administrador",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1792782012268,
+      "tag": "0058_blue_invisible_woman",
+      "breakpoints": true
     }
   ]
 }

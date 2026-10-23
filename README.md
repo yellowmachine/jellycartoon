@@ -160,6 +160,13 @@ docker compose -f compose.prod.yaml logs -f app
 - Las cuentas infantiles las crea quien creó la primera cuenta, desde Ajustes. Solo ven las series
   y películas con la etiqueta «infantil», no gestionan nada ni hablan con la IA, y la propia cuenta
   no puede dejar de ser infantil.
+- Los más pequeños entran **con permiso**, sin contraseña (#141). En Ajustes → Casa se marca un
+  dispositivo como «de la casa» (la TV del salón): ahí, sin sesión, sale «¿Quién eres?» con sus
+  dibujos, y al elegir uno sus padres o tutores lo ven en la app y contestan: esta vez, 1 hora,
+  2 horas, hoy, o no. Mientras dure el permiso vuelve a entrar en ese dispositivo sin preguntar.
+  Con «Activar avisos en este dispositivo» (Ajustes → Este dispositivo) les llega aunque la app esté
+  cerrada; en el iPhone, solo con la app añadida a la pantalla de inicio. Las claves de los avisos
+  (VAPID) las crea la app y las guarda cifradas: no hay nada que poner en el `.env`.
 - En «Infantil» (para cualquier adulto) se ve lo que ven, y se les pone horario por días y un
   límite de minutos al día. Fuera de él no hay vídeo, tampoco en el salón: lo que suena se para.
   Las horas son las de `TZ`.

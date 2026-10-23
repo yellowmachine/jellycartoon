@@ -1062,3 +1062,22 @@ export const kidPermit = pgTable(
 	},
 	(t) => [primaryKey({ columns: [t.kidId, t.deviceId] })]
 );
+
+/**
+ * A phone or browser where an adult wants the app's notices (Web Push, push.ts): for now, a child
+ * asking to enter (#141). What the browser's push service gave, to send to it.
+ */
+export const pushSubscription = pgTable(
+	'push_subscription',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		endpoint: text('endpoint').notNull().unique(),
+		p256dh: text('p256dh').notNull(),
+		auth: text('auth').notNull(),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [index('push_subscription_user_idx').on(t.userId)]
+);

@@ -39,10 +39,15 @@ type Key =
 	| 'last_scan_films'
 	| 'auto_subtitle_langs'
 	| 'episode_labels'
+	| 'vapid_keys'
 	| 'ors_api_key'
 	| 'ors_url'
 	| 'relay_url'
 	| 'relay_key';
+
+export async function getAppSetting(key: Key) {
+	return get(key);
+}
 
 async function get(key: Key) {
 	const [row] = await db

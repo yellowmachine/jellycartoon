@@ -1,14 +1,6 @@
-import {
-	createCipheriv,
-	createDecipheriv,
-	createHash,
-	hkdfSync,
-	randomBytes,
-	randomUUID
-} from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Cookies } from '@sveltejs/kit';
 import { and, asc, count, eq, gt, inArray, sql } from 'drizzle-orm';
-import { BETTER_AUTH_SECRET } from '$app/env/private';
 import { auth } from '#lib/server/auth.ts';
 import { db } from '#lib/server/db/index.ts';
 import {
@@ -23,6 +15,8 @@ import {
 import { isAdmin } from '#lib/server/app-settings.ts';
 import { KIDS_ROLE } from '#lib/server/kids.ts';
 import { log } from '#lib/server/log.ts';
+import { decrypt, encrypt } from '#lib/server/secret-box.ts';
+import { notify } from '#lib/server/push.ts';
 import { avatar, type PermitId } from '#lib/avatars.ts';
 
 /**
@@ -40,31 +34,6 @@ const REQUESTS_PER_MINUTE = 3;
 const DEVICE_COOKIE = 'jellycartoon-dispositivo';
 /** As long as a device is the house's; an adult can take it back in Ajustes. */
 const DEVICE_COOKIE_DAYS = 5 * 365;
-
-// The credential, encrypted with a key of its own taken from BETTER_AUTH_SECRET (HKDF): never the
-// secret itself, and nothing a copy of the database has.
-const KEY = Buffer.from(
-	hkdfSync('sha256', BETTER_AUTH_SECRET, 'jellycartoon', 'kid credential', 32)
-);
-
-function encrypt(text: string) {
-	const iv = randomBytes(12);
-	const cipher = createCipheriv('aes-256-gcm', KEY, iv);
-	const data = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
-	return [iv, cipher.getAuthTag(), data].map((b) => b.toString('base64url')).join('.');
-}
-
-/** Null if it cannot be read: BETTER_AUTH_SECRET changed. */
-function decrypt(value: string) {
-	try {
-		const [iv, tag, data] = value.split('.').map((p) => Buffer.from(p, 'base64url'));
-		const decipher = createDecipheriv('aes-256-gcm', KEY, iv!);
-		decipher.setAuthTag(tag!);
-		return Buffer.concat([decipher.update(data!), decipher.final()]).toString('utf8');
-	} catch {
-		return null;
-	}
-}
 
 const hash = (token: string) => createHash('sha256').update(token).digest('hex');
 
@@ -331,6 +300,17 @@ export async function askToEnter(kidId: string, device: { id: number; name: stri
 		void tellGuardians(kidId);
 	}, REQUEST_MS + 500).unref?.();
 	void tellGuardians(kidId);
+	// With the app closed too: on their phones. Touched, it opens the app, where they answer.
+	void guardiansOf(kidId).then(async (ids) => {
+		const [kid] = await db.select({ name: user.name }).from(user).where(eq(user.id, kidId));
+		await notify(ids, {
+			title: `${kid?.name ?? 'Un peque'} quiere entrar`,
+			body: `En ${device.name}. Toca para contestar.`,
+			tag: `peque-${kidId}`,
+			url: '/',
+			ttl: REQUEST_MS / 1000
+		});
+	});
 	log.info('peques', `Pide entrar en ${device.name}`, {
 		kidId,
 		deviceId: device.id,

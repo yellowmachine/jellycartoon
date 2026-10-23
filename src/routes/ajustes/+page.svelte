@@ -7,6 +7,7 @@
 	import { musicQuality, type MusicQuality } from '#lib/music-quality.svelte.ts';
 	import MusicBackgroundSettings from '#lib/components/MusicBackgroundSettings.svelte';
 	import PasswordInput from '#lib/components/PasswordInput.svelte';
+	import PushNotices from '#lib/components/PushNotices.svelte';
 	import SubtitleStylePanel from '#lib/components/SubtitleStylePanel.svelte';
 	import type { SubtitleStyle } from '#lib/subtitle-style.ts';
 	import UpdateProgress from '#lib/components/UpdateProgress.svelte';
@@ -455,6 +456,10 @@
 				<p class="mt-2 text-sm text-zinc-400">
 					Se verá así: <span class="text-zinc-200">«Sonaba en {shownDeviceName(false)}»</span>
 				</p>
+			{/if}
+			<!-- For whoever lets a child in (#141): the requests, on this phone with the app closed. -->
+			{#if page.data.guardian}
+				<PushNotices />
 			{/if}
 		</section>
 
