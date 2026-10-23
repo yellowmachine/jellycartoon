@@ -37,7 +37,7 @@
 <div
 	class={[
 		'flex flex-col items-center text-center',
-		inPanel ? 'gap-8 px-4 py-6' : 'min-h-[70vh] justify-center gap-10 py-8'
+		inPanel ? 'gap-8 px-4 py-4 md:py-6' : 'min-h-[70vh] justify-center gap-10 py-8'
 	]}
 >
 	<!-- Cooking (#60): the step first; the microphone, smaller, under it. -->
@@ -61,7 +61,7 @@
 	<button
 		class={[
 			'flex touch-none items-center justify-center rounded-full shadow-2xl transition duration-150 select-none',
-			inPanel ? 'h-32 w-32' : recipe.current ? 'h-40 w-40' : 'h-56 w-56',
+			inPanel ? 'h-24 w-24 md:h-32 md:w-32' : recipe.current ? 'h-40 w-40' : 'h-56 w-56',
 			voice.phase === 'listening'
 				? 'scale-110 bg-red-500 text-white'
 				: 'bg-amber-500 text-zinc-950 active:scale-95',
@@ -92,7 +92,7 @@
 	>
 		<svg
 			viewBox="0 0 24 24"
-			class={inPanel ? 'h-16 w-16' : 'h-24 w-24'}
+			class={inPanel ? 'h-12 w-12 md:h-16 md:w-16' : 'h-24 w-24'}
 			fill="currentColor"
 			aria-hidden="true"
 		>

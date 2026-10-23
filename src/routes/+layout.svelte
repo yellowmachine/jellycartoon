@@ -211,9 +211,9 @@
 {#if page.url.pathname === '/tv' || page.url.pathname.startsWith('/tv/') || page.url.pathname === '/carretera'}
 	{@render children()}
 {:else}
-	<!-- With the kitchen panel at its side (wide screens), the page takes the rest: a video in it
-	     goes on being seen. -->
-	<div class={[panelShown && 'md:pr-[42%]']}>
+	<!-- With the kitchen panel at its side (wide screens) or under it (narrow: a phone, or split
+	     screen), the page takes the rest: a video in it goes on being seen. -->
+	<div class={[panelShown && 'pb-[55dvh] md:pr-[42%] md:pb-0']}>
 		{#if data.user}
 			<header class="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur">
 				<nav class="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3">
@@ -449,10 +449,10 @@
 	</div>
 
 	{#if panelShown}
-		<!-- Over the page, which stays as it is: what plays in it goes on. The whole screen on a
-		     phone; a side on a tablet lying down or a computer. -->
+		<!-- Over the page, which stays as it is: what plays in it goes on. Its lower half on a narrow
+		     window (a phone, or split screen); a side on a tablet lying down or a computer. -->
 		<aside
-			class="fixed inset-0 z-30 overflow-y-auto bg-zinc-950 md:left-auto md:w-[42%] md:border-l md:border-zinc-800"
+			class="fixed inset-x-0 bottom-0 z-30 h-[55dvh] overflow-y-auto border-t border-zinc-800 bg-zinc-950 md:top-0 md:left-auto md:h-auto md:w-[42%] md:border-t-0 md:border-l"
 			aria-label="Cocina"
 		>
 			<div
