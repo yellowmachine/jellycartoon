@@ -10,6 +10,7 @@ import { getSettings } from '#lib/server/settings.ts';
 import { DEFAULT_THEME } from '#lib/themes.ts';
 import { openingQuote } from '#lib/server/opening-quote.ts';
 import { isGuardian } from '#lib/server/kid-login.ts';
+import { dailymotionEnabled } from '#lib/server/dailymotion.ts';
 
 export const load: LayoutServerLoad = async ({ locals, isDataRequest }) => {
 	const kid = isKid(locals.user);
@@ -35,6 +36,8 @@ export const load: LayoutServerLoad = async ({ locals, isDataRequest }) => {
 		guardian: Boolean(locals.user) && !kid && (await isGuardian(locals.user!.id)),
 		/** Only with a films folder (CINEMA_DIR). */
 		cinema: Boolean(cinemaRoot),
+		/** Dailymotion's cartoons (#66): only with a player made in its Studio (DAILYMOTION_PLAYER_ID). */
+		dailymotion: dailymotionEnabled,
 		/** Only with a music folder (MUSIC_DIR). */
 		music: Boolean(musicRoot),
 		/** Music can also be sent to Snapcast (MUSIC_MPV_SOCKET, while its mpv is there). */

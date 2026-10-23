@@ -344,17 +344,21 @@ export const watchTime = pgTable(
 		movieId: integer('movie_id').references(() => movie.id, { onDelete: 'cascade' }),
 		/** A TV channel, live: its id in channels.ts. */
 		channelId: text('channel_id'),
+		/** A Dailymotion video (#66). */
+		dailymotionId: text('dailymotion_id').references(() => dailymotionVideo.xid, {
+			onDelete: 'cascade'
+		}),
 		seconds: real('seconds').notNull().default(0)
 	},
 	(t) => [
-		// Two of the three are null: they are compared as equal, so there is one row per thing and day.
+		// All but one are null: they are compared as equal, so there is one row per thing and day.
 		unique('watch_time_user_day_item')
-			.on(t.userId, t.day, t.minute, t.episodeId, t.movieId, t.channelId)
+			.on(t.userId, t.day, t.minute, t.episodeId, t.movieId, t.channelId, t.dailymotionId)
 			.nullsNotDistinct(),
 		check('watch_time_minute', sql`${t.minute} between 0 and 1439`),
 		check(
 			'watch_time_one_item',
-			sql`num_nonnulls(${t.episodeId}, ${t.movieId}, ${t.channelId}) = 1`
+			sql`num_nonnulls(${t.episodeId}, ${t.movieId}, ${t.channelId}, ${t.dailymotionId}) = 1`
 		)
 	]
 );
@@ -1102,4 +1106,53 @@ export const pushSubscription = pgTable(
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [index('push_subscription_user_idx').on(t.userId)]
+);
+
+export const dailymotionSourceKind = pgEnum('dailymotion_source_kind', ['user', 'playlist']);
+
+/**
+ * A Dailymotion account or playlist the adults chose for the children (#66): only their videos are
+ * shown and played, always with the family filter.
+ */
+export const dailymotionSource = pgTable(
+	'dailymotion_source',
+	{
+		id: serial('id').primaryKey(),
+		kind: dailymotionSourceKind('kind').notNull(),
+		/** Dailymotion's id of the account or the playlist. */
+		xid: text('xid').notNull(),
+		name: text('name').notNull(),
+		image: text('image'),
+		addedBy: text('added_by').references(() => user.id, { onDelete: 'set null' }),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [unique('dailymotion_source_kind_xid').on(t.kind, t.xid)]
+);
+
+/** A Dailymotion video that has been played here: its title, for the history and «Ahora». */
+export const dailymotionVideo = pgTable('dailymotion_video', {
+	xid: text('xid').primaryKey(),
+	title: text('title').notNull(),
+	/** The account's name, as Dailymotion shows it. */
+	owner: text('owner').notNull(),
+	durationSec: real('duration_sec'),
+	thumbnail: text('thumbnail'),
+	updatedAt: timestamp('updated_at').notNull().defaultNow()
+});
+
+/** Where each user is in each Dailymotion video, as with the episodes. */
+export const dailymotionProgress = pgTable(
+	'dailymotion_progress',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		videoXid: text('video_xid')
+			.notNull()
+			.references(() => dailymotionVideo.xid, { onDelete: 'cascade' }),
+		positionSec: real('position_sec').notNull(),
+		completed: boolean('completed').notNull().default(false),
+		updatedAt: timestamp('updated_at').notNull().defaultNow()
+	},
+	(t) => [primaryKey({ columns: [t.userId, t.videoXid] })]
 );

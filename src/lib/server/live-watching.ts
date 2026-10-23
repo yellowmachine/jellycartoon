@@ -1,6 +1,13 @@
 import { eq, inArray } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { episode, episodeTitle, movie, movieTitle, series } from '#lib/server/db/schema.ts';
+import {
+	dailymotionVideo,
+	episode,
+	episodeTitle,
+	movie,
+	movieTitle,
+	series
+} from '#lib/server/db/schema.ts';
 import { CHANNELS } from '#lib/channels.ts';
 
 /**
@@ -14,7 +21,8 @@ const STALE_MS = 60_000;
 /** Without moving for longer, it is paused. */
 const STILL_MS = 20_000;
 
-type Target = { episodeId: number } | { movieId: number } | { channelId: string };
+type Target =
+	{ episodeId: number } | { movieId: number } | { channelId: string } | { dailymotionId: string };
 
 interface Live {
 	target: Target;
@@ -101,7 +109,7 @@ export function stoppedLately(userIds: string[]) {
 
 export interface WatchingNow {
 	userId: string;
-	kind: 'episode' | 'film' | 'channel';
+	kind: 'episode' | 'film' | 'channel' | 'dailymotion';
 	title: string;
 	/** The series and its number, «Película» or «En directo». */
 	detail: string;
@@ -115,8 +123,8 @@ export interface WatchingNow {
 	asking: boolean;
 	/** When anyone last touched anything (ms since 1970); null, not since the app started. */
 	touchedAt: number | null;
-	/** What to play in the small, silent copy beside it (#75). */
-	mirror: { episodeId: number } | { movieId: number } | { channelUrl: string };
+	/** What to play in the small, silent copy beside it (#75); none for Dailymotion's. */
+	mirror: { episodeId: number } | { movieId: number } | { channelUrl: string } | null;
 }
 
 /** What these children are watching now, with its titles; those watching nothing, left out. */
@@ -128,7 +136,8 @@ export async function watchingNow(userIds: string[]): Promise<WatchingNow[]> {
 	});
 	const episodeIds = fresh.flatMap((f) => ('episodeId' in f.target ? [f.target.episodeId] : []));
 	const movieIds = fresh.flatMap((f) => ('movieId' in f.target ? [f.target.movieId] : []));
-	const [episodes, films] = await Promise.all([
+	const dmIds = fresh.flatMap((f) => ('dailymotionId' in f.target ? [f.target.dailymotionId] : []));
+	const [episodes, films, dmVideos] = await Promise.all([
 		episodeIds.length
 			? db
 					.select({
@@ -148,6 +157,16 @@ export async function watchingNow(userIds: string[]): Promise<WatchingNow[]> {
 					.select({ id: movie.id, title: movieTitle })
 					.from(movie)
 					.where(inArray(movie.id, movieIds))
+			: [],
+		dmIds.length
+			? db
+					.select({
+						xid: dailymotionVideo.xid,
+						title: dailymotionVideo.title,
+						owner: dailymotionVideo.owner
+					})
+					.from(dailymotionVideo)
+					.where(inArray(dailymotionVideo.xid, dmIds))
 			: []
 	]);
 	return fresh.flatMap((f): WatchingNow[] => {
@@ -188,6 +207,22 @@ export async function watchingNow(userIds: string[]): Promise<WatchingNow[]> {
 					href: `/cine/${id}`,
 					positionSec: f.positionSec,
 					mirror: { movieId: id }
+				}
+			];
+		}
+		if ('dailymotionId' in f.target) {
+			const id = f.target.dailymotionId;
+			const video = dmVideos.find((v) => v.xid === id);
+			if (!video) return [];
+			return [
+				{
+					...common,
+					kind: 'dailymotion',
+					title: video.title,
+					detail: `Dailymotion · ${video.owner}`,
+					href: `/dailymotion/ver/${id}`,
+					positionSec: f.positionSec,
+					mirror: null
 				}
 			];
 		}

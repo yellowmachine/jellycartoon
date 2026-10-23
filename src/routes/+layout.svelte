@@ -46,6 +46,10 @@
 		...(data.music ? [{ href: '/musica', label: 'Música', icon: 'musica' as const }] : []),
 		{ href: '/radio', label: 'Radio', icon: 'radio' },
 		{ href: '/canales', label: 'Canales', icon: 'canales' },
+		// The cartoons of the Dailymotion accounts the adults chose (#66).
+		...(data.dailymotion
+			? [{ href: '/dailymotion', label: 'Dailymotion', icon: 'dailymotion' as const }]
+			: []),
 		// The house's recipe book: not for a child's account.
 		...(data.kid ? [] : [{ href: '/recetas', label: 'Recetas', icon: 'recetas' as const }]),
 		// The road mode's trips, and the way into it: not for a child's account, as Modo carretera.

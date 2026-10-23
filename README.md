@@ -545,6 +545,29 @@ PIPER_URL="http://host.docker.internal:5000"
 `PIPER_VOICE_ES` y `PIPER_VOICE_EN` cambian las voces; tienen que estar en la carpeta de datos de
 Piper.
 
+### Dailymotion
+
+Dibujos de Dailymotion para los peques (#66), con el reproductor oficial de Dailymotion y su
+publicidad. Solo salen los vídeos de las **cuentas y listas que eligen los adultos** en Infantil →
+«Dibujos de Dailymotion»: las cuentas se buscan por nombre o se pega su enlace; las listas, por su
+enlace (`dailymotion.com/playlist/…`). Siempre con el filtro familiar. La búsqueda de Dailymotion no
+sirve sola: al buscar «pocoyo», la mayoría de los vídeos son de cuentas de relleno.
+
+En la sección Dailymotion están esas cuentas y listas, sus vídeos y «Seguir viendo». Cuenta en el
+tiempo de pantalla de los peques como las series (al acabarse, a «Descanso»), se guarda por dónde
+va, y los adultos lo ven en Infantil («Ahora», «Estos días»). Un vídeo que no sea de una cuenta o
+lista elegida no se abre, tampoco si el reproductor salta a él solo.
+
+Hace falta un **reproductor propio** de Dailymotion: sin él no hay eventos (por dónde va, cuándo
+acaba), y al terminar un vídeo pasaría a otros recomendados. Se crea gratis, con una cuenta de
+Dailymotion, en [Dailymotion Studio](https://www.dailymotion.com/partner/embed/players) → Players,
+con el paso automático al siguiente y las recomendaciones automáticas desactivados. Su id va en el
+`.env` (sin él, no hay sección Dailymotion):
+
+```sh
+DAILYMOTION_PLAYER_ID="x1abc"
+```
+
 ### Radio
 
 Emisoras en directo de Reino Unido, Estados Unidos, Francia, Italia y España, para escuchar y
