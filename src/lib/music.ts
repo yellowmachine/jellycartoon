@@ -12,6 +12,8 @@ export interface MusicTrack {
 	albumId: number;
 	album: string;
 	hasCover: boolean;
+	/** Not a song: what the DJ says between them (Modo DJ), in the queue as one more. */
+	clip?: { id: string; text: string };
 }
 
 export interface MusicAlbum {
@@ -52,6 +54,36 @@ export const artistUrl = (name: string) => `/musica/artista/${encodeURIComponent
 export const trackUrl = (id: number, opus = false) =>
 	`/api/music/track/${id}${opus ? '?format=opus' : ''}`;
 export const coverUrl = (albumId: number) => `/api/music/cover/${albumId}`;
+/** What `track` sounds from: its file, or the DJ's words. */
+export const audioUrl = (track: MusicTrack, opus = false) =>
+	track.clip ? `/api/music/dj/${track.clip.id}` : trackUrl(track.id, opus);
+
+/** Modo DJ: songs at random, and the DJ speaking every few. */
+export interface DjOptions {
+	/** Only these album artists; none, the whole library. */
+	artists: string[];
+	lang: 'es' | 'en';
+	/** Songs between one talk and the next. */
+	every: number;
+}
+
+export const DJ_EVERY = { min: 1, max: 8, default: 3 };
+
+/** Options from a page, only if well formed. */
+export function parseDjOptions(body: unknown): DjOptions | null {
+	if (!body || typeof body !== 'object') return null;
+	const { artists, lang, every } = body as Record<string, unknown>;
+	if (!Array.isArray(artists) || artists.length > 500) return null;
+	if (!artists.every((a) => typeof a === 'string')) return null;
+	if (lang !== 'es' && lang !== 'en') return null;
+	if (
+		!Number.isInteger(every) ||
+		(every as number) < DJ_EVERY.min ||
+		(every as number) > DJ_EVERY.max
+	)
+		return null;
+	return { artists: artists as string[], lang, every: every as number };
+}
 
 /** A Snapcast client: a speaker somewhere in the house. */
 export interface Speaker {
@@ -120,6 +152,8 @@ export interface SnapcastState {
 	single: boolean;
 	/** Snapserver's clients, connected or not; null while its control API cannot be reached. */
 	speakers: Speaker[] | null;
+	/** In Modo DJ: songs at random, and the DJ between them. */
+	dj: boolean;
 }
 
 export type SnapcastAction =

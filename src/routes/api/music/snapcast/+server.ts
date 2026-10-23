@@ -7,6 +7,7 @@ import {
 	radioOnSnapcast,
 	snapcastEnabled
 } from '#lib/server/music/snapcast.ts';
+import { stopDjOnSnapcast } from '#lib/server/music/dj.ts';
 import { streamFor } from '#lib/server/radio.ts';
 import type { SnapcastAction } from '#lib/music.ts';
 
@@ -65,6 +66,9 @@ export const POST: RequestHandler = async ({ request }) => {
 	const remote = parse(await request.json());
 	if (!remote) error(400, 'Orden no válida');
 	try {
+		// Something else instead of what was on: out of Modo DJ. More songs, or a pause, keep it.
+		if (remote.action === 'play' || remote.action === 'radio' || remote.action === 'stop')
+			stopDjOnSnapcast();
 		if (remote.action === 'radio') {
 			// Only our stations, and their stream as Radio Browser has it now.
 			const stream = await streamFor(remote.uuid);

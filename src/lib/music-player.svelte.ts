@@ -43,6 +43,8 @@ class MusicPlayer {
 	repeat = $state(false);
 	/** Only the track that is on: it stops at its end, or starts again with `repeat`. */
 	single = $state(false);
+	/** The queue is Modo DJ's (dj.svelte.ts): it fills itself, with the DJ between songs. */
+	dj = $state(false);
 	/**
 	 * Brought back from the server (music_queue), paused where it was, until it is played: the
 	 * browser does not let it sound by itself. Where it was playing, to say so.
@@ -67,6 +69,7 @@ class MusicPlayer {
 	/** What was playing on this or another device, paused; the station, already asked for. */
 	restore(saved: SavedQueue, radio: RadioStream | null, podcast: PodcastPlaying | null = null) {
 		this.restored = { positionSec: saved.positionSec, changedBy: saved.changedBy };
+		this.dj = false;
 		this.shuffle = saved.shuffle;
 		this.repeat = saved.repeat;
 		this.single = saved.single;
@@ -78,9 +81,10 @@ class MusicPlayer {
 		this.index = saved.index;
 	}
 
-	/** Replaces the queue and starts it at `start`. */
-	play(tracks: MusicTrack[], start = 0) {
+	/** Replaces the queue and starts it at `start`; `dj`, as Modo DJ's. */
+	play(tracks: MusicTrack[], start = 0, dj = false) {
 		this.restored = null;
+		this.dj = dj;
 		this.radio = null;
 		this.podcast = null;
 		start = Math.min(Math.max(start, 0), tracks.length - 1);
@@ -106,6 +110,7 @@ class MusicPlayer {
 	/** Instead of whatever was on. */
 	playRadio(stream: RadioStream, restored = false) {
 		if (!restored) this.restored = null;
+		this.dj = false;
 		this.queue = [];
 		this.index = 0;
 		this.podcast = null;
@@ -115,6 +120,7 @@ class MusicPlayer {
 	/** Instead of whatever was on, from where the user left it. */
 	playPodcast(episode: PodcastPlaying, restored = false) {
 		if (!restored) this.restored = null;
+		this.dj = false;
 		this.queue = [];
 		this.#ordered = [];
 		this.index = 0;
@@ -133,6 +139,15 @@ class MusicPlayer {
 		if (!this.current) return this.play(tracks);
 		this.queue = [...this.queue, ...tracks];
 		this.#ordered = [...this.#ordered, ...tracks];
+	}
+
+	/** Right after the one that is on: the DJ's words. */
+	insertNext(track: MusicTrack) {
+		const current = this.current;
+		if (!current) return;
+		this.queue = this.queue.toSpliced(this.index + 1, 0, track);
+		const k = this.#ordered.indexOf(current);
+		if (k >= 0) this.#ordered = this.#ordered.toSpliced(k + 1, 0, track);
 	}
 
 	/** That one of the queue, now; the one on, played if it was paused. */
@@ -263,6 +278,7 @@ class MusicPlayer {
 
 	stop() {
 		this.restored = null;
+		this.dj = false;
 		this.#audio?.pause();
 		this.radio = null;
 		this.podcast = null;

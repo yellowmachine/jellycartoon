@@ -5,6 +5,7 @@
 	import { poll } from '#lib/poll.ts';
 	import AlbumCover from '#lib/components/AlbumCover.svelte';
 	import AlbumGrid from '#lib/components/AlbumGrid.svelte';
+	import DjDialog from '#lib/components/DjDialog.svelte';
 	import MusicTargetSwitch from '#lib/components/MusicTargetSwitch.svelte';
 	import TrackRows from '#lib/components/TrackRows.svelte';
 	import {
@@ -25,6 +26,7 @@
 	/** From the cookie; changed here at once when switched. */
 	let view = $derived(data.view);
 	const artists = $derived(groupByArtist(data.albums));
+	let djDialog = $state<DjDialog>();
 
 	const progress = $derived(data.progress);
 	const totals = $derived(data.totals);
@@ -142,6 +144,14 @@
 
 <div class="mb-6 flex flex-wrap items-center gap-3">
 	<h1 class="mr-auto text-2xl font-bold">Música</h1>
+	{#if data.dj}
+		<button
+			class="rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900"
+			title="Canciones al azar con un locutor entre ellas, como en la radio"
+			onclick={() => djDialog?.open()}>Modo DJ</button
+		>
+		<DjDialog bind:this={djDialog} {artists} />
+	{/if}
 	<a
 		href="/carretera"
 		hidden={data.kid}

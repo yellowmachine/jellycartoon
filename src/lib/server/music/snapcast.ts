@@ -40,8 +40,23 @@ const state: SnapcastState = {
 	shuffle: false,
 	repeat: false,
 	single: false,
-	speakers: null
+	speakers: null,
+	dj: false
 };
+
+/** Told the entry that starts, once it is known: Modo DJ follows the queue with it. */
+type StartListener = (entryId: number, track: MusicTrack) => void;
+const startListeners = new Set<StartListener>();
+
+export function onSnapcastTrack(listener: StartListener) {
+	startListeners.add(listener);
+	return () => startListeners.delete(listener);
+}
+
+function started(entryId: number, entry: Entry | undefined) {
+	if (!entry || !('track' in entry)) return;
+	for (const listener of startListeners) listener(entryId, entry.track);
+}
 
 const pages = new StateBroadcast(state);
 
@@ -147,6 +162,7 @@ const mpv = new MpvClient(
 			if (message.event === 'start-file' && message.playlist_entry_id !== undefined) {
 				current = message.playlist_entry_id;
 				show(entries.get(current));
+				started(current, entries.get(current));
 			}
 		}
 	},
@@ -179,7 +195,10 @@ async function loadEntry(
 	};
 	entries.set(result.playlist_entry_id, entry);
 	// start-file may have arrived before the entry was known.
-	if (current === result.playlist_entry_id) show(entry);
+	if (current === result.playlist_entry_id) {
+		show(entry);
+		started(current, entry);
+	}
 }
 
 const load = (track: MusicTrack, path: string, how: Parameters<typeof loadEntry>[2]) =>
@@ -219,6 +238,46 @@ export async function queueOnSnapcast(
 		if (state.shuffle) await shuffleQueue();
 	}
 	log.info('música', `En Snapcast: ${tracks.length} canciones`, { replace: options.replace });
+}
+
+/** Right after the one that is on (the DJ's words); at the end if nothing is. */
+export async function insertNextOnSnapcast(track: MusicTrack, path: string) {
+	// playlistPos counts from 1: as an index, it is the one after.
+	if (state.playlistPos === null) return load(track, path, { flags: 'append-play' });
+	await load(track, path, { flags: 'insert-at', index: state.playlistPos });
+}
+
+/** The song after the one that is on, if it is one. */
+export async function nextOnSnapcast() {
+	if (state.playlistPos === null) return null;
+	const id = await mpv
+		.command(['get_property', `playlist/${state.playlistPos}/id`])
+		.catch(() => null);
+	const entry = typeof id === 'number' ? entries.get(id) : undefined;
+	return entry && 'track' in entry ? entry.track : null;
+}
+
+/**
+ * Entries after the one that is on, asked to mpv: what the app last heard may be from before the
+ * queue it has just been sent.
+ */
+export async function snapcastRemaining() {
+	const [pos, count] = await Promise.all([
+		mpv.command(['get_property', 'playlist-pos']),
+		mpv.command(['get_property', 'playlist-count'])
+	]);
+	return typeof pos === 'number' && typeof count === 'number' && pos >= 0 ? count - pos - 1 : 0;
+}
+
+/** The songs in mpv's queue, as the app sent them. */
+export const queuedOnSnapcast = () =>
+	[...entries.values()].flatMap((e) => ('track' in e && !e.track.clip ? [e.track.id] : []));
+
+/** Modo DJ is on, or off: the remotes say it. */
+export function setSnapcastDj(on: boolean) {
+	if (state.dj === on) return;
+	state.dj = on;
+	pages.notify();
 }
 
 /**

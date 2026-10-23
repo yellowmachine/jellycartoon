@@ -676,7 +676,7 @@ export async function audioClip(
  * fifth of the FLAC, and the same to the ear. Only the audio: the cover in the FLAC is a video
  * stream, which Ogg cannot hold. The worker's: low priority, and frozen with it.
  */
-export async function toOpus(input: string, output: string) {
+export async function toOpus(input: string, output: string, bitrate = '160k') {
 	await run('ffmpeg', [
 		'-hide_banner',
 		'-nostats',
@@ -691,7 +691,7 @@ export async function toOpus(input: string, output: string) {
 		'-c:a',
 		'libopus',
 		'-b:a',
-		'160k',
+		bitrate,
 		'-f',
 		'ogg',
 		output
