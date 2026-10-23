@@ -35,7 +35,7 @@ import { hasIntro } from '#lib/server/library/paths.ts';
 import { KNOWN_LANGUAGES, normalizeLang } from '#lib/languages.ts';
 import { isTheme } from '#lib/themes.ts';
 import { log } from '#lib/server/log.ts';
-import { startUpdate, versionInfo } from '#lib/server/updates.ts';
+import { startUpdateOnce, versionInfo } from '#lib/server/updates.ts';
 import {
 	appPasswordCreated,
 	generateAppPassword,
@@ -227,7 +227,7 @@ export const actions: Actions = {
 	update: async ({ locals }) => {
 		await requireAdmin(locals.user!.id);
 		try {
-			if ((await startUpdate()) === 'not-ready')
+			if ((await startUpdateOnce()) === 'not-ready')
 				return fail(409, {
 					section: 'version',
 					message:
