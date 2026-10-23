@@ -95,8 +95,9 @@ export const variables = defineEnvVars({
 		schema: (value) => value || undefined
 	},
 	LABEL_MODEL: {
-		description: "Ollama's vision model that labels episodes, as Ollama names it.",
-		schema: withDefault('qwen2.5vl:3b')
+		description:
+			"Ollama's vision model that labels episodes, as Ollama names it. The 7B one (about 6 GB, fits an 8 GB GPU): the 3B one loops on some frames.",
+		schema: withDefault('qwen2.5vl:7b')
 	},
 	LABEL_EVERY_SEC: {
 		description: 'Seconds between the frames of an episode the model looks at to label it.',

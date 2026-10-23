@@ -844,7 +844,7 @@ dentro del contenedor son el propio contenedor. `host.docker.internal` es el PC 
 
 ```sh
 OLLAMA_URL="http://host.docker.internal:11434"
-LABEL_MODEL="qwen2.5vl:3b"   # el de por defecto; antes: ollama pull qwen2.5vl:3b
+LABEL_MODEL="qwen2.5vl:7b"   # el de por defecto; antes: ollama pull qwen2.5vl:7b
 ```
 
 Ollama, por defecto, solo escucha en `127.0.0.1`, y el contenedor no llega. Con el servicio de
@@ -870,10 +870,14 @@ Docker (`172.16.0.0/12`). Con ufw, que por defecto lo cierra todo, eso es abrirl
 
 La respuesta usa las [salidas estructuradas](https://docs.ollama.com/capabilities/structured-outputs)
 de Ollama: para cada etiqueta, un sí o un no. Pidiéndole en cambio cuáles de la lista se veían,
-`qwen2.5vl:3b` elegía alguna aunque no estuviera (un perro en 4 fotogramas de 5 sin perros). En las
-pruebas, con
-`qwen2.5vl:3b` en la GPU, cada fotograma tardó menos de un segundo: un capítulo de 22 minutos, poco
-más de un minuto.
+`qwen2.5vl:3b` elegía alguna aunque no estuviera (un perro en 4 fotogramas de 5 sin perros).
+
+El de por defecto es `qwen2.5vl:7b` (unos 6 GB; cabe entero en una gráfica de 8 GB como la RX 7600 del
+salón): unos 1,3 s por fotograma, un capítulo de 22 minutos en unos 2 minutos. El de 3B va el doble de
+rápido, pero con algunas imágenes entra en bucle (un bosque de noche en Scooby-Doo) y Ollama lo corta.
+Si el modelo no puede con un fotograma, se reintenta una vez cargándolo de nuevo y, si sigue sin
+poder, ese fotograma queda fuera (un aviso en el Registro); el capítulo solo falla si quedan fuera
+más de la cuarta parte.
 
 ## Copia de seguridad
 
