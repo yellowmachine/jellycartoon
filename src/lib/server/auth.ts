@@ -23,7 +23,13 @@ export const auth = betterAuth({
 			 * this session only goes to /verificacion until it has one. Sessions opened before are left
 			 * as they were, so the living room's is not thrown out.
 			 */
-			twoFactorSetup: { type: 'boolean', defaultValue: false, input: false }
+			twoFactorSetup: { type: 'boolean', defaultValue: false, input: false },
+			/**
+			 * A child who enters with a parent's permission (#141): opened by the server once one of
+			 * its parents or guardians said yes (kid-login.ts). Such a child's session without it was
+			 * opened some other way, and is refused (hooks.server.ts).
+			 */
+			kidApproved: { type: 'boolean', defaultValue: false, input: false }
 		}
 	},
 	plugins: [

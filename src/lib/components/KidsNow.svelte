@@ -95,6 +95,7 @@
 							</span>
 						{/if}
 						<button
+							hidden={!now.mirror}
 							class="mt-1 text-sm text-amber-400 hover:underline"
 							aria-expanded={mirrors.includes(kid.id)}
 							onclick={() =>
@@ -114,7 +115,7 @@
 						</span>
 					{/if}
 				</p>
-				{#if now && mirrors.includes(kid.id)}
+				{#if now?.mirror && mirrors.includes(kid.id)}
 					<div class="w-full sm:ml-auto sm:w-80">
 						<KidMirror {now} {checkedAt} />
 					</div>

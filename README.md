@@ -160,6 +160,13 @@ docker compose -f compose.prod.yaml logs -f app
 - Las cuentas infantiles las crea quien creó la primera cuenta, desde Ajustes. Solo ven las series
   y películas con la etiqueta «infantil», no gestionan nada ni hablan con la IA, y la propia cuenta
   no puede dejar de ser infantil.
+- Los más pequeños entran **con permiso**, sin contraseña (#141). En Ajustes → Casa se marca un
+  dispositivo como «de la casa» (la TV del salón): ahí, sin sesión, sale «¿Quién eres?» con sus
+  dibujos, y al elegir uno sus padres o tutores lo ven en la app y contestan: esta vez, 1 hora,
+  2 horas, hoy, o no. Mientras dure el permiso vuelve a entrar en ese dispositivo sin preguntar.
+  Con «Activar avisos en este dispositivo» (Ajustes → Este dispositivo) les llega aunque la app esté
+  cerrada; en el iPhone, solo con la app añadida a la pantalla de inicio. Las claves de los avisos
+  (VAPID) las crea la app y las guarda cifradas: no hay nada que poner en el `.env`.
 - En «Infantil» (para cualquier adulto) se ve lo que ven, y se les pone horario por días y un
   límite de minutos al día. Fuera de él no hay vídeo, tampoco en el salón: lo que suena se para.
   Las horas son las de `TZ`.
@@ -538,6 +545,29 @@ PIPER_URL="http://host.docker.internal:5000"
 `PIPER_VOICE_ES` y `PIPER_VOICE_EN` cambian las voces; tienen que estar en la carpeta de datos de
 Piper.
 
+### Dailymotion
+
+Dibujos de Dailymotion para los peques (#66), con el reproductor oficial de Dailymotion y su
+publicidad. Solo salen los vídeos de las **cuentas y listas que eligen los adultos** en Infantil →
+«Dibujos de Dailymotion»: las cuentas se buscan por nombre o se pega su enlace; las listas, por su
+enlace (`dailymotion.com/playlist/…`). Siempre con el filtro familiar. La búsqueda de Dailymotion no
+sirve sola: al buscar «pocoyo», la mayoría de los vídeos son de cuentas de relleno.
+
+En la sección Dailymotion están esas cuentas y listas, sus vídeos y «Seguir viendo». Cuenta en el
+tiempo de pantalla de los peques como las series (al acabarse, a «Descanso»), se guarda por dónde
+va, y los adultos lo ven en Infantil («Ahora», «Estos días»). Un vídeo que no sea de una cuenta o
+lista elegida no se abre, tampoco si el reproductor salta a él solo.
+
+Hace falta un **reproductor propio** de Dailymotion: sin él no hay eventos (por dónde va, cuándo
+acaba), y al terminar un vídeo pasaría a otros recomendados. Se crea gratis, con una cuenta de
+Dailymotion, en [Dailymotion Studio](https://www.dailymotion.com/partner/embed/players) → Players,
+con el paso automático al siguiente y las recomendaciones automáticas desactivados. Su id va en el
+`.env` (sin él, no hay sección Dailymotion):
+
+```sh
+DAILYMOTION_PLAYER_ID="x1abc"
+```
+
 ### Radio
 
 Emisoras en directo de Reino Unido, Estados Unidos, Francia, Italia y España, para escuchar y
@@ -798,12 +828,15 @@ Con una RX 7800 XT, una orden de unos segundos tarda alrededor de 150 ms.
 ### Etiquetas de los capítulos
 
 Un modelo de visión en [Ollama](https://ollama.com) mira un fotograma cada `LABEL_EVERY_SEC`
-segundos (15 por defecto) del capítulo convertido y dice cuáles de las etiquetas de Ajustes → Casa
-se ven en él. Se pide en una serie: «Seleccionar capítulos», elegirlos y «Etiquetar». Van a una cola,
-de uno en uno y en segundo plano. Luego la serie se filtra por etiqueta, y en cada capítulo salen
-las suyas, primero las más vistas (al pasar por encima, en cuántos fotogramas). Etiquetar otra vez
-sustituye lo anterior. Estas etiquetas son aparte de las de la serie (las que se ponen a mano, como
-«infantil»), y las cuentas infantiles no las ven.
+segundos (15 por defecto) del capítulo convertido y dice cuáles de las etiquetas de un **conjunto**
+se ven en él. Los conjuntos (con nombre: «Animales», «Lugares»…) se hacen en Ajustes → Casa. Se pide
+en una serie: «Seleccionar capítulos», elegirlos y «Etiquetar con» un conjunto. Van a una cola, de
+uno en uno y en segundo plano, que se sigue en Gestión → Etiquetado: lo que se está haciendo, lo que
+espera, lo fallido (para reintentarlo) y lo último hecho, con lo que vio. Luego la serie se filtra
+por etiqueta, y en cada capítulo salen las suyas (al pasar por encima, el conjunto y en cuántos
+fotogramas). Etiquetar otra vez con un conjunto sustituye solo lo de ese conjunto; borrar un
+conjunto quita lo que vio con él. Estas etiquetas son aparte de las de la serie (las que se ponen a
+mano, como «infantil»), y las cuentas infantiles no las ven.
 
 En el `.env`, con Ollama en el mismo PC que la app en Docker. Ni `localhost` ni `127.0.0.1`:
 dentro del contenedor son el propio contenedor. `host.docker.internal` es el PC (está en
@@ -836,7 +869,9 @@ Docker (`172.16.0.0/12`). Con ufw, que por defecto lo cierra todo, eso es abrirl
 `sudo ufw allow from 172.16.0.0/12 to any port 11434 proto tcp`.
 
 La respuesta usa las [salidas estructuradas](https://docs.ollama.com/capabilities/structured-outputs)
-de Ollama: el modelo solo puede contestar con etiquetas de la lista. En las pruebas, con
+de Ollama: para cada etiqueta, un sí o un no. Pidiéndole en cambio cuáles de la lista se veían,
+`qwen2.5vl:3b` elegía alguna aunque no estuviera (un perro en 4 fotogramas de 5 sin perros). En las
+pruebas, con
 `qwen2.5vl:3b` en la GPU, cada fotograma tardó menos de un segundo: un capítulo de 22 minutos, poco
 más de un minuto.
 

@@ -16,6 +16,7 @@ import { db } from '#lib/server/db/index.ts';
 import {
 	episode,
 	episodeTitle,
+	dailymotionVideo,
 	movie,
 	movieProgress,
 	movieTitle,
@@ -195,6 +196,8 @@ function watchedRows(where: SQL | undefined) {
 			episodeId: watchTime.episodeId,
 			movieId: watchTime.movieId,
 			channelId: watchTime.channelId,
+			dailymotionId: watchTime.dailymotionId,
+			dailymotionTitle: dailymotionVideo.title,
 			day: watchTime.day,
 			minute: watchTime.minute,
 			seconds: watchTime.seconds
@@ -203,6 +206,7 @@ function watchedRows(where: SQL | undefined) {
 		.leftJoin(episode, eq(episode.id, watchTime.episodeId))
 		.leftJoin(series, eq(series.id, episode.seriesId))
 		.leftJoin(movie, eq(movie.id, watchTime.movieId))
+		.leftJoin(dailymotionVideo, eq(dailymotionVideo.xid, watchTime.dailymotionId))
 		.where(where);
 }
 
@@ -223,6 +227,7 @@ const filmLabel = (f: { id: number | null; title: string }) =>
 /** `bySeries`: the series, not the episode. */
 function labelOf(r: WatchedRow, bySeries = false) {
 	if (r.channelId) return `Canal ${channelName(r.channelId)}`;
+	if (r.dailymotionId) return `Vídeo de Dailymotion «${r.dailymotionTitle}»`;
 	if (r.movieId) return filmLabel({ id: r.movieId, title: r.title });
 	return bySeries ? `Serie «${r.seriesTitle}»` : episodeLabel({ ...r, id: r.episodeId });
 }

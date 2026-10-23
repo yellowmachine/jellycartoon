@@ -38,11 +38,15 @@ type Key =
 	| 'last_scan_series'
 	| 'last_scan_films'
 	| 'auto_subtitle_langs'
-	| 'episode_labels'
+	| 'vapid_keys'
 	| 'ors_api_key'
 	| 'ors_url'
 	| 'relay_url'
 	| 'relay_key';
+
+export async function getAppSetting(key: Key) {
+	return get(key);
+}
 
 async function get(key: Key) {
 	const [row] = await db
@@ -153,29 +157,6 @@ export async function autoSubtitleLanguages() {
 
 export async function setAutoSubtitleLanguages(langs: string[]) {
 	await setAppSetting('auto_subtitle_langs', langs.length ? langs.join(',') : null);
-}
-
-/** Ajustes → Casa: what the vision model looks for in episodes (episode-labels.ts), lowercase. */
-export async function episodeLabels() {
-	return parseLabels((await get('episode_labels')) ?? '');
-}
-
-export async function setEpisodeLabels(text: string) {
-	const labels = parseLabels(text);
-	await setAppSetting('episode_labels', labels.length ? labels.join(', ') : null);
-	return labels;
-}
-
-/** «Perro, coche,  perro» → `perro`, `coche`: separated by commas, each once. */
-export function parseLabels(text: string) {
-	return [
-		...new Set(
-			text
-				.split(',')
-				.map((l) => l.trim().toLocaleLowerCase('es').replace(/\s+/g, ' '))
-				.filter(Boolean)
-		)
-	];
 }
 
 /** There are no roles: the first account created is the one that manages the app. */

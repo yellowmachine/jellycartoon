@@ -393,6 +393,55 @@
       "when": 1792733283036,
       "tag": "0055_dashing_rattler",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1792781145959,
+      "tag": "0056_next_scarlet_spider",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1792781595119,
+      "tag": "0057_rol-admin-del-administrador",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1792782012268,
+      "tag": "0058_blue_invisible_woman",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1792782931782,
+      "tag": "0059_conjuntos-de-etiquetas",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1792782940892,
+      "tag": "0060_conjunto-general",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1792782941121,
+      "tag": "0061_conjunto-obligatorio",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1792783735239,
+      "tag": "0062_dailymotion",
+      "breakpoints": true
     }
   ]
 }

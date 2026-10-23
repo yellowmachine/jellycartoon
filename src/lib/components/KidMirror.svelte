@@ -21,9 +21,9 @@
 	let tick = $state(0);
 
 	const target = $derived(
-		'episodeId' in now.mirror
+		now.mirror && 'episodeId' in now.mirror
 			? `episode=${now.mirror.episodeId}`
-			: 'movieId' in now.mirror
+			: now.mirror && 'movieId' in now.mirror
 				? `movie=${now.mirror.movieId}`
 				: null
 	);
@@ -64,7 +64,7 @@
 	// A channel: hls.js, as the channels page, at the smallest quality it has. Safari, its own.
 	$effect(() => {
 		const el = video;
-		if (!el || !('channelUrl' in now.mirror)) return;
+		if (!el || !now.mirror || !('channelUrl' in now.mirror)) return;
 		const url = now.mirror.channelUrl;
 		let hls: Hls | null = null;
 		let cancelled = false;

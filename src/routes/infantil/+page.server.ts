@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gt, gte, max, sql } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import {
+	dailymotionVideo,
 	episode,
 	episodeTitle,
 	kidSchedule,
@@ -26,6 +27,13 @@ import { CHANNELS } from '#lib/channels.ts';
 import { stoppedLately, watchingNow } from '#lib/server/live-watching.ts';
 import { askEvery } from '#lib/server/still-there.ts';
 import { ASK_EVERY_OPTIONS } from '#lib/still-there.ts';
+import {
+	addSource,
+	dailymotionEnabled,
+	findSources,
+	removeSource,
+	sources
+} from '#lib/server/dailymotion.ts';
 
 /** Days in the chart, today included. */
 const DAYS = 7;
@@ -57,7 +65,17 @@ export const load: PageServerLoad = async () => {
 		/** What they are watching right now; the page asks again every few seconds. */
 		watchingNow: await watchingNow(kids.map((k) => k.id)),
 		/** Whose video stopped lately for nobody answering «¿Sigues ahí?». */
-		stoppedLately: stoppedLately(kids.map((k) => k.id))
+		stoppedLately: stoppedLately(kids.map((k) => k.id)),
+		/** The Dailymotion accounts and playlists they may watch (#66): only with its player. */
+		dailymotion: dailymotionEnabled
+			? (await sources()).map((s) => ({
+					id: s.id,
+					kind: s.kind,
+					xid: s.xid,
+					name: s.name,
+					image: s.image
+				}))
+			: null
 	};
 };
 
@@ -78,7 +96,8 @@ async function stats(userId: string, from: string) {
 					episodeId: watchTime.episodeId,
 					movieId: watchTime.movieId,
 					channelId: watchTime.channelId,
-					title: sql<string>`coalesce(${movieTitle}, ${episodeTitle})`,
+					dailymotionId: watchTime.dailymotionId,
+					title: sql<string>`coalesce(${movieTitle}, ${episodeTitle}, ${dailymotionVideo.title})`,
 					seriesId: series.id,
 					seriesTitle: series.title,
 					season: episode.season,
@@ -90,14 +109,17 @@ async function stats(userId: string, from: string) {
 				.leftJoin(episode, eq(episode.id, watchTime.episodeId))
 				.leftJoin(series, eq(series.id, episode.seriesId))
 				.leftJoin(movie, eq(movie.id, watchTime.movieId))
+				.leftJoin(dailymotionVideo, eq(dailymotionVideo.xid, watchTime.dailymotionId))
 				.where(recent)
 				.groupBy(
 					watchTime.episodeId,
 					watchTime.movieId,
 					watchTime.channelId,
+					watchTime.dailymotionId,
 					episode.id,
 					series.id,
-					movie.id
+					movie.id,
+					dailymotionVideo.xid
 				)
 				.orderBy(desc(max(watchTime.day)), desc(sql`sum(${watchTime.seconds})`))
 				.limit(15),
@@ -211,6 +233,32 @@ async function stats(userId: string, from: string) {
 }
 
 export const actions: Actions = {
+	/** Dailymotion (#66): what a name or a link finds, to add. */
+	dmSearch: async ({ request }) => {
+		if (!dailymotionEnabled) return fail(404, { dmMessage: 'No hay Dailymotion configurado' });
+		const q = String((await request.formData()).get('q') ?? '');
+		try {
+			return { dmCandidates: await findSources(q) };
+		} catch (err) {
+			return fail(502, { dmMessage: err instanceof Error ? err.message : String(err) });
+		}
+	},
+	dmAdd: async ({ request, locals }) => {
+		if (!dailymotionEnabled) return fail(404, { dmMessage: 'No hay Dailymotion configurado' });
+		const form = await request.formData();
+		const kind = form.get('kind');
+		if (kind !== 'user' && kind !== 'playlist') return fail(400, { dmMessage: 'No válido' });
+		try {
+			await addSource(kind, String(form.get('xid') ?? ''), locals.user!.id);
+		} catch (err) {
+			return fail(400, { dmMessage: err instanceof Error ? err.message : String(err) });
+		}
+	},
+	dmRemove: async ({ request }) => {
+		const id = Number((await request.formData()).get('id'));
+		if (!Number.isInteger(id)) return fail(400, { dmMessage: 'No válido' });
+		await removeSource(id);
+	},
 	/** «Puede ver vídeos»: yes, no, or no until tomorrow; the schedule is kept as it is. */
 	access: async ({ request }) => {
 		const form = await request.formData();

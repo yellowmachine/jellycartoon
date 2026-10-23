@@ -6,7 +6,7 @@
 
 	/**
 	 * Looking after the app, in one place: the videos' conversion, the tags, the subtitles Whisper
-	 * makes and the log.
+	 * makes, the episodes the vision model labels and the log.
 	 */
 	const tabs = [
 		{ href: '/library', label: 'Conversión', match: (p: string) => p === '/library' },
@@ -19,6 +19,11 @@
 			href: '/library/subtitulos',
 			label: 'Subtítulos',
 			match: (p: string) => p === '/library/subtitulos'
+		},
+		{
+			href: '/library/etiquetado',
+			label: 'Etiquetado',
+			match: (p: string) => p === '/library/etiquetado'
 		},
 		{ href: '/logs', label: 'Registro', match: (p: string) => p === '/logs' }
 	];

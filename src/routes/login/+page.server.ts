@@ -4,6 +4,11 @@ import { ALLOW_SIGNUP } from '$app/env/private';
 import type { Actions, PageServerLoad } from './$types';
 import { auth } from '#lib/server/auth.ts';
 import { markSetupIfNeeded, SETUP_PATH } from '#lib/server/two-factor.ts';
+import { deviceOf, pickableKids } from '#lib/server/kid-login.ts';
+import { isAdmin } from '#lib/server/app-settings.ts';
+import { db } from '#lib/server/db/index.ts';
+import { user } from '#lib/server/db/schema.ts';
+import { eq } from 'drizzle-orm';
 
 const safeNext = (url: URL) => {
 	const next = url.searchParams.get('next') ?? '/';
@@ -21,9 +26,13 @@ const CODE_PROBLEMS: Record<string, string> = {
 /** After these, the code is no longer asked for: the password again. */
 const START_AGAIN = new Set(['TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE', 'INVALID_TWO_FACTOR_COOKIE']);
 
-export const load: PageServerLoad = ({ locals, url }) => {
+export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 	if (locals.user) redirect(303, safeNext(url));
-	return { allowSignup: ALLOW_SIGNUP };
+	// The house's devices first show the children's avatars (#141); «Soy un adulto» comes here.
+	const device = await deviceOf(cookies);
+	if (device && !url.searchParams.has('adulto') && (await pickableKids()).length)
+		redirect(303, '/quien');
+	return { allowSignup: ALLOW_SIGNUP, kids: Boolean(device) };
 };
 
 export const actions: Actions = {
@@ -86,6 +95,10 @@ export const actions: Actions = {
 			throw error;
 		}
 		// The first account of a new install is the administrator: its second step, first of all.
+		// The first account is the administrator: Better Auth's `admin` role too, to set the
+		// children's passwords (#141). Installs from before got it in a migration.
+		if (await isAdmin(result.user.id))
+			await db.update(user).set({ role: 'admin' }).where(eq(user.id, result.user.id));
 		if (result.token && (await markSetupIfNeeded(result.user, result.token)))
 			redirect(303, SETUP_PATH);
 		redirect(303, safeNext(url));

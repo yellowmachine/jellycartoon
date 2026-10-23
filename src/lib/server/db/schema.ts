@@ -344,17 +344,21 @@ export const watchTime = pgTable(
 		movieId: integer('movie_id').references(() => movie.id, { onDelete: 'cascade' }),
 		/** A TV channel, live: its id in channels.ts. */
 		channelId: text('channel_id'),
+		/** A Dailymotion video (#66). */
+		dailymotionId: text('dailymotion_id').references(() => dailymotionVideo.xid, {
+			onDelete: 'cascade'
+		}),
 		seconds: real('seconds').notNull().default(0)
 	},
 	(t) => [
-		// Two of the three are null: they are compared as equal, so there is one row per thing and day.
+		// All but one are null: they are compared as equal, so there is one row per thing and day.
 		unique('watch_time_user_day_item')
-			.on(t.userId, t.day, t.minute, t.episodeId, t.movieId, t.channelId)
+			.on(t.userId, t.day, t.minute, t.episodeId, t.movieId, t.channelId, t.dailymotionId)
 			.nullsNotDistinct(),
 		check('watch_time_minute', sql`${t.minute} between 0 and 1439`),
 		check(
 			'watch_time_one_item',
-			sql`num_nonnulls(${t.episodeId}, ${t.movieId}, ${t.channelId}) = 1`
+			sql`num_nonnulls(${t.episodeId}, ${t.movieId}, ${t.channelId}, ${t.dailymotionId}) = 1`
 		)
 	]
 );
@@ -473,9 +477,22 @@ export const appSetting = pgTable('app_setting', {
 });
 
 /**
- * What Ollama's vision model saw in an episode (episode-labels.ts), from the labels in Ajustes:
- * one row per label seen, with the seconds of the frames it was seen in. Apart from `tag`: those
- * are set by hand and mean something («infantil»); these are the model's.
+ * A named list of what Ollama's vision model looks for in episodes (episode-labels.ts), made in
+ * Ajustes → Casa: «Animales», «Lugares»… Each labelling uses one.
+ */
+export const labelSet = pgTable('label_set', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull().unique(),
+	/** Lowercase, separated by commas, each once. */
+	labels: text('labels').notNull(),
+	createdAt: timestamp('created_at').notNull().defaultNow()
+});
+
+/**
+ * What Ollama's vision model saw in an episode (episode-labels.ts), looking for the labels of a
+ * set: one row per label seen, with the seconds of the frames it was seen in. Labelling again with
+ * that set replaces its rows only. Apart from `tag`: those are set by hand and mean something
+ * («infantil»); these are the model's.
  */
 export const episodeLabel = pgTable(
 	'episode_label',
@@ -483,20 +500,23 @@ export const episodeLabel = pgTable(
 		episodeId: integer('episode_id')
 			.notNull()
 			.references(() => episode.id, { onDelete: 'cascade' }),
+		setId: integer('set_id')
+			.notNull()
+			.references(() => labelSet.id, { onDelete: 'cascade' }),
 		label: text('label').notNull(),
 		times: jsonb('times').$type<number[]>().notNull().default([])
 	},
 	(t) => [
-		primaryKey({ columns: [t.episodeId, t.label] }),
+		primaryKey({ columns: [t.episodeId, t.setId, t.label] }),
 		index('episode_label_label_idx').on(t.label)
 	]
 );
 
-export const labelJobState = pgEnum('label_job_state', ['queued', 'running', 'failed']);
+export const labelJobState = pgEnum('label_job_state', ['queued', 'running', 'failed', 'done']);
 
 /**
- * Episodes waiting to be labelled, in order: kept, so a restart goes on with the queue. A done one
- * goes; a failure stays until it is asked again.
+ * Episodes to be labelled with a set, in order: kept, so a restart goes on with the queue. The last
+ * ones done stay as history (Gestión → Etiquetado); a failure stays until retried or dismissed.
  */
 export const labelJob = pgTable(
 	'label_job',
@@ -505,11 +525,17 @@ export const labelJob = pgTable(
 		episodeId: integer('episode_id')
 			.notNull()
 			.references(() => episode.id, { onDelete: 'cascade' }),
+		setId: integer('set_id')
+			.notNull()
+			.references(() => labelSet.id, { onDelete: 'cascade' }),
 		state: labelJobState('state').notNull().default('queued'),
 		position: real('position').notNull(),
 		error: text('error'),
+		/** Frames looked at, once done. */
+		frames: integer('frames'),
 		createdAt: timestamp('created_at').notNull().defaultNow(),
-		startedAt: timestamp('started_at')
+		startedAt: timestamp('started_at'),
+		finishedAt: timestamp('finished_at')
 	},
 	(t) => [index('label_job_state_idx').on(t.state, t.position)]
 );
@@ -973,4 +999,160 @@ export const recipeSiteSitemap = pgTable(
 		isIndex: boolean('is_index').notNull().default(false)
 	},
 	(t) => [primaryKey({ columns: [t.siteId, t.url] })]
+);
+
+/**
+ * A child who enters with a parent's permission (#141): its avatar, and its credential, which only
+ * the server knows and uses once one of its parents or guardians says yes (kid-login.ts). Encrypted
+ * with a key from BETTER_AUTH_SECRET, so a copy of the database is not enough to enter.
+ */
+export const kidProfile = pgTable('kid_profile', {
+	userId: text('user_id')
+		.primaryKey()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	/** One of AVATARS (avatars.ts). */
+	avatar: text('avatar').notNull(),
+	/** Without a password: chooses its avatar, and one of its parents or guardians lets it in. */
+	byApproval: boolean('by_approval').notNull().default(false),
+	/** Its credential, encrypted: `iv.tag.data` in base64url. */
+	secret: text('secret')
+});
+
+/** Who lets each child in: its parents or guardians, adults of the house. */
+export const kidGuardian = pgTable(
+	'kid_guardian',
+	{
+		kidId: text('kid_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		guardianId: text('guardian_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' })
+	},
+	(t) => [
+		primaryKey({ columns: [t.kidId, t.guardianId] }),
+		index('kid_guardian_guardian_idx').on(t.guardianId)
+	]
+);
+
+/**
+ * A device an adult marked as the house's (the living room's TV): only there do the children
+ * choose their avatar to ask to enter. Known by a cookie whose hash is kept here.
+ */
+export const trustedDevice = pgTable('trusted_device', {
+	id: serial('id').primaryKey(),
+	tokenHash: text('token_hash').notNull().unique(),
+	/** «la TV del salón»: what the parents read when a child asks from it. */
+	name: text('name').notNull(),
+	createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+	createdAt: timestamp('created_at').notNull().defaultNow(),
+	lastSeenAt: timestamp('last_seen_at').notNull().defaultNow()
+});
+
+export const kidLoginState = pgEnum('kid_login_state', ['pending', 'approved', 'denied', 'used']);
+
+/** A child asking to enter from a trusted device, and what its parents said. */
+export const kidLoginRequest = pgTable(
+	'kid_login_request',
+	{
+		id: text('id').primaryKey(),
+		kidId: text('kid_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		deviceId: integer('device_id')
+			.notNull()
+			.references(() => trustedDevice.id, { onDelete: 'cascade' }),
+		state: kidLoginState('state').notNull().default('pending'),
+		createdAt: timestamp('created_at').notNull().defaultNow(),
+		/** Not answered by then, it is no longer asked. */
+		expiresAt: timestamp('expires_at').notNull(),
+		decidedBy: text('decided_by').references(() => user.id, { onDelete: 'set null' }),
+		/** When its session ends, if it was let in. */
+		until: timestamp('until')
+	},
+	(t) => [index('kid_login_request_device_idx').on(t.deviceId, t.createdAt)]
+);
+
+/** «Hasta las 20:00», «hoy»: meanwhile, the child enters on that device without asking again. */
+export const kidPermit = pgTable(
+	'kid_permit',
+	{
+		kidId: text('kid_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		deviceId: integer('device_id')
+			.notNull()
+			.references(() => trustedDevice.id, { onDelete: 'cascade' }),
+		until: timestamp('until').notNull(),
+		grantedBy: text('granted_by').references(() => user.id, { onDelete: 'set null' })
+	},
+	(t) => [primaryKey({ columns: [t.kidId, t.deviceId] })]
+);
+
+/**
+ * A phone or browser where an adult wants the app's notices (Web Push, push.ts): for now, a child
+ * asking to enter (#141). What the browser's push service gave, to send to it.
+ */
+export const pushSubscription = pgTable(
+	'push_subscription',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		endpoint: text('endpoint').notNull().unique(),
+		p256dh: text('p256dh').notNull(),
+		auth: text('auth').notNull(),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [index('push_subscription_user_idx').on(t.userId)]
+);
+
+export const dailymotionSourceKind = pgEnum('dailymotion_source_kind', ['user', 'playlist']);
+
+/**
+ * A Dailymotion account or playlist the adults chose for the children (#66): only their videos are
+ * shown and played, always with the family filter.
+ */
+export const dailymotionSource = pgTable(
+	'dailymotion_source',
+	{
+		id: serial('id').primaryKey(),
+		kind: dailymotionSourceKind('kind').notNull(),
+		/** Dailymotion's id of the account or the playlist. */
+		xid: text('xid').notNull(),
+		name: text('name').notNull(),
+		image: text('image'),
+		addedBy: text('added_by').references(() => user.id, { onDelete: 'set null' }),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [unique('dailymotion_source_kind_xid').on(t.kind, t.xid)]
+);
+
+/** A Dailymotion video that has been played here: its title, for the history and «Ahora». */
+export const dailymotionVideo = pgTable('dailymotion_video', {
+	xid: text('xid').primaryKey(),
+	title: text('title').notNull(),
+	/** The account's name, as Dailymotion shows it. */
+	owner: text('owner').notNull(),
+	durationSec: real('duration_sec'),
+	thumbnail: text('thumbnail'),
+	updatedAt: timestamp('updated_at').notNull().defaultNow()
+});
+
+/** Where each user is in each Dailymotion video, as with the episodes. */
+export const dailymotionProgress = pgTable(
+	'dailymotion_progress',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		videoXid: text('video_xid')
+			.notNull()
+			.references(() => dailymotionVideo.xid, { onDelete: 'cascade' }),
+		positionSec: real('position_sec').notNull(),
+		completed: boolean('completed').notNull().default(false),
+		updatedAt: timestamp('updated_at').notNull().defaultNow()
+	},
+	(t) => [primaryKey({ columns: [t.userId, t.videoXid] })]
 );

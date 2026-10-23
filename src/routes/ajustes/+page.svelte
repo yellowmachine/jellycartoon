@@ -7,16 +7,20 @@
 	import { musicQuality, type MusicQuality } from '#lib/music-quality.svelte.ts';
 	import MusicBackgroundSettings from '#lib/components/MusicBackgroundSettings.svelte';
 	import PasswordInput from '#lib/components/PasswordInput.svelte';
+	import PushNotices from '#lib/components/PushNotices.svelte';
 	import SubtitleStylePanel from '#lib/components/SubtitleStylePanel.svelte';
 	import type { SubtitleStyle } from '#lib/subtitle-style.ts';
 	import UpdateProgress from '#lib/components/UpdateProgress.svelte';
 	import { languageLabel } from '#lib/languages.ts';
 	import { THEMES, themeSwatches } from '#lib/themes.ts';
+	import { AVATARS, avatar } from '#lib/avatars.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
 	let testing = $state(false);
+	/** A new child enters with permission by default: no email nor password to make up. */
+	let newKidByApproval = $state(true);
 
 	/** WUD is updating (#20): UpdateProgress follows it, over the page. */
 	const updating = $derived(Boolean(form && 'updating' in form && form.updating));
@@ -453,6 +457,10 @@
 					Se verá así: <span class="text-zinc-200">«Sonaba en {shownDeviceName(false)}»</span>
 				</p>
 			{/if}
+			<!-- For whoever lets a child in (#141): the requests, on this phone with the app closed. -->
+			{#if page.data.guardian}
+				<PushNotices />
+			{/if}
 		</section>
 
 		{#if data.voice}
@@ -724,35 +732,78 @@
 			<section class={section}>
 				<h2 class="mb-1 font-semibold">Etiquetas de los capítulos</h2>
 				<p class="mb-4 text-sm text-zinc-400">
-					Lo que el modelo de visión ({data.labels.model}, en Ollama) busca en los fotogramas al
-					elegir «Etiquetar» en los capítulos seleccionados de una serie. Separadas por comas; luego
-					se puede filtrar la serie por ellas. Solo tú ves esta sección.
+					Conjuntos de etiquetas que el modelo de visión ({data.labels.model}, en Ollama) busca en
+					los fotogramas: al seleccionar capítulos en una serie, «Etiquetar con» uno de ellos. Luego
+					se puede filtrar la serie por lo que vio, y el avance está en Gestión → Etiquetado. Solo
+					tú ves esta sección.
 				</p>
-				<form
-					method="post"
-					action="?seccion={tab}&/saveEpisodeLabels"
-					use:enhance={() =>
-						async ({ update }) =>
-							update({ reset: false })}
-					class="flex flex-col gap-2"
-				>
-					<textarea
-						name="labels"
-						rows="3"
-						value={data.labels.list}
-						placeholder="perro, coche, cocina, playa"
-						aria-label="Etiquetas de los capítulos"
-						class="{select} w-full"></textarea>
-					<div class="flex items-center gap-3">
-						<button class={secondary}>Guardar</button>
-						{#if form && 'saved' in form && form.saved === 'episodeLabels'}
-							<span class="text-sm text-amber-400">✓</span>
-						{/if}
-					</div>
-				</form>
-				<p class="mt-1 text-xs text-zinc-500">
-					Cambiarlas no toca lo ya etiquetado: etiqueta esos capítulos otra vez.
+				{#snippet labelSetForm(set: { id?: number; name: string; labels: string[] } | null)}
+					<form
+						method="post"
+						action="?seccion={tab}&/saveLabelSet"
+						use:enhance={() =>
+							async ({ update }) =>
+								update({ reset: !set })}
+						class="flex flex-col gap-2"
+					>
+						{#if set?.id}<input type="hidden" name="id" value={set.id} />{/if}
+						<input
+							name="name"
+							required
+							maxlength="40"
+							value={set?.name ?? ''}
+							placeholder="Animales"
+							aria-label="Nombre del conjunto"
+							class="{select} min-w-0"
+						/>
+						<textarea
+							name="labels"
+							rows="2"
+							required
+							value={set?.labels.join(', ') ?? ''}
+							placeholder="perro, gato, caballo, pájaro"
+							aria-label="Etiquetas, separadas por comas"
+							class="{select} w-full"></textarea>
+						<div class="flex items-center gap-3">
+							<button class={secondary}>{set ? 'Guardar' : 'Crear conjunto'}</button>
+							{#if set?.id}
+								<button
+									formaction="?seccion={tab}&/deleteLabelSet"
+									formnovalidate
+									class="text-sm text-red-400 hover:underline">Borrar</button
+								>
+							{/if}
+						</div>
+					</form>
+				{/snippet}
+				{#if data.labels.sets.length}
+					<ul class="mb-4 divide-y divide-zinc-800 rounded-md border border-zinc-800 text-sm">
+						{#each data.labels.sets as set (set.id)}
+							<li>
+								<details>
+									<summary class="flex cursor-pointer items-center gap-3 p-2">
+										<span class="shrink-0 font-medium">{set.name}</span>
+										<span class="min-w-0 flex-1 truncate text-zinc-400"
+											>{set.labels.join(', ')}</span
+										>
+									</summary>
+									<div class="border-t border-zinc-800 p-3">{@render labelSetForm(set)}</div>
+								</details>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+				<h3 class="mb-2 text-sm text-zinc-300">Nuevo conjunto</h3>
+				{@render labelSetForm(null)}
+				<p class="mt-2 text-xs text-zinc-500">
+					Cambiar un conjunto no toca lo ya etiquetado: etiqueta esos capítulos otra vez. Borrarlo
+					quita también lo que vio con él.
 				</p>
+				{#if form && 'section' in form && form.section === 'labels'}
+					<p class="mt-3 text-sm break-words text-red-400">{form.message}</p>
+				{:else if form && 'saved' in form && form.saved === 'labelSet'}
+					<p class="mt-3 text-sm text-amber-400">✓ Guardado</p>
+				{/if}
 			</section>
 		{/if}
 
@@ -894,23 +945,117 @@
 				<h2 class="mb-1 font-semibold">Cuentas infantiles</h2>
 				<p class="mb-4 text-sm text-zinc-400">
 					Solo ven las series y películas con la etiqueta «infantil», y no pueden gestionar nada ni
-					hablar con la IA. Se crean aquí, y la propia cuenta no puede dejar de ser infantil. Solo
-					tú ves esta sección.
+					hablar con la IA. Los más pequeños entran sin contraseña: en un dispositivo de la casa
+					eligen su dibujo, y uno de sus padres o tutores les deja entrar desde el móvil. Solo tú
+					ves esta sección.
 				</p>
-				{#if data.kids.length}
-					<ul class="mb-4 divide-y divide-zinc-800 rounded-md border border-zinc-800 text-sm">
-						{#each data.kids as kid (kid.id)}
-							<li class="p-2">{kid.name} · <span class="text-zinc-400">{kid.email}</span></li>
+
+				{#snippet avatarPicker(chosen: string, name: string)}
+					<div class="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Dibujo de {name}">
+						{#each AVATARS as a (a.id)}
+							<label
+								class="cursor-pointer rounded-full ring-amber-400 has-checked:ring-2"
+								title={a.id}
+							>
+								<input
+									type="radio"
+									name="avatar"
+									value={a.id}
+									checked={a.id === chosen}
+									class="sr-only"
+								/>
+								<span
+									class="flex h-9 w-9 items-center justify-center rounded-full text-xl {a.color}"
+									>{a.emoji}</span
+								>
+							</label>
+						{/each}
+					</div>
+				{/snippet}
+
+				{#snippet guardians(kidId: string | null, chosen: string[])}
+					<fieldset class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+						<legend class="mb-1 text-zinc-400">Le dejan entrar (sus padres o tutores)</legend>
+						{#each data.kids!.adults as adult (adult.id)}
+							<label class="flex items-center gap-1.5">
+								<input
+									type="checkbox"
+									name="guardian"
+									value={adult.id}
+									checked={chosen.includes(adult.id)}
+									class="rounded border-zinc-600 bg-zinc-900 text-amber-500"
+								/>
+								{adult.name}
+							</label>
+						{/each}
+					</fieldset>
+					{#if !chosen.length && kidId}
+						<p class="text-xs text-zinc-500">Sin ninguno, te lo pide a ti.</p>
+					{/if}
+				{/snippet}
+
+				{#if data.kids.accounts.length}
+					<ul class="mb-6 divide-y divide-zinc-800 rounded-md border border-zinc-800 text-sm">
+						{#each data.kids.accounts as kid (kid.id)}
+							{@const a = avatar(kid.avatar)}
+							<li>
+								<details>
+									<summary class="flex cursor-pointer items-center gap-3 p-2">
+										<span
+											class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-lg {a.color}"
+											>{a.emoji}</span
+										>
+										<span class="min-w-0 flex-1 truncate">{kid.name}</span>
+										<span class="shrink-0 text-xs text-zinc-400"
+											>{kid.byApproval ? 'Entra con permiso' : 'Con contraseña'}</span
+										>
+									</summary>
+									<form
+										method="post"
+										action="?seccion={tab}&/saveKid"
+										use:enhance={() =>
+											async ({ update }) =>
+												update({ reset: false })}
+										class="flex flex-col gap-3 border-t border-zinc-800 p-3"
+									>
+										<input type="hidden" name="kidId" value={kid.id} />
+										{@render avatarPicker(kid.avatar, kid.name)}
+										<label class="flex items-center gap-2">
+											<input
+												type="checkbox"
+												name="byApproval"
+												checked={kid.byApproval}
+												class="rounded border-zinc-600 bg-zinc-900 text-amber-500"
+											/>
+											Entra con permiso, sin contraseña
+										</label>
+										{@render guardians(kid.id, kid.guardians)}
+										<input
+											name="password"
+											type="password"
+											minlength="8"
+											autocomplete="new-password"
+											placeholder={kid.byApproval
+												? 'Contraseña, si deja de entrar con permiso'
+												: 'Nueva contraseña (vacía, la de siempre)'}
+											aria-label="Contraseña"
+											class="{select} min-w-0"
+										/>
+										<button class="{primary} self-start">Guardar</button>
+									</form>
+								</details>
+							</li>
 						{/each}
 					</ul>
 				{/if}
+
+				<h3 class="mb-2 text-sm text-zinc-300">Nuevo peque</h3>
 				<form
 					method="post"
 					action="?seccion={tab}&/createKid"
 					use:enhance
-					class="grid gap-2 sm:grid-cols-2"
+					class="flex flex-col gap-3"
 				>
-					<!-- Two rows: three fields and the button in one overflowed the section. -->
 					<input
 						name="name"
 						required
@@ -918,34 +1063,93 @@
 						aria-label="Nombre"
 						class="{select} min-w-0"
 					/>
-					<input
-						name="email"
-						type="email"
-						required
-						autocomplete="off"
-						placeholder="lucia@casa.local"
-						aria-label="Email para entrar"
-						class="{select} min-w-0"
-					/>
-					<input
-						name="password"
-						type="password"
-						required
-						minlength="8"
-						autocomplete="new-password"
-						placeholder="Contraseña"
-						aria-label="Contraseña"
-						class="{select} min-w-0"
-					/>
-					<button class="{primary} justify-self-start">Crear</button>
+					{@render avatarPicker(AVATARS[0].id, 'el peque nuevo')}
+					<label class="flex items-center gap-2 text-sm">
+						<input
+							type="checkbox"
+							name="byApproval"
+							bind:checked={newKidByApproval}
+							class="rounded border-zinc-600 bg-zinc-900 text-amber-500"
+						/>
+						Entra con permiso, sin contraseña
+					</label>
+					{#if newKidByApproval}
+						{@render guardians(null, [])}
+					{:else}
+						<div class="grid gap-2 sm:grid-cols-2">
+							<input
+								name="email"
+								type="email"
+								required
+								autocomplete="off"
+								placeholder="lucia@casa.local"
+								aria-label="Email para entrar"
+								class="{select} min-w-0"
+							/>
+							<input
+								name="password"
+								type="password"
+								required
+								minlength="8"
+								autocomplete="new-password"
+								placeholder="Contraseña"
+								aria-label="Contraseña"
+								class="{select} min-w-0"
+							/>
+						</div>
+						<p class="text-xs text-zinc-500">
+							El email solo sirve para entrar: no hace falta que exista.
+						</p>
+					{/if}
+					<button class="{primary} self-start">Crear</button>
 				</form>
-				<p class="mt-2 text-xs text-zinc-500">
-					El email solo sirve para entrar: no hace falta que exista.
+
+				<h3 class="mt-6 mb-1 text-sm text-zinc-300">Dispositivos de la casa</h3>
+				<p class="mb-2 text-xs text-zinc-500">
+					Solo en ellos, cuando nadie ha entrado, se ve «¿Quién eres?» con los dibujos de los
+					peques.
 				</p>
+				{#if data.kids.devices.length}
+					<ul class="mb-3 divide-y divide-zinc-800 rounded-md border border-zinc-800 text-sm">
+						{#each data.kids.devices as device (device.id)}
+							<li class="flex items-center gap-3 p-2">
+								<span class="min-w-0 flex-1 truncate"
+									>{device.name}{#if device.id === data.kids.here}
+										<span class="text-amber-400"> · este</span>{/if}</span
+								>
+								<form method="post" action="?seccion={tab}&/forgetDevice" use:enhance>
+									<input type="hidden" name="id" value={device.id} />
+									<button class="text-red-400 hover:underline">Quitar</button>
+								</form>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+				{#if !data.kids.here}
+					<form
+						method="post"
+						action="?seccion={tab}&/trustDevice"
+						use:enhance
+						class="flex flex-wrap gap-2"
+					>
+						<input
+							name="name"
+							required
+							maxlength="60"
+							placeholder="la TV del salón"
+							aria-label="Nombre de este dispositivo"
+							class="{select} min-w-0 flex-1"
+						/>
+						<button class={secondary}>Este dispositivo es de la casa</button>
+					</form>
+				{/if}
+
 				{#if form && 'section' in form && form.section === 'kids'}
 					<p class="mt-3 text-sm break-words text-red-400">{form.message}</p>
 				{:else if form && 'saved' in form && form.saved === 'kids'}
 					<p class="mt-3 text-sm text-amber-400">✓ Cuenta creada</p>
+				{:else if form && 'saved' in form && form.saved === 'kid'}
+					<p class="mt-3 text-sm text-amber-400">✓ Guardado</p>
 				{/if}
 			</section>
 		{/if}

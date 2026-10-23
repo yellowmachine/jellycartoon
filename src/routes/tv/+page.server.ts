@@ -69,6 +69,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 			podcasts: (podcasts ?? []).flatMap((p) => p.imageUrl ?? []).slice(0, MOSAIC)
 		},
 		continueWatching: watching,
+		/**
+		 * A child who entered with permission (#141): it leaves, and the device shows «¿Quién eres?»
+		 * again, for another child.
+		 */
+		switchKid: kid && locals.session?.kidApproved === true,
 		today: pending[0] ? { next: pending[0], pending: pending.length } : null
 	};
 };

@@ -182,9 +182,18 @@
 	</section>
 {/if}
 
-<!-- At the end, so the remote starts on what to watch: the whole app, for the rest. -->
-<p class="mt-16 text-center">
+<!-- At the end, so the remote starts on what to watch: the whole app, for the rest; and another
+     child, for one who entered with permission (#141). -->
+<div class="mt-16 flex justify-center gap-6">
+	{#if data.switchKid}
+		<!-- Out of its session: /login sends the device back to «¿Quién eres?». -->
+		<form method="post" action="/logout">
+			<button class="rounded-lg px-4 py-2 text-xl text-zinc-500 hover:text-zinc-300"
+				>Cambiar de peque</button
+			>
+		</form>
+	{/if}
 	<a href="/" class="rounded-lg px-4 py-2 text-xl text-zinc-500 hover:text-zinc-300"
 		>Ir a la app completa</a
 	>
-</p>
+</div>
