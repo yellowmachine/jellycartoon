@@ -60,9 +60,11 @@ export function keepQueue() {
 	let savedAt: string | null = null;
 
 	function snapshot(): QueueSave {
+		// The DJ's words are not songs: they are left out, and so is Modo DJ.
+		const songs = music.queue.filter((t) => !t.clip);
 		return {
-			trackIds: music.queue.map((t) => t.id),
-			index: music.index,
+			trackIds: songs.map((t) => t.id),
+			index: music.queue.slice(0, music.index).filter((t) => !t.clip).length,
 			positionSec: untrack(() => music.positionSec),
 			shuffle: music.shuffle,
 			repeat: music.repeat,

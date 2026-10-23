@@ -102,6 +102,19 @@ export const variables = defineEnvVars({
 		description: 'Seconds between the frames of an episode the model looks at to label it.',
 		schema: withDefault('15')
 	},
+	PIPER_URL: {
+		description:
+			"Optional address of Piper's HTTP server (`python3 -m piper.http_server`, https://github.com/OHF-Voice/piper1-gpl), e.g. `http://host.docker.internal:5000`: the voice of Música's DJ mode, between songs. Without it there is no «Modo DJ».",
+		schema: (value) => value || undefined
+	},
+	PIPER_VOICE_ES: {
+		description: "Piper's voice for the DJ in Spanish; it must be in the server's data folder.",
+		schema: withDefault('es_ES-davefx-medium')
+	},
+	PIPER_VOICE_EN: {
+		description: "Piper's voice for the DJ in English; it must be in the server's data folder.",
+		schema: withDefault('en_US-lessac-medium')
+	},
 	AUDIO_LANG: {
 		description:
 			'Preferred audio language (ISO 639-2, e.g. `spa`) when a source has several audio tracks.',

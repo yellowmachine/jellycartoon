@@ -193,7 +193,7 @@
 		{/if}
 		<div class="flex items-center gap-3">
 			<a
-				href={radio ? '/radio' : track ? `/musica/${track.albumId}` : '/musica'}
+				href={radio ? '/radio' : track && !track.clip ? `/musica/${track.albumId}` : '/musica'}
 				class="flex min-w-0 flex-1 items-center gap-3"
 			>
 				{#if radio?.favicon}
@@ -211,7 +211,7 @@
 					/>
 				{:else}
 					<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-zinc-800"
-						>♪</span
+						>{track?.clip ? '🎙' : '♪'}</span
 					>
 				{/if}
 				<span class="min-w-0">
@@ -230,6 +230,14 @@
 					{/if}
 				</span>
 			</a>
+			{#if snap.dj}
+				<!-- Modo DJ: what is queued goes on without the DJ when it is left. -->
+				<button
+					class="shrink-0 rounded-full border border-amber-500/60 px-2 py-0.5 text-xs text-amber-400 hover:bg-zinc-800"
+					title="Salir del modo DJ: sigue lo que hay en la cola, sin locutor"
+					onclick={() => fetch('/api/music/dj/snapcast', { method: 'DELETE' })}>DJ ✕</button
+				>
+			{/if}
 			{#if !radio}
 				<span class="hidden font-mono text-xs text-zinc-400 tabular-nums sm:inline">
 					{formatDuration(snap.positionSec) || '0:00'} / {formatDuration(

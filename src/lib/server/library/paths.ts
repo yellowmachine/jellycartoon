@@ -70,6 +70,8 @@ export const musicRoot = MUSIC_DIR ? path.resolve(MUSIC_DIR) : null;
 export const musicFile = (relative: string) => path.join(musicRoot!, relative);
 /** A track's Opus copy (#64), by its id: the FLAC in MUSIC_DIR is never touched. */
 export const opusFile = (trackId: number) => path.join(dataRoot, 'music-opus', `${trackId}.opus`);
+/** What the DJ says between songs (dj.ts), as Opus: kept a few hours. */
+export const djDir = path.join(dataRoot, 'dj');
 /** Front covers from the Cover Art Archive. */
 /**
  * The road mode's map (#78), as scripts/mapa.sh leaves it: `espana.pmtiles`, and the `fonts` and

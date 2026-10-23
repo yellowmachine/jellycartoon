@@ -5,7 +5,8 @@
 	import type Hls from 'hls.js';
 	import { formatDuration } from '#lib/format.ts';
 	import { GAVE_UP, RETRYING, TRIES, recoverFromErrors, retryDelay } from '#lib/hls-recovery.ts';
-	import { coverUrl, trackUrl } from '#lib/music.ts';
+	import { dj } from '#lib/dj.svelte.ts';
+	import { audioUrl, coverUrl } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
 	import { musicQuality } from '#lib/music-quality.svelte.ts';
 	import { keepQueue } from '#lib/music-queue.svelte.ts';
@@ -116,6 +117,11 @@
 		return () => music.attach(null);
 	});
 
+	// Modo DJ follows what plays: more songs when few are left, and the DJ when it is time.
+	$effect(() => {
+		if (music.current && music.dj) untrack(() => void dj.step());
+	});
+
 	// A new track or episode: load it and play it. Changing `src` pauses, so play() goes after.
 	// Brought back from the server, it waits where it was (before loading, currentTime is where it
 	// starts); an episode starts where the user left it, from the podcast's own server. The quality
@@ -123,7 +129,7 @@
 	$effect(() => {
 		if (!audio || radio) return;
 		const opus = untrack(() => musicQuality.value === 'saver');
-		const src = podcast ? podcast.audioUrl : current ? trackUrl(current.id, opus) : null;
+		const src = podcast ? podcast.audioUrl : current ? audioUrl(current, opus) : null;
 		if (!src) {
 			audio.removeAttribute('src');
 			audio.load();
@@ -427,7 +433,12 @@
 		<!-- On the phone, two rows: what sounds, with all the width it can get (the title was barely
 		     readable next to five buttons), then the time and the controls. One row from sm. -->
 		<div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 sm:flex-nowrap sm:gap-3">
-			<a href="/musica/{current.albumId}" class="order-1 flex min-w-0 flex-1 items-center gap-3">
+			<!-- The DJ's words have no album to go to. -->
+			<svelte:element
+				this={current.clip ? 'div' : 'a'}
+				href={current.clip ? undefined : `/musica/${current.albumId}`}
+				class="order-1 flex min-w-0 flex-1 items-center gap-3"
+			>
 				{#if current.hasCover}
 					<img
 						src={coverUrl(current.albumId)}
@@ -436,7 +447,7 @@
 					/>
 				{:else}
 					<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-zinc-800"
-						>♪</span
+						>{current.clip ? '🎙' : '♪'}</span
 					>
 				{/if}
 				<span class="min-w-0">
@@ -451,7 +462,15 @@
 						>
 					{/if}
 				</span>
-			</a>
+			</svelte:element>
+			{#if music.dj}
+				<!-- Modo DJ: what is queued goes on without the DJ when it is left. -->
+				<button
+					class="order-2 shrink-0 rounded-full border border-amber-500/60 px-2 py-0.5 text-xs text-amber-400 hover:bg-zinc-800 sm:order-7"
+					title="Salir del modo DJ: sigue lo que hay en la cola, sin locutor"
+					onclick={() => dj.stop()}>DJ ✕</button
+				>
+			{/if}
 			<button
 				class={[ghost, 'order-2 sm:order-8', showQueue && 'bg-zinc-800 text-white']}
 				aria-label="Cola"

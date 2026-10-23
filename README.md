@@ -485,6 +485,37 @@ En Música aparece entonces «Sonar en: Este dispositivo / Snapcast» (cada disp
 suyo), y una barra con lo que suena en Snapcast, lo mande quien lo mande. Por el búfer de audio,
 pausar o cambiar de canción tarda uno o dos segundos en oírse.
 
+#### Modo DJ
+
+«Modo DJ», en Música, pone canciones al azar de toda la biblioteca, o de los artistas que elijas, y
+cada pocas canciones (de 1 a 8) un locutor dice qué ha sonado y qué viene, en español o en inglés.
+Suena donde suene la música: en este dispositivo o en Snapcast. La cola se rellena sola cuando
+quedan pocas canciones. Lo que dice el locutor entra en la cola como una canción más, y se prepara
+mientras suena la anterior: si no llega a tiempo, esa vez no habla, pero nunca hay silencio
+esperándolo. «DJ ✕», en la barra, sale del modo DJ y deja sonar lo que haya en la cola. Poner otra
+cosa también sale. Las cuentas infantiles no lo tienen.
+
+El texto lo escribe la IA de OpenRouter (el modelo de la voz, en Ajustes) solo con lo que dicen los
+ficheros: título, artista y álbum. Cuesta unos 0,0001 $ por locución. Sin clave, dice una frase fija.
+La voz es [Piper](https://github.com/OHF-Voice/piper1-gpl), con su servidor HTTP en el PC, como
+Ollama:
+
+```sh
+python3 -m venv ~/piper && ~/piper/bin/pip install 'piper-tts[http]'
+~/piper/bin/python -m piper.download_voices --data-dir ~/piper/voices es_ES-davefx-medium en_US-lessac-medium
+~/piper/bin/python -m piper.http_server --data-dir ~/piper/voices -m es_ES-davefx-medium --host 0.0.0.0
+```
+
+Escucha en el puerto 5000, y fuera de 127.0.0.1 para que llegue el contenedor (lo de Ollama sobre
+el cortafuegos vale igual). En el `.env`:
+
+```sh
+PIPER_URL="http://host.docker.internal:5000"
+```
+
+`PIPER_VOICE_ES` y `PIPER_VOICE_EN` cambian las voces; tienen que estar en la carpeta de datos de
+Piper.
+
 ### Radio
 
 Emisoras en directo de Reino Unido, Estados Unidos, Francia, Italia y España, para escuchar y

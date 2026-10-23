@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
 	groupByArtist,
 	masterVolume,
+	parseDjOptions,
 	parseQueueSave,
 	scaleVolumes,
 	type MusicAlbum,
@@ -118,5 +119,24 @@ describe('parseQueueSave', () => {
 		expect(parseQueueSave({ ...queue, changedBy: '  ' })).toBeNull();
 		expect(parseQueueSave({ ...queue, radio: 3 })).toBeNull();
 		expect(parseQueueSave(null)).toBeNull();
+	});
+});
+
+describe('parseDjOptions', () => {
+	const options = { artists: ['Mecano'], lang: 'es', every: 3 };
+
+	test('takes well-formed options, the whole library with no artists', () => {
+		expect(parseDjOptions(options)).toEqual({ artists: ['Mecano'], lang: 'es', every: 3 });
+		expect(parseDjOptions({ ...options, artists: [], lang: 'en' })?.artists).toEqual([]);
+	});
+
+	test('refuses a language, a frequency or artists it does not know', () => {
+		expect(parseDjOptions({ ...options, lang: 'fr' })).toBeNull();
+		expect(parseDjOptions({ ...options, every: 0 })).toBeNull();
+		expect(parseDjOptions({ ...options, every: 9 })).toBeNull();
+		expect(parseDjOptions({ ...options, every: 2.5 })).toBeNull();
+		expect(parseDjOptions({ ...options, artists: [1] })).toBeNull();
+		expect(parseDjOptions({ ...options, artists: 'Mecano' })).toBeNull();
+		expect(parseDjOptions(null)).toBeNull();
 	});
 });
