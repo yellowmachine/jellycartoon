@@ -805,12 +805,15 @@ Con una RX 7800 XT, una orden de unos segundos tarda alrededor de 150 ms.
 ### Etiquetas de los capítulos
 
 Un modelo de visión en [Ollama](https://ollama.com) mira un fotograma cada `LABEL_EVERY_SEC`
-segundos (15 por defecto) del capítulo convertido y dice cuáles de las etiquetas de Ajustes → Casa
-se ven en él. Se pide en una serie: «Seleccionar capítulos», elegirlos y «Etiquetar». Van a una cola,
-de uno en uno y en segundo plano. Luego la serie se filtra por etiqueta, y en cada capítulo salen
-las suyas, primero las más vistas (al pasar por encima, en cuántos fotogramas). Etiquetar otra vez
-sustituye lo anterior. Estas etiquetas son aparte de las de la serie (las que se ponen a mano, como
-«infantil»), y las cuentas infantiles no las ven.
+segundos (15 por defecto) del capítulo convertido y dice cuáles de las etiquetas de un **conjunto**
+se ven en él. Los conjuntos (con nombre: «Animales», «Lugares»…) se hacen en Ajustes → Casa. Se pide
+en una serie: «Seleccionar capítulos», elegirlos y «Etiquetar con» un conjunto. Van a una cola, de
+uno en uno y en segundo plano, que se sigue en Gestión → Etiquetado: lo que se está haciendo, lo que
+espera, lo fallido (para reintentarlo) y lo último hecho, con lo que vio. Luego la serie se filtra
+por etiqueta, y en cada capítulo salen las suyas (al pasar por encima, el conjunto y en cuántos
+fotogramas). Etiquetar otra vez con un conjunto sustituye solo lo de ese conjunto; borrar un
+conjunto quita lo que vio con él. Estas etiquetas son aparte de las de la serie (las que se ponen a
+mano, como «infantil»), y las cuentas infantiles no las ven.
 
 En el `.env`, con Ollama en el mismo PC que la app en Docker. Ni `localhost` ni `127.0.0.1`:
 dentro del contenedor son el propio contenedor. `host.docker.internal` es el PC (está en
@@ -843,7 +846,9 @@ Docker (`172.16.0.0/12`). Con ufw, que por defecto lo cierra todo, eso es abrirl
 `sudo ufw allow from 172.16.0.0/12 to any port 11434 proto tcp`.
 
 La respuesta usa las [salidas estructuradas](https://docs.ollama.com/capabilities/structured-outputs)
-de Ollama: el modelo solo puede contestar con etiquetas de la lista. En las pruebas, con
+de Ollama: para cada etiqueta, un sí o un no. Pidiéndole en cambio cuáles de la lista se veían,
+`qwen2.5vl:3b` elegía alguna aunque no estuviera (un perro en 4 fotogramas de 5 sin perros). En las
+pruebas, con
 `qwen2.5vl:3b` en la GPU, cada fotograma tardó menos de un segundo: un capítulo de 22 minutos, poco
 más de un minuto.
 

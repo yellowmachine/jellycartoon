@@ -147,8 +147,8 @@ export const load: PageServerLoad = async ({ params, locals, cookies }) => {
 		listItems,
 		stored: { episodes: stored.episodes, outputBytes: Number(stored.outputBytes) },
 		seasons: [...seasons].map(([season, episodes]) => ({ season, episodes })),
-		/** «Etiquetar» needs Ollama (OLLAMA_URL) and the labels of Ajustes → Casa. */
-		labelling: await labelling(),
+		/** «Etiquetar» needs Ollama (OLLAMA_URL) and a set of labels (Ajustes → Casa). */
+		labelSets: (await labelling()).map((s) => ({ id: s.id, name: s.name })),
 		/** Proposing titles needs an OpenRouter key. */
 		canPropose: Boolean(apiKey),
 		proposal: {
@@ -355,9 +355,12 @@ export const actions: Actions = {
 	},
 	/** The selected converted ones, into the labelling queue: the page follows how it goes. */
 	labelMany: async ({ params, request }) => {
-		if (!(await labelling()))
-			return fail(400, { message: 'No hay Ollama o etiquetas configurados' });
-		const ids = (await request.formData()).getAll('id').map(Number).filter(Number.isInteger);
+		const form = await request.formData();
+		const setId = Number(form.get('labelSet'));
+		const sets = await labelling();
+		if (!sets.some((s) => s.id === setId))
+			return fail(400, { message: 'Elige un conjunto de etiquetas (Ajustes → Casa)' });
+		const ids = form.getAll('id').map(Number).filter(Number.isInteger);
 		const ready = ids.length
 			? await db
 					.select({ id: episode.id })
@@ -371,7 +374,10 @@ export const actions: Actions = {
 					)
 					.orderBy(asc(episode.season), asc(episode.number))
 			: [];
-		const queued = await requestLabels(ready.map((e) => e.id));
+		const queued = await requestLabels(
+			ready.map((e) => e.id),
+			setId
+		);
 		return { labelsQueued: queued, labelsSkipped: ids.length - queued };
 	},
 	/** Those of this series still waiting, and their failures; the one being labelled goes on. */

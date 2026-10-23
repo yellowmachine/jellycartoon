@@ -91,13 +91,20 @@
 		);
 		return langs.some((lang) => counts.get(lang)! < episodes.length) ? langs : [];
 	});
-	/** The labels seen in some episode of the series, by name. */
+	/** A label of a set, as the filter keeps it: two sets may have the same label. */
+	const labelKey = (l: { set: string; label: string }) => `${l.set}\n${l.label}`;
+	/** The labels seen in some episode of the series, by set and by name. */
 	let labelOptions = $derived(
-		[
-			...new Set(
-				data.seasons.flatMap((s) => s.episodes.flatMap((e) => e.labels.map((l) => l.label)))
-			)
-		].sort((a, b) => a.localeCompare(b))
+		Map.groupBy(
+			[
+				...new Map(
+					data.seasons.flatMap((s) =>
+						s.episodes.flatMap((e) => e.labels.map((l) => [labelKey(l), l] as const))
+					)
+				).values()
+			].sort((a, b) => a.set.localeCompare(b.set) || a.label.localeCompare(b.label)),
+			(l) => l.set
+		)
 	);
 	/** While selecting, only the episodes whose title contains this text are shown. */
 	let filter = $state('');
@@ -108,7 +115,8 @@
 			? data.seasons.filter((s) => s.season === season)
 			: data.seasons;
 		const lang = audio && audioOptions.includes(audio) ? audio : null;
-		const seen = label && labelOptions.includes(label) ? label : null;
+		const seen =
+			label && [...labelOptions.values()].flat().some((l) => labelKey(l) === label) ? label : null;
 		const needle = selecting && filter ? (matchCase ? filter : filter.toLocaleLowerCase()) : '';
 		if (!lang && !seen && !needle) return seasons;
 		return seasons
@@ -117,7 +125,7 @@
 				episodes: episodes.filter(
 					(ep) =>
 						(!lang || audioLangs(ep).has(lang)) &&
-						(!seen || ep.labels.some((l) => l.label === seen)) &&
+						(!seen || ep.labels.some((l) => labelKey(l) === seen)) &&
 						(matchCase ? ep.title : ep.title.toLocaleLowerCase()).includes(needle)
 				)
 			}))
@@ -306,7 +314,7 @@
 				{/each}
 			</select>
 		{/if}
-		{#if labelOptions.length && !data.kid}
+		{#if labelOptions.size && !data.kid}
 			<select
 				aria-label="Etiqueta"
 				bind:value={
@@ -319,8 +327,12 @@
 				class="rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm"
 			>
 				<option value={null}>Todas las etiquetas</option>
-				{#each labelOptions as name (name)}
-					<option value={name}>Etiqueta: {name}</option>
+				{#each labelOptions as [set, labels] (set)}
+					<optgroup label={set}>
+						{#each labels as l (l.label)}
+							<option value={labelKey(l)}>{l.label}</option>
+						{/each}
+					</optgroup>
 				{/each}
 			</select>
 		{/if}
@@ -547,20 +559,25 @@
 											: ''}{:else if subs?.state === 'failed'}
 										· <span class="text-red-400" title={subs.message}>subtítulos fallidos</span
 										>{/if}{#if !data.kid}{#if ep.labelJob?.state === 'queued'}
-											· etiquetas en cola{:else if ep.labelJob?.state === 'running'}
-											· etiquetando… {ep.labelJob.total
+											· etiquetas en cola («{ep.labelJob
+												.set}»){:else if ep.labelJob?.state === 'running'}
+											· etiquetando con «{ep.labelJob.set}»… {ep.labelJob.total
 												? `${Math.round((ep.labelJob.done / ep.labelJob.total) * 100)}%`
 												: ''}{:else if ep.labelJob?.state === 'failed'}
 											· <span class="text-red-400" title={ep.labelJob.message}
 												>etiquetado fallido</span
 											>{/if}{/if}
 									{#if ep.labels.length && !data.kid}
-										<!-- What the model saw, the most seen first; with how many frames, on hover. -->
-										<span class="mt-0.5 block truncate text-zinc-500">
-											{#each ep.labels as l, i (l.label)}<span
-													title="En {l.frames} {l.frames === 1 ? 'fotograma' : 'fotogramas'}"
-													>{l.label}</span
-												>{i < ep.labels.length - 1 ? ', ' : ''}{/each}
+										<!-- What the model saw, by set, the most seen first; how many frames, on hover. -->
+										<span class="mt-1 flex flex-wrap gap-1">
+											{#each ep.labels as l (labelKey(l))}
+												<span
+													class="rounded bg-zinc-800 px-1.5 py-0.5 text-zinc-300"
+													title="{l.set} · en {l.frames} {l.frames === 1
+														? 'fotograma'
+														: 'fotogramas'}">{l.label}</span
+												>
+											{/each}
 										</span>
 									{/if}
 								{:else if ep.status === 'processing'}
@@ -672,15 +689,23 @@
 				>
 			</span>
 		{/if}
-		<!-- Ollama's vision model, with the labels of Ajustes → Casa: again replaces what it saw. -->
-		{#if data.labelling}
-			<button
-				formaction="?/labelMany"
-				formnovalidate
-				disabled={selected.size === 0}
-				class="rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900 disabled:opacity-50"
-				>Etiquetar</button
-			>
+		<!-- Ollama's vision model, with a set of Ajustes → Casa: again replaces what that set saw. -->
+		{#if data.labelSets.length}
+			<span class="flex items-center gap-2 text-sm">
+				Etiquetar con
+				<select name="labelSet" class="rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm">
+					{#each data.labelSets as set (set.id)}
+						<option value={set.id}>{set.name}</option>
+					{/each}
+				</select>
+				<button
+					formaction="?/labelMany"
+					formnovalidate
+					disabled={selected.size === 0}
+					class="rounded-md border border-zinc-700 px-3 py-1 hover:bg-zinc-900 disabled:opacity-50"
+					>Etiquetar</button
+				>
+			</span>
 		{/if}
 		<button
 			type="button"

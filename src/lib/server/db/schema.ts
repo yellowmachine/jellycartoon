@@ -473,9 +473,22 @@ export const appSetting = pgTable('app_setting', {
 });
 
 /**
- * What Ollama's vision model saw in an episode (episode-labels.ts), from the labels in Ajustes:
- * one row per label seen, with the seconds of the frames it was seen in. Apart from `tag`: those
- * are set by hand and mean something («infantil»); these are the model's.
+ * A named list of what Ollama's vision model looks for in episodes (episode-labels.ts), made in
+ * Ajustes → Casa: «Animales», «Lugares»… Each labelling uses one.
+ */
+export const labelSet = pgTable('label_set', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull().unique(),
+	/** Lowercase, separated by commas, each once. */
+	labels: text('labels').notNull(),
+	createdAt: timestamp('created_at').notNull().defaultNow()
+});
+
+/**
+ * What Ollama's vision model saw in an episode (episode-labels.ts), looking for the labels of a
+ * set: one row per label seen, with the seconds of the frames it was seen in. Labelling again with
+ * that set replaces its rows only. Apart from `tag`: those are set by hand and mean something
+ * («infantil»); these are the model's.
  */
 export const episodeLabel = pgTable(
 	'episode_label',
@@ -483,20 +496,23 @@ export const episodeLabel = pgTable(
 		episodeId: integer('episode_id')
 			.notNull()
 			.references(() => episode.id, { onDelete: 'cascade' }),
+		setId: integer('set_id')
+			.notNull()
+			.references(() => labelSet.id, { onDelete: 'cascade' }),
 		label: text('label').notNull(),
 		times: jsonb('times').$type<number[]>().notNull().default([])
 	},
 	(t) => [
-		primaryKey({ columns: [t.episodeId, t.label] }),
+		primaryKey({ columns: [t.episodeId, t.setId, t.label] }),
 		index('episode_label_label_idx').on(t.label)
 	]
 );
 
-export const labelJobState = pgEnum('label_job_state', ['queued', 'running', 'failed']);
+export const labelJobState = pgEnum('label_job_state', ['queued', 'running', 'failed', 'done']);
 
 /**
- * Episodes waiting to be labelled, in order: kept, so a restart goes on with the queue. A done one
- * goes; a failure stays until it is asked again.
+ * Episodes to be labelled with a set, in order: kept, so a restart goes on with the queue. The last
+ * ones done stay as history (Gestión → Etiquetado); a failure stays until retried or dismissed.
  */
 export const labelJob = pgTable(
 	'label_job',
@@ -505,11 +521,17 @@ export const labelJob = pgTable(
 		episodeId: integer('episode_id')
 			.notNull()
 			.references(() => episode.id, { onDelete: 'cascade' }),
+		setId: integer('set_id')
+			.notNull()
+			.references(() => labelSet.id, { onDelete: 'cascade' }),
 		state: labelJobState('state').notNull().default('queued'),
 		position: real('position').notNull(),
 		error: text('error'),
+		/** Frames looked at, once done. */
+		frames: integer('frames'),
 		createdAt: timestamp('created_at').notNull().defaultNow(),
-		startedAt: timestamp('started_at')
+		startedAt: timestamp('started_at'),
+		finishedAt: timestamp('finished_at')
 	},
 	(t) => [index('label_job_state_idx').on(t.state, t.position)]
 );

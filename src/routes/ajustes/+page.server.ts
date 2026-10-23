@@ -14,12 +14,10 @@ import {
 	DEFAULT_VOICE_MODEL,
 	isAdmin,
 	DEFAULT_ORS_URL,
-	episodeLabels,
 	openRouterConfig,
 	orsConfig,
 	relayConfig,
 	setAppSetting,
-	setEpisodeLabels,
 	visionModel,
 	voiceModel
 } from '#lib/server/app-settings.ts';
@@ -45,7 +43,12 @@ import {
 } from '#lib/server/subsonic/auth.ts';
 import { musicRoot } from '#lib/server/library/paths.ts';
 import { LABEL_MODEL, ORIGIN } from '$app/env/private';
-import { labellingEnabled } from '#lib/server/episode-labels.ts';
+import {
+	deleteLabelSet,
+	labelSets,
+	labellingEnabled,
+	saveLabelSet
+} from '#lib/server/episode-labels.ts';
 import { recordsTrips, setRecordTrips } from '#lib/server/trips.ts';
 import { canUseTwoFactor } from '#lib/server/two-factor.ts';
 import { randomBytes } from 'node:crypto';
@@ -79,7 +82,7 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 	let labels = null;
 	if (admin) {
 		/** What the vision model looks for in episodes: only with Ollama (OLLAMA_URL). */
-		if (labellingEnabled) labels = { list: (await episodeLabels()).join(', '), model: LABEL_MODEL };
+		if (labellingEnabled) labels = { sets: await labelSets(), model: LABEL_MODEL };
 		const r = await relayConfig();
 		/** Sharing trips (#81): the relay. Never its key: only whether there is one. */
 		relay = { url: r.url ?? '', hasKey: Boolean(r.key), fromEnv: r.fromEnv };
@@ -431,11 +434,32 @@ export const actions: Actions = {
 		return { saved: 'relay' };
 	},
 	/** The episodes' labels, separated by commas: episodes labelled again look for the new ones. */
-	saveEpisodeLabels: async ({ request, locals }) => {
+	/** A set of labels for the episodes, new or changed: what the vision model looks for. */
+	saveLabelSet: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);
-		const labels = await setEpisodeLabels(String((await request.formData()).get('labels') ?? ''));
-		log.info('ajustes', 'Etiquetas de los capítulos cambiadas', { labels });
-		return { saved: 'episodeLabels' };
+		const form = await request.formData();
+		const id = Number(form.get('id')) || undefined;
+		try {
+			await saveLabelSet({
+				id,
+				name: String(form.get('name') ?? ''),
+				labels: String(form.get('labels') ?? '')
+			});
+		} catch (err) {
+			return fail(400, {
+				section: 'labels',
+				message: err instanceof Error ? err.message : String(err)
+			});
+		}
+		return { saved: 'labelSet' };
+	},
+	/** Out, with what it saw and its requests. */
+	deleteLabelSet: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const id = Number((await request.formData()).get('id'));
+		if (!Number.isInteger(id)) return fail(400, { section: 'labels', message: 'No válido' });
+		await deleteLabelSet(id);
+		return { saved: 'labelSet' };
 	},
 	saveOrsKey: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);

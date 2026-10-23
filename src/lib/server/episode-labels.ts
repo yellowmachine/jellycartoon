@@ -1,21 +1,28 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { and, asc, eq, inArray, max } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, max, min, ne, sql } from 'drizzle-orm';
 import { LABEL_EVERY_SEC, LABEL_MODEL, OLLAMA_URL } from '$app/env/private';
-import { episodeLabels } from '#lib/server/app-settings.ts';
 import { db } from '#lib/server/db/index.ts';
-import { episode, episodeLabel, labelJob } from '#lib/server/db/schema.ts';
+import {
+	episode,
+	episodeLabel,
+	episodeTitle,
+	labelJob,
+	labelSet,
+	series
+} from '#lib/server/db/schema.ts';
 import { framesEvery, probe } from '#lib/server/library/ffmpeg.ts';
 import { hlsDir } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 
 /**
  * Episodes labelled by a vision model in Ollama (OLLAMA_URL, LABEL_MODEL): a frame every
- * LABEL_EVERY_SEC seconds, and for each the labels of Ajustes → Casa it shows. Asked for from a
- * series' selection; one at a time, in the background, in the order of the queue (`label_job`,
- * kept, so a restart goes on with it). What it saw goes in `episode_label`, with the seconds of
- * each frame, and the series' page filters by it. Labelling again replaces it.
+ * LABEL_EVERY_SEC seconds, and for each the labels of a set (Ajustes → Casa: «Animales»,
+ * «Lugares»…) it shows. Asked for from a series' selection, with a set; one at a time, in the
+ * background, in the order of the queue (`label_job`, kept, so a restart goes on with it), and
+ * followed in Gestión → Etiquetado. What it saw goes in `episode_label`, with the seconds of each
+ * frame, and the series' page filters by it. Labelling again with a set replaces only its labels.
  */
 
 export const labellingEnabled = Boolean(OLLAMA_URL);
@@ -25,22 +32,75 @@ const EVERY_SEC = Math.max(1, Number(LABEL_EVERY_SEC) || 15);
 const FRAME_WIDTH = 1280;
 /** One frame: a few seconds on a GPU, the first one also loads the model. */
 const FRAME_TIMEOUT_MS = 180_000;
+/** Done ones kept as history, the latest; failures stay until retried or dismissed. */
+const KEEP_DONE = 50;
 
 export type LabelJob =
-	| { state: 'queued' }
-	| { state: 'running'; done: number; total: number }
-	| { state: 'failed'; message: string };
+	| { state: 'queued'; set: string }
+	| { state: 'running'; set: string; done: number; total: number }
+	| { state: 'failed'; set: string; message: string };
 
 let wake: (() => void) | null = null;
-/** The one being labelled: its row, how to cancel it, and frames looked at of the total. */
-let current: { id: number; abort: AbortController; done: number; total: number } | null = null;
+/** The one being labelled: its row, how to cancel it, frames looked at of the total, since when. */
+let current: {
+	id: number;
+	abort: AbortController;
+	done: number;
+	total: number;
+	since: number;
+} | null = null;
 
-/** Whether «Etiquetar» can be offered: Ollama, and labels to look for. */
-export async function labelling() {
-	return labellingEnabled && (await episodeLabels()).length > 0;
+// Sets.
+
+/** «Perro, coche,  perro» → `perro`, `coche`: separated by commas, each once. */
+export function parseLabels(text: string) {
+	return [
+		...new Set(
+			text
+				.split(',')
+				.map((l) => l.trim().toLocaleLowerCase('es').replace(/\s+/g, ' '))
+				.filter(Boolean)
+		)
+	];
 }
 
-/** For a series' page: how each episode's request goes, if it has one. */
+/** Ajustes → Casa, and the series' selection: every set, by name. */
+export async function labelSets() {
+	const rows = await db.select().from(labelSet).orderBy(asc(labelSet.name));
+	return rows.map((r) => ({ id: r.id, name: r.name, labels: parseLabels(r.labels) }));
+}
+
+/** A new set, or one changed. Its labels already seen stay until those episodes are labelled again. */
+export async function saveLabelSet(set: { id?: number; name: string; labels: string }) {
+	const name = set.name.trim().replace(/\s+/g, ' ');
+	const labels = parseLabels(set.labels);
+	if (!name) throw new Error('Ponle un nombre al conjunto');
+	if (!labels.length) throw new Error('Escribe al menos una etiqueta');
+	const [same] = await db
+		.select({ id: labelSet.id })
+		.from(labelSet)
+		.where(and(eq(labelSet.name, name), set.id ? ne(labelSet.id, set.id) : undefined));
+	if (same) throw new Error(`Ya hay un conjunto «${name}»`);
+	const row = { name, labels: labels.join(', ') };
+	if (set.id) await db.update(labelSet).set(row).where(eq(labelSet.id, set.id));
+	else await db.insert(labelSet).values(row);
+	log.info('ajustes', `Conjunto de etiquetas «${name}» guardado`, { labels });
+}
+
+/** Out, with the labels seen with it and its requests. */
+export async function deleteLabelSet(id: number) {
+	await db.delete(labelSet).where(eq(labelSet.id, id));
+	log.info('ajustes', 'Conjunto de etiquetas borrado', { setId: id });
+}
+
+/** For «Etiquetar»: the sets to choose from; none, without Ollama or without sets. */
+export async function labelling() {
+	return labellingEnabled ? (await labelSets()).filter((s) => s.labels.length) : [];
+}
+
+// A series' page.
+
+/** How each episode's request goes, if it has one waiting, being made or failed. */
 export async function labelJobs(ids: number[]) {
 	const jobs = new Map<number, LabelJob>();
 	if (!ids.length) return jobs;
@@ -49,73 +109,96 @@ export async function labelJobs(ids: number[]) {
 			id: labelJob.id,
 			episodeId: labelJob.episodeId,
 			state: labelJob.state,
-			error: labelJob.error
+			error: labelJob.error,
+			set: labelSet.name
 		})
 		.from(labelJob)
-		.where(inArray(labelJob.episodeId, ids));
+		.innerJoin(labelSet, eq(labelSet.id, labelJob.setId))
+		.where(and(inArray(labelJob.episodeId, ids), ne(labelJob.state, 'done')))
+		.orderBy(asc(labelJob.id));
 	for (const row of rows) {
+		// One waiting or being made says more than an old failure.
+		const before = jobs.get(row.episodeId);
+		if (before && before.state !== 'failed' && row.state === 'failed') continue;
 		const live = current?.id === row.id ? current : null;
 		jobs.set(
 			row.episodeId,
 			row.state === 'running'
-				? { state: 'running', done: live?.done ?? 0, total: live?.total ?? 0 }
+				? { state: 'running', set: row.set, done: live?.done ?? 0, total: live?.total ?? 0 }
 				: row.state === 'queued'
-					? { state: 'queued' }
-					: { state: 'failed', message: row.error ?? 'Error' }
+					? { state: 'queued', set: row.set }
+					: { state: 'failed', set: row.set, message: row.error ?? 'Error' }
 		);
 	}
 	return jobs;
 }
 
-/** For a series' page: the labels each episode has, the most seen first. */
+export interface SeenLabel {
+	label: string;
+	/** The set it was looked for with. */
+	set: string;
+	/** Frames it was seen in. */
+	frames: number;
+}
+
+/** The labels each episode has, by set, the most seen first. */
 export async function labelsOf(ids: number[]) {
-	const labels = new Map<number, { label: string; frames: number }[]>();
+	const labels = new Map<number, SeenLabel[]>();
 	if (!ids.length) return labels;
 	const rows = await db
 		.select({
 			episodeId: episodeLabel.episodeId,
 			label: episodeLabel.label,
+			set: labelSet.name,
 			times: episodeLabel.times
 		})
 		.from(episodeLabel)
+		.innerJoin(labelSet, eq(labelSet.id, episodeLabel.setId))
 		.where(inArray(episodeLabel.episodeId, ids));
 	for (const row of rows) {
 		const list = labels.get(row.episodeId) ?? [];
-		list.push({ label: row.label, frames: row.times.length });
+		list.push({ label: row.label, set: row.set, frames: row.times.length });
 		labels.set(row.episodeId, list);
 	}
 	for (const list of labels.values())
-		list.sort((a, b) => b.frames - a.frames || a.label.localeCompare(b.label));
+		list.sort(
+			(a, b) => a.set.localeCompare(b.set) || b.frames - a.frames || a.label.localeCompare(b.label)
+		);
 	return labels;
 }
 
 /**
- * Into the queue, at its end; nothing for one waiting or being labelled. Their earlier failures
- * go: this is their retry. How many went in.
+ * Into the queue with `setId`, at its end; nothing for one waiting or being labelled with it.
+ * Their earlier failures with it go: this is their retry. How many went in.
  */
-export async function requestLabels(ids: number[]) {
+export async function requestLabels(ids: number[], setId: number) {
 	if (!ids.length) return 0;
 	const added = await db.transaction(async (tx) => {
+		const sameSet = and(inArray(labelJob.episodeId, ids), eq(labelJob.setId, setId));
 		const busy = new Set(
 			(
 				await tx
 					.select({ episodeId: labelJob.episodeId })
 					.from(labelJob)
-					.where(
-						and(inArray(labelJob.episodeId, ids), inArray(labelJob.state, ['queued', 'running']))
-					)
+					.where(and(sameSet, inArray(labelJob.state, ['queued', 'running'])))
 			).map((r) => r.episodeId)
 		);
 		const wanted = ids.filter((id) => !busy.has(id));
 		if (!wanted.length) return 0;
 		await tx
 			.delete(labelJob)
-			.where(and(inArray(labelJob.episodeId, wanted), eq(labelJob.state, 'failed')));
+			.where(
+				and(
+					inArray(labelJob.episodeId, wanted),
+					eq(labelJob.setId, setId),
+					eq(labelJob.state, 'failed')
+				)
+			);
 		const [last] = await tx.select({ position: max(labelJob.position) }).from(labelJob);
 		const start = (last?.position ?? 0) + 1;
 		await tx
 			.insert(labelJob)
-			.values(wanted.map((episodeId, i) => ({ episodeId, position: start + i })));
+			.values(wanted.map((episodeId, i) => ({ episodeId, setId, position: start + i })));
 		return wanted.length;
 	});
 	if (added) wake?.();
@@ -131,6 +214,114 @@ export async function cancelLabels(ids: number[]) {
 		.returning({ id: labelJob.id });
 	return removed.length;
 }
+
+// Gestión → Etiquetado.
+
+/** The queue in order, the one being made, failures, and the last ones done with what they saw. */
+export async function labelQueue() {
+	const rows = await db
+		.select({
+			id: labelJob.id,
+			state: labelJob.state,
+			error: labelJob.error,
+			frames: labelJob.frames,
+			finishedAt: labelJob.finishedAt,
+			episodeId: labelJob.episodeId,
+			setId: labelJob.setId,
+			set: labelSet.name,
+			seriesId: series.id,
+			seriesTitle: series.title,
+			season: episode.season,
+			number: episode.number,
+			title: episodeTitle
+		})
+		.from(labelJob)
+		.innerJoin(labelSet, eq(labelSet.id, labelJob.setId))
+		.innerJoin(episode, eq(episode.id, labelJob.episodeId))
+		.innerJoin(series, eq(series.id, episode.seriesId))
+		.orderBy(asc(labelJob.position), asc(labelJob.id));
+	const done = rows
+		.filter((r) => r.state === 'done')
+		.sort((a, b) => (b.finishedAt?.getTime() ?? 0) - (a.finishedAt?.getTime() ?? 0));
+	const seen = await labelsOf(done.map((r) => r.episodeId));
+	const items = rows.map((r) => ({
+		id: r.id,
+		state: r.state,
+		set: r.set,
+		error: r.error,
+		frames: r.frames,
+		finishedAt: r.finishedAt,
+		title: r.title,
+		detail: `${r.seriesTitle} · T${r.season} E${r.number}`,
+		href: `/series/${r.seriesId}`,
+		// What it saw with that set.
+		labels: (seen.get(r.episodeId) ?? []).filter((l) => l.set === r.set)
+	}));
+	const running = items.find((i) => i.state === 'running');
+	const live = running && current?.id === running.id ? current : null;
+	return {
+		available: labellingEnabled,
+		model: LABEL_MODEL,
+		everySec: EVERY_SEC,
+		running: running
+			? {
+					...running,
+					done: live?.done ?? 0,
+					total: live?.total ?? 0,
+					elapsedSec: live ? Math.round((Date.now() - live.since) / 1000) : 0
+				}
+			: null,
+		queued: items.filter((i) => i.state === 'queued'),
+		failed: items.filter((i) => i.state === 'failed'),
+		done: done.map((d) => items.find((i) => i.id === d.id)!)
+	};
+}
+
+/** One out of the queue; the one being made, stopped (what it had seen is lost). */
+export async function cancelJob(jobId: number) {
+	if (current?.id === jobId) current.abort.abort();
+	else await db.delete(labelJob).where(and(eq(labelJob.id, jobId), eq(labelJob.state, 'queued')));
+}
+
+/** Every one waiting; the one being made goes on. */
+export async function cancelAllQueued() {
+	await db.delete(labelJob).where(eq(labelJob.state, 'queued'));
+}
+
+/** Next, after the one being made. */
+export async function moveJobFirst(jobId: number) {
+	const [first] = await db
+		.select({ position: min(labelJob.position) })
+		.from(labelJob)
+		.where(eq(labelJob.state, 'queued'));
+	await db
+		.update(labelJob)
+		.set({ position: (first?.position ?? 1) - 1 })
+		.where(and(eq(labelJob.id, jobId), eq(labelJob.state, 'queued')));
+}
+
+/** A failed one (or all, without `jobId`), back to the end of the queue. */
+export async function retryFailed(jobId?: number) {
+	const [last] = await db.select({ position: max(labelJob.position) }).from(labelJob);
+	const failed = await db
+		.select({ id: labelJob.id })
+		.from(labelJob)
+		.where(and(eq(labelJob.state, 'failed'), jobId ? eq(labelJob.id, jobId) : undefined))
+		.orderBy(asc(labelJob.position));
+	for (const [i, job] of failed.entries())
+		await db
+			.update(labelJob)
+			.set({ state: 'queued', error: null, position: (last?.position ?? 0) + 1 + i })
+			.where(eq(labelJob.id, job.id));
+	if (failed.length) wake?.();
+}
+
+/** A failure out of sight. */
+export async function dismissJob(jobId: number) {
+	await db.delete(labelJob).where(and(eq(labelJob.id, jobId), eq(labelJob.state, 'failed')));
+}
+
+// The queue.
 
 /** From the server's start: what a previous run left half done goes back to the queue. */
 export async function startLabelling() {
@@ -171,30 +362,52 @@ async function labelNext() {
 		.update(labelJob)
 		.set({ state: 'running', startedAt: new Date() })
 		.where(eq(labelJob.id, job.id));
-	const run = { id: job.id, abort: new AbortController(), done: 0, total: 0 };
+	const run = { id: job.id, abort: new AbortController(), done: 0, total: 0, since: Date.now() };
 	current = run;
 	try {
-		await labelEpisode(job.episodeId, run);
-		await db.delete(labelJob).where(eq(labelJob.id, job.id));
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
+		await labelEpisode(job.episodeId, job.setId, run);
 		await db
 			.update(labelJob)
-			.set({ state: 'failed', error: message })
+			.set({ state: 'done', frames: run.total, finishedAt: new Date() })
 			.where(eq(labelJob.id, job.id));
-		log.error('etiquetas', 'No se pudo etiquetar el capítulo', {
-			episodeId: job.episodeId,
-			error
-		});
+		await pruneDone();
+	} catch (error) {
+		if (run.abort.signal.aborted) {
+			await db.delete(labelJob).where(eq(labelJob.id, job.id));
+			log.info('etiquetas', 'Etiquetado cancelado a medias', { jobId: job.id });
+		} else {
+			const message = error instanceof Error ? error.message : String(error);
+			await db
+				.update(labelJob)
+				.set({ state: 'failed', error: message, finishedAt: new Date() })
+				.where(eq(labelJob.id, job.id));
+			log.error('etiquetas', 'No se pudo etiquetar el capítulo', {
+				episodeId: job.episodeId,
+				error
+			});
+		}
 	} finally {
 		current = null;
 	}
 	return true;
 }
 
-async function labelEpisode(episodeId: number, run: NonNullable<typeof current>) {
-	const labels = await episodeLabels();
-	if (!labels.length) throw new Error('No hay etiquetas en Ajustes → Casa');
+async function pruneDone() {
+	const keep = db
+		.select({ id: labelJob.id })
+		.from(labelJob)
+		.where(and(eq(labelJob.state, 'done'), isNotNull(labelJob.finishedAt)))
+		.orderBy(desc(labelJob.finishedAt))
+		.limit(KEEP_DONE);
+	await db
+		.delete(labelJob)
+		.where(and(eq(labelJob.state, 'done'), sql`${labelJob.id} not in (${keep})`));
+}
+
+async function labelEpisode(episodeId: number, setId: number, run: NonNullable<typeof current>) {
+	const [set] = await db.select().from(labelSet).where(eq(labelSet.id, setId));
+	const labels = set ? parseLabels(set.labels) : [];
+	if (!labels.length) throw new Error('El conjunto de etiquetas está vacío');
 	const [ep] = await db
 		.select({ status: episode.status })
 		.from(episode)
@@ -230,18 +443,22 @@ async function labelEpisode(episodeId: number, run: NonNullable<typeof current>)
 		await rm(dir, { recursive: true, force: true });
 	}
 
+	// Only this set's: what other sets saw stays.
 	await db.transaction(async (tx) => {
-		await tx.delete(episodeLabel).where(eq(episodeLabel.episodeId, episodeId));
+		await tx
+			.delete(episodeLabel)
+			.where(and(eq(episodeLabel.episodeId, episodeId), eq(episodeLabel.setId, setId)));
 		if (seen.size)
 			await tx
 				.insert(episodeLabel)
-				.values([...seen].map(([label, times]) => ({ episodeId, label, times })));
+				.values([...seen].map(([label, times]) => ({ episodeId, setId, label, times })));
 	});
 	log.info(
 		'etiquetas',
-		`Capítulo ${episodeId} etiquetado: ${[...seen.keys()].join(', ') || 'ninguna etiqueta'}`,
+		`Capítulo ${episodeId} etiquetado con «${set!.name}»: ${[...seen.keys()].join(', ') || 'ninguna etiqueta'}`,
 		{
 			episodeId,
+			setId,
 			frames: run.total,
 			model: LABEL_MODEL,
 			labels: Object.fromEntries([...seen].map(([label, times]) => [label, times.length])),
@@ -251,8 +468,10 @@ async function labelEpisode(episodeId: number, run: NonNullable<typeof current>)
 }
 
 /**
- * The labels one frame shows, among `labels`: with Ollama's structured outputs, so the answer can
- * only be those (https://docs.ollama.com/capabilities/structured-outputs).
+ * The labels one frame shows, among `labels`: with Ollama's structured outputs
+ * (https://docs.ollama.com/capabilities/structured-outputs), a yes or no for each. Asked for the
+ * ones it saw, from a list, the small model picked some anyway: a dog in four frames of five with
+ * no dog in them; one by one, it said no.
  */
 async function labelFrame(image: string, labels: string[], signal: AbortSignal) {
 	const res = await fetch(`${OLLAMA_URL!.replace(/\/+$/, '')}/api/chat`, {
@@ -265,17 +484,15 @@ async function labelFrame(image: string, labels: string[], signal: AbortSignal) 
 				{
 					role: 'user',
 					content:
-						'Analiza esta imagen y responde con las etiquetas de esta lista que se vean en ella: ' +
-						`[${labels.join(', ')}]. Solo las que se vean; ninguna si no se ve ninguna.`,
+						'Mira esta imagen. Para cada etiqueta, responde true solo si se ve claramente en la ' +
+						`imagen, y false si no: ${labels.join(', ')}.`,
 					images: [image]
 				}
 			],
 			format: {
 				type: 'object',
-				properties: {
-					etiquetas: { type: 'array', items: { type: 'string', enum: labels } }
-				},
-				required: ['etiquetas']
+				properties: Object.fromEntries(labels.map((l) => [l, { type: 'boolean' }])),
+				required: labels
 			},
 			// The most likely answer, not a creative one.
 			options: { temperature: 0 }
@@ -286,18 +503,11 @@ async function labelFrame(image: string, labels: string[], signal: AbortSignal) 
 	});
 	const body = await res.json().catch(() => null);
 	if (!res.ok) throw new Error(`Ollama: ${body?.error ?? res.statusText}`);
-	let answer: { etiquetas?: unknown };
+	let answer: Record<string, unknown>;
 	try {
 		answer = JSON.parse(body?.message?.content ?? '');
 	} catch {
 		throw new Error(`Ollama no respondió JSON: ${String(body?.message?.content).slice(0, 200)}`);
 	}
-	const wanted = new Set(labels);
-	return [
-		...new Set(
-			(Array.isArray(answer.etiquetas) ? answer.etiquetas : []).filter(
-				(l): l is string => typeof l === 'string' && wanted.has(l)
-			)
-		)
-	];
+	return labels.filter((l) => answer?.[l] === true);
 }
