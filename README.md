@@ -503,11 +503,33 @@ Ollama:
 ```sh
 python3 -m venv ~/piper && ~/piper/bin/pip install 'piper-tts[http]'
 ~/piper/bin/python -m piper.download_voices --data-dir ~/piper/voices es_ES-davefx-medium en_US-lessac-medium
-~/piper/bin/python -m piper.http_server --data-dir ~/piper/voices -m es_ES-davefx-medium --host 0.0.0.0
 ```
 
-Escucha en el puerto 5000, y fuera de 127.0.0.1 para que llegue el contenedor (lo de Ollama sobre
-el cortafuegos vale igual). En el `.env`:
+Y como servicio de usuario de systemd, igual que el mpv del salón
+(`deploy/jellycartoon-piper.service`):
+
+```sh
+mkdir -p ~/.config/systemd/user
+cp deploy/jellycartoon-piper.service ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now jellycartoon-piper
+```
+
+Escucha en el puerto 5000, y fuera de 127.0.0.1 para que llegue el contenedor. Un servicio de
+usuario arranca cuando ese usuario entra en su sesión, no al encender el PC. Para que arranque con
+el PC aunque nadie entre (sirve también para el mpv del salón):
+
+```sh
+sudo loginctl enable-linger miguel   # tu usuario
+```
+
+Con un cortafuegos (ufw), el contenedor no llega al PC hasta que se le abre el puerto, solo a las
+redes de Docker. Lo mismo para Ollama, con el 11434:
+
+```sh
+sudo ufw allow from 172.16.0.0/12 to any port 5000 proto tcp
+```
+
+En el `.env`:
 
 ```sh
 PIPER_URL="http://host.docker.internal:5000"
@@ -810,7 +832,8 @@ sudo systemctl restart ollama
 
 Ollama no tiene contraseña: así lo puede usar cualquiera de la red de casa (y de la tailnet, si el
 PC está en ella). Si importa, en el cortafuegos se cierra el puerto 11434 menos para las redes de
-Docker (`172.16.0.0/12`).
+Docker (`172.16.0.0/12`). Con ufw, que por defecto lo cierra todo, eso es abrirlo solo para ellas:
+`sudo ufw allow from 172.16.0.0/12 to any port 11434 proto tcp`.
 
 La respuesta usa las [salidas estructuradas](https://docs.ollama.com/capabilities/structured-outputs)
 de Ollama: el modelo solo puede contestar con etiquetas de la lista. En las pruebas, con

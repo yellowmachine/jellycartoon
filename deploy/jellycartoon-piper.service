@@ -1,0 +1,16 @@
+# Piper's HTTP server: the voice of Música's DJ mode (PIPER_URL). A systemd user service on the PC
+# with the app; see "Modo DJ" in the README. With `loginctl enable-linger`, it starts with the PC
+# and not only when its user logs in.
+[Unit]
+Description=Piper (voz del modo DJ de JellyCartoon)
+After=network.target
+
+[Service]
+# Installed in ~/piper as the README says. On 0.0.0.0: the app's container reaches it as
+# host.docker.internal, not on 127.0.0.1.
+ExecStart=%h/piper/bin/python -m piper.http_server --data-dir %h/piper/voices -m es_ES-davefx-medium --host 0.0.0.0 --port 5000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
