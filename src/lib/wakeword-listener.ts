@@ -1,9 +1,9 @@
 import wasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.wasm?url';
-import { SAMPLE_RATE, WakeWordDetector, type WakeWordModel } from '#lib/wakeword.ts';
+import { WakeWordDetector, type WakeWordModel } from '#lib/wakeword.ts';
 
 /**
- * Listening for wake words in this browser (#144): the microphone at 16 kHz through an AudioWorklet
- * (static/wakeword/capture.js), and openWakeWord's models (static/wakeword/) with ONNX Runtime Web,
+ * Listening for wake words in this browser (#144): the microphone through an AudioWorklet that takes
+ * it to 16 kHz (static/wakeword/capture.js), and openWakeWord's models (static/wakeword/) with ONNX Runtime Web,
  * served by the app. Only while the page is open and in front: the browser stops the microphone
  * otherwise.
  */
@@ -12,6 +12,18 @@ const MODELS_URL = '/wakeword';
 
 export interface Listening {
 	stop(): void;
+	/** What the microphone and the audio are, for the page to say. */
+	info: {
+		/** The AudioContext's state: `running`, or `suspended` if the browser did not let it start. */
+		state: AudioContextState;
+		contextRate: number;
+		/** As the browser reports the microphone. */
+		micRate: number | null;
+		/** Newer browsers may say which: `all`, `remote-only`. */
+		echoCancellation: boolean | string | null;
+		noiseSuppression: boolean | null;
+		autoGainControl: boolean | null;
+	};
 }
 
 export interface ListenOptions {
@@ -21,9 +33,15 @@ export interface ListenOptions {
 	processing: boolean;
 	/** Each 80 ms: every model's score, in the order of `models`, and the milliseconds it took. */
 	onScores(scores: number[], ms: number): void;
+	/** Each 80 ms: how loud the microphone is, in dBFS (0 the loudest; −90 silence). */
+	onLevel(dbfs: number): void;
 }
 
-export async function listen(options: ListenOptions): Promise<Listening> {
+/**
+ * `context`: made by the page on the tap that starts it, before anything is loaded. Made later
+ * (after seconds loading models), Android leaves it suspended: no sound reached the detector.
+ */
+export async function listen(options: ListenOptions, context: AudioContext): Promise<Listening> {
 	// Loaded only here: 14 MB of WebAssembly, for whoever tries it.
 	const ort = await import('onnxruntime-web/wasm');
 	ort.env.wasm.wasmPaths = { wasm: wasmUrl };
@@ -64,7 +82,7 @@ export async function listen(options: ListenOptions): Promise<Listening> {
 			autoGainControl: options.processing
 		}
 	});
-	const context = new AudioContext({ sampleRate: SAMPLE_RATE });
+	if (context.state !== 'running') await context.resume().catch(() => {});
 	await context.audioWorklet.addModule(`${MODELS_URL}/capture.js`);
 	const source = context.createMediaStreamSource(stream);
 	const capture = new AudioWorkletNode(context, 'wakeword-capture');
@@ -75,6 +93,9 @@ export async function listen(options: ListenOptions): Promise<Listening> {
 	let stopped = false;
 	capture.port.onmessage = (e: MessageEvent<Float32Array>) => {
 		const chunk = e.data;
+		let sum = 0;
+		for (let i = 0; i < chunk.length; i++) sum += (chunk[i]! / 32768) ** 2;
+		options.onLevel(10 * Math.log10(sum / chunk.length || 1e-9));
 		queue = queue.then(async () => {
 			if (stopped) return;
 			const started = performance.now();
@@ -83,7 +104,16 @@ export async function listen(options: ListenOptions): Promise<Listening> {
 		});
 	};
 
+	const settings = stream.getAudioTracks()[0]?.getSettings() ?? {};
 	return {
+		info: {
+			state: context.state,
+			contextRate: context.sampleRate,
+			micRate: settings.sampleRate ?? null,
+			echoCancellation: settings.echoCancellation ?? null,
+			noiseSuppression: settings.noiseSuppression ?? null,
+			autoGainControl: settings.autoGainControl ?? null
+		},
 		stop() {
 			stopped = true;
 			capture.port.onmessage = null;
