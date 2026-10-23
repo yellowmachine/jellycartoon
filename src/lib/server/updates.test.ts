@@ -6,7 +6,7 @@ mock.module('$app/env/private', () => ({
 	WUD_PASSWORD: 'secreto'
 }));
 mock.module('#lib/server/log.ts', () => ({ log: { info() {}, warn() {}, error() {} } }));
-const { pendingUpdates, startUpdate, versionInfo } = await import('./updates.ts');
+const { pendingUpdates, startUpdate, startUpdateOnce, versionInfo } = await import('./updates.ts');
 
 const app = (updateAvailable: boolean) => ({
 	id: 'app1',
@@ -120,4 +120,18 @@ test('versionInfo: the notice remembers GitHub for hours; Ajustes asks it again'
 	// and from then on the notice knows it too.
 	routes = {};
 	expect((await versionInfo()).update?.version).toBe('1.0.1');
+});
+
+describe('startUpdateOnce', () => {
+	test('pressed twice, or from two devices: WUD is asked once', async () => {
+		routes = {
+			'GET /api/containers': [app(true), caddy],
+			'POST /api/containers/app1/triggers/docker/jellycartoon': {}
+		};
+		const [a, b] = await Promise.all([startUpdateOnce(), startUpdateOnce()]);
+		expect([a, b]).toEqual(['started', 'started']);
+		expect(await startUpdateOnce()).toBe('started');
+		expect(calls.filter((c) => c === 'GET /api/containers')).toHaveLength(1);
+		expect(calls.filter((c) => c.includes('/triggers/'))).toHaveLength(1);
+	});
 });

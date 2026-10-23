@@ -22,6 +22,8 @@
 	/** A new child enters with permission by default: no email nor password to make up. */
 	let newKidByApproval = $state(true);
 
+	/** «Actualizar ahora» sent and not answered yet. */
+	let askingUpdate = $state(false);
 	/** WUD is updating (#20): UpdateProgress follows it, over the page. */
 	const updating = $derived(Boolean(form && 'updating' in form && form.updating));
 
@@ -1210,13 +1212,22 @@
 						<p class="mt-3 text-sm">Actualizando…</p>
 						<UpdateProgress current={data.version.current} target={update.version} />
 					{:else if data.version.canUpdate}
+						<!-- Once: pressed again while it is asked, WUD got it twice and one failed. -->
 						<form
 							method="post"
 							action="?seccion={tab}&/update"
-							use:enhance
+							use:enhance={() => {
+								askingUpdate = true;
+								return async ({ update }) => {
+									await update();
+									askingUpdate = false;
+								};
+							}}
 							class="mt-3 flex flex-wrap items-center gap-3"
 						>
-							<button class={primary}>Actualizar ahora</button>
+							<button class={primary} disabled={askingUpdate}
+								>{askingUpdate ? 'Pidiendo la actualización…' : 'Actualizar ahora'}</button
+							>
 							<span class="text-xs text-zinc-400"
 								>Antes se hace una copia de la base de datos. Si no, se instalará sola esta
 								madrugada.</span

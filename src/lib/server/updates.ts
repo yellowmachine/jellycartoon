@@ -144,6 +144,28 @@ export async function startUpdate(): Promise<'started' | 'not-ready'> {
 	return 'started';
 }
 
+/** While an update asked for here goes on, it is not asked for again. */
+const UPDATING_MS = 15 * 60_000;
+let starting: Promise<'started' | 'not-ready'> | null = null;
+let startedAt = 0;
+
+/**
+ * `startUpdate`, once: «Actualizar ahora» pressed twice, or from two devices, asked WUD to replace
+ * the same container twice at once, and one of the two failed. While a request is on its way, or
+ * for UPDATING_MS after one started (the update replaces this process: a new one starts afresh),
+ * the same answer and nothing new for WUD.
+ */
+export function startUpdateOnce() {
+	if (Date.now() - startedAt < UPDATING_MS) return Promise.resolve('started' as const);
+	starting ??= startUpdate()
+		.then((result) => {
+			if (result === 'started') startedAt = Date.now();
+			return result;
+		})
+		.finally(() => (starting = null));
+	return starting;
+}
+
 /**
  * How many containers WUD still has to update: after the app it goes on with the rest (Caddy,
  * Snapcast…), one by one, and while Caddy restarts the browser reaches nothing. Null without WUD
