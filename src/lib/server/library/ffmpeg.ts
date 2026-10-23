@@ -499,6 +499,41 @@ export async function thumbnail(
 }
 
 /**
+ * A frame every `everySec` of a video, as JPEGs in `outDir` in order, the first at the start: one
+ * pass over the file. For what looks at them (episode-labels.ts), not the worker's.
+ */
+export async function framesEvery(
+	input: string,
+	info: Probe,
+	outDir: string,
+	options: { everySec: number; width: number; signal?: AbortSignal }
+) {
+	await run(
+		'ffmpeg',
+		[
+			'-hide_banner',
+			'-nostats',
+			'-y',
+			'-i',
+			input,
+			'-an',
+			'-sn',
+			'-dn',
+			'-vf',
+			[`fps=1/${options.everySec}`, ...frameFilters(info, options.width)].join(','),
+			'-q:v',
+			'2',
+			path.join(outDir, 'frame_%05d.jpg')
+		],
+		{ signal: options.signal, pausable: false }
+	);
+	return (await readdir(outDir))
+		.filter((f) => /^frame_\d+\.jpg$/.test(f))
+		.sort()
+		.map((f) => path.join(outDir, f));
+}
+
+/**
  * `seconds` of a video file from `atSec`, as an MP4 any browser plays: H.264 copied when it can be
  * (then it starts at the keyframe before `atSec`) and otherwise made at most 1280 wide, with HDR
  * tone mapped; the audio in `audioLang` (or the default track), as stereo AAC. Never frozen with

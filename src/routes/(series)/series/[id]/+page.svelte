@@ -18,10 +18,14 @@
 
 	let { data, form }: PageProps = $props();
 
-	// While Whisper makes subtitles, the page follows how it goes.
+	// While Whisper makes subtitles, or the model labels episodes, the page follows how it goes.
 	const makingSubtitles = $derived(
 		data.seasons.some((s) =>
-			s.episodes.some((e) => e.autoSubtitles?.job && e.autoSubtitles.job.state !== 'failed')
+			s.episodes.some(
+				(e) =>
+					(e.autoSubtitles?.job && e.autoSubtitles.job.state !== 'failed') ||
+					(e.labelJob && e.labelJob.state !== 'failed')
+			)
 		)
 	);
 	$effect(() => {
@@ -58,14 +62,17 @@
 	let season = $state<number | null>(null);
 	/** Only the episodes with an audio track in this language, or all. */
 	let audio = $state<string | null>(null);
+	/** Only the episodes where the model saw this label (episode-labels.ts), or all. */
+	let label = $state<string | null>(null);
 	// Kept when coming back to the page (e.g. from an episode), and back to all when entering a
 	// series anew: https://svelte.dev/docs/kit/$app-navigation#snapshot
 	snapshot({
-		capture: () => ({ season, audio }),
-		restore: (value) => ({ season, audio } = value),
+		capture: () => ({ season, audio, label }),
+		restore: (value) => ({ season, audio, label } = value),
 		reset: () => {
 			season = null;
 			audio = null;
+			label = null;
 		}
 	});
 	const audioLangs = (ep: { audioTracks: { lang: string }[] }) =>
@@ -84,6 +91,14 @@
 		);
 		return langs.some((lang) => counts.get(lang)! < episodes.length) ? langs : [];
 	});
+	/** The labels seen in some episode of the series, by name. */
+	let labelOptions = $derived(
+		[
+			...new Set(
+				data.seasons.flatMap((s) => s.episodes.flatMap((e) => e.labels.map((l) => l.label)))
+			)
+		].sort((a, b) => a.localeCompare(b))
+	);
 	/** While selecting, only the episodes whose title contains this text are shown. */
 	let filter = $state('');
 	let matchCase = $state(false);
@@ -93,14 +108,16 @@
 			? data.seasons.filter((s) => s.season === season)
 			: data.seasons;
 		const lang = audio && audioOptions.includes(audio) ? audio : null;
+		const seen = label && labelOptions.includes(label) ? label : null;
 		const needle = selecting && filter ? (matchCase ? filter : filter.toLocaleLowerCase()) : '';
-		if (!lang && !needle) return seasons;
+		if (!lang && !seen && !needle) return seasons;
 		return seasons
 			.map(({ season, episodes }) => ({
 				season,
 				episodes: episodes.filter(
 					(ep) =>
 						(!lang || audioLangs(ep).has(lang)) &&
+						(!seen || ep.labels.some((l) => l.label === seen)) &&
 						(matchCase ? ep.title : ep.title.toLocaleLowerCase()).includes(needle)
 				)
 			}))
@@ -140,6 +157,14 @@
 	const waitingSubtitles = $derived(
 		data.seasons.reduce(
 			(n, s) => n + s.episodes.filter((e) => e.autoSubtitles?.job?.state === 'queued').length,
+			0
+		)
+	);
+
+	/** This series' episodes waiting to be labelled, or whose labelling failed. */
+	const waitingLabels = $derived(
+		data.seasons.reduce(
+			(n, s) => n + s.episodes.filter((e) => e.labelJob && e.labelJob.state !== 'running').length,
 			0
 		)
 	);
@@ -281,6 +306,24 @@
 				{/each}
 			</select>
 		{/if}
+		{#if labelOptions.length && !data.kid}
+			<select
+				aria-label="Etiqueta"
+				bind:value={
+					() => label,
+					(v) => {
+						label = v;
+						unselectHidden();
+					}
+				}
+				class="rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm"
+			>
+				<option value={null}>Todas las etiquetas</option>
+				{#each labelOptions as name (name)}
+					<option value={name}>Etiqueta: {name}</option>
+				{/each}
+			</select>
+		{/if}
 		<div class="flex rounded-md border border-zinc-700 p-0.5" role="group" aria-label="Vista">
 			{#each [{ value: 'list', label: 'Ver en lista' }, { value: 'grid', label: 'Ver en cuadrícula' }] as const as { value, label } (value)}
 				<button
@@ -378,6 +421,22 @@
 				: `${waitingSubtitles} capítulos esperan sus subtítulos automáticos.`}
 		</span>
 		<button class="text-amber-400 hover:underline">Cancelar los que esperan</button>
+	</form>
+{/if}
+
+{#if waitingLabels && !data.kid}
+	<form
+		method="post"
+		action="?/cancelLabels"
+		use:enhance
+		class="mt-4 flex flex-wrap items-center gap-3 rounded-md border border-zinc-800 px-3 py-2 text-sm"
+	>
+		<span class="text-zinc-400">
+			{waitingLabels === 1
+				? '1 capítulo espera a que lo etiqueten (o falló).'
+				: `${waitingLabels} capítulos esperan a que los etiqueten (o fallaron).`}
+		</span>
+		<button class="text-amber-400 hover:underline">Quitarlos de la cola</button>
 	</form>
 {/if}
 
@@ -487,7 +546,23 @@
 											? `${Math.round((subs.done / subs.total) * 100)}%`
 											: ''}{:else if subs?.state === 'failed'}
 										· <span class="text-red-400" title={subs.message}>subtítulos fallidos</span
-										>{/if}
+										>{/if}{#if !data.kid}{#if ep.labelJob?.state === 'queued'}
+											· etiquetas en cola{:else if ep.labelJob?.state === 'running'}
+											· etiquetando… {ep.labelJob.total
+												? `${Math.round((ep.labelJob.done / ep.labelJob.total) * 100)}%`
+												: ''}{:else if ep.labelJob?.state === 'failed'}
+											· <span class="text-red-400" title={ep.labelJob.message}
+												>etiquetado fallido</span
+											>{/if}{/if}
+									{#if ep.labels.length && !data.kid}
+										<!-- What the model saw, the most seen first; with how many frames, on hover. -->
+										<span class="mt-0.5 block truncate text-zinc-500">
+											{#each ep.labels as l, i (l.label)}<span
+													title="En {l.frames} {l.frames === 1 ? 'fotograma' : 'fotogramas'}"
+													>{l.label}</span
+												>{i < ep.labels.length - 1 ? ', ' : ''}{/each}
+										</span>
+									{/if}
 								{:else if ep.status === 'processing'}
 									Convirtiendo… {Math.round(ep.progress * 100)}%
 								{:else if ep.status === 'error'}
@@ -597,6 +672,16 @@
 				>
 			</span>
 		{/if}
+		<!-- Ollama's vision model, with the labels of Ajustes → Casa: again replaces what it saw. -->
+		{#if data.labelling}
+			<button
+				formaction="?/labelMany"
+				formnovalidate
+				disabled={selected.size === 0}
+				class="rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900 disabled:opacity-50"
+				>Etiquetar</button
+			>
+		{/if}
 		<button
 			type="button"
 			class="rounded-md px-2 py-1 text-sm text-zinc-400 hover:text-white"
@@ -606,6 +691,14 @@
 			Se ponen al final de esa temporada, en el orden que tienen ahora. Si la temporada no existe,
 			se crea.
 		</p>
+		{#if form && 'labelsQueued' in form}
+			<p class="w-full text-sm text-amber-400">
+				{form.labelsQueued === 1 ? '1 capítulo en cola' : `${form.labelsQueued} capítulos en cola`}
+				para etiquetar{form.labelsSkipped
+					? ` · ${form.labelsSkipped} ya estaban en cola o no están convertidos`
+					: ''}.
+			</p>
+		{/if}
 		{#if form && 'subtitlesQueued' in form}
 			<p class="w-full text-sm text-amber-400">
 				{form.subtitlesQueued === 1

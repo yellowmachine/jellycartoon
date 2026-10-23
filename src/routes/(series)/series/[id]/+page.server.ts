@@ -22,6 +22,13 @@ import {
 	tracksWithoutSubtitles
 } from '#lib/server/auto-subtitles.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
+import {
+	cancelLabels,
+	labelJobs,
+	labelling,
+	labelsOf,
+	requestLabels
+} from '#lib/server/episode-labels.ts';
 import { assumeLanguage, KNOWN_LANGUAGES, normalizeLang } from '#lib/languages.ts';
 import {
 	chooseSeries,
@@ -100,9 +107,14 @@ export const load: PageServerLoad = async ({ params, locals, cookies }) => {
 				episodes.map((e) => e.id)
 			)
 		: new Map();
+	const ids = episodes.map((e) => e.id);
+	const [labelsNow, labelJobsNow] = await Promise.all([labelsOf(ids), labelJobs(ids)]);
 	const seasons = Map.groupBy(
 		episodes.map((e) => ({
 			...e,
+			/** What the vision model saw in it (episode-labels.ts), and how its request goes. */
+			labels: labelsNow.get(e.id) ?? [],
+			labelJob: labelJobsNow.get(e.id) ?? null,
 			playlist: e.status === 'ready' ? hostPlaylist(e.id) : null,
 			/**
 			 * Subtitles Whisper can make (only with it, WHISPER_URL): the languages of its audio
@@ -135,6 +147,8 @@ export const load: PageServerLoad = async ({ params, locals, cookies }) => {
 		listItems,
 		stored: { episodes: stored.episodes, outputBytes: Number(stored.outputBytes) },
 		seasons: [...seasons].map(([season, episodes]) => ({ season, episodes })),
+		/** «Etiquetar» needs Ollama (OLLAMA_URL) and the labels of Ajustes → Casa. */
+		labelling: await labelling(),
 		/** Proposing titles needs an OpenRouter key. */
 		canPropose: Boolean(apiKey),
 		proposal: {
@@ -338,6 +352,35 @@ export const actions: Actions = {
 				ids.map((e) => e.id)
 			)
 		};
+	},
+	/** The selected converted ones, into the labelling queue: the page follows how it goes. */
+	labelMany: async ({ params, request }) => {
+		if (!(await labelling()))
+			return fail(400, { message: 'No hay Ollama o etiquetas configurados' });
+		const ids = (await request.formData()).getAll('id').map(Number).filter(Number.isInteger);
+		const ready = ids.length
+			? await db
+					.select({ id: episode.id })
+					.from(episode)
+					.where(
+						and(
+							eq(episode.seriesId, Number(params.id)),
+							inArray(episode.id, ids),
+							eq(episode.status, 'ready')
+						)
+					)
+					.orderBy(asc(episode.season), asc(episode.number))
+			: [];
+		const queued = await requestLabels(ready.map((e) => e.id));
+		return { labelsQueued: queued, labelsSkipped: ids.length - queued };
+	},
+	/** Those of this series still waiting, and their failures; the one being labelled goes on. */
+	cancelLabels: async ({ params }) => {
+		const ids = await db
+			.select({ id: episode.id })
+			.from(episode)
+			.where(eq(episode.seriesId, Number(params.id)));
+		await cancelLabels(ids.map((e) => e.id));
 	},
 	regenerateThumbnail: async ({ params, request }) => {
 		const ep = await seriesEpisode(params.id, await request.formData());

@@ -1,6 +1,9 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/forms';
 
+/* A window of little height: a phone in split screen, the other app above or beside. */
+@custom-variant short (@media (max-height: 500px));
+
 @layer base {
 	html {
 		color-scheme: dark;

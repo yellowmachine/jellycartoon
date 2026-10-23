@@ -742,6 +742,50 @@ Volver es `keypress ESC` y no `stop` porque el menú de mpv solo se cierra con E
 
 Con una RX 7800 XT, una orden de unos segundos tarda alrededor de 150 ms.
 
+### Etiquetas de los capítulos
+
+Un modelo de visión en [Ollama](https://ollama.com) mira un fotograma cada `LABEL_EVERY_SEC`
+segundos (15 por defecto) del capítulo convertido y dice cuáles de las etiquetas de Ajustes → Casa
+se ven en él. Se pide en una serie: «Seleccionar capítulos», elegirlos y «Etiquetar». Van a una cola,
+de uno en uno y en segundo plano. Luego la serie se filtra por etiqueta, y en cada capítulo salen
+las suyas, primero las más vistas (al pasar por encima, en cuántos fotogramas). Etiquetar otra vez
+sustituye lo anterior. Estas etiquetas son aparte de las de la serie (las que se ponen a mano, como
+«infantil»), y las cuentas infantiles no las ven.
+
+En el `.env`, con Ollama en el mismo PC que la app en Docker. Ni `localhost` ni `127.0.0.1`:
+dentro del contenedor son el propio contenedor. `host.docker.internal` es el PC (está en
+`extra_hosts` de `compose.prod.yaml`), aunque cambie su IP:
+
+```sh
+OLLAMA_URL="http://host.docker.internal:11434"
+LABEL_MODEL="qwen2.5vl:3b"   # el de por defecto; antes: ollama pull qwen2.5vl:3b
+```
+
+Ollama, por defecto, solo escucha en `127.0.0.1`, y el contenedor no llega. Con el servicio de
+systemd de su instalador:
+
+```sh
+sudo systemctl edit ollama
+```
+
+```ini
+[Service]
+Environment="OLLAMA_HOST=0.0.0.0"
+```
+
+```sh
+sudo systemctl restart ollama
+```
+
+Ollama no tiene contraseña: así lo puede usar cualquiera de la red de casa (y de la tailnet, si el
+PC está en ella). Si importa, en el cortafuegos se cierra el puerto 11434 menos para las redes de
+Docker (`172.16.0.0/12`).
+
+La respuesta usa las [salidas estructuradas](https://docs.ollama.com/capabilities/structured-outputs)
+de Ollama: el modelo solo puede contestar con etiquetas de la lista. En las pruebas, con
+`qwen2.5vl:3b` en la GPU, cada fotograma tardó menos de un segundo: un capítulo de 22 minutos, poco
+más de un minuto.
+
 ## Copia de seguridad
 
 Qué hay que guardar:
