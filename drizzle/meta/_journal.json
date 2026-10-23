@@ -393,6 +393,20 @@
       "when": 1792733283036,
       "tag": "0055_dashing_rattler",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1792781145959,
+      "tag": "0056_next_scarlet_spider",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1792781595119,
+      "tag": "0057_rol-admin-del-administrador",
+      "breakpoints": true
     }
   ]
 }

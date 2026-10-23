@@ -974,3 +974,91 @@ export const recipeSiteSitemap = pgTable(
 	},
 	(t) => [primaryKey({ columns: [t.siteId, t.url] })]
 );
+
+/**
+ * A child who enters with a parent's permission (#141): its avatar, and its credential, which only
+ * the server knows and uses once one of its parents or guardians says yes (kid-login.ts). Encrypted
+ * with a key from BETTER_AUTH_SECRET, so a copy of the database is not enough to enter.
+ */
+export const kidProfile = pgTable('kid_profile', {
+	userId: text('user_id')
+		.primaryKey()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	/** One of AVATARS (avatars.ts). */
+	avatar: text('avatar').notNull(),
+	/** Without a password: chooses its avatar, and one of its parents or guardians lets it in. */
+	byApproval: boolean('by_approval').notNull().default(false),
+	/** Its credential, encrypted: `iv.tag.data` in base64url. */
+	secret: text('secret')
+});
+
+/** Who lets each child in: its parents or guardians, adults of the house. */
+export const kidGuardian = pgTable(
+	'kid_guardian',
+	{
+		kidId: text('kid_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		guardianId: text('guardian_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' })
+	},
+	(t) => [
+		primaryKey({ columns: [t.kidId, t.guardianId] }),
+		index('kid_guardian_guardian_idx').on(t.guardianId)
+	]
+);
+
+/**
+ * A device an adult marked as the house's (the living room's TV): only there do the children
+ * choose their avatar to ask to enter. Known by a cookie whose hash is kept here.
+ */
+export const trustedDevice = pgTable('trusted_device', {
+	id: serial('id').primaryKey(),
+	tokenHash: text('token_hash').notNull().unique(),
+	/** «la TV del salón»: what the parents read when a child asks from it. */
+	name: text('name').notNull(),
+	createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+	createdAt: timestamp('created_at').notNull().defaultNow(),
+	lastSeenAt: timestamp('last_seen_at').notNull().defaultNow()
+});
+
+export const kidLoginState = pgEnum('kid_login_state', ['pending', 'approved', 'denied', 'used']);
+
+/** A child asking to enter from a trusted device, and what its parents said. */
+export const kidLoginRequest = pgTable(
+	'kid_login_request',
+	{
+		id: text('id').primaryKey(),
+		kidId: text('kid_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		deviceId: integer('device_id')
+			.notNull()
+			.references(() => trustedDevice.id, { onDelete: 'cascade' }),
+		state: kidLoginState('state').notNull().default('pending'),
+		createdAt: timestamp('created_at').notNull().defaultNow(),
+		/** Not answered by then, it is no longer asked. */
+		expiresAt: timestamp('expires_at').notNull(),
+		decidedBy: text('decided_by').references(() => user.id, { onDelete: 'set null' }),
+		/** When its session ends, if it was let in. */
+		until: timestamp('until')
+	},
+	(t) => [index('kid_login_request_device_idx').on(t.deviceId, t.createdAt)]
+);
+
+/** «Hasta las 20:00», «hoy»: meanwhile, the child enters on that device without asking again. */
+export const kidPermit = pgTable(
+	'kid_permit',
+	{
+		kidId: text('kid_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		deviceId: integer('device_id')
+			.notNull()
+			.references(() => trustedDevice.id, { onDelete: 'cascade' }),
+		until: timestamp('until').notNull(),
+		grantedBy: text('granted_by').references(() => user.id, { onDelete: 'set null' })
+	},
+	(t) => [primaryKey({ columns: [t.kidId, t.deviceId] })]
+);

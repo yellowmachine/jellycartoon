@@ -12,6 +12,7 @@
 	import VoicePanel from '#lib/components/VoicePanel.svelte';
 	import MediaIcon from '#lib/components/MediaIcon.svelte';
 	import OpeningQuote from '#lib/components/OpeningQuote.svelte';
+	import KidRequests from '#lib/components/KidRequests.svelte';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 	import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
 	import { videoHere } from '#lib/video-here.svelte.ts';
@@ -207,8 +208,14 @@
 	<OpeningQuote quote={openingQuote} ondone={() => (openingQuote = null)} />
 {/if}
 
-<!-- The TV view (#11) and the road mode (#78) are the whole screen, without the site around it. -->
-{#if page.url.pathname === '/tv' || page.url.pathname.startsWith('/tv/') || page.url.pathname === '/carretera'}
+<!-- A child asking to enter on a device of the house (#141): to its parents, on any page. -->
+{#if data.guardian}
+	<KidRequests />
+{/if}
+
+<!-- The TV view (#11), the road mode (#78) and the children's «¿Quién eres?» (#141) are the whole
+     screen, without the site around it. -->
+{#if page.url.pathname === '/tv' || page.url.pathname.startsWith('/tv/') || page.url.pathname === '/carretera' || page.url.pathname === '/quien'}
 	{@render children()}
 {:else}
 	<!-- With the kitchen panel at its side (wide screens) or under it (narrow: a phone, or split

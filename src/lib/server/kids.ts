@@ -97,6 +97,8 @@ type Check = 'series' | 'episode' | 'movie';
 const KIDS_ROUTES: Record<string, { id?: Check; actions?: string[]; methods?: string[] }> = {
 	'/(series)': { actions: ['dismiss'] },
 	'/login': {},
+	// Already in: it goes on to the TV view.
+	'/quien': {},
 	'/descanso': {},
 	'/logout': { actions: ['default'] },
 	'/ajustes': { actions: ['playback', 'intro'] },

@@ -1,6 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
 import { APIError } from 'better-auth/api';
-import { asc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { user, userSettings } from '#lib/server/db/schema.ts';
@@ -48,8 +48,19 @@ import { LABEL_MODEL, ORIGIN } from '$app/env/private';
 import { labellingEnabled } from '#lib/server/episode-labels.ts';
 import { recordsTrips, setRecordTrips } from '#lib/server/trips.ts';
 import { canUseTwoFactor } from '#lib/server/two-factor.ts';
+import { randomBytes } from 'node:crypto';
+import {
+	adults,
+	deviceOf,
+	forgetDevice,
+	kidProfiles,
+	saveKid as saveKidProfile,
+	trustDevice,
+	trustedDevices
+} from '#lib/server/kid-login.ts';
+import { isAvatar } from '#lib/avatars.ts';
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, cookies }) => {
 	const userId = locals.user!.id;
 	const admin = await isAdmin(userId);
 	const [settings, introFound, version, appPassword, langua] = await Promise.all([
@@ -80,18 +91,21 @@ export const load: PageServerLoad = async ({ locals }) => {
 			url: ors.url === DEFAULT_ORS_URL ? '' : ors.url,
 			defaultUrl: DEFAULT_ORS_URL
 		};
-		const [config, chat, vision, voice, kidAccounts] = await Promise.all([
+		const [config, chat, vision, voice, kidAccounts, grownUps, devices, here] = await Promise.all([
 			openRouterConfig(),
 			chatConfig(),
 			visionModel(),
 			voiceModel(),
-			db
-				.select({ id: user.id, name: user.name, email: user.email })
-				.from(user)
-				.where(eq(user.role, KIDS_ROLE))
-				.orderBy(asc(user.name))
+			kidProfiles(),
+			adults(),
+			trustedDevices(),
+			deviceOf(cookies)
 		]);
-		kids = kidAccounts;
+		/**
+		 * Children's accounts (#17), and how they enter (#141): with a password, or choosing their
+		 * avatar on a device of the house while one of their parents or guardians lets them in.
+		 */
+		kids = { accounts: kidAccounts, adults: grownUps, devices, here: here?.id ?? null };
 		ai = {
 			chatModel: chat.model,
 			defaultChatModel: DEFAULT_CHAT_MODEL,
@@ -233,20 +247,84 @@ export const actions: Actions = {
 		await requireAdmin(locals.user!.id);
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim();
-		const email = String(form.get('email') ?? '').trim();
-		const password = String(form.get('password') ?? '');
+		const byApproval = form.get('byApproval') === 'on';
+		const avatar = String(form.get('avatar') ?? '');
+		// Without a password it only enters by permission: an email nobody types, as Better Auth asks.
+		const email =
+			String(form.get('email') ?? '').trim() ||
+			(byApproval ? `peque-${randomBytes(6).toString('hex')}@jellycartoon.invalid` : '');
+		const password = byApproval
+			? randomBytes(32).toString('base64url')
+			: String(form.get('password') ?? '');
 		if (!name || !email) return fail(400, { section: 'kids', message: 'Escribe nombre y email' });
+		if (!isAvatar(avatar)) return fail(400, { section: 'kids', message: 'Elige un dibujo' });
 		// Better Auth's own minimum, which creating it from the server does not check.
 		if (password.length < 8)
 			return fail(400, { section: 'kids', message: 'La contraseña, de 8 caracteres o más' });
 		try {
-			await auth.api.createUser({ body: { name, email, password, role: KIDS_ROLE } });
+			const { user: kid } = await auth.api.createUser({
+				body: { name, email, password, role: KIDS_ROLE }
+			});
+			await saveKidProfile(
+				kid.id,
+				{ avatar, byApproval, guardians: form.getAll('guardian').map(String) },
+				request.headers
+			);
 		} catch (err) {
 			if (err instanceof APIError) return fail(400, { section: 'kids', message: err.message });
 			throw err;
 		}
-		log.info('ajustes', `Cuenta infantil creada: ${name}`);
+		log.info('ajustes', `Cuenta infantil creada: ${name}`, { byApproval });
 		return { saved: 'kids' };
+	},
+	/** A child's avatar, how it enters, and who lets it in (#141). */
+	saveKid: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const form = await request.formData();
+		const kidId = String(form.get('kidId') ?? '');
+		const avatar = String(form.get('avatar') ?? '');
+		const byApproval = form.get('byApproval') === 'on';
+		const password = String(form.get('password') ?? '');
+		if (!isAvatar(avatar)) return fail(400, { section: 'kids', message: 'Elige un dibujo' });
+		if (password && password.length < 8)
+			return fail(400, { section: 'kids', message: 'La contraseña, de 8 caracteres o más' });
+		const [kid] = await db
+			.select({ name: user.name, role: user.role })
+			.from(user)
+			.where(eq(user.id, kidId));
+		if (kid?.role !== KIDS_ROLE) return fail(400, { section: 'kids', message: 'No es un peque' });
+		try {
+			await saveKidProfile(
+				kidId,
+				{
+					avatar,
+					byApproval,
+					guardians: form.getAll('guardian').map(String),
+					password: password || undefined
+				},
+				request.headers
+			);
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			return fail(400, { section: 'kids', message });
+		}
+		log.info('ajustes', `Peque guardado: ${kid.name}`, { byApproval });
+		return { saved: 'kid' };
+	},
+	/** This device, as the house's: it shows «¿Quién eres?» when nobody has entered (#141). */
+	trustDevice: async ({ request, locals, cookies }) => {
+		await requireAdmin(locals.user!.id);
+		const name = String((await request.formData()).get('name') ?? '').trim();
+		if (!name) return fail(400, { section: 'kids', message: 'Ponle un nombre: «la TV del salón»' });
+		await trustDevice(cookies, name.slice(0, 60), locals.user!.id);
+		return { saved: 'device' };
+	},
+	forgetDevice: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const id = Number((await request.formData()).get('id'));
+		if (!Number.isInteger(id)) return fail(400, { section: 'kids', message: 'No válido' });
+		await forgetDevice(id);
+		return { saved: 'device' };
 	},
 	playback: async ({ request, locals }) => {
 		const form = await request.formData();

@@ -34,7 +34,8 @@ export const session = pgTable(
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
 		impersonatedBy: text('impersonated_by'),
-		twoFactorSetup: boolean('two_factor_setup').default(false).notNull()
+		twoFactorSetup: boolean('two_factor_setup').default(false).notNull(),
+		kidApproved: boolean('kid_approved').default(false).notNull()
 	},
 	(table) => [index('session_userId_idx').on(table.userId)]
 );
