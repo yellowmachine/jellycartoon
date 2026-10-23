@@ -78,7 +78,7 @@ services:
       # Optional: Ollama's vision model labels episodes (e.g. Ollama on this PC, listening on
       # 0.0.0.0, as http://host.docker.internal:11434).
       OLLAMA_URL: ${OLLAMA_URL:-}
-      LABEL_MODEL: ${LABEL_MODEL:-qwen2.5vl:3b}
+      LABEL_MODEL: ${LABEL_MODEL:-qwen2.5vl:7b}
       LABEL_EVERY_SEC: ${LABEL_EVERY_SEC:-15}
       # Optional: the voice of Música's DJ mode, Piper's HTTP server on this PC (listening on 0.0.0.0).
       PIPER_URL: ${PIPER_URL:-}

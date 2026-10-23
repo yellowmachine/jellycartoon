@@ -34,6 +34,33 @@ const FRAME_WIDTH = 1280;
 const FRAME_TIMEOUT_MS = 180_000;
 /** Done ones kept as history, the latest; failures stay until retried or dismissed. */
 const KEEP_DONE = 50;
+/**
+ * The frames the model may fail on (see `ModelFailed`) before the episode counts as failed: a few
+ * are left out, more mean something else is wrong.
+ */
+const MAX_SKIPPED = 0.25;
+
+/**
+ * The model could not answer about a frame: with some images the small model repeats a token
+ * until Ollama stops it («token repeat limit reached», or with the schema «Unexpected empty
+ * grammar stack»), the same with any size or sampling; qwen2.5vl:7b answers. Unlike not reaching
+ * Ollama, it is that frame's: it is left out. After it the loaded model may fail with every image
+ * until it is unloaded (`unloadModel`).
+ */
+class ModelFailed extends Error {}
+
+/**
+ * Out of Ollama's memory, so that the next request loads it afresh: `keep_alive: 0`, as its FAQ
+ * says (https://docs.ollama.com/faq#how-do-i-keep-a-model-loaded-in-memory-or-make-it-unload-immediately).
+ */
+async function unloadModel() {
+	await fetch(`${OLLAMA_URL!.replace(/\/+$/, '')}/api/generate`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ model: LABEL_MODEL, keep_alive: 0 }),
+		signal: AbortSignal.timeout(30_000)
+	}).catch(() => {});
+}
 
 export type LabelJob =
 	| { state: 'queued'; set: string }
@@ -420,6 +447,8 @@ async function labelEpisode(episodeId: number, setId: number, run: NonNullable<t
 	const input = path.join(hlsDir(episodeId), 'video', 'index.m3u8');
 	const dir = await mkdtemp(path.join(tmpdir(), 'etiquetas-'));
 	const seen = new Map<string, number[]>();
+	/** Frames the model could not answer about, left out. */
+	const skipped: { second: number; error: string }[] = [];
 	try {
 		const info = await probe(input, signal, false);
 		const frames = await framesEvery(input, info, dir, {
@@ -431,7 +460,19 @@ async function labelEpisode(episodeId: number, setId: number, run: NonNullable<t
 		run.total = frames.length;
 		for (const [i, file] of frames.entries()) {
 			const image = (await readFile(file)).toString('base64');
-			for (const label of await labelFrame(image, labels, signal)) {
+			const found = await labelFrame(image, labels, signal).catch(async (error) => {
+				if (!(error instanceof ModelFailed)) throw error;
+				// Once more with the model loaded afresh; then that frame is left out, and the model
+				// unloaded again for the next one.
+				await unloadModel();
+				return labelFrame(image, labels, signal).catch(async (again) => {
+					if (!(again instanceof ModelFailed)) throw again;
+					skipped.push({ second: i * EVERY_SEC, error: again.message });
+					await unloadModel();
+					return [];
+				});
+			});
+			for (const label of found) {
 				const times = seen.get(label) ?? [];
 				times.push(i * EVERY_SEC);
 				seen.set(label, times);
@@ -439,6 +480,10 @@ async function labelEpisode(episodeId: number, setId: number, run: NonNullable<t
 			await rm(file, { force: true });
 			run.done++;
 		}
+		if (skipped.length > frames.length * MAX_SKIPPED)
+			throw new Error(
+				`El modelo falló en ${skipped.length} de ${frames.length} fotogramas: ${skipped[0]!.error}`
+			);
 	} finally {
 		await rm(dir, { recursive: true, force: true });
 	}
@@ -462,9 +507,16 @@ async function labelEpisode(episodeId: number, setId: number, run: NonNullable<t
 			frames: run.total,
 			model: LABEL_MODEL,
 			labels: Object.fromEntries([...seen].map(([label, times]) => [label, times.length])),
-			ms: Math.round(performance.now() - started)
+			ms: Math.round(performance.now() - started),
+			...(skipped.length ? { skipped } : {})
 		}
 	);
+	if (skipped.length)
+		log.warn(
+			'etiquetas',
+			`Capítulo ${episodeId}: el modelo no pudo con ${skipped.length} de ${run.total} fotogramas, que quedan fuera`,
+			{ episodeId, skipped }
+		);
 }
 
 /**
@@ -502,12 +554,16 @@ async function labelFrame(image: string, labels: string[], signal: AbortSignal) 
 		throw new Error(`No se pudo hablar con Ollama: ${err instanceof Error ? err.message : err}`);
 	});
 	const body = await res.json().catch(() => null);
-	if (!res.ok) throw new Error(`Ollama: ${body?.error ?? res.statusText}`);
+	// 4xx (a model not pulled, say): for every frame alike. 5xx: this frame's.
+	if (!res.ok)
+		throw new (res.status >= 500 ? ModelFailed : Error)(`Ollama: ${body?.error ?? res.statusText}`);
 	let answer: Record<string, unknown>;
 	try {
 		answer = JSON.parse(body?.message?.content ?? '');
 	} catch {
-		throw new Error(`Ollama no respondió JSON: ${String(body?.message?.content).slice(0, 200)}`);
+		throw new ModelFailed(
+			`Ollama no respondió JSON: ${String(body?.message?.content).slice(0, 200)}`
+		);
 	}
 	return labels.filter((l) => answer?.[l] === true);
 }
