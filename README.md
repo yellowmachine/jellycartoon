@@ -752,13 +752,34 @@ las suyas, primero las más vistas (al pasar por encima, en cuántos fotogramas)
 sustituye lo anterior. Estas etiquetas son aparte de las de la serie (las que se ponen a mano, como
 «infantil»), y las cuentas infantiles no las ven.
 
-En el `.env`, con Ollama en el mismo PC que la app en Docker (y escuchando fuera de 127.0.0.1,
-`OLLAMA_HOST=0.0.0.0` en su servicio):
+En el `.env`, con Ollama en el mismo PC que la app en Docker. Ni `localhost` ni `127.0.0.1`:
+dentro del contenedor son el propio contenedor. `host.docker.internal` es el PC (está en
+`extra_hosts` de `compose.prod.yaml`), aunque cambie su IP:
 
 ```sh
 OLLAMA_URL="http://host.docker.internal:11434"
 LABEL_MODEL="qwen2.5vl:3b"   # el de por defecto; antes: ollama pull qwen2.5vl:3b
 ```
+
+Ollama, por defecto, solo escucha en `127.0.0.1`, y el contenedor no llega. Con el servicio de
+systemd de su instalador:
+
+```sh
+sudo systemctl edit ollama
+```
+
+```ini
+[Service]
+Environment="OLLAMA_HOST=0.0.0.0"
+```
+
+```sh
+sudo systemctl restart ollama
+```
+
+Ollama no tiene contraseña: así lo puede usar cualquiera de la red de casa (y de la tailnet, si el
+PC está en ella). Si importa, en el cortafuegos se cierra el puerto 11434 menos para las redes de
+Docker (`172.16.0.0/12`).
 
 La respuesta usa las [salidas estructuradas](https://docs.ollama.com/capabilities/structured-outputs)
 de Ollama: el modelo solo puede contestar con etiquetas de la lista. En las pruebas, con
