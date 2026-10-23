@@ -472,6 +472,48 @@ export const appSetting = pgTable('app_setting', {
 	updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
+/**
+ * What Ollama's vision model saw in an episode (episode-labels.ts), from the labels in Ajustes:
+ * one row per label seen, with the seconds of the frames it was seen in. Apart from `tag`: those
+ * are set by hand and mean something («infantil»); these are the model's.
+ */
+export const episodeLabel = pgTable(
+	'episode_label',
+	{
+		episodeId: integer('episode_id')
+			.notNull()
+			.references(() => episode.id, { onDelete: 'cascade' }),
+		label: text('label').notNull(),
+		times: jsonb('times').$type<number[]>().notNull().default([])
+	},
+	(t) => [
+		primaryKey({ columns: [t.episodeId, t.label] }),
+		index('episode_label_label_idx').on(t.label)
+	]
+);
+
+export const labelJobState = pgEnum('label_job_state', ['queued', 'running', 'failed']);
+
+/**
+ * Episodes waiting to be labelled, in order: kept, so a restart goes on with the queue. A done one
+ * goes; a failure stays until it is asked again.
+ */
+export const labelJob = pgTable(
+	'label_job',
+	{
+		id: serial('id').primaryKey(),
+		episodeId: integer('episode_id')
+			.notNull()
+			.references(() => episode.id, { onDelete: 'cascade' }),
+		state: labelJobState('state').notNull().default('queued'),
+		position: real('position').notNull(),
+		error: text('error'),
+		createdAt: timestamp('created_at').notNull().defaultNow(),
+		startedAt: timestamp('started_at')
+	},
+	(t) => [index('label_job_state_idx').on(t.state, t.position)]
+);
+
 export const subtitleJobState = pgEnum('subtitle_job_state', [
 	'queued',
 	'running',

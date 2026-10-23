@@ -720,6 +720,42 @@
 			</section>
 		{/if}
 
+		{#if data.labels}
+			<section class={section}>
+				<h2 class="mb-1 font-semibold">Etiquetas de los capítulos</h2>
+				<p class="mb-4 text-sm text-zinc-400">
+					Lo que el modelo de visión ({data.labels.model}, en Ollama) busca en los fotogramas al
+					elegir «Etiquetar» en los capítulos seleccionados de una serie. Separadas por comas; luego
+					se puede filtrar la serie por ellas. Solo tú ves esta sección.
+				</p>
+				<form
+					method="post"
+					action="?seccion={tab}&/saveEpisodeLabels"
+					use:enhance={() =>
+						async ({ update }) =>
+							update({ reset: false })}
+					class="flex flex-col gap-2"
+				>
+					<textarea
+						name="labels"
+						rows="3"
+						value={data.labels.list}
+						placeholder="perro, coche, cocina, playa"
+						aria-label="Etiquetas de los capítulos"
+						class="{select} w-full"></textarea>
+					<div class="flex items-center gap-3">
+						<button class={secondary}>Guardar</button>
+						{#if form && 'saved' in form && form.saved === 'episodeLabels'}
+							<span class="text-sm text-amber-400">✓</span>
+						{/if}
+					</div>
+				</form>
+				<p class="mt-1 text-xs text-zinc-500">
+					Cambiarlas no toca lo ya etiquetado: etiqueta esos capítulos otra vez.
+				</p>
+			</section>
+		{/if}
+
 		{#if data.routes}
 			<section class={section}>
 				<h2 class="mb-1 font-semibold">Rutas del modo carretera</h2>

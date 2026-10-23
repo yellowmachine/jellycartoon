@@ -89,6 +89,19 @@ export const variables = defineEnvVars({
 			"Optional address of a second whisper.cpp server, started with `-dtw` and `-nfa`, only for the automatic subtitles: so a voice command does not wait behind them. Without it, WHISPER_URL's makes them too.",
 		schema: (value) => value || undefined
 	},
+	OLLAMA_URL: {
+		description:
+			'Optional address of an Ollama server (https://ollama.com), e.g. `http://host.docker.internal:11434`, with a vision model: it labels episodes from their frames, with the labels set in Ajustes. Without it there is no «Etiquetar».',
+		schema: (value) => value || undefined
+	},
+	LABEL_MODEL: {
+		description: "Ollama's vision model that labels episodes, as Ollama names it.",
+		schema: withDefault('qwen2.5vl:3b')
+	},
+	LABEL_EVERY_SEC: {
+		description: 'Seconds between the frames of an episode the model looks at to label it.',
+		schema: withDefault('15')
+	},
 	AUDIO_LANG: {
 		description:
 			'Preferred audio language (ISO 639-2, e.g. `spa`) when a source has several audio tracks.',

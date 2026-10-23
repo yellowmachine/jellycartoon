@@ -8,6 +8,7 @@ import { allowedWhileSettingUp, mustSetUp, SETUP_PATH } from '#lib/server/two-fa
 import { guardVideoTime } from '#lib/server/kid-time.ts';
 import { startWorker } from '#lib/server/library/worker.ts';
 import { startSubtitles } from '#lib/server/auto-subtitles.ts';
+import { startLabelling } from '#lib/server/episode-labels.ts';
 import { startNightlyScan } from '#lib/server/library/nightly.ts';
 import { logStartup } from '#lib/server/startup.ts';
 import { wakeCatalog } from '#lib/server/cinema/catalog.ts';
@@ -29,6 +30,8 @@ export const init: ServerInit = async () => {
 	await startWorker();
 	// Subtitles left waiting, or half made, by a restart.
 	await startSubtitles();
+	// Episodes left waiting to be labelled, or half done, by a restart.
+	await startLabelling();
 	// Every night, what was added to the folders: converted and subtitled by the morning.
 	startNightlyScan();
 	// New episodes of the followed podcasts, every few hours.

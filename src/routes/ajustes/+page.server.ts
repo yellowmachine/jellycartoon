@@ -14,10 +14,12 @@ import {
 	DEFAULT_VOICE_MODEL,
 	isAdmin,
 	DEFAULT_ORS_URL,
+	episodeLabels,
 	openRouterConfig,
 	orsConfig,
 	relayConfig,
 	setAppSetting,
+	setEpisodeLabels,
 	visionModel,
 	voiceModel
 } from '#lib/server/app-settings.ts';
@@ -42,7 +44,8 @@ import {
 	revokeAppPassword
 } from '#lib/server/subsonic/auth.ts';
 import { musicRoot } from '#lib/server/library/paths.ts';
-import { ORIGIN } from '$app/env/private';
+import { LABEL_MODEL, ORIGIN } from '$app/env/private';
+import { labellingEnabled } from '#lib/server/episode-labels.ts';
 import { recordsTrips, setRecordTrips } from '#lib/server/trips.ts';
 import { canUseTwoFactor } from '#lib/server/two-factor.ts';
 
@@ -62,7 +65,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 	let kids = null;
 	let routes = null;
 	let relay = null;
+	let labels = null;
 	if (admin) {
+		/** What the vision model looks for in episodes: only with Ollama (OLLAMA_URL). */
+		if (labellingEnabled) labels = { list: (await episodeLabels()).join(', '), model: LABEL_MODEL };
 		const r = await relayConfig();
 		/** Sharing trips (#81): the relay. Never its key: only whether there is one. */
 		relay = { url: r.url ?? '', hasKey: Boolean(r.key), fromEnv: r.fromEnv };
@@ -141,6 +147,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		ai,
 		routes,
 		relay,
+		labels,
 		/** Children's accounts (#17): only who manages the app creates them. */
 		kids,
 		/** Music in apps such as Tempus (#27): with the account's email and a password of their own. */
@@ -344,6 +351,13 @@ export const actions: Actions = {
 		if (key) await setAppSetting('relay_key', key);
 		log.info('ajustes', 'Repetidor de viajes cambiado', { url: url || null, key: Boolean(key) });
 		return { saved: 'relay' };
+	},
+	/** The episodes' labels, separated by commas: episodes labelled again look for the new ones. */
+	saveEpisodeLabels: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const labels = await setEpisodeLabels(String((await request.formData()).get('labels') ?? ''));
+		log.info('ajustes', 'Etiquetas de los capítulos cambiadas', { labels });
+		return { saved: 'episodeLabels' };
 	},
 	saveOrsKey: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);
