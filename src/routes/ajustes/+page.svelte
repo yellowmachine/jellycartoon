@@ -457,6 +457,15 @@
 					Se verá así: <span class="text-zinc-200">«Sonaba en {shownDeviceName(false)}»</span>
 				</p>
 			{/if}
+			<!-- #144, phase 1: trying wake words on this phone or tablet. -->
+			{#if !data.kid}
+				<p class="mt-4 border-t border-zinc-800 pt-4 text-sm">
+					<a href="/activacion" class="text-amber-400 hover:underline"
+						>Probar la palabra de activación</a
+					>
+					<span class="text-zinc-400">: «hola casita» o «hey luna», sin pulsar el micrófono.</span>
+				</p>
+			{/if}
 			<!-- For whoever lets a child in (#141): the requests, on this phone with the app closed. -->
 			{#if page.data.guardian}
 				<PushNotices />
