@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
+	import Backdrop from '#lib/components/Backdrop.svelte';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 	import { describeTimer } from '#lib/recipe.ts';
 	import { recipe as cooking } from '#lib/recipe.svelte.ts';
@@ -30,51 +31,12 @@
 
 <a href="/recetas" class="text-sm text-zinc-400 hover:text-white">← Recetario</a>
 
-<header class="mt-2 mb-6 flex flex-col gap-4 sm:flex-row">
-	{#if r.imageUrl}
-		<div class="relative h-48 w-48 shrink-0">
-			<img
-				src={r.imageUrl}
-				alt=""
-				referrerpolicy="no-referrer"
-				class="h-full w-full rounded-md bg-zinc-800 object-cover"
-			/>
-			<form method="post" action="?/backdrop" use:enhance class="absolute right-2 bottom-2">
-				<button
-					class={[
-						'rounded-md p-1.5 backdrop-blur-sm',
-						data.isBackdrop
-							? 'bg-amber-500 text-zinc-950'
-							: 'bg-zinc-950/70 text-zinc-200 hover:bg-zinc-950'
-					]}
-					aria-pressed={data.isBackdrop}
-					title={data.isBackdrop
-						? 'Quitar esta imagen del fondo del recetario'
-						: 'Poner esta imagen de fondo del recetario'}
-					aria-label={data.isBackdrop
-						? 'Quitar esta imagen del fondo del recetario'
-						: 'Poner esta imagen de fondo del recetario'}
-				>
-					<svg viewBox="0 0 24 24" class="h-4 w-4" aria-hidden="true">
-						<g
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-							stroke-linecap="round"
-							stroke-linejoin="round"
-						>
-							<rect x="3" y="4" width="18" height="16" rx="2" />
-							<circle cx="9" cy="10" r="1.5" />
-							<path d="M21 16l-5-5-8 9" />
-						</g>
-					</svg>
-				</button>
-			</form>
-		</div>
-	{/if}
+{#if r.imageUrl}<Backdrop src={r.imageUrl} />{/if}
+
+<header class="mt-2 mb-6">
 	<div class="min-w-0">
-		<h1 class="text-2xl font-bold">{r.title}</h1>
-		<p class="text-zinc-400">
+		<h1 class="text-2xl font-bold [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]">{r.title}</h1>
+		<p class="text-zinc-400 [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]">
 			{#if r.servings}Para {r.servings} ·
 			{/if}De
 			<a href={r.sourceUrl} target="_blank" rel="noreferrer" class="hover:underline"
@@ -86,6 +48,19 @@
 				class="rounded-md bg-amber-500 px-4 py-2 font-medium text-zinc-950 hover:bg-amber-400"
 				onclick={cook}>🍳 Cocinar en este dispositivo</button
 			>
+			{#if r.imageUrl}
+				<form method="post" action="?/backdrop" use:enhance>
+					<button
+						class={[
+							'rounded-md px-3 py-1.5 text-sm hover:bg-zinc-800',
+							data.isBackdrop ? 'text-amber-400' : 'text-zinc-400 hover:text-white'
+						]}
+						aria-pressed={data.isBackdrop}
+						title="Su imagen, de fondo de la página del recetario"
+						>{data.isBackdrop ? 'Fondo del recetario ✓' : 'Usar de fondo del recetario'}</button
+					>
+				</form>
+			{/if}
 			{#if confirmDelete}
 				<form method="post" action="?/delete" use:enhance class="flex items-center gap-2">
 					<span class="text-sm text-zinc-400">¿Quitarla del recetario?</span>
