@@ -92,6 +92,8 @@ if command -v kwin_wayland >/dev/null && command -v kstart >/dev/null; then
 		if [[ -n $kwin || $(kreadconfig6 --file kwinrc --group Plugins --key jellycartoon-mandoEnabled) != true ]]; then
 			kwriteconfig6 --file kwinrc --group Plugins --key jellycartoon-mandoEnabled false
 			busctl --user call org.kde.KWin /KWin org.kde.KWin reconfigure
+			# Without a pause, KWin may take both as one and not load it again.
+			sleep 1
 			kwriteconfig6 --file kwinrc --group Plugins --key jellycartoon-mandoEnabled true
 			busctl --user call org.kde.KWin /KWin org.kde.KWin reconfigure
 			echo "  ✓ Script de KWin cargado"
