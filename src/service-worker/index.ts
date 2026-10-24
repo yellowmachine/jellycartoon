@@ -2,7 +2,8 @@ import { self } from '$app/service-worker';
 
 /**
  * The app's service worker: only for the adults' notices (Web Push, push.ts on the server), such
- * as a child asking to enter (#141). It caches nothing: the app works as always without it.
+ * as a child asking to enter (#141) or a post-it on the fridge (#131). It caches nothing: the app
+ * works as always without it.
  */
 
 interface PushMessage {
@@ -10,6 +11,7 @@ interface PushMessage {
 	body: string;
 	tag: string;
 	url: string;
+	sticky?: boolean;
 }
 
 self.addEventListener('push', (event) => {
@@ -21,14 +23,16 @@ self.addEventListener('push', (event) => {
 			tag: message.tag,
 			icon: '/icon-192.png',
 			badge: '/icon-192.png',
-			// Until it is touched or dismissed: someone is waiting in front of the TV.
-			requireInteraction: true,
+			requireInteraction: message.sticky ?? false,
 			data: { url: message.url }
 		})
 	);
 });
 
-/** Touched: the app, already open if it was, where the parent answers. */
+/**
+ * Touched: the app, at its page. Already open, it goes there itself (the root layout listens), not
+ * loaded again: what plays goes on.
+ */
 self.addEventListener('notificationclick', (event) => {
 	event.notification.close();
 	const url = new URL(event.notification.data?.url ?? '/', self.location.origin).href;
@@ -36,7 +40,10 @@ self.addEventListener('notificationclick', (event) => {
 		(async () => {
 			const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
 			const open = windows.find((w) => new URL(w.url).origin === self.location.origin);
-			if (open) return open.focus();
+			if (open) {
+				open.postMessage({ goto: event.notification.data?.url ?? '/' });
+				return open.focus();
+			}
 			return self.clients.openWindow(url);
 		})()
 	);

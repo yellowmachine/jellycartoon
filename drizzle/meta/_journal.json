@@ -449,6 +449,13 @@
       "when": 1792823751888,
       "tag": "0063_sitios-y-rutas",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1792831021346,
+      "tag": "0064_nevera",
+      "breakpoints": true
     }
   ]
 }

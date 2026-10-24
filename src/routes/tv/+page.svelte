@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import TvEpisode from '#lib/components/TvEpisode.svelte';
+	import FridgeBoard from '#lib/components/FridgeBoard.svelte';
+	import type { FridgeState } from '#lib/fridge.ts';
 	import TvHeader from '#lib/components/TvHeader.svelte';
 	import SectionIcon from '#lib/components/SectionIcon.svelte';
 	import { coverUrl } from '#lib/music.ts';
@@ -9,6 +11,15 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+
+	// The fridge (#131), live: a post-it stuck from a phone appears here at once.
+	let fridge = $derived<FridgeState>(data.fridge);
+	$effect(() => {
+		const events = new EventSource('/api/nevera/events');
+		events.onmessage = (e) => (fridge = JSON.parse(e.data));
+		return () => events.close();
+	});
+	const fridgeShown = $derived(fridge.notes.length > 0 || fridge.list.items.some((i) => !i.done));
 
 	const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 	const sections = $derived([
@@ -179,6 +190,14 @@
 				/>
 			{/each}
 		</div>
+	</section>
+{/if}
+
+{#if fridgeShown}
+	<!-- Only to look at: they are written from the phone (/nevera) or by voice. -->
+	<section class="mb-12">
+		<h2 class="mb-4 text-3xl font-semibold">La nevera</h2>
+		<FridgeBoard {fridge} readonly big />
 	</section>
 {/if}
 

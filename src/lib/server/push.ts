@@ -24,6 +24,8 @@ export interface PushMessage {
 	url: string;
 	/** Seconds the push service keeps trying, if the phone is off. */
 	ttl: number;
+	/** On screen until touched or dismissed: someone is waiting for an answer. */
+	sticky?: boolean;
 }
 
 /**

@@ -21,7 +21,7 @@
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { page, updated } from '$app/state';
 	import { themeColor, themeCss } from '#lib/themes.ts';
-	import { untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import type { LayoutProps } from './$types';
 
 	let { children, data }: LayoutProps = $props();
@@ -39,6 +39,18 @@
 		if (updated.current && !willUnload && to?.url) location.href = to.url.href;
 	});
 
+	// A notice touched with the app open (service worker): to its page, without loading it again,
+	// so what plays goes on. Only the app's own paths.
+	onMount(() => {
+		if (!('serviceWorker' in navigator)) return;
+		const went = (e: MessageEvent) => {
+			const to = e.data?.goto;
+			if (typeof to === 'string' && to.startsWith('/') && !to.startsWith('//')) void goto(to);
+		};
+		navigator.serviceWorker.addEventListener('message', went);
+		return () => navigator.serviceWorker.removeEventListener('message', went);
+	});
+
 	const links: { href: string; label: string; icon: Section; also?: string[] }[] = $derived([
 		// With Hoy and Listas in its tabs.
 		{ href: '/', label: 'Series', icon: 'series', also: ['/series', '/today', '/lists'] },
@@ -52,6 +64,8 @@
 			: []),
 		// The house's recipe book: not for a child's account.
 		...(data.kid ? [] : [{ href: '/recetas', label: 'Recetas', icon: 'recetas' as const }]),
+		// The house's post-its and shopping list (#131): the adults write on it; the TV shows it.
+		...(data.kid ? [] : [{ href: '/nevera', label: 'Nevera', icon: 'nevera' as const }]),
 		// The road mode's trips, and the way into it: not for a child's account, as Modo carretera.
 		...(data.kid ? [] : [{ href: '/viajes', label: 'Viajes', icon: 'viajes' as const }]),
 		...(data.salon ? [{ href: '/salon', label: 'Salón', icon: 'salon' as const }] : []),

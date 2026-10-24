@@ -15,6 +15,7 @@ import { allSeries, continueWatching } from '#lib/server/watching.ts';
 import { isKid } from '#lib/server/kids.ts';
 import { channelsFor } from '#lib/channels.ts';
 import { STATIONS } from '#lib/radio.ts';
+import { fridgeState } from '#lib/server/fridge.ts';
 
 /** Tiles in each card's mosaic: 3 × 2. */
 const MOSAIC = 6;
@@ -74,7 +75,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 		 * again, for another child.
 		 */
 		switchKid: kid && locals.session?.kidApproved === true,
-		today: pending[0] ? { next: pending[0], pending: pending.length } : null
+		today: pending[0] ? { next: pending[0], pending: pending.length } : null,
+		/** The house's post-its and what is left to buy (#131), to look at from the sofa. */
+		fridge: await fridgeState()
 	};
 };
 

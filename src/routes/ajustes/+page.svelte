@@ -493,9 +493,10 @@
 					>
 				</p>
 			{/if}
-			<!-- For whoever lets a child in (#141): the requests, on this phone with the app closed. -->
-			{#if page.data.guardian}
-				<PushNotices />
+			<!-- The adults' notices with the app closed: the fridge (#131), and a child asking to enter
+			     (#141) for whoever lets one in. -->
+			{#if !data.kid}
+				<PushNotices guardian={Boolean(page.data.guardian)} />
 			{/if}
 		</section>
 
