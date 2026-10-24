@@ -631,6 +631,11 @@ export const userSettings = pgTable('user_settings', {
 	subtitleStyle: jsonb('subtitle_style').$type<Partial<SubtitleStyle>>(),
 	/** When an episode ends, the next one starts (the series' or the playlist's). */
 	autoNext: boolean('auto_next').notNull().default(true),
+	/**
+	 * «¿Sigues ahí?» (#77) for an adult, for who falls asleep with the series: after this many episodes
+	 * started by themselves with nobody touching anything; null, never. A child's is in kid_settings.
+	 */
+	askEvery: integer('ask_every'),
 	/** Films in the living room start with the Cine Club intro (DATA_DIR/cortinilla.mp4), if present. */
 	intro: boolean('intro').notNull().default(true),
 	/** The app's colours (themes.ts); unknown ones are the default. */

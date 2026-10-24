@@ -62,6 +62,8 @@ import {
 	trustedDevices
 } from '#lib/server/kid-login.ts';
 import { isAvatar } from '#lib/avatars.ts';
+import { askEvery } from '#lib/server/still-there.ts';
+import { ASK_EVERY_OPTIONS } from '#lib/still-there.ts';
 
 export const load: PageServerLoad = async ({ locals, cookies }) => {
 	const userId = locals.user!.id;
@@ -151,6 +153,8 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 		languages: KNOWN_LANGUAGES,
 		/** The title card when the app opens, as Frasier's. */
 		openingQuoteOn: settings.openingQuote,
+		/** «¿Sigues ahí?» (#77): adults only; a child's is chosen in /infantil. */
+		stillThere: isKid(locals.user) ? null : { every: await askEvery(userId) },
 		/** «Guardar lo que veo»: adults only, a child's is always kept for the adults (#17). */
 		keepHistory: isKid(locals.user) ? null : settings.keepHistory,
 		/** The road mode's trips kept (#81); adults only. */
@@ -358,6 +362,19 @@ export const actions: Actions = {
 			.values({ userId: locals.user!.id, ...values })
 			.onConflictDoUpdate({ target: userSettings.userId, set: values });
 		return { saved: 'intro' };
+	},
+	/** «¿Sigues ahí?» (#77) for an adult: never, or after this many episodes in a row. */
+	askEvery: async ({ request, locals }) => {
+		if (isKid(locals.user)) error(403, 'Solo adultos');
+		const value = String((await request.formData()).get('askEvery') ?? '');
+		const every = value === '' ? null : Number(value);
+		if (every !== null && !(ASK_EVERY_OPTIONS as readonly number[]).includes(every))
+			return fail(400, { section: 'askEvery', message: 'Valor no válido' });
+		await db
+			.insert(userSettings)
+			.values({ userId: locals.user!.id, askEvery: every })
+			.onConflictDoUpdate({ target: userSettings.userId, set: { askEvery: every } });
+		return { saved: 'askEvery' };
 	},
 	openingQuote: async ({ request, locals }) => {
 		const values = { openingQuote: (await request.formData()).get('openingQuote') === 'on' };

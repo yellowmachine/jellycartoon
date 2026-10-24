@@ -177,6 +177,8 @@ docker compose -f compose.prod.yaml logs -f app
   el navegador, cualquier toque o tecla; en el salón, Play/Pausa, saltar, el menú, el micrófono o
   el mando del móvil. Allí la pregunta sale sobre el vídeo y se contesta con el OK. «Ahora» dice
   también la última vez que alguien tocó algo: «Última interacción a las 19:42, hace 3 minutos».
+  Los adultos también pueden tenerlo, para cuando se duermen con la serie: en Ajustes →
+  Reproducción, cada uno el suyo (nunca si no se elige).
 - En «Ahora», «Verlo en pequeño» abre al lado un vídeo sin sonido con lo que está viendo cada niño,
   en el mismo segundo y siguiéndolo: si salta, se recoloca; si pausa, se queda en ese fotograma
   (unos segundos tarde, cuando su posición deja de moverse). No es su pantalla, sino el mismo

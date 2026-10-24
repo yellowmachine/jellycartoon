@@ -65,6 +65,13 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		shown: (d) => d.intro !== null
 	},
 	{
+		id: 'sigues-ahi',
+		tab: 'ver',
+		title: '¿Sigues ahí?',
+		words: 'dormir dormirse siguiente automático capítulos seguidos parar pregunta',
+		shown: (d) => !d.kid
+	},
+	{
 		id: 'lo-que-veo',
 		tab: 'ver',
 		title: 'Lo que veo',

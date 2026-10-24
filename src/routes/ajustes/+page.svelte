@@ -15,9 +15,16 @@
 	import { THEMES, themeSwatches } from '#lib/themes.ts';
 	import { AVATARS, avatar } from '#lib/avatars.ts';
 	import SettingsSearch from '#lib/components/SettingsSearch.svelte';
+	import { ANSWER_SECONDS, ASK_EVERY_OPTIONS } from '#lib/still-there.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+
+	/** «¿Sigues ahí?» (#77), as a child's in /infantil. */
+	const ASK: { value: number | null; label: string }[] = [
+		{ value: null, label: 'Nunca' },
+		...ASK_EVERY_OPTIONS.map((n) => ({ value: n, label: `Cada ${n} capítulos` }))
+	];
 
 	let testing = $state(false);
 	/** A new child enters with permission by default: no email nor password to make up. */
@@ -207,6 +214,40 @@
 							>
 						</span>
 					</label>
+				</form>
+			{/if}
+			{#if data.stillThere}
+				<!-- #77: with «siguiente automático», for who falls asleep with the series. -->
+				<form
+					id="sigues-ahi"
+					method="post"
+					action="?seccion={tab}&/askEvery"
+					use:enhance={() =>
+						async ({ update }) =>
+							update({ reset: false })}
+					class="mt-4 text-sm"
+				>
+					<div class="flex flex-wrap items-center gap-2">
+						<span class="mr-1">Preguntar «¿Sigues ahí?»</span>
+						{#each ASK as option (option.value)}
+							<button
+								name="askEvery"
+								value={option.value ?? ''}
+								aria-pressed={data.stillThere.every === option.value}
+								class={[
+									'rounded-full border px-3 py-1',
+									data.stillThere.every === option.value
+										? 'border-amber-500 text-amber-400'
+										: 'border-zinc-700 hover:bg-zinc-900'
+								]}>{option.label}</button
+							>
+						{/each}
+					</div>
+					<p class="mt-1 text-xs text-zinc-500">
+						Con «siguiente automático», tras esos capítulos seguidos sin tocar nada el siguiente
+						espera a que contestes; si en {ANSWER_SECONDS / 60} minutos nadie lo hace, se para. Para cuando
+						te duermes con la serie. En el navegador y en el salón.
+					</p>
 				</form>
 			{/if}
 		</section>
