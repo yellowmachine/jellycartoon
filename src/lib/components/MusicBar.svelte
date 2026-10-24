@@ -14,7 +14,7 @@
 	import { keepListeningProgress, listeningEnded } from '#lib/episode-listening.svelte.ts';
 	import { SKIP_BACK, SKIP_FORWARD, SPEEDS, type Speed } from '#lib/podcasts.ts';
 	import { COUNTRIES } from '#lib/radio.ts';
-	import { watchMedia, watchPlay } from '#lib/media-diagnostics.ts';
+	import { noteSystemAction, watchMedia, watchPlay } from '#lib/media-diagnostics.ts';
 	import { nextTrack } from '#lib/next-track.ts';
 
 	let audio = $state<HTMLAudioElement>();
@@ -298,7 +298,11 @@
 		];
 		for (const [action, handler] of handlers) {
 			try {
-				session.setActionHandler(action, handler);
+				// Noted with the screen off, to know who stops it (media-diagnostics.ts).
+				session.setActionHandler(action, (details) => {
+					noteSystemAction(action, 'música');
+					handler(details);
+				});
 			} catch {
 				// Not every browser supports every action.
 			}

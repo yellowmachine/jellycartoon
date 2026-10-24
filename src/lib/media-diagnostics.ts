@@ -103,6 +103,15 @@ function listen() {
 	});
 }
 
+/**
+ * What the phone asked through the lock screen's controls (Media Session): headphones, a call, a
+ * notification that takes the sound… or the user. Said apart from the `<audio>`'s own `pause`, to
+ * know who stopped it.
+ */
+export function noteSystemAction(action: string, media: Media) {
+	note(`el sistema pide ${action}`, media);
+}
+
 /** A player's `<audio>` or `<video>`, watched while it exists: returns how to stop. */
 export function watchMedia(el: HTMLMediaElement, media: Media) {
 	listen();
