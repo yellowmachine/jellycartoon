@@ -177,6 +177,8 @@ docker compose -f compose.prod.yaml logs -f app
   el navegador, cualquier toque o tecla; en el salón, Play/Pausa, saltar, el menú, el micrófono o
   el mando del móvil. Allí la pregunta sale sobre el vídeo y se contesta con el OK. «Ahora» dice
   también la última vez que alguien tocó algo: «Última interacción a las 19:42, hace 3 minutos».
+  Los adultos también pueden tenerlo, para cuando se duermen con la serie: en Ajustes →
+  Reproducción, cada uno el suyo (nunca si no se elige).
 - En «Ahora», «Verlo en pequeño» abre al lado un vídeo sin sonido con lo que está viendo cada niño,
   en el mismo segundo y siguiéndolo: si salta, se recoloca; si pausa, se queda en ese fotograma
   (unos segundos tarde, cuando su posición deja de moverse). No es su pantalla, sino el mismo
@@ -749,6 +751,7 @@ evdev:input:b0003v4842p0001*
  KEYBOARD_KEY_c00cd=f8      # Play/Pausa
  KEYBOARD_KEY_c00cf=f9      # Micrófono
  KEYBOARD_KEY_c0223=f7      # Inicio
+ KEYBOARD_KEY_10081=prog1   # Encendido: muestra y oculta la vista TV (abajo)
 ```
 
 `scripts/pantalla.sh` lo instala si el receptor está enchufado, y pide ahí la contraseña de
@@ -766,6 +769,34 @@ salón, o la música, la radio o el podcast del navegador) y F9 habla: un toque 
 envía, porque el mando manda su tecla pulsada y soltada a la vez, y lo que oye y contesta se ve en
 grande. Con el puntero del mando (modo ratón) apagado, para que mueva el foco. El micrófono del
 mando es una tarjeta de sonido USB más, y el del sistema si no hay otro.
+
+**El botón de encendido del mando** (#159) no apaga el PC: muestra y oculta la vista TV. Sin el
+hwdb llega como el de encendido del equipo (`KEY_POWER`, scan `0x10081`, por el receptor USB, la
+tele no lo ve) y KDE ofrece apagar o suspender; con él es `Launch1`, y un
+[script de KWin](https://develop.kde.org/docs/plasma/kwin/), `deploy/kwin/jellycartoon-mando`,
+lo atrapa como atajo global. El botón del PC sigue siendo el de encendido.
+
+- **Con otra cosa delante** (Steam, un juego, el escritorio): trae la vista TV. Si no está
+  abierta, la abre: `jellycartoon-tv.service`, que lanza «JellyCartoon (tele)»
+  (`~/.local/share/applications/jellycartoon-tv.desktop`, Chromium en modo app con la dirección
+  de `ORIGIN` y `/tv`).
+- **Con la vista TV delante**: la aparta y vuelve lo que había antes.
+- **Con un vídeo en mpv delante**: lo pausa y trae la vista TV; otra vez, vuelve el vídeo y sigue.
+  Si desde la vista TV se le da a Play/Pausa o se manda otra película, el vídeo vuelve delante.
+- La vista TV es la ventana de Chromium sin barra de direcciones cuyo título acaba en
+  «JellyCartoon», como el de todas las páginas de la app; el lanzador de depurar también vale.
+- mpv se pausa cuando deja de estar delante (`focused`, en `mando.lua`: en Wayland no sabe si lo
+  han minimizado) y sigue al volver. Para volver delante él solo, `mando.lua` llama por D-Bus al
+  otro atajo del script, «JellyCartoon: el vídeo delante», que no tiene tecla.
+- Los dos atajos se ven en Preferencias del sistema → Atajos → KWin, y el script en Gestión de
+  ventanas → Scripts de KWin. Lo instala `scripts/pantalla.sh`, solo con KDE. A mano, desde el
+  repositorio:
+
+```sh
+cp -r deploy/kwin/jellycartoon-mando ~/.local/share/kwin/scripts/
+kwriteconfig6 --file kwinrc --group Plugins --key jellycartoon-mandoEnabled true
+qdbus6 org.kde.KWin /KWin reconfigure
+```
 
 Si una tecla no hace lo que debe, `?depurar` en la dirección (`/tv?depurar`) pone encima de la
 vista TV qué teclas llegan, a dónde va el foco (con un marco), si la página se desplazó en su
@@ -793,6 +824,7 @@ systemctl --user restart jellycartoon-mpv
 | Volver          | Cierra el menú; sin menú, para y se vuelve a la vista TV        |
 | Play/Pausa      | Pausa o sigue                                                   |
 | Inicio          | Para y se vuelve a la vista TV                                  |
+| Encendido       | Pausa y trae la vista TV; otra vez, vuelve el vídeo y sigue     |
 | Micrófono       | Habla, como en la vista TV; el vídeo se pausa mientras tanto    |
 | Números         | Nada                                                            |
 | Vol+ / Vol−     | El volumen del sistema (no llegan a mpv)                        |

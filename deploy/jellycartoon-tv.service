@@ -1,0 +1,9 @@
+# Opens the TV view (deploy/jellycartoon-tv.desktop), asked by the remote's power button
+# (deploy/kwin/jellycartoon-mando) when it is not open. kstart launches it in its own unit and
+# returns, so this one ends at once and can be started again.
+[Unit]
+Description=Abrir la vista TV de JellyCartoon
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/kstart --application jellycartoon-tv

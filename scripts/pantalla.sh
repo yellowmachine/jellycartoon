@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Installs, from this PC over SSH, what the PC with the screen needs besides the app: the mpv
-# service, its keys and menu for the remote (deploy/mpv) and, if the remote's receiver is plugged
-# in, its udev hwdb. Only what changed, showing how; run it again whenever. See "Ver en el salón"
-# and "Mando del salón" in the README.
+# service, its keys and menu for the remote (deploy/mpv), with KDE what the remote's power button
+# does (deploy/kwin, #159) and, if the remote's receiver is plugged in, its udev hwdb. Only what
+# changed, showing how; run it again whenever. See "Ver en el salón" and "Mando del salón" in the
+# README.
 #
 #   scripts/pantalla.sh                         # todas las casas de ~/.config/jellycartoon/casas
 #   scripts/pantalla.sh salon                   # solo esa, por su nombre en ese fichero
@@ -60,6 +61,46 @@ else
 		systemctl --user enable jellycartoon-mpv >/dev/null 2>&1
 		changed=1
 	fi
+fi
+
+# The remote's power button (#159): the TV view's launcher, the service that opens it and the KWin
+# script that shows and hides it. Only with KDE; the address, the app's own (ORIGIN).
+if command -v kwin_wayland >/dev/null && command -v kstart >/dev/null; then
+	origin=
+	[[ -n $app ]] &&
+		origin=$("${docker[@]}" inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$app" | sed -n 's/^ORIGIN=//p')
+	if flatpak info org.chromium.Chromium >/dev/null 2>&1; then
+		chromium='flatpak run org.chromium.Chromium'
+	else
+		chromium=$(command -v chromium || command -v google-chrome-stable || true)
+	fi
+	if [[ -z $origin ]]; then
+		echo "  ✗ Sin botón de encendido: no encuentro la dirección de la app (ORIGIN)"
+	elif [[ -z $chromium ]]; then
+		echo "  ✗ Sin botón de encendido: no encuentro Chromium"
+	else
+		sed -e "s|@URL@|$origin|" -e "s|@CHROMIUM@|$chromium|" "$files/jellycartoon-tv.desktop" >"$files/desktop"
+		install_file "$files/desktop" ~/.local/share/applications/jellycartoon-tv.desktop &&
+			kbuildsycoca6 >/dev/null 2>&1
+		install_file "$files/jellycartoon-tv.service" ~/.config/systemd/user/jellycartoon-tv.service &&
+			systemctl --user daemon-reload
+		script=~/.local/share/kwin/scripts/jellycartoon-mando
+		kwin=
+		install_file "$files/kwin/jellycartoon-mando/metadata.json" "$script/metadata.json" && kwin=1
+		install_file "$files/kwin/jellycartoon-mando/contents/code/main.js" "$script/contents/code/main.js" && kwin=1
+		# On, and loaded again if it changed: off and on (KWin's scripting docs).
+		if [[ -n $kwin || $(kreadconfig6 --file kwinrc --group Plugins --key jellycartoon-mandoEnabled) != true ]]; then
+			kwriteconfig6 --file kwinrc --group Plugins --key jellycartoon-mandoEnabled false
+			busctl --user call org.kde.KWin /KWin org.kde.KWin reconfigure
+			# Without a pause, KWin may take both as one and not load it again.
+			sleep 1
+			kwriteconfig6 --file kwinrc --group Plugins --key jellycartoon-mandoEnabled true
+			busctl --user call org.kde.KWin /KWin org.kde.KWin reconfigure
+			echo "  ✓ Script de KWin cargado"
+		fi
+	fi
+else
+	echo "  · Sin KDE: sin botón de encendido"
 fi
 
 install_file "$files/mpv/input.conf" ~/.config/mpv/input.conf && changed=1
@@ -121,7 +162,8 @@ for house in "${selected[@]}"; do
 		echo
 		continue
 	fi
-	tar -C "$deploy" -c mpv 70-mando-g20s.hwdb jellycartoon-mpv.service | ssh "$dest" tar -x -C "$dir"
+	tar -C "$deploy" -c mpv kwin 70-mando-g20s.hwdb jellycartoon-mpv.service jellycartoon-tv.desktop \
+		jellycartoon-tv.service | ssh "$dest" tar -x -C "$dir"
 	ssh "$dest" "cat > $dir/pantalla.sh" <<<"$remote"
 	ssh -t "$dest" bash "$dir/pantalla.sh" "$project" || echo "  ✗ Algo falló en $name"
 	echo

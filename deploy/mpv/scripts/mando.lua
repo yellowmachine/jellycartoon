@@ -126,3 +126,41 @@ mp.add_key_binding(nil, "menu", function ()
         end,
     })
 end)
+
+-- The remote's power button (#159) puts the video away and brings the TV view in front
+-- (deploy/kwin/jellycartoon-mando): out of sight it pauses, and goes on when it is in front again.
+-- `focused`, as Wayland does not tell mpv it was minimized.
+local paused_away = false
+
+mp.observe_property("focused", "bool", function (_, focused)
+    if focused == false and not mp.get_property_native("pause") and mp.get_property_native("vo-configured") then
+        paused_away = true
+        mp.set_property_native("pause", true)
+    elseif focused and paused_away then
+        paused_away = false
+        mp.set_property_native("pause", false)
+    end
+end)
+
+-- Playing out of sight (Play/Pause or a film sent from the TV view, with the video put away): KWin
+-- is asked to bring it in front, by its shortcut without a key.
+local function to_front()
+    -- No window yet (from idle, the first file): it comes in front by itself.
+    if mp.get_property_native("focused") ~= false or not mp.get_property_native("vo-configured") then
+        return
+    end
+    mp.command_native_async({
+        name = "subprocess",
+        playback_only = false,
+        args = { "busctl", "--user", "call", "org.kde.kglobalaccel", "/component/kwin",
+                 "org.kde.kglobalaccel.Component", "invokeShortcut", "s", "JellyCartoon: el vídeo delante" },
+    }, function () end)
+end
+
+mp.observe_property("pause", "bool", function (_, paused)
+    if paused == false then
+        paused_away = false
+        to_front()
+    end
+end)
+mp.register_event("file-loaded", to_front)

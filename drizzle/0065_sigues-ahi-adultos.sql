@@ -1,0 +1,1 @@
+ALTER TABLE "user_settings" ADD COLUMN "ask_every" integer;

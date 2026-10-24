@@ -1,0 +1,11 @@
+{
+	"KPlugin": {
+		"Id": "jellycartoon-mando",
+		"Name": "JellyCartoon: el botón de encendido del mando",
+		"Description": "Muestra y oculta la vista TV de JellyCartoon con el botón de encendido del mando del salón (#159)",
+		"License": "MIT",
+		"Version": "1.0"
+	},
+	"X-Plasma-API": "javascript",
+	"KPackageStructure": "KWin/Script"
+}
