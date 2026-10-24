@@ -558,7 +558,17 @@ export async function framesEvery(
 	input: string,
 	info: Probe,
 	outDir: string,
-	options: { everySec: number; width: number; signal?: AbortSignal }
+	options: {
+		everySec: number;
+		width: number;
+		signal?: AbortSignal;
+		/**
+		 * Decodes only the keyframes (`-skip_frame nokey`): several times faster, each frame the
+		 * keyframe nearest its moment. For choosing a frame (backdrop.ts), where the exact second
+		 * does not matter.
+		 */
+		keyframes?: boolean;
+	}
 ) {
 	await run(
 		'ffmpeg',
@@ -566,6 +576,7 @@ export async function framesEvery(
 			'-hide_banner',
 			'-nostats',
 			'-y',
+			...(options.keyframes ? ['-skip_frame', 'nokey'] : []),
 			'-i',
 			input,
 			'-an',

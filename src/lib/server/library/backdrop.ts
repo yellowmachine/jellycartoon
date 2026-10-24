@@ -113,11 +113,15 @@ export async function seriesBackdrop(seriesId: number) {
 					});
 					return;
 				}
-				// One pass over the episode, a frame every so often; the best from the middle.
+				// One pass over the episode's keyframes, one every so often; the best from the middle.
 				const work = await workDir();
 				try {
 					const every = ep.durationSec! / (CANDIDATES / (TO - FROM));
-					const frames = await framesEvery(input, info, work, { everySec: every, width: WIDTH });
+					const frames = await framesEvery(input, info, work, {
+						everySec: every,
+						width: WIDTH,
+						keyframes: true
+					});
 					const middle = frames.filter((_, i) => {
 						const at = (i * every) / ep.durationSec!;
 						return at >= FROM && at <= TO;
