@@ -14,6 +14,8 @@
 	import { languageLabel, normalizeLang } from '#lib/languages.ts';
 	import { poll } from '#lib/poll.ts';
 	import { thumbUrl } from '#lib/thumb.svelte.ts';
+	import Backdrop from '#lib/components/Backdrop.svelte';
+	import { backdropUrl, resetSeriesBackdrop } from '#lib/backdrop.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -192,6 +194,17 @@
 		onclick={() => (editing = target)}>✎</button
 	>
 {/snippet}
+
+<Backdrop src={backdropUrl('serie', data.series.id)} />
+{#if !data.kid && data.series.backdropEpisodeId !== null}
+	<button
+		class="mb-2 text-xs text-zinc-500 hover:text-zinc-300"
+		title="El fondo de arriba lo vuelve a elegir la app"
+		onclick={async () => {
+			if (await resetSeriesBackdrop(data.series.id)) await invalidateAll();
+		}}>Fondo elegido a mano · volver al automático</button
+	>
+{/if}
 
 <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
 	{#if editing === 'series'}

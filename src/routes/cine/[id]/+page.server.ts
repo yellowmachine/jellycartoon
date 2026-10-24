@@ -37,6 +37,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			audioTracks: movie.audioTracks,
 			subtitles: movie.subtitles,
 			chapters: movie.chapters,
+			backdropSec: movie.backdropSec,
 			positionSec: movieProgress.positionSec,
 			completed: movieProgress.completed
 		})

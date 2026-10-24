@@ -470,9 +470,11 @@ export async function thumbnail(
 		 */
 		fromStart?: boolean;
 		pausable?: boolean;
+		/** 480, a thumbnail's; wider for a page's background (backdrop.ts). */
+		width?: number;
 	} = {}
 ) {
-	const filters = frameFilters(info, 480);
+	const filters = frameFilters(info, options.width ?? 480);
 	const seek = ['-ss', atSec.toFixed(2)];
 	await run(
 		'ffmpeg',
@@ -496,6 +498,56 @@ export async function thumbnail(
 		],
 		{ signal: options.signal, pausable: options.pausable }
 	);
+}
+
+/**
+ * How bright an image is and how much colour it has, on average (ffmpeg's signalstats): `YAVG`
+ * from 16 (black) to 235 (white), `SATAVG` from 0 (grey). For choosing a frame (backdrop.ts).
+ */
+export async function imageStats(file: string) {
+	const { stdout } = await run(
+		'ffmpeg',
+		[
+			'-hide_banner',
+			'-nostats',
+			'-i',
+			file,
+			'-vf',
+			'signalstats,metadata=print:file=-',
+			'-f',
+			'null',
+			'-'
+		],
+		{ pausable: false }
+	);
+	const value = (key: string) =>
+		Number(new RegExp(`lavfi\\.signalstats\\.${key}=([\\d.]+)`).exec(stdout)?.[1] ?? NaN);
+	return { brightness: value('YAVG'), colour: value('SATAVG') };
+}
+
+/**
+ * An image without the black bars around it (4:3 inside 16:9, or a film's letterbox), with ffmpeg's
+ * cropdetect; `false` if it has none worth cropping, and nothing is written.
+ */
+export async function cropBlackBorders(input: string, output: string) {
+	const { stderr } = await run(
+		'ffmpeg',
+		['-hide_banner', '-i', input, '-vf', 'cropdetect=limit=24:round=2:skip=0', '-f', 'null', '-'],
+		{ pausable: false }
+	);
+	const found = /x1:\d+ x2:\d+ y1:\d+ y2:\d+ w:(\d+) h:(\d+).*?crop=(\d+:\d+:\d+:\d+)/.exec(stderr);
+	const size = /, (\d+)x(\d+)/.exec(stderr);
+	if (!found || !size) return false;
+	const [w, h] = [Number(found[1]), Number(found[2])];
+	const [width, height] = [Number(size[1]), Number(size[2])];
+	// Less than a few pixels of border: nothing to crop. Almost all of it «black»: a dark frame.
+	if (w * h > width * height * 0.97 || w * h < width * height * 0.3) return false;
+	await run(
+		'ffmpeg',
+		['-hide_banner', '-y', '-i', input, '-vf', `crop=${found[3]}`, '-q:v', '2', output],
+		{ pausable: false }
+	);
+	return true;
 }
 
 /**

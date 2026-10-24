@@ -1,6 +1,9 @@
 <script lang="ts">
 	import TvEpisode from '#lib/components/TvEpisode.svelte';
 	import TvHeader from '#lib/components/TvHeader.svelte';
+	import Backdrop from '#lib/components/Backdrop.svelte';
+	import { backdropUrl } from '#lib/backdrop.svelte.ts';
+	import { page } from '$app/state';
 	import { formatDuration } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
@@ -36,6 +39,8 @@
 <svelte:head>
 	<title>{data.title} · JellyCartoon</title>
 </svelte:head>
+
+<Backdrop src={backdropUrl('serie', Number(page.params.id))} />
 
 <TvHeader title={data.title} />
 
