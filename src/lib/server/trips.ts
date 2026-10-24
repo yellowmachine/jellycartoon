@@ -2,6 +2,7 @@ import { and, desc, eq, gte, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { trip, userSettings } from '#lib/server/db/schema.ts';
 import { addPoints, NEW_TRIP_AFTER_MS, type TripPoint } from '#lib/trips.ts';
+import { hasSaved } from '#lib/server/saved-places.ts';
 
 /**
  * The road mode's trips (#81), kept for whoever turned it on: the browser sends its positions in
@@ -16,9 +17,13 @@ export async function recordsTrips(userId: string) {
 	return row?.on ?? false;
 }
 
-/** Whether «Mis viajes» is offered (road mode, Música, Radio): trips kept, or being kept. */
+/**
+ * Whether «Mis viajes» is offered (road mode, Música, Radio): trips kept, or being kept, or places
+ * and routes kept there (#151).
+ */
 export async function hasTripsPage(userId: string) {
 	if (await recordsTrips(userId)) return true;
+	if (await hasSaved(userId)) return true;
 	const [found] = await db
 		.select({ id: trip.id })
 		.from(trip)

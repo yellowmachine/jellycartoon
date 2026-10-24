@@ -5,6 +5,14 @@
 
 export type LngLat = [number, number];
 
+/** A point as it comes from a page: two numbers, on the Earth. */
+export const isLngLat = (value: unknown): value is LngLat =>
+	Array.isArray(value) &&
+	value.length === 2 &&
+	value.every(Number.isFinite) &&
+	Math.abs(value[0]) <= 180 &&
+	Math.abs(value[1]) <= 90;
+
 /** A place found by its name or address. */
 export interface Place {
 	/** «Calle Mayor 5, Toledo, España». */

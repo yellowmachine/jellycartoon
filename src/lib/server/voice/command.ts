@@ -33,6 +33,8 @@ import { COUNTRIES, STATIONS } from '#lib/radio.ts';
 import { parseRecipe } from '#lib/recipe.ts';
 import type { LngLat } from '#lib/road.ts';
 import { searchPlaces, whereIs } from '#lib/server/road/ors.ts';
+import { listSavedPlaces, listSavedRoutes } from '#lib/server/saved-places.ts';
+import { asksForRoute, findByName } from '#lib/saved-places.ts';
 import { getRecipe, importRecipe, listRecipes } from '#lib/server/recipes/import.ts';
 import { isFavouritePage, listRecipeSites, searchRecipeSites } from '#lib/server/recipes/sites.ts';
 import {
@@ -148,12 +150,12 @@ function tools(house: boolean): Tool[] {
 			: []),
 		fn(
 			'navigate_to',
-			'Modo carretera: traza la ruta en coche desde donde está hasta un sitio, en el mapa, con los pasos y su voz. «Llévame a…», «vamos a…», «¿cómo llego a…?».',
+			'Modo carretera: traza la ruta en coche desde donde está hasta un sitio, en el mapa, con los pasos y su voz. «Llévame a…», «vamos a…», «¿cómo llego a…?». También sus sitios y rutas guardados, por su nombre: «llévame a casa», «la ruta del trabajo».',
 			{
 				destination: {
 					type: 'string',
 					description:
-						'El sitio, como se diría a un navegador: «Plaza de Zocodover, Toledo», «Calle Mayor 5, Madrid».'
+						'El sitio, como se diría a un navegador: «Plaza de Zocodover, Toledo», «Calle Mayor 5, Madrid». Uno de sus sitios o rutas guardados, tal cual lo dice: «casa», «ruta del trabajo».'
 				}
 			},
 			['destination']
@@ -702,6 +704,24 @@ async function runTool(
 		case 'navigate_to': {
 			const wanted = typeof args.destination === 'string' ? args.destination.trim() : '';
 			if (!wanted) return 'Falta el destino.';
+			// Their own first (#151): a route if one is asked for, then a place, then a route.
+			const [places, routes] = await Promise.all([
+				listSavedPlaces(ctx.user.id),
+				listSavedRoutes(ctx.user.id)
+			]);
+			const savedRoute = findByName(routes, wanted);
+			const savedPlace = findByName(places, wanted);
+			if (savedRoute && (asksForRoute(wanted) || !savedPlace)) {
+				ctx.outcome.actions.push({ kind: 'route', id: savedRoute.id });
+				return `Su ruta «${savedRoute.name}», desde donde está: el mapa la traza y la va diciendo. Díselo corto.`;
+			}
+			if (savedPlace) {
+				ctx.outcome.actions.push({
+					kind: 'navigate',
+					place: { label: savedPlace.name, at: savedPlace.at }
+				});
+				return `Ruta a ${savedPlace.name}, uno de sus sitios: el mapa la traza y la va diciendo. Díselo corto.`;
+			}
 			const [place] = await searchPlaces(wanted, ctx.position ?? null);
 			if (!place)
 				return `No encuentro «${wanted}». Pídele que lo diga de otra forma (con el pueblo o la ciudad).`;

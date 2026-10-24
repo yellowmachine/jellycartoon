@@ -38,6 +38,8 @@ export interface Road {
 	navigation(): string | null;
 	/** A route to there; null, none. */
 	navigate(place: Place | null): void;
+	/** A route kept in Viajes (#151), by its id. */
+	follow(id: number): void;
 	/** A photo with its camera. */
 	photo(): void;
 }
@@ -297,6 +299,8 @@ async function act(action: VoiceAction) {
 			return recipe.end();
 		case 'navigate':
 			return voice.road?.navigate(action.place);
+		case 'route':
+			return voice.road?.follow(action.id);
 		case 'photo':
 			return voice.road?.photo();
 		case 'control':

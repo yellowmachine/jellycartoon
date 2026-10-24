@@ -3,6 +3,7 @@ import {
 	boolean,
 	check,
 	date,
+	doublePrecision,
 	index,
 	jsonb,
 	integer,
@@ -22,6 +23,8 @@ import type { SubtitleStyle } from '#lib/subtitle-style.ts';
 import type { WikiPage } from '#lib/server/cinema/wikidata.ts';
 import type { TitleProposal } from '#lib/episode-titles.ts';
 import type { RecipeStep } from '#lib/recipe.ts';
+import type { LngLat } from '#lib/road.ts';
+import type { RouteStop } from '#lib/saved-places.ts';
 import { user } from './auth.schema';
 
 export const series = pgTable('series', {
@@ -689,6 +692,47 @@ export const tripPhoto = pgTable(
 		lat: real('lat')
 	},
 	(t) => [index('trip_photo_user_taken_idx').on(t.userId, t.takenAt)]
+);
+
+/**
+ * A place kept with its name (#151): «Casa», «Trabajo», «Centro comercial tal». The road mode offers
+ * them first, and the voice knows them by their name. Only for whoever kept it.
+ */
+export const savedPlace = pgTable(
+	'saved_place',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		lon: doublePrecision('lon').notNull(),
+		lat: doublePrecision('lat').notNull(),
+		/** Its address, if it was found by searching: «Calle Mayor 5, Toledo, España». */
+		address: text('address')
+	},
+	(t) => [index('saved_place_user_idx').on(t.userId)]
+);
+
+/**
+ * A route kept with its name (#151): its stops in order, the first where it starts, the last where
+ * it ends, and the way by car between them as openrouteservice gave it when it was kept.
+ */
+export const savedRoute = pgTable(
+	'saved_route',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		stops: jsonb('stops').$type<RouteStop[]>().notNull(),
+		line: jsonb('line').$type<LngLat[]>().notNull(),
+		/** Metres and seconds, all of it. */
+		distance: real('distance').notNull(),
+		duration: real('duration').notNull()
+	},
+	(t) => [index('saved_route_user_idx').on(t.userId)]
 );
 
 /** `ignored`: no album tag, e.g. a download rather than a CD rip; not shown. */

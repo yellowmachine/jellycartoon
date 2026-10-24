@@ -115,3 +115,50 @@ test('spokenSpanish: «tú», streets after «por», exits in words', () => {
 	];
 	for (const [ors, ours] of cases) expect(spokenSpanish(ors)).toBe(ours);
 });
+
+test('routeFromOrs: with a stop on the way, no arriving nor setting off at it', () => {
+	const step = (type: number, instruction: string, at: number) => ({
+		distance: 100,
+		duration: 10,
+		type,
+		instruction,
+		way_points: [at, at + 1]
+	});
+	const route = routeFromOrs({
+		features: [
+			{
+				geometry: {
+					coordinates: [
+						[-4.03, 39.86],
+						[-4.02, 39.861],
+						[-4.01, 39.862],
+						[-4.0, 39.863]
+					]
+				},
+				properties: {
+					summary: { distance: 300, duration: 30 },
+					segments: [
+						{
+							steps: [
+								step(11, 'Camina hacia el este en Calle Real', 0),
+								{ ...step(10, 'Llegar a su destino', 1), way_points: [1, 1] }
+							]
+						},
+						{
+							steps: [
+								step(11, 'Camina hacia el este en Calle Real', 1),
+								step(1, 'Gire a la derecha a Paseo del Miradero', 2),
+								{ ...step(10, 'Llegar a su destino', 3), way_points: [3, 3] }
+							]
+						}
+					]
+				}
+			}
+		]
+	});
+	expect(route?.steps.map((s) => [s.type, s.index])).toEqual([
+		[11, 0],
+		[1, 2],
+		[10, 3]
+	]);
+});

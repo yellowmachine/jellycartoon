@@ -21,7 +21,8 @@
 	import { tripShare } from '#lib/trip-share.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { distanceText, type LngLat, type Place, type Route } from '#lib/road.ts';
-	import { alongLine, guide } from '#lib/road-guide.ts';
+	import { alongLine, guide, metresBetween } from '#lib/road-guide.ts';
+	import { STOP_REACHED_METRES, stopsAhead, type SavedRoute } from '#lib/saved-places.ts';
 	import { durationText, estimate, Pace } from '#lib/road-eta.ts';
 	import { loadRecent, matching, remember, saveRecent } from '#lib/recent-places.ts';
 	import { toSay } from '#lib/road-voice.ts';
@@ -107,6 +108,12 @@
 				if (!place) return clearRoute();
 				if (routable) tab = 'ruta';
 				void go(place);
+			},
+			follow: (id) => {
+				const saved = data.routes.find((r) => r.id === id);
+				if (!saved) return;
+				if (routable) tab = 'ruta';
+				void follow(saved);
 			},
 			photo: () => void roadPhotos.take()
 		};
@@ -257,29 +264,79 @@
 		untrack(() => void go(place));
 	});
 
-	/** `again`: recalculated on the way, off the route; the list stays as it is meanwhile. */
-	async function go(place: Place, again = false) {
+	/**
+	 * A kept route being followed (#151): its name, and the stops on the way still ahead, gone
+	 * through before its end; each one left behind once passed, and not asked for again.
+	 */
+	let following = $state<string | null>(null);
+	let via = $state<LngLat[]>([]);
+	let waitingRoute = $state<SavedRoute | null>(null);
+
+	/**
+	 * `again`: recalculated on the way, off the route, through the stops still ahead; the list stays
+	 * as it is meanwhile. `stops`: a kept route's, before `place`. Whether it went.
+	 */
+	async function go(place: Place, again = false, stops: LngLat[] = again ? via : []) {
 		if (!here) {
 			waiting = place;
-			return void (routeProblem = 'Esperando a saber dónde estás (el GPS)…');
+			routeProblem = 'Esperando a saber dónde estás (el GPS)…';
+			return false;
 		}
 		routeBusy = again ? 'reroute' : 'route';
 		routeProblem = null;
 		const res = await fetch('/carretera/ruta', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ from: here, to: place.at })
+			body: JSON.stringify({ from: here, to: place.at, via: stops })
 		}).catch(() => null);
 		const body = await res?.json().catch(() => null);
 		routeBusy = null;
-		if (!res?.ok) return void (routeProblem = body?.message ?? 'Sin conexión');
+		if (!res?.ok) {
+			routeProblem = body?.message ?? 'Sin conexión';
+			return false;
+		}
 		// Made again on the way (off it): one's pace so far stays for the new one.
 		pace.restart(again);
 		route = body;
 		destination = place;
+		via = stops;
 		places = null;
-		if (!again) saveRecent((recent = remember(recent, place)));
+		if (!again) {
+			following = null;
+			if (!stops.length) saveRecent((recent = remember(recent, place)));
+		}
+		return true;
 	}
+
+	/** A kept route (#151): from where we are, through its stops ahead, to its end. */
+	async function follow(saved: SavedRoute) {
+		if (!here) {
+			waitingRoute = saved;
+			return void (routeProblem = 'Esperando a saber dónde estás (el GPS)…');
+		}
+		const ahead = stopsAhead(saved, here);
+		const end = ahead.at(-1)!;
+		const went = await go(
+			{ label: end.name, at: end.at },
+			false,
+			ahead.slice(0, -1).map((s) => s.at)
+		);
+		if (went) following = saved.name;
+	}
+	$effect(() => {
+		if (!here || !waitingRoute) return;
+		const saved = waitingRoute;
+		waitingRoute = null;
+		untrack(() => void follow(saved));
+	});
+
+	// A stop on the way, reached: the route goes on, and a new one is asked without it.
+	$effect(() => {
+		const at = here;
+		const next = via[0];
+		if (at && next && metresBetween(at, next) < STOP_REACHED_METRES)
+			untrack(() => (via = via.slice(1)));
+	});
 
 	/**
 	 * Below the box as one types (#78): the last places gone to, from this device, then
@@ -292,9 +349,19 @@
 	});
 	let suggesting = $state(false);
 	let suggestions = $state<Place[]>([]);
-	const recentShown = $derived(matching(recent, query));
+	/** Kept in Viajes (#151), with their name: first of all. */
+	const savedShown = $derived(
+		matching(
+			data.places.map((p) => ({ label: p.name, at: p.at })),
+			query,
+			8
+		)
+	);
+	const recentShown = $derived(
+		matching(recent, query).filter((r) => !savedShown.some((s) => s.label === r.label))
+	);
 	const suggestionsShown = $derived(
-		suggestions.filter((s) => !recentShown.some((r) => r.label === s.label))
+		suggestions.filter((s) => ![...savedShown, ...recentShown].some((r) => r.label === s.label))
 	);
 	$effect(() => {
 		const q = query.trim();
@@ -441,6 +508,9 @@
 
 	function clearRoute() {
 		waiting = null;
+		waitingRoute = null;
+		following = null;
+		via = [];
 		route = null;
 		destination = null;
 		places = null;
@@ -573,19 +643,42 @@
 					aria-label="Destino"
 					role="combobox"
 					aria-autocomplete="list"
-					aria-expanded={suggesting && (recentShown.length > 0 || suggestionsShown.length > 0)}
+					aria-expanded={suggesting &&
+						(savedShown.length > 0 || recentShown.length > 0 || suggestionsShown.length > 0)}
 					aria-controls="destinos"
 					class="w-full rounded-xl border-zinc-700 bg-zinc-950/90 px-4 py-3 text-xl shadow-xl"
 					onfocus={() => (suggesting = true)}
 					onblur={() => (suggesting = false)}
 					onkeydown={(e) => e.key === 'Escape' && (suggesting = false)}
 				/>
-				{#if suggesting && (recentShown.length || suggestionsShown.length)}
+				{#if suggesting && (savedShown.length || recentShown.length || suggestionsShown.length)}
 					<!-- Kept open while touched: the press would blur the box first. -->
 					<ul
 						id="destinos"
 						class="absolute inset-x-0 top-full mt-1 max-h-[60vh] overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-950/95 shadow-2xl"
 					>
+						{#each savedShown as place (place.label)}
+							<li>
+								<button
+									type="button"
+									class="flex w-full items-center gap-3 px-4 py-3 text-left text-lg active:bg-zinc-800"
+									onpointerdown={(e) => e.preventDefault()}
+									onclick={() => choose(place)}
+								>
+									<!-- Kept with its name, in Viajes. -->
+									<svg
+										viewBox="0 0 24 24"
+										fill="currentColor"
+										class="h-6 w-6 shrink-0 text-amber-400"
+										aria-hidden="true"
+										><path
+											d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"
+										/></svg
+									>
+									<span class="min-w-0 truncate font-semibold">{place.label}</span>
+								</button>
+							</li>
+						{/each}
 						{#each recentShown as place (place.label)}
 							<li>
 								<button
@@ -997,6 +1090,13 @@ the app's microphone, which the voice's big one right above would be taken for. 
 						{/if}
 						{#if route && destination}
 							<div class="rounded-2xl bg-zinc-900 p-4">
+								{#if following}
+									<p class="truncate text-base text-amber-300">
+										Ruta «{following}»{via.length
+											? ` · ${via.length} ${via.length === 1 ? 'parada' : 'paradas'} por delante`
+											: ''}
+									</p>
+								{/if}
 								<p class="truncate text-xl font-semibold">{destination.label}</p>
 								<p class="text-lg text-zinc-300">
 									{distanceText(guidance?.remaining ?? route.distance)}{#if eta}
@@ -1051,6 +1151,32 @@ the app's microphone, which the voice's big one right above would be taken for. 
 							{/if}
 							{#if !here}
 								<p class="text-lg text-zinc-400">Esperando a saber dónde estás (el GPS)…</p>
+							{/if}
+							{#if !places && routeBusy !== 'search'}
+								<!-- Kept in Viajes (#151): one touch, from where we are. -->
+								{#each data.routes as saved (saved.id)}
+									<button
+										class="{tile} border-amber-400/30 bg-zinc-900"
+										disabled={routeBusy !== null}
+										onclick={() => follow(saved)}
+									>
+										<span class="min-w-0">
+											<span class="block truncate text-xl font-semibold">{saved.name}</span>
+											<span class="block truncate text-base text-zinc-400"
+												>Ruta · {saved.stops.map((s) => s.name).join(' → ')}</span
+											>
+										</span>
+									</button>
+								{/each}
+								{#each data.places as saved (saved.id)}
+									<button
+										class="{tile} border-white/10 bg-zinc-900"
+										disabled={routeBusy !== null}
+										onclick={() => go({ label: saved.name, at: saved.at })}
+									>
+										<span class="min-w-0 truncate text-xl font-semibold">{saved.name}</span>
+									</button>
+								{/each}
 							{/if}
 							{#each places ?? [] as place (place.label)}
 								<button
