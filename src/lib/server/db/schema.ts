@@ -1,4 +1,5 @@
 import {
+	type AnyPgColumn,
 	bigint,
 	boolean,
 	check,
@@ -42,6 +43,14 @@ export const series = pgTable('series', {
 	 * episodes converted later. Null: unknown.
 	 */
 	audioLang: text('audio_lang'),
+	/**
+	 * The frame behind the top of its page, chosen by hand: an episode and its second. Null: chosen
+	 * by the app among a few of one episode's (backdrop.ts).
+	 */
+	backdropEpisodeId: integer('backdrop_episode_id').references((): AnyPgColumn => episode.id, {
+		onDelete: 'set null'
+	}),
+	backdropSec: real('backdrop_sec'),
 	createdAt: timestamp('created_at').notNull().defaultNow()
 });
 
@@ -275,6 +284,8 @@ export const movie = pgTable(
 		title: text('title').notNull(),
 		/** Set by hand; shown instead of `title` and kept across scans. */
 		customTitle: text('custom_title'),
+		/** The frame behind the top of its page, chosen by hand; null, chosen by the app. */
+		backdropSec: real('backdrop_sec'),
 		year: integer('year'),
 		size: bigint('size', { mode: 'number' }).notNull(),
 		mtime: timestamp('mtime').notNull(),

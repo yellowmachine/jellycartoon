@@ -8,6 +8,7 @@
 	import { normalizeLang, type AudioTrack, type SubtitleTrack } from '#lib/languages.ts';
 	import { placeCues, subtitleCss, type SubtitleStyle } from '#lib/subtitle-style.ts';
 	import { thumbChanged, thumbUrl } from '#lib/thumb.svelte.ts';
+	import { useFrameAsBackdrop } from '#lib/backdrop.svelte.ts';
 	import { videoHere } from '#lib/video-here.svelte.ts';
 	import { watchMedia, watchPlay } from '#lib/media-diagnostics.ts';
 	import { listenToEpisode } from '#lib/episode-listening.svelte.ts';
@@ -391,6 +392,16 @@
 		setTimeout(() => (thumbnailState = 'idle'), 2000);
 	}
 
+	let backdropState = $state<'idle' | 'saving' | 'done' | 'failed'>('idle');
+
+	/** The frame on screen goes behind the top of the series' page (backdrop.ts). */
+	async function useAsBackdrop() {
+		if (!video) return;
+		backdropState = 'saving';
+		backdropState = (await useFrameAsBackdrop(episodeId, video.currentTime)) ? 'done' : 'failed';
+		setTimeout(() => (backdropState = 'idle'), 2000);
+	}
+
 	/** Its name, numbered if another has the same («English 1», «English 2»). */
 	function trackLabel(tracks: { label: string }[], i: number) {
 		const label = tracks[i]!.label;
@@ -609,6 +620,21 @@ same look in every browser, the app's colours, and the player's options in its �
 							failed: 'No se pudo cambiar'
 						}[thumbnailState]}
 					</button>
+					{#if !page.data.kid}
+						<button
+							class="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800 disabled:opacity-50"
+							title="Poner el fotograma que se ve ahora arriba en la página de la serie"
+							disabled={backdropState === 'saving'}
+							onclick={useAsBackdrop}
+						>
+							{{
+								idle: 'Usar este fotograma de fondo de la serie',
+								saving: 'Guardando…',
+								done: '✓ Fondo cambiado',
+								failed: 'No se pudo cambiar'
+							}[backdropState]}
+						</button>
+					{/if}
 				</div>
 			{/if}
 

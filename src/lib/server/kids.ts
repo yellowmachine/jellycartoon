@@ -141,6 +141,9 @@ const KIDS_ROUTES: Record<string, { id?: Check; actions?: string[]; methods?: st
 	'/api/hls/[id]/[...file]': { id: 'episode' },
 	'/api/thumb/[id]': { id: 'episode', methods: ['GET'] },
 	'/api/movie-thumb/[id]': { id: 'movie' },
+	// The image behind the top of their pages: only to look at; choosing it is the adults'.
+	'/api/fondo/serie/[id]': { id: 'series', methods: ['GET'] },
+	'/api/fondo/pelicula/[id]': { id: 'movie', methods: ['GET'] },
 	'/api/movie-frame/[id]/[at]': { id: 'movie' },
 	'/api/movie-clip/[id]/[at]': { id: 'movie' },
 	'/api/health': {},

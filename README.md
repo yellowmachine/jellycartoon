@@ -25,7 +25,14 @@ SvelteKit 3 + Bun · Tailwind · Better Auth · Drizzle + Postgres · ffmpeg.
    [Media Chrome](https://www.media-chrome.org) en los colores de la app, iguales en todos los
    navegadores y en español. En su menú ⚙ se elige audio y subtítulos (y su estilo), «Al terminar»,
    el tamaño y «Usar este fotograma como miniatura»; la elección se guarda por usuario y se aplica
-   a los siguientes episodios. El progreso también.
+   a los siguientes episodios. El progreso también. Los adultos tienen también «Usar este fotograma
+   de fondo de la serie».
+   **Fondo**: arriba en la página de cada serie y película (también en la vista de tele) sale un
+   fotograma suyo, nítido arriba y cada vez más difuminado y oscuro hacia abajo. Lo elige la app: de
+   unos cuantos del medio del primer capítulo (o de la película), el de más color que no sea oscuro
+   ni quemado, sin las bandas negras. Se cambia desde el reproductor o, en las películas, desde la
+   vista de pájaro («Usar de fondo»); «volver al automático», arriba en su página. Se guardan en
+   `DATA_DIR/fondo`.
    «⚙ Estilo» cambia cómo se ven los subtítulos (fuente, tamaño, color, fondo, contorno) y dónde:
    abajo, algo más arriba o más arriba, para que los ojos viajen menos; vale también para los
    canales y para el mpv del salón (`sub-pos`). Y, en los automáticos de Whisper, cómo se ven dos

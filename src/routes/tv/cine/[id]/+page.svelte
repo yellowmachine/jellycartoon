@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import TvHeader from '#lib/components/TvHeader.svelte';
+	import Backdrop from '#lib/components/Backdrop.svelte';
+	import { backdropUrl } from '#lib/backdrop.svelte.ts';
 	import { formatDuration } from '#lib/format.ts';
 	import { music } from '#lib/music-player.svelte.ts';
 	import type { PageProps } from './$types';
@@ -34,6 +36,8 @@
 <svelte:head>
 	<title>{film.title} · JellyCartoon</title>
 </svelte:head>
+
+<Backdrop src={backdropUrl('pelicula', film.id)} />
 
 <TvHeader title={film.title} />
 

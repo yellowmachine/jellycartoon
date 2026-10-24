@@ -13,6 +13,8 @@
 	import { enhance } from '$app/forms';
 	import { CLIP_SECONDS } from '#lib/birds-eye.ts';
 	import { formatDuration } from '#lib/format.ts';
+	import { page } from '$app/state';
+	import { chooseFilmBackdrop } from '#lib/backdrop.svelte.ts';
 
 	interface Props {
 		movieId: number;
@@ -29,6 +31,14 @@
 	/** The clip of the moment shows instead of its frame: loading, or ready to play. */
 	let clip = $state<'loading' | 'ready' | null>(null);
 	let dialog = $state<HTMLDialogElement>();
+	/** «Usar de fondo»: the frame on screen, behind the top of the film's page. */
+	let backdrop = $state<'idle' | 'saving' | 'done' | 'failed'>('idle');
+
+	async function useAsBackdrop(at: number) {
+		backdrop = 'saving';
+		backdrop = (await chooseFilmBackdrop(movieId, at)) ? 'done' : 'failed';
+		setTimeout(() => (backdrop = 'idle'), 2000);
+	}
 
 	const src = (at: number, width?: number) =>
 		`/api/movie-frame/${movieId}/${at}${width ? `?w=${width}` : ''}`;
@@ -134,6 +144,20 @@
 					<input type="hidden" name="at" value={moment.playAt} />
 					<button class={primary}>▶︎ Ver desde aquí en el salón</button>
 				</form>
+			{/if}
+			{#if !page.data.kid}
+				<button
+					class={button}
+					disabled={backdrop === 'saving'}
+					title="Poner este fotograma arriba en la página de la película"
+					onclick={() => useAsBackdrop(moment.at)}
+					>{{
+						idle: 'Usar de fondo',
+						saving: 'Guardando…',
+						done: '✓ Fondo cambiado',
+						failed: 'No se pudo'
+					}[backdrop]}</button
+				>
 			{/if}
 			<form method="dialog" class="ml-auto">
 				<button class={button}>Cerrar</button>

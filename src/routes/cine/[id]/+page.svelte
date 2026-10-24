@@ -3,6 +3,8 @@
 	import { invalidateAll } from '$app/navigation';
 	import { poll } from '#lib/poll.ts';
 	import BirdsEye from '#lib/components/BirdsEye.svelte';
+	import Backdrop from '#lib/components/Backdrop.svelte';
+	import { backdropUrl, chooseFilmBackdrop } from '#lib/backdrop.svelte.ts';
 	import FilmChat from '#lib/components/FilmChat.svelte';
 	import Scenes from '#lib/components/Scenes.svelte';
 	import TagBar from '#lib/components/TagBar.svelte';
@@ -45,6 +47,17 @@
 <svelte:head>
 	<title>{film.title} · JellyCartoon</title>
 </svelte:head>
+
+<Backdrop src={backdropUrl('pelicula', film.id)} />
+{#if !data.kid && film.backdropSec !== null}
+	<button
+		class="mb-2 text-xs text-zinc-500 hover:text-zinc-300"
+		title="El fondo de arriba lo vuelve a elegir la app"
+		onclick={async () => {
+			if (await chooseFilmBackdrop(film.id, null)) await invalidateAll();
+		}}>Fondo elegido a mano · volver al automático</button
+	>
+{/if}
 
 {#snippet links(filter: FilterName, names: string[])}
 	{#each names as name, i (name)}
