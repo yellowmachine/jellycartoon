@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { parseRecipe, type Recipe } from '#lib/recipe.ts';
-import { openRouterConfig } from '#lib/server/app-settings.ts';
+import { getAppSetting, openRouterConfig } from '#lib/server/app-settings.ts';
 import { db } from '#lib/server/db/index.ts';
 import { recipe } from '#lib/server/db/schema.ts';
 import { log } from '#lib/server/log.ts';
@@ -197,6 +197,23 @@ export function listRecipes() {
 		})
 		.from(recipe)
 		.orderBy(asc(recipe.title));
+}
+
+/** The recipe whose picture is behind the book's page, chosen from its page; `null`: none. */
+export async function backdropRecipeId() {
+	const id = Number(await getAppSetting('recipes_backdrop'));
+	return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+/** Its picture, if that recipe is still there and has one. */
+export async function recipesBackdrop() {
+	const id = await backdropRecipeId();
+	if (id === null) return null;
+	const [row] = await db
+		.select({ imageUrl: recipe.imageUrl })
+		.from(recipe)
+		.where(eq(recipe.id, id));
+	return row?.imageUrl ?? null;
 }
 
 /** One recipe, ready to cook (as the voice's), with where it came from. */

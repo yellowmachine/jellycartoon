@@ -44,6 +44,7 @@ type Key =
 	| 'subtitles_paused'
 	| 'last_scan_series'
 	| 'last_scan_films'
+	| 'recipes_backdrop'
 	| 'auto_subtitle_langs'
 	| 'vapid_keys'
 	| 'ors_api_key'

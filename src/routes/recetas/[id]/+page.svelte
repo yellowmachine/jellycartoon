@@ -32,12 +32,45 @@
 
 <header class="mt-2 mb-6 flex flex-col gap-4 sm:flex-row">
 	{#if r.imageUrl}
-		<img
-			src={r.imageUrl}
-			alt=""
-			referrerpolicy="no-referrer"
-			class="h-48 w-48 shrink-0 rounded-md bg-zinc-800 object-cover"
-		/>
+		<div class="relative h-48 w-48 shrink-0">
+			<img
+				src={r.imageUrl}
+				alt=""
+				referrerpolicy="no-referrer"
+				class="h-full w-full rounded-md bg-zinc-800 object-cover"
+			/>
+			<form method="post" action="?/backdrop" use:enhance class="absolute right-2 bottom-2">
+				<button
+					class={[
+						'rounded-md p-1.5 backdrop-blur-sm',
+						data.isBackdrop
+							? 'bg-amber-500 text-zinc-950'
+							: 'bg-zinc-950/70 text-zinc-200 hover:bg-zinc-950'
+					]}
+					aria-pressed={data.isBackdrop}
+					title={data.isBackdrop
+						? 'Quitar esta imagen del fondo del recetario'
+						: 'Poner esta imagen de fondo del recetario'}
+					aria-label={data.isBackdrop
+						? 'Quitar esta imagen del fondo del recetario'
+						: 'Poner esta imagen de fondo del recetario'}
+				>
+					<svg viewBox="0 0 24 24" class="h-4 w-4" aria-hidden="true">
+						<g
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						>
+							<rect x="3" y="4" width="18" height="16" rx="2" />
+							<circle cx="9" cy="10" r="1.5" />
+							<path d="M21 16l-5-5-8 9" />
+						</g>
+					</svg>
+				</button>
+			</form>
+		</div>
 	{/if}
 	<div class="min-w-0">
 		<h1 class="text-2xl font-bold">{r.title}</h1>

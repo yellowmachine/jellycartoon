@@ -219,7 +219,7 @@
 {#if !data.kid}
 	<TagBar tags={data.tags} allTags={data.allTags} class="-mt-2 mb-6" />
 	<div
-		class="mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-zinc-400 [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]"
+		class="mb-6 flex flex-col items-start gap-2 text-sm text-zinc-400 [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]"
 	>
 		<form method="post" action="?/serialized" use:enhance>
 			<input type="hidden" name="serialized" value={String(!data.series.serialized)} />

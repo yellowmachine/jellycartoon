@@ -28,10 +28,16 @@
 				loaded ? 'opacity-100' : 'opacity-0'
 			]}
 		>
-			<img {src} alt="" class="blurred absolute inset-0 h-full w-full object-cover" />
 			<img
 				{src}
 				alt=""
+				referrerpolicy="no-referrer"
+				class="blurred absolute inset-0 h-full w-full object-cover"
+			/>
+			<img
+				{src}
+				alt=""
+				referrerpolicy="no-referrer"
 				class="sharp absolute inset-0 h-full w-full object-cover"
 				onload={() => (loaded = true)}
 				onerror={() => (failed = true)}
