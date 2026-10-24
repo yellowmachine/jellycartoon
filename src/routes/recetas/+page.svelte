@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
+	import Backdrop from '#lib/components/Backdrop.svelte';
 	import SectionIcon from '#lib/components/SectionIcon.svelte';
 	import { poll } from '#lib/poll.ts';
 	import type { PageProps } from './$types';
@@ -29,7 +30,9 @@
 	<title>Recetario · JellyCartoon</title>
 </svelte:head>
 
-<h1 class="mb-1 text-2xl font-bold">Recetario</h1>
+{#if data.backdrop}<Backdrop src={data.backdrop} />{/if}
+
+<h1 class="mb-1 text-2xl font-bold [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]">Recetario</h1>
 <p class="mb-4 max-w-2xl text-sm text-zinc-400">
 	Las recetas de casa, para cocinarlas paso a paso en la cocina («vamos a hacer los macarrones»). Se
 	guardan desde la página de una web de cocina: pega aquí su dirección o, en el móvil, compártela

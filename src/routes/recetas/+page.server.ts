@@ -1,6 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { importRecipe, listRecipes } from '#lib/server/recipes/import.ts';
+import { importRecipe, listRecipes, recipesBackdrop } from '#lib/server/recipes/import.ts';
 import {
 	addRecipeSite,
 	indexSite,
@@ -20,12 +20,13 @@ export const load: PageServerLoad = async ({ url }) => {
 		.map((v) => v?.match(/https?:\/\/\S+/)?.[0] ?? null)
 		.find(Boolean);
 	const q = url.searchParams.get('q')?.trim() ?? '';
-	const [recipes, sites, results] = await Promise.all([
+	const [recipes, backdrop, sites, results] = await Promise.all([
 		listRecipes(),
+		recipesBackdrop(),
 		listRecipeSites(),
 		q ? searchRecipeSites(q, undefined, 30) : null
 	]);
-	return { recipes, sites, q, results, shared: shared ?? null };
+	return { recipes, backdrop, sites, q, results, shared: shared ?? null };
 };
 
 const siteId = async (request: Request) => Number((await request.formData()).get('id'));
