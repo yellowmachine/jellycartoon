@@ -671,7 +671,7 @@
 				{/if}
 
 				{#snippet modelForm(
-					use: 'films' | 'chat' | 'vision' | 'voice',
+					use: 'films' | 'chat' | 'vision' | 'voice' | 'homework',
 					label: string,
 					value: string,
 					fallback: string
@@ -693,7 +693,7 @@
 							class="{select} min-w-0 flex-1 font-mono"
 						/>
 						<button class={secondary}>Guardar</button>
-						{#if form && 'saved' in form && form.saved === { films: 'model', chat: 'chatModel', vision: 'visionModel', voice: 'voiceModel' }[use]}
+						{#if form && 'saved' in form && form.saved === { films: 'model', chat: 'chatModel', vision: 'visionModel', voice: 'voiceModel', homework: 'homeworkModel' }[use]}
 							<span class="self-center text-sm text-amber-400">✓</span>
 						{/if}
 					</form>
@@ -743,6 +743,19 @@
 						herramientas.
 					</p>
 				{/if}
+
+				<h3 class="mb-2 text-sm text-zinc-300">Modelo para los deberes</h3>
+				{@render modelForm(
+					'homework',
+					'Modelo para los deberes',
+					data.ai.homeworkModel,
+					data.ai.defaultHomeworkModel
+				)}
+				<p class="mb-4 text-xs text-zinc-500">
+					Vacío usa {data.ai.defaultHomeworkModel}. Prepara los ejercicios de los peques desde los
+					subtítulos de lo que han visto: el mejor, aunque cueste algo más (unos céntimos cada
+					deber).
+				</p>
 
 				<h3 class="mb-2 text-sm text-zinc-300">Modelo para conversar sobre películas</h3>
 				{@render modelForm(
