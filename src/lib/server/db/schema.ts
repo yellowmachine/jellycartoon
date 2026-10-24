@@ -735,6 +735,44 @@ export const savedRoute = pgTable(
 	(t) => [index('saved_route_user_idx').on(t.userId)]
 );
 
+/**
+ * The fridge (#131): the house's post-its, for everyone to see. Written by an adult, in their colour;
+ * until a day if given (then gone), or until someone peels it off. The shopping list is one more,
+ * `list`, with its items (fridgeItem): there is one, made the first time it is looked at.
+ */
+export const fridgeNoteKind = pgEnum('fridge_note_kind', ['note', 'list']);
+
+export const fridgeNote = pgTable(
+	'fridge_note',
+	{
+		id: serial('id').primaryKey(),
+		kind: fridgeNoteKind('kind').notNull().default('note'),
+		/** Who wrote it; the list's, who made it first. Null if their account is gone. */
+		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+		text: text('text').notNull(),
+		/** Shown until the end of this day, in the house's time zone; null, until peeled off. */
+		until: date('until'),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [index('fridge_note_created_idx').on(t.createdAt)]
+);
+
+/** An item of the shopping list: ticked off when bought, and cleared later. */
+export const fridgeItem = pgTable(
+	'fridge_item',
+	{
+		id: serial('id').primaryKey(),
+		noteId: integer('note_id')
+			.notNull()
+			.references(() => fridgeNote.id, { onDelete: 'cascade' }),
+		text: text('text').notNull(),
+		done: boolean('done').notNull().default(false),
+		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [index('fridge_item_note_idx').on(t.noteId)]
+);
+
 /** `ignored`: no album tag, e.g. a download rather than a CD rip; not shown. */
 export const trackStatus = pgEnum('track_status', ['pending', 'ready', 'ignored', 'error']);
 

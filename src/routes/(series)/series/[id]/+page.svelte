@@ -619,6 +619,11 @@
 								salon={data.salon}
 								previousUnwatched={previousUnwatched.get(ep.id) ?? 0}
 								lists={data.lists.map((l) => ({ ...l, added: inList.has(`${l.id}:${ep.id}`) }))}
+								listen={{
+									title: ep.title,
+									subtitle: `${data.series.title} · T${ep.season} E${ep.number}`,
+									lang: data.audioLang
+								}}
 								onrename={() => (editing = ep.id)}
 								ondelete={() => deleteDialog?.open([ep.id], ep.title)}
 							/>

@@ -8,6 +8,7 @@
 	import CopyPathItem from './CopyPathItem.svelte';
 	import InfoDialog from './InfoDialog.svelte';
 	import { closeAfter, menuItem } from './menu.ts';
+	import { listenToEpisode } from '#lib/episode-listening.svelte.ts';
 
 	interface Props {
 		episode: {
@@ -45,11 +46,16 @@
 		previousUnwatched: number;
 		/** The user's lists, and whether this episode is in each one. */
 		lists: { id: number; name: string; added: boolean }[];
+		/**
+		 * «🎧 Escuchar» (#154): its title, «Friends · T1 E2» under it, and the audio chosen in
+		 * Ajustes.
+		 */
+		listen?: { title: string; subtitle: string; lang: string | null };
 		onrename: () => void;
 		ondelete: () => void;
 	}
 
-	let { episode, salon, previousUnwatched, lists, onrename, ondelete }: Props = $props();
+	let { episode, salon, previousUnwatched, lists, listen, onrename, ondelete }: Props = $props();
 
 	const ready = $derived(episode.status === 'ready');
 	/** A child's account only watches (#17). */
@@ -86,6 +92,27 @@
 				>
 			{/if}
 			<a href="/watch/{episode.id}?t=0">{@render item('Empezar desde el principio')}</a>
+			{#if listen && manage && episode.audioTracks.length}
+				<!-- Only its audio, in the music player: it goes on with the screen off (#154). -->
+				<button
+					type="button"
+					class="w-full"
+					onclick={() => {
+						listenToEpisode({
+							id: episode.id,
+							title: listen.title,
+							subtitle: listen.subtitle,
+							audioTracks: episode.audioTracks,
+							lang: listen.lang,
+							durationSec: episode.durationSec,
+							positionSec: resumeAt
+						});
+						close();
+					}}
+				>
+					{@render item(resumeAt ? `🎧 Escuchar desde ${formatDuration(resumeAt)}` : '🎧 Escuchar')}
+				</button>
+			{/if}
 			{#if salon}
 				<hr class="my-1 border-zinc-800" />
 				{#if resumeAt}

@@ -35,6 +35,8 @@ import type { LngLat } from '#lib/road.ts';
 import { searchPlaces, whereIs } from '#lib/server/road/ors.ts';
 import { listSavedPlaces, listSavedRoutes } from '#lib/server/saved-places.ts';
 import { asksForRoute, findByName } from '#lib/saved-places.ts';
+import { addItems, addNote, tickOffByName, toBuy } from '#lib/server/fridge.ts';
+import { isUntilWord, UNTIL_WORDS, untilDay, untilText } from '#lib/fridge.ts';
 import { getRecipe, importRecipe, listRecipes } from '#lib/server/recipes/import.ts';
 import { isFavouritePage, listRecipeSites, searchRecipeSites } from '#lib/server/recipes/sites.ts';
 import {
@@ -226,6 +228,47 @@ function tools(house: boolean): Tool[] {
 				}
 			},
 			['kind', 'id', 'where']
+		),
+		fn(
+			'add_to_shopping_list',
+			'Añade cosas a la lista de la compra de la casa (la de la nevera, que ven todos). «Añade leche y pan», «apunta huevos», «que no se nos olvide el detergente». A los demás les llega un aviso.',
+			{
+				items: {
+					type: 'array',
+					items: { type: 'string' },
+					description: 'Cada cosa por separado, corta y en minúscula: ["leche", "pan"].'
+				}
+			},
+			['items']
+		),
+		fn(
+			'shopping_list',
+			'Lo que queda por comprar en la lista de la compra de la casa. «¿Qué hay en la lista?», «¿qué falta por comprar?».',
+			{},
+			[]
+		),
+		fn(
+			'tick_off_shopping',
+			'Tacha algo de la lista de la compra: ya comprado, o ya no hace falta. «Ya tengo la leche», «quita el pan de la lista».',
+			{ item: { type: 'string', description: 'Lo que se tacha, como está en la lista.' } },
+			['item']
+		),
+		fn(
+			'add_fridge_note',
+			'Pega un post-it en la nevera de la casa, para que lo vean los demás (también en la tele del salón; les llega un aviso). «Deja un post-it: llamar al fontanero», «avisa a todos de que la cena está en el horno». Para cosas que comprar, add_to_shopping_list.',
+			{
+				text: {
+					type: 'string',
+					description: 'Lo que dice el post-it, corto y como lo diría la persona.'
+				},
+				until: {
+					type: 'string',
+					enum: [...UNTIL_WORDS],
+					description:
+						'Hasta cuándo se queda puesto, si lo dice («hasta el viernes»). Sin él, hasta que alguien lo quite.'
+				}
+			},
+			['text']
 		),
 		fn(
 			'set_timer',
@@ -761,6 +804,32 @@ async function runTool(
 		}
 		case 'play_video':
 			return playVideo(args, ctx);
+		case 'add_to_shopping_list': {
+			const items = Array.isArray(args.items)
+				? args.items.filter((i: unknown): i is string => typeof i === 'string')
+				: [];
+			if (!items.length) return 'Falta qué añadir.';
+			const added = await addItems(ctx.user.id, items);
+			return added.length
+				? `Añadido a la lista: ${added.join(', ')}.`
+				: 'Ya estaba todo en la lista.';
+		}
+		case 'shopping_list': {
+			const left = await toBuy();
+			return left.length ? `En la lista: ${left.join(', ')}.` : 'La lista de la compra está vacía.';
+		}
+		case 'tick_off_shopping': {
+			const wanted = typeof args.item === 'string' ? args.item : '';
+			const done = wanted ? await tickOffByName(wanted) : null;
+			return done ? `Tachado: ${done}.` : `«${wanted}» no está en la lista por comprar.`;
+		}
+		case 'add_fridge_note': {
+			const text = typeof args.text === 'string' ? args.text.trim() : '';
+			if (!text) return 'Falta lo que dice el post-it.';
+			const until = isUntilWord(args.until) ? untilDay(args.until) : null;
+			await addNote(ctx.user.id, text, until);
+			return `Post-it pegado en la nevera${until ? ` (${untilText(until)})` : ''}: «${text}».`;
+		}
 		case 'set_timer': {
 			const minutes = Number(args.minutes);
 			if (!Number.isFinite(minutes) || minutes <= 0) return 'Falta cuántos minutos.';

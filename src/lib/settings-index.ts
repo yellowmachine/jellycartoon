@@ -109,7 +109,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		tab: 'aspecto',
 		title: 'Este dispositivo',
 		words:
-			'nombre dispositivo móvil tablet tele salón navegador sonaba palabra de activación avisos notificaciones'
+			'nombre dispositivo móvil tablet tele salón navegador sonaba palabra de activación avisos notificaciones push nevera lista compra'
 	},
 	{
 		id: 'microfono',

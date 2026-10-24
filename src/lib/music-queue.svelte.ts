@@ -29,7 +29,7 @@ async function restore() {
 		.then((res) => (res.ok ? res.json() : null))
 		.catch(() => null);
 	// Something started while it was being asked for: that one.
-	if (!saved || music.current || music.radio || music.podcast) return null;
+	if (!saved || music.current || music.radio || music.podcast || music.listening) return null;
 	let radio: RadioStream | null = null;
 	if (saved.radio) {
 		radio = await fetch(`/api/radio/${saved.radio}`)
@@ -44,7 +44,7 @@ async function restore() {
 			.catch(() => null);
 		if (!podcast) return null;
 	}
-	if (music.current || music.radio || music.podcast) return null;
+	if (music.current || music.radio || music.podcast || music.listening) return null;
 	music.restore(saved, radio, podcast);
 	return saved.updatedAt;
 }
@@ -118,7 +118,7 @@ export function keepQueue() {
 	}
 
 	onMount(() => {
-		if (!restoredOnce && !music.current && !music.radio && !music.podcast) {
+		if (!restoredOnce && !music.current && !music.radio && !music.podcast && !music.listening) {
 			restoredOnce = true;
 			void restore().then((at) => {
 				if (at) savedAt = at;

@@ -22,6 +22,7 @@ import {
 	tracksWithoutSubtitles
 } from '#lib/server/auto-subtitles.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
+import { getSettings } from '#lib/server/settings.ts';
 import {
 	cancelLabels,
 	labelJobs,
@@ -131,6 +132,8 @@ export const load: PageServerLoad = async ({ params, locals, cookies }) => {
 	);
 	return {
 		series: s,
+		/** The audio chosen in Ajustes: «🎧 Escuchar» starts with that track (#154). */
+		audioLang: (await getSettings(locals.user!.id)).audioLang,
 		/**
 		 * Some episode has audio whose file does not say its language, or it was assumed: the
 		 * series' language can be set for them (`audioLang`).

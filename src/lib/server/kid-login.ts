@@ -308,7 +308,9 @@ export async function askToEnter(kidId: string, device: { id: number; name: stri
 			body: `En ${device.name}. Toca para contestar.`,
 			tag: `peque-${kidId}`,
 			url: '/',
-			ttl: REQUEST_MS / 1000
+			ttl: REQUEST_MS / 1000,
+			// Until it is touched or dismissed: someone is waiting in front of the TV.
+			sticky: true
 		});
 	});
 	log.info('peques', `Pide entrar en ${device.name}`, {

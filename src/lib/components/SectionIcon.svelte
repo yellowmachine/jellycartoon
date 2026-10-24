@@ -12,6 +12,7 @@
 		| 'podcasts'
 		| 'recetas'
 		| 'viajes'
+		| 'nevera'
 		| 'musica'
 		| 'salon'
 		| 'infantil'
@@ -61,6 +62,11 @@
 		<!-- A pot. -->
 		<path d="M4 10h16v7a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z" />
 		<path d="M2 10h20M9 6.5c0-1 .8-1 .8-2M12.5 6.5c0-1 .8-1 .8-2" />
+	{:else if name === 'nevera'}
+		<!-- A fridge (Lucide's refrigerator). -->
+		<path d="M5 6a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6Z" />
+		<path d="M5 10h14" />
+		<path d="M15 7v6" />
 	{:else if name === 'viajes'}
 		<!-- A car. -->
 		<path

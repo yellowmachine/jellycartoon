@@ -2,9 +2,11 @@
 	import { onMount } from 'svelte';
 
 	/**
-	 * The adults' notices on this phone with the app closed (Web Push, push.ts): for now, a child
-	 * asking to enter (#141). The browser asks for permission; the service worker shows them.
+	 * The adults' notices on this phone with the app closed (Web Push, push.ts): the fridge's
+	 * post-its and shopping list (#131), and a child asking to enter (#141) for who looks after one.
+	 * The browser asks for permission; the service worker shows them.
 	 */
+	let { guardian = false }: { guardian?: boolean } = $props();
 	type Status = 'loading' | 'unsupported' | 'blocked' | 'off' | 'on' | 'busy';
 
 	let status = $state<Status>('loading');
@@ -71,10 +73,10 @@
 </script>
 
 <div class="mt-4 border-t border-zinc-800 pt-4">
-	<h3 class="mb-1 text-sm text-zinc-300">Avisos de los peques</h3>
+	<h3 class="mb-1 text-sm text-zinc-300">Avisos en este dispositivo</h3>
 	<p class="mb-2 text-sm text-zinc-400">
-		Cuando un peque quiera entrar en un dispositivo de la casa, te llega un aviso aquí aunque la app
-		esté cerrada.
+		Te llegan aunque la app esté cerrada: un post-it nuevo en la nevera o algo añadido a la lista de
+		la compra{guardian ? ', y cuando un peque quiera entrar en un dispositivo de la casa' : ''}.
 	</p>
 	{#if status === 'loading'}
 		<p class="text-sm text-zinc-500">…</p>
