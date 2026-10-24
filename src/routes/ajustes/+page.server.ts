@@ -64,6 +64,7 @@ import {
 	trustedDevices
 } from '#lib/server/kid-login.ts';
 import { isAvatar } from '#lib/avatars.ts';
+import { avatarOf, createAdult, houseAdults, invite, setAvatar } from '#lib/server/people.ts';
 import { askEvery } from '#lib/server/still-there.ts';
 import { ASK_EVERY_OPTIONS } from '#lib/still-there.ts';
 
@@ -81,6 +82,7 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 
 	let ai = null;
 	let kids = null;
+	let people = null;
 	let routes = null;
 	let relay = null;
 	let labels = null;
@@ -98,7 +100,7 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 			url: ors.url === DEFAULT_ORS_URL ? '' : ors.url,
 			defaultUrl: DEFAULT_ORS_URL
 		};
-		const [config, chat, vision, voice, homework, kidAccounts, grownUps, devices, here] =
+		const [config, chat, vision, voice, homework, kidAccounts, grownUps, devices, here, house] =
 			await Promise.all([
 				openRouterConfig(),
 				chatConfig(),
@@ -108,8 +110,11 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 				kidProfiles(),
 				adults(),
 				trustedDevices(),
-				deviceOf(cookies)
+				deviceOf(cookies),
+				houseAdults()
 			]);
+		/** The adults of the house (#157): the administrator adds them, and gives them their link. */
+		people = { adults: house };
 		/**
 		 * Children's accounts (#17), and how they enter (#141): with a password, or choosing their
 		 * avatar on a device of the house while one of their parents or guardians lets them in.
@@ -139,7 +144,12 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 
 	const twoFactorOn = Boolean(locals.user!.twoFactorEnabled);
 	return {
-		account: { name: locals.user!.name, email: locals.user!.email },
+		account: {
+			name: locals.user!.name,
+			email: locals.user!.email,
+			/** An adult chooses their own drawing (#157); a child's, the administrator. */
+			avatar: isKid(locals.user) ? undefined : ((await avatarOf(locals.user!))?.id ?? null)
+		},
 		/**
 		 * The second step after the password: not for children's accounts; the administrator always
 		 * has it. How many recovery codes are left, as each is used once.
@@ -179,6 +189,7 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 		labels,
 		/** Children's accounts (#17): only who manages the app creates them. */
 		kids,
+		people,
 		/** Music in apps such as Tempus (#27): with the account's email and a password of their own. */
 		musicApps: musicRoot
 			? { server: ORIGIN, username: locals.user!.email, since: appPassword }
@@ -255,6 +266,64 @@ export const actions: Actions = {
 		return { updating: true };
 	},
 	/**
+	 * An adult of the house (#157), without a password: the page shows the link and QR with which
+	 * they choose it.
+	 */
+	createAdult: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const form = await request.formData();
+		const name = String(form.get('name') ?? '').trim();
+		const email = String(form.get('email') ?? '').trim();
+		const avatar = String(form.get('avatar') ?? '');
+		if (!name || !email) return fail(400, { section: 'people', message: 'Escribe nombre y email' });
+		if (!isAvatar(avatar)) return fail(400, { section: 'people', message: 'Elige un dibujo' });
+		let userId;
+		try {
+			userId = await createAdult({ name, email, avatar });
+		} catch (err) {
+			if (err instanceof APIError) return fail(400, { section: 'people', message: err.message });
+			throw err;
+		}
+		log.info('ajustes', `Persona añadida: ${name}`);
+		return { invited: { ...(await invite(userId)), name } };
+	},
+	/** Another link for an adult: theirs expired or got lost, or they forgot their password. */
+	newLink: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const userId = String((await request.formData()).get('userId') ?? '');
+		const [person] = await db.select({ name: user.name }).from(user).where(eq(user.id, userId));
+		if (!person) return fail(400, { section: 'people', message: 'No está en la casa' });
+		try {
+			const link = await invite(userId);
+			log.info('ajustes', `Enlace nuevo para entrar: ${person.name}`);
+			return { invited: { ...link, name: person.name } };
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			return fail(400, { section: 'people', message });
+		}
+	},
+	/** An adult's drawing, from «Personas de la casa». */
+	saveAdult: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const form = await request.formData();
+		const userId = String(form.get('userId') ?? '');
+		const avatar = String(form.get('avatar') ?? '');
+		const [person] = await db.select({ role: user.role }).from(user).where(eq(user.id, userId));
+		if (!person || isKid(person))
+			return fail(400, { section: 'people', message: 'No es un adulto de la casa' });
+		if (!isAvatar(avatar)) return fail(400, { section: 'people', message: 'Elige un dibujo' });
+		await setAvatar(userId, avatar);
+		return { saved: 'adult' };
+	},
+	/** One's own drawing, in Cuenta: adults only. */
+	myAvatar: async ({ request, locals }) => {
+		if (isKid(locals.user)) error(404, 'No encontrado');
+		const avatar = String((await request.formData()).get('avatar') ?? '');
+		if (!isAvatar(avatar)) return fail(400, { section: 'avatar', message: 'Elige un dibujo' });
+		await setAvatar(locals.user!.id, avatar);
+		return { saved: 'avatar' };
+	},
+	/**
 	 * A child's account, «infantil» from the start: with the admin plugin, from the server, so its
 	 * role is not something the account can change.
 	 */
@@ -278,7 +347,7 @@ export const actions: Actions = {
 			return fail(400, { section: 'kids', message: 'La contraseña, de 8 caracteres o más' });
 		try {
 			const { user: kid } = await auth.api.createUser({
-				body: { name, email, password, role: KIDS_ROLE }
+				body: { name, email, password, role: KIDS_ROLE, data: { emailVerified: true } }
 			});
 			await saveKidProfile(
 				kid.id,

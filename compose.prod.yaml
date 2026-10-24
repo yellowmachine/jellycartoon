@@ -65,7 +65,6 @@ services:
       AUDIO_LANG: ${AUDIO_LANG:-spa}
       X264_PRESET: ${X264_PRESET:-medium}
       X264_CRF: ${X264_CRF:-20}
-      ALLOW_SIGNUP: ${ALLOW_SIGNUP:-true}
       DELETE_SOURCES: ${DELETE_SOURCES:-false}
       TZ: ${TZ:-Europe/Madrid}
       # Optional: the AI for films (identifying them, talking about them). Also settable in Ajustes.

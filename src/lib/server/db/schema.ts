@@ -662,7 +662,9 @@ export const userSettings = pgTable('user_settings', {
 	/** The road mode's trips are kept (#81): where one has been, so off until turned on. */
 	recordTrips: boolean('record_trips').notNull().default(false),
 	/** A line from the library's subtitles on a black screen when the app opens, as Frasier's title cards. */
-	openingQuote: boolean('opening_quote').notNull().default(true)
+	openingQuote: boolean('opening_quote').notNull().default(true),
+	/** An adult's drawing (#157), one of AVATARS (avatars.ts); null, their initial. A child's is in kid_profile. */
+	avatar: text('avatar')
 });
 
 /**
@@ -1182,6 +1184,23 @@ export const kidGuardian = pgTable(
 );
 
 /**
+ * How an adult the administrator added enters the first time (#157): a link (and its QR) to choose
+ * their password, once and for 48 hours. It is Better Auth's password reset, its link given to the
+ * administrator instead of sent by email. Only the newest link of each person works: the one here.
+ */
+export const invitation = pgTable('invitation', {
+	userId: text('user_id')
+		.primaryKey()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	/** The SHA-256 of the link's token: the token itself is only in the link. */
+	tokenHash: text('token_hash').notNull().unique(),
+	expiresAt: timestamp('expires_at').notNull(),
+	/** Chosen the password with it: «Este enlace ya se usó». */
+	usedAt: timestamp('used_at'),
+	createdAt: timestamp('created_at').notNull().defaultNow()
+});
+
+/**
  * A device an adult marked as the house's (the living room's TV): only there do the children
  * choose their avatar to ask to enter. Known by a cookie whose hash is kept here.
  */
@@ -1219,6 +1238,31 @@ export const kidLoginRequest = pgTable(
 		companions: jsonb('companions').$type<string[]>().notNull().default([])
 	},
 	(t) => [index('kid_login_request_device_idx').on(t.deviceId, t.createdAt)]
+);
+
+/**
+ * An adult entering on a device of the house from their phone (#172): chosen their drawing in
+ * «¿Quién eres?», the device shows a QR (and their phone gets a notice) with a code only they can
+ * approve, signed in on their phone. Then the device enters as them.
+ */
+export const tvLoginRequest = pgTable(
+	'tv_login_request',
+	{
+		id: text('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		deviceId: integer('device_id')
+			.notNull()
+			.references(() => trustedDevice.id, { onDelete: 'cascade' }),
+		/** The SHA-256 of the code in the QR and the notice: the code itself is only there. */
+		codeHash: text('code_hash').notNull().unique(),
+		state: kidLoginState('state').notNull().default('pending'),
+		createdAt: timestamp('created_at').notNull().defaultNow(),
+		/** Not answered by then, it is no longer asked. */
+		expiresAt: timestamp('expires_at').notNull()
+	},
+	(t) => [index('tv_login_request_device_idx').on(t.deviceId, t.createdAt)]
 );
 
 /**

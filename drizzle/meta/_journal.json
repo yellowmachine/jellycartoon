@@ -491,6 +491,27 @@
       "when": 1792857507385,
       "tag": "0069_fondos",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1792862500355,
+      "tag": "0070_personas",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1792863659099,
+      "tag": "0071_adultos-en-la-tele",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1792863659344,
+      "tag": "0072_emails-de-la-casa",
+      "breakpoints": true
     }
   ]
 }

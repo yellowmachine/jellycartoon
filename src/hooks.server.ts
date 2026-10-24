@@ -51,8 +51,17 @@ export const handleError: HandleServerError = ({ kind, error, event }) => {
 };
 
 // /rest: the Subsonic API logs in with its own parameters (#27). /quien: the children choosing
-// their avatar on a trusted device, before they have a session (#141).
-const PUBLIC_PATHS = ['/login', '/api/auth', '/api/health', '/rest/', '/quien', '/api/quien/'];
+// their avatar on a trusted device, before they have a session (#141). /bienvenida: an adult
+// choosing their password with the link the administrator gave them (#157).
+const PUBLIC_PATHS = [
+	'/login',
+	'/bienvenida',
+	'/api/auth',
+	'/api/health',
+	'/rest/',
+	'/quien',
+	'/api/quien/'
+];
 
 const handleBetterAuth: Handle = async ({ event, resolve }) => {
 	const session = await auth.api.getSession({ headers: event.request.headers });
@@ -86,7 +95,8 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 		if (event.url.pathname.startsWith('/api/')) {
 			return new Response('Unauthorized', { status: 401 });
 		}
-		redirect(303, `/login?next=${encodeURIComponent(event.url.pathname)}`);
+		// With its query: the phone's /entrar?codigo=… (#172) comes back to the same code.
+		redirect(303, `/login?next=${encodeURIComponent(event.url.pathname + event.url.search)}`);
 	}
 
 	return svelteKitHandler({ event, resolve, auth, building });

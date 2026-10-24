@@ -21,6 +21,7 @@
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { page, updated } from '$app/state';
 	import { themeColor, themeCss } from '#lib/themes.ts';
+	import { avatar } from '#lib/avatars.ts';
 	import { onMount, untrack } from 'svelte';
 	import type { LayoutProps } from './$types';
 
@@ -185,6 +186,13 @@
 
 	/** The user's initial, for their round badge (accents and all: «Á» for «Álvaro»). */
 	const initial = $derived([...(data.user?.name.trim() ?? '')][0]?.toLocaleUpperCase('es') ?? '?');
+	/** Their drawing instead (#157), on its colour. */
+	const drawing = $derived(data.user?.avatar ? avatar(data.user.avatar) : null);
+	const badge = $derived(
+		drawing
+			? `${drawing.color} text-lg`
+			: 'bg-amber-500 text-sm font-semibold text-zinc-950 hover:bg-amber-400'
+	);
 
 	/**
 	 * Escape or Backspace go back, as a TV's «back» (a remote in the living room, which has no
@@ -328,10 +336,11 @@
 								title="{data.user.name} · Ajustes"
 								aria-label="{data.user.name} · Ajustes"
 								class={[
-									'flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-sm font-semibold text-zinc-950 hover:bg-amber-400',
+									'flex h-8 w-8 items-center justify-center rounded-full',
+									badge,
 									isCurrent('/ajustes') &&
 										'ring-2 ring-amber-300 ring-offset-2 ring-offset-zinc-950'
-								]}>{initial}</a
+								]}>{drawing?.emoji ?? initial}</a
 							>
 						{:else}
 							<!-- The user's menu: what is not a section to watch or listen to. -->
@@ -344,10 +353,11 @@
 								{#snippet icon()}
 									<span
 										class={[
-											'flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-sm font-semibold text-zinc-950 hover:bg-amber-400',
+											'flex h-8 w-8 items-center justify-center rounded-full',
+											badge,
 											(isCurrent('/ajustes') || (gestion && isCurrent(gestion.href))) &&
 												'ring-2 ring-amber-300 ring-offset-2 ring-offset-zinc-950'
-										]}>{initial}</span
+										]}>{drawing?.emoji ?? initial}</span
 									>
 								{/snippet}
 								{#snippet children(close)}
@@ -427,8 +437,8 @@
 							class="flex items-center gap-2 py-2 text-sm text-zinc-300 hover:text-white"
 						>
 							<span
-								class="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 font-semibold text-zinc-950"
-								aria-hidden="true">{initial}</span
+								class="flex h-8 w-8 items-center justify-center rounded-full {badge}"
+								aria-hidden="true">{drawing?.emoji ?? initial}</span
 							>
 							{data.user.name} · Ajustes
 						</a>

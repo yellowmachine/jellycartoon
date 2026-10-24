@@ -1,10 +1,9 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { APIError } from 'better-auth/api';
-import { ALLOW_SIGNUP } from '$app/env/private';
 import type { Actions, PageServerLoad } from './$types';
 import { auth } from '#lib/server/auth.ts';
 import { markSetupIfNeeded, SETUP_PATH } from '#lib/server/two-factor.ts';
-import { deviceOf, pickableKids } from '#lib/server/kid-login.ts';
+import { deviceOf } from '#lib/server/kid-login.ts';
 import { isAdmin } from '#lib/server/app-settings.ts';
 import { db } from '#lib/server/db/index.ts';
 import { user } from '#lib/server/db/schema.ts';
@@ -28,11 +27,18 @@ const START_AGAIN = new Set(['TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE', 'INVALID_TWO_
 
 export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 	if (locals.user) redirect(303, safeNext(url));
-	// The house's devices first show the children's avatars (#141); «Soy un adulto» comes here.
+	// The house's devices first show «¿Quién eres?», with the children and the adults (#141, #172);
+	// «Con contraseña» comes here.
 	const device = await deviceOf(cookies);
-	if (device && !url.searchParams.has('adulto') && (await pickableKids()).length)
-		redirect(303, '/quien');
-	return { allowSignup: ALLOW_SIGNUP, kids: Boolean(device) };
+	if (device && !url.searchParams.has('adulto')) redirect(303, '/quien');
+	// A new install: its first account, the administrator's, which creates the rest (#157).
+	const [someone] = await db.select({ id: user.id }).from(user).limit(1);
+	return {
+		firstAccount: !someone,
+		kids: Boolean(device),
+		/** Back from /bienvenida with a second step: the new password and the code, here. */
+		passwordChanged: url.searchParams.has('cambiada')
+	};
 };
 
 export const actions: Actions = {
@@ -97,8 +103,13 @@ export const actions: Actions = {
 		// The first account of a new install is the administrator: its second step, first of all.
 		// The first account is the administrator: Better Auth's `admin` role too, to set the
 		// children's passwords (#141). Installs from before got it in a migration.
+		// Its email, as verified: nobody else signs up (#157), and so Better Auth's magic link, for
+		// entering on the TV from the phone (#172), keeps its password.
 		if (await isAdmin(result.user.id))
-			await db.update(user).set({ role: 'admin' }).where(eq(user.id, result.user.id));
+			await db
+				.update(user)
+				.set({ role: 'admin', emailVerified: true })
+				.where(eq(user.id, result.user.id));
 		if (result.token && (await markSetupIfNeeded(result.user, result.token)))
 			redirect(303, SETUP_PATH);
 		redirect(303, safeNext(url));

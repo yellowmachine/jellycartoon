@@ -45,7 +45,7 @@ test('every section of the index is on the page, once', () => {
 });
 
 test('by words it does not say, accents and case aside', () => {
-	expect(searchSettings('niños', admin).map((e) => e.id)).toContain('cuentas-infantiles');
+	expect(searchSettings('niños', admin).map((e) => e.id)).toContain('personas');
 	expect(searchSettings('IA', admin)[0]?.id).toBe('ia');
 	expect(searchSettings('subtitulos', admin).map((e) => e.id)).toEqual([
 		'estilo-subtitulos',
