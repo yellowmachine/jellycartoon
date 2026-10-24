@@ -10,6 +10,8 @@
 	import { thumbChanged, thumbUrl } from '#lib/thumb.svelte.ts';
 	import { videoHere } from '#lib/video-here.svelte.ts';
 	import { watchMedia, watchPlay } from '#lib/media-diagnostics.ts';
+	import { listenToEpisode } from '#lib/episode-listening.svelte.ts';
+	import { music } from '#lib/music-player.svelte.ts';
 	import { shownDeviceName } from '#lib/device-name.svelte.ts';
 	import { page } from '$app/state';
 	import SubtitleStylePanel from './SubtitleStylePanel.svelte';
@@ -210,7 +212,7 @@
 			// Leaving the page or the episode inside the app: where it was, before hls.js empties the
 			// <video>. Closing the tab is pagehide's. Only if it played: opened and left (the browser
 			// may not let it start by itself), it stays as it was, e.g. out of «Seguir viendo».
-			if (el.played.length) void saveAt(id, el);
+			if (el.played.length && !handedOver) void saveAt(id, el);
 			// Safari's own HLS: without its source the <video> lets go of the stream.
 			if (!hls) {
 				el.removeAttribute('src');
@@ -308,7 +310,27 @@
 		return () => tracks?.removeEventListener('change', onTextTrackChange);
 	});
 
-	const save = () => saveAt(episodeId, video);
+	/**
+	 * Given to the music player («Seguir solo con el audio»): where it goes is the audio's, and the
+	 * video, stopped where it was given, saves nothing more (leaving the page would undo what was
+	 * listened to).
+	 */
+	let handedOver = false;
+	const save = () => (handedOver ? Promise.resolve() : saveAt(episodeId, video));
+
+	/**
+	 * Played here again while its audio goes on in the music player: that stops, and the video goes
+	 * on from where the audio got to.
+	 */
+	function playedHere() {
+		const listening = music.listening;
+		if (listening?.id === episodeId && video) {
+			const at = listening.positionSec;
+			music.stop();
+			video.currentTime = at;
+		}
+		handedOver = false;
+	}
 
 	function saveAt(episodeId: number, video: HTMLVideoElement | undefined) {
 		if (!video?.currentTime) return Promise.resolve();
@@ -328,6 +350,29 @@
 		})
 			.catch(() => null)
 			.then(saved('No se pudo guardar por dónde vas.'));
+	}
+
+	/**
+	 * «Seguir solo con el audio» (#154): from this second, with the audio being heard, in the music
+	 * player, which goes on with the screen off (Chrome pauses a video then). The video stops here.
+	 */
+	function onlyAudio() {
+		if (!video) return;
+		// «Friends · T1 E2 · El de la boda»: the episode's title, and the rest under it.
+		const parts = title.split(' · ');
+		listenToEpisode({
+			id: episodeId,
+			title: parts.length > 1 ? parts.at(-1)! : title,
+			subtitle: parts.length > 1 ? parts.slice(0, -1).join(' · ') : 'Solo el audio',
+			audioTracks,
+			lang: null,
+			track: audioIndex,
+			durationSec: Number.isFinite(video.duration) ? video.duration : null,
+			positionSec: video.currentTime
+		});
+		video.pause();
+		handedOver = true;
+		menuOpen = false;
 	}
 
 	let thumbnailState = $state<'idle' | 'saving' | 'done' | 'failed'>('idle');
@@ -427,6 +472,7 @@ same look in every browser, the app's colours, and the player's options in its �
 				class="jc-video h-full w-full bg-black"
 				ontimeupdate={onTimeUpdate}
 				onpause={save}
+				onplay={playedHere}
 				onseeked={save}
 				onended={onEnded}
 			>
@@ -490,6 +536,13 @@ same look in every browser, the app's colours, and the player's options in its �
 					role="group"
 					aria-label="Opciones del vídeo"
 				>
+					{#if !page.data.kid && audioTracks.length}
+						<button
+							class="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800"
+							title="Sigue desde aquí en el reproductor de música, que no se para con la pantalla apagada"
+							onclick={onlyAudio}>🎧 Seguir solo con el audio</button
+						>
+					{/if}
 					{#if audioTracks.length > 1}
 						{@render choices(
 							'Audio',

@@ -1,6 +1,7 @@
 import type { MusicTrack, SavedQueue } from '#lib/music.ts';
 import type { PodcastPlaying, Speed } from '#lib/podcasts.ts';
 import type { RadioStream } from '#lib/radio.ts';
+import type { EpisodeListening } from '#lib/episode-audio.ts';
 import { watchPlay } from '#lib/media-diagnostics.ts';
 
 /** The volume under spoken directions. */
@@ -31,6 +32,8 @@ class MusicPlayer {
 	radio = $state<RadioStream | null>(null);
 	/** A podcast episode, instead of the queue. */
 	podcast = $state<PodcastPlaying | null>(null);
+	/** An episode of the library only listened to (#154), instead of the queue. */
+	listening = $state<EpisodeListening | null>(null);
 	/** Podcasts only: music always sounds as it is. */
 	speed = $state<Speed>(1);
 	index = $state(0);
@@ -88,6 +91,7 @@ class MusicPlayer {
 		this.dj = dj;
 		this.radio = null;
 		this.podcast = null;
+		this.listening = null;
 		start = Math.min(Math.max(start, 0), tracks.length - 1);
 		this.#ordered = tracks;
 		this.queue = this.shuffle ? shuffled(tracks, start) : tracks;
@@ -115,6 +119,7 @@ class MusicPlayer {
 		this.queue = [];
 		this.index = 0;
 		this.podcast = null;
+		this.listening = null;
 		this.radio = stream;
 	}
 
@@ -126,12 +131,26 @@ class MusicPlayer {
 		this.#ordered = [];
 		this.index = 0;
 		this.radio = null;
+		this.listening = null;
 		this.podcast = episode;
+	}
+
+	/** An episode of the library, only its audio (#154), instead of whatever was on. */
+	listenTo(episode: EpisodeListening) {
+		this.restored = null;
+		this.dj = false;
+		this.queue = [];
+		this.#ordered = [];
+		this.index = 0;
+		this.radio = null;
+		this.podcast = null;
+		this.listening = episode;
 	}
 
 	/** Back or forward that many seconds, within the episode. */
 	skip(sec: number) {
-		const end = this.durationSec ?? this.podcast?.durationSec ?? Infinity;
+		const end =
+			this.durationSec ?? this.podcast?.durationSec ?? this.listening?.durationSec ?? Infinity;
 		this.seek(Math.min(Math.max(this.positionSec + sec, 0), end));
 	}
 
@@ -283,6 +302,7 @@ class MusicPlayer {
 		this.#audio?.pause();
 		this.radio = null;
 		this.podcast = null;
+		this.listening = null;
 		this.queue = [];
 		this.#ordered = [];
 		this.index = 0;

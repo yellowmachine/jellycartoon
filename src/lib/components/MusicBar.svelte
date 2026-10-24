@@ -11,6 +11,7 @@
 	import { musicQuality } from '#lib/music-quality.svelte.ts';
 	import { keepQueue } from '#lib/music-queue.svelte.ts';
 	import { keepPodcastProgress, podcastEnded } from '#lib/podcast-player.svelte.ts';
+	import { keepListeningProgress, listeningEnded } from '#lib/episode-listening.svelte.ts';
 	import { SKIP_BACK, SKIP_FORWARD, SPEEDS, type Speed } from '#lib/podcasts.ts';
 	import { COUNTRIES } from '#lib/radio.ts';
 	import { watchMedia, watchPlay } from '#lib/media-diagnostics.ts';
@@ -20,6 +21,7 @@
 	const current = $derived(music.current);
 	const radio = $derived(music.radio);
 	const podcast = $derived(music.podcast);
+	const listening = $derived(music.listening);
 	let hls: Hls | null = null;
 	/** A station off the air or a dropped connection, said while it is tried again. */
 	let problem = $state<string | null>(null);
@@ -37,6 +39,7 @@
 
 	keepQueue();
 	keepPodcastProgress();
+	keepListeningProgress();
 
 	/** The speed chosen for podcasts, kept in this browser. */
 	const SPEED_KEY = 'podcast-speed';
@@ -65,7 +68,7 @@
 	// goes back to defaultPlaybackRate, so both.
 	$effect(() => {
 		if (!audio) return;
-		const rate = podcast ? music.speed : 1;
+		const rate = podcast || listening ? music.speed : 1;
 		audio.defaultPlaybackRate = rate;
 		audio.playbackRate = rate;
 	});
@@ -81,7 +84,7 @@
 		clearTimeout(retryTimer);
 		const gaveUp = radio
 			? GAVE_UP
-			: podcast
+			: podcast || listening
 				? 'No se pudo reproducir este episodio.'
 				: 'No se pudo reproducir esta canción.';
 		if (tries >= TRIES || music.restored) return void (problem = gaveUp);
@@ -109,6 +112,7 @@
 		void current;
 		void radioId;
 		void podcast?.id;
+		void listening?.id;
 		clearTimeout(retryTimer);
 		tries = 0;
 		problem = null;
@@ -142,7 +146,7 @@
 	const NEXT_AFTER_SEC = 10;
 	/** What plays after this one, if a song does: none with a station, an episode or «solo esta». */
 	const upcoming = $derived(
-		radio || podcast || music.single
+		radio || podcast || listening || music.single
 			? null
 			: (music.queue[music.index + 1] ?? (music.repeat ? music.queue[0] : null) ?? null)
 	);
@@ -165,7 +169,7 @@
 	// starts); an episode starts where the user left it, from the podcast's own server. The quality
 	// chosen in Ajustes, from the next track: not starting this one again.
 	$effect(() => {
-		if (!audio || radio) return;
+		if (!audio || radio || listening) return;
 		const opus = untrack(() => musicQuality.value === 'saver');
 		const src = podcast ? podcast.audioUrl : current ? audioUrl(current, opus) : null;
 		if (!src) {
@@ -218,6 +222,58 @@
 		};
 	});
 
+	/** Listened episode's `<audio>` is its own: its position is kept, not another's (timeUpdate). */
+	let listeningLoaded: object | null = null;
+	/**
+	 * Seconds of an episode only listened to (#154) loaded ahead: with the screen off, the phone
+	 * cuts the network for a moment now and then (seen every ~2.5 minutes), and 30 s, hls.js's own,
+	 * may not be enough.
+	 */
+	const LISTENING_BUFFER_SEC = 180;
+
+	// An episode only listened to: its own HLS audio track, through hls.js where the browser has no
+	// HLS of its own (as the stations), from where it goes.
+	$effect(() => {
+		const el = audio;
+		const episode = listening;
+		if (!el || !episode) return;
+		let cancelled = false;
+		const start = untrack(() => episode.positionSec);
+		// What was on stops now, not once hls.js has loaded; and while the episode loads, the
+		// `<audio>` says 0 s: its position is taken only once it plays.
+		el.pause();
+		const playing = () => (listeningLoaded = episode);
+		el.addEventListener('playing', playing, { once: true });
+		(async () => {
+			if (!el.canPlayType('application/vnd.apple.mpegurl')) {
+				const { default: Hls } = await import('hls.js');
+				if (cancelled || !Hls.isSupported()) return;
+				hls = new Hls({
+					startPosition: start,
+					maxBufferLength: LISTENING_BUFFER_SEC,
+					maxMaxBufferLength: LISTENING_BUFFER_SEC * 2
+				});
+				hls.on(Hls.Events.MANIFEST_PARSED, () => watchPlay(el.play(), 'música'));
+				recoverFromErrors(hls, Hls, (text) => (problem = text));
+				hls.loadSource(episode.audioUrl);
+				hls.attachMedia(el);
+			} else {
+				el.src = episode.audioUrl;
+				el.currentTime = start;
+				watchPlay(el.play(), 'música');
+			}
+		})();
+		return () => {
+			cancelled = true;
+			el.removeEventListener('playing', playing);
+			listeningLoaded = null;
+			hls?.destroy();
+			hls = null;
+			el.removeAttribute('src');
+			el.load();
+		};
+	});
+
 	// The phone's lock screen, notifications and headphone buttons:
 	// https://developer.mozilla.org/docs/Web/API/Media_Session_API
 	$effect(() => {
@@ -227,8 +283,14 @@
 			['play', () => music.resume()],
 			['pause', () => music.pause()],
 			// Headphones' buttons: in an episode, back and forward a little.
-			['previoustrack', () => (music.podcast ? music.skip(-SKIP_BACK) : music.previous())],
-			['nexttrack', () => (music.podcast ? music.skip(SKIP_FORWARD) : music.next())],
+			[
+				'previoustrack',
+				() => (music.podcast || music.listening ? music.skip(-SKIP_BACK) : music.previous())
+			],
+			[
+				'nexttrack',
+				() => (music.podcast || music.listening ? music.skip(SKIP_FORWARD) : music.next())
+			],
 			['seekto', (d) => d.seekTime !== undefined && music.seek(d.seekTime)],
 			['seekbackward', (d) => music.seek(Math.max(0, music.positionSec - (d.seekOffset ?? 10)))],
 			['seekforward', (d) => music.seek(music.positionSec + (d.seekOffset ?? 10))],
@@ -266,22 +328,28 @@
 						artist: podcast.podcastTitle,
 						artwork: podcast.imageUrl ? [{ src: podcast.imageUrl }] : []
 					})
-				: current
+				: listening
 					? new MediaMetadata({
-							title: current.title,
-							artist: current.artist,
-							album: current.album,
-							artwork: current.hasCover
-								? [{ src: coverUrl(current.albumId), sizes: '500x500', type: 'image/jpeg' }]
-								: []
+							title: listening.title,
+							artist: listening.subtitle,
+							artwork: [{ src: listening.imageUrl }]
 						})
-					: null;
+					: current
+						? new MediaMetadata({
+								title: current.title,
+								artist: current.artist,
+								album: current.album,
+								artwork: current.hasCover
+									? [{ src: coverUrl(current.albumId), sizes: '500x500', type: 'image/jpeg' }]
+									: []
+							})
+						: null;
 	});
 
 	$effect(() => {
 		if ('mediaSession' in navigator)
 			navigator.mediaSession.playbackState =
-				!current && !podcast ? 'none' : music.playing ? 'playing' : 'paused';
+				!current && !podcast && !listening ? 'none' : music.playing ? 'playing' : 'paused';
 	});
 
 	function timeUpdate() {
@@ -290,6 +358,7 @@
 		// The episode's own position, only while its own audio is loaded (see podcast-player).
 		if (podcast && audio.getAttribute('src') === podcast.audioUrl)
 			podcast.positionSec = audio.currentTime;
+		if (listening && listeningLoaded === listening) listening.positionSec = audio.currentTime;
 		const duration = Number.isFinite(audio.duration) ? audio.duration : null;
 		music.durationSec = duration;
 		if (duration && 'mediaSession' in navigator) {
@@ -331,8 +400,97 @@
 	ontimeupdate={timeUpdate}
 	ondurationchange={timeUpdate}
 	loop={music.single && music.repeat}
-	onended={() => (radio ? failed() : podcast ? podcastEnded() : music.ended())}
+	onended={() =>
+		radio ? failed() : podcast ? podcastEnded() : listening ? listeningEnded() : music.ended()}
 ></audio>
+
+<!-- A podcast episode or a library episode only listened to (#154): the same bar, with ±seconds
+and the speed. -->
+{#snippet talkBar(talk: {
+	title: string;
+	subtitle: string;
+	imageUrl: string | null;
+	href: string;
+	icon: string;
+	durationSec: number | null;
+})}
+	<div class="rounded-md border border-zinc-700 bg-zinc-900/80 p-2 backdrop-blur">
+		<input
+			type="range"
+			min="0"
+			max={music.durationSec ?? talk.durationSec ?? 0}
+			step="1"
+			value={music.positionSec}
+			aria-label="Posición"
+			class="mb-1 block h-1 w-full accent-amber-500"
+			onchange={(e) => music.seek(Number(e.currentTarget.value))}
+		/>
+		<!-- Two rows on the phone, as with music: the episode, then the time and the controls. -->
+		<div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 sm:flex-nowrap sm:gap-3">
+			<a href={talk.href} class="order-1 flex min-w-0 flex-1 items-center gap-3">
+				{#if talk.imageUrl}
+					<img
+						src={talk.imageUrl}
+						alt=""
+						class="h-10 w-10 shrink-0 rounded bg-zinc-800 object-cover"
+					/>
+				{:else}
+					<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-zinc-800"
+						>{talk.icon}</span
+					>
+				{/if}
+				<span class="min-w-0">
+					<span class="block truncate text-sm">{talk.title}</span>
+					{#if problem}
+						<span class="block truncate text-xs text-amber-400">{problem}</span>
+					{:else}
+						<span class="block truncate text-xs text-zinc-400"
+							>{music.restored
+								? `Sonaba en ${music.restored.changedBy} · ${talk.subtitle}`
+								: talk.subtitle}</span
+						>
+					{/if}
+				</span>
+			</a>
+			<button
+				class="{ghost} order-2 sm:order-9"
+				aria-label="Cerrar"
+				title="Parar y cerrar"
+				onclick={() => music.stop()}><MediaIcon name="close" /></button
+			>
+			<span class="order-3 basis-full sm:hidden" aria-hidden="true"></span>
+			<span class="order-4 font-mono text-[11px] text-zinc-400 tabular-nums sm:text-xs">
+				{formatDuration(music.positionSec) || '0:00'} / {formatDuration(
+					music.durationSec ?? talk.durationSec
+				)}
+			</span>
+			<span class="order-6 ml-auto flex items-center gap-1.5 sm:ml-0 sm:gap-2">
+				<button
+					class="{ghost} w-auto! px-2 font-mono text-xs tabular-nums max-sm:h-8"
+					title="Velocidad"
+					aria-label="Velocidad: {speedLabel(music.speed)}"
+					onclick={nextSpeed}>{speedLabel(music.speed)}</button
+				>
+				<button
+					class="{control} w-auto! px-2 text-xs max-sm:h-8"
+					aria-label="Atrás {SKIP_BACK} segundos"
+					onclick={() => music.skip(-SKIP_BACK)}>−{SKIP_BACK}</button
+				>
+				<button
+					class={primary}
+					aria-label={music.playing ? 'Pausa' : 'Seguir'}
+					onclick={() => music.toggle()}
+					><MediaIcon name={music.playing ? 'pause' : 'play'} /></button
+				>
+				<button
+					class="{control} w-auto! px-2 text-xs max-sm:h-8"
+					aria-label="Adelante {SKIP_FORWARD} segundos"
+					onclick={() => music.skip(SKIP_FORWARD)}>+{SKIP_FORWARD}</button
+				>
+			</span>
+		</div>
+	</div>
+{/snippet}
 
 {#if radio}
 	<div
@@ -371,85 +529,23 @@
 		>
 	</div>
 {:else if podcast}
-	<div class="rounded-md border border-zinc-700 bg-zinc-900/80 p-2 backdrop-blur">
-		<input
-			type="range"
-			min="0"
-			max={music.durationSec ?? podcast.durationSec ?? 0}
-			step="1"
-			value={music.positionSec}
-			aria-label="Posición"
-			class="mb-1 block h-1 w-full accent-amber-500"
-			onchange={(e) => music.seek(Number(e.currentTarget.value))}
-		/>
-		<!-- Two rows on the phone, as with music: the episode, then the time and the controls. -->
-		<div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 sm:flex-nowrap sm:gap-3">
-			<a
-				href="/radio/podcasts/{podcast.podcastId}"
-				class="order-1 flex min-w-0 flex-1 items-center gap-3"
-			>
-				{#if podcast.imageUrl}
-					<img
-						src={podcast.imageUrl}
-						alt=""
-						class="h-10 w-10 shrink-0 rounded bg-zinc-800 object-cover"
-					/>
-				{:else}
-					<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-zinc-800"
-						>🎙</span
-					>
-				{/if}
-				<span class="min-w-0">
-					<span class="block truncate text-sm">{podcast.title}</span>
-					{#if problem}
-						<span class="block truncate text-xs text-amber-400">{problem}</span>
-					{:else}
-						<span class="block truncate text-xs text-zinc-400"
-							>{music.restored
-								? `Sonaba en ${music.restored.changedBy} · ${podcast.podcastTitle}`
-								: podcast.podcastTitle}</span
-						>
-					{/if}
-				</span>
-			</a>
-			<button
-				class="{ghost} order-2 sm:order-9"
-				aria-label="Cerrar"
-				title="Parar y cerrar"
-				onclick={() => music.stop()}><MediaIcon name="close" /></button
-			>
-			<span class="order-3 basis-full sm:hidden" aria-hidden="true"></span>
-			<span class="order-4 font-mono text-[11px] text-zinc-400 tabular-nums sm:text-xs">
-				{formatDuration(music.positionSec) || '0:00'} / {formatDuration(
-					music.durationSec ?? podcast.durationSec
-				)}
-			</span>
-			<span class="order-6 ml-auto flex items-center gap-1.5 sm:ml-0 sm:gap-2">
-				<button
-					class="{ghost} w-auto! px-2 font-mono text-xs tabular-nums max-sm:h-8"
-					title="Velocidad"
-					aria-label="Velocidad: {speedLabel(music.speed)}"
-					onclick={nextSpeed}>{speedLabel(music.speed)}</button
-				>
-				<button
-					class="{control} w-auto! px-2 text-xs max-sm:h-8"
-					aria-label="Atrás {SKIP_BACK} segundos"
-					onclick={() => music.skip(-SKIP_BACK)}>−{SKIP_BACK}</button
-				>
-				<button
-					class={primary}
-					aria-label={music.playing ? 'Pausa' : 'Seguir'}
-					onclick={() => music.toggle()}
-					><MediaIcon name={music.playing ? 'pause' : 'play'} /></button
-				>
-				<button
-					class="{control} w-auto! px-2 text-xs max-sm:h-8"
-					aria-label="Adelante {SKIP_FORWARD} segundos"
-					onclick={() => music.skip(SKIP_FORWARD)}>+{SKIP_FORWARD}</button
-				>
-			</span>
-		</div>
-	</div>
+	{@render talkBar({
+		title: podcast.title,
+		subtitle: podcast.podcastTitle,
+		imageUrl: podcast.imageUrl,
+		href: `/radio/podcasts/${podcast.podcastId}`,
+		icon: '🎙',
+		durationSec: podcast.durationSec
+	})}
+{:else if listening}
+	{@render talkBar({
+		title: listening.title,
+		subtitle: `🎧 ${listening.subtitle}`,
+		imageUrl: listening.imageUrl,
+		href: `/watch/${listening.id}`,
+		icon: '🎧',
+		durationSec: listening.durationSec
+	})}
 {:else if current}
 	{#snippet modes()}
 		<PlayModes
