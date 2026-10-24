@@ -5,6 +5,7 @@
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { recipe } from '#lib/recipe.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
+	import { voiceHint } from '#lib/voice-hint.svelte.ts';
 
 	/**
 	 * Voice commands (#33), big: held down, it listens; let go, it is sent. Its answer is shown big
@@ -45,17 +46,37 @@
 		<RecipeCard />
 	{/if}
 
-	<p class="text-3xl font-semibold text-zinc-200">
-		{voice.phase === 'listening'
-			? micMode.tap
-				? 'Te escucho… toca para enviar'
-				: 'Te escucho…'
-			: voice.phase === 'thinking'
+	{#if voice.phase === 'listening' || voice.phase === 'thinking'}
+		<p class="text-3xl font-semibold text-zinc-200">
+			{voice.phase === 'thinking'
 				? 'Un momento…'
 				: micMode.tap
-					? 'Toca y habla'
-					: 'Mantén pulsado y habla'}
-	</p>
+					? 'Te escucho… toca para enviar'
+					: 'Te escucho…'}
+		</p>
+	{:else if !voiceHint.closed}
+		<!-- Closed once, it stays closed on this device. -->
+		<div
+			class="flex items-center gap-3 rounded-2xl bg-zinc-900 py-3 pr-2 pl-6 text-3xl font-semibold text-zinc-200"
+		>
+			{micMode.tap ? 'Toca y habla' : 'Mantén pulsado y habla'}
+			<button
+				class="rounded-full p-2 text-zinc-500 hover:bg-zinc-800 hover:text-white"
+				aria-label="Cerrar el aviso"
+				onclick={() => voiceHint.close()}
+			>
+				<svg viewBox="0 0 24 24" class="h-5 w-5" aria-hidden="true">
+					<path
+						d="M6 6l12 12M18 6L6 18"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+					/>
+				</svg>
+			</button>
+		</div>
+	{/if}
 
 	<!-- Touch: no selecting text nor the menu of a long press, and no scrolling while it is held. -->
 	<button
