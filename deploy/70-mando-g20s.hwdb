@@ -4,8 +4,11 @@
 #   Play/Pausa  KEY_PLAYPAUSE ("Unidentified") → F8
 #   Micrófono   KEY_VOICECOMMAND (no llega)  → F9
 #   Inicio      KEY_HOMEPAGE (saca de la app) → F7
+#   Encendido   KEY_POWER (apagar o suspender el PC) → Launch1, que muestra y oculta la vista TV
+#               (deploy/kwin/jellycartoon-mando, #159). El botón del PC sigue siendo el de encendido.
 evdev:input:b0003v4842p0001*
  KEYBOARD_KEY_c0041=enter
  KEYBOARD_KEY_c00cd=f8
  KEYBOARD_KEY_c00cf=f9
  KEYBOARD_KEY_c0223=f7
+ KEYBOARD_KEY_10081=prog1

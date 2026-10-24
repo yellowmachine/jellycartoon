@@ -1,0 +1,12 @@
+# The TV view, as an app window of Chromium: arrows move the focus and OK opens (spatial
+# navigation). Installed by scripts/pantalla.sh with the address of the house's app (@URL@) and its
+# Chromium (@CHROMIUM@); opened by the remote's power button (deploy/kwin/jellycartoon-mando).
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=JellyCartoon (tele)
+Comment=La vista TV, para el mando del salón
+Categories=AudioVideo;Video;
+Exec=@CHROMIUM@ --enable-spatial-navigation --no-first-run --start-maximized --app=@URL@/tv
+Icon=video-television
+Terminal=false
