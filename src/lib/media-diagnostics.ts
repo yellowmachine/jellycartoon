@@ -112,6 +112,11 @@ export function noteSystemAction(action: string, media: Media) {
 	note(`el sistema pide ${action}`, media);
 }
 
+/** Paused by the phone alone, and played again by the app (auto-resume.ts). */
+export function noteAutoResume(media: Media, inARow: number) {
+	note('se había pausado sola: sigue', media, `${inARow}.ª seguida`);
+}
+
 /** A player's `<audio>` or `<video>`, watched while it exists: returns how to stop. */
 export function watchMedia(el: HTMLMediaElement, media: Media) {
 	listen();
