@@ -1,3 +1,4 @@
+import { version } from '$app/env';
 import { deviceName } from '#lib/device-name.svelte.ts';
 
 /**
@@ -45,7 +46,7 @@ function note(what: string, media?: Media, detail?: string) {
 }
 
 function body() {
-	return JSON.stringify({ device: deviceName.value || null, events: pending });
+	return JSON.stringify({ device: deviceName.value || null, version, events: pending });
 }
 
 /** What was noted, to the server; kept if it could not be sent, for the next time. */
@@ -58,7 +59,7 @@ async function send() {
 	const res = await fetch(ENDPOINT, {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({ device: deviceName.value || null, events: sending }),
+		body: JSON.stringify({ device: deviceName.value || null, version, events: sending }),
 		keepalive: true
 	}).catch(() => null);
 	if (!res?.ok) pending = [...sending, ...pending].slice(0, KEPT);

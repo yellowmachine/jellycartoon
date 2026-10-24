@@ -1,4 +1,6 @@
 import { error } from '@sveltejs/kit';
+import { version } from '$app/env';
+import { APP_VERSION } from '$app/env/private';
 import type { RequestHandler } from './$types';
 import { log } from '#lib/server/log.ts';
 
@@ -21,7 +23,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (now - (last.get(user.id) ?? 0) < EVERY_MS) error(429, 'Demasiado seguido');
 	const text = await request.text();
 	if (text.length > MAX_BYTES) error(413, 'Demasiado grande');
-	let body: { device?: unknown; events?: unknown };
+	let body: { device?: unknown; version?: unknown; events?: unknown };
 	try {
 		body = JSON.parse(text);
 	} catch {
@@ -44,11 +46,21 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.map((e) => (e.media ? `${e.what} (${e.media})` : e.what))
 		.join(' → ')
 		.slice(0, 300);
-	log.info('reproductor', `Con la página oculta: ${summary}`, {
-		user: user.name,
-		device: typeof body.device === 'string' ? body.device.slice(0, 50) : null,
-		browser: request.headers.get('user-agent')?.slice(0, 300) ?? null,
-		events
-	});
+	// A page open since before the last update runs the code it had then (it reloads only on its
+	// next navigation): said, so that a test with it is not taken for one of this version.
+	const old = body.version !== version;
+	log.info(
+		'reproductor',
+		`${old ? '[página de una versión anterior] ' : ''}Con la página oculta: ${summary}`,
+		{
+			user: user.name,
+			device: typeof body.device === 'string' ? body.device.slice(0, 50) : null,
+			browser: request.headers.get('user-agent')?.slice(0, 300) ?? null,
+			/** The server's; the page's own only says whether it is the same build. */
+			version: APP_VERSION || null,
+			samePage: !old,
+			events
+		}
+	);
 	return new Response(null, { status: 204 });
 };
