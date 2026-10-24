@@ -20,7 +20,7 @@
 		watchMedia,
 		watchPlay
 	} from '#lib/media-diagnostics.ts';
-	import { FINE_AFTER_MS, RESUME_AFTER_MS, shouldResume } from '#lib/auto-resume.ts';
+	import { FINE_AFTER_MS, shouldResume } from '#lib/auto-resume.ts';
 	import { nextTrack } from '#lib/next-track.ts';
 
 	let audio = $state<HTMLAudioElement>();
@@ -134,14 +134,13 @@
 		if (audio) return watchMedia(audio, 'música');
 	});
 
-	// Paused by the phone alone with the screen off (a notification's sound): played again in a
-	// moment, a couple of times in a row at most (auto-resume.ts).
+	// Paused by the phone alone with the screen off: played again at once, while the page is still
+	// awake; a couple of times in a row at most (auto-resume.ts).
 	$effect(() => {
 		const el = audio;
 		if (!el) return;
 		let inARow = 0;
 		let lastAt = 0;
-		let timer: ReturnType<typeof setTimeout> | undefined;
 		const paused = () => {
 			const now = Date.now();
 			if (now - lastAt > FINE_AFTER_MS) inARow = 0;
@@ -154,21 +153,14 @@
 				inARow
 			};
 			if (!shouldResume(seen)) return;
-			clearTimeout(timer);
-			timer = setTimeout(() => {
-				// Someone pressed something meanwhile, or it went on by itself.
-				if (!el.paused || music.askedPauseAt > now || !document.hidden) return;
-				inARow++;
-				lastAt = Date.now();
-				noteAutoResume('música', inARow);
-				watchPlay(el.play(), 'música');
-			}, RESUME_AFTER_MS);
+			inARow++;
+			lastAt = now;
+			noteAutoResume('música', inARow);
+			// Refused (and why) or not answered, to the Registro; played, as «suena».
+			watchPlay(el.play(), 'música');
 		};
 		el.addEventListener('pause', paused);
-		return () => {
-			clearTimeout(timer);
-			el.removeEventListener('pause', paused);
-		};
+		return () => el.removeEventListener('pause', paused);
 	});
 
 	// Modo DJ follows what plays: more songs when few are left, and the DJ when it is time.

@@ -1,13 +1,11 @@
 /**
- * Music that pauses by itself with the phone in the pocket: Android gives the sound to a
- * notification for a moment and Chrome pauses, and sometimes does not go on after it (seen on a
- * walk: the third song paused a second after it started, with no headphones and nobody touching
- * anything). Played again a moment later, a couple of times in a row at most, so as not to fight
- * a call or another app that keeps the sound.
+ * Music that pauses by itself with the phone in the pocket: Chrome pauses it with nobody asking
+ * (seen on two walks: the third song paused under a second after it started, with no headphones,
+ * nothing touched, and no Media Session action). Played again at once, within the pause itself:
+ * paused and with the screen off, Android freezes the page right away, and a timer waiting a
+ * moment only ran once the screen was on again (1.28.0). A couple of times in a row at most, so as
+ * not to fight a call or another app that keeps the sound.
  */
-
-/** After the pause, this long: the notification's sound is over. */
-export const RESUME_AFTER_MS = 2_000;
 /** In a row, at most; then it stays paused, as Chrome left it. */
 export const MAX_IN_A_ROW = 2;
 /** Playing this long since the last one, the count starts again. */
