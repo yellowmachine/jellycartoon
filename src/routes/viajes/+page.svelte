@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import SavedPlaces from '#lib/components/SavedPlaces.svelte';
 	import TripMap from '#lib/components/TripMap.svelte';
 	import { distanceText } from '#lib/road.ts';
 	import { durationText, type StoredPoint } from '#lib/trips.ts';
 	import type { PageProps } from './$types';
 
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 
 	const day = new Intl.DateTimeFormat('es', { weekday: 'short', day: 'numeric', month: 'short' });
 	const time = new Intl.DateTimeFormat('es', { timeStyle: 'short' });
@@ -104,6 +105,8 @@
 		> («Guardar mis viajes»).
 	{/if}
 </p>
+
+<SavedPlaces places={data.places} routes={data.routes} map={data.map} problems={form ?? null} />
 
 {#if latest}
 	<section class="mb-8 rounded-md border border-amber-500/40 p-4">

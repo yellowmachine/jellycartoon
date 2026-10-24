@@ -34,6 +34,8 @@ export type VoiceAction =
 	| { kind: 'endRecipe' }
 	/** The road mode's route (#78) to that place, from where we are; null, none. */
 	| { kind: 'navigate'; place: Place | null }
+	/** A route kept in Viajes (#151), by its id: from where we are, through its stops ahead. */
+	| { kind: 'route'; id: number }
 	/** A photo with the road mode's camera (#81). */
 	| { kind: 'photo' };
 

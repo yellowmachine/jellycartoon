@@ -85,18 +85,27 @@ export async function whereIs(at: LngLat): Promise<string | null> {
 	return placesFromOrs(await ors('search', `/geocode/reverse?${params}`))[0]?.label ?? null;
 }
 
-/** By car from `from` to `to`, with its steps in Spanish. */
-export async function drivingRoute(from: LngLat, to: LngLat): Promise<Route> {
+/**
+ * By car through `points`, from the first to the last, with its steps in Spanish. With stops on the
+ * way (#151), not turning back at them.
+ */
+export async function drivingRoute(points: LngLat[]): Promise<Route> {
 	const route = routeFromOrs(
 		await ors('routes', '/v2/directions/driving-car/geojson', {
 			method: 'POST',
-			body: JSON.stringify({ coordinates: [from, to], language: 'es', instructions: true })
+			body: JSON.stringify({
+				coordinates: points,
+				language: 'es',
+				instructions: true,
+				...(points.length > 2 ? { continue_straight: true } : {})
+			})
 		})
 	);
 	if (!route) throw new OrsError('openrouteservice no encontró una ruta');
 	log.info('rutas', 'Ruta pedida a openrouteservice', {
 		metres: Math.round(route.distance),
-		steps: route.steps.length
+		steps: route.steps.length,
+		stops: points.length
 	});
 	return route;
 }

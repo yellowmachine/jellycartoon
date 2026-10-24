@@ -85,7 +85,14 @@ export function routeFromOrs(body: unknown): Route | null {
 	const line = feature?.geometry?.coordinates ?? [];
 	if (!line.length) return null;
 	const summary = feature?.properties?.summary ?? {};
-	const steps = (feature?.properties?.segments ?? []).flatMap((s) => s.steps ?? []);
+	// One stretch per stop on the way (#151): each ends arriving and the next sets off; on the way,
+	// neither is said, only at the start and the end.
+	const segments = feature?.properties?.segments ?? [];
+	const steps = segments.flatMap((s, i) =>
+		(s.steps ?? []).filter(
+			(step) => !(step.type === 10 && i < segments.length - 1) && !(step.type === 11 && i > 0)
+		)
+	);
 	return {
 		line,
 		distance: summary.distance ?? 0,

@@ -10,6 +10,7 @@ import { mapFile, musicRoot } from '#lib/server/library/paths.ts';
 import { getAlbums } from '#lib/server/music/albums.ts';
 import { recordsTrips } from '#lib/server/trips.ts';
 import { relayConfig } from '#lib/server/app-settings.ts';
+import { listSavedPlaces, listSavedRoutes } from '#lib/server/saved-places.ts';
 
 /**
  * The road mode (#78): what can be put on with one touch while driving. The stations, the albums,
@@ -17,7 +18,7 @@ import { relayConfig } from '#lib/server/app-settings.ts';
  */
 export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
-	const [info, albums, playlists, podcasts, inProgress, map, recordTrips, relay] =
+	const [info, albums, playlists, podcasts, inProgress, map, recordTrips, relay, places, routes] =
 		await Promise.all([
 			stationsInfo(),
 			musicRoot ? getAlbums() : [],
@@ -29,7 +30,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 				() => false
 			),
 			recordsTrips(userId),
-			relayConfig()
+			relayConfig(),
+			listSavedPlaces(userId),
+			listSavedRoutes(userId)
 		]);
 	const latest = podcasts.length
 		? await db
@@ -62,6 +65,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 		/** This user keeps their trips (Ajustes, #81). */
 		recordTrips,
 		/** There is a trips relay (Ajustes): «Compartir viaje». */
-		shareable: Boolean(relay.url && relay.key)
+		shareable: Boolean(relay.url && relay.key),
+		/** Kept in Viajes with their name (#151): first in the search, one touch to go. */
+		places,
+		routes
 	};
 };
