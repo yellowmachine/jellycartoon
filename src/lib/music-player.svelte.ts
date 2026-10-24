@@ -1,6 +1,7 @@
 import type { MusicTrack, SavedQueue } from '#lib/music.ts';
 import type { PodcastPlaying, Speed } from '#lib/podcasts.ts';
 import type { RadioStream } from '#lib/radio.ts';
+import { watchPlay } from '#lib/media-diagnostics.ts';
 
 /** The volume under spoken directions. */
 const DUCKED_VOLUME = 0.25;
@@ -200,7 +201,7 @@ class MusicPlayer {
 			// Before loading, currentTime is where it starts.
 			audio.currentTime = at;
 		}
-		void audio.play().catch(() => {});
+		watchPlay(audio.play(), 'música');
 	}
 
 	/** The track or episode failed: tried again, unless something else has been played since. */

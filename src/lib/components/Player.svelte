@@ -9,6 +9,7 @@
 	import { placeCues, subtitleCss, type SubtitleStyle } from '#lib/subtitle-style.ts';
 	import { thumbChanged, thumbUrl } from '#lib/thumb.svelte.ts';
 	import { videoHere } from '#lib/video-here.svelte.ts';
+	import { watchMedia, watchPlay } from '#lib/media-diagnostics.ts';
 	import { shownDeviceName } from '#lib/device-name.svelte.ts';
 	import { page } from '$app/state';
 	import SubtitleStylePanel from './SubtitleStylePanel.svelte';
@@ -143,6 +144,11 @@
 		};
 	});
 
+	// With the screen off, what it does goes to the Registro: an episode that pauses by itself.
+	$effect(() => {
+		if (video) return watchMedia(video, 'vídeo');
+	});
+
 	// For the header's microphone: what plays here, to pause it while someone speaks.
 	$effect(() => {
 		const el = video;
@@ -175,7 +181,7 @@
 					instance.audioTrack = untrack(() => audioIndex);
 				});
 				instance.on(Hls.Events.MANIFEST_PARSED, () => {
-					if (untrack(() => autoplay)) el.play().catch(() => {});
+					if (untrack(() => autoplay)) watchPlay(el.play(), 'vídeo');
 				});
 				// Out of a child's time (#18) the server refuses the video's pieces: the notice says why.
 				instance.on(Hls.Events.ERROR, (_event, data) => {
@@ -192,7 +198,7 @@
 					() => {
 						if (start) el.currentTime = start;
 						selectNativeAudio(untrack(() => audioIndex));
-						if (untrack(() => autoplay)) el.play().catch(() => {});
+						if (untrack(() => autoplay)) watchPlay(el.play(), 'vídeo');
 					},
 					{ once: true }
 				);
