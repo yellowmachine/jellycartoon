@@ -347,7 +347,7 @@ export const actions: Actions = {
 			return fail(400, { section: 'kids', message: 'La contraseña, de 8 caracteres o más' });
 		try {
 			const { user: kid } = await auth.api.createUser({
-				body: { name, email, password, role: KIDS_ROLE }
+				body: { name, email, password, role: KIDS_ROLE, data: { emailVerified: true } }
 			});
 			await saveKidProfile(
 				kid.id,

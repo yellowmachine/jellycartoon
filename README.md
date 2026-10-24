@@ -181,6 +181,15 @@ docker compose -f compose.prod.yaml logs -f app
   Con «Activar avisos en este dispositivo» (Ajustes → Este dispositivo) les llega aunque la app esté
   cerrada; en el iPhone, solo con la app añadida a la pantalla de inicio. Las claves de los avisos
   (VAPID) las crea la app y las guarda cifradas: no hay nada que poner en el `.env`.
+- Los **adultos entran en la tele desde el móvil** (#172), como en Steam. En «¿Quién eres?» salen
+  también sus dibujos (los de quien ya eligió su contraseña). Al elegir uno, la tele enseña un QR y a
+  esa persona le llega un aviso al móvil. Con su sesión abierta allí, dice que sí («¿Entrar en la
+  TV del salón?») y la tele entra con su cuenta, en una sesión propia. Solo esa persona puede decir
+  que sí: si otro lee el QR, se le dice para quién es. Solo pasa en los dispositivos de la casa, y
+  el código caduca a los 3 minutos. Por debajo es el magic link de Better Auth, que el servidor hace
+  y gasta en la petición de la tele, sin mandarlo; sus rutas públicas están desactivadas. Por eso
+  los emails de la casa cuentan como verificados: los pone el administrador. «Entrar con contraseña»
+  sigue ahí. Las sesiones de los adultos duran 30 días y se renuevan con el uso.
 - **Ver juntos** (#160): en el aviso salen también, en gris, los demás peques que pueden unirse;
   los que se tocan entran con él. Después, desde «Ahora» (Infantil), se añaden o quitan tocándolos,
   también con el vídeo puesto. Un peque que está viendo algo en otro dispositivo (su tablet) no sale

@@ -1381,8 +1381,8 @@
 					Dispositivos de la casa
 				</h3>
 				<p class="mb-2 text-xs text-zinc-500">
-					Solo en ellos, cuando nadie ha entrado, se ve «¿Quién eres?» con los dibujos de los
-					peques.
+					Solo en ellos, cuando nadie ha entrado, se ve «¿Quién eres?» con los dibujos de los peques
+					y de los adultos: un adulto entra diciendo que sí desde su móvil.
 				</p>
 				{#if data.kids.devices.length}
 					<ul class="mb-3 divide-y divide-zinc-800 rounded-md border border-zinc-800 text-sm">

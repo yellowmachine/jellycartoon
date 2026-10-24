@@ -6,11 +6,13 @@ import { admin } from 'better-auth/plugins/admin';
 import { createAccessControl } from 'better-auth/plugins/access';
 import { adminAc, defaultStatements, userAc } from 'better-auth/plugins/admin/access';
 import { twoFactor } from 'better-auth/plugins/two-factor';
+import { magicLink } from 'better-auth/plugins/magic-link';
 import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { getRequestEvent } from '$app/server';
 import { db } from '#lib/server/db/index.ts';
 import { user } from '#lib/server/db/schema.ts';
 import { INVITATION_SECONDS, markUsed, recordInvitation } from '#lib/server/invitations.ts';
+import { keepSignInLink } from '#lib/server/sign-in-links.ts';
 
 const ac = createAccessControl(defaultStatements);
 
@@ -33,7 +35,13 @@ export const auth = betterAuth({
 	 * Only the server asks for a link and spends it, from Ajustes and /bienvenida: nobody can ask for
 	 * one by an email, nor use an older link than the last one given.
 	 */
-	disabledPaths: ['/request-password-reset', '/reset-password'],
+	disabledPaths: [
+		'/request-password-reset',
+		'/reset-password',
+		// The magic links too (#172): only for a device of the house let in from a phone.
+		'/sign-in/magic-link',
+		'/magic-link/verify'
+	],
 	hooks: {
 		/** Only the first account signs up, the administrator's (#157): it creates the rest. */
 		before: createAuthMiddleware(async (ctx) => {
@@ -46,6 +54,11 @@ export const auth = betterAuth({
 		})
 	},
 	session: {
+		/**
+		 * 30 days, renewed while used (#172): the living room's TV, entered from a phone, does not
+		 * ask again for a month. Children's sessions end with their permission, as before.
+		 */
+		expiresIn: 30 * 24 * 60 * 60,
 		additionalFields: {
 			/**
 			 * Signed in with the password by the administrator, who has no second step yet (#82, #45):
@@ -72,6 +85,14 @@ export const auth = betterAuth({
 		// it on in Ajustes and always for the administrator; 10 recovery codes for a lost phone. A
 		// trusted device is not asked again for 90 days.
 		twoFactor({ issuer: 'JellyCartoon', trustDeviceMaxAge: 90 * 24 * 60 * 60 }),
+		// An adult entering on a device of the house, let in from their phone (#172): a link the
+		// server makes and spends at once, never sent. Only for accounts that exist.
+		magicLink({
+			sendMagicLink: ({ email, token }) => keepSignInLink(email, token),
+			disableSignUp: true,
+			expiresIn: 60,
+			storeToken: 'hashed'
+		}),
 		sveltekitCookies(getRequestEvent) // make sure this is the last plugin in the array
 	]
 });

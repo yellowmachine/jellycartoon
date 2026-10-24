@@ -49,7 +49,8 @@ export async function houseAdults() {
 /** An adult's account, without a password: they choose it with their link. */
 export async function createAdult(person: { name: string; email: string; avatar: string }) {
 	const { user: created } = await auth.api.createUser({
-		body: { name: person.name, email: person.email, role: 'user' }
+		// The administrator's word for their email (#172): no magic link takes their password away.
+		body: { name: person.name, email: person.email, role: 'user', data: { emailVerified: true } }
 	});
 	await setAvatar(created.id, person.avatar);
 	return created.id;

@@ -1241,6 +1241,31 @@ export const kidLoginRequest = pgTable(
 );
 
 /**
+ * An adult entering on a device of the house from their phone (#172): chosen their drawing in
+ * «¿Quién eres?», the device shows a QR (and their phone gets a notice) with a code only they can
+ * approve, signed in on their phone. Then the device enters as them.
+ */
+export const tvLoginRequest = pgTable(
+	'tv_login_request',
+	{
+		id: text('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		deviceId: integer('device_id')
+			.notNull()
+			.references(() => trustedDevice.id, { onDelete: 'cascade' }),
+		/** The SHA-256 of the code in the QR and the notice: the code itself is only there. */
+		codeHash: text('code_hash').notNull().unique(),
+		state: kidLoginState('state').notNull().default('pending'),
+		createdAt: timestamp('created_at').notNull().defaultNow(),
+		/** Not answered by then, it is no longer asked. */
+		expiresAt: timestamp('expires_at').notNull()
+	},
+	(t) => [index('tv_login_request_device_idx').on(t.deviceId, t.createdAt)]
+);
+
+/**
  * Children watching together with the one signed in (#160): what it watches counts for each of them
  * too, and the strictest of their limits applies to all. Added by an adult, when letting it in or
  * later; until the end of the day or of that session, unless taken off before.
