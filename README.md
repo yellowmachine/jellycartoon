@@ -631,6 +631,16 @@ scripts/mapa.sh /ruta/a/los/convertidos --bbox=-4.06,39.84,-3.98,39.88   # solo 
 Solo baja los trozos de esa zona, no el planeta, y cambia el mapa cuando está entero: el de antes
 sigue funcionando mientras tanto. Sin ese fichero, el modo carretera va como siempre, sin mapa.
 
+**Mapas sin cobertura** (#164): para usar una tablet como GPS en el coche, el mapa de una ruta
+guardada (unos 5 km a cada lado; unos 20 MB por 65 km de ciudad) se guarda en ella. En Viajes, en
+la tablet, «¿Guardar mapas en este dispositivo?» con un nombre; después, desde cualquier
+dispositivo, «Bajar» en esa ruta: la tablet lo baja ella sola la próxima vez que se abra la app allí
+(si se corta, sigue donde se quedó), y se ve en todos cómo va. El mapa del modo carretera mira primero
+esos mapas y solo después pide al servidor. «Quitar» y «Olvidar» el dispositivo, igual: al abrir la
+app allí. Si se actualiza el mapa de España o cambia la ruta, sale «mapa antiguo» para volver a
+bajarlo. Se recortan en el servidor con `pmtiles`, que va en la imagen. Para que Android no los borre
+si falta espacio, mejor la app instalada en la pantalla de inicio.
+
 Con el mapa, el destino se escribe en el propio mapa («¿A dónde vas?», arriba; solo parado y sin
 ruta: en marcha se esconde, y se pide por voz, «llévame a…»). Al escribir, debajo, los últimos
 destinos de ese dispositivo (el cole, los abuelos…; también sin escribir nada) y las sugerencias de

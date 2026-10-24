@@ -742,6 +742,53 @@ export const savedRoute = pgTable(
 );
 
 /**
+ * A device that keeps routes' maps (#164), such as the car's tablet: named on itself, its id made
+ * there and kept in its browser. Not a trusted device of the house (#141): that one changes how
+ * people sign in on it.
+ */
+export const mapDevice = pgTable('map_device', {
+	id: text('id').primaryKey(),
+	name: text('name').notNull(),
+	createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+	createdAt: timestamp('created_at').notNull().defaultNow(),
+	lastSeenAt: timestamp('last_seen_at').notNull().defaultNow()
+});
+
+/**
+ * A route's map on a device (#164): ordered from any device, done by that one when the app opens on
+ * it. `remove`, ordered away; the row goes once it is.
+ */
+export const routeMapState = pgEnum('route_map_state', [
+	'pending',
+	'downloading',
+	'ready',
+	'failed',
+	'remove'
+]);
+
+export const routeMap = pgTable(
+	'route_map',
+	{
+		routeId: integer('route_id')
+			.notNull()
+			.references(() => savedRoute.id, { onDelete: 'cascade' }),
+		deviceId: text('device_id')
+			.notNull()
+			.references(() => mapDevice.id, { onDelete: 'cascade' }),
+		state: routeMapState('state').notNull().default('pending'),
+		/** 0 to 1, while downloading. */
+		progress: real('progress').notNull().default(0),
+		bytes: bigint('bytes', { mode: 'number' }),
+		/** The map and the route it was cut from (route-maps.ts): another now, it is old. */
+		version: text('version'),
+		/** Why it failed, as the device says it. */
+		problem: text('problem'),
+		updatedAt: timestamp('updated_at').notNull().defaultNow()
+	},
+	(t) => [primaryKey({ columns: [t.routeId, t.deviceId] })]
+);
+
+/**
  * The fridge (#131): the house's post-its, for everyone to see. Written by an adult, in their colour;
  * until a day if given (then gone), or until someone peels it off. The shopping list is one more,
  * `list`, with its items (fridgeItem): there is one, made the first time it is looked at.

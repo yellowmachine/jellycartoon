@@ -13,6 +13,13 @@ import {
 	saveRoute
 } from '#lib/server/saved-places.ts';
 import { orsMessage } from '#lib/server/road/ors.ts';
+import {
+	forgetMapDevice,
+	orderDownload,
+	orderRemove,
+	routeMapsOf
+} from '#lib/server/route-maps.ts';
+import { isDeviceId } from '#lib/route-maps.ts';
 import { fold } from '#lib/music.ts';
 import { isLngLat } from '#lib/road.ts';
 import { MAX_STOPS, type RouteStop } from '#lib/saved-places.ts';
@@ -45,7 +52,7 @@ function nameOf(form: FormData, used: { id: number; name: string }[], id: number
  */
 export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
-	const [trips, stats, recordTrips, map, photos, places, routes] = await Promise.all([
+	const [trips, stats, recordTrips, map, photos, places, routes, routeMaps] = await Promise.all([
 		listTrips(userId),
 		tripStats(userId),
 		recordsTrips(userId),
@@ -55,9 +62,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		),
 		listPhotos(userId),
 		listSavedPlaces(userId),
-		listSavedRoutes(userId)
+		listSavedRoutes(userId),
+		routeMapsOf(userId)
 	]);
-	return { trips, stats, recordTrips, map, photos, places, routes };
+	return { trips, stats, recordTrips, map, photos, places, routes, routeMaps };
 };
 
 export const actions: Actions = {
@@ -136,5 +144,29 @@ export const actions: Actions = {
 		const id = idOf(await request.formData());
 		if (typeof id !== 'number') return fail(400, { route: 'Ruta no válida' });
 		await deleteRoute(locals.user!.id, id);
+	},
+	/** A route's map to a device (#164), or again; done by it when the app opens on it. */
+	mapDownload: async ({ request, locals }) => {
+		const form = await request.formData();
+		const routeId = Number(form.get('route'));
+		const device = form.get('device');
+		if (!Number.isInteger(routeId) || !isDeviceId(device))
+			return fail(400, { maps: 'Elige el dispositivo' });
+		if (!(await orderDownload(locals.user!.id, routeId, device)))
+			return fail(404, { maps: 'Ruta no encontrada' });
+	},
+	mapRemove: async ({ request, locals }) => {
+		const form = await request.formData();
+		const routeId = Number(form.get('route'));
+		const device = form.get('device');
+		if (!Number.isInteger(routeId) || !isDeviceId(device))
+			return fail(400, { maps: 'Mapa no válido' });
+		await orderRemove(locals.user!.id, routeId, device);
+	},
+	/** It no longer keeps maps: on it, they go the next time the app opens there. */
+	mapForget: async ({ request }) => {
+		const device = (await request.formData()).get('device');
+		if (!isDeviceId(device)) return fail(400, { maps: 'Dispositivo no válido' });
+		await forgetMapDevice(device);
 	}
 };
