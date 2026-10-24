@@ -16,7 +16,7 @@ const random = <T>(items: T[]) => items[Math.floor(Math.random() * items.length)
  * The subtitles to take lines from: the language the account watches with, or the first; Whisper's
  * only when there are no others (Friends), as they mishear more.
  */
-function subtitleFile(tracks: SubtitleTrack[], lang: string | null) {
+export function subtitleFile(tracks: SubtitleTrack[], lang: string | null) {
 	const own = tracks.filter((t) => !isAutoFile(t.file));
 	const from = own.length ? own : tracks;
 	return (from.find((t) => t.lang === lang) ?? from[0])?.file ?? null;
