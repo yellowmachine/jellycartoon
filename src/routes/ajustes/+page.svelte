@@ -14,6 +14,7 @@
 	import { languageLabel } from '#lib/languages.ts';
 	import { THEMES, themeSwatches } from '#lib/themes.ts';
 	import { AVATARS, avatar } from '#lib/avatars.ts';
+	import SettingsSearch from '#lib/components/SettingsSearch.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -88,6 +89,26 @@
 <div class="mx-auto max-w-2xl">
 	<h1 class="mb-4 text-2xl font-bold">Ajustes</h1>
 
+	<!-- What is in any tab, by a word (settings-index.ts): the page only draws the open one. -->
+	<SettingsSearch
+		shown={{
+			kid: Boolean(data.kid),
+			intro: data.intro,
+			keepHistory: data.keepHistory,
+			recordTrips: data.recordTrips,
+			langua: data.langua,
+			musicApps: data.musicApps,
+			voice: Boolean(data.voice),
+			music: Boolean(data.music),
+			ai: data.ai,
+			labels: data.labels,
+			routes: data.routes,
+			relay: data.relay,
+			kids: data.kids,
+			twoFactor: data.twoFactor
+		}}
+	/>
+
 	<!-- Tabs that are links, as in Gestión: each keeps its address, and «back» works. -->
 	<!-- Forms post to «?seccion=…&/action», so saving keeps the tab (the action is the «/» one). -->
 	<nav class="mb-6 flex gap-5 overflow-x-auto border-b border-zinc-800">
@@ -106,7 +127,7 @@
 	</nav>
 
 	{#if tab === 'ver'}
-		<section class={section}>
+		<section class={section} id="reproduccion">
 			<h2 class="mb-1 font-semibold">Reproducción</h2>
 			<p class="mb-4 text-sm text-zinc-400">
 				Idiomas que se eligen al empezar un capítulo o una película, y cómo se ven los subtítulos:
@@ -151,7 +172,7 @@
 					{/if}
 				</div>
 			</form>
-			<h3 class="mt-6 text-sm text-zinc-300">Subtítulos</h3>
+			<h3 id="estilo-subtitulos" class="mt-6 text-sm text-zinc-300">Subtítulos</h3>
 			<p class="text-xs text-zinc-500">
 				Para los de texto: los de imagen (DVD, Blu-ray) se ven siempre como vienen, y los de estilo
 				propio (ASS) conservan el suyo en el salón.
@@ -162,6 +183,7 @@
 			{/if}
 			{#if data.intro !== null}
 				<form
+					id="cortinilla"
 					method="post"
 					action="?seccion={tab}&/intro"
 					use:enhance={() =>
@@ -190,7 +212,7 @@
 		</section>
 
 		{#if data.keepHistory !== null}
-			<section class={section}>
+			<section class={section} id="lo-que-veo">
 				<h2 class="mb-1 font-semibold">Lo que veo</h2>
 				<form
 					method="post"
@@ -219,6 +241,7 @@
 				</form>
 				{#if data.recordTrips !== null}
 					<form
+						id="guardar-viajes"
 						method="post"
 						action="?seccion={tab}&/recordTrips"
 						use:enhance={() =>
@@ -253,7 +276,7 @@
 
 	{#if tab === 'conexiones'}
 		{#if data.langua}
-			<section class={section}>
+			<section class={section} id="langua">
 				<h2 class="mb-1 font-semibold">Langua</h2>
 				<p class="mb-4 text-sm text-zinc-400">
 					Tu app de idiomas. {data.voice
@@ -314,7 +337,7 @@
 
 		{#if data.musicApps}
 			{@const apps = data.musicApps}
-			<section class={section}>
+			<section class={section} id="musica-en-apps">
 				<h2 class="mb-1 font-semibold">Música en apps</h2>
 				<p class="mb-4 text-sm text-zinc-400">
 					Para escuchar tu música en apps que hablan Subsonic, como
@@ -366,7 +389,7 @@
 	{/if}
 
 	{#if tab === 'aspecto'}
-		<section class={section}>
+		<section class={section} id="colores">
 			<h2 class="mb-1 font-semibold">Colores</h2>
 			<p class="mb-4 text-sm text-zinc-400">
 				Los de toda la app, en todas tus pantallas, también en la tele del salón.
@@ -406,7 +429,7 @@
 			{/if}
 		</section>
 
-		<section class={section}>
+		<section class={section} id="al-abrir">
 			<h2 class="mb-1 font-semibold">Al abrir la app</h2>
 			<form
 				method="post"
@@ -436,7 +459,7 @@
 			</form>
 		</section>
 
-		<section class={section}>
+		<section class={section} id="este-dispositivo">
 			<h2 class="mb-1 font-semibold">Este dispositivo</h2>
 			<p class="mb-4 text-sm text-zinc-400">
 				Cómo se llama este navegador: al seguir con la música en otro («Sonaba en el salón») y en lo
@@ -477,7 +500,7 @@
 		</section>
 
 		{#if data.voice}
-			<section class={section}>
+			<section class={section} id="microfono">
 				<h2 class="mb-1 font-semibold">Micrófono</h2>
 				<p class="mb-4 text-sm text-zinc-400">
 					Cómo se habla en este dispositivo, en Hablar, en el micrófono de arriba y con
@@ -512,7 +535,7 @@
 		{/if}
 
 		{#if data.music}
-			<section class={section}>
+			<section class={section} id="calidad-musica">
 				<h2 class="mb-1 font-semibold">Calidad de la música</h2>
 				<p class="mb-4 text-sm text-zinc-400">
 					Solo en este dispositivo: el móvil puede ahorrar datos y la tele sonar como el CD. Se nota
@@ -544,7 +567,7 @@
 				</p>
 			</section>
 
-			<section class={section}>
+			<section class={section} id="fondo-musica">
 				<h2 class="mb-1 font-semibold">Fondo de Música</h2>
 				<p class="mb-4 text-sm text-zinc-400">
 					Formas con los colores de la portada de lo que suena, detrás de las páginas de Música. Se
@@ -558,7 +581,7 @@
 
 	{#if tab === 'casa'}
 		{#if data.ai}
-			<section class={section}>
+			<section class={section} id="ia">
 				<h2 class="mb-1 font-semibold">Inteligencia artificial</h2>
 				<p class="mb-4 text-sm text-zinc-400">
 					Con una clave de <a
@@ -742,7 +765,7 @@
 		{/if}
 
 		{#if data.labels}
-			<section class={section}>
+			<section class={section} id="etiquetas">
 				<h2 class="mb-1 font-semibold">Etiquetas de los capítulos</h2>
 				<p class="mb-4 text-sm text-zinc-400">
 					Conjuntos de etiquetas que el modelo de visión ({data.labels.model}, en Ollama) busca en
@@ -821,7 +844,7 @@
 		{/if}
 
 		{#if data.routes}
-			<section class={section}>
+			<section class={section} id="rutas">
 				<h2 class="mb-1 font-semibold">Rutas del modo carretera</h2>
 				<p class="mb-4 text-sm text-zinc-400">
 					Con una clave gratuita de <a
@@ -898,7 +921,7 @@
 		{/if}
 
 		{#if data.relay}
-			<section class={section}>
+			<section class={section} id="compartir-viajes">
 				<h2 class="mb-1 font-semibold">Compartir viajes</h2>
 				<p class="mb-4 text-sm text-zinc-400">
 					El modo carretera puede compartir el viaje con un enlace (para un grupo de WhatsApp, por
@@ -954,7 +977,7 @@
 		{/if}
 
 		{#if data.kids}
-			<section class={section}>
+			<section class={section} id="cuentas-infantiles">
 				<h2 class="mb-1 font-semibold">Cuentas infantiles</h2>
 				<p class="mb-4 text-sm text-zinc-400">
 					Solo ven las series y películas con la etiqueta «infantil», y no pueden gestionar nada ni
@@ -1117,7 +1140,9 @@
 					<button class="{primary} self-start">Crear</button>
 				</form>
 
-				<h3 class="mt-6 mb-1 text-sm text-zinc-300">Dispositivos de la casa</h3>
+				<h3 id="dispositivos-casa" class="mt-6 mb-1 text-sm text-zinc-300">
+					Dispositivos de la casa
+				</h3>
 				<p class="mb-2 text-xs text-zinc-500">
 					Solo en ellos, cuando nadie ha entrado, se ve «¿Quién eres?» con los dibujos de los
 					peques.
@@ -1250,7 +1275,7 @@
 	{/if}
 
 	{#if tab === 'cuenta'}
-		<section class={section}>
+		<section class={section} id="cuenta">
 			<h2 class="mb-3 font-semibold">Cuenta</h2>
 			<form
 				method="post"
@@ -1265,7 +1290,7 @@
 		</section>
 		{#if data.twoFactor}
 			{@const tf = data.twoFactor}
-			<section class={section}>
+			<section class={section} id="dos-pasos">
 				<h2 class="mb-1 font-semibold">Verificación en dos pasos</h2>
 				{#if !tf.enabled}
 					<p class="mb-3 text-sm text-zinc-400">
