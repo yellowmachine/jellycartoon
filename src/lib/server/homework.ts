@@ -1,6 +1,10 @@
-import { eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { episode, series } from '#lib/server/db/schema.ts';
+import { user } from '#lib/server/db/auth.schema.ts';
+import { episode, homework, series, watchProgress } from '#lib/server/db/schema.ts';
+import { KIDS_ROLE } from '#lib/server/kids.ts';
+import { log } from '#lib/server/log.ts';
+import { notify } from '#lib/server/push.ts';
 import { readCues } from '#lib/server/auto-subtitle-files.ts';
 import { hlsDir } from '#lib/server/library/paths.ts';
 import { homeworkModel } from '#lib/server/app-settings.ts';
@@ -8,7 +12,14 @@ import { completeJson } from '#lib/server/openrouter.ts';
 import { subtitleFile } from '#lib/server/opening-quote.ts';
 import {
 	MAX_QUESTIONS,
+	checkEdited,
 	checkProposal,
+	freshSteps,
+	mark,
+	tryAnswer,
+	type HomeworkRules,
+	type Step,
+	type TryResult,
 	transcript,
 	type AgeBand,
 	type Exercise,
@@ -181,4 +192,246 @@ export async function proposeHomework(
 		episodeIds: episodes.map((e) => e.id),
 		language: request.language
 	}).slice(0, count);
+}
+
+/** An episode a child watched, to choose for homework: with or without dialogue to read. */
+export interface Watched {
+	id: number;
+	series: string;
+	season: number;
+	number: number;
+	title: string;
+	watchedAt: Date;
+	completed: boolean;
+	hasDialogue: boolean;
+}
+
+/** What `kidId` watched lately, newest first: the episodes homework can be about. */
+export async function watchedBy(kidId: string, limit = 40): Promise<Watched[]> {
+	const rows = await db
+		.select({
+			id: episode.id,
+			series: series.title,
+			season: episode.season,
+			number: episode.number,
+			title: episode.title,
+			customTitle: episode.customTitle,
+			watchedAt: watchProgress.updatedAt,
+			completed: watchProgress.completed,
+			subtitles: episode.subtitles
+		})
+		.from(watchProgress)
+		.innerJoin(episode, eq(episode.id, watchProgress.episodeId))
+		.innerJoin(series, eq(series.id, episode.seriesId))
+		.where(eq(watchProgress.userId, kidId))
+		.orderBy(desc(watchProgress.updatedAt))
+		.limit(limit);
+	return rows.map(({ customTitle, subtitles, ...r }) => ({
+		...r,
+		title: customTitle ?? r.title,
+		hasDialogue: subtitles.length > 0
+	}));
+}
+
+/** «Dexter's Laboratory · T1 E1», or the series and how many, for the homework's title. */
+async function titleFor(episodeIds: number[]) {
+	const rows = await db
+		.select({ series: series.title, season: episode.season, number: episode.number })
+		.from(episode)
+		.innerJoin(series, eq(series.id, episode.seriesId))
+		.where(inArray(episode.id, episodeIds))
+		.orderBy(asc(episode.season), asc(episode.number));
+	const [first] = rows;
+	if (!first) return 'Deberes';
+	if (rows.length === 1) return `${first.series} · T${first.season} E${first.number}`;
+	const sameSeries = rows.every((r) => r.series === first.series);
+	return sameSeries ? `${first.series} · ${rows.length} capítulos` : `${rows.length} capítulos`;
+}
+
+/**
+ * A new homework for `kidId`, proposed by the AI and kept as a draft for the adult to review: the
+ * child sees nothing yet. Its id.
+ */
+export async function createHomework(
+	request: HomeworkRequest & { kidId: string; createdBy: string; rules: HomeworkRules }
+) {
+	const exercises = await proposeHomework(
+		request,
+		`Deberes: ${await titleFor(request.episodeIds)}`
+	);
+	const [row] = await db
+		.insert(homework)
+		.values({
+			kidId: request.kidId,
+			createdBy: request.createdBy,
+			title: await titleFor(request.episodeIds),
+			language: request.language,
+			band: request.band.id,
+			episodeIds: request.episodeIds,
+			exercises,
+			rules: request.rules
+		})
+		.returning({ id: homework.id });
+	log.info('deberes', 'Deberes propuestos', {
+		homeworkId: row!.id,
+		kidId: request.kidId,
+		exercises: exercises.length
+	});
+	return row!.id;
+}
+
+export async function getHomework(id: number) {
+	const [row] = await db.select().from(homework).where(eq(homework.id, id));
+	return row ?? null;
+}
+
+/** A child's homework list, for the adults: newest first. */
+export async function homeworkOf(kidIds: string[]) {
+	if (!kidIds.length) return [];
+	const rows = await db
+		.select()
+		.from(homework)
+		.where(inArray(homework.kidId, kidIds))
+		.orderBy(desc(homework.createdAt));
+	return rows.map((h) => ({
+		...h,
+		marks: mark(
+			h.exercises,
+			h.steps.map((s) => s.answer)
+		)
+	}));
+}
+
+/** What a child has to do: given and not finished, the oldest first. */
+export async function homeworkToDo(kidId: string) {
+	return db
+		.select({ id: homework.id, title: homework.title, exercises: homework.exercises })
+		.from(homework)
+		.where(and(eq(homework.kidId, kidId), eq(homework.status, 'assigned')))
+		.orderBy(asc(homework.assignedAt))
+		.then((rows) => rows.map(({ exercises, ...r }) => ({ ...r, count: exercises.length })));
+}
+
+/** The adult's review: their exercises, title and rules, checked. Only a draft. */
+export async function saveDraft(
+	id: number,
+	changes: { title: string; exercises: unknown; rules: HomeworkRules }
+) {
+	const draft = await getHomework(id);
+	if (!draft || draft.status !== 'draft') return false;
+	const exercises = checkEdited(changes.exercises, {
+		episodeIds: draft.episodeIds,
+		language: draft.language === 'en' ? 'en' : 'es'
+	});
+	await db
+		.update(homework)
+		.set({
+			title: changes.title.trim().slice(0, 120) || draft.title,
+			exercises,
+			rules: changes.rules
+		})
+		.where(eq(homework.id, id));
+	return true;
+}
+
+/** The AI's proposal again, for a draft the adult did not like: their rules stay. */
+export async function proposeAgain(id: number, request: Omit<HomeworkRequest, 'episodeIds'>) {
+	const draft = await getHomework(id);
+	if (!draft || draft.status !== 'draft') return false;
+	const exercises = await proposeHomework(
+		{ ...request, episodeIds: draft.episodeIds },
+		`Deberes otra vez: ${draft.title}`
+	);
+	await db.update(homework).set({ exercises }).where(eq(homework.id, id));
+	return true;
+}
+
+/** Reviewed: to the child, who sees it on their home page. */
+export async function assignHomework(id: number) {
+	const draft = await getHomework(id);
+	if (!draft || draft.status !== 'draft' || !draft.exercises.length) return false;
+	await db
+		.update(homework)
+		.set({ status: 'assigned', assignedAt: new Date(), steps: freshSteps(draft.exercises) })
+		.where(eq(homework.id, id));
+	log.info('deberes', 'Deberes dados', { homeworkId: id, kidId: draft.kidId });
+	return true;
+}
+
+export async function deleteHomework(id: number) {
+	await db.delete(homework).where(eq(homework.id, id));
+}
+
+/** The adults of the house: told when a child finishes. */
+async function adults() {
+	const rows = await db
+		.select({ id: user.id })
+		.from(user)
+		.where(or(isNull(user.role), ne(user.role, KIDS_ROLE)));
+	return rows.map((r) => r.id);
+}
+
+/**
+ * The child answers exercise `index`: a closed one is checked here (never in the page, where the
+ * right one would be seen), an open one is kept for an adult. At the last, it is done, and the
+ * adults are told. What the child sees: the TryResult for a closed one, null for an open one.
+ */
+export async function answerExercise(
+	id: number,
+	kidId: string,
+	index: number,
+	answer: number | string
+): Promise<{ result: TryResult | null; steps: Step[]; done: boolean } | null> {
+	const hw = await getHomework(id);
+	if (!hw || hw.kidId !== kidId || hw.status !== 'assigned') return null;
+	const exercise = hw.exercises[index];
+	const steps = hw.steps.length === hw.exercises.length ? [...hw.steps] : freshSteps(hw.exercises);
+	const step = steps[index];
+	if (!exercise || !step || step.done) return null;
+
+	let result: TryResult | null = null;
+	if (exercise.kind === 'open') {
+		if (typeof answer !== 'string' || !answer.trim()) return null;
+		steps[index] = { answer: answer.trim().slice(0, 1000), tries: step.tries + 1, done: true };
+	} else {
+		if (typeof answer !== 'number' || !Number.isInteger(answer)) return null;
+		if (answer < 0 || answer >= exercise.options.length) return null;
+		const tried = step.tries + 1;
+		result = tryAnswer(exercise, answer, tried, hw.rules);
+		steps[index] = { answer, tries: tried, done: result.result !== 'again' };
+	}
+
+	const done = steps.every((s) => s.done);
+	await db
+		.update(homework)
+		.set({ steps, ...(done ? { status: 'done' as const, doneAt: new Date() } : {}) })
+		.where(eq(homework.id, id));
+	if (done) void tellDone(hw.id, hw.kidId, hw.title, hw.exercises, steps);
+	return { result, steps, done };
+}
+
+async function tellDone(
+	id: number,
+	kidId: string,
+	title: string,
+	exercises: Exercise[],
+	steps: Step[]
+) {
+	const [kid] = await db.select({ name: user.name }).from(user).where(eq(user.id, kidId));
+	const marks = mark(
+		exercises,
+		steps.map((s) => s.answer)
+	);
+	const parts = [
+		marks.closed ? `${marks.right} de ${marks.closed} bien` : null,
+		marks.toRead ? `${marks.toRead} para leer` : null
+	].filter(Boolean);
+	log.info('deberes', 'Deberes hechos', { homeworkId: id, kidId, ...marks });
+	await notify(await adults(), {
+		title: `📚 ${kid?.name ?? 'Un peque'} ha terminado los deberes`,
+		body: `${title}${parts.length ? `: ${parts.join(', ')}` : ''}`,
+		tag: `deberes-${id}`,
+		url: `/infantil/deberes/${id}`,
+		ttl: 24 * 3600
+	});
 }

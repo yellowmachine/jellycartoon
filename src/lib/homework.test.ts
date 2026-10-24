@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import {
 	AGE_BANDS,
 	DEFAULT_RULES,
+	checkEdited,
 	checkProposal,
 	checkRules,
 	clock,
@@ -170,4 +171,53 @@ test('the rules from a form: what is not valid, as by default', () => {
 	});
 	expect(checkRules({ tries: null })).toEqual({ tries: null, hints: true, showAnswer: true });
 	expect(checkRules({ tries: 7, hints: 'sí' })).toEqual(DEFAULT_RULES);
+});
+
+test('edited by an adult: the right one where they put it; what does not hold, out', () => {
+	const edited = [
+		{
+			kind: 'choice',
+			question: '¿Quién?',
+			options: ['A', ' B ', ''],
+			answer: 1,
+			episodeId: 7,
+			at: 30
+		},
+		{ kind: 'choice', question: 'Mal', options: ['A', 'B'], answer: 4, episodeId: 7 },
+		{ kind: 'truefalse', question: 'Es verdad', options: [], answer: 1, episodeId: 7 },
+		{ kind: 'open', question: '¿Por qué?', expected: 'Porque sí', episodeId: 7 },
+		{ kind: 'open', question: 'Otro', episodeId: 99 }
+	];
+	expect(checkEdited(edited, { episodeIds: [7] })).toEqual([
+		{
+			kind: 'choice',
+			question: '¿Quién?',
+			options: ['A', 'B'],
+			answer: 1,
+			hint: null,
+			expected: null,
+			episodeId: 7,
+			at: 30
+		},
+		{
+			kind: 'truefalse',
+			question: 'Es verdad',
+			options: ['Verdadero', 'Falso'],
+			answer: 1,
+			hint: null,
+			expected: null,
+			episodeId: 7,
+			at: null
+		},
+		{
+			kind: 'open',
+			question: '¿Por qué?',
+			options: [],
+			answer: null,
+			hint: null,
+			expected: 'Porque sí',
+			episodeId: 7,
+			at: null
+		}
+	]);
 });

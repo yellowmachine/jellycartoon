@@ -292,3 +292,46 @@ export interface Step {
  * child, and done.
  */
 export type HomeworkStatus = 'draft' | 'assigned' | 'done';
+
+/**
+ * Exercises as an adult left them after editing (the review page): the same checks as the AI's,
+ * but the right one stays where the adult put it. Those left without a question or without a
+ * valid right one are dropped; episodes and moments are the ones they had.
+ */
+export function checkEdited(
+	edited: unknown,
+	{ episodeIds, language = 'es' }: { episodeIds: number[]; language?: HomeworkLanguage }
+): Exercise[] {
+	if (!Array.isArray(edited)) return [];
+	const exercises: Exercise[] = [];
+	for (const e of edited.slice(0, MAX_QUESTIONS) as Partial<Exercise>[]) {
+		const kind = e?.kind;
+		if (kind !== 'choice' && kind !== 'truefalse' && kind !== 'open') continue;
+		const question = text(e.question, MAX_QUESTION);
+		const episodeId = Number(e.episodeId);
+		if (!question || !episodeIds.includes(episodeId)) continue;
+		const at = typeof e.at === 'number' && e.at >= 0 ? Math.round(e.at) : null;
+		const hint = text(e.hint, MAX_QUESTION);
+		if (kind === 'open') {
+			const expected = text(e.expected, MAX_QUESTION);
+			exercises.push({ kind, question, options: [], answer: null, hint, expected, episodeId, at });
+			continue;
+		}
+		const options =
+			kind === 'truefalse'
+				? [...TRUE_FALSE[language]]
+				: (Array.isArray(e.options) ? e.options : [])
+						.map((o) => text(o, MAX_OPTION))
+						.filter((o): o is string => o !== null)
+						.slice(0, 6);
+		const answer = Number(e.answer);
+		if (new Set(options).size !== options.length || options.length < 2) continue;
+		if (!Number.isInteger(answer) || answer < 0 || answer >= options.length) continue;
+		exercises.push({ kind, question, options, answer, hint, expected: null, episodeId, at });
+	}
+	return exercises;
+}
+
+/** A start: nothing answered yet. */
+export const freshSteps = (exercises: Exercise[]): Step[] =>
+	exercises.map(() => ({ answer: null, tries: 0, done: false }));
