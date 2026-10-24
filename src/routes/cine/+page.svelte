@@ -100,6 +100,15 @@
 		muda: data.movies.some((m) => m.silent)
 	});
 
+	/** The filters behind «Más filtros»: open on their own when one is on, so it is never hidden. */
+	const ADVANCED: FilterName[] = ['decada', 'premio', 'saga', 'tipo'];
+	const advancedActive = $derived(filters.filter((f) => ADVANCED.includes(f.name)).length);
+	const hasAdvanced = $derived(
+		decades.length > 1 || awardFamilies.length > 0 || sagas.length > 0 || kinds.bn || kinds.muda
+	);
+	let moreToggled = $state<boolean | null>(null);
+	const moreOpen = $derived(moreToggled ?? advancedActive > 0);
+
 	const dropdown = 'rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm';
 
 	// Refresh while films are being catalogued or their info completed; not while a title is
@@ -171,7 +180,7 @@
 {/if}
 
 {#if data.movies.length}
-	<!-- What is usually looked for: not watched yet, a decade, how long, a genre, the audio. -->
+	<!-- What is usually looked for: not watched yet, how long, a genre, the audio. The rest, behind «Más filtros». -->
 	<div class="mb-4 flex flex-wrap items-center gap-2">
 		<select
 			aria-label="Estado"
@@ -184,19 +193,6 @@
 				<option {value}>{label}</option>
 			{/each}
 		</select>
-		{#if decades.length > 1}
-			<select
-				aria-label="Década"
-				class={dropdown}
-				value={chosen('decada')}
-				onchange={(e) => choose('decada', e.currentTarget.value)}
-			>
-				<option value="">Cualquier década</option>
-				{#each decades as decade (decade)}
-					<option value={String(decade)}>{filterLabel('decada', String(decade))}</option>
-				{/each}
-			</select>
-		{/if}
 		<select
 			aria-label="Duración"
 			class={dropdown}
@@ -234,44 +230,16 @@
 				{/each}
 			</select>
 		{/if}
-		{#if awardFamilies.length}
-			<select
-				aria-label="Premios"
-				class="{dropdown} max-w-48"
-				value={chosen('premio')}
-				onchange={(e) => choose('premio', e.currentTarget.value)}
+		{#if hasAdvanced}
+			<button
+				class="{dropdown} px-3 hover:bg-zinc-800"
+				aria-expanded={moreOpen}
+				aria-controls="more-filters"
+				onclick={() => (moreToggled = !moreOpen)}
 			>
-				<option value="">Con o sin premios</option>
-				<option value="*">Con algún premio</option>
-				{#each awardFamilies as { family, count } (family)}
-					<option value={family}>{family} ({count})</option>
-				{/each}
-			</select>
-		{/if}
-		{#if sagas.length}
-			<select
-				aria-label="Saga"
-				class="{dropdown} max-w-48"
-				value={chosen('saga')}
-				onchange={(e) => choose('saga', e.currentTarget.value)}
-			>
-				<option value="">Cualquier saga</option>
-				{#each sagas as saga (saga)}
-					<option value={saga}>{saga}</option>
-				{/each}
-			</select>
-		{/if}
-		{#if kinds.bn || kinds.muda}
-			<select
-				aria-label="Tipo"
-				class={dropdown}
-				value={chosen('tipo')}
-				onchange={(e) => choose('tipo', e.currentTarget.value)}
-			>
-				<option value="">Color o no</option>
-				{#if kinds.bn}<option value="bn">En blanco y negro</option>{/if}
-				{#if kinds.muda}<option value="muda">Muda</option>{/if}
-			</select>
+				Más filtros{advancedActive ? ` (${advancedActive})` : ''}
+				<span aria-hidden="true">{moreOpen ? '▴' : '▾'}</span>
+			</button>
 		{/if}
 		<!-- How many, out of all: «1 de 5 películas» with filters or a search. -->
 		<span class="text-sm text-zinc-400 sm:ml-auto" aria-live="polite">
@@ -290,6 +258,62 @@
 			{/each}
 		</select>
 	</div>
+	{#if hasAdvanced && moreOpen}
+		<div id="more-filters" class="mb-4 flex flex-wrap items-center gap-2">
+			{#if decades.length > 1}
+				<select
+					aria-label="Década"
+					class={dropdown}
+					value={chosen('decada')}
+					onchange={(e) => choose('decada', e.currentTarget.value)}
+				>
+					<option value="">Cualquier década</option>
+					{#each decades as decade (decade)}
+						<option value={String(decade)}>{filterLabel('decada', String(decade))}</option>
+					{/each}
+				</select>
+			{/if}
+			{#if awardFamilies.length}
+				<select
+					aria-label="Premios"
+					class="{dropdown} max-w-48"
+					value={chosen('premio')}
+					onchange={(e) => choose('premio', e.currentTarget.value)}
+				>
+					<option value="">Con o sin premios</option>
+					<option value="*">Con algún premio</option>
+					{#each awardFamilies as { family, count } (family)}
+						<option value={family}>{family} ({count})</option>
+					{/each}
+				</select>
+			{/if}
+			{#if sagas.length}
+				<select
+					aria-label="Saga"
+					class="{dropdown} max-w-48"
+					value={chosen('saga')}
+					onchange={(e) => choose('saga', e.currentTarget.value)}
+				>
+					<option value="">Cualquier saga</option>
+					{#each sagas as saga (saga)}
+						<option value={saga}>{saga}</option>
+					{/each}
+				</select>
+			{/if}
+			{#if kinds.bn || kinds.muda}
+				<select
+					aria-label="Tipo"
+					class={dropdown}
+					value={chosen('tipo')}
+					onchange={(e) => choose('tipo', e.currentTarget.value)}
+				>
+					<option value="">Color o no</option>
+					{#if kinds.bn}<option value="bn">En blanco y negro</option>{/if}
+					{#if kinds.muda}<option value="muda">Muda</option>{/if}
+				</select>
+			{/if}
+		</div>
+	{/if}
 {/if}
 
 {#if data.extras.total}
