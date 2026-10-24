@@ -24,7 +24,7 @@ import {
 	voiceModel
 } from '#lib/server/app-settings.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
-import { completeJson } from '#lib/server/openrouter.ts';
+import { completeJson, keyBalance } from '#lib/server/openrouter.ts';
 import { getSettings, setKeepHistory } from '#lib/server/settings.ts';
 import {
 	languaConfig,
@@ -131,7 +131,9 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 			voiceModel: voice,
 			defaultVoiceModel: DEFAULT_VOICE_MODEL,
 			homeworkModel: homework,
-			defaultHomeworkModel: DEFAULT_HOMEWORK_MODEL
+			defaultHomeworkModel: DEFAULT_HOMEWORK_MODEL,
+			/** Streamed: OpenRouter answering slowly does not hold up the page. */
+			balance: keyBalance()
 		};
 	}
 
