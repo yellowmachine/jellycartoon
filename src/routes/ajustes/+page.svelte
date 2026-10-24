@@ -465,7 +465,9 @@
 					<a href="/activacion" class="text-amber-400 hover:underline"
 						>Probar la palabra de activación</a
 					>
-					<span class="text-zinc-400">: «hola casita» o «hey luna», sin pulsar el micrófono.</span>
+					<span class="text-zinc-400"
+						>: «hola casita», «hey luna» o «candy candy», sin pulsar el micrófono.</span
+					>
 				</p>
 			{/if}
 			<!-- For whoever lets a child in (#141): the requests, on this phone with the app closed. -->
