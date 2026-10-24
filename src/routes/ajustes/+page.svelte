@@ -466,7 +466,7 @@
 						>Probar la palabra de activación</a
 					>
 					<span class="text-zinc-400"
-						>: «hola casita», «hey luna» o «candy candy», sin pulsar el micrófono.</span
+						>: «hola casita», «hey luna», «candy candy» o «Jelly Cartoon», sin pulsar el micrófono.</span
 					>
 				</p>
 			{/if}
