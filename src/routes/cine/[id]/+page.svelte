@@ -119,7 +119,9 @@
 				/>
 			</div>
 		{:else}
-			<h1 class="flex items-center gap-2 text-2xl font-bold">
+			<h1
+				class="flex items-center gap-2 text-2xl font-bold [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]"
+			>
 				{film.title}
 				{#if !data.kid}
 					<button

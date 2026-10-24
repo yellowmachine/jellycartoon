@@ -210,7 +210,7 @@
 	{#if editing === 'series'}
 		<TitleForm action="?/renameSeries" value={data.series.title} onclose={() => (editing = null)} />
 	{:else}
-		<h1 class="flex items-center gap-2 text-2xl font-bold">
+		<h1 class="flex items-center gap-2 text-2xl font-bold [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]">
 			{data.series.title}
 			{#if !data.kid}{@render editButton('series', 'Cambiar título de la serie')}{/if}
 		</h1>

@@ -38,7 +38,7 @@
 			/>
 			<!-- Darker going down, so the page's text reads over it, ending in the page's own colour. -->
 			<div
-				class="absolute inset-0 bg-gradient-to-b from-zinc-950/25 via-zinc-950/65 to-zinc-950"
+				class="absolute inset-0 bg-gradient-to-b from-zinc-950/45 via-zinc-950/75 to-zinc-950"
 			></div>
 		</div>
 	</div>
