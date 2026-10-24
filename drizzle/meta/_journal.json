@@ -491,6 +491,13 @@
       "when": 1792857507385,
       "tag": "0069_fondos",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1792862500355,
+      "tag": "0070_personas",
+      "breakpoints": true
     }
   ]
 }

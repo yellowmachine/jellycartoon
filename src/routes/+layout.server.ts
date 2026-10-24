@@ -11,13 +11,17 @@ import { DEFAULT_THEME } from '#lib/themes.ts';
 import { openingQuote } from '#lib/server/opening-quote.ts';
 import { isGuardian } from '#lib/server/kid-login.ts';
 import { dailymotionEnabled } from '#lib/server/dailymotion.ts';
+import { avatarOf } from '#lib/server/people.ts';
 
 export const load: LayoutServerLoad = async ({ locals, isDataRequest }) => {
 	const kid = isKid(locals.user);
 	const settings = locals.user ? await getSettings(locals.user.id) : null;
 	const admin = Boolean(locals.user) && !kid && (await isAdmin(locals.user!.id));
 	return {
-		user: locals.user ? { name: locals.user.name } : null,
+		/** Their drawing on the bar's round badge (#157); without one, their initial. */
+		user: locals.user
+			? { name: locals.user.name, avatar: (await avatarOf(locals.user))?.id ?? null }
+			: null,
 		/** The account's colours (Ajustes), painted from the server: no flash of the default. */
 		theme: settings?.theme ?? DEFAULT_THEME,
 		/**

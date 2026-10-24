@@ -139,8 +139,8 @@ docker compose -f compose.prod.yaml logs -f app
   sudo chmod 2775 /srv/media/series
   ```
   Con `HOST_DATA_DIR=/opt/jellycartoon/data` y `HOST_MEDIA_DIR=/srv/media/series`. Crea tú la
-  primera cuenta (la que administra) y luego `ALLOW_SIGNUP=false`; con el perfil `updates`, WUD
-  actualiza solo.
+  primera cuenta (la que administra): las demás las crea ella en Ajustes; con el perfil `updates`,
+  WUD actualiza solo.
 - Para fijar una versión concreta: `IMAGE_TAG=sha-abc1234` en el `.env`.
 - `DELETE_SOURCES=true` borra de `HOST_MEDIA_DIR` cada original (y sus subtítulos externos) en
   cuanto se convierte; el episodio sigue en el catálogo. Útil si guardas copia en otro disco.
@@ -151,8 +151,15 @@ docker compose -f compose.prod.yaml logs -f app
   siempre, original de `HOST_MEDIA_DIR` incluido, para que el escaneo no los vuelva a traer: útil
   para la basura que viene con lo bajado de YouTube. Lo que la IA marca como «no es un episodio» va
   a la temporada 0, y ahí se selecciona entera.
-- Cuando estén creadas las cuentas, pon `ALLOW_SIGNUP=false`. "Hoy" usa `TZ` (por defecto
-  `Europe/Madrid`).
+- **Cuentas** (#157): en una instalación nueva, la página de entrada solo deja crear la primera
+  cuenta, la del administrador; creada, el registro se cierra solo. El administrador crea las demás
+  en Ajustes → Casa → Personas de la casa, adultos y peques, cada una con su dibujo. Un adulto se
+  crea sin contraseña: la app da un QR y un enlace, de un solo uso y que vale 48 horas, con el que
+  esa persona elige la suya y entra (`/bienvenida`). Se enseña el QR en la pantalla o se manda el
+  enlace por WhatsApp; solo funciona en la wifi de casa o con WireGuard. «Nuevo enlace para entrar»
+  hace otro (el anterior deja de valer), también para quien ha olvidado su contraseña. El
+  administrador nunca la sabe. `ALLOW_SIGNUP` ya no se usa.
+- "Hoy" usa `TZ` (por defecto `Europe/Madrid`).
 - **Verificación en dos pasos**: tras la contraseña, un código de 6 cifras de una app (Proton Pass,
   Google Authenticator, Aegis…), con «Recordar este dispositivo» 90 días y 10 códigos de
   recuperación de un solo uso. Cualquier cuenta la activa en Ajustes → Cuenta. Quien creó la
@@ -164,7 +171,7 @@ docker compose -f compose.prod.yaml logs -f app
   ```sh
   docker compose -f compose.prod.yaml exec app bun run quitar-2fa su@email
   ```
-- Las cuentas infantiles las crea quien creó la primera cuenta, desde Ajustes. Solo ven las series
+- Las cuentas infantiles las crea el administrador, en Personas de la casa. Solo ven las series
   y películas con la etiqueta «infantil», no gestionan nada ni hablan con la IA, y la propia cuenta
   no puede dejar de ser infantil.
 - Los más pequeños entran **con permiso**, sin contraseña (#141). En Ajustes → Casa se marca un

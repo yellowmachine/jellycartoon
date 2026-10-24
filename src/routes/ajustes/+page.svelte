@@ -27,6 +27,22 @@
 	];
 
 	let testing = $state(false);
+
+	/** Until when an adult's link works (#157): «el lunes 26 a las 12:00». */
+	const until = (date: Date) =>
+		`el ${date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric' })} a las ${date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+	const initialOf = (name: string) => [...name.trim()][0]?.toLocaleUpperCase('es') ?? '?';
+	/** The link, to paste in WhatsApp. */
+	let copied = $state(false);
+	async function copyLink(url: string) {
+		try {
+			await navigator.clipboard.writeText(url);
+			copied = true;
+			setTimeout(() => (copied = false), 2000);
+		} catch {
+			// Without the clipboard (http, an old browser): the field is selected on focus, to copy by hand.
+		}
+	}
 	/** A new child enters with permission by default: no email nor password to make up. */
 	let newKidByApproval = $state(true);
 
@@ -118,6 +134,26 @@
 			twoFactor: data.twoFactor
 		}}
 	/>
+
+	<!-- The drawings to choose from (#141, #157): a child's, an adult's, one's own. -->
+	{#snippet avatarPicker(chosen: string | null, label: string)}
+		<div class="flex flex-wrap gap-1.5" role="radiogroup" aria-label={label}>
+			{#each AVATARS as a (a.id)}
+				<label class="cursor-pointer rounded-full ring-amber-400 has-checked:ring-2" title={a.id}>
+					<input
+						type="radio"
+						name="avatar"
+						value={a.id}
+						checked={a.id === chosen}
+						class="sr-only"
+					/>
+					<span class="flex h-9 w-9 items-center justify-center rounded-full text-xl {a.color}"
+						>{a.emoji}</span
+					>
+				</label>
+			{/each}
+		</div>
+	{/snippet}
 
 	<!-- Tabs that are links, as in Gestión: each keeps its address, and «back» works. -->
 	<!-- Forms post to «?seccion=…&/action», so saving keeps the tab (the action is the «/» one). -->
@@ -1067,38 +1103,12 @@
 			</section>
 		{/if}
 
-		{#if data.kids}
-			<section class={section} id="cuentas-infantiles">
-				<h2 class="mb-1 font-semibold">Cuentas infantiles</h2>
+		{#if data.kids && data.people}
+			<section class={section} id="personas">
+				<h2 class="mb-1 font-semibold">Personas de la casa</h2>
 				<p class="mb-4 text-sm text-zinc-400">
-					Solo ven las series y películas con la etiqueta «infantil», y no pueden gestionar nada ni
-					hablar con la IA. Los más pequeños entran sin contraseña: en un dispositivo de la casa
-					eligen su dibujo, y uno de sus padres o tutores les deja entrar desde el móvil. Solo tú
-					ves esta sección.
+					Tú creas las cuentas de todos, adultos y peques. Solo tú ves esta sección.
 				</p>
-
-				{#snippet avatarPicker(chosen: string, name: string)}
-					<div class="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Dibujo de {name}">
-						{#each AVATARS as a (a.id)}
-							<label
-								class="cursor-pointer rounded-full ring-amber-400 has-checked:ring-2"
-								title={a.id}
-							>
-								<input
-									type="radio"
-									name="avatar"
-									value={a.id}
-									checked={a.id === chosen}
-									class="sr-only"
-								/>
-								<span
-									class="flex h-9 w-9 items-center justify-center rounded-full text-xl {a.color}"
-									>{a.emoji}</span
-								>
-							</label>
-						{/each}
-					</div>
-				{/snippet}
 
 				{#snippet guardians(kidId: string | null, chosen: string[])}
 					<fieldset class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
@@ -1120,6 +1130,142 @@
 						<p class="text-xs text-zinc-500">Sin ninguno, te lo pide a ti.</p>
 					{/if}
 				{/snippet}
+
+				{#if form && 'invited' in form && form.invited}
+					{@const invited = form.invited}
+					<!-- Shown once: the token is only in the link, the server keeps its hash. -->
+					<div class="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+						<p class="mb-2 font-medium text-amber-300">El enlace de {invited.name}</p>
+						<div class="flex flex-wrap items-start gap-4">
+							<div class="w-44 shrink-0 rounded bg-white p-1" aria-label="Código QR del enlace">
+								{@html invited.qr}
+							</div>
+							<div class="min-w-0 flex-1 space-y-2">
+								<p>
+									Que apunte la cámara de su móvil al código, o mándale el enlace por WhatsApp. Ahí
+									elige su contraseña y entra.
+								</p>
+								<p class="text-zinc-400">
+									Vale una vez, hasta {until(invited.until)}. Solo funciona en la wifi de casa o con
+									WireGuard encendido.
+								</p>
+								<div class="flex flex-wrap gap-2">
+									<input
+										readonly
+										value={invited.url}
+										aria-label="Enlace"
+										class="{select} min-w-0 flex-1 font-mono text-xs"
+										onfocus={(e) => e.currentTarget.select()}
+									/>
+									<button type="button" class={secondary} onclick={() => copyLink(invited.url)}
+										>{copied ? '✓ Copiado' : 'Copiar'}</button
+									>
+								</div>
+							</div>
+						</div>
+					</div>
+				{/if}
+
+				<h3 class="mb-2 text-sm text-zinc-300">Adultos</h3>
+				<ul class="mb-4 divide-y divide-zinc-800 rounded-md border border-zinc-800 text-sm">
+					{#each data.people.adults as adult (adult.id)}
+						{@const a = adult.avatar ? avatar(adult.avatar) : null}
+						<li>
+							<details>
+								<summary class="flex cursor-pointer items-center gap-3 p-2">
+									<span
+										class={[
+											'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
+											a ? `text-lg ${a.color}` : 'bg-amber-500 font-semibold text-zinc-950'
+										]}>{a ? a.emoji : initialOf(adult.name)}</span
+									>
+									<span class="min-w-0 flex-1 truncate"
+										>{adult.name} <span class="text-zinc-500">· {adult.email}</span></span
+									>
+									<span class="shrink-0 text-xs text-zinc-400"
+										>{adult.admin
+											? 'Administrador'
+											: adult.hasPassword
+												? ''
+												: adult.linkUntil
+													? `Sin entrar: su enlace vale hasta ${until(adult.linkUntil)}`
+													: 'Sin entrar: su enlace caducó'}</span
+									>
+								</summary>
+								<div class="flex flex-col gap-3 border-t border-zinc-800 p-3">
+									<form
+										method="post"
+										action="?seccion={tab}&/saveAdult"
+										use:enhance={() =>
+											async ({ update }) =>
+												update({ reset: false })}
+										class="flex flex-col gap-3"
+									>
+										<input type="hidden" name="userId" value={adult.id} />
+										{@render avatarPicker(adult.avatar, `Dibujo de ${adult.name}`)}
+										<button class="{primary} self-start">Guardar</button>
+									</form>
+									{#if !adult.admin}
+										<form
+											method="post"
+											action="?seccion={tab}&/newLink"
+											use:enhance
+											class="flex flex-wrap items-center gap-3"
+										>
+											<input type="hidden" name="userId" value={adult.id} />
+											<button class={secondary}>Nuevo enlace para entrar</button>
+											<span class="text-xs text-zinc-500"
+												>{adult.hasPassword
+													? 'Si ha olvidado su contraseña: con él elige otra.'
+													: 'El anterior deja de valer.'}</span
+											>
+										</form>
+									{/if}
+								</div>
+							</details>
+						</li>
+					{/each}
+				</ul>
+
+				<h3 class="mb-2 text-sm text-zinc-300">Nuevo adulto</h3>
+				<form
+					method="post"
+					action="?seccion={tab}&/createAdult"
+					use:enhance
+					class="mb-6 flex flex-col gap-3"
+				>
+					<div class="grid gap-2 sm:grid-cols-2">
+						<input
+							name="name"
+							required
+							placeholder="Nombre"
+							aria-label="Nombre"
+							class="{select} min-w-0"
+						/>
+						<input
+							name="email"
+							type="email"
+							required
+							autocomplete="off"
+							placeholder="ana@ejemplo.com"
+							aria-label="Email"
+							class="{select} min-w-0"
+						/>
+					</div>
+					{@render avatarPicker(AVATARS[0].id, 'Dibujo del adulto nuevo')}
+					<p class="text-xs text-zinc-500">
+						Sin contraseña: la app te da un enlace y un QR para que la elija. El email es para
+						entrar; no se le manda nada.
+					</p>
+					<button class="{primary} self-start">Añadir</button>
+				</form>
+
+				<h3 id="cuentas-infantiles" class="mb-1 text-sm text-zinc-300">Peques</h3>
+				<p class="mb-3 text-xs text-zinc-500">
+					Solo ven las series y películas con la etiqueta «infantil», y no pueden gestionar nada ni
+					hablar con la IA. Los más pequeños entran sin contraseña: en un dispositivo de la casa
+					eligen su dibujo, y uno de sus padres o tutores les deja entrar desde el móvil.
+				</p>
 
 				{#if data.kids.accounts.length}
 					<ul class="mb-6 divide-y divide-zinc-800 rounded-md border border-zinc-800 text-sm">
@@ -1146,7 +1292,7 @@
 										class="flex flex-col gap-3 border-t border-zinc-800 p-3"
 									>
 										<input type="hidden" name="kidId" value={kid.id} />
-										{@render avatarPicker(kid.avatar, kid.name)}
+										{@render avatarPicker(kid.avatar, `Dibujo de ${kid.name}`)}
 										<label class="flex items-center gap-2">
 											<input
 												type="checkbox"
@@ -1190,7 +1336,7 @@
 						aria-label="Nombre"
 						class="{select} min-w-0"
 					/>
-					{@render avatarPicker(AVATARS[0].id, 'el peque nuevo')}
+					{@render avatarPicker(AVATARS[0].id, 'Dibujo del peque nuevo')}
 					<label class="flex items-center gap-2 text-sm">
 						<input
 							type="checkbox"
@@ -1273,8 +1419,10 @@
 					</form>
 				{/if}
 
-				{#if form && 'section' in form && form.section === 'kids'}
+				{#if form && 'section' in form && (form.section === 'kids' || form.section === 'people')}
 					<p class="mt-3 text-sm break-words text-red-400">{form.message}</p>
+				{:else if form && 'saved' in form && form.saved === 'adult'}
+					<p class="mt-3 text-sm text-amber-400">✓ Guardado</p>
 				{:else if form && 'saved' in form && form.saved === 'kids'}
 					<p class="mt-3 text-sm text-amber-400">✓ Cuenta creada</p>
 				{:else if form && 'saved' in form && form.saved === 'kid'}
@@ -1366,6 +1514,15 @@
 	{/if}
 
 	{#if tab === 'cuenta'}
+		{#if page.url.searchParams.has('bienvenida')}
+			<p
+				class="mb-6 rounded-md border border-green-500/40 bg-green-500/10 p-3 text-sm text-green-300"
+				role="status"
+			>
+				✓ Ya estás dentro. Aquí puedes elegir tu dibujo y, mejor aún, activar la verificación en dos
+				pasos: aunque alguien supiera tu contraseña, sin tu móvil no entraría.
+			</p>
+		{/if}
 		<section class={section} id="cuenta">
 			<h2 class="mb-3 font-semibold">Cuenta</h2>
 			<form
@@ -1378,6 +1535,27 @@
 				</p>
 				<button class={secondary}>Salir</button>
 			</form>
+			{#if data.account.avatar !== undefined}
+				<form
+					method="post"
+					action="?seccion={tab}&/myAvatar"
+					use:enhance={() =>
+						async ({ update }) =>
+							update({ reset: false })}
+					class="mt-4 flex flex-col gap-3"
+				>
+					<p class="text-sm text-zinc-400">Tu dibujo, en el círculo de arriba:</p>
+					{@render avatarPicker(data.account.avatar, 'Tu dibujo')}
+					<div class="flex items-center gap-3">
+						<button class="{primary} self-start">Guardar</button>
+						{#if form && 'saved' in form && form.saved === 'avatar'}
+							<span class="text-sm text-amber-400">✓ Guardado</span>
+						{:else if form && 'section' in form && form.section === 'avatar'}
+							<span class="text-sm text-red-400">{form.message}</span>
+						{/if}
+					</div>
+				</form>
+			{/if}
 		</section>
 		{#if data.twoFactor}
 			{@const tf = data.twoFactor}

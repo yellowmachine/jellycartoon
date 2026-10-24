@@ -6,7 +6,8 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	let mode = $state<'signIn' | 'signUp'>('signIn');
+	/** A new install only creates its administrator's account; the rest, they do in Ajustes (#157). */
+	const mode = $derived(data.firstAccount ? 'signUp' : 'signIn');
 	/** The second step with a recovery code, instead of the app's. */
 	let recovery = $state(false);
 	$effect(() => {
@@ -31,6 +32,19 @@
 	<img src={favicon} alt="" class="mx-auto mb-4 h-20 w-20 rounded-2xl" />
 	<h1 class="text-center text-3xl font-bold text-amber-400">JellyCartoon</h1>
 	<p class="mt-2 mb-8 text-center text-zinc-400">Tus series y películas, en casa.</p>
+	{#if data.firstAccount}
+		<h2 class="mb-1 font-semibold">Crear la cuenta de administrador</h2>
+		<p class="mb-4 text-sm text-zinc-400">
+			Es la primera de esta instalación: con ella crearás en Ajustes las de las demás personas de la
+			casa.
+		</p>
+	{:else if data.passwordChanged && !twoFactor}
+		<p
+			class="mb-4 rounded-md border border-green-500/40 bg-green-500/10 p-3 text-sm text-green-300"
+		>
+			✓ Contraseña cambiada: entra con ella y el código de tu app.
+		</p>
+	{/if}
 	{#if twoFactor}
 		<!-- The second step: the code from the app (Proton Pass, Google Authenticator…). -->
 		<form method="post" action={action('verify')} use:enhance class="space-y-4">
@@ -107,16 +121,13 @@
 				<p class="text-sm text-red-400">{form.message}</p>
 			{/if}
 			<button class={primary}>
-				{mode === 'signIn' ? 'Entrar' : 'Crear cuenta'}
+				{mode === 'signIn' ? 'Entrar' : 'Crear la cuenta'}
 			</button>
 		</form>
-		{#if data.allowSignup}
-			<button
-				class="mt-4 w-full text-center text-sm text-zinc-400 hover:text-white"
-				onclick={() => (mode = mode === 'signIn' ? 'signUp' : 'signIn')}
-			>
-				{mode === 'signIn' ? '¿No tienes cuenta? Regístrate' : 'Ya tengo cuenta'}
-			</button>
+		{#if mode === 'signIn'}
+			<p class="mt-4 text-center text-sm text-zinc-500">
+				¿Sin cuenta, o sin tu contraseña? Pide un enlace a quien administra la app.
+			</p>
 		{/if}
 	{/if}
 </div>

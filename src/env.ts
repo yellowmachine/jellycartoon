@@ -140,7 +140,8 @@ export const variables = defineEnvVars({
 		schema: (value) => value === 'true'
 	},
 	ALLOW_SIGNUP: {
-		description: 'Set to `false` to disable creating new accounts.',
+		description:
+			'No longer used (#157): only the first account signs up, and the administrator creates the rest. Kept so an `.env` that has it still starts.',
 		schema: (value) => value !== 'false'
 	},
 	APP_VERSION: {

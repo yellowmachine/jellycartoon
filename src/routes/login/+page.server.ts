@@ -1,6 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { APIError } from 'better-auth/api';
-import { ALLOW_SIGNUP } from '$app/env/private';
 import type { Actions, PageServerLoad } from './$types';
 import { auth } from '#lib/server/auth.ts';
 import { markSetupIfNeeded, SETUP_PATH } from '#lib/server/two-factor.ts';
@@ -32,7 +31,14 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 	const device = await deviceOf(cookies);
 	if (device && !url.searchParams.has('adulto') && (await pickableKids()).length)
 		redirect(303, '/quien');
-	return { allowSignup: ALLOW_SIGNUP, kids: Boolean(device) };
+	// A new install: its first account, the administrator's, which creates the rest (#157).
+	const [someone] = await db.select({ id: user.id }).from(user).limit(1);
+	return {
+		firstAccount: !someone,
+		kids: Boolean(device),
+		/** Back from /bienvenida with a second step: the new password and the code, here. */
+		passwordChanged: url.searchParams.has('cambiada')
+	};
 };
 
 export const actions: Actions = {

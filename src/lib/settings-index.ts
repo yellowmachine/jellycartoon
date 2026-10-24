@@ -168,10 +168,11 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		shown: (d) => Boolean(d.relay)
 	},
 	{
-		id: 'cuentas-infantiles',
+		id: 'personas',
 		tab: 'casa',
-		title: 'Cuentas infantiles',
-		words: 'niños peques infantil hijos permiso tiempo pantalla horario',
+		title: 'Personas de la casa',
+		words:
+			'cuentas usuarios adultos añadir invitar enlace qr contraseña olvidada dibujo avatar niños peques infantil hijos permiso tiempo pantalla horario',
 		shown: (d) => Boolean(d.kids)
 	},
 	{
@@ -191,7 +192,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		id: 'cuenta',
 		tab: 'cuenta',
 		title: 'Cuenta',
-		words: 'salir cerrar sesión correo email usuario'
+		words: 'salir cerrar sesión correo email usuario dibujo avatar'
 	},
 	{
 		id: 'dos-pasos',
