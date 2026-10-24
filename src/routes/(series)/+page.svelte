@@ -21,33 +21,23 @@
 	</a>
 {/each}
 
-<a
-	href="/today"
-	class="mb-10 flex items-center gap-4 rounded-lg border border-zinc-800 bg-gradient-to-r from-amber-500/15 to-transparent p-4 hover:border-amber-500/60"
->
-	{#if data.today?.next}
-		<img
-			src={thumbUrl(data.today.next.id)}
-			alt=""
-			class="aspect-video w-32 shrink-0 rounded object-cover"
-		/>
-	{/if}
-	<div class="min-w-0">
-		<p class="font-semibold text-amber-400">Programación de hoy</p>
-		{#if !data.today}
-			<p class="text-sm text-zinc-400">Arma una sesión de 30, 60 o 90 minutos con tus series.</p>
-		{:else if data.today.next}
-			<p class="truncate text-sm">
-				A continuación: {data.today.next.seriesTitle} · {data.today.next.title}
-			</p>
+<!-- Only while today's programme is going: what comes next. It is made in its own page. -->
+{#if data.today?.next}
+	{@const next = data.today.next}
+	<a
+		href="/today"
+		class="mb-10 flex items-center gap-4 rounded-lg border border-zinc-800 bg-gradient-to-r from-amber-500/15 to-transparent p-4 hover:border-amber-500/60"
+	>
+		<img src={thumbUrl(next.id)} alt="" class="aspect-video w-32 shrink-0 rounded object-cover" />
+		<div class="min-w-0">
+			<p class="font-semibold text-amber-400">Programación de hoy</p>
+			<p class="truncate text-sm">A continuación: {next.seriesTitle} · {next.title}</p>
 			<p class="text-xs text-zinc-400">
 				Quedan {data.today.pending} de {data.today.total} · {formatDuration(data.today.pendingSec)}
 			</p>
-		{:else}
-			<p class="text-sm text-zinc-400">Terminada. ¿Otra?</p>
-		{/if}
-	</div>
-</a>
+		</div>
+	</a>
+{/if}
 
 {#if data.continueWatching.length}
 	<section class="mb-10">
