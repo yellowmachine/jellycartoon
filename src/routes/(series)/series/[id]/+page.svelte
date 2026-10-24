@@ -215,10 +215,15 @@
 			{#if !data.kid}{@render editButton('series', 'Cambiar título de la serie')}{/if}
 		</h1>
 	{/if}
-	{#if !data.kid}
-		<form method="post" action="?/serialized" use:enhance class="text-sm">
+</div>
+{#if !data.kid}
+	<TagBar tags={data.tags} allTags={data.allTags} class="-mt-2 mb-6" />
+	<div
+		class="mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-zinc-400 [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]"
+	>
+		<form method="post" action="?/serialized" use:enhance>
 			<input type="hidden" name="serialized" value={String(!data.series.serialized)} />
-			<button class="flex items-center gap-2 text-zinc-400 hover:text-white">
+			<button class="flex items-center gap-2 hover:text-white">
 				<span
 					class={[
 						'relative h-5 w-9 rounded-full transition',
@@ -235,35 +240,32 @@
 				{data.series.serialized ? 'Con continuidad: en orden' : 'Episodios sueltos: al azar'}
 			</button>
 		</form>
-	{/if}
-</div>
-{#if !data.kid}
-	<TagBar tags={data.tags} allTags={data.allTags} class="-mt-2 mb-6" />
-	<!-- The files do not say what language its audio is in: told here, it is assumed for them. -->
-	{#if data.unmarkedAudio || data.series.audioLang}
-		<form
-			method="post"
-			action="?/audioLang"
-			use:enhance={() =>
-				async ({ update }) =>
-					update({ reset: false })}
-			class="-mt-3 mb-6 flex flex-wrap items-center gap-2 text-sm text-zinc-400"
-		>
-			<label for="audioLang">Idioma del audio que los ficheros no indican</label>
-			<select
-				id="audioLang"
-				name="audioLang"
-				value={data.series.audioLang ?? ''}
-				onchange={(e) => e.currentTarget.form?.requestSubmit()}
-				class="rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm text-zinc-200"
+		<!-- The files do not say what language its audio is in: told here, it is assumed for them. -->
+		{#if data.unmarkedAudio || data.series.audioLang}
+			<form
+				method="post"
+				action="?/audioLang"
+				use:enhance={() =>
+					async ({ update }) =>
+						update({ reset: false })}
+				class="flex flex-wrap items-center gap-2"
 			>
-				<option value="">Desconocido</option>
-				{#each data.knownLanguages as lang (lang)}
-					<option value={lang}>{languageLabel(lang)}</option>
-				{/each}
-			</select>
-		</form>
-	{/if}
+				<label for="audioLang">Idioma del audio que los ficheros no indican</label>
+				<select
+					id="audioLang"
+					name="audioLang"
+					value={data.series.audioLang ?? ''}
+					onchange={(e) => e.currentTarget.form?.requestSubmit()}
+					class="rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm text-zinc-200"
+				>
+					<option value="">Desconocido</option>
+					{#each data.knownLanguages as lang (lang)}
+						<option value={lang}>{languageLabel(lang)}</option>
+					{/each}
+				</select>
+			</form>
+		{/if}
+	</div>
 {/if}
 {#if form?.message}
 	<p class="-mt-4 mb-4 text-sm text-red-400">{form.message}</p>
