@@ -14,6 +14,7 @@
 	import { SKIP_BACK, SKIP_FORWARD, SPEEDS, type Speed } from '#lib/podcasts.ts';
 	import { COUNTRIES } from '#lib/radio.ts';
 	import { watchMedia, watchPlay } from '#lib/media-diagnostics.ts';
+	import { nextTrack } from '#lib/next-track.ts';
 
 	let audio = $state<HTMLAudioElement>();
 	const current = $derived(music.current);
@@ -128,6 +129,37 @@
 		if (music.current && music.dj) untrack(() => void dj.step());
 	});
 
+	/** The track in the `<audio>`: its address, and what it was loaded from (its copy, maybe). */
+	let loaded: { src: string; from: string; copy: boolean } | null = null;
+
+	/** The copy in memory of the track that was on, once another is loaded. */
+	function dropCopy() {
+		if (loaded?.copy) URL.revokeObjectURL(loaded.from);
+		loaded = null;
+	}
+
+	/** Into a song this long, the next one is downloaded: this one's own download goes first. */
+	const NEXT_AFTER_SEC = 10;
+	/** What plays after this one, if a song does: none with a station, an episode or «solo esta». */
+	const upcoming = $derived(
+		radio || podcast || music.single
+			? null
+			: (music.queue[music.index + 1] ?? (music.repeat ? music.queue[0] : null) ?? null)
+	);
+	const intoTheSong = $derived(music.playing && music.positionSec > NEXT_AFTER_SEC);
+	// The next song, in memory while this one plays (next-track.ts): with the phone asleep, the
+	// network is there while something sounds, and not in the silence between two songs.
+	$effect(() => {
+		if (!upcoming) return void nextTrack.forget();
+		if (!intoTheSong) return;
+		nextTrack.want(
+			audioUrl(
+				upcoming,
+				untrack(() => musicQuality.value === 'saver')
+			)
+		);
+	});
+
 	// A new track or episode: load it and play it. Changing `src` pauses, so play() goes after.
 	// Brought back from the server, it waits where it was (before loading, currentTime is where it
 	// starts); an episode starts where the user left it, from the podcast's own server. The quality
@@ -139,10 +171,15 @@
 		if (!src) {
 			audio.removeAttribute('src');
 			audio.load();
+			dropCopy();
 			return;
 		}
-		if (audio.getAttribute('src') !== src) {
-			audio.src = src;
+		// Loaded already: the same track, from the server or from its copy in memory.
+		if (loaded?.src !== src || audio.getAttribute('src') !== loaded.from) {
+			const copy = nextTrack.take(src);
+			audio.src = copy ?? src;
+			dropCopy();
+			loaded = { src, from: copy ?? src, copy: Boolean(copy) };
 			const restored = untrack(() => music.restored);
 			const startAt = restored?.positionSec ?? untrack(() => podcast?.positionSec) ?? 0;
 			if (startAt) audio.currentTime = startAt;
