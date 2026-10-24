@@ -127,6 +127,10 @@
 		detección como buena o sin querer, para saber cuál funciona mejor y cuántas veces salta sola
 		(con la tele puesta, mejor). Nada sale del dispositivo.
 	</p>
+	<p class="mb-4 text-sm">
+		<a href="/activacion/grabar" class="text-amber-400 hover:underline">Grabar «candy candy»</a>
+		<span class="text-zinc-400">: vuestras voces, para entrenar su modelo.</span>
+	</p>
 
 	<div class="mb-4 flex flex-wrap items-center gap-3">
 		{#if status === 'on'}
