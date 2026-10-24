@@ -12,6 +12,8 @@ import {
 	DEFAULT_MODEL,
 	DEFAULT_VISION_MODEL,
 	DEFAULT_VOICE_MODEL,
+	DEFAULT_HOMEWORK_MODEL,
+	homeworkModel,
 	isAdmin,
 	DEFAULT_ORS_URL,
 	openRouterConfig,
@@ -96,16 +98,18 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 			url: ors.url === DEFAULT_ORS_URL ? '' : ors.url,
 			defaultUrl: DEFAULT_ORS_URL
 		};
-		const [config, chat, vision, voice, kidAccounts, grownUps, devices, here] = await Promise.all([
-			openRouterConfig(),
-			chatConfig(),
-			visionModel(),
-			voiceModel(),
-			kidProfiles(),
-			adults(),
-			trustedDevices(),
-			deviceOf(cookies)
-		]);
+		const [config, chat, vision, voice, homework, kidAccounts, grownUps, devices, here] =
+			await Promise.all([
+				openRouterConfig(),
+				chatConfig(),
+				visionModel(),
+				voiceModel(),
+				homeworkModel(),
+				kidProfiles(),
+				adults(),
+				trustedDevices(),
+				deviceOf(cookies)
+			]);
 		/**
 		 * Children's accounts (#17), and how they enter (#141): with a password, or choosing their
 		 * avatar on a device of the house while one of their parents or guardians lets them in.
@@ -125,7 +129,9 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 			/** Only where there is voice (WHISPER_URL). */
 			voice: voiceEnabled,
 			voiceModel: voice,
-			defaultVoiceModel: DEFAULT_VOICE_MODEL
+			defaultVoiceModel: DEFAULT_VOICE_MODEL,
+			homeworkModel: homework,
+			defaultHomeworkModel: DEFAULT_HOMEWORK_MODEL
 		};
 	}
 
@@ -522,7 +528,9 @@ export const actions: Actions = {
 					? (['openrouter_vision_model', 'visionModel'] as const)
 					: use === 'voice'
 						? (['openrouter_voice_model', 'voiceModel'] as const)
-						: (['openrouter_model', 'model'] as const);
+						: use === 'homework'
+							? (['openrouter_homework_model', 'homeworkModel'] as const)
+							: (['openrouter_model', 'model'] as const);
 		await setAppSetting(key, model || null);
 		return { saved };
 	},

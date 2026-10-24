@@ -27,7 +27,14 @@ export interface Exercise {
 	at: number | null;
 }
 
-export const TRUE_FALSE = ['Verdadero', 'Falso'] as const;
+/** Spanish, or English to practise it: the adult chooses for each homework. */
+export type HomeworkLanguage = 'es' | 'en';
+
+/** The two options of a `truefalse`, in the homework's language. */
+export const TRUE_FALSE: Record<HomeworkLanguage, readonly [string, string]> = {
+	es: ['Verdadero', 'Falso'],
+	en: ['True', 'False']
+};
 
 /**
  * The ages, as the school's stages: what each can do. A first idea, to check with a teacher (#142):
@@ -145,7 +152,11 @@ const text = (value: unknown, max: number) =>
  */
 export function checkProposal(
 	proposed: unknown,
-	{ band, episodeIds }: { band: AgeBand; episodeIds: number[] },
+	{
+		band,
+		episodeIds,
+		language = 'es'
+	}: { band: AgeBand; episodeIds: number[]; language?: HomeworkLanguage },
 	random: () => number = Math.random
 ): Exercise[] {
 	if (!Array.isArray(proposed)) return [];
@@ -168,7 +179,7 @@ export function checkProposal(
 		let expected: string | null = null;
 		if (kind === 'truefalse') {
 			if (typeof p.answer !== 'boolean') continue;
-			options = [...TRUE_FALSE];
+			options = [...TRUE_FALSE[language]];
 			answer = p.answer ? 0 : 1;
 		} else if (kind === 'choice') {
 			if (!Array.isArray(p.options)) continue;
@@ -219,3 +230,65 @@ export function mark(exercises: Exercise[], answers: Answer[]): Marks {
 	});
 	return marks;
 }
+
+/** How a homework goes, chosen by the adult who prepares it. */
+export interface HomeworkRules {
+	/** Tries at each closed one; null, as many as needed. */
+	tries: number | null;
+	/** After a wrong try, its hint (if it has one). */
+	hints: boolean;
+	/** With no tries left, the right one is shown, so that it is learnt. */
+	showAnswer: boolean;
+}
+
+export const TRIES_OPTIONS = [1, 2, 3, null] as const;
+
+/** Until the adult changes them: a second chance with a hint, then the right one. */
+export const DEFAULT_RULES: HomeworkRules = { tries: 2, hints: true, showAnswer: true };
+
+/** Rules from a form or the database: what is not one of them, the default. */
+export function checkRules(value: Partial<Record<keyof HomeworkRules, unknown>>): HomeworkRules {
+	const tries = (TRIES_OPTIONS as readonly unknown[]).includes(value.tries)
+		? (value.tries as number | null)
+		: DEFAULT_RULES.tries;
+	return {
+		tries,
+		hints: typeof value.hints === 'boolean' ? value.hints : DEFAULT_RULES.hints,
+		showAnswer: typeof value.showAnswer === 'boolean' ? value.showAnswer : DEFAULT_RULES.showAnswer
+	};
+}
+
+/** What the child sees after choosing, at a closed one. */
+export type TryResult =
+	| { result: 'right' }
+	/** Wrong, and another try: with its hint, if the rules give it. */
+	| { result: 'again'; hint: string | null }
+	/** Wrong, and no tries left: the right one, if the rules show it. */
+	| { result: 'wrong'; right: number | null };
+
+/** The `tried`-th try (1, 2…) at a closed one, choosing `chosen`. */
+export function tryAnswer(
+	exercise: Exercise,
+	chosen: number,
+	tried: number,
+	rules: HomeworkRules
+): TryResult {
+	if (chosen === exercise.answer) return { result: 'right' };
+	if (rules.tries === null || tried < rules.tries)
+		return { result: 'again', hint: rules.hints ? exercise.hint : null };
+	return { result: 'wrong', right: rules.showAnswer ? exercise.answer : null };
+}
+
+/** Where the child is at each exercise: what they answered last, and in how many tries. */
+export interface Step {
+	answer: Answer;
+	tries: number;
+	/** Done with it: right, out of tries, or an open one written. */
+	done: boolean;
+}
+
+/**
+ * A homework's life: prepared (the adult reviews it, the child does not see it), given to the
+ * child, and done.
+ */
+export type HomeworkStatus = 'draft' | 'assigned' | 'done';

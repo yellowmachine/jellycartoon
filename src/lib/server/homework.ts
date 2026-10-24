@@ -3,6 +3,7 @@ import { db } from '#lib/server/db/index.ts';
 import { episode, series } from '#lib/server/db/schema.ts';
 import { readCues } from '#lib/server/auto-subtitle-files.ts';
 import { hlsDir } from '#lib/server/library/paths.ts';
+import { homeworkModel } from '#lib/server/app-settings.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
 import { subtitleFile } from '#lib/server/opening-quote.ts';
 import {
@@ -11,7 +12,8 @@ import {
 	transcript,
 	type AgeBand,
 	type Exercise,
-	type ExerciseKind
+	type ExerciseKind,
+	type HomeworkLanguage
 } from '#lib/homework.ts';
 
 /**
@@ -31,7 +33,7 @@ export interface HomeworkRequest {
 	/** Of these kinds only; all the age does, if empty. */
 	kinds?: ExerciseKind[];
 	/** In this language: Spanish, or English to practise it. */
-	language: 'es' | 'en';
+	language: HomeworkLanguage;
 	/** The adult's own words: «sobre la amistad», «vocabulario de animales»… */
 	focus?: string;
 	/** The subtitles to read, the account's language first. */
@@ -170,11 +172,13 @@ export async function proposeHomework(
 		label,
 		details: { episodeIds: episodes.map((e) => e.id), band: request.band.id },
 		schema: SCHEMA,
+		model: await homeworkModel(),
 		maxTokens: 6000,
 		timeoutMs: 120_000
 	});
 	return checkProposal(exercises, {
 		band: request.band,
-		episodeIds: episodes.map((e) => e.id)
+		episodeIds: episodes.map((e) => e.id),
+		language: request.language
 	}).slice(0, count);
 }

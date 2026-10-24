@@ -1,5 +1,15 @@
 import { expect, test } from 'bun:test';
-import { AGE_BANDS, checkProposal, clock, fromClock, mark, transcript } from './homework.ts';
+import {
+	AGE_BANDS,
+	DEFAULT_RULES,
+	checkProposal,
+	checkRules,
+	clock,
+	fromClock,
+	mark,
+	transcript,
+	tryAnswer
+} from './homework.ts';
 
 const [infantil, primero, tercero] = AGE_BANDS;
 const asked = { band: tercero, episodeIds: [7, 8] };
@@ -69,6 +79,14 @@ test('true or false, and an open one for an adult to read', () => {
 	]);
 });
 
+test('in English, «True» and «False»', () => {
+	const [e] = checkProposal(
+		[{ kind: 'truefalse', question: 'Scooby is scared.', answer: false, episode: 7 }],
+		{ ...asked, language: 'en' }
+	);
+	expect([e?.options, e?.answer]).toEqual([['True', 'False'], 1]);
+});
+
 test('what does not hold together is left out', () => {
 	const proposed = [
 		// The answer is not among the options.
@@ -115,4 +133,41 @@ test('marked: the closed ones by themselves, the open ones wait for an adult', (
 		toRead: 1,
 		left: 2
 	});
+});
+
+test('a try: right; wrong with tries left, its hint; wrong at the last, the right one', () => {
+	const [e] = checkProposal(
+		[
+			{
+				kind: 'choice',
+				question: '¿Quién?',
+				options: ['A', 'B'],
+				answer: 0,
+				hint: 'Piensa.',
+				episode: 7
+			}
+		],
+		asked,
+		first
+	);
+	const rules = { tries: 2, hints: true, showAnswer: true };
+	expect(tryAnswer(e!, 0, 1, rules)).toEqual({ result: 'right' });
+	expect(tryAnswer(e!, 1, 1, rules)).toEqual({ result: 'again', hint: 'Piensa.' });
+	expect(tryAnswer(e!, 1, 2, rules)).toEqual({ result: 'wrong', right: 0 });
+	expect(tryAnswer(e!, 1, 1, { ...rules, hints: false })).toEqual({ result: 'again', hint: null });
+	expect(tryAnswer(e!, 1, 2, { ...rules, showAnswer: false })).toEqual({
+		result: 'wrong',
+		right: null
+	});
+	expect(tryAnswer(e!, 1, 9, { ...rules, tries: null }).result).toBe('again');
+});
+
+test('the rules from a form: what is not valid, as by default', () => {
+	expect(checkRules({ tries: 3, hints: false, showAnswer: false })).toEqual({
+		tries: 3,
+		hints: false,
+		showAnswer: false
+	});
+	expect(checkRules({ tries: null })).toEqual({ tries: null, hints: true, showAnswer: true });
+	expect(checkRules({ tries: 7, hints: 'sí' })).toEqual(DEFAULT_RULES);
 });
