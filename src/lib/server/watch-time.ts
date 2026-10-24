@@ -4,6 +4,7 @@ import { watchTime } from '#lib/server/db/schema.ts';
 import { isKidAccount } from '#lib/server/kids.ts';
 import { keepsHistory } from '#lib/server/settings.ts';
 import { noteWatching } from '#lib/server/live-watching.ts';
+import { watchersOf } from '#lib/server/watching-together.ts';
 import { log } from '#lib/server/log.ts';
 import { today } from '#lib/server/playlist.ts';
 import { WatchSteps } from '#lib/server/watch-steps.ts';
@@ -44,9 +45,23 @@ export type Source = string;
 
 /**
  * `positionSec`: where playing is now, before a finished one goes back to 0. `device`: where, as
- * the adults see it in /infantil's «Ahora» (a child's only).
+ * the adults see it in /infantil's «Ahora» (a child's only). For a child, also for those watching
+ * with it (#160): from their first save, as each one's step starts there.
  */
 export async function addWatchTime(
+	userId: string,
+	target: Target,
+	positionSec: number,
+	source: Source,
+	device: string
+) {
+	const watchers = (await isKidAccount(userId).catch(() => false))
+		? await watchersOf(userId, source === 'salon' ? undefined : source).catch(() => [userId])
+		: [userId];
+	for (const id of watchers) await addOwnWatchTime(id, target, positionSec, source, device);
+}
+
+async function addOwnWatchTime(
 	userId: string,
 	target: Target,
 	positionSec: number,

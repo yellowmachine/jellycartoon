@@ -167,6 +167,14 @@ docker compose -f compose.prod.yaml logs -f app
   Con «Activar avisos en este dispositivo» (Ajustes → Este dispositivo) les llega aunque la app esté
   cerrada; en el iPhone, solo con la app añadida a la pantalla de inicio. Las claves de los avisos
   (VAPID) las crea la app y las guarda cifradas: no hay nada que poner en el `.env`.
+- **Ver juntos** (#160): en el aviso salen también, en gris, los demás peques que pueden unirse;
+  los que se tocan entran con él. Después, desde «Ahora» (Infantil), se añaden o quitan tocándolos,
+  también con el vídeo puesto. Un peque que está viendo algo en otro dispositivo (su tablet) no sale
+  para unirse. Lo que ven cuenta para cada uno desde que se une (su tiempo, su historial y «Seguir
+  viendo», por el minuto en que va), los límites son los del más estricto y, si a uno se le acaba,
+  se para para todos y se dice a quién. «¿Sigues ahí?» sale con el número más bajo. En la tele se
+  ve quién está viendo. Dura hasta el final del día o de esa sesión: en su propio dispositivo, cada
+  uno ve solo.
 - En «Infantil» (para cualquier adulto) se ve lo que ven, y se les pone horario por días y un
   límite de minutos al día. Fuera de él no hay vídeo, tampoco en el salón: lo que suena se para.
   Las horas son las de `TZ`.

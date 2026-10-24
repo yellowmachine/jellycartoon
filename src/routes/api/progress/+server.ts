@@ -2,7 +2,8 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { saveProgress } from '#lib/server/progress.ts';
 import { isKid } from '#lib/server/kids.ts';
-import { videoAllowed } from '#lib/server/kid-time.ts';
+import { videoAllowedTogether } from '#lib/server/kid-time.ts';
+import { watchersOf } from '#lib/server/watching-together.ts';
 import { addWatchTime } from '#lib/server/watch-time.ts';
 import { channelsFor } from '#lib/channels.ts';
 import {
@@ -15,6 +16,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const { episodeId, channelId, dailymotionId, positionSec, durationSec, device } =
 		await request.json();
 	const userId = locals.user!.id;
+	const sessionId = locals.session!.id;
+	// Watching together (#160): their progress too, and the strictest of their limits.
+	const watchers = isKid(locals.user) ? await watchersOf(userId, sessionId) : [userId];
+	const allowed = async () => (await videoAllowedTogether(userId, sessionId)).allowed;
 	// Where, as the page says it (its name in Ajustes, or «el móvil»…): for /infantil's «Ahora».
 	const where =
 		typeof device === 'string' && device.trim() ? device.trim().slice(0, 50) : 'un navegador';
@@ -23,8 +28,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (channelId !== undefined) {
 		const channel = channelsFor(isKid(locals.user)).find((c) => c.id === channelId);
 		if (!channel || typeof positionSec !== 'number') error(400, 'Bad request');
-		await addWatchTime(userId, { channelId: channel.id }, positionSec, locals.session!.id, where);
-		if (!(await videoAllowed(userId)).allowed) error(403, 'Ahora no toca ver vídeos');
+		await addWatchTime(userId, { channelId: channel.id }, positionSec, sessionId, where);
+		if (!(await allowed())) error(403, 'Ahora no toca ver vídeos');
 		return json({ ok: true });
 	}
 
@@ -36,10 +41,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		const done =
 			typeof durationSec === 'number' && durationSec > 0 && positionSec / durationSec > 0.92;
 		await Promise.all([
-			saveDmProgress(userId, dailymotionId, positionSec, done),
-			addWatchTime(userId, { dailymotionId }, positionSec, locals.session!.id, where)
+			...watchers.map((id) => saveDmProgress(id, dailymotionId, positionSec, done)),
+			addWatchTime(userId, { dailymotionId }, positionSec, sessionId, where)
 		]);
-		if (!(await videoAllowed(userId)).allowed) error(403, 'Ahora no toca ver vídeos');
+		if (!(await allowed())) error(403, 'Ahora no toca ver vídeos');
 		return json({ ok: true, completed: done });
 	}
 
@@ -49,8 +54,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const completed =
 		typeof durationSec === 'number' && durationSec > 0 && positionSec / durationSec > 0.92;
 	await Promise.all([
-		saveProgress(userId, episodeId, positionSec, completed),
-		addWatchTime(userId, { episodeId }, positionSec, locals.session!.id, where)
+		...watchers.map((id) => saveProgress(id, episodeId, positionSec, completed)),
+		addWatchTime(userId, { episodeId }, positionSec, sessionId, where)
 	]);
 
 	return json({ ok: true, completed });

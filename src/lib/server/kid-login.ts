@@ -17,6 +17,7 @@ import { KIDS_ROLE } from '#lib/server/kids.ts';
 import { log } from '#lib/server/log.ts';
 import { decrypt, encrypt } from '#lib/server/secret-box.ts';
 import { notify } from '#lib/server/push.ts';
+import { addCompanions, togetherOf } from '#lib/server/watching-together.ts';
 import { avatar, type PermitId } from '#lib/avatars.ts';
 
 /**
@@ -211,8 +212,8 @@ async function guardiansOf(kidId: string) {
 	return first ? [first.id] : [];
 }
 
-/** Whether this adult may let this child in. */
-async function mayDecide(adultId: string, kidId: string) {
+/** Whether this adult may let this child in (or add it to watch with others, #160). */
+export async function mayDecide(adultId: string, kidId: string) {
 	return (await guardiansOf(kidId)).includes(adultId);
 }
 
@@ -341,7 +342,16 @@ export async function pendingFor(adultId: string) {
 		.orderBy(asc(kidLoginRequest.createdAt));
 	const mine: typeof rows = [];
 	for (const row of rows) if (await mayDecide(adultId, row.kidId)) mine.push(row);
-	return mine.map((r) => ({ ...r, avatar: avatar(r.avatar).id }));
+	// The others who could watch with it (#160), those this adult may let in.
+	const together = await togetherOf(mine.map((r) => r.kidId));
+	return Promise.all(
+		mine.map(async (r) => {
+			const others = together.find((t) => t.kidId === r.kidId)?.available ?? [];
+			const allowed = [];
+			for (const kid of others) if (await mayDecide(adultId, kid.id)) allowed.push(kid);
+			return { ...r, avatar: avatar(r.avatar).id, available: allowed };
+		})
+	);
 }
 
 /** Whether this adult lets in any child who enters with permission (its pages listen for them). */
@@ -381,14 +391,29 @@ function permitEnd(permit: PermitId) {
  * A parent's answer. Yes, for this time (the session ends at night or when it leaves) or for a
  * while, in which it enters on that device again without asking; or no.
  */
-export async function decide(requestId: string, adultId: string, answer: PermitId | 'no') {
+export async function decide(
+	requestId: string,
+	adultId: string,
+	answer: PermitId | 'no',
+	/** The other children let in with it, to watch together (#160). */
+	companions: string[] = []
+) {
 	const [row] = await db.select().from(kidLoginRequest).where(eq(kidLoginRequest.id, requestId));
 	if (!row || !(await mayDecide(adultId, row.kidId))) return 'not-found' as const;
 	if (row.state !== 'pending' || row.expiresAt <= new Date()) return 'late' as const;
 	const until = answer === 'no' ? null : permitEnd(answer);
+	const together: string[] = [];
+	if (until)
+		for (const id of new Set(companions))
+			if (id !== row.kidId && (await mayDecide(adultId, id))) together.push(id);
 	const [updated] = await db
 		.update(kidLoginRequest)
-		.set({ state: until ? 'approved' : 'denied', decidedBy: adultId, until })
+		.set({
+			state: until ? 'approved' : 'denied',
+			decidedBy: adultId,
+			until,
+			companions: together
+		})
 		.where(and(eq(kidLoginRequest.id, requestId), eq(kidLoginRequest.state, 'pending')))
 		.returning({ id: kidLoginRequest.id });
 	// Another parent answered first.
@@ -423,6 +448,7 @@ export async function enter(
 ) {
 	let kidId: string;
 	let until: Date;
+	let together: { ids: string[]; by: string } | null = null;
 	if ('requestId' in by) {
 		const [used] = await db
 			.update(kidLoginRequest)
@@ -434,9 +460,16 @@ export async function enter(
 					eq(kidLoginRequest.state, 'approved')
 				)
 			)
-			.returning({ kidId: kidLoginRequest.kidId, until: kidLoginRequest.until });
+			.returning({
+				kidId: kidLoginRequest.kidId,
+				until: kidLoginRequest.until,
+				companions: kidLoginRequest.companions,
+				decidedBy: kidLoginRequest.decidedBy
+			});
 		if (!used?.until || used.until <= new Date()) return null;
 		({ kidId, until } = { kidId: used.kidId, until: used.until });
+		if (used.companions.length && used.decidedBy)
+			together = { ids: used.companions, by: used.decidedBy };
 	} else {
 		const [permit] = await db
 			.select({ until: kidPermit.until })
@@ -466,10 +499,15 @@ export async function enter(
 	const result = await auth.api.signInEmail({
 		body: { email: kid.email, password: credential, rememberMe: false }
 	});
-	await db
+	const [signedIn] = await db
 		.update(session)
 		.set({ kidApproved: true, expiresAt: until })
-		.where(eq(session.token, result.token));
+		.where(eq(session.token, result.token))
+		.returning({ id: session.id });
+	if (together && signedIn)
+		await addCompanions(kidId, together.ids, together.by, signedIn.id).catch((error) =>
+			log.warn('peques', 'No se pudieron añadir los que ven juntos', { kidId, error })
+		);
 	log.info('peques', `Entra en ${device.name}`, { kidId, deviceId: device.id, until });
 	return { kidId, until };
 }

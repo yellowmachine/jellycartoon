@@ -76,6 +76,20 @@ export function noteWatching(userId: string, target: Target, positionSec: number
 	});
 }
 
+/**
+ * Those of `userIds` watching something right now (#160), other than `besides` (watching together
+ * already): on their own tablet, they cannot join the TV.
+ */
+export function watchingElsewhere(userIds: string[], besides: Set<string>) {
+	const now = Date.now();
+	return new Set(
+		userIds.filter((id) => {
+			const entry = live.get(id);
+			return !besides.has(id) && entry !== undefined && now - entry.at < STALE_MS;
+		})
+	);
+}
+
 /** «¿Sigues ahí?» asked (`true`), or answered (`false`, which is someone touching it too). */
 export function noteAsking(userId: string, on: boolean) {
 	if (on) asking.set(userId, Date.now());

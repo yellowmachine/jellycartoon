@@ -9,9 +9,10 @@ import { log } from '#lib/server/log.ts';
 import { MpvClient, StateBroadcast, type MpvMessage } from '#lib/server/mpv-client.ts';
 import { saveProgress } from '#lib/server/progress.ts';
 import { addWatchTime } from '#lib/server/watch-time.ts';
-import { videoAllowed } from '#lib/server/kid-time.ts';
+import { videoAllowedTogether } from '#lib/server/kid-time.ts';
+import { watchersOf } from '#lib/server/watching-together.ts';
 import { noteAsking, noteStopped, noteTouched } from '#lib/server/live-watching.ts';
-import { askEvery } from '#lib/server/still-there.ts';
+import { askEveryTogether } from '#lib/server/still-there.ts';
 import { ANSWER_SECONDS, QUESTION } from '#lib/still-there.ts';
 import type { Channel } from '#lib/channels.ts';
 import type { RemoteAction, RemoteState, Track } from '#lib/salon.ts';
@@ -215,7 +216,7 @@ async function startedByItself(entryId: number) {
 	const entry = playing.get(entryId);
 	if (!entry || entryId === queueFirst || question) return;
 	unattended++;
-	const every = await askEvery(entry.userId).catch(() => null);
+	const every = await askEveryTogether(entry.userId).catch(() => null);
 	if (!every || unattended < every || current !== entryId) return;
 	question = {
 		userId: entry.userId,
@@ -468,25 +469,29 @@ async function save(entry: Playing, reachedEnd: boolean) {
 	const completed =
 		reachedEnd || Boolean(entry.durationSec && entry.positionSec / entry.durationSec > 0.92);
 	await addWatchTime(entry.userId, entry.target, entry.positionSec, 'salon', 'el salón');
-	if ('episodeId' in entry.target) {
-		const { episodeId } = entry.target;
-		// Also ticks it off today's playlist and the user's lists.
-		return saveProgress(entry.userId, episodeId, entry.positionSec, completed).catch((error) =>
-			log.error('mpv', 'No se pudo guardar el progreso', { episodeId, error })
-		);
+	// For each one watching together too (#160), where it goes now.
+	for (const userId of await watchersOf(entry.userId).catch(() => [entry.userId])) {
+		if ('episodeId' in entry.target) {
+			const { episodeId } = entry.target;
+			// Also ticks it off today's playlist and the user's lists.
+			await saveProgress(userId, episodeId, entry.positionSec, completed).catch((error) =>
+				log.error('mpv', 'No se pudo guardar el progreso', { episodeId, error })
+			);
+			continue;
+		}
+		const values = {
+			userId,
+			movieId: entry.target.movieId,
+			positionSec: completed ? 0 : entry.positionSec,
+			completed,
+			updatedAt: new Date()
+		};
+		await db
+			.insert(movieProgress)
+			.values(values)
+			.onConflictDoUpdate({ target: [movieProgress.userId, movieProgress.movieId], set: values })
+			.catch((error) => log.error('mpv', 'No se pudo guardar el progreso', { ...values, error }));
 	}
-	const values = {
-		userId: entry.userId,
-		movieId: entry.target.movieId,
-		positionSec: completed ? 0 : entry.positionSec,
-		completed,
-		updatedAt: new Date()
-	};
-	await db
-		.insert(movieProgress)
-		.values(values)
-		.onConflictDoUpdate({ target: [movieProgress.userId, movieProgress.movieId], set: values })
-		.catch((error) => log.error('mpv', 'No se pudo guardar el progreso', { ...values, error }));
 }
 
 function startSaving() {
@@ -509,8 +514,12 @@ function startSaving() {
 /** A child's time is over (#18): what plays stops, with what was watched already saved. */
 async function stopIfClosed(userId: string) {
 	try {
-		if ((await videoAllowed(userId)).allowed) return;
-		log.info('mpv', 'Parado: se acabó el tiempo de vídeo de una cuenta infantil', { userId });
+		const time = await videoAllowedTogether(userId);
+		if (time.allowed) return;
+		log.info('mpv', 'Parado: se acabó el tiempo de vídeo de una cuenta infantil', {
+			userId,
+			who: time.who
+		});
 		await command(['stop']);
 	} catch (error) {
 		log.warn('mpv', 'No se pudo comprobar el horario infantil', { error });

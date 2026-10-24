@@ -4,7 +4,7 @@ import { videoClosed } from '#lib/server/kid-time.ts';
 
 /** Where a child's video goes out of its time (#18); once it is time again, home. */
 export const load: PageServerLoad = async ({ locals }) => {
-	const closed = await videoClosed(locals.user!.id);
+	const closed = await videoClosed(locals.user!.id, locals.session?.id);
 	if (!closed) redirect(303, '/');
 	return { closed };
 };

@@ -26,7 +26,7 @@ import type { RecipeStep } from '#lib/recipe.ts';
 import type { LngLat } from '#lib/road.ts';
 import type { RouteStop } from '#lib/saved-places.ts';
 import type { Exercise, HomeworkRules, Step } from '#lib/homework.ts';
-import { user } from './auth.schema';
+import { session, user } from './auth.schema';
 
 export const series = pgTable('series', {
 	id: serial('id').primaryKey(),
@@ -1203,9 +1203,40 @@ export const kidLoginRequest = pgTable(
 		expiresAt: timestamp('expires_at').notNull(),
 		decidedBy: text('decided_by').references(() => user.id, { onDelete: 'set null' }),
 		/** When its session ends, if it was let in. */
-		until: timestamp('until')
+		until: timestamp('until'),
+		/** The other children the adult let in with it, to watch together (#160). */
+		companions: jsonb('companions').$type<string[]>().notNull().default([])
 	},
 	(t) => [index('kid_login_request_device_idx').on(t.deviceId, t.createdAt)]
+);
+
+/**
+ * Children watching together with the one signed in (#160): what it watches counts for each of them
+ * too, and the strictest of their limits applies to all. Added by an adult, when letting it in or
+ * later; until the end of the day or of that session, unless taken off before.
+ */
+export const kidCompanion = pgTable(
+	'kid_companion',
+	{
+		/** The one signed in, on the TV. */
+		kidId: text('kid_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		companionId: text('companion_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		/**
+		 * Its session on the TV: on another device of its own (its tablet), it watches alone. Gone
+		 * with it.
+		 */
+		sessionId: text('session_id')
+			.notNull()
+			.references(() => session.id, { onDelete: 'cascade' }),
+		addedBy: text('added_by').references(() => user.id, { onDelete: 'set null' }),
+		addedAt: timestamp('added_at').notNull().defaultNow(),
+		until: timestamp('until').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.kidId, t.companionId] })]
 );
 
 /** «Hasta las 20:00», «hoy»: meanwhile, the child enters on that device without asking again. */

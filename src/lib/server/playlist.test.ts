@@ -1,7 +1,12 @@
 import { describe, expect, mock, test } from 'bun:test';
 
 mock.module('#lib/server/db/index.ts', () => ({ db: {} }));
-mock.module('#lib/server/kids.ts', () => ({ allowedSeries: () => undefined }));
+// Mocks last the whole run (Bun): with what watching-together.test.ts needs of it too.
+mock.module('#lib/server/kids.ts', () => ({
+	allowedSeries: () => undefined,
+	isKidAccount: async () => true,
+	KIDS_ROLE: 'infantil'
+}));
 const { pickEpisodes, suggestEpisodes } = await import('./playlist.ts');
 type Candidate = import('./playlist.ts').Candidate;
 

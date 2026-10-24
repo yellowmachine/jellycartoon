@@ -3,26 +3,34 @@
 	import { formatDuration } from '#lib/format.ts';
 	import { poll } from '#lib/poll.ts';
 	import type { WatchingNow } from '#lib/server/live-watching.ts';
+	import type { Together } from '#lib/server/watching-together.ts';
+	import { avatar } from '#lib/avatars.ts';
 
 	/**
 	 * What each child is watching right now (/infantil), asked again every few seconds while the
-	 * page is shown: what, where and by which minute, or since when nothing.
+	 * page is shown: what, where and by which minute, or since when nothing. And who watches with
+	 * whom (#160): touching a child adds it or takes it off.
 	 */
 
 	let {
 		kids,
 		initial,
-		initialStopped
+		initialStopped,
+		initialTogether
 	}: {
 		kids: { id: string; name: string; lastActivity: Date | null }[];
 		initial: WatchingNow[];
 		/** Whose video stopped lately for nobody answering «¿Sigues ahí?» (#77), and when. */
 		initialStopped: { userId: string; at: number }[];
+		initialTogether: Together[];
 	} = $props();
 
 	// From the page, then from each check.
 	let watching = $derived<WatchingNow[]>(initial);
 	let stopped = $derived(initialStopped);
+	let together = $derived(initialTogether);
+	let joining = $state<string | null>(null);
+	let joinProblem = $state<string | null>(null);
 	/** When `watching` came: its positions have moved on since. */
 	let checkedAt = $state(Date.now());
 	let problem = $state(false);
@@ -37,11 +45,27 @@
 			const res = await fetch('/infantil/ahora').catch(() => null);
 			problem = !res?.ok;
 			if (res?.ok) {
-				({ watching, stopped } = await res.json());
+				({ watching, stopped, together } = await res.json());
 				checkedAt = Date.now();
 			}
 		}, 10_000)
 	);
+
+	/** Adds a child to watch with `kidId`, or takes it off; then asked again. */
+	async function join(kidId: string, companionId: string, add: boolean) {
+		joining = companionId;
+		joinProblem = null;
+		const res = await fetch('/infantil/juntos', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ kidId, companionId, add })
+		}).catch(() => null);
+		if (!res?.ok)
+			joinProblem = res?.status === 409 ? 'Ahora está viendo otra cosa.' : 'No se pudo cambiar.';
+		const now = await fetch('/infantil/ahora').catch(() => null);
+		if (now?.ok) ({ watching, stopped, together } = await now.json());
+		joining = null;
+	}
 
 	const time = new Intl.DateTimeFormat('es', { timeStyle: 'short' });
 	const since = new Intl.RelativeTimeFormat('es', { numeric: 'auto' });
@@ -66,6 +90,8 @@
 		{#each kids as kid (kid.id)}
 			{@const now = watching.find((w) => w.userId === kid.id)}
 			{@const stoppedAt = stopped.find((s) => s.userId === kid.id)?.at}
+			{@const group = together.find((t) => t.kidId === kid.id)}
+			{@const withWhom = together.find((t) => t.with.some((k) => k.id === kid.id))}
 			<li class="flex flex-wrap items-start gap-3">
 				<span
 					class={[
@@ -86,8 +112,35 @@
 						<span class="block text-sm text-zinc-400">
 							{now.detail}{now.positionSec !== null
 								? ` · minuto ${Math.floor(now.positionSec / 60)}`
-								: ''} · en {now.device}
+								: ''} · en {now.device}{withWhom
+								? ` · con ${kids.find((k) => k.id === withWhom.kidId)?.name ?? ''}`
+								: ''}
 						</span>
+						{#if group && (group.with.length || group.available.length)}
+							<span class="mt-1 flex flex-wrap items-center gap-1.5 text-sm">
+								<span class="text-zinc-400">Ven juntos:</span>
+								{#each [...group.with.map( (k) => ({ ...k, on: true }) ), ...group.available.map( (k) => ({ ...k, on: false }) )] as other (other.id)}
+									{@const a = avatar(other.avatar)}
+									<button
+										class={[
+											'flex items-center gap-1 rounded-full border py-0.5 pr-2.5 pl-0.5 transition disabled:opacity-50',
+											other.on
+												? 'border-amber-400 text-zinc-100'
+												: 'border-zinc-700 text-zinc-500 grayscale hover:text-zinc-300'
+										]}
+										aria-pressed={other.on}
+										title={other.on ? `Quitar a ${other.name}` : `Que ${other.name} vea también`}
+										disabled={joining !== null}
+										onclick={() => join(kid.id, other.id, !other.on)}
+									>
+										<span class="flex h-6 w-6 items-center justify-center rounded-full {a.color}"
+											>{a.emoji}</span
+										>
+										{other.name}
+									</button>
+								{/each}
+							</span>
+						{/if}
 						{#if now.touchedAt !== null}
 							<!-- With «siguiente automático», watching is not being there: when anyone was. -->
 							<span class="block text-sm text-zinc-400">
@@ -125,5 +178,8 @@
 	</ul>
 	{#if problem}
 		<p class="mt-3 text-sm text-amber-300">Sin conexión: puede no estar al día.</p>
+	{/if}
+	{#if joinProblem}
+		<p class="mt-3 text-sm text-amber-300" role="alert">{joinProblem}</p>
 	{/if}
 </section>

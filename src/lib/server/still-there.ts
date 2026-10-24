@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { kidSettings, userSettings } from '#lib/server/db/schema.ts';
 import { isKidAccount } from '#lib/server/kids.ts';
+import { watchersOf } from '#lib/server/watching-together.ts';
 import { ASK_EVERY_DEFAULT } from '#lib/still-there.ts';
 
 /**
@@ -21,4 +22,15 @@ export async function askEvery(userId: string): Promise<number | null> {
 		.from(kidSettings)
 		.where(eq(kidSettings.userId, userId));
 	return settings ? settings.askEvery : ASK_EVERY_DEFAULT;
+}
+
+/** Watching together (#160): the lowest number of theirs; never, only if never for all. */
+export async function askEveryTogether(userId: string, sessionId?: string) {
+	return lowestAskEvery(await Promise.all((await watchersOf(userId, sessionId)).map(askEvery)));
+}
+
+/** The lowest of those set; null (never) only if none is. */
+export function lowestAskEvery(numbers: (number | null)[]) {
+	const set = numbers.filter((n): n is number => n !== null);
+	return set.length ? Math.min(...set) : null;
 }
