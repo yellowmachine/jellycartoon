@@ -87,105 +87,85 @@
 
 <a href="/cine" class="text-sm text-zinc-400 hover:text-white">← Cine</a>
 
-<div class="mt-3 grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-	<div class="relative aspect-video overflow-hidden rounded-md bg-zinc-800">
-		{#if ready}
-			<img src="/api/movie-thumb/{film.id}" alt="" class="h-full w-full object-cover" />
-		{/if}
-		{#if film.completed}
-			<span
-				class="absolute top-2 left-2 rounded bg-zinc-950/80 px-1.5 py-0.5 text-xs font-medium text-amber-400"
-				>✓ Vista</span
-			>
-		{:else if film.positionSec && film.durationSec}
-			<div class="absolute inset-x-0 bottom-0 h-1 bg-zinc-700">
-				<div
-					class="h-full bg-amber-400"
-					style:width="{(film.positionSec / film.durationSec) * 100}%"
-				></div>
-			</div>
-		{/if}
-	</div>
-
-	<div class="min-w-0">
-		{#if editing}
-			<div class="flex">
-				<TitleForm
-					action="?/rename"
-					value={film.title}
-					placeholder={film.autoTitle}
-					hidden={{ id: film.id }}
-					onclose={() => (editing = false)}
-				/>
-			</div>
-		{:else}
-			<h1
-				class="flex items-center gap-2 text-2xl font-bold [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]"
-			>
-				{film.title}
-				{#if !data.kid}
-					<button
-						class="shrink-0 rounded-md px-2 py-1 text-base text-zinc-500 hover:bg-zinc-800 hover:text-white"
-						title="Cambiar título"
-						aria-label="Cambiar título"
-						onclick={() => (editing = true)}>✎</button
-					>
-				{/if}
-			</h1>
-		{/if}
-		{#await data.info then info}
-			{#if 'status' in info && info.status === 'found'}
-				<p class="mt-1 text-sm text-zinc-400">
-					{[
-						info.originalTitle && info.originalTitle !== film.title ? info.originalTitle : null,
-						info.year,
-						info.directors.join(', ')
-					]
-						.filter(Boolean)
-						.join(' · ')}
-				</p>
+<div class="mt-3 min-w-0">
+	{#if editing}
+		<div class="flex">
+			<TitleForm
+				action="?/rename"
+				value={film.title}
+				placeholder={film.autoTitle}
+				hidden={{ id: film.id }}
+				onclose={() => (editing = false)}
+			/>
+		</div>
+	{:else}
+		<h1 class="flex items-center gap-2 text-2xl font-bold [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]">
+			{film.title}
+			{#if !data.kid}
+				<button
+					class="shrink-0 rounded-md px-2 py-1 text-base text-zinc-500 hover:bg-zinc-800 hover:text-white"
+					title="Cambiar título"
+					aria-label="Cambiar título"
+					onclick={() => (editing = true)}>✎</button
+				>
 			{/if}
-		{/await}
-		<p class="mt-1 text-sm text-zinc-400">
-			{[film.year, formatDuration(film.durationSec)].filter(Boolean).join(' · ')}
-		</p>
-		{#if !data.kid}
-			<TagBar tags={data.tags} allTags={data.allTags} class="mt-3" />
-		{/if}
-
-		{#if ready && data.mpv}
-			<div class="mt-4 flex flex-wrap gap-2">
-				{#if resumeAt}
-					<form method="post" action="?/play" use:enhance>
-						<input type="hidden" name="id" value={film.id} />
-						<button class={primary}>▶︎ Continuar desde {formatDuration(resumeAt)}</button>
-					</form>
-				{/if}
-				<form method="post" action="?/play" use:enhance>
-					<input type="hidden" name="id" value={film.id} />
-					<input type="hidden" name="from" value="start" />
-					<button class={resumeAt ? secondary : primary}>
-						{resumeAt ? 'Desde el principio' : '▶︎ Ver en el salón'}
-					</button>
-				</form>
-				<form method="post" action="?/setWatched" use:enhance>
-					<input type="hidden" name="id" value={film.id} />
-					<input type="hidden" name="watched" value={String(!film.completed)} />
-					<button class={secondary}>
-						{film.completed ? 'Marcar como no vista' : 'Marcar como vista'}
-					</button>
-				</form>
-			</div>
-		{/if}
-		{#if form && 'playing' in form && form.playing}
-			<p class="mt-3 text-sm text-amber-400">
-				▶︎ En el salón. <a href="/salon" class="underline">Abrir el mando</a>
+		</h1>
+	{/if}
+	{#await data.info then info}
+		{#if 'status' in info && info.status === 'found'}
+			<p class="mt-1 text-sm text-zinc-400">
+				{[
+					info.originalTitle && info.originalTitle !== film.title ? info.originalTitle : null,
+					info.year,
+					info.directors.join(', ')
+				]
+					.filter(Boolean)
+					.join(' · ')}
 			</p>
 		{/if}
-		{#if form && 'message' in form && form.message}
-			<p class="mt-3 text-sm text-red-400">{form.message}</p>
+	{/await}
+	<p class="mt-1 text-sm text-zinc-400">
+		{[film.year, formatDuration(film.durationSec)].filter(Boolean).join(' · ')}
+		{#if film.completed}
+			<span class="ml-1 font-medium text-amber-400">✓ Vista</span>
 		{/if}
-	</div>
+	</p>
+	{#if !data.kid}
+		<TagBar tags={data.tags} allTags={data.allTags} class="mt-3" />
+	{/if}
+
+	{#if ready && data.mpv}
+		<div class="mt-4 flex flex-wrap gap-2">
+			{#if resumeAt}
+				<form method="post" action="?/play" use:enhance>
+					<input type="hidden" name="id" value={film.id} />
+					<button class={primary}>▶︎ Continuar desde {formatDuration(resumeAt)}</button>
+				</form>
+			{/if}
+			<form method="post" action="?/play" use:enhance>
+				<input type="hidden" name="id" value={film.id} />
+				<input type="hidden" name="from" value="start" />
+				<button class={resumeAt ? secondary : primary}>
+					{resumeAt ? 'Desde el principio' : '▶︎ Ver en el salón'}
+				</button>
+			</form>
+			<form method="post" action="?/setWatched" use:enhance>
+				<input type="hidden" name="id" value={film.id} />
+				<input type="hidden" name="watched" value={String(!film.completed)} />
+				<button class={secondary}>
+					{film.completed ? 'Marcar como no vista' : 'Marcar como vista'}
+				</button>
+			</form>
+		</div>
+	{/if}
+	{#if form && 'playing' in form && form.playing}
+		<p class="mt-3 text-sm text-amber-400">
+			▶︎ En el salón. <a href="/salon" class="underline">Abrir el mando</a>
+		</p>
+	{/if}
+	{#if form && 'message' in form && form.message}
+		<p class="mt-3 text-sm text-red-400">{form.message}</p>
+	{/if}
 </div>
 
 <section class="mt-8">
