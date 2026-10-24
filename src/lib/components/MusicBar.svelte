@@ -14,7 +14,13 @@
 	import { keepListeningProgress, listeningEnded } from '#lib/episode-listening.svelte.ts';
 	import { SKIP_BACK, SKIP_FORWARD, SPEEDS, type Speed } from '#lib/podcasts.ts';
 	import { COUNTRIES } from '#lib/radio.ts';
-	import { watchMedia, watchPlay } from '#lib/media-diagnostics.ts';
+	import {
+		noteAutoResume,
+		noteSystemAction,
+		watchMedia,
+		watchPlay
+	} from '#lib/media-diagnostics.ts';
+	import { FINE_AFTER_MS, RESUME_AFTER_MS, shouldResume } from '#lib/auto-resume.ts';
 	import { nextTrack } from '#lib/next-track.ts';
 
 	let audio = $state<HTMLAudioElement>();
@@ -126,6 +132,43 @@
 	// With the screen off, what it does goes to the Registro: music that stops between songs.
 	$effect(() => {
 		if (audio) return watchMedia(audio, 'música');
+	});
+
+	// Paused by the phone alone with the screen off (a notification's sound): played again in a
+	// moment, a couple of times in a row at most (auto-resume.ts).
+	$effect(() => {
+		const el = audio;
+		if (!el) return;
+		let inARow = 0;
+		let lastAt = 0;
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const paused = () => {
+			const now = Date.now();
+			if (now - lastAt > FINE_AFTER_MS) inARow = 0;
+			const seen = {
+				hidden: document.hidden,
+				ended: el.ended,
+				loading: !el.getAttribute('src') || el.readyState < HTMLMediaElement.HAVE_FUTURE_DATA,
+				askedAt: music.askedPauseAt,
+				now,
+				inARow
+			};
+			if (!shouldResume(seen)) return;
+			clearTimeout(timer);
+			timer = setTimeout(() => {
+				// Someone pressed something meanwhile, or it went on by itself.
+				if (!el.paused || music.askedPauseAt > now || !document.hidden) return;
+				inARow++;
+				lastAt = Date.now();
+				noteAutoResume('música', inARow);
+				watchPlay(el.play(), 'música');
+			}, RESUME_AFTER_MS);
+		};
+		el.addEventListener('pause', paused);
+		return () => {
+			clearTimeout(timer);
+			el.removeEventListener('pause', paused);
+		};
 	});
 
 	// Modo DJ follows what plays: more songs when few are left, and the DJ when it is time.
@@ -241,6 +284,7 @@
 		const start = untrack(() => episode.positionSec);
 		// What was on stops now, not once hls.js has loaded; and while the episode loads, the
 		// `<audio>` says 0 s: its position is taken only once it plays.
+		music.askedPauseAt = Date.now();
 		el.pause();
 		const playing = () => (listeningLoaded = episode);
 		el.addEventListener('playing', playing, { once: true });
@@ -298,7 +342,11 @@
 		];
 		for (const [action, handler] of handlers) {
 			try {
-				session.setActionHandler(action, handler);
+				// Noted with the screen off, to know who stops it (media-diagnostics.ts).
+				session.setActionHandler(action, (details) => {
+					noteSystemAction(action, 'música');
+					handler(details);
+				});
 			} catch {
 				// Not every browser supports every action.
 			}

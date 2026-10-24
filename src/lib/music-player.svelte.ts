@@ -60,6 +60,11 @@ class MusicPlayer {
 	/** The queue in its own order, while it is shuffled. */
 	#ordered: MusicTrack[] = [];
 	#audio: HTMLAudioElement | null = null;
+	/**
+	 * When someone last asked to pause (Date.now()): the app, the lock screen or the voice. A pause
+	 * not asked for, with the screen off, is the phone's alone (auto-resume.ts).
+	 */
+	askedPauseAt = 0;
 
 	get current(): MusicTrack | undefined {
 		return this.queue[this.index];
@@ -191,12 +196,13 @@ class MusicPlayer {
 
 	toggle() {
 		if (!this.#audio) return;
-		if (!this.#audio.paused) this.#audio.pause();
+		if (!this.#audio.paused) this.pause();
 		else if (this.radio) this.resume();
 		else this.#play();
 	}
 
 	pause() {
+		this.askedPauseAt = Date.now();
 		this.#audio?.pause();
 	}
 
@@ -299,6 +305,7 @@ class MusicPlayer {
 	stop() {
 		this.restored = null;
 		this.dj = false;
+		this.askedPauseAt = Date.now();
 		this.#audio?.pause();
 		this.radio = null;
 		this.podcast = null;
