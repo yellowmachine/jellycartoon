@@ -13,6 +13,7 @@
 	import { keepPodcastProgress, podcastEnded } from '#lib/podcast-player.svelte.ts';
 	import { SKIP_BACK, SKIP_FORWARD, SPEEDS, type Speed } from '#lib/podcasts.ts';
 	import { COUNTRIES } from '#lib/radio.ts';
+	import { watchMedia, watchPlay } from '#lib/media-diagnostics.ts';
 
 	let audio = $state<HTMLAudioElement>();
 	const current = $derived(music.current);
@@ -117,6 +118,11 @@
 		return () => music.attach(null);
 	});
 
+	// With the screen off, what it does goes to the Registro: music that stops between songs.
+	$effect(() => {
+		if (audio) return watchMedia(audio, 'música');
+	});
+
 	// Modo DJ follows what plays: more songs when few are left, and the DJ when it is time.
 	$effect(() => {
 		if (music.current && music.dj) untrack(() => void dj.step());
@@ -140,7 +146,7 @@
 			const restored = untrack(() => music.restored);
 			const startAt = restored?.positionSec ?? untrack(() => podcast?.positionSec) ?? 0;
 			if (startAt) audio.currentTime = startAt;
-			if (!restored) void audio.play().catch(() => {});
+			if (!restored) watchPlay(audio.play(), 'música');
 		}
 	});
 
@@ -157,13 +163,13 @@
 				const { default: Hls } = await import('hls.js');
 				if (cancelled || !Hls.isSupported()) return;
 				hls = new Hls();
-				hls.on(Hls.Events.MANIFEST_PARSED, () => void el.play().catch(() => {}));
+				hls.on(Hls.Events.MANIFEST_PARSED, () => watchPlay(el.play(), 'música'));
 				recoverFromErrors(hls, Hls, (text) => (problem = text));
 				hls.loadSource(stream.url);
 				hls.attachMedia(el);
 			} else {
 				el.src = stream.url;
-				void el.play().catch(() => {});
+				watchPlay(el.play(), 'música');
 			}
 		})();
 		return () => {
