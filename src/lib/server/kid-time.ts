@@ -1,9 +1,10 @@
 import { error, redirect, type RequestEvent } from '@sveltejs/kit';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { kidSchedule, kidSettings, watchTime } from '#lib/server/db/schema.ts';
+import { kidSchedule, kidSettings, user, watchTime } from '#lib/server/db/schema.ts';
 import { isKid, isKidAccount, VIDEO_ROUTES } from '#lib/server/kids.ts';
 import { today } from '#lib/server/playlist.ts';
+import { watchersOf } from '#lib/server/watching-together.ts';
 import {
 	closedText,
 	videoTime,
@@ -77,10 +78,34 @@ export function now(): Moment {
 	return { weekday: (date.getDay() + 6) % 7, minute: date.getHours() * 60 + date.getMinutes() };
 }
 
-/** Why this user may not watch video now, to show; null if they may. */
-export async function videoClosed(userId: string) {
-	const time = await videoAllowed(userId);
-	return time.allowed ? null : closedText(time, now().weekday);
+/**
+ * Why this user may not watch video now, to show; null if they may. Watching together (#160), for
+ * whichever of them may not: «Pablo: …».
+ */
+export async function videoClosed(userId: string, sessionId?: string) {
+	const time = await videoAllowedTogether(userId, sessionId);
+	if (time.allowed) return null;
+	const text = closedText(time, now().weekday);
+	return time.who ? `${time.who}: ${text.charAt(0).toLowerCase()}${text.slice(1)}` : text;
+}
+
+/**
+ * Whether what this user puts on may play now, with those watching with it (#160): only while all
+ * of them may. Not, with the name of the one who may not (none if it is the user itself).
+ */
+export async function videoAllowedTogether(
+	userId: string,
+	sessionId?: string
+): Promise<VideoTime & { who?: string }> {
+	const watchers = await watchersOf(userId, sessionId);
+	for (const id of watchers) {
+		const time = await videoAllowed(id);
+		if (time.allowed) continue;
+		if (id === userId) return time;
+		const [row] = await db.select({ name: user.name }).from(user).where(eq(user.id, id));
+		return { ...time, who: row?.name ?? 'Otro peque' };
+	}
+	return videoAllowed(userId);
 }
 
 /** Whether this user may watch video now: always, for an adult. */
@@ -98,7 +123,7 @@ export async function videoAllowed(userId: string): Promise<VideoTime> {
 export async function guardVideoTime(event: RequestEvent) {
 	const user = event.locals.user;
 	if (!isKid(user) || !event.route.id || !VIDEO_ROUTES.has(event.route.id)) return;
-	if ((await videoAllowed(user!.id)).allowed) return;
+	if ((await videoAllowedTogether(user!.id, event.locals.session?.id)).allowed) return;
 	if (event.route.id.startsWith('/api/')) error(403, 'Ahora no toca ver vídeos');
 	redirect(303, '/descanso');
 }

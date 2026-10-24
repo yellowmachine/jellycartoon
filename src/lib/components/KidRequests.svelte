@@ -5,17 +5,26 @@
 	/**
 	 * A child asking to enter on a device of the house (#141), shown to its parents or guardians on
 	 * any page: yes for this time, for a while or for the day, or no. Live, while the app is open.
+	 * Below, the other children who could watch with it (#160), in grey: those touched enter too.
 	 */
 	interface Pending {
 		id: string;
 		name: string;
 		avatar: string;
 		device: string;
+		available: { id: string; name: string; avatar: string }[];
 	}
 
 	let pending = $state<Pending[]>([]);
 	let busy = $state<string | null>(null);
 	let problem = $state<string | null>(null);
+	/** By request: the other children touched, to enter with it. */
+	let together = $state<Record<string, string[]>>({});
+
+	function toggle(requestId: string, kidId: string) {
+		const now = together[requestId] ?? [];
+		together[requestId] = now.includes(kidId) ? now.filter((k) => k !== kidId) : [...now, kidId];
+	}
 
 	onMount(() => {
 		const events = new EventSource('/api/peques/peticiones');
@@ -29,7 +38,7 @@
 		const res = await fetch(`/api/peques/peticiones/${id}`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ answer: value })
+			body: JSON.stringify({ answer: value, companions: together[id] ?? [] })
 		}).catch(() => null);
 		busy = null;
 		if (!res?.ok) problem = 'No se pudo contestar. Prueba otra vez.';
@@ -52,6 +61,35 @@
 						<span class="font-semibold">{request.name}</span> quiere entrar en {request.device}.
 					</p>
 				</div>
+				{#if request.available.length}
+					<div class="mb-3">
+						<p class="mb-1.5 text-xs text-zinc-400">
+							¿Ve con alguien más? Toca para que entre también:
+						</p>
+						<div class="flex flex-wrap gap-2">
+							{#each request.available as kid (kid.id)}
+								{@const k = avatar(kid.avatar)}
+								{@const on = (together[request.id] ?? []).includes(kid.id)}
+								<button
+									class={[
+										'flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 text-sm transition',
+										on
+											? 'border-amber-400 bg-zinc-800 text-zinc-100'
+											: 'border-zinc-700 text-zinc-500 grayscale hover:text-zinc-300'
+									]}
+									aria-pressed={on}
+									onclick={() => toggle(request.id, kid.id)}
+								>
+									<span
+										class="flex h-7 w-7 items-center justify-center rounded-full text-lg {k.color}"
+										>{k.emoji}</span
+									>
+									{kid.name}
+								</button>
+							{/each}
+						</div>
+					</div>
+				{/if}
 				<div class="flex flex-wrap gap-2">
 					{#each PERMITS as permit (permit.id)}
 						<button

@@ -19,6 +19,7 @@ import {
 import { openRouterConfig } from '#lib/server/app-settings.ts';
 import { isKidAccount, KIDS_ROLE } from '#lib/server/kids.ts';
 import { kidRules, now, setVideoAccess, videoAllowed } from '#lib/server/kid-time.ts';
+import { togetherNow } from '#lib/server/watching-together.ts';
 import { log } from '#lib/server/log.ts';
 import { parseClock, type Slot } from '#lib/kid-time.ts';
 import { today } from '#lib/server/playlist.ts';
@@ -54,6 +55,7 @@ export const load: PageServerLoad = async () => {
 		.orderBy(asc(user.name));
 	const day = today();
 	const from = daysBefore(day, DAYS - 1);
+	const watching = await watchingNow(kids.map((k) => k.id));
 	return {
 		today: day,
 		/** For «hoy», «mañana» or a weekday in what is said about the schedule. */
@@ -63,7 +65,9 @@ export const load: PageServerLoad = async () => {
 		days: Array.from({ length: DAYS }, (_, i) => daysBefore(day, DAYS - 1 - i)),
 		kids: await Promise.all(kids.map(async (kid) => ({ ...kid, ...(await stats(kid.id, from)) }))),
 		/** What they are watching right now; the page asks again every few seconds. */
-		watchingNow: await watchingNow(kids.map((k) => k.id)),
+		watchingNow: watching,
+		/** Who watches with whom, and who could join (#160). */
+		together: await togetherNow(watching),
 		/** Whose video stopped lately for nobody answering «¿Sigues ahí?». */
 		stoppedLately: stoppedLately(kids.map((k) => k.id)),
 		/** The Dailymotion accounts and playlists they may watch (#66): only with its player. */

@@ -298,3 +298,39 @@ export async function chatWithTools(request: {
 		toolCalls: Array.isArray(message.tool_calls) ? message.tool_calls : []
 	};
 }
+
+/** What is left on the key and what it has spent, in dollars; `left` only when the key has a limit. */
+export interface KeyBalance {
+	limit: number | null;
+	left: number | null;
+	spent: { day: number; week: number; month: number };
+}
+
+/**
+ * The key's own balance, with the key itself (no management key):
+ * https://openrouter.ai/docs/api/reference/limits. Null when there is no key or no answer.
+ */
+export async function keyBalance(): Promise<KeyBalance | null> {
+	const { apiKey } = await openRouterConfig();
+	if (!apiKey) return null;
+	try {
+		const res = await fetch('https://openrouter.ai/api/v1/key', {
+			headers: { Authorization: `Bearer ${apiKey}` },
+			signal: AbortSignal.timeout(10_000)
+		});
+		if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+		const { data } = await res.json();
+		return {
+			limit: data.limit ?? null,
+			left: data.limit_remaining ?? null,
+			spent: {
+				day: data.usage_daily ?? 0,
+				week: data.usage_weekly ?? 0,
+				month: data.usage_monthly ?? 0
+			}
+		};
+	} catch (error) {
+		log.warn('ia', 'No se pudo consultar el saldo de OpenRouter', { error });
+		return null;
+	}
+}

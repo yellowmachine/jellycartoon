@@ -4,6 +4,7 @@
 	import FridgeBoard from '#lib/components/FridgeBoard.svelte';
 	import type { FridgeState } from '#lib/fridge.ts';
 	import TvHeader from '#lib/components/TvHeader.svelte';
+	import { avatar } from '#lib/avatars.ts';
 	import SectionIcon from '#lib/components/SectionIcon.svelte';
 	import { coverUrl } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
@@ -99,6 +100,21 @@
 </script>
 
 <TvHeader />
+
+{#if data.together.length}
+	<p class="mb-8 flex flex-wrap items-center gap-x-4 gap-y-2 text-2xl text-zinc-300">
+		Viendo:
+		{#each data.together as kid (kid.id)}
+			{@const a = avatar(kid.avatar)}
+			<span class="flex items-center gap-2">
+				<span class="flex h-10 w-10 items-center justify-center rounded-full text-2xl {a.color}"
+					>{a.emoji}</span
+				>
+				<span class="font-semibold text-zinc-100">{kid.name}</span>
+			</span>
+		{/each}
+	</p>
+{/if}
 
 {#if form && 'message' in form}
 	<p class="mb-8 rounded-lg bg-red-950 p-4 text-red-200">{form.message}</p>

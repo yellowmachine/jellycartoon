@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import RouteMaps from '#lib/components/RouteMaps.svelte';
 	import SavedPlaces from '#lib/components/SavedPlaces.svelte';
 	import TripMap from '#lib/components/TripMap.svelte';
 	import { distanceText } from '#lib/road.ts';
@@ -107,6 +108,14 @@
 </p>
 
 <SavedPlaces places={data.places} routes={data.routes} map={data.map} problems={form ?? null} />
+
+{#if data.routeMaps.map}
+	<RouteMaps
+		routes={data.routes}
+		view={data.routeMaps}
+		problem={form && 'maps' in form ? (form.maps ?? null) : null}
+	/>
+{/if}
 
 {#if latest}
 	<section class="mb-8 rounded-md border border-amber-500/40 p-4">

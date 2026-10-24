@@ -3,6 +3,7 @@ import { db } from '#lib/server/db/index.ts';
 import { savedPlace, savedRoute } from '#lib/server/db/schema.ts';
 import { log } from '#lib/server/log.ts';
 import { drivingRoute } from '#lib/server/road/ors.ts';
+import { forgetRouteMaps } from '#lib/server/route-maps.ts';
 import type { LngLat } from '#lib/road.ts';
 import type { RouteStop, SavedPlace, SavedRoute } from '#lib/saved-places.ts';
 
@@ -126,6 +127,11 @@ export async function saveRoute(
 			.where(and(eq(savedRoute.id, route.id), eq(savedRoute.userId, userId)));
 }
 
+/** Its maps cut for devices go too (#164); the devices remove theirs when they next open. */
 export async function deleteRoute(userId: string, id: number) {
-	await db.delete(savedRoute).where(and(eq(savedRoute.id, id), eq(savedRoute.userId, userId)));
+	const [deleted] = await db
+		.delete(savedRoute)
+		.where(and(eq(savedRoute.id, id), eq(savedRoute.userId, userId)))
+		.returning({ id: savedRoute.id });
+	if (deleted) await forgetRouteMaps(id);
 }

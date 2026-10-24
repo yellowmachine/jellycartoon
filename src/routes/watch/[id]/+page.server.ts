@@ -6,7 +6,7 @@ import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/sch
 import { getSettings } from '#lib/server/settings.ts';
 import { getCandidates, suggestEpisodes } from '#lib/server/playlist.ts';
 import { seriesTags } from '#lib/server/tags.ts';
-import { askEvery } from '#lib/server/still-there.ts';
+import { askEveryTogether } from '#lib/server/still-there.ts';
 import { languaConfig } from '#lib/server/langua.ts';
 
 export const load: PageServerLoad = async ({ params, url, locals }) => {
@@ -59,7 +59,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 	const [settings, suggested, ask] = await Promise.all([
 		getSettings(userId),
 		suggestionsFor(userId, ep.seriesId),
-		askEvery(userId)
+		askEveryTogether(userId, locals.session?.id)
 	]);
 	const cards = await episodeCards(userId, [...(next ? [next.id] : []), ...suggested]);
 	return {
@@ -70,7 +70,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 		/** Without «siguiente automático»: other series' episodes to go on with. */
 		suggestions: suggested.flatMap((id) => cards.get(id) ?? []),
 		settings,
-		/** «¿Sigues ahí?» after this many started by themselves (#77); null, never. */
+		/** «¿Sigues ahí?» after this many started by themselves (#77), the group's lowest (#160); null, never. */
 		askEvery: ask,
 		/** Their Langua is set (Ajustes): «Mandar a Langua» in the player's menu. */
 		langua: Boolean(await languaConfig(locals.user!.id))

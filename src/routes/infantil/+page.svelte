@@ -72,7 +72,12 @@
 {/if}
 
 {#if data.kids.length}
-	<KidsNow kids={data.kids} initial={data.watchingNow} initialStopped={data.stoppedLately} />
+	<KidsNow
+		kids={data.kids}
+		initial={data.watchingNow}
+		initialStopped={data.stoppedLately}
+		initialTogether={data.together}
+	/>
 {/if}
 
 {#if data.kids.length && data.ai}

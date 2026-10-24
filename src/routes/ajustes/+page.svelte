@@ -66,6 +66,9 @@
 	);
 
 	const section = 'mb-8 rounded-md border border-zinc-800 p-4';
+	/** OpenRouter's balance: e.g. `7,40 $`. */
+	const dollars = (n: number) =>
+		n.toLocaleString('es-ES', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 	const select = 'rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm';
 	const primary =
 		'rounded-md bg-amber-500 px-3 py-1 text-sm font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50';
@@ -668,6 +671,39 @@
 						/>
 						<button class={primary}>{data.ai.keyHint ? 'Cambiar' : 'Guardar'}</button>
 					</form>
+				{/if}
+
+				{#if data.ai.keyHint}
+					<h3 class="mb-2 text-sm text-zinc-300">Saldo</h3>
+					<p class="mb-4 text-sm">
+						{#await data.ai.balance}
+							<span class="text-zinc-500">Consultando…</span>
+						{:then balance}
+							{#if !balance}
+								<span class="text-zinc-500">No se pudo consultar.</span>
+							{:else}
+								{#if balance.left !== null}
+									Quedan <b>{dollars(balance.left)}</b> de {dollars(balance.limit!)} ·
+								{/if}
+								<span class="text-zinc-400">
+									gastado hoy {dollars(balance.spent.day)} · esta semana {dollars(
+										balance.spent.week
+									)} · este mes {dollars(balance.spent.month)}
+								</span>
+								{#if balance.left === null}
+									<span class="mt-1 block text-xs text-zinc-500">
+										La clave no tiene límite: ponle uno en
+										<a
+											href="https://openrouter.ai/keys"
+											class="hover:underline"
+											target="_blank"
+											rel="noreferrer">openrouter.ai/keys</a
+										> para ver lo que queda (y no gastar de más).
+									</span>
+								{/if}
+							{/if}
+						{/await}
+					</p>
 				{/if}
 
 				{#snippet modelForm(

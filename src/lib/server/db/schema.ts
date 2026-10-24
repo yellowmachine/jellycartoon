@@ -26,7 +26,7 @@ import type { RecipeStep } from '#lib/recipe.ts';
 import type { LngLat } from '#lib/road.ts';
 import type { RouteStop } from '#lib/saved-places.ts';
 import type { Exercise, HomeworkRules, Step } from '#lib/homework.ts';
-import { user } from './auth.schema';
+import { session, user } from './auth.schema';
 
 export const series = pgTable('series', {
 	id: serial('id').primaryKey(),
@@ -742,6 +742,53 @@ export const savedRoute = pgTable(
 );
 
 /**
+ * A device that keeps routes' maps (#164), such as the car's tablet: named on itself, its id made
+ * there and kept in its browser. Not a trusted device of the house (#141): that one changes how
+ * people sign in on it.
+ */
+export const mapDevice = pgTable('map_device', {
+	id: text('id').primaryKey(),
+	name: text('name').notNull(),
+	createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+	createdAt: timestamp('created_at').notNull().defaultNow(),
+	lastSeenAt: timestamp('last_seen_at').notNull().defaultNow()
+});
+
+/**
+ * A route's map on a device (#164): ordered from any device, done by that one when the app opens on
+ * it. `remove`, ordered away; the row goes once it is.
+ */
+export const routeMapState = pgEnum('route_map_state', [
+	'pending',
+	'downloading',
+	'ready',
+	'failed',
+	'remove'
+]);
+
+export const routeMap = pgTable(
+	'route_map',
+	{
+		routeId: integer('route_id')
+			.notNull()
+			.references(() => savedRoute.id, { onDelete: 'cascade' }),
+		deviceId: text('device_id')
+			.notNull()
+			.references(() => mapDevice.id, { onDelete: 'cascade' }),
+		state: routeMapState('state').notNull().default('pending'),
+		/** 0 to 1, while downloading. */
+		progress: real('progress').notNull().default(0),
+		bytes: bigint('bytes', { mode: 'number' }),
+		/** The map and the route it was cut from (route-maps.ts): another now, it is old. */
+		version: text('version'),
+		/** Why it failed, as the device says it. */
+		problem: text('problem'),
+		updatedAt: timestamp('updated_at').notNull().defaultNow()
+	},
+	(t) => [primaryKey({ columns: [t.routeId, t.deviceId] })]
+);
+
+/**
  * The fridge (#131): the house's post-its, for everyone to see. Written by an adult, in their colour;
  * until a day if given (then gone), or until someone peels it off. The shopping list is one more,
  * `list`, with its items (fridgeItem): there is one, made the first time it is looked at.
@@ -1156,9 +1203,40 @@ export const kidLoginRequest = pgTable(
 		expiresAt: timestamp('expires_at').notNull(),
 		decidedBy: text('decided_by').references(() => user.id, { onDelete: 'set null' }),
 		/** When its session ends, if it was let in. */
-		until: timestamp('until')
+		until: timestamp('until'),
+		/** The other children the adult let in with it, to watch together (#160). */
+		companions: jsonb('companions').$type<string[]>().notNull().default([])
 	},
 	(t) => [index('kid_login_request_device_idx').on(t.deviceId, t.createdAt)]
+);
+
+/**
+ * Children watching together with the one signed in (#160): what it watches counts for each of them
+ * too, and the strictest of their limits applies to all. Added by an adult, when letting it in or
+ * later; until the end of the day or of that session, unless taken off before.
+ */
+export const kidCompanion = pgTable(
+	'kid_companion',
+	{
+		/** The one signed in, on the TV. */
+		kidId: text('kid_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		companionId: text('companion_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		/**
+		 * Its session on the TV: on another device of its own (its tablet), it watches alone. Gone
+		 * with it.
+		 */
+		sessionId: text('session_id')
+			.notNull()
+			.references(() => session.id, { onDelete: 'cascade' }),
+		addedBy: text('added_by').references(() => user.id, { onDelete: 'set null' }),
+		addedAt: timestamp('added_at').notNull().defaultNow(),
+		until: timestamp('until').notNull()
+	},
+	(t) => [primaryKey({ columns: [t.kidId, t.companionId] })]
 );
 
 /** «Hasta las 20:00», «hoy»: meanwhile, the child enters on that device without asking again. */
