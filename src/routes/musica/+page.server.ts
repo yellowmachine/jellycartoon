@@ -10,19 +10,12 @@ import { scanMusic } from '#lib/server/music/scan.ts';
 import { musicProgress } from '#lib/server/music/status.ts';
 import { parseView, viewCookie } from '#lib/views.ts';
 import { isKid } from '#lib/server/kids.ts';
-import { hasTripsPage } from '#lib/server/trips.ts';
 import { djEnabled } from '#lib/server/music/dj.ts';
 
 export const load: PageServerLoad = async ({ cookies, locals }) => {
 	if (!musicRoot) error(404, 'No hay carpeta de música (MUSIC_DIR)');
-	const [albums, totals, trips] = await Promise.all([
-		getAlbums(),
-		musicTotals(),
-		!isKid(locals.user) && hasTripsPage(locals.user!.id)
-	]);
+	const [albums, totals] = await Promise.all([getAlbums(), musicTotals()]);
 	return {
-		/** «Mis viajes», beside «Modo carretera», for whoever has trips (#81). */
-		trips,
 		/** Modo DJ: with Piper (PIPER_URL), and not for a child's account (#117). */
 		dj: djEnabled && !isKid(locals.user),
 		albums,
