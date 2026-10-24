@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { parseRecipe, type Recipe } from '#lib/recipe.ts';
-import { getAppSetting, openRouterConfig } from '#lib/server/app-settings.ts';
+import { getAppSetting, openRouterConfig, setAppSetting } from '#lib/server/app-settings.ts';
 import { db } from '#lib/server/db/index.ts';
 import { recipe } from '#lib/server/db/schema.ts';
 import { log } from '#lib/server/log.ts';
@@ -203,6 +203,11 @@ export function listRecipes() {
 export async function backdropRecipeId() {
 	const id = Number(await getAppSetting('recipes_backdrop'));
 	return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+/** This recipe's picture behind the book's page, or (if it already is) no picture. */
+export async function toggleBackdrop(id: number) {
+	await setAppSetting('recipes_backdrop', (await backdropRecipeId()) === id ? null : String(id));
 }
 
 /** Its picture, if that recipe is still there and has one. */

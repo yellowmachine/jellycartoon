@@ -1,6 +1,12 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { importRecipe, listRecipes, recipesBackdrop } from '#lib/server/recipes/import.ts';
+import {
+	backdropRecipeId,
+	importRecipe,
+	listRecipes,
+	recipesBackdrop,
+	toggleBackdrop
+} from '#lib/server/recipes/import.ts';
 import {
 	addRecipeSite,
 	indexSite,
@@ -20,18 +26,25 @@ export const load: PageServerLoad = async ({ url }) => {
 		.map((v) => v?.match(/https?:\/\/\S+/)?.[0] ?? null)
 		.find(Boolean);
 	const q = url.searchParams.get('q')?.trim() ?? '';
-	const [recipes, backdrop, sites, results] = await Promise.all([
+	const [recipes, backdrop, backdropId, sites, results] = await Promise.all([
 		listRecipes(),
 		recipesBackdrop(),
+		backdropRecipeId(),
 		listRecipeSites(),
 		q ? searchRecipeSites(q, undefined, 30) : null
 	]);
-	return { recipes, backdrop, sites, q, results, shared: shared ?? null };
+	return { recipes, backdrop, backdropId, sites, q, results, shared: shared ?? null };
 };
 
 const siteId = async (request: Request) => Number((await request.formData()).get('id'));
 
 export const actions: Actions = {
+	/** A recipe's picture behind this page, from the button on it; again, no picture. */
+	backdrop: async ({ request }) => {
+		const id = Number((await request.formData()).get('id'));
+		if (!Number.isInteger(id) || id <= 0) return fail(400, { message: 'Receta no válida' });
+		await toggleBackdrop(id);
+	},
 	import: async ({ request, locals }) => {
 		const address = String((await request.formData()).get('url') ?? '').trim();
 		if (!address) return fail(400, { url: address, error: 'Falta la dirección de la receta' });

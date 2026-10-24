@@ -51,7 +51,10 @@
 		if (!('serviceWorker' in navigator)) return;
 		const went = (e: MessageEvent) => {
 			const to = e.data?.goto;
-			if (typeof to === 'string' && to.startsWith('/') && !to.startsWith('//')) void goto(to);
+			if (typeof to !== 'string' || !to.startsWith('/') || to.startsWith('//')) return;
+			void goto(to);
+			// The service worker waits for this: without it, it takes the page there itself.
+			e.ports[0]?.postMessage('ok');
 		};
 		navigator.serviceWorker.addEventListener('message', went);
 		return () => navigator.serviceWorker.removeEventListener('message', went);
@@ -482,8 +485,9 @@
 			{/if}
 		{/if}
 
-		<!-- overflow-x-clip: the "cinema" player is 100vw wide, which includes the scrollbar. -->
-		<main class="mx-auto max-w-6xl overflow-x-clip px-4 py-6">
+		<!-- overflow-x-clip: the "cinema" player is 100vw wide, which includes the scrollbar.
+		     relative: a page's backdrop (Backdrop.svelte) starts under the bar, not behind it. -->
+		<main class="relative mx-auto max-w-6xl overflow-x-clip px-4 py-6">
 			{@render children()}
 		</main>
 	</div>

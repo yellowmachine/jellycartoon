@@ -1,6 +1,7 @@
 <script lang="ts">
 	/**
-	 * A frame behind the top of a series' or a film's page, as the platforms do: sharp at the top,
+	 * A frame behind the top of a series' or a film's page, as the platforms do (from under the
+	 * app's bar, the page's <main> being its box; the whole screen in the TV view): sharp at the top,
 	 * more and more blurred and dark going down, until it is the page's own background. Two copies
 	 * of the image: the sharp one fades out over the blurred one. As wide as the page's content,
 	 * fading out at its sides on a wide screen: a frame is not made for a whole wide screen. Shown
@@ -10,10 +11,17 @@
 
 	let loaded = $state(false);
 	let failed = $state(false);
+	let sharp = $state<HTMLImageElement>();
 	$effect(() => {
 		void src;
 		loaded = false;
 		failed = false;
+		// Loaded before the page came to life (from the server, on a slow device such as the living
+		// room's): its `load` was missed, and it would stay hidden.
+		if (sharp?.complete) {
+			if (sharp.naturalWidth) loaded = true;
+			else failed = true;
+		}
 	});
 </script>
 
@@ -39,6 +47,7 @@
 				alt=""
 				referrerpolicy="no-referrer"
 				class="sharp absolute inset-0 h-full w-full object-cover"
+				bind:this={sharp}
 				onload={() => (loaded = true)}
 				onerror={() => (failed = true)}
 			/>
