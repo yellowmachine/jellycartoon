@@ -129,7 +129,7 @@
 		veces salta sola (con la tele puesta, mejor). Nada sale del dispositivo.
 	</p>
 	<p class="mb-4 text-sm">
-		<a href="/activacion/grabar" class="text-amber-400 hover:underline">Grabar «candy candy»</a>
+		<a href="/activacion/grabar" class="text-amber-400 hover:underline">Grabar la palabra</a>
 		<span class="text-zinc-400">: vuestras voces, para entrenar su modelo.</span>
 	</p>
 

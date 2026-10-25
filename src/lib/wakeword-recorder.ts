@@ -9,6 +9,7 @@ import { SAMPLE_RATE } from '#lib/wakeword.ts';
 export interface Recorder {
 	/** The next `ms` of sound. */
 	take(ms: number): Promise<Int16Array>;
+	/** The microphone off; a take under way ends with what it has. */
 	stop(): void;
 }
 
@@ -66,6 +67,19 @@ export async function record(
 			return new Promise((resolve) => (done = resolve));
 		},
 		stop() {
+			if (done) {
+				const parts = got;
+				const samples = new Int16Array(parts.reduce((n, c) => n + c.length, 0));
+				let at = 0;
+				for (const c of parts) {
+					samples.set(c, at);
+					at += c.length;
+				}
+				const resolve = done;
+				done = null;
+				got = [];
+				resolve(samples);
+			}
 			capture.port.onmessage = null;
 			source.disconnect();
 			capture.disconnect();

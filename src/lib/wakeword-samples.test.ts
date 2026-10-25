@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { toWav } from '#lib/wakeword-recorder.ts';
-import { isSampleWav, speakerSlug } from '#lib/wakeword-samples.ts';
+import { isSampleWav, maxBytes, speakerSlug } from '#lib/wakeword-samples.ts';
 
 describe('speakerSlug', () => {
 	test('a name as a folder', () => {
@@ -23,5 +23,10 @@ describe('isSampleWav', () => {
 			isSampleWav(new TextEncoder().encode('RIFF....WAVEfmt nothing here at all, really'))
 		).toBe(false);
 		expect(isSampleWav(toWav(new Int16Array(200_000)))).toBe(false);
+	});
+	test('30 s of «fondo», with its own limit', () => {
+		const wav = toWav(new Int16Array(30 * 16_000));
+		expect(isSampleWav(wav)).toBe(false);
+		expect(isSampleWav(wav, maxBytes('fondo'))).toBe(true);
 	});
 });

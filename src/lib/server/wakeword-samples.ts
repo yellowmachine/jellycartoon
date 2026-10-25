@@ -2,9 +2,9 @@ import { mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { dataRoot } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
-import { isSampleWav, KINDS, speakerSlug, type Kind } from '#lib/wakeword-samples.ts';
+import { isSampleWav, KINDS, maxBytes, speakerSlug, type Kind } from '#lib/wakeword-samples.ts';
 
-export { KINDS, MAX_SAMPLE_BYTES, type Kind } from '#lib/wakeword-samples.ts';
+export { KINDS, maxBytes, type Kind } from '#lib/wakeword-samples.ts';
 
 /**
  * Voices of the house saying the wake word (#144, phase 3), to train its model with them: the
@@ -22,7 +22,8 @@ const isFileName = (name: string) => /^\d{13}_[a-z0-9]{6}\.wav$/.test(name);
 export async function saveSample(kind: Kind, speaker: string, wav: Uint8Array, by: string) {
 	const who = speakerSlug(speaker);
 	if (!who) throw new Error('Falta quién habla');
-	if (!isSampleWav(wav)) throw new Error('No es una grabación de las de esta página');
+	if (!isSampleWav(wav, maxBytes(kind)))
+		throw new Error('No es una grabación de las de esta página');
 	const name = `${Date.now()}_${Math.random().toString(36).slice(2, 8).padEnd(6, '0')}.wav`;
 	const dir = path.join(root, kind, who);
 	const file = path.join(dir, name);
