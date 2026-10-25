@@ -4,6 +4,7 @@
 	import { onMount } from 'svelte';
 	import { DEVICE_NAME_MAX, deviceName, shownDeviceName } from '#lib/device-name.svelte.ts';
 	import { micMode, type MicMode } from '#lib/mic-mode.svelte.ts';
+	import { wakeWord } from '#lib/wake-word.svelte.ts';
 	import { musicQuality, type MusicQuality } from '#lib/music-quality.svelte.ts';
 	import MusicBackgroundSettings from '#lib/components/MusicBackgroundSettings.svelte';
 	import PasswordInput from '#lib/components/PasswordInput.svelte';
@@ -612,6 +613,33 @@
 						Hablas mientras lo mantienes pulsado y se envía al soltar, como un audio de WhatsApp.
 					{/if}
 				</p>
+				<!-- #144, phase 2: the wake word, only on this device. -->
+				<label class="mt-4 flex items-center gap-3 border-t border-zinc-800 pt-4 text-sm">
+					<input
+						type="checkbox"
+						checked={mounted && wakeWord.on}
+						onchange={(e) => wakeWord.set(e.currentTarget.checked)}
+						class="rounded border-zinc-600 bg-zinc-900 text-amber-500"
+					/>
+					Activar la voz diciendo «Jelly Cartoon»
+				</label>
+				<p class="mt-2 text-sm text-zinc-400">
+					Sin pulsar nada: suena un pitido, dices lo que quieres y se envía cuando te callas.
+					Escucha mientras la app está abierta y delante, con la pantalla encendida; al abrir la app
+					hay que tocar la pantalla una vez. Nada sale del dispositivo hasta que oye «Jelly
+					Cartoon».
+				</p>
+				{#if mounted && wakeWord.on}
+					<p class={['mt-2 text-sm', wakeWord.problem ? 'text-red-400' : 'text-zinc-300']}>
+						{wakeWord.problem ??
+							{
+								off: 'Parada.',
+								loading: 'Preparando (unos 9 MB la primera vez)…',
+								on: 'Escuchando «Jelly Cartoon».',
+								tap: 'Toca la pantalla para que empiece a escuchar.'
+							}[wakeWord.status]}
+					</p>
+				{/if}
 			</section>
 		{/if}
 

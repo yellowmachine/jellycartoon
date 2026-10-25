@@ -19,6 +19,7 @@
 	import { beforeNavigate, goto } from '$app/navigation';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
+	import { wakeWord } from '#lib/wake-word.svelte.ts';
 	import { page, updated } from '$app/state';
 	import { themeColor, themeCss } from '#lib/themes.ts';
 	import { avatar } from '#lib/avatars.ts';
@@ -38,6 +39,14 @@
 	// https://svelte.dev/docs/kit/configuration#version
 	beforeNavigate(({ willUnload, to }) => {
 		if (updated.current && !willUnload && to?.url) location.href = to.url.href;
+	});
+
+	// «Jelly Cartoon» instead of the microphone (#144), where this device turned it on (Ajustes);
+	// not in /activacion, which tries the words with the microphone itself.
+	$effect(() => {
+		wakeWord.want(
+			Boolean(data.voice) && wakeWord.on && !page.url.pathname.startsWith('/activacion')
+		);
 	});
 
 	// A device that keeps routes' maps (#164): what it was ordered from any other, done now.

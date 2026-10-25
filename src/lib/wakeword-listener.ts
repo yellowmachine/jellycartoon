@@ -1,4 +1,5 @@
 import wasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.wasm?url';
+import { Vad } from '#lib/vad.ts';
 import { WakeWordDetector, type WakeWordModel } from '#lib/wakeword.ts';
 
 /**
@@ -12,6 +13,11 @@ const MODELS_URL = '/wakeword';
 
 export interface Listening {
 	stop(): void;
+	/** The microphone off (the app in the background), the models kept; `resume` turns it on again. */
+	pause(): void;
+	resume(): Promise<void>;
+	/** A fresh Silero VAD (#144, phase 2), with `vad` in the options; null otherwise. */
+	vad(): Vad | null;
 	/** What the microphone and the audio are, for the page to say. */
 	info: {
 		/** The AudioContext's state: `running`, or `suspended` if the browser did not let it start. */
@@ -35,11 +41,16 @@ export interface ListenOptions {
 	onScores(scores: number[], ms: number): void;
 	/** Each 80 ms: how loud the microphone is, in dBFS (0 the loudest; −90 silence). */
 	onLevel(dbfs: number): void;
+	/** Each 80 ms: the sound itself, 16 kHz, as int16 values: what is said after the wake word. */
+	onChunk?(chunk: Float32Array): void;
+	/** Silero VAD loaded too (static/wakeword/silero_vad.onnx), to know when an order is over. */
+	vad?: boolean;
 }
 
 /**
  * `context`: made by the page on the tap that starts it, before anything is loaded. Made later
- * (after seconds loading models), Android leaves it suspended: no sound reached the detector.
+ * (after seconds loading models), Android leaves it suspended: no sound reached the detector. The
+ * page closes it, not `stop`.
  */
 export async function listen(options: ListenOptions, context: AudioContext): Promise<Listening> {
 	// Loaded only here: 14 MB of WebAssembly, for whoever tries it.
@@ -53,6 +64,7 @@ export async function listen(options: ListenOptions, context: AudioContext): Pro
 		string
 	>;
 	for (const m of options.models) files[m] = m;
+	if (options.vad) files.vad = 'silero_vad';
 	const sessions = new Map<string, Awaited<ReturnType<typeof ort.InferenceSession.create>>>();
 	for (const [name, file] of Object.entries(files))
 		sessions.set(name, await ort.InferenceSession.create(`${MODELS_URL}/${file}.onnx`));
@@ -73,37 +85,53 @@ export async function listen(options: ListenOptions, context: AudioContext): Pro
 	}));
 	const detector = new WakeWordDetector(run, models);
 	await detector.warmUp();
+	const sampleRate = new ort.Tensor('int64', BigInt64Array.from([16_000n]), []);
 
-	const stream = await navigator.mediaDevices.getUserMedia({
-		audio: {
-			channelCount: 1,
-			echoCancellation: options.processing,
-			noiseSuppression: options.processing,
-			autoGainControl: options.processing
-		}
-	});
-	if (context.state !== 'running') await context.resume().catch(() => {});
 	await context.audioWorklet.addModule(`${MODELS_URL}/capture.js`);
-	const source = context.createMediaStreamSource(stream);
-	const capture = new AudioWorkletNode(context, 'wakeword-capture');
-	source.connect(capture);
-
 	// One chunk at a time: if one takes longer than 80 ms, the next waits its turn.
 	let queue = Promise.resolve();
 	let stopped = false;
-	capture.port.onmessage = (e: MessageEvent<Float32Array>) => {
-		const chunk = e.data;
-		let sum = 0;
-		for (let i = 0; i < chunk.length; i++) sum += (chunk[i]! / 32768) ** 2;
-		options.onLevel(10 * Math.log10(sum / chunk.length || 1e-9));
-		queue = queue.then(async () => {
-			if (stopped) return;
-			const started = performance.now();
-			for (const scores of await detector.push(chunk))
-				options.onScores(scores, performance.now() - started);
-		});
-	};
+	// Set by `open`, before anything uses them.
+	let stream!: MediaStream;
+	let source!: MediaStreamAudioSourceNode;
+	let capture!: AudioWorkletNode;
 
+	async function open() {
+		stream = await navigator.mediaDevices.getUserMedia({
+			audio: {
+				channelCount: 1,
+				echoCancellation: options.processing,
+				noiseSuppression: options.processing,
+				autoGainControl: options.processing
+			}
+		});
+		if (context.state !== 'running') await context.resume().catch(() => {});
+		source = context.createMediaStreamSource(stream);
+		capture = new AudioWorkletNode(context, 'wakeword-capture');
+		source.connect(capture);
+		capture.port.onmessage = (e: MessageEvent<Float32Array>) => {
+			const chunk = e.data;
+			let sum = 0;
+			for (let i = 0; i < chunk.length; i++) sum += (chunk[i]! / 32768) ** 2;
+			options.onLevel(10 * Math.log10(sum / chunk.length || 1e-9));
+			options.onChunk?.(chunk);
+			queue = queue.then(async () => {
+				if (stopped) return;
+				const started = performance.now();
+				for (const scores of await detector.push(chunk))
+					options.onScores(scores, performance.now() - started);
+			});
+		};
+	}
+
+	function close() {
+		capture.port.onmessage = null;
+		source.disconnect();
+		capture.disconnect();
+		for (const track of stream.getTracks()) track.stop();
+	}
+
+	await open();
 	const settings = stream.getAudioTracks()[0]?.getSettings() ?? {};
 	return {
 		info: {
@@ -116,12 +144,25 @@ export async function listen(options: ListenOptions, context: AudioContext): Pro
 		},
 		stop() {
 			stopped = true;
-			capture.port.onmessage = null;
-			source.disconnect();
-			capture.disconnect();
-			for (const track of stream.getTracks()) track.stop();
-			void context.close();
+			close();
 			for (const s of sessions.values()) void s.release();
+		},
+		pause: close,
+		resume: open,
+		vad() {
+			const session = sessions.get('vad');
+			if (!session) return null;
+			return new Vad(async (input, state) => {
+				const out = await session.run({
+					input: new ort.Tensor('float32', input, [1, input.length]),
+					state: new ort.Tensor('float32', state, [2, 1, 128]),
+					sr: sampleRate
+				});
+				return {
+					probability: (out.output!.data as Float32Array)[0] ?? 0,
+					state: out.stateN!.data as Float32Array
+				};
+			});
 		}
 	};
 }
