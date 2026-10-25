@@ -21,6 +21,7 @@
 	import { tripRecorder } from '#lib/trip-recorder.svelte.ts';
 	import { tripShare } from '#lib/trip-share.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
+	import { formatDuration } from '#lib/format.ts';
 	import { distanceText, isLngLat, type LngLat, type Place, type Route } from '#lib/road.ts';
 	import { alongLine, guide, metresBetween } from '#lib/road-guide.ts';
 	import { STOP_REACHED_METRES, stopsAhead, type SavedRoute } from '#lib/saved-places.ts';
@@ -141,6 +142,12 @@
 						}
 					: null
 	);
+	/** How far into the song or the episode, to see at a glance; a station has none. */
+	const progress = $derived.by(() => {
+		if (music.radio || !playing) return null;
+		const duration = music.durationSec ?? music.podcast?.durationSec ?? music.current?.durationSec;
+		return duration ? { at: Math.min(music.positionSec, duration), duration } : null;
+	});
 
 	async function busy(id: string, work: () => Promise<string | null | void>) {
 		loading = id;
@@ -937,6 +944,24 @@ the app's microphone, which the voice's big one right above would be taken for. 
 								<p class="truncate text-2xl font-semibold">{playing.title}</p>
 								<p class="truncate text-lg text-zinc-400">{playing.detail}</p>
 							</div>
+							{#if progress}
+								<div class="min-w-20 shrink-0">
+									<p class="text-right font-mono text-base text-zinc-300 tabular-nums">
+										{formatDuration(progress.at) || '0:00'}<span class="text-zinc-500"
+											>/{formatDuration(progress.duration)}</span
+										>
+									</p>
+									<div
+										class="mt-1 h-1.5 overflow-hidden rounded-full bg-zinc-800"
+										aria-hidden="true"
+									>
+										<div
+											class="h-full rounded-full bg-amber-500"
+											style:width="{(progress.at / progress.duration) * 100}%"
+										></div>
+									</div>
+								</div>
+							{/if}
 						{:else}
 							<p class="min-w-0 flex-1 py-4 text-center text-xl text-zinc-400">
 								No suena nada. Elige abajo, o pídelo.
