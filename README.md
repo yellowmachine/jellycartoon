@@ -606,8 +606,8 @@ Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`.
 - El fondo de esa página se elige en ella entre esas imágenes y la que se capture jugando:
   Play/Pausa en el mando mientras se juega la guarda y la pone de fondo, y otra pulsación la
   cambia. Sin elegir, es la pantalla de título.
-- El juego ocupa toda la pantalla. Dentro, EmulatorJS se queda con las teclas: Atrás del mando a
-  distancia no hace nada, e Inicio vuelve a la Vista TV.
+- El juego ocupa toda la pantalla. Atrás en el mando a distancia lo cierra y vuelve a su página,
+  e Inicio, a la Vista TV.
 - El mando de juego se reconoce por udev, y el Chromium de Flatpak no lo ve sin
   `flatpak override --user --filesystem=/run/udev:ro org.chromium.Chromium`, que pone
   `scripts/pantalla.sh`. Luego hay que cerrar Chromium y abrirlo, y pulsar un botón del mando en el

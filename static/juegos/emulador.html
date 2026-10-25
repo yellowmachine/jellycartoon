@@ -51,16 +51,20 @@
 			const backdrop = params.get('backdrop') ?? '';
 
 			/**
-			 * The game's picture (its canvas, without EmulatorJS' menus), as the next frame the browser
-			 * shows of it. Not EmulatorJS' own captures: in 4.2.3 `retroarch` waits forever for a file
-			 * the core never writes, and `canvas` reads the WebGL canvas, which is black whenever the
-			 * game draws nothing in that screen frame (often: a 50 Hz game on a 60 Hz TV).
+			 * The game's picture (its canvas, without EmulatorJS' menus), as the browser shows it now:
+			 * a stream of the canvas that only takes a frame when asked (captureStream(0) and
+			 * requestFrame). Not EmulatorJS' own captures: in 4.2.3 `retroarch` waits forever for a
+			 * file the core never writes, and `canvas` reads the WebGL canvas, which is black whenever
+			 * the game draws nothing in that screen frame (often: a 50 Hz game on a 60 Hz TV). Nor the
+			 * next frame the game draws: on a still screen (Columns' title) it may never come.
 			 */
 			async function picture(emulator) {
-				const [track] = emulator.canvas.captureStream().getVideoTracks();
+				const [track] = emulator.canvas.captureStream(0).getVideoTracks();
 				try {
+					const grabbed = new ImageCapture(track).grabFrame();
+					track.requestFrame();
 					const frame = await Promise.race([
-						new ImageCapture(track).grabFrame(),
+						grabbed,
 						new Promise((_, fail) => setTimeout(() => fail(new Error('Sin imagen')), 3000))
 					]);
 					// Only the game: the canvas fills the screen, with black bars at its sides.
@@ -92,15 +96,26 @@
 				emulator.displayMessage(res?.ok ? 'Fondo guardado' : 'No se pudo guardar el fondo', 3000);
 			}
 
-			addEventListener('keydown', (e) => {
-				// The remote's Home (F7) to the TV view, as everywhere else: the frame gets the keys now.
-				if (e.key === 'F7') parent.dispatchEvent(new KeyboardEvent('keydown', { key: 'F7' }));
-				// Its Play/Pause (F8): this moment as the game's background.
-				else if (e.key === 'F8' && !e.repeat) {
-					e.preventDefault();
-					void capture();
-				}
-			});
+			// Before EmulatorJS' own (capture phase): it takes every key, Back too.
+			addEventListener(
+				'keydown',
+				(e) => {
+					// The remote's Home (F7) to the TV view, as everywhere else: the frame gets the keys now.
+					if (e.key === 'F7') parent.dispatchEvent(new KeyboardEvent('keydown', { key: 'F7' }));
+					// Its Back: out of the game, to the page it was opened from. Done here, as EmulatorJS
+					// stops the browser from doing it (preventDefault on every key).
+					else if (e.key === 'BrowserBack') {
+						e.preventDefault();
+						if (!e.repeat) parent.history.back();
+					}
+					// Its Play/Pause (F8): this moment as the game's background.
+					else if (e.key === 'F8') {
+						e.preventDefault();
+						if (!e.repeat) void capture();
+					}
+				},
+				true
+			);
 		</script>
 	</body>
 </html>
