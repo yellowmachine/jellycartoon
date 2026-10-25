@@ -25,6 +25,7 @@ import type { WikiPage } from '#lib/server/cinema/wikidata.ts';
 import type { TitleProposal } from '#lib/episode-titles.ts';
 import type { RecipeStep } from '#lib/recipe.ts';
 import type { LngLat } from '#lib/road.ts';
+import type { DjOptions } from '#lib/music.ts';
 import type { RouteStop } from '#lib/saved-places.ts';
 import type { Exercise, HomeworkRules, Step } from '#lib/homework.ts';
 import { session, user } from './auth.schema';
@@ -1487,4 +1488,64 @@ export const gameSession = pgTable(
 		seconds: integer('seconds').notNull().default(0)
 	},
 	(t) => [index('game_session_user_idx').on(t.userId, t.startedAt)]
+);
+
+/**
+ * A person's cartridge save of a game (#176): what the game itself saves (the battery of a Zelda or
+ * a Pokémon), kept here rather than only in the browser it was played on. One per person and game,
+ * gzipped by the browser, in DATA_DIR/cartuchos by its id.
+ */
+export const gameCartridge = pgTable(
+	'game_cartridge',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		gameId: integer('game_id')
+			.notNull()
+			.references(() => game.id, { onDelete: 'cascade' }),
+		updatedAt: timestamp('updated_at').notNull().defaultNow()
+	},
+	(t) => [unique('game_cartridge_user_game').on(t.userId, t.gameId)]
+);
+
+/**
+ * A person's buttons for a console's games (#176): which of the gamepad does each of the console's
+ * (game-controls.ts). By the folder of GAMES_DIR, as the consoles are listed.
+ */
+export const gameControls = pgTable(
+	'game_controls',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		system: text('system').notNull(),
+		controls: jsonb('controls').$type<Record<string, string>>().notNull()
+	},
+	(t) => [unique('game_controls_user_system').on(t.userId, t.system)]
+);
+
+/**
+ * The house's shaders for the games (#176): for all of them (`todos`), a console's
+ * (`consola:snes`) or a game's (`juego:12`), the nearest one winning (game-shaders.ts).
+ */
+export const gameShader = pgTable('game_shader', {
+	scope: text('scope').primaryKey(),
+	shader: text('shader').notNull()
+});
+
+/** A person's Modo DJ setups (#117), saved with a name to start them again. */
+export const djPreset = pgTable(
+	'dj_preset',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		options: jsonb('options').$type<DjOptions>().notNull()
+	},
+	(t) => [unique('dj_preset_user_name').on(t.userId, t.name)]
 );

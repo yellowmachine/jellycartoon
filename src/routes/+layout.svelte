@@ -268,10 +268,17 @@
 	<div class={[panelShown && 'pb-[55dvh] md:pr-[42%] md:pb-0']}>
 		{#if data.user}
 			<header class="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur">
-				<nav class="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3">
-					<a href="/" class="flex shrink-0 items-center gap-2 text-lg font-bold text-amber-400">
+				<nav
+					class="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3 md:max-lg:gap-3 md:max-lg:py-2"
+				>
+					<!-- On a tablet, only the picture: the sections need the room. -->
+					<a
+						href="/"
+						title="JellyCartoon"
+						class="flex shrink-0 items-center gap-2 text-lg font-bold text-amber-400"
+					>
 						<img src={favicon} alt="" class="h-7 w-7 rounded-md" />
-						JellyCartoon
+						<span class="md:max-lg:sr-only">JellyCartoon</span>
 					</a>
 					<!-- Voice commands (#33): a microphone by the name, on every screen, phones too. Held down,
 				     it listens without leaving the page (an episode playing pauses); tapped, it opens /voz. -->
@@ -319,21 +326,23 @@
 						</a>
 					{/if}
 					<!-- Wide screens: every link in a row; with its icon from xl, as with every section both do
-				     not fit in 1024px. -->
+				     not fit in 1024px. A tablet (md, up to lg): every link too, its icon over a small
+				     name, as a tab bar; the one you are in, in amber. -->
 					{#each links as link (link.href)}
 						<a
 							href={link.href}
 							class={[
 								'hidden items-center gap-1.5 text-sm hover:text-white lg:inline-flex',
-								isCurrent(link.href) ? 'text-white' : 'text-zinc-400'
+								'md:max-lg:flex md:max-lg:min-w-0 md:max-lg:flex-1 md:max-lg:flex-col md:max-lg:gap-0.5 md:max-lg:text-[11px]',
+								isCurrent(link.href) ? 'text-white md:max-lg:text-amber-400' : 'text-zinc-400'
 							]}
 							><SectionIcon
 								name={link.icon}
-								class="hidden h-[18px] w-[18px] shrink-0 xl:block"
-							/>{link.label}</a
+								class="hidden h-[18px] w-[18px] shrink-0 md:max-lg:block md:max-lg:h-6 md:max-lg:w-6 xl:block"
+							/><span class="max-w-full truncate">{link.label}</span></a
 						>
 					{/each}
-					<div class="ml-auto hidden items-center lg:flex">
+					<div class="ml-auto hidden items-center md:flex">
 						<!-- A child's account has only Ajustes: the badge goes straight there. -->
 						{#if data.kid}
 							{#if data.salon}
@@ -416,10 +425,10 @@
 
 					<!-- Phone: the section you are in and a menu with the rest. -->
 					{#if current}
-						<span class="-ml-3 truncate text-sm text-zinc-300 lg:hidden">{current.label}</span>
+						<span class="-ml-3 truncate text-sm text-zinc-300 md:hidden">{current.label}</span>
 					{/if}
 					<button
-						class="ml-auto rounded-md px-2 py-1 text-xl text-zinc-300 hover:bg-zinc-800 lg:hidden"
+						class="ml-auto rounded-md px-2 py-1 text-xl text-zinc-300 hover:bg-zinc-800 md:hidden"
 						aria-label="Menú"
 						popovertarget="site-menu">☰</button
 					>
@@ -428,7 +437,7 @@
 					bind:this={menu}
 					id="site-menu"
 					popover="auto"
-					class="inset-x-0 top-14 bottom-auto m-0 w-auto border-b border-zinc-800 bg-zinc-950 px-4 pb-4 text-zinc-100 shadow-lg lg:hidden"
+					class="inset-x-0 top-14 bottom-auto m-0 w-auto border-b border-zinc-800 bg-zinc-950 px-4 pb-4 text-zinc-100 shadow-lg md:hidden"
 				>
 					<ul class="divide-y divide-zinc-800">
 						{#each menuLinks as link (link.href)}

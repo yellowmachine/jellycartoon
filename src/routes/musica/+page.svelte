@@ -27,6 +27,7 @@
 	let view = $derived(data.view);
 	const artists = $derived(groupByArtist(data.albums));
 	let djDialog = $state<DjDialog>();
+	let djMenu = $state<HTMLElement>();
 
 	const progress = $derived(data.progress);
 	const totals = $derived(data.totals);
@@ -145,11 +146,66 @@
 <div class="mb-6 flex flex-wrap items-center gap-3">
 	<h1 class="mr-auto text-2xl font-bold">Música</h1>
 	{#if data.dj}
-		<button
-			class="rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900"
-			title="Canciones al azar con un locutor entre ellas, como en la radio"
-			onclick={() => djDialog?.open()}>Modo DJ</button
-		>
+		{@const djClass = 'rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900'}
+		{@const djTitle = 'Canciones al azar con un locutor entre ellas, como en la radio'}
+		{#if data.djPresets.length}
+			<!-- Native popover, as ActionMenu: closes with Esc or a click outside. -->
+			<button class={djClass} title={djTitle} popovertarget="dj-menu" style:anchor-name="--dj-menu"
+				>Modo DJ ▾</button
+			>
+			<div
+				bind:this={djMenu}
+				id="dj-menu"
+				popover="auto"
+				style:position-anchor="--dj-menu"
+				class="dj-menu inset-auto m-0 mt-1 w-max max-w-72 min-w-48 rounded-md border border-zinc-700 bg-zinc-900 p-1 text-sm text-zinc-100 shadow-lg"
+			>
+				<button
+					class="w-full rounded px-3 py-1.5 text-left hover:bg-zinc-800"
+					onclick={() => {
+						djMenu?.hidePopover();
+						djDialog?.open();
+					}}>Nuevo…</button
+				>
+				<div class="my-1 border-t border-zinc-800"></div>
+				{#each data.djPresets as preset (preset.id)}
+					<div class="group flex items-center rounded hover:bg-zinc-800">
+						<button
+							class="min-w-0 flex-1 truncate px-3 py-1.5 text-left"
+							title="Empezar"
+							onclick={() => {
+								djMenu?.hidePopover();
+								djDialog?.startPreset(preset);
+							}}>{preset.name}</button
+						>
+						<!-- On hover with a mouse; always there on a touch screen. -->
+						<div
+							class="flex shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100"
+						>
+							<button
+								class="px-2 py-1.5 text-zinc-400 hover:text-white"
+								title="Editar"
+								aria-label="Editar {preset.name}"
+								onclick={() => {
+									djMenu?.hidePopover();
+									djDialog?.open(preset);
+								}}>✎</button
+							>
+							<form method="post" action="?/djDelete" use:enhance>
+								<input type="hidden" name="id" value={preset.id} />
+								<button
+									class="px-2 py-1.5 text-zinc-400 hover:text-red-400"
+									title="Borrar"
+									aria-label="Borrar {preset.name}">✕</button
+								>
+							</form>
+						</div>
+					</div>
+				{/each}
+			</div>
+		{:else}
+			<button class={djClass} title={djTitle} onclick={() => djDialog?.open()}>Modo DJ</button>
+		{/if}
 		<DjDialog bind:this={djDialog} {artists} />
 	{/if}
 	<input
@@ -333,3 +389,11 @@
 		<AlbumGrid albums={data.albums} />
 	{/if}
 {/if}
+
+<style>
+	/* Below the button, aligned to its right edge; above it if there is no room underneath. */
+	.dj-menu {
+		position-area: bottom span-left;
+		position-try-fallbacks: flip-block;
+	}
+</style>

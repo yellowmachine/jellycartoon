@@ -1,5 +1,6 @@
 import type { DjOptions, MusicTrack } from '#lib/music.ts';
 import { music } from '#lib/music-player.svelte.ts';
+import { musicTarget } from '#lib/music-target.svelte.ts';
 
 /**
  * Modo DJ in this browser (#117): songs at random, a few more whenever few are left, and every
@@ -55,6 +56,13 @@ class Dj {
 		} catch {
 			// Private window: they are only forgotten.
 		}
+	}
+
+	/** Where the music sounds now (this browser or Snapcast), remembered to start with it again. */
+	async play(options: DjOptions) {
+		if (musicTarget.value === 'snapcast') await post('/api/music/dj/snapcast', options);
+		else await this.start(options);
+		this.remember(options);
 	}
 
 	/** Instead of whatever was on, here. */
