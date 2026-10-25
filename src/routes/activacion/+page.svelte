@@ -5,14 +5,16 @@
 	/**
 	 * Trying wake words on this phone or tablet (#144, phase 1): «hola casita» and «hey luna», the
 	 * community's openWakeWord models, and «candy candy» and «Jelly Cartoon», trained for this house; heard in the
-	 * browser. Live scores, and each detection marked as right or not, to know how well each works
+	 * browser. «Jelly Cartoon (música)»: trained with much more music and a bigger model, to try it
+	 * beside the one in use with music playing. Live scores, and each detection marked as right or not, to know how well each works
 	 * here and how often it goes off by itself.
 	 */
 	const WORDS = [
 		{ model: 'hola_casita', label: 'Hola casita' },
 		{ model: 'hey_luna', label: 'Hey luna' },
 		{ model: 'candy_candy', label: 'Candy candy' },
-		{ model: 'jelly_cartoon', label: 'Jelly Cartoon' }
+		{ model: 'jelly_cartoon', label: 'Jelly Cartoon' },
+		{ model: 'jelly_cartoon_musica', label: 'Jelly Cartoon (música)' }
 	];
 	/** After a detection, the same word is not counted again for this long. */
 	const QUIET_MS = 2000;
@@ -123,10 +125,11 @@
 <div class="mx-auto max-w-xl">
 	<h1 class="mb-1 text-2xl font-bold">Palabra de activación</h1>
 	<p class="mb-4 text-sm text-zinc-400">
-		Prueba de «hola casita», «hey luna», «candy candy» y «Jelly Cartoon» en este dispositivo, sin
-		pulsar nada: escucha mientras esta página está abierta y delante. Di una de ellas y mira si
-		salta; marca cada detección como buena o sin querer, para saber cuál funciona mejor y cuántas
-		veces salta sola (con la tele puesta, mejor). Nada sale del dispositivo.
+		Prueba de «hola casita», «hey luna», «candy candy» y «Jelly Cartoon» (también la versión
+		entrenada con música) en este dispositivo, sin pulsar nada: escucha mientras esta página está
+		abierta y delante. Di una de ellas y mira si salta; marca cada detección como buena o sin
+		querer, para saber cuál funciona mejor y cuántas veces salta sola (con la tele puesta, mejor).
+		Nada sale del dispositivo.
 	</p>
 	<p class="mb-4 text-sm">
 		<a href="/activacion/grabar" class="text-amber-400 hover:underline">Grabar la palabra</a>
