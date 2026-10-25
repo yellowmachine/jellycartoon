@@ -11,6 +11,9 @@ import { getAlbums } from '#lib/server/music/albums.ts';
 import { recordsTrips } from '#lib/server/trips.ts';
 import { relayConfig } from '#lib/server/app-settings.ts';
 import { listSavedPlaces, listSavedRoutes } from '#lib/server/saved-places.ts';
+import { isKid } from '#lib/server/kids.ts';
+import { djEnabled } from '#lib/server/music/dj.ts';
+import { presetsOf } from '#lib/server/music/dj-presets.ts';
 
 /**
  * The road mode (#78): what can be put on with one touch while driving. The stations, the albums,
@@ -34,6 +37,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 			listSavedPlaces(userId),
 			listSavedRoutes(userId)
 		]);
+	// Modo DJ: only to start a setup saved in Música (#117), as there: with a voice, not for a child.
+	const dj = Boolean(musicRoot) && !isKid(locals.user) && (await djEnabled());
+	const djPresets = dj ? await presetsOf(userId) : [];
 	const latest = podcasts.length
 		? await db
 				.selectDistinctOn([podcastEpisode.podcastId], {
@@ -68,6 +74,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		shareable: Boolean(relay.url && relay.key),
 		/** Kept in Viajes with their name (#151): first in the search, one touch to go. */
 		places,
-		routes
+		routes,
+		dj,
+		djPresets
 	};
 };

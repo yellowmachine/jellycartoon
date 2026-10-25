@@ -8,10 +8,11 @@
 	import ManeuverIcon from '#lib/components/ManeuverIcon.svelte';
 	import RoadMap from '#lib/components/RoadMap.svelte';
 	import SectionIcon from '#lib/components/SectionIcon.svelte';
-	import type { MusicTrack } from '#lib/music.ts';
+	import type { DjOptions, MusicTrack } from '#lib/music.ts';
 	import { coverUrl } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
 	import { musicTarget } from '#lib/music-target.svelte.ts';
+	import { dj } from '#lib/dj.svelte.ts';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { playEpisode } from '#lib/podcast-player.svelte.ts';
 	import { SKIP_BACK, SKIP_FORWARD } from '#lib/podcasts.ts';
@@ -21,6 +22,7 @@
 	import { tripRecorder } from '#lib/trip-recorder.svelte.ts';
 	import { tripShare } from '#lib/trip-share.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
+	import { formatDuration } from '#lib/format.ts';
 	import { distanceText, isLngLat, type LngLat, type Place, type Route } from '#lib/road.ts';
 	import { alongLine, guide, metresBetween } from '#lib/road-guide.ts';
 	import { STOP_REACHED_METRES, stopsAhead, type SavedRoute } from '#lib/saved-places.ts';
@@ -37,7 +39,7 @@
 
 	let { data }: PageProps = $props();
 
-	type Tab = 'radio' | 'musica' | 'listas' | 'podcasts' | 'ruta';
+	type Tab = 'radio' | 'musica' | 'listas' | 'podcasts' | 'ruta' | 'dj';
 	/**
 	 * The right-hand side (or the whole screen, without the map beside): Inicio (`null`), with what
 	 * plays, the microphone and a big button for each section; or a section, its list filling it, with
@@ -141,6 +143,12 @@
 						}
 					: null
 	);
+	/** How far into the song or the episode, to see at a glance; a station has none. */
+	const progress = $derived.by(() => {
+		if (music.radio || !playing) return null;
+		const duration = music.durationSec ?? music.podcast?.durationSec ?? music.current?.durationSec;
+		return duration ? { at: Math.min(music.positionSec, duration), duration } : null;
+	});
 
 	async function busy(id: string, work: () => Promise<string | null | void>) {
 		loading = id;
@@ -187,6 +195,35 @@
 
 	const everything = () => playFrom('aleatorio', '/carretera/aleatorio', 'No hay música.');
 
+	/**
+	 * Modo DJ (#117), only to choose: the setups saved in Música, and first the last one started on
+	 * this device, saved or not. Where the music sounds now, here or on the house's speakers.
+	 */
+	let lastDj = $state<DjOptions | null>(null);
+	$effect(() => {
+		lastDj = dj.remembered();
+	});
+
+	function startDj(id: string, options: DjOptions) {
+		if (playingHere(id) && music.dj) return music.toggle();
+		return busy(id, async () => {
+			try {
+				await dj.play(options);
+			} catch (err) {
+				return err instanceof Error ? err.message : 'No se pudo poner el Modo DJ.';
+			}
+			playingFrom = id;
+			lastDj = options;
+		});
+	}
+
+	/** «Toda la música», «Queen y Supertramp», «Queen, Supertramp y 3 más». */
+	function djArtists(artists: string[]) {
+		if (!artists.length) return 'Toda la música';
+		if (artists.length <= 2) return artists.join(' y ');
+		return `${artists.slice(0, 2).join(', ')} y ${artists.length - 2} más`;
+	}
+
 	function podcast(episodeId: number) {
 		if (music.podcast?.id === episodeId) return music.toggle();
 		return busy(`podcast-${episodeId}`, () => playEpisode(episodeId));
@@ -214,7 +251,8 @@
 		{ id: 'listas', label: 'Listas' },
 		{ id: 'podcasts', label: 'Podcasts' },
 		// Only with the map beside, or a phone's own tab for it: where the route is drawn.
-		...(routable ? [{ id: 'ruta' as const, label: 'Ruta' }] : [])
+		...(routable ? [{ id: 'ruta' as const, label: 'Ruta' }] : []),
+		...(data.dj ? [{ id: 'dj' as const, label: 'DJ' }] : [])
 	]);
 
 	/**
@@ -835,6 +873,11 @@ the app's microphone, which the voice's big one right above would be taken for. 
 			{:else if id === 'listas'}
 				<path d="M4 6h11M4 11h11M4 16h7" />
 				<path d="M18 19.5a2 2 0 1 1-2-2 2 2 0 0 1 2 2zM18 19.5V9l3-1" />
+			{:else if id === 'dj'}
+				<!-- A record, and the DJ's hand on it. -->
+				<circle cx="12" cy="12" r="9" />
+				<circle cx="12" cy="12" r="2.5" />
+				<path d="M12 5.5a6.5 6.5 0 0 1 6.5 6.5" />
 			{:else}
 				<path
 					d="M12 21s-6.5-6.2-6.5-11.2A6.5 6.5 0 0 1 12 3.3a6.5 6.5 0 0 1 6.5 6.5C18.5 14.8 12 21 12 21z"
@@ -937,6 +980,24 @@ the app's microphone, which the voice's big one right above would be taken for. 
 								<p class="truncate text-2xl font-semibold">{playing.title}</p>
 								<p class="truncate text-lg text-zinc-400">{playing.detail}</p>
 							</div>
+							{#if progress}
+								<div class="min-w-20 shrink-0">
+									<p class="text-right font-mono text-base text-zinc-300 tabular-nums">
+										{formatDuration(progress.at) || '0:00'}<span class="text-zinc-500"
+											>/{formatDuration(progress.duration)}</span
+										>
+									</p>
+									<div
+										class="mt-1 h-1.5 overflow-hidden rounded-full bg-zinc-800"
+										aria-hidden="true"
+									>
+										<div
+											class="h-full rounded-full bg-amber-500"
+											style:width="{(progress.at / progress.duration) * 100}%"
+										></div>
+									</div>
+								</div>
+							{/if}
 						{:else}
 							<p class="min-w-0 flex-1 py-4 text-center text-xl text-zinc-400">
 								No suena nada. Elige abajo, o pídelo.
@@ -1337,6 +1398,40 @@ the app's microphone, which the voice's big one right above would be taken for. 
 					{:else}
 						<p class="text-lg text-zinc-400">No hay listas. Se hacen en Música.</p>
 					{/each}
+				{:else if tab === 'dj'}
+					{@const setups = [
+						...(lastDj ? [{ id: 'dj-ultima', name: 'La última', options: lastDj }] : []),
+						...data.djPresets.map((p) => ({ id: `dj-${p.id}`, name: p.name, options: p.options }))
+					]}
+					{#each setups as setup (setup.id)}
+						{@const on = playingHere(setup.id) && music.dj}
+						<button
+							class={[
+								tile,
+								on ? 'border-amber-400 bg-amber-500/15' : 'border-white/10 bg-zinc-900'
+							]}
+							disabled={loading !== null}
+							onclick={() => startDj(setup.id, setup.options)}
+						>
+							<span class="min-w-0">
+								<span class="block truncate text-xl font-semibold">
+									{loading === setup.id ? 'Poniendo…' : setup.name}
+								</span>
+								<span class="block truncate text-base text-zinc-400"
+									>{on
+										? music.playing
+											? '● Sonando'
+											: 'En pausa'
+										: djArtists(setup.options.artists)}</span
+								>
+							</span>
+						</button>
+					{/each}
+					{#if !data.djPresets.length}
+						<p class="text-lg text-zinc-400">
+							Guarda una configuración en Música → Modo DJ para tenerla aquí.
+						</p>
+					{/if}
 				{:else}
 					{#each data.inProgress as episode (episode.id)}
 						{@const on = music.podcast?.id === episode.id}
