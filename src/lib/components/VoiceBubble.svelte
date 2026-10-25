@@ -30,7 +30,11 @@
 		<div class="min-w-0 flex-1">
 			{#if voice.phase === 'listening'}
 				<p class="font-semibold text-red-400">
-					Te escucho… {micMode.tap ? 'toca otra vez para enviar' : 'suelta para enviar'}
+					Te escucho… {voice.handsFree
+						? ''
+						: micMode.tap
+							? 'toca otra vez para enviar'
+							: 'suelta para enviar'}
 				</p>
 			{:else}
 				{#if voice.heard}

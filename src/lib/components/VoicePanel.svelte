@@ -50,7 +50,7 @@
 		<p class="text-3xl font-semibold text-zinc-200">
 			{voice.phase === 'thinking'
 				? 'Un momento…'
-				: micMode.tap
+				: micMode.tap && !voice.handsFree
 					? 'Te escucho… toca para enviar'
 					: 'Te escucho…'}
 		</p>

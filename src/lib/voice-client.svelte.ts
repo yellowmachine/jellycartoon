@@ -52,6 +52,8 @@ class VoiceClient {
 	problem = $state<string | null>(null);
 	/** Being read aloud: the header's bubble stays until it ends. */
 	speaking = $state(false);
+	/** Started by the wake word (#144): no button to let go, it ends after a silence. */
+	handsFree = $state(false);
 	/**
 	 * In the road mode (#78), set by its page: the AI is told, nothing to watch is opened, and its
 	 * route is asked for and shown there. Null elsewhere.
@@ -82,12 +84,7 @@ class VoiceClient {
 		clearTimeout(this.#limit);
 		this.#limit = setTimeout(() => this.stop(), MAX_MS);
 		this.problem = null;
-		// A timer ringing stops (and what it paused plays again, to pause it now for the voice);
-		// the press also lets the timers about to be set ring later.
-		timers.silence();
-		timers.unlockSound();
-		videoHere.pauseForVoice();
-		music.pauseForVoice();
+		pauseForVoice();
 		let stream: MediaStream;
 		try {
 			// https://developer.mozilla.org/docs/Web/API/MediaDevices/getUserMedia
@@ -136,6 +133,28 @@ class VoiceClient {
 		}
 		if (this.#recorder?.state === 'recording') this.#recorder.stop();
 		return tap ? 'tap' : 'sent';
+	}
+
+	/**
+	 * The wake word heard (#144): as pressing the button, but what is said comes from the wake word's
+	 * listener, which already has the microphone. False if busy (listening, thinking or speaking).
+	 */
+	beginHandsFree(): boolean {
+		if (this.phase !== 'idle' || this.#active || this.speaking) return false;
+		this.handsFree = true;
+		this.problem = null;
+		pauseForVoice();
+		this.phase = 'listening';
+		return true;
+	}
+
+	/** What was said after it (a WAV); null if nothing was, and what was paused plays again. */
+	endHandsFree(audio: Blob | null) {
+		if (!this.handsFree) return;
+		this.handsFree = false;
+		if (audio) return void this.#send(audio);
+		this.phase = 'idle';
+		resumeAfterVoice();
 	}
 
 	/** With taps (Ajustes): the first starts, the next sends; one right after the first cancels. */
@@ -242,6 +261,17 @@ class VoiceClient {
 		};
 		speechSynthesis.speak(utterance);
 	}
+}
+
+/**
+ * About to listen: a timer ringing stops (and what it paused plays again, to pause it now for the
+ * voice), and what plays here pauses. A press also lets the timers about to be set ring later.
+ */
+function pauseForVoice() {
+	timers.silence();
+	timers.unlockSound();
+	videoHere.pauseForVoice();
+	music.pauseForVoice();
 }
 
 /** What was paused to speak, back where it was. */
