@@ -14,6 +14,7 @@
 		| 'viajes'
 		| 'nevera'
 		| 'musica'
+		| 'juegos'
 		| 'salon'
 		| 'infantil'
 		| 'gestion';
@@ -54,6 +55,14 @@
 		<path d="M9 18V5.5l11-2.5v12.5" />
 		<circle cx="6.5" cy="18" r="2.5" />
 		<circle cx="17.5" cy="15.5" r="2.5" />
+	{:else if name === 'juegos'}
+		<!-- A gamepad. -->
+		<path
+			d="M6.5 7h11a4 4 0 0 1 4 4v3.5a3 3 0 0 1-5.4 1.8L14.5 14h-5l-1.6 2.3a3 3 0 0 1-5.4-1.8V11a4 4 0 0 1 4-4z"
+		/>
+		<path d="M7.5 9.5v3M6 11h3" />
+		<circle cx="15.5" cy="10.5" r="0.5" />
+		<circle cx="17.5" cy="12" r="0.5" />
 	{:else if name === 'podcasts'}
 		<!-- A microphone. -->
 		<rect x="9" y="2.5" width="6" height="11" rx="3" />

@@ -621,13 +621,12 @@
 						onchange={(e) => wakeWord.set(e.currentTarget.checked)}
 						class="rounded border-zinc-600 bg-zinc-900 text-amber-500"
 					/>
-					Activar la voz diciendo «Jelly Cartoon»
+					Activar la voz diciendo «hola casita»
 				</label>
 				<p class="mt-2 text-sm text-zinc-400">
 					Sin pulsar nada: suena un pitido, dices lo que quieres y se envía cuando te callas.
 					Escucha mientras la app está abierta y delante, con la pantalla encendida; al abrir la app
-					hay que tocar la pantalla una vez. Nada sale del dispositivo hasta que oye «Jelly
-					Cartoon».
+					hay que tocar la pantalla una vez. Nada sale del dispositivo hasta que oye «hola casita».
 				</p>
 				{#if mounted && wakeWord.on}
 					<p class={['mt-2 text-sm', wakeWord.problem ? 'text-red-400' : 'text-zinc-300']}>
@@ -635,7 +634,7 @@
 							{
 								off: 'Parada.',
 								loading: 'Preparando (unos 9 MB la primera vez)…',
-								on: 'Escuchando «Jelly Cartoon».',
+								on: 'Escuchando «hola casita».',
 								tap: 'Toca la pantalla para que empiece a escuchar.'
 							}[wakeWord.status]}
 					</p>

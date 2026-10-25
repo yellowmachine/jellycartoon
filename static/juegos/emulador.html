@@ -1,0 +1,76 @@
+<!doctype html>
+<!--
+	The games' player (#176): EmulatorJS (GPL-3.0, https://emulatorjs.org), as its docs embed it, with
+	its files from its CDN at a fixed version (cores only work with their own version). Opened in a
+	frame by /tv/juegos/[system]/[file]/jugar, with the system, the game's URL, its title and where its
+	captures go.
+-->
+<html lang="es">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Juego</title>
+		<style>
+			html,
+			body,
+			#game {
+				margin: 0;
+				width: 100%;
+				height: 100%;
+				background: #000;
+				overflow: hidden;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="game"></div>
+		<script>
+			const params = new URLSearchParams(location.search);
+			const rom = params.get('rom') ?? '';
+			// Only the app's games.
+			if (rom.startsWith('/api/juegos/')) {
+				window.EJS_player = '#game';
+				window.EJS_core = params.get('core');
+				window.EJS_gameUrl = rom;
+				window.EJS_gameName = params.get('title');
+				window.EJS_pathtodata = 'https://cdn.emulatorjs.org/4.2.3/data/';
+				window.EJS_language = 'es-ES';
+				// Straight into the game: it was chosen with the remote already.
+				window.EJS_startOnLoaded = true;
+				// «Guardar Estado» into this browser rather than a file to download, in the living room.
+				window.EJS_defaultOptions = { 'save-state-location': 'browser' };
+				const loader = document.createElement('script');
+				loader.src = window.EJS_pathtodata + 'loader.js';
+				document.body.append(loader);
+			}
+			const backdrop = params.get('backdrop') ?? '';
+
+			/**
+			 * The game's picture (its canvas, without EmulatorJS' menus), as the background of its
+			 * page; the game goes on. Not the core's own capture (`retroarch`): in 4.2.3 it waits forever
+			 * for a file the core never writes.
+			 */
+			async function capture() {
+				const emulator = window.EJS_emulator;
+				if (!emulator?.started || !backdrop.startsWith('/api/fondo/juego/')) return;
+				const { blob } = await emulator.takeScreenshot('canvas', 'png', 1);
+				const res = await fetch(backdrop, {
+					method: 'POST',
+					headers: { 'content-type': 'image/png' },
+					body: blob
+				}).catch(() => null);
+				emulator.displayMessage(res?.ok ? 'Fondo guardado' : 'No se pudo guardar el fondo', 3000);
+			}
+
+			addEventListener('keydown', (e) => {
+				// The remote's Home (F7) to the TV view, as everywhere else: the frame gets the keys now.
+				if (e.key === 'F7') parent.dispatchEvent(new KeyboardEvent('keydown', { key: 'F7' }));
+				// Its Play/Pause (F8): this moment as the game's background.
+				else if (e.key === 'F8' && !e.repeat) {
+					e.preventDefault();
+					void capture();
+				}
+			});
+		</script>
+	</body>
+</html>

@@ -4,14 +4,24 @@ import { toWav } from '#lib/wakeword-recorder.ts';
 import { voice } from '#lib/voice-client.svelte.ts';
 
 /**
- * Saying «Jelly Cartoon» instead of pressing the microphone (#144, phase 2), on the phones and
+ * Saying «hola casita» instead of pressing the microphone (#144, phase 2), on the phones and
  * tablets that turn it on in Ajustes. In the browser, like the microphone's mode. It listens while
  * the app is open and in front; heard, it beeps and what is said next goes to the voice
  * (voice-client.svelte.ts), until a silence (vad.ts). Nothing leaves the device but that order.
  */
 
 const KEY = 'jellycartoon:wake-word';
-const MODEL = 'jelly_cartoon';
+/**
+ * The community's (static/wakeword/LEEME.md): with music playing on the tablet, the only one that
+ * went off well, and only with the sound not cleaned; «Jelly Cartoon», even trained with music,
+ * did not (tried in /activacion, 2026-10-25).
+ */
+const MODEL = 'hola_casita';
+/**
+ * The browser's echo cancellation and noise suppression, off: with music, Android's took the voice
+ * away with it. What is said after the word is heard with the music already paused.
+ */
+const PROCESSING = false;
 /** As /activacion's slider starts. */
 const THRESHOLD = 0.5;
 /** Busy (listening, thinking, reading the answer aloud) and this long after: not heard. */
@@ -77,7 +87,7 @@ class WakeWord {
 			this.#listening = await listen(
 				{
 					models: [MODEL],
-					processing: true,
+					processing: PROCESSING,
 					vad: true,
 					onScores: ([score]) => this.#score(score ?? 0),
 					onLevel() {},

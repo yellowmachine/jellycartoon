@@ -121,7 +121,7 @@ const KIDS_ROUTES: Record<string, { id?: Check; actions?: string[]; methods?: st
 	'/tv/cine/[id]': { id: 'movie', actions: ['play'] },
 	'/tv/canales': { actions: ['play'] },
 	'/tv/radio': {},
-	// Not /tv/podcasts: podcasts are not for children yet (#58).
+	// Not /tv/podcasts: podcasts are not for children yet (#58). Nor /tv/juegos, an experiment (#176).
 	'/tv/musica': {},
 	'/tv/musica/[id]': {},
 	'/tv/musica/listas/[id]': {},

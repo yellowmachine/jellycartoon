@@ -578,6 +578,24 @@ PIPER_URL="http://host.docker.internal:5000"
 `PIPER_VOICE_ES` y `PIPER_VOICE_EN` cambian las voces; tienen que estar en la carpeta de datos de
 Piper.
 
+### Juegos
+
+Un experimento (#176): juegos retro en la Vista TV, con
+[EmulatorJS](https://emulatorjs.org) (GPL-3.0) en el navegador y un mando de juego. Con
+`HOST_GAMES_DIR="/ruta/a/las/roms"` en el `.env` se monta de solo lectura y aparece la tarjeta
+Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`.
+
+- Una carpeta por consola, cada una con su emulador: `nes`, `snes`, `gb`, `gbc`, `gba` y
+  `megadrive`. Las demás no salen. Los juegos pueden ir tal cual o en `.zip` o `.7z`.
+- Cada juego tiene su página, con «Jugar» y lo que se sabe de él: la primera vez que se abre se
+  busca en Wikidata entre los juegos de su consola (año, desarrolladora, género, modos, música) y
+  se trae el resumen de la Wikipedia. Si hay dudas, la página pregunta cuál es.
+- El juego ocupa toda la pantalla; Atrás en el mando a distancia vuelve a su página.
+- El fondo de esa página es una captura del juego: Play/Pausa en el mando mientras se juega la
+  guarda (en `HOST_DATA_DIR/fondo`), y otra pulsación la cambia.
+- EmulatorJS se carga de su CDN, en la versión 4.2.3: el salón necesita internet para jugar.
+- Todavía sin partidas guardadas ni filtros, y no está para los peques.
+
 ### Dailymotion
 
 Dibujos de Dailymotion para los peques (#66), con el reproductor oficial de Dailymotion y su

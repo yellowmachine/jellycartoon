@@ -1411,3 +1411,39 @@ export const homework = pgTable(
 	},
 	(t) => [index('homework_kid_idx').on(t.kidId, t.status)]
 );
+
+/** What a game is, from Wikidata and Wikipedia; null until it is looked up. */
+export const gameInfoStatus = pgEnum('game_info_status', ['found', 'ambiguous', 'not_found']);
+
+/**
+ * A game of GAMES_DIR (#176), by its folder and file name: saved the first time its page is opened,
+ * and looked up then in Wikidata.
+ */
+export const game = pgTable(
+	'game',
+	{
+		id: serial('id').primaryKey(),
+		/** Its folder, one of SYSTEMS (games.ts). */
+		system: text('system').notNull(),
+		file: text('file').notNull(),
+		status: gameInfoStatus('status'),
+		wikidataId: text('wikidata_id'),
+		title: text('title'),
+		year: integer('year'),
+		developers: jsonb('developers').$type<string[]>().notNull().default([]),
+		publishers: jsonb('publishers').$type<string[]>().notNull().default([]),
+		genres: jsonb('genres').$type<string[]>().notNull().default([]),
+		/** One player, several… */
+		modes: jsonb('modes').$type<string[]>().notNull().default([]),
+		composers: jsonb('composers').$type<string[]>().notNull().default([]),
+		synopsis: text('synopsis'),
+		wikipediaUrl: text('wikipedia_url'),
+		/** For `ambiguous`: the games to choose from, best first. */
+		candidates: jsonb('candidates')
+			.$type<{ id: string; title: string; year: number | null; description: string | null }[]>()
+			.notNull()
+			.default([]),
+		updatedAt: timestamp('updated_at').notNull().defaultNow()
+	},
+	(t) => [unique('game_system_file').on(t.system, t.file)]
+);

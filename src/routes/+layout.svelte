@@ -41,7 +41,7 @@
 		if (updated.current && !willUnload && to?.url) location.href = to.url.href;
 	});
 
-	// «Jelly Cartoon» instead of the microphone (#144), where this device turned it on (Ajustes);
+	// «Hola casita» instead of the microphone (#144), where this device turned it on (Ajustes);
 	// not in /activacion, which tries the words with the microphone itself.
 	$effect(() => {
 		wakeWord.want(
