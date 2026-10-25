@@ -36,6 +36,10 @@ import { searchPlaces, whereIs } from '#lib/server/road/ors.ts';
 import { listSavedPlaces, listSavedRoutes } from '#lib/server/saved-places.ts';
 import { asksForRoute, findByName } from '#lib/saved-places.ts';
 import { addItems, addNote, tickOffByName, toBuy } from '#lib/server/fridge.ts';
+import { addExpense } from '#lib/server/expenses/expenses.ts';
+import { isKidAccount } from '#lib/server/kids.ts';
+import { EXPENSE_CATEGORIES, euros, isCategory } from '#lib/expenses.ts';
+import { today } from '#lib/server/playlist.ts';
 import { isUntilWord, UNTIL_WORDS, untilDay, untilText } from '#lib/fridge.ts';
 import { getRecipe, importRecipe, listRecipes } from '#lib/server/recipes/import.ts';
 import { isFavouritePage, listRecipeSites, searchRecipeSites } from '#lib/server/recipes/sites.ts';
@@ -279,6 +283,24 @@ function tools(house: boolean): Tool[] {
 			'Tacha algo de la lista de la compra: ya comprado, o ya no hace falta. «Ya tengo la leche», «quita el pan de la lista».',
 			{ item: { type: 'string', description: 'Lo que se tacha, como está en la lista.' } },
 			['item']
+		),
+		fn(
+			'add_expense',
+			'Apunta un gasto en los gastos de la casa (#194), que ven todos los adultos. «He gastado 40 euros en gasolina», «apunta 12,50 de la farmacia», «la cena ha sido 63 euros».',
+			{
+				amount: { type: 'number', description: 'Lo gastado, en euros: 12.5.' },
+				what: {
+					type: 'string',
+					description:
+						'Dónde o en qué, corto y con mayúscula, como se apuntaría: «Gasolina», «Farmacia», «Cena».'
+				},
+				category: {
+					type: 'string',
+					enum: [...EXPENSE_CATEGORIES],
+					description: 'La categoría que mejor le va.'
+				}
+			},
+			['amount', 'what', 'category']
 		),
 		fn(
 			'add_fridge_note',
@@ -849,6 +871,22 @@ async function runTool(
 			const wanted = typeof args.item === 'string' ? args.item : '';
 			const done = wanted ? await tickOffByName(wanted) : null;
 			return done ? `Tachado: ${done}.` : `«${wanted}» no está en la lista por comprar.`;
+		}
+		case 'add_expense': {
+			if (await isKidAccount(ctx.user.id)) return 'Los gastos son cosa de los mayores.';
+			const amount = Number(args.amount);
+			const what = typeof args.what === 'string' ? args.what.trim().slice(0, 120) : '';
+			if (!Number.isFinite(amount) || amount <= 0 || amount >= 1_000_000)
+				return 'Falta cuánto, en euros.';
+			if (!what) return 'Falta en qué.';
+			const total = Math.round(amount * 100);
+			const category = isCategory(args.category) ? args.category : 'Otros';
+			await addExpense(
+				ctx.user.id,
+				{ date: today(), store: what, category, total, lines: [] },
+				'voz'
+			);
+			return `Apuntado en Gastos: ${what}, ${euros(total)} (${category}).`;
 		}
 		case 'add_fridge_note': {
 			const text = typeof args.text === 'string' ? args.text.trim() : '';

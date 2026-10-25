@@ -12,6 +12,7 @@ import { openingQuote } from '#lib/server/opening-quote.ts';
 import { isGuardian } from '#lib/server/kid-login.ts';
 import { dailymotionEnabled } from '#lib/server/dailymotion.ts';
 import { avatarOf } from '#lib/server/people.ts';
+import { canReadReceipts } from '#lib/server/expenses/receipt.ts';
 
 export const load: LayoutServerLoad = async ({ locals, isDataRequest }) => {
 	const kid = isKid(locals.user);
@@ -54,6 +55,8 @@ export const load: LayoutServerLoad = async ({ locals, isDataRequest }) => {
 		salon: mpvEnabled,
 		/** Voice commands (#33): only with Whisper (WHISPER_URL), and not for a child's account yet. */
 		voice: voiceEnabled && !kid,
+		/** The header's shortcut to a receipt's photo (#194): an adult's, where one can be read. */
+		receipts: Boolean(locals.user) && !kid && (await canReadReceipts()),
 		/** A newer release, for who manages the app to install it (#20). */
 		newVersion: admin ? ((await versionInfo()).update?.version ?? null) : null
 	};

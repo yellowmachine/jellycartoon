@@ -1551,3 +1551,65 @@ export const djPreset = pgTable(
 	},
 	(t) => [unique('dj_preset_user_name').on(t.userId, t.name)]
 );
+
+/**
+ * The house's expenses (#194), shared by its adults: from a receipt's photo read by a vision model,
+ * said by voice, written by hand, or a fixed one added each month. In cents.
+ */
+export const expenseSource = pgEnum('expense_source', ['ticket', 'voz', 'mano', 'fijo']);
+
+export const expense = pgTable(
+	'expense',
+	{
+		id: serial('id').primaryKey(),
+		/** The day it was paid, as the receipt says. */
+		date: date('date').notNull(),
+		/** The shop, or what it was («Gasolina»). */
+		store: text('store').notNull(),
+		/** One of EXPENSE_CATEGORIES (expenses.ts). */
+		category: text('category').notNull(),
+		total: integer('total').notNull(),
+		source: expenseSource('source').notNull(),
+		/** Who put it in; null if their account is gone. */
+		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+		/** The receipt's photo, kept in DATA_DIR/gastos. */
+		receipt: text('receipt'),
+		/** The fixed one it came from. */
+		recurringId: integer('recurring_id').references(() => recurringExpense.id, {
+			onDelete: 'set null'
+		}),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [index('expense_date_idx').on(t.date)]
+);
+
+/** A receipt's lines, as read from it and corrected. */
+export const expenseLine = pgTable(
+	'expense_line',
+	{
+		id: serial('id').primaryKey(),
+		expenseId: integer('expense_id')
+			.notNull()
+			.references(() => expense.id, { onDelete: 'cascade' }),
+		position: integer('position').notNull(),
+		text: text('text').notNull(),
+		/** Units, or kg. */
+		quantity: doublePrecision('quantity'),
+		amount: integer('amount').notNull()
+	},
+	(t) => [index('expense_line_expense_idx').on(t.expenseId)]
+);
+
+/** Paid every month (rent, light, a subscription): added by itself on its day. */
+export const recurringExpense = pgTable('recurring_expense', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	category: text('category').notNull(),
+	amount: integer('amount').notNull(),
+	/** Day of the month, 1 to 28: every month has it. */
+	day: integer('day').notNull(),
+	/** The last month it was added, `YYYY-MM`; null, none yet. */
+	lastMonth: text('last_month'),
+	userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+	createdAt: timestamp('created_at').notNull().defaultNow()
+});
