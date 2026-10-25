@@ -20,7 +20,7 @@
 		{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
 	],
 	"share_target": {
-		"action": "/recetas",
+		"action": "/compartido",
 		"method": "GET",
 		"params": { "title": "title", "text": "text", "url": "url" }
 	},

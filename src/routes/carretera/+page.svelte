@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { beforeNavigate, goto } from '$app/navigation';
+	import { beforeNavigate, goto, replaceState } from '$app/navigation';
+	import { page } from '$app/state';
 	import { SvelteSet } from 'svelte/reactivity';
 	import MediaIcon from '#lib/components/MediaIcon.svelte';
 	import MusicBar from '#lib/components/MusicBar.svelte';
@@ -20,7 +21,7 @@
 	import { tripRecorder } from '#lib/trip-recorder.svelte.ts';
 	import { tripShare } from '#lib/trip-share.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
-	import { distanceText, type LngLat, type Place, type Route } from '#lib/road.ts';
+	import { distanceText, isLngLat, type LngLat, type Place, type Route } from '#lib/road.ts';
 	import { alongLine, guide, metresBetween } from '#lib/road-guide.ts';
 	import { STOP_REACHED_METRES, stopsAhead, type SavedRoute } from '#lib/saved-places.ts';
 	import { durationText, estimate, Pace } from '#lib/road-eta.ts';
@@ -236,8 +237,8 @@
 	 */
 	const moving = $derived((speed ?? 0) > 2.8);
 
-	async function search(e: SubmitEvent) {
-		e.preventDefault();
+	async function search(e?: SubmitEvent) {
+		e?.preventDefault();
 		if (!query.trim()) return;
 		routeBusy = 'search';
 		routeProblem = null;
@@ -393,6 +394,27 @@
 		tab = 'ruta';
 		void go(place);
 	}
+
+	/**
+	 * Shared from a map («Compartir → JellyCartoon» in Google Maps, through /compartido): its route at
+	 * once, or, not found, its name in the box to search. Once: the address is left clean, so that
+	 * reloading does not ask for it again.
+	 */
+	$effect(() => {
+		const params = untrack(() => page.url.searchParams);
+		const at = params.get('destino')?.split(',').map(Number);
+		const name = params.get('nombre') || 'Sitio compartido';
+		const asked = params.get('buscar');
+		if (!params.has('destino') && !asked) return;
+		untrack(() => {
+			replaceState('/carretera', {});
+			if (isLngLat(at)) choose({ label: name, at });
+			else if (asked) {
+				query = asked;
+				void search();
+			}
+		});
+	});
 
 	/**
 	 * Guidance (phase 3c), at every position: the next maneuver and how far it is. Off the route for

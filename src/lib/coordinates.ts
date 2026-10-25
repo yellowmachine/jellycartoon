@@ -68,6 +68,11 @@ function fromLink(t: string): LngLat | null {
 	// Google's pin: «!3d40.4168!4d-3.7038» in the path.
 	const pin = t.match(new RegExp(String.raw`!3d(${NUMBER})!4d(${NUMBER})`));
 	if (pin) return valid(Number(pin[1]), Number(pin[2]));
+	// Google's directions: each point as «!1d-3.7038!2d40.4168» (longitude first), the last one where to.
+	if (url.pathname.includes('/maps/dir/')) {
+		const to = [...t.matchAll(new RegExp(String.raw`!1d(${NUMBER})!2d(${NUMBER})`, 'g'))].at(-1);
+		if (to) return valid(Number(to[2]), Number(to[1]));
+	}
 	// OpenStreetMap's marker.
 	const mlat = url.searchParams.get('mlat');
 	const mlon = url.searchParams.get('mlon');

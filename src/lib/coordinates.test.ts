@@ -42,6 +42,15 @@ test('map links: the pin first, then where the map looks', () => {
 	near(parseCoordinates('geo:40.4168,-3.7038?z=15'), SOL);
 });
 
+test("Google's directions: where to, not where the map looks", () => {
+	near(
+		parseCoordinates(
+			'https://www.google.com/maps/dir/Pantheon/Vatican+City/@41.9104795,12.4867194,14.25z/am=t/data=!4m14!4m13!1m5!1m1!1s0x0:0x1!2m2!1d12.4768729!2d41.8986108!1m5!1m1!1s0x0:0x2!2m2!1d12.4536007!2d41.9021788!3e2'
+		),
+		[12.4536007, 41.9021788]
+	);
+});
+
 test('anything else, null', () => {
 	expect(parseCoordinates('')).toBeNull();
 	expect(parseCoordinates('Calle Mayor 5, Madrid')).toBeNull();
