@@ -20,6 +20,7 @@
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { wakeWord } from '#lib/wake-word.svelte.ts';
+	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import { page, updated } from '$app/state';
 	import { themeColor, themeCss } from '#lib/themes.ts';
 	import { avatar } from '#lib/avatars.ts';
@@ -84,6 +85,8 @@
 		...(data.kid ? [] : [{ href: '/recetas', label: 'Recetas', icon: 'recetas' as const }]),
 		// The house's post-its and shopping list (#131): the adults write on it; the TV shows it.
 		...(data.kid ? [] : [{ href: '/nevera', label: 'Nevera', icon: 'nevera' as const }]),
+		// The house's expenses (#194): its adults', all of them.
+		...(data.kid ? [] : [{ href: '/gastos', label: 'Gastos', icon: 'gastos' as const }]),
 		// The road mode's trips, and the way into it: not for a child's account, as Modo carretera.
 		...(data.kid ? [] : [{ href: '/viajes', label: 'Viajes', icon: 'viajes' as const }]),
 		...(data.salon ? [{ href: '/salon', label: 'Salón', icon: 'salon' as const }] : []),
@@ -324,6 +327,46 @@
 								/>
 							</svg>
 						</a>
+					{/if}
+					<!-- A receipt's photo for Gastos (#194), at once: on phones and tablets, with their camera; a
+				     PC has the button in Gastos. The photo is read there. -->
+					{#if data.receipts}
+						<label
+							title="Foto de un ticket, para Gastos"
+							aria-label="Foto de un ticket"
+							class={[
+								'hidden shrink-0 cursor-pointer rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white pointer-coarse:block',
+								data.voice ? '-ml-5 md:max-lg:-ml-2' : '-ml-3'
+							]}
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.75"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								class="h-6 w-6"
+								aria-hidden="true"
+							>
+								<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />
+								<path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
+								<path d="M12 17.5v-11" />
+							</svg>
+							<input
+								type="file"
+								accept="image/*"
+								capture="environment"
+								class="hidden"
+								onchange={(e) => {
+									const photo = e.currentTarget.files?.[0];
+									e.currentTarget.value = '';
+									if (!photo) return;
+									pendingReceipt.photo = photo;
+									if (page.url.pathname !== '/gastos') void goto('/gastos');
+								}}
+							/>
+						</label>
 					{/if}
 					<!-- Wide screens: every link in a row; with its icon from xl, as with every section both do
 				     not fit in 1024px. A tablet (md, up to lg): every link too, its icon over a small
