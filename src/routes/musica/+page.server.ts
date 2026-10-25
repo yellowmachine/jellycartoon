@@ -11,29 +11,32 @@ import { musicProgress } from '#lib/server/music/status.ts';
 import { parseView, viewCookie } from '#lib/views.ts';
 import { isKid } from '#lib/server/kids.ts';
 import { djEnabled } from '#lib/server/music/dj.ts';
+import { openRouterConfig } from '#lib/server/app-settings.ts';
 import { deletePreset, presetsOf, savePreset } from '#lib/server/music/dj-presets.ts';
 import { parseDjOptions } from '#lib/music.ts';
 
 /** A saved setup's name: short enough for the menu. */
 const PRESET_NAME_MAX = 60;
 
-/** Modo DJ: with Piper (PIPER_URL), and not for a child's account (#117). */
+/** Modo DJ's setups: not for a child's account (#117). */
 function djFor(user: App.Locals['user']) {
-	if (!djEnabled || isKid(user)) error(404, 'Sin Modo DJ');
+	if (isKid(user)) error(404, 'Sin Modo DJ');
 	return user!.id;
 }
 
 export const load: PageServerLoad = async ({ cookies, locals }) => {
 	if (!musicRoot) error(404, 'No hay carpeta de música (MUSIC_DIR)');
-	const dj = djEnabled && !isKid(locals.user);
+	const dj = !isKid(locals.user) && (await djEnabled());
 	const [albums, totals, djPresets] = await Promise.all([
 		getAlbums(),
 		musicTotals(),
 		dj ? presetsOf(locals.user!.id) : []
 	]);
 	return {
-		/** Modo DJ: with Piper (PIPER_URL), and not for a child's account (#117). */
+		/** Modo DJ: with a voice (OpenRouter's or Piper's), and not for a child's account (#117). */
 		dj,
+		/** A man's or a woman's voice: only OpenRouter's has both. */
+		djVoices: dj && Boolean((await openRouterConfig()).apiKey),
 		/** The person's saved setups, to start again from the menu. */
 		djPresets,
 		albums,

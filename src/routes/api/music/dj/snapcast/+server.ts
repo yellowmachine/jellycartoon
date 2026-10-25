@@ -6,7 +6,7 @@ import { parseDjOptions } from '#lib/music.ts';
 
 /** Modo DJ on Snapcast, instead of whatever was on. */
 export const POST: RequestHandler = async ({ request }) => {
-	if (!djEnabled || !snapcastEnabled) error(404, 'No hay modo DJ en Snapcast');
+	if (!(await djEnabled()) || !snapcastEnabled) error(404, 'No hay modo DJ en Snapcast');
 	const options = parseDjOptions(await request.json());
 	if (!options) error(400, 'Opciones no válidas');
 	try {

@@ -65,7 +65,14 @@ export interface DjOptions {
 	lang: 'es' | 'en';
 	/** Songs between one talk and the next. */
 	every: number;
+	/** The DJ's voice, a man's or a woman's (OpenRouter's; Piper has only its own). */
+	voice: DjVoice;
 }
+
+export type DjVoice = 'male' | 'female';
+/** For setups saved before there was a choice. */
+export const DJ_DEFAULT_VOICE: DjVoice = 'male';
+export const isDjVoice = (v: unknown): v is DjVoice => v === 'male' || v === 'female';
 
 /** A Modo DJ setup saved with a name, to start it again. */
 export interface DjPreset {
@@ -79,7 +86,7 @@ export const DJ_EVERY = { min: 1, max: 8, default: 3 };
 /** Options from a page, only if well formed. */
 export function parseDjOptions(body: unknown): DjOptions | null {
 	if (!body || typeof body !== 'object') return null;
-	const { artists, lang, every } = body as Record<string, unknown>;
+	const { artists, lang, every, voice = DJ_DEFAULT_VOICE } = body as Record<string, unknown>;
 	if (!Array.isArray(artists) || artists.length > 500) return null;
 	if (!artists.every((a) => typeof a === 'string')) return null;
 	if (lang !== 'es' && lang !== 'en') return null;
@@ -89,7 +96,8 @@ export function parseDjOptions(body: unknown): DjOptions | null {
 		(every as number) > DJ_EVERY.max
 	)
 		return null;
-	return { artists: artists as string[], lang, every: every as number };
+	if (!isDjVoice(voice)) return null;
+	return { artists: artists as string[], lang, every: every as number, voice };
 }
 
 /** A Snapcast client: a speaker somewhere in the house. */

@@ -206,7 +206,7 @@
 		{:else}
 			<button class={djClass} title={djTitle} onclick={() => djDialog?.open()}>Modo DJ</button>
 		{/if}
-		<DjDialog bind:this={djDialog} {artists} />
+		<DjDialog bind:this={djDialog} {artists} voices={data.djVoices} />
 	{/if}
 	<input
 		type="search"

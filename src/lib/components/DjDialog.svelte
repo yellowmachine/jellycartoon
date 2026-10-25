@@ -1,7 +1,14 @@
 <script lang="ts">
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import { dj } from '#lib/dj.svelte.ts';
-	import { DJ_EVERY, fold, type DjOptions, type DjPreset, type MusicArtist } from '#lib/music.ts';
+	import {
+		DJ_DEFAULT_VOICE,
+		DJ_EVERY,
+		fold,
+		type DjOptions,
+		type DjPreset,
+		type MusicArtist
+	} from '#lib/music.ts';
 	import { musicTarget } from '#lib/music-target.svelte.ts';
 
 	/**
@@ -9,12 +16,13 @@
 	 * speaks; then it starts where the music sounds (this browser or Snapcast). A setup can be
 	 * saved with a name, to start it again from the menu.
 	 */
-	let { artists }: { artists: MusicArtist[] } = $props();
+	let { artists, voices }: { artists: MusicArtist[]; voices: boolean } = $props();
 
 	let dialog = $state<HTMLDialogElement>();
 	let chosen = $state<string[]>([]);
 	let lang = $state<DjOptions['lang']>('es');
 	let every = $state(DJ_EVERY.default);
+	let voice = $state(DJ_DEFAULT_VOICE);
 	let filter = $state('');
 	let starting = $state(false);
 	let problem = $state<string | null>(null);
@@ -25,7 +33,7 @@
 	/** As last saved, to show it is so until something changes. */
 	let savedAs = $state<string | null>(null);
 
-	const options = $derived<DjOptions>({ artists: chosen, lang, every });
+	const options = $derived<DjOptions>({ artists: chosen, lang, every, voice });
 	const saved = $derived(savedAs === JSON.stringify({ name: name.trim(), options }));
 
 	const shown = $derived(
@@ -45,6 +53,8 @@
 			chosen = existing(from.artists);
 			lang = from.lang;
 			every = from.every;
+			// Saved before there was a choice.
+			voice = from.voice ?? DJ_DEFAULT_VOICE;
 		}
 		presetId = preset?.id ?? null;
 		name = preset?.name ?? '';
@@ -57,7 +67,12 @@
 	/** Straight from the menu; if it cannot, the dialog says why. */
 	export async function startPreset(preset: DjPreset) {
 		try {
-			await dj.play({ ...preset.options, artists: existing(preset.options.artists) });
+			await dj.play({
+				...preset.options,
+				artists: existing(preset.options.artists),
+				// Saved before there was a choice.
+				voice: preset.options.voice ?? DJ_DEFAULT_VOICE
+			});
 		} catch (err) {
 			open(preset);
 			problem = err instanceof Error ? err.message : String(err);
@@ -154,6 +169,16 @@
 			</select>
 			{every === 1 ? 'canción' : 'canciones'}
 		</label>
+		<!-- Only OpenRouter's voice has both; Piper speaks with its own. -->
+		{#if voices}
+			<label class="flex items-center gap-2">
+				Voz de
+				<select bind:value={voice} class="rounded-md border-zinc-700 bg-zinc-950 py-1 text-sm">
+					<option value="male">hombre</option>
+					<option value="female">mujer</option>
+				</select>
+			</label>
+		{/if}
 	</div>
 
 	<form

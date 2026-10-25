@@ -99,7 +99,8 @@ class Dj {
 			const clip = await post<MusicTrack>('/api/music/dj/clip', {
 				played: this.#played.map((t) => t.id),
 				next: next && !next.clip ? next.id : null,
-				lang: options.lang
+				lang: options.lang,
+				voice: options.voice
 			});
 			// Still on that song, in the same Modo DJ: after it, and the count starts again. If not,
 			// the next song tries again.
