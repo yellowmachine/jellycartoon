@@ -1,5 +1,44 @@
-import { openRouterConfig } from '#lib/server/app-settings.ts';
+import { createHash, randomBytes } from 'node:crypto';
+import { openRouterConfig, openRouterManagementKey } from '#lib/server/app-settings.ts';
 import { log } from '#lib/server/log.ts';
+
+/** Where the account's credit is bought, and seen. */
+export const CREDITS_URL = 'https://openrouter.ai/settings/credits';
+
+/** Said wherever the AI fails for it: voice, the DJ, a film's card… */
+export const NO_CREDIT = `Se ha acabado el crédito de OpenRouter (o la clave ha llegado a su límite): recárgalo en ${CREDITS_URL}`;
+
+/** When a request was last refused for the credit; null once one goes through (for Ajustes). */
+let creditOutAt: Date | null = null;
+
+export const creditRunOutAt = () => creditOutAt;
+
+/** OpenRouter's error object, in the body or in a stream: https://openrouter.ai/docs/api/reference/errors-and-debugging */
+interface OpenRouterError {
+	code?: number | string;
+	message?: string;
+	metadata?: { limit_source?: string };
+}
+
+/**
+ * The error to throw: with no credit left (402), said so for a person. Not one that only waits
+ * for requests already running (`openrouter_in_flight_budget`), which goes by itself.
+ */
+function failure(error: OpenRouterError | undefined, fallback: string) {
+	if (
+		Number(error?.code) === 402 &&
+		error?.metadata?.limit_source !== 'openrouter_in_flight_budget'
+	) {
+		if (!creditOutAt) log.warn('ia', NO_CREDIT);
+		creditOutAt = new Date();
+		return new Error(NO_CREDIT);
+	}
+	return new Error(`OpenRouter: ${error?.message ?? fallback}`);
+}
+
+/** A refused answer's error, with its HTTP status when the body has no code. */
+const refused = (res: Response, body: { error?: OpenRouterError } | null) =>
+	failure({ ...body?.error, code: body?.error?.code ?? res.status }, res.statusText);
 
 /** What OpenRouter says a request used and cost, in every answer: https://openrouter.ai/docs/guides/guides/usage-accounting */
 export interface Usage {
@@ -31,6 +70,8 @@ function logUsage(
 	body: { model?: string; provider?: string; usage?: Usage },
 	details?: Record<string, unknown>
 ) {
+	// Went through: there is credit again.
+	creditOutAt = null;
 	log.info('ia', `${label}: ${describeUsage(body.usage)}`, {
 		model: body.model,
 		provider: body.provider,
@@ -102,7 +143,7 @@ export async function completeJson<T>(request: {
 		])
 	});
 	const body = await res.json().catch(() => null);
-	if (!res.ok) throw new Error(`OpenRouter: ${body?.error?.message ?? res.statusText}`);
+	if (!res.ok) throw refused(res, body);
 	// Errors once the provider has started answering come with a 200, inside the choice:
 	// https://openrouter.ai/docs/api/reference/errors-and-debugging
 	const choice = body?.choices?.[0];
@@ -111,6 +152,8 @@ export async function completeJson<T>(request: {
 	// Billed even when it fails, e.g. a reasoning model that thought until it ran out of tokens.
 	if (body?.usage) logUsage(request.label, body, request.details);
 	if (typeof content !== 'string' || !content.trim()) {
+		const error = body?.error ?? choice?.error;
+		if (Number(error?.code) === 402) throw failure(error, '');
 		const why =
 			body?.error?.message ??
 			choice?.error?.message ??
@@ -188,8 +231,7 @@ export async function* streamChat(request: {
 			signal: AbortSignal.any([request.signal, idle.signal])
 		});
 		if (!res.ok || !res.body) {
-			const body = await res.json().catch(() => null);
-			throw new Error(`OpenRouter: ${body?.error?.message ?? res.statusText}`);
+			throw refused(res, await res.json().catch(() => null));
 		}
 
 		const seen = new Set<string>();
@@ -206,7 +248,7 @@ export async function* streamChat(request: {
 				if (data === '[DONE]') return;
 				const event = JSON.parse(data);
 				// Errors after the answer has started come inside the stream.
-				if (event.error) throw new Error(`OpenRouter: ${event.error.message ?? event.error.code}`);
+				if (event.error) throw failure(event.error, String(event.error.code));
 				// The usage comes in the last message, with no text.
 				if (event.usage) logUsage(request.label, event, request.details);
 				const delta = event.choices?.[0]?.delta;
@@ -285,11 +327,13 @@ export async function chatWithTools(request: {
 		signal: AbortSignal.timeout(request.timeoutMs ?? 30_000)
 	});
 	const body = await res.json().catch(() => null);
-	if (!res.ok) throw new Error(`OpenRouter: ${body?.error?.message ?? res.statusText}`);
+	if (!res.ok) throw refused(res, body);
 	if (body?.usage) logUsage(request.label, body, request.details);
 	const choice = body?.choices?.[0];
 	const message = choice?.message;
 	if (!message) {
+		const error = body?.error ?? choice?.error;
+		if (Number(error?.code) === 402) throw failure(error, '');
 		const why = body?.error?.message ?? choice?.error?.message;
 		throw new Error(`OpenRouter: respuesta vacía${why ? `: ${why}` : ''}`);
 	}
@@ -299,25 +343,106 @@ export async function chatWithTools(request: {
 	};
 }
 
-/** What is left on the key and what it has spent, in dollars; `left` only when the key has a limit. */
+/**
+ * `input` read aloud (https://openrouter.ai/docs/guides/overview/multimodal/tts), as raw PCM: 16-bit,
+ * mono, at `rate` (Gemini's speech models give only that). `instructions` say how, without being
+ * read.
+ */
+export async function speech(request: {
+	model: string;
+	voice: string;
+	input: string;
+	instructions?: string;
+	timeoutMs?: number;
+}): Promise<{ pcm: Uint8Array; rate: number }> {
+	const { apiKey } = await openRouterConfig();
+	if (!apiKey) throw new Error('No hay clave de OpenRouter: ponla en Ajustes');
+	const res = await fetch('https://openrouter.ai/api/v1/audio/speech', {
+		method: 'POST',
+		headers: {
+			Authorization: `Bearer ${apiKey}`,
+			'Content-Type': 'application/json',
+			'X-OpenRouter-Title': 'JellyCartoon'
+		},
+		body: JSON.stringify({
+			model: request.model,
+			voice: request.voice,
+			input: request.input,
+			...(request.instructions && { instructions: request.instructions }),
+			response_format: 'pcm'
+		}),
+		signal: AbortSignal.timeout(request.timeoutMs ?? 60_000)
+	});
+	if (!res.ok) throw refused(res, await res.json().catch(() => null));
+	// Went through: there is credit again.
+	creditOutAt = null;
+	// E.g. `audio/pcm;rate=24000;channels=1`.
+	const rate = Number(/rate=(\d+)/.exec(res.headers.get('content-type') ?? '')?.[1]) || 24_000;
+	return { pcm: new Uint8Array(await res.arrayBuffer()), rate };
+}
+
+/** The account's own credit, with a management key: bought, used and left, in dollars. */
+export interface AccountCredits {
+	bought: number;
+	used: number;
+	left: number;
+}
+
+/** What the key has spent and its own limit, in dollars; the account's real credit if known. */
 export interface KeyBalance {
+	/** The key's own limit, if it has one (not the account's credit). */
 	limit: number | null;
 	left: number | null;
-	spent: { day: number; week: number; month: number };
+	spent: { day: number; week: number; month: number; total: number };
+	/** Only with a management key in Ajustes; null when it failed (`creditsProblem`). */
+	credits: AccountCredits | null;
+	creditsProblem: string | null;
+	/** The last request refused for the credit, if none has gone through since. */
+	creditOutAt: Date | null;
 }
 
 /**
- * The key's own balance, with the key itself (no management key):
- * https://openrouter.ai/docs/api/reference/limits. Null when there is no key or no answer.
+ * The account's credit, which needs a management key:
+ * https://openrouter.ai/docs/api/api-reference/credits/get-credits. Throws, said for a person.
+ */
+export async function accountCredits(managementKey: string): Promise<AccountCredits> {
+	const res = await fetch('https://openrouter.ai/api/v1/credits', {
+		headers: { Authorization: `Bearer ${managementKey}` },
+		signal: AbortSignal.timeout(10_000)
+	});
+	if (res.status === 401 || res.status === 403)
+		throw new Error('OpenRouter no la acepta: tiene que ser una clave de gestión (management key)');
+	if (!res.ok) throw new Error(`OpenRouter: ${res.status} ${res.statusText}`);
+	const { data } = await res.json();
+	const bought = Number(data?.total_credits ?? 0);
+	const used = Number(data?.total_usage ?? 0);
+	return { bought, used, left: bought - used };
+}
+
+/**
+ * What the key has spent, with the key itself (https://openrouter.ai/docs/api/api-reference/api-keys/get-current-key),
+ * and the account's credit with the management key, if there is one. Null when there is no key or
+ * no answer.
  */
 export async function keyBalance(): Promise<KeyBalance | null> {
-	const { apiKey } = await openRouterConfig();
+	const [{ apiKey }, managementKey] = await Promise.all([
+		openRouterConfig(),
+		openRouterManagementKey()
+	]);
 	if (!apiKey) return null;
 	try {
-		const res = await fetch('https://openrouter.ai/api/v1/key', {
-			headers: { Authorization: `Bearer ${apiKey}` },
-			signal: AbortSignal.timeout(10_000)
-		});
+		const [res, credits] = await Promise.all([
+			fetch('https://openrouter.ai/api/v1/key', {
+				headers: { Authorization: `Bearer ${apiKey}` },
+				signal: AbortSignal.timeout(10_000)
+			}),
+			managementKey
+				? accountCredits(managementKey).then(
+						(credits) => ({ credits, problem: null }),
+						(error: Error) => ({ credits: null, problem: error.message })
+					)
+				: { credits: null, problem: null }
+		]);
 		if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
 		const { data } = await res.json();
 		return {
@@ -326,11 +451,50 @@ export async function keyBalance(): Promise<KeyBalance | null> {
 			spent: {
 				day: data.usage_daily ?? 0,
 				week: data.usage_weekly ?? 0,
-				month: data.usage_monthly ?? 0
-			}
+				month: data.usage_monthly ?? 0,
+				total: data.usage ?? 0
+			},
+			credits: credits.credits,
+			creditsProblem: credits.problem,
+			creditOutAt
 		};
 	} catch (error) {
 		log.warn('ia', 'No se pudo consultar el saldo de OpenRouter', { error });
 		return null;
 	}
+}
+
+/**
+ * «Conectar con OpenRouter»: the person signs in there (or makes the account) and authorises the
+ * app, and it gets a key of its own, billed to their credit. OAuth with PKCE:
+ * https://openrouter.ai/docs/guides/overview/auth/oauth
+ */
+export function openRouterAuth(callbackUrl: string) {
+	const verifier = randomBytes(32).toString('base64url');
+	const state = randomBytes(16).toString('base64url');
+	const challenge = createHash('sha256').update(verifier).digest('base64url');
+	const url = new URL('https://openrouter.ai/auth');
+	url.searchParams.set('callback_url', callbackUrl);
+	url.searchParams.set('code_challenge', challenge);
+	url.searchParams.set('code_challenge_method', 'S256');
+	url.searchParams.set('state', state);
+	url.searchParams.set('key_label', 'JellyCartoon');
+	return { url: url.href, verifier, state };
+}
+
+/** The PKCE verifier and the state, from «Conectar» until OpenRouter sends the browser back. */
+export const OAUTH_COOKIE = 'openrouter_oauth';
+
+/** The code OpenRouter came back with, for the key (single use, valid 10 minutes). */
+export async function openRouterKeyFromCode(code: string, verifier: string) {
+	const res = await fetch('https://openrouter.ai/api/v1/auth/keys', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ code, code_verifier: verifier, code_challenge_method: 'S256' }),
+		signal: AbortSignal.timeout(15_000)
+	});
+	const body = await res.json().catch(() => null);
+	if (!res.ok || typeof body?.key !== 'string')
+		throw new Error(`OpenRouter: ${body?.error?.message ?? res.statusText}`);
+	return body.key as string;
 }

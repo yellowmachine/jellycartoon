@@ -537,8 +537,15 @@ cosa también sale. Las cuentas infantiles no lo tienen.
 
 El texto lo escribe la IA de OpenRouter (el modelo de la voz, en Ajustes) solo con lo que dicen los
 ficheros: título, artista y álbum. Cuesta unos 0,0001 $ por locución. Sin clave, dice una frase fija.
-La voz es [Piper](https://github.com/OHF-Voice/piper1-gpl), con su servidor HTTP en el PC, como
-Ollama:
+
+Con la clave de OpenRouter, la voz también es de OpenRouter: Gemini 3.8 Flash TTS, de hombre (Puck)
+o de mujer (Laomedeia), a elegir en el diálogo del modo DJ. Dice bien los nombres y títulos en
+inglés dentro de una frase en español, y cuesta alrededor de medio céntimo por locución (unos 5
+céntimos por hora, hablando cada 3 canciones). No hace falta instalar nada más.
+
+Sin clave, o como plan B si OpenRouter falla, la voz es
+[Piper](https://github.com/OHF-Voice/piper1-gpl), gratis y en local, con su servidor HTTP en el PC,
+como Ollama:
 
 ```sh
 python3 -m venv ~/piper && ~/piper/bin/pip install 'piper-tts[http]'

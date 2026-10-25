@@ -703,6 +703,18 @@
 				</p>
 
 				<h3 class="mb-2 text-sm text-zinc-300">Clave</h3>
+				{#if data.ai.connected}
+					<p
+						class={['mb-3 text-sm', data.ai.connected === 'ok' ? 'text-amber-400' : 'text-red-400']}
+					>
+						{{
+							ok: '✓ Conectado con OpenRouter: la app ya tiene su clave.',
+							cancelado: 'No se ha conectado: se canceló en OpenRouter.',
+							caducado:
+								'No se ha conectado: tardó demasiado o se empezó en otro navegador. Prueba otra vez.'
+						}[data.ai.connected] ?? 'No se ha podido conectar con OpenRouter. Prueba otra vez.'}
+					</p>
+				{/if}
 				{#if data.ai.keySource === 'env'}
 					<p class="mb-4 text-sm">
 						Configurada en el <code>.env</code> (OPENROUTER_API_KEY) · {data.ai.keyHint}. Para
@@ -718,55 +730,149 @@
 							</form>
 						</div>
 					{/if}
-					<form
-						method="post"
-						action="?seccion={tab}&/saveKey"
-						use:enhance
-						class="mb-4 flex flex-wrap gap-2"
-					>
-						<input
-							type="password"
-							name="key"
-							autocomplete="new-password"
-							placeholder={data.ai.keyHint ? 'Nueva clave' : 'sk-or-…'}
-							aria-label="Clave de OpenRouter"
-							class="{select} min-w-0 flex-1 font-mono"
-						/>
-						<button class={primary}>{data.ai.keyHint ? 'Cambiar' : 'Guardar'}</button>
+					<!-- Off to OpenRouter and back (OAuth): not enhanced, the browser goes there itself. -->
+					<form method="post" action="?seccion={tab}&/connectOpenRouter" class="mb-2">
+						<button class={data.ai.keyHint ? secondary : primary}
+							>{data.ai.keyHint
+								? 'Volver a conectar con OpenRouter'
+								: 'Conectar con OpenRouter'}</button
+						>
 					</form>
+					<p class="mb-3 text-xs text-zinc-500">
+						Entras en OpenRouter (o te creas la cuenta), lo autorizas y vuelves aquí con la clave
+						hecha. Lo que se use se paga con el crédito de esa cuenta.
+					</p>
+					<details class="mb-4 text-sm">
+						<summary class="cursor-pointer text-zinc-400 hover:text-white">
+							O pega una clave a mano
+						</summary>
+						<form
+							method="post"
+							action="?seccion={tab}&/saveKey"
+							use:enhance
+							class="mt-2 flex flex-wrap gap-2"
+						>
+							<input
+								type="password"
+								name="key"
+								autocomplete="new-password"
+								placeholder={data.ai.keyHint ? 'Nueva clave' : 'sk-or-…'}
+								aria-label="Clave de OpenRouter"
+								class="{select} min-w-0 flex-1 font-mono"
+							/>
+							<button class={secondary}>{data.ai.keyHint ? 'Cambiar' : 'Guardar'}</button>
+						</form>
+					</details>
 				{/if}
 
 				{#if data.ai.keyHint}
-					<h3 class="mb-2 text-sm text-zinc-300">Saldo</h3>
-					<p class="mb-4 text-sm">
+					<h3 class="mb-2 text-sm text-zinc-300">Crédito y gasto</h3>
+					<div class="mb-4 text-sm">
 						{#await data.ai.balance}
 							<span class="text-zinc-500">Consultando…</span>
 						{:then balance}
 							{#if !balance}
 								<span class="text-zinc-500">No se pudo consultar.</span>
 							{:else}
-								{#if balance.left !== null}
-									Quedan <b>{dollars(balance.left)}</b> de {dollars(balance.limit!)} ·
-								{/if}
-								<span class="text-zinc-400">
-									gastado hoy {dollars(balance.spent.day)} · esta semana {dollars(
-										balance.spent.week
-									)} · este mes {dollars(balance.spent.month)}
-								</span>
-								{#if balance.left === null}
-									<span class="mt-1 block text-xs text-zinc-500">
-										La clave no tiene límite: ponle uno en
+								{#if balance.creditOutAt}
+									<p class="mb-2 text-red-400">
+										Se acabó el crédito ({balance.creditOutAt.toLocaleString('es-ES', {
+											dateStyle: 'short',
+											timeStyle: 'short'
+										})}): lo que usa la IA no funciona hasta que lo recargues en
 										<a
-											href="https://openrouter.ai/keys"
+											href="https://openrouter.ai/settings/credits"
+											class="underline"
+											target="_blank"
+											rel="noreferrer">openrouter.ai</a
+										>.
+									</p>
+								{/if}
+								{#if balance.credits}
+									<p class="mb-1">
+										Quedan <b>{dollars(balance.credits.left)}</b> en la cuenta
+										<span class="text-zinc-400">
+											· comprados {dollars(balance.credits.bought)}, gastados {dollars(
+												balance.credits.used
+											)}</span
+										>
+									</p>
+								{:else if balance.creditsProblem}
+									<p class="mb-1 text-red-400">Clave de gestión: {balance.creditsProblem}</p>
+								{/if}
+								{#if balance.left !== null}
+									<p class="mb-1">
+										Límite de esta clave: quedan {dollars(balance.left)} de {dollars(
+											balance.limit!
+										)}
+									</p>
+								{/if}
+								<p class="text-zinc-400">
+									Esta clave ha gastado hoy {dollars(balance.spent.day)} · esta semana {dollars(
+										balance.spent.week
+									)} · este mes {dollars(balance.spent.month)} · en total {dollars(
+										balance.spent.total
+									)}
+								</p>
+								{#if !balance.credits}
+									<p class="mt-1 text-xs text-zinc-500">
+										Lo que te queda en la cuenta se ve en
+										<a
+											href="https://openrouter.ai/settings/credits"
 											class="hover:underline"
 											target="_blank"
-											rel="noreferrer">openrouter.ai/keys</a
-										> para ver lo que queda (y no gastar de más).
-									</span>
+											rel="noreferrer">openrouter.ai/settings/credits</a
+										>.
+									</p>
 								{/if}
 							{/if}
 						{/await}
-					</p>
+					</div>
+
+					<!-- Optional: OpenRouter only tells the account's credit to a management key. -->
+					<details class="mb-4 text-sm">
+						<summary class="cursor-pointer text-zinc-400 hover:text-white">
+							Ver aquí el crédito que queda (opcional)
+						</summary>
+						<p class="mt-2 mb-2 text-xs text-zinc-500">
+							OpenRouter solo dice el crédito de la cuenta a una «clave de gestión», que se crea a
+							mano en
+							<a
+								href="https://openrouter.ai/settings/management-keys"
+								class="hover:underline"
+								target="_blank"
+								rel="noreferrer">openrouter.ai/settings/management-keys</a
+							>. Solo sirve para eso: no se usa para la IA. Se guarda cifrada.
+						</p>
+						{#if data.ai.hasManagementKey}
+							<form
+								method="post"
+								action="?seccion={tab}&/deleteManagementKey"
+								use:enhance
+								class="flex items-center gap-3"
+							>
+								<span>Clave de gestión guardada</span>
+								<button class="text-red-400 hover:underline">Borrar</button>
+							</form>
+						{:else}
+							<form
+								method="post"
+								action="?seccion={tab}&/saveManagementKey"
+								use:enhance
+								class="flex flex-wrap gap-2"
+							>
+								<input
+									type="password"
+									name="key"
+									autocomplete="new-password"
+									placeholder="sk-or-…"
+									aria-label="Clave de gestión de OpenRouter"
+									class="{select} min-w-0 flex-1 font-mono"
+								/>
+								<button class={secondary}>Guardar</button>
+							</form>
+						{/if}
+					</details>
 				{/if}
 
 				{#snippet modelForm(

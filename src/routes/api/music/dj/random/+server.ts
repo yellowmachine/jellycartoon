@@ -10,7 +10,7 @@ const isIds = (value: unknown): value is number[] =>
 
 /** Modo DJ in the browser: more songs at random, of those artists, not the ones already queued. */
 export const POST: RequestHandler = async ({ request }) => {
-	if (!musicRoot || !djEnabled) error(404, 'No hay modo DJ');
+	if (!musicRoot || !(await djEnabled())) error(404, 'No hay modo DJ');
 	const { artists, exclude } = await request.json();
 	if (!isStrings(artists) || !isIds(exclude)) error(400, 'Petición no válida');
 	return json(await randomTracks(artists, DJ_BATCH, exclude));

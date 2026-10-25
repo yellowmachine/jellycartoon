@@ -1,14 +1,19 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 
 mock.module('#lib/server/app-settings.ts', () => ({
-	openRouterConfig: async () => ({ apiKey: 'k', model: 'anthropic/claude-haiku-5.5' })
+	openRouterConfig: async () => ({ apiKey: 'k', model: 'anthropic/claude-haiku-5.5' }),
+	openRouterManagementKey: async () => null
 }));
 /** What was written to the Registro. */
 const logged: { source: string; message: string }[] = [];
 mock.module('#lib/server/log.ts', () => ({
-	log: { info: (source: string, message: string) => logged.push({ source, message }) }
+	log: {
+		info: (source: string, message: string) => logged.push({ source, message }),
+		warn: (source: string, message: string) => logged.push({ source, message })
+	}
 }));
-const { completeJson, describeUsage, streamChat } = await import('./openrouter.ts');
+const { completeJson, creditRunOutAt, describeUsage, NO_CREDIT, openRouterAuth, streamChat } =
+	await import('./openrouter.ts');
 
 const realFetch = globalThis.fetch;
 afterEach(() => (globalThis.fetch = realFetch));
@@ -204,5 +209,57 @@ describe('usage', () => {
 		]);
 		await collect();
 		expect(logged).toEqual([{ source: 'ia', message: 'Conversación: 50 + 1 tokens, 0,0005 $' }]);
+	});
+});
+
+describe('no credit left', () => {
+	const ask = () =>
+		completeJson({ system: 's', prompt: 'p', name: 'x', label: 'Prueba', schema: {} });
+	const refuse = (error: object) =>
+		(globalThis.fetch = (async () =>
+			new Response(JSON.stringify({ error }), { status: 402 })) as unknown as typeof fetch);
+
+	test('a 402 is said for a person, and remembered until a request goes through', async () => {
+		refuse({ code: 402, message: 'Insufficient credits' });
+		await expect(ask()).rejects.toThrow(NO_CREDIT);
+		expect(creditRunOutAt()).toBeInstanceOf(Date);
+
+		globalThis.fetch = (async () =>
+			Response.json({
+				choices: [{ message: { content: '{}' } }],
+				usage: { prompt_tokens: 1, completion_tokens: 1 }
+			})) as unknown as typeof fetch;
+		await ask();
+		expect(creditRunOutAt()).toBeNull();
+	});
+
+	test('not when it only waits for requests already running', async () => {
+		refuse({
+			code: 402,
+			message: 'busy',
+			metadata: { limit_source: 'openrouter_in_flight_budget' }
+		});
+		await expect(ask()).rejects.toThrow('OpenRouter: busy');
+		expect(creditRunOutAt()).toBeNull();
+	});
+
+	test('also inside a stream', async () => {
+		answer([`data: ${JSON.stringify({ error: { code: 402, message: 'no' } })}\n\n`]);
+		await expect(collect()).rejects.toThrow(NO_CREDIT);
+	});
+});
+
+describe('openRouterAuth', () => {
+	test('PKCE S256: the challenge is the verifier hashed, with the way back and a state', async () => {
+		const { url, verifier, state } = openRouterAuth('https://casa.example/ajustes/openrouter');
+		const link = new URL(url);
+		expect(link.origin + link.pathname).toBe('https://openrouter.ai/auth');
+		expect(link.searchParams.get('callback_url')).toBe('https://casa.example/ajustes/openrouter');
+		expect(link.searchParams.get('code_challenge_method')).toBe('S256');
+		expect(link.searchParams.get('state')).toBe(state);
+		const hash = new Uint8Array(
+			await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
+		);
+		expect(link.searchParams.get('code_challenge')).toBe(Buffer.from(hash).toString('base64url'));
 	});
 });

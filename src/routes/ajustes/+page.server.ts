@@ -1,4 +1,4 @@
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { APIError } from 'better-auth/api';
 import { eq } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
@@ -17,14 +17,22 @@ import {
 	isAdmin,
 	DEFAULT_ORS_URL,
 	openRouterConfig,
+	openRouterManagementKey,
 	orsConfig,
 	relayConfig,
 	setAppSetting,
+	setOpenRouterManagementKey,
 	visionModel,
 	voiceModel
 } from '#lib/server/app-settings.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
-import { completeJson, keyBalance } from '#lib/server/openrouter.ts';
+import {
+	accountCredits,
+	completeJson,
+	keyBalance,
+	OAUTH_COOKIE,
+	openRouterAuth
+} from '#lib/server/openrouter.ts';
 import { getSettings, setKeepHistory } from '#lib/server/settings.ts';
 import {
 	languaConfig,
@@ -68,7 +76,7 @@ import { avatarOf, createAdult, houseAdults, invite, setAvatar } from '#lib/serv
 import { askEvery } from '#lib/server/still-there.ts';
 import { ASK_EVERY_OPTIONS } from '#lib/still-there.ts';
 
-export const load: PageServerLoad = async ({ locals, cookies }) => {
+export const load: PageServerLoad = async ({ locals, cookies, url }) => {
 	const userId = locals.user!.id;
 	const admin = await isAdmin(userId);
 	const [settings, introFound, version, appPassword, langua] = await Promise.all([
@@ -127,6 +135,10 @@ export const load: PageServerLoad = async ({ locals, cookies }) => {
 			keySource: config.keySource,
 			// Never the key itself: only enough to recognise it.
 			keyHint: config.apiKey ? `…${config.apiKey.slice(-4)}` : null,
+			/** Only whether there is one: it never leaves the server. */
+			hasManagementKey: Boolean(await openRouterManagementKey()),
+			/** Back from «Conectar con OpenRouter»: `ok`, or what went wrong. */
+			connected: url.searchParams.get('openrouter'),
 			model: config.model,
 			defaultModel: DEFAULT_MODEL,
 			visionModel: vision,
@@ -508,6 +520,46 @@ export const actions: Actions = {
 		await setAppSetting('openrouter_api_key', null);
 		log.info('ajustes', 'Clave de OpenRouter borrada');
 		return { saved: 'key' };
+	},
+	/**
+	 * «Conectar con OpenRouter»: off to sign in and authorise, and back to ./openrouter with the
+	 * code for the key. What proves it is this browser's own request goes in a short cookie.
+	 */
+	connectOpenRouter: async ({ locals, cookies, url }) => {
+		await requireAdmin(locals.user!.id);
+		const auth = openRouterAuth(`${url.origin}/ajustes/openrouter`);
+		cookies.set(OAUTH_COOKIE, JSON.stringify({ verifier: auth.verifier, state: auth.state }), {
+			path: '/ajustes',
+			httpOnly: true,
+			// Sent when OpenRouter's page sends the browser back here.
+			sameSite: 'lax',
+			maxAge: 600
+		});
+		// Kit only goes to another site when told which one.
+		redirect(303, auth.url, { external: ['https://openrouter.ai'] });
+	},
+	/** Only to read the account's real balance; checked with OpenRouter before keeping it. */
+	saveManagementKey: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const key = String((await request.formData()).get('key') ?? '').trim();
+		if (!key) return fail(400, { section: 'ai', message: 'Escribe la clave de gestión' });
+		try {
+			await accountCredits(key);
+		} catch (err) {
+			return fail(400, {
+				section: 'ai',
+				message: err instanceof Error ? err.message : String(err)
+			});
+		}
+		await setOpenRouterManagementKey(key);
+		log.info('ajustes', 'Clave de gestión de OpenRouter guardada');
+		return { saved: 'managementKey' };
+	},
+	deleteManagementKey: async ({ locals }) => {
+		await requireAdmin(locals.user!.id);
+		await setOpenRouterManagementKey(null);
+		log.info('ajustes', 'Clave de gestión de OpenRouter borrada');
+		return { saved: 'managementKey' };
 	},
 	/** The trips relay (#81): its address, and its key if one is written (empty keeps it). */
 	saveRelay: async ({ request, locals }) => {

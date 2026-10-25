@@ -110,7 +110,7 @@ export const variables = defineEnvVars({
 	},
 	PIPER_URL: {
 		description:
-			"Optional address of Piper's HTTP server (`python3 -m piper.http_server`, https://github.com/OHF-Voice/piper1-gpl), e.g. `http://host.docker.internal:5000`: the voice of Música's DJ mode, between songs. Without it there is no «Modo DJ».",
+			"Optional address of Piper's HTTP server (`python3 -m piper.http_server`, https://github.com/OHF-Voice/piper1-gpl), e.g. `http://host.docker.internal:5000`: the voice of Música's DJ mode, between songs, without an OpenRouter key or when OpenRouter's voice fails. With neither there is no «Modo DJ».",
 		schema: (value) => value || undefined
 	},
 	PIPER_VOICE_ES: {

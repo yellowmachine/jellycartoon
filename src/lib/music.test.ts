@@ -126,12 +126,20 @@ describe('parseDjOptions', () => {
 	const options = { artists: ['Mecano'], lang: 'es', every: 3 };
 
 	test('takes well-formed options, the whole library with no artists', () => {
-		expect(parseDjOptions(options)).toEqual({ artists: ['Mecano'], lang: 'es', every: 3 });
+		// Saved before there was a choice of voice: a man's.
+		expect(parseDjOptions(options)).toEqual({
+			artists: ['Mecano'],
+			lang: 'es',
+			every: 3,
+			voice: 'male'
+		});
+		expect(parseDjOptions({ ...options, voice: 'female' })?.voice).toBe('female');
 		expect(parseDjOptions({ ...options, artists: [], lang: 'en' })?.artists).toEqual([]);
 	});
 
 	test('refuses a language, a frequency or artists it does not know', () => {
 		expect(parseDjOptions({ ...options, lang: 'fr' })).toBeNull();
+		expect(parseDjOptions({ ...options, voice: 'robot' })).toBeNull();
 		expect(parseDjOptions({ ...options, every: 0 })).toBeNull();
 		expect(parseDjOptions({ ...options, every: 9 })).toBeNull();
 		expect(parseDjOptions({ ...options, every: 2.5 })).toBeNull();

@@ -8,6 +8,7 @@ import {
 } from '$app/env/private';
 import { db } from '#lib/server/db/index.ts';
 import { appSetting, user } from '#lib/server/db/schema.ts';
+import { decrypt, encrypt } from '#lib/server/secret-box.ts';
 
 /** Cheap, fast and knows films well; changeable in Ajustes. */
 export const DEFAULT_MODEL = 'anthropic/claude-haiku-5.5';
@@ -35,6 +36,7 @@ export const DEFAULT_HOMEWORK_MODEL = 'anthropic/claude-opus-5.5';
 
 type Key =
 	| 'openrouter_api_key'
+	| 'openrouter_management_key'
 	| 'openrouter_model'
 	| 'openrouter_chat_model'
 	| 'openrouter_chat_web'
@@ -85,6 +87,21 @@ export async function openRouterConfig() {
 		keySource: OPENROUTER_API_KEY ? ('env' as const) : panelKey ? ('panel' as const) : null,
 		model: panelModel ?? OPENROUTER_MODEL ?? DEFAULT_MODEL
 	};
+}
+
+/**
+ * OpenRouter's management key (optional): only to read the account's real balance, which no
+ * normal key can (https://openrouter.ai/docs/guides/overview/auth/management-api-keys). It can
+ * manage the account's keys, so it is kept encrypted.
+ */
+export async function openRouterManagementKey() {
+	const value = await get('openrouter_management_key');
+	return value ? decrypt(value) : null;
+}
+
+/** `null` deletes it. */
+export async function setOpenRouterManagementKey(key: string | null) {
+	await setAppSetting('openrouter_management_key', key ? encrypt(key) : null);
 }
 
 /** The conversations about films: their model, and whether the AI may search the web. */

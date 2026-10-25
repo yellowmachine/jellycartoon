@@ -6,7 +6,7 @@ import { openRouterConfig, voiceModel } from '#lib/server/app-settings.ts';
 import { probeDuration, toOpus } from '#lib/server/library/ffmpeg.ts';
 import { djDir } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
-import { completeJson } from '#lib/server/openrouter.ts';
+import { completeJson, speech } from '#lib/server/openrouter.ts';
 import { getAlbums, tracksById } from './albums.ts';
 import {
 	insertNextOnSnapcast,
@@ -17,18 +17,39 @@ import {
 	setSnapcastDj,
 	snapcastRemaining
 } from './snapcast.ts';
-import { fold, type DjOptions, type MusicTrack } from '#lib/music.ts';
+import { fold, type DjOptions, type DjVoice, type MusicTrack } from '#lib/music.ts';
 
 /**
  * Modo DJ (#117): songs at random from the library (or from some artists), and every few of them
  * a DJ who says what has sounded and what comes, as on the radio. Its words are written by the AI
  * (OpenRouter) with only what the files say, so that it does not make things up, read aloud by
- * Piper (PIPER_URL), and go into the queue as one more track: so they sound the same in the
- * browser and on Snapcast. They are made while the song before them plays: never a silence
+ * Gemini through OpenRouter (or by Piper, PIPER_URL, without a key or if it fails), and go into the
+ * queue as one more track: so they sound the same in the browser and on Snapcast. They are made while the song before them plays: never a silence
  * waiting for them; if they are not ready in time, that talk is skipped.
  */
 
-export const djEnabled = Boolean(PIPER_URL);
+/** With a voice: OpenRouter's, or Piper's. */
+export async function djEnabled() {
+	return Boolean(PIPER_URL) || Boolean((await openRouterConfig()).apiKey);
+}
+
+/**
+ * The DJ's voice through OpenRouter: chosen by ear on 2026-10-25 among ElevenLabs, Fish and
+ * Gemini's; it says English names and titles well inside Spanish, which Piper does not.
+ */
+const SPEECH_MODEL = 'google/gemini-3.8-flash-tts';
+const VOICES: Record<DjVoice, string> = { male: 'Puck', female: 'Laomedeia' };
+
+/** How it speaks: told apart from the words, which Gemini would otherwise read aloud. */
+function delivery(lang: DjOptions['lang'], voice: DjVoice) {
+	if (lang === 'en')
+		return 'Upbeat, friendly music radio DJ. Clear and not too fast: the listener is learning English.';
+	return [
+		voice === 'female' ? 'Locutora' : 'Locutor',
+		'de radio musical de España, acento castellano peninsular, tono animado y cercano.',
+		'Pronuncia los nombres de grupos y los títulos de canciones en su idioma original, con naturalidad.'
+	].join(' ');
+}
 
 /** Songs asked for at a time; more when only a few are left. */
 export const DJ_BATCH = 30;
@@ -116,8 +137,51 @@ async function words(played: MusicTrack[], next: MusicTrack | null, lang: DjOpti
 	].join(' ');
 }
 
-/** `text` read by Piper, as an Opus file in `djDir`: its id and how long it lasts. */
-async function speak(text: string, lang: DjOptions['lang']) {
+/** 16-bit mono PCM as a WAV file, for ffmpeg. */
+function wavOf(pcm: Uint8Array, rate: number) {
+	const header = Buffer.alloc(44);
+	header.write('RIFF', 0);
+	header.writeUInt32LE(36 + pcm.length, 4);
+	header.write('WAVE', 8);
+	header.write('fmt ', 12);
+	header.writeUInt32LE(16, 16);
+	header.writeUInt16LE(1, 20); // PCM
+	header.writeUInt16LE(1, 22); // mono
+	header.writeUInt32LE(rate, 24);
+	header.writeUInt32LE(rate * 2, 28);
+	header.writeUInt16LE(2, 32);
+	header.writeUInt16LE(16, 34);
+	header.write('data', 36);
+	header.writeUInt32LE(pcm.length, 40);
+	return Buffer.concat([header, pcm]);
+}
+
+/**
+ * `text` read aloud, as a WAV: by Gemini through OpenRouter, or by Piper without a key or if it
+ * fails (and there is Piper). Which one, for the Registro.
+ */
+async function voiced(text: string, lang: DjOptions['lang'], voice: DjVoice) {
+	const { apiKey } = await openRouterConfig();
+	if (apiKey) {
+		try {
+			const { pcm, rate } = await speech({
+				model: SPEECH_MODEL,
+				voice: VOICES[voice],
+				input: text,
+				instructions: delivery(lang, voice),
+				timeoutMs: PIPER_TIMEOUT_MS
+			});
+			return { wav: wavOf(pcm, rate), by: `${SPEECH_MODEL} (${VOICES[voice]})` };
+		} catch (error) {
+			if (!PIPER_URL) throw error;
+			log.warn('música', 'La voz de OpenRouter falló; lo dice Piper', { error });
+		}
+	}
+	return { wav: await piper(text, lang), by: 'Piper' };
+}
+
+async function piper(text: string, lang: DjOptions['lang']) {
+	if (!PIPER_URL) throw new Error('No hay voz para el locutor: ni clave de OpenRouter ni Piper');
 	const res = await fetch(`${PIPER_URL!.replace(/\/+$/, '')}/synthesize`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
@@ -127,18 +191,24 @@ async function speak(text: string, lang: DjOptions['lang']) {
 		throw new Error(`No se pudo hablar con Piper: ${err instanceof Error ? err.message : err}`);
 	});
 	if (!res.ok) throw new Error(`Piper: ${(await res.text()).slice(0, 200) || res.statusText}`);
+	return new Uint8Array(await res.arrayBuffer());
+}
+
+/** `text` read aloud, as an Opus file in `djDir`: its id, how long it lasts and who said it. */
+async function speak(text: string, lang: DjOptions['lang'], voice: DjVoice) {
+	const { wav: audio, by } = await voiced(text, lang, voice);
 	await mkdir(djDir, { recursive: true });
 	await prune();
 	const id = randomUUID();
 	const wav = path.join(djDir, `${id}.wav`);
 	try {
-		await writeFile(wav, new Uint8Array(await res.arrayBuffer()));
+		await writeFile(wav, audio);
 		// Speech: a fraction of a song's bitrate, for the phone's data in the car too.
 		await toOpus(wav, clipFile(id), '48k');
 	} finally {
 		await rm(wav, { force: true });
 	}
-	return { id, durationSec: await probeDuration(clipFile(id)) };
+	return { id, durationSec: await probeDuration(clipFile(id)), by };
 }
 
 /** Where the DJ's words with this id are. */
@@ -166,13 +236,15 @@ let clipCount = Math.floor(Math.random() * 1_000_000);
 export async function makeClip(
 	played: MusicTrack[],
 	next: MusicTrack | null,
-	lang: DjOptions['lang']
+	lang: DjOptions['lang'],
+	voice: DjVoice
 ): Promise<MusicTrack> {
 	const started = performance.now();
 	const text = await words(played, next, lang);
-	const { id, durationSec } = await speak(text, lang);
+	const { id, durationSec, by } = await speak(text, lang, voice);
 	log.info('música', `Locutor del modo DJ: «${text}»`, {
 		lang,
+		voice: by,
 		ms: Math.round(performance.now() - started)
 	});
 	return {
@@ -245,7 +317,7 @@ async function stepSnapcast(entryId: number, track: MusicTrack) {
 		}
 		if (track.clip || snap.played.length < options.every) return;
 		const played = snap.played;
-		const clip = await makeClip(played, await nextOnSnapcast(), options.lang);
+		const clip = await makeClip(played, await nextOnSnapcast(), options.lang, options.voice);
 		// Still on that song and in the same DJ mode: after it, and the count starts again.
 		if (snap.options !== options || snap.entryId !== entryId) return;
 		await insertNextOnSnapcast(clip, clipFile(clip.clip!.id));

@@ -135,6 +135,33 @@ export async function addNote(userId: string, text: string, until: string | null
 	return note!.id;
 }
 
+/**
+ * A post-it's words changed, by `userId` (any adult, as peeling it off). Told to the others, in
+ * the notice of that post-it, which it replaces on their phones. False if it is no longer up.
+ */
+export async function editNote(userId: string, id: number, text: string) {
+	const clean = text.trim().slice(0, MAX_NOTE);
+	if (!clean) return false;
+	const [note] = await db
+		.update(fridgeNote)
+		.set({ text: clean })
+		.where(and(eq(fridgeNote.id, id), eq(fridgeNote.kind, 'note')))
+		.returning({ id: fridgeNote.id });
+	if (!note) return false;
+	changed();
+	void (async () => {
+		const name = await nameOf(userId);
+		await notify(await othersThan(userId), {
+			title: `✏️ ${name} ha cambiado un post-it`,
+			body: clean,
+			tag: `nevera-nota-${id}`,
+			url: '/nevera',
+			ttl: 24 * 3600
+		});
+	})();
+	return true;
+}
+
 /** Peeled off: a post-it, not the list. */
 export async function peelNote(id: number) {
 	await db.delete(fridgeNote).where(and(eq(fridgeNote.id, id), eq(fridgeNote.kind, 'note')));
