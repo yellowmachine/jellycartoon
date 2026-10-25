@@ -665,7 +665,9 @@ export const userSettings = pgTable('user_settings', {
 	/** A line from the library's subtitles on a black screen when the app opens, as Frasier's title cards. */
 	openingQuote: boolean('opening_quote').notNull().default(true),
 	/** An adult's drawing (#157), one of AVATARS (avatars.ts); null, their initial. A child's is in kid_profile. */
-	avatar: text('avatar')
+	avatar: text('avatar'),
+	/** Modo DJ in the browser: the DJ's words over the end of a song and the start of the next, not between them. */
+	djMix: boolean('dj_mix').notNull().default(false)
 });
 
 /**

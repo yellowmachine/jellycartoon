@@ -65,8 +65,10 @@ class MusicPlayer {
 	/** The queue in its own order, while it is shuffled. */
 	#ordered: MusicTrack[] = [];
 	#audio: HTMLAudioElement | null = null;
-	/** Lowered while something speaks over it (duck). */
-	#ducked = false;
+	/** Who speaks over it now, lowering it (duck): the voice, the road's directions, the DJ. */
+	#duckedBy = new Set<string>();
+	/** The volume going down or up, little by little. */
+	#fading: ReturnType<typeof setInterval> | undefined;
 	/**
 	 * When someone last asked to pause (Date.now()): the app, the lock screen or the voice. A pause
 	 * not asked for, with the screen off, is the phone's alone (auto-resume.ts).
@@ -99,9 +101,25 @@ class MusicPlayer {
 		this.#saveVolume();
 	}
 
-	#applyVolume() {
-		if (!this.#audio) return;
-		this.#audio.volume = this.muted ? 0 : this.volume * (this.#ducked ? DUCKED_VOLUME : 1);
+	/** What the `<audio>` should sound at: the volume chosen, lower while something speaks. */
+	get #targetVolume() {
+		return this.muted ? 0 : this.volume * (this.#duckedBy.size ? DUCKED_VOLUME : 1);
+	}
+
+	/** At once, or in `fadeMs` (the DJ coming in and going): never a jump from one song to another. */
+	#applyVolume(fadeMs = 0) {
+		clearInterval(this.#fading);
+		const audio = this.#audio;
+		if (!audio) return;
+		const to = this.#targetVolume;
+		if (!fadeMs) return void (audio.volume = to);
+		const from = audio.volume;
+		const started = Date.now();
+		this.#fading = setInterval(() => {
+			const done = Math.min(1, (Date.now() - started) / fadeMs);
+			audio.volume = from + (to - from) * done;
+			if (done === 1) clearInterval(this.#fading);
+		}, 50);
 	}
 
 	#loadVolume() {
@@ -342,12 +360,14 @@ class MusicPlayer {
 	}
 
 	/**
-	 * Lower while something else speaks over it (the road mode's directions, #78), and back to the
-	 * volume chosen: not paused, as a station would connect again.
+	 * Lower while something else speaks over it (the road mode's directions, #78; the DJ mixed over
+	 * the songs, `dj`), and back to the volume chosen once nothing does: not paused, as a station
+	 * would connect again.
 	 */
-	duck(on: boolean) {
-		this.#ducked = on;
-		this.#applyVolume();
+	duck(on: boolean, by = 'voz', fadeMs = 0) {
+		if (on) this.#duckedBy.add(by);
+		else this.#duckedBy.delete(by);
+		this.#applyVolume(fadeMs);
 	}
 
 	stop() {

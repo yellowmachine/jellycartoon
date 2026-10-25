@@ -183,6 +183,7 @@ export const load: PageServerLoad = async ({ locals, cookies, url }) => {
 		languages: KNOWN_LANGUAGES,
 		/** The title card when the app opens, as Frasier's. */
 		openingQuoteOn: settings.openingQuote,
+		djMix: settings.djMix,
 		/** «¿Sigues ahí?» (#77): adults only; a child's is chosen in /infantil. */
 		stillThere: isKid(locals.user) ? null : { every: await askEvery(userId) },
 		/** «Guardar lo que veo»: adults only, a child's is always kept for the adults (#17). */
@@ -472,6 +473,15 @@ export const actions: Actions = {
 			.values({ userId: locals.user!.id, ...values })
 			.onConflictDoUpdate({ target: userSettings.userId, set: values });
 		return { saved: 'openingQuote' };
+	},
+	/** Modo DJ: the DJ's words between the songs, or over them (in the browser). */
+	djMix: async ({ request, locals }) => {
+		const values = { djMix: (await request.formData()).get('djMix') === 'mix' };
+		await db
+			.insert(userSettings)
+			.values({ userId: locals.user!.id, ...values })
+			.onConflictDoUpdate({ target: userSettings.userId, set: values });
+		return { saved: 'djMix' };
 	},
 	recordTrips: async ({ request, locals }) => {
 		if (isKid(locals.user)) error(404, 'No encontrado');
