@@ -52,6 +52,40 @@
 	/** Asked twice, without a dialog. */
 	let peeling = $state<number | null>(null);
 
+	// A post-it changed where it is: its words in a textarea on the same paper, until saved.
+	let editing = $state<number | null>(null);
+	let draft = $state('');
+	let saving = $state(false);
+
+	function edit(note: { id: number; text: string }) {
+		peeling = null;
+		editing = note.id;
+		draft = note.text;
+	}
+
+	async function save(note: { id: number; text: string }) {
+		if (!draft.trim() || saving) return;
+		if (draft.trim() === note.text) return void (editing = null);
+		saving = true;
+		if (await send({ action: 'edit', id: note.id, text: draft })) editing = null;
+		saving = false;
+	}
+
+	/** Esc leaves it as it was; Ctrl+Enter (⌘ on a Mac) saves, Enter alone is a new line. */
+	function keys(e: KeyboardEvent, note: { id: number; text: string }) {
+		if (e.key === 'Escape') editing = null;
+		else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+			e.preventDefault();
+			void save(note);
+		}
+	}
+
+	/** Into the textarea at once, with the cursor at the end. */
+	function focusEnd(el: HTMLTextAreaElement) {
+		el.focus();
+		el.setSelectionRange(el.value.length, el.value.length);
+	}
+
 	// The list: several at once, with commas («leche, pan, huevos»).
 	let item = $state('');
 	async function add(e: SubmitEvent) {
@@ -186,20 +220,47 @@
 				style="--bg: {paper.bg}; --ink: {paper.ink}; transform: rotate({tiltFor(note.id)}deg)"
 			>
 				{@render magnet(paper.pin)}
-				<p
-					class={[
-						'hand flex-1 overflow-hidden break-words whitespace-pre-line',
-						big ? 'text-3xl' : 'text-xl'
-					]}
-				>
-					{note.text}
-				</p>
+				{#if editing === note.id}
+					<textarea
+						bind:value={draft}
+						{@attach focusEnd}
+						maxlength={MAX_NOTE}
+						aria-label="Texto del post-it"
+						onkeydown={(e) => keys(e, note)}
+						class="hand -mx-1 min-h-0 w-[calc(100%+0.5rem)] flex-1 resize-none rounded-sm border-0 bg-black/5 px-1 py-0 text-xl leading-normal text-inherit focus:ring-2 focus:ring-black/20"
+					></textarea>
+				{:else if readonly}
+					<p
+						class={[
+							'hand flex-1 overflow-hidden break-words whitespace-pre-line',
+							big ? 'text-3xl' : 'text-xl'
+						]}
+					>
+						{note.text}
+					</p>
+				{:else}
+					<!-- Tapped, it is written on there. Flex: a button centres its words, these go on top. -->
+					<button
+						type="button"
+						title="Cambiar el texto"
+						class="hand flex flex-1 cursor-text items-start overflow-hidden text-left text-xl break-words whitespace-pre-line"
+						onclick={() => edit(note)}>{note.text}</button
+					>
+				{/if}
 				<p class={['mt-2 flex items-end gap-2 opacity-70', big ? 'text-lg' : 'text-xs']}>
 					<span class="min-w-0 flex-1 truncate"
 						>{note.author?.name ?? ''}{note.until ? ` · ${untilText(note.until)}` : ''}</span
 					>
 					{#if !readonly}
-						{#if peeling === note.id}
+						{#if editing === note.id}
+							<button
+								type="button"
+								class="font-semibold disabled:opacity-50"
+								disabled={saving || !draft.trim()}
+								onclick={() => save(note)}>{saving ? 'Guardando…' : 'Guardar'}</button
+							>
+							<button type="button" onclick={() => (editing = null)}>Cancelar</button>
+						{:else if peeling === note.id}
 							<button
 								type="button"
 								class="font-semibold text-red-700"

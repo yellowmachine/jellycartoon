@@ -5,6 +5,7 @@ import {
 	addItems,
 	addNote,
 	clearDone,
+	editNote,
 	peelNote,
 	removeItem,
 	setItemDone
@@ -32,8 +33,9 @@ const id = (value: unknown) => {
 };
 
 /**
- * What is done on the fridge (#131), by an adult: a post-it up or peeled off; items onto the list,
- * ticked off, removed, or what was bought cleared. The open pages learn it by /api/nevera/events.
+ * What is done on the fridge (#131), by an adult: a post-it up, changed or peeled off; items onto
+ * the list, ticked off, removed, or what was bought cleared. The open pages learn it by
+ * /api/nevera/events.
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
 	if (isKid(locals.user)) error(403, 'Solo los mayores escriben en la nevera');
@@ -43,6 +45,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		case 'note': {
 			if (typeof body.text !== 'string' || !body.text.trim()) error(400, 'Falta el texto');
 			return json({ id: await addNote(userId, body.text, untilDay(body.until)) });
+		}
+		case 'edit': {
+			if (typeof body.text !== 'string' || !body.text.trim()) error(400, 'Falta el texto');
+			if (!(await editNote(userId, id(body.id), body.text)))
+				error(404, 'Ese post-it ya no está en la nevera');
+			return json({ ok: true });
 		}
 		case 'peel':
 			await peelNote(id(body.id));
