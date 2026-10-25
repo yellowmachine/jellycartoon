@@ -6,7 +6,8 @@
 
 	const tabs = [
 		{ href: '/juegos', label: 'Estadísticas' },
-		{ href: '/juegos/mando', label: 'Botones del mando' }
+		{ href: '/juegos/mando', label: 'Botones del mando' },
+		{ href: '/juegos/shaders', label: 'Shaders' }
 	];
 	const tab = (selected: boolean) => [
 		'border-b-2 px-1 pb-2 text-sm',

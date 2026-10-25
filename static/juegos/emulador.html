@@ -70,6 +70,9 @@
 						if (!(id in controls) && given.has(control.value2)) delete control.value2;
 					for (const [id, pad] of Object.entries(controls))
 						(emulator.controls[0][id] ??= {}).value2 = pad;
+					// The house's shader (/juegos/shaders), as if chosen in its menu: over what that kept.
+					const shader = params.get('shader');
+					if (shader) emulator.changeSettingOption?.('shader', shader);
 					await loadCartridge(emulator).catch(() => {});
 					emulator.on('saveSaveFiles', sendCartridge);
 					ready.resolve();

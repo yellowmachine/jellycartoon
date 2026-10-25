@@ -1525,3 +1525,12 @@ export const gameControls = pgTable(
 	},
 	(t) => [unique('game_controls_user_system').on(t.userId, t.system)]
 );
+
+/**
+ * The house's shaders for the games (#176): for all of them (`todos`), a console's
+ * (`consola:snes`) or a game's (`juego:12`), the nearest one winning (game-shaders.ts).
+ */
+export const gameShader = pgTable('game_shader', {
+	scope: text('scope').primaryKey(),
+	shader: text('shader').notNull()
+});

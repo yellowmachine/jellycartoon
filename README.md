@@ -634,7 +634,11 @@ Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`.
   en los juegos de esa consola; si eso ya lo hacía otro, se intercambian. Se aplican al empezar
   cada juego, por encima de lo que se cambie en el menú de EmulatorJS. La cruceta, los sticks y
   Select + Start para el menú no cambian.
-- Todavía sin shaders, y no está para los peques.
+- Los shaders (cómo se ve la imagen: tele de tubo, suavizada o los píxeles tal cual), para toda la
+  casa, en `/juegos/shaders`: uno para todos los juegos, otro por consola y otro por juego; manda
+  el más cercano. Se aplica al empezar cada juego, por encima de lo elegido en el menú de
+  EmulatorJS.
+- No está para los peques.
 
 ### Dailymotion
 

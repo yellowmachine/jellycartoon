@@ -60,6 +60,7 @@
 			backdrop: data.backdrop,
 			cartridge: data.cartridge,
 			controls: JSON.stringify(data.controls),
+			shader: data.shader,
 			...(data.bios ? { bios: data.bios } : {})
 		})}`
 	);

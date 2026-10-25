@@ -1,6 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { controlsOf } from '#lib/server/game-controls.ts';
+import { shaderFor } from '#lib/server/game-shaders.ts';
 import { findGame, gameRow, SYSTEMS } from '#lib/server/games.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -22,6 +23,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		/** The person's cartridge save of it, on the server. */
 		cartridge: `/api/juegos/cartucho/${row.id}`,
 		/** The person's buttons for its console. */
-		controls: await controlsOf(locals.user!.id, game.system)
+		controls: await controlsOf(locals.user!.id, game.system),
+		/** The house's shader for it (/juegos/shaders). */
+		shader: await shaderFor(game.system, row.id)
 	};
 };
