@@ -255,8 +255,12 @@ class VoiceClient {
 		const utterance = new SpeechSynthesisUtterance(text);
 		utterance.lang = 'es-ES';
 		this.speaking = true;
+		// What it put on (or what plays) is heard under the answer, not over it; as the road mode.
+		music.duck(true);
 		utterance.onend = utterance.onerror = () => {
 			this.speaking = false;
+			// A cancelled answer ends as the next one starts: that one keeps it low.
+			if (!speechSynthesis.speaking) music.duck(false);
 			resumeAfterVoice();
 		};
 		speechSynthesis.speak(utterance);
