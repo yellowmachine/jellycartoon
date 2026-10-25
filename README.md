@@ -585,14 +585,27 @@ Un experimento (#176): juegos retro en la Vista TV, con
 `HOST_GAMES_DIR="/ruta/a/las/roms"` en el `.env` se monta de solo lectura y aparece la tarjeta
 Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`.
 
-- Una carpeta por consola, cada una con su emulador: `nes`, `snes`, `gb`, `gbc`, `gba` y
-  `megadrive`. Las demás no salen. Los juegos pueden ir tal cual o en `.zip` o `.7z`.
+- Una carpeta por consola, cada una con su emulador: `nes`, `snes`, `gb`, `gbc`, `gba`,
+  `mastersystem` y `megadrive`. Las demás no salen. Los juegos pueden ir tal cual o en `.zip` o `.7z`.
+- En `/tv/juegos`, una tarjeta por consola; dentro, sus juegos en cuadrícula, cada uno con su
+  carátula.
+- Las imágenes vienen de las miniaturas de
+  [libretro](https://docs.libretro.com/guides/roms-playlists-thumbnails/) (las de RetroArch), sin
+  cuenta: la carátula al abrir la consola, y la pantalla de título y una captura al abrir el juego.
+  Se buscan por el nombre No-Intro del fichero, como `Tetris (World).zip`: con otro nombre no las
+  encuentra. Se guardan en `HOST_DATA_DIR/juegos`.
 - Cada juego tiene su página, con «Jugar» y lo que se sabe de él: la primera vez que se abre se
   busca en Wikidata entre los juegos de su consola (año, desarrolladora, género, modos, música) y
   se trae el resumen de la Wikipedia. Si hay dudas, la página pregunta cuál es.
-- El juego ocupa toda la pantalla; Atrás en el mando a distancia vuelve a su página.
-- El fondo de esa página es una captura del juego: Play/Pausa en el mando mientras se juega la
-  guarda (en `HOST_DATA_DIR/fondo`), y otra pulsación la cambia.
+- El fondo de esa página se elige en ella entre esas imágenes y la que se capture jugando:
+  Play/Pausa en el mando mientras se juega la guarda y la pone de fondo, y otra pulsación la
+  cambia. Sin elegir, es la pantalla de título.
+- El juego ocupa toda la pantalla. Dentro, EmulatorJS se queda con las teclas: Atrás del mando a
+  distancia no hace nada, e Inicio vuelve a la Vista TV.
+- El mando de juego se reconoce por udev, y el Chromium de Flatpak no lo ve sin
+  `flatpak override --user --filesystem=/run/udev:ro org.chromium.Chromium`, que pone
+  `scripts/pantalla.sh`. Luego hay que cerrar Chromium y abrirlo, y pulsar un botón del mando en el
+  juego: hasta entonces el navegador no lo muestra.
 - EmulatorJS se carga de su CDN, en la versión 4.2.3: el salón necesita internet para jugar.
 - Todavía sin partidas guardadas ni filtros, y no está para los peques.
 

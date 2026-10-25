@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Installs, from this PC over SSH, what the PC with the screen needs besides the app: the mpv
 # service, its keys and menu for the remote (deploy/mpv), with KDE what the remote's power button
-# does (deploy/kwin, #159) and, if the remote's receiver is plugged in, its udev hwdb. Only what
-# changed, showing how; run it again whenever. See "Ver en el salón" and "Mando del salón" in the
-# README.
+# does (deploy/kwin, #159), what Chromium's Flatpak needs for game controllers (#176) and, if the
+# remote's receiver is plugged in, its udev hwdb. Only what changed, showing how; run it again
+# whenever. See "Ver en el salón" and "Mando del salón" in the README.
 #
 #   scripts/pantalla.sh                         # todas las casas de ~/.config/jellycartoon/casas
 #   scripts/pantalla.sh salon                   # solo esa, por su nombre en ese fichero
@@ -101,6 +101,17 @@ if command -v kwin_wayland >/dev/null && command -v kstart >/dev/null; then
 	fi
 else
 	echo "  · Sin KDE: sin botón de encendido"
+fi
+
+# Game controllers for the games (#176): Chromium tells them apart through udev, and its Flatpak
+# has no /run/udev. Read-only, and only for this user.
+if flatpak info org.chromium.Chromium >/dev/null 2>&1; then
+	if flatpak override --user --show org.chromium.Chromium | grep -q '/run/udev:ro'; then
+		echo "  · Chromium (Flatpak) ve los mandos de juego: igual"
+	else
+		flatpak override --user --filesystem=/run/udev:ro org.chromium.Chromium
+		echo "  ✓ Chromium (Flatpak) ve los mandos de juego: hay que cerrarlo y abrirlo"
+	fi
 fi
 
 install_file "$files/mpv/input.conf" ~/.config/mpv/input.conf && changed=1

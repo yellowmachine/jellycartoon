@@ -2,12 +2,17 @@ import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import {
 	chooseGame,
+	chooseGameBackdrop,
+	fetchPictures,
 	findGame,
-	gameBackdropTime,
+	gameBackdropUrl,
+	gamePictures,
 	gameRow,
 	lookUpGame,
+	PICTURES,
 	SYSTEMS,
-	type GameRow
+	type GameRow,
+	type Picture
 } from '#lib/server/games.ts';
 import { log } from '#lib/server/log.ts';
 
@@ -33,11 +38,18 @@ async function found(params: { system: string; file: string }) {
 /** A game's page (#176): what it is, its background and «Jugar». */
 export const load: PageServerLoad = async ({ params }) => {
 	const { game, row } = await found(params);
-	const taken = await gameBackdropTime(row.id);
+	// libretro's pictures the first time, while the page is already shown.
+	const pictures = fetchPictures(row).catch((problem) =>
+		log.warn('juegos', `No se pudo poner el fondo de «${game.title}»`, {
+			gameId: row.id,
+			error: problem
+		})
+	);
 	return {
 		title: game.title,
 		system: SYSTEMS[game.system].name,
-		backdrop: taken ? `/api/fondo/juego/${row.id}?v=${Math.round(taken)}` : null,
+		backdrop: pictures.then(() => gameBackdropUrl(row.id)),
+		pictures: pictures.then(() => gamePictures(row.id)),
 		// Looked up the first time, while the page is already shown.
 		info: row.status
 			? card(row)
@@ -52,6 +64,13 @@ export const load: PageServerLoad = async ({ params }) => {
 };
 
 export const actions: Actions = {
+	/** One of its pictures as its background. */
+	backdrop: async ({ params, request }) => {
+		const { row } = await found(params);
+		const kind = (await request.formData()).get('kind') as Picture;
+		if (!PICTURES.includes(kind) || !(await chooseGameBackdrop(row.id, kind)))
+			return fail(400, { message: 'Esa imagen no está' });
+	},
 	/** One of the candidates, when it was not clear which game it is. */
 	choose: async ({ params, request }) => {
 		const { row } = await found(params);
