@@ -25,6 +25,7 @@ import type { WikiPage } from '#lib/server/cinema/wikidata.ts';
 import type { TitleProposal } from '#lib/episode-titles.ts';
 import type { RecipeStep } from '#lib/recipe.ts';
 import type { LngLat } from '#lib/road.ts';
+import type { DjOptions } from '#lib/music.ts';
 import type { RouteStop } from '#lib/saved-places.ts';
 import type { Exercise, HomeworkRules, Step } from '#lib/homework.ts';
 import { session, user } from './auth.schema';
@@ -1534,3 +1535,17 @@ export const gameShader = pgTable('game_shader', {
 	scope: text('scope').primaryKey(),
 	shader: text('shader').notNull()
 });
+
+/** A person's Modo DJ setups (#117), saved with a name to start them again. */
+export const djPreset = pgTable(
+	'dj_preset',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		options: jsonb('options').$type<DjOptions>().notNull()
+	},
+	(t) => [unique('dj_preset_user_name').on(t.userId, t.name)]
+);

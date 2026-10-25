@@ -1,11 +1,13 @@
 <script lang="ts">
+	import { enhance, type SubmitFunction } from '$app/forms';
 	import { dj } from '#lib/dj.svelte.ts';
-	import { DJ_EVERY, fold, type DjOptions, type MusicArtist } from '#lib/music.ts';
+	import { DJ_EVERY, fold, type DjOptions, type DjPreset, type MusicArtist } from '#lib/music.ts';
 	import { musicTarget } from '#lib/music-target.svelte.ts';
 
 	/**
 	 * Modo DJ (#117): which artists (none, the whole library), the DJ's language and how often it
-	 * speaks; then it starts where the music sounds (this browser or Snapcast).
+	 * speaks; then it starts where the music sounds (this browser or Snapcast). A setup can be
+	 * saved with a name, to start it again from the menu.
 	 */
 	let { artists }: { artists: MusicArtist[] } = $props();
 
@@ -16,39 +18,57 @@
 	let filter = $state('');
 	let starting = $state(false);
 	let problem = $state<string | null>(null);
+	/** The saved setup being edited; null, a new one. */
+	let presetId = $state<number | null>(null);
+	let name = $state('');
+	let saving = $state(false);
+	/** As last saved, to show it is so until something changes. */
+	let savedAs = $state<string | null>(null);
+
+	const options = $derived<DjOptions>({ artists: chosen, lang, every });
+	const saved = $derived(savedAs === JSON.stringify({ name: name.trim(), options }));
 
 	const shown = $derived(
 		filter ? artists.filter((a) => fold(a.name).includes(fold(filter))) : artists
 	);
 
-	export function open() {
-		const last = dj.remembered();
-		if (last) {
-			// Only artists that are still there.
-			const names = new Set(artists.map((a) => a.name));
-			chosen = last.artists.filter((a) => names.has(a));
-			lang = last.lang;
-			every = last.every;
+	/** Only artists that are still there. */
+	function existing(names: string[]) {
+		const there = new Set(artists.map((a) => a.name));
+		return names.filter((a) => there.has(a));
+	}
+
+	/** A saved setup to edit, or a new one starting from the last one used here. */
+	export function open(preset?: DjPreset) {
+		const from = preset?.options ?? dj.remembered();
+		if (from) {
+			chosen = existing(from.artists);
+			lang = from.lang;
+			every = from.every;
 		}
+		presetId = preset?.id ?? null;
+		name = preset?.name ?? '';
+		filter = '';
 		problem = null;
+		savedAs = preset ? JSON.stringify({ name, options: $state.snapshot(options) }) : null;
 		dialog?.showModal();
 	}
 
+	/** Straight from the menu; if it cannot, the dialog says why. */
+	export async function startPreset(preset: DjPreset) {
+		try {
+			await dj.play({ ...preset.options, artists: existing(preset.options.artists) });
+		} catch (err) {
+			open(preset);
+			problem = err instanceof Error ? err.message : String(err);
+		}
+	}
+
 	async function start() {
-		const options: DjOptions = { artists: chosen, lang, every };
 		starting = true;
 		problem = null;
 		try {
-			if (musicTarget.value === 'snapcast') {
-				const res = await fetch('/api/music/dj/snapcast', {
-					method: 'POST',
-					headers: { 'content-type': 'application/json' },
-					body: JSON.stringify(options)
-				});
-				if (!res.ok)
-					throw new Error((await res.json().catch(() => null))?.message ?? res.statusText);
-			} else await dj.start(options);
-			dj.remember(options);
+			await dj.play($state.snapshot(options));
 			dialog?.close();
 		} catch (err) {
 			problem = err instanceof Error ? err.message : String(err);
@@ -56,6 +76,23 @@
 			starting = false;
 		}
 	}
+
+	const save: SubmitFunction = () => {
+		saving = true;
+		problem = null;
+		const sent = JSON.stringify({ name: name.trim(), options: $state.snapshot(options) });
+		return async ({ result, update }) => {
+			saving = false;
+			if (result.type === 'success') {
+				presetId = Number(result.data?.saved);
+				savedAs = sent;
+				// The menu's list again, without touching this dialog.
+				await update({ reset: false });
+			} else if (result.type === 'failure')
+				problem = String(result.data?.message ?? 'No se ha podido guardar');
+			else problem = 'No se ha podido guardar';
+		};
+	};
 </script>
 
 <dialog
@@ -63,7 +100,7 @@
 	closedby="any"
 	class="m-auto w-lg max-w-[calc(100vw-2rem)] rounded-md border border-zinc-700 bg-zinc-900 p-5 text-sm text-zinc-100 shadow-lg backdrop:bg-zinc-950/70"
 >
-	<h2 class="mb-1 font-semibold">Modo DJ</h2>
+	<h2 class="mb-1 font-semibold">Modo DJ{presetId !== null ? ` · ${name}` : ''}</h2>
 	<p class="mb-4 text-zinc-400">
 		Canciones al azar y, cada pocas, un locutor que dice qué ha sonado y qué viene, como en la
 		radio. Suena {musicTarget.value === 'snapcast' ? 'en Snapcast' : 'en este dispositivo'}.
@@ -118,6 +155,29 @@
 			{every === 1 ? 'canción' : 'canciones'}
 		</label>
 	</div>
+
+	<form
+		method="post"
+		action="/musica?/djSave"
+		use:enhance={save}
+		class="mb-4 flex items-center gap-2"
+	>
+		{#if presetId !== null}<input type="hidden" name="id" value={presetId} />{/if}
+		<input type="hidden" name="options" value={JSON.stringify(options)} />
+		<input
+			name="name"
+			bind:value={name}
+			maxlength="60"
+			placeholder="Nombre, para usarla otra vez"
+			aria-label="Nombre de la configuración"
+			class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-950 py-1 text-sm"
+		/>
+		<button
+			disabled={saving || !name.trim()}
+			class="rounded-md border border-zinc-700 px-3 py-1 hover:bg-zinc-800 disabled:opacity-50"
+			>{saving ? 'Guardando…' : saved ? 'Guardada ✓' : 'Guardar'}</button
+		>
+	</form>
 
 	{#if problem}
 		<p class="mb-3 text-red-400">{problem}</p>

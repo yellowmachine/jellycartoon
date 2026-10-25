@@ -67,6 +67,13 @@ export interface DjOptions {
 	every: number;
 }
 
+/** A Modo DJ setup saved with a name, to start it again. */
+export interface DjPreset {
+	id: number;
+	name: string;
+	options: DjOptions;
+}
+
 export const DJ_EVERY = { min: 1, max: 8, default: 3 };
 
 /** Options from a page, only if well formed. */
