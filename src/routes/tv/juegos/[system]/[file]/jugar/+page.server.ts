@@ -1,8 +1,9 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
+import { controlsOf } from '#lib/server/game-controls.ts';
 import { findGame, gameRow, SYSTEMS } from '#lib/server/games.ts';
 
-export const load: PageServerLoad = async ({ params }) => {
+export const load: PageServerLoad = async ({ params, locals }) => {
 	const game = await findGame(params.system, params.file);
 	if (!game) error(404, 'Juego no encontrado');
 	const row = await gameRow(game.system, game.file);
@@ -19,6 +20,8 @@ export const load: PageServerLoad = async ({ params }) => {
 		/** Where a capture of the game goes, as the background of its page. */
 		backdrop: `/api/fondo/juego/${row.id}`,
 		/** The person's cartridge save of it, on the server. */
-		cartridge: `/api/juegos/cartucho/${row.id}`
+		cartridge: `/api/juegos/cartucho/${row.id}`,
+		/** The person's buttons for its console. */
+		controls: await controlsOf(locals.user!.id, game.system)
 	};
 };

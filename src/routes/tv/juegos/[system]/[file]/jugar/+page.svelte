@@ -59,6 +59,7 @@
 			title: data.title,
 			backdrop: data.backdrop,
 			cartridge: data.cartridge,
+			controls: JSON.stringify(data.controls),
 			...(data.bios ? { bios: data.bios } : {})
 		})}`
 	);

@@ -1508,3 +1508,20 @@ export const gameCartridge = pgTable(
 	},
 	(t) => [unique('game_cartridge_user_game').on(t.userId, t.gameId)]
 );
+
+/**
+ * A person's buttons for a console's games (#176): which of the gamepad does each of the console's
+ * (game-controls.ts). By the folder of GAMES_DIR, as the consoles are listed.
+ */
+export const gameControls = pgTable(
+	'game_controls',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		system: text('system').notNull(),
+		controls: jsonb('controls').$type<Record<string, string>>().notNull()
+	},
+	(t) => [unique('game_controls_user_system').on(t.userId, t.system)]
+);

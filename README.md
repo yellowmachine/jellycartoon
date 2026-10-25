@@ -629,7 +629,12 @@ Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`.
   en `/tv/juegos/estadisticas` y en la sección Juegos de la app completa; en la página de cada
   juego, el total y la última vez. Solo con «Guardar historial» activado en Ajustes.
 - EmulatorJS se carga de su CDN, en la versión 4.2.3: el salón necesita internet para jugar.
-- Todavía sin shaders ni botones a gusto de cada uno, y no está para los peques.
+- Los botones del mando de juego, a gusto de cada persona y por consola, en la sección Juegos de
+  la app completa (`/juegos/mando`): sobre un dibujo del mando se toca un botón y se elige qué hace
+  en los juegos de esa consola; si eso ya lo hacía otro, se intercambian. Se aplican al empezar
+  cada juego, por encima de lo que se cambie en el menú de EmulatorJS. La cruceta, los sticks y
+  Select + Start para el menú no cambian.
+- Todavía sin shaders, y no está para los peques.
 
 ### Dailymotion
 

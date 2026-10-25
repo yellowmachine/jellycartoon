@@ -63,6 +63,13 @@
 							emulator.gamepadSelection[free] = name;
 					}
 					emulator.updateGamepadLabels();
+					// The person's buttons (/juegos/mando), over EmulatorJS' own and what its menu kept.
+					// The gamepad's buttons given here do nothing else.
+					const given = new Set(Object.values(controls));
+					for (const [id, control] of Object.entries(emulator.controls[0]))
+						if (!(id in controls) && given.has(control.value2)) delete control.value2;
+					for (const [id, pad] of Object.entries(controls))
+						(emulator.controls[0][id] ??= {}).value2 = pad;
 					await loadCartridge(emulator).catch(() => {});
 					emulator.on('saveSaveFiles', sendCartridge);
 					ready.resolve();
@@ -72,6 +79,14 @@
 				document.body.append(loader);
 			}
 			const backdrop = params.get('backdrop') ?? '';
+			/** Each of the console's buttons to the gamepad's that does it (game-controls.ts). */
+			const controls = (() => {
+				try {
+					return JSON.parse(params.get('controls') ?? '{}') ?? {};
+				} catch {
+					return {};
+				}
+			})();
 
 			/**
 			 * The cartridge's save (#176), what the game itself saves: the person's, on the server.
