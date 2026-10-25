@@ -1,7 +1,7 @@
 import { htmlToText } from './html-text.ts';
 
 /**
- * Films and TV series in Wikidata and their Wikipedia articles, through the public APIs (no key
+ * Films, TV series and video games in Wikidata and their Wikipedia articles, through the public APIs (no key
  * needed): https://www.wikidata.org/w/api.php and https://es.wikipedia.org/api/rest_v1/
  */
 
@@ -510,4 +510,90 @@ export async function wikipediaPageText(page: WikiPage) {
 	const html = body.parse?.text as string | undefined;
 	if (!html) throw new Error(`No se pudo leer «${page.title}» de Wikipedia (${page.lang})`);
 	return htmlToText(html);
+}
+
+/** A video game (#176), and of one platform (P400): «Super Mario World» is also a cartoon series. */
+const VIDEO_GAME = 'Q7889';
+
+/** Ids of the platform's games whose label or aliases match `query`, best first. */
+export async function searchGames(query: string, platform: string, limit = 8): Promise<string[]> {
+	const body = await wikidata({
+		action: 'query',
+		list: 'search',
+		srsearch: `${query} haswbstatement:P31=${VIDEO_GAME} haswbstatement:P400=${platform}`,
+		srlimit: String(limit)
+	});
+	return (body.query?.search ?? []).map((r: { title: string }) => r.title);
+}
+
+/** The games as candidates: with their names, year and description to tell them apart. */
+export async function describeGames(ids: string[]): Promise<Candidate[]> {
+	if (!ids.length) return [];
+	const entities = await getEntities(ids, 'labels|descriptions|aliases|claims');
+	const byId = new Map(entities.map((e) => [e.id, e]));
+	return ids
+		.map((id) => byId.get(id))
+		.filter((e): e is Entity => Boolean(e && text(e.labels)))
+		.map((e) => ({
+			id: e.id,
+			title: text(e.labels)!,
+			names: [
+				...Object.values(e.labels ?? {}).map((l) => l.value),
+				...Object.values(e.aliases ?? {}).flatMap((a) => a.map((l) => l.value)),
+				...values(e, 'P1476').map((v) => (v as { text: string }).text)
+			],
+			description: text(e.descriptions),
+			year: year(e),
+			minutes: null,
+			directors: []
+		}));
+}
+
+export interface GameDetails {
+	wikidataId: string;
+	title: string;
+	year: number | null;
+	developers: string[];
+	publishers: string[];
+	genres: string[];
+	modes: string[];
+	composers: string[];
+	synopsis: string | null;
+	wikipediaUrl: string | null;
+}
+
+/** What the game's page shows, from Wikidata and the Spanish (or else English) Wikipedia. */
+export async function gameDetails(id: string): Promise<GameDetails> {
+	const [entity] = await getEntities([id], 'labels|claims|sitelinks');
+	if (!entity || !text(entity.labels)) throw new Error(`${id} no existe en Wikidata`);
+	// Developer, publisher, genre, game mode and composer.
+	const properties = ['P178', 'P123', 'P136', 'P404', 'P86'];
+	const names = await labels([...new Set(properties.flatMap((p) => itemIds(entity, p)))]);
+	const named = (property: string) => [
+		...new Set(
+			itemIds(entity, property)
+				.map((i) => names.get(i))
+				.filter((n): n is string => !!n)
+				// «Hotseat (modo de juego)»: what tells it apart in Wikidata says nothing here.
+				.map((n) => cleanLabel(n.replace(/\s*\([^)]*\)$/, '')))
+		)
+	];
+
+	const article = (['es', 'en'] as const)
+		.map((lang) => ({ lang, title: entity.sitelinks?.[`${lang}wiki`]?.title }))
+		.find((a): a is WikiPage => !!a.title);
+	const summary = article ? await wikipediaSummary(article.lang, article.title) : null;
+
+	return {
+		wikidataId: id,
+		title: text(entity.labels)!,
+		year: year(entity),
+		developers: named('P178'),
+		publishers: named('P123'),
+		genres: named('P136'),
+		modes: named('P404'),
+		composers: named('P86'),
+		synopsis: summary?.extract ?? null,
+		wikipediaUrl: summary?.url ?? null
+	};
 }

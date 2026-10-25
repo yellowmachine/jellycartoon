@@ -7,7 +7,8 @@
 	 * fading out at its sides on a wide screen: a frame is not made for a whole wide screen. Shown
 	 * once loaded; with none (not made yet, or no episode to take it from), nothing.
 	 */
-	let { src }: { src: string } = $props();
+	/** `pixelated`: a small image, such as a game console's screen, enlarged without smoothing. */
+	let { src, pixelated = false }: { src: string; pixelated?: boolean } = $props();
 
 	let loaded = $state(false);
 	let failed = $state(false);
@@ -47,6 +48,7 @@
 				alt=""
 				referrerpolicy="no-referrer"
 				class="sharp absolute inset-0 h-full w-full object-cover"
+				class:pixelated
 				bind:this={sharp}
 				onload={() => (loaded = true)}
 				onerror={() => (failed = true)}
@@ -65,6 +67,9 @@
 	}
 	.sharp {
 		mask-image: linear-gradient(to bottom, black 0%, black 25%, transparent 75%);
+	}
+	.pixelated {
+		image-rendering: pixelated;
 	}
 	.blurred {
 		filter: blur(28px) saturate(1.2);

@@ -2,7 +2,8 @@
 <!--
 	The games' player (#176): EmulatorJS (GPL-3.0, https://emulatorjs.org), as its docs embed it, with
 	its files from its CDN at a fixed version (cores only work with their own version). Opened in a
-	frame by /tv/juegos/[system]/[file], with the system, the game's URL and its title.
+	frame by /tv/juegos/[system]/[file]/jugar, with the system, the game's URL, its title and where its
+	captures go.
 -->
 <html lang="es">
 	<head>
@@ -42,9 +43,33 @@
 				loader.src = window.EJS_pathtodata + 'loader.js';
 				document.body.append(loader);
 			}
-			// The remote's Home (F7) to the TV view, as everywhere else: the frame gets the keys now.
+			const backdrop = params.get('backdrop') ?? '';
+
+			/**
+			 * The game's picture (its canvas, without EmulatorJS' menus), as the background of its
+			 * page; the game goes on. Not the core's own capture (`retroarch`): in 4.2.3 it waits forever
+			 * for a file the core never writes.
+			 */
+			async function capture() {
+				const emulator = window.EJS_emulator;
+				if (!emulator?.started || !backdrop.startsWith('/api/fondo/juego/')) return;
+				const { blob } = await emulator.takeScreenshot('canvas', 'png', 1);
+				const res = await fetch(backdrop, {
+					method: 'POST',
+					headers: { 'content-type': 'image/png' },
+					body: blob
+				}).catch(() => null);
+				emulator.displayMessage(res?.ok ? 'Fondo guardado' : 'No se pudo guardar el fondo', 3000);
+			}
+
 			addEventListener('keydown', (e) => {
+				// The remote's Home (F7) to the TV view, as everywhere else: the frame gets the keys now.
 				if (e.key === 'F7') parent.dispatchEvent(new KeyboardEvent('keydown', { key: 'F7' }));
+				// Its Play/Pause (F8): this moment as the game's background.
+				else if (e.key === 'F8' && !e.repeat) {
+					e.preventDefault();
+					void capture();
+				}
 			});
 		</script>
 	</body>
