@@ -16,6 +16,8 @@
 	import { THEMES, themeSwatches } from '#lib/themes.ts';
 	import { AVATARS, avatar } from '#lib/avatars.ts';
 	import SettingsSearch from '#lib/components/SettingsSearch.svelte';
+	import { OLD_TABS, SETTINGS_INDEX, TAB_LABELS, type SettingsTab } from '#lib/settings-index.ts';
+	import { goto } from '$app/navigation';
 	import { ANSWER_SECONDS, ASK_EVERY_OPTIONS } from '#lib/still-there.ts';
 	import type { PageProps } from './$types';
 
@@ -68,19 +70,29 @@
 	});
 
 	/**
-	 * Grouped, so the page is not eleven sections in a row: what is yours, what is this browser's
-	 * look and name, what connects to other apps, and what is the whole house's.
+	 * By whom it is for (#178): what is yours wherever you are, what is only this browser's, what is
+	 * the whole house's, and the account.
 	 */
-	const tabs = $derived([
-		{ id: 'ver', label: 'Ver' },
-		{ id: 'aspecto', label: 'Aspecto' },
-		...(data.langua || data.musicApps ? [{ id: 'conexiones', label: 'Conexiones' }] : []),
-		{ id: 'casa', label: 'Casa' },
-		{ id: 'cuenta', label: 'Cuenta' }
-	]);
-	const tab = $derived(
-		tabs.find((t) => t.id === page.url.searchParams.get('seccion'))?.id ?? 'ver'
-	);
+	const tabs: { id: SettingsTab; label: string }[] = (
+		['mi', 'aparato', 'casa', 'cuenta'] as const
+	).map((id) => ({ id, label: TAB_LABELS[id] }));
+	const tab = $derived.by(() => {
+		const asked = page.url.searchParams.get('seccion');
+		return tabs.find((t) => t.id === asked)?.id ?? (asked && OLD_TABS[asked]) ?? 'mi';
+	});
+
+	// A link from before #178 (`?seccion=aspecto#microfono`): its section, in the tab it is in now.
+	onMount(() => {
+		const asked = page.url.searchParams.get('seccion');
+		if (!asked || !(asked in OLD_TABS)) return;
+		const id = location.hash.slice(1);
+		const now = SETTINGS_INDEX.find((e) => e.id === id)?.tab ?? OLD_TABS[asked];
+		const url = new URL(location.href);
+		url.searchParams.set('seccion', now!);
+		void goto(url, { replaceState: true }).then(() =>
+			document.getElementById(id)?.scrollIntoView({ block: 'start' })
+		);
+	});
 
 	const section = 'mb-8 rounded-md border border-zinc-800 p-4';
 	/** OpenRouter's balance: e.g. `7,40 $`. */
@@ -113,28 +125,52 @@
 	<title>Ajustes · JellyCartoon</title>
 </svelte:head>
 
-<div class="mx-auto max-w-2xl">
+<div class="settings mx-auto max-w-2xl">
 	<h1 class="mb-4 text-2xl font-bold">Ajustes</h1>
 
-	<!-- What is in any tab, by a word (settings-index.ts): the page only draws the open one. -->
-	<SettingsSearch
-		shown={{
-			kid: Boolean(data.kid),
-			intro: data.intro,
-			keepHistory: data.keepHistory,
-			recordTrips: data.recordTrips,
-			langua: data.langua,
-			musicApps: data.musicApps,
-			voice: Boolean(data.voice),
-			music: Boolean(data.music),
-			ai: data.ai,
-			labels: data.labels,
-			routes: data.routes,
-			relay: data.relay,
-			kids: data.kids,
-			twoFactor: data.twoFactor
-		}}
-	/>
+	<!-- The search and the tabs stay in view under the app's bar while scrolling (#178), as high as
+	     the bar is on this screen (--header-h, measured by the layout). -->
+	<div
+		class="sticky z-[5] -mx-4 mb-6 bg-zinc-950/90 px-4 pt-2 backdrop-blur"
+		style:top="var(--header-h, 0px)"
+	>
+		<!-- What is in any tab, by a word (settings-index.ts): the page only draws the open one. -->
+		<SettingsSearch
+			shown={{
+				kid: Boolean(data.kid),
+				intro: data.intro,
+				keepHistory: data.keepHistory,
+				recordTrips: data.recordTrips,
+				langua: data.langua,
+				musicApps: data.musicApps,
+				voice: Boolean(data.voice),
+				music: Boolean(data.music),
+				ai: data.ai,
+				labels: data.labels,
+				routes: data.routes,
+				relay: data.relay,
+				kids: data.kids,
+				twoFactor: data.twoFactor
+			}}
+		/>
+
+		<!-- Tabs that are links, as in Gestión: each keeps its address, and «back» works. -->
+		<!-- Forms post to «?seccion=…&/action», so saving keeps the tab (the action is the «/» one). -->
+		<nav class="flex gap-5 overflow-x-auto border-b border-zinc-800">
+			{#each tabs as t (t.id)}
+				<a
+					href="?seccion={t.id}"
+					class={[
+						'shrink-0 border-b-2 px-1 pb-2 text-sm',
+						t.id === tab
+							? 'border-amber-500 text-white'
+							: 'border-transparent text-zinc-400 hover:text-white'
+					]}
+					aria-current={t.id === tab ? 'page' : undefined}>{t.label}</a
+				>
+			{/each}
+		</nav>
+	</div>
 
 	<!-- The drawings to choose from (#141, #157): a child's, an adult's, one's own. -->
 	{#snippet avatarPicker(chosen: string | null, label: string)}
@@ -156,24 +192,9 @@
 		</div>
 	{/snippet}
 
-	<!-- Tabs that are links, as in Gestión: each keeps its address, and «back» works. -->
-	<!-- Forms post to «?seccion=…&/action», so saving keeps the tab (the action is the «/» one). -->
-	<nav class="mb-6 flex gap-5 overflow-x-auto border-b border-zinc-800">
-		{#each tabs as t (t.id)}
-			<a
-				href="?seccion={t.id}"
-				class={[
-					'shrink-0 border-b-2 px-1 pb-2 text-sm',
-					t.id === tab
-						? 'border-amber-500 text-white'
-						: 'border-transparent text-zinc-400 hover:text-white'
-				]}
-				aria-current={t.id === tab ? 'page' : undefined}>{t.label}</a
-			>
-		{/each}
-	</nav>
+	{#if tab === 'mi'}
+		<p class="mb-6 text-sm text-zinc-400">Solo para ti, en todos tus aparatos.</p>
 
-	{#if tab === 'ver'}
 		<section class={section} id="reproduccion">
 			<h2 class="mb-1 font-semibold">Reproducción</h2>
 			<p class="mb-4 text-sm text-zinc-400">
@@ -292,9 +313,42 @@
 			{/if}
 		</section>
 
+		{#if data.music}
+			<section class={section} id="modo-dj">
+				<h2 class="mb-1 font-semibold">Modo DJ</h2>
+				<p class="mb-4 text-sm text-zinc-400">
+					Cuándo habla el locutor. Mezclada, como en la radio: entra al final de una canción con la
+					música más baja, y la siguiente empieza por debajo de su voz. De momento solo en el
+					navegador; en los altavoces de casa sigue hablando entre canciones.
+				</p>
+				<form
+					method="post"
+					action="?seccion={tab}&/djMix"
+					use:enhance={() =>
+						async ({ update }) =>
+							update({ reset: false })}
+					class="flex flex-wrap gap-2"
+				>
+					{#each [['between', 'Entre canciones'], ['mix', 'Mezclada con las canciones']] as const as [value, label] (value)}
+						<button
+							name="djMix"
+							{value}
+							aria-pressed={data.djMix === (value === 'mix')}
+							class={[
+								'rounded-full border px-3 py-1 text-sm',
+								data.djMix === (value === 'mix')
+									? 'border-amber-500 text-amber-400'
+									: 'border-zinc-700 hover:bg-zinc-900'
+							]}>{label}</button
+						>
+					{/each}
+				</form>
+			</section>
+		{/if}
+
 		{#if data.keepHistory !== null}
 			<section class={section} id="lo-que-veo">
-				<h2 class="mb-1 font-semibold">Lo que veo</h2>
+				<h2 class="mb-1 font-semibold">Lo que se guarda de ti</h2>
 				<form
 					method="post"
 					action="?seccion={tab}&/history"
@@ -353,9 +407,77 @@
 				{/if}
 			</section>
 		{/if}
-	{/if}
 
-	{#if tab === 'conexiones'}
+		<section class={section} id="colores">
+			<h2 class="mb-1 font-semibold">Colores</h2>
+			<p class="mb-4 text-sm text-zinc-400">
+				Los de toda la app, en todas tus pantallas, también en la tele del salón.
+			</p>
+			<form
+				method="post"
+				action="?seccion={tab}&/theme"
+				use:enhance={() =>
+					async ({ update }) =>
+						update({ reset: false })}
+				class="grid gap-2 sm:grid-cols-2"
+			>
+				{#each THEMES as theme (theme.id)}
+					{@const on = data.theme === theme.id}
+					<button
+						name="theme"
+						value={theme.id}
+						aria-pressed={on}
+						class={[
+							'flex items-center gap-3 rounded-md border p-2 text-left text-sm',
+							on ? 'border-amber-500 bg-amber-500/10' : 'border-zinc-800 hover:bg-zinc-900'
+						]}
+					>
+						<!-- Its own colours, whatever theme is on now. -->
+						<span class="flex shrink-0 overflow-hidden rounded border border-zinc-700">
+							{#each themeSwatches(theme.id) as color, i (i)}
+								<span class="h-6 w-3" style:background-color={color}></span>
+							{/each}
+						</span>
+						<span class="flex-1">{theme.name}</span>
+						{#if on}<span class="text-amber-400">✓</span>{/if}
+					</button>
+				{/each}
+			</form>
+			{#if form && 'section' in form && form.section === 'theme'}
+				<p class="mt-2 text-sm text-red-400">{form.message}</p>
+			{/if}
+		</section>
+
+		<section class={section} id="al-abrir">
+			<h2 class="mb-1 font-semibold">Al abrir la app</h2>
+			<form
+				method="post"
+				action="?seccion={tab}&/openingQuote"
+				use:enhance={() =>
+					async ({ update }) =>
+						update({ reset: false })}
+			>
+				<label class="flex items-start gap-2 text-sm">
+					<input
+						type="checkbox"
+						name="openingQuote"
+						checked={data.openingQuoteOn}
+						onchange={(e) => e.currentTarget.form?.requestSubmit()}
+						class="mt-0.5 rounded border-zinc-700 bg-zinc-900 text-amber-500"
+					/>
+					<span>
+						Una frase de tus series
+						<span class="block text-xs text-zinc-500"
+							>Unos segundos, en blanco sobre negro, como los rótulos de Frasier entre escenas. Sale
+							de los subtítulos, mejor de la serie que estás viendo{data.ai?.keySource
+								? ', y la IA elige las más ingeniosas'
+								: ''}. Cualquier tecla o toque la quita.</span
+						>
+					</span>
+				</label>
+			</form>
+		</section>
+
 		{#if data.langua}
 			<section class={section} id="langua">
 				<h2 class="mb-1 font-semibold">Langua</h2>
@@ -469,79 +591,13 @@
 		{/if}
 	{/if}
 
-	{#if tab === 'aspecto'}
-		<section class={section} id="colores">
-			<h2 class="mb-1 font-semibold">Colores</h2>
-			<p class="mb-4 text-sm text-zinc-400">
-				Los de toda la app, en todas tus pantallas, también en la tele del salón.
-			</p>
-			<form
-				method="post"
-				action="?seccion={tab}&/theme"
-				use:enhance={() =>
-					async ({ update }) =>
-						update({ reset: false })}
-				class="grid gap-2 sm:grid-cols-2"
-			>
-				{#each THEMES as theme (theme.id)}
-					{@const on = data.theme === theme.id}
-					<button
-						name="theme"
-						value={theme.id}
-						aria-pressed={on}
-						class={[
-							'flex items-center gap-3 rounded-md border p-2 text-left text-sm',
-							on ? 'border-amber-500 bg-amber-500/10' : 'border-zinc-800 hover:bg-zinc-900'
-						]}
-					>
-						<!-- Its own colours, whatever theme is on now. -->
-						<span class="flex shrink-0 overflow-hidden rounded border border-zinc-700">
-							{#each themeSwatches(theme.id) as color, i (i)}
-								<span class="h-6 w-3" style:background-color={color}></span>
-							{/each}
-						</span>
-						<span class="flex-1">{theme.name}</span>
-						{#if on}<span class="text-amber-400">✓</span>{/if}
-					</button>
-				{/each}
-			</form>
-			{#if form && 'section' in form && form.section === 'theme'}
-				<p class="mt-2 text-sm text-red-400">{form.message}</p>
-			{/if}
-		</section>
-
-		<section class={section} id="al-abrir">
-			<h2 class="mb-1 font-semibold">Al abrir la app</h2>
-			<form
-				method="post"
-				action="?seccion={tab}&/openingQuote"
-				use:enhance={() =>
-					async ({ update }) =>
-						update({ reset: false })}
-			>
-				<label class="flex items-start gap-2 text-sm">
-					<input
-						type="checkbox"
-						name="openingQuote"
-						checked={data.openingQuoteOn}
-						onchange={(e) => e.currentTarget.form?.requestSubmit()}
-						class="mt-0.5 rounded border-zinc-700 bg-zinc-900 text-amber-500"
-					/>
-					<span>
-						Una frase de tus series
-						<span class="block text-xs text-zinc-500"
-							>Unos segundos, en blanco sobre negro, como los rótulos de Frasier entre escenas. Sale
-							de los subtítulos, mejor de la serie que estás viendo{data.ai?.keySource
-								? ', y la IA elige las más ingeniosas'
-								: ''}. Cualquier tecla o toque la quita.</span
-						>
-					</span>
-				</label>
-			</form>
-		</section>
+	{#if tab === 'aparato'}
+		<p class="mb-6 text-sm text-zinc-400">
+			Solo en este móvil, tablet u ordenador: en otro puede ser distinto.
+		</p>
 
 		<section class={section} id="este-dispositivo">
-			<h2 class="mb-1 font-semibold">Este dispositivo</h2>
+			<h2 class="mb-1 font-semibold">Nombre y avisos</h2>
 			<p class="mb-4 text-sm text-zinc-400">
 				Cómo se llama este navegador: al seguir con la música en otro («Sonaba en el salón») y en lo
 				que ven los niños (Infantil: «está viendo… en la tablet»). Escríbelo con el artículo. Vacío,
@@ -563,17 +619,6 @@
 					Se verá así: <span class="text-zinc-200">«Sonaba en {shownDeviceName(false)}»</span>
 				</p>
 			{/if}
-			<!-- #144, phase 1: trying wake words on this phone or tablet. -->
-			{#if !data.kid}
-				<p class="mt-4 border-t border-zinc-800 pt-4 text-sm">
-					<a href="/activacion" class="text-amber-400 hover:underline"
-						>Probar la palabra de activación</a
-					>
-					<span class="text-zinc-400"
-						>: «hola casita», «hey luna», «candy candy» o «Jelly Cartoon», sin pulsar el micrófono.</span
-					>
-				</p>
-			{/if}
 			<!-- The adults' notices with the app closed: the fridge (#131), and a child asking to enter
 			     (#141) for whoever lets one in. -->
 			{#if !data.kid}
@@ -583,7 +628,7 @@
 
 		{#if data.voice}
 			<section class={section} id="microfono">
-				<h2 class="mb-1 font-semibold">Micrófono</h2>
+				<h2 class="mb-1 font-semibold">Voz y micrófono</h2>
 				<p class="mb-4 text-sm text-zinc-400">
 					Cómo se habla en este dispositivo, en Hablar, en el micrófono de arriba y con
 					Ctrl+Mayús+Espacio. Solo aquí: la tablet de la cocina puede ir con toques y el móvil
@@ -614,7 +659,10 @@
 					{/if}
 				</p>
 				<!-- #144, phase 2: the wake word, only on this device. -->
-				<label class="mt-4 flex items-center gap-3 border-t border-zinc-800 pt-4 text-sm">
+				<label
+					id="hola-casita"
+					class="mt-4 flex items-center gap-3 border-t border-zinc-800 pt-4 text-sm"
+				>
 					<input
 						type="checkbox"
 						checked={mounted && wakeWord.on}
@@ -639,6 +687,15 @@
 							}[wakeWord.status]}
 					</p>
 				{/if}
+				<p class="mt-3 text-sm">
+					<a href="/activacion" class="text-amber-400 hover:underline"
+						>Probar la palabra de activación</a
+					>
+					<span class="text-zinc-400"
+						>: solo prueba, mientras estás en esa página; para que escuche en toda la app, marca la
+						casilla de arriba.</span
+					>
+				</p>
 			</section>
 		{/if}
 
@@ -675,37 +732,6 @@
 				</p>
 			</section>
 
-			<section class={section} id="modo-dj">
-				<h2 class="mb-1 font-semibold">Modo DJ</h2>
-				<p class="mb-4 text-sm text-zinc-400">
-					Cuándo habla el locutor. Mezclada, como en la radio: entra al final de una canción con la
-					música más baja, y la siguiente empieza por debajo de su voz. De momento solo en el
-					navegador; en los altavoces de casa sigue hablando entre canciones.
-				</p>
-				<form
-					method="post"
-					action="?seccion={tab}&/djMix"
-					use:enhance={() =>
-						async ({ update }) =>
-							update({ reset: false })}
-					class="flex flex-wrap gap-2"
-				>
-					{#each [['between', 'Entre canciones'], ['mix', 'Mezclada con las canciones']] as const as [value, label] (value)}
-						<button
-							name="djMix"
-							{value}
-							aria-pressed={data.djMix === (value === 'mix')}
-							class={[
-								'rounded-full border px-3 py-1 text-sm',
-								data.djMix === (value === 'mix')
-									? 'border-amber-500 text-amber-400'
-									: 'border-zinc-700 hover:bg-zinc-900'
-							]}>{label}</button
-						>
-					{/each}
-				</form>
-			</section>
-
 			<section class={section} id="fondo-musica">
 				<h2 class="mb-1 font-semibold">Fondo de Música</h2>
 				<p class="mb-4 text-sm text-zinc-400">
@@ -719,6 +745,8 @@
 	{/if}
 
 	{#if tab === 'casa'}
+		<p class="mb-6 text-sm text-zinc-400">Para toda la casa.</p>
+
 		{#if data.ai}
 			<section class={section} id="ia">
 				<h2 class="mb-1 font-semibold">Inteligencia artificial</h2>
@@ -797,7 +825,7 @@
 				{/if}
 
 				{#if data.ai.keyHint}
-					<h3 class="mb-2 text-sm text-zinc-300">Crédito y gasto</h3>
+					<h3 id="credito" class="mb-2 text-sm text-zinc-300">Crédito y gasto</h3>
 					<div class="mb-4 text-sm">
 						{#await data.ai.balance}
 							<span class="text-zinc-500">Consultando…</span>
@@ -935,7 +963,7 @@
 					</form>
 				{/snippet}
 
-				<h3 class="mb-2 text-sm text-zinc-300">Modelo para identificar películas</h3>
+				<h3 id="modelos" class="mb-2 text-sm text-zinc-300">Modelo para identificar películas</h3>
 				{@render modelForm(
 					'films',
 					'Modelo para identificar películas',
@@ -1779,6 +1807,10 @@
 </div>
 
 <style>
+	/* A section opened from the search or a link: its start below the bar and the tabs that stick. */
+	.settings :global([id]) {
+		scroll-margin-top: calc(var(--header-h, 0px) + 7rem);
+	}
 	/* A release's notes, as GitHub writes them in HTML: headings, lists, bold and links. */
 	.release-notes :global(:is(h1, h2, h3, h4)) {
 		margin: 0.9em 0 0.3em;

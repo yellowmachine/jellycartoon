@@ -23,7 +23,7 @@
 	<p class="mb-6 text-sm text-zinc-400">
 		Post-its para toda la casa, y la lista de la compra. Se ven en la tele del salón, y a los demás
 		les llega un aviso al móvil si lo tienen activado en <a
-			href="/ajustes?seccion=aspecto#este-dispositivo"
+			href="/ajustes?seccion=aparato#este-dispositivo"
 			class="text-amber-400 hover:underline">Ajustes</a
 		>. También por voz: «añade leche a la lista».
 	</p>
