@@ -614,6 +614,9 @@ Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`.
   cargar desde cualquier dispositivo y borrar desde la lista. También salen en la página del juego,
   bajo su fondo: elegir una abre el juego en ese momento. En el menú, el mando de juego también
   sirve: la cruz, A y B.
+- Fuera de los juegos, el mando de juego sirve en toda la Vista TV como el mando a distancia: la
+  cruceta (o el stick) se mueve, A es OK, B es Atrás, Start es Inicio y Select el micrófono. No
+  llega a mpv: con una película o un capítulo delante, el navegador no lo lee.
 - El mando de juego se reconoce por udev, y el Chromium de Flatpak no lo ve sin
   `flatpak override --user --filesystem=/run/udev:ro org.chromium.Chromium`, que pone
   `scripts/pantalla.sh`. Luego hay que cerrar Chromium y abrirlo, y pulsar un botón del mando en el
