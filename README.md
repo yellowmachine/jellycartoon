@@ -585,8 +585,8 @@ Un experimento (#176): juegos retro en la Vista TV, con
 `HOST_GAMES_DIR="/ruta/a/las/roms"` en el `.env` se monta de solo lectura y aparece la tarjeta
 Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`.
 
-- Una carpeta por consola, cada una con su emulador: `nes`, `snes`, `gb`, `gbc`, `gba` y
-  `megadrive`. Las demás no salen. Los juegos pueden ir tal cual o en `.zip` o `.7z`.
+- Una carpeta por consola, cada una con su emulador: `nes`, `snes`, `gb`, `gbc`, `gba`,
+  `mastersystem` y `megadrive`. Las demás no salen. Los juegos pueden ir tal cual o en `.zip` o `.7z`.
 - Cada juego tiene su página, con «Jugar» y lo que se sabe de él: la primera vez que se abre se
   busca en Wikidata entre los juegos de su consola (año, desarrolladora, género, modos, música) y
   se trae el resumen de la Wikipedia. Si hay dudas, la página pregunta cuál es.

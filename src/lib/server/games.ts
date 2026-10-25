@@ -19,6 +19,7 @@ export const SYSTEMS: Record<string, { name: string; core: string; wikidata: str
 	gb: { name: 'Game Boy', core: 'gb', wikidata: 'Q186437' },
 	gbc: { name: 'Game Boy Color', core: 'gb', wikidata: 'Q203992' },
 	gba: { name: 'Game Boy Advance', core: 'gba', wikidata: 'Q188642' },
+	mastersystem: { name: 'Master System', core: 'segaMS', wikidata: 'Q209868' },
 	megadrive: { name: 'Mega Drive', core: 'segaMD', wikidata: 'Q10676' }
 };
 
