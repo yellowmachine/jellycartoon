@@ -1,7 +1,5 @@
-import { describe, expect, it, mock } from 'bun:test';
-
-mock.module('#lib/server/library/paths.ts', () => ({ dataRoot: '/tmp' }));
-const { biosOf, parse } = await import('./fbneo.ts');
+import { describe, expect, it } from 'bun:test';
+import { biosOf, parse } from './fbneo-list.ts';
 
 const xml = `
 	<game name="sf2" sourcefile="capcom/d_cps1.cpp">

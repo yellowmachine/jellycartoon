@@ -608,6 +608,11 @@ Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`.
   cambia. Sin elegir, es la pantalla de título.
 - El juego ocupa toda la pantalla. Atrás en el mando a distancia lo cierra y vuelve a su página,
   e Inicio, a la Vista TV.
+- OK en el mando a distancia, o Select y Start a la vez en el mando de juego, pausa el juego y abre
+  su menú: Continuar, Guardar partida, Cargar partida, Reiniciar y Salir. Las partidas se guardan
+  en el servidor, por persona (en `HOST_DATA_DIR/partidas`), con una imagen y la fecha; se pueden
+  cargar desde cualquier dispositivo y borrar desde la lista. En el menú, el mando de juego también
+  sirve: la cruz, A y B.
 - El mando de juego se reconoce por udev, y el Chromium de Flatpak no lo ve sin
   `flatpak override --user --filesystem=/run/udev:ro org.chromium.Chromium`, que pone
   `scripts/pantalla.sh`. Luego hay que cerrar Chromium y abrirlo, y pulsar un botón del mando en el

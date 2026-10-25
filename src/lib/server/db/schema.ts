@@ -1447,3 +1447,22 @@ export const game = pgTable(
 	},
 	(t) => [unique('game_system_file').on(t.system, t.file)]
 );
+
+/**
+ * A game saved by a person from the game's menu (#176): the emulator's whole state at that moment,
+ * and a picture of it. Both in DATA_DIR/partidas, by its id.
+ */
+export const gameSave = pgTable(
+	'game_save',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		gameId: integer('game_id')
+			.notNull()
+			.references(() => game.id, { onDelete: 'cascade' }),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [index('game_save_user_game_idx').on(t.userId, t.gameId, t.createdAt)]
+);

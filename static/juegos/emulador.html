@@ -113,9 +113,29 @@
 						e.preventDefault();
 						if (!e.repeat) void capture();
 					}
+					// Its OK: the game's menu (in the page around, /jugar). Not to EmulatorJS, for which
+					// Enter is Start: the gamepad has its own.
+					else if (e.key === 'Enter') {
+						e.preventDefault();
+						e.stopImmediatePropagation();
+						if (!e.repeat) openMenu();
+					}
 				},
 				true
 			);
+
+			const openMenu = () => parent.dispatchEvent(new Event('juegos:menu'));
+
+			// Select and Start at once on the gamepad (the standard mapping's 8 and 9): the menu too, for
+			// who plays without the remote at hand.
+			let both = false;
+			requestAnimationFrame(function poll() {
+				const pad = navigator.getGamepads().find((p) => p?.connected);
+				const now = Boolean(pad?.buttons[8]?.pressed && pad.buttons[9]?.pressed);
+				if (now && !both) openMenu();
+				both = now;
+				requestAnimationFrame(poll);
+			});
 		</script>
 	</body>
 </html>
