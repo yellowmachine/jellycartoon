@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 	import { beforeNavigate, goto, pushState } from '$app/navigation';
+	import { page } from '$app/state';
 	import SectionIcon from '#lib/components/SectionIcon.svelte';
 	import { music } from '#lib/music-player.svelte.ts';
 	import type { PageProps } from './$types';
@@ -11,6 +12,40 @@
 
 	// The game's sound, not the music or the radio over it.
 	onMount(() => music.stop());
+
+	/**
+	 * Opened from one of the saved games on the game's page (`?partida=`): that moment, once the
+	 * emulator has started.
+	 */
+	onMount(() => {
+		const saveId = Number(page.url.searchParams.get('partida'));
+		if (!saveId) return;
+		let tries = 0;
+		const timer = setInterval(() => {
+			const running = emulator();
+			if (!running && ++tries < 120) return;
+			clearInterval(timer);
+			if (running) void loadSave(running, saveId);
+		}, 250);
+		return () => clearInterval(timer);
+	});
+
+	/** A saved game into the emulator: its state, gzipped on the server as it was saved. */
+	async function loadState(running: Emulator, saveId: number) {
+		const res = await fetch(`/api/juegos/partida/${saveId}/estado`);
+		if (!res.ok || !res.body) throw new Error(await res.text());
+		const state = res.body.pipeThrough(new DecompressionStream('gzip'));
+		running.gameManager.loadState(new Uint8Array(await new Response(state).arrayBuffer()));
+	}
+
+	async function loadSave(running: Emulator, saveId: number) {
+		try {
+			await loadState(running, saveId);
+			running.displayMessage('Partida cargada', 3000);
+		} catch {
+			running.displayMessage('No se pudo cargar la partida', 3000);
+		}
+	}
 
 	/**
 	 * EmulatorJS in a page of its own (static/juegos/emulador.html), in a frame: leaving the game
@@ -203,10 +238,7 @@
 		busy = true;
 		message = 'Cargando…';
 		try {
-			const res = await fetch(`/api/juegos/partida/${save.id}/estado`);
-			if (!res.ok || !res.body) throw new Error(await res.text());
-			const state = res.body.pipeThrough(new DecompressionStream('gzip'));
-			running.gameManager.loadState(new Uint8Array(await new Response(state).arrayBuffer()));
+			await loadState(running, save.id);
 			close();
 		} catch {
 			message = 'No se pudo cargar la partida';
