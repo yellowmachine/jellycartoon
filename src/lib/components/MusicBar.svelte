@@ -488,6 +488,30 @@
 
 <svelte:window ononline={online} />
 
+<!-- The volume, only with a mouse (a PC): phones and tablets have their own buttons, and an iPhone
+does not let a page change it. -->
+{#snippet volume(order = '')}
+	<span class="hidden shrink-0 items-center gap-1 pointer-fine:flex {order}">
+		<button
+			class={ghost}
+			aria-label={music.muted ? 'Activar el sonido' : 'Silenciar'}
+			title={music.muted ? 'Activar el sonido' : 'Silenciar'}
+			onclick={() => music.toggleMute()}
+			><MediaIcon name={music.muted ? 'muted' : 'volume'} /></button
+		>
+		<input
+			type="range"
+			min="0"
+			max="1"
+			step="0.05"
+			value={music.muted ? 0 : music.volume}
+			aria-label="Volumen"
+			class="h-1 w-20 accent-amber-500"
+			oninput={(e) => music.setVolume(Number(e.currentTarget.value))}
+		/>
+	</span>
+{/snippet}
+
 <!-- Only the one that sounds tells the bar; the other is the next song, loading (#180). -->
 {#each [0, 1] as i (i)}
 	{@const on = (e: Event) => e.currentTarget === audio}
@@ -567,6 +591,7 @@ and the speed. -->
 					{/if}
 				</span>
 			</a>
+			{@render volume('order-7')}
 			<button
 				class="{ghost} order-2 sm:order-9"
 				aria-label="Cerrar"
@@ -639,6 +664,7 @@ and the speed. -->
 			aria-label={music.playing ? 'Pausa' : 'Seguir'}
 			onclick={() => music.toggle()}><MediaIcon name={music.playing ? 'pause' : 'play'} /></button
 		>
+		{@render volume()}
 		<button class={ghost} aria-label="Cerrar" title="Parar y cerrar" onclick={() => music.stop()}
 			><MediaIcon name="close" /></button
 		>
@@ -725,6 +751,7 @@ and the speed. -->
 					onclick={() => dj.stop()}>DJ ✕</button
 				>
 			{/if}
+			{@render volume('order-7')}
 			<button
 				class={[ghost, 'order-2 sm:order-8', showQueue && 'bg-zinc-800 text-white']}
 				aria-label="Cola"

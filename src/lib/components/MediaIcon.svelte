@@ -9,7 +9,9 @@
 		| 'shuffle'
 		| 'repeat'
 		| 'single'
-		| 'queue';
+		| 'queue'
+		| 'volume'
+		| 'muted';
 </script>
 
 <script lang="ts">
@@ -79,6 +81,20 @@
 		<path d="M4 6.5l5 3-5 3Z" />
 		<path
 			d="M12 9.5h8M4 16.5h16M4 20.5h16"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="2"
+			stroke-linecap="round"
+		/>
+	{:else if name === 'volume' || name === 'muted'}
+		<!-- A speaker: with its sound, or crossed out. -->
+		<path
+			d="M3 9.5v5a1 1 0 0 0 1 1h3l4.4 3.7a1 1 0 0 0 1.6-.8V5.6a1 1 0 0 0-1.6-.8L7 8.5H4a1 1 0 0 0-1 1Z"
+		/>
+		<path
+			d={name === 'volume'
+				? 'M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12'
+				: 'M16 9l5 6M21 9l-5 6'}
 			fill="none"
 			stroke="currentColor"
 			stroke-width="2"

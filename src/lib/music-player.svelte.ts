@@ -6,6 +6,8 @@ import { watchPlay } from '#lib/media-diagnostics.ts';
 
 /** The volume under spoken directions. */
 const DUCKED_VOLUME = 0.25;
+/** This browser's volume, from the bar on a PC (phones and tablets have their buttons). */
+const VOLUME_KEY = 'jellycartoon:volume';
 
 /** Seconds an episode goes back after being paused to speak to the voice assistant. */
 const VOICE_REWIND = 3;
@@ -54,12 +56,17 @@ class MusicPlayer {
 	 * browser does not let it sound by itself. Where it was playing, to say so.
 	 */
 	restored = $state<{ positionSec: number; changedBy: string } | null>(null);
+	/** From 0 to 1, as the PC's slider leaves it; kept in this browser. */
+	volume = $state(1);
+	muted = $state(false);
 
 	/** Paused while the user speaks to the voice assistant and it answers: it plays again after. */
 	#pausedByVoice = false;
 	/** The queue in its own order, while it is shuffled. */
 	#ordered: MusicTrack[] = [];
 	#audio: HTMLAudioElement | null = null;
+	/** Lowered while something speaks over it (duck). */
+	#ducked = false;
 	/**
 	 * When someone last asked to pause (Date.now()): the app, the lock screen or the voice. A pause
 	 * not asked for, with the screen off, is the phone's alone (auto-resume.ts).
@@ -72,7 +79,47 @@ class MusicPlayer {
 
 	/** Called by MusicBar with its `<audio>`. */
 	attach(audio: HTMLAudioElement | null) {
+		if (audio && !this.#audio) this.#loadVolume();
 		this.#audio = audio;
+		this.#applyVolume();
+	}
+
+	setVolume(volume: number) {
+		this.volume = Math.min(1, Math.max(0, volume));
+		this.muted = this.volume === 0;
+		this.#applyVolume();
+		this.#saveVolume();
+	}
+
+	/** Silenced, and back as it was; from nothing, to half. */
+	toggleMute() {
+		if (this.muted && this.volume === 0) this.volume = 0.5;
+		this.muted = !this.muted;
+		this.#applyVolume();
+		this.#saveVolume();
+	}
+
+	#applyVolume() {
+		if (!this.#audio) return;
+		this.#audio.volume = this.muted ? 0 : this.volume * (this.#ducked ? DUCKED_VOLUME : 1);
+	}
+
+	#loadVolume() {
+		try {
+			const saved = JSON.parse(localStorage.getItem(VOLUME_KEY) ?? 'null');
+			if (typeof saved?.volume === 'number') this.volume = Math.min(1, Math.max(0, saved.volume));
+			if (typeof saved?.muted === 'boolean') this.muted = saved.muted;
+		} catch {
+			// A private window: as it comes.
+		}
+	}
+
+	#saveVolume() {
+		try {
+			localStorage.setItem(VOLUME_KEY, JSON.stringify({ volume: this.volume, muted: this.muted }));
+		} catch {
+			// A private window: only for now.
+		}
 	}
 
 	/** What was playing on this or another device, paused; the station, already asked for. */
@@ -295,11 +342,12 @@ class MusicPlayer {
 	}
 
 	/**
-	 * Lower while something else speaks over it (the road mode's directions, #78), and back: not
-	 * paused, as a station would connect again.
+	 * Lower while something else speaks over it (the road mode's directions, #78), and back to the
+	 * volume chosen: not paused, as a station would connect again.
 	 */
 	duck(on: boolean) {
-		if (this.#audio) this.#audio.volume = on ? DUCKED_VOLUME : 1;
+		this.#ducked = on;
+		this.#applyVolume();
 	}
 
 	stop() {
