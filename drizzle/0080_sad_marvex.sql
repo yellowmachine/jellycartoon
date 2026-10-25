@@ -1,0 +1,1 @@
+ALTER TABLE "user_settings" ADD COLUMN "dj_mix" boolean DEFAULT false NOT NULL;

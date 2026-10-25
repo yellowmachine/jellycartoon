@@ -24,6 +24,8 @@ export const load: LayoutServerLoad = async ({ locals, isDataRequest }) => {
 			: null,
 		/** The account's colours (Ajustes), painted from the server: no flash of the default. */
 		theme: settings?.theme ?? DEFAULT_THEME,
+		/** Modo DJ over the songs (Ajustes), for MusicBar. */
+		djMix: settings?.djMix ?? false,
 		/**
 		 * The title card when the app opens (Ajustes): only when the whole page loads, not when moving
 		 * around inside it.

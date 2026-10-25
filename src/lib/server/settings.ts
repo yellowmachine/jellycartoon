@@ -15,6 +15,8 @@ export interface PlaybackSettings {
 	keepHistory: boolean;
 	/** A line from the library on a black screen when the app opens, as Frasier's title cards. */
 	openingQuote: boolean;
+	/** Modo DJ: the DJ speaks over the songs, as on the radio, instead of between them. */
+	djMix: boolean;
 }
 
 export async function getSettings(userId: string): Promise<PlaybackSettings> {
@@ -27,7 +29,8 @@ export async function getSettings(userId: string): Promise<PlaybackSettings> {
 		intro: row?.intro ?? true,
 		theme: isTheme(row?.theme) ? row.theme : DEFAULT_THEME,
 		keepHistory: row?.keepHistory ?? true,
-		openingQuote: row?.openingQuote ?? true
+		openingQuote: row?.openingQuote ?? true,
+		djMix: row?.djMix ?? false
 	};
 }
 

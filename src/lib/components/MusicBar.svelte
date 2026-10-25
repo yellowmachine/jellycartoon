@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import MediaIcon from './MediaIcon.svelte';
 	import PlayModes from './PlayModes.svelte';
 	import { untrack } from 'svelte';
@@ -6,7 +7,7 @@
 	import { formatDuration } from '#lib/format.ts';
 	import { GAVE_UP, RETRYING, TRIES, recoverFromErrors, retryDelay } from '#lib/hls-recovery.ts';
 	import { dj } from '#lib/dj.svelte.ts';
-	import { audioUrl, coverUrl } from '#lib/music.ts';
+	import { audioUrl, coverUrl, type MusicTrack } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
 	import { musicQuality } from '#lib/music-quality.svelte.ts';
 	import { keepQueue } from '#lib/music-queue.svelte.ts';
@@ -183,11 +184,23 @@
 
 	/** Into a song this long, the next one loads in the other: this one's own download goes first. */
 	const NEXT_AFTER_SEC = 10;
+	/**
+	 * Modo DJ mixed with the songs (Ajustes, each person's): the DJ's words after this song, said in
+	 * their own `<audio>` over its end. The next to load, then, is the song after them.
+	 */
+	const mixClip = $derived.by(() => {
+		if (!page.data.djMix || !music.dj || radio || podcast || listening || music.single) return null;
+		const clip = music.queue[music.index + 1];
+		const after = music.queue[music.index + 2];
+		return clip?.clip && after && !after.clip ? clip : null;
+	});
 	/** What plays after this one, if a song does: none with a station, an episode or «solo esta». */
 	const upcoming = $derived(
 		radio || podcast || listening || music.single
 			? null
-			: (music.queue[music.index + 1] ?? (music.repeat ? music.queue[0] : null) ?? null)
+			: mixClip
+				? music.queue[music.index + 2]!
+				: (music.queue[music.index + 1] ?? (music.repeat ? music.queue[0] : null) ?? null)
 	);
 	const intoTheSong = $derived(music.playing && music.positionSec > NEXT_AFTER_SEC);
 	const opus = () => untrack(() => musicQuality.value === 'saver');
@@ -200,8 +213,70 @@
 	/** The next one already sounds in the other: the one ending is not paused, it ends by itself. */
 	let handingOff = false;
 
+	/** This long before the end of a song, the DJ starts speaking over it (Modo DJ mixed). */
+	const MIX_LEAD_SEC = 6;
+	/** The song going down under the DJ's voice, and back up. */
+	const MIX_FADE_MS = 800;
+	let voice = $state<HTMLAudioElement>();
+	/** The DJ speaking over the songs: after which, and before which. */
+	let speaking: { before: MusicTrack; after: MusicTrack } | null = null;
+
+	// The DJ's words, loading while the song plays, as the next song in the other `<audio>`.
+	$effect(() => {
+		const el = voice;
+		const clip = mixClip;
+		const time = intoTheSong;
+		if (!el || !clip || !time || speaking) return;
+		const src = audioUrl(clip);
+		if (el.getAttribute('src') !== src) el.src = src;
+	});
+
+	// As loud as the music, at the volume chosen.
+	$effect(() => {
+		if (voice) voice.volume = music.muted ? 0 : music.volume;
+	});
+
+	// Something else on («siguiente», another album, ✕): the DJ stops talking.
+	$effect(() => {
+		const now = current;
+		if (speaking && now !== speaking.before && now !== speaking.after) {
+			voice?.pause();
+			quiet(0);
+		}
+	});
+
+	/** Near the end of a song with the DJ's words after it, loaded: they start over it, lower. */
+	function mixIn(el: HTMLAudioElement) {
+		const clip = mixClip;
+		const v = voice;
+		if (!clip || !v || speaking || el.paused || !Number.isFinite(el.duration)) return;
+		if (el.duration - el.currentTime > MIX_LEAD_SEC) return;
+		if (v.getAttribute('src') !== audioUrl(clip)) return;
+		if (v.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) return;
+		speaking = { before: music.current!, after: music.queue[music.index + 2]! };
+		v.currentTime = 0;
+		music.duck(true, 'dj', MIX_FADE_MS);
+		watchPlay(v.play(), 'música');
+	}
+
+	/** The DJ is done: the song back up. */
+	function quiet(fadeMs = MIX_FADE_MS) {
+		speaking = null;
+		music.duck(false, 'dj', fadeMs);
+	}
+
+	/**
+	 * At the end of a song, the next. Mixed, the one after the DJ's words: they already sound over
+	 * it, or they were not ready in time and are left out, never a silence waiting for them.
+	 */
+	function afterSong() {
+		if (mixClip) music.jumpTo(music.index + 2);
+		else music.ended();
+	}
+
 	/** Near the end of a song, with the next one in the other `<audio>`: when it starts. */
 	function planHandoff(el: HTMLAudioElement) {
+		mixIn(el);
 		if (handoffTimer || !upcoming || !spare || el.paused || !Number.isFinite(el.duration)) return;
 		const left = (el.duration - el.currentTime) / el.playbackRate;
 		if (left > HANDOFF_SEC) return;
@@ -220,7 +295,7 @@
 				next.currentTime = 0;
 				next.volume = el.volume;
 				watchPlay(next.play(), 'música');
-				music.ended();
+				afterSong();
 			},
 			Math.max(0, left * 1000 - OVERLAP_MS)
 		);
@@ -488,6 +563,30 @@
 
 <svelte:window ononline={online} />
 
+<!-- The volume, only with a mouse (a PC): phones and tablets have their own buttons, and an iPhone
+does not let a page change it. -->
+{#snippet volume(order = '')}
+	<span class="hidden shrink-0 items-center gap-1 pointer-fine:flex {order}">
+		<button
+			class={ghost}
+			aria-label={music.muted ? 'Activar el sonido' : 'Silenciar'}
+			title={music.muted ? 'Activar el sonido' : 'Silenciar'}
+			onclick={() => music.toggleMute()}
+			><MediaIcon name={music.muted ? 'muted' : 'volume'} /></button
+		>
+		<input
+			type="range"
+			min="0"
+			max="1"
+			step="0.05"
+			value={music.muted ? 0 : music.volume}
+			aria-label="Volumen"
+			class="h-1 w-20 accent-amber-500"
+			oninput={(e) => music.setVolume(Number(e.currentTarget.value))}
+		/>
+	</span>
+{/snippet}
+
 <!-- Only the one that sounds tells the bar; the other is the next song, loading (#180). -->
 {#each [0, 1] as i (i)}
 	{@const on = (e: Event) => e.currentTarget === audio}
@@ -498,6 +597,7 @@
 			if (!on(e)) return;
 			music.playing = true;
 			music.restored = null;
+			if (speaking && voice?.paused && !voice.ended) watchPlay(voice.play(), 'música');
 		}}
 		onplaying={(e) => {
 			if (!on(e)) return;
@@ -505,7 +605,12 @@
 			problem = null;
 		}}
 		onerror={(e) => on(e) && failed()}
-		onpause={(e) => on(e) && (music.playing = false)}
+		onpause={(e) => {
+			if (!on(e)) return;
+			music.playing = false;
+			// Paused by hand while the DJ speaks over it: the DJ too.
+			if (speaking && !e.currentTarget.ended) voice?.pause();
+		}}
 		ontimeupdate={(e) => on(e) && timeUpdate()}
 		ondurationchange={(e) => on(e) && timeUpdate()}
 		loop={i === active && music.single && music.repeat}
@@ -514,10 +619,13 @@
 			if (radio) failed();
 			else if (podcast) podcastEnded();
 			else if (listening) listeningEnded();
-			else music.ended();
+			else afterSong();
 		}}
 	></audio>
 {/each}
+<!-- Modo DJ mixed: the DJ's words over the songs, apart from the two that take turns. -->
+<audio bind:this={voice} preload="auto" onended={() => quiet()} onerror={() => speaking && quiet()}
+></audio>
 
 <!-- A podcast episode or a library episode only listened to (#154): the same bar, with ±seconds
 and the speed. -->
@@ -567,6 +675,7 @@ and the speed. -->
 					{/if}
 				</span>
 			</a>
+			{@render volume('order-7')}
 			<button
 				class="{ghost} order-2 sm:order-9"
 				aria-label="Cerrar"
@@ -639,6 +748,7 @@ and the speed. -->
 			aria-label={music.playing ? 'Pausa' : 'Seguir'}
 			onclick={() => music.toggle()}><MediaIcon name={music.playing ? 'pause' : 'play'} /></button
 		>
+		{@render volume()}
 		<button class={ghost} aria-label="Cerrar" title="Parar y cerrar" onclick={() => music.stop()}
 			><MediaIcon name="close" /></button
 		>
@@ -725,6 +835,7 @@ and the speed. -->
 					onclick={() => dj.stop()}>DJ ✕</button
 				>
 			{/if}
+			{@render volume('order-7')}
 			<button
 				class={[ghost, 'order-2 sm:order-8', showQueue && 'bg-zinc-800 text-white']}
 				aria-label="Cola"

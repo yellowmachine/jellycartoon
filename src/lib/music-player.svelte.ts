@@ -6,6 +6,8 @@ import { watchPlay } from '#lib/media-diagnostics.ts';
 
 /** The volume under spoken directions. */
 const DUCKED_VOLUME = 0.25;
+/** This browser's volume, from the bar on a PC (phones and tablets have their buttons). */
+const VOLUME_KEY = 'jellycartoon:volume';
 
 /** Seconds an episode goes back after being paused to speak to the voice assistant. */
 const VOICE_REWIND = 3;
@@ -54,12 +56,19 @@ class MusicPlayer {
 	 * browser does not let it sound by itself. Where it was playing, to say so.
 	 */
 	restored = $state<{ positionSec: number; changedBy: string } | null>(null);
+	/** From 0 to 1, as the PC's slider leaves it; kept in this browser. */
+	volume = $state(1);
+	muted = $state(false);
 
 	/** Paused while the user speaks to the voice assistant and it answers: it plays again after. */
 	#pausedByVoice = false;
 	/** The queue in its own order, while it is shuffled. */
 	#ordered: MusicTrack[] = [];
 	#audio: HTMLAudioElement | null = null;
+	/** Who speaks over it now, lowering it (duck): the voice, the road's directions, the DJ. */
+	#duckedBy = new Set<string>();
+	/** The volume going down or up, little by little. */
+	#fading: ReturnType<typeof setInterval> | undefined;
 	/**
 	 * When someone last asked to pause (Date.now()): the app, the lock screen or the voice. A pause
 	 * not asked for, with the screen off, is the phone's alone (auto-resume.ts).
@@ -72,7 +81,63 @@ class MusicPlayer {
 
 	/** Called by MusicBar with its `<audio>`. */
 	attach(audio: HTMLAudioElement | null) {
+		if (audio && !this.#audio) this.#loadVolume();
 		this.#audio = audio;
+		this.#applyVolume();
+	}
+
+	setVolume(volume: number) {
+		this.volume = Math.min(1, Math.max(0, volume));
+		this.muted = this.volume === 0;
+		this.#applyVolume();
+		this.#saveVolume();
+	}
+
+	/** Silenced, and back as it was; from nothing, to half. */
+	toggleMute() {
+		if (this.muted && this.volume === 0) this.volume = 0.5;
+		this.muted = !this.muted;
+		this.#applyVolume();
+		this.#saveVolume();
+	}
+
+	/** What the `<audio>` should sound at: the volume chosen, lower while something speaks. */
+	get #targetVolume() {
+		return this.muted ? 0 : this.volume * (this.#duckedBy.size ? DUCKED_VOLUME : 1);
+	}
+
+	/** At once, or in `fadeMs` (the DJ coming in and going): never a jump from one song to another. */
+	#applyVolume(fadeMs = 0) {
+		clearInterval(this.#fading);
+		const audio = this.#audio;
+		if (!audio) return;
+		const to = this.#targetVolume;
+		if (!fadeMs) return void (audio.volume = to);
+		const from = audio.volume;
+		const started = Date.now();
+		this.#fading = setInterval(() => {
+			const done = Math.min(1, (Date.now() - started) / fadeMs);
+			audio.volume = from + (to - from) * done;
+			if (done === 1) clearInterval(this.#fading);
+		}, 50);
+	}
+
+	#loadVolume() {
+		try {
+			const saved = JSON.parse(localStorage.getItem(VOLUME_KEY) ?? 'null');
+			if (typeof saved?.volume === 'number') this.volume = Math.min(1, Math.max(0, saved.volume));
+			if (typeof saved?.muted === 'boolean') this.muted = saved.muted;
+		} catch {
+			// A private window: as it comes.
+		}
+	}
+
+	#saveVolume() {
+		try {
+			localStorage.setItem(VOLUME_KEY, JSON.stringify({ volume: this.volume, muted: this.muted }));
+		} catch {
+			// A private window: only for now.
+		}
 	}
 
 	/** What was playing on this or another device, paused; the station, already asked for. */
@@ -295,11 +360,14 @@ class MusicPlayer {
 	}
 
 	/**
-	 * Lower while something else speaks over it (the road mode's directions, #78), and back: not
-	 * paused, as a station would connect again.
+	 * Lower while something else speaks over it (the road mode's directions, #78; the DJ mixed over
+	 * the songs, `dj`), and back to the volume chosen once nothing does: not paused, as a station
+	 * would connect again.
 	 */
-	duck(on: boolean) {
-		if (this.#audio) this.#audio.volume = on ? DUCKED_VOLUME : 1;
+	duck(on: boolean, by = 'voz', fadeMs = 0) {
+		if (on) this.#duckedBy.add(by);
+		else this.#duckedBy.delete(by);
+		this.#applyVolume(fadeMs);
 	}
 
 	stop() {

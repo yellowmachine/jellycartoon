@@ -752,6 +752,12 @@ esta), y no sale del servidor. Allí también se puede poner la dirección de un
 propio (Docker), para las rutas; buscar sitios sigue siendo el suyo. Su plan gratuito permite unas
 2.000 rutas y 1.000 búsquedas al día.
 
+Lo que no encuentra, desde Google Maps: con la app instalada (Chrome → «Instalar» o «Añadir a
+pantalla de inicio»), en Google Maps el sitio → Compartir → JellyCartoon abre el modo carretera con
+la ruta a ese sitio. Su enlace corto se sigue en el servidor (solo hacia direcciones de Google); si
+no trae coordenadas, como pasa al compartir desde la app de Google Maps, se busca su nombre y su
+dirección. Lo que no es de un mapa, compartido igual, va a Recetas, como antes.
+
 El tiempo que queda y la hora de llegada van siempre a la vista, junto a la siguiente maniobra, y
 la voz los dice («¿cuánto falta?»). Se calculan tramo a tramo, con lo que openrouteservice calcula
 para cada uno (la autovía va más rápida que el pueblo), y, pasados unos 5 km, al ritmo de cada uno:
