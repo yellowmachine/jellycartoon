@@ -16,6 +16,11 @@ export interface Listening {
 	/** The microphone off (the app in the background), the models kept; `resume` turns it on again. */
 	pause(): void;
 	resume(): Promise<void>;
+	/**
+	 * The browser's cleaning (`processing`) on or off, now: the microphone opened again with it, the
+	 * models kept. Paused, it is for when it resumes.
+	 */
+	setProcessing(on: boolean): Promise<void>;
 	/** A fresh Silero VAD (#144, phase 2), with `vad` in the options; null otherwise. */
 	vad(): Vad | null;
 	/** What the microphone and the audio are, for the page to say. */
@@ -91,6 +96,8 @@ export async function listen(options: ListenOptions, context: AudioContext): Pro
 	// One chunk at a time: if one takes longer than 80 ms, the next waits its turn.
 	let queue = Promise.resolve();
 	let stopped = false;
+	let isOpen = false;
+	let processing = options.processing;
 	// Set by `open`, before anything uses them.
 	let stream!: MediaStream;
 	let source!: MediaStreamAudioSourceNode;
@@ -100,9 +107,9 @@ export async function listen(options: ListenOptions, context: AudioContext): Pro
 		stream = await navigator.mediaDevices.getUserMedia({
 			audio: {
 				channelCount: 1,
-				echoCancellation: options.processing,
-				noiseSuppression: options.processing,
-				autoGainControl: options.processing
+				echoCancellation: processing,
+				noiseSuppression: processing,
+				autoGainControl: processing
 			}
 		});
 		if (context.state !== 'running') await context.resume().catch(() => {});
@@ -122,9 +129,11 @@ export async function listen(options: ListenOptions, context: AudioContext): Pro
 					options.onScores(scores, performance.now() - started);
 			});
 		};
+		isOpen = true;
 	}
 
 	function close() {
+		isOpen = false;
 		capture.port.onmessage = null;
 		source.disconnect();
 		capture.disconnect();
@@ -149,6 +158,13 @@ export async function listen(options: ListenOptions, context: AudioContext): Pro
 		},
 		pause: close,
 		resume: open,
+		async setProcessing(on) {
+			if (on === processing) return;
+			processing = on;
+			if (!isOpen || stopped) return;
+			close();
+			await open();
+		},
 		vad() {
 			const session = sessions.get('vad');
 			if (!session) return null;
