@@ -117,6 +117,15 @@ export function noteAutoResume(media: Media, inARow: number) {
 	note('se había pausado sola: sigue', media, `${inARow}.ª seguida`);
 }
 
+/**
+ * The next song starts in the other `<audio>` before this one ends (#180): how much of it had
+ * loaded, to know whether the browser loads it with the page hidden.
+ */
+export function noteHandoff(media: Media, next: HTMLMediaElement) {
+	const loaded = next.buffered.length ? next.buffered.end(next.buffered.length - 1) : 0;
+	note('la siguiente empieza en el otro reproductor', media, `${Math.round(loaded)} s cargados`);
+}
+
 /** A player's `<audio>` or `<video>`, watched while it exists: returns how to stop. */
 export function watchMedia(el: HTMLMediaElement, media: Media) {
 	listen();

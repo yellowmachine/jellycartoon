@@ -16,14 +16,23 @@
 	import { COUNTRIES } from '#lib/radio.ts';
 	import {
 		noteAutoResume,
+		noteHandoff,
 		noteSystemAction,
 		watchMedia,
 		watchPlay
 	} from '#lib/media-diagnostics.ts';
 	import { FINE_AFTER_MS, shouldResume } from '#lib/auto-resume.ts';
-	import { nextTrack } from '#lib/next-track.ts';
 
-	let audio = $state<HTMLAudioElement>();
+	/**
+	 * Two `<audio>` that take turns (#180): the one that sounds, and the next song loading in the
+	 * other, which starts just before this one ends. The page is never silent between two songs:
+	 * with the screen off, that is when the phone used to pause the next one (seen on walks, always
+	 * at a song change). Everything else only knows `audio`, the one that sounds.
+	 */
+	let players = $state<HTMLAudioElement[]>([]);
+	let active = $state(0);
+	const audio = $derived(players[active]);
+	const spare = $derived(players[1 - active]);
 	const current = $derived(music.current);
 	const radio = $derived(music.radio);
 	const podcast = $derived(music.podcast);
@@ -82,8 +91,8 @@
 	/**
 	 * The `<audio>` failed with its own `src` (hls.js handles its own): it is tried again, a few
 	 * times and each a little later. A station connects again; a track or an episode is loaded
-	 * again from where it was, e.g. the next track asked for with the phone asleep. Brought back
-	 * from the server and not played yet, it only says so: play loads it again.
+	 * again from where it was. Brought back from the server and not played yet, it only says so:
+	 * play loads it again.
 	 */
 	function failed() {
 		if (hls || !audio?.getAttribute('src')) return;
@@ -120,6 +129,8 @@
 		void podcast?.id;
 		void listening?.id;
 		clearTimeout(retryTimer);
+		clearTimeout(handoffTimer);
+		handoffTimer = undefined;
 		tries = 0;
 		problem = null;
 	});
@@ -129,9 +140,11 @@
 		return () => music.attach(null);
 	});
 
-	// With the screen off, what it does goes to the Registro: music that stops between songs.
+	// With the screen off, what both do goes to the Registro: music that stops between songs, and
+	// whether the next one had loaded.
 	$effect(() => {
-		if (audio) return watchMedia(audio, 'música');
+		const stops = players.map((el) => watchMedia(el, 'música'));
+		return () => stops.forEach((stop) => stop());
 	});
 
 	// Paused by the phone alone with the screen off: played again at once, while the page is still
@@ -168,16 +181,7 @@
 		if (music.current && music.dj) untrack(() => void dj.step());
 	});
 
-	/** The track in the `<audio>`: its address, and what it was loaded from (its copy, maybe). */
-	let loaded: { src: string; from: string; copy: boolean } | null = null;
-
-	/** The copy in memory of the track that was on, once another is loaded. */
-	function dropCopy() {
-		if (loaded?.copy) URL.revokeObjectURL(loaded.from);
-		loaded = null;
-	}
-
-	/** Into a song this long, the next one is downloaded: this one's own download goes first. */
+	/** Into a song this long, the next one loads in the other: this one's own download goes first. */
 	const NEXT_AFTER_SEC = 10;
 	/** What plays after this one, if a song does: none with a station, an episode or «solo esta». */
 	const upcoming = $derived(
@@ -186,44 +190,103 @@
 			: (music.queue[music.index + 1] ?? (music.repeat ? music.queue[0] : null) ?? null)
 	);
 	const intoTheSong = $derived(music.playing && music.positionSec > NEXT_AFTER_SEC);
-	// The next song, in memory while this one plays (next-track.ts): with the phone asleep, the
-	// network is there while something sounds, and not in the silence between two songs.
-	$effect(() => {
-		if (!upcoming) return void nextTrack.forget();
-		if (!intoTheSong) return;
-		nextTrack.want(
-			audioUrl(
-				upcoming,
-				untrack(() => musicQuality.value === 'saver')
-			)
+	const opus = () => untrack(() => musicQuality.value === 'saver');
+
+	/** This close to the end, the moment for the next one is set (timeupdate comes every ~250 ms). */
+	const HANDOFF_SEC = 2;
+	/** Both sound together this long: the page is never silent, and it is hardly heard. */
+	const OVERLAP_MS = 150;
+	let handoffTimer: ReturnType<typeof setTimeout> | undefined;
+	/** The next one already sounds in the other: the one ending is not paused, it ends by itself. */
+	let handingOff = false;
+
+	/** Near the end of a song, with the next one in the other `<audio>`: when it starts. */
+	function planHandoff(el: HTMLAudioElement) {
+		if (handoffTimer || !upcoming || !spare || el.paused || !Number.isFinite(el.duration)) return;
+		const left = (el.duration - el.currentTime) / el.playbackRate;
+		if (left > HANDOFF_SEC) return;
+		const next = spare;
+		if (next.getAttribute('src') !== audioUrl(upcoming, opus()) || next.error) return;
+		const ending = music.current;
+		handoffTimer = setTimeout(
+			() => {
+				handoffTimer = undefined;
+				// Paused, moved or another song meanwhile: as it was, at its end.
+				if (el !== audio || el.paused || music.current !== ending || spare !== next) return;
+				if (!upcoming || next.getAttribute('src') !== audioUrl(upcoming, opus())) return;
+				if (el.duration - el.currentTime > HANDOFF_SEC) return;
+				noteHandoff('música', next);
+				handingOff = true;
+				next.currentTime = 0;
+				next.volume = el.volume;
+				watchPlay(next.play(), 'música');
+				music.ended();
+			},
+			Math.max(0, left * 1000 - OVERLAP_MS)
 		);
-	});
+	}
 
 	// A new track or episode: load it and play it. Changing `src` pauses, so play() goes after.
-	// Brought back from the server, it waits where it was (before loading, currentTime is where it
-	// starts); an episode starts where the user left it, from the podcast's own server. The quality
-	// chosen in Ajustes, from the next track: not starting this one again.
+	// Already loaded in the other `<audio>` (the next one, at the end of this one or with
+	// «siguiente»), that one takes over. Brought back from the server, it waits where it was
+	// (before loading, currentTime is where it starts); an episode starts where the user left it,
+	// from the podcast's own server. The quality chosen in Ajustes, from the next track: not
+	// starting this one again.
 	$effect(() => {
 		if (!audio || radio || listening) return;
-		const opus = untrack(() => musicQuality.value === 'saver');
-		const src = podcast ? podcast.audioUrl : current ? audioUrl(current, opus) : null;
+		const src = podcast ? podcast.audioUrl : current ? audioUrl(current, opus()) : null;
 		if (!src) {
 			audio.removeAttribute('src');
 			audio.load();
-			dropCopy();
 			return;
 		}
-		// Loaded already: the same track, from the server or from its copy in memory.
-		if (loaded?.src !== src || audio.getAttribute('src') !== loaded.from) {
-			const copy = nextTrack.take(src);
-			audio.src = copy ?? src;
-			dropCopy();
-			loaded = { src, from: copy ?? src, copy: Boolean(copy) };
-			const restored = untrack(() => music.restored);
-			const startAt = restored?.positionSec ?? untrack(() => podcast?.positionSec) ?? 0;
-			if (startAt) audio.currentTime = startAt;
-			if (!restored) watchPlay(audio.play(), 'música');
+		if (audio.getAttribute('src') === src) return;
+		const restored = untrack(() => music.restored);
+		const next = untrack(() => spare);
+		if (!podcast && !restored && next?.getAttribute('src') === src && !next.error) {
+			const ending = audio;
+			untrack(() => {
+				active = 1 - active;
+				music.positionSec = 0;
+			});
+			next.volume = ending.volume;
+			if (handingOff) handingOff = false;
+			else {
+				music.askedPauseAt = Date.now();
+				ending.pause();
+				next.currentTime = 0;
+				watchPlay(next.play(), 'música');
+			}
+			return;
 		}
+		// Started in the other for a song that is not the one now: silenced.
+		if (handingOff) next?.pause();
+		handingOff = false;
+		audio.src = src;
+		const startAt = restored?.positionSec ?? untrack(() => podcast?.positionSec) ?? 0;
+		if (startAt) audio.currentTime = startAt;
+		if (!restored) watchPlay(audio.play(), 'música');
+	});
+
+	// The next song, loading in the other `<audio>` (`preload="auto"`) while this one plays: with
+	// the phone asleep, the network is there while something sounds. Not while it still sounds the
+	// end of the last one. After the effect above, so that a song loaded there is taken first.
+	$effect(() => {
+		const el = spare;
+		// Both read first: the effect runs again when they change, also after a turn skipped here.
+		const next = upcoming;
+		const time = intoTheSong;
+		if (!el || !el.paused) return;
+		if (!next) {
+			if (el.getAttribute('src')) {
+				el.removeAttribute('src');
+				el.load();
+			}
+			return;
+		}
+		if (!time) return;
+		const src = audioUrl(next, opus());
+		if (el.getAttribute('src') !== src) el.src = src;
 	});
 
 	// A station: its stream as is (MP3, AAC), or through hls.js where the browser has no HLS of its
@@ -394,6 +457,7 @@
 
 	function timeUpdate() {
 		if (!audio) return;
+		planHandoff(audio);
 		music.positionSec = audio.currentTime;
 		// The episode's own position, only while its own audio is loaded (see podcast-player).
 		if (podcast && audio.getAttribute('src') === podcast.audioUrl)
@@ -424,25 +488,36 @@
 
 <svelte:window ononline={online} />
 
-<audio
-	bind:this={audio}
-	preload="auto"
-	onplay={() => {
-		music.playing = true;
-		music.restored = null;
-	}}
-	onplaying={() => {
-		tries = 0;
-		problem = null;
-	}}
-	onerror={failed}
-	onpause={() => (music.playing = false)}
-	ontimeupdate={timeUpdate}
-	ondurationchange={timeUpdate}
-	loop={music.single && music.repeat}
-	onended={() =>
-		radio ? failed() : podcast ? podcastEnded() : listening ? listeningEnded() : music.ended()}
-></audio>
+<!-- Only the one that sounds tells the bar; the other is the next song, loading (#180). -->
+{#each [0, 1] as i (i)}
+	{@const on = (e: Event) => e.currentTarget === audio}
+	<audio
+		bind:this={players[i]}
+		preload="auto"
+		onplay={(e) => {
+			if (!on(e)) return;
+			music.playing = true;
+			music.restored = null;
+		}}
+		onplaying={(e) => {
+			if (!on(e)) return;
+			tries = 0;
+			problem = null;
+		}}
+		onerror={(e) => on(e) && failed()}
+		onpause={(e) => on(e) && (music.playing = false)}
+		ontimeupdate={(e) => on(e) && timeUpdate()}
+		ondurationchange={(e) => on(e) && timeUpdate()}
+		loop={i === active && music.single && music.repeat}
+		onended={(e) => {
+			if (!on(e)) return;
+			if (radio) failed();
+			else if (podcast) podcastEnded();
+			else if (listening) listeningEnded();
+			else music.ended();
+		}}
+	></audio>
+{/each}
 
 <!-- A podcast episode or a library episode only listened to (#154): the same bar, with ±seconds
 and the speed. -->
