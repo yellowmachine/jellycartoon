@@ -614,6 +614,10 @@ Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`.
   cargar desde cualquier dispositivo y borrar desde la lista. También salen en la página del juego,
   bajo su fondo: elegir una abre el juego en ese momento. En el menú, el mando de juego también
   sirve: la cruz, A y B.
+- Lo que guarda el propio juego (la pila del cartucho: un Zelda, un Pokémon) también va al
+  servidor, por persona (en `HOST_DATA_DIR/cartuchos`): cada minuto si ha cambiado y al salir del
+  juego. Al empezar se juega con el de esa persona, aunque otra haya jugado antes en ese navegador.
+  El que ya hubiera en el navegador antes de esto se sube como de quien juegue primero.
 - Fuera de los juegos, el mando de juego sirve en toda la Vista TV como el mando a distancia: la
   cruceta (o el stick) se mueve, A es OK, B es Atrás, Start es Inicio y Select el micrófono. No
   llega a mpv: con una película o un capítulo delante, el navegador no lo lee.
@@ -625,7 +629,7 @@ Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`.
   en `/tv/juegos/estadisticas` y en la sección Juegos de la app completa; en la página de cada
   juego, el total y la última vez. Solo con «Guardar historial» activado en Ajustes.
 - EmulatorJS se carga de su CDN, en la versión 4.2.3: el salón necesita internet para jugar.
-- Todavía sin partidas guardadas ni filtros, y no está para los peques.
+- Todavía sin shaders ni botones a gusto de cada uno, y no está para los peques.
 
 ### Dailymotion
 

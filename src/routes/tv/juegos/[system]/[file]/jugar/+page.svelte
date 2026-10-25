@@ -25,7 +25,8 @@
 			const running = emulator();
 			if (!running && ++tries < 120) return;
 			clearInterval(timer);
-			if (running) void loadSave(running, saveId);
+			// After the person's cartridge: the game restarts with it.
+			if (running) void player()!.cartridgeReady!.then(() => loadSave(running, saveId));
 		}, 250);
 		return () => clearInterval(timer);
 	});
@@ -57,6 +58,7 @@
 			rom: data.rom,
 			title: data.title,
 			backdrop: data.backdrop,
+			cartridge: data.cartridge,
 			...(data.bios ? { bios: data.bios } : {})
 		})}`
 	);
@@ -76,7 +78,12 @@
 			FS: { syncfs(populate: boolean, done: (err: unknown) => void): void };
 		};
 	};
-	type Player = { EJS_emulator?: Emulator; picture?: (emulator: Emulator) => Promise<Blob> };
+	type Player = {
+		EJS_emulator?: Emulator;
+		picture?: (emulator: Emulator) => Promise<Blob>;
+		cartridgeReady?: Promise<void>;
+		saveCartridge?: () => Promise<void>;
+	};
 	const player = () => frame?.contentWindow as Player | null | undefined;
 	const emulator = () => (player()?.EJS_emulator?.started ? player()!.EJS_emulator! : null);
 
@@ -130,9 +137,9 @@
 	});
 
 	/**
-	 * The game's own save (the cartridge's) into the browser before the frame goes. EmulatorJS
-	 * writes it every few minutes and when its page closes, but removing a frame does not close it
-	 * that way: what was played since would be lost.
+	 * The game's own save (the cartridge's) into the browser and to the server before the frame
+	 * goes. EmulatorJS writes it every minute and when its page closes, but removing a frame does
+	 * not close it that way: what was played since would be lost.
 	 */
 	let saved = false;
 	beforeNavigate((nav) => {
@@ -149,11 +156,12 @@
 						addEventListener('popstate', () => setTimeout(done), { once: true })
 					)
 				: null;
-		running.gameManager.saveSaveFiles();
+		const sent = player()?.saveCartridge?.();
 		const flushed = new Promise((done) => {
-			running.gameManager.FS.syncfs(false, done);
+			const synced = new Promise((ok) => running.gameManager.FS.syncfs(false, ok));
+			void Promise.all([synced, sent]).then(done);
 			// Never stuck in the game, saved or not.
-			setTimeout(done, 2000);
+			setTimeout(done, 3000);
 		});
 		void Promise.all([restored, flushed]).then(() => {
 			// The same step again: Back goes back in the history rather than forward to the list.

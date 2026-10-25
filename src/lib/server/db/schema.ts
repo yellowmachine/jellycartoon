@@ -1488,3 +1488,23 @@ export const gameSession = pgTable(
 	},
 	(t) => [index('game_session_user_idx').on(t.userId, t.startedAt)]
 );
+
+/**
+ * A person's cartridge save of a game (#176): what the game itself saves (the battery of a Zelda or
+ * a Pokémon), kept here rather than only in the browser it was played on. One per person and game,
+ * gzipped by the browser, in DATA_DIR/cartuchos by its id.
+ */
+export const gameCartridge = pgTable(
+	'game_cartridge',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		gameId: integer('game_id')
+			.notNull()
+			.references(() => game.id, { onDelete: 'cascade' }),
+		updatedAt: timestamp('updated_at').notNull().defaultNow()
+	},
+	(t) => [unique('game_cartridge_user_game').on(t.userId, t.gameId)]
+);

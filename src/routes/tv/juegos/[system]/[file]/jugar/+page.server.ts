@@ -17,6 +17,8 @@ export const load: PageServerLoad = async ({ params }) => {
 		/** Its row, for the saved games of its menu. */
 		gameId: row.id,
 		/** Where a capture of the game goes, as the background of its page. */
-		backdrop: `/api/fondo/juego/${row.id}`
+		backdrop: `/api/fondo/juego/${row.id}`,
+		/** The person's cartridge save of it, on the server. */
+		cartridge: `/api/juegos/cartucho/${row.id}`
 	};
 };

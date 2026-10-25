@@ -38,7 +38,11 @@
 				// Straight into the game: it was chosen with the remote already.
 				window.EJS_startOnLoaded = true;
 				// «Guardar Estado» into this browser rather than a file to download, in the living room.
-				window.EJS_defaultOptions = { 'save-state-location': 'browser' };
+				// The cartridge's save every minute rather than every five: to the server, when it changed.
+				window.EJS_defaultOptions = {
+					'save-state-location': 'browser',
+					'save-save-interval': '60'
+				};
 				// A BIOS (Neo Geo's `neogeo.zip`), next to the game and as it is: FBNeo looks for it
 				// there, zipped. EJS_biosUrl would unzip it.
 				const bios = params.get('bios') ?? '';
@@ -47,7 +51,10 @@
 				// EmulatorJS gives a player only to a gamepad it sees arrive: one the browser showed it
 				// from the start (pressed just before, as when coming from a saved game) had none, and
 				// did nothing in the game. To the first free player, as it does with the others.
-				window.EJS_onGameStart = () => {
+				const ready = Promise.withResolvers();
+				/** Once the game has started with the person's cartridge (/jugar waits for it). */
+				window.cartridgeReady = ready.promise;
+				window.EJS_onGameStart = async () => {
 					const emulator = window.EJS_emulator;
 					for (const pad of emulator.gamepad.gamepads) {
 						const name = `${pad.id}_${pad.index}`;
@@ -56,12 +63,85 @@
 							emulator.gamepadSelection[free] = name;
 					}
 					emulator.updateGamepadLabels();
+					await loadCartridge(emulator).catch(() => {});
+					emulator.on('saveSaveFiles', sendCartridge);
+					ready.resolve();
 				};
 				const loader = document.createElement('script');
 				loader.src = window.EJS_pathtodata + 'loader.js';
 				document.body.append(loader);
 			}
 			const backdrop = params.get('backdrop') ?? '';
+
+			/**
+			 * The cartridge's save (#176), what the game itself saves: the person's, on the server.
+			 * EmulatorJS keeps it in this browser too, shared by everyone who plays here, and the core
+			 * has read that one when the game starts.
+			 */
+			const cartridge = params.get('cartridge') ?? '';
+			/** Only once the server's was read: never an older one over it. */
+			let syncing = false;
+			/** What the server has: sent again only when it changes. */
+			let sent = null;
+			let sending = Promise.resolve();
+			/** Closing the tab or the browser: what is sent then has to outlive the page. */
+			let leaving = false;
+			addEventListener('beforeunload', () => (leaving = true), true);
+			const same = (a, b) => a && b && a.length === b.length && a.every((x, i) => x === b[i]);
+
+			async function loadCartridge(emulator) {
+				if (!cartridge.startsWith('/api/juegos/cartucho/')) return;
+				const manager = emulator.gameManager;
+				const file = manager.getSaveFilePath();
+				const here = manager.FS.analyzePath(file).exists ? manager.FS.readFile(file) : null;
+				const res = await fetch(cartridge);
+				let theirs;
+				if (res.ok) {
+					const unzipped = res.body.pipeThrough(new DecompressionStream('gzip'));
+					theirs = new Uint8Array(await new Response(unzipped).arrayBuffer());
+				} else if (res.status === 404) {
+					const { nadie } = await res.json();
+					// Nobody has one yet: the one played here before it was kept on the server.
+					if (nadie) {
+						syncing = true;
+						if (here) sendCartridge(here);
+						return;
+					}
+					// Someone else's: the person starts with an empty one.
+					theirs = here && new Uint8Array(here.length);
+				} else return;
+				sent = theirs;
+				syncing = true;
+				if (!theirs || same(theirs, here)) return;
+				manager.FS.writeFile(file, theirs);
+				manager.loadSaveFiles();
+				// From the beginning with it: many games read it only when they start.
+				manager.restart();
+			}
+
+			function sendCartridge(bytes) {
+				if (!syncing || !bytes?.length || same(bytes, sent)) return;
+				sent = bytes;
+				sending = fetch(cartridge, {
+					method: 'PUT',
+					body: bytes,
+					// A browser lets a page that closes send this much at most.
+					keepalive: leaving && bytes.length < 60_000
+				})
+					.then((res) => {
+						if (!res.ok) throw new Error(res.statusText);
+					})
+					.catch(() => {
+						// Sent again next time.
+						sent = null;
+					});
+			}
+
+			/** The cartridge's save now, to the server, for /jugar before the frame goes. */
+			window.saveCartridge = () => {
+				window.EJS_emulator?.gameManager.saveSaveFiles();
+				return sending;
+			};
 
 			/**
 			 * The game's picture (its canvas, without EmulatorJS' menus), as the browser shows it now:
