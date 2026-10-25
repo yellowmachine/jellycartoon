@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import {
 	deleteSample,
 	KINDS,
-	MAX_SAMPLE_BYTES,
+	maxBytes,
 	saveSample,
 	type Kind
 } from '#lib/server/wakeword-samples.ts';
@@ -15,13 +15,13 @@ const kindOf = (url: URL) => {
 };
 
 /**
- * A take of the wake word (#144): the WAV as the body; `tipo` (candy_candy or parecidas) and
- * `quien` (who speaks) in the address.
+ * A take of the wake word (#144): the WAV as the body; `tipo` (one of `KINDS`) and `quien` (who
+ * speaks, or what sounds for «fondo») in the address.
  */
 export const POST: RequestHandler = async ({ request, url, locals }) => {
-	if (Number(request.headers.get('content-length')) > MAX_SAMPLE_BYTES)
-		error(413, 'Demasiado grande');
 	const kind = kindOf(url);
+	if (Number(request.headers.get('content-length')) > maxBytes(kind))
+		error(413, 'Demasiado grande');
 	const wav = new Uint8Array(await request.arrayBuffer());
 	try {
 		const name = await saveSample(kind, url.searchParams.get('quien') ?? '', wav, locals.user!.id);

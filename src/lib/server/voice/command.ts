@@ -64,6 +64,28 @@ import {
 const MAX_ROUNDS = 7;
 /** With more albums than this, the instructions list only the artists, and it searches the rest. */
 const LISTED_ALBUMS = 400;
+/**
+ * Tools whose result tells the model nothing new when they do what they were asked (they leave
+ * the device something to do). They take the answer too (`say`): with only these, it is read
+ * without a second turn with the model (about a second less). Asked in the instructions instead,
+ * the model wrote it only sometimes.
+ */
+const ONE_ROUND = new Set([
+	'set_timer',
+	'prepare_timer',
+	'cancel_timer',
+	'kitchen_mode',
+	'control',
+	'take_photo',
+	'stop_navigation',
+	'recipe_step',
+	'end_recipe'
+]);
+const SAY = {
+	type: 'string',
+	description:
+		'La frase de respuesta, que se lee en voz alta si sale bien, p. ej. «Pongo un temporizador de un minuto».'
+};
 /** «Más alto» and «más bajo», on the 0–100 of Snapcast's master volume. */
 const VOLUME_STEP = 15;
 
@@ -94,7 +116,12 @@ function tools(house: boolean): Tool[] {
 			function: {
 				name,
 				description,
-				parameters: { type: 'object', properties, required, additionalProperties: false }
+				parameters: {
+					type: 'object',
+					properties: ONE_ROUND.has(name) ? { ...properties, say: SAY } : properties,
+					required: ONE_ROUND.has(name) ? [...required, 'say'] : required,
+					additionalProperties: false
+				}
 			}
 		}) satisfies Tool;
 	return [
@@ -1022,10 +1049,16 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 			return reply(answer.content ?? 'Hecho.', outcome);
 		}
 		messages.push({ role: 'assistant', content: answer.content, tool_calls: answer.toolCalls });
+		// Each call done gives the device something to do; a failed one says why, and gives nothing.
+		const said: string[] = [];
+		let oneRound = true;
 		for (const call of answer.toolCalls) {
+			const before = outcome.actions.length;
 			let result: ToolResult;
 			try {
 				const args = JSON.parse(call.function.arguments || '{}');
+				if (typeof args.say === 'string' && args.say.trim()) said.push(args.say.trim());
+				else oneRound = false;
 				result = await runTool(call.function.name, args, {
 					albums,
 					playlists,
@@ -1040,8 +1073,10 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 				result = `Error: ${err instanceof Error ? err.message : String(err)}`;
 			}
 			messages.push({ role: 'tool', tool_call_id: call.id, content: result });
+			if (!ONE_ROUND.has(call.function.name) || outcome.actions.length === before) oneRound = false;
 		}
 		if (outcome.asked) return reply(outcome.asked, outcome);
+		if (oneRound) return reply(said.join(' '), outcome);
 	}
 	return reply(
 		outcome.actions.length ? 'Hecho.' : 'No he sabido hacerlo. Prueba a decirlo de otra forma.',
