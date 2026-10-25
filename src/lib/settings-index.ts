@@ -7,7 +7,7 @@ import { fold } from './music.ts';
  * shows the section (`shown`, from the page's data). A test checks every `id` is on the page.
  */
 
-export type SettingsTab = 'ver' | 'aspecto' | 'conexiones' | 'casa' | 'cuenta';
+export type SettingsTab = 'mi' | 'aparato' | 'casa' | 'cuenta';
 
 /** What decides which sections the page shows, as its data has it. */
 export interface SettingsShown {
@@ -37,104 +37,127 @@ export interface SettingsEntry {
 }
 
 export const TAB_LABELS: Record<SettingsTab, string> = {
-	ver: 'Ver',
-	aspecto: 'Aspecto',
-	conexiones: 'Conexiones',
+	mi: 'Para mí',
+	aparato: 'Este aparato',
 	casa: 'Casa',
 	cuenta: 'Cuenta'
+};
+
+/**
+ * The tabs before #178, in links that are still around: where most of each went. With a section in
+ * the link (`#microfono`), the index says its tab.
+ */
+export const OLD_TABS: Record<string, SettingsTab> = {
+	ver: 'mi',
+	conexiones: 'mi',
+	aspecto: 'aparato'
 };
 
 export const SETTINGS_INDEX: SettingsEntry[] = [
 	{
 		id: 'reproduccion',
-		tab: 'ver',
+		tab: 'mi',
 		title: 'Reproducción',
 		words: 'idioma audio subtítulos doblaje versión original inglés español'
 	},
 	{
 		id: 'estilo-subtitulos',
-		tab: 'ver',
+		tab: 'mi',
 		title: 'Estilo de los subtítulos',
 		words: 'subtítulos letra tamaño fondo dos líneas rodando whisper'
 	},
 	{
 		id: 'cortinilla',
-		tab: 'ver',
+		tab: 'mi',
 		title: 'Cortinilla de Cine Club',
 		words: 'intro películas salón cine club entrada mpv',
 		shown: (d) => d.intro !== null
 	},
 	{
 		id: 'sigues-ahi',
-		tab: 'ver',
+		tab: 'mi',
 		title: '¿Sigues ahí?',
 		words: 'dormir dormirse siguiente automático capítulos seguidos parar pregunta',
 		shown: (d) => !d.kid
 	},
 	{
 		id: 'lo-que-veo',
-		tab: 'ver',
-		title: 'Lo que veo',
+		tab: 'mi',
+		title: 'Lo que se guarda de ti',
 		words: 'historial guardar estadísticas privacidad horas',
 		shown: (d) => d.keepHistory !== null
 	},
 	{
 		id: 'guardar-viajes',
-		tab: 'ver',
+		tab: 'mi',
 		title: 'Guardar mis viajes',
 		words: 'viajes modo carretera recorridos gps km coche',
 		shown: (d) => d.recordTrips !== null
 	},
 	{
 		id: 'langua',
-		tab: 'conexiones',
+		tab: 'mi',
 		title: 'Langua',
 		words: 'idiomas clips aprender inglés token app',
 		shown: (d) => Boolean(d.langua)
 	},
 	{
 		id: 'musica-en-apps',
-		tab: 'conexiones',
+		tab: 'mi',
 		title: 'Música en apps',
 		words: 'subsonic tempus contraseña app móvil música servidor',
 		shown: (d) => Boolean(d.musicApps)
 	},
 	{
 		id: 'colores',
-		tab: 'aspecto',
+		tab: 'mi',
 		title: 'Colores',
 		words: 'tema modo oscuro claro noche color apariencia'
 	},
 	{
 		id: 'al-abrir',
-		tab: 'aspecto',
+		tab: 'mi',
 		title: 'Al abrir la app',
 		words: 'frase rótulo frasier inicio arranque cita'
 	},
 	{
 		id: 'este-dispositivo',
-		tab: 'aspecto',
-		title: 'Este dispositivo',
+		tab: 'aparato',
+		title: 'Nombre y avisos',
 		words:
-			'nombre dispositivo móvil tablet tele salón navegador sonaba palabra de activación avisos notificaciones push nevera lista compra'
+			'nombre dispositivo aparato móvil tablet tele salón navegador sonaba avisos notificaciones push nevera lista compra'
 	},
 	{
 		id: 'microfono',
-		tab: 'aspecto',
-		title: 'Micrófono',
+		tab: 'aparato',
+		title: 'Voz y micrófono',
 		words: 'voz hablar pulsar mantener tocar asistente',
 		shown: (d) => d.voice
 	},
 	{
+		id: 'hola-casita',
+		tab: 'aparato',
+		title: '«Hola casita»',
+		words: 'palabra de activación manos libres sin pulsar escuchar probar',
+		shown: (d) => d.voice
+	},
+	{
 		id: 'calidad-musica',
-		tab: 'aspecto',
+		tab: 'aparato',
 		title: 'Calidad de la música',
 		words: 'datos móviles ahorrar opus flac calidad sonido',
 		shown: (d) => d.music
 	},
 	{
+		id: 'modo-dj',
+		tab: 'mi',
+		title: 'Modo DJ',
+		words: 'locutor dj radio voz mezclada entre canciones música',
+		shown: (d) => d.music
+	},
+	{
 		id: 'fondo-musica',
-		tab: 'aspecto',
+		tab: 'aparato',
 		title: 'Fondo de Música',
 		words: 'fondo imagen música portada',
 		shown: (d) => d.music
@@ -144,6 +167,20 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		tab: 'casa',
 		title: 'Inteligencia artificial',
 		words: 'ia openrouter clave modelo películas voz conversar ollama visión',
+		shown: (d) => Boolean(d.ai)
+	},
+	{
+		id: 'credito',
+		tab: 'casa',
+		title: 'Crédito y gasto',
+		words: 'dinero saldo gasto coste openrouter pagar euros dólares',
+		shown: (d) => Boolean(d.ai)
+	},
+	{
+		id: 'modelos',
+		tab: 'casa',
+		title: 'Modelos',
+		words: 'modelo ia películas escenas voz deberes conversar visión',
 		shown: (d) => Boolean(d.ai)
 	},
 	{
@@ -173,6 +210,13 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		title: 'Personas de la casa',
 		words:
 			'cuentas usuarios adultos añadir invitar enlace qr contraseña olvidada dibujo avatar niños peques infantil hijos permiso tiempo pantalla horario',
+		shown: (d) => Boolean(d.kids)
+	},
+	{
+		id: 'cuentas-infantiles',
+		tab: 'casa',
+		title: 'Peques',
+		words: 'niños peques infantil hijos cuenta permiso tiempo pantalla horario',
 		shown: (d) => Boolean(d.kids)
 	},
 	{

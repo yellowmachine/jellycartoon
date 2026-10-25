@@ -43,6 +43,9 @@
 		if (updated.current && !willUnload && to?.url) location.href = to.url.href;
 	});
 
+	/** The header's height, as drawn: what sticks under it starts there. */
+	let headerHeight = $state(0);
+
 	// «Hola casita» instead of the microphone (#144), where this device turned it on (Ajustes);
 	// not in /activacion, which tries the words with the microphone itself.
 	$effect(() => {
@@ -273,9 +276,13 @@
 {:else}
 	<!-- With the kitchen panel at its side (wide screens) or under it (narrow: a phone, or split
 	     screen), the page takes the rest: a video in it goes on being seen. -->
-	<div class={[panelShown && 'pb-[55dvh] md:pr-[42%] md:pb-0']}>
+	<!-- --header-h: how high the bar is on this screen, for what sticks under it (Ajustes, #178). -->
+	<div class={[panelShown && 'pb-[55dvh] md:pr-[42%] md:pb-0']} style:--header-h="{headerHeight}px">
 		{#if data.user}
-			<header class="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur">
+			<header
+				bind:offsetHeight={headerHeight}
+				class="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur"
+			>
 				<nav
 					class="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3 md:max-lg:gap-3 md:max-lg:py-2"
 				>

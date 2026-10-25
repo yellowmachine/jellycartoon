@@ -1,8 +1,13 @@
 import { expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { SETTINGS_INDEX, searchSettings, type SettingsShown } from './settings-index.ts';
 
-const page = readFileSync(new URL('../routes/ajustes/+page.svelte', import.meta.url), 'utf8');
+/** Ajustes' page and its sections' components (#178), all together. */
+const dir = new URL('../routes/ajustes/', import.meta.url);
+const page = readdirSync(dir)
+	.filter((f) => f.endsWith('.svelte'))
+	.map((f) => readFileSync(new URL(f, dir), 'utf8'))
+	.join('\n');
 
 /** An adult who manages the app, with everything on. */
 const admin: SettingsShown = {
