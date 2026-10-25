@@ -46,19 +46,44 @@
 			const backdrop = params.get('backdrop') ?? '';
 
 			/**
-			 * The game's picture (its canvas, without EmulatorJS' menus), as the background of its
-			 * page; the game goes on. Not the core's own capture (`retroarch`): in 4.2.3 it waits forever
-			 * for a file the core never writes.
+			 * The game's picture (its canvas, without EmulatorJS' menus), as the next frame the browser
+			 * shows of it. Not EmulatorJS' own captures: in 4.2.3 `retroarch` waits forever for a file
+			 * the core never writes, and `canvas` reads the WebGL canvas, which is black whenever the
+			 * game draws nothing in that screen frame (often: a 50 Hz game on a 60 Hz TV).
 			 */
+			async function picture(emulator) {
+				const [track] = emulator.canvas.captureStream().getVideoTracks();
+				try {
+					const frame = await Promise.race([
+						new ImageCapture(track).grabFrame(),
+						new Promise((_, fail) => setTimeout(() => fail(new Error('Sin imagen')), 3000))
+					]);
+					// Only the game: the canvas fills the screen, with black bars at its sides.
+					const aspect = emulator.gameManager.getVideoDimensions('aspect') || 4 / 3;
+					const height = Math.min(frame.height, Math.round(frame.width / aspect));
+					const width = Math.round(height * aspect);
+					const out = new OffscreenCanvas(width, height);
+					const x = (frame.width - width) / 2;
+					const y = (frame.height - height) / 2;
+					out.getContext('2d').drawImage(frame, x, y, width, height, 0, 0, width, height);
+					return await out.convertToBlob({ type: 'image/png' });
+				} finally {
+					track.stop();
+				}
+			}
+
+			/** This moment as the background of the game's page; the game goes on. */
 			async function capture() {
 				const emulator = window.EJS_emulator;
 				if (!emulator?.started || !backdrop.startsWith('/api/fondo/juego/')) return;
-				const { blob } = await emulator.takeScreenshot('canvas', 'png', 1);
-				const res = await fetch(backdrop, {
-					method: 'POST',
-					headers: { 'content-type': 'image/png' },
-					body: blob
-				}).catch(() => null);
+				const blob = await picture(emulator).catch(() => null);
+				const res =
+					blob &&
+					(await fetch(backdrop, {
+						method: 'POST',
+						headers: { 'content-type': 'image/png' },
+						body: blob
+					}).catch(() => null));
 				emulator.displayMessage(res?.ok ? 'Fondo guardado' : 'No se pudo guardar el fondo', 3000);
 			}
 
