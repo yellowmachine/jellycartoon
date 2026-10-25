@@ -512,15 +512,20 @@ export async function wikipediaPageText(page: WikiPage) {
 	return htmlToText(html);
 }
 
-/** A video game (#176), and of one platform (P400): «Super Mario World» is also a cartoon series. */
+/** A video game (#176), and of its platforms (P400): «Super Mario World» is also a cartoon series. */
 const VIDEO_GAME = 'Q7889';
 
-/** Ids of the platform's games whose label or aliases match `query`, best first. */
-export async function searchGames(query: string, platform: string, limit = 8): Promise<string[]> {
+/** Ids of the platforms' games whose label or aliases match `query`, best first. */
+export async function searchGames(
+	query: string,
+	platforms: string[],
+	limit = 8
+): Promise<string[]> {
 	const body = await wikidata({
 		action: 'query',
 		list: 'search',
-		srsearch: `${query} haswbstatement:P31=${VIDEO_GAME} haswbstatement:P400=${platform}`,
+		// Several values are an OR, as in SERIES_FILTER.
+		srsearch: `${query} haswbstatement:P31=${VIDEO_GAME} haswbstatement:${platforms.map((p) => `P400=${p}`).join('|')}`,
 		srlimit: String(limit)
 	});
 	return (body.query?.search ?? []).map((r: { title: string }) => r.title);

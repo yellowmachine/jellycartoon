@@ -15,7 +15,13 @@
 	 * removes the frame, and the emulator and its sound go with it.
 	 */
 	const src = $derived(
-		`/juegos/emulador.html?${new URLSearchParams({ core: data.core, rom: data.rom, title: data.title, backdrop: data.backdrop })}`
+		`/juegos/emulador.html?${new URLSearchParams({
+			core: data.core,
+			rom: data.rom,
+			title: data.title,
+			backdrop: data.backdrop,
+			...(data.bios ? { bios: data.bios } : {})
+		})}`
 	);
 
 	/** Its own API, as far as it is used here (its src/emulator.js and src/GameManager.js). */

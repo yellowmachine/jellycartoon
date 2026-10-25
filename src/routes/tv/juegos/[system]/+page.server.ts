@@ -11,10 +11,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		name: SYSTEMS[system.id].name,
 		games: system.games.map(({ file, title }) => ({ file, title })),
 		// Those missing are fetched from libretro, while the page is already shown.
-		covers: systemCovers(
-			system.id,
-			system.games.map((g) => g.file)
-		).catch((problem): Record<string, string> => {
+		covers: systemCovers(system.id, system.games).catch((problem): Record<string, string> => {
 			log.warn('juegos', 'No se pudieron bajar las carátulas', {
 				system: system.id,
 				error: problem

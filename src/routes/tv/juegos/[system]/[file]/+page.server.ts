@@ -39,7 +39,7 @@ async function found(params: { system: string; file: string }) {
 export const load: PageServerLoad = async ({ params }) => {
 	const { game, row } = await found(params);
 	// libretro's pictures the first time, while the page is already shown.
-	const pictures = fetchPictures(row).catch((problem) =>
+	const pictures = fetchPictures(row, game).catch((problem) =>
 		log.warn('juegos', `No se pudo poner el fondo de «${game.title}»`, {
 			gameId: row.id,
 			error: problem
@@ -53,7 +53,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		// Looked up the first time, while the page is already shown.
 		info: row.status
 			? card(row)
-			: lookUpGame(row).then(card, (problem) => {
+			: lookUpGame(row, game.title).then(card, (problem) => {
 					log.warn('juegos', `No se pudo buscar la ficha de «${game.title}»`, {
 						gameId: row.id,
 						error: problem

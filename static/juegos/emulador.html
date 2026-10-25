@@ -2,8 +2,8 @@
 <!--
 	The games' player (#176): EmulatorJS (GPL-3.0, https://emulatorjs.org), as its docs embed it, with
 	its files from its CDN at a fixed version (cores only work with their own version). Opened in a
-	frame by /tv/juegos/[system]/[file]/jugar, with the system, the game's URL, its title and where its
-	captures go.
+	frame by /tv/juegos/[system]/[file]/jugar, with the system, the game's URL, its title, where its
+	captures go and, for arcade games, their BIOS.
 -->
 <html lang="es">
 	<head>
@@ -39,6 +39,11 @@
 				window.EJS_startOnLoaded = true;
 				// «Guardar Estado» into this browser rather than a file to download, in the living room.
 				window.EJS_defaultOptions = { 'save-state-location': 'browser' };
+				// A BIOS (Neo Geo's `neogeo.zip`), next to the game and as it is: FBNeo looks for it
+				// there, zipped. EJS_biosUrl would unzip it.
+				const bios = params.get('bios') ?? '';
+				if (bios.startsWith('/api/juegos/'))
+					window.EJS_externalFiles = { [`/${decodeURIComponent(bios.split('/').pop())}`]: bios };
 				const loader = document.createElement('script');
 				loader.src = window.EJS_pathtodata + 'loader.js';
 				document.body.append(loader);

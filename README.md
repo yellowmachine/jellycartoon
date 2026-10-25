@@ -587,6 +587,12 @@ Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`.
 
 - Una carpeta por consola, cada una con su emulador: `nes`, `snes`, `gb`, `gbc`, `gba`,
   `mastersystem` y `megadrive`. Las demás no salen. Los juegos pueden ir tal cual o en `.zip` o `.7z`.
+- Las recreativas, en `arcade`, con FinalBurn Neo: sus `.zip` con el nombre corto de FBNeo
+  (`sf2.zip`), mejor de un romset no fusionado (cada `.zip` con todo lo suyo) y de su versión
+  1.0.0.3, la del núcleo de EmulatorJS. La BIOS que necesiten (`neogeo.zip` para Neo Geo), en la
+  misma carpeta: no sale en la lista y se le pasa al juego que la usa. Los nombres completos salen
+  de la lista de juegos de FBNeo, que se baja una vez de GitHub (13 MB) y se guarda en
+  `HOST_DATA_DIR/juegos`.
 - En `/tv/juegos`, una tarjeta por consola; dentro, sus juegos en cuadrícula, cada uno con su
   carátula.
 - Las imágenes vienen de las miniaturas de

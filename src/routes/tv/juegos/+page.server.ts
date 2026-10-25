@@ -17,13 +17,7 @@ export const load: PageServerLoad = async () => {
 				name: s.name,
 				count: s.games.length,
 				// Its games' boxes, those already fetched (when its games were shown).
-				images: Object.values(
-					await systemCovers(
-						s.id,
-						s.games.map((g) => g.file),
-						false
-					)
-				).slice(0, MOSAIC)
+				images: Object.values(await systemCovers(s.id, s.games, false)).slice(0, MOSAIC)
 			}))
 		)
 	};
