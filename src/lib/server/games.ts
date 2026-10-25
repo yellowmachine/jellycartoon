@@ -150,12 +150,22 @@ async function save(gameId: number, values: Partial<typeof game.$inferInsert>) {
 export const gameBackdropFile = (gameId: number) =>
 	path.join(dataRoot, 'fondo', `juego-${gameId}.png`);
 
-/** When it was taken, to ask for the new one; null if there is none. */
-export const gameBackdropTime = (gameId: number) =>
+/** Its address, changed when a new one is taken; null if there is none. */
+export const gameBackdropUrl = (gameId: number) =>
 	stat(gameBackdropFile(gameId)).then(
-		(info) => info.mtimeMs,
+		(info) => `/api/fondo/juego/${gameId}?v=${Math.round(info.mtimeMs)}`,
 		() => null
 	);
+
+/** The captures taken of a console's games, by file name: for their tiles. */
+export async function systemBackdrops(system: string) {
+	const rows = await db
+		.select({ id: game.id, file: game.file })
+		.from(game)
+		.where(eq(game.system, system));
+	const urls = await Promise.all(rows.map((r) => gameBackdropUrl(r.id)));
+	return new Map(rows.flatMap((r, i) => (urls[i] ? [[r.file, urls[i]] as const] : [])));
+}
 
 export async function saveGameBackdrop(gameId: number, png: Uint8Array) {
 	const file = gameBackdropFile(gameId);

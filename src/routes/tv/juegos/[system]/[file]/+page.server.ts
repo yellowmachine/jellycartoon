@@ -3,7 +3,7 @@ import type { Actions, PageServerLoad } from './$types';
 import {
 	chooseGame,
 	findGame,
-	gameBackdropTime,
+	gameBackdropUrl,
 	gameRow,
 	lookUpGame,
 	SYSTEMS,
@@ -33,11 +33,10 @@ async function found(params: { system: string; file: string }) {
 /** A game's page (#176): what it is, its background and «Jugar». */
 export const load: PageServerLoad = async ({ params }) => {
 	const { game, row } = await found(params);
-	const taken = await gameBackdropTime(row.id);
 	return {
 		title: game.title,
 		system: SYSTEMS[game.system].name,
-		backdrop: taken ? `/api/fondo/juego/${row.id}?v=${Math.round(taken)}` : null,
+		backdrop: await gameBackdropUrl(row.id),
 		// Looked up the first time, while the page is already shown.
 		info: row.status
 			? card(row)
