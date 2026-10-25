@@ -4,6 +4,7 @@
 	import Backdrop from '#lib/components/Backdrop.svelte';
 	import SectionIcon from '#lib/components/SectionIcon.svelte';
 	import TvHeader from '#lib/components/TvHeader.svelte';
+	import { formatPlayed } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -63,6 +64,11 @@
 				<span class="block text-xl text-zinc-400">{data.system}</span>
 			</span>
 		</a>
+		{#if data.played.seconds >= 60 && data.played.last}
+			<p class="mt-4 text-xl text-zinc-300">
+				Has jugado {formatPlayed(data.played.seconds)} · la última vez, {when(data.played.last)}
+			</p>
+		{/if}
 		{#await data.pictures then pictures}
 			{#if pictures.length}
 				<h2 class="mt-8 mb-3 text-2xl font-semibold text-zinc-300">Fondo</h2>

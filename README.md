@@ -618,6 +618,9 @@ Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`.
   `flatpak override --user --filesystem=/run/udev:ro org.chromium.Chromium`, que pone
   `scripts/pantalla.sh`. Luego hay que cerrar Chromium y abrirlo, y pulsar un botón del mando en el
   juego: hasta entonces el navegador no lo muestra.
+- Estadísticas de cada persona: cuánto ha jugado (sin contar pausas ni el menú), a qué y cuándo,
+  en `/tv/juegos/estadisticas` y en la sección Juegos de la app completa; en la página de cada
+  juego, el total y la última vez. Solo con «Guardar historial» activado en Ajustes.
 - EmulatorJS se carga de su CDN, en la versión 4.2.3: el salón necesita internet para jugar.
 - Todavía sin partidas guardadas ni filtros, y no está para los peques.
 

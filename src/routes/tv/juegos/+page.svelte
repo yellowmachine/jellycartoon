@@ -70,3 +70,12 @@
 		</a>
 	{/each}
 </nav>
+
+<!-- At the end, so the remote starts on the consoles. -->
+<div class="mt-16 flex justify-center">
+	<a
+		href="/tv/juegos/estadisticas"
+		class="rounded-lg px-4 py-2 text-xl text-zinc-500 hover:text-zinc-300 focus-visible:text-zinc-100"
+		>Estadísticas de juego</a
+	>
+</div>

@@ -64,6 +64,7 @@
 	/** Its own API, as far as it is used here (its src/emulator.js and src/GameManager.js). */
 	type Emulator = {
 		started: boolean;
+		paused: boolean;
 		pause(): void;
 		play(): void;
 		displayMessage(text: string, ms: number): void;
@@ -78,6 +79,55 @@
 	type Player = { EJS_emulator?: Emulator; picture?: (emulator: Emulator) => Promise<Blob> };
 	const player = () => frame?.contentWindow as Player | null | undefined;
 	const emulator = () => (player()?.EJS_emulator?.started ? player()!.EJS_emulator! : null);
+
+	/**
+	 * How long it is played (#176): a session from the emulator starting, and the seconds really
+	 * played (not paused, nor in the menu, nor with the screen hidden), told every half minute and
+	 * when leaving. Without «Guardar historial», no session and nothing told.
+	 */
+	let sessionId: number | null = null;
+	let unreported = 0;
+	function report(leaving = false) {
+		if (!sessionId || !unreported) return;
+		const url = `/api/juegos/sesiones/${sessionId}`;
+		const body = JSON.stringify({ seconds: unreported });
+		unreported = 0;
+		// Leaving, the page may be gone before a fetch ends: the browser sends a beacon all the same.
+		if (leaving) navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+		else
+			void fetch(url, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body
+			}).catch(() => {});
+	}
+	onMount(() => {
+		let started = false;
+		let ticks = 0;
+		const timer = setInterval(async () => {
+			const running = emulator();
+			if (!running) return;
+			if (!started) {
+				started = true;
+				const res = await fetch('/api/juegos/sesiones', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ gameId: data.gameId })
+				}).catch(() => null);
+				sessionId = res?.ok ? (await res.json()).id : null;
+				return;
+			}
+			if (!running.paused && !menu && document.visibilityState === 'visible') unreported++;
+			if (++ticks % 30 === 0) report();
+		}, 1000);
+		const leave = () => report(true);
+		addEventListener('pagehide', leave);
+		return () => {
+			clearInterval(timer);
+			removeEventListener('pagehide', leave);
+			report(true);
+		};
+	});
 
 	/**
 	 * The game's own save (the cartridge's) into the browser before the frame goes. EmulatorJS

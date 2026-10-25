@@ -1466,3 +1466,25 @@ export const gameSave = pgTable(
 	},
 	(t) => [index('game_save_user_game_idx').on(t.userId, t.gameId, t.createdAt)]
 );
+
+/**
+ * A time a person played a game (#176): from the emulator starting to leaving it, and the seconds
+ * actually played in it (paused or in its menu do not count). Kept only with «Guardar historial».
+ */
+export const gameSession = pgTable(
+	'game_session',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		gameId: integer('game_id')
+			.notNull()
+			.references(() => game.id, { onDelete: 'cascade' }),
+		startedAt: timestamp('started_at').notNull().defaultNow(),
+		/** The last time the page said it was still there: the end, once it is left. */
+		endedAt: timestamp('ended_at').notNull().defaultNow(),
+		seconds: integer('seconds').notNull().default(0)
+	},
+	(t) => [index('game_session_user_idx').on(t.userId, t.startedAt)]
+);

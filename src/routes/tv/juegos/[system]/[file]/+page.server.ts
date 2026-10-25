@@ -15,6 +15,7 @@ import {
 	type Picture
 } from '#lib/server/games.ts';
 import { savesOf } from '#lib/server/game-saves.ts';
+import { gameTotals } from '#lib/server/game-sessions.ts';
 import { log } from '#lib/server/log.ts';
 
 /** Only what the page shows. */
@@ -53,6 +54,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		pictures: pictures.then(() => gamePictures(row.id)),
 		/** The person's saved games of it, to go on from one. */
 		saves: await savesOf(locals.user!.id, row.id),
+		/** How long the person has played it, and the last time. */
+		played: await gameTotals(locals.user!.id, row.id),
 		// Looked up the first time, while the page is already shown.
 		info: row.status
 			? card(row)
