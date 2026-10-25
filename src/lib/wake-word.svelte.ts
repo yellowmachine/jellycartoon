@@ -18,10 +18,14 @@ const KEY = 'jellycartoon:wake-word';
  */
 const MODEL = 'hola_casita';
 /**
- * The browser's echo cancellation and noise suppression, off: with music, Android's took the voice
- * away with it. What is said after the word is heard with the music already paused.
+ * The browser's cleaning (echo, noise, gain), only while the app plays nothing on this device (music
+ * or a video): with music, Android's took the voice away with it; without it, the gain is what lets
+ * a voice from across the room reach the word. A TV or speakers elsewhere in the room do not count.
+ * What is said after the word is heard with what played already paused.
  */
-const PROCESSING = false;
+const CLEAN_WITHOUT_MUSIC = true;
+/** Sound on or off this long before the microphone is opened again, cleaned or not. */
+const SWITCH_AFTER_MS = 2000;
 /** As /activacion's slider starts. */
 const THRESHOLD = 0.5;
 /** Busy (listening, thinking, reading the answer aloud) and this long after: not heard. */
@@ -58,6 +62,9 @@ class WakeWord {
 	#paused = false;
 	#order: Order | null = null;
 	#quietUntil = 0;
+	/** Cleaned now, or as it will open: nothing playing here. */
+	#clean = CLEAN_WITHOUT_MUSIC;
+	#switchTimer: ReturnType<typeof setTimeout> | undefined;
 
 	set(on: boolean) {
 		this.on = on;
@@ -87,7 +94,7 @@ class WakeWord {
 			this.#listening = await listen(
 				{
 					models: [MODEL],
-					processing: PROCESSING,
+					processing: this.#clean,
 					vad: true,
 					onScores: ([score]) => this.#score(score ?? 0),
 					onLevel() {},
@@ -107,6 +114,8 @@ class WakeWord {
 		}
 		// Turned off while it loaded.
 		if (!this.#wanted) return this.#stop();
+		// Something started or stopped playing while it loaded.
+		void this.#listening.setProcessing(this.#clean).catch(() => {});
 		this.#paused = false;
 		context.onstatechange = () => this.#showState();
 		document.addEventListener('pointerdown', this.#unlock, true);
@@ -114,6 +123,29 @@ class WakeWord {
 		document.addEventListener('visibilitychange', this.#visibility);
 		this.#showState();
 		this.#visibility();
+	}
+
+	/**
+	 * From the layout: whether the app plays something on this device, music or a video. Once it has
+	 * for a moment, the microphone is opened again without cleaning, or with it once it stops.
+	 */
+	sounding(playing: boolean) {
+		const clean = CLEAN_WITHOUT_MUSIC && !playing;
+		clearTimeout(this.#switchTimer);
+		if (clean === this.#clean) return;
+		this.#switchTimer = setTimeout(() => this.#switchCleaning(clean), SWITCH_AFTER_MS);
+	}
+
+	/** Not while an order is being said or answered (the voice pauses the music): after it. */
+	#switchCleaning(clean: boolean) {
+		if (this.#order || voice.phase !== 'idle' || voice.speaking) {
+			this.#switchTimer = setTimeout(() => this.#switchCleaning(clean), SWITCH_AFTER_MS);
+			return;
+		}
+		this.#clean = clean;
+		this.#listening?.setProcessing(clean).catch((err) => {
+			this.problem = err instanceof Error ? err.message : String(err);
+		});
 	}
 
 	#stop() {

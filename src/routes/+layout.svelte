@@ -20,6 +20,7 @@
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { wakeWord } from '#lib/wake-word.svelte.ts';
+	import { music } from '#lib/music-player.svelte.ts';
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import { page, updated } from '$app/state';
 	import { themeColor, themeCss } from '#lib/themes.ts';
@@ -48,6 +49,10 @@
 		wakeWord.want(
 			Boolean(data.voice) && wakeWord.on && !page.url.pathname.startsWith('/activacion')
 		);
+	});
+	// Cleaned while nothing plays here: with music or a video, Android's cleaning took the voice too.
+	$effect(() => {
+		wakeWord.sounding(music.playing || videoHere.playing);
 	});
 
 	// A device that keeps routes' maps (#164): what it was ordered from any other, done now.
