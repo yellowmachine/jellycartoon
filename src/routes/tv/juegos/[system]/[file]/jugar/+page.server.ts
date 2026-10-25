@@ -10,6 +10,10 @@ export const load: PageServerLoad = async ({ params }) => {
 		title: game.title,
 		core: SYSTEMS[game.system].core,
 		rom: `/api/juegos/${encodeURIComponent(game.system)}/${encodeURIComponent(game.file)}`,
+		/** The BIOS it needs (Neo Geo's), from the same folder. */
+		bios:
+			game.bios &&
+			`/api/juegos/${encodeURIComponent(game.system)}/${encodeURIComponent(game.bios)}`,
 		/** Where a capture of the game goes, as the background of its page. */
 		backdrop: `/api/fondo/juego/${row.id}`
 	};

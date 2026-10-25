@@ -7,73 +7,110 @@ import { dataRoot, gamesRoot } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 import { normalize, pick, queries } from '#lib/server/cinema/match.ts';
 import { describeGames, gameDetails, searchGames } from '#lib/server/cinema/wikidata.ts';
+import { arcadeGames, biosOf, type ArcadeGame } from '#lib/server/fbneo.ts';
 
 /**
  * The folders of GAMES_DIR that are played (#176), each with one system of EmulatorJS
- * (https://emulatorjs.org/docs/systems), which picks its default core, the console in Wikidata, to
- * look its games up, and its folder in libretro's thumbnails, for their pictures. Only the light
- * consoles: other folders are left out.
+ * (https://emulatorjs.org/docs/systems), which picks its default core, the platforms in Wikidata
+ * (P400) to look its games up among, and its folder in libretro's thumbnails, for their pictures.
+ * Only the light consoles, and the arcade games of FinalBurn Neo: other folders are left out.
  */
 export const SYSTEMS: Record<
 	string,
-	{ name: string; core: string; wikidata: string; libretro: string }
+	{ name: string; core: string; wikidata: string[]; libretro: string }
 > = {
 	nes: {
 		name: 'NES',
 		core: 'nes',
-		wikidata: 'Q172742',
+		wikidata: ['Q172742'],
 		libretro: 'Nintendo - Nintendo Entertainment System'
 	},
 	snes: {
 		name: 'Super Nintendo',
 		core: 'snes',
-		wikidata: 'Q183259',
+		wikidata: ['Q183259'],
 		libretro: 'Nintendo - Super Nintendo Entertainment System'
 	},
-	gb: { name: 'Game Boy', core: 'gb', wikidata: 'Q186437', libretro: 'Nintendo - Game Boy' },
+	gb: { name: 'Game Boy', core: 'gb', wikidata: ['Q186437'], libretro: 'Nintendo - Game Boy' },
 	gbc: {
 		name: 'Game Boy Color',
 		core: 'gb',
-		wikidata: 'Q203992',
+		wikidata: ['Q203992'],
 		libretro: 'Nintendo - Game Boy Color'
 	},
 	gba: {
 		name: 'Game Boy Advance',
 		core: 'gba',
-		wikidata: 'Q188642',
+		wikidata: ['Q188642'],
 		libretro: 'Nintendo - Game Boy Advance'
 	},
 	mastersystem: {
 		name: 'Master System',
 		core: 'segaMS',
-		wikidata: 'Q209868',
+		wikidata: ['Q209868'],
 		libretro: 'Sega - Master System - Mark III'
 	},
 	megadrive: {
 		name: 'Mega Drive',
 		core: 'segaMD',
-		wikidata: 'Q10676',
+		wikidata: ['Q10676'],
 		libretro: 'Sega - Mega Drive - Genesis'
+	},
+	// FinalBurn Neo, EmulatorJS' core for `arcade`: its ROMs as FBNeo names them (fbneo.ts). Arcade
+	// games, or Neo-Geo's, in Wikidata.
+	arcade: {
+		name: 'Recreativas',
+		core: 'arcade',
+		wikidata: ['Q192851', 'Q1054350'],
+		libretro: 'FBNeo - Arcade Games'
 	}
 };
 
-export type Game = { system: string; file: string; title: string };
+export type Game = {
+	system: string;
+	file: string;
+	title: string;
+	/** Its full name, as libretro's pictures are named: No-Intro's, or FBNeo's for arcade games. */
+	fullName: string;
+	/** The BIOS's file it needs (`neogeo.zip`), when it is in the folder too. */
+	bios: string | null;
+};
 
-/** «Super Mario World (Europe).7z» → «Super Mario World»: no extension, no region or version. */
-const titleOf = (file: string) =>
-	path
-		.parse(file)
-		.name.replace(/(\s*[([][^)\]]*[)\]])+$/, '')
-		.trim() || file;
+/** «Super Mario World (Europe)» → «Super Mario World»: no region or version. */
+const titleOf = (name: string) => name.replace(/(\s*[([][^)\]]*[)\]])+$/, '').trim() || name;
+
+/** FBNeo's list, or none if it cannot be had now: the short names then. */
+const arcadeList = () =>
+	arcadeGames().catch((problem): Record<string, ArcadeGame> => {
+		log.warn('juegos', 'No se pudo leer la lista de recreativas de FBNeo', { error: problem });
+		return {};
+	});
 
 /** The games of a system's folder, by title; none if there is no folder. Read each time. */
 async function gamesIn(system: string): Promise<Game[]> {
 	const entries = await readdir(path.join(gamesRoot!, system), { withFileTypes: true }).catch(
 		() => []
 	);
-	return entries
-		.filter((e) => e.isFile() && !e.name.startsWith('.'))
-		.map((e) => ({ system, file: e.name, title: titleOf(e.name) }))
+	const files = entries.filter((e) => e.isFile() && !e.name.startsWith('.')).map((e) => e.name);
+	const arcade = system === 'arcade' && files.length ? await arcadeList() : null;
+	return files
+		.flatMap((file): Game[] => {
+			const name = path.parse(file).name;
+			if (!arcade) return [{ system, file, title: titleOf(name), fullName: name, bios: null }];
+			const known = arcade[name];
+			// A BIOS is not a game: it goes with the games that need it.
+			if (known?.isBios) return [];
+			const bios = biosOf(arcade, name);
+			return [
+				{
+					system,
+					file,
+					title: known ? titleOf(known.description) : name,
+					fullName: known?.description ?? name,
+					bios: bios && files.includes(`${bios}.zip`) ? `${bios}.zip` : null
+				}
+			];
+		})
 		.sort((a, b) => a.title.localeCompare(b.title, 'es'));
 }
 
@@ -95,6 +132,15 @@ export async function findGame(system: string, file: string) {
 	return found && { ...found, path: path.join(gamesRoot, system, found.file) };
 }
 
+/** A game's file, or a BIOS one of the folder's games needs: what the emulator may ask for. */
+export async function romFile(system: string, file: string) {
+	if (!gamesRoot || !Object.hasOwn(SYSTEMS, system)) return null;
+	const games = await gamesIn(system);
+	return games.some((g) => g.file === file || g.bios === file)
+		? path.join(gamesRoot, system, file)
+		: null;
+}
+
 export type GameRow = typeof game.$inferSelect;
 
 /** The game's row, made the first time its page is opened. */
@@ -110,19 +156,19 @@ export async function gameRow(system: string, file: string): Promise<GameRow> {
 /** Lookups in progress, so opening the page twice does not look the game up twice. */
 const running = new Map<number, Promise<GameRow>>();
 
-/** Looks the game up in Wikidata, unless that is already being done. */
-export function lookUpGame(row: GameRow) {
+/** Looks the game up in Wikidata by its title, unless that is already being done. */
+export function lookUpGame(row: GameRow, title: string) {
 	let lookup = running.get(row.id);
 	if (!lookup) {
-		lookup = identifyGame(row).finally(() => running.delete(row.id));
+		lookup = identifyGame(row, title).finally(() => running.delete(row.id));
 		running.set(row.id, lookup);
 	}
 	return lookup;
 }
 
 /** By its title, among the games of its console: No-Intro names are clean enough without the AI. */
-async function identifyGame(row: GameRow): Promise<GameRow> {
-	const known = { title: titleOf(row.file), year: null, minutes: null };
+async function identifyGame(row: GameRow, title: string): Promise<GameRow> {
+	const known = { title, year: null, minutes: null };
 	const platform = SYSTEMS[row.system].wikidata;
 	const ids = [
 		...new Set((await Promise.all(queries(known).map((q) => searchGames(q, platform)))).flat())
@@ -207,21 +253,21 @@ async function writeWhole(file: string, write: (part: string) => Promise<void>) 
 	await rename(`${file}.part`, file);
 }
 
-/** libretro's name for a file: No-Intro's, as the ROMs are named, with these characters as `_`. */
-const libretroName = (file: string) => path.parse(file).name.replace(/[&*/:`<>?\\|"]/g, '_');
+/** A game with its row, to fetch its pictures. */
+type Target = { id: number; system: string; fullName: string; title: string };
+
+/** libretro's name for a game: its full name, with these characters as `_`. */
+const libretroName = (fullName: string) => fullName.replace(/[&*/:`<>?\\|"]/g, '_');
 
 /** One of libretro's pictures of the game, unless it is here already or libretro has none. */
-async function fetchPicture(
-	row: { id: number; system: string; file: string },
-	kind: LibretroPicture
-) {
+async function fetchPicture(row: Target, kind: LibretroPicture) {
 	const file = pictureFile(row.id, kind);
 	if ((await exists(file)) || (await exists(missingMark(row.id, kind)))) return;
 	const url = [
 		'https://thumbnails.libretro.com',
 		encodeURIComponent(SYSTEMS[row.system].libretro),
 		LIBRETRO[kind],
-		`${encodeURIComponent(libretroName(row.file))}.png`
+		`${encodeURIComponent(libretroName(row.fullName))}.png`
 	].join('/');
 	const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
 	if (res.status === 404) {
@@ -236,9 +282,9 @@ async function fetchPicture(
 }
 
 /** Without stopping at a failure: logged, and asked again next time. */
-const tryFetch = (row: { id: number; system: string; file: string }, kind: LibretroPicture) =>
+const tryFetch = (row: Target, kind: LibretroPicture) =>
 	fetchPicture(row, kind).catch((problem) =>
-		log.warn('juegos', `No se pudo bajar de libretro una imagen de «${titleOf(row.file)}»`, {
+		log.warn('juegos', `No se pudo bajar de libretro una imagen de «${row.title}»`, {
 			gameId: row.id,
 			kind,
 			error: problem
@@ -249,8 +295,9 @@ const tryFetch = (row: { id: number; system: string; file: string }, kind: Libre
  * The game's page: libretro's pictures the first time, and one as its background while it has
  * none (the one taken while playing, else the title screen, else the screenshot).
  */
-export async function fetchPictures(row: GameRow) {
-	await Promise.all((['titulo', 'captura', 'caratula'] as const).map((k) => tryFetch(row, k)));
+export async function fetchPictures(row: GameRow, found: Game) {
+	const target = { ...found, id: row.id };
+	await Promise.all((['titulo', 'captura', 'caratula'] as const).map((k) => tryFetch(target, k)));
 	if (await exists(gameBackdropFile(row.id))) return;
 	for (const kind of ['mia', 'titulo', 'captura'] as const)
 		if (await exists(pictureFile(row.id, kind))) return chooseGameBackdrop(row.id, kind);
@@ -313,17 +360,22 @@ const AT_ONCE = 4;
  * The boxes of a console's games, by file name, for their tiles: those missing are fetched from
  * libretro first, unless `fetch` is false.
  */
-export async function systemCovers(system: string, files: string[], fetch = true) {
+export async function systemCovers(system: string, games: Game[], fetch = true) {
+	const files = games.map((g) => g.file);
 	if (fetch && files.length)
 		await db
 			.insert(game)
 			.values(files.map((file) => ({ system, file })))
 			.onConflictDoNothing();
 	const rows = await db
-		.select({ id: game.id, system: game.system, file: game.file })
+		.select({ id: game.id, file: game.file })
 		.from(game)
 		.where(eq(game.system, system));
-	const wanted = rows.filter((r) => files.includes(r.file));
+	const byFile = new Map(games.map((g) => [g.file, g]));
+	const wanted = rows.flatMap((r) => {
+		const found = byFile.get(r.file);
+		return found ? [{ ...found, id: r.id }] : [];
+	});
 	if (fetch)
 		for (let i = 0; i < wanted.length; i += AT_ONCE)
 			await Promise.all(wanted.slice(i, i + AT_ONCE).map((r) => tryFetch(r, 'caratula')));
