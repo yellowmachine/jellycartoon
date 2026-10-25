@@ -138,7 +138,8 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		id: 'hola-casita',
 		tab: 'aparato',
 		title: '«Hola casita»',
-		words: 'palabra de activación manos libres sin pulsar escuchar probar',
+		words:
+			'palabra de activación manos libres sin pulsar escuchar probar umbral sensibilidad tele limpiar ruido',
 		shown: (d) => d.voice
 	},
 	{

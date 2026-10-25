@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { micMode, type MicMode } from '#lib/mic-mode.svelte.ts';
-	import { wakeWord } from '#lib/wake-word.svelte.ts';
+	import { WAKE_THRESHOLD, wakeWord } from '#lib/wake-word.svelte.ts';
 	import { section } from './styles.ts';
 	import type { PageData } from './$types';
 
@@ -72,6 +72,40 @@
 						tap: 'Toca la pantalla para que empiece a escuchar.'
 					}[wakeWord.status]}
 			</p>
+			<label class="mt-4 block text-sm">
+				Umbral: <span class="font-mono text-amber-400"
+					>{wakeWord.threshold.toFixed(2).replace('.', ',')}</span
+				>
+				<input
+					type="range"
+					min={WAKE_THRESHOLD.min}
+					max={WAKE_THRESHOLD.max}
+					step={WAKE_THRESHOLD.step}
+					value={wakeWord.threshold}
+					oninput={(e) => wakeWord.setThreshold(Number(e.currentTarget.value))}
+					class="mt-1 block w-full max-w-xs accent-amber-500"
+				/>
+			</label>
+			<p class="mt-1 text-xs text-zinc-500">
+				Más bajo, salta más fácil (con la tele puesta, por ejemplo), pero también sola más a menudo.
+				Empieza en {WAKE_THRESHOLD.default.toFixed(1).replace('.', ',')}; en la prueba de abajo se
+				ve con qué valor salta tu voz.
+			</p>
+			<label class="mt-4 flex items-start gap-2 text-sm">
+				<input
+					type="checkbox"
+					checked={wakeWord.cleanWhenQuiet}
+					onchange={(e) => wakeWord.setCleanWhenQuiet(e.currentTarget.checked)}
+					class="mt-0.5 rounded border-zinc-600 bg-zinc-900 text-amber-500"
+				/>
+				<span>
+					Limpiar el sonido cuando no suena nada en este aparato
+					<span class="block text-xs text-zinc-500"
+						>Quita eco y ruido y sube tu voz: puede ayudar desde lejos y en silencio. Con la tele
+						puesta suele ir peor, y con música o un vídeo sonando aquí nunca se limpia.</span
+					>
+				</span>
+			</label>
 		{/if}
 		<p class="mt-3 text-sm">
 			<a href="/activacion" class="text-amber-400 hover:underline"

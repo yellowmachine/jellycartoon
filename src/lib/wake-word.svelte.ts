@@ -18,26 +18,49 @@ const KEY = 'jellycartoon:wake-word';
  */
 const MODEL = 'hola_casita';
 /**
- * The browser's cleaning (echo, noise, gain), only while the app plays nothing on this device (music
- * or a video): with music, Android's took the voice away with it; without it, the gain is what lets
- * a voice from across the room reach the word. A TV or speakers elsewhere in the room do not count.
- * What is said after the word is heard with what played already paused.
+ * The browser's cleaning (echo, noise, gain): only if this device asks for it (Ajustes), and only
+ * while the app plays nothing on it (music or a video), as Android's took the voice away with the
+ * music. Off unless asked: with the TV on (2026-10-25), the word went off better without it; and a
+ * TV not played by the app cannot be known here.
  */
-const CLEAN_WITHOUT_MUSIC = true;
+const CLEAN_KEY = 'jellycartoon:wake-word-clean';
 /** Sound on or off this long before the microphone is opened again, cleaned or not. */
 const SWITCH_AFTER_MS = 2000;
-/** As /activacion's slider starts. */
-const THRESHOLD = 0.5;
+/**
+ * How sure the model must be, on this device (Ajustes): lower goes off more easily, and also by
+ * itself more often. As /activacion's slider starts.
+ */
+const THRESHOLD_KEY = 'jellycartoon:wake-word-threshold';
+export const WAKE_THRESHOLD = { min: 0.2, max: 0.8, step: 0.05, default: 0.5 };
 /** Busy (listening, thinking, reading the answer aloud) and this long after: not heard. */
 const QUIET_MS = 1500;
 /** As holding the button: longer than this, it is sent anyway. */
 const MAX_MS = 30_000;
 
-function stored() {
+function stored(key = KEY) {
 	try {
-		return localStorage.getItem(KEY) === 'on';
+		return localStorage.getItem(key) === 'on';
 	} catch {
 		return false;
+	}
+}
+
+function storedThreshold() {
+	try {
+		const value = Number(localStorage.getItem(THRESHOLD_KEY));
+		if (value >= WAKE_THRESHOLD.min && value <= WAKE_THRESHOLD.max) return value;
+	} catch {
+		// Private window: the default.
+	}
+	return WAKE_THRESHOLD.default;
+}
+
+function keep(key: string, value: string | null) {
+	try {
+		if (value === null) localStorage.removeItem(key);
+		else localStorage.setItem(key, value);
+	} catch {
+		// Private window: only forgotten.
 	}
 }
 
@@ -55,6 +78,9 @@ class WakeWord {
 	/** `tap`: listening, but the browser lets the sound start only after a touch on the page. */
 	status = $state<'off' | 'loading' | 'on' | 'tap'>('off');
 	problem = $state<string | null>(null);
+	threshold = $state(typeof window === 'undefined' ? WAKE_THRESHOLD.default : storedThreshold());
+	/** Clean the sound while nothing plays here: off unless asked. */
+	cleanWhenQuiet = $state(typeof window === 'undefined' ? false : stored(CLEAN_KEY));
 
 	#wanted = false;
 	#listening: Listening | null = null;
@@ -62,9 +88,22 @@ class WakeWord {
 	#paused = false;
 	#order: Order | null = null;
 	#quietUntil = 0;
-	/** Cleaned now, or as it will open: nothing playing here. */
-	#clean = CLEAN_WITHOUT_MUSIC;
+	/** Cleaned now, or as it will open. */
+	#clean = this.cleanWhenQuiet;
+	/** The app plays something on this device, as the layout last said. */
+	#playing = false;
 	#switchTimer: ReturnType<typeof setTimeout> | undefined;
+
+	setThreshold(value: number) {
+		this.threshold = Math.min(WAKE_THRESHOLD.max, Math.max(WAKE_THRESHOLD.min, value));
+		keep(THRESHOLD_KEY, String(this.threshold));
+	}
+
+	setCleanWhenQuiet(on: boolean) {
+		this.cleanWhenQuiet = on;
+		keep(CLEAN_KEY, on ? 'on' : null);
+		this.#planCleaning();
+	}
 
 	set(on: boolean) {
 		this.on = on;
@@ -126,11 +165,17 @@ class WakeWord {
 	}
 
 	/**
-	 * From the layout: whether the app plays something on this device, music or a video. Once it has
-	 * for a moment, the microphone is opened again without cleaning, or with it once it stops.
+	 * From the layout: whether the app plays something on this device, music or a video. With the
+	 * cleaning asked for, once it has for a moment the microphone is opened again without it, and with
+	 * it once it stops.
 	 */
 	sounding(playing: boolean) {
-		const clean = CLEAN_WITHOUT_MUSIC && !playing;
+		this.#playing = playing;
+		this.#planCleaning();
+	}
+
+	#planCleaning() {
+		const clean = this.cleanWhenQuiet && !this.#playing;
 		clearTimeout(this.#switchTimer);
 		if (clean === this.#clean) return;
 		this.#switchTimer = setTimeout(() => this.#switchCleaning(clean), SWITCH_AFTER_MS);
@@ -194,7 +239,7 @@ class WakeWord {
 			this.#quietUntil = Date.now() + QUIET_MS;
 			return;
 		}
-		if (score < THRESHOLD || Date.now() < this.#quietUntil) return;
+		if (score < this.threshold || Date.now() < this.#quietUntil) return;
 		const vad = this.#listening?.vad();
 		if (!vad || !voice.beginHandsFree()) return;
 		this.#beep(880);
