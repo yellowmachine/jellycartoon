@@ -8,6 +8,14 @@
 
 	let { data, form }: PageProps = $props();
 
+	/** What each of a game's pictures is (games.ts' PICTURES). */
+	const LABELS: Record<string, string> = {
+		titulo: 'Título',
+		captura: 'Captura',
+		caratula: 'Carátula',
+		mia: 'Mi captura'
+	};
+
 	const facts = (info: NonNullable<Awaited<typeof data.info>>) =>
 		[info.year, info.developers.join(', '), info.genres.join(', '), info.modes.join(', ')].filter(
 			Boolean
@@ -18,9 +26,11 @@
 	<title>{data.title} · JellyCartoon</title>
 </svelte:head>
 
-{#if data.backdrop}
-	<Backdrop src={data.backdrop} pixelated />
-{/if}
+{#await data.backdrop then backdrop}
+	{#if backdrop}
+		<Backdrop src={backdrop} pixelated />
+	{/if}
+{/await}
 
 <TvHeader title={data.title} />
 
@@ -44,10 +54,37 @@
 				<span class="block text-xl text-zinc-400">{data.system}</span>
 			</span>
 		</a>
+		{#await data.pictures then pictures}
+			{#if pictures.length}
+				<h2 class="mt-8 mb-3 text-2xl font-semibold text-zinc-300">Fondo</h2>
+				<form method="post" action="?/backdrop" use:enhance class="grid grid-cols-4 gap-3">
+					{#each pictures as p (p.kind)}
+						<button
+							name="kind"
+							value={p.kind}
+							aria-pressed={p.chosen}
+							class={[
+								'rounded-lg border-2 p-1 text-center transition duration-150 focus-visible:scale-110 focus-visible:border-lime-300',
+								p.chosen ? 'border-lime-400' : 'border-transparent'
+							]}
+						>
+							<img
+								src={p.url}
+								alt=""
+								class={[
+									'aspect-[4/3] w-full rounded bg-zinc-800 object-contain',
+									p.kind !== 'caratula' && 'pixelated'
+								]}
+							/>
+							<span class="mt-1 block truncate text-base text-zinc-400">{LABELS[p.kind]}</span>
+						</button>
+					{/each}
+				</form>
+			{/if}
+		{/await}
 		<!-- Otherwise nobody would know: there is no button for it on the screen. -->
 		<p class="mt-4 text-lg text-zinc-500">
-			{data.backdrop ? 'Para cambiar el fondo' : 'Para poner un fondo'}, pulsa Play/Pausa en el
-			mando mientras juegas.
+			Para usar de fondo un momento del juego, pulsa Play/Pausa en el mando mientras juegas.
 		</p>
 	</div>
 
@@ -89,3 +126,9 @@
 		{/await}
 	</div>
 </div>
+
+<style>
+	.pixelated {
+		image-rendering: pixelated;
+	}
+</style>

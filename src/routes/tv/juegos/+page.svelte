@@ -41,8 +41,8 @@
 				t.text
 			]}
 		>
-			<!-- Its games, as captured while playing: dim, so the name reads over them. Six as a
-			     mosaic; with fewer, the first one over the whole card. -->
+			<!-- Its games' boxes: dim, so the name reads over them. Six as a mosaic; with fewer, the
+			     first one over the whole card. -->
 			{#if s.images.length}
 				<span
 					class={[
@@ -52,7 +52,7 @@
 					aria-hidden="true"
 				>
 					{#each s.images.length >= 6 ? s.images : s.images.slice(0, 1) as src (src)}
-						<img {src} alt="" class="pixelated h-full w-full object-cover" />
+						<img {src} alt="" class="h-full w-full object-cover" />
 					{/each}
 				</span>
 			{/if}
@@ -70,9 +70,3 @@
 		</a>
 	{/each}
 </nav>
-
-<style>
-	.pixelated {
-		image-rendering: pixelated;
-	}
-</style>

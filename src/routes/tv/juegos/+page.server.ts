@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { allGames, systemBackdrops } from '#lib/server/games.ts';
+import { allGames, systemCovers } from '#lib/server/games.ts';
 import { gamesRoot } from '#lib/server/library/paths.ts';
 
 /** Tiles in each console's mosaic: 3 × 2, as in the TV view's cards. */
@@ -16,8 +16,14 @@ export const load: PageServerLoad = async () => {
 				id: s.id,
 				name: s.name,
 				count: s.games.length,
-				// What its games look like: the captures taken while playing them.
-				images: [...(await systemBackdrops(s.id)).values()].slice(0, MOSAIC)
+				// Its games' boxes, those already fetched (when its games were shown).
+				images: Object.values(
+					await systemCovers(
+						s.id,
+						s.games.map((g) => g.file),
+						false
+					)
+				).slice(0, MOSAIC)
 			}))
 		)
 	};

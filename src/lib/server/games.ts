@@ -1,4 +1,4 @@
-import { mkdir, readdir, rename, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { and, eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
@@ -10,17 +10,51 @@ import { describeGames, gameDetails, searchGames } from '#lib/server/cinema/wiki
 
 /**
  * The folders of GAMES_DIR that are played (#176), each with one system of EmulatorJS
- * (https://emulatorjs.org/docs/systems), which picks its default core, and the console in Wikidata,
- * to look its games up. Only the light consoles: other folders are left out.
+ * (https://emulatorjs.org/docs/systems), which picks its default core, the console in Wikidata, to
+ * look its games up, and its folder in libretro's thumbnails, for their pictures. Only the light
+ * consoles: other folders are left out.
  */
-export const SYSTEMS: Record<string, { name: string; core: string; wikidata: string }> = {
-	nes: { name: 'NES', core: 'nes', wikidata: 'Q172742' },
-	snes: { name: 'Super Nintendo', core: 'snes', wikidata: 'Q183259' },
-	gb: { name: 'Game Boy', core: 'gb', wikidata: 'Q186437' },
-	gbc: { name: 'Game Boy Color', core: 'gb', wikidata: 'Q203992' },
-	gba: { name: 'Game Boy Advance', core: 'gba', wikidata: 'Q188642' },
-	mastersystem: { name: 'Master System', core: 'segaMS', wikidata: 'Q209868' },
-	megadrive: { name: 'Mega Drive', core: 'segaMD', wikidata: 'Q10676' }
+export const SYSTEMS: Record<
+	string,
+	{ name: string; core: string; wikidata: string; libretro: string }
+> = {
+	nes: {
+		name: 'NES',
+		core: 'nes',
+		wikidata: 'Q172742',
+		libretro: 'Nintendo - Nintendo Entertainment System'
+	},
+	snes: {
+		name: 'Super Nintendo',
+		core: 'snes',
+		wikidata: 'Q183259',
+		libretro: 'Nintendo - Super Nintendo Entertainment System'
+	},
+	gb: { name: 'Game Boy', core: 'gb', wikidata: 'Q186437', libretro: 'Nintendo - Game Boy' },
+	gbc: {
+		name: 'Game Boy Color',
+		core: 'gb',
+		wikidata: 'Q203992',
+		libretro: 'Nintendo - Game Boy Color'
+	},
+	gba: {
+		name: 'Game Boy Advance',
+		core: 'gba',
+		wikidata: 'Q188642',
+		libretro: 'Nintendo - Game Boy Advance'
+	},
+	mastersystem: {
+		name: 'Master System',
+		core: 'segaMS',
+		wikidata: 'Q209868',
+		libretro: 'Sega - Master System - Mark III'
+	},
+	megadrive: {
+		name: 'Mega Drive',
+		core: 'segaMD',
+		wikidata: 'Q10676',
+		libretro: 'Sega - Mega Drive - Genesis'
+	}
 };
 
 export type Game = { system: string; file: string; title: string };
@@ -144,33 +178,162 @@ async function save(gameId: number, values: Partial<typeof game.$inferInsert>) {
 }
 
 /**
- * The image behind the top of its page: a capture of the game, taken while playing (the remote's
- * Play/Pause), shown without smoothing: big pixels, as on the console.
+ * The pictures of a game, in DATA_DIR/juegos/<id>: libretro's title screen, screenshot and box
+ * (https://docs.libretro.com/guides/roms-playlists-thumbnails/), and the one taken while playing
+ * (the remote's Play/Pause).
+ */
+export const PICTURES = ['titulo', 'captura', 'caratula', 'mia'] as const;
+export type Picture = (typeof PICTURES)[number];
+const LIBRETRO = { titulo: 'Named_Titles', captura: 'Named_Snaps', caratula: 'Named_Boxarts' };
+type LibretroPicture = keyof typeof LIBRETRO;
+
+const gameDir = (gameId: number) => path.join(dataRoot, 'juegos', String(gameId));
+export const pictureFile = (gameId: number, kind: Picture) =>
+	path.join(gameDir(gameId), `${kind}.png`);
+/** Asked libretro for and it has none: not asked again. */
+const missingMark = (gameId: number, kind: LibretroPicture) =>
+	path.join(gameDir(gameId), `.sin-${kind}`);
+
+const exists = (file: string) =>
+	stat(file).then(
+		() => true,
+		() => false
+	);
+
+/** Whole or not at all: the page may be asking for it at the same time. */
+async function writeWhole(file: string, write: (part: string) => Promise<void>) {
+	await mkdir(path.dirname(file), { recursive: true });
+	await write(`${file}.part`);
+	await rename(`${file}.part`, file);
+}
+
+/** libretro's name for a file: No-Intro's, as the ROMs are named, with these characters as `_`. */
+const libretroName = (file: string) => path.parse(file).name.replace(/[&*/:`<>?\\|"]/g, '_');
+
+/** One of libretro's pictures of the game, unless it is here already or libretro has none. */
+async function fetchPicture(
+	row: { id: number; system: string; file: string },
+	kind: LibretroPicture
+) {
+	const file = pictureFile(row.id, kind);
+	if ((await exists(file)) || (await exists(missingMark(row.id, kind)))) return;
+	const url = [
+		'https://thumbnails.libretro.com',
+		encodeURIComponent(SYSTEMS[row.system].libretro),
+		LIBRETRO[kind],
+		`${encodeURIComponent(libretroName(row.file))}.png`
+	].join('/');
+	const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+	if (res.status === 404) {
+		await mkdir(gameDir(row.id), { recursive: true });
+		await writeFile(missingMark(row.id, kind), '');
+		return;
+	}
+	// Anything else, asked again next time.
+	if (!res.ok) throw new Error(`thumbnails.libretro.com: ${res.status} ${res.statusText}`);
+	const png = new Uint8Array(await res.arrayBuffer());
+	await writeWhole(file, (part) => writeFile(part, png));
+}
+
+/** Without stopping at a failure: logged, and asked again next time. */
+const tryFetch = (row: { id: number; system: string; file: string }, kind: LibretroPicture) =>
+	fetchPicture(row, kind).catch((problem) =>
+		log.warn('juegos', `No se pudo bajar de libretro una imagen de «${titleOf(row.file)}»`, {
+			gameId: row.id,
+			kind,
+			error: problem
+		})
+	);
+
+/**
+ * The game's page: libretro's pictures the first time, and one as its background while it has
+ * none (the one taken while playing, else the title screen, else the screenshot).
+ */
+export async function fetchPictures(row: GameRow) {
+	await Promise.all((['titulo', 'captura', 'caratula'] as const).map((k) => tryFetch(row, k)));
+	if (await exists(gameBackdropFile(row.id))) return;
+	for (const kind of ['mia', 'titulo', 'captura'] as const)
+		if (await exists(pictureFile(row.id, kind))) return chooseGameBackdrop(row.id, kind);
+}
+
+/** The pictures there are of the game, and which one is its background. */
+export async function gamePictures(gameId: number) {
+	const shown = await readFile(gameBackdropFile(gameId)).catch(() => null);
+	const pictures = await Promise.all(
+		PICTURES.map(async (kind) => {
+			const file = pictureFile(gameId, kind);
+			const [data, info] = await Promise.all([
+				readFile(file).catch(() => null),
+				stat(file).catch(() => null)
+			]);
+			return data && info
+				? {
+						kind,
+						url: `/api/juegos/imagen/${gameId}/${kind}?v=${Math.round(info.mtimeMs)}`,
+						chosen: Boolean(shown?.equals(data))
+					}
+				: null;
+		})
+	);
+	return pictures.filter((p) => p !== null);
+}
+
+/**
+ * The image behind the top of its page: a copy of one of its pictures, so choosing another is
+ * copying it here. Shown without smoothing: big pixels, as on the console.
  */
 export const gameBackdropFile = (gameId: number) =>
 	path.join(dataRoot, 'fondo', `juego-${gameId}.png`);
 
-/** Its address, changed when a new one is taken; null if there is none. */
+/** Its address, changed when another is chosen; null if there is none. */
 export const gameBackdropUrl = (gameId: number) =>
 	stat(gameBackdropFile(gameId)).then(
 		(info) => `/api/fondo/juego/${gameId}?v=${Math.round(info.mtimeMs)}`,
 		() => null
 	);
 
-/** The captures taken of a console's games, by file name: for their tiles. */
-export async function systemBackdrops(system: string) {
-	const rows = await db
-		.select({ id: game.id, file: game.file })
-		.from(game)
-		.where(eq(game.system, system));
-	const urls = await Promise.all(rows.map((r) => gameBackdropUrl(r.id)));
-	return new Map(rows.flatMap((r, i) => (urls[i] ? [[r.file, urls[i]] as const] : [])));
+/** That picture as its background; false if there is no such picture. */
+export async function chooseGameBackdrop(gameId: number, kind: Picture) {
+	const source = pictureFile(gameId, kind);
+	if (!(await exists(source))) return false;
+	await writeWhole(gameBackdropFile(gameId), (part) => copyFile(source, part));
+	return true;
 }
 
+/** Taken while playing: its own picture, and its background from now on. */
 export async function saveGameBackdrop(gameId: number, png: Uint8Array) {
-	const file = gameBackdropFile(gameId);
-	await mkdir(path.dirname(file), { recursive: true });
-	// Whole or not at all: the page may be asking for it at the same time.
-	await writeFile(`${file}.part`, png);
-	await rename(`${file}.part`, file);
+	await writeWhole(pictureFile(gameId, 'mia'), (part) => writeFile(part, png));
+	await chooseGameBackdrop(gameId, 'mia');
+}
+
+/** How many games' boxes are asked libretro for at a time. */
+const AT_ONCE = 4;
+
+/**
+ * The boxes of a console's games, by file name, for their tiles: those missing are fetched from
+ * libretro first, unless `fetch` is false.
+ */
+export async function systemCovers(system: string, files: string[], fetch = true) {
+	if (fetch && files.length)
+		await db
+			.insert(game)
+			.values(files.map((file) => ({ system, file })))
+			.onConflictDoNothing();
+	const rows = await db
+		.select({ id: game.id, system: game.system, file: game.file })
+		.from(game)
+		.where(eq(game.system, system));
+	const wanted = rows.filter((r) => files.includes(r.file));
+	if (fetch)
+		for (let i = 0; i < wanted.length; i += AT_ONCE)
+			await Promise.all(wanted.slice(i, i + AT_ONCE).map((r) => tryFetch(r, 'caratula')));
+	const covers: Record<string, string> = {};
+	await Promise.all(
+		wanted.map(async (r) => {
+			const info = await stat(pictureFile(r.id, 'caratula')).catch(() => null);
+			if (info)
+				covers[r.file] = `/api/juegos/imagen/${r.id}/caratula?v=${Math.round(info.mtimeMs)}`;
+		})
+	);
+	return covers;
 }
