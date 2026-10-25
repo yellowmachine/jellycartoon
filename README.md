@@ -590,7 +590,12 @@ Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`.
 - Cada juego tiene su página, con «Jugar» y lo que se sabe de él: la primera vez que se abre se
   busca en Wikidata entre los juegos de su consola (año, desarrolladora, género, modos, música) y
   se trae el resumen de la Wikipedia. Si hay dudas, la página pregunta cuál es.
-- El juego ocupa toda la pantalla; Atrás en el mando a distancia vuelve a su página.
+- El juego ocupa toda la pantalla. Dentro, EmulatorJS se queda con las teclas: Atrás del mando a
+  distancia no hace nada, e Inicio vuelve a la Vista TV.
+- El mando de juego se reconoce por udev, y el Chromium de Flatpak no lo ve sin
+  `flatpak override --user --filesystem=/run/udev:ro org.chromium.Chromium`, que pone
+  `scripts/pantalla.sh`. Luego hay que cerrar Chromium y abrirlo, y pulsar un botón del mando en el
+  juego: hasta entonces el navegador no lo muestra.
 - El fondo de esa página es una captura del juego: Play/Pausa en el mando mientras se juega la
   guarda (en `HOST_DATA_DIR/fondo`), y otra pulsación la cambia.
 - EmulatorJS se carga de su CDN, en la versión 4.2.3: el salón necesita internet para jugar.
