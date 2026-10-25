@@ -44,6 +44,19 @@
 				const bios = params.get('bios') ?? '';
 				if (bios.startsWith('/api/juegos/'))
 					window.EJS_externalFiles = { [`/${decodeURIComponent(bios.split('/').pop())}`]: bios };
+				// EmulatorJS gives a player only to a gamepad it sees arrive: one the browser showed it
+				// from the start (pressed just before, as when coming from a saved game) had none, and
+				// did nothing in the game. To the first free player, as it does with the others.
+				window.EJS_onGameStart = () => {
+					const emulator = window.EJS_emulator;
+					for (const pad of emulator.gamepad.gamepads) {
+						const name = `${pad.id}_${pad.index}`;
+						const free = emulator.gamepadSelection.indexOf('');
+						if (!emulator.gamepadSelection.includes(name) && free >= 0)
+							emulator.gamepadSelection[free] = name;
+					}
+					emulator.updateGamepadLabels();
+				};
 				const loader = document.createElement('script');
 				loader.src = window.EJS_pathtodata + 'loader.js';
 				document.body.append(loader);

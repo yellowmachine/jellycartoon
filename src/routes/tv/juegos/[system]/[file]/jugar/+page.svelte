@@ -338,13 +338,19 @@
 	/**
 	 * The gamepad in the menu, for who opened it with Select + Start: the cross moves between its
 	 * buttons, A presses one and B goes back. Only while it is open; the game has it otherwise.
+	 * What is held when it starts (A still down from «Cargar partida» when the list comes up) is
+	 * not pressed again: it chose the first saved game by itself.
 	 */
 	$effect(() => {
 		if (!menu) return;
-		let pressed: boolean[] = [];
+		const buttons = () =>
+			navigator
+				.getGamepads()
+				.find((p) => p?.connected)
+				?.buttons.map((b) => b.pressed) ?? [];
+		let pressed = buttons();
 		let frameId = requestAnimationFrame(function poll() {
-			const pad = navigator.getGamepads().find((p) => p?.connected);
-			const now = pad?.buttons.map((b) => b.pressed) ?? [];
+			const now = buttons();
 			const down = (i: number) => now[i] && !pressed[i];
 			if (down(0)) (document.activeElement as HTMLElement | null)?.click();
 			else if (down(1)) history.back();
