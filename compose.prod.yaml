@@ -54,6 +54,8 @@ services:
       HOST_CINEMA_DIR: ${HOST_CINEMA_DIR:-}
       # Optional music folder (FLAC ripped from CDs), played in the browser: only with HOST_MUSIC_DIR.
       MUSIC_DIR: ${HOST_MUSIC_DIR:+/music}
+      # Optional retro games (#176), played in the browser: only with HOST_GAMES_DIR.
+      GAMES_DIR: ${HOST_GAMES_DIR:+/games}
       # The mpv of the Snapcast services below; the app offers Snapcast only while it is there.
       MUSIC_MPV_SOCKET: ${HOST_MUSIC_DIR:+/data/mpv-music.sock}
       # snapserver's control API, to list its clients and set their volume. It is on the host's
@@ -113,6 +115,8 @@ services:
       - ${HOST_CINEMA_DIR:-./no-cinema}:/cinema:ro
       # Read-only too, and an empty folder without HOST_MUSIC_DIR (no Música section).
       - ${HOST_MUSIC_DIR:-./no-music}:/music:ro
+      # Read-only too, and an empty folder without HOST_GAMES_DIR (no Juegos section).
+      - ${HOST_GAMES_DIR:-./no-games}:/games:ro
     # The host, from inside the container: https://docs.docker.com/reference/compose-file/services/#extra_hosts
     extra_hosts:
       - host.docker.internal:host-gateway

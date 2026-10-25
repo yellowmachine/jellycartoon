@@ -4,6 +4,7 @@ import { dev } from '$app/env';
 import {
 	CINEMA_DIR,
 	DATA_DIR,
+	GAMES_DIR,
 	HOST_CINEMA_DIR,
 	HOST_DATA_DIR,
 	MEDIA_DIR,
@@ -68,6 +69,8 @@ export const hostMoviePath = (relative: string) =>
 /** Music folder; null when there is no Música section. */
 export const musicRoot = MUSIC_DIR ? path.resolve(MUSIC_DIR) : null;
 export const musicFile = (relative: string) => path.join(musicRoot!, relative);
+/** Games folder (#176), one folder per system; null when there is no Juegos section. */
+export const gamesRoot = GAMES_DIR ? path.resolve(GAMES_DIR) : null;
 /** A track's Opus copy (#64), by its id: the FLAC in MUSIC_DIR is never touched. */
 export const opusFile = (trackId: number) => path.join(dataRoot, 'music-opus', `${trackId}.opus`);
 /** What the DJ says between songs (dj.ts), as Opus: kept a few hours. */

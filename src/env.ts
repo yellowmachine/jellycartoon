@@ -39,6 +39,11 @@ export const variables = defineEnvVars({
 			'Optional read-only directory with music, one folder per album or disc: ripped from CDs (FLAC) or Opus (e.g. from yt-dlp), with album tags. Without it there is no Música section.',
 		schema: (value) => value || undefined
 	},
+	GAMES_DIR: {
+		description:
+			'Optional read-only directory with retro games (#176), one folder per system (`snes`, `nes`…), played in the browser with EmulatorJS. Without it there is no Juegos section.',
+		schema: (value) => value || undefined
+	},
 	MUSIC_MPV_SOCKET: {
 		description:
 			'IPC socket of an mpv that plays music into Snapcast (its output is the FIFO of a snapserver `pipe` source). With it, albums can be sent to Snapcast from the Música page.',

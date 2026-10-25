@@ -95,6 +95,20 @@
 						tone: 'from-violet-500/45 via-fuchsia-600/25'
 					}
 				]
+			: []),
+		...(data.counts.games !== null
+			? [
+					{
+						href: '/tv/juegos',
+						icon: 'juegos' as const,
+						label: 'Juegos',
+						count: plural(data.counts.games, 'juego', 'juegos'),
+						images: [],
+						logos: false,
+						text: 'text-lime-300',
+						tone: 'from-lime-500/45 via-green-600/25'
+					}
+				]
 			: [])
 	]);
 </script>
