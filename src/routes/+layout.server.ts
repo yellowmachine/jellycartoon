@@ -1,5 +1,5 @@
 import type { LayoutServerLoad } from './$types';
-import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
+import { cinemaRoot, gamesRoot, musicRoot } from '#lib/server/library/paths.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { snapcastReady } from '#lib/server/music/snapcast.ts';
 import { hasKids, isKid } from '#lib/server/kids.ts';
@@ -44,6 +44,8 @@ export const load: LayoutServerLoad = async ({ locals, isDataRequest }) => {
 		dailymotion: dailymotionEnabled,
 		/** Only with a music folder (MUSIC_DIR). */
 		music: Boolean(musicRoot),
+		/** Play statistics (#176): only with a games folder (GAMES_DIR), and not for a child yet. */
+		games: Boolean(gamesRoot) && !kid,
 		/** Music can also be sent to Snapcast (MUSIC_MPV_SOCKET, while its mpv is there). */
 		snapcast: Boolean(musicRoot) && snapcastReady(),
 		/** Only with an mpv on the host (MPV_SOCKET). */

@@ -4,6 +4,7 @@
 	import Backdrop from '#lib/components/Backdrop.svelte';
 	import SectionIcon from '#lib/components/SectionIcon.svelte';
 	import TvHeader from '#lib/components/TvHeader.svelte';
+	import { formatPlayed } from '#lib/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -15,6 +16,15 @@
 		caratula: 'Carátula',
 		mia: 'Mi captura'
 	};
+
+	const when = (iso: string) =>
+		new Date(iso).toLocaleString('es', {
+			weekday: 'long',
+			day: 'numeric',
+			month: 'long',
+			hour: '2-digit',
+			minute: '2-digit'
+		});
 
 	const facts = (info: NonNullable<Awaited<typeof data.info>>) =>
 		[info.year, info.developers.join(', '), info.genres.join(', '), info.modes.join(', ')].filter(
@@ -54,6 +64,11 @@
 				<span class="block text-xl text-zinc-400">{data.system}</span>
 			</span>
 		</a>
+		{#if data.played.seconds >= 60 && data.played.last}
+			<p class="mt-4 text-xl text-zinc-300">
+				Has jugado {formatPlayed(data.played.seconds)} · la última vez, {when(data.played.last)}
+			</p>
+		{/if}
 		{#await data.pictures then pictures}
 			{#if pictures.length}
 				<h2 class="mt-8 mb-3 text-2xl font-semibold text-zinc-300">Fondo</h2>
@@ -126,6 +141,39 @@
 		{/await}
 	</div>
 </div>
+
+{#if data.saves.length}
+	<!-- Each one opens the game at that moment; deleting them is in the game's menu. -->
+	<section class="mb-12">
+		<h2 class="mb-4 text-3xl font-semibold">Partidas guardadas</h2>
+		<div class="grid grid-cols-5 gap-6">
+			{#each data.saves as save (save.id)}
+				<a
+					href="{page.url.pathname}/jugar?partida={save.id}"
+					class="group block rounded-lg transition-transform duration-150 focus-visible:scale-105"
+				>
+					<div class="aspect-[4/3] overflow-hidden rounded-lg bg-zinc-800">
+						{#if save.picture}
+							<img
+								src={save.picture}
+								alt=""
+								loading="lazy"
+								class="pixelated h-full w-full object-cover"
+							/>
+						{:else}
+							<span class="flex h-full items-center justify-center text-zinc-600"
+								><SectionIcon name="juegos" class="h-1/3 w-1/3" /></span
+							>
+						{/if}
+					</div>
+					<p class="mt-2 truncate text-xl group-focus-visible:text-lime-300 first-letter:uppercase">
+						{when(save.createdAt)}
+					</p>
+				</a>
+			{/each}
+		</div>
+	</section>
+{/if}
 
 <style>
 	.pixelated {

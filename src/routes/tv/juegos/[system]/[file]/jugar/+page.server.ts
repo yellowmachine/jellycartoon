@@ -14,6 +14,8 @@ export const load: PageServerLoad = async ({ params }) => {
 		bios:
 			game.bios &&
 			`/api/juegos/${encodeURIComponent(game.system)}/${encodeURIComponent(game.bios)}`,
+		/** Its row, for the saved games of its menu. */
+		gameId: row.id,
 		/** Where a capture of the game goes, as the background of its page. */
 		backdrop: `/api/fondo/juego/${row.id}`
 	};

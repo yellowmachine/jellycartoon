@@ -519,6 +519,20 @@
       "when": 1792919391909,
       "tag": "0073_clean_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1792929680768,
+      "tag": "0074_deep_gorilla_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1792930823843,
+      "tag": "0075_funny_nekra",
+      "breakpoints": true
     }
   ]
 }

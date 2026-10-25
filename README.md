@@ -606,12 +606,21 @@ Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`.
 - El fondo de esa página se elige en ella entre esas imágenes y la que se capture jugando:
   Play/Pausa en el mando mientras se juega la guarda y la pone de fondo, y otra pulsación la
   cambia. Sin elegir, es la pantalla de título.
-- El juego ocupa toda la pantalla. Dentro, EmulatorJS se queda con las teclas: Atrás del mando a
-  distancia no hace nada, e Inicio vuelve a la Vista TV.
+- El juego ocupa toda la pantalla. Atrás en el mando a distancia lo cierra y vuelve a su página,
+  e Inicio, a la Vista TV.
+- OK en el mando a distancia, o Select y Start a la vez en el mando de juego, pausa el juego y abre
+  su menú: Continuar, Guardar partida, Cargar partida, Reiniciar y Salir. Las partidas se guardan
+  en el servidor, por persona (en `HOST_DATA_DIR/partidas`), con una imagen y la fecha; se pueden
+  cargar desde cualquier dispositivo y borrar desde la lista. También salen en la página del juego,
+  bajo su fondo: elegir una abre el juego en ese momento. En el menú, el mando de juego también
+  sirve: la cruz, A y B.
 - El mando de juego se reconoce por udev, y el Chromium de Flatpak no lo ve sin
   `flatpak override --user --filesystem=/run/udev:ro org.chromium.Chromium`, que pone
   `scripts/pantalla.sh`. Luego hay que cerrar Chromium y abrirlo, y pulsar un botón del mando en el
   juego: hasta entonces el navegador no lo muestra.
+- Estadísticas de cada persona: cuánto ha jugado (sin contar pausas ni el menú), a qué y cuándo,
+  en `/tv/juegos/estadisticas` y en la sección Juegos de la app completa; en la página de cada
+  juego, el total y la última vez. Solo con «Guardar historial» activado en Ajustes.
 - EmulatorJS se carga de su CDN, en la versión 4.2.3: el salón necesita internet para jugar.
 - Todavía sin partidas guardadas ni filtros, y no está para los peques.
 

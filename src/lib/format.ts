@@ -23,3 +23,13 @@ export function formatRemaining(seconds: number) {
 	const m = minutes % 60;
 	return m ? `${h} h ${m} min` : `${h} h`;
 }
+
+/** Time played (#176), to the nearest minute: `1 h 5 min`, `12 min`, or less than one. */
+export function formatPlayed(seconds: number) {
+	const minutes = Math.round(seconds / 60);
+	if (minutes < 1) return 'menos de 1 min';
+	if (minutes < 60) return `${minutes} min`;
+	const h = Math.floor(minutes / 60);
+	const m = minutes % 60;
+	return m ? `${h} h ${m} min` : `${h} h`;
+}

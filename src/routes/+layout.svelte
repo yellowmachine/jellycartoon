@@ -87,6 +87,8 @@
 		// The road mode's trips, and the way into it: not for a child's account, as Modo carretera.
 		...(data.kid ? [] : [{ href: '/viajes', label: 'Viajes', icon: 'viajes' as const }]),
 		...(data.salon ? [{ href: '/salon', label: 'Salón', icon: 'salon' as const }] : []),
+		// What was played (#176): the games themselves are played in the TV view.
+		...(data.games ? [{ href: '/juegos', label: 'Juegos', icon: 'juegos' as const }] : []),
 		...(data.kidsPage ? [{ href: '/infantil', label: 'Infantil', icon: 'infantil' as const }] : [])
 	]);
 	/**
