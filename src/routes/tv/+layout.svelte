@@ -12,6 +12,7 @@
 	import { watchSalon } from '#lib/salon.svelte.ts';
 	import { videoHere } from '#lib/video-here.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
+	import { moveFocus, watchGamepad, type Press } from '#lib/tv-gamepad.ts';
 
 	let { children } = $props();
 	let main = $state<HTMLElement>();
@@ -54,6 +55,38 @@
 			// to send, whatever this device's setting is.
 			if (!e.repeat) voice.toggle();
 		}
+	}
+
+	/**
+	 * The gamepad as the remote (#176), but in a game, where the emulator has it: the cross moves,
+	 * A is OK, B is Back, Start is Home and Select the microphone. The snake plays with keys: there
+	 * it is the keyboard's arrows, Enter and Escape.
+	 */
+	$effect(() => {
+		if (page.route.id?.endsWith('/jugar')) return;
+		return watchGamepad(gamepadPress);
+	});
+
+	const SNAKE_KEYS: Partial<Record<Press, string>> = {
+		up: 'ArrowUp',
+		down: 'ArrowDown',
+		left: 'ArrowLeft',
+		right: 'ArrowRight',
+		ok: 'Enter',
+		back: 'Escape'
+	};
+
+	function gamepadPress(what: Press) {
+		stillThere.someoneThere();
+		if (page.state.snake) {
+			const key = SNAKE_KEYS[what];
+			if (key) dispatchEvent(new KeyboardEvent('keydown', { key }));
+		} else if (what === 'ok') (document.activeElement as HTMLElement | null)?.click();
+		else if (what === 'back') history.back();
+		else if (what === 'home') void goto('/tv');
+		else if (what === 'mic') {
+			if (page.data.voice) voice.toggle();
+		} else moveFocus(what);
 	}
 
 	/**
