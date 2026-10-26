@@ -17,6 +17,8 @@ export interface PlaybackSettings {
 	openingQuote: boolean;
 	/** Modo DJ: the DJ speaks over the songs, as on the radio, instead of between them. */
 	djMix: boolean;
+	/** The month's AI spending under the header (#193). */
+	spendLine: boolean;
 }
 
 export async function getSettings(userId: string): Promise<PlaybackSettings> {
@@ -30,7 +32,8 @@ export async function getSettings(userId: string): Promise<PlaybackSettings> {
 		theme: isTheme(row?.theme) ? row.theme : DEFAULT_THEME,
 		keepHistory: row?.keepHistory ?? true,
 		openingQuote: row?.openingQuote ?? true,
-		djMix: row?.djMix ?? false
+		djMix: row?.djMix ?? false,
+		spendLine: row?.spendLine ?? false
 	};
 }
 

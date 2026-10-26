@@ -1,0 +1,1 @@
+ALTER TABLE "user_settings" ADD COLUMN "spend_line" boolean DEFAULT false NOT NULL;

@@ -13,6 +13,7 @@ import { isGuardian } from '#lib/server/kid-login.ts';
 import { dailymotionEnabled } from '#lib/server/dailymotion.ts';
 import { avatarOf } from '#lib/server/people.ts';
 import { canReadReceipts } from '#lib/server/expenses/receipt.ts';
+import { openRouterConfig } from '#lib/server/app-settings.ts';
 
 export const load: LayoutServerLoad = async ({ locals, isDataRequest }) => {
 	const kid = isKid(locals.user);
@@ -55,6 +56,8 @@ export const load: LayoutServerLoad = async ({ locals, isDataRequest }) => {
 		salon: mpvEnabled,
 		/** Voice commands (#33): only with Whisper (WHISPER_URL), and not for a child's account yet. */
 		voice: voiceEnabled && !kid,
+		/** The month's AI spending under the header (#193): an adult who asked, with a key to ask. */
+		spendLine: Boolean(settings?.spendLine) && !kid && Boolean((await openRouterConfig()).apiKey),
 		/** The header's shortcut to a receipt's photo (#194): an adult's, where one can be read. */
 		receipts: Boolean(locals.user) && !kid && (await canReadReceipts()),
 		/** A newer release, for who manages the app to install it (#20). */
