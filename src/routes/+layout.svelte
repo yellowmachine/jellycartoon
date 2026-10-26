@@ -495,23 +495,32 @@
 					bind:this={menu}
 					id="site-menu"
 					popover="auto"
-					class="inset-x-0 top-14 bottom-auto m-0 w-auto border-b border-zinc-800 bg-zinc-950 px-4 pb-4 text-zinc-100 shadow-lg md:hidden"
+					class="inset-x-0 top-14 bottom-auto m-0 max-h-[calc(100dvh-3.5rem)] w-auto overflow-y-auto overscroll-contain border-b border-zinc-800 bg-zinc-950 px-4 pt-2 pb-4 text-zinc-100 shadow-lg md:hidden"
 				>
-					<ul class="divide-y divide-zinc-800">
+					<!-- Two columns: every section in view at once; scrolled only if even so it does not fit
+					     (a phone on its side). -->
+					<ul class="grid grid-cols-2 gap-x-2">
 						{#each menuLinks as link (link.href)}
 							<li>
 								<a
 									href={link.href}
 									onclick={() => menu?.hidePopover()}
 									class={[
-										'flex items-center gap-3 py-3 text-base',
+										'flex min-w-0 items-center gap-3 rounded-md px-2 py-3 text-base hover:bg-zinc-900',
 										isCurrent(link.href) ? 'text-amber-400' : 'text-zinc-200'
-									]}><SectionIcon name={link.icon} class="h-6 w-6 shrink-0" />{link.label}</a
+									]}
+									><SectionIcon name={link.icon} class="h-6 w-6 shrink-0" /><span class="truncate"
+										>{link.label}</span
+									></a
 								>
 							</li>
 						{/each}
 					</ul>
-					<form method="post" action="/logout" class="mt-2 flex items-center justify-between">
+					<form
+						method="post"
+						action="/logout"
+						class="mt-2 flex items-center justify-between border-t border-zinc-800 pt-2"
+					>
 						<a
 							href="/ajustes"
 							onclick={() => menu?.hidePopover()}
