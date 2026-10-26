@@ -184,6 +184,8 @@ export const load: PageServerLoad = async ({ locals, cookies, url }) => {
 		/** The title card when the app opens, as Frasier's. */
 		openingQuoteOn: settings.openingQuote,
 		djMix: settings.djMix,
+		/** The month's AI spending under the header (#193): an adult's, with a key to ask; null, not shown. */
+		spendLine: !isKid(locals.user) && (await openRouterConfig()).apiKey ? settings.spendLine : null,
 		/** «¿Sigues ahí?» (#77): adults only; a child's is chosen in /infantil. */
 		stillThere: isKid(locals.user) ? null : { every: await askEvery(userId) },
 		/** «Guardar lo que veo»: adults only, a child's is always kept for the adults (#17). */
@@ -482,6 +484,16 @@ export const actions: Actions = {
 			.values({ userId: locals.user!.id, ...values })
 			.onConflictDoUpdate({ target: userSettings.userId, set: values });
 		return { saved: 'djMix' };
+	},
+	/** The month's AI spending under the header (#193): an adult's choice. */
+	spendLine: async ({ request, locals }) => {
+		if (isKid(locals.user)) error(404, 'No encontrado');
+		const values = { spendLine: (await request.formData()).get('spendLine') === 'on' };
+		await db
+			.insert(userSettings)
+			.values({ userId: locals.user!.id, ...values })
+			.onConflictDoUpdate({ target: userSettings.userId, set: values });
+		return { saved: 'spendLine' };
 	},
 	recordTrips: async ({ request, locals }) => {
 		if (isKid(locals.user)) error(404, 'No encontrado');

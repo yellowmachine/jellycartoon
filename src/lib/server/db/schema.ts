@@ -668,7 +668,9 @@ export const userSettings = pgTable('user_settings', {
 	/** An adult's drawing (#157), one of AVATARS (avatars.ts); null, their initial. A child's is in kid_profile. */
 	avatar: text('avatar'),
 	/** Modo DJ in the browser: the DJ's words over the end of a song and the start of the next, not between them. */
-	djMix: boolean('dj_mix').notNull().default(false)
+	djMix: boolean('dj_mix').notNull().default(false),
+	/** The month's AI spending in a line under the header (#193), on every page: an adult's choice. */
+	spendLine: boolean('spend_line').notNull().default(false)
 });
 
 /**

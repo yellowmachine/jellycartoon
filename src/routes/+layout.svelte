@@ -2,6 +2,7 @@
 	import './layout.css';
 	import favicon from '#lib/assets/favicon.svg';
 	import MusicBar from '#lib/components/MusicBar.svelte';
+	import AiSpendLine from '#lib/components/AiSpendLine.svelte';
 	import SalonBar from '#lib/components/SalonBar.svelte';
 	import SnapcastBar from '#lib/components/SnapcastBar.svelte';
 	import SectionIcon, { type Section } from '#lib/components/SectionIcon.svelte';
@@ -563,6 +564,10 @@
 					{/if}
 					<!-- Music, and the radio. -->
 					<MusicBar />
+					<!-- The month's AI spending (#193), if this adult asked for it in Ajustes. -->
+					{#if data.spendLine}
+						<AiSpendLine />
+					{/if}
 				</div>
 			</header>
 			{#if data.newVersion && !isCurrent('/ajustes')}

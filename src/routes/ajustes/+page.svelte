@@ -6,6 +6,7 @@
 	import { OLD_TABS, SETTINGS_INDEX, TAB_LABELS, type SettingsTab } from '#lib/settings-index.ts';
 	import Reproduccion from './Reproduccion.svelte';
 	import ModoDj from './ModoDj.svelte';
+	import GastoIa from './GastoIa.svelte';
 	import LoQueSeGuarda from './LoQueSeGuarda.svelte';
 	import Colores from './Colores.svelte';
 	import AlAbrir from './AlAbrir.svelte';
@@ -77,6 +78,7 @@
 				voice: Boolean(data.voice),
 				music: Boolean(data.music),
 				ai: data.ai,
+				spendLine: data.spendLine,
 				labels: data.labels,
 				routes: data.routes,
 				relay: data.relay,
@@ -115,6 +117,8 @@
 		<Colores {data} {form} {tab} />
 
 		<AlAbrir {data} {tab} />
+
+		<GastoIa {data} {tab} />
 
 		<Langua {data} {form} {tab} />
 

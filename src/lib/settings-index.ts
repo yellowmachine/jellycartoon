@@ -20,6 +20,7 @@ export interface SettingsShown {
 	voice: boolean;
 	music: boolean;
 	ai: unknown;
+	spendLine: boolean | null;
 	labels: unknown;
 	routes: unknown;
 	relay: unknown;
@@ -176,6 +177,13 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		title: 'Crédito y gasto',
 		words: 'dinero saldo gasto coste openrouter pagar euros dólares',
 		shown: (d) => Boolean(d.ai)
+	},
+	{
+		id: 'gasto-ia',
+		tab: 'mi',
+		title: 'Gasto del mes',
+		words: 'ia gasto dinero coste openrouter crédito línea cabecera dólares',
+		shown: (d) => d.spendLine !== null
 	},
 	{
 		id: 'modelos',

@@ -64,6 +64,14 @@ export function describeUsage(usage: Usage | undefined) {
 	].join('');
 }
 
+const costListeners = new Set<(dollars: number) => void>();
+
+/** What each request to the AI costs, as it comes back: the month's line (#193) adds it up. */
+export function watchCost(listener: (dollars: number) => void) {
+	costListeners.add(listener);
+	return () => void costListeners.delete(listener);
+}
+
 /** One line in the Registro for every request to the AI: what it was for, and what it cost. */
 function logUsage(
 	label: string,
@@ -72,6 +80,8 @@ function logUsage(
 ) {
 	// Went through: there is credit again.
 	creditOutAt = null;
+	const cost = body.usage?.cost;
+	if (typeof cost === 'number' && cost > 0) for (const listener of costListeners) listener(cost);
 	log.info('ia', `${label}: ${describeUsage(body.usage)}`, {
 		model: body.model,
 		provider: body.provider,

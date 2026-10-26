@@ -30,6 +30,7 @@
 	import { durationText, estimate, Pace } from '#lib/road-eta.ts';
 	import { loadRecent, matching, remember, saveRecent } from '#lib/recent-places.ts';
 	import { toSay } from '#lib/road-voice.ts';
+	import FuelSheet from '#lib/components/FuelSheet.svelte';
 	import type { PageProps } from './$types';
 
 	/**
@@ -261,6 +262,8 @@
 	 * steps, from openrouteservice through the server (/carretera/buscar, /carretera/ruta).
 	 */
 	let here = $state<LngLat | null>(null);
+	/** The fuel sheet open (#194). */
+	let fueling = $state(false);
 	/** m/s, as the GPS says it: how far ahead the directions are said. */
 	let speed = $state<number | null>(null);
 	let query = $state('');
@@ -1099,6 +1102,13 @@ the app's microphone, which the voice's big one right above would be taken for. 
 							disabled={roadPhotos.busy}
 							onclick={() => void roadPhotos.take()}>{roadPhotos.busy ? '…' : '📷'}</button
 						>
+						<!-- Fuel, stopped at the petrol station (#194): in Gastos, named after where we are. -->
+						<button
+							class="flex h-20 w-20 items-center justify-center rounded-full bg-zinc-800 text-4xl shadow-xl active:scale-95 short:h-14 short:w-14 short:text-2xl"
+							aria-label="Apuntar gasolina"
+							title="Apuntar lo que has echado de gasolina (o di «he echado 50 euros de gasolina»)"
+							onclick={() => (fueling = true)}>⛽</button
+						>
 					</div>
 					{#if roadPhotos.problem}
 						<p class="text-lg text-amber-300" aria-live="polite">{roadPhotos.problem}</p>
@@ -1499,6 +1509,11 @@ the app's microphone, which the voice's big one right above would be taken for. 
 		{/if}
 	</div>
 </div>
+
+<!-- Fuel (#194): over everything, as the photo just taken. -->
+{#if fueling}
+	<FuelSheet position={here} onclose={() => (fueling = false)} />
+{/if}
 
 {#if roadPhotos.last}
 	<!-- The photo just taken, for a moment: whether it came out well, and whether it was kept. -->
