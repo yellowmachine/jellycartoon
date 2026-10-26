@@ -40,7 +40,7 @@ export const RECEIPT_SCHEMA = {
 	additionalProperties: false
 };
 
-export const RECEIPT_PROMPT =
+const RECEIPT_PROMPT =
 	'Es la foto de un ticket de compra, casi siempre español. Extrae: la tienda (su nombre ' +
 	'comercial, sin «S.A.» ni la dirección), la fecha (YYYY-MM-DD), el total pagado en euros, la ' +
 	`categoría que mejor le va de estas: ${EXPENSE_CATEGORIES.join(', ')} (Restaurantes es también ` +
@@ -52,6 +52,18 @@ export const RECEIPT_PROMPT =
 	'chucherías. Los descuentos, como líneas con importe negativo y Otros. No pongas como líneas el total, el subtotal, el ' +
 	'IVA, la forma de pago ni el cambio. Los números del ticket usan coma decimal: 6,12 es 6.12. Sin ' +
 	'líneas que leer (una gasolinera, un restaurante), una sola con lo que fue y el total.';
+
+/**
+ * The prompt, with the shops already written down (as corrected): a name misread («Don Mario» for
+ * «Don Market») comes out as the house wrote it, and the same shop is not written two ways.
+ */
+export function receiptPrompt(knownStores: string[]) {
+	if (!knownStores.length) return RECEIPT_PROMPT;
+	return (
+		`${RECEIPT_PROMPT} Tiendas donde ya se ha comprado: ${knownStores.join(', ')}. Si el ticket ` +
+		'es de una de ellas, escribe su nombre exactamente así; si es de otra, el que ponga el ticket.'
+	);
+}
 
 /** Euros as the model says them, to cents; nonsense, null. */
 const toCents = (value: unknown) =>

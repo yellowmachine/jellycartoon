@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { draftFromAnswer } from './receipt-parse.ts';
+import { draftFromAnswer, receiptPrompt } from './receipt-parse.ts';
 
 const TODAY = '2026-10-25';
 
@@ -62,4 +62,11 @@ test('what it could not read: guessed, to correct', () => {
 		total: 0,
 		lines: []
 	});
+});
+
+test('the shops already written down, in the prompt as they are', () => {
+	expect(receiptPrompt([])).not.toContain('Tiendas donde');
+	expect(receiptPrompt(['Don Market', 'Mercadona'])).toContain(
+		'Tiendas donde ya se ha comprado: Don Market, Mercadona.'
+	);
 });
