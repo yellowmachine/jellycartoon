@@ -1608,7 +1608,9 @@ export const expenseLine = pgTable(
 		text: text('text').notNull(),
 		/** Units, or kg. */
 		quantity: doublePrecision('quantity'),
-		amount: integer('amount').notNull()
+		amount: integer('amount').notNull(),
+		/** One of LINE_TAGS (expenses.ts); the ones read before there were tags, «Otros». */
+		tag: text('tag').notNull().default('Otros')
 	},
 	(t) => [index('expense_line_expense_idx').on(t.expenseId)]
 );

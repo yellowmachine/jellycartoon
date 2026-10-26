@@ -1,5 +1,14 @@
 import { expect, test } from 'bun:test';
-import { addMonths, euros, isDay, parseEuros, parseExpenseInput } from './expenses.ts';
+import {
+	addMonths,
+	byTag,
+	euros,
+	isDay,
+	parseEuros,
+	parseExpenseInput,
+	UNTAGGED,
+	type LineTag
+} from './expenses.ts';
 
 test('amounts as written in Spain, and as the keyboard gives them', () => {
 	expect(parseEuros('12,30')).toBe(1230);
@@ -36,7 +45,7 @@ test('what a page sends: well formed, empty lines out', () => {
 		category: 'Supermercado',
 		total: 3219,
 		lines: [
-			{ text: 'LECHE', quantity: 1, amount: 612 },
+			{ text: 'LECHE', quantity: 1, amount: 612, tag: 'Lácteos y huevos' },
 			{ text: '  ', quantity: null, amount: 0 },
 			{ text: 'PLATANO', quantity: 0.612, amount: 122 }
 		]
@@ -47,12 +56,35 @@ test('what a page sends: well formed, empty lines out', () => {
 		category: 'Supermercado',
 		total: 3219,
 		lines: [
-			{ text: 'LECHE', quantity: 1, amount: 612 },
-			{ text: 'PLATANO', quantity: 0.612, amount: 122 }
+			{ text: 'LECHE', quantity: 1, amount: 612, tag: 'Lácteos y huevos' },
+			{ text: 'PLATANO', quantity: 0.612, amount: 122, tag: 'Otros' }
 		]
 	});
 	expect(parseExpenseInput({ ...ok, category: 'Caprichos' })).toBeNull();
 	expect(parseExpenseInput({ ...ok, total: 32.19 })).toBeNull();
 	expect(parseExpenseInput({ ...ok, date: '2026-13-01' })).toBeNull();
 	expect(parseExpenseInput({ ...ok, store: '' })).toBeNull();
+});
+
+test("a category by its lines' tags, what they miss apart and last", () => {
+	const line = (tag: LineTag, amount: number) => ({ text: tag, quantity: 1, amount, tag });
+	const receipt = {
+		date: '2026-10-25',
+		store: 'Coaliment',
+		category: 'Supermercado' as const,
+		total: 840,
+		lines: [
+			line('Bebidas', 37),
+			line('Bebidas', 89),
+			line('Higiene', 179),
+			line('Carne y pescado', 327)
+		]
+	};
+	expect(byTag([receipt, { ...receipt, total: 1500, lines: [] }])).toEqual([
+		{ tag: 'Carne y pescado', total: 327 },
+		{ tag: 'Higiene', total: 179 },
+		{ tag: 'Bebidas', total: 126 },
+		{ tag: UNTAGGED, total: 1708 }
+	]);
+	expect(byTag([{ ...receipt, total: 632 }])).toHaveLength(3);
 });

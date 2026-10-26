@@ -4,6 +4,7 @@ import { expense, expenseLine, recurringExpense, user } from '#lib/server/db/sch
 import {
 	addMonths,
 	isCategory,
+	isTag,
 	monthOf,
 	type Expense,
 	type ExpenseInput,
@@ -54,7 +55,12 @@ export async function monthExpenses(month: string): Promise<Expense[]> {
 		hasReceipt: Boolean(receipt),
 		lines: lines
 			.filter((l) => l.expenseId === r.id)
-			.map((l) => ({ text: l.text, quantity: l.quantity, amount: l.amount }))
+			.map((l) => ({
+				text: l.text,
+				quantity: l.quantity,
+				amount: l.amount,
+				tag: isTag(l.tag) ? l.tag : 'Otros'
+			}))
 	}));
 }
 
