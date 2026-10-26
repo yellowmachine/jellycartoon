@@ -1,0 +1,1 @@
+ALTER TABLE "expense_line" ADD COLUMN "tag" text DEFAULT 'Otros' NOT NULL;

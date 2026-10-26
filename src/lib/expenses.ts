@@ -12,6 +12,8 @@ export const EXPENSE_CATEGORIES = [
 	'Ropa',
 	'Ocio',
 	'Niños',
+	'Viajes',
+	'Mascotas',
 	'Otros'
 ] as const;
 
@@ -20,6 +22,37 @@ export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 export const isCategory = (value: unknown): value is ExpenseCategory =>
 	EXPENSE_CATEGORIES.includes(value as ExpenseCategory);
 
+/**
+ * What each line of a receipt is, to see a month's spending by kind within each category: fixed,
+ * at most some 20 and with no two alike, so the model does not hesitate between them and they add
+ * up. For the lines of any receipt: a supermarket's, a bar's, a chemist's, a petrol station's.
+ */
+export const LINE_TAGS = [
+	'Fruta y verdura',
+	'Carne y pescado',
+	'Lácteos y huevos',
+	'Panadería',
+	'Despensa',
+	'Congelados',
+	'Comida preparada',
+	'Bebidas',
+	'Alcohol',
+	'Caprichos',
+	'Limpieza',
+	'Higiene',
+	'Medicamentos',
+	'Bebé y niños',
+	'Mascotas',
+	'Ropa y calzado',
+	'Hogar y bricolaje',
+	'Combustible',
+	'Otros'
+] as const;
+
+export type LineTag = (typeof LINE_TAGS)[number];
+
+export const isTag = (value: unknown): value is LineTag => LINE_TAGS.includes(value as LineTag);
+
 export type ExpenseSource = 'ticket' | 'voz' | 'mano' | 'fijo';
 
 export interface ExpenseLine {
@@ -27,6 +60,7 @@ export interface ExpenseLine {
 	/** Units, or kg; null when the receipt does not say. */
 	quantity: number | null;
 	amount: number;
+	tag: LineTag;
 }
 
 /** What is saved: read from a receipt and corrected, or written by hand. */
@@ -102,7 +136,7 @@ export function parseExpenseInput(body: unknown): ExpenseInput | null {
 	const parsed: ExpenseLine[] = [];
 	for (const line of lines) {
 		if (!line || typeof line !== 'object') return null;
-		const { text, quantity, amount } = line as Record<string, unknown>;
+		const { text, quantity, amount, tag } = line as Record<string, unknown>;
 		if (typeof text !== 'string') return null;
 		const value = cents(amount);
 		if (value === null) return null;
@@ -111,7 +145,8 @@ export function parseExpenseInput(body: unknown): ExpenseInput | null {
 			parsed.push({
 				text: text.trim().slice(0, 200),
 				quantity: quantity as number | null,
-				amount: value
+				amount: value,
+				tag: isTag(tag) ? tag : 'Otros'
 			});
 	}
 	return { date, store: store.trim().slice(0, 120), category, total: sum, lines: parsed };
@@ -119,6 +154,26 @@ export function parseExpenseInput(body: unknown): ExpenseInput | null {
 
 /** The lines' sum, to say when it is not the total (something misread, or a discount). */
 export const linesSum = (lines: ExpenseLine[]) => lines.reduce((sum, l) => sum + l.amount, 0);
+
+/** What is not in any line, in a month by tag: the totals without lines, and what lines miss. */
+export const UNTAGGED = 'Sin desglose';
+
+/**
+ * A category's expenses by their lines' tags, largest first; what the lines do not cover (written
+ * without lines, a discount not read), apart, so it adds up to the category's total.
+ */
+export function byTag(expenses: ExpenseInput[]) {
+	const totals = new Map<string, number>();
+	const add = (key: string, cents: number) => totals.set(key, (totals.get(key) ?? 0) + cents);
+	for (const e of expenses) {
+		for (const l of e.lines) add(l.tag, l.amount);
+		add(UNTAGGED, e.total - linesSum(e.lines));
+	}
+	return [...totals]
+		.map(([tag, total]) => ({ tag, total }))
+		.filter((t) => t.total !== 0)
+		.sort((a, b) => (a.tag === UNTAGGED ? 1 : b.tag === UNTAGGED ? -1 : b.total - a.total));
+}
 
 /** `YYYY-MM` of a day. */
 export const monthOf = (day: string) => day.slice(0, 7);

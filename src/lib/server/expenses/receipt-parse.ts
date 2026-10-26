@@ -1,7 +1,9 @@
 import {
 	EXPENSE_CATEGORIES,
+	LINE_TAGS,
 	isCategory,
 	isDay,
+	isTag,
 	linesSum,
 	MAX_LINES,
 	type ExpenseInput
@@ -26,9 +28,10 @@ export const RECEIPT_SCHEMA = {
 				properties: {
 					text: { type: 'string' },
 					quantity: { type: 'number' },
-					amount: { type: 'number' }
+					amount: { type: 'number' },
+					tag: { type: 'string', enum: [...LINE_TAGS] }
 				},
-				required: ['text', 'quantity', 'amount'],
+				required: ['text', 'quantity', 'amount', 'tag'],
 				additionalProperties: false
 			}
 		}
@@ -40,9 +43,13 @@ export const RECEIPT_SCHEMA = {
 export const RECEIPT_PROMPT =
 	'Es la foto de un ticket de compra, casi siempre español. Extrae: la tienda (su nombre ' +
 	'comercial, sin «S.A.» ni la dirección), la fecha (YYYY-MM-DD), el total pagado en euros, la ' +
-	`categoría que mejor le va de estas: ${EXPENSE_CATEGORIES.join(', ')}; y cada línea de producto ` +
-	'con su texto tal cual, la cantidad (unidades o kg) y el importe de la línea en euros. Los ' +
-	'descuentos, como líneas con importe negativo. No pongas como líneas el total, el subtotal, el ' +
+	`categoría que mejor le va de estas: ${EXPENSE_CATEGORIES.join(', ')} (Restaurantes es también ` +
+	'bares y cafeterías); y cada línea de producto con su texto tal cual, la cantidad (unidades o ' +
+	'kg), el importe de la línea en euros y qué es, de estas: ' +
+	`${LINE_TAGS.join(', ')}. Comida preparada son platos hechos, pizzas, y en un bar o restaurante ` +
+	'los platos, menús, raciones y bocadillos. Alcohol es cerveza, vino y licores con alcohol; la ' +
+	'cerveza sin alcohol o 0,0 y el café son Bebidas. Caprichos son dulces, snacks, helados y ' +
+	'chucherías. Los descuentos, como líneas con importe negativo y Otros. No pongas como líneas el total, el subtotal, el ' +
 	'IVA, la forma de pago ni el cambio. Los números del ticket usan coma decimal: 6,12 es 6.12. Sin ' +
 	'líneas que leer (una gasolinera, un restaurante), una sola con lo que fue y el total.';
 
@@ -69,7 +76,7 @@ export function draftFromAnswer(answer: unknown, today: string): ExpenseInput {
 				typeof l.quantity === 'number' && Number.isFinite(l.quantity) && l.quantity > 0
 					? l.quantity
 					: null;
-			return [{ text, quantity, amount }];
+			return [{ text, quantity, amount, tag: isTag(l.tag) ? l.tag : ('Otros' as const) }];
 		});
 	const store = typeof a.store === 'string' ? a.store.trim().slice(0, 120) : '';
 	return {

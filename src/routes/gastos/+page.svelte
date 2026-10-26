@@ -4,7 +4,9 @@
 	import { invalidateAll } from '$app/navigation';
 	import {
 		EXPENSE_CATEGORIES,
+		LINE_TAGS,
 		addMonths,
+		byTag,
 		euros,
 		linesSum,
 		monthName,
@@ -12,6 +14,7 @@
 		type Expense,
 		type ExpenseCategory,
 		type ExpenseDraft,
+		type LineTag,
 		type RecurringExpense
 	} from '#lib/expenses.ts';
 	import { smallerPhoto } from '#lib/receipt-photo.ts';
@@ -34,7 +37,7 @@
 		store: string;
 		category: ExpenseCategory;
 		total: string;
-		lines: { text: string; quantity: number | null; amount: string }[];
+		lines: { text: string; quantity: number | null; amount: string; tag: LineTag }[];
 	}
 
 	let editing = $state<Editing | null>(null);
@@ -43,6 +46,8 @@
 	let saving = $state(false);
 	/** The one open in the list, with its lines. */
 	let open = $state<number | null>(null);
+	/** The category open in the month's totals, with its lines by tag. */
+	let openCategory = $state<ExpenseCategory | null>(null);
 	let deleting = $state<string | null>(null);
 	let photoInput = $state<HTMLInputElement>();
 
@@ -123,7 +128,8 @@
 		const lines = editing.lines.map((l) => ({
 			text: l.text,
 			quantity: l.quantity,
-			amount: parseEuros(l.amount)
+			amount: parseEuros(l.amount),
+			tag: l.tag
 		}));
 		if (total === null) return { error: 'Falta el total, en euros: 12,30' };
 		const bad = lines.findIndex((l) => l.text.trim() && l.amount === null);
@@ -149,13 +155,17 @@
 
 	const total = $derived(data.expenses.reduce((sum, e) => sum + e.total, 0));
 	const byCategory = $derived(
-		EXPENSE_CATEGORIES.map((category) => ({
-			category,
-			total: data.expenses
-				.filter((e) => e.category === category)
-				.reduce((sum, e) => sum + e.total, 0)
-		}))
+		EXPENSE_CATEGORIES.map((category) => {
+			const expenses = data.expenses.filter((e) => e.category === category);
+			return {
+				category,
+				total: expenses.reduce((sum, e) => sum + e.total, 0),
+				// Only where its lines are of more than one kind: «Gasolina ▸ Combustible» says nothing.
+				tags: expenses.some((e) => e.lines.length) ? byTag(expenses) : []
+			};
+		})
 			.filter((c) => c.total > 0)
+			.map((c) => (c.tags.length > 1 ? c : { ...c, tags: [] }))
 			.sort((a, b) => b.total - a.total)
 	);
 	const largest = $derived(byCategory[0]?.total ?? 0);
@@ -290,6 +300,15 @@
 									aria-label="Línea {i + 1}"
 									class="{field} min-w-0 flex-1"
 								/>
+								<select
+									bind:value={line.tag}
+									aria-label="Qué es la línea {i + 1}"
+									class="{field} w-28 shrink-0 truncate"
+								>
+									{#each LINE_TAGS as t (t)}
+										<option value={t}>{t}</option>
+									{/each}
+								</select>
 								<input
 									bind:value={line.amount}
 									inputmode="decimal"
@@ -306,7 +325,8 @@
 					</ul>
 					<button
 						class="mt-1 text-sm text-amber-400 hover:underline"
-						onclick={() => e.lines.push({ text: '', quantity: null, amount: '' })}>+ Línea</button
+						onclick={() => e.lines.push({ text: '', quantity: null, amount: '', tag: 'Otros' })}
+						>+ Línea</button
 					>
 					{#if mismatch}
 						<p class="mt-2 text-sm text-amber-300">
@@ -384,15 +404,47 @@
 		</p>
 		<ul class="flex flex-col gap-1.5">
 			{#each byCategory as c (c.category)}
-				<li class="grid grid-cols-[8rem_1fr_auto] items-center gap-2 text-sm">
-					<span class="truncate">{c.category}</span>
-					<span class="h-2 overflow-hidden rounded-full bg-zinc-800">
-						<span
-							class="block h-full rounded-full bg-amber-500"
-							style:width="{(c.total / largest) * 100}%"
-						></span>
-					</span>
-					<span class="text-right tabular-nums">{euros(c.total)}</span>
+				<li>
+					<svelte:element
+						this={c.tags.length ? 'button' : 'div'}
+						class="grid w-full grid-cols-[8rem_1fr_auto] items-center gap-2 text-left text-sm"
+						aria-expanded={c.tags.length ? openCategory === c.category : undefined}
+						onclick={c.tags.length
+							? () => (openCategory = openCategory === c.category ? null : c.category)
+							: undefined}
+						role={c.tags.length ? undefined : 'presentation'}
+					>
+						<span class="truncate"
+							>{c.category}{#if c.tags.length}<span class="text-zinc-500">
+									{openCategory === c.category ? '▾' : '▸'}</span
+								>{/if}</span
+						>
+						<span class="h-2 overflow-hidden rounded-full bg-zinc-800">
+							<span
+								class="block h-full rounded-full bg-amber-500"
+								style:width="{(c.total / largest) * 100}%"
+							></span>
+						</span>
+						<span class="text-right tabular-nums">{euros(c.total)}</span>
+					</svelte:element>
+					{#if openCategory === c.category}
+						<ul class="mt-1 mb-2 flex flex-col gap-1 pl-3">
+							{#each c.tags as t (t.tag)}
+								<li
+									class="grid grid-cols-[7.25rem_1fr_auto] items-center gap-2 text-xs text-zinc-300"
+								>
+									<span class="truncate">{t.tag}</span>
+									<span class="h-1.5 overflow-hidden rounded-full bg-zinc-800">
+										<span
+											class="block h-full rounded-full bg-amber-500/60"
+											style:width="{(Math.max(t.total, 0) / c.total) * 100}%"
+										></span>
+									</span>
+									<span class="text-right tabular-nums">{euros(t.total)}</span>
+								</li>
+							{/each}
+						</ul>
+					{/if}
 				</li>
 			{/each}
 		</ul>
@@ -424,7 +476,9 @@
 							<ul class="mb-2">
 								{#each e.lines as line, i (i)}
 									<li class="flex justify-between gap-3">
-										<span class="min-w-0 truncate text-zinc-300">{line.text}</span>
+										<span class="min-w-0 truncate text-zinc-300"
+											>{line.text} <span class="text-xs text-zinc-500">· {line.tag}</span></span
+										>
 										<span class="shrink-0 tabular-nums">{euros(line.amount)}</span>
 									</li>
 								{/each}
