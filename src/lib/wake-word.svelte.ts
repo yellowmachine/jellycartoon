@@ -189,10 +189,14 @@ class WakeWord {
 		}
 	}
 
-	/** From the layout: listening while it should (turned on, with voice, not in /activacion). */
+	/**
+	 * From the layout: listening while it should (turned on, with voice, not in /activacion). After
+	 * a start that failed (`problem`), tried again only once it was not wanted for a while.
+	 */
 	want(wanted: boolean) {
+		const again = wanted && this.#wanted;
 		this.#wanted = wanted;
-		if (wanted && this.status === 'off') void this.#start();
+		if (wanted && this.status === 'off' && !(again && this.problem)) void this.#start();
 		else if (!wanted && this.status !== 'loading') this.#stop();
 	}
 
