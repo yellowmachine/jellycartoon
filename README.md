@@ -77,6 +77,9 @@ Al cambiar el esquema: `bun run db:generate` crea la migración en `drizzle/` y 
 la aplica (también lo hacen `bun run dev` y el contenedor antes de arrancar la app). Tests: `bun run test`.
 Necesitas `ffmpeg` y `ffprobe` en el PATH.
 
+`bun install` deja puestos los hooks de git (Husky, en `.husky/`): antes de cada commit, Prettier
+formatea lo que va en él y pasan los tests; antes de cada push, `svelte-check`.
+
 ## Producción
 
 Usa las imágenes que construye GitHub Actions (`ghcr.io/yellowmachine/jellycartoon`, `-caddy` y
