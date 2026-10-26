@@ -325,12 +325,30 @@ function pauseForVoice() {
 	timers.unlockSound();
 	videoHere.pauseForVoice();
 	music.pauseForVoice();
+	duckLivingRoom(true);
 }
 
 /** What was paused to speak, back where it was. */
 function resumeAfterVoice() {
 	videoHere.resumeAfterVoice();
 	music.resumeAfterVoice();
+	duckLivingRoom(false);
+}
+
+/**
+ * The living room's TV (mpv) lower while speaking and answering, from whichever device: with a
+ * series on, the order never reached a silence. Without mpv, or nothing on, nothing happens.
+ */
+let ducking = false;
+function duckLivingRoom(on: boolean) {
+	if (on === ducking) return;
+	ducking = on;
+	void fetch('/api/salon/bajar', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({ on }),
+		keepalive: true
+	}).catch(() => {});
 }
 
 /**
