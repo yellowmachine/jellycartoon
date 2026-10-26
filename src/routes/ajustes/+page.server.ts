@@ -35,6 +35,14 @@ import {
 	type Place
 } from '#lib/server/weather.ts';
 import {
+	houseVoice,
+	isPiperVoice,
+	piperEnabled,
+	setHouseVoice,
+	spanishVoices,
+	type VoiceOption
+} from '#lib/server/piper.ts';
+import {
 	accountCredits,
 	completeJson,
 	keyBalance,
@@ -104,7 +112,19 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 	let labels = null;
 	let satellites = null;
 	let home = null;
+	let houseVoiceChoice = null;
 	if (admin) {
+		/** The voice the satellites answer with (#223): among Piper's installed ones. */
+		if (piperEnabled) {
+			let options: VoiceOption[] = [];
+			let problem: string | null = null;
+			try {
+				options = await spanishVoices();
+			} catch (err) {
+				problem = err instanceof Error ? err.message : String(err);
+			}
+			houseVoiceChoice = { options, problem, chosen: await houseVoice() };
+		}
 		/** Where the house is, for the voice's weather (#223). */
 		const place = await housePlace();
 		home = { place, name: place ? placeName(place) : null };
@@ -219,6 +239,7 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		labels,
 		satellites,
 		home,
+		houseVoice: houseVoiceChoice,
 		/** Children's accounts (#17): only who manages the app creates them. */
 		kids,
 		people,
@@ -253,6 +274,19 @@ export const actions: Actions = {
 			if (err instanceof APIError) return fail(400, { twoFactorProblem: 'Contraseña incorrecta' });
 			throw err;
 		}
+	},
+	/** The satellites' voice (#223). */
+	saveHouseVoice: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const form = await request.formData();
+		const voice = { voice: form.get('voice'), speaker: form.get('speaker') || null };
+		if (!isPiperVoice(voice)) return fail(400, { voiceProblem: 'Voz no válida' });
+		await setHouseVoice(voice);
+		log.info(
+			'ajustes',
+			`Voz de la casa: ${voice.voice}${voice.speaker ? ` ${voice.speaker}` : ''}`
+		);
+		return { saved: 'houseVoice' };
 	},
 	/** Where the house is (#223): what Open-Meteo finds by that name, to choose one. */
 	findHousePlace: async ({ request, locals }) => {

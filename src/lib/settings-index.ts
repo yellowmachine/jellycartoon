@@ -26,6 +26,7 @@ export interface SettingsShown {
 	relay: unknown;
 	satellites: unknown;
 	home: unknown;
+	houseVoice: unknown;
 	kids: unknown;
 	twoFactor: unknown;
 }
@@ -221,6 +222,13 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		title: 'Dónde está la casa',
 		words: 'tiempo previsión lluvia temperatura pueblo ciudad ubicación localización open-meteo',
 		shown: (d) => Boolean(d.home)
+	},
+	{
+		id: 'voz-casa',
+		tab: 'casa',
+		title: 'Voz de la casa',
+		words: 'voz piper satélite hombre mujer masculina femenina hablar respuesta',
+		shown: (d) => Boolean(d.houseVoice)
 	},
 	{
 		id: 'satelites',

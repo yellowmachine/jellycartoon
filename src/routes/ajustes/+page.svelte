@@ -21,6 +21,7 @@
 	import CompartirViajes from './CompartirViajes.svelte';
 	import Satelites from './Satelites.svelte';
 	import DondeCasa from './DondeCasa.svelte';
+	import VozCasa from './VozCasa.svelte';
 	import Personas from './Personas.svelte';
 	import Version from './Version.svelte';
 	import Cuenta from './Cuenta.svelte';
@@ -86,6 +87,7 @@
 				relay: data.relay,
 				satellites: data.satellites,
 				home: data.home,
+				houseVoice: data.houseVoice,
 				kids: data.kids,
 				twoFactor: data.twoFactor
 			}}
@@ -155,6 +157,8 @@
 		<DondeCasa {data} {form} {tab} />
 
 		<Satelites {data} {form} {tab} />
+
+		<VozCasa {data} {form} {tab} />
 
 		<Personas {data} {form} {tab} />
 
