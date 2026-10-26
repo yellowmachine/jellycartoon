@@ -588,6 +588,22 @@ PIPER_URL="http://host.docker.internal:5000"
 `PIPER_VOICE_ES` y `PIPER_VOICE_EN` cambian las voces; tienen que estar en la carpeta de datos de
 Piper.
 
+#### Más voces, para la voz de la casa
+
+Los satélites de voz (#223) contestan con la «Voz de la casa», que se elige en Ajustes → Casa entre
+las voces en español instaladas con Piper (se pueden escuchar antes). Para tener donde elegir, de
+hombre y de mujer, se instalan más en el PC con Piper, en su misma carpeta de datos (unos 400 MB
+estas):
+
+```sh
+~/piper/bin/python -m piper.download_voices --data-dir ~/piper/voices es_ES-sharvard-medium es_ES-carlfm-x_low es_ES-mls_9972-low es_ES-mls_10246-low es_AR-daniela-high es_MX-claude-high
+```
+
+Piper las ve sin reiniciarlo. `es_ES-sharvard-medium` trae dos hablantes, uno de hombre (`M`) y otro
+de mujer (`F`), y en Ajustes salen por separado. Todas las voces están en
+[piper-voices](https://huggingface.co/rhasspy/piper-voices/tree/main/es). El DJ no cambia: sigue con
+`PIPER_VOICE_ES`.
+
 ### Juegos
 
 Un experimento (#176): juegos retro en la Vista TV, con
