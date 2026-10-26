@@ -220,7 +220,8 @@
 	</div>
 	{#if reading}
 		<p class="mb-4 text-sm text-zinc-400">
-			Unos segundos; la primera vez, algo más, mientras se carga el modelo.
+			Unos segundos. Si OpenRouter falla y lo lee Ollama en casa, la primera vez tarda más, mientras
+			carga el modelo.
 		</p>
 	{/if}
 	{#if problem && !editing}
