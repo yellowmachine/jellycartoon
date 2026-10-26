@@ -54,15 +54,27 @@ export interface SpeechEndOptions {
 	silenceMs: number;
 	/** Less speech than this is a noise, not an order (silero-vad's `min_speech_duration_ms`). */
 	minSpeechMs: number;
+	/**
+	 * Over this long after starting to speak, it is over all the same: an order is short, and a TV
+	 * talking beside it (2026-10-26, a series in the living room) never leaves the silence.
+	 */
+	maxSpeechMs: number;
 }
 
-export const SPEECH_END: SpeechEndOptions = { waitMs: 5000, silenceMs: 1200, minSpeechMs: 250 };
+export const SPEECH_END: SpeechEndOptions = {
+	waitMs: 5000,
+	silenceMs: 1200,
+	minSpeechMs: 250,
+	maxSpeechMs: 8000
+};
 
 export class SpeechEnd {
 	#ms = 0;
 	#speech = 0;
 	#silence = 0;
 	#spoke = false;
+	/** When the speech that is the order started. */
+	#startedAt = 0;
 
 	constructor(private options = SPEECH_END) {}
 
@@ -70,6 +82,7 @@ export class SpeechEnd {
 	frame(probability: number): 'listening' | 'done' | 'nothing' {
 		this.#ms += FRAME_MS;
 		if (probability >= SPEECH) {
+			if (!this.#speech) this.#startedAt = this.#ms - FRAME_MS;
 			this.#speech += FRAME_MS;
 			this.#silence = 0;
 			if (this.#speech >= this.options.minSpeechMs) this.#spoke = true;
@@ -79,6 +92,7 @@ export class SpeechEnd {
 			if (!this.#spoke && this.#silence >= this.options.silenceMs) this.#speech = 0;
 		}
 		if (this.#spoke && this.#silence >= this.options.silenceMs) return 'done';
+		if (this.#spoke && this.#ms - this.#startedAt >= this.options.maxSpeechMs) return 'done';
 		if (!this.#spoke && this.#ms >= this.options.waitMs) return 'nothing';
 		return 'listening';
 	}
