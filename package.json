@@ -65,6 +65,7 @@
 		"onnxruntime-web": "1.30.0",
 		"pmtiles": "^4.5.0",
 		"qrcode": "^1.5.4",
+		"rrule": "^2.8.1",
 		"uqr": "0.1.2",
 		"web-push": "^3.6.7"
 	}

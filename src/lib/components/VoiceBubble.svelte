@@ -31,7 +31,7 @@
 			{#if voice.phase === 'listening'}
 				<p class="font-semibold text-red-400">
 					Te escucho… {voice.handsFree
-						? ''
+						? 'se envía al callarte'
 						: micMode.tap
 							? 'toca otra vez para enviar'
 							: 'suelta para enviar'}

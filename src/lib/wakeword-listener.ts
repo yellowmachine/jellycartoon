@@ -38,7 +38,10 @@ export interface Listening {
 }
 
 export interface ListenOptions {
-	/** Wake words' models, by their file name in static/wakeword (without `.onnx`). */
+	/**
+	 * Wake words' models, by their file name in static/wakeword (without `.onnx`). None: only the
+	 * VAD, for an order started with a tap (#144), and no scores.
+	 */
 	models: string[];
 	/** The browser's echo cancellation, noise suppression and gain: on, as for a call. */
 	processing: boolean;
@@ -64,10 +67,9 @@ export async function listen(options: ListenOptions, context: AudioContext): Pro
 	// Threads need a cross-origin isolated page, which the app is not; these models are small.
 	ort.env.wasm.numThreads = 1;
 
-	const files = { melspectrogram: 'melspectrogram', embedding: 'embedding_model' } as Record<
-		string,
-		string
-	>;
+	const files = (
+		options.models.length ? { melspectrogram: 'melspectrogram', embedding: 'embedding_model' } : {}
+	) as Record<string, string>;
 	for (const m of options.models) files[m] = m;
 	if (options.vad) files.vad = 'silero_vad';
 	const sessions = new Map<string, Awaited<ReturnType<typeof ort.InferenceSession.create>>>();
@@ -88,8 +90,8 @@ export async function listen(options: ListenOptions, context: AudioContext): Pro
 			(sessions.get(name)!.inputMetadata[0] as { shape?: number[] } | undefined)?.shape?.[1] ?? 16
 		)
 	}));
-	const detector = new WakeWordDetector(run, models);
-	await detector.warmUp();
+	const detector = models.length ? new WakeWordDetector(run, models) : null;
+	await detector?.warmUp();
 	const sampleRate = new ort.Tensor('int64', BigInt64Array.from([16_000n]), []);
 
 	await context.audioWorklet.addModule(`${MODELS_URL}/capture.js`);
@@ -122,6 +124,7 @@ export async function listen(options: ListenOptions, context: AudioContext): Pro
 			for (let i = 0; i < chunk.length; i++) sum += (chunk[i]! / 32768) ** 2;
 			options.onLevel(10 * Math.log10(sum / chunk.length || 1e-9));
 			options.onChunk?.(chunk);
+			if (!detector) return;
 			queue = queue.then(async () => {
 				if (stopped) return;
 				const started = performance.now();

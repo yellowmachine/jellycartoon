@@ -22,7 +22,7 @@
 			manteniendo pulsado.
 		</p>
 		<div class="flex flex-wrap gap-2">
-			{#each [['hold', 'Mantener pulsado'], ['tap', 'Tocar para empezar y para enviar']] as const as [value, label] (value)}
+			{#each [['hold', 'Mantener pulsado'], ['tap', 'Tocar para empezar y para enviar'], ['auto', 'Tocar y se envía al callarte']] as const as [value, label] (value)}
 				<button
 					type="button"
 					aria-pressed={mounted && micMode.value === value}
@@ -37,7 +37,11 @@
 			{/each}
 		</div>
 		<p class="mt-2 text-sm text-zinc-400">
-			{#if mounted && micMode.tap}
+			{#if mounted && micMode.auto}
+				Un toque y hablas: suena un pitido, y se envía solo cuando llevas un segundo largo callado,
+				como después de «hola casita». Si no dices nada en 5 segundos, se cancela; otro toque lo
+				envía ya. La primera vez tarda un momento en preparar el micrófono.
+			{:else if mounted && micMode.tap}
 				Un toque empieza a escuchar y otro lo envía; si se olvida, se envía solo a los 30 segundos.
 				Dos toques seguidos lo cancelan. El micrófono de arriba, mantenido, abre Hablar.
 			{:else}
@@ -103,6 +107,22 @@
 					<span class="block text-xs text-zinc-500"
 						>Quita eco y ruido y sube tu voz: puede ayudar desde lejos y en silencio. Con la tele
 						puesta suele ir peor, y con música o un vídeo sonando aquí nunca se limpia.</span
+					>
+				</span>
+			</label>
+			<label class="mt-4 flex items-start gap-2 text-sm">
+				<input
+					type="checkbox"
+					checked={wakeWord.advanced}
+					onchange={(e) => wakeWord.setAdvanced(e.currentTarget.checked)}
+					class="mt-0.5 rounded border-zinc-600 bg-zinc-900 text-amber-500"
+				/>
+				<span>
+					Avanzado: ver cómo oye, bajo el micrófono grande
+					<span class="block text-xs text-zinc-500"
+						>En Hablar y en el panel de cocina: el nivel del micrófono (azul), cuánto se parece a
+						«hola casita» (amarillo, con la raya del umbral), y el umbral y la limpieza para
+						cambiarlos mientras pruebas. Ahí se puede limpiar también con algo sonando en la app.</span
 					>
 				</span>
 			</label>

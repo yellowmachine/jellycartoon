@@ -8,6 +8,7 @@ import { voice } from '#lib/voice-client.svelte.ts';
  * tablets that turn it on in Ajustes. In the browser, like the microphone's mode. It listens while
  * the app is open and in front; heard, it beeps and what is said next goes to the voice
  * (voice-client.svelte.ts), until a silence (vad.ts). Nothing leaves the device but that order.
+ * The same end, after a tap, is the microphone's third way (mic-mode.svelte.ts, `listenOnce`).
  */
 
 const KEY = 'jellycartoon:wake-word';
@@ -24,6 +25,13 @@ const MODEL = 'hola_casita';
  * TV not played by the app cannot be known here.
  */
 const CLEAN_KEY = 'jellycartoon:wake-word-clean';
+/**
+ * «Avanzado» (Ajustes): under the big microphone, the microphone's level, the word's score and its
+ * threshold and cleaning, to try them where it is used (the kitchen, a video beside it).
+ */
+const ADVANCED_KEY = 'jellycartoon:wake-word-advanced';
+/** With «Avanzado»: cleaned also while the app plays here, to compare. */
+const CLEAN_PLAYING_KEY = 'jellycartoon:wake-word-clean-playing';
 /** Sound on or off this long before the microphone is opened again, cleaned or not. */
 const SWITCH_AFTER_MS = 2000;
 /**
@@ -64,8 +72,17 @@ function keep(key: string, value: string | null) {
 	}
 }
 
+/** A score that went off, or came close (over half the threshold), for «Avanzado». */
+export interface WakeHit {
+	at: number;
+	score: number;
+	fired: boolean;
+}
+
 interface Order {
 	vad: Vad;
+	/** For its beeps. */
+	context: AudioContext | null;
 	end: SpeechEnd;
 	chunks: Int16Array[];
 	/** One chunk at a time through the VAD, as the wake word's. */
@@ -81,6 +98,18 @@ class WakeWord {
 	threshold = $state(typeof window === 'undefined' ? WAKE_THRESHOLD.default : storedThreshold());
 	/** Clean the sound while nothing plays here: off unless asked. */
 	cleanWhenQuiet = $state(typeof window === 'undefined' ? false : stored(CLEAN_KEY));
+	advanced = $state(typeof window === 'undefined' ? false : stored(ADVANCED_KEY));
+	cleanWhilePlaying = $state(typeof window === 'undefined' ? false : stored(CLEAN_PLAYING_KEY));
+	/** With «Avanzado»: the microphone's level (dBFS), the score now and its recent highest. */
+	level = $state(-90);
+	score = $state(0);
+	peak = $state(0);
+	hits = $state<WakeHit[]>([]);
+	/** Cleaned now, as the microphone is open; and whether the app plays here. */
+	cleaning = $state(false);
+	playing = $state(false);
+	/** A tap's own listener loading (the first time, a few MB). */
+	preparing = $state(false);
 
 	#wanted = false;
 	#listening: Listening | null = null;
@@ -90,6 +119,10 @@ class WakeWord {
 	#quietUntil = 0;
 	/** Cleaned now, or as it will open. */
 	#clean = this.cleanWhenQuiet;
+	/** Opened for a tap's order, with the word off (or not listening): closed after it. */
+	#once: { listening: Listening; context: AudioContext } | null = null;
+	/** A peak or a hit is being collected: the highest of an attempt, kept once it falls. */
+	#attempt = 0;
 	/** The app plays something on this device, as the layout last said. */
 	#playing = false;
 	#switchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -102,6 +135,19 @@ class WakeWord {
 	setCleanWhenQuiet(on: boolean) {
 		this.cleanWhenQuiet = on;
 		keep(CLEAN_KEY, on ? 'on' : null);
+		this.#planCleaning();
+	}
+
+	setAdvanced(on: boolean) {
+		this.advanced = on;
+		keep(ADVANCED_KEY, on ? 'on' : null);
+		// What it does stays as Ajustes says: the test is over.
+		if (!on && this.cleanWhilePlaying) this.setCleanWhilePlaying(false);
+	}
+
+	setCleanWhilePlaying(on: boolean) {
+		this.cleanWhilePlaying = on;
+		keep(CLEAN_PLAYING_KEY, on ? 'on' : null);
 		this.#planCleaning();
 	}
 
@@ -136,7 +182,7 @@ class WakeWord {
 					processing: this.#clean,
 					vad: true,
 					onScores: ([score]) => this.#score(score ?? 0),
-					onLevel() {},
+					onLevel: (dbfs) => this.#level(dbfs),
 					onChunk: (chunk) => this.#chunk(chunk)
 				},
 				context
@@ -155,6 +201,7 @@ class WakeWord {
 		if (!this.#wanted) return this.#stop();
 		// Something started or stopped playing while it loaded.
 		void this.#listening.setProcessing(this.#clean).catch(() => {});
+		this.cleaning = this.#clean;
 		this.#paused = false;
 		context.onstatechange = () => this.#showState();
 		document.addEventListener('pointerdown', this.#unlock, true);
@@ -171,11 +218,12 @@ class WakeWord {
 	 */
 	sounding(playing: boolean) {
 		this.#playing = playing;
+		this.playing = playing;
 		this.#planCleaning();
 	}
 
 	#planCleaning() {
-		const clean = this.cleanWhenQuiet && !this.#playing;
+		const clean = this.cleanWhenQuiet && (!this.#playing || this.cleanWhilePlaying);
 		clearTimeout(this.#switchTimer);
 		if (clean === this.#clean) return;
 		this.#switchTimer = setTimeout(() => this.#switchCleaning(clean), SWITCH_AFTER_MS);
@@ -188,6 +236,7 @@ class WakeWord {
 			return;
 		}
 		this.#clean = clean;
+		this.cleaning = clean;
 		this.#listening?.setProcessing(clean).catch((err) => {
 			this.problem = err instanceof Error ? err.message : String(err);
 		});
@@ -233,7 +282,13 @@ class WakeWord {
 		}
 	};
 
+	/** As /activacion's bar: up at once, down slowly. */
+	#level(dbfs: number) {
+		if (this.advanced) this.level = Math.max(dbfs, this.level - 1.5);
+	}
+
 	#score(score: number) {
+		if (this.advanced) this.#measure(score);
 		if (this.#order) return;
 		if (voice.phase !== 'idle' || voice.speaking) {
 			this.#quietUntil = Date.now() + QUIET_MS;
@@ -242,14 +297,100 @@ class WakeWord {
 		if (score < this.threshold || Date.now() < this.#quietUntil) return;
 		const vad = this.#listening?.vad();
 		if (!vad || !voice.beginHandsFree()) return;
-		this.#beep(880);
+		this.#begin(vad, this.#context);
+	}
+
+	/** For «Avanzado»: the score, its recent highest, and each attempt's highest once it falls. */
+	#measure(score: number) {
+		this.score = score;
+		this.peak = Math.max(score, this.peak - 0.01);
+		if (score >= this.threshold / 2) this.#attempt = Math.max(this.#attempt, score);
+		else if (this.#attempt) {
+			const best = this.#attempt;
+			this.#attempt = 0;
+			this.hits = [
+				{ at: Date.now(), score: best, fired: best >= this.threshold },
+				...this.hits
+			].slice(0, 5);
+		}
+	}
+
+	#begin(vad: Vad, context: AudioContext | null) {
+		this.#beep(880, context);
 		this.#order = {
 			vad,
+			context,
 			end: new SpeechEnd(),
 			chunks: [],
 			queue: Promise.resolve(),
 			limit: setTimeout(() => this.#finish('done'), MAX_MS)
 		};
+	}
+
+	/**
+	 * The microphone's third way (Ajustes): a tap, and what is said goes until a silence, as after
+	 * the word. Listening for the word, with its microphone; if not, one opened only for this order
+	 * (the VAD, without the word), closed after it. A tap while it listens sends it now.
+	 */
+	async listenOnce() {
+		if (this.#order) return this.#finish('done');
+		if (this.preparing || voice.phase !== 'idle' || voice.speaking) return;
+		if (this.#listening && this.status === 'on' && !this.#paused) {
+			const vad = this.#listening.vad();
+			if (vad && voice.beginHandsFree()) this.#begin(vad, this.#context);
+			return;
+		}
+		// Now, on the tap, as the word's (see `listen`).
+		const context = new AudioContext();
+		if (!voice.beginHandsFree()) return void context.close();
+		this.preparing = true;
+		try {
+			const { listen } = await import('#lib/wakeword-listener.ts');
+			const listening = await listen(
+				{
+					models: [],
+					// As the microphone's button, which records with the browser's cleaning.
+					processing: true,
+					vad: true,
+					onScores() {},
+					onLevel: (dbfs) => this.#level(dbfs),
+					onChunk: (chunk) => this.#chunk(chunk)
+				},
+				context
+			);
+			this.#once = { listening, context };
+			document.addEventListener('visibilitychange', this.#onceHidden);
+		} catch (err) {
+			void context.close();
+			voice.endHandsFree(null);
+			voice.problem =
+				err instanceof DOMException && err.name === 'NotAllowedError'
+					? 'No se puede usar el micrófono. Hay que darle permiso a la página.'
+					: err instanceof Error
+						? err.message
+						: String(err);
+			return;
+		} finally {
+			this.preparing = false;
+		}
+		const vad = this.#once.listening.vad();
+		// Still wanted: nothing ended it while it loaded.
+		if (!vad || !voice.handsFree) return this.#closeOnce();
+		this.#begin(vad, context);
+	}
+
+	/** In the background the browser stops the microphone: the order is dropped. */
+	#onceHidden = () => {
+		if (document.hidden) this.#cancel();
+	};
+
+	#closeOnce() {
+		const once = this.#once;
+		if (!once) return;
+		this.#once = null;
+		document.removeEventListener('visibilitychange', this.#onceHidden);
+		once.listening.stop();
+		void once.context.close();
 	}
 
 	#chunk(chunk: Float32Array) {
@@ -276,7 +417,9 @@ class WakeWord {
 		if (!order) return;
 		this.#order = null;
 		clearTimeout(order.limit);
-		this.#beep(said === 'done' ? 660 : 440);
+		this.#beep(said === 'done' ? 660 : 440, order.context);
+		// After the beep's 150 ms: closing the sound cuts it.
+		if (this.#once) setTimeout(() => this.#closeOnce(), 200);
 		if (said === 'nothing') return voice.endHandsFree(null);
 		const samples = new Int16Array(order.chunks.reduce((n, c) => n + c.length, 0));
 		let at = 0;
@@ -293,12 +436,12 @@ class WakeWord {
 		if (!order) return;
 		this.#order = null;
 		clearTimeout(order.limit);
+		this.#closeOnce();
 		voice.endHandsFree(null);
 	}
 
 	/** A short beep: when to speak, and that it heard. */
-	#beep(hz: number) {
-		const context = this.#context;
+	#beep(hz: number, context = this.#context) {
 		if (context?.state !== 'running') return;
 		const tone = context.createOscillator();
 		const gain = context.createGain();

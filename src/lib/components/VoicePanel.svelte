@@ -3,8 +3,11 @@
 	import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
+	import { tapMic } from '#lib/mic-tap.ts';
 	import { recipe } from '#lib/recipe.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
+	import { wakeWord } from '#lib/wake-word.svelte.ts';
+	import WakeWordMeters from '#lib/components/WakeWordMeters.svelte';
 	import { voiceHint } from '#lib/voice-hint.svelte.ts';
 
 	/**
@@ -30,7 +33,7 @@
 
 	/** Held down, or (Ajustes) a tap to start and another to send. */
 	function press() {
-		if (micMode.tap) voice.toggle();
+		if (micMode.tap) tapMic();
 		else void voice.start();
 	}
 </script>
@@ -50,9 +53,13 @@
 		<p class="text-3xl font-semibold text-zinc-200">
 			{voice.phase === 'thinking'
 				? 'Un momento…'
-				: micMode.tap && !voice.handsFree
-					? 'Te escucho… toca para enviar'
-					: 'Te escucho…'}
+				: wakeWord.preparing
+					? 'Preparando el micrófono…'
+					: voice.handsFree
+						? 'Te escucho… se envía al callarte'
+						: micMode.tap
+							? 'Te escucho… toca para enviar'
+							: 'Te escucho…'}
 		</p>
 	{:else if !voiceHint.closed}
 		<!-- Closed once, it stays closed on this device. -->
@@ -133,10 +140,17 @@
 		O {micMode.tap ? 'pulsa' : 'mantén'} <kbd class="rounded border border-zinc-700 px-1">Ctrl</kbd>
 		+
 		<kbd class="rounded border border-zinc-700 px-1">Mayús</kbd> +
-		<kbd class="rounded border border-zinc-700 px-1">Espacio</kbd>{micMode.tap
-			? ': una vez para empezar y otra para enviar,'
-			: ','} en cualquier página.
+		<kbd class="rounded border border-zinc-700 px-1">Espacio</kbd>{micMode.auto
+			? ': una vez y habla, se envía al callarte,'
+			: micMode.tap
+				? ': una vez para empezar y otra para enviar,'
+				: ','} en cualquier página.
 	</p>
+
+	<!-- «Avanzado» (Ajustes): how «hola casita» hears here, to try it where it is used. -->
+	{#if wakeWord.advanced && wakeWord.on}
+		<WakeWordMeters />
+	{/if}
 
 	{#snippet choices()}
 		{#if voice.options.length}

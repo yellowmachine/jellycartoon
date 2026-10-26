@@ -9,6 +9,7 @@ import { musicTarget } from '#lib/music-target.svelte.ts';
 import { videoHere } from '#lib/video-here.svelte.ts';
 import type { LngLat, Place } from '#lib/road.ts';
 import {
+	HISTORY_IDLE_MS,
 	HISTORY_TURNS,
 	type VoiceAction,
 	type VoiceOption,
@@ -59,8 +60,21 @@ class VoiceClient {
 	 * route is asked for and shown there. Null elsewhere.
 	 */
 	road: Road | null = null;
-	/** The exchanges before, so that «no, eso no» means something. */
+	/** The exchanges before, so that «no, eso no» means something; forgotten after a while. */
 	#history: VoiceTurn[] = [];
+	/** When the last answer came (Date.now()). */
+	#historyAt = 0;
+	/**
+	 * This order's moments (performance.now()), from the end of what was said: to the Registro,
+	 * once the answer starts to sound, to know where the time goes.
+	 */
+	#timing: {
+		ended: number;
+		transcribed?: number;
+		answered?: number;
+		handsFree: boolean;
+		text?: string;
+	} | null = null;
 
 	#recorder: MediaRecorder | null = null;
 	#chunks: Blob[] = [];
@@ -123,6 +137,7 @@ class VoiceClient {
 	 * the episode goes on.
 	 */
 	stop(): 'sent' | 'tap' {
+		this.#timing = { ended: performance.now(), handsFree: false };
 		this.#active = false;
 		clearTimeout(this.#limit);
 		this.#released = true;
@@ -152,6 +167,8 @@ class VoiceClient {
 	endHandsFree(audio: Blob | null) {
 		if (!this.handsFree) return;
 		this.handsFree = false;
+		// After the silence that ended it (vad.ts), not when the voice stopped.
+		this.#timing = { ended: performance.now(), handsFree: true };
 		if (audio) return void this.#send(audio);
 		this.phase = 'idle';
 		resumeAfterVoice();
@@ -176,10 +193,12 @@ class VoiceClient {
 			this.heard = null;
 			return this.#fail('No he oído nada. Prueba otra vez, más cerca.');
 		}
+		if (this.#timing) this.#timing.transcribed = performance.now();
 		await this.command(body.text);
 	}
 
 	#fail(problem: string) {
+		this.#timing = null;
 		this.phase = 'idle';
 		this.problem = problem;
 		resumeAfterVoice();
@@ -194,6 +213,11 @@ class VoiceClient {
 		this.reply = null;
 		this.options = [];
 		this.heard = text;
+		// Written, or an option tapped: from now.
+		if (this.#timing?.transcribed === undefined)
+			this.#timing = { ended: performance.now(), handsFree: false };
+		this.#timing.text = text;
+		if (Date.now() - this.#historyAt > HISTORY_IDLE_MS) this.#history = [];
 		const res = await fetch('/api/voice/command', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
@@ -212,6 +236,7 @@ class VoiceClient {
 		const body: VoiceReply | { message?: string } | null = await res?.json().catch(() => null);
 		if (!res?.ok || !body || !('reply' in body))
 			return this.#fail((body && 'message' in body && body.message) || 'Sin conexión');
+		this.#timing.answered = performance.now();
 		this.phase = 'idle';
 		// Something else to watch: the episode that was paused stays so.
 		if (body.actions.some((a) => a.kind === 'watch')) videoHere.forgetPause();
@@ -231,7 +256,29 @@ class VoiceClient {
 			{ role: 'user' as const, content: text },
 			{ role: 'assistant' as const, content: body.reply }
 		].slice(-HISTORY_TURNS);
+		this.#historyAt = Date.now();
 		this.#speak(body.reply);
+	}
+
+	/** This order's times, to the Registro: from the end of what was said to the answer heard. */
+	#report() {
+		const t = this.#timing;
+		this.#timing = null;
+		if (!t?.answered) return;
+		const now = performance.now();
+		const body = {
+			text: t.text,
+			handsFree: t.handsFree,
+			total: now - t.ended,
+			transcribe: t.transcribed === undefined ? null : t.transcribed - t.ended,
+			command: t.answered - (t.transcribed ?? t.ended),
+			speak: now - t.answered
+		};
+		void fetch('/api/voice/tiempos', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(body)
+		}).catch(() => {});
 	}
 
 	/** The answer and the question it may be, gone: the header's bubble closes. */
@@ -248,6 +295,7 @@ class VoiceClient {
 	 */
 	#speak(text: string) {
 		if (!('speechSynthesis' in window)) {
+			this.#report();
 			resumeAfterVoice();
 			return;
 		}
@@ -257,6 +305,7 @@ class VoiceClient {
 		this.speaking = true;
 		// What it put on (or what plays) is heard under the answer, not over it; as the road mode.
 		music.duck(true);
+		utterance.onstart = () => this.#report();
 		utterance.onend = utterance.onerror = () => {
 			this.speaking = false;
 			// A cancelled answer ends as the next one starts: that one keeps it low.

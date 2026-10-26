@@ -52,7 +52,8 @@ type Key =
 	| 'ors_api_key'
 	| 'ors_url'
 	| 'relay_url'
-	| 'relay_key';
+	| 'relay_key'
+	| 'agenda_ics_token';
 
 export async function getAppSetting(key: Key) {
 	return get(key);

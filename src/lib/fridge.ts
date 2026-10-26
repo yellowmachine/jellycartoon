@@ -2,6 +2,7 @@
  * The fridge (#131): the house's post-its, and the shopping list as one more. Shared by the server
  * and the pages: what they are, each person's paper, and the days one can be left up until.
  */
+import type { AgendaToday } from '#lib/agenda.ts';
 
 export interface FridgeAuthor {
 	name: string;
@@ -29,6 +30,8 @@ export interface FridgeItem {
 export interface FridgeState {
 	notes: FridgeNote[];
 	list: { id: number; items: FridgeItem[] };
+	/** The agenda's «Hoy» (#200), only to look at. */
+	today: AgendaToday;
 }
 
 /** The papers of the post-its, one per person: background, ink and the magnet's colour. */

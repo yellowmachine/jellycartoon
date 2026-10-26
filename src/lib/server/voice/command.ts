@@ -37,6 +37,8 @@ import { listSavedPlaces, listSavedRoutes } from '#lib/server/saved-places.ts';
 import { asksForRoute, findByName } from '#lib/saved-places.ts';
 import { addItems, addNote, tickOffByName, toBuy } from '#lib/server/fridge.ts';
 import { addExpense } from '#lib/server/expenses/expenses.ts';
+import { addEvent, dayForVoice, personByName } from '#lib/server/agenda/agenda.ts';
+import { addDays, dayName, isDay, isTime, parseEventInput } from '#lib/agenda.ts';
 import { isKidAccount } from '#lib/server/kids.ts';
 import { EXPENSE_CATEGORIES, euros, isCategory } from '#lib/expenses.ts';
 import { today } from '#lib/server/playlist.ts';
@@ -301,6 +303,58 @@ function tools(house: boolean): Tool[] {
 				}
 			},
 			['amount', 'what', 'category']
+		),
+		fn(
+			'add_event',
+			'Apunta algo en la agenda de la casa (#200), que ven todos; lo de hoy sale en la nevera y en la tele. «Apunta el dentista de Lucía el jueves a las cinco», «el cumpleaños de Pablo es el 3 de marzo», «inglés los martes y jueves a las seis».',
+			{
+				title: {
+					type: 'string',
+					description: 'Qué es, corto y con mayúscula: «Dentista», «Cumpleaños de Pablo», «Inglés».'
+				},
+				day: {
+					type: 'string',
+					description: 'El día, YYYY-MM-DD, calculado desde hoy; si se repite, el primero.'
+				},
+				time: {
+					type: 'string',
+					description:
+						'La hora, HH:MM en 24 horas («a las cinco» de la tarde: 17:00). Sin ella, todo el día.'
+				},
+				people: {
+					type: 'array',
+					items: { type: 'string' },
+					description: 'Para quién es, por su nombre, si lo dicen; también los peques.'
+				},
+				repeat: {
+					type: 'string',
+					enum: ['no', 'semana', 'mes', 'año'],
+					description: 'Si se repite: cada semana, cada mes o cada año (los cumpleaños).'
+				},
+				weekdays: {
+					type: 'array',
+					items: { type: 'integer' },
+					description: 'Con «semana», qué días: 0 lunes … 6 domingo.'
+				},
+				remind: {
+					type: 'string',
+					enum: ['no', 'hora', 'dia'],
+					description: 'Aviso al móvil, solo si lo piden: una hora antes, o el día antes.'
+				}
+			},
+			['title', 'day']
+		),
+		fn(
+			'agenda',
+			'Lo que hay apuntado en la agenda de la casa, día a día: «¿qué tenemos mañana?», «¿qué hay esta semana?», «¿cuándo es el dentista?».',
+			{
+				from: { type: 'string', description: 'El primer día, YYYY-MM-DD.' },
+				to: {
+					type: 'string',
+					description: 'El último día, YYYY-MM-DD; como mucho, 31 días después.'
+				}
+			},
+			['from']
 		),
 		fn(
 			'add_fridge_note',
@@ -888,6 +942,56 @@ async function runTool(
 			);
 			return `Apuntado en Gastos: ${what}, ${euros(total)} (${category}).`;
 		}
+		case 'add_event': {
+			if (await isKidAccount(ctx.user.id)) return 'La agenda la apuntan los mayores.';
+			const people: string[] = [];
+			const unknown: string[] = [];
+			for (const name of Array.isArray(args.people) ? args.people : []) {
+				const found = typeof name === 'string' ? await personByName(name) : null;
+				if (found) people.push(found.id);
+				else unknown.push(String(name));
+			}
+			const time = isTime(args.time) ? args.time : null;
+			const input = parseEventInput({
+				title: args.title,
+				startDay: args.day,
+				startTime: time,
+				repeat:
+					args.repeat === 'semana'
+						? { every: 'semana', days: args.weekdays ?? [] }
+						: args.repeat === 'mes' || args.repeat === 'año'
+							? { every: args.repeat }
+							: null,
+				remind: args.remind,
+				people
+			});
+			if (!input) return 'Falta qué es o el día (YYYY-MM-DD).';
+			await addEvent(ctx.user.id, input);
+			return [
+				`Apuntado en la agenda: ${input.title}, el ${dayName(input.startDay, true)}${time ? ` a las ${time}` : ''}.`,
+				unknown.length
+					? `No hay nadie en casa llamado ${unknown.join(' ni ')}: no se ha puesto para quién.`
+					: ''
+			]
+				.filter(Boolean)
+				.join(' ');
+		}
+		case 'agenda': {
+			if (!isDay(args.from)) return 'Falta desde qué día (YYYY-MM-DD).';
+			const last = isDay(args.to) && args.to >= args.from ? args.to : args.from;
+			const days: string[] = [];
+			for (let day = args.from; day <= last && days.length < 32; day = addDays(day, 1))
+				days.push(day);
+			const kid = (await isKidAccount(ctx.user.id)) ? ctx.user.id : null;
+			const lines = await Promise.all(
+				days.map(async (day) => {
+					const events = await dayForVoice(day, kid);
+					return events.length ? `${dayName(day, true)}: ${events.join('; ')}` : null;
+				})
+			);
+			const found = lines.filter(Boolean);
+			return found.length ? found.join('\n') : 'Nada apuntado esos días.';
+		}
 		case 'add_fridge_note': {
 			const text = typeof args.text === 'string' ? args.text.trim() : '';
 			if (!text) return 'Falta lo que dice el post-it.';
@@ -1006,11 +1110,23 @@ const NOT_IN_THE_CAR = new Set([
 	'end_recipe'
 ]);
 
+/** Where an order's time went, for the Registro: to know what to make quicker. */
+export interface VoiceTiming {
+	/** Reading what the instructions list (albums, recipes…). */
+	prepareMs: number;
+	/** Each turn with the model: its time, its tokens (and how many were cached), its tools. */
+	rounds: { ms: number; prompt: number; cached: number; completion: number; tools: string[] }[];
+}
+
 /**
  * What was said, done: what the device must do, and the sentence to read aloud. `user`: who speaks,
  * from the session; an adult, a child's account has no voice.
  */
-export async function runVoiceCommand(request: VoiceRequest, user: Person): Promise<VoiceReply> {
+export async function runVoiceCommand(
+	request: VoiceRequest,
+	user: Person
+): Promise<VoiceReply & { timing: VoiceTiming }> {
+	const started = performance.now();
 	const [albums, playlists, model, { hoursSince }, keepHistory, watchingHere, recipes, sites] =
 		await Promise.all([
 			getAlbums(),
@@ -1022,6 +1138,8 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 			listRecipes(),
 			listRecipeSites()
 		]);
+	const timing: VoiceTiming = { prepareMs: Math.round(performance.now() - started), rounds: [] };
+	const reply = (text: string, outcome: Outcome) => ({ ...replyOf(text, outcome), timing });
 	// In the car the house's speakers are far away.
 	const house = snapcastReady() && !request.car;
 	const outcome: Outcome = { actions: [], options: [], asked: null };
@@ -1076,12 +1194,20 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 	);
 
 	for (let round = 0; round < MAX_ROUNDS; round++) {
+		const asked = performance.now();
 		const answer = await chatWithTools({
 			model,
 			messages,
 			tools: available,
 			label: `Voz: «${request.text}»`,
 			details: { round }
+		});
+		timing.rounds.push({
+			ms: Math.round(performance.now() - asked),
+			prompt: answer.usage?.prompt_tokens ?? 0,
+			cached: answer.usage?.prompt_tokens_details?.cached_tokens ?? 0,
+			completion: answer.usage?.completion_tokens ?? 0,
+			tools: answer.toolCalls.map((c) => c.function.name)
 		});
 		if (!answer.toolCalls.length) {
 			return reply(answer.content ?? 'Hecho.', outcome);
@@ -1122,7 +1248,7 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 	);
 }
 
-const reply = (text: string, outcome: Outcome): VoiceReply => ({
+const replyOf = (text: string, outcome: Outcome): VoiceReply => ({
 	reply: text.trim(),
 	actions: outcome.actions,
 	options: outcome.options
