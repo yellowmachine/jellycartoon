@@ -160,11 +160,12 @@
 			return {
 				category,
 				total: expenses.reduce((sum, e) => sum + e.total, 0),
-				// Only where there are lines to break it down by.
+				// Only where its lines are of more than one kind: «Gasolina ▸ Combustible» says nothing.
 				tags: expenses.some((e) => e.lines.length) ? byTag(expenses) : []
 			};
 		})
 			.filter((c) => c.total > 0)
+			.map((c) => (c.tags.length > 1 ? c : { ...c, tags: [] }))
 			.sort((a, b) => b.total - a.total)
 	);
 	const largest = $derived(byCategory[0]?.total ?? 0);

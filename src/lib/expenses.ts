@@ -12,6 +12,8 @@ export const EXPENSE_CATEGORIES = [
 	'Ropa',
 	'Ocio',
 	'Niños',
+	'Viajes',
+	'Mascotas',
 	'Otros'
 ] as const;
 
@@ -21,8 +23,9 @@ export const isCategory = (value: unknown): value is ExpenseCategory =>
 	EXPENSE_CATEGORIES.includes(value as ExpenseCategory);
 
 /**
- * What each line of a receipt is, to see a month's shopping by kind: fixed, short and with no two
- * alike, so the model does not hesitate between them and they add up.
+ * What each line of a receipt is, to see a month's spending by kind within each category: fixed,
+ * at most some 20 and with no two alike, so the model does not hesitate between them and they add
+ * up. For the lines of any receipt: a supermarket's, a bar's, a chemist's, a petrol station's.
  */
 export const LINE_TAGS = [
 	'Fruta y verdura',
@@ -31,11 +34,18 @@ export const LINE_TAGS = [
 	'Panadería',
 	'Despensa',
 	'Congelados',
+	'Comida preparada',
 	'Bebidas',
+	'Alcohol',
 	'Caprichos',
 	'Limpieza',
 	'Higiene',
-	'Niños',
+	'Medicamentos',
+	'Bebé y niños',
+	'Mascotas',
+	'Ropa y calzado',
+	'Hogar y bricolaje',
+	'Combustible',
 	'Otros'
 ] as const;
 

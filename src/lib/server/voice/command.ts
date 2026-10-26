@@ -299,7 +299,7 @@ function tools(house: boolean): Tool[] {
 				category: {
 					type: 'string',
 					enum: [...EXPENSE_CATEGORIES],
-					description: 'La categoría que mejor le va.'
+					description: 'La categoría que mejor le va; Restaurantes es también bares y cafeterías.'
 				}
 			},
 			['amount', 'what', 'category']
