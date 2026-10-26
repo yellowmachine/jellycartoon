@@ -44,6 +44,7 @@ import { EXPENSE_CATEGORIES, euros, isCategory } from '#lib/expenses.ts';
 import { today } from '#lib/server/playlist.ts';
 import { isUntilWord, UNTIL_WORDS, untilDay, untilText } from '#lib/fridge.ts';
 import { getRecipe, importRecipe, listRecipes } from '#lib/server/recipes/import.ts';
+import { findPlaces, forecast, housePlace, placeName } from '#lib/server/weather.ts';
 import { isFavouritePage, listRecipeSites, searchRecipeSites } from '#lib/server/recipes/sites.ts';
 import {
 	MAX_TIMER_SEC,
@@ -183,6 +184,17 @@ function tools(house: boolean): Tool[] {
 					)
 				]
 			: []),
+		fn(
+			'get_weather',
+			'El tiempo: ahora, los próximos siete días, y hoy y mañana por horas. Sin «place», donde está la casa (en el coche, donde está).',
+			{
+				place: {
+					type: 'string',
+					description: 'Otro pueblo o ciudad, si lo dice: «Toledo», «Benidorm». Vacío: aquí.'
+				}
+			},
+			[]
+		),
 		fn(
 			'navigate_to',
 			'Modo carretera: traza la ruta en coche desde donde está hasta un sitio, en el mapa, con los pasos y su voz. «Llévame a…», «vamos a…», «¿cómo llego a…?». También sus sitios y rutas guardados, por su nombre: «llévame a casa», «la ruta del trabajo».',
@@ -573,6 +585,8 @@ Otras preguntas (de cocina, de lo que sea): si no pide nada de la app, contesta 
 - Una pregunta no es una orden: «¿cuánto tiempo cuezo la pasta?» se contesta; «pon Más de uno» se hace.
 - Si es de salud o de seguridad (alergias, algo que ha comido mal, un corte), contesta con prudencia y, si puede ser serio, dile que llame al médico o al 112.
 
+El tiempo («¿qué tiempo hará mañana?», «¿llueve esta tarde?», «¿hace frío para salir?»): «get_weather», sin preguntar. Contesta corto, solo lo que pregunta: el cielo, las temperaturas y, si puede llover, la probabilidad. Nunca lo inventes.
+
 Temporizadores («avísame en 10 minutos», «pon un temporizador de 20 minutos para el horno»): «set_timer», sin preguntar. Con cada orden va la lista de los que hay en este dispositivo.
 - «¿Cuánto le queda (a la pasta)?»: contesta con esa lista, sin herramientas.
 - «Otro de 5 minutos» es uno nuevo (nombre vacío), no el que ya hay de 5 minutos; «vuelve a empezar el de la pasta» sí usa su nombre.
@@ -830,6 +844,25 @@ async function runTool(
 			if (where === 'house') await controlHouse(action);
 			else ctx.outcome.actions.push({ kind: 'control', action });
 			return 'Hecho.';
+		}
+		case 'get_weather': {
+			const asked = typeof args.place === 'string' ? args.place.trim() : '';
+			const house = await housePlace();
+			let where: { lat: number; lon: number; name: string } | null = null;
+			if (asked) {
+				// «Toledo» is first in Ohio: one in the house's country if there is one.
+				const found = await findPlaces(asked, 10);
+				const place = found.find((p) => p.country === (house?.country ?? 'España')) ?? found[0];
+				if (!place) return `No encuentro «${asked}». Díselo.`;
+				where = { lat: place.lat, lon: place.lon, name: placeName(place) };
+			} else if (ctx.position) {
+				where = { lon: ctx.position[0], lat: ctx.position[1], name: 'donde está ahora' };
+			} else if (house) {
+				where = { lat: house.lat, lon: house.lon, name: placeName(house) };
+			}
+			if (!where)
+				return 'No se sabe dónde está la casa: se pone en Ajustes → Casa, «Dónde está la casa». Díselo.';
+			return `El tiempo en ${where.name}:\n${await forecast(where.lat, where.lon)}`;
 		}
 		case 'set_volume': {
 			if (!ctx.house) return 'El volumen del dispositivo se cambia con sus botones.';
