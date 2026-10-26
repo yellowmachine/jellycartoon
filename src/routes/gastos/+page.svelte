@@ -17,6 +17,7 @@
 		type LineTag,
 		type RecurringExpense
 	} from '#lib/expenses.ts';
+	import ExpenseTabs from '#lib/components/ExpenseTabs.svelte';
 	import { smallerPhoto } from '#lib/receipt-photo.ts';
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import type { PageProps } from './$types';
@@ -199,7 +200,8 @@
 </svelte:head>
 
 <div class="mx-auto max-w-3xl">
-	<h1 class="mb-1 text-2xl font-bold">Gastos</h1>
+	<h1 class="mb-3 text-2xl font-bold">Gastos</h1>
+	<ExpenseTabs current="mes" />
 	<p class="mb-4 text-sm text-zinc-400">
 		Los de la casa, para todos los adultos. Con una foto del ticket, a mano, por voz («he gastado 40
 		euros en gasolina») o fijos de cada mes.
