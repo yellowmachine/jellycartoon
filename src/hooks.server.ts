@@ -46,6 +46,9 @@ export const init: ServerInit = async () => {
 	startAgenda();
 	// In the Registro: which version started, and how each of the above starts.
 	await logStartup();
+	// adapter-node has closed the server on SIGTERM; the timers above would keep the process alive
+	// until Docker kills it. Work left half done is picked up on the next start (#228).
+	process.once('sveltekit:shutdown', () => process.exit(0));
 };
 
 /** Unexpected errors only: the ones thrown on purpose with `error()` (404, 400…) are not news. */

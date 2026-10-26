@@ -28,6 +28,10 @@ ENV NODE_ENV=production PORT=3000
 # Bodies up to 10 MB (adapter-node's default is 512 KB): a road mode's photo can be more (#81). In the
 # image, not in each house's compose.
 ENV BODY_SIZE_LIMIT=10M
+# Stopping: adapter-node waits this long for open connections (the TVs' and phones' live state,
+# SSE, never end by themselves) before closing them. Docker kills the container after 10 s, and
+# a container killed while Docker itself stops may not come back up (#228).
+ENV SHUTDOWN_TIMEOUT=3
 # The release (`1.2.0`) or the commit (`sha-…`): GitHub Actions passes it (#20).
 ARG APP_VERSION=dev
 ENV APP_VERSION=$APP_VERSION

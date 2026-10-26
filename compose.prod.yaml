@@ -31,6 +31,9 @@ services:
   app:
     image: ghcr.io/yellowmachine/jellycartoon:${IMAGE_TAG:-stable}
     restart: unless-stopped
+    # A small init (tini) as PID 1: it passes on Docker's SIGTERM and reaps ffmpeg's leftovers, so
+    # the container stops in a moment and not killed at 10 s (#228).
+    init: true
     # Files in DATA_DIR belong to this user instead of root.
     user: '${PUID:-1000}:${PGID:-1000}'
     depends_on:
@@ -296,6 +299,8 @@ services:
     image: ghcr.io/yellowmachine/jellycartoon-backup:${IMAGE_TAG:-stable}
     profiles: [backup]
     restart: unless-stopped
+    # The script is PID 1 otherwise, and PID 1 ignores SIGTERM: killed at 10 s on every stop (#228).
+    init: true
     depends_on:
       db:
         condition: service_healthy
