@@ -565,6 +565,38 @@ export async function control(remote: RemoteAction) {
 	}
 }
 
+/** Lowered to this much of what it was while someone speaks to the voice. */
+const DUCKED = 0.3;
+/** Never lowered for longer: a phone that never says it ended (closed, out of signal). */
+const DUCK_MAX_MS = 60_000;
+let ducked: { from: number; to: number; timer: ReturnType<typeof setTimeout> } | null = null;
+
+/**
+ * Someone speaking to the voice on any device (2026-10-26): what plays in the living room lowered
+ * while they speak and it answers, so that the order ends at a silence and whisper hears only
+ * them, and back as it was after. Not back if someone changed it meanwhile («más alto», the remote).
+ */
+export async function duck(on: boolean) {
+	if (on) {
+		if (ducked) {
+			clearTimeout(ducked.timer);
+			ducked.timer = setTimeout(() => void duck(false), DUCK_MAX_MS);
+			return;
+		}
+		if (!state.active || state.paused || !state.volume) return;
+		const from = state.volume;
+		const to = Math.round(from * DUCKED);
+		ducked = { from, to, timer: setTimeout(() => void duck(false), DUCK_MAX_MS) };
+		return command(['set_property', 'volume', to]);
+	}
+	if (!ducked) return;
+	const { from, to, timer } = ducked;
+	ducked = null;
+	clearTimeout(timer);
+	if (state.volume !== null && Math.abs(state.volume - to) < 1)
+		return command(['set_property', 'volume', from]);
+}
+
 /**
  * One order to play at a time: each one is several commands to mpv, and two at once (OK pressed
  * twice) would mix their queues. The second waits for the first, and then replaces it whole.

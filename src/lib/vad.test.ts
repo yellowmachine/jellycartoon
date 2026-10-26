@@ -48,6 +48,13 @@ describe('SpeechEnd', () => {
 		expect(feed(end, 0.9, 7000)).toBe('listening');
 		expect(feed(end, 0.05, 1300)).toBe('done');
 	});
+
+	test('a TV talking on: over all the same, 8 s after starting to speak', () => {
+		const end = new SpeechEnd();
+		feed(end, 0.05, 2000);
+		expect(feed(end, 0.9, 7900)).toBe('listening');
+		expect(feed(end, 0.9, 200)).toBe('done');
+	});
 });
 
 describe('Vad', () => {
