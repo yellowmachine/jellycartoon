@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Installs, from this PC over SSH, what the PC with the screen needs besides the app: the mpv
-# service, its keys and menu for the remote (deploy/mpv), with KDE what the remote's power button
-# does (deploy/kwin, #159), what Chromium's Flatpak needs for game controllers (#176) and, if the
-# remote's receiver is plugged in, its udev hwdb. Only what changed, showing how; run it again
-# whenever. See "Ver en el salón" and "Mando del salón" in the README.
+# service, its keys and menu for the remote (deploy/mpv), with Steam the service that opens its
+# games, with KDE what the remote's power button does (deploy/kwin, #159), what Chromium's Flatpak
+# needs for game controllers (#176) and, if the remote's receiver is plugged in, its udev hwdb.
+# Only what changed, showing how; run it again whenever. See "Ver en el salón", "Mando del salón"
+# and "Steam" in the README.
 #
 #   scripts/pantalla.sh                         # todas las casas de ~/.config/jellycartoon/casas
 #   scripts/pantalla.sh salon                   # solo esa, por su nombre en ese fichero
@@ -61,6 +62,25 @@ else
 		systemctl --user enable jellycartoon-mpv >/dev/null 2>&1
 		changed=1
 	fi
+fi
+
+# Steam's games (Juegos → Steam): the socket the app asks on, next to mpv's, and the service that
+# opens each game. Only where Steam is installed; restarting the socket stops no game.
+if [[ -z $data ]]; then
+	:
+elif command -v steam >/dev/null; then
+	sed "s|@SOCKET@|$data/steam.sock|" "$files/jellycartoon-steam.socket" >"$files/steam-socket"
+	steam=
+	install_file "$files/steam-socket" ~/.config/systemd/user/jellycartoon-steam.socket && steam=1
+	install_file "$files/jellycartoon-steam@.service" ~/.config/systemd/user/jellycartoon-steam@.service &&
+		steam=1
+	if [[ -n $steam ]] || ! systemctl --user is-active -q jellycartoon-steam.socket; then
+		systemctl --user daemon-reload
+		systemctl --user enable jellycartoon-steam.socket >/dev/null 2>&1
+		systemctl --user restart jellycartoon-steam.socket && echo "  ✓ Juegos de Steam: socket escuchando"
+	fi
+else
+	echo "  · Sin Steam: sin servicio para abrir sus juegos"
 fi
 
 # The remote's power button (#159): the TV view's launcher, the service that opens it and the KWin
@@ -176,7 +196,7 @@ for house in "${selected[@]}"; do
 		continue
 	fi
 	tar -C "$deploy" -c mpv kwin 70-mando-g20s.hwdb jellycartoon-mpv.service jellycartoon-tv.desktop \
-		jellycartoon-tv.service | ssh "$dest" tar -x -C "$dir"
+		jellycartoon-tv.service jellycartoon-steam.socket jellycartoon-steam@.service | ssh "$dest" tar -x -C "$dir"
 	ssh "$dest" "cat > $dir/pantalla.sh" <<<"$remote"
 	ssh -t "$dest" bash "$dir/pantalla.sh" "$project" || echo "  ✗ Algo falló en $name"
 	echo

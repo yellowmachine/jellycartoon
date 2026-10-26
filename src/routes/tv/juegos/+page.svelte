@@ -13,7 +13,8 @@
 		gbc: { text: 'text-amber-300', tone: 'from-amber-500/45 via-orange-600/25' },
 		gba: { text: 'text-indigo-300', tone: 'from-indigo-500/45 via-violet-600/25' },
 		mastersystem: { text: 'text-rose-300', tone: 'from-rose-500/45 via-red-600/25' },
-		megadrive: { text: 'text-sky-300', tone: 'from-sky-500/45 via-blue-600/25' }
+		megadrive: { text: 'text-sky-300', tone: 'from-sky-500/45 via-blue-600/25' },
+		steam: { text: 'text-cyan-300', tone: 'from-cyan-500/45 via-slate-600/25' }
 	};
 	const toneOf = (id: string) => TONES[id] ?? TONES.gb;
 	const plural = (n: number) => `${n} ${n === 1 ? 'juego' : 'juegos'}`;
@@ -27,7 +28,8 @@
 
 {#if !data.systems.length}
 	<p class="text-zinc-400">
-		No hay juegos: van en GAMES_DIR, en una carpeta por consola (snes, nes…).
+		No hay juegos: van en GAMES_DIR, en una carpeta por consola (snes, nes…), o en el Steam de
+		STEAM_DIR.
 	</p>
 {/if}
 

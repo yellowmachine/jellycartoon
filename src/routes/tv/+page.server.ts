@@ -5,10 +5,11 @@ import { db } from '#lib/server/db/index.ts';
 import { movie } from '#lib/server/db/schema.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { playEpisodes, playlistQueue, seriesQueue } from '#lib/server/cinema/episode-actions.ts';
-import { cinemaRoot, gamesRoot, musicRoot } from '#lib/server/library/paths.ts';
+import { cinemaRoot, gamesRoot, musicRoot, steamRoot } from '#lib/server/library/paths.ts';
 import { allowedMovies } from '#lib/server/kids.ts';
 import { albumCovers } from '#lib/server/music/albums.ts';
 import { allGames } from '#lib/server/games.ts';
+import { steamGames } from '#lib/server/steam.ts';
 import { userPodcasts } from '#lib/server/podcasts/podcasts.ts';
 import { getTodayPlaylist } from '#lib/server/playlist.ts';
 import { stationsInfo } from '#lib/server/radio.ts';
@@ -27,7 +28,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	if (!mpvEnabled) error(404, 'No hay mpv configurado (MPV_SOCKET)');
 	const userId = locals.user!.id;
 	const kid = isKid(locals.user);
-	const [seriesList, watching, today, [films], newestFilms, info, albums, podcasts, games] =
+	const [seriesList, watching, today, [films], newestFilms, info, albums, podcasts, games, steam] =
 		await Promise.all([
 			allSeries(),
 			continueWatching(userId),
@@ -52,7 +53,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			// Not for children yet (#58).
 			kid ? null : userPodcasts(userId),
 			// Not for children either, while it is an experiment (#176).
-			gamesRoot && !kid ? allGames() : null
+			gamesRoot && !kid ? allGames() : null,
+			steamRoot && !kid ? steamGames() : null
 		]);
 	const ready = seriesList.filter((s) => s.ready > 0);
 	const pending = today?.items.filter((i) => !i.watched) ?? [];
@@ -63,7 +65,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 			albums: albums?.count ?? null,
 			stations: STATIONS.length,
 			podcasts: podcasts?.length ?? null,
-			games: games?.reduce((n, system) => n + system.games.length, 0) ?? null,
+			games:
+				games || steam
+					? (games?.reduce((n, system) => n + system.games.length, 0) ?? 0) + (steam?.length ?? 0)
+					: null,
 			channels: channelsFor(kid).length
 		},
 		/** Behind each card, what is inside: thumbnails, and the stations' logos. */
