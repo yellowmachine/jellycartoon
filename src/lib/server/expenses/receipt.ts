@@ -11,9 +11,11 @@ import { today } from '#lib/server/playlist.ts';
 import { draftFromAnswer, RECEIPT_PROMPT, RECEIPT_SCHEMA } from './receipt-parse.ts';
 
 /**
- * A receipt's photo read by a vision model (#194): Ollama's first, in the house (free, and the
- * photo does not leave it), and OpenRouter's when there is no Ollama or it fails. The photo waits
- * in DATA_DIR/gastos until the expense is saved; one never saved is left there, under `tmp-`.
+ * A receipt's photo read by a vision model (#194): OpenRouter's first, a few seconds; Ollama's, in
+ * the house, when there is no key or it fails. Ollama came first until 2026-10-26: free, but it
+ * unloads its model after 5 minutes idle, and loading it again took «un buen rato» for each receipt
+ * on its own. The photo waits in DATA_DIR/gastos until the expense is saved; one never saved is
+ * left there, under `tmp-`.
  */
 
 export const receiptsDir = path.join(dataRoot, 'gastos');
@@ -34,23 +36,24 @@ export async function readReceipt(image: Buffer, userId: string): Promise<Expens
 	let answer: unknown;
 	let readBy: ExpenseDraft['readBy'];
 	const started = Date.now();
+	const hasKey = Boolean((await openRouterConfig()).apiKey);
 	try {
-		if (!OLLAMA_URL) throw new Error('sin Ollama');
-		answer = await withOllama(base64);
-		readBy = 'ollama';
-	} catch (err) {
-		if (OLLAMA_URL)
-			log.warn('gastos', 'Ollama no pudo leer el ticket: se prueba con OpenRouter', {
-				error: err instanceof Error ? err.message : String(err)
-			});
-		if (!(await openRouterConfig()).apiKey)
-			throw new Error(
-				OLLAMA_URL
-					? 'Ollama no pudo leer el ticket, y no hay clave de OpenRouter para probar con ella.'
-					: 'Para leer tickets hace falta Ollama (OLLAMA_URL) o una clave de OpenRouter.'
-			);
+		if (!hasKey) throw new Error('sin clave de OpenRouter');
 		answer = await withOpenRouter(base64, userId);
 		readBy = 'openrouter';
+	} catch (err) {
+		if (hasKey)
+			log.warn('gastos', 'OpenRouter no pudo leer el ticket: se prueba con Ollama', {
+				error: err instanceof Error ? err.message : String(err)
+			});
+		if (!OLLAMA_URL)
+			throw new Error(
+				hasKey
+					? 'OpenRouter no pudo leer el ticket, y no hay Ollama (OLLAMA_URL) para probar con él.'
+					: 'Para leer tickets hace falta una clave de OpenRouter u Ollama (OLLAMA_URL).'
+			);
+		answer = await withOllama(base64);
+		readBy = 'ollama';
 	}
 	const draft = draftFromAnswer(answer, today());
 	log.info(
