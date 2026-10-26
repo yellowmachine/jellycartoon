@@ -85,6 +85,47 @@ export async function whereIs(at: LngLat): Promise<string | null> {
 	return placesFromOrs(await ors('search', `/geocode/reverse?${params}`))[0]?.label ?? null;
 }
 
+/** openpoiservice's category for petrol stations: https://giscience.github.io/openrouteservice/api-reference/endpoints/poi/ */
+const FUEL_CATEGORY = 596;
+
+/**
+ * Where fuel was put in, short (#194): the petrol station within 150 m, as OpenStreetMap names it
+ * (openrouteservice's POIs, only those of the fuel category), and its town; or only the town. Null
+ * if nothing.
+ */
+export async function placeName(at: LngLat): Promise<string | null> {
+	const [stations, area] = await Promise.all([
+		ors('search', '/pois', {
+			method: 'POST',
+			body: JSON.stringify({
+				request: 'pois',
+				geometry: { geojson: { type: 'Point', coordinates: at }, buffer: 150 },
+				filters: { category_ids: [FUEL_CATEGORY] },
+				limit: 5
+			})
+		}) as Promise<{
+			features?: { properties?: { distance?: number; osm_tags?: Record<string, string> } }[];
+		} | null>,
+		ors(
+			'search',
+			`/geocode/reverse?${new URLSearchParams({
+				'point.lon': String(at[0]),
+				'point.lat': String(at[1]),
+				size: '1',
+				layers: 'locality,localadmin',
+				lang: 'es'
+			})}`
+		) as Promise<{ features?: { properties?: { name?: string } }[] } | null>
+	]);
+	const nearest = (stations?.features ?? [])
+		.map((f) => f.properties)
+		.sort((a, b) => (a?.distance ?? Infinity) - (b?.distance ?? Infinity))[0]?.osm_tags;
+	const station = nearest?.name ?? nearest?.brand ?? nearest?.operator ?? null;
+	const town = area?.features?.[0]?.properties?.name ?? null;
+	if (station) return town && town !== station ? `${station} (${town})` : station;
+	return town;
+}
+
 /**
  * By car through `points`, from the first to the last, with its steps in Spanish. With stops on the
  * way (#151), not turning back at them.
