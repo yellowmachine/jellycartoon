@@ -5,14 +5,15 @@ import { SPEECH_END, SpeechEnd, Vad } from '../../src/lib/vad.ts';
 import { CHUNK, SAMPLE_RATE, WakeWordDetector, type Run } from '../../src/lib/wakeword.ts';
 import { toWav } from '../../src/lib/wakeword-recorder.ts';
 import { Resampler } from './resample.ts';
-import { duck, sendOrder, serverName, serverReady } from './server.ts';
+import { duck, sendOrder, serverName, serverReady, speech } from './server.ts';
+import { beep, play, speakerName } from './sound.ts';
 
 /**
  * The voice satellite (#223, phase 1): «hola casita» heard on a Raspberry in the living room, out of
  * the browser, with the same code as the phone's (wakeword.ts, vad.ts) and ONNX Runtime for Node.
  * The microphone comes from `arecord` at its own rate, taken to 16 kHz mono here (resample.ts). For now each order only goes to the log and is
  * kept as a WAV (`ORDERS_DIR`), to hear what it cut; and, with `SERVER_URL` and `SATELLITE_KEY`, sent
- * to the house's server (server.ts), its answer to the log (phase 2; spoken, phase 3).
+ * to the house's server (server.ts), its answer to the log and, with `SPEAKER`, aloud (sound.ts).
  */
 
 const MODELS_DIR = process.env.MODELS_DIR ?? '/satellite/models';
@@ -23,9 +24,9 @@ const MIC_RATE = Number(process.env.MIC_RATE ?? 48_000);
 const MIC_CHANNELS = Number(process.env.MIC_CHANNELS ?? 2);
 /**
  * As the phone's slider (wake-word.svelte.ts, `WAKE_THRESHOLD`), lower: with a video 2–3 m away
- * (2026-10-26) nothing came near 0.4, and a «hola casita» said gave 0.46.
+ * (2026-10-26) nothing came to 0.25 by itself, and «hola casita» said in other ways gave 0.21–0.36.
  */
-const THRESHOLD = Number(process.env.WAKE_THRESHOLD ?? 0.4);
+const THRESHOLD = Number(process.env.WAKE_THRESHOLD ?? 0.3);
 /** As the phone's «Margen» (vad.ts, `marginDb`). */
 const MARGIN_DB = Number(process.env.WAKE_MARGIN_DB ?? SPEECH_END.marginDb);
 const ORDERS_DIR = process.env.ORDERS_DIR ?? '/data/ordenes';
@@ -140,6 +141,7 @@ function begin(score: number) {
 	attempt = 0;
 	log(`«Hola casita» (${score.toFixed(2)}): escuchando (la palabra a ${db(voiceDb)})`);
 	duck(true);
+	void beep(880);
 	order = {
 		vad: vad(),
 		end: new SpeechEnd({ ...SPEECH_END, marginDb: MARGIN_DB }, voiceDb),
@@ -164,6 +166,7 @@ async function finish(current: Order, said: 'done' | 'nothing') {
 	const seconds = (current.chunks.length * CHUNK) / SAMPLE_RATE;
 	if (said === 'nothing') {
 		duck(false);
+		void beep(440);
 		return log(`Nada dicho en ${seconds.toFixed(1)} s`);
 	}
 	const background =
@@ -179,23 +182,31 @@ async function finish(current: Order, said: 'done' | 'nothing') {
 		at += c.length;
 	}
 	const wav = toWav(samples);
+	void beep(660);
 	await keep(wav);
 	// Not waited for here: the microphone goes on through the detector meanwhile.
 	if (serverReady) void respond(wav);
 	else duck(false);
 }
 
-/** To the server, and its answer to the log. */
+/** To the server, and its answer to the log and aloud; not heard meanwhile, it is busy. */
 async function respond(wav: Uint8Array) {
 	busy = true;
 	const started = Date.now();
 	try {
 		const done = await sendOrder(wav);
 		const ms = Date.now() - started;
-		if (!done) log(`No se entendió nada (${ms} ms)`);
-		else {
+		if (!done) {
+			log(`No se entendió nada (${ms} ms)`);
+			await beep(440);
+		} else {
 			const actions = done.reply.actions.map((a) => a.kind).join(', ') || 'ninguna';
 			log(`«${done.text}» → «${done.reply.reply}» (acciones: ${actions}; ${ms} ms)`);
+			if (speakerName && done.reply.reply) {
+				const voice = await speech(done.reply.reply);
+				log(`Dicho en voz (${Date.now() - started} ms desde la orden)`);
+				await play(voice);
+			}
 		}
 	} catch (err) {
 		log(`El servidor no respondió: ${err instanceof Error ? err.message : String(err)}`);
@@ -259,5 +270,5 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const)
 	});
 
 log(
-	`Escuchando «hola casita» en ${MIC}, ${MIC_RATE} Hz × ${MIC_CHANNELS} (umbral ${THRESHOLD}, margen ${MARGIN_DB} dB); ${serverReady ? `órdenes a ${serverName}` : 'sin servidor: órdenes solo al log'}`
+	`Escuchando «hola casita» en ${MIC}, ${MIC_RATE} Hz × ${MIC_CHANNELS} (umbral ${THRESHOLD}, margen ${MARGIN_DB} dB); ${serverReady ? `órdenes a ${serverName}` : 'sin servidor: órdenes solo al log'}; ${speakerName ? `altavoz ${speakerName}` : 'sin altavoz'}`
 );

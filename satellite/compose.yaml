@@ -15,11 +15,12 @@ services:
       MIC: ${MIC:-default}
       MIC_RATE: ${MIC_RATE:-48000}
       MIC_CHANNELS: ${MIC_CHANNELS:-2}
-      WAKE_THRESHOLD: ${WAKE_THRESHOLD:-0.4}
+      WAKE_THRESHOLD: ${WAKE_THRESHOLD:-0.3}
       WAKE_MARGIN_DB: ${WAKE_MARGIN_DB:-15}
       TZ: ${TZ:-Europe/Madrid}
       SERVER_URL: ${SERVER_URL:-}
       SATELLITE_KEY: ${SATELLITE_KEY:-}
+      SPEAKER: ${SPEAKER:-}
     volumes:
       - ordenes:/data
 
