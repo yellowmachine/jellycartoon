@@ -8,7 +8,8 @@ import {
 	HOST_CINEMA_DIR,
 	HOST_DATA_DIR,
 	MEDIA_DIR,
-	MUSIC_DIR
+	MUSIC_DIR,
+	STEAM_DIR
 } from '$app/env/private';
 
 export const mediaRoot = path.resolve(MEDIA_DIR);
@@ -71,6 +72,8 @@ export const musicRoot = MUSIC_DIR ? path.resolve(MUSIC_DIR) : null;
 export const musicFile = (relative: string) => path.join(musicRoot!, relative);
 /** Games folder (#176), one folder per system; null when there is no Juegos section. */
 export const gamesRoot = GAMES_DIR ? path.resolve(GAMES_DIR) : null;
+/** Steam's folder on the PC with the screen; null when there is no Steam section. */
+export const steamRoot = STEAM_DIR ? path.resolve(STEAM_DIR) : null;
 /** A track's Opus copy (#64), by its id: the FLAC in MUSIC_DIR is never touched. */
 export const opusFile = (trackId: number) => path.join(dataRoot, 'music-opus', `${trackId}.opus`);
 /** What the DJ says between songs (dj.ts), as Opus: kept a few hours. */

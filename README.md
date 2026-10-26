@@ -651,6 +651,37 @@ Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`.
   «Imagen»: al moverse por la lista se ve en el juego, A lo guarda y Atrás lo deja como estaba.
 - No está para los peques.
 
+#### Steam
+
+Los juegos instalados en el Steam del PC de la pantalla salen en `/tv/juegos`, en la tarjeta
+Steam, y se abren allí en Big Picture. Con Steam nativo (no el Flatpak), en el `.env`:
+
+```sh
+HOST_STEAM_DIR="/home/yo/.local/share/Steam"
+```
+
+y `docker compose -f compose.prod.yaml up -d`. En desarrollo, `STEAM_DIR` con esa ruta y
+`STEAM_SOCKET` con el socket.
+
+- La lista sale de los propios ficheros de Steam, de solo lectura: un `appmanifest_<appid>.acf`
+  por juego instalado en `steamapps`, y las carátulas de su biblioteca en
+  `appcache/librarycache`. No se monta nada más de Steam (su configuración, sus cuentas). Solo la
+  biblioteca principal: los juegos de otros discos no salen.
+- Proton y los Steam Linux Runtime también son «apps» instaladas, pero no tienen carátula en la
+  biblioteca, y así se quedan fuera. Ubisoft Connect Services sí la tiene y sale.
+- Para abrirlos, `scripts/pantalla.sh` instala en ese PC un socket de systemd del usuario
+  (`deploy/jellycartoon-steam.socket`) en `HOST_DATA_DIR/steam.sock`, junto al de mpv. Por cada
+  juego elegido arranca `jellycartoon-steam@.service`, que abre con `xdg-open` las direcciones de
+  Steam `steam://open/bigpicture` y `steam://rungameid/<appid>`. Steam corre en su propia unidad,
+  no en esta. Si Steam no estaba abierto, se abre.
+- Al salir del juego queda Big Picture en la tele; el botón de encendido del mando vuelve a la
+  Vista TV.
+- Cada juego listado se guarda en la tabla `steam_game` por su appid, para poder ponerle
+  etiquetas más adelante (los juegos infantiles para los peques).
+- No está para los peques, y el tiempo de juego no se cuenta todavía.
+- Si no abre nada: `systemctl --user status jellycartoon-steam.socket` y
+  `journalctl --user -u 'jellycartoon-steam@*'` en ese PC, y el Registro de la app.
+
 ### Dailymotion
 
 Dibujos de Dailymotion para los peques (#66), con el reproductor oficial de Dailymotion y su

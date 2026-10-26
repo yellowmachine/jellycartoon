@@ -56,6 +56,10 @@ services:
       MUSIC_DIR: ${HOST_MUSIC_DIR:+/music}
       # Optional retro games (#176), played in the browser: only with HOST_GAMES_DIR.
       GAMES_DIR: ${HOST_GAMES_DIR:+/games}
+      # Optional Steam games, launched on this PC in Big Picture: only with HOST_STEAM_DIR. The
+      # service that opens them (deploy/jellycartoon-steam.socket) leaves its socket in HOST_DATA_DIR.
+      STEAM_DIR: ${HOST_STEAM_DIR:+/steam}
+      STEAM_SOCKET: ${HOST_STEAM_DIR:+/data/steam.sock}
       # The mpv of the Snapcast services below; the app offers Snapcast only while it is there.
       MUSIC_MPV_SOCKET: ${HOST_MUSIC_DIR:+/data/mpv-music.sock}
       # snapserver's control API, to list its clients and set their volume. It is on the host's
@@ -117,6 +121,10 @@ services:
       - ${HOST_MUSIC_DIR:-./no-music}:/music:ro
       # Read-only too, and an empty folder without HOST_GAMES_DIR (no Juegos section).
       - ${HOST_GAMES_DIR:-./no-games}:/games:ro
+      # Only what lists Steam's games, read-only: their manifests and the library's pictures, not
+      # Steam's config (its accounts). Empty folders without HOST_STEAM_DIR (no Steam section).
+      - ${HOST_STEAM_DIR:-./no-steam}/steamapps:/steam/steamapps:ro
+      - ${HOST_STEAM_DIR:-./no-steam}/appcache/librarycache:/steam/appcache/librarycache:ro
     # The host, from inside the container: https://docs.docker.com/reference/compose-file/services/#extra_hosts
     extra_hosts:
       - host.docker.internal:host-gateway

@@ -1541,6 +1541,16 @@ export const gameShader = pgTable('game_shader', {
 	shader: text('shader').notNull()
 });
 
+/**
+ * A game installed in Steam on the PC with the screen (steam.ts), by its appid: saved as it is
+ * listed, so that tags can be given to it later (only adults see Steam for now).
+ */
+export const steamGame = pgTable('steam_game', {
+	appid: integer('appid').primaryKey(),
+	name: text('name').notNull(),
+	updatedAt: timestamp('updated_at').notNull().defaultNow()
+});
+
 /** A person's Modo DJ setups (#117), saved with a name to start them again. */
 export const djPreset = pgTable(
 	'dj_preset',

@@ -1,0 +1,13 @@
+# Where JellyCartoon asks for Steam's games (Juegos → Steam): a systemd user socket on the PC with
+# the screen and Steam; each connection starts jellycartoon-steam@.service. See "Steam" in the README.
+[Unit]
+Description=Juegos de Steam para JellyCartoon
+
+[Socket]
+# @SOCKET@ is replaced on install: <HOST_DATA_DIR>/steam.sock, which the app sees as /data/steam.sock.
+ListenStream=@SOCKET@
+Accept=yes
+SocketMode=0600
+
+[Install]
+WantedBy=sockets.target

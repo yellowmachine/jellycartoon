@@ -44,6 +44,16 @@ export const variables = defineEnvVars({
 			'Optional read-only directory with retro games (#176), one folder per system (`snes`, `nes`…), played in the browser with EmulatorJS. Without it there is no Juegos section.',
 		schema: (value) => value || undefined
 	},
+	STEAM_DIR: {
+		description:
+			"Optional read-only folder with the `steamapps` and `appcache/librarycache` of Steam on the PC with the screen (in development, Steam's own folder, `~/.local/share/Steam`). Its installed games are listed in Juegos, to launch them there.",
+		schema: (value) => value || undefined
+	},
+	STEAM_SOCKET: {
+		description:
+			"Socket of the systemd service on the PC with the screen that opens Steam's games (deploy/jellycartoon-steam.socket). Without it Steam's games are listed but not launched.",
+		schema: (value) => value || undefined
+	},
 	MUSIC_MPV_SOCKET: {
 		description:
 			'IPC socket of an mpv that plays music into Snapcast (its output is the FIFO of a snapserver `pipe` source). With it, albums can be sent to Snapcast from the Música page.',
