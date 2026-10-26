@@ -1,11 +1,12 @@
 import { error } from '@sveltejs/kit';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { playEpisodes, seriesQueue } from '#lib/server/cinema/episode-actions.ts';
 import { savedSeriesInfo } from '#lib/server/library/series-info.ts';
+import { episodeOrder } from '#lib/server/episode-order.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	if (!mpvEnabled) error(404, 'No hay mpv configurado (MPV_SOCKET)');
@@ -28,9 +29,9 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			and(eq(watchProgress.episodeId, episode.id), eq(watchProgress.userId, locals.user!.id))
 		)
 		.where(and(eq(episode.seriesId, id), eq(episode.status, 'ready'), eq(episode.missing, false)))
-		.orderBy(asc(episode.season), asc(episode.number));
-	// Where to go on: the first one not finished.
-	const next = episodes.find((e) => !e.completed) ?? null;
+		.orderBy(...episodeOrder);
+	// Where to go on: the first one not finished, extras aside.
+	const next = episodes.find((e) => e.season !== 0 && !e.completed) ?? null;
 	// Only what is already known: looking it up is for the whole app's page.
 	const info = await savedSeriesInfo(id);
 	return {

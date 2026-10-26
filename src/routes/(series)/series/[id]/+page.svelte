@@ -20,6 +20,9 @@
 
 	let { data, form }: PageProps = $props();
 
+	/** Season 0 is the extras, after the last one (#220). */
+	const seasonName = (season: number) => (season === 0 ? 'Extras' : `Temporada ${season}`);
+
 	// While Whisper makes subtitles, or the model labels episodes, the page follows how it goes.
 	const makingSubtitles = $derived(
 		data.seasons.some((s) =>
@@ -307,7 +310,7 @@
 			>
 				<option value={null}>Todas las temporadas</option>
 				{#each data.seasons as { season: number } (number)}
-					<option value={number}>Temporada {number}</option>
+					<option value={number}>{seasonName(number)}</option>
 				{/each}
 			</select>
 		{/if}
@@ -474,12 +477,12 @@
 			<input
 				type="checkbox"
 				class="rounded border-zinc-600 bg-zinc-900 text-amber-500"
-				aria-label="Seleccionar toda la temporada {season}"
+				aria-label="Seleccionar {seasonName(season).toLowerCase()} entera"
 				checked={ids.every((id) => selected.has(id))}
 				onchange={(e) => toggleSeason(ids, e.currentTarget.checked)}
 			/>
 		{/if}
-		Temporada {season}
+		{seasonName(season)}
 	</h2>
 	<ul
 		class={grid
@@ -734,7 +737,7 @@
 		>
 		<p class="w-full text-xs text-zinc-500">
 			Se ponen al final de esa temporada, en el orden que tienen ahora. Si la temporada no existe,
-			se crea.
+			se crea. La 0 es la de extras.
 		</p>
 		{#if form && 'labelsQueued' in form}
 			<p class="w-full text-sm text-amber-400">

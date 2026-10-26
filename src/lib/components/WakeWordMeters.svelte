@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { WAKE_THRESHOLD, wakeWord } from '#lib/wake-word.svelte.ts';
+	import { WAKE_MARGIN, WAKE_THRESHOLD, wakeWord } from '#lib/wake-word.svelte.ts';
 
 	/**
 	 * «Avanzado» (#144, Ajustes): under the big microphone, how «hola casita» hears on this device,
-	 * live: the microphone's level, the word's score with its threshold, and the cleaning. Changed
+	 * live: the microphone's level, the word's score with its threshold, the margin that leaves out a
+	 * TV further away with the last order's levels, and the cleaning. Changed
 	 * here, kept as in Ajustes. As /activacion's bars, but with what the app really uses.
 	 */
 
@@ -14,6 +15,19 @@
 			minute: '2-digit',
 			second: '2-digit'
 		});
+
+	/** What the last order heard: the voice, what was left out as background, how it ended. */
+	const lastOrder = $derived.by(() => {
+		const last = wakeWord.lastOrder;
+		if (!last) return null;
+		const voiceDb = last.voiceDb === null ? '—' : `${last.voiceDb.toFixed(0)} dB`;
+		const background =
+			last.backgroundDb === null
+				? 'nada de fondo'
+				: `de fondo ${last.backgroundDb.toFixed(0)} dB (${comma(last.backgroundMs / 1000)} s sin contar)`;
+		const end = last.capped ? '; acabó por tiempo, no por silencio' : '';
+		return `Última orden (${clock(last.at)}): tu voz ${voiceDb}, ${background}${end}.`;
+	});
 </script>
 
 <section class="w-full max-w-md rounded-xl bg-zinc-900 p-4 text-left text-sm">
@@ -74,6 +88,24 @@
 		/>
 		<span class="w-14 text-right font-mono text-amber-400">{comma(wakeWord.threshold)}</span>
 	</label>
+
+	<label class="mb-1 flex items-center gap-2">
+		<span class="w-20 shrink-0 text-zinc-400">Margen</span>
+		<input
+			type="range"
+			min={WAKE_MARGIN.min}
+			max={WAKE_MARGIN.max}
+			step={WAKE_MARGIN.step}
+			value={wakeWord.margin}
+			oninput={(e) => wakeWord.setMargin(Number(e.currentTarget.value))}
+			class="flex-1 accent-amber-500"
+		/>
+		<span class="w-14 text-right font-mono text-amber-400">{wakeWord.margin} dB</span>
+	</label>
+	<p class="mb-3 text-xs text-zinc-500">
+		La voz que llega este tanto más baja que la tuya (una tele lejos) no cuenta como orden.
+		{#if lastOrder}<br />{lastOrder}{/if}
+	</p>
 
 	<label class="flex items-start gap-2">
 		<input

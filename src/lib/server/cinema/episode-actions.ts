@@ -1,5 +1,5 @@
 import { fail } from '@sveltejs/kit';
-import { and, asc, eq, gt, inArray, or } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { AUDIO_LANG } from '$app/env/private';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
@@ -8,6 +8,7 @@ import { hlsDir, hostEpisodesReady, hostHlsFile, hostPlaylist } from '#lib/serve
 import { allowedEpisodes } from '#lib/server/kids.ts';
 import { videoClosed } from '#lib/server/kid-time.ts';
 import { getSettings } from '#lib/server/settings.ts';
+import { episodeOrder, episodesAfter } from '#lib/server/episode-order.ts';
 import { log } from '#lib/server/log.ts';
 import { mpvEnabled, play as playOnHost } from './mpv.ts';
 
@@ -126,12 +127,9 @@ export async function seriesQueue(userId: string, episodeId: number) {
 				eq(episode.seriesId, ep.seriesId),
 				eq(episode.status, 'ready'),
 				eq(episode.missing, false),
-				or(
-					gt(episode.season, ep.season),
-					and(eq(episode.season, ep.season), gt(episode.number, ep.number))
-				)
+				episodesAfter(ep)
 			)
 		)
-		.orderBy(asc(episode.season), asc(episode.number));
+		.orderBy(...episodeOrder);
 	return [episodeId, ...after.map((e) => e.id)];
 }
