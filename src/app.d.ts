@@ -11,6 +11,8 @@ declare global {
 		interface Locals {
 			user?: User;
 			session?: Session;
+			/** A voice satellite's request, with its key and no session (#223, satellites.ts). */
+			satellite?: import('#lib/server/satellites.ts').Satellite;
 		}
 
 		// interface Error {}

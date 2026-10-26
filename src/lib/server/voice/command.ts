@@ -1120,11 +1120,14 @@ export interface VoiceTiming {
 
 /**
  * What was said, done: what the device must do, and the sentence to read aloud. `user`: who speaks,
- * from the session; an adult, a child's account has no voice.
+ * from the session; an adult, a child's account has no voice. `satellite`: said to a voice satellite
+ * (#223), by anyone in the room: `user` is who made its key, in whose name what it writes goes, but
+ * without their name nor what they watch.
  */
 export async function runVoiceCommand(
 	request: VoiceRequest,
-	user: Person
+	user: Person,
+	satellite: string | null = null
 ): Promise<VoiceReply & { timing: VoiceTiming }> {
 	const started = performance.now();
 	const [albums, playlists, model, { hoursSince }, keepHistory, watchingHere, recipes, sites] =
@@ -1132,8 +1135,8 @@ export async function runVoiceCommand(
 			getAlbums(),
 			listPlaylists(),
 			voiceModel(),
-			historySince([user]),
-			keepsHistory(user.id),
+			historySince(satellite ? [] : [user]),
+			satellite ? true : keepsHistory(user.id),
 			videoText(request.video),
 			listRecipes(),
 			listRecipeSites()
@@ -1167,7 +1170,12 @@ export async function runVoiceCommand(
 			role: 'user',
 			content: [
 				{ type: 'text', text: `[${todayText()}]` },
-				{ type: 'text', text: `[Te habla: ${user.name}.]` },
+				{
+					type: 'text',
+					text: satellite
+						? `[Te habla alguien de la casa desde «${satellite}», un satélite de voz sin pantalla: no sabes quién es, así que sin nombres; tampoco hay historial de lo que ve cada uno.]`
+						: `[Te habla: ${user.name}.]`
+				},
 				{ type: 'text', text: soundingNow(request.here, house) },
 				{
 					type: 'text',
@@ -1190,8 +1198,9 @@ export async function runVoiceCommand(
 			]
 		}
 	];
-	const available = [...tools(house), ...historyTools({ self: user })].filter((t) =>
-		request.car ? !NOT_IN_THE_CAR.has(t.function.name) : !ONLY_IN_THE_CAR.has(t.function.name)
+	const available = [...tools(house), ...(satellite ? [] : historyTools({ self: user }))].filter(
+		(t) =>
+			request.car ? !NOT_IN_THE_CAR.has(t.function.name) : !ONLY_IN_THE_CAR.has(t.function.name)
 	);
 
 	for (let round = 0; round < MAX_ROUNDS; round++) {

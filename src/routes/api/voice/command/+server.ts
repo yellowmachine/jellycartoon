@@ -15,8 +15,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!command) error(400, 'Orden no válida');
 	try {
 		const started = performance.now();
-		const { id, name } = locals.user!;
-		const { timing, ...reply } = await runVoiceCommand(command, { id, name });
+		// A satellite's (#223): in the name of who made its key, said by «la casa».
+		const satellite = locals.satellite;
+		const { timing, ...reply } = satellite
+			? await runVoiceCommand(command, { id: satellite.ownerId, name: '' }, satellite.name)
+			: await runVoiceCommand(command, { id: locals.user!.id, name: locals.user!.name });
 		const ms = Math.round(performance.now() - started);
 		// Where the time went, in the line itself: «2,4 s (preparar 0,04 · IA 1,1 + 0,9)».
 		const parts = [
@@ -28,6 +31,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			`«${command.text}» → «${reply.reply}» · ${seconds(ms)} s (${parts.join(' · ')})`,
 			{
 				ms,
+				...(satellite ? { satellite: satellite.name } : {}),
 				...timing,
 				history: command.history.length,
 				actions: reply.actions.map((a) => a.kind),

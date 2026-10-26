@@ -7,6 +7,7 @@ import { createAccessControl } from 'better-auth/plugins/access';
 import { adminAc, defaultStatements, userAc } from 'better-auth/plugins/admin/access';
 import { twoFactor } from 'better-auth/plugins/two-factor';
 import { magicLink } from 'better-auth/plugins/magic-link';
+import { apiKey } from '@better-auth/api-key';
 import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { getRequestEvent } from '$app/server';
 import { db } from '#lib/server/db/index.ts';
@@ -92,6 +93,18 @@ export const auth = betterAuth({
 			disableSignUp: true,
 			expiresIn: 60,
 			storeToken: 'hashed'
+		}),
+		// The voice satellites (#223): a key each, made by the administrator in Ajustes and kept on the
+		// device. Not a session (`enableSessionForAPIKeys`, which the plugin advises against): only
+		// checked on the few paths a satellite uses (hooks.server.ts, satellites.ts). An order is two
+		// requests: plenty a minute, against a key that leaked being tried over and over.
+		apiKey({
+			defaultPrefix: 'casita_',
+			// Its start in Ajustes, to tell one from another: the prefix and four more.
+			startingCharactersConfig: { charactersLength: 11 },
+			requireName: true,
+			enableMetadata: true,
+			rateLimit: { timeWindow: 60_000, maxRequests: 60 }
 		}),
 		sveltekitCookies(getRequestEvent) // make sure this is the last plugin in the array
 	]

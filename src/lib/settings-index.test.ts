@@ -24,6 +24,7 @@ const admin: SettingsShown = {
 	labels: {},
 	routes: {},
 	relay: {},
+	satellites: [],
 	kids: {},
 	twoFactor: {}
 };
@@ -40,6 +41,7 @@ const kid: SettingsShown = {
 	labels: null,
 	routes: null,
 	relay: null,
+	satellites: null,
 	kids: null
 };
 

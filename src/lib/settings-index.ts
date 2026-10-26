@@ -24,6 +24,7 @@ export interface SettingsShown {
 	labels: unknown;
 	routes: unknown;
 	relay: unknown;
+	satellites: unknown;
 	kids: unknown;
 	twoFactor: unknown;
 }
@@ -212,6 +213,13 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		title: 'Compartir viajes',
 		words: 'relé enlace directo dónde voy compartir viaje whatsapp',
 		shown: (d) => Boolean(d.relay)
+	},
+	{
+		id: 'satelites',
+		tab: 'casa',
+		title: 'Satélites de voz',
+		words: 'satélite raspberry micrófono hola casita clave salón alexa',
+		shown: (d) => Boolean(d.satellites)
 	},
 	{
 		id: 'personas',

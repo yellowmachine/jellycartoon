@@ -1,0 +1,14 @@
+# Built from the repo's root: only what the satellite uses.
+*
+!package.json
+!src/lib/vad.ts
+!src/lib/wakeword.ts
+!src/lib/wakeword-recorder.ts
+!src/lib/voice.ts
+!satellite/package.json
+!satellite/bun.lock
+!satellite/src
+!static/wakeword/melspectrogram.onnx
+!static/wakeword/embedding_model.onnx
+!static/wakeword/hola_casita.onnx
+!static/wakeword/silero_vad.onnx

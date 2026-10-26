@@ -1,0 +1,27 @@
+# The voice satellite (#223) on the Raspberry. While it is being made, built and run on it from the
+# PC: DOCKER_HOST=ssh://clientpi.local docker compose -f satellite/compose.yaml up --build -d
+services:
+  satellite:
+    build:
+      context: ..
+      dockerfile: satellite/Dockerfile
+    image: jellycartoon-satellite:dev
+    restart: unless-stopped
+    devices:
+      - /dev/snd
+    group_add:
+      - audio
+    environment:
+      MIC: ${MIC:-default}
+      MIC_RATE: ${MIC_RATE:-48000}
+      MIC_CHANNELS: ${MIC_CHANNELS:-2}
+      WAKE_THRESHOLD: ${WAKE_THRESHOLD:-0.4}
+      WAKE_MARGIN_DB: ${WAKE_MARGIN_DB:-15}
+      TZ: ${TZ:-Europe/Madrid}
+      SERVER_URL: ${SERVER_URL:-}
+      SATELLITE_KEY: ${SATELLITE_KEY:-}
+    volumes:
+      - ordenes:/data
+
+volumes:
+  ordenes:
