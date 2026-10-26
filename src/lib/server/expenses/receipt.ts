@@ -1,14 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { desc, inArray, sql } from 'drizzle-orm';
 import { LABEL_MODEL, OLLAMA_URL } from '$app/env/private';
 import type { ExpenseDraft } from '#lib/expenses.ts';
 import { openRouterConfig, visionModel } from '#lib/server/app-settings.ts';
+import { db } from '#lib/server/db/index.ts';
+import { expense } from '#lib/server/db/schema.ts';
 import { dataRoot } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
 import { today } from '#lib/server/playlist.ts';
-import { draftFromAnswer, RECEIPT_PROMPT, RECEIPT_SCHEMA } from './receipt-parse.ts';
+import { draftFromAnswer, RECEIPT_SCHEMA, receiptPrompt } from './receipt-parse.ts';
 
 /**
  * A receipt's photo read by a vision model (#194): OpenRouter's first, a few seconds; Ollama's, in
@@ -22,6 +25,24 @@ export const receiptsDir = path.join(dataRoot, 'gastos');
 
 /** The model loaded the first time, and a long receipt: well over a frame's. */
 const OLLAMA_TIMEOUT_MS = 180_000;
+
+/** At most, in the prompt: the most used, so it does not grow with every shop ever. */
+const KNOWN_STORES = 50;
+
+/**
+ * The shops the house has bought at, most used first: from receipts and written by hand, not the
+ * fixed ones' or voice's names («Alquiler», «Cena»).
+ */
+async function knownStores() {
+	const rows = await db
+		.select({ store: expense.store })
+		.from(expense)
+		.where(inArray(expense.source, ['ticket', 'mano']))
+		.groupBy(expense.store)
+		.orderBy(desc(sql`count(*)`), expense.store)
+		.limit(KNOWN_STORES);
+	return rows.map((r) => r.store);
+}
 
 /** Whether a receipt can be read here: by Ollama or by OpenRouter. */
 export async function canReadReceipts() {
@@ -37,9 +58,10 @@ export async function readReceipt(image: Buffer, userId: string): Promise<Expens
 	let readBy: ExpenseDraft['readBy'];
 	const started = Date.now();
 	const hasKey = Boolean((await openRouterConfig()).apiKey);
+	const prompt = receiptPrompt(await knownStores().catch(() => []));
 	try {
 		if (!hasKey) throw new Error('sin clave de OpenRouter');
-		answer = await withOpenRouter(base64, userId);
+		answer = await withOpenRouter(base64, prompt, userId);
 		readBy = 'openrouter';
 	} catch (err) {
 		if (hasKey)
@@ -52,7 +74,7 @@ export async function readReceipt(image: Buffer, userId: string): Promise<Expens
 					? 'OpenRouter no pudo leer el ticket, y no hay Ollama (OLLAMA_URL) para probar con él.'
 					: 'Para leer tickets hace falta una clave de OpenRouter u Ollama (OLLAMA_URL).'
 			);
-		answer = await withOllama(base64);
+		answer = await withOllama(base64, prompt);
 		readBy = 'ollama';
 	}
 	const draft = draftFromAnswer(answer, today());
@@ -67,14 +89,14 @@ export async function readReceipt(image: Buffer, userId: string): Promise<Expens
 	return { ...draft, receipt, readBy };
 }
 
-async function withOllama(base64: string) {
+async function withOllama(base64: string, prompt: string) {
 	const res = await fetch(`${OLLAMA_URL!.replace(/\/+$/, '')}/api/chat`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({
 			model: LABEL_MODEL,
 			stream: false,
-			messages: [{ role: 'user', content: RECEIPT_PROMPT, images: [base64] }],
+			messages: [{ role: 'user', content: prompt, images: [base64] }],
 			format: RECEIPT_SCHEMA,
 			// What is written there, not a creative reading.
 			options: { temperature: 0 }
@@ -86,11 +108,11 @@ async function withOllama(base64: string) {
 	return JSON.parse(body?.message?.content ?? '');
 }
 
-async function withOpenRouter(base64: string, userId: string) {
+async function withOpenRouter(base64: string, prompt: string, userId: string) {
 	return completeJson<unknown>({
 		system: 'Lees tickets de compra y devuelves lo que pone, sin inventar.',
 		prompt: [
-			{ type: 'text', text: RECEIPT_PROMPT },
+			{ type: 'text', text: prompt },
 			{ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } }
 		],
 		name: 'ticket',
