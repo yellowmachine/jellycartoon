@@ -88,6 +88,14 @@ export function watchGamepad(press: (what: Press) => void) {
 	let held: Set<Press> | null = null;
 	const since = new Map<Press, number>();
 	let frame = requestAnimationFrame(function poll(now) {
+		// Chromium gives the gamepad to a page that is only behind another window too: with Steam's
+		// Big Picture in front, its cross moved this page as well. Only with the focus, then, and
+		// on getting it back what is held does not press anything, as at the start.
+		if (!document.hasFocus()) {
+			held = null;
+			frame = requestAnimationFrame(poll);
+			return;
+		}
 		const pad = navigator.getGamepads().find((p) => p?.connected);
 		const down = new Set<Press>();
 		if (pad) {

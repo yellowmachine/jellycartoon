@@ -671,9 +671,12 @@ y `docker compose -f compose.prod.yaml up -d`. En desarrollo, `STEAM_DIR` con es
   biblioteca, y así se quedan fuera. Ubisoft Connect Services sí la tiene y sale.
 - Para abrirlos, `scripts/pantalla.sh` instala en ese PC un socket de systemd del usuario
   (`deploy/jellycartoon-steam.socket`) en `HOST_DATA_DIR/steam.sock`, junto al de mpv. Por cada
-  juego elegido arranca `jellycartoon-steam@.service`, que abre con `xdg-open` las direcciones de
-  Steam `steam://open/bigpicture` y `steam://rungameid/<appid>`. Steam corre en su propia unidad,
-  no en esta. Si Steam no estaba abierto, se abre.
+  juego elegido arranca `jellycartoon-steam@.service`, que con `deploy/jellycartoon-steam.sh`
+  (instalado en `~/.local/bin`) abre con `xdg-open` las direcciones de Steam
+  `steam://open/bigpicture` y `steam://rungameid/<appid>`. Steam corre en su propia unidad, no en
+  esta. Si Steam no estaba abierto, abre primero Big Picture y manda el juego cuando ya está
+  arriba (las dos a la vez arrancan dos Steam y el juego se pierde).
+- Con Big Picture delante, la Vista TV deja de leer el mando de juego: solo lo lee con el foco.
 - Al salir del juego queda Big Picture en la tele; el botón de encendido del mando vuelve a la
   Vista TV.
 - Cada juego listado se guarda en la tabla `steam_game` por su appid, para poder ponerle
