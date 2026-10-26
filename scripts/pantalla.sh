@@ -132,6 +132,8 @@ if [[ -n $receiver ]]; then
 		sudo install -D -m 644 "$files/70-mando-g20s.hwdb" "$hwdb"
 		sudo systemd-hwdb update
 		sudo udevadm trigger --sysname-match="event*"
+		# KWin keeps the keys the receiver had when it was opened and drops the new ones (#159).
+		echo "  ! Desenchufa y vuelve a enchufar el receptor del mando, o reinicia, para que KDE vea las teclas nuevas"
 	fi
 else
 	echo "  · No está el receptor del mando G20S Pro: sin hwdb"

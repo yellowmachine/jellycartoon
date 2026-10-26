@@ -881,7 +881,9 @@ sudo cp deploy/70-mando-g20s.hwdb /etc/udev/hwdb.d/
 sudo systemd-hwdb update && sudo udevadm trigger --sysname-match="event*"
 ```
 
-(O volver a enchufar el receptor en lugar de `udevadm trigger`). Con otro mando, sus scancodes
+Después, desenchufar y volver a enchufar el receptor (o reiniciar): con `udevadm trigger` la
+página ya ve las teclas nuevas, pero KDE se queda con las que tenía el receptor al arrancar y no
+toma las nuevas, como el botón de encendido. Con otro mando, sus scancodes
 salen de `evtest` (con `sudo`). En la vista TV: el OK
 entra en lo que tiene el foco, F7 vuelve a su portada, F8 pausa o sigue lo que suena (el mpv del
 salón, o la música, la radio o el podcast del navegador) y F9 habla: un toque empieza y otro
