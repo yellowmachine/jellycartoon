@@ -20,10 +20,26 @@
 				background: #000;
 				overflow: hidden;
 			}
+			#fps {
+				position: fixed;
+				top: 8px;
+				right: 8px;
+				z-index: 10;
+				padding: 2px 8px;
+				border-radius: 6px;
+				background: rgb(0 0 0 / 0.6);
+				color: #bef264;
+				font: 600 16px/1.4 ui-monospace, monospace;
+				pointer-events: none;
+			}
+			#fps:empty {
+				display: none;
+			}
 		</style>
 	</head>
 	<body>
 		<div id="game"></div>
+		<div id="fps"></div>
 		<script>
 			const params = new URLSearchParams(location.search);
 			const rom = params.get('rom') ?? '';
@@ -236,6 +252,25 @@
 			);
 
 			const openMenu = () => parent.dispatchEvent(new Event('juegos:menu'));
+
+			/**
+			 * The frames per second the game really runs at, in a corner: the core's frame count each
+			 * second. Not EmulatorJS' «FPS» option: in 4.2.3 its menu has it, but nothing shows it.
+			 */
+			const fps = document.getElementById('fps');
+			let lastFrame = null;
+			let lastTime = 0;
+			setInterval(() => {
+				const emulator = window.EJS_emulator;
+				if (!emulator?.started) return;
+				const frame = Number(emulator.gameManager.getFrameNum());
+				const now = performance.now();
+				if (lastFrame !== null && !emulator.paused)
+					fps.textContent = `${Math.round(((frame - lastFrame) * 1000) / (now - lastTime))} FPS`;
+				else if (emulator.paused) fps.textContent = '';
+				lastFrame = frame;
+				lastTime = now;
+			}, 1000);
 
 			// Select and Start at once on the gamepad (the standard mapping's 8 and 9): the menu too, for
 			// who plays without the remote at hand.
