@@ -1,8 +1,9 @@
 import { error } from '@sveltejs/kit';
-import { and, eq, gt, inArray, or, asc } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
+import { episodeOrder, episodesAfter } from '#lib/server/episode-order.ts';
 import { getSettings } from '#lib/server/settings.ts';
 import { getCandidates, suggestEpisodes } from '#lib/server/playlist.ts';
 import { seriesTags } from '#lib/server/tags.ts';
@@ -42,13 +43,10 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 				eq(episode.seriesId, ep.seriesId),
 				eq(episode.status, 'ready'),
 				eq(episode.missing, false),
-				or(
-					gt(episode.season, ep.season),
-					and(eq(episode.season, ep.season), gt(episode.number, ep.number))
-				)
+				episodesAfter(ep)
 			)
 		)
-		.orderBy(asc(episode.season), asc(episode.number))
+		.orderBy(...episodeOrder)
 		.limit(1);
 
 	// `?t=0` starts from there instead of where it was left.

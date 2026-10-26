@@ -30,6 +30,17 @@ describe('pickEpisodes', () => {
 		expect(picked.map((e) => e.number)).toEqual([4, 5, 6]);
 	});
 
+	test('serialized series leave the extras (season 0) out', () => {
+		const extras = make(1, 3, { season: 0 }).map((e) => ({ ...e, id: e.id + 50 }));
+		const picked = pickEpisodes([...extras, ...make(1, 4, {}, 2)], 60 * 60);
+		expect(picked.map((e) => [e.season, e.number])).toEqual([
+			[1, 3],
+			[1, 4],
+			[1, 1],
+			[1, 2]
+		]);
+	});
+
 	test('never repeats a series back to back while others remain', () => {
 		for (let run = 0; run < 50; run++) {
 			const picked = pickEpisodes([...make(1, 20), ...make(2, 20), ...make(3, 20)], 90 * 60);

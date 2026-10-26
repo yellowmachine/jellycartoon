@@ -93,7 +93,7 @@
 						s === season ? 'bg-amber-500 text-zinc-950' : 'bg-zinc-800 text-zinc-200'
 					]}
 					aria-pressed={s === season}
-					onclick={() => (chosen = s)}>T{s}</button
+					onclick={() => (chosen = s)}>{s === 0 ? 'Extras' : `T${s}`}</button
 				>
 			{/each}
 		</div>

@@ -21,7 +21,7 @@ export async function allSeries() {
 				count(e.id) filter (where e.status = 'ready')::int as ready,
 				(select e2.id from ${episode} e2
 					where e2.series_id = ${series.id} and e2.status = 'ready' and not e2.missing
-					order by e2.season, e2.number limit 1) as cover
+					order by e2.season = 0, e2.season, e2.number limit 1) as cover
 			from ${series}
 			join ${episode} e on e.series_id = ${series.id} and not e.missing
 			${allowed ? sql`where ${allowed}` : sql``}

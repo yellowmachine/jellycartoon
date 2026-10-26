@@ -1,5 +1,6 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
+import { episodeOrder } from '#lib/server/episode-order.ts';
 import {
 	episode,
 	episodeTitle,
@@ -148,7 +149,7 @@ export async function seriesEpisodes(userId: string, seriesId: number, season?: 
 				allowedEpisodes()
 			)
 		)
-		.orderBy(asc(episode.season), asc(episode.number));
+		.orderBy(...episodeOrder);
 
 	if (season === undefined) {
 		const seasons = new Map<number, { season: number; episodes: number; finished: number }>();

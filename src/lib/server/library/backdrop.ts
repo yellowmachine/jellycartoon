@@ -1,7 +1,8 @@
 import { mkdir, mkdtemp, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
+import { episodeOrder } from '#lib/server/episode-order.ts';
 import { episode, movie, series } from '#lib/server/db/schema.ts';
 import { cachedProbe, inTurn } from '#lib/server/cinema/frames.ts';
 import { log } from '#lib/server/log.ts';
@@ -96,7 +97,7 @@ export async function seriesBackdrop(seriesId: number) {
 				row.episodeId ? eq(episode.id, row.episodeId) : undefined
 			)
 		)
-		.orderBy(asc(episode.season), asc(episode.number))
+		.orderBy(...episodeOrder)
 		.limit(1);
 	if (!ep?.durationSec) return null;
 	await once(file, () =>

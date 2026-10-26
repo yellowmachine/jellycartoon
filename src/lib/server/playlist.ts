@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { allowedSeries } from '#lib/server/kids.ts';
+import { byEpisodeOrder } from '#lib/server/episode-order.ts';
 import {
 	episode,
 	episodeTitle,
@@ -32,12 +33,14 @@ function shuffle<T>(items: T[]) {
 
 /**
  * Per series, the order episodes should be offered in:
- * - serialized: from the first unwatched episode onwards, wrapping around to the start.
+ * - serialized: from the first unwatched episode onwards, wrapping around to the start; the extras
+ *   (season 0) only if it has nothing else.
  * - standalone: unwatched first (shuffled), then the ones watched longest ago.
  */
 function seriesQueue(episodes: Candidate[]) {
 	if (episodes[0].serialized) {
-		const ordered = episodes.toSorted((a, b) => a.season - b.season || a.number - b.number);
+		const normal = episodes.filter((e) => e.season !== 0);
+		const ordered = (normal.length ? normal : episodes).toSorted(byEpisodeOrder);
 		const start = Math.max(
 			0,
 			ordered.findIndex((e) => !e.completed)

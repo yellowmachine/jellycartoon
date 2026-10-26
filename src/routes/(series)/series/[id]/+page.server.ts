@@ -1,5 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { and, asc, eq, inArray, lt, notInArray, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
@@ -23,6 +23,7 @@ import {
 } from '#lib/server/auto-subtitles.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
 import { getSettings } from '#lib/server/settings.ts';
+import { episodeOrder, episodesBefore } from '#lib/server/episode-order.ts';
 import {
 	cancelLabels,
 	labelJobs,
@@ -81,7 +82,7 @@ export const load: PageServerLoad = async ({ params, locals, cookies }) => {
 			and(eq(watchProgress.episodeId, episode.id), eq(watchProgress.userId, locals.user!.id))
 		)
 		.where(and(eq(episode.seriesId, id), eq(episode.missing, false)))
-		.orderBy(asc(episode.season), asc(episode.number));
+		.orderBy(...episodeOrder);
 
 	// What deleting the series frees up (missing episodes included: their files are there too).
 	const [stored] = await db
@@ -403,7 +404,7 @@ export const actions: Actions = {
 			return fail(500, { message: 'No se pudo sacar la miniatura' });
 		}
 	},
-	/** Every episode before this one in the series, in season and number order. */
+	/** Every episode before this one in the series, in season and number order (extras apart). */
 	markPreviousWatched: async ({ params, request, locals }) => {
 		const id = Number((await request.formData()).get('id'));
 		const seriesId = Number(params.id);
@@ -415,16 +416,7 @@ export const actions: Actions = {
 		const previous = await db
 			.select({ id: episode.id })
 			.from(episode)
-			.where(
-				and(
-					eq(episode.seriesId, seriesId),
-					eq(episode.missing, false),
-					or(
-						lt(episode.season, ep.season),
-						and(eq(episode.season, ep.season), lt(episode.number, ep.number))
-					)
-				)
-			);
+			.where(and(eq(episode.seriesId, seriesId), eq(episode.missing, false), episodesBefore(ep)));
 		await markWatched(
 			locals.user!.id,
 			previous.map((e) => e.id)
@@ -449,7 +441,7 @@ export const actions: Actions = {
 				.select({ id: episode.id })
 				.from(episode)
 				.where(and(eq(episode.seriesId, seriesId), inArray(episode.id, ids)))
-				.orderBy(asc(episode.season), asc(episode.number));
+				.orderBy(...episodeOrder);
 			const [{ last }] = await tx
 				.select({ last: sql<number>`coalesce(max(${episode.number}), 0)::int` })
 				.from(episode)
