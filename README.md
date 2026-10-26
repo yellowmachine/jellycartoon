@@ -1164,7 +1164,9 @@ WUD_PASSWORD="..."                # contraseña del usuario admin de WUD; sin «
 
 ### Publicar una versión
 
-1. **PR de `development` a `main`**, y merge.
+1. **PR de `development` a `main`**, y merge. Solo se puede con el CI en verde (`.github/workflows/ci.yml`:
+   Prettier, `svelte-check`, tests, build y que no falte ninguna migración); también corre en cada
+   push a `development`.
 2. **Un release en GitHub sobre `main`**, con la versión como `vX.Y.Z` (tres números): _patch_ para
    arreglos, _minor_ para novedades, _major_ si algo deja de funcionar como antes. Las notas, en
    español: son las que ve el administrador en el aviso de la app. No lo marques como _pre-release_,
@@ -1175,7 +1177,8 @@ WUD_PASSWORD="..."                # contraseña del usuario admin de WUD; sin «
    ```
 
 3. **Espera a que Actions construya las imágenes** (unos minutos). Desde ahí, WUD las instala esa
-   madrugada, o el administrador con «Actualizar ahora».
+   madrugada, o el administrador con «Actualizar ahora». Cuando terminan (o fallan) llega un aviso a
+   Slack, por el _Incoming Webhook_ del secreto `SLACK_WEBHOOK_URL` del repositorio.
 
 WUD actualiza las imágenes, nunca `compose.prod.yaml` ni el `.env`. Si un cambio necesita tocarlos,
 dilo en las notas («requiere actualizar el compose»): en cada casa hay que traer el compose nuevo

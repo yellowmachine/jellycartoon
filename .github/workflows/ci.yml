@@ -1,0 +1,58 @@
+name: CI
+
+# What has to pass before a PR reaches main (its ruleset requires the `ci` job), and on every push to
+# development to see it fail before opening one.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [development]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    # No database: the tests mock it, and the build and drizzle-kit generate only need these present
+    # (as in the Dockerfile).
+    env:
+      DATABASE_URL: postgres://ci/ci
+      ORIGIN: http://localhost
+      BETTER_AUTH_SECRET: ci
+    steps:
+      - uses: actions/checkout@v7
+
+      # Bun 1, as the Dockerfile's oven/bun:1.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.x
+
+      - run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Types
+        run: bun run check
+
+      - name: Tests
+        run: bun run test
+
+      - name: Build
+        run: bun run build
+
+      # A schema change without its migration: drizzle-kit would write one now.
+      - name: Migrations
+        run: |
+          bun run db:generate
+          if [ -n "$(git status --porcelain drizzle)" ]; then
+            git status --porcelain drizzle
+            echo "::error::The schema changed without its migration: run bun run db:generate and commit it."
+            exit 1
+          fi

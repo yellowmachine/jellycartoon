@@ -131,3 +131,31 @@ jobs:
           # Its own cache scope, apart from the others'.
           cache-from: type=gha,scope=backup
           cache-to: type=gha,scope=backup,mode=max
+
+  # A release to Slack once its images are there (or could not be built): from then on, «Actualizar
+  # ahora» installs it. By an incoming webhook, the repository's SLACK_WEBHOOK_URL secret.
+  slack:
+    needs: [build, caddy, backup]
+    if: always() && github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      # The payload as a file, built by jq: the notes may have anything in them.
+      - env:
+          OK: ${{ !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+          VERSION: ${{ github.event.release.name || github.event.release.tag_name }}
+          NOTES: ${{ github.event.release.body }}
+          URL: ${{ github.event.release.html_url }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$OK" = true ]; then
+            text="✅ JellyCartoon $VERSION, lista para instalar: <$URL|notas>"$'\n\n'"$NOTES"
+          else
+            text="❌ JellyCartoon $VERSION: no se pudieron construir las imágenes. <$RUN|Ver el error>"
+          fi
+          jq -n --arg text "$text" '{text: $text}' > payload.json
+
+      - uses: slackapi/slack-github-action@v4
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload-file-path: payload.json
