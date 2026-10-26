@@ -1,12 +1,9 @@
-# Opens the Steam game whose appid JellyCartoon sends on the socket (jellycartoon-steam.socket),
-# with Steam's own URLs: Big Picture first, so that leaving the game leaves Big Picture on the TV.
-# xdg-open hands them to steam.desktop, which runs in its own unit: this one ends at once.
+# Opens the Steam game whose appid JellyCartoon sends on the socket (jellycartoon-steam.socket):
+# deploy/jellycartoon-steam.sh, installed by scripts/pantalla.sh.
 [Unit]
 Description=Abrir un juego de Steam para JellyCartoon
 
 [Service]
 StandardInput=socket
 StandardOutput=journal
-# $$ is a $ for bash. Only digits get into the URL; anything else is only logged, and ends well, so
-# that no failed unit is left behind for each.
-ExecStart=/usr/bin/bash -c 'read -r appid; if [[ $$appid =~ ^[0-9]+$$ ]]; then xdg-open steam://open/bigpicture && exec xdg-open "steam://rungameid/$$appid"; else echo "No es un appid de Steam: $$appid"; fi'
+ExecStart=%h/.local/bin/jellycartoon-steam

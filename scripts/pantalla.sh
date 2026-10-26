@@ -74,6 +74,8 @@ elif command -v steam >/dev/null; then
 	install_file "$files/steam-socket" ~/.config/systemd/user/jellycartoon-steam.socket && steam=1
 	install_file "$files/jellycartoon-steam@.service" ~/.config/systemd/user/jellycartoon-steam@.service &&
 		steam=1
+	install_file "$files/jellycartoon-steam.sh" ~/.local/bin/jellycartoon-steam &&
+		chmod +x ~/.local/bin/jellycartoon-steam
 	if [[ -n $steam ]] || ! systemctl --user is-active -q jellycartoon-steam.socket; then
 		systemctl --user daemon-reload
 		systemctl --user enable jellycartoon-steam.socket >/dev/null 2>&1
@@ -196,7 +198,7 @@ for house in "${selected[@]}"; do
 		continue
 	fi
 	tar -C "$deploy" -c mpv kwin 70-mando-g20s.hwdb jellycartoon-mpv.service jellycartoon-tv.desktop \
-		jellycartoon-tv.service jellycartoon-steam.socket jellycartoon-steam@.service | ssh "$dest" tar -x -C "$dir"
+		jellycartoon-tv.service jellycartoon-steam.socket jellycartoon-steam@.service jellycartoon-steam.sh | ssh "$dest" tar -x -C "$dir"
 	ssh "$dest" "cat > $dir/pantalla.sh" <<<"$remote"
 	ssh -t "$dest" bash "$dir/pantalla.sh" "$project" || echo "  ✗ Algo falló en $name"
 	echo
