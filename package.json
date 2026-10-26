@@ -53,6 +53,7 @@
 		"#lib/*": "./src/lib/*"
 	},
 	"dependencies": {
+		"@better-auth/api-key": "1.7.7",
 		"@fontsource/atkinson-hyperlegible": "^5.3.0",
 		"@fontsource/comic-neue": "^5.3.0",
 		"@fontsource/fraunces": "^5.3.0",

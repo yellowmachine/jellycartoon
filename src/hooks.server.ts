@@ -9,6 +9,7 @@ import { db } from '#lib/server/db/index.ts';
 import { session as sessionTable } from '#lib/server/db/schema.ts';
 import { eq } from 'drizzle-orm';
 import { allowedWhileSettingUp, mustSetUp, SETUP_PATH } from '#lib/server/two-factor.ts';
+import { SATELLITE_PATHS, satelliteOf } from '#lib/server/satellites.ts';
 import { guardVideoTime } from '#lib/server/kid-time.ts';
 import { startWorker } from '#lib/server/library/worker.ts';
 import { startSubtitles } from '#lib/server/auto-subtitles.ts';
@@ -85,6 +86,12 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 		redirect(303, '/quien');
 	}
 
+	// A voice satellite with its key (#223): only on its few paths, and never a session.
+	const satellite =
+		!session && SATELLITE_PATHS.includes(event.url.pathname)
+			? await satelliteOf(event.request)
+			: null;
+
 	if (session) {
 		event.locals.session = session.session;
 		event.locals.user = session.user;
@@ -96,6 +103,8 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 		}
 		await guardKids(event);
 		await guardVideoTime(event);
+	} else if (satellite) {
+		event.locals.satellite = satellite;
 	} else if (!PUBLIC_PATHS.some((p) => event.url.pathname.startsWith(p))) {
 		if (event.url.pathname.startsWith('/api/')) {
 			return new Response('Unauthorized', { status: 401 });

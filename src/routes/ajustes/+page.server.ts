@@ -26,6 +26,7 @@ import {
 	voiceModel
 } from '#lib/server/app-settings.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
+import { createSatellite, deleteSatellite, listSatellites } from '#lib/server/satellites.ts';
 import {
 	accountCredits,
 	completeJson,
@@ -76,7 +77,7 @@ import { avatarOf, createAdult, houseAdults, invite, setAvatar } from '#lib/serv
 import { askEvery } from '#lib/server/still-there.ts';
 import { ASK_EVERY_OPTIONS } from '#lib/still-there.ts';
 
-export const load: PageServerLoad = async ({ locals, cookies, url }) => {
+export const load: PageServerLoad = async ({ locals, cookies, url, request }) => {
 	const userId = locals.user!.id;
 	const admin = await isAdmin(userId);
 	const [settings, introFound, version, appPassword, langua] = await Promise.all([
@@ -94,7 +95,10 @@ export const load: PageServerLoad = async ({ locals, cookies, url }) => {
 	let routes = null;
 	let relay = null;
 	let labels = null;
+	let satellites = null;
 	if (admin) {
+		/** Voice satellites (#223): only where there is voice (WHISPER_URL). */
+		if (voiceEnabled) satellites = await listSatellites(request.headers);
 		/** What the vision model looks for in episodes: only with Ollama (OLLAMA_URL). */
 		if (labellingEnabled) labels = { sets: await labelSets(), model: LABEL_MODEL };
 		const r = await relayConfig();
@@ -202,6 +206,7 @@ export const load: PageServerLoad = async ({ locals, cookies, url }) => {
 		routes,
 		relay,
 		labels,
+		satellites,
 		/** Children's accounts (#17): only who manages the app creates them. */
 		kids,
 		people,
@@ -236,6 +241,23 @@ export const actions: Actions = {
 			if (err instanceof APIError) return fail(400, { twoFactorProblem: 'Contraseña incorrecta' });
 			throw err;
 		}
+	},
+	/** A voice satellite (#223): its key, shown once. */
+	createSatellite: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const name = String((await request.formData()).get('name') ?? '').trim();
+		if (!name || name.length > 32)
+			return fail(400, { satelliteProblem: 'Ponle un nombre de hasta 32 letras' });
+		const key = await createSatellite(name, request.headers);
+		log.info('ajustes', `Satélite de voz nuevo: «${name}»`);
+		return { satelliteKey: key, satelliteName: name };
+	},
+	deleteSatellite: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const id = String((await request.formData()).get('id') ?? '');
+		await deleteSatellite(id, request.headers);
+		log.info('ajustes', 'Satélite de voz quitado', { id });
+		return { saved: 'satellites' };
 	},
 	/** Without the second step again; not for the administrator, who always has it. */
 	disableTwoFactor: async ({ request, locals }) => {
