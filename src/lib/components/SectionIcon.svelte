@@ -14,6 +14,7 @@
 		| 'viajes'
 		| 'nevera'
 		| 'gastos'
+		| 'agenda'
 		| 'musica'
 		| 'juegos'
 		| 'salon'
@@ -77,6 +78,12 @@
 		<path d="M5 6a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6Z" />
 		<path d="M5 10h14" />
 		<path d="M15 7v6" />
+	{:else if name === 'agenda'}
+		<!-- A calendar (Lucide's calendar). -->
+		<path d="M8 2v4" />
+		<path d="M16 2v4" />
+		<rect width="18" height="18" x="3" y="4" rx="2" />
+		<path d="M3 10h18" />
 	{:else if name === 'gastos'}
 		<!-- A receipt (Lucide's receipt). -->
 		<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />

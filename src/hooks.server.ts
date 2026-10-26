@@ -19,6 +19,7 @@ import { wakeCatalog } from '#lib/server/cinema/catalog.ts';
 import { wakeExtras } from '#lib/server/cinema/info.ts';
 import { wakeMusicCatalog } from '#lib/server/music/catalog.ts';
 import { startPodcastRefresh } from '#lib/server/podcasts/podcasts.ts';
+import { startAgenda } from '#lib/server/agenda/agenda.ts';
 import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
 import { log, startLogCleanup } from '#lib/server/log.ts';
 
@@ -40,6 +41,8 @@ export const init: ServerInit = async () => {
 	startNightlyScan();
 	// New episodes of the followed podcasts, every few hours.
 	startPodcastRefresh();
+	// The agenda's notices (#200), every minute, and the fridge's «Hoy» at midnight.
+	startAgenda();
 	// In the Registro: which version started, and how each of the above starts.
 	await logStartup();
 };
@@ -52,7 +55,8 @@ export const handleError: HandleServerError = ({ kind, error, event }) => {
 
 // /rest: the Subsonic API logs in with its own parameters (#27). /quien: the children choosing
 // their avatar on a trusted device, before they have a session (#141). /bienvenida: an adult
-// choosing their password with the link the administrator gave them (#157).
+// choosing their password with the link the administrator gave them (#157). /api/calendario: the
+// agenda's .ics for a phone's calendar, with its secret in the link (#200).
 const PUBLIC_PATHS = [
 	'/login',
 	'/bienvenida',
@@ -60,7 +64,8 @@ const PUBLIC_PATHS = [
 	'/api/health',
 	'/rest/',
 	'/quien',
-	'/api/quien/'
+	'/api/quien/',
+	'/api/calendario/'
 ];
 
 const handleBetterAuth: Handle = async ({ event, resolve }) => {

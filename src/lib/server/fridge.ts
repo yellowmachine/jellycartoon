@@ -6,6 +6,7 @@ import { KIDS_ROLE } from '#lib/server/kids.ts';
 import { notify } from '#lib/server/push.ts';
 import { today } from '#lib/server/playlist.ts';
 import { fold } from '#lib/music.ts';
+import { agendaToday } from '#lib/server/agenda/agenda.ts';
 import { MAX_ITEM, MAX_NOTE, paperFor, type FridgeAuthor, type FridgeState } from '#lib/fridge.ts';
 
 /**
@@ -47,7 +48,7 @@ async function listId() {
 /** All of it, as it is now: the post-its still up (newest first) and the list. */
 export async function fridgeState(): Promise<FridgeState> {
 	const list = await listId();
-	const [notes, items] = await Promise.all([
+	const [notes, items, todays] = await Promise.all([
 		db
 			.select({
 				id: fridgeNote.id,
@@ -77,7 +78,8 @@ export async function fridgeState(): Promise<FridgeState> {
 			.from(fridgeItem)
 			.leftJoin(user, eq(user.id, fridgeItem.userId))
 			.where(eq(fridgeItem.noteId, list))
-			.orderBy(asc(fridgeItem.done), asc(fridgeItem.createdAt), asc(fridgeItem.id))
+			.orderBy(asc(fridgeItem.done), asc(fridgeItem.createdAt), asc(fridgeItem.id)),
+		agendaToday()
 	]);
 	return {
 		notes: notes.map((n) => ({
@@ -95,7 +97,8 @@ export async function fridgeState(): Promise<FridgeState> {
 				done: i.done,
 				author: author(i.userId, i.name)
 			}))
-		}
+		},
+		today: todays
 	};
 }
 

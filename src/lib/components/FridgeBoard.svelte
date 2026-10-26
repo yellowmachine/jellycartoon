@@ -11,11 +11,13 @@
 		untilText,
 		type FridgeState
 	} from '#lib/fridge.ts';
+	import { dayEvents, dayName, isOver, localTime, timeOn } from '#lib/agenda.ts';
 
 	/**
 	 * The fridge's door (#131): the house's post-its, crooked, in each person's colour and in a hand's
-	 * letter, with a magnet; and the shopping list, on squared paper, with its items to tick off. To
-	 * write on it, or only to look at it (the TV, `big`).
+	 * letter, with a magnet; the shopping list, on squared paper, with its items to tick off; and the
+	 * agenda's «Hoy» (#200), a calendar's sheet only to look at. To write on it, or only to look at
+	 * it (the TV, `big`).
 	 */
 	let {
 		fridge,
@@ -97,6 +99,15 @@
 		if (items.length && (await send({ action: 'add', items }))) item = '';
 	}
 
+	// «Hoy»: what is over, in grey, as the clock goes; the day itself changes from the server.
+	let now = $state(localTime());
+	$effect(() => {
+		const tick = setInterval(() => (now = localTime()), 30_000);
+		return () => clearInterval(tick);
+	});
+	const today = $derived(dayEvents(fridge.today.events, fridge.today.day));
+	const person = (id: string) => fridge.today.people.find((p) => p.id === id);
+
 	const items = $derived(readonly ? fridge.list.items.filter((i) => !i.done) : fridge.list.items);
 	const bought = $derived(fridge.list.items.filter((i) => i.done).length);
 </script>
@@ -147,6 +158,60 @@
 
 	<!-- On the TV, five to a row and as tall as their words: the rest of the screen is to watch. -->
 	<ul class={['grid gap-6', big ? 'grid-cols-5 items-start gap-10' : 'grid-cols-2 sm:grid-cols-3']}>
+		<!-- The agenda's «Hoy» (#200): first, a calendar's sheet. Changed in the agenda, not here. -->
+		{#if today.length}
+			<li
+				class={['paper relative', big ? 'col-span-1' : 'col-span-2 sm:col-span-1']}
+				style="--bg: #fff; --ink: #1c1917; transform: rotate(1deg)"
+			>
+				<svelte:element
+					this={readonly ? 'div' : 'a'}
+					href={readonly ? undefined : `/agenda?dia=${fridge.today.day}`}
+					class="block"
+				>
+					<p
+						class={[
+							'-mx-4 -mt-5 mb-3 bg-red-600 px-4 pt-4 pb-1 font-bold text-white uppercase',
+							big ? 'text-2xl' : 'text-base'
+						]}
+					>
+						Hoy
+						<span class="font-normal normal-case opacity-90">· {dayName(fridge.today.day)}</span>
+					</p>
+					<ul class="flex flex-col gap-1.5">
+						{#each today as o (`${o.eventId}-${o.day}`)}
+							{@const over = isOver(o, fridge.today.day, now)}
+							<li class={['flex items-baseline gap-2', over && 'text-stone-400']}>
+								<span class={['shrink-0 font-semibold tabular-nums', big ? 'text-xl' : 'text-sm']}
+									>{timeOn(o, fridge.today.day)}</span
+								>
+								<span class={['hand min-w-0 flex-1 break-words', big ? 'text-2xl' : 'text-lg']}
+									>{o.title}</span
+								>
+								<span class="flex shrink-0 -space-x-1 self-center">
+									{#each o.people as id (id)}
+										{@const p = person(id)}
+										{#if p}
+											<span
+												title={p.name}
+												class={[
+													'flex items-center justify-center rounded-full ring-2 ring-white',
+													p.color ?? 'bg-stone-300',
+													big ? 'h-9 w-9 text-xl' : 'h-6 w-6 text-sm',
+													over && 'opacity-50'
+												]}>{p.emoji ?? p.name.slice(0, 1)}</span
+											>
+										{/if}
+									{/each}
+								</span>
+							</li>
+						{/each}
+					</ul>
+				</svelte:element>
+				<!-- After the sheet's red top, so it is on it. -->
+				{@render magnet('#0f766e')}
+			</li>
+		{/if}
 		<!-- The shopping list: first, a little bigger, on squared paper. -->
 		{#if !readonly || items.length}
 			<li
@@ -280,7 +345,7 @@
 			</li>
 		{/each}
 	</ul>
-	{#if readonly && !fridge.notes.length && !items.length}
+	{#if readonly && !fridge.notes.length && !items.length && !today.length}
 		<p class="text-center text-zinc-400">La nevera está vacía.</p>
 	{/if}
 </div>

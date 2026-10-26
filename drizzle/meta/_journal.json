@@ -575,6 +575,13 @@
       "when": 1792952028853,
       "tag": "0081_nice_screwball",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1792991642771,
+      "tag": "0082_careful_psynapse",
+      "breakpoints": true
     }
   ]
 }

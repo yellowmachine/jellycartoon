@@ -93,6 +93,8 @@
 		...(data.kid ? [] : [{ href: '/recetas', label: 'Recetas', icon: 'recetas' as const }]),
 		// The house's post-its and shopping list (#131): the adults write on it; the TV shows it.
 		...(data.kid ? [] : [{ href: '/nevera', label: 'Nevera', icon: 'nevera' as const }]),
+		// The house's agenda (#200): a child sees what is for them.
+		{ href: '/agenda', label: 'Agenda', icon: 'agenda' },
 		// The house's expenses (#194): its adults', all of them.
 		...(data.kid ? [] : [{ href: '/gastos', label: 'Gastos', icon: 'gastos' as const }]),
 		// The road mode's trips, and the way into it: not for a child's account, as Modo carretera.

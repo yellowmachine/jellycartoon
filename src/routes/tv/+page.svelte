@@ -20,7 +20,11 @@
 		events.onmessage = (e) => (fridge = JSON.parse(e.data));
 		return () => events.close();
 	});
-	const fridgeShown = $derived(fridge.notes.length > 0 || fridge.list.items.some((i) => !i.done));
+	const fridgeShown = $derived(
+		fridge.notes.length > 0 ||
+			fridge.list.items.some((i) => !i.done) ||
+			fridge.today.events.length > 0
+	);
 
 	const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 	const sections = $derived([
