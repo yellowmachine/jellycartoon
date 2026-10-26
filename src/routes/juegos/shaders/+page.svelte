@@ -54,7 +54,7 @@
 <p class="mb-6 text-zinc-400">
 	Cómo se ve la imagen de los juegos, para toda la casa: como en una tele de tubo, suavizada o con
 	sus píxeles tal cual. Manda el del juego, si tiene; si no, el de su consola, y si no, el de todos.
-	Se aplica al empezar cada juego.
+	Se aplica al empezar cada juego. El de un juego también se elige jugando, en su menú → Imagen.
 </p>
 
 {#if form?.message}

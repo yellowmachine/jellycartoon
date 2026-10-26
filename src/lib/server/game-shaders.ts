@@ -11,10 +11,16 @@ export async function shaders() {
 	) as Record<string, Shader>;
 }
 
-/** A game's: its own, else its console's, else the one for all, else none. */
-export async function shaderFor(system: string, gameId: number): Promise<Shader> {
+/**
+ * A game's own, if it has one, and the one it has without it: its console's, else the one for all,
+ * else none.
+ */
+export async function shaderFor(system: string, gameId: number) {
 	const set = await shaders();
-	return set[gameScope(gameId)] ?? set[systemScope(system)] ?? set[ALL] ?? 'disabled';
+	return {
+		own: set[gameScope(gameId)] ?? null,
+		inherited: set[systemScope(system)] ?? set[ALL] ?? ('disabled' as Shader)
+	};
 }
 
 /** One for there; none (null) leaves it to the one above. */
