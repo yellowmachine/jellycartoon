@@ -303,7 +303,7 @@ export async function chatWithTools(request: {
 	label: string;
 	details?: Record<string, unknown>;
 	timeoutMs?: number;
-}): Promise<{ content: string | null; toolCalls: ToolCall[] }> {
+}): Promise<{ content: string | null; toolCalls: ToolCall[]; usage: Usage | null }> {
 	const { apiKey } = await openRouterConfig();
 	if (!apiKey) throw new Error('No hay clave de OpenRouter: ponla en Ajustes');
 
@@ -339,7 +339,8 @@ export async function chatWithTools(request: {
 	}
 	return {
 		content: typeof message.content === 'string' && message.content.trim() ? message.content : null,
-		toolCalls: Array.isArray(message.tool_calls) ? message.tool_calls : []
+		toolCalls: Array.isArray(message.tool_calls) ? message.tool_calls : [],
+		usage: body.usage ?? null
 	};
 }
 

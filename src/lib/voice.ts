@@ -90,6 +90,11 @@ export interface VoiceReply {
 
 /** The turns before that are kept: the last exchanges are enough. */
 export const HISTORY_TURNS = 6;
+/**
+ * Nothing said for this long, the conversation is over: the next order goes without the turns
+ * before, as hours-old ones only confused the AI («those timers were already set»).
+ */
+export const HISTORY_IDLE_MS = 10 * 60_000;
 
 const text = (value: unknown, max: number) =>
 	typeof value === 'string' && value.trim() ? value.trim().slice(0, max) : null;

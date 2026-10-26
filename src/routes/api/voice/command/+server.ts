@@ -5,6 +5,9 @@ import { runVoiceCommand } from '#lib/server/voice/command.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
 import { parseVoiceRequest } from '#lib/voice.ts';
 
+/** «1,25»: seconds, from milliseconds. */
+const seconds = (ms: number) => (ms / 1000).toLocaleString('es-ES', { maximumFractionDigits: 2 });
+
 /** What was said (or written) in /voz, done: what the device must do, and what to answer. */
 export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!voiceEnabled) error(404, 'No hay voz configurada (WHISPER_URL)');
@@ -13,12 +16,24 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
 		const started = performance.now();
 		const { id, name } = locals.user!;
-		const reply = await runVoiceCommand(command, { id, name });
-		log.info('voz', `«${command.text}» → «${reply.reply}»`, {
-			ms: Math.round(performance.now() - started),
-			actions: reply.actions.map((a) => a.kind),
-			options: reply.options.length
-		});
+		const { timing, ...reply } = await runVoiceCommand(command, { id, name });
+		const ms = Math.round(performance.now() - started);
+		// Where the time went, in the line itself: «2,4 s (preparar 0,04 · IA 1,1 + 0,9)».
+		const parts = [
+			`preparar ${seconds(timing.prepareMs)}`,
+			`IA ${timing.rounds.map((r) => seconds(r.ms)).join(' + ')}`
+		];
+		log.info(
+			'voz',
+			`«${command.text}» → «${reply.reply}» · ${seconds(ms)} s (${parts.join(' · ')})`,
+			{
+				ms,
+				...timing,
+				history: command.history.length,
+				actions: reply.actions.map((a) => a.kind),
+				options: reply.options.length
+			}
+		);
 		return json(reply);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);

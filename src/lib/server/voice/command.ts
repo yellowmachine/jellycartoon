@@ -1110,11 +1110,23 @@ const NOT_IN_THE_CAR = new Set([
 	'end_recipe'
 ]);
 
+/** Where an order's time went, for the Registro: to know what to make quicker. */
+export interface VoiceTiming {
+	/** Reading what the instructions list (albums, recipes…). */
+	prepareMs: number;
+	/** Each turn with the model: its time, its tokens (and how many were cached), its tools. */
+	rounds: { ms: number; prompt: number; cached: number; completion: number; tools: string[] }[];
+}
+
 /**
  * What was said, done: what the device must do, and the sentence to read aloud. `user`: who speaks,
  * from the session; an adult, a child's account has no voice.
  */
-export async function runVoiceCommand(request: VoiceRequest, user: Person): Promise<VoiceReply> {
+export async function runVoiceCommand(
+	request: VoiceRequest,
+	user: Person
+): Promise<VoiceReply & { timing: VoiceTiming }> {
+	const started = performance.now();
 	const [albums, playlists, model, { hoursSince }, keepHistory, watchingHere, recipes, sites] =
 		await Promise.all([
 			getAlbums(),
@@ -1126,6 +1138,8 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 			listRecipes(),
 			listRecipeSites()
 		]);
+	const timing: VoiceTiming = { prepareMs: Math.round(performance.now() - started), rounds: [] };
+	const reply = (text: string, outcome: Outcome) => ({ ...replyOf(text, outcome), timing });
 	// In the car the house's speakers are far away.
 	const house = snapcastReady() && !request.car;
 	const outcome: Outcome = { actions: [], options: [], asked: null };
@@ -1180,12 +1194,20 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 	);
 
 	for (let round = 0; round < MAX_ROUNDS; round++) {
+		const asked = performance.now();
 		const answer = await chatWithTools({
 			model,
 			messages,
 			tools: available,
 			label: `Voz: «${request.text}»`,
 			details: { round }
+		});
+		timing.rounds.push({
+			ms: Math.round(performance.now() - asked),
+			prompt: answer.usage?.prompt_tokens ?? 0,
+			cached: answer.usage?.prompt_tokens_details?.cached_tokens ?? 0,
+			completion: answer.usage?.completion_tokens ?? 0,
+			tools: answer.toolCalls.map((c) => c.function.name)
 		});
 		if (!answer.toolCalls.length) {
 			return reply(answer.content ?? 'Hecho.', outcome);
@@ -1226,7 +1248,7 @@ export async function runVoiceCommand(request: VoiceRequest, user: Person): Prom
 	);
 }
 
-const reply = (text: string, outcome: Outcome): VoiceReply => ({
+const replyOf = (text: string, outcome: Outcome): VoiceReply => ({
 	reply: text.trim(),
 	actions: outcome.actions,
 	options: outcome.options
