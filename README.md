@@ -647,7 +647,8 @@ Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`.
 - Los shaders (cómo se ve la imagen: tele de tubo, suavizada o los píxeles tal cual), para toda la
   casa, en `/juegos/shaders`: uno para todos los juegos, otro por consola y otro por juego; manda
   el más cercano. Se aplica al empezar cada juego, por encima de lo elegido en el menú de
-  EmulatorJS.
+  EmulatorJS. El del juego también se elige jugando, en su menú (OK o Select + Start) →
+  «Imagen»: al moverse por la lista se ve en el juego, A lo guarda y Atrás lo deja como estaba.
 - No está para los peques.
 
 ### Dailymotion
@@ -881,7 +882,9 @@ sudo cp deploy/70-mando-g20s.hwdb /etc/udev/hwdb.d/
 sudo systemd-hwdb update && sudo udevadm trigger --sysname-match="event*"
 ```
 
-(O volver a enchufar el receptor en lugar de `udevadm trigger`). Con otro mando, sus scancodes
+Después, desenchufar y volver a enchufar el receptor (o reiniciar): con `udevadm trigger` la
+página ya ve las teclas nuevas, pero KDE se queda con las que tenía el receptor al arrancar y no
+toma las nuevas, como el botón de encendido. Con otro mando, sus scancodes
 salen de `evtest` (con `sudo`). En la vista TV: el OK
 entra en lo que tiene el foco, F7 vuelve a su portada, F8 pausa o sigue lo que suena (el mpv del
 salón, o la música, la radio o el podcast del navegador) y F9 habla: un toque empieza y otro

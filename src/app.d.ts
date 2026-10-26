@@ -20,7 +20,7 @@ declare global {
 			/** The TV view's hidden snake (6 1 1 0 on the remote). */
 			snake?: boolean;
 			/** A game's own menu, over the emulator (#176): its options, or the saved games. */
-			gameMenu?: 'menu' | 'partidas';
+			gameMenu?: 'menu' | 'partidas' | 'imagen';
 		}
 		// interface Platform {}
 	}

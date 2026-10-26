@@ -24,7 +24,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		cartridge: `/api/juegos/cartucho/${row.id}`,
 		/** The person's buttons for its console. */
 		controls: await controlsOf(locals.user!.id, game.system),
-		/** The house's shader for it (/juegos/shaders). */
+		/** The house's shader for it (/juegos/shaders): its own, and the one it has without it. */
 		shader: await shaderFor(game.system, row.id)
 	};
 };

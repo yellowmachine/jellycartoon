@@ -3,6 +3,7 @@
 	import { beforeNavigate, goto, pushState } from '$app/navigation';
 	import { page } from '$app/state';
 	import SectionIcon from '#lib/components/SectionIcon.svelte';
+	import { SHADERS, shaderName, type Shader } from '#lib/game-shaders.ts';
 	import { music } from '#lib/music-player.svelte.ts';
 	import type { PageProps } from './$types';
 
@@ -60,7 +61,7 @@
 			backdrop: data.backdrop,
 			cartridge: data.cartridge,
 			controls: JSON.stringify(data.controls),
-			shader: data.shader,
+			shader: data.shader.own ?? data.shader.inherited,
 			...(data.bios ? { bios: data.bios } : {})
 		})}`
 	);
@@ -72,6 +73,7 @@
 		pause(): void;
 		play(): void;
 		displayMessage(text: string, ms: number): void;
+		changeSettingOption(option: 'shader', value: Shader): void;
 		gameManager: {
 			saveSaveFiles(): void;
 			getState(): Uint8Array;
@@ -179,7 +181,7 @@
 	 * page.state: the TV layout reloads the page's data when the window gets the focus back (from
 	 * the frame, here), and that empties page.state.
 	 */
-	let menu = $state<'menu' | 'partidas' | null>(null);
+	let menu = $state<'menu' | 'partidas' | 'imagen' | null>(null);
 	/**
 	 * The picture of the moment it was paused at, for «Guardar partida»: taken before pausing, as a
 	 * paused emulator draws nothing and the browser has no picture of it to give.
@@ -208,7 +210,10 @@
 		const back = () => {
 			if (skipBack) skipBack = false;
 			else if (menu === 'partidas') menu = 'menu';
-			else menu = null;
+			else if (menu === 'imagen') {
+				preview(shader);
+				menu = 'menu';
+			} else menu = null;
 		};
 		addEventListener('juegos:menu', open);
 		addEventListener('popstate', back);
@@ -230,7 +235,14 @@
 				frame?.focus();
 			}
 		}
-		if (menu) void tick().then(() => menuBox?.querySelector<HTMLElement>('button')?.focus());
+		// The one in use, if the menu has one (the shaders'); else the first.
+		if (menu)
+			void tick().then(() =>
+				(
+					menuBox?.querySelector<HTMLElement>('[aria-current="true"]') ??
+					menuBox?.querySelector<HTMLElement>('button')
+				)?.focus()
+			);
 	});
 
 	/** What the menu says while it does something, or what went wrong. */
@@ -239,7 +251,7 @@
 
 	/** Back to the game: the menu's steps out of the history, and the menu closed now. */
 	function close() {
-		const steps = menu === 'partidas' ? 2 : 1;
+		const steps = menu === 'partidas' || menu === 'imagen' ? 2 : 1;
 		skipBack = true;
 		menu = null;
 		history.go(-steps);
@@ -325,6 +337,59 @@
 		menuBox?.querySelector<HTMLElement>('button')?.focus();
 	}
 
+	/**
+	 * The game's shader for the whole house (#176), as in /juegos/shaders: its own, or null for its
+	 * console's. Tried on the game behind as the focus moves, and kept with A.
+	 */
+	let own = $derived<Shader | null>(data.shader.own);
+	const shader = $derived(own ?? data.shader.inherited);
+	/** The one on the game now, once changed here. */
+	let applied: Shader | undefined;
+	let pausing: ReturnType<typeof setTimeout> | undefined;
+
+	/**
+	 * One on the game. A paused emulator draws nothing, the new shader included: a moment of the
+	 * game to show it, paused again after it.
+	 */
+	function preview(id: Shader) {
+		const running = emulator();
+		if (!running || id === (applied ?? shader)) return;
+		applied = id;
+		running.changeSettingOption('shader', id);
+		running.play();
+		clearTimeout(pausing);
+		pausing = setTimeout(() => {
+			if (menu) running.pause();
+		}, 300);
+	}
+
+	function showShaders() {
+		message = '';
+		pushState('', { gameMenu: 'imagen' });
+		menu = 'imagen';
+	}
+
+	async function chooseShader(id: Shader | null) {
+		if (busy) return;
+		busy = true;
+		try {
+			const res = await fetch(`/api/juegos/shader/${data.gameId}`, {
+				method: 'PUT',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ shader: id })
+			});
+			if (!res.ok) throw new Error(await res.text());
+			own = id;
+			skipBack = true;
+			menu = 'menu';
+			history.back();
+		} catch {
+			message = 'No se pudo guardar';
+		} finally {
+			busy = false;
+		}
+	}
+
 	function restart() {
 		emulator()?.gameManager.restart();
 		close();
@@ -394,14 +459,18 @@
 {#if menu}
 	<div
 		bind:this={menuBox}
-		class="fixed inset-0 z-[60] flex items-center justify-center bg-zinc-950/80 p-12 backdrop-blur-sm"
+		class={[
+			'fixed inset-0 z-[60] flex items-center p-12',
+			// The shaders at one side, the game to be seen as it is.
+			menu === 'imagen' ? 'justify-end' : 'justify-center bg-zinc-950/80 backdrop-blur-sm'
+		]}
 	>
 		{#if menu === 'menu'}
 			<div class="w-full max-w-xl">
 				<h2 class="mb-2 text-5xl font-bold">{data.title}</h2>
 				<p class="mb-8 text-xl text-zinc-400">En pausa · Atrás para seguir jugando</p>
 				<div class="flex flex-col gap-3">
-					{#each [{ label: 'Continuar', run: close }, { label: 'Guardar partida', run: save }, { label: 'Cargar partida', run: showSaves }, { label: 'Reiniciar', run: restart }, { label: 'Salir', run: exit }] as option (option.label)}
+					{#each [{ label: 'Continuar', run: close }, { label: 'Guardar partida', run: save }, { label: 'Cargar partida', run: showSaves }, { label: `Imagen: ${shaderName(shader)}`, run: showShaders }, { label: 'Reiniciar', run: restart }, { label: 'Salir', run: exit }] as option (option.run)}
 						<button
 							class="rounded-2xl border-2 border-white/10 bg-zinc-900 px-8 py-4 text-left text-3xl font-semibold transition duration-150 focus-visible:scale-105 focus-visible:border-lime-300 focus-visible:bg-zinc-800 disabled:opacity-50"
 							disabled={busy}
@@ -412,6 +481,32 @@
 				{#if message}
 					<p class="mt-6 text-2xl text-zinc-300">{message}</p>
 				{/if}
+			</div>
+		{:else if menu === 'imagen'}
+			<div class="flex max-h-full w-full max-w-md flex-col rounded-3xl bg-zinc-950/90 p-6">
+				<h2 class="mb-1 text-4xl font-bold">Imagen</h2>
+				<p class="mb-4 text-lg text-zinc-400">Para toda la casa · Atrás para dejarla como estaba</p>
+				{#if message}
+					<p class="mb-4 text-xl text-zinc-300">{message}</p>
+				{/if}
+				<div class="flex flex-col gap-2 overflow-y-auto p-1">
+					{#each [{ id: null, name: `Como su consola (${shaderName(data.shader.inherited)})`, description: '' }, ...SHADERS] as s (s.id)}
+						<button
+							class="rounded-xl border-2 border-white/10 bg-zinc-900 px-5 py-2 text-left transition duration-150 focus-visible:scale-105 focus-visible:border-lime-300 focus-visible:bg-zinc-800 disabled:opacity-50"
+							aria-current={s.id === own}
+							disabled={busy}
+							onfocus={() => preview(s.id ?? data.shader.inherited)}
+							onclick={() => chooseShader(s.id)}
+						>
+							<span class="block text-2xl font-semibold"
+								>{s.name}{#if s.id === own}<span class="text-lime-300"> ✓</span>{/if}</span
+							>
+							{#if s.description}
+								<span class="block text-lg text-zinc-400">{s.description}</span>
+							{/if}
+						</button>
+					{/each}
+				</div>
 			</div>
 		{:else}
 			<div class="flex max-h-full w-full max-w-6xl flex-col">
