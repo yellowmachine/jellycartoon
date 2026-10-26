@@ -49,11 +49,13 @@
 	let headerHeight = $state(0);
 
 	// «Hola casita» instead of the microphone (#144), where this device turned it on (Ajustes);
-	// not in /activacion, which tries the words with the microphone itself.
+	// not in /activacion, which tries the words with the microphone itself. `want` untracked: it
+	// reads its status, and a start that failed (no microphone) set it off and ran it again, loading
+	// the models over and over until the page stopped answering (2026-10-26).
 	$effect(() => {
-		wakeWord.want(
-			Boolean(data.voice) && wakeWord.on && !page.url.pathname.startsWith('/activacion')
-		);
+		const wanted =
+			Boolean(data.voice) && wakeWord.on && !page.url.pathname.startsWith('/activacion');
+		untrack(() => wakeWord.want(wanted));
 	});
 	// Cleaned while nothing plays here: with music or a video, Android's cleaning took the voice too.
 	$effect(() => {
