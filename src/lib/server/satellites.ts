@@ -10,8 +10,16 @@ import { auth } from '#lib/server/auth.ts';
 /** Where the satellite sends its key, as the plugin reads it. */
 const HEADER = 'x-api-key';
 
-/** The only paths a key opens: what it heard, the order, and the living room lowered meanwhile. */
-export const SATELLITE_PATHS = ['/api/voice/transcribe', '/api/voice/command', '/api/salon/bajar'];
+/**
+ * The only paths a key opens: what it heard, the order, its answer read aloud, and the living room
+ * lowered meanwhile.
+ */
+export const SATELLITE_PATHS = [
+	'/api/voice/transcribe',
+	'/api/voice/command',
+	'/api/voice/speak',
+	'/api/salon/bajar'
+];
 
 export interface Satellite {
 	id: string;
