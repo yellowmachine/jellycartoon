@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { PIPER_URL, PIPER_VOICE_EN, PIPER_VOICE_ES } from '$app/env/private';
 import { openRouterConfig, voiceModel } from '#lib/server/app-settings.ts';
 import { probeDuration, toOpus } from '#lib/server/library/ffmpeg.ts';
 import { djDir } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
+import { piper, piperEnabled } from '#lib/server/piper.ts';
 import { completeJson, speech } from '#lib/server/openrouter.ts';
 import { getAlbums, tracksById } from './albums.ts';
 import {
@@ -30,7 +30,7 @@ import { fold, type DjOptions, type DjVoice, type MusicTrack } from '#lib/music.
 
 /** With a voice: OpenRouter's, or Piper's. */
 export async function djEnabled() {
-	return Boolean(PIPER_URL) || Boolean((await openRouterConfig()).apiKey);
+	return piperEnabled || Boolean((await openRouterConfig()).apiKey);
 }
 
 /**
@@ -55,10 +55,10 @@ function delivery(lang: DjOptions['lang'], voice: DjVoice) {
 export const DJ_BATCH = 30;
 /** Fewer than this after the one on, and more are added. */
 export const DJ_REFILL_BELOW = 3;
+/** Quite enough for the words of a talk, by OpenRouter or Piper. */
+const PIPER_TIMEOUT_MS = 60_000;
 /** The DJ's words are kept this long: the queue may be saved and brought back meanwhile. */
 const KEEP_MS = 12 * 3600_000;
-/** Quite enough for the words of a talk; Piper says them in a second or two. */
-const PIPER_TIMEOUT_MS = 60_000;
 
 /**
  * `count` songs at random, of `artists` (none: all), not those in `exclude`; when every one of them
@@ -173,25 +173,11 @@ async function voiced(text: string, lang: DjOptions['lang'], voice: DjVoice) {
 			});
 			return { wav: wavOf(pcm, rate), by: `${SPEECH_MODEL} (${VOICES[voice]})` };
 		} catch (error) {
-			if (!PIPER_URL) throw error;
+			if (!piperEnabled) throw error;
 			log.warn('música', 'La voz de OpenRouter falló; lo dice Piper', { error });
 		}
 	}
 	return { wav: await piper(text, lang), by: 'Piper' };
-}
-
-async function piper(text: string, lang: DjOptions['lang']) {
-	if (!PIPER_URL) throw new Error('No hay voz para el locutor: ni clave de OpenRouter ni Piper');
-	const res = await fetch(`${PIPER_URL!.replace(/\/+$/, '')}/synthesize`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ text, voice: lang === 'en' ? PIPER_VOICE_EN : PIPER_VOICE_ES }),
-		signal: AbortSignal.timeout(PIPER_TIMEOUT_MS)
-	}).catch((err) => {
-		throw new Error(`No se pudo hablar con Piper: ${err instanceof Error ? err.message : err}`);
-	});
-	if (!res.ok) throw new Error(`Piper: ${(await res.text()).slice(0, 200) || res.statusText}`);
-	return new Uint8Array(await res.arrayBuffer());
 }
 
 /** `text` read aloud, as an Opus file in `djDir`: its id, how long it lasts and who said it. */

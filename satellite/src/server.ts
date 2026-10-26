@@ -21,7 +21,7 @@ export const serverName = SERVER_URL;
 /** Longer than this, the server is not answering: given up. */
 const TIMEOUT_MS = 30_000;
 
-async function post<T>(path: string, body: Uint8Array | string, type: string): Promise<T> {
+async function request(path: string, body: Uint8Array | string, type: string) {
 	const res = await fetch(`${SERVER_URL}${path}`, {
 		method: 'POST',
 		headers: { 'x-api-key': KEY!, 'content-type': type },
@@ -29,7 +29,17 @@ async function post<T>(path: string, body: Uint8Array | string, type: string): P
 		signal: AbortSignal.timeout(TIMEOUT_MS)
 	});
 	if (!res.ok) throw new Error(`${path}: ${res.status} ${(await res.text()).slice(0, 200)}`);
-	return res.json() as Promise<T>;
+	return res;
+}
+
+async function post<T>(path: string, body: Uint8Array | string, type: string): Promise<T> {
+	return (await request(path, body, type)).json() as Promise<T>;
+}
+
+/** The answer read aloud by the server's Piper, as a WAV. */
+export async function speech(text: string) {
+	const res = await request('/api/voice/speak', JSON.stringify({ text }), 'application/json');
+	return new Uint8Array(await res.arrayBuffer());
 }
 
 let history: VoiceTurn[] = [];

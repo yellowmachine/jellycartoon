@@ -25,6 +25,7 @@ export interface SettingsShown {
 	routes: unknown;
 	relay: unknown;
 	satellites: unknown;
+	home: unknown;
 	kids: unknown;
 	twoFactor: unknown;
 }
@@ -213,6 +214,13 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		title: 'Compartir viajes',
 		words: 'relé enlace directo dónde voy compartir viaje whatsapp',
 		shown: (d) => Boolean(d.relay)
+	},
+	{
+		id: 'donde-casa',
+		tab: 'casa',
+		title: 'Dónde está la casa',
+		words: 'tiempo previsión lluvia temperatura pueblo ciudad ubicación localización open-meteo',
+		shown: (d) => Boolean(d.home)
 	},
 	{
 		id: 'satelites',

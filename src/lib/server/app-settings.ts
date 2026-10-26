@@ -53,7 +53,8 @@ type Key =
 	| 'ors_url'
 	| 'relay_url'
 	| 'relay_key'
-	| 'agenda_ics_token';
+	| 'agenda_ics_token'
+	| 'house_place';
 
 export async function getAppSetting(key: Key) {
 	return get(key);

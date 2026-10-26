@@ -28,6 +28,13 @@ import {
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
 import { createSatellite, deleteSatellite, listSatellites } from '#lib/server/satellites.ts';
 import {
+	findPlaces,
+	housePlace,
+	placeName,
+	setHousePlace,
+	type Place
+} from '#lib/server/weather.ts';
+import {
 	accountCredits,
 	completeJson,
 	keyBalance,
@@ -96,7 +103,11 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 	let relay = null;
 	let labels = null;
 	let satellites = null;
+	let home = null;
 	if (admin) {
+		/** Where the house is, for the voice's weather (#223). */
+		const place = await housePlace();
+		home = { place, name: place ? placeName(place) : null };
 		/** Voice satellites (#223): only where there is voice (WHISPER_URL). */
 		if (voiceEnabled) satellites = await listSatellites(request.headers);
 		/** What the vision model looks for in episodes: only with Ollama (OLLAMA_URL). */
@@ -207,6 +218,7 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		relay,
 		labels,
 		satellites,
+		home,
 		/** Children's accounts (#17): only who manages the app creates them. */
 		kids,
 		people,
@@ -241,6 +253,43 @@ export const actions: Actions = {
 			if (err instanceof APIError) return fail(400, { twoFactorProblem: 'Contraseña incorrecta' });
 			throw err;
 		}
+	},
+	/** Where the house is (#223): what Open-Meteo finds by that name, to choose one. */
+	findHousePlace: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const name = String((await request.formData()).get('name') ?? '').trim();
+		if (!name) return fail(400, { placeProblem: 'Escribe el pueblo o la ciudad' });
+		try {
+			return { placeOptions: await findPlaces(name) };
+		} catch (err) {
+			return fail(503, { placeProblem: err instanceof Error ? err.message : String(err) });
+		}
+	},
+	saveHousePlace: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		let place: Place;
+		try {
+			const p = JSON.parse(String((await request.formData()).get('place') ?? ''));
+			if (!Number.isFinite(p.lat) || !Number.isFinite(p.lon) || typeof p.name !== 'string')
+				throw new Error();
+			place = {
+				name: p.name.slice(0, 100),
+				region: typeof p.region === 'string' ? p.region.slice(0, 100) : null,
+				country: typeof p.country === 'string' ? p.country.slice(0, 100) : null,
+				lat: p.lat,
+				lon: p.lon
+			};
+		} catch {
+			return fail(400, { placeProblem: 'Sitio no válido' });
+		}
+		await setHousePlace(place);
+		log.info('ajustes', `La casa está en ${placeName(place)}`);
+		return { saved: 'house' };
+	},
+	clearHousePlace: async ({ locals }) => {
+		await requireAdmin(locals.user!.id);
+		await setHousePlace(null);
+		return { saved: 'house' };
 	},
 	/** A voice satellite (#223): its key, shown once. */
 	createSatellite: async ({ request, locals }) => {

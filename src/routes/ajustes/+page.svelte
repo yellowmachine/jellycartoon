@@ -20,6 +20,7 @@
 	import Rutas from './Rutas.svelte';
 	import CompartirViajes from './CompartirViajes.svelte';
 	import Satelites from './Satelites.svelte';
+	import DondeCasa from './DondeCasa.svelte';
 	import Personas from './Personas.svelte';
 	import Version from './Version.svelte';
 	import Cuenta from './Cuenta.svelte';
@@ -84,6 +85,7 @@
 				routes: data.routes,
 				relay: data.relay,
 				satellites: data.satellites,
+				home: data.home,
 				kids: data.kids,
 				twoFactor: data.twoFactor
 			}}
@@ -149,6 +151,8 @@
 		<Rutas {data} {form} {tab} />
 
 		<CompartirViajes {data} {form} {tab} />
+
+		<DondeCasa {data} {form} {tab} />
 
 		<Satelites {data} {form} {tab} />
 
