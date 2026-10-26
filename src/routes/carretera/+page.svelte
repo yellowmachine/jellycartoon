@@ -14,6 +14,7 @@
 	import { musicTarget } from '#lib/music-target.svelte.ts';
 	import { dj } from '#lib/dj.svelte.ts';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
+	import { tapMic } from '#lib/mic-tap.ts';
 	import { playEpisode } from '#lib/podcast-player.svelte.ts';
 	import { SKIP_BACK, SKIP_FORWARD } from '#lib/podcasts.ts';
 	import { STATIONS, type RadioStation } from '#lib/radio.ts';
@@ -235,7 +236,7 @@
 
 	/** Held down, or (Ajustes) a tap to start and another to send. */
 	function press() {
-		if (micMode.tap) voice.toggle();
+		if (micMode.tap) tapMic();
 		else void voice.start();
 	}
 
@@ -839,7 +840,13 @@
 <!-- What the voice is doing, or said. -->
 {#snippet voiceLine()}
 	{#if voice.phase === 'listening'}
-		<span class="text-red-400">Te escucho…{micMode.tap ? ' toca para enviar' : ''}</span>
+		<span class="text-red-400"
+			>Te escucho…{voice.handsFree
+				? ' se envía al callarte'
+				: micMode.tap
+					? ' toca para enviar'
+					: ''}</span
+		>
 	{:else if voice.phase === 'thinking'}
 		<span class="text-zinc-300">Un momento…</span>
 	{:else if voice.problem}

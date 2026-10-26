@@ -131,7 +131,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		id: 'microfono',
 		tab: 'aparato',
 		title: 'Voz y micrófono',
-		words: 'voz hablar pulsar mantener tocar asistente',
+		words: 'voz hablar pulsar mantener tocar asistente silencio callarte enviar solo',
 		shown: (d) => d.voice
 	},
 	{
@@ -139,7 +139,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		tab: 'aparato',
 		title: '«Hola casita»',
 		words:
-			'palabra de activación manos libres sin pulsar escuchar probar umbral sensibilidad tele limpiar ruido',
+			'palabra de activación manos libres sin pulsar escuchar probar umbral sensibilidad tele limpiar ruido eco avanzado nivel barras',
 		shown: (d) => d.voice
 	},
 	{
