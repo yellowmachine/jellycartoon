@@ -5,6 +5,7 @@
 	/**
 	 * What the header's microphone heard and what the AI answered, under the header, on any page
 	 * but /voz (which shows it big): it goes away by itself a while after the answer has been read.
+	 * From it, /voz: with taps, the header's microphone only opens it when held.
 	 */
 
 	/** After the answer has been read, or shown where nothing reads it. */
@@ -61,6 +62,12 @@
 				{/if}
 			{/if}
 		</div>
+		<!-- The big microphone, with the conversation: what was said goes on there. -->
+		<a
+			href="/voz"
+			class="-my-1 shrink-0 rounded-md px-2 py-1 text-amber-400 hover:bg-zinc-800 hover:text-amber-300"
+			>Abrir Hablar</a
+		>
 		{#if voice.phase === 'idle'}
 			<button
 				class="-m-1 rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"

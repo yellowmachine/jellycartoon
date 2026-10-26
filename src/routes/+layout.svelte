@@ -303,9 +303,11 @@
 					{#if data.voice}
 						<a
 							href="/voz"
-							title={micMode.tap
-								? 'Toca para hablar y otra vez para enviar (o Ctrl+Mayús+Espacio) · Mantén pulsado para abrir Hablar'
-								: 'Mantén pulsado para hablar (o Ctrl+Mayús+Espacio) · Pulsa para abrir Hablar'}
+							title={micMode.auto
+								? 'Toca para hablar: se envía al callarte (o Ctrl+Mayús+Espacio) · Mantén pulsado para abrir Hablar'
+								: micMode.tap
+									? 'Toca para hablar y otra vez para enviar (o Ctrl+Mayús+Espacio) · Mantén pulsado para abrir Hablar'
+									: 'Mantén pulsado para hablar (o Ctrl+Mayús+Espacio) · Pulsa para abrir Hablar'}
 							aria-label="Hablar"
 							aria-current={page.url.pathname === '/voz' ? 'page' : undefined}
 							draggable="false"
