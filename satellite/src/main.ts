@@ -5,12 +5,14 @@ import { SPEECH_END, SpeechEnd, Vad } from '../../src/lib/vad.ts';
 import { CHUNK, SAMPLE_RATE, WakeWordDetector, type Run } from '../../src/lib/wakeword.ts';
 import { toWav } from '../../src/lib/wakeword-recorder.ts';
 import { Resampler } from './resample.ts';
+import { duck, sendOrder, serverName, serverReady } from './server.ts';
 
 /**
  * The voice satellite (#223, phase 1): «hola casita» heard on a Raspberry in the living room, out of
  * the browser, with the same code as the phone's (wakeword.ts, vad.ts) and ONNX Runtime for Node.
  * The microphone comes from `arecord` at its own rate, taken to 16 kHz mono here (resample.ts). For now each order only goes to the log and is
- * kept as a WAV (`ORDERS_DIR`), to hear what it cut; sending it to the server is phase 2.
+ * kept as a WAV (`ORDERS_DIR`), to hear what it cut; and, with `SERVER_URL` and `SATELLITE_KEY`, sent
+ * to the house's server (server.ts), its answer to the log (phase 2; spoken, phase 3).
  */
 
 const MODELS_DIR = process.env.MODELS_DIR ?? '/satellite/models';
@@ -104,6 +106,8 @@ interface Order {
 }
 
 let order: Order | null = null;
+/** An order on its way to the server: no other until it answers. */
+let busy = false;
 let quietUntil = 0;
 /** The highest score of an attempt (over half the threshold), logged once it falls. */
 let attempt = 0;
@@ -126,7 +130,7 @@ async function step(chunk: Float32Array) {
 			log(`Palabra: ${attempt.toFixed(2)} · ${attempt >= THRESHOLD ? 'saltó' : 'no llegó'}`);
 			attempt = 0;
 		}
-		if (score >= THRESHOLD && now >= quietUntil && !order) begin(score);
+		if (score >= THRESHOLD && now >= quietUntil && !order && !busy) begin(score);
 	}
 }
 
@@ -135,6 +139,7 @@ function begin(score: number) {
 	// Its attempt ends here: what it reached, with the order and not after it.
 	attempt = 0;
 	log(`«Hola casita» (${score.toFixed(2)}): escuchando (la palabra a ${db(voiceDb)})`);
+	duck(true);
 	order = {
 		vad: vad(),
 		end: new SpeechEnd({ ...SPEECH_END, marginDb: MARGIN_DB }, voiceDb),
@@ -157,28 +162,56 @@ async function finish(current: Order, said: 'done' | 'nothing') {
 	quietUntil = Date.now() + QUIET_MS;
 	const { voiceDb, backgroundDb, backgroundMs, capped } = current.end.report;
 	const seconds = (current.chunks.length * CHUNK) / SAMPLE_RATE;
-	if (said === 'nothing') return log(`Nada dicho en ${seconds.toFixed(1)} s`);
+	if (said === 'nothing') {
+		duck(false);
+		return log(`Nada dicho en ${seconds.toFixed(1)} s`);
+	}
 	const background =
 		backgroundDb === null
 			? 'nada de fondo'
 			: `de fondo ${db(backgroundDb)} (${(backgroundMs / 1000).toFixed(1)} s sin contar)`;
 	const how = capped ? 'por tiempo' : 'por silencio';
 	log(`Orden de ${seconds.toFixed(1)} s, ${how}: tu voz ${db(voiceDb)}, ${background}`);
-	await keep(current.chunks);
+	const samples = new Int16Array(current.chunks.reduce((n, c) => n + c.length, 0));
+	let at = 0;
+	for (const c of current.chunks) {
+		samples.set(c, at);
+		at += c.length;
+	}
+	const wav = toWav(samples);
+	await keep(wav);
+	// Not waited for here: the microphone goes on through the detector meanwhile.
+	if (serverReady) void respond(wav);
+	else duck(false);
+}
+
+/** To the server, and its answer to the log. */
+async function respond(wav: Uint8Array) {
+	busy = true;
+	const started = Date.now();
+	try {
+		const done = await sendOrder(wav);
+		const ms = Date.now() - started;
+		if (!done) log(`No se entendió nada (${ms} ms)`);
+		else {
+			const actions = done.reply.actions.map((a) => a.kind).join(', ') || 'ninguna';
+			log(`«${done.text}» → «${done.reply.reply}» (acciones: ${actions}; ${ms} ms)`);
+		}
+	} catch (err) {
+		log(`El servidor no respondió: ${err instanceof Error ? err.message : String(err)}`);
+	} finally {
+		busy = false;
+		quietUntil = Date.now() + QUIET_MS;
+		duck(false);
+	}
 }
 
 /** The order as a WAV, to hear what was cut; the oldest past `KEEP_ORDERS` deleted. */
-async function keep(chunks: Int16Array[]) {
+async function keep(wav: Uint8Array) {
 	try {
-		const samples = new Int16Array(chunks.reduce((n, c) => n + c.length, 0));
-		let at = 0;
-		for (const c of chunks) {
-			samples.set(c, at);
-			at += c.length;
-		}
 		await mkdir(ORDERS_DIR, { recursive: true });
 		const name = `${new Date().toISOString().replace(/[:.]/g, '-')}.wav`;
-		await writeFile(`${ORDERS_DIR}/${name}`, toWav(samples));
+		await writeFile(`${ORDERS_DIR}/${name}`, wav);
 		const files = (await readdir(ORDERS_DIR)).filter((f) => f.endsWith('.wav')).sort();
 		for (const old of files.slice(0, -KEEP_ORDERS)) await rm(`${ORDERS_DIR}/${old}`);
 		log(`Guardada en ${ORDERS_DIR}/${name}`);
@@ -226,5 +259,5 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const)
 	});
 
 log(
-	`Escuchando «hola casita» en ${MIC}, ${MIC_RATE} Hz × ${MIC_CHANNELS} (umbral ${THRESHOLD}, margen ${MARGIN_DB} dB)`
+	`Escuchando «hola casita» en ${MIC}, ${MIC_RATE} Hz × ${MIC_CHANNELS} (umbral ${THRESHOLD}, margen ${MARGIN_DB} dB); ${serverReady ? `órdenes a ${serverName}` : 'sin servidor: órdenes solo al log'}`
 );

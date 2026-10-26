@@ -18,6 +18,8 @@ services:
       WAKE_THRESHOLD: ${WAKE_THRESHOLD:-0.4}
       WAKE_MARGIN_DB: ${WAKE_MARGIN_DB:-15}
       TZ: ${TZ:-Europe/Madrid}
+      SERVER_URL: ${SERVER_URL:-}
+      SATELLITE_KEY: ${SATELLITE_KEY:-}
     volumes:
       - ordenes:/data
 
