@@ -164,3 +164,7 @@ jobs:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
           payload-file-path: payload.json
+          # A wrong webhook fails in seconds, with Slack's answer, rather than minutes of retries
+          # and nothing in the log.
+          retries: rapid
+          errors: true
