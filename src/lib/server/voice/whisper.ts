@@ -1,4 +1,5 @@
 import { WHISPER_SUBTITLES_URL, WHISPER_URL } from '$app/env/private';
+import { getAlbums } from '#lib/server/music/albums.ts';
 import { cleanTranscript } from './transcript.ts';
 import { phrasesFromWhisper, type WhisperVerbose } from './whisper-cues.ts';
 
@@ -16,6 +17,35 @@ export const voiceEnabled = Boolean(WHISPER_URL);
  */
 const SUBTITLES_URL = WHISPER_SUBTITLES_URL ?? WHISPER_URL;
 
+/** Whisper keeps the last 224 tokens of a prompt: about this much Spanish and names. */
+const HINT_CHARS = 600;
+/** The library changes seldom: asked again after this long. */
+const HINT_MS = 10 * 60_000;
+/** The compilations' artist is not a name anyone says. */
+const NOT_SAID = new Set(['varios artistas', 'various artists']);
+let hint: { text: string; at: number } | null = null;
+
+/**
+ * The library's artists, those with most songs first, as words Whisper should expect
+ * (whisper.cpp's `prompt`): «Franco Battiato» or «The Notorious B.I.G.» written as they are.
+ * Tried on 2026-10-27 with nine orders of the satellite: the rest came out the same. Song titles
+ * do not fit (thousands), so a title heard wrong is found by how it sounds (music-search.ts).
+ */
+async function libraryHint() {
+	if (hint && Date.now() - hint.at < HINT_MS) return hint.text;
+	const songs = new Map<string, number>();
+	for (const a of await getAlbums())
+		if (!NOT_SAID.has(a.artist.toLowerCase()))
+			songs.set(a.artist, (songs.get(a.artist) ?? 0) + a.tracks.length);
+	let text = 'Órdenes de voz para la casa: pon música de ';
+	for (const [artist] of [...songs].sort((a, b) => b[1] - a[1])) {
+		if (text.length + artist.length > HINT_CHARS) break;
+		text += `${artist}, `;
+	}
+	hint = { text: songs.size ? `${text.replace(/, $/, '')}.` : '', at: Date.now() };
+	return hint.text;
+}
+
 /** What was said in `audio`; empty if nothing was. */
 export async function transcribe(audio: Blob) {
 	const form = new FormData();
@@ -23,6 +53,8 @@ export async function transcribe(audio: Blob) {
 	form.append('response_format', 'json');
 	// The most likely words, not a sampled guess: an order, not prose.
 	form.append('temperature', '0');
+	const prompt = await libraryHint().catch(() => '');
+	if (prompt) form.append('prompt', prompt);
 	const res = await fetch(`${WHISPER_URL}/inference`, {
 		method: 'POST',
 		body: form,

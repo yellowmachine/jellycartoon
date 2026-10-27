@@ -8,6 +8,7 @@ import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series } from '#lib/server/db/schema.ts';
 import { getAlbums, tracksById } from '#lib/server/music/albums.ts';
+import { searchMusic } from '#lib/server/voice/music-search.ts';
 import { getPlaylist, listPlaylists } from '#lib/server/music/playlists.ts';
 import {
 	controlSnapcast,
@@ -159,7 +160,7 @@ function tools(house: boolean, rooms: Room[]): Tool[] {
 	return [
 		fn(
 			'search_music',
-			'Busca en la música por palabras, sin importar acentos ni mayúsculas: artistas, álbumes, listas y canciones. Para lo que no esté en la biblioteca de las instrucciones, o para encontrar una canción.',
+			'Busca en la música por palabras, sin importar acentos ni mayúsculas: artistas, álbumes, listas y canciones. Para lo que no esté en la biblioteca de las instrucciones, o para encontrar una canción. Si no hay nada con todas las palabras, da lo que más se parece por cómo suena: si una de esas encaja con lo que pidió, ponla sin volver a buscar.',
 			{ query: { type: 'string', description: 'Palabras del artista, álbum, lista o canción.' } },
 			['query']
 		),
@@ -606,6 +607,7 @@ Cómo responder:
 - Trátala de tú. Con cada orden va quién habla: llámala por su nombre de pila de vez en cuando (al saludar, al despedirse, con una buena noticia), no en cada respuesta.
 - Haz lo que pide con las herramientas, sin pedir confirmación. Si se equivoca, lo dirá («no, eso no», «para»).
 - Al terminar una orden, contesta en español con una sola frase corta que diga lo que has hecho y dónde, p. ej. «Pongo Alaska y Dinarama aquí». Se lee en voz alta: sin listas, emojis, ids ni formato.
+- Si lo encuentras con otro nombre porque se oyó mal («Boyman Rhapsody» es «Bohemian Rhapsody»), no lo expliques: di solo lo que pones, con su nombre bien («Pongo Bohemian Rhapsody de Queen en toda la casa»). Cada palabra de más se tarda en decir.
 - Si duda entre pocas opciones, usa «ask», con una pregunta que las nombre («¿El álbum Deseo carnal o la canción?»): quien la oye quizá no ve los botones, y contesta de palabra. Si la orden siguiente es esa respuesta («la segunda», «el álbum», «el de Alaska»), haz la orden de la opción que elige: van en el turno de tu pregunta. Si no encuentras algo, dilo y propón lo más parecido que haya.
 - Si no dice dónde, es aquí${house ? ', salvo que lo que quiere controlar solo esté sonando en toda la casa' : ''}.
 - «Quita eso», «para», «más alto»…: se refiere a lo que está sonando. Con cada orden va lo que suena en cada sitio.
@@ -726,41 +728,13 @@ async function resolveMusic(kind: string, id: string, albums: MusicAlbum[]) {
 			return tracks.length ? { tracks, start: 0, name: id } : null;
 		}
 		case 'track': {
-			// The song, and the rest of its album after it.
-			const album = albums.find((a) => a.tracks.some((t) => t.id === n));
-			const start = album?.tracks.findIndex((t) => t.id === n) ?? -1;
-			return album && start >= 0
-				? { tracks: album.tracks, start, name: album.tracks[start].title }
-				: null;
+			// Only the song: «pon Bohemian Rhapsody» is not its whole album (2026-10-27).
+			const track = albums.flatMap((a) => a.tracks).find((t) => t.id === n);
+			return track ? { tracks: [track], start: 0, name: track.title } : null;
 		}
 		default:
 			return null;
 	}
-}
-
-function search(query: string, albums: MusicAlbum[], playlists: { id: number; name: string }[]) {
-	const words = fold(query).split(/\s+/).filter(Boolean);
-	const hit = (text: string) => {
-		const haystack = fold(text);
-		return words.every((w) => haystack.includes(w));
-	};
-	const artists = [...new Set(albums.map((a) => a.artist))].filter(hit).slice(0, 10);
-	const found = {
-		artists,
-		albums: albums
-			.filter((a) => hit(`${a.title} ${a.artist}`))
-			.slice(0, 10)
-			.map((a) => ({ id: a.id, title: a.title, artist: a.artist })),
-		playlists: playlists.filter((p) => hit(p.name)).slice(0, 10),
-		tracks: albums
-			.flatMap((a) => a.tracks)
-			.filter((t) => hit(`${t.title} ${t.artist}`))
-			.slice(0, 15)
-			.map((t: MusicTrack) => ({ id: t.id, title: t.title, artist: t.artist, album: t.album }))
-	};
-	const total =
-		found.artists.length + found.albums.length + found.playlists.length + found.tracks.length;
-	return total ? JSON.stringify(found) : `Nada con «${query}». Prueba con otras palabras.`;
 }
 
 async function playHouse(tracks: MusicTrack[], start: number, shuffle: boolean) {
@@ -890,7 +864,7 @@ async function runTool(
 	switch (name) {
 		case 'search_music':
 			return typeof args.query === 'string' && args.query.trim()
-				? search(args.query, ctx.albums, ctx.playlists)
+				? searchMusic(args.query, ctx.albums, ctx.playlists)
 				: 'Falta qué buscar.';
 		case 'play_music': {
 			const music = await resolveMusic(String(args.kind), String(args.id ?? ''), ctx.albums);

@@ -936,8 +936,13 @@ la orden, para probar una frase.
 Lo que se dice pasa a texto con Whisper (abajo) y de ahí a un modelo de OpenRouter, con la clave de
 Ajustes y su «Modelo para la voz» (por defecto, Claude Haiku 5.5: rápido, y bueno eligiendo
 herramientas). El modelo tiene las acciones de la app como herramientas: buscar en la música, poner
-un artista, álbum, lista o canción, poner una emisora, pausar, seguir, siguiente, anterior, parar
-y el volumen de toda la casa.
+un artista, álbum, lista o canción (una canción, sola), poner una emisora, pausar, seguir,
+siguiente, anterior, parar y el volumen de toda la casa.
+
+A Whisper se le dan como pista los artistas de la biblioteca (los que más canciones tienen, unos
+600 caracteres), para que escriba bien sus nombres. Los títulos no caben, así que la búsqueda de
+música, si no encuentra todas las palabras, devuelve lo que más se parece por cómo suena:
+«Boyman Rhapsody» encuentra «Bohemian Rhapsody» a la primera.
 
 - **Dónde**: aquí (el dispositivo, que lo pone en su propia barra) o toda la casa (Snapcast, si
   está), o uno solo de sus altavoces por su nombre («pon Queen en el dormitorio»): los demás se
