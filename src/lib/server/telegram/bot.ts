@@ -229,3 +229,20 @@ export function tellList(who: string | null, verb: 'añadido' | 'comprado', item
 		}, LIST_AFTER_MS)
 	});
 }
+
+/**
+ * «Di en el grupo que ya está la comida», by voice (#243): said by the bot, whatever it tells, with
+ * who or where it comes from («📣 Desde el salón: …»). The group's name; throws, said for a person.
+ */
+export async function sayInGroup(from: string, text: string) {
+	const saved = await load();
+	if (!bot || !saved?.chat) throw new Error('El bot de la casa no está en ningún grupo');
+	await bot.api.sendMessage(saved.chat.id, `📣 ${from}: ${text}`);
+	log.info('telegram', `Dicho en el grupo «${saved.chat.title}» por voz`, { from });
+	return saved.chat.title;
+}
+
+/** Whether there is a group to say things in. */
+export async function botHasGroup() {
+	return Boolean(bot && (await load())?.chat);
+}

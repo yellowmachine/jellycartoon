@@ -17,7 +17,8 @@ const FILLER = new Set(
 const WORD_ALIKE = 0.6;
 const NAME_ALIKE = 0.75;
 
-const words = (text: string) =>
+/** Its words, folded (accents and case aside): what `likeness` compares. */
+export const words = (text: string) =>
 	fold(text)
 		.split(/[^\p{L}\p{N}]+/u)
 		.filter(Boolean);

@@ -9,6 +9,7 @@ import { telegramAccount } from '#lib/server/db/schema.ts';
 import { log } from '#lib/server/log.ts';
 import { decrypt, encrypt } from '#lib/server/secret-box.ts';
 import type { TelegramKind, TelegramMessage } from '#lib/telegram.ts';
+import { likeness, words } from '#lib/server/voice/music-search.ts';
 
 /**
  * A person's own Telegram account (#243), with Telegram's user API (MTProto) through GramJS
@@ -250,10 +251,12 @@ const kindOf = (m: Api.Message): TelegramKind =>
 									: 'texto';
 
 async function received(userId: string, event: NewMessageEvent) {
+	const m = event.message;
+	// For «contesta a Ana»: the last one each chat sent.
+	lastIn.set(`${userId}:${m.chatId?.toString()}`, { id: m.id, at: Date.now() });
 	const people = listeners.get(userId);
 	// Nobody driving: nothing to say.
 	if (!people?.size) return;
-	const m = event.message;
 	if (event.isChannel && !event.isGroup) return;
 	const [account] = await db
 		.select({ groups: telegramAccount.groups })
@@ -294,4 +297,117 @@ export async function markSaid(userId: string, key: string) {
 		.from(telegramAccount)
 		.where(eq(telegramAccount.userId, userId));
 	if (account?.markRead) await c.markAsRead(message.chat, message.id).catch(() => {});
+}
+
+// ——— Sent by voice (#243): with the person's own account, only after their «sí» ———
+
+/** The last message each chat sent, by `userId:chatId`: a reply to it, if recent. */
+const lastIn = new Map<string, { id: number; at: number }>();
+/** A reply to their last one, only this soon after it came. */
+const REPLY_MS = 30 * 60_000;
+/** Their chats, looked at again after this long. */
+const CHATS_MS = 5 * 60_000;
+/** Waiting for the «sí» this long, at most. */
+const CONFIRM_MS = 3 * 60_000;
+/** As alike as a name must sound (music-search.ts, `likeness`). */
+const NAME_ALIKE = 0.75;
+
+interface TelegramChat {
+	id: string;
+	title: string;
+	group: boolean;
+	entity: Api.TypeInputPeer;
+}
+
+const chatsCache = new Map<string, { at: number; chats: TelegramChat[] }>();
+
+/** Their recent chats: people and groups, by the name they have in the account. */
+async function chatsOf(userId: string, c: TelegramClient) {
+	const cached = chatsCache.get(userId);
+	if (cached && Date.now() - cached.at < CHATS_MS) return cached.chats;
+	const dialogs = await c.getDialogs({ limit: 150 });
+	const chats = dialogs.flatMap((d): TelegramChat[] => {
+		const user = d.entity instanceof Api.User ? d.entity : null;
+		if ((user && (user.bot || user.self)) || (d.isChannel && !d.isGroup) || !d.inputEntity)
+			return [];
+		return [
+			{
+				id: d.id?.toString() ?? '',
+				title: d.title ?? d.name ?? '',
+				group: d.isGroup,
+				entity: d.inputEntity
+			}
+		];
+	});
+	chatsCache.set(userId, { at: Date.now(), chats });
+	return chats;
+}
+
+/** What waits for the «sí», by person: and the order it was asked in, not to be confirmed in it. */
+const pendingSend = new Map<
+	string,
+	{ chat: TelegramChat; text: string; order: string; at: number }
+>();
+
+export type PreparedSend =
+	| { status: 'ready'; to: string; group: boolean; reply: boolean }
+	| { status: 'choose'; options: string[] }
+	| { status: 'none' }
+	| { status: 'off' };
+
+/**
+ * «Dile a Ana que llego en diez minutos»: the chat found by how it sounds, and the message kept,
+ * waiting for the person's «sí» (`confirmSend`), in a later order than `order`.
+ */
+export async function prepareSend(
+	userId: string,
+	to: string,
+	text: string,
+	order: string
+): Promise<PreparedSend> {
+	const c = clients.get(userId);
+	if (!c) return { status: 'off' };
+	const asked = words(to).filter(
+		(w) => !['el', 'la', 'los', 'las', 'grupo', 'de', 'a'].includes(w)
+	);
+	const ranked = (await chatsOf(userId, c))
+		.map((chat) => ({ chat, score: likeness(asked, chat.title) }))
+		.filter((r) => r.score >= NAME_ALIKE)
+		.sort((a, b) => b.score - a.score);
+	if (!ranked.length) return { status: 'none' };
+	const best = ranked.filter((r) => r.score >= ranked[0]!.score - 0.05);
+	if (best.length > 1)
+		return { status: 'choose', options: best.slice(0, 4).map((r) => r.chat.title) };
+	const chat = ranked[0]!.chat;
+	pendingSend.set(userId, { chat, text, order, at: Date.now() });
+	const last = lastIn.get(`${userId}:${chat.id}`);
+	return {
+		status: 'ready',
+		to: chat.title,
+		group: chat.group,
+		reply: Boolean(last && Date.now() - last.at < REPLY_MS)
+	};
+}
+
+/** Its «sí»: what was prepared, sent; never in the same order it was asked in. Throws, said. */
+export async function confirmSend(userId: string, order: string) {
+	const pending = pendingSend.get(userId);
+	const c = clients.get(userId);
+	if (!pending || !c || Date.now() - pending.at > CONFIRM_MS)
+		throw new Error('No hay ningún mensaje esperando: que diga otra vez qué mandar y a quién.');
+	if (pending.order === order)
+		throw new Error('Antes de mandarlo, pregúntale si lo envía y espera a que diga que sí.');
+	pendingSend.delete(userId);
+	const last = lastIn.get(`${userId}:${pending.chat.id}`);
+	await c.sendMessage(pending.chat.entity, {
+		message: pending.text,
+		...(last && Date.now() - last.at < REPLY_MS ? { replyTo: last.id } : {})
+	});
+	log.info('telegram', `Mensaje enviado por voz a «${pending.chat.title}»`, { userId });
+	return pending.chat.title;
+}
+
+/** «No»: forgotten. */
+export function cancelSend(userId: string) {
+	pendingSend.delete(userId);
 }
