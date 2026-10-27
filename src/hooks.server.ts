@@ -23,6 +23,8 @@ import { startPodcastRefresh } from '#lib/server/podcasts/podcasts.ts';
 import { startAgenda } from '#lib/server/agenda/agenda.ts';
 import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
 import { log, startLogCleanup } from '#lib/server/log.ts';
+import { piperEnabled } from '#lib/server/piper.ts';
+import { warmFillers } from '#lib/server/voice-fillers.ts';
 
 export const init: ServerInit = async () => {
 	if (building) return;
@@ -44,6 +46,8 @@ export const init: ServerInit = async () => {
 	startPodcastRefresh();
 	// The agenda's notices (#200), every minute, and the fridge's «Hoy» at midnight.
 	startAgenda();
+	// What the voice satellites say while the AI thinks (#223), read beforehand to sound at once.
+	if (piperEnabled) void warmFillers();
 	// In the Registro: which version started, and how each of the above starts.
 	await logStartup();
 	// adapter-node has closed the server on SIGTERM; the timers above would keep the process alive

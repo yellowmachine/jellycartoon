@@ -5,7 +5,7 @@ import { SPEECH_END, SpeechEnd, Vad } from '../../src/lib/vad.ts';
 import { CHUNK, SAMPLE_RATE, WakeWordDetector, type Run } from '../../src/lib/wakeword.ts';
 import { toWav } from '../../src/lib/wakeword-recorder.ts';
 import { Resampler } from './resample.ts';
-import { duck, sendOrder, serverName, serverReady, speech } from './server.ts';
+import { duck, filler, sendOrder, serverName, serverReady, speech } from './server.ts';
 import { beep, play, speakerName } from './sound.ts';
 
 /**
@@ -37,6 +37,8 @@ const MODEL = 'hola_casita';
 const WORD_MS = 1500;
 /** After an order, this long before the word is heard again. */
 const QUIET_MS = 1500;
+/** The AI taking longer than this to answer, a phrase meanwhile («Vale», Ajustes → Casa). */
+const FILLER_AFTER_MS = 1500;
 /** As holding the button: longer than this, it is over anyway. */
 const MAX_MS = 30_000;
 
@@ -189,12 +191,20 @@ async function finish(current: Order, said: 'done' | 'nothing') {
 	else duck(false);
 }
 
-/** To the server, and its answer to the log and aloud; not heard meanwhile, it is busy. */
+/**
+ * To the server, and its answer to the log and aloud; not heard meanwhile, it is busy. If the AI
+ * takes long, a phrase meanwhile («Vale»), and the answer after it.
+ */
 async function respond(wav: Uint8Array) {
 	busy = true;
 	const started = Date.now();
+	let waiting: ReturnType<typeof setTimeout> | undefined;
+	let saidFiller: Promise<void> = Promise.resolve();
 	try {
-		const done = await sendOrder(wav);
+		const done = await sendOrder(wav, () => {
+			waiting = setTimeout(() => (saidFiller = sayFiller()), FILLER_AFTER_MS);
+		});
+		clearTimeout(waiting);
 		const ms = Date.now() - started;
 		if (!done) {
 			log(`No se entendió nada (${ms} ms)`);
@@ -207,6 +217,8 @@ async function respond(wav: Uint8Array) {
 				const voice = await speech(done.reply.reply);
 				if (!voice) log(`Dicho por Snapcast (${Date.now() - started} ms desde la orden)`);
 				else if (speakerName) {
+					// Read while the phrase sounded; said after it.
+					await saidFiller;
 					log(`Dicho en voz (${Date.now() - started} ms desde la orden)`);
 					await play(voice);
 				}
@@ -215,9 +227,21 @@ async function respond(wav: Uint8Array) {
 	} catch (err) {
 		log(`El servidor no respondió: ${err instanceof Error ? err.message : String(err)}`);
 	} finally {
+		clearTimeout(waiting);
 		busy = false;
 		quietUntil = Date.now() + QUIET_MS;
 		duck(false);
+	}
+}
+
+/** A phrase while the AI thinks: on its speaker, or through Snapcast by the server. Never fails. */
+async function sayFiller() {
+	try {
+		log('La IA tarda: frase de espera');
+		const voice = await filler();
+		if (voice && speakerName) await play(voice);
+	} catch (err) {
+		log(`Sin frase de espera: ${err instanceof Error ? err.message : String(err)}`);
 	}
 }
 

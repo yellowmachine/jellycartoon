@@ -635,6 +635,11 @@ de mujer (`F`), y en Ajustes salen por separado. Todas las voces están en
 [piper-voices](https://huggingface.co/rhasspy/piper-voices/tree/main/es). El DJ no cambia: sigue con
 `PIPER_VOICE_ES`.
 
+Si la IA tarda más de segundo y medio en contestar, el satélite dice antes una «frase de espera»
+(«Vale.», «Un momento.»…), una distinta cada vez, y la respuesta detrás. Se cambian en Ajustes →
+Casa, debajo de la voz, una por línea. Piper las lee al arrancar y al cambiar la voz o las frases,
+y se quedan guardadas, así que suenan al momento (por Snapcast, con su segundo de búfer).
+
 ### Juegos
 
 Un experimento (#176): juegos retro en la Vista TV, con

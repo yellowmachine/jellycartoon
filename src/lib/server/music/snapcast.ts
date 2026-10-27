@@ -565,6 +565,14 @@ const TAIL_MS = 1500;
 const SAY_MAX_MS = 120_000;
 /** One answer at a time: two satellites at once would talk over each other. */
 const oneAnswer = inOrder();
+/**
+ * The groups left on `Voz` after a filler (voice-fillers.ts), for the answer that comes after it:
+ * moving them back and forth is near a second of silence each time. Back to the music by
+ * themselves if it does not come.
+ */
+const held = new Map<string, ReturnType<typeof setTimeout>>();
+/** Longer than the AI takes to answer (the satellite's, 30 s). */
+const HOLD_MS = 40_000;
 
 /** The satellites' answers can go to Snapcast: its PulseAudio is there, and its control. */
 export const snapcastVoiceReady = () =>
@@ -575,9 +583,10 @@ export const snapcastVoiceReady = () =>
  * while it sounds. In the whole house, into the music itself: no speaker changes source, as each
  * change is near a second of silence. On one speaker (its id) and the rest of its group, they are
  * moved to the `Voz` source while it is said (the same music, with it) and back to what they played;
- * the others go on with the music as it is. Ends once it has been heard.
+ * the others go on with the music as it is. Ends once it has been heard; a `filler`, once played,
+ * as the answer follows it, which finds them still on `Voz`.
  */
-export const sayOnSnapcast = (wav: Uint8Array, where: 'house' | string) =>
+export const sayOnSnapcast = (wav: Uint8Array, where: 'house' | string, { filler = false } = {}) =>
 	oneAnswer(async () => {
 		const all = await speakers().groups();
 		const house = where === 'house';
@@ -590,8 +599,10 @@ export const sayOnSnapcast = (wav: Uint8Array, where: 'house' | string) =>
 		await writeFile(file, wav);
 		const moved = house ? [] : groups;
 		try {
-			if (moved.length) {
-				await Promise.all(moved.map((g) => speakers().setGroupStream(g.id, VOICE_STREAM)));
+			const toMove = moved.filter((g) => g.streamId !== VOICE_STREAM);
+			for (const g of moved) clearTimeout(held.get(g.id));
+			if (toMove.length) {
+				await Promise.all(toMove.map((g) => speakers().setGroupStream(g.id, VOICE_STREAM)));
 				await sleep(LEAD_MS);
 			}
 			// Its role is what lowers the music under it; paplay ends once PulseAudio has played it.
@@ -599,13 +610,24 @@ export const sayOnSnapcast = (wav: Uint8Array, where: 'house' | string) =>
 			args.push(`--device=${house ? MUSIC_SINK : VOICE_SINK}`);
 			args.push(`--property=media.role=${VOICE_ROLE}`, file);
 			await run('paplay', args, { pausable: false, signal: AbortSignal.timeout(SAY_MAX_MS) });
-			await sleep(TAIL_MS);
+			if (!filler) await sleep(TAIL_MS);
 		} finally {
 			await rm(file, { force: true });
 			// Left on the voice by an answer cut short (the app restarted): to the music.
 			const back = (g: (typeof groups)[number]) =>
 				g.streamId === VOICE_STREAM ? MUSIC_STREAM : g.streamId;
-			await Promise.all(moved.map((g) => speakers().setGroupStream(g.id, back(g))));
+			for (const g of moved) held.delete(g.id);
+			if (filler)
+				for (const g of moved) {
+					const timer = setTimeout(() => {
+						held.delete(g.id);
+						speakers()
+							.setGroupStream(g.id, back(g))
+							.catch(() => {});
+					}, HOLD_MS);
+					held.set(g.id, timer);
+				}
+			else await Promise.all(moved.map((g) => speakers().setGroupStream(g.id, back(g))));
 		}
 	});
 
