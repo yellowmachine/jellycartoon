@@ -11,19 +11,42 @@ const SPEAKER = process.env.SPEAKER || null;
 
 export const speakerName = SPEAKER;
 
-/** A WAV played to its end; a speaker that fails is only logged, as the order is done anyway. */
+/** The `aplay` playing now, and those waiting: one at a time, as the device takes only one. */
+let current: ReturnType<typeof spawn> | null = null;
+let queue = Promise.resolve();
+
+/**
+ * A WAV played to its end, after the ones before it; a speaker that fails is only logged, as the
+ * order is done anyway.
+ */
 export function play(wav: Uint8Array): Promise<void> {
 	if (!SPEAKER) return Promise.resolve();
+	const done = queue.then(() => playNow(wav));
+	queue = done;
+	return done;
+}
+
+/** What is playing now, cut: a timer's ringing, when «hola casita» stops it. */
+export function hush() {
+	current?.kill();
+}
+
+function playNow(wav: Uint8Array): Promise<void> {
 	return new Promise((resolve) => {
-		const aplay = spawn('aplay', ['-D', SPEAKER, '-q', '-'], { stdio: ['pipe', 'ignore', 'pipe'] });
+		const aplay = spawn('aplay', ['-D', SPEAKER!, '-q', '-'], {
+			stdio: ['pipe', 'ignore', 'pipe']
+		});
+		current = aplay;
 		let problem = '';
 		aplay.stderr.on('data', (d: Buffer) => (problem += d.toString()));
 		aplay.on('error', (err) => {
 			console.error('aplay', err.message);
+			current = null;
 			resolve();
 		});
-		aplay.on('exit', (code) => {
-			if (code) console.error(`aplay terminó (${code}): ${problem.trim()}`);
+		aplay.on('exit', (code, signal) => {
+			if (code && !signal) console.error(`aplay terminó (${code}): ${problem.trim()}`);
+			current = null;
 			resolve();
 		});
 		aplay.stdin.on('error', () => {});

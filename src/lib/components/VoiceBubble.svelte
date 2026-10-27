@@ -37,6 +37,10 @@
 							? 'toca otra vez para enviar'
 							: 'suelta para enviar'}
 				</p>
+				{#if voice.followUp && voice.reply}
+					<!-- Its question, answered by voice now; its options come back if nothing is said. -->
+					<p class="text-base">{voice.reply}</p>
+				{/if}
 			{:else}
 				{#if voice.heard}
 					<p class="truncate text-zinc-400">«{voice.heard}»</p>

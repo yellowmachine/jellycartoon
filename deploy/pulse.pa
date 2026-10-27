@@ -1,0 +1,23 @@
+# The PulseAudio of compose.prod.yaml (pulseaudio service), in front of snapserver, as in Snapcast's
+# player setup (doc/player_setup.md, module-pipe-sink): it mixes the satellites' answers (#223) over
+# the music, which Snapcast cannot do by itself (its sources are switched, never mixed).
+#
+# mpv-music plays into `musica`, snapserver's `JellyCartoon` source, where the answers to the whole
+# house are said. `voz`, its `Voz` source, gets that same music, with the answers to one speaker on
+# top: that speaker is moved to `Voz` to say it, and goes on with the song where it was.
+
+# Only the app and mpv-music, through HOST_DATA_DIR.
+load-module module-native-protocol-unix socket=/data/pulse.sock auth-anonymous=1
+
+# Into the FIFOs of deploy/snapserver.conf, as their sample format. Timed by the system's clock, not
+# by how fast snapserver reads them.
+load-module module-pipe-sink sink_name=musica file=/data/snapfifo format=s16le rate=44100 channels=2 use_system_clock_for_timing=yes
+load-module module-pipe-sink sink_name=voz file=/data/snapvoz format=s16le rate=44100 channels=2 use_system_clock_for_timing=yes
+load-module module-loopback source=musica.monitor sink=voz sink_input_properties=media.role=music
+
+# While an answer (role `announce`, snapcast.ts) sounds, the music on its sink (mpv's role, in
+# compose.prod.yaml, or the copy's) down 12 dB: as the phone's (music-player.svelte.ts,
+# `DUCKED_VOLUME`, a quarter). Only on its own sink: one speaker's answer leaves `musica` as it is.
+load-module module-role-ducking trigger_roles=announce ducking_roles=music volume=-12dB
+
+set-default-sink musica

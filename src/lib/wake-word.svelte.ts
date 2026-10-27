@@ -352,13 +352,21 @@ class WakeWord {
 		}
 	}
 
-	/** `voiceDb`: the word's level; after a tap, the order's first speech sets it. */
-	#begin(vad: Vad, context: AudioContext | null, voiceDb: number | null = null) {
+	/**
+	 * `voiceDb`: the word's level; after a tap, the order's first speech sets it. `waitMs`, how long
+	 * for something to be said, if not the usual (SPEECH_END).
+	 */
+	#begin(
+		vad: Vad,
+		context: AudioContext | null,
+		voiceDb: number | null = null,
+		waitMs = SPEECH_END.waitMs
+	) {
 		this.#beep(880, context);
 		this.#order = {
 			vad,
 			context,
-			end: new SpeechEnd({ ...SPEECH_END, marginDb: this.margin }, voiceDb),
+			end: new SpeechEnd({ ...SPEECH_END, marginDb: this.margin, waitMs }, voiceDb),
 			chunks: [],
 			queue: Promise.resolve(),
 			limit: setTimeout(() => this.#finish('done'), MAX_MS)
@@ -367,15 +375,16 @@ class WakeWord {
 
 	/**
 	 * The microphone's third way (Ajustes): a tap, and what is said goes until a silence, as after
-	 * the word. Listening for the word, with its microphone; if not, one opened only for this order
-	 * (the VAD, without the word), closed after it. A tap while it listens sends it now.
+	 * the word; also after a question of the AI, for its answer (voice-client.svelte.ts). Listening
+	 * for the word, with its microphone; if not, one opened only for this order (the VAD, without
+	 * the word), closed after it. A tap while it listens sends it now.
 	 */
-	async listenOnce() {
+	async listenOnce({ waitMs = SPEECH_END.waitMs } = {}) {
 		if (this.#order) return this.#finish('done');
 		if (this.preparing || voice.phase !== 'idle' || voice.speaking) return;
 		if (this.#listening && this.status === 'on' && !this.#paused) {
 			const vad = this.#listening.vad();
-			if (vad && voice.beginHandsFree()) this.#begin(vad, this.#context);
+			if (vad && voice.beginHandsFree()) this.#begin(vad, this.#context, null, waitMs);
 			return;
 		}
 		// Now, on the tap, as the word's (see `listen`).
@@ -412,9 +421,13 @@ class WakeWord {
 			this.preparing = false;
 		}
 		const vad = this.#once.listening.vad();
-		// Still wanted: nothing ended it while it loaded.
-		if (!vad || !voice.handsFree) return this.#closeOnce();
-		this.#begin(vad, context);
+		// Still wanted: nothing ended it while it loaded. And sounding: opened without a touch (after
+		// a question), the browser may keep it stopped, and nothing would ever end the order.
+		if (!vad || !voice.handsFree || context.state !== 'running') {
+			this.#closeOnce();
+			return voice.endHandsFree(null);
+		}
+		this.#begin(vad, context, null, waitMs);
 	}
 
 	/** In the background the browser stops the microphone: the order is dropped. */

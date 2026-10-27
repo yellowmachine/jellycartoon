@@ -523,10 +523,12 @@ altavoces que tengan snapclient (una Raspberry, Snapdroid en el móvil…). Con
   `sudo ufw allow from 172.18.0.0/16 to any port 1705 proto tcp`. Si no, el panel 🔈 dice que no
   puede conectar con el control de snapserver.
 - En un PC con PipeWire, el cliente va mejor con su salida por defecto: `snapclient -s default …`.
-- `mpv-music`, un mpv sin ventana que escribe en esa FIFO, como en la
-  [guía de Snapcast](https://github.com/badaix/snapcast/blob/develop/doc/player_setup.md), y que
-  la app controla por `HOST_DATA_DIR/mpv-music.sock`. Mantiene la salida abierta entre canciones,
-  así que en Snapcast los álbumes suenan sin cortes.
+- `pulseaudio`, que escribe la música en esa FIFO, como en la
+  [guía de Snapcast](https://github.com/badaix/snapcast/blob/develop/doc/player_setup.md)
+  (`module-pipe-sink`), y mezcla encima las respuestas de los satélites de voz (más abajo).
+- `mpv-music`, un mpv sin ventana que suena en ese PulseAudio, y que la app controla por
+  `HOST_DATA_DIR/mpv-music.sock`. Mantiene la salida abierta entre canciones, así que en Snapcast
+  los álbumes suenan sin cortes.
 
 La app se conecta además a la API de control de snapserver (puerto 1705, en
 `host.docker.internal`): el botón 🔈 de la barra de Snapcast muestra sus clientes, conectados o
@@ -546,12 +548,16 @@ automático») y se guarda por dónde vas, como si lo vieras. Tras los capítulo
 Snapcast lee el audio del mismo HLS del capítulo, en `HOST_DATA_DIR/hls`.
 
 Snapserver tiene además una segunda fuente, `Voz` (`HOST_DATA_DIR/snapvoz`), para que los
-satélites de voz (#223) contesten por Snapcast. En Ajustes → Casa → Satélites de voz se elige, por
-cada satélite, el altavoz de su habitación, donde baja la música mientras te oye y contesta, y por
-dónde contesta: su propio altavoz, toda la casa o un altavoz de Snapcast. Mientras contesta, esos
-altavoces pasan a `Voz` (con un segundo de retraso, el del búfer) y luego vuelven a la música; los
-demás siguen con ella. Después de actualizar, termina con
-`docker compose -f compose.prod.yaml up -d`: la app necesita `SNAPCAST_VOICE_FIFO`.
+satélites de voz (#223) contesten por Snapcast: la misma música, con las respuestas encima, que
+mezcla el PulseAudio (`deploy/pulse.pa`; Snapcast solo cambia de fuente, no mezcla). En Ajustes →
+Casa → Satélites de voz se elige, por cada satélite, el altavoz de su habitación, donde baja la
+música mientras te oye y contesta, y por dónde contesta: su propio altavoz, toda la casa o un
+altavoz de Snapcast. La respuesta suena encima de la música, que baja (−12 dB, como en el móvil)
+mientras habla, con un segundo de retraso, el del búfer. En toda la casa, en la misma música; en
+un altavoz, ese pasa a `Voz` y luego vuelve a la música, con un corte de casi un segundo en cada
+cambio (el de Snapcast al cambiar de fuente), y los demás siguen con ella tal cual. Después de actualizar,
+termina con `docker compose -f compose.prod.yaml up -d`: hay un servicio nuevo, `pulseaudio`, y la
+app necesita `SNAPCAST_PULSE_SOCKET`.
 
 #### Modo DJ
 
@@ -628,6 +634,17 @@ Piper las ve sin reiniciarlo. `es_ES-sharvard-medium` trae dos hablantes, uno de
 de mujer (`F`), y en Ajustes salen por separado. Todas las voces están en
 [piper-voices](https://huggingface.co/rhasspy/piper-voices/tree/main/es). El DJ no cambia: sigue con
 `PIPER_VOICE_ES`.
+
+Si la IA tarda más de segundo y medio en contestar, el satélite dice antes una «frase de espera»
+(«Vale.», «Un momento.»…), una distinta cada vez, y la respuesta detrás. Se cambian en Ajustes →
+Casa, debajo de la voz, una por línea. Piper las lee al arrancar y al cambiar la voz o las frases,
+y se quedan guardadas, así que suenan al momento (por Snapcast, con su segundo de búfer).
+
+Los temporizadores y avisos («avísame en una hora para pedir cita en la peluquería») los lleva cada
+satélite, como cada móvil los suyos, guardados en su volumen (`/data/temporizadores.json` en la
+Raspberry), así que un reinicio no los pierde. Al cumplirse suenan por donde contesta el satélite:
+dos «din-don» y su nombre dicho, el que le puso la IA, y cinco segundos de silencio para que se
+oiga «hola casita», que lo para; si nadie lo para, se calla a los tres minutos.
 
 ### Juegos
 
@@ -907,8 +924,12 @@ y el volumen de toda la casa.
   silencian, y «toda la casa» les quita el silencio. Sin decirlo, aquí. Un capítulo en Snapcast
   suena solo con su audio (ver Snapcast).
 - **La respuesta**, una frase corta, se ve en grande y se lee en voz alta con la voz del propio
-  dispositivo (`speechSynthesis`). Si duda entre pocas opciones, pregunta con botones; si no
-  encuentra algo, lo dice y propone lo más parecido.
+  dispositivo (`speechSynthesis`). Si duda entre pocas opciones, pregunta nombrándolas, con
+  botones; si no encuentra algo, lo dice y propone lo más parecido.
+- **Tras una pregunta** (con opciones, o que acaba en «?»), el micrófono se abre solo 8 s, con su
+  pitido, sin decir «hola casita» ni pulsar nada, en el móvil, la tablet y los satélites: se
+  contesta de palabra («la segunda», «el álbum»). Las opciones van con su orden en la conversación,
+  así que la IA sabe cuál es. Si no se dice nada, se cierra y quedan los botones.
 - Recuerda los últimos turnos: «no, eso no, los Pegamoides» funciona.
 - La biblioteca, las listas y las emisoras van en sus instrucciones, que se cachean; con Haiku 5.5,
   unos 0,0003 $ por orden y unos 2 s. El coste de cada una queda en el Registro.

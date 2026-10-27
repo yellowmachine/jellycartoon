@@ -7,10 +7,12 @@ COPY . .
 RUN DATABASE_URL=postgres://build/build ORIGIN=http://localhost BETTER_AUTH_SECRET=build bun run build
 
 FROM oven/bun:1-slim
-# mpv and snapserver are only for the optional Snapcast services of compose.prod.yaml, which run
-# this same image with another command. poppler-utils: a bill's PDF read by its text (#232).
+# mpv, snapserver and pulseaudio are only for the optional Snapcast services of compose.prod.yaml,
+# which run this same image with another command; pulseaudio-utils (paplay), for the app to say the
+# satellites' answers there. poppler-utils: a bill's PDF read by its text (#232).
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends ffmpeg mpv snapserver poppler-utils \
+	&& apt-get install -y --no-install-recommends ffmpeg mpv snapserver pulseaudio pulseaudio-utils \
+	poppler-utils \
 	&& rm -rf /var/lib/apt/lists/*
 # go-pmtiles, to cut a route's map out of Spain's (#164): the binary of its official image, the
 # same version as scripts/mapa.sh.
@@ -22,6 +24,7 @@ COPY --from=build /app/scripts ./scripts
 # For the snapserver service, which runs this image: inside it, so that it is still there when WUD
 # recreates the container (#20).
 COPY deploy/snapserver.conf /etc/jellycartoon/snapserver.conf
+COPY deploy/pulse.pa /etc/jellycartoon/pulse.pa
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
 ENV NODE_ENV=production PORT=3000

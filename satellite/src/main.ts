@@ -1,12 +1,15 @@
 import { spawn } from 'node:child_process';
-import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { setTimeout as sleep } from 'node:timers/promises';
 import ort from 'onnxruntime-node';
 import { SPEECH_END, SpeechEnd, Vad } from '../../src/lib/vad.ts';
 import { CHUNK, SAMPLE_RATE, WakeWordDetector, type Run } from '../../src/lib/wakeword.ts';
 import { toWav } from '../../src/lib/wakeword-recorder.ts';
 import { Resampler } from './resample.ts';
-import { duck, sendOrder, serverName, serverReady, speech } from './server.ts';
-import { beep, play, speakerName } from './sound.ts';
+import { duck, filler, sendOrder, serverName, serverReady, speech } from './server.ts';
+import { beep, hush, play, speakerName } from './sound.ts';
+import { Timers } from './timers.ts';
+import { FOLLOW_UP_MS, isQuestion, type VoiceAction } from '../../src/lib/voice.ts';
 
 /**
  * The voice satellite (#223, phase 1): «hola casita» heard on a Raspberry in the living room, out of
@@ -37,6 +40,14 @@ const MODEL = 'hola_casita';
 const WORD_MS = 1500;
 /** After an order, this long before the word is heard again. */
 const QUIET_MS = 1500;
+/** The AI taking longer than this to answer, a phrase meanwhile («Vale», Ajustes → Casa). */
+const FILLER_AFTER_MS = 1500;
+/** The timers, kept in its volume as the orders. */
+const TIMERS_FILE = process.env.TIMERS_FILE ?? '/data/temporizadores.json';
+/** As the phone's: more than this ringing, it stops sounding (no one is there). */
+const RING_MAX_MS = 3 * 60_000;
+/** Between each «din-don» and its words: quiet enough for «hola casita» to be heard and stop it. */
+const RING_PAUSE_MS = 5000;
 /** As holding the button: longer than this, it is over anyway. */
 const MAX_MS = 30_000;
 
@@ -131,20 +142,33 @@ async function step(chunk: Float32Array) {
 			log(`Palabra: ${attempt.toFixed(2)} · ${attempt >= THRESHOLD ? 'saltó' : 'no llegó'}`);
 			attempt = 0;
 		}
-		if (score >= THRESHOLD && now >= quietUntil && !order && !busy) begin(score);
+		if (score >= THRESHOLD && now >= quietUntil && !order && !busy) {
+			// Said by whoever gives the order, as near: how loud their voice comes.
+			const voiceDb = Math.max(...recent.map((r) => r.dbfs));
+			log(`«Hola casita» (${score.toFixed(2)}): escuchando (la palabra a ${db(voiceDb)})`);
+			begin(voiceDb);
+		}
 	}
 }
 
-function begin(score: number) {
-	const voiceDb = Math.max(...recent.map((r) => r.dbfs));
+/**
+ * Listening for an order: after the word, at its level (`voiceDb`); after a question, with no word,
+ * set by the first speech, and longer to start (`waitMs`).
+ */
+function begin(voiceDb: number | null, waitMs = SPEECH_END.waitMs) {
+	// As touching the phone: what rings stops, and the order may be about it («quítalo»).
+	if (timers.ringing.length) {
+		log(`Parado: ${timers.ringing.map((t) => t.label).join(', ')}`);
+		timers.silence();
+		hush();
+	}
 	// Its attempt ends here: what it reached, with the order and not after it.
 	attempt = 0;
-	log(`«Hola casita» (${score.toFixed(2)}): escuchando (la palabra a ${db(voiceDb)})`);
 	duck(true);
 	void beep(880);
 	order = {
 		vad: vad(),
-		end: new SpeechEnd({ ...SPEECH_END, marginDb: MARGIN_DB }, voiceDb),
+		end: new SpeechEnd({ ...SPEECH_END, marginDb: MARGIN_DB, waitMs }, voiceDb),
 		chunks: [],
 		startedAt: Date.now()
 	};
@@ -189,12 +213,26 @@ async function finish(current: Order, said: 'done' | 'nothing') {
 	else duck(false);
 }
 
-/** To the server, and its answer to the log and aloud; not heard meanwhile, it is busy. */
+/**
+ * To the server, and its answer to the log and aloud; not heard meanwhile, it is busy. If the AI
+ * takes long, a phrase meanwhile («Vale»), and the answer after it.
+ */
 async function respond(wav: Uint8Array) {
 	busy = true;
 	const started = Date.now();
+	let waiting: ReturnType<typeof setTimeout> | undefined;
+	let saidFiller: Promise<void> = Promise.resolve();
+	/** Its answer asked something: listened for at once, without the word. */
+	let asked = false;
 	try {
-		const done = await sendOrder(wav);
+		const done = await sendOrder(
+			wav,
+			() => timers.describe(),
+			() => {
+				waiting = setTimeout(() => (saidFiller = sayFiller()), FILLER_AFTER_MS);
+			}
+		);
+		clearTimeout(waiting);
 		const ms = Date.now() - started;
 		if (!done) {
 			log(`No se entendió nada (${ms} ms)`);
@@ -202,11 +240,15 @@ async function respond(wav: Uint8Array) {
 		} else {
 			const actions = done.reply.actions.map((a) => a.kind).join(', ') || 'ninguna';
 			log(`«${done.text}» → «${done.reply.reply}» (acciones: ${actions}; ${ms} ms)`);
+			for (const action of done.reply.actions) act(action);
+			asked = isQuestion(done.reply);
 			// Asked even without a speaker: the server may say it through Snapcast.
 			if (done.reply.reply) {
 				const voice = await speech(done.reply.reply);
 				if (!voice) log(`Dicho por Snapcast (${Date.now() - started} ms desde la orden)`);
 				else if (speakerName) {
+					// Read while the phrase sounded; said after it.
+					await saidFiller;
 					log(`Dicho en voz (${Date.now() - started} ms desde la orden)`);
 					await play(voice);
 				}
@@ -215,9 +257,89 @@ async function respond(wav: Uint8Array) {
 	} catch (err) {
 		log(`El servidor no respondió: ${err instanceof Error ? err.message : String(err)}`);
 	} finally {
+		clearTimeout(waiting);
 		busy = false;
 		quietUntil = Date.now() + QUIET_MS;
-		duck(false);
+		if (asked && !order) {
+			log(`Pregunta: escuchando la respuesta ${FOLLOW_UP_MS / 1000} s`);
+			begin(null, FOLLOW_UP_MS);
+		} else duck(false);
+	}
+}
+
+/** A phrase while the AI thinks: on its speaker, or through Snapcast by the server. Never fails. */
+async function sayFiller() {
+	try {
+		log('La IA tarda: frase de espera');
+		const voice = await filler();
+		if (voice && speakerName) await play(voice);
+	} catch (err) {
+		log(`Sin frase de espera: ${err instanceof Error ? err.message : String(err)}`);
+	}
+}
+
+/** What the AI asked that is the satellite's to do: its timers. The rest are the phone's. */
+function act(action: VoiceAction) {
+	switch (action.kind) {
+		case 'timer': {
+			const label = timers.start(action.label, action.seconds);
+			return log(`Temporizador «${label}»: ${action.seconds} s`);
+		}
+		case 'prepareTimer': {
+			const label = timers.prepare(action.label, action.seconds, action.trigger);
+			return log(`Temporizador «${label}» preparado: cuando ${action.trigger}`);
+		}
+		case 'cancelTimer':
+			log(`Quitados: ${timers.cancel(action.label)}`);
+			if (!timers.ringing.length) hush();
+			return;
+	}
+}
+
+const timers = new Timers((saved) => {
+	writeFile(TIMERS_FILE, JSON.stringify(saved)).catch((err) =>
+		console.error('No se pudieron guardar los temporizadores', err)
+	);
+});
+try {
+	timers.load(JSON.parse(await readFile(TIMERS_FILE, 'utf8')));
+} catch {
+	// None yet.
+}
+let ringing = false;
+// Those that ended while it was off ring at once, as the phone's.
+setInterval(() => {
+	if (timers.due().length) void ring();
+}, 1000);
+
+/**
+ * What ended rings: a «din-don» and its name said (as the AI wrote it), again and again with a pause,
+ * until «hola casita» stops it or for `RING_MAX_MS`. Where it answers: its speaker, or Snapcast.
+ * Never over an order being heard or answered.
+ */
+async function ring() {
+	if (ringing) return;
+	ringing = true;
+	const started = Date.now();
+	try {
+		while (timers.ringing.length && Date.now() - started < RING_MAX_MS) {
+			if (!order && !busy) {
+				const text = `Aviso: ${timers.ringing.map((t) => t.label).join(' y ')}.`;
+				log(`Sonando: ${text}`);
+				try {
+					const voice = await speech(text, { chime: true });
+					if (voice && timers.ringing.length) await play(voice);
+				} catch (err) {
+					// The server not answering: at least its own «din-don».
+					log(`Sin voz para el aviso: ${err instanceof Error ? err.message : String(err)}`);
+					await beep(880);
+					await beep(660);
+				}
+			}
+			await sleep(RING_PAUSE_MS);
+		}
+	} finally {
+		ringing = false;
 	}
 }
 
@@ -274,5 +396,5 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const)
 	});
 
 log(
-	`Escuchando «hola casita» en ${MIC}, ${MIC_RATE} Hz × ${MIC_CHANNELS} (umbral ${THRESHOLD}, margen ${MARGIN_DB} dB); ${serverReady ? `órdenes a ${serverName}` : 'sin servidor: órdenes solo al log'}; ${speakerName ? `altavoz ${speakerName}` : 'sin altavoz'}`
+	`Escuchando «hola casita» en ${MIC}, ${MIC_RATE} Hz × ${MIC_CHANNELS} (umbral ${THRESHOLD}, margen ${MARGIN_DB} dB); ${serverReady ? `órdenes a ${serverName}` : 'sin servidor: órdenes solo al log'}; ${speakerName ? `altavoz ${speakerName}` : 'sin altavoz'}; temporizadores: ${timers.describe().join('; ') || 'ninguno'}`
 );

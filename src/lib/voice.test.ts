@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { HISTORY_TURNS, parseVoiceRequest } from './voice.ts';
+import { assistantTurn, HISTORY_TURNS, isQuestion, parseVoiceRequest } from './voice.ts';
 
 describe('parseVoiceRequest', () => {
 	test('in the road mode, only when it says so', () => {
@@ -108,5 +108,42 @@ describe('parseVoiceRequest', () => {
 		expect(parseVoiceRequest({ text: '   ' })).toBeNull();
 		expect(parseVoiceRequest({})).toBeNull();
 		expect(parseVoiceRequest(null)).toBeNull();
+	});
+});
+
+describe('questions', () => {
+	const reply = (text: string, options: { label: string; command: string }[] = []) => ({
+		reply: text,
+		actions: [],
+		options
+	});
+	const choice = reply('¿El álbum o la canción?', [
+		{ label: 'El álbum', command: 'Pon el álbum Deseo carnal' },
+		{ label: 'La canción', command: 'Pon la canción Deseo carnal' }
+	]);
+
+	test('a choice, or a question asked by itself, waits for an answer', () => {
+		expect(isQuestion(choice)).toBe(true);
+		expect(isQuestion(reply('¿Quieres que busque otra cosa de rock?'))).toBe(true);
+		expect(isQuestion(reply('¿Seguro?» '))).toBe(true);
+		expect(isQuestion(reply('Pongo Queen en toda la casa.'))).toBe(false);
+	});
+
+	test('in the conversation, a choice goes with its options and their orders', () => {
+		expect(assistantTurn(choice).content).toBe(
+			'¿El álbum o la canción? [Opciones: 1. El álbum: «Pon el álbum Deseo carnal»; 2. La canción: «Pon la canción Deseo carnal»]'
+		);
+		expect(assistantTurn(reply('Hecho.')).content).toBe('Hecho.');
+	});
+
+	test('kept whole when it comes back', () => {
+		const long = assistantTurn(
+			reply(
+				'¿Cuál?',
+				[1, 2, 3, 4].map((n) => ({ label: `Opción ${n}`, command: 'x'.repeat(150) }))
+			)
+		);
+		const parsed = parseVoiceRequest({ text: 'la segunda', history: [long] });
+		expect(parsed?.history[0]?.content).toBe(long.content);
 	});
 });

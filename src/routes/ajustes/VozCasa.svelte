@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { section, primary, secondary } from './styles.ts';
+	import { section, primary, secondary, select } from './styles.ts';
+	import { MAX_FILLER_CHARS, MAX_FILLERS } from '#lib/voice-fillers.ts';
 	import type { PageData, ActionData } from './$types';
 
 	/** La voz de la casa (#223): con la que contestan los satélites, entre las de Piper instaladas. */
@@ -80,5 +81,33 @@
 				>python -m piper.download_voices</code
 			>).
 		</p>
+
+		<h3 class="mt-6 mb-1 font-semibold" id="frases-espera">Frases de espera</h3>
+		<p class="mb-2 text-sm text-zinc-400">
+			Si la IA tarda en contestar, el satélite dice una de estas mientras, una distinta cada vez.
+			Una por línea; cortas, que solo llenan la espera.
+		</p>
+		<form
+			method="post"
+			action="?seccion={tab}&/saveFillers"
+			use:enhance={() =>
+				async ({ update }) =>
+					update({ reset: false })}
+		>
+			<textarea
+				name="fillers"
+				rows={Math.min(8, hv.fillers.split('\n').length + 1)}
+				maxlength={MAX_FILLERS * (MAX_FILLER_CHARS + 1)}
+				value={hv.fillers}
+				aria-label="Frases de espera, una por línea"
+				class="{select} mb-2 w-full"></textarea>
+			<div class="flex flex-wrap items-center gap-2">
+				<button class={primary}>Guardar</button>
+				<button class={secondary} name="reset" value="1">Volver a las de siempre</button>
+				{#if form && 'saved' in form && form.saved === 'fillers'}
+					<span class="text-sm text-green-400">Guardadas</span>
+				{/if}
+			</div>
+		</form>
 	</section>
 {/if}

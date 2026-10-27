@@ -48,6 +48,7 @@ import {
 	spanishVoices,
 	type VoiceOption
 } from '#lib/server/piper.ts';
+import { getFillers, setFillers, warmFillers } from '#lib/server/voice-fillers.ts';
 import {
 	accountCredits,
 	completeJson,
@@ -131,7 +132,12 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 			} catch (err) {
 				problem = err instanceof Error ? err.message : String(err);
 			}
-			houseVoiceChoice = { options, problem, chosen: await houseVoice() };
+			houseVoiceChoice = {
+				options,
+				problem,
+				chosen: await houseVoice(),
+				fillers: (await getFillers()).join('\n')
+			};
 		}
 		/** Where the house is, for the voice's weather (#223). */
 		const place = await housePlace();
@@ -298,11 +304,21 @@ export const actions: Actions = {
 		const voice = { voice: form.get('voice'), speaker: form.get('speaker') || null };
 		if (!isPiperVoice(voice)) return fail(400, { voiceProblem: 'Voz no válida' });
 		await setHouseVoice(voice);
+		void warmFillers();
 		log.info(
 			'ajustes',
 			`Voz de la casa: ${voice.voice}${voice.speaker ? ` ${voice.speaker}` : ''}`
 		);
 		return { saved: 'houseVoice' };
+	},
+	/** What the satellites say while the AI thinks (#223), one a line; empty, the default ones. */
+	saveFillers: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const form = await request.formData();
+		const text = form.get('reset') ? null : String(form.get('fillers') ?? '');
+		await setFillers(text);
+		log.info('ajustes', 'Frases de espera de los satélites', { fillers: await getFillers() });
+		return { saved: 'fillers' };
 	},
 	/** Where the house is (#223): what Open-Meteo finds by that name, to choose one. */
 	findHousePlace: async ({ request, locals }) => {

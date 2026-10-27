@@ -55,7 +55,8 @@ type Key =
 	| 'relay_key'
 	| 'agenda_ics_token'
 	| 'house_place'
-	| 'house_voice';
+	| 'house_voice'
+	| 'voice_fillers';
 
 export async function getAppSetting(key: Key) {
 	return get(key);
