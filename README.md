@@ -640,6 +640,12 @@ Si la IA tarda más de segundo y medio en contestar, el satélite dice antes una
 Casa, debajo de la voz, una por línea. Piper las lee al arrancar y al cambiar la voz o las frases,
 y se quedan guardadas, así que suenan al momento (por Snapcast, con su segundo de búfer).
 
+Los temporizadores y avisos («avísame en una hora para pedir cita en la peluquería») los lleva cada
+satélite, como cada móvil los suyos, guardados en su volumen (`/data/temporizadores.json` en la
+Raspberry), así que un reinicio no los pierde. Al cumplirse suenan por donde contesta el satélite:
+dos «din-don» y su nombre dicho, el que le puso la IA, y cinco segundos de silencio para que se
+oiga «hola casita», que lo para; si nadie lo para, se calla a los tres minutos.
+
 ### Juegos
 
 Un experimento (#176): juegos retro en la Vista TV, con

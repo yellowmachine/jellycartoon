@@ -2,7 +2,7 @@ import { music } from '#lib/music-player.svelte.ts';
 import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 import { recipe } from '#lib/recipe.svelte.ts';
 import { videoHere } from '#lib/video-here.svelte.ts';
-import { sameLabel, spokenLeft, timeLabel } from '#lib/timer-names.ts';
+import { describeTimers, sameLabel, timeLabel, type DoneTimer } from '#lib/timer-names.ts';
 
 /**
  * Kitchen timers (#60), set by voice («avísame en 10 minutos para la pasta»): in this browser,
@@ -50,7 +50,7 @@ class Timers {
 	list = $state<Timer[]>([]);
 	prepared = $state<PreparedTimer[]>([]);
 	/** Rang and stopped, or taken away, lately: only for the AI (see RECENT_MS). */
-	#done: { label: string; how: 'sonó' | 'quitado'; at: number }[] = [];
+	#done: DoneTimer[] = [];
 	/** Those that got to their end and were not stopped yet. */
 	ringing = $state<Timer[]>([]);
 	/** Ticks every second while there is any: what the countdowns are drawn from. */
@@ -200,17 +200,10 @@ class Timers {
 				now - d.at < RECENT_MS &&
 				![...this.list, ...this.ringing, ...this.prepared].some((t) => sameLabel(t.label, d.label))
 		);
-		return [
-			...done.map(
-				(d) =>
-					`${d.label}, ya ${d.how === 'sonó' ? 'sonó y se paró' : 'se quitó'} hace ${spokenLeft((now - d.at) / 1000)}: no lo vuelvas a poner si no lo pide`
-			),
-			...this.list.map((t) => `${t.label}, quedan ${spokenLeft((t.endsAt - now) / 1000)}`),
-			...this.ringing.map((t) => `${t.label}, ya ha terminado y está sonando`),
-			...this.prepared.map(
-				(t) => `${t.label}, ${spokenLeft(t.seconds)}, preparado: arranca cuando ${t.trigger}`
-			)
-		];
+		return describeTimers(
+			{ done, running: this.list, ringing: this.ringing, prepared: this.prepared },
+			now
+		);
 	}
 
 	/** What ended rings; the ticking and the chime, only while needed. */

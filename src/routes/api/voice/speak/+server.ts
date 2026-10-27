@@ -4,6 +4,7 @@ import { log } from '#lib/server/log.ts';
 import { sayOnSnapcast, snapcastVoiceReady } from '#lib/server/music/snapcast.ts';
 import { houseVoice, isPiperVoice, piper, piperEnabled } from '#lib/server/piper.ts';
 import { fillerWav } from '#lib/server/voice-fillers.ts';
+import { withChime } from '#lib/server/voice/chime.ts';
 
 /** An answer is a sentence or three: more than this is not one. */
 const MAX_CHARS = 1000;
@@ -14,7 +15,8 @@ const MAX_CHARS = 1000;
  * `speaker`), in that one: «Escuchar» in Ajustes → Casa. With `filler` instead of `text`, one of the
  * phrases said while the AI thinks («Vale»), already read; nothing (204) if there are none. A
  * satellite that answers through Snapcast (Ajustes) has it said there, and gets nothing (204) once
- * it has been heard (a filler, at once); if Snapcast fails, the WAV, to say it itself.
+ * it has been heard (a filler, at once); if Snapcast fails, the WAV, to say it itself. With
+ * `chime`, a timer's «din-don» before it (chime.ts), as one sound.
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!piperEnabled) error(404, 'No hay Piper (PIPER_URL)');
@@ -25,9 +27,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (text.length > MAX_CHARS) error(413, 'Demasiado largo');
 	try {
 		const asked = { voice: body.voice, speaker: body.speaker ?? null };
-		const wav = filler
+		const said = filler
 			? await fillerWav()
 			: await piper(text, 'es', isPiperVoice(asked) ? asked : await houseVoice());
+		const wav = said && body.chime === true ? withChime(said) : said;
 		if (!wav) return new Response(null, { status: 204 });
 		const on = locals.satellite?.answerOn;
 		if (on && snapcastVoiceReady()) {

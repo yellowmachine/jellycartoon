@@ -5,6 +5,7 @@
 !src/lib/wakeword.ts
 !src/lib/wakeword-recorder.ts
 !src/lib/voice.ts
+!src/lib/timer-names.ts
 !satellite/package.json
 !satellite/bun.lock
 !satellite/src

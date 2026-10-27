@@ -1282,7 +1282,7 @@ export async function runVoiceCommand(
 				{
 					type: 'text',
 					text: satellite
-						? `[Te habla alguien de la casa desde «${satellite}», un satélite de voz sin pantalla: no sabes quién es, así que sin nombres; tampoco hay historial de lo que ve cada uno. El satélite no pone música, radio ni vídeos: aquí es toda la casa, y de un capítulo solo el audio.]`
+						? `[Te habla alguien de la casa desde «${satellite}», un satélite de voz sin pantalla: no sabes quién es, así que sin nombres; tampoco hay historial de lo que ve cada uno. El satélite no pone música, radio ni vídeos: aquí es toda la casa, y de un capítulo solo el audio. Los temporizadores y avisos sí los lleva el satélite: suenan por donde contesta, con un «din-don» y su nombre, así que dales un nombre que se entienda al oírlo («pedir cita en la peluquería»).]`
 						: `[Te habla: ${user.name}.]`
 				},
 				{ type: 'text', text: soundingNow(request.here, house) },

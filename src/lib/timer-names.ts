@@ -34,3 +34,41 @@ export function spokenLeft(sec: number) {
 
 export const sameLabel = (a: string, b: string) =>
 	a.localeCompare(b, 'es', { sensitivity: 'base' }) === 0;
+
+/** Rang and stopped, or taken away, lately: told to the AI so that it does not set it again. */
+export interface DoneTimer {
+	label: string;
+	how: 'sonó' | 'quitado';
+	at: number;
+}
+
+/**
+ * For the AI, with each command, as a phone or a satellite has them: «¿cuánto le queda?» is answered
+ * from it. `done`, only those still worth telling (no other with their name).
+ */
+export function describeTimers(
+	{
+		done,
+		running,
+		ringing,
+		prepared
+	}: {
+		done: DoneTimer[];
+		running: { label: string; endsAt: number }[];
+		ringing: { label: string }[];
+		prepared: { label: string; seconds: number; trigger: string }[];
+	},
+	now: number
+) {
+	return [
+		...done.map(
+			(d) =>
+				`${d.label}, ya ${d.how === 'sonó' ? 'sonó y se paró' : 'se quitó'} hace ${spokenLeft((now - d.at) / 1000)}: no lo vuelvas a poner si no lo pide`
+		),
+		...running.map((t) => `${t.label}, quedan ${spokenLeft((t.endsAt - now) / 1000)}`),
+		...ringing.map((t) => `${t.label}, ya ha terminado y está sonando`),
+		...prepared.map(
+			(t) => `${t.label}, ${spokenLeft(t.seconds)}, preparado: arranca cuando ${t.trigger}`
+		)
+	];
+}
