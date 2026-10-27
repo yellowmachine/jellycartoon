@@ -20,6 +20,7 @@ export interface SettingsShown {
 	telegramBot: unknown;
 	houseStyle: unknown;
 	myStyle: unknown;
+	voiceWeb: unknown;
 	musicApps: unknown;
 	voice: boolean;
 	music: boolean;
@@ -108,6 +109,13 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		title: 'Cómo es la voz de la casa',
 		words: 'voz carácter personalidad tono humor tomar el pelo chistes asistente estilo',
 		shown: (d) => Boolean(d.houseStyle)
+	},
+	{
+		id: 'voz-internet',
+		tab: 'casa',
+		title: 'Buscar en internet desde la voz',
+		words: 'internet web buscar google noticias resultados deportes fútbol nba actualidad',
+		shown: (d) => Boolean(d.voiceWeb)
 	},
 	{
 		id: 'caracter-mio',

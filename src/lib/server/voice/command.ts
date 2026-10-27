@@ -79,6 +79,12 @@ import {
 	TELEGRAM_TOOLS,
 	telegramTools
 } from '#lib/server/voice/telegram-tools.ts';
+import {
+	searchWeb,
+	WEB_TOOL,
+	webSearchConfig,
+	webSearchTool
+} from '#lib/server/voice/web-search.ts';
 import { isKidAccount } from '#lib/server/kids.ts';
 import { EXPENSE_CATEGORIES, euros, isCategory } from '#lib/expenses.ts';
 import { today } from '#lib/server/playlist.ts';
@@ -716,6 +722,7 @@ Otras preguntas (de cocina, de lo que sea): si no pide nada de la app, contesta 
 El tiempo («¿qué tiempo hará mañana?», «¿llueve esta tarde?», «¿hace frío para salir?»): «get_weather», sin preguntar. Contesta corto, solo lo que pregunta: el cielo, las temperaturas y, si puede llover, la probabilidad. Nunca lo inventes.
 
 Temporizadores («avísame en 10 minutos», «pon un temporizador de 20 minutos para el horno»): «set_timer», sin preguntar. Con cada orden va la lista de los que hay en este dispositivo.
+Actualidad que no sabes (resultados, noticias, horarios, precios): «web_search» si la tienes, con la pregunta completa, y contesta corto con lo que encuentre; si no la tienes, di que no puedes buscar en internet (se activa en Ajustes → Casa).
 Telegram: «dile a Ana que…», «contesta a…», «manda al grupo de… que…» son mensajes de su propia cuenta: «telegram_send» y luego «ask» («¿Le mando a Ana: "llego en diez minutos"?»), y con su respuesta «telegram_confirm»; nunca lo envíes sin su sí. «Di en el grupo que…», «avisa a la familia de que…» son del bot de la casa: «group_say». Si no tienes la herramienta, dile que no está conectado.
 Alarmas a una hora («despiértame a las 7», «todos los días laborables a las 7:30», «el jueves a las 9 la cita del médico»): «set_alarm». Con cada orden va la lista de alarmas, con su número: para quitar una, saltarse solo la próxima («mañana no me despiertes»), pausarla o pararla, «change_alarm» con ese número; si no está claro cuál, usa «ask».
 - «¿Cuánto le queda (a la pasta)?»: contesta con esa lista, sin herramientas.
@@ -963,6 +970,15 @@ async function runTool(
 	}
 ): Promise<ToolResult> {
 	if (HISTORY_TOOLS.has(name)) return runHistoryTool(name, args, { self: ctx.user });
+	if (name === WEB_TOOL) {
+		const query = typeof args.query === 'string' ? args.query.trim() : '';
+		if (!query) return 'Falta qué buscar.';
+		try {
+			return `Encontrado en internet: ${await searchWeb(query)}`;
+		} catch (err) {
+			return `No se pudo buscar: ${err instanceof Error ? err.message : String(err)}`;
+		}
+	}
 	if (TELEGRAM_TOOLS.has(name))
 		return runTelegramTool(name, args, {
 			userId: ctx.user.id,
@@ -1518,7 +1534,8 @@ export async function runVoiceCommand(
 	const available = [
 		...tools(house, rooms),
 		...(satellite ? [] : historyTools({ self: user })),
-		...(await telegramTools(user.id, Boolean(satellite)))
+		...(await telegramTools(user.id, Boolean(satellite))),
+		...((await webSearchConfig()).on ? [webSearchTool] : [])
 	].filter((t) =>
 		request.car ? !NOT_IN_THE_CAR.has(t.function.name) : !ONLY_IN_THE_CAR.has(t.function.name)
 	);

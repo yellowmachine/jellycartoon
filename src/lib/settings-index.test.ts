@@ -20,6 +20,7 @@ const admin: SettingsShown = {
 	telegramBot: {},
 	houseStyle: {},
 	myStyle: {},
+	voiceWeb: {},
 	musicApps: {},
 	voice: true,
 	music: true,
