@@ -153,6 +153,12 @@ export class SnapserverControl {
 		);
 	}
 
+	/** Their state asked for now, for whoever needs it without a page open (a satellite's speaker). */
+	async refresh() {
+		const result = await this.request('Server.GetStatus');
+		this.#replaceAll((result as { server: SnapServerStatus }).server);
+	}
+
 	/** An empty name goes back to the host's. */
 	async setName(id: string, name: string) {
 		const current = this.#speakers.get(id);

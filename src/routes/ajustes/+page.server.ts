@@ -26,7 +26,13 @@ import {
 	voiceModel
 } from '#lib/server/app-settings.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
-import { createSatellite, deleteSatellite, listSatellites } from '#lib/server/satellites.ts';
+import {
+	createSatellite,
+	deleteSatellite,
+	listSatellites,
+	setSatelliteSpeaker
+} from '#lib/server/satellites.ts';
+import { listSpeakers } from '#lib/server/music/snapcast.ts';
 import {
 	findPlaces,
 	housePlace,
@@ -111,6 +117,7 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 	let relay = null;
 	let labels = null;
 	let satellites = null;
+	let satelliteSpeakers = null;
 	let home = null;
 	let houseVoiceChoice = null;
 	if (admin) {
@@ -129,7 +136,11 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		const place = await housePlace();
 		home = { place, name: place ? placeName(place) : null };
 		/** Voice satellites (#223): only where there is voice (WHISPER_URL). */
-		if (voiceEnabled) satellites = await listSatellites(request.headers);
+		if (voiceEnabled) {
+			satellites = await listSatellites(request.headers);
+			/** Each one's room speaker, lowered while it listens: the Snapcast ones. */
+			satelliteSpeakers = await listSpeakers();
+		}
 		/** What the vision model looks for in episodes: only with Ollama (OLLAMA_URL). */
 		if (labellingEnabled) labels = { sets: await labelSets(), model: LABEL_MODEL };
 		const r = await relayConfig();
@@ -238,6 +249,7 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		relay,
 		labels,
 		satellites,
+		satelliteSpeakers,
 		home,
 		houseVoice: houseVoiceChoice,
 		/** Children's accounts (#17): only who manages the app creates them. */
@@ -334,6 +346,16 @@ export const actions: Actions = {
 		const key = await createSatellite(name, request.headers);
 		log.info('ajustes', `Satélite de voz nuevo: «${name}»`);
 		return { satelliteKey: key, satelliteName: name };
+	},
+	/** Its room's speaker (#223), lowered while it listens; empty, none. */
+	saveSatelliteSpeaker: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+		const speaker = String(form.get('speaker') ?? '') || null;
+		await setSatelliteSpeaker(id, speaker, request.headers);
+		log.info('ajustes', 'Altavoz del satélite de voz', { id, speaker });
+		return { saved: 'satellites' };
 	},
 	deleteSatellite: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);

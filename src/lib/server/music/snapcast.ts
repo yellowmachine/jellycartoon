@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { MUSIC_MPV_SOCKET, SNAPSERVER_CONTROL } from '$app/env/private';
+import { inOrder } from '#lib/server/in-order.ts';
 import { log } from '#lib/server/log.ts';
 import { MpvClient, StateBroadcast, type MpvMessage } from '#lib/server/mpv-client.ts';
 import type { MusicTrack, SnapcastAction, SnapcastState } from '#lib/music.ts';
@@ -348,6 +349,57 @@ export async function controlSnapcast(
 			return speakers().setName(action.speakerId, action.name);
 	}
 }
+
+/** The speakers as they are now, to choose a satellite's (Ajustes); null without snapserver. */
+export async function listSpeakers() {
+	if (!control) return null;
+	try {
+		await control.refresh();
+	} catch {
+		return null;
+	}
+	return structuredClone(state.speakers);
+}
+
+/** Lowered to this much of what it was while a satellite listens and answers, as mpv.ts's. */
+const DUCKED = 0.3;
+/** Never lowered for longer: a satellite that never says it ended (unplugged, restarted). */
+const DUCK_MAX_MS = 60_000;
+const ducked = new Map<
+	string,
+	{ from: number; to: number; timer: ReturnType<typeof setTimeout> }
+>();
+/** One after another: «on» still asking its volume when «off» comes would leave it low. */
+const oneDuck = inOrder();
+
+/**
+ * A voice satellite's own speaker (#223, Ajustes) lowered while it hears an order and answers, so that
+ * the music covers neither, and back as it was after; not back if someone changed it meanwhile.
+ * Lowered even if nothing plays: mpv's state may not be known yet, and lowering silence does nothing.
+ */
+export const duckSpeaker = (id: string, on: boolean) =>
+	oneDuck(async () => {
+		const known = ducked.get(id);
+		if (on) {
+			if (known) {
+				clearTimeout(known.timer);
+				known.timer = setTimeout(() => void duckSpeaker(id, false), DUCK_MAX_MS);
+				return;
+			}
+			await speakers().refresh();
+			const speaker = state.speakers?.find((s) => s.id === id);
+			if (!speaker?.connected || speaker.muted || !speaker.volume) return;
+			const to = Math.round(speaker.volume * DUCKED);
+			const timer = setTimeout(() => void duckSpeaker(id, false), DUCK_MAX_MS);
+			ducked.set(id, { from: speaker.volume, to, timer });
+			return speakers().setVolume(id, { percent: to });
+		}
+		if (!known) return;
+		ducked.delete(id);
+		clearTimeout(known.timer);
+		const now = state.speakers?.find((s) => s.id === id)?.volume;
+		if (now === known.to) return speakers().setVolume(id, { percent: known.from });
+	});
 
 function speakers() {
 	if (!control) throw new Error('No hay control de snapserver configurado (SNAPSERVER_CONTROL)');

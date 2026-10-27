@@ -41,10 +41,32 @@
 								{#if s.lastRequest}· usado el {day(s.lastRequest)}{:else}· sin usar{/if}
 							</span>
 						</span>
-						<form method="post" action="?seccion={tab}&/deleteSatellite" use:enhance>
-							<input type="hidden" name="id" value={s.id} />
-							<button class={secondary}>Quitar</button>
-						</form>
+						<span class="flex shrink-0 items-center gap-2">
+							{#if data.satelliteSpeakers?.length}
+								<form method="post" action="?seccion={tab}&/saveSatelliteSpeaker" use:enhance>
+									<input type="hidden" name="id" value={s.id} />
+									<select
+										name="speaker"
+										aria-label="Su altavoz de la casa"
+										value={s.speakerId ?? ''}
+										onchange={(e) => e.currentTarget.form?.requestSubmit()}
+										class="rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm"
+									>
+										<option value="">Sin altavoz</option>
+										{#each data.satelliteSpeakers as sp (sp.id)}
+											<option value={sp.id}>{sp.name}{sp.connected ? '' : ' (apagado)'}</option>
+										{/each}
+										{#if s.speakerId && !data.satelliteSpeakers.some((sp) => sp.id === s.speakerId)}
+											<option value={s.speakerId}>Uno que ya no está</option>
+										{/if}
+									</select>
+								</form>
+							{/if}
+							<form method="post" action="?seccion={tab}&/deleteSatellite" use:enhance>
+								<input type="hidden" name="id" value={s.id} />
+								<button class={secondary}>Quitar</button>
+							</form>
+						</span>
 					</li>
 				{/each}
 			</ul>
@@ -69,6 +91,10 @@
 			<p class="mt-2 text-sm text-red-400">{form.satelliteProblem}</p>
 		{/if}
 		<p class="mt-2 text-xs text-zinc-500">
+			{#if data.satelliteSpeakers?.length}
+				Su altavoz es el de Snapcast de su habitación: mientras te oye y contesta, la música baja
+				ahí.
+			{/if}
 			Quitarlo deja sin entrar al aparato que usaba esa clave.
 		</p>
 	</section>
