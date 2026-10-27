@@ -3,6 +3,7 @@
 	import favicon from '#lib/assets/favicon.svg';
 	import MusicBar from '#lib/components/MusicBar.svelte';
 	import AiSpendLine from '#lib/components/AiSpendLine.svelte';
+	import AlarmBanner from '#lib/components/AlarmBanner.svelte';
 	import SalonBar from '#lib/components/SalonBar.svelte';
 	import SnapcastBar from '#lib/components/SnapcastBar.svelte';
 	import SectionIcon, { type Section } from '#lib/components/SectionIcon.svelte';
@@ -581,6 +582,10 @@
 					{/if}
 				</div>
 			</header>
+			<!-- An alarm or a timer ringing (#241), with «Parar»: wherever it sounds. -->
+			{#if data.user}
+				<AlarmBanner />
+			{/if}
 			{#if data.newVersion && !isCurrent('/ajustes')}
 				<a
 					href="/ajustes?seccion=casa#version"
