@@ -1,8 +1,13 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 
+/** The app's settings, in memory: where the credit's running out is kept. */
+const settings = new Map<string, string>();
 mock.module('#lib/server/app-settings.ts', () => ({
 	openRouterConfig: async () => ({ apiKey: 'k', model: 'anthropic/claude-haiku-5.5' }),
-	openRouterManagementKey: async () => null
+	openRouterManagementKey: async () => null,
+	getAppSetting: async (key: string) => settings.get(key) ?? null,
+	setAppSetting: async (key: string, value: string | null) =>
+		void (value === null ? settings.delete(key) : settings.set(key, value))
 }));
 /** What was written to the Registro. */
 const logged: { source: string; message: string }[] = [];
@@ -12,8 +17,15 @@ mock.module('#lib/server/log.ts', () => ({
 		warn: (source: string, message: string) => logged.push({ source, message })
 	}
 }));
-const { completeJson, creditRunOutAt, describeUsage, NO_CREDIT, openRouterAuth, streamChat } =
-	await import('./openrouter.ts');
+const {
+	completeJson,
+	creditRecharged,
+	creditRunOutAt,
+	describeUsage,
+	NO_CREDIT,
+	openRouterAuth,
+	streamChat
+} = await import('./openrouter.ts');
 
 const realFetch = globalThis.fetch;
 afterEach(() => (globalThis.fetch = realFetch));
@@ -219,18 +231,28 @@ describe('no credit left', () => {
 		(globalThis.fetch = (async () =>
 			new Response(JSON.stringify({ error }), { status: 402 })) as unknown as typeof fetch);
 
-	test('a 402 is said for a person, and remembered until a request goes through', async () => {
+	test('a 402 is said for a person, and nothing else is asked until «Ya he recargado»', async () => {
 		refuse({ code: 402, message: 'Insufficient credits' });
 		await expect(ask()).rejects.toThrow(NO_CREDIT);
-		expect(creditRunOutAt()).toBeInstanceOf(Date);
+		expect(await creditRunOutAt()).toBeInstanceOf(Date);
+		expect(settings.get('openrouter_credit_out')).toBeString();
 
-		globalThis.fetch = (async () =>
-			Response.json({
+		let asked = 0;
+		globalThis.fetch = (async () => {
+			asked++;
+			return Response.json({
 				choices: [{ message: { content: '{}' } }],
 				usage: { prompt_tokens: 1, completion_tokens: 1 }
-			})) as unknown as typeof fetch;
+			});
+		}) as unknown as typeof fetch;
+		await expect(ask()).rejects.toThrow(NO_CREDIT);
+		expect(asked).toBe(0);
+
+		creditRecharged();
 		await ask();
-		expect(creditRunOutAt()).toBeNull();
+		expect(asked).toBe(1);
+		expect(await creditRunOutAt()).toBeNull();
+		expect(settings.has('openrouter_credit_out')).toBe(false);
 	});
 
 	test('not when it only waits for requests already running', async () => {
@@ -240,12 +262,13 @@ describe('no credit left', () => {
 			metadata: { limit_source: 'openrouter_in_flight_budget' }
 		});
 		await expect(ask()).rejects.toThrow('OpenRouter: busy');
-		expect(creditRunOutAt()).toBeNull();
+		expect(await creditRunOutAt()).toBeNull();
 	});
 
 	test('also inside a stream', async () => {
 		answer([`data: ${JSON.stringify({ error: { code: 402, message: 'no' } })}\n\n`]);
 		await expect(collect()).rejects.toThrow(NO_CREDIT);
+		creditRecharged();
 	});
 });
 

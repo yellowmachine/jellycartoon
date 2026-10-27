@@ -58,7 +58,8 @@ type Key =
 	| 'house_voice'
 	| 'voice_fillers'
 	| 'voice_levels'
-	| 'voice_filler_recordings';
+	| 'voice_filler_recordings'
+	| 'openrouter_credit_out';
 
 export async function getAppSetting(key: Key) {
 	return get(key);

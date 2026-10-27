@@ -17,7 +17,7 @@
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 	import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
 	import { videoHere } from '#lib/video-here.svelte.ts';
-	import { beforeNavigate, goto } from '$app/navigation';
+	import { beforeNavigate, goto, invalidateAll } from '$app/navigation';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { tapMic } from '#lib/mic-tap.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
@@ -31,6 +31,15 @@
 	import type { LayoutProps } from './$types';
 
 	let { children, data }: LayoutProps = $props();
+
+	/** The AI's credit banner: «Ya he recargado», and the page again without it. */
+	let recharging = $state(false);
+	async function recharged() {
+		recharging = true;
+		await fetch('/api/ia/recargado', { method: 'POST' }).catch(() => {});
+		await invalidateAll();
+		recharging = false;
+	}
 
 	/** The title card when the app opens (Ajustes), once: not over a video opened from a link. */
 	let openingQuote = $state(
@@ -578,6 +587,28 @@
 					class="block border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-sm text-amber-300 hover:bg-amber-500/20"
 					>Hay una versión nueva de JellyCartoon, la {data.newVersion}. Ver novedades y actualizar →</a
 				>
+			{/if}
+			{#if data.aiCreditOut}
+				<!-- Nothing goes to the AI until then (openrouter.ts): voice, the DJ, receipts… -->
+				<div
+					class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-red-500/30 bg-red-500/10 px-4 py-2 text-center text-sm text-red-300"
+					role="alert"
+				>
+					<span>
+						Se acabó el crédito de la IA: no funcionan la voz, el DJ, los tickets… Recárgalo en
+						<a
+							href="https://openrouter.ai/settings/credits"
+							class="underline"
+							target="_blank"
+							rel="noreferrer">openrouter.ai</a
+						>.
+					</span>
+					<button
+						class="rounded-md bg-red-500/20 px-3 py-1 text-red-100 hover:bg-red-500/30 disabled:opacity-50"
+						disabled={recharging}
+						onclick={recharged}>Ya he recargado</button
+					>
+				</div>
 			{/if}
 		{/if}
 
