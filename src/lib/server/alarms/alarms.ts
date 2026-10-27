@@ -13,6 +13,7 @@ import {
 	stopAfterTrackOnSnapcast
 } from '#lib/server/music/snapcast.ts';
 import { allSatellites, type Satellite } from '#lib/server/satellites.ts';
+import { tellGroup } from '#lib/server/telegram/bot.ts';
 import { houseSpeech } from '#lib/server/voice/house-speech.ts';
 import { nextRing } from './next.ts';
 
@@ -396,6 +397,9 @@ async function due() {
 		});
 		if (stops && !(await stopAfterTrackOnSnapcast().catch(() => false)))
 			await controlSnapcast({ action: 'stop' }).catch(() => {});
+		// The house's, to the family's group too (Telegram's bot, #243): someone's own, not.
+		if (!stops && !(await db.$count(alarmPerson, eq(alarmPerson.alarmId, row.id))))
+			void tellGroup('avisos', `⏰ Suena: ${row.label}`);
 	}
 	// What is over (stopped, and not coming again) and prepared ones never started, forgotten.
 	await db

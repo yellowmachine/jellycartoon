@@ -1122,7 +1122,8 @@ async function runTool(
 		}
 		case 'tick_off_shopping': {
 			const wanted = typeof args.item === 'string' ? args.item : '';
-			const done = wanted ? await tickOffByName(wanted) : null;
+			// From a satellite, who is not known.
+			const done = wanted ? await tickOffByName(wanted, ctx.satellite ? null : ctx.user.id) : null;
 			return done ? `Tachado: ${done}.` : `«${wanted}» no está en la lista por comprar.`;
 		}
 		case 'add_expense': {

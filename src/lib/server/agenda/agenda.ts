@@ -12,10 +12,12 @@ import { getAppSetting, setAppSetting } from '#lib/server/app-settings.ts';
 import { isKid } from '#lib/server/kids.ts';
 import { log } from '#lib/server/log.ts';
 import { notify } from '#lib/server/push.ts';
+import { tellGroup } from '#lib/server/telegram/bot.ts';
 import { avatar, isAvatar } from '#lib/avatars.ts';
 import {
 	addDays,
 	DAY_BEFORE_AT,
+	dayName,
 	daysBetween,
 	dayEvents,
 	fromRrule,
@@ -226,7 +228,20 @@ export async function addEvent(userId: string | null, input: EventInput) {
 		.returning({ id: calendarEvent.id });
 	await writePeople(row!.id, input.people);
 	changed();
+	void tellNew(userId, input);
 	return row!.id;
+}
+
+/** To the family's group (Telegram's bot, #243): «📅 María ha apuntado: Dentista, jueves 30 a las 17:00». */
+async function tellNew(userId: string | null, input: EventInput) {
+	const people = await agendaPeople();
+	const by = people.find((p) => p.id === userId)?.name ?? 'Alguien';
+	const when = `${dayName(input.startDay)}${input.startTime ? ` a las ${input.startTime}` : ''}`;
+	const who = names(people, input.people);
+	await tellGroup(
+		'agenda',
+		`📅 ${by} ha apuntado: ${input.title}, ${when}${who ? ` (${who})` : ''}`
+	);
 }
 
 /**
@@ -358,6 +373,10 @@ async function sendDue() {
 				url: `/agenda?dia=${day}`,
 				ttl: 6 * 3600
 			});
+			await tellGroup(
+				'agenda',
+				`📅 ${e.remind === 'dia' ? 'Mañana' : 'En una hora'}: ${e.title} (${when}${who ? ` · ${who}` : ''})`
+			);
 			log.info('agenda', `Aviso de «${e.title}» del ${day}`, { eventId: r.id, day });
 		}
 	}

@@ -12,6 +12,7 @@
 	import AlAbrir from './AlAbrir.svelte';
 	import Langua from './Langua.svelte';
 	import Telegram from './Telegram.svelte';
+	import TelegramBot from './TelegramBot.svelte';
 	import MusicaEnApps from './MusicaEnApps.svelte';
 	import Dispositivo from './Dispositivo.svelte';
 	import Voz from './Voz.svelte';
@@ -79,6 +80,7 @@
 				recordTrips: data.recordTrips,
 				langua: data.langua,
 				telegram: data.telegram,
+				telegramBot: data.telegramBot,
 				musicApps: data.musicApps,
 				voice: Boolean(data.voice),
 				music: Boolean(data.music),
@@ -163,6 +165,8 @@
 		<Satelites {data} {form} {tab} />
 
 		<VozCasa {data} {form} {tab} />
+
+		<TelegramBot {data} {form} {tab} />
 
 		<Personas {data} {form} {tab} />
 

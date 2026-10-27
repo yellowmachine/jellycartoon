@@ -23,6 +23,7 @@ import { startPodcastRefresh } from '#lib/server/podcasts/podcasts.ts';
 import { startAgenda } from '#lib/server/agenda/agenda.ts';
 import { startAlarms } from '#lib/server/alarms/alarms.ts';
 import { startTelegram } from '#lib/server/telegram/telegram.ts';
+import { startBot } from '#lib/server/telegram/bot.ts';
 import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
 import { log, startLogCleanup } from '#lib/server/log.ts';
 import { piperEnabled } from '#lib/server/piper.ts';
@@ -52,6 +53,8 @@ export const init: ServerInit = async () => {
 	startAlarms();
 	// The Telegram accounts connected (#243), listened to again.
 	void startTelegram().catch((error) => log.error('telegram', 'Al arrancar', { error }));
+	// The house's bot (#243), telling the family's group.
+	void startBot().catch((error) => log.error('telegram', 'El bot, al arrancar', { error }));
 	// What the voice satellites say while the AI thinks (#223), read beforehand to sound at once.
 	if (piperEnabled) void warmFillers();
 	// In the Registro: which version started, and how each of the above starts.

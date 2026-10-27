@@ -4,6 +4,7 @@ import { user } from '#lib/server/db/auth.schema.ts';
 import { fridgeItem, fridgeNote } from '#lib/server/db/schema.ts';
 import { KIDS_ROLE } from '#lib/server/kids.ts';
 import { notify } from '#lib/server/push.ts';
+import { tellGroup, tellList } from '#lib/server/telegram/bot.ts';
 import { today } from '#lib/server/playlist.ts';
 import { fold } from '#lib/music.ts';
 import { agendaToday } from '#lib/server/agenda/agenda.ts';
@@ -134,6 +135,7 @@ export async function addNote(userId: string, text: string, until: string | null
 			url: '/nevera',
 			ttl: 24 * 3600
 		});
+		await tellGroup('nevera', `📌 ${name} ha dejado un post-it: ${clean}`);
 	})();
 	return note!.id;
 }
@@ -211,14 +213,23 @@ export async function addItems(userId: string, texts: string[]) {
 			url: '/nevera',
 			ttl: 12 * 3600
 		});
+		tellList(name, 'añadido', told);
 	})();
 	return told;
 }
 
-/** Ticked off (bought), or back to buy. */
-export async function setItemDone(id: number, done: boolean) {
-	await db.update(fridgeItem).set({ done }).where(eq(fridgeItem.id, id));
+/**
+ * Ticked off (bought), or back to buy. Bought, told to the family's group (Telegram's bot, #243), by
+ * `userId`; null, by someone not known (a voice satellite).
+ */
+export async function setItemDone(id: number, done: boolean, userId: string | null = null) {
+	const [item] = await db
+		.update(fridgeItem)
+		.set({ done })
+		.where(eq(fridgeItem.id, id))
+		.returning({ text: fridgeItem.text });
 	changed();
+	if (done && item) tellList(userId ? await nameOf(userId) : null, 'comprado', [item.text]);
 }
 
 export async function removeItem(id: number) {
@@ -244,14 +255,14 @@ export async function toBuy() {
 	return rows.map((r) => r.text);
 }
 
-/** For the voice: an item off the list by its name (bought, or not needed). */
-export async function tickOffByName(text: string) {
+/** For the voice: an item off the list by its name (bought, or not needed), by `userId`. */
+export async function tickOffByName(text: string, userId: string | null = null) {
 	const rows = await db
 		.select({ id: fridgeItem.id, text: fridgeItem.text })
 		.from(fridgeItem)
 		.where(and(eq(fridgeItem.noteId, await listId()), eq(fridgeItem.done, false)));
 	const found = rows.find((r) => same(r.text, text));
 	if (!found) return null;
-	await setItemDone(found.id, true);
+	await setItemDone(found.id, true, userId);
 	return found.text;
 }
