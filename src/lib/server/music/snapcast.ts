@@ -9,7 +9,16 @@ import { inOrder } from '#lib/server/in-order.ts';
 import { run } from '#lib/server/library/ffmpeg.ts';
 import { log } from '#lib/server/log.ts';
 import { MpvClient, StateBroadcast, type MpvMessage } from '#lib/server/mpv-client.ts';
-import type { MusicTrack, SnapcastAction, SnapcastState } from '#lib/music.ts';
+import { saveProgress } from '#lib/server/progress.ts';
+import { askEvery } from '#lib/server/still-there.ts';
+import { addWatchTime } from '#lib/server/watch-time.ts';
+import type {
+	MusicTrack,
+	SnapcastAction,
+	SnapcastEpisode,
+	SnapcastState,
+	SnapcastWhere
+} from '#lib/music.ts';
 import type { RadioStream } from '#lib/radio.ts';
 import { SnapserverControl } from './snapserver.ts';
 
@@ -25,8 +34,21 @@ export const snapcastEnabled = Boolean(MUSIC_MPV_SOCKET);
 /** Its mpv is there (the optional Snapcast services are running): Snapcast is offered. */
 export const snapcastReady = () => snapcastEnabled && existsSync(MUSIC_MPV_SOCKET!);
 
-/** What each of mpv's playlist entries is: a track, or a station. */
-type Entry = { track: MusicTrack } | { radio: RadioStream };
+/**
+ * An episode listened to: whose progress it is, where it sounds (as /infantil's «Ahora» says it),
+ * and where it goes, kept as it plays.
+ */
+interface Listening {
+	episode: SnapcastEpisode;
+	userId: string;
+	place: string;
+	positionSec: number;
+	/** The one chosen: not started by itself. */
+	chosen: boolean;
+}
+
+/** What each of mpv's playlist entries is: a track, a station, or an episode's audio. */
+type Entry = { track: MusicTrack } | { radio: RadioStream } | { listening: Listening };
 const entries = new Map<number, Entry>();
 /** The entry playing now. */
 let current: number | null = null;
@@ -38,6 +60,7 @@ const state: SnapcastState = {
 	active: false,
 	track: null,
 	radio: null,
+	episode: null,
 	nowPlaying: null,
 	paused: false,
 	positionSec: null,
@@ -72,6 +95,7 @@ function show(entry: Entry | undefined) {
 	Object.assign(state, {
 		track: entry && 'track' in entry ? entry.track : null,
 		radio: entry && 'radio' in entry ? entry.radio : null,
+		episode: entry && 'listening' in entry ? entry.listening.episode : null,
 		nowPlaying: null
 	});
 	pages.notify();
@@ -119,6 +143,7 @@ const mpv = new MpvClient(
 				active: false,
 				track: null,
 				radio: null,
+				episode: null,
 				nowPlaying: null
 			});
 			pages.notify();
@@ -129,13 +154,22 @@ const mpv = new MpvClient(
 				case 'idle-active':
 					state.active = data === false;
 					if (!state.active)
-						Object.assign(state, { track: null, radio: null, nowPlaying: null, positionSec: null });
+						Object.assign(state, {
+							track: null,
+							radio: null,
+							episode: null,
+							nowPlaying: null,
+							positionSec: null
+						});
 					break;
 				case 'pause':
 					state.paused = data === true;
+					// Paused, where it was: «Seguir viendo» has it if nobody goes on.
+					if (state.paused) void saveCurrent();
 					break;
 				case 'time-pos':
 					state.positionSec = number;
+					listened(number);
 					return pages.notify(true);
 				case 'duration':
 					state.durationSec = number;
@@ -170,6 +204,10 @@ const mpv = new MpvClient(
 				current = message.playlist_entry_id;
 				show(entries.get(current));
 				started(current, entries.get(current));
+				void startedByItself(current);
+			} else if (message.event === 'end-file' && message.playlist_entry_id !== undefined) {
+				const entry = entries.get(message.playlist_entry_id);
+				if (entry && 'listening' in entry) void save(entry.listening, message.reason === 'eof');
 			}
 		}
 	},
@@ -191,13 +229,17 @@ export function watchSnapcast(listener: (state: SnapcastState) => void) {
 	return unwatch;
 }
 
-/** Adds a track or a station to mpv's playlist; `insert-at` needs mpv 0.38 or later. */
+/**
+ * Adds a track, a station or an episode to mpv's playlist; `insert-at` needs mpv 0.38 or later.
+ * `options` are the file's own, e.g. where it starts.
+ */
 async function loadEntry(
 	entry: Entry,
 	url: string,
-	how: { flags: 'replace' | 'append-play' } | { flags: 'insert-at'; index: number }
+	how: { flags: 'replace' | 'append-play' } | { flags: 'insert-at'; index: number },
+	options?: Record<string, string>
 ) {
-	const result = (await mpv.command({ name: 'loadfile', url, ...how })) as {
+	const result = (await mpv.command({ name: 'loadfile', url, ...how, options })) as {
 		playlist_entry_id: number;
 	};
 	entries.set(result.playlist_entry_id, entry);
@@ -287,6 +329,99 @@ export function setSnapcastDj(on: boolean) {
 	pages.notify();
 }
 
+/** Saved this often while an episode plays, as the browser does (episode-listening.svelte.ts). */
+const SAVE_EVERY_MS = 15_000;
+let savedAt = 0;
+
+const listeningNow = () => {
+	const entry = current === null ? undefined : entries.get(current);
+	return entry && 'listening' in entry ? entry.listening : null;
+};
+
+/** Where the episode on goes: kept, and saved now and then. */
+function listened(positionSec: number | null) {
+	const listening = listeningNow();
+	if (!listening || positionSec === null) return;
+	listening.positionSec = positionSec;
+	if (Date.now() - savedAt >= SAVE_EVERY_MS) void save(listening, false);
+}
+
+const saveCurrent = async () => {
+	const listening = listeningNow();
+	if (listening) await save(listening, false);
+};
+
+/** Its progress, as if watched (Past 92%, the end credits, it counts as watched), and its time. */
+async function save(listening: Listening, reachedEnd: boolean) {
+	savedAt = Date.now();
+	const { episode, userId, place, positionSec } = listening;
+	const completed =
+		reachedEnd || Boolean(episode.durationSec && positionSec / episode.durationSec > 0.92);
+	try {
+		await addWatchTime(userId, { episodeId: episode.id }, positionSec, 'snapcast', place);
+		await saveProgress(userId, episode.id, positionSec, completed);
+	} catch (error) {
+		log.error('música', 'No se pudo guardar el progreso del capítulo', { id: episode.id, error });
+	}
+}
+
+/**
+ * «¿Sigues ahí?» (#77) on Snapcast: episodes started by themselves since anyone touched anything.
+ * Nobody can answer on a speaker, so at the user's number of them it stops instead of asking: for
+ * falling asleep listening.
+ */
+let unattended = 0;
+
+async function startedByItself(entryId: number) {
+	const entry = entries.get(entryId);
+	if (!entry || !('listening' in entry) || entry.listening.chosen) return;
+	unattended++;
+	const every = await askEvery(entry.listening.userId).catch(() => null);
+	if (!every || unattended < every || current !== entryId) return;
+	log.info('música', `Snapcast se para tras ${unattended} capítulos seguidos`, {
+		userId: entry.listening.userId
+	});
+	// Not heard: its progress stays as it was.
+	entries.delete(entryId);
+	await mpv.command(['stop']).catch(() => {});
+}
+
+/**
+ * Episodes' audio (#223), instead of whatever was on: each one's `url` as mpv opens it, from
+ * `startSec`. Neither shuffled nor repeated: one after the other, until the last or «¿Sigues ahí?».
+ */
+export async function listenOnSnapcast(
+	items: { episode: SnapcastEpisode; url: string; startSec: number }[],
+	who: { userId: string; place: string }
+) {
+	if (!items.length) return;
+	entries.clear();
+	unattended = 0;
+	await mpv.command(['set_property', 'shuffle', false]);
+	await setLoops(false, false);
+	for (const [i, item] of items.entries()) {
+		const listening = { ...who, episode: item.episode, positionSec: item.startSec, chosen: !i };
+		await loadEntry(
+			{ listening },
+			item.url,
+			{ flags: i ? 'append-play' : 'replace' },
+			{
+				start: String(Math.floor(item.startSec))
+			}
+		);
+	}
+	log.info('música', `En Snapcast: ${items[0].episode.subtitle}, ${items.length} capítulos`, who);
+}
+
+/**
+ * Every speaker, or only one and its group (snapserver.ts, `soundOnly`). Without snapserver's
+ * control, the whole house is all there is.
+ */
+export async function soundOn(where: SnapcastWhere) {
+	if (where === 'house' && !control) return;
+	await speakers().soundOnly(where === 'house' ? null : where.speakerId);
+}
+
 /**
  * mpv's playlist-shuffle, with the track that is on moved first, so that the whole queue still
  * comes after it.
@@ -309,8 +444,13 @@ async function setLoops(repeat: boolean, single: boolean) {
 }
 
 export async function controlSnapcast(
-	action: Exclude<SnapcastAction, { action: 'play' } | { action: 'append' } | { action: 'radio' }>
+	action: Exclude<
+		SnapcastAction,
+		{ action: 'play' } | { action: 'append' } | { action: 'radio' } | { action: 'episode' }
+	>
 ) {
+	// Someone is there: «¿Sigues ahí?» counts again.
+	unattended = 0;
 	switch (action.action) {
 		case 'pause':
 			// A station connects again: back to live, not to where it was paused.

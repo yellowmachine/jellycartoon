@@ -20,6 +20,7 @@ import {
 	transcodeHls,
 	type Probe
 } from './ffmpeg.ts';
+import { lightIfHeavy, lightNow, makeNextLight, resumeLight, stopLight } from './light.ts';
 import { hlsDir, legacyVideoFile, removeEpisodeOutput, sourceFile, thumbFile } from './paths.ts';
 import { removeSource, sidecarSubtitles } from './sources.ts';
 import { log } from '#lib/server/log.ts';
@@ -92,6 +93,7 @@ export async function pauseWorker() {
 export async function stopWorker() {
 	await setState('stopped');
 	current?.abort.abort();
+	stopLight();
 	setSuspended(false);
 }
 
@@ -105,6 +107,8 @@ export async function restartCurrent() {
 /** Cancels the conversion in progress if it is one of these episodes (e.g. they were deleted). */
 export function cancelEpisodes(ids: number[]) {
 	if (current && ids.includes(current.id)) current.abort.abort();
+	const light = lightNow();
+	if (light && ids.includes(light.id)) stopLight();
 }
 
 /** The episode is converted next, after the current one. */
@@ -153,11 +157,13 @@ export async function startWorker() {
 			`Retoma ${resumed.length === 1 ? 'el capítulo que quedó' : `los ${resumed.length} capítulos que quedaron`} a medias al reiniciar`,
 			{ episodeIds: resumed.map((r) => r.id) }
 		);
+	await resumeLight();
 
 	(async () => {
 		while (true) {
 			try {
-				if (state === 'running' && (await processNext())) continue;
+				// Light versions (light.ts) when there is nothing to convert.
+				if (state === 'running' && ((await processNext()) || (await makeNextLight()))) continue;
 			} catch (error) {
 				log.error('worker', 'Fallo inesperado del worker', { error });
 			}
@@ -297,7 +303,10 @@ async function processNext() {
 				convertSec: activeSeconds(),
 				outputSize: size,
 				audioTracks: assumeLanguage(audioTracks, job.seriesAudioLang),
-				subtitles
+				subtitles,
+				// Its folder is new: no light version in it yet.
+				light: null,
+				lightError: null
 			})
 			.where(eq(episode.id, job.id))
 			.returning({ id: episode.id });
@@ -313,6 +322,12 @@ async function processNext() {
 		);
 		// Its subtitles, if Gestión → Subtítulos asks for them for new ones.
 		void subtitleIfWanted('episode', job.id);
+		await lightIfHeavy(job.id, duration).catch((error) =>
+			log.warn('worker', 'No se pudo mirar si hace falta la versión ligera', {
+				episodeId: job.id,
+				error
+			})
+		);
 		if (DELETE_SOURCES) await deleteSourceAfterConversion(job);
 	} catch (error) {
 		await rm(partial, { recursive: true, force: true });

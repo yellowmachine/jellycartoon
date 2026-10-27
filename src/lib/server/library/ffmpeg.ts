@@ -143,7 +143,7 @@ export function textSubtitleStreams(info: Probe) {
 }
 
 const INTERLACED = new Set(['tt', 'bb', 'tb', 'bt']);
-const SEGMENT_SECONDS = 6;
+export const SEGMENT_SECONDS = 6;
 
 /** PQ (HDR10, Dolby Vision base) and HLG. */
 const HDR_TRANSFERS = new Set(['smpte2084', 'arib-std-b67']);

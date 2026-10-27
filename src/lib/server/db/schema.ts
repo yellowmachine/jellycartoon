@@ -77,6 +77,12 @@ export const seriesTag = pgTable(
 );
 
 /** `ignored`: failed and set aside by hand; not retried until its file changes. */
+/**
+ * The light version of an episode (720p, for the phone away from home): asked for, being made,
+ * there, or failed. Null: none.
+ */
+export const lightStatus = pgEnum('light_status', ['pending', 'processing', 'ready', 'error']);
+
 export const episodeStatus = pgEnum('episode_status', [
 	'pending',
 	'processing',
@@ -125,6 +131,9 @@ export const episode = pgTable(
 		audioTracks: jsonb('audio_tracks').$type<AudioTrack[]>().notNull().default([]),
 		/** WebVTT files inside the episode's HLS folder. */
 		subtitles: jsonb('subtitles').$type<SubtitleTrack[]>().notNull().default([]),
+		/** A 720p video beside the other in its HLS (`video-720`), made after converting (light.ts). */
+		light: lightStatus('light'),
+		lightError: text('light_error'),
 		updatedAt: timestamp('updated_at')
 			.notNull()
 			.defaultNow()

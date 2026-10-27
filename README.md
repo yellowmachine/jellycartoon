@@ -150,6 +150,15 @@ docker compose -f compose.prod.yaml logs -f app
   Los ficheros modificados hace menos de un minuto se ignoran al escanear (copias en curso).
   En Biblioteca aparece un botón para borrar los que ya estaban convertidos. Ojo: para
   reconvertir (cambios de formato o de calidad) habrá que volver a copiar los originales.
+- **Versión ligera (720p)**, para el móvil o la tablet fuera de casa: con «Seleccionar capítulos» →
+  «Versión ligera (720p) · Crear», cada capítulo convertido tiene también su vídeo a 720p y unos
+  2 Mbps (`hls/<id>/video-720`), con el mismo audio y subtítulos; «Quitar» la borra. Se hace a
+  partir de lo convertido, sin el original, en la misma cola que las conversiones (cuando no queda
+  nada por convertir, y se pausa con ella); un capítulo de 22 minutos tarda unos 3 en el PC del
+  salón. Los que se conviertan con el vídeo por encima de 5 Mbps (Friends en Blu-ray va a 15) la
+  piden solos. En el reproductor, «Calidad: Automática / Ligera (720p)», que recuerda cada
+  aparato: en automático elige la mejor que permita la conexión, y con un buen 5G también la de
+  15 Mbps; en ligera, nunca más. El mpv del salón coge siempre la mejor.
 - «Borrar capítulo…» (en el menú de cada uno, o varios con «Seleccionar capítulos») los borra para
   siempre, original de `HOST_MEDIA_DIR` incluido, para que el escaneo no los vuelva a traer: útil
   para la basura que viene con lo bajado de YouTube. Lo que la IA marca como «no es un episodio» va
@@ -528,6 +537,14 @@ En Música aparece entonces «Sonar en: Este dispositivo / Snapcast» (cada disp
 suyo), y una barra con lo que suena en Snapcast, lo mande quien lo mande. Por el búfer de audio,
 pausar o cambiar de canción tarda uno o dos segundos en oírse.
 
+Los capítulos también pueden sonar solo con su audio en Snapcast (#223), por ejemplo para dormirse
+con una serie en el dormitorio: en el «⋯» del capítulo, o en el menú del reproductor desde el
+segundo en que vas, «🔈 Solo el audio, por Snapcast», en toda la casa o solo en un altavoz; o por
+voz («pon Friends en el dormitorio»). Siguen los siguientes de la serie (con «siguiente
+automático») y se guarda por dónde vas, como si lo vieras. Tras los capítulos seguidos de
+«¿Sigues ahí?» (Ajustes) sin tocar nada, se para: en un altavoz no hay quien conteste. El mpv de
+Snapcast lee el audio del mismo HLS del capítulo, en `HOST_DATA_DIR/hls`.
+
 Snapserver tiene además una segunda fuente, `Voz` (`HOST_DATA_DIR/snapvoz`), para que los
 satélites de voz (#223) contesten por Snapcast. En Ajustes → Casa → Satélites de voz se elige, por
 cada satélite, el altavoz de su habitación, donde baja la música mientras te oye y contesta, y por
@@ -886,7 +903,9 @@ un artista, álbum, lista o canción, poner una emisora, pausar, seguir, siguien
 y el volumen de toda la casa.
 
 - **Dónde**: aquí (el dispositivo, que lo pone en su propia barra) o toda la casa (Snapcast, si
-  está). Sin decirlo, aquí.
+  está), o uno solo de sus altavoces por su nombre («pon Queen en el dormitorio»): los demás se
+  silencian, y «toda la casa» les quita el silencio. Sin decirlo, aquí. Un capítulo en Snapcast
+  suena solo con su audio (ver Snapcast).
 - **La respuesta**, una frase corta, se ve en grande y se lee en voz alta con la voz del propio
   dispositivo (`speechSynthesis`). Si duda entre pocas opciones, pregunta con botones; si no
   encuentra algo, lo dice y propone lo más parecido.

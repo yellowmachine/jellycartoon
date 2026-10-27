@@ -11,6 +11,8 @@ interface VideoHere {
 	/** «Friends · El de la boda», «La 1»: for the kitchen panel. */
 	title: string;
 	element: HTMLVideoElement;
+	/** It goes on elsewhere (Snapcast, #223): it stops, and no longer saves where it goes. */
+	handOver?: () => void;
 }
 
 class VideoHereState {
@@ -72,6 +74,12 @@ class VideoHereState {
 		if (!this.#pausedByVoice) return;
 		this.#pausedByVoice = false;
 		this.current?.element.play().catch(() => {});
+	}
+
+	/** By voice, it goes on elsewhere: stopped here. */
+	handOver() {
+		this.#pausedByVoice = false;
+		this.current?.handOver?.();
 	}
 
 	/** What was said moved on to something else (another episode): it stays paused. */

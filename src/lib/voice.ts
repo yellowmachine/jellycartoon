@@ -19,6 +19,8 @@ export type VoiceAction =
 	| { kind: 'control'; action: VoiceControl }
 	/** An episode in this browser's player; `startSec` null: from where it was left. */
 	| { kind: 'watch'; episodeId: number; startSec: number | null }
+	/** The episode playing here goes on elsewhere (its audio on Snapcast, #223): here it stops. */
+	| { kind: 'handOver' }
 	/** A kitchen timer in this browser (#60); one with the same name starts over. */
 	| { kind: 'timer'; label: string; seconds: number }
 	/** Waiting for something to be said («cuando hierva»): it is started by voice or a tap. */

@@ -239,7 +239,8 @@ class VoiceClient {
 		this.#timing.answered = performance.now();
 		this.phase = 'idle';
 		// Something else to watch: the episode that was paused stays so.
-		if (body.actions.some((a) => a.kind === 'watch')) videoHere.forgetPause();
+		if (body.actions.some((a) => a.kind === 'watch' || a.kind === 'handOver'))
+			videoHere.forgetPause();
 		// Something else to hear, or «para»: what was paused does not come back over it.
 		if (body.actions.some((a) => ['play', 'radio', 'control'].includes(a.kind)))
 			music.forgetPause();
@@ -404,6 +405,8 @@ async function act(action: VoiceAction) {
 			return voice.road?.follow(action.id);
 		case 'photo':
 			return voice.road?.photo();
+		case 'handOver':
+			return videoHere.handOver();
 		case 'control':
 			if (action.action === 'pause') return music.pause();
 			if (action.action === 'resume') return music.resume();

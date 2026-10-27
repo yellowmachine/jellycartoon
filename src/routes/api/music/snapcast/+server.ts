@@ -8,6 +8,7 @@ import {
 	snapcastEnabled
 } from '#lib/server/music/snapcast.ts';
 import { stopDjOnSnapcast } from '#lib/server/music/dj.ts';
+import { episodesOnSnapcast } from '#lib/server/music/episodes-on-snapcast.ts';
 import { streamFor } from '#lib/server/radio.ts';
 import type { SnapcastAction } from '#lib/music.ts';
 
@@ -16,7 +17,8 @@ const isIds = (value: unknown): value is number[] =>
 
 /** Only well-formed commands reach mpv. */
 function parse(body: Record<string, unknown>): SnapcastAction | null {
-	const { action, value, trackIds, start, speakerId, name, uuid } = body;
+	const { action, value, trackIds, start, speakerId, name, uuid, episodeId, startSec, where } =
+		body;
 	switch (action) {
 		case 'play':
 			return isIds(trackIds) && Number.isInteger(start)
@@ -26,6 +28,22 @@ function parse(body: Record<string, unknown>): SnapcastAction | null {
 			return isIds(trackIds) ? { action, trackIds } : null;
 		case 'radio':
 			return typeof uuid === 'string' ? { action, uuid } : null;
+		// Where: «house», or one speaker.
+		case 'episode':
+			return Number.isInteger(episodeId) &&
+				(startSec === null || (typeof startSec === 'number' && startSec >= 0)) &&
+				(where === 'house' ||
+					(typeof where === 'object' &&
+						where !== null &&
+						'speakerId' in where &&
+						typeof where.speakerId === 'string'))
+				? {
+						action,
+						episodeId: episodeId as number,
+						startSec: startSec as number | null,
+						where: where === 'house' ? 'house' : { speakerId: where.speakerId as string }
+					}
+				: null;
 		case 'pause':
 		case 'shuffle':
 		case 'repeat':
@@ -61,7 +79,7 @@ function parse(body: Record<string, unknown>): SnapcastAction | null {
 }
 
 /** A button of the music on Snapcast. */
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!snapcastEnabled) error(404, 'No hay Snapcast configurado (MUSIC_MPV_SOCKET)');
 	const remote = parse(await request.json());
 	if (!remote) error(400, 'Orden no válida');
@@ -74,6 +92,8 @@ export const POST: RequestHandler = async ({ request }) => {
 			const stream = await streamFor(remote.uuid);
 			if (!stream) error(404, 'Emisora no encontrada');
 			await radioOnSnapcast(stream);
+		} else if (remote.action === 'episode') {
+			await episodesOnSnapcast(locals.user!.id, remote.episodeId, remote.startSec, remote.where);
 		} else if (remote.action === 'play' || remote.action === 'append') {
 			const tracks = await tracksById(remote.trackIds);
 			if (!tracks.length) error(400, 'No hay canciones que poner');

@@ -12,7 +12,10 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
-			adapter: adapter()
+			adapter: adapter(),
+			// A tab left on one page (the TV's /tv) learns of a new version (#20) within minutes, not
+			// within the hour of the default: its next navigation loads it (+layout.svelte).
+			version: { pollInterval: 5 * 60_000 }
 		})
 	]
 });
