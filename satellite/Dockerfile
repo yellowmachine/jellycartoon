@@ -5,7 +5,7 @@ FROM oven/bun:1 AS build
 WORKDIR /app
 COPY package.json ./
 COPY src/lib/vad.ts src/lib/wakeword.ts src/lib/wakeword-recorder.ts src/lib/voice.ts src/lib/timer-names.ts \
-	src/lib/
+	src/lib/wake-words.ts src/lib/
 COPY satellite/package.json satellite/bun.lock satellite/
 RUN cd satellite && bun install --frozen-lockfile --production
 COPY satellite/src satellite/src
@@ -20,7 +20,8 @@ ENV ORT_DISABLE_TELEMETRY=1
 COPY satellite/package.json ./
 COPY --from=build /app/satellite/node_modules ./node_modules
 COPY --from=build /app/satellite/dist/main.js ./
-COPY static/wakeword/melspectrogram.onnx static/wakeword/embedding_model.onnx static/wakeword/hola_casita.onnx static/wakeword/silero_vad.onnx ./models/
+COPY static/wakeword/melspectrogram.onnx static/wakeword/embedding_model.onnx static/wakeword/hola_casita.onnx \
+	static/wakeword/alexa.onnx static/wakeword/silero_vad.onnx ./models/
 RUN mkdir -p /data && chown node:node /data
 USER node
 CMD ["node", "main.js"]

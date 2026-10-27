@@ -4,13 +4,14 @@
 
 	/**
 	 * Trying wake words on this phone or tablet (#144, phase 1): «hola casita» and «hey luna», the
-	 * community's openWakeWord models, and «candy candy» and «Jelly Cartoon», trained for this house; heard in the
+	 * community's openWakeWord models, «Alexa», openWakeWord's own, and «candy candy» and «Jelly Cartoon», trained for this house; heard in the
 	 * browser. «Jelly Cartoon (música)»: trained with much more music and a bigger model, to try it
 	 * beside the one in use with music playing. Live scores, and each detection marked as right or not, to know how well each works
 	 * here and how often it goes off by itself.
 	 */
 	const WORDS = [
 		{ model: 'hola_casita', label: 'Hola casita' },
+		{ model: 'alexa', label: 'Alexa' },
 		{ model: 'hey_luna', label: 'Hey luna' },
 		{ model: 'candy_candy', label: 'Candy candy' },
 		{ model: 'jelly_cartoon', label: 'Jelly Cartoon' },

@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { micMode, type MicMode } from '#lib/mic-mode.svelte.ts';
 	import { WAKE_THRESHOLD, wakeWord } from '#lib/wake-word.svelte.ts';
+	import { WAKE_WORDS, type WakeWordModel } from '#lib/wake-words.ts';
 	import { section } from './styles.ts';
 	import type { PageData } from './$types';
 
@@ -59,12 +60,12 @@
 				onchange={(e) => wakeWord.set(e.currentTarget.checked)}
 				class="rounded border-zinc-600 bg-zinc-900 text-amber-500"
 			/>
-			Activar la voz diciendo «hola casita»
+			Activar la voz diciendo una palabra
 		</label>
 		<p class="mt-2 text-sm text-zinc-400">
 			Sin pulsar nada: suena un pitido, dices lo que quieres y se envía cuando te callas. Escucha
 			mientras la app está abierta y delante, con la pantalla encendida; al abrir la app hay que
-			tocar la pantalla una vez. Nada sale del dispositivo hasta que oye «hola casita».
+			tocar la pantalla una vez. Nada sale del dispositivo hasta que oye la palabra.
 		</p>
 		{#if mounted && wakeWord.on}
 			<p class={['mt-2 text-sm', wakeWord.problem ? 'text-red-400' : 'text-zinc-300']}>
@@ -72,9 +73,25 @@
 					{
 						off: 'Parada.',
 						loading: 'Preparando (unos 9 MB la primera vez)…',
-						on: 'Escuchando «hola casita».',
+						on: `Escuchando «${WAKE_WORDS[wakeWord.word]}».`,
 						tap: 'Toca la pantalla para que empiece a escuchar.'
 					}[wakeWord.status]}
+			</p>
+			<label class="mt-4 flex flex-wrap items-center gap-2 text-sm">
+				Palabra:
+				<select
+					value={wakeWord.word}
+					onchange={(e) => wakeWord.setWord(e.currentTarget.value as WakeWordModel)}
+					class="rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm"
+				>
+					{#each Object.entries(WAKE_WORDS) as [model, label] (model)}
+						<option value={model}>«{label}»</option>
+					{/each}
+				</select>
+			</label>
+			<p class="mt-1 text-xs text-zinc-500">
+				«Alexa» viene ya entrenada por openWakeWord, con muchas más voces: suele ir mejor, pero sale
+				en la tele, y si tienes un Echo contestan los dos.
 			</p>
 			<label class="mt-4 block text-sm">
 				Umbral: <span class="font-mono text-amber-400"
@@ -120,9 +137,9 @@
 				<span>
 					Avanzado: ver cómo oye, bajo el micrófono grande
 					<span class="block text-xs text-zinc-500"
-						>En Hablar y en el panel de cocina: el nivel del micrófono (azul), cuánto se parece a
-						«hola casita» (amarillo, con la raya del umbral), y el umbral y la limpieza para
-						cambiarlos mientras pruebas. Ahí se puede limpiar también con algo sonando en la app.</span
+						>En Hablar y en el panel de cocina: el nivel del micrófono (azul), cuánto se parece a la
+						palabra (amarillo, con la raya del umbral), y el umbral y la limpieza para cambiarlos
+						mientras pruebas. Ahí se puede limpiar también con algo sonando en la app.</span
 					>
 				</span>
 			</label>

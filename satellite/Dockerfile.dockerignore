@@ -6,10 +6,12 @@
 !src/lib/wakeword-recorder.ts
 !src/lib/voice.ts
 !src/lib/timer-names.ts
+!src/lib/wake-words.ts
 !satellite/package.json
 !satellite/bun.lock
 !satellite/src
 !static/wakeword/melspectrogram.onnx
 !static/wakeword/embedding_model.onnx
 !static/wakeword/hola_casita.onnx
+!static/wakeword/alexa.onnx
 !static/wakeword/silero_vad.onnx
