@@ -150,6 +150,15 @@ docker compose -f compose.prod.yaml logs -f app
   Los ficheros modificados hace menos de un minuto se ignoran al escanear (copias en curso).
   En Biblioteca aparece un botón para borrar los que ya estaban convertidos. Ojo: para
   reconvertir (cambios de formato o de calidad) habrá que volver a copiar los originales.
+- **Versión ligera (720p)**, para el móvil o la tablet fuera de casa: con «Seleccionar capítulos» →
+  «Versión ligera (720p) · Crear», cada capítulo convertido tiene también su vídeo a 720p y unos
+  2 Mbps (`hls/<id>/video-720`), con el mismo audio y subtítulos; «Quitar» la borra. Se hace a
+  partir de lo convertido, sin el original, en la misma cola que las conversiones (cuando no queda
+  nada por convertir, y se pausa con ella); un capítulo de 22 minutos tarda unos 3 en el PC del
+  salón. Los que se conviertan con el vídeo por encima de 5 Mbps (Friends en Blu-ray va a 15) la
+  piden solos. En el reproductor, «Calidad: Automática / Ligera (720p)», que recuerda cada
+  aparato: en automático elige la mejor que permita la conexión, y con un buen 5G también la de
+  15 Mbps; en ligera, nunca más. El mpv del salón coge siempre la mejor.
 - «Borrar capítulo…» (en el menú de cada uno, o varios con «Seleccionar capítulos») los borra para
   siempre, original de `HOST_MEDIA_DIR` incluido, para que el escaneo no los vuelva a traer: útil
   para la basura que viene con lo bajado de YouTube. Lo que la IA marca como «no es un episodio» va

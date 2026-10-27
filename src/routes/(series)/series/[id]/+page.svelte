@@ -23,13 +23,15 @@
 	/** Season 0 is the extras, after the last one (#220). */
 	const seasonName = (season: number) => (season === 0 ? 'Extras' : `Temporada ${season}`);
 
-	// While Whisper makes subtitles, or the model labels episodes, the page follows how it goes.
+	// While Whisper makes subtitles, the model labels episodes or a light version is being made, the
+	// page follows how it goes.
 	const makingSubtitles = $derived(
 		data.seasons.some((s) =>
 			s.episodes.some(
 				(e) =>
 					(e.autoSubtitles?.job && e.autoSubtitles.job.state !== 'failed') ||
-					(e.labelJob && e.labelJob.state !== 'failed')
+					(e.labelJob && e.labelJob.state !== 'failed') ||
+					e.light === 'processing'
 			)
 		)
 	);
@@ -584,6 +586,11 @@
 												: ''}{:else if ep.labelJob?.state === 'failed'}
 											· <span class="text-red-400" title={ep.labelJob.message}
 												>etiquetado fallido</span
+											>{/if}{#if ep.light === 'ready'}
+											· 720p{:else if ep.light === 'pending'}
+											· 720p en cola{:else if ep.light === 'processing'}
+											· haciendo 720p…{:else if ep.light === 'error'}
+											· <span class="text-red-400" title={ep.lightError ?? ''}>720p fallida</span
 											>{/if}{/if}
 									{#if ep.labels.length && !data.kid}
 										<!-- What the model saw, by set, the most seen first; how many frames, on hover. -->
@@ -730,6 +737,24 @@
 				>
 			</span>
 		{/if}
+		<!-- 720p for the phone away from home (light.ts): made after the conversions, from these. -->
+		<span class="flex items-center gap-2 text-sm">
+			Versión ligera (720p)
+			<button
+				formaction="?/lightMany"
+				formnovalidate
+				disabled={selected.size === 0}
+				class="rounded-md border border-zinc-700 px-3 py-1 hover:bg-zinc-900 disabled:opacity-50"
+				>Crear</button
+			>
+			<button
+				formaction="?/removeLightMany"
+				formnovalidate
+				disabled={selected.size === 0}
+				class="rounded-md border border-zinc-700 px-3 py-1 hover:bg-zinc-900 disabled:opacity-50"
+				>Quitar</button
+			>
+		</span>
 		<button
 			type="button"
 			class="rounded-md px-2 py-1 text-sm text-zinc-400 hover:text-white"
@@ -745,6 +770,14 @@
 				para etiquetar{form.labelsSkipped
 					? ` · ${form.labelsSkipped} ya estaban en cola o no están convertidos`
 					: ''}.
+			</p>
+		{/if}
+		{#if form && 'lightQueued' in form}
+			<p class="w-full text-sm text-amber-400">
+				{form.lightQueued === 1 ? '1 capítulo en cola' : `${form.lightQueued} capítulos en cola`}
+				para la versión ligera{form.lightSkipped
+					? ` · ${form.lightSkipped} ya la tenían, ya estaban en cola o no están convertidos`
+					: ''}. Se hace cuando no queda nada por convertir.
 			</p>
 		{/if}
 		{#if form && 'subtitlesQueued' in form}

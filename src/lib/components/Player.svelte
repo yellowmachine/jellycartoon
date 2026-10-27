@@ -17,6 +17,7 @@
 	import { page } from '$app/state';
 	import SubtitleStylePanel from './SubtitleStylePanel.svelte';
 	import SnapcastListen from './SnapcastListen.svelte';
+	import { playerQuality, type Quality } from '#lib/player-quality.svelte.ts';
 	import {
 		PLAYER_SIZES,
 		loadPlayerSize,
@@ -68,6 +69,8 @@
 
 	let video = $state<HTMLVideoElement>();
 	let hls: Hls | null = null;
+	/** Its video in more than one quality (light.ts): the menu lets this device choose. */
+	let qualities = $state(0);
 	/** The connection lost or the server restarting: said, while it is tried again. */
 	let problem = $state<string | null>(null);
 	/** Where it is or a setting could not be saved (the connection, the session…): said, until one is. */
@@ -179,13 +182,26 @@
 			const { default: Hls } = await import('hls.js');
 			if (cancelled) return;
 			if (Hls.isSupported()) {
-				const instance = new Hls({ startPosition: start || -1 });
+				const instance = new Hls({
+					startPosition: start || -1,
+					// Its first guess of the connection, before measuring it: in automatic, the best to
+					// begin with (the TV at home), not the light version until it has measured.
+					...(untrack(() => playerQuality.value) === 'auto'
+						? { abrEwmaDefaultEstimate: 50_000_000 }
+						: {})
+				});
 				hls = instance;
 				// The audio track list is not known yet at MANIFEST_PARSED.
 				instance.once(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
 					instance.audioTrack = untrack(() => audioIndex);
 				});
 				instance.on(Hls.Events.MANIFEST_PARSED, () => {
+					qualities = instance.levels.length;
+					applyQuality(
+						instance,
+						untrack(() => playerQuality.value),
+						false
+					);
 					if (untrack(() => autoplay)) watchPlay(el.play(), 'vídeo');
 				});
 				// Out of a child's time (#18) the server refuses the video's pieces: the notice says why.
@@ -223,9 +239,29 @@
 			}
 			hls?.destroy();
 			hls = null;
+			qualities = 0;
 			problem = null;
 		};
 	});
+
+	/**
+	 * «light»: the lightest of its versions, and never above it; «auto», hls.js chooses. `now`:
+	 * changed while playing, from the next piece.
+	 */
+	function applyQuality(instance: Hls, quality: Quality, now: boolean) {
+		if (instance.levels.length < 2) return;
+		const lightest = instance.levels.reduce(
+			(best, level, i) => (level.bitrate < instance.levels[best].bitrate ? i : best),
+			0
+		);
+		instance.autoLevelCapping = quality === 'light' ? lightest : -1;
+		if (now) instance.nextLevel = quality === 'light' ? lightest : -1;
+	}
+
+	function chooseQuality(quality: Quality) {
+		playerQuality.set(quality);
+		if (hls) applyQuality(hls, quality, true);
+	}
 
 	function selectNativeAudio(index: number) {
 		const tracks = (
@@ -570,6 +606,21 @@ same look in every browser, the app's colours, and the player's options in its �
 								onsent={audioElsewhere}
 							/>
 						{/if}
+					{/if}
+					{#if qualities > 1}
+						<!-- Per device: the phone away from home in the light one (light.ts). -->
+						{@render choices('Calidad', [
+							{
+								label: 'Automática',
+								on: playerQuality.value === 'auto',
+								pick: () => chooseQuality('auto')
+							},
+							{
+								label: 'Ligera (720p)',
+								on: playerQuality.value === 'light',
+								pick: () => chooseQuality('light')
+							}
+						])}
 					{/if}
 					{#if audioTracks.length > 1}
 						{@render choices(

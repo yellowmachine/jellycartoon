@@ -8,7 +8,8 @@ import { deleteSeries } from '#lib/server/library/delete-series.ts';
 import { deleteEpisodes } from '#lib/server/library/delete-episodes.ts';
 import { hostPlaylist } from '#lib/server/library/paths.ts';
 import { takeThumbnail } from '#lib/server/library/thumbnail.ts';
-import { ignoreEpisodes, retryEpisode } from '#lib/server/library/worker.ts';
+import { ignoreEpisodes, retryEpisode, wakeWorker } from '#lib/server/library/worker.ts';
+import { removeLight, requestLight } from '#lib/server/library/light.ts';
 import { getActiveList, getListNames, seriesListItems, toggleInList } from '#lib/server/lists.ts';
 import { clearProgress, markWatched, saveProgress } from '#lib/server/progress.ts';
 import { log } from '#lib/server/log.ts';
@@ -74,7 +75,10 @@ export const load: PageServerLoad = async ({ params, locals, cookies }) => {
 			outputSize: episode.outputSize,
 			convertSec: episode.convertSec,
 			audioTracks: episode.audioTracks,
-			subtitles: episode.subtitles
+			subtitles: episode.subtitles,
+			/** Its light version (light.ts): asked for, being made, there, or failed. */
+			light: episode.light,
+			lightError: episode.lightError
 		})
 		.from(episode)
 		.leftJoin(
@@ -344,6 +348,19 @@ export const actions: Actions = {
 		for (const ep of wanted) if (await requestSubtitles('episode', ep.id, lang)) queued++;
 		return { subtitlesQueued: queued, subtitlesSkipped: ids.length - queued };
 	},
+	/** The selected converted ones get a light version (light.ts), made after the conversions. */
+	lightMany: async ({ params, request }) => {
+		const ids = await idsOfSeries(Number(params.id), await request.formData());
+		const queued = await requestLight(ids);
+		wakeWorker();
+		return { lightQueued: queued, lightSkipped: ids.length - queued };
+	},
+	/** Their light versions deleted, or no longer asked for. */
+	removeLightMany: async ({ params, request }) => {
+		const ids = await idsOfSeries(Number(params.id), await request.formData());
+		await removeLight(ids);
+		return { lightRemoved: ids.length };
+	},
 	/** Those of this series still waiting; the one being made goes on. */
 	cancelSubtitles: async ({ params }) => {
 		const ids = await db
@@ -491,4 +508,15 @@ async function seriesEpisode(seriesId: string, form: FormData) {
 		.from(episode)
 		.where(and(eq(episode.id, id), eq(episode.seriesId, Number(seriesId))));
 	return ep ?? null;
+}
+
+/** The selected ones (`id` in the form) that are of this series. */
+async function idsOfSeries(seriesId: number, form: FormData) {
+	const ids = form.getAll('id').map(Number).filter(Number.isInteger);
+	if (!ids.length) return [];
+	const rows = await db
+		.select({ id: episode.id })
+		.from(episode)
+		.where(and(eq(episode.seriesId, seriesId), inArray(episode.id, ids)));
+	return rows.map((r) => r.id);
 }
