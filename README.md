@@ -1110,6 +1110,22 @@ Si el modelo no puede con un fotograma, se reintenta una vez cargándolo de nuev
 poder, ese fotograma queda fuera (un aviso en el Registro); el capítulo solo falla si quedan fuera
 más de la cuarta parte.
 
+## Privacidad
+
+Lo que sale de casa hacia la IA de OpenRouter, cuando hay clave, y lo que no:
+
+- **Tickets de Gastos**: la foto del ticket va a OpenRouter (el modelo de visión de Ajustes); sin
+  clave, o si falla, la lee el Ollama de casa y no sale nada.
+- **Facturas de Gastos (luz, agua, gas)**: de un PDF se manda **su texto**, no el PDF, primero a
+  OpenRouter y de reserva al Ollama de casa. Antes se quitan el DNI o NIE, el IBAN, el CUPS, los
+  números de contrato y los teléfonos. **El nombre del titular y la dirección sí van en el texto**:
+  no tienen una forma fija por la que reconocerlos, y a la IA solo se le pide que no los devuelva
+  (no se guardan). Una factura escaneada o en foto va como imagen, entera. Para que no salga nada,
+  hay que dejar OpenRouter sin clave y usar solo Ollama.
+- **Lo que se guarda en casa**: la foto del ticket o el PDF de la factura, en `DATA_DIR/gastos`, y
+  lo leído en la base de datos. Solo la base de datos sale de casa, y cifrada, en la
+  [copia en Cloudflare R2](#copia-en-cloudflare-r2) si está puesta; las fotos y los PDF, no.
+
 ## Copia de seguridad
 
 Qué hay que guardar:
