@@ -27,6 +27,7 @@ import type { TitleProposal } from '#lib/episode-titles.ts';
 import type { RecipeStep } from '#lib/recipe.ts';
 import type { LngLat } from '#lib/road.ts';
 import type { DjOptions } from '#lib/music.ts';
+import type { BillDetails } from '#lib/bills.ts';
 import type { RouteStop } from '#lib/saved-places.ts';
 import type { Exercise, HomeworkRules, Step } from '#lib/homework.ts';
 import { session, user } from './auth.schema';
@@ -1578,7 +1579,7 @@ export const djPreset = pgTable(
  * The house's expenses (#194), shared by its adults: from a receipt's photo read by a vision model,
  * said by voice, written by hand, or a fixed one added each month. In cents.
  */
-export const expenseSource = pgEnum('expense_source', ['ticket', 'voz', 'mano', 'fijo']);
+export const expenseSource = pgEnum('expense_source', ['ticket', 'voz', 'mano', 'fijo', 'factura']);
 
 export const expense = pgTable(
 	'expense',
@@ -1594,7 +1595,7 @@ export const expense = pgTable(
 		source: expenseSource('source').notNull(),
 		/** Who put it in; null if their account is gone. */
 		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
-		/** The receipt's photo, kept in DATA_DIR/gastos. */
+		/** The receipt's photo, or the bill's PDF or photo, kept in DATA_DIR/gastos. */
 		receipt: text('receipt'),
 		/** The fixed one it came from. */
 		recurringId: integer('recurring_id').references(() => recurringExpense.id, {
@@ -1622,6 +1623,32 @@ export const expenseLine = pgTable(
 		tag: text('tag').notNull().default('Otros')
 	},
 	(t) => [index('expense_line_expense_idx').on(t.expenseId)]
+);
+
+/**
+ * A bill's supply (#232), with its expense (who, when, the total, the parts as its lines): the
+ * period and what was consumed, and what is particular to each kind in `details`.
+ */
+export const bill = pgTable(
+	'bill',
+	{
+		id: serial('id').primaryKey(),
+		expenseId: integer('expense_id')
+			.notNull()
+			.unique()
+			.references(() => expense.id, { onDelete: 'cascade' }),
+		/** One of BILL_KINDS (bills.ts). */
+		kind: text('kind').notNull(),
+		periodStart: date('period_start').notNull(),
+		periodEnd: date('period_end').notNull(),
+		/** In `unit`; null if the bill does not say. */
+		consumption: doublePrecision('consumption'),
+		/** One of BILL_UNITS. */
+		unit: text('unit').notNull(),
+		details: jsonb('details').$type<BillDetails>().notNull(),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [index('bill_kind_period_idx').on(t.kind, t.periodEnd)]
 );
 
 /** Paid every month (rent, light, a subscription): added by itself on its day. */

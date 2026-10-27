@@ -1,7 +1,17 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { replaceState } from '$app/navigation';
+	import { page } from '$app/state';
+	import {
+		BILL_KINDS,
+		BILL_UNITS,
+		billDays,
+		type BillDetails,
+		type BillInput,
+		type BillKind,
+		type BillUnit
+	} from '#lib/bills.ts';
 	import {
 		EXPENSE_CATEGORIES,
 		LINE_TAGS,
@@ -20,6 +30,7 @@
 	import ExpenseTabs from '#lib/components/ExpenseTabs.svelte';
 	import { smallerPhoto } from '#lib/receipt-photo.ts';
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
+	import { takeSharedFile } from '#lib/shared-file.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -39,11 +50,27 @@
 		category: ExpenseCategory;
 		total: string;
 		lines: { text: string; quantity: number | null; amount: string; tag: LineTag }[];
+		/** A bill's (#232): its supply, the consumption as written. */
+		bill: {
+			kind: BillKind;
+			periodStart: string;
+			periodEnd: string;
+			consumption: string;
+			unit: BillUnit;
+			details: BillDetails;
+		} | null;
 	}
+
+	/** A bill as the boxes have it. */
+	const billBoxes = (b: BillInput | null): Editing['bill'] =>
+		b && {
+			...b,
+			consumption: b.consumption === null ? '' : String(b.consumption).replace('.', ',')
+		};
 
 	let editing = $state<Editing | null>(null);
 	let problem = $state<string | null>(null);
-	let reading = $state(false);
+	let reading = $state<'ticket' | 'factura' | null>(null);
 	let saving = $state(false);
 	/** The one open in the list, with its lines. */
 	let open = $state<number | null>(null);
@@ -51,6 +78,7 @@
 	let openCategory = $state<ExpenseCategory | null>(null);
 	let deleting = $state<string | null>(null);
 	let photoInput = $state<HTMLInputElement>();
+	let billInput = $state<HTMLInputElement>();
 
 	function close() {
 		if (editing?.photo) URL.revokeObjectURL(editing.photo);
@@ -69,7 +97,8 @@
 			store: '',
 			category: 'Supermercado',
 			total: '',
-			lines: []
+			lines: [],
+			bill: null
 		};
 	}
 
@@ -84,7 +113,8 @@
 			store: e.store,
 			category: e.category,
 			total: typed(e.total),
-			lines: e.lines.map((l) => ({ ...l, amount: typed(l.amount) }))
+			lines: e.lines.map((l) => ({ ...l, amount: typed(l.amount) })),
+			bill: billBoxes(e.bill)
 		};
 	}
 
@@ -92,28 +122,65 @@
 	async function readPhoto(file: File | undefined) {
 		if (!file) return;
 		close();
-		reading = true;
+		reading = 'ticket';
 		const photo = await smallerPhoto(file);
 		const form = new FormData();
 		form.set('foto', photo, 'ticket.jpg');
 		const res = await fetch('/gastos/leer', { method: 'POST', body: form }).catch(() => null);
-		const body = await res?.json().catch(() => null);
-		reading = false;
 		if (photoInput) photoInput.value = '';
+		await review(res, photo);
+	}
+
+	/** A bill (#232): its PDF as it is, a photo smaller. */
+	async function readBill(file: File | undefined) {
+		if (!file) return;
+		close();
+		reading = 'factura';
+		const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+		const sent = isPdf ? file : await smallerPhoto(file);
+		const form = new FormData();
+		form.set('factura', sent, isPdf ? 'factura.pdf' : 'factura.jpg');
+		const res = await fetch('/gastos/leer-factura', { method: 'POST', body: form }).catch(
+			() => null
+		);
+		if (billInput) billInput.value = '';
+		await review(res, isPdf ? null : sent);
+	}
+
+	/** What the model read, in the boxes to check; the photo beside it, if there was one. */
+	async function review(res: Response | null, photo: Blob | null) {
+		const body = await res?.json().catch(() => null);
+		reading = null;
 		if (!res?.ok) return void (problem = body?.message ?? 'Sin conexión');
 		const draft = body as ExpenseDraft;
 		editing = {
 			id: null,
 			receipt: draft.receipt,
 			readBy: draft.readBy,
-			photo: URL.createObjectURL(photo),
+			photo: photo && URL.createObjectURL(photo),
 			date: draft.date,
 			store: draft.store,
 			category: draft.category,
 			total: draft.total ? typed(draft.total) : '',
-			lines: draft.lines.map((l) => ({ ...l, amount: typed(l.amount) }))
+			lines: draft.lines.map((l) => ({ ...l, amount: typed(l.amount) })),
+			bill: billBoxes(draft.bill)
 		};
 	}
+
+	// Shared to the app from another (the manifest's share_target, #232): a PDF, as a bill; a
+	// photo, as a ticket.
+	onMount(() => {
+		if (page.url.searchParams.get('compartido') !== 'archivo') return;
+		const url = new URL(page.url.href);
+		url.searchParams.delete('compartido');
+		replaceState(url, {});
+		void takeSharedFile().then((file) => {
+			if (!file)
+				return void (problem = 'No ha llegado ningún archivo. Prueba a compartirlo otra vez.');
+			if (file.type === 'application/pdf') void readBill(file);
+			else void readPhoto(file);
+		});
+	});
 
 	// Taken with the header's shortcut, from any page: read here.
 	$effect(() => {
@@ -135,13 +202,25 @@
 		if (total === null) return { error: 'Falta el total, en euros: 12,30' };
 		const bad = lines.findIndex((l) => l.text.trim() && l.amount === null);
 		if (bad >= 0) return { error: `La línea ${bad + 1} no tiene un importe válido` };
+		let bill: BillInput | null = null;
+		if (editing.bill) {
+			const b = editing.bill;
+			const typedConsumption = b.consumption.trim().replace(/\./g, '').replace(',', '.');
+			const consumption = typedConsumption ? Number(typedConsumption) : null;
+			if (consumption !== null && !(consumption >= 0))
+				return { error: `El consumo, en ${b.unit}: 280 o 12,5` };
+			if (!b.periodStart || !b.periodEnd || b.periodEnd < b.periodStart)
+				return { error: 'El periodo de la factura: del primer al último día' };
+			bill = { ...b, consumption };
+		}
 		return {
 			expense: {
 				date: editing.date,
 				store: editing.store,
 				category: editing.category,
 				total,
-				lines: lines.filter((l) => l.text.trim()).map((l) => ({ ...l, amount: l.amount ?? 0 }))
+				lines: lines.filter((l) => l.text.trim()).map((l) => ({ ...l, amount: l.amount ?? 0 })),
+				bill
 			}
 		};
 	});
@@ -178,8 +257,16 @@
 			timeZone: 'UTC'
 		});
 
+	const shortDay = (day: string) =>
+		new Date(`${day}T12:00:00Z`).toLocaleDateString('es-ES', {
+			day: 'numeric',
+			month: 'short',
+			timeZone: 'UTC'
+		});
+
 	const SOURCES: Record<Expense['source'], string> = {
 		ticket: '📷',
+		factura: '📄',
 		voz: '🎙',
 		mano: '✍',
 		fijo: '🔁'
@@ -215,7 +302,7 @@
 					reading && 'pointer-events-none opacity-60'
 				]}
 			>
-				{reading ? 'Leyendo el ticket…' : '📷 Ticket'}
+				{reading === 'ticket' ? 'Leyendo el ticket…' : '📷 Ticket'}
 				<input
 					bind:this={photoInput}
 					type="file"
@@ -225,12 +312,31 @@
 					onchange={(e) => readPhoto(e.currentTarget.files?.[0])}
 				/>
 			</label>
+			<label
+				class={[
+					'cursor-pointer rounded-md bg-zinc-800 px-4 py-2 hover:bg-zinc-700',
+					reading && 'pointer-events-none opacity-60'
+				]}
+			>
+				{reading === 'factura' ? 'Leyendo la factura…' : '📄 Factura'}
+				<input
+					bind:this={billInput}
+					type="file"
+					accept="application/pdf,.pdf,image/*"
+					class="hidden"
+					onchange={(e) => readBill(e.currentTarget.files?.[0])}
+				/>
+			</label>
 		{/if}
 		<button class="rounded-md bg-zinc-800 px-4 py-2 hover:bg-zinc-700" onclick={byHand}
 			>+ A mano</button
 		>
 	</div>
-	{#if reading}
+	{#if reading === 'factura'}
+		<p class="mb-4 text-sm text-zinc-400">
+			Unos segundos. Un PDF se lee por su texto, sin tu nombre, DNI, cuenta ni CUPS.
+		</p>
+	{:else if reading}
 		<p class="mb-4 text-sm text-zinc-400">
 			Unos segundos. Si OpenRouter falla y lo lee Ollama en casa, la primera vez tarda más, mientras
 			carga el modelo.
@@ -244,7 +350,13 @@
 		{@const e = editing}
 		<section class="mb-8 rounded-lg border border-zinc-700 bg-zinc-900 p-4">
 			<h2 class="mb-1 font-semibold">
-				{e.id ? 'Corregir el gasto' : e.receipt ? 'Revisa lo que se ha leído' : 'Nuevo gasto'}
+				{e.id
+					? e.bill
+						? 'Corregir la factura'
+						: 'Corregir el gasto'
+					: e.receipt
+						? 'Revisa lo que se ha leído'
+						: 'Nuevo gasto'}
 			</h2>
 			{#if e.readBy}
 				<p class="mb-3 text-xs text-zinc-500">
@@ -291,8 +403,59 @@
 						</label>
 					</div>
 
+					{#if e.bill}
+						{@const b = e.bill}
+						<div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+							<label class="flex flex-col gap-1 text-xs text-zinc-400">
+								Factura de
+								<select bind:value={b.kind} class={field}>
+									{#each BILL_KINDS as k (k)}
+										<option value={k}>{k}</option>
+									{/each}
+								</select>
+							</label>
+							<label class="flex flex-col gap-1 text-xs text-zinc-400">
+								Consumo
+								<span class="flex gap-1">
+									<input
+										bind:value={b.consumption}
+										inputmode="decimal"
+										class="{field} min-w-0 flex-1 text-right"
+									/>
+									<select bind:value={b.unit} class="{field} w-24 shrink-0" aria-label="Unidad">
+										{#each BILL_UNITS as u (u)}
+											<option value={u}>{u}</option>
+										{/each}
+									</select>
+								</span>
+							</label>
+							<label class="flex flex-col gap-1 text-xs text-zinc-400">
+								Desde
+								<input type="date" bind:value={b.periodStart} class={field} />
+							</label>
+							<label class="flex flex-col gap-1 text-xs text-zinc-400">
+								Hasta
+								<input type="date" bind:value={b.periodEnd} class={field} />
+							</label>
+						</div>
+						{#if b.details.consumption.length || b.details.power.length}
+							<p class="mt-2 text-xs text-zinc-500">
+								{#if b.details.consumption.length}
+									{b.details.consumption.map((p) => `${p.name}: ${p.value} ${b.unit}`).join(' · ')}
+								{/if}
+								{#if b.details.power.length}
+									<br />Potencia {b.details.power.map((p) => `${p.name} ${p.value} kW`).join(' · ')}
+									{#if b.details.maxPower.length}
+										(máxima usada {b.details.maxPower.map((p) => `${p.value}`).join(' y ')} kW)
+									{/if}
+								{/if}
+							</p>
+						{/if}
+					{/if}
+
 					<h3 class="mt-4 mb-1 text-sm text-zinc-300">
-						Líneas {#if e.lines.length}<span class="text-zinc-500">({e.lines.length})</span>{/if}
+						{e.bill ? 'Desglose' : 'Líneas'}
+						{#if e.lines.length}<span class="text-zinc-500">({e.lines.length})</span>{/if}
 					</h3>
 					<ul class="flex flex-col gap-1">
 						{#each e.lines as line, i (i)}
@@ -302,15 +465,18 @@
 									aria-label="Línea {i + 1}"
 									class="{field} min-w-0 flex-1"
 								/>
-								<select
-									bind:value={line.tag}
-									aria-label="Qué es la línea {i + 1}"
-									class="{field} w-28 shrink-0 truncate"
-								>
-									{#each LINE_TAGS as t (t)}
-										<option value={t}>{t}</option>
-									{/each}
-								</select>
+								<!-- A bill's parts are all of one thing: no kind to choose. -->
+								{#if !e.bill}
+									<select
+										bind:value={line.tag}
+										aria-label="Qué es la línea {i + 1}"
+										class="{field} w-28 shrink-0 truncate"
+									>
+										{#each LINE_TAGS as t (t)}
+											<option value={t}>{t}</option>
+										{/each}
+									</select>
+								{/if}
 								<input
 									bind:value={line.amount}
 									inputmode="decimal"
@@ -332,8 +498,11 @@
 					>
 					{#if mismatch}
 						<p class="mt-2 text-sm text-amber-300">
-							Las líneas suman {euros(mismatch.sum)}, y el total es {euros(mismatch.total)}: revisa
-							si se ha leído mal alguna, o falta un descuento.
+							{e.bill ? 'El desglose suma' : 'Las líneas suman'}
+							{euros(mismatch.sum)}, y el total es {euros(mismatch.total)}: revisa si se ha leído
+							mal alguna{e.bill
+								? ' (a veces el resumen de la factura no coincide con su desglose)'
+								: ', o falta un descuento'}.
 						</p>
 					{/if}
 
@@ -474,6 +643,15 @@
 				</button>
 				{#if open === e.id}
 					<div class="mb-3 rounded-md bg-zinc-900 p-3 text-sm">
+						{#if e.bill}
+							{@const b = e.bill}
+							<p class="mb-2 text-zinc-300">
+								{b.kind}, del {shortDay(b.periodStart)} al {shortDay(b.periodEnd)} ({billDays(b)} días){#if b.consumption}:
+									<span class="font-semibold text-white tabular-nums"
+										>{b.consumption.toLocaleString('es-ES')} {b.unit}</span
+									>, {euros(Math.round(e.total / b.consumption))}/{b.unit} con todo{/if}
+							</p>
+						{/if}
 						{#if e.lines.length}
 							<ul class="mb-2">
 								{#each e.lines as line, i (i)}
@@ -496,7 +674,8 @@
 								<a
 									href="/gastos/ticket/{e.id}"
 									target="_blank"
-									class="{button} bg-zinc-800 hover:bg-zinc-700">Ver ticket</a
+									class="{button} bg-zinc-800 hover:bg-zinc-700"
+									>{e.bill ? 'Ver factura' : 'Ver ticket'}</a
 								>
 							{/if}
 							<button class="{button} bg-zinc-800 hover:bg-zinc-700" onclick={() => edit(e)}

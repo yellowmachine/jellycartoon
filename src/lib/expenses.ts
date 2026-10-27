@@ -1,3 +1,5 @@
+import type { BillInput } from '#lib/bills.ts';
+
 /** The house's expenses (#194), shared by the server and the pages. Money in cents. */
 
 export const EXPENSE_CATEGORIES = [
@@ -53,7 +55,7 @@ export type LineTag = (typeof LINE_TAGS)[number];
 
 export const isTag = (value: unknown): value is LineTag => LINE_TAGS.includes(value as LineTag);
 
-export type ExpenseSource = 'ticket' | 'voz' | 'mano' | 'fijo';
+export type ExpenseSource = 'ticket' | 'factura' | 'voz' | 'mano' | 'fijo';
 
 export interface ExpenseLine {
 	text: string;
@@ -78,13 +80,20 @@ export interface Expense extends ExpenseInput {
 	/** Who put it in. */
 	by: string | null;
 	hasReceipt: boolean;
+	/** A bill's (#232): its supply's period and consumption. */
+	bill: BillInput | null;
 }
 
-/** A receipt read, to be checked before it is saved: its photo waits under `receipt`. */
+/**
+ * A receipt or a bill read, to be checked before it is saved: its photo or PDF waits under
+ * `receipt`.
+ */
 export interface ExpenseDraft extends ExpenseInput {
 	receipt: string;
 	/** Which model read it, for the Registro and to say so. */
 	readBy: 'ollama' | 'openrouter';
+	/** A bill's (#232), with what it says of the supply. */
+	bill: BillInput | null;
 }
 
 export interface RecurringExpense {

@@ -21,8 +21,14 @@
 	],
 	"share_target": {
 		"action": "/compartido",
-		"method": "GET",
-		"params": { "title": "title", "text": "text", "url": "url" }
+		"method": "POST",
+		"enctype": "multipart/form-data",
+		"params": {
+			"title": "title",
+			"text": "text",
+			"url": "url",
+			"files": [{ "name": "archivo", "accept": ["application/pdf", ".pdf", "image/*"] }]
+		}
 	},
 	"shortcuts": [
 		{ "name": "Hoy", "url": "/today" },
