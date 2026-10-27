@@ -988,6 +988,10 @@ música, si no encuentra todas las palabras, devuelve lo que más se parece por 
   contesta de palabra («la segunda», «el álbum»). Las opciones van con su orden en la conversación,
   así que la IA sabe cuál es. Si no se dice nada, se cierra y quedan los botones.
 - Recuerda los últimos turnos: «no, eso no, los Pegamoides» funciona.
+- Su carácter, en texto libre: «Cómo es la voz de la casa» (Ajustes → Casa, para todos y los
+  satélites; va en sus instrucciones) y «Cómo quieres que te hable la voz» (Ajustes → Para mí, solo
+  cuando sabe quién habla; va con cada orden). Hasta 500 caracteres cada uno; cambian el tono, no
+  lo que hace: sigue contestando corto y preguntando antes de mandar un mensaje.
 - La biblioteca, las listas y las emisoras van en sus instrucciones, que se cachean; con Haiku 5.5,
   unos 0,0003 $ por orden y unos 2 s. El coste de cada una queda en el Registro.
 

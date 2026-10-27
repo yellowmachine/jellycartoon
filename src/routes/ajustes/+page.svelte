@@ -13,6 +13,7 @@
 	import Langua from './Langua.svelte';
 	import Telegram from './Telegram.svelte';
 	import TelegramBot from './TelegramBot.svelte';
+	import VozCaracter from './VozCaracter.svelte';
 	import MusicaEnApps from './MusicaEnApps.svelte';
 	import Dispositivo from './Dispositivo.svelte';
 	import Voz from './Voz.svelte';
@@ -81,6 +82,8 @@
 				langua: data.langua,
 				telegram: data.telegram,
 				telegramBot: data.telegramBot,
+				houseStyle: data.houseStyle,
+				myStyle: data.myStyle,
 				musicApps: data.musicApps,
 				voice: Boolean(data.voice),
 				music: Boolean(data.music),
@@ -134,6 +137,8 @@
 
 		<Telegram {data} {form} {tab} />
 
+		<VozCaracter {data} {form} {tab} which="mio" />
+
 		<MusicaEnApps {data} {form} {tab} />
 	{/if}
 
@@ -165,6 +170,8 @@
 		<Satelites {data} {form} {tab} />
 
 		<VozCasa {data} {form} {tab} />
+
+		<VozCaracter {data} {form} {tab} which="casa" />
 
 		<TelegramBot {data} {form} {tab} />
 

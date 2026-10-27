@@ -18,6 +18,8 @@ const admin: SettingsShown = {
 	langua: {},
 	telegram: {},
 	telegramBot: {},
+	houseStyle: {},
+	myStyle: {},
 	musicApps: {},
 	voice: true,
 	music: true,

@@ -18,6 +18,8 @@ export interface SettingsShown {
 	langua: unknown;
 	telegram: unknown;
 	telegramBot: unknown;
+	houseStyle: unknown;
+	myStyle: unknown;
 	musicApps: unknown;
 	voice: boolean;
 	music: boolean;
@@ -99,6 +101,20 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		title: 'Guardar mis viajes',
 		words: 'viajes modo carretera recorridos gps km coche',
 		shown: (d) => d.recordTrips !== null
+	},
+	{
+		id: 'caracter-casa',
+		tab: 'casa',
+		title: 'Cómo es la voz de la casa',
+		words: 'voz carácter personalidad tono humor tomar el pelo chistes asistente estilo',
+		shown: (d) => Boolean(d.houseStyle)
+	},
+	{
+		id: 'caracter-mio',
+		tab: 'mi',
+		title: 'Cómo quieres que te hable la voz',
+		words: 'voz carácter personalidad tono humor tomar el pelo chistes asistente estilo',
+		shown: (d) => Boolean(d.myStyle)
 	},
 	{
 		id: 'telegram-bot',
