@@ -2,7 +2,18 @@ import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { ORIGIN } from '$app/env/private';
 import { addDays, isDay, localDay, mondayOf, parseEventInput } from '#lib/agenda.ts';
+import { parseAlarmInput } from '#lib/alarms.ts';
+import {
+	addAlarm,
+	canTouch,
+	deleteAlarm,
+	listAlarms,
+	setPaused,
+	skipNext,
+	stopAlarm
+} from '#lib/server/alarms/alarms.ts';
 import { isKid } from '#lib/server/kids.ts';
+import { allSatellites } from '#lib/server/satellites.ts';
 import {
 	addEvent,
 	agendaBetween,
@@ -29,9 +40,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const from = mondayOf(first);
 	const lastOfMonth = addDays(`${addDays(`${day.slice(0, 8)}28`, 4).slice(0, 8)}01`, -1);
 	const to = view === 'mes' ? addDays(mondayOf(lastOfMonth), 6) : addDays(from, 6);
-	const [{ events, occurrences }, people] = await Promise.all([
+	const [{ events, occurrences }, people, alarms, satellites] = await Promise.all([
 		agendaBetween(from, to, kid ? locals.user!.id : null),
-		agendaPeople()
+		agendaPeople(),
+		listAlarms(locals.user!.id),
+		allSatellites()
 	]);
 	return {
 		view,
@@ -42,6 +55,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		events,
 		occurrences,
 		people,
+		/** Alarms and timers (#241): the house's and theirs. */
+		alarms,
+		satellites: satellites.map((s) => ({ id: s.id, name: s.name })),
 		readonly: kid,
 		ics: kid ? null : `${ORIGIN}/api/calendario/${await icsToken()}.ics`
 	};
@@ -84,6 +100,39 @@ export const actions: Actions = {
 	delete: async ({ request, locals }) => {
 		adult(locals);
 		await deleteEvent(Number((await request.formData()).get('id')));
+	},
+	/** An alarm or a timer (#241): `alarm` as JSON, as the page has it. */
+	addAlarm: async ({ request, locals }) => {
+		const userId = adult(locals);
+		let body: unknown;
+		try {
+			body = JSON.parse(String((await request.formData()).get('alarm') ?? ''));
+		} catch {
+			return fail(400, { message: 'Alarma no válida' });
+		}
+		const input = parseAlarmInput(body);
+		if (!input) return fail(400, { message: 'Falta la hora o los minutos' });
+		return { alarmSaved: await addAlarm(userId, input) };
+	},
+	/** «Parar», «Esta vez no», «Pausar»/«Activar», «Quitar»: one the user sees. */
+	alarm: async ({ request, locals }) => {
+		const userId = adult(locals);
+		const form = await request.formData();
+		const id = Number(form.get('id'));
+		if (!id || !(await canTouch(id, userId))) return fail(404, { message: 'Ese aviso ya no está' });
+		switch (form.get('do')) {
+			case 'stop':
+				return void (await stopAlarm(id));
+			case 'skip':
+				return void (await skipNext(id));
+			case 'pause':
+				return void (await setPaused(id, true));
+			case 'resume':
+				return void (await setPaused(id, false));
+			case 'delete':
+				return void (await deleteAlarm(id));
+		}
+		return fail(400, { message: 'Acción no válida' });
 	},
 	/** A new .ics link: the one before stops working (it was given to someone it should not). */
 	renewIcs: async ({ locals }) => {

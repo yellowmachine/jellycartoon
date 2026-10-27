@@ -8,6 +8,7 @@ import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series } from '#lib/server/db/schema.ts';
 import { getAlbums, tracksById } from '#lib/server/music/albums.ts';
+import { searchMusic } from '#lib/server/voice/music-search.ts';
 import { getPlaylist, listPlaylists } from '#lib/server/music/playlists.ts';
 import {
 	controlSnapcast,
@@ -16,7 +17,9 @@ import {
 	radioOnSnapcast,
 	snapcastNow,
 	snapcastReady,
-	soundOn
+	soundOn,
+	stopAfterTrackOnSnapcast,
+	stopOnSnapcastIn
 } from '#lib/server/music/snapcast.ts';
 import { episodesOnSnapcast } from '#lib/server/music/episodes-on-snapcast.ts';
 import { chatWithTools, type Tool, type ToolChatMessage } from '#lib/server/openrouter.ts';
@@ -47,7 +50,29 @@ import { asksForRoute, findByName } from '#lib/saved-places.ts';
 import { addItems, addNote, tickOffByName, toBuy } from '#lib/server/fridge.ts';
 import { addExpense } from '#lib/server/expenses/expenses.ts';
 import { addEvent, dayForVoice, personByName } from '#lib/server/agenda/agenda.ts';
-import { addDays, dayName, isDay, isTime, parseEventInput } from '#lib/agenda.ts';
+import {
+	addDays,
+	dayName,
+	isDay,
+	isTime,
+	localDay,
+	localTime,
+	parseEventInput
+} from '#lib/agenda.ts';
+import { daysName, parseAlarmInput, type AlarmPlace } from '#lib/alarms.ts';
+import {
+	addAlarm,
+	canTouch,
+	cancelTimersAt,
+	deleteAlarm,
+	describeAlarms,
+	prepareTimerAt,
+	setPaused,
+	skipNext,
+	startTimerAt,
+	stopAlarm
+} from '#lib/server/alarms/alarms.ts';
+import type { Satellite } from '#lib/server/satellites.ts';
 import { isKidAccount } from '#lib/server/kids.ts';
 import { EXPENSE_CATEGORIES, euros, isCategory } from '#lib/expenses.ts';
 import { today } from '#lib/server/playlist.ts';
@@ -86,12 +111,16 @@ const LISTED_ALBUMS = 400;
  * without a second turn with the model (about a second less). Asked in the instructions instead,
  * the model wrote it only sometimes.
  */
+/** «Para dentro de…»: at most a night. */
+const MAX_STOP_LATER_MIN = 12 * 60;
+
 const ONE_ROUND = new Set([
 	'set_timer',
 	'prepare_timer',
 	'cancel_timer',
 	'kitchen_mode',
 	'control',
+	'stop_later',
 	'take_photo',
 	'stop_navigation',
 	'recipe_step',
@@ -114,6 +143,8 @@ interface Outcome {
 	options: VoiceOption[];
 	/** `ask` was called: the answer is the question, and nothing more is done. */
 	asked: string | null;
+	/** Done here, by the server, as an action for the device would be: a satellite's timer (#241). */
+	done: number;
 }
 
 /** A speaker of the house (Snapcast), by its name: only there (#223). */
@@ -159,7 +190,7 @@ function tools(house: boolean, rooms: Room[]): Tool[] {
 	return [
 		fn(
 			'search_music',
-			'Busca en la música por palabras, sin importar acentos ni mayúsculas: artistas, álbumes, listas y canciones. Para lo que no esté en la biblioteca de las instrucciones, o para encontrar una canción.',
+			'Busca en la música por palabras, sin importar acentos ni mayúsculas: artistas, álbumes, listas y canciones. Para lo que no esté en la biblioteca de las instrucciones, o para encontrar una canción. Si no hay nada con todas las palabras, da lo que más se parece por cómo suena: si una de esas encaja con lo que pidió, ponla sin volver a buscar.',
 			{ query: { type: 'string', description: 'Palabras del artista, álbum, lista o canción.' } },
 			['query']
 		),
@@ -191,10 +222,24 @@ function tools(house: boolean, rooms: Room[]): Tool[] {
 			'control',
 			'Pausa, sigue, pasa a la siguiente o la anterior, o para lo que suena en un sitio.',
 			{
-				action: { type: 'string', enum: ['pause', 'resume', 'next', 'previous', 'stop'] },
+				action: {
+					type: 'string',
+					enum: ['pause', 'resume', 'next', 'previous', 'stop', 'stopAfterTrack'],
+					description:
+						'«stopAfterTrack»: para al acabar la canción que suena («cuando acabe esta»).'
+				},
 				where
 			},
 			['action', 'where']
+		),
+		fn(
+			'stop_later',
+			'Para la música dentro de unos minutos («apaga la música en media hora», «para dentro de una hora»), al acabar la canción que suene entonces. 0 quita lo puesto.',
+			{
+				minutes: { type: 'number', description: `De 0 a ${MAX_STOP_LATER_MIN}.` },
+				where
+			},
+			['minutes', 'where']
 		),
 		...(house
 			? [
@@ -466,6 +511,43 @@ function tools(house: boolean, rooms: Room[]): Tool[] {
 			[]
 		),
 		fn(
+			'set_alarm',
+			'Pone una alarma a una hora: una vez («mañana a las 8») o los días que se repite («de lunes a viernes a las 7:30»). Suena en toda la casa o, si se habla desde un satélite, donde contesta, con un «din-don» y su nombre, hasta que la paren. Para «avísame en 10 minutos», set_timer.',
+			{
+				time: { type: 'string', description: 'HH:MM, en 24 horas: «07:30», «20:00».' },
+				days: {
+					type: 'array',
+					items: { type: 'integer' },
+					description:
+						'Los días que se repite, 0 el lunes y 6 el domingo: todos los días [0,1,2,3,4,5,6], de lunes a viernes [0,1,2,3,4]. Vacío: una vez.'
+				},
+				day: {
+					type: 'string',
+					description:
+						'Una vez: el día, AAAA-MM-DD. Vacío: hoy si aún no ha pasado esa hora, si no mañana.'
+				},
+				label: {
+					type: 'string',
+					description: 'Para qué, corto y que se entienda al oírlo: «levantarse», «la pastilla».'
+				},
+				for: {
+					type: 'string',
+					description:
+						'Para quién, si lo dice: su nombre, o «casa». Vacío: de quien habla (desde un satélite, de la casa).'
+				}
+			},
+			['time']
+		),
+		fn(
+			'change_alarm',
+			'Cambia una alarma de la lista por su número: quitarla, saltarse solo la próxima vez («mañana no»), pausarla, activarla o pararla si está sonando.',
+			{
+				id: { type: 'integer', description: 'El número de la alarma, de la lista.' },
+				do: { type: 'string', enum: ['delete', 'skip', 'pause', 'resume', 'stop'] }
+			},
+			['id', 'do']
+		),
+		fn(
 			'start_recipe',
 			'Pone en este dispositivo la receta que se va a cocinar ahora, entera, en lugar de la que hubiera: se ve en la pantalla de la cocina y va con cada orden, con el paso por el que va.',
 			{
@@ -606,6 +688,7 @@ Cómo responder:
 - Trátala de tú. Con cada orden va quién habla: llámala por su nombre de pila de vez en cuando (al saludar, al despedirse, con una buena noticia), no en cada respuesta.
 - Haz lo que pide con las herramientas, sin pedir confirmación. Si se equivoca, lo dirá («no, eso no», «para»).
 - Al terminar una orden, contesta en español con una sola frase corta que diga lo que has hecho y dónde, p. ej. «Pongo Alaska y Dinarama aquí». Se lee en voz alta: sin listas, emojis, ids ni formato.
+- Si lo encuentras con otro nombre porque se oyó mal («Boyman Rhapsody» es «Bohemian Rhapsody»), no lo expliques: di solo lo que pones, con su nombre bien («Pongo Bohemian Rhapsody de Queen en toda la casa»). Cada palabra de más se tarda en decir.
 - Si duda entre pocas opciones, usa «ask», con una pregunta que las nombre («¿El álbum Deseo carnal o la canción?»): quien la oye quizá no ve los botones, y contesta de palabra. Si la orden siguiente es esa respuesta («la segunda», «el álbum», «el de Alaska»), haz la orden de la opción que elige: van en el turno de tu pregunta. Si no encuentras algo, dilo y propón lo más parecido que haya.
 - Si no dice dónde, es aquí${house ? ', salvo que lo que quiere controlar solo esté sonando en toda la casa' : ''}.
 - «Quita eso», «para», «más alto»…: se refiere a lo que está sonando. Con cada orden va lo que suena en cada sitio.
@@ -621,6 +704,7 @@ Otras preguntas (de cocina, de lo que sea): si no pide nada de la app, contesta 
 El tiempo («¿qué tiempo hará mañana?», «¿llueve esta tarde?», «¿hace frío para salir?»): «get_weather», sin preguntar. Contesta corto, solo lo que pregunta: el cielo, las temperaturas y, si puede llover, la probabilidad. Nunca lo inventes.
 
 Temporizadores («avísame en 10 minutos», «pon un temporizador de 20 minutos para el horno»): «set_timer», sin preguntar. Con cada orden va la lista de los que hay en este dispositivo.
+Alarmas a una hora («despiértame a las 7», «todos los días laborables a las 7:30», «el jueves a las 9 la cita del médico»): «set_alarm». Con cada orden va la lista de alarmas, con su número: para quitar una, saltarse solo la próxima («mañana no me despiertes»), pausarla o pararla, «change_alarm» con ese número; si no está claro cuál, usa «ask».
 - «¿Cuánto le queda (a la pasta)?»: contesta con esa lista, sin herramientas.
 - «Otro de 5 minutos» es uno nuevo (nombre vacío), no el que ya hay de 5 minutos; «vuelve a empezar el de la pasta» sí usa su nombre.
 - Haz solo lo que pide la orden de ahora: los temporizadores de órdenes anteriores ya se pusieron. Uno que ya sonó o se quitó no se vuelve a poner si no lo pide otra vez.
@@ -701,7 +785,17 @@ function soundingNow(here: string | null, house: boolean) {
 			: s.episode
 				? `el audio del capítulo «${s.episode.subtitle}: ${s.episode.title}» [episodio ${s.episode.id}]`
 				: `«${s.track?.title}» de ${s.track?.artist}`;
-	const inHouse = !snap?.active ? 'nada' : `${what(snap)}${snap.paused ? ' (en pausa)' : ''}`;
+	// In the house's time (TZ, compose.prod.yaml).
+	const when = (at: number) =>
+		new Date(at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+	const inHouse = !snap?.active
+		? 'nada'
+		: [
+				what(snap),
+				snap.paused ? ' (en pausa)' : '',
+				snap.stopAfterTrack ? ' (se para al acabar esta canción)' : '',
+				snap.stopAt ? ` (se para a las ${when(snap.stopAt)}, al acabar la canción de entonces)` : ''
+			].join('');
 	return `[Ahora suena. Aquí: ${here ?? 'nada'}.${house ? ` Toda la casa: ${inHouse}.` : ''}]`;
 }
 
@@ -726,41 +820,13 @@ async function resolveMusic(kind: string, id: string, albums: MusicAlbum[]) {
 			return tracks.length ? { tracks, start: 0, name: id } : null;
 		}
 		case 'track': {
-			// The song, and the rest of its album after it.
-			const album = albums.find((a) => a.tracks.some((t) => t.id === n));
-			const start = album?.tracks.findIndex((t) => t.id === n) ?? -1;
-			return album && start >= 0
-				? { tracks: album.tracks, start, name: album.tracks[start].title }
-				: null;
+			// Only the song: «pon Bohemian Rhapsody» is not its whole album (2026-10-27).
+			const track = albums.flatMap((a) => a.tracks).find((t) => t.id === n);
+			return track ? { tracks: [track], start: 0, name: track.title } : null;
 		}
 		default:
 			return null;
 	}
-}
-
-function search(query: string, albums: MusicAlbum[], playlists: { id: number; name: string }[]) {
-	const words = fold(query).split(/\s+/).filter(Boolean);
-	const hit = (text: string) => {
-		const haystack = fold(text);
-		return words.every((w) => haystack.includes(w));
-	};
-	const artists = [...new Set(albums.map((a) => a.artist))].filter(hit).slice(0, 10);
-	const found = {
-		artists,
-		albums: albums
-			.filter((a) => hit(`${a.title} ${a.artist}`))
-			.slice(0, 10)
-			.map((a) => ({ id: a.id, title: a.title, artist: a.artist })),
-		playlists: playlists.filter((p) => hit(p.name)).slice(0, 10),
-		tracks: albums
-			.flatMap((a) => a.tracks)
-			.filter((t) => hit(`${t.title} ${t.artist}`))
-			.slice(0, 15)
-			.map((t: MusicTrack) => ({ id: t.id, title: t.title, artist: t.artist, album: t.album }))
-	};
-	const total =
-		found.artists.length + found.albums.length + found.playlists.length + found.tracks.length;
-	return total ? JSON.stringify(found) : `Nada con «${query}». Prueba con otras palabras.`;
 }
 
 async function playHouse(tracks: MusicTrack[], start: number, shuffle: boolean) {
@@ -772,7 +838,7 @@ async function playHouse(tracks: MusicTrack[], start: number, shuffle: boolean) 
 	});
 }
 
-async function controlHouse(action: VoiceControl) {
+async function controlHouse(action: Exclude<VoiceControl, 'stopAfterTrack'>) {
 	if (action === 'pause' || action === 'resume')
 		return controlSnapcast({ action: 'pause', value: action === 'pause' });
 	return controlSnapcast({ action });
@@ -850,7 +916,13 @@ const played = (
 		: `No se pudo: ${result.data.message}`;
 
 /** What a satellite cannot play itself (#223), done in the whole house: an episode, its audio. */
-const HOUSE_FROM_SATELLITE = new Set(['play_music', 'play_radio', 'control', 'play_video']);
+const HOUSE_FROM_SATELLITE = new Set([
+	'play_music',
+	'play_radio',
+	'control',
+	'stop_later',
+	'play_video'
+]);
 
 async function runTool(
 	name: string,
@@ -868,6 +940,8 @@ async function runTool(
 		position?: LngLat | null;
 		/** Said to a voice satellite (#223), which plays nothing itself. */
 		satellite: boolean;
+		/** Where its timers and alarms are kept by the server (#241): a satellite's; null, a phone's. */
+		place: AlarmPlace | null;
 		rooms: Room[];
 	}
 ): Promise<ToolResult> {
@@ -890,7 +964,7 @@ async function runTool(
 	switch (name) {
 		case 'search_music':
 			return typeof args.query === 'string' && args.query.trim()
-				? search(args.query, ctx.albums, ctx.playlists)
+				? searchMusic(args.query, ctx.albums, ctx.playlists)
 				: 'Falta qué buscar.';
 		case 'play_music': {
 			const music = await resolveMusic(String(args.kind), String(args.id ?? ''), ctx.albums);
@@ -915,12 +989,27 @@ async function runTool(
 		}
 		case 'control': {
 			const action = args.action as VoiceControl;
-			if (!['pause', 'resume', 'next', 'previous', 'stop'].includes(action))
+			if (!['pause', 'resume', 'next', 'previous', 'stop', 'stopAfterTrack'].includes(action))
 				return `Acción no válida: «${args.action}».`;
 			// One queue on Snapcast, wherever it sounds.
-			if (where !== 'here') await controlHouse(action);
-			else ctx.outcome.actions.push({ kind: 'control', action });
+			if (where !== 'here') {
+				if (action === 'stopAfterTrack')
+					return (await stopAfterTrackOnSnapcast())
+						? `Se parará al acabar la canción que suena en ${there}.`
+						: `En ${there} no suena una canción (la radio, o nada): no hay final que esperar.`;
+				await controlHouse(action);
+			} else ctx.outcome.actions.push({ kind: 'control', action });
 			return 'Hecho.';
+		}
+		case 'stop_later': {
+			const minutes = Math.round(Number(args.minutes));
+			if (!Number.isFinite(minutes) || minutes < 0 || minutes > MAX_STOP_LATER_MIN)
+				return `Minutos no válidos: de 0 a ${MAX_STOP_LATER_MIN}.`;
+			if (where !== 'here') stopOnSnapcastIn(minutes);
+			else ctx.outcome.actions.push({ kind: 'stopIn', minutes });
+			return minutes
+				? `La música de ${there} se parará dentro de ${minutes} minutos, al acabar la canción que suene.`
+				: `Quitado: la música de ${there} ya no se parará sola.`;
 		}
 		case 'get_weather': {
 			const asked = typeof args.place === 'string' ? args.place.trim() : '';
@@ -1114,6 +1203,12 @@ async function runTool(
 			if (!Number.isFinite(minutes) || minutes <= 0) return 'Falta cuántos minutos.';
 			const seconds = Math.round(Math.min(minutes * 60, MAX_TIMER_SEC));
 			const label = typeof args.label === 'string' ? args.label.trim().slice(0, 60) : '';
+			// A satellite's, kept by the server (#241).
+			if (ctx.place) {
+				const name = await startTimerAt(ctx.place, { label, seconds, userId: ctx.user.id });
+				ctx.outcome.done++;
+				return `Temporizador «${name}» de ${seconds} segundos puesto.`;
+			}
 			ctx.outcome.actions.push({ kind: 'timer', label, seconds });
 			return `Temporizador${label ? ` «${label}»` : ''} de ${seconds} segundos puesto en el dispositivo.`;
 		}
@@ -1124,6 +1219,16 @@ async function runTool(
 			if (!trigger) return 'Falta cuándo tiene que arrancar.';
 			const seconds = Math.round(Math.min(minutes * 60, MAX_TIMER_SEC));
 			const label = typeof args.label === 'string' ? args.label.trim().slice(0, 60) : '';
+			if (ctx.place) {
+				const name = await prepareTimerAt(ctx.place, {
+					label,
+					seconds,
+					trigger,
+					userId: ctx.user.id
+				});
+				ctx.outcome.done++;
+				return `Preparado «${name}»: ${seconds} segundos cuando ${trigger}.`;
+			}
 			ctx.outcome.actions.push({ kind: 'prepareTimer', label, seconds, trigger });
 			return `Preparado${label ? ` «${label}»` : ''}: ${seconds} segundos cuando ${trigger}.`;
 		}
@@ -1134,8 +1239,68 @@ async function runTool(
 				: 'Modo cocina apagado.';
 		case 'cancel_timer': {
 			const label = typeof args.label === 'string' && args.label.trim() ? args.label.trim() : null;
+			if (ctx.place) {
+				const count = await cancelTimersAt(ctx.place, label);
+				ctx.outcome.done++;
+				return count
+					? `Quitados: ${count}.`
+					: `No hay ningún temporizador${label ? ` «${label}»` : ''}.`;
+			}
 			ctx.outcome.actions.push({ kind: 'cancelTimer', label });
 			return label ? `Quitado el temporizador «${label}».` : 'Quitados todos los temporizadores.';
+		}
+		case 'set_alarm': {
+			if (!isTime(args.time)) return 'Falta la hora, como HH:MM.';
+			const days = Array.isArray(args.days)
+				? args.days.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6)
+				: [];
+			let day = isDay(args.day) ? args.day : localDay();
+			// Once, at a time already gone today: tomorrow.
+			if (!days.length && day === localDay() && args.time <= localTime()) day = addDays(day, 1);
+			const asked = typeof args.for === 'string' ? args.for.trim() : '';
+			let people: string[];
+			if (/^(la )?casa$/i.test(asked)) people = [];
+			else if (asked) {
+				const found = await personByName(asked);
+				if (!found) return `No hay nadie llamado «${asked}» en la casa.`;
+				people = [found.id];
+			} else people = ctx.satellite ? [] : [ctx.user.id];
+			const input = parseAlarmInput({
+				kind: 'alarma',
+				time: args.time,
+				day,
+				days,
+				label: typeof args.label === 'string' ? args.label : '',
+				people,
+				place: ctx.place ?? 'casa'
+			});
+			if (!input || input.kind !== 'alarma') return 'Alarma no válida.';
+			const id = await addAlarm(ctx.user.id, input);
+			return `Alarma ${id} «${input.label}» puesta: a las ${input.time}, ${days.length ? daysName(days).toLowerCase() : `el ${dayName(day)}`}; ${people.length ? 'de una persona' : 'de la casa'}.`;
+		}
+		case 'change_alarm': {
+			const id = Number(args.id);
+			// From a satellite, only the house's; from a phone, the house's and theirs.
+			const visible = ctx.satellite ? await canTouch(id, '') : await canTouch(id, ctx.user.id);
+			if (!Number.isInteger(id) || !visible) return `No hay alarma ${args.id}.`;
+			switch (args.do) {
+				case 'delete':
+					await deleteAlarm(id);
+					return `Alarma ${id} quitada.`;
+				case 'skip':
+					await skipNext(id);
+					return `La próxima de la alarma ${id} no sonará; las siguientes, sí.`;
+				case 'pause':
+					await setPaused(id, true);
+					return `Alarma ${id} pausada.`;
+				case 'resume':
+					await setPaused(id, false);
+					return `Alarma ${id} activada de nuevo.`;
+				case 'stop':
+					await stopAlarm(id);
+					return `Alarma ${id} parada.`;
+			}
+			return 'Acción no válida.';
 		}
 		case 'start_recipe': {
 			const recipe = parseRecipe(args);
@@ -1237,8 +1402,10 @@ export interface VoiceTiming {
 export async function runVoiceCommand(
 	request: VoiceRequest,
 	user: Person,
-	satellite: string | null = null
+	satellite: Satellite | null = null
 ): Promise<VoiceReply & { timing: VoiceTiming }> {
+	/** Where its timers and alarms are kept and sound (#241): a satellite's; a phone's, its own. */
+	const place: AlarmPlace | null = satellite ? `satelite:${satellite.id}` : null;
 	const started = performance.now();
 	const [albums, playlists, model, { hoursSince }, keepHistory, watchingHere, recipes, sites] =
 		await Promise.all([
@@ -1258,7 +1425,9 @@ export async function runVoiceCommand(
 	const rooms: Room[] = house
 		? ((await listSpeakers()) ?? []).map((s) => ({ id: s.id, name: s.name }))
 		: [];
-	const outcome: Outcome = { actions: [], options: [], asked: null };
+	const outcome: Outcome = { actions: [], options: [], asked: null, done: 0 };
+	// A satellite's timers are kept by the server; a phone's, in it (until #241, phase 3).
+	const alarmLines = await describeAlarms(place, satellite ? null : user.id);
 	const messages: ToolChatMessage[] = [
 		{
 			role: 'system',
@@ -1286,13 +1455,15 @@ export async function runVoiceCommand(
 				{
 					type: 'text',
 					text: satellite
-						? `[Te habla alguien de la casa desde «${satellite}», un satélite de voz sin pantalla: no sabes quién es, así que sin nombres; tampoco hay historial de lo que ve cada uno. El satélite no pone música, radio ni vídeos: aquí es toda la casa, y de un capítulo solo el audio. Los temporizadores y avisos sí los lleva el satélite: suenan por donde contesta, con un «din-don» y su nombre, así que dales un nombre que se entienda al oírlo («pedir cita en la peluquería»).]`
+						? `[Te habla alguien de la casa desde «${satellite.name}», un satélite de voz sin pantalla: no sabes quién es, así que sin nombres; tampoco hay historial de lo que ve cada uno. El satélite no pone música, radio ni vídeos: aquí es toda la casa, y de un capítulo solo el audio. Los temporizadores y las alarmas que pongas desde aquí suenan donde contesta el satélite, con un «din-don» y su nombre, así que dales un nombre que se entienda al oírlo («pedir cita en la peluquería»); son de la casa, salvo que diga para quién.]`
 						: `[Te habla: ${user.name}.]`
 				},
 				{ type: 'text', text: soundingNow(request.here, house) },
 				{
 					type: 'text',
-					text: `[Temporizadores aquí: ${request.timers.length ? request.timers.join('; ') : 'ninguno'}.]`
+					text: satellite
+						? `[Temporizadores y alarmas: ${alarmLines.length ? alarmLines.join('; ') : 'ninguno'}.]`
+						: `[Temporizadores aquí: ${request.timers.length ? request.timers.join('; ') : 'ninguno'}.] [Alarmas (de la casa y suyas; suenan en toda la casa o en un satélite): ${alarmLines.length ? alarmLines.join('; ') : 'ninguna'}.]`
 				},
 				...(request.recipe
 					? [{ type: 'text' as const, text: `[Receta en marcha aquí:\n${request.recipe}]` }]
@@ -1342,7 +1513,7 @@ export async function runVoiceCommand(
 		const said: string[] = [];
 		let oneRound = true;
 		for (const call of answer.toolCalls) {
-			const before = outcome.actions.length;
+			const before = outcome.actions.length + outcome.done;
 			let result: ToolResult;
 			try {
 				const args = JSON.parse(call.function.arguments || '{}');
@@ -1358,13 +1529,15 @@ export async function runVoiceCommand(
 					recipe: request.recipe,
 					position: request.position,
 					satellite: Boolean(satellite),
+					place,
 					rooms
 				});
 			} catch (err) {
 				result = `Error: ${err instanceof Error ? err.message : String(err)}`;
 			}
 			messages.push({ role: 'tool', tool_call_id: call.id, content: result });
-			if (!ONE_ROUND.has(call.function.name) || outcome.actions.length === before) oneRound = false;
+			if (!ONE_ROUND.has(call.function.name) || outcome.actions.length + outcome.done === before)
+				oneRound = false;
 		}
 		if (outcome.asked) return reply(outcome.asked, outcome);
 		if (oneRound) return reply(said.join(' '), outcome);

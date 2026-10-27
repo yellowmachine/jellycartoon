@@ -23,7 +23,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		// A satellite's (#223): in the name of who made its key, said by «la casa».
 		const satellite = locals.satellite;
 		const { timing, ...reply } = satellite
-			? await runVoiceCommand(command, { id: satellite.ownerId, name: '' }, satellite.name)
+			? await runVoiceCommand(command, { id: satellite.ownerId, name: '' }, satellite)
 			: await runVoiceCommand(command, { id: locals.user!.id, name: locals.user!.name });
 		const ms = Math.round(performance.now() - started);
 		// Where the time went, in the line itself: «2,4 s (preparar 0,04 · IA 1,1 + 0,9)».

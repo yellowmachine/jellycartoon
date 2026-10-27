@@ -19,6 +19,7 @@
 	} from '#lib/agenda.ts';
 	import { monthName } from '#lib/expenses.ts';
 	import type { PageProps } from './$types';
+	import Alarmas from './Alarmas.svelte';
 
 	let { data }: PageProps = $props();
 
@@ -555,6 +556,13 @@
 			{@render dayList(data.day)}
 		</ul>
 	{/if}
+
+	<Alarmas
+		alarms={data.alarms}
+		people={data.people}
+		satellites={data.satellites}
+		readonly={data.readonly}
+	/>
 
 	{#if data.ics}
 		<section class="mb-10 rounded-lg bg-zinc-900 p-4 text-sm">

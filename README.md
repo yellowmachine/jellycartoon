@@ -660,11 +660,14 @@ se graban, o con «Volver a Piper», las dice Piper. Al quitar una frase se borr
 que las frases grabadas: cada respuesta tarda unos 2–3 s más (medido) y cuesta algo; si Gemini falla
 o tarda más de 10 s, la dice Piper. En el Registro queda lo que tardó cada una («Voz IA: … ms»).
 
-Los temporizadores y avisos («avísame en una hora para pedir cita en la peluquería») los lleva cada
-satélite, como cada móvil los suyos, guardados en su volumen (`/data/temporizadores.json` en la
-Raspberry), así que un reinicio no los pierde. Al cumplirse suenan por donde contesta el satélite:
-dos «din-don» y su nombre dicho, el que le puso la IA, y cinco segundos de silencio para que se
-oiga «hola casita», que lo para; si nadie lo para, se calla a los tres minutos.
+Los temporizadores y las alarmas de los satélites («avísame en una hora para pedir cita en la
+peluquería», «despiértame de lunes a viernes a las 7:30») los lleva el servidor (#241), y se ven y
+se cambian en la Agenda, en «Alarmas y temporizadores», donde también se ponen a mano: para la casa
+o para alguien, y sonando en toda la casa o en un satélite. Al cumplirse suenan por donde contesta
+ese satélite: dos «din-don» y su nombre dicho, y cinco segundos de silencio para que se oiga la
+palabra de activación, que lo para (o «Parar» en la Agenda); si nadie lo para, se calla a los tres
+minutos. Si el satélite contesta por Snapcast, lo dice el servidor; si no, el satélite, avisado por
+su canal (`/api/satelite/avisos`). Las alarmas que se piden desde el móvil suenan en toda la casa.
 
 ### Juegos
 
@@ -936,8 +939,15 @@ la orden, para probar una frase.
 Lo que se dice pasa a texto con Whisper (abajo) y de ahí a un modelo de OpenRouter, con la clave de
 Ajustes y su «Modelo para la voz» (por defecto, Claude Haiku 5.5: rápido, y bueno eligiendo
 herramientas). El modelo tiene las acciones de la app como herramientas: buscar en la música, poner
-un artista, álbum, lista o canción, poner una emisora, pausar, seguir, siguiente, anterior, parar
-y el volumen de toda la casa.
+un artista, álbum, lista o canción (una canción, sola), poner una emisora, pausar, seguir,
+siguiente, anterior, parar y el volumen de toda la casa. También «para cuando acabe esta canción»
+(se apunta una vez: si antes suena otra, se olvida) y «apaga la música en media hora» (entonces
+espera al final de la canción que suene; con la radio, para al momento), aquí o en toda la casa.
+
+A Whisper se le dan como pista los artistas de la biblioteca (los que más canciones tienen, unos
+600 caracteres), para que escriba bien sus nombres. Los títulos no caben, así que la búsqueda de
+música, si no encuentra todas las palabras, devuelve lo que más se parece por cómo suena:
+«Boyman Rhapsody» encuentra «Bohemian Rhapsody» a la primera.
 
 - **Dónde**: aquí (el dispositivo, que lo pone en su propia barra) o toda la casa (Snapcast, si
   está), o uno solo de sus altavoces por su nombre («pon Queen en el dormitorio»): los demás se
