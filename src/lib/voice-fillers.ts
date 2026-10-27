@@ -11,6 +11,19 @@ export const DEFAULT_FILLERS = [
 	'Me pongo con ello.'
 ];
 export const MAX_FILLERS = 20;
+/**
+ * How the AI voice says a phrase it records, unless told otherwise: as the house's Piper voice
+ * chosen on 2026-10-27 (es_AR-daniela-high), so that the two sound alike.
+ */
+export const DEFAULT_TONE =
+	'Mujer joven argentina, acento rioplatense de Buenos Aires. Cercana y natural, como una asistente de casa que se pone a hacer lo que le piden. Corto, sin exagerar.';
+export const MAX_TONE_CHARS = 300;
+
+/** A phrase recorded by the AI voice: how it was asked to say it, and when. */
+export interface FillerRecording {
+	tone: string;
+	at: string;
+}
 export const MAX_FILLER_CHARS = 60;
 
 /** The saved lines, trimmed, without repeats; the default ones if there are none (and `orDefault`). */

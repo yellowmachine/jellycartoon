@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { MUSIC_DUCK, parseVoiceLevels, piperStyle, VOICE_GAIN } from './voice-levels.ts';
 
 test('voice levels within their ranges, the default for what is missing', () => {
-	const piper = { expressiveness: 120, speed: 95 };
+	const piper = { expressiveness: 120, speed: 95, aiAnswers: false };
 	expect(parseVoiceLevels(null)).toEqual({
 		gainDb: VOICE_GAIN.default,
 		duckDb: MUSIC_DUCK.default,
@@ -18,9 +18,10 @@ test('voice levels within their ranges, the default for what is missing', () => 
 		duckDb: -12,
 		...piper
 	});
-	expect(parseVoiceLevels({ expressiveness: 300, speed: '90' })).toMatchObject({
+	expect(parseVoiceLevels({ expressiveness: 300, speed: '90', aiAnswers: 'on' })).toMatchObject({
 		expressiveness: 150,
-		speed: 90
+		speed: 90,
+		aiAnswers: true
 	});
 });
 

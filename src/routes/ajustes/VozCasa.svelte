@@ -1,7 +1,13 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { section, primary, secondary, select } from './styles.ts';
-	import { MAX_FILLER_CHARS, MAX_FILLERS, parseFillers } from '#lib/voice-fillers.ts';
+	import {
+		DEFAULT_TONE,
+		MAX_FILLER_CHARS,
+		MAX_FILLERS,
+		MAX_TONE_CHARS,
+		parseFillers
+	} from '#lib/voice-fillers.ts';
 	import { EXPRESSIVENESS, MUSIC_DUCK, SPEED, VOICE_GAIN } from '#lib/voice-levels.ts';
 	import type { PageData, ActionData } from './$types';
 
@@ -16,8 +22,15 @@
 	let duckDb = $state(MUSIC_DUCK.default);
 	let expressiveness = $state(EXPRESSIVENESS.default);
 	let speed = $state(SPEED.default);
+	/** `on`, the answers in the AI voice; empty, Piper. */
+	let aiAnswers = $state('');
 	/** The phrases as being written: each one can be heard before saving them. */
 	let fillersText = $state('');
+	const savedFillers = $derived(data.houseVoice?.fillers.split('\n') ?? []);
+	/** How the AI voice is asked to say the next one it records. */
+	let tone = $state(DEFAULT_TONE);
+	/** The phrase being recorded. */
+	let busy = $state<string | null>(null);
 	const fillerLines = $derived(parseFillers(fillersText, { orDefault: false }));
 	$effect.pre(() => {
 		if (!data.houseVoice) return;
@@ -25,6 +38,7 @@
 		duckDb = data.houseVoice.levels.duckDb;
 		expressiveness = data.houseVoice.levels.expressiveness;
 		speed = data.houseVoice.levels.speed;
+		aiAnswers = data.houseVoice.levels.aiAnswers ? 'on' : '';
 		fillersText = data.houseVoice.fillers;
 	});
 
@@ -33,17 +47,20 @@
 	let problem = $state<string | null>(null);
 
 	/**
-	 * Read by Piper and played here, as loud as the satellites say it: the sample in a voice, or a
-	 * phrase in the house's (no `voice`). `id`, what shows it is playing.
+	 * Played here as the satellites say it: the sample in a voice, or a phrase as they would say it
+	 * (recorded, or Piper's). `id`, what shows it is playing.
 	 */
-	async function listen(id: string, text: string, v?: { voice: string; speaker: string | null }) {
+	async function listen(
+		id: string,
+		body: { text: string; voice?: string; speaker?: string | null } | { filler: string }
+	) {
 		playing = id;
 		problem = null;
 		try {
 			const res = await fetch('/api/voice/speak', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ text, ...(v ? { voice: v.voice, speaker: v.speaker } : {}) })
+				body: JSON.stringify(body)
 			});
 			if (!res.ok) throw new Error((await res.text()).slice(0, 200));
 			const url = URL.createObjectURL(await res.blob());
@@ -81,7 +98,11 @@
 							{#if chosen}<span class="ml-1 text-amber-400">· la de la casa</span>{/if}
 						</span>
 						<span class="flex shrink-0 gap-2">
-							<button type="button" class={secondary} onclick={() => listen(key(v), SAMPLE, v)}>
+							<button
+								type="button"
+								class={secondary}
+								onclick={() => listen(key(v), { text: SAMPLE, voice: v.voice, speaker: v.speaker })}
+							>
 								{playing === key(v) ? 'Sonando…' : 'Escuchar'}
 							</button>
 							{#if !chosen}
@@ -118,6 +139,23 @@
 				async ({ update }) =>
 					update({ reset: false })}
 		>
+			<fieldset class="flex flex-wrap items-center gap-3">
+				<legend class="float-left w-44">Respuestas con</legend>
+				<label class="flex items-center gap-1.5">
+					<input type="radio" name="aiAnswers" value="" bind:group={aiAnswers} />
+					Piper
+				</label>
+				<label class="flex items-center gap-1.5">
+					<input type="radio" name="aiAnswers" value="on" bind:group={aiAnswers} />
+					Voz IA (Kore)
+				</label>
+				{#if aiAnswers}
+					<span class="basis-full text-xs text-zinc-500">
+						La misma voz que las frases grabadas, pero cada respuesta tarda unos 2–3 s más y cuesta
+						algo; si falla, la dice Piper. Expresividad y velocidad son solo de Piper.
+					</span>
+				{/if}
+			</fieldset>
 			<label class="flex flex-wrap items-center gap-3">
 				<span class="w-44">Expresividad</span>
 				<input
@@ -186,14 +224,24 @@
 		<p class="mb-2 text-sm text-zinc-400">
 			Si la IA tarda en contestar, el satélite dice una de estas mientras, una distinta cada vez.
 			Una por línea; cortas, que solo llenan la espera. Debajo, cada una para escucharla tal como
-			está escrita: «¿?» y «¡!» cambian algo la entonación, según la voz.
+			está escrita: «¿?» y «¡!» cambian algo la entonación. Una vez guardadas, cada una se puede
+			grabar con una voz IA, más viva que la de Piper (unos céntimos, una vez); las que no, las dice
+			Piper.
 		</p>
 		<form
 			method="post"
 			action="?seccion={tab}&/saveFillers"
-			use:enhance={() =>
-				async ({ update }) =>
-					update({ reset: false })}
+			use:enhance={({ submitter }) => {
+				// Recording one: which, until it is done.
+				const text = submitter?.getAttribute('formaction')?.endsWith('/recordFiller')
+					? (submitter as HTMLButtonElement).value
+					: null;
+				busy = text;
+				return async ({ update }) => {
+					await update({ reset: false });
+					busy = null;
+				};
+			}}
 		>
 			<textarea
 				name="fillers"
@@ -203,20 +251,59 @@
 				aria-label="Frases de espera, una por línea"
 				class="{select} mb-2 w-full"></textarea>
 			{#if fillerLines.length}
-				<!-- As written, before saving: «¡Vale!» or «Vale.», heard in the house's voice. -->
-				<div class="mb-3 flex flex-wrap gap-2 text-sm">
+				<!--
+					As written, before saving: «¡Vale!» or «Vale.», heard as the satellites will say it.
+					Saved ones can be recorded by the AI voice, one by one; the rest are Piper's.
+				-->
+				<ul class="mb-3 flex flex-col gap-1.5 text-sm">
 					{#each fillerLines as line (line)}
-						<button
-							type="button"
-							class="rounded-full bg-zinc-800 px-3 py-1 hover:bg-zinc-700"
-							aria-label="Escuchar «{line}»"
-							onclick={() => listen(`frase|${line}`, line)}
-						>
-							{playing === `frase|${line}` ? '🔊' : '▶'}
-							{line}
-						</button>
+						{@const recorded = hv.recordings[line]}
+						<li class="flex flex-wrap items-center gap-2">
+							<button
+								type="button"
+								class="rounded-full bg-zinc-800 px-3 py-1 hover:bg-zinc-700"
+								aria-label="Escuchar «{line}»"
+								onclick={() => listen(`frase|${line}`, { filler: line })}
+							>
+								{playing === `frase|${line}` ? '🔊' : '▶'}
+								{line}
+							</button>
+							{#if recorded}
+								<span class="text-xs text-amber-400" title={recorded.tone}>✨ voz IA</span>
+								<button
+									class="text-xs text-zinc-400 underline hover:text-white"
+									formaction="?seccion={tab}&/forgetFiller"
+									name="text"
+									value={line}
+									disabled={busy !== null}>Volver a Piper</button
+								>
+							{:else if savedFillers.includes(line)}
+								<button
+									class="text-xs text-zinc-400 underline hover:text-white"
+									formaction="?seccion={tab}&/recordFiller"
+									name="text"
+									value={line}
+									disabled={busy !== null}
+									>{busy === line ? 'Grabando…' : 'Grabar con voz IA'}</button
+								>
+							{/if}
+						</li>
 					{/each}
-				</div>
+				</ul>
+				<label class="mb-3 block text-sm">
+					<span class="text-zinc-400"
+						>Cómo la dice la voz IA al grabarla (acento, tono: «coqueta», «villana de película»…)</span
+					>
+					<input
+						name="tone"
+						maxlength={MAX_TONE_CHARS}
+						bind:value={tone}
+						class="{select} mt-1 w-full"
+					/>
+				</label>
+			{/if}
+			{#if form && 'fillerProblem' in form}
+				<p class="mb-2 text-sm text-red-400">{form.fillerProblem}</p>
 			{/if}
 			<div class="flex flex-wrap items-center gap-2">
 				<button class={primary}>Guardar</button>

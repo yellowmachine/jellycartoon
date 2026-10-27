@@ -12,6 +12,11 @@ export interface VoiceLevels {
 	expressiveness: number;
 	/** How fast it reads: Piper's `length_scale`, its inverse. */
 	speed: number;
+	/**
+	 * The answers said by the AI voice (Gemini's Kore) instead of Piper: one voice with the phrases
+	 * recorded by it, about 2.6 s more for each answer.
+	 */
+	aiAnswers: boolean;
 }
 
 export const VOICE_GAIN = { min: 0, max: 12, default: 0 };
@@ -58,6 +63,7 @@ export function parseVoiceLevels(value: unknown): VoiceLevels {
 		gainDb: within(v.gainDb, VOICE_GAIN),
 		duckDb: within(v.duckDb, MUSIC_DUCK),
 		expressiveness: within(v.expressiveness, EXPRESSIVENESS),
-		speed: within(v.speed, SPEED)
+		speed: within(v.speed, SPEED),
+		aiAnswers: v.aiAnswers === true || v.aiAnswers === 'on'
 	};
 }

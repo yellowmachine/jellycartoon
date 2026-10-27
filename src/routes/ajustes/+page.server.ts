@@ -48,7 +48,15 @@ import {
 	spanishVoices,
 	type VoiceOption
 } from '#lib/server/piper.ts';
-import { getFillers, setFillers, warmFillers } from '#lib/server/voice-fillers.ts';
+import {
+	forgetFiller,
+	getFillers,
+	getRecordings,
+	recordFiller,
+	setFillers,
+	warmFillers
+} from '#lib/server/voice-fillers.ts';
+import { DEFAULT_TONE, MAX_TONE_CHARS } from '#lib/voice-fillers.ts';
 import { getVoiceLevels, setVoiceLevels } from '#lib/server/voice/levels.ts';
 import { parseVoiceLevels } from '#lib/voice-levels.ts';
 import {
@@ -139,6 +147,7 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 				problem,
 				chosen: await houseVoice(),
 				fillers: (await getFillers()).join('\n'),
+				recordings: await getRecordings(),
 				levels: await getVoiceLevels(),
 				/** «Música mientras habla» only matters if they answer through Snapcast. */
 				snapcast: snapcastVoiceReady()
@@ -326,6 +335,35 @@ export const actions: Actions = {
 		void warmFillers();
 		log.info('ajustes', 'Volumen de la voz de los satélites', { ...levels });
 		return { saved: 'voiceLevels' };
+	},
+	/** One of the phrases said while the AI thinks, recorded by the AI voice (#223). */
+	recordFiller: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const form = await request.formData();
+		const text = String(form.get('text') ?? '');
+		if (!(await getFillers()).includes(text))
+			return fail(400, { fillerProblem: 'Guarda la frase antes de grabarla' });
+		const tone =
+			String(form.get('tone') ?? '')
+				.trim()
+				.slice(0, MAX_TONE_CHARS) || DEFAULT_TONE;
+		try {
+			await recordFiller(text, tone);
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			log.warn('ajustes', 'No se pudo grabar la frase de espera', { text, error: err });
+			return fail(502, { fillerProblem: `No se pudo grabar: ${message}` });
+		}
+		log.info('ajustes', 'Frase de espera grabada con voz IA', { text, tone });
+		return { saved: 'fillerRecorded' };
+	},
+	/** That phrase back to Piper's voice. */
+	forgetFiller: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const text = String((await request.formData()).get('text') ?? '');
+		await forgetFiller(text);
+		log.info('ajustes', 'Frase de espera de vuelta a Piper', { text });
+		return { saved: 'fillerForgotten' };
 	},
 	/** What the satellites say while the AI thinks (#223), one a line; empty, the default ones. */
 	saveFillers: async ({ request, locals }) => {
