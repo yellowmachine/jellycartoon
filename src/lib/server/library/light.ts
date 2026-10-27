@@ -1,6 +1,6 @@
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { X264_PRESET } from '$app/env/private';
 import { db } from '#lib/server/db/index.ts';
 import { episode, series } from '#lib/server/db/schema.ts';
@@ -71,6 +71,78 @@ export async function requestLight(ids: number[]) {
 	return asked.length;
 }
 
+/**
+ * Made next, after the one being made: with the conversion's priority (worker.ts `moveToFront`),
+ * which the conversion only looks at while an episode waits to be converted.
+ */
+export async function lightToFront(id: number) {
+	await db
+		.update(episode)
+		.set({ priority: sql`(select coalesce(max(${episode.priority}), 0) + 1 from ${episode})` })
+		.where(and(eq(episode.id, id), eq(episode.light, 'pending')));
+}
+
+/**
+ * For Gestión → Conversión: the one being made, those waiting in the order they will be made
+ * (`makeNextLight`'s), their series, those that failed, and how many are made.
+ */
+export async function lightOverview() {
+	const now = lightNow();
+	const waiting = and(
+		eq(episode.light, 'pending'),
+		eq(episode.status, 'ready'),
+		eq(episode.missing, false)
+	);
+	const [queue, queueSeries, errors, [made]] = await Promise.all([
+		db
+			.select({
+				id: episode.id,
+				sourcePath: episode.sourcePath,
+				seriesId: episode.seriesId,
+				durationSec: episode.durationSec
+			})
+			.from(episode)
+			.innerJoin(series, eq(series.id, episode.seriesId))
+			.where(waiting)
+			.orderBy(
+				desc(episode.priority),
+				sql`${series.queueOrder} nulls last`,
+				asc(episode.seriesId),
+				asc(episode.season),
+				asc(episode.number)
+			),
+		db
+			.select({ id: series.id, title: series.title, count: sql<number>`count(*)::int` })
+			.from(episode)
+			.innerJoin(series, eq(series.id, episode.seriesId))
+			.where(waiting)
+			.groupBy(series.id)
+			.orderBy(sql`${series.queueOrder} nulls last`, asc(series.id)),
+		db
+			.select({ id: episode.id, sourcePath: episode.sourcePath, error: episode.lightError })
+			.from(episode)
+			.where(and(eq(episode.light, 'error'), eq(episode.missing, false)))
+			.orderBy(asc(episode.sourcePath)),
+		db
+			.select({ count: sql<number>`count(*)::int` })
+			.from(episode)
+			.where(and(eq(episode.light, 'ready'), eq(episode.missing, false)))
+	]);
+	const [making] = now
+		? await db
+				.select({ id: episode.id, sourcePath: episode.sourcePath })
+				.from(episode)
+				.where(eq(episode.id, now.id))
+		: [];
+	return {
+		current: making && now ? { ...making, ratio: now.ratio } : null,
+		queue,
+		queueSeries,
+		errors,
+		made: made?.count ?? 0
+	};
+}
+
 /** Taken out of these: the one being made stops, and the made ones are deleted. */
 export async function removeLight(ids: number[]) {
 	if (!ids.length) return;
@@ -119,8 +191,8 @@ export async function makeNextLight() {
 		where id = (
 			select e.id from ${episode} e
 			join ${series} s on s.id = e.series_id
-			where e.light = 'pending' and e.status = 'ready'
-			order by s.queue_order nulls last, e.series_id, e.season, e.number
+			where e.light = 'pending' and e.status = 'ready' and not e.missing
+			order by e.priority desc, s.queue_order nulls last, e.series_id, e.season, e.number
 			limit 1
 			for update of e skip locked
 		)

@@ -26,15 +26,19 @@
 	let dragged = $state<number | null>(null);
 	let reorderForm = $state<HTMLFormElement>();
 
+	/** `list` with the series `moving` where `overId` is. */
+	function moveOver<T extends { id: number }>(list: T[], moving: number, overId: number) {
+		const next = [...list];
+		const from = next.findIndex((s) => s.id === moving);
+		const to = next.findIndex((s) => s.id === overId);
+		next.splice(to, 0, ...next.splice(from, 1));
+		return next;
+	}
+
 	function dragOver(event: DragEvent, overId: number) {
 		if (dragged === null) return;
 		event.preventDefault();
-		if (overId === dragged) return;
-		const next = [...seriesOrder];
-		const from = next.findIndex((s) => s.id === dragged);
-		const to = next.findIndex((s) => s.id === overId);
-		next.splice(to, 0, ...next.splice(from, 1));
-		seriesOrder = next;
+		if (overId !== dragged) seriesOrder = moveOver(seriesOrder, dragged, overId);
 	}
 
 	function dragEnd() {
@@ -42,17 +46,52 @@
 		const changed = seriesOrder.some((s, i) => s.id !== data.queueSeries[i]?.id);
 		if (changed) reorderForm?.requestSubmit();
 	}
+	/** The light versions' series, the same way: their places in the one order, swapped. */
+	let lightOrder = $derived(data.light.queueSeries);
+	let lightDragged = $state<number | null>(null);
+	let lightReorderForm = $state<HTMLFormElement>();
+
+	function lightDragOver(event: DragEvent, overId: number) {
+		if (lightDragged === null) return;
+		event.preventDefault();
+		if (overId !== lightDragged) lightOrder = moveOver(lightOrder, lightDragged, overId);
+	}
+
+	function lightDragEnd() {
+		lightDragged = null;
+		const changed = lightOrder.some((s, i) => s.id !== data.light.queueSeries[i]?.id);
+		if (changed) lightReorderForm?.requestSubmit();
+	}
+
+	/** Light versions' filter by series, as the queue's. */
+	let lightSeries = $state<number | null>(null);
+	$effect(() => {
+		if (lightSeries !== null && !data.light.queueSeries.some((s) => s.id === lightSeries))
+			lightSeries = null;
+	});
+	const visibleLight = $derived(
+		data.light.queue
+			.map((ep, i) => ({ ...ep, position: i + 1 }))
+			.filter((ep) => lightSeries === null || ep.seriesId === lightSeries)
+	);
+
 	const visibleQueue = $derived(
 		data.queue
 			.map((ep, i) => ({ ...ep, position: i + 1 }))
 			.filter((ep) => queueSeries === null || ep.seriesId === queueSeries)
 	);
 
-	// Refresh while something is converting.
+	// Refresh while something is converting, or a light version is being made.
 	$effect(() => {
-		if (data.totals.pending === 0 && data.active.length === 0) return;
+		if (
+			data.totals.pending === 0 &&
+			data.active.length === 0 &&
+			!data.light.queue.length &&
+			!data.light.current
+		)
+			return;
 		// Not while dragging: the series list would jump back mid-drag.
-		return poll(() => dragged === null && invalidateAll(), 3000);
+		return poll(() => dragged === null && lightDragged === null && invalidateAll(), 3000);
 	});
 </script>
 
@@ -195,6 +234,12 @@
 		{#if data.queueEta}
 			<span class="text-zinc-400">· quedan ≈ {formatRemaining(data.queueEta)}</span>
 		{/if}
+		<span class="block text-xs text-zinc-400">
+			Versiones ligeras (720p, para el móvil fuera de casa): {data.light.made} hechas{data.light
+				.queue.length
+				? ` · ${data.light.queue.length} esperando`
+				: ''}. Se hacen cuando no queda nada por convertir; pausar y parar también les afecta.
+		</span>
 	</p>
 	{#if data.worker.state === 'running'}
 		{@render workerButton('pause', 'Pausar')}
@@ -209,8 +254,26 @@
 	{/if}
 </section>
 
-{#if data.active.length}
+{#if data.active.length || data.light.current}
 	<ul class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
+		{#if data.light.current}
+			{@const ep = data.light.current}
+			<li class="p-3 text-sm">
+				<div class="flex items-center gap-2">
+					<p class="min-w-0 flex-1 truncate" title={ep.sourcePath}>
+						<span class="text-sky-400">Versión ligera:</span>
+						{ep.sourcePath}
+						{#if data.worker.state === 'paused'}
+							<span class="text-amber-400">(en pausa)</span>
+						{/if}
+					</p>
+					{@render episodeButton('lightRemove', ep.id, 'Quitar')}
+				</div>
+				<div class="mt-2 h-1.5 rounded bg-zinc-800">
+					<div class="h-full rounded bg-sky-400" style:width="{ep.ratio * 100}%"></div>
+				</div>
+			</li>
+		{/if}
 		{#each data.active as ep (ep.id)}
 			<li class="p-3 text-sm">
 				<p class="truncate">
@@ -419,6 +482,94 @@
 							</button>
 						</form>
 					{/if}
+				</li>
+			{/each}
+		</ol>
+	</details>
+{/if}
+
+{#if data.light.errors.length}
+	<details class="mt-6 rounded-md border border-zinc-800">
+		<summary class="cursor-pointer p-3 text-sm text-red-400">
+			Versiones ligeras con error ({data.light.errors.length})
+		</summary>
+		<ul class="max-h-96 divide-y divide-zinc-800 overflow-auto border-t border-zinc-800">
+			{#each data.light.errors as ep (ep.id)}
+				<li class="p-3 text-sm">
+					<div class="flex items-center gap-2">
+						<p class="min-w-0 flex-1 truncate" title={ep.sourcePath}>{ep.sourcePath}</p>
+						{@render episodeButton('lightRetry', ep.id, 'Reintentar')}
+						{@render episodeButton('lightRemove', ep.id, 'Quitar')}
+					</div>
+					<pre
+						class="mt-2 max-h-32 overflow-auto text-xs whitespace-pre-wrap text-red-400">{ep.error}</pre>
+				</li>
+			{/each}
+		</ul>
+	</details>
+{/if}
+
+{#if data.light.queue.length}
+	<details class="mt-6 rounded-md border border-zinc-800">
+		<summary class="cursor-pointer p-3 text-sm">
+			Versiones ligeras esperando ({data.light.queue.length})
+		</summary>
+		<form
+			bind:this={lightReorderForm}
+			method="post"
+			action="?/reorderLightSeries"
+			use:enhance={() =>
+				async ({ update }) => {
+					await update({ reset: false });
+				}}
+			class="border-t border-zinc-800 p-3"
+		>
+			<p class="mb-2 text-xs text-zinc-400">
+				Arrastra las series para cambiar el orden: es el mismo que el de la conversión, así que
+				también la adelanta allí. Pulsa una para ver solo sus episodios.
+			</p>
+			<ul class="flex flex-col gap-1">
+				{#each lightOrder as s (s.id)}
+					{@const active = lightSeries === s.id}
+					<li
+						draggable="true"
+						ondragstart={(e) => {
+							lightDragged = s.id;
+							e.dataTransfer!.effectAllowed = 'move';
+						}}
+						ondragover={(e) => lightDragOver(e, s.id)}
+						ondrop={(e) => e.preventDefault()}
+						ondragend={lightDragEnd}
+						class={[
+							'flex items-center rounded-md border text-sm',
+							active ? 'border-sky-500/60 bg-zinc-900' : 'border-zinc-800',
+							lightDragged === s.id && 'opacity-50'
+						]}
+					>
+						<input type="hidden" name="id" value={s.id} />
+						<span class="cursor-grab px-2 text-zinc-500 select-none" aria-hidden="true">⠿</span>
+						<button
+							type="button"
+							class="flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-3 text-left"
+							aria-pressed={active}
+							onclick={() => (lightSeries = active ? null : s.id)}
+						>
+							<span class="min-w-0 flex-1 truncate" class:text-sky-400={active}>{s.title}</span>
+							<span class="shrink-0 text-xs text-zinc-500">{s.count}</span>
+						</button>
+					</li>
+				{/each}
+			</ul>
+		</form>
+		<ol class="max-h-96 divide-y divide-zinc-800 overflow-auto border-t border-zinc-800">
+			{#each visibleLight as ep (ep.id)}
+				<li class="flex items-center gap-3 p-3 text-sm">
+					<span class="w-8 shrink-0 text-right text-zinc-500">{ep.position}</span>
+					<p class="min-w-0 flex-1 truncate" title={ep.sourcePath}>{ep.sourcePath}</p>
+					{#if ep.position > 1}
+						{@render episodeButton('lightToFront', ep.id, 'Siguiente')}
+					{/if}
+					{@render episodeButton('lightRemove', ep.id, 'Quitar')}
 				</li>
 			{/each}
 		</ol>

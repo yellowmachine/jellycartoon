@@ -16,6 +16,13 @@ import {
 	workerStatus
 } from '#lib/server/library/worker.ts';
 import { removeSource } from '#lib/server/library/sources.ts';
+import { swapPlaces } from '#lib/server/library/queue-order.ts';
+import {
+	lightOverview,
+	lightToFront,
+	removeLight,
+	requestLight
+} from '#lib/server/library/light.ts';
 import { estimateQueue } from '#lib/server/library/estimate.ts';
 import { forgetMissingEpisodes, missingEpisodes } from '#lib/server/library/delete-episodes.ts';
 import { NIGHTLY_SCAN_HOUR, scanSeries } from '#lib/server/library/nightly.ts';
@@ -135,7 +142,9 @@ export const load: PageServerLoad = async () => {
 		missing: await missingEpisodes(),
 		/** Folders are also scanned every night at this hour; and how the last scan went. */
 		nightlyHour: NIGHTLY_SCAN_HOUR,
-		lastScan: await lastScan<ScanResult>('series')
+		lastScan: await lastScan<ScanResult>('series'),
+		/** The light versions (light.ts), made by the same worker when there is nothing to convert. */
+		light: await lightOverview()
 	};
 };
 
@@ -214,6 +223,40 @@ export const actions: Actions = {
 			for (const [i, id] of ids.entries())
 				await tx.update(series).set({ queueOrder: i }).where(eq(series.id, id));
 		});
+	},
+	/**
+	 * The light versions' series in a new order: the same order as the conversion's, so only their
+	 * places are swapped among themselves and every other series keeps its own.
+	 */
+	reorderLightSeries: async ({ request }) => {
+		const ids = (await request.formData()).getAll('id').map(Number);
+		if (!ids.every(Number.isInteger)) return fail(400, { message: 'Serie no válida' });
+		await db.transaction(async (tx) => {
+			const all = await tx
+				.select({ id: series.id, queueOrder: series.queueOrder })
+				.from(series)
+				.orderBy(sql`${series.queueOrder} nulls last`, asc(series.id));
+			for (const { id, queueOrder } of swapPlaces(all, ids))
+				await tx.update(series).set({ queueOrder }).where(eq(series.id, id));
+		});
+	},
+	lightToFront: async ({ request }) => {
+		const id = Number((await request.formData()).get('id'));
+		if (!Number.isInteger(id)) return fail(400, { message: 'Episodio no válido' });
+		await lightToFront(id);
+	},
+	/** A failed light version, asked for again. */
+	lightRetry: async ({ request }) => {
+		const id = Number((await request.formData()).get('id'));
+		if (!Number.isInteger(id)) return fail(400, { message: 'Episodio no válido' });
+		await requestLight([id]);
+		wakeWorker();
+	},
+	/** No longer asked for; the one being made stops. */
+	lightRemove: async ({ request }) => {
+		const id = Number((await request.formData()).get('id'));
+		if (!Number.isInteger(id)) return fail(400, { message: 'Episodio no válido' });
+		await removeLight([id]);
 	},
 	retry: async () => {
 		await db
