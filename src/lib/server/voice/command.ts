@@ -11,11 +11,14 @@ import { getAlbums, tracksById } from '#lib/server/music/albums.ts';
 import { getPlaylist, listPlaylists } from '#lib/server/music/playlists.ts';
 import {
 	controlSnapcast,
+	listSpeakers,
 	queueOnSnapcast,
 	radioOnSnapcast,
 	snapcastNow,
-	snapcastReady
+	snapcastReady,
+	soundOn
 } from '#lib/server/music/snapcast.ts';
+import { episodesOnSnapcast } from '#lib/server/music/episodes-on-snapcast.ts';
 import { chatWithTools, type Tool, type ToolChatMessage } from '#lib/server/openrouter.ts';
 import { streamFor } from '#lib/server/radio.ts';
 import { keepsHistory } from '#lib/server/settings.ts';
@@ -28,7 +31,13 @@ import {
 	todayText,
 	type Person
 } from '#lib/server/watch-history.ts';
-import { fold, masterVolume, type MusicAlbum, type MusicTrack } from '#lib/music.ts';
+import {
+	fold,
+	masterVolume,
+	type MusicAlbum,
+	type MusicTrack,
+	type SnapcastWhere
+} from '#lib/music.ts';
 import { COUNTRIES, STATIONS } from '#lib/radio.ts';
 import { parseRecipe } from '#lib/recipe.ts';
 import type { LngLat } from '#lib/road.ts';
@@ -107,14 +116,30 @@ interface Outcome {
 	asked: string | null;
 }
 
-const targets = (house: boolean): VoiceTarget[] => (house ? ['here', 'house'] : ['here']);
+/** A speaker of the house (Snapcast), by its name: only there (#223). */
+interface Room {
+	id: string;
+	name: string;
+}
 
-function tools(house: boolean): Tool[] {
+/** Their names, but those of the other places: «here», «house», and for videos «salon» (the TV). */
+const roomNames = (rooms: Room[], taken: string[]) =>
+	[...new Set(rooms.map((r) => r.name))].filter((n) => !taken.includes(fold(n)));
+
+const targets = (house: boolean, rooms: Room[]): string[] =>
+	house
+		? ['here', 'house', ...roomNames(rooms, ['here', 'house'])]
+		: (['here'] satisfies VoiceTarget[]);
+
+const ROOMS =
+	' O el nombre de un altavoz de la casa: solo ahí, y los demás callan (p. ej. «en el dormitorio»).';
+
+function tools(house: boolean, rooms: Room[]): Tool[] {
 	const where = {
 		type: 'string',
-		enum: targets(house),
+		enum: targets(house, rooms),
 		description: house
-			? '«here»: el dispositivo desde el que se habla (por defecto). «house»: toda la casa (Snapcast).'
+			? `«here»: el dispositivo desde el que se habla (por defecto). «house»: toda la casa (Snapcast).${rooms.length ? ROOMS : ''}`
 			: '«here»: el dispositivo desde el que se habla.'
 	};
 	const fn = (name: string, description: string, properties: object, required: string[]) =>
@@ -268,8 +293,12 @@ function tools(house: boolean): Tool[] {
 				},
 				where: {
 					type: 'string',
-					enum: mpvEnabled ? ['here', 'salon'] : ['here'],
-					description: '«here»: el dispositivo desde el que se habla. «salon»: la tele del salón.'
+					enum: [
+						'here',
+						...(mpvEnabled ? ['salon'] : []),
+						...(house ? ['house', ...roomNames(rooms, ['here', 'house', 'salon'])] : [])
+					],
+					description: `«here»: el dispositivo desde el que se habla. ${mpvEnabled ? '«salon»: la tele del salón. ' : ''}${house ? `Solo el audio de un capítulo, sin imagen (para oírlo o dormirse con él): «house», toda la casa (Snapcast).${rooms.length ? ROOMS : ''}` : ''}`
 				}
 			},
 			['kind', 'id', 'where']
@@ -576,7 +605,7 @@ Cómo responder:
 - Si duda entre pocas opciones, usa «ask». Si no encuentras algo, dilo y propón lo más parecido que haya.
 - Si no dice dónde, es aquí${house ? ', salvo que lo que quiere controlar solo esté sonando en toda la casa' : ''}.
 - «Quita eso», «para», «más alto»…: se refiere a lo que está sonando. Con cada orden va lo que suena en cada sitio.
-- Sitios: aquí (el dispositivo desde el que se habla)${house ? ' y toda la casa (Snapcast)' : '; toda la casa no está disponible'}.
+- Sitios: aquí (el dispositivo desde el que se habla)${house ? ' y toda la casa (Snapcast), o uno solo de sus altavoces por su nombre' : '; toda la casa no está disponible'}.
 
 Otras preguntas (de cocina, de lo que sea): si no pide nada de la app, contesta tú, como un asistente general, sin herramientas.
 - Es para oírlo mientras hace otra cosa: dos o tres frases cortas como mucho, con lo esencial primero. Números y cantidades claros («doscientos gramos», «diez minutos»).
@@ -662,9 +691,13 @@ async function videoText(video: VideoHere | null) {
 
 function soundingNow(here: string | null, house: boolean) {
 	const snap = house ? snapcastNow() : null;
-	const inHouse = !snap?.active
-		? 'nada'
-		: `${snap.radio ? `la radio ${snap.radio.name}` : `«${snap.track?.title}» de ${snap.track?.artist}`}${snap.paused ? ' (en pausa)' : ''}`;
+	const what = (s: NonNullable<typeof snap>) =>
+		s.radio
+			? `la radio ${s.radio.name}`
+			: s.episode
+				? `el audio del capítulo «${s.episode.subtitle}: ${s.episode.title}» [episodio ${s.episode.id}]`
+				: `«${s.track?.title}» de ${s.track?.artist}`;
+	const inHouse = !snap?.active ? 'nada' : `${what(snap)}${snap.paused ? ' (en pausa)' : ''}`;
 	return `[Ahora suena. Aquí: ${here ?? 'nada'}.${house ? ` Toda la casa: ${inHouse}.` : ''}]`;
 }
 
@@ -743,7 +776,16 @@ async function controlHouse(action: VoiceControl) {
 
 /** Runs one call of the model; what the device must do and the options, into `outcome`. */
 /** An episode here (the device opens its player) or in the living room; a film, only there. */
-async function playVideo(args: Record<string, unknown>, ctx: { outcome: Outcome; user: Person }) {
+async function playVideo(
+	args: Record<string, unknown>,
+	ctx: {
+		outcome: Outcome;
+		user: Person;
+		video: VideoHere | null;
+		where: 'here' | SnapcastWhere;
+		there: string;
+	}
+) {
 	const id = Number(args.id);
 	if (!Number.isInteger(id)) return 'Falta el id del capítulo o la película.';
 	const minute = Number(args.start_minute);
@@ -753,6 +795,14 @@ async function playVideo(args: Record<string, unknown>, ctx: { outcome: Outcome;
 			: Math.max(0, Math.round(minute * 60));
 	const salon = args.where === 'salon';
 	if (salon && !mpvEnabled) return 'No hay salón (mpv) configurado.';
+	// Only its audio, on Snapcast (#223): the episode and the ones after it.
+	if (ctx.where !== 'here' && !salon) {
+		if (args.kind !== 'episode') return 'De las películas no se puede poner solo el audio.';
+		const playing = await episodesOnSnapcast(ctx.user.id, id, startSec, ctx.where);
+		// «Sigue con esto en el dormitorio»: what was being watched here stops.
+		if (ctx.video?.episodeId === id) ctx.outcome.actions.push({ kind: 'handOver' });
+		return `Sonando solo el audio de «${playing.subtitle}: ${playing.title}» en ${ctx.there}${fromMinute(startSec)}, y los siguientes.`;
+	}
 
 	if (args.kind === 'film') {
 		if (!salon) return 'Las películas solo se ven en el salón: pregúntale si la pones allí.';
@@ -795,8 +845,8 @@ const played = (
 		? `Poniendo «${result.playing}» en el salón${fromMinute(startSec)}.`
 		: `No se pudo: ${result.data.message}`;
 
-/** What a satellite cannot play itself (#223), done in the whole house. */
-const HOUSE_FROM_SATELLITE = new Set(['play_music', 'play_radio', 'control']);
+/** What a satellite cannot play itself (#223), done in the whole house: an episode, its audio. */
+const HOUSE_FROM_SATELLITE = new Set(['play_music', 'play_radio', 'control', 'play_video']);
 
 async function runTool(
 	name: string,
@@ -814,13 +864,25 @@ async function runTool(
 		position?: LngLat | null;
 		/** Said to a voice satellite (#223), which plays nothing itself. */
 		satellite: boolean;
+		rooms: Room[];
 	}
 ): Promise<ToolResult> {
 	if (HISTORY_TOOLS.has(name)) return runHistoryTool(name, args, { self: ctx.user });
 	// A satellite's «aquí» has nothing to play on: music, radio and their controls, in the whole house.
-	const asked = ctx.satellite && HOUSE_FROM_SATELLITE.has(name) ? 'house' : args.where;
-	const where = asked === 'house' && ctx.house ? 'house' : 'here';
+	const asked =
+		ctx.satellite && HOUSE_FROM_SATELLITE.has(name) && (!args.where || args.where === 'here')
+			? 'house'
+			: args.where;
+	const room = ctx.house ? ctx.rooms.find((r) => fold(r.name) === fold(String(asked))) : undefined;
+	// Snapcast: all its speakers, or only one; else this device.
+	const where: 'here' | SnapcastWhere = room
+		? { speakerId: room.id }
+		: asked === 'house' && ctx.house
+			? 'house'
+			: 'here';
 	if (asked === 'house' && !ctx.house) return 'Toda la casa (Snapcast) no está disponible.';
+	const there =
+		where === 'here' ? 'el dispositivo' : room ? `el altavoz «${room.name}»` : 'toda la casa';
 	switch (name) {
 		case 'search_music':
 			return typeof args.query === 'string' && args.query.trim()
@@ -830,25 +892,29 @@ async function runTool(
 			const music = await resolveMusic(String(args.kind), String(args.id ?? ''), ctx.albums);
 			if (!music) return `No hay ${args.kind} con id «${args.id}». Búscalo con search_music.`;
 			const shuffle = typeof args.shuffle === 'boolean' ? args.shuffle : args.kind === 'artist';
-			if (where === 'house') await playHouse(music.tracks, music.start, shuffle);
-			else ctx.outcome.actions.push({ kind: 'play', ...music, shuffle });
-			return `Sonando «${music.name}» (${music.tracks.length} canciones) en ${where === 'house' ? 'toda la casa' : 'el dispositivo'}.`;
+			if (where !== 'here') {
+				await soundOn(where);
+				await playHouse(music.tracks, music.start, shuffle);
+			} else ctx.outcome.actions.push({ kind: 'play', ...music, shuffle });
+			return `Sonando «${music.name}» (${music.tracks.length} canciones) en ${there}.`;
 		}
 		case 'play_radio': {
 			const station = STATIONS.find((s) => s.uuid === args.id);
 			if (!station) return `No hay emisora con id «${args.id}».`;
-			if (where === 'house') {
+			if (where !== 'here') {
 				const stream = await streamFor(station.uuid);
 				if (!stream) return `${station.name} no está disponible ahora.`;
+				await soundOn(where);
 				await radioOnSnapcast(stream);
 			} else ctx.outcome.actions.push({ kind: 'radio', uuid: station.uuid });
-			return `Sonando ${station.name} en ${where === 'house' ? 'toda la casa' : 'el dispositivo'}.`;
+			return `Sonando ${station.name} en ${there}.`;
 		}
 		case 'control': {
 			const action = args.action as VoiceControl;
 			if (!['pause', 'resume', 'next', 'previous', 'stop'].includes(action))
 				return `Acción no válida: «${args.action}».`;
-			if (where === 'house') await controlHouse(action);
+			// One queue on Snapcast, wherever it sounds.
+			if (where !== 'here') await controlHouse(action);
 			else ctx.outcome.actions.push({ kind: 'control', action });
 			return 'Hecho.';
 		}
@@ -946,7 +1012,7 @@ async function runTool(
 			return seriesEpisodes(ctx.user.id, seriesId, season);
 		}
 		case 'play_video':
-			return playVideo(args, ctx);
+			return playVideo(args, { ...ctx, where, there });
 		case 'add_to_shopping_list': {
 			const items = Array.isArray(args.items)
 				? args.items.filter((i: unknown): i is string => typeof i === 'string')
@@ -1185,6 +1251,9 @@ export async function runVoiceCommand(
 	const reply = (text: string, outcome: Outcome) => ({ ...replyOf(text, outcome), timing });
 	// In the car the house's speakers are far away.
 	const house = snapcastReady() && !request.car;
+	const rooms: Room[] = house
+		? ((await listSpeakers()) ?? []).map((s) => ({ id: s.id, name: s.name }))
+		: [];
 	const outcome: Outcome = { actions: [], options: [], asked: null };
 	const messages: ToolChatMessage[] = [
 		{
@@ -1213,7 +1282,7 @@ export async function runVoiceCommand(
 				{
 					type: 'text',
 					text: satellite
-						? `[Te habla alguien de la casa desde «${satellite}», un satélite de voz sin pantalla: no sabes quién es, así que sin nombres; tampoco hay historial de lo que ve cada uno. El satélite no pone música ni radio: aquí es toda la casa.]`
+						? `[Te habla alguien de la casa desde «${satellite}», un satélite de voz sin pantalla: no sabes quién es, así que sin nombres; tampoco hay historial de lo que ve cada uno. El satélite no pone música, radio ni vídeos: aquí es toda la casa, y de un capítulo solo el audio.]`
 						: `[Te habla: ${user.name}.]`
 				},
 				{ type: 'text', text: soundingNow(request.here, house) },
@@ -1238,9 +1307,11 @@ export async function runVoiceCommand(
 			]
 		}
 	];
-	const available = [...tools(house), ...(satellite ? [] : historyTools({ self: user }))].filter(
-		(t) =>
-			request.car ? !NOT_IN_THE_CAR.has(t.function.name) : !ONLY_IN_THE_CAR.has(t.function.name)
+	const available = [
+		...tools(house, rooms),
+		...(satellite ? [] : historyTools({ self: user }))
+	].filter((t) =>
+		request.car ? !NOT_IN_THE_CAR.has(t.function.name) : !ONLY_IN_THE_CAR.has(t.function.name)
 	);
 
 	for (let round = 0; round < MAX_ROUNDS; round++) {
@@ -1282,7 +1353,8 @@ export async function runVoiceCommand(
 					video: request.video,
 					recipe: request.recipe,
 					position: request.position,
-					satellite: Boolean(satellite)
+					satellite: Boolean(satellite),
+					rooms
 				});
 			} catch (err) {
 				result = `Error: ${err instanceof Error ? err.message : String(err)}`;

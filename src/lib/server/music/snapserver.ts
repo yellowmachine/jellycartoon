@@ -172,6 +172,25 @@ export class SnapserverControl {
 		await this.request('Group.SetStream', { id, stream_id: streamId });
 	}
 
+	/**
+	 * Only this speaker's group sounds, the others muted (Group.SetMute, as the mute of the Snapcast
+	 * bar), and the speaker itself unmuted; null, all the groups again.
+	 */
+	async soundOnly(speakerId: string | null) {
+		const groups = await this.groups();
+		if (speakerId !== null && !groups.some((g) => g.clients.includes(speakerId)))
+			throw new Error('Ese altavoz ya no está en Snapcast');
+		await Promise.all(
+			groups.map(async (g) => {
+				const mute = speakerId !== null && !g.clients.includes(speakerId);
+				await this.request('Group.SetMute', { id: g.id, mute });
+				this.#groupMuted(g.id, mute);
+			})
+		);
+		if (speakerId !== null && this.#speakers.get(speakerId)?.muted)
+			await this.setVolume(speakerId, { muted: false });
+	}
+
 	/** An empty name goes back to the host's. */
 	async setName(id: string, name: string) {
 		const current = this.#speakers.get(id);

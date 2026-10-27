@@ -5,12 +5,15 @@
 	import { coverUrl, masterSpeakers, masterVolume } from '#lib/music.ts';
 	import { musicTarget, watchSnapcast } from '#lib/music-target.svelte.ts';
 	import { COUNTRIES } from '#lib/radio.ts';
+	import { thumbUrl } from '#lib/thumb.svelte.ts';
 
 	const snapcast = watchSnapcast();
 	const snap = $derived(snapcast.state);
 	const track = $derived(snap?.track);
 	/** A station is live: no position, no previous or next. */
 	const radio = $derived(snap?.radio);
+	/** An episode only heard (#223). */
+	const episode = $derived(snap?.episode);
 
 	// Rectangular with rounded corners, all the size of «play», like the app's other buttons.
 	const base =
@@ -182,7 +185,7 @@
 			<input
 				type="range"
 				min="0"
-				max={snap.durationSec ?? track?.durationSec ?? 0}
+				max={snap.durationSec ?? track?.durationSec ?? episode?.durationSec ?? 0}
 				step="1"
 				value={snap.positionSec ?? 0}
 				aria-label="Posición"
@@ -193,7 +196,13 @@
 		{/if}
 		<div class="flex items-center gap-3">
 			<a
-				href={radio ? '/radio' : track && !track.clip ? `/musica/${track.albumId}` : '/musica'}
+				href={radio
+					? '/radio'
+					: episode
+						? `/series/${episode.seriesId}`
+						: track && !track.clip
+							? `/musica/${track.albumId}`
+							: '/musica'}
 				class="flex min-w-0 flex-1 items-center gap-3"
 			>
 				{#if radio?.favicon}
@@ -202,6 +211,12 @@
 						alt=""
 						class="h-10 w-10 shrink-0 rounded bg-white object-contain p-0.5"
 						onerror={(e) => e.currentTarget.classList.add('invisible')}
+					/>
+				{:else if episode}
+					<img
+						src={thumbUrl(episode.id)}
+						alt=""
+						class="h-10 w-10 shrink-0 rounded bg-zinc-800 object-cover"
 					/>
 				{:else if track?.hasCover}
 					<img
@@ -217,7 +232,7 @@
 				<span class="min-w-0">
 					<span class="block truncate text-sm">
 						<span class="text-amber-400">Snapcast:</span>
-						{radio?.name ?? track?.title ?? '…'}
+						{radio?.name ?? episode?.title ?? track?.title ?? '…'}
 					</span>
 					{#if radio}
 						<!-- What the station says is on, when it says it (not all do). -->
@@ -225,6 +240,9 @@
 							<span class="text-red-400">●</span>
 							{snap.nowPlaying ?? `En directo · ${COUNTRIES[radio.country] ?? radio.country}`}
 						</span>
+					{:else if episode}
+						<span class="block truncate text-xs text-zinc-400">{episode.subtitle} · solo audio</span
+						>
 					{:else if track}
 						<span class="block truncate text-xs text-zinc-400">{track.artist} · {track.album}</span>
 					{/if}

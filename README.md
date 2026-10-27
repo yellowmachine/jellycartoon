@@ -528,6 +528,14 @@ En Música aparece entonces «Sonar en: Este dispositivo / Snapcast» (cada disp
 suyo), y una barra con lo que suena en Snapcast, lo mande quien lo mande. Por el búfer de audio,
 pausar o cambiar de canción tarda uno o dos segundos en oírse.
 
+Los capítulos también pueden sonar solo con su audio en Snapcast (#223), por ejemplo para dormirse
+con una serie en el dormitorio: en el «⋯» del capítulo, o en el menú del reproductor desde el
+segundo en que vas, «🔈 Solo el audio, por Snapcast», en toda la casa o solo en un altavoz; o por
+voz («pon Friends en el dormitorio»). Siguen los siguientes de la serie (con «siguiente
+automático») y se guarda por dónde vas, como si lo vieras. Tras los capítulos seguidos de
+«¿Sigues ahí?» (Ajustes) sin tocar nada, se para: en un altavoz no hay quien conteste. El mpv de
+Snapcast lee el audio del mismo HLS del capítulo, en `HOST_DATA_DIR/hls`.
+
 Snapserver tiene además una segunda fuente, `Voz` (`HOST_DATA_DIR/snapvoz`), para que los
 satélites de voz (#223) contesten por Snapcast. En Ajustes → Casa → Satélites de voz se elige, por
 cada satélite, el altavoz de su habitación, donde baja la música mientras te oye y contesta, y por
@@ -886,7 +894,9 @@ un artista, álbum, lista o canción, poner una emisora, pausar, seguir, siguien
 y el volumen de toda la casa.
 
 - **Dónde**: aquí (el dispositivo, que lo pone en su propia barra) o toda la casa (Snapcast, si
-  está). Sin decirlo, aquí.
+  está), o uno solo de sus altavoces por su nombre («pon Queen en el dormitorio»): los demás se
+  silencian, y «toda la casa» les quita el silencio. Sin decirlo, aquí. Un capítulo en Snapcast
+  suena solo con su audio (ver Snapcast).
 - **La respuesta**, una frase corta, se ve en grande y se lee en voz alta con la voz del propio
   dispositivo (`speechSynthesis`). Si duda entre pocas opciones, pregunta con botones; si no
   encuentra algo, lo dice y propone lo más parecido.

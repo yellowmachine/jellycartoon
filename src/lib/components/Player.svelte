@@ -16,6 +16,7 @@
 	import { shownDeviceName } from '#lib/device-name.svelte.ts';
 	import { page } from '$app/state';
 	import SubtitleStylePanel from './SubtitleStylePanel.svelte';
+	import SnapcastListen from './SnapcastListen.svelte';
 	import {
 		PLAYER_SIZES,
 		loadPlayerSize,
@@ -159,7 +160,8 @@
 		videoHere.set({
 			episodeId: untrack(() => episodeId),
 			title: untrack(() => title),
-			element: el
+			element: el,
+			handOver: audioElsewhere
 		});
 		return () => videoHere.clear(el);
 	});
@@ -376,6 +378,13 @@
 		menuOpen = false;
 	}
 
+	/** It goes on on Snapcast (#223), which saves its progress from now: the video stops here. */
+	function audioElsewhere() {
+		handedOver = true;
+		video?.pause();
+		menuOpen = false;
+	}
+
 	let thumbnailState = $state<'idle' | 'saving' | 'done' | 'failed'>('idle');
 
 	/** The frame on screen becomes the episode's thumbnail; taken by the server from the video. */
@@ -553,6 +562,14 @@ same look in every browser, the app's colours, and the player's options in its �
 							title="Sigue desde aquí en el reproductor de música, que no se para con la pantalla apagada"
 							onclick={onlyAudio}>🎧 Seguir solo con el audio</button
 						>
+						{#if page.data.snapcast}
+							<SnapcastListen
+								{episodeId}
+								startSec={() => video?.currentTime ?? null}
+								itemClass="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800"
+								onsent={audioElsewhere}
+							/>
+						{/if}
 					{/if}
 					{#if audioTracks.length > 1}
 						{@render choices(

@@ -9,6 +9,7 @@
 	import InfoDialog from './InfoDialog.svelte';
 	import { closeAfter, menuItem } from './menu.ts';
 	import { listenToEpisode } from '#lib/episode-listening.svelte.ts';
+	import SnapcastListen from './SnapcastListen.svelte';
 
 	interface Props {
 		episode: {
@@ -112,6 +113,14 @@
 				>
 					{@render item(resumeAt ? `🎧 Escuchar desde ${formatDuration(resumeAt)}` : '🎧 Escuchar')}
 				</button>
+				{#if page.data.snapcast}
+					<SnapcastListen
+						episodeId={episode.id}
+						startSec={() => null}
+						itemClass={menuItem}
+						onsent={close}
+					/>
+				{/if}
 			{/if}
 			{#if salon}
 				<hr class="my-1 border-zinc-800" />

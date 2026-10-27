@@ -142,6 +142,20 @@ export function scaleVolumes(speakers: Speaker[], value: number) {
 	}));
 }
 
+/** An episode only listened to on Snapcast: its audio, as a song (#223, snapcast.ts). */
+export interface SnapcastEpisode {
+	id: number;
+	/** «El de la boda». */
+	title: string;
+	/** «Friends · T1 E2». */
+	subtitle: string;
+	seriesId: number;
+	durationSec: number | null;
+}
+
+/** Where on Snapcast: every speaker, or only one (its id) and the rest of its group. */
+export type SnapcastWhere = 'house' | { speakerId: string };
+
 /** The music on Snapcast: what its mpv is doing. Sent to every open page whenever it changes. */
 export interface SnapcastState {
 	/** Its mpv is waiting and the app is connected to it. */
@@ -151,6 +165,8 @@ export interface SnapcastState {
 	track: MusicTrack | null;
 	/** A station instead of a track. */
 	radio: RadioStream | null;
+	/** An episode's audio instead of a track. */
+	episode: SnapcastEpisode | null;
 	/** What the station says is on now (its ICY title), when it says so. */
 	nowPlaying: string | null;
 	paused: boolean;
@@ -175,6 +191,7 @@ export type SnapcastAction =
 	| { action: 'play'; trackIds: number[]; start: number }
 	| { action: 'append'; trackIds: number[] }
 	| { action: 'radio'; uuid: string }
+	| { action: 'episode'; episodeId: number; startSec: number | null; where: SnapcastWhere }
 	| { action: 'pause'; value: boolean }
 	| { action: 'seekTo'; value: number }
 	| { action: 'next' }
