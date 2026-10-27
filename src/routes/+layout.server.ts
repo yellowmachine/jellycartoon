@@ -14,6 +14,7 @@ import { dailymotionEnabled } from '#lib/server/dailymotion.ts';
 import { avatarOf } from '#lib/server/people.ts';
 import { canReadReceipts } from '#lib/server/expenses/receipt.ts';
 import { openRouterConfig } from '#lib/server/app-settings.ts';
+import { creditRunOutAt } from '#lib/server/openrouter.ts';
 
 export const load: LayoutServerLoad = async ({ locals, isDataRequest }) => {
 	const kid = isKid(locals.user);
@@ -61,6 +62,8 @@ export const load: LayoutServerLoad = async ({ locals, isDataRequest }) => {
 		/** The header's shortcut to a receipt's photo (#194): an adult's, where one can be read. */
 		receipts: Boolean(locals.user) && !kid && (await canReadReceipts()),
 		/** A newer release, for who manages the app to install it (#20). */
-		newVersion: admin ? ((await versionInfo()).update?.version ?? null) : null
+		newVersion: admin ? ((await versionInfo()).update?.version ?? null) : null,
+		/** OpenRouter's credit ran out: the AI asks nothing until who manages it says it was recharged. */
+		aiCreditOut: admin ? await creditRunOutAt() : null
 	};
 };

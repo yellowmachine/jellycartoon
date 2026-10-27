@@ -2,7 +2,7 @@ import { error, redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isAdmin, setAppSetting } from '#lib/server/app-settings.ts';
 import { log } from '#lib/server/log.ts';
-import { OAUTH_COOKIE, openRouterKeyFromCode } from '#lib/server/openrouter.ts';
+import { creditRecharged, OAUTH_COOKIE, openRouterKeyFromCode } from '#lib/server/openrouter.ts';
 
 /**
  * Back from OpenRouter after «Conectar con OpenRouter» (Ajustes): its code, for the key, which
@@ -29,6 +29,8 @@ export const GET: RequestHandler = async ({ url, cookies, locals }) => {
 	try {
 		const key = await openRouterKeyFromCode(code!, pending.verifier!);
 		await setAppSetting('openrouter_api_key', key);
+		// Another key may have credit: tried again.
+		creditRecharged();
 	} catch (err) {
 		log.warn('ajustes', 'No se pudo conectar con OpenRouter', { error: err });
 		return back('error');

@@ -62,6 +62,7 @@ import { parseVoiceLevels } from '#lib/voice-levels.ts';
 import {
 	accountCredits,
 	completeJson,
+	creditRecharged,
 	keyBalance,
 	OAUTH_COOKIE,
 	openRouterAuth
@@ -736,6 +737,8 @@ export const actions: Actions = {
 		const key = String((await request.formData()).get('key') ?? '').trim();
 		if (!key) return fail(400, { section: 'ai', message: 'Escribe la clave' });
 		await setAppSetting('openrouter_api_key', key);
+		// Another key may have credit: tried again.
+		creditRecharged();
 		log.info('ajustes', 'Clave de OpenRouter cambiada');
 		return { saved: 'key' };
 	},

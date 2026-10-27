@@ -380,6 +380,10 @@ datos. Las dos son gratuitas y sin clave.
 - Cada petición a la IA (identificar, sinopsis, escenas, títulos de episodios, conversaciones)
   deja una línea en el Registro con la fuente `ia`: para qué era, los tokens y lo que costó según
   OpenRouter.
+- Si OpenRouter dice que se acabó el crédito, la app deja de pedirle nada (falla al momento, sin
+  salir a internet, también tras reiniciar) y a quien la administra le sale un banner arriba para
+  recargarlo, con «Ya he recargado», que vuelve a dejar pasar las peticiones. Poner otra clave en
+  Ajustes también. La voz contesta que se acabó el crédito, con Piper.
 
 #### Escenas
 

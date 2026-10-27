@@ -1,5 +1,10 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { openRouterConfig, openRouterManagementKey } from '#lib/server/app-settings.ts';
+import {
+	getAppSetting,
+	openRouterConfig,
+	openRouterManagementKey,
+	setAppSetting
+} from '#lib/server/app-settings.ts';
 import { log } from '#lib/server/log.ts';
 
 /** Where the account's credit is bought, and seen. */
@@ -8,10 +13,43 @@ export const CREDITS_URL = 'https://openrouter.ai/settings/credits';
 /** Said wherever the AI fails for it: voice, the DJ, a film's card… */
 export const NO_CREDIT = `Se ha acabado el crédito de OpenRouter (o la clave ha llegado a su límite): recárgalo en ${CREDITS_URL}`;
 
-/** When a request was last refused for the credit; null once one goes through (for Ajustes). */
-let creditOutAt: Date | null = null;
+/**
+ * When a request was refused for the credit. Until someone says it was recharged (the banner's «Ya
+ * he recargado», `creditRecharged`), no request goes out: each would fail, fill the Registro and
+ * leave what it was for half done. Kept in the database, so that a restart does not forget it;
+ * `undefined` until read from there.
+ */
+let creditOutAt: Date | null | undefined;
 
-export const creditRunOutAt = () => creditOutAt;
+async function loadCreditOut() {
+	if (creditOutAt === undefined) {
+		const saved = await getAppSetting('openrouter_credit_out').catch(() => null);
+		creditOutAt ??= saved ? new Date(saved) : null;
+	}
+	return creditOutAt;
+}
+
+function setCreditOut(at: Date | null) {
+	creditOutAt = at;
+	setAppSetting('openrouter_credit_out', at?.toISOString() ?? null).catch((error) =>
+		log.warn('ia', 'No se pudo guardar el estado del crédito', { error })
+	);
+}
+
+/** For Ajustes and the banner: when the credit ran out, or null. */
+export const creditRunOutAt = () => loadCreditOut();
+
+/** «Ya he recargado»: the next request goes out again (and, without credit, it is blocked again). */
+export function creditRecharged() {
+	if (creditOutAt === null) return;
+	log.info('ia', 'Crédito de OpenRouter recargado: vuelven a salir las peticiones');
+	setCreditOut(null);
+}
+
+/** Before every request that spends: none while the credit has run out. */
+async function needCredit() {
+	if (await loadCreditOut()) throw new Error(NO_CREDIT);
+}
 
 /** OpenRouter's error object, in the body or in a stream: https://openrouter.ai/docs/api/reference/errors-and-debugging */
 interface OpenRouterError {
@@ -29,8 +67,10 @@ function failure(error: OpenRouterError | undefined, fallback: string) {
 		Number(error?.code) === 402 &&
 		error?.metadata?.limit_source !== 'openrouter_in_flight_budget'
 	) {
-		if (!creditOutAt) log.warn('ia', NO_CREDIT);
-		creditOutAt = new Date();
+		if (!creditOutAt) {
+			log.warn('ia', `${NO_CREDIT}. No se le pide nada más hasta que se pulse «Ya he recargado».`);
+			setCreditOut(new Date());
+		}
 		return new Error(NO_CREDIT);
 	}
 	return new Error(`OpenRouter: ${error?.message ?? fallback}`);
@@ -79,7 +119,7 @@ function logUsage(
 	details?: Record<string, unknown>
 ) {
 	// Went through: there is credit again.
-	creditOutAt = null;
+	if (creditOutAt) setCreditOut(null);
 	const cost = body.usage?.cost;
 	if (typeof cost === 'number' && cost > 0) for (const listener of costListeners) listener(cost);
 	log.info('ia', `${label}: ${describeUsage(body.usage)}`, {
@@ -113,6 +153,7 @@ export async function completeJson<T>(request: {
 	/** To cancel it before the timeout. */
 	signal?: AbortSignal;
 }): Promise<T> {
+	await needCredit();
 	const config = await openRouterConfig();
 	const { apiKey } = config;
 	const model = request.model ?? config.model;
@@ -206,6 +247,7 @@ export async function* streamChat(request: {
 	/** Aborting stops the generation (and its billing, with most providers). */
 	signal: AbortSignal;
 }): AsyncGenerator<ChatEvent> {
+	await needCredit();
 	// Without it, a stream that stops halfway would keep the answer «being written» for good.
 	const idle = new AbortController();
 	let idleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -314,6 +356,7 @@ export async function chatWithTools(request: {
 	details?: Record<string, unknown>;
 	timeoutMs?: number;
 }): Promise<{ content: string | null; toolCalls: ToolCall[]; usage: Usage | null }> {
+	await needCredit();
 	const { apiKey } = await openRouterConfig();
 	if (!apiKey) throw new Error('No hay clave de OpenRouter: ponla en Ajustes');
 
@@ -366,6 +409,7 @@ export async function speech(request: {
 	instructions?: string;
 	timeoutMs?: number;
 }): Promise<{ pcm: Uint8Array; rate: number }> {
+	await needCredit();
 	const { apiKey } = await openRouterConfig();
 	if (!apiKey) throw new Error('No hay clave de OpenRouter: ponla en Ajustes');
 	const res = await fetch('https://openrouter.ai/api/v1/audio/speech', {
@@ -386,7 +430,7 @@ export async function speech(request: {
 	});
 	if (!res.ok) throw refused(res, await res.json().catch(() => null));
 	// Went through: there is credit again.
-	creditOutAt = null;
+	if (creditOutAt) setCreditOut(null);
 	// E.g. `audio/pcm;rate=24000;channels=1`.
 	const rate = Number(/rate=(\d+)/.exec(res.headers.get('content-type') ?? '')?.[1]) || 24_000;
 	return { pcm: new Uint8Array(await res.arrayBuffer()), rate };
@@ -467,7 +511,7 @@ export async function keyBalance(): Promise<KeyBalance | null> {
 			},
 			credits: credits.credits,
 			creditsProblem: credits.problem,
-			creditOutAt
+			creditOutAt: await loadCreditOut()
 		};
 	} catch (error) {
 		log.warn('ia', 'No se pudo consultar el saldo de OpenRouter', { error });
