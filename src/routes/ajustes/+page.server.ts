@@ -109,6 +109,14 @@ import { isAvatar } from '#lib/avatars.ts';
 import { avatarOf, createAdult, houseAdults, invite, setAvatar } from '#lib/server/people.ts';
 import { askEvery } from '#lib/server/still-there.ts';
 import { ASK_EVERY_OPTIONS } from '#lib/still-there.ts';
+import {
+	checkCode,
+	checkPassword,
+	disconnect as disconnectTelegram,
+	sendCode,
+	setTelegramOptions,
+	telegramOf
+} from '#lib/server/telegram/telegram.ts';
 
 export const load: PageServerLoad = async ({ locals, cookies, url, request }) => {
 	const userId = locals.user!.id;
@@ -262,6 +270,8 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		keepHistory: isKid(locals.user) ? null : settings.keepHistory,
 		/** The road mode's trips kept (#81); adults only. */
 		recordTrips: isKid(locals.user) ? null : await recordsTrips(userId),
+		/** Their own Telegram (#243), read aloud in the road mode: adults only. Never its session. */
+		telegram: isKid(locals.user) ? null : { account: await telegramOf(userId) },
 		/** Langua, the language app: adults only. Never the token itself, only its end. */
 		langua: isKid(locals.user)
 			? null
@@ -726,6 +736,67 @@ export const actions: Actions = {
 			return fail(400, { section: 'langua', message: 'Primero la dirección y el token' });
 		const problem = await pingLangua(config);
 		return problem ? fail(502, { section: 'langua', message: problem }) : { languaOk: true };
+	},
+	/** Telegram (#243), first step: its app's data and the number; Telegram sends a code. */
+	telegramCode: async ({ request, locals }) => {
+		if (isKid(locals.user)) error(404, 'No encontrado');
+		const form = await request.formData();
+		const apiId = Number(form.get('apiId'));
+		const apiHash = String(form.get('apiHash') ?? '').trim();
+		const phone = String(form.get('phone') ?? '').replace(/[\s-]/g, '');
+		if (!Number.isInteger(apiId) || apiId <= 0 || !/^[0-9a-f]{32}$/i.test(apiHash))
+			return fail(400, {
+				telegramProblem: 'El api_id es un número y el api_hash, 32 letras y números'
+			});
+		if (!/^\+\d{8,15}$/.test(phone))
+			return fail(400, { telegramProblem: 'El número, con su prefijo: +34…' });
+		try {
+			await sendCode(locals.user!.id, apiId, apiHash, phone);
+		} catch (err) {
+			return fail(400, { telegramProblem: err instanceof Error ? err.message : String(err) });
+		}
+		return { telegramStep: 'code' as const };
+	},
+	/** The code Telegram sent; maybe its two-step password after. */
+	telegramSignIn: async ({ request, locals }) => {
+		if (isKid(locals.user)) error(404, 'No encontrado');
+		const code = String((await request.formData()).get('code') ?? '').replace(/\D/g, '');
+		try {
+			const step = await checkCode(locals.user!.id, code);
+			return { telegramStep: step === 'ok' ? ('done' as const) : ('password' as const) };
+		} catch (err) {
+			return fail(400, {
+				telegramProblem: err instanceof Error ? err.message : String(err),
+				telegramStep: 'code' as const
+			});
+		}
+	},
+	telegramPassword: async ({ request, locals }) => {
+		if (isKid(locals.user)) error(404, 'No encontrado');
+		const password = String((await request.formData()).get('password') ?? '');
+		try {
+			await checkPassword(locals.user!.id, password);
+			return { telegramStep: 'done' as const };
+		} catch (err) {
+			return fail(400, {
+				telegramProblem: err instanceof Error ? err.message : String(err),
+				telegramStep: 'password' as const
+			});
+		}
+	},
+	telegramOptions: async ({ request, locals }) => {
+		if (isKid(locals.user)) error(404, 'No encontrado');
+		const form = await request.formData();
+		await setTelegramOptions(locals.user!.id, {
+			groups: form.get('groups') === 'on',
+			markRead: form.get('markRead') === 'on'
+		});
+		return { saved: 'telegram' };
+	},
+	telegramDisconnect: async ({ locals }) => {
+		if (isKid(locals.user)) error(404, 'No encontrado');
+		await disconnectTelegram(locals.user!.id);
+		return { saved: 'telegram-out' };
 	},
 	forgetLangua: async ({ locals }) => {
 		if (isKid(locals.user)) error(404, 'No encontrado');

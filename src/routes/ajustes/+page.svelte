@@ -11,6 +11,7 @@
 	import Colores from './Colores.svelte';
 	import AlAbrir from './AlAbrir.svelte';
 	import Langua from './Langua.svelte';
+	import Telegram from './Telegram.svelte';
 	import MusicaEnApps from './MusicaEnApps.svelte';
 	import Dispositivo from './Dispositivo.svelte';
 	import Voz from './Voz.svelte';
@@ -77,6 +78,7 @@
 				keepHistory: data.keepHistory,
 				recordTrips: data.recordTrips,
 				langua: data.langua,
+				telegram: data.telegram,
 				musicApps: data.musicApps,
 				voice: Boolean(data.voice),
 				music: Boolean(data.music),
@@ -127,6 +129,8 @@
 		<GastoIa {data} {tab} />
 
 		<Langua {data} {form} {tab} />
+
+		<Telegram {data} {form} {tab} />
 
 		<MusicaEnApps {data} {form} {tab} />
 	{/if}

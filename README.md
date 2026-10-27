@@ -827,6 +827,14 @@ lado el navegador (Google Maps u Organic Maps, que hacen la navegación y el tr�
   pantalla, junto al navegador, no hay mapa ni GPS.
 - La voz sabe que va en el coche: respuestas muy cortas, solo aquí (no en los altavoces de
   Snapcast), y sin vídeo, cocina ni recetas; aunque pidiera un capítulo, no se abre.
+- **Telegram** (#243), con la cuenta de cada uno conectada en Ajustes → Para mí: un botón «Leer
+  los mensajes en voz alta», y cada mensaje que llega se lee con la música más baja («Mensaje de
+  Ana: llego en diez minutos»; las fotos, audios y demás, solo anunciados). Es la cuenta propia,
+  no un bot (un bot solo ve lo que se le escribe a él), con la API de usuario de Telegram por
+  [GramJS](https://gram.js.org): `api_id` y `api_hash` de my.telegram.org, el número, el código
+  y, si la tiene, la contraseña. La sesión se guarda cifrada en la base de datos, y el servidor
+  de casa escucha los mensajes; «Desconectar» la cierra también en Telegram. Por defecto solo
+  los chats con una persona y sin marcarlos como leídos; los grupos y el marcarlos, en Ajustes.
 - La pantalla no se apaga mientras está abierto (Wake Lock). Para gastar menos datos móviles, la
   música en Opus: «Ahorro de datos» en Ajustes, en ese dispositivo.
 - En la misma línea que lo que suena: «←» para salir y un punto, rojo si se guarda el viaje y gris

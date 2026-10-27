@@ -19,6 +19,8 @@ import { presetsOf } from '#lib/server/music/dj-presets.ts';
  * The road mode (#78): what can be put on with one touch while driving. The stations, the albums,
  * the music lists, and the podcasts followed, each with its latest episode.
  */
+import { telegramOf } from '#lib/server/telegram/telegram.ts';
+
 export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
 	const [info, albums, playlists, podcasts, inProgress, map, recordTrips, relay, places, routes] =
@@ -39,6 +41,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		]);
 	// Modo DJ: only to start a setup saved in Música (#117), as there: with a voice, not for a child.
 	const dj = Boolean(musicRoot) && !isKid(locals.user) && (await djEnabled());
+	/** Their Telegram connected (Ajustes, #243): its messages read aloud here. */
+	const telegram = !isKid(locals.user) && Boolean(await telegramOf(userId));
 	const djPresets = dj ? await presetsOf(userId) : [];
 	const latest = podcasts.length
 		? await db
@@ -76,6 +80,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		places,
 		routes,
 		dj,
-		djPresets
+		djPresets,
+		telegram
 	};
 };

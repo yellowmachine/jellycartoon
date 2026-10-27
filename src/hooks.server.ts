@@ -22,6 +22,7 @@ import { wakeMusicCatalog } from '#lib/server/music/catalog.ts';
 import { startPodcastRefresh } from '#lib/server/podcasts/podcasts.ts';
 import { startAgenda } from '#lib/server/agenda/agenda.ts';
 import { startAlarms } from '#lib/server/alarms/alarms.ts';
+import { startTelegram } from '#lib/server/telegram/telegram.ts';
 import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
 import { log, startLogCleanup } from '#lib/server/log.ts';
 import { piperEnabled } from '#lib/server/piper.ts';
@@ -49,6 +50,8 @@ export const init: ServerInit = async () => {
 	startAgenda();
 	// Alarms and timers (#241): what came due while it was off rings now.
 	startAlarms();
+	// The Telegram accounts connected (#243), listened to again.
+	void startTelegram().catch((error) => log.error('telegram', 'Al arrancar', { error }));
 	// What the voice satellites say while the AI thinks (#223), read beforehand to sound at once.
 	if (piperEnabled) void warmFillers();
 	// In the Registro: which version started, and how each of the above starts.
