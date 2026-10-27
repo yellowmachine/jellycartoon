@@ -34,3 +34,20 @@ export const GET: RequestHandler = async ({ url }) => {
 
 const destination = ([lon, lat]: [number, number], name: string) =>
 	`/carretera?${new URLSearchParams({ destino: `${lon},${lat}`, nombre: name })}`;
+
+/**
+ * The share_target is a POST since #232, for files; the service worker takes it. Without one yet
+ * (the app opened for the first time), here: a link or a text, to the GET as before; a file
+ * cannot reach the page from here, so Gastos says to share it again.
+ */
+export const POST: RequestHandler = async ({ request }) => {
+	const form = await request.formData().catch(() => null);
+	const file = form?.get('archivo');
+	if (file instanceof File && file.size) redirect(303, '/gastos?compartido=archivo');
+	const params = new URLSearchParams();
+	for (const key of ['title', 'text', 'url']) {
+		const value = form?.get(key);
+		if (typeof value === 'string' && value) params.set(key, value);
+	}
+	redirect(303, `/compartido?${params}`);
+};

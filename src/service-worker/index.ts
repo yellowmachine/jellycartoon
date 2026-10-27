@@ -1,9 +1,10 @@
 import { self } from '$app/service-worker';
+import { SHARED_CACHE, SHARED_KEY } from '#lib/shared-file.ts';
 
 /**
- * The app's service worker: only for the adults' notices (Web Push, push.ts on the server), such
- * as a child asking to enter (#141) or a post-it on the fridge (#131). It caches nothing: the app
- * works as always without it.
+ * The app's service worker: for the adults' notices (Web Push, push.ts on the server), such as a
+ * child asking to enter (#141) or a post-it on the fridge (#131), and for files shared to the app
+ * (#232). It caches nothing else: the app works as always without it.
  */
 
 interface PushMessage {
@@ -63,6 +64,42 @@ self.addEventListener('notificationclick', (event) => {
 				if (taken) return;
 			}
 			await self.clients.openWindow(url);
+		})()
+	);
+});
+
+/**
+ * «Compartir → JellyCartoon» (the manifest's share_target, POST since #232): a file, a bill's PDF
+ * or a photo, waits in the cache for Gastos to take it; a link or a text goes on to /compartido as
+ * before, in its address. The way documented for files, the page cannot read the POST itself:
+ * https://developer.chrome.com/docs/capabilities/web-apis/web-share-target#accepting_files
+ */
+self.addEventListener('fetch', (event) => {
+	const url = new URL(event.request.url);
+	if (event.request.method !== 'POST' || url.pathname !== '/compartido') return;
+	event.respondWith(
+		(async () => {
+			const form = await event.request.formData();
+			const file = form.get('archivo');
+			if (file instanceof File && file.size) {
+				const cache = await caches.open(SHARED_CACHE);
+				await cache.put(
+					SHARED_KEY,
+					new Response(file, {
+						headers: {
+							'content-type': file.type,
+							'x-name': encodeURIComponent(file.name)
+						}
+					})
+				);
+				return Response.redirect('/gastos?compartido=archivo', 303);
+			}
+			const params = new URLSearchParams();
+			for (const key of ['title', 'text', 'url']) {
+				const value = form.get(key);
+				if (typeof value === 'string' && value) params.set(key, value);
+			}
+			return Response.redirect(`/compartido?${params}`, 303);
 		})()
 	);
 });

@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { expense, expenseLine, recurringExpense, user } from '#lib/server/db/schema.ts';
+import { bill, expense, expenseLine, recurringExpense, user } from '#lib/server/db/schema.ts';
+import { isBillKind, isBillUnit, parseBillDetails, type BillInput } from '#lib/bills.ts';
 import {
 	addMonths,
 	isCategory,
@@ -31,10 +32,12 @@ export async function monthExpenses(month: string): Promise<Expense[]> {
 			total: expense.total,
 			source: expense.source,
 			receipt: expense.receipt,
-			by: user.name
+			by: user.name,
+			bill
 		})
 		.from(expense)
 		.leftJoin(user, eq(user.id, expense.userId))
+		.leftJoin(bill, eq(bill.expenseId, expense.id))
 		.where(and(gte(expense.date, firstDay(month)), lt(expense.date, firstDay(addMonths(month, 1)))))
 		.orderBy(desc(expense.date), desc(expense.id));
 	const lines = rows.length
@@ -49,10 +52,11 @@ export async function monthExpenses(month: string): Promise<Expense[]> {
 				)
 				.orderBy(asc(expenseLine.position))
 		: [];
-	return rows.map(({ receipt, category, ...r }) => ({
+	return rows.map(({ receipt, category, bill, ...r }) => ({
 		...r,
 		category: isCategory(category) ? category : 'Otros',
 		hasReceipt: Boolean(receipt),
+		bill: bill ? billOf(bill) : null,
 		lines: lines
 			.filter((l) => l.expenseId === r.id)
 			.map((l) => ({
@@ -75,6 +79,27 @@ export async function monthTotal(month: string) {
 	return row?.total ?? 0;
 }
 
+/** A bill's row, as the pages have it. */
+export function billOf(row: typeof bill.$inferSelect): BillInput {
+	return {
+		kind: isBillKind(row.kind) ? row.kind : 'Luz',
+		periodStart: row.periodStart,
+		periodEnd: row.periodEnd,
+		consumption: row.consumption,
+		unit: isBillUnit(row.unit) ? row.unit : 'kWh',
+		details: parseBillDetails(row.details)
+	};
+}
+
+/** Its bill as it is now; none, gone. */
+async function writeBill(expenseId: number, b: BillInput | null) {
+	if (!b) return void (await db.delete(bill).where(eq(bill.expenseId, expenseId)));
+	await db
+		.insert(bill)
+		.values({ expenseId, ...b })
+		.onConflictDoUpdate({ target: bill.expenseId, set: b });
+}
+
 async function writeLines(expenseId: number, input: ExpenseInput) {
 	await db.delete(expenseLine).where(eq(expenseLine.expenseId, expenseId));
 	if (input.lines.length)
@@ -83,13 +108,14 @@ async function writeLines(expenseId: number, input: ExpenseInput) {
 			.values(input.lines.map((l, position) => ({ expenseId, position, ...l })));
 }
 
-/** A new one, by `userId`; a receipt read (`tmp-…`), kept with it. Its id. */
+/** A new one, by `userId`; a receipt or bill read (`tmp-…`), kept with it. Its id. */
 export async function addExpense(
 	userId: string | null,
 	input: ExpenseInput,
 	source: ExpenseSource,
 	receipt: string | null = null,
-	recurringId: number | null = null
+	recurringId: number | null = null,
+	billInput: BillInput | null = null
 ) {
 	const { lines: _, ...values } = input;
 	const [row] = await db
@@ -98,6 +124,7 @@ export async function addExpense(
 		.returning({ id: expense.id });
 	const id = row!.id;
 	await writeLines(id, input);
+	if (billInput) await writeBill(id, billInput);
 	if (receipt) {
 		const kept = await keepReceipt(receipt, id);
 		if (kept) await db.update(expense).set({ receipt: kept }).where(eq(expense.id, id));
@@ -105,8 +132,8 @@ export async function addExpense(
 	return id;
 }
 
-/** Corrected by any adult: its lines as they are now. False if it is gone. */
-export async function updateExpense(id: number, input: ExpenseInput) {
+/** Corrected by any adult: its lines and its bill as they are now. False if it is gone. */
+export async function updateExpense(id: number, input: ExpenseInput, billInput: BillInput | null) {
 	const { lines: _, ...values } = input;
 	const done = await db
 		.update(expense)
@@ -115,6 +142,7 @@ export async function updateExpense(id: number, input: ExpenseInput) {
 		.returning({ id: expense.id });
 	if (!done.length) return false;
 	await writeLines(id, input);
+	await writeBill(id, billInput);
 	return true;
 }
 

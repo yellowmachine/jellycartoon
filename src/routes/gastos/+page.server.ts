@@ -1,5 +1,6 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { parseBillInput } from '#lib/bills.ts';
 import { addMonths, isCategory, monthOf, parseExpenseInput } from '#lib/expenses.ts';
 import { isKid } from '#lib/server/kids.ts';
 import { today } from '#lib/server/playlist.ts';
@@ -69,13 +70,20 @@ export const actions: Actions = {
 		const input = parseExpenseInput(body);
 		if (!input)
 			return fail(400, { message: 'Falta algo: la fecha, dónde, la categoría o el total' });
+		// A bill's (#232): its supply, sent apart.
+		const billBody = (body as { bill?: unknown }).bill ?? null;
+		const bill = billBody === null ? null : parseBillInput(billBody);
+		if (billBody !== null && !bill)
+			return fail(400, { message: 'Falta algo de la factura: el periodo o el consumo' });
 		const id = Number(form.get('id'));
 		if (id) {
-			if (!(await updateExpense(id, input))) return fail(404, { message: 'Ese gasto ya no está' });
+			if (!(await updateExpense(id, input, bill)))
+				return fail(404, { message: 'Ese gasto ya no está' });
 			return { saved: id };
 		}
 		const receipt = String(form.get('receipt') ?? '') || null;
-		return { saved: await addExpense(userId, input, receipt ? 'ticket' : 'mano', receipt) };
+		const source = bill ? 'factura' : receipt ? 'ticket' : 'mano';
+		return { saved: await addExpense(userId, input, source, receipt, null, bill) };
 	},
 	delete: async ({ request, locals }) => {
 		adult(locals);

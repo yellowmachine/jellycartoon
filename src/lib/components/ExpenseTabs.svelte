@@ -1,10 +1,11 @@
 <script lang="ts">
-	/** Gastos' two views (#194): a month's, and the analysis of several. */
-	let { current }: { current: 'mes' | 'analisis' } = $props();
+	/** Gastos' views (#194): a month's, the analysis of several, and the bills' supplies (#232). */
+	let { current }: { current: 'mes' | 'analisis' | 'facturas' } = $props();
 
 	const TABS = [
 		{ id: 'mes', href: '/gastos', label: 'Mes' },
-		{ id: 'analisis', href: '/gastos/analisis', label: 'Análisis' }
+		{ id: 'analisis', href: '/gastos/analisis', label: 'Análisis' },
+		{ id: 'facturas', href: '/gastos/facturas', label: 'Facturas' }
 	] as const;
 </script>
 
