@@ -2,9 +2,10 @@ import type { Listening } from '#lib/wakeword-listener.ts';
 import { SPEECH_END, SpeechEnd, type SpeechEndReport, type Vad } from '#lib/vad.ts';
 import { toWav } from '#lib/wakeword-recorder.ts';
 import { voice } from '#lib/voice-client.svelte.ts';
+import { DEFAULT_WAKE_WORD, isWakeWord, type WakeWordModel } from '#lib/wake-words.ts';
 
 /**
- * Saying «hola casita» instead of pressing the microphone (#144, phase 2), on the phones and
+ * Saying «hola casita» (or «Alexa», wake-words.ts) instead of pressing the microphone (#144, phase 2), on the phones and
  * tablets that turn it on in Ajustes. In the browser, like the microphone's mode. It listens while
  * the app is open and in front; heard, it beeps and what is said next goes to the voice
  * (voice-client.svelte.ts), until a silence (vad.ts). Nothing leaves the device but that order.
@@ -13,11 +14,11 @@ import { voice } from '#lib/voice-client.svelte.ts';
 
 const KEY = 'jellycartoon:wake-word';
 /**
- * The community's (static/wakeword/LEEME.md): with music playing on the tablet, the only one that
- * went off well, and only with the sound not cleaned; «Jelly Cartoon», even trained with music,
- * did not (tried in /activacion, 2026-10-25).
+ * Which word, on this device (Ajustes, wake-words.ts). «Hola casita» by default: with music playing
+ * on the tablet, the only one of the community's that went off well, and only with the sound not
+ * cleaned; «Jelly Cartoon», even trained with music, did not (tried in /activacion, 2026-10-25).
  */
-const MODEL = 'hola_casita';
+const WORD_KEY = 'jellycartoon:wake-word-model';
 /**
  * The browser's cleaning (echo, noise, gain): only if this device asks for it (Ajustes), and only
  * while the app plays nothing on it (music or a video), as Android's took the voice away with the
@@ -59,6 +60,16 @@ function stored(key = KEY) {
 	} catch {
 		return false;
 	}
+}
+
+function storedWord(): WakeWordModel {
+	try {
+		const value = localStorage.getItem(WORD_KEY);
+		if (isWakeWord(value)) return value;
+	} catch {
+		// Private window: the default.
+	}
+	return DEFAULT_WAKE_WORD;
 }
 
 function storedThreshold() {
@@ -114,6 +125,8 @@ class WakeWord {
 	status = $state<'off' | 'loading' | 'on' | 'tap'>('off');
 	problem = $state<string | null>(null);
 	threshold = $state(typeof window === 'undefined' ? WAKE_THRESHOLD.default : storedThreshold());
+	/** The word it listens for (wake-words.ts). */
+	word = $state<WakeWordModel>(typeof window === 'undefined' ? DEFAULT_WAKE_WORD : storedWord());
 	/** Clean the sound while nothing plays here: off unless asked. */
 	cleanWhenQuiet = $state(typeof window === 'undefined' ? false : stored(CLEAN_KEY));
 	advanced = $state(typeof window === 'undefined' ? false : stored(ADVANCED_KEY));
@@ -149,6 +162,16 @@ class WakeWord {
 	#switchTimer: ReturnType<typeof setTimeout> | undefined;
 	/** The microphone's last levels, for the word's (`WORD_MS`). */
 	#recent: { at: number; dbfs: number }[] = [];
+
+	/** A new word: listened for at once, if it was listening. */
+	setWord(word: WakeWordModel) {
+		if (word === this.word) return;
+		this.word = word;
+		keep(WORD_KEY, word === DEFAULT_WAKE_WORD ? null : word);
+		if (this.status === 'off' || this.status === 'loading') return;
+		this.#stop();
+		if (this.#wanted) void this.#start();
+	}
 
 	setThreshold(value: number) {
 		this.threshold = Math.min(WAKE_THRESHOLD.max, Math.max(WAKE_THRESHOLD.min, value));
@@ -210,7 +233,7 @@ class WakeWord {
 			const { listen } = await import('#lib/wakeword-listener.ts');
 			this.#listening = await listen(
 				{
-					models: [MODEL],
+					models: [this.word],
 					processing: this.#clean,
 					vad: true,
 					onScores: ([score]) => this.#score(score ?? 0),

@@ -9,6 +9,12 @@ import { Resampler } from './resample.ts';
 import { duck, filler, sendOrder, serverName, serverReady, speech } from './server.ts';
 import { beep, hush, play, speakerName } from './sound.ts';
 import { Timers } from './timers.ts';
+import {
+	DEFAULT_WAKE_WORD,
+	isWakeWord,
+	WAKE_WORDS,
+	type WakeWordModel
+} from '../../src/lib/wake-words.ts';
 import { FOLLOW_UP_MS, isQuestion, type VoiceAction } from '../../src/lib/voice.ts';
 
 /**
@@ -35,7 +41,12 @@ const MARGIN_DB = Number(process.env.WAKE_MARGIN_DB ?? SPEECH_END.marginDb);
 const ORDERS_DIR = process.env.ORDERS_DIR ?? '/data/ordenes';
 /** The last orders kept as WAV; older ones deleted. */
 const KEEP_ORDERS = 20;
-const MODEL = 'hola_casita';
+/** Which word wakes it (wake-words.ts): `hola_casita`, the default, or `alexa`. */
+const MODEL: WakeWordModel = isWakeWord(process.env.WAKE_WORD)
+	? process.env.WAKE_WORD
+	: DEFAULT_WAKE_WORD;
+/** As it is said, for the log: «hola casita», «Alexa». */
+const WORD = WAKE_WORDS[MODEL];
 /** As the phone's: the word's level is the loudest of this long before it went off. */
 const WORD_MS = 1500;
 /** After an order, this long before the word is heard again. */
@@ -145,7 +156,7 @@ async function step(chunk: Float32Array) {
 		if (score >= THRESHOLD && now >= quietUntil && !order && !busy) {
 			// Said by whoever gives the order, as near: how loud their voice comes.
 			const voiceDb = Math.max(...recent.map((r) => r.dbfs));
-			log(`«Hola casita» (${score.toFixed(2)}): escuchando (la palabra a ${db(voiceDb)})`);
+			log(`«${WORD}» (${score.toFixed(2)}): escuchando (la palabra a ${db(voiceDb)})`);
 			begin(voiceDb);
 		}
 	}
@@ -396,5 +407,5 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const)
 	});
 
 log(
-	`Escuchando «hola casita» en ${MIC}, ${MIC_RATE} Hz × ${MIC_CHANNELS} (umbral ${THRESHOLD}, margen ${MARGIN_DB} dB); ${serverReady ? `órdenes a ${serverName}` : 'sin servidor: órdenes solo al log'}; ${speakerName ? `altavoz ${speakerName}` : 'sin altavoz'}; temporizadores: ${timers.describe().join('; ') || 'ninguno'}`
+	`Escuchando «${WORD}» en ${MIC}, ${MIC_RATE} Hz × ${MIC_CHANNELS} (umbral ${THRESHOLD}, margen ${MARGIN_DB} dB); ${serverReady ? `órdenes a ${serverName}` : 'sin servidor: órdenes solo al log'}; ${speakerName ? `altavoz ${speakerName}` : 'sin altavoz'}; temporizadores: ${timers.describe().join('; ') || 'ninguno'}`
 );
