@@ -17,6 +17,7 @@ export interface SettingsShown {
 	recordTrips: boolean | null;
 	langua: unknown;
 	telegram: unknown;
+	telegramBot: unknown;
 	musicApps: unknown;
 	voice: boolean;
 	music: boolean;
@@ -98,6 +99,13 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		title: 'Guardar mis viajes',
 		words: 'viajes modo carretera recorridos gps km coche',
 		shown: (d) => d.recordTrips !== null
+	},
+	{
+		id: 'telegram-bot',
+		tab: 'casa',
+		title: 'Bot de Telegram',
+		words: 'telegram bot grupo familia avisos lista compra nevera agenda alarmas botfather',
+		shown: (d) => Boolean(d.telegramBot)
 	},
 	{
 		id: 'telegram',

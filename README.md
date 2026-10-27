@@ -938,6 +938,18 @@ JellyCartoon, Ajustes → Casa → «Compartir viajes»: la dirección del repet
 `.env`, `RELAY_URL` y `RELAY_PUBLISH_KEY`). El mapa del enlace es de
 [OpenFreeMap](https://openfreemap.org), libre y sin clave.
 
+#### Bot de Telegram de la casa
+
+Distinto del Telegram del modo carretera (la cuenta de cada uno): un **bot** de la casa (#243), con
+[grammY](https://grammy.dev), que avisa en el grupo de Telegram de la familia diciendo quién hizo
+qué. Se crea con @BotFather (`/newbot`) y su token se pone en Ajustes → Casa → Bot de Telegram
+(cifrado); al añadirlo al grupo, la app lo detecta (si ya estaba, `/start` en el grupo) y se elige
+ahí. Avisa, cada cosa activable: de la lista de la compra («🛒 María ha añadido a la lista: leche y
+pan», juntando lo añadido en un minuto; «✓ Pepe ha comprado: leche»), de los post-its nuevos de la
+nevera, de lo que se apunta en la Agenda y de sus avisos, y de las alarmas y temporizadores de la
+casa al sonar (los de una persona, no). Pregunta a Telegram por lo nuevo él mismo (long polling):
+no hay que abrir nada hacia fuera. Un token solo puede usarlo una instalación a la vez.
+
 ### Voz
 
 Órdenes habladas desde el móvil (#33), pensadas para personas mayores: en `/voz`, un botón grande

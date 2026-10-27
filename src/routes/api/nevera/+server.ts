@@ -62,7 +62,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			return json({ added: await addItems(userId, items) });
 		}
 		case 'done':
-			await setItemDone(id(body.id), Boolean(body.done));
+			await setItemDone(id(body.id), Boolean(body.done), locals.user?.id ?? null);
 			return json({ ok: true });
 		case 'remove':
 			await removeItem(id(body.id));
