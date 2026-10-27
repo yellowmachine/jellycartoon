@@ -13,7 +13,8 @@ load-module module-native-protocol-unix socket=/data/pulse.sock auth-anonymous=1
 # by how fast snapserver reads them.
 load-module module-pipe-sink sink_name=musica file=/data/snapfifo format=s16le rate=44100 channels=2 use_system_clock_for_timing=yes
 load-module module-pipe-sink sink_name=voz file=/data/snapvoz format=s16le rate=44100 channels=2 use_system_clock_for_timing=yes
-load-module module-loopback source=musica.monitor sink=voz sink_input_properties=media.role=music
+# With room to spare, as mpv's (compose.prod.yaml): busy, it raised it by itself after underruns.
+load-module module-loopback source=musica.monitor sink=voz latency_msec=300 sink_input_properties=media.role=music
 
 # While an answer (role `announce`, snapcast.ts) sounds, the music on its sink (mpv's role, in
 # compose.prod.yaml, or the copy's) down 12 dB: as the phone's (music-player.svelte.ts,
