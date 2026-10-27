@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { telegramSaid, type TelegramMessage } from '#lib/telegram.ts';
 	import { untrack } from 'svelte';
 	import { beforeNavigate, goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
@@ -41,7 +42,7 @@
 
 	let { data }: PageProps = $props();
 
-	type Tab = 'radio' | 'musica' | 'listas' | 'podcasts' | 'ruta' | 'dj';
+	type Tab = 'radio' | 'musica' | 'listas' | 'podcasts' | 'ruta' | 'dj' | 'telegram';
 	/**
 	 * The right-hand side (or the whole screen, without the map beside): Inicio (`null`), with what
 	 * plays, the microphone and a big button for each section; or a section, its list filling it, with
@@ -254,8 +255,49 @@
 		{ id: 'podcasts', label: 'Podcasts' },
 		// Only with the map beside, or a phone's own tab for it: where the route is drawn.
 		...(routable ? [{ id: 'ruta' as const, label: 'Ruta' }] : []),
-		...(data.dj ? [{ id: 'dj' as const, label: 'DJ' }] : [])
+		...(data.dj ? [{ id: 'dj' as const, label: 'DJ' }] : []),
+		...(data.telegram ? [{ id: 'telegram' as const, label: 'Telegram' }] : [])
 	]);
+
+	// ——— Telegram (#243): the messages that come, read aloud ———
+
+	const TELEGRAM_KEY = 'jellycartoon:carretera-telegram';
+	/** «Leer en voz alta los mensajes que lleguen», on this phone: off unless asked. */
+	let telegramOn = $state(false);
+	/** The last ones that came while on, the newest first. */
+	let telegramMessages = $state<TelegramMessage[]>([]);
+	$effect(() => {
+		try {
+			telegramOn = localStorage.getItem(TELEGRAM_KEY) === 'on';
+		} catch {
+			// Private windows: off.
+		}
+	});
+	function setTelegram(on: boolean) {
+		telegramOn = on;
+		try {
+			if (on) localStorage.setItem(TELEGRAM_KEY, 'on');
+			else localStorage.removeItem(TELEGRAM_KEY);
+		} catch {
+			// Same.
+		}
+	}
+	// While on, whatever the tab: each one said as it comes, over the music lowered.
+	$effect(() => {
+		if (!data.telegram || !telegramOn) return;
+		const events = new EventSource('/api/telegram');
+		events.onmessage = (e) => {
+			const message = JSON.parse(e.data) as TelegramMessage;
+			telegramMessages = [message, ...telegramMessages].slice(0, 20);
+			say(telegramSaid(message));
+			void fetch('/api/telegram/leido', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ key: message.key })
+			}).catch(() => {});
+		};
+		return () => events.close();
+	});
 
 	/**
 	 * The route (phase 3b): the destination searched by its name, and the way there by car with its
@@ -883,6 +925,10 @@ the app's microphone, which the voice's big one right above would be taken for. 
 			{:else if id === 'listas'}
 				<path d="M4 6h11M4 11h11M4 16h7" />
 				<path d="M18 19.5a2 2 0 1 1-2-2 2 2 0 0 1 2 2zM18 19.5V9l3-1" />
+			{:else if id === 'telegram'}
+				<!-- A paper plane, as Telegram's. -->
+				<path d="M21 4 3 11l6 2 2 6 3-4 5 4z" />
+				<path d="m9 13 12-9" />
 			{:else if id === 'dj'}
 				<!-- A record, and the DJ's hand on it. -->
 				<circle cx="12" cy="12" r="9" />
@@ -1414,6 +1460,39 @@ the app's microphone, which the voice's big one right above would be taken for. 
 						</button>
 					{:else}
 						<p class="text-lg text-zinc-400">No hay listas. Se hacen en Música.</p>
+					{/each}
+				{:else if tab === 'telegram'}
+					<button
+						class={[
+							tile,
+							'sm:col-span-2',
+							telegramOn ? 'border-sky-400 bg-sky-500/15' : 'border-white/10 bg-zinc-900'
+						]}
+						aria-pressed={telegramOn}
+						onclick={() => setTelegram(!telegramOn)}
+					>
+						<span class="text-3xl" aria-hidden="true">{telegramOn ? '🔊' : '🔇'}</span>
+						<span class="min-w-0">
+							<span class="block text-xl font-semibold"
+								>{telegramOn ? 'Leyendo los mensajes' : 'Leer los mensajes en voz alta'}</span
+							>
+							<span class="block text-base text-zinc-400"
+								>{telegramOn
+									? 'Cada uno se lee al llegar, con la música más baja'
+									: 'Los que te lleguen a Telegram mientras conduces'}</span
+							>
+						</span>
+					</button>
+					{#each telegramMessages as m (m.key)}
+						<div class="rounded-2xl border-2 border-white/10 bg-zinc-900 p-3 sm:col-span-2">
+							<span class="block text-base text-zinc-400"
+								>{m.chat ? `${m.from} · ${m.chat}` : m.from} · {new Date(m.at).toLocaleTimeString(
+									'es-ES',
+									{ hour: '2-digit', minute: '2-digit' }
+								)}</span
+							>
+							<span class="block text-lg">{m.text ?? telegramSaid(m)}</span>
+						</div>
 					{/each}
 				{:else if tab === 'dj'}
 					{@const setups = [

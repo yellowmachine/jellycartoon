@@ -16,6 +16,7 @@ export interface SettingsShown {
 	keepHistory: boolean | null;
 	recordTrips: boolean | null;
 	langua: unknown;
+	telegram: unknown;
 	musicApps: unknown;
 	voice: boolean;
 	music: boolean;
@@ -97,6 +98,13 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		title: 'Guardar mis viajes',
 		words: 'viajes modo carretera recorridos gps km coche',
 		shown: (d) => d.recordTrips !== null
+	},
+	{
+		id: 'telegram',
+		tab: 'mi',
+		title: 'Telegram',
+		words: 'telegram mensajes coche carretera leer voz conducir chat',
+		shown: (d) => Boolean(d.telegram)
 	},
 	{
 		id: 'langua',
