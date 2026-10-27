@@ -8,6 +8,7 @@ import { MUSIC_MPV_SOCKET, SNAPCAST_PULSE_SOCKET, SNAPSERVER_CONTROL } from '$ap
 import { inOrder } from '#lib/server/in-order.ts';
 import { run } from '#lib/server/library/ffmpeg.ts';
 import { log } from '#lib/server/log.ts';
+import { getVoiceLevels } from '#lib/server/voice/levels.ts';
 import { MpvClient, StateBroadcast, type MpvMessage } from '#lib/server/mpv-client.ts';
 import { saveProgress } from '#lib/server/progress.ts';
 import { askEvery } from '#lib/server/still-there.ts';
@@ -574,6 +575,32 @@ const held = new Map<string, ReturnType<typeof setTimeout>>();
 /** Longer than the AI takes to answer (the satellite's, 30 s). */
 const HOLD_MS = 40_000;
 
+/**
+ * PulseAudio's module that lowers the music under the answers (deploy/pulse.pa), at the house's
+ * «Música mientras habla» (Ajustes → Casa): loaded again with it if it is not (its value is fixed
+ * once loaded, and a PulseAudio restarted comes back with the file's).
+ */
+async function setDucking(db: number) {
+	const pactl = (...args: string[]) =>
+		run('pactl', [`--server=unix:${SNAPCAST_PULSE_SOCKET}`, ...args], {
+			pausable: false,
+			signal: AbortSignal.timeout(5000)
+		});
+	const volume = `volume=${db}dB`;
+	const { stdout } = await pactl('list', 'short', 'modules');
+	const loaded = stdout.split('\n').find((line) => line.split('\t')[1] === 'module-role-ducking');
+	if (loaded?.split(/\s/).includes(volume)) return;
+	if (loaded) await pactl('unload-module', loaded.split('\t')[0]!);
+	// As pulse.pa's line, with the house's volume.
+	await pactl(
+		'load-module',
+		'module-role-ducking',
+		`trigger_roles=${VOICE_ROLE}`,
+		'ducking_roles=music',
+		volume
+	);
+}
+
 /** The satellites' answers can go to Snapcast: its PulseAudio is there, and its control. */
 export const snapcastVoiceReady = () =>
 	Boolean(control && SNAPCAST_PULSE_SOCKET && existsSync(SNAPCAST_PULSE_SOCKET));
@@ -597,6 +624,10 @@ export const sayOnSnapcast = (wav: Uint8Array, where: 'house' | string, { filler
 			if (groups.some((g) => g.clients.includes(id))) await duckSpeaker(id, false);
 		const file = join(tmpdir(), `respuesta-${randomUUID()}.wav`);
 		await writeFile(file, wav);
+		// Not to be without the answer: at worst, the music lowered as before.
+		await setDucking((await getVoiceLevels()).duckDb).catch((err) =>
+			log.warn('voz', 'No se pudo ajustar cuánto baja la música', { error: err })
+		);
 		const moved = house ? [] : groups;
 		try {
 			const toMove = moved.filter((g) => g.streamId !== VOICE_STREAM);

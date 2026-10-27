@@ -49,6 +49,8 @@ import {
 	type VoiceOption
 } from '#lib/server/piper.ts';
 import { getFillers, setFillers, warmFillers } from '#lib/server/voice-fillers.ts';
+import { getVoiceLevels, setVoiceLevels } from '#lib/server/voice/levels.ts';
+import { parseVoiceLevels } from '#lib/voice-levels.ts';
 import {
 	accountCredits,
 	completeJson,
@@ -136,7 +138,10 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 				options,
 				problem,
 				chosen: await houseVoice(),
-				fillers: (await getFillers()).join('\n')
+				fillers: (await getFillers()).join('\n'),
+				levels: await getVoiceLevels(),
+				/** «Música mientras habla» only matters if they answer through Snapcast. */
+				snapcast: snapcastVoiceReady()
 			};
 		}
 		/** Where the house is, for the voice's weather (#223). */
@@ -310,6 +315,15 @@ export const actions: Actions = {
 			`Voz de la casa: ${voice.voice}${voice.speaker ? ` ${voice.speaker}` : ''}`
 		);
 		return { saved: 'houseVoice' };
+	},
+	/** The satellites' voice louder, and the music lower under it (#223). */
+	saveVoiceLevels: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const form = await request.formData();
+		const levels = parseVoiceLevels({ gainDb: form.get('gainDb'), duckDb: form.get('duckDb') });
+		await setVoiceLevels(levels);
+		log.info('ajustes', 'Volumen de la voz de los satélites', { ...levels });
+		return { saved: 'voiceLevels' };
 	},
 	/** What the satellites say while the AI thinks (#223), one a line; empty, the default ones. */
 	saveFillers: async ({ request, locals }) => {

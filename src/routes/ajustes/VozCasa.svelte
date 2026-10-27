@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { section, primary, secondary, select } from './styles.ts';
 	import { MAX_FILLER_CHARS, MAX_FILLERS } from '#lib/voice-fillers.ts';
+	import { MUSIC_DUCK, VOICE_GAIN } from '#lib/voice-levels.ts';
 	import type { PageData, ActionData } from './$types';
 
 	/** La voz de la casa (#223): con la que contestan los satélites, entre las de Piper instaladas. */
@@ -9,6 +10,15 @@
 
 	const SAMPLE = 'Hola, soy la voz de la casa. Mañana hará sol y unos veinte grados.';
 	const key = (v: { voice: string; speaker: string | null }) => `${v.voice}|${v.speaker ?? ''}`;
+
+	/** As saved, moved before saving; as saved again when the page's data changes. */
+	let gainDb = $state(VOICE_GAIN.default);
+	let duckDb = $state(MUSIC_DUCK.default);
+	$effect.pre(() => {
+		if (!data.houseVoice) return;
+		gainDb = data.houseVoice.levels.gainDb;
+		duckDb = data.houseVoice.levels.duckDb;
+	});
 
 	/** The one being heard, and a problem playing it. */
 	let playing = $state<string | null>(null);
@@ -81,6 +91,57 @@
 				>python -m piper.download_voices</code
 			>).
 		</p>
+
+		<h3 class="mt-6 mb-1 font-semibold" id="volumen-voz">Volumen</h3>
+		<p class="mb-2 text-sm text-zinc-400">
+			Lo que dicen los satélites, más alto, y cuánto baja la música mientras hablan por Snapcast.
+			Con «Escuchar», la voz ya sale con este volumen.
+		</p>
+		<form
+			method="post"
+			action="?seccion={tab}&/saveVoiceLevels"
+			class="mb-2 flex flex-col gap-3 text-sm"
+			use:enhance={() =>
+				async ({ update }) =>
+					update({ reset: false })}
+		>
+			<label class="flex flex-wrap items-center gap-3">
+				<span class="w-44">Volumen de la voz</span>
+				<input
+					type="range"
+					name="gainDb"
+					min={VOICE_GAIN.min}
+					max={VOICE_GAIN.max}
+					step="1"
+					bind:value={gainDb}
+					class="flex-1"
+				/>
+				<span class="w-16 text-right tabular-nums">+{gainDb} dB</span>
+			</label>
+			{#if hv.snapcast}
+				<label class="flex flex-wrap items-center gap-3">
+					<span class="w-44">Música mientras habla</span>
+					<input
+						type="range"
+						name="duckDb"
+						min={MUSIC_DUCK.min}
+						max={MUSIC_DUCK.max}
+						step="1"
+						bind:value={duckDb}
+						class="flex-1"
+					/>
+					<span class="w-16 text-right tabular-nums">{duckDb} dB</span>
+				</label>
+			{:else}
+				<input type="hidden" name="duckDb" value={duckDb} />
+			{/if}
+			<div class="flex items-center gap-2">
+				<button class={primary}>Guardar</button>
+				{#if form && 'saved' in form && form.saved === 'voiceLevels'}
+					<span class="text-green-400">Guardado</span>
+				{/if}
+			</div>
+		</form>
 
 		<h3 class="mt-6 mb-1 font-semibold" id="frases-espera">Frases de espera</h3>
 		<p class="mb-2 text-sm text-zinc-400">
