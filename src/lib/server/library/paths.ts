@@ -78,6 +78,8 @@ export const steamRoot = STEAM_DIR ? path.resolve(STEAM_DIR) : null;
 export const opusFile = (trackId: number) => path.join(dataRoot, 'music-opus', `${trackId}.opus`);
 /** What the DJ says between songs (dj.ts), as Opus: kept a few hours. */
 export const djDir = path.join(dataRoot, 'dj');
+/** The voice satellites' phrases while the AI thinks, recorded by an AI voice (voice-fillers.ts). */
+export const fillersDir = path.join(dataRoot, 'frases-espera');
 /** Front covers from the Cover Art Archive. */
 /**
  * The road mode's map (#78), as scripts/mapa.sh leaves it: `espana.pmtiles`, and the `fonts` and

@@ -57,7 +57,8 @@ type Key =
 	| 'house_place'
 	| 'house_voice'
 	| 'voice_fillers'
-	| 'voice_levels';
+	| 'voice_levels'
+	| 'voice_filler_recordings';
 
 export async function getAppSetting(key: Key) {
 	return get(key);
