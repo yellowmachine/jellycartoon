@@ -29,8 +29,16 @@ export const isPiperVoice = (v: unknown): v is PiperVoice =>
 	((v as PiperVoice).speaker === null ||
 		(typeof (v as PiperVoice).speaker === 'string' && NAME.test((v as PiperVoice).speaker!)));
 
-/** `voice`: if not given, the one in .env for `lang` (the DJ's). */
-export async function piper(text: string, lang: 'es' | 'en' = 'es', voice?: PiperVoice) {
+/**
+ * `voice`: if not given, the one in .env for `lang` (the DJ's). `style`, how it reads (the house's
+ * «Expresividad» and «Velocidad», voice-levels.ts `piperStyle`); its own way if not given.
+ */
+export async function piper(
+	text: string,
+	lang: 'es' | 'en' = 'es',
+	voice?: PiperVoice,
+	style: Record<string, number> = {}
+) {
 	if (!PIPER_URL) throw new Error('No hay Piper (PIPER_URL)');
 	const chosen = voice ?? { voice: lang === 'en' ? PIPER_VOICE_EN : PIPER_VOICE_ES, speaker: null };
 	const res = await fetch(`${base()}/synthesize`, {
@@ -38,6 +46,7 @@ export async function piper(text: string, lang: 'es' | 'en' = 'es', voice?: Pipe
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({
 			text,
+			...style,
 			voice: chosen.voice,
 			...(chosen.speaker ? { speaker: chosen.speaker } : {})
 		}),

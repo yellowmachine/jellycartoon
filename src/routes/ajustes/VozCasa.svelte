@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { section, primary, secondary, select } from './styles.ts';
 	import { MAX_FILLER_CHARS, MAX_FILLERS, parseFillers } from '#lib/voice-fillers.ts';
-	import { MUSIC_DUCK, VOICE_GAIN } from '#lib/voice-levels.ts';
+	import { EXPRESSIVENESS, MUSIC_DUCK, SPEED, VOICE_GAIN } from '#lib/voice-levels.ts';
 	import type { PageData, ActionData } from './$types';
 
 	/** La voz de la casa (#223): con la que contestan los satélites, entre las de Piper instaladas. */
@@ -14,6 +14,8 @@
 	/** As saved, moved before saving; as saved again when the page's data changes. */
 	let gainDb = $state(VOICE_GAIN.default);
 	let duckDb = $state(MUSIC_DUCK.default);
+	let expressiveness = $state(EXPRESSIVENESS.default);
+	let speed = $state(SPEED.default);
 	/** The phrases as being written: each one can be heard before saving them. */
 	let fillersText = $state('');
 	const fillerLines = $derived(parseFillers(fillersText, { orDefault: false }));
@@ -21,6 +23,8 @@
 		if (!data.houseVoice) return;
 		gainDb = data.houseVoice.levels.gainDb;
 		duckDb = data.houseVoice.levels.duckDb;
+		expressiveness = data.houseVoice.levels.expressiveness;
+		speed = data.houseVoice.levels.speed;
 		fillersText = data.houseVoice.fillers;
 	});
 
@@ -100,10 +104,11 @@
 			>).
 		</p>
 
-		<h3 class="mt-6 mb-1 font-semibold" id="volumen-voz">Volumen</h3>
+		<h3 class="mt-6 mb-1 font-semibold" id="volumen-voz">Cómo suena</h3>
 		<p class="mb-2 text-sm text-zinc-400">
-			Lo que dicen los satélites, más alto, y cuánto baja la música mientras hablan por Snapcast.
-			Con «Escuchar», la voz ya sale con este volumen.
+			Cómo lee Piper lo que dicen los satélites (100 %, a su manera; con mucha expresividad puede
+			sonar rara), su volumen, y cuánto baja la música mientras hablan por Snapcast. Guardado,
+			«Escuchar» y las frases de abajo ya suenan así.
 		</p>
 		<form
 			method="post"
@@ -113,6 +118,32 @@
 				async ({ update }) =>
 					update({ reset: false })}
 		>
+			<label class="flex flex-wrap items-center gap-3">
+				<span class="w-44">Expresividad</span>
+				<input
+					type="range"
+					name="expressiveness"
+					min={EXPRESSIVENESS.min}
+					max={EXPRESSIVENESS.max}
+					step="5"
+					bind:value={expressiveness}
+					class="flex-1"
+				/>
+				<span class="w-16 text-right tabular-nums">{expressiveness} %</span>
+			</label>
+			<label class="flex flex-wrap items-center gap-3">
+				<span class="w-44">Velocidad</span>
+				<input
+					type="range"
+					name="speed"
+					min={SPEED.min}
+					max={SPEED.max}
+					step="5"
+					bind:value={speed}
+					class="flex-1"
+				/>
+				<span class="w-16 text-right tabular-nums">{speed} %</span>
+			</label>
 			<label class="flex flex-wrap items-center gap-3">
 				<span class="w-44">Volumen de la voz</span>
 				<input

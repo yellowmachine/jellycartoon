@@ -635,7 +635,11 @@ de mujer (`F`), y en Ajustes salen por separado. Todas las voces están en
 [piper-voices](https://huggingface.co/rhasspy/piper-voices/tree/main/es). El DJ no cambia: sigue con
 `PIPER_VOICE_ES`.
 
-Debajo de la voz, «Volumen de la voz» la sube hasta 12 dB (con un limitador, sin que distorsione),
+Debajo de la voz, «Expresividad» (de 50 a 150 %) cambia cuánto varían la entonación y el ritmo de
+Piper (sus `noise_scale` y `noise_w_scale`; 100 % es como lo hace él, y muy alta puede sonar rara),
+y «Velocidad» (de 70 a 130 %) lo rápido que lee (`length_scale`); por defecto, 120 % y 95 %, algo
+más viva y pausada que la suya. «Volumen de la voz» la sube hasta
+12 dB (con un limitador, sin que distorsione),
 y «Música mientras habla» dice cuánto baja la música de Snapcast mientras suena (de −6 a −30 dB;
 −12 por defecto, como en el móvil). Valen para todo lo que dicen los satélites: respuestas, frases
 de espera y avisos de los temporizadores. El móvil y la tablet usan la voz del propio aparato.
