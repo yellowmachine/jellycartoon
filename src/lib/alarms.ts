@@ -9,10 +9,19 @@ export const MAX_ALARM_LABEL = 80;
 /** A timer: a minute to a day. */
 export const TIMER_MINUTES = { min: 1, max: 24 * 60 };
 
-export type AlarmKind = 'temporizador' | 'alarma';
+export type AlarmKind = 'temporizador' | 'alarma' | 'preparado';
+
+/**
+ * Where one sounds: the whole house (Snapcast), or a voice satellite, by its id (#223); a phone
+ * or a tablet later (#241, phase 3).
+ */
+export type AlarmPlace = 'casa' | `satelite:${string}`;
+
+export const isAlarmPlace = (value: unknown): value is AlarmPlace =>
+	value === 'casa' || (typeof value === 'string' && /^satelite:[\w-]{1,100}$/.test(value));
 
 /** What a page sends: a timer of some minutes, or an alarm at a time on some weekdays (none, once). */
-export type AlarmInput = { label: string; people: string[] } & (
+export type AlarmInput = { label: string; people: string[]; place: AlarmPlace } & (
 	| { kind: 'temporizador'; minutes: number }
 	| { kind: 'alarma'; time: string; day: string; days: number[] }
 );
@@ -24,6 +33,10 @@ export interface Alarm {
 	kind: AlarmKind;
 	/** A timer's end (ms). */
 	endsAt: number | null;
+	/** A prepared one's: how long, and what it waits for. */
+	seconds: number | null;
+	trigger: string | null;
+	place: AlarmPlace;
 	/** An alarm's: its time, first day and weekdays (0 Monday; none, once). */
 	time: string | null;
 	day: string | null;
@@ -48,10 +61,17 @@ export function parseAlarmInput(value: unknown): AlarmInput | null {
 		? [...new Set(v.people.filter((p): p is string => typeof p === 'string'))]
 		: [];
 	const label = text(v.label, MAX_ALARM_LABEL);
+	const place = isAlarmPlace(v.place) ? v.place : 'casa';
 	if (v.kind === 'temporizador') {
 		const minutes = Math.round(Number(v.minutes));
 		if (!(minutes >= TIMER_MINUTES.min && minutes <= TIMER_MINUTES.max)) return null;
-		return { kind: 'temporizador', minutes, label: label || timeLabel(minutes * 60), people };
+		return {
+			kind: 'temporizador',
+			minutes,
+			label: label || timeLabel(minutes * 60),
+			people,
+			place
+		};
 	}
 	if (v.kind === 'alarma') {
 		if (!isTime(v.time) || !isDay(v.day)) return null;
@@ -66,7 +86,8 @@ export function parseAlarmInput(value: unknown): AlarmInput | null {
 			day: v.day,
 			days,
 			label: label || `Alarma de las ${v.time}`,
-			people
+			people,
+			place
 		};
 	}
 	return null;

@@ -557,7 +557,12 @@
 		</ul>
 	{/if}
 
-	<Alarmas alarms={data.alarms} people={data.people} readonly={data.readonly} />
+	<Alarmas
+		alarms={data.alarms}
+		people={data.people}
+		satellites={data.satellites}
+		readonly={data.readonly}
+	/>
 
 	{#if data.ics}
 		<section class="mb-10 rounded-lg bg-zinc-900 p-4 text-sm">

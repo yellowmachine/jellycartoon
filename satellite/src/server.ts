@@ -70,21 +70,17 @@ export async function filler() {
 }
 
 /**
- * What was said and its answer; null if nothing was understood. `timers`, the satellite's, as the
- * phone's go (timers.ts). `onHeard`, once it is known what was said, as the AI starts on it.
+ * What was said and its answer; null if nothing was understood. `onHeard`, once it is known what
+ * was said, as the AI starts on it. Its timers and alarms the server keeps (#241): it tells the AI.
  */
-export async function sendOrder(
-	wav: Uint8Array,
-	timers: () => string[],
-	onHeard?: (text: string) => void
-) {
+export async function sendOrder(wav: Uint8Array, onHeard?: (text: string) => void) {
 	const { text } = await post<{ text: string }>('/api/voice/transcribe', wav, 'audio/wav');
 	if (!text?.trim()) return null;
 	onHeard?.(text);
 	if (Date.now() - lastAt > HISTORY_IDLE_MS) history = [];
 	const reply = await post<VoiceReply>(
 		'/api/voice/command',
-		JSON.stringify({ text, history, timers: timers() }),
+		JSON.stringify({ text, history }),
 		'application/json'
 	);
 	history = [...history, { role: 'user' as const, content: text }, assistantTurn(reply)].slice(
@@ -101,4 +97,54 @@ export async function sendOrder(
 export function duck(on: boolean) {
 	if (!serverReady) return;
 	post('/api/salon/bajar', JSON.stringify({ on }), 'application/json').catch(() => {});
+}
+
+/** What rings where the satellite is (#241): all of it, which «hola casita» stops; and what it says itself. */
+export interface Ringing {
+	ringing: string[];
+	play: string[];
+}
+
+/** After a dropped channel, tried again this long after. */
+const RETRY_MS = 5000;
+
+/**
+ * Its alarms and timers, as the server keeps them, live (/api/satelite/avisos, server-sent
+ * events): `onState` with each change. Connected again whenever it drops (the server restarted,
+ * the network), for good.
+ */
+export async function followAlarms(onState: (state: Ringing) => void): Promise<never> {
+	for (;;) {
+		try {
+			const res = await fetch(`${SERVER_URL}/api/satelite/avisos`, {
+				headers: { 'x-api-key': KEY!, accept: 'text/event-stream' }
+			});
+			if (!res.ok || !res.body) throw new Error(`${res.status}`);
+			const decoder = new TextDecoder();
+			let pending = '';
+			for await (const chunk of res.body) {
+				pending += decoder.decode(chunk, { stream: true });
+				let end: number;
+				while ((end = pending.indexOf('\n\n')) >= 0) {
+					const event = pending.slice(0, end);
+					pending = pending.slice(end + 2);
+					const data = event
+						.split('\n')
+						.filter((line) => line.startsWith('data:'))
+						.map((line) => line.slice(5).trim())
+						.join('');
+					if (data) onState(JSON.parse(data) as Ringing);
+				}
+			}
+		} catch (err) {
+			console.error('Sin canal de avisos:', err instanceof Error ? err.message : String(err));
+		}
+		await new Promise((resolve) => setTimeout(resolve, RETRY_MS));
+	}
+}
+
+/** «Hola casita» while something rings: it stops (#241). How many. */
+export async function stopAlarms() {
+	const res = await request('/api/satelite/avisos/parar', '{}', 'application/json');
+	return ((await res.json()) as { stopped: number }).stopped;
 }

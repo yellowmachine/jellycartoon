@@ -660,11 +660,14 @@ se graban, o con «Volver a Piper», las dice Piper. Al quitar una frase se borr
 que las frases grabadas: cada respuesta tarda unos 2–3 s más (medido) y cuesta algo; si Gemini falla
 o tarda más de 10 s, la dice Piper. En el Registro queda lo que tardó cada una («Voz IA: … ms»).
 
-Los temporizadores y avisos («avísame en una hora para pedir cita en la peluquería») los lleva cada
-satélite, como cada móvil los suyos, guardados en su volumen (`/data/temporizadores.json` en la
-Raspberry), así que un reinicio no los pierde. Al cumplirse suenan por donde contesta el satélite:
-dos «din-don» y su nombre dicho, el que le puso la IA, y cinco segundos de silencio para que se
-oiga «hola casita», que lo para; si nadie lo para, se calla a los tres minutos.
+Los temporizadores y las alarmas de los satélites («avísame en una hora para pedir cita en la
+peluquería», «despiértame de lunes a viernes a las 7:30») los lleva el servidor (#241), y se ven y
+se cambian en la Agenda, en «Alarmas y temporizadores», donde también se ponen a mano: para la casa
+o para alguien, y sonando en toda la casa o en un satélite. Al cumplirse suenan por donde contesta
+ese satélite: dos «din-don» y su nombre dicho, y cinco segundos de silencio para que se oiga la
+palabra de activación, que lo para (o «Parar» en la Agenda); si nadie lo para, se calla a los tres
+minutos. Si el satélite contesta por Snapcast, lo dice el servidor; si no, el satélite, avisado por
+su canal (`/api/satelite/avisos`). Las alarmas que se piden desde el móvil suenan en toda la casa.
 
 ### Juegos
 

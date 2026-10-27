@@ -50,7 +50,29 @@ import { asksForRoute, findByName } from '#lib/saved-places.ts';
 import { addItems, addNote, tickOffByName, toBuy } from '#lib/server/fridge.ts';
 import { addExpense } from '#lib/server/expenses/expenses.ts';
 import { addEvent, dayForVoice, personByName } from '#lib/server/agenda/agenda.ts';
-import { addDays, dayName, isDay, isTime, parseEventInput } from '#lib/agenda.ts';
+import {
+	addDays,
+	dayName,
+	isDay,
+	isTime,
+	localDay,
+	localTime,
+	parseEventInput
+} from '#lib/agenda.ts';
+import { daysName, parseAlarmInput, type AlarmPlace } from '#lib/alarms.ts';
+import {
+	addAlarm,
+	canTouch,
+	cancelTimersAt,
+	deleteAlarm,
+	describeAlarms,
+	prepareTimerAt,
+	setPaused,
+	skipNext,
+	startTimerAt,
+	stopAlarm
+} from '#lib/server/alarms/alarms.ts';
+import type { Satellite } from '#lib/server/satellites.ts';
 import { isKidAccount } from '#lib/server/kids.ts';
 import { EXPENSE_CATEGORIES, euros, isCategory } from '#lib/expenses.ts';
 import { today } from '#lib/server/playlist.ts';
@@ -121,6 +143,8 @@ interface Outcome {
 	options: VoiceOption[];
 	/** `ask` was called: the answer is the question, and nothing more is done. */
 	asked: string | null;
+	/** Done here, by the server, as an action for the device would be: a satellite's timer (#241). */
+	done: number;
 }
 
 /** A speaker of the house (Snapcast), by its name: only there (#223). */
@@ -487,6 +511,43 @@ function tools(house: boolean, rooms: Room[]): Tool[] {
 			[]
 		),
 		fn(
+			'set_alarm',
+			'Pone una alarma a una hora: una vez («mañana a las 8») o los días que se repite («de lunes a viernes a las 7:30»). Suena en toda la casa o, si se habla desde un satélite, donde contesta, con un «din-don» y su nombre, hasta que la paren. Para «avísame en 10 minutos», set_timer.',
+			{
+				time: { type: 'string', description: 'HH:MM, en 24 horas: «07:30», «20:00».' },
+				days: {
+					type: 'array',
+					items: { type: 'integer' },
+					description:
+						'Los días que se repite, 0 el lunes y 6 el domingo: todos los días [0,1,2,3,4,5,6], de lunes a viernes [0,1,2,3,4]. Vacío: una vez.'
+				},
+				day: {
+					type: 'string',
+					description:
+						'Una vez: el día, AAAA-MM-DD. Vacío: hoy si aún no ha pasado esa hora, si no mañana.'
+				},
+				label: {
+					type: 'string',
+					description: 'Para qué, corto y que se entienda al oírlo: «levantarse», «la pastilla».'
+				},
+				for: {
+					type: 'string',
+					description:
+						'Para quién, si lo dice: su nombre, o «casa». Vacío: de quien habla (desde un satélite, de la casa).'
+				}
+			},
+			['time']
+		),
+		fn(
+			'change_alarm',
+			'Cambia una alarma de la lista por su número: quitarla, saltarse solo la próxima vez («mañana no»), pausarla, activarla o pararla si está sonando.',
+			{
+				id: { type: 'integer', description: 'El número de la alarma, de la lista.' },
+				do: { type: 'string', enum: ['delete', 'skip', 'pause', 'resume', 'stop'] }
+			},
+			['id', 'do']
+		),
+		fn(
 			'start_recipe',
 			'Pone en este dispositivo la receta que se va a cocinar ahora, entera, en lugar de la que hubiera: se ve en la pantalla de la cocina y va con cada orden, con el paso por el que va.',
 			{
@@ -643,6 +704,7 @@ Otras preguntas (de cocina, de lo que sea): si no pide nada de la app, contesta 
 El tiempo («¿qué tiempo hará mañana?», «¿llueve esta tarde?», «¿hace frío para salir?»): «get_weather», sin preguntar. Contesta corto, solo lo que pregunta: el cielo, las temperaturas y, si puede llover, la probabilidad. Nunca lo inventes.
 
 Temporizadores («avísame en 10 minutos», «pon un temporizador de 20 minutos para el horno»): «set_timer», sin preguntar. Con cada orden va la lista de los que hay en este dispositivo.
+Alarmas a una hora («despiértame a las 7», «todos los días laborables a las 7:30», «el jueves a las 9 la cita del médico»): «set_alarm». Con cada orden va la lista de alarmas, con su número: para quitar una, saltarse solo la próxima («mañana no me despiertes»), pausarla o pararla, «change_alarm» con ese número; si no está claro cuál, usa «ask».
 - «¿Cuánto le queda (a la pasta)?»: contesta con esa lista, sin herramientas.
 - «Otro de 5 minutos» es uno nuevo (nombre vacío), no el que ya hay de 5 minutos; «vuelve a empezar el de la pasta» sí usa su nombre.
 - Haz solo lo que pide la orden de ahora: los temporizadores de órdenes anteriores ya se pusieron. Uno que ya sonó o se quitó no se vuelve a poner si no lo pide otra vez.
@@ -878,6 +940,8 @@ async function runTool(
 		position?: LngLat | null;
 		/** Said to a voice satellite (#223), which plays nothing itself. */
 		satellite: boolean;
+		/** Where its timers and alarms are kept by the server (#241): a satellite's; null, a phone's. */
+		place: AlarmPlace | null;
 		rooms: Room[];
 	}
 ): Promise<ToolResult> {
@@ -1139,6 +1203,12 @@ async function runTool(
 			if (!Number.isFinite(minutes) || minutes <= 0) return 'Falta cuántos minutos.';
 			const seconds = Math.round(Math.min(minutes * 60, MAX_TIMER_SEC));
 			const label = typeof args.label === 'string' ? args.label.trim().slice(0, 60) : '';
+			// A satellite's, kept by the server (#241).
+			if (ctx.place) {
+				const name = await startTimerAt(ctx.place, { label, seconds, userId: ctx.user.id });
+				ctx.outcome.done++;
+				return `Temporizador «${name}» de ${seconds} segundos puesto.`;
+			}
 			ctx.outcome.actions.push({ kind: 'timer', label, seconds });
 			return `Temporizador${label ? ` «${label}»` : ''} de ${seconds} segundos puesto en el dispositivo.`;
 		}
@@ -1149,6 +1219,16 @@ async function runTool(
 			if (!trigger) return 'Falta cuándo tiene que arrancar.';
 			const seconds = Math.round(Math.min(minutes * 60, MAX_TIMER_SEC));
 			const label = typeof args.label === 'string' ? args.label.trim().slice(0, 60) : '';
+			if (ctx.place) {
+				const name = await prepareTimerAt(ctx.place, {
+					label,
+					seconds,
+					trigger,
+					userId: ctx.user.id
+				});
+				ctx.outcome.done++;
+				return `Preparado «${name}»: ${seconds} segundos cuando ${trigger}.`;
+			}
 			ctx.outcome.actions.push({ kind: 'prepareTimer', label, seconds, trigger });
 			return `Preparado${label ? ` «${label}»` : ''}: ${seconds} segundos cuando ${trigger}.`;
 		}
@@ -1159,8 +1239,68 @@ async function runTool(
 				: 'Modo cocina apagado.';
 		case 'cancel_timer': {
 			const label = typeof args.label === 'string' && args.label.trim() ? args.label.trim() : null;
+			if (ctx.place) {
+				const count = await cancelTimersAt(ctx.place, label);
+				ctx.outcome.done++;
+				return count
+					? `Quitados: ${count}.`
+					: `No hay ningún temporizador${label ? ` «${label}»` : ''}.`;
+			}
 			ctx.outcome.actions.push({ kind: 'cancelTimer', label });
 			return label ? `Quitado el temporizador «${label}».` : 'Quitados todos los temporizadores.';
+		}
+		case 'set_alarm': {
+			if (!isTime(args.time)) return 'Falta la hora, como HH:MM.';
+			const days = Array.isArray(args.days)
+				? args.days.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6)
+				: [];
+			let day = isDay(args.day) ? args.day : localDay();
+			// Once, at a time already gone today: tomorrow.
+			if (!days.length && day === localDay() && args.time <= localTime()) day = addDays(day, 1);
+			const asked = typeof args.for === 'string' ? args.for.trim() : '';
+			let people: string[];
+			if (/^(la )?casa$/i.test(asked)) people = [];
+			else if (asked) {
+				const found = await personByName(asked);
+				if (!found) return `No hay nadie llamado «${asked}» en la casa.`;
+				people = [found.id];
+			} else people = ctx.satellite ? [] : [ctx.user.id];
+			const input = parseAlarmInput({
+				kind: 'alarma',
+				time: args.time,
+				day,
+				days,
+				label: typeof args.label === 'string' ? args.label : '',
+				people,
+				place: ctx.place ?? 'casa'
+			});
+			if (!input || input.kind !== 'alarma') return 'Alarma no válida.';
+			const id = await addAlarm(ctx.user.id, input);
+			return `Alarma ${id} «${input.label}» puesta: a las ${input.time}, ${days.length ? daysName(days).toLowerCase() : `el ${dayName(day)}`}; ${people.length ? 'de una persona' : 'de la casa'}.`;
+		}
+		case 'change_alarm': {
+			const id = Number(args.id);
+			// From a satellite, only the house's; from a phone, the house's and theirs.
+			const visible = ctx.satellite ? await canTouch(id, '') : await canTouch(id, ctx.user.id);
+			if (!Number.isInteger(id) || !visible) return `No hay alarma ${args.id}.`;
+			switch (args.do) {
+				case 'delete':
+					await deleteAlarm(id);
+					return `Alarma ${id} quitada.`;
+				case 'skip':
+					await skipNext(id);
+					return `La próxima de la alarma ${id} no sonará; las siguientes, sí.`;
+				case 'pause':
+					await setPaused(id, true);
+					return `Alarma ${id} pausada.`;
+				case 'resume':
+					await setPaused(id, false);
+					return `Alarma ${id} activada de nuevo.`;
+				case 'stop':
+					await stopAlarm(id);
+					return `Alarma ${id} parada.`;
+			}
+			return 'Acción no válida.';
 		}
 		case 'start_recipe': {
 			const recipe = parseRecipe(args);
@@ -1262,8 +1402,10 @@ export interface VoiceTiming {
 export async function runVoiceCommand(
 	request: VoiceRequest,
 	user: Person,
-	satellite: string | null = null
+	satellite: Satellite | null = null
 ): Promise<VoiceReply & { timing: VoiceTiming }> {
+	/** Where its timers and alarms are kept and sound (#241): a satellite's; a phone's, its own. */
+	const place: AlarmPlace | null = satellite ? `satelite:${satellite.id}` : null;
 	const started = performance.now();
 	const [albums, playlists, model, { hoursSince }, keepHistory, watchingHere, recipes, sites] =
 		await Promise.all([
@@ -1283,7 +1425,9 @@ export async function runVoiceCommand(
 	const rooms: Room[] = house
 		? ((await listSpeakers()) ?? []).map((s) => ({ id: s.id, name: s.name }))
 		: [];
-	const outcome: Outcome = { actions: [], options: [], asked: null };
+	const outcome: Outcome = { actions: [], options: [], asked: null, done: 0 };
+	// A satellite's timers are kept by the server; a phone's, in it (until #241, phase 3).
+	const alarmLines = await describeAlarms(place, satellite ? null : user.id);
 	const messages: ToolChatMessage[] = [
 		{
 			role: 'system',
@@ -1311,13 +1455,15 @@ export async function runVoiceCommand(
 				{
 					type: 'text',
 					text: satellite
-						? `[Te habla alguien de la casa desde «${satellite}», un satélite de voz sin pantalla: no sabes quién es, así que sin nombres; tampoco hay historial de lo que ve cada uno. El satélite no pone música, radio ni vídeos: aquí es toda la casa, y de un capítulo solo el audio. Los temporizadores y avisos sí los lleva el satélite: suenan por donde contesta, con un «din-don» y su nombre, así que dales un nombre que se entienda al oírlo («pedir cita en la peluquería»).]`
+						? `[Te habla alguien de la casa desde «${satellite.name}», un satélite de voz sin pantalla: no sabes quién es, así que sin nombres; tampoco hay historial de lo que ve cada uno. El satélite no pone música, radio ni vídeos: aquí es toda la casa, y de un capítulo solo el audio. Los temporizadores y las alarmas que pongas desde aquí suenan donde contesta el satélite, con un «din-don» y su nombre, así que dales un nombre que se entienda al oírlo («pedir cita en la peluquería»); son de la casa, salvo que diga para quién.]`
 						: `[Te habla: ${user.name}.]`
 				},
 				{ type: 'text', text: soundingNow(request.here, house) },
 				{
 					type: 'text',
-					text: `[Temporizadores aquí: ${request.timers.length ? request.timers.join('; ') : 'ninguno'}.]`
+					text: satellite
+						? `[Temporizadores y alarmas: ${alarmLines.length ? alarmLines.join('; ') : 'ninguno'}.]`
+						: `[Temporizadores aquí: ${request.timers.length ? request.timers.join('; ') : 'ninguno'}.] [Alarmas (de la casa y suyas; suenan en toda la casa o en un satélite): ${alarmLines.length ? alarmLines.join('; ') : 'ninguna'}.]`
 				},
 				...(request.recipe
 					? [{ type: 'text' as const, text: `[Receta en marcha aquí:\n${request.recipe}]` }]
@@ -1367,7 +1513,7 @@ export async function runVoiceCommand(
 		const said: string[] = [];
 		let oneRound = true;
 		for (const call of answer.toolCalls) {
-			const before = outcome.actions.length;
+			const before = outcome.actions.length + outcome.done;
 			let result: ToolResult;
 			try {
 				const args = JSON.parse(call.function.arguments || '{}');
@@ -1383,13 +1529,15 @@ export async function runVoiceCommand(
 					recipe: request.recipe,
 					position: request.position,
 					satellite: Boolean(satellite),
+					place,
 					rooms
 				});
 			} catch (err) {
 				result = `Error: ${err instanceof Error ? err.message : String(err)}`;
 			}
 			messages.push({ role: 'tool', tool_call_id: call.id, content: result });
-			if (!ONE_ROUND.has(call.function.name) || outcome.actions.length === before) oneRound = false;
+			if (!ONE_ROUND.has(call.function.name) || outcome.actions.length + outcome.done === before)
+				oneRound = false;
 		}
 		if (outcome.asked) return reply(outcome.asked, outcome);
 		if (oneRound) return reply(said.join(' '), outcome);

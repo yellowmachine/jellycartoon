@@ -13,6 +13,7 @@ import {
 	stopAlarm
 } from '#lib/server/alarms/alarms.ts';
 import { isKid } from '#lib/server/kids.ts';
+import { allSatellites } from '#lib/server/satellites.ts';
 import {
 	addEvent,
 	agendaBetween,
@@ -39,10 +40,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const from = mondayOf(first);
 	const lastOfMonth = addDays(`${addDays(`${day.slice(0, 8)}28`, 4).slice(0, 8)}01`, -1);
 	const to = view === 'mes' ? addDays(mondayOf(lastOfMonth), 6) : addDays(from, 6);
-	const [{ events, occurrences }, people, alarms] = await Promise.all([
+	const [{ events, occurrences }, people, alarms, satellites] = await Promise.all([
 		agendaBetween(from, to, kid ? locals.user!.id : null),
 		agendaPeople(),
-		listAlarms(locals.user!.id)
+		listAlarms(locals.user!.id),
+		allSatellites()
 	]);
 	return {
 		view,
@@ -55,6 +57,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		people,
 		/** Alarms and timers (#241): the house's and theirs. */
 		alarms,
+		satellites: satellites.map((s) => ({ id: s.id, name: s.name })),
 		readonly: kid,
 		ics: kid ? null : `${ORIGIN}/api/calendario/${await icsToken()}.ics`
 	};

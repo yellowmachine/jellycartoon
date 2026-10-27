@@ -15,7 +15,8 @@
 		MAX_ALARM_LABEL,
 		TIMER_MINUTES,
 		type Alarm,
-		type AlarmInput
+		type AlarmInput,
+		type AlarmPlace
 	} from '#lib/alarms.ts';
 	import { formatLeft } from '#lib/timer-names.ts';
 
@@ -24,10 +25,23 @@
 	 * their next time; set by hand, stopped, skipped once, paused or taken away. For now they sound
 	 * in the whole house (Snapcast).
 	 */
-	let { alarms, people, readonly }: { alarms: Alarm[]; people: AgendaPerson[]; readonly: boolean } =
-		$props();
+	let {
+		alarms,
+		people,
+		satellites,
+		readonly
+	}: {
+		alarms: Alarm[];
+		people: AgendaPerson[];
+		/** The voice satellites, where one can sound too. */
+		satellites: { id: string; name: string }[];
+		readonly: boolean;
+	} = $props();
 
 	const personName = (id: string) => people.find((p) => p.id === id)?.name ?? '';
+	/** «Salón»: a satellite's name; one gone, said so. */
+	const placeName = (place: AlarmPlace) =>
+		satellites.find((s) => `satelite:${s.id}` === place)?.name ?? 'un satélite que ya no está';
 
 	/** Ticks while a timer counts down. */
 	let now = $state(Date.now());
@@ -72,6 +86,7 @@
 		every: Every;
 		days: number[];
 		people: string[];
+		place: AlarmPlace;
 	}
 
 	let editing = $state<Editing | null>(null);
@@ -87,7 +102,8 @@
 			day: localDay(),
 			every: 'una',
 			days: [],
-			people: []
+			people: [],
+			place: 'casa'
 		};
 	}
 
@@ -100,7 +116,7 @@
 	/** As the server parses it (parseAlarmInput). */
 	function input(e: Editing): AlarmInput {
 		if (e.kind === 'temporizador')
-			return { kind: e.kind, minutes: e.minutes, label: e.label, people: e.people };
+			return { kind: e.kind, minutes: e.minutes, label: e.label, people: e.people, place: e.place };
 		const days =
 			e.every === 'diaria'
 				? [0, 1, 2, 3, 4, 5, 6]
@@ -114,7 +130,15 @@
 			e.every === 'una' && e.day === localDay() && e.time <= localTime()
 				? addDays(e.day, 1)
 				: e.day;
-		return { kind: e.kind, time: e.time, day, days, label: e.label, people: e.people };
+		return {
+			kind: e.kind,
+			time: e.time,
+			day,
+			days,
+			label: e.label,
+			people: e.people,
+			place: e.place
+		};
 	}
 
 	const field =
@@ -137,7 +161,7 @@
 <section class="mb-10 rounded-lg bg-zinc-900 p-4" id="alarmas">
 	<h2 class="mb-1 font-semibold">Alarmas y temporizadores</h2>
 	<p class="mb-3 text-sm text-zinc-400">
-		Los de la casa y los tuyos. Por ahora suenan en toda la casa, por los altavoces.
+		Los de la casa y los tuyos. Suenan en toda la casa, por los altavoces, o en un satélite de voz.
 	</p>
 
 	{#if alarms.length}
@@ -155,6 +179,8 @@
 								Sonando
 							{:else if a.kind === 'temporizador'}
 								{a.nextAt ? `Quedan ${formatLeft((a.nextAt - now) / 1000)}` : 'Ya sonó'}
+							{:else if a.kind === 'preparado'}
+								{formatLeft(a.seconds ?? 0)} cuando {a.trigger}
 							{:else}
 								{a.time}{a.days.length ? ` · ${daysName(a.days)}` : ''}
 								· {a.paused ? 'pausada' : a.nextAt ? when(a.nextAt) : 'ya sonó'}
@@ -163,6 +189,9 @@
 								· {a.people.map(personName).join(', ')}
 							{:else}
 								· de la casa
+							{/if}
+							{#if a.place !== 'casa'}
+								· en {placeName(a.place)}
 							{/if}
 						</span>
 					</span>
@@ -270,6 +299,26 @@
 								{/each}
 							</div>
 						{/if}
+					</div>
+				{/if}
+
+				{#if satellites.length}
+					<div>
+						<p class="mb-1 text-xs text-zinc-400">Suena en</p>
+						<div class="flex flex-wrap gap-2">
+							<button
+								type="button"
+								class={chip(e.place === 'casa')}
+								onclick={() => (e.place = 'casa')}>Toda la casa</button
+							>
+							{#each satellites as s (s.id)}
+								<button
+									type="button"
+									class={chip(e.place === `satelite:${s.id}`)}
+									onclick={() => (e.place = `satelite:${s.id}`)}>{s.name}</button
+								>
+							{/each}
+						</div>
 					</div>
 				{/if}
 
