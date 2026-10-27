@@ -68,9 +68,9 @@ services:
       # snapserver's control API, to list its clients and set their volume. It is on the host's
       # network, which the app reaches as host.docker.internal (extra_hosts below).
       SNAPSERVER_CONTROL: ${HOST_MUSIC_DIR:+host.docker.internal:1705}
-      # snapserver's `Voz` source, where the voice satellites' answers go when they are to sound
-      # through Snapcast speakers (#223).
-      SNAPCAST_VOICE_FIFO: ${HOST_MUSIC_DIR:+/data/snapvoz}
+      # The PulseAudio of the Snapcast services below, which says the voice satellites' answers
+      # over the music of snapserver's `Voz` source, when they are to sound on its speakers (#223).
+      SNAPCAST_PULSE_SOCKET: ${HOST_MUSIC_DIR:+/data/pulse.sock}
       # mpv on this PC (deploy/jellycartoon-mpv.service) leaves its socket in HOST_DATA_DIR. On by
       # default with films; with series only, MPV_SOCKET=/data/mpv.sock in the .env.
       MPV_SOCKET: ${MPV_SOCKET:-${HOST_CINEMA_DIR:+/data/mpv.sock}}
@@ -164,8 +164,9 @@ services:
       - caddy_config:/config
 
   # Optional, with COMPOSE_PROFILES=snapcast in the .env: the music, to Snapcast clients
-  # (snapclient, Snapdroid…). Both run the app's image with another command, and share HOST_DATA_DIR
-  # with the app: snapserver's FIFO and state, and the socket of the mpv that plays into it.
+  # (snapclient, Snapdroid…). All three run the app's image with another command, and share
+  # HOST_DATA_DIR with the app: snapserver's FIFOs and state, PulseAudio's socket, and the socket of
+  # the mpv that plays into it.
   snapserver:
     image: ghcr.io/yellowmachine/jellycartoon:${IMAGE_TAG:-stable}
     profiles: [snapcast]
@@ -181,9 +182,39 @@ services:
       # The host's D-Bus, so that it announces itself through the host's Avahi (mDNS) and clients
       # find it on their own. Without Avahi on the host, clients are given the host's name.
       - /run/dbus:/run/dbus
-    # mpv must not open the FIFO before snapserver creates it: it would make a plain file.
+    # PulseAudio must not open the FIFOs before snapserver creates them: it would make its own.
     healthcheck:
-      test: ['CMD', 'test', '-p', '/data/snapfifo']
+      test: ['CMD', 'test', '-p', '/data/snapvoz']
+      interval: 2s
+      retries: 15
+
+  # In front of snapserver (deploy/pulse.pa): mpv-music plays into it, and it writes the music to
+  # snapserver's FIFOs, with the satellites' answers mixed over it in the `Voz` one. Without a desktop
+  # session: its runtime folder made here, as it must be its user's.
+  pulseaudio:
+    image: ghcr.io/yellowmachine/jellycartoon:${IMAGE_TAG:-stable}
+    profiles: [snapcast]
+    restart: unless-stopped
+    user: '${PUID:-1000}:${PGID:-1000}'
+    depends_on:
+      snapserver:
+        condition: service_healthy
+    labels:
+      - wud.watch=true
+    environment:
+      HOME: /tmp/pulse
+      XDG_RUNTIME_DIR: /tmp/pulse
+    command:
+      - sh
+      - -c
+      - >-
+        mkdir -p -m 700 /tmp/pulse && exec pulseaudio -n -F /etc/jellycartoon/pulse.pa
+        --daemonize=no --exit-idle-time=-1 --disallow-exit --use-pid-file=no --disable-shm=yes
+    volumes:
+      - ${HOST_DATA_DIR:?HOST_DATA_DIR is required}:/data
+    # Answering, not only its socket there: one left by the last run would pass for it.
+    healthcheck:
+      test: ['CMD', 'pactl', '-s', 'unix:/data/pulse.sock', 'info']
       interval: 2s
       retries: 15
 
@@ -194,15 +225,19 @@ services:
     user: '${PUID:-1000}:${PGID:-1000}'
     # The default network: radio stations are streamed from the internet.
     depends_on:
-      snapserver:
+      pulseaudio:
         condition: service_healthy
     labels:
       - wud.watch=true
+    # As music, which PulseAudio lowers under the answers said to the whole house (deploy/pulse.pa).
+    environment:
+      PULSE_SERVER: unix:/data/pulse.sock
+      PULSE_PROP: media.role=music
     # The image's is the app's, which does not run here.
     healthcheck:
       disable: true
-    # As in Snapcast's player setup (doc/player_setup.md), at the CDs' 44.1 kHz so that they are
-    # not resampled. The output stays open from track to track: albums play without gaps.
+    # Into PulseAudio's `musica` (deploy/pulse.pa), at the CDs' 44.1 kHz, as snapserver's, so that
+    # they are not resampled. The output stays open from track to track: albums play without gaps.
     command:
       - mpv
       - --idle
@@ -212,9 +247,8 @@ services:
       - --audio-channels=stereo
       - --audio-samplerate=44100
       - --audio-format=s16
-      - --ao=pcm
-      - --ao-pcm-waveheader=no
-      - --ao-pcm-file=/data/snapfifo
+      - --ao=pulse
+      - --audio-device=pulse/musica
       - --input-ipc-server=/data/mpv-music.sock
     volumes:
       - ${HOST_DATA_DIR:?HOST_DATA_DIR is required}:/data
