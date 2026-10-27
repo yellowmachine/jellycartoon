@@ -320,8 +320,10 @@ export const actions: Actions = {
 	saveVoiceLevels: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);
 		const form = await request.formData();
-		const levels = parseVoiceLevels({ gainDb: form.get('gainDb'), duckDb: form.get('duckDb') });
+		const levels = parseVoiceLevels(Object.fromEntries(form));
 		await setVoiceLevels(levels);
+		// Read again in its new way, to sound at once.
+		void warmFillers();
 		log.info('ajustes', 'Volumen de la voz de los satélites', { ...levels });
 		return { saved: 'voiceLevels' };
 	},
