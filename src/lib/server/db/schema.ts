@@ -1714,3 +1714,61 @@ export const calendarEventPerson = pgTable(
 	},
 	(t) => [primaryKey({ columns: [t.eventId, t.userId] })]
 );
+
+/**
+ * Alarms and timers (#241), kept by the server for the whole house, in the Agenda: a timer ends
+ * `endsAt`; an alarm rings at `time` from `startDay`, repeated on some weekdays (an RRULE of the
+ * Agenda's, `repeat`), or once. Times on the wall, in the house's zone (`TZ`).
+ */
+export const alarmKind = pgEnum('alarm_kind', ['temporizador', 'alarma']);
+/** What it does when it is time: ring, saying its name; or stop the music. */
+export const alarmAction = pgEnum('alarm_action', ['sonar', 'parar_musica']);
+
+export const alarm = pgTable(
+	'alarm',
+	{
+		id: serial('id').primaryKey(),
+		label: text('label').notNull(),
+		kind: alarmKind('kind').notNull(),
+		/** A timer's end. */
+		endsAt: timestamp('ends_at'),
+		/** An alarm's time, its first day, and its weekdays (null, once). */
+		time: time('time'),
+		startDay: date('start_day'),
+		repeat: text('repeat'),
+		/** «Esta vez no»: the days skipped. */
+		skipDays: date('skip_days')
+			.array()
+			.notNull()
+			.default(sql`'{}'::date[]`),
+		/** Kept, but not ringing until it is on again. */
+		paused: boolean('paused').notNull().default(false),
+		/** When it is due next; null, never again. */
+		nextAt: timestamp('next_at'),
+		action: alarmAction('action').notNull().default('sonar'),
+		/** Where it sounds: `casa` (Snapcast); a satellite or a device later (#241). */
+		place: text('place').notNull().default('casa'),
+		/** Ringing since then, until someone stops it. */
+		ringingSince: timestamp('ringing_since'),
+		/** Over (a timer, or an alarm that does not repeat), and when: kept a while to tell the AI. */
+		doneAt: timestamp('done_at'),
+		/** Who set it; null if their account is gone. */
+		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [index('alarm_next_idx').on(t.nextAt)]
+);
+
+/** Who each one is for, as an event's; none, the house's. */
+export const alarmPerson = pgTable(
+	'alarm_person',
+	{
+		alarmId: integer('alarm_id')
+			.notNull()
+			.references(() => alarm.id, { onDelete: 'cascade' }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' })
+	},
+	(t) => [primaryKey({ columns: [t.alarmId, t.userId] })]
+);

@@ -2,14 +2,13 @@ import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { log } from '#lib/server/log.ts';
 import { sayOnSnapcast, snapcastVoiceReady } from '#lib/server/music/snapcast.ts';
-import { houseVoice, isPiperVoice, piper, piperEnabled } from '#lib/server/piper.ts';
+import { isPiperVoice, piperEnabled } from '#lib/server/piper.ts';
 import { fillerWav } from '#lib/server/voice-fillers.ts';
-import { DEFAULT_TONE, MAX_FILLER_CHARS } from '#lib/voice-fillers.ts';
-import { aiSpeech } from '#lib/server/voice/ai-voice.ts';
+import { MAX_FILLER_CHARS } from '#lib/voice-fillers.ts';
 import { withChime } from '#lib/server/voice/chime.ts';
+import { houseSpeech } from '#lib/server/voice/house-speech.ts';
 import { getVoiceLevels } from '#lib/server/voice/levels.ts';
 import { louder } from '#lib/server/voice/wav.ts';
-import { piperStyle } from '#lib/voice-levels.ts';
 
 /** An answer is a sentence or three: more than this is not one. */
 const MAX_CHARS = 1000;
@@ -19,39 +18,11 @@ const MAX_CHARS = 1000;
  * to say it (the phone uses its own speechSynthesis), in the house's voice. With `voice` (and its
  * `speaker`), in that one: «Escuchar» in Ajustes → Casa. With `filler` instead of `text`, one of the
  * phrases said while the AI thinks («Vale»), already read or recorded, or that one if it is a text;
- * nothing (204) if there are none. A
- * satellite that answers through Snapcast (Ajustes) has it said there, and gets nothing (204) once
- * it has been heard (a filler, at once); if Snapcast fails, the WAV, to say it itself. With
- * `chime`, a timer's «din-don» before it (chime.ts), as one sound. The voice, read and as loud as
- * the house chose (Ajustes → Casa: «Expresividad», «Velocidad», «Volumen de la voz»), and in the AI
- * voice instead of Piper if it chose so («Respuestas con»).
+ * nothing (204) if there are none. A satellite that answers through Snapcast (Ajustes) has it said
+ * there, and gets nothing (204) once it has been heard (a filler, at once); if Snapcast fails, the
+ * WAV, to say it itself. With `chime`, a timer's «din-don» before it. Said as the house chose
+ * (house-speech.ts).
  */
-/**
- * The last answers in the AI voice, by their text: a timer's ringing says the same every few
- * seconds, and each would be paid and waited for again.
- */
-const aiSaid = new Map<string, Promise<Uint8Array<ArrayBuffer>>>();
-const KEEP_SAID = 20;
-/** Longer than this, Piper says it: someone is waiting. Its 2–4 s, with room (2026-10-27). */
-const AI_TIMEOUT_MS = 10_000;
-
-/** In the AI voice (Ajustes → Casa, «Respuestas con»); null if it failed, for Piper to say it. */
-async function inAiVoice(text: string) {
-	let wav = aiSaid.get(text);
-	if (!wav) {
-		wav = aiSpeech(text, DEFAULT_TONE, AI_TIMEOUT_MS);
-		aiSaid.set(text, wav);
-		wav.catch(() => aiSaid.delete(text));
-		for (const old of [...aiSaid.keys()].slice(0, -KEEP_SAID)) aiSaid.delete(old);
-	}
-	try {
-		return await wav;
-	} catch (err) {
-		log.warn('voz', 'La voz IA falló; lo dice Piper', { error: err });
-		return null;
-	}
-}
-
 export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!piperEnabled) error(404, 'No hay Piper (PIPER_URL)');
 	const body = await request.json().catch(() => null);
@@ -64,20 +35,19 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (text.length > MAX_CHARS) error(413, 'Demasiado largo');
 	try {
 		const asked = { voice: body.voice, speaker: body.speaker ?? null };
-		const levels = await getVoiceLevels();
-		const said = filler
-			? await fillerWav(which)
-			: // A voice asked by name («Escuchar» in Ajustes) is Piper's.
-				(levels.aiAnswers && !isPiperVoice(asked) && (await inAiVoice(text))) ||
-				(await piper(
-					text,
-					'es',
-					isPiperVoice(asked) ? asked : await houseVoice(),
-					piperStyle(levels)
-				));
-		// The house's «Volumen de la voz»; the «din-don» as it is, not louder.
-		const voice = said && louder(said, levels.gainDb);
-		const wav = voice && body.chime === true ? withChime(voice) : voice;
+		const chime = body.chime === true;
+		let wav: Uint8Array<ArrayBuffer> | null;
+		if (filler) {
+			// Already read or recorded: only as loud as the house's voice.
+			const said = await fillerWav(which);
+			const loud = said && louder(said, (await getVoiceLevels()).gainDb);
+			wav = loud && chime ? withChime(loud) : loud;
+		} else
+			wav = await houseSpeech(text, {
+				chime,
+				// A voice asked by name («Escuchar» in Ajustes) is Piper's.
+				voice: isPiperVoice(asked) ? asked : undefined
+			});
 		if (!wav) return new Response(null, { status: 204 });
 		const on = locals.satellite?.answerOn;
 		if (on && snapcastVoiceReady()) {

@@ -21,6 +21,7 @@ import { wakeExtras } from '#lib/server/cinema/info.ts';
 import { wakeMusicCatalog } from '#lib/server/music/catalog.ts';
 import { startPodcastRefresh } from '#lib/server/podcasts/podcasts.ts';
 import { startAgenda } from '#lib/server/agenda/agenda.ts';
+import { startAlarms } from '#lib/server/alarms/alarms.ts';
 import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
 import { log, startLogCleanup } from '#lib/server/log.ts';
 import { piperEnabled } from '#lib/server/piper.ts';
@@ -46,6 +47,8 @@ export const init: ServerInit = async () => {
 	startPodcastRefresh();
 	// The agenda's notices (#200), every minute, and the fridge's «Hoy» at midnight.
 	startAgenda();
+	// Alarms and timers (#241): what came due while it was off rings now.
+	startAlarms();
 	// What the voice satellites say while the AI thinks (#223), read beforehand to sound at once.
 	if (piperEnabled) void warmFillers();
 	// In the Registro: which version started, and how each of the above starts.
