@@ -4,7 +4,8 @@ import { log } from '#lib/server/log.ts';
 import { sayOnSnapcast, snapcastVoiceReady } from '#lib/server/music/snapcast.ts';
 import { houseVoice, isPiperVoice, piper, piperEnabled } from '#lib/server/piper.ts';
 import { fillerWav } from '#lib/server/voice-fillers.ts';
-import { MAX_FILLER_CHARS } from '#lib/voice-fillers.ts';
+import { DEFAULT_TONE, MAX_FILLER_CHARS } from '#lib/voice-fillers.ts';
+import { aiSpeech } from '#lib/server/voice/ai-voice.ts';
 import { withChime } from '#lib/server/voice/chime.ts';
 import { getVoiceLevels } from '#lib/server/voice/levels.ts';
 import { louder } from '#lib/server/voice/wav.ts';
@@ -22,8 +23,35 @@ const MAX_CHARS = 1000;
  * satellite that answers through Snapcast (Ajustes) has it said there, and gets nothing (204) once
  * it has been heard (a filler, at once); if Snapcast fails, the WAV, to say it itself. With
  * `chime`, a timer's «din-don» before it (chime.ts), as one sound. The voice, read and as loud as
- * the house chose (Ajustes → Casa: «Expresividad», «Velocidad», «Volumen de la voz»).
+ * the house chose (Ajustes → Casa: «Expresividad», «Velocidad», «Volumen de la voz»), and in the AI
+ * voice instead of Piper if it chose so («Respuestas con»).
  */
+/**
+ * The last answers in the AI voice, by their text: a timer's ringing says the same every few
+ * seconds, and each would be paid and waited for again.
+ */
+const aiSaid = new Map<string, Promise<Uint8Array<ArrayBuffer>>>();
+const KEEP_SAID = 20;
+/** Longer than this, Piper says it: someone is waiting. Its 2–4 s, with room (2026-10-27). */
+const AI_TIMEOUT_MS = 10_000;
+
+/** In the AI voice (Ajustes → Casa, «Respuestas con»); null if it failed, for Piper to say it. */
+async function inAiVoice(text: string) {
+	let wav = aiSaid.get(text);
+	if (!wav) {
+		wav = aiSpeech(text, DEFAULT_TONE, AI_TIMEOUT_MS);
+		aiSaid.set(text, wav);
+		wav.catch(() => aiSaid.delete(text));
+		for (const old of [...aiSaid.keys()].slice(0, -KEEP_SAID)) aiSaid.delete(old);
+	}
+	try {
+		return await wav;
+	} catch (err) {
+		log.warn('voz', 'La voz IA falló; lo dice Piper', { error: err });
+		return null;
+	}
+}
+
 export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!piperEnabled) error(404, 'No hay Piper (PIPER_URL)');
 	const body = await request.json().catch(() => null);
@@ -39,12 +67,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		const levels = await getVoiceLevels();
 		const said = filler
 			? await fillerWav(which)
-			: await piper(
+			: // A voice asked by name («Escuchar» in Ajustes) is Piper's.
+				(levels.aiAnswers && !isPiperVoice(asked) && (await inAiVoice(text))) ||
+				(await piper(
 					text,
 					'es',
 					isPiperVoice(asked) ? asked : await houseVoice(),
 					piperStyle(levels)
-				);
+				));
 		// The house's «Volumen de la voz»; the «din-don» as it is, not louder.
 		const voice = said && louder(said, levels.gainDb);
 		const wav = voice && body.chime === true ? withChime(voice) : voice;

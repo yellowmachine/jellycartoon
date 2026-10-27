@@ -4,22 +4,17 @@ import path from 'node:path';
 import { getAppSetting, setAppSetting } from '#lib/server/app-settings.ts';
 import { fillersDir } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
-import { speech } from '#lib/server/openrouter.ts';
 import { houseVoice, piper, type PiperVoice } from '#lib/server/piper.ts';
 import { getVoiceLevels } from '#lib/server/voice/levels.ts';
-import { writeWav } from '#lib/server/voice/wav.ts';
+import { aiSpeech } from '#lib/server/voice/ai-voice.ts';
 import { parseFillers, pickFiller, type FillerRecording } from '#lib/voice-fillers.ts';
 import { piperStyle } from '#lib/voice-levels.ts';
 
 /**
  * What a voice satellite says while the AI thinks (#223): «Vale», «Un momento»… changeable in
  * Ajustes → Casa. Read by Piper once for each voice and kept, so that they sound at once; or, one by
- * one, recorded by an AI voice (Gemini's Kore, chosen by ear on 2026-10-27), kept as a file, with
- * more life than Piper's.
+ * one, recorded by the AI voice (voice/ai-voice.ts), kept as a file, with more life than Piper's.
  */
-
-/** The AI voice that records them, through OpenRouter, as the DJ's (music/dj.ts). */
-const AI_VOICE = { model: 'google/gemini-3.8-flash-tts', voice: 'Kore' };
 
 /**
  * Kept by voice, way of reading and text: a new voice, way or phrase is made the first time, the
@@ -89,9 +84,9 @@ export async function setFillers(text: string | null) {
 
 /** That phrase recorded by the AI voice, said as `tone` asks; throws, said for a person. */
 export async function recordFiller(text: string, tone: string) {
-	const { pcm, rate } = await speech({ ...AI_VOICE, input: text, instructions: tone });
+	const wav = await aiSpeech(text, tone);
 	await mkdir(fillersDir, { recursive: true });
-	await writeFile(recordingFile(text), writeWav(rate, 1, pcm));
+	await writeFile(recordingFile(text), wav);
 	await setRecordings({
 		...(await getRecordings()),
 		[text]: { tone, at: new Date().toISOString() }

@@ -22,6 +22,8 @@
 	let duckDb = $state(MUSIC_DUCK.default);
 	let expressiveness = $state(EXPRESSIVENESS.default);
 	let speed = $state(SPEED.default);
+	/** `on`, the answers in the AI voice; empty, Piper. */
+	let aiAnswers = $state('');
 	/** The phrases as being written: each one can be heard before saving them. */
 	let fillersText = $state('');
 	const savedFillers = $derived(data.houseVoice?.fillers.split('\n') ?? []);
@@ -36,6 +38,7 @@
 		duckDb = data.houseVoice.levels.duckDb;
 		expressiveness = data.houseVoice.levels.expressiveness;
 		speed = data.houseVoice.levels.speed;
+		aiAnswers = data.houseVoice.levels.aiAnswers ? 'on' : '';
 		fillersText = data.houseVoice.fillers;
 	});
 
@@ -136,6 +139,23 @@
 				async ({ update }) =>
 					update({ reset: false })}
 		>
+			<fieldset class="flex flex-wrap items-center gap-3">
+				<legend class="float-left w-44">Respuestas con</legend>
+				<label class="flex items-center gap-1.5">
+					<input type="radio" name="aiAnswers" value="" bind:group={aiAnswers} />
+					Piper
+				</label>
+				<label class="flex items-center gap-1.5">
+					<input type="radio" name="aiAnswers" value="on" bind:group={aiAnswers} />
+					Voz IA (Kore)
+				</label>
+				{#if aiAnswers}
+					<span class="basis-full text-xs text-zinc-500">
+						La misma voz que las frases grabadas, pero cada respuesta tarda unos 2–3 s más y cuesta
+						algo; si falla, la dice Piper. Expresividad y velocidad son solo de Piper.
+					</span>
+				{/if}
+			</fieldset>
 			<label class="flex flex-wrap items-center gap-3">
 				<span class="w-44">Expresividad</span>
 				<input

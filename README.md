@@ -652,6 +652,9 @@ se puede escuchar antes de guardarla y, ya guardada, grabar con una voz IA («Gr
 Gemini, voz Kore, por OpenRouter; unos céntimos, una vez), más viva que Piper, con un tono a elegir
 («acento rioplatense», «villana de película»…). Se guarda en `DATA_DIR/frases-espera`; las que no
 se graban, o con «Volver a Piper», las dice Piper. Al quitar una frase se borra su grabación.
+«Respuestas con: Voz IA» hace que también las respuestas y los avisos los diga Kore, la misma voz
+que las frases grabadas: cada respuesta tarda unos 2–3 s más (medido) y cuesta algo; si Gemini falla
+o tarda más de 10 s, la dice Piper. En el Registro queda lo que tardó cada una («Voz IA: … ms»).
 
 Los temporizadores y avisos («avísame en una hora para pedir cita en la peluquería») los lleva cada
 satélite, como cada móvil los suyos, guardados en su volumen (`/data/temporizadores.json` en la
