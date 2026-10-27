@@ -344,6 +344,51 @@ export type ToolChatMessage =
 	| { role: 'tool'; tool_call_id: string; content: string };
 
 /**
+ * A question answered with the web (#243, the voice's `web_search`), through OpenRouter's web plugin:
+ * https://openrouter.ai/docs/guides/features/plugins/web-search. Its words, short; about a cent
+ * each (0,012 $ with 5 results, measured on 2026-10-27) and some seconds more.
+ */
+export async function askWeb(request: {
+	model: string;
+	system: string;
+	prompt: string;
+	label: string;
+	details?: Record<string, unknown>;
+	timeoutMs?: number;
+}) {
+	await needCredit();
+	const { apiKey } = await openRouterConfig();
+	if (!apiKey) throw new Error('No hay clave de OpenRouter: ponla en Ajustes');
+	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+		method: 'POST',
+		headers: {
+			Authorization: `Bearer ${apiKey}`,
+			'Content-Type': 'application/json',
+			'X-OpenRouter-Title': 'JellyCartoon'
+		},
+		body: JSON.stringify({
+			model: request.model,
+			messages: [
+				{ role: 'system', content: request.system },
+				{ role: 'user', content: request.prompt }
+			],
+			plugins: [{ id: 'web', max_results: 5 }],
+			max_tokens: 2048
+		}),
+		signal: AbortSignal.timeout(request.timeoutMs ?? 30_000)
+	});
+	const body = await res.json().catch(() => null);
+	if (!res.ok) throw refused(res, body);
+	if (body?.usage) logUsage(request.label, body, request.details);
+	const content = body?.choices?.[0]?.message?.content;
+	if (typeof content !== 'string' || !content.trim()) {
+		const error = body?.error ?? body?.choices?.[0]?.error;
+		throw failure(error, 'no ha contestado');
+	}
+	return content.trim();
+}
+
+/**
  * One turn of a conversation with tools: the model answers with text, or with the tools it wants
  * called. The caller runs them, adds their results as `tool` messages and asks again.
  */

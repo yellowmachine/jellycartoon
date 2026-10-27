@@ -128,6 +128,7 @@ import {
 } from '#lib/server/telegram/bot.ts';
 import { BOT_EVENTS, parseBotEvents } from '#lib/telegram-bot.ts';
 import { MAX_VOICE_STYLE } from '#lib/voice.ts';
+import { setWebSearch, webSearchConfig } from '#lib/server/voice/web-search.ts';
 
 export const load: PageServerLoad = async ({ locals, cookies, url, request }) => {
 	const userId = locals.user!.id;
@@ -281,6 +282,8 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		keepHistory: isKid(locals.user) ? null : settings.keepHistory,
 		/** The road mode's trips kept (#81); adults only. */
 		recordTrips: isKid(locals.user) ? null : await recordsTrips(userId),
+		/** The voice searching the web, and how (#243): who manages the app. */
+		voiceWeb: admin && voiceEnabled ? await webSearchConfig() : null,
 		/** How the voice is (free text in its instructions): the house's, for who manages the app. */
 		houseStyle: admin && voiceEnabled ? { text: (await getAppSetting('voice_style')) ?? '' } : null,
 		/** And how it talks to them: an adult's. */
@@ -753,6 +756,15 @@ export const actions: Actions = {
 			return fail(400, { section: 'langua', message: 'Primero la dirección y el token' });
 		const problem = await pingLangua(config);
 		return problem ? fail(502, { section: 'langua', message: problem }) : { languaOk: true };
+	},
+	/** «Buscar en internet desde la voz», and the house's hints for it (#243). */
+	saveVoiceWeb: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const form = await request.formData();
+		const config = { on: form.get('on') === 'on', hints: String(form.get('hints') ?? '') };
+		await setWebSearch(config);
+		log.info('ajustes', `Voz en internet: ${config.on ? 'sí' : 'no'}`, { hints: config.hints });
+		return { saved: 'voiceWeb' };
 	},
 	/** «Cómo es la voz de la casa»: free text in the voice's instructions; empty, none. */
 	saveHouseStyle: async ({ request, locals }) => {

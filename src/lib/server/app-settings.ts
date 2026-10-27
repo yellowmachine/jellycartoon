@@ -61,7 +61,8 @@ type Key =
 	| 'voice_filler_recordings'
 	| 'openrouter_credit_out'
 	| 'telegram_bot'
-	| 'voice_style';
+	| 'voice_style'
+	| 'voice_web';
 
 export async function getAppSetting(key: Key) {
 	return get(key);

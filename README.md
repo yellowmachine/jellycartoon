@@ -988,6 +988,11 @@ música, si no encuentra todas las palabras, devuelve lo que más se parece por 
   contesta de palabra («la segunda», «el álbum»). Las opciones van con su orden en la conversación,
   así que la IA sabe cuál es. Si no se dice nada, se cierra y quedan los botones.
 - Recuerda los últimos turnos: «no, eso no, los Pegamoides» funciona.
+- Internet, si se activa en Ajustes → Casa («Buscar en internet desde la voz»): para lo que no
+  sabe porque es de hoy (un resultado, una noticia, un horario), con la búsqueda web de OpenRouter
+  y el modelo de la voz; solo cuando hace falta, algo más de un céntimo y unos 7 s por búsqueda
+  (medido), en el Registro. Unas «Indicaciones para buscar» en texto libre dicen dónde mirar o qué
+  evitar; siempre contesta corto, con el día de lo que encuentra y sin inventar.
 - Su carácter, en texto libre: «Cómo es la voz de la casa» (Ajustes → Casa, para todos y los
   satélites; va en sus instrucciones) y «Cómo quieres que te hable la voz» (Ajustes → Para mí, solo
   cuando sabe quién habla; va con cada orden). Hasta 500 caracteres cada uno; cambian el tono, no
