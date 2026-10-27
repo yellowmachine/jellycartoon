@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { voiceModel } from '#lib/server/app-settings.ts';
 import { searchVideo, seriesEpisodes } from '#lib/server/voice/video.ts';
@@ -73,6 +74,11 @@ import {
 	stopAlarm
 } from '#lib/server/alarms/alarms.ts';
 import type { Satellite } from '#lib/server/satellites.ts';
+import {
+	runTelegramTool,
+	TELEGRAM_TOOLS,
+	telegramTools
+} from '#lib/server/voice/telegram-tools.ts';
 import { isKidAccount } from '#lib/server/kids.ts';
 import { EXPENSE_CATEGORIES, euros, isCategory } from '#lib/expenses.ts';
 import { today } from '#lib/server/playlist.ts';
@@ -704,6 +710,7 @@ Otras preguntas (de cocina, de lo que sea): si no pide nada de la app, contesta 
 El tiempo («¿qué tiempo hará mañana?», «¿llueve esta tarde?», «¿hace frío para salir?»): «get_weather», sin preguntar. Contesta corto, solo lo que pregunta: el cielo, las temperaturas y, si puede llover, la probabilidad. Nunca lo inventes.
 
 Temporizadores («avísame en 10 minutos», «pon un temporizador de 20 minutos para el horno»): «set_timer», sin preguntar. Con cada orden va la lista de los que hay en este dispositivo.
+Telegram: «dile a Ana que…», «contesta a…», «manda al grupo de… que…» son mensajes de su propia cuenta: «telegram_send» y luego «ask» («¿Le mando a Ana: "llego en diez minutos"?»), y con su respuesta «telegram_confirm»; nunca lo envíes sin su sí. «Di en el grupo que…», «avisa a la familia de que…» son del bot de la casa: «group_say». Si no tienes la herramienta, dile que no está conectado.
 Alarmas a una hora («despiértame a las 7», «todos los días laborables a las 7:30», «el jueves a las 9 la cita del médico»): «set_alarm». Con cada orden va la lista de alarmas, con su número: para quitar una, saltarse solo la próxima («mañana no me despiertes»), pausarla o pararla, «change_alarm» con ese número; si no está claro cuál, usa «ask».
 - «¿Cuánto le queda (a la pasta)?»: contesta con esa lista, sin herramientas.
 - «Otro de 5 minutos» es uno nuevo (nombre vacío), no el que ya hay de 5 minutos; «vuelve a empezar el de la pasta» sí usa su nombre.
@@ -942,10 +949,21 @@ async function runTool(
 		satellite: boolean;
 		/** Where its timers and alarms are kept by the server (#241): a satellite's; null, a phone's. */
 		place: AlarmPlace | null;
+		/** The satellite's name, said to one (#243): «Desde el salón». */
+		satelliteName: string | null;
+		/** This order's own id: a message is never sent in the order that prepared it (#243). */
+		order: string;
 		rooms: Room[];
 	}
 ): Promise<ToolResult> {
 	if (HISTORY_TOOLS.has(name)) return runHistoryTool(name, args, { self: ctx.user });
+	if (TELEGRAM_TOOLS.has(name))
+		return runTelegramTool(name, args, {
+			userId: ctx.user.id,
+			userName: ctx.user.name,
+			satellite: ctx.satelliteName,
+			order: ctx.order
+		});
 	// A satellite's «aquí» has nothing to play on: music, radio and their controls, in the whole house.
 	const asked =
 		ctx.satellite && HOUSE_FROM_SATELLITE.has(name) && (!args.where || args.where === 'here')
@@ -1407,6 +1425,8 @@ export async function runVoiceCommand(
 ): Promise<VoiceReply & { timing: VoiceTiming }> {
 	/** Where its timers and alarms are kept and sound (#241): a satellite's; a phone's, its own. */
 	const place: AlarmPlace | null = satellite ? `satelite:${satellite.id}` : null;
+	/** This order, told apart from the next: Telegram's «sí» comes in another (#243). */
+	const order = randomUUID();
 	const started = performance.now();
 	const [albums, playlists, model, { hoursSince }, keepHistory, watchingHere, recipes, sites] =
 		await Promise.all([
@@ -1485,7 +1505,8 @@ export async function runVoiceCommand(
 	];
 	const available = [
 		...tools(house, rooms),
-		...(satellite ? [] : historyTools({ self: user }))
+		...(satellite ? [] : historyTools({ self: user })),
+		...(await telegramTools(user.id, Boolean(satellite)))
 	].filter((t) =>
 		request.car ? !NOT_IN_THE_CAR.has(t.function.name) : !ONLY_IN_THE_CAR.has(t.function.name)
 	);
@@ -1531,6 +1552,8 @@ export async function runVoiceCommand(
 					position: request.position,
 					satellite: Boolean(satellite),
 					place,
+					satelliteName: satellite?.name ?? null,
+					order,
 					rooms
 				});
 			} catch (err) {

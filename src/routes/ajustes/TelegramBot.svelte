@@ -13,10 +13,15 @@
 	const bot = $derived(data.telegramBot?.bot ?? null);
 	const problem = $derived(form && 'botProblem' in form ? form.botProblem : null);
 	const saved = $derived(form && 'saved' in form ? form.saved : null);
-	const keep =
-		() =>
-		async ({ update }: { update: (o?: { reset?: boolean }) => Promise<void> }) =>
-			update({ reset: false });
+	/** What is being done, from the button pressed: its form's action. */
+	let busy = $state<string | null>(null);
+	const keep = ({ action }: { action: URL }) => {
+		busy = action.search.split('/').at(-1) ?? null;
+		return async ({ update }: { update: (o?: { reset?: boolean }) => Promise<void> }) => {
+			await update({ reset: false });
+			busy = null;
+		};
+	};
 </script>
 
 {#if data.telegramBot}
@@ -66,9 +71,12 @@
 					</label>
 				{/each}
 				<div class="flex flex-wrap items-center gap-3">
-					<button class={primary}>Guardar</button>
+					<button class={primary} disabled={busy !== null}
+						>{busy === 'botOptions' ? 'Guardando…' : 'Guardar'}</button
+					>
 					{#if bot.chat}
-						<button class={secondary} formaction="?seccion={tab}&/botTest">Enviar una prueba</button
+						<button class={secondary} formaction="?seccion={tab}&/botTest" disabled={busy !== null}
+							>{busy === 'botTest' ? 'Enviando…' : 'Enviar una prueba'}</button
 						>
 					{/if}
 					<button
@@ -101,7 +109,9 @@
 						class="{select} font-mono"
 					/>
 				</label>
-				<button class={primary}>Conectar</button>
+				<button class={primary} disabled={busy !== null}
+					>{busy === 'botToken' ? 'Conectando…' : 'Conectar'}</button
+				>
 			</form>
 		{/if}
 		{#if problem}<p class="mt-2 text-sm text-red-400">{problem}</p>{/if}
