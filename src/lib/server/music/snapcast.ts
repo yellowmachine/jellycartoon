@@ -72,8 +72,19 @@ const state: SnapcastState = {
 	repeat: false,
 	single: false,
 	speakers: null,
-	dj: false
+	dj: false,
+	stopAfterTrack: false,
+	stopAt: null
 };
+
+/**
+ * «Para al acabar esta canción»: the entry it stops after, and whether `single` was on before (its
+ * keep-open, borrowed meanwhile so that mpv stops there instead of going on, the next one already
+ * in its buffer). Null, none.
+ */
+let stopAfter: { entry: number; single: boolean } | null = null;
+/** «Para dentro de media hora». */
+let stopTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** Told the entry that starts, once it is known: Modo DJ follows the queue with it. */
 type StartListener = (entryId: number, track: MusicTrack) => void;
@@ -189,10 +200,12 @@ const mpv = new MpvClient(
 					state.repeat = data !== false && data !== 'no';
 					break;
 				case 'keep-open':
-					state.single = data === 'always';
+					// Borrowed to stop after this track: not «una sola».
+					if (!stopAfter) state.single = data === 'always';
 					break;
 				case 'eof-reached':
 					eofReached = data === true;
+					if (eofReached && stopAfter?.entry === current) void stopNowAfterTrack();
 					return;
 				case 'metadata/by-key/icy-title':
 					state.nowPlaying = typeof data === 'string' && data.trim() ? data.trim() : null;
@@ -203,6 +216,8 @@ const mpv = new MpvClient(
 		onEvent(message: MpvMessage) {
 			if (message.event === 'start-file' && message.playlist_entry_id !== undefined) {
 				current = message.playlist_entry_id;
+				// Another track (skipped, or something else put on): that one is not «esta canción».
+				if (stopAfter && stopAfter.entry !== current) void forgetStopAfter();
 				show(entries.get(current));
 				started(current, entries.get(current));
 				void startedByItself(current);
@@ -475,14 +490,26 @@ export async function controlSnapcast(
 				? mpv.command(['seek', 0, 'absolute'])
 				: mpv.command(['playlist-prev']);
 		case 'stop':
+			await forgetStopAfter();
+			stopOnSnapcastIn(null);
 			return mpv.command(['stop']);
 		case 'shuffle':
 			await mpv.command(['set_property', 'shuffle', action.value]);
 			if (!state.active || state.radio) return;
 			return action.value ? shuffleQueue() : mpv.command(['playlist-unshuffle']);
+		case 'stopAfterTrack':
+			return action.value ? void (await stopAfterTrackOnSnapcast()) : forgetStopAfter();
+		case 'stopIn':
+			return stopOnSnapcastIn(action.minutes);
 		case 'repeat':
 			return setLoops(action.value, state.single);
 		case 'single':
+			// Waiting to stop after this track: kept for after it.
+			if (stopAfter) {
+				stopAfter.single = action.value;
+				state.single = action.value;
+				return pages.notify();
+			}
 			return setLoops(state.repeat, action.value);
 		case 'volume':
 			return speakers().setVolume(action.speakerId, { percent: action.value });
@@ -495,6 +522,53 @@ export async function controlSnapcast(
 		case 'rename':
 			return speakers().setName(action.speakerId, action.name);
 	}
+}
+
+/**
+ * «Para al acabar esta canción»: false if it is not a track (a station has no end to wait for).
+ * Forgotten if another one comes on first.
+ */
+export async function stopAfterTrackOnSnapcast() {
+	if (!state.active || state.radio || current === null) return false;
+	stopAfter ??= { entry: current, single: state.single };
+	stopAfter.entry = current;
+	state.stopAfterTrack = true;
+	await mpv.command(['set_property', 'keep-open', 'always']);
+	pages.notify();
+	return true;
+}
+
+/** Got to its end: stopped, and `single` as it was. */
+async function stopNowAfterTrack() {
+	await forgetStopAfter();
+	await mpv.command(['stop']);
+	log.info('música', 'Snapcast parado al acabar la canción, como se pidió');
+}
+
+async function forgetStopAfter() {
+	const was = stopAfter;
+	if (!was) return;
+	stopAfter = null;
+	state.stopAfterTrack = false;
+	await mpv.command(['set_property', 'keep-open', was.single ? 'always' : 'no']);
+	pages.notify();
+}
+
+/**
+ * «Para dentro de media hora»: then, at the end of the song on (a station, at once). Null or 0,
+ * no longer.
+ */
+export function stopOnSnapcastIn(minutes: number | null) {
+	clearTimeout(stopTimer);
+	state.stopAt = minutes ? Date.now() + minutes * 60_000 : null;
+	pages.notify();
+	if (!minutes) return;
+	stopTimer = setTimeout(async () => {
+		state.stopAt = null;
+		pages.notify();
+		if (!(await stopAfterTrackOnSnapcast().catch(() => false))) await mpv.command(['stop']);
+		log.info('música', 'Snapcast: llegó la hora de parar');
+	}, minutes * 60_000);
 }
 
 /** The speakers as they are now, to choose a satellite's (Ajustes); null without snapserver. */

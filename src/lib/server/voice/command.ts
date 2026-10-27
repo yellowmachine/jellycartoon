@@ -17,7 +17,9 @@ import {
 	radioOnSnapcast,
 	snapcastNow,
 	snapcastReady,
-	soundOn
+	soundOn,
+	stopAfterTrackOnSnapcast,
+	stopOnSnapcastIn
 } from '#lib/server/music/snapcast.ts';
 import { episodesOnSnapcast } from '#lib/server/music/episodes-on-snapcast.ts';
 import { chatWithTools, type Tool, type ToolChatMessage } from '#lib/server/openrouter.ts';
@@ -87,12 +89,16 @@ const LISTED_ALBUMS = 400;
  * without a second turn with the model (about a second less). Asked in the instructions instead,
  * the model wrote it only sometimes.
  */
+/** «Para dentro de…»: at most a night. */
+const MAX_STOP_LATER_MIN = 12 * 60;
+
 const ONE_ROUND = new Set([
 	'set_timer',
 	'prepare_timer',
 	'cancel_timer',
 	'kitchen_mode',
 	'control',
+	'stop_later',
 	'take_photo',
 	'stop_navigation',
 	'recipe_step',
@@ -192,10 +198,24 @@ function tools(house: boolean, rooms: Room[]): Tool[] {
 			'control',
 			'Pausa, sigue, pasa a la siguiente o la anterior, o para lo que suena en un sitio.',
 			{
-				action: { type: 'string', enum: ['pause', 'resume', 'next', 'previous', 'stop'] },
+				action: {
+					type: 'string',
+					enum: ['pause', 'resume', 'next', 'previous', 'stop', 'stopAfterTrack'],
+					description:
+						'«stopAfterTrack»: para al acabar la canción que suena («cuando acabe esta»).'
+				},
 				where
 			},
 			['action', 'where']
+		),
+		fn(
+			'stop_later',
+			'Para la música dentro de unos minutos («apaga la música en media hora», «para dentro de una hora»), al acabar la canción que suene entonces. 0 quita lo puesto.',
+			{
+				minutes: { type: 'number', description: `De 0 a ${MAX_STOP_LATER_MIN}.` },
+				where
+			},
+			['minutes', 'where']
 		),
 		...(house
 			? [
@@ -703,7 +723,17 @@ function soundingNow(here: string | null, house: boolean) {
 			: s.episode
 				? `el audio del capítulo «${s.episode.subtitle}: ${s.episode.title}» [episodio ${s.episode.id}]`
 				: `«${s.track?.title}» de ${s.track?.artist}`;
-	const inHouse = !snap?.active ? 'nada' : `${what(snap)}${snap.paused ? ' (en pausa)' : ''}`;
+	// In the house's time (TZ, compose.prod.yaml).
+	const when = (at: number) =>
+		new Date(at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+	const inHouse = !snap?.active
+		? 'nada'
+		: [
+				what(snap),
+				snap.paused ? ' (en pausa)' : '',
+				snap.stopAfterTrack ? ' (se para al acabar esta canción)' : '',
+				snap.stopAt ? ` (se para a las ${when(snap.stopAt)}, al acabar la canción de entonces)` : ''
+			].join('');
 	return `[Ahora suena. Aquí: ${here ?? 'nada'}.${house ? ` Toda la casa: ${inHouse}.` : ''}]`;
 }
 
@@ -746,7 +776,7 @@ async function playHouse(tracks: MusicTrack[], start: number, shuffle: boolean) 
 	});
 }
 
-async function controlHouse(action: VoiceControl) {
+async function controlHouse(action: Exclude<VoiceControl, 'stopAfterTrack'>) {
 	if (action === 'pause' || action === 'resume')
 		return controlSnapcast({ action: 'pause', value: action === 'pause' });
 	return controlSnapcast({ action });
@@ -824,7 +854,13 @@ const played = (
 		: `No se pudo: ${result.data.message}`;
 
 /** What a satellite cannot play itself (#223), done in the whole house: an episode, its audio. */
-const HOUSE_FROM_SATELLITE = new Set(['play_music', 'play_radio', 'control', 'play_video']);
+const HOUSE_FROM_SATELLITE = new Set([
+	'play_music',
+	'play_radio',
+	'control',
+	'stop_later',
+	'play_video'
+]);
 
 async function runTool(
 	name: string,
@@ -889,12 +925,27 @@ async function runTool(
 		}
 		case 'control': {
 			const action = args.action as VoiceControl;
-			if (!['pause', 'resume', 'next', 'previous', 'stop'].includes(action))
+			if (!['pause', 'resume', 'next', 'previous', 'stop', 'stopAfterTrack'].includes(action))
 				return `Acción no válida: «${args.action}».`;
 			// One queue on Snapcast, wherever it sounds.
-			if (where !== 'here') await controlHouse(action);
-			else ctx.outcome.actions.push({ kind: 'control', action });
+			if (where !== 'here') {
+				if (action === 'stopAfterTrack')
+					return (await stopAfterTrackOnSnapcast())
+						? `Se parará al acabar la canción que suena en ${there}.`
+						: `En ${there} no suena una canción (la radio, o nada): no hay final que esperar.`;
+				await controlHouse(action);
+			} else ctx.outcome.actions.push({ kind: 'control', action });
 			return 'Hecho.';
+		}
+		case 'stop_later': {
+			const minutes = Math.round(Number(args.minutes));
+			if (!Number.isFinite(minutes) || minutes < 0 || minutes > MAX_STOP_LATER_MIN)
+				return `Minutos no válidos: de 0 a ${MAX_STOP_LATER_MIN}.`;
+			if (where !== 'here') stopOnSnapcastIn(minutes);
+			else ctx.outcome.actions.push({ kind: 'stopIn', minutes });
+			return minutes
+				? `La música de ${there} se parará dentro de ${minutes} minutos, al acabar la canción que suene.`
+				: `Quitado: la música de ${there} ya no se parará sola.`;
 		}
 		case 'get_weather': {
 			const asked = typeof args.place === 'string' ? args.place.trim() : '';

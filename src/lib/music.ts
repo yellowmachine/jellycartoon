@@ -185,6 +185,10 @@ export interface SnapcastState {
 	speakers: Speaker[] | null;
 	/** In Modo DJ: songs at random, and the DJ between them. */
 	dj: boolean;
+	/** «Para al acabar esta canción» (the voice): it stops at the end of the track that is on. */
+	stopAfterTrack: boolean;
+	/** «Para dentro de media hora»: when (Date.now()), then at the end of the song on; or null. */
+	stopAt: number | null;
 }
 
 export type SnapcastAction =
@@ -200,6 +204,10 @@ export type SnapcastAction =
 	| { action: 'shuffle'; value: boolean }
 	| { action: 'repeat'; value: boolean }
 	| { action: 'single'; value: boolean }
+	/** «Para al acabar esta canción»; false, no longer. */
+	| { action: 'stopAfterTrack'; value: boolean }
+	/** «Para dentro de media hora», at the end of the song on then; 0, no longer. */
+	| { action: 'stopIn'; minutes: number }
 	| { action: 'volume'; speakerId: string; value: number }
 	| { action: 'mute'; speakerId: string; value: boolean }
 	| { action: 'masterVolume'; value: number }
@@ -255,3 +263,7 @@ export function parseQueueSave(body: unknown): QueueSave | null {
 		changedBy: changedBy.trim().slice(0, 50)
 	};
 }
+
+/** The bars' notice of «para dentro de media hora»: «a las 23:30». */
+export const stopTime = (at: number) =>
+	`a las ${new Date(at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;

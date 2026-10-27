@@ -937,7 +937,9 @@ Lo que se dice pasa a texto con Whisper (abajo) y de ahí a un modelo de OpenRou
 Ajustes y su «Modelo para la voz» (por defecto, Claude Haiku 5.5: rápido, y bueno eligiendo
 herramientas). El modelo tiene las acciones de la app como herramientas: buscar en la música, poner
 un artista, álbum, lista o canción (una canción, sola), poner una emisora, pausar, seguir,
-siguiente, anterior, parar y el volumen de toda la casa.
+siguiente, anterior, parar y el volumen de toda la casa. También «para cuando acabe esta canción»
+(se apunta una vez: si antes suena otra, se olvida) y «apaga la música en media hora» (entonces
+espera al final de la canción que suene; con la radio, para al momento), aquí o en toda la casa.
 
 A Whisper se le dan como pista los artistas de la biblioteca (los que más canciones tienen, unos
 600 caracteres), para que escriba bien sus nombres. Los títulos no caben, así que la búsqueda de

@@ -389,7 +389,15 @@ function playingHere() {
 			: music.current
 				? `«${music.current.title}» de ${music.current.artist}`
 				: null;
-	return what && !music.playing && !music.pausedForVoice ? `${what} (en pausa)` : what;
+	if (!what) return null;
+	const when = (at: number) =>
+		new Date(at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+	return [
+		what,
+		!music.playing && !music.pausedForVoice ? ' (en pausa)' : '',
+		music.stopAfterId !== null ? ' (se para al acabar esta canción)' : '',
+		music.stopAt ? ` (se para a las ${when(music.stopAt)}, al acabar la canción de entonces)` : ''
+	].join('');
 }
 
 /** What the server cannot do: play in this browser. */
@@ -435,7 +443,10 @@ async function act(action: VoiceAction) {
 		case 'control':
 			if (action.action === 'pause') return music.pause();
 			if (action.action === 'resume') return music.resume();
+			if (action.action === 'stopAfterTrack') return void music.stopAfterTrack();
 			return music[action.action]();
+		case 'stopIn':
+			return music.stopIn(action.minutes);
 	}
 }
 

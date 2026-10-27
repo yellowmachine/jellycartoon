@@ -48,7 +48,14 @@ function parse(body: Record<string, unknown>): SnapcastAction | null {
 		case 'shuffle':
 		case 'repeat':
 		case 'single':
+		case 'stopAfterTrack':
 			return typeof value === 'boolean' ? { action, value } : null;
+		case 'stopIn': {
+			const minutes = (body as { minutes?: unknown }).minutes;
+			return typeof minutes === 'number' && Number.isFinite(minutes) && minutes >= 0
+				? { action, minutes: Math.min(Math.round(minutes), 12 * 60) }
+				: null;
+		}
 		case 'seekTo':
 			return typeof value === 'number' && Number.isFinite(value) ? { action, value } : null;
 		case 'next':

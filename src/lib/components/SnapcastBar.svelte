@@ -2,7 +2,7 @@
 	import MediaIcon from './MediaIcon.svelte';
 	import PlayModes from './PlayModes.svelte';
 	import { formatDuration } from '#lib/format.ts';
-	import { coverUrl, masterSpeakers, masterVolume } from '#lib/music.ts';
+	import { coverUrl, masterSpeakers, masterVolume, stopTime } from '#lib/music.ts';
 	import { musicTarget, watchSnapcast } from '#lib/music-target.svelte.ts';
 	import { COUNTRIES } from '#lib/radio.ts';
 	import { thumbUrl } from '#lib/thumb.svelte.ts';
@@ -254,6 +254,17 @@
 					class="shrink-0 rounded-full border border-amber-500/60 px-2 py-0.5 text-xs text-amber-400 hover:bg-zinc-800"
 					title="Salir del modo DJ: sigue lo que hay en la cola, sin locutor"
 					onclick={() => fetch('/api/music/dj/snapcast', { method: 'DELETE' })}>DJ ✕</button
+				>
+			{/if}
+			{#if snap.stopAfterTrack || snap.stopAt}
+				<!-- Asked by voice: «para cuando acabe esta», «apágala en media hora». -->
+				<button
+					class="shrink-0 rounded-full border border-sky-500/60 px-2 py-0.5 text-xs text-sky-300 hover:bg-zinc-800"
+					title="Se parará sola. Tócalo para que no"
+					onclick={() => {
+						void musicTarget.send({ action: 'stopAfterTrack', value: false });
+						void musicTarget.send({ action: 'stopIn', minutes: 0 });
+					}}>⏹ {snap.stopAfterTrack ? 'al acabar esta' : stopTime(snap.stopAt!)} ✕</button
 				>
 			{/if}
 			{#if !radio}

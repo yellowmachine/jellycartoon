@@ -7,7 +7,7 @@
 	import { formatDuration } from '#lib/format.ts';
 	import { GAVE_UP, RETRYING, TRIES, recoverFromErrors, retryDelay } from '#lib/hls-recovery.ts';
 	import { dj } from '#lib/dj.svelte.ts';
-	import { audioUrl, coverUrl, type MusicTrack } from '#lib/music.ts';
+	import { audioUrl, coverUrl, stopTime, type MusicTrack } from '#lib/music.ts';
 	import { music } from '#lib/music-player.svelte.ts';
 	import { musicQuality } from '#lib/music-quality.svelte.ts';
 	import { keepQueue } from '#lib/music-queue.svelte.ts';
@@ -833,6 +833,15 @@ and the speed. -->
 					class="order-2 shrink-0 rounded-full border border-amber-500/60 px-2 py-0.5 text-xs text-amber-400 hover:bg-zinc-800 sm:order-7"
 					title="Salir del modo DJ: sigue lo que hay en la cola, sin locutor"
 					onclick={() => dj.stop()}>DJ ✕</button
+				>
+			{/if}
+			{#if music.stopAfterId !== null || music.stopAt}
+				<!-- Asked by voice: «para cuando acabe esta», «apágala en media hora». -->
+				<button
+					class="order-2 shrink-0 rounded-full border border-sky-500/60 px-2 py-0.5 text-xs text-sky-300 hover:bg-zinc-800 sm:order-7"
+					title="Se parará sola. Tócalo para que no"
+					onclick={() => music.cancelStop()}
+					>⏹ {music.stopAfterId !== null ? 'al acabar esta' : stopTime(music.stopAt!)} ✕</button
 				>
 			{/if}
 			{@render volume('order-7')}

@@ -10,13 +10,16 @@ import type { LngLat, Place } from '#lib/road.ts';
  */
 export type VoiceTarget = 'here' | 'house';
 
-export type VoiceControl = 'pause' | 'resume' | 'next' | 'previous' | 'stop';
+/** `stopAfterTrack`: «para al acabar esta canción». */
+export type VoiceControl = 'pause' | 'resume' | 'next' | 'previous' | 'stop' | 'stopAfterTrack';
 
 /** What the device has to do itself: the server cannot play in its browser. */
 export type VoiceAction =
 	| { kind: 'play'; tracks: MusicTrack[]; start: number; shuffle: boolean }
 	| { kind: 'radio'; uuid: string }
 	| { kind: 'control'; action: VoiceControl }
+	/** «Para dentro de media hora», at the end of the song on then; 0, no longer. */
+	| { kind: 'stopIn'; minutes: number }
 	/** An episode in this browser's player; `startSec` null: from where it was left. */
 	| { kind: 'watch'; episodeId: number; startSec: number | null }
 	/** The episode playing here goes on elsewhere (its audio on Snapcast, #223): here it stops. */

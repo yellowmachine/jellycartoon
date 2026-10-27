@@ -51,6 +51,11 @@ class MusicPlayer {
 	single = $state(false);
 	/** The queue is Modo DJ's (dj.svelte.ts): it fills itself, with the DJ between songs. */
 	dj = $state(false);
+	/** «Para al acabar esta canción» (the voice): the track it stops after; null, none. */
+	stopAfterId = $state<number | null>(null);
+	/** «Para dentro de media hora»: when (Date.now()), then at the end of the song on; or null. */
+	stopAt = $state<number | null>(null);
+	#stopTimer: ReturnType<typeof setTimeout> | undefined;
 	/**
 	 * Brought back from the server (music_queue), paused where it was, until it is played: the
 	 * browser does not let it sound by itself. Where it was playing, to say so.
@@ -313,7 +318,36 @@ class MusicPlayer {
 	 * again; single with repeat is the `<audio>`'s own `loop`, which never gets here.
 	 */
 	ended() {
+		const after = this.stopAfterId;
+		this.stopAfterId = null;
+		// Only if it is still that one: another one on is not «esta canción».
+		if (after !== null && after === this.current?.id) return this.stop();
 		if (!this.single) this.next();
+	}
+
+	/** «Para al acabar esta canción»: false if no song is on (a station has no end to wait for). */
+	stopAfterTrack() {
+		const track = this.current;
+		if (!track || this.radio || this.podcast || this.listening) return false;
+		this.stopAfterId = track.id;
+		return true;
+	}
+
+	/** Neither of them: the bar's ✕. */
+	cancelStop() {
+		this.stopAfterId = null;
+		this.stopIn(0);
+	}
+
+	/** «Para dentro de media hora»: then, at the end of the song on (else at once). 0, no longer. */
+	stopIn(minutes: number) {
+		clearTimeout(this.#stopTimer);
+		this.stopAt = minutes ? Date.now() + minutes * 60_000 : null;
+		if (!minutes) return;
+		this.#stopTimer = setTimeout(() => {
+			this.stopAt = null;
+			if (!this.stopAfterTrack()) this.stop();
+		}, minutes * 60_000);
 	}
 
 	#restart() {
@@ -373,6 +407,9 @@ class MusicPlayer {
 	stop() {
 		this.restored = null;
 		this.dj = false;
+		this.stopAfterId = null;
+		clearTimeout(this.#stopTimer);
+		this.stopAt = null;
 		this.askedPauseAt = Date.now();
 		this.#audio?.pause();
 		this.radio = null;
