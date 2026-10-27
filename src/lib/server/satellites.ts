@@ -12,7 +12,7 @@ const HEADER = 'x-api-key';
 
 /**
  * The only paths a key opens: what it heard, the order, its answer read aloud, and the living room
- * lowered meanwhile.
+ * and its own speaker lowered meanwhile.
  */
 export const SATELLITE_PATHS = [
 	'/api/voice/transcribe',
@@ -26,10 +26,24 @@ export interface Satellite {
 	name: string;
 	/** Who made its key: what it writes (the agenda, a note) goes in their name. */
 	ownerId: string;
+	/** Its room's Snapcast speaker (its id there), lowered while it listens; chosen in Ajustes. */
+	speakerId: string | null;
+	/** Where it answers: null, its own speaker; else on Snapcast (snapcast.ts, `sayOnSnapcast`). */
+	answerOn: SatelliteAnswer;
+}
+
+/** The whole house, or one Snapcast speaker (its id). */
+export type SatelliteAnswer = 'house' | string | null;
+
+/** What its key keeps besides: marked a satellite, its speaker and where it answers. */
+interface SatelliteMetadata {
+	satellite: true;
+	speaker?: string | null;
+	answer?: SatelliteAnswer;
 }
 
 /** Marked so in its key: the plugin's keys may be for something else one day. */
-const isSatellite = (metadata: unknown) =>
+const isSatellite = (metadata: unknown): metadata is SatelliteMetadata =>
 	Boolean(metadata && typeof metadata === 'object' && 'satellite' in metadata);
 
 /** The satellite whose key came with the request; null without one, or with a wrong one. */
@@ -38,7 +52,13 @@ export async function satelliteOf(request: Request): Promise<Satellite | null> {
 	if (!key) return null;
 	const { valid, key: found } = await auth.api.verifyApiKey({ body: { key } });
 	if (!valid || !found || !isSatellite(found.metadata)) return null;
-	return { id: found.id, name: found.name ?? 'Satélite', ownerId: found.referenceId };
+	return {
+		id: found.id,
+		name: found.name ?? 'Satélite',
+		ownerId: found.referenceId,
+		speakerId: found.metadata.speaker ?? null,
+		answerOn: found.metadata.answer ?? null
+	};
 }
 
 /** This adult's satellites, for Ajustes: never their keys, only how they start. */
@@ -51,7 +71,9 @@ export async function listSatellites(headers: Headers) {
 			name: k.name ?? 'Satélite',
 			start: k.start,
 			createdAt: k.createdAt,
-			lastRequest: k.lastRequest
+			lastRequest: k.lastRequest,
+			speakerId: (k.metadata as SatelliteMetadata).speaker ?? null,
+			answerOn: (k.metadata as SatelliteMetadata).answer ?? null
 		}));
 }
 
@@ -62,6 +84,16 @@ export async function createSatellite(name: string, headers: Headers) {
 		headers
 	});
 	return created.key;
+}
+
+/** Its room's speaker, or none; and where it answers. */
+export async function setSatelliteSpeakers(
+	id: string,
+	{ speaker, answer }: { speaker: string | null; answer: SatelliteAnswer },
+	headers: Headers
+) {
+	const metadata: SatelliteMetadata = { satellite: true, speaker, answer };
+	await auth.api.updateApiKey({ body: { keyId: id, metadata }, headers });
 }
 
 export async function deleteSatellite(id: string, headers: Headers) {

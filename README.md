@@ -528,6 +528,14 @@ En Música aparece entonces «Sonar en: Este dispositivo / Snapcast» (cada disp
 suyo), y una barra con lo que suena en Snapcast, lo mande quien lo mande. Por el búfer de audio,
 pausar o cambiar de canción tarda uno o dos segundos en oírse.
 
+Snapserver tiene además una segunda fuente, `Voz` (`HOST_DATA_DIR/snapvoz`), para que los
+satélites de voz (#223) contesten por Snapcast. En Ajustes → Casa → Satélites de voz se elige, por
+cada satélite, el altavoz de su habitación, donde baja la música mientras te oye y contesta, y por
+dónde contesta: su propio altavoz, toda la casa o un altavoz de Snapcast. Mientras contesta, esos
+altavoces pasan a `Voz` (con un segundo de retraso, el del búfer) y luego vuelven a la música; los
+demás siguen con ella. Después de actualizar, termina con
+`docker compose -f compose.prod.yaml up -d`: la app necesita `SNAPCAST_VOICE_FIFO`.
+
 #### Modo DJ
 
 «Modo DJ», en Música, pone canciones al azar de toda la biblioteca, o de los artistas que elijas, y

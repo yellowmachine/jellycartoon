@@ -234,7 +234,8 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		id: 'satelites',
 		tab: 'casa',
 		title: 'Satélites de voz',
-		words: 'satélite raspberry micrófono hola casita clave salón alexa',
+		words:
+			'satélite raspberry micrófono hola casita clave salón alexa altavoz snapcast bajar música',
 		shown: (d) => Boolean(d.satellites)
 	},
 	{

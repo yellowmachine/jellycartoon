@@ -31,6 +31,9 @@ services:
   app:
     image: ghcr.io/yellowmachine/jellycartoon:${IMAGE_TAG:-stable}
     restart: unless-stopped
+    # A small init (tini) as PID 1: it passes on Docker's SIGTERM and reaps ffmpeg's leftovers, so
+    # the container stops in a moment and not killed at 10 s (#228).
+    init: true
     # Files in DATA_DIR belong to this user instead of root.
     user: '${PUID:-1000}:${PGID:-1000}'
     depends_on:
@@ -65,6 +68,9 @@ services:
       # snapserver's control API, to list its clients and set their volume. It is on the host's
       # network, which the app reaches as host.docker.internal (extra_hosts below).
       SNAPSERVER_CONTROL: ${HOST_MUSIC_DIR:+host.docker.internal:1705}
+      # snapserver's `Voz` source, where the voice satellites' answers go when they are to sound
+      # through Snapcast speakers (#223).
+      SNAPCAST_VOICE_FIFO: ${HOST_MUSIC_DIR:+/data/snapvoz}
       # mpv on this PC (deploy/jellycartoon-mpv.service) leaves its socket in HOST_DATA_DIR. On by
       # default with films; with series only, MPV_SOCKET=/data/mpv.sock in the .env.
       MPV_SOCKET: ${MPV_SOCKET:-${HOST_CINEMA_DIR:+/data/mpv.sock}}
@@ -296,6 +302,8 @@ services:
     image: ghcr.io/yellowmachine/jellycartoon-backup:${IMAGE_TAG:-stable}
     profiles: [backup]
     restart: unless-stopped
+    # The script is PID 1 otherwise, and PID 1 ignores SIGTERM: killed at 10 s on every stop (#228).
+    init: true
     depends_on:
       db:
         condition: service_healthy
