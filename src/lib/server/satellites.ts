@@ -28,12 +28,18 @@ export interface Satellite {
 	ownerId: string;
 	/** Its room's Snapcast speaker (its id there), lowered while it listens; chosen in Ajustes. */
 	speakerId: string | null;
+	/** Where it answers: null, its own speaker; else on Snapcast (snapcast.ts, `sayOnSnapcast`). */
+	answerOn: SatelliteAnswer;
 }
 
-/** What its key keeps besides: marked a satellite, and its speaker. */
+/** The whole house, or one Snapcast speaker (its id). */
+export type SatelliteAnswer = 'house' | string | null;
+
+/** What its key keeps besides: marked a satellite, its speaker and where it answers. */
 interface SatelliteMetadata {
 	satellite: true;
 	speaker?: string | null;
+	answer?: SatelliteAnswer;
 }
 
 /** Marked so in its key: the plugin's keys may be for something else one day. */
@@ -50,7 +56,8 @@ export async function satelliteOf(request: Request): Promise<Satellite | null> {
 		id: found.id,
 		name: found.name ?? 'Satélite',
 		ownerId: found.referenceId,
-		speakerId: found.metadata.speaker ?? null
+		speakerId: found.metadata.speaker ?? null,
+		answerOn: found.metadata.answer ?? null
 	};
 }
 
@@ -65,7 +72,8 @@ export async function listSatellites(headers: Headers) {
 			start: k.start,
 			createdAt: k.createdAt,
 			lastRequest: k.lastRequest,
-			speakerId: (k.metadata as SatelliteMetadata).speaker ?? null
+			speakerId: (k.metadata as SatelliteMetadata).speaker ?? null,
+			answerOn: (k.metadata as SatelliteMetadata).answer ?? null
 		}));
 }
 
@@ -78,9 +86,13 @@ export async function createSatellite(name: string, headers: Headers) {
 	return created.key;
 }
 
-/** Its room's speaker, or none. */
-export async function setSatelliteSpeaker(id: string, speaker: string | null, headers: Headers) {
-	const metadata: SatelliteMetadata = { satellite: true, speaker };
+/** Its room's speaker, or none; and where it answers. */
+export async function setSatelliteSpeakers(
+	id: string,
+	{ speaker, answer }: { speaker: string | null; answer: SatelliteAnswer },
+	headers: Headers
+) {
+	const metadata: SatelliteMetadata = { satellite: true, speaker, answer };
 	await auth.api.updateApiKey({ body: { keyId: id, metadata }, headers });
 }
 

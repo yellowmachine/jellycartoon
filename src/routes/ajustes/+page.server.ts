@@ -30,9 +30,9 @@ import {
 	createSatellite,
 	deleteSatellite,
 	listSatellites,
-	setSatelliteSpeaker
+	setSatelliteSpeakers
 } from '#lib/server/satellites.ts';
-import { listSpeakers } from '#lib/server/music/snapcast.ts';
+import { listSpeakers, snapcastVoiceReady } from '#lib/server/music/snapcast.ts';
 import {
 	findPlaces,
 	housePlace,
@@ -118,6 +118,7 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 	let labels = null;
 	let satellites = null;
 	let satelliteSpeakers = null;
+	let satelliteAnswers = false;
 	let home = null;
 	let houseVoiceChoice = null;
 	if (admin) {
@@ -140,6 +141,8 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 			satellites = await listSatellites(request.headers);
 			/** Each one's room speaker, lowered while it listens: the Snapcast ones. */
 			satelliteSpeakers = await listSpeakers();
+			/** And answering through them: with snapserver's `Voz` source. */
+			satelliteAnswers = snapcastVoiceReady();
 		}
 		/** What the vision model looks for in episodes: only with Ollama (OLLAMA_URL). */
 		if (labellingEnabled) labels = { sets: await labelSets(), model: LABEL_MODEL };
@@ -250,6 +253,7 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		labels,
 		satellites,
 		satelliteSpeakers,
+		satelliteAnswers,
 		home,
 		houseVoice: houseVoiceChoice,
 		/** Children's accounts (#17): only who manages the app creates them. */
@@ -347,14 +351,15 @@ export const actions: Actions = {
 		log.info('ajustes', `Satélite de voz nuevo: «${name}»`);
 		return { satelliteKey: key, satelliteName: name };
 	},
-	/** Its room's speaker (#223), lowered while it listens; empty, none. */
-	saveSatelliteSpeaker: async ({ request, locals }) => {
+	/** Its room's speaker (#223), lowered while it listens, and where it answers; empty, none. */
+	saveSatelliteSpeakers: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);
 		const form = await request.formData();
 		const id = String(form.get('id') ?? '');
 		const speaker = String(form.get('speaker') ?? '') || null;
-		await setSatelliteSpeaker(id, speaker, request.headers);
-		log.info('ajustes', 'Altavoz del satélite de voz', { id, speaker });
+		const answer = String(form.get('answer') ?? '') || null;
+		await setSatelliteSpeakers(id, { speaker, answer }, request.headers);
+		log.info('ajustes', 'Altavoces del satélite de voz', { id, speaker, answer });
 		return { saved: 'satellites' };
 	},
 	deleteSatellite: async ({ request, locals }) => {

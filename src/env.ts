@@ -59,6 +59,11 @@ export const variables = defineEnvVars({
 			'IPC socket of an mpv that plays music into Snapcast (its output is the FIFO of a snapserver `pipe` source). With it, albums can be sent to Snapcast from the Música page.',
 		schema: (value) => value || undefined
 	},
+	SNAPCAST_VOICE_FIFO: {
+		description:
+			"FIFO of snapserver's `Voz` source (deploy/snapserver.conf). With it and SNAPSERVER_CONTROL, a voice satellite can answer through Snapcast speakers (Ajustes → Casa).",
+		schema: (value) => value || undefined
+	},
 	SNAPSERVER_CONTROL: {
 		description:
 			"`host:port` of snapserver's JSON-RPC control over TCP (port 1705). With it, the Snapcast bar lists its clients and sets their volume and name.",

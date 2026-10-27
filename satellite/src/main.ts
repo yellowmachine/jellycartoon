@@ -202,10 +202,14 @@ async function respond(wav: Uint8Array) {
 		} else {
 			const actions = done.reply.actions.map((a) => a.kind).join(', ') || 'ninguna';
 			log(`«${done.text}» → «${done.reply.reply}» (acciones: ${actions}; ${ms} ms)`);
-			if (speakerName && done.reply.reply) {
+			// Asked even without a speaker: the server may say it through Snapcast.
+			if (done.reply.reply) {
 				const voice = await speech(done.reply.reply);
-				log(`Dicho en voz (${Date.now() - started} ms desde la orden)`);
-				await play(voice);
+				if (!voice) log(`Dicho por Snapcast (${Date.now() - started} ms desde la orden)`);
+				else if (speakerName) {
+					log(`Dicho en voz (${Date.now() - started} ms desde la orden)`);
+					await play(voice);
+				}
 			}
 		}
 	} catch (err) {

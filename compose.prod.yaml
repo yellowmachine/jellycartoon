@@ -68,6 +68,9 @@ services:
       # snapserver's control API, to list its clients and set their volume. It is on the host's
       # network, which the app reaches as host.docker.internal (extra_hosts below).
       SNAPSERVER_CONTROL: ${HOST_MUSIC_DIR:+host.docker.internal:1705}
+      # snapserver's `Voz` source, where the voice satellites' answers go when they are to sound
+      # through Snapcast speakers (#223).
+      SNAPCAST_VOICE_FIFO: ${HOST_MUSIC_DIR:+/data/snapvoz}
       # mpv on this PC (deploy/jellycartoon-mpv.service) leaves its socket in HOST_DATA_DIR. On by
       # default with films; with series only, MPV_SOCKET=/data/mpv.sock in the .env.
       MPV_SOCKET: ${MPV_SOCKET:-${HOST_CINEMA_DIR:+/data/mpv.sock}}

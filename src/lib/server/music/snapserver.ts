@@ -19,6 +19,7 @@ interface SnapClient {
 interface SnapGroup {
 	id: string;
 	muted: boolean;
+	stream_id: string;
 	clients: SnapClient[];
 }
 
@@ -153,10 +154,22 @@ export class SnapserverControl {
 		);
 	}
 
-	/** Their state asked for now, for whoever needs it without a page open (a satellite's speaker). */
-	async refresh() {
-		const result = await this.request('Server.GetStatus');
-		this.#replaceAll((result as { server: SnapServerStatus }).server);
+	/**
+	 * The groups as they are now, asked for: for whoever needs them without a page open (a
+	 * satellite's speaker). Each one's clients and the stream it plays.
+	 */
+	async groups() {
+		const { server } = (await this.request('Server.GetStatus')) as { server: SnapServerStatus };
+		this.#replaceAll(server);
+		return server.groups.map((g) => ({
+			id: g.id,
+			streamId: g.stream_id,
+			clients: g.clients.map((c) => c.id)
+		}));
+	}
+
+	async setGroupStream(id: string, streamId: string) {
+		await this.request('Group.SetStream', { id, stream_id: streamId });
 	}
 
 	/** An empty name goes back to the host's. */

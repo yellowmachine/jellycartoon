@@ -20,13 +20,20 @@ export const serverName = SERVER_URL;
 
 /** Longer than this, the server is not answering: given up. */
 const TIMEOUT_MS = 30_000;
+/** Said through Snapcast, it answers once heard: Piper, and the whole answer read. */
+const SPEECH_TIMEOUT_MS = 90_000;
 
-async function request(path: string, body: Uint8Array | string, type: string) {
+async function request(
+	path: string,
+	body: Uint8Array | string,
+	type: string,
+	timeout = TIMEOUT_MS
+) {
 	const res = await fetch(`${SERVER_URL}${path}`, {
 		method: 'POST',
 		headers: { 'x-api-key': KEY!, 'content-type': type },
 		body,
-		signal: AbortSignal.timeout(TIMEOUT_MS)
+		signal: AbortSignal.timeout(timeout)
 	});
 	if (!res.ok) throw new Error(`${path}: ${res.status} ${(await res.text()).slice(0, 200)}`);
 	return res;
@@ -36,9 +43,14 @@ async function post<T>(path: string, body: Uint8Array | string, type: string): P
 	return (await request(path, body, type)).json() as Promise<T>;
 }
 
-/** The answer read aloud by the server's Piper, as a WAV. */
+/**
+ * The answer read aloud by the server's Piper, as a WAV; null if the server said it through
+ * Snapcast (Ajustes → Casa), once heard.
+ */
 export async function speech(text: string) {
-	const res = await request('/api/voice/speak', JSON.stringify({ text }), 'application/json');
+	const body = JSON.stringify({ text });
+	const res = await request('/api/voice/speak', body, 'application/json', SPEECH_TIMEOUT_MS);
+	if (res.status === 204) return null;
 	return new Uint8Array(await res.arrayBuffer());
 }
 
