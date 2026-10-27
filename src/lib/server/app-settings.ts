@@ -56,7 +56,8 @@ type Key =
 	| 'agenda_ics_token'
 	| 'house_place'
 	| 'house_voice'
-	| 'voice_fillers';
+	| 'voice_fillers'
+	| 'voice_levels';
 
 export async function getAppSetting(key: Key) {
 	return get(key);

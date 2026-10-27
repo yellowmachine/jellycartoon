@@ -228,7 +228,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		tab: 'casa',
 		title: 'Voz de la casa',
 		words:
-			'voz piper satélite hombre mujer masculina femenina hablar respuesta frases espera vale momento tarda',
+			'voz piper satélite hombre mujer masculina femenina hablar respuesta frases espera vale momento tarda volumen alto fuerte música bajar',
 		shown: (d) => Boolean(d.houseVoice)
 	},
 	{

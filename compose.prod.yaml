@@ -249,6 +249,10 @@ services:
       - --audio-format=s16
       - --ao=pulse
       - --audio-device=pulse/musica
+      # A second of audio ahead, in mpv and in PulseAudio (100 ms by default): with a conversion
+      # taking the PC's cores, 100 ms ran out and the music stuttered (2026-10-27).
+      - --pulse-buffer=1000
+      - --audio-buffer=1
       - --input-ipc-server=/data/mpv-music.sock
     volumes:
       - ${HOST_DATA_DIR:?HOST_DATA_DIR is required}:/data
