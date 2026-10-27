@@ -544,7 +544,11 @@ function tools(house: boolean, rooms: Room[]): Tool[] {
 			'ask',
 			'Cuando no está claro qué se pide entre unas pocas opciones: pregunta, y cada opción es un botón. No se hace nada más.',
 			{
-				question: { type: 'string', description: 'Corta, para leerla en voz alta.' },
+				question: {
+					type: 'string',
+					description:
+						'Corta, para leerla en voz alta, nombrando las opciones: se contesta de palabra, sin ver los botones.'
+				},
 				options: {
 					type: 'array',
 					maxItems: 4,
@@ -602,7 +606,7 @@ Cómo responder:
 - Trátala de tú. Con cada orden va quién habla: llámala por su nombre de pila de vez en cuando (al saludar, al despedirse, con una buena noticia), no en cada respuesta.
 - Haz lo que pide con las herramientas, sin pedir confirmación. Si se equivoca, lo dirá («no, eso no», «para»).
 - Al terminar una orden, contesta en español con una sola frase corta que diga lo que has hecho y dónde, p. ej. «Pongo Alaska y Dinarama aquí». Se lee en voz alta: sin listas, emojis, ids ni formato.
-- Si duda entre pocas opciones, usa «ask». Si no encuentras algo, dilo y propón lo más parecido que haya.
+- Si duda entre pocas opciones, usa «ask», con una pregunta que las nombre («¿El álbum Deseo carnal o la canción?»): quien la oye quizá no ve los botones, y contesta de palabra. Si la orden siguiente es esa respuesta («la segunda», «el álbum», «el de Alaska»), haz la orden de la opción que elige: van en el turno de tu pregunta. Si no encuentras algo, dilo y propón lo más parecido que haya.
 - Si no dice dónde, es aquí${house ? ', salvo que lo que quiere controlar solo esté sonando en toda la casa' : ''}.
 - «Quita eso», «para», «más alto»…: se refiere a lo que está sonando. Con cada orden va lo que suena en cada sitio.
 - Sitios: aquí (el dispositivo desde el que se habla)${house ? ' y toda la casa (Snapcast), o uno solo de sus altavoces por su nombre' : '; toda la casa no está disponible'}.

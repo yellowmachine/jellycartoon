@@ -90,6 +90,28 @@ export interface VoiceReply {
 	options: VoiceOption[];
 }
 
+/**
+ * After a question, how long the microphone listens for its answer by itself, without the wake word
+ * or the button: the AI asked something and waits.
+ */
+export const FOLLOW_UP_MS = 8000;
+
+/** An answer that waits for another: a choice (`ask`), or a question asked by itself. */
+export const isQuestion = (reply: VoiceReply) =>
+	reply.options.length > 0 || /\?[\s»"']*$/.test(reply.reply);
+
+/**
+ * The answer as it goes in the conversation: with a choice, its options and their orders, so that
+ * «la segunda» or «el álbum» said next can be done.
+ */
+export function assistantTurn(reply: VoiceReply): VoiceTurn {
+	const options = reply.options.map((o, i) => `${i + 1}. ${o.label}: «${o.command}»`).join('; ');
+	return {
+		role: 'assistant',
+		content: options ? `${reply.reply} [Opciones: ${options}]` : reply.reply
+	};
+}
+
 /** The turns before that are kept: the last exchanges are enough. */
 export const HISTORY_TURNS = 6;
 /**
@@ -109,7 +131,8 @@ export function parseVoiceRequest(body: unknown): VoiceRequest | null {
 	if (!said) return null;
 	const history = (Array.isArray(b.history) ? b.history : []).flatMap((turn: unknown) => {
 		const t = turn as Record<string, unknown> | null;
-		const content = text(t?.content, 500);
+		// An answer with its options (`assistantTurn`) is longer.
+		const content = text(t?.content, t?.role === 'assistant' ? 1000 : 500);
 		return (t?.role === 'user' || t?.role === 'assistant') && content
 			? [{ role: t.role, content } as VoiceTurn]
 			: [];

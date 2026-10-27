@@ -924,8 +924,12 @@ y el volumen de toda la casa.
   silencian, y «toda la casa» les quita el silencio. Sin decirlo, aquí. Un capítulo en Snapcast
   suena solo con su audio (ver Snapcast).
 - **La respuesta**, una frase corta, se ve en grande y se lee en voz alta con la voz del propio
-  dispositivo (`speechSynthesis`). Si duda entre pocas opciones, pregunta con botones; si no
-  encuentra algo, lo dice y propone lo más parecido.
+  dispositivo (`speechSynthesis`). Si duda entre pocas opciones, pregunta nombrándolas, con
+  botones; si no encuentra algo, lo dice y propone lo más parecido.
+- **Tras una pregunta** (con opciones, o que acaba en «?»), el micrófono se abre solo 8 s, con su
+  pitido, sin decir «hola casita» ni pulsar nada, en el móvil, la tablet y los satélites: se
+  contesta de palabra («la segunda», «el álbum»). Las opciones van con su orden en la conversación,
+  así que la IA sabe cuál es. Si no se dice nada, se cierra y quedan los botones.
 - Recuerda los últimos turnos: «no, eso no, los Pegamoides» funciona.
 - La biblioteca, las listas y las emisoras van en sus instrucciones, que se cachean; con Haiku 5.5,
   unos 0,0003 $ por orden y unos 2 s. El coste de cada una queda en el Registro.

@@ -1,4 +1,5 @@
 import {
+	assistantTurn,
 	HISTORY_IDLE_MS,
 	HISTORY_TURNS,
 	type VoiceReply,
@@ -86,11 +87,9 @@ export async function sendOrder(
 		JSON.stringify({ text, history, timers: timers() }),
 		'application/json'
 	);
-	history = [
-		...history,
-		{ role: 'user' as const, content: text },
-		{ role: 'assistant' as const, content: reply.reply }
-	].slice(-HISTORY_TURNS);
+	history = [...history, { role: 'user' as const, content: text }, assistantTurn(reply)].slice(
+		-HISTORY_TURNS
+	);
 	lastAt = Date.now();
 	return { text, reply };
 }

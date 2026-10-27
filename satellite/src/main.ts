@@ -9,7 +9,7 @@ import { Resampler } from './resample.ts';
 import { duck, filler, sendOrder, serverName, serverReady, speech } from './server.ts';
 import { beep, hush, play, speakerName } from './sound.ts';
 import { Timers } from './timers.ts';
-import type { VoiceAction } from '../../src/lib/voice.ts';
+import { FOLLOW_UP_MS, isQuestion, type VoiceAction } from '../../src/lib/voice.ts';
 
 /**
  * The voice satellite (#223, phase 1): «hola casita» heard on a Raspberry in the living room, out of
@@ -142,26 +142,33 @@ async function step(chunk: Float32Array) {
 			log(`Palabra: ${attempt.toFixed(2)} · ${attempt >= THRESHOLD ? 'saltó' : 'no llegó'}`);
 			attempt = 0;
 		}
-		if (score >= THRESHOLD && now >= quietUntil && !order && !busy) begin(score);
+		if (score >= THRESHOLD && now >= quietUntil && !order && !busy) {
+			// Said by whoever gives the order, as near: how loud their voice comes.
+			const voiceDb = Math.max(...recent.map((r) => r.dbfs));
+			log(`«Hola casita» (${score.toFixed(2)}): escuchando (la palabra a ${db(voiceDb)})`);
+			begin(voiceDb);
+		}
 	}
 }
 
-function begin(score: number) {
+/**
+ * Listening for an order: after the word, at its level (`voiceDb`); after a question, with no word,
+ * set by the first speech, and longer to start (`waitMs`).
+ */
+function begin(voiceDb: number | null, waitMs = SPEECH_END.waitMs) {
 	// As touching the phone: what rings stops, and the order may be about it («quítalo»).
 	if (timers.ringing.length) {
 		log(`Parado: ${timers.ringing.map((t) => t.label).join(', ')}`);
 		timers.silence();
 		hush();
 	}
-	const voiceDb = Math.max(...recent.map((r) => r.dbfs));
 	// Its attempt ends here: what it reached, with the order and not after it.
 	attempt = 0;
-	log(`«Hola casita» (${score.toFixed(2)}): escuchando (la palabra a ${db(voiceDb)})`);
 	duck(true);
 	void beep(880);
 	order = {
 		vad: vad(),
-		end: new SpeechEnd({ ...SPEECH_END, marginDb: MARGIN_DB }, voiceDb),
+		end: new SpeechEnd({ ...SPEECH_END, marginDb: MARGIN_DB, waitMs }, voiceDb),
 		chunks: [],
 		startedAt: Date.now()
 	};
@@ -215,6 +222,8 @@ async function respond(wav: Uint8Array) {
 	const started = Date.now();
 	let waiting: ReturnType<typeof setTimeout> | undefined;
 	let saidFiller: Promise<void> = Promise.resolve();
+	/** Its answer asked something: listened for at once, without the word. */
+	let asked = false;
 	try {
 		const done = await sendOrder(
 			wav,
@@ -232,6 +241,7 @@ async function respond(wav: Uint8Array) {
 			const actions = done.reply.actions.map((a) => a.kind).join(', ') || 'ninguna';
 			log(`«${done.text}» → «${done.reply.reply}» (acciones: ${actions}; ${ms} ms)`);
 			for (const action of done.reply.actions) act(action);
+			asked = isQuestion(done.reply);
 			// Asked even without a speaker: the server may say it through Snapcast.
 			if (done.reply.reply) {
 				const voice = await speech(done.reply.reply);
@@ -250,7 +260,10 @@ async function respond(wav: Uint8Array) {
 		clearTimeout(waiting);
 		busy = false;
 		quietUntil = Date.now() + QUIET_MS;
-		duck(false);
+		if (asked && !order) {
+			log(`Pregunta: escuchando la respuesta ${FOLLOW_UP_MS / 1000} s`);
+			begin(null, FOLLOW_UP_MS);
+		} else duck(false);
 	}
 }
 

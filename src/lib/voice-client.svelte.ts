@@ -9,8 +9,11 @@ import { musicTarget } from '#lib/music-target.svelte.ts';
 import { videoHere } from '#lib/video-here.svelte.ts';
 import type { LngLat, Place } from '#lib/road.ts';
 import {
+	assistantTurn,
+	FOLLOW_UP_MS,
 	HISTORY_IDLE_MS,
 	HISTORY_TURNS,
+	isQuestion,
 	type VoiceAction,
 	type VoiceOption,
 	type VoiceReply,
@@ -55,6 +58,8 @@ class VoiceClient {
 	speaking = $state(false);
 	/** Started by the wake word (#144): no button to let go, it ends after a silence. */
 	handsFree = $state(false);
+	/** Listening for the answer to its question: the question stays shown. */
+	followUp = $state(false);
 	/**
 	 * In the road mode (#78), set by its page: the AI is told, nothing to watch is opened, and its
 	 * route is asked for and shown there. Null elsewhere.
@@ -167,6 +172,7 @@ class VoiceClient {
 	endHandsFree(audio: Blob | null) {
 		if (!this.handsFree) return;
 		this.handsFree = false;
+		this.followUp = false;
 		// After the silence that ended it (vad.ts), not when the voice stopped.
 		this.#timing = { ended: performance.now(), handsFree: true };
 		if (audio) return void this.#send(audio);
@@ -255,10 +261,10 @@ class VoiceClient {
 		this.#history = [
 			...this.#history,
 			{ role: 'user' as const, content: text },
-			{ role: 'assistant' as const, content: body.reply }
+			assistantTurn(body)
 		].slice(-HISTORY_TURNS);
 		this.#historyAt = Date.now();
-		this.#speak(body.reply);
+		this.#speak(body.reply, isQuestion(body));
 	}
 
 	/** This order's times, to the Registro: from the end of what was said to the answer heard. */
@@ -291,10 +297,26 @@ class VoiceClient {
 	}
 
 	/**
+	 * After a question, the microphone for its answer, `FOLLOW_UP_MS` at most, as after the wake
+	 * word: with the wake word's microphone if it listens, or one opened for it. If it could not
+	 * start (the page in the background, another order), what was paused plays again.
+	 */
+	async #listenForAnswer() {
+		// Imported here: the wake word imports this one.
+		const { wakeWord } = await import('#lib/wake-word.svelte.ts');
+		this.followUp = true;
+		await wakeWord.listenOnce({ waitMs: FOLLOW_UP_MS });
+		if (!this.handsFree && this.phase === 'idle') {
+			this.followUp = false;
+			resumeAfterVoice();
+		}
+	}
+
+	/**
 	 * Read aloud with the device's own voice; the episode that was paused plays again once it ends:
 	 * https://developer.mozilla.org/docs/Web/API/SpeechSynthesis
 	 */
-	#speak(text: string) {
+	#speak(text: string, question = false) {
 		if (!('speechSynthesis' in window)) {
 			this.#report();
 			resumeAfterVoice();
@@ -307,10 +329,13 @@ class VoiceClient {
 		// What it put on (or what plays) is heard under the answer, not over it; as the road mode.
 		music.duck(true);
 		utterance.onstart = () => this.#report();
-		utterance.onend = utterance.onerror = () => {
+		utterance.onend = utterance.onerror = (event: SpeechSynthesisEvent) => {
 			this.speaking = false;
 			// A cancelled answer ends as the next one starts: that one keeps it low.
 			if (!speechSynthesis.speaking) music.duck(false);
+			// A question read to its end: its answer is listened for by itself, what was paused still so.
+			if (question && event.type === 'end' && !speechSynthesis.speaking)
+				return void this.#listenForAnswer();
 			resumeAfterVoice();
 		};
 		speechSynthesis.speak(utterance);
