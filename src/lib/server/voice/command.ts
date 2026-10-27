@@ -795,6 +795,9 @@ const played = (
 		? `Poniendo «${result.playing}» en el salón${fromMinute(startSec)}.`
 		: `No se pudo: ${result.data.message}`;
 
+/** What a satellite cannot play itself (#223), done in the whole house. */
+const HOUSE_FROM_SATELLITE = new Set(['play_music', 'play_radio', 'control']);
+
 async function runTool(
 	name: string,
 	args: Record<string, unknown>,
@@ -809,11 +812,15 @@ async function runTool(
 		recipe: string | null;
 		/** Where we are, in the road mode. */
 		position?: LngLat | null;
+		/** Said to a voice satellite (#223), which plays nothing itself. */
+		satellite: boolean;
 	}
 ): Promise<ToolResult> {
 	if (HISTORY_TOOLS.has(name)) return runHistoryTool(name, args, { self: ctx.user });
-	const where = args.where === 'house' && ctx.house ? 'house' : 'here';
-	if (args.where === 'house' && !ctx.house) return 'Toda la casa (Snapcast) no está disponible.';
+	// A satellite's «aquí» has nothing to play on: music, radio and their controls, in the whole house.
+	const asked = ctx.satellite && HOUSE_FROM_SATELLITE.has(name) ? 'house' : args.where;
+	const where = asked === 'house' && ctx.house ? 'house' : 'here';
+	if (asked === 'house' && !ctx.house) return 'Toda la casa (Snapcast) no está disponible.';
 	switch (name) {
 		case 'search_music':
 			return typeof args.query === 'string' && args.query.trim()
@@ -1206,7 +1213,7 @@ export async function runVoiceCommand(
 				{
 					type: 'text',
 					text: satellite
-						? `[Te habla alguien de la casa desde «${satellite}», un satélite de voz sin pantalla: no sabes quién es, así que sin nombres; tampoco hay historial de lo que ve cada uno.]`
+						? `[Te habla alguien de la casa desde «${satellite}», un satélite de voz sin pantalla: no sabes quién es, así que sin nombres; tampoco hay historial de lo que ve cada uno. El satélite no pone música ni radio: aquí es toda la casa.]`
 						: `[Te habla: ${user.name}.]`
 				},
 				{ type: 'text', text: soundingNow(request.here, house) },
@@ -1274,7 +1281,8 @@ export async function runVoiceCommand(
 					user,
 					video: request.video,
 					recipe: request.recipe,
-					position: request.position
+					position: request.position,
+					satellite: Boolean(satellite)
 				});
 			} catch (err) {
 				result = `Error: ${err instanceof Error ? err.message : String(err)}`;
