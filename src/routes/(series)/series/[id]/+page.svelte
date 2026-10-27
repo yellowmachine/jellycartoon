@@ -587,7 +587,7 @@
 											· <span class="text-red-400" title={ep.labelJob.message}
 												>etiquetado fallido</span
 											>{/if}{#if ep.light === 'ready'}
-											· 720p{:else if ep.light === 'pending'}
+											· <span class="text-amber-400">720p</span>{:else if ep.light === 'pending'}
 											· 720p en cola{:else if ep.light === 'processing'}
 											· haciendo 720p…{:else if ep.light === 'error'}
 											· <span class="text-red-400" title={ep.lightError ?? ''}>720p fallida</span
