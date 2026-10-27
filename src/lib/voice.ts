@@ -115,6 +115,9 @@ export function assistantTurn(reply: VoiceReply): VoiceTurn {
 	};
 }
 
+/** «Cómo es la voz de la casa», «Cómo quieres que te hable» (Ajustes): free text, this long at most. */
+export const MAX_VOICE_STYLE = 500;
+
 /** The turns before that are kept: the last exchanges are enough. */
 export const HISTORY_TURNS = 6;
 /**

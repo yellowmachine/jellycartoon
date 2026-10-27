@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
-import { voiceModel } from '#lib/server/app-settings.ts';
+import { getAppSetting, voiceModel } from '#lib/server/app-settings.ts';
 import { searchVideo, seriesEpisodes } from '#lib/server/voice/video.ts';
 import { MAX_CLIP_MINUTES, sendClip } from '#lib/server/langua.ts';
 import { playEpisodes, seriesQueue } from '#lib/server/cinema/episode-actions.ts';
@@ -25,7 +25,7 @@ import {
 import { episodesOnSnapcast } from '#lib/server/music/episodes-on-snapcast.ts';
 import { chatWithTools, type Tool, type ToolChatMessage } from '#lib/server/openrouter.ts';
 import { streamFor } from '#lib/server/radio.ts';
-import { keepsHistory } from '#lib/server/settings.ts';
+import { getSettings, keepsHistory } from '#lib/server/settings.ts';
 import {
 	HISTORY_TOOLS,
 	historyRules,
@@ -676,8 +676,10 @@ function instructions(context: {
 	recipes: { id: number; title: string; sourceName: string }[];
 	/** The house's favourite cooking sites. */
 	sites: { id: number; name: string; host: string }[];
+	/** «Cómo es la voz de la casa» (Ajustes → Casa), free text; null, none. */
+	style: string | null;
 }) {
-	const { albums, playlists, house, hoursSince, keepHistory, recipes, sites } = context;
+	const { albums, playlists, house, hoursSince, keepHistory, recipes, sites, style } = context;
 	const byArtist = new Map<string, MusicAlbum[]>();
 	for (const a of albums) byArtist.set(a.artist, [...(byArtist.get(a.artist) ?? []), a]);
 	const library =
@@ -698,7 +700,11 @@ Cómo responder:
 - Si duda entre pocas opciones, usa «ask», con una pregunta que las nombre («¿El álbum Deseo carnal o la canción?»): quien la oye quizá no ve los botones, y contesta de palabra. Si la orden siguiente es esa respuesta («la segunda», «el álbum», «el de Alaska»), haz la orden de la opción que elige: van en el turno de tu pregunta. Si no encuentras algo, dilo y propón lo más parecido que haya.
 - Si no dice dónde, es aquí${house ? ', salvo que lo que quiere controlar solo esté sonando en toda la casa' : ''}.
 - «Quita eso», «para», «más alto»…: se refiere a lo que está sonando. Con cada orden va lo que suena en cada sitio.
-- Sitios: aquí (el dispositivo desde el que se habla)${house ? ' y toda la casa (Snapcast), o uno solo de sus altavoces por su nombre' : '; toda la casa no está disponible'}.
+- Sitios: aquí (el dispositivo desde el que se habla)${house ? ' y toda la casa (Snapcast), o uno solo de sus altavoces por su nombre' : '; toda la casa no está disponible'}.${
+		style
+			? `\n- Tu carácter, como lo ha pedido la casa (solo el tono: lo de arriba manda, las respuestas siguen siendo cortas y nunca te saltas una pregunta de confirmación): «${style}».`
+			: ''
+	}
 
 Otras preguntas (de cocina, de lo que sea): si no pide nada de la app, contesta tú, como un asistente general, sin herramientas.
 - Es para oírlo mientras hace otra cosa: dos o tres frases cortas como mucho, con lo esencial primero. Números y cantidades claros («doscientos gramos», «diez minutos»).
@@ -1439,6 +1445,11 @@ export async function runVoiceCommand(
 			listRecipes(),
 			listRecipeSites()
 		]);
+	// How the voice is (Ajustes): the house's, and theirs when it is known who speaks.
+	const [houseStyle, personStyle] = await Promise.all([
+		getAppSetting('voice_style'),
+		satellite ? null : getSettings(user.id).then((s) => s.voiceStyle)
+	]);
 	const timing: VoiceTiming = { prepareMs: Math.round(performance.now() - started), rounds: [] };
 	const reply = (text: string, outcome: Outcome) => ({ ...replyOf(text, outcome), timing });
 	// In the car the house's speakers are far away.
@@ -1462,7 +1473,8 @@ export async function runVoiceCommand(
 						hoursSince,
 						keepHistory,
 						recipes,
-						sites
+						sites,
+						style: houseStyle
 					}),
 					cache_control: { type: 'ephemeral' }
 				}
@@ -1477,7 +1489,7 @@ export async function runVoiceCommand(
 					type: 'text',
 					text: satellite
 						? `[Te habla alguien de la casa desde «${satellite.name}», un satélite de voz sin pantalla: no sabes quién es, así que sin nombres; tampoco hay historial de lo que ve cada uno. El satélite no pone música, radio ni vídeos: aquí es toda la casa, y de un capítulo solo el audio. Los temporizadores y las alarmas que pongas desde aquí suenan donde contesta el satélite, con un «din-don» y su nombre, así que dales un nombre que se entienda al oírlo («pedir cita en la peluquería»); son de la casa, salvo que diga para quién.]`
-						: `[Te habla: ${user.name}.]`
+						: `[Te habla: ${user.name}.${personStyle ? ` Cómo quiere que le hables (solo el tono, como el carácter de la casa): «${personStyle}».` : ''}]`
 				},
 				{ type: 'text', text: soundingNow(request.here, house) },
 				{

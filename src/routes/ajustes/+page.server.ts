@@ -16,6 +16,7 @@ import {
 	homeworkModel,
 	isAdmin,
 	DEFAULT_ORS_URL,
+	getAppSetting,
 	openRouterConfig,
 	openRouterManagementKey,
 	orsConfig,
@@ -126,6 +127,7 @@ import {
 	testBot
 } from '#lib/server/telegram/bot.ts';
 import { BOT_EVENTS, parseBotEvents } from '#lib/telegram-bot.ts';
+import { MAX_VOICE_STYLE } from '#lib/voice.ts';
 
 export const load: PageServerLoad = async ({ locals, cookies, url, request }) => {
 	const userId = locals.user!.id;
@@ -279,6 +281,10 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		keepHistory: isKid(locals.user) ? null : settings.keepHistory,
 		/** The road mode's trips kept (#81); adults only. */
 		recordTrips: isKid(locals.user) ? null : await recordsTrips(userId),
+		/** How the voice is (free text in its instructions): the house's, for who manages the app. */
+		houseStyle: admin && voiceEnabled ? { text: (await getAppSetting('voice_style')) ?? '' } : null,
+		/** And how it talks to them: an adult's. */
+		myStyle: !isKid(locals.user) && voiceEnabled ? { text: settings.voiceStyle ?? '' } : null,
 		/** The house's Telegram bot (#243), telling the family's group: who manages the app. */
 		telegramBot: admin ? { bot: await botStatus() } : null,
 		/** Their own Telegram (#243), read aloud in the road mode: adults only. Never its session. */
@@ -747,6 +753,29 @@ export const actions: Actions = {
 			return fail(400, { section: 'langua', message: 'Primero la dirección y el token' });
 		const problem = await pingLangua(config);
 		return problem ? fail(502, { section: 'langua', message: problem }) : { languaOk: true };
+	},
+	/** «Cómo es la voz de la casa»: free text in the voice's instructions; empty, none. */
+	saveHouseStyle: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const text = String((await request.formData()).get('style') ?? '')
+			.trim()
+			.slice(0, MAX_VOICE_STYLE);
+		await setAppSetting('voice_style', text || null);
+		log.info('ajustes', 'Carácter de la voz de la casa', { style: text });
+		return { saved: 'houseStyle' };
+	},
+	/** «Cómo quieres que te hable»: theirs, with each order of theirs. */
+	saveMyStyle: async ({ request, locals }) => {
+		if (isKid(locals.user)) error(404, 'No encontrado');
+		const text = String((await request.formData()).get('style') ?? '')
+			.trim()
+			.slice(0, MAX_VOICE_STYLE);
+		const values = { voiceStyle: text || null };
+		await db
+			.insert(userSettings)
+			.values({ userId: locals.user!.id, ...values })
+			.onConflictDoUpdate({ target: userSettings.userId, set: values });
+		return { saved: 'myStyle' };
 	},
 	/** The house's bot (#243): its token from @BotFather, checked with Telegram. */
 	botToken: async ({ request, locals }) => {
