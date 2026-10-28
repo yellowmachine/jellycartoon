@@ -231,6 +231,30 @@ docker compose -f compose.prod.yaml logs -f app
 - `compose.yaml` es solo para desarrollo (Postgres con el puerto abierto). Ambos ficheros
   comparten la base de datos; usa uno u otro, no los dos a la vez.
 
+### Las APIs desde fuera, con rathole
+
+Para que otras apps lleguen desde fuera sin VPN (de momento la música por Subsonic, p. ej.
+[Tempus](https://github.com/eddyizm/tempus)), un túnel [rathole](https://github.com/rapiz1/rathole)
+con un VPS (#253). La casa abre una conexión saliente al VPS, y lo que llega al VPS por un segundo
+nombre (`MEDIA_HOST`, p. ej. `media.<tu-dominio>`) se manda por ella al Caddy de casa **sin
+descifrar**: el certificado es el de casa y el VPS solo lo pasa. Por ese nombre solo se sirve
+`/rest` (Subsonic); el resto de la app da 404 y sigue siendo solo de casa o de la VPN.
+
+1. En el VPS, el servidor de rathole (`rathole --genkey` para el par de claves, transporte
+   `noise`, un servicio `jellycartoon` con su token) y algo que pase el 443 de `MEDIA_HOST` a ese
+   servicio sin descifrarlo (en Traefik, un router TCP con `HostSNI` y `tls.passthrough`).
+2. En Cloudflare, un registro `A` de `MEDIA_HOST` → IP pública del VPS, en modo **DNS only**.
+3. En el `.env` de casa:
+   ```sh
+   COMPOSE_PROFILES="snapcast,tunel"     # además de los que ya hubiera
+   MEDIA_HOST="media.tu-dominio.com"     # sin https://
+   RATHOLE_REMOTE="IP-del-VPS:2333"
+   RATHOLE_SERVER_PUBLIC_KEY="…"         # la pública del servidor
+   RATHOLE_TOKEN="…"
+   ```
+   y `docker compose -f compose.prod.yaml up -d`. Caddy pide el certificado de `MEDIA_HOST` con
+   el mismo reto DNS-01.
+
 ### Solo en casa (sin Tailscale)
 
 Para una instalación que solo se usa en casa. **Solo funciona conectado a la wifi (o la red) de

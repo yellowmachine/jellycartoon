@@ -158,10 +158,29 @@ services:
       CF_API_TOKEN: ${CF_API_TOKEN:-}
       # `cloudflare` (a domain, the default) or `internal` (at home only, without one): README.
       TLS: ${TLS:-cloudflare}
+      # Optional, with the `tunel` profile: the name reached from outside through rathole, which
+      # serves only the APIs for other apps (deploy/Caddyfile).
+      MEDIA_HOST: ${MEDIA_HOST:-}
     volumes:
       # Certificates and the ACME account: without them, a new certificate on every start.
       - caddy_data:/data
       - caddy_config:/config
+
+  # Optional, with `tunel` in COMPOSE_PROFILES, MEDIA_HOST and the RATHOLE_* of the .env: the client
+  # of a rathole tunnel (https://github.com/rapiz1/rathole, #253). It keeps an outgoing connection to
+  # the rathole server on a VPS, which sends MEDIA_HOST's connections through it to Caddy, still
+  # encrypted: Caddy's certificate, the VPS only passes them on. No ports open at home. Its config
+  # from the .env (Compose's `configs` with `content`); pinned, WUD does not touch it.
+  rathole:
+    image: rapiz1/rathole:v0.5.0
+    profiles: [tunel]
+    restart: unless-stopped
+    depends_on:
+      - caddy
+    command: ['--client', '/config/client.toml']
+    configs:
+      - source: rathole
+        target: /config/client.toml
 
   # Optional, with COMPOSE_PROFILES=snapcast in the .env: the music, to Snapcast clients
   # (snapclient, Snapdroid…). All three run the app's image with another command, and share
@@ -360,6 +379,23 @@ services:
       BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:-}
     labels:
       - wud.watch=true
+
+configs:
+  # The noise transport: the server is known by its public key, and the token admits this house.
+  rathole:
+    content: |
+      [client]
+      remote_addr = "${RATHOLE_REMOTE:-}"
+
+      [client.transport]
+      type = "noise"
+
+      [client.transport.noise]
+      remote_public_key = "${RATHOLE_SERVER_PUBLIC_KEY:-}"
+
+      [client.services.jellycartoon]
+      token = "${RATHOLE_TOKEN:-}"
+      local_addr = "caddy:443"
 
 volumes:
   pgdata:

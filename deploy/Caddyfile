@@ -26,8 +26,17 @@
 	tls internal
 }
 
-{$ORIGIN} {
+# MEDIA_HOST (optional): a second name, reached from outside through the rathole tunnel (the
+# `tunel` profile in compose.prod.yaml, #253). It serves only the APIs for other apps: Subsonic
+# (/rest, e.g. Tempus); the rest of the app stays at home and on WireGuard.
+{$ORIGIN} {$MEDIA_HOST} {
 	import tls-{$TLS:cloudflare}
+
+	# An expression rather than `host`: without MEDIA_HOST, it matches nothing (`host` with no name
+	# would leave the whole site to the 404).
+	@media-not-api expression `{host} == "{$MEDIA_HOST}" && !path('/rest/*')`
+	respond @media-not-api 404
+
 	reverse_proxy app:3000
 
 	# The app restarting (an update, a change in the compose): instead of a blank 502, a page that
