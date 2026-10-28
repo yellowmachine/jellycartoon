@@ -33,6 +33,7 @@ import {
 	listSatellites,
 	setSatelliteSpeakers
 } from '#lib/server/satellites.ts';
+import { createCloudKey, deleteCloudKey, listCloudKeys } from '#lib/server/media-api.ts';
 import { listSpeakers, snapcastVoiceReady } from '#lib/server/music/snapcast.ts';
 import {
 	findPlaces,
@@ -152,6 +153,7 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 	let satellites = null;
 	let satelliteSpeakers = null;
 	let satelliteAnswers = false;
+	let cloudKeys = null;
 	let home = null;
 	let houseVoiceChoice = null;
 	if (admin) {
@@ -186,6 +188,8 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 			/** And answering through them: with snapserver's `Voz` source. */
 			satelliteAnswers = snapcastVoiceReady();
 		}
+		/** The cloud's keys for the video API (#253), and the tunnel's name it reaches it by. */
+		cloudKeys = { keys: await listCloudKeys(request.headers), host: MEDIA_HOST ?? null };
 		/** What the vision model looks for in episodes: only with Ollama (OLLAMA_URL). */
 		if (labellingEnabled) labels = { sets: await labelSets(), model: LABEL_MODEL };
 		const r = await relayConfig();
@@ -308,6 +312,7 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		satellites,
 		satelliteSpeakers,
 		satelliteAnswers,
+		cloudKeys,
 		home,
 		houseVoice: houseVoiceChoice,
 		/** Children's accounts (#17): only who manages the app creates them. */
@@ -478,6 +483,23 @@ export const actions: Actions = {
 		await deleteSatellite(id, request.headers);
 		log.info('ajustes', 'Satélite de voz quitado', { id });
 		return { saved: 'satellites' };
+	},
+	/** A key for the cloud's video API (#253), shown once. */
+	createCloudKey: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const name = String((await request.formData()).get('name') ?? '').trim();
+		if (!name || name.length > 32)
+			return fail(400, { cloudKeyProblem: 'Ponle un nombre de hasta 32 letras' });
+		const key = await createCloudKey(name, request.headers);
+		log.info('ajustes', `Clave nueva para la nube: «${name}»`);
+		return { cloudKey: key, cloudKeyName: name };
+	},
+	deleteCloudKey: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const id = String((await request.formData()).get('id') ?? '');
+		await deleteCloudKey(id, request.headers);
+		log.info('ajustes', 'Clave de la nube quitada', { id });
+		return { saved: 'cloudKeys' };
 	},
 	/** Without the second step again; not for the administrator, who always has it. */
 	disableTwoFactor: async ({ request, locals }) => {

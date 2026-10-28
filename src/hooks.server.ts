@@ -73,7 +73,8 @@ export const handleError: HandleServerError = ({ kind, error, event }) => {
 // /rest: the Subsonic API logs in with its own parameters (#27). /quien: the children choosing
 // their avatar on a trusted device, before they have a session (#141). /bienvenida: an adult
 // choosing their password with the link the administrator gave them (#157). /api/calendario: the
-// agenda's .ics for a phone's calendar, with its secret in the link (#200).
+// agenda's .ics for a phone's calendar, with its secret in the link (#200). /api/v1: the video
+// API for the cloud, with its key or a signed link, checked by each route (media-api.ts, #253).
 const PUBLIC_PATHS = [
 	'/login',
 	'/bienvenida',
@@ -82,7 +83,8 @@ const PUBLIC_PATHS = [
 	'/rest/',
 	'/quien',
 	'/api/quien/',
-	'/api/calendario/'
+	'/api/calendario/',
+	'/api/v1/'
 ];
 
 const handleBetterAuth: Handle = async ({ event, resolve }) => {

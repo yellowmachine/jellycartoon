@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { LIGHT_DIR, segmentsOf, withLight, withoutLight } from './light-master.ts';
+import { LIGHT_DIR, onlyLight, segmentsOf, withLight, withoutLight } from './light-master.ts';
 
 const MASTER = `#EXTM3U
 #EXT-X-VERSION:7
@@ -25,6 +25,17 @@ describe('the light variant in the master playlist', () => {
 
 	test('taken out, as converted', () => {
 		expect(withoutLight(withLight(MASTER, LIGHT)).trimEnd()).toBe(MASTER.trimEnd());
+	});
+
+	test('alone, without the original', () => {
+		const light = onlyLight(withLight(MASTER, LIGHT));
+		expect(light).not.toContain('video/index.m3u8');
+		expect(light).toContain('RESOLUTION=1280x720');
+		expect(light).toContain('a0/index.m3u8');
+	});
+
+	test('alone, or the original if there is none', () => {
+		expect(onlyLight(MASTER)).toBe(MASTER);
 	});
 
 	test('without audio, without an audio group', () => {

@@ -255,6 +255,32 @@ descifrar**: el certificado es el de casa y el VPS solo lo pasa. Por ese nombre 
    y `docker compose -f compose.prod.yaml up -d`. Caddy pide el certificado de `MEDIA_HOST` con
    el mismo reto DNS-01.
 
+#### La API de vídeo, para la nube
+
+Las series (no el cine, que es solo de casa), para la app de la nube (#253), en `/api/v1` por
+`MEDIA_HOST`. De momento solo para adultos.
+
+- **La clave:** Ajustes → Casa → «La nube» → «Nueva clave». Se guarda en el servidor de la nube,
+  nunca en el navegador. Cada petición lleva `x-api-key: <clave>` y `x-persona: <email>`, el de
+  la persona en cuyo nombre se pide (un adulto de la casa; si no, 403).
+- `GET /api/v1/series`: las series con algo que ver.
+- `GET /api/v1/series/<id>`: sus capítulos listos, con por dónde va esa persona.
+- `POST /api/v1/episodios/<id>/ver` (JSON; `{"calidad": "original"}` para la original): un
+  enlace firmado a su HLS, en 720p si lo tiene, que vale 12 horas solo para esa persona y ese
+  capítulo, y otro para su progreso. El navegador los abre directamente, sin clave ni cookie
+  (con CORS abierto: el enlace es el permiso).
+- `POST <progressUrl>` con `{"positionSec": …, "durationSec": …}` (JSON): se guarda como en la app
+  y sale en «Seguir viendo».
+
+Para probarla sin la nube, `scripts/prueba-video.ts` hace de nube: guarda la clave y sirve una
+página que lista las series y reproduce los capítulos:
+
+```sh
+MEDIA_URL=https://media.tu-dominio.com MEDIA_KEY=casita_… PERSONA=tu@email bun scripts/prueba-video.ts
+```
+
+y se abre `http://<IP de este PC>:8787` en el móvil.
+
 ### Solo en casa (sin Tailscale)
 
 Para una instalación que solo se usa en casa. **Solo funciona conectado a la wifi (o la red) de

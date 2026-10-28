@@ -25,6 +25,7 @@
 	import Rutas from './Rutas.svelte';
 	import CompartirViajes from './CompartirViajes.svelte';
 	import Satelites from './Satelites.svelte';
+	import Nube from './Nube.svelte';
 	import DondeCasa from './DondeCasa.svelte';
 	import VozCasa from './VozCasa.svelte';
 	import Personas from './Personas.svelte';
@@ -97,6 +98,7 @@
 				routes: data.routes,
 				relay: data.relay,
 				satellites: data.satellites,
+				cloudKeys: data.cloudKeys,
 				home: data.home,
 				houseVoice: data.houseVoice,
 				kids: data.kids,
@@ -172,6 +174,8 @@
 		<DondeCasa {data} {form} {tab} />
 
 		<Satelites {data} {form} {tab} />
+
+		<Nube {data} {form} {tab} />
 
 		<VozCasa {data} {form} {tab} />
 

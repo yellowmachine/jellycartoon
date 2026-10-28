@@ -24,6 +24,24 @@ export function withoutLight(master: string) {
 }
 
 /**
+ * Only the light variant, when there is one (the video API away from home, #253): the original's
+ * variant out, so that no player picks it.
+ */
+export function onlyLight(master: string) {
+	const lines = master.split('\n');
+	if (!lines.some((l) => l.trim() === LIGHT_URI)) return master;
+	const out: string[] = [];
+	for (let i = 0; i < lines.length; i++) {
+		if (lines[i].startsWith('#EXT-X-STREAM-INF:') && lines[i + 1]?.trim() !== LIGHT_URI) {
+			i++;
+			continue;
+		}
+		out.push(lines[i]);
+	}
+	return out.join('\n');
+}
+
+/**
  * With the light variant after the original: its bandwidths (bits/s, video and audio), its size,
  * and the original's audio group and audio codec, so it plays with the same tracks.
  */

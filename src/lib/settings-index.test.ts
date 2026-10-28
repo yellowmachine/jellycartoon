@@ -31,6 +31,7 @@ const admin: SettingsShown = {
 	routes: {},
 	relay: {},
 	satellites: [],
+	cloudKeys: {},
 	home: {},
 	houseVoice: {},
 	kids: {},
@@ -50,6 +51,7 @@ const kid: SettingsShown = {
 	routes: null,
 	relay: null,
 	satellites: null,
+	cloudKeys: null,
 	home: null,
 	houseVoice: null,
 	kids: null
