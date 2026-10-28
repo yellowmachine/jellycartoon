@@ -105,6 +105,15 @@ export interface RecurringExpense {
 	day: number;
 }
 
+/** A favourite (#194): an expense to put in again, its amount changeable; `total` null, none. */
+export interface ExpenseFavorite {
+	id: number;
+	store: string;
+	category: ExpenseCategory;
+	total: number | null;
+	lines: ExpenseLine[];
+}
+
 export const MAX_LINES = 200;
 /** A receipt's total in cents, at most: a million euros is not a receipt. */
 const MAX_CENTS = 100_000_000;

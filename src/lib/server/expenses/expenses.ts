@@ -1,6 +1,13 @@
 import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { bill, expense, expenseLine, recurringExpense, user } from '#lib/server/db/schema.ts';
+import {
+	bill,
+	expense,
+	expenseFavorite,
+	expenseLine,
+	recurringExpense,
+	user
+} from '#lib/server/db/schema.ts';
 import { isBillKind, isBillUnit, parseBillDetails, type BillInput } from '#lib/bills.ts';
 import {
 	addMonths,
@@ -8,6 +15,7 @@ import {
 	isTag,
 	monthOf,
 	type Expense,
+	type ExpenseFavorite,
 	type ExpenseInput,
 	type ExpenseSource,
 	type RecurringExpense
@@ -162,6 +170,32 @@ export async function receiptOf(id: number) {
 		.from(expense)
 		.where(eq(expense.id, id));
 	return row?.receipt ?? null;
+}
+
+/** The favourites, by name. */
+export async function favoriteExpenses(): Promise<ExpenseFavorite[]> {
+	const rows = await db.select().from(expenseFavorite).orderBy(asc(expenseFavorite.store));
+	return rows.map((r) => ({
+		id: r.id,
+		store: r.store,
+		category: isCategory(r.category) ? r.category : 'Otros',
+		total: r.total,
+		lines: r.lines
+	}));
+}
+
+/** Marked as a favourite: one of the same name is replaced, not doubled. */
+export async function saveFavorite(userId: string, f: Omit<ExpenseFavorite, 'id'>) {
+	const [same] = await db
+		.select({ id: expenseFavorite.id })
+		.from(expenseFavorite)
+		.where(sql`lower(${expenseFavorite.store}) = lower(${f.store})`);
+	if (same) await db.update(expenseFavorite).set(f).where(eq(expenseFavorite.id, same.id));
+	else await db.insert(expenseFavorite).values({ ...f, userId });
+}
+
+export async function deleteFavorite(id: number) {
+	await db.delete(expenseFavorite).where(eq(expenseFavorite.id, id));
 }
 
 export async function recurringExpenses(): Promise<RecurringExpense[]> {
