@@ -1,6 +1,6 @@
 import type { PMTiles } from 'pmtiles';
 import { keepScreenOn } from 'comun/screen-on.ts';
-import type { DeviceOrder, HeldMap, RouteMapReport } from '#lib/route-maps.ts';
+import type { DeviceOrder, HeldMap, RouteMapReport } from 'comun/route-maps.ts';
 
 /**
  * Routes' maps on this device (#164), such as the car's tablet: in the browser's own disk (Origin
@@ -226,7 +226,7 @@ class RouteMaps {
 				}
 			}
 			// Its names and icons too, for when there is no coverage.
-			await (await import('#lib/our-map.ts')).keepMapFiles();
+			await (await import('comun/our-map.ts')).keepMapFiles();
 			// Asked once there is something to keep; Chrome says yes to an installed app, or one used often.
 			this.persisted = await navigator.storage.persist();
 			this.held = [

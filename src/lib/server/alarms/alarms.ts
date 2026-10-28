@@ -4,7 +4,7 @@ import type { Alarm, AlarmPlace } from 'comun/alarms.ts';
 import { describeTimers, sameLabel, timeLabel } from 'comun/timer-names.ts';
 import { db } from '#lib/server/db/index.ts';
 import { alarm, alarmPerson } from '#lib/server/db/schema.ts';
-import { cloudAlarmLines, cloudAlarmStopped, tellGroup } from '#lib/server/kitchen.ts';
+import { cloudAlarmStopped, tellGroup } from '#lib/server/kitchen.ts';
 import { log } from '#lib/server/log.ts';
 import {
 	controlSnapcast,
@@ -67,7 +67,7 @@ async function peopleOf(ids: number[]) {
 /**
  * Its own and the house's: the ones for nobody, or for them among others (the cloud's alarms
  * ringing here, the house's). Not those over (rung and stopped, not coming again): kept a while
- * only for the AI (`describeAlarms`).
+ * only for the AI (`describeTimersAt`).
  */
 export async function listAlarms(userId: string): Promise<Alarm[]> {
 	const rows = await db.select().from(alarm).orderBy(alarm.nextAt, alarm.id);
@@ -291,15 +291,14 @@ export async function cancelTimersAt(place: AlarmPlace, label: string | null) {
 }
 
 /**
- * For the AI, with each order: the timers there, as the phone's are told (describeTimers), and the
- * family's alarms it may see, from the cloud (the house's and, from a phone, its person's), with
- * their id to change them. `place`, a satellite's, whose timers these are; null, a phone's (its own, in the browser).
+ * For the AI, with each order said to a satellite: its timers, as the phone's are told
+ * (describeTimers). The family's alarms are told by the cloud, where the AI is (#253).
  */
-export async function describeAlarms(place: AlarmPlace | null, userId: string | null) {
+export async function describeTimersAt(place: AlarmPlace) {
 	const now = Date.now();
 	const rows = await db.select().from(alarm);
-	const timers = place ? rows.filter((r) => r.place === place && r.kind !== 'alarma') : [];
-	const timerLines = describeTimers(
+	const timers = rows.filter((r) => r.place === place && r.kind !== 'alarma');
+	return describeTimers(
 		{
 			done: timers
 				.filter((r) => r.doneAt && r.kind === 'temporizador')
@@ -319,9 +318,6 @@ export async function describeAlarms(place: AlarmPlace | null, userId: string | 
 		},
 		now
 	);
-	// The family's alarms, from the cloud: without it, said so.
-	const alarmLines = await cloudAlarmLines(place, userId, await allSatellites());
-	return [...timerLines, ...alarmLines];
 }
 
 /** «toda la casa», «el satélite Salón». */

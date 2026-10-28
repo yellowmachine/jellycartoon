@@ -19,10 +19,10 @@ import {
 	orderRemove,
 	routeMapsOf
 } from '#lib/server/route-maps.ts';
-import { isDeviceId } from '#lib/route-maps.ts';
+import { isDeviceId } from 'comun/route-maps.ts';
 import { fold } from 'comun/music.ts';
-import { isLngLat } from '#lib/road.ts';
-import { MAX_STOPS, type RouteStop } from '#lib/saved-places.ts';
+import { isLngLat } from 'comun/road.ts';
+import { MAX_STOPS, type RouteStop } from 'comun/saved-places.ts';
 
 const MAX_NAME = 60;
 

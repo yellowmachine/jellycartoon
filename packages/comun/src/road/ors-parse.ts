@@ -1,4 +1,4 @@
-import type { LngLat, Place, Route } from '#lib/road.ts';
+import type { LngLat, Place, Route } from 'comun/road.ts';
 
 /**
  * openrouteservice's answers, as ours (#78): apart from the requests, to be tested with answers of

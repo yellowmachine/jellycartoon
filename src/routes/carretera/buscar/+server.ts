@@ -1,6 +1,6 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import type { LngLat } from '#lib/road.ts';
+import type { LngLat } from 'comun/road.ts';
 import { orsMessage, searchPlaces } from '#lib/server/road/ors.ts';
 
 /** Places for the road mode's destination (#78): `q`, and `lon`/`lat` to find the nearest first. */

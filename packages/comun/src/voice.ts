@@ -1,6 +1,6 @@
 import type { MusicTrack } from 'comun/music.ts';
-import type { Recipe } from '#lib/recipe.ts';
-import type { LngLat, Place } from '#lib/road.ts';
+import type { Recipe } from 'comun/recipe.ts';
+import type { LngLat, Place } from 'comun/road.ts';
 
 /** Voice commands (#33), shared by the server and /voz. */
 
@@ -46,6 +46,9 @@ export type VoiceAction =
 
 /** The longest timer: a day. */
 export const MAX_TIMER_SEC = 24 * 3600;
+
+/** «Para dentro de…»: at most a night. */
+export const MAX_STOP_LATER_MIN = 12 * 60;
 
 /** A choice when the order was not clear: tapped, its `command` is sent as if it had been said. */
 export interface VoiceOption {

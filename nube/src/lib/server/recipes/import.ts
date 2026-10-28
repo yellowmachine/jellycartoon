@@ -1,5 +1,5 @@
 import { asc, eq } from 'drizzle-orm';
-import { parseRecipe, type Recipe } from '#lib/recipe.ts';
+import { parseRecipe, type Recipe } from 'comun/recipe.ts';
 import { recipe } from '#lib/server/db/schema.ts';
 import { openRouterKey, recipesBackdropId } from '#lib/server/family-settings.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';

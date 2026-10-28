@@ -2,7 +2,7 @@ import { error } from '@sveltejs/kit';
 import { AUDIO_LANG } from '$app/env/private';
 import type { RequestHandler } from './$types';
 import { movieClip } from '#lib/server/cinema/clips.ts';
-import { fileResponse } from '#lib/server/file-response.ts';
+import { fileResponse } from 'comun/server/file-response.ts';
 import { getSettings } from '#lib/server/settings.ts';
 import { log } from '#lib/server/log.ts';
 

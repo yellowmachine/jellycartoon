@@ -3,7 +3,7 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
-	"description": "Lo que comparten jellycartoon y la nube (#253): la música, la nevera, la agenda y las alarmas, y sus piezas.",
+	"description": "Lo que comparten jellycartoon y la nube (#253): la música, la nevera, la agenda, las alarmas y el modo carretera (mapa y rutas), y sus piezas.",
 	"exports": {
 		"./*": "./src/*"
 	},
@@ -13,6 +13,9 @@
 	},
 	"dependencies": {
 		"@fontsource/comic-neue": "^5.3.0",
-		"hls.js": "^1.7.3"
+		"@protomaps/basemaps": "^5.7.2",
+		"hls.js": "^1.7.3",
+		"maplibre-gl": "^6.12.0",
+		"pmtiles": "^4.5.0"
 	}
 }

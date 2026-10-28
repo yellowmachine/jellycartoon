@@ -3,7 +3,7 @@
 	import RouteMaps from '#lib/components/RouteMaps.svelte';
 	import SavedPlaces from '#lib/components/SavedPlaces.svelte';
 	import TripMap from '#lib/components/TripMap.svelte';
-	import { distanceText } from '#lib/road.ts';
+	import { distanceText } from 'comun/road.ts';
 	import { durationText, type StoredPoint } from '#lib/trips.ts';
 	import type { PageProps } from './$types';
 

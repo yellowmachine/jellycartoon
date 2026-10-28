@@ -2,9 +2,9 @@
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import { routeMaps } from '#lib/route-maps.svelte.ts';
-	import { MAX_DEVICE_NAME, sizeText, type RouteMapsView } from '#lib/route-maps.ts';
-	import type { SavedRoute } from '#lib/saved-places.ts';
+	import { routeMaps } from 'comun/route-maps.svelte.ts';
+	import { MAX_DEVICE_NAME, sizeText, type RouteMapsView } from 'comun/route-maps.ts';
+	import type { SavedRoute } from 'comun/saved-places.ts';
 
 	/**
 	 * Routes' maps on the devices (#164): a tablet as the car's GPS, its map without coverage along

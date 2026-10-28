@@ -1,7 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { searchPlaces } from '#lib/server/road/ors.ts';
-import { isMapShare, sharedPlace } from '#lib/server/road/shared-place.ts';
+import { isMapShare, sharedPlace } from 'comun/road/shared-place.ts';
 
 /**
  * Where «Compartir → JellyCartoon» lands (the manifest's share_target), from a phone or the car's

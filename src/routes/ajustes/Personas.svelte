@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Guardado from './Guardado.svelte';
+	import Guardado from 'comun/components/Guardado.svelte';
 	import { enhance } from '$app/forms';
 	import { AVATARS, avatar } from 'comun/avatars.ts';
 	import AvatarPicker from 'comun/components/AvatarPicker.svelte';

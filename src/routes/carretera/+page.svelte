@@ -6,8 +6,8 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import MediaIcon from 'comun/components/MediaIcon.svelte';
 	import MusicBar from 'comun/components/MusicBar.svelte';
-	import ManeuverIcon from '#lib/components/ManeuverIcon.svelte';
-	import RoadMap from '#lib/components/RoadMap.svelte';
+	import ManeuverIcon from 'comun/components/ManeuverIcon.svelte';
+	import RoadMap from 'comun/components/RoadMap.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import type { DjOptions, MusicTrack } from 'comun/music.ts';
 	import { coverUrl } from 'comun/music.ts';
@@ -25,13 +25,13 @@
 	import { tripShare } from '#lib/trip-share.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { formatDuration } from 'comun/format.ts';
-	import { distanceText, isLngLat, type LngLat, type Place, type Route } from '#lib/road.ts';
-	import { alongLine, guide, metresBetween } from '#lib/road-guide.ts';
-	import { STOP_REACHED_METRES, stopsAhead, type SavedRoute } from '#lib/saved-places.ts';
-	import { durationText, estimate, Pace } from '#lib/road-eta.ts';
-	import { loadRecent, matching, remember, saveRecent } from '#lib/recent-places.ts';
-	import { toSay } from '#lib/road-voice.ts';
-	import FuelSheet from '#lib/components/FuelSheet.svelte';
+	import { distanceText, isLngLat, type LngLat, type Place, type Route } from 'comun/road.ts';
+	import { alongLine, guide, metresBetween } from 'comun/road-guide.ts';
+	import { STOP_REACHED_METRES, stopsAhead, type SavedRoute } from 'comun/saved-places.ts';
+	import { durationText, estimate, Pace } from 'comun/road-eta.ts';
+	import { loadRecent, matching, remember, saveRecent } from 'comun/recent-places.ts';
+	import { toSay } from 'comun/road-voice.ts';
+	import FuelSheet from 'comun/components/FuelSheet.svelte';
 	import type { PageProps } from './$types';
 
 	/**

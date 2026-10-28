@@ -17,10 +17,6 @@ export interface SettingsShown {
 	recordTrips: boolean | null;
 	langua: unknown;
 	telegram: unknown;
-	houseStyle: unknown;
-	myStyle: unknown;
-	voiceWeb: unknown;
-	voiceQuiet: unknown;
 	musicApps: unknown;
 	voice: boolean;
 	music: boolean;
@@ -103,34 +99,6 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		title: 'Guardar mis viajes',
 		words: 'viajes modo carretera recorridos gps km coche',
 		shown: (d) => d.recordTrips !== null
-	},
-	{
-		id: 'caracter-casa',
-		tab: 'casa',
-		title: 'Cómo es la voz de la casa',
-		words: 'voz carácter personalidad tono humor tomar el pelo chistes asistente estilo',
-		shown: (d) => Boolean(d.houseStyle)
-	},
-	{
-		id: 'voz-internet',
-		tab: 'casa',
-		title: 'Buscar en internet desde la voz',
-		words: 'internet web buscar google noticias resultados deportes fútbol nba actualidad',
-		shown: (d) => Boolean(d.voiceWeb)
-	},
-	{
-		id: 'voz-silencio',
-		tab: 'casa',
-		title: 'Horas de silencio',
-		words: 'noche madrugada dormir silencio no molestar música voz confirmar preguntar',
-		shown: (d) => Boolean(d.voiceQuiet)
-	},
-	{
-		id: 'caracter-mio',
-		tab: 'mi',
-		title: 'Cómo quieres que te hable la voz',
-		words: 'voz carácter personalidad tono humor tomar el pelo chistes asistente estilo',
-		shown: (d) => Boolean(d.myStyle)
 	},
 	{
 		id: 'telegram',

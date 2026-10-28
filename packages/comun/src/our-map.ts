@@ -41,7 +41,7 @@ export async function loadOurMap() {
 		import('maplibre-gl'),
 		import('pmtiles'),
 		import('@protomaps/basemaps'),
-		import('#lib/route-maps.svelte.ts')
+		import('comun/route-maps.svelte.ts')
 	]);
 	maplibregl.setWorkerUrl(workerUrl);
 	const origin = location.origin;

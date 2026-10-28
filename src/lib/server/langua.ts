@@ -23,7 +23,7 @@ import { getSettings } from '#lib/server/settings.ts';
 import { normalizeLang } from 'comun/languages.ts';
 import { readCues } from '#lib/server/auto-subtitle-files.ts';
 import { cuesBetween, cuesText, parseVtt, type Cue } from '#lib/vtt.ts';
-import type { VideoHere } from '#lib/voice.ts';
+import type { VideoHere } from 'comun/voice.ts';
 
 /**
  * Langua, the user's language app (langua.scholio.review): a stretch of what they are watching,

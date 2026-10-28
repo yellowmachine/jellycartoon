@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { fileResponse } from '#lib/server/file-response.ts';
+import { fileResponse } from 'comun/server/file-response.ts';
 import { photoFile } from '#lib/server/library/paths.ts';
 import { ownsPhoto } from '#lib/server/trip-photos.ts';
 

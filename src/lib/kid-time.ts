@@ -1,3 +1,5 @@
+import { clock, parseClock } from 'comun/clock.ts';
+
 /**
  * When a child may watch video (#18): slots per weekday and a daily limit. Pure, shared by the
  * server, which enforces it, and the pages, which explain it.
@@ -85,18 +87,7 @@ export function joinSlots(slots: SlotTime[]): Stretch[] {
 
 export const WEEKDAYS = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
 
-/** `minute` as `17:05`. */
-export function clock(minute: number) {
-	return `${Math.floor(minute / 60)}:${String(minute % 60).padStart(2, '0')}`;
-}
-
-/** `17:05` as minutes; null if it is not a time. `24:00` is the end of the day. */
-export function parseClock(text: string) {
-	const match = /^(\d{1,2}):(\d{2})$/.exec(text.trim());
-	if (!match) return null;
-	const minute = Number(match[1]) * 60 + Number(match[2]);
-	return Number(match[2]) < 60 && minute <= 1440 ? minute : null;
-}
+export { clock, parseClock };
 
 /** The first slot that starts after `minute` on the day `daysAhead` from `weekday`. */
 function firstStart(slots: Slot[], weekday: number, daysAhead: number, after = -1) {

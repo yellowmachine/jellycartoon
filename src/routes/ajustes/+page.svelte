@@ -12,9 +12,6 @@
 	import AlAbrir from './AlAbrir.svelte';
 	import Langua from './Langua.svelte';
 	import Telegram from './Telegram.svelte';
-	import VozCaracter from './VozCaracter.svelte';
-	import VozInternet from './VozInternet.svelte';
-	import VozSilencio from './VozSilencio.svelte';
 	import MusicaEnApps from './MusicaEnApps.svelte';
 	import Dispositivo from './Dispositivo.svelte';
 	import Voz from './Voz.svelte';
@@ -83,10 +80,6 @@
 				recordTrips: data.recordTrips,
 				langua: data.langua,
 				telegram: data.telegram,
-				houseStyle: data.houseStyle,
-				myStyle: data.myStyle,
-				voiceWeb: data.voiceWeb,
-				voiceQuiet: data.voiceQuiet,
 				musicApps: data.musicApps,
 				voice: Boolean(data.voice),
 				music: Boolean(data.music),
@@ -141,8 +134,6 @@
 
 		<Telegram {data} {form} {tab} />
 
-		<VozCaracter {data} {form} {tab} which="mio" />
-
 		<MusicaEnApps {data} {form} {tab} />
 	{/if}
 
@@ -176,12 +167,6 @@
 		<Nube {data} {form} {tab} />
 
 		<VozCasa {data} {form} {tab} />
-
-		<VozCaracter {data} {form} {tab} which="casa" />
-
-		<VozInternet {data} {form} {tab} />
-
-		<VozSilencio {data} {form} {tab} />
 
 		<Personas {data} {form} {tab} />
 

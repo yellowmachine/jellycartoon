@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { fileResponse } from '#lib/server/file-response.ts';
+import { fileResponse } from 'comun/server/file-response.ts';
 import { albumCoverFile } from '#lib/server/library/paths.ts';
 
 export const GET: RequestHandler = ({ params, request }) =>

@@ -1,7 +1,7 @@
-import { parseClock } from '#lib/kid-time.ts';
+import { parseClock } from 'comun/clock.ts';
 
 /**
- * The «horas de silencio» check (quiet-hours.ts), apart from where they are saved: whether an order
+ * The «horas de silencio» check (saved in settings.ts), apart from where they are saved: whether an order
  * may start something sounding now.
  */
 
@@ -23,7 +23,7 @@ export function inQuietHours(config: QuietHours, minute: number) {
 	return from < to ? minute >= from && minute < to : minute >= from || minute < to;
 }
 
-/** By place (a satellite, a person's devices): the order that asked, or until when it may play. */
+/** By family and place (a satellite, a person's devices): the order that asked, or until when it may play. */
 const asked = new Map<string, { order: string; at: number } | { until: number }>();
 
 /**

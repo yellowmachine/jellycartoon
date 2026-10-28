@@ -61,3 +61,165 @@ export async function completeJson<T>(request: {
 		throw new Error('OpenRouter: la respuesta se cortó por larga');
 	return JSON.parse(content) as T;
 }
+
+/** Why OpenRouter said no, in words: the voice reads it aloud. */
+export const NO_CREDIT = 'No queda saldo en OpenRouter';
+
+function refused(status: number, body: { error?: { message?: string } } | null) {
+	if (status === 401) return new Error('OpenRouter no acepta la clave: cámbiala en Ajustes');
+	if (status === 402) return new Error(NO_CREDIT);
+	return new Error(`OpenRouter: ${body?.error?.message ?? status}`);
+}
+
+/** A function the model can call: https://openrouter.ai/docs/guides/features/tool-calling */
+export interface Tool {
+	type: 'function';
+	function: { name: string; description: string; parameters: Record<string, unknown> };
+}
+
+export interface ToolCall {
+	id: string;
+	type: 'function';
+	/** `arguments` is JSON, as the model wrote it: it may not follow the schema. */
+	function: { name: string; arguments: string };
+}
+
+/**
+ * Text in parts; a part with `cache_control` is cached up to it, for Anthropic's models:
+ * https://openrouter.ai/docs/guides/best-practices/prompt-caching
+ */
+export type TextPart = { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } };
+
+export type ToolChatMessage =
+	| { role: 'system' | 'user'; content: string | TextPart[] }
+	| { role: 'assistant'; content: string | null; tool_calls?: ToolCall[] }
+	| { role: 'tool'; tool_call_id: string; content: string };
+
+/** What a turn cost, in tokens. */
+export interface Usage {
+	prompt_tokens?: number;
+	completion_tokens?: number;
+	prompt_tokens_details?: { cached_tokens?: number };
+	cost?: number;
+}
+
+const headers = (apiKey: string) => ({
+	Authorization: `Bearer ${apiKey}`,
+	'Content-Type': 'application/json',
+	'X-OpenRouter-Title': 'Nube'
+});
+
+/** Models whose thinking can be turned off, from OpenRouter's list; read once per process. */
+let thinkingOptional: Promise<Set<string>> | undefined;
+
+/**
+ * Whether `effort: "none"` can go with `model`: those whose reasoning is mandatory refuse it
+ * (https://openrouter.ai/docs/guides/best-practices/reasoning-tokens). If the list cannot be read,
+ * no: the model thinks, as before, but answers.
+ */
+async function canSkipThinking(model: string) {
+	thinkingOptional ??= fetch('https://openrouter.ai/api/v1/models', {
+		signal: AbortSignal.timeout(10_000)
+	})
+		.then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+		.then(
+			(body: {
+				data: { id: string; reasoning?: { mandatory?: boolean; supported_efforts?: string[] } }[];
+			}) =>
+				new Set(
+					body.data
+						.filter(
+							(m) => !m.reasoning?.mandatory && m.reasoning?.supported_efforts?.includes('none')
+						)
+						.map((m) => m.id)
+				)
+		)
+		.catch((error) => {
+			console.warn('[ia] No se pudo leer qué modelos dejan de pensar', String(error));
+			thinkingOptional = undefined;
+			return new Set<string>();
+		});
+	return (await thinkingOptional).has(model);
+}
+
+/**
+ * One turn of a conversation with tools (jellycartoon's, for the voice): the model answers with
+ * text, or with the tools it wants called. The caller runs them, adds their results as `tool`
+ * messages and asks again.
+ */
+export async function chatWithTools(request: {
+	apiKey: string;
+	model: string;
+	messages: ToolChatMessage[];
+	tools: Tool[];
+	timeoutMs?: number;
+	/** False, without thinking first when the model allows it: the voice, where each second shows. */
+	think?: boolean;
+}): Promise<{ content: string | null; toolCalls: ToolCall[]; usage: Usage | null }> {
+	const noThinking = request.think === false && (await canSkipThinking(request.model));
+	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+		method: 'POST',
+		headers: headers(request.apiKey),
+		body: JSON.stringify({
+			model: request.model,
+			messages: request.messages,
+			tools: request.tools,
+			// Short answers here, but room for a model that reasons.
+			max_tokens: 4_096,
+			...(noThinking && { reasoning: { effort: 'none' } }),
+			// Only providers that take tools.
+			provider: { require_parameters: true }
+			// No caching of its own: the caller marks what does not change (a `TextPart`).
+		}),
+		signal: AbortSignal.timeout(request.timeoutMs ?? 30_000)
+	});
+	const body = await res.json().catch(() => null);
+	if (!res.ok) throw refused(res.status, body);
+	const choice = body?.choices?.[0];
+	const message = choice?.message;
+	if (!message) {
+		if (Number(choice?.error?.code) === 402) throw new Error(NO_CREDIT);
+		const why = body?.error?.message ?? choice?.error?.message;
+		throw new Error(`OpenRouter: respuesta vacía${why ? `: ${why}` : ''}`);
+	}
+	return {
+		content: typeof message.content === 'string' && message.content.trim() ? message.content : null,
+		toolCalls: Array.isArray(message.tool_calls) ? message.tool_calls : [],
+		usage: body.usage ?? null
+	};
+}
+
+/**
+ * A question answered with the web (#243, the voice's `web_search`), through OpenRouter's web plugin:
+ * https://openrouter.ai/docs/guides/features/plugins/web-search. Its words, short; about a cent
+ * each and some seconds more.
+ */
+export async function askWeb(request: {
+	apiKey: string;
+	model: string;
+	system: string;
+	prompt: string;
+	label: string;
+	timeoutMs?: number;
+}) {
+	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+		method: 'POST',
+		headers: headers(request.apiKey),
+		body: JSON.stringify({
+			model: request.model,
+			messages: [
+				{ role: 'system', content: request.system },
+				{ role: 'user', content: request.prompt }
+			],
+			plugins: [{ id: 'web', max_results: 5 }],
+			max_tokens: 2048
+		}),
+		signal: AbortSignal.timeout(request.timeoutMs ?? 30_000)
+	});
+	const body = await res.json().catch(() => null);
+	if (!res.ok) throw refused(res.status, body);
+	const content = body?.choices?.[0]?.message?.content;
+	if (typeof content !== 'string' || !content.trim())
+		throw new Error(`OpenRouter no ha contestado (${request.label})`);
+	return content.trim();
+}

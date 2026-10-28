@@ -2,8 +2,8 @@
 	import 'maplibre-gl/dist/maplibre-gl.css';
 	import { untrack } from 'svelte';
 	import type { GeoJSONSource, Map as MapLibreMap, Marker } from 'maplibre-gl';
-	import { loadOurMap } from '#lib/our-map.ts';
-	import type { LngLat, Route } from '#lib/road.ts';
+	import { loadOurMap } from 'comun/our-map.ts';
+	import type { LngLat, Route } from 'comun/road.ts';
 
 	/**
 	 * The road mode's map (#78, phase 3a): Spain's map served by the app itself (DATA_DIR/mapa, see

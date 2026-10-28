@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { describeTimer } from '#lib/recipe.ts';
+	import { describeTimer } from 'comun/recipe.ts';
 	import { recipe } from '#lib/recipe.svelte.ts';
 
 	/**

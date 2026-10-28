@@ -30,6 +30,11 @@ export const variables = defineEnvVars({
 		description: "The S3 storage's secret key.",
 		schema: (value) => value || undefined
 	},
+	MAP_DIR: {
+		description:
+			"The road mode's map (#78): Spain's PMTiles and its style's fonts and icons, made with jellycartoon's scripts/mapa.sh. Without it, the road mode goes without a map.",
+		schema: (value) => value || '/data/mapa'
+	},
 	BETTER_AUTH_SECRET: {
 		description:
 			"Secret used to sign tokens and to encrypt what the app keeps (the houses' keys). 32 characters generated with high entropy: `openssl rand -base64 32`."

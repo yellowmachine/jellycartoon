@@ -1,14 +1,14 @@
 <script lang="ts">
-	import Guardado from './Guardado.svelte';
+	import Guardado from 'comun/components/Guardado.svelte';
 	import { enhance } from '$app/forms';
-	import { section, select, primary, secondary } from './styles.ts';
+	import { section, select, primary, secondary } from '#lib/styles.ts';
 	import type { PageData, ActionData } from './$types';
 
 	/**
 	 * Horas de silencio: de noche, lo que la voz fuera a poner (música, radio, un capítulo) lo
 	 * pregunta antes, y solo lo pone con un «sí». Lo de la pantalla, las alarmas y parar, nunca.
 	 */
-	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
+	let { data, form }: { data: PageData; form: ActionData } = $props();
 </script>
 
 {#if data.voiceQuiet}
@@ -22,7 +22,7 @@
 		</p>
 		<form
 			method="post"
-			action="?seccion={tab}&/saveVoiceQuiet"
+			action="?/saveVoiceQuiet"
 			use:enhance={() =>
 				async ({ update }) =>
 					update({ reset: false })}

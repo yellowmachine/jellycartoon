@@ -1,14 +1,13 @@
 import type { Tool } from '#lib/server/openrouter.ts';
-import { botHasGroup, sayInGroup } from '#lib/server/kitchen.ts';
 import { cancelSend, confirmSend, prepareSend, telegramOf } from '#lib/server/telegram/telegram.ts';
 
 /**
  * The voice's Telegram (#243): messages with the person's own account, only where it is known who
- * speaks (not a satellite) and only after their «sí», which the server asks for, not the AI; and
- * things said in the family's group by the family's bot, in the cloud (#253), from anywhere.
+ * speaks (not a satellite) and only after their «sí», which the server asks for, not the AI. The
+ * family's group, with its bot, is the cloud's (#253): it says things there itself.
  */
 
-export const TELEGRAM_TOOLS = new Set(['telegram_send', 'telegram_confirm', 'group_say']);
+export const TELEGRAM_TOOLS = new Set(['telegram_send', 'telegram_confirm']);
 
 const fn = (name: string, description: string, properties: object, required: string[]): Tool => ({
 	type: 'function',
@@ -19,12 +18,9 @@ const fn = (name: string, description: string, properties: object, required: str
 	}
 });
 
-/** Those that make sense for who speaks: their account connected, the bot in a group. */
+/** Those that make sense for who speaks: their account connected. */
 export async function telegramTools(userId: string, satellite: boolean): Promise<Tool[]> {
-	const [account, group] = await Promise.all([
-		satellite ? null : telegramOf(userId),
-		botHasGroup()
-	]);
+	const account = satellite ? null : await telegramOf(userId);
 	return [
 		...(account
 			? [
@@ -51,21 +47,6 @@ export async function telegramTools(userId: string, satellite: boolean): Promise
 						['send']
 					)
 				]
-			: []),
-		...(group
-			? [
-					fn(
-						'group_say',
-						'Dice algo en el grupo de Telegram de la familia, con el bot de la casa («di en el grupo que ya está la comida», «avisa a la familia de que llego tarde»). Sale como el bot, diciendo de quién o de dónde viene.',
-						{
-							text: {
-								type: 'string',
-								description: 'Lo que hay que decir, corto: «Ya está la comida».'
-							}
-						},
-						['text']
-					)
-				]
 			: [])
 	];
 }
@@ -74,7 +55,7 @@ export async function telegramTools(userId: string, satellite: boolean): Promise
 export async function runTelegramTool(
 	name: string,
 	args: Record<string, unknown>,
-	ctx: { userId: string; userName: string; satellite: string | null; order: string }
+	ctx: { userId: string; satellite: string | null; order: string }
 ): Promise<string> {
 	const text = typeof args.text === 'string' ? args.text.trim().slice(0, 1000) : '';
 	switch (name) {
@@ -103,15 +84,6 @@ export async function runTelegramTool(
 			}
 			try {
 				return `Enviado a «${await confirmSend(ctx.userId, ctx.order)}».`;
-			} catch (err) {
-				return err instanceof Error ? err.message : String(err);
-			}
-		}
-		case 'group_say': {
-			if (!text) return 'Falta qué decir.';
-			const from = ctx.satellite ? `Desde ${ctx.satellite}` : ctx.userName || 'Alguien de casa';
-			try {
-				return `Dicho en el grupo «${await sayInGroup(from, text)}»: «${text}».`;
 			} catch (err) {
 				return err instanceof Error ? err.message : String(err);
 			}

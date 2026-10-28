@@ -24,9 +24,9 @@ import type { Chapter, SceneName } from '#lib/scenes.ts';
 import type { SubtitleStyle } from '#lib/subtitle-style.ts';
 import type { WikiPage } from '#lib/server/cinema/wikidata.ts';
 import type { TitleProposal } from '#lib/episode-titles.ts';
-import type { LngLat } from '#lib/road.ts';
+import type { LngLat } from 'comun/road.ts';
 import type { DjOptions } from 'comun/music.ts';
-import type { RouteStop } from '#lib/saved-places.ts';
+import type { RouteStop } from 'comun/saved-places.ts';
 import type { Exercise, HomeworkRules, Step } from '#lib/homework.ts';
 import { session, user } from './auth.schema';
 
@@ -674,9 +674,7 @@ export const userSettings = pgTable('user_settings', {
 	/** Modo DJ in the browser: the DJ's words over the end of a song and the start of the next, not between them. */
 	djMix: boolean('dj_mix').notNull().default(false),
 	/** The month's AI spending in a line under the header (#193), on every page: an adult's choice. */
-	spendLine: boolean('spend_line').notNull().default(false),
-	/** How the voice talks to them (Ajustes), free text: «llámame jefe y tómame el pelo». */
-	voiceStyle: text('voice_style')
+	spendLine: boolean('spend_line').notNull().default(false)
 });
 
 /**

@@ -1,14 +1,14 @@
 <script lang="ts">
-	import Guardado from './Guardado.svelte';
+	import Guardado from 'comun/components/Guardado.svelte';
 	import { enhance } from '$app/forms';
-	import { section, select, primary } from './styles.ts';
+	import { section, select, primary } from '#lib/styles.ts';
 	import type { PageData, ActionData } from './$types';
 
 	/**
 	 * La voz buscando en internet (#243): solo si se activa, y solo cuando necesita algo de
 	 * actualidad que no sabe. Dónde buscar, en texto libre; vacío, donde mejor encaje.
 	 */
-	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
+	let { data, form }: { data: PageData; form: ActionData } = $props();
 </script>
 
 {#if data.voiceWeb}
@@ -17,11 +17,11 @@
 		<p class="mb-3 text-sm text-zinc-400">
 			Para lo que la IA no sabe porque es de hoy: un resultado, una noticia, el horario de una
 			tienda. Solo busca cuando hace falta; cada búsqueda cuesta algo más de un céntimo y tarda unos
-			segundos, y queda en el Registro.
+			segundos.
 		</p>
 		<form
 			method="post"
-			action="?seccion={tab}&/saveVoiceWeb"
+			action="?/saveVoiceWeb"
 			use:enhance={() =>
 				async ({ update }) =>
 					update({ reset: false })}

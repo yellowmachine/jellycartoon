@@ -3,7 +3,7 @@ import { error } from '@sveltejs/kit';
 import { and, eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { track } from '#lib/server/db/schema.ts';
-import { fileResponse } from '#lib/server/file-response.ts';
+import { fileResponse } from 'comun/server/file-response.ts';
 import { musicFile, musicRoot, opusFile } from '#lib/server/library/paths.ts';
 import { audioType, isOpus } from './tags.ts';
 

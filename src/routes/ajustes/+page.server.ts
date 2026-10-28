@@ -16,7 +16,6 @@ import {
 	homeworkModel,
 	isAdmin,
 	DEFAULT_ORS_URL,
-	getAppSetting,
 	openRouterConfig,
 	openRouterManagementKey,
 	orsConfig,
@@ -120,9 +119,6 @@ import {
 	setTelegramOptions,
 	telegramOf
 } from '#lib/server/telegram/telegram.ts';
-import { MAX_VOICE_STYLE } from '#lib/voice.ts';
-import { setWebSearch, webSearchConfig } from '#lib/server/voice/web-search.ts';
-import { quietHoursConfig, setQuietHours } from '#lib/server/voice/quiet-hours.ts';
 
 export const load: PageServerLoad = async ({ locals, cookies, url, request }) => {
 	const userId = locals.user!.id;
@@ -285,14 +281,6 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		keepHistory: isKid(locals.user) ? null : settings.keepHistory,
 		/** The road mode's trips kept (#81); adults only. */
 		recordTrips: isKid(locals.user) ? null : await recordsTrips(userId),
-		/** The voice searching the web, and how (#243): who manages the app. */
-		voiceWeb: admin && voiceEnabled ? await webSearchConfig() : null,
-		/** «Horas de silencio»: at night, the voice asks before putting anything on. */
-		voiceQuiet: admin && voiceEnabled ? { hours: await quietHoursConfig() } : null,
-		/** How the voice is (free text in its instructions): the house's, for who manages the app. */
-		houseStyle: admin && voiceEnabled ? { text: (await getAppSetting('voice_style')) ?? '' } : null,
-		/** And how it talks to them: an adult's. */
-		myStyle: !isKid(locals.user) && voiceEnabled ? { text: settings.voiceStyle ?? '' } : null,
 		/** Their own Telegram (#243), read aloud in the road mode: adults only. Never its session. */
 		telegram: isKid(locals.user) ? null : { account: await telegramOf(userId) },
 		/** Langua, the language app: adults only. Never the token itself, only its end. */
@@ -820,49 +808,6 @@ export const actions: Actions = {
 			return fail(400, { section: 'langua', message: 'Primero la dirección y el token' });
 		const problem = await pingLangua(config);
 		return problem ? fail(502, { section: 'langua', message: problem }) : { languaOk: true };
-	},
-	/** «Buscar en internet desde la voz», and the house's hints for it (#243). */
-	saveVoiceWeb: async ({ request, locals }) => {
-		await requireAdmin(locals.user!.id);
-		const form = await request.formData();
-		const config = { on: form.get('on') === 'on', hints: String(form.get('hints') ?? '') };
-		await setWebSearch(config);
-		log.info('ajustes', `Voz en internet: ${config.on ? 'sí' : 'no'}`, { hints: config.hints });
-		return { saved: 'voiceWeb' };
-	},
-	/** «Horas de silencio»: both times, or none (`off`). */
-	saveVoiceQuiet: async ({ request, locals }) => {
-		await requireAdmin(locals.user!.id);
-		const form = await request.formData();
-		const from = String(form.get('from') ?? '');
-		const to = String(form.get('to') ?? '');
-		const hours = form.get('off') || !from || !to ? null : { from, to };
-		await setQuietHours(hours);
-		log.info('ajustes', `Horas de silencio: ${hours ? `de ${from} a ${to}` : 'no'}`);
-		return { saved: 'voiceQuiet' };
-	},
-	/** «Cómo es la voz de la casa»: free text in the voice's instructions; empty, none. */
-	saveHouseStyle: async ({ request, locals }) => {
-		await requireAdmin(locals.user!.id);
-		const text = String((await request.formData()).get('style') ?? '')
-			.trim()
-			.slice(0, MAX_VOICE_STYLE);
-		await setAppSetting('voice_style', text || null);
-		log.info('ajustes', 'Carácter de la voz de la casa', { style: text });
-		return { saved: 'houseStyle' };
-	},
-	/** «Cómo quieres que te hable»: theirs, with each order of theirs. */
-	saveMyStyle: async ({ request, locals }) => {
-		if (isKid(locals.user)) error(404, 'No encontrado');
-		const text = String((await request.formData()).get('style') ?? '')
-			.trim()
-			.slice(0, MAX_VOICE_STYLE);
-		const values = { voiceStyle: text || null };
-		await db
-			.insert(userSettings)
-			.values({ userId: locals.user!.id, ...values })
-			.onConflictDoUpdate({ target: userSettings.userId, set: values });
-		return { saved: 'myStyle' };
 	},
 	/** Telegram (#243), first step: its app's data and the number; Telegram sends a code. */
 	telegramCode: async ({ request, locals }) => {

@@ -1,4 +1,4 @@
-import type { LngLat } from '#lib/road.ts';
+import type { LngLat } from 'comun/road.ts';
 
 /**
  * Photos from the road mode (#81): the back camera opened when asked (a button, or the voice), one

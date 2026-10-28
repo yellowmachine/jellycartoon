@@ -4,7 +4,7 @@ import { and, desc, eq, gte, lte } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { trip, tripPhoto } from '#lib/server/db/schema.ts';
 import { photoFile } from '#lib/server/library/paths.ts';
-import type { LngLat } from '#lib/road.ts';
+import type { LngLat } from 'comun/road.ts';
 import { NEW_TRIP_AFTER_MS } from '#lib/trips.ts';
 
 /**

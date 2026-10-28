@@ -19,8 +19,6 @@ export interface PlaybackSettings {
 	djMix: boolean;
 	/** The month's AI spending under the header (#193). */
 	spendLine: boolean;
-	/** How the voice talks to them, as they wrote it; null, as to anyone. */
-	voiceStyle: string | null;
 }
 
 export async function getSettings(userId: string): Promise<PlaybackSettings> {
@@ -35,8 +33,7 @@ export async function getSettings(userId: string): Promise<PlaybackSettings> {
 		keepHistory: row?.keepHistory ?? true,
 		openingQuote: row?.openingQuote ?? true,
 		djMix: row?.djMix ?? false,
-		spendLine: row?.spendLine ?? false,
-		voiceStyle: row?.voiceStyle ?? null
+		spendLine: row?.spendLine ?? false
 	};
 }
 

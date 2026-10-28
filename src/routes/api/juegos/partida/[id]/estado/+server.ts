@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { fileResponse } from '#lib/server/file-response.ts';
+import { fileResponse } from 'comun/server/file-response.ts';
 import { ownSave, saveStateFile } from '#lib/server/game-saves.ts';
 
 /** A saved game's emulator state, to load it: only the person's own. */

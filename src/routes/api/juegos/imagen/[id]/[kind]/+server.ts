@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { fileResponse } from '#lib/server/file-response.ts';
+import { fileResponse } from 'comun/server/file-response.ts';
 import { pictureFile, PICTURES, type Picture } from '#lib/server/games.ts';
 
 /** One of a game's pictures (#176): libretro's, or the one taken while playing. */

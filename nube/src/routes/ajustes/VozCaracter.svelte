@@ -1,20 +1,15 @@
 <script lang="ts">
-	import Guardado from './Guardado.svelte';
+	import Guardado from 'comun/components/Guardado.svelte';
 	import { enhance } from '$app/forms';
-	import { section, select, primary } from './styles.ts';
-	import { MAX_VOICE_STYLE } from '#lib/voice.ts';
+	import { section, select, primary } from '#lib/styles.ts';
+	import { MAX_VOICE_STYLE } from 'comun/voice.ts';
 	import type { PageData, ActionData } from './$types';
 
 	/**
 	 * Cómo es la voz (la IA que contesta), en texto libre: el de la casa (para todos, también los
 	 * satélites) o el de cada uno (cuando sabe que eres tú). Cambia el tono, no lo que hace.
 	 */
-	let {
-		data,
-		form,
-		tab,
-		which
-	}: { data: PageData; form: ActionData; tab: string; which: 'casa' | 'mio' } = $props();
+	let { data, form, which }: { data: PageData; form: ActionData; which: 'casa' | 'mio' } = $props();
 
 	const style = $derived(which === 'casa' ? data.houseStyle : data.myStyle);
 	const action = $derived(which === 'casa' ? 'saveHouseStyle' : 'saveMyStyle');
@@ -37,7 +32,7 @@
 	</p>
 	<form
 		method="post"
-		action="?seccion={tab}&/{action}"
+		action="?/{action}"
 		use:enhance={() =>
 			async ({ update }) =>
 				update({ reset: false })}

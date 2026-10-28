@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { report } from '#lib/server/route-maps.ts';
-import { isDeviceId, type RouteMapReport } from '#lib/route-maps.ts';
+import { isDeviceId, type RouteMapReport } from 'comun/route-maps.ts';
 
 const STATES = new Set<RouteMapReport['state']>(['downloading', 'ready', 'failed', 'removed']);
 

@@ -13,7 +13,7 @@ import {
 	timestamp,
 	unique
 } from 'drizzle-orm/pg-core';
-import type { RecipeStep } from '#lib/recipe.ts';
+import type { RecipeStep } from 'comun/recipe.ts';
 import { user } from './auth.schema.ts';
 import { family, familyRows } from './family.schema.ts';
 
@@ -116,6 +116,16 @@ export const familySettings = pgTable(
 			.primaryKey()
 			.references(() => family.id, { onDelete: 'cascade' }),
 		openrouterKey: text('openrouter_key'),
+		/** openrouteservice's key (#78), for the road mode's routes and places; encrypted. */
+		orsKey: text('ors_key'),
+		/** The voice's model (OpenRouter), for its orders; null, the default one. */
+		voiceModel: text('voice_model'),
+		/** «Cómo es la voz de la casa», free text in its instructions; null, none. */
+		voiceStyle: text('voice_style'),
+		/** «Buscar en internet desde la voz»: on or off, and where to look. */
+		voiceWeb: jsonb('voice_web').$type<{ on: boolean; hints: string }>(),
+		/** «Horas de silencio», «HH:MM» to «HH:MM»; null, none. */
+		voiceQuiet: jsonb('voice_quiet').$type<{ from: string; to: string }>(),
 		recipesBackdrop: integer('recipes_backdrop').references(() => recipe.id, {
 			onDelete: 'set null'
 		}),

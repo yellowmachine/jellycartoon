@@ -1,4 +1,4 @@
-import type { LngLat, Route, RouteStep } from '#lib/road.ts';
+import type { LngLat, Route, RouteStep } from 'comun/road.ts';
 
 /**
  * Guidance along a route (#78, phase 3c), from where the GPS says we are: how far along the route,

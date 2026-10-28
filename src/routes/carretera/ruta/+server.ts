@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { isLngLat } from '#lib/road.ts';
-import { MAX_STOPS } from '#lib/saved-places.ts';
+import { isLngLat } from 'comun/road.ts';
+import { MAX_STOPS } from 'comun/saved-places.ts';
 import { drivingRoute, orsMessage } from '#lib/server/road/ors.ts';
 
 /**

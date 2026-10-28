@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { parseCoordinates } from '#lib/coordinates.ts';
-	import type { LngLat, Place } from '#lib/road.ts';
+	import { parseCoordinates } from 'comun/coordinates.ts';
+	import type { LngLat, Place } from 'comun/road.ts';
 
 	/**
 	 * Where a kept place or a route's stop is (#151): searched by its name or address (the road

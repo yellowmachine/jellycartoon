@@ -1,4 +1,4 @@
-import type { Guidance } from '#lib/road-guide.ts';
+import type { Guidance } from 'comun/road-guide.ts';
 
 /**
  * What to say aloud while guiding (#78, phase 3d), and when: each maneuver once well before it

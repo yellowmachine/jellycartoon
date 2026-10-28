@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { error } from '@sveltejs/kit';
 import { formVtt, isAutoFile, readPhrases } from '#lib/server/auto-subtitle-files.ts';
-import { fileResponse } from '#lib/server/file-response.ts';
+import { fileResponse } from 'comun/server/file-response.ts';
 import { hlsDir } from '#lib/server/library/paths.ts';
 import { onlyLight } from '#lib/server/library/light-master.ts';
 import { SUBTITLE_FORMS, type SubtitleForm } from '#lib/server/voice/whisper-cues.ts';

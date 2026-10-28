@@ -1,14 +1,10 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { log } from '#lib/server/log.ts';
-import { runVoiceCommand } from '#lib/server/voice/command.ts';
+import { runVoiceCommand } from '#lib/server/voice/hands.ts';
+import { CloudProblem } from '#lib/server/kitchen.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
-import { NO_CREDIT } from '#lib/server/openrouter.ts';
-import { parseVoiceRequest, type VoiceReply } from '#lib/voice.ts';
-
-/** As the AI would answer, for whoever asked: the details are in the banner (+layout.svelte). */
-const SAID_NO_CREDIT =
-	'Se ha acabado el crédito de la inteligencia artificial. Hay que recargarlo y darle a «Ya he recargado» en la app.';
+import { parseVoiceRequest, type VoiceReply } from 'comun/voice.ts';
 
 /** «1,25»: seconds, from milliseconds. */
 const seconds = (ms: number) => (ms / 1000).toLocaleString('es-ES', { maximumFractionDigits: 2 });
@@ -46,10 +42,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json(reply);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
-		// Said, not an error: a satellite reads it aloud (with Piper, which needs no credit).
-		if (message === NO_CREDIT) {
-			log.warn('voz', `«${command.text}»: sin crédito de la IA`);
-			return json({ reply: SAID_NO_CREDIT, actions: [], options: [] } satisfies VoiceReply);
+		// Said, not an error: a satellite reads it aloud (with Piper, which needs no cloud).
+		if (err instanceof CloudProblem) {
+			log.warn('voz', `«${command.text}»: ${message}`);
+			return json({ reply: message, actions: [], options: [] } satisfies VoiceReply);
 		}
 		log.error('voz', `«${command.text}»: ${message}`);
 		error(503, message);
