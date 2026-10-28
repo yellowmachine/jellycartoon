@@ -37,22 +37,26 @@ Los cambios del esquema, con `bun run db:generate`: nunca SQL a mano.
 
 ## Producción (Dokploy en el VPS)
 
-1. **Postgres:** una base de datos en Dokploy. Una vez, como su dueño, el rol de la app (lo mismo
-   que `scripts/init-db.sh`, cambiando la contraseña y `<dueño>` por el usuario de Dokploy):
-   ```sql
-   CREATE ROLE nube_app WITH LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD '…';
-   GRANT CONNECT ON DATABASE nube TO nube_app;
-   GRANT USAGE ON SCHEMA public TO nube_app;
-   ALTER DEFAULT PRIVILEGES FOR ROLE <dueño> IN SCHEMA public
-   	GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO nube_app;
-   ALTER DEFAULT PRIVILEGES FOR ROLE <dueño> IN SCHEMA public
-   	GRANT USAGE, SELECT ON SEQUENCES TO nube_app;
+Como svelte-thinking: una app **Docker Compose** de Dokploy con `compose.prod.yaml`, Postgres y la
+app en la misma pila. La primera vez que arranca Postgres, `scripts/init-db.sh` crea el rol de la
+app (`nube_app`) con su contraseña: no hay SQL a mano.
+
+1. **Create Service → Compose**, desde este repositorio, rama `development` o `main`, con
+   **Compose Path** `./nube/compose.prod.yaml`.
+2. **Environment** (contraseñas en hexadecimal, porque van dentro de las URLs:
+   `openssl rand -hex 24`):
+   ```sh
+   POSTGRES_PASSWORD=…
+   APP_DB_PASSWORD=…
+   ORIGIN=https://nube.tu-dominio.com
+   BETTER_AUTH_SECRET=…          # openssl rand -base64 32
    ```
-2. **La app:** una aplicación de Dokploy desde este repositorio, con el Dockerfile de `nube/`
-   (Build Path `/nube`), el dominio (`nube.<tu-dominio>`) y estas variables:
-   - `DATABASE_URL`: como `nube_app`.
-   - `MIGRATE_DATABASE_URL`: como el dueño, para las migraciones al arrancar.
-   - `ORIGIN`: `https://nube.<tu-dominio>`.
-   - `BETTER_AUTH_SECRET`: `openssl rand -base64 32`.
-3. **La primera familia:** en la terminal del contenedor,
+3. **Domains:** `nube.tu-dominio.com` → servicio `app`, puerto 3000, con HTTPS (Let's Encrypt).
+   En Cloudflare, un registro `A` `nube` → IP del VPS, en modo DNS only.
+4. **Deploy.** Dokploy construye la imagen con el `Dockerfile` de esta carpeta; al arrancar, la app
+   aplica las migraciones como el dueño.
+5. **La primera familia:** en la terminal del servicio `app`,
    `bun scripts/crear-familia.ts "Casa García" ana@example.com`.
+
+`init-db.sh` solo corre con el volumen de Postgres vacío: cambiar `APP_DB_PASSWORD` después
+necesita `ALTER ROLE nube_app PASSWORD '…'` en la base de datos.
