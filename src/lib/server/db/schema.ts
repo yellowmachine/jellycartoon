@@ -1408,63 +1408,11 @@ export const djPreset = pgTable(
 );
 
 /**
- * The house's agenda (#200): a family's, not a work one. Days and times «on the wall», as they
- * are said in the house's time zone (`TZ`), not instants: a change of the clocks moves nothing.
- */
-export const calendarRemind = pgEnum('calendar_remind', ['hora', 'dia']);
-
-export const calendarEvent = pgTable(
-	'calendar_event',
-	{
-		id: serial('id').primaryKey(),
-		title: text('title').notNull(),
-		notes: text('notes'),
-		startDay: date('start_day').notNull(),
-		/** Null: all day. */
-		startTime: time('start_time'),
-		/** Its last day, if it is longer than one (holidays from the 3rd to the 10th). */
-		endDay: date('end_day'),
-		endTime: time('end_time'),
-		/** An RRULE (RFC 5545) of one of the four repeats (agenda.ts); null, it is not repeated. */
-		repeat: text('repeat'),
-		/** The repetitions skipped, «esta vez no»: the days they start on. */
-		skipDays: date('skip_days')
-			.array()
-			.notNull()
-			.default(sql`'{}'::date[]`),
-		/** Its one notice: an hour before, or the day before; null, none. */
-		remind: calendarRemind('remind'),
-		/** The day of the last repetition told, so it is told once. */
-		remindedDay: date('reminded_day'),
-		/** Who wrote it down; null if their account is gone. */
-		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
-		createdAt: timestamp('created_at').notNull().defaultNow()
-	},
-	(t) => [index('calendar_event_start_idx').on(t.startDay)]
-);
-
-/** Who each one is for: adults and children. */
-export const calendarEventPerson = pgTable(
-	'calendar_event_person',
-	{
-		eventId: integer('event_id')
-			.notNull()
-			.references(() => calendarEvent.id, { onDelete: 'cascade' }),
-		userId: text('user_id')
-			.notNull()
-			.references(() => user.id, { onDelete: 'cascade' })
-	},
-	(t) => [primaryKey({ columns: [t.eventId, t.userId] })]
-);
-
-/**
- * Alarms and timers (#241), kept by the server for the whole house, in the Agenda: a timer ends
- * `endsAt`; a prepared one waits to be started («cuando hierva»); an alarm rings at `time` from `startDay`, repeated on some weekdays (an RRULE of the
- * Agenda's, `repeat`), or once. Times on the wall, in the house's zone (`TZ`).
+ * The house's timers (#241), kept by the server: a timer ends `endsAt`; a prepared one waits to be
+ * started («cuando hierva»). And the family's alarms ringing here, told by the cloud (#253), where
+ * they are kept: `cloudId`, theirs there, until stopped here or there.
  */
 export const alarmKind = pgEnum('alarm_kind', ['temporizador', 'alarma', 'preparado']);
-/** What it does when it is time: ring, saying its name; or stop the music. */
-export const alarmAction = pgEnum('alarm_action', ['sonar', 'parar_musica']);
 
 export const alarm = pgTable(
 	'alarm',
@@ -1477,26 +1425,16 @@ export const alarm = pgTable(
 		/** A prepared one's: how long it will be, and what it waits for («hierva el agua»). */
 		seconds: integer('seconds'),
 		trigger: text('trigger'),
-		/** An alarm's time, its first day, and its weekdays (null, once). */
-		time: time('time'),
-		startDay: date('start_day'),
-		repeat: text('repeat'),
-		/** «Esta vez no»: the days skipped. */
-		skipDays: date('skip_days')
-			.array()
-			.notNull()
-			.default(sql`'{}'::date[]`),
-		/** Kept, but not ringing until it is on again. */
-		paused: boolean('paused').notNull().default(false),
-		/** When it is due next; null, never again. */
+		/** When it is due; null, never again. */
 		nextAt: timestamp('next_at'),
-		action: alarmAction('action').notNull().default('sonar'),
-		/** Where it sounds: `casa` (Snapcast), or `satelite:<id>` (#241); a device later. */
+		/** Where it sounds: `casa` (Snapcast), or `satelite:<id>` (#241). */
 		place: text('place').notNull().default('casa'),
 		/** Ringing since then, until someone stops it. */
 		ringingSince: timestamp('ringing_since'),
-		/** Over (a timer, or an alarm that does not repeat), and when: kept a while to tell the AI. */
+		/** Over, and when: kept a while to tell the AI. */
 		doneAt: timestamp('done_at'),
+		/** An alarm of the cloud's ringing here (#253): its id there. */
+		cloudId: integer('cloud_id'),
 		/** Who set it; null if their account is gone. */
 		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
 		createdAt: timestamp('created_at').notNull().defaultNow()
@@ -1504,7 +1442,7 @@ export const alarm = pgTable(
 	(t) => [index('alarm_next_idx').on(t.nextAt)]
 );
 
-/** Who each one is for, as an event's; none, the house's. */
+/** Who each one is for; none, the house's. */
 export const alarmPerson = pgTable(
 	'alarm_person',
 	{

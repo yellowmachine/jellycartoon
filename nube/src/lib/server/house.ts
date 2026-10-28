@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { house } from './db/schema.ts';
-import { withFamily } from './family.ts';
+import { asFamily, withFamily } from './family.ts';
 import { decrypt, encrypt } from './secret-box.ts';
 
 export { houseUrl } from './house-url.ts';
@@ -97,3 +97,38 @@ export async function askHouse<T>(
 }
 
 export class HouseProblem extends Error {}
+
+/**
+ * A request to the house's API in the family's name, with no person: the cloud's own clock telling
+ * it an alarm rings (alarms.ts), or asking for its satellites. Throws a HouseProblem.
+ */
+export async function tellHouse<T>(familyId: string, path: string, body?: unknown): Promise<T> {
+	const [row] = await asFamily(familyId, (tx) => tx.select().from(house));
+	if (!row) throw new HouseProblem('Tu familia aún no ha conectado su casa');
+	const key = decrypt(row.key);
+	if (!key) throw new HouseProblem('La clave guardada no se puede leer: vuelve a ponerla');
+	let response: Response;
+	try {
+		response = await fetch(`${row.url}/api/v1${path}`, {
+			method: body === undefined ? 'GET' : 'POST',
+			headers: { 'x-api-key': key, 'content-type': 'application/json' },
+			body: body === undefined ? undefined : JSON.stringify(body),
+			signal: AbortSignal.timeout(10_000)
+		});
+	} catch {
+		throw new HouseProblem('La casa no contesta: ¿está encendida, con el túnel conectado?');
+	}
+	if (!response.ok)
+		throw new HouseProblem(PROBLEMS[response.status] ?? `La casa contestó ${response.status}`);
+	return response.json() as Promise<T>;
+}
+
+/** The house's voice satellites, where an alarm can sound too; none if it does not answer. */
+export async function houseSatellites(familyId: string) {
+	try {
+		return (await tellHouse<{ satellites: { id: string; name: string }[] }>(familyId, '/satelites'))
+			.satellites;
+	} catch {
+		return [];
+	}
+}

@@ -108,7 +108,7 @@ import {
 	trustDevice,
 	trustedDevices
 } from '#lib/server/kid-login.ts';
-import { isAvatar } from '#lib/avatars.ts';
+import { isAvatar } from 'comun/avatars.ts';
 import { avatarOf, createAdult, houseAdults, invite, setAvatar } from '#lib/server/people.ts';
 import { askEvery } from '#lib/server/still-there.ts';
 import { ASK_EVERY_OPTIONS } from '#lib/still-there.ts';
@@ -120,15 +120,6 @@ import {
 	setTelegramOptions,
 	telegramOf
 } from '#lib/server/telegram/telegram.ts';
-import {
-	botStatus,
-	forgetBot,
-	setBotChat,
-	setBotEvents,
-	setBotToken,
-	testBot
-} from '#lib/server/telegram/bot.ts';
-import { BOT_EVENTS, parseBotEvents } from '#lib/telegram-bot.ts';
 import { MAX_VOICE_STYLE } from '#lib/voice.ts';
 import { setWebSearch, webSearchConfig } from '#lib/server/voice/web-search.ts';
 import { quietHoursConfig, setQuietHours } from '#lib/server/voice/quiet-hours.ts';
@@ -302,8 +293,6 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		houseStyle: admin && voiceEnabled ? { text: (await getAppSetting('voice_style')) ?? '' } : null,
 		/** And how it talks to them: an adult's. */
 		myStyle: !isKid(locals.user) && voiceEnabled ? { text: settings.voiceStyle ?? '' } : null,
-		/** The house's Telegram bot (#243), telling the family's group: who manages the app. */
-		telegramBot: admin ? { bot: await botStatus() } : null,
 		/** Their own Telegram (#243), read aloud in the road mode: adults only. Never its session. */
 		telegram: isKid(locals.user) ? null : { account: await telegramOf(userId) },
 		/** Langua, the language app: adults only. Never the token itself, only its end. */
@@ -874,46 +863,6 @@ export const actions: Actions = {
 			.values({ userId: locals.user!.id, ...values })
 			.onConflictDoUpdate({ target: userSettings.userId, set: values });
 		return { saved: 'myStyle' };
-	},
-	/** The house's bot (#243): its token from @BotFather, checked with Telegram. */
-	botToken: async ({ request, locals }) => {
-		await requireAdmin(locals.user!.id);
-		const token = String((await request.formData()).get('token') ?? '').trim();
-		if (!/^\d+:[\w-]{30,}$/.test(token))
-			return fail(400, { botProblem: 'El token es como 123456789:ABC…, el que da @BotFather' });
-		try {
-			await setBotToken(token);
-		} catch (err) {
-			return fail(400, { botProblem: err instanceof Error ? err.message : String(err) });
-		}
-		return { saved: 'bot' };
-	},
-	botForget: async ({ locals }) => {
-		await requireAdmin(locals.user!.id);
-		await forgetBot();
-		return { saved: 'bot-out' };
-	},
-	/** The group it tells, among those it has been added to; and what it tells. */
-	botOptions: async ({ request, locals }) => {
-		await requireAdmin(locals.user!.id);
-		const form = await request.formData();
-		const chat = Number(form.get('chat'));
-		if (chat) await setBotChat(chat);
-		await setBotEvents(
-			parseBotEvents(
-				Object.fromEntries(Object.keys(BOT_EVENTS).map((k) => [k, form.get(k) === 'on']))
-			)
-		);
-		return { saved: 'bot-options' };
-	},
-	botTest: async ({ locals }) => {
-		await requireAdmin(locals.user!.id);
-		try {
-			await testBot();
-		} catch (err) {
-			return fail(400, { botProblem: err instanceof Error ? err.message : String(err) });
-		}
-		return { saved: 'bot-test' };
 	},
 	/** Telegram (#243), first step: its app's data and the number; Telegram sends a code. */
 	telegramCode: async ({ request, locals }) => {

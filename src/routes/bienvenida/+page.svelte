@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import favicon from '#lib/assets/favicon.svg';
 	import PasswordInput from 'comun/components/PasswordInput.svelte';
-	import { avatar } from '#lib/avatars.ts';
+	import { avatar } from 'comun/avatars.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();

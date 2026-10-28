@@ -1,4 +1,4 @@
-import { spokenLeft } from '#lib/timer-names.ts';
+import { spokenLeft } from 'comun/timer-names.ts';
 
 /**
  * A recipe being cooked (#60): written by the AI when asked to cook something, kept in the browser

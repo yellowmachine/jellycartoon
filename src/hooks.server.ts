@@ -20,10 +20,8 @@ import { wakeCatalog } from '#lib/server/cinema/catalog.ts';
 import { wakeExtras } from '#lib/server/cinema/info.ts';
 import { wakeMusicCatalog } from '#lib/server/music/catalog.ts';
 import { startPodcastRefresh } from '#lib/server/podcasts/podcasts.ts';
-import { startAgenda } from '#lib/server/agenda/agenda.ts';
 import { startAlarms } from '#lib/server/alarms/alarms.ts';
 import { startTelegram } from '#lib/server/telegram/telegram.ts';
-import { startBot } from '#lib/server/telegram/bot.ts';
 import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
 import { log, startLogCleanup } from '#lib/server/log.ts';
 import { piperEnabled } from '#lib/server/piper.ts';
@@ -47,14 +45,10 @@ export const init: ServerInit = async () => {
 	startNightlyScan();
 	// New episodes of the followed podcasts, every few hours.
 	startPodcastRefresh();
-	// The agenda's notices (#200), every minute, and the fridge's «Hoy» at midnight.
-	startAgenda();
-	// Alarms and timers (#241): what came due while it was off rings now.
+	// The timers (#241): what came due while it was off rings now. The alarms, in the cloud (#253).
 	startAlarms();
 	// The Telegram accounts connected (#243), listened to again.
 	void startTelegram().catch((error) => log.error('telegram', 'Al arrancar', { error }));
-	// The house's bot (#243), telling the family's group.
-	void startBot().catch((error) => log.error('telegram', 'El bot, al arrancar', { error }));
 	// What the voice satellites say while the AI thinks (#223), read beforehand to sound at once.
 	if (piperEnabled) void warmFillers();
 	// In the Registro: which version started, and how each of the above starts.
@@ -72,9 +66,9 @@ export const handleError: HandleServerError = ({ kind, error, event }) => {
 
 // /rest: the Subsonic API logs in with its own parameters (#27). /quien: the children choosing
 // their avatar on a trusted device, before they have a session (#141). /bienvenida: an adult
-// choosing their password with the link the administrator gave them (#157). /api/calendario: the
-// agenda's .ics for a phone's calendar, with its secret in the link (#200). /api/v1: the video
-// API for the cloud, with its key or a signed link, checked by each route (media-api.ts, #253).
+// choosing their password with the link the administrator gave them (#157). /api/v1: the video
+// API for the cloud, and its alarms ringing here, with its key or a signed link, checked by each
+// route (media-api.ts, #253).
 const PUBLIC_PATHS = [
 	'/login',
 	'/bienvenida',
@@ -83,7 +77,6 @@ const PUBLIC_PATHS = [
 	'/rest/',
 	'/quien',
 	'/api/quien/',
-	'/api/calendario/',
 	'/api/v1/'
 ];
 

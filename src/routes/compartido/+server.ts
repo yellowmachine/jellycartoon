@@ -42,8 +42,8 @@ const destination = ([lon, lat]: [number, number], name: string) =>
  */
 export const POST: RequestHandler = async ({ request }) => {
 	const form = await request.formData().catch(() => null);
-	const file = form?.get('archivo');
-	if (file instanceof File && file.size) redirect(303, '/gastos?compartido=archivo');
+	// A file (a bill's PDF): Gastos is in the cloud (#253), shared to its app instead.
+	if (form?.get('archivo') instanceof File) redirect(303, '/gastos');
 	const params = new URLSearchParams();
 	for (const key of ['title', 'text', 'url']) {
 		const value = form?.get(key);

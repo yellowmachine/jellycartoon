@@ -4,7 +4,7 @@ import { kidCompanion, kidProfile, session, user } from '#lib/server/db/schema.t
 import { KIDS_ROLE } from '#lib/server/kids.ts';
 import { watchingElsewhere } from '#lib/server/live-watching.ts';
 import { log } from '#lib/server/log.ts';
-import { avatar } from '#lib/avatars.ts';
+import { avatar } from 'comun/avatars.ts';
 
 /**
  * Children watching together on the TV (#160): one signed in, the others added by an adult when

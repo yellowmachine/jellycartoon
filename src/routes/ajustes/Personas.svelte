@@ -1,8 +1,8 @@
 <script lang="ts">
 	import Guardado from './Guardado.svelte';
 	import { enhance } from '$app/forms';
-	import { AVATARS, avatar } from '#lib/avatars.ts';
-	import AvatarPicker from './AvatarPicker.svelte';
+	import { AVATARS, avatar } from 'comun/avatars.ts';
+	import AvatarPicker from 'comun/components/AvatarPicker.svelte';
 	import { section, select, primary, secondary } from './styles.ts';
 	import type { PageData, ActionData } from './$types';
 

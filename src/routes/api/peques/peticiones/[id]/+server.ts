@@ -2,7 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isKid } from '#lib/server/kids.ts';
 import { decide } from '#lib/server/kid-login.ts';
-import { PERMITS } from '#lib/avatars.ts';
+import { PERMITS } from 'comun/avatars.ts';
 
 /**
  * A parent's answer: «Esta vez», «1 hora», «2 horas», «Hoy», or «no»; with `companions`, the other

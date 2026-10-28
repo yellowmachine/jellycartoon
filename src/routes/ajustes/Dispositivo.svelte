@@ -1,5 +1,5 @@
 <script lang="ts">
-	import PushNotices from '#lib/components/PushNotices.svelte';
+	import PushNotices from 'comun/components/PushNotices.svelte';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { DEVICE_NAME_MAX, deviceName, shownDeviceName } from 'comun/device-name.svelte.ts';
@@ -37,9 +37,13 @@
 			Se verá así: <span class="text-zinc-200">«Sonaba en {shownDeviceName(false)}»</span>
 		</p>
 	{/if}
-	<!-- The adults' notices with the app closed: the fridge (#131), and a child asking to enter
-		     (#141) for whoever lets one in. -->
+	<!-- The adults' notices with the app closed: entering on a device (#172), and a child asking to
+	     enter (#141) for whoever lets one in. The fridge's and the agenda's, in the cloud (#253). -->
 	{#if !data.kid}
-		<PushNotices guardian={Boolean(page.data.guardian)} />
+		<PushNotices
+			about={page.data.guardian
+				? 'cuando un peque quiera entrar en un dispositivo de la casa o termine los deberes, y para entrar con tu cuenta en un aparato de la casa'
+				: 'para entrar con tu cuenta en un aparato de la casa'}
+		/>
 	{/if}
 </section>

@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import TvEpisode from '#lib/components/TvEpisode.svelte';
-	import FridgeBoard from '#lib/components/FridgeBoard.svelte';
-	import type { FridgeState } from '#lib/fridge.ts';
+	import FridgeBoard from 'comun/components/FridgeBoard.svelte';
+	import type { FridgeState } from 'comun/fridge.ts';
 	import TvHeader from '#lib/components/TvHeader.svelte';
-	import { avatar } from '#lib/avatars.ts';
+	import { avatar } from 'comun/avatars.ts';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { coverUrl } from 'comun/music.ts';
 	import { music } from 'comun/music-player.svelte.ts';

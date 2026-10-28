@@ -12,7 +12,6 @@
 	import AlAbrir from './AlAbrir.svelte';
 	import Langua from './Langua.svelte';
 	import Telegram from './Telegram.svelte';
-	import TelegramBot from './TelegramBot.svelte';
 	import VozCaracter from './VozCaracter.svelte';
 	import VozInternet from './VozInternet.svelte';
 	import VozSilencio from './VozSilencio.svelte';
@@ -84,7 +83,6 @@
 				recordTrips: data.recordTrips,
 				langua: data.langua,
 				telegram: data.telegram,
-				telegramBot: data.telegramBot,
 				houseStyle: data.houseStyle,
 				myStyle: data.myStyle,
 				voiceWeb: data.voiceWeb,
@@ -184,8 +182,6 @@
 		<VozInternet {data} {form} {tab} />
 
 		<VozSilencio {data} {form} {tab} />
-
-		<TelegramBot {data} {form} {tab} />
 
 		<Personas {data} {form} {tab} />
 

@@ -17,7 +17,6 @@ export interface SettingsShown {
 	recordTrips: boolean | null;
 	langua: unknown;
 	telegram: unknown;
-	telegramBot: unknown;
 	houseStyle: unknown;
 	myStyle: unknown;
 	voiceWeb: unknown;
@@ -132,13 +131,6 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		title: 'Cómo quieres que te hable la voz',
 		words: 'voz carácter personalidad tono humor tomar el pelo chistes asistente estilo',
 		shown: (d) => Boolean(d.myStyle)
-	},
-	{
-		id: 'telegram-bot',
-		tab: 'casa',
-		title: 'Bot de Telegram',
-		words: 'telegram bot grupo familia avisos lista compra nevera agenda alarmas botfather',
-		shown: (d) => Boolean(d.telegramBot)
 	},
 	{
 		id: 'telegram',

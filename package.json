@@ -67,7 +67,6 @@
 		"@turf/helpers": "7",
 		"@turf/simplify": "7",
 		"comun": "workspace:*",
-		"grammy": "1.46.0",
 		"hls.js": "^1.7.3",
 		"maplibre-gl": "^6.12.0",
 		"media-chrome": "^4.19.3",
@@ -75,7 +74,6 @@
 		"onnxruntime-web": "1.30.0",
 		"pmtiles": "^4.5.0",
 		"qrcode": "^1.5.4",
-		"rrule": "^2.8.1",
 		"telegram": "2.26.22",
 		"uqr": "0.1.2",
 		"web-push": "^3.6.7"

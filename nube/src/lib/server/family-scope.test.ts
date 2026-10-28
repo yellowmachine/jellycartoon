@@ -18,7 +18,15 @@ import {
 	expense,
 	expenseLine,
 	recurringExpense,
-	user
+	user,
+	agendaLink,
+	alarm,
+	alarmPerson,
+	calendarEvent,
+	calendarEventPerson,
+	familyPerson,
+	pushSubscription,
+	telegramBot
 } from './db/schema.ts';
 import { familyOnlyScope, familyScope, NoFamily } from './family-scope.ts';
 import { hashOf, houseKeyScope, newHouseKey } from './house-key-scope.ts';
@@ -340,5 +348,88 @@ describe('the expenses, each family’s', () => {
 		const rows = await asFamily('A', (tx) => tx.select().from(expense));
 		expect(rows).toHaveLength(1);
 		expect(rows[0].recurringId).toBeNull();
+	});
+});
+
+describe('the agenda and the alarms (#253)', () => {
+	beforeAll(async () => {
+		await asFamily('A', async (tx) => {
+			await tx.insert(familyPerson).values({ familyId: 'A', name: 'Lucía' });
+			await tx
+				.insert(calendarEvent)
+				.values({ familyId: 'A', title: 'Dentista', startDay: '2026-10-30' });
+			await tx.insert(alarm).values({
+				familyId: 'A',
+				label: 'Levantarse',
+				time: '07:30',
+				startDay: '2026-10-29'
+			});
+			await tx.insert(agendaLink).values({ familyId: 'A', token: 'secreto-a' });
+			await tx.insert(telegramBot).values({ familyId: 'A', token: 'cifrado' });
+			await tx.insert(pushSubscription).values({
+				familyId: 'A',
+				userId: 'ana',
+				endpoint: 'https://push.test/a',
+				p256dh: 'k',
+				auth: 'a'
+			});
+		});
+	});
+
+	test('each family sees only its own', async () => {
+		for (const table of [
+			familyPerson,
+			calendarEvent,
+			alarm,
+			agendaLink,
+			pushSubscription,
+			telegramBot
+		]) {
+			expect(await withFamily('berta', (tx) => tx.select().from(table))).toHaveLength(0);
+			expect(await withFamily('alberto', (tx) => tx.select().from(table))).toHaveLength(1);
+		}
+	});
+
+	test('nobody is for another family’s event or alarm', async () => {
+		const [lucia] = await asFamily('A', (tx) => tx.select().from(familyPerson));
+		await asFamily('B', async (tx) => {
+			await tx.insert(calendarEvent).values({ familyId: 'B', title: 'x', startDay: '2026-10-30' });
+			await tx.insert(alarm).values({
+				familyId: 'B',
+				label: 'x',
+				time: '08:00',
+				startDay: '2026-10-29'
+			});
+		});
+		const [theirs] = await asFamily('B', (tx) => tx.select().from(calendarEvent));
+		const [theirAlarm] = await asFamily('B', (tx) => tx.select().from(alarm));
+		await expect(
+			asFamily('B', (tx) =>
+				tx
+					.insert(calendarEventPerson)
+					.values({ familyId: 'B', eventId: theirs.id, personId: lucia.id })
+			)
+		).rejects.toThrow();
+		await expect(
+			asFamily('B', (tx) =>
+				tx.insert(alarmPerson).values({ familyId: 'B', alarmId: theirAlarm.id, personId: lucia.id })
+			)
+		).rejects.toThrow();
+	});
+
+	test('the .ics link is found by its secret alone', async () => {
+		const found = (token: string) =>
+			asAppOnly(async (tx) => {
+				await tx.execute(sql`select set_config('app.ics_token', ${token}, true)`);
+				return tx.select().from(agendaLink);
+			});
+		expect((await found('secreto-a')).map((r) => r.familyId)).toEqual(['A']);
+		expect(await found('otro')).toHaveLength(0);
+	});
+
+	test('the cloud’s clock gets only the families’ ids', async () => {
+		expect(await asAppOnly((tx) => tx.select().from(family))).toHaveLength(0);
+		const ids = await asAppOnly((tx) => tx.execute<{ id: string }>(sql`select family_ids() as id`));
+		expect([...(ids.rows ?? ids)].map((r) => r.id).sort()).toEqual(['A', 'B']);
 	});
 });

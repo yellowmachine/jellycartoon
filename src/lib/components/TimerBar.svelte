@@ -5,7 +5,7 @@
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 	import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
 	import { recipe } from '#lib/recipe.svelte.ts';
-	import { formatLeft } from '#lib/timer-names.ts';
+	import { formatLeft } from 'comun/timer-names.ts';
 	import { timers } from '#lib/timers.svelte.ts';
 
 	/**

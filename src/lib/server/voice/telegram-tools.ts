@@ -1,11 +1,11 @@
 import type { Tool } from '#lib/server/openrouter.ts';
-import { botHasGroup, sayInGroup } from '#lib/server/telegram/bot.ts';
+import { botHasGroup, sayInGroup } from '#lib/server/kitchen.ts';
 import { cancelSend, confirmSend, prepareSend, telegramOf } from '#lib/server/telegram/telegram.ts';
 
 /**
  * The voice's Telegram (#243): messages with the person's own account, only where it is known who
  * speaks (not a satellite) and only after their «sí», which the server asks for, not the AI; and
- * things said in the family's group by the house's bot, from anywhere.
+ * things said in the family's group by the family's bot, in the cloud (#253), from anywhere.
  */
 
 export const TELEGRAM_TOOLS = new Set(['telegram_send', 'telegram_confirm', 'group_say']);

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { avatar, PERMITS, type PermitId } from '#lib/avatars.ts';
+	import { avatar, PERMITS, type PermitId } from 'comun/avatars.ts';
 
 	/**
 	 * A child asking to enter on a device of the house (#141), shown to its parents or guardians on
