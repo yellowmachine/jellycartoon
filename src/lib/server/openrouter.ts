@@ -319,6 +319,39 @@ export async function* streamChat(request: {
 	}
 }
 
+/** Models whose thinking can be turned off, from OpenRouter's list; read once per process. */
+let thinkingOptional: Promise<Set<string>> | undefined;
+
+/**
+ * Whether `effort: "none"` can go with `model`: those whose reasoning is mandatory refuse it
+ * (https://openrouter.ai/docs/guides/best-practices/reasoning-tokens). If the list cannot be read,
+ * no: the model thinks, as before, but answers.
+ */
+async function canSkipThinking(model: string) {
+	thinkingOptional ??= fetch('https://openrouter.ai/api/v1/models', {
+		signal: AbortSignal.timeout(10_000)
+	})
+		.then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+		.then(
+			(body: {
+				data: { id: string; reasoning?: { mandatory?: boolean; supported_efforts?: string[] } }[];
+			}) =>
+				new Set(
+					body.data
+						.filter(
+							(m) => !m.reasoning?.mandatory && m.reasoning?.supported_efforts?.includes('none')
+						)
+						.map((m) => m.id)
+				)
+		)
+		.catch((error) => {
+			log.warn('ia', 'No se pudo leer qué modelos dejan de pensar', { error });
+			thinkingOptional = undefined;
+			return new Set<string>();
+		});
+	return (await thinkingOptional).has(model);
+}
+
 /** A function the model can call: https://openrouter.ai/docs/guides/features/tool-calling */
 export interface Tool {
 	type: 'function';
@@ -400,10 +433,13 @@ export async function chatWithTools(request: {
 	label: string;
 	details?: Record<string, unknown>;
 	timeoutMs?: number;
+	/** False, without thinking first when the model allows it: the voice, where each second shows. */
+	think?: boolean;
 }): Promise<{ content: string | null; toolCalls: ToolCall[]; usage: Usage | null }> {
 	await needCredit();
 	const { apiKey } = await openRouterConfig();
 	if (!apiKey) throw new Error('No hay clave de OpenRouter: ponla en Ajustes');
+	const noThinking = request.think === false && (await canSkipThinking(request.model));
 
 	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
 		method: 'POST',
@@ -418,6 +454,7 @@ export async function chatWithTools(request: {
 			tools: request.tools,
 			// As in `completeJson`; short answers here, but room for a model that reasons.
 			max_tokens: 4_096,
+			...(noThinking && { reasoning: { effort: 'none' } }),
 			// Only providers that take tools.
 			provider: { require_parameters: true }
 			// No caching of its own: the caller marks what does not change (a `TextPart`).
