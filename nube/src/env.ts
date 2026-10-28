@@ -13,6 +13,23 @@ export const variables = defineEnvVars({
 	ORIGIN: {
 		description: 'The app origin (base URL), e.g. `https://nube.example.com`.'
 	},
+	S3_ENDPOINT: {
+		description:
+			"The S3 storage of the families' files (receipts' photos, bills): the stack's own rustfs, `http://rustfs:9000` (compose.prod.yaml).",
+		schema: (value) => value || undefined
+	},
+	S3_BUCKET: {
+		description: 'Its bucket, made by the app if it is not there.',
+		schema: (value) => value || 'nube'
+	},
+	S3_ACCESS_KEY_ID: {
+		description: "The S3 storage's access key (rustfs' user, in compose.prod.yaml).",
+		schema: (value) => value || undefined
+	},
+	S3_SECRET_ACCESS_KEY: {
+		description: "The S3 storage's secret key.",
+		schema: (value) => value || undefined
+	},
 	BETTER_AUTH_SECRET: {
 		description:
 			"Secret used to sign tokens and to encrypt what the app keeps (the houses' keys). 32 characters generated with high entropy: `openssl rand -base64 32`."

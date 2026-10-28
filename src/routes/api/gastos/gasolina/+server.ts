@@ -1,11 +1,11 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isKid } from '#lib/server/kids.ts';
-import { addExpense } from '#lib/server/expenses/expenses.ts';
+import { addExpense, CloudProblem } from '#lib/server/kitchen.ts';
 import { placeName } from '#lib/server/road/ors.ts';
 import { log } from '#lib/server/log.ts';
 import { today } from '#lib/server/playlist.ts';
-import { parseExpenseInput } from '#lib/expenses.ts';
+import { parseExpenseInput } from 'comun/expenses.ts';
 import type { LngLat } from '#lib/road.ts';
 
 /** Asking where we are takes at most this: never a fuel stop waiting for a place's name. */
@@ -17,9 +17,10 @@ const isPoint = (value: unknown): value is LngLat =>
 	value.every((n) => typeof n === 'number' && Number.isFinite(n));
 
 /**
- * Fuel, from the road mode (#194): what was paid, today, in «Gasolina». Typed, it is named after
- * where we are (GPS), «Gasolina · Repsol (Aranjuez)»; read from a receipt, as the receipt says, with
- * its lines and its photo kept.
+ * Fuel, from the road mode (#194): what was paid, today, in «Gasolina», in the family's Gastos in
+ * the cloud (#253). Typed, it is named after where we are (GPS, asked here, at home), «Gasolina ·
+ * Repsol (Aranjuez)»; read from a receipt (/api/gastos/leer), as the receipt says, with its lines
+ * and its photo kept there.
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
 	if (isKid(locals.user)) error(404, 'No encontrado');
@@ -45,6 +46,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		lines: Array.isArray(body.lines) ? body.lines : []
 	});
 	if (!input || input.total <= 0) error(400, 'Falta cuánto, en euros');
-	const id = await addExpense(locals.user!.id, input, receipt ? 'ticket' : 'mano', receipt);
-	return json({ id, store: input.store, total: input.total });
+	try {
+		const { id } = await addExpense(locals.user!.id, input, receipt ? 'ticket' : 'mano', {
+			receipt
+		});
+		return json({ id, store: input.store, total: input.total });
+	} catch (err) {
+		if (err instanceof CloudProblem) error(502, err.message);
+		throw err;
+	}
 };

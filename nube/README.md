@@ -28,7 +28,7 @@ Varias familias en una sola app, cada una aislada por la seguridad por filas de 
 cd nube
 cp .env.example .env          # y un BETTER_AUTH_SECRET
 bun install
-bun run db:start              # Postgres en 127.0.0.1:5435, con el rol nube_app
+docker compose up -d          # Postgres en 127.0.0.1:5435 (con el rol nube_app) y rustfs en 19000
 bun run familia "Casa de prueba" tu@email
 bun run dev                   # migra y arranca
 ```
@@ -51,6 +51,8 @@ app (`nube_app`) con su contraseña: no hay SQL a mano.
    ORIGIN=https://nube.tu-dominio.com
    BETTER_AUTH_SECRET=…          # openssl rand -base64 32
    ADMIN_EMAIL=tu@email          # tu familia y tu invitación, al arrancar
+   S3_ACCESS_KEY_ID=…            # el rustfs de la pila (fotos de tickets, facturas): openssl rand -hex 12
+   S3_SECRET_ACCESS_KEY=…        # openssl rand -hex 24
    ADMIN_FAMILY="Casa García"
    ```
 3. **Domains:** `nube.tu-dominio.com` → servicio `app`, puerto 3000, con HTTPS (Let's Encrypt).
@@ -65,3 +67,16 @@ Más familias, en la terminal del servicio `app`:
 
 `init-db.sh` solo corre con el volumen de Postgres vacío: cambiar `APP_DB_PASSWORD` después
 necesita `ALTER ROLE nube_app PASSWORD '…'` en la base de datos.
+
+## Privacidad de Gastos
+
+Lo que sale hacia la IA de OpenRouter (con la clave de la familia, Ajustes → IA), y lo que no:
+
+- **Tickets**: la foto del ticket va al modelo de visión. Sin clave no se leen.
+- **Facturas (luz, agua, gas)**: de un PDF se manda **su texto**, no el PDF. Antes se quitan el DNI o
+  NIE, el IBAN, el CUPS, los números de contrato y los teléfonos. **El nombre del titular y la
+  dirección sí van en el texto**: no tienen una forma fija por la que reconocerlos, y a la IA solo se
+  le pide que no los devuelva (no se guardan). Una factura escaneada o en foto va como imagen, entera.
+- **Lo que se guarda**: la foto del ticket o el PDF de la factura, en el rustfs de la nube (sin
+  puertos publicados), bajo la carpeta de la familia, y lo leído en la base de datos. Los ficheros
+  solo los da la app, a las personas de esa familia.

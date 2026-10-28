@@ -36,6 +36,13 @@
       "when": 1793182656532,
       "tag": "0004_unique_bastion",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793183504406,
+      "tag": "0005_wealthy_sauron",
+      "breakpoints": true
     }
   ]
 }

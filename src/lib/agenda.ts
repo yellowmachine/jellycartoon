@@ -2,7 +2,7 @@
  * The house's agenda (#200), shared by the server and the pages: what an event is, its four
  * repeats, and days and times «on the wall» (`YYYY-MM-DD`, `HH:MM`), as they are said at home.
  */
-import { isDay } from '#lib/expenses.ts';
+import { isDay } from 'comun/expenses.ts';
 
 export { isDay };
 

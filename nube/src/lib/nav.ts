@@ -18,7 +18,7 @@ const SECTIONS: { path: string; label: string; icon: Section; where: Where; also
 	{ path: '/recetas', label: 'Recetas', icon: 'recetas', where: 'nube' },
 	{ path: '/nevera', label: 'Nevera', icon: 'nevera', where: 'nube' },
 	{ path: '/agenda', label: 'Agenda', icon: 'agenda', where: 'pendiente' },
-	{ path: '/gastos', label: 'Gastos', icon: 'gastos', where: 'pendiente' },
+	{ path: '/gastos', label: 'Gastos', icon: 'gastos', where: 'nube' },
 	{ path: '/viajes', label: 'Viajes', icon: 'viajes', where: 'pendiente', also: ['/carretera'] },
 	{ path: '/salon', label: 'Salón', icon: 'salon', where: 'casa' },
 	{ path: '/juegos', label: 'Juegos', icon: 'juegos', where: 'casa' },

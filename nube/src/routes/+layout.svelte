@@ -1,7 +1,9 @@
 <script lang="ts">
 	import './layout.css';
 	import favicon from '#lib/assets/favicon.svg';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import SiteNav from 'comun/components/SiteNav.svelte';
 	import { navLinks } from '#lib/nav.ts';
 	import type { LayoutProps } from './$types';
@@ -41,7 +43,47 @@
 					mark: initial
 				}}
 				userLinks={nav.userLinks}
-			/>
+			>
+				{#snippet leading()}
+					<!-- A receipt's photo for Gastos (#194), at once: on phones and tablets, with their camera; a
+					     PC has the button in Gastos. The photo is read there. As at home. -->
+					{#if data.receipts}
+						<label
+							title="Foto de un ticket, para Gastos"
+							aria-label="Foto de un ticket"
+							class="-ml-3 hidden shrink-0 cursor-pointer rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white pointer-coarse:block"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.75"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								class="h-6 w-6"
+								aria-hidden="true"
+							>
+								<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />
+								<path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
+								<path d="M12 17.5v-11" />
+							</svg>
+							<input
+								type="file"
+								accept="image/*"
+								capture="environment"
+								class="hidden"
+								onchange={(e) => {
+									const photo = e.currentTarget.files?.[0];
+									e.currentTarget.value = '';
+									if (!photo) return;
+									pendingReceipt.photo = photo;
+									if (page.url.pathname !== '/gastos') void goto('/gastos');
+								}}
+							/>
+						</label>
+					{/if}
+				{/snippet}
+			</SiteNav>
 		{/if}
 
 		<main class="mx-auto max-w-6xl px-4 py-6">

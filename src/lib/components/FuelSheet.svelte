@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { euros, parseEuros, type ExpenseDraft, type ExpenseLine } from '#lib/expenses.ts';
-	import { smallerPhoto } from '#lib/receipt-photo.ts';
+	import { euros, parseEuros, type ExpenseDraft, type ExpenseLine } from 'comun/expenses.ts';
+	import { smallerPhoto } from 'comun/receipt-photo.ts';
 	import type { LngLat } from '#lib/road.ts';
 
 	/**
@@ -26,7 +26,7 @@
 		reading = true;
 		const form = new FormData();
 		form.set('foto', await smallerPhoto(file), 'ticket.jpg');
-		const res = await fetch('/gastos/leer', { method: 'POST', body: form }).catch(() => null);
+		const res = await fetch('/api/gastos/leer', { method: 'POST', body: form }).catch(() => null);
 		const body = await res?.json().catch(() => null);
 		reading = false;
 		if (!res?.ok) return void (problem = body?.message ?? 'Sin conexión');

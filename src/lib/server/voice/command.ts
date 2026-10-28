@@ -49,8 +49,10 @@ import { searchPlaces, whereIs } from '#lib/server/road/ors.ts';
 import { listSavedPlaces, listSavedRoutes } from '#lib/server/saved-places.ts';
 import { asksForRoute, findByName } from '#lib/saved-places.ts';
 import {
+	addExpense,
 	addItems,
 	addNote,
+	favoriteExpenses,
 	getRecipe,
 	importRecipe,
 	recipeBook,
@@ -58,7 +60,6 @@ import {
 	tickOffByName,
 	toBuy
 } from '#lib/server/kitchen.ts';
-import { addExpense, favoriteExpenses } from '#lib/server/expenses/expenses.ts';
 import { addEvent, dayForVoice, personByName } from '#lib/server/agenda/agenda.ts';
 import {
 	addDays,
@@ -105,7 +106,7 @@ import {
 	webSearchTool
 } from '#lib/server/voice/web-search.ts';
 import { isKidAccount } from '#lib/server/kids.ts';
-import { EXPENSE_CATEGORIES, euros, isCategory, type ExpenseLine } from '#lib/expenses.ts';
+import { EXPENSE_CATEGORIES, euros, isCategory, type ExpenseLine } from 'comun/expenses.ts';
 import { today } from '#lib/server/playlist.ts';
 import { isUntilWord, UNTIL_WORDS, untilDay, untilText } from '#lib/fridge.ts';
 import { findPlaces, forecast, housePlace, placeName } from '#lib/server/weather.ts';
@@ -1253,7 +1254,9 @@ async function runTool(
 			}
 			if (!what) return 'Falta en qué.';
 			if (total === null) return `Falta cuánto, en euros: «${what}» no tiene importe guardado.`;
-			await addExpense(ctx.user.id, { date: today(), store: what, category, total, lines }, 'voz');
+			await addExpense(ctx.user.id, { date: today(), store: what, category, total, lines }, 'voz', {
+				satellite: ctx.satellite
+			});
 			return `Apuntado en Gastos: ${what}, ${euros(total)} (${category}).`;
 		}
 		case 'add_event': {

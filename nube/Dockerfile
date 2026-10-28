@@ -14,6 +14,10 @@ WORKDIR /app/nube
 RUN DATABASE_URL=postgres://build/build ORIGIN=http://localhost BETTER_AUTH_SECRET=build bun run build
 
 FROM oven/bun:1-slim
+# poppler-utils: a bill's PDF read by its text (pdftotext), or its first page as a photo (pdftoppm).
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends poppler-utils \
+	&& rm -rf /var/lib/apt/lists/*
 WORKDIR /app/nube
 COPY --from=build /app/node_modules /app/node_modules
 COPY --from=build /app/nube/node_modules ./node_modules

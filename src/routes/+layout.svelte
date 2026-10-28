@@ -24,7 +24,6 @@
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { wakeWord } from '#lib/wake-word.svelte.ts';
 	import { music } from 'comun/music-player.svelte.ts';
-	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import { page, updated } from '$app/state';
 	import { themeColor, themeCss } from '#lib/themes.ts';
 	import { avatar } from '#lib/avatars.ts';
@@ -358,46 +357,6 @@
 								/>
 							</svg>
 						</a>
-					{/if}
-					<!-- A receipt's photo for Gastos (#194), at once: on phones and tablets, with their camera; a
-			     PC has the button in Gastos. The photo is read there. -->
-					{#if data.receipts}
-						<label
-							title="Foto de un ticket, para Gastos"
-							aria-label="Foto de un ticket"
-							class={[
-								'hidden shrink-0 cursor-pointer rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white pointer-coarse:block',
-								data.voice ? '-ml-5 md:max-lg:-ml-2' : '-ml-3'
-							]}
-						>
-							<svg
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="1.75"
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								class="h-6 w-6"
-								aria-hidden="true"
-							>
-								<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />
-								<path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
-								<path d="M12 17.5v-11" />
-							</svg>
-							<input
-								type="file"
-								accept="image/*"
-								capture="environment"
-								class="hidden"
-								onchange={(e) => {
-									const photo = e.currentTarget.files?.[0];
-									e.currentTarget.value = '';
-									if (!photo) return;
-									pendingReceipt.photo = photo;
-									if (page.url.pathname !== '/gastos') void goto('/gastos');
-								}}
-							/>
-						</label>
 					{/if}
 				{/snippet}
 				{#snippet below()}

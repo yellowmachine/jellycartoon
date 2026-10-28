@@ -15,6 +15,9 @@ import {
 	recipe,
 	recipeSite,
 	recipeSitePage,
+	expense,
+	expenseLine,
+	recurringExpense,
 	user
 } from './db/schema.ts';
 import { familyOnlyScope, familyScope, NoFamily } from './family-scope.ts';
@@ -268,5 +271,74 @@ describe('the favourite recipe sites, each family’s', () => {
 				})
 			)
 		).rejects.toThrow();
+	});
+});
+
+describe('the expenses, each family’s', () => {
+	beforeAll(async () => {
+		const [fixed] = await db
+			.insert(recurringExpense)
+			.values({ familyId: 'A', name: 'Alquiler', category: 'Casa', amount: 80000, day: 1 })
+			.returning();
+		const [paid] = await db
+			.insert(expense)
+			.values({
+				familyId: 'A',
+				date: '2026-10-01',
+				store: 'Alquiler',
+				category: 'Casa',
+				total: 80000,
+				source: 'fijo',
+				recurringId: fixed.id
+			})
+			.returning();
+		await db
+			.insert(expenseLine)
+			.values({ familyId: 'A', expenseId: paid.id, position: 0, text: 'Octubre', amount: 80000 });
+	});
+
+	test('seen only by their family', async () => {
+		expect(await withFamily('ana', (tx) => tx.select().from(expense))).toHaveLength(1);
+		expect(await withFamily('berta', (tx) => tx.select().from(expense))).toHaveLength(0);
+		expect(await withFamily('berta', (tx) => tx.select().from(expenseLine))).toHaveLength(0);
+	});
+
+	test('a line cannot hang from another family’s expense', async () => {
+		const [paid] = await asFamily('A', (tx) => tx.select().from(expense));
+		await expect(
+			asFamily('B', (tx) =>
+				tx
+					.insert(expenseLine)
+					.values({ familyId: 'B', expenseId: paid.id, position: 1, text: 'x', amount: 1 })
+			)
+		).rejects.toThrow();
+	});
+
+	test('nor an expense come from another family’s fixed one', async () => {
+		const [fixed] = await asFamily('A', (tx) => tx.select().from(recurringExpense));
+		await expect(
+			asFamily('B', (tx) =>
+				tx.insert(expense).values({
+					familyId: 'B',
+					date: '2026-10-01',
+					store: 'x',
+					category: 'Casa',
+					total: 1,
+					source: 'fijo',
+					recurringId: fixed.id
+				})
+			)
+		).rejects.toThrow();
+	});
+
+	test('a fixed one deleted keeps what it added, let go of first', async () => {
+		await asFamily('A', async (tx) => {
+			const [fixed] = await tx.select().from(recurringExpense);
+			await tx.update(expense).set({ recurringId: null }).where(eq(expense.recurringId, fixed.id));
+			await tx.delete(recurringExpense).where(eq(recurringExpense.id, fixed.id));
+		});
+		const rows = await asFamily('A', (tx) => tx.select().from(expense));
+		expect(rows).toHaveLength(1);
+		expect(rows[0].recurringId).toBeNull();
 	});
 });
