@@ -9,6 +9,7 @@
 	import SiteNav from 'comun/components/SiteNav.svelte';
 	import MusicBar from 'comun/components/MusicBar.svelte';
 	import { navLinks } from '#lib/nav.ts';
+	import { themeColor, themeCss } from 'comun/themes.ts';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
@@ -37,6 +38,9 @@
 <svelte:head>
 	<title>Nube</title>
 	<link rel="icon" href={favicon} />
+	<meta name="theme-color" content={themeColor(data.theme)} />
+	<!-- Their colours (Ajustes), as at home: values only from the themes' table. -->
+	{@html themeCss(data.theme)}
 </svelte:head>
 
 <!-- The road mode is the whole screen, without the site around it, as at home. -->

@@ -1,24 +1,30 @@
-<script lang="ts">
+<script lang="ts" generics="Tab extends string, Shown">
 	import { goto } from '$app/navigation';
-	import {
-		TAB_LABELS,
-		searchSettings,
-		type SettingsEntry,
-		type SettingsShown
-	} from '#lib/settings-index.ts';
+	import { searchSettings, type SettingsEntry } from '../settings-search.ts';
 
 	/**
-	 * «Buscar en Ajustes», above its tabs: a word, and the sections that have it in any tab; one
-	 * chosen, its tab opens on it, lit for a moment.
+	 * «Buscar en Ajustes», above its tabs, in the house and in the cloud (#253): a word, and the
+	 * sections that have it in any tab (each app's `index`); one chosen, its tab opens on it, lit for
+	 * a moment.
 	 */
-	let { shown }: { shown: SettingsShown } = $props();
+	let {
+		index,
+		labels,
+		shown,
+		placeholder = 'Buscar en Ajustes: subtítulos, niños, clave…'
+	}: {
+		index: SettingsEntry<Tab, Shown>[];
+		labels: Record<Tab, string>;
+		shown: Shown;
+		placeholder?: string;
+	} = $props();
 
 	let query = $state('');
-	const found = $derived(searchSettings(query, shown));
+	const found = $derived(searchSettings(index, labels, query, shown));
 
-	const href = (e: SettingsEntry) => `?seccion=${e.tab}#${e.id}`;
+	const href = (e: SettingsEntry<Tab, Shown>) => `?seccion=${e.tab}#${e.id}`;
 
-	async function open(e: SettingsEntry) {
+	async function open(e: SettingsEntry<Tab, Shown>) {
 		query = '';
 		await goto(href(e), { reset: false });
 		const el = document.getElementById(e.id);
@@ -36,7 +42,7 @@
 		bind:value={query}
 		type="search"
 		autocomplete="off"
-		placeholder="Buscar en Ajustes: subtítulos, niños, clave…"
+		{placeholder}
 		aria-label="Buscar en Ajustes"
 		class="w-full rounded-md border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm"
 		onkeydown={(e) => {
@@ -61,7 +67,7 @@
 							void open(e);
 						}}
 					>
-						<span class="text-zinc-500">{TAB_LABELS[e.tab]} ›</span>
+						<span class="text-zinc-500">{labels[e.tab]} ›</span>
 						<span>{e.title}</span>
 					</a>
 				</li>

@@ -1,4 +1,4 @@
-import { fold } from 'comun/music.ts';
+import { searchSettings as search, type SettingsEntry as Entry } from 'comun/settings-search.ts';
 
 /**
  * What is in Ajustes, to find it by a word from the box above its tabs: each section, its tab, and
@@ -33,14 +33,7 @@ export interface SettingsShown {
 	twoFactor: unknown;
 }
 
-export interface SettingsEntry {
-	/** The section's `id` on the page: `?seccion=<tab>#<id>`. */
-	id: string;
-	tab: SettingsTab;
-	title: string;
-	words: string;
-	shown?: (d: SettingsShown) => boolean;
-}
+export type SettingsEntry = Entry<SettingsTab, SettingsShown>;
 
 export const TAB_LABELS: Record<SettingsTab, string> = {
 	mi: 'Para mí',
@@ -298,26 +291,6 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 	}
 ];
 
-/** Its words, accents and case aside. */
-const wordsOf = (text: string) =>
-	fold(text)
-		.split(/[^\p{L}\p{N}]+/u)
-		.filter(Boolean);
-
-/** Every word typed starts one of `text`'s: «ia» is not in «viajes», «subt» is in «subtítulos». */
-const has = (text: string[], typed: string[]) =>
-	typed.every((w) => text.some((t) => t.startsWith(w)));
-
-/**
- * The sections with every word typed, in their title, their words or their tab, accents and case
- * aside; those whose title has them first.
- */
-export function searchSettings(query: string, shown: SettingsShown, max = 8): SettingsEntry[] {
-	const typed = wordsOf(query);
-	if (!typed.length) return [];
-	const found = SETTINGS_INDEX.filter((e) => e.shown?.(shown) ?? true).filter((e) =>
-		has(wordsOf(`${e.title} ${e.words} ${TAB_LABELS[e.tab]}`), typed)
-	);
-	const inTitle = (e: SettingsEntry) => has(wordsOf(e.title), typed);
-	return [...found.filter(inTitle), ...found.filter((e) => !inTitle(e))].slice(0, max);
-}
+/** The sections with every word typed (comun/settings-search.ts), in this app's index. */
+export const searchSettings = (query: string, shown: SettingsShown, max = 8) =>
+	search(SETTINGS_INDEX, TAB_LABELS, query, shown, max);

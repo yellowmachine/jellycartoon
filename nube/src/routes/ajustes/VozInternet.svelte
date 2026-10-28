@@ -8,7 +8,7 @@
 	 * La voz buscando en internet (#243): solo si se activa, y solo cuando necesita algo de
 	 * actualidad que no sabe. Dónde buscar, en texto libre; vacío, donde mejor encaje.
 	 */
-	let { data, form }: { data: PageData; form: ActionData } = $props();
+	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
 </script>
 
 {#if data.voiceWeb}
@@ -21,7 +21,7 @@
 		</p>
 		<form
 			method="post"
-			action="?/saveVoiceWeb"
+			action="?seccion={tab}&/saveVoiceWeb"
 			use:enhance={() =>
 				async ({ update }) =>
 					update({ reset: false })}

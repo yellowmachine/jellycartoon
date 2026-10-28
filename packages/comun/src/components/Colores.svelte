@@ -1,17 +1,31 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { THEMES, themeSwatches } from '#lib/themes.ts';
-	import { section } from './styles.ts';
-	import type { PageData, ActionData } from './$types';
+	import { THEMES, themeSwatches } from '../themes.ts';
 
-	/** Los colores de la app, en todas tus pantallas. */
-	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
+	/**
+	 * Los colores de la app, en todas tus pantallas: la misma sección en casa y en la nube (#253).
+	 * `theme`, el que tienes; `tab`, la pestaña de Ajustes, para seguir en ella al guardar;
+	 * `problem`, si no se pudo.
+	 */
+	let {
+		theme: current,
+		tab,
+		problem = null,
+		section = 'mb-8 rounded-md border border-zinc-800 p-4',
+		where = 'en todas tus pantallas, también en la tele del salón'
+	}: {
+		theme: string;
+		tab: string;
+		problem?: string | null;
+		section?: string;
+		where?: string;
+	} = $props();
 </script>
 
 <section class={section} id="colores">
 	<h2 class="mb-1 font-semibold">Colores</h2>
 	<p class="mb-4 text-sm text-zinc-400">
-		Los de toda la app, en todas tus pantallas, también en la tele del salón.
+		Los de toda la app, {where}.
 	</p>
 	<form
 		method="post"
@@ -22,7 +36,7 @@
 		class="grid gap-2 sm:grid-cols-2"
 	>
 		{#each THEMES as theme (theme.id)}
-			{@const on = data.theme === theme.id}
+			{@const on = current === theme.id}
 			<button
 				name="theme"
 				value={theme.id}
@@ -43,7 +57,7 @@
 			</button>
 		{/each}
 	</form>
-	{#if form && 'section' in form && form.section === 'theme'}
-		<p class="mt-2 text-sm text-red-400">{form.message}</p>
+	{#if problem}
+		<p class="mt-2 text-sm text-red-400">{problem}</p>
 	{/if}
 </section>

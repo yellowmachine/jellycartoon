@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { userSettings } from '#lib/server/db/schema.ts';
 import { sanitizeSubtitleStyle, type SubtitleStyle } from '#lib/subtitle-style.ts';
-import { DEFAULT_THEME, isTheme, type ThemeId } from '#lib/themes.ts';
+import { DEFAULT_THEME, isTheme, type ThemeId } from 'comun/themes.ts';
 
 export interface PlaybackSettings {
 	audioLang: string | null;

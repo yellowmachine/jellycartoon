@@ -15,6 +15,6 @@
 	<p class="mb-4 text-zinc-400">
 		Esto es de jellycartoon, en casa (<span class="font-mono">{where}</span>). Para ir desde aquí,
 		pon su dirección en
-		<a href="/ajustes#casa" class="text-amber-400 hover:underline">Ajustes</a>.
+		<a href="/ajustes?seccion=familia#casa" class="text-amber-400 hover:underline">Ajustes</a>.
 	</p>
 </div>

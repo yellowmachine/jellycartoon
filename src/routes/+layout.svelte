@@ -25,7 +25,7 @@
 	import { wakeWord } from '#lib/wake-word.svelte.ts';
 	import { music } from 'comun/music-player.svelte.ts';
 	import { page, updated } from '$app/state';
-	import { themeColor, themeCss } from '#lib/themes.ts';
+	import { themeColor, themeCss } from 'comun/themes.ts';
 	import { avatar } from 'comun/avatars.ts';
 	import { onMount, untrack } from 'svelte';
 	import type { LayoutProps } from './$types';

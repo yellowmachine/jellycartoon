@@ -343,7 +343,9 @@
 							</button>
 						{/each}
 						<!-- The children, without an account: added in Ajustes (#253). -->
-						<a href="/ajustes#personas" class="{chip(false)} text-zinc-400">+ Persona</a>
+						<a href="/ajustes?seccion=familia#personas" class="{chip(false)} text-zinc-400"
+							>+ Persona</a
+						>
 					</div>
 				</div>
 

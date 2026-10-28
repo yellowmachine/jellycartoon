@@ -50,6 +50,8 @@ export const familyMember = pgTable(
 			.default('member'),
 		/** «Cómo quieres que te hable la voz», theirs; null, none. */
 		voiceStyle: text('voice_style'),
+		/** Their colours (Ajustes, comun/themes.ts); null or unknown, the default. */
+		theme: text('theme'),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [

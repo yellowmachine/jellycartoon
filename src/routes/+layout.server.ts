@@ -7,7 +7,7 @@ import { isAdmin } from '#lib/server/app-settings.ts';
 import { versionInfo } from '#lib/server/updates.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
 import { getSettings } from '#lib/server/settings.ts';
-import { DEFAULT_THEME } from '#lib/themes.ts';
+import { DEFAULT_THEME } from 'comun/themes.ts';
 import { openingQuote } from '#lib/server/opening-quote.ts';
 import { isGuardian } from '#lib/server/kid-login.ts';
 import { avatarOf } from '#lib/server/people.ts';

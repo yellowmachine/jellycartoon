@@ -1,4 +1,7 @@
 import { fail } from '@sveltejs/kit';
+import { eq } from 'drizzle-orm';
+import { isTheme } from 'comun/themes.ts';
+import { familyMember } from '#lib/server/db/schema.ts';
 import { APIError } from 'better-auth/api';
 import QRCode from 'qrcode';
 import type { Actions, PageServerLoad } from './$types';
@@ -86,6 +89,15 @@ async function adminFamily(userId: string) {
 const notAdmin = () => fail(403, { botProblem: 'Solo quien administra la familia' });
 
 export const actions: Actions = {
+	/** Their colours, in all their screens (comun/themes.ts). */
+	theme: async ({ request, locals }) => {
+		const theme = (await request.formData()).get('theme');
+		if (!isTheme(theme)) return fail(400, { themeProblem: 'Tema no válido' });
+		await withFamily(locals.user!.id, (tx) =>
+			tx.update(familyMember).set({ theme }).where(eq(familyMember.userId, locals.user!.id))
+		);
+		return { saved: 'theme' };
+	},
 	/** The voice's model: «proveedor/modelo»; empty, the default. */
 	saveVoiceModel: async ({ request, locals }) => {
 		const denied = await requireAdmin(locals.user!.id, 'voiceProblem');

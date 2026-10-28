@@ -4,10 +4,16 @@ import { SETTINGS_INDEX, searchSettings, type SettingsShown } from './settings-i
 
 /** Ajustes' page and its sections' components (#178), all together. */
 const dir = new URL('../routes/ajustes/', import.meta.url);
-const page = readdirSync(dir)
-	.filter((f) => f.endsWith('.svelte'))
-	.map((f) => readFileSync(new URL(f, dir), 'utf8'))
-	.join('\n');
+/** And the sections shared with the cloud (#253), in packages/comun. */
+const shared = ['Colores.svelte'].map((f) =>
+	readFileSync(new URL(`../../packages/comun/src/components/${f}`, import.meta.url), 'utf8')
+);
+const page = [
+	...readdirSync(dir)
+		.filter((f) => f.endsWith('.svelte'))
+		.map((f) => readFileSync(new URL(f, dir), 'utf8')),
+	...shared
+].join('\n');
 
 /** An adult who manages the app, with everything on. */
 const admin: SettingsShown = {
