@@ -6,12 +6,13 @@ import { decrypt, encrypt } from '#lib/server/secret-box.ts';
 import { agendaToday } from '#lib/server/agenda/agenda.ts';
 import type { FridgeState } from '#lib/fridge.ts';
 import type { RecipeStep } from '#lib/recipe.ts';
+import type { ExpenseDraft, ExpenseFavorite, ExpenseInput } from 'comun/expenses.ts';
 
 /**
- * The fridge and the recipe book, which live in the cloud (#253): the family's, there (its
- * /api/casa), with its address and the key it gave the house (Ajustes → Casa → «La nube»). The
- * voice and the TV use them from here. What is said goes in the name of who says it, by their
- * email, when it is known (not a satellite).
+ * The fridge, the recipe book and the expenses, which live in the cloud (#253): the family's,
+ * there (its /api/casa), with its address and the key it gave the house (Ajustes → Casa → «La
+ * nube»). The voice, the TV and the road mode use them from here. What is said goes in the name of
+ * who says it, by their email, when it is known (not a satellite).
  */
 
 export interface CloudLink {
@@ -40,11 +41,11 @@ export const cloudUrl = () => getAppSetting('nube_url');
 /** Why the cloud did not answer, said for people (and for the voice's AI). */
 export class CloudProblem extends Error {}
 
-async function linked() {
+export async function linked() {
 	const link = await cloudLink();
 	if (!link)
 		throw new CloudProblem(
-			'La nevera y las recetas están en la nube, y no está conectada: Ajustes → Casa → «La nube»'
+			'La nevera, las recetas y los gastos están en la nube, y no está conectada: Ajustes → Casa → «La nube»'
 		);
 	return link;
 }
@@ -191,4 +192,50 @@ export async function importRecipe(url: string, userId: string, satellite = fals
 		userId: speaker(userId, satellite),
 		body: { url }
 	});
+}
+
+/** The family's favourite expenses («el café de siempre»). */
+export async function favoriteExpenses() {
+	return (await askCloud<{ favorites: ExpenseFavorite[] }>(await linked(), '/gastos')).favorites;
+}
+
+/**
+ * An expense in the family's Gastos: by voice, or the road mode's fuel (typed, or from a receipt
+ * read with `readReceipt`). In the name of who said it; from a satellite, the house's.
+ */
+export async function addExpense(
+	userId: string,
+	expense: ExpenseInput,
+	source: 'voz' | 'mano' | 'ticket',
+	{ receipt = null, satellite = false }: { receipt?: string | null; satellite?: boolean } = {}
+) {
+	return askCloud<{ id: number }>(await linked(), '/gastos', {
+		userId: speaker(userId, satellite),
+		body: { expense, source, receipt }
+	});
+}
+
+/** A receipt's photo read by the family's AI in the cloud: what it says, and its waiting file. */
+export async function readReceipt(photo: Blob, userId: string) {
+	const link = await linked();
+	const email = await emailOf(userId);
+	let response: Response;
+	try {
+		// The photo itself as the body: a form from a server is refused by SvelteKit's CSRF check.
+		response = await fetch(`${link.url}/api/casa/gastos/leer`, {
+			method: 'POST',
+			headers: {
+				'x-api-key': link.key,
+				'content-type': 'image/jpeg',
+				...(email ? { 'x-persona': email } : {})
+			},
+			body: photo,
+			signal: AbortSignal.timeout(150_000)
+		});
+	} catch {
+		throw new CloudProblem('No llego a la nube: sin internet, o la nube no contesta');
+	}
+	const body = await response.json().catch(() => null);
+	if (!response.ok) throw new CloudProblem(body?.message ?? `La nube contestó ${response.status}`);
+	return body as ExpenseDraft;
 }

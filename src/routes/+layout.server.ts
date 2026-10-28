@@ -10,9 +10,7 @@ import { getSettings } from '#lib/server/settings.ts';
 import { DEFAULT_THEME } from '#lib/themes.ts';
 import { openingQuote } from '#lib/server/opening-quote.ts';
 import { isGuardian } from '#lib/server/kid-login.ts';
-import { dailymotionEnabled } from '#lib/server/dailymotion.ts';
 import { avatarOf } from '#lib/server/people.ts';
-import { canReadReceipts } from '#lib/server/expenses/receipt.ts';
 import { openRouterConfig } from '#lib/server/app-settings.ts';
 import { creditRunOutAt } from '#lib/server/openrouter.ts';
 
@@ -45,8 +43,6 @@ export const load: LayoutServerLoad = async ({ locals, isDataRequest }) => {
 		guardian: Boolean(locals.user) && !kid && (await isGuardian(locals.user!.id)),
 		/** Only with a films folder (CINEMA_DIR). */
 		cinema: Boolean(cinemaRoot),
-		/** Dailymotion's cartoons (#66): only with a player made in its Studio (DAILYMOTION_PLAYER_ID). */
-		dailymotion: dailymotionEnabled,
 		/** Only with a music folder (MUSIC_DIR). */
 		music: Boolean(musicRoot),
 		/** Play statistics (#176): only with a games folder (GAMES_DIR), and not for a child yet. */
@@ -59,8 +55,6 @@ export const load: LayoutServerLoad = async ({ locals, isDataRequest }) => {
 		voice: voiceEnabled && !kid,
 		/** The month's AI spending under the header (#193): an adult who asked, with a key to ask. */
 		spendLine: Boolean(settings?.spendLine) && !kid && Boolean((await openRouterConfig()).apiKey),
-		/** The header's shortcut to a receipt's photo (#194): an adult's, where one can be read. */
-		receipts: Boolean(locals.user) && !kid && (await canReadReceipts()),
 		/** A newer release, for who manages the app to install it (#20). */
 		newVersion: admin ? ((await versionInfo()).update?.version ?? null) : null,
 		/** OpenRouter's credit ran out: the AI asks nothing until who manages it says it was recharged. */

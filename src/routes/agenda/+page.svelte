@@ -17,7 +17,7 @@
 		type Remind,
 		type Repeat
 	} from '#lib/agenda.ts';
-	import { monthName } from '#lib/expenses.ts';
+	import { monthName } from 'comun/expenses.ts';
 	import type { PageProps } from './$types';
 	import Alarmas from './Alarmas.svelte';
 

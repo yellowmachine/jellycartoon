@@ -39,9 +39,21 @@ export const actions: Actions = {
 		const url = houseUrl(String(form.get('url') ?? ''));
 		if (!url) return fail(400, { houseProblem: 'La dirección, con https://, sin nada detrás' });
 		const key = String(form.get('key') ?? '').trim() || null;
+		// jellycartoon's keys: not something else (a password the browser filled in by itself).
+		if (key && !/^casita_\w{20,}$/.test(key))
+			return fail(400, {
+				houseProblem:
+					'Esa no es una clave de jellycartoon: empiezan por casita_ (Ajustes → Casa → «La nube»)'
+			});
+		const webValue = String(form.get('webUrl') ?? '').trim();
+		const webUrl = webValue ? houseUrl(webValue) : null;
+		if (webValue && !webUrl)
+			return fail(400, {
+				houseProblem: 'La dirección de jellycartoon, con https://, sin nada detrás'
+			});
 		if (!key && !(await houseLink(locals.user!.id)))
 			return fail(400, { houseProblem: 'Falta la clave' });
-		await saveHouse(locals.user!.id, url, key);
+		await saveHouse(locals.user!.id, url, key, webUrl);
 		return { saved: 'house' };
 	},
 	forgetHouse: async ({ locals }) => {

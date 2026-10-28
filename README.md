@@ -826,29 +826,6 @@ y `docker compose -f compose.prod.yaml up -d`. En desarrollo, `STEAM_DIR` con es
 - Si no abre nada: `systemctl --user status jellycartoon-steam.socket` y
   `journalctl --user -u 'jellycartoon-steam@*'` en ese PC, y el Registro de la app.
 
-### Dailymotion
-
-Dibujos de Dailymotion para los peques (#66), con el reproductor oficial de Dailymotion y su
-publicidad. Solo salen los vídeos de las **cuentas y listas que eligen los adultos** en Infantil →
-«Dibujos de Dailymotion»: las cuentas se buscan por nombre o se pega su enlace; las listas, por su
-enlace (`dailymotion.com/playlist/…`). Siempre con el filtro familiar. La búsqueda de Dailymotion no
-sirve sola: al buscar «pocoyo», la mayoría de los vídeos son de cuentas de relleno.
-
-En la sección Dailymotion están esas cuentas y listas, sus vídeos y «Seguir viendo». Cuenta en el
-tiempo de pantalla de los peques como las series (al acabarse, a «Descanso»), se guarda por dónde
-va, y los adultos lo ven en Infantil («Ahora», «Estos días»). Un vídeo que no sea de una cuenta o
-lista elegida no se abre, tampoco si el reproductor salta a él solo.
-
-Hace falta un **reproductor propio** de Dailymotion: sin él no hay eventos (por dónde va, cuándo
-acaba), y al terminar un vídeo pasaría a otros recomendados. Se crea gratis, con una cuenta de
-Dailymotion, en [Dailymotion Studio](https://www.dailymotion.com/partner/embed/players) → Players,
-con el paso automático al siguiente y las recomendaciones automáticas desactivados. Su id va en el
-`.env` (sin él, no hay sección Dailymotion):
-
-```sh
-DAILYMOTION_PLAYER_ID="x1abc"
-```
-
 ### Radio
 
 Emisoras en directo de Reino Unido, Estados Unidos, Francia, Italia y España, para escuchar y
@@ -1260,17 +1237,9 @@ más de la cuarta parte.
 
 Lo que sale de casa hacia la IA de OpenRouter, cuando hay clave, y lo que no:
 
-- **Tickets de Gastos**: la foto del ticket va a OpenRouter (el modelo de visión de Ajustes); sin
-  clave, o si falla, la lee el Ollama de casa y no sale nada.
-- **Facturas de Gastos (luz, agua, gas)**: de un PDF se manda **su texto**, no el PDF, primero a
-  OpenRouter y de reserva al Ollama de casa. Antes se quitan el DNI o NIE, el IBAN, el CUPS, los
-  números de contrato y los teléfonos. **El nombre del titular y la dirección sí van en el texto**:
-  no tienen una forma fija por la que reconocerlos, y a la IA solo se le pide que no los devuelva
-  (no se guardan). Una factura escaneada o en foto va como imagen, entera. Para que no salga nada,
-  hay que dejar OpenRouter sin clave y usar solo Ollama.
-- **Lo que se guarda en casa**: la foto del ticket o el PDF de la factura, en `DATA_DIR/gastos`, y
-  lo leído en la base de datos. Solo la base de datos sale de casa, y cifrada, en la
-  [copia en Cloudflare R2](#copia-en-cloudflare-r2) si está puesta; las fotos y los PDF, no.
+- **Gastos** (tickets y facturas) vive en la nube (#253): lo que se manda allí a la IA y lo que se
+  guarda está en el README de `nube/`. Desde casa solo va la foto del ticket de la gasolina (modo
+  carretera), y se lee allí.
 
 ## Copia de seguridad
 

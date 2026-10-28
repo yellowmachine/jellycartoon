@@ -2,7 +2,6 @@
 	import { enhance } from '$app/forms';
 	import KidQuestions from '#lib/components/KidQuestions.svelte';
 	import KidsNow from '#lib/components/KidsNow.svelte';
-	import DailymotionSources from '#lib/components/DailymotionSources.svelte';
 	import KidRulesForm from '#lib/components/KidRulesForm.svelte';
 	import { formatRemaining } from 'comun/format.ts';
 	import { clock, closedText, type VideoAccess } from '#lib/kid-time.ts';
@@ -207,27 +206,23 @@
 				<h3 class="mb-2 font-semibold">Estos días</h3>
 				{#if kid.watched.length}
 					<ul class="space-y-2 text-sm">
-						{#each kid.watched as item (`${item.episodeId}:${item.movieId}:${item.channelId}:${item.dailymotionId}`)}
+						{#each kid.watched as item (`${item.episodeId}:${item.movieId}:${item.channelId}`)}
 							<li>
 								<a
 									href={item.channelId
 										? '/canales'
-										: item.dailymotionId
-											? `/dailymotion/ver/${item.dailymotionId}`
-											: item.movieId
-												? `/cine/${item.movieId}`
-												: `/series/${item.seriesId}`}
+										: item.movieId
+											? `/cine/${item.movieId}`
+											: `/series/${item.seriesId}`}
 									class="block hover:text-amber-400"
 								>
 									<span class="block truncate">{item.title}</span>
 									<span class="block truncate text-xs text-zinc-400">
 										{item.channelId
 											? 'Canal, en directo'
-											: item.dailymotionId
-												? 'Dailymotion'
-												: item.movieId
-													? 'Película'
-													: `${item.seriesTitle} · T${item.season} E${item.number}`}
+											: item.movieId
+												? 'Película'
+												: `${item.seriesTitle} · T${item.season} E${item.number}`}
 										· {formatRemaining(item.seconds)} · {dayLabel(item.lastDay!)}
 									</span>
 								</a>
@@ -299,11 +294,3 @@
 		</details>
 	</section>
 {/each}
-
-{#if data.dailymotion}
-	<DailymotionSources
-		sources={data.dailymotion}
-		candidates={form && 'dmCandidates' in form ? form.dmCandidates : null}
-		message={form && 'dmMessage' in form ? form.dmMessage : null}
-	/>
-{/if}

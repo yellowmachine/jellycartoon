@@ -71,6 +71,11 @@ export const house = pgTable(
 			.references(() => family.id, { onDelete: 'cascade' }),
 		url: text('url').notNull(),
 		key: text('key').notNull(),
+		/**
+		 * jellycartoon's own address (its ORIGIN), for the bar's sections that are the house's: only
+		 * reached at home or through its VPN. Optional.
+		 */
+		webUrl: text('web_url'),
 		updatedAt: timestamp('updated_at')
 			.notNull()
 			.defaultNow()

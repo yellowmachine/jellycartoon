@@ -88,7 +88,7 @@
 				name="key"
 				type="password"
 				required={!data.cloudKeys.kitchen}
-				autocomplete="off"
+				autocomplete="new-password"
 				placeholder={data.cloudKeys.kitchen ? 'Otra clave (vacía, la de ahora)' : 'nube_…'}
 				class="w-full rounded-md border-zinc-700 bg-zinc-900 font-mono text-sm"
 			/>

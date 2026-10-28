@@ -3,13 +3,18 @@
  * JSON to a schema, as jellycartoon's `completeJson`. No spending record yet (#193).
  */
 
-/** jellycartoon's default for short tasks. */
+/** jellycartoon's defaults: short tasks, and photos (receipts, bills). */
 export const DEFAULT_MODEL = 'anthropic/claude-haiku-5.5';
+export const VISION_MODEL = 'anthropic/claude-sonnet-5.5';
+
+/** Text, or text and images: https://openrouter.ai/docs/guides/overview/multimodal/images */
+export type ContentPart =
+	{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
 
 export async function completeJson<T>(request: {
 	apiKey: string;
 	system: string;
-	prompt: string;
+	prompt: string | ContentPart[];
 	/** Name of the schema, e.g. `recipe`. */
 	name: string;
 	schema: Record<string, unknown>;

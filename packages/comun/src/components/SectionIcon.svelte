@@ -7,7 +7,6 @@
 		| 'series'
 		| 'cine'
 		| 'canales'
-		| 'dailymotion'
 		| 'radio'
 		| 'podcasts'
 		| 'recetas'
@@ -43,10 +42,6 @@
 		<path d="M3 10h18v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
 		<path d="M3 10l-.4-3.2a1.5 1.5 0 0 1 1.3-1.7L18 3.3a1.5 1.5 0 0 1 1.7 1.3L20.1 7z" />
 		<path d="M7.5 4.6l2.2 3.6M12.7 4l2.2 3.6" />
-	{:else if name === 'dailymotion'}
-		<!-- A screen with ▶: videos from outside, played in their own player. -->
-		<rect x="3" y="5" width="18" height="14" rx="3" />
-		<path d="M10 9.5v5l4.5-2.5z" />
 	{:else if name === 'canales'}
 		<circle cx="12" cy="9" r="1.5" />
 		<path

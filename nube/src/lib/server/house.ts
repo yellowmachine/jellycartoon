@@ -13,6 +13,8 @@ export { houseUrl } from './house-url.ts';
 
 export interface HouseLink {
 	url: string;
+	/** jellycartoon's own address, if given. */
+	webUrl: string | null;
 	/** Only how it starts, for Ajustes: the key itself never leaves the server. */
 	keyStart: string;
 	updatedAt: Date;
@@ -22,19 +24,33 @@ export async function houseLink(userId: string): Promise<HouseLink | null> {
 	const [row] = await withFamily(userId, (tx) => tx.select().from(house));
 	if (!row) return null;
 	const key = decrypt(row.key);
-	return { url: row.url, keyStart: key ? `${key.slice(0, 11)}…` : '¿?', updatedAt: row.updatedAt };
+	return {
+		url: row.url,
+		webUrl: row.webUrl,
+		// Only its prefix and four more; anything else, not shown at all.
+		keyStart: key?.startsWith('casita_') ? `${key.slice(0, 11)}…` : 'no válida: ponla otra vez',
+		updatedAt: row.updatedAt
+	};
 }
 
-/** Its address and key, or a new key alone (an empty one keeps the one there was). */
-export async function saveHouse(userId: string, url: string, key: string | null) {
+/**
+ * Its address and key, or a new key alone (an empty one keeps the one there was); and
+ * jellycartoon's own address, or none.
+ */
+export async function saveHouse(
+	userId: string,
+	url: string,
+	key: string | null,
+	webUrl: string | null
+) {
 	await withFamily(userId, async (tx, { familyId }) => {
 		const [row] = await tx.select({ key: house.key }).from(house);
 		const stored = key ? encrypt(key) : row?.key;
 		if (!stored) throw new Error('Falta la clave');
 		await tx
 			.insert(house)
-			.values({ familyId, url, key: stored })
-			.onConflictDoUpdate({ target: house.familyId, set: { url, key: stored } });
+			.values({ familyId, url, key: stored, webUrl })
+			.onConflictDoUpdate({ target: house.familyId, set: { url, key: stored, webUrl } });
 	});
 }
 

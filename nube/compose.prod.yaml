@@ -42,13 +42,30 @@ services:
       # The first family and its administrator's invitation, made on starting (scripts/migrate.ts).
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_FAMILY: ${ADMIN_FAMILY:-}
+      # The families' files (receipts' photos, bills), in the stack's own rustfs below.
+      S3_ENDPOINT: http://rustfs:9000
+      S3_BUCKET: nube
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID is required}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY is required}
     # Its own network for the database, and Dokploy's for Traefik (the domain, set in Dokploy).
     networks:
       - default
       - dokploy-network
 
+  # The families' files (#253): an S3 storage only the app reaches, on this stack's network, with
+  # no ports published. Its user and password, the app's S3 keys (the bucket, made by the app).
+  rustfs:
+    image: rustfs/rustfs:1.0.3
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID is required}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY is required}
+    volumes:
+      - files:/data
+
 volumes:
   pgdata:
+  files:
 
 networks:
   dokploy-network:

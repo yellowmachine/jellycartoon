@@ -17,5 +17,17 @@ services:
       - pgdata:/var/lib/postgresql
       - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
 
+  # The families' files, as in production (S3 on 127.0.0.1:19000).
+  rustfs:
+    image: rustfs/rustfs:1.0.3
+    environment:
+      RUSTFS_ACCESS_KEY: nube
+      RUSTFS_SECRET_KEY: nube-desarrollo
+    ports:
+      - 127.0.0.1:19000:9000
+    volumes:
+      - files:/data
+
 volumes:
   pgdata:
+  files:

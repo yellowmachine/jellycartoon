@@ -26,8 +26,6 @@ import type { WikiPage } from '#lib/server/cinema/wikidata.ts';
 import type { TitleProposal } from '#lib/episode-titles.ts';
 import type { LngLat } from '#lib/road.ts';
 import type { DjOptions } from 'comun/music.ts';
-import type { ExpenseLine } from '#lib/expenses.ts';
-import type { BillDetails } from '#lib/bills.ts';
 import type { RouteStop } from '#lib/saved-places.ts';
 import type { Exercise, HomeworkRules, Step } from '#lib/homework.ts';
 import { session, user } from './auth.schema';
@@ -371,21 +369,17 @@ export const watchTime = pgTable(
 		movieId: integer('movie_id').references(() => movie.id, { onDelete: 'cascade' }),
 		/** A TV channel, live: its id in channels.ts. */
 		channelId: text('channel_id'),
-		/** A Dailymotion video (#66). */
-		dailymotionId: text('dailymotion_id').references(() => dailymotionVideo.xid, {
-			onDelete: 'cascade'
-		}),
 		seconds: real('seconds').notNull().default(0)
 	},
 	(t) => [
 		// All but one are null: they are compared as equal, so there is one row per thing and day.
 		unique('watch_time_user_day_item')
-			.on(t.userId, t.day, t.minute, t.episodeId, t.movieId, t.channelId, t.dailymotionId)
+			.on(t.userId, t.day, t.minute, t.episodeId, t.movieId, t.channelId)
 			.nullsNotDistinct(),
 		check('watch_time_minute', sql`${t.minute} between 0 and 1439`),
 		check(
 			'watch_time_one_item',
-			sql`num_nonnulls(${t.episodeId}, ${t.movieId}, ${t.channelId}, ${t.dailymotionId}) = 1`
+			sql`num_nonnulls(${t.episodeId}, ${t.movieId}, ${t.channelId}) = 1`
 		)
 	]
 );
@@ -1232,55 +1226,6 @@ export const pushSubscription = pgTable(
 	(t) => [index('push_subscription_user_idx').on(t.userId)]
 );
 
-export const dailymotionSourceKind = pgEnum('dailymotion_source_kind', ['user', 'playlist']);
-
-/**
- * A Dailymotion account or playlist the adults chose for the children (#66): only their videos are
- * shown and played, always with the family filter.
- */
-export const dailymotionSource = pgTable(
-	'dailymotion_source',
-	{
-		id: serial('id').primaryKey(),
-		kind: dailymotionSourceKind('kind').notNull(),
-		/** Dailymotion's id of the account or the playlist. */
-		xid: text('xid').notNull(),
-		name: text('name').notNull(),
-		image: text('image'),
-		addedBy: text('added_by').references(() => user.id, { onDelete: 'set null' }),
-		createdAt: timestamp('created_at').notNull().defaultNow()
-	},
-	(t) => [unique('dailymotion_source_kind_xid').on(t.kind, t.xid)]
-);
-
-/** A Dailymotion video that has been played here: its title, for the history and «Ahora». */
-export const dailymotionVideo = pgTable('dailymotion_video', {
-	xid: text('xid').primaryKey(),
-	title: text('title').notNull(),
-	/** The account's name, as Dailymotion shows it. */
-	owner: text('owner').notNull(),
-	durationSec: real('duration_sec'),
-	thumbnail: text('thumbnail'),
-	updatedAt: timestamp('updated_at').notNull().defaultNow()
-});
-
-/** Where each user is in each Dailymotion video, as with the episodes. */
-export const dailymotionProgress = pgTable(
-	'dailymotion_progress',
-	{
-		userId: text('user_id')
-			.notNull()
-			.references(() => user.id, { onDelete: 'cascade' }),
-		videoXid: text('video_xid')
-			.notNull()
-			.references(() => dailymotionVideo.xid, { onDelete: 'cascade' }),
-		positionSec: real('position_sec').notNull(),
-		completed: boolean('completed').notNull().default(false),
-		updatedAt: timestamp('updated_at').notNull().defaultNow()
-	},
-	(t) => [primaryKey({ columns: [t.userId, t.videoXid] })]
-);
-
 /**
  * A child's homework from the cartoons they watched (#142): exercises the AI proposed from the
  * episodes' subtitles, which an adult reviewed, and the child's way through them.
@@ -1461,111 +1406,6 @@ export const djPreset = pgTable(
 	},
 	(t) => [unique('dj_preset_user_name').on(t.userId, t.name)]
 );
-
-/**
- * The house's expenses (#194), shared by its adults: from a receipt's photo read by a vision model,
- * said by voice, written by hand, or a fixed one added each month. In cents.
- */
-export const expenseSource = pgEnum('expense_source', ['ticket', 'voz', 'mano', 'fijo', 'factura']);
-
-export const expense = pgTable(
-	'expense',
-	{
-		id: serial('id').primaryKey(),
-		/** The day it was paid, as the receipt says. */
-		date: date('date').notNull(),
-		/** The shop, or what it was («Gasolina»). */
-		store: text('store').notNull(),
-		/** One of EXPENSE_CATEGORIES (expenses.ts). */
-		category: text('category').notNull(),
-		total: integer('total').notNull(),
-		source: expenseSource('source').notNull(),
-		/** Who put it in; null if their account is gone. */
-		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
-		/** The receipt's photo, or the bill's PDF or photo, kept in DATA_DIR/gastos. */
-		receipt: text('receipt'),
-		/** The fixed one it came from. */
-		recurringId: integer('recurring_id').references(() => recurringExpense.id, {
-			onDelete: 'set null'
-		}),
-		createdAt: timestamp('created_at').notNull().defaultNow()
-	},
-	(t) => [index('expense_date_idx').on(t.date)]
-);
-
-/** A receipt's lines, as read from it and corrected. */
-export const expenseLine = pgTable(
-	'expense_line',
-	{
-		id: serial('id').primaryKey(),
-		expenseId: integer('expense_id')
-			.notNull()
-			.references(() => expense.id, { onDelete: 'cascade' }),
-		position: integer('position').notNull(),
-		text: text('text').notNull(),
-		/** Units, or kg. */
-		quantity: doublePrecision('quantity'),
-		amount: integer('amount').notNull(),
-		/** One of LINE_TAGS (expenses.ts); the ones read before there were tags, «Otros». */
-		tag: text('tag').notNull().default('Otros')
-	},
-	(t) => [index('expense_line_expense_idx').on(t.expenseId)]
-);
-
-/**
- * A bill's supply (#232), with its expense (who, when, the total, the parts as its lines): the
- * period and what was consumed, and what is particular to each kind in `details`.
- */
-export const bill = pgTable(
-	'bill',
-	{
-		id: serial('id').primaryKey(),
-		expenseId: integer('expense_id')
-			.notNull()
-			.unique()
-			.references(() => expense.id, { onDelete: 'cascade' }),
-		/** One of BILL_KINDS (bills.ts). */
-		kind: text('kind').notNull(),
-		periodStart: date('period_start').notNull(),
-		periodEnd: date('period_end').notNull(),
-		/** In `unit`; null if the bill does not say. */
-		consumption: doublePrecision('consumption'),
-		/** One of BILL_UNITS. */
-		unit: text('unit').notNull(),
-		details: jsonb('details').$type<BillDetails>().notNull(),
-		createdAt: timestamp('created_at').notNull().defaultNow()
-	},
-	(t) => [index('bill_kind_period_idx').on(t.kind, t.periodEnd)]
-);
-
-/** Paid every month (rent, light, a subscription): added by itself on its day. */
-export const recurringExpense = pgTable('recurring_expense', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	category: text('category').notNull(),
-	amount: integer('amount').notNull(),
-	/** Day of the month, 1 to 28: every month has it. */
-	day: integer('day').notNull(),
-	/** The last month it was added, `YYYY-MM`; null, none yet. */
-	lastMonth: text('last_month'),
-	userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
-	createdAt: timestamp('created_at').notNull().defaultNow()
-});
-
-/**
- * A favourite expense, to put in again with a touch or by voice («el café de siempre»): as it was
- * when marked, the amount changeable when used. Not a fixed one: nothing is added by itself.
- */
-export const expenseFavorite = pgTable('expense_favorite', {
-	id: serial('id').primaryKey(),
-	store: text('store').notNull(),
-	category: text('category').notNull(),
-	/** Null: said each time. */
-	total: integer('total'),
-	lines: jsonb('lines').$type<ExpenseLine[]>().notNull().default([]),
-	userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
-	createdAt: timestamp('created_at').notNull().defaultNow()
-});
 
 /**
  * The house's agenda (#200): a family's, not a work one. Days and times «on the wall», as they
