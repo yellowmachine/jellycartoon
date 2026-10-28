@@ -7,7 +7,7 @@
 	import SalonBar from '#lib/components/SalonBar.svelte';
 	import SnapcastBar from '#lib/components/SnapcastBar.svelte';
 	import SectionIcon, { type Section } from 'comun/components/SectionIcon.svelte';
-	import SiteNav, { type UserLink } from 'comun/components/SiteNav.svelte';
+	import SiteNav, { type NavLink, type UserLink } from 'comun/components/SiteNav.svelte';
 	import { menuItem } from 'comun/components/menu.ts';
 	import VoiceBubble from '#lib/components/VoiceBubble.svelte';
 	import TimerBar from '#lib/components/TimerBar.svelte';
@@ -91,21 +91,32 @@
 		return () => navigator.serviceWorker.removeEventListener('message', went);
 	});
 
-	const links: { href: string; label: string; icon: Section; also?: string[] }[] = $derived([
+	/**
+	 * A section that lives in the cloud (#253): straight there, as the cloud's bar goes to the house;
+	 * without it connected, the house's page for it, which says how (Ajustes → Casa → «La nube»).
+	 */
+	const inCloud = (path: string, label: string, icon: Section) =>
+		data.cloud
+			? { href: `${data.cloud}${path}`, label, icon, external: true }
+			: { href: path, label, icon };
+
+	const links: NavLink[] = $derived([
 		// With Hoy and Listas in its tabs.
 		{ href: '/', label: 'Series', icon: 'series', also: ['/series', '/today', '/lists'] },
 		...(data.cinema ? [{ href: '/cine', label: 'Cine', icon: 'cine' as const }] : []),
 		...(data.music ? [{ href: '/musica', label: 'Música', icon: 'musica' as const }] : []),
 		{ href: '/radio', label: 'Radio', icon: 'radio' },
 		{ href: '/canales', label: 'Canales', icon: 'canales' },
-		// The house's recipe book: not for a child's account.
-		...(data.kid ? [] : [{ href: '/recetas', label: 'Recetas', icon: 'recetas' as const }]),
-		// The house's post-its and shopping list (#131): the adults write on it; the TV shows it.
-		...(data.kid ? [] : [{ href: '/nevera', label: 'Nevera', icon: 'nevera' as const }]),
-		// The house's agenda (#200): a child sees what is for them.
-		{ href: '/agenda', label: 'Agenda', icon: 'agenda' },
-		// The house's expenses (#194): its adults', all of them.
-		...(data.kid ? [] : [{ href: '/gastos', label: 'Gastos', icon: 'gastos' as const }]),
+		// The family's, in the cloud (#253): its recipe book, its post-its and shopping list (#131),
+		// its agenda (#200) and its expenses (#194). For the adults, who have an account there.
+		...(data.kid
+			? []
+			: [
+					inCloud('/recetas', 'Recetas', 'recetas'),
+					inCloud('/nevera', 'Nevera', 'nevera'),
+					inCloud('/agenda', 'Agenda', 'agenda'),
+					inCloud('/gastos', 'Gastos', 'gastos')
+				]),
 		// The road mode's trips, and the way into it: not for a child's account, as Modo carretera.
 		...(data.kid ? [] : [{ href: '/viajes', label: 'Viajes', icon: 'viajes' as const }]),
 		...(data.salon ? [{ href: '/salon', label: 'Salón', icon: 'salon' as const }] : []),
