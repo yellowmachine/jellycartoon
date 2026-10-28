@@ -15,6 +15,7 @@
 	import TelegramBot from './TelegramBot.svelte';
 	import VozCaracter from './VozCaracter.svelte';
 	import VozInternet from './VozInternet.svelte';
+	import VozSilencio from './VozSilencio.svelte';
 	import MusicaEnApps from './MusicaEnApps.svelte';
 	import Dispositivo from './Dispositivo.svelte';
 	import Voz from './Voz.svelte';
@@ -86,6 +87,7 @@
 				houseStyle: data.houseStyle,
 				myStyle: data.myStyle,
 				voiceWeb: data.voiceWeb,
+				voiceQuiet: data.voiceQuiet,
 				musicApps: data.musicApps,
 				voice: Boolean(data.voice),
 				music: Boolean(data.music),
@@ -176,6 +178,8 @@
 		<VozCaracter {data} {form} {tab} which="casa" />
 
 		<VozInternet {data} {form} {tab} />
+
+		<VozSilencio {data} {form} {tab} />
 
 		<TelegramBot {data} {form} {tab} />
 

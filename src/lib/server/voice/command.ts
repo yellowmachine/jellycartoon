@@ -79,6 +79,9 @@ import {
 	TELEGRAM_TOOLS,
 	telegramTools
 } from '#lib/server/voice/telegram-tools.ts';
+import { quietCheck, type QuietHours } from '#lib/server/voice/quiet-check.ts';
+import { quietHoursConfig } from '#lib/server/voice/quiet-hours.ts';
+import { now } from '#lib/server/kid-time.ts';
 import {
 	searchWeb,
 	WEB_TOOL,
@@ -945,6 +948,9 @@ const HOUSE_FROM_SATELLITE = new Set([
 	'play_video'
 ]);
 
+/** What starts something sounding: in the «horas de silencio», only after a «sí». */
+const SOUNDING = new Set(['play_music', 'play_radio', 'play_video']);
+
 async function runTool(
 	name: string,
 	args: Record<string, unknown>,
@@ -968,6 +974,8 @@ async function runTool(
 		/** This order's own id: a message is never sent in the order that prepared it (#243). */
 		order: string;
 		rooms: Room[];
+		/** «Horas de silencio» (Ajustes → Casa); null, none or not here (the road mode). */
+		quiet: QuietHours | null;
 	}
 ): Promise<ToolResult> {
 	if (HISTORY_TOOLS.has(name)) return runHistoryTool(name, args, { self: ctx.user });
@@ -987,6 +995,10 @@ async function runTool(
 			satellite: ctx.satelliteName,
 			order: ctx.order
 		});
+	if (SOUNDING.has(name) || (name === 'control' && args.action === 'resume')) {
+		const wait = quietCheck(ctx.quiet, ctx.place ?? `user:${ctx.user.id}`, ctx.order, now().minute);
+		if (wait) return wait;
+	}
 	// A satellite's «aquí» has nothing to play on: music, radio and their controls, in the whole house.
 	const asked =
 		ctx.satellite && HOUSE_FROM_SATELLITE.has(name) && (!args.where || args.where === 'here')
@@ -1541,6 +1553,9 @@ export async function runVoiceCommand(
 		request.car ? !NOT_IN_THE_CAR.has(t.function.name) : !ONLY_IN_THE_CAR.has(t.function.name)
 	);
 
+	// Driving at night, music is what keeps one awake: no questions in the car.
+	const quiet = request.car ? null : await quietHoursConfig();
+
 	for (let round = 0; round < MAX_ROUNDS; round++) {
 		const asked = performance.now();
 		const answer = await chatWithTools({
@@ -1585,7 +1600,8 @@ export async function runVoiceCommand(
 					place,
 					satelliteName: satellite?.name ?? null,
 					order,
-					rooms
+					rooms,
+					quiet
 				});
 			} catch (err) {
 				result = `Error: ${err instanceof Error ? err.message : String(err)}`;

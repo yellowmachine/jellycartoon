@@ -129,6 +129,7 @@ import {
 import { BOT_EVENTS, parseBotEvents } from '#lib/telegram-bot.ts';
 import { MAX_VOICE_STYLE } from '#lib/voice.ts';
 import { setWebSearch, webSearchConfig } from '#lib/server/voice/web-search.ts';
+import { quietHoursConfig, setQuietHours } from '#lib/server/voice/quiet-hours.ts';
 
 export const load: PageServerLoad = async ({ locals, cookies, url, request }) => {
 	const userId = locals.user!.id;
@@ -284,6 +285,8 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		recordTrips: isKid(locals.user) ? null : await recordsTrips(userId),
 		/** The voice searching the web, and how (#243): who manages the app. */
 		voiceWeb: admin && voiceEnabled ? await webSearchConfig() : null,
+		/** «Horas de silencio»: at night, the voice asks before putting anything on. */
+		voiceQuiet: admin && voiceEnabled ? { hours: await quietHoursConfig() } : null,
 		/** How the voice is (free text in its instructions): the house's, for who manages the app. */
 		houseStyle: admin && voiceEnabled ? { text: (await getAppSetting('voice_style')) ?? '' } : null,
 		/** And how it talks to them: an adult's. */
@@ -765,6 +768,17 @@ export const actions: Actions = {
 		await setWebSearch(config);
 		log.info('ajustes', `Voz en internet: ${config.on ? 'sí' : 'no'}`, { hints: config.hints });
 		return { saved: 'voiceWeb' };
+	},
+	/** «Horas de silencio»: both times, or none (`off`). */
+	saveVoiceQuiet: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const form = await request.formData();
+		const from = String(form.get('from') ?? '');
+		const to = String(form.get('to') ?? '');
+		const hours = form.get('off') || !from || !to ? null : { from, to };
+		await setQuietHours(hours);
+		log.info('ajustes', `Horas de silencio: ${hours ? `de ${from} a ${to}` : 'no'}`);
+		return { saved: 'voiceQuiet' };
 	},
 	/** «Cómo es la voz de la casa»: free text in the voice's instructions; empty, none. */
 	saveHouseStyle: async ({ request, locals }) => {
