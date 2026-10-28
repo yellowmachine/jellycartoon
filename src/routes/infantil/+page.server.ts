@@ -23,7 +23,7 @@ import { log } from '#lib/server/log.ts';
 import { parseClock, type Slot } from '#lib/kid-time.ts';
 import { today } from '#lib/server/playlist.ts';
 import { continueWatching } from '#lib/server/watching.ts';
-import { CHANNELS } from '#lib/channels.ts';
+import { CHANNELS } from 'comun/channels.ts';
 import { stoppedLately, watchingNow } from '#lib/server/live-watching.ts';
 import { askEvery } from '#lib/server/still-there.ts';
 import { ASK_EVERY_OPTIONS } from '#lib/still-there.ts';

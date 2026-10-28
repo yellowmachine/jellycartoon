@@ -5,7 +5,7 @@ import { isKid } from '#lib/server/kids.ts';
 import { videoAllowedTogether } from '#lib/server/kid-time.ts';
 import { watchersOf } from '#lib/server/watching-together.ts';
 import { addWatchTime } from '#lib/server/watch-time.ts';
-import { channelsFor } from '#lib/channels.ts';
+import { channelsFor } from 'comun/channels.ts';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const { episodeId, channelId, positionSec, durationSec, device } = await request.json();

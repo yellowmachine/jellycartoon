@@ -26,6 +26,7 @@
 	import { loadRecent, matching, remember, saveRecent } from 'comun/recent-places.ts';
 	import { toSay } from 'comun/road-voice.ts';
 	import FuelSheet from 'comun/components/FuelSheet.svelte';
+	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { telegramSaid, type TelegramMessage } from 'comun/telegram.ts';
 	import type { MusicPass } from '#lib/server/music.ts';
@@ -261,11 +262,13 @@
 	});
 
 	function release() {
-		voice.stop();
+		if (!micMode.tap) voice.stop();
 	}
 
+	/** Held down, or (Ajustes) a tap to start and another to send. */
 	function press() {
-		void voice.start();
+		if (micMode.tap) voice.toggle();
+		else void voice.start();
 	}
 
 	// Spanish first, as in the TV view: it is the house's own.
@@ -837,7 +840,7 @@
 	{/if}
 {/snippet}
 
-<!-- The microphone: held while speaking, as at home. -->
+<!-- The microphone: held, or a tap to start and another to send (Ajustes). -->
 {#snippet mic(size: string, icon: string)}
 	<button
 		class={[
@@ -848,7 +851,11 @@
 				: 'bg-amber-500 text-zinc-950 active:scale-95',
 			voice.phase === 'thinking' && 'opacity-60'
 		]}
-		aria-label="Mantén pulsado para hablar"
+		aria-label={micMode.tap
+			? voice.phase === 'listening'
+				? 'Toca para enviar'
+				: 'Toca para hablar'
+			: 'Mantén pulsado para hablar'}
 		disabled={voice.phase === 'thinking'}
 		onpointerdown={(e) => {
 			e.currentTarget.setPointerCapture(e.pointerId);
@@ -874,7 +881,7 @@
 <!-- What the voice is doing, or said. -->
 {#snippet voiceLine()}
 	{#if voice.phase === 'listening'}
-		<span class="text-red-400">Te escucho…</span>
+		<span class="text-red-400">Te escucho…{micMode.tap ? ' toca para enviar' : ''}</span>
 	{:else if voice.phase === 'thinking'}
 		<span class="text-zinc-300">Un momento…</span>
 	{:else if voice.problem}

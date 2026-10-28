@@ -1,0 +1,1 @@
+ALTER TABLE "family_member" ADD COLUMN "subtitle_style" jsonb;

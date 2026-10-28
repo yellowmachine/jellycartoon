@@ -44,6 +44,7 @@ import {
 	saveHouse
 } from '#lib/server/house.ts';
 import { recordsTrips, setRecordTrips } from '#lib/server/trips/trips.ts';
+import { subtitleStyleOf } from '#lib/server/subtitles.ts';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const k = await kitchenOf(locals.user!.id);
@@ -66,7 +67,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 		/** And how it talks to each one. */
 		myStyle: { text: (await personVoiceStyle(k, locals.user!.id)) ?? '' },
 		/** Whether the road mode keeps their trips (Viajes). */
-		recordTrips: await recordsTrips(k)
+		recordTrips: await recordsTrips(k),
+		/** How their subtitles look (Canales). */
+		subtitleStyle: await subtitleStyleOf(k)
 	};
 };
 

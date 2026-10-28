@@ -37,6 +37,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		words: 'voz carácter personalidad tono humor tomar el pelo chistes asistente estilo'
 	},
 	{
+		id: 'subtitulos',
+		tab: 'mi',
+		title: 'Subtítulos',
+		words: 'subtítulos letra tamaño color fondo canales tele estilo'
+	},
+	{
 		id: 'viajes',
 		tab: 'mi',
 		title: 'Tus viajes',
@@ -47,6 +53,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		tab: 'aparato',
 		title: 'Avisos en este dispositivo',
 		words: 'notificaciones push alarmas agenda móvil avisar'
+	},
+	{
+		id: 'microfono',
+		tab: 'aparato',
+		title: 'Voz y micrófono',
+		words: 'micrófono hablar voz mantener pulsado tocar toques atajo teclado'
 	},
 	{
 		id: 'personas',

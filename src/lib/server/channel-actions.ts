@@ -3,7 +3,7 @@ import { mpvEnabled, playChannel } from '#lib/server/cinema/mpv.ts';
 import { isKid } from '#lib/server/kids.ts';
 import { videoClosed } from '#lib/server/kid-time.ts';
 import { log } from '#lib/server/log.ts';
-import { channelsFor } from '#lib/channels.ts';
+import { channelsFor } from 'comun/channels.ts';
 
 /** A channel, live, on the living room's mpv: from the TV view and from /canales. */
 export const playOnSalon: Action = async ({ request, locals }) => {

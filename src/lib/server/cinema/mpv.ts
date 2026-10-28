@@ -14,9 +14,9 @@ import { watchersOf } from '#lib/server/watching-together.ts';
 import { noteAsking, noteStopped, noteTouched } from '#lib/server/live-watching.ts';
 import { askEveryTogether } from '#lib/server/still-there.ts';
 import { ANSWER_SECONDS, QUESTION } from '#lib/still-there.ts';
-import type { Channel } from '#lib/channels.ts';
+import type { Channel } from 'comun/channels.ts';
 import type { RemoteAction, RemoteState, Track } from '#lib/salon.ts';
-import { mpvSubtitleProperties, type SubtitleStyle } from '#lib/subtitle-style.ts';
+import { mpvSubtitleProperties, type SubtitleStyle } from 'comun/subtitle-style.ts';
 
 /**
  * Plays films, episodes and TV channels on the host's screen: an mpv left waiting at MPV_SOCKET

@@ -5,7 +5,7 @@ import { cloudPerson } from '#lib/server/media-api.ts';
 import { orderFromCloud } from '#lib/server/voice/hands.ts';
 
 /**
- * An order said to the cloud (#253: its road mode), by one of the house: what only the house knows
+ * An order said to the cloud (#253: its road mode, or its Hablar), by one of the house: what only the house knows
  * (its music, its tools), for the cloud's AI; the house's hands (/api/v1/voz) then answer to it.
  */
 export const POST: RequestHandler = async ({ request }) => {

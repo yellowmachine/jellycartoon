@@ -1,10 +1,10 @@
 <script lang="ts">
 	import Guardado from 'comun/components/Guardado.svelte';
-	import SubtitleStylePanel from '#lib/components/SubtitleStylePanel.svelte';
+	import SubtitleStylePanel from 'comun/components/SubtitleStylePanel.svelte';
 	import { enhance } from '$app/forms';
 	import { languageLabel } from 'comun/languages.ts';
 	import { ANSWER_SECONDS, ASK_EVERY_OPTIONS } from '#lib/still-there.ts';
-	import type { SubtitleStyle } from '#lib/subtitle-style.ts';
+	import type { SubtitleStyle } from 'comun/subtitle-style.ts';
 	import { section, select, primary } from './styles.ts';
 	import type { PageData, ActionData } from './$types';
 

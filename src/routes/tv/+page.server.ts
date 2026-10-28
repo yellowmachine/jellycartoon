@@ -15,7 +15,7 @@ import { getTodayPlaylist } from '#lib/server/playlist.ts';
 import { stationsInfo } from '#lib/server/radio.ts';
 import { allSeries, continueWatching } from '#lib/server/watching.ts';
 import { isKid } from '#lib/server/kids.ts';
-import { channelsFor } from '#lib/channels.ts';
+import { channelsFor } from 'comun/channels.ts';
 import { STATIONS } from 'comun/radio.ts';
 import { fridgeForScreen } from '#lib/server/kitchen.ts';
 import { watchingOnTv } from '#lib/server/watching-together.ts';
