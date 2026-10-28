@@ -1,7 +1,7 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import { formatDuration } from 'comun/format.ts';
 	import { thumbUrl } from 'comun/thumb.svelte.ts';
-	import EpisodePreview from './EpisodePreview.svelte';
 
 	/**
 	 * An episode as its series' page shows it, as a link to watch it: thumbnail with how far it
@@ -10,7 +10,8 @@
 
 	let {
 		episode,
-		label
+		label,
+		preview
 	}: {
 		episode: {
 			id: number;
@@ -24,6 +25,8 @@
 		};
 		/** Above it, e.g. «A continuación». */
 		label?: string;
+		/** Over its thumbnail on hover: the house's moving preview (EpisodePreview), where there is one. */
+		preview?: Snippet<[{ id: number; durationSec: number | null }]>;
 	} = $props();
 </script>
 
@@ -38,7 +41,7 @@
 			loading="lazy"
 			class="h-full w-full object-cover transition group-hover:scale-105"
 		/>
-		<EpisodePreview id={episode.id} durationSec={episode.durationSec} />
+		{@render preview?.({ id: episode.id, durationSec: episode.durationSec })}
 		{#if episode.completed}
 			<span
 				class="absolute top-1 left-1 rounded bg-zinc-950/80 px-1.5 py-0.5 text-xs font-medium text-amber-400"

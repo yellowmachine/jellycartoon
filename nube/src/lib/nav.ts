@@ -10,7 +10,7 @@ import type { Section } from 'comun/components/SectionIcon.svelte';
 type Where = 'nube' | 'pendiente' | 'casa';
 
 const SECTIONS: { path: string; label: string; icon: Section; where: Where; also?: string[] }[] = [
-	{ path: '/series', label: 'Series', icon: 'series', where: 'casa' },
+	{ path: '/series', label: 'Series', icon: 'series', where: 'nube', also: ['/watch'] },
 	{ path: '/cine', label: 'Cine', icon: 'cine', where: 'casa' },
 	{ path: '/musica', label: 'Música', icon: 'musica', where: 'nube' },
 	{ path: '/radio', label: 'Radio', icon: 'radio', where: 'nube' },

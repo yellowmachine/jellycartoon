@@ -1,31 +1,62 @@
-<script lang="ts">
+<script lang="ts" module>
 	import { onMount, tick, untrack, type Snippet } from 'svelte';
 	import type Hls from 'hls.js';
-	import { goto } from '$app/navigation';
 	import '@fontsource/atkinson-hyperlegible/400.css';
 	import '@fontsource/comic-neue/400.css';
 	import { recoverFromErrors } from 'comun/hls-recovery.ts';
 	import { normalizeLang, type AudioTrack, type SubtitleTrack } from 'comun/languages.ts';
 	import { placeCues, subtitleCss, type SubtitleStyle } from 'comun/subtitle-style.ts';
-	import { thumbChanged, thumbUrl } from 'comun/thumb.svelte.ts';
-	import { useFrameAsBackdrop } from '#lib/backdrop.svelte.ts';
-	import { videoHere } from '#lib/video-here.svelte.ts';
+	import { thumbUrl } from 'comun/thumb.svelte.ts';
 	import { watchMedia, watchPlay } from 'comun/media-diagnostics.ts';
-	import { listenToEpisode } from 'comun/episode-listening.svelte.ts';
 	import { music } from 'comun/music-player.svelte.ts';
-	import { shownDeviceName } from 'comun/device-name.svelte.ts';
-	import { page } from '$app/state';
 	import SubtitleStylePanel from 'comun/components/SubtitleStylePanel.svelte';
-	import SnapcastListen from './SnapcastListen.svelte';
-	import { playerQuality, type Quality } from '#lib/player-quality.svelte.ts';
+	import { playerQuality, type Quality } from 'comun/player-quality.svelte.ts';
 	import {
 		PLAYER_SIZES,
 		loadPlayerSize,
 		playerSize,
 		setPlayerSize,
 		type PlayerSize
-	} from '#lib/player-size.svelte.ts';
+	} from 'comun/player-size.svelte.ts';
 
+	/** The player's choices, saved by each app where it keeps them. */
+	export interface PlayerSettings {
+		audioLang?: string | null;
+		subtitleLang?: string | null;
+		subtitleStyle?: SubtitleStyle;
+		autoNext?: boolean;
+	}
+
+	/**
+	 * Where each app has the episode (#253): the house's own, or the house's through the cloud's
+	 * signed links. A save's answer back, or null without a connection.
+	 */
+	export interface PlayerLinks {
+		/** Its HLS: `<hls>/master.m3u8`, and each subtitle file beside it. */
+		hls: string;
+		saveProgress: (at: {
+			episodeId: number;
+			positionSec: number;
+			durationSec: number;
+		}) => Promise<Response | null>;
+		saveSettings: (values: PlayerSettings) => Promise<Response | null>;
+	}
+
+	/** For the options an app adds to the ⚙ menu (the house's: Snapcast, Langua, thumbnails). */
+	export interface PlayerMenu {
+		episodeId: number;
+		title: string;
+		video: () => HTMLVideoElement | undefined;
+		audioTracks: AudioTrack[];
+		audioIndex: () => number;
+		/** The menu closed. */
+		close: () => void;
+		/** Its audio goes on elsewhere: the video stops here, and saves nothing more. */
+		handOver: () => void;
+	}
+</script>
+
+<script lang="ts">
 	interface Props {
 		episodeId: number;
 		/** «Friends · T1 E2 · El de la boda»: what plays, for the kitchen panel. */
@@ -49,8 +80,14 @@
 		onautonextchange?: (autoNext: boolean) => void;
 		/** Over the video while it is given, e.g. the next episode with a countdown. */
 		overlay?: Snippet;
-		/** Their Langua is set (Ajustes): «Mandar a Langua» in the menu. */
-		langua?: boolean;
+		links: PlayerLinks;
+		/** It plays in this element (the house's microphone and kitchen): what stops that, back. */
+		here?: (element: HTMLVideoElement, handOver: () => void) => () => void;
+		/** Its pieces refused (403): out of a child's time at home (#18). */
+		onrefused?: () => void;
+		/** First and last in the ⚙ menu: what only one app has. */
+		menuTop?: Snippet<[PlayerMenu]>;
+		menuBottom?: Snippet<[PlayerMenu]>;
 	}
 
 	let {
@@ -64,7 +101,11 @@
 		onended,
 		onautonextchange,
 		overlay,
-		langua = false
+		links,
+		here,
+		onrefused,
+		menuTop,
+		menuBottom
 	}: Props = $props();
 
 	let video = $state<HTMLVideoElement>();
@@ -105,7 +146,7 @@
 	let audioIndex = $derived(Math.max(0, pick(audioTracks, audioLang)));
 	let subtitleIndex = $derived(pick(subtitles, subtitleLang));
 
-	const src = $derived(`/api/hls/${episodeId}/master.m3u8`);
+	const src = $derived(`${links.hls}/master.m3u8`);
 
 	let wrapper = $state<HTMLDivElement>();
 
@@ -159,14 +200,8 @@
 	// For the header's microphone: what plays here, to pause it while someone speaks.
 	$effect(() => {
 		const el = video;
-		if (!el) return;
-		videoHere.set({
-			episodeId: untrack(() => episodeId),
-			title: untrack(() => title),
-			element: el,
-			handOver: audioElsewhere
-		});
-		return () => videoHere.clear(el);
+		if (!el || !here) return;
+		return untrack(() => here(el, handOver));
 	});
 
 	$effect(() => {
@@ -206,7 +241,7 @@
 				});
 				// Out of a child's time (#18) the server refuses the video's pieces: the notice says why.
 				instance.on(Hls.Events.ERROR, (_event, data) => {
-					if (data.response?.code === 403) void goto('/descanso');
+					if (data.response?.code === 403) onrefused?.();
 				});
 				recoverFromErrors(instance, Hls, (text) => (problem = text));
 				instance.loadSource(url);
@@ -273,19 +308,8 @@
 		for (let i = 0; i < tracks.length; i++) tracks[i].enabled = i === index;
 	}
 
-	function saveSetting(values: {
-		audioLang?: string | null;
-		subtitleLang?: string | null;
-		subtitleStyle?: SubtitleStyle;
-		autoNext?: boolean;
-	}) {
-		fetch('/api/settings', {
-			method: 'PATCH',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify(values)
-		})
-			.catch(() => null)
-			.then(saved('No se pudo guardar el ajuste.'));
+	function saveSetting(values: PlayerSettings) {
+		void links.saveSettings(values).then(saved('No se pudo guardar el ajuste.'));
 	}
 
 	function chooseAudio(index: number) {
@@ -374,78 +398,34 @@
 	function saveAt(episodeId: number, video: HTMLVideoElement | undefined) {
 		if (!video?.currentTime) return Promise.resolve();
 		lastSaved = Date.now();
-		// keepalive lets the request finish even if the page is being closed.
-		return fetch('/api/progress', {
-			method: 'POST',
-			keepalive: true,
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({
-				episodeId,
-				positionSec: video.currentTime,
-				durationSec: video.duration,
-				// Where, for a child's: /infantil says «Lucía está viendo… en el móvil».
-				device: shownDeviceName(page.url.pathname.startsWith('/tv'))
-			})
-		})
-			.catch(() => null)
+		return links
+			.saveProgress({ episodeId, positionSec: video.currentTime, durationSec: video.duration })
 			.then(saved('No se pudo guardar por dónde vas.'));
 	}
 
-	/**
-	 * «Seguir solo con el audio» (#154): from this second, with the audio being heard, in the music
-	 * player, which goes on with the screen off (Chrome pauses a video then). The video stops here.
-	 */
-	function onlyAudio() {
-		if (!video) return;
-		// «Friends · T1 E2 · El de la boda»: the episode's title, and the rest under it.
-		const parts = title.split(' · ');
-		listenToEpisode({
-			id: episodeId,
-			title: parts.length > 1 ? parts.at(-1)! : title,
-			subtitle: parts.length > 1 ? parts.slice(0, -1).join(' · ') : 'Solo el audio',
-			audioTracks,
-			lang: null,
-			track: audioIndex,
-			durationSec: Number.isFinite(video.duration) ? video.duration : null,
-			positionSec: video.currentTime
-		});
-		video.pause();
-		handedOver = true;
-		menuOpen = false;
-	}
-
-	/** It goes on on Snapcast (#223), which saves its progress from now: the video stops here. */
-	function audioElsewhere() {
+	/** Its audio goes on elsewhere (the music player, Snapcast): the video stops here. */
+	function handOver() {
 		handedOver = true;
 		video?.pause();
 		menuOpen = false;
 	}
 
-	let thumbnailState = $state<'idle' | 'saving' | 'done' | 'failed'>('idle');
-
-	/** The frame on screen becomes the episode's thumbnail; taken by the server from the video. */
-	async function useAsThumbnail() {
-		if (!video) return;
-		thumbnailState = 'saving';
-		const res = await fetch(`/api/thumb/${episodeId}`, {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ atSec: video.currentTime })
-		}).catch(() => null);
-		thumbnailState = res?.ok ? 'done' : 'failed';
-		if (res?.ok) thumbChanged(episodeId);
-		setTimeout(() => (thumbnailState = 'idle'), 2000);
-	}
-
-	let backdropState = $state<'idle' | 'saving' | 'done' | 'failed'>('idle');
-
-	/** The frame on screen goes behind the top of the series' page (backdrop.ts). */
-	async function useAsBackdrop() {
-		if (!video) return;
-		backdropState = 'saving';
-		backdropState = (await useFrameAsBackdrop(episodeId, video.currentTime)) ? 'done' : 'failed';
-		setTimeout(() => (backdropState = 'idle'), 2000);
-	}
+	/** What an app's options in the ⚙ menu need. */
+	const menuApi: PlayerMenu = {
+		get episodeId() {
+			return episodeId;
+		},
+		get title() {
+			return title;
+		},
+		video: () => video,
+		get audioTracks() {
+			return audioTracks;
+		},
+		audioIndex: () => audioIndex,
+		close: () => (menuOpen = false),
+		handOver
+	};
 
 	/** Its name, numbered if another has the same («English 1», «English 2»). */
 	function trackLabel(tracks: { label: string }[], i: number) {
@@ -454,26 +434,6 @@
 		return same.length > 1
 			? `${label} ${tracks.slice(0, i + 1).filter((t) => t.label === label).length}`
 			: label;
-	}
-
-	/** A clip sent to Langua: what it said (sent, or why not). */
-	let languaState = $state<string | null>(null);
-	async function toLangua(minutes: number) {
-		if (!video) return;
-		languaState = 'Mandando…';
-		const res = await fetch('/api/langua/clip', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({
-				episodeId,
-				positionSec: video.currentTime,
-				minutes,
-				// The audio heard, which may not be the one in Ajustes.
-				language: audioTracks[audioIndex]?.lang ?? null
-			})
-		}).catch(() => null);
-		const body = await res?.json().catch(() => null);
-		languaState = body?.message ?? 'No se pudo mandar.';
 	}
 
 	function onTimeUpdate() {
@@ -536,7 +496,7 @@ same look in every browser, the app's colours, and the player's options in its �
 					<!-- Whisper's in the form chosen in «⚙ Estilo»: two lines that stay, or rolling up. -->
 					<track
 						kind="subtitles"
-						src="/api/hls/{episodeId}/{sub.file}{sub.file.startsWith('sub_auto_')
+						src="{links.hls}/{sub.file}{sub.file.startsWith('sub_auto_')
 							? `?forma=${subtitleStyle.automatic}`
 							: ''}"
 						srclang={sub.lang}
@@ -592,21 +552,7 @@ same look in every browser, the app's colours, and the player's options in its �
 					role="group"
 					aria-label="Opciones del vídeo"
 				>
-					{#if !page.data.kid && audioTracks.length}
-						<button
-							class="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800"
-							title="Sigue desde aquí en el reproductor de música, que no se para con la pantalla apagada"
-							onclick={onlyAudio}>🎧 Seguir solo con el audio</button
-						>
-						{#if page.data.snapcast}
-							<SnapcastListen
-								{episodeId}
-								startSec={() => video?.currentTime ?? null}
-								itemClass="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800"
-								onsent={audioElsewhere}
-							/>
-						{/if}
-					{/if}
+					{@render menuTop?.(menuApi)}
 					{#if qualities > 1}
 						<!-- Per device: the phone away from home in the light one (light.ts). -->
 						{@render choices('Calidad', [
@@ -662,47 +608,7 @@ same look in every browser, the app's colours, and the player's options in its �
 							pick: () => chooseSize(s.value)
 						}))
 					)}
-					{#if langua}
-						{@render choices(
-							'Mandar a Langua',
-							[1, 2, 5].map((m) => ({
-								label: `Últimos ${m} min`,
-								on: false,
-								pick: () => toLangua(m)
-							}))
-						)}
-						{#if languaState}
-							<p class="px-2 text-zinc-400" role="status">{languaState}</p>
-						{/if}
-					{/if}
-					<button
-						class="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800 disabled:opacity-50"
-						title="Usar el fotograma que se ve ahora como miniatura del capítulo"
-						disabled={thumbnailState === 'saving'}
-						onclick={useAsThumbnail}
-					>
-						{{
-							idle: 'Usar este fotograma como miniatura',
-							saving: 'Guardando…',
-							done: '✓ Miniatura cambiada',
-							failed: 'No se pudo cambiar'
-						}[thumbnailState]}
-					</button>
-					{#if !page.data.kid}
-						<button
-							class="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800 disabled:opacity-50"
-							title="Poner el fotograma que se ve ahora arriba en la página de la serie"
-							disabled={backdropState === 'saving'}
-							onclick={useAsBackdrop}
-						>
-							{{
-								idle: 'Usar este fotograma de fondo de la serie',
-								saving: 'Guardando…',
-								done: '✓ Fondo cambiado',
-								failed: 'No se pudo cambiar'
-							}[backdropState]}
-						</button>
-					{/if}
+					{@render menuBottom?.(menuApi)}
 				</div>
 			{/if}
 

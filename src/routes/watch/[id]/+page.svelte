@@ -1,8 +1,12 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
-	import EpisodeCard from '#lib/components/EpisodeCard.svelte';
-	import Player from '#lib/components/Player.svelte';
+	import EpisodeCard from 'comun/components/EpisodeCard.svelte';
+	import Player from 'comun/components/Player.svelte';
+	import EpisodePreview from '#lib/components/EpisodePreview.svelte';
+	import PlayerFrame from '#lib/components/PlayerFrame.svelte';
+	import PlayerListen from '#lib/components/PlayerListen.svelte';
+	import { houseLinks, outOfTime, playsAtHome } from '#lib/house-player.ts';
 	import { ANSWER_SECONDS, QUESTION } from '#lib/still-there.ts';
 	import { stillThere } from '#lib/still-there.svelte.ts';
 	import { videoHere } from '#lib/video-here.svelte.ts';
@@ -104,11 +108,15 @@
 	});
 </script>
 
+{#snippet preview(ep: { id: number; durationSec: number | null })}
+	<EpisodePreview id={ep.id} durationSec={ep.durationSec} />
+{/snippet}
+
 {#snippet upNext()}
 	{#if data.next}
 		<div class="w-full max-w-xs text-center">
 			<p class="mb-3 text-lg font-semibold">Siguiente en {countdown} s</p>
-			<EpisodeCard episode={data.next} />
+			<EpisodeCard episode={data.next} {preview} />
 			<div class="mt-4 flex justify-center gap-3">
 				<button
 					class="rounded-md bg-amber-500 px-4 py-2 font-medium text-zinc-950 hover:bg-amber-400"
@@ -157,18 +165,26 @@
 	audioTracks={data.episode.audioTracks}
 	subtitles={data.episode.subtitles}
 	settings={data.settings}
-	langua={data.langua}
 	onended={ended}
 	onautonextchange={(value) => (autoNext = value)}
 	autoplay={!asking}
 	overlay={asking ? question : countdown !== null ? upNext : undefined}
-/>
+	links={houseLinks(data.episode.id)}
+	here={playsAtHome(
+		data.episode.id,
+		`${data.episode.seriesTitle} · T${data.episode.season} E${data.episode.number} · ${data.episode.title}`
+	)}
+	onrefused={outOfTime}
+>
+	{#snippet menuTop(menu)}<PlayerListen {menu} />{/snippet}
+	{#snippet menuBottom(menu)}<PlayerFrame {menu} langua={data.langua} />{/snippet}
+</Player>
 
 <!-- What comes after: the next one with «siguiente automático»; without it, others to go on with. -->
 {#if autoNext}
 	{#if data.next}
 		<section class="mt-6 max-w-xs">
-			<EpisodeCard episode={data.next} label="A continuación" />
+			<EpisodeCard episode={data.next} label="A continuación" {preview} />
 		</section>
 	{/if}
 {:else if data.next || data.suggestions.length}
@@ -176,10 +192,10 @@
 		<h2 class="mb-3 text-sm tracking-wide text-zinc-400 uppercase">Para seguir</h2>
 		<div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
 			{#if data.next}
-				<EpisodeCard episode={data.next} label="Siguiente" />
+				<EpisodeCard episode={data.next} label="Siguiente" {preview} />
 			{/if}
 			{#each data.suggestions as suggestion (suggestion.id)}
-				<EpisodeCard episode={suggestion} label="Te puede gustar" />
+				<EpisodeCard episode={suggestion} label="Te puede gustar" {preview} />
 			{/each}
 		</div>
 	</section>

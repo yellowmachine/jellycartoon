@@ -31,6 +31,8 @@ export interface PlaylistSummary {
 /** Where the house's tracks and covers are, for a while (a signed pass). */
 export interface MusicPass {
 	base: string;
+	/** The same pass for the episodes' thumbnails and the series' backgrounds (Series). */
+	images: string;
 	expires: string;
 }
 

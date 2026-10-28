@@ -5,10 +5,15 @@
  */
 const versions = $state<Record<number, number>>({});
 
+/** The house's own; the cloud's (#253), the house's through a signed pass (`setThumbBase`). */
+let base = '/api/thumb';
+
+export function setThumbBase(own: string) {
+	base = own;
+}
+
 export const thumbUrl = (episodeId: number) =>
-	versions[episodeId]
-		? `/api/thumb/${episodeId}?v=${versions[episodeId]}`
-		: `/api/thumb/${episodeId}`;
+	versions[episodeId] ? `${base}/${episodeId}?v=${versions[episodeId]}` : `${base}/${episodeId}`;
 
 export function thumbChanged(episodeId: number) {
 	versions[episodeId] = Date.now();
