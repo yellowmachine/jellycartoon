@@ -9,7 +9,7 @@ import {
 	deleteAlarm,
 	listAlarms,
 	setPaused,
-	skipNext,
+	skipAlarm,
 	stopAlarm
 } from '#lib/server/alarms/alarms.ts';
 import { isKid } from '#lib/server/kids.ts';
@@ -124,7 +124,7 @@ export const actions: Actions = {
 			case 'stop':
 				return void (await stopAlarm(id));
 			case 'skip':
-				return void (await skipNext(id));
+				return void (await skipAlarm(id));
 			case 'pause':
 				return void (await setPaused(id, true));
 			case 'resume':

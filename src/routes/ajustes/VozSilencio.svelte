@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Guardado from './Guardado.svelte';
 	import { enhance } from '$app/forms';
 	import { section, select, primary, secondary } from './styles.ts';
 	import type { PageData, ActionData } from './$types';
@@ -51,7 +52,7 @@
 					<button class={secondary} name="off" value="1" formnovalidate>Quitar</button>
 				{/if}
 				{#if form && 'saved' in form && form.saved === 'voiceQuiet'}
-					<span class="text-amber-400">✓ Guardado</span>
+					<Guardado class="text-amber-400">✓ Guardado</Guardado>
 				{/if}
 			</div>
 			{#if !data.voiceQuiet.hours}

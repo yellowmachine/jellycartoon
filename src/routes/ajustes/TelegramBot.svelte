@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Guardado from './Guardado.svelte';
 	import { enhance } from '$app/forms';
 	import { section, select, primary, secondary } from './styles.ts';
 	import { BOT_EVENTS, type BotEvent } from '#lib/telegram-bot.ts';
@@ -83,8 +84,9 @@
 						class="text-sm text-red-400 hover:underline"
 						formaction="?seccion={tab}&/botForget">Desconectar</button
 					>
-					{#if saved === 'bot-options'}<span class="text-amber-400">✓ Guardado</span>{/if}
-					{#if saved === 'bot-test'}<span class="text-amber-400">✓ Enviada al grupo</span>{/if}
+					{#if saved === 'bot-options'}<Guardado class="text-amber-400">✓ Guardado</Guardado>{/if}
+					{#if saved === 'bot-test'}<Guardado class="text-amber-400">✓ Enviada al grupo</Guardado
+						>{/if}
 				</div>
 			</form>
 		{:else}

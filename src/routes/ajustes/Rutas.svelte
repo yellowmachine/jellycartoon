@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Guardado from './Guardado.svelte';
 	import { enhance } from '$app/forms';
 	import { section, select, primary, secondary } from './styles.ts';
 	import type { PageData, ActionData } from './$types';
@@ -71,7 +72,7 @@
 			/>
 			<button class={secondary}>Guardar</button>
 			{#if form && 'saved' in form && form.saved === 'orsUrl'}
-				<span class="self-center text-sm text-amber-400">✓</span>
+				<Guardado class="self-center text-sm text-amber-400">✓</Guardado>
 			{/if}
 		</form>
 		<p class="text-xs text-zinc-500">
