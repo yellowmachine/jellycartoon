@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { poll } from '#lib/poll.ts';
 
 	// The TV view (#11) has no site around it: bigger, and the remote needs something with the focus.
 	const tv = $derived(page.url.pathname === '/tv' || page.url.pathname.startsWith('/tv/'));
@@ -11,6 +12,19 @@
 	const detail = $derived(
 		!broken && page.error?.message !== 'Not Found' ? page.error?.message : undefined
 	);
+
+	/**
+	 * Caddy's answer while the app restarts (deploy/Caddyfile): a page following something every few
+	 * seconds got it. It comes back by itself when the app answers again, perhaps a new version.
+	 */
+	const restarting = $derived([502, 503, 504].includes(page.status));
+	$effect(() => {
+		if (!restarting) return;
+		return poll(async () => {
+			const res = await fetch('/api/health', { cache: 'no-store' });
+			if (res.ok) location.reload();
+		}, 3000);
+	});
 
 	let first = $state<HTMLElement>();
 	$effect(() => {
@@ -62,7 +76,11 @@
 		<h1 class={['font-bold text-orange-400', tv ? 'text-5xl' : 'text-2xl']}>
 			Se ha quemado la película
 		</h1>
-		<p class="text-zinc-400">Problemas en la cabina de proyección. Estamos rebobinando.</p>
+		<p class="text-zinc-400">
+			{restarting
+				? 'La app se está reiniciando: esta página vuelve sola en cuanto conteste.'
+				: 'Problemas en la cabina de proyección. Estamos rebobinando.'}
+		</p>
 		<div class="flex gap-3">
 			<button
 				bind:this={first}

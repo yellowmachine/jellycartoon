@@ -29,4 +29,32 @@
 {$ORIGIN} {
 	import tls-{$TLS:cloudflare}
 	reverse_proxy app:3000
+
+	# The app restarting (an update, a change in the compose): instead of a blank 502, a page that
+	# tries again by itself every 3 s, and is the app's again as soon as it answers. In the app, a
+	# request that gets this (the pages that follow something every few seconds) shows its error
+	# page, which waits for it too (+error.svelte).
+	# https://caddyserver.com/docs/caddyfile/directives/handle_errors
+	handle_errors 502 503 504 {
+		header Content-Type "text/html; charset=utf-8"
+		header Retry-After 3
+		header Cache-Control no-store
+		respond <<HTML
+			<!doctype html>
+			<html lang="es">
+			<head>
+			<meta charset="utf-8">
+			<meta name="viewport" content="width=device-width, initial-scale=1">
+			<meta http-equiv="refresh" content="3">
+			<title>Reiniciando · JellyCartoon</title>
+			</head>
+			<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#09090b;color:#a1a1aa;font-family:system-ui,sans-serif;text-align:center;padding:16px">
+			<div>
+			<p style="color:#fbbf24;font-size:1.5rem;font-weight:bold;margin:0 0 .5rem">Un momento</p>
+			<p style="margin:0">La app se está reiniciando: esta página vuelve sola en cuanto conteste.</p>
+			</div>
+			</body>
+			</html>
+			HTML 503
+	}
 }
