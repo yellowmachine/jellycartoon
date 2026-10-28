@@ -165,10 +165,20 @@ export async function historySince(people: Person[]) {
 	};
 }
 
+/** «de la madrugada», «de la tarde»…: a bare «4:41» was read as the afternoon by a model that does not think. */
+function dayPart(minute: number) {
+	const hour = Math.floor(minute / 60);
+	if (hour < 6) return 'de la madrugada';
+	if (hour < 13) return 'de la mañana';
+	if (hour < 15) return 'del mediodía';
+	if (hour < 21) return 'de la tarde';
+	return 'de la noche';
+}
+
 /** Today and now, for «el viernes pasado»: not in cached instructions, it changes every minute. */
 export function todayText() {
 	const moment = now();
-	return `Hoy es ${WEEKDAYS[moment.weekday]} ${today()}, son las ${clock(moment.minute)}. Las semanas empiezan en lunes.`;
+	return `Hoy es ${WEEKDAYS[moment.weekday]} ${today()}, son las ${clock(moment.minute).padStart(5, '0')} en 24 horas (${dayPart(moment.minute)}). Las semanas empiezan en lunes.`;
 }
 
 /** How to use what the tools give, the same wherever they are. */
