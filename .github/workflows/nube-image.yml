@@ -1,12 +1,13 @@
 name: Nube image
 
-# The cloud's image (#253, #277), built here and not on the VPS: every push to development that
-# touches it is `development` (and its commit's `sha-…`), which nube/compose.prod.yaml runs. Then
+# The cloud's image (#253, #277), built here and not on the VPS: every push to main that touches it
+# is `main` (and its commit's `sha-…`), which nube/compose.prod.yaml runs, as the house's releases
+# go from main too. Then
 # Dokploy is told to deploy it, by its webhook, as svelte-thinking and Langua: it only pulls and
 # starts. Its name is the folder's for now: renamed, this and the compose change together.
 on:
   push:
-    branches: [development]
+    branches: [main]
     paths:
       - 'nube/**'
       - 'packages/comun/**'
@@ -47,7 +48,7 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
           tags: |
-            type=raw,value=development
+            type=raw,value=main
             type=sha
 
       - id: push
@@ -75,7 +76,7 @@ jobs:
       - uses: docker/setup-buildx-action@v4
         if: env.WEBHOOK != ''
 
-      # `pull_policy: always` only helps if `:development` on GHCR already points at the image just
+      # `pull_policy: always` only helps if `:main` on GHCR already points at the image just
       # pushed: firing the webhook at once can race the tag and pull the one before. Until it does.
       - name: Wait for the tag to be this image
         if: env.WEBHOOK != ''
@@ -83,7 +84,7 @@ jobs:
           TARGET: ${{ needs.build.outputs.digest }}
         run: |
           for i in $(seq 1 30); do
-            current=$(docker buildx imagetools inspect "$IMAGE:development" 2>/dev/null \
+            current=$(docker buildx imagetools inspect "$IMAGE:main" 2>/dev/null \
               | awk '/^Digest:/ { print $2; exit }')
             if [ "$current" = "$TARGET" ]; then
               echo "Ya es esta imagen ($i)"

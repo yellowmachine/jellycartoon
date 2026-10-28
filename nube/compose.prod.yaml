@@ -27,7 +27,7 @@ services:
   app:
     # Built by GitHub (.github/workflows/nube-image.yml, #277), not here: Dokploy only pulls it, the
     # latest of its tag each time. NUBE_TAG, another one (a commit's `sha-…`) to go back to it.
-    image: ghcr.io/yellowmachine/nube:${NUBE_TAG:-development}
+    image: ghcr.io/yellowmachine/nube:${NUBE_TAG:-main}
     pull_policy: always
     restart: unless-stopped
     depends_on:

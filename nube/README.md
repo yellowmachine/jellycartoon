@@ -41,7 +41,7 @@ Como svelte-thinking: una app **Docker Compose** de Dokploy con `compose.prod.ya
 app en la misma pila. La primera vez que arranca Postgres, `scripts/init-db.sh` crea el rol de la
 app (`nube_app`) con su contraseña: no hay SQL a mano.
 
-1. **Create Service → Compose**, desde este repositorio, rama `development` o `main`, con
+1. **Create Service → Compose**, desde este repositorio, rama `main`, con
    **Compose Path** `./nube/compose.prod.yaml`.
 2. **Environment** (contraseñas en hexadecimal, porque van dentro de las URLs:
    `openssl rand -hex 24`):
@@ -58,7 +58,7 @@ app (`nube_app`) con su contraseña: no hay SQL a mano.
 3. **Domains:** `nube.tu-dominio.com` → servicio `app`, puerto 3000, con HTTPS (Let's Encrypt).
    En Cloudflare, un registro `A` `nube` → IP del VPS, en modo DNS only.
 4. **Deploy.** La imagen la construye GitHub (`.github/workflows/nube-image.yml`, #277) en cada push
-   a `development` que toque la nube, y la publica como `ghcr.io/yellowmachine/nube:development`;
+   a `main` que toque la nube, y la publica como `ghcr.io/yellowmachine/nube:main`;
    Dokploy solo la baja y la arranca. Al arrancar, la app aplica las migraciones como el dueño.
    Para que se despliegue sola cuando la imagen está lista, sin compilar en el VPS, como
    svelte-thinking y Langua: en Dokploy, en la app Compose de la nube, **Autodeploy** activado y su
