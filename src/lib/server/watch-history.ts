@@ -26,7 +26,7 @@ import {
 import { kidRules, now, videoAllowed, watchedToday } from '#lib/server/kid-time.ts';
 import type { Tool } from '#lib/server/openrouter.ts';
 import { today } from '#lib/server/playlist.ts';
-import { CHANNELS } from '#lib/channels.ts';
+import { CHANNELS } from 'comun/channels.ts';
 import { clock, closedText, joinSlots, SLOT_MINUTES, WEEKDAYS } from '#lib/kid-time.ts';
 
 /**

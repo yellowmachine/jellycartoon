@@ -12,6 +12,7 @@
 	import { page } from '$app/state';
 	import Colores from 'comun/components/Colores.svelte';
 	import GuardarViajes from './GuardarViajes.svelte';
+	import Subtitulos from './Subtitulos.svelte';
 	import SettingsSearch from 'comun/components/SettingsSearch.svelte';
 	import { field, primary, secondary, section } from '#lib/styles.ts';
 	import { SETTINGS_INDEX, TAB_LABELS, type SettingsTab } from '#lib/settings-index.ts';
@@ -83,6 +84,8 @@
 		/>
 
 		<VozCaracter {data} {form} {tab} which="mio" />
+
+		<Subtitulos {data} />
 
 		<GuardarViajes {data} {tab} />
 	{/if}

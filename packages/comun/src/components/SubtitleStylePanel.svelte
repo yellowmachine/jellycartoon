@@ -5,7 +5,7 @@
 		SUBTITLE_PRESETS,
 		subtitleCss,
 		type SubtitleStyle
-	} from '#lib/subtitle-style.ts';
+	} from 'comun/subtitle-style.ts';
 
 	interface Props {
 		style: SubtitleStyle;

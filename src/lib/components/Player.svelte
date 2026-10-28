@@ -6,7 +6,7 @@
 	import '@fontsource/comic-neue/400.css';
 	import { recoverFromErrors } from 'comun/hls-recovery.ts';
 	import { normalizeLang, type AudioTrack, type SubtitleTrack } from 'comun/languages.ts';
-	import { placeCues, subtitleCss, type SubtitleStyle } from '#lib/subtitle-style.ts';
+	import { placeCues, subtitleCss, type SubtitleStyle } from 'comun/subtitle-style.ts';
 	import { thumbChanged, thumbUrl } from 'comun/thumb.svelte.ts';
 	import { useFrameAsBackdrop } from '#lib/backdrop.svelte.ts';
 	import { videoHere } from '#lib/video-here.svelte.ts';
@@ -15,7 +15,7 @@
 	import { music } from 'comun/music-player.svelte.ts';
 	import { shownDeviceName } from 'comun/device-name.svelte.ts';
 	import { page } from '$app/state';
-	import SubtitleStylePanel from './SubtitleStylePanel.svelte';
+	import SubtitleStylePanel from 'comun/components/SubtitleStylePanel.svelte';
 	import SnapcastListen from './SnapcastListen.svelte';
 	import { playerQuality, type Quality } from '#lib/player-quality.svelte.ts';
 	import {

@@ -1,7 +1,7 @@
 import { eq, inArray } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, movie, movieTitle, series } from '#lib/server/db/schema.ts';
-import { CHANNELS } from '#lib/channels.ts';
+import { CHANNELS } from 'comun/channels.ts';
 
 /**
  * What each child is watching right now, for /infantil's «Ahora»: from the positions the players

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { channelWash } from '#lib/channels.ts';
+	import { channelWash } from 'comun/channels.ts';
 	import TvHeader from '#lib/components/TvHeader.svelte';
 	import { music } from 'comun/music-player.svelte.ts';
 	import type { PageProps } from './$types';

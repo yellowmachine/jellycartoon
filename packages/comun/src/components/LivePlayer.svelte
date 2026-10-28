@@ -1,33 +1,31 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { page } from '$app/state';
-	import { shownDeviceName } from 'comun/device-name.svelte.ts';
 	import type Hls from 'hls.js';
-	import { goto } from '$app/navigation';
 	import '@fontsource/atkinson-hyperlegible/400.css';
 	import '@fontsource/comic-neue/400.css';
 	import { recoverFromErrors } from 'comun/hls-recovery.ts';
 	import { BROADCAST_TRACKS, languageLabel } from 'comun/languages.ts';
-	import { placeCues, subtitleCss, type SubtitleStyle } from '#lib/subtitle-style.ts';
-	import { videoHere } from '#lib/video-here.svelte.ts';
+	import { placeCues, subtitleCss, type SubtitleStyle } from 'comun/subtitle-style.ts';
 
 	/**
 	 * A TV channel, live, in this browser: its own audios (the original version) and subtitles, as the
-	 * stream brings them, with the user's subtitle style. Where it is goes to /api/progress every
-	 * few seconds, for a child's time (#18): out of it, «/descanso».
+	 * stream brings them, with the user's subtitle style. In both apps (#253); what only the house
+	 * does, it lends: `here`, the microphone and the kitchen knowing it plays; `report`, where it is
+	 * every few seconds (a child's time, #18, and what is watched).
 	 */
 
 	let {
-		channelId,
-		title,
 		url,
-		subtitleStyle
+		subtitleStyle,
+		here,
+		report
 	}: {
-		channelId: string;
-		/** The channel's name: what plays, for the kitchen panel. */
-		title: string;
 		url: string;
 		subtitleStyle: SubtitleStyle;
+		/** It plays in this element: what stops that, back. */
+		here?: (element: HTMLVideoElement) => () => void;
+		/** Where it is, playing; called every EVERY_MS. */
+		report?: (positionSec: number) => Promise<void>;
 	} = $props();
 
 	/** As often as the episodes' player saves: a child's time is counted from these. */
@@ -80,12 +78,10 @@
 		return `<style>.jc-video::cue{font-family:${css.fontFamily};font-size:${css.fontScale}em;color:${css.color};background:${css.background};text-shadow:${css.textShadow};line-height:1.35}</style>`;
 	});
 
-	// Like an episode's: the microphone and a kitchen timer pause it, the kitchen panel shows it.
 	$effect(() => {
 		const el = video;
-		if (!el) return;
-		videoHere.set({ episodeId: null, title: untrack(() => title), element: el });
-		return () => videoHere.clear(el);
+		if (!el || !here) return;
+		return untrack(() => here(el));
 	});
 
 	$effect(() => {
@@ -122,11 +118,9 @@
 			}
 		})();
 
-		// Paused, the position stays: nothing counts. Out of time, to /descanso; not if the channel
-		// was left meanwhile, which would take the user away from wherever they went.
-		const timer = setInterval(async () => {
-			if (!el.paused && (await outOfTime(channelId, el.currentTime)) && !cancelled)
-				void goto('/descanso');
+		// Paused, the position stays: nothing counts.
+		const timer = setInterval(() => {
+			if (!el.paused && report && !cancelled) void report(el.currentTime);
 		}, EVERY_MS);
 
 		return () => {
@@ -144,20 +138,6 @@
 			problem = null;
 		};
 	});
-
-	/** Where it is, for a child's time; whether that time is over. */
-	async function outOfTime(channelId: string, positionSec: number) {
-		const res = await fetch('/api/progress', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({
-				channelId,
-				positionSec,
-				device: shownDeviceName(page.url.pathname.startsWith('/tv'))
-			})
-		}).catch(() => null);
-		return res?.status === 403;
-	}
 
 	const choice = (on: boolean) => [
 		'rounded px-2 py-0.5',

@@ -2,12 +2,14 @@ import { sql } from 'drizzle-orm';
 import {
 	boolean,
 	index,
+	jsonb,
 	pgPolicy,
 	pgTable,
 	text,
 	timestamp,
 	uniqueIndex
 } from 'drizzle-orm/pg-core';
+import type { SubtitleStyle } from 'comun/subtitle-style.ts';
 import { user } from './auth.schema.ts';
 
 /**
@@ -62,6 +64,8 @@ export const familyMember = pgTable(
 		theme: text('theme'),
 		/** «Guardar mis viajes» (Viajes): the road mode keeps where they went. */
 		recordTrips: boolean('record_trips').notNull().default(false),
+		/** How their subtitles look (Ajustes, comun/subtitle-style.ts); unset choices, the default. */
+		subtitleStyle: jsonb('subtitle_style').$type<Partial<SubtitleStyle>>(),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [

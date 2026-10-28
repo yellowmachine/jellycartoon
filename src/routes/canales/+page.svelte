@@ -1,8 +1,11 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import LivePlayer from '#lib/components/LivePlayer.svelte';
-	import { channelWash, type Channel } from '#lib/channels.ts';
+	import { goto } from '$app/navigation';
+	import LivePlayer from 'comun/components/LivePlayer.svelte';
+	import { channelWash, type Channel } from 'comun/channels.ts';
+	import { shownDeviceName } from 'comun/device-name.svelte.ts';
 	import { music } from 'comun/music-player.svelte.ts';
+	import { videoHere } from '#lib/video-here.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -14,6 +17,28 @@
 		music.stop();
 		watching = channel;
 		scrollTo({ top: 0, behavior: 'smooth' });
+	}
+
+	/**
+	 * Where it is, every few seconds (/api/progress): a child's time (#18), and what is watched. Out
+	 * of time, «/descanso»; not if the channel was left meanwhile, which would take the user away
+	 * from wherever they went.
+	 */
+	async function report(channel: Channel, positionSec: number) {
+		const res = await fetch('/api/progress', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ channelId: channel.id, positionSec, device: shownDeviceName(false) })
+		}).catch(() => null);
+		if (res?.status === 403 && watching?.id === channel.id) void goto('/descanso');
+	}
+
+	/** Like an episode's: the microphone and a kitchen timer pause it, the kitchen panel shows it. */
+	function here(channel: Channel) {
+		return (element: HTMLVideoElement) => {
+			videoHere.set({ episodeId: null, title: channel.name, element });
+			return () => videoHere.clear(element);
+		};
 	}
 </script>
 
@@ -42,11 +67,12 @@
 			{watching.name} <span class="text-sm font-normal text-zinc-400">· En directo</span>
 		</h2>
 		{#key watching.id}
+			{@const channel = watching}
 			<LivePlayer
-				channelId={watching.id}
-				title={watching.name}
-				url={watching.url}
+				url={channel.url}
 				subtitleStyle={data.subtitleStyle}
+				here={here(channel)}
+				report={(positionSec) => report(channel, positionSec)}
 			/>
 		{/key}
 	</section>

@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { userSettings } from '#lib/server/db/schema.ts';
 import { normalizeLang } from 'comun/languages.ts';
-import { sanitizeSubtitleStyle, type SubtitleStyle } from '#lib/subtitle-style.ts';
+import { sanitizeSubtitleStyle, type SubtitleStyle } from 'comun/subtitle-style.ts';
 
 /** Partial update: `{ audioLang?, subtitleLang?, subtitleStyle?, autoNext? }`. */
 export const PATCH: RequestHandler = async ({ request, locals }) => {
