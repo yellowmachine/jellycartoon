@@ -3,7 +3,7 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
-	"description": "Lo que comparten jellycartoon y la nube (#253): la música (reproductor, barra, álbumes) y sus piezas.",
+	"description": "Lo que comparten jellycartoon y la nube (#253): la música, la nevera, la agenda y las alarmas, y sus piezas.",
 	"exports": {
 		"./*": "./src/*"
 	},
@@ -12,6 +12,7 @@
 		"svelte": "^5.57.1"
 	},
 	"dependencies": {
+		"@fontsource/comic-neue": "^5.3.0",
 		"hls.js": "^1.7.3"
 	}
 }
