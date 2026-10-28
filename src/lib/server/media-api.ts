@@ -6,7 +6,14 @@ import { auth } from '#lib/server/auth.ts';
 import { db } from '#lib/server/db/index.ts';
 import { user } from '#lib/server/db/auth.schema.ts';
 import { isKid } from '#lib/server/kids.ts';
-import { GRANT_HOURS, signGrant, readGrant, type MediaQuality } from './media-token.ts';
+import {
+	GRANT_HOURS,
+	readGrant,
+	readMusicPass,
+	signGrant,
+	signMusicPass,
+	type MediaQuality
+} from './media-token.ts';
 
 /**
  * The video API for other apps (#253): the series, for the cloud's app, through the rathole tunnel
@@ -63,6 +70,23 @@ export function grantLinks(userId: string, episodeId: number, quality: MediaQual
 		progressUrl: `${base}/api/v1/progreso/${token}`,
 		expires: new Date(expires).toISOString()
 	};
+}
+
+/**
+ * A music pass (media-token.ts): where its tracks and covers are, for the cloud's page to make
+ * their links (`${base}/pistas/<id>`, `${base}/portadas/<album id>`).
+ */
+export function musicPassLinks(userId: string) {
+	const expires = Date.now() + GRANT_HOURS * 3_600_000;
+	const token = signMusicPass(GRANT_KEY, { userId, expires });
+	return { base: `${base}/api/v1/musica/${token}`, expires: new Date(expires).toISOString() };
+}
+
+/** The pass in a link, or a 403: wrong, or expired (the cloud asks for a new one). */
+export function musicPassOf(token: string) {
+	const pass = readMusicPass(GRANT_KEY, token);
+	if (!pass) error(403, 'Pase caducado o no válido');
+	return pass;
 }
 
 /** The grant in a link, or a 403: wrong, or expired (the cloud asks for a new one). */
