@@ -1,110 +1,66 @@
-import { randomUUID } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
-import { getAppSetting, voiceModel } from '#lib/server/app-settings.ts';
-import { searchVideo, seriesEpisodes } from '#lib/server/voice/video.ts';
-import { MAX_CLIP_MINUTES, sendClip } from '#lib/server/langua.ts';
-import { playEpisodes, seriesQueue } from '#lib/server/cinema/episode-actions.ts';
-import { playFilm } from '#lib/server/cinema/film-actions.ts';
-import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
-import { db } from '#lib/server/db/index.ts';
-import { episode, episodeTitle, series } from '#lib/server/db/schema.ts';
-import { getAlbums, tracksById } from '#lib/server/music/albums.ts';
-import { searchMusic } from '#lib/server/voice/music-search.ts';
-import { getPlaylist, listPlaylists } from '#lib/server/music/playlists.ts';
-import {
-	controlSnapcast,
-	listSpeakers,
-	queueOnSnapcast,
-	radioOnSnapcast,
-	snapcastNow,
-	snapcastReady,
-	soundOn,
-	stopAfterTrackOnSnapcast,
-	stopOnSnapcastIn
-} from '#lib/server/music/snapcast.ts';
-import { episodesOnSnapcast } from '#lib/server/music/episodes-on-snapcast.ts';
-import { chatWithTools, type Tool, type ToolChatMessage } from '#lib/server/openrouter.ts';
-import { streamFor } from '#lib/server/radio.ts';
-import { getSettings, keepsHistory } from '#lib/server/settings.ts';
-import {
-	HISTORY_TOOLS,
-	historyRules,
-	historySince,
-	historyTools,
-	runHistoryTool,
-	todayText,
-	type Person
-} from '#lib/server/watch-history.ts';
-import {
-	fold,
-	masterVolume,
-	type MusicAlbum,
-	type MusicTrack,
-	type SnapcastWhere
-} from 'comun/music.ts';
-import { COUNTRIES, STATIONS } from 'comun/radio.ts';
-import { parseRecipe } from '#lib/recipe.ts';
-import type { LngLat } from 'comun/road.ts';
-import { searchPlaces, whereIs } from '#lib/server/road/ors.ts';
-import { listSavedPlaces, listSavedRoutes } from '#lib/server/saved-places.ts';
-import { asksForRoute, findByName } from 'comun/saved-places.ts';
-import {
-	addExpense,
-	addItems,
-	addNote,
-	favoriteExpenses,
-	getRecipe,
-	importRecipe,
-	recipeBook,
-	searchRecipeSites,
-	tickOffByName,
-	toBuy,
-	agendaByVoice,
-	alarmByVoice
-} from '#lib/server/kitchen.ts';
-import { MAX_SNOOZE_MIN, SNOOZE_MIN, type AlarmPlace } from 'comun/alarms.ts';
-import {
-	cancelTimersAt,
-	describeAlarms,
-	prepareTimerAt,
-	startTimerAt
-} from '#lib/server/alarms/alarms.ts';
-import type { Satellite } from '#lib/server/satellites.ts';
-import {
-	runTelegramTool,
-	TELEGRAM_TOOLS,
-	telegramTools
-} from '#lib/server/voice/telegram-tools.ts';
-import { quietCheck, type QuietHours } from '#lib/server/voice/quiet-check.ts';
-import { quietHoursConfig } from '#lib/server/voice/quiet-hours.ts';
-import { now } from '#lib/server/kid-time.ts';
-import {
-	searchWeb,
-	WEB_TOOL,
-	webSearchConfig,
-	webSearchTool
-} from '#lib/server/voice/web-search.ts';
-import { isKidAccount } from '#lib/server/kids.ts';
+import { STATIONS, COUNTRIES } from 'comun/radio.ts';
+import { parseRecipe } from 'comun/recipe.ts';
+import { MAX_SNOOZE_MIN, SNOOZE_MIN, isAlarmPlace, type AlarmPlace } from 'comun/alarms.ts';
 import { EXPENSE_CATEGORIES, euros, isCategory, type ExpenseLine } from 'comun/expenses.ts';
-import { today } from '#lib/server/playlist.ts';
 import { isUntilWord, UNTIL_WORDS, untilDay, untilText } from 'comun/fridge.ts';
-import { findPlaces, forecast, housePlace, placeName } from '#lib/server/weather.ts';
+import { fold } from 'comun/music.ts';
 import {
-	MAX_TIMER_SEC,
+	MAX_STOP_LATER_MIN,
 	type VoiceAction,
-	type VoiceControl,
 	type VoiceOption,
 	type VoiceReply,
-	type VoiceRequest,
-	type VoiceTarget,
-	type VideoHere
-} from '#lib/voice.ts';
+	type VoiceTarget
+} from 'comun/voice.ts';
+import type {
+	HouseHandResult,
+	HouseVoiceOrder,
+	VoiceRoom,
+	VoiceTiming
+} from 'comun/house-voice.ts';
+import {
+	addItems,
+	addNote,
+	tickOffByName,
+	toBuy,
+	today,
+	type Kitchen
+} from '#lib/server/fridge.ts';
+import { addExpense, favoriteExpenses } from '#lib/server/expenses/expenses.ts';
+import { getRecipe, importRecipe, listRecipes } from '#lib/server/recipes/import.ts';
+import {
+	isFavouritePage,
+	listRecipeSites,
+	refreshStale,
+	searchRecipeSites
+} from '#lib/server/recipes/sites.ts';
+import { personOf } from '#lib/server/agenda/agenda.ts';
+import {
+	addEventByVoice,
+	agendaByVoice,
+	changeAlarmByVoice,
+	setAlarmByVoice
+} from '#lib/server/agenda/voice.ts';
+import { describeAlarms } from '#lib/server/alarms/alarms.ts';
+import { botHasGroup, sayInGroup } from '#lib/server/telegram/bot.ts';
+import { tellHouse } from '#lib/server/house.ts';
+import { openRouterKey } from '#lib/server/family-settings.ts';
+import {
+	chatWithTools,
+	NO_CREDIT,
+	type Tool,
+	type ToolChatMessage
+} from '#lib/server/openrouter.ts';
+import { quietCheck } from './quiet-check.ts';
+import { personVoiceStyle, voiceSettings } from './settings.ts';
+import { searchWeb, WEB_TOOL, webSearchTool } from './web-search.ts';
 
 /**
- * Voice commands (#33): what was said, to a model with the app's actions as tools. It searches the
- * music, plays it here (the device, which does it itself) or in the whole house (Snapcast, done
- * here), answers about what the person watched (only their own, see watch-history.ts), finds and plays
- * an episode here or an episode or film in the living room (video.ts), and says it in a sentence to be read aloud.
+ * Voice commands (#33), the family's brain since #253: what was said in the house, to a model with
+ * the actions as tools, and said back in a sentence to be read aloud. The family's own (the fridge,
+ * the recipes, the expenses, the agenda and the alarms, its Telegram group, the web) are done here;
+ * the house's (its music and speakers, its videos, what each one watched, its satellites' timers…),
+ * asked of the house (`HOUSE_TOOLS`, its /api/v1/voz), which sent the order with what only it knows
+ * (comun/house-voice.ts).
  */
 
 /**
@@ -112,17 +68,12 @@ import {
  * by its series and season, five.
  */
 const MAX_ROUNDS = 7;
-/** With more albums than this, the instructions list only the artists, and it searches the rest. */
-const LISTED_ALBUMS = 400;
 /**
  * Tools whose result tells the model nothing new when they do what they were asked (they leave
  * the device something to do). They take the answer too (`say`): with only these, it is read
  * without a second turn with the model (about a second less). Asked in the instructions instead,
  * the model wrote it only sometimes.
  */
-/** «Para dentro de…»: at most a night. */
-const MAX_STOP_LATER_MIN = 12 * 60;
-
 const ONE_ROUND = new Set([
 	'set_timer',
 	'prepare_timer',
@@ -140,8 +91,6 @@ const SAY = {
 	description:
 		'La frase de respuesta, que se lee en voz alta si sale bien, p. ej. «Pongo un temporizador de un minuto».'
 };
-/** «Más alto» and «más bajo», on the 0–100 of Snapcast's master volume. */
-const VOLUME_STEP = 15;
 
 /** Whatever happens, the model is told in words: it explains it better than an error code. */
 type ToolResult = string;
@@ -157,10 +106,7 @@ interface Outcome {
 }
 
 /** A speaker of the house (Snapcast), by its name: only there (#223). */
-interface Room {
-	id: string;
-	name: string;
-}
+type Room = VoiceRoom;
 
 /** Their names, but those of the other places: «here», «house», and for videos «salon» (the TV). */
 const roomNames = (rooms: Room[], taken: string[]) =>
@@ -174,7 +120,7 @@ const targets = (house: boolean, rooms: Room[]): string[] =>
 const ROOMS =
 	' O el nombre de un altavoz de la casa: solo ahí, y los demás callan (p. ej. «en el dormitorio»).';
 
-function tools(house: boolean, rooms: Room[]): Tool[] {
+function tools(house: boolean, rooms: Room[], salon: boolean, clipMinutes: number): Tool[] {
 	const where = {
 		type: 'string',
 		enum: targets(house, rooms),
@@ -310,7 +256,7 @@ function tools(house: boolean, rooms: Room[]): Tool[] {
 			{
 				minutes: {
 					type: 'number',
-					description: `Cuántos minutos hacia atrás, hasta ${MAX_CLIP_MINUTES}; 0.5 son 30 segundos.`
+					description: `Cuántos minutos hacia atrás, hasta ${clipMinutes}; 0.5 son 30 segundos.`
 				},
 				language: {
 					type: 'string',
@@ -337,7 +283,7 @@ function tools(house: boolean, rooms: Room[]): Tool[] {
 		),
 		fn(
 			'play_video',
-			`Pone un capítulo o una película. El id sale de «search_video», «series_episodes» o las herramientas de lo visto («[episodio 12]», «[película 3]»). ${mpvEnabled ? 'Los capítulos, aquí (en el navegador del dispositivo) o en el salón (la tele); las películas, solo en el salón.' : 'Solo capítulos, aquí (en el navegador del dispositivo): no hay salón.'}`,
+			`Pone un capítulo o una película. El id sale de «search_video», «series_episodes» o las herramientas de lo visto («[episodio 12]», «[película 3]»). ${salon ? 'Los capítulos, aquí (en el navegador del dispositivo) o en el salón (la tele); las películas, solo en el salón.' : 'Solo capítulos, aquí (en el navegador del dispositivo): no hay salón.'}`,
 			{
 				kind: { type: 'string', enum: ['episode', 'film'] },
 				id: { type: 'integer' },
@@ -349,10 +295,10 @@ function tools(house: boolean, rooms: Room[]): Tool[] {
 					type: 'string',
 					enum: [
 						'here',
-						...(mpvEnabled ? ['salon'] : []),
+						...(salon ? ['salon'] : []),
 						...(house ? ['house', ...roomNames(rooms, ['here', 'house', 'salon'])] : [])
 					],
-					description: `«here»: el dispositivo desde el que se habla. ${mpvEnabled ? '«salon»: la tele del salón. ' : ''}${house ? `Solo el audio de un capítulo, sin imagen (para oírlo o dormirse con él): «house», toda la casa (Snapcast).${rooms.length ? ROOMS : ''}` : ''}`
+					description: `«here»: el dispositivo desde el que se habla. ${salon ? '«salon»: la tele del salón. ' : ''}${house ? `Solo el audio de un capítulo, sin imagen (para oírlo o dormirse con él): «house», toda la casa (Snapcast).${rooms.length ? ROOMS : ''}` : ''}`
 				}
 			},
 			['kind', 'id', 'where']
@@ -696,35 +642,48 @@ function tools(house: boolean, rooms: Room[]): Tool[] {
 	];
 }
 
+/** The family's Telegram group (#243), with its bot: only when it is in one. */
+const groupSayTool: Tool = {
+	type: 'function',
+	function: {
+		name: 'group_say',
+		description:
+			'Dice algo en el grupo de Telegram de la familia, con el bot de la casa («di en el grupo que ya está la comida», «avisa a la familia de que llego tarde»). Sale como el bot, diciendo de quién o de dónde viene.',
+		parameters: {
+			type: 'object',
+			properties: {
+				text: { type: 'string', description: 'Lo que hay que decir, corto: «Ya está la comida».' }
+			},
+			required: ['text'],
+			additionalProperties: false
+		}
+	}
+};
+
 /**
  * What the model knows before calling anything: how to answer, the library and the stations. The
  * same from one command to the next, so that it is cached; what sounds now goes with each command.
  */
 function instructions(context: {
-	albums: MusicAlbum[];
+	/** The music library, as the house says it (comun/house-voice.ts). */
+	library: string[];
 	playlists: { id: number; name: string; total: number }[];
 	house: boolean;
-	/** Since when what they watch has hours; null: only days, or nothing. */
-	hoursSince: string | null;
+	/** A living room to put videos on. */
+	salon: boolean;
+	/** How to read what each one watched, as the house says it. */
+	historyRules: string;
 	/** «Guardar lo que veo», in Ajustes. */
 	keepHistory: boolean;
-	/** The house's recipe book. */
+	/** The family's recipe book. */
 	recipes: { id: number; title: string; sourceName: string }[];
-	/** The house's favourite cooking sites. */
+	/** The family's favourite cooking sites. */
 	sites: { id: number; name: string; host: string }[];
-	/** «Cómo es la voz de la casa» (Ajustes → Casa), free text; null, none. */
+	/** «Cómo es la voz de la casa» (Ajustes → La voz), free text; null, none. */
 	style: string | null;
 }) {
-	const { albums, playlists, house, hoursSince, keepHistory, recipes, sites, style } = context;
-	const byArtist = new Map<string, MusicAlbum[]>();
-	for (const a of albums) byArtist.set(a.artist, [...(byArtist.get(a.artist) ?? []), a]);
-	const library =
-		albums.length <= LISTED_ALBUMS
-			? [...byArtist].map(
-					([artist, list]) =>
-						`- ${artist}: ${list.map((a) => `${a.title} [álbum ${a.id}]`).join('; ')}`
-				)
-			: [...byArtist.keys()].map((artist) => `- ${artist}`);
+	const { library, playlists, house, salon, historyRules, keepHistory, recipes, sites, style } =
+		context;
 
 	return `Eres el asistente de voz de JellyCartoon, la app de música y vídeo de una casa. Te hablan desde el móvil, a veces una persona mayor, a veces alguien con las manos ocupadas (cocinando, por ejemplo); lo que dice viene de un reconocimiento de voz y puede traer nombres mal escritos: busca por cómo suenan. Con una tele o una radio de fondo pueden colarse frases sueltas de ella, en medio o al final: haz caso solo a lo que tiene sentido como orden o pregunta para ti e ignora lo demás.
 
@@ -753,7 +712,7 @@ Otras preguntas (de cocina, de lo que sea): si no pide nada de la app, contesta 
 El tiempo («¿qué tiempo hará mañana?», «¿llueve esta tarde?», «¿hace frío para salir?»): «get_weather», sin preguntar. Contesta corto, solo lo que pregunta: el cielo, las temperaturas y, si puede llover, la probabilidad. Nunca lo inventes.
 
 Temporizadores («avísame en 10 minutos», «pon un temporizador de 20 minutos para el horno»): «set_timer», sin preguntar. Con cada orden va la lista de los que hay en este dispositivo.
-Actualidad que no sabes (resultados, noticias, horarios, precios): «web_search» si la tienes, con la pregunta completa, y contesta corto con lo que encuentre; si no la tienes, di que no puedes buscar en internet (se activa en Ajustes → Casa).
+Actualidad que no sabes (resultados, noticias, horarios, precios): «web_search» si la tienes, con la pregunta completa, y contesta corto con lo que encuentre; si no la tienes, di que no puedes buscar en internet (se activa en Ajustes → La voz, en la nube).
 Telegram: «dile a Ana que…», «contesta a…», «manda al grupo de… que…» son mensajes de su propia cuenta: «telegram_send» y luego «ask» («¿Le mando a Ana: "llego en diez minutos"?»), y con su respuesta «telegram_confirm»; nunca lo envíes sin su sí. «Di en el grupo que…», «avisa a la familia de que…» son del bot de la casa: «group_say». Si no tienes la herramienta, dile que no está conectado.
 Alarmas a una hora («despiértame a las 7», «todos los días laborables a las 7:30», «el jueves a las 9 la cita del médico»): «set_alarm». Con cada orden va la lista de alarmas, con su número: para quitarla, saltarse unos días sin quitarla («hoy ya me he levantado», «mañana no me despiertes», «en vacaciones no»), deshacer un salto, cambiarle la hora o los días, pausarla o pararla, «change_alarm» con ese número (nunca la quites para ponerla de nuevo); si no está claro cuál, usa «ask».
 - «¿Cuánto le queda (a la pasta)?»: contesta con esa lista, sin herramientas.
@@ -784,7 +743,7 @@ Con una receta en marcha, va con cada orden, con el paso por el que va:
 
 Lo que ha visto en vídeo (series, películas, canales de tele), solo de su cuenta: «watch_time», «sessions», «finished» y «halfway».
 - Si pregunta por eso («¿qué capítulo de Friends vi el viernes?», «¿por dónde voy en…?»), contesta a la pregunta, corto, en vez de decir lo que has hecho.
-- Si quiere volver a verlo, búscalo con esas herramientas y ponlo con «play_video». Si no dice dónde, aquí${mpvEnabled ? '; una película, en el salón' : ''}.
+- Si quiere volver a verlo, búscalo con esas herramientas y ponlo con «play_video». Si no dice dónde, aquí${salon ? '; una película, en el salón' : ''}.
 
 Langua: «manda los últimos 5 minutos a Langua», «manda a Langua», «guárdame esto para estudiar», o solo «Langua» → «send_clip», sin preguntar. Sin tiempo, 30 segundos (minutes 0.5). El reconocimiento de voz puede escribir «lengua» o «la lengua»: es Langua. Dile qué se ha mandado, corto.
 
@@ -792,7 +751,7 @@ Series y películas: «search_video» para encontrarlas, «series_episodes» par
 - «Pon Friends»: el capítulo que tenga a medias, o el siguiente al último visto; si no ha visto ninguno, el primero.
 - «Temporada 3, capítulo 7»: búscalo en esa temporada con «series_episodes».
 - Si hay varias que encajan (dos películas con el mismo título, una serie y una película…), usa «ask».
-${historyRules(hoursSince)}
+${historyRules}
 ${keepHistory ? '' : '- Tiene apagado «Guardar lo que veo» en Ajustes: lo que vea ahora no se guarda. Si pregunta y no hay datos, díselo.\n'}
 Biblioteca de música (artista: álbumes):
 ${library.join('\n') || '(vacía)'}
@@ -810,353 +769,91 @@ Webs de recetas favoritas:
 ${sites.map((s) => `- ${s.name} [web ${s.id}, ${s.host}]`).join('\n') || '(ninguna)'}`;
 }
 
-/** What sounds in each place now, with each command: it is not what the person said. */
-/** The episode in this device's player, for the AI: «manda esto a Langua» is about it. */
-async function videoText(video: VideoHere | null) {
-	if (!video) return null;
-	const [ep] = await db
-		.select({
-			title: episodeTitle,
-			seriesTitle: series.title,
-			season: episode.season,
-			number: episode.number
-		})
-		.from(episode)
-		.innerJoin(series, eq(series.id, episode.seriesId))
-		.where(eq(episode.id, video.episodeId));
-	if (!ep) return null;
-	return `[Viendo aquí, en pausa mientras habla: «${ep.seriesTitle}» T${ep.season} E${ep.number} «${ep.title}» [episodio ${video.episodeId}], minuto ${Math.floor(video.positionSec / 60)}.]`;
-}
+/** What starts something sounding: in the «horas de silencio», only after a «sí». */
+const SOUNDING = new Set(['play_music', 'play_radio', 'play_video']);
 
-function soundingNow(here: string | null, house: boolean) {
-	const snap = house ? snapcastNow() : null;
-	const what = (s: NonNullable<typeof snap>) =>
-		s.radio
-			? `la radio ${s.radio.name}`
-			: s.episode
-				? `el audio del capítulo «${s.episode.subtitle}: ${s.episode.title}» [episodio ${s.episode.id}]`
-				: `«${s.track?.title}» de ${s.track?.artist}`;
-	// In the house's time (TZ, compose.prod.yaml).
-	const when = (at: number) =>
-		new Date(at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-	const inHouse = !snap?.active
-		? 'nada'
-		: [
-				what(snap),
-				snap.paused ? ' (en pausa)' : '',
-				snap.stopAfterTrack ? ' (se para al acabar esta canción)' : '',
-				snap.stopAt ? ` (se para a las ${when(snap.stopAt)}, al acabar la canción de entonces)` : ''
-			].join('');
-	return `[Ahora suena. Aquí: ${here ?? 'nada'}.${house ? ` Toda la casa: ${inHouse}.` : ''}]`;
-}
-
-const sameArtist = (a: string, b: string) => fold(a) === fold(b);
-
-/** The tracks to play for `kind` and `id`, and where in them to start. */
-async function resolveMusic(kind: string, id: string, albums: MusicAlbum[]) {
-	const n = Number(id);
-	switch (kind) {
-		case 'album': {
-			const album = albums.find((a) => a.id === n);
-			return album ? { tracks: album.tracks, start: 0, name: album.title } : null;
-		}
-		case 'playlist': {
-			const playlist = Number.isInteger(n) ? await getPlaylist(n) : null;
-			return playlist?.items.length
-				? { tracks: playlist.items.map((i) => i.track), start: 0, name: playlist.name }
-				: null;
-		}
-		case 'artist': {
-			const tracks = albums.filter((a) => sameArtist(a.artist, id)).flatMap((a) => a.tracks);
-			return tracks.length ? { tracks, start: 0, name: id } : null;
-		}
-		case 'track': {
-			// Only the song: «pon Bohemian Rhapsody» is not its whole album (2026-10-27).
-			const track = albums.flatMap((a) => a.tracks).find((t) => t.id === n);
-			return track ? { tracks: [track], start: 0, name: track.title } : null;
-		}
-		default:
-			return null;
-	}
-}
-
-async function playHouse(tracks: MusicTrack[], start: number, shuffle: boolean) {
-	await controlSnapcast({ action: 'shuffle', value: shuffle });
-	const found = await tracksById(tracks.map((t) => t.id));
-	await queueOnSnapcast(found, {
-		replace: true,
-		start: shuffle ? Math.floor(Math.random() * found.length) : start
-	});
-}
-
-async function controlHouse(action: Exclude<VoiceControl, 'stopAfterTrack'>) {
-	if (action === 'pause' || action === 'resume')
-		return controlSnapcast({ action: 'pause', value: action === 'pause' });
-	return controlSnapcast({ action });
-}
-
-/** Runs one call of the model; what the device must do and the options, into `outcome`. */
-/** An episode here (the device opens its player) or in the living room; a film, only there. */
-async function playVideo(
-	args: Record<string, unknown>,
-	ctx: {
-		outcome: Outcome;
-		user: Person;
-		video: VideoHere | null;
-		where: 'here' | SnapcastWhere;
-		there: string;
-	}
-) {
-	const id = Number(args.id);
-	if (!Number.isInteger(id)) return 'Falta el id del capítulo o la película.';
-	const minute = Number(args.start_minute);
-	const startSec =
-		args.start_minute === undefined || !Number.isFinite(minute)
-			? null
-			: Math.max(0, Math.round(minute * 60));
-	const salon = args.where === 'salon';
-	if (salon && !mpvEnabled) return 'No hay salón (mpv) configurado.';
-	// Only its audio, on Snapcast (#223): the episode and the ones after it.
-	if (ctx.where !== 'here' && !salon) {
-		if (args.kind !== 'episode') return 'De las películas no se puede poner solo el audio.';
-		const playing = await episodesOnSnapcast(ctx.user.id, id, startSec, ctx.where);
-		// «Sigue con esto en el dormitorio»: what was being watched here stops.
-		if (ctx.video?.episodeId === id) ctx.outcome.actions.push({ kind: 'handOver' });
-		return `Sonando solo el audio de «${playing.subtitle}: ${playing.title}» en ${ctx.there}${fromMinute(startSec)}, y los siguientes.`;
-	}
-
-	if (args.kind === 'film') {
-		if (!salon) return 'Las películas solo se ven en el salón: pregúntale si la pones allí.';
-		const result = await playFilm(
-			ctx.user.id,
-			id,
-			startSec === null ? 'resume' : startSec === 0 ? 'start' : { atSec: startSec }
-		);
-		return played(result, startSec);
-	}
-	if (args.kind !== 'episode') return `Tipo no válido: «${args.kind}».`;
-
-	if (salon) {
-		const result = await playEpisodes(
-			ctx.user.id,
-			await seriesQueue(ctx.user.id, id),
-			startSec ?? undefined
-		);
-		return played(result, startSec);
-	}
-	const [ep] = await db
-		.select({ title: episodeTitle, seriesTitle: series.title })
-		.from(episode)
-		.innerJoin(series, eq(series.id, episode.seriesId))
-		.where(and(eq(episode.id, id), eq(episode.status, 'ready'), eq(episode.missing, false)));
-	if (!ep) return `No hay ningún capítulo listo con id ${id}.`;
-	ctx.outcome.actions.push({ kind: 'watch', episodeId: id, startSec });
-	return `Abriendo «${ep.seriesTitle}: ${ep.title}» aquí${fromMinute(startSec)}.`;
-}
-
-const fromMinute = (startSec: number | null) =>
-	startSec ? ` desde el minuto ${Math.round(startSec / 60)}` : '';
-
-/** What the living room's actions answered, in words: they fail as a form action does. */
-const played = (
-	result: { playing: string } | { data: { message: string } },
-	startSec: number | null
-) =>
-	'playing' in result
-		? `Poniendo «${result.playing}» en el salón${fromMinute(startSec)}.`
-		: `No se pudo: ${result.data.message}`;
-
-/** What a satellite cannot play itself (#223), done in the whole house: an episode, its audio. */
-const HOUSE_FROM_SATELLITE = new Set([
+/**
+ * The house's own, done there (its /api/v1/voz): its music and speakers, its videos, its satellites'
+ * and devices' timers, the weather where it is, the road mode's routes (its saved places), Langua;
+ * and the tools it sent with the order (what each one watched, their Telegram).
+ */
+const HOUSE_TOOLS = new Set([
+	'search_music',
 	'play_music',
 	'play_radio',
 	'control',
 	'stop_later',
-	'play_video'
+	'set_volume',
+	'get_weather',
+	'navigate_to',
+	'where_am_i',
+	'send_clip',
+	'search_video',
+	'series_episodes',
+	'play_video',
+	'set_timer',
+	'prepare_timer',
+	'cancel_timer'
 ]);
 
-/** What starts something sounding: in the «horas de silencio», only after a «sí». */
-const SOUNDING = new Set(['play_music', 'play_radio', 'play_video']);
+/** One order's: the family's kitchen in the name of who speaks, and what the house sent. */
+interface Turn {
+	k: Kitchen;
+	order: HouseVoiceOrder;
+	outcome: Outcome;
+	/** The recipe being cooked here, described; null if none. */
+	recipe: string | null;
+	satellite: boolean;
+	/** Where its alarms are said (a satellite's); null, a phone's. */
+	place: AlarmPlace | null;
+	apiKey: string;
+	settings: Awaited<ReturnType<typeof voiceSettings>>;
+	houseTools: Set<string>;
+}
 
 async function runTool(
 	name: string,
 	args: Record<string, unknown>,
-	ctx: {
-		albums: MusicAlbum[];
-		playlists: { id: number; name: string }[];
-		house: boolean;
-		outcome: Outcome;
-		user: Person;
-		video: VideoHere | null;
-		/** The recipe being cooked here, described; null if none. */
-		recipe: string | null;
-		/** Where we are, in the road mode. */
-		position?: LngLat | null;
-		/** Said to a voice satellite (#223), which plays nothing itself. */
-		satellite: boolean;
-		/** Where its timers and alarms are kept by the server (#241): a satellite's; null, a phone's. */
-		place: AlarmPlace | null;
-		/** The satellite's name, said to one (#243): «Desde el salón». */
-		satelliteName: string | null;
-		/** This order's own id: a message is never sent in the order that prepared it (#243). */
-		order: string;
-		rooms: Room[];
-		/** «Horas de silencio» (Ajustes → Casa); null, none or not here (the road mode). */
-		quiet: QuietHours | null;
-	}
+	ctx: Turn
 ): Promise<ToolResult> {
-	if (HISTORY_TOOLS.has(name)) return runHistoryTool(name, args, { self: ctx.user });
-	if (name === WEB_TOOL) {
-		const query = typeof args.query === 'string' ? args.query.trim() : '';
-		if (!query) return 'Falta qué buscar.';
-		try {
-			return `Encontrado en internet: ${await searchWeb(query)}`;
-		} catch (err) {
-			return `No se pudo buscar: ${err instanceof Error ? err.message : String(err)}`;
-		}
-	}
-	if (TELEGRAM_TOOLS.has(name))
-		return runTelegramTool(name, args, {
-			userId: ctx.user.id,
-			userName: ctx.user.name,
-			satellite: ctx.satelliteName,
-			order: ctx.order
-		});
 	if (SOUNDING.has(name) || (name === 'control' && args.action === 'resume')) {
-		const wait = quietCheck(ctx.quiet, ctx.place ?? `user:${ctx.user.id}`, ctx.order, now().minute);
+		const quiet = ctx.order.request.car ? null : ctx.settings.quiet;
+		const who = ctx.place ?? `user:${ctx.k.userId}`;
+		const wait = quietCheck(quiet, `${ctx.k.familyId}:${who}`, ctx.order.order, minuteNow());
 		if (wait) return wait;
 	}
-	// A satellite's «aquí» has nothing to play on: music, radio and their controls, in the whole house.
-	const asked =
-		ctx.satellite && HOUSE_FROM_SATELLITE.has(name) && (!args.where || args.where === 'here')
-			? 'house'
-			: args.where;
-	const room = ctx.house ? ctx.rooms.find((r) => fold(r.name) === fold(String(asked))) : undefined;
-	// Snapcast: all its speakers, or only one; else this device.
-	const where: 'here' | SnapcastWhere = room
-		? { speakerId: room.id }
-		: asked === 'house' && ctx.house
-			? 'house'
-			: 'here';
-	if (asked === 'house' && !ctx.house) return 'Toda la casa (Snapcast) no está disponible.';
-	const there =
-		where === 'here' ? 'el dispositivo' : room ? `el altavoz «${room.name}»` : 'toda la casa';
+	if (HOUSE_TOOLS.has(name) || ctx.houseTools.has(name)) {
+		const done = await tellHouse<HouseHandResult>(ctx.k.familyId, '/voz', {
+			order: ctx.order.order,
+			name,
+			args
+		});
+		ctx.outcome.actions.push(...done.actions);
+		ctx.outcome.done += done.done;
+		return done.result;
+	}
+	const kid = ctx.order.who.kid;
 	switch (name) {
-		case 'search_music':
-			return typeof args.query === 'string' && args.query.trim()
-				? searchMusic(args.query, ctx.albums, ctx.playlists)
-				: 'Falta qué buscar.';
-		case 'play_music': {
-			const music = await resolveMusic(String(args.kind), String(args.id ?? ''), ctx.albums);
-			if (!music) return `No hay ${args.kind} con id «${args.id}». Búscalo con search_music.`;
-			const shuffle = typeof args.shuffle === 'boolean' ? args.shuffle : args.kind === 'artist';
-			if (where !== 'here') {
-				await soundOn(where);
-				await playHouse(music.tracks, music.start, shuffle);
-			} else ctx.outcome.actions.push({ kind: 'play', ...music, shuffle });
-			return `Sonando «${music.name}» (${music.tracks.length} canciones) en ${there}.`;
-		}
-		case 'play_radio': {
-			const station = STATIONS.find((s) => s.uuid === args.id);
-			if (!station) return `No hay emisora con id «${args.id}».`;
-			if (where !== 'here') {
-				const stream = await streamFor(station.uuid);
-				if (!stream) return `${station.name} no está disponible ahora.`;
-				await soundOn(where);
-				await radioOnSnapcast(stream);
-			} else ctx.outcome.actions.push({ kind: 'radio', uuid: station.uuid });
-			return `Sonando ${station.name} en ${there}.`;
-		}
-		case 'control': {
-			const action = args.action as VoiceControl;
-			if (!['pause', 'resume', 'next', 'previous', 'stop', 'stopAfterTrack'].includes(action))
-				return `Acción no válida: «${args.action}».`;
-			// One queue on Snapcast, wherever it sounds.
-			if (where !== 'here') {
-				if (action === 'stopAfterTrack')
-					return (await stopAfterTrackOnSnapcast())
-						? `Se parará al acabar la canción que suena en ${there}.`
-						: `En ${there} no suena una canción (la radio, o nada): no hay final que esperar.`;
-				await controlHouse(action);
-			} else ctx.outcome.actions.push({ kind: 'control', action });
-			return 'Hecho.';
-		}
-		case 'stop_later': {
-			const minutes = Math.round(Number(args.minutes));
-			if (!Number.isFinite(minutes) || minutes < 0 || minutes > MAX_STOP_LATER_MIN)
-				return `Minutos no válidos: de 0 a ${MAX_STOP_LATER_MIN}.`;
-			if (where !== 'here') stopOnSnapcastIn(minutes);
-			else ctx.outcome.actions.push({ kind: 'stopIn', minutes });
-			return minutes
-				? `La música de ${there} se parará dentro de ${minutes} minutos, al acabar la canción que suene.`
-				: `Quitado: la música de ${there} ya no se parará sola.`;
-		}
-		case 'get_weather': {
-			const asked = typeof args.place === 'string' ? args.place.trim() : '';
-			const house = await housePlace();
-			let where: { lat: number; lon: number; name: string } | null = null;
-			if (asked) {
-				// «Toledo» is first in Ohio: one in the house's country if there is one.
-				const found = await findPlaces(asked, 10);
-				const place = found.find((p) => p.country === (house?.country ?? 'España')) ?? found[0];
-				if (!place) return `No encuentro «${asked}». Díselo.`;
-				where = { lat: place.lat, lon: place.lon, name: placeName(place) };
-			} else if (ctx.position) {
-				where = { lon: ctx.position[0], lat: ctx.position[1], name: 'donde está ahora' };
-			} else if (house) {
-				where = { lat: house.lat, lon: house.lon, name: placeName(house) };
+		case WEB_TOOL: {
+			const query = typeof args.query === 'string' ? args.query.trim() : '';
+			if (!query) return 'Falta qué buscar.';
+			try {
+				return `Encontrado en internet: ${await searchWeb(ctx.apiKey, ctx.settings, query)}`;
+			} catch (err) {
+				return `No se pudo buscar: ${err instanceof Error ? err.message : String(err)}`;
 			}
-			if (!where)
-				return 'No se sabe dónde está la casa: se pone en Ajustes → Casa, «Dónde está la casa». Díselo.';
-			return `El tiempo en ${where.name}:\n${await forecast(where.lat, where.lon)}`;
 		}
-		case 'set_volume': {
-			if (!ctx.house) return 'El volumen del dispositivo se cambia con sus botones.';
-			const speakers = snapcastNow().speakers;
-			if (!speakers?.length) return 'No se puede consultar el volumen de la casa ahora.';
-			const now = masterVolume(speakers);
-			const value =
-				args.change === 'up'
-					? now + VOLUME_STEP
-					: args.change === 'down'
-						? now - VOLUME_STEP
-						: Number(args.value);
-			if (!Number.isFinite(value)) return 'Falta el valor del volumen.';
-			const to = Math.round(Math.min(Math.max(value, 0), 100));
-			await controlSnapcast({ action: 'masterVolume', value: to });
-			return `Volumen de la casa de ${now} a ${to}.`;
-		}
-		case 'navigate_to': {
-			const wanted = typeof args.destination === 'string' ? args.destination.trim() : '';
-			if (!wanted) return 'Falta el destino.';
-			// Their own first (#151): a route if one is asked for, then a place, then a route.
-			const [places, routes] = await Promise.all([
-				listSavedPlaces(ctx.user.id),
-				listSavedRoutes(ctx.user.id)
-			]);
-			const savedRoute = findByName(routes, wanted);
-			const savedPlace = findByName(places, wanted);
-			if (savedRoute && (asksForRoute(wanted) || !savedPlace)) {
-				ctx.outcome.actions.push({ kind: 'route', id: savedRoute.id });
-				return `Su ruta «${savedRoute.name}», desde donde está: el mapa la traza y la va diciendo. Díselo corto.`;
+		case 'group_say': {
+			const text = typeof args.text === 'string' ? args.text.trim().slice(0, 1000) : '';
+			if (!text) return 'Falta qué decir.';
+			const from = ctx.order.satellite
+				? `Desde ${ctx.order.satellite.name}`
+				: ctx.order.who.name || 'Alguien de casa';
+			try {
+				return `Dicho en el grupo «${await sayInGroup(ctx.k.familyId, from, text)}»: «${text}».`;
+			} catch (err) {
+				return err instanceof Error ? err.message : String(err);
 			}
-			if (savedPlace) {
-				ctx.outcome.actions.push({
-					kind: 'navigate',
-					place: { label: savedPlace.name, at: savedPlace.at }
-				});
-				return `Ruta a ${savedPlace.name}, uno de sus sitios: el mapa la traza y la va diciendo. Díselo corto.`;
-			}
-			const [place] = await searchPlaces(wanted, ctx.position ?? null);
-			if (!place)
-				return `No encuentro «${wanted}». Pídele que lo diga de otra forma (con el pueblo o la ciudad).`;
-			ctx.outcome.actions.push({ kind: 'navigate', place });
-			return `Ruta a ${place.label}: el mapa la traza y la va diciendo. Díselo corto.`;
-		}
-		case 'where_am_i': {
-			if (!ctx.position) return 'Todavía no se sabe dónde está: el GPS no ha dado la posición.';
-			const label = await whereIs(ctx.position);
-			return label ? `Está en ${label}.` : 'No sé qué hay en ese punto.';
 		}
 		case 'take_photo':
 			ctx.outcome.actions.push({ kind: 'photo' });
@@ -1164,50 +861,27 @@ async function runTool(
 		case 'stop_navigation':
 			ctx.outcome.actions.push({ kind: 'navigate', place: null });
 			return 'Ruta quitada.';
-		case 'send_clip': {
-			const minutes = Number(args.minutes);
-			if (!Number.isFinite(minutes) || minutes <= 0) return 'Faltan los minutos.';
-			return sendClip(ctx.user.id, {
-				minutes,
-				language: typeof args.language === 'string' ? args.language : null,
-				video: ctx.video
-			});
-		}
-		case 'search_video':
-			return typeof args.query === 'string' && args.query.trim()
-				? searchVideo(ctx.user.id, args.query)
-				: 'Falta qué buscar.';
-		case 'series_episodes': {
-			const seriesId = Number(args.series_id);
-			if (!Number.isInteger(seriesId)) return 'Falta el id de la serie.';
-			const season = args.season === undefined ? undefined : Number(args.season);
-			if (season !== undefined && !Number.isInteger(season)) return 'Temporada no válida.';
-			return seriesEpisodes(ctx.user.id, seriesId, season);
-		}
-		case 'play_video':
-			return playVideo(args, { ...ctx, where, there });
 		case 'add_to_shopping_list': {
 			const items = Array.isArray(args.items)
 				? args.items.filter((i: unknown): i is string => typeof i === 'string')
 				: [];
 			if (!items.length) return 'Falta qué añadir.';
-			const added = await addItems(ctx.user.id, items, ctx.satellite);
+			const added = await addItems(ctx.k, items.slice(0, 50));
 			return added.length
 				? `Añadido a la lista: ${added.join(', ')}.`
 				: 'Ya estaba todo en la lista.';
 		}
 		case 'shopping_list': {
-			const left = await toBuy();
+			const left = await toBuy(ctx.k);
 			return left.length ? `En la lista: ${left.join(', ')}.` : 'La lista de la compra está vacía.';
 		}
 		case 'tick_off_shopping': {
 			const wanted = typeof args.item === 'string' ? args.item : '';
-			// From a satellite, who is not known.
-			const done = wanted ? await tickOffByName(wanted, ctx.satellite ? null : ctx.user.id) : null;
+			const done = wanted ? await tickOffByName(ctx.k, wanted) : null;
 			return done ? `Tachado: ${done}.` : `«${wanted}» no está en la lista por comprar.`;
 		}
 		case 'add_expense': {
-			if (await isKidAccount(ctx.user.id)) return 'Los gastos son cosa de los mayores.';
+			if (kid) return 'Los gastos son cosa de los mayores.';
 			const amount = args.amount === undefined || args.amount === null ? null : Number(args.amount);
 			if (amount !== null && (!Number.isFinite(amount) || amount <= 0 || amount >= 1_000_000))
 				return 'Importe no válido, en euros.';
@@ -1216,7 +890,7 @@ async function runTool(
 			let category = isCategory(args.category) ? args.category : 'Otros';
 			let lines: ExpenseLine[] = [];
 			if (typeof args.favorite === 'string' && args.favorite.trim()) {
-				const favorites = await favoriteExpenses();
+				const favorites = await favoriteExpenses(ctx.k);
 				const asked = fold(args.favorite);
 				const found =
 					favorites.find((f) => fold(f.store) === asked) ??
@@ -1233,84 +907,32 @@ async function runTool(
 			}
 			if (!what) return 'Falta en qué.';
 			if (total === null) return `Falta cuánto, en euros: «${what}» no tiene importe guardado.`;
-			await addExpense(ctx.user.id, { date: today(), store: what, category, total, lines }, 'voz', {
-				satellite: ctx.satellite
-			});
+			await addExpense(ctx.k, { date: today(), store: what, category, total, lines }, 'voz');
 			return `Apuntado en Gastos: ${what}, ${euros(total)} (${category}).`;
 		}
 		case 'add_event':
-			// Written down in the family's agenda, in the cloud (#253).
-			if (await isKidAccount(ctx.user.id)) return 'La agenda la apuntan los mayores.';
-			return agendaByVoice(ctx.user.id, 'add', args, { satellite: ctx.satellite });
+			if (kid) return 'La agenda la apuntan los mayores.';
+			return addEventByVoice(ctx.k, args);
 		case 'agenda':
 			// A child, only theirs: by their name, as the family has them there.
-			return agendaByVoice(ctx.user.id, 'read', args, {
-				satellite: ctx.satellite,
-				kid: (await isKidAccount(ctx.user.id)) ? ctx.user.name : null
-			});
+			return agendaByVoice(ctx.k, args, kid ? ctx.order.who.name : null);
 		case 'add_fridge_note': {
 			const text = typeof args.text === 'string' ? args.text.trim() : '';
 			if (!text) return 'Falta lo que dice el post-it.';
 			const until = isUntilWord(args.until) ? untilDay(args.until) : null;
-			await addNote(ctx.user.id, text, until, ctx.satellite);
+			await addNote(ctx.k, text, until);
 			return `Post-it pegado en la nevera${until ? ` (${untilText(until)})` : ''}: «${text}».`;
-		}
-		case 'set_timer': {
-			const minutes = Number(args.minutes);
-			if (!Number.isFinite(minutes) || minutes <= 0) return 'Falta cuántos minutos.';
-			const seconds = Math.round(Math.min(minutes * 60, MAX_TIMER_SEC));
-			const label = typeof args.label === 'string' ? args.label.trim().slice(0, 60) : '';
-			// A satellite's, kept by the server (#241).
-			if (ctx.place) {
-				const name = await startTimerAt(ctx.place, { label, seconds, userId: ctx.user.id });
-				ctx.outcome.done++;
-				return `Temporizador «${name}» de ${seconds} segundos puesto.`;
-			}
-			ctx.outcome.actions.push({ kind: 'timer', label, seconds });
-			return `Temporizador${label ? ` «${label}»` : ''} de ${seconds} segundos puesto en el dispositivo.`;
-		}
-		case 'prepare_timer': {
-			const minutes = Number(args.minutes);
-			if (!Number.isFinite(minutes) || minutes <= 0) return 'Falta cuántos minutos.';
-			const trigger = typeof args.trigger === 'string' ? args.trigger.trim().slice(0, 100) : '';
-			if (!trigger) return 'Falta cuándo tiene que arrancar.';
-			const seconds = Math.round(Math.min(minutes * 60, MAX_TIMER_SEC));
-			const label = typeof args.label === 'string' ? args.label.trim().slice(0, 60) : '';
-			if (ctx.place) {
-				const name = await prepareTimerAt(ctx.place, {
-					label,
-					seconds,
-					trigger,
-					userId: ctx.user.id
-				});
-				ctx.outcome.done++;
-				return `Preparado «${name}»: ${seconds} segundos cuando ${trigger}.`;
-			}
-			ctx.outcome.actions.push({ kind: 'prepareTimer', label, seconds, trigger });
-			return `Preparado${label ? ` «${label}»` : ''}: ${seconds} segundos cuando ${trigger}.`;
 		}
 		case 'kitchen_mode':
 			ctx.outcome.actions.push({ kind: 'kitchenMode', on: args.on !== false });
 			return args.on !== false
 				? 'Modo cocina encendido: la pantalla no se apaga.'
 				: 'Modo cocina apagado.';
-		case 'cancel_timer': {
-			const label = typeof args.label === 'string' && args.label.trim() ? args.label.trim() : null;
-			if (ctx.place) {
-				const count = await cancelTimersAt(ctx.place, label);
-				ctx.outcome.done++;
-				return count
-					? `Quitados: ${count}.`
-					: `No hay ningún temporizador${label ? ` «${label}»` : ''}.`;
-			}
-			ctx.outcome.actions.push({ kind: 'cancelTimer', label });
-			return label ? `Quitado el temporizador «${label}».` : 'Quitados todos los temporizadores.';
-		}
-		// The family's alarms, in the cloud (#253), where it is said (a satellite's) or for who speaks.
+		// Where it is said (a satellite's), or for who speaks.
 		case 'set_alarm':
-			return alarmByVoice(ctx.user.id, 'set', args, ctx.place);
+			return setAlarmByVoice(ctx.k, args, ctx.place);
 		case 'change_alarm':
-			return alarmByVoice(ctx.user.id, 'change', args, ctx.place);
+			return changeAlarmByVoice(ctx.k, args, ctx.satellite);
 		case 'start_recipe': {
 			const recipe = parseRecipe(args);
 			if (typeof recipe === 'string') return recipe;
@@ -1319,7 +941,7 @@ async function runTool(
 			return `Receta «${recipe.title}» en marcha en el dispositivo, en el paso ${step} de ${recipe.steps.length}.`;
 		}
 		case 'cook_saved_recipe': {
-			const saved = await getRecipe(Number(args.id));
+			const saved = await getRecipe(ctx.k, Number(args.id));
 			if (!saved) return `No hay receta ${args.id} en el recetario.`;
 			const recipe = parseRecipe(saved);
 			if (typeof recipe === 'string') return recipe;
@@ -1333,16 +955,17 @@ async function runTool(
 		case 'search_recipe_sites': {
 			if (typeof args.query !== 'string' || !args.query.trim()) return 'Falta qué buscar.';
 			const site = Number.isInteger(args.site) ? Number(args.site) : undefined;
-			const found = await searchRecipeSites(args.query, site);
+			const found = await searchRecipeSites(ctx.k, args.query, site, 6);
 			return found.length
 				? found.map((r) => `- ${r.title} (${r.site}): ${r.url}`).join('\n')
 				: 'No hay ninguna con esas palabras en las webs favoritas.';
 		}
 		case 'cook_from_web': {
 			const url = typeof args.url === 'string' ? args.url.trim() : '';
-			// Only what the search found, not any address the model writes: the cloud checks it.
-			if (!url) return 'Falta la dirección: búscala antes con «search_recipe_sites».';
-			const { id } = await importRecipe(url, ctx.user.id, ctx.satellite);
+			// Only what the search found, not any address the model writes.
+			if (!url || !(await isFavouritePage(ctx.k, url)))
+				return 'Esa dirección no es de una web favorita: búscala antes con «search_recipe_sites».';
+			const { id } = await importRecipe(ctx.k, url);
 			return runTool('cook_saved_recipe', { id }, ctx);
 		}
 		case 'recipe_step': {
@@ -1371,6 +994,12 @@ async function runTool(
 	}
 }
 
+/** The minute of the day now, in the family's time (TZ, compose.prod.yaml). */
+function minuteNow() {
+	const now = new Date();
+	return now.getHours() * 60 + now.getMinutes();
+}
+
 /** The road mode (#78): what is said while driving. */
 const CAR =
 	'[En el coche, conduciendo (modo carretera): solo audio, aquí. Nunca vídeo: si pide una serie, una película o un canal de televisión, dile que en el coche no se pone vídeo (no que no lo encuentras) y ofrécele música, radio o un podcast. Respuestas muy cortas: las oye quien conduce.]';
@@ -1393,56 +1022,40 @@ const NOT_IN_THE_CAR = new Set([
 	'end_recipe'
 ]);
 
-/** Where an order's time went, for the Registro: to know what to make quicker. */
-export interface VoiceTiming {
-	/** Reading what the instructions list (albums, recipes…). */
-	prepareMs: number;
-	/** Each turn with the model: its time, its tokens (and how many were cached), its tools. */
-	rounds: { ms: number; prompt: number; cached: number; completion: number; tools: string[] }[];
-}
+/** As the AI would answer, for whoever asked: a satellite reads it aloud. */
+const SAID_NO_CREDIT =
+	'Se ha acabado el crédito de la inteligencia artificial de la familia. Hay que recargarlo en OpenRouter.';
+const SAID_NO_KEY =
+	'La familia no tiene clave de inteligencia artificial: ponla en Ajustes de la nube, en «IA».';
 
 /**
- * What was said, done: what the device must do, and the sentence to read aloud. `user`: who speaks,
- * from the session; an adult, a child's account has no voice. `satellite`: said to a voice satellite
- * (#223), by anyone in the room: `user` is who made its key, in whose name what it writes goes, but
- * without their name nor what they watch.
+ * An order from the house, done: what the device must do, and the sentence to read aloud. `k`: the
+ * family's kitchen in the name of who speaks (none, a satellite: anyone in the room).
  */
 export async function runVoiceCommand(
-	request: VoiceRequest,
-	user: Person,
-	satellite: Satellite | null = null
+	k: Kitchen,
+	order: HouseVoiceOrder
 ): Promise<VoiceReply & { timing: VoiceTiming }> {
-	/** Where its timers and alarms are kept and sound (#241): a satellite's; a phone's, its own. */
-	const place: AlarmPlace | null = satellite ? `satelite:${satellite.id}` : null;
-	/** This order, told apart from the next: Telegram's «sí» comes in another (#243). */
-	const order = randomUUID();
 	const started = performance.now();
-	const [albums, playlists, model, { hoursSince }, keepHistory, watchingHere, { recipes, sites }] =
-		await Promise.all([
-			getAlbums(),
-			listPlaylists(),
-			voiceModel(),
-			historySince(satellite ? [] : [user]),
-			satellite ? true : keepsHistory(user.id),
-			videoText(request.video),
-			// In the cloud (#253): without it, any order still goes, only without the book.
-			recipeBook().catch(() => ({ recipes: [], sites: [] }))
-		]);
-	// How the voice is (Ajustes): the house's, and theirs when it is known who speaks.
-	const [houseStyle, personStyle] = await Promise.all([
-		getAppSetting('voice_style'),
-		satellite ? null : getSettings(user.id).then((s) => s.voiceStyle)
+	const { request, house, satellite } = order;
+	const place: AlarmPlace | null =
+		satellite && isAlarmPlace(`satelite:${satellite.id}`) ? `satelite:${satellite.id}` : null;
+	refreshStale(k);
+	const [apiKey, settings, recipes, sites, personStyle, me, group] = await Promise.all([
+		openRouterKey(k),
+		voiceSettings(k),
+		listRecipes(k),
+		listRecipeSites(k),
+		k.userId && !satellite ? personVoiceStyle(k, k.userId) : null,
+		k.userId && !satellite ? personOf(k, k.userId) : null,
+		botHasGroup(k.familyId)
 	]);
+	const alarmLines = await describeAlarms(k, me, house.satellites);
 	const timing: VoiceTiming = { prepareMs: Math.round(performance.now() - started), rounds: [] };
-	const reply = (text: string, outcome: Outcome) => ({ ...replyOf(text, outcome), timing });
-	// In the car the house's speakers are far away.
-	const house = snapcastReady() && !request.car;
-	const rooms: Room[] = house
-		? ((await listSpeakers()) ?? []).map((s) => ({ id: s.id, name: s.name }))
-		: [];
 	const outcome: Outcome = { actions: [], options: [], asked: null, done: 0 };
-	// A satellite's timers are kept by the server; a phone's, in it (until #241, phase 3).
-	const alarmLines = await describeAlarms(place, satellite ? null : user.id);
+	const reply = (text: string) => ({ ...replyOf(text, outcome), timing });
+	if (!apiKey) return reply(SAID_NO_KEY);
+
 	const messages: ToolChatMessage[] = [
 		{
 			role: 'system',
@@ -1450,14 +1063,15 @@ export async function runVoiceCommand(
 				{
 					type: 'text',
 					text: instructions({
-						albums,
-						playlists,
-						house,
-						hoursSince,
-						keepHistory,
+						library: house.library,
+						playlists: house.playlists,
+						house: house.speakers,
+						salon: house.salon,
+						historyRules: house.historyRules,
+						keepHistory: house.keepHistory,
 						recipes,
-						sites,
-						style: houseStyle
+						sites: sites.map(({ id, name, host }) => ({ id, name, host })),
+						style: settings.style
 					}),
 					cache_control: { type: 'ephemeral' }
 				}
@@ -1467,24 +1081,24 @@ export async function runVoiceCommand(
 		{
 			role: 'user',
 			content: [
-				{ type: 'text', text: `[${todayText()}]` },
+				{ type: 'text', text: `[${house.today}]` },
 				{
 					type: 'text',
 					text: satellite
 						? `[Te habla alguien de la casa desde «${satellite.name}», un satélite de voz sin pantalla: no sabes quién es, así que sin nombres; tampoco hay historial de lo que ve cada uno. El satélite no pone música, radio ni vídeos: aquí es toda la casa, y de un capítulo solo el audio. Los temporizadores y las alarmas que pongas desde aquí suenan donde contesta el satélite, con un «din-don» y su nombre, así que dales un nombre que se entienda al oírlo («pedir cita en la peluquería»); son de la casa, salvo que diga para quién.]`
-						: `[Te habla: ${user.name}.${personStyle ? ` Cómo quiere que le hables (solo el tono, como el carácter de la casa): «${personStyle}».` : ''}]`
+						: `[Te habla: ${order.who.name}.${personStyle ? ` Cómo quiere que le hables (solo el tono, como el carácter de la casa): «${personStyle}».` : ''}]`
 				},
-				{ type: 'text', text: soundingNow(request.here, house) },
+				{ type: 'text', text: house.sounding },
 				{
 					type: 'text',
 					text: satellite
-						? `[Temporizadores y alarmas: ${alarmLines.length ? alarmLines.join('; ') : 'ninguno'}.]`
+						? `[Temporizadores y alarmas: ${[...house.timers, ...alarmLines].join('; ') || 'ninguno'}.]`
 						: `[Temporizadores aquí: ${request.timers.length ? request.timers.join('; ') : 'ninguno'}.] [Alarmas (de la casa y suyas; suenan en toda la casa o en un satélite): ${alarmLines.length ? alarmLines.join('; ') : 'ninguna'}.]`
 				},
 				...(request.recipe
 					? [{ type: 'text' as const, text: `[Receta en marcha aquí:\n${request.recipe}]` }]
 					: []),
-				...(watchingHere ? [{ type: 'text' as const, text: watchingHere }] : []),
+				...(house.watching ? [{ type: 'text' as const, text: house.watching }] : []),
 				...(request.car
 					? [
 							{ type: 'text' as const, text: CAR },
@@ -1499,27 +1113,40 @@ export async function runVoiceCommand(
 		}
 	];
 	const available = [
-		...tools(house, rooms),
-		...(satellite ? [] : historyTools({ self: user })),
-		...(await telegramTools(user.id, Boolean(satellite))),
-		...((await webSearchConfig()).on ? [webSearchTool] : [])
+		...tools(house.speakers, house.rooms, house.salon, house.clipMinutes),
+		...(house.tools as Tool[]),
+		...(group ? [groupSayTool] : []),
+		...(settings.web.on ? [webSearchTool] : [])
 	].filter((t) =>
 		request.car ? !NOT_IN_THE_CAR.has(t.function.name) : !ONLY_IN_THE_CAR.has(t.function.name)
 	);
-
-	// Driving at night, music is what keeps one awake: no questions in the car.
-	const quiet = request.car ? null : await quietHoursConfig();
+	const turn: Turn = {
+		k,
+		order,
+		outcome,
+		recipe: request.recipe,
+		satellite: Boolean(satellite),
+		place,
+		apiKey,
+		settings,
+		houseTools: new Set(house.tools.map((t) => t.function.name))
+	};
 
 	for (let round = 0; round < MAX_ROUNDS; round++) {
 		const asked = performance.now();
-		const answer = await chatWithTools({
-			model,
-			messages,
-			tools: available,
-			label: `Voz: «${request.text}»`,
-			details: { round },
-			think: false
-		});
+		let answer: Awaited<ReturnType<typeof chatWithTools>>;
+		try {
+			answer = await chatWithTools({
+				apiKey,
+				model: settings.model,
+				messages,
+				tools: available,
+				think: false
+			});
+		} catch (err) {
+			if (err instanceof Error && err.message === NO_CREDIT) return reply(SAID_NO_CREDIT);
+			throw err;
+		}
 		timing.rounds.push({
 			ms: Math.round(performance.now() - asked),
 			prompt: answer.usage?.prompt_tokens ?? 0,
@@ -1527,9 +1154,7 @@ export async function runVoiceCommand(
 			completion: answer.usage?.completion_tokens ?? 0,
 			tools: answer.toolCalls.map((c) => c.function.name)
 		});
-		if (!answer.toolCalls.length) {
-			return reply(answer.content ?? 'Hecho.', outcome);
-		}
+		if (!answer.toolCalls.length) return reply(answer.content ?? 'Hecho.');
 		messages.push({ role: 'assistant', content: answer.content, tool_calls: answer.toolCalls });
 		// Each call done gives the device something to do; a failed one says why, and gives nothing.
 		const said: string[] = [];
@@ -1541,22 +1166,7 @@ export async function runVoiceCommand(
 				const args = JSON.parse(call.function.arguments || '{}');
 				if (typeof args.say === 'string' && args.say.trim()) said.push(args.say.trim());
 				else oneRound = false;
-				result = await runTool(call.function.name, args, {
-					albums,
-					playlists,
-					house,
-					outcome,
-					user,
-					video: request.video,
-					recipe: request.recipe,
-					position: request.position,
-					satellite: Boolean(satellite),
-					place,
-					satelliteName: satellite?.name ?? null,
-					order,
-					rooms,
-					quiet
-				});
+				result = await runTool(call.function.name, args, turn);
 			} catch (err) {
 				result = `Error: ${err instanceof Error ? err.message : String(err)}`;
 			}
@@ -1564,12 +1174,11 @@ export async function runVoiceCommand(
 			if (!ONE_ROUND.has(call.function.name) || outcome.actions.length + outcome.done === before)
 				oneRound = false;
 		}
-		if (outcome.asked) return reply(outcome.asked, outcome);
-		if (oneRound) return reply(said.join(' '), outcome);
+		if (outcome.asked) return reply(outcome.asked);
+		if (oneRound) return reply(said.join(' '));
 	}
 	return reply(
-		outcome.actions.length ? 'Hecho.' : 'No he sabido hacerlo. Prueba a decirlo de otra forma.',
-		outcome
+		outcome.actions.length ? 'Hecho.' : 'No he sabido hacerlo. Prueba a decirlo de otra forma.'
 	);
 }
 

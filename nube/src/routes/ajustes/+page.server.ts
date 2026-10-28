@@ -21,6 +21,16 @@ import {
 	setOrsKey
 } from '#lib/server/family-settings.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
+import {
+	DEFAULT_VOICE_MODEL,
+	personVoiceStyle,
+	setPersonVoiceStyle,
+	setQuietHours,
+	setVoiceModel,
+	setVoiceStyle,
+	setWebSearch,
+	voiceSettings
+} from '#lib/server/voice/settings.ts';
 import { createHouseKey, deleteHouseKey, listHouseKeys } from '#lib/server/house-keys.ts';
 import {
 	askHouse,
@@ -31,17 +41,28 @@ import {
 	saveHouse
 } from '#lib/server/house.ts';
 
-export const load: PageServerLoad = async ({ locals }) => ({
-	house: await houseLink(locals.user!.id),
-	openRouter: await openRouterKeyStart(await kitchenOf(locals.user!.id)),
-	ors: await orsKeyStart(await kitchenOf(locals.user!.id)),
-	houseKeys: await listHouseKeys(locals.user!.id),
-	twoFactor: Boolean(locals.user!.twoFactorEnabled),
-	people: await familyPeople(await kitchenOf(locals.user!.id)),
-	telegramBot: await withFamily(locals.user!.id, async (_, m) => m).then(async (m) =>
-		m.role === 'admin' ? { bot: await botStatus(m.familyId) } : null
-	)
-});
+export const load: PageServerLoad = async ({ locals }) => {
+	const k = await kitchenOf(locals.user!.id);
+	const membership = await withFamily(locals.user!.id, async (_, m) => m);
+	const admin = membership.role === 'admin';
+	const voice = await voiceSettings(k);
+	return {
+		house: await houseLink(locals.user!.id),
+		openRouter: await openRouterKeyStart(k),
+		ors: await orsKeyStart(k),
+		houseKeys: await listHouseKeys(locals.user!.id),
+		twoFactor: Boolean(locals.user!.twoFactorEnabled),
+		people: await familyPeople(k),
+		telegramBot: admin ? { bot: await botStatus(membership.familyId) } : null,
+		/** The family's voice (#253): its model, its character, the web, the «horas de silencio». */
+		voiceModel: admin ? { model: voice.savedModel ?? '', fallback: DEFAULT_VOICE_MODEL } : null,
+		houseStyle: admin ? { text: voice.style ?? '' } : null,
+		voiceWeb: admin ? voice.web : null,
+		voiceQuiet: admin ? { hours: voice.quiet } : null,
+		/** And how it talks to each one. */
+		myStyle: { text: (await personVoiceStyle(k, locals.user!.id)) ?? '' }
+	};
+};
 
 /** A person's name, as written: none, not one. */
 const personName = (form: FormData) =>
@@ -65,6 +86,54 @@ async function adminFamily(userId: string) {
 const notAdmin = () => fail(403, { botProblem: 'Solo quien administra la familia' });
 
 export const actions: Actions = {
+	/** The voice's model: «proveedor/modelo»; empty, the default. */
+	saveVoiceModel: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'voiceProblem');
+		if (denied) return denied;
+		const model = String((await request.formData()).get('model') ?? '').trim();
+		if (model && !/^[\w.~-]+\/[\w.:~-]+$/.test(model))
+			return fail(400, { voiceProblem: 'El modelo es como «proveedor/modelo»' });
+		await setVoiceModel(await kitchenOf(locals.user!.id), model || null);
+		return { saved: 'voiceModel' };
+	},
+	/** «Buscar en internet desde la voz»: on or off, and where. */
+	saveVoiceWeb: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'voiceProblem');
+		if (denied) return denied;
+		const form = await request.formData();
+		await setWebSearch(await kitchenOf(locals.user!.id), {
+			on: form.get('on') === 'on',
+			hints: String(form.get('hints') ?? '')
+		});
+		return { saved: 'voiceWeb' };
+	},
+	/** «Horas de silencio»: both times, or none (`off`). */
+	saveVoiceQuiet: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'voiceProblem');
+		if (denied) return denied;
+		const form = await request.formData();
+		const from = String(form.get('from') ?? '');
+		const to = String(form.get('to') ?? '');
+		await setQuietHours(
+			await kitchenOf(locals.user!.id),
+			form.get('off') || !from || !to ? null : { from, to }
+		);
+		return { saved: 'voiceQuiet' };
+	},
+	/** «Cómo es la voz de la casa»: free text in the voice's instructions; empty, none. */
+	saveHouseStyle: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'voiceProblem');
+		if (denied) return denied;
+		const text = String((await request.formData()).get('style') ?? '');
+		await setVoiceStyle(await kitchenOf(locals.user!.id), text);
+		return { saved: 'houseStyle' };
+	},
+	/** «Cómo quieres que te hable»: theirs, with each order of theirs. */
+	saveMyStyle: async ({ request, locals }) => {
+		const text = String((await request.formData()).get('style') ?? '');
+		await setPersonVoiceStyle(await kitchenOf(locals.user!.id), locals.user!.id, text);
+		return { saved: 'myStyle' };
+	},
 	/** The family's bot (#243): its token from @BotFather, checked with Telegram. */
 	botToken: async ({ request, locals }) => {
 		const familyId = await adminFamily(locals.user!.id);

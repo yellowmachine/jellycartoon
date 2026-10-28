@@ -1,0 +1,1 @@
+ALTER TABLE "user_settings" DROP COLUMN "voice_style";

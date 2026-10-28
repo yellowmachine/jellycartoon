@@ -715,6 +715,20 @@
       "when": 1793187889628,
       "tag": "0101_bot_a_la_nube",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1793195474044,
+      "tag": "0102_yielding_adam_warlock",
+      "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1793195479113,
+      "tag": "0103_voz_a_la_nube",
+      "breakpoints": true
     }
   ]
 }

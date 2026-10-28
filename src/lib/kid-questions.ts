@@ -1,4 +1,4 @@
-import { HISTORY_TURNS, type VoiceTurn } from '#lib/voice.ts';
+import { HISTORY_TURNS, type VoiceTurn } from 'comun/voice.ts';
 
 /** Questions about what the children watch, in /infantil: shared by the server and the page. */
 

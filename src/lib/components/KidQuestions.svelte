@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { VoiceTurn } from '#lib/voice.ts';
+	import type { VoiceTurn } from 'comun/voice.ts';
 
 	/**
 	 * Questions about what the children watch, written or said, answered by the AI from the

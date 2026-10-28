@@ -674,9 +674,7 @@ export const userSettings = pgTable('user_settings', {
 	/** Modo DJ in the browser: the DJ's words over the end of a song and the start of the next, not between them. */
 	djMix: boolean('dj_mix').notNull().default(false),
 	/** The month's AI spending in a line under the header (#193), on every page: an adult's choice. */
-	spendLine: boolean('spend_line').notNull().default(false),
-	/** How the voice talks to them (Ajustes), free text: «llámame jefe y tómame el pelo». */
-	voiceStyle: text('voice_style')
+	spendLine: boolean('spend_line').notNull().default(false)
 });
 
 /**

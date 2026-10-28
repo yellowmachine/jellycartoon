@@ -48,6 +48,8 @@ export const familyMember = pgTable(
 		role: text('role', { enum: ['admin', 'member'] })
 			.notNull()
 			.default('member'),
+		/** «Cómo quieres que te hable la voz», theirs; null, none. */
+		voiceStyle: text('voice_style'),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [

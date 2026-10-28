@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import Backdrop from 'comun/components/Backdrop.svelte';
-	import { describeTimer } from '#lib/recipe.ts';
+	import { describeTimer } from 'comun/recipe.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();

@@ -4,6 +4,10 @@
 	import PasswordInput from 'comun/components/PasswordInput.svelte';
 	import PushNotices from 'comun/components/PushNotices.svelte';
 	import TelegramBot from './TelegramBot.svelte';
+	import VozCaracter from './VozCaracter.svelte';
+	import VozInternet from './VozInternet.svelte';
+	import VozSilencio from './VozSilencio.svelte';
+	import Guardado from 'comun/components/Guardado.svelte';
 	import { avatar, isAvatar } from 'comun/avatars.ts';
 	import { field, primary, secondary, section } from '#lib/styles.ts';
 	import type { PageProps } from './$types';
@@ -312,6 +316,55 @@
 		<p class="mt-3 text-sm text-red-400">{form.orsProblem}</p>
 	{/if}
 </section>
+
+{#if data.voiceModel}
+	<section class={section} id="voz">
+		<h2 class="mb-1 font-semibold">La voz</h2>
+		<p class="mb-3 text-sm text-zinc-400">
+			La voz de casa (el móvil, la tablet, los satélites) piensa aquí, con la clave de OpenRouter de
+			la familia: lo que se le dice llega de casa como texto y casa hace lo suyo (la música, los
+			vídeos, los temporizadores). Su modelo: mejor uno rápido, porque se espera con el móvil en la
+			mano, y que use bien las herramientas.
+		</p>
+		<form
+			method="post"
+			action="?/saveVoiceModel"
+			use:enhance={() =>
+				async ({ update }) =>
+					update({ reset: false })}
+			class="flex flex-wrap gap-2"
+		>
+			<input
+				name="model"
+				value={data.voiceModel.model}
+				placeholder={data.voiceModel.fallback}
+				aria-label="Modelo para la voz"
+				class="{field} min-w-0 flex-1 font-mono"
+			/>
+			<button class={secondary}>Guardar</button>
+			{#if form && 'saved' in form && form.saved === 'voiceModel'}
+				<Guardado class="self-center text-sm text-amber-400">✓</Guardado>
+			{/if}
+		</form>
+		<p class="mt-1 text-xs text-zinc-500">
+			Vacío usa {data.voiceModel.fallback}. Los identificadores están en
+			<a
+				href="https://openrouter.ai/models"
+				class="hover:underline"
+				target="_blank"
+				rel="noreferrer">openrouter.ai/models</a
+			>.
+		</p>
+		{#if form && 'voiceProblem' in form}
+			<p class="mt-3 text-sm text-red-400">{form.voiceProblem}</p>
+		{/if}
+	</section>
+{/if}
+
+<VozCaracter {data} {form} which="casa" />
+<VozInternet {data} {form} />
+<VozSilencio {data} {form} />
+<VozCaracter {data} {form} which="mio" />
 
 <section class={section} id="dos-pasos">
 	<h2 class="mb-1 font-semibold">Verificación en dos pasos</h2>

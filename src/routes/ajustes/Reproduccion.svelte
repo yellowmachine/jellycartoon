@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Guardado from './Guardado.svelte';
+	import Guardado from 'comun/components/Guardado.svelte';
 	import SubtitleStylePanel from '#lib/components/SubtitleStylePanel.svelte';
 	import { enhance } from '$app/forms';
 	import { languageLabel } from 'comun/languages.ts';

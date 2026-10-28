@@ -5,16 +5,14 @@ import { getAppSetting, setAppSetting } from '#lib/server/app-settings.ts';
 import { log } from '#lib/server/log.ts';
 import { decrypt, encrypt } from '#lib/server/secret-box.ts';
 import { localDay } from 'comun/agenda.ts';
-import type { AlarmPlace } from 'comun/alarms.ts';
 import type { FridgeState } from 'comun/fridge.ts';
-import type { RecipeStep } from '#lib/recipe.ts';
-import type { ExpenseDraft, ExpenseFavorite, ExpenseInput } from 'comun/expenses.ts';
+import type { ExpenseDraft, ExpenseInput } from 'comun/expenses.ts';
 
 /**
- * The fridge, the recipe book, the expenses, the agenda and the alarms, which live in the cloud
- * (#253): the family's, there (its /api/casa), with its address and the key it gave the house
- * (Ajustes → Casa → «La nube»). The voice, the TV and the road mode use them from here. What is said goes in the name of
- * who says it, by their email, when it is known (not a satellite).
+ * The family's cloud (#253): the fridge, the recipe book, the expenses, the agenda, the alarms and
+ * the voice's brain live there (its /api/casa), with its address and the key it gave the house
+ * (Ajustes → Casa → «La nube»). The voice, the TV and the road mode use them from here. What is
+ * said goes in the name of who says it, by their email, when it is known (not a satellite).
  */
 
 export interface CloudLink {
@@ -62,7 +60,11 @@ async function emailOf(userId: string | null) {
 export async function askCloud<T>(
 	link: CloudLink,
 	path: string,
-	{ userId = null, body }: { userId?: string | null; body?: unknown } = {}
+	{
+		userId = null,
+		body,
+		timeoutMs = 15_000
+	}: { userId?: string | null; body?: unknown; timeoutMs?: number } = {}
 ): Promise<T> {
 	const email = await emailOf(userId);
 	let response: Response;
@@ -75,7 +77,7 @@ export async function askCloud<T>(
 				...(email ? { 'x-persona': email } : {})
 			},
 			body: body === undefined ? undefined : JSON.stringify(body),
-			signal: AbortSignal.timeout(15_000)
+			signal: AbortSignal.timeout(timeoutMs)
 		});
 	} catch {
 		throw new CloudProblem('No llego a la nube: sin internet, o la nube no contesta');
@@ -111,108 +113,18 @@ export async function fridgeForScreen(): Promise<FridgeState> {
 	}
 }
 
-/** Who it goes as in the cloud: the person, or the house from a satellite (where anyone may speak). */
-const speaker = (userId: string, satellite: boolean) => (satellite ? null : userId);
-
-/** Onto the shopping list; returns what was added. */
-export async function addItems(userId: string, items: string[], satellite = false) {
-	const { added } = await askCloud<{ added: string[] }>(await linked(), '/nevera', {
-		userId: speaker(userId, satellite),
-		body: { action: 'add', items }
-	});
-	return added;
-}
-
-/** What is left to buy. */
-export async function toBuy() {
-	return (await askCloud<{ toBuy: string[] }>(await linked(), '/nevera')).toBuy;
-}
-
-/** An item off the list by its name; null if it is not there. */
-export async function tickOffByName(text: string, userId: string | null) {
-	const { ticked } = await askCloud<{ ticked: string | null }>(await linked(), '/nevera', {
-		userId,
-		body: { action: 'tick', text }
-	});
-	return ticked;
-}
-
-/** A post-it, until that day or until peeled off. */
-export async function addNote(
-	userId: string,
-	text: string,
-	until: string | null,
-	satellite = false
-) {
-	await askCloud(await linked(), '/nevera', {
-		userId: speaker(userId, satellite),
-		body: { action: 'note', text, until }
-	});
-}
-
-export interface SavedRecipe {
-	id: number;
-	title: string;
-	servings: number | null;
-	ingredients: string[];
-	steps: RecipeStep[];
-	sourceName: string;
-}
-
-/** The book, by title, and the favourite sites: what the voice can cook, and where to look. */
-export async function recipeBook() {
-	return askCloud<{
-		recipes: { id: number; title: string; sourceName: string }[];
-		sites: { id: number; name: string; host: string }[];
-	}>(await linked(), '/recetas');
-}
-
-/** One recipe, to cook it; null if it is not in the book. */
-export async function getRecipe(id: number): Promise<SavedRecipe | null> {
-	try {
-		return (await askCloud<{ recipe: SavedRecipe }>(await linked(), `/recetas/${id}`)).recipe;
-	} catch (error) {
-		if (error instanceof CloudProblem && /no encontrada/i.test(error.message)) return null;
-		throw error;
-	}
-}
-
-/** The favourite sites' pages for a dish (or in one site): title, site and address of each. */
-export async function searchRecipeSites(query: string, siteId?: number) {
-	const params = new URLSearchParams({ q: query, ...(siteId ? { web: String(siteId) } : {}) });
-	return (
-		await askCloud<{ results: { url: string; title: string; site: string }[] }>(
-			await linked(),
-			`/recetas/buscar?${params}`
-		)
-	).results;
-}
-
-/** A favourite site's recipe saved in the book (the cloud checks it is one); its id. */
-export async function importRecipe(url: string, userId: string, satellite = false) {
-	return askCloud<{ id: number; existing: boolean }>(await linked(), '/recetas', {
-		userId: speaker(userId, satellite),
-		body: { url }
-	});
-}
-
-/** The family's favourite expenses («el café de siempre»). */
-export async function favoriteExpenses() {
-	return (await askCloud<{ favorites: ExpenseFavorite[] }>(await linked(), '/gastos')).favorites;
-}
-
 /**
- * An expense in the family's Gastos: by voice, or the road mode's fuel (typed, or from a receipt
- * read with `readReceipt`). In the name of who said it; from a satellite, the house's.
+ * An expense in the family's Gastos: the road mode's fuel (typed, or from a receipt read with
+ * `readReceipt`), in the name of who put it in.
  */
 export async function addExpense(
 	userId: string,
 	expense: ExpenseInput,
 	source: 'voz' | 'mano' | 'ticket',
-	{ receipt = null, satellite = false }: { receipt?: string | null; satellite?: boolean } = {}
+	{ receipt = null }: { receipt?: string | null } = {}
 ) {
 	return askCloud<{ id: number }>(await linked(), '/gastos', {
-		userId: speaker(userId, satellite),
+		userId,
 		body: { expense, source, receipt }
 	});
 }
@@ -244,65 +156,6 @@ export async function readReceipt(photo: Blob, userId: string) {
 
 // ——— The agenda and the alarms (#200, #241) ———
 
-/** What the voice's AI asked of the agenda (add_event, agenda), done there; what to tell it. */
-export async function agendaByVoice(
-	userId: string,
-	action: 'add' | 'read',
-	args: Record<string, unknown>,
-	{ satellite = false, kid = null }: { satellite?: boolean; kid?: string | null } = {}
-) {
-	return (
-		await askCloud<{ say: string }>(await linked(), '/agenda', {
-			userId: speaker(userId, satellite),
-			body: { action, args, kid }
-		})
-	).say;
-}
-
-/**
- * What the voice's AI asked of the alarms (set_alarm, change_alarm), done there, where it is said
- * (`place`, a satellite's; null, a phone); what to tell it.
- */
-export async function alarmByVoice(
-	userId: string,
-	action: 'set' | 'change',
-	args: Record<string, unknown>,
-	place: AlarmPlace | null
-) {
-	return (
-		await askCloud<{ say: string }>(await linked(), '/alarmas', {
-			userId: speaker(userId, place !== null),
-			body: { action, args, place }
-		})
-	).say;
-}
-
-/**
- * The family's alarms the voice may see, as lines for its AI (the house's and, from a phone, its
- * person's); without the cloud, said so.
- */
-export async function cloudAlarmLines(
-	place: AlarmPlace | null,
-	userId: string | null,
-	satellites: { id: string; name: string }[]
-) {
-	try {
-		return (
-			await askCloud<{ lines: string[] }>(await linked(), '/alarmas', {
-				userId: place ? null : userId,
-				body: {
-					action: 'describe',
-					place,
-					satellites: satellites.map(({ id, name }) => ({ id, name }))
-				}
-			})
-		).lines;
-	} catch (error) {
-		if (!(error instanceof CloudProblem)) throw error;
-		return [`(las alarmas no se pueden ver: ${error.message})`];
-	}
-}
-
 /** One of the cloud's alarms stopped here: the cloud is told (it may be put off then). */
 export async function cloudAlarmStopped(cloudId: number) {
 	try {
@@ -323,30 +176,4 @@ export async function tellGroup(text: string) {
 	} catch (error) {
 		log.warn('telegram', 'No se pudo avisar al grupo', { error });
 	}
-}
-
-/** «Di en el grupo que ya está la comida», by voice: the group's name; throws, said for a person. */
-export async function sayInGroup(from: string, text: string) {
-	return (
-		await askCloud<{ group: string }>(await linked(), '/telegram', {
-			body: { action: 'say', from, text }
-		})
-	).group;
-}
-
-/** How long the answer to «is the bot in a group?» is kept: asked with every voice order. */
-const GROUP_CHECK_MS = 5 * 60_000;
-let groupChecked: { at: number; group: boolean } | null = null;
-
-/** Whether the family's bot is in a group to say things in (not connected, no). */
-export async function botHasGroup() {
-	if (groupChecked && Date.now() - groupChecked.at < GROUP_CHECK_MS) return groupChecked.group;
-	let group = false;
-	try {
-		group = (await askCloud<{ group: boolean }>(await linked(), '/telegram')).group;
-	} catch {
-		// Without the cloud, no group.
-	}
-	groupChecked = { at: Date.now(), group };
-	return group;
 }

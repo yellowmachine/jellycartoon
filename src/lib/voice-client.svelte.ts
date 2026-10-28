@@ -18,7 +18,7 @@ import {
 	type VoiceOption,
 	type VoiceReply,
 	type VoiceTurn
-} from '#lib/voice.ts';
+} from 'comun/voice.ts';
 
 /**
  * Voice commands (#33) in the browser, for /voz and the header's microphone: held down, it

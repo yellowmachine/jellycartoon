@@ -71,6 +71,13 @@
       "when": 1793189297950,
       "tag": "0009_redundant_banshee",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793194943565,
+      "tag": "0010_nosy_gertrude_yorkes",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
-import { afterTimer, describeRecipe, parseRecipe, type Recipe } from '#lib/recipe.ts';
+import { afterTimer, describeRecipe, parseRecipe, type Recipe } from 'comun/recipe.ts';
 import { sameLabel } from 'comun/timer-names.ts';
 
 /**

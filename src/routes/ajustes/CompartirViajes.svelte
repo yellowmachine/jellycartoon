@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Guardado from './Guardado.svelte';
+	import Guardado from 'comun/components/Guardado.svelte';
 	import { enhance } from '$app/forms';
 	import { section, select, primary } from './styles.ts';
 	import type { PageData, ActionData } from './$types';

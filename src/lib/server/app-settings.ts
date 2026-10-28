@@ -58,9 +58,6 @@ type Key =
 	| 'voice_levels'
 	| 'voice_filler_recordings'
 	| 'openrouter_credit_out'
-	| 'voice_style'
-	| 'voice_web'
-	| 'voice_quiet'
 	| 'nube_url'
 	| 'nube_key';
 
