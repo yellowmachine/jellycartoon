@@ -1,0 +1,1 @@
+ALTER TABLE "house" ADD COLUMN "web_url" text;

@@ -10,7 +10,6 @@ import { getSettings } from '#lib/server/settings.ts';
 import { DEFAULT_THEME } from '#lib/themes.ts';
 import { openingQuote } from '#lib/server/opening-quote.ts';
 import { isGuardian } from '#lib/server/kid-login.ts';
-import { dailymotionEnabled } from '#lib/server/dailymotion.ts';
 import { avatarOf } from '#lib/server/people.ts';
 import { canReadReceipts } from '#lib/server/expenses/receipt.ts';
 import { openRouterConfig } from '#lib/server/app-settings.ts';
@@ -45,8 +44,6 @@ export const load: LayoutServerLoad = async ({ locals, isDataRequest }) => {
 		guardian: Boolean(locals.user) && !kid && (await isGuardian(locals.user!.id)),
 		/** Only with a films folder (CINEMA_DIR). */
 		cinema: Boolean(cinemaRoot),
-		/** Dailymotion's cartoons (#66): only with a player made in its Studio (DAILYMOTION_PLAYER_ID). */
-		dailymotion: dailymotionEnabled,
 		/** Only with a music folder (MUSIC_DIR). */
 		music: Boolean(musicRoot),
 		/** Play statistics (#176): only with a games folder (GAMES_DIR), and not for a child yet. */

@@ -45,6 +45,19 @@
 				/>
 			</label>
 			<label class="block text-sm">
+				Dirección de jellycartoon <span class="text-zinc-500">(opcional)</span>
+				<input
+					name="webUrl"
+					placeholder="https://jellycartoon.tu-dominio.com"
+					value={data.house?.webUrl ?? ''}
+					class="mt-1 {field} font-mono"
+				/>
+				<span class="mt-1 block text-xs text-zinc-500">
+					La de la app en casa: las secciones de casa del menú (Series, Cine…) llevan allí. Solo
+					abre en casa o con la VPN.
+				</span>
+			</label>
+			<label class="block text-sm">
 				Clave {#if data.house}<span class="text-zinc-500">(vacía, la de ahora)</span>{/if}
 				<PasswordInput
 					name="key"

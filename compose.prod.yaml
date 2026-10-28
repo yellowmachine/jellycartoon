@@ -97,8 +97,6 @@ services:
       PIPER_URL: ${PIPER_URL:-}
       PIPER_VOICE_ES: ${PIPER_VOICE_ES:-es_ES-davefx-medium}
       PIPER_VOICE_EN: ${PIPER_VOICE_EN:-en_US-lessac-medium}
-      # Optional: the player made in Dailymotion Studio for the children's cartoons (#66).
-      DAILYMOTION_PLAYER_ID: ${DAILYMOTION_PLAYER_ID:-}
       # With the `updates` profile: the admin updates from the notice of a new version. Without
       # WUD_PASSWORD in the .env the app does not offer it, so the address can always be here.
       WUD_URL: http://wud:3000

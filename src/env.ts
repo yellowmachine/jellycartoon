@@ -141,11 +141,6 @@ export const variables = defineEnvVars({
 		description: "Piper's voice for the DJ in English; it must be in the server's data folder.",
 		schema: withDefault('en_US-lessac-medium')
 	},
-	DAILYMOTION_PLAYER_ID: {
-		description:
-			"Optional id of a player made in Dailymotion Studio (Players), with autonext and recommendations off: the children's Dailymotion cartoons (#66) play in it, with its official JavaScript API. Without it there is no Dailymotion section.",
-		schema: (value) => value || undefined
-	},
 	AUDIO_LANG: {
 		description:
 			'Preferred audio language (ISO 639-2, e.g. `spa`) when a source has several audio tracks.',

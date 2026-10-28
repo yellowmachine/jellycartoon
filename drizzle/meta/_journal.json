@@ -666,6 +666,27 @@
       "when": 1793181174448,
       "tag": "0094_awesome_blindfold",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1793182321435,
+      "tag": "0095_quitar_tiempo_dailymotion",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1793182451795,
+      "tag": "0096_complete_mastermind",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1793182458595,
+      "tag": "0097_hesitant_vulture",
+      "breakpoints": true
     }
   ]
 }

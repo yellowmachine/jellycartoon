@@ -127,10 +127,6 @@ const KIDS_ROUTES: Record<string, { id?: Check; actions?: string[]; methods?: st
 	'/tv/musica/listas/[id]': {},
 	'/tv/sonando': {},
 	'/radio': {},
-	// Dailymotion (#66): the pages check themselves that it is one of the sources the adults chose.
-	'/dailymotion': {},
-	'/dailymotion/[id]': {},
-	'/dailymotion/ver/[xid]': {},
 	'/canales': { actions: ['salon'] },
 	'/salon': {},
 	'/musica': {},
@@ -171,8 +167,7 @@ export const VIDEO_ROUTES = new Set([
 	'/watch/[id]',
 	'/canales',
 	'/api/hls/[id]/[...file]',
-	'/api/movie-clip/[id]/[at]',
-	'/dailymotion/ver/[xid]'
+	'/api/movie-clip/[id]/[at]'
 ]);
 
 const CHECKS: Record<Check, (id: number) => Promise<boolean>> = {

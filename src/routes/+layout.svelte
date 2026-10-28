@@ -7,7 +7,7 @@
 	import SalonBar from '#lib/components/SalonBar.svelte';
 	import SnapcastBar from '#lib/components/SnapcastBar.svelte';
 	import SectionIcon, { type Section } from 'comun/components/SectionIcon.svelte';
-	import ActionMenu from 'comun/components/ActionMenu.svelte';
+	import SiteNav, { type UserLink } from 'comun/components/SiteNav.svelte';
 	import { menuItem } from 'comun/components/menu.ts';
 	import VoiceBubble from '#lib/components/VoiceBubble.svelte';
 	import TimerBar from '#lib/components/TimerBar.svelte';
@@ -99,10 +99,6 @@
 		...(data.music ? [{ href: '/musica', label: 'Música', icon: 'musica' as const }] : []),
 		{ href: '/radio', label: 'Radio', icon: 'radio' },
 		{ href: '/canales', label: 'Canales', icon: 'canales' },
-		// The cartoons of the Dailymotion accounts the adults chose (#66).
-		...(data.dailymotion
-			? [{ href: '/dailymotion', label: 'Dailymotion', icon: 'dailymotion' as const }]
-			: []),
 		// The house's recipe book: not for a child's account.
 		...(data.kid ? [] : [{ href: '/recetas', label: 'Recetas', icon: 'recetas' as const }]),
 		// The house's post-its and shopping list (#131): the adults write on it; the TV shows it.
@@ -128,19 +124,12 @@
 			: { href: '/library', label: 'Gestión', icon: 'gestion' as const, also: ['/logs'] }
 	);
 	const menuLinks = $derived(gestion ? [...links, gestion] : links);
-	/** The user's menu: a row with its icon, drawn as the sections' (Lucide's sliders and log-out). */
-	const userItem =
-		'flex w-full items-center gap-2.5 rounded px-3 py-1.5 text-left hover:bg-zinc-800';
-	const iconSvg = {
-		viewBox: '0 0 24 24',
-		fill: 'none',
-		stroke: 'currentColor',
-		'stroke-width': 1.5,
-		'stroke-linecap': 'round',
-		'stroke-linejoin': 'round',
-		class: 'h-[18px] w-[18px] shrink-0',
-		'aria-hidden': 'true'
-	} as const;
+	/** The badge's menu: Ajustes, Gestión, and the living room's TV view (#11, only with mpv). */
+	const userLinks: UserLink[] = $derived([
+		{ href: '/ajustes', label: 'Ajustes', icon: 'ajustes' },
+		...(gestion ? [gestion] : []),
+		...(data.salon ? [{ href: '/tv', label: 'Vista TV', icon: 'series' as const }] : [])
+	]);
 
 	/**
 	 * Held this long, the header's microphone listens; let go sooner, it was a tap: /voz opens. With
@@ -223,7 +212,6 @@
 		const also = menuLinks.find((l) => l.href === href)?.also ?? [];
 		return (href === '/' ? path === '/' : under(path, href)) || also.some((h) => under(path, h));
 	};
-	const current = $derived(menuLinks.find((l) => l.href !== '/' && isCurrent(l.href)));
 
 	/** The user's initial, for their round badge (accents and all: «Á» for «Álvaro»). */
 	const initial = $derived([...(data.user?.name.trim() ?? '')][0]?.toLocaleUpperCase('es') ?? '?');
@@ -253,9 +241,6 @@
 	const panelShown = $derived(
 		Boolean(data.voice) && kitchenMode.on && kitchenPanel.open && page.url.pathname !== '/voz'
 	);
-
-	/** The phone menu; closed when one of its links is followed. */
-	let menu = $state<HTMLElement>();
 </script>
 
 <svelte:window
@@ -285,6 +270,29 @@
 	<KidRequests />
 {/if}
 
+{#snippet kidAccount({ isCurrent }: { isCurrent: (href: string) => boolean })}
+	<!-- A child's account has only Ajustes: the badge goes straight there. -->
+	{#if data.salon}
+		<a
+			href="/tv"
+			title="Vista TV"
+			aria-label="Vista TV"
+			class="mr-3 rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+			><SectionIcon name="series" class="h-6 w-6" /></a
+		>
+	{/if}
+	<a
+		href="/ajustes"
+		title="{data.user?.name} · Ajustes"
+		aria-label="{data.user?.name} · Ajustes"
+		class={[
+			'flex h-8 w-8 items-center justify-center rounded-full',
+			badge,
+			isCurrent('/ajustes') && 'ring-2 ring-amber-300 ring-offset-2 ring-offset-zinc-950'
+		]}>{drawing?.emoji ?? initial}</a
+	>
+{/snippet}
+
 <!-- The TV view (#11), the road mode (#78) and the children's «¿Quién eres?» (#141) are the whole
      screen, without the site around it. -->
 {#if page.url.pathname === '/tv' || page.url.pathname.startsWith('/tv/') || page.url.pathname === '/carretera' || page.url.pathname === '/quien'}
@@ -295,24 +303,17 @@
 	<!-- --header-h: how high the bar is on this screen, for what sticks under it (Ajustes, #178). -->
 	<div class={[panelShown && 'pb-[55dvh] md:pr-[42%] md:pb-0']} style:--header-h="{headerHeight}px">
 		{#if data.user}
-			<header
-				bind:offsetHeight={headerHeight}
-				class="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur"
+			<SiteNav
+				bind:headerHeight
+				brand={{ href: '/', title: 'JellyCartoon', image: favicon }}
+				{links}
+				{menuLinks}
+				user={{ name: data.user.name, badge, mark: drawing?.emoji ?? initial }}
+				{userLinks}
+				canLeave={!data.kid}
+				account={data.kid ? kidAccount : undefined}
 			>
-				<nav
-					class="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3 md:max-lg:gap-3 md:max-lg:py-2"
-				>
-					<!-- On a tablet, only the picture: the sections need the room. -->
-					<a
-						href="/"
-						title="JellyCartoon"
-						class="flex shrink-0 items-center gap-2 text-lg font-bold text-amber-400"
-					>
-						<img src={favicon} alt="" class="h-7 w-7 rounded-md" />
-						<span class="md:max-lg:sr-only">JellyCartoon</span>
-					</a>
-					<!-- Voice commands (#33): a microphone by the name, on every screen, phones too. Held down,
-				     it listens without leaving the page (an episode playing pauses); tapped, it opens /voz. -->
+				{#snippet leading()}
 					{#if data.voice}
 						<a
 							href="/voz"
@@ -359,7 +360,7 @@
 						</a>
 					{/if}
 					<!-- A receipt's photo for Gastos (#194), at once: on phones and tablets, with their camera; a
-				     PC has the button in Gastos. The photo is read there. -->
+			     PC has the button in Gastos. The photo is read there. -->
 					{#if data.receipts}
 						<label
 							title="Foto de un ticket, para Gastos"
@@ -398,190 +399,33 @@
 							/>
 						</label>
 					{/if}
-					<!-- Wide screens: every link in a row; with its icon from xl, as with every section both do
-				     not fit in 1024px. A tablet (md, up to lg): every link too, its icon over a small
-				     name, as a tab bar; the one you are in, in amber. -->
-					{#each links as link (link.href)}
-						<a
-							href={link.href}
-							class={[
-								'hidden items-center gap-1.5 text-sm hover:text-white lg:inline-flex',
-								'md:max-lg:flex md:max-lg:min-w-0 md:max-lg:flex-1 md:max-lg:flex-col md:max-lg:gap-0.5 md:max-lg:text-[11px]',
-								isCurrent(link.href) ? 'text-white md:max-lg:text-amber-400' : 'text-zinc-400'
-							]}
-							><SectionIcon
-								name={link.icon}
-								class="hidden h-[18px] w-[18px] shrink-0 md:max-lg:block md:max-lg:h-6 md:max-lg:w-6 xl:block"
-							/><span class="max-w-full truncate">{link.label}</span></a
-						>
-					{/each}
-					<div class="ml-auto hidden items-center md:flex">
-						<!-- A child's account has only Ajustes: the badge goes straight there. -->
-						{#if data.kid}
-							{#if data.salon}
-								<a
-									href="/tv"
-									title="Vista TV"
-									aria-label="Vista TV"
-									class="mr-3 rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
-									><SectionIcon name="series" class="h-6 w-6" /></a
-								>
-							{/if}
-							<a
-								href="/ajustes"
-								title="{data.user.name} · Ajustes"
-								aria-label="{data.user.name} · Ajustes"
-								class={[
-									'flex h-8 w-8 items-center justify-center rounded-full',
-									badge,
-									isCurrent('/ajustes') &&
-										'ring-2 ring-amber-300 ring-offset-2 ring-offset-zinc-950'
-								]}>{drawing?.emoji ?? initial}</a
-							>
-						{:else}
-							<!-- The user's menu: what is not a section to watch or listen to. -->
-							<ActionMenu
-								id="user-menu"
-								plain
-								label="{data.user.name} · Menú"
-								width="w-max min-w-40 max-w-64"
-							>
-								{#snippet icon()}
-									<span
-										class={[
-											'flex h-8 w-8 items-center justify-center rounded-full',
-											badge,
-											(isCurrent('/ajustes') || (gestion && isCurrent(gestion.href))) &&
-												'ring-2 ring-amber-300 ring-offset-2 ring-offset-zinc-950'
-										]}>{drawing?.emoji ?? initial}</span
-									>
-								{/snippet}
-								{#snippet children(close)}
-									<p class="truncate px-3 py-1.5 text-xs text-zinc-400">{data.user?.name}</p>
-									<a href="/ajustes" onclick={close} class={userItem}
-										><svg {...iconSvg}
-											><path
-												d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"
-											/></svg
-										>Ajustes</a
-									>
-									{#if gestion}
-										<a href={gestion.href} onclick={close} class={userItem}
-											><SectionIcon
-												name={gestion.icon}
-												class="h-[18px] w-[18px] shrink-0"
-											/>{gestion.label}</a
-										>
-									{/if}
-									<!-- The view for the living room's TV and its remote (#11): only with mpv, as Salón. -->
-									{#if data.salon}
-										<a href="/tv" onclick={close} class={userItem}
-											><SectionIcon name="series" class="h-[18px] w-[18px] shrink-0" />Vista TV</a
-										>
-									{/if}
-									<hr class="my-1 border-zinc-800" />
-									<!-- Not for a child's account: out by mistake, they cannot get back in. An adult
-									     switching accounts on that device has it at the end of Ajustes. -->
-									<form method="post" action="/logout">
-										<button class={userItem}
-											><svg {...iconSvg}
-												><path
-													d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"
-												/></svg
-											>Salir</button
-										>
-									</form>
-								{/snippet}
-							</ActionMenu>
+				{/snippet}
+				{#snippet below()}
+					<div class="mx-auto flex max-w-6xl flex-col gap-1 px-4 has-[>div]:pb-2">
+						<!-- What the header's microphone heard and answered; /voz shows it big itself. -->
+						{#if data.voice && page.url.pathname !== '/voz' && !panelShown}
+							<VoiceBubble />
+						{/if}
+						<!-- Kitchen timers set by voice, counting down; the one that ended, big. -->
+						{#if data.voice}
+							<TimerBar />
+						{/if}
+						<!-- Everywhere but its remote. -->
+						{#if data.salon && !isCurrent('/salon')}
+							<SalonBar />
+						{/if}
+						{#if data.snapcast}
+							<SnapcastBar />
+						{/if}
+						<!-- Music, and the radio. -->
+						<MusicBar />
+						<!-- The month's AI spending (#193), if this adult asked for it in Ajustes. -->
+						{#if data.spendLine}
+							<AiSpendLine />
 						{/if}
 					</div>
-
-					<!-- Phone: the section you are in and a menu with the rest. -->
-					{#if current}
-						<span class="-ml-3 truncate text-sm text-zinc-300 md:hidden">{current.label}</span>
-					{/if}
-					<button
-						class="ml-auto rounded-md px-2 py-1 text-xl text-zinc-300 hover:bg-zinc-800 md:hidden"
-						aria-label="Menú"
-						popovertarget="site-menu">☰</button
-					>
-				</nav>
-				<div
-					bind:this={menu}
-					id="site-menu"
-					popover="auto"
-					class="inset-x-0 top-14 bottom-auto m-0 max-h-[calc(100dvh-3.5rem)] w-auto overflow-y-auto overscroll-contain border-b border-zinc-800 bg-zinc-950 px-4 pt-2 pb-4 text-zinc-100 shadow-lg md:hidden"
-				>
-					<!-- Two columns: every section in view at once; scrolled only if even so it does not fit
-					     (a phone on its side). -->
-					<ul class="grid grid-cols-2 gap-x-2">
-						{#each menuLinks as link (link.href)}
-							<li>
-								<a
-									href={link.href}
-									onclick={() => menu?.hidePopover()}
-									class={[
-										'flex min-w-0 items-center gap-3 rounded-md px-2 py-3 text-base hover:bg-zinc-900',
-										isCurrent(link.href) ? 'text-amber-400' : 'text-zinc-200'
-									]}
-									><SectionIcon name={link.icon} class="h-6 w-6 shrink-0" /><span class="truncate"
-										>{link.label}</span
-									></a
-								>
-							</li>
-						{/each}
-					</ul>
-					<form
-						method="post"
-						action="/logout"
-						class="mt-2 flex items-center justify-between border-t border-zinc-800 pt-2"
-					>
-						<a
-							href="/ajustes"
-							onclick={() => menu?.hidePopover()}
-							class="flex items-center gap-2 py-2 text-sm text-zinc-300 hover:text-white"
-						>
-							<span
-								class="flex h-8 w-8 items-center justify-center rounded-full {badge}"
-								aria-hidden="true">{drawing?.emoji ?? initial}</span
-							>
-							{data.user.name} · Ajustes
-						</a>
-						{#if !data.kid}
-							<button
-								class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900"
-							>
-								Salir
-							</button>
-						{/if}
-					</form>
-				</div>
-				<!-- In the sticky header, under the menu: what is on stays in view on every page. Only with
-		     a bar showing does it take room (MusicBar's <audio> is always there, but not a div). -->
-				<div class="mx-auto flex max-w-6xl flex-col gap-1 px-4 has-[>div]:pb-2">
-					<!-- What the header's microphone heard and answered; /voz shows it big itself. -->
-					{#if data.voice && page.url.pathname !== '/voz' && !panelShown}
-						<VoiceBubble />
-					{/if}
-					<!-- Kitchen timers set by voice, counting down; the one that ended, big. -->
-					{#if data.voice}
-						<TimerBar />
-					{/if}
-					<!-- Everywhere but its remote. -->
-					{#if data.salon && !isCurrent('/salon')}
-						<SalonBar />
-					{/if}
-					{#if data.snapcast}
-						<SnapcastBar />
-					{/if}
-					<!-- Music, and the radio. -->
-					<MusicBar />
-					<!-- The month's AI spending (#193), if this adult asked for it in Ajustes. -->
-					{#if data.spendLine}
-						<AiSpendLine />
-					{/if}
-				</div>
-			</header>
+				{/snippet}
+			</SiteNav>
 			<!-- An alarm or a timer ringing (#241), with «Parar»: wherever it sounds. -->
 			{#if data.user}
 				<AlarmBanner />
