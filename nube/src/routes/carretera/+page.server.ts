@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { PageServerLoad } from './$types';
 import { MAP_DIR } from '$app/env/private';
 import type { SavedPlace, SavedRoute } from 'comun/saved-places.ts';
-import { HouseProblem } from '#lib/server/house.ts';
+import { askHouse, HouseProblem } from '#lib/server/house.ts';
 import { albums, musicPass, playlists } from '#lib/server/music.ts';
 import { stationsInfo } from '#lib/server/radio.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
@@ -36,15 +36,21 @@ export const load: PageServerLoad = async ({ locals }) => {
 		inProgress: lists.inProgress
 	};
 	try {
-		const [albumList, playlistList, pass] = await Promise.all([
+		const [albumList, playlistList, pass, telegram] = await Promise.all([
 			albums(who),
 			playlists(who),
-			musicPass(who)
+			musicPass(who),
+			// Their own Telegram, the house's (#243): its messages read aloud here.
+			askHouse<{ connected: boolean }>(who.id, who.email, '/telegram').then(
+				(t) => t.connected,
+				() => false
+			)
 		]);
 		return {
 			albums: albumList,
 			playlists: playlistList,
 			pass,
+			telegram,
 			problem: null,
 			info,
 			map,
@@ -52,6 +58,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 		};
 	} catch (error) {
 		if (!(error instanceof HouseProblem)) throw error;
-		return { albums: [], playlists: [], pass: null, problem: error.message, info, map, ...kept };
+		return {
+			albums: [],
+			playlists: [],
+			pass: null,
+			telegram: false,
+			problem: error.message,
+			info,
+			map,
+			...kept
+		};
 	}
 };

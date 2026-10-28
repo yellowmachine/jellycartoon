@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { telegramSaid, type TelegramMessage } from '#lib/telegram.ts';
+	import { telegramSaid, type TelegramMessage } from 'comun/telegram.ts';
 	import { untrack } from 'svelte';
 	import { beforeNavigate, goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';

@@ -8,7 +8,7 @@ import { db } from '#lib/server/db/index.ts';
 import { telegramAccount } from '#lib/server/db/schema.ts';
 import { log } from '#lib/server/log.ts';
 import { decrypt, encrypt } from '#lib/server/secret-box.ts';
-import type { TelegramKind, TelegramMessage } from '#lib/telegram.ts';
+import type { TelegramKind, TelegramMessage } from 'comun/telegram.ts';
 import { likeness, words } from '#lib/server/voice/music-search.ts';
 
 /**

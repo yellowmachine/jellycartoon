@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { isKid } from '#lib/server/kids.ts';
 import { sseResponse } from '#lib/server/sse.ts';
 import { watchTelegram } from '#lib/server/telegram/telegram.ts';
-import type { TelegramMessage } from '#lib/telegram.ts';
+import type { TelegramMessage } from 'comun/telegram.ts';
 
 /**
  * The messages that come to this person's Telegram account (#243), live, while the road mode has
