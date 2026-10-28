@@ -13,6 +13,8 @@ import {
 	house,
 	houseKey,
 	recipe,
+	recipeSite,
+	recipeSitePage,
 	user
 } from './db/schema.ts';
 import { familyOnlyScope, familyScope, NoFamily } from './family-scope.ts';
@@ -229,5 +231,42 @@ describe('the keys families give their houses', () => {
 
 	test('without the hash, no key is seen', async () => {
 		expect(await asAppOnly((tx) => tx.select().from(houseKey))).toHaveLength(0);
+	});
+});
+
+describe('the favourite recipe sites, each family’s', () => {
+	beforeAll(async () => {
+		const [site] = await db
+			.insert(recipeSite)
+			.values({ familyId: 'A', host: 'recetas.test', name: 'Recetas' })
+			.returning();
+		await db.insert(recipeSitePage).values({
+			familyId: 'A',
+			siteId: site.id,
+			url: 'https://recetas.test/macarrones',
+			title: 'Macarrones',
+			words: ' macarrones '
+		});
+	});
+
+	test('seen only by their family', async () => {
+		expect(await withFamily('ana', (tx) => tx.select().from(recipeSitePage))).toHaveLength(1);
+		expect(await withFamily('berta', (tx) => tx.select().from(recipeSitePage))).toHaveLength(0);
+		expect(await withFamily('berta', (tx) => tx.select().from(recipeSite))).toHaveLength(0);
+	});
+
+	test('a page cannot hang from another family’s site', async () => {
+		const [site] = await asFamily('A', (tx) => tx.select().from(recipeSite));
+		await expect(
+			asFamily('B', (tx) =>
+				tx.insert(recipeSitePage).values({
+					familyId: 'B',
+					siteId: site.id,
+					url: 'https://recetas.test/robada',
+					title: 'Robada',
+					words: ' robada '
+				})
+			)
+		).rejects.toThrow();
 	});
 });

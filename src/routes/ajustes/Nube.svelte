@@ -66,7 +66,7 @@
 		<p class="mb-3 text-sm text-zinc-400">
 			Con la dirección de la nube y la clave que da en su Ajustes («Clave para la casa»), la voz
 			apunta y lee en la nevera y las recetas de la familia, allí; la tele enseña esa nevera, y
-			Nevera y Recetas llevan a la nube. Sin ella, todo sigue en casa.
+			Nevera y Recetas llevan a la nube. Sin ella no hay Nevera ni Recetas: viven en la nube.
 		</p>
 		{#if data.cloudKeys.kitchen}
 			<p class="mb-3 text-sm">

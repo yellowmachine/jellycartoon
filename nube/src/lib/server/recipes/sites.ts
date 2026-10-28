@@ -1,7 +1,6 @@
 import { and, asc, eq, ilike, inArray, isNull, lt, or, sql } from 'drizzle-orm';
-import { db } from '#lib/server/db/index.ts';
 import { recipeSite, recipeSitePage, recipeSiteSitemap } from '#lib/server/db/schema.ts';
-import { log } from '#lib/server/log.ts';
+import type { Kitchen } from '#lib/server/fridge.ts';
 import { FetchError, fetchPublic } from '#lib/server/public-fetch.ts';
 import { readPage } from './schema-org.ts';
 import {
@@ -17,12 +16,14 @@ import {
 } from './sitemap.ts';
 
 /**
- * The house's favourite cooking sites (#60): added by any page of theirs, their sitemaps read in
- * the background (and again every week, at night), and their recipes searched by the words of
- * their addresses. Choosing one imports it into the book (import.ts).
+ * The family's favourite cooking sites (#253; jellycartoon's #60): added by any page of theirs,
+ * their sitemaps read in the background, and their recipes searched by the words of their
+ * addresses. Choosing one imports it into the book (import.ts). Read again after a week, not at
+ * night as at home (the app cannot go through every family's): when the family opens Recetas or
+ * its voice searches them (`refreshStale`).
  */
 
-const USER_AGENT = 'JellyCartoon/1.0 (https://github.com/yellowmachine/jellycartoon)';
+const USER_AGENT = 'Nube/1.0 (https://github.com/yellowmachine/jellycartoon)';
 /** The protocol's own limit for one sitemap, unpacked: https://www.sitemaps.org/protocol.html */
 const MAX_SITEMAP_BYTES = 50 * 1024 * 1024;
 /** Asked for in one reading: a site with more is read in parts, a part each night. */
@@ -50,7 +51,7 @@ export const isIndexing = (siteId: number) => indexing.has(siteId);
 const hostOf = (url: URL) => url.hostname.replace(/^www\./, '');
 
 /** A site, by any of its pages; the one there was, if it was added already. */
-export async function addRecipeSite(address: string, userId: string) {
+export async function addRecipeSite(k: Kitchen, address: string): Promise<number> {
 	let url: URL;
 	try {
 		url = new URL(address.trim());
@@ -58,10 +59,9 @@ export async function addRecipeSite(address: string, userId: string) {
 		throw new Error('Eso no es una dirección web');
 	}
 	const host = hostOf(url);
-	const [existing] = await db
-		.select({ id: recipeSite.id })
-		.from(recipeSite)
-		.where(eq(recipeSite.host, host));
+	const [existing] = await k.run((tx) =>
+		tx.select({ id: recipeSite.id }).from(recipeSite).where(eq(recipeSite.host, host))
+	);
 	if (existing) return existing.id;
 	// Its home page, for its name: and to know it is there.
 	const home = await fetchPublic(`${url.protocol}//${url.host}/`, {
@@ -69,25 +69,28 @@ export async function addRecipeSite(address: string, userId: string) {
 		maxBytes: 5_000_000
 	});
 	const page = await readPage(home.body);
-	const [row] = await db
-		.insert(recipeSite)
-		.values({
-			host,
-			name: page.siteName ?? page.title?.split(/\s[|–—-]\s/)[0] ?? host,
-			createdBy: userId
-		})
-		.onConflictDoNothing()
-		.returning({ id: recipeSite.id });
-	if (!row) return addRecipeSite(address, userId);
-	void indexSite(row.id);
+	const [row] = await k.run((tx) =>
+		tx
+			.insert(recipeSite)
+			.values({
+				familyId: k.familyId,
+				host,
+				name: page.siteName ?? page.title?.split(/\s[|–—-]\s/)[0] ?? host,
+				createdBy: k.userId
+			})
+			.onConflictDoNothing()
+			.returning({ id: recipeSite.id })
+	);
+	if (!row) return addRecipeSite(k, address);
+	void indexSite(k, row.id);
 	return row.id;
 }
 
 /** Its sitemaps, read again; resolves when done. Twice at once is once. */
-export function indexSite(siteId: number) {
+export function indexSite(k: Kitchen, siteId: number) {
 	let running = indexing.get(siteId);
 	if (!running) {
-		running = readSitemaps(siteId).finally(() => {
+		running = readSitemaps(k, siteId).finally(() => {
 			indexing.delete(siteId);
 			progress.delete(siteId);
 		});
@@ -104,9 +107,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  */
 class Throttled extends Error {
 	constructor(readonly status: number) {
-		super(
-			`La web pidió que esperáramos (respondió ${status}): se vuelve a intentar la noche siguiente`
-		);
+		super(`La web pidió que esperáramos (respondió ${status}): se vuelve a intentar más tarde`);
 	}
 }
 const THROTTLED = new Set([403, 429, 503]);
@@ -121,8 +122,8 @@ const throttle = (error: unknown) =>
  * says it has not changed since the last time (lastmod) is not asked for: its pages stay. All that
  * was read is saved at the end, in one go, or nothing.
  */
-async function readSitemaps(siteId: number) {
-	const [site] = await db.select().from(recipeSite).where(eq(recipeSite.id, siteId));
+async function readSitemaps(k: Kitchen, siteId: number) {
+	const [site] = await k.run((tx) => tx.select().from(recipeSite).where(eq(recipeSite.id, siteId)));
 	if (!site) return;
 	try {
 		const origin = `https://${site.host}`;
@@ -143,9 +144,11 @@ async function readSitemaps(siteId: number) {
 		const firstOnly = !listed.length;
 
 		const before = new Map(
-			(await db.select().from(recipeSiteSitemap).where(eq(recipeSiteSitemap.siteId, siteId))).map(
-				(s) => [s.url, s]
-			)
+			(
+				await k.run((tx) =>
+					tx.select().from(recipeSiteSitemap).where(eq(recipeSiteSitemap.siteId, siteId))
+				)
+			).map((s) => [s.url, s])
 		);
 		/** Every sitemap of this reading, asked for or kept as it was. */
 		const now = new Map<string, { lastmod: string | null; isIndex: boolean }>();
@@ -224,9 +227,16 @@ async function readSitemaps(siteId: number) {
 		// The pages of what was read again, of what is gone, and of before this was kept (''): out.
 		const replaced = [...read.keys(), ...[...before.keys()].filter((url) => !now.has(url)), ''];
 		const rows = [...read].flatMap(([sitemap, pages]) =>
-			[...pages].map(([url, title]) => ({ siteId, url, sitemap, title, words: ` ${fold(title)} ` }))
+			[...pages].map(([url, title]) => ({
+				familyId: k.familyId,
+				siteId,
+				url,
+				sitemap,
+				title,
+				words: ` ${fold(title)} `
+			}))
 		);
-		const total = await db.transaction(async (tx) => {
+		await k.run(async (tx) => {
 			for (let i = 0; i < replaced.length; i += 500)
 				await tx
 					.delete(recipeSitePage)
@@ -242,7 +252,7 @@ async function readSitemaps(siteId: number) {
 					.values(rows.slice(i, i + 1000))
 					.onConflictDoNothing();
 			await tx.delete(recipeSiteSitemap).where(eq(recipeSiteSitemap.siteId, siteId));
-			const sitemaps = [...now].map(([url, s]) => ({ siteId, url, ...s }));
+			const sitemaps = [...now].map(([url, s]) => ({ familyId: k.familyId, siteId, url, ...s }));
 			for (let i = 0; i < sitemaps.length; i += 1000)
 				await tx.insert(recipeSiteSitemap).values(sitemaps.slice(i, i + 1000));
 			const [{ n }] = await tx
@@ -253,44 +263,44 @@ async function readSitemaps(siteId: number) {
 				.update(recipeSite)
 				.set({ pages: n, indexedAt: new Date(), lastError: null })
 				.where(eq(recipeSite.id, siteId));
-			return n;
 		});
-		log.info(
-			'recetas',
-			`Leído el mapa de ${site.name}: ${total} páginas (${asked} sitemaps pedidos, ${kept} sin cambios)`,
-			{ siteId, asked, kept, pages: total }
-		);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		await db
-			.update(recipeSite)
-			// Told to stop: indexedAt as it was, so that tonight's round tries again.
-			.set(
-				error instanceof Throttled
-					? { lastError: message }
-					: { indexedAt: new Date(), lastError: message }
-			)
-			.where(eq(recipeSite.id, siteId));
-		log.warn('recetas', `No se pudo leer el mapa de ${site.name}: ${message}`, { siteId });
+		await k.run((tx) =>
+			tx
+				.update(recipeSite)
+				// Told to stop: indexedAt as it was, so that the next time tries again.
+				.set(
+					error instanceof Throttled
+						? { lastError: message }
+						: { indexedAt: new Date(), lastError: message }
+				)
+				.where(eq(recipeSite.id, siteId))
+		);
+		console.warn(`[recetas] No se pudo leer el mapa de ${site.name}: ${message}`);
 	}
 }
 
-/** Those read more than a week ago (or never), one after the other: at night. */
-export async function refreshRecipeSites() {
-	const stale = await db
-		.select({ id: recipeSite.id })
-		.from(recipeSite)
-		.where(
-			or(
-				isNull(recipeSite.indexedAt),
-				lt(recipeSite.indexedAt, new Date(Date.now() - REFRESH_DAYS * 86_400_000))
-			)
+/** The family's read more than a week ago (or never), one after the other, in the background. */
+export function refreshStale(k: Kitchen) {
+	void (async () => {
+		const stale = await k.run((tx) =>
+			tx
+				.select({ id: recipeSite.id })
+				.from(recipeSite)
+				.where(
+					or(
+						isNull(recipeSite.indexedAt),
+						lt(recipeSite.indexedAt, new Date(Date.now() - REFRESH_DAYS * 86_400_000))
+					)
+				)
 		);
-	for (const { id } of stale) await indexSite(id);
+		for (const { id } of stale) if (!indexing.has(id)) await indexSite(k, id);
+	})().catch((error) => console.warn('[recetas] No se pudieron releer las webs', error));
 }
 
-export async function listRecipeSites() {
-	const sites = await db.select().from(recipeSite).orderBy(asc(recipeSite.name));
+export async function listRecipeSites(k: Kitchen) {
+	const sites = await k.run((tx) => tx.select().from(recipeSite).orderBy(asc(recipeSite.name)));
 	return sites.map((s) => ({
 		...s,
 		indexing: isIndexing(s.id),
@@ -298,13 +308,13 @@ export async function listRecipeSites() {
 	}));
 }
 
-/** As the house calls it: the site's own name can be long («Recetas de cocina… Directo al Paladar»). */
-export async function renameRecipeSite(siteId: number, name: string) {
-	await db.update(recipeSite).set({ name }).where(eq(recipeSite.id, siteId));
+/** As the family calls it: the site's own name can be long («Recetas de cocina… Directo al Paladar»). */
+export async function renameRecipeSite(k: Kitchen, siteId: number, name: string) {
+	await k.run((tx) => tx.update(recipeSite).set({ name }).where(eq(recipeSite.id, siteId)));
 }
 
-export async function removeRecipeSite(siteId: number) {
-	await db.delete(recipeSite).where(eq(recipeSite.id, siteId));
+export async function removeRecipeSite(k: Kitchen, siteId: number) {
+	await k.run((tx) => tx.delete(recipeSite).where(eq(recipeSite.id, siteId)));
 }
 
 /**
@@ -314,7 +324,7 @@ export async function removeRecipeSite(siteId: number) {
  * those that say «receta» (a site's articles are in its maps too), then the shortest, which say
  * less besides.
  */
-export async function searchRecipeSites(query: string, siteId?: number, limit = 8) {
+export async function searchRecipeSites(k: Kitchen, query: string, siteId?: number, limit = 8) {
 	const words = searchWords(query);
 	if (!words.length) return [];
 	// Each word at the start of one: «pan» is not «empanada».
@@ -323,36 +333,40 @@ export async function searchRecipeSites(query: string, siteId?: number, limit = 
 		words.map((w) => sql`(${has(w)})::int`),
 		sql` + `
 	)})`;
-	return db
-		.select({
-			url: recipeSitePage.url,
-			title: recipeSitePage.title,
-			site: recipeSite.name
-		})
-		.from(recipeSitePage)
-		.innerJoin(recipeSite, eq(recipeSite.id, recipeSitePage.siteId))
-		.where(
-			and(
-				siteId === undefined ? undefined : eq(recipeSitePage.siteId, siteId),
-				or(...words.map(has)),
-				sql`${points} >= ${Math.ceil(words.length / 2)}`
+	return k.run((tx) =>
+		tx
+			.select({
+				url: recipeSitePage.url,
+				title: recipeSitePage.title,
+				site: recipeSite.name
+			})
+			.from(recipeSitePage)
+			.innerJoin(recipeSite, eq(recipeSite.id, recipeSitePage.siteId))
+			.where(
+				and(
+					siteId === undefined ? undefined : eq(recipeSitePage.siteId, siteId),
+					or(...words.map(has)),
+					sql`${points} >= ${Math.ceil(words.length / 2)}`
+				)
 			)
-		)
-		.orderBy(
-			sql`${points} desc`,
-			sql`${recipeSitePage.words} not like '% receta%'`,
-			sql`length(${recipeSitePage.words})`,
-			asc(recipeSitePage.title)
-		)
-		.limit(limit);
+			.orderBy(
+				sql`${points} desc`,
+				sql`${recipeSitePage.words} not like '% receta%'`,
+				sql`length(${recipeSitePage.words})`,
+				asc(recipeSitePage.title)
+			)
+			.limit(limit)
+	);
 }
 
 /** Whether a page is one of a favourite site's: only those are imported by voice. */
-export async function isFavouritePage(url: string) {
-	const [found] = await db
-		.select({ id: recipeSitePage.id })
-		.from(recipeSitePage)
-		.where(eq(recipeSitePage.url, url))
-		.limit(1);
+export async function isFavouritePage(k: Kitchen, url: string) {
+	const [found] = await k.run((tx) =>
+		tx
+			.select({ id: recipeSitePage.id })
+			.from(recipeSitePage)
+			.where(eq(recipeSitePage.url, url))
+			.limit(1)
+	);
 	return Boolean(found);
 }

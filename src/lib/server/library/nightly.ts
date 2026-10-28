@@ -3,7 +3,6 @@ import { scanCinema } from '#lib/server/cinema/scan.ts';
 import { log } from '#lib/server/log.ts';
 import { msUntilHour } from '#lib/schedule.ts';
 import { cinemaRoot } from './paths.ts';
-import { refreshRecipeSites } from '#lib/server/recipes/sites.ts';
 import { scanLibrary } from './scan.ts';
 
 /**
@@ -42,10 +41,6 @@ export function startNightlyScan() {
 			await scanFilms().catch((error) =>
 				log.error('cine', 'Falló el escaneo nocturno de películas', { error })
 			);
-		// The favourite cooking sites' maps, once a week each.
-		await refreshRecipeSites().catch((error) =>
-			log.error('recetas', 'Falló la lectura nocturna de las webs de recetas', { error })
-		);
 		schedule();
 	}
 	schedule();

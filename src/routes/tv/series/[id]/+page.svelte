@@ -1,7 +1,7 @@
 <script lang="ts">
 	import TvEpisode from '#lib/components/TvEpisode.svelte';
 	import TvHeader from '#lib/components/TvHeader.svelte';
-	import Backdrop from '#lib/components/Backdrop.svelte';
+	import Backdrop from 'comun/components/Backdrop.svelte';
 	import { backdropUrl } from '#lib/backdrop.svelte.ts';
 	import { page } from '$app/state';
 	import { formatDuration } from 'comun/format.ts';

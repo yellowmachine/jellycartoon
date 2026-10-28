@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
-	import { poll } from '#lib/poll.ts';
+	import { poll } from 'comun/poll.ts';
 	import { formatDuration } from 'comun/format.ts';
 	import { sceneFrameAt, sceneNames, type Chapter, type SceneName } from '#lib/scenes.ts';
 	import FrameViewer from './FrameViewer.svelte';

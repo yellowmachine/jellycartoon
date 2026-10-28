@@ -1,5 +1,5 @@
 <script lang="ts">
-	import PasswordInput from '#lib/components/PasswordInput.svelte';
+	import PasswordInput from 'comun/components/PasswordInput.svelte';
 	import { enhance } from '$app/forms';
 	import { section, select, primary, secondary } from './styles.ts';
 	import type { PageData, ActionData } from './$types';

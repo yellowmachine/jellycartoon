@@ -1,29 +1,10 @@
-import { error, redirect } from '@sveltejs/kit';
+import { redirect } from '@sveltejs/kit';
+import type { PageServerLoad } from './$types';
 import { cloudUrl } from '#lib/server/kitchen.ts';
-import type { Actions, PageServerLoad } from './$types';
-import {
-	backdropRecipeId,
-	deleteRecipe,
-	getRecipe,
-	toggleBackdrop
-} from '#lib/server/recipes/import.ts';
 
-export const load: PageServerLoad = async ({ params }) => {
-	// With the cloud connected (#253), the family's book is there (its own numbers).
+/** The recipe book lives in the cloud (#253), with its own numbers: its book, or to connect it. */
+export const load: PageServerLoad = async () => {
 	const cloud = await cloudUrl();
 	if (cloud) redirect(303, `${cloud}/recetas`, { external: [cloud] });
-	const recipe = await getRecipe(Number(params.id));
-	if (!recipe) error(404, 'Receta no encontrada');
-	return { recipe, isBackdrop: (await backdropRecipeId()) === recipe.id };
-};
-
-export const actions: Actions = {
-	/** This recipe's picture behind the book's page, or (if it already is) no picture. */
-	backdrop: async ({ params }) => {
-		await toggleBackdrop(Number(params.id));
-	},
-	delete: async ({ params }) => {
-		await deleteRecipe(Number(params.id));
-		redirect(303, '/recetas');
-	}
+	redirect(303, '/ajustes?seccion=casa#nube');
 };

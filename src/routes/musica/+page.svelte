@@ -2,7 +2,7 @@
 	import MiniSearch from 'minisearch';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
-	import { poll } from '#lib/poll.ts';
+	import { poll } from 'comun/poll.ts';
 	import AlbumCover from 'comun/components/AlbumCover.svelte';
 	import AlbumGrid from 'comun/components/AlbumGrid.svelte';
 	import DjDialog from '#lib/components/DjDialog.svelte';

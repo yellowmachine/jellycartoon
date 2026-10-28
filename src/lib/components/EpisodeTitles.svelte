@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
-	import { poll } from '#lib/poll.ts';
+	import { poll } from 'comun/poll.ts';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { TitleProposal } from '#lib/episode-titles.ts';
 

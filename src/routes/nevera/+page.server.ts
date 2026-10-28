@@ -1,14 +1,10 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { fridgeState } from '#lib/server/fridge.ts';
-import { isKid } from '#lib/server/kids.ts';
 import { cloudUrl } from '#lib/server/kitchen.ts';
 
-/** The fridge (#131): the house's post-its and its shopping list. The adults write on it. */
-export const load: PageServerLoad = async ({ locals }) => {
-	if (isKid(locals.user)) redirect(303, '/');
-	// With the cloud connected (#253), the family's fridge is there.
+/** The fridge lives in the cloud (#253): there, or to connect it. */
+export const load: PageServerLoad = async () => {
 	const cloud = await cloudUrl();
 	if (cloud) redirect(303, `${cloud}/nevera`, { external: [cloud] });
-	return { fridge: await fridgeState() };
+	redirect(303, '/ajustes?seccion=casa#nube');
 };

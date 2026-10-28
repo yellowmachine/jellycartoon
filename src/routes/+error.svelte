@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { poll } from '#lib/poll.ts';
+	import { poll } from 'comun/poll.ts';
 
 	// The TV view (#11) has no site around it: bigger, and the remote needs something with the focus.
 	const tv = $derived(page.url.pathname === '/tv' || page.url.pathname.startsWith('/tv/'));

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
-	import PasswordInput from '#lib/components/PasswordInput.svelte';
+	import PasswordInput from 'comun/components/PasswordInput.svelte';
 	import { field } from '#lib/styles.ts';
 	import type { PageProps } from './$types';
 
