@@ -2,7 +2,7 @@ import { music } from 'comun/music-player.svelte.ts';
 import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 import { recipe } from '#lib/recipe.svelte.ts';
 import { videoHere } from '#lib/video-here.svelte.ts';
-import { describeTimers, sameLabel, timeLabel, type DoneTimer } from '#lib/timer-names.ts';
+import { describeTimers, sameLabel, timeLabel, type DoneTimer } from 'comun/timer-names.ts';
 
 /**
  * Kitchen timers (#60), set by voice («avísame en 10 minutos para la pasta»): in this browser,

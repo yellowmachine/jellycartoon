@@ -1,13 +1,11 @@
 import { and, eq, inArray, isNotNull, lte, or, sql } from 'drizzle-orm';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { daysName, type Alarm, type AlarmInput, type AlarmPlace } from '#lib/alarms.ts';
-import { addDays, fromRrule, localDay, localTime, toRrule, weekday } from '#lib/agenda.ts';
-import { describeTimers, sameLabel, timeLabel } from '#lib/timer-names.ts';
+import type { Alarm, AlarmPlace } from 'comun/alarms.ts';
+import { describeTimers, sameLabel, timeLabel } from 'comun/timer-names.ts';
 import { db } from '#lib/server/db/index.ts';
-import { alarm, alarmPerson, user } from '#lib/server/db/schema.ts';
-import { KIDS_ROLE } from '#lib/server/kids.ts';
+import { alarm, alarmPerson } from '#lib/server/db/schema.ts';
+import { cloudAlarmLines, cloudAlarmStopped, tellGroup } from '#lib/server/kitchen.ts';
 import { log } from '#lib/server/log.ts';
-import { notify } from '#lib/server/push.ts';
 import {
 	controlSnapcast,
 	sayOnSnapcast,
@@ -15,16 +13,18 @@ import {
 	stopAfterTrackOnSnapcast
 } from '#lib/server/music/snapcast.ts';
 import { allSatellites, type Satellite } from '#lib/server/satellites.ts';
-import { tellGroup } from '#lib/server/telegram/bot.ts';
 import { houseSpeech } from '#lib/server/voice/house-speech.ts';
-import { nextRing } from './next.ts';
 
 /**
- * Alarms and timers (#241), kept by the server: set by hand in the Agenda or by voice, for the
- * house or for some people, and rung where they are to sound when it is time: «din-don» and its
- * name, again and again, until someone stops it (or for `RING_MAX_MS`). In the whole house through
- * Snapcast; in a voice satellite, where it answers: through Snapcast too if it answers there, the
- * server saying it, or on its own speaker, the satellite told through its channel (/api/satelite/avisos).
+ * The house's timers (#241), kept by the server: set by voice in a satellite, and rung where they
+ * are to sound when it is time: «din-don» and its name, again and again, until someone stops it (or
+ * for `RING_MAX_MS`). In the whole house through Snapcast; in a voice satellite, where it answers:
+ * through Snapcast too if it answers there, the server saying it, or on its own speaker, the
+ * satellite told through its channel (/api/satelite/avisos).
+ *
+ * The alarms are the family's, in the cloud (#253): it keeps their time and, when it comes, tells
+ * the house (/api/v1/avisos), which rings them here as a row of its own (`cloudId`) until someone
+ * stops them, here (and the cloud is told) or there (and the house is told).
  */
 
 /** Ringing this long, it stops sounding (it still shows): no one is there. As the phone's. */
@@ -65,8 +65,9 @@ async function peopleOf(ids: number[]) {
 }
 
 /**
- * Its own and the house's: the ones for nobody, or for them among others. Not those over (rung and
- * stopped, not coming again): kept a while only for the AI (`describeAlarms`).
+ * Its own and the house's: the ones for nobody, or for them among others (the cloud's alarms
+ * ringing here, the house's). Not those over (rung and stopped, not coming again): kept a while
+ * only for the AI (`describeAlarms`).
  */
 export async function listAlarms(userId: string): Promise<Alarm[]> {
 	const rows = await db.select().from(alarm).orderBy(alarm.nextAt, alarm.id);
@@ -77,27 +78,24 @@ export async function listAlarms(userId: string): Promise<Alarm[]> {
 			const theirs = of(r.id);
 			return !theirs.length || theirs.includes(userId);
 		})
-		.map((r) => {
-			const repeat = fromRrule(r.repeat);
-			return {
-				id: r.id,
-				label: r.label,
-				kind: r.kind,
-				endsAt: ms(r.endsAt),
-				seconds: r.seconds,
-				trigger: r.trigger,
-				place: r.place as AlarmPlace,
-				time: r.time?.slice(0, 5) ?? null,
-				day: r.startDay,
-				days: repeat.every === 'semana' ? repeat.days : [],
-				paused: r.paused,
-				nextAt: ms(r.nextAt),
-				ringingSince: ms(r.ringingSince),
-				doneAt: ms(r.doneAt),
-				people: of(r.id),
-				by: r.userId
-			};
-		});
+		.map((r) => ({
+			id: r.id,
+			label: r.label,
+			kind: r.kind,
+			endsAt: ms(r.endsAt),
+			seconds: r.seconds,
+			trigger: r.trigger,
+			place: r.place as AlarmPlace,
+			time: null,
+			day: null,
+			days: [],
+			paused: false,
+			nextAt: ms(r.nextAt),
+			ringingSince: ms(r.ringingSince),
+			doneAt: ms(r.doneAt),
+			people: of(r.id),
+			by: r.userId
+		}));
 }
 
 async function insert(values: typeof alarm.$inferInsert, people: string[]) {
@@ -112,51 +110,25 @@ async function insert(values: typeof alarm.$inferInsert, people: string[]) {
 	return row!.id;
 }
 
-/** One for `people` (none, the house's), by `userId`, from the Agenda or by voice. */
-export async function addAlarm(userId: string | null, input: AlarmInput) {
-	const now = new Date();
-	const base = { label: input.label, kind: input.kind, userId, place: input.place };
-	if (input.kind === 'temporizador') {
-		const endsAt = new Date(now.getTime() + input.minutes * 60_000);
-		return insert({ ...base, endsAt, nextAt: endsAt }, input.people);
-	}
-	const repeat = input.days.length ? toRrule({ every: 'semana', days: input.days }) : null;
-	const times = { time: input.time, startDay: input.day, repeat, skipDays: [] };
-	return insert({ ...base, ...times, nextAt: nextRing(times, now) }, input.people);
-}
-
-export async function deleteAlarm(id: number) {
-	await db.delete(alarm).where(eq(alarm.id, id));
-	await schedule();
-	changed();
-}
-
 /** Over now: not ringing, not coming again; kept a while for the AI («se quitó hace 2 min»). */
 const over = () => ({ ringingSince: null, nextAt: null, doneAt: new Date() });
 
-/**
- * When each was stopped while ringing, for «posponer» (`snoozeAlarm`): saying «Alexa» stops it
- * before the order arrives. Only in memory: after a restart, nothing to put off.
- */
-const stoppedAt = new Map<number, number>();
-/** How long after stopping it may still be put off. */
-const SNOOZE_AFTER_MS = 10 * 60_000;
-/** «Posponer»: in so many minutes if not said, at most `MAX_SNOOZE_MIN`. */
-export const SNOOZE_MIN = 10;
-export const MAX_SNOOZE_MIN = 60;
+/** The cloud's among these, told they were stopped here: it may put them off («posponer»). */
+function tellCloud(rows: { cloudId: number | null }[]) {
+	for (const { cloudId } of rows) if (cloudId !== null) void cloudAlarmStopped(cloudId);
+}
 
-const justStopped = (id: number) => Date.now() - (stoppedAt.get(id) ?? 0) < SNOOZE_AFTER_MS;
-
-/** «Parar»: the one ringing is quiet; one that does not come again is over. */
+/** «Parar»: the one ringing is quiet, and over; the cloud's, told to the cloud. */
 export async function stopAlarm(id: number) {
-	stoppedAt.set(id, Date.now());
-	await db
+	const stopped = await db
 		.update(alarm)
 		.set({
 			ringingSince: null,
 			doneAt: sql`case when ${alarm.nextAt} is null then now() else ${alarm.doneAt} end`
 		})
-		.where(eq(alarm.id, id));
+		.where(eq(alarm.id, id))
+		.returning({ cloudId: alarm.cloudId });
+	tellCloud(stopped);
 	changed();
 }
 
@@ -172,151 +144,59 @@ export async function stopRingingAt(place: AlarmPlace) {
 			doneAt: sql`case when ${alarm.nextAt} is null then now() else ${alarm.doneAt} end`
 		})
 		.where(and(isNotNull(alarm.ringingSince), inArray(alarm.place, [place, 'casa'])))
-		.returning({ id: alarm.id, label: alarm.label });
-	for (const { id } of stopped) stoppedAt.set(id, Date.now());
+		.returning({ label: alarm.label, cloudId: alarm.cloudId });
 	if (stopped.length) {
 		log.info('avisos', `Parados: ${stopped.map((s) => `«${s.label}»`).join(', ')}`, { place });
+		tellCloud(stopped);
 		changed();
 	}
 	return stopped.length;
 }
 
-/** Most days skipped or unskipped at once: a long holiday. */
-export const MAX_SKIP_DAYS = 92;
-
-/**
- * The days from `from` to `to` (both in) on which it would ring, today or later: by its weekdays
- * if it repeats. Null if the range is not one.
- */
-function ringDays(row: Row, from: string, to: string): string[] | null {
-	const today = localDay();
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || to < from)
-		return null;
-	const repeat = fromRrule(row.repeat);
-	const days: string[] = [];
-	for (let day = from < today ? today : from; day <= to; day = addDays(day, 1)) {
-		if (days.length >= MAX_SKIP_DAYS) return null;
-		if (repeat.every !== 'semana' || repeat.days.includes(weekday(day))) days.push(day);
-	}
-	return days;
-}
-
-/** Saves the days skipped, the past ones forgotten, and when it rings next. */
-async function setSkipDays(row: Row, skipDays: string[]) {
-	const today = localDay();
-	const kept = [...new Set(skipDays)].filter((day) => day >= today).sort();
-	const nextAt =
-		row.paused || !row.time || !row.startDay
-			? row.nextAt
-			: nextRing({ ...row, time: row.time, startDay: row.startDay, skipDays: kept });
-	await db.update(alarm).set({ skipDays: kept, nextAt }).where(eq(alarm.id, row.id));
-	await schedule();
-	changed();
-}
-
-/**
- * «Esta vez no»: its next day passed by; or, with `from` (and `to`, else only that day), those days
- * («el jueves no», «del 1 al 15 de agosto no»). The days skipped, or null if none can be.
- */
-export async function skipAlarm(id: number, from?: string, to?: string) {
-	const [row] = await db.select().from(alarm).where(eq(alarm.id, id));
-	if (!row?.time || !row.startDay) return null;
-	const days = from ? ringDays(row, from, to || from) : row.nextAt ? [localDay(row.nextAt)] : [];
-	if (!days?.length) return null;
-	await setSkipDays(row, [...row.skipDays, ...days]);
-	return days;
-}
-
-/** «Al final mañana sí»: those days ring again. The days it was skipping among them. */
-export async function unskipAlarm(id: number, from: string, to?: string) {
-	const [row] = await db.select().from(alarm).where(eq(alarm.id, id));
-	if (!row?.time || !row.startDay) return null;
-	const days = ringDays(row, from, to || from);
-	if (!days) return null;
-	const back = row.skipDays.filter((day) => days.includes(day));
-	await setSkipDays(
-		row,
-		row.skipDays.filter((day) => !back.includes(day))
-	);
-	return back;
-}
-
-/**
- * Its time, its weekdays (empty, once), its day if once, or its name, without taking it away
- * («cámbiala a las 6:30», «quítale el sábado»). What is not given stays. How it is now, in words;
- * null if it is not an alarm.
- */
-export async function editAlarm(
-	id: number,
-	changes: { time?: string; days?: number[]; day?: string; label?: string }
-) {
-	const [row] = await db.select().from(alarm).where(eq(alarm.id, id));
-	if (!row || row.kind !== 'alarma' || !row.time || !row.startDay) return null;
-	const repeat =
-		changes.days === undefined
-			? row.repeat
-			: changes.days.length
-				? toRrule({ every: 'semana', days: changes.days })
-				: null;
-	const time = changes.time ?? row.time.slice(0, 5);
-	// Once: the day said, its own if still to come, else today if its time has not passed, or tomorrow.
-	const today = localDay();
-	const startDay = repeat
-		? row.startDay
-		: (changes.day ??
-			(row.startDay > today ? row.startDay : time > localTime() ? today : addDays(today, 1)));
-	const times = { time, startDay, repeat, skipDays: row.skipDays };
-	const values = {
-		...times,
-		label: changes.label ?? row.label,
-		nextAt: row.paused ? row.nextAt : nextRing(times),
-		// Changed to come again: not over any more.
-		doneAt: null
-	};
-	await db.update(alarm).set(values).where(eq(alarm.id, id));
-	log.info('avisos', `Cambiado: «${values.label}»`, { id, ...changes });
-	await schedule();
-	changed();
-	const days = fromRrule(repeat);
-	return `«${values.label}», a las ${time}, ${days.every === 'semana' ? daysName(days.days).toLowerCase() : 'una vez'}, ${row.paused ? 'pausada' : values.nextAt ? `la próxima ${whenSaid(values.nextAt)}` : 'no vuelve a sonar'}`;
-}
-
-/**
- * «Posponer»: the one ringing, or stopped a moment ago, rings again in `minutes`; its repetitions
- * stay as they were (after that ring, its next day). When, or null if it was not ringing.
- */
-export async function snoozeAlarm(id: number, minutes: number) {
-	const [row] = await db.select().from(alarm).where(eq(alarm.id, id));
-	if (!row || row.kind !== 'alarma' || (!row.ringingSince && !justStopped(id))) return null;
-	const at = new Date(Date.now() + minutes * 60_000);
-	await db
-		.update(alarm)
-		.set({ ringingSince: null, nextAt: at, doneAt: null, paused: false })
-		.where(eq(alarm.id, id));
-	stoppedAt.delete(id);
-	log.info('avisos', `Pospuesto ${minutes} min: «${row.label}»`, { id });
-	await schedule();
-	changed();
-	return at;
-}
-
-/** Kept, but not ringing; on again, from its next time after now. */
-export async function setPaused(id: number, paused: boolean) {
-	const [row] = await db.select().from(alarm).where(eq(alarm.id, id));
-	if (!row) return;
-	const nextAt =
-		paused || row.kind !== 'alarma' || !row.time || !row.startDay
-			? row.nextAt
-			: nextRing({ ...row, time: row.time, startDay: row.startDay });
-	await db.update(alarm).set({ paused, nextAt }).where(eq(alarm.id, id));
-	await schedule();
-	changed();
-}
-
-/** Whether `userId` sees it, to change it: the house's, or theirs. */
+/** Whether `userId` sees it, to stop it: the house's, or theirs. */
 export async function canTouch(id: number, userId: string) {
 	const people = await db.select().from(alarmPerson).where(eq(alarmPerson.alarmId, id));
 	return !people.length || people.some((p) => p.userId === userId);
+}
+
+// ——— The cloud's alarms (#253) ———
+
+/**
+ * One of the family's alarms whose time has come, told by the cloud: it rings here, as a row of
+ * its own, until stopped (here or there); or the music stops. Where it sounds, in words.
+ */
+export async function ringFromCloud(ring: {
+	id: number;
+	label: string;
+	place: AlarmPlace;
+	action: 'sonar' | 'parar_musica';
+}) {
+	const where = placeName(ring.place, await allSatellites());
+	if (ring.action === 'parar_musica') {
+		log.info('avisos', `Para la música: «${ring.label}»`);
+		if (!(await stopAfterTrackOnSnapcast().catch(() => false)))
+			await controlSnapcast({ action: 'stop' }).catch(() => {});
+		return where;
+	}
+	// The same one again (put off, or the cloud asking twice): only once.
+	await db.delete(alarm).where(eq(alarm.cloudId, ring.id));
+	await db.insert(alarm).values({
+		label: ring.label,
+		kind: 'alarma',
+		place: ring.place,
+		cloudId: ring.id,
+		ringingSince: new Date()
+	});
+	log.info('avisos', `Suena: «${ring.label}»`, { place: ring.place, cloudId: ring.id });
+	changed();
+	void ringServer();
+	return where;
+}
+
+/** Stopped in the cloud (its Agenda, a phone, put off), or gone there: quiet here too. */
+export async function quietFromCloud(cloudId: number) {
+	await db.update(alarm).set(over()).where(eq(alarm.cloudId, cloudId));
+	changed();
 }
 
 // ——— By voice, where it is said (#241, phase 2) ———
@@ -412,13 +292,12 @@ export async function cancelTimersAt(place: AlarmPlace, label: string | null) {
 
 /**
  * For the AI, with each order: the timers there, as the phone's are told (describeTimers), and the
- * alarms it may see (the house's and, from a phone, its person's), with their id to take them
- * away. `place`, a satellite's, whose timers these are; null, a phone's (its own, in the browser).
+ * family's alarms it may see, from the cloud (the house's and, from a phone, its person's), with
+ * their id to change them. `place`, a satellite's, whose timers these are; null, a phone's (its own, in the browser).
  */
 export async function describeAlarms(place: AlarmPlace | null, userId: string | null) {
 	const now = Date.now();
 	const rows = await db.select().from(alarm);
-	const of = await peopleOf(rows.map((r) => r.id));
 	const timers = place ? rows.filter((r) => r.place === place && r.kind !== 'alarma') : [];
 	const timerLines = describeTimers(
 		{
@@ -440,33 +319,9 @@ export async function describeAlarms(place: AlarmPlace | null, userId: string | 
 		},
 		now
 	);
-	const satellites = await allSatellites();
-	const alarmLines = rows
-		.filter((r) => r.kind === 'alarma' && !r.doneAt)
-		.filter((r) => {
-			const theirs = of(r.id);
-			return !theirs.length || (userId !== null && theirs.includes(userId));
-		})
-		.map((r) => {
-			const days = fromRrule(r.repeat);
-			const repeat = days.every === 'semana' ? daysName(days.days).toLowerCase() : 'una vez';
-			const next = r.paused ? 'pausada' : r.nextAt ? `la próxima ${whenSaid(r.nextAt)}` : 'ya sonó';
-			const who = of(r.id).length ? 'de una persona' : 'de la casa';
-			const skipped = r.skipDays.filter((day) => day >= localDay());
-			const skips = skipped.length
-				? `; no suena ${skipped.length > 6 ? `${skipped.length} días, del ${skipped[0]} al ${skipped.at(-1)}` : skipped.join(', ')}`
-				: '';
-			return `[alarma ${r.id}] ${r.label}: a las ${r.time?.slice(0, 5)}, ${repeat}, ${next}${skips}; ${who}; suena en ${placeName(r.place, satellites)}${r.ringingSince ? '; está sonando' : justStopped(r.id) ? '; acaba de sonar y la han parado (se puede posponer)' : ''}`;
-		});
+	// The family's alarms, from the cloud: without it, said so.
+	const alarmLines = await cloudAlarmLines(place, userId, await allSatellites());
 	return [...timerLines, ...alarmLines];
-}
-
-/** «hoy a las 07:30», «mañana a las 07:30», «el 2026-10-30 a las 07:30». */
-function whenSaid(at: Date) {
-	const day = localDay(at);
-	const today = localDay();
-	const name = day === today ? 'hoy' : day === addDays(today, 1) ? 'mañana' : `el ${day}`;
-	return `${name} a las ${localTime(at)}`;
 }
 
 /** «toda la casa», «el satélite Salón». */
@@ -491,7 +346,7 @@ async function schedule() {
 	const [next] = await db
 		.select({ at: alarm.nextAt })
 		.from(alarm)
-		.where(and(isNotNull(alarm.nextAt), eq(alarm.paused, false)))
+		.where(isNotNull(alarm.nextAt))
 		.orderBy(alarm.nextAt)
 		.limit(1);
 	const wait = next?.at ? Math.max(0, next.at.getTime() - Date.now()) : CHECK_MS;
@@ -504,33 +359,11 @@ async function schedule() {
 /** Those whose time has come: ringing, or the music stopped; their next time, if they repeat. */
 async function due() {
 	const now = new Date();
-	const rows = await db
-		.select()
-		.from(alarm)
-		.where(and(lte(alarm.nextAt, now), eq(alarm.paused, false)));
+	const rows = await db.select().from(alarm).where(lte(alarm.nextAt, now));
 	for (const row of rows) {
-		const next =
-			row.kind === 'alarma' && row.repeat && row.time && row.startDay
-				? nextRing(
-						{ ...row, time: row.time, startDay: row.startDay },
-						new Date(now.getTime() + 1000)
-					)
-				: null;
-		const stops = row.action === 'parar_musica';
-		await db
-			.update(alarm)
-			.set({
-				nextAt: next,
-				ringingSince: stops ? null : now,
-				doneAt: stops && !next ? now : row.doneAt
-			})
-			.where(eq(alarm.id, row.id));
-		log.info('avisos', stops ? `Para la música: «${row.label}»` : `Suena: «${row.label}»`, {
-			place: row.place
-		});
-		if (stops && !(await stopAfterTrackOnSnapcast().catch(() => false)))
-			await controlSnapcast({ action: 'stop' }).catch(() => {});
-		if (!stops) void tellRinging(row).catch((error) => log.warn('avisos', 'Al avisar', { error }));
+		await db.update(alarm).set({ nextAt: null, ringingSince: now }).where(eq(alarm.id, row.id));
+		log.info('avisos', `Suena: «${row.label}»`, { place: row.place });
+		void tellRinging(row).catch((error) => log.warn('avisos', 'Al avisar', { error }));
 	}
 	// What is over (stopped, and not coming again) and prepared ones never started, forgotten.
 	await db
@@ -551,39 +384,13 @@ async function due() {
 	await schedule();
 }
 
-/**
- * On the phones, with the app closed (Web Push): someone's own alarm, to them; the house's, to every
- * adult. Not the timers: the pasta's, on everyone's phone, would be too much. The house's, alarm or
- * timer, to the family's group too (Telegram's bot, #243). With the app open, the banner says it.
- */
+/** A house's timer (for nobody), to the family's group too (its Telegram bot, in the cloud). */
 async function tellRinging(row: Row) {
-	const people = (
-		await db
-			.select({ id: alarmPerson.userId })
-			.from(alarmPerson)
-			.where(eq(alarmPerson.alarmId, row.id))
-	).map((p) => p.id);
-	if (row.kind !== 'alarma') {
-		if (!people.length) await tellGroup('avisos', `⏰ Suena: ${row.label}`);
-		return;
-	}
-	const to = people.length
-		? people
-		: (
-				await db
-					.select({ id: user.id })
-					.from(user)
-					.where(sql`${user.role} is distinct from ${KIDS_ROLE}`)
-			).map((u) => u.id);
-	await notify(to, {
-		title: `⏰ ${row.label}`,
-		body: `Sonando en ${placeName(row.place, await allSatellites())}`,
-		tag: `alarma-${row.id}`,
-		url: '/agenda#alarmas',
-		// Later, it has stopped sounding: no use.
-		ttl: RING_MAX_MS / 1000
-	});
-	if (!people.length) await tellGroup('avisos', `⏰ Suena: ${row.label}`);
+	const people = await db
+		.select({ id: alarmPerson.userId })
+		.from(alarmPerson)
+		.where(eq(alarmPerson.alarmId, row.id));
+	if (!people.length) await tellGroup(`⏰ Suena: ${row.label}`);
 }
 
 /**

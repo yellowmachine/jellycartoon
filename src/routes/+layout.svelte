@@ -3,7 +3,7 @@
 	import favicon from '#lib/assets/favicon.svg';
 	import MusicBar from 'comun/components/MusicBar.svelte';
 	import AiSpendLine from '#lib/components/AiSpendLine.svelte';
-	import AlarmBanner from '#lib/components/AlarmBanner.svelte';
+	import AlarmBanner from 'comun/components/AlarmBanner.svelte';
 	import SalonBar from '#lib/components/SalonBar.svelte';
 	import SnapcastBar from '#lib/components/SnapcastBar.svelte';
 	import SectionIcon, { type Section } from 'comun/components/SectionIcon.svelte';
@@ -26,7 +26,7 @@
 	import { music } from 'comun/music-player.svelte.ts';
 	import { page, updated } from '$app/state';
 	import { themeColor, themeCss } from '#lib/themes.ts';
-	import { avatar } from '#lib/avatars.ts';
+	import { avatar } from 'comun/avatars.ts';
 	import { onMount, untrack } from 'svelte';
 	import type { LayoutProps } from './$types';
 

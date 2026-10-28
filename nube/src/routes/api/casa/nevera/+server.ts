@@ -2,7 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { addItems, addNote, fridgeState, tickOffByName, toBuy } from '#lib/server/fridge.ts';
 import { houseRequest } from '#lib/server/house-keys.ts';
-import { MAX_ITEM } from '#lib/fridge.ts';
+import { MAX_ITEM } from 'comun/fridge.ts';
 
 /**
  * The family's fridge, for its house (jellycartoon): the whole of it (its TV), and what is left to

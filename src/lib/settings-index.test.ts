@@ -17,7 +17,6 @@ const admin: SettingsShown = {
 	recordTrips: false,
 	langua: {},
 	telegram: {},
-	telegramBot: {},
 	houseStyle: {},
 	myStyle: {},
 	voiceWeb: {},

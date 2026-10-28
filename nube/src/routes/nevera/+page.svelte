@@ -1,6 +1,6 @@
 <script lang="ts">
-	import FridgeBoard from '#lib/components/FridgeBoard.svelte';
-	import type { FridgeState } from '#lib/fridge.ts';
+	import FridgeBoard from 'comun/components/FridgeBoard.svelte';
+	import type { FridgeState } from 'comun/fridge.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();

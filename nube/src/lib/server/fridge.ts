@@ -3,12 +3,13 @@ import { user } from '#lib/server/db/auth.schema.ts';
 import { fridgeItem, fridgeNote } from '#lib/server/db/schema.ts';
 import { asFamily, withFamily } from '#lib/server/family.ts';
 import type { AnyDb } from '#lib/server/family-scope.ts';
-import { MAX_ITEM, MAX_NOTE, paperFor, type FridgeAuthor, type FridgeState } from '#lib/fridge.ts';
+import { agendaToday } from '#lib/server/agenda/agenda.ts';
+import { MAX_ITEM, MAX_NOTE, paperFor, type FridgeAuthor, type FridgeState } from 'comun/fridge.ts';
 
 /**
  * The family's fridge (#253; jellycartoon's #131): its post-its and its shopping list. Every change
- * is told to the family's open pages (SSE, `watchFridge`). Not yet to the phones (Web Push) nor to
- * Telegram, as jellycartoon does.
+ * is told to the family's open pages (SSE, `watchFridge`), with the agenda's «Hoy» (agenda.ts). Not
+ * yet to the phones (Web Push) nor to Telegram, as jellycartoon does.
  */
 
 /** Who is writing, and in which family: a person, or the family's house (by its key). */
@@ -73,8 +74,13 @@ async function listId(tx: AnyDb, familyId: string) {
 	return made!.id;
 }
 
-/** All of it, as it is now: the post-its still up (newest first) and the list. */
-export function fridgeState(k: Kitchen): Promise<FridgeState> {
+/** All of it, as it is now: the post-its still up (newest first), the list, and the agenda's «Hoy». */
+export async function fridgeState(k: Kitchen): Promise<FridgeState> {
+	const [fridge, today] = await Promise.all([fridgeOnly(k), agendaToday(k)]);
+	return { ...fridge, today };
+}
+
+function fridgeOnly(k: Kitchen): Promise<Omit<FridgeState, 'today'>> {
 	return k.run(async (tx) => {
 		const list = await listId(tx, k.familyId);
 		const notes = await tx

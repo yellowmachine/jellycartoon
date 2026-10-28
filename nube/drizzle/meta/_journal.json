@@ -43,6 +43,27 @@
       "when": 1793183504406,
       "tag": "0005_wealthy_sauron",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793186417156,
+      "tag": "0006_natural_jasper_sitwell",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793186417294,
+      "tag": "0007_familias",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793187778305,
+      "tag": "0008_peaceful_mantis",
+      "breakpoints": true
     }
   ]
 }

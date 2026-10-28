@@ -1,6 +1,6 @@
 import { getAppSetting, setAppSetting, voiceModel } from '#lib/server/app-settings.ts';
 import { askWeb, type Tool } from '#lib/server/openrouter.ts';
-import { localDay, localTime } from '#lib/agenda.ts';
+import { localDay, localTime } from 'comun/agenda.ts';
 
 /**
  * The voice searching the web (#243): only if the house turned it on (Ajustes → Casa), and only when

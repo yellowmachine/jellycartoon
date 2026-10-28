@@ -1,6 +1,10 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import AvatarPicker from 'comun/components/AvatarPicker.svelte';
 	import PasswordInput from 'comun/components/PasswordInput.svelte';
+	import PushNotices from 'comun/components/PushNotices.svelte';
+	import TelegramBot from './TelegramBot.svelte';
+	import { avatar, isAvatar } from 'comun/avatars.ts';
 	import { field, primary, secondary, section } from '#lib/styles.ts';
 	import type { PageProps } from './$types';
 
@@ -8,9 +12,102 @@
 
 	const admin = $derived(Boolean(data.family?.admin));
 	const day = (d: Date) => d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+	/** The person being changed, or `nueva` for one being added. */
+	let editingPerson = $state<number | 'nueva' | null>(null);
 </script>
 
 <h1 class="mb-6 text-2xl font-bold">Ajustes</h1>
+
+<section class={section} id="personas">
+	<h2 class="mb-1 font-semibold">Personas</h2>
+	<p class="mb-4 text-sm text-zinc-400">
+		Para quién es cada cosa de la Agenda y cada alarma: los de la familia con cuenta y los peques,
+		que no la tienen. Cada uno con su dibujo.
+	</p>
+	<ul class="mb-4 divide-y divide-zinc-800">
+		{#each data.people as p (p.id)}
+			{@const drawing = isAvatar(p.avatar) ? avatar(p.avatar) : null}
+			<li class="py-2">
+				<div class="flex items-center gap-3">
+					<span
+						class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-lg {drawing?.color ??
+							'bg-zinc-700'}">{drawing?.emoji ?? p.name.slice(0, 1)}</span
+					>
+					<span class="min-w-0 flex-1 truncate"
+						>{p.name}
+						<span class="text-xs text-zinc-500">{p.account ? '· con cuenta' : '· sin cuenta'}</span
+						></span
+					>
+					<button
+						class={secondary}
+						onclick={() => (editingPerson = editingPerson === p.id ? null : p.id)}>Cambiar</button
+					>
+					{#if !p.account}
+						<form method="post" action="?/deletePerson" use:enhance>
+							<input type="hidden" name="id" value={p.id} />
+							<button class={secondary}>Quitar</button>
+						</form>
+					{/if}
+				</div>
+				{#if editingPerson === p.id}
+					<form
+						method="post"
+						action="?/updatePerson"
+						class="mt-3 flex flex-col gap-3"
+						use:enhance={() =>
+							async ({ result, update }) => {
+								if (result.type === 'success') editingPerson = null;
+								await update();
+							}}
+					>
+						<input type="hidden" name="id" value={p.id} />
+						{#if p.account}
+							<input type="hidden" name="name" value={p.name} />
+						{:else}
+							<input name="name" value={p.name} maxlength="40" required class={field} />
+						{/if}
+						<AvatarPicker chosen={p.avatar} label="Su dibujo" />
+						<button class="{primary} self-start">Guardar</button>
+					</form>
+				{/if}
+			</li>
+		{/each}
+	</ul>
+	{#if editingPerson === 'nueva'}
+		<form
+			method="post"
+			action="?/addPerson"
+			class="flex flex-col gap-3"
+			use:enhance={() =>
+				async ({ result, update }) => {
+					if (result.type === 'success') editingPerson = null;
+					await update();
+				}}
+		>
+			<input name="name" placeholder="Su nombre" maxlength="40" required class={field} />
+			<AvatarPicker chosen={null} label="Su dibujo" />
+			<div class="flex gap-2">
+				<button class={primary}>Añadir</button>
+				<button type="button" class={secondary} onclick={() => (editingPerson = null)}
+					>Cancelar</button
+				>
+			</div>
+		</form>
+	{:else}
+		<button class={secondary} onclick={() => (editingPerson = 'nueva')}>+ Persona sin cuenta</button
+		>
+	{/if}
+	{#if form && 'personProblem' in form}
+		<p class="mt-3 text-sm text-red-400">{form.personProblem}</p>
+	{/if}
+</section>
+
+<section class={section} id="avisos">
+	<h2 class="mb-1 font-semibold">Este dispositivo</h2>
+	<PushNotices about="cuando suena una alarma, y los avisos de la Agenda" />
+</section>
+
+<TelegramBot {data} {form} />
 
 <section class={section} id="casa">
 	<h2 class="mb-1 font-semibold">Tu casa</h2>

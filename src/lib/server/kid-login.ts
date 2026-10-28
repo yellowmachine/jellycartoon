@@ -18,7 +18,7 @@ import { log } from '#lib/server/log.ts';
 import { decrypt, encrypt } from '#lib/server/secret-box.ts';
 import { notify } from '#lib/server/push.ts';
 import { addCompanions, togetherOf } from '#lib/server/watching-together.ts';
-import { avatar, type PermitId } from '#lib/avatars.ts';
+import { avatar, type PermitId } from 'comun/avatars.ts';
 
 /**
  * Children who enter with a parent's permission (#141). On a trusted device (the living room's

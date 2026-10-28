@@ -1,6 +1,6 @@
 import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 import { afterTimer, describeRecipe, parseRecipe, type Recipe } from '#lib/recipe.ts';
-import { sameLabel } from '#lib/timer-names.ts';
+import { sameLabel } from 'comun/timer-names.ts';
 
 /**
  * The recipe being cooked on this device (#60): the one the AI wrote, and the step the cook is on.

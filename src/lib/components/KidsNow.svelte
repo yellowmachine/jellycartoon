@@ -4,7 +4,7 @@
 	import { poll } from 'comun/poll.ts';
 	import type { WatchingNow } from '#lib/server/live-watching.ts';
 	import type { Together } from '#lib/server/watching-together.ts';
-	import { avatar } from '#lib/avatars.ts';
+	import { avatar } from 'comun/avatars.ts';
 
 	/**
 	 * What each child is watching right now (/infantil), asked again every few seconds while the

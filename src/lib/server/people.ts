@@ -7,7 +7,7 @@ import { account, invitation, kidProfile, user, userSettings } from '#lib/server
 import { isAdmin } from '#lib/server/app-settings.ts';
 import { invitations, takeIssued } from '#lib/server/invitations.ts';
 import { isKid, KIDS_ROLE } from '#lib/server/kids.ts';
-import { avatar, isAvatar } from '#lib/avatars.ts';
+import { avatar, isAvatar } from 'comun/avatars.ts';
 
 /**
  * «Personas de la casa» (#157): the administrator creates every account, adults and children, each

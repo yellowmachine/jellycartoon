@@ -62,11 +62,13 @@
 		{/if}
 
 		<!-- The other way: the cloud's key for the house (#253). -->
-		<h3 class="mt-6 mb-1 text-sm font-semibold">Nevera y recetas en la nube</h3>
+		<h3 class="mt-6 mb-1 text-sm font-semibold">Lo de la familia, en la nube</h3>
 		<p class="mb-3 text-sm text-zinc-400">
 			Con la dirección de la nube y la clave que da en su Ajustes («Clave para la casa»), la voz
-			apunta y lee en la nevera y las recetas de la familia, allí; la tele enseña esa nevera, y
-			Nevera y Recetas llevan a la nube. Sin ella no hay Nevera ni Recetas: viven en la nube.
+			apunta y lee en la nevera, las recetas, los gastos, la agenda y las alarmas de la familia,
+			allí; la tele enseña esa nevera, las alarmas de la nube suenan en casa, y el bot de Telegram
+			de la familia (en los Ajustes de la nube) avisa también de los temporizadores de casa. Sin
+			ella, nada de eso: vive en la nube.
 		</p>
 		{#if data.cloudKeys.kitchen}
 			<p class="mb-3 text-sm">

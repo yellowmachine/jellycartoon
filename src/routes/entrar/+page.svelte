@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { avatar } from '#lib/avatars.ts';
+	import { avatar } from 'comun/avatars.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();

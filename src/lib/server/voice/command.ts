@@ -58,36 +58,16 @@ import {
 	recipeBook,
 	searchRecipeSites,
 	tickOffByName,
-	toBuy
+	toBuy,
+	agendaByVoice,
+	alarmByVoice
 } from '#lib/server/kitchen.ts';
-import { addEvent, dayForVoice, personByName } from '#lib/server/agenda/agenda.ts';
+import { MAX_SNOOZE_MIN, SNOOZE_MIN, type AlarmPlace } from 'comun/alarms.ts';
 import {
-	addDays,
-	dayName,
-	isDay,
-	isTime,
-	localDay,
-	localTime,
-	parseEventInput
-} from '#lib/agenda.ts';
-import { daysName, MAX_ALARM_LABEL, parseAlarmInput, type AlarmPlace } from '#lib/alarms.ts';
-import {
-	addAlarm,
-	canTouch,
 	cancelTimersAt,
-	deleteAlarm,
 	describeAlarms,
 	prepareTimerAt,
-	editAlarm,
-	MAX_SKIP_DAYS,
-	MAX_SNOOZE_MIN,
-	setPaused,
-	SNOOZE_MIN,
-	snoozeAlarm,
-	skipAlarm,
-	unskipAlarm,
-	startTimerAt,
-	stopAlarm
+	startTimerAt
 } from '#lib/server/alarms/alarms.ts';
 import type { Satellite } from '#lib/server/satellites.ts';
 import {
@@ -98,7 +78,6 @@ import {
 import { quietCheck, type QuietHours } from '#lib/server/voice/quiet-check.ts';
 import { quietHoursConfig } from '#lib/server/voice/quiet-hours.ts';
 import { now } from '#lib/server/kid-time.ts';
-import { parseClock } from '#lib/kid-time.ts';
 import {
 	searchWeb,
 	WEB_TOOL,
@@ -108,7 +87,7 @@ import {
 import { isKidAccount } from '#lib/server/kids.ts';
 import { EXPENSE_CATEGORIES, euros, isCategory, type ExpenseLine } from 'comun/expenses.ts';
 import { today } from '#lib/server/playlist.ts';
-import { isUntilWord, UNTIL_WORDS, untilDay, untilText } from '#lib/fridge.ts';
+import { isUntilWord, UNTIL_WORDS, untilDay, untilText } from 'comun/fridge.ts';
 import { findPlaces, forecast, housePlace, placeName } from '#lib/server/weather.ts';
 import {
 	MAX_TIMER_SEC,
@@ -1259,56 +1238,16 @@ async function runTool(
 			});
 			return `Apuntado en Gastos: ${what}, ${euros(total)} (${category}).`;
 		}
-		case 'add_event': {
+		case 'add_event':
+			// Written down in the family's agenda, in the cloud (#253).
 			if (await isKidAccount(ctx.user.id)) return 'La agenda la apuntan los mayores.';
-			const people: string[] = [];
-			const unknown: string[] = [];
-			for (const name of Array.isArray(args.people) ? args.people : []) {
-				const found = typeof name === 'string' ? await personByName(name) : null;
-				if (found) people.push(found.id);
-				else unknown.push(String(name));
-			}
-			const time = isTime(args.time) ? args.time : null;
-			const input = parseEventInput({
-				title: args.title,
-				startDay: args.day,
-				startTime: time,
-				repeat:
-					args.repeat === 'semana'
-						? { every: 'semana', days: args.weekdays ?? [] }
-						: args.repeat === 'mes' || args.repeat === 'año'
-							? { every: args.repeat }
-							: null,
-				remind: args.remind,
-				people
+			return agendaByVoice(ctx.user.id, 'add', args, { satellite: ctx.satellite });
+		case 'agenda':
+			// A child, only theirs: by their name, as the family has them there.
+			return agendaByVoice(ctx.user.id, 'read', args, {
+				satellite: ctx.satellite,
+				kid: (await isKidAccount(ctx.user.id)) ? ctx.user.name : null
 			});
-			if (!input) return 'Falta qué es o el día (YYYY-MM-DD).';
-			await addEvent(ctx.user.id, input);
-			return [
-				`Apuntado en la agenda: ${input.title}, el ${dayName(input.startDay, true)}${time ? ` a las ${time}` : ''}.`,
-				unknown.length
-					? `No hay nadie en casa llamado ${unknown.join(' ni ')}: no se ha puesto para quién.`
-					: ''
-			]
-				.filter(Boolean)
-				.join(' ');
-		}
-		case 'agenda': {
-			if (!isDay(args.from)) return 'Falta desde qué día (YYYY-MM-DD).';
-			const last = isDay(args.to) && args.to >= args.from ? args.to : args.from;
-			const days: string[] = [];
-			for (let day = args.from; day <= last && days.length < 32; day = addDays(day, 1))
-				days.push(day);
-			const kid = (await isKidAccount(ctx.user.id)) ? ctx.user.id : null;
-			const lines = await Promise.all(
-				days.map(async (day) => {
-					const events = await dayForVoice(day, kid);
-					return events.length ? `${dayName(day, true)}: ${events.join('; ')}` : null;
-				})
-			);
-			const found = lines.filter(Boolean);
-			return found.length ? found.join('\n') : 'Nada apuntado esos días.';
-		}
 		case 'add_fridge_note': {
 			const text = typeof args.text === 'string' ? args.text.trim() : '';
 			if (!text) return 'Falta lo que dice el post-it.';
@@ -1367,106 +1306,11 @@ async function runTool(
 			ctx.outcome.actions.push({ kind: 'cancelTimer', label });
 			return label ? `Quitado el temporizador «${label}».` : 'Quitados todos los temporizadores.';
 		}
-		case 'set_alarm': {
-			if (!isTime(args.time)) return 'Falta la hora, como HH:MM.';
-			const days = Array.isArray(args.days)
-				? args.days.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6)
-				: [];
-			let day = isDay(args.day) ? args.day : localDay();
-			// Once, at a time already gone today: tomorrow.
-			if (!days.length && day === localDay() && args.time <= localTime()) day = addDays(day, 1);
-			const asked = typeof args.for === 'string' ? args.for.trim() : '';
-			let people: string[];
-			if (/^(la )?casa$/i.test(asked)) people = [];
-			else if (asked) {
-				const found = await personByName(asked);
-				if (!found) return `No hay nadie llamado «${asked}» en la casa.`;
-				people = [found.id];
-			} else people = ctx.satellite ? [] : [ctx.user.id];
-			const input = parseAlarmInput({
-				kind: 'alarma',
-				time: args.time,
-				day,
-				days,
-				label: typeof args.label === 'string' ? args.label : '',
-				people,
-				place: ctx.place ?? 'casa'
-			});
-			if (!input || input.kind !== 'alarma') return 'Alarma no válida.';
-			const id = await addAlarm(ctx.user.id, input);
-			return `Alarma ${id} «${input.label}» puesta: a las ${input.time}, ${days.length ? daysName(days).toLowerCase() : `el ${dayName(day)}`}; ${people.length ? 'de una persona' : 'de la casa'}.`;
-		}
-		case 'change_alarm': {
-			const id = Number(args.id);
-			// From a satellite, only the house's; from a phone, the house's and theirs.
-			const visible = ctx.satellite ? await canTouch(id, '') : await canTouch(id, ctx.user.id);
-			if (!Number.isInteger(id) || !visible) return `No hay alarma ${args.id}.`;
-			switch (args.do) {
-				case 'delete':
-					await deleteAlarm(id);
-					return `Alarma ${id} quitada.`;
-				case 'skip': {
-					const from = typeof args.from === 'string' && args.from ? args.from : undefined;
-					const to = typeof args.to === 'string' && args.to ? args.to : undefined;
-					const days = await skipAlarm(id, from, to);
-					if (!days)
-						return `No se puede: fechas no válidas (AAAA-MM-DD, hasta ${MAX_SKIP_DAYS} días) o no le queda ninguna vez.`;
-					if (!days.length) return `La alarma ${id} no suena esos días: nada que saltar.`;
-					return `La alarma ${id} no sonará: ${days.join(', ')}; los demás días, sí.`;
-				}
-				case 'unskip': {
-					const from = typeof args.from === 'string' ? args.from : '';
-					const to = typeof args.to === 'string' && args.to ? args.to : undefined;
-					const days = await unskipAlarm(id, from, to);
-					if (!days) return 'Falta el día, AAAA-MM-DD, o no es válido.';
-					return days.length
-						? `La alarma ${id} vuelve a sonar: ${days.join(', ')}.`
-						: `La alarma ${id} no se saltaba esos días: ya suena.`;
-				}
-				case 'snooze': {
-					const minutes =
-						args.minutes === undefined ? SNOOZE_MIN : Math.round(Number(args.minutes));
-					if (!Number.isFinite(minutes) || minutes < 1 || minutes > MAX_SNOOZE_MIN)
-						return `Minutos no válidos: de 1 a ${MAX_SNOOZE_MIN}.`;
-					const at = await snoozeAlarm(id, minutes);
-					return at
-						? `Alarma ${id} pospuesta: vuelve a sonar a las ${localTime(at)}, dentro de ${minutes} minutos.`
-						: `La alarma ${id} no está sonando ni acaba de sonar: no hay nada que posponer.`;
-				}
-				case 'edit': {
-					const time =
-						typeof args.time === 'string' && args.time
-							? args.time.trim().padStart(5, '0')
-							: undefined;
-					const day = typeof args.day === 'string' && args.day ? args.day.trim() : undefined;
-					const days = Array.isArray(args.days)
-						? [...new Set(args.days.map(Number))].filter(
-								(d) => Number.isInteger(d) && d >= 0 && d <= 6
-							)
-						: undefined;
-					const label =
-						typeof args.label === 'string' && args.label.trim()
-							? args.label.trim().slice(0, MAX_ALARM_LABEL)
-							: undefined;
-					if (time !== undefined && !((parseClock(time) ?? 24 * 60) < 24 * 60))
-						return `Hora no válida: «${time}», HH:MM.`;
-					if (day !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(day))
-						return `Día no válido: «${day}», AAAA-MM-DD.`;
-					const now = await editAlarm(id, { time, days, day, label });
-					return now ? `Alarma ${id} cambiada: ${now}.` : `La ${id} no es una alarma.`;
-				}
-				case 'pause':
-					await setPaused(id, true);
-					return `Alarma ${id} pausada.`;
-				case 'resume':
-					await setPaused(id, false);
-					return `Alarma ${id} activada de nuevo.`;
-				case 'stop':
-					await stopAlarm(id);
-					return `Alarma ${id} parada.`;
-			}
-			return 'Acción no válida.';
-		}
+		// The family's alarms, in the cloud (#253), where it is said (a satellite's) or for who speaks.
+		case 'set_alarm':
+			return alarmByVoice(ctx.user.id, 'set', args, ctx.place);
+		case 'change_alarm':
+			return alarmByVoice(ctx.user.id, 'change', args, ctx.place);
 		case 'start_recipe': {
 			const recipe = parseRecipe(args);
 			if (typeof recipe === 'string') return recipe;

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { afterTimer, describeRecipe, parseRecipe, type Recipe } from './recipe.ts';
-import { sameLabel } from './timer-names.ts';
+import { sameLabel } from 'comun/timer-names.ts';
 
 /** As the AI writes it: start_recipe's arguments. */
 const carbonara = {

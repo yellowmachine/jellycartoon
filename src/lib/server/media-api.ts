@@ -42,15 +42,20 @@ const GRANT_KEY = Buffer.from(
 /** Where the links point: the tunnel's name, or the app's own without one. */
 const base = MEDIA_HOST ? `https://${MEDIA_HOST}` : ORIGIN;
 
+/** A request of the cloud itself, in no one's name (its alarms, #253): a 401 without its key. */
+export async function fromCloud(request: Request) {
+	const key = request.headers.get(KEY_HEADER);
+	if (!key) error(401, 'Falta la clave');
+	const { valid, key: found } = await auth.api.verifyApiKey({ body: { key } });
+	if (!valid || !found || !isCloud(found.metadata)) error(401, 'Clave no válida');
+}
+
 /**
  * The person a request of the cloud asks for: a 401 without a cloud key, a 403 if the person is
  * not an adult of the house.
  */
 export async function cloudPerson(request: Request) {
-	const key = request.headers.get(KEY_HEADER);
-	if (!key) error(401, 'Falta la clave');
-	const { valid, key: found } = await auth.api.verifyApiKey({ body: { key } });
-	if (!valid || !found || !isCloud(found.metadata)) error(401, 'Clave no válida');
+	await fromCloud(request);
 	const email = request.headers.get(PERSON_HEADER)?.trim().toLowerCase();
 	if (!email) error(400, `Falta ${PERSON_HEADER}`);
 	const [person] = await db
