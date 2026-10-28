@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import PlaylistView from '#lib/components/PlaylistView.svelte';
-	import TitleForm from '#lib/components/TitleForm.svelte';
+	import TitleForm from 'comun/components/TitleForm.svelte';
 	import { formatDuration } from 'comun/format.ts';
 	import type { PageProps } from './$types';
 

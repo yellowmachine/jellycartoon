@@ -1,5 +1,5 @@
 <script lang="ts">
-	import MusicBackgroundSettings from '#lib/components/MusicBackgroundSettings.svelte';
+	import MusicBackgroundSettings from 'comun/components/MusicBackgroundSettings.svelte';
 	import { onMount } from 'svelte';
 	import { musicQuality, type MusicQuality } from 'comun/music-quality.svelte.ts';
 	import { section } from './styles.ts';

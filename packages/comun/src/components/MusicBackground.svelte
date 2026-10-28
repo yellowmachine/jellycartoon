@@ -7,8 +7,8 @@
 		mixPalette,
 		pace,
 		type Palette
-	} from '#lib/music-background.ts';
-	import { musicBackground } from '#lib/music-background-settings.svelte.ts';
+	} from 'comun/music-background.ts';
+	import { musicBackground } from 'comun/music-background-settings.svelte.ts';
 	import { coverUrl } from 'comun/music.ts';
 	import { music } from 'comun/music-player.svelte.ts';
 	import { watchSnapcast } from 'comun/music-target.svelte.ts';

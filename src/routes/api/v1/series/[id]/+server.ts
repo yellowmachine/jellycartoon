@@ -20,6 +20,7 @@ export const GET: RequestHandler = async ({ request, params }) => {
 			title: episodeTitle,
 			durationSec: episode.durationSec,
 			light: episode.light,
+			audioTracks: episode.audioTracks,
 			positionSec: watchProgress.positionSec,
 			completed: watchProgress.completed
 		})
@@ -41,6 +42,8 @@ export const GET: RequestHandler = async ({ request, params }) => {
 			durationSec: e.durationSec,
 			/** Whether it has the 720p version, the one given by default. */
 			light: e.light === 'ready',
+			/** Its audios' languages, to choose the episodes in one. */
+			audioTracks: e.audioTracks,
 			positionSec: e.positionSec ?? 0,
 			completed: e.completed ?? false
 		}))

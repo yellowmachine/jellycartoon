@@ -84,7 +84,12 @@ export function grantLinks(userId: string, episodeId: number, quality: MediaQual
 export function musicPassLinks(userId: string) {
 	const expires = Date.now() + GRANT_HOURS * 3_600_000;
 	const token = signMusicPass(GRANT_KEY, { userId, expires });
-	return { base: `${base}/api/v1/musica/${token}`, expires: new Date(expires).toISOString() };
+	return {
+		base: `${base}/api/v1/musica/${token}`,
+		/** The same pass for the episodes' thumbnails and the series' backgrounds. */
+		images: `${base}/api/v1/imagenes/${token}`,
+		expires: new Date(expires).toISOString()
+	};
 }
 
 /** The pass in a link, or a 403: wrong, or expired (the cloud asks for a new one). */

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import MusicBackground from '#lib/components/MusicBackground.svelte';
+	import MusicBackground from 'comun/components/MusicBackground.svelte';
 	import type { LayoutProps } from './$types';
 
 	let { children }: LayoutProps = $props();

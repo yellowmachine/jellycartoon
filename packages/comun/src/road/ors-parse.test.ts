@@ -1,6 +1,17 @@
 import { expect, test } from 'bun:test';
 import { placesFromOrs, routeFromOrs, spokenSpanish } from './ors-parse.ts';
 
+test('placesFromOrs: the same address twice (two of its sources), once', () => {
+	const doorway = (lon: number) => ({
+		type: 'Feature',
+		geometry: { type: 'Point', coordinates: [lon, 37.65] },
+		properties: { label: 'Avenida Andalucía 59, Vélez-Rubio, AN, España' }
+	});
+	expect(placesFromOrs({ features: [doorway(-2.0756), doorway(-2.0757)] })).toEqual([
+		{ label: 'Avenida Andalucía 59, Vélez-Rubio, AN, España', at: [-2.0756, 37.65] }
+	]);
+});
+
 test('placesFromOrs: the ones with a name and a point', () => {
 	expect(
 		placesFromOrs({

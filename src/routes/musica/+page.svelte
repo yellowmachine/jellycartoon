@@ -5,7 +5,7 @@
 	import { poll } from 'comun/poll.ts';
 	import AlbumCover from 'comun/components/AlbumCover.svelte';
 	import AlbumGrid from 'comun/components/AlbumGrid.svelte';
-	import DjDialog from '#lib/components/DjDialog.svelte';
+	import DjDialog from 'comun/components/DjDialog.svelte';
 	import MusicTargetSwitch from '#lib/components/MusicTargetSwitch.svelte';
 	import TrackRows from 'comun/components/TrackRows.svelte';
 	import {

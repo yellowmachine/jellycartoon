@@ -1,10 +1,10 @@
 <script lang="ts">
-	import AddToQueue from '#lib/components/AddToQueue.svelte';
+	import AddToQueue from 'comun/components/AddToQueue.svelte';
 	import { enhance } from '$app/forms';
 	import AddToPlaylist from 'comun/components/AddToPlaylist.svelte';
 	import AlbumCover from 'comun/components/AlbumCover.svelte';
 	import MusicTargetSwitch from '#lib/components/MusicTargetSwitch.svelte';
-	import TitleForm from '#lib/components/TitleForm.svelte';
+	import TitleForm from 'comun/components/TitleForm.svelte';
 	import { formatDuration } from 'comun/format.ts';
 	import { artistUrl } from 'comun/music.ts';
 	import { music } from 'comun/music-player.svelte.ts';

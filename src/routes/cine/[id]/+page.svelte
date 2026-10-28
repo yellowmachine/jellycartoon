@@ -8,7 +8,7 @@
 	import FilmChat from '#lib/components/FilmChat.svelte';
 	import Scenes from '#lib/components/Scenes.svelte';
 	import TagBar from '#lib/components/TagBar.svelte';
-	import TitleForm from '#lib/components/TitleForm.svelte';
+	import TitleForm from 'comun/components/TitleForm.svelte';
 	import { formatBytes, formatDuration } from 'comun/format.ts';
 	import { awardFamily, filterHref, type FilterName } from '#lib/film-search.ts';
 	import type { PageProps } from './$types';

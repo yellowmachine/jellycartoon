@@ -8,15 +8,19 @@ import type { LngLat, Place, Route } from 'comun/road.ts';
 /** A geocoding answer (GeoJSON): the places with a name and a point. */
 export function placesFromOrs(body: unknown): Place[] {
 	const features = (body as { features?: unknown[] } | null)?.features ?? [];
+	// The same address from two of its sources (OpenStreetMap and OpenAddresses, a doorway): once,
+	// the first. Two alike cannot be told apart to choose, and the lists key them by their label.
+	const seen = new Set<string>();
 	return features.flatMap((f) => {
 		const feature = f as {
 			properties?: { label?: string };
 			geometry?: { coordinates?: number[] };
 		};
+		const label = feature.properties?.label;
 		const [lon, lat] = feature.geometry?.coordinates ?? [];
-		return feature.properties?.label && Number.isFinite(lon) && Number.isFinite(lat)
-			? [{ label: feature.properties.label, at: [lon, lat] as LngLat }]
-			: [];
+		if (!label || seen.has(label) || !Number.isFinite(lon) || !Number.isFinite(lat)) return [];
+		seen.add(label);
+		return [{ label, at: [lon, lat] as LngLat }];
 	});
 }
 

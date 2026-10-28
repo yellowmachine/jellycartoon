@@ -61,6 +61,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		words: 'micrófono hablar voz mantener pulsado tocar toques atajo teclado'
 	},
 	{
+		id: 'fondo-musica',
+		tab: 'aparato',
+		title: 'Fondo de Música',
+		words: 'fondo música colores portada animación aurora movimiento'
+	},
+	{
 		id: 'personas',
 		tab: 'familia',
 		title: 'Personas',

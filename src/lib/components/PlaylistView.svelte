@@ -21,8 +21,11 @@
 	import type { ComponentProps, Snippet } from 'svelte';
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
-	import Player from '#lib/components/Player.svelte';
-	import { playerSize } from '#lib/player-size.svelte.ts';
+	import Player from 'comun/components/Player.svelte';
+	import PlayerFrame from '#lib/components/PlayerFrame.svelte';
+	import PlayerListen from '#lib/components/PlayerListen.svelte';
+	import { houseLinks, outOfTime, playsAtHome } from '#lib/house-player.ts';
+	import { playerSize } from 'comun/player-size.svelte.ts';
 	import { formatDuration } from 'comun/format.ts';
 	import { thumbUrl } from 'comun/thumb.svelte.ts';
 
@@ -74,7 +77,16 @@
 				{settings}
 				{autoplay}
 				onended={ended}
-			/>
+				links={houseLinks(item.id)}
+				here={playsAtHome(
+					item.id,
+					`${item.seriesTitle} · T${item.season} E${item.number} · ${item.title}`
+				)}
+				onrefused={outOfTime}
+			>
+				{#snippet menuTop(menu)}<PlayerListen {menu} />{/snippet}
+				{#snippet menuBottom(menu)}<PlayerFrame {menu} />{/snippet}
+			</Player>
 			<p class="mt-3 text-sm text-zinc-400">{item.seriesTitle}</p>
 			<h2 class="text-lg font-semibold">
 				T{item.season} E{item.number} · {item.title}

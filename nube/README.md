@@ -68,6 +68,29 @@ Más familias, en la terminal del servicio `app`:
 `init-db.sh` solo corre con el volumen de Postgres vacío: cambiar `APP_DB_PASSWORD` después
 necesita `ALTER ROLE nube_app PASSWORD '…'` en la base de datos.
 
+## Series
+
+Las de casa (#253), para verlas fuera: la portada con «Seguir viendo» y todas las series, la página
+de cada serie (por temporada y por audio, en lista o cuadrícula, con visto o no visto) y el
+reproductor de casa, el mismo componente (`packages/comun`): audios, subtítulos con el estilo de
+cada uno aquí (Ajustes → Para mí), 720p por defecto y el siguiente capítulo solo. El vídeo y por
+dónde vas, directos de casa con enlaces firmados (`/api/v1/hls/…`, `/api/v1/progreso/…`): «Seguir
+viendo» es el mismo en las dos, y los idiomas preferidos son los de tu cuenta de casa. Las
+miniaturas y los fondos, con el pase de la música; por eso se dibuja en el navegador. Lo que
+gestiona las series (títulos, subtítulos automáticos, etiquetas, 720p, temporadas, borrar), «Hoy»,
+las listas de capítulos y lo del salón se quedan en casa.
+
+## Música
+
+La de casa (#253), con las mismas pantallas que jellycartoon: Álbumes (por álbum o por artista, con
+su buscador), cada álbum, cada artista y Listas. Todo se pide a casa por el túnel: el catálogo, las
+listas (que se cambian aquí como allí, en nombre de quien lo hace) y el Modo DJ, cuyo locutor
+escribe y lee la casa con su clave y su Piper, y cuyas configuraciones guardadas son las de cada uno
+allí. Las canciones, las portadas y lo que dice el locutor, directos de casa con un pase firmado
+(`/api/v1/musica/<pase>/…`); por eso las páginas de Música se dibujan solo en el navegador: el pase
+de cada uno no va en un HTML del servidor. Suena solo en el aparato; los altavoces de casa, por voz
+(Hablar). El catálogo (escanear, portadas, títulos) se lleva en casa, en Gestión.
+
 ## Modo carretera y Viajes
 
 Para una tablet fija junto al volante, en horizontal y con la pantalla partida de Android: a un
