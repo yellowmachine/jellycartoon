@@ -5,10 +5,9 @@
  *
  *   bun run familia "Casa García" ana@example.com
  */
-import { randomUUID } from 'node:crypto';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import { family, invitation } from '../src/lib/server/db/family.schema.ts';
+import { createFamily, known } from './lib/families.ts';
 
 const [name, email] = process.argv.slice(2);
 if (!name || !email?.includes('@')) {
@@ -22,13 +21,11 @@ if (!url) throw new Error('MIGRATE_DATABASE_URL is not set');
 const client = postgres(url, { max: 1, onnotice: () => {} });
 try {
 	const db = drizzle(client);
-	const familyId = randomUUID();
-	await db.transaction(async (tx) => {
-		await tx.insert(family).values({ id: familyId, name });
-		await tx
-			.insert(invitation)
-			.values({ id: randomUUID(), email: email.trim(), familyId, role: 'admin' });
-	});
+	if (await known(db, email)) {
+		console.error(`${email} ya tiene cuenta o invitación`);
+		process.exit(1);
+	}
+	await createFamily(db, name, email);
 	console.log(
 		`Familia «${name}» creada. ${email} ya puede crear su cuenta con «Tengo una invitación».`
 	);

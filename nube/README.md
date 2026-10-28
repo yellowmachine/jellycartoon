@@ -50,13 +50,18 @@ app (`nube_app`) con su contraseña: no hay SQL a mano.
    APP_DB_PASSWORD=…
    ORIGIN=https://nube.tu-dominio.com
    BETTER_AUTH_SECRET=…          # openssl rand -base64 32
+   ADMIN_EMAIL=tu@email          # tu familia y tu invitación, al arrancar
+   ADMIN_FAMILY="Casa García"
    ```
 3. **Domains:** `nube.tu-dominio.com` → servicio `app`, puerto 3000, con HTTPS (Let's Encrypt).
    En Cloudflare, un registro `A` `nube` → IP del VPS, en modo DNS only.
 4. **Deploy.** Dokploy construye la imagen con el `Dockerfile` de esta carpeta; al arrancar, la app
    aplica las migraciones como el dueño.
-5. **La primera familia:** en la terminal del servicio `app`,
-   `bun scripts/crear-familia.ts "Casa García" ana@example.com`.
+5. **Entrar:** en `https://nube.tu-dominio.com`, «Tengo una invitación» con `ADMIN_EMAIL`, y la
+   contraseña que elijas. La contraseña nunca va en el entorno: un despliegue no la cambia.
+
+Más familias, en la terminal del servicio `app`:
+`bun scripts/crear-familia.ts "Casa García" ana@example.com`.
 
 `init-db.sh` solo corre con el volumen de Postgres vacío: cambiar `APP_DB_PASSWORD` después
 necesita `ALTER ROLE nube_app PASSWORD '…'` en la base de datos.
