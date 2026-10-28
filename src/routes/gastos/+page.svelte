@@ -24,6 +24,7 @@
 		type Expense,
 		type ExpenseCategory,
 		type ExpenseDraft,
+		type ExpenseFavorite,
 		type LineTag,
 		type RecurringExpense
 	} from '#lib/expenses.ts';
@@ -101,6 +102,36 @@
 			bill: null
 		};
 	}
+
+	/** A favourite, as a new expense of today: the amount, if it had one, to change if need be. */
+	function fromFavorite(f: ExpenseFavorite) {
+		byHand();
+		editing = {
+			...editing!,
+			store: f.store,
+			category: f.category,
+			total: f.total === null ? '' : typed(f.total),
+			lines: f.lines.map((l) => ({ ...l, amount: typed(l.amount) }))
+		};
+	}
+
+	/** The favourite of the name in the form, if there is one: «★», and it can be taken away. */
+	const favorite = $derived(
+		editing &&
+			data.favorites.find((f) => f.store.toLowerCase() === editing!.store.trim().toLowerCase())
+	);
+
+	/** The form as a favourite: no day; no amount if the box is empty. */
+	const asFavorite = $derived(
+		editing && {
+			store: editing.store,
+			category: editing.category,
+			total: parseEuros(editing.total),
+			lines: editing.lines
+				.filter((l) => l.text.trim())
+				.map((l) => ({ ...l, amount: parseEuros(l.amount) ?? 0 }))
+		}
+	);
 
 	function edit(e: Expense) {
 		close();
@@ -332,6 +363,18 @@
 			>+ A mano</button
 		>
 	</div>
+	{#if data.favorites.length}
+		<div class="-mt-3 mb-6 flex flex-wrap gap-2" aria-label="Favoritos">
+			{#each data.favorites as f (f.id)}
+				<button
+					class="rounded-full border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-800"
+					onclick={() => fromFavorite(f)}
+					><span class="text-amber-400">★</span>
+					{f.store}{f.total === null ? '' : ` · ${euros(f.total)}`}</button
+				>
+			{/each}
+		</div>
+	{/if}
 	{#if reading === 'factura'}
 		<p class="mb-4 text-sm text-zinc-400">
 			Unos segundos. Un PDF se lee por su texto, sin tu nombre, DNI, cuenta ni CUPS.
@@ -543,6 +586,26 @@
 						>
 						{#if problem}<span class="text-sm text-red-400">{problem}</span>{/if}
 					</form>
+					<!-- To put it in again with a touch, or by voice («el café de siempre»). -->
+					{#if !e.bill && e.store.trim()}
+						<form
+							method="post"
+							action={favorite ? '?/deleteFavorite' : '?/saveFavorite'}
+							class="mt-2"
+							use:enhance={() =>
+								async ({ update }) =>
+									update({ reset: false })}
+						>
+							{#if favorite}
+								<input type="hidden" name="id" value={favorite.id} />
+							{:else}
+								<input type="hidden" name="favorite" value={JSON.stringify(asFavorite)} />
+							{/if}
+							<button class="text-sm text-amber-400 hover:underline">
+								{favorite ? '★ Favorito · quitar' : '☆ Guardar como favorito'}
+							</button>
+						</form>
+					{/if}
 				</div>
 			</div>
 		</section>

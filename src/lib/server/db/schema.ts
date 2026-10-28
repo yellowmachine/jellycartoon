@@ -27,6 +27,7 @@ import type { TitleProposal } from '#lib/episode-titles.ts';
 import type { RecipeStep } from '#lib/recipe.ts';
 import type { LngLat } from '#lib/road.ts';
 import type { DjOptions } from '#lib/music.ts';
+import type { ExpenseLine } from '#lib/expenses.ts';
 import type { BillDetails } from '#lib/bills.ts';
 import type { RouteStop } from '#lib/saved-places.ts';
 import type { Exercise, HomeworkRules, Step } from '#lib/homework.ts';
@@ -1663,6 +1664,21 @@ export const recurringExpense = pgTable('recurring_expense', {
 	day: integer('day').notNull(),
 	/** The last month it was added, `YYYY-MM`; null, none yet. */
 	lastMonth: text('last_month'),
+	userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+	createdAt: timestamp('created_at').notNull().defaultNow()
+});
+
+/**
+ * A favourite expense, to put in again with a touch or by voice («el café de siempre»): as it was
+ * when marked, the amount changeable when used. Not a fixed one: nothing is added by itself.
+ */
+export const expenseFavorite = pgTable('expense_favorite', {
+	id: serial('id').primaryKey(),
+	store: text('store').notNull(),
+	category: text('category').notNull(),
+	/** Null: said each time. */
+	total: integer('total'),
+	lines: jsonb('lines').$type<ExpenseLine[]>().notNull().default([]),
 	userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
 	createdAt: timestamp('created_at').notNull().defaultNow()
 });

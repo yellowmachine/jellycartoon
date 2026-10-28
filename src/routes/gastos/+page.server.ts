@@ -9,10 +9,13 @@ import {
 	addExpense,
 	addRecurring,
 	deleteExpense,
+	deleteFavorite,
 	deleteRecurring,
+	favoriteExpenses,
 	monthExpenses,
 	monthTotal,
 	recurringExpenses,
+	saveFavorite,
 	updateExpense,
 	updateRecurring
 } from '#lib/server/expenses/expenses.ts';
@@ -29,13 +32,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const month =
 		asked && /^\d{4}-(0[1-9]|1[0-2])$/.test(asked) && asked <= current ? asked : current;
 	await addDueRecurring();
-	const [expenses, previous, recurring, canRead] = await Promise.all([
+	const [expenses, previous, recurring, favorites, canRead] = await Promise.all([
 		monthExpenses(month),
 		monthTotal(addMonths(month, -1)),
 		recurringExpenses(),
+		favoriteExpenses(),
 		canReadReceipts()
 	]);
-	return { month, current, expenses, previous, recurring, canRead, today: today() };
+	return { month, current, expenses, previous, recurring, favorites, canRead, today: today() };
 };
 
 const adult = (locals: App.Locals) => {
@@ -88,6 +92,31 @@ export const actions: Actions = {
 	delete: async ({ request, locals }) => {
 		adult(locals);
 		await deleteExpense(Number((await request.formData()).get('id')));
+	},
+	/** «☆ Favorito»: the form's expense as it is, without its day; the amount, if written. */
+	saveFavorite: async ({ request, locals }) => {
+		const userId = adult(locals);
+		let body: unknown;
+		try {
+			body = JSON.parse(String((await request.formData()).get('favorite') ?? ''));
+		} catch {
+			return fail(400, { message: 'Favorito no válido' });
+		}
+		const typedTotal = (body as { total?: unknown })?.total;
+		const input = parseExpenseInput({ ...(body as object), date: today(), total: typedTotal ?? 0 });
+		if (!input) return fail(400, { message: 'Para un favorito hace falta dónde y la categoría' });
+		const { store, category, lines } = input;
+		await saveFavorite(userId, {
+			store,
+			category,
+			lines,
+			total: typedTotal == null ? null : input.total
+		});
+		return { favorite: store };
+	},
+	deleteFavorite: async ({ request, locals }) => {
+		adult(locals);
+		await deleteFavorite(Number((await request.formData()).get('id')));
 	},
 	saveRecurring: async ({ request, locals }) => {
 		const userId = adult(locals);
