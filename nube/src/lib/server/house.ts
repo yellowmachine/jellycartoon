@@ -27,7 +27,8 @@ export async function houseLink(userId: string): Promise<HouseLink | null> {
 	return {
 		url: row.url,
 		webUrl: row.webUrl,
-		keyStart: key ? `${key.slice(0, 11)}…` : '¿?',
+		// Only its prefix and four more; anything else, not shown at all.
+		keyStart: key?.startsWith('casita_') ? `${key.slice(0, 11)}…` : 'no válida: ponla otra vez',
 		updatedAt: row.updatedAt
 	};
 }

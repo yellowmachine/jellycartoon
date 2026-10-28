@@ -33,7 +33,15 @@
 	{/if}
 
 	{#if admin}
-		<form method="post" action="?/saveHouse" use:enhance class="mb-4 space-y-3">
+		<!-- Not emptied after saving (SvelteKit resets a form by default): what is saved stays in view. -->
+		<form
+			method="post"
+			action="?/saveHouse"
+			use:enhance={() =>
+				({ update }) =>
+					update({ reset: false })}
+			class="mb-4 space-y-3"
+		>
 			<label class="block text-sm">
 				Dirección
 				<input
@@ -62,7 +70,7 @@
 				<PasswordInput
 					name="key"
 					required={!data.house}
-					autocomplete="off"
+					autocomplete="new-password"
 					box="mt-1"
 					class="{field} font-mono"
 				/>
@@ -165,7 +173,7 @@
 			<PasswordInput
 				name="key"
 				placeholder={data.openRouter ? 'Otra clave (vacía, quitarla)' : 'sk-or-…'}
-				autocomplete="off"
+				autocomplete="new-password"
 				box="flex-1"
 				class="{field} font-mono"
 			/>
