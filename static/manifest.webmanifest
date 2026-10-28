@@ -27,8 +27,7 @@
 		"params": {
 			"title": "title",
 			"text": "text",
-			"url": "url",
-			"files": [{ "name": "archivo", "accept": ["application/pdf", ".pdf", "image/*"] }]
+			"url": "url"
 		}
 	},
 	"shortcuts": [

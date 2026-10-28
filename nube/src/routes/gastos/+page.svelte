@@ -30,6 +30,7 @@
 	} from 'comun/expenses.ts';
 	import ExpenseTabs from '#lib/components/ExpenseTabs.svelte';
 	import { smallerPhoto } from 'comun/receipt-photo.ts';
+	import { takeSharedFile } from '#lib/shared-file.ts';
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import type { PageProps } from './$types';
 
@@ -196,6 +197,21 @@
 			bill: billBoxes(draft.bill)
 		};
 	}
+
+	// Shared to the app from another (the manifest's share_target, #232): a PDF, as a bill; a
+	// photo, as a ticket.
+	onMount(() => {
+		if (page.url.searchParams.get('compartido') !== 'archivo') return;
+		const url = new URL(page.url.href);
+		url.searchParams.delete('compartido');
+		replaceState(url, {});
+		void takeSharedFile().then((file) => {
+			if (!file)
+				return void (problem = 'No ha llegado ningún archivo. Prueba a compartirlo otra vez.');
+			if (file.type === 'application/pdf') void readBill(file);
+			else void readPhoto(file);
+		});
+	});
 
 	// Taken with the header's shortcut, from any page: read here.
 	$effect(() => {
