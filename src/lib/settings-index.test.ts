@@ -21,6 +21,7 @@ const admin: SettingsShown = {
 	houseStyle: {},
 	myStyle: {},
 	voiceWeb: {},
+	voiceQuiet: {},
 	musicApps: {},
 	voice: true,
 	music: true,

@@ -21,6 +21,7 @@ export interface SettingsShown {
 	houseStyle: unknown;
 	myStyle: unknown;
 	voiceWeb: unknown;
+	voiceQuiet: unknown;
 	musicApps: unknown;
 	voice: boolean;
 	music: boolean;
@@ -116,6 +117,13 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		title: 'Buscar en internet desde la voz',
 		words: 'internet web buscar google noticias resultados deportes fútbol nba actualidad',
 		shown: (d) => Boolean(d.voiceWeb)
+	},
+	{
+		id: 'voz-silencio',
+		tab: 'casa',
+		title: 'Horas de silencio',
+		words: 'noche madrugada dormir silencio no molestar música voz confirmar preguntar',
+		shown: (d) => Boolean(d.voiceQuiet)
 	},
 	{
 		id: 'caracter-mio',
