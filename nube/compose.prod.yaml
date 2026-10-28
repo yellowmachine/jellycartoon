@@ -1,8 +1,8 @@
 # Production, as a Docker Compose app in Dokploy (Compose Path: ./nube/compose.prod.yaml), as
-# svelte-thinking's: Postgres and the app in one stack. The first time Postgres starts it runs
-# scripts/init-db.sh, which makes the app's role (nube_app) with its password: no SQL by hand. The
-# variables, in Dokploy's Environment (README): passwords in hex (`openssl rand -hex 24`), as they
-# go inside the URLs below.
+# svelte-thinking's: Postgres and the app in one stack, the app's image built by GitHub (#277).
+# The first time Postgres starts it runs scripts/init-db.sh, which makes the app's role (nube_app)
+# with its password: no SQL by hand. The variables, in Dokploy's Environment (README): passwords
+# in hex (`openssl rand -hex 24`), as they go inside the URLs below.
 name: nube
 
 services:
@@ -25,10 +25,10 @@ services:
     # Not published: only the app reaches it, on this stack's network.
 
   app:
-    # Built by Dokploy on each deploy, from the repository's root: it uses packages/comun.
-    build:
-      context: ..
-      dockerfile: nube/Dockerfile
+    # Built by GitHub (.github/workflows/nube-image.yml, #277), not here: Dokploy only pulls it, the
+    # latest of its tag each time. NUBE_TAG, another one (a commit's `sha-…`) to go back to it.
+    image: ghcr.io/yellowmachine/nube:${NUBE_TAG:-main}
+    pull_policy: always
     restart: unless-stopped
     depends_on:
       db:

@@ -41,7 +41,7 @@ Como svelte-thinking: una app **Docker Compose** de Dokploy con `compose.prod.ya
 app en la misma pila. La primera vez que arranca Postgres, `scripts/init-db.sh` crea el rol de la
 app (`nube_app`) con su contraseña: no hay SQL a mano.
 
-1. **Create Service → Compose**, desde este repositorio, rama `development` o `main`, con
+1. **Create Service → Compose**, desde este repositorio, rama `main`, con
    **Compose Path** `./nube/compose.prod.yaml`.
 2. **Environment** (contraseñas en hexadecimal, porque van dentro de las URLs:
    `openssl rand -hex 24`):
@@ -57,8 +57,15 @@ app (`nube_app`) con su contraseña: no hay SQL a mano.
    ```
 3. **Domains:** `nube.tu-dominio.com` → servicio `app`, puerto 3000, con HTTPS (Let's Encrypt).
    En Cloudflare, un registro `A` `nube` → IP del VPS, en modo DNS only.
-4. **Deploy.** Dokploy construye la imagen con el `Dockerfile` de esta carpeta; al arrancar, la app
-   aplica las migraciones como el dueño.
+4. **Deploy.** La imagen la construye GitHub (`.github/workflows/nube-image.yml`, #277) en cada push
+   a `main` que toque la nube, y la publica como `ghcr.io/yellowmachine/nube:main`;
+   Dokploy solo la baja y la arranca. Al arrancar, la app aplica las migraciones como el dueño.
+   Para que se despliegue sola cuando la imagen está lista, sin compilar en el VPS, como
+   svelte-thinking y Langua: en Dokploy, en la app Compose de la nube, **Autodeploy** activado y su
+   **webhook** (Deployments) en el secreto de GitHub `DOKPLOY_NUBE_WEBHOOK_URL` (Settings → Secrets
+   and variables → Actions). El workflow espera a que la etiqueta sea la imagen nueva y llama al
+   webhook. Sin el secreto, solo publica la imagen, y se despliega a mano.
+   - Volver a una imagen anterior: `NUBE_TAG=sha-<commit>` en el Environment, y Deploy.
 5. **Entrar:** en `https://nube.tu-dominio.com`, «Tengo una invitación» con `ADMIN_EMAIL`, y la
    contraseña que elijas. La contraseña nunca va en el entorno: un despliegue no la cambia.
 

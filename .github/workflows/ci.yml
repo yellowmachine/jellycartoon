@@ -94,9 +94,3 @@ jobs:
             echo "::error::The schema changed without its migration: run bun run db:generate in nube/ and commit it."
             exit 1
           fi
-
-      # Its image, as Dokploy builds it on the VPS: it installs only what nube/ declares (and comun),
-      # so a package nube/ imports without declaring fails here, not in the deploy.
-      - name: Docker image
-        working-directory: .
-        run: docker build -f nube/Dockerfile -t nube:ci .
