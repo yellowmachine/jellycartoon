@@ -37,7 +37,10 @@
 	</a>
 </div>
 
-<section class={section}>
-	<h2 class="mb-1 font-semibold">Modo carretera</h2>
-	<p class="text-sm text-zinc-400">Pronto: la ruta, la música de casa y la radio, en el coche.</p>
-</section>
+<a href="/carretera" class="block rounded-md border border-zinc-800 p-4 hover:border-amber-500/60">
+	<span class="text-2xl" aria-hidden="true">🚗</span>
+	<h2 class="font-semibold">Modo carretera</h2>
+	<p class="text-sm text-zinc-400">
+		La música de casa y la radio, en el coche. Pronto, también la ruta.
+	</p>
+</a>

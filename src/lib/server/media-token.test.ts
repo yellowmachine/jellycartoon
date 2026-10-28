@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { readGrant, signGrant, type MediaGrant } from './media-token.ts';
+import {
+	readGrant,
+	readMusicPass,
+	signGrant,
+	signMusicPass,
+	type MediaGrant
+} from './media-token.ts';
 
 const key = Buffer.alloc(32, 1);
 const grant: MediaGrant = { userId: 'u1', episodeId: 42, quality: 'light', expires: 2_000 };
@@ -30,5 +36,23 @@ describe('media grants', () => {
 
 	test('safe in a path', () => {
 		expect(signGrant(key, grant)).toMatch(/^[\w-]+\.[\w-]+$/);
+	});
+});
+
+describe('music passes', () => {
+	const pass = { userId: 'u1', expires: 2_000 };
+
+	test('read back as signed', () => {
+		expect(readMusicPass(key, signMusicPass(key, pass), 1_000)).toEqual(pass);
+	});
+
+	test('not after they expire, nor with another key', () => {
+		expect(readMusicPass(key, signMusicPass(key, pass), 2_001)).toBeNull();
+		expect(readMusicPass(Buffer.alloc(32, 2), signMusicPass(key, pass), 1_000)).toBeNull();
+	});
+
+	test('an episode’s link is not a pass, nor a pass an episode’s link', () => {
+		expect(readMusicPass(key, signGrant(key, grant), 1_000)).toBeNull();
+		expect(readGrant(key, signMusicPass(key, pass), 1_000)).toBeNull();
 	});
 });
