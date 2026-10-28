@@ -5,7 +5,7 @@ import { visionModel } from '#lib/server/app-settings.ts';
 import { completeJson, type ContentPart } from '#lib/server/openrouter.ts';
 import { log } from '#lib/server/log.ts';
 import { FRAME_WIDTHS } from '#lib/birds-eye.ts';
-import { formatDuration } from '#lib/format.ts';
+import { formatDuration } from 'comun/format.ts';
 import { sceneFrameAt, type SceneName } from '#lib/scenes.ts';
 import { movieFrame } from './frames.ts';
 import { filmArticles } from './wikidata.ts';

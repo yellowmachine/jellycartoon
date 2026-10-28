@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import type { AudioTrack, SubtitleTrack } from '#lib/languages.ts';
+	import type { AudioTrack, SubtitleTrack } from 'comun/languages.ts';
 
 	export interface PlaylistEntry {
 		id: number;
@@ -23,8 +23,8 @@
 	import { invalidateAll } from '$app/navigation';
 	import Player from '#lib/components/Player.svelte';
 	import { playerSize } from '#lib/player-size.svelte.ts';
-	import { formatDuration } from '#lib/format.ts';
-	import { thumbUrl } from '#lib/thumb.svelte.ts';
+	import { formatDuration } from 'comun/format.ts';
+	import { thumbUrl } from 'comun/thumb.svelte.ts';
 
 	interface Props {
 		items: PlaylistEntry[];

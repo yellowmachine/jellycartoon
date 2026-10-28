@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { MusicAlbum } from '#lib/music.ts';
+	import type { MusicAlbum } from '../music.ts';
 	import AlbumCover from './AlbumCover.svelte';
 
 	let { albums }: { albums: MusicAlbum[] } = $props();

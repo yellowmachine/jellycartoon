@@ -2,7 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { djEnabled, makeClip } from '#lib/server/music/dj.ts';
 import { tracksById } from '#lib/server/music/albums.ts';
-import { DJ_DEFAULT_VOICE, isDjVoice } from '#lib/music.ts';
+import { DJ_DEFAULT_VOICE, isDjVoice } from 'comun/music.ts';
 
 /**
  * Modo DJ in the browser: what the DJ says after `played` (the songs since it last spoke), before

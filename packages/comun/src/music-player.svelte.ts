@@ -1,8 +1,8 @@
-import type { MusicTrack, SavedQueue } from '#lib/music.ts';
-import type { PodcastPlaying, Speed } from '#lib/podcasts.ts';
-import type { RadioStream } from '#lib/radio.ts';
-import type { EpisodeListening } from '#lib/episode-audio.ts';
-import { watchPlay } from '#lib/media-diagnostics.ts';
+import type { MusicTrack, SavedQueue } from './music.ts';
+import type { PodcastPlaying, Speed } from './podcasts.ts';
+import type { RadioStream } from './radio.ts';
+import type { EpisodeListening } from './episode-audio.ts';
+import { watchPlay } from './media-diagnostics.ts';
 
 /** The volume under spoken directions. */
 const DUCKED_VOLUME = 0.25;

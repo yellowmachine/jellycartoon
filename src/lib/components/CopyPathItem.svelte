@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { menuItem } from './menu.ts';
+	import { menuItem } from 'comun/components/menu.ts';
 
 	interface Props {
 		path: string;

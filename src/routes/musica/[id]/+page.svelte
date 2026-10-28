@@ -1,14 +1,14 @@
 <script lang="ts">
 	import AddToQueue from '#lib/components/AddToQueue.svelte';
 	import { enhance } from '$app/forms';
-	import AddToPlaylist from '#lib/components/AddToPlaylist.svelte';
-	import AlbumCover from '#lib/components/AlbumCover.svelte';
+	import AddToPlaylist from 'comun/components/AddToPlaylist.svelte';
+	import AlbumCover from 'comun/components/AlbumCover.svelte';
 	import MusicTargetSwitch from '#lib/components/MusicTargetSwitch.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
-	import { formatDuration } from '#lib/format.ts';
-	import { artistUrl } from '#lib/music.ts';
-	import { music } from '#lib/music-player.svelte.ts';
-	import { musicTarget } from '#lib/music-target.svelte.ts';
+	import { formatDuration } from 'comun/format.ts';
+	import { artistUrl } from 'comun/music.ts';
+	import { music } from 'comun/music-player.svelte.ts';
+	import { musicTarget } from 'comun/music-target.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();

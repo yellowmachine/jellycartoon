@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { fold } from '#lib/music.ts';
+import { fold } from 'comun/music.ts';
 import { musicRoot } from '#lib/server/library/paths.ts';
 import { getAlbums } from '#lib/server/music/albums.ts';
 

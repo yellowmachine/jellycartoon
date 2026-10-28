@@ -1,7 +1,11 @@
 FROM oven/bun:1 AS build
 WORKDIR /app
+# The repository's workspaces (#253): the shared package, and the cloud's package.json only, so
+# that the lockfile matches; only this app's dependencies are installed.
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+COPY packages/comun/package.json packages/comun/
+COPY nube/package.json nube/
+RUN bun install --frozen-lockfile --filter jellycartoon
 COPY . .
 # Real values are injected at runtime; the build only needs them to be present.
 RUN DATABASE_URL=postgres://build/build ORIGIN=http://localhost BETTER_AUTH_SECRET=build bun run build

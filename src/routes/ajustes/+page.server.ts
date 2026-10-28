@@ -79,7 +79,7 @@ import {
 } from '#lib/server/langua.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { hasIntro } from '#lib/server/library/paths.ts';
-import { KNOWN_LANGUAGES, normalizeLang } from '#lib/languages.ts';
+import { KNOWN_LANGUAGES, normalizeLang } from 'comun/languages.ts';
 import { isTheme } from '#lib/themes.ts';
 import { log } from '#lib/server/log.ts';
 import { startUpdateOnce, versionInfo } from '#lib/server/updates.ts';

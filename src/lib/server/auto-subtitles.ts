@@ -26,7 +26,7 @@ import {
 	normalizeLang,
 	whisperLanguage,
 	type SubtitleTrack
-} from '#lib/languages.ts';
+} from 'comun/languages.ts';
 import type { Cue } from '#lib/vtt.ts';
 
 /**

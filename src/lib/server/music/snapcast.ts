@@ -19,8 +19,8 @@ import type {
 	SnapcastEpisode,
 	SnapcastState,
 	SnapcastWhere
-} from '#lib/music.ts';
-import type { RadioStream } from '#lib/radio.ts';
+} from 'comun/music.ts';
+import type { RadioStream } from 'comun/radio.ts';
 import { SnapserverControl } from './snapserver.ts';
 
 /**

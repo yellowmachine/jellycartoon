@@ -10,7 +10,7 @@ import {
 	languageLabel,
 	normalizeLang,
 	type SubtitleTrack
-} from '#lib/languages.ts';
+} from 'comun/languages.ts';
 import {
 	probe,
 	setSuspended,

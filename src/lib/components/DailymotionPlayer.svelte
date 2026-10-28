@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { shownDeviceName } from '#lib/device-name.svelte.ts';
+	import { shownDeviceName } from 'comun/device-name.svelte.ts';
 
 	let {
 		videoId,

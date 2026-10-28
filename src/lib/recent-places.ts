@@ -1,4 +1,4 @@
-import { fold } from './music.ts';
+import { fold } from 'comun/music.ts';
 import type { Place } from './road.ts';
 
 /**

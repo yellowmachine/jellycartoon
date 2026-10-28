@@ -8,7 +8,7 @@ import { allowedEpisodes } from '#lib/server/kids.ts';
 import { isAutoFile, readCues } from '#lib/server/auto-subtitle-files.ts';
 import { hlsDir } from '#lib/server/library/paths.ts';
 import { goodLine, subtitleLines, wordCount, type OpeningQuote } from '#lib/quotes.ts';
-import type { SubtitleTrack } from '#lib/languages.ts';
+import type { SubtitleTrack } from 'comun/languages.ts';
 
 const random = <T>(items: T[]) => items[Math.floor(Math.random() * items.length)];
 

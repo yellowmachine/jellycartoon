@@ -148,3 +148,19 @@ describe('parseDjOptions', () => {
 		expect(parseDjOptions(null)).toBeNull();
 	});
 });
+
+describe('where the music is', () => {
+	test('jellycartoon’s own API by default, and the cloud’s once given', async () => {
+		const { audioUrl, coverUrl, setMusicUrls, trackUrl } = await import('./music.ts');
+		expect(trackUrl(7, true)).toBe('/api/music/track/7?format=opus');
+		expect(coverUrl(3)).toBe('/api/music/cover/3');
+		setMusicUrls({
+			track: (id) => `https://media.test/pase/pistas/${id}`,
+			cover: (id) => `https://media.test/pase/portadas/${id}`
+		});
+		expect(trackUrl(7, true)).toBe('https://media.test/pase/pistas/7');
+		expect(coverUrl(3)).toBe('https://media.test/pase/portadas/3');
+		// The DJ's words, still jellycartoon's: not given.
+		expect(audioUrl({ clip: { id: 'x', text: '' } } as never)).toBe('/api/music/dj/x');
+	});
+});

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { musicTarget } from '#lib/music-target.svelte.ts';
+	import { musicTarget } from 'comun/music-target.svelte.ts';
 
 	const choice = (selected: boolean) => [
 		'px-3 py-1 text-sm',

@@ -4,25 +4,25 @@
 	import PlayModes from './PlayModes.svelte';
 	import { untrack } from 'svelte';
 	import type Hls from 'hls.js';
-	import { formatDuration } from '#lib/format.ts';
-	import { GAVE_UP, RETRYING, TRIES, recoverFromErrors, retryDelay } from '#lib/hls-recovery.ts';
-	import { dj } from '#lib/dj.svelte.ts';
-	import { audioUrl, coverUrl, stopTime, type MusicTrack } from '#lib/music.ts';
-	import { music } from '#lib/music-player.svelte.ts';
-	import { musicQuality } from '#lib/music-quality.svelte.ts';
-	import { keepQueue } from '#lib/music-queue.svelte.ts';
-	import { keepPodcastProgress, podcastEnded } from '#lib/podcast-player.svelte.ts';
-	import { keepListeningProgress, listeningEnded } from '#lib/episode-listening.svelte.ts';
-	import { SKIP_BACK, SKIP_FORWARD, SPEEDS, type Speed } from '#lib/podcasts.ts';
-	import { COUNTRIES } from '#lib/radio.ts';
+	import { formatDuration } from '../format.ts';
+	import { GAVE_UP, RETRYING, TRIES, recoverFromErrors, retryDelay } from '../hls-recovery.ts';
+	import { dj } from '../dj.svelte.ts';
+	import { audioUrl, coverUrl, stopTime, type MusicTrack } from '../music.ts';
+	import { music } from '../music-player.svelte.ts';
+	import { musicQuality } from '../music-quality.svelte.ts';
+	import { keepQueue } from '../music-queue.svelte.ts';
+	import { keepPodcastProgress, podcastEnded } from '../podcast-player.svelte.ts';
+	import { keepListeningProgress, listeningEnded } from '../episode-listening.svelte.ts';
+	import { SKIP_BACK, SKIP_FORWARD, SPEEDS, type Speed } from '../podcasts.ts';
+	import { COUNTRIES } from '../radio.ts';
 	import {
 		noteAutoResume,
 		noteHandoff,
 		noteSystemAction,
 		watchMedia,
 		watchPlay
-	} from '#lib/media-diagnostics.ts';
-	import { FINE_AFTER_MS, shouldResume } from '#lib/auto-resume.ts';
+	} from '../media-diagnostics.ts';
+	import { FINE_AFTER_MS, shouldResume } from '../auto-resume.ts';
 
 	/**
 	 * Two `<audio>` that take turns (#180): the one that sounds, and the next song loading in the

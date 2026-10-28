@@ -3,11 +3,11 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { poll } from '#lib/poll.ts';
-	import AlbumCover from '#lib/components/AlbumCover.svelte';
-	import AlbumGrid from '#lib/components/AlbumGrid.svelte';
+	import AlbumCover from 'comun/components/AlbumCover.svelte';
+	import AlbumGrid from 'comun/components/AlbumGrid.svelte';
 	import DjDialog from '#lib/components/DjDialog.svelte';
 	import MusicTargetSwitch from '#lib/components/MusicTargetSwitch.svelte';
-	import TrackRows from '#lib/components/TrackRows.svelte';
+	import TrackRows from 'comun/components/TrackRows.svelte';
 	import {
 		artistUrl,
 		fold,
@@ -15,8 +15,8 @@
 		type MusicAlbum,
 		type MusicArtist,
 		type MusicTrack
-	} from '#lib/music.ts';
-	import { musicTarget } from '#lib/music-target.svelte.ts';
+	} from 'comun/music.ts';
+	import { musicTarget } from 'comun/music-target.svelte.ts';
 	import { saveView } from '#lib/views.ts';
 	import type { PageProps } from './$types';
 

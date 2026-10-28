@@ -1,4 +1,4 @@
-import { languageLabel, normalizeLang } from '#lib/languages.ts';
+import { languageLabel, normalizeLang } from 'comun/languages.ts';
 
 /** Searching the films on the Cine page: by title, director or actor, and by exact filters. */
 

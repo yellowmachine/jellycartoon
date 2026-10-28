@@ -6,7 +6,7 @@ import {
 	subscribe,
 	userPodcasts
 } from '#lib/server/podcasts/podcasts.ts';
-import type { PodcastResult } from '#lib/podcasts.ts';
+import type { PodcastResult } from 'comun/podcasts.ts';
 
 export const load: PageServerLoad = async ({ url, locals }) => {
 	const q = url.searchParams.get('q')?.trim() ?? '';

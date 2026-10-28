@@ -1,4 +1,4 @@
-import { music } from '#lib/music-player.svelte.ts';
+import { music } from 'comun/music-player.svelte.ts';
 import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 import { recipe } from '#lib/recipe.svelte.ts';
 import { videoHere } from '#lib/video-here.svelte.ts';

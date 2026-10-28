@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
 	import TvHeader from '#lib/components/TvHeader.svelte';
-	import { music } from '#lib/music-player.svelte.ts';
-	import { musicTarget } from '#lib/music-target.svelte.ts';
-	import { COUNTRIES, LANGUAGES, STATIONS, type RadioStation } from '#lib/radio.ts';
+	import { music } from 'comun/music-player.svelte.ts';
+	import { musicTarget } from 'comun/music-target.svelte.ts';
+	import { COUNTRIES, LANGUAGES, STATIONS, type RadioStation } from 'comun/radio.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();

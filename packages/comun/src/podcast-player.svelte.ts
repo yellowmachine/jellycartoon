@@ -1,6 +1,6 @@
 import { onMount, untrack } from 'svelte';
-import { music } from '#lib/music-player.svelte.ts';
-import type { PodcastPlaying } from '#lib/podcasts.ts';
+import { music } from './music-player.svelte.ts';
+import type { PodcastPlaying } from './podcasts.ts';
 
 /**
  * Where the user is in the podcast episode that plays, kept on the server to go on from there on

@@ -6,9 +6,9 @@
 	import TvHeader from '#lib/components/TvHeader.svelte';
 	import { avatar } from '#lib/avatars.ts';
 	import SectionIcon from '#lib/components/SectionIcon.svelte';
-	import { coverUrl } from '#lib/music.ts';
-	import { music } from '#lib/music-player.svelte.ts';
-	import { thumbUrl } from '#lib/thumb.svelte.ts';
+	import { coverUrl } from 'comun/music.ts';
+	import { music } from 'comun/music-player.svelte.ts';
+	import { thumbUrl } from 'comun/thumb.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();

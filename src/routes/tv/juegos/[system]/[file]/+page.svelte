@@ -4,7 +4,7 @@
 	import Backdrop from '#lib/components/Backdrop.svelte';
 	import SectionIcon from '#lib/components/SectionIcon.svelte';
 	import TvHeader from '#lib/components/TvHeader.svelte';
-	import { formatPlayed } from '#lib/format.ts';
+	import { formatPlayed } from 'comun/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();

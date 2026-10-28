@@ -2,7 +2,7 @@
 	import Guardado from './Guardado.svelte';
 	import SubtitleStylePanel from '#lib/components/SubtitleStylePanel.svelte';
 	import { enhance } from '$app/forms';
-	import { languageLabel } from '#lib/languages.ts';
+	import { languageLabel } from 'comun/languages.ts';
 	import { ANSWER_SECONDS, ASK_EVERY_OPTIONS } from '#lib/still-there.ts';
 	import type { SubtitleStyle } from '#lib/subtitle-style.ts';
 	import { section, select, primary } from './styles.ts';

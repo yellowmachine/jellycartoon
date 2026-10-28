@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { music } from '#lib/music-player.svelte.ts';
-	import { thumbUrl } from '#lib/thumb.svelte.ts';
+	import { music } from 'comun/music-player.svelte.ts';
+	import { thumbUrl } from 'comun/thumb.svelte.ts';
 	import EpisodePreview from './EpisodePreview.svelte';
 
 	/** An episode on the TV view: OK plays it in the living room. */

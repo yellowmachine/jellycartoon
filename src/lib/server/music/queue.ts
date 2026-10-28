@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { musicQueue } from '#lib/server/db/schema.ts';
-import type { QueueSave } from '#lib/music.ts';
+import type { QueueSave } from 'comun/music.ts';
 
 /** Each user's music queue (music_queue): one, the last one saved from any device or app. */
 

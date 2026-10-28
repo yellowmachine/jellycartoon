@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import PlaylistView from '#lib/components/PlaylistView.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
-	import { formatDuration } from '#lib/format.ts';
+	import { formatDuration } from 'comun/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();

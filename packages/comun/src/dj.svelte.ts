@@ -1,6 +1,6 @@
-import type { DjOptions, MusicTrack } from '#lib/music.ts';
-import { music } from '#lib/music-player.svelte.ts';
-import { musicTarget } from '#lib/music-target.svelte.ts';
+import type { DjOptions, MusicTrack } from './music.ts';
+import { music } from './music-player.svelte.ts';
+import { musicTarget } from './music-target.svelte.ts';
 
 /**
  * Modo DJ in this browser (#117): songs at random, a few more whenever few are left, and every

@@ -1,5 +1,5 @@
-import type { MusicTrack, SnapcastAction, SnapcastState } from '#lib/music.ts';
-import { music } from '#lib/music-player.svelte.ts';
+import type { MusicTrack, SnapcastAction, SnapcastState } from './music.ts';
+import { music } from './music-player.svelte.ts';
 
 /**
  * Where albums sound when played from the Música pages: this device's browser, or Snapcast.

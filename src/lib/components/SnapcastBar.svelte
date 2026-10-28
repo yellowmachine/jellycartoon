@@ -1,11 +1,11 @@
 <script lang="ts">
-	import MediaIcon from './MediaIcon.svelte';
-	import PlayModes from './PlayModes.svelte';
-	import { formatDuration } from '#lib/format.ts';
-	import { coverUrl, masterSpeakers, masterVolume, stopTime } from '#lib/music.ts';
-	import { musicTarget, watchSnapcast } from '#lib/music-target.svelte.ts';
-	import { COUNTRIES } from '#lib/radio.ts';
-	import { thumbUrl } from '#lib/thumb.svelte.ts';
+	import MediaIcon from 'comun/components/MediaIcon.svelte';
+	import PlayModes from 'comun/components/PlayModes.svelte';
+	import { formatDuration } from 'comun/format.ts';
+	import { coverUrl, masterSpeakers, masterVolume, stopTime } from 'comun/music.ts';
+	import { musicTarget, watchSnapcast } from 'comun/music-target.svelte.ts';
+	import { COUNTRIES } from 'comun/radio.ts';
+	import { thumbUrl } from 'comun/thumb.svelte.ts';
 
 	const snapcast = watchSnapcast();
 	const snap = $derived(snapcast.state);

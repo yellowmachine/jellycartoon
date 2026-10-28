@@ -1,4 +1,4 @@
-import type { MusicTrack } from '#lib/music.ts';
+import type { MusicTrack } from 'comun/music.ts';
 import type { Recipe } from '#lib/recipe.ts';
 import type { LngLat, Place } from '#lib/road.ts';
 

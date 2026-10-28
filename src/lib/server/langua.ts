@@ -20,7 +20,7 @@ import { hlsDir, movieFile, movieSubsDir } from '#lib/server/library/paths.ts';
 import { filmAutoSubtitles } from '#lib/server/auto-subtitles.ts';
 import { log } from '#lib/server/log.ts';
 import { getSettings } from '#lib/server/settings.ts';
-import { normalizeLang } from '#lib/languages.ts';
+import { normalizeLang } from 'comun/languages.ts';
 import { readCues } from '#lib/server/auto-subtitle-files.ts';
 import { cuesBetween, cuesText, parseVtt, type Cue } from '#lib/vtt.ts';
 import type { VideoHere } from '#lib/voice.ts';

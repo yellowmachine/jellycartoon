@@ -25,8 +25,10 @@ services:
     # Not published: only the app reaches it, on this stack's network.
 
   app:
-    # Built by Dokploy from this folder on each deploy.
-    build: .
+    # Built by Dokploy on each deploy, from the repository's root: it uses packages/comun.
+    build:
+      context: ..
+      dockerfile: nube/Dockerfile
     restart: unless-stopped
     depends_on:
       db:

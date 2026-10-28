@@ -4,7 +4,7 @@
 	import { page } from '$app/state';
 	import SectionIcon from '#lib/components/SectionIcon.svelte';
 	import { SHADERS, shaderName, type Shader } from '#lib/game-shaders.ts';
-	import { music } from '#lib/music-player.svelte.ts';
+	import { music } from 'comun/music-player.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();

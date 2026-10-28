@@ -19,14 +19,14 @@ import {
 	unique
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import type { AudioTrack, SubtitleTrack } from '#lib/languages.ts';
+import type { AudioTrack, SubtitleTrack } from 'comun/languages.ts';
 import type { Chapter, SceneName } from '#lib/scenes.ts';
 import type { SubtitleStyle } from '#lib/subtitle-style.ts';
 import type { WikiPage } from '#lib/server/cinema/wikidata.ts';
 import type { TitleProposal } from '#lib/episode-titles.ts';
 import type { RecipeStep } from '#lib/recipe.ts';
 import type { LngLat } from '#lib/road.ts';
-import type { DjOptions } from '#lib/music.ts';
+import type { DjOptions } from 'comun/music.ts';
 import type { ExpenseLine } from '#lib/expenses.ts';
 import type { BillDetails } from '#lib/bills.ts';
 import type { RouteStop } from '#lib/saved-places.ts';

@@ -1,9 +1,9 @@
 <script lang="ts">
 	import TvHeader from '#lib/components/TvHeader.svelte';
 	import SectionIcon from '#lib/components/SectionIcon.svelte';
-	import { formatDuration } from '#lib/format.ts';
-	import { music } from '#lib/music-player.svelte.ts';
-	import { playEpisode } from '#lib/podcast-player.svelte.ts';
+	import { formatDuration } from 'comun/format.ts';
+	import { music } from 'comun/music-player.svelte.ts';
+	import { playEpisode } from 'comun/podcast-player.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();

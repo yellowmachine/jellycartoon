@@ -5,7 +5,7 @@
 	import { page } from '$app/state';
 	import MovieMenu from '#lib/components/MovieMenu.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
-	import { formatDuration } from '#lib/format.ts';
+	import { formatDuration } from 'comun/format.ts';
 	import {
 		activeFilters,
 		awardFamily,
@@ -20,7 +20,7 @@
 		type FilterName,
 		type SortName
 	} from '#lib/film-search.ts';
-	import { languageLabel, normalizeLang } from '#lib/languages.ts';
+	import { languageLabel, normalizeLang } from 'comun/languages.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();

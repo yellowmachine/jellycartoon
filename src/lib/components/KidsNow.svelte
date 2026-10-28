@@ -1,6 +1,6 @@
 <script lang="ts">
 	import KidMirror from '#lib/components/KidMirror.svelte';
-	import { formatDuration } from '#lib/format.ts';
+	import { formatDuration } from 'comun/format.ts';
 	import { poll } from '#lib/poll.ts';
 	import type { WatchingNow } from '#lib/server/live-watching.ts';
 	import type { Together } from '#lib/server/watching-together.ts';

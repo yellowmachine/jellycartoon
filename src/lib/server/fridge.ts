@@ -6,7 +6,7 @@ import { KIDS_ROLE } from '#lib/server/kids.ts';
 import { notify } from '#lib/server/push.ts';
 import { tellGroup, tellList } from '#lib/server/telegram/bot.ts';
 import { today } from '#lib/server/playlist.ts';
-import { fold } from '#lib/music.ts';
+import { fold } from 'comun/music.ts';
 import { agendaToday } from '#lib/server/agenda/agenda.ts';
 import { MAX_ITEM, MAX_NOTE, paperFor, type FridgeAuthor, type FridgeState } from '#lib/fridge.ts';
 

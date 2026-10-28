@@ -10,10 +10,10 @@
 	import TagBar from '#lib/components/TagBar.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
 	import { saveView } from '#lib/views.ts';
-	import { formatBytes, formatDuration } from '#lib/format.ts';
-	import { languageLabel, normalizeLang } from '#lib/languages.ts';
+	import { formatBytes, formatDuration } from 'comun/format.ts';
+	import { languageLabel, normalizeLang } from 'comun/languages.ts';
 	import { poll } from '#lib/poll.ts';
-	import { thumbUrl } from '#lib/thumb.svelte.ts';
+	import { thumbUrl } from 'comun/thumb.svelte.ts';
 	import Backdrop from '#lib/components/Backdrop.svelte';
 	import { backdropUrl, resetSeriesBackdrop } from '#lib/backdrop.svelte.ts';
 	import type { PageProps } from './$types';

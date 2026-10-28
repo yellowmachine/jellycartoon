@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
-	import { formatBytes, formatDuration } from '#lib/format.ts';
-	import { thumbChanged } from '#lib/thumb.svelte.ts';
-	import type { AudioTrack, SubtitleTrack } from '#lib/languages.ts';
-	import ActionMenu from './ActionMenu.svelte';
+	import { formatBytes, formatDuration } from 'comun/format.ts';
+	import { thumbChanged } from 'comun/thumb.svelte.ts';
+	import type { AudioTrack, SubtitleTrack } from 'comun/languages.ts';
+	import ActionMenu from 'comun/components/ActionMenu.svelte';
 	import CopyPathItem from './CopyPathItem.svelte';
 	import InfoDialog from './InfoDialog.svelte';
-	import { closeAfter, menuItem } from './menu.ts';
-	import { listenToEpisode } from '#lib/episode-listening.svelte.ts';
+	import { closeAfter, menuItem } from 'comun/components/menu.ts';
+	import { listenToEpisode } from 'comun/episode-listening.svelte.ts';
 	import SnapcastListen from './SnapcastListen.svelte';
 
 	interface Props {

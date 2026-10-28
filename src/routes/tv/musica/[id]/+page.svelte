@@ -2,8 +2,8 @@
 	import MusicBackground from '#lib/components/MusicBackground.svelte';
 	import TvHeader from '#lib/components/TvHeader.svelte';
 	import TvTracks from '#lib/components/TvTracks.svelte';
-	import { formatRemaining } from '#lib/format.ts';
-	import { coverUrl } from '#lib/music.ts';
+	import { formatRemaining } from 'comun/format.ts';
+	import { coverUrl } from 'comun/music.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();

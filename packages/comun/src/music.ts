@@ -1,4 +1,4 @@
-import type { RadioStream } from '#lib/radio.ts';
+import type { RadioStream } from './radio.ts';
 
 /** Music, shared by the server and the pages. */
 
@@ -50,13 +50,32 @@ export function groupByArtist(albums: MusicAlbum[]): MusicArtist[] {
 }
 
 export const artistUrl = (name: string) => `/musica/artista/${encodeURIComponent(name)}`;
-/** With `opus`, its copy for mobile data (#64), or the FLAC while it is not made. */
-export const trackUrl = (id: number, opus = false) =>
-	`/api/music/track/${id}${opus ? '?format=opus' : ''}`;
-export const coverUrl = (albumId: number) => `/api/music/cover/${albumId}`;
+/**
+ * Where the tracks, the covers and the DJ's words are: jellycartoon's own API by default; the cloud
+ * (#253) gives its own (the house's, by a signed pass) with `setMusicUrls`, once, before playing.
+ */
+export interface MusicUrls {
+	/** With `opus`, its copy for mobile data (#64), or the FLAC while it is not made. */
+	track: (id: number, opus: boolean) => string;
+	cover: (albumId: number) => string;
+	clip: (id: string) => string;
+}
+
+const urls: MusicUrls = {
+	track: (id, opus) => `/api/music/track/${id}${opus ? '?format=opus' : ''}`,
+	cover: (albumId) => `/api/music/cover/${albumId}`,
+	clip: (id) => `/api/music/dj/${id}`
+};
+
+export function setMusicUrls(own: Partial<MusicUrls>) {
+	Object.assign(urls, own);
+}
+
+export const trackUrl = (id: number, opus = false) => urls.track(id, opus);
+export const coverUrl = (albumId: number) => urls.cover(albumId);
 /** What `track` sounds from: its file, or the DJ's words. */
 export const audioUrl = (track: MusicTrack, opus = false) =>
-	track.clip ? `/api/music/dj/${track.clip.id}` : trackUrl(track.id, opus);
+	track.clip ? urls.clip(track.clip.id) : trackUrl(track.id, opus);
 
 /** Modo DJ: songs at random, and the DJ speaking every few. */
 export interface DjOptions {

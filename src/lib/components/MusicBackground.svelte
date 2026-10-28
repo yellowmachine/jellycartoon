@@ -9,9 +9,9 @@
 		type Palette
 	} from '#lib/music-background.ts';
 	import { musicBackground } from '#lib/music-background-settings.svelte.ts';
-	import { coverUrl } from '#lib/music.ts';
-	import { music } from '#lib/music-player.svelte.ts';
-	import { watchSnapcast } from '#lib/music-target.svelte.ts';
+	import { coverUrl } from 'comun/music.ts';
+	import { music } from 'comun/music-player.svelte.ts';
+	import { watchSnapcast } from 'comun/music-target.svelte.ts';
 
 	/**
 	 * Behind the Música pages: an aurora with the colours of the cover of what is playing, here or

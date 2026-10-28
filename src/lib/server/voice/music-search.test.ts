@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { MusicAlbum } from '#lib/music.ts';
+import type { MusicAlbum } from 'comun/music.ts';
 import { likeness, searchMusic } from './music-search.ts';
 
 function album(id: number, title: string, artist: string, songs: string[]): MusicAlbum {

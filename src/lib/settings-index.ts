@@ -1,4 +1,4 @@
-import { fold } from './music.ts';
+import { fold } from 'comun/music.ts';
 
 /**
  * What is in Ajustes, to find it by a word from the box above its tabs: each section, its tab, and

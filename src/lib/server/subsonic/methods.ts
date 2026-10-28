@@ -13,7 +13,7 @@ import {
 import { clearQueue, getQueue, saveQueue } from '#lib/server/music/queue.ts';
 import { audioType } from '#lib/server/music/tags.ts';
 import { stationsInfo } from '#lib/server/radio.ts';
-import { STATIONS } from '#lib/radio.ts';
+import { STATIONS } from 'comun/radio.ts';
 import { ERROR, failed, ok } from './protocol.ts';
 import {
 	albumJson,
