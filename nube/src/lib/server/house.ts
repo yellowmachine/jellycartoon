@@ -145,3 +145,30 @@ export async function houseSatellites(familyId: string) {
 		return [];
 	}
 }
+
+/**
+ * A live stream from the house's API in this person's name (server-sent events: their Telegram's
+ * messages), for as long as `signal` lasts: the browser's own request, closed when it goes.
+ */
+export async function houseStream(
+	userId: string,
+	email: string,
+	path: string,
+	signal: AbortSignal
+) {
+	const [row] = await withFamily(userId, (tx) => tx.select().from(house));
+	if (!row) throw new HouseProblem('Tu familia aún no ha conectado su casa');
+	const key = decrypt(row.key);
+	if (!key) throw new HouseProblem('La clave guardada no se puede leer: vuelve a ponerla');
+	let response: Response;
+	try {
+		response = await fetch(`${row.url}/api/v1${path}`, {
+			headers: { 'x-api-key': key, 'x-persona': email, accept: 'text/event-stream' },
+			signal
+		});
+	} catch {
+		throw new HouseProblem('La casa no contesta: ¿está encendida, con el túnel conectado?');
+	}
+	if (!response.ok || !response.body) throw new HouseProblem(await problemOf(response));
+	return response.body;
+}

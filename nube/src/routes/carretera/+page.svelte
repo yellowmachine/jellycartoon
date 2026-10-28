@@ -24,6 +24,7 @@
 	import { toSay } from 'comun/road-voice.ts';
 	import FuelSheet from 'comun/components/FuelSheet.svelte';
 	import { voice } from '#lib/voice-client.svelte.ts';
+	import { telegramSaid, type TelegramMessage } from 'comun/telegram.ts';
 	import type { MusicPass } from '#lib/server/music.ts';
 	import type { PageProps } from './$types';
 
@@ -32,13 +33,13 @@
 	 * screen beside the navigator (Android's split screen), or whole with the map and the route. What
 	 * plays, big; one touch to put on a station, an album or a list. The house's songs and covers,
 	 * straight from it by the pass; the map, the routes and their spoken directions, from here. Not
-	 * yet as at home: the trip kept and its photos, Telegram, the DJ, and the voice's timers and wake
+	 * yet as at home: the trip kept and its photos, the DJ, and the voice's timers and wake
 	 * word. The voice: held down, heard by the house's Whisper and done by the family's AI.
 	 */
 
 	let { data }: PageProps = $props();
 
-	type Tab = 'radio' | 'musica' | 'listas' | 'podcasts' | 'ruta';
+	type Tab = 'radio' | 'musica' | 'listas' | 'podcasts' | 'ruta' | 'telegram';
 	/**
 	 * The right-hand side (or the whole screen, without the map beside): Inicio (`null`), with what
 	 * plays, the microphone and a big button for each section; or a section, its list filling it, with
@@ -200,6 +201,46 @@
 		return busy(`podcast-${episodeId}`, () => playEpisode(episodeId));
 	}
 
+	// ——— Telegram (#243): the messages that come, read aloud; the account is the house's (#253) ———
+
+	const TELEGRAM_KEY = 'jellycartoon:carretera-telegram';
+	/** «Leer en voz alta los mensajes que lleguen», on this phone: off unless asked. */
+	let telegramOn = $state(false);
+	/** The last ones that came while on, the newest first. */
+	let telegramMessages = $state<TelegramMessage[]>([]);
+	$effect(() => {
+		try {
+			telegramOn = localStorage.getItem(TELEGRAM_KEY) === 'on';
+		} catch {
+			// Private windows: off.
+		}
+	});
+	function setTelegram(on: boolean) {
+		telegramOn = on;
+		try {
+			if (on) localStorage.setItem(TELEGRAM_KEY, 'on');
+			else localStorage.removeItem(TELEGRAM_KEY);
+		} catch {
+			// Same.
+		}
+	}
+	// While on, whatever the tab: each one said as it comes, over the music lowered.
+	$effect(() => {
+		if (!data.telegram || !telegramOn) return;
+		const events = new EventSource('/api/telegram');
+		events.onmessage = (e) => {
+			const message = JSON.parse(e.data) as TelegramMessage;
+			telegramMessages = [message, ...telegramMessages].slice(0, 20);
+			say(telegramSaid(message));
+			void fetch('/api/telegram/leido', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ key: message.key })
+			}).catch(() => {});
+		};
+		return () => events.close();
+	});
+
 	function release() {
 		voice.stop();
 	}
@@ -226,7 +267,8 @@
 		// The family's, here (#253).
 		{ id: 'podcasts', label: 'Podcasts' },
 		// Only with the map beside, or a phone's own tab for it: where the route is drawn.
-		...(routable ? [{ id: 'ruta' as const, label: 'Ruta' }] : [])
+		...(routable ? [{ id: 'ruta' as const, label: 'Ruta' }] : []),
+		...(data.telegram ? [{ id: 'telegram' as const, label: 'Telegram' }] : [])
 	]);
 
 	/**
@@ -820,6 +862,10 @@ home. -->
 			{:else if id === 'listas'}
 				<path d="M4 6h11M4 11h11M4 16h7" />
 				<path d="M18 19.5a2 2 0 1 1-2-2 2 2 0 0 1 2 2zM18 19.5V9l3-1" />
+			{:else if id === 'telegram'}
+				<!-- A paper plane, as Telegram's. -->
+				<path d="M21 4 3 11l6 2 2 6 3-4 5 4z" />
+				<path d="m9 13 12-9" />
 			{:else}
 				<path
 					d="M12 21s-6.5-6.2-6.5-11.2A6.5 6.5 0 0 1 12 3.3a6.5 6.5 0 0 1 6.5 6.5C18.5 14.8 12 21 12 21z"
@@ -1282,6 +1328,39 @@ home. -->
 						</button>
 					{:else}
 						<p class="text-lg text-zinc-400">No hay listas. Se hacen en Música.</p>
+					{/each}
+				{:else if tab === 'telegram'}
+					<button
+						class={[
+							tile,
+							'sm:col-span-2',
+							telegramOn ? 'border-sky-400 bg-sky-500/15' : 'border-white/10 bg-zinc-900'
+						]}
+						aria-pressed={telegramOn}
+						onclick={() => setTelegram(!telegramOn)}
+					>
+						<span class="text-3xl" aria-hidden="true">{telegramOn ? '🔊' : '🔇'}</span>
+						<span class="min-w-0">
+							<span class="block text-xl font-semibold"
+								>{telegramOn ? 'Leyendo los mensajes' : 'Leer los mensajes en voz alta'}</span
+							>
+							<span class="block text-base text-zinc-400"
+								>{telegramOn
+									? 'Cada uno se lee al llegar, con la música más baja'
+									: 'Los que te lleguen a Telegram mientras conduces'}</span
+							>
+						</span>
+					</button>
+					{#each telegramMessages as m (m.key)}
+						<div class="rounded-2xl border-2 border-white/10 bg-zinc-900 p-3 sm:col-span-2">
+							<span class="block text-base text-zinc-400"
+								>{m.chat ? `${m.from} · ${m.chat}` : m.from} · {new Date(m.at).toLocaleTimeString(
+									'es-ES',
+									{ hour: '2-digit', minute: '2-digit' }
+								)}</span
+							>
+							<span class="block text-lg">{m.text ?? telegramSaid(m)}</span>
+						</div>
 					{/each}
 				{:else if tab === 'podcasts'}
 					{#each data.inProgress as episode (episode.id)}
