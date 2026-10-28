@@ -75,7 +75,9 @@ export async function askHouse<T>(
 	userId: string,
 	email: string,
 	path: string,
-	init: RequestInit = {}
+	init: RequestInit = {},
+	/** Hearing what was said takes longer than a list. */
+	timeoutMs = 10_000
 ): Promise<T> {
 	const [row] = await withFamily(userId, (tx) => tx.select().from(house));
 	if (!row) throw new HouseProblem('Tu familia aún no ha conectado su casa');
@@ -85,18 +87,30 @@ export async function askHouse<T>(
 	try {
 		response = await fetch(`${row.url}/api/v1${path}`, {
 			...init,
-			headers: { 'x-api-key': key, 'x-persona': email, 'content-type': 'application/json' },
-			signal: AbortSignal.timeout(10_000)
+			headers: {
+				'x-api-key': key,
+				'x-persona': email,
+				'content-type': 'application/json',
+				...(init.headers as Record<string, string> | undefined)
+			},
+			signal: AbortSignal.timeout(timeoutMs)
 		});
 	} catch {
 		throw new HouseProblem('La casa no contesta: ¿está encendida, con el túnel conectado?');
 	}
-	if (!response.ok)
-		throw new HouseProblem(PROBLEMS[response.status] ?? `La casa contestó ${response.status}`);
+	if (!response.ok) throw new HouseProblem(await problemOf(response));
 	return response.json() as Promise<T>;
 }
 
 export class HouseProblem extends Error {}
+
+/** Why the house said no: ours for the usual, else its own words («Whisper no contesta»). */
+async function problemOf(response: Response) {
+	const known = PROBLEMS[response.status];
+	if (known) return known;
+	const said = (await response.json().catch(() => null))?.message;
+	return typeof said === 'string' && said ? said : `La casa contestó ${response.status}`;
+}
 
 /**
  * A request to the house's API in the family's name, with no person: the cloud's own clock telling
@@ -118,8 +132,7 @@ export async function tellHouse<T>(familyId: string, path: string, body?: unknow
 	} catch {
 		throw new HouseProblem('La casa no contesta: ¿está encendida, con el túnel conectado?');
 	}
-	if (!response.ok)
-		throw new HouseProblem(PROBLEMS[response.status] ?? `La casa contestó ${response.status}`);
+	if (!response.ok) throw new HouseProblem(await problemOf(response));
 	return response.json() as Promise<T>;
 }
 

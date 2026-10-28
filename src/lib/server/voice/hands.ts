@@ -138,17 +138,16 @@ function libraryLines(albums: MusicAlbum[]) {
 }
 
 /**
- * What was said, to the cloud's AI with what the house knows, and back: what the device must do,
- * and the sentence to read aloud. `user`: who speaks, from the session; a child's account has no
- * voice. `satellite`: said to a voice satellite (#223), by anyone in the room: `user` is who made
- * its key, in whose name what it does goes, but without their name nor what they watch.
+ * An order, opened: what only the house knows, for the cloud's AI, and what its hands will need,
+ * kept until `close` (or `ORDER_MS`, if the cloud never says). `user`: who speaks; `satellite`:
+ * said to a voice satellite (#223), by anyone in the room: `user` is who made its key, in whose name
+ * what it does goes, but without their name nor what they watch.
  */
-export async function runVoiceCommand(
+async function openOrder(
 	request: VoiceRequest,
 	user: Person,
 	satellite: Satellite | null = null
-): Promise<VoiceReply & { timing: VoiceTiming }> {
-	const started = performance.now();
+): Promise<{ body: HouseVoiceOrder; close: () => void }> {
 	const place: AlarmPlace | null = satellite ? `satelite:${satellite.id}` : null;
 	const order = randomUUID();
 	// In the car the house's speakers are far away.
@@ -171,29 +170,6 @@ export async function runVoiceCommand(
 		...(satellite ? [] : historyTools({ self: user })),
 		...(await telegramTools(user.id, Boolean(satellite)))
 	];
-	const body: HouseVoiceOrder = {
-		order,
-		request,
-		who: { name: satellite ? '' : user.name, kid },
-		satellite: satellite ? { id: satellite.id, name: satellite.name } : null,
-		house: {
-			library: libraryLines(albums),
-			playlists,
-			speakers: house,
-			rooms,
-			salon: mpvEnabled,
-			clipMinutes: MAX_CLIP_MINUTES,
-			historyRules: historyRules(hoursSince),
-			keepHistory,
-			today: todayText(),
-			sounding: soundingNow(request.here, house),
-			watching,
-			timers,
-			satellites: satellites.map(({ id, name }) => ({ id, name })),
-			tools
-		}
-	};
-	const prepareMs = Math.round(performance.now() - started);
 	orders.set(order, {
 		albums,
 		playlists,
@@ -207,6 +183,49 @@ export async function runVoiceCommand(
 		satelliteName: satellite?.name ?? null,
 		order
 	});
+	const expiry = setTimeout(() => orders.delete(order), ORDER_MS);
+	return {
+		body: {
+			order,
+			request,
+			who: { name: satellite ? '' : user.name, kid },
+			satellite: satellite ? { id: satellite.id, name: satellite.name } : null,
+			house: {
+				library: libraryLines(albums),
+				playlists,
+				speakers: house,
+				rooms,
+				salon: mpvEnabled,
+				clipMinutes: MAX_CLIP_MINUTES,
+				historyRules: historyRules(hoursSince),
+				keepHistory,
+				today: todayText(),
+				sounding: soundingNow(request.here, house),
+				watching,
+				timers,
+				satellites: satellites.map(({ id, name }) => ({ id, name })),
+				tools
+			}
+		},
+		close: () => {
+			clearTimeout(expiry);
+			orders.delete(order);
+		}
+	};
+}
+
+/**
+ * What was said here, to the cloud's AI with what the house knows, and back: what the device must
+ * do, and the sentence to read aloud. A child's account has no voice.
+ */
+export async function runVoiceCommand(
+	request: VoiceRequest,
+	user: Person,
+	satellite: Satellite | null = null
+): Promise<VoiceReply & { timing: VoiceTiming }> {
+	const started = performance.now();
+	const { body, close } = await openOrder(request, user, satellite);
+	const prepareMs = Math.round(performance.now() - started);
 	try {
 		const reply = await askCloud<VoiceReply & { timing: VoiceTiming }>(await linked(), '/voz', {
 			userId: satellite ? null : user.id,
@@ -215,8 +234,16 @@ export async function runVoiceCommand(
 		});
 		return { ...reply, timing: { ...reply.timing, prepareMs: prepareMs + reply.timing.prepareMs } };
 	} finally {
-		orders.delete(order);
+		close();
 	}
+}
+
+/**
+ * An order said to the cloud itself (#253: its road mode), by one of the house: what the house
+ * knows, for its AI; its hands answer to it for `ORDER_MS`. Driving: no speakers of the house.
+ */
+export async function orderFromCloud(request: VoiceRequest, user: Person) {
+	return (await openOrder({ ...request, car: true, video: null }, user)).body;
 }
 
 /** One of the house's tools, asked by the cloud's AI for an order going on; null, no such order. */

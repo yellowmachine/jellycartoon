@@ -23,6 +23,7 @@
 	import { loadRecent, matching, remember, saveRecent } from 'comun/recent-places.ts';
 	import { toSay } from 'comun/road-voice.ts';
 	import FuelSheet from 'comun/components/FuelSheet.svelte';
+	import { voice } from '#lib/voice-client.svelte.ts';
 	import type { MusicPass } from '#lib/server/music.ts';
 	import type { PageProps } from './$types';
 
@@ -31,7 +32,8 @@
 	 * screen beside the navigator (Android's split screen), or whole with the map and the route. What
 	 * plays, big; one touch to put on a station, an album or a list. The house's songs and covers,
 	 * straight from it by the pass; the map, the routes and their spoken directions, from here. Not
-	 * yet as at home: the voice, the trip kept and its photos, Telegram and the DJ.
+	 * yet as at home: the trip kept and its photos, Telegram, the DJ, and the voice's timers and wake
+	 * word. The voice: held down, heard by the house's Whisper and done by the family's AI.
 	 */
 
 	let { data }: PageProps = $props();
@@ -98,6 +100,30 @@
 	const mapInTab = $derived(data.map && !wide && phone);
 	/** A route, beside or in its tab. */
 	const routable = $derived(mapShown || mapInTab);
+
+	// The voice knows it is in the car: no video, no house's speakers, short answers; and it can
+	// ask for a route («llévame a…») or say where we are, from here.
+	$effect(() => {
+		voice.road = {
+			position: () => here,
+			navigation: () =>
+				destination && route
+					? `a ${destination.label}, quedan ${distanceText(guidance?.remaining ?? route.distance)}${
+							eta
+								? `, unos ${durationText(eta.seconds)}: llegada hacia las ${clock.format(eta.arrival)}`
+								: ''
+						}`
+					: null,
+			navigate: (place) => {
+				if (!place) return clearRoute();
+				if (routable) tab = 'ruta';
+				void go(place);
+			}
+		};
+		return () => {
+			voice.road = null;
+		};
+	});
 
 	/** What is on, as the big card shows it. */
 	const playing = $derived(
@@ -172,6 +198,14 @@
 	function podcast(episodeId: number) {
 		if (music.podcast?.id === episodeId) return music.toggle();
 		return busy(`podcast-${episodeId}`, () => playEpisode(episodeId));
+	}
+
+	function release() {
+		voice.stop();
+	}
+
+	function press() {
+		void voice.start();
 	}
 
 	// Spanish first, as in the TV view: it is the house's own.
@@ -715,6 +749,53 @@
 	{/if}
 {/snippet}
 
+<!-- The microphone: held while speaking, as at home. -->
+{#snippet mic(size: string, icon: string)}
+	<button
+		class={[
+			'flex shrink-0 touch-none items-center justify-center rounded-full shadow-2xl transition duration-150',
+			size,
+			voice.phase === 'listening'
+				? 'scale-110 bg-red-500 text-white'
+				: 'bg-amber-500 text-zinc-950 active:scale-95',
+			voice.phase === 'thinking' && 'opacity-60'
+		]}
+		aria-label="Mantén pulsado para hablar"
+		disabled={voice.phase === 'thinking'}
+		onpointerdown={(e) => {
+			e.currentTarget.setPointerCapture(e.pointerId);
+			press();
+		}}
+		onpointerup={release}
+		onpointercancel={release}
+		oncontextmenu={(e) => e.preventDefault()}
+	>
+		<svg viewBox="0 0 24 24" class={icon} fill="currentColor" aria-hidden="true">
+			<rect x="9" y="2.5" width="6" height="12" rx="3" />
+			<path
+				d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+			/>
+		</svg>
+	</button>
+{/snippet}
+
+<!-- What the voice is doing, or said. -->
+{#snippet voiceLine()}
+	{#if voice.phase === 'listening'}
+		<span class="text-red-400">Te escucho…</span>
+	{:else if voice.phase === 'thinking'}
+		<span class="text-zinc-300">Un momento…</span>
+	{:else if voice.problem}
+		<span class="text-amber-300">{voice.problem}</span>
+	{:else if voice.reply}
+		{voice.reply}
+	{/if}
+{/snippet}
+
 <!-- Each tab, drawn: Radio and Música as in the rest of the app; Podcasts as headphones here, as at
 home. -->
 {#snippet tabIcon(id: Tab)}
@@ -788,7 +869,11 @@ home. -->
 						</span>
 					{/if}
 				</div>
+				{@render mic('h-16 w-16', 'h-9 w-9')}
 			</div>
+			{#if voice.phase !== 'idle' || voice.problem || voice.reply}
+				<p class="text-center text-lg" aria-live="polite">{@render voiceLine()}</p>
+			{/if}
 		{/if}
 
 		{#if data.problem}
@@ -894,14 +979,32 @@ home. -->
 					{/if}
 				</section>
 
-				<!-- Fuel, stopped at the petrol station (#194): in Gastos, named after where we are. -->
+				<!-- The microphone: what to use while driving. And beside it, the fuel. -->
 				<section class="flex flex-col items-center gap-3">
-					<button
-						class="flex h-20 w-20 items-center justify-center rounded-full bg-zinc-800 text-4xl shadow-xl active:scale-95 short:h-14 short:w-14 short:text-2xl"
-						aria-label="Apuntar gasolina"
-						title="Apuntar lo que has echado de gasolina"
-						onclick={() => (fueling = true)}>⛽</button
-					>
+					<div class="flex items-center gap-6">
+						{@render mic('h-32 w-32 short:h-20 short:w-20', 'h-16 w-16 short:h-10 short:w-10')}
+						<!-- Fuel, stopped at the petrol station (#194): in Gastos, named after where we are. -->
+						<button
+							class="flex h-20 w-20 items-center justify-center rounded-full bg-zinc-800 text-4xl shadow-xl active:scale-95 short:h-14 short:w-14 short:text-2xl"
+							aria-label="Apuntar gasolina"
+							title="Apuntar lo que has echado de gasolina (o di «he echado 50 euros de gasolina»)"
+							onclick={() => (fueling = true)}>⛽</button
+						>
+					</div>
+					{#if voice.phase !== 'idle' || voice.problem || voice.reply}
+						<p class="text-center text-xl" aria-live="polite">{@render voiceLine()}</p>
+					{/if}
+					{#if voice.options.length}
+						<div class="flex flex-wrap justify-center gap-3">
+							{#each voice.options as option (option.command)}
+								<button
+									class="rounded-full bg-zinc-800 px-6 py-3 text-xl active:bg-amber-500 active:text-zinc-950"
+									disabled={voice.phase !== 'idle'}
+									onclick={() => voice.command(option.command)}>{option.label}</button
+								>
+							{/each}
+						</div>
+					{/if}
 				</section>
 
 				{#if problem}
