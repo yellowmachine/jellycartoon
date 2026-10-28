@@ -4,8 +4,10 @@ import { daysName, type Alarm, type AlarmInput, type AlarmPlace } from '#lib/ala
 import { addDays, fromRrule, localDay, localTime, toRrule, weekday } from '#lib/agenda.ts';
 import { describeTimers, sameLabel, timeLabel } from '#lib/timer-names.ts';
 import { db } from '#lib/server/db/index.ts';
-import { alarm, alarmPerson } from '#lib/server/db/schema.ts';
+import { alarm, alarmPerson, user } from '#lib/server/db/schema.ts';
+import { KIDS_ROLE } from '#lib/server/kids.ts';
 import { log } from '#lib/server/log.ts';
+import { notify } from '#lib/server/push.ts';
 import {
 	controlSnapcast,
 	sayOnSnapcast,
@@ -528,9 +530,7 @@ async function due() {
 		});
 		if (stops && !(await stopAfterTrackOnSnapcast().catch(() => false)))
 			await controlSnapcast({ action: 'stop' }).catch(() => {});
-		// The house's, to the family's group too (Telegram's bot, #243): someone's own, not.
-		if (!stops && !(await db.$count(alarmPerson, eq(alarmPerson.alarmId, row.id))))
-			void tellGroup('avisos', `⏰ Suena: ${row.label}`);
+		if (!stops) void tellRinging(row).catch((error) => log.warn('avisos', 'Al avisar', { error }));
 	}
 	// What is over (stopped, and not coming again) and prepared ones never started, forgotten.
 	await db
@@ -549,6 +549,41 @@ async function due() {
 		void ringServer();
 	}
 	await schedule();
+}
+
+/**
+ * On the phones, with the app closed (Web Push): someone's own alarm, to them; the house's, to every
+ * adult. Not the timers: the pasta's, on everyone's phone, would be too much. The house's, alarm or
+ * timer, to the family's group too (Telegram's bot, #243). With the app open, the banner says it.
+ */
+async function tellRinging(row: Row) {
+	const people = (
+		await db
+			.select({ id: alarmPerson.userId })
+			.from(alarmPerson)
+			.where(eq(alarmPerson.alarmId, row.id))
+	).map((p) => p.id);
+	if (row.kind !== 'alarma') {
+		if (!people.length) await tellGroup('avisos', `⏰ Suena: ${row.label}`);
+		return;
+	}
+	const to = people.length
+		? people
+		: (
+				await db
+					.select({ id: user.id })
+					.from(user)
+					.where(sql`${user.role} is distinct from ${KIDS_ROLE}`)
+			).map((u) => u.id);
+	await notify(to, {
+		title: `⏰ ${row.label}`,
+		body: `Sonando en ${placeName(row.place, await allSatellites())}`,
+		tag: `alarma-${row.id}`,
+		url: '/agenda#alarmas',
+		// Later, it has stopped sounding: no use.
+		ttl: RING_MAX_MS / 1000
+	});
+	if (!people.length) await tellGroup('avisos', `⏰ Suena: ${row.label}`);
 }
 
 /**
