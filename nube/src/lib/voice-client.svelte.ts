@@ -12,8 +12,9 @@ import {
 } from 'comun/voice.ts';
 
 /**
- * Voice commands in the cloud's road mode (#253), as jellycartoon's (src/lib/voice-client.svelte.ts
- * there): held down, it listens; let go, it is sent. What was said is heard by the house's Whisper
+ * Voice commands in the cloud (#253), as jellycartoon's (src/lib/voice-client.svelte.ts there): in
+ * Hablar, the header's microphone and the road mode. Held down, it listens; let go, it is sent
+ * (or, with taps in Ajustes, a tap each). What was said is heard by the house's Whisper
  * (/api/voz/oir) and done by the family's AI with the house's hands (/api/voz/orden); the answer
  * is shown and read aloud with the device's own voice. Only the button: no wake word here, no
  * timers, kitchen or videos.
@@ -173,7 +174,8 @@ class VoiceClient {
 				history: this.#history,
 				timers: [],
 				recipe: null,
-				car: true,
+				// In the road mode's page; elsewhere, Hablar or the bar's microphone.
+				car: this.road !== null,
 				position: this.road?.position() ?? null,
 				navigation: this.road?.navigation() ?? null
 			})

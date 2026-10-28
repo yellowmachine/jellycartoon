@@ -1067,8 +1067,10 @@ const SAID_NO_KEY =
 export async function runVoiceCommand(
 	k: Kitchen,
 	order: HouseVoiceOrder,
-	/** Tools the device cannot do, not offered (the cloud's road mode: no timers, no camera yet). */
-	without: string[] = []
+	/** Tools the device cannot do, not offered (the cloud's: no timers, no kitchen, no video yet). */
+	without: string[] = [],
+	/** Where it is said, for the AI, if it matters: what is not offered here, and why. */
+	note: string | null = null
 ): Promise<VoiceReply & { timing: VoiceTiming }> {
 	const started = performance.now();
 	const { request, house, satellite } = order;
@@ -1142,6 +1144,7 @@ export async function runVoiceCommand(
 							}
 						]
 					: []),
+				...(note ? [{ type: 'text' as const, text: note }] : []),
 				{ type: 'text', text: request.text }
 			]
 		}

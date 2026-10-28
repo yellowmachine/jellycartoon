@@ -236,11 +236,13 @@ export async function runVoiceCommand(
 }
 
 /**
- * An order said to the cloud itself (#253: its road mode), by one of the house: what the house
- * knows, for its AI; its hands answer to it for `ORDER_MS`. Driving: no speakers of the house.
+ * An order said to the cloud itself (#253), by one of the house: what the house knows, for its AI;
+ * its hands answer to it for `ORDER_MS`. From its road mode (`car`), driving: no speakers of the
+ * house; from its Hablar, on a phone away, they may be asked for («ponlo en el salón»). Nothing to
+ * watch there yet: its video is the house's.
  */
 export async function orderFromCloud(request: VoiceRequest, user: Person) {
-	return (await openOrder({ ...request, car: true, video: null }, user)).body;
+	return (await openOrder({ ...request, video: null }, user)).body;
 }
 
 /** One of the house's tools, asked by the cloud's AI for an order going on; null, no such order. */

@@ -55,6 +55,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		words: 'notificaciones push alarmas agenda móvil avisar'
 	},
 	{
+		id: 'microfono',
+		tab: 'aparato',
+		title: 'Voz y micrófono',
+		words: 'micrófono hablar voz mantener pulsado tocar toques atajo teclado'
+	},
+	{
 		id: 'personas',
 		tab: 'familia',
 		title: 'Personas',

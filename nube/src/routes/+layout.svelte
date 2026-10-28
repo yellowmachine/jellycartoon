@@ -8,6 +8,9 @@
 	import AlarmBanner from 'comun/components/AlarmBanner.svelte';
 	import SiteNav from 'comun/components/SiteNav.svelte';
 	import MusicBar from 'comun/components/MusicBar.svelte';
+	import VoiceBubble from '#lib/components/VoiceBubble.svelte';
+	import { micMode } from '#lib/mic-mode.svelte.ts';
+	import { voice } from '#lib/voice-client.svelte.ts';
 	import { navLinks } from '#lib/nav.ts';
 	import { themeColor, themeCss } from 'comun/themes.ts';
 	import type { LayoutProps } from './$types';
@@ -26,6 +29,81 @@
 			void import('comun/route-maps.svelte.ts').then(({ routeMaps }) => routeMaps.sync());
 	});
 
+	/**
+	 * The header's microphone (#253), as jellycartoon's: held a moment, it listens, and let go, what
+	 * was said is sent; a tap opens Hablar (/voz). With taps (Ajustes), the other way round: a tap
+	 * starts or sends, and held this long Hablar opens.
+	 */
+	const HOLD_MS = 250;
+	const OPEN_MS = 600;
+	/** Pressed, and not yet long enough to listen: a tap so far. */
+	let holdTimer: ReturnType<typeof setTimeout> | undefined;
+	/** Listening: let go, and what was said is sent. */
+	let holding = false;
+
+	/** A tap does not wake the microphone (nor ask for its permission): only holding it does. */
+	function pressMic() {
+		clearTimeout(holdTimer);
+		if (micMode.tap) {
+			holdTimer = setTimeout(() => {
+				holdTimer = undefined;
+				void goto('/voz');
+			}, OPEN_MS);
+			return;
+		}
+		holdTimer = setTimeout(() => {
+			holdTimer = undefined;
+			holding = true;
+			void voice.start();
+		}, HOLD_MS);
+	}
+
+	function releaseMic(cancelled: boolean) {
+		if (micMode.tap) {
+			// Held: Hablar opened. A tap: it starts, or sends.
+			if (holdTimer === undefined) return;
+			clearTimeout(holdTimer);
+			holdTimer = undefined;
+			if (!cancelled) voice.toggle();
+			return;
+		}
+		if (holdTimer !== undefined) {
+			clearTimeout(holdTimer);
+			holdTimer = undefined;
+			if (!cancelled) void goto('/voz');
+			return;
+		}
+		if (!holding) return;
+		holding = false;
+		voice.stop();
+	}
+
+	/**
+	 * Ctrl+Shift+Space, held: the same as holding the microphone, from any page (in a text box too:
+	 * it types nothing). Ctrl+Space switches the keyboard's language on Linux and macOS, and
+	 * Alt+Space opens the window's menu on Windows and KDE.
+	 */
+	const isVoiceKey = (e: KeyboardEvent) => e.code === 'Space' && e.ctrlKey && e.shiftKey;
+	let keyHolding = false;
+
+	function voiceKeyDown(e: KeyboardEvent) {
+		if (!data.user || !isVoiceKey(e)) return;
+		e.preventDefault();
+		if (e.repeat || keyHolding) return;
+		// With taps (Ajustes): once to start, once more to send.
+		if (micMode.tap) return void voice.toggle();
+		keyHolding = true;
+		void voice.start();
+	}
+
+	/** Letting go of any of the three sends what was said; so does leaving the window. */
+	function voiceKeyUp(e?: KeyboardEvent) {
+		if (!keyHolding) return;
+		if (e && e.code !== 'Space' && e.key !== 'Control' && e.key !== 'Shift') return;
+		keyHolding = false;
+		voice.stop();
+	}
+
 	// A notice touched (Web Push, the service worker): its page, here, without loading again.
 	onMount(() => {
 		if (!('serviceWorker' in navigator)) return;
@@ -40,6 +118,8 @@
 		return () => navigator.serviceWorker.removeEventListener('message', went);
 	});
 </script>
+
+<svelte:window onkeydown={voiceKeyDown} onkeyup={voiceKeyUp} onblur={() => voiceKeyUp()} />
 
 <svelte:head>
 	<title>Nube</title>
@@ -74,13 +154,54 @@ trip's link (#81), for whoever has it. -->
 				userLinks={nav.userLinks}
 			>
 				{#snippet leading()}
+					<a
+						href="/voz"
+						title={micMode.tap
+							? 'Toca para hablar y otra vez para enviar (o Ctrl+Mayús+Espacio) · Mantén pulsado para abrir Hablar'
+							: 'Mantén pulsado para hablar (o Ctrl+Mayús+Espacio) · Pulsa para abrir Hablar'}
+						aria-label="Hablar"
+						aria-current={page.url.pathname === '/voz' ? 'page' : undefined}
+						draggable="false"
+						style="-webkit-touch-callout: none"
+						class={[
+							'-ml-3 shrink-0 touch-none rounded-md p-1 select-none hover:bg-zinc-800 hover:text-white',
+							voice.phase === 'listening'
+								? 'bg-red-500 text-white hover:bg-red-500'
+								: page.url.pathname === '/voz'
+									? 'text-amber-400'
+									: 'text-zinc-400'
+						]}
+						onpointerdown={(e) => {
+							if (e.button !== 0) return;
+							e.currentTarget.setPointerCapture(e.pointerId);
+							pressMic();
+						}}
+						onpointerup={() => releaseMic(false)}
+						onpointercancel={() => releaseMic(true)}
+						onclick={(e) => {
+							// The pointer's own handlers go or talk; only the keyboard (Enter) follows the link.
+							if (e.detail !== 0) e.preventDefault();
+						}}
+						oncontextmenu={(e) => e.preventDefault()}
+					>
+						<svg viewBox="0 0 24 24" class="h-6 w-6" fill="currentColor" aria-hidden="true">
+							<rect x="9" y="2.5" width="6" height="12" rx="3" />
+							<path
+								d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+							/>
+						</svg>
+					</a>
 					<!-- A receipt's photo for Gastos (#194), at once: on phones and tablets, with their camera; a
 					     PC has the button in Gastos. The photo is read there. As at home. -->
 					{#if data.receipts}
 						<label
 							title="Foto de un ticket, para Gastos"
 							aria-label="Foto de un ticket"
-							class="-ml-3 hidden shrink-0 cursor-pointer rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white pointer-coarse:block"
+							class="hidden shrink-0 cursor-pointer rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white pointer-coarse:block"
 						>
 							<svg
 								viewBox="0 0 24 24"
@@ -114,6 +235,10 @@ trip's link (#81), for whoever has it. -->
 				{/snippet}
 				{#snippet below()}
 					<div class="mx-auto flex max-w-6xl flex-col gap-1 px-4 has-[>div]:pb-2">
+						<!-- What the header's microphone heard and answered; Hablar shows it big itself. -->
+						{#if page.url.pathname !== '/voz'}
+							<VoiceBubble />
+						{/if}
 						<!-- The radio and the podcasts (#253), going on from page to page, as at home. -->
 						<MusicBar />
 					</div>

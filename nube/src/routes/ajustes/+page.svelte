@@ -12,6 +12,7 @@
 	import { page } from '$app/state';
 	import Colores from 'comun/components/Colores.svelte';
 	import GuardarViajes from './GuardarViajes.svelte';
+	import Microfono from './Microfono.svelte';
 	import Subtitulos from './Subtitulos.svelte';
 	import SettingsSearch from 'comun/components/SettingsSearch.svelte';
 	import { field, primary, secondary, section } from '#lib/styles.ts';
@@ -99,6 +100,8 @@
 			<h2 class="mb-1 font-semibold">Este dispositivo</h2>
 			<PushNotices about="cuando suena una alarma, y los avisos de la Agenda" />
 		</section>
+
+		<Microfono />
 	{/if}
 
 	{#if tab === 'familia'}
