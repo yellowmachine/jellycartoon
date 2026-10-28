@@ -18,8 +18,6 @@
 	import MusicaAqui from './MusicaAqui.svelte';
 	import Ia from './Ia.svelte';
 	import Etiquetas from './Etiquetas.svelte';
-	import Rutas from './Rutas.svelte';
-	import CompartirViajes from './CompartirViajes.svelte';
 	import Satelites from './Satelites.svelte';
 	import Nube from './Nube.svelte';
 	import DondeCasa from './DondeCasa.svelte';
@@ -79,7 +77,6 @@
 				kid: Boolean(data.kid),
 				intro: data.intro,
 				keepHistory: data.keepHistory,
-				recordTrips: data.recordTrips,
 				langua: data.langua,
 				telegram: data.telegram,
 				musicApps: data.musicApps,
@@ -88,8 +85,6 @@
 				ai: data.ai,
 				spendLine: data.spendLine,
 				labels: data.labels,
-				routes: data.routes,
-				relay: data.relay,
 				satellites: data.satellites,
 				cloudKeys: data.cloudKeys,
 				home: data.home,
@@ -161,10 +156,6 @@
 		<Ia {data} {form} {tab} />
 
 		<Etiquetas {data} {form} {tab} />
-
-		<Rutas {data} {form} {tab} />
-
-		<CompartirViajes {data} {form} {tab} />
 
 		<DondeCasa {data} {form} {tab} />
 

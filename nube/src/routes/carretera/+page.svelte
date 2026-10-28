@@ -15,6 +15,9 @@
 	import { playEpisode } from 'comun/podcast-player.svelte.ts';
 	import { SKIP_BACK, SKIP_FORWARD } from 'comun/podcasts.ts';
 	import { keepScreenOn } from 'comun/screen-on.ts';
+	import { roadPhotos } from '#lib/road-photos.svelte.ts';
+	import { tripRecorder } from '#lib/trip-recorder.svelte.ts';
+	import { tripShare } from '#lib/trip-share.svelte.ts';
 	import { formatDuration } from 'comun/format.ts';
 	import { distanceText, isLngLat, type LngLat, type Place, type Route } from 'comun/road.ts';
 	import { alongLine, guide, metresBetween } from 'comun/road-guide.ts';
@@ -32,8 +35,8 @@
 	 * The road mode (#253), as jellycartoon's (#78): the tablet by the steering wheel, in half of the
 	 * screen beside the navigator (Android's split screen), or whole with the map and the route. What
 	 * plays, big; one touch to put on a station, an album or a list. The house's songs and covers,
-	 * straight from it by the pass; the map, the routes and their spoken directions, from here. Not
-	 * yet as at home: the trip kept and its photos, the DJ, and the voice's timers and wake
+	 * straight from it by the pass; the map, the routes and their spoken directions, the trip kept
+	 * and its photos (Viajes), from here. Not yet as at home: the DJ, and the voice's timers and wake
 	 * word. The voice: held down, heard by the house's Whisper and done by the family's AI.
 	 */
 
@@ -49,10 +52,19 @@
 	let loading = $state<string | null>(null);
 	let problem = $state<string | null>(null);
 	let screenProblem = $state<string | null>(null);
+	/** The trip's dot, touched: what it means, or what went wrong. */
+	let tripNote = $state(false);
 	/** Logos that did not load: the station's initial instead. */
 	const broken = new SvelteSet<string>();
 
 	$effect(() => keepScreenOn((text) => (screenProblem = text)));
+
+	// The trip kept while this is open, for whoever turned it on (#81).
+	$effect(() => {
+		if (!data.recordTrips) return;
+		untrack(() => tripRecorder.start(() => destination?.label ?? null));
+		return () => tripRecorder.stop();
+	});
 
 	/** The house's songs and covers, by the pass; a new one every few hours (it lasts 12). */
 	function usePass(pass: MusicPass) {
@@ -119,7 +131,14 @@
 				if (!place) return clearRoute();
 				if (routable) tab = 'ruta';
 				void go(place);
-			}
+			},
+			follow: (id) => {
+				const saved = data.routes.find((r) => r.id === id);
+				if (!saved) return;
+				if (routable) tab = 'ruta';
+				void follow(saved);
+			},
+			photo: () => void roadPhotos.take()
 		};
 		return () => {
 			voice.road = null;
@@ -551,6 +570,31 @@
 		say(next.text);
 	});
 
+	/**
+	 * Sharing the trip (#81): its link to send (WhatsApp…), the route's destination and arrival with
+	 * each position. It stops on arriving and on leaving this page.
+	 */
+	function share() {
+		void tripShare.start(() => ({
+			destination: destination?.label ?? null,
+			arrivesAt: eta ? eta.arrival.getTime() : null
+		}));
+	}
+	$effect(() => {
+		if (guidance?.arrived) untrack(() => void tripShare.stop());
+	});
+	$effect(() => () => void tripShare.stop());
+	let copied = $state(false);
+	async function sendLink() {
+		const url = tripShare.url;
+		if (!url) return;
+		const shared = { title: 'Mi viaje', text: 'Por dónde voy, mientras conduzco:', url };
+		if (navigator.canShare?.(shared)) return navigator.share(shared).catch(() => {});
+		await navigator.clipboard?.writeText(url).catch(() => {});
+		copied = true;
+		setTimeout(() => (copied = false), 2500);
+	}
+
 	// The step being done, in view in the list.
 	let stepList = $state<HTMLOListElement>();
 	$effect(() => {
@@ -922,6 +966,24 @@ home. -->
 			{/if}
 		{/if}
 
+		{#if tripShare.url}
+			<!-- Shared: said, always in view, with its link and how to stop it (#81). -->
+			<div
+				class="flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-500/50 bg-emerald-500/10 p-3"
+			>
+				<span class="mr-auto text-lg text-emerald-300">● Compartiendo tu viaje</span>
+				<button class="rounded-xl bg-emerald-600 px-4 py-2 text-lg text-white" onclick={sendLink}
+					>{copied ? 'Enlace copiado' : 'Enviar enlace'}</button
+				>
+				<button
+					class="rounded-xl bg-zinc-800 px-4 py-2 text-lg"
+					onclick={() => void tripShare.stop()}>Dejar de compartir</button
+				>
+			</div>
+		{:else if tripShare.problem}
+			<p class="rounded-xl bg-red-950 p-3 text-red-200">{tripShare.problem}</p>
+		{/if}
+
 		{#if data.problem}
 			<p class="rounded-xl bg-amber-950 p-3 text-amber-200">
 				Sin la música de casa: {data.problem} La radio sí funciona.
@@ -934,7 +996,8 @@ home. -->
 
 		{#if tab === null}
 			<div class={['flex flex-col gap-4', mapShown && 'min-h-0 flex-1 overflow-y-auto']}>
-				<!-- What plays, with buttons a thumb finds without looking; leaving, in its first line. -->
+				<!-- What plays, with buttons a thumb finds without looking; leaving, and the trip's dot, in
+				its first line. -->
 				<section class="rounded-3xl bg-zinc-900 p-4">
 					<div class="flex items-center gap-4">
 						<a
@@ -984,7 +1047,38 @@ home. -->
 								onclick={() => (showMap = true)}>Mapa</button
 							>
 						{/if}
+						<!-- Kept or not, and said: where one goes is not kept without knowing it (#81). -->
+						<button
+							class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-800 active:bg-zinc-700"
+							aria-label={!data.recordTrips
+								? 'No se guardan tus viajes'
+								: tripRecorder.problem
+									? 'No se guarda el viaje'
+									: 'Se guarda este viaje'}
+							aria-expanded={tripNote}
+							onclick={() => (tripNote = !tripNote)}
+						>
+							{#if !data.recordTrips}
+								<span class="h-4 w-4 rounded-full bg-zinc-500"></span>
+							{:else if tripRecorder.problem}
+								<span
+									class="flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-sm font-bold text-zinc-950"
+									>!</span
+								>
+							{:else}
+								<span class="h-4 w-4 animate-pulse rounded-full bg-red-500"></span>
+							{/if}
+						</button>
 					</div>
+					{#if tripNote}
+						<p class="mt-2 text-right text-base text-zinc-400">
+							{!data.recordTrips
+								? 'No se guardan tus viajes: «Guardar mis viajes», en Ajustes.'
+								: tripRecorder.problem
+									? `No se guarda el viaje: ${tripRecorder.problem}`
+									: 'Se guarda este viaje («Guardar mis viajes», en Ajustes).'}
+						</p>
+					{/if}
 					{#if playing}
 						<div class="mt-4 flex items-center justify-center gap-4 short:mt-2">
 							{#if music.podcast}
@@ -1025,10 +1119,17 @@ home. -->
 					{/if}
 				</section>
 
-				<!-- The microphone: what to use while driving. And beside it, the fuel. -->
+				<!-- The microphone: what to use while driving. And beside it, a photo (#81) and the fuel. -->
 				<section class="flex flex-col items-center gap-3">
 					<div class="flex items-center gap-6">
 						{@render mic('h-32 w-32 short:h-20 short:w-20', 'h-16 w-16 short:h-10 short:w-10')}
+						<button
+							class="flex h-20 w-20 items-center justify-center rounded-full bg-zinc-800 text-4xl shadow-xl active:scale-95 disabled:opacity-50 short:h-14 short:w-14 short:text-2xl"
+							aria-label="Hacer una foto"
+							title="Una foto hacia la carretera, con dónde y cuándo (o di «haz una foto»)"
+							disabled={roadPhotos.busy}
+							onclick={() => void roadPhotos.take()}>{roadPhotos.busy ? '…' : '📷'}</button
+						>
 						<!-- Fuel, stopped at the petrol station (#194): in Gastos, named after where we are. -->
 						<button
 							class="flex h-20 w-20 items-center justify-center rounded-full bg-zinc-800 text-4xl shadow-xl active:scale-95 short:h-14 short:w-14 short:text-2xl"
@@ -1037,6 +1138,9 @@ home. -->
 							onclick={() => (fueling = true)}>⛽</button
 						>
 					</div>
+					{#if roadPhotos.problem}
+						<p class="text-lg text-amber-300" aria-live="polite">{roadPhotos.problem}</p>
+					{/if}
 					{#if voice.phase !== 'idle' || voice.problem || voice.reply}
 						<p class="text-center text-xl" aria-live="polite">{@render voiceLine()}</p>
 					{/if}
@@ -1104,6 +1208,14 @@ home. -->
 			>
 				{#if tab === 'ruta'}
 					<div class="flex flex-col gap-3 sm:col-span-2">
+						{#if !tripShare.url}
+							<!-- Who waits for you, with a link: where you are, live, until you arrive (#81). -->
+							<button
+								class="rounded-xl bg-zinc-900 px-5 py-3 text-left text-lg text-zinc-200 active:bg-zinc-800 disabled:opacity-50"
+								disabled={tripShare.busy}
+								onclick={share}>{tripShare.busy ? 'Compartiendo…' : 'Compartir viaje'}</button
+							>
+						{/if}
 						{#if route && destination}
 							<div class="rounded-2xl bg-zinc-900 p-4">
 								{#if following}
@@ -1432,6 +1544,36 @@ home. -->
 	/>
 {/if}
 
+{#if roadPhotos.last}
+	<!-- The photo just taken, for a moment: whether it came out well, and whether it was kept. -->
+	<figure
+		class="fixed right-4 bottom-4 z-40 w-72 overflow-hidden rounded-2xl border-2 border-white/20 bg-zinc-900 shadow-2xl"
+		aria-live="polite"
+	>
+		<img
+			src={roadPhotos.last.url}
+			alt="La foto que acabas de hacer"
+			class="aspect-video w-full object-cover"
+		/>
+		<figcaption
+			class={[
+				'px-3 py-2 text-lg font-semibold',
+				roadPhotos.last.state === 'saved'
+					? 'bg-emerald-600 text-white'
+					: roadPhotos.last.state === 'waiting'
+						? 'bg-amber-600 text-white'
+						: 'text-zinc-300'
+			]}
+		>
+			{roadPhotos.last.state === 'saved'
+				? '✓ Foto guardada'
+				: roadPhotos.last.state === 'waiting'
+					? 'Sin cobertura: se guardará al volver'
+					: 'Guardando…'}
+		</figcaption>
+	</figure>
+{/if}
+
 <!-- Leaving, asked (see beforeNavigate): big, for a glance; «Seguir» first, and by itself. -->
 <dialog
 	bind:this={exitDialog}
@@ -1443,6 +1585,9 @@ home. -->
 	class="m-auto w-md max-w-[calc(100vw-2rem)] rounded-3xl border border-zinc-700 bg-zinc-900 p-6 text-zinc-100 shadow-lg backdrop:bg-zinc-950/80"
 >
 	<h2 class="text-2xl font-bold">¿Salir del modo carretera?</h2>
+	{#if data.recordTrips}
+		<p class="mt-2 text-lg text-zinc-400">Se deja de guardar el viaje.</p>
+	{/if}
 	<div class="mt-5 grid grid-cols-2 gap-3">
 		<button class="{big} h-20 text-2xl font-semibold" onclick={() => exitDialog?.close()}
 			>Seguir</button

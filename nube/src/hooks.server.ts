@@ -14,7 +14,15 @@ export const init: ServerInit = () => {
 	if (!building) startScheduler();
 };
 
-const PUBLIC_PATHS = ['/login', '/api/auth', '/api/health', '/api/casa/', '/api/calendario/'];
+/** `/s/`: a shared trip's link (#81), for whoever has it. */
+const PUBLIC_PATHS = [
+	'/login',
+	'/api/auth',
+	'/api/health',
+	'/api/casa/',
+	'/api/calendario/',
+	'/s/'
+];
 
 export const handle: Handle = async ({ event, resolve }) => {
 	const session = await auth.api.getSession({ headers: event.request.headers });

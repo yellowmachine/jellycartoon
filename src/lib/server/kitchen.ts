@@ -6,12 +6,11 @@ import { log } from '#lib/server/log.ts';
 import { decrypt, encrypt } from '#lib/server/secret-box.ts';
 import { localDay } from 'comun/agenda.ts';
 import type { FridgeState } from 'comun/fridge.ts';
-import type { ExpenseDraft, ExpenseInput } from 'comun/expenses.ts';
 
 /**
  * The family's cloud (#253): the fridge, the recipe book, the expenses, the agenda, the alarms and
  * the voice's brain live there (its /api/casa), with its address and the key it gave the house
- * (Ajustes → Casa → «La nube»). The voice, the TV and the road mode use them from here. What is
+ * (Ajustes → Casa → «La nube»). The voice and the TV use them from here. What is
  * said goes in the name of who says it, by their email, when it is known (not a satellite).
  */
 
@@ -111,47 +110,6 @@ export async function fridgeForScreen(): Promise<FridgeState> {
 			today: { day: localDay(), events: [], people: [] }
 		};
 	}
-}
-
-/**
- * An expense in the family's Gastos: the road mode's fuel (typed, or from a receipt read with
- * `readReceipt`), in the name of who put it in.
- */
-export async function addExpense(
-	userId: string,
-	expense: ExpenseInput,
-	source: 'voz' | 'mano' | 'ticket',
-	{ receipt = null }: { receipt?: string | null } = {}
-) {
-	return askCloud<{ id: number }>(await linked(), '/gastos', {
-		userId,
-		body: { expense, source, receipt }
-	});
-}
-
-/** A receipt's photo read by the family's AI in the cloud: what it says, and its waiting file. */
-export async function readReceipt(photo: Blob, userId: string) {
-	const link = await linked();
-	const email = await emailOf(userId);
-	let response: Response;
-	try {
-		// The photo itself as the body: a form from a server is refused by SvelteKit's CSRF check.
-		response = await fetch(`${link.url}/api/casa/gastos/leer`, {
-			method: 'POST',
-			headers: {
-				'x-api-key': link.key,
-				'content-type': 'image/jpeg',
-				...(email ? { 'x-persona': email } : {})
-			},
-			body: photo,
-			signal: AbortSignal.timeout(150_000)
-		});
-	} catch {
-		throw new CloudProblem('No llego a la nube: sin internet, o la nube no contesta');
-	}
-	const body = await response.json().catch(() => null);
-	if (!response.ok) throw new CloudProblem(body?.message ?? `La nube contestó ${response.status}`);
-	return body as ExpenseDraft;
 }
 
 // ——— The agenda and the alarms (#200, #241) ———

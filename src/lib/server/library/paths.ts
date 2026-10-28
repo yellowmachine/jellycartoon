@@ -81,16 +81,6 @@ export const djDir = path.join(dataRoot, 'dj');
 /** The voice satellites' phrases while the AI thinks, recorded by an AI voice (voice-fillers.ts). */
 export const fillersDir = path.join(dataRoot, 'frases-espera');
 /** Front covers from the Cover Art Archive. */
-/**
- * The road mode's map (#78), as scripts/mapa.sh leaves it: `espana.pmtiles`, and the `fonts` and
- * `sprites` of its style.
- */
-export const mapDir = path.join(dataRoot, 'mapa');
-export const mapFile = path.join(mapDir, 'espana.pmtiles');
-
-/** A road mode's photo (#81), by its id in trip_photo. */
-export const photoFile = (photoId: number) => path.join(dataRoot, 'fotos', `${photoId}.jpg`);
-
 export const albumCoverFile = (albumId: number) =>
 	path.join(dataRoot, 'album-cover', `${albumId}.jpg`);
 

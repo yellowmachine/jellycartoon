@@ -32,8 +32,13 @@ export const variables = defineEnvVars({
 	},
 	MAP_DIR: {
 		description:
-			"The road mode's map (#78): Spain's PMTiles and its style's fonts and icons, made with jellycartoon's scripts/mapa.sh. Without it, the road mode goes without a map.",
+			"The road mode's map (#78): Spain's PMTiles and its style's fonts and icons, made with scripts/mapa.sh. Without it, the road mode goes without a map.",
 		schema: (value) => value || '/data/mapa'
+	},
+	ROUTE_MAPS_DIR: {
+		description:
+			"Routes' maps cut for devices without coverage (#164), each family's in its folder: writable, unlike MAP_DIR.",
+		schema: (value) => value || '/data/recorridos'
 	},
 	BETTER_AUTH_SECRET: {
 		description:

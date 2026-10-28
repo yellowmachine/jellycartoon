@@ -11,6 +11,7 @@
 	import { avatar, isAvatar } from 'comun/avatars.ts';
 	import { page } from '$app/state';
 	import Colores from 'comun/components/Colores.svelte';
+	import GuardarViajes from './GuardarViajes.svelte';
 	import SettingsSearch from 'comun/components/SettingsSearch.svelte';
 	import { field, primary, secondary, section } from '#lib/styles.ts';
 	import { SETTINGS_INDEX, TAB_LABELS, type SettingsTab } from '#lib/settings-index.ts';
@@ -82,6 +83,8 @@
 		/>
 
 		<VozCaracter {data} {form} {tab} which="mio" />
+
+		<GuardarViajes {data} {tab} />
 	{/if}
 
 	{#if tab === 'aparato'}

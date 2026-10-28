@@ -6,7 +6,7 @@ import { getAlbums } from '#lib/server/music/albums.ts';
 /** Enough for a long drive, without sending the whole collection to the phone. */
 const TRACKS = 200;
 
-/** The music API (#253): «Todo aleatorio», tracks from all the music in random order (as /carretera). */
+/** The music API (#253): «Todo aleatorio», tracks from all the music in random order, for the cloud's road mode. */
 export const GET: RequestHandler = async ({ request }) => {
 	await cloudPerson(request);
 	const tracks = (await getAlbums()).flatMap((a) => a.tracks);

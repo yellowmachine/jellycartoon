@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { FORGET_MS, IDLE_MS, TOKEN, TripStore } from './store.ts';
+import { FORGET_MS, IDLE_MS, TOKEN, TripStore } from './share-store.ts';
 
 const position = { lon: -4.02, lat: 39.86, t: 1, speed: 10, heading: 90 };
 

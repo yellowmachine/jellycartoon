@@ -34,6 +34,10 @@ export interface Road {
 	navigation(): string | null;
 	/** A route to there; null, none. */
 	navigate(place: Place | null): void;
+	/** One of their saved routes (#151), from where we are. */
+	follow(id: number): void;
+	/** A photo with its camera. */
+	photo(): void;
 }
 
 class VoiceClient {
@@ -256,7 +260,7 @@ function playingHere() {
 	].join('');
 }
 
-/** What the server cannot do: play in this browser, and the road mode's route. */
+/** What the server cannot do: play in this browser, and the road mode's route and camera. */
 async function act(action: VoiceAction) {
 	switch (action.kind) {
 		case 'play':
@@ -266,6 +270,10 @@ async function act(action: VoiceAction) {
 			return musicTarget.playRadio(action.uuid, false);
 		case 'navigate':
 			return voice.road?.navigate(action.place);
+		case 'route':
+			return voice.road?.follow(action.id);
+		case 'photo':
+			return voice.road?.photo();
 		case 'control':
 			if (action.action === 'pause') return music.pause();
 			if (action.action === 'resume') return music.resume();
@@ -273,7 +281,7 @@ async function act(action: VoiceAction) {
 			return music[action.action]();
 		case 'stopIn':
 			return music.stopIn(action.minutes);
-		// Not here yet: the timers, the kitchen, videos, the camera, Viajes' routes.
+		// Not here yet: the timers, the kitchen, videos.
 	}
 }
 

@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# The road mode's map (#78), in <data>/mapa: Spain's map, cut out of Protomaps' daily build of
-# OpenStreetMap (https://docs.protomaps.com), and the fonts and icons its style uses
-# (protomaps/basemaps-assets). Run it on the machine with the data folder, from the repository;
-# again whenever, to bring the streets up to date. It needs Docker and curl.
+# The road mode's map (#78, #253), in <folder>/mapa: Spain's map, cut out of Protomaps' daily build
+# of OpenStreetMap (https://docs.protomaps.com), and the fonts and icons its style uses
+# (protomaps/basemaps-assets). Run it on the VPS, from the repository; again whenever, to bring the
+# streets up to date. It needs Docker and curl.
 #
-#   scripts/mapa.sh /ruta/a/los/convertidos            # HOST_DATA_DIR: España, Baleares y Canarias
-#   scripts/mapa.sh /ruta/a/los/convertidos --bbox=-3.9,40.3,-3.5,40.6   # otra zona (oeste,sur,este,norte)
+#   nube/scripts/mapa.sh /opt/nube            # MAP_HOST_DIR (/opt/nube/mapa): España, Baleares y Canarias
+#   nube/scripts/mapa.sh /opt/nube --bbox=-3.9,40.3,-3.5,40.6   # otra zona (oeste,sur,este,norte)
 #
 # The app serves it as it is (/mapa): nothing to restart. The map is replaced only once it is
 # whole, so the one before keeps working meanwhile.
 set -euo pipefail
 
 usage() {
-	echo "Uso: $0 <carpeta de datos (HOST_DATA_DIR)> [--bbox=oeste,sur,este,norte]" >&2
+	echo "Uso: $0 <carpeta (la de MAP_HOST_DIR sin /mapa, p. ej. /opt/nube)> [--bbox=oeste,sur,este,norte]" >&2
 	exit 1
 }
 

@@ -1,7 +1,6 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { log } from '#lib/server/log.ts';
-import { startSharing, stopSharing, updateSharing } from '#lib/server/trip-share.ts';
+import { startSharing, stopSharing, updateSharing } from '#lib/server/trips/share.ts';
 
 const num = (value: unknown) =>
 	typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -15,16 +14,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const body = await request.json().catch(() => null);
 
 	if (body?.action === 'start') {
-		try {
-			return json({ url: await startSharing(userId, locals.user!.name.split(' ')[0] ?? '') });
-		} catch (err) {
-			log.warn('viajes', 'No se pudo compartir el viaje', { error: err });
-			error(502, err instanceof Error ? err.message : 'No se pudo compartir el viaje');
-		}
+		return json({ url: startSharing(userId, locals.user!.name.split(' ')[0] ?? '') });
 	}
 
 	if (body?.action === 'stop') {
-		await stopSharing(userId);
+		stopSharing(userId);
 		return json({ sharing: false });
 	}
 
@@ -41,6 +35,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			? body.destination.trim().slice(0, 200)
 			: null;
 	return json({
-		sharing: await updateSharing(userId, { position, destination, arrivesAt: num(body.arrivesAt) })
+		sharing: updateSharing(userId, { position, destination, arrivesAt: num(body.arrivesAt) })
 	});
 };

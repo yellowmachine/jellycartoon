@@ -71,11 +71,6 @@
 		wakeWord.sounding(music.playing || videoHere.playing);
 	});
 
-	// A device that keeps routes' maps (#164): what it was ordered from any other, done now.
-	onMount(() => {
-		void import('comun/route-maps.svelte.ts').then(({ routeMaps }) => routeMaps.sync());
-	});
-
 	// A notice touched with the app open (service worker): to its page, without loading it again,
 	// so what plays goes on. Only the app's own paths.
 	onMount(() => {
@@ -108,17 +103,17 @@
 		{ href: '/radio', label: 'Radio', icon: 'radio' },
 		{ href: '/canales', label: 'Canales', icon: 'canales' },
 		// The family's, in the cloud (#253): its recipe book, its post-its and shopping list (#131),
-		// its agenda (#200) and its expenses (#194). For the adults, who have an account there.
+		// its agenda (#200), its expenses (#194) and each one's trips with the road mode (#81). For
+		// the adults, who have an account there.
 		...(data.kid
 			? []
 			: [
 					inCloud('/recetas', 'Recetas', 'recetas'),
 					inCloud('/nevera', 'Nevera', 'nevera'),
 					inCloud('/agenda', 'Agenda', 'agenda'),
-					inCloud('/gastos', 'Gastos', 'gastos')
+					inCloud('/gastos', 'Gastos', 'gastos'),
+					inCloud('/viajes', 'Viajes', 'viajes')
 				]),
-		// The road mode's trips, and the way into it: not for a child's account, as Modo carretera.
-		...(data.kid ? [] : [{ href: '/viajes', label: 'Viajes', icon: 'viajes' as const }]),
 		...(data.salon ? [{ href: '/salon', label: 'Salón', icon: 'salon' as const }] : []),
 		// What was played (#176): the games themselves are played in the TV view.
 		...(data.games ? [{ href: '/juegos', label: 'Juegos', icon: 'juegos' as const }] : []),
@@ -305,7 +300,7 @@
 
 <!-- The TV view (#11), the road mode (#78) and the children's «¿Quién eres?» (#141) are the whole
      screen, without the site around it. -->
-{#if page.url.pathname === '/tv' || page.url.pathname.startsWith('/tv/') || page.url.pathname === '/carretera' || page.url.pathname === '/quien'}
+{#if page.url.pathname === '/tv' || page.url.pathname.startsWith('/tv/') || page.url.pathname === '/quien'}
 	{@render children()}
 {:else}
 	<!-- With the kitchen panel at its side (wide screens) or under it (narrow: a phone, or split

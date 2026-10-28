@@ -37,6 +37,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		words: 'voz carácter personalidad tono humor tomar el pelo chistes asistente estilo'
 	},
 	{
+		id: 'viajes',
+		tab: 'mi',
+		title: 'Tus viajes',
+		words: 'guardar mis viajes recorrido kilómetros km gps carretera privacidad historial'
+	},
+	{
 		id: 'avisos',
 		tab: 'aparato',
 		title: 'Avisos en este dispositivo',

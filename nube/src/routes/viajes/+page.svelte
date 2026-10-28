@@ -83,7 +83,7 @@
 </script>
 
 <svelte:head>
-	<title>Viajes · JellyCartoon</title>
+	<title>Viajes · Nube</title>
 </svelte:head>
 
 <div class="mb-1 flex flex-wrap items-center gap-3">
@@ -99,10 +99,11 @@
 	Lo que guarda el modo carretera de tus viajes, solo para ti.
 	{#if data.recordTrips}
 		Se guardan mientras está abierto; se dejan de guardar en
-		<a href="/ajustes" class="text-amber-400 hover:underline">Ajustes</a>.
+		<a href="/ajustes?seccion=mi#viajes" class="text-amber-400 hover:underline">Ajustes</a>.
 	{:else}
-		Ahora no se guardan: se activa en <a href="/ajustes" class="text-amber-400 hover:underline"
-			>Ajustes</a
+		Ahora no se guardan: se activa en <a
+			href="/ajustes?seccion=mi#viajes"
+			class="text-amber-400 hover:underline">Ajustes</a
 		> («Guardar mis viajes»).
 	{/if}
 </p>

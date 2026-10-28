@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { log } from '#lib/server/log.ts';
-import { prepareRouteMap } from '#lib/server/route-maps.ts';
+import { kitchenOf } from '#lib/server/fridge.ts';
+import { prepareRouteMap } from '#lib/server/trips/route-maps.ts';
 import { isDeviceId } from 'comun/route-maps.ts';
 
 /**
@@ -16,12 +16,12 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	let prepared;
 	try {
 		prepared = await prepareRouteMap(
-			locals.user!.id,
+			await kitchenOf(locals.user!.id),
 			id,
 			isDeviceId(body?.device) ? body.device : null
 		);
 	} catch (problem) {
-		log.warn('mapas', 'No se pudo recortar el mapa de un recorrido', { route: id, error: problem });
+		console.warn('[mapas] No se pudo recortar el mapa de un recorrido', { route: id, problem });
 		error(500, 'No se pudo recortar el mapa');
 	}
 	if (!prepared) error(404, 'No encontrado');

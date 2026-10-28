@@ -43,6 +43,7 @@ import {
 	houseUrl,
 	saveHouse
 } from '#lib/server/house.ts';
+import { recordsTrips, setRecordTrips } from '#lib/server/trips/trips.ts';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const k = await kitchenOf(locals.user!.id);
@@ -63,7 +64,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 		voiceWeb: admin ? voice.web : null,
 		voiceQuiet: admin ? { hours: voice.quiet } : null,
 		/** And how it talks to each one. */
-		myStyle: { text: (await personVoiceStyle(k, locals.user!.id)) ?? '' }
+		myStyle: { text: (await personVoiceStyle(k, locals.user!.id)) ?? '' },
+		/** Whether the road mode keeps their trips (Viajes). */
+		recordTrips: await recordsTrips(k)
 	};
 };
 
@@ -97,6 +100,12 @@ export const actions: Actions = {
 			tx.update(familyMember).set({ theme }).where(eq(familyMember.userId, locals.user!.id))
 		);
 		return { saved: 'theme' };
+	},
+	/** «Guardar mis viajes»: off deletes nothing already kept. */
+	recordTrips: async ({ request, locals }) => {
+		const on = (await request.formData()).get('recordTrips') === 'on';
+		await setRecordTrips(await kitchenOf(locals.user!.id), on);
+		return { saved: 'recordTrips' };
 	},
 	/** The voice's model: «proveedor/modelo»; empty, the default. */
 	saveVoiceModel: async ({ request, locals }) => {

@@ -7,7 +7,6 @@ import { recipe } from '#lib/recipe.svelte.ts';
 import { timers } from '#lib/timers.svelte.ts';
 import { musicTarget } from 'comun/music-target.svelte.ts';
 import { videoHere } from '#lib/video-here.svelte.ts';
-import type { LngLat, Place } from 'comun/road.ts';
 import {
 	assistantTurn,
 	FOLLOW_UP_MS,
@@ -35,19 +34,6 @@ const MIN_MS = 400;
 /** Longer than this, it stops and sends by itself: a microphone forgotten open, with taps. */
 const MAX_MS = 30_000;
 
-/** What the road mode's page lends the voice (#78). */
-export interface Road {
-	position(): LngLat | null;
-	/** The route on, described for the AI; null if none. */
-	navigation(): string | null;
-	/** A route to there; null, none. */
-	navigate(place: Place | null): void;
-	/** A route kept in Viajes (#151), by its id. */
-	follow(id: number): void;
-	/** A photo with its camera. */
-	photo(): void;
-}
-
 class VoiceClient {
 	phase = $state<'idle' | 'listening' | 'thinking'>('idle');
 	heard = $state<string | null>(null);
@@ -60,11 +46,6 @@ class VoiceClient {
 	handsFree = $state(false);
 	/** Listening for the answer to its question: the question stays shown. */
 	followUp = $state(false);
-	/**
-	 * In the road mode (#78), set by its page: the AI is told, nothing to watch is opened, and its
-	 * route is asked for and shown there. Null elsewhere.
-	 */
-	road: Road | null = null;
 	/** The exchanges before, so that «no, eso no» means something; forgotten after a while. */
 	#history: VoiceTurn[] = [];
 	/** When the last answer came (Date.now()). */
@@ -234,9 +215,10 @@ class VoiceClient {
 				history: this.#history,
 				timers: timers.describe(),
 				recipe: recipe.describe(),
-				car: this.road !== null,
-				position: this.road?.position() ?? null,
-				navigation: this.road?.navigation() ?? null
+				// The road mode is the cloud's (#253): never here.
+				car: false,
+				position: null,
+				navigation: null
 			})
 		}).catch(() => null);
 		const body: VoiceReply | { message?: string } | null = await res?.json().catch(() => null);
@@ -250,11 +232,7 @@ class VoiceClient {
 		// Something else to hear, or «para»: what was paused does not come back over it.
 		if (body.actions.some((a) => ['play', 'radio', 'control'].includes(a.kind)))
 			music.forgetPause();
-		for (const action of body.actions) {
-			// Driving: never a video, whatever the answer says.
-			if (this.road && action.kind === 'watch') continue;
-			await act(action);
-		}
+		for (const action of body.actions) await act(action);
 		this.reply = body.reply;
 		this.options = body.options;
 		kitchenLog.add(text, body.reply);
@@ -432,12 +410,6 @@ async function act(action: VoiceAction) {
 			return recipe.go(action.step);
 		case 'endRecipe':
 			return recipe.end();
-		case 'navigate':
-			return voice.road?.navigate(action.place);
-		case 'route':
-			return voice.road?.follow(action.id);
-		case 'photo':
-			return voice.road?.photo();
 		case 'handOver':
 			return videoHere.handOver();
 		case 'control':

@@ -5,7 +5,7 @@ import type { StyleSpecification } from 'maplibre-gl';
 import type { PMTiles } from 'pmtiles';
 
 /**
- * The app's own map (#78, #81): Spain's served from DATA_DIR/mapa (scripts/mapa.sh), shown with
+ * The app's own map (#78, #81): Spain's served from the cloud's MAP_DIR (nube/scripts/mapa.sh), shown with
  * MapLibre (https://maplibre.org) in Protomaps' style, light or dark, its fonts and icons from the
  * app too. Loaded only where a map is shown.
  *

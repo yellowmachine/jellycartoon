@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { log } from '#lib/server/log.ts';
-import { MAX_PHOTO_BYTES, savePhoto } from '#lib/server/trip-photos.ts';
+import { kitchenOf } from '#lib/server/fridge.ts';
+import { MAX_PHOTO_BYTES, savePhoto } from '#lib/server/trips/photos.ts';
 
 const num = (value: string | null) => (value === null || value === '' ? null : Number(value));
 
@@ -27,9 +27,9 @@ export const POST: RequestHandler = async ({ request, url, locals }) => {
 			? ([lon, lat] as [number, number])
 			: null;
 	try {
-		return json({ id: await savePhoto(locals.user!.id, jpeg, takenAt, at) });
+		return json({ id: await savePhoto(await kitchenOf(locals.user!.id), jpeg, takenAt, at) });
 	} catch (err) {
-		log.warn('viajes', 'No se pudo guardar una foto', { error: err });
+		console.warn('[viajes] No se pudo guardar una foto', err);
 		error(400, err instanceof Error ? err.message : 'No se pudo guardar la foto');
 	}
 };

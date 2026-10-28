@@ -14,7 +14,6 @@ export interface SettingsShown {
 	kid: boolean;
 	intro: boolean | null;
 	keepHistory: boolean | null;
-	recordTrips: boolean | null;
 	langua: unknown;
 	telegram: unknown;
 	musicApps: unknown;
@@ -23,8 +22,6 @@ export interface SettingsShown {
 	ai: unknown;
 	spendLine: boolean | null;
 	labels: unknown;
-	routes: unknown;
-	relay: unknown;
 	satellites: unknown;
 	cloudKeys: unknown;
 	home: unknown;
@@ -85,13 +82,6 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		title: 'Lo que se guarda de ti',
 		words: 'historial guardar estadísticas privacidad horas',
 		shown: (d) => d.keepHistory !== null
-	},
-	{
-		id: 'guardar-viajes',
-		tab: 'mi',
-		title: 'Guardar mis viajes',
-		words: 'viajes modo carretera recorridos gps km coche',
-		shown: (d) => d.recordTrips !== null
 	},
 	{
 		id: 'telegram',
@@ -203,20 +193,6 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		title: 'Etiquetas de los capítulos',
 		words: 'etiquetas escenas capítulos ollama visión conjuntos',
 		shown: (d) => Boolean(d.labels)
-	},
-	{
-		id: 'rutas',
-		tab: 'casa',
-		title: 'Rutas del modo carretera',
-		words: 'openrouteservice ors mapa navegador navegación clave coche',
-		shown: (d) => Boolean(d.routes)
-	},
-	{
-		id: 'compartir-viajes',
-		tab: 'casa',
-		title: 'Compartir viajes',
-		words: 'relé enlace directo dónde voy compartir viaje whatsapp',
-		shown: (d) => Boolean(d.relay)
 	},
 	{
 		id: 'donde-casa',

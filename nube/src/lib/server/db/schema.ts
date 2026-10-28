@@ -5,3 +5,4 @@ export * from './expenses.schema.ts';
 export * from './agenda.schema.ts';
 export * from './telegram.schema.ts';
 export * from './podcasts.schema.ts';
+export * from './trips.schema.ts';

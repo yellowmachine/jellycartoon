@@ -1,6 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { addTripPoints, recordsTrips } from '#lib/server/trips.ts';
+import { kitchenOf } from '#lib/server/fridge.ts';
+import { addTripPoints, recordsTrips } from '#lib/server/trips/trips.ts';
 import type { TripPoint } from '#lib/trips.ts';
 
 /** A batch of positions at most: ~25 m apart, half an hour of motorway. */
@@ -25,8 +26,8 @@ const isPoint = (p: unknown): p is TripPoint => {
  * and the route's `destination` if there is one. Without that setting, nothing is kept.
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
-	const userId = locals.user!.id;
-	if (!(await recordsTrips(userId))) return json({ kept: false });
+	const k = await kitchenOf(locals.user!.id);
+	if (!(await recordsTrips(k))) return json({ kept: false });
 	const body = await request.json().catch(() => null);
 	const points = Array.isArray(body?.points)
 		? body.points.filter(isPoint).slice(0, MAX_POINTS)
@@ -36,6 +37,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		typeof body.destination === 'string' && body.destination.trim()
 			? body.destination.trim().slice(0, 200)
 			: null;
-	await addTripPoints(userId, points, destination);
+	await addTripPoints(k, points, destination);
 	return json({ kept: true });
 };
