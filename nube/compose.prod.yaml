@@ -1,0 +1,53 @@
+# Production, as a Docker Compose app in Dokploy (Compose Path: ./nube/compose.prod.yaml), as
+# svelte-thinking's: Postgres and the app in one stack. The first time Postgres starts it runs
+# scripts/init-db.sh, which makes the app's role (nube_app) with its password: no SQL by hand. The
+# variables, in Dokploy's Environment (README): passwords in hex (`openssl rand -hex 24`), as they
+# go inside the URLs below.
+name: nube
+
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nube
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: nube
+      APP_DB_USER: nube_app
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?APP_DB_PASSWORD is required}
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U nube']
+      interval: 5s
+      retries: 10
+    # Not published: only the app reaches it, on this stack's network.
+
+  app:
+    # Built by Dokploy from this folder on each deploy.
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # As the app's role, to which row-level security applies; the migrations, as the owner.
+      DATABASE_URL: postgres://nube_app:${APP_DB_PASSWORD}@db:5432/nube
+      MIGRATE_DATABASE_URL: postgres://nube:${POSTGRES_PASSWORD}@db:5432/nube
+      ORIGIN: ${ORIGIN:?ORIGIN is required}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
+      # The first family and its administrator's invitation, made on starting (scripts/migrate.ts).
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_FAMILY: ${ADMIN_FAMILY:-}
+    # Its own network for the database, and Dokploy's for Traefik (the domain, set in Dokploy).
+    networks:
+      - default
+      - dokploy-network
+
+volumes:
+  pgdata:
+
+networks:
+  dokploy-network:
+    external: true

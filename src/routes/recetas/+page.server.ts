@@ -1,4 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { cloudUrl } from '#lib/server/kitchen.ts';
 import type { Actions, PageServerLoad } from './$types';
 import {
 	backdropRecipeId,
@@ -25,6 +26,12 @@ export const load: PageServerLoad = async ({ url }) => {
 	const shared = [url.searchParams.get('url'), url.searchParams.get('text')]
 		.map((v) => v?.match(/https?:\/\/\S+/)?.[0] ?? null)
 		.find(Boolean);
+	// With the cloud connected (#253), the family's book is there, with what was shared.
+	const cloud = await cloudUrl();
+	if (cloud)
+		redirect(303, `${cloud}/recetas${shared ? `?url=${encodeURIComponent(shared)}` : ''}`, {
+			external: [cloud]
+		});
 	const q = url.searchParams.get('q')?.trim() ?? '';
 	const [recipes, backdrop, backdropId, sites, results] = await Promise.all([
 		listRecipes(),

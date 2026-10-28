@@ -17,7 +17,7 @@ import { allSeries, continueWatching } from '#lib/server/watching.ts';
 import { isKid } from '#lib/server/kids.ts';
 import { channelsFor } from '#lib/channels.ts';
 import { STATIONS } from '#lib/radio.ts';
-import { fridgeState } from '#lib/server/fridge.ts';
+import { fridgeForScreen } from '#lib/server/kitchen.ts';
 import { watchingOnTv } from '#lib/server/watching-together.ts';
 
 /** Tiles in each card's mosaic: 3 × 2. */
@@ -89,7 +89,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		together: kid && locals.session ? await watchingOnTv(userId, locals.session.id) : [],
 		today: pending[0] ? { next: pending[0], pending: pending.length } : null,
 		/** The house's post-its and what is left to buy (#131), to look at from the sofa. */
-		fridge: await fridgeState()
+		fridge: await fridgeForScreen()
 	};
 };
 

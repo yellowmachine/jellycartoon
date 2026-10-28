@@ -56,3 +56,41 @@ jobs:
             echo "::error::The schema changed without its migration: run bun run db:generate and commit it."
             exit 1
           fi
+
+  # The cloud app (nube/, #253), apart: its own dependencies, types, tests (row-level security on
+  # PGlite, a Postgres in memory), build and migrations. Its formatting, in the job above (lint).
+  nube:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nube
+    env:
+      DATABASE_URL: postgres://ci/ci
+      ORIGIN: http://localhost
+      BETTER_AUTH_SECRET: ci
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.x
+
+      - run: bun install --frozen-lockfile
+
+      - name: Types
+        run: bun run check
+
+      - name: Tests
+        run: bun run test
+
+      - name: Build
+        run: bun run build
+
+      - name: Migrations
+        run: |
+          bun run db:generate
+          if [ -n "$(git status --porcelain drizzle)" ]; then
+            git status --porcelain drizzle
+            echo "::error::The schema changed without its migration: run bun run db:generate in nube/ and commit it."
+            exit 1
+          fi

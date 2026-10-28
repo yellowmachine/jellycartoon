@@ -48,7 +48,15 @@ import type { LngLat } from '#lib/road.ts';
 import { searchPlaces, whereIs } from '#lib/server/road/ors.ts';
 import { listSavedPlaces, listSavedRoutes } from '#lib/server/saved-places.ts';
 import { asksForRoute, findByName } from '#lib/saved-places.ts';
-import { addItems, addNote, tickOffByName, toBuy } from '#lib/server/fridge.ts';
+import {
+	addItems,
+	addNote,
+	getRecipe,
+	importRecipe,
+	listRecipes,
+	tickOffByName,
+	toBuy
+} from '#lib/server/kitchen.ts';
 import { addExpense, favoriteExpenses } from '#lib/server/expenses/expenses.ts';
 import { addEvent, dayForVoice, personByName } from '#lib/server/agenda/agenda.ts';
 import {
@@ -99,7 +107,6 @@ import { isKidAccount } from '#lib/server/kids.ts';
 import { EXPENSE_CATEGORIES, euros, isCategory, type ExpenseLine } from '#lib/expenses.ts';
 import { today } from '#lib/server/playlist.ts';
 import { isUntilWord, UNTIL_WORDS, untilDay, untilText } from '#lib/fridge.ts';
-import { getRecipe, importRecipe, listRecipes } from '#lib/server/recipes/import.ts';
 import { findPlaces, forecast, housePlace, placeName } from '#lib/server/weather.ts';
 import { isFavouritePage, listRecipeSites, searchRecipeSites } from '#lib/server/recipes/sites.ts';
 import {
@@ -1204,7 +1211,7 @@ async function runTool(
 				? args.items.filter((i: unknown): i is string => typeof i === 'string')
 				: [];
 			if (!items.length) return 'Falta qué añadir.';
-			const added = await addItems(ctx.user.id, items);
+			const added = await addItems(ctx.user.id, items, ctx.satellite);
 			return added.length
 				? `Añadido a la lista: ${added.join(', ')}.`
 				: 'Ya estaba todo en la lista.';
@@ -1303,7 +1310,7 @@ async function runTool(
 			const text = typeof args.text === 'string' ? args.text.trim() : '';
 			if (!text) return 'Falta lo que dice el post-it.';
 			const until = isUntilWord(args.until) ? untilDay(args.until) : null;
-			await addNote(ctx.user.id, text, until);
+			await addNote(ctx.user.id, text, until, ctx.satellite);
 			return `Post-it pegado en la nevera${until ? ` (${untilText(until)})` : ''}: «${text}».`;
 		}
 		case 'set_timer': {
@@ -1489,7 +1496,7 @@ async function runTool(
 			// Only what the search found: not any address the model writes.
 			if (!url || !(await isFavouritePage(url)))
 				return 'Esa dirección no es de una web favorita: búscala antes con «search_recipe_sites».';
-			const { id } = await importRecipe(url, ctx.user.id);
+			const { id } = await importRecipe(url, ctx.user.id, ctx.satellite);
 			return runTool('cook_saved_recipe', { id }, ctx);
 		}
 		case 'recipe_step': {
@@ -1572,7 +1579,8 @@ export async function runVoiceCommand(
 			historySince(satellite ? [] : [user]),
 			satellite ? true : keepsHistory(user.id),
 			videoText(request.video),
-			listRecipes(),
+			// In the cloud (#253), and without it, any order still goes: only without the book.
+			listRecipes().catch(() => []),
 			listRecipeSites()
 		]);
 	// How the voice is (Ajustes): the house's, and theirs when it is known who speaks.

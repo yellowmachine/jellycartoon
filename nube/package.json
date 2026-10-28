@@ -1,0 +1,46 @@
+{
+	"name": "nube",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"dev": "bun run db:migrate && bun --bun vite dev --host",
+		"build": "bun --bun vite build",
+		"preview": "bun --bun vite preview --host",
+		"prepare": "svelte-kit sync || echo ''",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"db:start": "docker compose up -d db",
+		"db:generate": "bun --bun drizzle-kit generate",
+		"db:migrate": "bun scripts/migrate.ts",
+		"familia": "bun scripts/crear-familia.ts",
+		"start": "bun build/index.js",
+		"test": "bun test src"
+	},
+	"devDependencies": {
+		"@electric-sql/pglite": "0.5.10",
+		"@sveltejs/adapter-node": "^6.0.0",
+		"@sveltejs/kit": "^3.0.0",
+		"@sveltejs/vite-plugin-svelte": "^7.2.0",
+		"@tailwindcss/forms": "^0.5.11",
+		"@tailwindcss/vite": "^4.3.0",
+		"@types/bun": "^1.4.2",
+		"@types/node": "^20",
+		"@types/qrcode": "^1.5.6",
+		"drizzle-kit": "^0.31.10",
+		"svelte": "^5.57.1",
+		"svelte-check": "^4.6.0",
+		"tailwindcss": "^4.3.0",
+		"typescript": "^6.0.3",
+		"vite": "^8.3.0"
+	},
+	"imports": {
+		"#lib/*": "./src/lib/*"
+	},
+	"dependencies": {
+		"@fontsource/comic-neue": "5.3.0",
+		"better-auth": "1.7.7",
+		"drizzle-orm": "^0.45.2",
+		"postgres": "^3.4.9",
+		"qrcode": "^1.5.4"
+	}
+}

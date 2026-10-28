@@ -1,0 +1,21 @@
+# Development only: Postgres for `bun run dev`, on 5435 so as not to meet jellycartoon's. The app's
+# role is made by scripts/init-db.sh the first time; the migrations run as the owner.
+name: nube
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: nube
+      POSTGRES_PASSWORD: nube
+      POSTGRES_DB: nube
+      APP_DB_USER: nube_app
+      APP_DB_PASSWORD: nube_app
+    ports:
+      - 127.0.0.1:5435:5432
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+
+volumes:
+  pgdata:

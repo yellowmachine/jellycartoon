@@ -60,5 +60,55 @@
 		{#if form && 'cloudKeyProblem' in form}
 			<p class="mt-2 text-sm text-red-400">{form.cloudKeyProblem}</p>
 		{/if}
+
+		<!-- The other way: the cloud's key for the house (#253). -->
+		<h3 class="mt-6 mb-1 text-sm font-semibold">Nevera y recetas en la nube</h3>
+		<p class="mb-3 text-sm text-zinc-400">
+			Con la dirección de la nube y la clave que da en su Ajustes («Clave para la casa»), la voz
+			apunta y lee en la nevera y las recetas de la familia, allí; la tele enseña esa nevera, y
+			Nevera y Recetas llevan a la nube. Sin ella, todo sigue en casa.
+		</p>
+		{#if data.cloudKeys.kitchen}
+			<p class="mb-3 text-sm">
+				<span class="font-mono">{data.cloudKeys.kitchen.url}</span>
+				<span class="block text-xs text-zinc-500"
+					>clave <span class="font-mono">{data.cloudKeys.kitchen.keyStart}</span></span
+				>
+			</p>
+		{/if}
+		<form method="post" action="?seccion={tab}&/saveCloudLink" use:enhance class="space-y-2">
+			<input
+				name="url"
+				required
+				placeholder="https://nube.tu-dominio.com"
+				value={data.cloudKeys.kitchen?.url ?? ''}
+				class="w-full rounded-md border-zinc-700 bg-zinc-900 font-mono text-sm"
+			/>
+			<input
+				name="key"
+				type="password"
+				required={!data.cloudKeys.kitchen}
+				autocomplete="off"
+				placeholder={data.cloudKeys.kitchen ? 'Otra clave (vacía, la de ahora)' : 'nube_…'}
+				class="w-full rounded-md border-zinc-700 bg-zinc-900 font-mono text-sm"
+			/>
+			<button class={primary}>Guardar</button>
+		</form>
+		{#if data.cloudKeys.kitchen}
+			<div class="mt-2 flex flex-wrap gap-2">
+				<form method="post" action="?seccion={tab}&/testCloudLink" use:enhance>
+					<button class={secondary}>Probar</button>
+				</form>
+				<form method="post" action="?seccion={tab}&/forgetCloudLink" use:enhance>
+					<button class={secondary}>Volver a casa</button>
+				</form>
+			</div>
+		{/if}
+		{#if form && 'cloudLinkOk' in form}
+			<p class="mt-2 text-sm text-green-400">✓ {form.cloudLinkOk}</p>
+		{/if}
+		{#if form && 'cloudLinkProblem' in form}
+			<p class="mt-2 text-sm text-red-400">{form.cloudLinkProblem}</p>
+		{/if}
 	</section>
 {/if}
