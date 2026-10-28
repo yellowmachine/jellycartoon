@@ -78,6 +78,61 @@
 	{/if}
 </section>
 
+<section class={section} id="clave-casa">
+	<h2 class="mb-1 font-semibold">Clave para la casa</h2>
+	<p class="mb-4 text-sm text-zinc-400">
+		Para que jellycartoon use la nevera y las recetas de aquí: su voz («apunta leche», «vamos a
+		hacer los macarrones») y su tele. Se pega en su Ajustes → Casa → «La nube». Al revés que la de
+		arriba: esta la da la nube a la casa.
+	</p>
+
+	{#if form && 'houseKey' in form}
+		<div class="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+			<p class="mb-1">Clave de «{form.houseKeyName}»:</p>
+			<p class="font-mono break-all text-amber-300 select-all">{form.houseKey}</p>
+			<p class="mt-1 text-xs text-zinc-400">Cópiala ahora: no se vuelve a enseñar.</p>
+		</div>
+	{/if}
+
+	{#if data.houseKeys.length}
+		<ul class="mb-4 divide-y divide-zinc-800 text-sm">
+			{#each data.houseKeys as k (k.id)}
+				<li class="flex items-center justify-between gap-2 py-2">
+					<span>
+						{k.name}
+						<span class="block text-xs text-zinc-500">
+							<span class="font-mono">{k.start}…</span> · creada el {day(k.createdAt)}
+							{#if k.lastUsedAt}· usada el {day(k.lastUsedAt)}{:else}· sin usar{/if}
+						</span>
+					</span>
+					{#if admin}
+						<form method="post" action="?/deleteHouseKey" use:enhance>
+							<input type="hidden" name="id" value={k.id} />
+							<button class={secondary}>Quitar</button>
+						</form>
+					{/if}
+				</li>
+			{/each}
+		</ul>
+	{/if}
+
+	{#if admin}
+		<form method="post" action="?/createHouseKey" use:enhance class="flex gap-2">
+			<input
+				name="name"
+				maxlength="32"
+				required
+				placeholder="Casa"
+				class="{field} min-w-0 flex-1"
+			/>
+			<button class={primary}>Nueva clave</button>
+		</form>
+	{/if}
+	{#if form && 'houseKeyProblem' in form}
+		<p class="mt-3 text-sm text-red-400">{form.houseKeyProblem}</p>
+	{/if}
+</section>
+
 <section class={section} id="ia">
 	<h2 class="mb-1 font-semibold">IA (OpenRouter)</h2>
 	<p class="mb-4 text-sm text-zinc-400">

@@ -11,10 +11,12 @@ import {
 	fridgeItem,
 	fridgeNote,
 	house,
+	houseKey,
 	recipe,
 	user
 } from './db/schema.ts';
 import { familyOnlyScope, familyScope, NoFamily } from './family-scope.ts';
+import { hashOf, houseKeyScope, newHouseKey } from './house-key-scope.ts';
 
 /**
  * Row-level security (family.schema.ts) on a real Postgres (PGlite, in memory), with the
@@ -185,5 +187,47 @@ describe('the kitchen, also each family’s', () => {
 			)
 		).rejects.toThrow();
 		expect(await db.select().from(fridgeItem)).toHaveLength(1);
+	});
+});
+
+describe('the keys families give their houses', () => {
+	const familyOfKey = houseKeyScope(db, { role: 'app_user' });
+	const a = newHouseKey();
+	const b = newHouseKey();
+
+	beforeAll(async () => {
+		await db.insert(houseKey).values([
+			{ id: 'ka', familyId: 'A', name: 'Casa', hash: a.hash, start: a.start },
+			{ id: 'kb', familyId: 'B', name: 'Casa', hash: b.hash, start: b.start }
+		]);
+	});
+
+	test('only their hash is kept', () => {
+		expect(a.hash).toBe(hashOf(a.key));
+		expect(a.hash).not.toContain(a.key);
+	});
+
+	test('a key says its family', async () => {
+		expect(await familyOfKey(a.key)).toBe('A');
+		expect(await familyOfKey(b.key)).toBe('B');
+	});
+
+	test('a wrong one, none', async () => {
+		expect(await familyOfKey(`${a.key}x`)).toBeNull();
+		expect(await familyOfKey('casita_otra')).toBeNull();
+	});
+
+	test('used, noted', async () => {
+		const [row] = await db.select().from(houseKey).where(eq(houseKey.id, 'ka'));
+		expect(row.lastUsedAt).not.toBeNull();
+	});
+
+	test('a family sees only its own keys', async () => {
+		const rows = await withFamily('ana', (tx) => tx.select().from(houseKey));
+		expect(rows.map((r) => r.id)).toEqual(['ka']);
+	});
+
+	test('without the hash, no key is seen', async () => {
+		expect(await asAppOnly((tx) => tx.select().from(houseKey))).toHaveLength(0);
 	});
 });

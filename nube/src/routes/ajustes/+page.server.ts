@@ -6,6 +6,7 @@ import { auth } from '#lib/server/auth.ts';
 import { withFamily } from '#lib/server/family.ts';
 import { openRouterKeyStart, setOpenRouterKey } from '#lib/server/family-settings.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
+import { createHouseKey, deleteHouseKey, listHouseKeys } from '#lib/server/house-keys.ts';
 import {
 	askHouse,
 	forgetHouse,
@@ -18,6 +19,7 @@ import {
 export const load: PageServerLoad = async ({ locals }) => ({
 	house: await houseLink(locals.user!.id),
 	openRouter: await openRouterKeyStart(await kitchenOf(locals.user!.id)),
+	houseKeys: await listHouseKeys(locals.user!.id),
 	twoFactor: Boolean(locals.user!.twoFactorEnabled)
 });
 
@@ -61,6 +63,21 @@ export const actions: Actions = {
 			if (error instanceof HouseProblem) return fail(502, { houseProblem: error.message });
 			throw error;
 		}
+	},
+	/** A key for the house (jellycartoon) to use the family's fridge and recipes: shown once. */
+	createHouseKey: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'houseKeyProblem');
+		if (denied) return denied;
+		const name = String((await request.formData()).get('name') ?? '').trim();
+		if (!name || name.length > 32)
+			return fail(400, { houseKeyProblem: 'Ponle un nombre de hasta 32 letras' });
+		return { houseKey: await createHouseKey(locals.user!.id, name), houseKeyName: name };
+	},
+	deleteHouseKey: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'houseKeyProblem');
+		if (denied) return denied;
+		await deleteHouseKey(locals.user!.id, String((await request.formData()).get('id') ?? ''));
+		return { saved: 'houseKeys' };
 	},
 	/** The family's OpenRouter key (https://openrouter.ai/keys), for the AI; empty, none. */
 	saveOpenRouter: async ({ request, locals }) => {

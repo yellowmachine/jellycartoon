@@ -100,3 +100,32 @@ export const invitation = pgTable(
 	},
 	(t) => [uniqueIndex('invitation_email_idx').on(sql`lower(${t.email})`)]
 );
+
+/**
+ * The keys the family gives its house (jellycartoon), for it to write on the family's fridge and
+ * read its recipes (its voice, its TV): made in Ajustes and pasted into jellycartoon. Only their
+ * SHA-256 is kept. Found by it before knowing the family: Postgres shows the row whose hash the
+ * request presented (`app.key_hash`, house-keys.ts), and otherwise only the family's own.
+ */
+export const houseKey = pgTable(
+	'house_key',
+	{
+		id: text('id').primaryKey(),
+		familyId: text('family_id')
+			.notNull()
+			.references(() => family.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		hash: text('hash').notNull().unique(),
+		/** How it starts, to tell one from another. */
+		start: text('start').notNull(),
+		createdAt: timestamp('created_at').notNull().defaultNow(),
+		lastUsedAt: timestamp('last_used_at')
+	},
+	(t) => [
+		familyRows('house_key_own', t.familyId),
+		pgPolicy('house_key_by_hash', {
+			for: 'select',
+			using: sql`${t.hash} = nullif(current_setting('app.key_hash', true), '')`
+		})
+	]
+).enableRLS();

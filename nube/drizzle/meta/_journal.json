@@ -15,6 +15,13 @@
       "when": 1793174704351,
       "tag": "0001_orange_nextwave",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793174924229,
+      "tag": "0002_round_starjammers",
+      "breakpoints": true
     }
   ]
 }
