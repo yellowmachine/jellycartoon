@@ -43,7 +43,6 @@
 			<input type="email" value={data.email} autocomplete="username" readonly hidden />
 			<label class="block text-sm">
 				Contraseña
-				<!-- svelte-ignore a11y_autofocus -->
 				<PasswordInput
 					name="password"
 					required

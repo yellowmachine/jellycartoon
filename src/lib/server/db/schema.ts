@@ -4,7 +4,6 @@ import {
 	boolean,
 	check,
 	date,
-	doublePrecision,
 	index,
 	jsonb,
 	integer,
@@ -14,7 +13,6 @@ import {
 	real,
 	serial,
 	text,
-	time,
 	timestamp,
 	unique
 } from 'drizzle-orm/pg-core';
@@ -24,9 +22,7 @@ import type { Chapter, SceneName } from '#lib/scenes.ts';
 import type { SubtitleStyle } from '#lib/subtitle-style.ts';
 import type { WikiPage } from '#lib/server/cinema/wikidata.ts';
 import type { TitleProposal } from '#lib/episode-titles.ts';
-import type { LngLat } from 'comun/road.ts';
 import type { DjOptions } from 'comun/music.ts';
-import type { RouteStop } from 'comun/saved-places.ts';
 import type { Exercise, HomeworkRules, Step } from '#lib/homework.ts';
 import { session, user } from './auth.schema';
 
@@ -665,8 +661,6 @@ export const userSettings = pgTable('user_settings', {
 	languaToken: text('langua_token'),
 	/** Where "add to list" on a series page puts episodes. */
 	activeListId: integer('active_list_id').references(() => userList.id, { onDelete: 'set null' }),
-	/** The road mode's trips are kept (#81): where one has been, so off until turned on. */
-	recordTrips: boolean('record_trips').notNull().default(false),
 	/** A line from the library's subtitles on a black screen when the app opens, as Frasier's title cards. */
 	openingQuote: boolean('opening_quote').notNull().default(true),
 	/** An adult's drawing (#157), one of AVATARS (avatars.ts); null, their initial. A child's is in kid_profile. */
@@ -676,140 +670,6 @@ export const userSettings = pgTable('user_settings', {
 	/** The month's AI spending in a line under the header (#193), on every page: an adult's choice. */
 	spendLine: boolean('spend_line').notNull().default(false)
 });
-
-/**
- * A trip in the road mode (#81), from the browser's GPS while it is open: positions in a row, a new
- * trip after a long stop. Only for whoever turned it on in Ajustes.
- */
-export const trip = pgTable(
-	'trip',
-	{
-		id: serial('id').primaryKey(),
-		userId: text('user_id')
-			.notNull()
-			.references(() => user.id, { onDelete: 'cascade' }),
-		startedAt: timestamp('started_at').notNull(),
-		/** Its last position's time. */
-		endedAt: timestamp('ended_at').notNull(),
-		/** Metres, along its positions. */
-		distance: real('distance').notNull().default(0),
-		/** m/s, the fastest the GPS said. */
-		maxSpeed: real('max_speed'),
-		/** The road mode's route, if there was one: «Plaza de Zocodover, Toledo». */
-		destination: text('destination'),
-		/** Its positions, [longitude, latitude, seconds since 1970], one every ~25 m. */
-		line: jsonb('line').$type<[number, number, number][]>().notNull().default([])
-	},
-	(t) => [index('trip_user_started_idx').on(t.userId, t.startedAt)]
-);
-
-/**
- * A photo taken from the road mode (#81): its JPEG in DATA_DIR/fotos (photoFile), here when and
- * where, and the trip being kept then, if any. Only for whoever took it.
- */
-export const tripPhoto = pgTable(
-	'trip_photo',
-	{
-		id: serial('id').primaryKey(),
-		userId: text('user_id')
-			.notNull()
-			.references(() => user.id, { onDelete: 'cascade' }),
-		tripId: integer('trip_id').references(() => trip.id, { onDelete: 'set null' }),
-		takenAt: timestamp('taken_at').notNull(),
-		/** Where, if the GPS said. */
-		lon: real('lon'),
-		lat: real('lat')
-	},
-	(t) => [index('trip_photo_user_taken_idx').on(t.userId, t.takenAt)]
-);
-
-/**
- * A place kept with its name (#151): «Casa», «Trabajo», «Centro comercial tal». The road mode offers
- * them first, and the voice knows them by their name. Only for whoever kept it.
- */
-export const savedPlace = pgTable(
-	'saved_place',
-	{
-		id: serial('id').primaryKey(),
-		userId: text('user_id')
-			.notNull()
-			.references(() => user.id, { onDelete: 'cascade' }),
-		name: text('name').notNull(),
-		lon: doublePrecision('lon').notNull(),
-		lat: doublePrecision('lat').notNull(),
-		/** Its address, if it was found by searching: «Calle Mayor 5, Toledo, España». */
-		address: text('address')
-	},
-	(t) => [index('saved_place_user_idx').on(t.userId)]
-);
-
-/**
- * A route kept with its name (#151): its stops in order, the first where it starts, the last where
- * it ends, and the way by car between them as openrouteservice gave it when it was kept.
- */
-export const savedRoute = pgTable(
-	'saved_route',
-	{
-		id: serial('id').primaryKey(),
-		userId: text('user_id')
-			.notNull()
-			.references(() => user.id, { onDelete: 'cascade' }),
-		name: text('name').notNull(),
-		stops: jsonb('stops').$type<RouteStop[]>().notNull(),
-		line: jsonb('line').$type<LngLat[]>().notNull(),
-		/** Metres and seconds, all of it. */
-		distance: real('distance').notNull(),
-		duration: real('duration').notNull()
-	},
-	(t) => [index('saved_route_user_idx').on(t.userId)]
-);
-
-/**
- * A device that keeps routes' maps (#164), such as the car's tablet: named on itself, its id made
- * there and kept in its browser. Not a trusted device of the house (#141): that one changes how
- * people sign in on it.
- */
-export const mapDevice = pgTable('map_device', {
-	id: text('id').primaryKey(),
-	name: text('name').notNull(),
-	createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
-	createdAt: timestamp('created_at').notNull().defaultNow(),
-	lastSeenAt: timestamp('last_seen_at').notNull().defaultNow()
-});
-
-/**
- * A route's map on a device (#164): ordered from any device, done by that one when the app opens on
- * it. `remove`, ordered away; the row goes once it is.
- */
-export const routeMapState = pgEnum('route_map_state', [
-	'pending',
-	'downloading',
-	'ready',
-	'failed',
-	'remove'
-]);
-
-export const routeMap = pgTable(
-	'route_map',
-	{
-		routeId: integer('route_id')
-			.notNull()
-			.references(() => savedRoute.id, { onDelete: 'cascade' }),
-		deviceId: text('device_id')
-			.notNull()
-			.references(() => mapDevice.id, { onDelete: 'cascade' }),
-		state: routeMapState('state').notNull().default('pending'),
-		/** 0 to 1, while downloading. */
-		progress: real('progress').notNull().default(0),
-		bytes: bigint('bytes', { mode: 'number' }),
-		/** The map and the route it was cut from (route-maps.ts): another now, it is old. */
-		version: text('version'),
-		/** Why it failed, as the device says it. */
-		problem: text('problem'),
-		updatedAt: timestamp('updated_at').notNull().defaultNow()
-	},
-	(t) => [primaryKey({ columns: [t.routeId, t.deviceId] })]
-);
 
 /** `ignored`: no album tag, e.g. a download rather than a CD rip; not shown. */
 export const trackStatus = pgEnum('track_status', ['pending', 'ready', 'ignored', 'error']);

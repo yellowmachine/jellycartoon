@@ -2,12 +2,13 @@ import { access } from 'node:fs/promises';
 import path from 'node:path';
 import type { PageServerLoad } from './$types';
 import { MAP_DIR } from '$app/env/private';
-import type { SavedPlace, SavedRoute } from 'comun/saved-places.ts';
 import { askHouse, HouseProblem } from '#lib/server/house.ts';
 import { albums, musicPass, playlists } from '#lib/server/music.ts';
 import { stationsInfo } from '#lib/server/radio.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { podcastLists } from '#lib/server/podcasts/podcasts.ts';
+import { listSavedPlaces, listSavedRoutes } from '#lib/server/trips/places.ts';
+import { recordsTrips } from '#lib/server/trips/trips.ts';
 
 /** Whether there is a map (scripts/mapa.sh, in MAP_DIR): shown beside, with the screen wide enough. */
 const hasMap = () =>
@@ -19,19 +20,24 @@ const hasMap = () =>
 /**
  * The road mode (#253), as jellycartoon's: the house's albums and playlists (through its tunnel),
  * the radio, the family's podcasts (each with its newest episode), and the map. Without the house
- * (off, or not connected), the radio, the podcasts and the map still work. The places and routes
- * kept, with Viajes (later).
+ * (off, or not connected), the radio, the podcasts and the map still work. And Viajes': the
+ * places and routes kept with a name, and whether this trip is kept (#81).
  */
 export const load: PageServerLoad = async ({ locals }) => {
 	const who = { id: locals.user!.id, email: locals.user!.email };
-	const [info, map, lists] = await Promise.all([
+	const k = await kitchenOf(locals.user!.id);
+	const [info, map, lists, places, routes, recordTrips] = await Promise.all([
 		stationsInfo(),
 		hasMap(),
-		podcastLists(await kitchenOf(locals.user!.id))
+		podcastLists(k),
+		listSavedPlaces(k),
+		listSavedRoutes(k),
+		recordsTrips(k)
 	]);
 	const kept = {
-		places: [] as SavedPlace[],
-		routes: [] as SavedRoute[],
+		places,
+		routes,
+		recordTrips,
 		podcasts: lists.podcasts.flatMap((p) => (p.latest ? [{ ...p, latest: p.latest }] : [])),
 		inProgress: lists.inProgress
 	};

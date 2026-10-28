@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
-	import { page } from '$app/state';
 	import UpdateProgress from '#lib/components/UpdateProgress.svelte';
 	import { section, primary } from './styles.ts';
 	import type { PageData, ActionData } from './$types';
@@ -62,6 +61,7 @@
 						window.open(link.href, '_blank', 'noreferrer');
 					}}
 				>
+					<!-- eslint-disable-next-line svelte/no-at-html-tags -- the release notes as GitHub's API gives them, already sanitized (body_html). -->
 					{@html update.notesHtml}
 				</div>
 			{/if}

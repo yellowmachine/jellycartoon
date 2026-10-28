@@ -6,8 +6,8 @@ import { kitchenOf } from '#lib/server/fridge.ts';
 import { askHouse, HouseProblem } from '#lib/server/house.ts';
 import { runVoiceCommand } from '#lib/server/voice/command.ts';
 
-/** What the road mode here does not have yet: the phone's timers, the camera, Viajes' routes. */
-const NOT_HERE = ['set_timer', 'prepare_timer', 'cancel_timer', 'take_photo'];
+/** What the road mode here does not have yet: the phone's timers. */
+const NOT_HERE = ['set_timer', 'prepare_timer', 'cancel_timer'];
 
 /**
  * What was said to the road mode (#253), done: the house opens the order with what only it knows

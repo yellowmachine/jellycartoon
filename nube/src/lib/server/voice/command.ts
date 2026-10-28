@@ -43,6 +43,9 @@ import {
 import { describeAlarms } from '#lib/server/alarms/alarms.ts';
 import { botHasGroup, sayInGroup } from '#lib/server/telegram/bot.ts';
 import { tellHouse } from '#lib/server/house.ts';
+import { orsFor } from '#lib/server/road/ors.ts';
+import { listSavedPlaces, listSavedRoutes } from '#lib/server/trips/places.ts';
+import { asksForRoute, findByName } from 'comun/saved-places.ts';
 import { openRouterKey } from '#lib/server/family-settings.ts';
 import {
 	chatWithTools,
@@ -774,7 +777,7 @@ const SOUNDING = new Set(['play_music', 'play_radio', 'play_video']);
 
 /**
  * The house's own, done there (its /api/v1/voz): its music and speakers, its videos, its satellites'
- * and devices' timers, the weather where it is, the road mode's routes (its saved places), Langua;
+ * and devices' timers, the weather where it is, Langua;
  * and the tools it sent with the order (what each one watched, their Telegram).
  */
 const HOUSE_TOOLS = new Set([
@@ -785,8 +788,6 @@ const HOUSE_TOOLS = new Set([
 	'stop_later',
 	'set_volume',
 	'get_weather',
-	'navigate_to',
-	'where_am_i',
 	'send_clip',
 	'search_video',
 	'series_episodes',
@@ -854,6 +855,37 @@ async function runTool(
 			} catch (err) {
 				return err instanceof Error ? err.message : String(err);
 			}
+		}
+		case 'navigate_to': {
+			const wanted = typeof args.destination === 'string' ? args.destination.trim() : '';
+			if (!wanted) return 'Falta el destino.';
+			// Their own first (#151): a route if one is asked for, then a place, then a route.
+			const [places, routes] = await Promise.all([listSavedPlaces(ctx.k), listSavedRoutes(ctx.k)]);
+			const savedRoute = findByName(routes, wanted);
+			const savedPlace = findByName(places, wanted);
+			if (savedRoute && (asksForRoute(wanted) || !savedPlace)) {
+				ctx.outcome.actions.push({ kind: 'route', id: savedRoute.id });
+				return `Su ruta «${savedRoute.name}», desde donde está: el mapa la traza y la va diciendo. Díselo corto.`;
+			}
+			if (savedPlace) {
+				ctx.outcome.actions.push({
+					kind: 'navigate',
+					place: { label: savedPlace.name, at: savedPlace.at }
+				});
+				return `Ruta a ${savedPlace.name}, uno de sus sitios: el mapa la traza y la va diciendo. Díselo corto.`;
+			}
+			const position = ctx.order.request.position;
+			const [place] = await orsFor(ctx.k).searchPlaces(wanted, position ?? null);
+			if (!place)
+				return `No encuentro «${wanted}». Pídele que lo diga de otra forma (con el pueblo o la ciudad).`;
+			ctx.outcome.actions.push({ kind: 'navigate', place });
+			return `Ruta a ${place.label}: el mapa la traza y la va diciendo. Díselo corto.`;
+		}
+		case 'where_am_i': {
+			const position = ctx.order.request.position;
+			if (!position) return 'Todavía no se sabe dónde está: el GPS no ha dado la posición.';
+			const label = await orsFor(ctx.k).whereIs(position);
+			return label ? `Está en ${label}.` : 'No sé qué hay en ese punto.';
 		}
 		case 'take_photo':
 			ctx.outcome.actions.push({ kind: 'photo' });

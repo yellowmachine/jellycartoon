@@ -8,7 +8,6 @@
 	import SnapcastBar from '#lib/components/SnapcastBar.svelte';
 	import SectionIcon, { type Section } from 'comun/components/SectionIcon.svelte';
 	import SiteNav, { type NavLink, type UserLink } from 'comun/components/SiteNav.svelte';
-	import { menuItem } from 'comun/components/menu.ts';
 	import VoiceBubble from '#lib/components/VoiceBubble.svelte';
 	import TimerBar from '#lib/components/TimerBar.svelte';
 	import VoicePanel from '#lib/components/VoicePanel.svelte';
@@ -25,7 +24,7 @@
 	import { wakeWord } from '#lib/wake-word.svelte.ts';
 	import { music } from 'comun/music-player.svelte.ts';
 	import { page, updated } from '$app/state';
-	import { themeColor, themeCss } from '#lib/themes.ts';
+	import { themeColor, themeCss } from 'comun/themes.ts';
 	import { avatar } from 'comun/avatars.ts';
 	import { onMount, untrack } from 'svelte';
 	import type { LayoutProps } from './$types';
@@ -71,11 +70,6 @@
 		wakeWord.sounding(music.playing || videoHere.playing);
 	});
 
-	// A device that keeps routes' maps (#164): what it was ordered from any other, done now.
-	onMount(() => {
-		void import('comun/route-maps.svelte.ts').then(({ routeMaps }) => routeMaps.sync());
-	});
-
 	// A notice touched with the app open (service worker): to its page, without loading it again,
 	// so what plays goes on. Only the app's own paths.
 	onMount(() => {
@@ -108,17 +102,17 @@
 		{ href: '/radio', label: 'Radio', icon: 'radio' },
 		{ href: '/canales', label: 'Canales', icon: 'canales' },
 		// The family's, in the cloud (#253): its recipe book, its post-its and shopping list (#131),
-		// its agenda (#200) and its expenses (#194). For the adults, who have an account there.
+		// its agenda (#200), its expenses (#194) and each one's trips with the road mode (#81). For
+		// the adults, who have an account there.
 		...(data.kid
 			? []
 			: [
 					inCloud('/recetas', 'Recetas', 'recetas'),
 					inCloud('/nevera', 'Nevera', 'nevera'),
 					inCloud('/agenda', 'Agenda', 'agenda'),
-					inCloud('/gastos', 'Gastos', 'gastos')
+					inCloud('/gastos', 'Gastos', 'gastos'),
+					inCloud('/viajes', 'Viajes', 'viajes')
 				]),
-		// The road mode's trips, and the way into it: not for a child's account, as Modo carretera.
-		...(data.kid ? [] : [{ href: '/viajes', label: 'Viajes', icon: 'viajes' as const }]),
 		...(data.salon ? [{ href: '/salon', label: 'Salón', icon: 'salon' as const }] : []),
 		// What was played (#176): the games themselves are played in the TV view.
 		...(data.games ? [{ href: '/juegos', label: 'Juegos', icon: 'juegos' as const }] : []),
@@ -268,6 +262,7 @@
 	<title>JellyCartoon</title>
 	<meta name="theme-color" content={themeColor(data.theme)} />
 	<!-- The account's colours (Ajustes): values only from the themes' table. -->
+	<!-- eslint-disable-next-line svelte/no-at-html-tags -- a <style> made from the themes' own table, never from what was typed. -->
 	{@html themeCss(data.theme)}
 </svelte:head>
 
@@ -305,7 +300,7 @@
 
 <!-- The TV view (#11), the road mode (#78) and the children's «¿Quién eres?» (#141) are the whole
      screen, without the site around it. -->
-{#if page.url.pathname === '/tv' || page.url.pathname.startsWith('/tv/') || page.url.pathname === '/carretera' || page.url.pathname === '/quien'}
+{#if page.url.pathname === '/tv' || page.url.pathname.startsWith('/tv/') || page.url.pathname === '/quien'}
 	{@render children()}
 {:else}
 	<!-- With the kitchen panel at its side (wide screens) or under it (narrow: a phone, or split

@@ -2,13 +2,13 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
-	import SettingsSearch from '#lib/components/SettingsSearch.svelte';
+	import SettingsSearch from 'comun/components/SettingsSearch.svelte';
+	import Colores from 'comun/components/Colores.svelte';
 	import { OLD_TABS, SETTINGS_INDEX, TAB_LABELS, type SettingsTab } from '#lib/settings-index.ts';
 	import Reproduccion from './Reproduccion.svelte';
 	import ModoDj from './ModoDj.svelte';
 	import GastoIa from './GastoIa.svelte';
 	import LoQueSeGuarda from './LoQueSeGuarda.svelte';
-	import Colores from './Colores.svelte';
 	import AlAbrir from './AlAbrir.svelte';
 	import Langua from './Langua.svelte';
 	import Telegram from './Telegram.svelte';
@@ -18,8 +18,6 @@
 	import MusicaAqui from './MusicaAqui.svelte';
 	import Ia from './Ia.svelte';
 	import Etiquetas from './Etiquetas.svelte';
-	import Rutas from './Rutas.svelte';
-	import CompartirViajes from './CompartirViajes.svelte';
 	import Satelites from './Satelites.svelte';
 	import Nube from './Nube.svelte';
 	import DondeCasa from './DondeCasa.svelte';
@@ -73,11 +71,12 @@
 	>
 		<!-- What is in any tab, by a word (settings-index.ts): the page only draws the open one. -->
 		<SettingsSearch
+			index={SETTINGS_INDEX}
+			labels={TAB_LABELS}
 			shown={{
 				kid: Boolean(data.kid),
 				intro: data.intro,
 				keepHistory: data.keepHistory,
-				recordTrips: data.recordTrips,
 				langua: data.langua,
 				telegram: data.telegram,
 				musicApps: data.musicApps,
@@ -86,8 +85,6 @@
 				ai: data.ai,
 				spendLine: data.spendLine,
 				labels: data.labels,
-				routes: data.routes,
-				relay: data.relay,
 				satellites: data.satellites,
 				cloudKeys: data.cloudKeys,
 				home: data.home,
@@ -124,7 +121,11 @@
 
 		<LoQueSeGuarda {data} {tab} />
 
-		<Colores {data} {form} {tab} />
+		<Colores
+			theme={data.theme}
+			{tab}
+			problem={form && 'section' in form && form.section === 'theme' ? form.message : null}
+		/>
 
 		<AlAbrir {data} {tab} />
 
@@ -155,10 +156,6 @@
 		<Ia {data} {form} {tab} />
 
 		<Etiquetas {data} {form} {tab} />
-
-		<Rutas {data} {form} {tab} />
-
-		<CompartirViajes {data} {form} {tab} />
 
 		<DondeCasa {data} {form} {tab} />
 

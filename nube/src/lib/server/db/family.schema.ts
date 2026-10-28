@@ -1,5 +1,13 @@
 import { sql } from 'drizzle-orm';
-import { index, pgPolicy, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+	boolean,
+	index,
+	pgPolicy,
+	pgTable,
+	text,
+	timestamp,
+	uniqueIndex
+} from 'drizzle-orm/pg-core';
 import { user } from './auth.schema.ts';
 
 /**
@@ -50,6 +58,10 @@ export const familyMember = pgTable(
 			.default('member'),
 		/** «Cómo quieres que te hable la voz», theirs; null, none. */
 		voiceStyle: text('voice_style'),
+		/** Their colours (Ajustes, comun/themes.ts); null or unknown, the default. */
+		theme: text('theme'),
+		/** «Guardar mis viajes» (Viajes): the road mode keeps where they went. */
+		recordTrips: boolean('record_trips').notNull().default(false),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [

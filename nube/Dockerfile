@@ -18,6 +18,9 @@ FROM oven/bun:1-slim
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends poppler-utils \
 	&& rm -rf /var/lib/apt/lists/*
+# go-pmtiles, to cut a route's map out of Spain's (#164): the binary of its official image, the
+# same as jellycartoon's.
+COPY --from=protomaps/go-pmtiles:v1.31.2 /go-pmtiles /usr/local/bin/pmtiles
 WORKDIR /app/nube
 COPY --from=build /app/node_modules /app/node_modules
 COPY --from=build /app/nube/node_modules ./node_modules

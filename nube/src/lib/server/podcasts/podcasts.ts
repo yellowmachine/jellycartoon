@@ -77,7 +77,9 @@ async function fetchFeed(url: string): Promise<Feed> {
 			signal: AbortSignal.timeout(30_000)
 		});
 	} catch (err) {
-		throw new Error(`No se pudo descargar el feed: ${err instanceof Error ? err.message : err}`);
+		throw new Error(`No se pudo descargar el feed: ${err instanceof Error ? err.message : err}`, {
+			cause: err
+		});
 	}
 	if (!res.ok) throw new Error(`El servidor del feed respondió ${res.status}`);
 	if (Number(res.headers.get('content-length') ?? 0) > MAX_FEED_BYTES)

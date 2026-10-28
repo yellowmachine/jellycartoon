@@ -743,6 +743,20 @@
       "when": 1793197837901,
       "tag": "0105_podcasts_a_la_nube",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1793206761676,
+      "tag": "0106_viajes_a_la_nube",
+      "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1793206762120,
+      "tag": "0107_ajustes_de_rutas_fuera",
+      "breakpoints": true
     }
   ]
 }

@@ -8,7 +8,7 @@
 	 * Horas de silencio: de noche, lo que la voz fuera a poner (música, radio, un capítulo) lo
 	 * pregunta antes, y solo lo pone con un «sí». Lo de la pantalla, las alarmas y parar, nunca.
 	 */
-	let { data, form }: { data: PageData; form: ActionData } = $props();
+	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
 </script>
 
 {#if data.voiceQuiet}
@@ -22,7 +22,7 @@
 		</p>
 		<form
 			method="post"
-			action="?/saveVoiceQuiet"
+			action="?seccion={tab}&/saveVoiceQuiet"
 			use:enhance={() =>
 				async ({ update }) =>
 					update({ reset: false })}

@@ -9,6 +9,7 @@
 	import SiteNav from 'comun/components/SiteNav.svelte';
 	import MusicBar from 'comun/components/MusicBar.svelte';
 	import { navLinks } from '#lib/nav.ts';
+	import { themeColor, themeCss } from 'comun/themes.ts';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
@@ -18,6 +19,12 @@
 	/** The user's initial, for their round badge (accents and all: «Á» for «Álvaro»). */
 	const initial = $derived([...(data.user?.name.trim() ?? '')][0]?.toLocaleUpperCase('es') ?? '?');
 	let headerHeight = $state(0);
+
+	// A device that keeps routes' maps (#164): what it was ordered from any other, done now.
+	onMount(() => {
+		if (data.user)
+			void import('comun/route-maps.svelte.ts').then(({ routeMaps }) => routeMaps.sync());
+	});
 
 	// A notice touched (Web Push, the service worker): its page, here, without loading again.
 	onMount(() => {
@@ -37,10 +44,15 @@
 <svelte:head>
 	<title>Nube</title>
 	<link rel="icon" href={favicon} />
+	<meta name="theme-color" content={themeColor(data.theme)} />
+	<!-- Their colours (Ajustes), as at home: values only from the themes' table. -->
+	<!-- eslint-disable-next-line svelte/no-at-html-tags -- a <style> made from the themes' own table, never from what was typed. -->
+	{@html themeCss(data.theme)}
 </svelte:head>
 
-<!-- The road mode is the whole screen, without the site around it, as at home. -->
-{#if page.url.pathname === '/carretera'}
+<!-- The road mode is the whole screen, without the site around it, as at home; and a shared
+trip's link (#81), for whoever has it. -->
+{#if page.url.pathname === '/carretera' || page.url.pathname.startsWith('/s/')}
 	{@render children()}
 {:else}
 	<div style:--header-h="{headerHeight}px">

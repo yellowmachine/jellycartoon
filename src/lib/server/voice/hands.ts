@@ -42,9 +42,6 @@ import {
 } from 'comun/music.ts';
 import { STATIONS } from 'comun/radio.ts';
 import type { LngLat } from 'comun/road.ts';
-import { searchPlaces, whereIs } from '#lib/server/road/ors.ts';
-import { listSavedPlaces, listSavedRoutes } from '#lib/server/saved-places.ts';
-import { asksForRoute, findByName } from 'comun/saved-places.ts';
 import { askCloud, linked } from '#lib/server/kitchen.ts';
 import type { AlarmPlace } from 'comun/alarms.ts';
 import {
@@ -375,38 +372,6 @@ async function hand(
 			const to = Math.round(Math.min(Math.max(value, 0), 100));
 			await controlSnapcast({ action: 'masterVolume', value: to });
 			return `Volumen de la casa de ${now} a ${to}.`;
-		}
-		case 'navigate_to': {
-			const wanted = typeof args.destination === 'string' ? args.destination.trim() : '';
-			if (!wanted) return 'Falta el destino.';
-			// Their own first (#151): a route if one is asked for, then a place, then a route.
-			const [places, routes] = await Promise.all([
-				listSavedPlaces(ctx.user.id),
-				listSavedRoutes(ctx.user.id)
-			]);
-			const savedRoute = findByName(routes, wanted);
-			const savedPlace = findByName(places, wanted);
-			if (savedRoute && (asksForRoute(wanted) || !savedPlace)) {
-				ctx.outcome.actions.push({ kind: 'route', id: savedRoute.id });
-				return `Su ruta «${savedRoute.name}», desde donde está: el mapa la traza y la va diciendo. Díselo corto.`;
-			}
-			if (savedPlace) {
-				ctx.outcome.actions.push({
-					kind: 'navigate',
-					place: { label: savedPlace.name, at: savedPlace.at }
-				});
-				return `Ruta a ${savedPlace.name}, uno de sus sitios: el mapa la traza y la va diciendo. Díselo corto.`;
-			}
-			const [place] = await searchPlaces(wanted, ctx.position ?? null);
-			if (!place)
-				return `No encuentro «${wanted}». Pídele que lo diga de otra forma (con el pueblo o la ciudad).`;
-			ctx.outcome.actions.push({ kind: 'navigate', place });
-			return `Ruta a ${place.label}: el mapa la traza y la va diciendo. Díselo corto.`;
-		}
-		case 'where_am_i': {
-			if (!ctx.position) return 'Todavía no se sabe dónde está: el GPS no ha dado la posición.';
-			const label = await whereIs(ctx.position);
-			return label ? `Está en ${label}.` : 'No sé qué hay en ese punto.';
 		}
 		case 'send_clip': {
 			const minutes = Number(args.minutes);

@@ -19,16 +19,6 @@
 	<p class="mb-6 text-zinc-400">
 		Esto todavía está en casa: pronto estará también aquí, en la nube.
 	</p>
-	{#if name === 'viajes'}
-		<!-- The road mode is here already (#253): its map, its routes, its music. -->
-		<p class="mb-6">
-			<a
-				href="/carretera"
-				class="rounded-md border border-amber-500 px-5 py-2 font-medium text-amber-400 hover:bg-amber-500/10"
-				>Modo carretera, aquí</a
-			>
-		</p>
-	{/if}
 	{#if data.webUrl}
 		<a
 			href={atHome(data.webUrl, `/${name}`)}
@@ -39,7 +29,7 @@
 	{:else}
 		<p class="text-sm text-zinc-400">
 			Para ir desde aquí, pon la dirección de jellycartoon en
-			<a href="/ajustes#casa" class="text-amber-400 hover:underline">Ajustes</a>.
+			<a href="/ajustes?seccion=familia#casa" class="text-amber-400 hover:underline">Ajustes</a>.
 		</p>
 	{/if}
 </div>

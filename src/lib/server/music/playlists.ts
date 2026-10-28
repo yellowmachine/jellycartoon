@@ -2,7 +2,6 @@ import { and, asc, desc, eq, gt, lt, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import {
 	album,
-	albumArtistName,
 	albumTitle,
 	musicPlaylist,
 	musicPlaylistItem,

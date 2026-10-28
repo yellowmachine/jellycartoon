@@ -9,7 +9,12 @@
 	 * Cómo es la voz (la IA que contesta), en texto libre: el de la casa (para todos, también los
 	 * satélites) o el de cada uno (cuando sabe que eres tú). Cambia el tono, no lo que hace.
 	 */
-	let { data, form, which }: { data: PageData; form: ActionData; which: 'casa' | 'mio' } = $props();
+	let {
+		data,
+		form,
+		tab,
+		which
+	}: { data: PageData; form: ActionData; tab: string; which: 'casa' | 'mio' } = $props();
 
 	const style = $derived(which === 'casa' ? data.houseStyle : data.myStyle);
 	const action = $derived(which === 'casa' ? 'saveHouseStyle' : 'saveMyStyle');
@@ -32,7 +37,7 @@
 	</p>
 	<form
 		method="post"
-		action="?/{action}"
+		action="?seccion={tab}&/{action}"
 		use:enhance={() =>
 			async ({ update }) =>
 				update({ reset: false })}

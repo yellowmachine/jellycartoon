@@ -13,3 +13,6 @@ bun.lockb
 /nube/build/
 /nube/.svelte-kit/
 /nube/drizzle/
+
+# Claude Code's own settings on this machine (ignored by git too).
+/.claude/

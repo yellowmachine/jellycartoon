@@ -15,11 +15,8 @@ import {
 	DEFAULT_HOMEWORK_MODEL,
 	homeworkModel,
 	isAdmin,
-	DEFAULT_ORS_URL,
 	openRouterConfig,
 	openRouterManagementKey,
-	orsConfig,
-	relayConfig,
 	setAppSetting,
 	setOpenRouterManagementKey,
 	visionModel,
@@ -79,7 +76,7 @@ import {
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { hasIntro } from '#lib/server/library/paths.ts';
 import { KNOWN_LANGUAGES, normalizeLang } from 'comun/languages.ts';
-import { isTheme } from '#lib/themes.ts';
+import { isTheme } from 'comun/themes.ts';
 import { log } from '#lib/server/log.ts';
 import { startUpdateOnce, versionInfo } from '#lib/server/updates.ts';
 import {
@@ -95,7 +92,6 @@ import {
 	labellingEnabled,
 	saveLabelSet
 } from '#lib/server/episode-labels.ts';
-import { recordsTrips, setRecordTrips } from '#lib/server/trips.ts';
 import { canUseTwoFactor } from '#lib/server/two-factor.ts';
 import { randomBytes } from 'node:crypto';
 import {
@@ -135,8 +131,6 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 	let ai = null;
 	let kids = null;
 	let people = null;
-	let routes = null;
-	let relay = null;
 	let labels = null;
 	let satellites = null;
 	let satelliteSpeakers = null;
@@ -186,17 +180,6 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		};
 		/** What the vision model looks for in episodes: only with Ollama (OLLAMA_URL). */
 		if (labellingEnabled) labels = { sets: await labelSets(), model: LABEL_MODEL };
-		const r = await relayConfig();
-		/** Sharing trips (#81): the relay. Never its key: only whether there is one. */
-		relay = { url: r.url ?? '', hasKey: Boolean(r.key), fromEnv: r.fromEnv };
-		const ors = await orsConfig();
-		/** The road mode's routes (#78): openrouteservice. Never the key: only enough to recognise it. */
-		routes = {
-			keySource: ors.keySource,
-			keyHint: ors.apiKey ? `…${ors.apiKey.slice(-4)}` : null,
-			url: ors.url === DEFAULT_ORS_URL ? '' : ors.url,
-			defaultUrl: DEFAULT_ORS_URL
-		};
 		const [config, chat, vision, voice, homework, kidAccounts, grownUps, devices, here, house] =
 			await Promise.all([
 				openRouterConfig(),
@@ -280,7 +263,6 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		/** «Guardar lo que veo»: adults only, a child's is always kept for the adults (#17). */
 		keepHistory: isKid(locals.user) ? null : settings.keepHistory,
 		/** The road mode's trips kept (#81); adults only. */
-		recordTrips: isKid(locals.user) ? null : await recordsTrips(userId),
 		/** Their own Telegram (#243), read aloud in the road mode: adults only. Never its session. */
 		telegram: isKid(locals.user) ? null : { account: await telegramOf(userId) },
 		/** Langua, the language app: adults only. Never the token itself, only its end. */
@@ -290,8 +272,6 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 				? { url: langua.url, tokenHint: `…${langua.token.slice(-4)}` }
 				: { url: null, tokenHint: null },
 		ai,
-		routes,
-		relay,
 		labels,
 		satellites,
 		satelliteSpeakers,
@@ -780,11 +760,6 @@ export const actions: Actions = {
 			.onConflictDoUpdate({ target: userSettings.userId, set: values });
 		return { saved: 'spendLine' };
 	},
-	recordTrips: async ({ request, locals }) => {
-		if (isKid(locals.user)) error(404, 'No encontrado');
-		await setRecordTrips(locals.user!.id, (await request.formData()).get('recordTrips') === 'on');
-		return { saved: 'recordTrips' };
-	},
 	history: async ({ request, locals }) => {
 		if (isKid(locals.user)) error(404, 'No encontrado');
 		await setKeepHistory(locals.user!.id, (await request.formData()).get('keepHistory') === 'on');
@@ -931,24 +906,6 @@ export const actions: Actions = {
 		log.info('ajustes', 'Clave de gestión de OpenRouter borrada');
 		return { saved: 'managementKey' };
 	},
-	/** The trips relay (#81): its address, and its key if one is written (empty keeps it). */
-	saveRelay: async ({ request, locals }) => {
-		await requireAdmin(locals.user!.id);
-		const form = await request.formData();
-		const url = String(form.get('url') ?? '')
-			.trim()
-			.replace(/\/+$/, '');
-		const key = String(form.get('key') ?? '').trim();
-		if (url && !/^https:\/\/\S+$/.test(url))
-			return fail(400, {
-				section: 'relay',
-				message: 'La dirección tiene que empezar por https://'
-			});
-		await setAppSetting('relay_url', url || null);
-		if (key) await setAppSetting('relay_key', key);
-		log.info('ajustes', 'Repetidor de viajes cambiado', { url: url || null, key: Boolean(key) });
-		return { saved: 'relay' };
-	},
 	/** The episodes' labels, separated by commas: episodes labelled again look for the new ones. */
 	/** A set of labels for the episodes, new or changed: what the vision model looks for. */
 	saveLabelSet: async ({ request, locals }) => {
@@ -976,35 +933,6 @@ export const actions: Actions = {
 		if (!Number.isInteger(id)) return fail(400, { section: 'labels', message: 'No válido' });
 		await deleteLabelSet(id);
 		return { saved: 'labelSet' };
-	},
-	saveOrsKey: async ({ request, locals }) => {
-		await requireAdmin(locals.user!.id);
-		const key = String((await request.formData()).get('key') ?? '').trim();
-		if (!key) return fail(400, { section: 'routes', message: 'Escribe la clave' });
-		await setAppSetting('ors_api_key', key);
-		log.info('ajustes', 'Clave de openrouteservice cambiada');
-		return { saved: 'orsKey' };
-	},
-	deleteOrsKey: async ({ locals }) => {
-		await requireAdmin(locals.user!.id);
-		await setAppSetting('ors_api_key', null);
-		log.info('ajustes', 'Clave de openrouteservice borrada');
-		return { saved: 'orsKey' };
-	},
-	/** Empty: openrouteservice's own. Another: one's own, self-hosted (Docker). */
-	saveOrsUrl: async ({ request, locals }) => {
-		await requireAdmin(locals.user!.id);
-		const url = String((await request.formData()).get('url') ?? '')
-			.trim()
-			.replace(/\/+$/, '');
-		if (url && !/^https?:\/\/\S+$/.test(url))
-			return fail(400, {
-				section: 'routes',
-				message: 'La dirección tiene que empezar por http:// o https://'
-			});
-		await setAppSetting('ors_url', url || null);
-		log.info('ajustes', 'Dirección de openrouteservice cambiada', { url: url || null });
-		return { saved: 'orsUrl' };
 	},
 	/** An empty model goes back to the default one. */
 	saveModel: async ({ request, locals }) => {

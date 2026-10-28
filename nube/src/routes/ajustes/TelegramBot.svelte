@@ -8,7 +8,7 @@
 	 * The family's Telegram bot (#253; jellycartoon's #243): it tells the family's group about the
 	 * agenda, the alarms and the house's timers, saying who did what. Only its administrator.
 	 */
-	let { data, form }: { data: PageData; form: ActionData } = $props();
+	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
 	const select = `${field} w-auto py-1 text-sm`;
 
 	const bot = $derived(data.telegramBot?.bot ?? null);
@@ -47,7 +47,7 @@
 			{/if}
 			<form
 				method="post"
-				action="?/botOptions"
+				action="?seccion={tab}&/botOptions"
 				use:enhance={keep}
 				class="mb-3 flex flex-col gap-2 text-sm"
 			>
@@ -77,12 +77,13 @@
 						>{busy === 'botOptions' ? 'Guardando…' : 'Guardar'}</button
 					>
 					{#if bot.chat}
-						<button class={secondary} formaction="?/botTest" disabled={busy !== null}
+						<button class={secondary} formaction="?seccion={tab}&/botTest" disabled={busy !== null}
 							>{busy === 'botTest' ? 'Enviando…' : 'Enviar una prueba'}</button
 						>
 					{/if}
-					<button class="text-sm text-red-400 hover:underline" formaction="?/botForget"
-						>Desconectar</button
+					<button
+						class="text-sm text-red-400 hover:underline"
+						formaction="?seccion={tab}&/botForget">Desconectar</button
 					>
 					{#if saved === 'bot-options'}<span class="text-amber-400">✓ Guardado</span>{/if}
 					{#if saved === 'bot-test'}<span class="text-amber-400">✓ Enviada al grupo</span>{/if}
@@ -96,7 +97,7 @@
 			</p>
 			<form
 				method="post"
-				action="?/botToken"
+				action="?seccion={tab}&/botToken"
 				use:enhance={keep}
 				class="flex flex-wrap items-end gap-3 text-sm"
 			>

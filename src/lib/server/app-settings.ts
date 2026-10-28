@@ -1,11 +1,5 @@
 import { asc, eq } from 'drizzle-orm';
-import {
-	OPENROUTER_API_KEY,
-	OPENROUTER_MODEL,
-	OPENROUTESERVICE_API_KEY,
-	RELAY_PUBLISH_KEY,
-	RELAY_URL
-} from '$app/env/private';
+import { OPENROUTER_API_KEY, OPENROUTER_MODEL } from '$app/env/private';
 import { db } from '#lib/server/db/index.ts';
 import { appSetting, user } from '#lib/server/db/schema.ts';
 import { decrypt, encrypt } from '#lib/server/secret-box.ts';
@@ -48,10 +42,6 @@ type Key =
 	| 'last_scan_films'
 	| 'auto_subtitle_langs'
 	| 'vapid_keys'
-	| 'ors_api_key'
-	| 'ors_url'
-	| 'relay_url'
-	| 'relay_key'
 	| 'house_place'
 	| 'house_voice'
 	| 'voice_fillers'
@@ -112,35 +102,6 @@ export async function setOpenRouterManagementKey(key: string | null) {
 }
 
 /** The conversations about films: their model, and whether the AI may search the web. */
-/** openrouteservice's own, with the free key; a self-hosted one (Docker) goes in Ajustes. */
-export const DEFAULT_ORS_URL = 'https://api.openrouteservice.org';
-
-/**
- * The road mode's routes (#78): openrouteservice's key and address. The key in .env wins over the
- * one in Ajustes, as with OpenRouter.
- */
-export async function orsConfig() {
-	const [panelKey, url] = await Promise.all([get('ors_api_key'), get('ors_url')]);
-	return {
-		apiKey: OPENROUTESERVICE_API_KEY ?? panelKey,
-		keySource: OPENROUTESERVICE_API_KEY ? ('env' as const) : panelKey ? ('panel' as const) : null,
-		url: url ?? DEFAULT_ORS_URL
-	};
-}
-
-/**
- * Sharing trips (#81): the relay's address and the key it expects, from .env (which wins) or
- * Ajustes. Without both, there is no «Compartir viaje».
- */
-export async function relayConfig() {
-	const [url, key] = await Promise.all([get('relay_url'), get('relay_key')]);
-	return {
-		url: (RELAY_URL ?? url)?.replace(/\/+$/, '') || null,
-		key: RELAY_PUBLISH_KEY ?? key,
-		fromEnv: Boolean(RELAY_URL || RELAY_PUBLISH_KEY)
-	};
-}
-
 export async function chatConfig() {
 	const [{ apiKey }, model, web] = await Promise.all([
 		openRouterConfig(),

@@ -163,10 +163,11 @@ export class StateBroadcast<T> {
 		if (positionOnly) {
 			const wait = 1000 - (Date.now() - this.#lastPositionSent);
 			if (wait > 0) {
-				this.#positionTimer ??= setTimeout(() => {
-					this.#positionTimer = null;
-					this.notify();
-				}, wait);
+				if (!this.#positionTimer)
+					this.#positionTimer = setTimeout(() => {
+						this.#positionTimer = null;
+						this.notify();
+					}, wait);
 				return;
 			}
 		}
