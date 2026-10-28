@@ -1,5 +1,5 @@
 <script lang="ts">
-	import MusicBackground from '#lib/components/MusicBackground.svelte';
+	import MusicBackground from 'comun/components/MusicBackground.svelte';
 	import TvHeader from '#lib/components/TvHeader.svelte';
 	import TvTracks from '#lib/components/TvTracks.svelte';
 	import { formatRemaining } from 'comun/format.ts';

@@ -8,7 +8,7 @@
 	import EpisodeTitles from '#lib/components/EpisodeTitles.svelte';
 	import SeriesInfo from '#lib/components/SeriesInfo.svelte';
 	import TagBar from '#lib/components/TagBar.svelte';
-	import TitleForm from '#lib/components/TitleForm.svelte';
+	import TitleForm from 'comun/components/TitleForm.svelte';
 	import { saveView } from '#lib/views.ts';
 	import { formatBytes, formatDuration } from 'comun/format.ts';
 	import { languageLabel, normalizeLang } from 'comun/languages.ts';

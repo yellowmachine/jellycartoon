@@ -8,7 +8,9 @@
 	import ManeuverIcon from 'comun/components/ManeuverIcon.svelte';
 	import RoadMap from 'comun/components/RoadMap.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
-	import { coverUrl, setMusicUrls, type MusicTrack } from 'comun/music.ts';
+	import { coverUrl, type DjOptions, type MusicTrack } from 'comun/music.ts';
+	import { dj } from 'comun/dj.svelte.ts';
+	import { usePass } from '#lib/music-pass.svelte.ts';
 	import { music } from 'comun/music-player.svelte.ts';
 	import { musicTarget } from 'comun/music-target.svelte.ts';
 	import { STATIONS, type RadioStation } from 'comun/radio.ts';
@@ -29,7 +31,6 @@
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { telegramSaid, type TelegramMessage } from 'comun/telegram.ts';
-	import type { MusicPass } from '#lib/server/music.ts';
 	import type { PageProps } from './$types';
 
 	/**
@@ -37,13 +38,13 @@
 	 * screen beside the navigator (Android's split screen), or whole with the map and the route. What
 	 * plays, big; one touch to put on a station, an album or a list. The house's songs and covers,
 	 * straight from it by the pass; the map, the routes and their spoken directions, the trip kept
-	 * and its photos (Viajes), from here. Not yet as at home: the DJ, and the voice's timers and wake
-	 * word. The voice: held down, heard by the house's Whisper and done by the family's AI.
+	 * and its photos (Viajes), from here; Modo DJ, the house's. Not yet as at home: the voice's timers
+	 * and wake word. The voice: held down, heard by the house's Whisper and done by the family's AI.
 	 */
 
 	let { data }: PageProps = $props();
 
-	type Tab = 'radio' | 'musica' | 'listas' | 'podcasts' | 'ruta' | 'telegram';
+	type Tab = 'radio' | 'musica' | 'listas' | 'podcasts' | 'ruta' | 'dj' | 'telegram';
 	/**
 	 * The right-hand side (or the whole screen, without the map beside): Inicio (`null`), with what
 	 * plays, the microphone and a big button for each section; or a section, its list filling it, with
@@ -67,21 +68,9 @@
 		return () => tripRecorder.stop();
 	});
 
-	/** The house's songs and covers, by the pass; a new one every few hours (it lasts 12). */
-	function usePass(pass: MusicPass) {
-		setMusicUrls({
-			track: (id) => `${pass.base}/pistas/${id}`,
-			cover: (albumId) => `${pass.base}/portadas/${albumId}`
-		});
-	}
+	/** The house's songs and covers, by the pass (music-pass.svelte.ts). */
 	$effect(() => {
-		if (!data.pass) return;
-		usePass(data.pass);
-		const renew = setInterval(async () => {
-			const res = await fetch('/api/musica/pase', { method: 'POST' }).catch(() => null);
-			if (res?.ok) usePass(await res.json());
-		}, 6 * 3_600_000);
-		return () => clearInterval(renew);
+		if (data.pass) usePass(data.pass);
 	});
 
 	/**
@@ -216,6 +205,37 @@
 
 	const everything = () => playFrom('aleatorio', '/carretera/aleatorio', 'No hay música.');
 
+	/**
+	 * Modo DJ (#117), only to choose: the setups saved in Música, and first the last one started on
+	 * this device, saved or not. Here, on this device: the house's speakers are far away.
+	 */
+	// Not a $derived: it is in this browser's storage, read once it is in the browser.
+	// eslint-disable-next-line svelte/prefer-writable-derived
+	let lastDj = $state<DjOptions | null>(null);
+	$effect(() => {
+		lastDj = dj.remembered();
+	});
+
+	function startDj(id: string, options: DjOptions) {
+		if (playingHere(id) && music.dj) return music.toggle();
+		return busy(id, async () => {
+			try {
+				await dj.play(options);
+			} catch (err) {
+				return err instanceof Error ? err.message : 'No se pudo poner el Modo DJ.';
+			}
+			playingFrom = id;
+			lastDj = options;
+		});
+	}
+
+	/** «Toda la música», «Queen y Supertramp», «Queen, Supertramp y 3 más». */
+	function djArtists(artists: string[]) {
+		if (!artists.length) return 'Toda la música';
+		if (artists.length <= 2) return artists.join(' y ');
+		return `${artists.slice(0, 2).join(', ')} y ${artists.length - 2} más`;
+	}
+
 	function podcast(episodeId: number) {
 		if (music.podcast?.id === episodeId) return music.toggle();
 		return busy(`podcast-${episodeId}`, () => playEpisode(episodeId));
@@ -290,6 +310,7 @@
 		{ id: 'podcasts', label: 'Podcasts' },
 		// Only with the map beside, or a phone's own tab for it: where the route is drawn.
 		...(routable ? [{ id: 'ruta' as const, label: 'Ruta' }] : []),
+		...(data.dj ? [{ id: 'dj' as const, label: 'DJ' }] : []),
 		...(data.telegram ? [{ id: 'telegram' as const, label: 'Telegram' }] : [])
 	]);
 
@@ -919,6 +940,11 @@ home. -->
 				<!-- A paper plane, as Telegram's. -->
 				<path d="M21 4 3 11l6 2 2 6 3-4 5 4z" />
 				<path d="m9 13 12-9" />
+			{:else if id === 'dj'}
+				<!-- A record, and the DJ's hand on it. -->
+				<circle cx="12" cy="12" r="9" />
+				<circle cx="12" cy="12" r="2.5" />
+				<path d="M12 5.5a6.5 6.5 0 0 1 6.5 6.5" />
 			{:else}
 				<path
 					d="M12 21s-6.5-6.2-6.5-11.2A6.5 6.5 0 0 1 12 3.3a6.5 6.5 0 0 1 6.5 6.5C18.5 14.8 12 21 12 21z"
@@ -1483,6 +1509,40 @@ home. -->
 							<span class="block text-lg">{m.text ?? telegramSaid(m)}</span>
 						</div>
 					{/each}
+				{:else if tab === 'dj'}
+					{@const setups = [
+						...(lastDj ? [{ id: 'dj-ultima', name: 'La última', options: lastDj }] : []),
+						...data.djPresets.map((p) => ({ id: `dj-${p.id}`, name: p.name, options: p.options }))
+					]}
+					{#each setups as setup (setup.id)}
+						{@const on = playingHere(setup.id) && music.dj}
+						<button
+							class={[
+								tile,
+								on ? 'border-amber-400 bg-amber-500/15' : 'border-white/10 bg-zinc-900'
+							]}
+							disabled={loading !== null}
+							onclick={() => startDj(setup.id, setup.options)}
+						>
+							<span class="min-w-0">
+								<span class="block truncate text-xl font-semibold">
+									{loading === setup.id ? 'Poniendo…' : setup.name}
+								</span>
+								<span class="block truncate text-base text-zinc-400"
+									>{on
+										? music.playing
+											? '● Sonando'
+											: 'En pausa'
+										: djArtists(setup.options.artists)}</span
+								>
+							</span>
+						</button>
+					{/each}
+					{#if !data.djPresets.length}
+						<p class="text-lg text-zinc-400">
+							Guarda una configuración en Música → Modo DJ para tenerla aquí.
+						</p>
+					{/if}
 				{:else if tab === 'podcasts'}
 					{#each data.inProgress as episode (episode.id)}
 						{@const on = music.podcast?.id === episode.id}

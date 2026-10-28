@@ -5,8 +5,8 @@
 		drawBackground,
 		pace,
 		SAMPLE_PALETTE
-	} from '#lib/music-background.ts';
-	import { musicBackground } from '#lib/music-background-settings.svelte.ts';
+	} from 'comun/music-background.ts';
+	import { musicBackground } from 'comun/music-background-settings.svelte.ts';
 
 	/** The Música background on this device: its style, how strong and how fast, with a preview. */
 

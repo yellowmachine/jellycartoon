@@ -4,7 +4,7 @@
 	import { poll } from 'comun/poll.ts';
 	import { page } from '$app/state';
 	import MovieMenu from '#lib/components/MovieMenu.svelte';
-	import TitleForm from '#lib/components/TitleForm.svelte';
+	import TitleForm from 'comun/components/TitleForm.svelte';
 	import { formatDuration } from 'comun/format.ts';
 	import {
 		activeFilters,

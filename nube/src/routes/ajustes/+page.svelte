@@ -13,6 +13,7 @@
 	import Colores from 'comun/components/Colores.svelte';
 	import GuardarViajes from './GuardarViajes.svelte';
 	import Microfono from './Microfono.svelte';
+	import FondoMusica from './FondoMusica.svelte';
 	import Subtitulos from './Subtitulos.svelte';
 	import SettingsSearch from 'comun/components/SettingsSearch.svelte';
 	import { field, primary, secondary, section } from '#lib/styles.ts';
@@ -102,6 +103,8 @@
 		</section>
 
 		<Microfono />
+
+		<FondoMusica />
 	{/if}
 
 	{#if tab === 'familia'}

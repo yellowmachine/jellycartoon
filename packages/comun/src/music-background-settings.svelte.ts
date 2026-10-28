@@ -1,4 +1,4 @@
-import type { BackgroundStyle } from '#lib/music-background.ts';
+import type { BackgroundStyle } from 'comun/music-background.ts';
 
 /**
  * The Música background on this device (Ajustes): the TV can have a lively one and the phone none.

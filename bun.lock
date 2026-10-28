@@ -72,6 +72,7 @@
         "grammy": "1.46.0",
         "hls.js": "1.7.3",
         "maplibre-gl": "^6.12.0",
+        "minisearch": "^7.2.0",
         "postgres": "^3.4.9",
         "qrcode": "^1.5.4",
         "rrule": "^2.8.1",
