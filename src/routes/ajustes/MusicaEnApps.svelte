@@ -22,8 +22,16 @@
 			cuenta.
 		</p>
 		<dl class="mb-4 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
-			<dt class="text-zinc-400">Servidor</dt>
-			<dd class="font-mono break-all">{apps.server}</dd>
+			{#if apps.away}
+				<!-- Through the tunnel, at home too; the other only reaches from home or the VPN. -->
+				<dt class="text-zinc-400">Servidor</dt>
+				<dd class="font-mono break-all">{apps.away}</dd>
+				<dt class="text-zinc-400">Solo en casa o con la VPN</dt>
+				<dd class="font-mono break-all">{apps.server}</dd>
+			{:else}
+				<dt class="text-zinc-400">Servidor</dt>
+				<dd class="font-mono break-all">{apps.server}</dd>
+			{/if}
 			<dt class="text-zinc-400">Usuario</dt>
 			<dd class="font-mono break-all">{apps.username}</dd>
 			<dt class="text-zinc-400">Contraseña</dt>
@@ -52,8 +60,8 @@
 		</div>
 		{#if apps.since}
 			<p class="mt-2 text-xs text-zinc-500">
-				Generar otra deja sin acceso a las apps que usaban la anterior. Fuera de casa, el móvil
-				necesita Tailscale conectado.
+				Generar otra deja sin acceso a las apps que usaban la anterior.{#if !apps.away}
+					Fuera de casa, el móvil necesita la VPN conectada.{/if}
 			</p>
 		{/if}
 	</section>

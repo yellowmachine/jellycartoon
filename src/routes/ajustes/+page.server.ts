@@ -87,7 +87,7 @@ import {
 	revokeAppPassword
 } from '#lib/server/subsonic/auth.ts';
 import { musicRoot } from '#lib/server/library/paths.ts';
-import { LABEL_MODEL, ORIGIN } from '$app/env/private';
+import { LABEL_MODEL, MEDIA_HOST, ORIGIN } from '$app/env/private';
 import {
 	deleteLabelSet,
 	labelSets,
@@ -315,7 +315,13 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		people,
 		/** Music in apps such as Tempus (#27): with the account's email and a password of their own. */
 		musicApps: musicRoot
-			? { server: ORIGIN, username: locals.user!.email, since: appPassword }
+			? {
+					server: ORIGIN,
+					/** Through the rathole tunnel, without a VPN (#253). */
+					away: MEDIA_HOST ? `https://${MEDIA_HOST}` : null,
+					username: locals.user!.email,
+					since: appPassword
+				}
 			: null,
 		/** The new version and its button, only for who manages the app (#20). */
 		version: admin ? version : { ...version, update: null, canUpdate: false }
