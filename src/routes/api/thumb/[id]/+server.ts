@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { episode } from '#lib/server/db/schema.ts';
-import { fileResponse } from '#lib/server/file-response.ts';
+import { fileResponse } from 'comun/server/file-response.ts';
 import { takeThumbnail } from '#lib/server/library/thumbnail.ts';
 import { thumbFile } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';

@@ -2,7 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { log } from '#lib/server/log.ts';
 import { prepareRouteMap } from '#lib/server/route-maps.ts';
-import { isDeviceId } from '#lib/route-maps.ts';
+import { isDeviceId } from 'comun/route-maps.ts';
 
 /**
  * A route's map, ready to download (#164): cut the first time (some seconds). Back, its address

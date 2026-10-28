@@ -64,6 +64,13 @@
       "when": 1793187778305,
       "tag": "0008_peaceful_mantis",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793189297950,
+      "tag": "0009_redundant_banshee",
+      "breakpoints": true
     }
   ]
 }

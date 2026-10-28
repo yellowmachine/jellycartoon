@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { fileResponse } from '#lib/server/file-response.ts';
+import { fileResponse } from 'comun/server/file-response.ts';
 import { mapDir } from '#lib/server/library/paths.ts';
 
 const TYPES: Record<string, string> = {

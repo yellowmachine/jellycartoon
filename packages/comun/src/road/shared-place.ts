@@ -1,5 +1,5 @@
-import { parseCoordinates } from '#lib/coordinates.ts';
-import type { LngLat } from '#lib/road.ts';
+import { parseCoordinates } from 'comun/coordinates.ts';
+import type { LngLat } from 'comun/road.ts';
 
 /**
  * A place shared to the app from a map (the manifest's share_target, «Compartir → JellyCartoon» in

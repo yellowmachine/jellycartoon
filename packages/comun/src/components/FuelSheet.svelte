@@ -2,14 +2,23 @@
 	import { page } from '$app/state';
 	import { euros, parseEuros, type ExpenseDraft, type ExpenseLine } from 'comun/expenses.ts';
 	import { smallerPhoto } from 'comun/receipt-photo.ts';
-	import type { LngLat } from '#lib/road.ts';
+	import type { LngLat } from 'comun/road.ts';
 
 	/**
 	 * Fuel, from the road mode (#194): stopped at the petrol station, what was paid, big for a
 	 * thumb, or the receipt's photo read here without leaving the road mode. Saved in Gastos, today,
-	 * as «Gasolina»: typed, named after where we are (GPS); read, as the receipt says.
+	 * as «Gasolina»: typed, named after where we are (GPS); read, as the receipt says. Each app says
+	 * where it reads and saves (`urls`): at home, through its server to the cloud; in the cloud, there.
 	 */
-	let { position, onclose }: { position: LngLat | null; onclose: () => void } = $props();
+	let {
+		position,
+		onclose,
+		urls = { read: '/api/gastos/leer', save: '/api/gastos/gasolina' }
+	}: {
+		position: LngLat | null;
+		onclose: () => void;
+		urls?: { read: string; save: string };
+	} = $props();
 
 	/** As written in the box, «50,30». */
 	let amount = $state('');
@@ -26,7 +35,7 @@
 		reading = true;
 		const form = new FormData();
 		form.set('foto', await smallerPhoto(file), 'ticket.jpg');
-		const res = await fetch('/api/gastos/leer', { method: 'POST', body: form }).catch(() => null);
+		const res = await fetch(urls.read, { method: 'POST', body: form }).catch(() => null);
 		const body = await res?.json().catch(() => null);
 		reading = false;
 		if (!res?.ok) return void (problem = body?.message ?? 'Sin conexión');
@@ -41,7 +50,7 @@
 		if (!total || total <= 0) return void (problem = 'Escribe cuánto, en euros: 50,30');
 		problem = null;
 		saving = true;
-		const res = await fetch('/api/gastos/gasolina', {
+		const res = await fetch(urls.save, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({

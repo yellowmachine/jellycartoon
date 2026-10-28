@@ -1,6 +1,6 @@
 import type { MusicTrack } from 'comun/music.ts';
 import type { Recipe } from '#lib/recipe.ts';
-import type { LngLat, Place } from '#lib/road.ts';
+import type { LngLat, Place } from 'comun/road.ts';
 
 /** Voice commands (#33), shared by the server and /voz. */
 

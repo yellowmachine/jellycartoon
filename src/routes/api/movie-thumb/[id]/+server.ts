@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { fileResponse } from '#lib/server/file-response.ts';
+import { fileResponse } from 'comun/server/file-response.ts';
 import { movieThumbFile } from '#lib/server/library/paths.ts';
 
 // Revalidated every time (a 304 when unchanged), like episode thumbnails.

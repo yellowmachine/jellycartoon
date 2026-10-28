@@ -73,7 +73,7 @@
 
 	// A device that keeps routes' maps (#164): what it was ordered from any other, done now.
 	onMount(() => {
-		void import('#lib/route-maps.svelte.ts').then(({ routeMaps }) => routeMaps.sync());
+		void import('comun/route-maps.svelte.ts').then(({ routeMaps }) => routeMaps.sync());
 	});
 
 	// A notice touched with the app open (service worker): to its page, without loading it again,

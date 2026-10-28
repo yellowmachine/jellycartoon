@@ -31,6 +31,29 @@ export async function setOpenRouterKey(k: Kitchen, key: string | null) {
 	);
 }
 
+/** Its openrouteservice key, for the road mode's routes; null without one. */
+export async function orsKey(k: Kitchen) {
+	const row = await settingsOf(k);
+	return row?.orsKey ? decrypt(row.orsKey) : null;
+}
+
+/** How it starts, for Ajustes. */
+export async function orsKeyStart(k: Kitchen) {
+	const key = await orsKey(k);
+	return key ? `${key.slice(0, 8)}…${key.slice(-4)}` : null;
+}
+
+/** A new key, or none (null). */
+export async function setOrsKey(k: Kitchen, key: string | null) {
+	const value = key ? encrypt(key) : null;
+	await k.run((tx) =>
+		tx
+			.insert(familySettings)
+			.values({ familyId: k.familyId, orsKey: value })
+			.onConflictDoUpdate({ target: familySettings.familyId, set: { orsKey: value } })
+	);
+}
+
 /** The recipe whose picture is behind the book's page; null: none. */
 export async function recipesBackdropId(k: Kitchen) {
 	return (await settingsOf(k))?.recipesBackdrop ?? null;

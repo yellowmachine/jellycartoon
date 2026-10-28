@@ -282,6 +282,37 @@
 	{/if}
 </section>
 
+<section class={section} id="rutas">
+	<h2 class="mb-1 font-semibold">Rutas (openrouteservice)</h2>
+	<p class="mb-4 text-sm text-zinc-400">
+		La clave de <a
+			href="https://openrouteservice.org/dev/#/signup"
+			target="_blank"
+			rel="noreferrer"
+			class="text-amber-400 hover:underline">openrouteservice</a
+		> de la familia, gratis: con ella el modo carretera busca sitios y traza la ruta en coche, con sus
+		indicaciones. Su plan gratuito da unas 2.000 rutas y 1.000 búsquedas al día. Se guarda cifrada.
+	</p>
+	{#if data.ors}
+		<p class="mb-3 font-mono text-sm">{data.ors}</p>
+	{/if}
+	{#if admin}
+		<form method="post" action="?/saveOrs" use:enhance class="flex gap-2">
+			<PasswordInput
+				name="key"
+				placeholder={data.ors ? 'Otra clave (vacía, quitarla)' : 'La clave de openrouteservice'}
+				autocomplete="new-password"
+				box="flex-1"
+				class="{field} font-mono"
+			/>
+			<button class={primary}>Guardar</button>
+		</form>
+	{/if}
+	{#if form && 'orsProblem' in form}
+		<p class="mt-3 text-sm text-red-400">{form.orsProblem}</p>
+	{/if}
+</section>
+
 <section class={section} id="dos-pasos">
 	<h2 class="mb-1 font-semibold">Verificación en dos pasos</h2>
 	<p class="mb-4 text-sm text-zinc-400">

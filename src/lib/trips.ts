@@ -1,5 +1,5 @@
-import { metresBetween } from '#lib/road-guide.ts';
-import type { LngLat } from '#lib/road.ts';
+import { metresBetween } from 'comun/road-guide.ts';
+import type { LngLat } from 'comun/road.ts';
 
 /**
  * The road mode's trips (#81): what the browser keeps of the GPS and what the server makes of it.

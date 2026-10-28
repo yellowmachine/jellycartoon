@@ -14,7 +14,12 @@ import {
 } from '#lib/server/telegram/bot.ts';
 import { BOT_EVENTS, parseBotEvents } from '#lib/telegram-bot.ts';
 import { withFamily } from '#lib/server/family.ts';
-import { openRouterKeyStart, setOpenRouterKey } from '#lib/server/family-settings.ts';
+import {
+	openRouterKeyStart,
+	orsKeyStart,
+	setOpenRouterKey,
+	setOrsKey
+} from '#lib/server/family-settings.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { createHouseKey, deleteHouseKey, listHouseKeys } from '#lib/server/house-keys.ts';
 import {
@@ -29,6 +34,7 @@ import {
 export const load: PageServerLoad = async ({ locals }) => ({
 	house: await houseLink(locals.user!.id),
 	openRouter: await openRouterKeyStart(await kitchenOf(locals.user!.id)),
+	ors: await orsKeyStart(await kitchenOf(locals.user!.id)),
 	houseKeys: await listHouseKeys(locals.user!.id),
 	twoFactor: Boolean(locals.user!.twoFactorEnabled),
 	people: await familyPeople(await kitchenOf(locals.user!.id)),
@@ -195,6 +201,17 @@ export const actions: Actions = {
 			return fail(400, { openRouterProblem: 'Las claves de OpenRouter empiezan por sk-or-' });
 		await setOpenRouterKey(await kitchenOf(locals.user!.id), key || null);
 		return { saved: 'openRouter' };
+	},
+	/** openrouteservice's key (#78), for the road mode's routes: the family's administrator. */
+	saveOrs: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'orsProblem');
+		if (denied) return denied;
+		const key = String((await request.formData()).get('key') ?? '').trim();
+		// Not a password the browser filled in by itself: openrouteservice's are long, without spaces.
+		if (key && !/^[\w=+/-]{30,}$/.test(key))
+			return fail(400, { orsProblem: 'Esa no parece una clave de openrouteservice' });
+		await setOrsKey(await kitchenOf(locals.user!.id), key || null);
+		return { saved: 'ors' };
 	},
 	/** The second step: the password, then its QR and recovery codes, then a code to turn it on. */
 	enableTwoFactor: async ({ request }) => {

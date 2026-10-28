@@ -10,8 +10,8 @@ import { mapDevice, routeMap, savedRoute } from '#lib/server/db/schema.ts';
 import { run } from '#lib/server/library/ffmpeg.ts';
 import { mapDir, mapFile } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
-import type { LngLat } from '#lib/road.ts';
-import type { DeviceOrder, HeldMap, RouteMapsView, RouteMapReport } from '#lib/route-maps.ts';
+import type { LngLat } from 'comun/road.ts';
+import type { DeviceOrder, HeldMap, RouteMapsView, RouteMapReport } from 'comun/route-maps.ts';
 
 /**
  * Routes' maps for a device without coverage (#164): the strip of Spain's map around a route, cut

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import 'maplibre-gl/dist/maplibre-gl.css';
-	import { loadOurMap } from '#lib/our-map.ts';
+	import { loadOurMap } from 'comun/our-map.ts';
 	import type { StoredPoint } from '#lib/trips.ts';
 
 	/**

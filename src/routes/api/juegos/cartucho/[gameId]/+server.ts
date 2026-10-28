@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { game } from '#lib/server/db/schema.ts';
-import { fileResponse } from '#lib/server/file-response.ts';
+import { fileResponse } from 'comun/server/file-response.ts';
 import {
 	anyCartridge,
 	cartridgeFile,

@@ -44,10 +44,10 @@ import {
 } from 'comun/music.ts';
 import { COUNTRIES, STATIONS } from 'comun/radio.ts';
 import { parseRecipe } from '#lib/recipe.ts';
-import type { LngLat } from '#lib/road.ts';
+import type { LngLat } from 'comun/road.ts';
 import { searchPlaces, whereIs } from '#lib/server/road/ors.ts';
 import { listSavedPlaces, listSavedRoutes } from '#lib/server/saved-places.ts';
-import { asksForRoute, findByName } from '#lib/saved-places.ts';
+import { asksForRoute, findByName } from 'comun/saved-places.ts';
 import {
 	addExpense,
 	addItems,

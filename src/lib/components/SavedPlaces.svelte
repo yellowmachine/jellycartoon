@@ -2,13 +2,13 @@
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import PlacesMap from '#lib/components/PlacesMap.svelte';
 	import PointFinder from '#lib/components/PointFinder.svelte';
-	import { distanceText, type LngLat } from '#lib/road.ts';
+	import { distanceText, type LngLat } from 'comun/road.ts';
 	import {
 		MAX_STOPS,
 		type RouteStop,
 		type SavedPlace,
 		type SavedRoute
-	} from '#lib/saved-places.ts';
+	} from 'comun/saved-places.ts';
 	import { durationText } from '#lib/trips.ts';
 
 	/**

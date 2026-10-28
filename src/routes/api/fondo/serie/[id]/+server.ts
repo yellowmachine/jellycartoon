@@ -1,6 +1,6 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { fileResponse } from '#lib/server/file-response.ts';
+import { fileResponse } from 'comun/server/file-response.ts';
 import { chooseSeriesBackdrop, seriesBackdrop } from '#lib/server/library/backdrop.ts';
 import { log } from '#lib/server/log.ts';
 

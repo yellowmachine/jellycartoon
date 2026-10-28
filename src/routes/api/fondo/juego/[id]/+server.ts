@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { game } from '#lib/server/db/schema.ts';
-import { fileResponse } from '#lib/server/file-response.ts';
+import { fileResponse } from 'comun/server/file-response.ts';
 import { gameBackdropFile, saveGameBackdrop } from '#lib/server/games.ts';
 
 /** A capture of a console's screen is under 100 KB, even at the TV's size; this is far more. */

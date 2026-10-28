@@ -1,4 +1,4 @@
-import { fileResponse } from '#lib/server/file-response.ts';
+import { fileResponse } from 'comun/server/file-response.ts';
 import { albumCoverFile, musicFile } from '#lib/server/library/paths.ts';
 import {
 	createPlaylist,

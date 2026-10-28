@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { fileResponse } from '#lib/server/file-response.ts';
+import { fileResponse } from 'comun/server/file-response.ts';
 import { isSteamPicture, steamPictureFile } from '#lib/server/steam.ts';
 
 /** A Steam game's picture, from Steam's own library cache on the PC with the screen. */

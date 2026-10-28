@@ -7,7 +7,7 @@ import { recipe } from '#lib/recipe.svelte.ts';
 import { timers } from '#lib/timers.svelte.ts';
 import { musicTarget } from 'comun/music-target.svelte.ts';
 import { videoHere } from '#lib/video-here.svelte.ts';
-import type { LngLat, Place } from '#lib/road.ts';
+import type { LngLat, Place } from 'comun/road.ts';
 import {
 	assistantTurn,
 	FOLLOW_UP_MS,

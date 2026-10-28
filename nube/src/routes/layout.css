@@ -3,6 +3,9 @@
 /* The shared package's components (#253), outside this app's folder: their classes too. */
 @source '../../../packages/comun/src';
 
+/* A window of little height: a phone in split screen, the other app above or beside. */
+@custom-variant short (@media (max-height: 500px));
+
 @layer base {
 	html {
 		color-scheme: dark;

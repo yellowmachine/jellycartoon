@@ -24,9 +24,9 @@ import type { Chapter, SceneName } from '#lib/scenes.ts';
 import type { SubtitleStyle } from '#lib/subtitle-style.ts';
 import type { WikiPage } from '#lib/server/cinema/wikidata.ts';
 import type { TitleProposal } from '#lib/episode-titles.ts';
-import type { LngLat } from '#lib/road.ts';
+import type { LngLat } from 'comun/road.ts';
 import type { DjOptions } from 'comun/music.ts';
-import type { RouteStop } from '#lib/saved-places.ts';
+import type { RouteStop } from 'comun/saved-places.ts';
 import type { Exercise, HomeworkRules, Step } from '#lib/homework.ts';
 import { session, user } from './auth.schema';
 

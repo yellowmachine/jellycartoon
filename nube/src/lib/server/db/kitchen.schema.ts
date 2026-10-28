@@ -116,6 +116,8 @@ export const familySettings = pgTable(
 			.primaryKey()
 			.references(() => family.id, { onDelete: 'cascade' }),
 		openrouterKey: text('openrouter_key'),
+		/** openrouteservice's key (#78), for the road mode's routes and places; encrypted. */
+		orsKey: text('ors_key'),
 		recipesBackdrop: integer('recipes_backdrop').references(() => recipe.id, {
 			onDelete: 'set null'
 		}),

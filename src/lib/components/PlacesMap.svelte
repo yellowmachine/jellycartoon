@@ -1,8 +1,8 @@
 <script lang="ts">
 	import 'maplibre-gl/dist/maplibre-gl.css';
 	import type { GeoJSONSource, Map as MapLibreMap, Marker } from 'maplibre-gl';
-	import { loadOurMap } from '#lib/our-map.ts';
-	import type { LngLat } from '#lib/road.ts';
+	import { loadOurMap } from 'comun/our-map.ts';
+	import type { LngLat } from 'comun/road.ts';
 
 	/**
 	 * Kept places and routes (#151) on the app's own map: each point with its name, a route's way,

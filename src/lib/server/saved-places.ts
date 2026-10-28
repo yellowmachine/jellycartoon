@@ -4,8 +4,8 @@ import { savedPlace, savedRoute } from '#lib/server/db/schema.ts';
 import { log } from '#lib/server/log.ts';
 import { drivingRoute } from '#lib/server/road/ors.ts';
 import { forgetRouteMaps } from '#lib/server/route-maps.ts';
-import type { LngLat } from '#lib/road.ts';
-import type { RouteStop, SavedPlace, SavedRoute } from '#lib/saved-places.ts';
+import type { LngLat } from 'comun/road.ts';
+import type { RouteStop, SavedPlace, SavedRoute } from 'comun/saved-places.ts';
 
 /**
  * Places and routes kept with their name (#151), each user's own. A route is calculated once, when

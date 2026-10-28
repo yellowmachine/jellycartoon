@@ -6,7 +6,7 @@ import { placeName } from '#lib/server/road/ors.ts';
 import { log } from '#lib/server/log.ts';
 import { today } from '#lib/server/playlist.ts';
 import { parseExpenseInput } from 'comun/expenses.ts';
-import type { LngLat } from '#lib/road.ts';
+import type { LngLat } from 'comun/road.ts';
 
 /** Asking where we are takes at most this: never a fuel stop waiting for a place's name. */
 const PLACE_MS = 4000;

@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { syncMapDevice } from '#lib/server/route-maps.ts';
-import { isDeviceId, type HeldMap } from '#lib/route-maps.ts';
+import { isDeviceId, type HeldMap } from 'comun/route-maps.ts';
 
 /**
  * The device that keeps routes' maps (#164), as the app opens on it: `{ id, held }`, what it has
