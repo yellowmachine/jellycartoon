@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNotNull, lte, or, sql } from 'drizzle-orm';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { daysName, type Alarm, type AlarmInput, type AlarmPlace } from '#lib/alarms.ts';
-import { addDays, fromRrule, localDay, localTime, toRrule } from '#lib/agenda.ts';
+import { addDays, fromRrule, localDay, localTime, toRrule, weekday } from '#lib/agenda.ts';
 import { describeTimers, sameLabel, timeLabel } from '#lib/timer-names.ts';
 import { db } from '#lib/server/db/index.ts';
 import { alarm, alarmPerson } from '#lib/server/db/schema.ts';
@@ -160,15 +160,104 @@ export async function stopRingingAt(place: AlarmPlace) {
 	return stopped.length;
 }
 
-/** «Esta vez no»: its next day passed by. */
-export async function skipNext(id: number) {
-	const [row] = await db.select().from(alarm).where(eq(alarm.id, id));
-	if (!row?.time || !row.startDay || !row.nextAt) return;
-	const skipDays = [...row.skipDays, localDay(row.nextAt)];
-	const nextAt = nextRing({ ...row, time: row.time, startDay: row.startDay, skipDays });
-	await db.update(alarm).set({ skipDays, nextAt }).where(eq(alarm.id, id));
+/** Most days skipped or unskipped at once: a long holiday. */
+export const MAX_SKIP_DAYS = 92;
+
+/**
+ * The days from `from` to `to` (both in) on which it would ring, today or later: by its weekdays
+ * if it repeats. Null if the range is not one.
+ */
+function ringDays(row: Row, from: string, to: string): string[] | null {
+	const today = localDay();
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || to < from)
+		return null;
+	const repeat = fromRrule(row.repeat);
+	const days: string[] = [];
+	for (let day = from < today ? today : from; day <= to; day = addDays(day, 1)) {
+		if (days.length >= MAX_SKIP_DAYS) return null;
+		if (repeat.every !== 'semana' || repeat.days.includes(weekday(day))) days.push(day);
+	}
+	return days;
+}
+
+/** Saves the days skipped, the past ones forgotten, and when it rings next. */
+async function setSkipDays(row: Row, skipDays: string[]) {
+	const today = localDay();
+	const kept = [...new Set(skipDays)].filter((day) => day >= today).sort();
+	const nextAt =
+		row.paused || !row.time || !row.startDay
+			? row.nextAt
+			: nextRing({ ...row, time: row.time, startDay: row.startDay, skipDays: kept });
+	await db.update(alarm).set({ skipDays: kept, nextAt }).where(eq(alarm.id, row.id));
 	await schedule();
 	changed();
+}
+
+/**
+ * «Esta vez no»: its next day passed by; or, with `from` (and `to`, else only that day), those days
+ * («el jueves no», «del 1 al 15 de agosto no»). The days skipped, or null if none can be.
+ */
+export async function skipAlarm(id: number, from?: string, to?: string) {
+	const [row] = await db.select().from(alarm).where(eq(alarm.id, id));
+	if (!row?.time || !row.startDay) return null;
+	const days = from ? ringDays(row, from, to || from) : row.nextAt ? [localDay(row.nextAt)] : [];
+	if (!days?.length) return null;
+	await setSkipDays(row, [...row.skipDays, ...days]);
+	return days;
+}
+
+/** «Al final mañana sí»: those days ring again. The days it was skipping among them. */
+export async function unskipAlarm(id: number, from: string, to?: string) {
+	const [row] = await db.select().from(alarm).where(eq(alarm.id, id));
+	if (!row?.time || !row.startDay) return null;
+	const days = ringDays(row, from, to || from);
+	if (!days) return null;
+	const back = row.skipDays.filter((day) => days.includes(day));
+	await setSkipDays(
+		row,
+		row.skipDays.filter((day) => !back.includes(day))
+	);
+	return back;
+}
+
+/**
+ * Its time, its weekdays (empty, once), its day if once, or its name, without taking it away
+ * («cámbiala a las 6:30», «quítale el sábado»). What is not given stays. How it is now, in words;
+ * null if it is not an alarm.
+ */
+export async function editAlarm(
+	id: number,
+	changes: { time?: string; days?: number[]; day?: string; label?: string }
+) {
+	const [row] = await db.select().from(alarm).where(eq(alarm.id, id));
+	if (!row || row.kind !== 'alarma' || !row.time || !row.startDay) return null;
+	const repeat =
+		changes.days === undefined
+			? row.repeat
+			: changes.days.length
+				? toRrule({ every: 'semana', days: changes.days })
+				: null;
+	const time = changes.time ?? row.time.slice(0, 5);
+	// Once: the day said, its own if still to come, else today if its time has not passed, or tomorrow.
+	const today = localDay();
+	const startDay = repeat
+		? row.startDay
+		: (changes.day ??
+			(row.startDay > today ? row.startDay : time > localTime() ? today : addDays(today, 1)));
+	const times = { time, startDay, repeat, skipDays: row.skipDays };
+	const values = {
+		...times,
+		label: changes.label ?? row.label,
+		nextAt: row.paused ? row.nextAt : nextRing(times),
+		// Changed to come again: not over any more.
+		doneAt: null
+	};
+	await db.update(alarm).set(values).where(eq(alarm.id, id));
+	log.info('avisos', `Cambiado: «${values.label}»`, { id, ...changes });
+	await schedule();
+	changed();
+	const days = fromRrule(repeat);
+	return `«${values.label}», a las ${time}, ${days.every === 'semana' ? daysName(days.days).toLowerCase() : 'una vez'}, ${row.paused ? 'pausada' : values.nextAt ? `la próxima ${whenSaid(values.nextAt)}` : 'no vuelve a sonar'}`;
 }
 
 /** Kept, but not ringing; on again, from its next time after now. */
@@ -323,7 +412,11 @@ export async function describeAlarms(place: AlarmPlace | null, userId: string | 
 			const repeat = days.every === 'semana' ? daysName(days.days).toLowerCase() : 'una vez';
 			const next = r.paused ? 'pausada' : r.nextAt ? `la próxima ${whenSaid(r.nextAt)}` : 'ya sonó';
 			const who = of(r.id).length ? 'de una persona' : 'de la casa';
-			return `[alarma ${r.id}] ${r.label}: a las ${r.time?.slice(0, 5)}, ${repeat}, ${next}; ${who}; suena en ${placeName(r.place, satellites)}${r.ringingSince ? '; está sonando' : ''}`;
+			const skipped = r.skipDays.filter((day) => day >= localDay());
+			const skips = skipped.length
+				? `; no suena ${skipped.length > 6 ? `${skipped.length} días, del ${skipped[0]} al ${skipped.at(-1)}` : skipped.join(', ')}`
+				: '';
+			return `[alarma ${r.id}] ${r.label}: a las ${r.time?.slice(0, 5)}, ${repeat}, ${next}${skips}; ${who}; suena en ${placeName(r.place, satellites)}${r.ringingSince ? '; está sonando' : ''}`;
 		});
 	return [...timerLines, ...alarmLines];
 }

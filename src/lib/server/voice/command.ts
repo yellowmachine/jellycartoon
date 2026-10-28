@@ -60,7 +60,7 @@ import {
 	localTime,
 	parseEventInput
 } from '#lib/agenda.ts';
-import { daysName, parseAlarmInput, type AlarmPlace } from '#lib/alarms.ts';
+import { daysName, MAX_ALARM_LABEL, parseAlarmInput, type AlarmPlace } from '#lib/alarms.ts';
 import {
 	addAlarm,
 	canTouch,
@@ -68,8 +68,11 @@ import {
 	deleteAlarm,
 	describeAlarms,
 	prepareTimerAt,
+	editAlarm,
+	MAX_SKIP_DAYS,
 	setPaused,
-	skipNext,
+	skipAlarm,
+	unskipAlarm,
 	startTimerAt,
 	stopAlarm
 } from '#lib/server/alarms/alarms.ts';
@@ -82,6 +85,7 @@ import {
 import { quietCheck, type QuietHours } from '#lib/server/voice/quiet-check.ts';
 import { quietHoursConfig } from '#lib/server/voice/quiet-hours.ts';
 import { now } from '#lib/server/kid-time.ts';
+import { parseClock } from '#lib/kid-time.ts';
 import {
 	searchWeb,
 	WEB_TOOL,
@@ -555,10 +559,34 @@ function tools(house: boolean, rooms: Room[]): Tool[] {
 		),
 		fn(
 			'change_alarm',
-			'Cambia una alarma de la lista por su número: quitarla, saltarse solo la próxima vez («mañana no»), pausarla, activarla o pararla si está sonando.',
+			'Cambia una alarma de la lista por su número: quitarla («delete»); que no suene unos días sin quitarla («skip»: sin «from», solo la próxima vez, «hoy ya me he levantado», «mañana no»; con «from» y «to», esos días, «el jueves no», «del 1 al 15 de agosto no»); que vuelva a sonar un día que se saltaba («unskip», «al final mañana sí»); cambiarle la hora, los días o el nombre sin quitarla («edit», «cámbiala a las 6:30», «quítale el sábado»); pausarla, activarla, o pararla si está sonando.',
 			{
 				id: { type: 'integer', description: 'El número de la alarma, de la lista.' },
-				do: { type: 'string', enum: ['delete', 'skip', 'pause', 'resume', 'stop'] }
+				do: {
+					type: 'string',
+					enum: ['delete', 'skip', 'unskip', 'edit', 'pause', 'resume', 'stop']
+				},
+				from: {
+					type: 'string',
+					description:
+						'Con «skip» o «unskip»: el primer día, AAAA-MM-DD. Obligatorio con «unskip»; sin él, «skip» se salta solo la próxima.'
+				},
+				to: {
+					type: 'string',
+					description: 'Con «skip» o «unskip»: el último día, AAAA-MM-DD. Vacío: solo «from».'
+				},
+				time: { type: 'string', description: 'Con «edit»: la hora nueva, HH:MM en 24 horas.' },
+				days: {
+					type: 'array',
+					items: { type: 'integer' },
+					description:
+						'Con «edit»: todos los días que se repite ahora, 0 el lunes y 6 el domingo (quitarle el sábado a una de todos los días: [0,1,2,3,4,6]). Vacío: una vez.'
+				},
+				day: {
+					type: 'string',
+					description: 'Con «edit», si es de una vez: el día nuevo, AAAA-MM-DD.'
+				},
+				label: { type: 'string', description: 'Con «edit»: el nombre nuevo.' }
 			},
 			['id', 'do']
 		),
@@ -728,7 +756,7 @@ El tiempo («¿qué tiempo hará mañana?», «¿llueve esta tarde?», «¿hace 
 Temporizadores («avísame en 10 minutos», «pon un temporizador de 20 minutos para el horno»): «set_timer», sin preguntar. Con cada orden va la lista de los que hay en este dispositivo.
 Actualidad que no sabes (resultados, noticias, horarios, precios): «web_search» si la tienes, con la pregunta completa, y contesta corto con lo que encuentre; si no la tienes, di que no puedes buscar en internet (se activa en Ajustes → Casa).
 Telegram: «dile a Ana que…», «contesta a…», «manda al grupo de… que…» son mensajes de su propia cuenta: «telegram_send» y luego «ask» («¿Le mando a Ana: "llego en diez minutos"?»), y con su respuesta «telegram_confirm»; nunca lo envíes sin su sí. «Di en el grupo que…», «avisa a la familia de que…» son del bot de la casa: «group_say». Si no tienes la herramienta, dile que no está conectado.
-Alarmas a una hora («despiértame a las 7», «todos los días laborables a las 7:30», «el jueves a las 9 la cita del médico»): «set_alarm». Con cada orden va la lista de alarmas, con su número: para quitar una, saltarse solo la próxima («mañana no me despiertes»), pausarla o pararla, «change_alarm» con ese número; si no está claro cuál, usa «ask».
+Alarmas a una hora («despiértame a las 7», «todos los días laborables a las 7:30», «el jueves a las 9 la cita del médico»): «set_alarm». Con cada orden va la lista de alarmas, con su número: para quitarla, saltarse unos días sin quitarla («hoy ya me he levantado», «mañana no me despiertes», «en vacaciones no»), deshacer un salto, cambiarle la hora o los días, pausarla o pararla, «change_alarm» con ese número (nunca la quites para ponerla de nuevo); si no está claro cuál, usa «ask».
 - «¿Cuánto le queda (a la pasta)?»: contesta con esa lista, sin herramientas.
 - «Otro de 5 minutos» es uno nuevo (nombre vacío), no el que ya hay de 5 minutos; «vuelve a empezar el de la pasta» sí usa su nombre.
 - Haz solo lo que pide la orden de ahora: los temporizadores de órdenes anteriores ya se pusieron. Uno que ya sonó o se quitó no se vuelve a poner si no lo pide otra vez.
@@ -1341,9 +1369,46 @@ async function runTool(
 				case 'delete':
 					await deleteAlarm(id);
 					return `Alarma ${id} quitada.`;
-				case 'skip':
-					await skipNext(id);
-					return `La próxima de la alarma ${id} no sonará; las siguientes, sí.`;
+				case 'skip': {
+					const from = typeof args.from === 'string' && args.from ? args.from : undefined;
+					const to = typeof args.to === 'string' && args.to ? args.to : undefined;
+					const days = await skipAlarm(id, from, to);
+					if (!days)
+						return `No se puede: fechas no válidas (AAAA-MM-DD, hasta ${MAX_SKIP_DAYS} días) o no le queda ninguna vez.`;
+					if (!days.length) return `La alarma ${id} no suena esos días: nada que saltar.`;
+					return `La alarma ${id} no sonará: ${days.join(', ')}; los demás días, sí.`;
+				}
+				case 'unskip': {
+					const from = typeof args.from === 'string' ? args.from : '';
+					const to = typeof args.to === 'string' && args.to ? args.to : undefined;
+					const days = await unskipAlarm(id, from, to);
+					if (!days) return 'Falta el día, AAAA-MM-DD, o no es válido.';
+					return days.length
+						? `La alarma ${id} vuelve a sonar: ${days.join(', ')}.`
+						: `La alarma ${id} no se saltaba esos días: ya suena.`;
+				}
+				case 'edit': {
+					const time =
+						typeof args.time === 'string' && args.time
+							? args.time.trim().padStart(5, '0')
+							: undefined;
+					const day = typeof args.day === 'string' && args.day ? args.day.trim() : undefined;
+					const days = Array.isArray(args.days)
+						? [...new Set(args.days.map(Number))].filter(
+								(d) => Number.isInteger(d) && d >= 0 && d <= 6
+							)
+						: undefined;
+					const label =
+						typeof args.label === 'string' && args.label.trim()
+							? args.label.trim().slice(0, MAX_ALARM_LABEL)
+							: undefined;
+					if (time !== undefined && !((parseClock(time) ?? 24 * 60) < 24 * 60))
+						return `Hora no válida: «${time}», HH:MM.`;
+					if (day !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(day))
+						return `Día no válido: «${day}», AAAA-MM-DD.`;
+					const now = await editAlarm(id, { time, days, day, label });
+					return now ? `Alarma ${id} cambiada: ${now}.` : `La ${id} no es una alarma.`;
+				}
 				case 'pause':
 					await setPaused(id, true);
 					return `Alarma ${id} pausada.`;
