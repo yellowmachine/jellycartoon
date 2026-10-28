@@ -5,3 +5,5 @@ build
 media
 data
 .git
+# The cloud app (#253): its own image, from its folder.
+nube

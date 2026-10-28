@@ -19,7 +19,7 @@
 		"db:studio": "bun --bun drizzle-kit studio",
 		"auth:schema": "bun --bun x auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes",
 		"start": "bun build/index.js",
-		"test": "bun test src"
+		"test": "bun test ./src"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-node": "^6.0.0",
