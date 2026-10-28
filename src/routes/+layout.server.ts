@@ -13,6 +13,7 @@ import { isGuardian } from '#lib/server/kid-login.ts';
 import { avatarOf } from '#lib/server/people.ts';
 import { openRouterConfig } from '#lib/server/app-settings.ts';
 import { creditRunOutAt } from '#lib/server/openrouter.ts';
+import { cloudUrl } from '#lib/server/kitchen.ts';
 
 export const load: LayoutServerLoad = async ({ locals, isDataRequest }) => {
 	const kid = isKid(locals.user);
@@ -37,6 +38,11 @@ export const load: LayoutServerLoad = async ({ locals, isDataRequest }) => {
 				: null,
 		/** A child's account (#17): only what is tagged «infantil», and nothing to manage. */
 		kid,
+		/**
+		 * The family's cloud (#253), where the bar's Recetas, Nevera, Agenda and Gastos are: an adult's
+		 * way there; null, not connected (those links go to Ajustes to connect it) or a child's.
+		 */
+		cloud: kid || !locals.user ? null : await cloudUrl(),
 		/** The adults' page about what children watch, once there is a child's account. */
 		kidsPage: Boolean(locals.user) && !kid && (await hasKids()),
 		/** Lets in a child who asks on a device of the house (#141): its requests, on any page. */

@@ -6,6 +6,8 @@ import type { SavedPlace, SavedRoute } from 'comun/saved-places.ts';
 import { HouseProblem } from '#lib/server/house.ts';
 import { albums, musicPass, playlists } from '#lib/server/music.ts';
 import { stationsInfo } from '#lib/server/radio.ts';
+import { kitchenOf } from '#lib/server/fridge.ts';
+import { podcastLists } from '#lib/server/podcasts/podcasts.ts';
 
 /** Whether there is a map (scripts/mapa.sh, in MAP_DIR): shown beside, with the screen wide enough. */
 const hasMap = () =>
@@ -16,13 +18,23 @@ const hasMap = () =>
 
 /**
  * The road mode (#253), as jellycartoon's: the house's albums and playlists (through its tunnel),
- * the radio, and the map. Without the house (off, or not connected), the radio and the map still
- * work. The places and routes kept, with Viajes (later).
+ * the radio, the family's podcasts (each with its newest episode), and the map. Without the house
+ * (off, or not connected), the radio, the podcasts and the map still work. The places and routes
+ * kept, with Viajes (later).
  */
 export const load: PageServerLoad = async ({ locals }) => {
 	const who = { id: locals.user!.id, email: locals.user!.email };
-	const [info, map] = await Promise.all([stationsInfo(), hasMap()]);
-	const kept = { places: [] as SavedPlace[], routes: [] as SavedRoute[] };
+	const [info, map, lists] = await Promise.all([
+		stationsInfo(),
+		hasMap(),
+		podcastLists(await kitchenOf(locals.user!.id))
+	]);
+	const kept = {
+		places: [] as SavedPlace[],
+		routes: [] as SavedRoute[],
+		podcasts: lists.podcasts.flatMap((p) => (p.latest ? [{ ...p, latest: p.latest }] : [])),
+		inProgress: lists.inProgress
+	};
 	try {
 		const [albumList, playlistList, pass] = await Promise.all([
 			albums(who),

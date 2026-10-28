@@ -1,14 +1,17 @@
 <script lang="ts">
 	import { page } from '$app/state';
 
-	/** Stations and podcasts, as tabs that are links (like Ajustes). Podcasts are not for children yet. */
-	const tabs = [
+	/**
+	 * Stations and podcasts, as tabs that are links (like Ajustes). Podcasts are not for children
+	 * yet. The podcasts are the cloud's (#253): at home, `podcasts` is their address there.
+	 */
+	let { podcasts = '/radio/podcasts' }: { podcasts?: string } = $props();
+
+	const tabs = $derived([
 		{ href: '/radio', label: 'Emisoras' },
-		{ href: '/radio/podcasts', label: 'Podcasts' }
-	];
-	const current = $derived(
-		page.url.pathname.startsWith('/radio/podcasts') ? '/radio/podcasts' : '/radio'
-	);
+		{ href: podcasts, label: 'Podcasts' }
+	]);
+	const current = $derived(page.url.pathname.startsWith('/radio/podcasts') ? podcasts : '/radio');
 </script>
 
 {#if !page.data.kid}

@@ -1034,7 +1034,9 @@ const SAID_NO_KEY =
  */
 export async function runVoiceCommand(
 	k: Kitchen,
-	order: HouseVoiceOrder
+	order: HouseVoiceOrder,
+	/** Tools the device cannot do, not offered (the cloud's road mode: no timers, no camera yet). */
+	without: string[] = []
 ): Promise<VoiceReply & { timing: VoiceTiming }> {
 	const started = performance.now();
 	const { request, house, satellite } = order;
@@ -1117,8 +1119,10 @@ export async function runVoiceCommand(
 		...(house.tools as Tool[]),
 		...(group ? [groupSayTool] : []),
 		...(settings.web.on ? [webSearchTool] : [])
-	].filter((t) =>
-		request.car ? !NOT_IN_THE_CAR.has(t.function.name) : !ONLY_IN_THE_CAR.has(t.function.name)
+	].filter(
+		(t) =>
+			!without.includes(t.function.name) &&
+			(request.car ? !NOT_IN_THE_CAR.has(t.function.name) : !ONLY_IN_THE_CAR.has(t.function.name))
 	);
 	const turn: Turn = {
 		k,

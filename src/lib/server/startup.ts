@@ -8,7 +8,6 @@ import { NIGHTLY_SCAN_HOUR } from '#lib/server/library/nightly.ts';
 import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
 import { workerStatus } from '#lib/server/library/worker.ts';
 import { log } from '#lib/server/log.ts';
-import { REFRESH_HOURS } from '#lib/server/podcasts/podcasts.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
 
 /**
@@ -86,8 +85,7 @@ export async function logStartup() {
 				: []),
 			...(cinemaRoot ? [`películas: ${films} por catalogar, ${stale} fichas por completar`] : []),
 			...(musicRoot ? [`música: ${tracks} pistas por leer, ${opus} por comprimir en Opus`] : []),
-			`escaneo nocturno a las ${NIGHTLY_SCAN_HOUR}:00`,
-			`podcasts cada ${REFRESH_HOURS} horas`
+			`escaneo nocturno a las ${NIGHTLY_SCAN_HOUR}:00`
 		];
 		log.info(
 			'arranque',

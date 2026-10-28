@@ -1,10 +1,7 @@
 import { access } from 'node:fs/promises';
-import { inArray, sql } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
-import { db } from '#lib/server/db/index.ts';
-import { podcastEpisode } from '#lib/server/db/schema.ts';
 import { listPlaylists } from '#lib/server/music/playlists.ts';
-import { continueListening, userPodcasts } from '#lib/server/podcasts/podcasts.ts';
+import { podcastLists } from '#lib/server/podcasts.ts';
 import { stationsInfo } from '#lib/server/radio.ts';
 import { mapFile, musicRoot } from '#lib/server/library/paths.ts';
 import { getAlbums } from '#lib/server/music/albums.ts';
@@ -23,52 +20,42 @@ import { telegramOf } from '#lib/server/telegram/telegram.ts';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
-	const [info, albums, playlists, podcasts, inProgress, map, recordTrips, relay, places, routes] =
-		await Promise.all([
-			stationsInfo(),
-			musicRoot ? getAlbums() : [],
-			listPlaylists(),
-			userPodcasts(userId),
-			continueListening(userId),
-			access(mapFile).then(
-				() => true,
-				() => false
-			),
-			recordsTrips(userId),
-			relayConfig(),
-			listSavedPlaces(userId),
-			listSavedRoutes(userId)
-		]);
+	const [
+		info,
+		albums,
+		playlists,
+		{ podcasts, inProgress },
+		map,
+		recordTrips,
+		relay,
+		places,
+		routes
+	] = await Promise.all([
+		stationsInfo(),
+		musicRoot ? getAlbums() : [],
+		listPlaylists(),
+		// The family's, in the cloud (#253).
+		podcastLists(userId),
+		access(mapFile).then(
+			() => true,
+			() => false
+		),
+		recordsTrips(userId),
+		relayConfig(),
+		listSavedPlaces(userId),
+		listSavedRoutes(userId)
+	]);
 	// Modo DJ: only to start a setup saved in Música (#117), as there: with a voice, not for a child.
 	const dj = Boolean(musicRoot) && !isKid(locals.user) && (await djEnabled());
 	/** Their Telegram connected (Ajustes, #243): its messages read aloud here. */
 	const telegram = !isKid(locals.user) && Boolean(await telegramOf(userId));
 	const djPresets = dj ? await presetsOf(userId) : [];
-	const latest = podcasts.length
-		? await db
-				.selectDistinctOn([podcastEpisode.podcastId], {
-					podcastId: podcastEpisode.podcastId,
-					id: podcastEpisode.id,
-					title: podcastEpisode.title
-				})
-				.from(podcastEpisode)
-				.where(
-					inArray(
-						podcastEpisode.podcastId,
-						podcasts.map((p) => p.id)
-					)
-				)
-				.orderBy(podcastEpisode.podcastId, sql`${podcastEpisode.publishedAt} desc nulls last`)
-		: [];
 	return {
 		info,
 		/** Without their tracks: those come when one is put on (/carretera/album). */
 		albums: albums.map(({ id, title, artist, hasCover }) => ({ id, title, artist, hasCover })),
 		playlists: playlists.filter((p) => p.total > 0),
-		podcasts: podcasts.flatMap((p) => {
-			const episode = latest.find((e) => e.podcastId === p.id);
-			return episode ? [{ ...p, latest: episode }] : [];
-		}),
+		podcasts: podcasts.flatMap((p) => (p.latest ? [{ ...p, latest: p.latest }] : [])),
 		inProgress,
 		/** There is a map (scripts/mapa.sh): shown beside, with the screen wide enough. */
 		map,

@@ -34,7 +34,7 @@
 </script>
 
 <svelte:head>
-	<title>{podcast.title} · Podcasts · JellyCartoon</title>
+	<title>{podcast.title} · Podcasts · Nube</title>
 </svelte:head>
 
 <a href="/radio/podcasts" class="text-sm text-zinc-400 hover:text-white">← Podcasts</a>

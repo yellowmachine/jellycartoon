@@ -1,11 +1,8 @@
 import type { PageServerLoad } from './$types';
-import { continueListening, userPodcasts } from '#lib/server/podcasts/podcasts.ts';
+import { podcastLists } from '#lib/server/podcasts.ts';
 
-/** The ones this user follows, and what they left halfway. Following new ones is from the phone. */
-export const load: PageServerLoad = async ({ locals }) => {
-	const [podcasts, inProgress] = await Promise.all([
-		userPodcasts(locals.user!.id),
-		continueListening(locals.user!.id)
-	]);
-	return { podcasts, inProgress };
-};
+/**
+ * The ones this user follows, and what they left halfway, from the family's cloud (#253). Following
+ * new ones is from the phone, in the cloud's Radio.
+ */
+export const load: PageServerLoad = async ({ locals }) => podcastLists(locals.user!.id);
