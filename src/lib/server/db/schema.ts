@@ -24,7 +24,6 @@ import type { Chapter, SceneName } from '#lib/scenes.ts';
 import type { SubtitleStyle } from '#lib/subtitle-style.ts';
 import type { WikiPage } from '#lib/server/cinema/wikidata.ts';
 import type { TitleProposal } from '#lib/episode-titles.ts';
-import type { RecipeStep } from '#lib/recipe.ts';
 import type { LngLat } from '#lib/road.ts';
 import type { DjOptions } from 'comun/music.ts';
 import type { ExpenseLine } from '#lib/expenses.ts';
@@ -820,44 +819,6 @@ export const routeMap = pgTable(
 	(t) => [primaryKey({ columns: [t.routeId, t.deviceId] })]
 );
 
-/**
- * The fridge (#131): the house's post-its, for everyone to see. Written by an adult, in their colour;
- * until a day if given (then gone), or until someone peels it off. The shopping list is one more,
- * `list`, with its items (fridgeItem): there is one, made the first time it is looked at.
- */
-export const fridgeNoteKind = pgEnum('fridge_note_kind', ['note', 'list']);
-
-export const fridgeNote = pgTable(
-	'fridge_note',
-	{
-		id: serial('id').primaryKey(),
-		kind: fridgeNoteKind('kind').notNull().default('note'),
-		/** Who wrote it; the list's, who made it first. Null if their account is gone. */
-		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
-		text: text('text').notNull(),
-		/** Shown until the end of this day, in the house's time zone; null, until peeled off. */
-		until: date('until'),
-		createdAt: timestamp('created_at').notNull().defaultNow()
-	},
-	(t) => [index('fridge_note_created_idx').on(t.createdAt)]
-);
-
-/** An item of the shopping list: ticked off when bought, and cleared later. */
-export const fridgeItem = pgTable(
-	'fridge_item',
-	{
-		id: serial('id').primaryKey(),
-		noteId: integer('note_id')
-			.notNull()
-			.references(() => fridgeNote.id, { onDelete: 'cascade' }),
-		text: text('text').notNull(),
-		done: boolean('done').notNull().default(false),
-		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
-		createdAt: timestamp('created_at').notNull().defaultNow()
-	},
-	(t) => [index('fridge_item_note_idx').on(t.noteId)]
-);
-
 /** `ignored`: no album tag, e.g. a download rather than a CD rip; not shown. */
 export const trackStatus = pgEnum('track_status', ['pending', 'ready', 'ignored', 'error']);
 
@@ -1089,83 +1050,6 @@ export const podcastProgress = pgTable(
 		updatedAt: timestamp('updated_at').notNull().defaultNow()
 	},
 	(t) => [primaryKey({ columns: [t.userId, t.episodeId] })]
-);
-
-/**
- * The house's recipe book (#60): recipes saved from a cooking site's page, its schema.org Recipe
- * read and its steps made ready for the kitchen (short, with their timers). The whole house's, not
- * each person's; who saved it, for the credits.
- */
-export const recipe = pgTable('recipe', {
-	id: serial('id').primaryKey(),
-	title: text('title').notNull(),
-	servings: integer('servings'),
-	ingredients: jsonb('ingredients').$type<string[]>().notNull().default([]),
-	steps: jsonb('steps').$type<RecipeStep[]>().notNull(),
-	imageUrl: text('image_url'),
-	/** The page it came from: one recipe per page. */
-	sourceUrl: text('source_url').notNull().unique(),
-	/** The site's name, or its host: «Las recetas de…». */
-	sourceName: text('source_name').notNull(),
-	createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
-	createdAt: timestamp('created_at').notNull().defaultNow()
-});
-
-/**
- * The house's favourite cooking sites (#60): their sitemaps read, to search their recipes by the
- * words of their addresses, by voice or in Recetas; one is imported (a `recipe`) when chosen.
- */
-export const recipeSite = pgTable('recipe_site', {
-	id: serial('id').primaryKey(),
-	/** Without «www.»: «directoalpaladar.com». */
-	host: text('host').notNull().unique(),
-	/** og:site_name, or its title, or its host. */
-	name: text('name').notNull(),
-	/** How many pages its sitemaps listed, the last time they were read. */
-	pages: integer('pages').notNull().default(0),
-	/** When they were read, and why that failed, if it did. */
-	indexedAt: timestamp('indexed_at'),
-	lastError: text('last_error'),
-	createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
-	createdAt: timestamp('created_at').notNull().defaultNow()
-});
-
-/** A page of a favourite site's sitemaps, by the words of its address. */
-export const recipeSitePage = pgTable(
-	'recipe_site_page',
-	{
-		id: serial('id').primaryKey(),
-		siteId: integer('site_id')
-			.notNull()
-			.references(() => recipeSite.id, { onDelete: 'cascade' }),
-		url: text('url').notNull(),
-		/** The sitemap it was listed in: its pages are replaced only when that one changes. */
-		sitemap: text('sitemap').notNull().default(''),
-		/** As shown: «Macarrones gratinados con bechamel». */
-		title: text('title').notNull(),
-		/** Folded (lower case, no accents) and between spaces, for searching. */
-		words: text('words').notNull()
-	},
-	// Also the index by site: it comes first.
-	(t) => [unique().on(t.siteId, t.url)]
-);
-
-/**
- * The sitemaps a favourite site had the last time they were read, and when each changed, as its
- * index said (lastmod): the next time, one that did not change is not asked for again.
- */
-export const recipeSiteSitemap = pgTable(
-	'recipe_site_sitemap',
-	{
-		siteId: integer('site_id')
-			.notNull()
-			.references(() => recipeSite.id, { onDelete: 'cascade' }),
-		url: text('url').notNull(),
-		lastmod: text('lastmod'),
-		/** An index of other sitemaps: always read again, it is what says which ones changed. */
-		isIndex: boolean('is_index').notNull().default(false)
-	},
-	(t) => [primaryKey({ columns: [t.siteId, t.url] })]
 );
 
 /**

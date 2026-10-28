@@ -943,7 +943,7 @@ Lo que no encuentra, desde Google Maps: con la app instalada (Chrome → «Insta
 pantalla de inicio»), en Google Maps el sitio → Compartir → JellyCartoon abre el modo carretera con
 la ruta a ese sitio. Su enlace corto se sigue en el servidor (solo hacia direcciones de Google); si
 no trae coordenadas, como pasa al compartir desde la app de Google Maps, se busca su nombre y su
-dirección. Lo que no es de un mapa, compartido igual, va a Recetas, como antes.
+dirección. Lo que no es de un mapa, compartido igual, va a Recetas, en la nube.
 
 El tiempo que queda y la hora de llegada van siempre a la vista, junto a la siguiente maniobra, y
 la voz los dice («¿cuánto falta?»). Se calculan tramo a tramo, con lo que openrouteservice calcula
@@ -1004,10 +1004,9 @@ Distinto del Telegram del modo carretera (la cuenta de cada uno): un **bot** de 
 [grammY](https://grammy.dev), que avisa en el grupo de Telegram de la familia diciendo quién hizo
 qué. Se crea con @BotFather (`/newbot`) y su token se pone en Ajustes → Casa → Bot de Telegram
 (cifrado); al añadirlo al grupo, la app lo detecta (si ya estaba, `/start` en el grupo) y se elige
-ahí. Avisa, cada cosa activable: de la lista de la compra («🛒 María ha añadido a la lista: leche y
-pan», juntando lo añadido en un minuto; «✓ Pepe ha comprado: leche»), de los post-its nuevos de la
-nevera, de lo que se apunta en la Agenda y de sus avisos, y de las alarmas y temporizadores de la
-casa al sonar (los de una persona, no). Pregunta a Telegram por lo nuevo él mismo (long polling):
+ahí. Avisa, cada cosa activable: de lo que se apunta en la Agenda y de sus avisos, y de las
+alarmas y temporizadores de la casa al sonar (los de una persona, no). La lista de la compra y la
+nevera viven en la nube (#253), que aún no avisa por Telegram. Pregunta a Telegram por lo nuevo él mismo (long polling):
 no hay que abrir nada hacia fuera. Un token solo puede usarlo una instalación a la vez.
 
 Por voz: «di en el grupo que ya está la comida» lo dice el bot en el grupo, diciendo de quién o

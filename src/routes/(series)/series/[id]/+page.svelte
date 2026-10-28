@@ -12,9 +12,9 @@
 	import { saveView } from '#lib/views.ts';
 	import { formatBytes, formatDuration } from 'comun/format.ts';
 	import { languageLabel, normalizeLang } from 'comun/languages.ts';
-	import { poll } from '#lib/poll.ts';
+	import { poll } from 'comun/poll.ts';
 	import { thumbUrl } from 'comun/thumb.svelte.ts';
-	import Backdrop from '#lib/components/Backdrop.svelte';
+	import Backdrop from 'comun/components/Backdrop.svelte';
 	import { backdropUrl, resetSeriesBackdrop } from '#lib/backdrop.svelte.ts';
 	import type { PageProps } from './$types';
 

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
-	import { poll } from '#lib/poll.ts';
+	import { poll } from 'comun/poll.ts';
 	import { page } from '$app/state';
 	import MovieMenu from '#lib/components/MovieMenu.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';

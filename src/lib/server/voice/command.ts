@@ -53,7 +53,8 @@ import {
 	addNote,
 	getRecipe,
 	importRecipe,
-	listRecipes,
+	recipeBook,
+	searchRecipeSites,
 	tickOffByName,
 	toBuy
 } from '#lib/server/kitchen.ts';
@@ -108,7 +109,6 @@ import { EXPENSE_CATEGORIES, euros, isCategory, type ExpenseLine } from '#lib/ex
 import { today } from '#lib/server/playlist.ts';
 import { isUntilWord, UNTIL_WORDS, untilDay, untilText } from '#lib/fridge.ts';
 import { findPlaces, forecast, housePlace, placeName } from '#lib/server/weather.ts';
-import { isFavouritePage, listRecipeSites, searchRecipeSites } from '#lib/server/recipes/sites.ts';
 import {
 	MAX_TIMER_SEC,
 	type VoiceAction,
@@ -1486,16 +1486,15 @@ async function runTool(
 		case 'search_recipe_sites': {
 			if (typeof args.query !== 'string' || !args.query.trim()) return 'Falta qué buscar.';
 			const site = Number.isInteger(args.site) ? Number(args.site) : undefined;
-			const found = await searchRecipeSites(args.query, site, 6);
+			const found = await searchRecipeSites(args.query, site);
 			return found.length
 				? found.map((r) => `- ${r.title} (${r.site}): ${r.url}`).join('\n')
 				: 'No hay ninguna con esas palabras en las webs favoritas.';
 		}
 		case 'cook_from_web': {
 			const url = typeof args.url === 'string' ? args.url.trim() : '';
-			// Only what the search found: not any address the model writes.
-			if (!url || !(await isFavouritePage(url)))
-				return 'Esa dirección no es de una web favorita: búscala antes con «search_recipe_sites».';
+			// Only what the search found, not any address the model writes: the cloud checks it.
+			if (!url) return 'Falta la dirección: búscala antes con «search_recipe_sites».';
 			const { id } = await importRecipe(url, ctx.user.id, ctx.satellite);
 			return runTool('cook_saved_recipe', { id }, ctx);
 		}
@@ -1571,7 +1570,7 @@ export async function runVoiceCommand(
 	/** This order, told apart from the next: Telegram's «sí» comes in another (#243). */
 	const order = randomUUID();
 	const started = performance.now();
-	const [albums, playlists, model, { hoursSince }, keepHistory, watchingHere, recipes, sites] =
+	const [albums, playlists, model, { hoursSince }, keepHistory, watchingHere, { recipes, sites }] =
 		await Promise.all([
 			getAlbums(),
 			listPlaylists(),
@@ -1579,9 +1578,8 @@ export async function runVoiceCommand(
 			historySince(satellite ? [] : [user]),
 			satellite ? true : keepsHistory(user.id),
 			videoText(request.video),
-			// In the cloud (#253), and without it, any order still goes: only without the book.
-			listRecipes().catch(() => []),
-			listRecipeSites()
+			// In the cloud (#253): without it, any order still goes, only without the book.
+			recipeBook().catch(() => ({ recipes: [], sites: [] }))
 		]);
 	// How the voice is (Ajustes): the house's, and theirs when it is known who speaks.
 	const [houseStyle, personStyle] = await Promise.all([

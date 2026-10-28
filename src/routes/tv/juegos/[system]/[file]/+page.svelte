@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
-	import Backdrop from '#lib/components/Backdrop.svelte';
+	import Backdrop from 'comun/components/Backdrop.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import TvHeader from '#lib/components/TvHeader.svelte';
 	import { formatPlayed } from 'comun/format.ts';

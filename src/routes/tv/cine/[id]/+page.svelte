@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import TvHeader from '#lib/components/TvHeader.svelte';
-	import Backdrop from '#lib/components/Backdrop.svelte';
+	import Backdrop from 'comun/components/Backdrop.svelte';
 	import { backdropUrl } from '#lib/backdrop.svelte.ts';
 	import { formatDuration } from 'comun/format.ts';
 	import { music } from 'comun/music-player.svelte.ts';

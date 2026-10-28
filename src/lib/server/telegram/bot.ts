@@ -2,7 +2,7 @@ import { Bot, GrammyError } from 'grammy';
 import { getAppSetting, setAppSetting } from '#lib/server/app-settings.ts';
 import { log } from '#lib/server/log.ts';
 import { decrypt, encrypt } from '#lib/server/secret-box.ts';
-import { listSaid, parseBotEvents, type BotEvent, type BotEvents } from '#lib/telegram-bot.ts';
+import { parseBotEvents, type BotEvent, type BotEvents } from '#lib/telegram-bot.ts';
 
 /**
  * The house's Telegram bot (#243), with grammY (https://grammy.dev): made by whoever manages the app
@@ -25,9 +25,6 @@ interface Chat {
 	id: number;
 	title: string;
 }
-
-/** Things added (or bought) together, told in one message after this long. */
-const LIST_AFTER_MS = 60_000;
 
 let bot: Bot | null = null;
 
@@ -163,7 +160,7 @@ export async function startBot() {
 	b.command('start', async (ctx) => {
 		await seen(ctx.chat);
 		await ctx.reply(
-			'Hola, soy el bot de JellyCartoon: aviso aquí de la lista de la compra, la nevera, la agenda y las alarmas de casa.'
+			'Hola, soy el bot de JellyCartoon: aviso aquí de la agenda y de las alarmas de casa.'
 		);
 	});
 	b.catch((err) => log.warn('telegram', 'El bot falló con un mensaje', { error: err.error }));
@@ -196,38 +193,6 @@ export async function testBot() {
 		saved.chat.id,
 		'👋 Prueba de JellyCartoon: desde aquí avisaré de lo de casa.'
 	);
-}
-
-/** Waiting to be told together: who and what, by what was done. */
-const pendingList = new Map<
-	string,
-	{
-		who: string | null;
-		verb: 'añadido' | 'comprado';
-		items: string[];
-		timer: ReturnType<typeof setTimeout>;
-	}
->();
-
-/** The shopping list: what is added (or bought) in a minute, in one message per person. */
-export function tellList(who: string | null, verb: 'añadido' | 'comprado', items: string[]) {
-	if (!items.length || !bot) return;
-	const key = `${verb}|${who ?? ''}`;
-	const pending = pendingList.get(key);
-	if (pending) {
-		pending.items.push(...items.filter((i) => !pending.items.includes(i)));
-		return;
-	}
-	pendingList.set(key, {
-		who,
-		verb,
-		items: [...items],
-		timer: setTimeout(() => {
-			const told = pendingList.get(key);
-			pendingList.delete(key);
-			if (told) void tellGroup('lista', listSaid(told.who, told.verb, told.items));
-		}, LIST_AFTER_MS)
-	});
 }
 
 /**

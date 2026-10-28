@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
-	import { poll } from '#lib/poll.ts';
+	import { poll } from 'comun/poll.ts';
 	import BirdsEye from '#lib/components/BirdsEye.svelte';
-	import Backdrop from '#lib/components/Backdrop.svelte';
+	import Backdrop from 'comun/components/Backdrop.svelte';
 	import { backdropUrl, chooseFilmBackdrop } from '#lib/backdrop.svelte.ts';
 	import FilmChat from '#lib/components/FilmChat.svelte';
 	import Scenes from '#lib/components/Scenes.svelte';

@@ -7,6 +7,7 @@ import {
 	jsonb,
 	pgEnum,
 	pgTable,
+	primaryKey,
 	serial,
 	text,
 	timestamp,
@@ -124,4 +125,86 @@ export const familySettings = pgTable(
 			.$onUpdate(() => new Date())
 	},
 	(t) => [familyRows('family_settings_own', t.familyId)]
+).enableRLS();
+
+/**
+ * The family's favourite cooking sites (jellycartoon's #60): their sitemaps read, to search their
+ * recipes by the words of their addresses, by voice or in Recetas; one is imported (a `recipe`)
+ * when chosen.
+ */
+export const recipeSite = pgTable(
+	'recipe_site',
+	{
+		id: serial('id').primaryKey(),
+		familyId: familyId(),
+		/** Without «www.»: «directoalpaladar.com». */
+		host: text('host').notNull(),
+		/** og:site_name, or its title, or its host. */
+		name: text('name').notNull(),
+		/** How many pages its sitemaps listed, the last time they were read. */
+		pages: integer('pages').notNull().default(0),
+		/** When they were read, and why that failed, if it did. */
+		indexedAt: timestamp('indexed_at'),
+		lastError: text('last_error'),
+		createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [
+		unique().on(t.familyId, t.host),
+		// For its pages and sitemaps to belong to a site of their own family.
+		unique('recipe_site_family_id').on(t.familyId, t.id),
+		familyRows('recipe_site_own', t.familyId)
+	]
+).enableRLS();
+
+/** A page of a favourite site's sitemaps, by the words of its address. */
+export const recipeSitePage = pgTable(
+	'recipe_site_page',
+	{
+		id: serial('id').primaryKey(),
+		familyId: familyId(),
+		siteId: integer('site_id').notNull(),
+		url: text('url').notNull(),
+		/** The sitemap it was listed in: its pages are replaced only when that one changes. */
+		sitemap: text('sitemap').notNull().default(''),
+		/** As shown: «Macarrones gratinados con bechamel». */
+		title: text('title').notNull(),
+		/** Folded (lower case, no accents) and between spaces, for searching. */
+		words: text('words').notNull()
+	},
+	(t) => [
+		// Also the index by site: it comes first.
+		unique().on(t.siteId, t.url),
+		foreignKey({
+			name: 'recipe_site_page_site_fk',
+			columns: [t.familyId, t.siteId],
+			foreignColumns: [recipeSite.familyId, recipeSite.id]
+		}).onDelete('cascade'),
+		familyRows('recipe_site_page_own', t.familyId)
+	]
+).enableRLS();
+
+/**
+ * The sitemaps a favourite site had the last time they were read, and when each changed, as its
+ * index said (lastmod): the next time, one that did not change is not asked for again.
+ */
+export const recipeSiteSitemap = pgTable(
+	'recipe_site_sitemap',
+	{
+		familyId: familyId(),
+		siteId: integer('site_id').notNull(),
+		url: text('url').notNull(),
+		lastmod: text('lastmod'),
+		/** An index of other sitemaps: always read again, it is what says which ones changed. */
+		isIndex: boolean('is_index').notNull().default(false)
+	},
+	(t) => [
+		primaryKey({ columns: [t.siteId, t.url] }),
+		foreignKey({
+			name: 'recipe_site_sitemap_site_fk',
+			columns: [t.familyId, t.siteId],
+			foreignColumns: [recipeSite.familyId, recipeSite.id]
+		}).onDelete('cascade'),
+		familyRows('recipe_site_sitemap_own', t.familyId)
+	]
 ).enableRLS();

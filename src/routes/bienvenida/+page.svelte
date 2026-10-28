@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import favicon from '#lib/assets/favicon.svg';
-	import PasswordInput from '#lib/components/PasswordInput.svelte';
+	import PasswordInput from 'comun/components/PasswordInput.svelte';
 	import { avatar } from '#lib/avatars.ts';
 	import type { PageProps } from './$types';
 

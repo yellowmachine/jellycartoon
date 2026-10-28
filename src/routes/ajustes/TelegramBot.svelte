@@ -6,8 +6,8 @@
 	import type { PageData, ActionData } from './$types';
 
 	/**
-	 * El bot de Telegram de la casa (#243): avisa en el grupo de la familia de la lista de la compra,
-	 * la nevera, la agenda y las alarmas, diciendo quién hizo qué.
+	 * El bot de Telegram de la casa (#243): avisa en el grupo de la familia de la agenda y las
+	 * alarmas, diciendo quién hizo qué. La lista de la compra y la nevera, en la nube (#253).
 	 */
 	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
 
@@ -29,8 +29,8 @@
 	<section class={section} id="telegram-bot">
 		<h2 class="mb-1 font-semibold">Bot de Telegram</h2>
 		<p class="mb-4 text-sm text-zinc-400">
-			Un bot de la casa que avisa en el grupo de Telegram de la familia: «🛒 María ha añadido a la
-			lista: leche y pan». En el grupo sale como el bot, y dice quién hizo cada cosa.
+			Un bot de la casa que avisa en el grupo de Telegram de la familia: «📅 María ha apuntado:
+			Dentista, jueves 30 a las 17:00». En el grupo sale como el bot, y dice quién hizo cada cosa.
 		</p>
 
 		{#if bot}

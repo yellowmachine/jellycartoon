@@ -3,17 +3,15 @@ import { db } from '#lib/server/db/index.ts';
 import { user } from '#lib/server/db/auth.schema.ts';
 import { getAppSetting, setAppSetting } from '#lib/server/app-settings.ts';
 import { decrypt, encrypt } from '#lib/server/secret-box.ts';
-import * as local from '#lib/server/fridge.ts';
-import * as localRecipes from '#lib/server/recipes/import.ts';
 import { agendaToday } from '#lib/server/agenda/agenda.ts';
 import type { FridgeState } from '#lib/fridge.ts';
 import type { RecipeStep } from '#lib/recipe.ts';
 
 /**
- * The fridge and the recipe book, at home or in the cloud (#253): with the cloud connected
- * (Ajustes → Casa → «La nube»: its address and the key it gave the house), the voice and the TV
- * use the family's, there (its /api/casa); without it, the house's own, as always. What is said
- * goes in the name of who says it, by their email, when it is known (not a satellite).
+ * The fridge and the recipe book, which live in the cloud (#253): the family's, there (its
+ * /api/casa), with its address and the key it gave the house (Ajustes → Casa → «La nube»). The
+ * voice and the TV use them from here. What is said goes in the name of who says it, by their
+ * email, when it is known (not a satellite).
  */
 
 export interface CloudLink {
@@ -41,6 +39,15 @@ export const cloudUrl = () => getAppSetting('nube_url');
 
 /** Why the cloud did not answer, said for people (and for the voice's AI). */
 export class CloudProblem extends Error {}
+
+async function linked() {
+	const link = await cloudLink();
+	if (!link)
+		throw new CloudProblem(
+			'La nevera y las recetas están en la nube, y no está conectada: Ajustes → Casa → «La nube»'
+		);
+	return link;
+}
 
 async function emailOf(userId: string | null) {
 	if (!userId) return null;
@@ -81,18 +88,16 @@ export async function askCloud<T>(
 
 /** The whole fridge, for the TV: the cloud's, with the house's agenda of today on it. */
 export async function fridgeState(): Promise<FridgeState> {
-	const link = await cloudLink();
-	if (!link) return local.fridgeState();
 	const [{ fridge }, today] = await Promise.all([
-		askCloud<{ fridge: Omit<FridgeState, 'today'> }>(link, '/nevera'),
+		askCloud<{ fridge: Omit<FridgeState, 'today'> }>(await linked(), '/nevera'),
 		agendaToday()
 	]);
 	return { ...fridge, today };
 }
 
 /**
- * For the TV and its live updates: without the cloud (no internet), an empty fridge with the
- * agenda, rather than the TV's page failing.
+ * For the TV and its live updates: without the cloud (not connected, no internet), an empty fridge
+ * with the agenda, rather than the TV's page failing.
  */
 export async function fridgeForScreen(): Promise<FridgeState> {
 	try {
@@ -103,17 +108,12 @@ export async function fridgeForScreen(): Promise<FridgeState> {
 	}
 }
 
-/**
- * Who it goes as in the cloud: the person, or the house from a satellite (where anyone may speak).
- * At home, as always: the satellite's owner.
- */
+/** Who it goes as in the cloud: the person, or the house from a satellite (where anyone may speak). */
 const speaker = (userId: string, satellite: boolean) => (satellite ? null : userId);
 
 /** Onto the shopping list; returns what was added. */
 export async function addItems(userId: string, items: string[], satellite = false) {
-	const link = await cloudLink();
-	if (!link) return local.addItems(userId, items);
-	const { added } = await askCloud<{ added: string[] }>(link, '/nevera', {
+	const { added } = await askCloud<{ added: string[] }>(await linked(), '/nevera', {
 		userId: speaker(userId, satellite),
 		body: { action: 'add', items }
 	});
@@ -122,16 +122,12 @@ export async function addItems(userId: string, items: string[], satellite = fals
 
 /** What is left to buy. */
 export async function toBuy() {
-	const link = await cloudLink();
-	if (!link) return local.toBuy();
-	return (await askCloud<{ toBuy: string[] }>(link, '/nevera')).toBuy;
+	return (await askCloud<{ toBuy: string[] }>(await linked(), '/nevera')).toBuy;
 }
 
 /** An item off the list by its name; null if it is not there. */
 export async function tickOffByName(text: string, userId: string | null) {
-	const link = await cloudLink();
-	if (!link) return local.tickOffByName(text, userId);
-	const { ticked } = await askCloud<{ ticked: string | null }>(link, '/nevera', {
+	const { ticked } = await askCloud<{ ticked: string | null }>(await linked(), '/nevera', {
 		userId,
 		body: { action: 'tick', text }
 	});
@@ -145,9 +141,7 @@ export async function addNote(
 	until: string | null,
 	satellite = false
 ) {
-	const link = await cloudLink();
-	if (!link) return local.addNote(userId, text, until);
-	await askCloud(link, '/nevera', {
+	await askCloud(await linked(), '/nevera', {
 		userId: speaker(userId, satellite),
 		body: { action: 'note', text, until }
 	});
@@ -162,35 +156,38 @@ export interface SavedRecipe {
 	sourceName: string;
 }
 
-/** The book, by title: what the voice knows it can cook. */
-export async function listRecipes(): Promise<{ id: number; title: string; sourceName: string }[]> {
-	const link = await cloudLink();
-	if (!link) return localRecipes.listRecipes();
-	return (
-		await askCloud<{ recipes: { id: number; title: string; sourceName: string }[] }>(
-			link,
-			'/recetas'
-		)
-	).recipes;
+/** The book, by title, and the favourite sites: what the voice can cook, and where to look. */
+export async function recipeBook() {
+	return askCloud<{
+		recipes: { id: number; title: string; sourceName: string }[];
+		sites: { id: number; name: string; host: string }[];
+	}>(await linked(), '/recetas');
 }
 
 /** One recipe, to cook it; null if it is not in the book. */
 export async function getRecipe(id: number): Promise<SavedRecipe | null> {
-	const link = await cloudLink();
-	if (!link) return localRecipes.getRecipe(id);
 	try {
-		return (await askCloud<{ recipe: SavedRecipe }>(link, `/recetas/${id}`)).recipe;
+		return (await askCloud<{ recipe: SavedRecipe }>(await linked(), `/recetas/${id}`)).recipe;
 	} catch (error) {
 		if (error instanceof CloudProblem && /no encontrada/i.test(error.message)) return null;
 		throw error;
 	}
 }
 
-/** A recipe saved from a web page, in the book; its id. */
+/** The favourite sites' pages for a dish (or in one site): title, site and address of each. */
+export async function searchRecipeSites(query: string, siteId?: number) {
+	const params = new URLSearchParams({ q: query, ...(siteId ? { web: String(siteId) } : {}) });
+	return (
+		await askCloud<{ results: { url: string; title: string; site: string }[] }>(
+			await linked(),
+			`/recetas/buscar?${params}`
+		)
+	).results;
+}
+
+/** A favourite site's recipe saved in the book (the cloud checks it is one); its id. */
 export async function importRecipe(url: string, userId: string, satellite = false) {
-	const link = await cloudLink();
-	if (!link) return localRecipes.importRecipe(url, userId);
-	return askCloud<{ id: number; existing: boolean }>(link, '/recetas', {
+	return askCloud<{ id: number; existing: boolean }>(await linked(), '/recetas', {
 		userId: speaker(userId, satellite),
 		body: { url }
 	});
