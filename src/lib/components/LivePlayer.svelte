@@ -166,10 +166,10 @@
 </script>
 
 <svelte:head>
+	<!-- eslint-disable-next-line svelte/no-at-html-tags -- a <style> for the subtitles, made from the settings' numbers and colours. -->
 	{@html cueStylesheet}
 </svelte:head>
 
-<!-- svelte-ignore a11y_media_has_caption -->
 <video
 	bind:this={video}
 	controls

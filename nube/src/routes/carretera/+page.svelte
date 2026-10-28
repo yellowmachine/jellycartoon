@@ -419,6 +419,8 @@
 	 * openrouteservice's suggestions (from 3 letters, once typing stops for a moment). One touched,
 	 * the route at once.
 	 */
+	// Not a $derived: they are in this browser's storage, read once it is in the browser.
+	// eslint-disable-next-line svelte/prefer-writable-derived
 	let recent = $state<Place[]>([]);
 	$effect(() => {
 		recent = loadRecent();

@@ -66,6 +66,7 @@
 				<p class="mb-2 font-medium text-amber-300">El enlace de {invited.name}</p>
 				<div class="flex flex-wrap items-start gap-4">
 					<div class="w-44 shrink-0 rounded bg-white p-1" aria-label="Código QR del enlace">
+						<!-- eslint-disable-next-line svelte/no-at-html-tags -- the QR's SVG, made by the qrcode library on the server. -->
 						{@html invited.qr}
 					</div>
 					<div class="min-w-0 flex-1 space-y-2">

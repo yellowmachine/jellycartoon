@@ -8,7 +8,6 @@
 	import SnapcastBar from '#lib/components/SnapcastBar.svelte';
 	import SectionIcon, { type Section } from 'comun/components/SectionIcon.svelte';
 	import SiteNav, { type NavLink, type UserLink } from 'comun/components/SiteNav.svelte';
-	import { menuItem } from 'comun/components/menu.ts';
 	import VoiceBubble from '#lib/components/VoiceBubble.svelte';
 	import TimerBar from '#lib/components/TimerBar.svelte';
 	import VoicePanel from '#lib/components/VoicePanel.svelte';
@@ -263,6 +262,7 @@
 	<title>JellyCartoon</title>
 	<meta name="theme-color" content={themeColor(data.theme)} />
 	<!-- The account's colours (Ajustes): values only from the themes' table. -->
+	<!-- eslint-disable-next-line svelte/no-at-html-tags -- a <style> made from the themes' own table, never from what was typed. -->
 	{@html themeCss(data.theme)}
 </svelte:head>
 

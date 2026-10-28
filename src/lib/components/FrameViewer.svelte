@@ -81,7 +81,8 @@
 			style:background-image="url({src(moment.at)})"
 		>
 			{#if clip}
-				<!-- svelte-ignore a11y_media_has_caption: the film's subtitles are not in the clip -->
+				<!-- The film's subtitles are not in the clip. -->
+				<!-- svelte-ignore a11y_media_has_caption -->
 				<video
 					src="/api/movie-clip/{movieId}/{moment.playAt}"
 					poster={src(moment.at, 1280)}

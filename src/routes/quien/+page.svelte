@@ -197,6 +197,7 @@
 			<p class="text-center text-3xl font-semibold">Hola, {now.adult.name}</p>
 			{#if now.qr}
 				<div class="w-64 rounded-xl bg-white p-2" aria-label="Código QR para entrar">
+					<!-- eslint-disable-next-line svelte/no-at-html-tags -- the QR's SVG, made by the qrcode library on the server. -->
 					{@html now.qr}
 				</div>
 			{/if}

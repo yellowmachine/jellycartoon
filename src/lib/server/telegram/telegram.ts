@@ -112,7 +112,7 @@ export async function sendCode(userId: string, apiId: number, apiHash: string, p
 		pending.set(userId, { client: c, phone, phoneCodeHash, apiId, apiHash, at: Date.now() });
 	} catch (err) {
 		await c.disconnect().catch(() => {});
-		throw new Error(said(err));
+		throw new Error(said(err), { cause: err });
 	}
 }
 
@@ -135,7 +135,7 @@ export async function checkCode(userId: string, code: string): Promise<'ok' | 'p
 	} catch (err) {
 		if ((err as { errorMessage?: string }).errorMessage === 'SESSION_PASSWORD_NEEDED')
 			return 'password';
-		throw new Error(said(err));
+		throw new Error(said(err), { cause: err });
 	}
 	await connected(userId);
 	return 'ok';
@@ -150,7 +150,7 @@ export async function checkPassword(userId: string, password: string) {
 			new Api.auth.CheckPassword({ password: await computeCheck(asked, password) })
 		);
 	} catch (err) {
-		throw new Error(said(err));
+		throw new Error(said(err), { cause: err });
 	}
 	await connected(userId);
 }

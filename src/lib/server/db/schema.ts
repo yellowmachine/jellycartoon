@@ -13,7 +13,6 @@ import {
 	real,
 	serial,
 	text,
-	time,
 	timestamp,
 	unique
 } from 'drizzle-orm/pg-core';

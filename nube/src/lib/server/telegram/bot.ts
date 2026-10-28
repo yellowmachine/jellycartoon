@@ -85,7 +85,8 @@ export async function setBotToken(familyId: string, token: string) {
 		throw new Error(
 			err instanceof GrammyError && err.error_code === 401
 				? 'Telegram no reconoce ese token: cópialo otra vez de @BotFather'
-				: `Telegram: ${err instanceof Error ? err.message : String(err)}`
+				: `Telegram: ${err instanceof Error ? err.message : String(err)}`,
+			{ cause: err }
 		);
 	}
 	const before = await load(familyId);

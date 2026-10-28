@@ -33,6 +33,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				error(400, err instanceof Error ? err.message : String(err));
 			}
 		}
+		// eslint-disable-next-line no-fallthrough -- error() throws: nothing falls through.
 		default:
 			error(400, 'Petición no válida');
 	}

@@ -46,6 +46,7 @@
 	<link rel="icon" href={favicon} />
 	<meta name="theme-color" content={themeColor(data.theme)} />
 	<!-- Their colours (Ajustes), as at home: values only from the themes' table. -->
+	<!-- eslint-disable-next-line svelte/no-at-html-tags -- a <style> made from the themes' own table, never from what was typed. -->
 	{@html themeCss(data.theme)}
 </svelte:head>
 
