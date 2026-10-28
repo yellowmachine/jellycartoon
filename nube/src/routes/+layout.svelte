@@ -19,7 +19,8 @@
 						· {data.family.name}</span
 					>{/if}
 			</a>
-			<a href="/" class={link('/')}>Inicio</a>
+			<a href="/nevera" class={link('/nevera')}>Nevera</a>
+			<a href="/recetas" class={link('/recetas')}>Recetas</a>
 			<a href="/ajustes" class={link('/ajustes')}>Ajustes</a>
 			<form method="post" action="/logout">
 				<button class="rounded-md px-3 py-1 text-zinc-400 hover:bg-zinc-900">Salir</button>

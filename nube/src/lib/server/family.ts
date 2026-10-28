@@ -1,12 +1,15 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db } from './db/index.ts';
 import { familyMember, invitation } from './db/schema.ts';
-import { familyScope } from './family-scope.ts';
+import { familyOnlyScope, familyScope } from './family-scope.ts';
 
 export { NoFamily, type Membership } from './family-scope.ts';
 
 /** A family's rows, for the person asking (family-scope.ts). */
 export const withFamily = familyScope(db);
+
+/** A family's rows for its house, by its key: no person (family-scope.ts). */
+export const asFamily = familyOnlyScope(db);
 
 /** The unused invitation for this email, if any: only with one can someone sign up. */
 export async function invitationFor(email: string) {

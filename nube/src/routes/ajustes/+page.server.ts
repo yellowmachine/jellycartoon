@@ -4,6 +4,8 @@ import QRCode from 'qrcode';
 import type { Actions, PageServerLoad } from './$types';
 import { auth } from '#lib/server/auth.ts';
 import { withFamily } from '#lib/server/family.ts';
+import { openRouterKeyStart, setOpenRouterKey } from '#lib/server/family-settings.ts';
+import { kitchenOf } from '#lib/server/fridge.ts';
 import {
 	askHouse,
 	forgetHouse,
@@ -15,13 +17,14 @@ import {
 
 export const load: PageServerLoad = async ({ locals }) => ({
 	house: await houseLink(locals.user!.id),
+	openRouter: await openRouterKeyStart(await kitchenOf(locals.user!.id)),
 	twoFactor: Boolean(locals.user!.twoFactorEnabled)
 });
 
 /** Only the family's administrator connects its house. */
-async function requireAdmin(userId: string) {
+async function requireAdmin(userId: string, problem = 'houseProblem') {
 	const admin = await withFamily(userId, async (_, m) => m.role === 'admin');
-	if (!admin) return fail(403, { houseProblem: 'Solo quien administra la familia' });
+	if (!admin) return fail(403, { [problem]: 'Solo quien administra la familia' });
 	return null;
 }
 
@@ -58,6 +61,16 @@ export const actions: Actions = {
 			if (error instanceof HouseProblem) return fail(502, { houseProblem: error.message });
 			throw error;
 		}
+	},
+	/** The family's OpenRouter key (https://openrouter.ai/keys), for the AI; empty, none. */
+	saveOpenRouter: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'openRouterProblem');
+		if (denied) return denied;
+		const key = String((await request.formData()).get('key') ?? '').trim();
+		if (key && !key.startsWith('sk-or-'))
+			return fail(400, { openRouterProblem: 'Las claves de OpenRouter empiezan por sk-or-' });
+		await setOpenRouterKey(await kitchenOf(locals.user!.id), key || null);
+		return { saved: 'openRouter' };
 	},
 	/** The second step: the password, then its QR and recovery codes, then a code to turn it on. */
 	enableTwoFactor: async ({ request }) => {

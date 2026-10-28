@@ -4,8 +4,17 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { eq, sql } from 'drizzle-orm';
 import * as schema from './db/schema.ts';
-import { family, familyMember, house, user } from './db/schema.ts';
-import { familyScope, NoFamily } from './family-scope.ts';
+import {
+	family,
+	familyMember,
+	familySettings,
+	fridgeItem,
+	fridgeNote,
+	house,
+	recipe,
+	user
+} from './db/schema.ts';
+import { familyOnlyScope, familyScope, NoFamily } from './family-scope.ts';
 
 /**
  * Row-level security (family.schema.ts) on a real Postgres (PGlite, in memory), with the
@@ -14,6 +23,7 @@ import { familyScope, NoFamily } from './family-scope.ts';
  */
 const db = drizzle(new PGlite(), { schema });
 const withFamily = familyScope(db, { role: 'app_user' });
+const asFamily = familyOnlyScope(db, { role: 'app_user' });
 
 /** As the app's role, but without `withFamily`: as a query that forgot it. */
 const asAppOnly = <T>(fn: (tx: typeof db) => Promise<T>) =>
@@ -38,6 +48,7 @@ beforeAll(async () => {
 	await db.execute(
 		sql`grant select, insert, update, delete on all tables in schema public to app_user`
 	);
+	await db.execute(sql`grant usage, select on all sequences in schema public to app_user`);
 
 	await db.insert(user).values(['ana', 'alberto', 'berta', 'nadie'].map(person));
 	await db.insert(family).values([
@@ -119,5 +130,60 @@ describe('outside withFamily', () => {
 	test('the next transaction starts with nothing', async () => {
 		await withFamily('ana', (tx) => tx.select().from(house));
 		expect(await asAppOnly((tx) => tx.select().from(house))).toHaveLength(0);
+	});
+});
+
+describe('as a family, without a person (its house)', () => {
+	test('only that family’s rows', async () => {
+		const rows = await asFamily('B', (tx) => tx.select().from(house));
+		expect(rows.map((r) => r.familyId)).toEqual(['B']);
+	});
+
+	test('nor can it write another’s', async () => {
+		await expect(
+			asFamily('B', (tx) => tx.insert(house).values({ familyId: 'A', url: 'x', key: 'y' }))
+		).rejects.toThrow();
+	});
+});
+
+describe('the kitchen, also each family’s', () => {
+	beforeAll(async () => {
+		const [a] = await db
+			.insert(fridgeNote)
+			.values({ familyId: 'A', kind: 'list', text: 'Lista' })
+			.returning();
+		await db.insert(fridgeItem).values({ familyId: 'A', noteId: a.id, text: 'leche' });
+		await db.insert(fridgeNote).values({ familyId: 'B', text: 'Llamar al fontanero' });
+		await db.insert(recipe).values({
+			familyId: 'B',
+			title: 'Macarrones',
+			steps: [],
+			sourceUrl: 'https://recetas.test/macarrones',
+			sourceName: 'recetas.test'
+		});
+		await db.insert(familySettings).values({ familyId: 'B', openrouterKey: 'cifrada' });
+	});
+
+	test('the fridge', async () => {
+		expect(await withFamily('ana', (tx) => tx.select().from(fridgeItem))).toHaveLength(1);
+		expect(await withFamily('berta', (tx) => tx.select().from(fridgeItem))).toHaveLength(0);
+		const notes = await withFamily('ana', (tx) => tx.select().from(fridgeNote));
+		expect(notes.map((n) => n.familyId)).toEqual(['A']);
+	});
+
+	test('the recipes and the settings', async () => {
+		expect(await withFamily('ana', (tx) => tx.select().from(recipe))).toHaveLength(0);
+		expect(await withFamily('ana', (tx) => tx.select().from(familySettings))).toHaveLength(0);
+		expect(await withFamily('berta', (tx) => tx.select().from(recipe))).toHaveLength(1);
+	});
+
+	test('an item onto another family’s list', async () => {
+		const [list] = await asFamily('A', (tx) => tx.select().from(fridgeNote));
+		await expect(
+			asFamily('B', (tx) =>
+				tx.insert(fridgeItem).values({ familyId: 'B', noteId: list.id, text: 'robado' })
+			)
+		).rejects.toThrow();
+		expect(await db.select().from(fridgeItem)).toHaveLength(1);
 	});
 });

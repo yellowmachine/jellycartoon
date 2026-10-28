@@ -78,6 +78,37 @@
 	{/if}
 </section>
 
+<section class={section} id="ia">
+	<h2 class="mb-1 font-semibold">IA (OpenRouter)</h2>
+	<p class="mb-4 text-sm text-zinc-400">
+		La clave de <a
+			href="https://openrouter.ai/keys"
+			target="_blank"
+			rel="noreferrer"
+			class="text-amber-400 hover:underline">OpenRouter</a
+		> de la familia: con ella las recetas guardadas quedan con pasos cortos y sus temporizadores, y se
+		leen páginas sin datos de receta. Se guarda cifrada.
+	</p>
+	{#if data.openRouter}
+		<p class="mb-3 font-mono text-sm">{data.openRouter}</p>
+	{/if}
+	{#if admin}
+		<form method="post" action="?/saveOpenRouter" use:enhance class="flex gap-2">
+			<PasswordInput
+				name="key"
+				placeholder={data.openRouter ? 'Otra clave (vacía, quitarla)' : 'sk-or-…'}
+				autocomplete="off"
+				box="flex-1"
+				class="{field} font-mono"
+			/>
+			<button class={primary}>Guardar</button>
+		</form>
+	{/if}
+	{#if form && 'openRouterProblem' in form}
+		<p class="mt-3 text-sm text-red-400">{form.openRouterProblem}</p>
+	{/if}
+</section>
+
 <section class={section} id="dos-pasos">
 	<h2 class="mb-1 font-semibold">Verificación en dos pasos</h2>
 	<p class="mb-4 text-sm text-zinc-400">
