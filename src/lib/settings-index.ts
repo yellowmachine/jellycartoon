@@ -31,6 +31,7 @@ export interface SettingsShown {
 	routes: unknown;
 	relay: unknown;
 	satellites: unknown;
+	cloudKeys: unknown;
 	home: unknown;
 	houseVoice: unknown;
 	kids: unknown;
@@ -286,6 +287,13 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		words:
 			'satélite raspberry micrófono hola casita clave salón alexa altavoz snapcast bajar música',
 		shown: (d) => Boolean(d.satellites)
+	},
+	{
+		id: 'nube',
+		tab: 'casa',
+		title: 'La nube',
+		words: 'nube clave api vídeo series fuera de casa túnel rathole',
+		shown: (d) => Boolean(d.cloudKeys)
 	},
 	{
 		id: 'personas',

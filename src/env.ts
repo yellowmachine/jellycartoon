@@ -109,6 +109,11 @@ export const variables = defineEnvVars({
 			"Optional address of a second whisper.cpp server, started with `-dtw` and `-nfa`, only for the automatic subtitles: so a voice command does not wait behind them. Without it, WHISPER_URL's makes them too.",
 		schema: (value) => value || undefined
 	},
+	MEDIA_HOST: {
+		description:
+			"Optional name reached from outside through the rathole tunnel (#253), e.g. `media.example.com`, which serves only the APIs for other apps. Shown in Ajustes as the music apps' server, at home and away.",
+		schema: (value) => value || undefined
+	},
 	OLLAMA_URL: {
 		description:
 			'Optional address of an Ollama server (https://ollama.com), e.g. `http://host.docker.internal:11434`, with a vision model: it labels episodes from their frames, with the labels set in Ajustes. Without it there is no «Etiquetar».',
