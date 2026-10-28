@@ -70,7 +70,10 @@ import {
 	prepareTimerAt,
 	editAlarm,
 	MAX_SKIP_DAYS,
+	MAX_SNOOZE_MIN,
 	setPaused,
+	SNOOZE_MIN,
+	snoozeAlarm,
 	skipAlarm,
 	unskipAlarm,
 	startTimerAt,
@@ -559,12 +562,12 @@ function tools(house: boolean, rooms: Room[]): Tool[] {
 		),
 		fn(
 			'change_alarm',
-			'Cambia una alarma de la lista por su número: quitarla («delete»); que no suene unos días sin quitarla («skip»: sin «from», solo la próxima vez, «hoy ya me he levantado», «mañana no»; con «from» y «to», esos días, «el jueves no», «del 1 al 15 de agosto no»); que vuelva a sonar un día que se saltaba («unskip», «al final mañana sí»); cambiarle la hora, los días o el nombre sin quitarla («edit», «cámbiala a las 6:30», «quítale el sábado»); pausarla, activarla, o pararla si está sonando.',
+			'Cambia una alarma de la lista por su número: quitarla («delete»); que no suene unos días sin quitarla («skip»: sin «from», solo la próxima vez, «hoy ya me he levantado», «mañana no»; con «from» y «to», esos días, «el jueves no», «del 1 al 15 de agosto no»); que vuelva a sonar un día que se saltaba («unskip», «al final mañana sí»); cambiarle la hora, los días o el nombre sin quitarla («edit», «cámbiala a las 6:30», «quítale el sábado»); pausarla, activarla, o pararla si está sonando; o posponer la que suena o acaba de sonar («snooze», «pospón», «cinco minutos más»): vuelve a sonar dentro de esos minutos, y los demás días sigue igual.',
 			{
 				id: { type: 'integer', description: 'El número de la alarma, de la lista.' },
 				do: {
 					type: 'string',
-					enum: ['delete', 'skip', 'unskip', 'edit', 'pause', 'resume', 'stop']
+					enum: ['delete', 'skip', 'unskip', 'edit', 'pause', 'resume', 'stop', 'snooze']
 				},
 				from: {
 					type: 'string',
@@ -586,7 +589,11 @@ function tools(house: boolean, rooms: Room[]): Tool[] {
 					type: 'string',
 					description: 'Con «edit», si es de una vez: el día nuevo, AAAA-MM-DD.'
 				},
-				label: { type: 'string', description: 'Con «edit»: el nombre nuevo.' }
+				label: { type: 'string', description: 'Con «edit»: el nombre nuevo.' },
+				minutes: {
+					type: 'number',
+					description: `Con «snooze»: dentro de cuántos minutos vuelve a sonar, hasta ${MAX_SNOOZE_MIN}. Sin él, ${SNOOZE_MIN}.`
+				}
 			},
 			['id', 'do']
 		),
@@ -1386,6 +1393,16 @@ async function runTool(
 					return days.length
 						? `La alarma ${id} vuelve a sonar: ${days.join(', ')}.`
 						: `La alarma ${id} no se saltaba esos días: ya suena.`;
+				}
+				case 'snooze': {
+					const minutes =
+						args.minutes === undefined ? SNOOZE_MIN : Math.round(Number(args.minutes));
+					if (!Number.isFinite(minutes) || minutes < 1 || minutes > MAX_SNOOZE_MIN)
+						return `Minutos no válidos: de 1 a ${MAX_SNOOZE_MIN}.`;
+					const at = await snoozeAlarm(id, minutes);
+					return at
+						? `Alarma ${id} pospuesta: vuelve a sonar a las ${localTime(at)}, dentro de ${minutes} minutos.`
+						: `La alarma ${id} no está sonando ni acaba de sonar: no hay nada que posponer.`;
 				}
 				case 'edit': {
 					const time =

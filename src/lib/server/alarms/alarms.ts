@@ -62,11 +62,15 @@ async function peopleOf(ids: number[]) {
 	return (id: number) => rows.filter((p) => p.alarmId === id).map((p) => p.userId);
 }
 
-/** Its own and the house's: the ones for nobody, or for them among others. */
+/**
+ * Its own and the house's: the ones for nobody, or for them among others. Not those over (rung and
+ * stopped, not coming again): kept a while only for the AI (`describeAlarms`).
+ */
 export async function listAlarms(userId: string): Promise<Alarm[]> {
 	const rows = await db.select().from(alarm).orderBy(alarm.nextAt, alarm.id);
 	const of = await peopleOf(rows.map((r) => r.id));
 	return rows
+		.filter((r) => !r.doneAt)
 		.filter((r) => {
 			const theirs = of(r.id);
 			return !theirs.length || theirs.includes(userId);
@@ -128,8 +132,22 @@ export async function deleteAlarm(id: number) {
 /** Over now: not ringing, not coming again; kept a while for the AI («se quitó hace 2 min»). */
 const over = () => ({ ringingSince: null, nextAt: null, doneAt: new Date() });
 
+/**
+ * When each was stopped while ringing, for «posponer» (`snoozeAlarm`): saying «Alexa» stops it
+ * before the order arrives. Only in memory: after a restart, nothing to put off.
+ */
+const stoppedAt = new Map<number, number>();
+/** How long after stopping it may still be put off. */
+const SNOOZE_AFTER_MS = 10 * 60_000;
+/** «Posponer»: in so many minutes if not said, at most `MAX_SNOOZE_MIN`. */
+export const SNOOZE_MIN = 10;
+export const MAX_SNOOZE_MIN = 60;
+
+const justStopped = (id: number) => Date.now() - (stoppedAt.get(id) ?? 0) < SNOOZE_AFTER_MS;
+
 /** «Parar»: the one ringing is quiet; one that does not come again is over. */
 export async function stopAlarm(id: number) {
+	stoppedAt.set(id, Date.now());
 	await db
 		.update(alarm)
 		.set({
@@ -152,7 +170,8 @@ export async function stopRingingAt(place: AlarmPlace) {
 			doneAt: sql`case when ${alarm.nextAt} is null then now() else ${alarm.doneAt} end`
 		})
 		.where(and(isNotNull(alarm.ringingSince), inArray(alarm.place, [place, 'casa'])))
-		.returning({ label: alarm.label });
+		.returning({ id: alarm.id, label: alarm.label });
+	for (const { id } of stopped) stoppedAt.set(id, Date.now());
 	if (stopped.length) {
 		log.info('avisos', `Parados: ${stopped.map((s) => `«${s.label}»`).join(', ')}`, { place });
 		changed();
@@ -258,6 +277,25 @@ export async function editAlarm(
 	changed();
 	const days = fromRrule(repeat);
 	return `«${values.label}», a las ${time}, ${days.every === 'semana' ? daysName(days.days).toLowerCase() : 'una vez'}, ${row.paused ? 'pausada' : values.nextAt ? `la próxima ${whenSaid(values.nextAt)}` : 'no vuelve a sonar'}`;
+}
+
+/**
+ * «Posponer»: the one ringing, or stopped a moment ago, rings again in `minutes`; its repetitions
+ * stay as they were (after that ring, its next day). When, or null if it was not ringing.
+ */
+export async function snoozeAlarm(id: number, minutes: number) {
+	const [row] = await db.select().from(alarm).where(eq(alarm.id, id));
+	if (!row || row.kind !== 'alarma' || (!row.ringingSince && !justStopped(id))) return null;
+	const at = new Date(Date.now() + minutes * 60_000);
+	await db
+		.update(alarm)
+		.set({ ringingSince: null, nextAt: at, doneAt: null, paused: false })
+		.where(eq(alarm.id, id));
+	stoppedAt.delete(id);
+	log.info('avisos', `Pospuesto ${minutes} min: «${row.label}»`, { id });
+	await schedule();
+	changed();
+	return at;
 }
 
 /** Kept, but not ringing; on again, from its next time after now. */
@@ -416,7 +454,7 @@ export async function describeAlarms(place: AlarmPlace | null, userId: string | 
 			const skips = skipped.length
 				? `; no suena ${skipped.length > 6 ? `${skipped.length} días, del ${skipped[0]} al ${skipped.at(-1)}` : skipped.join(', ')}`
 				: '';
-			return `[alarma ${r.id}] ${r.label}: a las ${r.time?.slice(0, 5)}, ${repeat}, ${next}${skips}; ${who}; suena en ${placeName(r.place, satellites)}${r.ringingSince ? '; está sonando' : ''}`;
+			return `[alarma ${r.id}] ${r.label}: a las ${r.time?.slice(0, 5)}, ${repeat}, ${next}${skips}; ${who}; suena en ${placeName(r.place, satellites)}${r.ringingSince ? '; está sonando' : justStopped(r.id) ? '; acaba de sonar y la han parado (se puede posponer)' : ''}`;
 		});
 	return [...timerLines, ...alarmLines];
 }
