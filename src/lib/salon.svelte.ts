@@ -1,4 +1,4 @@
-import { BROADCAST_TRACKS, languageLabel } from '#lib/languages.ts';
+import { BROADCAST_TRACKS, languageLabel } from 'comun/languages.ts';
 import type { RemoteAction, RemoteState, Track } from '#lib/salon.ts';
 
 /**

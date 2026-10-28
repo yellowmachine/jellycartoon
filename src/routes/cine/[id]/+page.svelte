@@ -9,7 +9,7 @@
 	import Scenes from '#lib/components/Scenes.svelte';
 	import TagBar from '#lib/components/TagBar.svelte';
 	import TitleForm from '#lib/components/TitleForm.svelte';
-	import { formatBytes, formatDuration } from '#lib/format.ts';
+	import { formatBytes, formatDuration } from 'comun/format.ts';
 	import { awardFamily, filterHref, type FilterName } from '#lib/film-search.ts';
 	import type { PageProps } from './$types';
 

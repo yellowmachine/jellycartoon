@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import Backdrop from '#lib/components/Backdrop.svelte';
-	import SectionIcon from '#lib/components/SectionIcon.svelte';
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { poll } from '#lib/poll.ts';
 	import type { PageProps } from './$types';
 

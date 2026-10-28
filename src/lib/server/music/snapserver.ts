@@ -1,6 +1,6 @@
 import net from 'node:net';
 import { log } from '#lib/server/log.ts';
-import { scaleVolumes, type Speaker } from '#lib/music.ts';
+import { scaleVolumes, type Speaker } from 'comun/music.ts';
 
 /**
  * Snapserver's clients, through its JSON-RPC control API over TCP, one message per line

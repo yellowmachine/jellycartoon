@@ -12,7 +12,7 @@ import {
 	watchProgress
 } from '#lib/server/db/schema.ts';
 import { allowedEpisodes, allowedMovies, allowedSeries } from '#lib/server/kids.ts';
-import { fold } from '#lib/music.ts';
+import { fold } from 'comun/music.ts';
 
 /**
  * The series and films there are, for voice commands (#33): to find one by its name, as it was

@@ -10,7 +10,7 @@ import {
 	trackArtist,
 	trackTitle
 } from '#lib/server/db/schema.ts';
-import type { MusicTrack } from '#lib/music.ts';
+import type { MusicTrack } from 'comun/music.ts';
 
 /** Playlists of tracks, shared by the whole house: anyone can change any of them. */
 

@@ -7,7 +7,7 @@ import { visionModel } from '#lib/server/app-settings.ts';
 import { completeJson, type ContentPart } from '#lib/server/openrouter.ts';
 import { log } from '#lib/server/log.ts';
 import { FRAME_WIDTHS } from '#lib/birds-eye.ts';
-import { formatDuration } from '#lib/format.ts';
+import { formatDuration } from 'comun/format.ts';
 import { titleBatches, type TitleProposal } from '#lib/episode-titles.ts';
 import { inTurn } from '#lib/server/cinema/frames.ts';
 import { wikipediaPageText } from '#lib/server/cinema/wikidata.ts';

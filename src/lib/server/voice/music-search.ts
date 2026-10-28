@@ -1,4 +1,4 @@
-import { fold, type MusicAlbum, type MusicTrack } from '#lib/music.ts';
+import { fold, type MusicAlbum, type MusicTrack } from 'comun/music.ts';
 
 /**
  * The voice's `search_music` (command.ts): artists, albums, playlists and songs by their words,

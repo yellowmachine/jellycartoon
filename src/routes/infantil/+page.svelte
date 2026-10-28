@@ -4,7 +4,7 @@
 	import KidsNow from '#lib/components/KidsNow.svelte';
 	import DailymotionSources from '#lib/components/DailymotionSources.svelte';
 	import KidRulesForm from '#lib/components/KidRulesForm.svelte';
-	import { formatRemaining } from '#lib/format.ts';
+	import { formatRemaining } from 'comun/format.ts';
 	import { clock, closedText, type VideoAccess } from '#lib/kid-time.ts';
 	import { ANSWER_SECONDS, ASK_EVERY_OPTIONS } from '#lib/still-there.ts';
 	import type { PageProps } from './$types';

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance, type SubmitFunction } from '$app/forms';
-	import { dj } from '#lib/dj.svelte.ts';
+	import { dj } from 'comun/dj.svelte.ts';
 	import {
 		DJ_DEFAULT_VOICE,
 		DJ_EVERY,
@@ -8,8 +8,8 @@
 		type DjOptions,
 		type DjPreset,
 		type MusicArtist
-	} from '#lib/music.ts';
-	import { musicTarget } from '#lib/music-target.svelte.ts';
+	} from 'comun/music.ts';
+	import { musicTarget } from 'comun/music-target.svelte.ts';
 
 	/**
 	 * Modo DJ (#117): which artists (none, the whole library), the DJ's language and how often it

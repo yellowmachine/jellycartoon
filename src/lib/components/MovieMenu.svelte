@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
-	import { formatBytes, formatDuration } from '#lib/format.ts';
-	import type { AudioTrack } from '#lib/languages.ts';
-	import ActionMenu from './ActionMenu.svelte';
+	import { formatBytes, formatDuration } from 'comun/format.ts';
+	import type { AudioTrack } from 'comun/languages.ts';
+	import ActionMenu from 'comun/components/ActionMenu.svelte';
 	import CopyPathItem from './CopyPathItem.svelte';
 	import InfoDialog from './InfoDialog.svelte';
-	import { closeAfter, menuItem } from './menu.ts';
+	import { closeAfter, menuItem } from 'comun/components/menu.ts';
 
 	interface Props {
 		movie: {

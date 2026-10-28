@@ -41,8 +41,8 @@ import {
 	type MusicAlbum,
 	type MusicTrack,
 	type SnapcastWhere
-} from '#lib/music.ts';
-import { COUNTRIES, STATIONS } from '#lib/radio.ts';
+} from 'comun/music.ts';
+import { COUNTRIES, STATIONS } from 'comun/radio.ts';
 import { parseRecipe } from '#lib/recipe.ts';
 import type { LngLat } from '#lib/road.ts';
 import { searchPlaces, whereIs } from '#lib/server/road/ors.ts';

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { MusicTrack } from '#lib/music.ts';
-	import { music } from '#lib/music-player.svelte.ts';
-	import { musicTarget } from '#lib/music-target.svelte.ts';
+	import type { MusicTrack } from 'comun/music.ts';
+	import { music } from 'comun/music-player.svelte.ts';
+	import { musicTarget } from 'comun/music-target.svelte.ts';
 
 	/**
 	 * «+ Añadir a la cola» of an album or a list: at the end of what plays. Said on the button for a

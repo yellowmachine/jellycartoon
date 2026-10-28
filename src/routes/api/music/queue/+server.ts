@@ -2,7 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { tracksById } from '#lib/server/music/albums.ts';
 import { clearQueue, getQueue, saveQueue } from '#lib/server/music/queue.ts';
-import { parseQueueSave, type SavedQueue } from '#lib/music.ts';
+import { parseQueueSave, type SavedQueue } from 'comun/music.ts';
 
 /** What this user was playing, on whatever device, to go on with it; null if nothing. */
 export const GET: RequestHandler = async ({ locals }) => {

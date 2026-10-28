@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { musicTarget, watchSnapcast } from '#lib/music-target.svelte.ts';
-	import type { SnapcastWhere } from '#lib/music.ts';
+	import { musicTarget, watchSnapcast } from 'comun/music-target.svelte.ts';
+	import type { SnapcastWhere } from 'comun/music.ts';
 
 	/**
 	 * «Solo el audio, por Snapcast» (#223): an episode's audio, and the ones after it, in the whole

@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import MediaIcon from './MediaIcon.svelte';
-	import SectionIcon from './SectionIcon.svelte';
-	import { formatDuration } from '#lib/format.ts';
-	import type { MusicTrack } from '#lib/music.ts';
-	import { music } from '#lib/music-player.svelte.ts';
+	import MediaIcon from 'comun/components/MediaIcon.svelte';
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
+	import { formatDuration } from 'comun/format.ts';
+	import type { MusicTrack } from 'comun/music.ts';
+	import { music } from 'comun/music-player.svelte.ts';
 
 	/**
 	 * An album's or a playlist's tracks on the TV view: on the TV's speakers, as the radio there,

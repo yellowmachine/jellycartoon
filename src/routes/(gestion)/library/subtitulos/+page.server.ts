@@ -1,7 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { autoSubtitleLanguages, setAutoSubtitleLanguages } from '#lib/server/app-settings.ts';
-import { KNOWN_LANGUAGES, languageLabel } from '#lib/languages.ts';
+import { KNOWN_LANGUAGES, languageLabel } from 'comun/languages.ts';
 import {
 	cancelAllQueued,
 	cancelJob,

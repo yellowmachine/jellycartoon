@@ -12,7 +12,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { CLIP_SECONDS } from '#lib/birds-eye.ts';
-	import { formatDuration } from '#lib/format.ts';
+	import { formatDuration } from 'comun/format.ts';
 	import { page } from '$app/state';
 	import { chooseFilmBackdrop } from '#lib/backdrop.svelte.ts';
 

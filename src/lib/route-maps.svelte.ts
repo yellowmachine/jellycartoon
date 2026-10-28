@@ -1,5 +1,5 @@
 import type { PMTiles } from 'pmtiles';
-import { keepScreenOn } from '#lib/screen-on.ts';
+import { keepScreenOn } from 'comun/screen-on.ts';
 import type { DeviceOrder, HeldMap, RouteMapReport } from '#lib/route-maps.ts';
 
 /**

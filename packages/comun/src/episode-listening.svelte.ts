@@ -1,10 +1,10 @@
 import { goto } from '$app/navigation';
 import { onMount, untrack } from 'svelte';
-import { shownDeviceName } from '#lib/device-name.svelte.ts';
-import { audioTrackFor, episodeAudioUrl, type EpisodeListening } from '#lib/episode-audio.ts';
-import type { AudioTrack } from '#lib/languages.ts';
-import { music } from '#lib/music-player.svelte.ts';
-import { thumbUrl } from '#lib/thumb.svelte.ts';
+import { shownDeviceName } from './device-name.svelte.ts';
+import { audioTrackFor, episodeAudioUrl, type EpisodeListening } from './episode-audio.ts';
+import type { AudioTrack } from './languages.ts';
+import { music } from './music-player.svelte.ts';
+import { thumbUrl } from './thumb.svelte.ts';
 
 /**
  * An episode only listened to (#154): started from its «⋯» menu or from the player, and its

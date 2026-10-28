@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { formatDuration } from '#lib/format.ts';
-	import { thumbUrl } from '#lib/thumb.svelte.ts';
+	import { formatDuration } from 'comun/format.ts';
+	import { thumbUrl } from 'comun/thumb.svelte.ts';
 	import EpisodePreview from './EpisodePreview.svelte';
 
 	/**

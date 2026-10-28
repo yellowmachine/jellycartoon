@@ -3,6 +3,10 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"workspaces": [
+		"packages/*",
+		"nube"
+	],
 	"scripts": {
 		"dev": "bun run db:migrate && bun --bun vite dev --host",
 		"build": "bun --bun vite build",
@@ -19,7 +23,7 @@
 		"db:studio": "bun --bun drizzle-kit studio",
 		"auth:schema": "bun --bun x auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes",
 		"start": "bun build/index.js",
-		"test": "bun test ./src"
+		"test": "bun test ./src ./packages"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-node": "^6.0.0",
@@ -62,6 +66,7 @@
 		"@turf/buffer": "7",
 		"@turf/helpers": "7",
 		"@turf/simplify": "7",
+		"comun": "workspace:*",
 		"grammy": "1.46.0",
 		"hls.js": "^1.7.3",
 		"maplibre-gl": "^6.12.0",

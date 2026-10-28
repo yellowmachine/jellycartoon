@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import RadioTabs from '#lib/components/RadioTabs.svelte';
-	import { formatDuration } from '#lib/format.ts';
-	import { music } from '#lib/music-player.svelte.ts';
-	import { playEpisode } from '#lib/podcast-player.svelte.ts';
+	import { formatDuration } from 'comun/format.ts';
+	import { music } from 'comun/music-player.svelte.ts';
+	import { playEpisode } from 'comun/podcast-player.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();

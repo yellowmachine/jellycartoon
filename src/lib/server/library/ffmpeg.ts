@@ -4,7 +4,7 @@ import path from 'node:path';
 import { setPriority } from 'node:os';
 import { Readable } from 'node:stream';
 import { AUDIO_LANG, X264_CRF, X264_PRESET } from '$app/env/private';
-import { languageLabel, normalizeLang, type AudioTrack } from '#lib/languages.ts';
+import { languageLabel, normalizeLang, type AudioTrack } from 'comun/languages.ts';
 import { chapterTitle, type Chapter } from '#lib/scenes.ts';
 import { log } from '#lib/server/log.ts';
 

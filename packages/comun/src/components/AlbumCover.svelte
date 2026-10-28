@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { coverUrl } from '#lib/music.ts';
+	import { coverUrl } from '../music.ts';
 
 	let {
 		album,

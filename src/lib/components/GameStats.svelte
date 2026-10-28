@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatPlayed } from '#lib/format.ts';
+	import { formatPlayed } from 'comun/format.ts';
 
 	/**
 	 * A person's play statistics (#176), as playStats (game-sessions.ts) gives them: in the TV view,

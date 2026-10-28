@@ -1,0 +1,11 @@
+# For nube/Dockerfile, whose context is the repository's root: only the workspaces' manifests, the
+# shared package and the cloud's app; never jellycartoon's media, data nor anyone's builds.
+*
+!package.json
+!bun.lock
+!packages/comun
+!nube
+**/node_modules
+**/.svelte-kit
+**/build
+**/.env

@@ -7,7 +7,7 @@ import {
 	podcastSubscription
 } from '#lib/server/db/schema.ts';
 import { log } from '#lib/server/log.ts';
-import { DONE_BEFORE_END, type PodcastPlaying, type PodcastResult } from '#lib/podcasts.ts';
+import { DONE_BEFORE_END, type PodcastPlaying, type PodcastResult } from 'comun/podcasts.ts';
 import { isWebUrl, parseFeed, type Feed } from './feed.ts';
 
 /**

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import TvHeader from '#lib/components/TvHeader.svelte';
-	import { thumbUrl } from '#lib/thumb.svelte.ts';
+	import { thumbUrl } from 'comun/thumb.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();

@@ -20,7 +20,7 @@ import {
 	routeMapsOf
 } from '#lib/server/route-maps.ts';
 import { isDeviceId } from '#lib/route-maps.ts';
-import { fold } from '#lib/music.ts';
+import { fold } from 'comun/music.ts';
 import { isLngLat } from '#lib/road.ts';
 import { MAX_STOPS, type RouteStop } from '#lib/saved-places.ts';
 

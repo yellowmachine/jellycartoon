@@ -1,8 +1,8 @@
 <script lang="ts">
-	import AlbumGrid from '#lib/components/AlbumGrid.svelte';
+	import AlbumGrid from 'comun/components/AlbumGrid.svelte';
 	import MusicTargetSwitch from '#lib/components/MusicTargetSwitch.svelte';
-	import TrackRows from '#lib/components/TrackRows.svelte';
-	import { musicTarget } from '#lib/music-target.svelte.ts';
+	import TrackRows from 'comun/components/TrackRows.svelte';
+	import { musicTarget } from 'comun/music-target.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();

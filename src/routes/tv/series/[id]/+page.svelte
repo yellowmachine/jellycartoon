@@ -4,7 +4,7 @@
 	import Backdrop from '#lib/components/Backdrop.svelte';
 	import { backdropUrl } from '#lib/backdrop.svelte.ts';
 	import { page } from '$app/state';
-	import { formatDuration } from '#lib/format.ts';
+	import { formatDuration } from 'comun/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();

@@ -1,10 +1,10 @@
 import { onMount, untrack } from 'svelte';
 import { page } from '$app/state';
-import { shownDeviceName } from '#lib/device-name.svelte.ts';
-import type { QueueSave, SavedQueue } from '#lib/music.ts';
-import { music } from '#lib/music-player.svelte.ts';
-import type { PodcastPlaying } from '#lib/podcasts.ts';
-import type { RadioStream } from '#lib/radio.ts';
+import { shownDeviceName } from './device-name.svelte.ts';
+import type { QueueSave, SavedQueue } from './music.ts';
+import { music } from './music-player.svelte.ts';
+import type { PodcastPlaying } from './podcasts.ts';
+import type { RadioStream } from './radio.ts';
 
 /**
  * What this browser plays, kept on the server (/api/music/queue) to go on with it after closing

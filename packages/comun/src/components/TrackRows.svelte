@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { formatDuration } from '#lib/format.ts';
-	import type { MusicTrack } from '#lib/music.ts';
-	import { music } from '#lib/music-player.svelte.ts';
+	import { formatDuration } from '../format.ts';
+	import type { MusicTrack } from '../music.ts';
+	import { music } from '../music-player.svelte.ts';
 	import AddToPlaylist from './AddToPlaylist.svelte';
 	import AlbumCover from './AlbumCover.svelte';
 

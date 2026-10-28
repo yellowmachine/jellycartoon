@@ -277,6 +277,7 @@ Las series (no el cine, que es solo de casa), para la app de la nube (#253), en 
 - `GET /api/v1/musica/albumes`: los álbumes, sin sus canciones; `GET /api/v1/musica/albumes/<id>`,
   uno con sus canciones.
 - `GET /api/v1/musica/listas` y `GET /api/v1/musica/listas/<id>`: las listas de la casa.
+- `GET /api/v1/musica/aleatorio`: «Todo aleatorio», 200 canciones de toda la música, mezcladas.
 - `POST /api/v1/musica/pase` (JSON): un pase de 12 horas para esa persona, `base`, con el que el
   navegador abre directamente las canciones (`<base>/pistas/<id>`, su copia en Opus, #64) y las
   portadas (`<base>/portadas/<id del álbum>`). Uno para toda la música: es de toda la casa.

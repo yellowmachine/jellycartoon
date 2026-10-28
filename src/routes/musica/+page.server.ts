@@ -13,7 +13,7 @@ import { isKid } from '#lib/server/kids.ts';
 import { djEnabled } from '#lib/server/music/dj.ts';
 import { openRouterConfig } from '#lib/server/app-settings.ts';
 import { deletePreset, presetsOf, savePreset } from '#lib/server/music/dj-presets.ts';
-import { parseDjOptions } from '#lib/music.ts';
+import { parseDjOptions } from 'comun/music.ts';
 
 /** A saved setup's name: short enough for the menu. */
 const PRESET_NAME_MAX = 60;

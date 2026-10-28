@@ -1,8 +1,8 @@
 <script lang="ts">
 	import TvHeader from '#lib/components/TvHeader.svelte';
-	import SectionIcon from '#lib/components/SectionIcon.svelte';
-	import { formatRemaining } from '#lib/format.ts';
-	import { coverUrl } from '#lib/music.ts';
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
+	import { formatRemaining } from 'comun/format.ts';
+	import { coverUrl } from 'comun/music.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();

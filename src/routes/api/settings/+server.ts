@@ -2,7 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { userSettings } from '#lib/server/db/schema.ts';
-import { normalizeLang } from '#lib/languages.ts';
+import { normalizeLang } from 'comun/languages.ts';
 import { sanitizeSubtitleStyle, type SubtitleStyle } from '#lib/subtitle-style.ts';
 
 /** Partial update: `{ audioLang?, subtitleLang?, subtitleStyle?, autoNext? }`. */

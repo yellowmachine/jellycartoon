@@ -1,4 +1,4 @@
-import { fold } from './music.ts';
+import { fold } from 'comun/music.ts';
 import type { LngLat } from './road.ts';
 import { alongLine, locate, metresBetween } from './road-guide.ts';
 

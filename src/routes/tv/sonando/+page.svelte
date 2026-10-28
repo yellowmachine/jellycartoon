@@ -1,12 +1,12 @@
 <script lang="ts">
-	import MediaIcon from '#lib/components/MediaIcon.svelte';
+	import MediaIcon from 'comun/components/MediaIcon.svelte';
 	import MusicBackground from '#lib/components/MusicBackground.svelte';
 	import TvHeader from '#lib/components/TvHeader.svelte';
-	import SectionIcon from '#lib/components/SectionIcon.svelte';
-	import { formatDuration } from '#lib/format.ts';
-	import { coverUrl } from '#lib/music.ts';
-	import { music } from '#lib/music-player.svelte.ts';
-	import { SKIP_BACK, SKIP_FORWARD } from '#lib/podcasts.ts';
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
+	import { formatDuration } from 'comun/format.ts';
+	import { coverUrl } from 'comun/music.ts';
+	import { music } from 'comun/music-player.svelte.ts';
+	import { SKIP_BACK, SKIP_FORWARD } from 'comun/podcasts.ts';
 
 	/** What sounds on the TV, big, with its controls for the remote: a song or a podcast episode. */
 	const current = $derived(music.radio ? undefined : music.current);

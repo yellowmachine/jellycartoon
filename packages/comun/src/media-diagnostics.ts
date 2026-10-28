@@ -1,5 +1,5 @@
 import { version } from '$app/env';
-import { deviceName } from '#lib/device-name.svelte.ts';
+import { deviceName } from './device-name.svelte.ts';
 
 /**
  * What the players do with the page hidden (the phone in the pocket, its screen off), to the

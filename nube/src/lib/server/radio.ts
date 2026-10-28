@@ -1,5 +1,5 @@
 import { resolveSrv } from 'node:dns/promises';
-import { STATIONS, type RadioStationInfo, type RadioStream } from '#lib/radio.ts';
+import { STATIONS, type RadioStationInfo, type RadioStream } from 'comun/radio.ts';
 
 /**
  * Radio Browser's public API (https://api.radio-browser.info): its servers come from a DNS SRV

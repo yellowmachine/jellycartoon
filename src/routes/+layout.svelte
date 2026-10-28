@@ -1,18 +1,18 @@
 <script lang="ts">
 	import './layout.css';
 	import favicon from '#lib/assets/favicon.svg';
-	import MusicBar from '#lib/components/MusicBar.svelte';
+	import MusicBar from 'comun/components/MusicBar.svelte';
 	import AiSpendLine from '#lib/components/AiSpendLine.svelte';
 	import AlarmBanner from '#lib/components/AlarmBanner.svelte';
 	import SalonBar from '#lib/components/SalonBar.svelte';
 	import SnapcastBar from '#lib/components/SnapcastBar.svelte';
-	import SectionIcon, { type Section } from '#lib/components/SectionIcon.svelte';
-	import ActionMenu from '#lib/components/ActionMenu.svelte';
-	import { menuItem } from '#lib/components/menu.ts';
+	import SectionIcon, { type Section } from 'comun/components/SectionIcon.svelte';
+	import ActionMenu from 'comun/components/ActionMenu.svelte';
+	import { menuItem } from 'comun/components/menu.ts';
 	import VoiceBubble from '#lib/components/VoiceBubble.svelte';
 	import TimerBar from '#lib/components/TimerBar.svelte';
 	import VoicePanel from '#lib/components/VoicePanel.svelte';
-	import MediaIcon from '#lib/components/MediaIcon.svelte';
+	import MediaIcon from 'comun/components/MediaIcon.svelte';
 	import OpeningQuote from '#lib/components/OpeningQuote.svelte';
 	import KidRequests from '#lib/components/KidRequests.svelte';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
@@ -23,7 +23,7 @@
 	import { tapMic } from '#lib/mic-tap.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { wakeWord } from '#lib/wake-word.svelte.ts';
-	import { music } from '#lib/music-player.svelte.ts';
+	import { music } from 'comun/music-player.svelte.ts';
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import { page, updated } from '$app/state';
 	import { themeColor, themeCss } from '#lib/themes.ts';

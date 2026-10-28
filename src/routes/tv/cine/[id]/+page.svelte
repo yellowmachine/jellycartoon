@@ -3,8 +3,8 @@
 	import TvHeader from '#lib/components/TvHeader.svelte';
 	import Backdrop from '#lib/components/Backdrop.svelte';
 	import { backdropUrl } from '#lib/backdrop.svelte.ts';
-	import { formatDuration } from '#lib/format.ts';
-	import { music } from '#lib/music-player.svelte.ts';
+	import { formatDuration } from 'comun/format.ts';
+	import { music } from 'comun/music-player.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();

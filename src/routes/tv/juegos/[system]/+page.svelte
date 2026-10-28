@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import TvHeader from '#lib/components/TvHeader.svelte';
-	import SectionIcon from '#lib/components/SectionIcon.svelte';
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();

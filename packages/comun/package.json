@@ -1,0 +1,17 @@
+{
+	"name": "comun",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"description": "Lo que comparten jellycartoon y la nube (#253): la música (reproductor, barra, álbumes) y sus piezas.",
+	"exports": {
+		"./*": "./src/*"
+	},
+	"peerDependencies": {
+		"@sveltejs/kit": "^3.0.0",
+		"svelte": "^5.57.1"
+	},
+	"dependencies": {
+		"hls.js": "^1.7.3"
+	}
+}

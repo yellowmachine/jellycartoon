@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatDuration } from '#lib/format.ts';
+	import { formatDuration } from 'comun/format.ts';
 
 	/** A Dailymotion video in a list (#66): its picture, its title and how much was watched. */
 	let {

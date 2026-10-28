@@ -8,7 +8,7 @@ import {
 	trackArtist,
 	trackTitle
 } from '#lib/server/db/schema.ts';
-import { fold } from '#lib/music.ts';
+import { fold } from 'comun/music.ts';
 import { audioType, isOpus } from '#lib/server/music/tags.ts';
 
 /**

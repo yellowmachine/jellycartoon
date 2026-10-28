@@ -1,4 +1,4 @@
-import type { MusicAlbumSummary, MusicPass, MusicPlaylistSummary, MusicTrack } from '#lib/music.ts';
+import type { MusicTrack } from 'comun/music.ts';
 import { askHouse } from './house.ts';
 
 /**
@@ -12,16 +12,37 @@ interface Who {
 	email: string;
 }
 
+export interface AlbumSummary {
+	id: number;
+	title: string;
+	artist: string;
+	hasCover: boolean;
+	tracks: number;
+	durationSec: number;
+}
+
+export interface PlaylistSummary {
+	id: number;
+	name: string;
+	total: number;
+	durationSec: number;
+}
+
+/** Where the house's tracks and covers are, for a while (a signed pass). */
+export interface MusicPass {
+	base: string;
+	expires: string;
+}
+
 export const albums = async (who: Who) =>
-	(await askHouse<{ albums: MusicAlbumSummary[] }>(who.id, who.email, '/musica/albumes')).albums;
+	(await askHouse<{ albums: AlbumSummary[] }>(who.id, who.email, '/musica/albumes')).albums;
 
 export const albumTracks = async (who: Who, id: number) =>
 	(await askHouse<{ album: { tracks: MusicTrack[] } }>(who.id, who.email, `/musica/albumes/${id}`))
 		.album.tracks;
 
 export const playlists = async (who: Who) =>
-	(await askHouse<{ playlists: MusicPlaylistSummary[] }>(who.id, who.email, '/musica/listas'))
-		.playlists;
+	(await askHouse<{ playlists: PlaylistSummary[] }>(who.id, who.email, '/musica/listas')).playlists;
 
 export const playlistTracks = async (who: Who, id: number) =>
 	(
@@ -31,6 +52,10 @@ export const playlistTracks = async (who: Who, id: number) =>
 			`/musica/listas/${id}`
 		)
 	).playlist.tracks;
+
+/** «Todo aleatorio»: tracks from all the music, in random order. */
+export const randomTracks = async (who: Who) =>
+	(await askHouse<{ tracks: MusicTrack[] }>(who.id, who.email, '/musica/aleatorio')).tracks;
 
 export const musicPass = (who: Who) =>
 	askHouse<MusicPass>(who.id, who.email, '/musica/pase', { method: 'POST', body: '{}' });

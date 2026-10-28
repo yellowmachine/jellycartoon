@@ -14,6 +14,7 @@
         "@turf/buffer": "7",
         "@turf/helpers": "7",
         "@turf/simplify": "7",
+        "comun": "workspace:*",
         "grammy": "1.46.0",
         "hls.js": "^1.7.3",
         "maplibre-gl": "^6.12.0",
@@ -53,6 +54,47 @@
         "tailwindcss": "^4.3.0",
         "typescript": "^6.0.3",
         "vite": "^8.3.0",
+      },
+    },
+    "nube": {
+      "name": "nube",
+      "version": "0.0.1",
+      "dependencies": {
+        "@fontsource/comic-neue": "5.3.0",
+        "better-auth": "1.7.7",
+        "comun": "workspace:*",
+        "drizzle-orm": "^0.45.2",
+        "hls.js": "1.7.3",
+        "postgres": "^3.4.9",
+        "qrcode": "^1.5.4",
+      },
+      "devDependencies": {
+        "@electric-sql/pglite": "0.5.10",
+        "@sveltejs/adapter-node": "^6.0.0",
+        "@sveltejs/kit": "^3.0.0",
+        "@sveltejs/vite-plugin-svelte": "^7.2.0",
+        "@tailwindcss/forms": "^0.5.11",
+        "@tailwindcss/vite": "^4.3.0",
+        "@types/bun": "^1.4.2",
+        "@types/node": "^20",
+        "@types/qrcode": "^1.5.6",
+        "drizzle-kit": "^0.31.10",
+        "svelte": "^5.57.1",
+        "svelte-check": "^4.6.0",
+        "tailwindcss": "^4.3.0",
+        "typescript": "^6.0.3",
+        "vite": "^8.3.0",
+      },
+    },
+    "packages/comun": {
+      "name": "comun",
+      "version": "0.0.1",
+      "dependencies": {
+        "hls.js": "^1.7.3",
+      },
+      "peerDependencies": {
+        "@sveltejs/kit": "^3.0.0",
+        "svelte": "^5.57.1",
       },
     },
   },
@@ -160,6 +202,8 @@
     "@cryptography/aes": ["@cryptography/aes@0.1.1", "", {}, "sha512-PcYz4FDGblO6tM2kSC+VzhhK62vml6k6/YAkiWtyPvrgJVfnDRoHGDtKn5UiaRRUrvUTTocBpvc2rRgTCqxjsg=="],
 
     "@drizzle-team/brocli": ["@drizzle-team/brocli@0.10.2", "", {}, "sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w=="],
+
+    "@electric-sql/pglite": ["@electric-sql/pglite@0.5.10", "", {}, "sha512-tXc/25U3ulOkiRQuTFdwIv+JhBqtMdAF7Gvo6CfZZWtSB4+hgC4Wr2vwK5ngvvN5PJfAAEGIsfyCVy1JhCOBYw=="],
 
     "@esbuild-kit/core-utils": ["@esbuild-kit/core-utils@3.3.2", "", { "dependencies": { "esbuild": "~0.18.20", "source-map-support": "^0.5.21" } }, "sha512-sPRAnw9CdSsRmEtnsl2WXWdyquogVpB3yZ3dgwJfe8zrOzTsV7cJvmwrKVa+0ma5BoiGJ+BoqkMvawbayKUsqQ=="],
 
@@ -475,6 +519,8 @@
 
     "commander": ["commander@15.0.0", "", {}, "sha512-z67u4ZhzCL/Tydu1lJARtEZYWbWaN7oYLHbsuzocr6y4N6WZAagG3RQ4FW61V1/0+jImpj293XfrcYnd1qxtPg=="],
 
+    "comun": ["comun@workspace:packages/comun"],
+
     "confbox": ["confbox@0.3.1", "", {}, "sha512-cKUSoKa8YxFZZSmraVi7onONx3amu77ngK3kGpsYHDH7drPwCRkQE1RYMPlLRrMtnciRj274XNRxcHxnKmDSnA=="],
 
     "convert-source-map": ["convert-source-map@2.0.0", "", {}, "sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg=="],
@@ -726,6 +772,8 @@
     "node-localstorage": ["node-localstorage@2.2.1", "", { "dependencies": { "write-file-atomic": "^1.1.4" } }, "sha512-vv8fJuOUCCvSPjDjBLlMqYMHob4aGjkmrkaE42/mZr0VT+ZAU10jRF8oTnX9+pgU9/vYJ8P7YT3Vd6ajkmzSCw=="],
 
     "node-releases": ["node-releases@2.0.57", "", {}, "sha512-kQK9LGGFiHtrWiNhZtA7Qbw17AQz+dmsEKODRIVTXA9+e5MS/2gZEBhYJt13GrAz5/IOZKddH/0Z3TP/Zgo+yw=="],
+
+    "nube": ["nube@workspace:nube"],
 
     "obug": ["obug@2.2.1", "", {}, "sha512-XrsrhT5sybtKI6wakr2SPOlGZWWYbUXZ7a0jT8/QOeAPau+1X/bSegNe5YR75oJmEZQbKningirmGOEJCIk61Q=="],
 

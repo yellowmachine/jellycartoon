@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { afterNavigate, goto, invalidateAll, pushState } from '$app/navigation';
 	import { page } from '$app/state';
-	import MusicBar from '#lib/components/MusicBar.svelte';
+	import MusicBar from 'comun/components/MusicBar.svelte';
 	import TvDebug from '#lib/components/TvDebug.svelte';
 	import TvSalonFailed from '#lib/components/TvSalonFailed.svelte';
 	import TvSnake from '#lib/components/TvSnake.svelte';
 	import TvVoice from '#lib/components/TvVoice.svelte';
-	import { music } from '#lib/music-player.svelte.ts';
+	import { music } from 'comun/music-player.svelte.ts';
 	import { CODE } from '#lib/snake.ts';
 	import { stillThere } from '#lib/still-there.svelte.ts';
 	import { watchSalon } from '#lib/salon.svelte.ts';

@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import EpisodePreview from '#lib/components/EpisodePreview.svelte';
-	import { formatDuration } from '#lib/format.ts';
-	import { thumbUrl } from '#lib/thumb.svelte.ts';
+	import { formatDuration } from 'comun/format.ts';
+	import { thumbUrl } from 'comun/thumb.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();

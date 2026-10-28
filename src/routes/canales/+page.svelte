@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import LivePlayer from '#lib/components/LivePlayer.svelte';
 	import { channelWash, type Channel } from '#lib/channels.ts';
-	import { music } from '#lib/music-player.svelte.ts';
+	import { music } from 'comun/music-player.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();

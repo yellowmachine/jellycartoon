@@ -2,7 +2,7 @@
 	import PushNotices from '#lib/components/PushNotices.svelte';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { DEVICE_NAME_MAX, deviceName, shownDeviceName } from '#lib/device-name.svelte.ts';
+	import { DEVICE_NAME_MAX, deviceName, shownDeviceName } from 'comun/device-name.svelte.ts';
 	import { section } from './styles.ts';
 	import type { PageData } from './$types';
 

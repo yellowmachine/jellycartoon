@@ -17,7 +17,7 @@ import {
 	setSnapcastDj,
 	snapcastRemaining
 } from './snapcast.ts';
-import { fold, type DjOptions, type DjVoice, type MusicTrack } from '#lib/music.ts';
+import { fold, type DjOptions, type DjVoice, type MusicTrack } from 'comun/music.ts';
 
 /**
  * Modo DJ (#117): songs at random from the library (or from some artists), and every few of them

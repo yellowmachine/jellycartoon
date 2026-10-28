@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { poll } from '#lib/poll.ts';
-	import { formatBytes, formatRemaining } from '#lib/format.ts';
+	import { formatBytes, formatRemaining } from 'comun/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();

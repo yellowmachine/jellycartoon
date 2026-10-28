@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { FRAME_COUNT, FRAME_COUNTS, frameTimes, type FrameCount } from '#lib/birds-eye.ts';
-	import { formatDuration } from '#lib/format.ts';
+	import { formatDuration } from 'comun/format.ts';
 	import FrameViewer from './FrameViewer.svelte';
 
 	interface Props {

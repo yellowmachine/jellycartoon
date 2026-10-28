@@ -9,7 +9,7 @@ import {
 	trackTitle
 } from '#lib/server/db/schema.ts';
 import { musicFile } from '#lib/server/library/paths.ts';
-import type { MusicAlbum, MusicTrack } from '#lib/music.ts';
+import type { MusicAlbum, MusicTrack } from 'comun/music.ts';
 import { wakeMusicCatalog } from './catalog.ts';
 
 /** Albums with their tracks in order, by artist and title; one, or all of them. */

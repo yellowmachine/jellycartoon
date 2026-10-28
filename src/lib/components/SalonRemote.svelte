@@ -1,6 +1,6 @@
 <script lang="ts">
-	import MediaIcon from './MediaIcon.svelte';
-	import { formatDuration } from '#lib/format.ts';
+	import MediaIcon from 'comun/components/MediaIcon.svelte';
+	import { formatDuration } from 'comun/format.ts';
 	import { trackLabel, watchSalon } from '#lib/salon.svelte.ts';
 
 	const salon = watchSalon();

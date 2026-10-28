@@ -2,7 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { djEnabled, startDjOnSnapcast, stopDjOnSnapcast } from '#lib/server/music/dj.ts';
 import { snapcastEnabled } from '#lib/server/music/snapcast.ts';
-import { parseDjOptions } from '#lib/music.ts';
+import { parseDjOptions } from 'comun/music.ts';
 
 /** Modo DJ on Snapcast, instead of whatever was on. */
 export const POST: RequestHandler = async ({ request }) => {

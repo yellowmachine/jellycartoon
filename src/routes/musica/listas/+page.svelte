@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { formatDuration } from '#lib/format.ts';
+	import { formatDuration } from 'comun/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();

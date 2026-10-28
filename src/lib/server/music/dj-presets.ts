@@ -1,7 +1,7 @@
 import { and, asc, eq, ne } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { djPreset } from '#lib/server/db/schema.ts';
-import type { DjOptions } from '#lib/music.ts';
+import type { DjOptions } from 'comun/music.ts';
 
 /** A person's saved Modo DJ setups (#117), by name. */
 export function presetsOf(userId: string) {

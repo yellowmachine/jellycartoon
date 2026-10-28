@@ -32,7 +32,7 @@ import {
 	labelsOf,
 	requestLabels
 } from '#lib/server/episode-labels.ts';
-import { assumeLanguage, KNOWN_LANGUAGES, normalizeLang } from '#lib/languages.ts';
+import { assumeLanguage, KNOWN_LANGUAGES, normalizeLang } from 'comun/languages.ts';
 import {
 	chooseSeries,
 	forgetSeries,

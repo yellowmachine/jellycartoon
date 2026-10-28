@@ -1,6 +1,6 @@
 <script lang="ts">
 	import TvHeader from '#lib/components/TvHeader.svelte';
-	import { formatDuration } from '#lib/format.ts';
+	import { formatDuration } from 'comun/format.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();

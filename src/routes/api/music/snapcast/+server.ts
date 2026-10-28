@@ -10,7 +10,7 @@ import {
 import { stopDjOnSnapcast } from '#lib/server/music/dj.ts';
 import { episodesOnSnapcast } from '#lib/server/music/episodes-on-snapcast.ts';
 import { streamFor } from '#lib/server/radio.ts';
-import type { SnapcastAction } from '#lib/music.ts';
+import type { SnapcastAction } from 'comun/music.ts';
 
 const isIds = (value: unknown): value is number[] =>
 	Array.isArray(value) && value.length > 0 && value.every((v) => Number.isInteger(v));
