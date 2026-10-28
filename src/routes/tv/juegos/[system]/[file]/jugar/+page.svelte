@@ -2,7 +2,7 @@
 	import { onMount, tick } from 'svelte';
 	import { beforeNavigate, goto, pushState } from '$app/navigation';
 	import { page } from '$app/state';
-	import SectionIcon from '#lib/components/SectionIcon.svelte';
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { SHADERS, shaderName, type Shader } from '#lib/game-shaders.ts';
 	import { music } from 'comun/music-player.svelte.ts';
 	import type { PageProps } from './$types';

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import TvHeader from '#lib/components/TvHeader.svelte';
-	import SectionIcon from '#lib/components/SectionIcon.svelte';
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { formatRemaining } from 'comun/format.ts';
 	import { coverUrl } from 'comun/music.ts';
 	import type { PageProps } from './$types';

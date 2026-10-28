@@ -2,7 +2,7 @@
 	import MediaIcon from 'comun/components/MediaIcon.svelte';
 	import MusicBackground from '#lib/components/MusicBackground.svelte';
 	import TvHeader from '#lib/components/TvHeader.svelte';
-	import SectionIcon from '#lib/components/SectionIcon.svelte';
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { formatDuration } from 'comun/format.ts';
 	import { coverUrl } from 'comun/music.ts';
 	import { music } from 'comun/music-player.svelte.ts';

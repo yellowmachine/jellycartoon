@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import MediaIcon from 'comun/components/MediaIcon.svelte';
-	import SectionIcon from './SectionIcon.svelte';
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { formatDuration } from 'comun/format.ts';
 	import type { MusicTrack } from 'comun/music.ts';
 	import { music } from 'comun/music-player.svelte.ts';

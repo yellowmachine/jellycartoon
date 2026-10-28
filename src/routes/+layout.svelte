@@ -6,7 +6,7 @@
 	import AlarmBanner from '#lib/components/AlarmBanner.svelte';
 	import SalonBar from '#lib/components/SalonBar.svelte';
 	import SnapcastBar from '#lib/components/SnapcastBar.svelte';
-	import SectionIcon, { type Section } from '#lib/components/SectionIcon.svelte';
+	import SectionIcon, { type Section } from 'comun/components/SectionIcon.svelte';
 	import ActionMenu from 'comun/components/ActionMenu.svelte';
 	import { menuItem } from 'comun/components/menu.ts';
 	import VoiceBubble from '#lib/components/VoiceBubble.svelte';

@@ -5,7 +5,7 @@
 	import type { FridgeState } from '#lib/fridge.ts';
 	import TvHeader from '#lib/components/TvHeader.svelte';
 	import { avatar } from '#lib/avatars.ts';
-	import SectionIcon from '#lib/components/SectionIcon.svelte';
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { coverUrl } from 'comun/music.ts';
 	import { music } from 'comun/music-player.svelte.ts';
 	import { thumbUrl } from 'comun/thumb.svelte.ts';

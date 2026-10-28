@@ -1,6 +1,6 @@
 <script lang="ts">
 	import TvHeader from '#lib/components/TvHeader.svelte';
-	import SectionIcon from '#lib/components/SectionIcon.svelte';
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { formatDuration } from 'comun/format.ts';
 	import { music } from 'comun/music-player.svelte.ts';
 	import { playEpisode } from 'comun/podcast-player.svelte.ts';

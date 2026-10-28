@@ -1,5 +1,7 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/forms';
+/* The shared package's components (#253), outside this app's folder: their classes too. */
+@source '../../../packages/comun/src';
 
 @layer base {
 	html {

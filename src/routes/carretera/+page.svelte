@@ -8,7 +8,7 @@
 	import MusicBar from 'comun/components/MusicBar.svelte';
 	import ManeuverIcon from '#lib/components/ManeuverIcon.svelte';
 	import RoadMap from '#lib/components/RoadMap.svelte';
-	import SectionIcon from '#lib/components/SectionIcon.svelte';
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import type { DjOptions, MusicTrack } from 'comun/music.ts';
 	import { coverUrl } from 'comun/music.ts';
 	import { music } from 'comun/music-player.svelte.ts';
@@ -19,7 +19,7 @@
 	import { playEpisode } from 'comun/podcast-player.svelte.ts';
 	import { SKIP_BACK, SKIP_FORWARD } from 'comun/podcasts.ts';
 	import { STATIONS, type RadioStation } from 'comun/radio.ts';
-	import { keepScreenOn } from '#lib/screen-on.ts';
+	import { keepScreenOn } from 'comun/screen-on.ts';
 	import { roadPhotos } from '#lib/road-photos.svelte.ts';
 	import { tripRecorder } from '#lib/trip-recorder.svelte.ts';
 	import { tripShare } from '#lib/trip-share.svelte.ts';
