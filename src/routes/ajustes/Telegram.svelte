@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Guardado from './Guardado.svelte';
 	import { enhance } from '$app/forms';
 	import { section, select, primary, secondary } from './styles.ts';
 	import type { PageData, ActionData } from './$types';
@@ -61,7 +62,7 @@
 						formaction="?seccion={tab}&/telegramDisconnect">Desconectar</button
 					>
 					{#if form && 'saved' in form && form.saved === 'telegram'}
-						<span class="text-amber-400">✓ Guardado</span>
+						<Guardado class="text-amber-400">✓ Guardado</Guardado>
 					{/if}
 				</div>
 			</form>

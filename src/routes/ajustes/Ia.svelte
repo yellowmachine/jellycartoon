@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Guardado from './Guardado.svelte';
 	import { enhance } from '$app/forms';
 	import { section, select, primary, secondary, dollars } from './styles.ts';
 	import type { PageData, ActionData } from './$types';
@@ -214,7 +215,7 @@
 				/>
 				<button class={secondary}>Guardar</button>
 				{#if form && 'saved' in form && form.saved === { films: 'model', chat: 'chatModel', vision: 'visionModel', voice: 'voiceModel', homework: 'homeworkModel' }[use]}
-					<span class="self-center text-sm text-amber-400">✓</span>
+					<Guardado class="self-center text-sm text-amber-400">✓</Guardado>
 				{/if}
 			</form>
 		{/snippet}
@@ -327,7 +328,7 @@
 				{testing ? 'Probando…' : 'Probar clave y modelo'}
 			</button>
 			{#if form && 'tested' in form}
-				<span class="text-sm text-amber-400">✓ Funciona con {data.ai.model}</span>
+				<Guardado class="text-sm text-amber-400">✓ Funciona con {data.ai.model}</Guardado>
 			{/if}
 		</form>
 		{#if form && 'section' in form && form.section === 'ai'}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Guardado from './Guardado.svelte';
 	import { enhance } from '$app/forms';
 	import { section, select, secondary } from './styles.ts';
 	import type { PageData, ActionData } from './$types';
@@ -79,7 +80,7 @@
 		{#if form && 'section' in form && form.section === 'labels'}
 			<p class="mt-3 text-sm break-words text-red-400">{form.message}</p>
 		{:else if form && 'saved' in form && form.saved === 'labelSet'}
-			<p class="mt-3 text-sm text-amber-400">✓ Guardado</p>
+			<Guardado class="mt-3 block text-sm text-amber-400">✓ Guardado</Guardado>
 		{/if}
 	</section>
 {/if}

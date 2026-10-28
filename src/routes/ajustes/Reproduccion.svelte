@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Guardado from './Guardado.svelte';
 	import SubtitleStylePanel from '#lib/components/SubtitleStylePanel.svelte';
 	import { enhance } from '$app/forms';
 	import { languageLabel } from '#lib/languages.ts';
@@ -70,7 +71,7 @@
 		<div class="flex items-center gap-3 sm:col-start-2">
 			<button class={primary}>Guardar</button>
 			{#if form && 'saved' in form && form.saved === 'playback'}
-				<span class="text-sm text-amber-400">✓ Guardado</span>
+				<Guardado class="text-sm text-amber-400">✓ Guardado</Guardado>
 			{/if}
 		</div>
 	</form>

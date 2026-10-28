@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Guardado from './Guardado.svelte';
 	import { enhance } from '$app/forms';
 	import { section, select, primary } from './styles.ts';
 	import type { PageData, ActionData } from './$types';
@@ -51,7 +52,7 @@
 				<div class="flex items-center gap-3">
 					<button class={primary}>Guardar</button>
 					{#if form && 'saved' in form && form.saved === 'relay'}
-						<span class="text-sm text-amber-400">✓</span>
+						<Guardado class="text-sm text-amber-400">✓</Guardado>
 					{/if}
 				</div>
 			</form>
