@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import RadioTabs from '#lib/components/RadioTabs.svelte';
+	import RadioTabs from 'comun/components/RadioTabs.svelte';
 	import { formatDuration } from 'comun/format.ts';
 	import { music } from 'comun/music-player.svelte.ts';
 	import { playEpisode } from 'comun/podcast-player.svelte.ts';
@@ -29,7 +29,7 @@
 </script>
 
 <svelte:head>
-	<title>Podcasts · JellyCartoon</title>
+	<title>Podcasts · Nube</title>
 </svelte:head>
 
 <h1 class="mb-4 text-2xl font-bold">Radio</h1>

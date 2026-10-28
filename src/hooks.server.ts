@@ -19,7 +19,6 @@ import { logStartup } from '#lib/server/startup.ts';
 import { wakeCatalog } from '#lib/server/cinema/catalog.ts';
 import { wakeExtras } from '#lib/server/cinema/info.ts';
 import { wakeMusicCatalog } from '#lib/server/music/catalog.ts';
-import { startPodcastRefresh } from '#lib/server/podcasts/podcasts.ts';
 import { startAlarms } from '#lib/server/alarms/alarms.ts';
 import { startTelegram } from '#lib/server/telegram/telegram.ts';
 import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
@@ -44,7 +43,6 @@ export const init: ServerInit = async () => {
 	// Every night, what was added to the folders: converted and subtitled by the morning.
 	startNightlyScan();
 	// New episodes of the followed podcasts, every few hours.
-	startPodcastRefresh();
 	// The timers (#241): what came due while it was off rings now. The alarms, in the cloud (#253).
 	startAlarms();
 	// The Telegram accounts connected (#243), listened to again.

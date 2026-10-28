@@ -7,6 +7,7 @@
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import AlarmBanner from 'comun/components/AlarmBanner.svelte';
 	import SiteNav from 'comun/components/SiteNav.svelte';
+	import MusicBar from 'comun/components/MusicBar.svelte';
 	import { navLinks } from '#lib/nav.ts';
 	import type { LayoutProps } from './$types';
 
@@ -98,6 +99,12 @@
 							/>
 						</label>
 					{/if}
+				{/snippet}
+				{#snippet below()}
+					<div class="mx-auto flex max-w-6xl flex-col gap-1 px-4 has-[>div]:pb-2">
+						<!-- The radio and the podcasts (#253), going on from page to page, as at home. -->
+						<MusicBar />
+					</div>
 				{/snippet}
 			</SiteNav>
 			<!-- An alarm ringing in the house (#241), with «Parar»: wherever it sounds. -->

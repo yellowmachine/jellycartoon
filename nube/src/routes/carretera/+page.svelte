@@ -12,6 +12,8 @@
 	import { music } from 'comun/music-player.svelte.ts';
 	import { musicTarget } from 'comun/music-target.svelte.ts';
 	import { STATIONS, type RadioStation } from 'comun/radio.ts';
+	import { playEpisode } from 'comun/podcast-player.svelte.ts';
+	import { SKIP_BACK, SKIP_FORWARD } from 'comun/podcasts.ts';
 	import { keepScreenOn } from 'comun/screen-on.ts';
 	import { formatDuration } from 'comun/format.ts';
 	import { distanceText, isLngLat, type LngLat, type Place, type Route } from 'comun/road.ts';
@@ -29,12 +31,12 @@
 	 * screen beside the navigator (Android's split screen), or whole with the map and the route. What
 	 * plays, big; one touch to put on a station, an album or a list. The house's songs and covers,
 	 * straight from it by the pass; the map, the routes and their spoken directions, from here. Not
-	 * yet as at home: the voice, the trip kept and its photos, Telegram, the DJ and the podcasts.
+	 * yet as at home: the voice, the trip kept and its photos, Telegram and the DJ.
 	 */
 
 	let { data }: PageProps = $props();
 
-	type Tab = 'radio' | 'musica' | 'listas' | 'ruta';
+	type Tab = 'radio' | 'musica' | 'listas' | 'podcasts' | 'ruta';
 	/**
 	 * The right-hand side (or the whole screen, without the map beside): Inicio (`null`), with what
 	 * plays, the microphone and a big button for each section; or a section, its list filling it, with
@@ -101,18 +103,24 @@
 	const playing = $derived(
 		music.radio
 			? { title: music.radio.name, detail: 'Radio en directo', image: music.radio.favicon }
-			: music.current
+			: music.podcast
 				? {
-						title: music.current.title,
-						detail: `${music.current.artist} · ${music.current.album}`,
-						image: music.current.hasCover ? coverUrl(music.current.albumId) : null
+						title: music.podcast.title,
+						detail: music.podcast.podcastTitle,
+						image: music.podcast.imageUrl
 					}
-				: null
+				: music.current
+					? {
+							title: music.current.title,
+							detail: `${music.current.artist} · ${music.current.album}`,
+							image: music.current.hasCover ? coverUrl(music.current.albumId) : null
+						}
+					: null
 	);
 	/** How far into the song, to see at a glance; a station has none. */
 	const progress = $derived.by(() => {
 		if (music.radio || !playing) return null;
-		const duration = music.durationSec ?? music.current?.durationSec;
+		const duration = music.durationSec ?? music.podcast?.durationSec ?? music.current?.durationSec;
 		return duration ? { at: Math.min(music.positionSec, duration), duration } : null;
 	});
 
@@ -161,6 +169,11 @@
 
 	const everything = () => playFrom('aleatorio', '/carretera/aleatorio', 'No hay música.');
 
+	function podcast(episodeId: number) {
+		if (music.podcast?.id === episodeId) return music.toggle();
+		return busy(`podcast-${episodeId}`, () => playEpisode(episodeId));
+	}
+
 	// Spanish first, as in the TV view: it is the house's own.
 	const stations = [...STATIONS].sort(
 		(a, b) => Number(b.language === 'es') - Number(a.language === 'es')
@@ -176,6 +189,8 @@
 					{ id: 'listas' as const, label: 'Listas' }
 				]
 			: []),
+		// The family's, here (#253).
+		{ id: 'podcasts', label: 'Podcasts' },
 		// Only with the map beside, or a phone's own tab for it: where the route is drawn.
 		...(routable ? [{ id: 'ruta' as const, label: 'Ruta' }] : [])
 	]);
@@ -700,7 +715,8 @@
 	{/if}
 {/snippet}
 
-<!-- Each tab, drawn: Radio and Música as in the rest of the app. -->
+<!-- Each tab, drawn: Radio and Música as in the rest of the app; Podcasts as headphones here, as at
+home. -->
 {#snippet tabIcon(id: Tab)}
 	{#if id === 'radio' || id === 'musica'}
 		<SectionIcon name={id} class="h-8 w-8" />
@@ -715,7 +731,12 @@
 			class="h-8 w-8"
 			aria-hidden="true"
 		>
-			{#if id === 'listas'}
+			{#if id === 'podcasts'}
+				<path d="M4 15v-3a8 8 0 0 1 16 0v3" />
+				<path
+					d="M4 15a2 2 0 0 1 2-2h1v7H6a2 2 0 0 1-2-2zM20 15a2 2 0 0 0-2-2h-1v7h1a2 2 0 0 0 2-2z"
+				/>
+			{:else if id === 'listas'}
 				<path d="M4 6h11M4 11h11M4 16h7" />
 				<path d="M18 19.5a2 2 0 1 1-2-2 2 2 0 0 1 2 2zM18 19.5V9l3-1" />
 			{:else}
@@ -835,7 +856,13 @@
 					</div>
 					{#if playing}
 						<div class="mt-4 flex items-center justify-center gap-4 short:mt-2">
-							{#if !music.radio}
+							{#if music.podcast}
+								<button
+									class="{big} h-20 w-20 text-xl short:h-14 short:w-14"
+									aria-label="Atrás {SKIP_BACK} segundos"
+									onclick={() => music.skip(-SKIP_BACK)}>−{SKIP_BACK}</button
+								>
+							{:else if !music.radio}
 								<button
 									class="{big} h-20 w-20 short:h-14 short:w-14"
 									aria-label="Anterior"
@@ -849,7 +876,13 @@
 								onclick={() => music.toggle()}
 								><MediaIcon name={music.playing ? 'pause' : 'play'} class="h-12 w-12" /></button
 							>
-							{#if !music.radio}
+							{#if music.podcast}
+								<button
+									class="{big} h-20 w-20 text-xl short:h-14 short:w-14"
+									aria-label="Adelante {SKIP_FORWARD} segundos"
+									onclick={() => music.skip(SKIP_FORWARD)}>+{SKIP_FORWARD}</button
+								>
+							{:else if !music.radio}
 								<button
 									class="{big} h-20 w-20 short:h-14 short:w-14"
 									aria-label="Siguiente"
@@ -1146,6 +1179,61 @@
 						</button>
 					{:else}
 						<p class="text-lg text-zinc-400">No hay listas. Se hacen en Música.</p>
+					{/each}
+				{:else if tab === 'podcasts'}
+					{#each data.inProgress as episode (episode.id)}
+						{@const on = music.podcast?.id === episode.id}
+						<button
+							class={[
+								tile,
+								on ? 'border-amber-400 bg-amber-500/15' : 'border-white/10 bg-zinc-900'
+							]}
+							disabled={loading !== null}
+							onclick={() => podcast(episode.id)}
+						>
+							{#if episode.imageUrl}
+								<img
+									src={episode.imageUrl}
+									alt=""
+									class="h-14 w-14 shrink-0 rounded-lg bg-zinc-800 object-cover"
+								/>
+							{/if}
+							<span class="min-w-0">
+								<span class="block truncate text-xl font-semibold">{episode.title}</span>
+								<span class="block truncate text-base text-zinc-400"
+									>Seguir · {episode.podcastTitle}</span
+								>
+							</span>
+						</button>
+					{/each}
+					{#each data.podcasts as p (p.id)}
+						{@const on = music.podcast?.id === p.latest.id}
+						<button
+							class={[
+								tile,
+								on ? 'border-amber-400 bg-amber-500/15' : 'border-white/10 bg-zinc-900'
+							]}
+							disabled={loading !== null}
+							onclick={() => podcast(p.latest.id)}
+						>
+							{#if p.imageUrl}
+								<img
+									src={p.imageUrl}
+									alt=""
+									class="h-14 w-14 shrink-0 rounded-lg bg-zinc-800 object-cover"
+								/>
+							{/if}
+							<span class="min-w-0">
+								<span class="block truncate text-xl font-semibold">{p.title}</span>
+								<span class="block truncate text-base text-zinc-400"
+									>Lo último: {p.latest.title}</span
+								>
+							</span>
+						</button>
+					{:else}
+						{#if !data.inProgress.length}
+							<p class="text-lg text-zinc-400">No sigues ningún podcast. Se siguen en Radio.</p>
+						{/if}
 					{/each}
 				{/if}
 			</div>

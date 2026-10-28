@@ -13,7 +13,7 @@ const SECTIONS: { path: string; label: string; icon: Section; where: Where; also
 	{ path: '/series', label: 'Series', icon: 'series', where: 'casa' },
 	{ path: '/cine', label: 'Cine', icon: 'cine', where: 'casa' },
 	{ path: '/musica', label: 'Música', icon: 'musica', where: 'casa' },
-	{ path: '/radio', label: 'Radio', icon: 'radio', where: 'pendiente' },
+	{ path: '/radio', label: 'Radio', icon: 'radio', where: 'nube' },
 	{ path: '/canales', label: 'Canales', icon: 'canales', where: 'casa' },
 	{ path: '/recetas', label: 'Recetas', icon: 'recetas', where: 'nube' },
 	{ path: '/nevera', label: 'Nevera', icon: 'nevera', where: 'nube' },

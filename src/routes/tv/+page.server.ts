@@ -10,7 +10,7 @@ import { allowedMovies } from '#lib/server/kids.ts';
 import { albumCovers } from '#lib/server/music/albums.ts';
 import { allGames } from '#lib/server/games.ts';
 import { steamGames } from '#lib/server/steam.ts';
-import { userPodcasts } from '#lib/server/podcasts/podcasts.ts';
+import { podcastLists } from '#lib/server/podcasts.ts';
 import { getTodayPlaylist } from '#lib/server/playlist.ts';
 import { stationsInfo } from '#lib/server/radio.ts';
 import { allSeries, continueWatching } from '#lib/server/watching.ts';
@@ -51,7 +51,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			stationsInfo(),
 			musicRoot ? albumCovers(MOSAIC) : null,
 			// Not for children yet (#58).
-			kid ? null : userPodcasts(userId),
+			kid ? null : podcastLists(userId).then((l) => l.podcasts),
 			// Not for children either, while it is an experiment (#176).
 			gamesRoot && !kid ? allGames() : null,
 			steamRoot && !kid ? steamGames() : null
