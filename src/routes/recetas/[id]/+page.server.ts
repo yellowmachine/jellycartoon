@@ -1,4 +1,5 @@
 import { error, redirect } from '@sveltejs/kit';
+import { cloudUrl } from '#lib/server/kitchen.ts';
 import type { Actions, PageServerLoad } from './$types';
 import {
 	backdropRecipeId,
@@ -8,6 +9,9 @@ import {
 } from '#lib/server/recipes/import.ts';
 
 export const load: PageServerLoad = async ({ params }) => {
+	// With the cloud connected (#253), the family's book is there (its own numbers).
+	const cloud = await cloudUrl();
+	if (cloud) redirect(303, `${cloud}/recetas`, { external: [cloud] });
 	const recipe = await getRecipe(Number(params.id));
 	if (!recipe) error(404, 'Receta no encontrada');
 	return { recipe, isBackdrop: (await backdropRecipeId()) === recipe.id };

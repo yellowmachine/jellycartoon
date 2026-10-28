@@ -4,15 +4,16 @@ import { recipesBackdropId, toggleRecipesBackdrop } from '#lib/server/family-set
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { importRecipe, listRecipes, recipesBackdrop } from '#lib/server/recipes/import.ts';
 
-/** The family's recipe book. */
-export const load: PageServerLoad = async ({ locals }) => {
+/** The family's recipe book; `?url=`, a recipe shared from a phone (through jellycartoon). */
+export const load: PageServerLoad = async ({ locals, url }) => {
 	const k = await kitchenOf(locals.user!.id);
 	const [recipes, backdrop, backdropId] = await Promise.all([
 		listRecipes(k),
 		recipesBackdrop(k),
 		recipesBackdropId(k)
 	]);
-	return { recipes, backdrop, backdropId };
+	const shared = url.searchParams.get('url')?.match(/^https?:\/\/\S+$/)?.[0] ?? null;
+	return { recipes, backdrop, backdropId, shared };
 };
 
 export const actions: Actions = {

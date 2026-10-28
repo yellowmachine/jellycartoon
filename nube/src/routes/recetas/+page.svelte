@@ -37,7 +37,7 @@
 	<input
 		type="url"
 		name="url"
-		value={form?.url ?? ''}
+		value={form?.url ?? data.shared ?? ''}
 		required
 		autocomplete="url"
 		placeholder="https://…/receta-de-macarrones"
@@ -51,6 +51,8 @@
 </form>
 {#if form?.error}
 	<p class="mb-4 text-sm text-red-400">{form.error}</p>
+{:else if data.shared}
+	<p class="mb-4 text-sm text-amber-300">Compartida desde el móvil: pulsa «Guardar».</p>
 {/if}
 
 <section class="mt-6">

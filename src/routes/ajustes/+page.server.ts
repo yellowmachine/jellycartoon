@@ -34,6 +34,7 @@ import {
 	setSatelliteSpeakers
 } from '#lib/server/satellites.ts';
 import { createCloudKey, deleteCloudKey, listCloudKeys } from '#lib/server/media-api.ts';
+import { askCloud, cloudLink, CloudProblem, setCloudLink } from '#lib/server/kitchen.ts';
 import { listSpeakers, snapcastVoiceReady } from '#lib/server/music/snapcast.ts';
 import {
 	findPlaces,
@@ -189,7 +190,13 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 			satelliteAnswers = snapcastVoiceReady();
 		}
 		/** The cloud's keys for the video API (#253), and the tunnel's name it reaches it by. */
-		cloudKeys = { keys: await listCloudKeys(request.headers), host: MEDIA_HOST ?? null };
+		const link = await cloudLink();
+		cloudKeys = {
+			keys: await listCloudKeys(request.headers),
+			host: MEDIA_HOST ?? null,
+			/** The other way (#253): the cloud's address and the key it gave the house. */
+			kitchen: link ? { url: link.url, keyStart: `${link.key.slice(0, 11)}…` } : null
+		};
 		/** What the vision model looks for in episodes: only with Ollama (OLLAMA_URL). */
 		if (labellingEnabled) labels = { sets: await labelSets(), model: LABEL_MODEL };
 		const r = await relayConfig();
@@ -493,6 +500,43 @@ export const actions: Actions = {
 		const key = await createCloudKey(name, request.headers);
 		log.info('ajustes', `Clave nueva para la nube: «${name}»`);
 		return { cloudKey: key, cloudKeyName: name };
+	},
+	/** The cloud's address and the key it gave the house: its fridge and recipes, there (#253). */
+	saveCloudLink: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const form = await request.formData();
+		let url: URL;
+		try {
+			url = new URL(String(form.get('url') ?? '').trim());
+		} catch {
+			return fail(400, { cloudLinkProblem: 'La dirección de la nube, con https://' });
+		}
+		if (url.protocol !== 'https:')
+			return fail(400, { cloudLinkProblem: 'La dirección de la nube, con https://' });
+		const key = String(form.get('key') ?? '').trim() || (await cloudLink())?.key;
+		if (!key?.startsWith('nube_'))
+			return fail(400, { cloudLinkProblem: 'La clave de la nube empieza por nube_' });
+		await setCloudLink({ url: url.origin, key });
+		log.info('ajustes', `Nevera y recetas en la nube: ${url.origin}`);
+		return { saved: 'cloudLink' };
+	},
+	testCloudLink: async ({ locals }) => {
+		await requireAdmin(locals.user!.id);
+		const link = await cloudLink();
+		if (!link) return fail(400, { cloudLinkProblem: 'Falta conectarla' });
+		try {
+			const { toBuy } = await askCloud<{ toBuy: string[] }>(link, '/nevera');
+			return { cloudLinkOk: `La nube contesta: ${toBuy.length} cosas por comprar` };
+		} catch (error) {
+			if (error instanceof CloudProblem) return fail(502, { cloudLinkProblem: error.message });
+			throw error;
+		}
+	},
+	forgetCloudLink: async ({ locals }) => {
+		await requireAdmin(locals.user!.id);
+		await setCloudLink(null);
+		log.info('ajustes', 'Nevera y recetas, otra vez en casa');
+		return { saved: 'cloudLink' };
 	},
 	deleteCloudKey: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);

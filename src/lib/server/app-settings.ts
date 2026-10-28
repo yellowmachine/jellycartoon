@@ -63,7 +63,9 @@ type Key =
 	| 'telegram_bot'
 	| 'voice_style'
 	| 'voice_web'
-	| 'voice_quiet';
+	| 'voice_quiet'
+	| 'nube_url'
+	| 'nube_key';
 
 export async function getAppSetting(key: Key) {
 	return get(key);
