@@ -44,7 +44,13 @@ Varias familias en una sola app, cada una aislada por la seguridad por filas de 
   `.env`. Entra cualquiera con cuenta, sin consentimiento. La familia solo va en el token con el
   scope `family`, que solo se permite a las apps «para familias» (Langua sí, Librarian no); a
   alguien sin familia no se le da (`src/lib/server/oidc-claims.ts`). Las de las casas siguen
-  llevándola siempre.
+  llevándola siempre. Las apps piden también `offline_access`, para tener refresh token.
+- **La IA de las apps (#284):** `POST /api/ia/v1/chat/completions`, con la forma de OpenAI (la de
+  OpenRouter): la app apunta su cliente compatible con OpenAI a `https://nube…/api/ia/v1`, con el
+  access token de la persona como clave y su nombre en `X-Title`. La nube comprueba el token con su
+  propio userinfo, que solo da la familia con el scope `family`, y llama a OpenRouter con la clave
+  de esa familia, que no sale de la nube. Con stream o sin él, y cada gasto va a Gastos → IA
+  (`src/lib/server/app-ai.ts`, `forwardChat` en `openrouter.ts`).
 - **La casa:** en Ajustes, la dirección de fuera de jellycartoon (su `MEDIA_HOST`) y la clave de su
   Ajustes → Casa → «La nube». La clave se guarda cifrada y no sale del servidor; cada petición a
   casa va en nombre de la persona, por su email (el mismo en las dos apps).

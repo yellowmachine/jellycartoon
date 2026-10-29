@@ -4,14 +4,17 @@ import { building, dev } from '$app/env';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { auth } from '#lib/server/auth.ts';
 import { startScheduler } from '#lib/server/scheduler.ts';
+import { noteCosts } from '#lib/server/ai-spend.ts';
 
 /**
  * Signing in, Better Auth's own and the health check; and the house's API, with its key, checked
  * by each route (house-keys.ts). The rest needs a session.
  */
-/** The cloud's own clock: the families' alarms and agenda notices (scheduler.ts). */
+/** The cloud's own clock: the families' alarms and agenda notices (scheduler.ts); and the AI's costs. */
 export const init: ServerInit = () => {
-	if (!building) startScheduler();
+	if (building) return;
+	startScheduler();
+	noteCosts();
 };
 
 /** `/s/`: a shared trip's link (#81), for whoever has it; `/invitacion/`, an invitation's. */
@@ -21,6 +24,8 @@ const PUBLIC_PATHS = [
 	'/api/health',
 	'/api/casa/',
 	'/api/calendario/',
+	// The apps' AI, with the person's access token (app-ai.ts).
+	'/api/ia/',
 	'/s/',
 	'/invitacion/'
 ];

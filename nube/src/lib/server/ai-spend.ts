@@ -41,12 +41,17 @@ export async function keyUsage(apiKey: string) {
 	}
 }
 
-watchCost((apiKey, label, cost) => {
-	trackerOf(apiKey).add(label, cost);
-	// And kept, for Gastos → IA.
-	const familyId = familyOfKey(apiKey);
-	if (familyId) void noteAiCost(familyId, 'nube', label, cost);
-});
+/**
+ * Each request's cost, as it comes back, to the line and to Gastos → IA: from the server's start
+ * (hooks.server.ts), not from the first page that imports this, or the costs before it are lost.
+ */
+export const noteCosts = () =>
+	watchCost((apiKey, label, cost) => {
+		trackerOf(apiKey).add(label, cost);
+		// And kept, for Gastos → IA.
+		const familyId = familyOfKey(apiKey);
+		if (familyId) void noteAiCost(familyId, 'nube', label, cost);
+	});
 
 /** A page of the family showing the line: told now and on every change. */
 export const watchAiSpend = (apiKey: string, listener: (spend: AiSpend | null) => void) =>

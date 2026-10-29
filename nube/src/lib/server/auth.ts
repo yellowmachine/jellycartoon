@@ -55,8 +55,9 @@ export const auth = betterAuth({
 			// Never shown: the houses' and the apps' clients skip it (oidc.ts).
 			consentPage: '/login',
 			// `family`: the person's family in the token, for the apps of families (oidc-claims.ts).
-			scopes: ['openid', 'profile', 'email', FAMILY_SCOPE],
-			grantTypes: ['authorization_code'],
+			// `offline_access`: a refresh token, for the apps that call /api/ia (app-clients.ts).
+			scopes: ['openid', 'profile', 'email', 'offline_access', FAMILY_SCOPE],
+			grantTypes: ['authorization_code', 'refresh_token'],
 			clientReference,
 			clientPrivileges,
 			customIdTokenClaims: idTokenClaims,

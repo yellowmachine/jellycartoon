@@ -5,12 +5,13 @@ import { FAMILY_SCOPE } from './oidc-claims.ts';
  * The apps' clients of the cloud's OpenID provider (#284): Langua, Librarian…, made and removed by
  * the service's administrator in /admin/apps, with their session. Trusted (no consent), and of no
  * family (oidc-claims.ts): anyone with an account gets in. Only an app of families may ask for the
- * `family` scope, and with it gets the person's family.
+ * `family` scope, and with it gets the person's family; with `offline_access`, a refresh token, to
+ * go on asking for the AI (/api/ia) once the access token expires.
  *
  * The provider files a client under its maker's family (clientReference), so these are under the
  * administrator's, with the houses'; `app` in their metadata sets them apart.
  */
-const SCOPES = ['openid', 'profile', 'email'];
+const SCOPES = ['openid', 'profile', 'email', 'offline_access'];
 
 /** An app's client, not a house's. */
 export const isApp = (c: object) => (c as { app?: unknown }).app === true;
@@ -27,7 +28,7 @@ export async function createAppClient(
 			redirect_uris: [app.redirectUri],
 			scope: (app.family ? [...SCOPES, FAMILY_SCOPE] : SCOPES).join(' '),
 			token_endpoint_auth_method: 'client_secret_basic',
-			grant_types: ['authorization_code'],
+			grant_types: ['authorization_code', 'refresh_token'],
 			response_types: ['code'],
 			skip_consent: true,
 			metadata: { app: true }

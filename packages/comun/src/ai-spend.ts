@@ -116,7 +116,9 @@ const KINDS: [RegExp, string][] = [
 	[/^Identificar «/, 'Cine: identificar'],
 	[/^Sinopsis de/, 'Cine: sinopsis'],
 	[/^Escenas de/, 'Cine: escenas'],
-	[/^Conversación sobre/, 'Cine: conversación']
+	[/^Conversación sobre/, 'Cine: conversación'],
+	// The apps with the cloud's account (#284), labelled by their name.
+	[/^Langua/, 'Langua']
 ];
 
 export const aiKind = (label: string) => KINDS.find(([test]) => test.test(label))?.[1] ?? 'Otros';
