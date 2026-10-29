@@ -2,7 +2,7 @@
 	import './layout.css';
 	import favicon from '#lib/assets/favicon.svg';
 	import MusicBar from 'comun/components/MusicBar.svelte';
-	import AiSpendLine from '#lib/components/AiSpendLine.svelte';
+	import AiSpendLine from 'comun/components/AiSpendLine.svelte';
 	import AlarmBanner from 'comun/components/AlarmBanner.svelte';
 	import SalonBar from '#lib/components/SalonBar.svelte';
 	import SnapcastBar from '#lib/components/SnapcastBar.svelte';
@@ -384,7 +384,7 @@
 						{/if}
 						<!-- Music, and the radio. -->
 						<MusicBar />
-						<!-- The month's AI spending (#193), if this adult asked for it in Ajustes. -->
+						<!-- The AI's spending (#193), if this adult asked for it in Ajustes. -->
 						{#if data.spendLine}
 							<AiSpendLine />
 						{/if}

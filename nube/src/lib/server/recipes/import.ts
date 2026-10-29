@@ -44,6 +44,7 @@ const RULES = [
 async function prepareSteps(apiKey: string, found: PageRecipe) {
 	const { steps } = await completeJson<{ steps: unknown[] }>({
 		apiKey,
+		label: `Pasos de «${found.title}»`,
 		system: RULES,
 		prompt: [
 			`Receta: ${found.title}${found.servings ? ` (${found.servings} personas)` : ''}`,
@@ -73,6 +74,7 @@ async function readText(apiKey: string, text: string, title: string | null) {
 		steps: unknown[];
 	}>({
 		apiKey,
+		label: `Receta de «${title ?? 'una web'}»`,
 		system: `${RULES}\nTe llega el texto de una página web: saca de él la receta, sus ingredientes con sus cantidades y sus pasos. Si no hay una receta, is_recipe=false.`,
 		prompt: `${title ? `Título de la página: ${title}\n\n` : ''}${text}`,
 		name: 'recipe',

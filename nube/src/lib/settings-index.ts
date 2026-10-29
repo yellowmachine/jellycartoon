@@ -19,6 +19,8 @@ export const TAB_LABELS: Record<SettingsTab, string> = {
 export interface SettingsShown {
 	/** Who manages the family: its house, its keys, its voice, its bot. */
 	admin: boolean;
+	/** The AI's spending line: with the family's OpenRouter key. */
+	spendLine?: boolean;
 }
 
 const onlyAdmin = (d: SettingsShown) => d.admin;
@@ -47,6 +49,13 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		tab: 'mi',
 		title: 'Tus viajes',
 		words: 'guardar mis viajes recorrido kilómetros km gps carretera privacidad historial'
+	},
+	{
+		id: 'gasto-ia',
+		tab: 'mi',
+		title: 'Línea de gasto',
+		words: 'ia gasto mes semana dinero coste openrouter crédito línea cabecera dólares',
+		shown: (d) => Boolean(d.spendLine)
 	},
 	{
 		id: 'avisos',

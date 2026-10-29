@@ -8,6 +8,7 @@
 	import AlarmBanner from 'comun/components/AlarmBanner.svelte';
 	import SiteNav from 'comun/components/SiteNav.svelte';
 	import MusicBar from 'comun/components/MusicBar.svelte';
+	import AiSpendLine from 'comun/components/AiSpendLine.svelte';
 	import VoiceBubble from '#lib/components/VoiceBubble.svelte';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
@@ -241,6 +242,10 @@ trip's link (#81), for whoever has it. -->
 						{/if}
 						<!-- The radio and the podcasts (#253), going on from page to page, as at home. -->
 						<MusicBar />
+						<!-- The AI's spending (#193), if they asked for it in Ajustes, as at home. -->
+						{#if data.spendLine}
+							<AiSpendLine />
+						{/if}
 					</div>
 				{/snippet}
 			</SiteNav>

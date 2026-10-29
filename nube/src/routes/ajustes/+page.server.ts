@@ -19,6 +19,7 @@ import {
 import { BOT_EVENTS, parseBotEvents } from '#lib/telegram-bot.ts';
 import { withFamily } from '#lib/server/family.ts';
 import {
+	openRouterKey,
 	openRouterKeyStart,
 	orsKeyStart,
 	setOpenRouterKey,
@@ -81,6 +82,16 @@ export const load: PageServerLoad = async ({ locals, request }) => {
 		myStyle: { text: (await personVoiceStyle(k, locals.user!.id)) ?? '' },
 		/** Whether the road mode keeps their trips (Viajes). */
 		recordTrips: await recordsTrips(k),
+		/** The AI's spending under the header (#193); null without the family's key. */
+		spendLine: (await openRouterKey(k))
+			? await withFamily(locals.user!.id, async (tx) => {
+					const [me] = await tx
+						.select({ on: familyMember.spendLine })
+						.from(familyMember)
+						.where(eq(familyMember.userId, locals.user!.id));
+					return me?.on ?? false;
+				})
+			: null,
 		/** How their subtitles look (Canales). */
 		subtitleStyle: await subtitleStyleOf(k)
 	};
@@ -122,6 +133,14 @@ export const actions: Actions = {
 		const on = (await request.formData()).get('recordTrips') === 'on';
 		await setRecordTrips(await kitchenOf(locals.user!.id), on);
 		return { saved: 'recordTrips' };
+	},
+	/** «Mostrar el gasto en IA bajo la cabecera». */
+	spendLine: async ({ request, locals }) => {
+		const spendLine = (await request.formData()).get('spendLine') === 'on';
+		await withFamily(locals.user!.id, (tx) =>
+			tx.update(familyMember).set({ spendLine }).where(eq(familyMember.userId, locals.user!.id))
+		);
+		return { saved: 'spendLine' };
 	},
 	/** The voice's model: «proveedor/modelo»; empty, the default. */
 	saveVoiceModel: async ({ request, locals }) => {

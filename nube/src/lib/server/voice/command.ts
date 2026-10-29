@@ -1212,6 +1212,7 @@ export async function runVoiceCommand(
 		try {
 			answer = await chatWithTools({
 				apiKey,
+				label: `Voz: «${request.text}»`,
 				model: settings.model,
 				messages,
 				tools: available,

@@ -176,8 +176,8 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 	{
 		id: 'gasto-ia',
 		tab: 'mi',
-		title: 'Gasto del mes',
-		words: 'ia gasto dinero coste openrouter crédito línea cabecera dólares',
+		title: 'Línea de gasto',
+		words: 'ia gasto mes semana dinero coste openrouter crédito línea cabecera dólares',
 		shown: (d) => d.spendLine !== null
 	},
 	{

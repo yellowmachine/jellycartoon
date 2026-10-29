@@ -14,6 +14,7 @@
 	import { page } from '$app/state';
 	import Colores from 'comun/components/Colores.svelte';
 	import GuardarViajes from './GuardarViajes.svelte';
+	import GastoIa from './GastoIa.svelte';
 	import Microfono from './Microfono.svelte';
 	import FondoMusica from './FondoMusica.svelte';
 	import Subtitulos from './Subtitulos.svelte';
@@ -54,7 +55,7 @@
 		<SettingsSearch
 			index={SETTINGS_INDEX}
 			labels={TAB_LABELS}
-			shown={{ admin }}
+			shown={{ admin, spendLine: data.spendLine !== null }}
 			placeholder="Buscar en Ajustes: colores, voz, clave…"
 		/>
 
@@ -92,6 +93,8 @@
 		<Subtitulos {data} />
 
 		<GuardarViajes {data} {tab} />
+
+		<GastoIa {data} {tab} />
 	{/if}
 
 	{#if tab === 'aparato'}
