@@ -25,6 +25,8 @@ services:
       SERVER_URL: ${SERVER_URL:?SERVER_URL is required}
       SATELLITE_KEY: ${SATELLITE_KEY:?SATELLITE_KEY is required}
       SPEAKER: ${SPEAKER:-}
+      # The house's music (its snapserver, said by Seilide) on another device than the voice's.
+      SNAPCLIENT_SOUNDCARD: ${SNAPCLIENT_SOUNDCARD:-}
     volumes:
       - ordenes:/data
     labels:

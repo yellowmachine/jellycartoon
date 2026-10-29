@@ -27,16 +27,14 @@ Se actualiza solo: WUD mira cada noche (a las 4:30, `UPDATE_CRON`) si hay versi�
 
 ## Con la música de la casa (Snapcast)
 
-Para que la música de jellycartoon suene también en esta habitación, el cliente de Snapcast del
-propio Debian, fuera de Docker:
+Para que la música de jellycartoon suene también en esta habitación, el satélite lleva su propio
+cliente de Snapcast: basta poner la IP del snapserver de la casa (con su puerto si no es 1704) en
+Seilide, junto al satélite, en **Ajustes → Familia → «Satélites de voz» → Música (snapserver)**.
+Se le dice al momento, sin tocar la Raspberry; vacío, sin música.
 
-```sh
-sudo apt install snapclient
-```
-
-y en `/etc/default/snapclient` la dirección de la casa y el altavoz, por ejemplo
-`SNAPCLIENT_OPTS="--host 192.168.1.20 --soundcard hw:2,0"` (`snapclient --list` los enseña);
-luego `sudo systemctl restart snapclient`.
+Suena por el mismo altavoz que la voz (`SPEAKER`), o por otro con `SNAPCLIENT_SOUNDCARD`. Si
+la Raspberry tenía el `snapclient` de Debian, se quita, para que no suene dos veces:
+`sudo systemctl disable --now snapclient`.
 
 ## Mientras se desarrolla
 

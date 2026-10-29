@@ -62,6 +62,11 @@ export const voiceSatellite = pgTable(
 		hash: text('hash').notNull().unique(),
 		/** How it starts, to tell one from another. */
 		start: text('start').notNull(),
+		/**
+		 * The house's snapserver it plays from, «192.168.1.20» or «casa.local:1704», told to it live
+		 * (its own snapclient, restarted when it changes); null, no music there.
+		 */
+		snapserver: text('snapserver'),
 		createdAt: timestamp('created_at').notNull().defaultNow(),
 		lastSeenAt: timestamp('last_seen_at')
 	},

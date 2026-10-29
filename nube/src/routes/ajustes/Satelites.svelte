@@ -20,8 +20,10 @@
 			Una Raspberry con micrófono y altavoz en una habitación, que contesta con la voz de la
 			familia, también sin jellycartoon. Cada uno con su clave: va en su <span class="font-mono"
 				>.env</span
-			>, con <span class="font-mono">SERVER_URL={data.satellites.origin}</span>. Sin la casa aún no
-			pone música ni radio; temporizadores, alarmas, agenda, nevera y lo que recuerda, sí.
+			>, con <span class="font-mono">SERVER_URL={data.satellites.origin}</span>. Sin la casa, sin
+			música ni radio; temporizadores, alarmas, agenda, nevera y lo que recuerda, sí. Con la casa,
+			su snapserver (su IP en casa) hace que la música suene también en esa habitación: se le dice
+			al momento, sin tocar la Raspberry.
 		</p>
 
 		{#if form && 'satelliteKey' in form}
@@ -37,17 +39,41 @@
 		{#if data.satellites.own.length}
 			<ul class="mb-4 divide-y divide-zinc-800 text-sm">
 				{#each data.satellites.own as s (s.id)}
-					<li class="flex items-center justify-between gap-2 py-2">
-						<span>
-							{s.name}
-							<span class="block text-xs text-zinc-500">
-								<span class="font-mono">{s.start}…</span> · desde el {day(s.createdAt)}
-								{#if s.lastSeenAt}· oído el {day(s.lastSeenAt)}{:else}· aún sin conectar{/if}
+					<li class="flex flex-col gap-2 py-2">
+						<div class="flex items-center justify-between gap-2">
+							<span>
+								{s.name}
+								<span class="block text-xs text-zinc-500">
+									<span class="font-mono">{s.start}…</span> · desde el {day(s.createdAt)}
+									{#if s.lastSeenAt}· oído el {day(s.lastSeenAt)}{:else}· aún sin conectar{/if}
+								</span>
 							</span>
-						</span>
-						<form method="post" action="?seccion={tab}&/deleteSatellite" use:enhance>
+							<form method="post" action="?seccion={tab}&/deleteSatellite" use:enhance>
+								<input type="hidden" name="id" value={s.id} />
+								<button class={secondary}>Quitar</button>
+							</form>
+						</div>
+						<!-- The house's music in its room: its own snapclient, told at once. -->
+						<form
+							method="post"
+							action="?seccion={tab}&/saveSnapserver"
+							use:enhance={() =>
+								async ({ update }) =>
+									update({ reset: false })}
+							class="flex flex-wrap items-center gap-2 text-xs text-zinc-400"
+						>
 							<input type="hidden" name="id" value={s.id} />
-							<button class={secondary}>Quitar</button>
+							<label class="flex min-w-0 flex-1 items-center gap-2">
+								Música (snapserver)
+								<input
+									name="snapserver"
+									value={s.snapserver ?? ''}
+									maxlength="80"
+									placeholder="192.168.1.20"
+									class="{field} min-w-0 flex-1 py-1 text-xs"
+								/>
+							</label>
+							<button class={secondary}>Guardar</button>
 						</form>
 					</li>
 				{/each}

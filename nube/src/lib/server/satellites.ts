@@ -18,6 +18,35 @@ const satelliteOfKey = satelliteKeyScope(db);
 
 export const MAX_SATELLITE_NAME = 40;
 
+/** Those open on each satellite (its /api/satelite/avisos), told when it changes. */
+const listeners = new Map<string, Set<() => void>>();
+
+export function watchSatellite(id: string, listener: () => void) {
+	const set = listeners.get(id) ?? new Set();
+	set.add(listener);
+	listeners.set(id, set);
+	return () => void set.delete(listener);
+}
+
+/** Its snapserver, as saved; null, none. */
+export async function snapserverOf(k: Kitchen, id: string) {
+	const [row] = await k.run((tx) =>
+		tx
+			.select({ snapserver: voiceSatellite.snapserver })
+			.from(voiceSatellite)
+			.where(eq(voiceSatellite.id, id))
+	);
+	return row?.snapserver ?? null;
+}
+
+/** Its snapserver changed, in Ajustes: told to it at once. */
+export async function setSnapserver(userId: string, id: string, snapserver: string | null) {
+	await withFamily(userId, (tx) =>
+		tx.update(voiceSatellite).set({ snapserver }).where(eq(voiceSatellite.id, id))
+	);
+	for (const listener of listeners.get(id) ?? []) listener();
+}
+
 /** The satellite a request comes from, and its family's kitchen: a 401 without a valid key. */
 export async function satelliteRequest(
 	request: Request
@@ -59,6 +88,7 @@ export function listSatellites(userId: string) {
 				id: voiceSatellite.id,
 				name: voiceSatellite.name,
 				start: voiceSatellite.start,
+				snapserver: voiceSatellite.snapserver,
 				createdAt: voiceSatellite.createdAt,
 				lastSeenAt: voiceSatellite.lastSeenAt
 			})

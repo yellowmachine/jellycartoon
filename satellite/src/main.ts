@@ -19,6 +19,7 @@ import {
 } from './server.ts';
 import { beep, hush, play, speakerName } from './sound.ts';
 import { fallbackFor, keepFallbacks, sayFallback } from './fallback.ts';
+import { followSnapserver } from './snapclient.ts';
 import {
 	DEFAULT_WAKE_WORD,
 	isWakeWord,
@@ -322,6 +323,8 @@ if (serverReady)
 	void followAlarms((state) => {
 		const was = alarms;
 		alarms = state;
+		// Only Seilide says it: a house's satellite keeps the snapclient it has, if any.
+		if ('snapserver' in state) followSnapserver(state.snapserver ?? null, state.name ?? null);
 		if (state.ringing.join() !== was.ringing.join())
 			log(state.ringing.length ? `Sonando: ${state.ringing.join(', ')}` : 'Nada sonando');
 		if (!state.play.length) hush();

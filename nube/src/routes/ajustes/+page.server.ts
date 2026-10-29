@@ -47,8 +47,10 @@ import {
 	createSatellite,
 	deleteSatellite,
 	listSatellites,
-	MAX_SATELLITE_NAME
+	MAX_SATELLITE_NAME,
+	setSnapserver
 } from '#lib/server/satellites.ts';
+import { parseSnapserver } from '#lib/snapserver.ts';
 import { houseSatellites } from '#lib/server/house.ts';
 import { satelliteVoiceOf, setSatelliteVoice } from '#lib/server/voice/satellite-voice.ts';
 import { invitationLink, invitations, inviteAndSend } from '#lib/server/invitations.ts';
@@ -506,6 +508,19 @@ export const actions: Actions = {
 			fillers: String(form.get('fillers') ?? '')
 		});
 		return { saved: 'satelliteVoice' };
+	},
+	/** Its snapserver (the house's music in its room), or none: told to it at once. */
+	saveSnapserver: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'satelliteProblem');
+		if (denied) return denied;
+		const form = await request.formData();
+		const snapserver = parseSnapserver(String(form.get('snapserver') ?? ''));
+		if (snapserver === undefined)
+			return fail(400, {
+				satelliteProblem: 'El snapserver es una IP o un nombre, con su puerto si no es 1704'
+			});
+		await setSnapserver(locals.user!.id, String(form.get('id') ?? ''), snapserver);
+		return { saved: 'snapserver' };
 	},
 	deleteSatellite: async ({ request, locals }) => {
 		const denied = await requireAdmin(locals.user!.id, 'satelliteProblem');
