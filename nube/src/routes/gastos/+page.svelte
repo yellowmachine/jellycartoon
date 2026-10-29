@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, tick, untrack } from 'svelte';
 	import { enhance } from '$app/forms';
-	import { replaceState } from '$app/navigation';
+	import { afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import {
 		BILL_KINDS,
@@ -70,6 +70,8 @@
 		};
 
 	let editing = $state<Editing | null>(null);
+	/** The form, at the top of the page: brought into view when an expense down the list opens in it. */
+	let editForm = $state<HTMLElement>();
 	let problem = $state<string | null>(null);
 	let reading = $state<'ticket' | 'factura' | null>(null);
 	let saving = $state(false);
@@ -133,7 +135,15 @@
 		}
 	);
 
-	function edit(e: Expense) {
+	/**
+	 * One in the list, in the middle of the screen. A jump, not smooth: the form opening or closing
+	 * up there moves the page meanwhile, and the browser's scroll anchoring cuts a smooth one short.
+	 */
+	const showExpense = (id: number) =>
+		document.getElementById(`gasto-${id}`)?.scrollIntoView({ block: 'center' });
+
+	/** Corrected in the form, up there; back to it in the list when done. */
+	async function edit(e: Expense) {
 		close();
 		editing = {
 			id: e.id,
@@ -147,6 +157,15 @@
 			lines: e.lines.map((l) => ({ ...l, amount: typed(l.amount) })),
 			bill: billBoxes(e.bill)
 		};
+		await tick();
+		editForm?.scrollIntoView({ block: 'start' });
+	}
+
+	/** Cancelled: back to the one it was correcting, if it was one. */
+	function cancel() {
+		const id = editing?.id;
+		close();
+		if (id) void tick().then(() => showExpense(id));
 	}
 
 	/** The photo, smaller, to the model; what it read, to check. */
@@ -200,8 +219,13 @@
 
 	// Shared to the app from another (the manifest's share_target, #232): a PDF, as a bill; a
 	// photo, as a ticket.
+	// From Búsqueda (`?gasto=`): after the navigation, which leaves the page at the top once mounted.
+	afterNavigate(() => {
+		const id = Number(page.url.searchParams.get('gasto'));
+		if (id) document.getElementById(`gasto-${id}`)?.scrollIntoView({ block: 'center' });
+	});
+
 	onMount(() => {
-		if (open) document.getElementById(`gasto-${open}`)?.scrollIntoView({ block: 'center' });
 		if (page.url.searchParams.get('compartido') !== 'archivo') return;
 		const url = new URL(page.url.href);
 		url.searchParams.delete('compartido');
@@ -408,7 +432,10 @@
 
 	{#if editing}
 		{@const e = editing}
-		<section class="mb-8 rounded-lg border border-zinc-700 bg-zinc-900 p-4">
+		<section
+			bind:this={editForm}
+			class="mb-8 scroll-mt-[calc(var(--header-h,0px)+1rem)] rounded-lg border border-zinc-700 bg-zinc-900 p-4"
+		>
 			<h2 class="mb-1 font-semibold">
 				{e.id
 					? e.bill
@@ -584,6 +611,11 @@
 								} else if (result.type === 'failure')
 									problem = String(result.data?.message ?? 'No se pudo guardar');
 								await update({ reset: false });
+								// Saved: shown where it is now (a changed day moves it, or to another month).
+								if (result.type === 'success' && open) {
+									await tick();
+									showExpense(open);
+								}
 							};
 						}}
 					>
@@ -598,7 +630,7 @@
 							class="{button} bg-amber-500 font-semibold text-zinc-950 hover:bg-amber-400"
 							disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</button
 						>
-						<button type="button" class="{button} hover:bg-zinc-800" onclick={close}
+						<button type="button" class="{button} hover:bg-zinc-800" onclick={cancel}
 							>Cancelar</button
 						>
 						{#if problem}<span class="text-sm text-red-400">{problem}</span>{/if}

@@ -174,16 +174,16 @@ async function canSkipThinking(model: string) {
 	return (await thinkingOptional).has(model);
 }
 
-/**
- * One turn of a conversation with tools (jellycartoon's, for the voice): the model answers with
- * text, or with the tools it wants called. The caller runs them, adds their results as `tool`
- * messages and asks again.
- */
-export async function chatWithTools(request: {
+type ToolChatRequest = {
 	apiKey: string;
 	/** As in `completeJson`. */
 	label: string;
 	model: string;
+	/**
+	 * Asked when `model` fails for any reason but the key or the credit (its providers gone, the
+	 * model retired, the service down): another company's, so that both do not fail together.
+	 */
+	fallbackModel?: string;
 	messages: ToolChatMessage[];
 	tools: Tool[];
 	timeoutMs?: number;
@@ -191,7 +191,41 @@ export async function chatWithTools(request: {
 	think?: boolean;
 	/** «required»: it must call a tool, never answer with text (the voice ends with its `answer`). */
 	toolChoice?: 'auto' | 'required';
-}): Promise<{ content: string | null; toolCalls: ToolCall[]; usage: Usage | null }> {
+};
+
+export type ToolChatAnswer = {
+	content: string | null;
+	toolCalls: ToolCall[];
+	usage: Usage | null;
+	/** Why the fallback answered instead of `model`; null if `model` did. */
+	fellBack: string | null;
+};
+
+/** The family's key or credit: no other model would do better. */
+const accountProblem = (error: unknown) =>
+	error instanceof Error &&
+	(error.message === NO_CREDIT || error.message.startsWith('OpenRouter no acepta la clave'));
+
+/**
+ * One turn of a conversation with tools (jellycartoon's, for the voice): the model answers with
+ * text, or with the tools it wants called. The caller runs them, adds their results as `tool`
+ * messages and asks again. With `fallbackModel`, a second try when `model` fails.
+ */
+export async function chatWithTools(request: ToolChatRequest): Promise<ToolChatAnswer> {
+	try {
+		return { ...(await chatOnce(request)), fellBack: null };
+	} catch (error) {
+		const { fallbackModel } = request;
+		if (!fallbackModel || fallbackModel === request.model || accountProblem(error)) throw error;
+		const why = error instanceof Error ? error.message : String(error);
+		console.warn(`[ia] ${request.model} falló; contesta ${fallbackModel}`, { why });
+		return { ...(await chatOnce({ ...request, model: fallbackModel })), fellBack: why };
+	}
+}
+
+async function chatOnce(
+	request: ToolChatRequest
+): Promise<{ content: string | null; toolCalls: ToolCall[]; usage: Usage | null }> {
 	const noThinking = request.think === false && (await canSkipThinking(request.model));
 	const ask = (toolChoice: typeof request.toolChoice) =>
 		fetch('https://openrouter.ai/api/v1/chat/completions', {

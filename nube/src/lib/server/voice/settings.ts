@@ -13,6 +13,12 @@ import type { QuietHours } from './quiet-check.ts';
 /** jellycartoon's: fast, and good with the tools. */
 export const DEFAULT_VOICE_MODEL = 'anthropic/claude-haiku-5.5';
 
+/**
+ * When the family's fails (its providers gone, retired, down): another company's, fast without
+ * thinking and good with the tools (tried on 2026-10-29: ~0.6 s for a timer).
+ */
+export const FALLBACK_VOICE_MODEL = 'google/gemini-2.5-flash';
+
 /** «Indicaciones para buscar», this long at most. */
 export const MAX_WEB_HINTS = 500;
 
