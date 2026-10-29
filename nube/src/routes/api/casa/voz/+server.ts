@@ -4,6 +4,7 @@ import { parseVoiceRequest } from 'comun/voice.ts';
 import type { HouseVoiceOrder } from 'comun/house-voice.ts';
 import { houseRequest } from '#lib/server/house-keys.ts';
 import { runVoiceCommand } from '#lib/server/voice/command.ts';
+import { sayableError } from '#lib/server/openrouter.ts';
 
 /**
  * An order said in the house (#253): its voice sends what was said with what only it knows (its
@@ -36,6 +37,6 @@ export const POST: RequestHandler = async ({ request }) => {
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		console.error(`[voz] «${command.text}»: ${message}`, { familyId: k.familyId });
-		error(503, message);
+		error(503, sayableError(message));
 	}
 };
