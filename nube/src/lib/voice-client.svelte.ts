@@ -175,6 +175,7 @@ class VoiceClient {
 				history: this.#history,
 				timers: [],
 				recipe: null,
+				film: null,
 				// In the road mode's page; elsewhere, Hablar or the bar's microphone.
 				car: this.road !== null,
 				position: this.road?.position() ?? null,

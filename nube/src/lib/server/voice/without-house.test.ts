@@ -9,6 +9,7 @@ const request = {
 	history: [],
 	timers: [],
 	recipe: null,
+	film: null,
 	car: false,
 	position: null,
 	navigation: null

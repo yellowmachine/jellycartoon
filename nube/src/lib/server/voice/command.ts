@@ -52,7 +52,7 @@ import { tellHouse } from '#lib/server/house.ts';
 import { orsFor } from '#lib/server/road/ors.ts';
 import { listSavedPlaces, listSavedRoutes } from '#lib/server/trips/places.ts';
 import { asksForRoute, findByName } from 'comun/saved-places.ts';
-import { familyPlace, openRouterKey } from '#lib/server/family-settings.ts';
+import { familyPlace, openRouterKey, orsKey } from '#lib/server/family-settings.ts';
 import {
 	chatWithTools,
 	NO_CREDIT,
@@ -60,10 +60,12 @@ import {
 	type ToolChatMessage
 } from '#lib/server/openrouter.ts';
 import { quietCheck } from './quiet-check.ts';
+import { afterOrder, assumedNote, countHits, learnFrom, recallLearned } from './learned.ts';
 import { FALLBACK_VOICE_MODEL, personVoiceStyle, voiceSettings } from './settings.ts';
 import { voiceFellBack } from './alarm.ts';
 import { searchWeb, WEB_TOOL, webSearchTool } from './web-search.ts';
-import { findPlaces, forecast, placeName } from 'comun/weather.ts';
+import { forecast, placeName } from 'comun/weather.ts';
+import { findPlacesFor } from '#lib/server/places.ts';
 
 /**
  * Voice commands (#33), the family's brain since #253: what was said in the house, to a model with
@@ -114,6 +116,8 @@ interface Outcome {
 	asked: string | null;
 	/** Done here, by the server, as an action for the device would be: a satellite's timer (#241). */
 	done: number;
+	/** What was learned there that it went by (`used_learned`), not asking (learned.ts). */
+	usedLearned: number[];
 }
 
 /** A speaker of the house (Snapcast), by its name: only there (#223). */
@@ -683,6 +687,25 @@ const answerTool: Tool = {
 	}
 };
 
+/**
+ * Said with the calls it goes with, when what it does is by something learned there: so a
+ * correction after it rewrites it (learned.ts). Only with some learned in the order.
+ */
+const usedLearnedTool: Tool = {
+	type: 'function',
+	function: {
+		name: 'used_learned',
+		description:
+			'Junto con lo que haces, en la misma vez: los números de lo aprendido aquí por lo que lo haces sin preguntar.',
+		parameters: {
+			type: 'object',
+			properties: { ids: { type: 'array', items: { type: 'integer' } } },
+			required: ['ids'],
+			additionalProperties: false
+		}
+	}
+};
+
 /** The family's Telegram group (#243), with its bot: only when it is in one. */
 const groupSayTool: Tool = {
 	type: 'function',
@@ -876,7 +899,13 @@ async function runTool(
 	}
 	if (ctx.timersOf && (name === 'set_timer' || name === 'cancel_timer'))
 		return cloudTimer(name, args, ctx, ctx.timersOf);
-	if (ctx.withoutHouse && name === 'get_weather')
+	// A place said, with the family's openrouteservice key: looked up here, also with a house, whose
+	// search (Open-Meteo's) takes only its name, not «Vélez-Rubio, Almería».
+	if (
+		name === 'get_weather' &&
+		(ctx.withoutHouse ||
+			(typeof args.place === 'string' && args.place.trim() && (await orsKey(ctx.k))))
+	)
 		return cloudWeather(ctx.k, args, ctx.order.request.position);
 	if (HOUSE_TOOLS.has(name) || ctx.houseTools.has(name)) {
 		const done = await tellHouse<HouseHandResult>(ctx.k.familyId, '/voz', {
@@ -1094,7 +1123,7 @@ async function cloudWeather(
 	let where: { lat: number; lon: number; name: string } | null = null;
 	if (asked) {
 		// «Toledo» is first in Ohio: one in Spain if there is one.
-		const found = await findPlaces(asked, 10);
+		const found = await findPlacesFor(k, asked, 10);
 		const place = found.find((p) => p.country === 'España') ?? found[0];
 		if (!place) return `No encuentro «${asked}». Díselo.`;
 		where = { lat: place.lat, lon: place.lon, name: placeName(place) };
@@ -1195,15 +1224,18 @@ export async function runVoiceCommand(
 	const { request, house, satellite } = order;
 	const place: AlarmPlace | null =
 		satellite && isAlarmPlace(`satelite:${satellite.id}`) ? `satelite:${satellite.id}` : null;
+	// Where what it learns is kept (learned.ts): the satellite, or the person.
+	const site = satellite ? `satelite:${satellite.id}` : k.userId ? `user:${k.userId}` : null;
 	refreshStale(k);
-	const [apiKey, settings, recipes, sites, personStyle, me, group] = await Promise.all([
+	const [apiKey, settings, recipes, sites, personStyle, me, group, learned] = await Promise.all([
 		openRouterKey(k),
 		voiceSettings(k),
 		listRecipes(k),
 		listRecipeSites(k),
 		k.userId && !satellite ? personVoiceStyle(k, k.userId) : null,
 		k.userId && !satellite ? personOf(k, k.userId) : null,
-		botHasGroup(k.familyId)
+		botHasGroup(k.familyId),
+		recallLearned(k, site, request.text)
 	]);
 	const timersOf = cloudTimers && !satellite ? me : null;
 	// Said to the cloud by someone not among its people: no one to keep them for.
@@ -1214,11 +1246,31 @@ export async function runVoiceCommand(
 		timersOf ? describeTimersOf(k, timersOf) : request.timers
 	]);
 	const timing: VoiceTiming = { prepareMs: Math.round(performance.now() - started), rounds: [] };
-	const outcome: Outcome = { actions: [], options: [], asked: null, done: 0 };
-	const reply = (text: string, expectsAnswer = false) => ({
-		...replyOf(text, outcome, expectsAnswer),
-		timing
-	});
+	const outcome: Outcome = { actions: [], options: [], asked: null, done: 0, usedLearned: [] };
+	const siteKey = site && `${k.familyId}:${site}`;
+	const assumed = siteKey && assumedNote(siteKey);
+	const reply = (text: string, expectsAnswer = false) => {
+		const used = (learned?.picked ?? []).filter((l) => outcome.usedLearned.includes(l.id));
+		const said = {
+			...replyOf(text, outcome, expectsAnswer),
+			...(used.length && !expectsAnswer ? { listenAfter: true } : {})
+		};
+		if (used.length)
+			countHits(
+				k,
+				used.map((l) => l.id)
+			);
+		const answered = siteKey && afterOrder(siteKey, request.text, said, used);
+		if (answered && apiKey && site)
+			learnFrom(
+				k,
+				apiKey,
+				site,
+				satellite?.name ?? (order.who.name || 'Alguien de casa'),
+				answered
+			).catch((err) => console.warn('[voz] no se ha aprendido:', err));
+		return { ...said, timing };
+	};
 	if (!apiKey) return reply(SAID_NO_KEY);
 
 	const messages: ToolChatMessage[] = [
@@ -1274,6 +1326,8 @@ export async function runVoiceCommand(
 						]
 					: []),
 				...(note ? [{ type: 'text' as const, text: note }] : []),
+				...(learned ? [{ type: 'text' as const, text: learned.text }] : []),
+				...(assumed ? [{ type: 'text' as const, text: assumed }] : []),
 				{ type: 'text', text: request.text }
 			]
 		}
@@ -1282,6 +1336,7 @@ export async function runVoiceCommand(
 		...tools(house.speakers, house.rooms, house.salon, house.clipMinutes),
 		...(house.tools as Tool[]),
 		...(group ? [groupSayTool] : []),
+		...(learned ? [usedLearnedTool] : []),
 		...(settings.web.on ? [webSearchTool] : [])
 	]
 		.map((t) =>
@@ -1348,8 +1403,9 @@ export async function runVoiceCommand(
 		// Haiku 5.5 since 2026-10-29): said, and awaited only if it asks with a «?».
 		if (!answer.toolCalls.length)
 			return reply(answer.content ?? 'Hecho.', answer.content?.includes('?') ?? false);
-		const [only] = answer.toolCalls;
-		if (answer.toolCalls.length === 1 && only!.function.name === 'answer') {
+		const calls = answer.toolCalls.filter((c) => !noteUsedLearned(c, outcome));
+		const [only] = calls;
+		if (calls.length === 1 && only!.function.name === 'answer') {
 			let args: { text?: unknown; expects_answer?: unknown } = {};
 			try {
 				args = JSON.parse(only!.function.arguments || '{}');
@@ -1364,6 +1420,11 @@ export async function runVoiceCommand(
 		const said: string[] = [];
 		let oneRound = true;
 		for (const call of answer.toolCalls) {
+			// Noted above: nothing to do.
+			if (call.function.name === 'used_learned') {
+				messages.push({ role: 'tool', tool_call_id: call.id, content: 'Anotado.' });
+				continue;
+			}
 			const before = outcome.actions.length + outcome.done;
 			let result: ToolResult;
 			// With others, before knowing what they did: given again after their results.
@@ -1388,11 +1449,27 @@ export async function runVoiceCommand(
 				oneRound = false;
 		}
 		if (outcome.asked) return reply(outcome.asked, true);
-		if (oneRound) return reply(said.join(' '));
+		if (oneRound && said.length) return reply(said.join(' '));
 	}
 	// Nothing done: listened to again, to say it another way.
 	const done = outcome.actions.length + outcome.done > 0;
 	return reply(done ? 'Hecho.' : 'No he sabido hacerlo. Dímelo de otra forma.', !done);
+}
+
+/** A `used_learned` call: its numbers noted in `outcome`. */
+function noteUsedLearned(
+	call: { function: { name: string; arguments: string } },
+	outcome: Outcome
+) {
+	if (call.function.name !== 'used_learned') return false;
+	try {
+		const { ids } = JSON.parse(call.function.arguments || '{}');
+		if (Array.isArray(ids))
+			for (const id of ids) if (Number.isInteger(id)) outcome.usedLearned.push(id);
+	} catch {
+		// Unreadable: as if not said.
+	}
+	return true;
 }
 
 const replyOf = (text: string, outcome: Outcome, expectsAnswer: boolean): VoiceReply => ({

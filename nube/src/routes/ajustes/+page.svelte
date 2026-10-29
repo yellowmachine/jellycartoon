@@ -10,6 +10,7 @@
 	import DondeVivis from './DondeVivis.svelte';
 	import VozInternet from './VozInternet.svelte';
 	import VozSilencio from './VozSilencio.svelte';
+	import VozAprendido from './VozAprendido.svelte';
 	import Guardado from 'comun/components/Guardado.svelte';
 	import { avatar, isAvatar } from 'comun/avatars.ts';
 	import { page } from '$app/state';
@@ -464,6 +465,8 @@
 		<VozInternet {data} {form} {tab} />
 
 		<VozSilencio {data} {form} {tab} />
+
+		<VozAprendido {data} {tab} />
 
 		<TelegramBot {data} {form} {tab} />
 	{/if}

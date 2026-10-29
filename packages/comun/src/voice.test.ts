@@ -41,6 +41,7 @@ describe('parseVoiceRequest', () => {
 			],
 			timers: [],
 			recipe: null,
+			film: null,
 			car: false,
 			position: null,
 			navigation: null
@@ -55,10 +56,19 @@ describe('parseVoiceRequest', () => {
 			history: [],
 			timers: [],
 			recipe: null,
+			film: null,
 			car: false,
 			position: null,
 			navigation: null
 		});
+	});
+
+	test('the film on the screen, only as a positive id', () => {
+		const film = (value: unknown) => parseVoiceRequest({ text: '¿de qué va?', film: value })?.film;
+		expect(film(12)).toBe(12);
+		expect(film('12')).toBeNull();
+		expect(film(0)).toBeNull();
+		expect(film(1.5)).toBeNull();
 	});
 
 	test('the recipe being cooked here, as text', () => {

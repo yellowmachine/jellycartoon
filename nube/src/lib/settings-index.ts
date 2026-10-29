@@ -141,6 +141,13 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		shown: onlyAdmin
 	},
 	{
+		id: 'voz-aprendido',
+		tab: 'familia',
+		title: 'Lo que ha aprendido la voz',
+		words: 'aprender aprendido memoria recordar olvidar preguntas costumbres satélite voz',
+		shown: onlyAdmin
+	},
+	{
 		id: 'entrar-con-la-nube',
 		tab: 'familia',
 		title: 'Entrar en casa con Seilide',

@@ -27,7 +27,8 @@ import {
 	familyPlace,
 	setFamilyPlace
 } from '#lib/server/family-settings.ts';
-import { findPlaces, placeName, type Place } from 'comun/weather.ts';
+import { placeName, type Place } from 'comun/weather.ts';
+import { findPlacesFor } from '#lib/server/places.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import {
 	DEFAULT_VOICE_MODEL,
@@ -39,6 +40,7 @@ import {
 	setWebSearch,
 	voiceSettings
 } from '#lib/server/voice/settings.ts';
+import { forgetLearned, listLearned } from '#lib/server/voice/learned.ts';
 import { createHouseKey, deleteHouseKey, listHouseKeys } from '#lib/server/house-keys.ts';
 import { invitationLink, invitations, inviteAndSend } from '#lib/server/invitations.ts';
 import {
@@ -86,6 +88,8 @@ export const load: PageServerLoad = async ({ locals, request }) => {
 		houseStyle: admin ? { text: voice.style ?? '' } : null,
 		voiceWeb: admin ? voice.web : null,
 		voiceQuiet: admin ? { hours: voice.quiet } : null,
+		/** What the voice learned from its questions, by place (learned.ts). */
+		voiceLearned: admin ? await listLearned(k) : null,
 		/** «Dónde vivís», if said: only its administrator. */
 		place: admin ? await familyPlace(k).then((p) => ({ name: p ? placeName(p) : null })) : null,
 		/** And how it talks to each one. */
@@ -147,14 +151,14 @@ function placeFrom(value: unknown): Place | null {
 }
 
 export const actions: Actions = {
-	/** «Dónde vivís»: what Open-Meteo finds by that name, to choose one. */
+	/** «Dónde vivís»: the towns found by that name (places.ts), to choose one. */
 	findPlace: async ({ request, locals }) => {
 		const denied = await requireAdmin(locals.user!.id, 'placeProblem');
 		if (denied) return denied;
 		const name = String((await request.formData()).get('name') ?? '').trim();
 		if (!name) return fail(400, { placeProblem: 'Escribe el pueblo o la ciudad' });
 		try {
-			return { familyPlaces: await findPlaces(name) };
+			return { familyPlaces: await findPlacesFor(await kitchenOf(locals.user!.id), name) };
 		} catch (err) {
 			return fail(503, { placeProblem: err instanceof Error ? err.message : String(err) });
 		}
@@ -229,6 +233,14 @@ export const actions: Actions = {
 			form.get('off') || !from || !to ? null : { from, to }
 		);
 		return { saved: 'voiceQuiet' };
+	},
+	/** One of «Lo que ha aprendido la voz», forgotten. */
+	forgetVoiceLearned: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'voiceProblem');
+		if (denied) return denied;
+		const id = Number((await request.formData()).get('id'));
+		if (Number.isInteger(id)) await forgetLearned(await kitchenOf(locals.user!.id), id);
+		return { saved: 'voiceLearned' };
 	},
 	/** «Cómo es la voz de la casa»: free text in the voice's instructions; empty, none. */
 	saveHouseStyle: async ({ request, locals }) => {

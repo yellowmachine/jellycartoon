@@ -81,6 +81,8 @@ export interface VoiceRequest {
 	timers: string[];
 	/** The recipe being cooked here, as recipe.ts describes it, and its step; null if none. */
 	recipe: string | null;
+	/** The film whose card is on this screen, to ask about it; null if none. */
+	film: number | null;
 	/** Said in the road mode (#78): driving, audio only, here only. */
 	car: boolean;
 	/** In the road mode, where we are (the GPS), for «llévame a…» and «¿dónde estoy?». */
@@ -96,6 +98,11 @@ export interface VoiceReply {
 	options: VoiceOption[];
 	/** It asked something and waits for the answer (`FOLLOW_UP_MS`): it needs more to do it. */
 	expectsAnswer: boolean;
+	/**
+	 * It did something by what it had learned there, not asked (nube's learned.ts): a satellite
+	 * listens `AFTER_LEARNED_MS` without the wake word, for a «no, para la música».
+	 */
+	listenAfter?: boolean;
 }
 
 /**
@@ -103,6 +110,8 @@ export interface VoiceReply {
  * or the button: the AI asked something and waits.
  */
 export const FOLLOW_UP_MS = 8000;
+/** After something done by what was learned, the satellite listens this long, for a correction. */
+export const AFTER_LEARNED_MS = 5000;
 
 /**
  * The answer as it goes in the conversation: with a choice, its options and their orders, so that
@@ -162,6 +171,7 @@ export function parseVoiceRequest(body: unknown): VoiceRequest | null {
 			.slice(0, 20),
 		// Thirty steps of a few lines each, and the ingredients.
 		recipe: text(b.recipe, 12_000),
+		film: Number.isInteger(b.film) && Number(b.film) > 0 ? Number(b.film) : null,
 		car: b.car === true,
 		position:
 			b.car === true &&
