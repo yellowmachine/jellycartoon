@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { fold } from 'comun/music.ts';
 import type { VoiceOption } from 'comun/voice.ts';
 import { voiceLearned } from '#lib/server/db/schema.ts';
@@ -81,58 +81,113 @@ async function ofPlace(k: Kitchen, place: string): Promise<Learned[]> {
 			.select(COLUMNS)
 			.from(voiceLearned)
 			.where(and(eq(voiceLearned.familyId, k.familyId), eq(voiceLearned.place, place)))
-			.orderBy(desc(voiceLearned.updatedAt))
+			.orderBy(desc(voiceLearned.hits), desc(voiceLearned.updatedAt))
 	);
 }
 
-/** For the order's message: what was learned here that may matter; null if nothing. */
+/**
+ * For the order's message: what was learned here that may matter, by its number, which the model
+ * gives back (`used_learned`) when it does something by one; null if nothing.
+ */
 export async function recallLearned(k: Kitchen, place: string | null, said: string) {
 	if (!place) return null;
 	const picked = pickLearned(await ofPlace(k, place), said);
 	if (!picked.length) return null;
-	return `[Aprendido aquí de otras veces, cuando preguntaste (haz caso sin volver a preguntar si viene al caso, y di lo que haces, para que se pueda corregir): ${picked.map((l) => `«${l.title}»: ${l.rule}`).join(' ')}]`;
+	return {
+		picked,
+		text: `[Aprendido aquí de otras veces, cuando preguntaste: haz caso sin volver a preguntar si viene al caso, di lo que haces para que se pueda corregir, y llama a la vez a «used_learned» con los números de las que uses. ${picked.map((l) => `#${l.id} «${l.title}»: ${l.rule}`).join(' ')}]`
+	};
 }
 
-/** By family and place: the question asked there, waiting for its answer. */
-const asking = new Map<
+/** Done by them: one more time each. Never fails: it only orders them. */
+export function countHits(k: Kitchen, ids: number[]) {
+	if (!ids.length) return;
+	k.run((tx) =>
+		tx
+			.update(voiceLearned)
+			.set({ hits: sql`${voiceLearned.hits} + 1` })
+			.where(and(eq(voiceLearned.familyId, k.familyId), inArray(voiceLearned.id, ids)))
+	).catch((err) => console.warn('[voz] aprendido sin contar:', err));
+}
+
+type Used = Pick<Learned, 'id' | 'title' | 'rule'>;
+
+/**
+ * By family and place: the question asked there, waiting for its answer; or what was done by
+ * what was learned, open to a correction.
+ */
+const pending = new Map<
 	string,
-	{ said: string; question: string; options: VoiceOption[]; at: number }
+	| { kind: 'asked'; said: string; question: string; options: VoiceOption[]; at: number }
+	| { kind: 'assumed'; said: string; reply: string; used: Used[]; at: number }
 >();
 
-export interface Answered {
-	said: string;
-	question: string;
-	options: VoiceOption[];
-	answer: string;
-	reply: string;
+export type Followed =
+	| {
+			kind: 'answer';
+			said: string;
+			question: string;
+			options: VoiceOption[];
+			answer: string;
+			reply: string;
+	  }
+	| { kind: 'after'; said: string; reply: string; used: Used[]; next: string; nextReply: string };
+
+/**
+ * For the next order's message, before the model: what the place's last one did by what was
+ * learned, in case this corrects it; null if nothing (or too long ago).
+ */
+export function assumedNote(key: string) {
+	const before = pending.get(key);
+	if (before?.kind !== 'assumed' || Date.now() - before.at > ANSWER_MS) return null;
+	return `[La orden anterior («${before.said}» → «${before.reply}») la hiciste por lo aprendido: ${before.used.map((u) => `«${u.title}»`).join(', ')}. Si esta la corrige («no», «eso no», «que pares la música»), deshaz lo que hiciste si hace falta y haz lo que pide, sin preguntar; si no, como siempre.]`;
 }
 
 /**
- * After each order of a place: a question is kept; the next order, within `ANSWER_MS` and not one
- * more question, is its answer, given back to learn from. Also when another one: it is the new
- * question.
+ * After each order of a place: a question is kept, and what was done by what was learned
+ * (`used`). The next order, within `ANSWER_MS`, follows it: the answer to the question (if not
+ * one more), or what came after the assumption; given back to learn from.
  */
 export function afterOrder(
 	key: string,
 	said: string,
-	reply: { reply: string; options: VoiceOption[]; expectsAnswer: boolean }
-): Answered | null {
+	reply: { reply: string; options: VoiceOption[]; expectsAnswer: boolean },
+	used: Used[]
+): Followed | null {
 	const t = Date.now();
-	const before = asking.get(key);
-	asking.delete(key);
-	if (reply.expectsAnswer) {
-		asking.set(key, { said, question: reply.reply, options: reply.options, at: t });
-		return null;
-	}
+	const before = pending.get(key);
+	pending.delete(key);
+	if (reply.expectsAnswer)
+		pending.set(key, { kind: 'asked', said, question: reply.reply, options: reply.options, at: t });
+	else if (used.length)
+		pending.set(key, { kind: 'assumed', said, reply: reply.reply, used, at: t });
 	if (!before || t - before.at > ANSWER_MS) return null;
-	const { at: _, ...question } = before;
-	return { ...question, answer: said, reply: reply.reply };
+	if (before.kind === 'assumed')
+		return {
+			kind: 'after',
+			said: before.said,
+			reply: before.reply,
+			used: before.used,
+			next: said,
+			nextReply: reply.reply
+		};
+	if (reply.expectsAnswer) return null;
+	return {
+		kind: 'answer',
+		said: before.said,
+		question: before.question,
+		options: before.options,
+		answer: said,
+		reply: reply.reply
+	};
 }
 
 interface Lesson {
 	learn: boolean;
 	/** One of the place's, to write again (it said otherwise this time); 0, a new one. */
 	replaces: number;
+	/** One of the place's, forgotten: corrected, and with no clear rule; 0, none. */
+	forget: number;
 	title: string;
 	rule: string;
 	words: string[];
@@ -143,62 +198,99 @@ const LESSON_SCHEMA = {
 	properties: {
 		learn: { type: 'boolean' },
 		replaces: { type: 'integer' },
+		forget: { type: 'integer' },
 		title: { type: 'string' },
 		rule: { type: 'string' },
 		words: { type: 'array', items: { type: 'string' } }
 	},
-	required: ['learn', 'replaces', 'title', 'rule', 'words'],
+	required: ['learn', 'replaces', 'forget', 'title', 'rule', 'words'],
 	additionalProperties: false
 };
+
+const HOW_TO_WRITE = `- «title»: corto, para leerlo en una lista: «Una duración sola es un temporizador».
+- «rule»: una frase para el asistente, con un ejemplo de lo dicho: «Si dice solo una duración ("media hora", "diez minutos"), pon un temporizador; no pares la música».
+- «words»: palabras sueltas, en minúscula, que traería otra vez una orden así, también las de su familia: «media», «hora», «minutos», «segundos».`;
 
 const LESSON_SYSTEM = `Eres la memoria del asistente de voz de una casa. El asistente no tenía claro qué le pedían, preguntó, y le contestaron. Decide si de eso se aprende algo para la próxima vez en el mismo sitio, para no volver a preguntar.
 
 - Aprende («learn»: true) solo una costumbre de cómo se habla ahí: «media hora» a secas es un temporizador; «la radio» es Radio 3. Generaliza un poco si se ve claro («una duración sola», no solo «media hora»), pero no inventes.
 - No aprendas («learn»: false) si la respuesta depende del momento (qué canción ahora, qué capítulo hoy), si no contesta a la pregunta (cambia de tema, «déjalo»), o si no se ve qué eligió.
-- «title»: corto, para leerlo en una lista: «Una duración sola es un temporizador».
-- «rule»: una frase para el asistente, con un ejemplo de lo dicho: «Si dice solo una duración ("media hora", "diez minutos"), pon un temporizador; no pares la música».
-- «words»: palabras sueltas, en minúscula, que traería otra vez una orden así, también las de su familia: «media», «hora», «minutos», «segundos».
-- «replaces»: si una de las ya aprendidas es de lo mismo, su número, y escríbela entera de nuevo (con lo de ahora, que manda si dicen lo contrario); si no, 0.`;
+${HOW_TO_WRITE}
+- «replaces»: si una de las ya aprendidas es de lo mismo, su número, y escríbela entera de nuevo (con lo de ahora, que manda si dicen lo contrario); si no, 0.
+- «forget»: 0.`;
+
+const CORRECTION_SYSTEM = `Eres la memoria del asistente de voz de una casa. El asistente hizo algo sin preguntar, por una costumbre que había aprendido en ese sitio, y justo después le dijeron algo. Decide si eso corrige la costumbre.
+
+- Si no la corrige (otra orden sin relación, «gracias», una frase suelta de la tele): «learn»: false y «forget»: 0.
+- Si la corrige y se ve cuál es la costumbre buena: «learn»: true, «replaces» con su número y la costumbre escrita entera de nuevo (lo de ahora manda). «forget»: 0.
+- Si la corrige pero no queda claro qué se quiere en general (a veces una cosa, a veces otra): «learn»: false y «forget» con su número, para que vuelva a preguntar.
+${HOW_TO_WRITE}`;
+
+const promptOf = (f: Followed, known: Learned[]) =>
+	[
+		...(f.kind === 'answer'
+			? [
+					`Dicho: «${f.said}»`,
+					`Preguntó: «${f.question}»${f.options.length ? ` (opciones: ${f.options.map((o) => `«${o.label}»`).join(', ')})` : ''}`,
+					`Contestaron: «${f.answer}»`,
+					`Y el asistente: «${f.reply}»`
+				]
+			: [
+					`Dicho: «${f.said}»`,
+					`El asistente, por lo aprendido (${f.used.map((u) => `${u.id}`).join(', ')}): «${f.reply}»`,
+					`Después dijeron: «${f.next}»`,
+					`Y el asistente: «${f.nextReply}»`
+				]),
+		known.length
+			? `Ya aprendidas aquí:\n${known.map((l) => `${l.id}. «${l.title}»: ${l.rule}`).join('\n')}`
+			: 'Aquí aún no hay ninguna aprendida.'
+	].join('\n');
 
 /**
- * The AI's lesson from a question and its answer, saved for the place (or one of its own written
- * again). After the order is answered: no one waits for it. False if there was none.
+ * The AI's lesson from a question and its answer, or from what followed an assumption: saved for
+ * the place, one of its own written again, or forgotten. After the order is answered: no one
+ * waits for it. False if nothing changed.
  */
 export async function learnFrom(
 	k: Kitchen,
 	apiKey: string,
 	place: string,
 	placeName: string,
-	a: Answered
+	f: Followed
 ) {
 	const known = await ofPlace(k, place);
 	const lesson = await completeJson<Lesson>({
 		apiKey,
-		label: 'Voz: aprender',
-		system: LESSON_SYSTEM,
-		prompt: [
-			`Dicho: «${a.said}»`,
-			`Preguntó: «${a.question}»${a.options.length ? ` (opciones: ${a.options.map((o) => `«${o.label}»`).join(', ')})` : ''}`,
-			`Contestaron: «${a.answer}»`,
-			`Y el asistente: «${a.reply}»`,
-			known.length
-				? `Ya aprendidas aquí:\n${known.map((l) => `${l.id}. «${l.title}»: ${l.rule}`).join('\n')}`
-				: 'Aquí aún no hay ninguna aprendida.'
-		].join('\n'),
+		label: f.kind === 'answer' ? 'Voz: aprender' : 'Voz: corregir lo aprendido',
+		system: f.kind === 'answer' ? LESSON_SYSTEM : CORRECTION_SYSTEM,
+		prompt: promptOf(f, known),
 		name: 'lesson',
 		schema: LESSON_SCHEMA,
 		maxTokens: 400,
 		timeoutMs: 30_000
 	});
+	// Only those it was shown, and after an assumption only those it was done by.
+	const own = (id: number) =>
+		(f.kind === 'answer' || f.used.some((u) => u.id === id)) && known.some((l) => l.id === id);
 	const title = lesson.title.trim().slice(0, MAX_TITLE);
 	const rule = lesson.rule.trim().slice(0, MAX_RULE);
-	if (!lesson.learn || !title || !rule) return false;
+	if (!lesson.learn || !title || !rule) {
+		if (f.kind !== 'after' || !own(lesson.forget)) return false;
+		await forgetLearned(k, lesson.forget);
+		return true;
+	}
+	const replaces = own(lesson.replaces) ? lesson.replaces : null;
+	// A correction writes one of its own again, never a new one beside it.
+	if (f.kind === 'after' && !replaces) return false;
 	const words = [...new Set(lesson.words.flatMap(wordsOf))].slice(0, MAX_WORDS);
 	const row = { title, rule, words, placeName, updatedAt: new Date() };
-	const replaced = known.find((l) => l.id === lesson.replaces);
 	await k.run((tx) =>
-		replaced
-			? tx.update(voiceLearned).set(row).where(eq(voiceLearned.id, replaced.id))
+		replaces
+			? tx
+					.update(voiceLearned)
+					// Corrected, it starts again.
+					.set(f.kind === 'after' ? { ...row, hits: 0 } : row)
+					.where(eq(voiceLearned.id, replaces))
 			: tx.insert(voiceLearned).values({ familyId: k.familyId, place, ...row })
 	);
 	return true;

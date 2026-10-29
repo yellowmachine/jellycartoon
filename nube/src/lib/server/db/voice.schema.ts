@@ -1,4 +1,4 @@
-import { index, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { index, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { family, familyRows } from './family.schema.ts';
 
 /**
@@ -23,6 +23,8 @@ export const voiceLearned = pgTable(
 		rule: text('rule').notNull(),
 		/** Folded, that a later order would have: «media», «hora», «minutos». */
 		words: jsonb('words').$type<string[]>().notNull(),
+		/** Times done by it and not corrected: those first, when there are many. */
+		hits: integer('hits').notNull().default(0),
 		createdAt: timestamp('created_at').notNull().defaultNow(),
 		updatedAt: timestamp('updated_at').notNull().defaultNow()
 	},

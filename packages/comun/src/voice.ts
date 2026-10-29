@@ -98,6 +98,11 @@ export interface VoiceReply {
 	options: VoiceOption[];
 	/** It asked something and waits for the answer (`FOLLOW_UP_MS`): it needs more to do it. */
 	expectsAnswer: boolean;
+	/**
+	 * It did something by what it had learned there, not asked (nube's learned.ts): a satellite
+	 * listens `AFTER_LEARNED_MS` without the wake word, for a «no, para la música».
+	 */
+	listenAfter?: boolean;
 }
 
 /**
@@ -105,6 +110,8 @@ export interface VoiceReply {
  * or the button: the AI asked something and waits.
  */
 export const FOLLOW_UP_MS = 8000;
+/** After something done by what was learned, the satellite listens this long, for a correction. */
+export const AFTER_LEARNED_MS = 5000;
 
 /**
  * The answer as it goes in the conversation: with a choice, its options and their orders, so that

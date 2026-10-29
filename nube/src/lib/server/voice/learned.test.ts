@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { afterOrder, pickLearned } from './learned.ts';
+import { afterOrder, assumedNote, pickLearned } from './learned.ts';
 
 const rule = (title: string, words: string[]) => ({ title, words });
 
@@ -30,8 +30,9 @@ describe('afterOrder', () => {
 	const done = { reply: 'Pongo un temporizador de media hora.', options: [], expectsAnswer: false };
 
 	test('a question, then its answer', () => {
-		expect(afterOrder('f:a', 'Media hora.', asked)).toBeNull();
-		expect(afterOrder('f:a', 'Un temporizador.', done)).toEqual({
+		expect(afterOrder('f:a', 'Media hora.', asked, [])).toBeNull();
+		expect(afterOrder('f:a', 'Un temporizador.', done, [])).toEqual({
+			kind: 'answer',
 			said: 'Media hora.',
 			question: asked.reply,
 			options: [],
@@ -39,12 +40,32 @@ describe('afterOrder', () => {
 			reply: done.reply
 		});
 		// Answered once.
-		expect(afterOrder('f:a', 'Otra cosa.', done)).toBeNull();
+		expect(afterOrder('f:a', 'Otra cosa.', done, [])).toBeNull();
 	});
 
 	test('each place its own', () => {
-		afterOrder('f:b', 'Media hora.', asked);
-		expect(afterOrder('f:c', 'Un temporizador.', done)).toBeNull();
-		expect(afterOrder('f:b', 'Un temporizador.', done)).not.toBeNull();
+		afterOrder('f:b', 'Media hora.', asked, []);
+		expect(afterOrder('f:c', 'Un temporizador.', done, [])).toBeNull();
+		expect(afterOrder('f:b', 'Un temporizador.', done, [])).not.toBeNull();
+	});
+
+	test('done by what was learned, then what follows it', () => {
+		const used = [{ id: 3, title: 'Una duración sola es un temporizador', rule: '…' }];
+		expect(afterOrder('f:d', 'Veinte minutos.', done, used)).toBeNull();
+		expect(assumedNote('f:d')).toContain('«Una duración sola es un temporizador»');
+		const stop = {
+			reply: 'Quito el temporizador y paro la música en 20 minutos.',
+			options: [],
+			expectsAnswer: false
+		};
+		expect(afterOrder('f:d', 'No, la música.', stop, [])).toEqual({
+			kind: 'after',
+			said: 'Veinte minutos.',
+			reply: done.reply,
+			used,
+			next: 'No, la música.',
+			nextReply: stop.reply
+		});
+		expect(assumedNote('f:d')).toBeNull();
 	});
 });

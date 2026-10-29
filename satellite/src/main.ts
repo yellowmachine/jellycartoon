@@ -24,7 +24,7 @@ import {
 	WAKE_WORDS,
 	type WakeWordModel
 } from '../../src/lib/wake-words.ts';
-import { FOLLOW_UP_MS } from '../../packages/comun/src/voice.ts';
+import { AFTER_LEARNED_MS, FOLLOW_UP_MS } from '../../packages/comun/src/voice.ts';
 
 /**
  * The voice satellite (#223, phase 1): «hola casita» heard on a Raspberry in the living room, out of
@@ -244,6 +244,8 @@ async function respond(wav: Uint8Array) {
 	let saidFiller: Promise<void> = Promise.resolve();
 	/** Its answer asked something: listened for at once, without the word. */
 	let asked = false;
+	/** Done by what the voice had learned: listened for a moment, for a correction. */
+	let assumed = false;
 	try {
 		const done = await sendOrder(wav, () => {
 			waiting = setTimeout(() => (saidFiller = sayFiller()), FILLER_AFTER_MS);
@@ -257,6 +259,7 @@ async function respond(wav: Uint8Array) {
 			const actions = done.reply.actions.map((a) => a.kind).join(', ') || 'ninguna';
 			log(`«${done.text}» → «${done.reply.reply}» (acciones: ${actions}; ${ms} ms)`);
 			asked = done.reply.expectsAnswer;
+			assumed = done.reply.listenAfter === true;
 			// Asked even without a speaker: the server may say it through Snapcast.
 			if (done.reply.reply) {
 				const voice = await speech(done.reply.reply);
@@ -278,6 +281,9 @@ async function respond(wav: Uint8Array) {
 		if (asked && !order) {
 			log(`Pregunta: escuchando la respuesta ${FOLLOW_UP_MS / 1000} s`);
 			begin(null, FOLLOW_UP_MS);
+		} else if (assumed && !order) {
+			log(`Por lo aprendido: escuchando ${AFTER_LEARNED_MS / 1000} s por si lo corrige`);
+			begin(null, AFTER_LEARNED_MS);
 		} else duck(false);
 	}
 }
