@@ -34,6 +34,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				ms,
 				...(satellite ? { satellite: satellite.name } : {}),
 				...timing,
+				// Names, not «[Array ...]»: none is text instead of a tool.
+				rounds: timing.rounds.map((r) => ({ ...r, tools: r.tools.join(', ') || 'texto' })),
+				expectsAnswer: reply.expectsAnswer,
 				history: command.history.length,
 				actions: reply.actions.map((a) => a.kind),
 				options: reply.options.length
