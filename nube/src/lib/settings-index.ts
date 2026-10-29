@@ -136,7 +136,7 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 	{
 		id: 'entrar-con-la-nube',
 		tab: 'familia',
-		title: 'Entrar en casa con la nube',
+		title: 'Entrar en casa con Seilide',
 		words: 'oidc openid cuenta única login entrar casa jellycartoon cliente secreto env',
 		shown: onlyAdmin
 	},

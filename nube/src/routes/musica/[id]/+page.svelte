@@ -19,7 +19,7 @@
 </script>
 
 <svelte:head>
-	<title>{album.title} · Nube</title>
+	<title>{album.title} · Seilide</title>
 </svelte:head>
 
 <nav class="flex min-w-0 items-center gap-1.5 text-sm text-zinc-400">

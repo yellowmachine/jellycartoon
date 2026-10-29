@@ -355,7 +355,7 @@
 </script>
 
 <svelte:head>
-	<title>Gastos · Nube</title>
+	<title>Gastos · Seilide</title>
 </svelte:head>
 
 <div class="mx-auto max-w-3xl">

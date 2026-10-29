@@ -29,7 +29,7 @@
 </script>
 
 <svelte:head>
-	<title>Podcasts · Nube</title>
+	<title>Podcasts · Seilide</title>
 </svelte:head>
 
 <h1 class="mb-4 text-2xl font-bold">Radio</h1>

@@ -41,7 +41,7 @@
 </script>
 
 <svelte:head>
-	<title>Ajustes · Nube</title>
+	<title>Ajustes · Seilide</title>
 </svelte:head>
 
 <div class="settings mx-auto max-w-2xl">
@@ -209,8 +209,8 @@
 			<p class="mb-4 text-sm text-zinc-400">
 				La música y las series de tu jellycartoon, por su túnel: su dirección de fuera (<code
 					>MEDIA_HOST</code
-				>) y la clave que da en Ajustes → Casa → «La nube». La clave se guarda cifrada y no sale de
-				este servidor. El túnel es de cada casa: su rathole, en el servidor que quiera; la nube no
+				>) y la clave que da en Ajustes → Casa → «Seilide». La clave se guarda cifrada y no sale de
+				este servidor. El túnel es de cada casa: su rathole, en el servidor que quiera; Seilide no
 				da uno.
 			</p>
 
@@ -296,8 +296,8 @@
 			<h2 class="mb-1 font-semibold">Clave para la casa</h2>
 			<p class="mb-4 text-sm text-zinc-400">
 				Para que jellycartoon use la nevera y las recetas de aquí: su voz («apunta leche», «vamos a
-				hacer los macarrones») y su tele. Se pega en su Ajustes → Casa → «La nube». Al revés que la
-				de arriba: esta la da la nube a la casa.
+				hacer los macarrones») y su tele. Se pega en su Ajustes → Casa → «Seilide». Al revés que la
+				de arriba: esta la da Seilide a la casa.
 			</p>
 
 			{#if form && 'houseKey' in form}

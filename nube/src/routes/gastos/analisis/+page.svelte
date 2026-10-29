@@ -37,7 +37,7 @@
 </script>
 
 <svelte:head>
-	<title>Análisis de gastos · Nube</title>
+	<title>Análisis de gastos · Seilide</title>
 </svelte:head>
 
 <div class="mx-auto max-w-3xl">

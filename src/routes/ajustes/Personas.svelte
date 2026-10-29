@@ -115,7 +115,7 @@
 								>{adult.admin
 									? 'Administrador'
 									: adult.withNube
-										? 'Entra con la nube'
+										? 'Entra con Seilide'
 										: adult.hasPassword
 											? ''
 											: adult.linkUntil
@@ -149,7 +149,7 @@
 										>{adult.hasPassword
 											? 'Si ha olvidado su contraseña: con él elige otra.'
 											: adult.withNube
-												? 'Por si la nube no responde: con él elige una contraseña de casa.'
+												? 'Por si Seilide no responde: con él elige una contraseña de casa.'
 												: 'El anterior deja de valer.'}</span
 									>
 								</form>

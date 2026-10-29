@@ -67,8 +67,8 @@ export const variables = defineEnvVars({
 		schema: (value) => value || undefined
 	},
 	EMAIL_FROM: {
-		description: 'Who the emails come from, e.g. `Nube <no-reply@scholio.review>`.',
-		schema: (value) => value || 'Nube <no-reply@scholio.review>'
+		description: 'Who the emails come from, e.g. `Seilide <no-reply@scholio.review>`.',
+		schema: (value) => value || 'Seilide <no-reply@scholio.review>'
 	},
 	BETTER_AUTH_SECRET: {
 		description:

@@ -40,14 +40,14 @@
 </script>
 
 <svelte:head>
-	<title>Gasto en IA · Nube</title>
+	<title>Gasto en IA · Seilide</title>
 </svelte:head>
 
 <div class="mx-auto max-w-3xl">
 	<h1 class="mb-3 text-2xl font-bold">Gastos</h1>
 	<ExpenseTabs current="ia" />
 	<p class="mb-4 text-sm text-zinc-400">
-		Lo que cuesta la inteligencia artificial de la familia, la de la nube y la de casa, en dólares,
+		Lo que cuesta la inteligencia artificial de la familia, la de Seilide y la de casa, en dólares,
 		como lo cobra OpenRouter.
 		{#if data.since}Apuntado desde el {dayName(data.since.slice(0, 10), true)}.{/if}
 	</p>
@@ -158,7 +158,7 @@
 						<span class="min-w-0 flex-1">
 							<span class="block truncate">{r.label}</span>
 							<span class="block text-xs text-zinc-500"
-								>{when(r.at)} · {r.kind} · {r.app === 'casa' ? 'en casa' : 'en la nube'}</span
+								>{when(r.at)} · {r.kind} · {r.app === 'casa' ? 'en casa' : 'en Seilide'}</span
 							>
 						</span>
 						<span class="text-right tabular-nums">{cost(r.cost)}</span>

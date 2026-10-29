@@ -3,7 +3,7 @@
 </script>
 
 <svelte:head>
-	<title>Hablar · Nube</title>
+	<title>Hablar · Seilide</title>
 </svelte:head>
 
 <VoicePanel />

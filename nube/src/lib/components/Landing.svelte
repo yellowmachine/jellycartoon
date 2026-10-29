@@ -51,7 +51,7 @@
 
 <div class="mx-auto max-w-4xl">
 	<header class="flex items-center justify-between">
-		<span class="text-xl font-bold text-amber-400">Nube</span>
+		<span class="text-xl font-bold text-amber-400">Seilide</span>
 		<a href="/login" class="rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900">
 			Entrar
 		</a>

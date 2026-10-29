@@ -30,11 +30,11 @@
 </script>
 
 <svelte:head>
-	<title>Invitación · Nube</title>
+	<title>Invitación · Seilide</title>
 </svelte:head>
 
 <div class="mx-auto mt-16 max-w-sm">
-	<h1 class="text-center text-3xl font-bold text-amber-400">Nube</h1>
+	<h1 class="text-center text-3xl font-bold text-amber-400">Seilide</h1>
 
 	{#if inv.status !== 'pending'}
 		<p class="mt-8 rounded-md border border-zinc-800 p-4 text-center text-zinc-300">

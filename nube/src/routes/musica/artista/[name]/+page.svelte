@@ -9,7 +9,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.name} · Nube</title>
+	<title>{data.name} · Seilide</title>
 </svelte:head>
 
 <a href="/musica" class="text-sm text-zinc-400 hover:text-white">← Música</a>

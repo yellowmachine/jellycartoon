@@ -2,7 +2,7 @@ import { ADMIN_EMAIL, ORIGIN } from '$app/env/private';
 import { sendMail } from './mailer.ts';
 
 /** The app's name in its emails: one place, while the new one is decided (#253). */
-const NAME = 'Nube';
+const NAME = 'Seilide';
 
 const escape = (text: string) =>
 	text.replace(

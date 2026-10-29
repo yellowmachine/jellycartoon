@@ -81,7 +81,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.series.title} · Nube</title>
+	<title>{data.series.title} · Seilide</title>
 </svelte:head>
 
 <Backdrop src={seriesBackdropUrl(data.series.id)} />

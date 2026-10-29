@@ -29,7 +29,7 @@ const NOT_HERE = [
 
 /** Away from the car, said to the AI: why those are not offered. */
 const AWAY =
-	'[Desde la nube (Hablar en el móvil): aquí no hay temporizadores preparados («cuando hierva»), ni modo cocina ni recetas paso a paso, ni vídeo (series, películas, canales); eso está en jellycartoon, en casa. Si lo pide, díselo así, corto. Las alarmas sí, y los temporizadores: avisan en su móvil, o suenan en casa si lo dice.]';
+	'[Desde Seilide (Hablar en el móvil): aquí no hay temporizadores preparados («cuando hierva»), ni modo cocina ni recetas paso a paso, ni vídeo (series, películas, canales); eso está en jellycartoon, en casa. Si lo pide, díselo así, corto. Las alarmas sí, y los temporizadores: avisan en su móvil, o suenan en casa si lo dice.]';
 
 /**
  * What was said to the cloud (#253), in its road mode or in Hablar, done: the house opens the order with what only it knows

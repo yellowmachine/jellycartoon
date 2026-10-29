@@ -15,7 +15,7 @@
 </script>
 
 <svelte:head>
-	<title>Nevera · Nube</title>
+	<title>Nevera · Seilide</title>
 </svelte:head>
 
 <h1 class="mb-1 text-2xl font-bold">Nevera</h1>

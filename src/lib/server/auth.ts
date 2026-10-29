@@ -134,7 +134,7 @@ export const auth = betterAuth({
 						config: [
 							{
 								providerId: NUBE_PROVIDER,
-								name: 'la nube',
+								name: 'Seilide',
 								discoveryUrl: `${nube.url}/api/auth/.well-known/openid-configuration`,
 								requireIdTokenVerification: true,
 								clientId: nube.clientId,

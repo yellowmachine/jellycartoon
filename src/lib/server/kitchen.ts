@@ -44,7 +44,7 @@ export async function linked() {
 	const link = await cloudLink();
 	if (!link)
 		throw new CloudProblem(
-			'La nevera, las recetas, los gastos, la agenda y las alarmas están en la nube, y no está conectada: Ajustes → Casa → «La nube»'
+			'La nevera, las recetas, los gastos, la agenda y las alarmas están en Seilide, y no está conectada: Ajustes → Casa → «Seilide»'
 		);
 	return link;
 }
@@ -79,13 +79,13 @@ export async function askCloud<T>(
 			signal: AbortSignal.timeout(timeoutMs)
 		});
 	} catch {
-		throw new CloudProblem('No llego a la nube: sin internet, o la nube no contesta');
+		throw new CloudProblem('No llego a Seilide: sin internet, o Seilide no contesta');
 	}
 	if (response.status === 401)
-		throw new CloudProblem('La nube no acepta la clave de la casa: ponla otra vez en Ajustes');
+		throw new CloudProblem('Seilide no acepta la clave de la casa: ponla otra vez en Ajustes');
 	if (!response.ok) {
 		const why = await response.json().catch(() => null);
-		throw new CloudProblem(why?.message ?? `La nube contestó ${response.status}`);
+		throw new CloudProblem(why?.message ?? `Seilide contestó ${response.status}`);
 	}
 	return response.json() as Promise<T>;
 }
@@ -119,7 +119,7 @@ export async function cloudAlarmStopped(cloudId: number) {
 	try {
 		await askCloud(await linked(), '/alarmas', { body: { action: 'stopped', id: cloudId } });
 	} catch (error) {
-		log.warn('avisos', 'La nube no se enteró de que se ha parado', { cloudId, error });
+		log.warn('avisos', 'Seilide no se enteró de que se ha parado', { cloudId, error });
 	}
 }
 

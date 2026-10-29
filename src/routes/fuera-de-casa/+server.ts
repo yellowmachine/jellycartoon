@@ -44,9 +44,9 @@ export const GET: RequestHandler = async () => {
 	<div class="drawing">${drawing}</div>
 	<h1>Estás fuera de casa</h1>
 	<p>JellyCartoon solo se abre en la wifi de casa o con la VPN (WireGuard) encendida.</p>
-	${cloud ? '<p>Fuera, lo tuyo está en la nube: series, música, la agenda, los gastos…</p>' : ''}
+	${cloud ? '<p>Fuera, lo tuyo está en Seilide: series, música, la agenda, los gastos…</p>' : ''}
 	<div class="links">
-		${cloud ? `<a class="main" href="${escape(cloud)}">Ir a la nube</a>` : ''}
+		${cloud ? `<a class="main" href="${escape(cloud)}">Ir a Seilide</a>` : ''}
 		<button class="${cloud ? 'other' : 'main'}" onclick="location.reload()">Reintentar</button>
 	</div>
 	<small>Si estás en casa, puede que el servidor esté apagado o reiniciándose. Esta página vuelve

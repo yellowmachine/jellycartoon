@@ -19,13 +19,13 @@
 </script>
 
 <svelte:head>
-	<title>Apps · Nube</title>
+	<title>Apps · Seilide</title>
 </svelte:head>
 
 <div class="mx-auto max-w-2xl">
 	<h1 class="mb-1 text-2xl font-bold">Apps</h1>
 	<p class="mb-6 text-sm text-zinc-400">
-		Las apps en las que se entra con la cuenta de la nube, como Langua o Librarian. Entra cualquiera
+		Las apps en las que se entra con la cuenta de Seilide, como Langua o Librarian. Entra cualquiera
 		que tenga cuenta, sin pantalla de permiso. Las que son para familias reciben también la familia
 		de quien entra; a las demás no se les da. La discovery está en
 		<code class="break-all">{data.origin}/api/auth/.well-known/openid-configuration</code>.

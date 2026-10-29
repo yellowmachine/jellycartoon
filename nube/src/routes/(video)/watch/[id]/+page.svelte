@@ -73,7 +73,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.episode.seriesTitle} · {data.episode.title} · Nube</title>
+	<title>{data.episode.seriesTitle} · {data.episode.title} · Seilide</title>
 </svelte:head>
 
 {#snippet upNext()}

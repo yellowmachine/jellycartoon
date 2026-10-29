@@ -19,7 +19,7 @@ interface Cost {
 }
 
 const why = (error: unknown) =>
-	error instanceof CloudProblem ? error.message : 'La nube no contestó como se esperaba';
+	error instanceof CloudProblem ? error.message : 'Seilide no contestó como se esperaba';
 
 const send = (link: CloudLink, c: Cost) =>
 	askCloud(link, '/gasto-ia', {
@@ -58,7 +58,7 @@ export function resendUnsent() {
 			return {
 				sent: 0,
 				left: pending.length,
-				error: 'La nube no está conectada: Ajustes → Casa → «La nube»'
+				error: 'Seilide no está conectada: Ajustes → Casa → «Seilide»'
 			};
 		let sent = 0;
 		for (const c of pending) {

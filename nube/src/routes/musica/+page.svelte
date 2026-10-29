@@ -109,7 +109,7 @@
 </script>
 
 <svelte:head>
-	<title>Música · Nube</title>
+	<title>Música · Seilide</title>
 </svelte:head>
 
 {#snippet artistGrid(artists: MusicArtist[])}

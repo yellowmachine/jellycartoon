@@ -44,7 +44,7 @@ export const auth = betterAuth({
 	plugins: [
 		// A code from an app (Proton Pass, Aegis…) after the password, for whoever turns it on in
 		// Ajustes; 10 recovery codes for a lost phone. A trusted device is not asked for 90 days.
-		twoFactor({ issuer: 'Nube', trustDeviceMaxAge: 90 * 24 * 60 * 60 }),
+		twoFactor({ issuer: 'Seilide', trustDeviceMaxAge: 90 * 24 * 60 * 60 }),
 		// One account for the cloud and the house (#279): the cloud is the houses' OpenID provider,
 		// and each house a client of its family's (oidc.ts), trusted, so no consent is asked. The
 		// house's «Entrar con la nube» comes here to /login, and back once in, second step and all.

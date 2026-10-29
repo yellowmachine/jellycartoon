@@ -46,7 +46,7 @@ export async function completeJson<T>(request: {
 		headers: {
 			Authorization: `Bearer ${request.apiKey}`,
 			'Content-Type': 'application/json',
-			'X-OpenRouter-Title': 'Nube'
+			'X-OpenRouter-Title': 'Seilide'
 		},
 		body: JSON.stringify({
 			model: request.model ?? DEFAULT_MODEL,
@@ -138,7 +138,7 @@ export interface Usage {
 const headers = (apiKey: string) => ({
 	Authorization: `Bearer ${apiKey}`,
 	'Content-Type': 'application/json',
-	'X-OpenRouter-Title': 'Nube'
+	'X-OpenRouter-Title': 'Seilide'
 });
 
 /** Models whose thinking can be turned off, from OpenRouter's list; read once per process. */

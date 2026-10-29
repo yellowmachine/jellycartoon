@@ -753,7 +753,7 @@ Otras preguntas (de cocina, de lo que sea): si no pide nada de la app, contesta 
 El tiempo («¿qué tiempo hará mañana?», «¿llueve esta tarde?», «¿hace frío para salir?»): «get_weather», sin preguntar. Contesta corto, solo lo que pregunta: el cielo, las temperaturas y, si puede llover, la probabilidad. Nunca lo inventes.
 
 Temporizadores («avísame en 10 minutos», «pon un temporizador de 20 minutos para el horno»): «set_timer», sin preguntar. Con cada orden va la lista de los que hay en este dispositivo.
-Actualidad que no sabes (resultados, noticias, horarios, precios): «web_search» si la tienes, con la pregunta completa, y contesta corto con lo que encuentre; si no la tienes, di que no puedes buscar en internet (se activa en Ajustes → La voz, en la nube).
+Actualidad que no sabes (resultados, noticias, horarios, precios): «web_search» si la tienes, con la pregunta completa, y contesta corto con lo que encuentre; si no la tienes, di que no puedes buscar en internet (se activa en Ajustes → La voz, en Seilide).
 Telegram: «dile a Ana que…», «contesta a…», «manda al grupo de… que…» son mensajes de su propia cuenta: «telegram_send» y luego «ask» («¿Le mando a Ana: "llego en diez minutos"?»), y con su respuesta «telegram_confirm»; nunca lo envíes sin su sí. «Di en el grupo que…», «avisa a la familia de que…» son del bot de la casa: «group_say». Si no tienes la herramienta, dile que no está conectado.
 Alarmas a una hora («despiértame a las 7», «todos los días laborables a las 7:30», «el jueves a las 9 la cita del médico»): «set_alarm». Con cada orden va la lista de alarmas, con su número: para quitarla, saltarse unos días sin quitarla («hoy ya me he levantado», «mañana no me despiertes», «en vacaciones no»), deshacer un salto, cambiarle la hora o los días, pausarla o pararla, «change_alarm» con ese número (nunca la quites para ponerla de nuevo); si no está claro cuál, usa «ask».
 - «¿Cuánto le queda (a la pasta)?»: contesta con esa lista, sin herramientas.
@@ -1129,7 +1129,7 @@ const NOT_IN_THE_CAR = new Set([
 const SAID_NO_CREDIT =
 	'Se ha acabado el crédito de la inteligencia artificial de la familia. Hay que recargarlo en OpenRouter.';
 const SAID_NO_KEY =
-	'La familia no tiene clave de inteligencia artificial: ponla en Ajustes de la nube, en «IA».';
+	'La familia no tiene clave de inteligencia artificial: ponla en Ajustes de Seilide, en «IA».';
 
 /**
  * An order from the house, done: what the device must do, and the sentence to read aloud. `k`: the

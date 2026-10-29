@@ -20,7 +20,7 @@
 </script>
 
 <svelte:head>
-	<title>{playlist.name} · Nube</title>
+	<title>{playlist.name} · Seilide</title>
 </svelte:head>
 
 <a href="/musica/listas" class="text-sm text-zinc-400 hover:text-white">← Listas</a>

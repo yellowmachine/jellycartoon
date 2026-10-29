@@ -15,7 +15,7 @@
 </script>
 
 <svelte:head>
-	<title>Lista de espera · Nube</title>
+	<title>Lista de espera · Seilide</title>
 </svelte:head>
 
 <div class="mx-auto max-w-2xl">

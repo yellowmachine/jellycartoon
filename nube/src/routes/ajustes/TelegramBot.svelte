@@ -93,7 +93,7 @@
 			<p class="mb-3 text-sm text-zinc-400">
 				En Telegram, habla con <strong>@BotFather</strong>: <code>/newbot</code>, ponle un nombre
 				(«Casa García») y un usuario acabado en «bot». Te dará un token: pégalo aquí. Si ya tenías
-				el de jellycartoon, pega el mismo: ahora lo lleva la nube.
+				el de jellycartoon, pega el mismo: ahora lo lleva Seilide.
 			</p>
 			<form
 				method="post"

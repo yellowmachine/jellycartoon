@@ -25,10 +25,10 @@ const CODE_PROBLEMS: Record<string, string> = {
 };
 /** Why the cloud did not let in (#279): Better Auth's `?error=` on coming back. */
 const NUBE_PROBLEMS: Record<string, string> = {
-	invalid_code: 'La nube no te deja entrar en esta casa: ¿es la de tu familia?',
-	account_not_linked: 'No se pudo unir tu cuenta de la nube con la de esta casa',
-	unable_to_link_account: 'No se pudo unir tu cuenta de la nube con la de esta casa',
-	access_denied: 'Has cancelado la entrada con la nube'
+	invalid_code: 'Seilide no te deja entrar en esta casa: ¿es la de tu familia?',
+	account_not_linked: 'No se pudo unir tu cuenta de Seilide con la de esta casa',
+	unable_to_link_account: 'No se pudo unir tu cuenta de Seilide con la de esta casa',
+	access_denied: 'Has cancelado la entrada con Seilide'
 };
 
 /** After these, the code is no longer asked for: the password again. */
@@ -50,7 +50,7 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 		/** «Entrar con la nube», with this house's client in the `.env` (#279). */
 		nube: Boolean(nube),
 		nubeProblem: url.searchParams.has('error')
-			? (NUBE_PROBLEMS[url.searchParams.get('error')!] ?? 'No se pudo entrar con la nube')
+			? (NUBE_PROBLEMS[url.searchParams.get('error')!] ?? 'No se pudo entrar con Seilide')
 			: null
 	};
 };
@@ -61,7 +61,7 @@ export const actions: Actions = {
 	 * to `next`. No second step here: the cloud asked for its own (#279).
 	 */
 	nube: async ({ request, url }) => {
-		if (!nube) return fail(404, { message: 'Esta casa no entra con la nube' });
+		if (!nube) return fail(404, { message: 'Esta casa no entra con Seilide' });
 		const { url: to } = await auth.api.signInSocial({
 			body: {
 				provider: NUBE_PROVIDER,
@@ -71,7 +71,7 @@ export const actions: Actions = {
 			},
 			headers: request.headers
 		});
-		if (!to) return fail(500, { message: 'No se pudo entrar con la nube' });
+		if (!to) return fail(500, { message: 'No se pudo entrar con Seilide' });
 		redirect(303, to, { external: true });
 	},
 	signIn: async ({ request, url }) => {
