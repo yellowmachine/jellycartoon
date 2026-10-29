@@ -133,6 +133,22 @@ async function problemOf(response: Response) {
  * it an alarm rings (alarms.ts), or asking for its satellites. Throws a HouseProblem.
  */
 export async function tellHouse<T>(familyId: string, path: string, body?: unknown): Promise<T> {
+	return sendHouse<T>(familyId, path, {
+		method: body === undefined ? 'GET' : 'POST',
+		body: body === undefined ? undefined : JSON.stringify(body)
+	});
+}
+
+/**
+ * The same with a body of its own (`type`): what a satellite Seilide serves recorded (#296), for the
+ * house's Whisper, which knows its music's names.
+ */
+export async function sendHouse<T>(
+	familyId: string,
+	path: string,
+	{ method, body, type = 'application/json' }: { method: string; body?: BodyInit; type?: string },
+	timeoutMs = 10_000
+): Promise<T> {
 	const [row] = await asFamily(familyId, (tx) => tx.select().from(house));
 	if (!row) throw new HouseProblem('Tu familia aún no ha conectado su casa');
 	const key = decrypt(row.key);
@@ -140,10 +156,10 @@ export async function tellHouse<T>(familyId: string, path: string, body?: unknow
 	let response: Response;
 	try {
 		response = await fetch(`${row.url}/api/v1${path}`, {
-			method: body === undefined ? 'GET' : 'POST',
-			headers: { 'x-api-key': key, 'content-type': 'application/json' },
-			body: body === undefined ? undefined : JSON.stringify(body),
-			signal: AbortSignal.timeout(10_000)
+			method,
+			headers: { 'x-api-key': key, 'content-type': type },
+			body,
+			signal: AbortSignal.timeout(timeoutMs)
 		});
 	} catch {
 		throw new HouseProblem('La casa no contesta: ¿está encendida, con el túnel conectado?');

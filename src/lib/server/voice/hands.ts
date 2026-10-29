@@ -53,7 +53,7 @@ import {
 	prepareTimerAt,
 	startTimerAt
 } from '#lib/server/alarms/alarms.ts';
-import { allSatellites, type Satellite } from '#lib/server/satellites.ts';
+import { allSatellites, cloudSatellite, type Satellite } from '#lib/server/satellites.ts';
 import {
 	runTelegramTool,
 	TELEGRAM_TOOLS,
@@ -259,6 +259,20 @@ export async function runVoiceCommand(
  */
 export async function orderFromCloud(request: VoiceRequest, user: Person) {
 	return (await openOrder({ ...request, video: null }, user)).body;
+}
+
+/**
+ * An order said to one of the satellites Seilide serves (#296), as said to one of the house's: by
+ * anyone in the room, with its speaker if it was the house's (`cloudSatellite`). Null if the house
+ * has no one to do it in the name of.
+ */
+export async function orderForCloudSatellite(
+	request: VoiceRequest,
+	{ id, name }: { id: string; name: string }
+) {
+	const found = await cloudSatellite(id, name);
+	if (!found) return null;
+	return (await openOrder({ ...request, video: null }, found.owner, found.satellite)).body;
 }
 
 /** One of the house's tools, asked by the cloud's AI for an order going on; null, no such order. */

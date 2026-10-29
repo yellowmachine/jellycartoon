@@ -1,7 +1,7 @@
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { auth } from '#lib/server/auth.ts';
 import { db } from '#lib/server/db/index.ts';
-import { apikey } from '#lib/server/db/auth.schema.ts';
+import { apikey, user } from '#lib/server/db/auth.schema.ts';
 
 /**
  * The voice satellites (#223): a device in a room that hears «hola casita» and sends the order,
@@ -144,4 +144,29 @@ export async function allSatellites(): Promise<Satellite[]> {
 				]
 			: [];
 	});
+}
+
+/**
+ * One that talks to Seilide (#296), as the house sees it: its own, if it was the house's (its id),
+ * with its speaker and in whose name it goes; else a new one, in the whole house, in the name of
+ * whoever manages the house (its first account).
+ */
+export async function cloudSatellite(id: string, name: string) {
+	const own = (await allSatellites()).find((s) => s.id === id);
+	const [owner] = own
+		? await db.select({ id: user.id, name: user.name }).from(user).where(eq(user.id, own.ownerId))
+		: await db
+				.select({ id: user.id, name: user.name })
+				.from(user)
+				.orderBy(asc(user.createdAt))
+				.limit(1);
+	if (!owner) return null;
+	const satellite: Satellite = own ?? {
+		id,
+		name,
+		ownerId: owner.id,
+		speakerId: null,
+		answerOn: null
+	};
+	return { satellite, owner };
 }

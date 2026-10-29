@@ -26,6 +26,7 @@ const PUBLIC_PATHS = [
 	// The voice satellites Seilide serves (#296), with their key (satellites.ts), at the house's paths.
 	'/api/voice/',
 	'/api/satelite/',
+	'/api/salon/bajar',
 	'/api/calendario/',
 	// The apps' AI, with the person's access token (app-ai.ts).
 	'/api/ia/',

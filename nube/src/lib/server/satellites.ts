@@ -51,12 +51,6 @@ export function servedSatellites(familyId: string) {
 	);
 }
 
-/** Its own and the house's (those it has not adopted): every place an alarm can sound. */
-export async function allSatellites(familyId: string) {
-	const [own, house] = await Promise.all([familySatellites(familyId), houseSatellites(familyId)]);
-	return [...own, ...house.filter((h) => !own.some((o) => o.id === h.id))];
-}
-
 /** For Ajustes: never the keys, only how they start. */
 export function listSatellites(userId: string) {
 	return withFamily(userId, (tx) =>
