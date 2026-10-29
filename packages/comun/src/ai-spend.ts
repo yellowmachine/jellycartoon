@@ -104,6 +104,7 @@ export function spendTracker(source: {
 const KINDS: [RegExp, string][] = [
 	[/^Voz, en internet/, 'Voz: buscar en internet'],
 	[/^Voz/, 'Voz'],
+	[/^Ajustes/, 'Ajustes: preguntar'],
 	[/^Leer un ticket/, 'Tickets'],
 	[/^Leer una factura/, 'Facturas'],
 	[/^(Pasos de|Receta de)/, 'Recetas'],

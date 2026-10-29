@@ -27,3 +27,12 @@ test('found by a word, the administrator’s only for them', () => {
 	expect(searchSettings('silencio', { admin: true }).map((e) => e.id)).toEqual(['voz-silencio']);
 	expect(searchSettings('silencio', { admin: false })).toEqual([]);
 });
+
+test('a sentence, not only the words of the index', () => {
+	const ids = (q: string) => searchSettings(q, { admin: true }).map((e) => e.id);
+	expect(ids('quiero cambiar los colores')[0]).toBe('colores');
+	expect(ids('que me avise el móvil cuando suena una alarma')[0]).toBe('avisos');
+	expect(ids('como invito a mi hermana')[0]).toBe('invitaciones');
+	expect(ids('color')[0]).toBe('colores');
+	expect(ids('quiero')).toEqual([]);
+});
