@@ -54,7 +54,12 @@ app (`nube_app`) con su contraseña: no hay SQL a mano.
    S3_ACCESS_KEY_ID=…            # el rustfs de la pila (fotos de tickets, facturas): openssl rand -hex 12
    S3_SECRET_ACCESS_KEY=…        # openssl rand -hex 24
    ADMIN_FAMILY="Casa García"
+   SMTP_HOST=smtp.protonmail.ch  # los correos («Pedir acceso» de la portada); sin él, no se envían
+   SMTP_USER=no-reply@scholio.review
+   SMTP_PASS=…                   # el token SMTP de Proton
    ```
+   Quien pide acceso desde la portada (`/`) queda apuntado en la tabla `waitlist`, recibe un correo,
+   y a `ADMIN_EMAIL` le llega un aviso (responderlo le escribe a esa persona).
 3. **Domains:** `nube.tu-dominio.com` → servicio `app`, puerto 3000, con HTTPS (Let's Encrypt).
    En Cloudflare, un registro `A` `nube` → IP del VPS, en modo DNS only.
 4. **Deploy.** La imagen la construye GitHub (`.github/workflows/nube-image.yml`, #277) en cada push
