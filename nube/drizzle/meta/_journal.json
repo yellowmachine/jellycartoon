@@ -155,6 +155,13 @@
       "when": 1793261354911,
       "tag": "0021_slow_blue_shield",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793273299689,
+      "tag": "0022_emails_de_invitaciones_verificados",
+      "breakpoints": true
     }
   ]
 }
