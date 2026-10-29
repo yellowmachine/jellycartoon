@@ -14,13 +14,15 @@
 	] as const;
 </script>
 
-<nav class="mb-4 flex gap-1 overflow-x-auto border-b border-zinc-800">
+<!-- Its line, a shadow inside and not a border: a tab drawn over a border, a pixel below, made a
+scrollbar appear (overflow-x-auto scrolls up and down too). -->
+<nav class="mb-4 flex gap-1 overflow-x-auto shadow-[inset_0_-1px_0] shadow-zinc-800">
 	{#each TABS as t (t.id)}
 		<a
 			href={t.href}
 			aria-current={t.id === current ? 'page' : undefined}
 			class={[
-				'-mb-px shrink-0 border-b-2 px-4 py-2 text-sm',
+				'shrink-0 border-b-2 px-4 py-2 text-sm',
 				t.id === current
 					? 'border-amber-500 font-semibold text-white'
 					: 'border-transparent text-zinc-400 hover:text-white'
