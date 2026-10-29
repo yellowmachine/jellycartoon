@@ -43,6 +43,15 @@ import {
 import { forgetLearned, listLearned } from '#lib/server/voice/learned.ts';
 import { forget, listMemories, remember } from '#lib/server/memory.ts';
 import { createHouseKey, deleteHouseKey, listHouseKeys } from '#lib/server/house-keys.ts';
+import {
+	createSatellite,
+	deleteSatellite,
+	listSatellites,
+	MAX_SATELLITE_NAME,
+	setSnapserver
+} from '#lib/server/satellites.ts';
+import { parseSnapserver } from '#lib/snapserver.ts';
+import { satelliteVoiceOf, setSatelliteVoice } from '#lib/server/voice/satellite-voice.ts';
 import { invitationLink, invitations, inviteAndSend } from '#lib/server/invitations.ts';
 import {
 	createHouseClient,
@@ -72,6 +81,10 @@ export const load: PageServerLoad = async ({ locals, request }) => {
 		openRouter: await openRouterKeyStart(k),
 		ors: await orsKeyStart(k),
 		houseKeys: await listHouseKeys(locals.user!.id),
+		/** The voice satellites Seilide serves (#296): its administrator. */
+		satellites: admin ? { own: await listSatellites(locals.user!.id), origin: ORIGIN } : null,
+		/** How they speak (#296): Gemini's voice, its tone, what they say while the AI thinks. */
+		satelliteVoice: admin ? await satelliteVoiceOf(k) : null,
 		twoFactor: Boolean(locals.user!.twoFactorEnabled),
 		people: await familyPeople(k),
 		telegramBot: admin ? { bot: await botStatus(membership.familyId) } : null,
@@ -457,6 +470,52 @@ export const actions: Actions = {
 		if (!name || name.length > 32)
 			return fail(400, { houseKeyProblem: 'Ponle un nombre de hasta 32 letras' });
 		return { houseKey: await createHouseKey(locals.user!.id, name), houseKeyName: name };
+	},
+	/** A voice satellite of Seilide's (#296): its key, shown once. */
+	createSatellite: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'satelliteProblem');
+		if (denied) return denied;
+		const form = await request.formData();
+		const name = String(form.get('name') ?? '').trim();
+		if (!name) return fail(400, { satelliteProblem: 'Ponle un nombre: «dormitorio»' });
+		if (name.length > MAX_SATELLITE_NAME)
+			return fail(400, { satelliteProblem: `Hasta ${MAX_SATELLITE_NAME} letras` });
+		return {
+			satelliteKey: await createSatellite(locals.user!.id, name),
+			satelliteName: name
+		};
+	},
+	/** «Voz de los satélites»: the voice, its tone and the phrases; their recordings, made now. */
+	saveSatelliteVoice: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'satelliteVoiceProblem');
+		if (denied) return denied;
+		const form = await request.formData();
+		const k = await kitchenOf(locals.user!.id);
+		await setSatelliteVoice(k, await openRouterKey(k), {
+			voice: String(form.get('voice') ?? ''),
+			tone: String(form.get('tone') ?? ''),
+			fillers: String(form.get('fillers') ?? '')
+		});
+		return { saved: 'satelliteVoice' };
+	},
+	/** Its snapserver (the house's music in its room), or none: told to it at once. */
+	saveSnapserver: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'satelliteProblem');
+		if (denied) return denied;
+		const form = await request.formData();
+		const snapserver = parseSnapserver(String(form.get('snapserver') ?? ''));
+		if (snapserver === undefined)
+			return fail(400, {
+				satelliteProblem: 'El snapserver es una IP o un nombre, con su puerto si no es 1704'
+			});
+		await setSnapserver(locals.user!.id, String(form.get('id') ?? ''), snapserver);
+		return { saved: 'snapserver' };
+	},
+	deleteSatellite: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'satelliteProblem');
+		if (denied) return denied;
+		await deleteSatellite(locals.user!.id, String((await request.formData()).get('id') ?? ''));
+		return { saved: 'satellites' };
 	},
 	deleteHouseKey: async ({ request, locals }) => {
 		const denied = await requireAdmin(locals.user!.id, 'houseKeyProblem');

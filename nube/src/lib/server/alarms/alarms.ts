@@ -11,7 +11,8 @@ import {
 import { alarm, alarmPerson, familyPerson } from '#lib/server/db/schema.ts';
 import type { AnyDb } from '#lib/server/family-scope.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
-import { tellHouse } from '#lib/server/house.ts';
+import { familyHasHouse, tellHouse } from '#lib/server/house.ts';
+import { familySatellites } from '#lib/server/satellites.ts';
 import { notify } from '#lib/server/push.ts';
 import { tellGroup } from '#lib/server/telegram/bot.ts';
 import { toldOf } from '#lib/server/agenda/agenda.ts';
@@ -25,7 +26,8 @@ import { nextRing } from './next.ts';
  * the family's group if it is the house's (its Telegram bot).
  * The timers said to the cloud (Hablar, the road mode) are rows here too, rung once at their end:
  * on the phones of who set them (`movil`), or in the house if they said so. The house's own (its
- * satellites'), there.
+ * satellites'), there; those of the satellites Seilide serves (#296), here, rung by this clock and
+ * heard by them (`ringingFor`), never through the house.
  */
 
 /** A phone's notice of one ringing, no use after this: the house stops sounding by then. */
@@ -559,8 +561,14 @@ export async function ringDue(k: Kitchen) {
  * banner says it.
  */
 async function ringAtHouse(k: Kitchen, row: Row) {
-	let where = placeName(row.place, []);
-	if (row.place !== 'movil')
+	const own = await familySatellites(k.familyId);
+	let where = placeName(row.place, own);
+	// One of Seilide's satellites hears it itself (`ringingFor`); «casa» without a house, too.
+	const atHouse =
+		row.place !== 'movil' &&
+		!own.some((s) => `satelite:${s.id}` === row.place) &&
+		(row.place !== 'casa' || (await familyHasHouse(k.familyId)));
+	if (atHouse)
 		try {
 			({ where } = await tellHouse<{ where: string }>(k.familyId, '/avisos', {
 				id: row.id,
@@ -584,4 +592,147 @@ async function ringAtHouse(k: Kitchen, row: Row) {
 	});
 	// The house's, to the family's group too (its bot).
 	if (!people.length) await tellGroup(k.familyId, 'alarmas', `⏰ Suena: ${row.label}`);
+}
+
+// ——— The satellites Seilide serves (#296) ———
+
+/** The house's timers of a place (a satellite): for no one, counting, ringing, or over a while ago. */
+async function timersAt(k: Kitchen, place: AlarmPlace) {
+	return k.run(async (tx) => {
+		const rows = await tx
+			.select()
+			.from(alarm)
+			.where(and(eq(alarm.kind, 'temporizador'), eq(alarm.place, place)));
+		const of = await peopleOf(
+			tx,
+			rows.map((r) => r.id)
+		);
+		return rows.filter((r) => !of(r.id).length);
+	});
+}
+
+/**
+ * «Pon un temporizador de media hora», said to one of Seilide's satellites: rings there once at
+ * its end, for anyone in the room. One with the same name starts over. Its name.
+ */
+export async function startTimerAt(
+	k: Kitchen,
+	place: AlarmPlace,
+	{ label, seconds }: { label: string; seconds: number }
+) {
+	const rows = await timersAt(k, place);
+	const name = nameFor(rows, label, seconds);
+	const same = rows.filter((r) => !r.doneAt && sameLabel(r.label, name));
+	const end = new Date(Date.now() + seconds * 1000);
+	await k.run(async (tx) => {
+		if (same.length)
+			await tx.delete(alarm).where(
+				inArray(
+					alarm.id,
+					same.map((r) => r.id)
+				)
+			);
+		await tx.insert(alarm).values({
+			familyId: k.familyId,
+			kind: 'temporizador',
+			label: name,
+			place,
+			userId: k.userId,
+			time: `${localTime(end)}:${String(end.getSeconds()).padStart(2, '0')}`,
+			startDay: localDay(end),
+			nextAt: end
+		});
+	});
+	console.info(`[avisos] Temporizador: «${name}»`, { familyId: k.familyId, place });
+	changed(k.familyId);
+	return name;
+}
+
+/** That one there by its name, or all of them with null: counting or ringing. How many. */
+export async function cancelTimersAt(k: Kitchen, place: AlarmPlace, label: string | null) {
+	const rows = (await timersAt(k, place)).filter(
+		(r) => !r.doneAt && (label === null || sameLabel(r.label, label))
+	);
+	if (!rows.length) return 0;
+	await k.run((tx) =>
+		tx
+			.update(alarm)
+			.set({ ringingSince: null, nextAt: null, doneAt: new Date() })
+			.where(
+				inArray(
+					alarm.id,
+					rows.map((r) => r.id)
+				)
+			)
+	);
+	changed(k.familyId);
+	return rows.length;
+}
+
+/** For the AI, with each order said there: «¿cuánto le queda?». */
+export async function describeTimersAt(k: Kitchen, place: AlarmPlace) {
+	const rows = await timersAt(k, place);
+	return describeTimers(
+		{
+			done: rows
+				.filter((r) => r.doneAt)
+				.map((r) => ({
+					label: r.label,
+					how: r.doneAt! < new Date(`${r.startDay}T${r.time}`) ? 'quitado' : 'sonó',
+					at: r.doneAt!.getTime()
+				})),
+			running: rows
+				.filter((r) => !r.doneAt && !r.ringingSince && r.nextAt)
+				.map((r) => ({ label: r.label, endsAt: r.nextAt!.getTime() })),
+			ringing: rows.filter((r) => !r.doneAt && r.ringingSince),
+			prepared: []
+		},
+		Date.now()
+	);
+}
+
+/** Ringing there: its own and the whole house's. */
+async function ringingAt(k: Kitchen, place: AlarmPlace) {
+	return k.run((tx) =>
+		tx
+			.select({ id: alarm.id, label: alarm.label, place: alarm.place })
+			.from(alarm)
+			.where(and(isNotNull(alarm.ringingSince), inArray(alarm.place, [place, 'casa'])))
+	);
+}
+
+/**
+ * What rings where one of Seilide's satellites is, as the house tells its own (/api/satelite/avisos):
+ * all of it, which its wake word stops; and what it says itself, all of it too (no Snapcast here).
+ */
+export async function ringingFor(k: Kitchen, satelliteId: string) {
+	const labels = (await ringingAt(k, `satelite:${satelliteId}`)).map((r) => r.label);
+	return { ringing: labels, play: labels };
+}
+
+/**
+ * Its wake word while something rings there: quiet, as a touch would; the whole house's too, and
+ * the house told. How many.
+ */
+export async function stopRingingAt(k: Kitchen, place: AlarmPlace) {
+	const rows = await ringingAt(k, place);
+	if (!rows.length) return 0;
+	await k.run((tx) =>
+		tx
+			.update(alarm)
+			.set(quiet)
+			.where(
+				inArray(
+					alarm.id,
+					rows.map((r) => r.id)
+				)
+			)
+	);
+	for (const r of rows) {
+		stoppedAt.set(r.id, Date.now());
+		if (r.place === 'casa' && (await familyHasHouse(k.familyId)))
+			void quietAtHouse(k.familyId, r.id);
+	}
+	changed(k.familyId);
+	return rows.length;
 }

@@ -12,6 +12,8 @@
 	import VozSilencio from './VozSilencio.svelte';
 	import VozAprendido from './VozAprendido.svelte';
 	import VozRecuerda from './VozRecuerda.svelte';
+	import Satelites from './Satelites.svelte';
+	import VozSatelites from './VozSatelites.svelte';
 	import Guardado from 'comun/components/Guardado.svelte';
 	import { avatar, isAvatar } from 'comun/avatars.ts';
 	import { page } from '$app/state';
@@ -354,6 +356,10 @@
 				<p class="mt-3 text-sm text-red-400">{form.houseKeyProblem}</p>
 			{/if}
 		</section>
+
+		<Satelites {data} {form} {tab} />
+
+		<VozSatelites {data} {form} {tab} />
 
 		<EntrarConLaNube {data} {form} {tab} />
 

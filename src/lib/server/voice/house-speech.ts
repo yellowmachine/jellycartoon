@@ -1,9 +1,9 @@
 import { log } from '#lib/server/log.ts';
 import { houseVoice, piper, type PiperVoice } from '#lib/server/piper.ts';
 import { aiSpeech } from '#lib/server/voice/ai-voice.ts';
-import { withChime } from '#lib/server/voice/chime.ts';
+import { withChime } from 'comun/chime.ts';
 import { getVoiceLevels } from '#lib/server/voice/levels.ts';
-import { louder } from '#lib/server/voice/wav.ts';
+import { louder } from 'comun/wav.ts';
 import { DEFAULT_TONE } from '#lib/voice-fillers.ts';
 import { piperStyle } from '#lib/voice-levels.ts';
 

@@ -197,6 +197,27 @@
       "when": 1793305331977,
       "tag": "0027_marvelous_miss_america",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1793309274994,
+      "tag": "0028_lively_master_chief",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793310984395,
+      "tag": "0029_perfect_mathemanic",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793311706333,
+      "tag": "0030_futuristic_johnny_blaze",
+      "breakpoints": true
     }
   ]
 }

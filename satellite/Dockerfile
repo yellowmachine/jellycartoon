@@ -11,8 +11,9 @@ RUN cd satellite && bun install --frozen-lockfile --production
 COPY satellite/src satellite/src
 RUN bun build satellite/src/main.ts --target=node --external onnxruntime-node --outfile satellite/dist/main.js
 
-FROM node:24-slim
-RUN apt-get update && apt-get install -y --no-install-recommends alsa-utils \
+# Debian 13: its snapclient (0.31) is the house's snapserver's version (#296).
+FROM node:24-trixie-slim
+RUN apt-get update && apt-get install -y --no-install-recommends alsa-utils snapclient \
 	&& rm -rf /var/lib/apt/lists/*
 WORKDIR /satellite
 # ONNX Runtime's usage reports, off: nothing leaves the satellite but the orders.

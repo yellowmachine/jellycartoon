@@ -53,7 +53,7 @@ import {
 	prepareTimerAt,
 	startTimerAt
 } from '#lib/server/alarms/alarms.ts';
-import { allSatellites, type Satellite } from '#lib/server/satellites.ts';
+import { allSatellites, cloudSatellite, type Satellite } from '#lib/server/satellites.ts';
 import {
 	runTelegramTool,
 	TELEGRAM_TOOLS,
@@ -119,6 +119,8 @@ interface Order {
 	place: AlarmPlace | null;
 	/** The satellite's name, said to one (#243): «Desde el salón». */
 	satelliteName: string | null;
+	/** A satellite that is a speaker itself (#296, `ownSpeaker`): its Snapcast id, its «aquí». */
+	satelliteSpeaker: string | null;
 	/** This order's own id: a message is never sent in the order that prepared it (#243). */
 	order: string;
 	/** The film whose card is on the screen, to ask about it (`ask_about_film`). */
@@ -186,6 +188,7 @@ async function openOrder(
 		satellite: Boolean(satellite),
 		place,
 		satelliteName: satellite?.name ?? null,
+		satelliteSpeaker: satellite?.ownSpeaker ? satellite.speakerId : null,
 		order,
 		film: film?.id ?? null
 	});
@@ -195,7 +198,9 @@ async function openOrder(
 			order,
 			request,
 			who: { name: satellite ? '' : user.name, kid },
-			satellite: satellite ? { id: satellite.id, name: satellite.name } : null,
+			satellite: satellite
+				? { id: satellite.id, name: satellite.name, ownSpeaker: Boolean(satellite.ownSpeaker) }
+				: null,
 			house: {
 				library: libraryLines(albums),
 				playlists,
@@ -261,6 +266,20 @@ export async function orderFromCloud(request: VoiceRequest, user: Person) {
 	return (await openOrder({ ...request, video: null }, user)).body;
 }
 
+/**
+ * An order said to one of the satellites Seilide serves (#296), as said to one of the house's: by
+ * anyone in the room, with its own snapclient as its speaker if it has one (`cloudSatellite`).
+ * Null if the house has no one to do it in the name of.
+ */
+export async function orderForCloudSatellite(
+	request: VoiceRequest,
+	{ id, name, speaker }: { id: string; name: string; speaker: string | null }
+) {
+	const found = await cloudSatellite(id, name, speaker);
+	if (!found) return null;
+	return (await openOrder({ ...request, video: null }, found.owner, found.satellite)).body;
+}
+
 /** One of the house's tools, asked by the cloud's AI for an order going on; null, no such order. */
 export async function runHand(
 	orderId: string,
@@ -297,12 +316,17 @@ async function hand(
 		if (!question) return 'Falta la pregunta.';
 		return (await askAloud(ctx.user.id, ctx.film, question)) || 'No ha sabido qué contestar.';
 	}
-	// A satellite's «aquí» has nothing to play on: music, radio and their controls, in the whole house.
-	const asked =
-		ctx.satellite && HOUSE_FROM_SATELLITE.has(name) && (!args.where || args.where === 'here')
-			? 'house'
-			: args.where;
-	const room = ctx.house ? ctx.rooms.find((r) => fold(r.name) === fold(String(asked))) : undefined;
+	// A satellite's «aquí» has nothing to play on: music, radio and their controls, in the whole house;
+	// or, one of Seilide's that plays the house's music itself (#296), on its own snapclient.
+	const satelliteHere =
+		ctx.satellite && HOUSE_FROM_SATELLITE.has(name) && (!args.where || args.where === 'here');
+	const own = satelliteHere && ctx.house ? ctx.satelliteSpeaker : null;
+	const asked = satelliteHere && !own ? 'house' : args.where;
+	const room = own
+		? { id: own, name: ctx.satelliteName ?? 'el satélite' }
+		: ctx.house
+			? ctx.rooms.find((r) => fold(r.name) === fold(String(asked)))
+			: undefined;
 	// Snapcast: all its speakers, or only one; else this device.
 	const where: 'here' | SnapcastWhere = room
 		? { speakerId: room.id }

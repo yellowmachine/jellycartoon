@@ -56,7 +56,11 @@ export interface HouseVoiceOrder {
 	request: VoiceRequest;
 	/** Who speaks: their name (empty on a satellite) and whether it is a child's account. */
 	who: { name: string; kid: boolean };
-	satellite: { id: string; name: string } | null;
+	/**
+	 * Said to a voice satellite: which. `ownSpeaker`, one of Seilide's that plays the house's music
+	 * itself (its own snapclient, #296): «aquí» is its room, not the whole house.
+	 */
+	satellite: { id: string; name: string; ownSpeaker?: boolean } | null;
 	house: HouseVoiceContext;
 }
 

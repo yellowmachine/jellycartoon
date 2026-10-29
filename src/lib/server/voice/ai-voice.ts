@@ -1,6 +1,7 @@
 import { log } from '#lib/server/log.ts';
 import { speech } from '#lib/server/openrouter.ts';
-import { writeWav } from './wav.ts';
+import { AI_VOICE } from 'comun/ai-voice.ts';
+import { writeWav } from 'comun/wav.ts';
 
 /**
  * The AI voice of the satellites (#223): Gemini's Kore through OpenRouter, as the DJ's (music/dj.ts),
@@ -8,8 +9,6 @@ import { writeWav } from './wav.ts';
  * chooses it (Ajustes → Casa, «Respuestas con»), for the answers instead of Piper: about 2.6 s
  * more for each (measured that day), against Piper's tenth of a second.
  */
-
-const AI_VOICE = { model: 'google/gemini-3.8-flash-tts', voice: 'Kore' };
 
 /**
  * As a WAV; throws, said for a person. `tone`, how it says it (accent, mood); `timeoutMs`, how long

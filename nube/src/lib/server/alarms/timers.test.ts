@@ -17,7 +17,13 @@ mock.module('#lib/server/house.ts', () => ({
 	tellHouse: async (_: string, path: string, body: { place: string }) => {
 		house.push({ path, body });
 		return { where: 'toda la casa' };
-	}
+	},
+	familyHasHouse: async () => true
+}));
+// One satellite served by Seilide (#296), already connected: its alarms ring here, not at the house.
+mock.module('#lib/server/satellites.ts', () => ({
+	familySatellites: async () => [{ id: 'dormitorio', name: 'dormitorio' }],
+	servedSatellites: async () => [{ id: 'dormitorio', name: 'dormitorio' }]
 }));
 mock.module('#lib/server/push.ts', () => ({
 	notify: async (_: string, __: unknown, notice: { title: string; body: string }) =>
@@ -26,8 +32,15 @@ mock.module('#lib/server/push.ts', () => ({
 mock.module('#lib/server/telegram/bot.ts', () => ({ tellGroup: async () => {} }));
 mock.module('#lib/server/agenda/agenda.ts', () => ({ toldOf: async () => [] }));
 
-const { cancelTimers, describeTimersOf, listAlarms, ringDue, startTimer } =
-	await import('./alarms.ts');
+const {
+	cancelTimers,
+	describeTimersOf,
+	listAlarms,
+	ringDue,
+	ringingFor,
+	startTimer,
+	startTimerAt
+} = await import('./alarms.ts');
 
 const db = drizzle(new PGlite(), { schema });
 const k: Kitchen = { familyId: 'A', userId: null, run: (fn) => db.transaction((tx) => fn(tx)) };
@@ -103,5 +116,19 @@ describe('timers said to the cloud', () => {
 	test('not for the house: a satellite does not see them', async () => {
 		await startTimer(k, me, { label: 'el pan', seconds: 60, place: 'movil' });
 		expect(await listAlarms(k, null)).toEqual([]);
+	});
+});
+
+describe('the satellites Seilide serves (#296)', () => {
+	test('their timer rings there, heard by them, and the house is not told', async () => {
+		const before = house.length;
+		await startTimerAt(k, 'satelite:dormitorio', { label: 'la siesta', seconds: 600 });
+		await due('la siesta');
+		await ringDue(k);
+		expect(await ringingFor(k, 'dormitorio')).toEqual({
+			ringing: ['la siesta'],
+			play: ['la siesta']
+		});
+		expect(house.length).toBe(before);
 	});
 });

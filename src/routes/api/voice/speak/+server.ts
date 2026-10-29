@@ -5,10 +5,10 @@ import { sayOnSnapcast, snapcastVoiceReady } from '#lib/server/music/snapcast.ts
 import { isPiperVoice, piperEnabled } from '#lib/server/piper.ts';
 import { fillerWav } from '#lib/server/voice-fillers.ts';
 import { MAX_FILLER_CHARS } from '#lib/voice-fillers.ts';
-import { withChime } from '#lib/server/voice/chime.ts';
+import { withChime } from 'comun/chime.ts';
 import { houseSpeech } from '#lib/server/voice/house-speech.ts';
 import { getVoiceLevels } from '#lib/server/voice/levels.ts';
-import { louder } from '#lib/server/voice/wav.ts';
+import { louder } from 'comun/wav.ts';
 
 /** An answer is a sentence or three: more than this is not one. */
 const MAX_CHARS = 1000;

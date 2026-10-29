@@ -415,3 +415,35 @@ export async function transcribe(request: {
 	noteCost(request.apiKey, 'Voz: oír', body);
 	return typeof body?.text === 'string' ? body.text.trim() : '';
 }
+
+/**
+ * `input` read aloud (https://openrouter.ai/docs/guides/overview/multimodal/tts), as raw PCM: 16-bit,
+ * mono, at `rate` (Gemini's speech models give only that), as the house's (its openrouter.ts): for
+ * the satellites Seilide serves (#296). `instructions` say how, without being read. Throws, said for
+ * a person.
+ */
+export async function speech(request: {
+	apiKey: string;
+	model: string;
+	voice: string;
+	input: string;
+	instructions?: string;
+	timeoutMs?: number;
+}): Promise<{ pcm: Uint8Array; rate: number }> {
+	const res = await fetch('https://openrouter.ai/api/v1/audio/speech', {
+		method: 'POST',
+		headers: headers(request.apiKey),
+		body: JSON.stringify({
+			model: request.model,
+			voice: request.voice,
+			input: request.input,
+			...(request.instructions && { instructions: request.instructions }),
+			response_format: 'pcm'
+		}),
+		signal: AbortSignal.timeout(request.timeoutMs ?? 60_000)
+	});
+	if (!res.ok) throw refused(res.status, await res.json().catch(() => null));
+	// E.g. `audio/pcm;rate=24000;channels=1`.
+	const rate = Number(/rate=(\d+)/.exec(res.headers.get('content-type') ?? '')?.[1]) || 24_000;
+	return { pcm: new Uint8Array(await res.arrayBuffer()), rate };
+}

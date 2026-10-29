@@ -1,7 +1,7 @@
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { auth } from '#lib/server/auth.ts';
 import { db } from '#lib/server/db/index.ts';
-import { apikey } from '#lib/server/db/auth.schema.ts';
+import { apikey, user } from '#lib/server/db/auth.schema.ts';
 
 /**
  * The voice satellites (#223): a device in a room that hears «hola casita» and sends the order,
@@ -36,6 +36,8 @@ export interface Satellite {
 	speakerId: string | null;
 	/** Where it answers: null, its own speaker; else on Snapcast (snapcast.ts, `sayOnSnapcast`). */
 	answerOn: SatelliteAnswer;
+	/** One of Seilide's (#296) whose `speakerId` is its own snapclient: «aquí» is only there. */
+	ownSpeaker?: boolean;
 }
 
 /** The whole house, or one Snapcast speaker (its id). */
@@ -144,4 +146,27 @@ export async function allSatellites(): Promise<Satellite[]> {
 				]
 			: [];
 	});
+}
+
+/**
+ * One that talks to Seilide (#296), as the house sees it: never one of its own; in the name of
+ * whoever manages the house (its first account), and with its own snapclient as its room's speaker
+ * if Seilide says it has one. Null without any account.
+ */
+export async function cloudSatellite(id: string, name: string, speaker: string | null) {
+	const [owner] = await db
+		.select({ id: user.id, name: user.name })
+		.from(user)
+		.orderBy(asc(user.createdAt))
+		.limit(1);
+	if (!owner) return null;
+	const satellite: Satellite = {
+		id,
+		name,
+		ownerId: owner.id,
+		speakerId: speaker,
+		answerOn: null,
+		ownSpeaker: speaker !== null
+	};
+	return { satellite, owner };
 }
