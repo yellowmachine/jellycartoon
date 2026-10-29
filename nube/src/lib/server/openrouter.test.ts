@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { usageOfStream } from './openrouter.ts';
+import { sayableError, toolChoiceRefused, usageOfStream } from './openrouter.ts';
 
 test('the usage of a streamed answer, in its last event', () => {
 	const stream = [
@@ -15,3 +15,21 @@ test('the usage of a streamed answer, in its last event', () => {
 
 test('none if it never came', () =>
 	expect(usageOfStream('data: {"choices":[]}\n\ndata: [DONE]\n\n')).toBeUndefined());
+
+test('a tool_choice no provider takes, told apart', () => {
+	const refusal = {
+		error: { message: "No endpoints found that support the provided 'tool_choice' value." }
+	};
+	expect(toolChoiceRefused(404, refusal)).toBe(true);
+	expect(toolChoiceRefused(404, { error: { message: 'No endpoints found for model' } })).toBe(
+		false
+	);
+	expect(toolChoiceRefused(400, refusal)).toBe(false);
+});
+
+test("OpenRouter's own words are not read aloud; ours are", () => {
+	expect(
+		sayableError("OpenRouter: No endpoints found that support the provided 'tool_choice' value")
+	).toBe('La IA no ha podido contestar ahora. Prueba otra vez.');
+	expect(sayableError('No queda saldo en OpenRouter')).toBe('No queda saldo en OpenRouter');
+});

@@ -90,6 +90,19 @@ function refused(status: number, body: { error?: { message?: string } } | null) 
 	return new Error(`OpenRouter: ${body?.error?.message ?? status}`);
 }
 
+/**
+ * What the voice says when it fails: our own words as they are (no credit, a refused key…), and
+ * OpenRouter's raw ones, in English, never read aloud; they stay in the log.
+ */
+export const sayableError = (message: string) =>
+	message.startsWith('OpenRouter:')
+		? 'La IA no ha podido contestar ahora. Prueba otra vez.'
+		: message;
+
+/** OpenRouter found no provider for the model that takes this `tool_choice`. */
+export const toolChoiceRefused = (status: number, body: { error?: { message?: string } } | null) =>
+	status === 404 && /tool_choice/.test(body?.error?.message ?? '');
+
 /** A function the model can call: https://openrouter.ai/docs/guides/features/tool-calling */
 export interface Tool {
 	type: 'function';
@@ -180,24 +193,32 @@ export async function chatWithTools(request: {
 	toolChoice?: 'auto' | 'required';
 }): Promise<{ content: string | null; toolCalls: ToolCall[]; usage: Usage | null }> {
 	const noThinking = request.think === false && (await canSkipThinking(request.model));
-	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-		method: 'POST',
-		headers: headers(request.apiKey),
-		body: JSON.stringify({
-			model: request.model,
-			messages: request.messages,
-			tools: request.tools,
-			...(request.toolChoice && { tool_choice: request.toolChoice }),
-			// Short answers here, but room for a model that reasons.
-			max_tokens: 4_096,
-			...(noThinking && { reasoning: { effort: 'none' } }),
-			// Only providers that take tools.
-			provider: { require_parameters: true }
-			// No caching of its own: the caller marks what does not change (a `TextPart`).
-		}),
-		signal: AbortSignal.timeout(request.timeoutMs ?? 30_000)
-	});
-	const body = await res.json().catch(() => null);
+	const ask = (toolChoice: typeof request.toolChoice) =>
+		fetch('https://openrouter.ai/api/v1/chat/completions', {
+			method: 'POST',
+			headers: headers(request.apiKey),
+			body: JSON.stringify({
+				model: request.model,
+				messages: request.messages,
+				tools: request.tools,
+				...(toolChoice && { tool_choice: toolChoice }),
+				// Short answers here, but room for a model that reasons.
+				max_tokens: 4_096,
+				...(noThinking && { reasoning: { effort: 'none' } }),
+				// Only providers that take tools.
+				provider: { require_parameters: true }
+				// No caching of its own: the caller marks what does not change (a `TextPart`).
+			}),
+			signal: AbortSignal.timeout(request.timeoutMs ?? 30_000)
+		});
+	let res = await ask(request.toolChoice);
+	let body = await res.json().catch(() => null);
+	// No provider of the model that says it takes `tool_choice` (Haiku 5.5's, since 2026-10-29):
+	// again without it. The caller copes with text instead of a tool.
+	if (request.toolChoice && toolChoiceRefused(res.status, body)) {
+		res = await ask(undefined);
+		body = await res.json().catch(() => null);
+	}
 	if (!res.ok) throw refused(res.status, body);
 	noteCost(request.apiKey, request.label, body);
 	const choice = body?.choices?.[0];

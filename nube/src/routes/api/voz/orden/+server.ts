@@ -5,6 +5,7 @@ import type { HouseVoiceOrder } from 'comun/house-voice.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { askHouse, HouseProblem } from '#lib/server/house.ts';
 import { runVoiceCommand } from '#lib/server/voice/command.ts';
+import { sayableError } from '#lib/server/openrouter.ts';
 
 /**
  * What the cloud does not do yet: timers waiting for something (and with them, cooking), and
@@ -60,6 +61,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		console.error(`[voz] ${where}: «${command.text}»: ${message}`, { familyId: k.familyId });
-		error(503, message);
+		error(503, sayableError(message));
 	}
 };
