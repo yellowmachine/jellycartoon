@@ -8,6 +8,7 @@ import { isAdmin } from '#lib/server/app-settings.ts';
 import { db } from '#lib/server/db/index.ts';
 import { user } from '#lib/server/db/schema.ts';
 import { eq } from 'drizzle-orm';
+import { nube, NUBE_PROVIDER } from '#lib/server/nube-login.ts';
 
 const safeNext = (url: URL) => {
 	const next = url.searchParams.get('next') ?? '/';
@@ -22,6 +23,14 @@ const CODE_PROBLEMS: Record<string, string> = {
 	INVALID_TWO_FACTOR_COOKIE: 'Ha pasado demasiado tiempo: vuelve a escribir la contraseña',
 	ACCOUNT_TEMPORARILY_LOCKED: 'Demasiados códigos fallidos: espera unos minutos y vuelve a probar'
 };
+/** Why the cloud did not let in (#279): Better Auth's `?error=` on coming back. */
+const NUBE_PROBLEMS: Record<string, string> = {
+	invalid_code: 'La nube no te deja entrar en esta casa: ¿es la de tu familia?',
+	account_not_linked: 'No se pudo unir tu cuenta de la nube con la de esta casa',
+	unable_to_link_account: 'No se pudo unir tu cuenta de la nube con la de esta casa',
+	access_denied: 'Has cancelado la entrada con la nube'
+};
+
 /** After these, the code is no longer asked for: the password again. */
 const START_AGAIN = new Set(['TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE', 'INVALID_TWO_FACTOR_COOKIE']);
 
@@ -37,11 +46,34 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 		firstAccount: !someone,
 		kids: Boolean(device),
 		/** Back from /bienvenida with a second step: the new password and the code, here. */
-		passwordChanged: url.searchParams.has('cambiada')
+		passwordChanged: url.searchParams.has('cambiada'),
+		/** «Entrar con la nube», with this house's client in the `.env` (#279). */
+		nube: Boolean(nube),
+		nubeProblem: url.searchParams.has('error')
+			? (NUBE_PROBLEMS[url.searchParams.get('error')!] ?? 'No se pudo entrar con la nube')
+			: null
 	};
 };
 
 export const actions: Actions = {
+	/**
+	 * To the family's cloud, which comes back to Better Auth's callback with the session, and then
+	 * to `next`. No second step here: the cloud asked for its own (#279).
+	 */
+	nube: async ({ request, url }) => {
+		if (!nube) return fail(404, { message: 'Esta casa no entra con la nube' });
+		const { url: to } = await auth.api.signInSocial({
+			body: {
+				provider: NUBE_PROVIDER,
+				callbackURL: safeNext(url),
+				// The «¿Quién eres?» of the house's devices would come first (load, above).
+				errorCallbackURL: '/login?adulto'
+			},
+			headers: request.headers
+		});
+		if (!to) return fail(500, { message: 'No se pudo entrar con la nube' });
+		redirect(303, to, { external: true });
+	},
 	signIn: async ({ request, url }) => {
 		const form = await request.formData();
 		let result;

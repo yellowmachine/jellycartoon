@@ -4,6 +4,7 @@ import { ORIGIN } from '$app/env/private';
 import { auth } from '#lib/server/auth.ts';
 import { db } from '#lib/server/db/index.ts';
 import { account, invitation, kidProfile, user, userSettings } from '#lib/server/db/schema.ts';
+import { NUBE_PROVIDER } from '#lib/server/nube-login.ts';
 import { isAdmin } from '#lib/server/app-settings.ts';
 import { invitations, takeIssued } from '#lib/server/invitations.ts';
 import { isKid, KIDS_ROLE } from '#lib/server/kids.ts';
@@ -24,7 +25,9 @@ export async function houseAdults() {
 				name: user.name,
 				email: user.email,
 				avatar: userSettings.avatar,
-				hasPassword: sql<boolean>`exists (select 1 from ${account} where ${account.userId} = ${user.id} and ${account.providerId} = 'credential')`
+				hasPassword: sql<boolean>`exists (select 1 from ${account} where ${account.userId} = ${user.id} and ${account.providerId} = 'credential')`,
+				/** Entered with the family's cloud (#279): then they need no password here. */
+				withNube: sql<boolean>`exists (select 1 from ${account} where ${account.userId} = ${user.id} and ${account.providerId} = ${NUBE_PROVIDER})`
 			})
 			.from(user)
 			.leftJoin(userSettings, eq(userSettings.userId, user.id))

@@ -172,6 +172,16 @@ docker compose -f compose.prod.yaml logs -f app
   hace otro (el anterior deja de valer), también para quien ha olvidado su contraseña. El
   administrador nunca la sabe. `ALLOW_SIGNUP` ya no se usa.
 - "Hoy" usa `TZ` (por defecto `Europe/Madrid`).
+- **Entrar con la nube** (#279): con `NUBE_URL`, `NUBE_CLIENT_ID` y `NUBE_CLIENT_SECRET` en el
+  `.env` (los da la nube, en Ajustes → Familia → «Entrar en casa con la nube», a quien la
+  administra), la página de entrada tiene «Entrar con la nube»: una sola cuenta, la de la nube, con
+  su contraseña y su segundo paso, y aquí no se pide `/verificacion`. Solo entran los de esa
+  familia. La primera vez, quien ya tiene cuenta en casa queda unido por su email y su contraseña
+  de casa se borra; la del administrador se queda, por si la nube no responde. Quien no tiene
+  cuenta en casa la estrena como adulto normal: los papeles (administrador, infantil) son de casa.
+  Los peques, la tele con el móvil, los satélites y la música (Subsonic) siguen igual. Es
+  `genericOAuth` de Better Auth (`src/lib/server/nube-login.ts`); tras cambiar el `.env`,
+  `docker compose -f compose.prod.yaml up -d`.
 - **Verificación en dos pasos**: tras la contraseña, un código de 6 cifras de una app (Proton Pass,
   Google Authenticator, Aegis…), con «Recordar este dispositivo» 90 días y 10 códigos de
   recuperación de un solo uso. Cualquier cuenta la activa en Ajustes → Cuenta. Quien creó la

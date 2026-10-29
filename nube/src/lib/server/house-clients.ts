@@ -7,7 +7,7 @@ import { auth } from './auth.ts';
  */
 /** Where Better Auth's genericOAuth, at home, gets the answer back: provider id `nube`. */
 export const callbackOf = (houseUrl: string) =>
-	`${houseUrl.replace(/\/+$/, '')}/api/auth/oauth2/callback/nube`;
+	`${houseUrl.replace(/\/+$/, '')}/api/auth/callback/nube`;
 
 /**
  * A house's client, for its family's administrator (their session's headers): trusted (no

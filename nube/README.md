@@ -31,7 +31,8 @@ Varias familias en una sola app, cada una aislada por la seguridad por filas de 
   el `.env` de la casa (el secreto, una vez). Sin pantalla de consentimiento; tras la contraseña y
   el segundo paso, `/login` vuelve a la casa (`src/lib/server/oauth-return.ts`). Solo los de la
   familia: a otro no se le da el token (`src/lib/server/oidc.ts`), y el token lleva la familia en
-  `https://nube.scholio.review/family`.
+  `https://nube.scholio.review/family`. La casa vuelve a `https://casa…/api/auth/callback/nube`
+  (`genericOAuth` de Better Auth, en el README de casa).
 - **La casa:** en Ajustes, la dirección de fuera de jellycartoon (su `MEDIA_HOST`) y la clave de su
   Ajustes → Casa → «La nube». La clave se guarda cifrada y no sale del servidor; cada petición a
   casa va en nombre de la persona, por su email (el mismo en las dos apps).
