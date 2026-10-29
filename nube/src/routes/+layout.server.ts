@@ -6,12 +6,18 @@ import { NoFamily, withFamily } from '#lib/server/family.ts';
 import { house } from '#lib/server/db/schema.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { canReadReceipts } from '#lib/server/expenses/receipt.ts';
+import { isServiceAdmin } from '#lib/server/invitations.ts';
 
 /** Who is in, and their family: null if their account is in none. */
 export const load: LayoutServerLoad = async ({ locals }) => {
 	if (!locals.user)
 		return { user: null, family: null, webUrl: null, receipts: false, theme: DEFAULT_THEME };
-	const user = { name: locals.user.name, email: locals.user.email };
+	const user = {
+		name: locals.user.name,
+		email: locals.user.email,
+		/** Who lets families in (/admin/lista-de-espera): ADMIN_EMAIL. */
+		serviceAdmin: isServiceAdmin(locals.user.email)
+	};
 	try {
 		const found = await withFamily(locals.user.id, async (tx, m) => {
 			const [h] = await tx.select({ webUrl: house.webUrl }).from(house);

@@ -4,9 +4,9 @@
  * (`bun run dev`) and in the container (see Dockerfile).
  *
  * Then, with ADMIN_EMAIL, the first family (ADMIN_FAMILY, «Mi casa» without it) and that email's
- * invitation as its administrator, if it has neither an account nor an invitation yet: a new
- * install needs no command. Never a password from the environment: it is chosen on signing up, and
- * a deploy does not put an old one back.
+ * invitation as its administrator (its link, in the log), if it has neither an account nor an open
+ * invitation yet: a new install needs no command. Never a password from the environment: it is
+ * chosen on signing up, and a deploy does not put an old one back.
  */
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
@@ -24,8 +24,8 @@ try {
 	const email = process.env.ADMIN_EMAIL?.trim();
 	if (email && !(await known(db, email))) {
 		const name = process.env.ADMIN_FAMILY?.trim() || 'Mi casa';
-		await createFamily(db, name, email);
-		console.log(`[migrate] familia «${name}» creada: ${email} entra con «Tengo una invitación»`);
+		const link = await createFamily(db, name, email);
+		console.log(`[migrate] familia «${name}» creada: ${email} crea su cuenta en ${link}`);
 	}
 } finally {
 	await client.end();

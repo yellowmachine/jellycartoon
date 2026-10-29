@@ -18,7 +18,7 @@
 	let { data, children }: LayoutProps = $props();
 
 	/** jellycartoon's bar (#253): its sections, each where it is (nav.ts). */
-	const nav = $derived(navLinks(data.webUrl));
+	const nav = $derived(navLinks(data.webUrl, data.user?.serviceAdmin));
 	/** The user's initial, for their round badge (accents and all: «Á» for «Álvaro»). */
 	const initial = $derived([...(data.user?.name.trim() ?? '')][0]?.toLocaleUpperCase('es') ?? '?');
 	let headerHeight = $state(0);
@@ -251,9 +251,11 @@ trip's link (#81), for whoever has it. -->
 		{/if}
 
 		<main class="mx-auto max-w-6xl px-4 py-6">
-			{#if data.user && !data.family}
+			<!-- Without a family, only an invitation's page: the way into one. -->
+			{#if data.user && !data.family && !page.url.pathname.startsWith('/invitacion/')}
 				<p class="rounded-md border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
-					Tu cuenta no está en ninguna familia. Pide a quien administra la tuya que te invite.
+					Tu cuenta no está en ninguna familia. Pide a quien administra la tuya que te invite, y
+					abre el enlace del correo.
 				</p>
 			{:else}
 				{@render children()}

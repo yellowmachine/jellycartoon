@@ -6,11 +6,6 @@
 	import type { PageProps } from './$types';
 
 	let { form }: PageProps = $props();
-	/** «Tengo una invitación»: the account is made with the invited email. */
-	let mode = $state<'signIn' | 'signUp'>('signIn');
-	$effect(() => {
-		if (form && 'signUp' in form) mode = 'signUp';
-	});
 	/** The second step with a recovery code, instead of the app's. */
 	let recovery = $state(false);
 	$effect(() => {
@@ -82,13 +77,7 @@
 			{recovery ? 'Usar el código de la app' : '¿Sin el móvil? Usa un código de recuperación'}
 		</button>
 	{:else}
-		<form method="post" action={action(mode)} use:enhance class="space-y-4">
-			{#if mode === 'signUp'}
-				<label class="block text-sm">
-					Nombre
-					<input name="name" class={input} autocomplete="name" />
-				</label>
-			{/if}
+		<form method="post" action={action('signIn')} use:enhance class="space-y-4">
 			<label class="block text-sm">
 				Email
 				<input type="email" name="email" required class={input} autocomplete="email" />
@@ -101,21 +90,20 @@
 					minlength={10}
 					box="mt-1"
 					class={field}
-					autocomplete={mode === 'signIn' ? 'current-password' : 'new-password'}
+					autocomplete="current-password"
 				/>
 			</label>
 			{#if form?.message}
 				<p class="text-sm text-red-400">{form.message}</p>
 			{/if}
-			<button class={primary}>
-				{mode === 'signIn' ? 'Entrar' : 'Crear la cuenta'}
-			</button>
+			<button class={primary}>Entrar</button>
 		</form>
-		<button
-			class="mt-4 w-full text-center text-sm text-zinc-400 hover:text-white"
-			onclick={() => (mode = mode === 'signIn' ? 'signUp' : 'signIn')}
-		>
-			{mode === 'signIn' ? 'Tengo una invitación: crear mi cuenta' : 'Ya tengo cuenta: entrar'}
-		</button>
+		<!-- An account is made only from an invitation's link (/invitacion/<token>). -->
+		<p class="mt-4 text-center text-sm text-zinc-400">
+			¿Te han invitado? Abre el enlace del correo para crear tu cuenta. ¿No? <a
+				href="/#pedir"
+				class="text-amber-400 hover:underline">Pide acceso</a
+			>
+		</p>
 	{/if}
 </div>

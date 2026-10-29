@@ -4,6 +4,7 @@
 	import PasswordInput from 'comun/components/PasswordInput.svelte';
 	import PushNotices from 'comun/components/PushNotices.svelte';
 	import TelegramBot from './TelegramBot.svelte';
+	import Invitaciones from './Invitaciones.svelte';
 	import VozCaracter from './VozCaracter.svelte';
 	import VozInternet from './VozInternet.svelte';
 	import VozSilencio from './VozSilencio.svelte';
@@ -196,6 +197,8 @@
 				<p class="mt-3 text-sm text-red-400">{form.personProblem}</p>
 			{/if}
 		</section>
+
+		<Invitaciones {data} {form} {tab} />
 
 		<section class={section} id="casa">
 			<h2 class="mb-1 font-semibold">Tu casa</h2>

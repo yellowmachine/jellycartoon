@@ -40,7 +40,7 @@ const link = (s: (typeof SECTIONS)[number], webUrl: string | null): NavLink => (
 	external: s.where === 'casa' && Boolean(webUrl)
 });
 
-export function navLinks(webUrl: string | null) {
+export function navLinks(webUrl: string | null, serviceAdmin = false) {
 	const links = SECTIONS.map((s) => link(s, webUrl));
 	// Not a section to watch or listen to: in the user's menu, as at home; last in the phone's.
 	const gestion: NavLink = {
@@ -52,7 +52,11 @@ export function navLinks(webUrl: string | null) {
 	const userLinks: UserLink[] = [
 		{ href: '/ajustes', label: 'Ajustes', icon: 'ajustes' },
 		gestion,
-		{ href: atHome(webUrl, '/tv'), label: 'Vista TV', icon: 'series', external: Boolean(webUrl) }
+		{ href: atHome(webUrl, '/tv'), label: 'Vista TV', icon: 'series', external: Boolean(webUrl) },
+		// The families that asked to come in: only for who lets them in.
+		...(serviceAdmin
+			? [{ href: '/admin/lista-de-espera', label: 'Lista de espera', icon: 'gestion' as const }]
+			: [])
 	];
 	return { links, menuLinks: [...links, gestion], userLinks };
 }

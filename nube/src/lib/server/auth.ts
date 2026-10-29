@@ -6,7 +6,7 @@ import { twoFactor } from 'better-auth/plugins/two-factor';
 import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { getRequestEvent } from '$app/server';
 import { db } from '#lib/server/db/index.ts';
-import { invitationFor, joinInvitedFamily } from '#lib/server/family.ts';
+import { invitations } from '#lib/server/invitations.ts';
 
 export const auth = betterAuth({
 	baseURL: ORIGIN,
@@ -16,23 +16,18 @@ export const auth = betterAuth({
 	// Nobody asks for a password reset by email yet: there is no email.
 	disabledPaths: ['/request-password-reset', '/reset-password'],
 	hooks: {
-		/** Only who was invited signs up (scripts/crear-familia.ts): the app is on the internet. */
+		/**
+		 * Only who was invited signs up: the app is on the internet. From the invitation's page
+		 * (/invitacion/<token>), which then accepts it (invitation-scope.ts).
+		 */
 		before: createAuthMiddleware(async (ctx) => {
 			if (ctx.path !== '/sign-up/email') return;
 			const email = String(ctx.body?.email ?? '');
-			if (!(await invitationFor(email)))
+			if (!(await invitations.pendingFor(email)))
 				throw new APIError('FORBIDDEN', {
 					message: 'Ese email no tiene invitación: pídesela a quien administra tu familia'
 				});
 		})
-	},
-	databaseHooks: {
-		user: {
-			create: {
-				/** Into the family it was invited to, as soon as the account exists. */
-				after: (user) => joinInvitedFamily(user.id, user.email)
-			}
-		}
 	},
 	/** 30 days, renewed while used, as jellycartoon's. */
 	session: { expiresIn: 30 * 24 * 60 * 60 },

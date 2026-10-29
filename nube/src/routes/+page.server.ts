@@ -2,7 +2,8 @@ import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { houseLink } from '#lib/server/house.ts';
 import { NoFamily } from '#lib/server/family.ts';
-import { askForAccess, EMAIL } from '#lib/server/waitlist.ts';
+import { askForAccess } from '#lib/server/waitlist.ts';
+import { EMAIL } from '#lib/invitation.ts';
 
 /** Without a session, the landing page (hooks.server.ts lets `/` through). */
 export const load: PageServerLoad = async ({ locals }) => {

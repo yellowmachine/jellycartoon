@@ -125,6 +125,13 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		shown: onlyAdmin
 	},
 	{
+		id: 'invitaciones',
+		tab: 'familia',
+		title: 'Invitaciones',
+		words: 'invitar familia cuenta email correo enlace miembros entrar alta',
+		shown: onlyAdmin
+	},
+	{
 		id: 'telegram-bot',
 		tab: 'familia',
 		title: 'Bot de Telegram',

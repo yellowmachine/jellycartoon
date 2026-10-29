@@ -16,8 +16,13 @@ Varias familias en una sola app, cada una aislada por la seguridad por filas de 
   (`src/lib/server/family-scope.ts`) le dice a Postgres, para una transacción, quién pregunta y de
   qué familia. Una consulta que lo olvide no ve nada. Los tests (`family-scope.test.ts`) lo
   comprueban contra un Postgres real en memoria (PGlite).
-- **Quién entra:** solo con invitación. `bun run familia "Casa García" ana@example.com` crea la
-  familia y la invitación de quien la administra, que crea su cuenta con «Tengo una invitación».
+- **Quién entra:** solo con invitación, un enlace `/invitacion/<token>` que caduca a los 7 días
+  (como las de svelte-thinking), mandado por correo; allí se crea la cuenta, o se entra con ella, y
+  se acepta (`src/lib/server/invitation-scope.ts`). Una familia pide acceso desde la portada, y
+  `ADMIN_EMAIL` se lo da en **Lista de espera** (`/admin/lista-de-espera`, en su menú): le llega un
+  enlace para crear su familia, de la que es administrador. El administrador de cada familia invita
+  a los suyos en Ajustes → Familia → Invitaciones, y ve el enlace de cada una por si el correo no
+  llega. `bun run familia "Casa García" ana@example.com` crea una familia a mano e imprime el enlace.
 - **La casa:** en Ajustes, la dirección de fuera de jellycartoon (su `MEDIA_HOST`) y la clave de su
   Ajustes → Casa → «La nube». La clave se guarda cifrada y no sale del servidor; cada petición a
   casa va en nombre de la persona, por su email (el mismo en las dos apps).
@@ -71,11 +76,12 @@ app (`nube_app`) con su contraseña: no hay SQL a mano.
    and variables → Actions). El workflow espera a que la etiqueta sea la imagen nueva y llama al
    webhook. Sin el secreto, solo publica la imagen, y se despliega a mano.
    - Volver a una imagen anterior: `NUBE_TAG=sha-<commit>` en el Environment, y Deploy.
-5. **Entrar:** en `https://nube.tu-dominio.com`, «Tengo una invitación» con `ADMIN_EMAIL`, y la
-   contraseña que elijas. La contraseña nunca va en el entorno: un despliegue no la cambia.
+5. **Entrar:** el primer arranque crea la familia de `ADMIN_EMAIL` y deja en el log del servicio
+   `app` el enlace de su invitación («crea su cuenta en https://…/invitacion/…»); ábrelo y elige la
+   contraseña. La contraseña nunca va en el entorno: un despliegue no la cambia.
 
 Más familias, en la terminal del servicio `app`:
-`bun scripts/crear-familia.ts "Casa García" ana@example.com`.
+`bun scripts/crear-familia.ts "Casa García" ana@example.com`, que imprime el enlace para pasárselo.
 
 `init-db.sh` solo corre con el volumen de Postgres vacío: cambiar `APP_DB_PASSWORD` después
 necesita `ALTER ROLE nube_app PASSWORD '…'` en la base de datos.

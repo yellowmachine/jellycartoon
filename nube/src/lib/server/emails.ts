@@ -59,3 +59,36 @@ export function sendWaitlistNotice(request: {
 		])
 	});
 }
+
+/**
+ * An invitation's link: into a family, by who invites; or, with no family, to make one's own (a
+ * family let in from the waiting list).
+ */
+export function sendInvitation(i: {
+	to: string;
+	link: string;
+	inviterName: string;
+	familyName: string | null;
+}) {
+	const button = `<a href="${i.link}" style="display:inline-block;background:#f59e0b;color:#09090b;padding:10px 20px;border-radius:6px;font-weight:600;text-decoration:none">${i.familyName ? 'Ver la invitación' : 'Crear mi familia'}</a>`;
+	const lapses = 'El enlace caduca en 7 días.';
+	return sendMail({
+		to: i.to,
+		subject: i.familyName
+			? `${i.inviterName} te invita a «${i.familyName}» en ${NAME}`
+			: `Ya puedes entrar en ${NAME}`,
+		html: page(
+			i.familyName
+				? [
+						`${escape(i.inviterName)} te invita a la familia <strong>${escape(i.familyName)}</strong> en ${NAME}: la nevera, las recetas, la agenda y los gastos de casa, juntos.`,
+						button,
+						`${lapses} Si no esperabas este correo, no hagas nada.`
+					]
+				: [
+						`¡Ya tienes acceso a ${NAME}! Con este enlace creas tu cuenta y tu familia, y luego invitas a los tuyos desde Ajustes.`,
+						button,
+						lapses
+					]
+		)
+	});
+}

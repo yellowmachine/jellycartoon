@@ -107,21 +107,42 @@ export const house = pgTable(
  * administrator (scripts/crear-familia.ts), and later by a family for its people. Without row-level
  * security: it is read while signing up, before anyone is anyone; only the server touches it.
  */
+/**
+ * An invitation: a link with its own token (which is all it takes to read it), for one email, that
+ * lapses after 7 days (invitation.ts). Into a family, with a role; or, with no family, to make one's
+ * own and administer it (a family let in from the waiting list, /admin/lista-de-espera). Read before
+ * having a family, so no row-level security: only invitations.ts reaches it, by token or by family.
+ */
 export const invitation = pgTable(
 	'invitation',
 	{
 		id: text('id').primaryKey(),
 		email: text('email').notNull(),
-		familyId: text('family_id')
+		/** Opaque and unique: the link's `/invitacion/<token>`. A new one on sending it again. */
+		token: text('token')
 			.notNull()
-			.references(() => family.id, { onDelete: 'cascade' }),
+			.unique()
+			.default(sql`gen_random_uuid()::text`),
+		/** None: a new family, theirs, named on accepting. */
+		familyId: text('family_id').references(() => family.id, { onDelete: 'cascade' }),
 		role: text('role', { enum: ['admin', 'member'] })
 			.notNull()
 			.default('member'),
+		invitedBy: text('invited_by').references(() => user.id, { onDelete: 'set null' }),
 		createdAt: timestamp('created_at').notNull().defaultNow(),
-		usedAt: timestamp('used_at')
+		expiresAt: timestamp('expires_at')
+			.notNull()
+			.default(sql`now() + interval '7 days'`),
+		/** Accepted. */
+		usedAt: timestamp('used_at'),
+		cancelledAt: timestamp('cancelled_at')
 	},
-	(t) => [uniqueIndex('invitation_email_idx').on(sql`lower(${t.email})`)]
+	(t) => [
+		// One open invitation per email; a used or cancelled one does not stop another.
+		uniqueIndex('invitation_open_email_idx')
+			.on(sql`lower(${t.email})`)
+			.where(sql`${t.usedAt} is null and ${t.cancelledAt} is null`)
+	]
 );
 
 /**

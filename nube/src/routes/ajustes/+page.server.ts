@@ -1,7 +1,8 @@
 import { fail } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import { isTheme } from 'comun/themes.ts';
-import { familyMember } from '#lib/server/db/schema.ts';
+import { family, familyMember } from '#lib/server/db/schema.ts';
+import { EMAIL } from '#lib/invitation.ts';
 import { APIError } from 'better-auth/api';
 import QRCode from 'qrcode';
 import type { Actions, PageServerLoad } from './$types';
@@ -35,6 +36,7 @@ import {
 	voiceSettings
 } from '#lib/server/voice/settings.ts';
 import { createHouseKey, deleteHouseKey, listHouseKeys } from '#lib/server/house-keys.ts';
+import { invitationLink, invitations, inviteAndSend } from '#lib/server/invitations.ts';
 import {
 	askHouse,
 	forgetHouse,
@@ -59,6 +61,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 		twoFactor: Boolean(locals.user!.twoFactorEnabled),
 		people: await familyPeople(k),
 		telegramBot: admin ? { bot: await botStatus(membership.familyId) } : null,
+		/** The family's open invitations, with their links: only its administrator. */
+		invitations: admin
+			? (await invitations.ofFamily(membership.familyId)).map(({ token, ...i }) => ({
+					...i,
+					link: invitationLink(token)
+				}))
+			: null,
 		/** The family's voice (#253): its model, its character, the web, the «horas de silencio». */
 		voiceModel: admin ? { model: voice.savedModel ?? '', fallback: DEFAULT_VOICE_MODEL } : null,
 		houseStyle: admin ? { text: voice.style ?? '' } : null,
@@ -202,6 +211,38 @@ export const actions: Actions = {
 			return fail(400, { botProblem: err instanceof Error ? err.message : String(err) });
 		}
 		return { saved: 'bot-test' };
+	},
+	/** Someone into the family, by an email with its link (invitations.ts). */
+	invite: async ({ request, locals }) => {
+		const familyId = await adminFamily(locals.user!.id);
+		if (!familyId) return fail(403, { inviteProblem: 'Solo quien administra la familia' });
+		const form = await request.formData();
+		const email = String(form.get('email') ?? '')
+			.trim()
+			.slice(0, 200);
+		if (!EMAIL.test(email)) return fail(400, { inviteProblem: 'Ese email no parece válido' });
+		const familyName = await withFamily(locals.user!.id, async (tx) => {
+			const [f] = await tx
+				.select({ name: family.name })
+				.from(family)
+				.where(eq(family.id, familyId));
+			return f.name;
+		});
+		const done = await inviteAndSend({
+			email,
+			familyId,
+			familyName,
+			role: form.get('admin') === 'on' ? 'admin' : 'member',
+			inviter: locals.user!
+		});
+		if (!done.ok) return fail(400, { inviteProblem: done.problem });
+		return { invited: { email, sent: done.sent, link: done.link } };
+	},
+	cancelInvitation: async ({ request, locals }) => {
+		const familyId = await adminFamily(locals.user!.id);
+		if (!familyId) return fail(403, { inviteProblem: 'Solo quien administra la familia' });
+		await invitations.cancel(String((await request.formData()).get('id') ?? ''), familyId);
+		return { saved: 'invitation-cancelled' };
 	},
 	/** One of the family without an account (a child), for the agenda and the alarms. */
 	addPerson: async ({ request, locals }) => {

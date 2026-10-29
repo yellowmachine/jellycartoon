@@ -64,23 +64,5 @@ export const actions: Actions = {
 			});
 		}
 		redirect(303, safeNext(url));
-	},
-	/** Only with an invitation (auth.ts): into its family, as soon as the account exists. */
-	signUp: async ({ request, url }) => {
-		const form = await request.formData();
-		try {
-			await auth.api.signUpEmail({
-				body: {
-					email: String(form.get('email') ?? ''),
-					password: String(form.get('password') ?? ''),
-					name: String(form.get('name') ?? '') || String(form.get('email') ?? '')
-				},
-				headers: request.headers
-			});
-		} catch (error) {
-			if (error instanceof APIError) return fail(400, { signUp: true, message: error.message });
-			throw error;
-		}
-		redirect(303, safeNext(url));
 	}
 };

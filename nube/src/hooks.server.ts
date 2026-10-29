@@ -14,14 +14,15 @@ export const init: ServerInit = () => {
 	if (!building) startScheduler();
 };
 
-/** `/s/`: a shared trip's link (#81), for whoever has it. */
+/** `/s/`: a shared trip's link (#81), for whoever has it; `/invitacion/`, an invitation's. */
 const PUBLIC_PATHS = [
 	'/login',
 	'/api/auth',
 	'/api/health',
 	'/api/casa/',
 	'/api/calendario/',
-	'/s/'
+	'/s/',
+	'/invitacion/'
 ];
 
 export const handle: Handle = async ({ event, resolve }) => {
