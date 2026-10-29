@@ -60,6 +60,7 @@ import {
 	type ToolChatMessage
 } from '#lib/server/openrouter.ts';
 import { quietCheck } from './quiet-check.ts';
+import { afterOrder, learnFrom, recallLearned } from './learned.ts';
 import { FALLBACK_VOICE_MODEL, personVoiceStyle, voiceSettings } from './settings.ts';
 import { voiceFellBack } from './alarm.ts';
 import { searchWeb, WEB_TOOL, webSearchTool } from './web-search.ts';
@@ -1202,15 +1203,18 @@ export async function runVoiceCommand(
 	const { request, house, satellite } = order;
 	const place: AlarmPlace | null =
 		satellite && isAlarmPlace(`satelite:${satellite.id}`) ? `satelite:${satellite.id}` : null;
+	// Where what it learns is kept (learned.ts): the satellite, or the person.
+	const site = satellite ? `satelite:${satellite.id}` : k.userId ? `user:${k.userId}` : null;
 	refreshStale(k);
-	const [apiKey, settings, recipes, sites, personStyle, me, group] = await Promise.all([
+	const [apiKey, settings, recipes, sites, personStyle, me, group, learned] = await Promise.all([
 		openRouterKey(k),
 		voiceSettings(k),
 		listRecipes(k),
 		listRecipeSites(k),
 		k.userId && !satellite ? personVoiceStyle(k, k.userId) : null,
 		k.userId && !satellite ? personOf(k, k.userId) : null,
-		botHasGroup(k.familyId)
+		botHasGroup(k.familyId),
+		recallLearned(k, site, request.text)
 	]);
 	const timersOf = cloudTimers && !satellite ? me : null;
 	// Said to the cloud by someone not among its people: no one to keep them for.
@@ -1222,10 +1226,19 @@ export async function runVoiceCommand(
 	]);
 	const timing: VoiceTiming = { prepareMs: Math.round(performance.now() - started), rounds: [] };
 	const outcome: Outcome = { actions: [], options: [], asked: null, done: 0 };
-	const reply = (text: string, expectsAnswer = false) => ({
-		...replyOf(text, outcome, expectsAnswer),
-		timing
-	});
+	const reply = (text: string, expectsAnswer = false) => {
+		const said = replyOf(text, outcome, expectsAnswer);
+		const answered = site && afterOrder(`${k.familyId}:${site}`, request.text, said);
+		if (answered && apiKey)
+			learnFrom(
+				k,
+				apiKey,
+				site,
+				satellite?.name ?? (order.who.name || 'Alguien de casa'),
+				answered
+			).catch((err) => console.warn('[voz] no se ha aprendido:', err));
+		return { ...said, timing };
+	};
 	if (!apiKey) return reply(SAID_NO_KEY);
 
 	const messages: ToolChatMessage[] = [
@@ -1281,6 +1294,7 @@ export async function runVoiceCommand(
 						]
 					: []),
 				...(note ? [{ type: 'text' as const, text: note }] : []),
+				...(learned ? [{ type: 'text' as const, text: learned }] : []),
 				{ type: 'text', text: request.text }
 			]
 		}

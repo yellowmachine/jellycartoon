@@ -40,6 +40,7 @@ import {
 	setWebSearch,
 	voiceSettings
 } from '#lib/server/voice/settings.ts';
+import { forgetLearned, listLearned } from '#lib/server/voice/learned.ts';
 import { createHouseKey, deleteHouseKey, listHouseKeys } from '#lib/server/house-keys.ts';
 import { invitationLink, invitations, inviteAndSend } from '#lib/server/invitations.ts';
 import {
@@ -87,6 +88,8 @@ export const load: PageServerLoad = async ({ locals, request }) => {
 		houseStyle: admin ? { text: voice.style ?? '' } : null,
 		voiceWeb: admin ? voice.web : null,
 		voiceQuiet: admin ? { hours: voice.quiet } : null,
+		/** What the voice learned from its questions, by place (learned.ts). */
+		voiceLearned: admin ? await listLearned(k) : null,
 		/** «Dónde vivís», if said: only its administrator. */
 		place: admin ? await familyPlace(k).then((p) => ({ name: p ? placeName(p) : null })) : null,
 		/** And how it talks to each one. */
@@ -230,6 +233,14 @@ export const actions: Actions = {
 			form.get('off') || !from || !to ? null : { from, to }
 		);
 		return { saved: 'voiceQuiet' };
+	},
+	/** One of «Lo que ha aprendido la voz», forgotten. */
+	forgetVoiceLearned: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'voiceProblem');
+		if (denied) return denied;
+		const id = Number((await request.formData()).get('id'));
+		if (Number.isInteger(id)) await forgetLearned(await kitchenOf(locals.user!.id), id);
+		return { saved: 'voiceLearned' };
 	},
 	/** «Cómo es la voz de la casa»: free text in the voice's instructions; empty, none. */
 	saveHouseStyle: async ({ request, locals }) => {
