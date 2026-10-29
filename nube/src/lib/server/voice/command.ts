@@ -60,7 +60,14 @@ import {
 	type ToolChatMessage
 } from '#lib/server/openrouter.ts';
 import { quietCheck } from './quiet-check.ts';
-import { afterOrder, assumedNote, countHits, learnFrom, recallLearned } from './learned.ts';
+import {
+	afterOrder,
+	assumedNote,
+	countHits,
+	learnFrom,
+	recallLearned,
+	sharesWords
+} from './learned.ts';
 import { FALLBACK_VOICE_MODEL, personVoiceStyle, voiceSettings } from './settings.ts';
 import { voiceFellBack } from './alarm.ts';
 import { searchWeb, WEB_TOOL, webSearchTool } from './web-search.ts';
@@ -1250,10 +1257,15 @@ export async function runVoiceCommand(
 	const siteKey = site && `${k.familyId}:${site}`;
 	const assumed = siteKey && assumedNote(siteKey);
 	const reply = (text: string, expectsAnswer = false) => {
-		const used = (learned?.picked ?? []).filter((l) => outcome.usedLearned.includes(l.id));
+		// Only those the order has to do with: the model also says it of a «para».
+		const used = (learned?.picked ?? []).filter(
+			(l) => outcome.usedLearned.includes(l.id) && sharesWords(request.text, l)
+		);
+		// What was put on would be heard as the correction: then only with the word.
+		const sounding = timing.rounds.some((r) => r.tools.some((t) => SOUNDING.has(t)));
 		const said = {
 			...replyOf(text, outcome, expectsAnswer),
-			...(used.length && !expectsAnswer ? { listenAfter: true } : {})
+			...(used.length && !expectsAnswer && !sounding ? { listenAfter: true } : {})
 		};
 		if (used.length)
 			countHits(

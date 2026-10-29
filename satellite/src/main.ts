@@ -173,7 +173,8 @@ async function step(chunk: Float32Array) {
  * Listening for an order: after the word, at its level (`voiceDb`); after a question, with no word,
  * set by the first speech, and longer to start (`waitMs`).
  */
-function begin(voiceDb: number | null, waitMs = SPEECH_END.waitMs) {
+/** `hz`: its beep; lower after something done by what was learned, not a question. */
+function begin(voiceDb: number | null, waitMs = SPEECH_END.waitMs, hz = 880) {
 	// As touching the phone: what rings stops, and the order may be about it («quítalo»).
 	if (alarms.ringing.length) {
 		hush();
@@ -185,7 +186,7 @@ function begin(voiceDb: number | null, waitMs = SPEECH_END.waitMs) {
 	// Its attempt ends here: what it reached, with the order and not after it.
 	attempt = 0;
 	duck(true);
-	void beep(880);
+	void beep(hz);
 	order = {
 		vad: vad(),
 		end: new SpeechEnd({ ...SPEECH_END, marginDb: MARGIN_DB, waitMs }, voiceDb),
@@ -283,7 +284,7 @@ async function respond(wav: Uint8Array) {
 			begin(null, FOLLOW_UP_MS);
 		} else if (assumed && !order) {
 			log(`Por lo aprendido: escuchando ${AFTER_LEARNED_MS / 1000} s por si lo corrige`);
-			begin(null, AFTER_LEARNED_MS);
+			begin(null, AFTER_LEARNED_MS, 587);
 		} else duck(false);
 	}
 }

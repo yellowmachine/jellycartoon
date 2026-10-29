@@ -49,6 +49,13 @@ const score = (said: string[], l: Pick<Learned, 'title' | 'words'>) => {
 };
 
 /**
+ * Whether an order has to do with it, by its words: «para» has nothing of «la radio es la COPE»,
+ * though the model said it went by it (it stopped the radio).
+ */
+export const sharesWords = (said: string, l: Pick<Learned, 'title' | 'words'>) =>
+	score(wordsOf(said), l) > 0;
+
+/**
  * Those for an order: all of the place's while they are few; else the ones that share most words
  * with it (newest first if they tie), and none that shares none. `learned`, newest first.
  */
@@ -95,7 +102,7 @@ export async function recallLearned(k: Kitchen, place: string | null, said: stri
 	if (!picked.length) return null;
 	return {
 		picked,
-		text: `[Aprendido aquí de otras veces, cuando preguntaste: haz caso sin volver a preguntar si viene al caso, di lo que haces para que se pueda corregir, y llama a la vez a «used_learned» con los números de las que uses. ${picked.map((l) => `#${l.id} «${l.title}»: ${l.rule}`).join(' ')}]`
+		text: `[Aprendido aquí de otras veces, cuando preguntaste: haz caso sin volver a preguntar si viene al caso y di lo que haces, para que se pueda corregir. Solo cuando una de estas decide algo que, sin ella, habrías preguntado, llama a la vez a «used_learned» con su número; nunca en una orden que está clara sin ellas («para», «sube el volumen»). ${picked.map((l) => `#${l.id} «${l.title}»: ${l.rule}`).join(' ')}]`
 	};
 }
 
@@ -157,8 +164,17 @@ export function afterOrder(
 	const t = Date.now();
 	const before = pending.get(key);
 	pending.delete(key);
+	// Asked again (it did not understand the answer): still about the first order, «pon la radio»,
+	// not about «la Coppa».
+	const first = before?.kind === 'asked' && t - before.at <= ANSWER_MS ? before.said : said;
 	if (reply.expectsAnswer)
-		pending.set(key, { kind: 'asked', said, question: reply.reply, options: reply.options, at: t });
+		pending.set(key, {
+			kind: 'asked',
+			said: first,
+			question: reply.reply,
+			options: reply.options,
+			at: t
+		});
 	else if (used.length)
 		pending.set(key, { kind: 'assumed', said, reply: reply.reply, used, at: t });
 	if (!before || t - before.at > ANSWER_MS) return null;
