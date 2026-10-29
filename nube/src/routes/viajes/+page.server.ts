@@ -79,7 +79,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	]);
 	return {
 		planned,
-		weather: tripsWeather(planned).catch(() => ({})),
+		weather: tripsWeather(k, planned).catch(() => ({})),
 		people,
 		map,
 		places,

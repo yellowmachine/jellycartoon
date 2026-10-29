@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { arrivalOf, tripOver, whenText, type PlannedTrip } from './planned-trips.ts';
+import { arrivalOf, tripOver, warningText, whenText, type PlannedTrip } from './planned-trips.ts';
 
 const leg = (day: string, time: string, duration: number) => ({
 	id: 1,
@@ -47,4 +47,25 @@ test('a trip is over once all its legs have arrived; one without legs is not', (
 			'2026-10-29'
 		)
 	).toBe(false);
+});
+
+test('a warning on the way, said', () => {
+	const w = {
+		hazard: 'nieve' as const,
+		from: new Date(2026, 9, 31, 12, 0).getTime(),
+		to: new Date(2026, 9, 31, 12, 30).getTime(),
+		at: [-5.77, 42.98] as [number, number],
+		km: 330,
+		elevation: 1350,
+		rain: 80,
+		snowfall: 1.5,
+		gusts: 30,
+		visibility: 5000,
+		temperature: -1,
+		town: 'Pajares'
+	};
+	expect(warningText(w)).toBe('❄️ Nieve de 12:00 a 12:30, cerca de Pajares (1350 m), 1,5 cm/h');
+	expect(
+		warningText({ ...w, town: null, to: w.from, hazard: 'viento', gusts: 80, elevation: 300 })
+	).toBe('💨 Viento hacia las 12:00, en el km 330, rachas de 80 km/h');
 });

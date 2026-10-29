@@ -1,3 +1,4 @@
+import type { WayWarning } from 'comun/route-weather.ts';
 import type { HourWeather } from 'comun/weather.ts';
 import type { LngLat } from 'comun/road.ts';
 
@@ -37,10 +38,55 @@ export interface PlannedTrip {
 	legs: PlannedLeg[];
 }
 
-/** A leg's weather where it leaves when it leaves, and where it arrives when it arrives. */
+/** A warning on a leg's way (comun/route-weather.ts), with the town it starts near, if known. */
+export type TripWarning = WayWarning & { town: string | null };
+
+/**
+ * A leg's weather where it leaves when it leaves, and where it arrives when it arrives; and along
+ * its way, what to beware of (none: a good road), or null if it could not be looked at.
+ */
 export interface LegWeather {
 	depart: HourWeather | null;
 	arrive: HourWeather | null;
+	way: TripWarning[] | null;
+}
+
+const HAZARDS: Record<WayWarning['hazard'], string> = {
+	nieve: '❄️ Nieve',
+	hielo: '🧊 Hielo',
+	niebla: '🌫️ Niebla',
+	lluvia: '🌧️ Lluvia fuerte',
+	tormenta: '⛈️ Tormenta',
+	viento: '💨 Viento'
+};
+
+/** «❄️ Nieve de 12:00 a 12:30, cerca de Pajares (1350 m), 1,5 cm/h». */
+export function warningText(w: TripWarning) {
+	// To five minutes: it is a guess, at an even speed.
+	const clock = (ms: number) =>
+		new Date(Math.round(ms / 300_000) * 300_000).toLocaleTimeString('es-ES', {
+			hour: '2-digit',
+			minute: '2-digit'
+		});
+	const when =
+		w.from === w.to ? `hacia las ${clock(w.from)}` : `de ${clock(w.from)} a ${clock(w.to)}`;
+	const where = w.town ? `cerca de ${w.town}` : `en el km ${w.km}`;
+	const height = w.elevation >= 700 ? ` (${w.elevation.toLocaleString('es-ES')} m)` : '';
+	const how =
+		w.hazard === 'nieve'
+			? w.snowfall
+				? `, ${w.snowfall.toLocaleString('es-ES', { maximumFractionDigits: 1 })} cm/h`
+				: ''
+			: w.hazard === 'hielo'
+				? `, ${w.temperature} °C`
+				: w.hazard === 'niebla'
+					? w.visibility < 1000
+						? `, se ve a ${Math.round(w.visibility / 50) * 50} m`
+						: ''
+					: w.hazard === 'viento'
+						? `, rachas de ${w.gusts} km/h`
+						: `, ${w.rain} %`;
+	return `${HAZARDS[w.hazard]} ${when}, ${where}${height}${how}`;
 }
 
 /** When it arrives: its day and time, driving its whole duration. */

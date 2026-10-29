@@ -11,6 +11,7 @@
 	import {
 		arrivalOf,
 		upFirst,
+		warningText,
 		whenText,
 		type LegWeather,
 		type PlannedLeg
@@ -314,6 +315,13 @@
 				</dl>
 			{:else}
 				<p class="text-sm text-zinc-500">El tiempo, cuando quede menos para salir.</p>
+			{/if}
+			{#if next.weather.way?.length}
+				<ul class="mt-2 flex flex-col gap-0.5 text-sm text-amber-300">
+					{#each next.weather.way as w (`${w.hazard}${w.from}`)}<li>⚠ {warningText(w)}</li>{/each}
+				</ul>
+			{:else if next.weather.way}
+				<p class="mt-1 text-sm text-zinc-400">Camino sin avisos de tiempo.</p>
 			{/if}
 			{#if next.then}
 				<p class="mt-2 border-t border-zinc-800 pt-2 text-sm text-zinc-400">

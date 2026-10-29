@@ -12,7 +12,9 @@
 		tripOver,
 		type LegWeather,
 		upFirst,
-		type PlannedTrip
+		warningText,
+		type PlannedTrip,
+		type TripWarning
 	} from '#lib/planned-trips.ts';
 	import { section, select, primary, secondary } from '#lib/styles.ts';
 
@@ -232,6 +234,16 @@
 	</form>
 {/snippet}
 
+{#snippet way(warnings: TripWarning[])}
+	{#if warnings.length}
+		<ul class="mt-1 flex flex-col gap-0.5 text-sm text-amber-300">
+			{#each warnings as w (`${w.hazard}${w.from}`)}<li>{warningText(w)}</li>{/each}
+		</ul>
+	{:else}
+		<p class="text-sm text-zinc-400">En el camino, sin nieve, hielo, niebla ni viento fuerte.</p>
+	{/if}
+{/snippet}
+
 {#snippet tripCard(trip: PlannedTrip)}
 	<li class="rounded-md border border-zinc-800 p-4">
 		{#if editing === trip.id}
@@ -281,6 +293,9 @@
 													·
 												{/if}{#if w.arrive}Llegada {weatherText(w.arrive)}{/if}
 											</p>
+										{/if}
+										{#if w?.way}
+											{@render way(w.way)}
 										{/if}
 									{/await}
 								{/if}

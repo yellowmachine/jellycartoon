@@ -99,6 +99,24 @@ export function createOrs(config: () => Promise<OrsConfig>, log: OrsLog) {
 		return placesFromOrs(await ors('search', `/geocode/reverse?${params}`))[0]?.label ?? null;
 	}
 
+	/**
+	 * The town or village nearest to a point, by its name alone («Pajares»): for a warning on a
+	 * trip's way (route-weather.ts). Null if none is known.
+	 */
+	async function townNear(at: LngLat): Promise<string | null> {
+		const params = new URLSearchParams({
+			'point.lon': String(at[0]),
+			'point.lat': String(at[1]),
+			layers: 'locality,localadmin',
+			size: '1',
+			lang: 'es'
+		});
+		const body = (await ors('search', `/geocode/reverse?${params}`)) as {
+			features?: { properties?: { name?: string } }[];
+		} | null;
+		return body?.features?.[0]?.properties?.name ?? null;
+	}
+
 	/** openpoiservice's category for petrol stations: https://giscience.github.io/openrouteservice/api-reference/endpoints/poi/ */
 	const FUEL_CATEGORY = 596;
 
@@ -172,5 +190,5 @@ export function createOrs(config: () => Promise<OrsConfig>, log: OrsLog) {
 		return `No se pudo ${what}.`;
 	}
 
-	return { searchPlaces, suggestPlaces, whereIs, placeName, drivingRoute, orsMessage };
+	return { searchPlaces, suggestPlaces, whereIs, townNear, placeName, drivingRoute, orsMessage };
 }

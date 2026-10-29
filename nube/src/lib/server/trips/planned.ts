@@ -1,7 +1,9 @@
 import { asc, eq, inArray } from 'drizzle-orm';
 import { localDay } from 'comun/agenda.ts';
 import type { RouteStop } from 'comun/saved-places.ts';
-import { hourWeather } from 'comun/weather.ts';
+import type { LngLat } from 'comun/road.ts';
+import { warningsOf, wayPoints, wayWeather } from 'comun/route-weather.ts';
+import { FORECAST_DAYS, hourWeather } from 'comun/weather.ts';
 import { addEvent, deleteEvent, personOf, updateEvent } from '#lib/server/agenda/agenda.ts';
 import { plannedLeg, plannedTrip, plannedTripPerson } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
@@ -12,7 +14,8 @@ import {
 	tripOver,
 	type LegWeather,
 	type PlannedLeg,
-	type PlannedTrip
+	type PlannedTrip,
+	type TripWarning
 } from '#lib/planned-trips.ts';
 import { who } from './trips.ts';
 
@@ -240,21 +243,87 @@ function weatherAt(at: [number, number], day: string, time: string) {
 	return weather;
 }
 
-/** Where it leaves when it leaves, and where it arrives when it arrives; null, too far ahead yet. */
-export async function legWeather(leg: PlannedLeg): Promise<LegWeather> {
+/** The towns warnings start near, kept: a point on a road keeps its nearest town. */
+const towns = new Map<string, Promise<string | null>>();
+
+function townAt(k: Kitchen, at: LngLat) {
+	const key = `${at[0].toFixed(2)},${at[1].toFixed(2)}`;
+	let town = towns.get(key);
+	if (!town) {
+		town = orsFor(k)
+			.townNear(at)
+			.catch((error) => {
+				console.warn('[viajes] Sin el pueblo de un aviso', String(error));
+				towns.delete(key);
+				return null;
+			});
+		towns.set(key, town);
+	}
+	return town;
+}
+
+/** Along its way, what to beware of, kept a while; null, too far ahead or it could not be looked at. */
+const ways = new Map<string, { at: number; warnings: Promise<TripWarning[] | null> }>();
+
+function wayAt(k: Kitchen, leg: PlannedLeg, line: LngLat[]) {
+	const today = localDay();
+	const last = new Date(`${today}T12:00:00Z`);
+	last.setUTCDate(last.getUTCDate() + FORECAST_DAYS - 1);
 	const arrival = arrivalOf(leg);
-	const [depart, arrive] = await Promise.all([
+	if (arrival.day < today || leg.day > last.toISOString().slice(0, 10)) return null;
+	const key = `${leg.id},${leg.day},${leg.time}`;
+	const kept = ways.get(key);
+	if (kept && Date.now() - kept.at < WEATHER_MS) return kept.warnings;
+	const points = wayPoints(line, new Date(`${leg.day}T${leg.time}:00`).getTime(), leg.duration);
+	const warnings = wayWeather(points)
+		.then((weather) => warningsOf(points, weather))
+		.then((found) => Promise.all(found.map(async (w) => ({ ...w, town: await townAt(k, w.at) }))))
+		.catch((error) => {
+			console.warn('[viajes] Sin el tiempo del camino', String(error));
+			ways.delete(key);
+			return null;
+		});
+	ways.set(key, { at: Date.now(), warnings });
+	return warnings;
+}
+
+/** Each leg's way by car, by its id. */
+async function linesOf(k: Kitchen, ids: number[]) {
+	if (!ids.length) return new Map<number, LngLat[]>();
+	const rows = await k.run((tx) =>
+		tx
+			.select({ id: plannedLeg.id, line: plannedLeg.line })
+			.from(plannedLeg)
+			.where(inArray(plannedLeg.id, ids))
+	);
+	return new Map(rows.map((r) => [r.id, r.line]));
+}
+
+/**
+ * Where it leaves when it leaves, where it arrives when it arrives, and along its way; null for
+ * each, too far ahead yet.
+ */
+export async function legWeather(k: Kitchen, leg: PlannedLeg, line: LngLat[]): Promise<LegWeather> {
+	const arrival = arrivalOf(leg);
+	const [depart, arrive, way] = await Promise.all([
 		weatherAt(leg.start, leg.day, leg.time),
-		weatherAt(leg.end, arrival.day, arrival.time)
+		weatherAt(leg.end, arrival.day, arrival.time),
+		wayAt(k, leg, line)
 	]);
-	return { depart, arrive };
+	return { depart, arrive, way };
 }
 
 /** Each leg's weather, by its id, for Viajes: only those not over. */
-export async function tripsWeather(trips: PlannedTrip[]) {
+export async function tripsWeather(k: Kitchen, trips: PlannedTrip[]) {
 	const today = localDay();
 	const legs = trips.flatMap((t) => t.legs).filter((l) => arrivalOf(l).day >= today);
-	const all = await Promise.all(legs.map(async (l) => [l.id, await legWeather(l)] as const));
+	const lines = await linesOf(
+		k,
+		legs.map((l) => l.id)
+	);
+	const all = await Promise.all(
+		legs.map(async (l) => [l.id, await legWeather(k, l, lines.get(l.id) ?? [])] as const)
+	);
 	return Object.fromEntries(all) as Record<number, LegWeather>;
 }
 
@@ -281,7 +350,7 @@ export async function nextTrip(k: Kitchen) {
 		return {
 			trip: { id: trip.id, name: trip.name },
 			leg,
-			weather: await legWeather(leg),
+			weather: await legWeather(k, leg, (await linesOf(k, [leg.id])).get(leg.id) ?? []),
 			then: trip.legs[i + 1] ?? null
 		};
 	}
