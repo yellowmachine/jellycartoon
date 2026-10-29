@@ -13,6 +13,7 @@
 		name={data.user.name}
 		home={data.home}
 		weather={data.weather}
+		trip={data.trip}
 		watching={data.watching}
 		receipts={data.receipts}
 	/>

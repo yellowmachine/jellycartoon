@@ -5,13 +5,14 @@ import { NoFamily, withFamily } from '#lib/server/family.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { homeOf, homeWeather } from '#lib/server/home.ts';
 import { continueWatching } from '#lib/server/series.ts';
+import { nextTrip } from '#lib/server/trips/planned.ts';
 import { askForAccess } from '#lib/server/waitlist.ts';
 import { EMAIL } from '#lib/invitation.ts';
 
 /**
  * Without a session, the landing page (hooks.server.ts lets `/` through); with one, what there is
- * today in the family (home.ts). The weather and «Seguir viendo» come after the page, as they ask
- * outside (Open-Meteo, the house).
+ * today in the family (home.ts). The weather, the next trip and «Seguir viendo» come after the
+ * page, as they ask outside (Open-Meteo, the house).
  */
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) return { home: null };
@@ -24,6 +25,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		return {
 			home: { ...home, house },
 			weather: homeWeather(k).catch(() => null),
+			trip: nextTrip(k).catch((error) => {
+				console.warn('[portada] Sin el próximo viaje', String(error));
+				return null;
+			}),
 			watching: house ? continueWatching(who).catch(() => []) : Promise.resolve([])
 		};
 	} catch (error) {

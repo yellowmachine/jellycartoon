@@ -6,7 +6,16 @@
 	import type { Alarm } from 'comun/alarms.ts';
 	import { MAX_ITEM, MAX_NOTE, PAPERS, tiltFor, type FridgeState } from 'comun/fridge.ts';
 	import { thumbUrl } from 'comun/thumb.svelte.ts';
-	import { skyIcon, type WeatherGlance } from 'comun/weather.ts';
+	import { distanceText } from 'comun/road.ts';
+	import { skyIcon, type HourWeather, type WeatherGlance } from 'comun/weather.ts';
+	import {
+		arrivalOf,
+		upFirst,
+		whenText,
+		type LegWeather,
+		type PlannedLeg
+	} from '#lib/planned-trips.ts';
+	import { durationText } from '#lib/trips.ts';
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import { section } from '#lib/styles.ts';
 	import type { Watching } from '#lib/server/series.ts';
@@ -21,6 +30,7 @@
 		name,
 		home,
 		weather,
+		trip,
 		watching,
 		receipts
 	}: {
@@ -33,6 +43,13 @@
 			house: boolean;
 		};
 		weather: Promise<(WeatherGlance & { place: string }) | null>;
+		/** Their next trip (Viajes → Próximos): its next leg, its weather, and the one after. */
+		trip: Promise<{
+			trip: { id: number; name: string };
+			leg: PlannedLeg;
+			weather: LegWeather;
+			then: PlannedLeg | null;
+		} | null>;
 		watching: Promise<Watching[]>;
 		/** A receipt's photo can be read (the family's AI). */
 		receipts: boolean;
@@ -212,6 +229,9 @@
 	]);
 	const pending = $derived(steps.some((s) => !s.done));
 
+	const tripWeather = (w: HourWeather) =>
+		`${skyIcon(w.code)} ${w.temperature} °C${w.rain >= 30 ? `, lluvia ${w.rain} %` : ''}${w.wind >= 40 ? `, viento ${w.wind} km/h` : ''}`;
+
 	const quick =
 		'flex flex-col items-center gap-1 rounded-md border border-zinc-800 p-3 text-sm hover:border-amber-500/60';
 </script>
@@ -219,7 +239,7 @@
 <header class="mb-6">
 	<h1 class="text-2xl font-bold">{greeting}{firstName ? `, ${firstName}` : ''}</h1>
 	<p class="text-zinc-400">
-		<span class="first-letter:uppercase">{dateText}</span>
+		{upFirst(dateText)}
 		{#await weather then w}
 			{#if w}
 				<span title={w.place}>
@@ -265,6 +285,44 @@
 		</ul>
 	</section>
 {/if}
+
+{#await trip then next}
+	{#if next}
+		{@const arrival = arrivalOf(next.leg)}
+		<a href="/viajes" class="{section} block border-amber-500/40 hover:border-amber-500/70">
+			<h2 class="font-semibold">
+				🚗 {next.trip.name}
+				<span class="font-normal text-zinc-400">· {whenText(next.leg.day, today)}</span>
+			</h2>
+			<p class="text-sm">
+				{upFirst(dayName(next.leg.day))}, {next.leg.time} ·
+				{next.leg.from} → {next.leg.to}
+			</p>
+			<p class="mb-2 text-sm text-zinc-400">
+				{durationText(next.leg.duration)} · {distanceText(next.leg.distance)} · llega a las {arrival.time}
+			</p>
+			{#if next.weather.depart || next.weather.arrive}
+				<dl class="grid grid-cols-[auto_1fr] gap-x-3 text-sm">
+					{#if next.weather.depart}
+						<dt class="text-zinc-400">Salida</dt>
+						<dd>{tripWeather(next.weather.depart)}</dd>
+					{/if}
+					{#if next.weather.arrive}
+						<dt class="text-zinc-400">Llegada</dt>
+						<dd>{tripWeather(next.weather.arrive)}</dd>
+					{/if}
+				</dl>
+			{:else}
+				<p class="text-sm text-zinc-500">El tiempo, cuando quede menos para salir.</p>
+			{/if}
+			{#if next.then}
+				<p class="mt-2 border-t border-zinc-800 pt-2 text-sm text-zinc-400">
+					Después: {dayName(next.then.day)}, {next.then.time} · {next.then.from} → {next.then.to}
+				</p>
+			{/if}
+		</a>
+	{/if}
+{/await}
 
 <section class={section}>
 	<div class="mb-3 flex items-baseline justify-between">

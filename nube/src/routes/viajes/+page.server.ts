@@ -5,8 +5,19 @@ import type { Actions, PageServerLoad } from './$types';
 import { MAP_DIR } from '$app/env/private';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { orsFor } from '#lib/server/road/ors.ts';
-import { deleteTrips, listTrips, recordsTrips, tripStats } from '#lib/server/trips/trips.ts';
-import { deletePhoto, listPhotos } from '#lib/server/trips/photos.ts';
+import {
+	addLeg,
+	deleteLeg,
+	deleteTrip,
+	listPlannedTrips,
+	moveLeg,
+	saveTrip,
+	stopsOf,
+	tripsWeather
+} from '#lib/server/trips/planned.ts';
+import { agendaPeople } from '#lib/server/agenda/agenda.ts';
+import { isDay, isTime } from 'comun/agenda.ts';
+import { MAX_TRIP_NAME } from '#lib/planned-trips.ts';
 import {
 	deletePlace,
 	deleteRoute,
@@ -49,40 +60,114 @@ function nameOf(form: FormData, used: { id: number; name: string }[], id: number
 }
 
 /**
- * The road mode's trips (#81): each one's own, kept if turned on in Ajustes. And the places and
- * routes kept with their name, for the road mode (#151).
+ * Viajes → Próximos: the trips still to come (planned.ts), with each leg's weather after the page
+ * (Open-Meteo); and the places and routes kept with their name, for the road mode (#151) and the
+ * trips' legs. Those made, in /viajes/hechos.
  */
 export const load: PageServerLoad = async ({ locals }) => {
 	const k = await kitchenOf(locals.user!.id);
-	const [trips, stats, recordTrips, map, photos, places, routes, routeMaps] = await Promise.all([
-		listTrips(k),
-		tripStats(k),
-		recordsTrips(k),
+	const [planned, people, map, places, routes, routeMaps] = await Promise.all([
+		listPlannedTrips(k),
+		agendaPeople(k),
 		access(path.join(MAP_DIR, 'espana.pmtiles')).then(
 			() => true,
 			() => false
 		),
-		listPhotos(k),
 		listSavedPlaces(k),
 		listSavedRoutes(k),
 		routeMapsOf(k)
 	]);
-	return { trips, stats, recordTrips, map, photos, places, routes, routeMaps };
+	return {
+		planned,
+		weather: tripsWeather(planned).catch(() => ({})),
+		people,
+		map,
+		places,
+		routes,
+		routeMaps
+	};
 };
 
+/** A leg's stops from the form: a kept route of theirs, or a start and an end. */
+async function legStops(form: FormData, k: Awaited<ReturnType<typeof kitchenOf>>) {
+	const routeId = Number(form.get('route'));
+	if (Number.isInteger(routeId) && routeId > 0) {
+		const route = (await listSavedRoutes(k)).find((r) => r.id === routeId);
+		return route ? stopsOf(route.stops) : null;
+	}
+	try {
+		const stops = JSON.parse(String(form.get('stops') ?? '[]'));
+		if (!Array.isArray(stops) || stops.length < 2 || stops.length > MAX_STOPS) return null;
+		if (!stops.every((s) => isLngLat(s?.at))) return null;
+		return stops.map((s) => ({
+			name:
+				String(s.name ?? '')
+					.trim()
+					.slice(0, 200) || 'Punto',
+			at: s.at
+		}));
+	} catch {
+		return null;
+	}
+}
+
 export const actions: Actions = {
-	delete: async ({ request, locals }) => {
-		const id = Number((await request.formData()).get('id'));
-		if (!Number.isInteger(id)) return fail(400, { message: 'Viaje no válido' });
-		await deleteTrips(await kitchenOf(locals.user!.id), id);
+	/** A new trip, or its name, who goes and «Solo para mí». */
+	saveTrip: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = idOf(form);
+		if (id === undefined) return fail(400, { trip: 'Viaje no válido' });
+		const name = String(form.get('name') ?? '')
+			.trim()
+			.replace(/\s+/g, ' ')
+			.slice(0, MAX_TRIP_NAME);
+		if (!name) return fail(400, { trip: 'Falta el nombre del viaje' });
+		const saved = await saveTrip(await kitchenOf(locals.user!.id), {
+			id,
+			name,
+			private: form.get('private') === 'on',
+			people: form.getAll('people').map(String)
+		});
+		if (saved === null) return fail(404, { trip: 'Ese viaje ya no está' });
+		return { tripSaved: saved };
 	},
-	deletePhoto: async ({ request, locals }) => {
-		const id = Number((await request.formData()).get('id'));
-		if (!Number.isInteger(id)) return fail(400, { message: 'Foto no válida' });
-		await deletePhoto(await kitchenOf(locals.user!.id), id);
+	deleteTrip: async ({ request, locals }) => {
+		const id = idOf(await request.formData());
+		if (typeof id !== 'number') return fail(400, { trip: 'Viaje no válido' });
+		await deleteTrip(await kitchenOf(locals.user!.id), id);
 	},
-	deleteAll: async ({ locals }) => {
-		await deleteTrips(await kitchenOf(locals.user!.id), null);
+	/** A leg: its day, the time it leaves, and a kept route or a start and an end. */
+	addLeg: async ({ request, locals }) => {
+		const k = await kitchenOf(locals.user!.id);
+		const form = await request.formData();
+		const tripId = Number(form.get('trip'));
+		const day = form.get('day');
+		const time = form.get('time');
+		if (!Number.isInteger(tripId)) return fail(400, { leg: 'Viaje no válido', tripId });
+		if (!isDay(day) || !isTime(time))
+			return fail(400, { leg: 'Falta el día o la hora de salida', tripId });
+		const stops = await legStops(form, k);
+		if (!stops) return fail(400, { leg: 'Elige una ruta, o de dónde sale y adónde llega', tripId });
+		try {
+			if (!(await addLeg(k, tripId, { day, time, stops })))
+				return fail(404, { leg: 'Ese viaje ya no está', tripId });
+		} catch (err) {
+			return fail(502, { leg: orsFor(k).orsMessage(err, 'calcular la ruta'), tripId });
+		}
+	},
+	moveLeg: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = idOf(form);
+		const day = form.get('day');
+		const time = form.get('time');
+		if (typeof id !== 'number' || !isDay(day) || !isTime(time))
+			return fail(400, { leg: 'Falta el día o la hora de salida' });
+		await moveLeg(await kitchenOf(locals.user!.id), id, day, time);
+	},
+	deleteLeg: async ({ request, locals }) => {
+		const id = idOf(await request.formData());
+		if (typeof id !== 'number') return fail(400, { leg: 'Tramo no válido' });
+		await deleteLeg(await kitchenOf(locals.user!.id), id);
 	},
 	savePlace: async ({ request, locals }) => {
 		const k = await kitchenOf(locals.user!.id);

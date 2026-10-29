@@ -188,3 +188,52 @@ export function skyIcon(code: number) {
 	if (code >= 95) return '⛈️';
 	return '🌧️';
 }
+
+/** How far ahead Open-Meteo forecasts, in days counting today. */
+export const FORECAST_DAYS = 16;
+
+/** The weather at one hour of one day (a trip's leg: where and when it leaves, where it arrives). */
+export interface HourWeather {
+	temperature: number;
+	sky: string;
+	code: number;
+	/** Chance of rain, %. */
+	rain: number;
+	/** km/h. */
+	wind: number;
+}
+
+/**
+ * At `lat`, `lon`, on `day` (`YYYY-MM-DD`) at `hour` (0–23), in Spain's time; null if that day is
+ * past or too far ahead (`FORECAST_DAYS`) to be forecast yet.
+ */
+export async function hourWeather(
+	lat: number,
+	lon: number,
+	day: string,
+	hour: number,
+	today: string
+): Promise<HourWeather | null> {
+	const last = new Date(`${today}T12:00:00Z`);
+	last.setUTCDate(last.getUTCDate() + FORECAST_DAYS - 1);
+	if (day < today || day > last.toISOString().slice(0, 10)) return null;
+	const url = new URL(FORECAST_URL);
+	url.searchParams.set('latitude', String(lat));
+	url.searchParams.set('longitude', String(lon));
+	url.searchParams.set(
+		'hourly',
+		'temperature_2m,precipitation_probability,weather_code,wind_speed_10m'
+	);
+	url.searchParams.set('timezone', TIME_ZONE);
+	url.searchParams.set('start_date', day);
+	url.searchParams.set('end_date', day);
+	const h = (await getJson(url)).hourly;
+	const i = Math.min(Math.max(hour, 0), h.time.length - 1);
+	return {
+		temperature: round(h.temperature_2m[i]),
+		sky: sky(h.weather_code[i]),
+		code: h.weather_code[i],
+		rain: h.precipitation_probability[i] ?? 0,
+		wind: round(h.wind_speed_10m[i])
+	};
+}
