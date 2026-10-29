@@ -52,7 +52,7 @@ import { tellHouse } from '#lib/server/house.ts';
 import { orsFor } from '#lib/server/road/ors.ts';
 import { listSavedPlaces, listSavedRoutes } from '#lib/server/trips/places.ts';
 import { asksForRoute, findByName } from 'comun/saved-places.ts';
-import { openRouterKey } from '#lib/server/family-settings.ts';
+import { familyPlace, openRouterKey } from '#lib/server/family-settings.ts';
 import {
 	chatWithTools,
 	NO_CREDIT,
@@ -877,7 +877,7 @@ async function runTool(
 	if (ctx.timersOf && (name === 'set_timer' || name === 'cancel_timer'))
 		return cloudTimer(name, args, ctx, ctx.timersOf);
 	if (ctx.withoutHouse && name === 'get_weather')
-		return cloudWeather(args, ctx.order.request.position);
+		return cloudWeather(ctx.k, args, ctx.order.request.position);
 	if (HOUSE_TOOLS.has(name) || ctx.houseTools.has(name)) {
 		const done = await tellHouse<HouseHandResult>(ctx.k.familyId, '/voz', {
 			order: ctx.order.order,
@@ -1081,8 +1081,15 @@ async function runTool(
 	}
 }
 
-/** The weather without the house: the place said, or where the phone is (the road mode's GPS). */
-async function cloudWeather(args: Record<string, unknown>, position: [number, number] | null) {
+/**
+ * The weather without the house: the place said, where the phone is (the road mode's GPS), or where
+ * the family lives (Ajustes, «Dónde vivís»).
+ */
+async function cloudWeather(
+	k: Kitchen,
+	args: Record<string, unknown>,
+	position: [number, number] | null
+) {
 	const asked = typeof args.place === 'string' ? args.place.trim() : '';
 	let where: { lat: number; lon: number; name: string } | null = null;
 	if (asked) {
@@ -1093,8 +1100,12 @@ async function cloudWeather(args: Record<string, unknown>, position: [number, nu
 		where = { lat: place.lat, lon: place.lon, name: placeName(place) };
 	} else if (position) {
 		where = { lon: position[0], lat: position[1], name: 'donde está ahora' };
+	} else {
+		const home = await familyPlace(k);
+		if (home) where = { lat: home.lat, lon: home.lon, name: placeName(home) };
 	}
-	if (!where) return 'No sé dónde está: pregúntale de qué pueblo o ciudad, sin más.';
+	if (!where)
+		return 'No sé dónde está: pregúntale de qué pueblo o ciudad (se puede poner en Ajustes → Familia, «Dónde vivís»).';
 	return `El tiempo en ${where.name}:\n${await forecast(where.lat, where.lon)}`;
 }
 

@@ -14,6 +14,7 @@ import {
 	unique
 } from 'drizzle-orm/pg-core';
 import type { RecipeStep } from 'comun/recipe.ts';
+import type { Place } from 'comun/weather.ts';
 import { user } from './auth.schema.ts';
 import { family, familyRows } from './family.schema.ts';
 
@@ -126,6 +127,8 @@ export const familySettings = pgTable(
 		voiceWeb: jsonb('voice_web').$type<{ on: boolean; hints: string }>(),
 		/** «Horas de silencio», «HH:MM» to «HH:MM»; null, none. */
 		voiceQuiet: jsonb('voice_quiet').$type<{ from: string; to: string }>(),
+		/** «Dónde vivís» (Ajustes → Familia), optional: the weather on the home page and by voice. */
+		place: jsonb('place').$type<Place>(),
 		recipesBackdrop: integer('recipes_backdrop').references(() => recipe.id, {
 			onDelete: 'set null'
 		}),

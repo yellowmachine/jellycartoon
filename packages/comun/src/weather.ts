@@ -142,3 +142,49 @@ export async function forecast(lat: number, lon: number) {
 	}
 	return lines.join('\n');
 }
+
+/** The weather at a glance (Seilide's home page): now, and today's lowest, highest and rain. */
+export interface WeatherGlance {
+	temperature: number;
+	sky: string;
+	/** WMO's code, for its icon. */
+	code: number;
+	min: number;
+	max: number;
+	/** Today's chance of rain, %. */
+	rain: number;
+}
+
+export async function weatherGlance(lat: number, lon: number): Promise<WeatherGlance> {
+	const url = new URL(FORECAST_URL);
+	url.searchParams.set('latitude', String(lat));
+	url.searchParams.set('longitude', String(lon));
+	url.searchParams.set('current', 'temperature_2m,weather_code');
+	url.searchParams.set(
+		'daily',
+		'temperature_2m_max,temperature_2m_min,precipitation_probability_max'
+	);
+	url.searchParams.set('timezone', TIME_ZONE);
+	url.searchParams.set('forecast_days', '1');
+	const data = await getJson(url);
+	return {
+		temperature: round(data.current.temperature_2m),
+		sky: sky(data.current.weather_code),
+		code: data.current.weather_code,
+		min: round(data.daily.temperature_2m_min[0]),
+		max: round(data.daily.temperature_2m_max[0]),
+		rain: data.daily.precipitation_probability_max[0] ?? 0
+	};
+}
+
+/** An emoji for WMO's code: the sky at a glance. */
+export function skyIcon(code: number) {
+	if (code === 0 || code === 1) return '☀️';
+	if (code === 2) return '⛅';
+	if (code === 3) return '☁️';
+	if (code === 45 || code === 48) return '🌫️';
+	if (code >= 71 && code <= 77) return '🌨️';
+	if (code === 85 || code === 86) return '🌨️';
+	if (code >= 95) return '⛈️';
+	return '🌧️';
+}

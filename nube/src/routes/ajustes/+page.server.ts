@@ -23,8 +23,11 @@ import {
 	openRouterKeyStart,
 	orsKeyStart,
 	setOpenRouterKey,
-	setOrsKey
+	setOrsKey,
+	familyPlace,
+	setFamilyPlace
 } from '#lib/server/family-settings.ts';
+import { findPlaces, placeName, type Place } from 'comun/weather.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import {
 	DEFAULT_VOICE_MODEL,
@@ -83,6 +86,8 @@ export const load: PageServerLoad = async ({ locals, request }) => {
 		houseStyle: admin ? { text: voice.style ?? '' } : null,
 		voiceWeb: admin ? voice.web : null,
 		voiceQuiet: admin ? { hours: voice.quiet } : null,
+		/** «Dónde vivís», if said: only its administrator. */
+		place: admin ? await familyPlace(k).then((p) => ({ name: p ? placeName(p) : null })) : null,
 		/** And how it talks to each one. */
 		myStyle: { text: (await personVoiceStyle(k, locals.user!.id)) ?? '' },
 		/** Whether the road mode keeps their trips (Viajes). */
@@ -123,7 +128,51 @@ async function adminFamily(userId: string) {
 
 const notAdmin = () => fail(403, { botProblem: 'Solo quien administra la familia' });
 
+/** A place as Open-Meteo found it, back from the page: only what a place has. */
+function placeFrom(value: unknown): Place | null {
+	try {
+		const p = JSON.parse(String(value ?? ''));
+		if (!Number.isFinite(p.lat) || !Number.isFinite(p.lon) || typeof p.name !== 'string')
+			return null;
+		return {
+			name: p.name.slice(0, 100),
+			region: typeof p.region === 'string' ? p.region.slice(0, 100) : null,
+			country: typeof p.country === 'string' ? p.country.slice(0, 100) : null,
+			lat: p.lat,
+			lon: p.lon
+		};
+	} catch {
+		return null;
+	}
+}
+
 export const actions: Actions = {
+	/** «Dónde vivís»: what Open-Meteo finds by that name, to choose one. */
+	findPlace: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'placeProblem');
+		if (denied) return denied;
+		const name = String((await request.formData()).get('name') ?? '').trim();
+		if (!name) return fail(400, { placeProblem: 'Escribe el pueblo o la ciudad' });
+		try {
+			return { familyPlaces: await findPlaces(name) };
+		} catch (err) {
+			return fail(503, { placeProblem: err instanceof Error ? err.message : String(err) });
+		}
+	},
+	savePlace: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'placeProblem');
+		if (denied) return denied;
+		const place = placeFrom((await request.formData()).get('place'));
+		if (!place) return fail(400, { placeProblem: 'Sitio no válido' });
+		await setFamilyPlace(await kitchenOf(locals.user!.id), place);
+		return { saved: 'place' };
+	},
+	clearPlace: async ({ locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'placeProblem');
+		if (denied) return denied;
+		await setFamilyPlace(await kitchenOf(locals.user!.id), null);
+		return { saved: 'place' };
+	},
 	/** Their colours, in all their screens (comun/themes.ts). */
 	theme: async ({ request, locals }) => {
 		const theme = (await request.formData()).get('theme');

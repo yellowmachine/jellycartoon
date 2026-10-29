@@ -7,6 +7,7 @@
 	import Invitaciones from './Invitaciones.svelte';
 	import EntrarConLaNube from './EntrarConLaNube.svelte';
 	import VozCaracter from './VozCaracter.svelte';
+	import DondeVivis from './DondeVivis.svelte';
 	import VozInternet from './VozInternet.svelte';
 	import VozSilencio from './VozSilencio.svelte';
 	import Guardado from 'comun/components/Guardado.svelte';
@@ -201,6 +202,8 @@
 				<p class="mt-3 text-sm text-red-400">{form.personProblem}</p>
 			{/if}
 		</section>
+
+		<DondeVivis {data} {form} {tab} />
 
 		<Invitaciones {data} {form} {tab} />
 
