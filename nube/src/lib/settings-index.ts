@@ -39,6 +39,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		words: 'voz carácter personalidad tono humor tomar el pelo chistes asistente estilo'
 	},
 	{
+		id: 'voz-recuerda',
+		tab: 'mi',
+		title: 'Lo que la voz recuerda',
+		words: 'memoria recordar recuerda olvidar apuntar llave talla datos voz'
+	},
+	{
 		id: 'subtitulos',
 		tab: 'mi',
 		title: 'Subtítulos',

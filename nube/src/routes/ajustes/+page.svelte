@@ -11,6 +11,7 @@
 	import VozInternet from './VozInternet.svelte';
 	import VozSilencio from './VozSilencio.svelte';
 	import VozAprendido from './VozAprendido.svelte';
+	import VozRecuerda from './VozRecuerda.svelte';
 	import Guardado from 'comun/components/Guardado.svelte';
 	import { avatar, isAvatar } from 'comun/avatars.ts';
 	import { page } from '$app/state';
@@ -92,6 +93,8 @@
 		/>
 
 		<VozCaracter {data} {form} {tab} which="mio" />
+
+		<VozRecuerda {data} {form} {tab} />
 
 		<Subtitulos {data} />
 

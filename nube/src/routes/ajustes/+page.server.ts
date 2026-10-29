@@ -41,6 +41,7 @@ import {
 	voiceSettings
 } from '#lib/server/voice/settings.ts';
 import { forgetLearned, listLearned } from '#lib/server/voice/learned.ts';
+import { forget, listMemories, remember } from '#lib/server/memory.ts';
 import { createHouseKey, deleteHouseKey, listHouseKeys } from '#lib/server/house-keys.ts';
 import { invitationLink, invitations, inviteAndSend } from '#lib/server/invitations.ts';
 import {
@@ -106,6 +107,8 @@ export const load: PageServerLoad = async ({ locals, request }) => {
 					return me?.on ?? false;
 				})
 			: null,
+		/** What the voice remembers: theirs (no one else sees it) and the house's. */
+		memories: await listMemories(k, locals.user!.id),
 		/** How their subtitles look (Canales). */
 		subtitleStyle: await subtitleStyleOf(k)
 	};
@@ -233,6 +236,24 @@ export const actions: Actions = {
 			form.get('off') || !from || !to ? null : { from, to }
 		);
 		return { saved: 'voiceQuiet' };
+	},
+	/** «Lo que la voz recuerda»: one more, theirs or the house's. */
+	addMemory: async ({ request, locals }) => {
+		const form = await request.formData();
+		const text = String(form.get('text') ?? '');
+		if (!text.trim()) return fail(400, { memoryProblem: 'Escribe qué tiene que recordar' });
+		await remember(
+			await kitchenOf(locals.user!.id),
+			form.get('whose') === 'house' ? null : locals.user!.id,
+			text
+		);
+		return { saved: 'memory' };
+	},
+	/** And one forgotten: theirs, or the house's. */
+	forgetMemory: async ({ request, locals }) => {
+		const id = Number((await request.formData()).get('id'));
+		if (Number.isInteger(id)) await forget(await kitchenOf(locals.user!.id), locals.user!.id, id);
+		return { saved: 'memory' };
 	},
 	/** One of «Lo que ha aprendido la voz», forgotten. */
 	forgetVoiceLearned: async ({ request, locals }) => {
