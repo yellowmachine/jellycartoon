@@ -38,7 +38,12 @@ import {
 } from '#lib/server/voice/settings.ts';
 import { createHouseKey, deleteHouseKey, listHouseKeys } from '#lib/server/house-keys.ts';
 import { invitationLink, invitations, inviteAndSend } from '#lib/server/invitations.ts';
-import { createHouseClient, deleteHouseClient, houseClients } from '#lib/server/house-clients.ts';
+import {
+	createHouseClient,
+	deleteHouseClient,
+	houseClients,
+	refusedByProvider
+} from '#lib/server/house-clients.ts';
 import { ORIGIN } from '$app/env/private';
 import {
 	askHouse,
@@ -351,7 +356,7 @@ export const actions: Actions = {
 			return { houseClient: await createHouseClient(request.headers, houseUrl.origin, familyId) };
 		} catch (error) {
 			// Its address, refused by the provider: https, unless on this same machine.
-			if (error instanceof APIError && error.status === 'BAD_REQUEST')
+			if (refusedByProvider(error))
 				return fail(400, { clientProblem: 'La dirección de la casa, con https://' });
 			throw error;
 		}

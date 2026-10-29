@@ -38,6 +38,13 @@ Varias familias en una sola app, cada una aislada por la seguridad por filas de 
   familia: a otro no se le da el token (`src/lib/server/oidc.ts`), y el token lleva la familia en
   `https://nube.scholio.review/family`. La casa vuelve a `https://casa…/api/auth/callback/nube`
   (`genericOAuth` de Better Auth, en el README de casa).
+- **Las apps con la misma cuenta (#284):** Langua, Librarian… son también clientes del proveedor,
+  pero de ninguna familia: los crea `ADMIN_EMAIL` en **Apps** (`/admin/apps`, en su menú), con su
+  dirección de vuelta, y salen `SEILIDE_URL`, `SEILIDE_CLIENT_ID` y `SEILIDE_CLIENT_SECRET` para su
+  `.env`. Entra cualquiera con cuenta, sin consentimiento. La familia solo va en el token con el
+  scope `family`, que solo se permite a las apps «para familias» (Langua sí, Librarian no); a
+  alguien sin familia no se le da (`src/lib/server/oidc-claims.ts`). Las de las casas siguen
+  llevándola siempre.
 - **La casa:** en Ajustes, la dirección de fuera de jellycartoon (su `MEDIA_HOST`) y la clave de su
   Ajustes → Casa → «La nube». La clave se guarda cifrada y no sale del servidor; cada petición a
   casa va en nombre de la persona, por su email (el mismo en las dos apps).

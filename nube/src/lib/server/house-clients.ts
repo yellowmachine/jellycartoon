@@ -1,10 +1,20 @@
 import { auth } from './auth.ts';
+import { isApp } from './app-clients.ts';
 
 /**
  * The houses' clients of the cloud's OpenID provider (#279, oidc.ts), made and removed in Ajustes
  * by the family's administrator, with their session: the provider's own endpoints, which keep each
  * family's (clientReference) and let only its administrator (clientPrivileges).
  */
+/**
+ * A client refused by the provider (its address: https, unless on this same machine). Called from
+ * the server, it throws an Error with the status, not an APIError.
+ */
+export const refusedByProvider = (e: unknown) => {
+	const status = (e as { status?: unknown } | null)?.status;
+	return status === 400 || status === 'BAD_REQUEST';
+};
+
 /** Where Better Auth's genericOAuth, at home, gets the answer back: provider id `nube`. */
 export const callbackOf = (houseUrl: string) =>
 	`${houseUrl.replace(/\/+$/, '')}/api/auth/callback/nube`;
@@ -29,15 +39,17 @@ export async function createHouseClient(headers: Headers, houseUrl: string, fami
 	return { clientId: made.client_id, clientSecret: made.client_secret ?? '' };
 }
 
-/** The family's houses' clients (clientReference), for its administrator. */
+/** The family's houses' clients (clientReference), for its administrator: not the apps'. */
 export async function houseClients(headers: Headers) {
 	const clients = await auth.api.getOAuthClients({ headers });
-	return (clients ?? []).map((c) => ({
-		clientId: c.client_id,
-		name: c.client_name ?? c.client_id,
-		redirect: c.redirect_uris?.[0] ?? '',
-		createdAt: c.client_id_issued_at ? new Date(c.client_id_issued_at * 1000) : null
-	}));
+	return (clients ?? [])
+		.filter((c) => !isApp(c))
+		.map((c) => ({
+			clientId: c.client_id,
+			name: c.client_name ?? c.client_id,
+			redirect: c.redirect_uris?.[0] ?? '',
+			createdAt: c.client_id_issued_at ? new Date(c.client_id_issued_at * 1000) : null
+		}));
 }
 
 export const deleteHouseClient = (headers: Headers, clientId: string) =>

@@ -1,12 +1,12 @@
 import { APIError } from 'better-auth/api';
 import { NoFamily, withFamily } from './family.ts';
+import { FAMILY_CLAIM, FAMILY_SCOPE, idTokenAnswer } from './oidc-claims.ts';
 
 /**
- * The cloud as the houses' OpenID provider (#279, auth.ts): each house is a client of its family's,
- * which says so in its metadata (`familyId`). Only that family's people get in: the ID token is not
- * issued to anyone else, and it carries their family, for the house to see.
+ * The cloud as OpenID provider (#279, auth.ts): of the houses, each a client of its family's, which
+ * says so in its metadata (`familyId`); and of the apps (#284, app-clients.ts), of no family. Who
+ * gets in and with what family, in oidc-claims.ts.
  */
-export const FAMILY_CLAIM = 'https://nube.scholio.review/family';
 
 async function membershipOf(userId: string) {
 	try {
@@ -27,21 +27,22 @@ export const clientReference = async ({ user }: { user?: { id: string } }) =>
 export const clientPrivileges = async ({ user }: { user?: { id: string } }) =>
 	user ? (await membershipOf(user.id))?.role === 'admin' : false;
 
-/** The ID token's: refused to someone not of the client's family. */
+/** The ID token's: refused to someone not of a house's family, or of none for a families' app. */
 export async function idTokenClaims({
 	user,
+	scopes,
 	metadata
 }: {
 	user: { id: string };
+	scopes: string[];
 	metadata?: Record<string, unknown>;
 }) {
-	const familyId = await familyOf(user.id);
-	if (!familyId || (metadata?.familyId && metadata.familyId !== familyId))
-		throw new APIError('FORBIDDEN', { message: 'Esta casa es de otra familia' });
-	return { [FAMILY_CLAIM]: familyId };
+	const answer = idTokenAnswer(await familyOf(user.id), scopes, metadata);
+	if (!answer.ok) throw new APIError('FORBIDDEN', { message: answer.message });
+	return answer.claims;
 }
 
-/** The userinfo's: their family, as in the ID token. */
-export async function userInfoClaims({ user }: { user: { id: string } }) {
-	return { [FAMILY_CLAIM]: await familyOf(user.id) };
+/** The userinfo's: their family, with the `family` scope (it is not told which client asks). */
+export async function userInfoClaims({ user, scopes }: { user: { id: string }; scopes: string[] }) {
+	return scopes.includes(FAMILY_SCOPE) ? { [FAMILY_CLAIM]: await familyOf(user.id) } : {};
 }

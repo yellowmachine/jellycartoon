@@ -12,7 +12,11 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
-			adapter: adapter()
+			adapter: adapter(),
+			// Kit's own origin check would refuse the OpenID provider's token endpoint, which the
+			// houses and apps call server to server, without an Origin (#284). checkCsrf in
+			// src/hooks.server.ts does the same check, but not there.
+			csrf: { trustedOrigins: ['*'] }
 		})
 	]
 });
