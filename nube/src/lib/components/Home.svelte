@@ -2,6 +2,9 @@
 	import '@fontsource/comic-neue/400.css';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
+	import { atHome } from '#lib/nav.ts';
 	import { dayName, isOver, localDay, localTime, timeOn, type Occurrence } from 'comun/agenda.ts';
 	import type { Alarm } from 'comun/alarms.ts';
 	import { MAX_ITEM, MAX_NOTE, PAPERS, tiltFor, type FridgeState } from 'comun/fridge.ts';
@@ -234,7 +237,8 @@
 		`${skyIcon(w.code)} ${w.temperature} °C${w.rain >= 30 ? `, lluvia ${w.rain} %` : ''}${w.wind >= 40 ? `, viento ${w.wind} km/h` : ''}`;
 
 	const quick =
-		'flex flex-col items-center gap-1 rounded-md border border-zinc-800 p-3 text-sm hover:border-amber-500/60';
+		'flex flex-col items-center gap-1 rounded-md border border-zinc-800 p-3 text-center text-sm leading-tight hover:border-amber-500/60';
+	const icon = 'h-7 w-7 text-amber-400';
 </script>
 
 <header class="mb-6">
@@ -421,11 +425,13 @@
 	{/if}
 </section>
 
-<div class="mb-8 grid grid-cols-3 gap-3">
-	<a href="/voz" class={quick}><span class="text-2xl" aria-hidden="true">🎤</span>Hablar</a>
+<!-- Drawn as the bar's sections, not emoji. The kitchen mode is the house's (its timers, its
+     recipes step by step): there, turned on by the link. -->
+<div class={['mb-8 grid gap-3', home.house ? 'grid-cols-4' : 'grid-cols-3']}>
+	<a href="/voz" class={quick}><SectionIcon name="podcasts" class={icon} />Hablar</a>
 	{#if receipts}
 		<label class="{quick} cursor-pointer">
-			<span class="text-2xl" aria-hidden="true">🧾</span>Ticket
+			<SectionIcon name="gastos" class={icon} />Ticket
 			<input
 				type="file"
 				accept="image/*"
@@ -441,10 +447,14 @@
 			/>
 		</label>
 	{:else}
-		<a href="/gastos" class={quick}><span class="text-2xl" aria-hidden="true">🧾</span>Gastos</a>
+		<a href="/gastos" class={quick}><SectionIcon name="gastos" class={icon} />Gastos</a>
 	{/if}
-	<a href="/carretera" class={quick}><span class="text-2xl" aria-hidden="true">🚗</span>Carretera</a
-	>
+	<a href="/carretera" class={quick}><SectionIcon name="viajes" class={icon} />Carretera</a>
+	{#if home.house}
+		<a href={atHome(page.data.webUrl ?? null, '/voz?cocina')} class={quick}
+			><SectionIcon name="recetas" class={icon} />Modo cocina</a
+		>
+	{/if}
 </div>
 
 {#if home.house}
