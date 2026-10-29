@@ -60,7 +60,8 @@ import {
 	type ToolChatMessage
 } from '#lib/server/openrouter.ts';
 import { quietCheck } from './quiet-check.ts';
-import { personVoiceStyle, voiceSettings } from './settings.ts';
+import { FALLBACK_VOICE_MODEL, personVoiceStyle, voiceSettings } from './settings.ts';
+import { voiceFellBack } from './alarm.ts';
 import { searchWeb, WEB_TOOL, webSearchTool } from './web-search.ts';
 
 /**
@@ -1277,11 +1278,13 @@ export async function runVoiceCommand(
 				apiKey,
 				label: `Voz: «${request.text}»`,
 				model: settings.model,
+				fallbackModel: FALLBACK_VOICE_MODEL,
 				messages,
 				tools: available,
 				think: false,
 				toolChoice: 'required'
 			});
+			if (answer.fellBack) voiceFellBack(k.familyId, answer.fellBack);
 		} catch (err) {
 			if (err instanceof Error && err.message === NO_CREDIT) return reply(SAID_NO_CREDIT);
 			throw err;
