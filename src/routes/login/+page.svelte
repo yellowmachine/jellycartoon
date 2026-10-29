@@ -124,6 +124,19 @@
 				{mode === 'signIn' ? 'Entrar' : 'Crear la cuenta'}
 			</button>
 		</form>
+		{#if mode === 'signIn' && data.nube}
+			<!-- Not enhanced: the action answers with a redirect to the cloud, another site (#279). -->
+			<form method="post" action={action('nube')} class="mt-4">
+				<button
+					class="w-full rounded-md border border-zinc-700 py-2 font-medium text-zinc-100 hover:border-amber-400"
+				>
+					Entrar con la nube
+				</button>
+			</form>
+			{#if data.nubeProblem}
+				<p class="mt-2 text-sm text-red-400">{data.nubeProblem}</p>
+			{/if}
+		{/if}
 		{#if mode === 'signIn'}
 			<p class="mt-4 text-center text-sm text-zinc-500">
 				¿Sin cuenta, o sin tu contraseña? Pide un enlace a quien administra la app.

@@ -1,7 +1,7 @@
 /**
  * A new family, by the service's administrator (#253): the family, and an invitation for the email
- * of whoever will administer it, who then signs up with that email («Tengo una invitación») and is
- * in. As the database's owner (MIGRATE_DATABASE_URL), whom row-level security does not apply to.
+ * of whoever will administer it, who then opens its link (printed here), signs up with that email
+ * and is in. As the database's owner (MIGRATE_DATABASE_URL), whom row-level security does not apply to.
  *
  *   bun run familia "Casa García" ana@example.com
  */
@@ -25,10 +25,8 @@ try {
 		console.error(`${email} ya tiene cuenta o invitación`);
 		process.exit(1);
 	}
-	await createFamily(db, name, email);
-	console.log(
-		`Familia «${name}» creada. ${email} ya puede crear su cuenta con «Tengo una invitación».`
-	);
+	const link = await createFamily(db, name, email);
+	console.log(`Familia «${name}» creada. ${email} crea su cuenta en ${link} (caduca en 7 días).`);
 } finally {
 	await client.end();
 }

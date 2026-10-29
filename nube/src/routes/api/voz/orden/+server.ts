@@ -6,11 +6,12 @@ import { kitchenOf } from '#lib/server/fridge.ts';
 import { askHouse, HouseProblem } from '#lib/server/house.ts';
 import { runVoiceCommand } from '#lib/server/voice/command.ts';
 
-/** What the cloud does not do yet: the phone's timers (and with them, cooking), and video. */
+/**
+ * What the cloud does not do yet: timers waiting for something (and with them, cooking), and
+ * video. Its timers, kept here (command.ts, `cloudTimer`).
+ */
 const NOT_HERE = [
-	'set_timer',
 	'prepare_timer',
-	'cancel_timer',
 	'kitchen_mode',
 	'start_recipe',
 	'cook_saved_recipe',
@@ -26,7 +27,7 @@ const NOT_HERE = [
 
 /** Away from the car, said to the AI: why those are not offered. */
 const AWAY =
-	'[Desde la nube (Hablar en el móvil): aquí no hay temporizadores, ni modo cocina ni recetas paso a paso, ni vídeo (series, películas, canales); eso está en jellycartoon, en casa. Si lo pide, díselo así, corto. Las alarmas sí.]';
+	'[Desde la nube (Hablar en el móvil): aquí no hay temporizadores preparados («cuando hierva»), ni modo cocina ni recetas paso a paso, ni vídeo (series, películas, canales); eso está en jellycartoon, en casa. Si lo pide, díselo así, corto. Las alarmas sí, y los temporizadores: avisan en su móvil, o suenan en casa si lo dice.]';
 
 /**
  * What was said to the cloud (#253), in its road mode or in Hablar, done: the house opens the order with what only it knows
@@ -50,7 +51,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const started = performance.now();
 	const where = command.car ? 'Carretera' : 'Hablar';
 	try {
-		const reply = await runVoiceCommand(k, order, NOT_HERE, command.car ? null : AWAY);
+		const reply = await runVoiceCommand(k, order, NOT_HERE, command.car ? null : AWAY, true);
 		console.info(
 			`[voz] ${where}: «${command.text}» → «${reply.reply}» · ${Math.round(performance.now() - started)} ms`,
 			{ familyId: k.familyId }

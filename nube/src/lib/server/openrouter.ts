@@ -1,6 +1,7 @@
 /**
  * OpenRouter (https://openrouter.ai), with the family's own key (family-settings.ts): an answer as
- * JSON to a schema, as jellycartoon's `completeJson`. No spending record yet (#193).
+ * JSON to a schema, as jellycartoon's `completeJson`. Each request's cost goes to the spending's
+ * line (#193, ai-spend.ts).
  */
 
 /** jellycartoon's defaults: short tasks, and photos (receipts, bills). */
@@ -11,8 +12,25 @@ export const VISION_MODEL = 'anthropic/claude-sonnet-5.5';
 export type ContentPart =
 	{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
 
+const costListeners = new Set<(apiKey: string, label: string, dollars: number) => void>();
+
+/** What each request to the AI costs, with whose key, as it comes back: the spending's line adds it up. */
+export function watchCost(listener: (apiKey: string, label: string, dollars: number) => void) {
+	costListeners.add(listener);
+	return () => void costListeners.delete(listener);
+}
+
+/** Billed even when the answer is no good (a reasoning model that ran out of tokens). */
+function noteCost(apiKey: string, label: string, body: { usage?: Usage } | null) {
+	const cost = body?.usage?.cost;
+	if (typeof cost === 'number' && cost > 0)
+		for (const listener of costListeners) listener(apiKey, label, cost);
+}
+
 export async function completeJson<T>(request: {
 	apiKey: string;
+	/** What it is for, for the spending's line: e.g. «Leer un ticket». */
+	label: string;
 	system: string;
 	prompt: string | ContentPart[];
 	/** Name of the schema, e.g. `recipe`. */
@@ -50,6 +68,7 @@ export async function completeJson<T>(request: {
 	if (res.status === 401) throw new Error('OpenRouter no acepta la clave: cámbiala en Ajustes');
 	if (res.status === 402) throw new Error('No queda saldo en OpenRouter');
 	if (!res.ok) throw new Error(`OpenRouter: ${body?.error?.message ?? res.status}`);
+	noteCost(request.apiKey, request.label, body);
 	// Errors once the provider has started answering come with a 200, inside the choice.
 	const choice = body?.choices?.[0];
 	const content = choice?.message?.content;
@@ -149,12 +168,16 @@ async function canSkipThinking(model: string) {
  */
 export async function chatWithTools(request: {
 	apiKey: string;
+	/** As in `completeJson`. */
+	label: string;
 	model: string;
 	messages: ToolChatMessage[];
 	tools: Tool[];
 	timeoutMs?: number;
 	/** False, without thinking first when the model allows it: the voice, where each second shows. */
 	think?: boolean;
+	/** «required»: it must call a tool, never answer with text (the voice ends with its `answer`). */
+	toolChoice?: 'auto' | 'required';
 }): Promise<{ content: string | null; toolCalls: ToolCall[]; usage: Usage | null }> {
 	const noThinking = request.think === false && (await canSkipThinking(request.model));
 	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -164,6 +187,7 @@ export async function chatWithTools(request: {
 			model: request.model,
 			messages: request.messages,
 			tools: request.tools,
+			...(request.toolChoice && { tool_choice: request.toolChoice }),
 			// Short answers here, but room for a model that reasons.
 			max_tokens: 4_096,
 			...(noThinking && { reasoning: { effort: 'none' } }),
@@ -175,6 +199,7 @@ export async function chatWithTools(request: {
 	});
 	const body = await res.json().catch(() => null);
 	if (!res.ok) throw refused(res.status, body);
+	noteCost(request.apiKey, request.label, body);
 	const choice = body?.choices?.[0];
 	const message = choice?.message;
 	if (!message) {
@@ -218,6 +243,7 @@ export async function askWeb(request: {
 	});
 	const body = await res.json().catch(() => null);
 	if (!res.ok) throw refused(res.status, body);
+	noteCost(request.apiKey, request.label, body);
 	const content = body?.choices?.[0]?.message?.content;
 	if (typeof content !== 'string' || !content.trim())
 		throw new Error(`OpenRouter no ha contestado (${request.label})`);

@@ -4,8 +4,8 @@
 FROM oven/bun:1 AS build
 WORKDIR /app
 COPY package.json ./
-COPY src/lib/vad.ts src/lib/wakeword.ts src/lib/wakeword-recorder.ts src/lib/voice.ts \
-	src/lib/wake-words.ts src/lib/
+COPY src/lib/vad.ts src/lib/wakeword.ts src/lib/wakeword-recorder.ts src/lib/wake-words.ts src/lib/
+COPY packages/comun/src/voice.ts packages/comun/src/
 COPY satellite/package.json satellite/bun.lock satellite/
 RUN cd satellite && bun install --frozen-lockfile --production
 COPY satellite/src satellite/src

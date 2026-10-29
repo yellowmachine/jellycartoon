@@ -7,13 +7,25 @@ import {
 	parseBillDetails,
 	type BillInput
 } from 'comun/bills.ts';
-import { isDay, linesSum, MAX_LINES, type ExpenseInput } from 'comun/expenses.ts';
+import {
+	EXPENSE_CATEGORIES,
+	isCategory,
+	isDay,
+	linesSum,
+	MAX_LINES,
+	type ExpenseInput
+} from 'comun/expenses.ts';
 
 /**
  * What the model is asked for, a bill as read (#232): its expense (who, when, the total and the
  * parts that make it up, as lines) and its supply. The same schema for Ollama and OpenRouter, which
- * wants every property required: what the bill does not say, null or empty.
+ * wants every property required: what the bill does not say, null or empty. One that is not of a
+ * supply (an insurance, the bank's receipt of a charge) is `Otro`: an expense with its category,
+ * and no supply.
  */
+
+/** Not light, water nor gas. */
+const NOT_SUPPLY = 'Otro';
 
 const PERIODS = {
 	type: 'array',
@@ -29,7 +41,8 @@ export const BILL_SCHEMA = {
 	type: 'object',
 	properties: {
 		provider: { type: 'string' },
-		kind: { type: 'string', enum: [...BILL_KINDS] },
+		kind: { type: 'string', enum: [...BILL_KINDS, NOT_SUPPLY] },
+		category: { type: 'string', enum: [...EXPENSE_CATEGORIES] },
 		date: { type: 'string' },
 		total: { type: 'number' },
 		parts: {
@@ -55,6 +68,7 @@ export const BILL_SCHEMA = {
 	required: [
 		'provider',
 		'kind',
+		'category',
 		'date',
 		'total',
 		'parts',
@@ -73,8 +87,12 @@ export const BILL_SCHEMA = {
 };
 
 export const BILL_PROMPT =
-	'Es una factura de un suministro de casa (luz, agua o gas), casi siempre española. Extrae: la ' +
-	'compañía que factura (su nombre comercial, sin «S.L.»); qué es (Luz, Agua o Gas); la fecha del ' +
+	'Es una factura de casa, casi siempre española: casi siempre de un suministro (luz, agua o gas), ' +
+	'pero puede ser de otra cosa (un seguro, internet, el móvil…) o el justificante del banco de un ' +
+	'cargo. Extrae: la compañía a la que se paga (su nombre comercial, sin «S.L.» ni «Seguros»; en ' +
+	'un justificante del banco, la del concepto, no el banco); qué es (Luz, Agua o Gas; si no es ' +
+	`ninguno, ${NOT_SUPPLY}); su categoría de estas: ${EXPENSE_CATEGORIES.join(', ')} (un seguro, ` +
+	'Seguros; un suministro, Facturas); la fecha del ' +
 	'cargo en el banco, o si no la de emisión (YYYY-MM-DD); el total a pagar en euros; y las partes ' +
 	'del desglose que suman ese total, cada una con su importe en euros: en la luz, potencia, energía, ' +
 	'cuotas, otros costes, impuesto eléctrico, IVA, y los descuentos con importe negativo. Toma los ' +
@@ -87,8 +105,9 @@ export const BILL_PROMPT =
 	'total. La potencia contratada (kW) solo de los periodos que la tienen (en la tarifa 2.0TD, P1 ' +
 	'y P2), la máxima demandada si la dice (kW), el precio de la ' +
 	'energía o del agua por unidad sin impuestos (€) y el consumo medio de la zona o del código ' +
-	'postal si lo dice. Lo que no diga: null, o la lista vacía. Los números usan coma decimal: 8,18 ' +
-	'es 8.18. Sin datos personales: ni nombre, ni DNI, ni cuenta, ni dirección.';
+	'postal si lo dice. Si no es un suministro, del periodo, el consumo y la tarifa solo lo que ' +
+	'diga, y sin desglose, ninguna parte. Lo que no diga: null, o la lista vacía. Los números usan ' +
+	'coma decimal: 8,18 es 8.18. Sin datos personales: ni nombre, ni DNI, ni cuenta, ni dirección.';
 
 /**
  * The bill's text without what identifies the house (#232): DNI or NIE, IBAN, CUPS (the supply
@@ -106,6 +125,8 @@ export function redact(text: string) {
 			// DNI («48.427.674-R») and NIE («X1234567L»), with dots and a dash or not.
 			.replace(/\b\d{2}\.?\d{3}\.?\d{3}[- ]?[A-Z]\b/g, '·')
 			.replace(/\b[XYZ][- ]?\d{7}[- ]?[A-Z]\b/g, '·')
+			// A card's number, masked by the bank («415006******8968») or not.
+			.replace(/\b\d{4,6}[\d*]{4,}\d{4}\b/g, '·')
 			// Contract numbers, and Spanish phone numbers.
 			.replace(/\b(contrato(?: de acceso)?)\s+\d{5,}/gi, '$1 ·')
 			.replace(/(?<![\d,.])(?:\+34 ?)?[6789]\d{2} ?\d{3} ?\d{3}(?![\d,.])/g, '·')
@@ -124,12 +145,13 @@ const addDays = (day: string, days: number) =>
 
 /**
  * The model's answer, to what the page shows to check: what it could not read is left empty or
- * guessed (today, the parts' sum, the month before the bill), for a person to correct.
+ * guessed (today, the parts' sum, the month before the bill), for a person to correct. Not of a
+ * supply: a plain expense, with no bill.
  */
 export function billDraftFromAnswer(
 	answer: unknown,
 	today: string
-): ExpenseInput & { bill: BillInput } {
+): ExpenseInput & { bill: BillInput | null } {
 	const a = (answer && typeof answer === 'object' ? answer : {}) as Record<string, unknown>;
 	const lines = (Array.isArray(a.parts) ? a.parts : [])
 		.slice(0, MAX_LINES)
@@ -141,8 +163,16 @@ export function billDraftFromAnswer(
 				? [{ text, quantity: null, amount, tag: 'Otros' as const }]
 				: [];
 		});
-	const kind = isBillKind(a.kind) ? a.kind : 'Luz';
 	const date = isDay(a.date) && a.date <= today ? a.date : today;
+	const expense = {
+		date,
+		store: typeof a.provider === 'string' ? a.provider.trim().slice(0, 120) : '',
+		total: toCents(a.total) || linesSum(lines),
+		lines
+	};
+	if (a.kind === NOT_SUPPLY)
+		return { ...expense, category: isCategory(a.category) ? a.category : 'Otros', bill: null };
+	const kind = isBillKind(a.kind) ? a.kind : 'Luz';
 	let periodStart = isDay(a.periodStart) ? a.periodStart : null;
 	let periodEnd = isDay(a.periodEnd) ? a.periodEnd : null;
 	if (
@@ -166,11 +196,8 @@ export function billDraftFromAnswer(
 	if (consumption === null || Math.abs(byPeriod - consumption) > Math.max(1, consumption * 0.02))
 		details.consumption = [];
 	return {
-		date,
-		store: typeof a.provider === 'string' ? a.provider.trim().slice(0, 120) : '',
+		...expense,
 		category: 'Facturas',
-		total: toCents(a.total) || linesSum(lines),
-		lines,
 		bill: {
 			kind,
 			periodStart,

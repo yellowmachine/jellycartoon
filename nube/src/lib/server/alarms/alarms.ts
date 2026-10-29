@@ -1,5 +1,6 @@
 import { and, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm';
 import { addDays, fromRrule, localDay, localTime, toRrule, weekday } from 'comun/agenda.ts';
+import { describeTimers, sameLabel, timeLabel } from 'comun/timer-names.ts';
 import {
 	daysName,
 	MAX_SKIP_DAYS,
@@ -22,13 +23,17 @@ import { nextRing } from './next.ts';
  * (/api/v1/avisos), which rings them where they are to sound («din-don» and its name, again and
  * again) until someone stops them, there or here; and the phones of whom it is for (Web Push), and
  * the family's group if it is the house's (its Telegram bot).
- * The timers stay in the house: they last minutes and ring where they were set.
+ * The timers said to the cloud (Hablar, the road mode) are rows here too, rung once at their end:
+ * on the phones of who set them (`movil`), or in the house if they said so. The house's own (its
+ * satellites'), there.
  */
 
 /** A phone's notice of one ringing, no use after this: the house stops sounding by then. */
 const RING_MAX_MS = 3 * 60_000;
 /** Over this long, what is over is forgotten; told to the voice until then. */
 const KEEP_DONE_MS = 30 * 60_000;
+/** What the AI may still call one with no name: as if it had none (as the house's). */
+const DEFAULT_LABEL = 'temporizador';
 
 const listeners = new Map<string, Set<() => void>>();
 
@@ -65,8 +70,8 @@ function asAlarm(r: Row, people: string[]): Alarm {
 	return {
 		id: r.id,
 		label: r.label,
-		kind: 'alarma',
-		endsAt: null,
+		kind: r.kind,
+		endsAt: r.kind === 'temporizador' ? ms(r.nextAt) : null,
 		seconds: null,
 		trigger: null,
 		place: r.place as AlarmPlace,
@@ -335,6 +340,7 @@ function whenSaid(at: Date) {
 /** «toda la casa», «el satélite Salón». */
 export function placeName(place: string, satellites: { id: string; name: string }[]) {
 	if (place === 'casa') return 'toda la casa';
+	if (place === 'movil') return 'el móvil';
 	const id = place.slice('satelite:'.length);
 	return `el satélite ${satellites.find((s) => s.id === id)?.name ?? '(ya no está)'}`;
 }
@@ -355,7 +361,7 @@ export async function describeAlarms(
 			rows.map((r) => r.id)
 		);
 		return rows
-			.filter((r) => !r.doneAt && visibleTo(of(r.id), personId))
+			.filter((r) => r.kind === 'alarma' && !r.doneAt && visibleTo(of(r.id), personId))
 			.map((r) => ({ ...r, people: of(r.id) }));
 	});
 	return rows.map((r) => {
@@ -369,6 +375,127 @@ export async function describeAlarms(
 			: '';
 		return `[alarma ${r.id}] ${r.label}: a las ${r.time.slice(0, 5)}, ${repeat}, ${next}${skips}; ${who}; suena en ${placeName(r.place, satellites)}${r.ringingSince ? '; está sonando' : justStopped(r.id) ? '; acaba de sonar y la han parado (se puede posponer)' : ''}`;
 	});
+}
+
+// ——— Timers said to the cloud ———
+
+/** This person's timers: counting, ringing, or over a while ago. */
+async function timersOf(k: Kitchen, personId: string | null) {
+	return k.run(async (tx) => {
+		const rows = await tx.select().from(alarm).where(eq(alarm.kind, 'temporizador'));
+		const of = await peopleOf(
+			tx,
+			rows.map((r) => r.id)
+		);
+		return rows.filter((r) => visibleTo(of(r.id), personId) && of(r.id).length);
+	});
+}
+
+/**
+ * The name it goes by, as the house's (its alarms.ts): without one, its time («5 minutos»), and
+ * «5 minutos (2)» if that one is taken; with one, as said, so that saying it again starts it over.
+ */
+function nameFor(rows: Row[], label: string, seconds: number) {
+	label = label.trim();
+	if (label && !sameLabel(label, DEFAULT_LABEL)) return label;
+	const base = timeLabel(seconds);
+	const taken = (name: string) => rows.some((r) => !r.doneAt && sameLabel(r.label, name));
+	let name = base;
+	for (let n = 2; taken(name); n++) name = `${base} (${n})`;
+	return name;
+}
+
+/**
+ * «Avísame en 10 minutos para la pasta», said to the cloud: rings once at its end, for who said it,
+ * on their phones (`movil`) or in the house. One with the same name starts over. Its name.
+ */
+export async function startTimer(
+	k: Kitchen,
+	personId: string,
+	{ label, seconds, place }: { label: string; seconds: number; place: AlarmPlace }
+) {
+	const rows = await timersOf(k, personId);
+	const name = nameFor(rows, label, seconds);
+	const same = rows.filter((r) => !r.doneAt && sameLabel(r.label, name));
+	const end = new Date(Date.now() + seconds * 1000);
+	await k.run(async (tx) => {
+		if (same.length)
+			await tx.delete(alarm).where(
+				inArray(
+					alarm.id,
+					same.map((r) => r.id)
+				)
+			);
+		const [row] = await tx
+			.insert(alarm)
+			.values({
+				familyId: k.familyId,
+				kind: 'temporizador',
+				label: name,
+				place,
+				userId: k.userId,
+				// To the second: its end, to tell rung from taken away (`describeTimersOf`).
+				time: `${localTime(end)}:${String(end.getSeconds()).padStart(2, '0')}`,
+				startDay: localDay(end),
+				nextAt: end
+			})
+			.returning({ id: alarm.id });
+		await tx
+			.insert(alarmPerson)
+			.values({ familyId: k.familyId, alarmId: row!.id, personId: Number(personId) });
+	});
+	if (same.some((r) => r.ringingSince)) void quietAtHouse(k.familyId, same[0]!.id);
+	console.info(`[avisos] Temporizador: «${name}»`, { familyId: k.familyId, place });
+	changed(k.familyId);
+	return name;
+}
+
+/** That one by its name, or all of them with null: counting or ringing. How many. */
+export async function cancelTimers(k: Kitchen, personId: string, label: string | null) {
+	const rows = (await timersOf(k, personId)).filter(
+		(r) => !r.doneAt && (label === null || sameLabel(r.label, label))
+	);
+	if (!rows.length) return 0;
+	await k.run((tx) =>
+		tx
+			.update(alarm)
+			.set({ ringingSince: null, nextAt: null, doneAt: new Date() })
+			.where(
+				inArray(
+					alarm.id,
+					rows.map((r) => r.id)
+				)
+			)
+	);
+	for (const r of rows)
+		if (r.ringingSince && r.place !== 'movil') void quietAtHouse(k.familyId, r.id);
+	changed(k.familyId);
+	return rows.length;
+}
+
+/** For the AI, with each order, as the house tells a phone's: «¿cuánto le queda?». */
+export async function describeTimersOf(k: Kitchen, personId: string) {
+	const now = Date.now();
+	const rows = await timersOf(k, personId);
+	const where = (r: Row) => (r.place === 'movil' ? '' : ` (suena en ${placeName(r.place, [])})`);
+	return describeTimers(
+		{
+			done: rows
+				.filter((r) => r.doneAt)
+				.map((r) => ({
+					label: r.label,
+					// Over before its end: taken away; at it or after, it rang.
+					how: r.doneAt! < new Date(`${r.startDay}T${r.time}`) ? 'quitado' : 'sonó',
+					at: r.doneAt!.getTime()
+				})),
+			running: rows
+				.filter((r) => !r.doneAt && !r.ringingSince && r.nextAt)
+				.map((r) => ({ label: `${r.label}${where(r)}`, endsAt: r.nextAt!.getTime() })),
+			ringing: rows.filter((r) => !r.doneAt && r.ringingSince),
+			prepared: []
+		},
+		now
+	);
 }
 
 // ——— When it is time ———
@@ -407,10 +534,23 @@ export async function ringDue(k: Kitchen) {
 		});
 		void ringAtHouse(k, row).catch((error) => console.warn('[avisos] Al avisar', error));
 	}
+	// Only a notice, no one to stop it: over when the house's would stop sounding.
+	const unheard = await k.run((tx) =>
+		tx
+			.update(alarm)
+			.set(quiet)
+			.where(
+				and(
+					eq(alarm.place, 'movil'),
+					lte(alarm.ringingSince, new Date(now.getTime() - RING_MAX_MS))
+				)
+			)
+			.returning({ id: alarm.id })
+	);
 	await k.run((tx) =>
 		tx.delete(alarm).where(lte(alarm.doneAt, new Date(now.getTime() - KEEP_DONE_MS)))
 	);
-	if (rows.length) changed(k.familyId);
+	if (rows.length || unheard.length) changed(k.familyId);
 }
 
 /**
@@ -419,25 +559,26 @@ export async function ringDue(k: Kitchen) {
  * banner says it.
  */
 async function ringAtHouse(k: Kitchen, row: Row) {
-	let where: string;
-	try {
-		({ where } = await tellHouse<{ where: string }>(k.familyId, '/avisos', {
-			id: row.id,
-			label: row.label,
-			place: row.place,
-			action: row.action
-		}));
-	} catch (error) {
-		console.warn('[avisos] La casa no contesta', { id: row.id, error: String(error) });
-		where = 'la casa, que no contesta';
-	}
+	let where = placeName(row.place, []);
+	if (row.place !== 'movil')
+		try {
+			({ where } = await tellHouse<{ where: string }>(k.familyId, '/avisos', {
+				id: row.id,
+				label: row.label,
+				place: row.place,
+				action: row.action
+			}));
+		} catch (error) {
+			console.warn('[avisos] La casa no contesta', { id: row.id, error: String(error) });
+			where = 'la casa, que no contesta';
+		}
 	if (row.action === 'parar_musica') return;
 	const people = await k.run(async (tx) => (await peopleOf(tx, [row.id]))(row.id));
 	await notify(k.familyId, await toldOf(k, people), {
-		title: `⏰ ${row.label}`,
+		title: `${row.kind === 'temporizador' ? '⏲️' : '⏰'} ${row.label}`,
 		body: `Sonando en ${where}`,
 		tag: `alarma-${row.id}`,
-		url: '/agenda#alarmas',
+		url: '/agenda/alarmas',
 		// Later, it has stopped sounding: no use.
 		ttl: RING_MAX_MS / 1000
 	});

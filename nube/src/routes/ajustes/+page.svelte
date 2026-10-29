@@ -4,6 +4,8 @@
 	import PasswordInput from 'comun/components/PasswordInput.svelte';
 	import PushNotices from 'comun/components/PushNotices.svelte';
 	import TelegramBot from './TelegramBot.svelte';
+	import Invitaciones from './Invitaciones.svelte';
+	import EntrarConLaNube from './EntrarConLaNube.svelte';
 	import VozCaracter from './VozCaracter.svelte';
 	import VozInternet from './VozInternet.svelte';
 	import VozSilencio from './VozSilencio.svelte';
@@ -12,6 +14,7 @@
 	import { page } from '$app/state';
 	import Colores from 'comun/components/Colores.svelte';
 	import GuardarViajes from './GuardarViajes.svelte';
+	import GastoIa from './GastoIa.svelte';
 	import Microfono from './Microfono.svelte';
 	import FondoMusica from './FondoMusica.svelte';
 	import Subtitulos from './Subtitulos.svelte';
@@ -52,7 +55,7 @@
 		<SettingsSearch
 			index={SETTINGS_INDEX}
 			labels={TAB_LABELS}
-			shown={{ admin }}
+			shown={{ admin, spendLine: data.spendLine !== null }}
 			placeholder="Buscar en Ajustes: colores, voz, clave…"
 		/>
 
@@ -90,6 +93,8 @@
 		<Subtitulos {data} />
 
 		<GuardarViajes {data} {tab} />
+
+		<GastoIa {data} {tab} />
 	{/if}
 
 	{#if tab === 'aparato'}
@@ -197,13 +202,16 @@
 			{/if}
 		</section>
 
+		<Invitaciones {data} {form} {tab} />
+
 		<section class={section} id="casa">
 			<h2 class="mb-1 font-semibold">Tu casa</h2>
 			<p class="mb-4 text-sm text-zinc-400">
 				La música y las series de tu jellycartoon, por su túnel: su dirección de fuera (<code
 					>MEDIA_HOST</code
 				>) y la clave que da en Ajustes → Casa → «La nube». La clave se guarda cifrada y no sale de
-				este servidor.
+				este servidor. El túnel es de cada casa: su rathole, en el servidor que quiera; la nube no
+				da uno.
 			</p>
 
 			{#if data.house}
@@ -338,6 +346,8 @@
 				<p class="mt-3 text-sm text-red-400">{form.houseKeyProblem}</p>
 			{/if}
 		</section>
+
+		<EntrarConLaNube {data} {form} {tab} />
 
 		<section class={section} id="ia">
 			<h2 class="mb-1 font-semibold">IA (OpenRouter)</h2>

@@ -40,6 +40,36 @@ export const variables = defineEnvVars({
 			"Routes' maps cut for devices without coverage (#164), each family's in its folder: writable, unlike MAP_DIR.",
 		schema: (value) => value || '/data/recorridos'
 	},
+	ADMIN_EMAIL: {
+		description:
+			"The service's administrator: the first family's (scripts/migrate.ts), and who is told by email of each family asking to come in (the landing page's «Pedir acceso»).",
+		schema: (value) => value?.trim() || undefined
+	},
+	SMTP_HOST: {
+		description:
+			'The SMTP server the app sends its emails through (e.g. `smtp.protonmail.ch`). Without it, none is sent: only logged.',
+		schema: (value) => value || undefined
+	},
+	SMTP_PORT: {
+		description: 'Its port: 587 (STARTTLS) by default, 465 with SMTP_SECURE.',
+		schema: (value) => Number(value || 587)
+	},
+	SMTP_SECURE: {
+		description: '`true` for port 465 (SSL from the start); otherwise STARTTLS.',
+		schema: (value) => value === 'true'
+	},
+	SMTP_USER: {
+		description: 'The SMTP login, e.g. `no-reply@scholio.review`.',
+		schema: (value) => value || undefined
+	},
+	SMTP_PASS: {
+		description: "The SMTP password or token (Proton's SMTP token).",
+		schema: (value) => value || undefined
+	},
+	EMAIL_FROM: {
+		description: 'Who the emails come from, e.g. `Nube <no-reply@scholio.review>`.',
+		schema: (value) => value || 'Nube <no-reply@scholio.review>'
+	},
 	BETTER_AUTH_SECRET: {
 		description:
 			"Secret used to sign tokens and to encrypt what the app keeps (the houses' keys). 32 characters generated with high entropy: `openssl rand -base64 32`."

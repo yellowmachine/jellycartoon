@@ -1,7 +1,8 @@
 import { fail } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import { isTheme } from 'comun/themes.ts';
-import { familyMember } from '#lib/server/db/schema.ts';
+import { family, familyMember } from '#lib/server/db/schema.ts';
+import { EMAIL } from '#lib/invitation.ts';
 import { APIError } from 'better-auth/api';
 import QRCode from 'qrcode';
 import type { Actions, PageServerLoad } from './$types';
@@ -18,6 +19,7 @@ import {
 import { BOT_EVENTS, parseBotEvents } from '#lib/telegram-bot.ts';
 import { withFamily } from '#lib/server/family.ts';
 import {
+	openRouterKey,
 	openRouterKeyStart,
 	orsKeyStart,
 	setOpenRouterKey,
@@ -35,6 +37,9 @@ import {
 	voiceSettings
 } from '#lib/server/voice/settings.ts';
 import { createHouseKey, deleteHouseKey, listHouseKeys } from '#lib/server/house-keys.ts';
+import { invitationLink, invitations, inviteAndSend } from '#lib/server/invitations.ts';
+import { createHouseClient, deleteHouseClient, houseClients } from '#lib/server/house-clients.ts';
+import { ORIGIN } from '$app/env/private';
 import {
 	askHouse,
 	forgetHouse,
@@ -46,7 +51,7 @@ import {
 import { recordsTrips, setRecordTrips } from '#lib/server/trips/trips.ts';
 import { subtitleStyleOf } from '#lib/server/subtitles.ts';
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, request }) => {
 	const k = await kitchenOf(locals.user!.id);
 	const membership = await withFamily(locals.user!.id, async (_, m) => m);
 	const admin = membership.role === 'admin';
@@ -59,6 +64,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 		twoFactor: Boolean(locals.user!.twoFactorEnabled),
 		people: await familyPeople(k),
 		telegramBot: admin ? { bot: await botStatus(membership.familyId) } : null,
+		/** «Entrar con la nube» (#279): its houses' clients, and the cloud's address for their .env. */
+		houseClients: admin ? { clients: await houseClients(request.headers), origin: ORIGIN } : null,
+		/** The family's open invitations, with their links: only its administrator. */
+		invitations: admin
+			? (await invitations.ofFamily(membership.familyId)).map(({ token, ...i }) => ({
+					...i,
+					link: invitationLink(token)
+				}))
+			: null,
 		/** The family's voice (#253): its model, its character, the web, the «horas de silencio». */
 		voiceModel: admin ? { model: voice.savedModel ?? '', fallback: DEFAULT_VOICE_MODEL } : null,
 		houseStyle: admin ? { text: voice.style ?? '' } : null,
@@ -68,6 +82,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 		myStyle: { text: (await personVoiceStyle(k, locals.user!.id)) ?? '' },
 		/** Whether the road mode keeps their trips (Viajes). */
 		recordTrips: await recordsTrips(k),
+		/** The AI's spending under the header (#193); null without the family's key. */
+		spendLine: (await openRouterKey(k))
+			? await withFamily(locals.user!.id, async (tx) => {
+					const [me] = await tx
+						.select({ on: familyMember.spendLine })
+						.from(familyMember)
+						.where(eq(familyMember.userId, locals.user!.id));
+					return me?.on ?? false;
+				})
+			: null,
 		/** How their subtitles look (Canales). */
 		subtitleStyle: await subtitleStyleOf(k)
 	};
@@ -109,6 +133,14 @@ export const actions: Actions = {
 		const on = (await request.formData()).get('recordTrips') === 'on';
 		await setRecordTrips(await kitchenOf(locals.user!.id), on);
 		return { saved: 'recordTrips' };
+	},
+	/** «Mostrar el gasto en IA bajo la cabecera». */
+	spendLine: async ({ request, locals }) => {
+		const spendLine = (await request.formData()).get('spendLine') === 'on';
+		await withFamily(locals.user!.id, (tx) =>
+			tx.update(familyMember).set({ spendLine }).where(eq(familyMember.userId, locals.user!.id))
+		);
+		return { saved: 'spendLine' };
 	},
 	/** The voice's model: «proveedor/modelo»; empty, the default. */
 	saveVoiceModel: async ({ request, locals }) => {
@@ -203,6 +235,38 @@ export const actions: Actions = {
 		}
 		return { saved: 'bot-test' };
 	},
+	/** Someone into the family, by an email with its link (invitations.ts). */
+	invite: async ({ request, locals }) => {
+		const familyId = await adminFamily(locals.user!.id);
+		if (!familyId) return fail(403, { inviteProblem: 'Solo quien administra la familia' });
+		const form = await request.formData();
+		const email = String(form.get('email') ?? '')
+			.trim()
+			.slice(0, 200);
+		if (!EMAIL.test(email)) return fail(400, { inviteProblem: 'Ese email no parece válido' });
+		const familyName = await withFamily(locals.user!.id, async (tx) => {
+			const [f] = await tx
+				.select({ name: family.name })
+				.from(family)
+				.where(eq(family.id, familyId));
+			return f.name;
+		});
+		const done = await inviteAndSend({
+			email,
+			familyId,
+			familyName,
+			role: form.get('admin') === 'on' ? 'admin' : 'member',
+			inviter: locals.user!
+		});
+		if (!done.ok) return fail(400, { inviteProblem: done.problem });
+		return { invited: { email, sent: done.sent, link: done.link } };
+	},
+	cancelInvitation: async ({ request, locals }) => {
+		const familyId = await adminFamily(locals.user!.id);
+		if (!familyId) return fail(403, { inviteProblem: 'Solo quien administra la familia' });
+		await invitations.cancel(String((await request.formData()).get('id') ?? ''), familyId);
+		return { saved: 'invitation-cancelled' };
+	},
 	/** One of the family without an account (a child), for the agenda and the alarms. */
 	addPerson: async ({ request, locals }) => {
 		const form = await request.formData();
@@ -269,6 +333,34 @@ export const actions: Actions = {
 			if (error instanceof HouseProblem) return fail(502, { houseProblem: error.message });
 			throw error;
 		}
+	},
+	/**
+	 * «Entrar con la nube» (#279): a client of the cloud's OpenID provider for the house, at its
+	 * address; its secret shown once, to go into the house's .env.
+	 */
+	createHouseClient: async ({ request, locals }) => {
+		const familyId = await adminFamily(locals.user!.id);
+		if (!familyId) return fail(403, { clientProblem: 'Solo quien administra la familia' });
+		let houseUrl: URL;
+		try {
+			houseUrl = new URL(String((await request.formData()).get('url') ?? '').trim());
+		} catch {
+			return fail(400, { clientProblem: 'Escribe la dirección completa, con https://' });
+		}
+		try {
+			return { houseClient: await createHouseClient(request.headers, houseUrl.origin, familyId) };
+		} catch (error) {
+			// Its address, refused by the provider: https, unless on this same machine.
+			if (error instanceof APIError && error.status === 'BAD_REQUEST')
+				return fail(400, { clientProblem: 'La dirección de la casa, con https://' });
+			throw error;
+		}
+	},
+	deleteHouseClient: async ({ request, locals }) => {
+		const familyId = await adminFamily(locals.user!.id);
+		if (!familyId) return fail(403, { clientProblem: 'Solo quien administra la familia' });
+		await deleteHouseClient(request.headers, String((await request.formData()).get('id') ?? ''));
+		return { saved: 'house-client-out' };
 	},
 	/** A key for the house (jellycartoon) to use the family's fridge and recipes: shown once. */
 	createHouseKey: async ({ request, locals }) => {

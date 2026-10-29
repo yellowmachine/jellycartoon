@@ -9,6 +9,7 @@ export const EXPENSE_CATEGORIES = [
 	'Coche',
 	'Casa',
 	'Facturas',
+	'Seguros',
 	'Suscripciones',
 	'Farmacia y salud',
 	'Ropa',

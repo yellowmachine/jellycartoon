@@ -7,6 +7,7 @@ import { createAccessControl } from 'better-auth/plugins/access';
 import { adminAc, defaultStatements, userAc } from 'better-auth/plugins/admin/access';
 import { twoFactor } from 'better-auth/plugins/two-factor';
 import { magicLink } from 'better-auth/plugins/magic-link';
+import { genericOAuth } from 'better-auth/plugins/generic-oauth';
 import { apiKey } from '@better-auth/api-key';
 import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { getRequestEvent } from '$app/server';
@@ -14,6 +15,7 @@ import { db } from '#lib/server/db/index.ts';
 import { user } from '#lib/server/db/schema.ts';
 import { INVITATION_SECONDS, markUsed, recordInvitation } from '#lib/server/invitations.ts';
 import { keepSignInLink } from '#lib/server/sign-in-links.ts';
+import { dropHousePassword, nube, NUBE_PROVIDER } from '#lib/server/nube-login.ts';
 
 const ac = createAccessControl(defaultStatements);
 
@@ -43,6 +45,24 @@ export const auth = betterAuth({
 		'/sign-in/magic-link',
 		'/magic-link/verify'
 	],
+	account: {
+		/**
+		 * «Entrar con la nube» (#279): someone of the house is joined by email to their cloud account
+		 * the first time. The cloud is the family's own, and gives tokens only to its members, with
+		 * the email their invitation's link came to; the house's accounts, made by the administrator,
+		 * have no verified email of their own.
+		 */
+		accountLinking: { trustedProviders: [NUBE_PROVIDER], requireLocalEmailVerified: false }
+	},
+	databaseHooks: {
+		account: {
+			create: {
+				after: async (account) => {
+					if (account.providerId === NUBE_PROVIDER) await dropHousePassword(account.userId);
+				}
+			}
+		}
+	},
 	hooks: {
 		/** Only the first account signs up, the administrator's (#157): it creates the rest. */
 		before: createAuthMiddleware(async (ctx) => {
@@ -106,6 +126,27 @@ export const auth = betterAuth({
 			enableMetadata: true,
 			rateLimit: { timeWindow: 60_000, maxRequests: 60 }
 		}),
+		// «Entrar con la nube» (#279), with this house's client in the family's cloud (NUBE_* in the
+		// `.env`). Someone new there gets an account here as a normal user; roles stay the house's.
+		...(nube
+			? [
+					genericOAuth({
+						config: [
+							{
+								providerId: NUBE_PROVIDER,
+								name: 'la nube',
+								discoveryUrl: `${nube.url}/api/auth/.well-known/openid-configuration`,
+								requireIdTokenVerification: true,
+								clientId: nube.clientId,
+								clientSecret: nube.clientSecret,
+								// As the cloud made the client (house-clients.ts): client_secret_basic.
+								authentication: 'basic',
+								scopes: ['openid', 'profile', 'email']
+							}
+						]
+					})
+				]
+			: []),
 		sveltekitCookies(getRequestEvent) // make sure this is the last plugin in the array
 	]
 });

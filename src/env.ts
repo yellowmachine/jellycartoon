@@ -154,6 +154,19 @@ export const variables = defineEnvVars({
 			'The version this build is: `1.2.0` in the images of a release, `sha-…` in the others. Set by the image, not by hand.',
 		schema: withDefault('dev')
 	},
+	NUBE_URL: {
+		description:
+			"Optional address of the family's cloud (nube/, #279), e.g. `https://nube.scholio.review`. With NUBE_CLIENT_ID and NUBE_CLIENT_SECRET, made in the cloud's Ajustes → Familia, the house's login offers «Entrar con la nube».",
+		schema: (value) => value?.replace(/\/+$/, '') || undefined
+	},
+	NUBE_CLIENT_ID: {
+		description: "This house's client id in the cloud's OpenID provider.",
+		schema: (value) => value || undefined
+	},
+	NUBE_CLIENT_SECRET: {
+		description: "This house's client secret in the cloud's OpenID provider.",
+		schema: (value) => value || undefined
+	},
 	WUD_URL: {
 		description:
 			"Optional address of WUD (What's Up Docker), which updates the app: with it, the admin can update from the notice of a new version.",

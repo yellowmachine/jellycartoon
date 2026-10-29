@@ -104,10 +104,10 @@ export function describeUsage(usage: Usage | undefined) {
 	].join('');
 }
 
-const costListeners = new Set<(dollars: number) => void>();
+const costListeners = new Set<(label: string, dollars: number) => void>();
 
-/** What each request to the AI costs, as it comes back: the month's line (#193) adds it up. */
-export function watchCost(listener: (dollars: number) => void) {
+/** What each request to the AI costs, as it comes back: the spending's line (#193) adds it up. */
+export function watchCost(listener: (label: string, dollars: number) => void) {
 	costListeners.add(listener);
 	return () => void costListeners.delete(listener);
 }
@@ -121,8 +121,10 @@ function logUsage(
 	// Went through: there is credit again.
 	if (creditOutAt) setCreditOut(null);
 	const cost = body.usage?.cost;
-	if (typeof cost === 'number' && cost > 0) for (const listener of costListeners) listener(cost);
+	if (typeof cost === 'number' && cost > 0)
+		for (const listener of costListeners) listener(label, cost);
 	log.info('ia', `${label}: ${describeUsage(body.usage)}`, {
+		label,
 		model: body.model,
 		provider: body.provider,
 		usage: body.usage,

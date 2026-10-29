@@ -114,11 +114,13 @@
 							<span class="shrink-0 text-xs text-zinc-400"
 								>{adult.admin
 									? 'Administrador'
-									: adult.hasPassword
-										? ''
-										: adult.linkUntil
-											? `Sin entrar: su enlace vale hasta ${until(adult.linkUntil)}`
-											: 'Sin entrar: su enlace caducó'}</span
+									: adult.withNube
+										? 'Entra con la nube'
+										: adult.hasPassword
+											? ''
+											: adult.linkUntil
+												? `Sin entrar: su enlace vale hasta ${until(adult.linkUntil)}`
+												: 'Sin entrar: su enlace caducó'}</span
 							>
 						</summary>
 						<div class="flex flex-col gap-3 border-t border-zinc-800 p-3">
@@ -146,7 +148,9 @@
 									<span class="text-xs text-zinc-500"
 										>{adult.hasPassword
 											? 'Si ha olvidado su contraseña: con él elige otra.'
-											: 'El anterior deja de valer.'}</span
+											: adult.withNube
+												? 'Por si la nube no responde: con él elige una contraseña de casa.'
+												: 'El anterior deja de valer.'}</span
 									>
 								</form>
 							{/if}

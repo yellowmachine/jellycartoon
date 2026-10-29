@@ -44,6 +44,13 @@ services:
       # The first family and its administrator's invitation, made on starting (scripts/migrate.ts).
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_FAMILY: ${ADMIN_FAMILY:-}
+      # The app's emails (the landing page's «Pedir acceso»): Proton's SMTP. Without SMTP_HOST, none.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-Nube <no-reply@scholio.review>}
       # The families' files (receipts' photos, bills), in the stack's own rustfs below.
       S3_ENDPOINT: http://rustfs:9000
       S3_BUCKET: nube

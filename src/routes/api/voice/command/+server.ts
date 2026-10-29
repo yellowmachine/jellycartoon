@@ -45,7 +45,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		// Said, not an error: a satellite reads it aloud (with Piper, which needs no cloud).
 		if (err instanceof CloudProblem) {
 			log.warn('voz', `«${command.text}»: ${message}`);
-			return json({ reply: message, actions: [], options: [] } satisfies VoiceReply);
+			return json({
+				reply: message,
+				actions: [],
+				options: [],
+				expectsAnswer: false
+			} satisfies VoiceReply);
 		}
 		log.error('voz', `«${command.text}»: ${message}`);
 		error(503, message);

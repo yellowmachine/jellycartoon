@@ -323,6 +323,7 @@ export async function describeTimersAt(place: AlarmPlace) {
 /** «toda la casa», «el satélite Salón». */
 export function placeName(place: string, satellites: Satellite[]) {
 	if (place === 'casa') return 'toda la casa';
+	if (place === 'movil') return 'el móvil';
 	const id = place.slice('satelite:'.length);
 	return `el satélite ${satellites.find((s) => s.id === id)?.name ?? '(ya no está)'}`;
 }

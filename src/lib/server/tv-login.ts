@@ -29,7 +29,7 @@ const hash = (code: string) => createHash('sha256').update(code).digest('hex');
 /** The adults shown in «¿Quién eres?»: those who have entered (and so can say yes on a phone). */
 export async function pickableAdults() {
 	return (await houseAdults())
-		.filter((a) => a.hasPassword)
+		.filter((a) => a.hasPassword || a.withNube)
 		.map((a) => ({ id: a.id, name: a.name, avatar: a.avatar }));
 }
 

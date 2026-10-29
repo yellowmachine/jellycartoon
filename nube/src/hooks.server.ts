@@ -14,14 +14,15 @@ export const init: ServerInit = () => {
 	if (!building) startScheduler();
 };
 
-/** `/s/`: a shared trip's link (#81), for whoever has it. */
+/** `/s/`: a shared trip's link (#81), for whoever has it; `/invitacion/`, an invitation's. */
 const PUBLIC_PATHS = [
 	'/login',
 	'/api/auth',
 	'/api/health',
 	'/api/casa/',
 	'/api/calendario/',
-	'/s/'
+	'/s/',
+	'/invitacion/'
 ];
 
 export const handle: Handle = async ({ event, resolve }) => {
@@ -29,7 +30,11 @@ export const handle: Handle = async ({ event, resolve }) => {
 	if (session) {
 		event.locals.session = session.session;
 		event.locals.user = session.user;
-	} else if (!PUBLIC_PATHS.some((p) => event.url.pathname.startsWith(p))) {
+	} else if (
+		// `/` alone: the landing page, for whoever has no session.
+		event.url.pathname !== '/' &&
+		!PUBLIC_PATHS.some((p) => event.url.pathname.startsWith(p))
+	) {
 		if (event.url.pathname.startsWith('/api/'))
 			return new Response('Unauthorized', { status: 401 });
 		redirect(303, `/login?next=${encodeURIComponent(event.url.pathname + event.url.search)}`);

@@ -94,6 +94,8 @@ export interface VoiceReply {
 	reply: string;
 	actions: VoiceAction[];
 	options: VoiceOption[];
+	/** It asked something and waits for the answer (`FOLLOW_UP_MS`): it needs more to do it. */
+	expectsAnswer: boolean;
 }
 
 /**
@@ -101,10 +103,6 @@ export interface VoiceReply {
  * or the button: the AI asked something and waits.
  */
 export const FOLLOW_UP_MS = 8000;
-
-/** An answer that waits for another: a choice (`ask`), or a question asked by itself. */
-export const isQuestion = (reply: VoiceReply) =>
-	reply.options.length > 0 || /\?[\s»"']*$/.test(reply.reply);
 
 /**
  * The answer as it goes in the conversation: with a choice, its options and their orders, so that

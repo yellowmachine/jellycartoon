@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { assistantTurn, HISTORY_TURNS, isQuestion, parseVoiceRequest } from './voice.ts';
+import { assistantTurn, HISTORY_TURNS, parseVoiceRequest } from './voice.ts';
 
 describe('parseVoiceRequest', () => {
 	test('in the road mode, only when it says so', () => {
@@ -115,19 +115,13 @@ describe('questions', () => {
 	const reply = (text: string, options: { label: string; command: string }[] = []) => ({
 		reply: text,
 		actions: [],
-		options
+		options,
+		expectsAnswer: options.length > 0
 	});
 	const choice = reply('¿El álbum o la canción?', [
 		{ label: 'El álbum', command: 'Pon el álbum Deseo carnal' },
 		{ label: 'La canción', command: 'Pon la canción Deseo carnal' }
 	]);
-
-	test('a choice, or a question asked by itself, waits for an answer', () => {
-		expect(isQuestion(choice)).toBe(true);
-		expect(isQuestion(reply('¿Quieres que busque otra cosa de rock?'))).toBe(true);
-		expect(isQuestion(reply('¿Seguro?» '))).toBe(true);
-		expect(isQuestion(reply('Pongo Queen en toda la casa.'))).toBe(false);
-	});
 
 	test('in the conversation, a choice goes with its options and their orders', () => {
 		expect(assistantTurn(choice).content).toBe(

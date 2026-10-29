@@ -147,11 +147,13 @@ async function pdfImage(file: string) {
 }
 
 const TICKET = {
+	label: 'Leer un ticket',
 	system: 'Lees tickets de compra y devuelves lo que pone, sin inventar.',
 	name: 'ticket'
 };
 
 const BILL = {
+	label: 'Leer una factura',
 	system: 'Lees facturas de suministros de casa y devuelves lo que pone, sin inventar.',
 	name: 'factura'
 };
@@ -163,6 +165,8 @@ interface Reading {
 	/** The photo, in base64; without it, the prompt is all. */
 	image: string | null;
 	name: string;
+	/** For the spending's line. */
+	label: string;
 }
 
 /** A photo, by the vision model; a bill's text alone, by the usual one. */
@@ -174,6 +178,7 @@ async function read(k: Kitchen, reading: Reading) {
 		);
 	return completeJson<unknown>({
 		apiKey,
+		label: reading.label,
 		system: reading.system,
 		prompt: reading.image
 			? [

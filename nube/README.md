@@ -4,6 +4,11 @@ La parte de la app que vive en internet (#253): lo que tiene que funcionar aunqu
 apagada, y a mano desde fuera. La casa (jellycartoon, en la carpeta de arriba) se queda con la
 media; la nube habla con ella por sus APIs (`/rest`, `/api/v1`), a través del túnel rathole.
 
+**El túnel es de cada casa**: cada familia pone su rathole en el servidor que quiera (README de
+arriba, «Las APIs desde fuera, con rathole») y da en Ajustes su dirección de fuera y su clave. La
+nube no tiene servidor de rathole ni hace de puente para nadie: solo llama a la dirección que cada
+familia le dio. El de quien la mantiene es solo para su casa.
+
 Varias familias en una sola app, cada una aislada por la seguridad por filas de Postgres.
 
 ## Cómo está hecha
@@ -16,8 +21,23 @@ Varias familias en una sola app, cada una aislada por la seguridad por filas de 
   (`src/lib/server/family-scope.ts`) le dice a Postgres, para una transacción, quién pregunta y de
   qué familia. Una consulta que lo olvide no ve nada. Los tests (`family-scope.test.ts`) lo
   comprueban contra un Postgres real en memoria (PGlite).
-- **Quién entra:** solo con invitación. `bun run familia "Casa García" ana@example.com` crea la
-  familia y la invitación de quien la administra, que crea su cuenta con «Tengo una invitación».
+- **Quién entra:** solo con invitación, un enlace `/invitacion/<token>` que caduca a los 7 días
+  (como las de svelte-thinking), mandado por correo; allí se crea la cuenta, o se entra con ella, y
+  se acepta (`src/lib/server/invitation-scope.ts`). Una familia pide acceso desde la portada, y
+  `ADMIN_EMAIL` se lo da en **Lista de espera** (`/admin/lista-de-espera`, en su menú): le llega un
+  enlace para crear su familia, de la que es administrador. El administrador de cada familia invita
+  a los suyos en Ajustes → Familia → Invitaciones, y ve el enlace de cada una por si el correo no
+  llega. `bun run familia "Casa García" ana@example.com` crea una familia a mano e imprime el enlace.
+- **Una sola cuenta (#279):** la nube es proveedor OpenID Connect de las casas
+  (`@better-auth/oauth-provider` + `jwt`, `src/lib/server/auth.ts`); discovery en
+  `https://nube…/api/auth/.well-known/openid-configuration`. Cada casa es un cliente de su
+  familia, que crea su administrador en Ajustes → Familia → «Entrar en casa con la nube» con la
+  dirección `https://` de la casa: salen `NUBE_URL`, `NUBE_CLIENT_ID` y `NUBE_CLIENT_SECRET` para
+  el `.env` de la casa (el secreto, una vez). Sin pantalla de consentimiento; tras la contraseña y
+  el segundo paso, `/login` vuelve a la casa (`src/lib/server/oauth-return.ts`). Solo los de la
+  familia: a otro no se le da el token (`src/lib/server/oidc.ts`), y el token lleva la familia en
+  `https://nube.scholio.review/family`. La casa vuelve a `https://casa…/api/auth/callback/nube`
+  (`genericOAuth` de Better Auth, en el README de casa).
 - **La casa:** en Ajustes, la dirección de fuera de jellycartoon (su `MEDIA_HOST`) y la clave de su
   Ajustes → Casa → «La nube». La clave se guarda cifrada y no sale del servidor; cada petición a
   casa va en nombre de la persona, por su email (el mismo en las dos apps).
@@ -54,7 +74,12 @@ app (`nube_app`) con su contraseña: no hay SQL a mano.
    S3_ACCESS_KEY_ID=…            # el rustfs de la pila (fotos de tickets, facturas): openssl rand -hex 12
    S3_SECRET_ACCESS_KEY=…        # openssl rand -hex 24
    ADMIN_FAMILY="Casa García"
+   SMTP_HOST=smtp.protonmail.ch  # los correos («Pedir acceso» de la portada); sin él, no se envían
+   SMTP_USER=no-reply@scholio.review
+   SMTP_PASS=…                   # el token SMTP de Proton
    ```
+   Quien pide acceso desde la portada (`/`) queda apuntado en la tabla `waitlist`, recibe un correo,
+   y a `ADMIN_EMAIL` le llega un aviso (responderlo le escribe a esa persona).
 3. **Domains:** `nube.tu-dominio.com` → servicio `app`, puerto 3000, con HTTPS (Let's Encrypt).
    En Cloudflare, un registro `A` `nube` → IP del VPS, en modo DNS only.
 4. **Deploy.** La imagen la construye GitHub (`.github/workflows/nube-image.yml`, #277) en cada push
@@ -66,11 +91,12 @@ app (`nube_app`) con su contraseña: no hay SQL a mano.
    and variables → Actions). El workflow espera a que la etiqueta sea la imagen nueva y llama al
    webhook. Sin el secreto, solo publica la imagen, y se despliega a mano.
    - Volver a una imagen anterior: `NUBE_TAG=sha-<commit>` en el Environment, y Deploy.
-5. **Entrar:** en `https://nube.tu-dominio.com`, «Tengo una invitación» con `ADMIN_EMAIL`, y la
-   contraseña que elijas. La contraseña nunca va en el entorno: un despliegue no la cambia.
+5. **Entrar:** el primer arranque crea la familia de `ADMIN_EMAIL` y deja en el log del servicio
+   `app` el enlace de su invitación («crea su cuenta en https://…/invitacion/…»); ábrelo y elige la
+   contraseña. La contraseña nunca va en el entorno: un despliegue no la cambia.
 
 Más familias, en la terminal del servicio `app`:
-`bun scripts/crear-familia.ts "Casa García" ana@example.com`.
+`bun scripts/crear-familia.ts "Casa García" ana@example.com`, que imprime el enlace para pasárselo.
 
 `init-db.sh` solo corre con el volumen de Postgres vacío: cambiar `APP_DB_PASSWORD` después
 necesita `ALTER ROLE nube_app PASSWORD '…'` en la base de datos.

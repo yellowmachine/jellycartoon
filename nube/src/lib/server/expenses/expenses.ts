@@ -1,4 +1,18 @@
-import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	exists,
+	gte,
+	inArray,
+	lt,
+	lte,
+	or,
+	sql,
+	type SQL,
+	type SQLWrapper
+} from 'drizzle-orm';
 import {
 	bill,
 	expense,
@@ -30,9 +44,50 @@ import { keepReceipt, removeReceipt } from './receipt.ts';
 
 const firstDay = (month: string) => `${month}-01`;
 
-export function monthExpenses(k: Kitchen, month: string): Promise<Expense[]> {
+export const monthExpenses = (k: Kitchen, month: string) =>
+	expensesWhere(
+		k,
+		and(gte(expense.date, firstDay(month)), lt(expense.date, firstDay(addMonths(month, 1))))
+	);
+
+/** At most, in a search (Gastos → Búsqueda): the newest; no pages yet. */
+export const SEARCH_LIMIT = 200;
+
+/** Lowercase and without accents, in SQL: «Café» finds «cafe». No extension (unaccent) needed. */
+const plain = (value: SQLWrapper | string) =>
+	sql`translate(lower(${value}), 'áàäâéèëêíìïîóòöôúùüûñç', 'aaaaeeeeiiiioooouuuunc')`;
+
+/**
+ * Gastos → Búsqueda: those whose shop or any of whose lines has `text` (case and accents aside),
+ * between two days (both included, either may be missing). The newest first, at most SEARCH_LIMIT.
+ */
+export function searchExpenses(
+	k: Kitchen,
+	{ text, from, to }: { text: string; from: string | null; to: string | null }
+) {
+	const like = `%${text.toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+	return expensesWhere(
+		k,
+		and(
+			text
+				? or(
+						sql`${plain(expense.store)} like ${plain(like)}`,
+						exists(
+							sql`select 1 from ${expenseLine} where ${expenseLine.expenseId} = ${expense.id} and ${plain(expenseLine.text)} like ${plain(like)}`
+						)
+					)
+				: undefined,
+			from ? gte(expense.date, from) : undefined,
+			to ? lte(expense.date, to) : undefined
+		),
+		SEARCH_LIMIT
+	);
+}
+
+/** The expenses `where` says, with their lines and bills: the newest first. */
+function expensesWhere(k: Kitchen, where: SQL | undefined, limit?: number): Promise<Expense[]> {
 	return k.run(async (tx) => {
-		const rows = await tx
+		const query = tx
 			.select({
 				id: expense.id,
 				date: expense.date,
@@ -47,10 +102,10 @@ export function monthExpenses(k: Kitchen, month: string): Promise<Expense[]> {
 			.from(expense)
 			.leftJoin(user, eq(user.id, expense.userId))
 			.leftJoin(bill, eq(bill.expenseId, expense.id))
-			.where(
-				and(gte(expense.date, firstDay(month)), lt(expense.date, firstDay(addMonths(month, 1))))
-			)
-			.orderBy(desc(expense.date), desc(expense.id));
+			.where(where)
+			.orderBy(desc(expense.date), desc(expense.id))
+			.$dynamic();
+		const rows = await (limit ? query.limit(limit) : query);
 		const lines = rows.length
 			? await tx
 					.select()

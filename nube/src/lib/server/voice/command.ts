@@ -6,6 +6,7 @@ import { isUntilWord, UNTIL_WORDS, untilDay, untilText } from 'comun/fridge.ts';
 import { fold } from 'comun/music.ts';
 import {
 	MAX_STOP_LATER_MIN,
+	MAX_TIMER_SEC,
 	type VoiceAction,
 	type VoiceOption,
 	type VoiceReply,
@@ -40,7 +41,12 @@ import {
 	changeAlarmByVoice,
 	setAlarmByVoice
 } from '#lib/server/agenda/voice.ts';
-import { describeAlarms } from '#lib/server/alarms/alarms.ts';
+import {
+	cancelTimers,
+	describeAlarms,
+	describeTimersOf,
+	startTimer
+} from '#lib/server/alarms/alarms.ts';
 import { botHasGroup, sayInGroup } from '#lib/server/telegram/bot.ts';
 import { tellHouse } from '#lib/server/house.ts';
 import { orsFor } from '#lib/server/road/ors.ts';
@@ -645,6 +651,36 @@ function tools(house: boolean, rooms: Room[], salon: boolean, clipMinutes: numbe
 	];
 }
 
+/**
+ * How each order ends (`tool_choice: required`): the sentence to read aloud, and whether it waits
+ * for an answer, said by the model rather than guessed from a «?» (a question first and then more
+ * words, or none at all).
+ */
+const answerTool: Tool = {
+	type: 'function',
+	function: {
+		name: 'answer',
+		description:
+			'La respuesta final a la orden, que se lee en voz alta. Siempre la última, y sola: cuando ya sabes lo que han hecho las demás.',
+		parameters: {
+			type: 'object',
+			properties: {
+				text: {
+					type: 'string',
+					description: 'Una sola frase corta, en español, sin listas, emojis, ids ni formato.'
+				},
+				expects_answer: {
+					type: 'boolean',
+					description:
+						'Sí si le preguntas algo y esperas su respuesta para seguir (te falta un dato: «¿Media hora de qué?»); así se le escucha sin que diga otra vez la palabra. No si solo cuentas o confirmas.'
+				}
+			},
+			required: ['text', 'expects_answer'],
+			additionalProperties: false
+		}
+	}
+};
+
 /** The family's Telegram group (#243), with its bot: only when it is in one. */
 const groupSayTool: Tool = {
 	type: 'function',
@@ -693,7 +729,8 @@ function instructions(context: {
 Cómo responder:
 - Trátala de tú. Con cada orden va quién habla: llámala por su nombre de pila de vez en cuando (al saludar, al despedirse, con una buena noticia), no en cada respuesta.
 - Haz lo que pide con las herramientas, sin pedir confirmación. Si se equivoca, lo dirá («no, eso no», «para»).
-- Al terminar una orden, contesta en español con una sola frase corta que diga lo que has hecho y dónde, p. ej. «Pongo Alaska y Dinarama aquí». Se lee en voz alta: sin listas, emojis, ids ni formato.
+- Al terminar una orden, contesta con «answer»: en español, una sola frase corta que diga lo que has hecho y dónde, p. ej. «Pongo Alaska y Dinarama aquí». Se lee en voz alta: sin listas, emojis, ids ni formato.
+- Si no está claro qué pide y no son pocas opciones que nombrar («media hora», sin más), pregúntalo con «answer» y «expects_answer»: su respuesta llega como la orden siguiente.
 - Si lo encuentras con otro nombre porque se oyó mal («Boyman Rhapsody» es «Bohemian Rhapsody»), no lo expliques: di solo lo que pones, con su nombre bien («Pongo Bohemian Rhapsody de Queen en toda la casa»). Cada palabra de más se tarda en decir.
 - Si duda entre pocas opciones, usa «ask», con una pregunta que las nombre («¿El álbum Deseo carnal o la canción?»): quien la oye quizá no ve los botones, y contesta de palabra. Si la orden siguiente es esa respuesta («la segunda», «el álbum», «el de Alaska»), haz la orden de la opción que elige: van en el turno de tu pregunta. Si no encuentras algo, dilo y propón lo más parecido que haya.
 - Contesta solo a la orden de ahora. Las anteriores sirven para entenderla («la segunda», «quita eso»), no para volver a sacarlas: si esta va de otra cosa («¿qué hora es?» después de hablar de alarmas), no añadas preguntas ni ofrecimientos de lo de antes.
@@ -807,6 +844,8 @@ interface Turn {
 	satellite: boolean;
 	/** Where its alarms are said (a satellite's); null, a phone's. */
 	place: AlarmPlace | null;
+	/** Said to the cloud: its timers are kept here, this person's (their id); null, the house's. */
+	timersOf: string | null;
 	apiKey: string;
 	settings: Awaited<ReturnType<typeof voiceSettings>>;
 	houseTools: Set<string>;
@@ -823,6 +862,8 @@ async function runTool(
 		const wait = quietCheck(quiet, `${ctx.k.familyId}:${who}`, ctx.order.order, minuteNow());
 		if (wait) return wait;
 	}
+	if (ctx.timersOf && (name === 'set_timer' || name === 'cancel_timer'))
+		return cloudTimer(name, args, ctx, ctx.timersOf);
 	if (HOUSE_TOOLS.has(name) || ctx.houseTools.has(name)) {
 		const done = await tellHouse<HouseHandResult>(ctx.k.familyId, '/voz', {
 			order: ctx.order.order,
@@ -1026,6 +1067,35 @@ async function runTool(
 	}
 }
 
+/**
+ * A timer said to the cloud (Hablar, the road mode): kept here, for who says it, on their phones
+ * (a notice), or in the house if they say so (`house`).
+ */
+async function cloudTimer(name: string, args: Record<string, unknown>, ctx: Turn, me: string) {
+	ctx.outcome.done++;
+	if (name === 'cancel_timer') {
+		const label = typeof args.label === 'string' && args.label.trim() ? args.label.trim() : null;
+		const count = await cancelTimers(ctx.k, me, label);
+		return count ? `Quitados: ${count}.` : 'No había ninguno con ese nombre.';
+	}
+	const minutes = Number(args.minutes);
+	if (!Number.isFinite(minutes) || minutes <= 0) return 'Falta cuántos minutos.';
+	const seconds = Math.round(Math.min(minutes * 60, MAX_TIMER_SEC));
+	const label = typeof args.label === 'string' ? args.label.trim().slice(0, 60) : '';
+	const place = args.house === true ? 'casa' : 'movil';
+	const timer = await startTimer(ctx.k, me, { label, seconds, place });
+	return `Temporizador «${timer}» de ${seconds} segundos puesto: ${place === 'casa' ? 'sonará en toda la casa y avisará en su móvil' : 'avisará en su móvil'}.`;
+}
+
+/** Said to the cloud, «set_timer» can ring in the house too. */
+const HOUSE_ARG = {
+	house: {
+		type: 'boolean',
+		description:
+			'Solo si dice que suene en casa («avísame en casa»): suena en toda la casa. Si no, avisa en su móvil.'
+	}
+};
+
 /** The minute of the day now, in the family's time (TZ, compose.prod.yaml). */
 function minuteNow() {
 	const now = new Date();
@@ -1070,7 +1140,9 @@ export async function runVoiceCommand(
 	/** Tools the device cannot do, not offered (the cloud's: no timers, no kitchen, no video yet). */
 	without: string[] = [],
 	/** Where it is said, for the AI, if it matters: what is not offered here, and why. */
-	note: string | null = null
+	note: string | null = null,
+	/** Said to the cloud: its timers kept here (`cloudTimer`), not the device's. */
+	cloudTimers = false
 ): Promise<VoiceReply & { timing: VoiceTiming }> {
 	const started = performance.now();
 	const { request, house, satellite } = order;
@@ -1086,10 +1158,19 @@ export async function runVoiceCommand(
 		k.userId && !satellite ? personOf(k, k.userId) : null,
 		botHasGroup(k.familyId)
 	]);
-	const alarmLines = await describeAlarms(k, me, house.satellites);
+	const timersOf = cloudTimers && !satellite ? me : null;
+	// Said to the cloud by someone not among its people: no one to keep them for.
+	if (cloudTimers && !timersOf) without = [...without, 'set_timer', 'cancel_timer'];
+	const [alarmLines, timerLines] = await Promise.all([
+		describeAlarms(k, me, house.satellites),
+		timersOf ? describeTimersOf(k, timersOf) : request.timers
+	]);
 	const timing: VoiceTiming = { prepareMs: Math.round(performance.now() - started), rounds: [] };
 	const outcome: Outcome = { actions: [], options: [], asked: null, done: 0 };
-	const reply = (text: string) => ({ ...replyOf(text, outcome), timing });
+	const reply = (text: string, expectsAnswer = false) => ({
+		...replyOf(text, outcome, expectsAnswer),
+		timing
+	});
 	if (!apiKey) return reply(SAID_NO_KEY);
 
 	const messages: ToolChatMessage[] = [
@@ -1129,7 +1210,7 @@ export async function runVoiceCommand(
 					type: 'text',
 					text: satellite
 						? `[Temporizadores y alarmas: ${[...house.timers, ...alarmLines].join('; ') || 'ninguno'}.]`
-						: `[Temporizadores aquí: ${request.timers.length ? request.timers.join('; ') : 'ninguno'}.] [Alarmas (de la casa y suyas; suenan en toda la casa o en un satélite): ${alarmLines.length ? alarmLines.join('; ') : 'ninguna'}.]`
+						: `[Temporizadores ${timersOf ? 'suyos' : 'aquí'}: ${timerLines.length ? timerLines.join('; ') : 'ninguno'}.] [Alarmas (de la casa y suyas; suenan en toda la casa o en un satélite): ${alarmLines.length ? alarmLines.join('; ') : 'ninguna'}.]`
 				},
 				...(request.recipe
 					? [{ type: 'text' as const, text: `[Receta en marcha aquí:\n${request.recipe}]` }]
@@ -1154,11 +1235,27 @@ export async function runVoiceCommand(
 		...(house.tools as Tool[]),
 		...(group ? [groupSayTool] : []),
 		...(settings.web.on ? [webSearchTool] : [])
-	].filter(
-		(t) =>
-			!without.includes(t.function.name) &&
-			(request.car ? !NOT_IN_THE_CAR.has(t.function.name) : !ONLY_IN_THE_CAR.has(t.function.name))
-	);
+	]
+		.map((t) =>
+			timersOf && t.function.name === 'set_timer'
+				? {
+						...t,
+						function: {
+							...t.function,
+							parameters: {
+								...t.function.parameters,
+								properties: { ...(t.function.parameters.properties as object), ...HOUSE_ARG }
+							}
+						}
+					}
+				: t
+		)
+		.filter(
+			(t) =>
+				!without.includes(t.function.name) &&
+				(request.car ? !NOT_IN_THE_CAR.has(t.function.name) : !ONLY_IN_THE_CAR.has(t.function.name))
+		);
+	available.push(answerTool);
 	const turn: Turn = {
 		k,
 		order,
@@ -1166,6 +1263,7 @@ export async function runVoiceCommand(
 		recipe: request.recipe,
 		satellite: Boolean(satellite),
 		place,
+		timersOf,
 		apiKey,
 		settings,
 		houseTools: new Set(house.tools.map((t) => t.function.name))
@@ -1177,10 +1275,12 @@ export async function runVoiceCommand(
 		try {
 			answer = await chatWithTools({
 				apiKey,
+				label: `Voz: «${request.text}»`,
 				model: settings.model,
 				messages,
 				tools: available,
-				think: false
+				think: false,
+				toolChoice: 'required'
 			});
 		} catch (err) {
 			if (err instanceof Error && err.message === NO_CREDIT) return reply(SAID_NO_CREDIT);
@@ -1193,7 +1293,19 @@ export async function runVoiceCommand(
 			completion: answer.usage?.completion_tokens ?? 0,
 			tools: answer.toolCalls.map((c) => c.function.name)
 		});
+		// Text instead of its `answer` (a model that ignores `required`): said, and nothing awaited.
 		if (!answer.toolCalls.length) return reply(answer.content ?? 'Hecho.');
+		const [only] = answer.toolCalls;
+		if (answer.toolCalls.length === 1 && only!.function.name === 'answer') {
+			let args: { text?: unknown; expects_answer?: unknown } = {};
+			try {
+				args = JSON.parse(only!.function.arguments || '{}');
+			} catch {
+				// Unreadable: «Hecho.», as with no text.
+			}
+			const text = typeof args.text === 'string' && args.text.trim() ? args.text : 'Hecho.';
+			return reply(text, args.expects_answer === true);
+		}
 		messages.push({ role: 'assistant', content: answer.content, tool_calls: answer.toolCalls });
 		// Each call done gives the device something to do; a failed one says why, and gives nothing.
 		const said: string[] = [];
@@ -1201,6 +1313,15 @@ export async function runVoiceCommand(
 		for (const call of answer.toolCalls) {
 			const before = outcome.actions.length + outcome.done;
 			let result: ToolResult;
+			// With others, before knowing what they did: given again after their results.
+			if (call.function.name === 'answer') {
+				messages.push({
+					role: 'tool',
+					tool_call_id: call.id,
+					content: 'Aún no: contesta con «answer» sola, después de ver lo que han hecho las demás.'
+				});
+				continue;
+			}
 			try {
 				const args = JSON.parse(call.function.arguments || '{}');
 				if (typeof args.say === 'string' && args.say.trim()) said.push(args.say.trim());
@@ -1213,16 +1334,17 @@ export async function runVoiceCommand(
 			if (!ONE_ROUND.has(call.function.name) || outcome.actions.length + outcome.done === before)
 				oneRound = false;
 		}
-		if (outcome.asked) return reply(outcome.asked);
+		if (outcome.asked) return reply(outcome.asked, true);
 		if (oneRound) return reply(said.join(' '));
 	}
-	return reply(
-		outcome.actions.length ? 'Hecho.' : 'No he sabido hacerlo. Prueba a decirlo de otra forma.'
-	);
+	// Nothing done: listened to again, to say it another way.
+	const done = outcome.actions.length + outcome.done > 0;
+	return reply(done ? 'Hecho.' : 'No he sabido hacerlo. Dímelo de otra forma.', !done);
 }
 
-const replyOf = (text: string, outcome: Outcome): VoiceReply => ({
+const replyOf = (text: string, outcome: Outcome, expectsAnswer: boolean): VoiceReply => ({
 	reply: text.trim(),
 	actions: outcome.actions,
-	options: outcome.options
+	options: outcome.options,
+	expectsAnswer
 });

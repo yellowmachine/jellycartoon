@@ -24,7 +24,7 @@ import {
 	WAKE_WORDS,
 	type WakeWordModel
 } from '../../src/lib/wake-words.ts';
-import { FOLLOW_UP_MS, isQuestion } from '../../src/lib/voice.ts';
+import { FOLLOW_UP_MS } from '../../packages/comun/src/voice.ts';
 
 /**
  * The voice satellite (#223, phase 1): «hola casita» heard on a Raspberry in the living room, out of
@@ -256,7 +256,7 @@ async function respond(wav: Uint8Array) {
 		} else {
 			const actions = done.reply.actions.map((a) => a.kind).join(', ') || 'ninguna';
 			log(`«${done.text}» → «${done.reply.reply}» (acciones: ${actions}; ${ms} ms)`);
-			asked = isQuestion(done.reply);
+			asked = done.reply.expectsAnswer;
 			// Asked even without a speaker: the server may say it through Snapcast.
 			if (done.reply.reply) {
 				const voice = await speech(done.reply.reply);
