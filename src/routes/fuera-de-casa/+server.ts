@@ -1,6 +1,8 @@
 import type { RequestHandler } from './$types';
 import { NUBE_URL } from '$app/env/private';
 import { cloudUrl } from '#lib/server/kitchen.ts';
+// The cloud's drawing (#253): the house with its wifi behind, the snail off to the cloud.
+import drawing from 'comun/dibujos/fuera-de-casa.svg?raw';
 
 /**
  * The page the app shows when the house does not answer (src/service-worker): out of its wifi
@@ -25,7 +27,8 @@ export const GET: RequestHandler = async () => {
 		background: #09090b; color: #a1a1aa; font-family: system-ui, sans-serif; text-align: center;
 		padding: 16px; box-sizing: border-box; }
 	main { max-width: 26rem; }
-	img { width: 64px; height: 64px; border-radius: 14px; }
+	.drawing { max-width: 18rem; margin: 0 auto; color: #f4f4f5; }
+	.drawing svg { display: block; width: 100%; }
 	h1 { color: #fbbf24; font-size: 1.5rem; margin: 1rem 0 .5rem; }
 	p { margin: 0 0 1rem; line-height: 1.5; }
 	.links { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: center; margin-top: 1.5rem; }
@@ -38,7 +41,7 @@ export const GET: RequestHandler = async () => {
 </head>
 <body>
 <main>
-	<img src="/icon-192.png" alt="">
+	<div class="drawing">${drawing}</div>
 	<h1>Estás fuera de casa</h1>
 	<p>JellyCartoon solo se abre en la wifi de casa o con la VPN (WireGuard) encendida.</p>
 	${cloud ? '<p>Fuera, lo tuyo está en la nube: series, música, la agenda, los gastos…</p>' : ''}
