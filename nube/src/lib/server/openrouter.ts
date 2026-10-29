@@ -21,7 +21,7 @@ export function watchCost(listener: (apiKey: string, label: string, dollars: num
 }
 
 /** Billed even when the answer is no good (a reasoning model that ran out of tokens). */
-function noteCost(apiKey: string, label: string, body: { usage?: Usage } | null) {
+export function noteCost(apiKey: string, label: string, body: { usage?: Usage } | null) {
 	const cost = body?.usage?.cost;
 	if (typeof cost === 'number' && cost > 0)
 		for (const listener of costListeners) listener(apiKey, label, cost);
@@ -248,4 +248,65 @@ export async function askWeb(request: {
 	if (typeof content !== 'string' || !content.trim())
 		throw new Error(`OpenRouter no ha contestado (${request.label})`);
 	return content.trim();
+}
+
+/**
+ * The cost in a streamed answer: OpenRouter sends the usage in its last event
+ * (https://openrouter.ai/docs/api/reference/streaming), `data: {...}` lines ending in `[DONE]`.
+ */
+export function usageOfStream(text: string): Usage | undefined {
+	let usage: Usage | undefined;
+	for (const line of text.split('\n')) {
+		if (!line.startsWith('data:')) continue;
+		const data = line.slice(5).trim();
+		if (!data || data === '[DONE]') continue;
+		try {
+			usage = JSON.parse(data).usage ?? usage;
+		} catch {
+			// A comment or a broken line: not the usage.
+		}
+	}
+	return usage;
+}
+
+/**
+ * An app's request (#284, /api/ia), to OpenRouter as it came, with its family's key; its answer back
+ * as it comes, streamed or not, and its cost noted. Refused keys and errors, in OpenAI's shape, so
+ * that the app's client reads them; a key OpenRouter refuses is not the app's fault (not a 401).
+ */
+export async function forwardChat(request: {
+	apiKey: string;
+	label: string;
+	body: Record<string, unknown>;
+	signal: AbortSignal;
+}): Promise<Response> {
+	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+		method: 'POST',
+		headers: { ...headers(request.apiKey), 'X-OpenRouter-Title': request.label },
+		body: JSON.stringify(request.body),
+		signal: request.signal
+	});
+	if (!res.ok) {
+		const body = await res.json().catch(() => null);
+		const status = res.status === 401 ? 502 : res.status;
+		return Response.json(
+			{ error: { message: refused(res.status, body).message, code: res.status } },
+			{ status }
+		);
+	}
+	if (!request.body.stream || !res.body) {
+		const body = await res.json();
+		noteCost(request.apiKey, request.label, body);
+		return Response.json(body);
+	}
+	const [toApp, toCount] = res.body.tee();
+	void new Response(toCount)
+		.text()
+		.then((text) => noteCost(request.apiKey, request.label, { usage: usageOfStream(text) }))
+		.catch(() => {
+			// Cut short by the app: what was spent is not known.
+		});
+	return new Response(toApp, {
+		headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' }
+	});
 }

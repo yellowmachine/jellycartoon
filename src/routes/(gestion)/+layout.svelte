@@ -6,7 +6,7 @@
 
 	/**
 	 * Looking after the app, in one place: the videos' conversion, the tags, the subtitles Whisper
-	 * makes, the episodes the vision model labels and the log.
+	 * makes, the episodes the vision model labels, what the cloud did not get and the log.
 	 */
 	const tabs = [
 		{ href: '/library', label: 'Conversión', match: (p: string) => p === '/library' },
@@ -25,6 +25,7 @@
 			label: 'Etiquetado',
 			match: (p: string) => p === '/library/etiquetado'
 		},
+		{ href: '/library/nube', label: 'Nube', match: (p: string) => p === '/library/nube' },
 		{ href: '/logs', label: 'Registro', match: (p: string) => p === '/logs' }
 	];
 	const selected = $derived(tabs.find((t) => t.match(page.url.pathname)));

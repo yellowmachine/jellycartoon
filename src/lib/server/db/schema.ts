@@ -4,6 +4,7 @@ import {
 	boolean,
 	check,
 	date,
+	doublePrecision,
 	index,
 	jsonb,
 	integer,
@@ -610,6 +611,22 @@ export const logEntry = pgTable(
 	},
 	(t) => [index('log_entry_at_idx').on(t.at), index('log_entry_level_idx').on(t.level, t.at)]
 );
+
+/**
+ * The AI's costs the cloud did not get (#193, cloud-ai-costs.ts): sent again with the next one that
+ * gets there, or from Gestión → Nube. Its id goes with it, so the cloud never counts one twice.
+ */
+export const unsentAiCost = pgTable('unsent_ai_cost', {
+	id: text('id').primaryKey(),
+	/** When it was spent, not when it failed. */
+	at: timestamp('at').notNull(),
+	label: text('label').notNull(),
+	cost: doublePrecision('cost').notNull(),
+	/** Why the last try failed, said for people. */
+	error: text('error').notNull(),
+	tries: integer('tries').notNull().default(1),
+	triedAt: timestamp('tried_at').notNull().defaultNow()
+});
 
 export const chatRole = pgEnum('chat_role', ['user', 'assistant']);
 

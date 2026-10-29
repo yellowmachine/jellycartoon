@@ -66,9 +66,11 @@ export const handleError: HandleServerError = ({ kind, error, event }) => {
 // their avatar on a trusted device, before they have a session (#141). /bienvenida: an adult
 // choosing their password with the link the administrator gave them (#157). /api/v1: the video
 // API for the cloud, and its alarms ringing here, with its key or a signed link, checked by each
-// route (media-api.ts, #253).
+// route (media-api.ts, #253). /fuera-de-casa: what the service worker keeps to show when the house
+// does not answer.
 const PUBLIC_PATHS = [
 	'/login',
+	'/fuera-de-casa',
 	'/bienvenida',
 	'/api/auth',
 	'/api/health',

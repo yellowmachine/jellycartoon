@@ -10,7 +10,8 @@ import {
 	serial,
 	text,
 	timestamp,
-	unique
+	unique,
+	uniqueIndex
 } from 'drizzle-orm/pg-core';
 import type { BillDetails } from 'comun/bills.ts';
 import type { ExpenseLine } from 'comun/expenses.ts';
@@ -163,4 +164,30 @@ export const expenseFavorite = pgTable(
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [familyRows('expense_favorite_own', t.familyId)]
+).enableRLS();
+
+/**
+ * What each request to the AI cost (#193), for Gastos → IA: the cloud's own and the house's (it
+ * tells them, /api/casa/gasto-ia). In dollars, as OpenRouter says it.
+ */
+export const aiCost = pgTable(
+	'ai_cost',
+	{
+		id: serial('id').primaryKey(),
+		familyId: familyId(),
+		at: timestamp('at').notNull().defaultNow(),
+		/** Which app asked: `nube` or `casa`. */
+		app: text('app').notNull(),
+		/** Grouped by (comun/ai-spend.ts, `aiKind`). */
+		kind: text('kind').notNull(),
+		label: text('label').notNull(),
+		cost: doublePrecision('cost').notNull(),
+		/** The house's own id for it: one sent again (a lost answer) is not counted twice. */
+		houseRef: text('house_ref')
+	},
+	(t) => [
+		index('ai_cost_family_at_idx').on(t.familyId, t.at),
+		uniqueIndex('ai_cost_family_house_ref_idx').on(t.familyId, t.houseRef),
+		familyRows('ai_cost_own', t.familyId)
+	]
 ).enableRLS();

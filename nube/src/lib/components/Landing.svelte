@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import Dibujo from 'comun/components/Dibujo.svelte';
 	import SectionIcon, { type Section } from 'comun/components/SectionIcon.svelte';
 	import { field } from '#lib/styles.ts';
 
@@ -57,6 +58,8 @@
 	</header>
 
 	<section class="py-16 text-center sm:py-24">
+		<!-- The snail on its way, the trail back to the house: the house, carried along. -->
+		<Dibujo name="portada" class="mx-auto mb-8 max-w-md text-zinc-100" />
 		<h1 class="text-4xl font-bold sm:text-5xl">Las cosas de casa, en un solo sitio</h1>
 		<p class="mx-auto mt-4 max-w-2xl text-lg text-zinc-400">
 			La nevera, las recetas, la agenda y los gastos de tu familia, desde el móvil de cada uno. Y se

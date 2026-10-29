@@ -15,6 +15,7 @@ import {
 	idTokenClaims,
 	userInfoClaims
 } from '#lib/server/oidc.ts';
+import { FAMILY_SCOPE } from '#lib/server/oidc-claims.ts';
 
 export const auth = betterAuth({
 	baseURL: ORIGIN,
@@ -47,13 +48,16 @@ export const auth = betterAuth({
 		// One account for the cloud and the house (#279): the cloud is the houses' OpenID provider,
 		// and each house a client of its family's (oidc.ts), trusted, so no consent is asked. The
 		// house's «Entrar con la nube» comes here to /login, and back once in, second step and all.
+		// And of the apps (#284: Langua, Librarian), made by the service's administrator.
 		jwt(),
 		oauthProvider({
 			loginPage: '/login',
-			// Never shown: the houses' clients skip it (oidc.ts).
+			// Never shown: the houses' and the apps' clients skip it (oidc.ts).
 			consentPage: '/login',
-			scopes: ['openid', 'profile', 'email'],
-			grantTypes: ['authorization_code'],
+			// `family`: the person's family in the token, for the apps of families (oidc-claims.ts).
+			// `offline_access`: a refresh token, for the apps that call /api/ia (app-clients.ts).
+			scopes: ['openid', 'profile', 'email', 'offline_access', FAMILY_SCOPE],
+			grantTypes: ['authorization_code', 'refresh_token'],
 			clientReference,
 			clientPrivileges,
 			customIdTokenClaims: idTokenClaims,

@@ -2,6 +2,7 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 import { spendTracker, RECENT_COSTS, type AiSpend } from 'comun/ai-spend.ts';
 import { db } from '#lib/server/db/index.ts';
 import { logEntry } from '#lib/server/db/schema.ts';
+import { tellCloud } from '#lib/server/cloud-ai-costs.ts';
 import { keyBalance, watchCost } from '#lib/server/openrouter.ts';
 
 /**
@@ -41,7 +42,10 @@ const tracker = spendTracker({
 	}
 });
 
-watchCost((label, cost) => tracker.add(label, cost));
+watchCost((label, cost) => {
+	tracker.add(label, cost);
+	void tellCloud(label, cost);
+});
 
 /** A page showing the line: told now and on every change; OpenRouter asked only while any does. */
 export const watchAiSpend = (listener: (spend: AiSpend | null) => void) => tracker.watch(listener);

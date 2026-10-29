@@ -3,7 +3,6 @@ import {
 	asc,
 	desc,
 	eq,
-	exists,
 	gte,
 	inArray,
 	lt,
@@ -72,9 +71,8 @@ export function searchExpenses(
 			text
 				? or(
 						sql`${plain(expense.store)} like ${plain(like)}`,
-						exists(
-							sql`select 1 from ${expenseLine} where ${expenseLine.expenseId} = ${expense.id} and ${plain(expenseLine.text)} like ${plain(like)}`
-						)
+						// Its own parentheses: Drizzle's exists() leaves them out around raw SQL.
+						sql`exists (select 1 from ${expenseLine} where ${expenseLine.expenseId} = ${expense.id} and ${plain(expenseLine.text)} like ${plain(like)})`
 					)
 				: undefined,
 			from ? gte(expense.date, from) : undefined,

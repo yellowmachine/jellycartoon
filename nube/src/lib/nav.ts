@@ -53,9 +53,13 @@ export function navLinks(webUrl: string | null, serviceAdmin = false) {
 		{ href: '/ajustes', label: 'Ajustes', icon: 'ajustes' },
 		gestion,
 		{ href: atHome(webUrl, '/tv'), label: 'Vista TV', icon: 'series', external: Boolean(webUrl) },
-		// The families that asked to come in: only for who lets them in.
+		// The families that asked to come in, and the apps entered with the account (#284): only for
+		// who runs the service.
 		...(serviceAdmin
-			? [{ href: '/admin/lista-de-espera', label: 'Lista de espera', icon: 'gestion' as const }]
+			? [
+					{ href: '/admin/lista-de-espera', label: 'Lista de espera', icon: 'gestion' as const },
+					{ href: '/admin/apps', label: 'Apps', icon: 'gestion' as const }
+				]
 			: [])
 	];
 	return { links, menuLinks: [...links, gestion], userLinks };

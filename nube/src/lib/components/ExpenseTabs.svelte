@@ -1,15 +1,16 @@
 <script lang="ts">
 	/**
-	 * Gastos' views (#194): a month's, the analysis of several, the bills' supplies (#232), and a
-	 * search by words and dates.
+	 * Gastos' views (#194): a month's, the analysis of several, the bills' supplies (#232), a
+	 * search by words and dates, and what the AI costs (#193).
 	 */
-	let { current }: { current: 'mes' | 'analisis' | 'facturas' | 'busqueda' } = $props();
+	let { current }: { current: 'mes' | 'analisis' | 'facturas' | 'busqueda' | 'ia' } = $props();
 
 	const TABS = [
 		{ id: 'mes', href: '/gastos', label: 'Mes' },
 		{ id: 'analisis', href: '/gastos/analisis', label: 'Análisis' },
 		{ id: 'facturas', href: '/gastos/facturas', label: 'Facturas' },
-		{ id: 'busqueda', href: '/gastos/busqueda', label: 'Búsqueda' }
+		{ id: 'busqueda', href: '/gastos/busqueda', label: 'Búsqueda' },
+		{ id: 'ia', href: '/gastos/ia', label: 'IA' }
 	] as const;
 </script>
 

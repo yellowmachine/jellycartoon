@@ -8,10 +8,20 @@ const settingsOf = async (k: Kitchen) => {
 	return row ?? null;
 };
 
+/**
+ * Whose each key is, as it is read: each request's cost is noted for its family (ai-spend.ts),
+ * and openrouter.ts only knows the key it asked with.
+ */
+const keyFamilies = new Map<string, string>();
+
+export const familyOfKey = (key: string) => keyFamilies.get(key) ?? null;
+
 /** Its OpenRouter key, for the AI (recipes); null without one, or if it cannot be read. */
 export async function openRouterKey(k: Kitchen) {
 	const row = await settingsOf(k);
-	return row?.openrouterKey ? decrypt(row.openrouterKey) : null;
+	const key = row?.openrouterKey ? decrypt(row.openrouterKey) : null;
+	if (key) keyFamilies.set(key, k.familyId);
+	return key;
 }
 
 /** How it starts, for Ajustes: the key itself never leaves the server. */
