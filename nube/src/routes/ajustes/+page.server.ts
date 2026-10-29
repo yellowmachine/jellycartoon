@@ -37,6 +37,8 @@ import {
 } from '#lib/server/voice/settings.ts';
 import { createHouseKey, deleteHouseKey, listHouseKeys } from '#lib/server/house-keys.ts';
 import { invitationLink, invitations, inviteAndSend } from '#lib/server/invitations.ts';
+import { createHouseClient, deleteHouseClient, houseClients } from '#lib/server/house-clients.ts';
+import { ORIGIN } from '$app/env/private';
 import {
 	askHouse,
 	forgetHouse,
@@ -48,7 +50,7 @@ import {
 import { recordsTrips, setRecordTrips } from '#lib/server/trips/trips.ts';
 import { subtitleStyleOf } from '#lib/server/subtitles.ts';
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, request }) => {
 	const k = await kitchenOf(locals.user!.id);
 	const membership = await withFamily(locals.user!.id, async (_, m) => m);
 	const admin = membership.role === 'admin';
@@ -61,6 +63,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		twoFactor: Boolean(locals.user!.twoFactorEnabled),
 		people: await familyPeople(k),
 		telegramBot: admin ? { bot: await botStatus(membership.familyId) } : null,
+		/** «Entrar con la nube» (#279): its houses' clients, and the cloud's address for their .env. */
+		houseClients: admin ? { clients: await houseClients(request.headers), origin: ORIGIN } : null,
 		/** The family's open invitations, with their links: only its administrator. */
 		invitations: admin
 			? (await invitations.ofFamily(membership.familyId)).map(({ token, ...i }) => ({
@@ -310,6 +314,34 @@ export const actions: Actions = {
 			if (error instanceof HouseProblem) return fail(502, { houseProblem: error.message });
 			throw error;
 		}
+	},
+	/**
+	 * «Entrar con la nube» (#279): a client of the cloud's OpenID provider for the house, at its
+	 * address; its secret shown once, to go into the house's .env.
+	 */
+	createHouseClient: async ({ request, locals }) => {
+		const familyId = await adminFamily(locals.user!.id);
+		if (!familyId) return fail(403, { clientProblem: 'Solo quien administra la familia' });
+		let houseUrl: URL;
+		try {
+			houseUrl = new URL(String((await request.formData()).get('url') ?? '').trim());
+		} catch {
+			return fail(400, { clientProblem: 'Escribe la dirección completa, con https://' });
+		}
+		try {
+			return { houseClient: await createHouseClient(request.headers, houseUrl.origin, familyId) };
+		} catch (error) {
+			// Its address, refused by the provider: https, unless on this same machine.
+			if (error instanceof APIError && error.status === 'BAD_REQUEST')
+				return fail(400, { clientProblem: 'La dirección de la casa, con https://' });
+			throw error;
+		}
+	},
+	deleteHouseClient: async ({ request, locals }) => {
+		const familyId = await adminFamily(locals.user!.id);
+		if (!familyId) return fail(403, { clientProblem: 'Solo quien administra la familia' });
+		await deleteHouseClient(request.headers, String((await request.formData()).get('id') ?? ''));
+		return { saved: 'house-client-out' };
 	},
 	/** A key for the house (jellycartoon) to use the family's fridge and recipes: shown once. */
 	createHouseKey: async ({ request, locals }) => {

@@ -23,6 +23,15 @@ Varias familias en una sola app, cada una aislada por la seguridad por filas de 
   enlace para crear su familia, de la que es administrador. El administrador de cada familia invita
   a los suyos en Ajustes → Familia → Invitaciones, y ve el enlace de cada una por si el correo no
   llega. `bun run familia "Casa García" ana@example.com` crea una familia a mano e imprime el enlace.
+- **Una sola cuenta (#279):** la nube es proveedor OpenID Connect de las casas
+  (`@better-auth/oauth-provider` + `jwt`, `src/lib/server/auth.ts`); discovery en
+  `https://nube…/api/auth/.well-known/openid-configuration`. Cada casa es un cliente de su
+  familia, que crea su administrador en Ajustes → Familia → «Entrar en casa con la nube» con la
+  dirección `https://` de la casa: salen `NUBE_URL`, `NUBE_CLIENT_ID` y `NUBE_CLIENT_SECRET` para
+  el `.env` de la casa (el secreto, una vez). Sin pantalla de consentimiento; tras la contraseña y
+  el segundo paso, `/login` vuelve a la casa (`src/lib/server/oauth-return.ts`). Solo los de la
+  familia: a otro no se le da el token (`src/lib/server/oidc.ts`), y el token lleva la familia en
+  `https://nube.scholio.review/family`.
 - **La casa:** en Ajustes, la dirección de fuera de jellycartoon (su `MEDIA_HOST`) y la clave de su
   Ajustes → Casa → «La nube». La clave se guarda cifrada y no sale del servidor; cada petición a
   casa va en nombre de la persona, por su email (el mismo en las dos apps).

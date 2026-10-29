@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { enhance, type SubmitFunction } from '$app/forms';
 	import { page } from '$app/state';
 	import PasswordInput from 'comun/components/PasswordInput.svelte';
 	import { field } from '#lib/styles.ts';
 	import type { PageProps } from './$types';
 
-	let { form }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 	/** The second step with a recovery code, instead of the app's. */
 	let recovery = $state(false);
 	$effect(() => {
@@ -19,6 +19,21 @@
 		return `?${next ? `next=${encodeURIComponent(next)}&` : ''}/${name}`;
 	};
 
+	/**
+	 * Once in, coming from a house (#279): back there, another site, which `goto` does not go to;
+	 * the rest as usual.
+	 */
+	const toHouse: SubmitFunction =
+		() =>
+		async ({ result, update }) => {
+			if (
+				result.type === 'redirect' &&
+				new URL(result.location, location.href).origin !== location.origin
+			)
+				location.assign(result.location);
+			else await update();
+		};
+
 	const input = `mt-1 ${field}`;
 	const primary =
 		'w-full rounded-md bg-amber-500 py-2 font-medium text-zinc-950 hover:bg-amber-400';
@@ -29,7 +44,7 @@
 	<p class="mt-2 mb-8 text-center text-zinc-400">Las cosas de casa, también fuera.</p>
 	{#if twoFactor}
 		<!-- The second step: the code from the app (Proton Pass, Google Authenticator…). -->
-		<form method="post" action={action('verify')} use:enhance class="space-y-4">
+		<form method="post" action={action('verify')} use:enhance={toHouse} class="space-y-4">
 			<label class="block text-sm">
 				{recovery ? 'Código de recuperación' : 'Código de tu app de verificación'}
 				{#if recovery}
@@ -56,6 +71,7 @@
 				{/if}
 			</label>
 			<input type="hidden" name="recovery" value={recovery ? 'on' : ''} />
+			{#if data.oauthQuery}<input type="hidden" name="oauth_query" value={data.oauthQuery} />{/if}
 			<label class="flex items-center gap-2 text-sm text-zinc-300">
 				<input
 					type="checkbox"
@@ -77,7 +93,9 @@
 			{recovery ? 'Usar el código de la app' : '¿Sin el móvil? Usa un código de recuperación'}
 		</button>
 	{:else}
-		<form method="post" action={action('signIn')} use:enhance class="space-y-4">
+		<form method="post" action={action('signIn')} use:enhance={toHouse} class="space-y-4">
+			<!-- Come from a house (#279): back there once in. -->
+			{#if data.oauthQuery}<input type="hidden" name="oauth_query" value={data.oauthQuery} />{/if}
 			<label class="block text-sm">
 				Email
 				<input type="email" name="email" required class={input} autocomplete="email" />

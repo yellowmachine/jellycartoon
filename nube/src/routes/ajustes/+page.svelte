@@ -5,6 +5,7 @@
 	import PushNotices from 'comun/components/PushNotices.svelte';
 	import TelegramBot from './TelegramBot.svelte';
 	import Invitaciones from './Invitaciones.svelte';
+	import EntrarConLaNube from './EntrarConLaNube.svelte';
 	import VozCaracter from './VozCaracter.svelte';
 	import VozInternet from './VozInternet.svelte';
 	import VozSilencio from './VozSilencio.svelte';
@@ -341,6 +342,8 @@
 				<p class="mt-3 text-sm text-red-400">{form.houseKeyProblem}</p>
 			{/if}
 		</section>
+
+		<EntrarConLaNube {data} {form} {tab} />
 
 		<section class={section} id="ia">
 			<h2 class="mb-1 font-semibold">IA (OpenRouter)</h2>

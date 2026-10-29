@@ -187,6 +187,8 @@ export function invitationScope(db: AnyDb, { role }: { role?: string } = {}) {
 					.insert(familyMember)
 					.values({ userId: who.id, familyId, role: inv.familyId ? inv.role : 'admin' });
 				await tx.update(invitation).set({ usedAt: new Date() }).where(eq(invitation.id, inv.id));
+				// Its link came to that email: it is theirs, as the houses see (#279, `email_verified`).
+				await tx.update(user).set({ emailVerified: true }).where(eq(user.id, who.id));
 				return { ok: true, familyId };
 			});
 		},

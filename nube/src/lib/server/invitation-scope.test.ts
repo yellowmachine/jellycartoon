@@ -60,6 +60,8 @@ describe('invitations', () => {
 		expect(await invitations.accept(made.token, who('nuevo'))).toEqual({ ok: true, familyId: 'A' });
 		const [m] = await db.select().from(familyMember).where(eq(familyMember.userId, 'nuevo'));
 		expect(m).toMatchObject({ familyId: 'A', role: 'member' });
+		const [u] = await db.select().from(user).where(eq(user.id, 'nuevo'));
+		expect(u.emailVerified).toBe(true);
 		expect(await invitations.accept(made.token, who('nuevo'))).toMatchObject({ ok: false });
 		expect(await invitations.pendingFor('nuevo@test.es')).toBeNull();
 	});

@@ -125,6 +125,13 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		shown: onlyAdmin
 	},
 	{
+		id: 'entrar-con-la-nube',
+		tab: 'familia',
+		title: 'Entrar en casa con la nube',
+		words: 'oidc openid cuenta única login entrar casa jellycartoon cliente secreto env',
+		shown: onlyAdmin
+	},
+	{
 		id: 'invitaciones',
 		tab: 'familia',
 		title: 'Invitaciones',
