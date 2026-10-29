@@ -15,6 +15,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			user: null,
 			family: null,
 			webUrl: null,
+			hasHouse: false,
 			receipts: false,
 			spendLine: false,
 			theme: DEFAULT_THEME
@@ -40,6 +41,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 				name: f.name,
 				admin: m.role === 'admin',
 				webUrl: h?.webUrl ?? null,
+				hasHouse: Boolean(h),
 				theme: isTheme(me?.theme) ? me.theme : DEFAULT_THEME,
 				spendLine: Boolean(me?.spendLine)
 			};
@@ -51,6 +53,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			user,
 			family: found,
 			webUrl: found.webUrl,
+			/** A house connected (Ajustes): without one, the bar shows nothing of it (nav.ts). */
+			hasHouse: found.hasHouse,
 			receipts,
 			/** The AI's spending under the header (#193): who asked, with the family's key (as receipts). */
 			spendLine: found.spendLine && receipts,
@@ -63,6 +67,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 				user,
 				family: null,
 				webUrl: null,
+				hasHouse: false,
 				receipts: false,
 				spendLine: false,
 				theme: DEFAULT_THEME

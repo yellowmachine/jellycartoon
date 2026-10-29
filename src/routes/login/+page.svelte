@@ -130,7 +130,7 @@
 				<button
 					class="w-full rounded-md border border-zinc-700 py-2 font-medium text-zinc-100 hover:border-amber-400"
 				>
-					Entrar con la nube
+					Entrar con Seilide
 				</button>
 			</form>
 			{#if data.nubeProblem}

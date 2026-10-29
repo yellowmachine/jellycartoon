@@ -14,13 +14,13 @@ export type AppAi = { ok: true; apiKey: string } | { ok: false; status: number; 
 export async function appAiKey(request: Request): Promise<AppAi> {
 	const authorization = request.headers.get('authorization') ?? '';
 	if (!/^Bearer\s+\S/i.test(authorization))
-		return { ok: false, status: 401, message: 'Falta el token de la nube' };
+		return { ok: false, status: 401, message: 'Falta el token de Seilide' };
 	let familyId: unknown;
 	try {
 		const info = await auth.api.oauth2UserInfo({ headers: new Headers({ authorization }) });
 		familyId = (info as Record<string, unknown>)[FAMILY_CLAIM];
 	} catch {
-		return { ok: false, status: 401, message: 'La nube no acepta ese token' };
+		return { ok: false, status: 401, message: 'Seilide no acepta ese token' };
 	}
 	if (typeof familyId !== 'string')
 		return { ok: false, status: 403, message: 'Esta app no es para familias: no tiene IA' };
@@ -29,7 +29,7 @@ export async function appAiKey(request: Request): Promise<AppAi> {
 		return {
 			ok: false,
 			status: 403,
-			message: 'Tu familia no tiene clave de OpenRouter: ponla en Ajustes de la nube'
+			message: 'Tu familia no tiene clave de OpenRouter: ponla en Ajustes de Seilide'
 		};
 	return { ok: true, apiKey };
 }

@@ -23,7 +23,7 @@ import {
  * its voice searches them (`refreshStale`).
  */
 
-const USER_AGENT = 'Nube/1.0 (https://github.com/yellowmachine/jellycartoon)';
+const USER_AGENT = 'Seilide/1.0 (https://github.com/yellowmachine/jellycartoon)';
 /** The protocol's own limit for one sitemap, unpacked: https://www.sitemaps.org/protocol.html */
 const MAX_SITEMAP_BYTES = 50 * 1024 * 1024;
 /** Asked for in one reading: a site with more is read in parts, a part each night. */

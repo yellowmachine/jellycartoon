@@ -11,7 +11,7 @@
 </script>
 
 <svelte:head>
-	<title>{r.title} · Recetario · Nube</title>
+	<title>{r.title} · Recetario · Seilide</title>
 </svelte:head>
 
 <a href="/recetas" class="text-sm text-zinc-400 hover:text-white">← Recetario</a>

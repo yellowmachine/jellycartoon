@@ -8,7 +8,7 @@
 	const where = $derived(`/${page.params.ruta ?? ''}`);
 </script>
 
-<svelte:head><title>En casa · Nube</title></svelte:head>
+<svelte:head><title>En casa · Seilide</title></svelte:head>
 
 <div class="mx-auto mt-16 max-w-md text-center">
 	<h1 class="mb-2 text-2xl font-bold">Está en casa</h1>

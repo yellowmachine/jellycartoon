@@ -27,7 +27,7 @@
 </script>
 
 <svelte:head>
-	<title>Recetario · Nube</title>
+	<title>Recetario · Seilide</title>
 </svelte:head>
 
 {#if data.backdrop}<Backdrop src={data.backdrop} />{/if}

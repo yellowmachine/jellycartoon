@@ -40,7 +40,7 @@
 </script>
 
 <div class="mx-auto mt-16 max-w-sm">
-	<h1 class="text-center text-3xl font-bold text-amber-400">Nube</h1>
+	<h1 class="text-center text-3xl font-bold text-amber-400">Seilide</h1>
 	<p class="mt-2 mb-8 text-center text-zinc-400">Las cosas de casa, también fuera.</p>
 	{#if twoFactor}
 		<!-- The second step: the code from the app (Proton Pass, Google Authenticator…). -->

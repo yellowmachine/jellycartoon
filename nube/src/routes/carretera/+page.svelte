@@ -715,7 +715,7 @@
 </script>
 
 <svelte:head>
-	<title>Carretera · Nube</title>
+	<title>Carretera · Seilide</title>
 </svelte:head>
 
 <!-- The next maneuver, big: what to do, and in how much. Over the map, or above the tabs. -->

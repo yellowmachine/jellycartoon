@@ -46,7 +46,7 @@
 </script>
 
 <svelte:head>
-	<title>Facturas · Nube</title>
+	<title>Facturas · Seilide</title>
 </svelte:head>
 
 <div class="mx-auto max-w-3xl">

@@ -8,7 +8,7 @@
 </script>
 
 <svelte:head>
-	<title>Listas de música · Nube</title>
+	<title>Listas de música · Seilide</title>
 </svelte:head>
 
 <p class="mb-4 text-sm text-zinc-400">

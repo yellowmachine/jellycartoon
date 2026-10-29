@@ -306,7 +306,7 @@ export const actions: Actions = {
 		if (key && !/^casita_\w{20,}$/.test(key))
 			return fail(400, {
 				houseProblem:
-					'Esa no es una clave de jellycartoon: empiezan por casita_ (Ajustes → Casa → «La nube»)'
+					'Esa no es una clave de jellycartoon: empiezan por casita_ (Ajustes → Casa → «Seilide»)'
 			});
 		const webValue = String(form.get('webUrl') ?? '').trim();
 		const webUrl = webValue ? houseUrl(webValue) : null;

@@ -11,13 +11,13 @@
 	const title = $derived(name[0]!.toUpperCase() + name.slice(1));
 </script>
 
-<svelte:head><title>{title} · Nube</title></svelte:head>
+<svelte:head><title>{title} · Seilide</title></svelte:head>
 
 <div class="mx-auto mt-16 max-w-md text-center">
 	<SectionIcon name={name as never} class="mx-auto mb-4 h-16 w-16 text-zinc-500" />
 	<h1 class="mb-2 text-2xl font-bold">{title}</h1>
 	<p class="mb-6 text-zinc-400">
-		Esto todavía está en casa: pronto estará también aquí, en la nube.
+		Esto todavía está en casa: pronto estará también aquí, en Seilide.
 	</p>
 	{#if data.webUrl}
 		<a

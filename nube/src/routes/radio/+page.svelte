@@ -8,7 +8,7 @@
 </script>
 
 <svelte:head>
-	<title>Radio · Nube</title>
+	<title>Radio · Seilide</title>
 </svelte:head>
 
 <div class="mb-4 flex flex-wrap items-center gap-3">

@@ -11,11 +11,11 @@
 
 {#if data.cloudKeys}
 	<section class={section} id="nube">
-		<h2 class="mb-1 font-semibold">La nube</h2>
+		<h2 class="mb-1 font-semibold">Seilide</h2>
 		<p class="mb-4 text-sm text-zinc-400">
-			Para que la app de la nube enseñe las series fuera de casa, por el túnel
+			Para que la app de Seilide enseñe las series fuera de casa, por el túnel
 			{#if data.cloudKeys.host}(<span class="font-mono">{data.cloudKeys.host}</span>){/if}. Con una
-			clave que se guarda en el servidor de la nube, nunca en el navegador. De momento solo para
+			clave que se guarda en el servidor de Seilide, nunca en el navegador. De momento solo para
 			adultos.
 		</p>
 
@@ -52,7 +52,7 @@
 				name="name"
 				maxlength="32"
 				required
-				placeholder="Nube"
+				placeholder="Seilide"
 				class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-900 text-sm"
 			/>
 			<button class={primary}>Nueva clave</button>
@@ -62,13 +62,13 @@
 		{/if}
 
 		<!-- The other way: the cloud's key for the house (#253). -->
-		<h3 class="mt-6 mb-1 text-sm font-semibold">Lo de la familia, en la nube</h3>
+		<h3 class="mt-6 mb-1 text-sm font-semibold">Lo de la familia, en Seilide</h3>
 		<p class="mb-3 text-sm text-zinc-400">
-			Con la dirección de la nube y la clave que da en su Ajustes («Clave para la casa»), la voz
+			Con la dirección de Seilide y la clave que da en su Ajustes («Clave para la casa»), la voz
 			apunta y lee en la nevera, las recetas, los gastos, la agenda y las alarmas de la familia,
-			allí; la tele enseña esa nevera, las alarmas de la nube suenan en casa, y el bot de Telegram
-			de la familia (en los Ajustes de la nube) avisa también de los temporizadores de casa. Sin
-			ella, nada de eso: vive en la nube.
+			allí; la tele enseña esa nevera, las alarmas de Seilide suenan en casa, y el bot de Telegram
+			de la familia (en los Ajustes de Seilide) avisa también de los temporizadores de casa. Sin
+			conectarla, nada de eso: vive en Seilide.
 		</p>
 		{#if data.cloudKeys.kitchen}
 			<p class="mb-3 text-sm">

@@ -11,7 +11,7 @@
 </script>
 
 <svelte:head>
-	<title>Series · Nube</title>
+	<title>Series · Seilide</title>
 </svelte:head>
 
 {#if data.problem || data.passProblem}

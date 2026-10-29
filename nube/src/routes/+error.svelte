@@ -13,7 +13,7 @@
 </script>
 
 <svelte:head>
-	<title>{broken ? 'Error' : page.status === 404 ? 'No encontrado' : page.status} · Nube</title>
+	<title>{broken ? 'Error' : page.status === 404 ? 'No encontrado' : page.status} · Seilide</title>
 </svelte:head>
 
 <section class="mx-auto flex max-w-md flex-col items-center gap-5 py-12 text-center">

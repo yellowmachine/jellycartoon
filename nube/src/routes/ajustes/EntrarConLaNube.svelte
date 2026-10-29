@@ -25,9 +25,9 @@
 
 {#if data.houseClients}
 	<section class={section} id="entrar-con-la-nube">
-		<h2 class="mb-1 font-semibold">Entrar en casa con la nube</h2>
+		<h2 class="mb-1 font-semibold">Entrar en casa con Seilide</h2>
 		<p class="mb-4 text-sm text-zinc-400">
-			Una sola cuenta: en jellycartoon, «Entrar con la nube» trae aquí, a entrar con tu contraseña y
+			Una sola cuenta: en jellycartoon, «Entrar con Seilide» trae aquí, a entrar con tu contraseña y
 			tu verificación, y de vuelta dentro. Solo entran los de la familia. Crea el acceso con la
 			dirección de la casa y pega las tres líneas en su <code>.env</code>; luego, en la casa,
 			<code>docker compose -f compose.prod.yaml up -d</code>.

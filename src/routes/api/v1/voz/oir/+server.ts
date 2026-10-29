@@ -20,7 +20,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const started = performance.now();
 		const text = await transcribe(audio);
-		log.info('voz', `Transcrito para la nube en ${Math.round(performance.now() - started)} ms`, {
+		log.info('voz', `Transcrito para Seilide en ${Math.round(performance.now() - started)} ms`, {
 			bytes: audio.size
 		});
 		return json({ text });

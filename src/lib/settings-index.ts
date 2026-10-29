@@ -220,7 +220,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 	{
 		id: 'nube',
 		tab: 'casa',
-		title: 'La nube',
+		title: 'Seilide',
 		words: 'nube clave api vídeo series fuera de casa túnel rathole nevera recetas lista compra',
 		shown: (d) => Boolean(d.cloudKeys)
 	},

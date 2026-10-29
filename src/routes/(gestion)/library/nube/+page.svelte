@@ -9,10 +9,10 @@
 	let sending = $state(false);
 </script>
 
-<h1 class="mb-2 text-2xl font-bold">Nube</h1>
+<h1 class="mb-2 text-2xl font-bold">Seilide</h1>
 <p class="mb-6 text-sm text-zinc-400">
-	Los gastos de IA de casa que no llegaron a la nube (sin internet, o la nube sin contestar). Se
-	mandan solos con el siguiente que llegue bien; desde aquí, cuando quieras. La nube no cuenta
+	Los gastos de IA de casa que no llegaron a Seilide (sin internet, o Seilide sin contestar). Se
+	mandan solos con el siguiente que llegue bien; desde aquí, cuando quieras. Seilide no cuenta
 	ninguno dos veces.
 </p>
 
@@ -30,7 +30,7 @@
 {/if}
 
 {#if !data.unsent.length}
-	<p class="text-sm text-zinc-500">No queda nada por mandar: la nube lo tiene todo.</p>
+	<p class="text-sm text-zinc-500">No queda nada por mandar: Seilide lo tiene todo.</p>
 {:else}
 	<div class="mb-4 flex items-center justify-between gap-3">
 		<p class="text-sm">

@@ -25,7 +25,7 @@
 			label: 'Etiquetado',
 			match: (p: string) => p === '/library/etiquetado'
 		},
-		{ href: '/library/nube', label: 'Nube', match: (p: string) => p === '/library/nube' },
+		{ href: '/library/nube', label: 'Seilide', match: (p: string) => p === '/library/nube' },
 		{ href: '/logs', label: 'Registro', match: (p: string) => p === '/logs' }
 	];
 	const selected = $derived(tabs.find((t) => t.match(page.url.pathname)));

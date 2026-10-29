@@ -50,7 +50,7 @@ services:
       SMTP_SECURE: ${SMTP_SECURE:-false}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
-      EMAIL_FROM: ${EMAIL_FROM:-Nube <no-reply@scholio.review>}
+      EMAIL_FROM: ${EMAIL_FROM:-Seilide <no-reply@scholio.review>}
       # The families' files (receipts' photos, bills), in the stack's own rustfs below.
       S3_ENDPOINT: http://rustfs:9000
       S3_BUCKET: nube

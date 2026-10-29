@@ -83,7 +83,7 @@
 </script>
 
 <svelte:head>
-	<title>Viajes · Nube</title>
+	<title>Viajes · Seilide</title>
 </svelte:head>
 
 <div class="mb-1 flex flex-wrap items-center gap-3">

@@ -21,7 +21,7 @@
 </script>
 
 <svelte:head>
-	<title>Canales · Nube</title>
+	<title>Canales · Seilide</title>
 </svelte:head>
 
 <h1 class="mb-1 text-2xl font-bold">Canales</h1>

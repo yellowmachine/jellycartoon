@@ -15,7 +15,7 @@ import { findRecipe, normalizeRecipe, readPage, type PageRecipe } from './schema
  * Recipe needs the AI to read its text.
  */
 
-const USER_AGENT = 'Nube/1.0 (https://github.com/yellowmachine/jellycartoon)';
+const USER_AGENT = 'Seilide/1.0 (https://github.com/yellowmachine/jellycartoon)';
 const MAX_PAGE_BYTES = 5_000_000;
 
 const step = {

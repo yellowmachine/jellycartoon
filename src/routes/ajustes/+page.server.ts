@@ -455,7 +455,7 @@ export const actions: Actions = {
 		if (!name || name.length > 32)
 			return fail(400, { cloudKeyProblem: 'Ponle un nombre de hasta 32 letras' });
 		const key = await createCloudKey(name, request.headers);
-		log.info('ajustes', `Clave nueva para la nube: «${name}»`);
+		log.info('ajustes', `Clave nueva para Seilide: «${name}»`);
 		return { cloudKey: key, cloudKeyName: name };
 	},
 	/** The cloud's address and the key it gave the house: its fridge and recipes, there (#253). */
@@ -466,15 +466,15 @@ export const actions: Actions = {
 		try {
 			url = new URL(String(form.get('url') ?? '').trim());
 		} catch {
-			return fail(400, { cloudLinkProblem: 'La dirección de la nube, con https://' });
+			return fail(400, { cloudLinkProblem: 'La dirección de Seilide, con https://' });
 		}
 		if (url.protocol !== 'https:')
-			return fail(400, { cloudLinkProblem: 'La dirección de la nube, con https://' });
+			return fail(400, { cloudLinkProblem: 'La dirección de Seilide, con https://' });
 		const key = String(form.get('key') ?? '').trim() || (await cloudLink())?.key;
 		if (!key?.startsWith('nube_'))
-			return fail(400, { cloudLinkProblem: 'La clave de la nube empieza por nube_' });
+			return fail(400, { cloudLinkProblem: 'La clave de Seilide empieza por nube_' });
 		await setCloudLink({ url: url.origin, key });
-		log.info('ajustes', `Nevera y recetas en la nube: ${url.origin}`);
+		log.info('ajustes', `Nevera y recetas en Seilide: ${url.origin}`);
 		return { saved: 'cloudLink' };
 	},
 	testCloudLink: async ({ locals }) => {
@@ -483,7 +483,7 @@ export const actions: Actions = {
 		if (!link) return fail(400, { cloudLinkProblem: 'Falta conectarla' });
 		try {
 			const { toBuy } = await askCloud<{ toBuy: string[] }>(link, '/nevera');
-			return { cloudLinkOk: `La nube contesta: ${toBuy.length} cosas por comprar` };
+			return { cloudLinkOk: `Seilide contesta: ${toBuy.length} cosas por comprar` };
 		} catch (error) {
 			if (error instanceof CloudProblem) return fail(502, { cloudLinkProblem: error.message });
 			throw error;
@@ -499,7 +499,7 @@ export const actions: Actions = {
 		await requireAdmin(locals.user!.id);
 		const id = String((await request.formData()).get('id') ?? '');
 		await deleteCloudKey(id, request.headers);
-		log.info('ajustes', 'Clave de la nube quitada', { id });
+		log.info('ajustes', 'Clave de Seilide quitada', { id });
 		return { saved: 'cloudKeys' };
 	},
 	/** Without the second step again; not for the administrator, who always has it. */

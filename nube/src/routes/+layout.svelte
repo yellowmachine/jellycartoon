@@ -19,7 +19,7 @@
 	let { data, children }: LayoutProps = $props();
 
 	/** jellycartoon's bar (#253): its sections, each where it is (nav.ts). */
-	const nav = $derived(navLinks(data.webUrl, data.user?.serviceAdmin));
+	const nav = $derived(navLinks(data.webUrl, data.user?.serviceAdmin, data.hasHouse));
 	/** The user's initial, for their round badge (accents and all: «Á» for «Álvaro»). */
 	const initial = $derived([...(data.user?.name.trim() ?? '')][0]?.toLocaleUpperCase('es') ?? '?');
 	let headerHeight = $state(0);
@@ -123,7 +123,7 @@
 <svelte:window onkeydown={voiceKeyDown} onkeyup={voiceKeyUp} onblur={() => voiceKeyUp()} />
 
 <svelte:head>
-	<title>Nube</title>
+	<title>Seilide</title>
 	<link rel="icon" href={favicon} />
 	<meta name="theme-color" content={themeColor(data.theme)} />
 	<!-- Their colours (Ajustes), as at home: values only from the themes' table. -->
@@ -142,7 +142,7 @@ trip's link (#81), for whoever has it. -->
 				bind:headerHeight
 				brand={{
 					href: '/',
-					title: data.family ? `Nube · ${data.family.name}` : 'Nube',
+					title: data.family ? `Seilide · ${data.family.name}` : 'Seilide',
 					image: favicon
 				}}
 				links={nav.links}

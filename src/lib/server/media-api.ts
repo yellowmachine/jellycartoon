@@ -129,7 +129,7 @@ export async function listCloudKeys(headers: Headers) {
 		.filter((k) => isCloud(k.metadata))
 		.map((k) => ({
 			id: k.id,
-			name: k.name ?? 'Nube',
+			name: k.name ?? 'Seilide',
 			start: k.start,
 			createdAt: k.createdAt,
 			lastRequest: k.lastRequest
