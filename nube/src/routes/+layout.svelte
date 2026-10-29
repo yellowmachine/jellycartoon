@@ -19,7 +19,7 @@
 	let { data, children }: LayoutProps = $props();
 
 	/** jellycartoon's bar (#253): its sections, each where it is (nav.ts). */
-	const nav = $derived(navLinks(data.webUrl, data.user?.serviceAdmin));
+	const nav = $derived(navLinks(data.webUrl, data.user?.serviceAdmin, data.hasHouse));
 	/** The user's initial, for their round badge (accents and all: «Á» for «Álvaro»). */
 	const initial = $derived([...(data.user?.name.trim() ?? '')][0]?.toLocaleUpperCase('es') ?? '?');
 	let headerHeight = $state(0);
