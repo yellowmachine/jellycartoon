@@ -155,6 +155,8 @@ export async function chatWithTools(request: {
 	timeoutMs?: number;
 	/** False, without thinking first when the model allows it: the voice, where each second shows. */
 	think?: boolean;
+	/** «required»: it must call a tool, never answer with text (the voice ends with its `answer`). */
+	toolChoice?: 'auto' | 'required';
 }): Promise<{ content: string | null; toolCalls: ToolCall[]; usage: Usage | null }> {
 	const noThinking = request.think === false && (await canSkipThinking(request.model));
 	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -164,6 +166,7 @@ export async function chatWithTools(request: {
 			model: request.model,
 			messages: request.messages,
 			tools: request.tools,
+			...(request.toolChoice && { tool_choice: request.toolChoice }),
 			// Short answers here, but room for a model that reasons.
 			max_tokens: 4_096,
 			...(noThinking && { reasoning: { effort: 'none' } }),

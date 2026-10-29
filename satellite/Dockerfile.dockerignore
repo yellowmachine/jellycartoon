@@ -4,7 +4,7 @@
 !src/lib/vad.ts
 !src/lib/wakeword.ts
 !src/lib/wakeword-recorder.ts
-!src/lib/voice.ts
+!packages/comun/src/voice.ts
 !src/lib/wake-words.ts
 !satellite/package.json
 !satellite/bun.lock

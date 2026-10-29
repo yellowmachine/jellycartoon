@@ -4,7 +4,7 @@ import {
 	HISTORY_TURNS,
 	type VoiceReply,
 	type VoiceTurn
-} from '../../src/lib/voice.ts';
+} from '../../packages/comun/src/voice.ts';
 
 /**
  * The house's server, as the phone's voice talks to it (#223, phase 2): what was said, transcribed

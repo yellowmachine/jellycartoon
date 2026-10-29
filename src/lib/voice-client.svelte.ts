@@ -12,7 +12,6 @@ import {
 	FOLLOW_UP_MS,
 	HISTORY_IDLE_MS,
 	HISTORY_TURNS,
-	isQuestion,
 	type VoiceAction,
 	type VoiceOption,
 	type VoiceReply,
@@ -242,7 +241,7 @@ class VoiceClient {
 			assistantTurn(body)
 		].slice(-HISTORY_TURNS);
 		this.#historyAt = Date.now();
-		this.#speak(body.reply, isQuestion(body));
+		this.#speak(body.reply, body.expectsAnswer);
 	}
 
 	/** This order's times, to the Registro: from the end of what was said to the answer heard. */
