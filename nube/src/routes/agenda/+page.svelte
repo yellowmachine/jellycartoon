@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { enhance } from '$app/forms';
 	import {
 		addDays,
@@ -19,9 +19,15 @@
 	} from 'comun/agenda.ts';
 	import { monthName } from 'comun/expenses.ts';
 	import type { PageProps } from './$types';
-	import Alarmas from './Alarmas.svelte';
+	import { goto } from '$app/navigation';
+	import AgendaTabs from '#lib/components/AgendaTabs.svelte';
 
 	let { data }: PageProps = $props();
+
+	// The alarms were down here before their tab: an old link (a notice) goes there.
+	onMount(() => {
+		if (location.hash === '#alarmas') void goto('/agenda/alarmas', { replaceState: true });
+	});
 
 	const person = (id: string) => data.people.find((p) => p.id === id);
 	const eventOf = (id: number) => data.events.find((e) => e.id === id);
@@ -259,7 +265,8 @@
 </svelte:head>
 
 <div class="mx-auto max-w-3xl">
-	<h1 class="mb-1 text-2xl font-bold">Agenda</h1>
+	<h1 class="mb-3 text-2xl font-bold">Agenda</h1>
+	<AgendaTabs current="agenda" />
 	<p class="mb-4 text-sm text-zinc-400">
 		{#if data.readonly}
 			Lo que tienes apuntado.
@@ -560,13 +567,6 @@
 			{@render dayList(data.day)}
 		</ul>
 	{/if}
-
-	<Alarmas
-		alarms={data.alarms}
-		people={data.people}
-		satellites={data.satellites}
-		readonly={data.readonly}
-	/>
 
 	{#if data.ics}
 		<section class="mb-10 rounded-lg bg-zinc-900 p-4 text-sm">

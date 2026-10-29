@@ -147,7 +147,7 @@
 {/snippet}
 
 <section class="mb-10 rounded-lg bg-zinc-900 p-4" id="alarmas">
-	<h2 class="mb-1 font-semibold">Alarmas</h2>
+	<h2 class="mb-1 font-semibold">Alarmas y temporizadores</h2>
 	<p class="mb-3 text-sm text-zinc-400">
 		Las de la casa y las tuyas. Suenan en casa: en toda, por los altavoces, o en un satélite de voz.
 		Los temporizadores, por voz: los de aquí avisan en el móvil, o en casa si lo dices.

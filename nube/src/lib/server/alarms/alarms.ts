@@ -578,7 +578,7 @@ async function ringAtHouse(k: Kitchen, row: Row) {
 		title: `${row.kind === 'temporizador' ? '⏲️' : '⏰'} ${row.label}`,
 		body: `Sonando en ${where}`,
 		tag: `alarma-${row.id}`,
-		url: '/agenda#alarmas',
+		url: '/agenda/alarmas',
 		// Later, it has stopped sounding: no use.
 		ttl: RING_MAX_MS / 1000
 	});
