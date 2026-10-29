@@ -73,8 +73,8 @@
 	let problem = $state<string | null>(null);
 	let reading = $state<'ticket' | 'factura' | null>(null);
 	let saving = $state(false);
-	/** The one open in the list, with its lines. */
-	let open = $state<number | null>(null);
+	/** The one open in the list, with its lines: from Búsqueda, `?gasto=`. */
+	let open = $state<number | null>(Number(page.url.searchParams.get('gasto')) || null);
 	/** The category open in the month's totals, with its lines by tag. */
 	let openCategory = $state<ExpenseCategory | null>(null);
 	let deleting = $state<string | null>(null);
@@ -201,6 +201,7 @@
 	// Shared to the app from another (the manifest's share_target, #232): a PDF, as a bill; a
 	// photo, as a ticket.
 	onMount(() => {
+		if (open) document.getElementById(`gasto-${open}`)?.scrollIntoView({ block: 'center' });
 		if (page.url.searchParams.get('compartido') !== 'archivo') return;
 		const url = new URL(page.url.href);
 		url.searchParams.delete('compartido');
@@ -686,7 +687,7 @@
 
 	<ul class="mb-10 divide-y divide-zinc-800">
 		{#each data.expenses as e (e.id)}
-			<li>
+			<li id="gasto-{e.id}">
 				<button
 					class="flex w-full items-center gap-3 py-2 text-left hover:bg-zinc-900"
 					aria-expanded={open === e.id}
