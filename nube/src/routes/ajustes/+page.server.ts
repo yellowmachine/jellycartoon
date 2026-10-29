@@ -43,6 +43,13 @@ import {
 import { forgetLearned, listLearned } from '#lib/server/voice/learned.ts';
 import { forget, listMemories, remember } from '#lib/server/memory.ts';
 import { createHouseKey, deleteHouseKey, listHouseKeys } from '#lib/server/house-keys.ts';
+import {
+	createSatellite,
+	deleteSatellite,
+	listSatellites,
+	MAX_SATELLITE_NAME
+} from '#lib/server/satellites.ts';
+import { houseSatellites } from '#lib/server/house.ts';
 import { invitationLink, invitations, inviteAndSend } from '#lib/server/invitations.ts';
 import {
 	createHouseClient,
@@ -72,6 +79,17 @@ export const load: PageServerLoad = async ({ locals, request }) => {
 		openRouter: await openRouterKeyStart(k),
 		ors: await orsKeyStart(k),
 		houseKeys: await listHouseKeys(locals.user!.id),
+		/** The voice satellites Seilide serves (#296), and the house's it may adopt: its administrator. */
+		satellites: admin
+			? await Promise.all([
+					listSatellites(locals.user!.id),
+					houseSatellites(membership.familyId)
+				]).then(([own, house]) => ({
+					own,
+					house: house.filter((h) => !own.some((o) => o.id === h.id)),
+					origin: ORIGIN
+				}))
+			: null,
 		twoFactor: Boolean(locals.user!.twoFactorEnabled),
 		people: await familyPeople(k),
 		telegramBot: admin ? { bot: await botStatus(membership.familyId) } : null,
@@ -457,6 +475,27 @@ export const actions: Actions = {
 		if (!name || name.length > 32)
 			return fail(400, { houseKeyProblem: 'Ponle un nombre de hasta 32 letras' });
 		return { houseKey: await createHouseKey(locals.user!.id, name), houseKeyName: name };
+	},
+	/** A voice satellite of Seilide's (#296), new or one of the house's: its key, shown once. */
+	createSatellite: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'satelliteProblem');
+		if (denied) return denied;
+		const form = await request.formData();
+		const name = String(form.get('name') ?? '').trim();
+		const adopt = String(form.get('adopt') ?? '') || null;
+		if (!adopt && !name) return fail(400, { satelliteProblem: 'Ponle un nombre: «dormitorio»' });
+		if (name.length > MAX_SATELLITE_NAME)
+			return fail(400, { satelliteProblem: `Hasta ${MAX_SATELLITE_NAME} letras` });
+		return {
+			satelliteKey: await createSatellite(locals.user!.id, name, adopt),
+			satelliteName: name || 'el de la casa'
+		};
+	},
+	deleteSatellite: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'satelliteProblem');
+		if (denied) return denied;
+		await deleteSatellite(locals.user!.id, String((await request.formData()).get('id') ?? ''));
+		return { saved: 'satellites' };
 	},
 	deleteHouseKey: async ({ request, locals }) => {
 		const denied = await requireAdmin(locals.user!.id, 'houseKeyProblem');

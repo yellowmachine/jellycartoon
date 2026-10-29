@@ -1,4 +1,14 @@
-import { index, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import {
+	index,
+	integer,
+	jsonb,
+	pgPolicy,
+	pgTable,
+	serial,
+	text,
+	timestamp
+} from 'drizzle-orm/pg-core';
 import { family, familyRows } from './family.schema.ts';
 
 /**
@@ -31,5 +41,35 @@ export const voiceLearned = pgTable(
 	(t) => [
 		index('voice_learned_place_idx').on(t.familyId, t.place),
 		familyRows('voice_learned_own', t.familyId)
+	]
+).enableRLS();
+
+/**
+ * The voice satellites Seilide serves (#296): a Raspberry in a room, with its key, for families
+ * with or without jellycartoon. Its id is its place's (`satelite:<id>`: its alarms, what it learned);
+ * one adopted from the house keeps the house's id, and with it all that.
+ */
+export const voiceSatellite = pgTable(
+	'voice_satellite',
+	{
+		id: text('id').primaryKey(),
+		familyId: text('family_id')
+			.notNull()
+			.references(() => family.id, { onDelete: 'cascade' }),
+		/** As it is said: «dormitorio». */
+		name: text('name').notNull(),
+		/** Its key's SHA-256: the key itself is shown once. */
+		hash: text('hash').notNull().unique(),
+		/** How it starts, to tell one from another. */
+		start: text('start').notNull(),
+		createdAt: timestamp('created_at').notNull().defaultNow(),
+		lastSeenAt: timestamp('last_seen_at')
+	},
+	(t) => [
+		familyRows('voice_satellite_own', t.familyId),
+		pgPolicy('voice_satellite_by_hash', {
+			for: 'select',
+			using: sql`${t.hash} = nullif(current_setting('app.key_hash', true), '')`
+		})
 	]
 ).enableRLS();

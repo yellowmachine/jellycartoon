@@ -41,6 +41,14 @@ export async function hasHouse(userId: string) {
 	return Boolean(row);
 }
 
+/** The same, by the family: for its clock and its satellites (#296), with no person. */
+export async function familyHasHouse(familyId: string) {
+	const [row] = await asFamily(familyId, (tx) =>
+		tx.select({ familyId: house.familyId }).from(house)
+	);
+	return Boolean(row);
+}
+
 /**
  * Its address and key, or a new key alone (an empty one keeps the one there was); and
  * jellycartoon's own address, or none.

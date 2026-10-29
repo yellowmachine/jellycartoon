@@ -43,9 +43,11 @@ import {
 } from '#lib/server/agenda/voice.ts';
 import {
 	cancelTimers,
+	cancelTimersAt,
 	describeAlarms,
 	describeTimersOf,
-	startTimer
+	startTimer,
+	startTimerAt
 } from '#lib/server/alarms/alarms.ts';
 import { botHasGroup, sayInGroup } from '#lib/server/telegram/bot.ts';
 import { tellHouse } from '#lib/server/house.ts';
@@ -953,6 +955,8 @@ interface Turn {
 	place: AlarmPlace | null;
 	/** Said to the cloud: its timers are kept here, this person's (their id); null, the house's. */
 	timersOf: string | null;
+	/** Said to one of Seilide's satellites (#296): its timers are kept here, at its place. */
+	timersAt: AlarmPlace | null;
 	apiKey: string;
 	settings: Awaited<ReturnType<typeof voiceSettings>>;
 	houseTools: Set<string>;
@@ -975,6 +979,8 @@ async function runTool(
 	}
 	if (ctx.timersOf && (name === 'set_timer' || name === 'cancel_timer'))
 		return cloudTimer(name, args, ctx, ctx.timersOf);
+	if (ctx.timersAt && (name === 'set_timer' || name === 'cancel_timer'))
+		return satelliteTimer(name, args, ctx, ctx.timersAt);
 	// A place said, with the family's openrouteservice key: looked up here, also with a house, whose
 	// search (Open-Meteo's) takes only its name, not «Vélez-Rubio, Almería».
 	if (
@@ -1251,6 +1257,27 @@ async function cloudTimer(name: string, args: Record<string, unknown>, ctx: Turn
 	return `Temporizador «${timer}» de ${seconds} segundos puesto: ${place === 'casa' ? 'sonará en toda la casa y avisará en su móvil' : 'avisará en su móvil'}.`;
 }
 
+/** One of Seilide's satellites' (#296): at its place, for anyone in the room. */
+async function satelliteTimer(
+	name: string,
+	args: Record<string, unknown>,
+	ctx: Turn,
+	place: AlarmPlace
+) {
+	ctx.outcome.done++;
+	if (name === 'cancel_timer') {
+		const label = typeof args.label === 'string' && args.label.trim() ? args.label.trim() : null;
+		const count = await cancelTimersAt(ctx.k, place, label);
+		return count ? `Quitados: ${count}.` : 'No había ninguno con ese nombre.';
+	}
+	const minutes = Number(args.minutes);
+	if (!Number.isFinite(minutes) || minutes <= 0) return 'Falta cuántos minutos.';
+	const seconds = Math.round(Math.min(minutes * 60, MAX_TIMER_SEC));
+	const label = typeof args.label === 'string' ? args.label.trim().slice(0, 60) : '';
+	const timer = await startTimerAt(ctx.k, place, { label, seconds });
+	return `Temporizador «${timer}» de ${seconds} segundos puesto: suena aquí, en el satélite, con un «din-don» y su nombre.`;
+}
+
 /** Said to the cloud, «set_timer» can ring in the house too. */
 const HOUSE_ARG = {
 	house: {
@@ -1353,8 +1380,9 @@ export async function runVoiceCommand(
 		? `[La familia: ${people.map((p) => p.name).join(', ')}.${home ? ` Vivís en ${placeName(home)}.` : ''}]`
 		: null;
 	const timersOf = cloudTimers && !satellite ? me : null;
+	const timersAt = cloudTimers && satellite ? place : null;
 	// Said to the cloud by someone not among its people: no one to keep them for.
-	if (cloudTimers && !timersOf) without = [...without, 'set_timer', 'cancel_timer'];
+	if (cloudTimers && !timersOf && !timersAt) without = [...without, 'set_timer', 'cancel_timer'];
 	if (!withHouse) without = [...without, ...ONLY_THE_HOUSE];
 	const [alarmLines, timerLines] = await Promise.all([
 		describeAlarms(k, me, house.satellites),
@@ -1490,6 +1518,7 @@ export async function runVoiceCommand(
 		satellite: Boolean(satellite),
 		place,
 		timersOf,
+		timersAt,
 		apiKey,
 		settings,
 		houseTools: new Set(house.tools.map((t) => t.function.name)),
