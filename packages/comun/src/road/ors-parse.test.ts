@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { placesFromOrs, routeFromOrs, spokenSpanish } from './ors-parse.ts';
+import { placesFromOrs, routeFromOrs, spokenSpanish, townsFromOrs } from './ors-parse.ts';
 
 test('placesFromOrs: the same address twice (two of its sources), once', () => {
 	const doorway = (lon: number) => ({
@@ -32,6 +32,37 @@ test('placesFromOrs: the ones with a name and a point', () => {
 		})
 	).toEqual([{ label: 'Plaza de Zocodover, Toledo, CM, España', at: [-4.0245, 39.8628] }]);
 	expect(placesFromOrs(null)).toEqual([]);
+});
+
+test('townsFromOrs: the town with its province and country, once, and only with a point', () => {
+	const town = (properties: object, coordinates = [-2.0736, 37.6487]) => ({
+		type: 'Feature',
+		geometry: { type: 'Point', coordinates },
+		properties
+	});
+	expect(
+		townsFromOrs({
+			features: [
+				town({
+					name: 'Vélez-Rubio',
+					region: 'Almería',
+					macroregion: 'Andalucía',
+					country: 'España'
+				}),
+				town({ name: 'Vélez-Rubio', region: 'Almería', country: 'España' }, [-2.07, 37.65]),
+				town(
+					{ name: 'Toledo', macroregion: 'Castilla-La Mancha', country: 'España' },
+					[-4.02, 39.86]
+				),
+				town({ name: 'Sin punto' }, []),
+				town({ region: 'Sin nombre' })
+			]
+		})
+	).toEqual([
+		{ name: 'Vélez-Rubio', region: 'Almería', country: 'España', lat: 37.6487, lon: -2.0736 },
+		{ name: 'Toledo', region: 'Castilla-La Mancha', country: 'España', lat: 39.86, lon: -4.02 }
+	]);
+	expect(townsFromOrs(null)).toEqual([]);
 });
 
 test('routeFromOrs: the line, the totals, and each step where it is done', () => {

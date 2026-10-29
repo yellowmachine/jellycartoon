@@ -1,5 +1,5 @@
 import type { LngLat, Place, Route } from 'comun/road.ts';
-import { placesFromOrs, routeFromOrs } from 'comun/road/ors-parse.ts';
+import { placesFromOrs, routeFromOrs, townsFromOrs } from 'comun/road/ors-parse.ts';
 import { withRetries } from 'comun/road/retry.ts';
 
 /**
@@ -73,6 +73,15 @@ export function createOrs(config: () => Promise<OrsConfig>, log: OrsLog) {
 			params.set('focus.point.lat', String(near[1]));
 		}
 		return placesFromOrs(await ors('search', `/geocode/search?${params}`));
+	}
+
+	/**
+	 * Towns and cities for what was typed or said, the most likely first, as the weather's places:
+	 * the whole phrase understood («velez rubio almeria»), which Open-Meteo's search does not.
+	 */
+	async function searchTowns(text: string, count = 5) {
+		const params = new URLSearchParams({ text, size: String(count), lang: 'es', layers: 'coarse' });
+		return townsFromOrs(await ors('search', `/geocode/search?${params}`));
 	}
 
 	/**
@@ -190,5 +199,14 @@ export function createOrs(config: () => Promise<OrsConfig>, log: OrsLog) {
 		return `No se pudo ${what}.`;
 	}
 
-	return { searchPlaces, suggestPlaces, whereIs, townNear, placeName, drivingRoute, orsMessage };
+	return {
+		searchPlaces,
+		searchTowns,
+		suggestPlaces,
+		whereIs,
+		townNear,
+		placeName,
+		drivingRoute,
+		orsMessage
+	};
 }

@@ -1,4 +1,5 @@
 import type { LngLat, Place, Route } from 'comun/road.ts';
+import type { Place as Town } from 'comun/weather.ts';
 
 /**
  * openrouteservice's answers, as ours (#78): apart from the requests, to be tested with answers of
@@ -21,6 +22,38 @@ export function placesFromOrs(body: unknown): Place[] {
 		if (!label || seen.has(label) || !Number.isFinite(lon) || !Number.isFinite(lat)) return [];
 		seen.add(label);
 		return [{ label, at: [lon, lat] as LngLat }];
+	});
+}
+
+/**
+ * Towns and cities, as the weather's places (comun/weather.ts): with their province (Pelias's
+ * `region`; its `macroregion`, the autonomous community, if it has none) and country, to tell one
+ * Toledo from another.
+ */
+export function townsFromOrs(body: unknown): Town[] {
+	const features = (body as { features?: unknown[] } | null)?.features ?? [];
+	const seen = new Set<string>();
+	return features.flatMap((f) => {
+		const feature = f as {
+			properties?: Record<string, unknown>;
+			geometry?: { coordinates?: number[] };
+		};
+		const p = feature.properties ?? {};
+		const text = (key: string) => (typeof p[key] === 'string' && p[key] ? String(p[key]) : null);
+		const name = text('name');
+		const [lon, lat] = feature.geometry?.coordinates ?? [];
+		if (!name || !Number.isFinite(lon) || !Number.isFinite(lat)) return [];
+		const town = {
+			name,
+			region: text('region') ?? text('macroregion') ?? text('county'),
+			country: text('country'),
+			lat,
+			lon
+		};
+		const key = [town.name, town.region, town.country].join('|');
+		if (seen.has(key)) return [];
+		seen.add(key);
+		return [town];
 	});
 }
 

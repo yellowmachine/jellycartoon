@@ -52,7 +52,7 @@ import { tellHouse } from '#lib/server/house.ts';
 import { orsFor } from '#lib/server/road/ors.ts';
 import { listSavedPlaces, listSavedRoutes } from '#lib/server/trips/places.ts';
 import { asksForRoute, findByName } from 'comun/saved-places.ts';
-import { familyPlace, openRouterKey } from '#lib/server/family-settings.ts';
+import { familyPlace, openRouterKey, orsKey } from '#lib/server/family-settings.ts';
 import {
 	chatWithTools,
 	NO_CREDIT,
@@ -63,7 +63,8 @@ import { quietCheck } from './quiet-check.ts';
 import { FALLBACK_VOICE_MODEL, personVoiceStyle, voiceSettings } from './settings.ts';
 import { voiceFellBack } from './alarm.ts';
 import { searchWeb, WEB_TOOL, webSearchTool } from './web-search.ts';
-import { findPlaces, forecast, placeName } from 'comun/weather.ts';
+import { forecast, placeName } from 'comun/weather.ts';
+import { findPlacesFor } from '#lib/server/places.ts';
 
 /**
  * Voice commands (#33), the family's brain since #253: what was said in the house, to a model with
@@ -876,7 +877,13 @@ async function runTool(
 	}
 	if (ctx.timersOf && (name === 'set_timer' || name === 'cancel_timer'))
 		return cloudTimer(name, args, ctx, ctx.timersOf);
-	if (ctx.withoutHouse && name === 'get_weather')
+	// A place said, with the family's openrouteservice key: looked up here, also with a house, whose
+	// search (Open-Meteo's) takes only its name, not «Vélez-Rubio, Almería».
+	if (
+		name === 'get_weather' &&
+		(ctx.withoutHouse ||
+			(typeof args.place === 'string' && args.place.trim() && (await orsKey(ctx.k))))
+	)
 		return cloudWeather(ctx.k, args, ctx.order.request.position);
 	if (HOUSE_TOOLS.has(name) || ctx.houseTools.has(name)) {
 		const done = await tellHouse<HouseHandResult>(ctx.k.familyId, '/voz', {
@@ -1094,7 +1101,7 @@ async function cloudWeather(
 	let where: { lat: number; lon: number; name: string } | null = null;
 	if (asked) {
 		// «Toledo» is first in Ohio: one in Spain if there is one.
-		const found = await findPlaces(asked, 10);
+		const found = await findPlacesFor(k, asked, 10);
 		const place = found.find((p) => p.country === 'España') ?? found[0];
 		if (!place) return `No encuentro «${asked}». Díselo.`;
 		where = { lat: place.lat, lon: place.lon, name: placeName(place) };

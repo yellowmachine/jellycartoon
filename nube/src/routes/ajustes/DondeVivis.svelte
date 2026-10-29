@@ -7,7 +7,7 @@
 
 	/**
 	 * Dónde vivís, si se quiere: para el tiempo de la portada y de la voz, con Open-Meteo. Como el
-	 * «Dónde está la casa» de jellycartoon.
+	 * «Dónde está la casa» de jellycartoon; buscado con openrouteservice si hay su clave (places.ts).
 	 */
 	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
 
@@ -22,7 +22,8 @@
 		<h2 class="mb-1 font-semibold">Dónde vivís</h2>
 		<p class="mb-4 text-sm text-zinc-400">
 			Si queréis, para ver el tiempo en la portada y que la voz lo diga sin preguntar el sitio.
-			Basta el pueblo o la ciudad. Se pregunta a
+			Basta el pueblo o la ciudad; con la clave de openrouteservice (Viajes), también con su
+			provincia: «Vélez-Rubio, Almería». El tiempo se pregunta a
 			<a
 				href="https://open-meteo.com"
 				target="_blank"

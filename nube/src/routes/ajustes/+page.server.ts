@@ -27,7 +27,8 @@ import {
 	familyPlace,
 	setFamilyPlace
 } from '#lib/server/family-settings.ts';
-import { findPlaces, placeName, type Place } from 'comun/weather.ts';
+import { placeName, type Place } from 'comun/weather.ts';
+import { findPlacesFor } from '#lib/server/places.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import {
 	DEFAULT_VOICE_MODEL,
@@ -147,14 +148,14 @@ function placeFrom(value: unknown): Place | null {
 }
 
 export const actions: Actions = {
-	/** «Dónde vivís»: what Open-Meteo finds by that name, to choose one. */
+	/** «Dónde vivís»: the towns found by that name (places.ts), to choose one. */
 	findPlace: async ({ request, locals }) => {
 		const denied = await requireAdmin(locals.user!.id, 'placeProblem');
 		if (denied) return denied;
 		const name = String((await request.formData()).get('name') ?? '').trim();
 		if (!name) return fail(400, { placeProblem: 'Escribe el pueblo o la ciudad' });
 		try {
-			return { familyPlaces: await findPlaces(name) };
+			return { familyPlaces: await findPlacesFor(await kitchenOf(locals.user!.id), name) };
 		} catch (err) {
 			return fail(503, { placeProblem: err instanceof Error ? err.message : String(err) });
 		}
