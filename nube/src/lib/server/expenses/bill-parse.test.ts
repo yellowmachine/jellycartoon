@@ -124,3 +124,35 @@ test('what could not be read, guessed to correct: the month before, the unit of 
 	expect(draft.total).toBe(0);
 	expect(draft.category).toBe('Facturas');
 });
+
+test('not of a supply (an insurance, the bank’s receipt of a charge): an expense, with no bill', () => {
+	const draft = billDraftFromAnswer(
+		{
+			provider: 'Tuio',
+			kind: 'Otro',
+			category: 'Seguros',
+			date: '2026-09-26',
+			total: 73.34,
+			parts: [],
+			periodStart: '2026-09-01',
+			periodEnd: '2026-09-30',
+			unit: 'kWh'
+		},
+		TODAY
+	);
+	expect(draft).toEqual({
+		date: '2026-09-26',
+		store: 'Tuio',
+		category: 'Seguros',
+		total: 7334,
+		lines: [],
+		bill: null
+	});
+	expect(billDraftFromAnswer({ kind: 'Otro', category: '?' }, TODAY).category).toBe('Otros');
+});
+
+test('a card’s number, out', () => {
+	const out = redact('CONCEPTO: OP.TARJ.COMPRA COMERCIO 415006******8968 SEGUROS TUIO   73,34 EUR');
+	expect(out).not.toContain('8968');
+	expect(out).toContain('SEGUROS TUIO   73,34 EUR');
+});
