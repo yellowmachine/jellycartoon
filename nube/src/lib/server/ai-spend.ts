@@ -1,4 +1,6 @@
 import { spendTracker, type AiSpend } from 'comun/ai-spend.ts';
+import { noteAiCost } from '#lib/server/expenses/ai-costs.ts';
+import { familyOfKey } from '#lib/server/family-settings.ts';
 import { watchCost } from '#lib/server/openrouter.ts';
 
 /**
@@ -20,7 +22,7 @@ function trackerOf(apiKey: string) {
 }
 
 /** What the key has spent: all its life, this month and this week; null if it cannot be asked. */
-async function keyUsage(apiKey: string) {
+export async function keyUsage(apiKey: string) {
 	try {
 		const res = await fetch('https://openrouter.ai/api/v1/key', {
 			headers: { Authorization: `Bearer ${apiKey}` },
@@ -39,7 +41,12 @@ async function keyUsage(apiKey: string) {
 	}
 }
 
-watchCost((apiKey, label, cost) => trackerOf(apiKey).add(label, cost));
+watchCost((apiKey, label, cost) => {
+	trackerOf(apiKey).add(label, cost);
+	// And kept, for Gastos → IA.
+	const familyId = familyOfKey(apiKey);
+	if (familyId) void noteAiCost(familyId, 'nube', label, cost);
+});
 
 /** A page of the family showing the line: told now and on every change. */
 export const watchAiSpend = (apiKey: string, listener: (spend: AiSpend | null) => void) =>

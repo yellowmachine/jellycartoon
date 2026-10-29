@@ -2,6 +2,7 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 import { spendTracker, RECENT_COSTS, type AiSpend } from 'comun/ai-spend.ts';
 import { db } from '#lib/server/db/index.ts';
 import { logEntry } from '#lib/server/db/schema.ts';
+import { askCloud, cloudLink } from '#lib/server/kitchen.ts';
 import { keyBalance, watchCost } from '#lib/server/openrouter.ts';
 
 /**
@@ -41,7 +42,22 @@ const tracker = spendTracker({
 	}
 });
 
-watchCost((label, cost) => tracker.add(label, cost));
+watchCost((label, cost) => {
+	tracker.add(label, cost);
+	void tellCloud(label, cost);
+});
+
+/**
+ * Each request's cost, to the family's cloud too, where Gastos → IA sums them with its own (#193).
+ * Without it connected, or not answering, only the Registro keeps it.
+ */
+async function tellCloud(label: string, cost: number) {
+	const link = await cloudLink().catch(() => null);
+	if (!link) return;
+	await askCloud(link, '/gasto-ia', {
+		body: { label, cost, at: new Date().toISOString() }
+	}).catch(() => {});
+}
 
 /** A page showing the line: told now and on every change; OpenRouter asked only while any does. */
 export const watchAiSpend = (listener: (spend: AiSpend | null) => void) => tracker.watch(listener);

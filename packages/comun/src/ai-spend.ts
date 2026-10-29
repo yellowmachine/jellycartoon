@@ -96,3 +96,27 @@ export function spendTracker(source: {
 		}
 	};
 }
+
+/**
+ * What kind of request it was, for Gastos → IA: from its label, as each app writes it (their
+ * openrouter.ts callers). The first that matches; what none does, «Otros».
+ */
+const KINDS: [RegExp, string][] = [
+	[/^Voz, en internet/, 'Voz: buscar en internet'],
+	[/^Voz/, 'Voz'],
+	[/^Leer un ticket/, 'Tickets'],
+	[/^Leer una factura/, 'Facturas'],
+	[/^(Pasos de|Receta de)/, 'Recetas'],
+	[/^Infantil/, 'Preguntas de los peques'],
+	[/^Frases para el rótulo/, 'Series: rótulos'],
+	[/^Títulos de/, 'Series: títulos de capítulos'],
+	[/^Identificar la serie/, 'Series: identificar'],
+	[/^Identificar el álbum/, 'Música: álbumes'],
+	[/^Locutor del modo DJ/, 'Música: modo DJ'],
+	[/^Identificar «/, 'Cine: identificar'],
+	[/^Sinopsis de/, 'Cine: sinopsis'],
+	[/^Escenas de/, 'Cine: escenas'],
+	[/^Conversación sobre/, 'Cine: conversación']
+];
+
+export const aiKind = (label: string) => KINDS.find(([test]) => test.test(label))?.[1] ?? 'Otros';

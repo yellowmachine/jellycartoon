@@ -164,3 +164,26 @@ export const expenseFavorite = pgTable(
 	},
 	(t) => [familyRows('expense_favorite_own', t.familyId)]
 ).enableRLS();
+
+/**
+ * What each request to the AI cost (#193), for Gastos → IA: the cloud's own and the house's (it
+ * tells them, /api/casa/gasto-ia). In dollars, as OpenRouter says it.
+ */
+export const aiCost = pgTable(
+	'ai_cost',
+	{
+		id: serial('id').primaryKey(),
+		familyId: familyId(),
+		at: timestamp('at').notNull().defaultNow(),
+		/** Which app asked: `nube` or `casa`. */
+		app: text('app').notNull(),
+		/** Grouped by (comun/ai-spend.ts, `aiKind`). */
+		kind: text('kind').notNull(),
+		label: text('label').notNull(),
+		cost: doublePrecision('cost').notNull()
+	},
+	(t) => [
+		index('ai_cost_family_at_idx').on(t.familyId, t.at),
+		familyRows('ai_cost_own', t.familyId)
+	]
+).enableRLS();
