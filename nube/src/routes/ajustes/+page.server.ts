@@ -50,6 +50,7 @@ import {
 	MAX_SATELLITE_NAME
 } from '#lib/server/satellites.ts';
 import { houseSatellites } from '#lib/server/house.ts';
+import { satelliteVoiceOf, setSatelliteVoice } from '#lib/server/voice/satellite-voice.ts';
 import { invitationLink, invitations, inviteAndSend } from '#lib/server/invitations.ts';
 import {
 	createHouseClient,
@@ -90,6 +91,8 @@ export const load: PageServerLoad = async ({ locals, request }) => {
 					origin: ORIGIN
 				}))
 			: null,
+		/** How they speak (#296): Gemini's voice, its tone, what they say while the AI thinks. */
+		satelliteVoice: admin ? await satelliteVoiceOf(k) : null,
 		twoFactor: Boolean(locals.user!.twoFactorEnabled),
 		people: await familyPeople(k),
 		telegramBot: admin ? { bot: await botStatus(membership.familyId) } : null,
@@ -490,6 +493,19 @@ export const actions: Actions = {
 			satelliteKey: await createSatellite(locals.user!.id, name, adopt),
 			satelliteName: name || 'el de la casa'
 		};
+	},
+	/** «Voz de los satélites»: the voice, its tone and the phrases; their recordings, made now. */
+	saveSatelliteVoice: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'satelliteVoiceProblem');
+		if (denied) return denied;
+		const form = await request.formData();
+		const k = await kitchenOf(locals.user!.id);
+		await setSatelliteVoice(k, await openRouterKey(k), {
+			voice: String(form.get('voice') ?? ''),
+			tone: String(form.get('tone') ?? ''),
+			fillers: String(form.get('fillers') ?? '')
+		});
+		return { saved: 'satelliteVoice' };
 	},
 	deleteSatellite: async ({ request, locals }) => {
 		const denied = await requireAdmin(locals.user!.id, 'satelliteProblem');

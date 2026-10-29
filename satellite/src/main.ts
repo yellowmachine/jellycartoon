@@ -18,6 +18,7 @@ import {
 	type Ringing
 } from './server.ts';
 import { beep, hush, play, speakerName } from './sound.ts';
+import { fallbackFor, keepFallbacks, sayFallback } from './fallback.ts';
 import {
 	DEFAULT_WAKE_WORD,
 	isWakeWord,
@@ -263,7 +264,16 @@ async function respond(wav: Uint8Array) {
 			assumed = done.reply.listenAfter === true;
 			// Asked even without a speaker: the server may say it through Snapcast.
 			if (done.reply.reply) {
-				const voice = await speech(done.reply.reply);
+				let voice: Uint8Array | null;
+				try {
+					voice = await speech(done.reply.reply);
+				} catch (err) {
+					// Done, but not said: the phrase kept for it (fallback.ts).
+					log(`Sin voz para la respuesta: ${err instanceof Error ? err.message : String(err)}`);
+					await saidFiller;
+					await sayFallback(fallbackFor(done.reply.reply));
+					return;
+				}
 				if (!voice) log(`Dicho por Snapcast (${Date.now() - started} ms desde la orden)`);
 				else if (speakerName) {
 					// Read while the phrase sounded; said after it.
@@ -275,6 +285,10 @@ async function respond(wav: Uint8Array) {
 		}
 	} catch (err) {
 		log(`El servidor no respondió: ${err instanceof Error ? err.message : String(err)}`);
+		// Not reached, or too slow: no connection. An answer with an error (its path and status):
+		// the low beep, not «sin conexión».
+		if (err instanceof Error && err.message.startsWith('/api/')) await beep(440);
+		else await sayFallback('offline');
 	} finally {
 		clearTimeout(waiting);
 		busy = false;
@@ -303,6 +317,7 @@ async function sayFiller() {
 /** What rings where it is, as the server says (#241): all of it, and what it says itself. */
 let alarms: Ringing = { ringing: [], play: [] };
 let ringing = false;
+if (serverReady) keepFallbacks();
 if (serverReady)
 	void followAlarms((state) => {
 		const was = alarms;

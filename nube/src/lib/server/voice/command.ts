@@ -7,6 +7,7 @@ import { fold } from 'comun/music.ts';
 import {
 	MAX_STOP_LATER_MIN,
 	MAX_TIMER_SEC,
+	SAID_NO_CREDIT,
 	type VoiceAction,
 	type VoiceOption,
 	type VoiceReply,
@@ -1316,8 +1317,6 @@ const NOT_IN_THE_CAR = new Set([
 ]);
 
 /** As the AI would answer, for whoever asked: a satellite reads it aloud. */
-const SAID_NO_CREDIT =
-	'Se ha acabado el crédito de la inteligencia artificial de la familia. Hay que recargarlo en OpenRouter.';
 const SAID_NO_KEY =
 	'La familia no tiene clave de inteligencia artificial: ponla en Ajustes de Seilide, en «IA».';
 

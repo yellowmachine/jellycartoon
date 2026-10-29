@@ -129,6 +129,13 @@ export function assistantTurn(reply: VoiceReply): VoiceTurn {
 /** «Cómo es la voz de la casa», «Cómo quieres que te hable» (Ajustes): free text, this long at most. */
 export const MAX_VOICE_STYLE = 500;
 
+/**
+ * Said when the family's AI has no credit left: by Seilide's voice, and kept recorded by each
+ * satellite (#296), which cannot have it said then.
+ */
+export const SAID_NO_CREDIT =
+	'Se ha acabado el crédito de la inteligencia artificial de la familia. Hay que recargarlo en OpenRouter.';
+
 /** The turns before that are kept: the last exchanges are enough. */
 export const HISTORY_TURNS = 6;
 /**

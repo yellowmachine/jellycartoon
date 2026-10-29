@@ -147,6 +147,13 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		shown: onlyAdmin
 	},
 	{
+		id: 'voz-satelites',
+		tab: 'familia',
+		title: 'Voz de los satélites',
+		words: 'voz satélite gemini kore acento tono frases espera vale momento hablar sonar',
+		shown: onlyAdmin
+	},
+	{
 		id: 'voz-silencio',
 		tab: 'familia',
 		title: 'Horas de silencio',

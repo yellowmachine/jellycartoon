@@ -1,0 +1,1 @@
+ALTER TABLE "family_settings" ADD COLUMN "satellite_voice" jsonb;

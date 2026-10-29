@@ -127,6 +127,15 @@ export const familySettings = pgTable(
 		voiceWeb: jsonb('voice_web').$type<{ on: boolean; hints: string }>(),
 		/** «Horas de silencio», «HH:MM» to «HH:MM»; null, none. */
 		voiceQuiet: jsonb('voice_quiet').$type<{ from: string; to: string }>(),
+		/**
+		 * How the satellites Seilide serves speak (#296): Gemini's voice, how it says things, and what
+		 * they say while the AI thinks; null, Kore as the house's, with its phrases.
+		 */
+		satelliteVoice: jsonb('satellite_voice').$type<{
+			voice: string;
+			tone: string;
+			fillers: string[];
+		}>(),
 		/** «Dónde vivís» (Ajustes → Familia), optional: the weather on the home page and by voice. */
 		place: jsonb('place').$type<Place>(),
 		recipesBackdrop: integer('recipes_backdrop').references(() => recipe.id, {
