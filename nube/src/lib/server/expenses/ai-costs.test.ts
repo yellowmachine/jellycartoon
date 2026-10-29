@@ -21,7 +21,8 @@ const k: Kitchen = {
 			return fn(tx);
 		})
 };
-mock.module('#lib/server/fridge.ts', () => ({ houseKitchen: () => k }));
+// Bun's module mocks are the whole run's: the same as search.test.ts's.
+mock.module('#lib/server/fridge.ts', () => ({ houseKitchen: () => k, today: localDay }));
 const { addAiCost, aiCostStats } = await import('./ai-costs.ts');
 
 const at = (day: string, hour = 12) => new Date(`${day}T${String(hour).padStart(2, '0')}:00:00`);
