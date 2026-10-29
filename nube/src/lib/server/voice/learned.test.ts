@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { afterOrder, assumedNote, pickLearned } from './learned.ts';
+import { afterOrder, assumedNote, pickLearned, sharesWords } from './learned.ts';
 
 const rule = (title: string, words: string[]) => ({ title, words });
 
@@ -25,6 +25,14 @@ describe('pickLearned', () => {
 	});
 });
 
+describe('sharesWords', () => {
+	const radio = rule('«La radio» es la COPE aquí', ['radio', 'emisora', 'cope']);
+	test('«para» has nothing of it; «por la radio», yes', () => {
+		expect(sharesWords('Para.', radio)).toBe(false);
+		expect(sharesWords('Por la radio.', radio)).toBe(true);
+	});
+});
+
 describe('afterOrder', () => {
 	const asked = { reply: '¿Temporizador o parar la música?', options: [], expectsAnswer: true };
 	const done = { reply: 'Pongo un temporizador de media hora.', options: [], expectsAnswer: false };
@@ -41,6 +49,22 @@ describe('afterOrder', () => {
 		});
 		// Answered once.
 		expect(afterOrder('f:a', 'Otra cosa.', done, [])).toBeNull();
+	});
+
+	test('asked again: the first order, and the last question', () => {
+		const again = {
+			reply: '«La Coppa» no es una emisora. ¿Cuál quieres?',
+			options: [],
+			expectsAnswer: true
+		};
+		const radio = { reply: 'Pongo la COPE.', options: [], expectsAnswer: false };
+		afterOrder('f:e', 'Pon la radio.', asked, []);
+		expect(afterOrder('f:e', 'La Coppa.', again, [])).toBeNull();
+		expect(afterOrder('f:e', 'La COPE.', radio, [])).toMatchObject({
+			said: 'Pon la radio.',
+			question: again.reply,
+			answer: 'La COPE.'
+		});
 	});
 
 	test('each place its own', () => {

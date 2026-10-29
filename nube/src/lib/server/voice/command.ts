@@ -60,12 +60,27 @@ import {
 	type ToolChatMessage
 } from '#lib/server/openrouter.ts';
 import { quietCheck } from './quiet-check.ts';
-import { afterOrder, assumedNote, countHits, learnFrom, recallLearned } from './learned.ts';
+import {
+	afterOrder,
+	assumedNote,
+	countHits,
+	learnFrom,
+	recallLearned,
+	sharesWords
+} from './learned.ts';
 import { FALLBACK_VOICE_MODEL, personVoiceStyle, voiceSettings } from './settings.ts';
 import { voiceFellBack } from './alarm.ts';
 import { searchWeb, WEB_TOOL, webSearchTool } from './web-search.ts';
 import { forecast, placeName } from 'comun/weather.ts';
 import { findPlacesFor } from '#lib/server/places.ts';
+import {
+	describeMemories,
+	forget,
+	MAX_MEMORY,
+	recallMemories,
+	remember
+} from '#lib/server/memory.ts';
+import { familyPeople } from '#lib/server/agenda/agenda.ts';
 
 /**
  * Voice commands (#33), the family's brain since #253: what was said in the house, to a model with
@@ -97,7 +112,9 @@ const ONE_ROUND = new Set([
 	'take_photo',
 	'stop_navigation',
 	'recipe_step',
-	'end_recipe'
+	'end_recipe',
+	'remember',
+	'forget_memory'
 ]);
 const SAY = {
 	type: 'string',
@@ -706,6 +723,62 @@ const usedLearnedTool: Tool = {
 	}
 };
 
+/**
+ * What the family asks it to remember (memory.ts): kept, forgotten, said. Not for children, and
+ * on a satellite (no one known) only the house's.
+ */
+function memoryTools(satellite: boolean): Tool[] {
+	const tool = (name: string, description: string, properties: object, required: string[]) =>
+		({
+			type: 'function',
+			function: {
+				name,
+				description,
+				parameters: {
+					type: 'object',
+					properties: ONE_ROUND.has(name) ? { ...properties, say: SAY } : properties,
+					required: ONE_ROUND.has(name) ? [...required, 'say'] : required,
+					additionalProperties: false
+				}
+			}
+		}) satisfies Tool;
+	return [
+		tool(
+			'remember',
+			'Guarda algo que te piden recordar para contestarlo cuando lo pregunten («recuerda que la llave de repuesto está en la maceta», «apúntate que la talla de pie de Lucía es la 32»). No los avisos con fecha (la agenda), ni la compra o las notas de la nevera. Si cambia algo ya guardado («ahora la llave está en el cajón»), olvida antes lo viejo con «forget_memory».',
+			{
+				text: {
+					type: 'string',
+					description: `Lo que hay que recordar, en una frase que se entienda sola, sin «yo» ni «mi»: «La llave de repuesto está en la maceta de la entrada». Hasta ${MAX_MEMORY} letras.`
+				},
+				...(satellite
+					? {}
+					: {
+							whose: {
+								type: 'string',
+								enum: ['me', 'house'],
+								description:
+									'«me»: solo de quien habla (nadie más lo ve), por defecto si es suyo («mi talla», «mi contraseña del wifi del trabajo»). «house»: de toda la casa, si es de todos o lo dice para todos («la llave de la casa»).'
+							}
+						})
+			},
+			satellite ? ['text'] : ['text', 'whose']
+		),
+		tool(
+			'forget_memory',
+			'Olvida algo guardado, por su número (de lo que te han pedido recordar, o de «list_memories»).',
+			{ id: { type: 'integer' } },
+			['id']
+		),
+		tool(
+			'list_memories',
+			'Todo lo que te han pedido recordar y puede ver quien habla, para «¿qué te he pedido que recuerdes?», o para buscar algo que no está en el mensaje.',
+			{},
+			[]
+		)
+	];
+}
+
 /** The family's Telegram group (#243), with its bot: only when it is in one. */
 const groupSayTool: Tool = {
 	type: 'function',
@@ -757,6 +830,7 @@ Cómo responder:
 - Al terminar una orden, contesta con «answer»: en español, una sola frase corta que diga lo que has hecho y dónde, p. ej. «Pongo Alaska y Dinarama aquí». Se lee en voz alta: sin listas, emojis, ids ni formato.
 - Si no está claro qué pide y no son pocas opciones que nombrar («media hora», sin más), pregúntalo con «answer» y «expects_answer»: su respuesta llega como la orden siguiente.
 - Si lo encuentras con otro nombre porque se oyó mal («Boyman Rhapsody» es «Bohemian Rhapsody»), no lo expliques: di solo lo que pones, con su nombre bien («Pongo Bohemian Rhapsody de Queen en toda la casa»). Cada palabra de más se tarda en decir.
+- Lo que te han pedido recordar viene en el mensaje, con su número; para «¿dónde está…?», «¿cuál era…?», contesta con eso, y si no está, mira «list_memories» antes de decir que no lo sabes. Nunca lo inventes.
 - Si duda entre pocas opciones, usa «ask», con una pregunta que las nombre («¿El álbum Deseo carnal o la canción?»): quien la oye quizá no ve los botones, y contesta de palabra. Si la orden siguiente es esa respuesta («la segunda», «el álbum», «el de Alaska»), haz la orden de la opción que elige: van en el turno de tu pregunta. Si no encuentras algo, dilo y propón lo más parecido que haya.
 - Contesta solo a la orden de ahora. Las anteriores sirven para entenderla («la segunda», «quita eso»), no para volver a sacarlas: si esta va de otra cosa («¿qué hora es?» después de hablar de alarmas), no añadas preguntas ni ofrecimientos de lo de antes.
 - Si no dice dónde, es aquí${house ? ', salvo que lo que quiere controlar solo esté sonando en toda la casa' : ''}.
@@ -884,6 +958,8 @@ interface Turn {
 	houseTools: Set<string>;
 	/** No house to ask (`runVoiceCommand`'s `withHouse`). */
 	withoutHouse: boolean;
+	/** Whose memory it sees and keeps (memory.ts); null, the house's only (a satellite). */
+	memoryOf: string | null;
 }
 
 async function runTool(
@@ -928,6 +1004,23 @@ async function runTool(
 				return `No se pudo buscar: ${err instanceof Error ? err.message : String(err)}`;
 			}
 		}
+		case 'remember': {
+			const text = typeof args.text === 'string' ? args.text : '';
+			const whose = ctx.memoryOf && args.whose === 'me' ? ctx.memoryOf : null;
+			const id = await remember(ctx.k, whose, text);
+			if (!id) return 'Falta qué recordar.';
+			ctx.outcome.done++;
+			return `Guardado con el número ${id}, ${whose ? 'solo para quien habla' : 'para toda la casa'}.`;
+		}
+		case 'forget_memory': {
+			const id = Number(args.id);
+			const gone = Number.isInteger(id) ? await forget(ctx.k, ctx.memoryOf, id) : null;
+			if (!gone) return `No hay nada guardado con el número ${args.id} que pueda ver quien habla.`;
+			ctx.outcome.done++;
+			return `Olvidado: «${gone}».`;
+		}
+		case 'list_memories':
+			return describeMemories(ctx.k, ctx.memoryOf);
 		case 'group_say': {
 			const text = typeof args.text === 'string' ? args.text.trim().slice(0, 1000) : '';
 			if (!text) return 'Falta qué decir.';
@@ -1227,7 +1320,22 @@ export async function runVoiceCommand(
 	// Where what it learns is kept (learned.ts): the satellite, or the person.
 	const site = satellite ? `satelite:${satellite.id}` : k.userId ? `user:${k.userId}` : null;
 	refreshStale(k);
-	const [apiKey, settings, recipes, sites, personStyle, me, group, learned] = await Promise.all([
+	// Whose memory it sees: the person's and the house's; on a satellite, only the house's (memory.ts).
+	const memoryOf = satellite ? null : k.userId;
+	const kid = order.who.kid;
+	const [
+		apiKey,
+		settings,
+		recipes,
+		sites,
+		personStyle,
+		me,
+		group,
+		learned,
+		remembered,
+		people,
+		home
+	] = await Promise.all([
 		openRouterKey(k),
 		voiceSettings(k),
 		listRecipes(k),
@@ -1235,8 +1343,15 @@ export async function runVoiceCommand(
 		k.userId && !satellite ? personVoiceStyle(k, k.userId) : null,
 		k.userId && !satellite ? personOf(k, k.userId) : null,
 		botHasGroup(k.familyId),
-		recallLearned(k, site, request.text)
+		recallLearned(k, site, request.text),
+		kid ? null : recallMemories(k, memoryOf, request.text),
+		familyPeople(k),
+		familyPlace(k)
 	]);
+	// Always there, short: who the family is and where it lives.
+	const profile = people.length
+		? `[La familia: ${people.map((p) => p.name).join(', ')}.${home ? ` Vivís en ${placeName(home)}.` : ''}]`
+		: null;
 	const timersOf = cloudTimers && !satellite ? me : null;
 	// Said to the cloud by someone not among its people: no one to keep them for.
 	if (cloudTimers && !timersOf) without = [...without, 'set_timer', 'cancel_timer'];
@@ -1250,10 +1365,15 @@ export async function runVoiceCommand(
 	const siteKey = site && `${k.familyId}:${site}`;
 	const assumed = siteKey && assumedNote(siteKey);
 	const reply = (text: string, expectsAnswer = false) => {
-		const used = (learned?.picked ?? []).filter((l) => outcome.usedLearned.includes(l.id));
+		// Only those the order has to do with: the model also says it of a «para».
+		const used = (learned?.picked ?? []).filter(
+			(l) => outcome.usedLearned.includes(l.id) && sharesWords(request.text, l)
+		);
+		// What was put on would be heard as the correction: then only with the word.
+		const sounding = timing.rounds.some((r) => r.tools.some((t) => SOUNDING.has(t)));
 		const said = {
 			...replyOf(text, outcome, expectsAnswer),
-			...(used.length && !expectsAnswer ? { listenAfter: true } : {})
+			...(used.length && !expectsAnswer && !sounding ? { listenAfter: true } : {})
 		};
 		if (used.length)
 			countHits(
@@ -1328,6 +1448,8 @@ export async function runVoiceCommand(
 				...(note ? [{ type: 'text' as const, text: note }] : []),
 				...(learned ? [{ type: 'text' as const, text: learned.text }] : []),
 				...(assumed ? [{ type: 'text' as const, text: assumed }] : []),
+				...(profile ? [{ type: 'text' as const, text: profile }] : []),
+				...(remembered ? [{ type: 'text' as const, text: remembered }] : []),
 				{ type: 'text', text: request.text }
 			]
 		}
@@ -1337,6 +1459,7 @@ export async function runVoiceCommand(
 		...(house.tools as Tool[]),
 		...(group ? [groupSayTool] : []),
 		...(learned ? [usedLearnedTool] : []),
+		...(kid ? [] : memoryTools(Boolean(satellite))),
 		...(settings.web.on ? [webSearchTool] : [])
 	]
 		.map((t) =>
@@ -1370,7 +1493,8 @@ export async function runVoiceCommand(
 		apiKey,
 		settings,
 		houseTools: new Set(house.tools.map((t) => t.function.name)),
-		withoutHouse: !withHouse
+		withoutHouse: !withHouse,
+		memoryOf
 	};
 
 	for (let round = 0; round < MAX_ROUNDS; round++) {

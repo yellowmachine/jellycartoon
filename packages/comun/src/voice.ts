@@ -100,7 +100,8 @@ export interface VoiceReply {
 	expectsAnswer: boolean;
 	/**
 	 * It did something by what it had learned there, not asked (nube's learned.ts): a satellite
-	 * listens `AFTER_LEARNED_MS` without the wake word, for a «no, para la música».
+	 * listens `AFTER_LEARNED_MS` without the wake word, for a «no, para la música». Not when it put
+	 * something on: that would be heard instead.
 	 */
 	listenAfter?: boolean;
 }

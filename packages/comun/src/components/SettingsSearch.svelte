@@ -1,4 +1,5 @@
 <script lang="ts" generics="Tab extends string, Shown">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { searchSettings, type SettingsEntry } from '../settings-search.ts';
 
@@ -21,6 +22,30 @@
 		placeholder?: string;
 		ask?: string;
 	} = $props();
+
+	/** Frames to wait, at most, for the layout to measure its bar. */
+	const MEASURE_FRAMES = 30;
+
+	/**
+	 * Opened with a section's #id («/ajustes?seccion=casa#nube»): the browser went to it before the
+	 * layout had measured its bar (--header-h, 0 from the server), so it stays under it. Once
+	 * measured, to it again.
+	 */
+	onMount(() => {
+		const el = location.hash
+			? document.getElementById(decodeURIComponent(location.hash.slice(1)))
+			: null;
+		if (!el) return;
+		let frames = 0;
+		let raf = 0;
+		const again = () => {
+			const measured = parseFloat(getComputedStyle(el).getPropertyValue('--header-h')) > 0;
+			if (measured || ++frames >= MEASURE_FRAMES) el.scrollIntoView({ block: 'start' });
+			else raf = requestAnimationFrame(again);
+		};
+		raf = requestAnimationFrame(again);
+		return () => cancelAnimationFrame(raf);
+	});
 
 	let query = $state('');
 	const found = $derived(searchSettings(index, labels, query, shown));
@@ -142,10 +167,13 @@
 </div>
 
 <style>
+	/* Under the bar (--header-h) and the search and tabs that stay above: from here, and from any
+	   link with its #id («/ajustes?seccion=casa#nube»). */
+	:global(.settings [id]) {
+		scroll-margin-top: calc(var(--header-h, 0px) + 7rem);
+	}
 	:global(.settings-found) {
 		animation: settings-found 2s ease-out;
-		/* Under the bar (--header-h) and the search and tabs that stay above. */
-		scroll-margin-top: calc(var(--header-h, 0px) + 7rem);
 	}
 	@keyframes settings-found {
 		0%,

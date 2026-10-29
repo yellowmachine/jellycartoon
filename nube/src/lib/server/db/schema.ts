@@ -8,3 +8,4 @@ export * from './podcasts.schema.ts';
 export * from './trips.schema.ts';
 export * from './waitlist.schema.ts';
 export * from './voice.schema.ts';
+export * from './memory.schema.ts';
