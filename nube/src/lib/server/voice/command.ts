@@ -673,7 +673,7 @@ const answerTool: Tool = {
 				expects_answer: {
 					type: 'boolean',
 					description:
-						'Sí si le preguntas algo y esperas su respuesta para seguir (te falta un dato: «¿Media hora de qué?»); así se le escucha sin que diga otra vez la palabra. No si solo cuentas o confirmas.'
+						'Sí si esperas su respuesta para seguir: le preguntas algo (te falta un dato: «¿Media hora de qué?») o le ofreces hacer algo («¿Quieres que lo ponga?», «Si quieres uno, dime para qué y lo pongo»); así se le escucha sin que diga otra vez la palabra. No si solo cuentas o confirmas, sin nada que contestar.'
 				}
 			},
 			required: ['text', 'expects_answer'],
@@ -1296,8 +1296,10 @@ export async function runVoiceCommand(
 			completion: answer.usage?.completion_tokens ?? 0,
 			tools: answer.toolCalls.map((c) => c.function.name)
 		});
-		// Text instead of its `answer` (a model that ignores `required`): said, and nothing awaited.
-		if (!answer.toolCalls.length) return reply(answer.content ?? 'Hecho.');
+		// Text instead of its `answer` (a model that ignores `required`, or asked without it, as
+		// Haiku 5.5 since 2026-10-29): said, and awaited only if it asks with a «?».
+		if (!answer.toolCalls.length)
+			return reply(answer.content ?? 'Hecho.', answer.content?.includes('?') ?? false);
 		const [only] = answer.toolCalls;
 		if (answer.toolCalls.length === 1 && only!.function.name === 'answer') {
 			let args: { text?: unknown; expects_answer?: unknown } = {};
