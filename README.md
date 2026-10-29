@@ -172,12 +172,12 @@ docker compose -f compose.prod.yaml logs -f app
   hace otro (el anterior deja de valer), también para quien ha olvidado su contraseña. El
   administrador nunca la sabe. `ALLOW_SIGNUP` ya no se usa.
 - "Hoy" usa `TZ` (por defecto `Europe/Madrid`).
-- **Entrar con la nube** (#279): con `NUBE_URL`, `NUBE_CLIENT_ID` y `NUBE_CLIENT_SECRET` en el
-  `.env` (los da la nube, en Ajustes → Familia → «Entrar en casa con la nube», a quien la
-  administra), la página de entrada tiene «Entrar con la nube»: una sola cuenta, la de la nube, con
+- **Entrar con Seilide** (#279): con `NUBE_URL`, `NUBE_CLIENT_ID` y `NUBE_CLIENT_SECRET` en el
+  `.env` (los da Seilide, en Ajustes → Familia → «Entrar en casa con Seilide», a quien la
+  administra), la página de entrada tiene «Entrar con Seilide»: una sola cuenta, la de Seilide, con
   su contraseña y su segundo paso, y aquí no se pide `/verificacion`. Solo entran los de esa
   familia. La primera vez, quien ya tiene cuenta en casa queda unido por su email y su contraseña
-  de casa se borra; la del administrador se queda, por si la nube no responde. Quien no tiene
+  de casa se borra; la del administrador se queda, por si Seilide no responde. Quien no tiene
   cuenta en casa la estrena como adulto normal: los papeles (administrador, infantil) son de casa.
   Los peques, la tele con el móvil, los satélites y la música (Subsonic) siguen igual. Es
   `genericOAuth` de Better Auth (`src/lib/server/nube-login.ts`); tras cambiar el `.env`,
@@ -245,7 +245,7 @@ docker compose -f compose.prod.yaml logs -f app
 
 Para que otras apps lleguen desde fuera sin VPN (de momento la música por Subsonic, p. ej.
 [Tempus](https://github.com/eddyizm/tempus)), un túnel [rathole](https://github.com/rapiz1/rathole)
-con un VPS (#253). El túnel es de cada casa, en el VPS que quiera: la nube no da uno, solo usa la
+con un VPS (#253). El túnel es de cada casa, en el VPS que quiera: Seilide no da uno, solo usa la
 dirección que cada familia le da. La casa abre una conexión saliente al VPS, y lo que llega al VPS por un segundo
 nombre (`MEDIA_HOST`, p. ej. `media.<tu-dominio>`) se manda por ella al Caddy de casa **sin
 descifrar**: el certificado es el de casa y el VPS solo lo pasa. Por ese nombre solo se sirve
@@ -266,12 +266,12 @@ descifrar**: el certificado es el de casa y el VPS solo lo pasa. Por ese nombre 
    y `docker compose -f compose.prod.yaml up -d`. Caddy pide el certificado de `MEDIA_HOST` con
    el mismo reto DNS-01.
 
-#### La API de vídeo, para la nube
+#### La API de vídeo, para Seilide
 
-Las series (no el cine, que es solo de casa), para la app de la nube (#253), en `/api/v1` por
+Las series (no el cine, que es solo de casa), para la app de Seilide (#253), en `/api/v1` por
 `MEDIA_HOST`. De momento solo para adultos.
 
-- **La clave:** Ajustes → Casa → «La nube» → «Nueva clave». Se guarda en el servidor de la nube,
+- **La clave:** Ajustes → Casa → «Seilide» → «Nueva clave». Se guarda en el servidor de Seilide,
   nunca en el navegador. Cada petición lleva `x-api-key: <clave>` y `x-persona: <email>`, el de
   la persona en cuyo nombre se pide (un adulto de la casa; si no, 403).
 - `GET /api/v1/series`: las series con algo que ver.
@@ -283,7 +283,7 @@ Las series (no el cine, que es solo de casa), para la app de la nube (#253), en 
 - `POST <progressUrl>` con `{"positionSec": …, "durationSec": …}` (JSON): se guarda como en la app
   y sale en «Seguir viendo».
 
-**La música**, con la misma clave y `x-persona` (#253, para el modo carretera de la nube):
+**La música**, con la misma clave y `x-persona` (#253, para el modo carretera de Seilide):
 
 - `GET /api/v1/musica/albumes`: los álbumes, sin sus canciones; `GET /api/v1/musica/albumes/<id>`,
   uno con sus canciones.
@@ -293,7 +293,7 @@ Las series (no el cine, que es solo de casa), para la app de la nube (#253), en 
   navegador abre directamente las canciones (`<base>/pistas/<id>`, su copia en Opus, #64) y las
   portadas (`<base>/portadas/<id del álbum>`). Uno para toda la música: es de toda la casa.
 
-Para probarla sin la nube, `scripts/prueba-video.ts` hace de nube: guarda la clave y sirve una
+Para probarla sin Seilide, `scripts/prueba-video.ts` hace de Seilide: guarda la clave y sirve una
 página que lista las series y reproduce los capítulos:
 
 ```sh
@@ -858,9 +858,9 @@ para acostumbrar el oído a otros idiomas. La lista está elegida a mano en `src
 
 ### Modo carretera y Viajes
 
-Están en la nube (#253): su README, `nube/README.md`, cuenta cómo funcionan. Casa le da la música,
+Están en Seilide (#253): su README, `nube/README.md`, cuenta cómo funcionan. Casa le da la música,
 el Whisper de la voz, sus manos (Snapcast, temporizadores, el tiempo) y el Telegram de cada uno, por
-el túnel; `/carretera` y `/viajes` de casa llevan a los de la nube, y compartir un sitio desde
+el túnel; `/carretera` y `/viajes` de casa llevan a los de Seilide, y compartir un sitio desde
 Google Maps a JellyCartoon también.
 
 #### Bot de Telegram de la casa
@@ -871,7 +871,7 @@ qué. Se crea con @BotFather (`/newbot`) y su token se pone en Ajustes → Casa 
 (cifrado); al añadirlo al grupo, la app lo detecta (si ya estaba, `/start` en el grupo) y se elige
 ahí. Avisa, cada cosa activable: de lo que se apunta en la Agenda y de sus avisos, y de las
 alarmas y temporizadores de la casa al sonar (los de una persona, no). La lista de la compra y la
-nevera viven en la nube (#253), que aún no avisa por Telegram. Pregunta a Telegram por lo nuevo él mismo (long polling):
+nevera viven en Seilide (#253), que aún no avisa por Telegram. Pregunta a Telegram por lo nuevo él mismo (long polling):
 no hay que abrir nada hacia fuera. Un token solo puede usarlo una instalación a la vez.
 
 Por voz: «di en el grupo que ya está la comida» lo dice el bot en el grupo, diciendo de quién o
@@ -1125,7 +1125,7 @@ más de la cuarta parte.
 
 Lo que sale de casa hacia la IA de OpenRouter, cuando hay clave, y lo que no:
 
-- **Gastos** (tickets y facturas) vive en la nube (#253): lo que se manda allí a la IA y lo que se
+- **Gastos** (tickets y facturas) vive en Seilide (#253): lo que se manda allí a la IA y lo que se
   guarda está en el README de `nube/`. Desde casa solo va la foto del ticket de la gasolina (modo
   carretera), y se lee allí.
 

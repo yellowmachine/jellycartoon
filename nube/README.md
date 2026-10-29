@@ -1,12 +1,12 @@
-# Nube
+# Seilide
 
 La parte de la app que vive en internet (#253): lo que tiene que funcionar aunque la casa esté
 apagada, y a mano desde fuera. La casa (jellycartoon, en la carpeta de arriba) se queda con la
-media; la nube habla con ella por sus APIs (`/rest`, `/api/v1`), a través del túnel rathole.
+media; Seilide habla con ella por sus APIs (`/rest`, `/api/v1`), a través del túnel rathole.
 
 **El túnel es de cada casa**: cada familia pone su rathole en el servidor que quiera (README de
-arriba, «Las APIs desde fuera, con rathole») y da en Ajustes su dirección de fuera y su clave. La
-nube no tiene servidor de rathole ni hace de puente para nadie: solo llama a la dirección que cada
+arriba, «Las APIs desde fuera, con rathole») y da en Ajustes su dirección de fuera y su clave.
+Seilide no tiene servidor de rathole ni hace de puente para nadie: solo llama a la dirección que cada
 familia le dio. El de quien la mantiene es solo para su casa.
 
 Varias familias en una sola app, cada una aislada por la seguridad por filas de Postgres.
@@ -28,10 +28,10 @@ Varias familias en una sola app, cada una aislada por la seguridad por filas de 
   enlace para crear su familia, de la que es administrador. El administrador de cada familia invita
   a los suyos en Ajustes → Familia → Invitaciones, y ve el enlace de cada una por si el correo no
   llega. `bun run familia "Casa García" ana@example.com` crea una familia a mano e imprime el enlace.
-- **Una sola cuenta (#279):** la nube es proveedor OpenID Connect de las casas
+- **Una sola cuenta (#279):** Seilide es proveedor OpenID Connect de las casas
   (`@better-auth/oauth-provider` + `jwt`, `src/lib/server/auth.ts`); discovery en
   `https://nube…/api/auth/.well-known/openid-configuration`. Cada casa es un cliente de su
-  familia, que crea su administrador en Ajustes → Familia → «Entrar en casa con la nube» con la
+  familia, que crea su administrador en Ajustes → Familia → «Entrar en casa con Seilide» con la
   dirección `https://` de la casa: salen `NUBE_URL`, `NUBE_CLIENT_ID` y `NUBE_CLIENT_SECRET` para
   el `.env` de la casa (el secreto, una vez). Sin pantalla de consentimiento; tras la contraseña y
   el segundo paso, `/login` vuelve a la casa (`src/lib/server/oauth-return.ts`). Solo los de la
@@ -47,12 +47,12 @@ Varias familias en una sola app, cada una aislada por la seguridad por filas de 
   llevándola siempre. Las apps piden también `offline_access`, para tener refresh token.
 - **La IA de las apps (#284):** `POST /api/ia/v1/chat/completions`, con la forma de OpenAI (la de
   OpenRouter): la app apunta su cliente compatible con OpenAI a `https://nube…/api/ia/v1`, con el
-  access token de la persona como clave y su nombre en `X-Title`. La nube comprueba el token con su
+  access token de la persona como clave y su nombre en `X-Title`. Seilide comprueba el token con su
   propio userinfo, que solo da la familia con el scope `family`, y llama a OpenRouter con la clave
-  de esa familia, que no sale de la nube. Con stream o sin él, y cada gasto va a Gastos → IA
+  de esa familia, que no sale de Seilide. Con stream o sin él, y cada gasto va a Gastos → IA
   (`src/lib/server/app-ai.ts`, `forwardChat` en `openrouter.ts`).
 - **La casa:** en Ajustes, la dirección de fuera de jellycartoon (su `MEDIA_HOST`) y la clave de su
-  Ajustes → Casa → «La nube». La clave se guarda cifrada y no sale del servidor; cada petición a
+  Ajustes → Casa → «Seilide». La clave se guarda cifrada y no sale del servidor; cada petición a
   casa va en nombre de la persona, por su email (el mismo en las dos apps).
 
 ## Desarrollo
@@ -81,7 +81,7 @@ app (`nube_app`) con su contraseña: no hay SQL a mano.
    ```sh
    POSTGRES_PASSWORD=…
    APP_DB_PASSWORD=…
-   ORIGIN=https://nube.tu-dominio.com
+   ORIGIN=https://seilide.tu-dominio.com
    BETTER_AUTH_SECRET=…          # openssl rand -base64 32
    ADMIN_EMAIL=tu@email          # tu familia y tu invitación, al arrancar
    S3_ACCESS_KEY_ID=…            # el rustfs de la pila (fotos de tickets, facturas): openssl rand -hex 12
@@ -93,13 +93,13 @@ app (`nube_app`) con su contraseña: no hay SQL a mano.
    ```
    Quien pide acceso desde la portada (`/`) queda apuntado en la tabla `waitlist`, recibe un correo,
    y a `ADMIN_EMAIL` le llega un aviso (responderlo le escribe a esa persona).
-3. **Domains:** `nube.tu-dominio.com` → servicio `app`, puerto 3000, con HTTPS (Let's Encrypt).
-   En Cloudflare, un registro `A` `nube` → IP del VPS, en modo DNS only.
+3. **Domains:** `seilide.tu-dominio.com` → servicio `app`, puerto 3000, con HTTPS (Let's Encrypt).
+   En Cloudflare, un registro `A` `seilide` → IP del VPS, en modo DNS only.
 4. **Deploy.** La imagen la construye GitHub (`.github/workflows/nube-image.yml`, #277) en cada push
-   a `main` que toque la nube, y la publica como `ghcr.io/yellowmachine/nube:main`;
+   a `main` que toque Seilide, y la publica como `ghcr.io/yellowmachine/nube:main`;
    Dokploy solo la baja y la arranca. Al arrancar, la app aplica las migraciones como el dueño.
    Para que se despliegue sola cuando la imagen está lista, sin compilar en el VPS, como
-   svelte-thinking y Langua: en Dokploy, en la app Compose de la nube, **Autodeploy** activado y su
+   svelte-thinking y Langua: en Dokploy, en la app Compose de Seilide, **Autodeploy** activado y su
    **webhook** (Deployments) en el secreto de GitHub `DOKPLOY_NUBE_WEBHOOK_URL` (Settings → Secrets
    and variables → Actions). El workflow espera a que la etiqueta sea la imagen nueva y llama al
    webhook. Sin el secreto, solo publica la imagen, y se despliega a mano.
@@ -157,7 +157,7 @@ lado el navegador (Google Maps u Organic Maps, que hacen la navegación y el tr�
 - La voz sabe que va en el coche: respuestas muy cortas, solo aquí (no en los altavoces de
   Snapcast), y sin vídeo, cocina ni recetas; aunque pidiera un capítulo, no se abre.
 - **Telegram** (#243), con la cuenta de cada uno conectada en jellycartoon (Ajustes → Para mí; la
-  sesión no sale de casa, y la nube le pide los mensajes por el túnel): un botón «Leer
+  sesión no sale de casa, y Seilide le pide los mensajes por el túnel): un botón «Leer
   los mensajes en voz alta», y cada mensaje que llega se lee con la música más baja («Mensaje de
   Ana: llego en diez minutos»; las fotos, audios y demás, solo anunciados). Es la cuenta propia,
   no un bot (un bot solo ve lo que se le escribe a él), con la API de usuario de Telegram por
@@ -208,10 +208,10 @@ pone cada familia en Ajustes → Familia → «Rutas (openrouteservice)», y no 
 gratuito permite unas 2.000 rutas y 1.000 búsquedas al día.
 
 Lo que no encuentra, desde Google Maps: con la app instalada (Chrome → «Instalar» o «Añadir a
-pantalla de inicio»), en Google Maps el sitio → Compartir → Nube abre el modo carretera con
+pantalla de inicio»), en Google Maps el sitio → Compartir → Seilide abre el modo carretera con
 la ruta a ese sitio (desde JellyCartoon, también: lo manda aquí). Su enlace corto se sigue en el servidor (solo hacia direcciones de Google); si
 no trae coordenadas, como pasa al compartir desde la app de Google Maps, se busca su nombre y su
-dirección. Lo que no es de un mapa, compartido igual, va a Recetas, en la nube.
+dirección. Lo que no es de un mapa, compartido igual, va a Recetas, en Seilide.
 
 El tiempo que queda y la hora de llegada van siempre a la vista, junto a la siguiente maniobra, y
 la voz los dice («¿cuánto falta?»). Se calculan tramo a tramo, con lo que openrouteservice calcula
@@ -255,7 +255,7 @@ llegada si hay ruta, y cuánto hace de la última posición. Nunca se activa sol
 mientras dura, y se acaba al darle a «Dejar de compartir», al llegar o al cerrar el modo carretera
 (y si la tablet calla 15 minutos). Después, el enlace dice «Este viaje ya no se comparte».
 
-La nube, que ya está en internet, guarda en memoria (sin escribirla) la última posición y se la
+Seilide, que ya está en internet, guarda en memoria (sin escribirla) la última posición y se la
 enseña a quien tiene el enlace (`/s/…`, sin cuenta). Cada enlace es un token aleatorio de un solo
 viaje; la vista previa de WhatsApp solo dice de quién es, no dónde. El mapa del enlace es de
 [OpenFreeMap](https://openfreemap.org), libre y sin clave. (En jellycartoon, que no se ve desde
@@ -270,6 +270,6 @@ Lo que sale hacia la IA de OpenRouter (con la clave de la familia, Ajustes → I
   NIE, el IBAN, el CUPS, los números de contrato y los teléfonos. **El nombre del titular y la
   dirección sí van en el texto**: no tienen una forma fija por la que reconocerlos, y a la IA solo se
   le pide que no los devuelva (no se guardan). Una factura escaneada o en foto va como imagen, entera.
-- **Lo que se guarda**: la foto del ticket o el PDF de la factura, en el rustfs de la nube (sin
+- **Lo que se guarda**: la foto del ticket o el PDF de la factura, en el rustfs de Seilide (sin
   puertos publicados), bajo la carpeta de la familia, y lo leído en la base de datos. Los ficheros
   solo los da la app, a las personas de esa familia.
