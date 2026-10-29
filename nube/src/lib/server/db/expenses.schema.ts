@@ -10,7 +10,8 @@ import {
 	serial,
 	text,
 	timestamp,
-	unique
+	unique,
+	uniqueIndex
 } from 'drizzle-orm/pg-core';
 import type { BillDetails } from 'comun/bills.ts';
 import type { ExpenseLine } from 'comun/expenses.ts';
@@ -180,10 +181,13 @@ export const aiCost = pgTable(
 		/** Grouped by (comun/ai-spend.ts, `aiKind`). */
 		kind: text('kind').notNull(),
 		label: text('label').notNull(),
-		cost: doublePrecision('cost').notNull()
+		cost: doublePrecision('cost').notNull(),
+		/** The house's own id for it: one sent again (a lost answer) is not counted twice. */
+		houseRef: text('house_ref')
 	},
 	(t) => [
 		index('ai_cost_family_at_idx').on(t.familyId, t.at),
+		uniqueIndex('ai_cost_family_house_ref_idx').on(t.familyId, t.houseRef),
 		familyRows('ai_cost_own', t.familyId)
 	]
 ).enableRLS();

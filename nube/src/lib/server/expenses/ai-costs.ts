@@ -12,21 +12,39 @@ import { houseKitchen, type Kitchen } from '#lib/server/fridge.ts';
 
 export type AiApp = 'nube' | 'casa';
 
-/** One request's cost, for its family. Never in the way of what it was for. */
-export async function noteAiCost(
+/**
+ * One request's cost, for its family. One the house sends again (`houseRef`, the house's id for it)
+ * is not counted twice. Throws if not kept: the house keeps it, to send again.
+ */
+export async function addAiCost(
 	familyId: string,
 	app: AiApp,
 	label: string,
 	cost: number,
-	at = new Date()
+	at = new Date(),
+	houseRef: string | null = null
 ) {
-	await houseKitchen(familyId)
-		.run((tx) =>
-			tx
-				.insert(aiCost)
-				.values({ familyId, app, kind: aiKind(label), label: label.slice(0, 300), cost, at })
-		)
-		.catch((error) => console.warn('[ia] No se pudo apuntar el coste', String(error)));
+	await houseKitchen(familyId).run((tx) =>
+		tx
+			.insert(aiCost)
+			.values({
+				familyId,
+				app,
+				kind: aiKind(label),
+				label: label.slice(0, 300),
+				cost,
+				at,
+				houseRef
+			})
+			.onConflictDoNothing({ target: [aiCost.familyId, aiCost.houseRef] })
+	);
+}
+
+/** The cloud's own: never in the way of what it was for. */
+export async function noteAiCost(familyId: string, app: AiApp, label: string, cost: number) {
+	await addAiCost(familyId, app, label, cost).catch((error) =>
+		console.warn('[ia] No se pudo apuntar el coste', String(error))
+	);
 }
 
 /** The months shown, this one the last; and the weeks. */

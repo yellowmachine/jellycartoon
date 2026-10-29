@@ -22,7 +22,7 @@ const k: Kitchen = {
 		})
 };
 mock.module('#lib/server/fridge.ts', () => ({ houseKitchen: () => k }));
-const { aiCostStats } = await import('./ai-costs.ts');
+const { addAiCost, aiCostStats } = await import('./ai-costs.ts');
 
 const at = (day: string, hour = 12) => new Date(`${day}T${String(hour).padStart(2, '0')}:00:00`);
 const today = localDay();
@@ -35,6 +35,7 @@ beforeAll(async () => {
 	await db.execute(
 		sql`grant select, insert, update, delete on all tables in schema public to app_user`
 	);
+	await db.execute(sql`grant usage on all sequences in schema public to app_user`);
 	await db.insert(family).values([
 		{ id: 'A', name: 'Casa A' },
 		{ id: 'B', name: 'Casa B' }
@@ -80,5 +81,18 @@ describe('Gastos → IA', () => {
 		expect(s.kinds.month.find((r) => r.kind === 'Voz')!.cost).toBeCloseTo(0.04);
 		expect(s.recent[0]!.cost).toBe(0.03);
 		expect(s.recent.every((r) => r.cost < 9)).toBe(true);
+	});
+});
+
+describe('the house’s, sent again', () => {
+	test('one with the same id is counted once; without one, each', async () => {
+		const ref = 'b1946ac9-2f5d-4c5e-9a7e-1f0d3c2b4a59';
+		await addAiCost('A', 'casa', 'Voz', 0.5, at(today), ref);
+		await addAiCost('A', 'casa', 'Voz', 0.5, at(today), ref);
+		await addAiCost('A', 'casa', 'Voz', 0.25, at(today));
+		await addAiCost('A', 'casa', 'Voz', 0.25, at(today));
+		const s = await aiCostStats(k);
+		expect(s.count).toBe(8);
+		expect(s.total).toBeCloseTo(2.092);
 	});
 });
