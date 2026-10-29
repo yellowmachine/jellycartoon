@@ -14,8 +14,9 @@ import {
 /**
  * Voice commands in the cloud (#253), as jellycartoon's (src/lib/voice-client.svelte.ts there): in
  * Hablar, the header's microphone and the road mode. Held down, it listens; let go, it is sent
- * (or, with taps in Ajustes, a tap each). What was said is heard by the house's Whisper
- * (/api/voz/oir) and done by the family's AI with the house's hands (/api/voz/orden); the answer
+ * (or, with taps in Ajustes, a tap each). What was said is heard by the house's Whisper, or
+ * without it by OpenRouter (/api/voz/oir), and done by the family's AI, with the house's hands if
+ * it has one (/api/voz/orden); the answer
  * is shown and read aloud with the device's own voice. Only the button: no wake word here, no
  * timers, kitchen or videos.
  */

@@ -63,6 +63,7 @@ import { quietCheck } from './quiet-check.ts';
 import { FALLBACK_VOICE_MODEL, personVoiceStyle, voiceSettings } from './settings.ts';
 import { voiceFellBack } from './alarm.ts';
 import { searchWeb, WEB_TOOL, webSearchTool } from './web-search.ts';
+import { findPlaces, forecast, placeName } from 'comun/weather.ts';
 
 /**
  * Voice commands (#33), the family's brain since #253: what was said in the house, to a model with
@@ -835,6 +836,14 @@ const HOUSE_TOOLS = new Set([
 	'cancel_timer'
 ]);
 
+/**
+ * Without the house (a family with none, or it does not answer): what only it does, not offered.
+ * The timers are the cloud's (`cloudTimer`), and the weather is asked from here (`cloudWeather`).
+ */
+const ONLY_THE_HOUSE = [...HOUSE_TOOLS].filter(
+	(name) => !['set_timer', 'cancel_timer', 'get_weather'].includes(name)
+);
+
 /** One order's: the family's kitchen in the name of who speaks, and what the house sent. */
 interface Turn {
 	k: Kitchen;
@@ -850,6 +859,8 @@ interface Turn {
 	apiKey: string;
 	settings: Awaited<ReturnType<typeof voiceSettings>>;
 	houseTools: Set<string>;
+	/** No house to ask (`runVoiceCommand`'s `withHouse`). */
+	withoutHouse: boolean;
 }
 
 async function runTool(
@@ -865,6 +876,8 @@ async function runTool(
 	}
 	if (ctx.timersOf && (name === 'set_timer' || name === 'cancel_timer'))
 		return cloudTimer(name, args, ctx, ctx.timersOf);
+	if (ctx.withoutHouse && name === 'get_weather')
+		return cloudWeather(args, ctx.order.request.position);
 	if (HOUSE_TOOLS.has(name) || ctx.houseTools.has(name)) {
 		const done = await tellHouse<HouseHandResult>(ctx.k.familyId, '/voz', {
 			order: ctx.order.order,
@@ -1004,7 +1017,7 @@ async function runTool(
 				: 'Modo cocina apagado.';
 		// Where it is said (a satellite's), or for who speaks.
 		case 'set_alarm':
-			return setAlarmByVoice(ctx.k, args, ctx.place);
+			return setAlarmByVoice(ctx.k, args, ctx.place, !ctx.withoutHouse);
 		case 'change_alarm':
 			return changeAlarmByVoice(ctx.k, args, ctx.satellite);
 		case 'start_recipe': {
@@ -1066,6 +1079,23 @@ async function runTool(
 		default:
 			return `No existe la herramienta «${name}».`;
 	}
+}
+
+/** The weather without the house: the place said, or where the phone is (the road mode's GPS). */
+async function cloudWeather(args: Record<string, unknown>, position: [number, number] | null) {
+	const asked = typeof args.place === 'string' ? args.place.trim() : '';
+	let where: { lat: number; lon: number; name: string } | null = null;
+	if (asked) {
+		// «Toledo» is first in Ohio: one in Spain if there is one.
+		const found = await findPlaces(asked, 10);
+		const place = found.find((p) => p.country === 'España') ?? found[0];
+		if (!place) return `No encuentro «${asked}». Díselo.`;
+		where = { lat: place.lat, lon: place.lon, name: placeName(place) };
+	} else if (position) {
+		where = { lon: position[0], lat: position[1], name: 'donde está ahora' };
+	}
+	if (!where) return 'No sé dónde está: pregúntale de qué pueblo o ciudad, sin más.';
+	return `El tiempo en ${where.name}:\n${await forecast(where.lat, where.lon)}`;
 }
 
 /**
@@ -1143,7 +1173,12 @@ export async function runVoiceCommand(
 	/** Where it is said, for the AI, if it matters: what is not offered here, and why. */
 	note: string | null = null,
 	/** Said to the cloud: its timers kept here (`cloudTimer`), not the device's. */
-	cloudTimers = false
+	cloudTimers = false,
+	/**
+	 * False, without the house (`withoutHouse`, a family with none or one that does not answer):
+	 * nothing of it is offered, and the order comes from here, not from it.
+	 */
+	withHouse = true
 ): Promise<VoiceReply & { timing: VoiceTiming }> {
 	const started = performance.now();
 	const { request, house, satellite } = order;
@@ -1162,6 +1197,7 @@ export async function runVoiceCommand(
 	const timersOf = cloudTimers && !satellite ? me : null;
 	// Said to the cloud by someone not among its people: no one to keep them for.
 	if (cloudTimers && !timersOf) without = [...without, 'set_timer', 'cancel_timer'];
+	if (!withHouse) without = [...without, ...ONLY_THE_HOUSE];
 	const [alarmLines, timerLines] = await Promise.all([
 		describeAlarms(k, me, house.satellites),
 		timersOf ? describeTimersOf(k, timersOf) : request.timers
@@ -1238,7 +1274,7 @@ export async function runVoiceCommand(
 		...(settings.web.on ? [webSearchTool] : [])
 	]
 		.map((t) =>
-			timersOf && t.function.name === 'set_timer'
+			timersOf && withHouse && t.function.name === 'set_timer'
 				? {
 						...t,
 						function: {
@@ -1267,7 +1303,8 @@ export async function runVoiceCommand(
 		timersOf,
 		apiKey,
 		settings,
-		houseTools: new Set(house.tools.map((t) => t.function.name))
+		houseTools: new Set(house.tools.map((t) => t.function.name)),
+		withoutHouse: !withHouse
 	};
 
 	for (let round = 0; round < MAX_ROUNDS; round++) {
