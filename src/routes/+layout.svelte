@@ -363,6 +363,33 @@
 								/>
 							</svg>
 						</a>
+						<!-- Kitchen mode (#60), one tap away: on, and its kitchen over the page; on, the kitchen
+						     opened or closed (the bar's × turns it off). In /voz, which is the kitchen, on or off. -->
+						<button
+							title={page.url.pathname === '/voz'
+								? kitchenMode.on
+									? 'Quitar el modo cocina'
+									: 'Modo cocina: la pantalla no se apaga'
+								: !kitchenMode.on
+									? 'Modo cocina: la pantalla no se apaga'
+									: kitchenPanel.open
+										? 'Cerrar la cocina'
+										: 'Abrir la cocina'}
+							aria-label="Modo cocina"
+							aria-pressed={kitchenMode.on}
+							class={[
+								'shrink-0 rounded-md p-1 hover:bg-zinc-800 hover:text-white',
+								kitchenMode.on ? 'text-amber-400' : 'text-zinc-400'
+							]}
+							onclick={() => {
+								if (page.url.pathname === '/voz') return kitchenMode.set(!kitchenMode.on);
+								if (kitchenMode.on) return kitchenPanel.toggle();
+								void kitchenMode.set(true);
+								kitchenPanel.show();
+							}}
+						>
+							<SectionIcon name="recetas" class="h-6 w-6" />
+						</button>
 					{/if}
 				{/snippet}
 				{#snippet below()}
