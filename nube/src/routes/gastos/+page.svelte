@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, untrack } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { replaceState } from '$app/navigation';
 	import { page } from '$app/state';
@@ -308,6 +308,22 @@
 	let fixed = $state<
 		(Omit<RecurringExpense, 'id' | 'amount'> & { id: number | null; amount: string }) | null
 	>(null);
+	let fixedForm = $state<HTMLFormElement>();
+	/** Where the page was when it opened: back there on closing it. */
+	let fixedFrom = 0;
+
+	/** Its form goes under the list: brought into view, with many it would be out of sight. */
+	async function openFixed(value: NonNullable<typeof fixed>) {
+		if (!fixed) fixedFrom = window.scrollY;
+		fixed = value;
+		await tick();
+		fixedForm?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+	}
+
+	function closeFixed() {
+		fixed = null;
+		window.scrollTo({ top: fixedFrom, behavior: 'smooth' });
+	}
 
 	const field =
 		'rounded-md border-zinc-700 bg-zinc-950 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500';
@@ -788,7 +804,7 @@
 					<span class="tabular-nums">{euros(r.amount)}</span>
 					<button
 						class="{button} hover:bg-zinc-800"
-						onclick={() => (fixed = { ...r, amount: typed(r.amount) })}>Cambiar</button
+						onclick={() => openFixed({ ...r, amount: typed(r.amount) })}>Cambiar</button
 					>
 					{#if deleting === `fijo-${r.id}`}
 						<form method="post" action="?/deleteRecurring" use:enhance class="flex gap-1">
@@ -815,13 +831,14 @@
 			<form
 				method="post"
 				action="?/saveRecurring"
+				bind:this={fixedForm}
 				class="flex flex-wrap items-end gap-2 rounded-lg bg-zinc-900 p-3"
 				use:enhance={() =>
 					async ({ result, update }) => {
-						if (result.type === 'success') fixed = null;
-						else if (result.type === 'failure')
+						if (result.type === 'failure')
 							problem = String(result.data?.message ?? 'No se pudo guardar');
 						await update({ reset: false });
+						if (result.type === 'success') closeFixed();
 					}}
 			>
 				{#if f.id}<input type="hidden" name="id" value={f.id} />{/if}
@@ -862,14 +879,14 @@
 				<button class="{button} bg-amber-500 font-semibold text-zinc-950 hover:bg-amber-400"
 					>Guardar</button
 				>
-				<button type="button" class="{button} hover:bg-zinc-800" onclick={() => (fixed = null)}
+				<button type="button" class="{button} hover:bg-zinc-800" onclick={closeFixed}
 					>Cancelar</button
 				>
 			</form>
 		{:else}
 			<button
 				class="text-sm text-amber-400 hover:underline"
-				onclick={() => (fixed = { id: null, name: '', category: 'Facturas', amount: '', day: 1 })}
+				onclick={() => openFixed({ id: null, name: '', category: 'Facturas', amount: '', day: 1 })}
 				>+ Fijo</button
 			>
 		{/if}
