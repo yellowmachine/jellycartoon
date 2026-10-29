@@ -21,7 +21,8 @@
 	/**
 	 * The family's alarms (#253; jellycartoon's #241), in the Agenda: the house's and the user's,
 	 * with their next time; set by hand, stopped, skipped once, paused or taken away. They sound in
-	 * the house: all of it, or a voice satellite. The timers stay in the house (by voice).
+	 * the house: all of it, or a voice satellite. And the timers said to the cloud (by voice), until
+	 * they end: on the phone, or in the house.
 	 */
 	let {
 		alarms,
@@ -39,7 +40,10 @@
 	const personName = (id: string) => people.find((p) => p.id === id)?.name ?? '';
 	/** «Salón»: a satellite's name; one gone, said so. */
 	const placeName = (place: AlarmPlace) =>
-		satellites.find((s) => `satelite:${s.id}` === place)?.name ?? 'un satélite que ya no está';
+		place === 'movil'
+			? 'el móvil'
+			: (satellites.find((s) => `satelite:${s.id}` === place)?.name ??
+				'un satélite que ya no está');
 
 	// Live: one starts ringing, or is stopped somewhere else.
 	onMount(() => {
@@ -146,22 +150,25 @@
 	<h2 class="mb-1 font-semibold">Alarmas</h2>
 	<p class="mb-3 text-sm text-zinc-400">
 		Las de la casa y las tuyas. Suenan en casa: en toda, por los altavoces, o en un satélite de voz.
-		Los temporizadores, por voz en casa.
+		Los temporizadores, por voz: los de aquí avisan en el móvil, o en casa si lo dices.
 	</p>
 
 	{#if alarms.length}
 		<ul class="mb-4 divide-y divide-zinc-800">
 			{#each alarms as a (a.id)}
 				{@const ringing = a.ringingSince !== null}
+				{@const timer = a.kind === 'temporizador'}
 				<li
 					class={['flex flex-wrap items-center gap-x-3 gap-y-2 py-2', ringing && 'text-amber-300']}
 				>
-					<span class="text-lg" aria-hidden="true">⏰</span>
+					<span class="text-lg" aria-hidden="true">{timer ? '⏲️' : '⏰'}</span>
 					<span class="min-w-0 flex-1">
 						<span class="block truncate">{a.label}</span>
 						<span class="block text-xs text-zinc-400">
 							{#if ringing}
 								Sonando
+							{:else if timer && a.endsAt}
+								Temporizador · acaba a las {localTime(new Date(a.endsAt))}
 							{:else}
 								{a.time}{a.days.length ? ` · ${daysName(a.days)}` : ''}
 								· {a.paused ? 'pausada' : a.nextAt ? when(a.nextAt) : 'ya sonó'}
@@ -189,7 +196,7 @@
 							{#if a.days.length && a.nextAt && !a.paused}
 								{@render act(a, 'skip', 'Esta vez no')}
 							{/if}
-							{#if a.nextAt || a.paused}
+							{#if !timer && (a.nextAt || a.paused)}
 								{@render act(a, a.paused ? 'resume' : 'pause', a.paused ? 'Activar' : 'Pausar')}
 							{/if}
 							{@render act(a, 'delete', 'Quitar')}

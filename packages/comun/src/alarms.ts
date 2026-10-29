@@ -17,13 +17,15 @@ export const TIMER_MINUTES = { min: 1, max: 24 * 60 };
 export type AlarmKind = 'temporizador' | 'alarma' | 'preparado';
 
 /**
- * Where one sounds: the whole house (Snapcast), or a voice satellite, by its id (#223); a phone
- * or a tablet later (#241, phase 3).
+ * Where one sounds: the whole house (Snapcast), or a voice satellite, by its id (#223); or only
+ * the phones of whom it is for (`movil`, a notice): a timer said to the cloud (#253).
  */
-export type AlarmPlace = 'casa' | `satelite:${string}`;
+export type AlarmPlace = 'casa' | 'movil' | `satelite:${string}`;
 
 export const isAlarmPlace = (value: unknown): value is AlarmPlace =>
-	value === 'casa' || (typeof value === 'string' && /^satelite:[\w-]{1,100}$/.test(value));
+	value === 'casa' ||
+	value === 'movil' ||
+	(typeof value === 'string' && /^satelite:[\w-]{1,100}$/.test(value));
 
 /** What a page sends: a timer of some minutes, or an alarm at a time on some weekdays (none, once). */
 export type AlarmInput = { label: string; people: string[]; place: AlarmPlace } & (

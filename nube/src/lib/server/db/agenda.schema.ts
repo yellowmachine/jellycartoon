@@ -118,11 +118,13 @@ export const calendarEventPerson = pgTable(
 
 /** What one does when it is time: ring, saying its name; or stop the house's music. */
 export const alarmAction = pgEnum('alarm_action', ['sonar', 'parar_musica']);
+/** An alarm at a time, or a timer said to the cloud: once, at its end (`nextAt`). */
+export const alarmKind = pgEnum('alarm_kind', ['alarma', 'temporizador']);
 
 /**
  * The family's alarms (jellycartoon's #241): at `time` from `startDay`, repeated on some weekdays
  * (an RRULE of the agenda's, `repeat`) or once. The cloud keeps the time; when it comes, the house
- * makes it sound (alarms.ts). The timers stay in the house.
+ * makes it sound (alarms.ts). The timers said to the cloud too (`kind`); the house's, there.
  */
 export const alarm = pgTable(
 	'alarm',
@@ -143,7 +145,8 @@ export const alarm = pgTable(
 		/** When it is due next; null, never again. */
 		nextAt: timestamp('next_at'),
 		action: alarmAction('action').notNull().default('sonar'),
-		/** Where it sounds in the house: `casa` (all of it), or `satelite:<id>`. */
+		kind: alarmKind('kind').notNull().default('alarma'),
+		/** Where it sounds: `casa` (all of it), `satelite:<id>`, or `movil` (only a notice). */
 		place: text('place').notNull().default('casa'),
 		/** Ringing since then, until someone stops it. */
 		ringingSince: timestamp('ringing_since'),

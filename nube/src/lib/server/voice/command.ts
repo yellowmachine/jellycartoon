@@ -6,6 +6,7 @@ import { isUntilWord, UNTIL_WORDS, untilDay, untilText } from 'comun/fridge.ts';
 import { fold } from 'comun/music.ts';
 import {
 	MAX_STOP_LATER_MIN,
+	MAX_TIMER_SEC,
 	type VoiceAction,
 	type VoiceOption,
 	type VoiceReply,
@@ -40,7 +41,12 @@ import {
 	changeAlarmByVoice,
 	setAlarmByVoice
 } from '#lib/server/agenda/voice.ts';
-import { describeAlarms } from '#lib/server/alarms/alarms.ts';
+import {
+	cancelTimers,
+	describeAlarms,
+	describeTimersOf,
+	startTimer
+} from '#lib/server/alarms/alarms.ts';
 import { botHasGroup, sayInGroup } from '#lib/server/telegram/bot.ts';
 import { tellHouse } from '#lib/server/house.ts';
 import { orsFor } from '#lib/server/road/ors.ts';
@@ -838,6 +844,8 @@ interface Turn {
 	satellite: boolean;
 	/** Where its alarms are said (a satellite's); null, a phone's. */
 	place: AlarmPlace | null;
+	/** Said to the cloud: its timers are kept here, this person's (their id); null, the house's. */
+	timersOf: string | null;
 	apiKey: string;
 	settings: Awaited<ReturnType<typeof voiceSettings>>;
 	houseTools: Set<string>;
@@ -854,6 +862,8 @@ async function runTool(
 		const wait = quietCheck(quiet, `${ctx.k.familyId}:${who}`, ctx.order.order, minuteNow());
 		if (wait) return wait;
 	}
+	if (ctx.timersOf && (name === 'set_timer' || name === 'cancel_timer'))
+		return cloudTimer(name, args, ctx, ctx.timersOf);
 	if (HOUSE_TOOLS.has(name) || ctx.houseTools.has(name)) {
 		const done = await tellHouse<HouseHandResult>(ctx.k.familyId, '/voz', {
 			order: ctx.order.order,
@@ -1057,6 +1067,35 @@ async function runTool(
 	}
 }
 
+/**
+ * A timer said to the cloud (Hablar, the road mode): kept here, for who says it, on their phones
+ * (a notice), or in the house if they say so (`house`).
+ */
+async function cloudTimer(name: string, args: Record<string, unknown>, ctx: Turn, me: string) {
+	ctx.outcome.done++;
+	if (name === 'cancel_timer') {
+		const label = typeof args.label === 'string' && args.label.trim() ? args.label.trim() : null;
+		const count = await cancelTimers(ctx.k, me, label);
+		return count ? `Quitados: ${count}.` : 'No había ninguno con ese nombre.';
+	}
+	const minutes = Number(args.minutes);
+	if (!Number.isFinite(minutes) || minutes <= 0) return 'Falta cuántos minutos.';
+	const seconds = Math.round(Math.min(minutes * 60, MAX_TIMER_SEC));
+	const label = typeof args.label === 'string' ? args.label.trim().slice(0, 60) : '';
+	const place = args.house === true ? 'casa' : 'movil';
+	const timer = await startTimer(ctx.k, me, { label, seconds, place });
+	return `Temporizador «${timer}» de ${seconds} segundos puesto: ${place === 'casa' ? 'sonará en toda la casa y avisará en su móvil' : 'avisará en su móvil'}.`;
+}
+
+/** Said to the cloud, «set_timer» can ring in the house too. */
+const HOUSE_ARG = {
+	house: {
+		type: 'boolean',
+		description:
+			'Solo si dice que suene en casa («avísame en casa»): suena en toda la casa. Si no, avisa en su móvil.'
+	}
+};
+
 /** The minute of the day now, in the family's time (TZ, compose.prod.yaml). */
 function minuteNow() {
 	const now = new Date();
@@ -1101,7 +1140,9 @@ export async function runVoiceCommand(
 	/** Tools the device cannot do, not offered (the cloud's: no timers, no kitchen, no video yet). */
 	without: string[] = [],
 	/** Where it is said, for the AI, if it matters: what is not offered here, and why. */
-	note: string | null = null
+	note: string | null = null,
+	/** Said to the cloud: its timers kept here (`cloudTimer`), not the device's. */
+	cloudTimers = false
 ): Promise<VoiceReply & { timing: VoiceTiming }> {
 	const started = performance.now();
 	const { request, house, satellite } = order;
@@ -1117,7 +1158,13 @@ export async function runVoiceCommand(
 		k.userId && !satellite ? personOf(k, k.userId) : null,
 		botHasGroup(k.familyId)
 	]);
-	const alarmLines = await describeAlarms(k, me, house.satellites);
+	const timersOf = cloudTimers && !satellite ? me : null;
+	// Said to the cloud by someone not among its people: no one to keep them for.
+	if (cloudTimers && !timersOf) without = [...without, 'set_timer', 'cancel_timer'];
+	const [alarmLines, timerLines] = await Promise.all([
+		describeAlarms(k, me, house.satellites),
+		timersOf ? describeTimersOf(k, timersOf) : request.timers
+	]);
 	const timing: VoiceTiming = { prepareMs: Math.round(performance.now() - started), rounds: [] };
 	const outcome: Outcome = { actions: [], options: [], asked: null, done: 0 };
 	const reply = (text: string, expectsAnswer = false) => ({
@@ -1163,7 +1210,7 @@ export async function runVoiceCommand(
 					type: 'text',
 					text: satellite
 						? `[Temporizadores y alarmas: ${[...house.timers, ...alarmLines].join('; ') || 'ninguno'}.]`
-						: `[Temporizadores aquí: ${request.timers.length ? request.timers.join('; ') : 'ninguno'}.] [Alarmas (de la casa y suyas; suenan en toda la casa o en un satélite): ${alarmLines.length ? alarmLines.join('; ') : 'ninguna'}.]`
+						: `[Temporizadores ${timersOf ? 'suyos' : 'aquí'}: ${timerLines.length ? timerLines.join('; ') : 'ninguno'}.] [Alarmas (de la casa y suyas; suenan en toda la casa o en un satélite): ${alarmLines.length ? alarmLines.join('; ') : 'ninguna'}.]`
 				},
 				...(request.recipe
 					? [{ type: 'text' as const, text: `[Receta en marcha aquí:\n${request.recipe}]` }]
@@ -1188,11 +1235,26 @@ export async function runVoiceCommand(
 		...(house.tools as Tool[]),
 		...(group ? [groupSayTool] : []),
 		...(settings.web.on ? [webSearchTool] : [])
-	].filter(
-		(t) =>
-			!without.includes(t.function.name) &&
-			(request.car ? !NOT_IN_THE_CAR.has(t.function.name) : !ONLY_IN_THE_CAR.has(t.function.name))
-	);
+	]
+		.map((t) =>
+			timersOf && t.function.name === 'set_timer'
+				? {
+						...t,
+						function: {
+							...t.function,
+							parameters: {
+								...t.function.parameters,
+								properties: { ...(t.function.parameters.properties as object), ...HOUSE_ARG }
+							}
+						}
+					}
+				: t
+		)
+		.filter(
+			(t) =>
+				!without.includes(t.function.name) &&
+				(request.car ? !NOT_IN_THE_CAR.has(t.function.name) : !ONLY_IN_THE_CAR.has(t.function.name))
+		);
 	available.push(answerTool);
 	const turn: Turn = {
 		k,
@@ -1201,6 +1263,7 @@ export async function runVoiceCommand(
 		recipe: request.recipe,
 		satellite: Boolean(satellite),
 		place,
+		timersOf,
 		apiKey,
 		settings,
 		houseTools: new Set(house.tools.map((t) => t.function.name))
