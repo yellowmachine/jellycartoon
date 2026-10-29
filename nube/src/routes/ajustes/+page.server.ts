@@ -51,7 +51,6 @@ import {
 	setSnapserver
 } from '#lib/server/satellites.ts';
 import { parseSnapserver } from '#lib/snapserver.ts';
-import { houseSatellites } from '#lib/server/house.ts';
 import { satelliteVoiceOf, setSatelliteVoice } from '#lib/server/voice/satellite-voice.ts';
 import { invitationLink, invitations, inviteAndSend } from '#lib/server/invitations.ts';
 import {
@@ -82,17 +81,8 @@ export const load: PageServerLoad = async ({ locals, request }) => {
 		openRouter: await openRouterKeyStart(k),
 		ors: await orsKeyStart(k),
 		houseKeys: await listHouseKeys(locals.user!.id),
-		/** The voice satellites Seilide serves (#296), and the house's it may adopt: its administrator. */
-		satellites: admin
-			? await Promise.all([
-					listSatellites(locals.user!.id),
-					houseSatellites(membership.familyId)
-				]).then(([own, house]) => ({
-					own,
-					house: house.filter((h) => !own.some((o) => o.id === h.id)),
-					origin: ORIGIN
-				}))
-			: null,
+		/** The voice satellites Seilide serves (#296): its administrator. */
+		satellites: admin ? { own: await listSatellites(locals.user!.id), origin: ORIGIN } : null,
 		/** How they speak (#296): Gemini's voice, its tone, what they say while the AI thinks. */
 		satelliteVoice: admin ? await satelliteVoiceOf(k) : null,
 		twoFactor: Boolean(locals.user!.twoFactorEnabled),
@@ -481,19 +471,18 @@ export const actions: Actions = {
 			return fail(400, { houseKeyProblem: 'Ponle un nombre de hasta 32 letras' });
 		return { houseKey: await createHouseKey(locals.user!.id, name), houseKeyName: name };
 	},
-	/** A voice satellite of Seilide's (#296), new or one of the house's: its key, shown once. */
+	/** A voice satellite of Seilide's (#296): its key, shown once. */
 	createSatellite: async ({ request, locals }) => {
 		const denied = await requireAdmin(locals.user!.id, 'satelliteProblem');
 		if (denied) return denied;
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim();
-		const adopt = String(form.get('adopt') ?? '') || null;
-		if (!adopt && !name) return fail(400, { satelliteProblem: 'Ponle un nombre: «dormitorio»' });
+		if (!name) return fail(400, { satelliteProblem: 'Ponle un nombre: «dormitorio»' });
 		if (name.length > MAX_SATELLITE_NAME)
 			return fail(400, { satelliteProblem: `Hasta ${MAX_SATELLITE_NAME} letras` });
 		return {
-			satelliteKey: await createSatellite(locals.user!.id, name, adopt),
-			satelliteName: name || 'el de la casa'
+			satelliteKey: await createSatellite(locals.user!.id, name),
+			satelliteName: name
 		};
 	},
 	/** «Voz de los satélites»: the voice, its tone and the phrases; their recordings, made now. */

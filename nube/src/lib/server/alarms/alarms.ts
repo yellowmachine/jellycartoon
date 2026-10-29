@@ -12,7 +12,7 @@ import { alarm, alarmPerson, familyPerson } from '#lib/server/db/schema.ts';
 import type { AnyDb } from '#lib/server/family-scope.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { familyHasHouse, tellHouse } from '#lib/server/house.ts';
-import { familySatellites, servedSatellites } from '#lib/server/satellites.ts';
+import { familySatellites } from '#lib/server/satellites.ts';
 import { notify } from '#lib/server/push.ts';
 import { tellGroup } from '#lib/server/telegram/bot.ts';
 import { toldOf } from '#lib/server/agenda/agenda.ts';
@@ -561,15 +561,12 @@ export async function ringDue(k: Kitchen) {
  * banner says it.
  */
 async function ringAtHouse(k: Kitchen, row: Row) {
-	const [own, served] = await Promise.all([
-		familySatellites(k.familyId),
-		servedSatellites(k.familyId)
-	]);
+	const own = await familySatellites(k.familyId);
 	let where = placeName(row.place, own);
 	// One of Seilide's satellites hears it itself (`ringingFor`); «casa» without a house, too.
 	const atHouse =
 		row.place !== 'movil' &&
-		!served.some((s) => `satelite:${s.id}` === row.place) &&
+		!own.some((s) => `satelite:${s.id}` === row.place) &&
 		(row.place !== 'casa' || (await familyHasHouse(k.familyId)));
 	if (atHouse)
 		try {

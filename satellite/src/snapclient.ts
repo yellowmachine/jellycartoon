@@ -1,5 +1,4 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { createInterface } from 'node:readline';
 
 /**
@@ -10,16 +9,6 @@ import { createInterface } from 'node:readline';
 
 /** Where it plays: `SNAPCLIENT_SOUNDCARD`, else the satellite's own speaker. */
 const SOUNDCARD = process.env.SNAPCLIENT_SOUNDCARD || process.env.SPEAKER || 'default';
-/**
- * How the snapserver knows it, the same after each update (its container's MAC is not): by its
- * key, unless `SNAPCLIENT_ID` says.
- */
-const HOST_ID =
-	process.env.SNAPCLIENT_ID ||
-	`satelite-${createHash('sha256')
-		.update(process.env.SATELLITE_KEY ?? '')
-		.digest('hex')
-		.slice(0, 8)}`;
 /** Its server's control (JSON-RPC over HTTP), where its name is given. */
 const CONTROL_PORT = 1780;
 /** After starting, how long it may take to be among the server's clients; tried this often. */
@@ -32,6 +21,11 @@ const RETRY_MS = 5000;
 
 let wanted: string | null = null;
 let wantedName: string | null = null;
+/**
+ * How the snapserver knows it, the same after each update (its container's MAC is not), as
+ * Seilide says: the house plays its «aquí» and lowers its music by it.
+ */
+let hostId = 'satelite';
 let current: ChildProcess | null = null;
 let retry: ReturnType<typeof setTimeout> | undefined;
 
@@ -61,11 +55,11 @@ async function nameIt(server: string, name: string) {
 	for (let i = 0; i < NAME_TRIES && wanted === server; i++) {
 		await new Promise((resolve) => setTimeout(resolve, NAME_EVERY_MS));
 		try {
-			const status = (await control(host, 'Client.GetStatus', { id: HOST_ID })) as {
+			const status = (await control(host, 'Client.GetStatus', { id: hostId })) as {
 				client?: { config?: { name?: string } };
 			} | null;
 			if (!status?.client) continue;
-			if (!status.client.config?.name) await control(host, 'Client.SetName', { id: HOST_ID, name });
+			if (!status.client.config?.name) await control(host, 'Client.SetName', { id: hostId, name });
 			return;
 		} catch {
 			// Not yet, or its control not reachable: tried again, or left with its machine's name.
@@ -89,7 +83,7 @@ function start() {
 			'--soundcard',
 			SOUNDCARD,
 			'--hostID',
-			HOST_ID,
+			hostId,
 			'--logsink',
 			'stderr'
 		],
@@ -118,12 +112,14 @@ function start() {
 }
 
 /**
- * The snapserver told now (null, none), and its name there: the same, nothing; another, started
- * again with it.
+ * The snapserver told now (null, none), its name and its id there: the same, nothing; another,
+ * started again with it.
  */
-export function followSnapserver(server: string | null, name: string | null) {
+export function followSnapserver(server: string | null, name: string | null, id: string | null) {
 	wantedName = name;
-	if (server === wanted) return;
+	const sameId = !id || id === hostId;
+	if (id) hostId = id;
+	if (server === wanted && sameId) return;
 	wanted = server;
 	clearTimeout(retry);
 	const old = current;

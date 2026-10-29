@@ -1,12 +1,11 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { field, primary, secondary, section, select } from '#lib/styles.ts';
+	import { field, primary, secondary, section } from '#lib/styles.ts';
 	import type { PageData, ActionData } from './$types';
 
 	/**
 	 * Los satélites de voz que sirve Seilide (#296): una Raspberry en una habitación, con su clave,
-	 * también sin jellycartoon. Uno de la casa se puede traer aquí con su mismo id: guarda lo que
-	 * aprendió y sus alarmas.
+	 * también sin jellycartoon; con la casa, su snapserver hace de su altavoz.
 	 */
 	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
 
@@ -86,23 +85,15 @@
 			use:enhance
 			class="flex flex-wrap items-center gap-2"
 		>
-			{#if data.satellites.house.length}
-				<select name="adopt" class={select}>
-					<option value="">Uno nuevo</option>
-					{#each data.satellites.house as h (h.id)}
-						<option value={h.id}>El de la casa: {h.name}</option>
-					{/each}
-				</select>
-			{/if}
-			<input name="name" maxlength="40" placeholder="Dormitorio" class="{field} min-w-0 flex-1" />
+			<input
+				name="name"
+				required
+				maxlength="40"
+				placeholder="Dormitorio"
+				class="{field} min-w-0 flex-1"
+			/>
 			<button class={primary}>Añadir</button>
 		</form>
-		{#if data.satellites.house.length}
-			<p class="mt-2 text-xs text-zinc-500">
-				Uno de la casa se trae con su mismo nombre (si no le pones otro), y guarda lo que aprendió y
-				sus alarmas. Mientras no le cambies la clave en la Raspberry, sigue hablando con la casa.
-			</p>
-		{/if}
 		{#if form && 'satelliteProblem' in form}
 			<p class="mt-3 text-sm text-red-400">{form.satelliteProblem}</p>
 		{/if}

@@ -324,7 +324,8 @@ if (serverReady)
 		const was = alarms;
 		alarms = state;
 		// Only Seilide says it: a house's satellite keeps the snapclient it has, if any.
-		if ('snapserver' in state) followSnapserver(state.snapserver ?? null, state.name ?? null);
+		if ('snapserver' in state)
+			followSnapserver(state.snapserver ?? null, state.name ?? null, state.snapclientId ?? null);
 		if (state.ringing.join() !== was.ringing.join())
 			log(state.ringing.length ? `Sonando: ${state.ringing.join(', ')}` : 'Nada sonando');
 		if (!state.play.length) hush();

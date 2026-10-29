@@ -6,7 +6,7 @@ import { orderForCloudSatellite, orderFromCloud } from '#lib/server/voice/hands.
 
 /**
  * An order said to the cloud (#253: its road mode, or its Hablar), by one of the house; or to one of
- * the satellites it serves (#296: `satellite`, its id and name, and no one): what only the house
+ * the satellites it serves (#296: `satellite`, its id, name and own snapclient, and no one): what only the house
  * knows (its music, its tools), for the cloud's AI; the house's hands (/api/v1/voz) then answer to it.
  */
 export const POST: RequestHandler = async ({ request }) => {
@@ -18,7 +18,8 @@ export const POST: RequestHandler = async ({ request }) => {
 		await fromCloud(request);
 		if (typeof satellite.id !== 'string' || typeof satellite.name !== 'string')
 			error(400, 'Satélite no válido');
-		const order = await orderForCloudSatellite(command, satellite);
+		const speaker = typeof satellite.speaker === 'string' ? satellite.speaker : null;
+		const order = await orderForCloudSatellite(command, { ...satellite, speaker });
 		if (!order) error(503, 'La casa aún no tiene ninguna cuenta');
 		return json(order);
 	}

@@ -46,8 +46,7 @@ export const voiceLearned = pgTable(
 
 /**
  * The voice satellites Seilide serves (#296): a Raspberry in a room, with its key, for families
- * with or without jellycartoon. Its id is its place's (`satelite:<id>`: its alarms, what it learned);
- * one adopted from the house keeps the house's id, and with it all that.
+ * with or without jellycartoon. Its id is its place's (`satelite:<id>`: its alarms, what it learned).
  */
 export const voiceSatellite = pgTable(
 	'voice_satellite',

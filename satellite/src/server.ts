@@ -105,8 +105,9 @@ export interface Ringing {
 	play: string[];
 	/** Seilide's (#296): the snapserver it plays from, for its own snapclient; null, none. */
 	snapserver?: string | null;
-	/** And its name, for it to be known so there: «Dormitorio». */
+	/** And its name, for it to be known so there: «Dormitorio»; and its id there. */
 	name?: string;
+	snapclientId?: string;
 }
 
 /** After a dropped channel, tried again this long after. */

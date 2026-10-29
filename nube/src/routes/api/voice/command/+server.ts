@@ -5,7 +5,12 @@ import type { HouseVoiceOrder } from 'comun/house-voice.ts';
 import { familyHasHouse, HouseProblem, tellHouse } from '#lib/server/house.ts';
 import { describeTimersAt } from '#lib/server/alarms/alarms.ts';
 import { sayableError } from '#lib/server/openrouter.ts';
-import { familySatellites, satelliteRequest } from '#lib/server/satellites.ts';
+import {
+	familySatellites,
+	satelliteRequest,
+	snapclientIdOf,
+	snapserverOf
+} from '#lib/server/satellites.ts';
 import { voiceAnswered, voiceFailed } from '#lib/server/voice/alarm.ts';
 import { runVoiceCommand } from '#lib/server/voice/command.ts';
 import {
@@ -42,9 +47,10 @@ export const POST: RequestHandler = async ({ request }) => {
 	const command = parseVoiceRequest(await request.json().catch(() => null));
 	if (!command) error(400, 'Orden no válida');
 	const place = `satelite:${satellite.id}` as const;
-	const [timers, own] = await Promise.all([
+	const [timers, own, snapserver] = await Promise.all([
 		describeTimersAt(k, place),
-		familySatellites(k.familyId)
+		familySatellites(k.familyId),
+		snapserverOf(k, satellite.id)
 	]);
 	let fromHouse: HouseVoiceOrder | null = null;
 	let note = SATELLITE_WITHOUT_HOUSE;
@@ -52,7 +58,12 @@ export const POST: RequestHandler = async ({ request }) => {
 		try {
 			fromHouse = await tellHouse<HouseVoiceOrder>(k.familyId, '/voz/orden', {
 				...command,
-				satellite: { id: satellite.id, name: satellite.name }
+				// Its own snapclient, if it plays the house's music: its room's speaker there.
+				satellite: {
+					id: satellite.id,
+					name: satellite.name,
+					speaker: snapserver ? snapclientIdOf(satellite.id) : null
+				}
 			});
 		} catch (err) {
 			if (!(err instanceof HouseProblem)) throw err;

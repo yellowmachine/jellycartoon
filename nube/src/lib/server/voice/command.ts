@@ -1449,7 +1449,7 @@ export async function runVoiceCommand(
 				{
 					type: 'text',
 					text: satellite
-						? `[Te habla alguien de la casa desde «${satellite.name}», un satélite de voz sin pantalla: no sabes quién es, así que sin nombres; tampoco hay historial de lo que ve cada uno. El satélite no pone música, radio ni vídeos: aquí es toda la casa, y de un capítulo solo el audio. Los temporizadores y las alarmas que pongas desde aquí suenan donde contesta el satélite, con un «din-don» y su nombre, así que dales un nombre que se entienda al oírlo («pedir cita en la peluquería»); son de la casa, salvo que diga para quién.]`
+						? `[Te habla alguien de la casa desde «${satellite.name}», un satélite de voz sin pantalla: no sabes quién es, así que sin nombres; tampoco hay historial de lo que ve cada uno. ${satellite.ownSpeaker ? `La música y la radio de la casa suenan también en su altavoz: «aquí» es solo esta habitación; toda la casa si lo pide. Vídeos no: de un capítulo, solo el audio.` : 'El satélite no pone música, radio ni vídeos: aquí es toda la casa, y de un capítulo solo el audio.'} Los temporizadores y las alarmas que pongas desde aquí suenan donde contesta el satélite, con un «din-don» y su nombre, así que dales un nombre que se entienda al oírlo («pedir cita en la peluquería»); son de la casa, salvo que diga para quién.]`
 						: `[Te habla: ${order.who.name}.${personStyle ? ` Cómo quiere que le hables (solo el tono, como el carácter de la casa): «${personStyle}».` : ''}]`
 				},
 				{ type: 'text', text: house.sounding },

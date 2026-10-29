@@ -36,6 +36,8 @@ export interface Satellite {
 	speakerId: string | null;
 	/** Where it answers: null, its own speaker; else on Snapcast (snapcast.ts, `sayOnSnapcast`). */
 	answerOn: SatelliteAnswer;
+	/** One of Seilide's (#296) whose `speakerId` is its own snapclient: «aquí» is only there. */
+	ownSpeaker?: boolean;
 }
 
 /** The whole house, or one Snapcast speaker (its id). */
@@ -147,26 +149,24 @@ export async function allSatellites(): Promise<Satellite[]> {
 }
 
 /**
- * One that talks to Seilide (#296), as the house sees it: its own, if it was the house's (its id),
- * with its speaker and in whose name it goes; else a new one, in the whole house, in the name of
- * whoever manages the house (its first account).
+ * One that talks to Seilide (#296), as the house sees it: never one of its own; in the name of
+ * whoever manages the house (its first account), and with its own snapclient as its room's speaker
+ * if Seilide says it has one. Null without any account.
  */
-export async function cloudSatellite(id: string, name: string) {
-	const own = (await allSatellites()).find((s) => s.id === id);
-	const [owner] = own
-		? await db.select({ id: user.id, name: user.name }).from(user).where(eq(user.id, own.ownerId))
-		: await db
-				.select({ id: user.id, name: user.name })
-				.from(user)
-				.orderBy(asc(user.createdAt))
-				.limit(1);
+export async function cloudSatellite(id: string, name: string, speaker: string | null) {
+	const [owner] = await db
+		.select({ id: user.id, name: user.name })
+		.from(user)
+		.orderBy(asc(user.createdAt))
+		.limit(1);
 	if (!owner) return null;
-	const satellite: Satellite = own ?? {
+	const satellite: Satellite = {
 		id,
 		name,
 		ownerId: owner.id,
-		speakerId: null,
-		answerOn: null
+		speakerId: speaker,
+		answerOn: null,
+		ownSpeaker: speaker !== null
 	};
 	return { satellite, owner };
 }
