@@ -1,0 +1,51 @@
+# The voice satellite (#296) on a Raspberry (64-bit) or a PC, as installed: the published image,
+# talking to Seilide (SERVER_URL, SATELLITE_KEY in the .env, from Seilide's Ajustes → Familia →
+# «Satélites de voz»), and WUD keeping it up to date. See README.md.
+#
+#   docker compose -f compose.prod.yaml up -d
+name: satelite
+
+services:
+  satellite:
+    image: ghcr.io/yellowmachine/jellycartoon-satellite:${IMAGE_TAG:-stable}
+    restart: unless-stopped
+    devices:
+      - /dev/snd
+    group_add:
+      - audio
+    environment:
+      MIC: ${MIC:-default}
+      MIC_RATE: ${MIC_RATE:-48000}
+      MIC_CHANNELS: ${MIC_CHANNELS:-2}
+      # The word that wakes it (src/lib/wake-words.ts): hola_casita, or alexa.
+      WAKE_WORD: ${WAKE_WORD:-hola_casita}
+      WAKE_THRESHOLD: ${WAKE_THRESHOLD:-0.3}
+      WAKE_MARGIN_DB: ${WAKE_MARGIN_DB:-15}
+      TZ: ${TZ:-Europe/Madrid}
+      SERVER_URL: ${SERVER_URL:?SERVER_URL is required}
+      SATELLITE_KEY: ${SATELLITE_KEY:?SATELLITE_KEY is required}
+      SPEAKER: ${SPEAKER:-}
+    volumes:
+      - ordenes:/data
+    labels:
+      # Updated by WUD to each release, as the house's app.
+      - wud.watch=true
+
+  # Each night, the new release if there is one: it pulls it and recreates the satellite as it was,
+  # then removes the old image. As the house's (its compose.prod.yaml), without its web.
+  wud:
+    image: getwud/wud:9
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Europe/Madrid}
+      WUD_WATCHER_LOCAL_CRON: ${UPDATE_CRON:-30 4 * * *}
+      WUD_WATCHER_LOCAL_WATCHBYDEFAULT: 'false'
+      WUD_TRIGGER_DOCKER_SATELITE_PRUNE: 'true'
+    volumes:
+      # Control of Docker: whoever controls WUD controls this machine's containers.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - wud_store:/store
+
+volumes:
+  ordenes:
+  wud_store:
