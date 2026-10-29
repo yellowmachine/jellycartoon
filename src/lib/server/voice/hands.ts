@@ -4,9 +4,12 @@ import { searchVideo, seriesEpisodes } from '#lib/server/voice/video.ts';
 import { MAX_CLIP_MINUTES, sendClip } from '#lib/server/langua.ts';
 import { playEpisodes, seriesQueue } from '#lib/server/cinema/episode-actions.ts';
 import { playFilm } from '#lib/server/cinema/film-actions.ts';
+import { askAloud } from '#lib/server/cinema/chat.ts';
+import { chatConfig } from '#lib/server/app-settings.ts';
+import type { Tool } from '#lib/server/openrouter.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { db } from '#lib/server/db/index.ts';
-import { episode, episodeTitle, series } from '#lib/server/db/schema.ts';
+import { episode, episodeTitle, movie, movieTitle, series } from '#lib/server/db/schema.ts';
 import { getAlbums, tracksById } from '#lib/server/music/albums.ts';
 import { searchMusic } from '#lib/server/voice/music-search.ts';
 import { getPlaylist, listPlaylists } from '#lib/server/music/playlists.ts';
@@ -56,7 +59,7 @@ import {
 	TELEGRAM_TOOLS,
 	telegramTools
 } from '#lib/server/voice/telegram-tools.ts';
-import { isKidAccount } from '#lib/server/kids.ts';
+import { allowedMovies, isKidAccount } from '#lib/server/kids.ts';
 import { findPlaces, forecast, housePlace, placeName } from '#lib/server/weather.ts';
 import {
 	MAX_STOP_LATER_MIN,
@@ -118,6 +121,8 @@ interface Order {
 	satelliteName: string | null;
 	/** This order's own id: a message is never sent in the order that prepared it (#243). */
 	order: string;
+	/** The film whose card is on the screen, to ask about it (`ask_about_film`). */
+	film: number | null;
 }
 
 const orders = new Map<string, Order>();
@@ -163,9 +168,12 @@ async function openOrder(
 				? listSpeakers().then((list) => (list ?? []).map((s) => ({ id: s.id, name: s.name })))
 				: []
 		]);
+	// Not a satellite's: it has no screen. Nor a child's: no conversations with the AI (#17).
+	const film = satellite || kid ? null : await filmToAsk(request.film);
 	const tools = [
 		...(satellite ? [] : historyTools({ self: user })),
-		...(await telegramTools(user.id, Boolean(satellite)))
+		...(await telegramTools(user.id, Boolean(satellite))),
+		...(film ? [askFilmTool] : [])
 	];
 	orders.set(order, {
 		albums,
@@ -178,7 +186,8 @@ async function openOrder(
 		satellite: Boolean(satellite),
 		place,
 		satelliteName: satellite?.name ?? null,
-		order
+		order,
+		film: film?.id ?? null
 	});
 	const expiry = setTimeout(() => orders.delete(order), ORDER_MS);
 	return {
@@ -198,7 +207,14 @@ async function openOrder(
 				keepHistory,
 				today: todayText(),
 				sounding: soundingNow(request.here, house),
-				watching,
+				watching:
+					[
+						watching,
+						film &&
+							`[En la pantalla, la ficha de la película «${film.title}»${film.year ? ` (${film.year})` : ''} [película ${film.id}]: lo que pregunte de ella, con ask_about_film.]`
+					]
+						.filter(Boolean)
+						.join('\n') || null,
 				timers,
 				satellites: satellites.map(({ id, name }) => ({ id, name })),
 				tools
@@ -275,6 +291,12 @@ async function hand(
 			satellite: ctx.satelliteName,
 			order: ctx.order
 		});
+	if (name === 'ask_about_film') {
+		const question = typeof args.question === 'string' ? args.question.trim() : '';
+		if (!ctx.film) return 'No hay ninguna película en la pantalla.';
+		if (!question) return 'Falta la pregunta.';
+		return (await askAloud(ctx.user.id, ctx.film, question)) || 'No ha sabido qué contestar.';
+	}
 	// A satellite's «aquí» has nothing to play on: music, radio and their controls, in the whole house.
 	const asked =
 		ctx.satellite && HOUSE_FROM_SATELLITE.has(name) && (!args.where || args.where === 'here')
@@ -449,6 +471,36 @@ async function hand(
 }
 
 /** The episode in this device's player, for the AI: «manda esto a Langua» is about it. */
+/**
+ * Asked about the film on the screen: what it knows of it (Wikipedia, its card), as its written
+ * conversation does, and in it.
+ */
+const askFilmTool: Tool = {
+	type: 'function',
+	function: {
+		name: 'ask_about_film',
+		description:
+			'Pregunta sobre la película de la pantalla (de qué va, quién sale, si es para niños, curiosidades, premios…) a quien la conoce: con sus artículos de Wikipedia, sin destripar lo que no ha visto. Devuelve la respuesta lista para decir: dila tal cual. Para ponerla, play_video.',
+		parameters: {
+			type: 'object',
+			properties: {
+				question: { type: 'string', description: 'La pregunta, como la dijo.' }
+			},
+			required: ['question']
+		}
+	}
+};
+
+/** The film of the card on the screen, if it can be talked about (an OpenRouter key). */
+async function filmToAsk(id: number | null) {
+	if (!id || !(await chatConfig()).apiKey) return null;
+	const [film] = await db
+		.select({ id: movie.id, title: movieTitle, year: movie.year })
+		.from(movie)
+		.where(and(eq(movie.id, id), eq(movie.missing, false), allowedMovies()));
+	return film ?? null;
+}
+
 async function videoText(video: VideoHere | null) {
 	if (!video) return null;
 	const [ep] = await db

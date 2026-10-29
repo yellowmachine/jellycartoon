@@ -81,6 +81,8 @@ export interface VoiceRequest {
 	timers: string[];
 	/** The recipe being cooked here, as recipe.ts describes it, and its step; null if none. */
 	recipe: string | null;
+	/** The film whose card is on this screen, to ask about it; null if none. */
+	film: number | null;
 	/** Said in the road mode (#78): driving, audio only, here only. */
 	car: boolean;
 	/** In the road mode, where we are (the GPS), for «llévame a…» and «¿dónde estoy?». */
@@ -162,6 +164,7 @@ export function parseVoiceRequest(body: unknown): VoiceRequest | null {
 			.slice(0, 20),
 		// Thirty steps of a few lines each, and the ingredients.
 		recipe: text(b.recipe, 12_000),
+		film: Number.isInteger(b.film) && Number(b.film) > 0 ? Number(b.film) : null,
 		car: b.car === true,
 		position:
 			b.car === true &&

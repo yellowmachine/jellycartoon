@@ -1,4 +1,5 @@
 import { goto } from '$app/navigation';
+import { page } from '$app/state';
 import { music } from 'comun/music-player.svelte.ts';
 import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
@@ -214,6 +215,7 @@ class VoiceClient {
 				history: this.#history,
 				timers: timers.describe(),
 				recipe: recipe.describe(),
+				film: filmOnScreen(),
 				// The road mode is the cloud's (#253): never here.
 				car: false,
 				position: null,
@@ -352,6 +354,12 @@ function duckLivingRoom(on: boolean) {
 		body: JSON.stringify({ on }),
 		keepalive: true
 	}).catch(() => {});
+}
+
+/** The film whose card is open, on the TV or in the browser: «¿es para niños?» is about it. */
+function filmOnScreen() {
+	const id = page.url.pathname.match(/^\/(?:tv\/)?cine\/(\d+)$/)?.[1];
+	return id ? Number(id) : null;
 }
 
 /**

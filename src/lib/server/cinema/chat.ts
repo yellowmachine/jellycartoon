@@ -65,14 +65,15 @@ function cachedArticles(wikidataId: string) {
 
 /**
  * Answers a question about a film, as it is written. The question and the answer (also a partial
- * one, if it is stopped) are saved.
+ * one, if it is stopped) are saved. `spoken`: asked by voice, the answer is read aloud.
  */
 export async function* ask(request: {
 	userId: string;
 	movieId: number;
 	question: string;
+	spoken?: boolean;
 }): AsyncGenerator<ChatEvent> {
-	const { userId, movieId, question } = request;
+	const { userId, movieId, question, spoken = false } = request;
 	const config = await chatConfig();
 	if (!config.apiKey) throw new Error('No hay clave de OpenRouter: ponla en Ajustes');
 
@@ -106,7 +107,7 @@ export async function* ask(request: {
 	await db.insert(movieChatMessage).values({ userId, movieId, role: 'user', content: question });
 
 	const messages: ChatMessage[] = [
-		{ role: 'system', content: systemPrompt({ film, found, sources, web: config.web }) },
+		{ role: 'system', content: systemPrompt({ film, found, sources, web: config.web, spoken }) },
 		...history.reverse(),
 		{ role: 'user', content: question }
 	];
@@ -153,11 +154,23 @@ export async function* ask(request: {
 	}
 }
 
+/**
+ * Asked by voice (the TV's card, #33): the whole answer, to be read aloud. The same conversation
+ * as the written one, which shows it afterwards.
+ */
+export async function askAloud(userId: string, movieId: number, question: string) {
+	let answer = '';
+	for await (const event of ask({ userId, movieId, question, spoken: true }))
+		if ('text' in event) answer += event.text;
+	return answer.trim();
+}
+
 function systemPrompt({
 	film,
 	found,
 	sources,
-	web
+	web,
+	spoken
 }: {
 	film: {
 		title: string;
@@ -169,6 +182,7 @@ function systemPrompt({
 	found: MovieInfo | null;
 	sources: Article[];
 	web: boolean;
+	spoken: boolean;
 }) {
 	const facts = found
 		? [
@@ -194,9 +208,17 @@ function systemPrompt({
 			: 'Aún no la ha visto: no desveles giros ni el final; si pregunta por ellos, avisa antes de contarlo.';
 
 	return [
-		'Eres un cinéfilo con mucho oficio que conversa con alguien en su casa, desde el móvil, sobre una película de su colección.',
-		'Responde en el idioma en que te pregunten, con un tono cercano y concreto. Sé breve: dos o tres párrafos cortos salvo que pidan más.',
-		'Escribe texto plano, sin Markdown: ni asteriscos, ni almohadillas, ni listas con guiones. Separa los párrafos con una línea en blanco.',
+		...(spoken
+			? [
+					'Eres un cinéfilo con mucho oficio que conversa con alguien en su casa, delante de la tele, sobre una película de su colección. Te pregunta en voz alta y tu respuesta se leerá en voz alta.',
+					'Responde en el idioma en que te pregunten, con un tono cercano y concreto. Muy breve: dos o tres frases, salvo que pidan más.',
+					'Escribe como se habla: texto plano, sin Markdown, listas, enlaces, URLs ni paréntesis largos.'
+				]
+			: [
+					'Eres un cinéfilo con mucho oficio que conversa con alguien en su casa, desde el móvil, sobre una película de su colección.',
+					'Responde en el idioma en que te pregunten, con un tono cercano y concreto. Sé breve: dos o tres párrafos cortos salvo que pidan más.',
+					'Escribe texto plano, sin Markdown: ni asteriscos, ni almohadillas, ni listas con guiones. Separa los párrafos con una línea en blanco.'
+				]),
 		sources.length
 			? 'Básate ante todo en los artículos de Wikipedia de abajo. Si añades algo que no está en ellos, hazlo solo si lo sabes con seguridad y di que no viene de Wikipedia. Nunca inventes fechas, nombres, cifras ni anécdotas: si no lo sabes, dilo.'
 			: 'No hay artículos de Wikipedia de esta película. Responde solo con lo que sepas con seguridad, y di claramente cuando no lo sepas: nunca inventes fechas, nombres, cifras ni anécdotas.',
