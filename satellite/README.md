@@ -7,10 +7,12 @@ jellycartoon, además, la música, la radio y los altavoces de la casa (#296).
 
 ## Lo que hace falta
 
-- Una Raspberry Pi 4 o 5 con **Raspberry Pi OS de 64 bits** (o Debian), o un PC con Linux.
-- Un micrófono USB y un altavoz (el de la salida de auriculares vale).
-- Docker, instalado como dice su documentación:
-  https://docs.docker.com/engine/install/debian/ (en la Raspberry, la de Debian).
+- Una Raspberry Pi 4 o 5 con **Raspberry Pi OS de 64 bits** (o Debian), o un PC con Linux
+  (un mini PC, un portátil viejo): la imagen es para las dos (arm64 y amd64), y Docker baja la
+  que toca.
+- Un micrófono USB y un altavoz (el de la salida de auriculares vale); en un portátil, los suyos.
+- Docker, instalado como dice su documentación para ese sistema:
+  https://docs.docker.com/engine/install/ (en la Raspberry, la de Debian).
 
 ## Instalarlo
 
@@ -22,6 +24,10 @@ jellycartoon, además, la música, la radio y los altavoces de la casa (#296).
    `plughw:CARD=Microphone` y `plughw:CARD=Headphones`), en `MIC` y `SPEAKER`.
 4. `docker compose -f compose.prod.yaml up -d`, y para ver que oye:
    `docker compose -f compose.prod.yaml logs -f satellite` («Escuchando «Alexa» en …»).
+
+En un PC los nombres de ALSA son otros (el audio integrado suele ser `plughw:CARD=PCH`). Si
+tiene escritorio, su PulseAudio o PipeWire puede tener la tarjeta cogida y el satélite no oír ni
+sonar: mejor sin sesión gráfica, o con el audio del escritorio apagado. Sin probar aún.
 
 Se actualiza solo: WUD mira cada noche (a las 4:30, `UPDATE_CRON`) si hay versión nueva, y la pone.
 
