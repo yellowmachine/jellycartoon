@@ -91,9 +91,15 @@ export async function agendaByVoice(k: Kitchen, args: Args, kid: string | null) 
 
 /**
  * «Despiértame a las 7»: where it is said (`place`, a satellite's; null, a phone), of who speaks
- * unless said otherwise (from a satellite, the house's).
+ * unless said otherwise (from a satellite, the house's). Said from a phone it rings in the house;
+ * without one (`withHouse` false), on the phones.
  */
-export async function setAlarmByVoice(k: Kitchen, args: Args, place: AlarmPlace | null) {
+export async function setAlarmByVoice(
+	k: Kitchen,
+	args: Args,
+	place: AlarmPlace | null,
+	withHouse = true
+) {
 	if (!isTime(args.time)) return 'Falta la hora, como HH:MM.';
 	const days = Array.isArray(args.days)
 		? args.days.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6)
@@ -119,7 +125,7 @@ export async function setAlarmByVoice(k: Kitchen, args: Args, place: AlarmPlace 
 		days,
 		label: typeof args.label === 'string' ? args.label : '',
 		people,
-		place: place ?? 'casa'
+		place: place ?? (withHouse ? 'casa' : 'movil')
 	});
 	if (!input || input.kind !== 'alarma') return 'Alarma no válida.';
 	const id = await addAlarm(k, input);

@@ -33,6 +33,14 @@ export async function houseLink(userId: string): Promise<HouseLink | null> {
 	};
 }
 
+/** Whether the family has connected its house (Ajustes): without one, Seilide does without it. */
+export async function hasHouse(userId: string) {
+	const [row] = await withFamily(userId, (tx) =>
+		tx.select({ familyId: house.familyId }).from(house)
+	);
+	return Boolean(row);
+}
+
 /**
  * Its address and key, or a new key alone (an empty one keeps the one there was); and
  * jellycartoon's own address, or none.

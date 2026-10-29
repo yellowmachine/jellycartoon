@@ -1,4 +1,5 @@
 import { familySettings } from './db/schema.ts';
+import type { Place } from 'comun/weather.ts';
 import type { Kitchen } from './fridge.ts';
 import { decrypt, encrypt } from './secret-box.ts';
 
@@ -77,5 +78,20 @@ export async function toggleRecipesBackdrop(k: Kitchen, id: number) {
 			.insert(familySettings)
 			.values({ familyId: k.familyId, recipesBackdrop })
 			.onConflictDoUpdate({ target: familySettings.familyId, set: { recipesBackdrop } })
+	);
+}
+
+/** «Dónde vivís» (Ajustes → Familia), for the weather; null, not said. */
+export async function familyPlace(k: Kitchen) {
+	return (await settingsOf(k))?.place ?? null;
+}
+
+/** Where the family lives, or nowhere (null). */
+export async function setFamilyPlace(k: Kitchen, place: Place | null) {
+	await k.run((tx) =>
+		tx
+			.insert(familySettings)
+			.values({ familyId: k.familyId, place })
+			.onConflictDoUpdate({ target: familySettings.familyId, set: { place } })
 	);
 }

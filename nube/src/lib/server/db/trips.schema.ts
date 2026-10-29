@@ -1,5 +1,7 @@
 import {
 	bigint,
+	boolean,
+	date,
 	doublePrecision,
 	foreignKey,
 	index,
@@ -11,6 +13,7 @@ import {
 	real,
 	serial,
 	text,
+	time,
 	timestamp,
 	unique
 } from 'drizzle-orm/pg-core';
@@ -18,6 +21,7 @@ import type { LngLat } from 'comun/road.ts';
 import type { RouteStop } from 'comun/saved-places.ts';
 import { user } from './auth.schema.ts';
 import { family, familyRows } from './family.schema.ts';
+import { calendarEvent, familyPerson } from './agenda.schema.ts';
 
 /**
  * Viajes (#253; jellycartoon's #81, #151, #164): each person's trips and photos from the road mode,
@@ -190,5 +194,83 @@ export const routeMap = pgTable(
 			foreignColumns: [mapDevice.familyId, mapDevice.id]
 		}).onDelete('cascade'),
 		familyRows('route_map_own', t.familyId)
+	]
+).enableRLS();
+
+/**
+ * A trip still to come (Viajes → Próximos): its name, who goes, and its legs. The family's, so that
+ * anyone sees when they leave and what weather they will have; or only its maker's (`private`).
+ */
+export const plannedTrip = pgTable(
+	'planned_trip',
+	{
+		familyId: familyId(),
+		id: serial('id').primaryKey(),
+		/** Who made it; gone, it stays the family's. */
+		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+		name: text('name').notNull(),
+		/** «Solo para mí»: only its maker sees it, and it is not in the Agenda. */
+		private: boolean('private').notNull().default(false),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [
+		unique('planned_trip_family_id').on(t.familyId, t.id),
+		familyRows('planned_trip_own', t.familyId)
+	]
+).enableRLS();
+
+/** Who goes on a trip: theirs on the home page, and its legs in the Agenda for them. */
+export const plannedTripPerson = pgTable(
+	'planned_trip_person',
+	{
+		familyId: familyId(),
+		tripId: integer('trip_id').notNull(),
+		personId: integer('person_id').notNull()
+	},
+	(t) => [
+		primaryKey({ columns: [t.tripId, t.personId] }),
+		foreignKey({
+			name: 'planned_trip_person_trip_fk',
+			columns: [t.familyId, t.tripId],
+			foreignColumns: [plannedTrip.familyId, plannedTrip.id]
+		}).onDelete('cascade'),
+		foreignKey({
+			name: 'planned_trip_person_person_fk',
+			columns: [t.familyId, t.personId],
+			foreignColumns: [familyPerson.familyId, familyPerson.id]
+		}).onDelete('cascade'),
+		familyRows('planned_trip_person_own', t.familyId)
+	]
+).enableRLS();
+
+/**
+ * A leg of a trip: the day and time it leaves, and its way by car, its own copy (from a kept route,
+ * which is its maker's, or new), as openrouteservice gave it. Its event in the Agenda, if the trip
+ * is the family's.
+ */
+export const plannedLeg = pgTable(
+	'planned_leg',
+	{
+		familyId: familyId(),
+		id: serial('id').primaryKey(),
+		tripId: integer('trip_id').notNull(),
+		day: date('day').notNull(),
+		/** When it leaves, in the family's time. */
+		time: time('time').notNull(),
+		stops: jsonb('stops').$type<RouteStop[]>().notNull(),
+		line: jsonb('line').$type<LngLat[]>().notNull(),
+		/** Metres and seconds, all of it. */
+		distance: real('distance').notNull(),
+		duration: real('duration').notNull(),
+		eventId: integer('event_id').references(() => calendarEvent.id, { onDelete: 'set null' })
+	},
+	(t) => [
+		index('planned_leg_trip_idx').on(t.tripId, t.day, t.time),
+		foreignKey({
+			name: 'planned_leg_trip_fk',
+			columns: [t.familyId, t.tripId],
+			foreignColumns: [plannedTrip.familyId, plannedTrip.id]
+		}).onDelete('cascade'),
+		familyRows('planned_leg_own', t.familyId)
 	]
 ).enableRLS();

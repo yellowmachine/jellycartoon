@@ -82,6 +82,13 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		words: 'familia peques niños hijos dibujo avatar sin cuenta agenda'
 	},
 	{
+		id: 'donde-vivis',
+		tab: 'familia',
+		title: 'Dónde vivís',
+		words: 'tiempo pueblo ciudad sitio casa ubicación portada clima',
+		shown: onlyAdmin
+	},
+	{
 		id: 'casa',
 		tab: 'familia',
 		title: 'Tu casa',

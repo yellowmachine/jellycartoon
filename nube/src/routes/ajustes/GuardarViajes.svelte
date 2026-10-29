@@ -29,7 +29,7 @@
 				<span class="block text-xs text-zinc-500"
 					>Con el modo carretera abierto, por dónde vas: cada viaje con su recorrido, distancia y
 					tiempo, y los km al mes. Solo los ves tú, en <a
-						href="/viajes"
+						href="/viajes/hechos"
 						class="text-amber-400 hover:underline">Viajes</a
 					>, donde se borran. Apagarlo no borra lo ya guardado.</span
 				>

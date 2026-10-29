@@ -365,3 +365,53 @@ export async function forwardChat(request: {
 		headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' }
 	});
 }
+
+/**
+ * Who hears what was said when the family has no house (whose Whisper does it otherwise): right in
+ * Spanish where Whisper's turbo invented words, under a second and about a hundredth of a cent an
+ * order (tried on 2026-10-29 with a satellite's).
+ */
+export const TRANSCRIBE_MODEL = 'openai/gpt-4o-mini-transcribe';
+
+/** The recording's format, as OpenRouter names it, from its type; null, one it does not take. */
+export function audioFormat(type: string) {
+	const mime = type.split(';')[0]!.trim().toLowerCase();
+	const formats: Record<string, string> = {
+		'audio/webm': 'webm',
+		'audio/ogg': 'ogg',
+		'audio/mp4': 'm4a',
+		'audio/x-m4a': 'm4a',
+		'audio/aac': 'aac',
+		'audio/mpeg': 'mp3',
+		'audio/wav': 'wav',
+		'audio/x-wav': 'wav',
+		'audio/flac': 'flac'
+	};
+	return formats[mime] ?? null;
+}
+
+/**
+ * What was said, by OpenRouter's speech to text:
+ * https://openrouter.ai/docs/guides/overview/multimodal/stt. Throws, said for a person.
+ */
+export async function transcribe(request: {
+	apiKey: string;
+	audio: ArrayBuffer;
+	format: string;
+	timeoutMs?: number;
+}) {
+	const res = await fetch('https://openrouter.ai/api/v1/audio/transcriptions', {
+		method: 'POST',
+		headers: headers(request.apiKey),
+		body: JSON.stringify({
+			model: TRANSCRIBE_MODEL,
+			language: 'es',
+			input_audio: { data: Buffer.from(request.audio).toString('base64'), format: request.format }
+		}),
+		signal: AbortSignal.timeout(request.timeoutMs ?? 30_000)
+	});
+	const body = await res.json().catch(() => null);
+	if (!res.ok) throw refused(res.status, body);
+	noteCost(request.apiKey, 'Voz: oír', body);
+	return typeof body?.text === 'string' ? body.text.trim() : '';
+}

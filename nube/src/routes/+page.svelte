@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { section } from '#lib/styles.ts';
 	import Landing from '#lib/components/Landing.svelte';
+	import Home from '#lib/components/Home.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -8,47 +8,16 @@
 
 {#if !data.user}
 	<Landing {form} />
+{:else if data.home}
+	<Home
+		name={data.user.name}
+		home={data.home}
+		weather={data.weather}
+		trip={data.trip}
+		watching={data.watching}
+		receipts={data.receipts}
+	/>
 {:else}
-	<h1 class="mb-6 text-2xl font-bold">Hola, {data.user?.name}</h1>
-
-	<section class={section}>
-		<h2 class="mb-1 font-semibold">Tu casa</h2>
-		{#if data.house}
-			<p class="text-sm text-zinc-400">
-				Conectada con <span class="font-mono">{data.house.url}</span>: la música y las series de
-				casa, desde aquí.
-			</p>
-		{:else}
-			<p class="text-sm text-zinc-400">
-				Sin conectar. {#if data.family?.admin}Conéctala en <a
-						href="/ajustes"
-						class="text-amber-400 hover:underline">Ajustes</a
-					>.{:else}Lo hace quien administra tu familia.{/if}
-			</p>
-		{/if}
-	</section>
-
-	<div class="mb-8 grid gap-4 sm:grid-cols-2">
-		<a href="/nevera" class="rounded-md border border-zinc-800 p-4 hover:border-amber-500/60">
-			<span class="text-2xl" aria-hidden="true">📌</span>
-			<h2 class="font-semibold">Nevera</h2>
-			<p class="text-sm text-zinc-400">Post-its y la lista de la compra.</p>
-		</a>
-		<a href="/recetas" class="rounded-md border border-zinc-800 p-4 hover:border-amber-500/60">
-			<span class="text-2xl" aria-hidden="true">🍳</span>
-			<h2 class="font-semibold">Recetas</h2>
-			<p class="text-sm text-zinc-400">El recetario de la familia.</p>
-		</a>
-	</div>
-
-	<a
-		href="/carretera"
-		class="block rounded-md border border-zinc-800 p-4 hover:border-amber-500/60"
-	>
-		<span class="text-2xl" aria-hidden="true">🚗</span>
-		<h2 class="font-semibold">Modo carretera</h2>
-		<p class="text-sm text-zinc-400">
-			La música de casa y la radio, en el coche. Pronto, también la ruta.
-		</p>
-	</a>
+	<h1 class="mb-2 text-2xl font-bold">Hola, {data.user.name}</h1>
+	<p class="text-sm text-zinc-400">Tu cuenta aún no está en ninguna familia.</p>
 {/if}

@@ -7,6 +7,7 @@
 	import Invitaciones from './Invitaciones.svelte';
 	import EntrarConLaNube from './EntrarConLaNube.svelte';
 	import VozCaracter from './VozCaracter.svelte';
+	import DondeVivis from './DondeVivis.svelte';
 	import VozInternet from './VozInternet.svelte';
 	import VozSilencio from './VozSilencio.svelte';
 	import Guardado from 'comun/components/Guardado.svelte';
@@ -56,7 +57,8 @@
 			index={SETTINGS_INDEX}
 			labels={TAB_LABELS}
 			shown={{ admin, spendLine: data.spendLine !== null }}
-			placeholder="Buscar en Ajustes: colores, voz, clave…"
+			placeholder="Busca o di qué quieres hacer: colores, avisos, invitar…"
+			ask={data.openRouter ? '/api/ajustes/preguntar' : undefined}
 		/>
 
 		<!-- Tabs that are links: each keeps its address, and «back» works. Forms post to
@@ -201,6 +203,8 @@
 				<p class="mt-3 text-sm text-red-400">{form.personProblem}</p>
 			{/if}
 		</section>
+
+		<DondeVivis {data} {form} {tab} />
 
 		<Invitaciones {data} {form} {tab} />
 

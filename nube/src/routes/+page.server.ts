@@ -1,17 +1,38 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { houseLink } from '#lib/server/house.ts';
-import { NoFamily } from '#lib/server/family.ts';
+import { hasHouse } from '#lib/server/house.ts';
+import { NoFamily, withFamily } from '#lib/server/family.ts';
+import { kitchenOf } from '#lib/server/fridge.ts';
+import { homeOf, homeWeather } from '#lib/server/home.ts';
+import { continueWatching } from '#lib/server/series.ts';
+import { nextTrip } from '#lib/server/trips/planned.ts';
 import { askForAccess } from '#lib/server/waitlist.ts';
 import { EMAIL } from '#lib/invitation.ts';
 
-/** Without a session, the landing page (hooks.server.ts lets `/` through). */
+/**
+ * Without a session, the landing page (hooks.server.ts lets `/` through); with one, what there is
+ * today in the family (home.ts). The weather, the next trip and «Seguir viendo» come after the
+ * page, as they ask outside (Open-Meteo, the house).
+ */
 export const load: PageServerLoad = async ({ locals }) => {
-	if (!locals.user) return { house: null };
+	if (!locals.user) return { home: null };
 	try {
-		return { house: await houseLink(locals.user.id) };
+		const userId = locals.user.id;
+		const k = await kitchenOf(userId);
+		const admin = await withFamily(userId, async (_, m) => m.role === 'admin');
+		const [home, house] = await Promise.all([homeOf(k, userId, admin), hasHouse(userId)]);
+		const who = { id: userId, email: locals.user.email };
+		return {
+			home: { ...home, house },
+			weather: homeWeather(k).catch(() => null),
+			trip: nextTrip(k).catch((error) => {
+				console.warn('[portada] Sin el próximo viaje', String(error));
+				return null;
+			}),
+			watching: house ? continueWatching(who).catch(() => []) : Promise.resolve([])
+		};
 	} catch (error) {
-		if (error instanceof NoFamily) return { house: null };
+		if (error instanceof NoFamily) return { home: null };
 		throw error;
 	}
 };

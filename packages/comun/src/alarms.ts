@@ -108,3 +108,13 @@ export function daysName(days: number[]) {
 	if (key === '56') return 'Fines de semana';
 	return days.map((d) => WEEKDAYS[d]).join(', ');
 }
+
+/** Rings today (an alarm), or counts down now (a timer): the «Hoy» list's. */
+export function ringsToday(alarm: Alarm, now = new Date()) {
+	if (alarm.ringingSince) return true;
+	if (alarm.kind === 'temporizador') return alarm.endsAt !== null;
+	if (alarm.paused || alarm.nextAt === null) return false;
+	const end = new Date(now);
+	end.setHours(24, 0, 0, 0);
+	return alarm.nextAt < end.getTime();
+}
