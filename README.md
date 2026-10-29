@@ -245,7 +245,8 @@ docker compose -f compose.prod.yaml logs -f app
 
 Para que otras apps lleguen desde fuera sin VPN (de momento la música por Subsonic, p. ej.
 [Tempus](https://github.com/eddyizm/tempus)), un túnel [rathole](https://github.com/rapiz1/rathole)
-con un VPS (#253). La casa abre una conexión saliente al VPS, y lo que llega al VPS por un segundo
+con un VPS (#253). El túnel es de cada casa, en el VPS que quiera: la nube no da uno, solo usa la
+dirección que cada familia le da. La casa abre una conexión saliente al VPS, y lo que llega al VPS por un segundo
 nombre (`MEDIA_HOST`, p. ej. `media.<tu-dominio>`) se manda por ella al Caddy de casa **sin
 descifrar**: el certificado es el de casa y el VPS solo lo pasa. Por ese nombre solo se sirve
 `/rest` (Subsonic); el resto de la app da 404 y sigue siendo solo de casa o de la VPN.

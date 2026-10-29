@@ -210,7 +210,8 @@
 				La música y las series de tu jellycartoon, por su túnel: su dirección de fuera (<code
 					>MEDIA_HOST</code
 				>) y la clave que da en Ajustes → Casa → «La nube». La clave se guarda cifrada y no sale de
-				este servidor.
+				este servidor. El túnel es de cada casa: su rathole, en el servidor que quiera; la nube no
+				da uno.
 			</p>
 
 			{#if data.house}

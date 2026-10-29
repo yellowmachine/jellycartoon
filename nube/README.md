@@ -4,6 +4,11 @@ La parte de la app que vive en internet (#253): lo que tiene que funcionar aunqu
 apagada, y a mano desde fuera. La casa (jellycartoon, en la carpeta de arriba) se queda con la
 media; la nube habla con ella por sus APIs (`/rest`, `/api/v1`), a través del túnel rathole.
 
+**El túnel es de cada casa**: cada familia pone su rathole en el servidor que quiera (README de
+arriba, «Las APIs desde fuera, con rathole») y da en Ajustes su dirección de fuera y su clave. La
+nube no tiene servidor de rathole ni hace de puente para nadie: solo llama a la dirección que cada
+familia le dio. El de quien la mantiene es solo para su casa.
+
 Varias familias en una sola app, cada una aislada por la seguridad por filas de Postgres.
 
 ## Cómo está hecha
