@@ -90,6 +90,15 @@
 	} as const;
 </script>
 
+<!-- In the other app (#253): a small arrow out after its name (Lucide's arrow-up-right). -->
+{#snippet out(external?: boolean)}
+	{#if external}<svg
+			{...iconSvg}
+			class="ml-0.5 inline h-3 w-3 shrink-0 align-[0.1em] opacity-70"
+			stroke-width="2"><path d="M7 7h10v10M7 17 17 7" /></svg
+		>{/if}
+{/snippet}
+
 <header
 	bind:offsetHeight={headerHeight}
 	class="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur"
@@ -119,7 +128,7 @@
 				><SectionIcon
 					name={link.icon}
 					class="hidden h-[18px] w-[18px] shrink-0 md:max-lg:block md:max-lg:h-6 md:max-lg:w-6 xl:block"
-				/><span class="max-w-full truncate">{link.label}</span></a
+				/><span class="max-w-full truncate">{link.label}{@render out(link.external)}</span></a
 			>
 		{/each}
 		<div class="ml-auto hidden items-center md:flex">
@@ -149,7 +158,7 @@
 									>{:else}<SectionIcon
 										name={link.icon}
 										class="h-[18px] w-[18px] shrink-0"
-									/>{/if}{link.label}</a
+									/>{/if}{link.label}{@render out(link.external)}</a
 							>
 						{/each}
 						<hr class="my-1 border-zinc-800" />
@@ -194,7 +203,7 @@
 							isCurrent(link.href) ? 'text-amber-400' : 'text-zinc-200'
 						]}
 						><SectionIcon name={link.icon} class="h-6 w-6 shrink-0" /><span class="truncate"
-							>{link.label}</span
+							>{link.label}{@render out(link.external)}</span
 						></a
 					>
 				</li>
