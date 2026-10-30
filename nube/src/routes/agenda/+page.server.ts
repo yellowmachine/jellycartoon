@@ -8,10 +8,12 @@ import {
 	agendaPeople,
 	deleteEvent,
 	icsToken,
+	personOf,
 	skipDay,
 	updateEvent
 } from '#lib/server/agenda/agenda.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
+import { isKidAccount } from '#lib/server/kids.ts';
 
 /**
  * The family's agenda (#253; jellycartoon's #200): a week (`?dia=2026-10-26`, its Monday to its
@@ -29,10 +31,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const from = mondayOf(first);
 	const lastOfMonth = addDays(`${addDays(`${day.slice(0, 8)}28`, 4).slice(0, 8)}01`, -1);
 	const to = view === 'mes' ? addDays(mondayOf(lastOfMonth), 6) : addDays(from, 6);
+	// A child (#303): its own, only to look at (hooks.server.ts lets it write nothing here).
+	const kid = await isKidAccount(locals.user!.id);
+	const kidPerson = kid ? Number(await personOf(k, locals.user!.id)) || -1 : null;
 	const [{ events, occurrences }, people, token] = await Promise.all([
-		agendaBetween(k, from, to),
+		agendaBetween(k, from, to, kidPerson),
 		agendaPeople(k),
-		icsToken(k)
+		kid ? null : icsToken(k)
 	]);
 	return {
 		view,
@@ -43,8 +48,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		events,
 		occurrences,
 		people,
-		readonly: false,
-		ics: `${ORIGIN}/api/calendario/${token}.ics`
+		readonly: kid,
+		kid,
+		ics: token ? `${ORIGIN}/api/calendario/${token}.ics` : null
 	};
 };
 

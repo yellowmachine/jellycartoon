@@ -266,7 +266,7 @@
 
 <div class="mx-auto max-w-3xl">
 	<h1 class="mb-3 text-2xl font-bold">Agenda</h1>
-	<AgendaTabs current="agenda" />
+	{#if !data.kid}<AgendaTabs current="agenda" />{/if}
 	<p class="mb-4 text-sm text-zinc-400">
 		{#if data.readonly}
 			Lo que tienes apuntado.

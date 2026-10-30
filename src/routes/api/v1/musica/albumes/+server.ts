@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { cloudPerson } from '#lib/server/media-api.ts';
+import { cloudViewer } from '#lib/server/media-api.ts';
 import { getAlbums } from '#lib/server/music/albums.ts';
 
 /**
@@ -8,7 +8,7 @@ import { getAlbums } from '#lib/server/music/albums.ts';
  * one by one, `albumes/<id>`): what the road mode shows to choose from.
  */
 export const GET: RequestHandler = async ({ request }) => {
-	await cloudPerson(request);
+	await cloudViewer(request);
 	const albums = await getAlbums();
 	return json({
 		albums: albums.map((a) => ({

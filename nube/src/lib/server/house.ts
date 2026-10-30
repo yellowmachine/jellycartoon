@@ -1,6 +1,8 @@
 import { eq } from 'drizzle-orm';
-import { house } from './db/schema.ts';
+import { db } from './db/index.ts';
+import { house, user } from './db/schema.ts';
 import { asFamily, withFamily } from './family.ts';
+import { isKidAccount } from './kids.ts';
 import { decrypt, encrypt } from './secret-box.ts';
 
 export { houseUrl } from './house-url.ts';
@@ -87,6 +89,16 @@ const PROBLEMS: Record<number, string> = {
  * A request to the house's API, in this person's name. Throws with a sentence for people if it
  * does not answer as expected.
  */
+/**
+ * A child of the family (#303) says so, with its name: the house makes it one of its children
+ * (its media-api.ts), and gives it only what is for them.
+ */
+async function kidHeader(userId: string): Promise<Record<string, string>> {
+	if (!(await isKidAccount(userId))) return {};
+	const [kid] = await db.select({ name: user.name }).from(user).where(eq(user.id, userId));
+	return { 'x-peque': encodeURIComponent(kid?.name ?? 'Peque') };
+}
+
 export async function askHouse<T>(
 	userId: string,
 	email: string,
@@ -106,6 +118,7 @@ export async function askHouse<T>(
 			headers: {
 				'x-api-key': key,
 				'x-persona': email,
+				...(await kidHeader(userId)),
 				'content-type': 'application/json',
 				...(init.headers as Record<string, string> | undefined)
 			},
@@ -195,7 +208,12 @@ export async function houseStream(
 	let response: Response;
 	try {
 		response = await fetch(`${row.url}/api/v1${path}`, {
-			headers: { 'x-api-key': key, 'x-persona': email, accept: 'text/event-stream' },
+			headers: {
+				'x-api-key': key,
+				'x-persona': email,
+				...(await kidHeader(userId)),
+				accept: 'text/event-stream'
+			},
 			signal
 		});
 	} catch {

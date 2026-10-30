@@ -1,6 +1,6 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { cloudPerson } from '#lib/server/media-api.ts';
+import { cloudViewer } from '#lib/server/media-api.ts';
 import {
 	addToPlaylist,
 	deletePlaylist,
@@ -12,7 +12,7 @@ import {
 
 /** The music API (#253): a playlist and its tracks, in order; `items`, with each one's place. */
 export const GET: RequestHandler = async ({ request, params }) => {
-	await cloudPerson(request);
+	await cloudViewer(request);
 	const playlist = await getPlaylist(Number(params.id));
 	if (!playlist) error(404, 'Lista no encontrada');
 	return json({
@@ -30,7 +30,7 @@ export const GET: RequestHandler = async ({ request, params }) => {
  * (`trackId`), `remove`, `up` or `down` (`itemId`).
  */
 export const POST: RequestHandler = async ({ request, params }) => {
-	await cloudPerson(request);
+	await cloudViewer(request);
 	const id = Number(params.id);
 	const body = await request.json().catch(() => null);
 	switch (body?.action) {
@@ -60,7 +60,7 @@ export const POST: RequestHandler = async ({ request, params }) => {
 };
 
 export const DELETE: RequestHandler = async ({ request, params }) => {
-	await cloudPerson(request);
+	await cloudViewer(request);
 	await deletePlaylist(Number(params.id));
 	return json({ ok: true });
 };

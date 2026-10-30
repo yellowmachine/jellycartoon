@@ -64,7 +64,7 @@ export const allowedSeries = () => (kidsOnly() ? seriesTagged(series.id) : undef
 export const allowedEpisodes = () => (kidsOnly() ? seriesTagged(episode.seriesId) : undefined);
 export const allowedMovies = () => (kidsOnly() ? movieTagged(movie.id) : undefined);
 
-async function seriesAllowed(id: number) {
+export async function seriesAllowed(id: number) {
 	const [row] = await db
 		.select({ one: sql`1` })
 		.from(series)
@@ -72,7 +72,7 @@ async function seriesAllowed(id: number) {
 	return Boolean(row);
 }
 
-async function episodeAllowed(id: number) {
+export async function episodeAllowed(id: number) {
 	const [row] = await db
 		.select({ one: sql`1` })
 		.from(episode)

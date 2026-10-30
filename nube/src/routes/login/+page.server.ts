@@ -2,6 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { APIError } from 'better-auth/api';
 import type { Actions, PageServerLoad } from './$types';
 import { auth } from '#lib/server/auth.ts';
+import { deviceOf } from '#lib/server/kid-login.ts';
 import { oauthReturn, signedOAuthQuery } from '#lib/server/oauth-return.ts';
 
 /**
@@ -30,8 +31,11 @@ const CODE_PROBLEMS: Record<string, string> = {
 /** After these, the code is no longer asked for: the password again. */
 const START_AGAIN = new Set(['TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE', 'INVALID_TWO_FACTOR_COOKIE']);
 
-export const load: PageServerLoad = async ({ locals, url }) => {
+export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 	if (locals.user) redirect(303, safeNext(url));
+	// On the family's device (#303), «¿Quién eres?» first; `?adulto`, the password.
+	if (!url.searchParams.has('adulto') && !signedOAuthQuery(url) && (await deviceOf(cookies)))
+		redirect(303, '/quien');
 	/** Come from a house (#279): given back on entering, to go back there (oauth-return.ts). */
 	return { oauthQuery: signedOAuthQuery(url) };
 };

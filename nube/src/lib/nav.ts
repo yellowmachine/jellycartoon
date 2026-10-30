@@ -55,8 +55,23 @@ const link = (s: (typeof SECTIONS)[number], webUrl: string | null): NavLink => (
 	external: s.where === 'casa' && Boolean(webUrl)
 });
 
+/** What a child's bar has (#303): what it may open (kids.ts), and no Ajustes. */
+const KID_SECTIONS = ['/series', '/musica', '/agenda', '/nevera'];
+
 /** With `hasHouse` false (no house connected), nothing of the house: its sections, Gestión, TV. */
-export function navLinks(webUrl: string | null, serviceAdmin = false, hasHouse = true) {
+export function navLinks(
+	webUrl: string | null,
+	serviceAdmin = false,
+	hasHouse = true,
+	kid = false,
+	guardian = false
+) {
+	if (kid) {
+		const links = SECTIONS.filter(
+			(s) => KID_SECTIONS.includes(s.path) && (hasHouse || !s.house)
+		).map((s) => link(s, webUrl));
+		return { links, menuLinks: links, userLinks: [] };
+	}
 	const links = SECTIONS.filter((s) => hasHouse || (s.where !== 'casa' && !s.house)).map((s) =>
 		link(s, webUrl)
 	);
@@ -69,6 +84,8 @@ export function navLinks(webUrl: string | null, serviceAdmin = false, hasHouse =
 	};
 	const userLinks: UserLink[] = [
 		{ href: '/ajustes', label: 'Ajustes', icon: 'ajustes' },
+		// Their phone, handed to one of their children (#303).
+		...(guardian ? [{ href: '/pasar', label: 'Pasar a un peque', icon: 'infantil' as const }] : []),
 		...(hasHouse
 			? [
 					gestion,

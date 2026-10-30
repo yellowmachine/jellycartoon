@@ -2,19 +2,53 @@
 	import Guardado from 'comun/components/Guardado.svelte';
 	import { enhance } from '$app/forms';
 	import { AI_VOICES, DEFAULT_TONE, MAX_FILLER_CHARS, MAX_TONE_CHARS } from 'comun/ai-voice.ts';
+	import { onDestroy } from 'svelte';
 	import { primary, secondary, section, select } from '#lib/styles.ts';
 	import type { PageData, ActionData } from './$types';
 
 	/**
 	 * Cómo hablan los satélites que sirve Seilide (#296): una voz de Gemini, cómo dice las cosas
 	 * (acento, ánimo) y las frases que dice mientras piensa la IA. «Probar» la oye aquí, antes de
-	 * guardar.
+	 * guardar. Y cómo van las frases (#301): grabándose, listas o con su problema.
 	 */
 	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
 
 	let formEl = $state<HTMLFormElement>();
 	let trying = $state(false);
 	let problem = $state<string | null>(null);
+
+	/** As phrasesState (satellite-voice.ts) says. */
+	type Phrase = {
+		text: string;
+		state: 'ready' | 'recording' | 'failed' | 'missing';
+		problem: string | null;
+	};
+	let phrases = $state<Phrase[] | null>(null);
+	let polling: ReturnType<typeof setTimeout> | undefined;
+	const ready = $derived(phrases?.filter((p) => p.state === 'ready').length ?? 0);
+	const recording = $derived(phrases?.some((p) => p.state === 'recording') ?? false);
+	const failedOnes = $derived(phrases?.filter((p) => p.state === 'failed') ?? []);
+	const missing = $derived(phrases?.some((p) => p.state === 'missing') ?? false);
+
+	/** How they are; again in a moment while one is being recorded. */
+	async function look(res?: Promise<Response>) {
+		clearTimeout(polling);
+		const answer = await (res ?? fetch('/api/ajustes/voz-satelite/frases')).catch(() => null);
+		if (!answer?.ok) return;
+		phrases = await answer.json();
+		if (recording) polling = setTimeout(() => void look(), 2000);
+	}
+
+	function recordAgain() {
+		void look(fetch('/api/ajustes/voz-satelite/frases', { method: 'POST' }));
+	}
+
+	$effect(() => {
+		// Once on opening, and after each save.
+		void form;
+		if (data.satelliteVoice) void look();
+	});
+	onDestroy(() => clearTimeout(polling));
 
 	async function tryIt() {
 		trying = true;
@@ -89,6 +123,27 @@
 					Se graban al guardar; una que aún no está grabada no se dice.</span
 				>
 			</label>
+			{#if phrases?.length}
+				<div class="-mt-1 flex flex-col gap-1">
+					<span class="text-xs" aria-live="polite">
+						{#if recording}
+							<span class="text-zinc-400">Grabando las frases… {ready} de {phrases.length}</span>
+						{:else if ready === phrases.length}
+							<span class="text-emerald-400">✓ Frases listas</span>
+						{:else if !failedOnes.length && missing}
+							<span class="text-zinc-400">Faltan {phrases.length - ready} por grabar</span>
+						{/if}
+					</span>
+					{#each failedOnes as p (p.text)}
+						<span class="text-xs text-red-400">No se pudo grabar «{p.text}»: {p.problem}</span>
+					{/each}
+					{#if !recording && ready < phrases.length}
+						<button type="button" class="{secondary} self-start" onclick={recordAgain}>
+							{failedOnes.length ? 'Grabar otra vez' : 'Grabar'}
+						</button>
+					{/if}
+				</div>
+			{/if}
 			<div class="flex flex-wrap items-center gap-3">
 				<button class={primary}>Guardar</button>
 				<button type="button" class={secondary} onclick={tryIt} disabled={trying}>

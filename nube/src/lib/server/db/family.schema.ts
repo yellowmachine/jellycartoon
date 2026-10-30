@@ -55,7 +55,7 @@ export const familyMember = pgTable(
 		familyId: text('family_id')
 			.notNull()
 			.references(() => family.id, { onDelete: 'cascade' }),
-		role: text('role', { enum: ['admin', 'member'] })
+		role: text('role', { enum: ['admin', 'member', 'peque'] })
 			.notNull()
 			.default('member'),
 		/** «Cómo quieres que te hable la voz», theirs; null, none. */

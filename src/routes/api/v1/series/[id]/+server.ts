@@ -4,12 +4,13 @@ import type { RequestHandler } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
 import { episodeOrder } from '#lib/server/episode-order.ts';
-import { cloudPerson } from '#lib/server/media-api.ts';
+import { cloudViewer, kidMaySee } from '#lib/server/media-api.ts';
 
 /** The video API (#253): a series' episodes ready to watch, with where this person left each. */
 export const GET: RequestHandler = async ({ request, params }) => {
-	const person = await cloudPerson(request);
+	const person = await cloudViewer(request);
 	const id = Number(params.id);
+	await kidMaySee(person, id);
 	const [s] = await db.select({ title: series.title }).from(series).where(eq(series.id, id));
 	if (!s) error(404, 'Serie no encontrada');
 	const episodes = await db

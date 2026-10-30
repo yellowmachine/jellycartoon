@@ -7,6 +7,7 @@ import { house } from '#lib/server/db/schema.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { canReadReceipts } from '#lib/server/expenses/receipt.ts';
 import { isServiceAdmin } from '#lib/server/invitations.ts';
+import { isGuardian } from '#lib/server/kid-login.ts';
 
 /** Who is in, and their family: null if their account is in none. */
 export const load: LayoutServerLoad = async ({ locals }) => {
@@ -18,7 +19,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			hasHouse: false,
 			receipts: false,
 			spendLine: false,
-			theme: DEFAULT_THEME
+			theme: DEFAULT_THEME,
+			guardian: false
 		};
 	const user = {
 		name: locals.user.name,
@@ -40,14 +42,19 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			return {
 				name: f.name,
 				admin: m.role === 'admin',
+				/** A child's account (#303): its bar has only what it may open (nav.ts). */
+				kid: m.role === 'peque',
 				webUrl: h?.webUrl ?? null,
 				hasHouse: Boolean(h),
 				theme: isTheme(me?.theme) ? me.theme : DEFAULT_THEME,
 				spendLine: Boolean(me?.spendLine)
 			};
 		});
+		const k = await kitchenOf(locals.user.id);
 		/** A receipt's photo from the bar (Gastos): with the family's AI to read it. */
-		const receipts = await canReadReceipts(await kitchenOf(locals.user.id));
+		const receipts = !found.kid && (await canReadReceipts(k));
+		/** An adult who lets children in (#303): asked on any page, and «Pasar a…» in the menu. */
+		const guardian = !found.kid && (await isGuardian(k));
 		/** jellycartoon's own address, for the bar's sections of the house (nav.ts). */
 		return {
 			user,
@@ -59,7 +66,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			/** The AI's spending under the header (#193): who asked, with the family's key (as receipts). */
 			spendLine: found.spendLine && receipts,
 			/** Their colours (Ajustes), painted from the server: no flash of the default. */
-			theme: found.theme
+			theme: found.theme,
+			guardian
 		};
 	} catch (error) {
 		if (error instanceof NoFamily)
@@ -70,7 +78,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 				hasHouse: false,
 				receipts: false,
 				spendLine: false,
-				theme: DEFAULT_THEME
+				theme: DEFAULT_THEME,
+				guardian: false
 			};
 		throw error;
 	}

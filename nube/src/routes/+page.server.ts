@@ -1,5 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { isKidAccount } from '#lib/server/kids.ts';
 import { hasHouse } from '#lib/server/house.ts';
 import { NoFamily, withFamily } from '#lib/server/family.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
@@ -18,6 +19,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) return { home: null };
 	try {
 		const userId = locals.user.id;
+		// A child (#303): its own home, with only what it may open.
+		if (await isKidAccount(userId)) return { home: null, kid: true, house: await hasHouse(userId) };
 		const k = await kitchenOf(userId);
 		const admin = await withFamily(userId, async (_, m) => m.role === 'admin');
 		const [home, house] = await Promise.all([homeOf(k, userId, admin), hasHouse(userId)]);
