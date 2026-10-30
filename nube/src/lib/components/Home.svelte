@@ -22,6 +22,7 @@
 		type PlannedLeg
 	} from '#lib/planned-trips.ts';
 	import { durationText } from '#lib/trips.ts';
+	import { agoText, isMoving, walkTo, type CarView } from '#lib/cars.ts';
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import { section } from '#lib/styles.ts';
 	import type { Watching } from '#lib/server/series.ts';
@@ -38,6 +39,7 @@
 		home,
 		weather,
 		trip,
+		car,
 		watching,
 		receipts
 	}: {
@@ -59,6 +61,8 @@
 			weather: LegWeather;
 			then: PlannedLeg | null;
 		} | null>;
+		/** Their car and where it is (#317), if they have one. */
+		car: Promise<CarView | null>;
 		watching: Promise<Watching[]>;
 		/** A receipt's photo can be read (the family's AI). */
 		receipts: boolean;
@@ -295,6 +299,33 @@
 		</ul>
 	</section>
 {/if}
+
+{#await car then c}
+	{#if c?.place}
+		<section class="{section} flex items-center gap-3">
+			<a href="/viajes#coches" class="min-w-0 flex-1">
+				<h2 class="font-semibold">🚗 {c.name}</h2>
+				<p class="text-sm text-zinc-400">
+					{#if isMoving(c.place, now)}
+						En marcha{c.place.by ? ` con ${c.place.by}` : ''}
+					{:else}
+						Aparcado {agoText(new Date(c.place.when), now)}{c.place.by ? ` · ${c.place.by}` : ''}
+					{/if}
+				</p>
+				{#if c.place.note}
+					<p class="truncate text-sm text-amber-300">{c.place.note}</p>
+				{/if}
+			</a>
+			<a
+				href={walkTo(c.place.at)}
+				target="_blank"
+				rel="noreferrer"
+				class="shrink-0 rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900"
+				>Llévame</a
+			>
+		</section>
+	{/if}
+{/await}
 
 {#await trip then next}
 	{#if next}

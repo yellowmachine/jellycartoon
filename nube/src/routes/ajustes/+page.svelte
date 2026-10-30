@@ -20,6 +20,7 @@
 	import { page } from '$app/state';
 	import Colores from 'comun/components/Colores.svelte';
 	import GuardarViajes from './GuardarViajes.svelte';
+	import Coches from './Coches.svelte';
 	import GastoIa from './GastoIa.svelte';
 	import Microfono from './Microfono.svelte';
 	import FondoMusica from './FondoMusica.svelte';
@@ -288,6 +289,8 @@
 		<AparatoPeques {data} {form} {tab} all />
 
 		<DondeVivis {data} {form} {tab} />
+
+		<Coches {data} {form} {tab} />
 
 		<Invitaciones {data} {form} {tab} />
 

@@ -95,6 +95,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		shown: onlyAdmin
 	},
 	{
+		id: 'coches',
+		tab: 'familia',
+		title: 'Coches',
+		words: 'coche coches dónde está aparcado aparcar parking mi coche el tuyo furgo'
+	},
+	{
 		id: 'casa',
 		tab: 'familia',
 		title: 'Tu casa',

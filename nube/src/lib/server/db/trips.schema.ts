@@ -58,13 +58,53 @@ export const trip = pgTable(
 		/** The road mode's route, if there was one: «Plaza de Zocodover, Toledo». */
 		destination: text('destination'),
 		/** Its positions, [longitude, latitude, seconds since 1970], one every ~25 m. */
-		line: jsonb('line').$type<[number, number, number][]>().notNull().default([])
+		line: jsonb('line').$type<[number, number, number][]>().notNull().default([]),
+		/** The car it went in (#317): its driver's, when it started; changed in Viajes → Hechos. */
+		carId: integer('car_id').references(() => car.id, { onDelete: 'set null' })
 	},
 	(t) => [
 		unique('trip_family_id').on(t.familyId, t.id),
 		index('trip_user_started_idx').on(t.userId, t.startedAt),
 		familyRows('trip_own', t.familyId)
 	]
+).enableRLS();
+
+/**
+ * A car of the family (#317, «¿Dónde está el coche?»), added in Ajustes → Casa. Where it is: the
+ * end of its last trip, or where someone said «Aquí y ahora» after it, whichever is later; here
+ * only the latter, with its note («planta -2, plaza 47»).
+ */
+export const car = pgTable(
+	'car',
+	{
+		familyId: familyId(),
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		lon: doublePrecision('lon'),
+		lat: doublePrecision('lat'),
+		/** Metres, as the GPS said. */
+		accuracy: real('accuracy'),
+		parkedAt: timestamp('parked_at'),
+		/** Who said it; gone, the place stays. */
+		parkedBy: text('parked_by').references(() => user.id, { onDelete: 'set null' }),
+		note: text('note')
+	},
+	(t) => [familyRows('car_own', t.familyId)]
+).enableRLS();
+
+/** Each person's car (#317): their trips go in it, and it is the one on their home page. */
+export const carDriver = pgTable(
+	'car_driver',
+	{
+		familyId: familyId(),
+		userId: text('user_id')
+			.primaryKey()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		carId: integer('car_id')
+			.notNull()
+			.references(() => car.id, { onDelete: 'cascade' })
+	},
+	(t) => [familyRows('car_driver_own', t.familyId)]
 ).enableRLS();
 
 /**

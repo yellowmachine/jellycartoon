@@ -246,6 +246,13 @@
       "when": 1793362471834,
       "tag": "0034_lonely_rocket_raccoon",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793378967396,
+      "tag": "0035_mysterious_black_tarantula",
+      "breakpoints": true
     }
   ]
 }

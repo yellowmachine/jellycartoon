@@ -1,5 +1,5 @@
 import { and, desc, eq, gte, sql } from 'drizzle-orm';
-import { familyMember, trip } from '#lib/server/db/schema.ts';
+import { carDriver, familyMember, trip } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { addPoints, NEW_TRIP_AFTER_MS, type TripPoint } from '#lib/trips.ts';
 
@@ -67,6 +67,11 @@ export async function addTripPoints(k: Kitchen, points: TripPoint[], destination
 				})
 				.where(eq(trip.id, last.id));
 		} else {
+			// In their car (#317), if they have one.
+			const [driver] = await tx
+				.select({ carId: carDriver.carId })
+				.from(carDriver)
+				.where(eq(carDriver.userId, userId));
 			await tx.insert(trip).values({
 				familyId: k.familyId,
 				userId,
@@ -75,7 +80,8 @@ export async function addTripPoints(k: Kitchen, points: TripPoint[], destination
 				distance,
 				maxSpeed,
 				destination,
-				line: kept
+				line: kept,
+				carId: driver?.carId ?? null
 			});
 		}
 	});
@@ -92,7 +98,8 @@ export async function listTrips(k: Kitchen, limit = 100) {
 				endedAt: trip.endedAt,
 				distance: trip.distance,
 				maxSpeed: trip.maxSpeed,
-				destination: trip.destination
+				destination: trip.destination,
+				carId: trip.carId
 			})
 			.from(trip)
 			.where(eq(trip.userId, userId))

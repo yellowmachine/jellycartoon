@@ -41,6 +41,7 @@
 		home={data.home}
 		weather={data.weather}
 		trip={data.trip}
+		car={data.car}
 		watching={data.watching}
 		receipts={data.receipts}
 	/>
