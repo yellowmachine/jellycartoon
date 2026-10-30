@@ -11,11 +11,29 @@ import type { Kitchen } from '#lib/server/fridge.ts';
  * asked to say, and in which voice.
  */
 const asked: { voice: string; input: string; instructions?: string }[] = [];
+/** How many were being said at once, at most. */
+let inFlight = 0;
+let mostInFlight = 0;
 mock.module('#lib/server/openrouter.ts', () => ({
 	speech: async (r: { voice: string; input: string; instructions?: string }) => {
 		asked.push(r);
+		mostInFlight = Math.max(mostInFlight, ++inFlight);
+		await new Promise((resolve) => setTimeout(resolve, 5));
+		inFlight--;
 		return { pcm: new Uint8Array(4), rate: 24_000 };
 	}
+}));
+
+/** The family's files, faked: by area and name. */
+const files = new Map<string, Uint8Array>();
+mock.module('#lib/server/storage.ts', () => ({
+	storageReady: true,
+	putFile: async (familyId: string, area: string, name: string, body: Uint8Array) =>
+		void files.set(`${familyId}/${area}/${name}`, body),
+	readFile: async (familyId: string, area: string, name: string) =>
+		files.get(`${familyId}/${area}/${name}`) ?? null,
+	removeFile: async (familyId: string, area: string, name: string) =>
+		void files.delete(`${familyId}/${area}/${name}`)
 }));
 
 const { fillerSpeech, satelliteSpeech, satelliteVoiceOf, setSatelliteVoice, warmFillers } =
@@ -65,5 +83,35 @@ describe('the satellites voice', () => {
 		expect(await fillerSpeech(k, 'clave')).toBeNull();
 		await warmFillers(k, 'clave');
 		expect(await fillerSpeech(k, 'clave')).toBeInstanceOf(Uint8Array);
+	});
+
+	test('one at a time, and an answer before the phrases still waiting', async () => {
+		await setSatelliteVoice(k, null, { voice: 'Kore', tone: '', fillers: 'Uno.\nDos.\nTres.' });
+		asked.length = 0;
+		mostInFlight = 0;
+		const phrases = warmFillers(k, 'clave');
+		const answer = satelliteSpeech(k, 'clave', 'Son las cuatro.');
+		await Promise.all([phrases, answer]);
+		expect(mostInFlight).toBe(1);
+		expect(asked.map((r) => r.input)).toEqual(['Uno.', 'Son las cuatro.', 'Dos.', 'Tres.']);
+	});
+
+	test('the phrases kept in the family files: said from there after a restart', async () => {
+		await setSatelliteVoice(k, null, { voice: 'Kore', tone: '', fillers: 'Ahí voy.' });
+		await warmFillers(k, 'clave');
+		expect([...files.keys()].filter((name) => name.startsWith('A/frases-espera/'))).toHaveLength(1);
+		// The module again, with nothing in memory: as after a deploy.
+		const restarted: typeof import('./satellite-voice.ts') = await import(
+			`./satellite-voice.ts?${'reinicio'}`
+		);
+		asked.length = 0;
+		expect(await restarted.fillerSpeech(k, 'clave')).toBeInstanceOf(Uint8Array);
+		expect(asked).toHaveLength(0);
+	});
+
+	test('changing the phrases deletes the recordings of those gone', async () => {
+		await setSatelliteVoice(k, null, { voice: 'Kore', tone: '', fillers: 'Ya casi.' });
+		await warmFillers(k, 'clave');
+		expect([...files.keys()].filter((name) => name.startsWith('A/frases-espera/'))).toHaveLength(1);
 	});
 });
