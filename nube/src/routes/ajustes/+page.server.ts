@@ -56,6 +56,14 @@ import {
 } from '#lib/server/voice/settings.ts';
 import { forgetLearned, listLearned } from '#lib/server/voice/learned.ts';
 import { forget, listMemories, remember } from '#lib/server/memory.ts';
+import {
+	deleteRule,
+	listRules,
+	saveRule,
+	setRulePaused,
+	translateRule,
+	tryRule
+} from '#lib/server/rules.ts';
 import { createHouseKey, deleteHouseKey, listHouseKeys } from '#lib/server/house-keys.ts';
 import {
 	createSatellite,
@@ -151,6 +159,16 @@ export const load: PageServerLoad = async ({ locals, request, cookies }) => {
 			: null,
 		/** What the voice remembers: theirs (no one else sees it) and the house's. */
 		memories: await listMemories(k, locals.user!.id, true),
+		/** Their rules and the house's (#331): as understood, and the last time each told. */
+		rules: (await listRules(k, locals.user!.id)).map((r) => ({
+			id: r.id,
+			mine: Boolean(r.userId),
+			said: r.said,
+			understood: r.understood,
+			paused: r.paused,
+			lastFiredAt: r.lastFiredAt,
+			lastWhy: r.lastWhy
+		})),
 		/** «Cómo te aviso» (#331): the messages left for them, by email too. */
 		inboxByEmail: await withFamily(locals.user!.id, async (tx) => {
 			const [me] = await tx
@@ -336,6 +354,55 @@ export const actions: Actions = {
 			{ untilDay: String(form.get('until') ?? '') || null }
 		);
 		return { saved: 'memory' };
+	},
+	/** «Reglas» (#331): a new one, or (with `id`) one said again, understood by the AI. */
+	saveRule: async ({ request, locals }) => {
+		const form = await request.formData();
+		const said = String(form.get('text') ?? '');
+		const id = form.get('id') ? Number(form.get('id')) : null;
+		if (!said.trim()) return fail(400, { ruleProblem: 'Escribe la regla', ruleId: id });
+		const k = await kitchenOf(locals.user!.id);
+		const made = await translateRule(k, said, locals.user!.name);
+		if ('problem' in made) return fail(400, { ruleProblem: made.problem, ruleId: id });
+		const whose = form.get('whose') === 'house' ? null : locals.user!.id;
+		const saved = await saveRule(
+			k,
+			id === null ? whose : locals.user!.id,
+			said,
+			made.understood,
+			made.spec,
+			Number.isInteger(id) ? id : null
+		);
+		if (!saved)
+			return fail(400, { ruleProblem: 'Ya hay demasiadas reglas en la familia', ruleId: id });
+		return { saved: 'rule', ruleId: saved };
+	},
+	/** «Pausar» and «Seguir». */
+	pauseRule: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = Number(form.get('id'));
+		if (Number.isInteger(id))
+			await setRulePaused(
+				await kitchenOf(locals.user!.id),
+				locals.user!.id,
+				id,
+				form.get('paused') === 'true'
+			);
+		return { saved: 'rule' };
+	},
+	/** «Probar»: what it would do now. */
+	tryRule: async ({ request, locals }) => {
+		const id = Number((await request.formData()).get('id'));
+		const said = Number.isInteger(id)
+			? await tryRule(await kitchenOf(locals.user!.id), locals.user!.id, id)
+			: null;
+		return { ruleTried: { id, said: said ?? 'Esa regla ya no está.' } };
+	},
+	deleteRule: async ({ request, locals }) => {
+		const id = Number((await request.formData()).get('id'));
+		if (Number.isInteger(id))
+			await deleteRule(await kitchenOf(locals.user!.id), locals.user!.id, id);
+		return { saved: 'rule' };
 	},
 	/** And one forgotten: theirs, or the house's. */
 	forgetMemory: async ({ request, locals }) => {

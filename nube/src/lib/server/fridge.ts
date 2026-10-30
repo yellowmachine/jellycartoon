@@ -4,6 +4,7 @@ import { fridgeItem, fridgeNote } from '#lib/server/db/schema.ts';
 import { asFamily, withFamily } from '#lib/server/family.ts';
 import type { AnyDb } from '#lib/server/family-scope.ts';
 import { agendaToday } from '#lib/server/agenda/agenda.ts';
+import { ruleEvent } from '#lib/server/rule-events.ts';
 import { MAX_ITEM, MAX_NOTE, paperFor, type FridgeAuthor, type FridgeState } from 'comun/fridge.ts';
 
 /**
@@ -145,6 +146,7 @@ export async function addNote(k: Kitchen, text: string, until: string | null) {
 			.returning({ id: fridgeNote.id })
 	);
 	changed(k.familyId);
+	ruleEvent(k, 'nevera', clean);
 	return note!.id;
 }
 
@@ -161,6 +163,7 @@ export async function editNote(k: Kitchen, id: number, text: string) {
 	);
 	if (!note) return false;
 	changed(k.familyId);
+	ruleEvent(k, 'nevera', clean);
 	return true;
 }
 
@@ -204,6 +207,7 @@ export async function addItems(k: Kitchen, texts: string[]) {
 		return [...added, ...there.filter((t) => again.includes(t.id)).map((t) => t.text)];
 	});
 	if (told.length) changed(k.familyId);
+	for (const text of told) ruleEvent(k, 'nevera', text);
 	return told;
 }
 

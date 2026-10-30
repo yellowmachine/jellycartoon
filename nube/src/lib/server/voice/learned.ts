@@ -42,6 +42,12 @@ export const wordsOf = (text: string) =>
 const near = (a: string, b: string) =>
 	a === b || (a.length >= 5 && a.slice(0, 5) === b.slice(0, 5));
 
+/** Whether `text` has all of these words, as `near` (none, any): the rules' (#331). */
+export const hasWords = (wanted: string[], text: string) => {
+	const own = wordsOf(text);
+	return wanted.flatMap(wordsOf).every((w) => own.some((o) => near(w, o)));
+};
+
 /** How many of `said`'s words a rule has, among its words and its title. */
 const score = (said: string[], l: Pick<Learned, 'title' | 'words'>) => {
 	const own = [...l.words.flatMap(wordsOf), ...wordsOf(l.title)];

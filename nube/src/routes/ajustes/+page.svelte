@@ -14,6 +14,7 @@
 	import VozAprendido from './VozAprendido.svelte';
 	import VozRecuerda from './VozRecuerda.svelte';
 	import ComoTeAviso from './ComoTeAviso.svelte';
+	import Reglas from './Reglas.svelte';
 	import Satelites from './Satelites.svelte';
 	import VozSatelites from './VozSatelites.svelte';
 	import Guardado from 'comun/components/Guardado.svelte';
@@ -103,6 +104,8 @@
 		<VozCaracter {data} {form} {tab} which="mio" />
 
 		<VozRecuerda {data} {form} {tab} />
+
+		<Reglas {data} {form} {tab} />
 
 		<ComoTeAviso {data} {tab} />
 

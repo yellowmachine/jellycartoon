@@ -45,6 +45,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		words: 'memoria recordar recuerda olvidar apuntar llave talla datos voz'
 	},
 	{
+		id: 'reglas',
+		tab: 'mi',
+		title: 'Reglas',
+		words: 'reglas cuando si entonces avisar automático condiciones'
+	},
+	{
 		id: 'como-te-aviso',
 		tab: 'mi',
 		title: 'Cómo te aviso',

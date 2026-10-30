@@ -2,6 +2,7 @@ import { and, desc, eq, gte, inArray, isNull, lt, lte, or } from 'drizzle-orm';
 import { localDay } from 'comun/agenda.ts';
 import { memory } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
+import { ruleEvent } from '#lib/server/rule-events.ts';
 import { pickLearned, wordsOf } from '#lib/server/voice/learned.ts';
 
 /**
@@ -131,6 +132,8 @@ export async function remember(
 				)
 			)
 		);
+	// The rules that wait for it (#331).
+	ruleEvent(k, 'recuerdo', clean, userId);
 	return row!.id;
 }
 

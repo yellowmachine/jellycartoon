@@ -25,7 +25,8 @@
 		medicacion: 'Medicación',
 		deberes: 'Deberes',
 		voz: 'La voz',
-		recado: 'Recado'
+		recado: 'Recado',
+		regla: 'Regla'
 	};
 </script>
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { afterOrder, assumedNote, pickLearned, sharesWords } from './learned.ts';
+import { afterOrder, assumedNote, hasWords, pickLearned, sharesWords } from './learned.ts';
 
 const rule = (title: string, words: string[]) => ({ title, words });
 
@@ -91,5 +91,16 @@ describe('afterOrder', () => {
 			nextReply: stop.reply
 		});
 		expect(assumedNote('f:d')).toBeNull();
+	});
+});
+
+describe('hasWords', () => {
+	test('all of them, accents, case and endings aside (#331)', () => {
+		expect(hasWords(['padres'], 'Vienen mis Padres a comer')).toBe(true);
+		expect(hasWords(['ropa', 'tendida'], 'He tendido la ropa')).toBe(true);
+		expect(hasWords(['ropa', 'tendida'], 'He lavado la ropa')).toBe(false);
+		expect(hasWords(['leche'], 'LECHE desnatada')).toBe(true);
+		// None: any.
+		expect(hasWords([], 'Lo que sea')).toBe(true);
 	});
 });

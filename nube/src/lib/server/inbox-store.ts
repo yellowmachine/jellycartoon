@@ -9,7 +9,7 @@ import type { PushMessage } from '#lib/server/push.ts';
  * row-level security keeps families apart, and these queries, its people.
  */
 
-export type InboxKind = 'agenda' | 'alarma' | 'medicacion' | 'deberes' | 'voz' | 'recado';
+export type InboxKind = 'agenda' | 'alarma' | 'medicacion' | 'deberes' | 'voz' | 'recado' | 'regla';
 export type InboxLevel = 'normal' | 'urgente';
 
 export interface Notice extends PushMessage {
