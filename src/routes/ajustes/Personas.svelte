@@ -75,8 +75,7 @@
 							elige su contraseña y entra.
 						</p>
 						<p class="text-zinc-400">
-							Vale una vez, hasta {until(invited.until)}. Solo funciona en la wifi de casa o con
-							WireGuard encendido.
+							Vale una vez, hasta {until(invited.until)}. Solo funciona en la wifi de casa.
 						</p>
 						<div class="flex flex-wrap gap-2">
 							<input

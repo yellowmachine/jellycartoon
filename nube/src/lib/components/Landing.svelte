@@ -46,7 +46,18 @@
 		}
 	];
 
+	/** The house's install (#103), from its last release. */
+	const INSTALL =
+		'curl -fsSL https://raw.githubusercontent.com/yellowmachine/jellycartoon/main/install.sh | sh';
+
 	let sending = $state(false);
+	let copied = $state(false);
+
+	async function copy() {
+		await navigator.clipboard.writeText(INSTALL);
+		copied = true;
+		setTimeout(() => (copied = false), 2000);
+	}
 </script>
 
 <div class="mx-auto max-w-4xl">
@@ -89,6 +100,34 @@
 			Lo de tu familia solo lo ve tu familia: la base de datos separa a cada una por sí misma, no
 			por un filtro que alguien pueda olvidar. Entra quien invitas, con verificación en dos pasos si
 			quiere.
+		</p>
+	</section>
+
+	<section id="casa" class="mt-6 rounded-md border border-zinc-800 p-6 text-zinc-400">
+		<h2 class="mb-2 font-semibold text-zinc-100">Tu servidor en casa</h2>
+		<p class="text-sm">
+			Con JellyCartoon, un ordenador de casa guarda vuestras series, películas y música, y las pone
+			en la tele, el móvil y la tablet. Es libre y gratis, y lo tuyo no sale de casa. Se instala en
+			un PC con Linux y Docker (Bazzite-DX o Aurora-DX, por ejemplo), pegando esto en una terminal:
+		</p>
+		<div class="mt-4 flex items-center gap-2 rounded-md bg-zinc-900 p-3">
+			<code class="min-w-0 flex-1 overflow-x-auto font-mono text-xs whitespace-nowrap text-zinc-100"
+				>{INSTALL}</code
+			>
+			<button
+				type="button"
+				onclick={copy}
+				class="shrink-0 rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-800"
+			>
+				{copied ? 'Copiado' : 'Copiar'}
+			</button>
+		</div>
+		<p class="mt-3 text-sm">
+			Hace unas preguntas y al final te dice la dirección para abrirlo. Más detalles en
+			<a
+				href="https://github.com/yellowmachine/jellycartoon#producción"
+				class="text-amber-400 hover:underline">su página</a
+			>.
 		</p>
 	</section>
 

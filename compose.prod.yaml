@@ -139,11 +139,11 @@ services:
     extra_hosts:
       - host.docker.internal:host-gateway
 
-  # HTTPS in front of the app, at ORIGIN's domain. Its DNS record points to this machine's Tailscale
-  # IP or its IP at home, so only the tailnet or the house's network reach it; Let's Encrypt can't,
-  # and the certificate comes from Cloudflare's DNS-01 challenge instead. The official image doesn't
-  # have that module: GitHub Actions builds one with it (Dockerfile.caddy). Without a domain, at
-  # home only, TLS=internal: Caddy's own authority signs it, and each device installs its root.
+  # HTTPS in front of the app, at ORIGIN's name. With a domain, its DNS record points to this
+  # machine's IP at home, so only the house's network reaches it; Let's Encrypt can't, and the
+  # certificate comes from Cloudflare's DNS-01 challenge instead. The official image doesn't have
+  # that module: GitHub Actions builds one with it (Dockerfile.caddy). Without a domain,
+  # TLS=internal: Caddy's own authority signs it, and each device installs its root.
   caddy:
     image: ghcr.io/yellowmachine/jellycartoon-caddy:${IMAGE_TAG:-stable}
     restart: unless-stopped
@@ -151,7 +151,6 @@ services:
       - wud.watch=true
     depends_on:
       - app
-    # On every interface rather than just the Tailscale IP: Docker may start before tailscaled.
     ports:
       - 443:443
       - 443:443/udp

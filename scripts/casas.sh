@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# How every JellyCartoon install is, from this PC, over SSH (Tailscale): its version, its
+# How every JellyCartoon install is, from this PC, over SSH: its version, its
 # containers, the free disk where its data is and the last errors of its Registro. It only reads:
 # nothing is changed. A first version, to grow with use.
 #

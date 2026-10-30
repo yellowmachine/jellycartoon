@@ -1,6 +1,7 @@
 {
 	"name": "comun",
 	"private": true,
+	"license": "AGPL-3.0-or-later",
 	"version": "0.0.1",
 	"type": "module",
 	"description": "Lo que comparten jellycartoon y la nube (#253): la música, la nevera, la agenda, las alarmas y el modo carretera (mapa y rutas), y sus piezas.",

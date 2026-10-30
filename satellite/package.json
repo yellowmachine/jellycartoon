@@ -1,6 +1,7 @@
 {
 	"name": "jellycartoon-satellite",
 	"private": true,
+	"license": "AGPL-3.0-or-later",
 	"type": "module",
 	"dependencies": {
 		"onnxruntime-node": "1.30.0"
