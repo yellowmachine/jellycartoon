@@ -1,14 +1,15 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
+import { mark } from 'comun/homework.ts';
+import { kitchenOf } from '#lib/server/fridge.ts';
 import { getHomework } from '#lib/server/homework.ts';
-import { mark } from '#lib/homework.ts';
 
 /**
  * A child doing their homework (#142), one exercise at a time. What the page gets never has the
  * right one of what is still to answer: only of what is done, if the rules show it.
  */
 export const load: PageServerLoad = async ({ params, locals }) => {
-	const hw = await getHomework(Number(params.id));
+	const hw = await getHomework(await kitchenOf(locals.user!.id), Number(params.id));
 	if (!hw || hw.kidId !== locals.user!.id || hw.status === 'draft') error(404, 'No encontrado');
 	const exercises = hw.exercises.map((e, i) => {
 		const step = hw.steps[i] ?? { answer: null, tries: 0, done: false };

@@ -22,12 +22,6 @@ export const DEFAULT_VISION_MODEL = 'anthropic/claude-sonnet-5.5';
  */
 export const DEFAULT_VOICE_MODEL = 'anthropic/claude-haiku-5.5';
 
-/**
- * For the children's homework (#142): read by a child, so the best there is, not the cheapest. A
- * homework is a few episodes' dialogue once, some cents even with this one.
- */
-export const DEFAULT_HOMEWORK_MODEL = 'anthropic/claude-opus-5.5';
-
 type Key =
 	| 'openrouter_api_key'
 	| 'openrouter_management_key'
@@ -36,7 +30,6 @@ type Key =
 	| 'openrouter_chat_web'
 	| 'openrouter_vision_model'
 	| 'openrouter_voice_model'
-	| 'openrouter_homework_model'
 	| 'subtitles_paused'
 	| 'last_scan_series'
 	| 'last_scan_films'
@@ -114,11 +107,6 @@ export async function chatConfig() {
 /** The scenes and the episode titles: their own model, apart from the conversations'. */
 export async function visionModel() {
 	return (await get('openrouter_vision_model')) ?? DEFAULT_VISION_MODEL;
-}
-
-/** The children's homework: its own model. */
-export async function homeworkModel() {
-	return (await get('openrouter_homework_model')) ?? DEFAULT_HOMEWORK_MODEL;
 }
 
 /** Voice commands: their own model. */

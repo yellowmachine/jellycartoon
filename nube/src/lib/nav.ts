@@ -37,6 +37,8 @@ const SECTIONS: {
 	{ path: '/viajes', label: 'Viajes', icon: 'viajes', where: 'nube', also: ['/carretera'] },
 	{ path: '/salon', label: 'Salón', icon: 'salon', where: 'casa' },
 	{ path: '/juegos', label: 'Juegos', icon: 'juegos', where: 'casa' },
+	// Homework from the cartoons watched at the house (#142), for the grown-ups and the children.
+	{ path: '/deberes', label: 'Deberes', icon: 'infantil', where: 'nube', house: true },
 	{ path: '/infantil', label: 'Infantil', icon: 'infantil', where: 'casa' }
 ];
 
@@ -56,7 +58,7 @@ const link = (s: (typeof SECTIONS)[number], webUrl: string | null): NavLink => (
 });
 
 /** What a child's bar has (#303): what it may open (kids.ts), and no Ajustes. */
-const KID_SECTIONS = ['/series', '/musica', '/agenda', '/nevera'];
+const KID_SECTIONS = ['/series', '/musica', '/deberes', '/agenda', '/nevera'];
 
 /** With `hasHouse` false (no house connected), nothing of the house: its sections, Gestión, TV. */
 export function navLinks(

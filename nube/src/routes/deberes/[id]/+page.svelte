@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance, type SubmitFunction } from '$app/forms';
-	import { clock, TRUE_FALSE, type Exercise } from '#lib/homework.ts';
+	import { clock, TRUE_FALSE, type Exercise } from 'comun/homework.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -45,11 +45,11 @@
 </script>
 
 <svelte:head>
-	<title>{hw.title} · Deberes · JellyCartoon</title>
+	<title>{hw.title} · Deberes · Seilide</title>
 </svelte:head>
 
 <p class="mb-2 text-sm">
-	<a href="/infantil/deberes" class="text-zinc-400 hover:underline">← Deberes</a>
+	<a href="/deberes" class="text-zinc-400 hover:underline">← Deberes</a>
 </p>
 <h1 class="mb-1 text-2xl font-bold">{hw.title}</h1>
 <p class="mb-6 text-zinc-400">

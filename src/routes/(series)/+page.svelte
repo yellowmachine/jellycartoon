@@ -8,19 +8,6 @@
 	let { data }: PageProps = $props();
 </script>
 
-{#each data.homework as h (h.id)}
-	<a
-		href="/deberes/{h.id}"
-		class="mb-4 flex items-center gap-4 rounded-lg border border-sky-700/60 bg-gradient-to-r from-sky-500/20 to-transparent p-4 hover:border-sky-400"
-	>
-		<span class="text-4xl" aria-hidden="true">📚</span>
-		<div class="min-w-0">
-			<p class="font-semibold text-sky-300">Tienes deberes</p>
-			<p class="truncate text-sm">{h.title} · {h.count} preguntas</p>
-		</div>
-	</a>
-{/each}
-
 <!-- Only while today's programme is going: what comes next. It is made in its own page. -->
 {#if data.today?.next}
 	{@const next = data.today.next}

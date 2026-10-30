@@ -30,7 +30,7 @@ const KEY_HEADER = 'x-api-key';
 const PERSON_HEADER = 'x-persona';
 /** A child of the cloud (#303): its name, with its inner email (`@peques.invalid`) as `x-persona`. */
 const KID_HEADER = 'x-peque';
-const KID_EMAIL = /@peques\.invalid$/;
+export const KID_EMAIL = /@peques\.invalid$/;
 
 /** Marked so in its key: not a satellite's (satellites.ts). */
 interface CloudMetadata {
@@ -76,7 +76,7 @@ export async function cloudPerson(request: Request) {
  * A child of the cloud (#303), as one of the house's: its account here, made the first time, with
  * the role `infantil` and no way to sign in at home with it (no password); its name, the cloud's.
  */
-async function cloudKid(email: string, name: string) {
+export async function cloudKid(email: string, name: string) {
 	const [found] = await db
 		.select()
 		.from(user)

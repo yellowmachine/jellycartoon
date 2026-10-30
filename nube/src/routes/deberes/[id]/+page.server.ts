@@ -1,10 +1,9 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { eq, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
-import { db } from '#lib/server/db/index.ts';
-import { user } from '#lib/server/db/auth.schema.ts';
-import { episode, series } from '#lib/server/db/schema.ts';
-import { log } from '#lib/server/log.ts';
+import { TRIES_OPTIONS, ageBand, checkRules, mark } from 'comun/homework.ts';
+import { user } from '#lib/server/db/schema.ts';
+import { kitchenOf, type Kitchen } from '#lib/server/fridge.ts';
 import {
 	assignHomework,
 	deleteHomework,
@@ -12,28 +11,27 @@ import {
 	proposeAgain,
 	saveDraft
 } from '#lib/server/homework.ts';
-import { TRIES_OPTIONS, ageBand, checkRules, mark } from '#lib/homework.ts';
+import { isKidAccount } from '#lib/server/kids.ts';
 
-async function found(params: { id: string }) {
-	const hw = await getHomework(Number(params.id));
+/** The adults' only: a child goes to do it (hacer/). */
+async function adultKitchen(userId: string, id: string) {
+	if (await isKidAccount(userId)) redirect(303, `/deberes/hacer/${id}`);
+	return kitchenOf(userId);
+}
+
+async function found(k: Kitchen, params: { id: string }) {
+	const hw = await getHomework(k, Number(params.id));
 	if (!hw) error(404, 'No encontrado');
 	return hw;
 }
 
 /** One homework (#142): to review while it is a draft; what the child answered, after. */
-export const load: PageServerLoad = async ({ params }) => {
-	const hw = await found(params);
-	const [kid] = await db.select({ name: user.name }).from(user).where(eq(user.id, hw.kidId));
-	const episodes = await db
-		.select({
-			id: episode.id,
-			series: series.title,
-			season: episode.season,
-			number: episode.number
-		})
-		.from(episode)
-		.innerJoin(series, eq(series.id, episode.seriesId))
-		.where(inArray(episode.id, hw.episodeIds));
+export const load: PageServerLoad = async ({ params, locals }) => {
+	const k = await adultKitchen(locals.user!.id, params.id);
+	const hw = await found(k, params);
+	const [kid] = await k.run((tx) =>
+		tx.select({ name: user.name }).from(user).where(eq(user.id, hw.kidId))
+	);
 	return {
 		homework: {
 			id: hw.id,
@@ -50,9 +48,8 @@ export const load: PageServerLoad = async ({ params }) => {
 			)
 		},
 		kid: kid?.name ?? '',
-		episodes: Object.fromEntries(
-			episodes.map((e) => [e.id, `${e.series} · T${e.season} E${e.number}`])
-		),
+		/** As the house named them when it was made. */
+		episodes: hw.episodeNames as Record<number, string>,
 		triesOptions: TRIES_OPTIONS
 	};
 };
@@ -77,9 +74,10 @@ function exercisesFrom(form: FormData) {
 }
 
 export const actions: Actions = {
-	save: async ({ params, request }) => {
+	save: async ({ params, request, locals }) => {
+		const k = await adultKitchen(locals.user!.id, params.id);
 		const form = await request.formData();
-		const ok = await saveDraft(Number(params.id), {
+		const ok = await saveDraft(k, Number(params.id), {
 			title: String(form.get('title') ?? ''),
 			exercises: exercisesFrom(form),
 			rules: rulesFrom(form)
@@ -88,37 +86,40 @@ export const actions: Actions = {
 		return { saved: true };
 	},
 	/** Saved as it is, and to the child. */
-	assign: async ({ params, request }) => {
+	assign: async ({ params, request, locals }) => {
+		const k = await adultKitchen(locals.user!.id, params.id);
 		const form = await request.formData();
 		const id = Number(params.id);
-		await saveDraft(id, {
+		await saveDraft(k, id, {
 			title: String(form.get('title') ?? ''),
 			exercises: exercisesFrom(form),
 			rules: rulesFrom(form)
 		});
-		if (!(await assignHomework(id)))
+		if (!(await assignHomework(k, id)))
 			return fail(409, { message: 'Sin ejercicios, o ya estaba dado.' });
 		return { assigned: true };
 	},
 	/** The AI's proposal again, the same episodes and age: the adult's rules stay. */
-	again: async ({ params }) => {
-		const hw = await found(params);
+	again: async ({ params, locals }) => {
+		const k = await adultKitchen(locals.user!.id, params.id);
+		const hw = await found(k, params);
 		const band = ageBand(hw.band);
 		if (!band || hw.status !== 'draft') return fail(409, { message: 'Ya no es un borrador.' });
 		try {
-			await proposeAgain(hw.id, {
+			await proposeAgain(k, { userId: locals.user!.id, email: locals.user!.email }, hw.id, {
 				band,
 				count: hw.exercises.length || band.questions,
 				language: hw.language === 'en' ? 'en' : 'es'
 			});
 		} catch (e) {
-			log.warn('deberes', 'No se pudieron proponer otra vez', { error: e });
+			console.warn('[deberes] No se pudieron proponer otra vez', String(e));
 			return fail(502, { message: 'La IA no pudo prepararlos. Prueba otra vez.' });
 		}
 		return { again: true };
 	},
-	delete: async ({ params }) => {
-		await deleteHomework(Number(params.id));
-		redirect(303, '/infantil/deberes');
+	delete: async ({ params, locals }) => {
+		const k = await adultKitchen(locals.user!.id, params.id);
+		await deleteHomework(k, Number(params.id));
+		redirect(303, '/deberes');
 	}
 };

@@ -55,21 +55,6 @@
 	</p>
 {/if}
 
-{#if data.kids.length && data.ai}
-	<a
-		href="/infantil/deberes"
-		class="mb-6 flex items-center gap-3 rounded-md border border-zinc-800 p-3 hover:border-sky-500/60 hover:bg-zinc-900"
-	>
-		<span class="text-2xl" aria-hidden="true">📚</span>
-		<span>
-			<span class="block font-semibold">Deberes</span>
-			<span class="text-sm text-zinc-400"
-				>Ejercicios sobre lo que han visto, preparados con la IA y revisados por ti.</span
-			>
-		</span>
-	</a>
-{/if}
-
 {#if data.kids.length}
 	<KidsNow
 		kids={data.kids}

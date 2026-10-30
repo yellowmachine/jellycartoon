@@ -18,7 +18,10 @@ mock.module('#lib/server/house.ts', () => ({
 		house.push({ path, body });
 		return { where: 'toda la casa' };
 	},
-	familyHasHouse: async () => true
+	familyHasHouse: async () => true,
+	// homework.test.ts's, unused here: a mock is the whole process's.
+	askHouse: async () => ({}),
+	HouseProblem: class extends Error {}
 }));
 // One satellite served by Seilide (#296), already connected: its alarms ring here, not at the house.
 mock.module('#lib/server/satellites.ts', () => ({

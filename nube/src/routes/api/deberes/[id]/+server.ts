@@ -1,5 +1,6 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { kitchenOf } from '#lib/server/fridge.ts';
 import { answerExercise } from '#lib/server/homework.ts';
 
 /**
@@ -12,7 +13,12 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const answer = body?.answer;
 	if (!Number.isInteger(index) || (typeof answer !== 'number' && typeof answer !== 'string'))
 		error(400, 'Bad request');
-	const done = await answerExercise(Number(params.id), locals.user!.id, index, answer);
+	const done = await answerExercise(
+		await kitchenOf(locals.user!.id),
+		Number(params.id),
+		index,
+		answer
+	);
 	if (!done) error(409, 'No se puede contestar');
 	return json(done);
 };

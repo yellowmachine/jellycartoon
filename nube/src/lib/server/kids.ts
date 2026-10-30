@@ -187,7 +187,9 @@ const KID_APIS = [
 	'/api/series',
 	'/api/musica',
 	'/api/music/playlists',
-	'/api/subtitulos'
+	'/api/subtitulos',
+	// Its answers (#142); the grown-ups' homework APIs refuse a child themselves.
+	'/api/deberes'
 ];
 
 const under = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);

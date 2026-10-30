@@ -12,7 +12,10 @@ import { newSatelliteKey, satelliteKeyScope } from './satellite-key-scope.ts';
 // Its clock's neighbours, faked: no house, no phones, no Telegram.
 mock.module('#lib/server/house.ts', () => ({
 	tellHouse: async () => ({ where: '' }),
-	familyHasHouse: async () => false
+	familyHasHouse: async () => false,
+	// homework.test.ts's, unused here: a mock is the whole process's.
+	askHouse: async () => ({}),
+	HouseProblem: class extends Error {}
 }));
 mock.module('#lib/server/satellites.ts', () => ({
 	familySatellites: async () => [],

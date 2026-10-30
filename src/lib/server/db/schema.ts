@@ -24,7 +24,6 @@ import type { SubtitleStyle } from 'comun/subtitle-style.ts';
 import type { WikiPage } from '#lib/server/cinema/wikidata.ts';
 import type { TitleProposal } from '#lib/episode-titles.ts';
 import type { DjOptions } from 'comun/music.ts';
-import type { Exercise, HomeworkRules, Step } from '#lib/homework.ts';
 import { session, user } from './auth.schema';
 
 export const series = pgTable('series', {
@@ -1027,40 +1026,6 @@ export const pushSubscription = pgTable(
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [index('push_subscription_user_idx').on(t.userId)]
-);
-
-/**
- * A child's homework from the cartoons they watched (#142): exercises the AI proposed from the
- * episodes' subtitles, which an adult reviewed, and the child's way through them.
- */
-export const homeworkStatus = pgEnum('homework_status', ['draft', 'assigned', 'done']);
-
-export const homework = pgTable(
-	'homework',
-	{
-		id: serial('id').primaryKey(),
-		kidId: text('kid_id')
-			.notNull()
-			.references(() => user.id, { onDelete: 'cascade' }),
-		/** The adult who prepared it; null if their account is gone. */
-		createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
-		status: homeworkStatus('status').notNull().default('draft'),
-		/** «Dexter, capítulo 1», as the child sees it. */
-		title: text('title').notNull(),
-		/** `es`, or `en` to practise English. */
-		language: text('language').notNull().default('es'),
-		/** AGE_BANDS' id. */
-		band: text('band').notNull(),
-		episodeIds: jsonb('episode_ids').$type<number[]>().notNull(),
-		exercises: jsonb('exercises').$type<Exercise[]>().notNull().default([]),
-		rules: jsonb('rules').$type<HomeworkRules>().notNull(),
-		/** One per exercise, as the child goes. */
-		steps: jsonb('steps').$type<Step[]>().notNull().default([]),
-		createdAt: timestamp('created_at').notNull().defaultNow(),
-		assignedAt: timestamp('assigned_at'),
-		doneAt: timestamp('done_at')
-	},
-	(t) => [index('homework_kid_idx').on(t.kidId, t.status)]
 );
 
 /** What a game is, from Wikidata and Wikipedia; null until it is looked up. */

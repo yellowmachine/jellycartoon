@@ -17,6 +17,8 @@ let mostInFlight = 0;
 /** Set, OpenRouter says no with it. */
 let failWith: string | null = null;
 mock.module('#lib/server/openrouter.ts', () => ({
+	// homework.test.ts's, unused here: a mock is the whole process's.
+	completeJson: async () => ({}),
 	sayableError: (message: string) => message,
 	speech: async (r: { voice: string; input: string; instructions?: string }) => {
 		if (failWith) throw new Error(failWith);

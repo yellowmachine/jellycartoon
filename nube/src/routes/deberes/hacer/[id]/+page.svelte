@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '@fontsource/comic-neue/400.css';
 	import '@fontsource/comic-neue/700.css';
-	import type { TryResult } from '#lib/homework.ts';
+	import type { TryResult } from 'comun/homework.ts';
 	import type { PageProps } from './$types';
 
 	/**
@@ -10,10 +10,15 @@
 	 */
 	let { data }: PageProps = $props();
 
-	// The page's own copy: each answer changes it, without loading again.
-	let exercises = $derived(structuredClone($state.snapshot(data.exercises)));
+	// The page's own copy, deeply reactive: each answer changes it, without loading again. Made
+	// again for another homework (a $derived copy would not show changes made inside it).
+	let exercises = $state<typeof data.exercises>([]);
 	/** Where the child is: the first not done, or the end. */
 	let at = $state(-1);
+	$effect.pre(() => {
+		exercises = structuredClone($state.snapshot(data.exercises));
+		at = -1;
+	});
 	$effect(() => {
 		if (at === -1) at = exercises.findIndex((e) => !e.step.done);
 	});
@@ -213,8 +218,9 @@
 			{#if score.written}
 				<p class="text-xl text-zinc-300">{t.toRead}</p>
 			{/if}
-			<a href="/" class="mt-4 rounded-2xl bg-zinc-800 px-6 py-3 text-xl hover:bg-zinc-700"
-				>{t.back}</a
+			<a
+				href="/deberes/hacer"
+				class="mt-4 rounded-2xl bg-zinc-800 px-6 py-3 text-xl hover:bg-zinc-700">{t.back}</a
 			>
 		</div>
 	{/if}

@@ -1,4 +1,8 @@
-import type { Cue } from './vtt.ts';
+/** A subtitle, as jellycartoon's vtt.ts reads them: where it starts (seconds) and what it says. */
+interface Cue {
+	start: number;
+	text: string;
+}
 
 /**
  * Homework from the cartoons they watched (#142): exercises the AI proposes from an episode's
