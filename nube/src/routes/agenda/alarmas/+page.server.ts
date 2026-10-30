@@ -8,8 +8,11 @@ import {
 	listAlarms,
 	setPaused,
 	skipAlarm,
+	startTimer,
+	startTimerAt,
 	stopAlarm
 } from '#lib/server/alarms/alarms.ts';
+import { hasHouse } from '#lib/server/house.ts';
 import { agendaPeople, personOf } from '#lib/server/agenda/agenda.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { allSatellites } from '#lib/server/satellites.ts';
@@ -18,12 +21,13 @@ import { allSatellites } from '#lib/server/satellites.ts';
 export const load: PageServerLoad = async ({ locals }) => {
 	const k = await kitchenOf(locals.user!.id);
 	const me = await personOf(k, locals.user!.id);
-	const [people, alarms, satellites] = await Promise.all([
+	const [people, alarms, satellites, house] = await Promise.all([
 		agendaPeople(k),
 		listAlarms(k, me),
-		allSatellites(k.familyId)
+		allSatellites(k.familyId),
+		hasHouse(locals.user!.id)
 	]);
-	return { people, alarms, satellites, readonly: false };
+	return { people, alarms, satellites, house, me, readonly: false };
 };
 
 const kitchen = (locals: App.Locals) => kitchenOf(locals.user!.id);
@@ -41,6 +45,31 @@ export const actions: Actions = {
 		const input = parseAlarmInput(body);
 		if (!input || input.kind !== 'alarma') return fail(400, { message: 'Falta la hora' });
 		return { alarmSaved: await addAlarm(k, input) };
+	},
+	/**
+	 * A timer by hand, as by voice: theirs on their phones or in the house (`startTimer`), or for
+	 * anyone in a satellite's room (`startTimerAt`). Without a name, «10 minutos», «10 minutos (2)».
+	 */
+	addTimer: async ({ request, locals }) => {
+		const k = await kitchen(locals);
+		let body: unknown;
+		try {
+			body = JSON.parse(String((await request.formData()).get('timer') ?? ''));
+		} catch {
+			return fail(400, { message: 'Temporizador no válido' });
+		}
+		const input = parseAlarmInput(body);
+		if (!input || input.kind !== 'temporizador')
+			return fail(400, { message: 'Entre un minuto y 24 horas' });
+		// Its own name, if it has one: the made-up one would restart another of the same time.
+		const said = (body as { label?: unknown }).label;
+		const label = typeof said === 'string' && said.trim() ? input.label : '';
+		const seconds = input.minutes * 60;
+		const me = await personOf(k, locals.user!.id);
+		if (input.place.startsWith('satelite:') || (!me && input.place === 'casa'))
+			return { timerSaved: await startTimerAt(k, input.place, { label, seconds }) };
+		if (!me) return fail(400, { message: 'No estás en las personas de la familia' });
+		return { timerSaved: await startTimer(k, me, { label, seconds, place: input.place }) };
 	},
 	/** «Parar», «Esta vez no», «Pausar»/«Activar», «Quitar»: one the user sees. */
 	alarm: async ({ request, locals }) => {

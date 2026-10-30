@@ -104,7 +104,8 @@ describe('cars', () => {
 		// Its trip is untouched.
 		const [trip] = await listTrips(alberto);
 		expect(trip!.distance).toBeGreaterThan(0);
-		await addTripPoints(ana, drive(0, [-3.8, 40.5]), null);
+		// Ending a few seconds later: its positions are kept to the second, the mark to the ms.
+		await addTripPoints(ana, drive(-3000, [-3.8, 40.5]), null);
 		expect((await myCar(ana))!.place).toMatchObject({ at: [-3.8, 40.5], trip: true, note: null });
 	});
 

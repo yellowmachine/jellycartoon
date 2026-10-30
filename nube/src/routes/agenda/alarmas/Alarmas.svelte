@@ -10,9 +10,12 @@
 		WEEKDAYS,
 		type AgendaPerson
 	} from 'comun/agenda.ts';
+	import AlarmIcon from '#lib/components/AlarmIcon.svelte';
+	import { timeLabel } from 'comun/timer-names.ts';
 	import {
 		daysName,
 		MAX_ALARM_LABEL,
+		TIMER_MINUTES,
 		type Alarm,
 		type AlarmInput,
 		type AlarmPlace
@@ -21,19 +24,25 @@
 	/**
 	 * The family's alarms (#253; jellycartoon's #241), in the Agenda: the house's and the user's,
 	 * with their next time; set by hand, stopped, skipped once, paused or taken away. They sound in
-	 * the house: all of it, or a voice satellite. And the timers said to the cloud (by voice), until
-	 * they end: on the phone, or in the house.
+	 * the house: all of it, or a voice satellite. And the timers, said to the cloud or put here, until
+	 * they end: on the phone, in the house, or in a satellite's room.
 	 */
 	let {
 		alarms,
 		people,
 		satellites,
+		house,
+		me,
 		readonly
 	}: {
 		alarms: Alarm[];
 		people: AgendaPerson[];
 		/** The voice satellites, where one can sound too. */
 		satellites: { id: string; name: string }[];
+		/** A house is connected: a timer may sound there. */
+		house: boolean;
+		/** The user's person: a timer on their phones is theirs. */
+		me: string | null;
 		readonly: boolean;
 	} = $props();
 
@@ -51,6 +60,22 @@
 		events.onmessage = () => void invalidateAll();
 		return () => events.close();
 	});
+
+	// The timers' countdown, by the second.
+	let now = $state(Date.now());
+	onMount(() => {
+		const tick = setInterval(() => (now = Date.now()), 1000);
+		return () => clearInterval(tick);
+	});
+
+	/** «4:32», «1:05:00»: what is left. */
+	function left(endsAt: number) {
+		const s = Math.max(0, Math.round((endsAt - now) / 1000));
+		const h = Math.floor(s / 3600);
+		const m = Math.floor((s % 3600) / 60);
+		const two = (n: number) => String(n).padStart(2, '0');
+		return h ? `${h}:${two(m)}:${two(s % 60)}` : `${m}:${two(s % 60)}`;
+	}
 
 	/** «hoy a las 7:30», «mañana a las 7:30», «jueves 30 a las 7:30». */
 	function when(at: number) {
@@ -86,6 +111,7 @@
 
 	function open() {
 		problem = null;
+		timing = null;
 		editing = {
 			label: '',
 			time: '07:30',
@@ -129,6 +155,39 @@
 		};
 	}
 
+	// ——— Putting a timer ———
+
+	/** The usual ones, a touch away. */
+	const QUICK = [5, 10, 15, 20, 30, 45, 60];
+
+	interface Timing {
+		label: string;
+		hours: number;
+		minutes: number;
+		place: AlarmPlace;
+	}
+
+	let timing = $state<Timing | null>(null);
+
+	/** Where one can sound: their phones, the house, each satellite's room. */
+	const timerPlaces = $derived<{ place: AlarmPlace; label: string }[]>([
+		...(me ? [{ place: 'movil' as const, label: 'En el móvil' }] : []),
+		...(house ? [{ place: 'casa' as const, label: 'En casa' }] : []),
+		...satellites.map((s) => ({ place: `satelite:${s.id}` as const, label: s.name }))
+	]);
+
+	function openTimer() {
+		problem = null;
+		editing = null;
+		timing = { label: '', hours: 0, minutes: 10, place: timerPlaces[0]?.place ?? 'casa' };
+	}
+
+	const timerMinutes = (t: Timing) => (Number(t.hours) || 0) * 60 + (Number(t.minutes) || 0);
+	const timerOk = (t: Timing) => {
+		const m = timerMinutes(t);
+		return m >= TIMER_MINUTES.min && m <= TIMER_MINUTES.max;
+	};
+
 	const field =
 		'rounded-md border-zinc-700 bg-zinc-950 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500';
 	const button = 'rounded-md px-3 py-1.5 text-sm disabled:opacity-40';
@@ -150,7 +209,7 @@
 	<h2 class="mb-1 font-semibold">Alarmas y temporizadores</h2>
 	<p class="mb-3 text-sm text-zinc-400">
 		Las de la casa y las tuyas. Suenan en casa: en toda, por los altavoces, o en un satélite de voz.
-		Los temporizadores, por voz: los de aquí avisan en el móvil, o en casa si lo dices.
+		Los temporizadores, por voz o aquí: en el móvil, en casa o en la habitación de un satélite.
 	</p>
 
 	{#if alarms.length}
@@ -161,14 +220,19 @@
 				<li
 					class={['flex flex-wrap items-center gap-x-3 gap-y-2 py-2', ringing && 'text-amber-300']}
 				>
-					<span class="text-lg" aria-hidden="true">{timer ? '⏲️' : '⏰'}</span>
+					<AlarmIcon
+						name={timer ? 'temporizador' : 'alarma'}
+						{ringing}
+						class={['h-6 w-6 shrink-0', ringing ? 'text-amber-400' : 'text-zinc-400']}
+					/>
 					<span class="min-w-0 flex-1">
 						<span class="block truncate">{a.label}</span>
 						<span class="block text-xs text-zinc-400">
 							{#if ringing}
 								Sonando
 							{:else if timer && a.endsAt}
-								Temporizador · acaba a las {localTime(new Date(a.endsAt))}
+								<span class="font-medium text-zinc-200 tabular-nums">{left(a.endsAt)}</span>
+								· acaba a las {localTime(new Date(a.endsAt))}
 							{:else}
 								{a.time}{a.days.length ? ` · ${daysName(a.days)}` : ''}
 								· {a.paused ? 'pausada' : a.nextAt ? when(a.nextAt) : 'ya sonó'}
@@ -321,10 +385,120 @@
 					>
 				</div>
 			</form>
-		{:else}
-			<button class="{button} bg-zinc-800 hover:bg-zinc-700" onclick={() => open()}
-				>⏰ Nueva alarma</button
+		{:else if timing}
+			{@const t = timing}
+			<form
+				method="post"
+				action="?/addTimer"
+				class="flex flex-col gap-4 rounded-lg border border-zinc-700 p-4"
+				use:enhance={() => {
+					problem = null;
+					return async ({ result, update }) => {
+						if (result.type === 'failure') problem = String(result.data?.message ?? 'No se pudo');
+						else if (result.type === 'success') timing = null;
+						await update();
+					};
+				}}
 			>
+				<input
+					type="hidden"
+					name="timer"
+					value={JSON.stringify({
+						kind: 'temporizador',
+						minutes: timerMinutes(t),
+						label: t.label,
+						people: [],
+						place: t.place
+					})}
+				/>
+				<h3 class="font-semibold">Nuevo temporizador</h3>
+				<div class="flex flex-wrap gap-2">
+					{#each QUICK as m (m)}
+						<button
+							type="button"
+							class={chip(timerMinutes(t) === m)}
+							onclick={() => {
+								t.hours = Math.floor(m / 60);
+								t.minutes = m % 60;
+							}}>{timeLabel(m * 60)}</button
+						>
+					{/each}
+				</div>
+				<div class="flex flex-wrap items-end gap-3">
+					<label class="flex flex-col gap-1 text-xs text-zinc-400">
+						Horas
+						<input
+							type="number"
+							min="0"
+							max="24"
+							bind:value={t.hours}
+							class="{field} w-20 tabular-nums"
+						/>
+					</label>
+					<label class="flex flex-col gap-1 text-xs text-zinc-400">
+						Minutos
+						<input
+							type="number"
+							min="0"
+							max="59"
+							bind:value={t.minutes}
+							class="{field} w-20 tabular-nums"
+						/>
+					</label>
+					<label class="flex min-w-48 flex-1 flex-col gap-1 text-xs text-zinc-400">
+						Nombre (si quieres)
+						<input
+							bind:value={t.label}
+							maxlength={MAX_ALARM_LABEL}
+							class={field}
+							placeholder="La pasta, el horno…"
+						/>
+					</label>
+				</div>
+
+				{#if timerPlaces.length > 1}
+					<div>
+						<p class="mb-1 text-xs text-zinc-400">Suena</p>
+						<div class="flex flex-wrap gap-2">
+							{#each timerPlaces as p (p.place)}
+								<button
+									type="button"
+									class={chip(t.place === p.place)}
+									onclick={() => (t.place = p.place)}>{p.label}</button
+								>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				{#if problem}<p class="text-sm text-red-400">{problem}</p>{/if}
+				<div class="flex gap-2">
+					<button
+						class="{button} bg-amber-500 font-semibold text-zinc-950 hover:bg-amber-400"
+						disabled={!timerOk(t)}>Empezar</button
+					>
+					<button
+						type="button"
+						class="{button} bg-zinc-800 hover:bg-zinc-700"
+						onclick={() => (timing = null)}>Cancelar</button
+					>
+				</div>
+			</form>
+		{:else}
+			<div class="flex flex-wrap gap-2">
+				<button
+					class="{button} flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700"
+					onclick={() => open()}
+				>
+					<AlarmIcon name="alarma" class="h-4 w-4 text-amber-400" />Nueva alarma
+				</button>
+				<button
+					class="{button} flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700"
+					onclick={() => openTimer()}
+				>
+					<AlarmIcon name="temporizador" class="h-4 w-4 text-amber-400" />Nuevo temporizador
+				</button>
+			</div>
 		{/if}
 	{/if}
 </section>

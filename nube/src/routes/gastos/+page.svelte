@@ -41,6 +41,11 @@
 
 	interface Editing {
 		id: number | null;
+		/**
+		 * Written by hand or said: with lines, the total is their sum, not typed. Not one read from a
+		 * photo, whose printed total is right and its lines may be misread.
+		 */
+		fromLines: boolean;
 		/** A receipt read and waiting to be kept with it. */
 		receipt: string | null;
 		readBy: ExpenseDraft['readBy'] | null;
@@ -93,6 +98,7 @@
 		close();
 		editing = {
 			id: null,
+			fromLines: true,
 			receipt: null,
 			readBy: null,
 			photo: null,
@@ -147,6 +153,11 @@
 		close();
 		editing = {
 			id: e.id,
+			// One that did not add up already keeps its total: not changed by opening it.
+			fromLines:
+				(e.source === 'mano' || e.source === 'voz') &&
+				!e.bill &&
+				(!e.lines.length || linesSum(e.lines) === e.total),
 			receipt: null,
 			readBy: null,
 			photo: null,
@@ -205,6 +216,7 @@
 		const draft = body as ExpenseDraft;
 		editing = {
 			id: null,
+			fromLines: false,
 			receipt: draft.receipt,
 			readBy: draft.readBy,
 			photo: photo && URL.createObjectURL(photo),
@@ -243,6 +255,24 @@
 		if (!pendingReceipt.photo) return;
 		const photo = pendingReceipt.take() ?? undefined;
 		untrack(() => void readPhoto(photo));
+	});
+
+	/** The lines' sum, as the total of one written by hand with lines; null otherwise or not yet. */
+	const fromLinesTotal = $derived.by(() => {
+		if (!editing?.fromLines) return null;
+		const lines = editing.lines.filter((l) => l.text.trim());
+		if (!lines.length) return null;
+		const amounts = lines.map((l) => parseEuros(l.amount));
+		return amounts.every((a) => a !== null)
+			? amounts.reduce<number>((sum, a) => sum + a!, 0)
+			: null;
+	});
+	const totalFromLines = $derived(
+		Boolean(editing?.fromLines && editing.lines.some((l) => l.text.trim()))
+	);
+	// In the box too: a favourite keeps it, and it stays there if the lines go.
+	$effect(() => {
+		if (fromLinesTotal !== null && editing) editing.total = typed(fromLinesTotal);
 	});
 
 	/** What the boxes say, as the server takes it; or why not yet. */
@@ -476,7 +506,9 @@
 							<input
 								bind:value={e.total}
 								inputmode="decimal"
-								class="{field} text-right"
+								readonly={totalFromLines}
+								title={totalFromLines ? 'La suma de las líneas' : undefined}
+								class={[`${field} text-right`, totalFromLines && 'text-zinc-400']}
 								placeholder="0,00"
 							/>
 						</label>
@@ -583,6 +615,11 @@
 						onclick={() => e.lines.push({ text: '', quantity: null, amount: '', tag: 'Otros' })}
 						>+ Línea</button
 					>
+					{#if totalFromLines}
+						<p class="mt-1 text-xs text-zinc-500">
+							El total es la suma de las líneas. Un descuento, en negativo: -2,00.
+						</p>
+					{/if}
 					{#if mismatch}
 						<p class="mt-2 text-sm text-amber-300">
 							{e.bill ? 'El desglose suma' : 'Las líneas suman'}

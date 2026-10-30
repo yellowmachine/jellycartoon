@@ -17,6 +17,8 @@
 		alarms={data.alarms}
 		people={data.people}
 		satellites={data.satellites}
+		house={data.house}
+		me={data.me}
 		readonly={data.readonly}
 	/>
 </div>
