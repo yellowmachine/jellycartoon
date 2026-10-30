@@ -8,6 +8,7 @@ import { oauthProvider } from '@better-auth/oauth-provider';
 import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { getRequestEvent } from '$app/server';
 import { db } from '#lib/server/db/index.ts';
+import { DISABLED_PATHS } from '#lib/server/auth-paths.ts';
 import { invitations } from '#lib/server/invitations.ts';
 import {
 	clientPrivileges,
@@ -22,13 +23,12 @@ export const auth = betterAuth({
 	secret: BETTER_AUTH_SECRET,
 	database: drizzleAdapter(db, { provider: 'pg' }),
 	emailAndPassword: { enabled: true, minPasswordLength: 10 },
-	// Nobody asks for a password reset by email yet: there is no email. And `/token`, the jwt
-	// plugin's: the houses get theirs from `/oauth2/token`, the provider's (as its docs ask).
-	disabledPaths: ['/request-password-reset', '/reset-password', '/token'],
+	disabledPaths: DISABLED_PATHS,
 	hooks: {
 		/**
 		 * Only who was invited signs up: the app is on the internet. From the invitation's page
-		 * (/invitacion/<token>), which then accepts it (invitation-scope.ts).
+		 * (/invitacion/<token>), which then accepts it (invitation-scope.ts); over HTTP, closed
+		 * (auth-paths.ts). This, again, for whatever else calls it.
 		 */
 		before: createAuthMiddleware(async (ctx) => {
 			if (ctx.path !== '/sign-up/email') return;
