@@ -47,6 +47,7 @@ interface PushMessage {
 	tag: string;
 	url: string;
 	sticky?: boolean;
+	actions?: { action: string; title: string; post: string }[];
 }
 
 self.addEventListener('push', (event) => {
@@ -60,8 +61,9 @@ self.addEventListener('push', (event) => {
 			// The status bar's small icon: Android only takes its shape, so a white silhouette.
 			badge: '/badge-96.png',
 			requireInteraction: message.sticky ?? false,
-			data: { url: message.url }
-		})
+			actions: message.actions?.map(({ action, title }) => ({ action, title })),
+			data: { url: message.url, actions: message.actions ?? [] }
+		} as NotificationOptions)
 	);
 });
 
@@ -81,14 +83,27 @@ function wentThere(client: Client, to: string) {
 /**
  * Touched: the app, at its page. Already open, it goes there itself (the root layout listens), not
  * loaded again: what plays goes on. Asleep in the background, or not listening, it does not answer:
- * then it is taken there, or a new window opens.
+ * then it is taken there, or a new window opens. One of its buttons, its own POST first.
  */
 self.addEventListener('notificationclick', (event) => {
 	event.notification.close();
 	const to: string = event.notification.data?.url ?? '/';
 	const url = new URL(to, self.location.origin).href;
+	const button = (event.notification.data?.actions as PushMessage['actions'])?.find(
+		(a) => a.action === event.action
+	);
 	event.waitUntil(
 		(async () => {
+			// A button of its own («✓ Tomada», #308): done here, with the session's cookie. Failed (the
+			// session gone, no network), the app opens, to do it there.
+			if (button) {
+				const res = await fetch(button.post, {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: '{}'
+				}).catch(() => null);
+				if (res?.ok) return;
+			}
 			const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
 			const open = windows.find((w) => new URL(w.url).origin === self.location.origin);
 			if (open) {

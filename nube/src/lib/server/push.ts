@@ -25,6 +25,11 @@ export interface PushMessage {
 	ttl: number;
 	/** On screen until touched or dismissed: someone is waiting for an answer. */
 	sticky?: boolean;
+	/**
+	 * Its buttons, where the phone shows them (Android; not iOS): each, touched, makes a POST to
+	 * `post` without opening the app; if it fails, the app opens at `url`.
+	 */
+	actions?: { action: string; title: string; post: string }[];
 }
 
 /** A contact for the push services, as the protocol asks: the app's address, which is https. */

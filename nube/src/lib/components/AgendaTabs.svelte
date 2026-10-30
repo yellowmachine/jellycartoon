@@ -2,14 +2,16 @@
 	import { onMount } from 'svelte';
 
 	/**
-	 * The Agenda's views (#253): what is written down, and what will sound (the alarms and the
-	 * timers). The second with a dot while one is ringing, live with the alarms' channel.
+	 * The Agenda's views (#253): what is written down, what will sound (the alarms and the
+	 * timers), and each one's medication (#308). The alarms' with a dot while one is ringing, live
+	 * with their channel.
 	 */
-	let { current }: { current: 'agenda' | 'alarmas' } = $props();
+	let { current }: { current: 'agenda' | 'alarmas' | 'medicacion' } = $props();
 
 	const TABS = [
 		{ id: 'agenda', href: '/agenda', label: 'Agenda' },
-		{ id: 'alarmas', href: '/agenda/alarmas', label: 'Alarmas' }
+		{ id: 'alarmas', href: '/agenda/alarmas', label: 'Alarmas' },
+		{ id: 'medicacion', href: '/agenda/medicacion', label: 'Medicación' }
 	] as const;
 
 	let ringing = $state(false);

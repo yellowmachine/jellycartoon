@@ -7,6 +7,8 @@
 	import { atHome } from '#lib/nav.ts';
 	import { dayName, isOver, localDay, localTime, timeOn, type Occurrence } from 'comun/agenda.ts';
 	import type { Alarm } from 'comun/alarms.ts';
+	import type { Dose } from 'comun/medication.ts';
+	import { enhance } from '$app/forms';
 	import { MAX_ITEM, MAX_NOTE, PAPERS, tiltFor, type FridgeState } from 'comun/fridge.ts';
 	import { thumbUrl } from 'comun/thumb.svelte.ts';
 	import { distanceText } from 'comun/road.ts';
@@ -26,7 +28,8 @@
 
 	/**
 	 * The home page with a session (home.ts): what there is today in the family, at a glance on the
-	 * phone. A new family's first steps, until done; today's agenda with the alarms and timers that
+	 * phone. A new family's first steps, until done; the doses still to take (#308), theirs and their
+	 * children's, to mark here; today's agenda with the alarms and timers that
 	 * ring today; the fridge's post-its and the list, live; the shortcuts; and «Seguir viendo» with a
 	 * house.
 	 */
@@ -40,6 +43,8 @@
 	}: {
 		name: string;
 		home: {
+			me: string | null;
+			doses: Dose[];
 			fridge: FridgeState;
 			tomorrow: Occurrence[];
 			alarms: Alarm[];
@@ -335,6 +340,47 @@
 		</a>
 	{/if}
 {/await}
+
+{#if home.doses.length}
+	<section class={section}>
+		<div class="mb-3 flex items-baseline justify-between">
+			<h2 class="font-semibold">Tomas de hoy</h2>
+			<a href="/agenda/medicacion" class="text-sm text-amber-400 hover:underline">Medicación</a>
+		</div>
+		<ul class="flex flex-col gap-2">
+			{#each home.doses as d (`${d.medicationId}-${d.time}`)}
+				{@const late = d.time <= localTime(now)}
+				<li class="flex items-center gap-3">
+					<span
+						class={[
+							'w-12 shrink-0 text-sm tabular-nums',
+							late ? 'font-semibold text-amber-400' : 'text-zinc-400'
+						]}>{d.time}</span
+					>
+					<span class="min-w-0 flex-1"
+						>{d.name}{#if d.dose}<span class="text-sm text-zinc-500">
+								· {d.dose}</span
+							>{/if}{#if d.personId !== home.me && nameOf(d.personId)}<span
+								class="text-sm text-zinc-500"
+							>
+								· {nameOf(d.personId)}</span
+							>{/if}</span
+					>
+					<form method="post" action="/agenda/medicacion?/mark" use:enhance>
+						<input type="hidden" name="id" value={d.medicationId} />
+						<input type="hidden" name="day" value={d.day} />
+						<input type="hidden" name="time" value={d.time} />
+						<input type="hidden" name="taken" value="1" />
+						<button
+							class="rounded-md bg-amber-500 px-3 py-1 text-sm font-semibold text-zinc-950 hover:bg-amber-400"
+							>Tomada</button
+						>
+					</form>
+				</li>
+			{/each}
+		</ul>
+	</section>
+{/if}
 
 <section class={section}>
 	<div class="mb-3 flex items-baseline justify-between">

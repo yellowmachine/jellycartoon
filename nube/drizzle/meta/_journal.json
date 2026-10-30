@@ -239,6 +239,13 @@
       "when": 1793348567707,
       "tag": "0033_nappy_vindicator",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793362471834,
+      "tag": "0034_lonely_rocket_raccoon",
+      "breakpoints": true
     }
   ]
 }
