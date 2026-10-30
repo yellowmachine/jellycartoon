@@ -24,6 +24,16 @@ const TIMEOUT_MS = 30_000;
 /** Said through Snapcast, it answers once heard: Piper, and the whole answer read. */
 const SPEECH_TIMEOUT_MS = 90_000;
 
+/** The server answered, with an error: its status says which. */
+export class ServerError extends Error {
+	constructor(
+		message: string,
+		readonly status: number
+	) {
+		super(message);
+	}
+}
+
 async function request(
 	path: string,
 	body: Uint8Array | string,
@@ -36,7 +46,8 @@ async function request(
 		body,
 		signal: AbortSignal.timeout(timeout)
 	});
-	if (!res.ok) throw new Error(`${path}: ${res.status} ${(await res.text()).slice(0, 200)}`);
+	if (!res.ok)
+		throw new ServerError(`${path}: ${res.status} ${(await res.text()).slice(0, 200)}`, res.status);
 	return res;
 }
 

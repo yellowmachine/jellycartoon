@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { SAID_NO_CREDIT } from '../../packages/comun/src/voice.ts';
-import { speech } from './server.ts';
+import { ServerError, speech } from './server.ts';
 import { beep, play } from './sound.ts';
 
 /**
@@ -14,7 +14,9 @@ import { beep, play } from './sound.ts';
 const PHRASES = {
 	offline: 'No tengo conexión con Seilide. Prueba dentro de un rato.',
 	noCredit: SAID_NO_CREDIT,
-	noVoice: 'Hecho, pero ahora no puedo hablar.'
+	noVoice: 'Hecho, pero ahora no puedo hablar.',
+	/** Its answer did nothing (a question, the time): not «hecho». */
+	noVoiceNothingDone: 'Ahora no puedo hablar. Prueba dentro de un rato.'
 } as const;
 
 export type Fallback = keyof typeof PHRASES;
@@ -54,6 +56,12 @@ export async function sayFallback(which: Fallback) {
 	}
 }
 
-/** The answer it could not have said: the credit's own phrase, or that it was done. */
-export const fallbackFor = (reply: string): Fallback =>
-	reply === SAID_NO_CREDIT ? 'noCredit' : 'noVoice';
+/**
+ * The answer it could not have said: the credit's own phrase (its answer, or its voice, without
+ * credit: a 402), or whether something was done.
+ */
+export function fallbackFor(reply: string, actions: number, err: unknown): Fallback {
+	if (reply === SAID_NO_CREDIT || (err instanceof ServerError && err.status === 402))
+		return 'noCredit';
+	return actions ? 'noVoice' : 'noVoiceNothingDone';
+}

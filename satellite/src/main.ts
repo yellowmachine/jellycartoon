@@ -272,7 +272,7 @@ async function respond(wav: Uint8Array) {
 					// Done, but not said: the phrase kept for it (fallback.ts).
 					log(`Sin voz para la respuesta: ${err instanceof Error ? err.message : String(err)}`);
 					await saidFiller;
-					await sayFallback(fallbackFor(done.reply.reply));
+					await sayFallback(fallbackFor(done.reply.reply, done.reply.actions.length, err));
 					return;
 				}
 				if (!voice) log(`Dicho por Snapcast (${Date.now() - started} ms desde la orden)`);
