@@ -4,12 +4,13 @@ import { db } from '#lib/server/db/index.ts';
 import { houseKitchen } from '#lib/server/fridge.ts';
 import { newDay, sendDue } from '#lib/server/agenda/agenda.ts';
 import { ringDue } from '#lib/server/alarms/alarms.ts';
+import { sendDueDoses } from '#lib/server/medication.ts';
 import { hasBot, startBot } from '#lib/server/telegram/bot.ts';
 import { refreshAll, REFRESH_HOURS } from '#lib/server/podcasts/podcasts.ts';
 
 /**
  * The cloud's own clock (#253): every few seconds, each family's alarms whose time has come; every
- * minute, its agenda's notices; at midnight, the fridges' «Hoy»; every few hours, its podcasts'
+ * minute, its agenda's notices and its medication's doses (#308); at midnight, the fridges' «Hoy»; every few hours, its podcasts'
  * feeds. At startup, the families' Telegram bots. The families come from a function
  * of the database's owner that gives only their ids (migration 0007): each is then looked at within
  * its own family, as everything else.
@@ -54,6 +55,7 @@ export function startScheduler() {
 			if (Date.now() - lastNotices >= NOTICES_MS) {
 				lastNotices = Date.now();
 				await eachFamily('Avisos de la agenda', (id) => sendDue(houseKitchen(id)));
+				await eachFamily('Tomas de medicación', (id) => sendDueDoses(houseKitchen(id)));
 			}
 			if (localDay() !== day) {
 				day = localDay();
