@@ -329,9 +329,20 @@ export function usageOfStream(text: string): Usage | undefined {
 }
 
 /**
+ * OpenRouter's refusal to an app's request (#284), in OpenAI's shape, so that the app's client reads
+ * it; a key OpenRouter refuses is not the app's fault (not a 401).
+ */
+async function refusedAnswer(res: Response) {
+	const body = await res.json().catch(() => null);
+	return Response.json(
+		{ error: { message: refused(res.status, body).message, code: res.status } },
+		{ status: res.status === 401 ? 502 : res.status }
+	);
+}
+
+/**
  * An app's request (#284, /api/ia), to OpenRouter as it came, with its family's key; its answer back
- * as it comes, streamed or not, and its cost noted. Refused keys and errors, in OpenAI's shape, so
- * that the app's client reads them; a key OpenRouter refuses is not the app's fault (not a 401).
+ * as it comes, streamed or not, and its cost noted; refused, as `refusedAnswer`.
  */
 export async function forwardChat(request: {
 	apiKey: string;
@@ -345,14 +356,7 @@ export async function forwardChat(request: {
 		body: JSON.stringify(request.body),
 		signal: request.signal
 	});
-	if (!res.ok) {
-		const body = await res.json().catch(() => null);
-		const status = res.status === 401 ? 502 : res.status;
-		return Response.json(
-			{ error: { message: refused(res.status, body).message, code: res.status } },
-			{ status }
-		);
-	}
+	if (!res.ok) return refusedAnswer(res);
 	if (!request.body.stream || !res.body) {
 		const body = await res.json();
 		noteCost(request.apiKey, request.label, body);
@@ -367,6 +371,30 @@ export async function forwardChat(request: {
 		});
 	return new Response(toApp, {
 		headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' }
+	});
+}
+
+/**
+ * An app's speech (#284, /api/ia: Langua reads aloud), to OpenRouter's
+ * (https://openrouter.ai/docs/guides/overview/multimodal/tts) as it came, with its family's key;
+ * the audio back as it comes, with its type (Gemini's, raw PCM: `audio/pcm;rate=24000`). Its cost
+ * is not in the answer: OpenRouter's own figures for the key count it.
+ */
+export async function forwardSpeech(request: {
+	apiKey: string;
+	label: string;
+	body: Record<string, unknown>;
+	signal: AbortSignal;
+}): Promise<Response> {
+	const res = await fetch('https://openrouter.ai/api/v1/audio/speech', {
+		method: 'POST',
+		headers: { ...headers(request.apiKey), 'X-OpenRouter-Title': request.label },
+		body: JSON.stringify(request.body),
+		signal: request.signal
+	});
+	if (!res.ok) return refusedAnswer(res);
+	return new Response(res.body, {
+		headers: { 'Content-Type': res.headers.get('content-type') ?? 'application/octet-stream' }
 	});
 }
 
