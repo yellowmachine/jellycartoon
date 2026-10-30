@@ -3,7 +3,16 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { dayName, WEEKDAYS } from 'comun/agenda.ts';
-	import { daysText, MAX_DOSE, MAX_NAME, MAX_TIMES, type Medication } from 'comun/medication.ts';
+	import {
+		daysText,
+		groupDoses,
+		markValue,
+		MAX_DOSE,
+		MAX_NAME,
+		MAX_TIMES,
+		type Dose,
+		type Medication
+	} from 'comun/medication.ts';
 	import AgendaTabs from '#lib/components/AgendaTabs.svelte';
 	import type { PageProps } from './$types';
 
@@ -146,29 +155,58 @@
 		Hoy, {dayName(data.today)}
 	</h2>
 	<ul class="mb-8 divide-y divide-zinc-800">
-		{#each data.doses as d (`${d.medicationId}-${d.time}`)}
-			<li class="flex items-center gap-3 py-2">
-				<span class="w-12 shrink-0 text-sm text-zinc-400 tabular-nums">{d.time}</span>
-				{@render badge(d.personId)}
-				<span class="min-w-0 flex-1">
-					<span class="block truncate">{d.name}</span>
-					{#if d.dose}<span class="block truncate text-xs text-zinc-500">{d.dose}</span>{/if}
-				</span>
-				<form method="post" action="?/mark" use:enhance>
-					<input type="hidden" name="id" value={d.medicationId} />
-					<input type="hidden" name="day" value={d.day} />
-					<input type="hidden" name="time" value={d.time} />
-					{#if d.takenAt}
-						<input type="hidden" name="taken" value="0" />
+		{#each groupDoses(data.doses) as g (`${g.time}-${g.personId}`)}
+			{@const pending = g.doses.filter((d) => !d.takenAt)}
+			{@const last = g.doses.reduce<Dose | null>(
+				(a, d) => (d.takenAt && (!a || d.takenAt > a.takenAt!) ? d : a),
+				null
+			)}
+			<li>
+				<form method="post" action="?/mark" use:enhance class="flex items-center gap-3 py-2">
+					<input type="hidden" name="day" value={g.day} />
+					<input type="hidden" name="time" value={g.time} />
+					<span class="w-12 shrink-0 text-sm text-zinc-400 tabular-nums">{g.time}</span>
+					{@render badge(g.personId)}
+					<!-- Each one, to mark (or unmark) it alone. -->
+					<span class="flex min-w-0 flex-1 flex-wrap items-center gap-x-1">
+						{#each g.doses as d, i (d.medicationId)}
+							{#if i > 0}<span class="text-zinc-600">·</span>{/if}
+							<button
+								name="mark"
+								value={markValue([d.medicationId], !d.takenAt)}
+								class={[
+									'rounded px-1 text-left hover:bg-zinc-800',
+									d.takenAt && pending.length && 'text-zinc-500'
+								]}
+								title={d.takenAt ? 'Tocar para desmarcarla' : 'Tocar para marcar solo esta'}
+								>{d.takenAt && pending.length ? '✓ ' : ''}{d.name}{#if d.dose}<span
+										class="text-sm text-zinc-500"
+									>
+										{d.dose}</span
+									>{/if}</button
+							>
+						{/each}
+					</span>
+					{#if pending.length}
 						<button
-							class="{button} text-emerald-400 hover:bg-zinc-800"
-							title="Tocar para desmarcarla"
-							>✓ {d.takenAt}{d.takenBy ? ` · ${d.takenBy}` : ''}</button
+							name="mark"
+							value={markValue(
+								pending.map((d) => d.medicationId),
+								true
+							)}
+							class="{button} shrink-0 bg-amber-500 font-semibold text-zinc-950 hover:bg-amber-400"
+							>{pending.length > 1 ? 'Tomadas' : 'Tomada'}</button
 						>
 					{:else}
-						<input type="hidden" name="taken" value="1" />
-						<button class="{button} bg-amber-500 font-semibold text-zinc-950 hover:bg-amber-400"
-							>Tomada</button
+						<button
+							name="mark"
+							value={markValue(
+								g.doses.map((d) => d.medicationId),
+								false
+							)}
+							class="{button} shrink-0 text-emerald-400 hover:bg-zinc-800"
+							title="Tocar para desmarcarlas"
+							>✓ {last?.takenAt}{last?.takenBy ? ` · ${last.takenBy}` : ''}</button
 						>
 					{/if}
 				</form>

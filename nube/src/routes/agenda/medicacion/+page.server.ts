@@ -1,7 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { isDay, isTime, localDay } from 'comun/agenda.ts';
-import { parseMedicationInput } from 'comun/medication.ts';
+import { parseMark, parseMedicationInput } from 'comun/medication.ts';
 import { agendaPeople, personOf } from '#lib/server/agenda/agenda.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import {
@@ -48,19 +48,19 @@ export const actions: Actions = {
 	delete: async ({ request, locals }) => {
 		await deleteMedication(await kitchen(locals), Number((await request.formData()).get('id')));
 	},
-	/** A dose of today, taken; or, again, not. */
+	/**
+	 * Doses of one time, taken; or, again, not: `mark` says which (`3,4:1`), one or a line's (one
+	 * person's at that time). Also from the home page's «Tomas de hoy».
+	 */
 	mark: async ({ request, locals }) => {
 		const form = await request.formData();
 		const day = form.get('day');
 		const time = form.get('time');
-		if (!isDay(day) || !isTime(time)) return fail(400, { message: 'Toma no válida' });
-		const done = await markDose(
-			await kitchen(locals),
-			Number(form.get('id')),
-			day,
-			time,
-			form.get('taken') === '1'
-		);
+		const mark = parseMark(form.get('mark'));
+		if (!isDay(day) || !isTime(time) || !mark) return fail(400, { message: 'Toma no válida' });
+		const k = await kitchen(locals);
+		let done = 0;
+		for (const id of mark.ids) if (await markDose(k, id, day, time, mark.taken)) done++;
 		if (!done) return fail(404, { message: 'Esa toma ya no está' });
 	}
 };

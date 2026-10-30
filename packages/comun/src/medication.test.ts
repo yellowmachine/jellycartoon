@@ -1,5 +1,13 @@
 import { expect, test } from 'bun:test';
-import { daysText, dosesOn, parseMedicationInput, takenOn } from './medication.ts';
+import {
+	daysText,
+	dosesOn,
+	groupDoses,
+	markValue,
+	parseMark,
+	parseMedicationInput,
+	takenOn
+} from './medication.ts';
 
 const pill = {
 	id: 1,
@@ -61,4 +69,35 @@ test('as the page sends it', () => {
 test('its days, as said', () => {
 	expect(daysText([])).toBe('Todos los días');
 	expect(daysText([4, 0, 2])).toBe('L, X, V');
+});
+
+test("each person's at a time, on one line", () => {
+	const dose = (medicationId: number, personId: string, time: string) => ({
+		medicationId,
+		personId,
+		name: `m${medicationId}`,
+		dose: null,
+		day: '2026-10-30',
+		time,
+		takenAt: null,
+		takenBy: null
+	});
+	const groups = groupDoses([
+		dose(1, 'ana', '14:00'),
+		dose(2, 'lucia', '14:00'),
+		dose(3, 'ana', '14:00'),
+		dose(4, 'ana', '22:00')
+	]);
+	expect(groups.map((g) => `${g.time} ${g.personId} ${g.doses.map((d) => d.name)}`)).toEqual([
+		'14:00 ana m1,m3',
+		'14:00 lucia m2',
+		'22:00 ana m4'
+	]);
+});
+
+test('what a button marks', () => {
+	expect(parseMark(markValue([3, 4], true))).toEqual({ ids: [3, 4], taken: true });
+	expect(parseMark('3:0')).toEqual({ ids: [3], taken: false });
+	expect(parseMark('3,x:1')).toBeNull();
+	expect(parseMark(':1')).toBeNull();
 });

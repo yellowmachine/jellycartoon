@@ -88,3 +88,35 @@ export function parseMedicationInput(body: unknown): MedicationInput | null {
 		endDay
 	};
 }
+
+/** One person's doses at one time: one line, as their notice. */
+export interface DoseGroup {
+	personId: string;
+	day: string;
+	time: string;
+	doses: Dose[];
+}
+
+/** By time, each person's together, in the order they came. */
+export function groupDoses(doses: Dose[]): DoseGroup[] {
+	const groups = new Map<string, DoseGroup>();
+	for (const d of doses) {
+		const key = `${d.time}-${d.personId}`;
+		const group = groups.get(key) ?? { personId: d.personId, day: d.day, time: d.time, doses: [] };
+		group.doses.push(d);
+		groups.set(key, group);
+	}
+	return [...groups.values()];
+}
+
+/** «Sintrom (½ pastilla)». */
+export const doseText = (d: Pick<Dose, 'name' | 'dose'>) =>
+	d.dose ? `${d.name} (${d.dose})` : d.name;
+
+/** What a button marks, as the form sends it: `3,4:1` (taken) or `3,4:0` (not). */
+export const markValue = (ids: number[], taken: boolean) => `${ids.join(',')}:${taken ? 1 : 0}`;
+
+export function parseMark(value: unknown) {
+	const match = typeof value === 'string' ? /^(\d+(?:,\d+)*):([01])$/.exec(value) : null;
+	return match ? { ids: match[1]!.split(',').map(Number), taken: match[2] === '1' } : null;
+}

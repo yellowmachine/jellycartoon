@@ -7,7 +7,7 @@
 	import { atHome } from '#lib/nav.ts';
 	import { dayName, isOver, localDay, localTime, timeOn, type Occurrence } from 'comun/agenda.ts';
 	import type { Alarm } from 'comun/alarms.ts';
-	import type { Dose } from 'comun/medication.ts';
+	import { doseText, groupDoses, markValue, type Dose } from 'comun/medication.ts';
 	import { enhance } from '$app/forms';
 	import { MAX_ITEM, MAX_NOTE, PAPERS, tiltFor, type FridgeState } from 'comun/fridge.ts';
 	import { thumbUrl } from 'comun/thumb.svelte.ts';
@@ -348,32 +348,40 @@
 			<a href="/agenda/medicacion" class="text-sm text-amber-400 hover:underline">Medicación</a>
 		</div>
 		<ul class="flex flex-col gap-2">
-			{#each home.doses as d (`${d.medicationId}-${d.time}`)}
-				{@const late = d.time <= localTime(now)}
-				<li class="flex items-center gap-3">
-					<span
-						class={[
-							'w-12 shrink-0 text-sm tabular-nums',
-							late ? 'font-semibold text-amber-400' : 'text-zinc-400'
-						]}>{d.time}</span
+			{#each groupDoses(home.doses) as g (`${g.time}-${g.personId}`)}
+				{@const late = g.time <= localTime(now)}
+				<li>
+					<form
+						method="post"
+						action="/agenda/medicacion?/mark"
+						use:enhance
+						class="flex items-center gap-3"
 					>
-					<span class="min-w-0 flex-1"
-						>{d.name}{#if d.dose}<span class="text-sm text-zinc-500">
-								· {d.dose}</span
-							>{/if}{#if d.personId !== home.me && nameOf(d.personId)}<span
-								class="text-sm text-zinc-500"
-							>
-								· {nameOf(d.personId)}</span
-							>{/if}</span
-					>
-					<form method="post" action="/agenda/medicacion?/mark" use:enhance>
-						<input type="hidden" name="id" value={d.medicationId} />
-						<input type="hidden" name="day" value={d.day} />
-						<input type="hidden" name="time" value={d.time} />
-						<input type="hidden" name="taken" value="1" />
+						<input type="hidden" name="day" value={g.day} />
+						<input type="hidden" name="time" value={g.time} />
+						<span
+							class={[
+								'w-12 shrink-0 text-sm tabular-nums',
+								late ? 'font-semibold text-amber-400' : 'text-zinc-400'
+							]}>{g.time}</span
+						>
+						<span class="min-w-0 flex-1"
+							>{g.doses
+								.map(doseText)
+								.join(' · ')}{#if g.personId !== home.me && nameOf(g.personId)}<span
+									class="text-sm text-zinc-500"
+								>
+									· {nameOf(g.personId)}</span
+								>{/if}</span
+						>
 						<button
-							class="rounded-md bg-amber-500 px-3 py-1 text-sm font-semibold text-zinc-950 hover:bg-amber-400"
-							>Tomada</button
+							name="mark"
+							value={markValue(
+								g.doses.map((d) => d.medicationId),
+								true
+							)}
+							class="shrink-0 rounded-md bg-amber-500 px-3 py-1 text-sm font-semibold text-zinc-950 hover:bg-amber-400"
+							>{g.doses.length > 1 ? 'Tomadas' : 'Tomada'}</button
 						>
 					</form>
 				</li>

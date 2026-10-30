@@ -12,6 +12,7 @@ import type { Kitchen } from '#lib/server/fridge.ts';
 import { notify } from '#lib/server/push.ts';
 import { localDay, localTime } from 'comun/agenda.ts';
 import {
+	doseText,
 	dosesOn,
 	takenOn,
 	type Dose,
@@ -247,7 +248,7 @@ export async function sendDueDoses(k: Kitchen) {
 		for (const m of these) query.append('id', String(m.id));
 		await notify(k.familyId, await toldFor(k, Number(personId)), {
 			title: `💊 ${who ? `${who}, ` : ''}${time}`,
-			body: these.map((m) => (m.dose ? `${m.name} (${m.dose})` : m.name)).join(' · '),
+			body: these.map(doseText).join(' · '),
 			tag: `toma-${personId}-${day}-${time}`,
 			url: `/agenda/medicacion?persona=${personId}`,
 			ttl: LATE_MINUTES * 60,
