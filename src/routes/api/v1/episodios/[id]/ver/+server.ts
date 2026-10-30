@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { episode } from '#lib/server/db/schema.ts';
-import { cloudPerson, grantLinks } from '#lib/server/media-api.ts';
+import { cloudViewer, grantLinks, kidMayWatch } from '#lib/server/media-api.ts';
 import { watchPage } from '#lib/server/watch-page.ts';
 
 /**
@@ -14,8 +14,9 @@ import { watchPage } from '#lib/server/watch-page.ts';
  * original.
  */
 export const POST: RequestHandler = async ({ request, params }) => {
-	const person = await cloudPerson(request);
+	const person = await cloudViewer(request);
 	const id = Number(params.id);
+	await kidMayWatch(person, id);
 	const body = await request.json().catch(() => ({}));
 	const start = typeof body?.inicio === 'number' && body.inicio >= 0 ? body.inicio : null;
 	const [[e], watch] = await Promise.all([

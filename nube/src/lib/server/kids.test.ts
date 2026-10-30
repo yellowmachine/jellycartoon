@@ -148,17 +148,13 @@ describe('where a child may go', () => {
 		expect(kidMayOpen('/nevera', 'POST')).toBe(true);
 		expect(kidMayOpen('/api/nevera/notas', 'GET')).toBe(true);
 		expect(kidMayOpen('/deberes/3', 'GET')).toBe(true);
+		// Series and music: the house gives it only what is for children.
+		expect(kidMayOpen('/series', 'GET')).toBe(true);
+		expect(kidMayOpen('/watch/12', 'GET')).toBe(true);
+		expect(kidMayOpen('/musica/listas', 'GET')).toBe(true);
 	});
 	test('nothing else', () => {
-		for (const path of [
-			'/gastos',
-			'/ajustes',
-			'/voz',
-			'/viajes',
-			'/series',
-			'/musica',
-			'/api/gastos'
-		])
+		for (const path of ['/gastos', '/ajustes', '/voz', '/viajes', '/api/gastos', '/api/music/dj'])
 			expect(kidMayOpen(path, 'GET')).toBe(false);
 		expect(kidMayOpen('/neveras', 'GET')).toBe(false);
 	});

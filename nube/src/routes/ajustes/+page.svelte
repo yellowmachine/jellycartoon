@@ -134,7 +134,8 @@
 			<p class="mb-4 text-sm text-zinc-400">
 				Para quién es cada cosa de la Agenda y cada alarma: los de la familia con cuenta y los
 				peques. Cada uno con su dibujo. A un peque le puedes dar su cuenta: entra eligiendo su
-				dibujo, sin contraseña, cuando uno de sus mayores le deja, y solo ve su agenda y la nevera.
+				dibujo, sin contraseña, cuando uno de sus mayores le deja, y solo ve su agenda, la nevera, y
+				las series y la música de peques.
 			</p>
 			<ul class="mb-4 divide-y divide-zinc-800">
 				{#each data.people as p (p.id)}

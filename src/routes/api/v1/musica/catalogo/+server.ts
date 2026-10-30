@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { cloudPerson } from '#lib/server/media-api.ts';
+import { cloudViewer } from '#lib/server/media-api.ts';
 import { getAlbums } from '#lib/server/music/albums.ts';
 
 /**
@@ -8,6 +8,6 @@ import { getAlbums } from '#lib/server/music/albums.ts';
  * in the browser and groups them by artist, as the house's page does.
  */
 export const GET: RequestHandler = async ({ request }) => {
-	await cloudPerson(request);
+	await cloudViewer(request);
 	return json({ albums: await getAlbums() });
 };

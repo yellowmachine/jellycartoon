@@ -172,13 +172,23 @@ export async function isKidAccount(userId: string) {
 }
 
 /**
- * What a child may open here: its agenda (only to look at, not its alarms), the fridge, homework
- * (#303), and its own way out. Series and music, once the house filters them for children (#303,
- * step 4): until then, not.
+ * What a child may open here: its agenda (only to look at, not its alarms), the fridge, homework,
+ * series and music (#303; the house gives it only what is for children, media-api.ts), and its own
+ * way out. Not the DJ: the grown-ups' (the house refuses it too).
  */
 const KID_PAGES = ['/', '/agenda'];
-const KID_SECTIONS = ['/nevera', '/deberes', '/logout'];
-const KID_APIS = ['/api/auth', '/api/nevera', '/api/avisos', '/api/push', '/api/health'];
+const KID_SECTIONS = ['/nevera', '/deberes', '/series', '/watch', '/musica', '/logout'];
+const KID_APIS = [
+	'/api/auth',
+	'/api/nevera',
+	'/api/avisos',
+	'/api/push',
+	'/api/health',
+	'/api/series',
+	'/api/musica',
+	'/api/music/playlists',
+	'/api/subtitulos'
+];
 
 const under = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
 

@@ -56,7 +56,7 @@ const link = (s: (typeof SECTIONS)[number], webUrl: string | null): NavLink => (
 });
 
 /** What a child's bar has (#303): what it may open (kids.ts), and no Ajustes. */
-const KID_SECTIONS = ['/agenda', '/nevera'];
+const KID_SECTIONS = ['/series', '/musica', '/agenda', '/nevera'];
 
 /** With `hasHouse` false (no house connected), nothing of the house: its sections, Gestión, TV. */
 export function navLinks(

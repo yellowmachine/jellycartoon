@@ -14,8 +14,8 @@
 
 <h1 class="mb-2 text-2xl font-bold">Pasar a un peque</h1>
 <p class="mb-6 text-sm text-zinc-400">
-	Tu móvil se queda como el suyo un rato: solo verá su agenda y la nevera. Para volver a lo tuyo,
-	entra otra vez con tu contraseña.
+	Tu móvil se queda como el suyo un rato: solo verá su agenda, la nevera, y las series y la música
+	de peques. Para volver a lo tuyo, entra otra vez con tu contraseña.
 </p>
 
 <form method="post" use:enhance class="{section} flex flex-col gap-6">
