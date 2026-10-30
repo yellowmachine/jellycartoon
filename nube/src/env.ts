@@ -45,6 +45,11 @@ export const variables = defineEnvVars({
 			"The service's administrator: the first family's (scripts/migrate.ts), and who is told by email of each family asking to come in (the landing page's «Pedir acceso»).",
 		schema: (value) => value?.trim() || undefined
 	},
+	BACKUP_REPORT_TOKEN: {
+		description:
+			"What each night's copy of the VPS's apps (deploy/vps-backup.sh) shows to report how it went, for /admin: `openssl rand -hex 32`, the same in the VPS's /etc/vps-backup.env. Without it, no report is taken.",
+		schema: (value) => value || undefined
+	},
 	SMTP_HOST: {
 		description:
 			'The SMTP server the app sends its emails through (e.g. `smtp.protonmail.ch`). Without it, none is sent: only logged.',

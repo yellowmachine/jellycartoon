@@ -60,7 +60,7 @@ ok=/tmp/last-backup-ok
 up() {
 	(umask 077 && age -r "$BACKUP_AGE_RECIPIENT" -o "$dir/$2" "$1")
 	rclone copyto "$dir/$2" "r2:$R2_BUCKET/$2"
-	log "Subida $2"
+	log "Subida $2 ($(du -h "$dir/$2" | cut -f1))"
 }
 
 backup() {

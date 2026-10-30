@@ -99,14 +99,8 @@ export function navLinks(
 					}
 				]
 			: []),
-		// The families that asked to come in, and the apps entered with the account (#284): only for
-		// who runs the service.
-		...(serviceAdmin
-			? [
-					{ href: '/admin/lista-de-espera', label: 'Lista de espera', icon: 'gestion' as const },
-					{ href: '/admin/apps', label: 'Apps', icon: 'gestion' as const }
-				]
-			: [])
+		// Who runs the service: its families, its copies, the waiting list and the apps (/admin).
+		...(serviceAdmin ? [{ href: '/admin', label: 'Admin', icon: 'gestion' as const }] : [])
 	];
 	return { links, menuLinks: hasHouse ? [...links, gestion] : links, userLinks };
 }
