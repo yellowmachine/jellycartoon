@@ -14,6 +14,13 @@ import {
 	setGuardians,
 	takeKidAccount
 } from '#lib/server/kids.ts';
+import {
+	deviceOf,
+	forgetDevice,
+	trustDevice,
+	trustedDevices,
+	untrustThisDevice
+} from '#lib/server/kid-login.ts';
 import { auth } from '#lib/server/auth.ts';
 import {
 	botStatus,
@@ -78,7 +85,7 @@ import {
 import { recordsTrips, setRecordTrips } from '#lib/server/trips/trips.ts';
 import { subtitleStyleOf } from '#lib/server/subtitles.ts';
 
-export const load: PageServerLoad = async ({ locals, request }) => {
+export const load: PageServerLoad = async ({ locals, request, cookies }) => {
 	const k = await kitchenOf(locals.user!.id);
 	const membership = await withFamily(locals.user!.id, async (_, m) => m);
 	const admin = membership.role === 'admin';
@@ -96,6 +103,13 @@ export const load: PageServerLoad = async ({ locals, request }) => {
 		people: await familyPeople(k),
 		/** The children with an account and who lets each in (#303), and the adults who may. */
 		kids: admin ? { kids: await familyKids(k), adults: await familyAdults(k) } : null,
+		/** The children's devices (#303): this one, if it is, and all of them. Its administrator. */
+		kidDevices: admin
+			? {
+					here: (await deviceOf(cookies))?.name ?? null,
+					all: await trustedDevices(k)
+				}
+			: null,
 		telegramBot: admin ? { bot: await botStatus(membership.familyId) } : null,
 		/** «Entrar con la nube» (#279): its houses' clients, and the cloud's address for their .env. */
 		houseClients: admin ? { clients: await houseClients(request.headers), origin: ORIGIN } : null,
@@ -422,6 +436,30 @@ export const actions: Actions = {
 		);
 		if (!done) return fail(400, { personProblem: 'Ese peque no está' });
 		return { saved: 'kid' };
+	},
+	/** This device, the children's (#303): «¿Quién eres?» on entering, from now on. */
+	trustKidDevice: async ({ request, locals, cookies }) => {
+		const denied = await requireAdmin(locals.user!.id, 'kidDeviceProblem');
+		if (denied) return denied;
+		const name = String((await request.formData()).get('name') ?? '')
+			.trim()
+			.slice(0, 40);
+		if (!name) return fail(400, { kidDeviceProblem: 'Ponle un nombre' });
+		await trustDevice(await kitchenOf(locals.user!.id), cookies, name);
+		return { saved: 'kidDevice' };
+	},
+	untrustKidDevice: async ({ locals, cookies }) => {
+		const denied = await requireAdmin(locals.user!.id, 'kidDeviceProblem');
+		if (denied) return denied;
+		await untrustThisDevice(await kitchenOf(locals.user!.id), cookies);
+		return { saved: 'kidDevice' };
+	},
+	forgetKidDevice: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'kidDeviceProblem');
+		if (denied) return denied;
+		const id = Number((await request.formData()).get('id'));
+		await forgetDevice(await kitchenOf(locals.user!.id), id);
+		return { saved: 'kidDevice' };
 	},
 	/** Back to a person without an account: its name, drawing and agenda stay. */
 	takeKidAccount: async ({ request, locals }) => {

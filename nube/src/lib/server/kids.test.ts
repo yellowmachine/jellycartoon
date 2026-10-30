@@ -5,8 +5,9 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { eq, sql } from 'drizzle-orm';
 import * as schema from './db/schema.ts';
 import { family, familyMember, familyPerson, kidAccount, user } from './db/schema.ts';
-import { familyScope } from './family-scope.ts';
+import { familyOnlyScope, familyScope } from './family-scope.ts';
 import type { Kitchen } from './fridge.ts';
+import { NoFamily } from './family-scope.ts';
 
 /**
  * Children's accounts (#303), on a real Postgres (PGlite) as the app's role, with Better Auth's
@@ -14,11 +15,16 @@ import type { Kitchen } from './fridge.ts';
  */
 const db = drizzle(new PGlite(), { schema });
 const withFamily = familyScope(db, { role: 'app_user' });
+// The whole module, as kid-login.test.ts's: a mock is the process's, whichever test runs first.
 mock.module('#lib/server/family.ts', () => ({
 	withFamily,
-	NoFamily: class extends Error {}
+	asFamily: familyOnlyScope(db, { role: 'app_user' }),
+	NoFamily
 }));
-mock.module('#lib/server/secret-box.ts', () => ({ encrypt: (text: string) => `cifrado:${text}` }));
+mock.module('#lib/server/secret-box.ts', () => ({
+	encrypt: (text: string) => `cifrado:${text}`,
+	decrypt: (text: string) => text
+}));
 let made = 0;
 mock.module('#lib/server/auth.ts', () => ({
 	auth: {
@@ -40,7 +46,9 @@ mock.module('#lib/server/auth.ts', () => ({
 				linkAccount: async () => {},
 				deleteUser: async (id: string) => void (await db.delete(user).where(eq(user.id, id)))
 			}
-		})
+		}),
+		// kid-login.test.ts's, unused here.
+		api: {}
 	}
 }));
 

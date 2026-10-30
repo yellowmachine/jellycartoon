@@ -146,18 +146,24 @@ export async function addPerson(k: Kitchen, name: string, drawing: string | null
 	changed(k.familyId);
 }
 
-/** Its name (only one without an account: the others are their account's) and its drawing. */
+/**
+ * Its name (one without an account, or a child's, #303: the others are their account's) and its
+ * drawing.
+ */
 export async function updatePerson(k: Kitchen, id: number, name: string, drawing: string | null) {
 	await k.run(async (tx) => {
 		const [row] = await tx
-			.select({ userId: familyPerson.userId })
+			.select({ userId: familyPerson.userId, role: familyMember.role })
 			.from(familyPerson)
+			.leftJoin(familyMember, eq(familyMember.userId, familyPerson.userId))
 			.where(eq(familyPerson.id, id));
 		if (!row) return;
 		await tx
 			.update(familyPerson)
 			.set({ ...(row.userId ? {} : { name }), avatar: isAvatar(drawing) ? drawing : null })
 			.where(eq(familyPerson.id, id));
+		if (row.userId && row.role === 'peque' && name)
+			await tx.update(user).set({ name }).where(eq(user.id, row.userId));
 	});
 	changed(k.familyId);
 }

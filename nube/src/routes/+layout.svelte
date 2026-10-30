@@ -6,6 +6,7 @@
 	import { page } from '$app/state';
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import AlarmBanner from 'comun/components/AlarmBanner.svelte';
+	import KidRequests from '#lib/components/KidRequests.svelte';
 	import SiteNav from 'comun/components/SiteNav.svelte';
 	import MusicBar from 'comun/components/MusicBar.svelte';
 	import AiSpendLine from 'comun/components/AiSpendLine.svelte';
@@ -20,7 +21,13 @@
 
 	/** jellycartoon's bar (#253): its sections, each where it is (nav.ts). */
 	const nav = $derived(
-		navLinks(data.webUrl, data.user?.serviceAdmin, data.hasHouse, data.family?.kid ?? false)
+		navLinks(
+			data.webUrl,
+			data.user?.serviceAdmin,
+			data.hasHouse,
+			data.family?.kid ?? false,
+			data.guardian
+		)
 	);
 	/** The user's initial, for their round badge (accents and all: «Á» for «Álvaro»). */
 	const initial = $derived([...(data.user?.name.trim() ?? '')][0]?.toLocaleUpperCase('es') ?? '?');
@@ -259,6 +266,10 @@ trip's link (#81), for whoever has it. -->
 			<!-- An alarm ringing in the house (#241), with «Parar»: wherever it sounds. -->
 			{#if data.family}
 				<AlarmBanner />
+			{/if}
+			<!-- A child asking to enter on the family's device (#303), to its adults. -->
+			{#if data.guardian}
+				<KidRequests />
 			{/if}
 		{/if}
 

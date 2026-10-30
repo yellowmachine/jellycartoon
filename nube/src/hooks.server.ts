@@ -32,7 +32,10 @@ const PUBLIC_PATHS = [
 	// The apps' AI, with the person's access token (app-ai.ts).
 	'/api/ia/',
 	'/s/',
-	'/invitacion/'
+	'/invitacion/',
+	// «¿Quién eres?» (#303): a child choosing its drawing on the family's device, by its cookie.
+	'/quien',
+	'/api/quien/'
 ];
 
 /**

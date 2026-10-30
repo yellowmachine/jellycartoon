@@ -63,7 +63,8 @@ export function navLinks(
 	webUrl: string | null,
 	serviceAdmin = false,
 	hasHouse = true,
-	kid = false
+	kid = false,
+	guardian = false
 ) {
 	if (kid) {
 		const links = SECTIONS.filter((s) => KID_SECTIONS.includes(s.path)).map((s) => link(s, webUrl));
@@ -81,6 +82,8 @@ export function navLinks(
 	};
 	const userLinks: UserLink[] = [
 		{ href: '/ajustes', label: 'Ajustes', icon: 'ajustes' },
+		// Their phone, handed to one of their children (#303).
+		...(guardian ? [{ href: '/pasar', label: 'Pasar a un peque', icon: 'infantil' as const }] : []),
 		...(hasHouse
 			? [
 					gestion,

@@ -5,6 +5,7 @@
 	import PushNotices from 'comun/components/PushNotices.svelte';
 	import TelegramBot from './TelegramBot.svelte';
 	import Invitaciones from './Invitaciones.svelte';
+	import AparatoPeques from './AparatoPeques.svelte';
 	import EntrarConLaNube from './EntrarConLaNube.svelte';
 	import VozCaracter from './VozCaracter.svelte';
 	import DondeVivis from './DondeVivis.svelte';
@@ -118,6 +119,8 @@
 			<PushNotices about="cuando suena una alarma, y los avisos de la Agenda" />
 		</section>
 
+		<AparatoPeques {data} {form} {tab} />
+
 		<Microfono />
 
 		<FondoMusica />
@@ -172,7 +175,7 @@
 									}}
 							>
 								<input type="hidden" name="id" value={p.id} />
-								{#if p.account}
+								{#if p.account && !kidOf(p.userId)}
 									<input type="hidden" name="name" value={p.name} />
 								{:else}
 									<input name="name" value={p.name} maxlength="40" required class={field} />
@@ -280,6 +283,8 @@
 				<p class="mt-3 text-sm text-red-400">{form.personProblem}</p>
 			{/if}
 		</section>
+
+		<AparatoPeques {data} {form} {tab} all />
 
 		<DondeVivis {data} {form} {tab} />
 
