@@ -17,7 +17,12 @@ import type { MedicationInput } from 'comun/medication.ts';
 const db = drizzle(new PGlite(), { schema });
 const withFamily = familyScope(db, { role: 'app_user' });
 const asFamily = familyOnlyScope(db, { role: 'app_user' });
-const told: { to: string[]; title: string; body: string; actions?: { post: string }[] }[] = [];
+const told: {
+	to: string[];
+	title: string;
+	body: string;
+	actions?: { title: string; post: string }[];
+}[] = [];
 mock.module('#lib/server/push.ts', () => ({
 	notify: async (_: string, to: string[], m: { title: string; body: string }) =>
 		void told.push({ to, ...m })
@@ -120,12 +125,17 @@ describe('medication', () => {
 		expect(again!.takenAt).toBeNull();
 	});
 
-	test("a dose's notice when its time comes, once; none if already marked", async () => {
+	test("one notice for a person's doses at a time, once; none if already marked", async () => {
 		const now = localTime();
 		const id = await saveMedication(ana, null, {
 			...pill(people['Lucía']!, [now]),
 			name: 'Dalsy',
 			dose: '5 ml'
+		});
+		const other = await saveMedication(ana, null, {
+			...pill(people['Lucía']!, [now]),
+			name: 'Apiretal',
+			dose: null
 		});
 		const early = await saveMedication(ana, null, { ...pill(people.Ana!, [now]), name: 'Hierro' });
 		await markDose(ana, early!, today, now, true);
@@ -133,10 +143,15 @@ describe('medication', () => {
 		await sendDueDoses(house);
 		await sendDueDoses(house);
 		expect(told).toHaveLength(1);
-		expect(told[0]).toMatchObject({ to: ['ana'], title: '💊 Lucía: Dalsy', body: `${now} · 5 ml` });
-		expect(told[0]!.actions?.[0]?.post).toBe(
-			`/api/medicacion/tomada?id=${id}&dia=${today}&hora=${encodeURIComponent(now)}`
-		);
+		expect(told[0]).toMatchObject({
+			to: ['ana'],
+			title: `💊 Lucía, ${now}`,
+			body: 'Dalsy (5 ml) · Apiretal'
+		});
+		expect(told[0]!.actions?.[0]).toMatchObject({
+			title: '✓ Tomadas',
+			post: `/api/medicacion/tomada?dia=${today}&hora=${encodeURIComponent(now)}&id=${id}&id=${other}`
+		});
 	});
 
 	test("the home page's: only what is told to each grown-up, not taken yet", async () => {

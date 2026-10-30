@@ -209,8 +209,9 @@ export async function pendingDosesOf(k: Kitchen, userId: string) {
 }
 
 /**
- * Every minute, for a family (scheduler.ts): the doses whose time has come, each one's notice
- * once (its row is made first: two servers, or one already marked, tell nothing). One due while
+ * Every minute, for a family (scheduler.ts): the doses whose time has come, told once (each one's
+ * row is made first: two servers, or one already marked, tell nothing). A person's at the same
+ * time go in one notice, whose button marks them all. One due while
  * the server was off, if it is not much later.
  */
 export async function sendDueDoses(k: Kitchen) {
@@ -222,7 +223,8 @@ export async function sendDueDoses(k: Kitchen) {
 		({ time }) => minutes(time) <= at && at - minutes(time) <= LATE_MINUTES
 	);
 	if (!due.length) return;
-	let people: Map<number, string> | null = null;
+	// Each person's at the same time, together: one notice.
+	const groups = new Map<string, { personId: string; time: string; meds: Medication[] }>();
 	for (const { medication: m, time } of due) {
 		const claimed = await k.run((tx) =>
 			tx
@@ -232,19 +234,35 @@ export async function sendDueDoses(k: Kitchen) {
 				.returning({ id: medicationDose.medicationId })
 		);
 		if (!claimed.length) continue;
-		people ??= await names(k);
-		const who = people.get(Number(m.personId)) ?? '';
-		const query = new URLSearchParams({ id: String(m.id), dia: day, hora: time });
-		await notify(k.familyId, await toldFor(k, Number(m.personId)), {
-			title: `💊 ${who ? `${who}: ` : ''}${m.name}`,
-			body: [time, m.dose].filter(Boolean).join(' · '),
-			tag: `toma-${m.id}-${day}-${time}`,
-			url: `/agenda/medicacion?persona=${m.personId}`,
+		const key = `${m.personId}-${time}`;
+		const group = groups.get(key) ?? { personId: m.personId, time, meds: [] };
+		group.meds.push(m);
+		groups.set(key, group);
+	}
+	if (!groups.size) return;
+	const people = await names(k);
+	for (const { personId, time, meds: these } of groups.values()) {
+		const who = people.get(Number(personId)) ?? '';
+		const query = new URLSearchParams({ dia: day, hora: time });
+		for (const m of these) query.append('id', String(m.id));
+		await notify(k.familyId, await toldFor(k, Number(personId)), {
+			title: `💊 ${who ? `${who}, ` : ''}${time}`,
+			body: these.map((m) => (m.dose ? `${m.name} (${m.dose})` : m.name)).join(' · '),
+			tag: `toma-${personId}-${day}-${time}`,
+			url: `/agenda/medicacion?persona=${personId}`,
 			ttl: LATE_MINUTES * 60,
 			sticky: true,
-			actions: [{ action: 'tomada', title: '✓ Tomada', post: `/api/medicacion/tomada?${query}` }]
+			actions: [
+				{
+					action: 'tomada',
+					title: these.length > 1 ? '✓ Tomadas' : '✓ Tomada',
+					post: `/api/medicacion/tomada?${query}`
+				}
+			]
 		});
-		console.info(`[medicación] Aviso de «${m.name}» de las ${time}`, { medicationId: m.id });
+		console.info(`[medicación] Aviso de las ${time}: ${these.map((m) => m.name).join(', ')}`, {
+			personId
+		});
 	}
 }
 
