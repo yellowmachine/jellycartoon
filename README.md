@@ -1201,10 +1201,16 @@ Una vez, en Cloudflare (R2 en el panel):
 1. **Crea un bucket**, por ejemplo `jellycartoon`, con location **Automatic** (no una jurisdicción
    como la UE, que usa otra dirección) y storage class **Standard**: es la que entra en la capa
    gratuita, y Infrequent Access cobra cada descarga y un mínimo de 30 días por fichero.
-2. **En el bucket, Settings → Object lifecycle rules**: una regla que borre los objetos de más de 30
-   días, limitada al prefijo `backups/`. Así las copias viejas se van solas, y nada más del bucket.
-3. **R2 → Manage API tokens → Create API token**, con el permiso **Object Read & Write** y solo
+2. **R2 → Manage API tokens → Create API token**, con el permiso **Object Read & Write** y solo
    **ese bucket**. Apunta el _Access Key ID_, el _Secret Access Key_ y el _Account ID_.
+3. **En el bucket, Settings → Bucket lock rules** ([bloqueo](https://developers.cloudflare.com/r2/buckets/bucket-locks/)):
+   una regla de 5 días para el prefijo `backups/`. Como el token también puede borrar, así nadie que
+   lo tenga borra las copias recientes.
+
+Cada bucket, de una sola casa: una clave de R2 vale para el bucket entero, y con uno compartido una
+casa podría borrar las copias de otra. Tras cada copia se borran las de antes de las 7 últimas noches
+(`BACKUP_KEEP`): por número y no por fecha, para que si las copias dejan de subir no se vayan también
+las últimas buenas.
 
 En tu ordenador, la clave para cifrar (`age-keygen` viene con [age](https://github.com/FiloSottile/age)):
 
@@ -1223,6 +1229,7 @@ R2_SECRET_ACCESS_KEY="..."
 R2_BUCKET="jellycartoon/backups"      # bucket y carpeta (prefijo): aparece sola con la primera copia
 BACKUP_AGE_RECIPIENT="age1..."
 # BACKUP_TIME="03:30"               # a qué hora (la de TZ)
+# BACKUP_KEEP="7"                   # cuántas noches se guardan
 ```
 
 Las claves de R2 van, como el resto del `.env`, en el gestor de contraseñas; la de age también, en
