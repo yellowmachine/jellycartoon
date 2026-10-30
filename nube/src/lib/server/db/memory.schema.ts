@@ -1,6 +1,7 @@
-import { date, index, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { date, index, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { user } from './auth.schema.ts';
 import { family, familyRows } from './family.schema.ts';
+import { rule } from './rule.schema.ts';
 
 /**
  * What the family asked the voice to remember («la llave de repuesto está en la maceta»), to
@@ -24,6 +25,9 @@ export const memory = pgTable(
 		fromDay: date('from_day'),
 		/** Its last day («hasta el viernes…»): then forgotten; null, for good. */
 		untilDay: date('until_day'),
+		/** Deduced by a rule (#331, phase 4: «si pongo la lavadora, hay ropa tendida»), and why. */
+		ruleId: integer('rule_id').references(() => rule.id, { onDelete: 'set null' }),
+		because: text('because'),
 		createdAt: timestamp('created_at').notNull().defaultNow(),
 		updatedAt: timestamp('updated_at').notNull().defaultNow()
 	},

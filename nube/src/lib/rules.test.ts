@@ -17,6 +17,8 @@ const answer = (over: Partial<TranslatedRule> = {}): TranslatedRule => ({
 		weather: none
 	},
 	conditions: [{ kind: 'de_viaje', words: [], negate: false, weather: none }],
+	then: 'avisar',
+	deduce: { text: '', days: 0 },
 	notice: { to: 'yo', people: [], text: 'Recuérdales lo de las plantas', level: 'normal' },
 	once: false,
 	say: false,
@@ -34,6 +36,8 @@ describe('specOf', () => {
 			spec: {
 				when: { kind: 'agenda', words: ['padres'], minutesBefore: 0, time: null },
 				conditions: [{ kind: 'de_viaje', words: [], negate: false }],
+				then: 'avisar',
+				deduce: null,
 				notice: {
 					to: 'yo',
 					userIds: [],
@@ -194,5 +198,38 @@ describe('specOf', () => {
 			spec: { when: { kind: 'toma_sin_marcar', words: ['Papá'], minutesAfter: 30 } }
 		});
 		expect(dose(45)).toMatchObject({ spec: { when: { minutesAfter: 45 } } });
+	});
+
+	test('a rule that deduces (phase 4): what, until when, and no notice needed', () => {
+		const made = specOf(
+			answer({
+				when: {
+					kind: 'dicho',
+					words: ['lavadora'],
+					minutes_before: 0,
+					minutes_after: 0,
+					time: null,
+					weather: none
+				},
+				conditions: [],
+				then: 'deducir',
+				deduce: { text: 'Hay ropa tendida', days: 0 },
+				notice: { to: 'yo', people: [], text: '', level: 'normal' }
+			}),
+			resolve
+		);
+		expect(made).toMatchObject({
+			spec: {
+				when: { kind: 'dicho', words: ['lavadora'] },
+				then: 'deducir',
+				deduce: { text: 'Hay ropa tendida', days: 0 }
+			}
+		});
+		expect(specOf(answer({ then: 'deducir', deduce: { text: ' ', days: 0 } }), resolve)).toEqual({
+			problem: 'Falta qué deducir.'
+		});
+		expect(
+			specOf(answer({ then: 'deducir', deduce: { text: 'Algo', days: 999 } }), resolve)
+		).toMatchObject({ spec: { deduce: { days: 30 } } });
 	});
 });

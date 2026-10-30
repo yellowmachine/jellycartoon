@@ -15,7 +15,7 @@ import { dosesFor, listMedication } from '#lib/server/medication.ts';
 import { hoursAhead, isSnow, type HourAhead } from 'comun/weather.ts';
 import { fridgeState, houseKitchen, kitchenOf, type Kitchen } from '#lib/server/fridge.ts';
 import { tell } from '#lib/server/inbox.ts';
-import { listMemories } from '#lib/server/memory.ts';
+import { listMemories, remember } from '#lib/server/memory.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
 import { listenRules } from '#lib/server/rule-events.ts';
 import { familySatellites, sayOnSatellites } from '#lib/server/satellites.ts';
@@ -47,6 +47,8 @@ import {
  * everyone's.
  */
 
+/** A deduction feeds the next rule, at most this many in a row (#331, phase 4). */
+const MAX_CHAIN = 3;
 /** More than this and none is added: a family's rules, not a program. */
 const MAX_RULES = 100;
 /** What it was told for, kept to tell it once: the last few. */
@@ -192,6 +194,7 @@ Cuándo se mira («when.kind»), solo una:
 - «viaje_empieza» / «viaje_acaba»: cuando empieza o acaba un viaje de Viajes (de quien habla; de la casa, cualquiera); «minutes_before» antes.
 - «cada_dia»: todos los días a la hora «time» (HH:MM).
 - «tiempo»: cuando el tiempo de «weather» empieza a cumplirse (se mira cada media hora; avisa una vez, y otra si deja de cumplirse y vuelve, o al día siguiente): «si va a llover esta tarde, avísame para recoger la ropa».
+- «dicho»: cuando alguien le dice a la voz algo con «words» («cuando diga que pongo la lavadora» → ["lavadora"]), sea la orden que sea; solo por esas palabras.
 - «toma_sin_marcar»: cuando una toma de Medicación sigue sin marcar «minutes_after» minutos después de su hora (0: media hora); «words», el nombre de la persona que la toma (vacío: cualquiera).
 «words» son pocas palabras clave sueltas, tal como se escribirían en la cita o la nota, sin artículos; «time» es null salvo en «cada_dia».
 «weather» (en «when» y en cada condición; «what» «ninguno» si no hace falta): «what» es «lluvia», «helada», «calor», «viento» o «nieve»; «hours», las próximas horas que mirar («esta tarde» desde ahora, «mañana» hasta mañana por la noche); «threshold», el número si lo dice (lluvia en %, 60 si no; helada y calor en °C, 0 y 35 si no; viento en km/h, 50 si no; nieve, null) o null; «where», «casa» o «donde_este» (donde esté quien habla si está de viaje: «si en Lisboa llueve»).
@@ -203,7 +206,8 @@ Qué tiene que cumplirse además («conditions», puede estar vacío), cada una 
 - «agenda_hoy»: que haya hoy en la Agenda algo con «words».
 - «tiempo»: que en las próximas horas haga el tiempo de su «weather» («si mañana hiela»).
 
-A quién y qué («notice»): «to» es «yo» (quien habla; en la casa, toda la familia), «casa» (toda la familia) o «personas» con sus nombres en «people», de los de la familia. «text» es el aviso tal como lo leerá quien lo recibe, corto y en segunda persona («Recuérdales a tus padres que rieguen las plantas»). «level» es «urgente» solo si lo pide o es un peligro.
+Qué hace («then»): «avisar» (con «notice») o «deducir»: guardar un dato que luego sirve a otras reglas, sin avisar a nadie («si pongo la lavadora, ese día hay ropa tendida» → «deduce»: {"text": "Hay ropa tendida", "days": 0}). «deduce.text», el dato en una frase que se entienda sola, sin fechas; «deduce.days», cuántos días más vale (0, solo ese día). Sin deducir, «deduce» {"text": "", "days": 0}.
+A quién y qué («notice», al avisar; al deducir, «text» vacío): «to» es «yo» (quien habla; en la casa, toda la familia), «casa» (toda la familia) o «personas» con sus nombres en «people», de los de la familia. «text» es el aviso tal como lo leerá quien lo recibe, corto y en segunda persona («Recuérdales a tus padres que rieguen las plantas»). «level» es «urgente» solo si lo pide o es un peligro.
 «once»: true si es para una sola vez («la próxima vez que…», «este viernes»).
 «say»: true si además hay que decirlo en voz alta en casa, por los altavoces de la voz: si lo pide («dímelo en voz alta», «avisa en casa», «que lo diga Alexa») o si es de toda la casa; false si es solo para el móvil de quien habla.
 «understood»: la regla en una frase, como la comprobará el programa, para leérsela a quien la dijo («Cuando empiece en la Agenda algo con «padres», si estás de viaje, te avisaré: …»).
@@ -298,7 +302,9 @@ async function holds(k: Kitchen, r: Rule, c: Condition): Promise<{ ok: boolean; 
 				await listMemories(k, r.userId),
 				(m) => m.text
 			);
-			found = m ? `recuerdo «${m.item.text}»${m.why}` : null;
+			found = m
+				? `recuerdo «${m.item.text}»${m.why}${m.item.because ? ` (${m.item.because})` : ''}`
+				: null;
 			none = `no recuerdo nada con ${quoted(c.words)}`;
 			break;
 		}
@@ -531,7 +537,7 @@ async function conditionsHold(k: Kitchen, r: Rule) {
 }
 
 /** Told: once for `key` (two servers, or a minute again, tell nothing), to whom it says. */
-async function fire(k: Kitchen, r: Rule, key: string, why: string) {
+async function fire(k: Kitchen, r: Rule, key: string, why: string, chain: number[]) {
 	const fired = [...r.fired.filter((f) => f !== key), key].slice(-KEEP_FIRED);
 	const [claimed] = await k.run((tx) =>
 		tx
@@ -552,6 +558,10 @@ async function fire(k: Kitchen, r: Rule, key: string, why: string) {
 			.returning({ id: rule.id })
 	);
 	if (!claimed) return false;
+	if (r.spec.then === 'deducir' && r.spec.deduce) {
+		await deduce(k, r, why, chain);
+		return true;
+	}
 	const { notice } = r.spec;
 	const to =
 		notice.to === 'personas'
@@ -571,6 +581,24 @@ async function fire(k: Kitchen, r: Rule, key: string, why: string) {
 	await sayAtHome(k, r, to);
 	console.info(`[reglas] «${r.understood}»: ${why}`, { id: r.id });
 	return true;
+}
+
+/**
+ * What a rule that deduces keeps (phase 4): a memory of its person (or the house's), until its days
+ * are over, with why («porque han dicho «voy a poner la lavadora» a las 10:05»); and then the rules
+ * waiting for memories are told, as for one said, through this one (`chain`).
+ */
+async function deduce(k: Kitchen, r: Rule, why: string, chain: number[]) {
+	const { deduce } = r.spec;
+	if (!deduce) return;
+	await remember(
+		k,
+		r.userId,
+		deduce.text,
+		{ untilDay: addDays(localDay(), deduce.days) },
+		{ ruleId: r.id, because: `porque ${why}`, chain: [...chain, r.id] }
+	);
+	console.info(`[reglas] Deducido «${deduce.text}»: ${why}`, { id: r.id });
 }
 
 /**
@@ -605,38 +633,57 @@ async function sayAtHome(k: Kitchen, r: Rule, to: string[]) {
 	);
 }
 
-/** If its conditions hold now, told for `key`, with `because` and them as why. */
-async function tryFire(k: Kitchen, r: Rule, key: string, because: string) {
+/**
+ * If its conditions hold now, told (or deduced) for `key`, with `because` and them as why. `chain`:
+ * the rules what happened came through (a deduction's), none twice and at most `MAX_CHAIN`.
+ */
+async function tryFire(k: Kitchen, r: Rule, key: string, because: string, chain: number[] = []) {
 	if (r.paused || r.fired.includes(key)) return false;
+	if (chain.includes(r.id) || chain.length >= MAX_CHAIN) {
+		if (chain.length) console.info('[reglas] Cadena cortada', { id: r.id, chain });
+		return false;
+	}
 	const { ok, why } = await conditionsHold(k, r);
 	if (!ok) return false;
-	return fire(k, r, key, [because, ...why].join(' y '));
+	return fire(k, r, key, [because, ...why].join(' y '), chain);
 }
 
 /**
  * Something happened that rules may wait for: a post-it or something on the list (`nevera`, for
- * every rule), something remembered (`recuerdo`: a person's, only for their rules; the house's,
- * for all). From rule-events.ts, after it is saved.
+ * every rule), something remembered or deduced (`recuerdo`: a person's, only for their rules; the
+ * house's, for all), something said to the voice (`dicho`: by a person, for their rules and the
+ * house's; on a satellite, the house's; by its words only, as it is every order). From
+ * rule-events.ts, after it is saved; `chain`, the rules it came through.
  */
 export async function onEvent(
 	k: Kitchen,
-	kind: 'nevera' | 'recuerdo',
+	kind: 'nevera' | 'recuerdo' | 'dicho',
 	text: string,
-	ownerId: string | null = null
+	ownerId: string | null = null,
+	chain: number[] = []
 ) {
 	const rules = (await allRules(houseKitchen(k.familyId))).filter(
 		(r) =>
 			!r.paused &&
 			r.spec.when.kind === kind &&
-			(kind === 'nevera' || !ownerId || r.userId === ownerId)
+			(kind === 'nevera' ||
+				(kind === 'dicho' ? !r.userId || r.userId === ownerId : !ownerId || r.userId === ownerId))
 	);
+	const at = localTime();
 	for (const r of rules) {
 		const rk = await kitchenFor(k.familyId, r.userId);
-		const fit = await fits(rk, r, r.spec.when.words, kind, text);
+		const fit =
+			kind === 'dicho'
+				? { ok: hasWords(r.spec.when.words, text), why: '' }
+				: await fits(rk, r, r.spec.when.words, kind, text);
 		if (!fit.ok) continue;
 		const because =
-			kind === 'nevera' ? `han puesto en la nevera «${text}»` : `me han pedido recordar «${text}»`;
-		await tryFire(rk, r, `${kind}:${Date.now()}`, because + fit.why);
+			kind === 'nevera'
+				? `han puesto en la nevera «${text}»`
+				: kind === 'dicho'
+					? `han dicho «${text}» a las ${at}`
+					: `me han pedido recordar «${text}»`;
+		await tryFire(rk, r, `${kind}:${Date.now()}`, because + fit.why, chain);
 	}
 }
 
@@ -791,9 +838,13 @@ export async function tryRule(k: Kitchen, userId: string | null, id: number) {
 			? `Ahora sí avisaría: ${[w.hit, ...why].join(' y ')}.`
 			: `Ahora no avisaría: ${[w.hit ?? w.none, ...why].join(' y ')}.`;
 	}
+	const [does, will] =
+		r.spec.then === 'deducir' && r.spec.deduce
+			? [`deduciría «${r.spec.deduce.text}»`, `deducirá «${r.spec.deduce.text}»`]
+			: ['avisaría', 'avisará'];
 	if (!r.spec.conditions.length)
-		return 'No tiene condiciones: avisará siempre que llegue su momento.';
+		return `No tiene condiciones: ${will} siempre que llegue su momento.`;
 	return ok
-		? `Ahora sí se cumple (${why.join(' y ')}): avisaría en cuanto llegue su momento.`
-		: `Ahora no avisaría: ${why.join(' y ')}.`;
+		? `Ahora sí se cumple (${why.join(' y ')}): ${does} en cuanto llegue su momento.`
+		: `Ahora no ${does}: ${why.join(' y ')}.`;
 }

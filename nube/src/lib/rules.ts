@@ -9,12 +9,14 @@
  * When: an agenda event that starts (`minutesBefore` it), a post-it or something on the list
  * that goes up, something the voice is asked to remember, a trip that starts or ends (theirs; the
  * house's, anyone's), every day at `time`; the weather that comes to be (looked at every half
- * hour), or a dose still not marked `minutesAfter` its time.
+ * hour), a dose still not marked `minutesAfter` its time, or something said to the voice (phase 4:
+ * «cuando diga que pongo la lavadora», by its words only).
  */
 export const TRIGGERS = [
 	'agenda',
 	'nevera',
 	'recuerdo',
+	'dicho',
 	'viaje_empieza',
 	'viaje_acaba',
 	'cada_dia',
@@ -93,9 +95,24 @@ export interface RuleNotice {
 	level: 'normal' | 'urgente';
 }
 
+/**
+ * What a rule that deduces (phase 4) keeps: a memory of its person (the house's, if it is the
+ * house's), «Hay ropa tendida», until `days` from the day it is deduced (0, that day).
+ */
+export interface Deduction {
+	text: string;
+	days: number;
+}
+
+/** A deduction lasts at most this long. */
+const MAX_DEDUCED_DAYS = 30;
+
 export interface RuleSpec {
 	when: Trigger;
 	conditions: Condition[];
+	/** What it does: tell (`notice`), or deduce (`deduce`); unset (older ones), tell. */
+	then?: 'avisar' | 'deducir';
+	deduce?: Deduction | null;
 	notice: RuleNotice;
 	/** Told once, and then paused. */
 	once: boolean;
@@ -162,6 +179,8 @@ export interface TranslatedRule {
 		weather: TranslatedWeather;
 	};
 	conditions: { kind: string; words: string[]; negate: boolean; weather: TranslatedWeather }[];
+	then: string;
+	deduce: { text: string; days: number };
 	notice: { to: string; people: string[]; text: string; level: string };
 	once: boolean;
 	say: boolean;
@@ -181,15 +200,19 @@ export function specOf(
 	if (t.when.kind === 'cada_dia' && !time) return { problem: 'Falta a qué hora mirarla.' };
 	const weather = weatherOf(t.when.weather);
 	if (t.when.kind === 'tiempo' && !weather) return { problem: 'Falta qué tiempo esperar.' };
+	const then = t.then === 'deducir' ? 'deducir' : 'avisar';
+	const deduced = (t.deduce?.text ?? '').trim().slice(0, MAX_RULE);
+	if (then === 'deducir' && !deduced) return { problem: 'Falta qué deducir.' };
 	const text = (t.notice?.text ?? '').trim().slice(0, MAX_RULE);
-	if (!text) return { problem: 'Falta qué avisar.' };
+	if (then === 'avisar' && !text) return { problem: 'Falta qué avisar.' };
 	const to = isOneOf(['yo', 'casa', 'personas'] as const, t.notice.to) ? t.notice.to : 'yo';
 	const people =
 		to === 'personas' ? (t.notice.people ?? []).map((n) => ({ n, p: resolve(n) })) : [];
 	const missing = people.filter((x) => !x.p).map((x) => x.n);
 	if (missing.length)
 		return { problem: `No hay nadie con cuenta llamado ${missing.join(', ')} en la familia.` };
-	if (to === 'personas' && !people.length) return { problem: 'Falta a quién avisar.' };
+	if (then === 'avisar' && to === 'personas' && !people.length)
+		return { problem: 'Falta a quién avisar.' };
 	return {
 		spec: {
 			when: {
@@ -216,6 +239,11 @@ export function specOf(
 					negate: c.negate === true,
 					...(c.kind === 'tiempo' ? { weather: weatherOf(c.weather) } : {})
 				})),
+			then,
+			deduce:
+				then === 'deducir'
+					? { text: deduced, days: within(t.deduce.days, 0, MAX_DEDUCED_DAYS, 0) }
+					: null,
 			notice: {
 				to,
 				userIds: people.map((x) => x.p!.userId),
@@ -246,7 +274,18 @@ const weatherSchema = {
 export const RULE_SCHEMA = {
 	type: 'object',
 	additionalProperties: false,
-	required: ['possible', 'why_not', 'understood', 'when', 'conditions', 'notice', 'once', 'say'],
+	required: [
+		'possible',
+		'why_not',
+		'understood',
+		'when',
+		'conditions',
+		'then',
+		'deduce',
+		'notice',
+		'once',
+		'say'
+	],
 	properties: {
 		possible: { type: 'boolean' },
 		why_not: { type: ['string', 'null'] },
@@ -277,6 +316,13 @@ export const RULE_SCHEMA = {
 					weather: weatherSchema
 				}
 			}
+		},
+		then: { type: 'string', enum: ['avisar', 'deducir'] },
+		deduce: {
+			type: 'object',
+			additionalProperties: false,
+			required: ['text', 'days'],
+			properties: { text: { type: 'string' }, days: { type: 'integer' } }
 		},
 		notice: {
 			type: 'object',

@@ -88,6 +88,7 @@ import {
 } from '#lib/server/memory.ts';
 import { familyPeople } from '#lib/server/agenda/agenda.ts';
 import { leaveMessage, MAX_MESSAGE } from '#lib/server/inbox.ts';
+import { ruleEvent } from '#lib/server/rule-events.ts';
 import { deleteRule, listRules, saveRule, sameName, translateRule } from '#lib/server/rules.ts';
 import { dosesFor, listMedication, markDose } from '#lib/server/medication.ts';
 import { MAX_RULE } from '#lib/rules.ts';
@@ -847,7 +848,7 @@ function memoryTools(satellite: boolean): Tool[] {
 		),
 		tool(
 			'forget_memory',
-			'Olvida algo guardado, por su número (de lo que te han pedido recordar, o de «list_memories»).',
+			'Olvida algo guardado, por su número (de lo que te han pedido recordar, o de «list_memories»). También lo deducido por una regla cuando ya no vale («ya he recogido la ropa» olvida «Hay ropa tendida»).',
 			{ id: { type: 'integer' } },
 			['id']
 		),
@@ -1769,6 +1770,8 @@ export async function runVoiceCommand(
 				k,
 				used.map((l) => l.id)
 			);
+		// The rules that wait for what is said (#331, phase 4): «cuando diga que pongo la lavadora».
+		if (!kid) ruleEvent(k, 'dicho', request.text, satellite ? null : k.userId);
 		const answered = siteKey && afterOrder(siteKey, request.text, said, used);
 		if (answered && apiKey && site)
 			learnFrom(
