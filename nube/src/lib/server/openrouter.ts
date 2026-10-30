@@ -65,9 +65,7 @@ export async function completeJson<T>(request: {
 		signal: AbortSignal.timeout(request.timeoutMs ?? 60_000)
 	});
 	const body = await res.json().catch(() => null);
-	if (res.status === 401) throw new Error('OpenRouter no acepta la clave: cámbiala en Ajustes');
-	if (res.status === 402) throw new Error('No queda saldo en OpenRouter');
-	if (!res.ok) throw new Error(`OpenRouter: ${body?.error?.message ?? res.status}`);
+	if (!res.ok) throw refused(res.status, body);
 	noteCost(request.apiKey, request.label, body);
 	// Errors once the provider has started answering come with a 200, inside the choice.
 	const choice = body?.choices?.[0];
@@ -84,7 +82,13 @@ export async function completeJson<T>(request: {
 /** Why OpenRouter said no, in words: the voice reads it aloud. */
 export const NO_CREDIT = 'No queda saldo en OpenRouter';
 
+/**
+ * Our words for OpenRouter's no. A refused key or no credit, said in ours: theirs, to the log, as
+ * a 402 may be a key's own limit or a request costing more than what is left, not only no credit.
+ */
 function refused(status: number, body: { error?: { message?: string } } | null) {
+	if (status === 401 || status === 402)
+		console.warn(`[ia] OpenRouter dice ${status}:`, body?.error?.message ?? '(sin mensaje)');
 	if (status === 401) return new Error('OpenRouter no acepta la clave: cámbiala en Ajustes');
 	if (status === 402) return new Error(NO_CREDIT);
 	return new Error(`OpenRouter: ${body?.error?.message ?? status}`);
@@ -258,7 +262,7 @@ async function chatOnce(
 	const choice = body?.choices?.[0];
 	const message = choice?.message;
 	if (!message) {
-		if (Number(choice?.error?.code) === 402) throw new Error(NO_CREDIT);
+		if (Number(choice?.error?.code) === 402) throw refused(402, { error: choice.error });
 		const why = body?.error?.message ?? choice?.error?.message;
 		throw new Error(`OpenRouter: respuesta vacía${why ? `: ${why}` : ''}`);
 	}
