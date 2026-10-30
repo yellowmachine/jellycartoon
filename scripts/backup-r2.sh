@@ -4,7 +4,7 @@
 # the machine: the server has only the public key, and the private one, to restore, is kept apart.
 # With it, if there are (#320): the .env mounted at /backup/env, and the files of an S3 bucket
 # (Seilide's rustfs, FILES_S3_*) or of a folder mounted at /backup/files (a volume), each encrypted
-# the same way. Seilide's is nube/compose.prod.yaml; the VPS's other apps', deploy/vps-backup.sh.
+# the same way. The VPS's apps (Seilide and the others) go by deploy/vps-backup.sh.
 #
 #   backup-r2.sh          waits for BACKUP_TIME every day (the service)
 #   backup-r2.sh now      one copy now, e.g. `docker compose -f compose.prod.yaml run --rm backup now`

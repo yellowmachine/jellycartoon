@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# The VPS's other Dokploy apps (Langua, Librarian, Scholio) to Cloudflare R2, every night, by root's
-# cron (deploy/vps-backup.cron), with the houses' copy (Dockerfile.backup, backup-r2.sh) on each
-# app's network: its database, its Environment and its files, each encrypted with age, the last 7
-# nights kept (#320). Seilide copies itself (nube/compose.prod.yaml, `backup` profile).
+# The VPS's Dokploy apps (Seilide, Langua, Librarian, Scholio) to Cloudflare R2, every night, by
+# root's cron (deploy/vps-backup.cron), with the houses' copy (Dockerfile.backup, backup-r2.sh) on
+# each app's network: its database, its Environment and its files, each encrypted with age, the
+# last 7 nights kept (#320).
 #
 #   vps-backup.sh <name> <Dokploy app> <database service> [files]
 #
-# <Dokploy app> is its folder in /etc/dokploy/compose and its compose project; [files] is
+# <Dokploy app> is its compose project (its folder in /etc/dokploy/compose); [files] is
 # `s3:<service>:<bucket>` (a rustfs or MinIO of the app) or `volume:<service>:<path>` (the volume
 # mounted there). The database is dumped by its own pg_dump, in its container: its version (a newer
 # one's dump does not restore cleanly in an older Postgres), and no password. The S3 keys come from
-# the app's container; R2's, from /etc/vps-backup.env (only root reads it). See «Copias de las otras
-# apps del VPS» in nube/README.md.
+# the app's container, and its Environment is the .env Dokploy writes next to its compose file;
+# R2's, from /etc/vps-backup.env (only root reads it). See «Copias del VPS» in nube/README.md.
 set -euo pipefail
 
 [[ $# -ge 3 ]] || {
@@ -21,7 +21,6 @@ set -euo pipefail
 name=$1 app=$2 db_service=$3 files=${4:-}
 image=${BACKUP_IMAGE:-ghcr.io/yellowmachine/jellycartoon-backup:stable}
 settings=${VPS_BACKUP_SETTINGS:-/etc/vps-backup.env}
-compose_dir=${DOKPLOY_COMPOSE_DIR:-/etc/dokploy/compose}
 
 # A running container of the app's service.
 container() {
@@ -42,6 +41,13 @@ db=$(container "$db_service")
 network=$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{println $k}}{{end}}' "$db" |
 	grep -vx -e dokploy-network -e '' | head -n 1)
 
+# Its compose file's folder, as compose labels it: Dokploy's .env is there (Seilide's, in nube/).
+env_file=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$db")/.env
+[[ -f $env_file ]] || {
+	echo "$name: no está su .env ($env_file)" >&2
+	exit 1
+}
+
 # Only root reads what is here: the dump, and the keys in a file, not on the command line (ps).
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -52,7 +58,7 @@ docker exec "$db" sh -c 'pg_dump -U "$POSTGRES_USER" -Fc "${POSTGRES_DB:-$POSTGR
 
 # As root inside: it reads the dump, and the app's files need not be readable by the image's user.
 run=(docker run --rm --user 0:0 --network "$network" --env-file "$settings" --env-file "$work/vars"
-	-v "$work/db.dump:/backup/db.dump:ro" -v "$compose_dir/$app/code/.env:/backup/env:ro")
+	-v "$work/db.dump:/backup/db.dump:ro" -v "$env_file:/backup/env:ro")
 case $files in
 s3:*:*)
 	IFS=: read -r _ service bucket <<<"$files"

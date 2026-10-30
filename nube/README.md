@@ -114,69 +114,53 @@ Más familias, en la terminal del servicio `app`:
 `init-db.sh` solo corre con el volumen de Postgres vacío: cambiar `APP_DB_PASSWORD` después
 necesita `ALTER ROLE nube_app PASSWORD '…'` en la base de datos.
 
-### Copias de Seilide
+### Copias del VPS
 
-Con el perfil `backup` (#320), cada noche suben a un bucket de
-[R2](https://developers.cloudflare.com/r2/) tres ficheros, cada uno cifrado con
-[age](https://age-encryption.org) antes de salir del VPS: la base de datos
-(`seilide-<fecha UTC>.dump.age`), el Environment de Dokploy (`….env.age`, con `BETTER_AUTH_SECRET`,
-sin el que la base de datos restaurada no sirve) y los ficheros de rustfs (`….files.tar.age`: fotos
-de tickets y de viajes, facturas). Es la imagen de las copias de las casas (`Dockerfile.backup`).
+Seilide, Langua, Librarian y Scholio, cada noche por el cron de root (#320): `deploy/vps-backup.sh`
+sube a un bucket de [R2](https://developers.cloudflare.com/r2/) tres ficheros de cada una, cifrados
+con [age](https://age-encryption.org) antes de salir del VPS:
 
-Una vez, como en «Copia en Cloudflare R2» del README de arriba: un bucket solo para Seilide (no el
-de una casa: una clave de R2 vale para un bucket entero), su token **Object Read & Write** de solo
-ese bucket, su regla de bloqueo de 5 días y una clave de age (`age-keygen -o seilide-copias.key`,
-entera al gestor de contraseñas). Se guardan las 7 últimas noches (`BACKUP_KEEP`).
+- **La base de datos** (`<app>-<fecha UTC>.dump.age`), volcada con su propio `pg_dump`, en su
+  contenedor: su versión, porque uno más nuevo no se restaura limpio en un Postgres más viejo.
+- **Su Environment de Dokploy** (`….env.age`): el `.env` que Dokploy deja junto a su compose. Con
+  los secretos sin los que la base de datos restaurada no sirve (`BETTER_AUTH_SECRET`).
+- **Sus ficheros** (`….files.tar.age`), si tiene: el bucket `nube` del rustfs de Seilide (fotos de
+  tickets y de viajes, facturas), el `scholio` del de Scholio y el volumen de los clips de Langua.
 
-En el Environment de Seilide en Dokploy:
+Se guardan las 7 últimas noches de cada una. La subida es la imagen de las copias de las casas
+(`Dockerfile.backup`, `backup-r2.sh`), en la red de cada app.
 
-```sh
-COMPOSE_PROFILES="backup"
-R2_ACCOUNT_ID="..."
-R2_ACCESS_KEY_ID="..."
-R2_SECRET_ACCESS_KEY="..."
-R2_BUCKET="seilide-copias/backups"
-BACKUP_AGE_RECIPIENT="age1..."
-# BACKUP_TIME="03:30"
-```
+Una vez, en Cloudflare, como en «Copia en Cloudflare R2» del README de arriba: un bucket para el VPS
+(no el de una casa: una clave de R2 vale para un bucket entero), su token **Object Read & Write** de
+solo ese bucket, su regla de bloqueo de 5 días y una clave de age (`age-keygen -o vps-copias.key`,
+entera al gestor de contraseñas).
 
-Y Deploy. Para una copia ya, en la terminal de Dokploy del servicio `backup`:
-`backup-r2.sh now`. Si una noche falla, el servicio sale _unhealthy_ al día siguiente y su log dice
-por qué. Para leer una copia: `age -d -i seilide-copias.key <fichero>.age > <fichero>`; la base de
-datos se restaura con `pg_restore --clean --if-exists` como el dueño (`nube`), y los ficheros se
-suben al bucket `nube` de rustfs con `rclone copy`.
-
-### Copias de las otras apps del VPS
-
-Langua, Librarian y Scholio, cada noche por el cron de root (#320): `deploy/vps-backup.sh` hace el
-volcado de cada base de datos con su propio `pg_dump` (en su contenedor: su versión, que uno más
-nuevo no se restaura limpio en un Postgres más viejo) y lo sube con la misma imagen de copias, con
-el `.env` de su carpeta de Dokploy y sus ficheros: el bucket `scholio` de su rustfs y el volumen de
-los clips de Langua. Las 7 últimas noches, `langua-…`, `librarian-…` y `scholio-…`. Al mismo bucket
-que Seilide u otro tuyo; su clave de age puede ser la misma.
-
-Una vez, en el VPS, como root:
+Y en el VPS, como root, con los dos ficheros de `deploy/` copiados allí:
 
 ```sh
-install -m 755 deploy/vps-backup.sh /usr/local/sbin/vps-backup.sh
-install -m 644 deploy/vps-backup.cron /etc/cron.d/vps-backup
+install -m 755 vps-backup.sh /usr/local/sbin/vps-backup.sh
+install -m 644 vps-backup.cron /etc/cron.d/vps-backup
 install -m 600 /dev/null /etc/vps-backup.env
 ```
 
-Y en `/etc/vps-backup.env`, sin comillas (lo lee `docker run --env-file`):
+En `/etc/vps-backup.env`, sin comillas (lo lee `docker run --env-file`):
 
 ```sh
 R2_ACCOUNT_ID=...
 R2_ACCESS_KEY_ID=...
 R2_SECRET_ACCESS_KEY=...
-R2_BUCKET=seilide-copias/backups
+R2_BUCKET=vps-copias/backups
 BACKUP_AGE_RECIPIENT=age1...
 ```
 
-Para probarlo ya: `vps-backup.sh librarian librarian-librarian-jorlsm db` (las líneas de
-`deploy/vps-backup.cron`). El log de cada noche, en `/var/log/vps-backup.log`. Los nombres de las
-apps son los de sus carpetas en `/etc/dokploy/compose`: si se vuelve a crear una en Dokploy, cambia
-el suyo en `/etc/cron.d/vps-backup`.
+Para probarlo ya, una de las líneas de `deploy/vps-backup.cron`:
+`vps-backup.sh seilide jellycartoon-nube-nube-98dnxl db s3:rustfs:nube`. El log de cada noche, en
+`/var/log/vps-backup.log`. El nombre de cada app es el de su carpeta en `/etc/dokploy/compose`: si se
+vuelve a crear una en Dokploy, cambia el suyo en `/etc/cron.d/vps-backup`.
+
+Para leer una copia: `age -d -i vps-copias.key <fichero>.age > <fichero>`. La base de datos se
+restaura con el `pg_restore` de su versión (`--clean --if-exists`, como su dueño), y los ficheros se
+suben a su bucket con `rclone copy`.
 
 ## Series
 

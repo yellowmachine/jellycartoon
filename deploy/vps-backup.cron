@@ -1,7 +1,8 @@
-# /etc/cron.d/vps-backup (#320): the VPS's other Dokploy apps to R2, one after another, at night.
+# /etc/cron.d/vps-backup (#320): the VPS's Dokploy apps to R2, one after another, at night.
 # The script in /usr/local/sbin; its log, /var/log/vps-backup.log. See nube/README.md.
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+30 3 * * * root vps-backup.sh seilide jellycartoon-nube-nube-98dnxl db s3:rustfs:nube >>/var/log/vps-backup.log 2>&1
 45 3 * * * root vps-backup.sh langua langua-langua-icqd75 postgres volume:app:/data/clips >>/var/log/vps-backup.log 2>&1
 0 4 * * * root vps-backup.sh librarian librarian-librarian-jorlsm db >>/var/log/vps-backup.log 2>&1
 15 4 * * * root vps-backup.sh scholio scholio-scholio-tozw1h db s3:rustfs:scholio >>/var/log/vps-backup.log 2>&1
