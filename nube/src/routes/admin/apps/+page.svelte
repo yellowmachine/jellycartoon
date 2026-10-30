@@ -51,7 +51,24 @@
 							<span class="font-mono">{c.clientId}</span>
 							{#if c.createdAt}· creado el {day(c.createdAt)}{/if}
 						</span>
-						<span class="block truncate text-xs text-zinc-500">{c.redirect}</span>
+						<details class="mt-1 text-xs text-zinc-500">
+							<summary class="cursor-pointer">
+								Vuelve a: {c.redirects.join(' · ')}
+							</summary>
+							<form method="post" action="?/redirects" use:enhance class="mt-2 space-y-2">
+								<input type="hidden" name="id" value={c.clientId} />
+								<textarea
+									name="redirects"
+									rows="2"
+									value={c.redirects.join('\n')}
+									class="{field} w-full font-mono text-xs"></textarea>
+								<p>
+									Una por línea. Al cambiar la app de dirección, pon la vieja y la nueva, y quita la
+									vieja cuando todo vaya bien.
+								</p>
+								<button class={secondary}>Guardar</button>
+							</form>
+						</details>
 					</span>
 					<form method="post" action="?/remove" use:enhance>
 						<input type="hidden" name="id" value={c.clientId} />
