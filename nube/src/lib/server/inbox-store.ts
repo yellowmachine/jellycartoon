@@ -9,7 +9,15 @@ import type { PushMessage } from '#lib/server/push.ts';
  * row-level security keeps families apart, and these queries, its people.
  */
 
-export type InboxKind = 'agenda' | 'alarma' | 'medicacion' | 'deberes' | 'voz' | 'recado' | 'regla';
+export type InboxKind =
+	'agenda' | 'alarma' | 'medicacion' | 'deberes' | 'voz' | 'recado' | 'regla' | 'propuesta';
+
+/** Something to remember, offered in the inbox (#331, phase 5). */
+export interface Proposal {
+	text: string;
+	untilDay: string | null;
+	because: string;
+}
 export type InboxLevel = 'normal' | 'urgente';
 
 export interface Notice extends PushMessage {
@@ -17,6 +25,8 @@ export interface Notice extends PushMessage {
 	level?: InboxLevel;
 	/** A message's: who left it. */
 	fromUserId?: string | null;
+	/** Something to remember, with «Guardar» and «No». */
+	proposal?: Proposal | null;
 }
 
 /** Kept a while: a family's letterbox, not an archive. */
@@ -36,7 +46,8 @@ export async function keepInInbox(k: Kitchen, userIds: string[], notice: Notice)
 				body: notice.body,
 				url: notice.url,
 				tag: notice.tag || null,
-				fromUserId: notice.fromUserId ?? null
+				fromUserId: notice.fromUserId ?? null,
+				proposal: notice.proposal ?? null
 			};
 			// The same, still unread (a reminder said again): in its place, as on the phone.
 			const [again] = notice.tag
@@ -89,6 +100,7 @@ export interface InboxItem {
 	url: string;
 	createdAt: Date;
 	readAt: Date | null;
+	proposal: Proposal | null;
 }
 
 /** Theirs, newest first. */
@@ -103,7 +115,8 @@ export function listInbox(k: Kitchen, userId: string): Promise<InboxItem[]> {
 				body: inbox.body,
 				url: inbox.url,
 				createdAt: inbox.createdAt,
-				readAt: inbox.readAt
+				readAt: inbox.readAt,
+				proposal: inbox.proposal
 			})
 			.from(inbox)
 			.where(and(eq(inbox.familyId, k.familyId), eq(inbox.userId, userId)))
@@ -135,4 +148,27 @@ export async function removeFromInbox(k: Kitchen, userId: string, id: number) {
 			.delete(inbox)
 			.where(and(eq(inbox.familyId, k.familyId), eq(inbox.userId, userId), eq(inbox.id, id)))
 	);
+}
+
+/**
+ * An offered memory answered (#331, phase 5): what it offered, if it is theirs and still waiting;
+ * then read, with its answer in its title, and no longer offered.
+ */
+export async function answerProposal(k: Kitchen, userId: string, id: number, kept: boolean) {
+	return k.run(async (tx) => {
+		const [row] = await tx
+			.select({ proposal: inbox.proposal })
+			.from(inbox)
+			.where(and(eq(inbox.familyId, k.familyId), eq(inbox.userId, userId), eq(inbox.id, id)));
+		if (!row?.proposal) return null;
+		await tx
+			.update(inbox)
+			.set({
+				proposal: null,
+				readAt: new Date(),
+				title: kept ? '✓ Guardado en lo que la voz recuerda' : '✗ No guardado'
+			})
+			.where(eq(inbox.id, id));
+		return row.proposal;
+	});
 }

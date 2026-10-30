@@ -12,7 +12,13 @@ import type { Kitchen } from './fridge.ts';
  * The «Buzón» (#331) on a real Postgres (PGlite) as the app's role: each one's only theirs, not
  * even the administrator's; a notice said again takes the unread one's place.
  */
-import { keepInInbox, listInbox, markRead, removeFromInbox } from './inbox-store.ts';
+import {
+	answerProposal,
+	keepInInbox,
+	listInbox,
+	markRead,
+	removeFromInbox
+} from './inbox-store.ts';
 
 const db = drizzle(new PGlite(), { schema });
 const withFamily = familyScope(db, { role: 'app_user' });
@@ -88,5 +94,23 @@ describe('inbox', () => {
 			'En una hora: piscina'
 		]);
 		expect(await unread(ana, 'ana')).toBe(1);
+	});
+
+	test('something offered to remember: answered once, only by its person (#331)', async () => {
+		const ana = kitchen('ana');
+		const proposal = {
+			text: 'Los padres llegan el sábado',
+			untilDay: null,
+			because: 'de Telegram'
+		};
+		await keepInInbox(ana, ['ana'], { ...notice('¿Lo recuerdo?'), kind: 'propuesta', proposal });
+		const [n] = await listInbox(ana, 'ana');
+		expect(n!.proposal).toEqual(proposal);
+		expect(await answerProposal(kitchen('alberto'), 'alberto', n!.id, true)).toBeNull();
+		expect(await answerProposal(ana, 'ana', n!.id, true)).toEqual(proposal);
+		expect(await answerProposal(ana, 'ana', n!.id, true)).toBeNull();
+		const [after] = await listInbox(ana, 'ana');
+		expect(after).toMatchObject({ proposal: null, title: '✓ Guardado en lo que la voz recuerda' });
+		expect(after!.readAt).not.toBeNull();
 	});
 });

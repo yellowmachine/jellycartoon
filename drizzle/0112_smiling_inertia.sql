@@ -1,0 +1,1 @@
+ALTER TABLE "telegram_account" ADD COLUMN "learn_chats" jsonb DEFAULT '[]'::jsonb NOT NULL;

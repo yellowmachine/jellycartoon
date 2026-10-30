@@ -3,7 +3,8 @@ import type { Actions, PageServerLoad } from './$types';
 import { familyPeople } from '#lib/server/agenda/agenda.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { leaveMessage, MAX_MESSAGE } from '#lib/server/inbox.ts';
-import { listInbox, markRead, removeFromInbox } from '#lib/server/inbox-store.ts';
+import { answerProposal, listInbox, markRead, removeFromInbox } from '#lib/server/inbox-store.ts';
+import { remember } from '#lib/server/memory.ts';
 
 /**
  * Their «Buzón» (#331): what the app told them, newest first, and the messages left for them; and
@@ -41,6 +42,23 @@ export const actions: Actions = {
 	remove: async ({ request, locals }) => {
 		const id = idOf(await request.formData());
 		if (id !== null) await removeFromInbox(await kitchenOf(locals.user!.id), locals.user!.id, id);
+	},
+	/** Something to remember offered (#331, phase 5): «Guardar», in their own memory, or «No». */
+	proposal: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = idOf(form);
+		if (id === null) return;
+		const kept = form.get('keep') === 'true';
+		const k = await kitchenOf(locals.user!.id);
+		const offered = await answerProposal(k, locals.user!.id, id, kept);
+		if (offered && kept)
+			await remember(
+				k,
+				locals.user!.id,
+				offered.text,
+				{ untilDay: offered.untilDay },
+				{ ruleId: null, because: offered.because, chain: [] }
+			);
 	},
 	/** «Dejar un recado», to one or more of the family. */
 	leave: async ({ request, locals }) => {

@@ -5,8 +5,8 @@
 
 	/**
 	 * Tu Buzón (#331): lo que te ha avisado la app (la Agenda, las alarmas, la medicación, los
-	 * deberes, la voz) y los recados que te dejan, lo último arriba; y para dejar uno a alguien de la
-	 * familia. Solo lo ves tú.
+	 * deberes, la voz, tus reglas), los recados que te dejan y lo que Seilide propone recordar de tus
+	 * chats de Telegram, lo último arriba; y para dejar uno a alguien de la familia. Solo lo ves tú.
 	 */
 	let { data, form }: PageProps = $props();
 
@@ -26,7 +26,8 @@
 		deberes: 'Deberes',
 		voz: 'La voz',
 		recado: 'Recado',
-		regla: 'Regla'
+		regla: 'Regla',
+		propuesta: 'De Telegram'
 	};
 </script>
 
@@ -59,8 +60,21 @@
 							</a>
 							<p class={['text-sm', n.readAt ? 'text-zinc-500' : 'text-zinc-300']}>{n.body}</p>
 							<p class="text-xs text-zinc-500">{KIND[n.kind] ?? n.kind} · {when(n.createdAt)}</p>
+							{#if n.proposal}
+								<p class="text-xs text-zinc-500">
+									{n.proposal.because[0]?.toUpperCase()}{n.proposal.because.slice(1)}{n.proposal
+										.untilDay
+										? `, hasta el ${n.proposal.untilDay}`
+										: ''}.
+								</p>
+								<form method="post" action="?/proposal" use:enhance class="mt-1 flex gap-2">
+									<input type="hidden" name="id" value={n.id} />
+									<button name="keep" value="true" class={primary}>Guardar</button>
+									<button name="keep" value="false" class={secondary}>No</button>
+								</form>
+							{/if}
 						</div>
-						{#if !n.readAt}
+						{#if !n.readAt && !n.proposal}
 							<form method="post" action="?/read" use:enhance>
 								<input type="hidden" name="id" value={n.id} />
 								<button class={secondary}>Vale</button>

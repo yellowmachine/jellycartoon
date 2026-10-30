@@ -28,15 +28,18 @@ export interface Memory {
 	/** Its first and last days; null, from now and for good. */
 	fromDay: string | null;
 	untilDay: string | null;
-	/** Deduced by a rule (#331, phase 4), and why; null, said. */
+	/** Deduced by a rule (#331, phase 4) or learned (phase 5, no rule), and why; null, said. */
 	ruleId: number | null;
 	because: string | null;
 	updatedAt: Date;
 }
 
-/** Deduced by a rule: which, why, and the rules it comes through (none twice, at most a few). */
+/**
+ * Deduced by a rule (which, why, and the rules it comes through: none twice, at most a few), or
+ * learned elsewhere (no rule: a Telegram message, #331 phase 5), with why.
+ */
 export interface Deduced {
-	ruleId: number;
+	ruleId: number | null;
 	because: string;
 	chain: number[];
 }
@@ -187,7 +190,7 @@ const line = (m: Memory) => {
 	const days = [
 		m.fromDay ? `desde el ${m.fromDay}` : null,
 		m.untilDay ? `hasta el ${m.untilDay}` : null,
-		m.because ? `deducido ${m.because}` : null
+		m.because ? `${m.ruleId ? 'deducido ' : ''}${m.because}` : null
 	].filter(Boolean);
 	return `${m.id} (${[m.userId ? 'suyo' : 'de la casa', ...days].join(', ')}): ${m.text}`;
 };

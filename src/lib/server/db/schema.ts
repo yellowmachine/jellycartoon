@@ -1274,5 +1274,10 @@ export const telegramAccount = pgTable('telegram_account', {
 	groups: boolean('groups').notNull().default(false),
 	/** Marked as read once read aloud. */
 	markRead: boolean('mark_read').notNull().default(false),
+	/**
+	 * The chats Seilide learns from (#331, phase 5): what is said there, both ways, passed to it, to
+	 * be offered in their «Buzón» as something to remember. None, by default.
+	 */
+	learnChats: jsonb('learn_chats').$type<{ id: string; name: string }[]>().notNull().default([]),
 	createdAt: timestamp('created_at').notNull().defaultNow()
 });

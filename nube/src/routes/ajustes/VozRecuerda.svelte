@@ -30,7 +30,11 @@
 					<p class="min-w-0 flex-1 text-zinc-200">
 						{m.text}
 						{#if m.because}
-							<span class="block text-xs text-zinc-500">Deducido por una regla, {m.because}</span>
+							<span class="block text-xs text-zinc-500"
+								>{m.ruleId
+									? `Deducido por una regla, ${m.because}`
+									: `Aprendido ${m.because}`}</span
+							>
 						{/if}
 						{#if m.fromDay || m.untilDay}
 							<span class="block text-xs text-zinc-500"
