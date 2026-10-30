@@ -1,0 +1,1 @@
+ALTER TABLE "rule" ADD COLUMN "matches" jsonb DEFAULT '{}'::jsonb NOT NULL;

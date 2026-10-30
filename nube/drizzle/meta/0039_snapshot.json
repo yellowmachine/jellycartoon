@@ -1,5 +1,5 @@
 {
-  "id": "e8c4c9c1-29b4-4c73-960d-91afbad4a741",
+  "id": "914dceee-59ed-475e-8cc0-6ea35443c81a",
   "prevId": "bcba22cf-8979-4c12-92ef-31949a9b53c5",
   "version": "7",
   "dialect": "postgresql",
@@ -2016,13 +2016,6 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
-        },
-        "rules_cloud_match": {
-          "name": "rules_cloud_match",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         },
         "recipes_backdrop": {
           "name": "recipes_backdrop",

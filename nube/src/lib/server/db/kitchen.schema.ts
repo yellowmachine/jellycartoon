@@ -138,11 +138,6 @@ export const familySettings = pgTable(
 		}>(),
 		/** «Dónde vivís» (Ajustes → Familia), optional: the weather on the home page and by voice. */
 		place: jsonb('place').$type<Place>(),
-		/**
-		 * Rules (#331): when the house's Ollama does not answer whether something is what a rule
-		 * waits for, ask OpenRouter's (what is asked goes to the cloud). Off: only their words.
-		 */
-		rulesCloudMatch: boolean('rules_cloud_match').notNull().default(false),
 		recipesBackdrop: integer('recipes_backdrop').references(() => recipe.id, {
 			onDelete: 'set null'
 		}),

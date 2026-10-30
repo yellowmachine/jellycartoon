@@ -9,7 +9,7 @@ import {
 	familyPeople,
 	personOf
 } from '#lib/server/agenda/agenda.ts';
-import { familyPlace, openRouterKey, rulesCloudMatch } from '#lib/server/family-settings.ts';
+import { familyPlace, openRouterKey } from '#lib/server/family-settings.ts';
 import { familyHasHouse, sendHouse } from '#lib/server/house.ts';
 import { dosesFor, listMedication } from '#lib/server/medication.ts';
 import { hoursAhead, isSnow, type HourAhead } from 'comun/weather.ts';
@@ -42,8 +42,8 @@ import {
  * rule-events.ts) or by the clock (an agenda event, a trip, a time of day, a dose not marked:
  * `checkTimedRules`, every minute; the weather, every half hour); if what it needs holds, it tells
  * whom it says in their «Buzón» and on their phones (inbox.ts), with why. Each time once
- * (`fired`). What its words do not find is asked by its meaning (`fits`): of the house's Ollama,
- * or of OpenRouter's if the family lets it. A person's, only theirs, as their memory; the house's,
+ * (`fired`). What its words do not find is asked by its meaning (`fits`): of OpenRouter, or of
+ * the house's Ollama if it fails. A person's, only theirs, as their memory; the house's,
  * everyone's.
  */
 
@@ -347,7 +347,7 @@ const WHAT: Record<Fitted, string> = {
 	nevera: 'En la nevera',
 	recuerdo: 'Lo que se pide recordar'
 };
-/** The house's Ollama not answering: not asked again for a while (the clock looks every minute). */
+/** The house's Ollama not answering either: not asked again for a while (the clock looks every minute). */
 const HOUSE_AGAIN_MS = 10 * 60_000;
 const houseQuiet = new Map<string, number>();
 /** Its first question loads the model: a few seconds more. */
@@ -366,9 +366,9 @@ const MATCH_SCHEMA = {
 
 /**
  * Whether `text` is what `r` waits for with `words`: by its words (as before); else by its
- * meaning, asked once and kept (`matches`): of the house's Ollama (what is asked leaves the house
- * no further), or, if it does not answer and the family lets it (Ajustes), of OpenRouter's. Neither:
- * by its words only, and asked again later. `why`, to add to the notice's: «, que encaja con…».
+ * meaning, asked once and kept (`matches`): of the family's AI in OpenRouter, or, if it fails, of
+ * the house's Ollama. Neither: by its words only, and asked again later. `why`, to add to the
+ * notice's: «, que encaja con…».
  */
 async function fits(k: Kitchen, r: Rule, words: string[], kind: Fitted, text: string) {
 	if (hasWords(words, text)) return { ok: true, why: '' };
@@ -404,39 +404,42 @@ async function firstFitting<T>(
 	return null;
 }
 
-/** Its meaning asked: the house's Ollama, else OpenRouter's if let; null if neither answers. */
+/**
+ * Its meaning asked: of the family's AI in OpenRouter first; if it fails (or there is no key) and
+ * the family has a house, of its Ollama; null if neither answers.
+ */
 async function askMeaning(k: Kitchen, r: Rule, kind: Fitted, text: string) {
 	const question = { rule: r.said, item: text, what: WHAT[kind] };
-	if ((houseQuiet.get(k.familyId) ?? 0) < Date.now() && (await familyHasHouse(k.familyId)))
-		try {
-			const a = await sendHouse<{ matches: boolean; why: string }>(
-				k.familyId,
-				'/reglas/encaja',
-				{ method: 'POST', body: JSON.stringify(question) },
-				HOUSE_MS
-			);
-			return { ok: a.matches === true, why: String(a.why ?? '').slice(0, 200) };
-		} catch (error) {
-			houseQuiet.set(k.familyId, Date.now() + HOUSE_AGAIN_MS);
-			console.info('[reglas] El salón no contesta: por las palabras', { error: String(error) });
-		}
-	if (!(await rulesCloudMatch(k))) return null;
 	const apiKey = await openRouterKey(k);
-	if (!apiKey) return null;
+	if (apiKey)
+		try {
+			const a = await completeJson<{ encaja: boolean; porque: string }>({
+				apiKey,
+				label: 'Encajar una regla',
+				system: MATCH_SYSTEM,
+				prompt: `Regla: «${question.rule}».\n${question.what}: «${text}».\n¿Es lo que espera la regla?`,
+				name: 'match',
+				schema: MATCH_SCHEMA,
+				maxTokens: 200,
+				timeoutMs: 20_000
+			});
+			return { ok: a.encaja === true, why: String(a.porque ?? '').slice(0, 200) };
+		} catch (error) {
+			console.warn('[reglas] OpenRouter no contesta: al salón', { error: String(error) });
+		}
+	if ((houseQuiet.get(k.familyId) ?? 0) >= Date.now() || !(await familyHasHouse(k.familyId)))
+		return null;
 	try {
-		const a = await completeJson<{ encaja: boolean; porque: string }>({
-			apiKey,
-			label: 'Encajar una regla',
-			system: MATCH_SYSTEM,
-			prompt: `Regla: «${question.rule}».\n${question.what}: «${text}».\n¿Es lo que espera la regla?`,
-			name: 'match',
-			schema: MATCH_SCHEMA,
-			maxTokens: 200,
-			timeoutMs: 20_000
-		});
-		return { ok: a.encaja === true, why: String(a.porque ?? '').slice(0, 200) };
+		const a = await sendHouse<{ matches: boolean; why: string }>(
+			k.familyId,
+			'/reglas/encaja',
+			{ method: 'POST', body: JSON.stringify(question) },
+			HOUSE_MS
+		);
+		return { ok: a.matches === true, why: String(a.why ?? '').slice(0, 200) };
 	} catch (error) {
-		console.warn('[reglas] OpenRouter tampoco contesta', { error: String(error) });
+		houseQuiet.set(k.familyId, Date.now() + HOUSE_AGAIN_MS);
+		console.info('[reglas] El salón tampoco contesta: por las palabras', { error: String(error) });
 		return null;
 	}
 }

@@ -139,33 +139,4 @@
 			<p class="text-sm text-red-400">{problemFor(null)}</p>
 		{/if}
 	</form>
-
-	{#if data.rulesCloudMatch !== null}
-		<form
-			method="post"
-			action="?seccion={tab}&/rulesCloudMatch"
-			use:enhance={keep}
-			class="mt-4 border-t border-zinc-800 pt-3"
-		>
-			<label class="flex items-start gap-2 text-sm">
-				<input
-					type="checkbox"
-					name="rulesCloudMatch"
-					checked={data.rulesCloudMatch}
-					onchange={(e) => e.currentTarget.form?.requestSubmit()}
-					class="mt-0.5 rounded border-zinc-700 bg-zinc-900 text-amber-500"
-				/>
-				<span>
-					Si el salón no contesta, preguntar a OpenRouter
-					<span class="block text-xs text-zinc-500"
-						>Cuando una cita o una nota no tiene las palabras de una regla («Llegan papá y mamá»
-						para «cuando vengan mis padres»), se pregunta al Ollama del salón si es eso, sin salir
-						de casa. Si el salón está apagado, sin esto solo cuentan las palabras; con esto se
-						pregunta a la IA de la familia en OpenRouter (la cita o la nota va a la nube, y cuesta
-						una fracción de céntimo).</span
-					>
-				</span>
-			</label>
-		</form>
-	{/if}
 </section>

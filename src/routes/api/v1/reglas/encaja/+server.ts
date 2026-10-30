@@ -8,11 +8,12 @@ const TIMEOUT_MS = 30_000;
 const MAX_TEXT = 500;
 
 /**
- * Seilide's rules (#331, phase 3), when what happened does not share their words: whether «Llegan
- * papá y mamá» is what «cuando vengan mis padres» waits for, asked of the house's Ollama (its
- * OLLAMA_URL and LABEL_MODEL, the model the episodes are labelled with, already pulled), with its
- * structured outputs (https://docs.ollama.com/capabilities/structured-outputs). What is asked
- * leaves the house no further. 404 without Ollama; 503 if it does not answer.
+ * Seilide's rules (#331, phase 3), when what happened does not share their words and OpenRouter
+ * does not answer: whether «Llegan papá y mamá» is what «cuando vengan mis padres» waits for,
+ * asked of the house's Ollama (its OLLAMA_URL and LABEL_MODEL, the model the episodes are
+ * labelled with, already pulled), with its structured outputs
+ * (https://docs.ollama.com/capabilities/structured-outputs). 404 without Ollama; 503 if it does
+ * not answer.
  */
 export const POST: RequestHandler = async ({ request }) => {
 	await fromCloud(request);
