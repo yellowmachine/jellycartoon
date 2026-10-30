@@ -67,7 +67,9 @@ export function navLinks(
 	guardian = false
 ) {
 	if (kid) {
-		const links = SECTIONS.filter((s) => KID_SECTIONS.includes(s.path)).map((s) => link(s, webUrl));
+		const links = SECTIONS.filter(
+			(s) => KID_SECTIONS.includes(s.path) && (hasHouse || !s.house)
+		).map((s) => link(s, webUrl));
 		return { links, menuLinks: links, userLinks: [] };
 	}
 	const links = SECTIONS.filter((s) => hasHouse || (s.where !== 'casa' && !s.house)).map((s) =>

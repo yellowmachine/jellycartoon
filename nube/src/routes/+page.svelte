@@ -15,8 +15,11 @@
 	<!-- A child's (#303): only what it may open. -->
 	<h1 class="mb-6 text-2xl font-bold">Hola, {data.user.name}</h1>
 	<div class="grid grid-cols-2 gap-4">
-		<a href="/series" class={tile}><SectionIcon name="series" class="h-12 w-12" />Series</a>
-		<a href="/musica" class={tile}><SectionIcon name="musica" class="h-12 w-12" />Música</a>
+		<!-- Series and music are the house's: without one connected, not there. -->
+		{#if data.house}
+			<a href="/series" class={tile}><SectionIcon name="series" class="h-12 w-12" />Series</a>
+			<a href="/musica" class={tile}><SectionIcon name="musica" class="h-12 w-12" />Música</a>
+		{/if}
 		<a href="/agenda" class={tile}><SectionIcon name="agenda" class="h-12 w-12" />Mi agenda</a>
 		<a href="/nevera" class={tile}><SectionIcon name="nevera" class="h-12 w-12" />La nevera</a>
 	</div>

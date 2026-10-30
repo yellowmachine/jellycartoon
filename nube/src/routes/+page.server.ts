@@ -20,7 +20,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	try {
 		const userId = locals.user.id;
 		// A child (#303): its own home, with only what it may open.
-		if (await isKidAccount(userId)) return { home: null, kid: true };
+		if (await isKidAccount(userId)) return { home: null, kid: true, house: await hasHouse(userId) };
 		const k = await kitchenOf(userId);
 		const admin = await withFamily(userId, async (_, m) => m.role === 'admin');
 		const [home, house] = await Promise.all([homeOf(k, userId, admin), hasHouse(userId)]);
