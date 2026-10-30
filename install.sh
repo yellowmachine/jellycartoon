@@ -240,6 +240,24 @@ done
 say
 say "✓ JellyCartoon está en marcha."
 
+# Each update leaves the previous image without a tag (the same `stable`, moved), ~2 GB each, kept by
+# Docker until pruned (#316): WUD's PRUNE removes only other tags, not these. Every Sunday, those
+# older than a week, in this user's crontab; added once.
+prune='docker image prune -f --filter until=168h'
+if command -v crontab >/dev/null 2>&1; then
+	if ! crontab -l 2>/dev/null | grep -qF "$prune"; then
+		{
+			crontab -l 2>/dev/null
+			say "0 5 * * 0 $prune >/dev/null 2>&1"
+		} | crontab -
+		say "Cada domingo a las 5:00 se borran las imágenes viejas de Docker (en el crontab de $(id -un))."
+	fi
+else
+	say
+	say "Aviso: este ordenador no tiene crontab. Cada actualización deja la imagen anterior (unos 2 GB);"
+	say "bórralas de vez en cuando con: $prune"
+fi
+
 if [ "$tls" = internal ]; then
 	$compose cp caddy:/data/caddy/pki/authorities/local/root.crt jellycartoon-raiz.crt >/dev/null 2>&1
 	say
