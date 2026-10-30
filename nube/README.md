@@ -114,6 +114,40 @@ Más familias, en la terminal del servicio `app`:
 `init-db.sh` solo corre con el volumen de Postgres vacío: cambiar `APP_DB_PASSWORD` después
 necesita `ALTER ROLE nube_app PASSWORD '…'` en la base de datos.
 
+### Copias de Seilide
+
+Con el perfil `backup` (#320), cada noche suben a un bucket de
+[R2](https://developers.cloudflare.com/r2/) tres ficheros, cada uno cifrado con
+[age](https://age-encryption.org) antes de salir del VPS: la base de datos
+(`seilide-<fecha UTC>.dump.age`), el Environment de Dokploy (`….env.age`, con `BETTER_AUTH_SECRET`,
+sin el que la base de datos restaurada no sirve) y los ficheros de rustfs (`….files.tar.age`: fotos
+de tickets y de viajes, facturas). Es la imagen de las copias de las casas (`Dockerfile.backup`).
+
+Una vez, como en «Copia en Cloudflare R2» del README de arriba: un bucket solo para Seilide (no el
+de una casa: una clave de R2 vale para un bucket entero), su regla de borrado a los 30 días, su
+token **Object Read & Write** de solo ese bucket y una clave de age (`age-keygen -o
+seilide-copias.key`, entera al gestor de contraseñas). Como el token también puede borrar, en el
+bucket una [regla de bloqueo](https://developers.cloudflare.com/r2/buckets/bucket-locks/) de unos 7
+días: así nadie con la clave borra las copias recientes.
+
+En el Environment de Seilide en Dokploy:
+
+```sh
+COMPOSE_PROFILES="backup"
+R2_ACCOUNT_ID="..."
+R2_ACCESS_KEY_ID="..."
+R2_SECRET_ACCESS_KEY="..."
+R2_BUCKET="seilide-copias/backups"
+BACKUP_AGE_RECIPIENT="age1..."
+# BACKUP_TIME="03:30"
+```
+
+Y Deploy. Para una copia ya, en la terminal de Dokploy del servicio `backup`:
+`backup-r2.sh now`. Si una noche falla, el servicio sale _unhealthy_ al día siguiente y su log dice
+por qué. Para leer una copia: `age -d -i seilide-copias.key <fichero>.age > <fichero>`; la base de
+datos se restaura con `pg_restore --clean --if-exists` como el dueño (`nube`), y los ficheros se
+suben al bucket `nube` de rustfs con `rclone copy`.
+
 ## Series
 
 Las de casa (#253), para verlas fuera: la portada con «Seguir viendo» y todas las series, la página

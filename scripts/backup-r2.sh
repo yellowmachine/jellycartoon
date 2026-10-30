@@ -2,6 +2,8 @@
 # The database, every night, to a Cloudflare R2 bucket (compose.prod.yaml, `backup` profile; image
 # Dockerfile.backup). The dump is encrypted with age (https://age-encryption.org) before it leaves
 # the machine: the server has only the public key, and the private one, to restore, is kept apart.
+# With it, if there are (#320): the .env mounted at /backup/env, and the files of an S3 bucket
+# (Seilide's rustfs, FILES_S3_*), each encrypted the same way. Seilide's is nube/compose.prod.yaml.
 #
 #   backup-r2.sh          waits for BACKUP_TIME every day (the service)
 #   backup-r2.sh now      one copy now, e.g. `docker compose -f compose.prod.yaml run --rm backup now`
@@ -35,24 +37,51 @@ export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
 export RCLONE_CONFIG_R2_NO_HEAD=true
 export RCLONE_CONFIG_R2_ACL=private
 
+# The bucket whose files go too (Seilide's rustfs), as the remote `files:`.
+if [[ -n ${FILES_S3_ENDPOINT:-} ]]; then
+	export RCLONE_CONFIG_FILES_TYPE=s3
+	export RCLONE_CONFIG_FILES_PROVIDER=Other
+	export RCLONE_CONFIG_FILES_ENDPOINT=$FILES_S3_ENDPOINT
+	export RCLONE_CONFIG_FILES_ACCESS_KEY_ID=${FILES_S3_ACCESS_KEY_ID:?}
+	export RCLONE_CONFIG_FILES_SECRET_ACCESS_KEY=${FILES_S3_SECRET_ACCESS_KEY:?}
+	export RCLONE_CONFIG_FILES_FORCE_PATH_STYLE=true
+fi
+
+# Each copy's name starts so: `jellycartoon` at home, `seilide` in the cloud.
+name_start=${BACKUP_NAME:-jellycartoon}
+
 # What the healthcheck looks at: the time of the last copy that went up.
 ok=/tmp/last-backup-ok
 
+# Encrypted, then up: `up <file> <name>`.
+up() {
+	(umask 077 && age -r "$BACKUP_AGE_RECIPIENT" -o "$1.age" "$1")
+	rclone copyto "$1.age" "r2:$R2_BUCKET/$2"
+	log "Subida $2"
+}
+
 backup() {
-	local dir name
+	local stamp
 	dir=$(mktemp -d)
-	# In UTC, like the copies before an update: they sort by name.
-	name=jellycartoon-$(date -u +%Y%m%dT%H%MZ).dump.age
-	log "Copia de la base de datos → r2:$R2_BUCKET/$name"
-	(
-		umask 077
-		pg_dump -Fc >"$dir/db.dump"
-		age -r "$BACKUP_AGE_RECIPIENT" -o "$dir/$name" "$dir/db.dump"
-	)
-	rclone copyto "$dir/$name" "r2:$R2_BUCKET/$name"
-	rm -rf "$dir"
+	# Whatever goes wrong, nothing left here in the clear.
+	trap 'rm -rf "$dir"' EXIT
+	# In UTC, like the copies before an update: they sort by name. One stamp for all of a night.
+	stamp=$(date -u +%Y%m%dT%H%MZ)
+	log "Copia → r2:$R2_BUCKET/$name_start-$stamp.*"
+	(umask 077 && pg_dump -Fc >"$dir/db.dump")
+	up "$dir/db.dump" "$name_start-$stamp.dump.age"
+	# Its secrets: without them, the database cannot be read by a new install (BETTER_AUTH_SECRET).
+	if [[ -f /backup/env ]]; then
+		(umask 077 && cp /backup/env "$dir/env")
+		up "$dir/env" "$name_start-$stamp.env.age"
+	fi
+	# All the files, again each night: simple, while they are few (photos and receipts).
+	if [[ -n ${FILES_S3_ENDPOINT:-} ]]; then
+		(umask 077 && mkdir "$dir/files" && rclone copy "files:${FILES_S3_BUCKET:?}" "$dir/files")
+		(umask 077 && tar -C "$dir" -cf "$dir/files.tar" files)
+		up "$dir/files.tar" "$name_start-$stamp.files.tar.age"
+	fi
 	touch "$ok"
-	log "Subida ($name)"
 }
 
 if [[ ${1:-} == now ]]; then
@@ -66,6 +95,8 @@ time=${BACKUP_TIME:-03:30}
 log "Copia diaria a las $time (TZ=${TZ:-UTC}) en r2:$R2_BUCKET"
 while true; do
 	sleep $(($(date -d "$time" +%s) > $(date +%s) ? $(date -d "$time" +%s) - $(date +%s) : $(date -d "tomorrow $time" +%s) - $(date +%s)))
-	# A failed night is logged and tried again the next: the service does not stop.
-	backup || log "La copia ha fallado; se intentará mañana"
+	# A failed night is logged and tried again the next: the service does not stop. In a process
+	# of its own: in a function called with `||`, bash ignores `set -e`, and a failed pg_dump would
+	# go on to upload an empty copy as a good one.
+	"$0" now || log "La copia ha fallado; se intentará mañana"
 done
