@@ -33,13 +33,15 @@ import {
 import { BOT_EVENTS, parseBotEvents } from '#lib/telegram-bot.ts';
 import { withFamily } from '#lib/server/family.ts';
 import {
+	familyPlace,
 	openRouterKey,
 	openRouterKeyStart,
 	orsKeyStart,
+	rulesCloudMatch,
+	setFamilyPlace,
 	setOpenRouterKey,
 	setOrsKey,
-	familyPlace,
-	setFamilyPlace
+	setRulesCloudMatch
 } from '#lib/server/family-settings.ts';
 import { placeName, type Place } from 'comun/weather.ts';
 import { findPlacesFor } from '#lib/server/places.ts';
@@ -159,6 +161,8 @@ export const load: PageServerLoad = async ({ locals, request, cookies }) => {
 			: null,
 		/** What the voice remembers: theirs (no one else sees it) and the house's. */
 		memories: await listMemories(k, locals.user!.id, true),
+		/** Rules (#331): OpenRouter asked when the salon does not answer; only its administrator. */
+		rulesCloudMatch: admin ? await rulesCloudMatch(k) : null,
 		/** Their rules and the house's (#331): as understood, and the last time each told. */
 		rules: (await listRules(k, locals.user!.id)).map((r) => ({
 			id: r.id,
@@ -377,6 +381,14 @@ export const actions: Actions = {
 		if (!saved)
 			return fail(400, { ruleProblem: 'Ya hay demasiadas reglas en la familia', ruleId: id });
 		return { saved: 'rule', ruleId: saved };
+	},
+	/** Rules (#331): OpenRouter asked when the salon does not answer. */
+	rulesCloudMatch: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'ruleProblem');
+		if (denied) return denied;
+		const on = (await request.formData()).get('rulesCloudMatch') === 'on';
+		await setRulesCloudMatch(await kitchenOf(locals.user!.id), on);
+		return { saved: 'rule' };
 	},
 	/** «Pausar» and «Seguir». */
 	pauseRule: async ({ request, locals }) => {

@@ -237,3 +237,39 @@ export async function hourWeather(
 		wind: round(h.wind_speed_10m[i])
 	};
 }
+
+/** One of the next hours (the rules', #331): when, and what it will be like. */
+export interface HourAhead {
+	/** `YYYY-MM-DDTHH:MM`, in Spain's time. */
+	at: string;
+	temperature: number;
+	/** Chance of rain, %. */
+	rain: number;
+	/** km/h. */
+	wind: number;
+	code: number;
+}
+
+/** At `lat`, `lon`, the next `hours` hours (this one first), hour by hour. */
+export async function hoursAhead(lat: number, lon: number, hours: number): Promise<HourAhead[]> {
+	const url = new URL(FORECAST_URL);
+	url.searchParams.set('latitude', String(lat));
+	url.searchParams.set('longitude', String(lon));
+	url.searchParams.set(
+		'hourly',
+		'temperature_2m,precipitation_probability,weather_code,wind_speed_10m'
+	);
+	url.searchParams.set('timezone', TIME_ZONE);
+	url.searchParams.set('forecast_hours', String(Math.max(1, Math.min(hours, 72))));
+	const h = (await getJson(url)).hourly;
+	return (h.time as string[]).map((at, i) => ({
+		at,
+		temperature: round(h.temperature_2m[i]),
+		rain: h.precipitation_probability[i] ?? 0,
+		wind: round(h.wind_speed_10m[i]),
+		code: h.weather_code[i]
+	}));
+}
+
+/** Snow, by its WMO codes (as Open-Meteo gives them): snowfall, grains and showers. */
+export const isSnow = (code: number) => (code >= 71 && code <= 77) || code === 85 || code === 86;

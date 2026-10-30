@@ -28,6 +28,14 @@ export const rule = pgTable(
 		lastFiredAt: timestamp('last_fired_at'),
 		/** Why, the last time: «empieza «Vienen mis padres» y estás de viaje». */
 		lastWhy: text('last_why'),
+		/**
+		 * What its words did not find, asked by its meaning (phase 3: the house's Ollama, or
+		 * OpenRouter's if the family lets it): «agenda:llegan papa y mama» → whether it is, and why.
+		 */
+		matches: jsonb('matches')
+			.$type<Record<string, { ok: boolean; why: string }>>()
+			.notNull()
+			.default({}),
 		createdAt: timestamp('created_at').notNull().defaultNow(),
 		updatedAt: timestamp('updated_at').notNull().defaultNow()
 	},

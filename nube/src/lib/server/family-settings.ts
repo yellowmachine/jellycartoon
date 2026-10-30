@@ -95,3 +95,17 @@ export async function setFamilyPlace(k: Kitchen, place: Place | null) {
 			.onConflictDoUpdate({ target: familySettings.familyId, set: { place } })
 	);
 }
+
+/** Rules (#331): OpenRouter asked when the house's Ollama does not answer. */
+export async function rulesCloudMatch(k: Kitchen) {
+	return (await settingsOf(k))?.rulesCloudMatch ?? false;
+}
+
+export async function setRulesCloudMatch(k: Kitchen, on: boolean) {
+	await k.run((tx) =>
+		tx
+			.insert(familySettings)
+			.values({ familyId: k.familyId, rulesCloudMatch: on })
+			.onConflictDoUpdate({ target: familySettings.familyId, set: { rulesCloudMatch: on } })
+	);
+}
