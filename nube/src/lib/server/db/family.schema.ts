@@ -24,6 +24,12 @@ import { user } from './auth.schema.ts';
 export const currentFamily = sql`nullif(current_setting('app.family_id', true), '')`;
 export const currentUser = sql`nullif(current_setting('app.user_id', true), '')`;
 
+/** Set by `adminScope` (admin-scope.ts), for the service's administrator's counts in /admin. */
+export const serviceAdmin = sql`current_setting('app.is_admin', true) = 'true'`;
+
+/** What /admin counts of a table (admin-scope.ts): read only, every family's. */
+export const adminReads = (name: string) => pgPolicy(name, { for: 'select', using: serviceAdmin });
+
 /** A policy for all of a table's commands: only its family's rows, read or written. */
 export const familyRows = (name: string, familyId: unknown) =>
 	pgPolicy(name, {
@@ -39,7 +45,7 @@ export const family = pgTable(
 		name: text('name').notNull(),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
-	(t) => [familyRows('family_own', t.id)]
+	(t) => [familyRows('family_own', t.id), adminReads('family_admin_reads')]
 ).enableRLS();
 
 /**
@@ -101,7 +107,7 @@ export const house = pgTable(
 			.defaultNow()
 			.$onUpdate(() => new Date())
 	},
-	(t) => [familyRows('house_own', t.familyId)]
+	(t) => [familyRows('house_own', t.familyId), adminReads('house_admin_reads')]
 ).enableRLS();
 
 /**

@@ -11,7 +11,8 @@
 # mounted there). The database is dumped by its own pg_dump, in its container: its version (a newer
 # one's dump does not restore cleanly in an older Postgres), and no password. The S3 keys come from
 # the app's container, and its Environment is the .env Dokploy writes next to its compose file;
-# R2's, from /etc/vps-backup.env (only root reads it). See «Copias del VPS» in nube/README.md.
+# R2's, from /etc/vps-backup.env (only root reads it). How it went, well or not, goes to Seilide's
+# /admin (BACKUP_REPORT_*). See «Copias del VPS» in nube/README.md.
 set -euo pipefail
 
 [[ $# -ge 3 ]] || {
@@ -21,6 +22,52 @@ set -euo pipefail
 name=$1 app=$2 db_service=$3 files=${4:-}
 image=${BACKUP_IMAGE:-ghcr.io/yellowmachine/jellycartoon-backup:stable}
 settings=${VPS_BACKUP_SETTINGS:-/etc/vps-backup.env}
+
+# A variable of the settings, without sourcing them (docker's --env-file: no quotes).
+setting() { sed -n "s/^$1=//p" "$settings" 2>/dev/null | tail -n 1; }
+
+# Its text as a JSON string: no jq on the VPS, and the log has nothing but text.
+json_string() {
+	local s
+	s=$(tr -d '\000-\010\013\014\016-\037')
+	s=${s//\\/\\\\}
+	s=${s//\"/\\\"}
+	s=${s//$'\t'/\\t}
+	s=${s//$'\r'/}
+	s=${s//$'\n'/\\n}
+	printf '"%s"' "$s"
+}
+
+# How it went, well or not, to Seilide's /admin (BACKUP_REPORT_URL and BACKUP_REPORT_TOKEN in the
+# settings; without them, nothing): `report <exit status> <its output>`. A failed report is only
+# logged: the copy is what matters.
+report() {
+	local url token ok=false headers
+	url=$(setting BACKUP_REPORT_URL) token=$(setting BACKUP_REPORT_TOKEN)
+	[[ -n $url && -n $token ]] || return 0
+	[[ $1 == 0 ]] && ok=true
+	# The token in a file, not on the command line (ps).
+	headers=$(mktemp)
+	chmod 600 "$headers"
+	printf 'Authorization: Bearer %s\nContent-Type: application/json\n' "$token" >"$headers"
+	printf '{"name":%s,"ok":%s,"log":%s}' "$(json_string <<<"$name")" "$ok" \
+		"$(tail -n 40 "$2" | json_string)" |
+		curl -fsS -m 20 -H @"$headers" --data-binary @- "$url" >/dev/null ||
+		echo "$name: no se pudo avisar a $url" >&2
+	rm -f "$headers"
+}
+
+# The copy in a process of its own, its output kept to report, whatever ends it (`exit 1` in it).
+if [[ -z ${VPS_BACKUP_RUN:-} ]]; then
+	out=$(mktemp)
+	trap 'rm -f "$out"' EXIT
+	set +e
+	VPS_BACKUP_RUN=1 "$0" "$@" 2>&1 | tee "$out"
+	status=${PIPESTATUS[0]}
+	set -e
+	report "$status" "$out"
+	exit "$status"
+fi
 
 # A running container of the app's service.
 container() {

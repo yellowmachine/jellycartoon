@@ -12,3 +12,4 @@ export * from './memory.schema.ts';
 export * from './kids.schema.ts';
 export * from './homework.schema.ts';
 export * from './medication.schema.ts';
+export * from './backup.schema.ts';

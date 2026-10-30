@@ -151,7 +151,15 @@ R2_ACCESS_KEY_ID=...
 R2_SECRET_ACCESS_KEY=...
 R2_BUCKET=vps-copias/backups
 BACKUP_AGE_RECIPIENT=age1...
+BACKUP_REPORT_URL=https://seilide.app/api/admin/copias
+BACKUP_REPORT_TOKEN=...
 ```
+
+Cada copia, al acabar, bien o mal, avisa a Seilide con las últimas líneas de su salida (lo que
+subió y cuánto ocupa, o lo que falló): se ven en **/admin**, solo para ADMIN_EMAIL, en rojo si la
+última falló o si una app lleva más de 26 h sin copia buena. `BACKUP_REPORT_TOKEN`, el mismo que en
+el Environment de Seilide (`openssl rand -hex 32`). Sin las dos variables no avisa, y si Seilide no
+contesta solo se anota en el log: la copia ya está hecha.
 
 Para probarlo ya, una de las líneas de `deploy/vps-backup.cron`:
 `vps-backup.sh seilide jellycartoon-nube-nube-98dnxl db s3:rustfs:nube`. El log de cada noche, en

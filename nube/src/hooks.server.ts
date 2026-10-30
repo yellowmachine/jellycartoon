@@ -31,6 +31,8 @@ const PUBLIC_PATHS = [
 	'/api/calendario/',
 	// The apps' AI, with the person's access token (app-ai.ts).
 	'/api/ia/',
+	// How each night's copy of the VPS's apps went (deploy/vps-backup.sh), with its token (admin.ts).
+	'/api/admin/copias',
 	'/s/',
 	'/invitacion/',
 	// «¿Quién eres?» (#303): a child choosing its drawing on the family's device, by its cookie.

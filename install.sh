@@ -241,7 +241,7 @@ say
 say "✓ JellyCartoon está en marcha."
 
 # Each update leaves the previous image without a tag (the same `stable`, moved), ~2 GB each, kept by
-# Docker until pruned (#316): WUD's PRUNE removes only other tags, not these. Every Sunday, those
+# Docker until pruned (#316): WUD does not remove them (no PRUNE in compose.prod.yaml). Every Sunday, those
 # older than a week, in this user's crontab; added once.
 prune='docker image prune -f --filter until=168h'
 if command -v crontab >/dev/null 2>&1; then

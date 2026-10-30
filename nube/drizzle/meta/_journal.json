@@ -253,6 +253,13 @@
       "when": 1793378967396,
       "tag": "0035_mysterious_black_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793386936348,
+      "tag": "0036_illegal_joshua_kane",
+      "breakpoints": true
     }
   ]
 }
