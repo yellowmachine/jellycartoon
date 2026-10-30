@@ -2,7 +2,12 @@ import { error, fail } from '@sveltejs/kit';
 import { ORIGIN } from '$app/env/private';
 import type { Actions, PageServerLoad } from './$types';
 import { isServiceAdmin } from '#lib/server/invitations.ts';
-import { appClients, createAppClient, deleteAppClient } from '#lib/server/app-clients.ts';
+import {
+	appClients,
+	createAppClient,
+	deleteAppClient,
+	setAppRedirects
+} from '#lib/server/app-clients.ts';
 import { refusedByProvider } from '#lib/server/house-clients.ts';
 
 /** Only the service's administrator (ADMIN_EMAIL): to anyone else, there is no such page. */
@@ -41,6 +46,32 @@ export const actions: Actions = {
 				return fail(400, { problem: 'La dirección de vuelta, con https://' });
 			throw e;
 		}
+	},
+	/** Its addresses to come back to, one per line: the old and the new while it moves. */
+	redirects: async ({ request, locals }) => {
+		onlyServiceAdmin(locals.user);
+		const form = await request.formData();
+		const lines = String(form.get('redirects') ?? '')
+			.split('\n')
+			.map((l) => l.trim())
+			.filter(Boolean);
+		const uris: string[] = [];
+		for (const line of lines)
+			try {
+				uris.push(new URL(line).href);
+			} catch {
+				return fail(400, { problem: `«${line}» no es una dirección completa, con https://` });
+			}
+		if (!uris.length) return fail(400, { problem: 'Hace falta al menos una dirección de vuelta' });
+		try {
+			if (!(await setAppRedirects(request.headers, String(form.get('id') ?? ''), uris)))
+				return fail(404, { problem: 'Esa app ya no está' });
+		} catch (e) {
+			if (refusedByProvider(e))
+				return fail(400, { problem: 'Las direcciones de vuelta, con https://' });
+			throw e;
+		}
+		return { redirectsSaved: true };
 	},
 	remove: async ({ request, locals }) => {
 		onlyServiceAdmin(locals.user);

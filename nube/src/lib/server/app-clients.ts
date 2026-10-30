@@ -43,10 +43,24 @@ export async function appClients(headers: Headers) {
 	return (clients ?? []).filter(isApp).map((c) => ({
 		clientId: c.client_id,
 		name: c.client_name ?? c.client_id,
-		redirect: c.redirect_uris?.[0] ?? '',
+		redirects: c.redirect_uris ?? [],
 		family: (c.scope ?? '').split(' ').includes(FAMILY_SCOPE),
 		createdAt: c.client_id_issued_at ? new Date(c.client_id_issued_at * 1000) : null
 	}));
+}
+
+/**
+ * Where it may come back to after signing in: several at once while an app changes its address
+ * (Langua to langua.seilide.app), the old one taken out afterwards. Only an app's client.
+ */
+export async function setAppRedirects(headers: Headers, clientId: string, redirectUris: string[]) {
+	if (!(await appClients(headers)).some((c) => c.clientId === clientId)) return false;
+	// With the administrator's session: the provider checks the client is theirs, who made it.
+	await auth.api.adminUpdateOAuthClient({
+		headers,
+		body: { client_id: clientId, update: { redirect_uris: redirectUris } }
+	});
+	return true;
 }
 
 export const deleteAppClient = (headers: Headers, clientId: string) =>

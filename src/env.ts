@@ -156,7 +156,7 @@ export const variables = defineEnvVars({
 	},
 	NUBE_URL: {
 		description:
-			"Optional address of the family's cloud (nube/, #279), e.g. `https://nube.scholio.review`. With NUBE_CLIENT_ID and NUBE_CLIENT_SECRET, made in the cloud's Ajustes → Familia, the house's login offers «Entrar con Seilide».",
+			"Optional address of the family's cloud (nube/, #279), e.g. `https://seilide.app`. With NUBE_CLIENT_ID and NUBE_CLIENT_SECRET, made in the cloud's Ajustes → Familia, the house's login offers «Entrar con Seilide».",
 		schema: (value) => value?.replace(/\/+$/, '') || undefined
 	},
 	NUBE_CLIENT_ID: {
