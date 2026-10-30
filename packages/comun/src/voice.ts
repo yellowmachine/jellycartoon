@@ -39,6 +39,10 @@ export type VoiceAction =
 	| { kind: 'endRecipe' }
 	/** The road mode's route (#78) to that place, from where we are; null, none. */
 	| { kind: 'navigate'; place: Place | null }
+	/** A stop on the way to the route on (#312), before its end, which stays; why, if said. */
+	| { kind: 'addStop'; place: Place; reason: string | null }
+	/** A stop of the route on, out, by its name as said; null, all of them. The end stays. */
+	| { kind: 'removeStop'; name: string | null }
 	/** A route kept in Viajes (#151), by its id: from where we are, through its stops ahead. */
 	| { kind: 'route'; id: number }
 	/** A photo with the road mode's camera (#81). */
@@ -87,7 +91,10 @@ export interface VoiceRequest {
 	car: boolean;
 	/** In the road mode, where we are (the GPS), for «llévame a…» and «¿dónde estoy?». */
 	position: LngLat | null;
-	/** In the road mode, the route on, described: «a Plaza de Zocodover, quedan 2,1 km». */
+	/**
+	 * In the road mode, the route on, described: «a Plaza de Zocodover, quedan 2,1 km», and its
+	 * stops ahead (#312).
+	 */
 	navigation: string | null;
 }
 
@@ -190,6 +197,6 @@ export function parseVoiceRequest(body: unknown): VoiceRequest | null {
 			Math.abs(b.position[1]) <= 90
 				? [b.position[0], b.position[1]]
 				: null,
-		navigation: b.car === true ? text(b.navigation, 300) : null
+		navigation: b.car === true ? text(b.navigation, 800) : null
 	};
 }

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { LngLat } from './road.ts';
-import { asksForRoute, findByName, stopsAhead } from './saved-places.ts';
+import { asksForRoute, findByName, insertStop, stopsAhead } from './saved-places.ts';
 
 const kept = [{ name: 'Casa' }, { name: 'Trabajo' }, { name: 'Centro comercial Luz del Tajo' }];
 
@@ -59,4 +59,30 @@ test('only a start and an end: the end', () => {
 	expect(stopsAhead({ line, stops: [stop('Casa', 0), stop('Trabajo', 4)] }, line[2]!)).toEqual([
 		stop('Trabajo', 4)
 	]);
+});
+
+// Vélez-Rubio to Alicante, by Lorca, Totana and Murcia.
+const velez: LngLat = [-2.077, 37.648];
+const lorca: LngLat = [-1.701, 37.677];
+const totana: LngLat = [-1.501, 37.769];
+const murcia: LngLat = [-1.13, 37.992];
+const alicante: LngLat = [-0.481, 38.345];
+
+test('a new stop, where it lengthens the way least', () => {
+	const said = (name: string, at: LngLat) => ({ name, at });
+	expect(insertStop([], said('Totana', totana), velez, alicante).map((s) => s.name)).toEqual([
+		'Totana'
+	]);
+	const ahead = [said('Lorca', lorca), said('Murcia', murcia)];
+	expect(insertStop(ahead, said('Totana', totana), velez, alicante).map((s) => s.name)).toEqual([
+		'Lorca',
+		'Totana',
+		'Murcia'
+	]);
+	expect(
+		insertStop([said('Murcia', murcia)], said('Lorca', lorca), velez, alicante).map((s) => s.name)
+	).toEqual(['Lorca', 'Murcia']);
+	expect(
+		insertStop([said('Lorca', lorca)], said('Murcia', murcia), velez, alicante).map((s) => s.name)
+	).toEqual(['Lorca', 'Murcia']);
 });

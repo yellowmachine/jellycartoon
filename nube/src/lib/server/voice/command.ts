@@ -1,5 +1,6 @@
 import { STATIONS, COUNTRIES } from 'comun/radio.ts';
 import { parseRecipe } from 'comun/recipe.ts';
+import type { LngLat } from 'comun/road.ts';
 import { MAX_SNOOZE_MIN, SNOOZE_MIN, isAlarmPlace, type AlarmPlace } from 'comun/alarms.ts';
 import { EXPENSE_CATEGORIES, euros, isCategory, type ExpenseLine } from 'comun/expenses.ts';
 import { isUntilWord, UNTIL_WORDS, untilDay, untilText } from 'comun/fridge.ts';
@@ -266,6 +267,34 @@ function tools(house: boolean, rooms: Room[], salon: boolean, clipMinutes: numbe
 				}
 			},
 			['destination']
+		),
+		fn(
+			'add_stop',
+			'Modo carretera: una parada en el camino a donde va, que sigue siendo su destino; el mapa recalcula la ruta pasando por ella. «Para en…», «añade una parada en…», «de camino, pasa por…». «Vamos a…» o «llévame a…» no es una parada: es navigate_to, un destino nuevo.',
+			{
+				place: {
+					type: 'string',
+					description:
+						'Dónde parar, como se diría a un navegador: «Totana», «Lorca, Murcia». Uno de sus sitios guardados, tal cual lo dice: «casa de los abuelos».'
+				},
+				reason: {
+					type: 'string',
+					description:
+						'Para qué, si lo dice, corto y como iría tras «para»: «comprar pan casero», «comer». Vacío si no lo dice.'
+				}
+			},
+			['place']
+		),
+		fn(
+			'remove_stop',
+			'Modo carretera: quita una parada de la ruta (o todas), sin cambiar el destino. «Quita la parada de…», «ya no paramos en…», «sin paradas».',
+			{
+				stop: {
+					type: 'string',
+					description: 'La parada, por su nombre, como sale en la ruta. Vacío: todas.'
+				}
+			},
+			[]
 		),
 		fn(
 			'where_am_i',
@@ -1058,12 +1087,37 @@ async function runTool(
 				});
 				return `Ruta a ${savedPlace.name}, uno de sus sitios: el mapa la traza y la va diciendo. Díselo corto.`;
 			}
-			const position = ctx.order.request.position;
-			const [place] = await orsFor(ctx.k).searchPlaces(wanted, position ?? null);
+			const place = await searchPlace(ctx.k, wanted, ctx.order.request.position);
 			if (!place)
 				return `No encuentro «${wanted}». Pídele que lo diga de otra forma (con el pueblo o la ciudad).`;
 			ctx.outcome.actions.push({ kind: 'navigate', place });
 			return `Ruta a ${place.label}: el mapa la traza y la va diciendo. Díselo corto.`;
+		}
+		case 'add_stop': {
+			const wanted = typeof args.place === 'string' ? args.place.trim() : '';
+			if (!wanted) return 'Falta dónde parar.';
+			const reason =
+				typeof args.reason === 'string' && args.reason.trim()
+					? args.reason.trim().slice(0, 80)
+					: null;
+			const saved = findByName(await listSavedPlaces(ctx.k), wanted);
+			const place = saved
+				? { label: saved.name, at: saved.at }
+				: await searchPlace(ctx.k, wanted, ctx.order.request.position);
+			if (!place)
+				return `No encuentro «${wanted}». Pídele que lo diga de otra forma (con el pueblo o la ciudad).`;
+			// No route on: where to stop is where to go.
+			if (!ctx.order.request.navigation) {
+				ctx.outcome.actions.push({ kind: 'navigate', place });
+				return `No llevaba ruta: ruta a ${place.label}, como destino. Díselo corto.`;
+			}
+			ctx.outcome.actions.push({ kind: 'addStop', place, reason });
+			return `Parada en ${place.label}${reason ? `, para ${reason}` : ''}, antes de su destino, que sigue siendo el mismo: el mapa recalcula la ruta. Díselo corto.`;
+		}
+		case 'remove_stop': {
+			const stop = typeof args.stop === 'string' && args.stop.trim() ? args.stop.trim() : null;
+			ctx.outcome.actions.push({ kind: 'removeStop', name: stop });
+			return `${stop ? `Parada de ${stop} quitada` : 'Paradas quitadas'}; el destino sigue siendo el mismo: el mapa recalcula la ruta. Díselo corto.`;
 		}
 		case 'where_am_i': {
 			const position = ctx.order.request.position;
@@ -1210,6 +1264,12 @@ async function runTool(
 	}
 }
 
+/** A place said, by openrouteservice: the nearest to where we are first, if it is known. */
+async function searchPlace(k: Kitchen, said: string, near: LngLat | null) {
+	const [place] = await orsFor(k).searchPlaces(said, near);
+	return place ?? null;
+}
+
 /**
  * The weather without the house: the place said, where the phone is (the road mode's GPS), or where
  * the family lives (Ajustes, «Dónde vivís»).
@@ -1299,7 +1359,14 @@ const CAR =
 	'[En el coche, conduciendo (modo carretera): solo audio, aquí. Nunca vídeo: si pide una serie, una película o un canal de televisión, dile que en el coche no se pone vídeo (no que no lo encuentras) y ofrécele música, radio o un podcast. Respuestas muy cortas: las oye quien conduce.]';
 
 /** Routes and where we are: only where there is a map and a GPS, the road mode. */
-const ONLY_IN_THE_CAR = new Set(['navigate_to', 'where_am_i', 'stop_navigation', 'take_photo']);
+const ONLY_IN_THE_CAR = new Set([
+	'navigate_to',
+	'add_stop',
+	'remove_stop',
+	'where_am_i',
+	'stop_navigation',
+	'take_photo'
+]);
 
 /** Nothing to see, cook or watch while driving: not even offered to the AI. */
 const NOT_IN_THE_CAR = new Set([

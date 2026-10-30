@@ -22,6 +22,12 @@ export interface RouteStop {
 	placeId?: number;
 }
 
+/** A stop on the way to the route on: a kept route's, or one said by voice (#312), with why. */
+export interface WayStop extends RouteStop {
+	/** «comprar pan casero», as said: «tu parada para comprar pan casero». */
+	reason?: string | null;
+}
+
 export interface SavedRoute {
 	id: number;
 	name: string;
@@ -92,4 +98,27 @@ export function stopsAhead(route: Pick<SavedRoute, 'stops' | 'line'>, here: LngL
 				metresBetween(stop.at, here) > STOP_REACHED_METRES
 		);
 	return [...ahead, end];
+}
+
+/**
+ * The stops ahead with a new one (#312), where it lengthens the way least: from `here` through them
+ * to `end`, as the crow flies. «Para en Totana» going to Alicante with a stop in Murcia: Totana
+ * first, being before it.
+ */
+export function insertStop<T extends { at: LngLat }>(
+	stops: T[],
+	stop: T,
+	here: LngLat,
+	end: LngLat
+): T[] {
+	const points = [here, ...stops.map((s) => s.at), end];
+	let best = 0;
+	let least = Infinity;
+	for (let i = 0; i < points.length - 1; i++) {
+		const a = points[i]!;
+		const b = points[i + 1]!;
+		const more = metresBetween(a, stop.at) + metresBetween(stop.at, b) - metresBetween(a, b);
+		if (more < least) [best, least] = [i, more];
+	}
+	return [...stops.slice(0, best), stop, ...stops.slice(best)];
 }

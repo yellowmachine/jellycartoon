@@ -22,8 +22,16 @@
 	import { tripShare } from '#lib/trip-share.svelte.ts';
 	import { formatDuration } from 'comun/format.ts';
 	import { distanceText, isLngLat, type LngLat, type Place, type Route } from 'comun/road.ts';
-	import { alongLine, guide, metresBetween } from 'comun/road-guide.ts';
-	import { STOP_REACHED_METRES, stopsAhead, type SavedRoute } from 'comun/saved-places.ts';
+	import { alongLine, guide, locate, metresBetween } from 'comun/road-guide.ts';
+	import {
+		findByName,
+		insertStop,
+		MAX_STOPS,
+		STOP_REACHED_METRES,
+		stopsAhead,
+		type SavedRoute,
+		type WayStop
+	} from 'comun/saved-places.ts';
 	import { durationText, estimate, Pace } from 'comun/road-eta.ts';
 	import { loadRecent, matching, remember, saveRecent } from 'comun/recent-places.ts';
 	import { toSay } from 'comun/road-voice.ts';
@@ -115,13 +123,18 @@
 							eta
 								? `, unos ${durationText(eta.seconds)}: llegada hacia las ${clock.format(eta.arrival)}`
 								: ''
-						}`
+						}${via.length ? `; paradas antes, en orden: ${via.map(stopText).join('; ')}` : ''}`
 					: null,
 			navigate: (place) => {
 				if (!place) return clearRoute();
 				if (routable) tab = 'ruta';
 				void go(place);
 			},
+			addStop: (place, reason) => {
+				if (routable) tab = 'ruta';
+				addStop(place, reason);
+			},
+			removeStop,
 			follow: (id) => {
 				const saved = data.routes.find((r) => r.id === id);
 				if (!saved) return;
@@ -369,25 +382,30 @@
 	 * through before its end; each one left behind once passed, and not asked for again.
 	 */
 	let following = $state<string | null>(null);
-	let via = $state<LngLat[]>([]);
+	let via = $state<WayStop[]>([]);
 	let waitingRoute = $state<SavedRoute | null>(null);
 
 	/**
-	 * `again`: recalculated on the way, off the route, through the stops still ahead; the list stays
-	 * as it is meanwhile. `stops`: a kept route's, before `place`. Whether it went.
+	 * `how`: a new route (`stops`, a kept route's, before `place`); `again`, recalculated on the way,
+	 * off the route, through the stops still ahead, the list as it is meanwhile; `stops`, the same
+	 * trip with other stops (#312), said by voice. Whether it went.
 	 */
-	async function go(place: Place, again = false, stops: LngLat[] = again ? via : []) {
+	async function go(
+		place: Place,
+		how: 'new' | 'again' | 'stops' = 'new',
+		stops: WayStop[] = how === 'again' ? via : []
+	) {
 		if (!here) {
 			waiting = place;
 			routeProblem = 'Esperando a saber dónde estás (el GPS)…';
 			return false;
 		}
-		routeBusy = again ? 'reroute' : 'route';
+		routeBusy = how === 'again' ? 'reroute' : 'route';
 		routeProblem = null;
 		const res = await fetch('/carretera/ruta', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ from: here, to: place.at, via: stops })
+			body: JSON.stringify({ from: here, to: place.at, via: stops.map((s) => s.at) })
 		}).catch(() => null);
 		const body = await res?.json().catch(() => null);
 		routeBusy = null;
@@ -395,13 +413,13 @@
 			routeProblem = body?.message ?? 'Sin conexión';
 			return false;
 		}
-		// Made again on the way (off it): one's pace so far stays for the new one.
-		pace.restart(again);
+		// The same trip (off it, another stop): one's pace so far stays for the new one.
+		pace.restart(how !== 'new');
 		route = body;
 		destination = place;
 		via = stops;
 		places = null;
-		if (!again) {
+		if (how === 'new') {
 			following = null;
 			if (!stops.length) saveRecent((recent = remember(recent, place)));
 		}
@@ -416,11 +434,7 @@
 		}
 		const ahead = stopsAhead(saved, here);
 		const end = ahead.at(-1)!;
-		const went = await go(
-			{ label: end.name, at: end.at },
-			false,
-			ahead.slice(0, -1).map((s) => s.at)
-		);
+		const went = await go({ label: end.name, at: end.at }, 'new', ahead.slice(0, -1));
 		if (went) following = saved.name;
 	}
 	$effect(() => {
@@ -430,13 +444,74 @@
 		untrack(() => void follow(saved));
 	});
 
-	// A stop on the way, reached: the route goes on, and a new one is asked without it.
+	/** A stop this far ahead, along the route, is said before reaching it. */
+	const STOP_SOON_METRES = 1000;
+	/** The stops said to be 1 km ahead (by their point): once each, also if the route is made again. */
+	let soonSaid = new Set<string>();
+
+	// A stop on the way: said at 1 km and on reaching it, when the route goes on; a new one is asked
+	// without it.
 	$effect(() => {
 		const at = here;
 		const next = via[0];
-		if (at && next && metresBetween(at, next) < STOP_REACHED_METRES)
-			untrack(() => (via = via.slice(1)));
+		if (!at || !next) return;
+		const reached = metresBetween(at, next.at) < STOP_REACHED_METRES;
+		const metres = untrack(() => stopAhead(next));
+		const key = next.at.join(',');
+		if (!reached && (metres > STOP_SOON_METRES || soonSaid.has(key))) return;
+		untrack(() => {
+			const why = next.reason ? `, para ${next.reason}` : '';
+			if (reached) {
+				via = via.slice(1);
+				if (spoken) say(`Llegas a ${shortName(next.name)}, tu parada${why}`);
+			} else {
+				soonSaid.add(key);
+				if (spoken) say(`A 1 kilómetro, tu parada en ${shortName(next.name)}${why}`);
+			}
+		});
 	});
+
+	/** «Totana, Murcia, España» said as «Totana». */
+	const shortName = (label: string) => label.split(',')[0]!.trim();
+
+	/** Metres to a stop ahead, along the route; as the crow flies without one yet. */
+	function stopAhead(stop: WayStop) {
+		if (route && along && guidance)
+			return locate(route.line, along, stop.at).along - (along.at(-1)! - guidance.remaining);
+		return here ? metresBetween(here, stop.at) : Infinity;
+	}
+
+	/** A stop ahead for the voice: its name, why, and how far along the route. */
+	function stopText(stop: WayStop) {
+		const ahead = stopAhead(stop);
+		return `${stop.name}${stop.reason ? ` (para ${stop.reason})` : ''}${
+			Number.isFinite(ahead) && ahead > 0 ? `, a ${distanceText(ahead)}` : ''
+		}`;
+	}
+
+	/**
+	 * A stop said by voice (#312): among those ahead where it lengthens the way least, and the route
+	 * again through them to the same end. Without a route, it is where to go.
+	 */
+	function addStop(place: Place, reason: string | null) {
+		if (!destination || !here) return void go(place);
+		if (via.length >= MAX_STOPS) return void (routeProblem = `Como mucho, ${MAX_STOPS} paradas`);
+		const stop = { name: place.label, at: place.at, reason };
+		void go(destination, 'stops', insertStop(via, stop, here, destination.at));
+	}
+
+	/** One out by its name as said (or the only one there is), or all of them with null. */
+	function removeStop(name: string | null) {
+		if (!destination || !via.length) return;
+		const gone =
+			name === null ? null : (findByName(via, name) ?? (via.length === 1 ? via[0] : null));
+		if (name !== null && !gone) return;
+		void go(
+			destination,
+			'stops',
+			via.filter((s) => gone !== null && s !== gone)
+		);
+	}
 
 	/**
 	 * Below the box as one types (#78): the last places gone to, from this device, then
@@ -537,7 +612,7 @@
 		offPositions = 0;
 		reroutedAt = Date.now();
 		untrack(() => {
-			if (destination && routeBusy === null) void go(destination, true);
+			if (destination && routeBusy === null) void go(destination, 'again');
 		});
 	});
 
@@ -634,6 +709,7 @@
 		waitingRoute = null;
 		following = null;
 		via = [];
+		soonSaid = new Set();
 		route = null;
 		destination = null;
 		places = null;
@@ -1258,6 +1334,12 @@ home. -->
 										Ruta «{following}»{via.length
 											? ` · ${via.length} ${via.length === 1 ? 'parada' : 'paradas'} por delante`
 											: ''}
+									</p>
+								{:else if via.length}
+									<p class="truncate text-base text-amber-300">
+										Por {via
+											.map((s) => `${shortName(s.name)}${s.reason ? ` (${s.reason})` : ''}`)
+											.join(', ')}
 									</p>
 								{/if}
 								<p class="truncate text-xl font-semibold">{destination.label}</p>
