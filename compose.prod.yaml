@@ -342,9 +342,11 @@ services:
       WUD_WATCHER_LOCAL_WATCHBYDEFAULT: 'false'
       # Pulls the new image and recreates each container as it was. The `docker` trigger and not
       # `dockercompose`: in WUD 9.4.1 only it applies a new image under the same tag (`stable`), and
-      # it does not need to see this folder. Its PRUNE removes only other tags of the image, not the
-      # previous `stable`, left without one: those go weekly by cron (install.sh, #316).
-      WUD_TRIGGER_DOCKER_JELLYCARTOON_PRUNE: 'true'
+      # it does not need to see this folder. Without its PRUNE (off by default): it removes the
+      # previous image by its digest right after each container, and four use the app's (app,
+      # pulseaudio, mpv-music, snapserver), so the others still had it and the update failed
+      # halfway (409, 2026-10-27 and 2026-10-30). The previous images, left without a tag, go
+      # weekly by cron (install.sh, #316).
       # Its web (http://127.0.0.1:3001 on this machine) and the API the app uses.
       WUD_AUTH_ADMIN_USER: admin
       WUD_AUTH_ADMIN_PASSWORD: ${WUD_PASSWORD:-}
