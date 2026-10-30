@@ -13,6 +13,8 @@ export interface TvShortcut {
 	id: number;
 	name: string;
 	url: string;
+	/** Its icon's file (tv-shortcut-icons.ts); null, none. */
+	icon: string | null;
 	tags: string[];
 }
 
@@ -28,7 +30,12 @@ const forKids = exists(
 /** Every shortcut, by name; for a child, only the children's. */
 export async function tvShortcuts(kid: boolean): Promise<TvShortcut[]> {
 	const rows = await db
-		.select({ id: tvShortcut.id, name: tvShortcut.name, url: tvShortcut.url })
+		.select({
+			id: tvShortcut.id,
+			name: tvShortcut.name,
+			url: tvShortcut.url,
+			icon: tvShortcut.icon
+		})
 		.from(tvShortcut)
 		.where(kid ? forKids : undefined)
 		.orderBy(asc(tvShortcut.name));
@@ -73,21 +80,26 @@ export function shortcutUrl(text: string) {
 	return url.href;
 }
 
-/** New, or changed: its name, address and tags (those it no longer has, gone if nothing else has them). */
+/**
+ * New, or changed: its name, address and tags (those it no longer has, gone if nothing else has
+ * them). Whether its icon is to be looked for: new, another address, or none yet.
+ */
 export async function saveTvShortcut(s: { id?: number; name: string; url: string; tags: string }) {
 	const name = s.name.trim().slice(0, 40);
 	if (!name) throw new Error('Ponle un nombre');
 	const url = shortcutUrl(s.url);
 	const tags = parseTags(s.tags);
-	await db.transaction(async (tx) => {
+	return db.transaction(async (tx) => {
 		let id = s.id;
+		let findIcon = true;
 		if (id) {
-			const [found] = await tx
-				.update(tvShortcut)
-				.set({ name, url })
-				.where(eq(tvShortcut.id, id))
-				.returning({ id: tvShortcut.id });
-			if (!found) throw new Error('Ese acceso directo ya no está');
+			const [before] = await tx
+				.select({ url: tvShortcut.url, icon: tvShortcut.icon })
+				.from(tvShortcut)
+				.where(eq(tvShortcut.id, id));
+			if (!before) throw new Error('Ese acceso directo ya no está');
+			findIcon = before.url !== url || !before.icon;
+			await tx.update(tvShortcut).set({ name, url }).where(eq(tvShortcut.id, id));
 		} else {
 			[{ id }] = await tx.insert(tvShortcut).values({ name, url }).returning({ id: tvShortcut.id });
 		}
@@ -108,19 +120,35 @@ export async function saveTvShortcut(s: { id?: number; name: string; url: string
 			tx,
 			before.map((b) => b.tagId)
 		);
+		return { id: id!, url, findIcon };
 	});
 }
 
+/** Out, with its tags nothing else has; its icon's file, to delete. */
 export async function deleteTvShortcut(id: number) {
-	await db.transaction(async (tx) => {
+	return db.transaction(async (tx) => {
 		const before = await tx
 			.select({ tagId: tvShortcutTag.tagId })
 			.from(tvShortcutTag)
 			.where(eq(tvShortcutTag.shortcutId, id));
-		await tx.delete(tvShortcut).where(eq(tvShortcut.id, id));
+		const [gone] = await tx
+			.delete(tvShortcut)
+			.where(eq(tvShortcut.id, id))
+			.returning({ icon: tvShortcut.icon });
 		await deleteUnusedTags(
 			tx,
 			before.map((b) => b.tagId)
 		);
+		return gone?.icon ?? null;
 	});
+}
+
+/** Its icon's file, or none; the one before, to delete. */
+export async function setShortcutIcon(id: number, icon: string | null) {
+	const [before] = await db
+		.select({ icon: tvShortcut.icon })
+		.from(tvShortcut)
+		.where(eq(tvShortcut.id, id));
+	await db.update(tvShortcut).set({ icon }).where(eq(tvShortcut.id, id));
+	return before?.icon ?? null;
 }

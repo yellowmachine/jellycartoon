@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# Opens the Steam game whose appid JellyCartoon sends (jellycartoon-steam@.service gives it the
+# Opens the Steam game whose appid JellyCartoon sends (or only Big Picture, `bigpicture`) (jellycartoon-steam@.service gives it the
 # socket as stdin), with Steam's own URLs: Big Picture first, so that leaving the game leaves Big
 # Picture on the TV. xdg-open hands them to steam.desktop, which runs Steam in its own unit.
 # Installed by scripts/pantalla.sh in ~/.local/bin.
 set -u
 
 read -r appid
+# Big Picture alone (the TV view's «Big Picture» tile): Steam's library and store, no game.
+if [[ $appid == bigpicture ]]; then
+	exec xdg-open steam://open/bigpicture
+fi
 # Only digits get into the URL; anything else is only logged, and ends well, so that no failed
 # unit is left behind for each.
 if [[ ! $appid =~ ^[0-9]+$ ]]; then

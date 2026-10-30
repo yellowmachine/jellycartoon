@@ -150,6 +150,7 @@ const KIDS_ROUTES: Record<string, { id?: Check; actions?: string[]; methods?: st
 	'/api/progress': {},
 	// A TV shortcut's window (#327): only the children's ones, checked by the route itself.
 	'/api/accesos/[id]': {},
+	'/api/accesos/[id]/icono': {},
 	'/api/sigues-ahi': {},
 	'/api/settings': {},
 	'/api/salon': {},

@@ -15,7 +15,8 @@
 			Webs de fuera (NBA League Pass, Crunchyroll…) en la vista TV, cada una en su ventana: el botón
 			de encendido del mando va de la web a la vista TV y vuelve. La sesión de cada web se inicia
 			una vez a mano en el navegador de la tele. Con la etiqueta «infantil» la ven también los
-			peques, y el tiempo que está abierta delante cuenta en su límite del día.
+			peques, y el tiempo que está abierta delante cuenta en su límite del día. El icono sale de la
+			propia web, al guardarlo.
 		</p>
 		{#snippet shortcutForm(s: { id: number; name: string; url: string; tags: string[] } | null)}
 			<form
@@ -56,6 +57,11 @@
 					<button class={secondary}>{s ? 'Guardar' : 'Añadir'}</button>
 					{#if s}
 						<button
+							formaction="?seccion={tab}&/shortcutIcon"
+							formnovalidate
+							class="text-sm text-zinc-300 hover:underline">Volver a buscar el icono</button
+						>
+						<button
 							formaction="?seccion={tab}&/deleteShortcut"
 							formnovalidate
 							class="text-sm text-red-400 hover:underline">Borrar</button
@@ -70,6 +76,13 @@
 					<li>
 						<details>
 							<summary class="flex cursor-pointer items-center gap-3 p-2">
+								{#if s.icon}
+									<img
+										src="/api/accesos/{s.id}/icono?{s.icon}"
+										alt=""
+										class="h-6 w-6 shrink-0 rounded"
+									/>
+								{/if}
 								<span class="shrink-0 font-medium">{s.name}</span>
 								<span class="min-w-0 flex-1 truncate text-zinc-400">{s.url}</span>
 								{#each s.tags as t (t)}
@@ -91,6 +104,11 @@
 		</p>
 		{#if form && 'section' in form && form.section === 'shortcuts'}
 			<p class="mt-3 text-sm break-words text-red-400">{form.message}</p>
+		{:else if form && 'noIcon' in form && form.noIcon}
+			<p class="mt-3 text-sm text-amber-400">
+				Guardado, sin icono: la web no deja leerlo desde el servidor o no tiene uno grande. El
+				recuadro sale con su nombre.
+			</p>
 		{:else if form && 'saved' in form && form.saved === 'shortcut'}
 			<Guardado class="mt-3 block text-sm text-amber-400">✓ Guardado</Guardado>
 		{/if}

@@ -73,6 +73,7 @@ import {
 } from '#lib/server/langua.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { deleteTvShortcut, saveTvShortcut, tvShortcuts } from '#lib/server/tv-shortcuts.ts';
+import { deleteIconFile, refreshShortcutIcon } from '#lib/server/tv-shortcut-icons.ts';
 import { hasIntro } from '#lib/server/library/paths.ts';
 import { KNOWN_LANGUAGES, normalizeLang } from 'comun/languages.ts';
 import { isTheme } from 'comun/themes.ts';
@@ -938,8 +939,9 @@ export const actions: Actions = {
 	saveShortcut: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);
 		const form = await request.formData();
+		let saved;
 		try {
-			await saveTvShortcut({
+			saved = await saveTvShortcut({
 				id: Number(form.get('id')) || undefined,
 				name: String(form.get('name') ?? ''),
 				url: String(form.get('url') ?? ''),
@@ -951,14 +953,28 @@ export const actions: Actions = {
 				message: err instanceof Error ? err.message : String(err)
 			});
 		}
+		// Its icon, from the site: new, another address, or none yet.
+		if (saved.findIcon && !(await refreshShortcutIcon(saved.id, saved.url)))
+			return { saved: 'shortcut', noIcon: true };
 		return { saved: 'shortcut' };
 	},
-	/** Out, with the time watched on it. */
+	/** «Volver a buscar el icono»: the site may have let us in this time, or changed it. */
+	shortcutIcon: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const id = Number((await request.formData()).get('id'));
+		const shortcut = (await tvShortcuts(false)).find((s) => s.id === id);
+		if (!shortcut)
+			return fail(400, { section: 'shortcuts', message: 'Ese acceso directo ya no está' });
+		if (!(await refreshShortcutIcon(shortcut.id, shortcut.url)))
+			return { saved: 'shortcut', noIcon: true };
+		return { saved: 'shortcut' };
+	},
+	/** Out, with the time watched on it and its icon. */
 	deleteShortcut: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);
 		const id = Number((await request.formData()).get('id'));
 		if (!Number.isInteger(id)) return fail(400, { section: 'shortcuts', message: 'No válido' });
-		await deleteTvShortcut(id);
+		await deleteIconFile(await deleteTvShortcut(id));
 		return { saved: 'shortcut' };
 	},
 	/** An empty model goes back to the default one. */

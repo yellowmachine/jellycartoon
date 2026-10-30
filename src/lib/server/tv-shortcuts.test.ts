@@ -20,7 +20,12 @@ beforeAll(async () => {
 
 describe('shortcuts', () => {
 	test('a child sees only the children’s', async () => {
-		await saveTvShortcut({ name: 'NBA', url: 'https://www.nba.com/watch', tags: 'Deportes' });
+		const nbaSaved = await saveTvShortcut({
+			name: 'NBA',
+			url: 'https://www.nba.com/watch',
+			tags: 'Deportes'
+		});
+		expect(nbaSaved.findIcon).toBe(true);
 		await saveTvShortcut({
 			name: 'Crunchyroll',
 			url: 'https://www.crunchyroll.com/es/',

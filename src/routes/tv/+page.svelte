@@ -209,10 +209,20 @@
 			{#each data.shortcuts as s (s.id)}
 				<button
 					onclick={() => tvShortcutWindow.start(s)}
-					class="flex h-36 flex-col justify-end rounded-2xl border border-white/10 bg-gradient-to-br from-cyan-500/30 via-sky-600/15 to-zinc-900 p-6 text-left shadow-lg transition duration-200 focus-visible:scale-105 focus-visible:border-white/30 focus-visible:shadow-2xl"
+					class="flex h-36 items-center gap-5 rounded-2xl border border-white/10 bg-gradient-to-br from-cyan-500/30 via-sky-600/15 to-zinc-900 p-6 text-left shadow-lg transition duration-200 focus-visible:scale-105 focus-visible:border-white/30 focus-visible:shadow-2xl"
 				>
-					<span class="block truncate text-3xl font-bold text-white">{s.name}</span>
-					<span class="block truncate text-lg text-zinc-300">{s.host}</span>
+					<!-- The site's own icon, from its page (site-icon.ts), if it let us have it. -->
+					{#if s.icon}
+						<img
+							src={s.icon}
+							alt=""
+							class="h-24 w-24 shrink-0 rounded-2xl object-cover shadow-md"
+						/>
+					{/if}
+					<span class="min-w-0">
+						<span class="block truncate text-3xl font-bold text-white">{s.name}</span>
+						<span class="block truncate text-lg text-zinc-300">{s.host}</span>
+					</span>
 				</button>
 			{/each}
 		</div>

@@ -333,6 +333,8 @@ export const tvShortcut = pgTable('tv_shortcut', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	url: text('url').notNull(),
+	/** Its icon, from the site (site-icon.ts): its file in DATA_DIR/accesos; null, none found. */
+	icon: text('icon'),
 	createdAt: timestamp('created_at').notNull().defaultNow()
 });
 

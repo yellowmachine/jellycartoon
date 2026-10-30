@@ -8,13 +8,20 @@
 	let status = $state<{ text: string; failed: boolean } | null>(null);
 
 	async function launch(game: { appid: number; name: string }) {
-		status = { text: `Abriendo «${game.name}» en Steam…`, failed: false };
-		const res = await fetch(`/api/juegos/steam/${game.appid}`, { method: 'POST' }).catch(
-			() => null
-		);
+		await open(`/api/juegos/steam/${game.appid}`, `Abriendo «${game.name}» en Steam…`);
+	}
+
+	/** Big Picture alone: Steam's library and store, to browse; the remote's power button comes back. */
+	async function bigPicture() {
+		await open('/api/juegos/steam/bigpicture', 'Abriendo Steam en Big Picture…');
+	}
+
+	async function open(url: string, text: string) {
+		status = { text, failed: false };
+		const res = await fetch(url, { method: 'POST' }).catch(() => null);
 		if (!res?.ok) {
 			const text = res ? (await res.json().catch(() => null))?.message : 'Sin conexión';
-			status = { text: text ?? 'No se pudo abrir el juego', failed: true };
+			status = { text: text ?? 'No se pudo abrir Steam', failed: true };
 		}
 	}
 </script>
@@ -38,6 +45,20 @@
 {/if}
 
 <div class="grid grid-cols-6 gap-8">
+	<button
+		type="button"
+		onclick={bigPicture}
+		disabled={!data.canLaunch}
+		class="group block rounded-lg text-left transition-transform duration-150 focus-visible:scale-105"
+	>
+		<div
+			class="flex aspect-[2/3] flex-col items-center justify-center gap-3 rounded-lg bg-gradient-to-br from-sky-700 via-slate-800 to-zinc-900 p-4 text-center"
+		>
+			<span class="text-4xl font-bold text-white">Steam</span>
+			<span class="text-lg text-sky-200">Biblioteca y tienda</span>
+		</div>
+		<p class="mt-2 truncate font-semibold group-focus-visible:text-sky-300">Big Picture</p>
+	</button>
 	{#each data.games as g (g.appid)}
 		<button
 			type="button"
