@@ -33,3 +33,32 @@ export async function appAiKey(request: Request): Promise<AppAi> {
 		};
 	return { ok: true, apiKey };
 }
+
+/** What an app asked (#284), to OpenRouter: its JSON body and `X-Title`, its name for Gastos → IA. */
+export type AppForward = (request: {
+	apiKey: string;
+	label: string;
+	body: Record<string, unknown>;
+	signal: AbortSignal;
+}) => Promise<Response>;
+
+/**
+ * An app's request to /api/ia (the chat, the speech): the person's token checked, its JSON body and
+ * its name (`X-Title`, as OpenRouter takes it) passed to `forward`; refused, in OpenAI's shape.
+ */
+export async function appAiRequest(request: Request, forward: AppForward): Promise<Response> {
+	const ai = await appAiKey(request);
+	if (!ai.ok)
+		return Response.json(
+			{ error: { message: ai.message, code: ai.status } },
+			{
+				status: ai.status,
+				headers: ai.status === 401 ? { 'WWW-Authenticate': 'Bearer' } : undefined
+			}
+		);
+	const body = await request.json().catch(() => null);
+	if (!body || typeof body !== 'object' || Array.isArray(body))
+		return Response.json({ error: { message: 'Se esperaba JSON', code: 400 } }, { status: 400 });
+	const label = (request.headers.get('x-title') ?? '').trim().slice(0, 60) || 'App';
+	return forward({ apiKey: ai.apiKey, label, body, signal: request.signal });
+}
