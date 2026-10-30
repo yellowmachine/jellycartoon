@@ -1,0 +1,1 @@
+ALTER TABLE "tv_shortcut" ADD COLUMN "icon" text;

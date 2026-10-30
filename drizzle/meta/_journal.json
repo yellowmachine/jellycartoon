@@ -771,6 +771,20 @@
       "when": 1793349589042,
       "tag": "0109_far_redwing",
       "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1793393918637,
+      "tag": "0110_lyrical_boom_boom",
+      "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1793394547299,
+      "tag": "0111_huge_iron_patriot",
+      "breakpoints": true
     }
   ]
 }

@@ -20,6 +20,7 @@ import {
 	movieProgress,
 	movieTitle,
 	series,
+	tvShortcut,
 	watchProgress,
 	watchTime
 } from '#lib/server/db/schema.ts';
@@ -106,7 +107,7 @@ export function historyTools(whose: Whose): Tool[] {
 					type: 'string',
 					enum: ['day', 'series', 'title', 'kind'],
 					description:
-						'«day»: por día. «series»: por serie (las películas y los canales, cada uno aparte). «title»: por episodio, película o canal. «kind»: series, películas o canales de tele en directo.'
+						'«day»: por día. «series»: por serie (las películas, los canales y las webs de los accesos directos de la tele, cada uno aparte). «title»: por episodio, película, canal o web. «kind»: series, películas, canales de tele en directo o webs.'
 				}
 			},
 			[...daysRequired, 'group_by']
@@ -190,6 +191,7 @@ function watchedRows(where: SQL | undefined) {
 			episodeId: watchTime.episodeId,
 			movieId: watchTime.movieId,
 			channelId: watchTime.channelId,
+			shortcutName: tvShortcut.name,
 			day: watchTime.day,
 			minute: watchTime.minute,
 			seconds: watchTime.seconds
@@ -198,6 +200,7 @@ function watchedRows(where: SQL | undefined) {
 		.leftJoin(episode, eq(episode.id, watchTime.episodeId))
 		.leftJoin(series, eq(series.id, episode.seriesId))
 		.leftJoin(movie, eq(movie.id, watchTime.movieId))
+		.leftJoin(tvShortcut, eq(tvShortcut.id, watchTime.shortcutId))
 		.where(where);
 }
 
@@ -218,6 +221,7 @@ const filmLabel = (f: { id: number | null; title: string }) =>
 /** `bySeries`: the series, not the episode. */
 function labelOf(r: WatchedRow, bySeries = false) {
 	if (r.channelId) return `Canal ${channelName(r.channelId)}`;
+	if (r.shortcutName) return `Web «${r.shortcutName}» (acceso directo de la tele)`;
 	if (r.movieId) return filmLabel({ id: r.movieId, title: r.title });
 	return bySeries ? `Serie «${r.seriesTitle}»` : episodeLabel({ ...r, id: r.episodeId });
 }
@@ -236,7 +240,7 @@ async function watchTimeTool(userId: string, from: string, to: string, groupBy: 
 		return { rows: rows.map((r) => ({ day: r.day, minutes: minutes(r.seconds) })) };
 	}
 	if (groupBy === 'kind') {
-		const kind = sql<string>`case when ${watchTime.episodeId} is not null then 'serie' when ${watchTime.movieId} is not null then 'película' else 'canal en directo' end`;
+		const kind = sql<string>`case when ${watchTime.episodeId} is not null then 'serie' when ${watchTime.movieId} is not null then 'película' when ${watchTime.shortcutId} is not null then 'web (acceso directo)' else 'canal en directo' end`;
 		const rows = await db
 			.select({ kind, seconds })
 			.from(watchTime)

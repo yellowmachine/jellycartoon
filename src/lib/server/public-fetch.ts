@@ -98,10 +98,10 @@ async function gunzip(bytes: Uint8Array<ArrayBuffer>, max: number) {
 }
 
 /**
- * GET of a public web address, following its redirects (each checked), up to `maxBytes`. Why not,
- * in Spanish, if it cannot be.
+ * GET of a public web address, following its redirects (each checked), up to `maxBytes`, as it
+ * came: for a picture. Why not, in Spanish, if it cannot be.
  */
-export async function fetchPublic(
+export async function fetchPublicBytes(
 	address: string,
 	options: { headers?: HeadersInit; timeoutMs?: number; maxBytes: number }
 ) {
@@ -130,7 +130,19 @@ export async function fetchPublic(
 			throw new Error('La página es demasiado grande');
 		const bytes = new Uint8Array(await res.arrayBuffer());
 		if (bytes.length > options.maxBytes) throw new Error('La página es demasiado grande');
-		const body = isGzip(bytes) ? await gunzip(bytes, options.maxBytes) : decoder.decode(bytes);
-		return { url: url.href, body, contentType: res.headers.get('content-type') ?? '' };
+		return { url: url.href, bytes, contentType: res.headers.get('content-type') ?? '' };
 	}
+}
+
+/**
+ * GET of a public web address, following its redirects (each checked), up to `maxBytes`, as text.
+ * Why not, in Spanish, if it cannot be.
+ */
+export async function fetchPublic(
+	address: string,
+	options: { headers?: HeadersInit; timeoutMs?: number; maxBytes: number }
+) {
+	const { url, bytes, contentType } = await fetchPublicBytes(address, options);
+	const body = isGzip(bytes) ? await gunzip(bytes, options.maxBytes) : decoder.decode(bytes);
+	return { url, body, contentType };
 }

@@ -1,6 +1,14 @@
 import { and, asc, eq, ne, notExists, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { movie, movieTag, movieTitle, series, seriesTag, tag } from '#lib/server/db/schema.ts';
+import {
+	movie,
+	movieTag,
+	movieTitle,
+	series,
+	seriesTag,
+	tag,
+	tvShortcutTag
+} from '#lib/server/db/schema.ts';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -37,7 +45,10 @@ export async function addSeriesTag(seriesId: number, name: string) {
 	});
 }
 
-/** A tag no series nor film has any more is deleted, so it is not suggested again. */
+/**
+ * A tag no series, film nor TV shortcut (#327) has any more is deleted, so it is not suggested
+ * again.
+ */
 async function deleteIfUnused(tx: Tx, tagId: number) {
 	await tx
 		.delete(tag)
@@ -45,9 +56,15 @@ async function deleteIfUnused(tx: Tx, tagId: number) {
 			and(
 				eq(tag.id, tagId),
 				notExists(tx.select().from(seriesTag).where(eq(seriesTag.tagId, tagId))),
-				notExists(tx.select().from(movieTag).where(eq(movieTag.tagId, tagId)))
+				notExists(tx.select().from(movieTag).where(eq(movieTag.tagId, tagId))),
+				notExists(tx.select().from(tvShortcutTag).where(eq(tvShortcutTag.tagId, tagId)))
 			)
 		);
+}
+
+/** Those of these tags nothing has any more, deleted. */
+export async function deleteUnusedTags(tx: Tx, tagIds: number[]) {
+	for (const id of tagIds) await deleteIfUnused(tx, id);
 }
 
 export async function removeSeriesTag(seriesId: number, tagId: number) {
@@ -159,7 +176,19 @@ export async function renameTag(tagId: number, name: string) {
 					.where(eq(movieTag.tagId, tagId))
 			)
 			.onConflictDoNothing();
-		// Its series_tag and movie_tag rows go with it (on delete cascade).
+		await tx
+			.insert(tvShortcutTag)
+			.select(
+				tx
+					.select({
+						shortcutId: tvShortcutTag.shortcutId,
+						tagId: sql<number>`${other.id}::int`.as('tag_id')
+					})
+					.from(tvShortcutTag)
+					.where(eq(tvShortcutTag.tagId, tagId))
+			)
+			.onConflictDoNothing();
+		// Its series_tag, movie_tag and tv_shortcut_tag rows go with it (on delete cascade).
 		await tx.delete(tag).where(eq(tag.id, tagId));
 	});
 }

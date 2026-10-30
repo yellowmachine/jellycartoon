@@ -31,6 +31,7 @@ const admin: SettingsShown = {
 	satellites: [],
 	cloudKeys: {},
 	home: {},
+	shortcuts: [],
 	houseVoice: {},
 	kids: {},
 	twoFactor: {}
@@ -48,6 +49,7 @@ const kid: SettingsShown = {
 	satellites: null,
 	cloudKeys: null,
 	home: null,
+	shortcuts: null,
 	houseVoice: null,
 	kids: null
 };

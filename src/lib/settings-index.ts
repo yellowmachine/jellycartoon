@@ -25,6 +25,7 @@ export interface SettingsShown {
 	satellites: unknown;
 	cloudKeys: unknown;
 	home: unknown;
+	shortcuts: unknown;
 	houseVoice: unknown;
 	kids: unknown;
 	twoFactor: unknown;
@@ -200,6 +201,14 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		title: 'Dónde está la casa',
 		words: 'tiempo previsión lluvia temperatura pueblo ciudad ubicación localización open-meteo',
 		shown: (d) => Boolean(d.home)
+	},
+	{
+		id: 'accesos-directos',
+		tab: 'casa',
+		title: 'Accesos directos de la tele',
+		words:
+			'accesos directos tele tv web nba league pass crunchyroll deportes dibujos ventana infantil peques',
+		shown: (d) => Boolean(d.shortcuts)
 	},
 	{
 		id: 'voz-casa',

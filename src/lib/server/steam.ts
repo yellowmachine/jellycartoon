@@ -103,9 +103,15 @@ export const steamPictureUrl = (appid: number, kind: SteamPicture) =>
 export const steamLaunchEnabled = Boolean(STEAM_SOCKET);
 
 /** Asks the service on the PC with the screen to open the game: its appid, on a line. */
-export function launchSteamGame(appid: number) {
+export const launchSteamGame = (appid: number) => tellSteamService(String(appid));
+
+/** Only Big Picture, with no game: Steam's library and store on the TV. */
+export const openBigPicture = () => tellSteamService('bigpicture');
+
+/** A line to the service (deploy/jellycartoon-steam.sh): an appid, or `bigpicture`. */
+function tellSteamService(line: string) {
 	return new Promise<void>((resolve, reject) => {
-		const socket = net.createConnection(STEAM_SOCKET!, () => socket.end(`${appid}\n`));
+		const socket = net.createConnection(STEAM_SOCKET!, () => socket.end(`${line}\n`));
 		socket.setTimeout(3000, () => socket.destroy(new Error('El servicio de Steam no contesta')));
 		socket.once('error', reject);
 		socket.once('close', (failed) => failed || resolve());

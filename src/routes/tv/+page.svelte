@@ -9,6 +9,7 @@
 	import { coverUrl } from 'comun/music.ts';
 	import { music } from 'comun/music-player.svelte.ts';
 	import { thumbUrl } from 'comun/thumb.svelte.ts';
+	import { tvShortcutWindow } from '#lib/tv-shortcut.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -183,6 +184,50 @@
 		</a>
 	{/each}
 </nav>
+
+{#if data.shortcuts.length}
+	<!-- Sites of elsewhere (#327), each in a window of its own: the remote's power button goes from it
+	     to here and back. -->
+	<section class="mb-12">
+		<h2 class="mb-4 text-3xl font-semibold">Accesos directos</h2>
+		{#if tvShortcutWindow.problem}
+			<p class="mb-4 rounded-lg bg-red-950 p-4 text-red-200">{tvShortcutWindow.problem}</p>
+		{/if}
+		{#if tvShortcutWindow.open}
+			<div class="mb-4 flex items-center gap-6 rounded-2xl border border-white/10 bg-zinc-900 p-5">
+				<p class="min-w-0 flex-1">
+					{tvShortcutWindow.open.name} sigue abierto: el botón de encendido del mando va de uno a otro.
+				</p>
+				<button
+					onclick={() => tvShortcutWindow.close()}
+					class="shrink-0 rounded-xl bg-zinc-800 px-6 py-3 transition duration-200 focus-visible:scale-105 focus-visible:bg-zinc-700"
+					>Cerrar {tvShortcutWindow.open.name}</button
+				>
+			</div>
+		{/if}
+		<div class="grid grid-cols-4 gap-8">
+			{#each data.shortcuts as s (s.id)}
+				<button
+					onclick={() => tvShortcutWindow.start(s)}
+					class="flex h-36 items-center gap-5 rounded-2xl border border-white/10 bg-gradient-to-br from-cyan-500/30 via-sky-600/15 to-zinc-900 p-6 text-left shadow-lg transition duration-200 focus-visible:scale-105 focus-visible:border-white/30 focus-visible:shadow-2xl"
+				>
+					<!-- The site's own icon, from its page (site-icon.ts), if it let us have it. -->
+					{#if s.icon}
+						<img
+							src={s.icon}
+							alt=""
+							class="h-24 w-24 shrink-0 rounded-2xl object-cover shadow-md"
+						/>
+					{/if}
+					<span class="min-w-0">
+						<span class="block truncate text-3xl font-bold text-white">{s.name}</span>
+						<span class="block truncate text-lg text-zinc-300">{s.host}</span>
+					</span>
+				</button>
+			{/each}
+		</div>
+	</section>
+{/if}
 
 {#if data.today}
 	<form

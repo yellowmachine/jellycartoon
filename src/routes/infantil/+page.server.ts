@@ -11,6 +11,7 @@ import {
 	movieProgress,
 	movieTitle,
 	series,
+	tvShortcut,
 	user,
 	watchProgress,
 	watchTime
@@ -82,7 +83,8 @@ async function stats(userId: string, from: string) {
 					episodeId: watchTime.episodeId,
 					movieId: watchTime.movieId,
 					channelId: watchTime.channelId,
-					title: sql<string>`coalesce(${movieTitle}, ${episodeTitle})`,
+					shortcutId: watchTime.shortcutId,
+					title: sql<string>`coalesce(${movieTitle}, ${episodeTitle}, ${tvShortcut.name})`,
 					seriesId: series.id,
 					seriesTitle: series.title,
 					season: episode.season,
@@ -94,14 +96,17 @@ async function stats(userId: string, from: string) {
 				.leftJoin(episode, eq(episode.id, watchTime.episodeId))
 				.leftJoin(series, eq(series.id, episode.seriesId))
 				.leftJoin(movie, eq(movie.id, watchTime.movieId))
+				.leftJoin(tvShortcut, eq(tvShortcut.id, watchTime.shortcutId))
 				.where(recent)
 				.groupBy(
 					watchTime.episodeId,
 					watchTime.movieId,
 					watchTime.channelId,
+					watchTime.shortcutId,
 					episode.id,
 					series.id,
-					movie.id
+					movie.id,
+					tvShortcut.id
 				)
 				.orderBy(desc(max(watchTime.day)), desc(sql`sum(${watchTime.seconds})`))
 				.limit(15),

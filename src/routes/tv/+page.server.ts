@@ -19,6 +19,7 @@ import { channelsFor } from 'comun/channels.ts';
 import { STATIONS } from 'comun/radio.ts';
 import { fridgeForScreen } from '#lib/server/kitchen.ts';
 import { watchingOnTv } from '#lib/server/watching-together.ts';
+import { tvShortcuts } from '#lib/server/tv-shortcuts.ts';
 
 /** Tiles in each card's mosaic: 3 × 2. */
 const MOSAIC = 6;
@@ -85,6 +86,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 		 * again, for another child.
 		 */
 		switchKid: kid && locals.session?.kidApproved === true,
+		/** Sites of elsewhere (#327), each in a window of its own; a child, only the children's. */
+		shortcuts: (await tvShortcuts(kid)).map(({ id, name, url, icon }) => ({
+			id,
+			name,
+			host: new URL(url).hostname.replace(/^www\./, ''),
+			icon: icon && `/api/accesos/${id}/icono?${icon}`
+		})),
 		/** Watching together (#160): who, besides the one signed in. Changed from the parents' phone. */
 		together: kid && locals.session ? await watchingOnTv(userId, locals.session.id) : [],
 		today: pending[0] ? { next: pending[0], pending: pending.length } : null,

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { afterNavigate, goto, invalidateAll, pushState } from '$app/navigation';
 	import { page } from '$app/state';
 	import MusicBar from 'comun/components/MusicBar.svelte';
@@ -11,6 +12,7 @@
 	import { stillThere } from '#lib/still-there.svelte.ts';
 	import { watchSalon } from '#lib/salon.svelte.ts';
 	import { videoHere } from '#lib/video-here.svelte.ts';
+	import { tvShortcutWindow } from '#lib/tv-shortcut.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { moveFocus, watchGamepad, type Press } from '#lib/tv-gamepad.ts';
 
@@ -104,6 +106,9 @@
 	afterNavigate(() =>
 		(main?.querySelector<HTMLElement>('[data-focus]') ?? main?.querySelector('a, button'))?.focus()
 	);
+
+	// A shortcut's window (#327) open before a reload of the TV view: its time goes on counting.
+	onMount(() => tvShortcutWindow.recover());
 
 	/** A song, or a podcast episode: the same bar, to the same controls. */
 	const playing = $derived(
