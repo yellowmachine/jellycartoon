@@ -88,3 +88,34 @@ export function guide(route: Route, along: number[], at: LngLat): Guidance {
 		arrived
 	};
 }
+
+/** The route ahead sent with what is said (#312): a point every this many metres, so far ahead. */
+export const AHEAD_EVERY_METRES = 500;
+export const AHEAD_UP_TO_METRES = 100_000;
+
+/**
+ * The line from `at` (`from` metres along it) forward, a point about every `every` metres and up to
+ * `upTo` ahead: «la próxima gasolinera» is looked for along it, and it is small to send.
+ */
+export function lineAhead(
+	line: LngLat[],
+	along: number[],
+	at: LngLat,
+	from: number,
+	every = AHEAD_EVERY_METRES,
+	upTo = AHEAD_UP_TO_METRES
+): LngLat[] {
+	const ahead: LngLat[] = [at];
+	let last = from;
+	for (let i = 0; i < line.length; i++) {
+		const metres = along[i]!;
+		if (metres <= from) continue;
+		const end = metres - from >= upTo || i === line.length - 1;
+		if (metres - last >= every || end) {
+			ahead.push(line[i]!);
+			last = metres;
+		}
+		if (metres - from >= upTo) break;
+	}
+	return ahead;
+}

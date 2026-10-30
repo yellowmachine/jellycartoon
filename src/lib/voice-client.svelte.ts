@@ -219,7 +219,8 @@ class VoiceClient {
 				// The road mode is the cloud's (#253): never here.
 				car: false,
 				position: null,
-				navigation: null
+				navigation: null,
+				ahead: null
 			})
 		}).catch(() => null);
 		const body: VoiceReply | { message?: string } | null = await res?.json().catch(() => null);

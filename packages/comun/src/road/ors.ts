@@ -1,5 +1,14 @@
 import type { LngLat, Place, Route } from 'comun/road.ts';
 import { placesFromOrs, routeFromOrs, townsFromOrs } from 'comun/road/ors-parse.ts';
+import {
+	ALONG_BUFFER_METRES,
+	POI_KINDS,
+	POI_RADIUS_METRES,
+	poisAlong,
+	poisFromOrs,
+	stretches,
+	type PoiKind
+} from 'comun/road/pois.ts';
 import { withRetries } from 'comun/road/retry.ts';
 
 /**
@@ -168,6 +177,51 @@ export function createOrs(config: () => Promise<OrsConfig>, log: OrsLog) {
 	}
 
 	/**
+	 * Places of that kind around `at` (#312), within 2 km, nearest first: «una panadería en Totana».
+	 * OpenStreetMap's, so a village's may be missing.
+	 */
+	async function placesAround(at: LngLat, kind: PoiKind) {
+		const body = await ors('search', '/pois', {
+			method: 'POST',
+			body: JSON.stringify({
+				request: 'pois',
+				geometry: { geojson: { type: 'Point', coordinates: at }, buffer: POI_RADIUS_METRES },
+				filters: { category_ids: POI_KINDS[kind] },
+				limit: 50
+			})
+		});
+		const found = poisFromOrs(body, kind);
+		log.info('Sitios pedidos a openrouteservice', { kind, found: found.length });
+		return found;
+	}
+
+	/**
+	 * Places of that kind by the route ahead (#312), the first we come to first: «la próxima
+	 * gasolinera». `line` from where we are, up to `upTo` metres; each stretch, a search.
+	 */
+	async function placesAlong(line: LngLat[], kind: PoiKind, upTo: number) {
+		const bodies = await Promise.all(
+			stretches(line, upTo).map((part) =>
+				ors('search', '/pois', {
+					method: 'POST',
+					body: JSON.stringify({
+						request: 'pois',
+						geometry: {
+							geojson: { type: 'LineString', coordinates: part },
+							buffer: ALONG_BUFFER_METRES
+						},
+						filters: { category_ids: POI_KINDS[kind] },
+						limit: 200
+					})
+				})
+			)
+		);
+		const found = poisAlong(bodies, line, kind).filter((p) => p.distance <= upTo);
+		log.info('Sitios en la ruta pedidos a openrouteservice', { kind, found: found.length });
+		return found;
+	}
+
+	/**
 	 * By car through `points`, from the first to the last, with its steps in Spanish. With stops on the
 	 * way (#151), not turning back at them.
 	 */
@@ -206,6 +260,8 @@ export function createOrs(config: () => Promise<OrsConfig>, log: OrsLog) {
 		whereIs,
 		townNear,
 		placeName,
+		placesAround,
+		placesAlong,
 		drivingRoute,
 		orsMessage
 	};

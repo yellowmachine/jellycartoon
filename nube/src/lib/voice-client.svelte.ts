@@ -34,8 +34,14 @@ export interface Road {
 	position(): LngLat | null;
 	/** The route on, described for the AI; null if none. */
 	navigation(): string | null;
+	/** The route ahead from where we are, to look along it (#312); null if none. */
+	ahead(): LngLat[] | null;
 	/** A route to there; null, none. */
 	navigate(place: Place | null): void;
+	/** A stop on the way to the route on (#312); its end stays. */
+	addStop(place: Place, reason: string | null): void;
+	/** A stop of the route on, out, by its name as said; null, all of them. */
+	removeStop(name: string | null): void;
 	/** One of their saved routes (#151), from where we are. */
 	follow(id: number): void;
 	/** A photo with its camera. */
@@ -179,7 +185,8 @@ class VoiceClient {
 				// In the road mode's page; elsewhere, Hablar or the bar's microphone.
 				car: this.road !== null,
 				position: this.road?.position() ?? null,
-				navigation: this.road?.navigation() ?? null
+				navigation: this.road?.navigation() ?? null,
+				ahead: this.road?.ahead() ?? null
 			})
 		}).catch(() => null);
 		const body: VoiceReply | { message?: string } | null = await res?.json().catch(() => null);
@@ -274,6 +281,10 @@ async function act(action: VoiceAction) {
 			return musicTarget.playRadio(action.uuid, false);
 		case 'navigate':
 			return voice.road?.navigate(action.place);
+		case 'addStop':
+			return voice.road?.addStop(action.place, action.reason);
+		case 'removeStop':
+			return voice.road?.removeStop(action.name);
 		case 'route':
 			return voice.road?.follow(action.id);
 		case 'photo':

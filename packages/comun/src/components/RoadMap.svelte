@@ -15,11 +15,14 @@
 	let {
 		route = null,
 		destination = null,
+		stops = [],
 		onposition
 	}: {
 		/** Drawn, and the map fitted to it when it is new (phase 3b). */
 		route?: Route | null;
 		destination?: LngLat | null;
+		/** The stops on the way still ahead (#312), in order: each with its number on the map. */
+		stops?: { name: string; at: LngLat }[];
 		/** Each position the GPS gives, for the route to start from it; its speed in m/s, if known. */
 		onposition?: (at: LngLat, speed: number | null) => void;
 	} = $props();
@@ -61,6 +64,9 @@
 	/** Set once the map exists: its style, light or dark. */
 	let restyle: ((light: boolean) => void) | null = null;
 	let flag: Marker | null = null;
+	/** Set once the map exists: a stop's marker, with its number and, touched or hovered, its name. */
+	let stopMarker: ((n: number, name: string) => Marker) | null = null;
+	let stopMarkers: Marker[] = [];
 	let following = $state(true);
 	/** The last one the GPS gave, as plain values (a GeolocationPosition's are getters). */
 	let position = $state<{
@@ -102,6 +108,14 @@
 			arrow.setAttribute('aria-label', 'Estás aquí');
 			me = new maplibregl.Marker({ element: arrow, rotationAlignment: 'map' });
 			flag = new maplibregl.Marker({ color: '#f59e0b' });
+			stopMarker = (n, name) => {
+				const dot = document.createElement('div');
+				dot.className = 'road-map-stop';
+				dot.textContent = String(n);
+				dot.title = name;
+				dot.setAttribute('aria-label', `Parada ${n}: ${name}`);
+				return new maplibregl.Marker({ element: dot });
+			};
 			// Whole, not by differences: «style.load» comes again, and the route with it.
 			restyle = (light) => created.setStyle(styleFor(light), { diff: false });
 			// Its first style and each one after (light, dark): the route's layers on it, under the
@@ -139,6 +153,8 @@
 			map = null;
 			me = null;
 			flag = null;
+			stopMarker = null;
+			stopMarkers = [];
 		};
 	});
 
@@ -224,6 +240,18 @@
 		);
 	});
 
+	// The stops ahead, numbered in the order they come; each one passed, gone.
+	$effect(() => {
+		const list = stops;
+		if (!ready || !map || !stopMarker) return;
+		for (const m of stopMarkers) m.remove();
+		stopMarkers = list.map((s, i) =>
+			stopMarker!(i + 1, s.name)
+				.setLngLat(s.at)
+				.addTo(map!)
+		);
+	});
+
 	// Light or dark, as chosen: the map's style changed, the rest stays.
 	let styled: boolean | null = null;
 	$effect(() => {
@@ -271,6 +299,21 @@
 		height: 34px;
 		background: no-repeat center / contain
 			url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2 20 21 12 16.5 4 21Z' fill='%23f59e0b' stroke='white' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E");
+		filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.6));
+	}
+
+	/* A stop on the way (#312): its number in a circle, as the route's colour. */
+	:global(.road-map-stop) {
+		display: grid;
+		place-items: center;
+		width: 30px;
+		height: 30px;
+		border: 3px solid white;
+		border-radius: 9999px;
+		background: #0ea5e9;
+		color: white;
+		font-weight: 700;
+		font-size: 16px;
 		filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.6));
 	}
 </style>
