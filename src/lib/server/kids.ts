@@ -41,6 +41,9 @@ export async function isKidAccount(userId: string) {
 /** Whether the request being answered is a child's. */
 export const kidsOnly = () => isKid(getRequestEvent().locals.user);
 
+/** A `where` condition: the series is one of the children's (tagged «infantil»). */
+export const forKids = (seriesId: typeof episode.seriesId) => seriesTagged(seriesId);
+
 const seriesTagged = (seriesId: number | typeof series.id | typeof episode.seriesId) =>
 	exists(
 		db

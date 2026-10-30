@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance, type SubmitFunction } from '$app/forms';
-	import { clock, TRUE_FALSE, type Exercise } from '#lib/homework.ts';
+	import { clock, TRUE_FALSE, type Exercise } from 'comun/homework.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();

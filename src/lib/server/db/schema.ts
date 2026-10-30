@@ -24,7 +24,7 @@ import type { SubtitleStyle } from 'comun/subtitle-style.ts';
 import type { WikiPage } from '#lib/server/cinema/wikidata.ts';
 import type { TitleProposal } from '#lib/episode-titles.ts';
 import type { DjOptions } from 'comun/music.ts';
-import type { Exercise, HomeworkRules, Step } from '#lib/homework.ts';
+import type { Exercise, HomeworkRules, Step } from 'comun/homework.ts';
 import { session, user } from './auth.schema';
 
 export const series = pgTable('series', {

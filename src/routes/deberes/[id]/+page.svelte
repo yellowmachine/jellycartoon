@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '@fontsource/comic-neue/400.css';
 	import '@fontsource/comic-neue/700.css';
-	import type { TryResult } from '#lib/homework.ts';
+	import type { TryResult } from 'comun/homework.ts';
 	import type { PageProps } from './$types';
 
 	/**

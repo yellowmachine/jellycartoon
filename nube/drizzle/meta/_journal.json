@@ -232,6 +232,13 @@
       "when": 1793346048123,
       "tag": "0032_flaky_ghost_rider",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793348567707,
+      "tag": "0033_nappy_vindicator",
+      "breakpoints": true
     }
   ]
 }

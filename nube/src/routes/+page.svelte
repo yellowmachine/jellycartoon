@@ -14,6 +14,18 @@
 {:else if 'kid' in data && data.kid}
 	<!-- A child's (#303): only what it may open. -->
 	<h1 class="mb-6 text-2xl font-bold">Hola, {data.user.name}</h1>
+	{#each data.homework as h (h.id)}
+		<a
+			href="/deberes/hacer/{h.id}"
+			class="mb-4 flex items-center gap-4 rounded-lg border border-sky-700/60 bg-gradient-to-r from-sky-500/20 to-transparent p-4 hover:border-sky-400"
+		>
+			<span class="text-4xl" aria-hidden="true">📚</span>
+			<div class="min-w-0">
+				<p class="font-semibold text-sky-300">Tienes deberes</p>
+				<p class="truncate text-sm">{h.title} · {h.count} preguntas</p>
+			</div>
+		</a>
+	{/each}
 	<div class="grid grid-cols-2 gap-4">
 		<!-- Series and music are the house's: without one connected, not there. -->
 		{#if data.house}

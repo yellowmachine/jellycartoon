@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
-	import { TRIES_OPTIONS } from '#lib/homework.ts';
+	import { TRIES_OPTIONS } from 'comun/homework.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();

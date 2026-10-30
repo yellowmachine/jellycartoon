@@ -6,8 +6,9 @@ import { user } from '#lib/server/db/auth.schema.ts';
 import { openRouterConfig } from '#lib/server/app-settings.ts';
 import { KIDS_ROLE } from '#lib/server/kids.ts';
 import { log } from '#lib/server/log.ts';
-import { NoDialogue, createHomework, homeworkOf, watchedBy } from '#lib/server/homework.ts';
-import { AGE_BANDS, MAX_QUESTIONS, ageBand, checkRules } from '#lib/homework.ts';
+import { NoDialogue, createHomework, homeworkOf } from '#lib/server/homework.ts';
+import { watchedBy } from '#lib/server/homework-source.ts';
+import { AGE_BANDS, MAX_QUESTIONS, ageBand, checkRules } from 'comun/homework.ts';
 
 /** Homework (#142), for the adults: what each child has, and a new one from what they watched. */
 export const load: PageServerLoad = async ({ url }) => {

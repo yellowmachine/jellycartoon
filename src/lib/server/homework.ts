@@ -1,15 +1,13 @@
 import { and, asc, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { user } from '#lib/server/db/auth.schema.ts';
-import { episode, homework, series, watchProgress } from '#lib/server/db/schema.ts';
+import { homework } from '#lib/server/db/schema.ts';
 import { KIDS_ROLE } from '#lib/server/kids.ts';
 import { log } from '#lib/server/log.ts';
 import { notify } from '#lib/server/push.ts';
-import { readCues } from '#lib/server/auto-subtitle-files.ts';
-import { hlsDir } from '#lib/server/library/paths.ts';
 import { homeworkModel } from '#lib/server/app-settings.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
-import { subtitleFile } from '#lib/server/opening-quote.ts';
+import { readable, titleFor } from '#lib/server/homework-source.ts';
 import {
 	MAX_QUESTIONS,
 	checkEdited,
@@ -20,21 +18,17 @@ import {
 	type HomeworkRules,
 	type Step,
 	type TryResult,
-	transcript,
 	type AgeBand,
 	type Exercise,
 	type ExerciseKind,
 	type HomeworkLanguage
-} from '#lib/homework.ts';
+} from 'comun/homework.ts';
 
 /**
  * Homework from the cartoons (#142): the AI proposes exercises from the dialogue of episodes a child
  * watched, only from it, so that it does not make up what happened. An adult reviews them before
  * the child sees anything.
  */
-
-/** All the dialogue of the episodes chosen, at most: a few episodes of cartoons fit well. */
-const MAX_TRANSCRIPT = 60_000;
 
 export interface HomeworkRequest {
 	episodeIds: number[];
@@ -51,50 +45,11 @@ export interface HomeworkRequest {
 	subtitleLang?: string | null;
 }
 
-/** An episode the AI can read: its dialogue, and its name to say which it is. */
-interface Readable {
-	id: number;
-	name: string;
-	dialogue: string;
-}
-
 const KIND_TEXT: Record<ExerciseKind, string> = {
 	choice: 'choice: a question with options, exactly one right',
 	truefalse: 'truefalse: a statement that is true or false',
 	open: 'open: a short question the child answers in a sentence of their own'
 };
-
-/** The episodes' dialogue, from their subtitles; those without any are left out. */
-async function readable(ids: number[], lang: string | null): Promise<Readable[]> {
-	const rows = await db
-		.select({
-			id: episode.id,
-			season: episode.season,
-			number: episode.number,
-			title: episode.title,
-			customTitle: episode.customTitle,
-			series: series.title,
-			subtitles: episode.subtitles
-		})
-		.from(episode)
-		.innerJoin(series, eq(series.id, episode.seriesId))
-		.where(inArray(episode.id, ids));
-	const perEpisode = Math.floor(MAX_TRANSCRIPT / Math.max(rows.length, 1));
-	const read: Readable[] = [];
-	for (const row of rows) {
-		const file = subtitleFile(row.subtitles, lang);
-		if (!file) continue;
-		const cues = await readCues(hlsDir(row.id), file).catch(() => []);
-		const dialogue = transcript(cues, perEpisode);
-		if (!dialogue) continue;
-		read.push({
-			id: row.id,
-			name: `«${row.series}», T${row.season} E${row.number} «${row.customTitle ?? row.title}»`,
-			dialogue
-		});
-	}
-	return read;
-}
 
 function instructions(request: HomeworkRequest) {
 	const { band } = request;
@@ -192,60 +147,6 @@ export async function proposeHomework(
 		episodeIds: episodes.map((e) => e.id),
 		language: request.language
 	}).slice(0, count);
-}
-
-/** An episode a child watched, to choose for homework: with or without dialogue to read. */
-export interface Watched {
-	id: number;
-	series: string;
-	season: number;
-	number: number;
-	title: string;
-	watchedAt: Date;
-	completed: boolean;
-	hasDialogue: boolean;
-}
-
-/** What `kidId` watched lately, newest first: the episodes homework can be about. */
-export async function watchedBy(kidId: string, limit = 40): Promise<Watched[]> {
-	const rows = await db
-		.select({
-			id: episode.id,
-			series: series.title,
-			season: episode.season,
-			number: episode.number,
-			title: episode.title,
-			customTitle: episode.customTitle,
-			watchedAt: watchProgress.updatedAt,
-			completed: watchProgress.completed,
-			subtitles: episode.subtitles
-		})
-		.from(watchProgress)
-		.innerJoin(episode, eq(episode.id, watchProgress.episodeId))
-		.innerJoin(series, eq(series.id, episode.seriesId))
-		.where(eq(watchProgress.userId, kidId))
-		.orderBy(desc(watchProgress.updatedAt))
-		.limit(limit);
-	return rows.map(({ customTitle, subtitles, ...r }) => ({
-		...r,
-		title: customTitle ?? r.title,
-		hasDialogue: subtitles.length > 0
-	}));
-}
-
-/** «Dexter's Laboratory · T1 E1», or the series and how many, for the homework's title. */
-async function titleFor(episodeIds: number[]) {
-	const rows = await db
-		.select({ series: series.title, season: episode.season, number: episode.number })
-		.from(episode)
-		.innerJoin(series, eq(series.id, episode.seriesId))
-		.where(inArray(episode.id, episodeIds))
-		.orderBy(asc(episode.season), asc(episode.number));
-	const [first] = rows;
-	if (!first) return 'Deberes';
-	if (rows.length === 1) return `${first.series} · T${first.season} E${first.number}`;
-	const sameSeries = rows.every((r) => r.series === first.series);
-	return sameSeries ? `${first.series} · ${rows.length} capítulos` : `${rows.length} capítulos`;
 }
 
 /**

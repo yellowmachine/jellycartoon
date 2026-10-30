@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { getHomework } from '#lib/server/homework.ts';
-import { mark } from '#lib/homework.ts';
+import { mark } from 'comun/homework.ts';
 
 /**
  * A child doing their homework (#142), one exercise at a time. What the page gets never has the

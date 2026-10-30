@@ -12,7 +12,7 @@ import {
 	proposeAgain,
 	saveDraft
 } from '#lib/server/homework.ts';
-import { TRIES_OPTIONS, ageBand, checkRules, mark } from '#lib/homework.ts';
+import { TRIES_OPTIONS, ageBand, checkRules, mark } from 'comun/homework.ts';
 
 async function found(params: { id: string }) {
 	const hw = await getHomework(Number(params.id));
