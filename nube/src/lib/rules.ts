@@ -59,6 +59,11 @@ export interface RuleSpec {
 	notice: RuleNotice;
 	/** Told once, and then paused. */
 	once: boolean;
+	/**
+	 * Said out loud too, on the family's satellites, when one it is for is at home (not on a trip)
+	 * and it is not the quiet hours (an urgent one, even then). Unset (older ones): the house's.
+	 */
+	say?: boolean;
 }
 
 export const MAX_RULE = 500;
@@ -86,6 +91,7 @@ export interface TranslatedRule {
 	conditions: { kind: string; words: string[]; negate: boolean }[];
 	notice: { to: string; people: string[]; text: string; level: string };
 	once: boolean;
+	say: boolean;
 }
 
 /**
@@ -135,7 +141,8 @@ export function specOf(
 				text,
 				level: t.notice.level === 'urgente' ? 'urgente' : 'normal'
 			},
-			once: t.once === true
+			once: t.once === true,
+			say: t.say === true
 		}
 	};
 }
@@ -146,7 +153,7 @@ const words = { type: 'array', items: { type: 'string' } };
 export const RULE_SCHEMA = {
 	type: 'object',
 	additionalProperties: false,
-	required: ['possible', 'why_not', 'understood', 'when', 'conditions', 'notice', 'once'],
+	required: ['possible', 'why_not', 'understood', 'when', 'conditions', 'notice', 'once', 'say'],
 	properties: {
 		possible: { type: 'boolean' },
 		why_not: { type: ['string', 'null'] },
@@ -186,6 +193,7 @@ export const RULE_SCHEMA = {
 				level: { type: 'string', enum: ['normal', 'urgente'] }
 			}
 		},
-		once: { type: 'boolean' }
+		once: { type: 'boolean' },
+		say: { type: 'boolean' }
 	}
 } as const;

@@ -73,7 +73,9 @@
 							{r.understood}
 						</p>
 						<p class="text-xs text-zinc-500">
-							{r.mine ? 'Solo tuya' : 'De toda la casa'} · Dicho: «{r.said}»
+							{r.mine ? 'Solo tuya' : 'De toda la casa'}{r.aloud
+								? ' · También en voz alta en casa'
+								: ''} · Dicho: «{r.said}»
 						</p>
 						{#if r.lastFiredAt}
 							<p class="text-xs text-zinc-500">

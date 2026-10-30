@@ -10,6 +10,7 @@ const answer = (over: Partial<TranslatedRule> = {}): TranslatedRule => ({
 	conditions: [{ kind: 'de_viaje', words: [], negate: false }],
 	notice: { to: 'yo', people: [], text: 'Recuérdales lo de las plantas', level: 'normal' },
 	once: false,
+	say: false,
 	...over
 });
 
@@ -31,7 +32,8 @@ describe('specOf', () => {
 					text: 'Recuérdales lo de las plantas',
 					level: 'normal'
 				},
-				once: false
+				once: false,
+				say: false
 			}
 		});
 	});

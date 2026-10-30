@@ -14,6 +14,9 @@ import { tell } from '#lib/server/inbox.ts';
 import { listMemories } from '#lib/server/memory.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
 import { listenRules } from '#lib/server/rule-events.ts';
+import { familySatellites, sayOnSatellites } from '#lib/server/satellites.ts';
+import { inQuietHours } from '#lib/server/voice/quiet-check.ts';
+import { parseClock } from 'comun/clock.ts';
 import { listPlannedTrips } from '#lib/server/trips/planned.ts';
 import { hasWords } from '#lib/server/voice/learned.ts';
 import { voiceSettings } from '#lib/server/voice/settings.ts';
@@ -187,6 +190,7 @@ Qué tiene que cumplirse además («conditions», puede estar vacío), cada una 
 
 A quién y qué («notice»): «to» es «yo» (quien habla; en la casa, toda la familia), «casa» (toda la familia) o «personas» con sus nombres en «people», de los de la familia. «text» es el aviso tal como lo leerá quien lo recibe, corto y en segunda persona («Recuérdales a tus padres que rieguen las plantas»). «level» es «urgente» solo si lo pide o es un peligro.
 «once»: true si es para una sola vez («la próxima vez que…», «este viernes»).
+«say»: true si además hay que decirlo en voz alta en casa, por los altavoces de la voz: si lo pide («dímelo en voz alta», «avisa en casa», «que lo diga Alexa») o si es de toda la casa; false si es solo para el móvil de quien habla.
 «understood»: la regla en una frase, como la comprobará el programa, para leérsela a quien la dijo («Cuando empiece en la Agenda algo con «padres», si estás de viaje, te avisaré: …»).
 Si no se puede con esto (otra familia, el tiempo que hará, sensores, algo sin cuándo), «possible» false y en «why_not» por qué, corto; lo demás, lo más parecido posible.`;
 
@@ -346,8 +350,41 @@ async function fire(k: Kitchen, r: Rule, key: string, why: string) {
 		url: '/ajustes?seccion=mi#reglas',
 		ttl: 6 * 3600
 	});
+	await sayAtHome(k, r, to);
 	console.info(`[reglas] «${r.understood}»: ${why}`, { id: r.id });
 	return true;
+}
+
+/**
+ * Out loud too, if it says so (the house's, unless it said not): on the family's satellites, once,
+ * when one it is for is at home (not on a trip today) and it is not the quiet hours (an urgent one,
+ * even then).
+ */
+async function sayAtHome(k: Kitchen, r: Rule, to: string[]) {
+	const { notice } = r.spec;
+	if (!(r.spec.say ?? !r.userId)) return;
+	const [satellites, settings] = await Promise.all([
+		familySatellites(k.familyId),
+		voiceSettings(k)
+	]);
+	if (!satellites.length) return;
+	const minute = parseClock(localTime())!;
+	if (notice.level !== 'urgente' && settings.quiet && inQuietHours(settings.quiet, minute)) return;
+	const today = localDay();
+	let home = false;
+	for (const userId of to) {
+		const trips = await tripsFor(await kitchenOf(userId), userId);
+		if (!trips.some((t) => t.first.day <= today && today <= t.last.day)) {
+			home = true;
+			break;
+		}
+	}
+	if (!home) return;
+	const names = notice.to === 'personas' ? notice.names : [];
+	sayOnSatellites(
+		satellites.map((s) => s.id),
+		`${names.length ? `Aviso para ${names.join(' y ')}: ` : 'Aviso: '}${notice.text}`
+	);
 }
 
 /** If its conditions hold now, told for `key`, with `because` and them as why. */

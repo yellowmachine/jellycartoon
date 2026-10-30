@@ -166,6 +166,7 @@ export const load: PageServerLoad = async ({ locals, request, cookies }) => {
 			said: r.said,
 			understood: r.understood,
 			paused: r.paused,
+			aloud: r.spec.say ?? !r.userId,
 			lastFiredAt: r.lastFiredAt,
 			lastWhy: r.lastWhy
 		})),

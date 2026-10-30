@@ -28,6 +28,32 @@ export function watchSatellite(id: string, listener: () => void) {
 	return () => void set.delete(listener);
 }
 
+/** Said once (#331): what each satellite is to say, kept a while for it to come and say it. */
+const SAY_MS = 10 * 60_000;
+const toSay = new Map<string, { id: string; text: string; until: number }[]>();
+
+/** For these satellites to say once, out loud: told to them at once. */
+export function sayOnSatellites(ids: string[], text: string) {
+	const until = Date.now() + SAY_MS;
+	for (const id of ids) {
+		const kept = (toSay.get(id) ?? []).filter((s) => s.until > Date.now());
+		toSay.set(id, [...kept, { id: randomUUID(), text, until }]);
+		for (const listener of listeners.get(id) ?? []) listener();
+	}
+}
+
+/** What it has still to say, oldest first. */
+export const saysFor = (id: string) =>
+	(toSay.get(id) ?? []).filter((s) => s.until > Date.now()).map(({ id, text }) => ({ id, text }));
+
+/** Said: not again. */
+export function saidOn(id: string, sayId: string) {
+	toSay.set(
+		id,
+		(toSay.get(id) ?? []).filter((s) => s.id !== sayId)
+	);
+}
+
 /** Its snapserver, as saved; null, none. */
 export async function snapserverOf(k: Kitchen, id: string) {
 	const [row] = await k.run((tx) =>

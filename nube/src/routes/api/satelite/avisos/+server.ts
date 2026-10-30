@@ -2,6 +2,7 @@ import type { RequestHandler } from './$types';
 import { ringingFor, watchAlarms } from '#lib/server/alarms/alarms.ts';
 import {
 	satelliteRequest,
+	saysFor,
 	snapclientIdOf,
 	snapserverOf,
 	watchSatellite
@@ -11,8 +12,9 @@ import { sseResponse } from '#lib/server/sse.ts';
 /**
  * A satellite of Seilide's alarms and timers (#296), live, the house's path (its
  * /api/satelite/avisos): what rings where it is (in it or in the whole house), which its wake word
- * stops, and what it says itself; and the snapserver it plays from (Ajustes), for its own
- * snapclient, with its name and its id there. Again on every change.
+ * stops, and what it says itself; what it is to say once (a rule's notice, #331, `say`); and the
+ * snapserver it plays from (Ajustes), for its own snapclient, with its name and its id there.
+ * Again on every change.
  */
 export const GET: RequestHandler = async ({ request }) => {
 	const { k, satellite } = await satelliteRequest(request);
@@ -20,6 +22,7 @@ export const GET: RequestHandler = async ({ request }) => {
 		snapserver: string | null;
 		name: string;
 		snapclientId: string;
+		say: { id: string; text: string }[];
 	};
 	return sseResponse<State>(request, (listener) => {
 		const send = () =>
@@ -29,7 +32,8 @@ export const GET: RequestHandler = async ({ request }) => {
 						...ringing,
 						snapserver,
 						name: satellite.name,
-						snapclientId: snapclientIdOf(satellite.id)
+						snapclientId: snapclientIdOf(satellite.id),
+						say: saysFor(satellite.id)
 					})
 				)
 				.catch((err) => console.warn('[avisos] Para el satélite', err));
