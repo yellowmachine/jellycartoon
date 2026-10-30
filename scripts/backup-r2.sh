@@ -86,9 +86,16 @@ backup() {
 	fi
 	# All the files, again each night: simple, while they are few (photos and receipts).
 	if [[ -n ${FILES_S3_ENDPOINT:-} ]]; then
-		(umask 077 && mkdir "$dir/files" && rclone copy "files:${FILES_S3_BUCKET:?}" "$dir/files")
-		(umask 077 && tar -C "$dir" -cf "$dir/files.tar" files)
-		up "$dir/files.tar" "$name_start-$stamp.files.tar.age"
+		# Its buckets, apart: a wrong key or no connection is an error, not «no files».
+		buckets=$(rclone lsf --dirs-only files:)
+		if grep -qxF "${FILES_S3_BUCKET:?}/" <<<"$buckets"; then
+			(umask 077 && mkdir "$dir/files" && rclone copy "files:$FILES_S3_BUCKET" "$dir/files")
+			(umask 077 && tar -C "$dir" -cf "$dir/files.tar" files)
+			up "$dir/files.tar" "$name_start-$stamp.files.tar.age"
+		else
+			# Made with the first file the app keeps (Scholio's, on 2026-10-30, none yet).
+			log "Sin ficheros: el bucket $FILES_S3_BUCKET aún no existe"
+		fi
 	elif [[ -d /backup/files ]]; then
 		(umask 077 && tar -C /backup -cf "$dir/files.tar" files)
 		up "$dir/files.tar" "$name_start-$stamp.files.tar.age"
