@@ -19,7 +19,7 @@ import { openRouterKey } from '#lib/server/family-settings.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { askHouse } from '#lib/server/house.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
-import { notify } from '#lib/server/push.ts';
+import { tell } from '#lib/server/inbox.ts';
 
 /**
  * Homework from the cartoons (#142), moved from jellycartoon: the family's AI proposes exercises
@@ -408,10 +408,11 @@ async function tellDone(
 		marks.closed ? `${marks.right} de ${marks.closed} bien` : null,
 		marks.toRead ? `${marks.toRead} para leer` : null
 	].filter(Boolean);
-	await notify(
+	await tell(
 		k.familyId,
 		adults.map((a) => a.id),
 		{
+			kind: 'deberes',
 			title: `📚 ${kid?.name ?? 'Un peque'} ha terminado los deberes`,
 			body: `${title}${parts.length ? `: ${parts.join(', ')}` : ''}`,
 			tag: `deberes-${id}`,

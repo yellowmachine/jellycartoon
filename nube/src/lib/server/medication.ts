@@ -9,7 +9,7 @@ import {
 } from '#lib/server/db/schema.ts';
 import type { AnyDb } from '#lib/server/family-scope.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
-import { notify } from '#lib/server/push.ts';
+import { tell } from '#lib/server/inbox.ts';
 import { localDay, localTime } from 'comun/agenda.ts';
 import {
 	doseText,
@@ -246,7 +246,8 @@ export async function sendDueDoses(k: Kitchen) {
 		const who = people.get(Number(personId)) ?? '';
 		const query = new URLSearchParams({ dia: day, hora: time });
 		for (const m of these) query.append('id', String(m.id));
-		await notify(k.familyId, await toldFor(k, Number(personId)), {
+		await tell(k.familyId, await toldFor(k, Number(personId)), {
+			kind: 'medicacion',
 			title: `💊 ${who ? `${who}, ` : ''}${time}`,
 			body: these.map(doseText).join(' · '),
 			tag: `toma-${personId}-${day}-${time}`,

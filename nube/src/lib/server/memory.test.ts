@@ -7,7 +7,8 @@ import * as schema from './db/schema.ts';
 import { family, familyMember, user } from './db/schema.ts';
 import { familyScope } from './family-scope.ts';
 import type { Kitchen } from './fridge.ts';
-import { forget, listMemories, recallMemories, remember } from './memory.ts';
+import { addDays, localDay } from 'comun/agenda.ts';
+import { forget, forgetOver, listMemories, recallMemories, remember } from './memory.ts';
 
 /**
  * What the voice remembers, on a real Postgres (PGlite) as the app's role: each person's only
@@ -69,5 +70,39 @@ describe('memory', () => {
 		const text = await recallMemories(kitchen('ana'), 'ana', '¿Dónde está la llave?');
 		expect(text).toContain('La llave de repuesto está en la maceta');
 		expect(text).toContain('(de la casa)');
+	});
+
+	test('only for some days (#331): told from its first to its last, then forgotten', async () => {
+		const ana = kitchen('ana');
+		const today = localDay();
+		const car = await remember(ana, 'ana', 'El coche está en el taller', {
+			untilDay: addDays(today, 2)
+		});
+		const later = await remember(ana, 'ana', 'La llave de la oficina la tiene Luis', {
+			fromDay: addDays(today, 3)
+		});
+		const over = await remember(ana, 'ana', 'El perro está con la vecina', {
+			untilDay: addDays(today, -1)
+		});
+		const ids = async (later: boolean) => (await listMemories(ana, 'ana', later)).map((m) => m.id);
+		// Today: the car, not what begins later nor what was over yesterday.
+		expect(await ids(false)).toContain(car!);
+		expect(await ids(false)).not.toContain(later!);
+		expect(await ids(false)).not.toContain(over!);
+		// Ajustes: what begins later too.
+		expect(await ids(true)).toContain(later!);
+		expect(await recallMemories(ana, 'ana', '¿Dónde está el coche?')).toContain(
+			`hasta el ${addDays(today, 2)}`
+		);
+		// At midnight, what was over goes; the rest stays.
+		expect(await forgetOver(ana)).toBe(1);
+		expect(await ids(true)).toContain(car!);
+		// A last day before the first: the order said it the other way round.
+		const odd = await remember(ana, 'ana', 'Algo raro', {
+			fromDay: addDays(today, 1),
+			untilDay: today
+		});
+		const [m] = (await listMemories(ana, 'ana', true)).filter((m) => m.id === odd);
+		expect(m?.untilDay).toBeNull();
 	});
 });

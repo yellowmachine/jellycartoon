@@ -10,7 +10,7 @@ test('without a house connected, nothing of it in the bar', () => {
 	expect(labels).toContain('Recetas');
 	expect(links.some((l) => l.external || l.href.startsWith('/en-casa'))).toBe(false);
 	expect(menuLinks.map((l) => l.label)).not.toContain('Gestión');
-	expect(userLinks.map((l) => l.label)).toEqual(['Ajustes']);
+	expect(userLinks.map((l) => l.label)).toEqual(['Buzón', 'Ajustes']);
 });
 
 test('with a house, its sections, at its address', () => {
@@ -20,5 +20,5 @@ test('with a house, its sections, at its address', () => {
 		external: true
 	});
 	expect(links.find((l) => l.label === 'Series')?.href).toBe('/series');
-	expect(userLinks.map((l) => l.label)).toEqual(['Ajustes', 'Gestión', 'Vista TV']);
+	expect(userLinks.map((l) => l.label)).toEqual(['Buzón', 'Ajustes', 'Gestión', 'Vista TV']);
 });

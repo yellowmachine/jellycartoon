@@ -150,7 +150,15 @@ export const load: PageServerLoad = async ({ locals, request, cookies }) => {
 				})
 			: null,
 		/** What the voice remembers: theirs (no one else sees it) and the house's. */
-		memories: await listMemories(k, locals.user!.id),
+		memories: await listMemories(k, locals.user!.id, true),
+		/** «Cómo te aviso» (#331): the messages left for them, by email too. */
+		inboxByEmail: await withFamily(locals.user!.id, async (tx) => {
+			const [me] = await tx
+				.select({ on: familyMember.inboxByEmail })
+				.from(familyMember)
+				.where(eq(familyMember.userId, locals.user!.id));
+			return me?.on ?? false;
+		}),
 		/** How their subtitles look (Canales). */
 		subtitleStyle: await subtitleStyleOf(k)
 	};
@@ -267,6 +275,14 @@ export const actions: Actions = {
 		return { saved: 'myCar' };
 	},
 	/** «Mostrar el gasto en IA bajo la cabecera». */
+	/** «Cómo te aviso» (#331): the messages left for them, by email too. */
+	inboxByEmail: async ({ request, locals }) => {
+		const inboxByEmail = (await request.formData()).get('inboxByEmail') === 'on';
+		await withFamily(locals.user!.id, (tx) =>
+			tx.update(familyMember).set({ inboxByEmail }).where(eq(familyMember.userId, locals.user!.id))
+		);
+		return { saved: 'inboxByEmail' };
+	},
 	spendLine: async ({ request, locals }) => {
 		const spendLine = (await request.formData()).get('spendLine') === 'on';
 		await withFamily(locals.user!.id, (tx) =>
@@ -316,7 +332,8 @@ export const actions: Actions = {
 		await remember(
 			await kitchenOf(locals.user!.id),
 			form.get('whose') === 'house' ? null : locals.user!.id,
-			text
+			text,
+			{ untilDay: String(form.get('until') ?? '') || null }
 		);
 		return { saved: 'memory' };
 	},

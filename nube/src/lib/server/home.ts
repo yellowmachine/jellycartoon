@@ -5,12 +5,13 @@ import { agendaBetween, familyPeople, personOf } from './agenda/agenda.ts';
 import { listAlarms } from './alarms/alarms.ts';
 import { familyPlace, openRouterKey } from './family-settings.ts';
 import { fridgeState, type Kitchen } from './fridge.ts';
+import { listInbox } from './inbox-store.ts';
 import { pendingDosesOf } from './medication.ts';
 
 /**
  * Seilide's home page with a session: what there is today in the family at a glance, on the phone.
  * Today's doses still to take (#308), theirs and their children's; the fridge (its post-its and the
- * list, with today's agenda), tomorrow's, the alarms and timers that ring today, the weather where they live (if said), and the first steps of a new family.
+ * list, with today's agenda), tomorrow's, the alarms and timers that ring today, the weather where they live (if said), their «Buzón» still unread (#331), and the first steps of a new family.
  */
 
 /** Open-Meteo's, kept a while for each place: the home page is opened often. */
@@ -41,13 +42,14 @@ export async function homeWeather(k: Kitchen) {
 export async function homeOf(k: Kitchen, userId: string, admin: boolean) {
 	const tomorrow = addDays(localDay(), 1);
 	const me = await personOf(k, userId);
-	const [doses, fridge, later, alarms, key, people] = await Promise.all([
+	const [doses, fridge, later, alarms, key, people, inbox] = await Promise.all([
 		pendingDosesOf(k, userId),
 		fridgeState(k),
 		agendaBetween(k, tomorrow, tomorrow),
 		listAlarms(k, me),
 		admin ? openRouterKey(k) : null,
-		admin ? familyPeople(k) : []
+		admin ? familyPeople(k) : [],
+		unreadInbox(k, userId)
 	]);
 	return {
 		/** Their person: their own doses go without their name. */
@@ -56,7 +58,14 @@ export async function homeOf(k: Kitchen, userId: string, admin: boolean) {
 		fridge,
 		tomorrow: dayEvents(later.occurrences, tomorrow) as Occurrence[],
 		alarms: alarms.filter((a) => ringsToday(a)),
+		inbox,
 		/** What a new family has yet to do that the server knows: only its administrator does them. */
 		steps: admin ? { key: Boolean(key), invited: people.filter((p) => p.account).length > 1 } : null
 	};
+}
+
+/** Their «Buzón» still unread (#331): how many, and the last few. */
+export async function unreadInbox(k: Kitchen, userId: string) {
+	const unread = (await listInbox(k, userId)).filter((n) => !n.readAt);
+	return { count: unread.length, latest: unread.slice(0, 3) };
 }

@@ -260,6 +260,13 @@
       "when": 1793386936348,
       "tag": "0036_illegal_joshua_kane",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793399471472,
+      "tag": "0037_striped_virginia_dare",
+      "breakpoints": true
     }
   ]
 }

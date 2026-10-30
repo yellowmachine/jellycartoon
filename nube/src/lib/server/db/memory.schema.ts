@@ -1,4 +1,4 @@
-import { index, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { date, index, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { user } from './auth.schema.ts';
 import { family, familyRows } from './family.schema.ts';
 
@@ -20,6 +20,10 @@ export const memory = pgTable(
 		text: text('text').notNull(),
 		/** Folded, to find it by the words of a question. */
 		words: jsonb('words').$type<string[]>().notNull(),
+		/** Its first day («a partir del lunes…»), in the family's time zone; null, from now. */
+		fromDay: date('from_day'),
+		/** Its last day («hasta el viernes…»): then forgotten; null, for good. */
+		untilDay: date('until_day'),
 		createdAt: timestamp('created_at').notNull().defaultNow(),
 		updatedAt: timestamp('updated_at').notNull().defaultNow()
 	},

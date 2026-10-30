@@ -85,6 +85,8 @@ export function navLinks(
 		external: Boolean(webUrl)
 	};
 	const userLinks: UserLink[] = [
+		// What the app told them and the messages left for them (#331).
+		{ href: '/buzon', label: 'Buzón', icon: 'agenda' },
 		{ href: '/ajustes', label: 'Ajustes', icon: 'ajustes' },
 		// Their phone, handed to one of their children (#303).
 		...(guardian ? [{ href: '/pasar', label: 'Pasar a un peque', icon: 'infantil' as const }] : []),

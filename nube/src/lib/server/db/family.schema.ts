@@ -72,6 +72,8 @@ export const familyMember = pgTable(
 		recordTrips: boolean('record_trips').notNull().default(false),
 		/** «Mostrar el gasto en IA bajo la cabecera» (Ajustes, #193). */
 		spendLine: boolean('spend_line').notNull().default(false),
+		/** «Cómo te aviso» (Ajustes, #331): the messages left for them by email too. */
+		inboxByEmail: boolean('inbox_by_email').notNull().default(false),
 		/** How their subtitles look (Ajustes, comun/subtitle-style.ts); unset choices, the default. */
 		subtitleStyle: jsonb('subtitle_style').$type<Partial<SubtitleStyle>>(),
 		createdAt: timestamp('created_at').notNull().defaultNow()

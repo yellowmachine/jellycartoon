@@ -92,3 +92,17 @@ export function sendInvitation(i: {
 		)
 	});
 }
+
+/** Something of their «Buzón» (#331): a message left for them, or an urgent notice. */
+export function sendInboxMail(to: string, title: string, body: string, url: string) {
+	const link = new URL(url, ORIGIN).href;
+	return sendMail({
+		to,
+		subject: `${NAME}: ${title}`,
+		html: page([
+			`<strong>${escape(title)}</strong>`,
+			escape(body).replace(/\n/g, '<br>'),
+			`<a href="${escape(link)}" style="color:#b45309">Abrir en ${NAME}</a>`
+		])
+	});
+}

@@ -27,6 +27,11 @@ mock.module('#lib/server/push.ts', () => ({
 	notify: async (_: string, to: string[], m: { title: string; body: string }) =>
 		void told.push({ to, ...m })
 }));
+// Their inbox (#331) tells the phones: faked as they are.
+mock.module('#lib/server/inbox.ts', () => ({
+	tell: async (_: string, to: string[], m: { title: string; body: string }) =>
+		void told.push({ to, ...m })
+}));
 
 const {
 	dosesFor,

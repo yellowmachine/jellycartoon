@@ -87,6 +87,7 @@ import {
 	remember
 } from '#lib/server/memory.ts';
 import { familyPeople } from '#lib/server/agenda/agenda.ts';
+import { leaveMessage, MAX_MESSAGE } from '#lib/server/inbox.ts';
 
 /**
  * Voice commands (#33), the family's brain since #253: what was said in the house, to a model with
@@ -811,11 +812,21 @@ function memoryTools(satellite: boolean): Tool[] {
 	return [
 		tool(
 			'remember',
-			'Guarda algo que te piden recordar para contestarlo cuando lo pregunten («recuerda que la llave de repuesto está en la maceta», «apúntate que la talla de pie de Lucía es la 32»). No los avisos con fecha (la agenda), ni la compra o las notas de la nevera. Si cambia algo ya guardado («ahora la llave está en el cajón»), olvida antes lo viejo con «forget_memory».',
+			'Guarda algo que te piden recordar para contestarlo cuando lo pregunten («recuerda que la llave de repuesto está en la maceta», «apúntate que la talla de pie de Lucía es la 32»), también solo por unos días («hasta el viernes, el coche está en el taller»). No los avisos a una hora (la agenda), ni la compra o las notas de la nevera. Si cambia algo ya guardado («ahora la llave está en el cajón»), olvida antes lo viejo con «forget_memory».',
 			{
 				text: {
 					type: 'string',
-					description: `Lo que hay que recordar, en una frase que se entienda sola, sin «yo» ni «mi»: «La llave de repuesto está en la maceta de la entrada». Hasta ${MAX_MEMORY} letras.`
+					description: `Lo que hay que recordar, en una frase que se entienda sola, sin «yo» ni «mi» ni las fechas: «La llave de repuesto está en la maceta de la entrada». Hasta ${MAX_MEMORY} letras.`
+				},
+				from_day: {
+					type: 'string',
+					description:
+						'Solo si vale a partir de un día («desde el lunes…»): ese día, AAAA-MM-DD, contando desde hoy.'
+				},
+				until_day: {
+					type: 'string',
+					description:
+						'Solo si vale hasta un día («hasta el viernes», «esta semana», «mientras estoy de viaje del 5 al 12»): el último día, AAAA-MM-DD, contando desde hoy; luego se olvida solo.'
 				},
 				...(satellite
 					? {}
@@ -844,6 +855,38 @@ function memoryTools(satellite: boolean): Tool[] {
 		)
 	];
 }
+
+/** A message for someone of the family, in their «Buzón» and on their phone (inbox.ts, #331). */
+const messageTool: Tool = {
+	type: 'function',
+	function: {
+		name: 'leave_message',
+		description:
+			'Deja un recado en el buzón de alguien de la familia, con aviso en su móvil («déjale un recado a Ana: que compre pan», «dile a papá que ya he llegado»). No para el grupo de Telegram ni para recordar algo uno mismo.',
+		parameters: {
+			type: 'object',
+			properties: {
+				to: {
+					type: 'array',
+					items: { type: 'string' },
+					description:
+						'Sus nombres, como en la familia del mensaje («Ana»), o «todos» para toda la familia menos quien habla.'
+				},
+				text: {
+					type: 'string',
+					description: `El recado, para leerlo quien lo recibe: «Que compres pan al volver». Hasta ${MAX_MESSAGE} letras.`
+				}
+			},
+			required: ['to', 'text'],
+			additionalProperties: false
+		}
+	}
+};
+
+/** «Ana», «ana», «Ána» and «Ana María» for Ana María: the same person. */
+const sameName = (full: string, said: string) =>
+	fold(full.trim()) === fold(said.trim()) ||
+	fold(full.trim()).split(/\s+/)[0] === fold(said.trim());
 
 /** The family's Telegram group (#243), with its bot: only when it is in one. */
 const groupSayTool: Tool = {
@@ -1077,10 +1120,39 @@ async function runTool(
 		case 'remember': {
 			const text = typeof args.text === 'string' ? args.text : '';
 			const whose = ctx.memoryOf && args.whose === 'me' ? ctx.memoryOf : null;
-			const id = await remember(ctx.k, whose, text);
+			const day = (v: unknown) => (typeof v === 'string' ? v : null);
+			const id = await remember(ctx.k, whose, text, {
+				fromDay: day(args.from_day),
+				untilDay: day(args.until_day)
+			});
 			if (!id) return 'Falta qué recordar.';
 			ctx.outcome.done++;
 			return `Guardado con el número ${id}, ${whose ? 'solo para quien habla' : 'para toda la casa'}.`;
+		}
+		case 'leave_message': {
+			const text = typeof args.text === 'string' ? args.text : '';
+			const names = Array.isArray(args.to) ? args.to.filter((n) => typeof n === 'string') : [];
+			const people = (await familyPeople(ctx.k)).filter((p) => p.userId);
+			const speaker = ctx.order.satellite ? null : ctx.k.userId;
+			const all = names.some((n) => fold(n.trim()) === 'todos');
+			const to = all
+				? people.filter((p) => p.userId !== speaker)
+				: people.filter((p) => names.some((n) => sameName(p.name, n)));
+			const missing = all ? [] : names.filter((n) => !people.some((p) => sameName(p.name, n)));
+			if (missing.length)
+				return `No hay nadie con cuenta llamado ${missing.join(', ')}: los que pueden recibir recados son ${people.map((p) => p.name).join(', ') || 'nadie'}. Pregúntale a quién era.`;
+			const from = ctx.order.satellite
+				? { userId: null, name: ctx.order.satellite.name, place: true }
+				: { userId: ctx.k.userId, name: ctx.order.who.name || 'alguien de casa' };
+			const left = await leaveMessage(
+				ctx.k,
+				from,
+				to.map((p) => p.userId!),
+				text
+			);
+			if (!left) return 'Falta el recado o a quién.';
+			ctx.outcome.done++;
+			return `Recado dejado en el buzón de ${to.map((p) => p.name).join(', ')}, con aviso en su móvil: «${left}».`;
 		}
 		case 'forget_memory': {
 			const id = Number(args.id);
@@ -1655,6 +1727,7 @@ export async function runVoiceCommand(
 		...tools(house.speakers, house.rooms, house.salon, house.clipMinutes),
 		...(house.tools as Tool[]),
 		...(group ? [groupSayTool] : []),
+		messageTool,
 		...(learned ? [usedLearnedTool] : []),
 		...(kid ? [] : memoryTools(Boolean(satellite))),
 		...(settings.web.on ? [webSearchTool] : [])
