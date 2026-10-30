@@ -1,6 +1,7 @@
 import { STATIONS, COUNTRIES } from 'comun/radio.ts';
 import { parseRecipe } from 'comun/recipe.ts';
-import type { LngLat } from 'comun/road.ts';
+import { distanceText, type LngLat, type Place } from 'comun/road.ts';
+import { isPoiKind, POI_KINDS, type FoundPlace } from 'comun/road/pois.ts';
 import { MAX_SNOOZE_MIN, SNOOZE_MIN, isAlarmPlace, type AlarmPlace } from 'comun/alarms.ts';
 import { EXPENSE_CATEGORIES, euros, isCategory, type ExpenseLine } from 'comun/expenses.ts';
 import { isUntilWord, UNTIL_WORDS, untilDay, untilText } from 'comun/fridge.ts';
@@ -284,6 +285,22 @@ function tools(house: boolean, rooms: Room[], salon: boolean, clipMinutes: numbe
 				}
 			},
 			['place']
+		),
+		fn(
+			'find_places',
+			'Modo carretera: busca sitios de un tipo en un pueblo, una ciudad o donde está: «busca una panadería en Totana», «¿hay una farmacia por aquí?», «una gasolinera en Lorca». Para elegir uno y parar o ir allí.',
+			{
+				what: {
+					type: 'string',
+					enum: Object.keys(POI_KINDS),
+					description: 'Qué tipo de sitio; el más parecido a lo que dice.'
+				},
+				place: {
+					type: 'string',
+					description: 'Dónde: «Totana», «Lorca, Murcia». Vacío: cerca de donde está.'
+				}
+			},
+			['what']
 		),
 		fn(
 			'remove_stop',
@@ -1087,7 +1104,8 @@ async function runTool(
 				});
 				return `Ruta a ${savedPlace.name}, uno de sus sitios: el mapa la traza y la va diciendo. Díselo corto.`;
 			}
-			const place = await searchPlace(ctx.k, wanted, ctx.order.request.position);
+			const place =
+				foundPlace(ctx.k, wanted) ?? (await searchPlace(ctx.k, wanted, ctx.order.request.position));
 			if (!place)
 				return `No encuentro «${wanted}». Pídele que lo diga de otra forma (con el pueblo o la ciudad).`;
 			ctx.outcome.actions.push({ kind: 'navigate', place });
@@ -1103,7 +1121,8 @@ async function runTool(
 			const saved = findByName(await listSavedPlaces(ctx.k), wanted);
 			const place = saved
 				? { label: saved.name, at: saved.at }
-				: await searchPlace(ctx.k, wanted, ctx.order.request.position);
+				: (foundPlace(ctx.k, wanted) ??
+					(await searchPlace(ctx.k, wanted, ctx.order.request.position)));
 			if (!place)
 				return `No encuentro «${wanted}». Pídele que lo diga de otra forma (con el pueblo o la ciudad).`;
 			// No route on: where to stop is where to go.
@@ -1113,6 +1132,27 @@ async function runTool(
 			}
 			ctx.outcome.actions.push({ kind: 'addStop', place, reason });
 			return `Parada en ${place.label}${reason ? `, para ${reason}` : ''}, antes de su destino, que sigue siendo el mismo: el mapa recalcula la ruta. Díselo corto.`;
+		}
+		case 'find_places': {
+			if (!isPoiKind(args.what)) return 'Ese tipo de sitio no se puede buscar.';
+			const what = args.what;
+			const town = typeof args.place === 'string' ? args.place.trim() : '';
+			const position = ctx.order.request.position;
+			const around = town ? (await searchPlace(ctx.k, town, position))?.at : position;
+			if (!around)
+				return town
+					? `No encuentro «${town}». Pídele que lo diga de otra forma.`
+					: 'Todavía no se sabe dónde está: el GPS no ha dado la posición.';
+			const found = await orsFor(ctx.k).placesAround(around, what);
+			keepFound(ctx.k, found);
+			const from = town ? `de ${town}` : 'de aquí';
+			if (!found.length)
+				return `OpenStreetMap no tiene ningún sitio de «${what}» a menos de 2 km ${from} (puede que falte). Díselo${town ? ` y ofrécele parar en ${town} igualmente` : ''}.`;
+			const lines = found.map(
+				(p, i) =>
+					`${i + 1}. ${p.name}, a ${distanceText(p.distance)} ${from}${p.hours ? `; horario de OpenStreetMap «${p.hours}»` : ''}`
+			);
+			return `Encontradas en OpenStreetMap (puede faltar alguna), la más cerca primero:\n${lines.join('\n')}\nDile las 2 o 3 primeras, muy corto: nombre y distancia (el horario, solo si importa y en palabras). Y pregúntale con ask dónde, una opción por sitio: label «Horno San José, 300 m»; command «${ctx.order.request.navigation ? 'Para en Horno San José' : 'Llévame a Horno San José'}», y detrás su para qué si lo dijo («… para comprar pan»).`;
 		}
 		case 'remove_stop': {
 			const stop = typeof args.stop === 'string' && args.stop.trim() ? args.stop.trim() : null;
@@ -1264,6 +1304,26 @@ async function runTool(
 	}
 }
 
+/**
+ * What `find_places` found last, for each person (#312): «para en Horno San José» or «la segunda»
+ * goes to that one, not to a search by its name. Forgotten after a while.
+ */
+const lastFound = new Map<string, { until: number; places: FoundPlace[] }>();
+const FOUND_FOR_MS = 15 * 60_000;
+
+function keepFound(k: Kitchen, places: FoundPlace[]) {
+	const now = Date.now();
+	for (const [key, kept] of lastFound) if (kept.until < now) lastFound.delete(key);
+	lastFound.set(`${k.familyId}:${k.userId}`, { until: now + FOUND_FOR_MS, places });
+}
+
+function foundPlace(k: Kitchen, said: string): Place | null {
+	const kept = lastFound.get(`${k.familyId}:${k.userId}`);
+	if (!kept || kept.until < Date.now()) return null;
+	const place = findByName(kept.places, said);
+	return place && { label: place.name, at: place.at };
+}
+
 /** A place said, by openrouteservice: the nearest to where we are first, if it is known. */
 async function searchPlace(k: Kitchen, said: string, near: LngLat | null) {
 	const [place] = await orsFor(k).searchPlaces(said, near);
@@ -1361,6 +1421,7 @@ const CAR =
 /** Routes and where we are: only where there is a map and a GPS, the road mode. */
 const ONLY_IN_THE_CAR = new Set([
 	'navigate_to',
+	'find_places',
 	'add_stop',
 	'remove_stop',
 	'where_am_i',

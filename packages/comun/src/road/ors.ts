@@ -1,5 +1,6 @@
 import type { LngLat, Place, Route } from 'comun/road.ts';
 import { placesFromOrs, routeFromOrs, townsFromOrs } from 'comun/road/ors-parse.ts';
+import { POI_KINDS, POI_RADIUS_METRES, poisFromOrs, type PoiKind } from 'comun/road/pois.ts';
 import { withRetries } from 'comun/road/retry.ts';
 
 /**
@@ -168,6 +169,25 @@ export function createOrs(config: () => Promise<OrsConfig>, log: OrsLog) {
 	}
 
 	/**
+	 * Places of that kind around `at` (#312), within 2 km, nearest first: «una panadería en Totana».
+	 * OpenStreetMap's, so a village's may be missing.
+	 */
+	async function placesAround(at: LngLat, kind: PoiKind) {
+		const body = await ors('search', '/pois', {
+			method: 'POST',
+			body: JSON.stringify({
+				request: 'pois',
+				geometry: { geojson: { type: 'Point', coordinates: at }, buffer: POI_RADIUS_METRES },
+				filters: { category_ids: POI_KINDS[kind] },
+				limit: 50
+			})
+		});
+		const found = poisFromOrs(body, kind);
+		log.info('Sitios pedidos a openrouteservice', { kind, found: found.length });
+		return found;
+	}
+
+	/**
 	 * By car through `points`, from the first to the last, with its steps in Spanish. With stops on the
 	 * way (#151), not turning back at them.
 	 */
@@ -206,6 +226,7 @@ export function createOrs(config: () => Promise<OrsConfig>, log: OrsLog) {
 		whereIs,
 		townNear,
 		placeName,
+		placesAround,
 		drivingRoute,
 		orsMessage
 	};
