@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { alongLine, guide, locate, metresBetween } from './road-guide.ts';
+import { alongLine, guide, lineAhead, locate, metresBetween } from './road-guide.ts';
 import type { LngLat, Route } from './road.ts';
 
 // About 100 m of longitude at latitude 40.
@@ -85,4 +85,16 @@ describe('guide', () => {
 	test('off the route: said in metres', () => {
 		expect(guide(route, along, [-4 + STEP, 40.0009]).off).toBeCloseTo(100, -1);
 	});
+});
+
+test('the line ahead: from where we are, a point every so often, so far', () => {
+	const long: LngLat[] = Array.from({ length: 21 }, (_, i) => [-4 + i * STEP, 40]);
+	const along = alongLine(long);
+	const here: LngLat = [-4 + 2.5 * STEP, 40];
+	const ahead = lineAhead(long, along, here, along[2]! + 50, 300, 1000);
+	expect(ahead[0]).toEqual(here);
+	// At least 300 m apart (a point is ~99.8 m), and the first past 1 km ahead, the last.
+	expect(ahead.slice(1)).toEqual([long[6]!, long[10]!, long[13]!]);
+	// Near the end: up to it.
+	expect(lineAhead(long, along, long[19]!, along[19]!, 300, 1000).slice(1)).toEqual([long[20]!]);
 });

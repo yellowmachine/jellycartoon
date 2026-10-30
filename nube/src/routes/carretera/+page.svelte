@@ -22,7 +22,7 @@
 	import { tripShare } from '#lib/trip-share.svelte.ts';
 	import { formatDuration } from 'comun/format.ts';
 	import { distanceText, isLngLat, type LngLat, type Place, type Route } from 'comun/road.ts';
-	import { alongLine, guide, locate, metresBetween } from 'comun/road-guide.ts';
+	import { alongLine, guide, lineAhead, locate, metresBetween } from 'comun/road-guide.ts';
 	import {
 		findByName,
 		insertStop,
@@ -130,6 +130,10 @@
 				if (routable) tab = 'ruta';
 				void go(place);
 			},
+			ahead: () =>
+				route && along && guidance && here
+					? lineAhead(route.line, along, here, along.at(-1)! - guidance.remaining)
+					: null,
 			addStop: (place, reason) => {
 				if (routable) tab = 'ruta';
 				addStop(place, reason);

@@ -12,7 +12,8 @@ const request = {
 	film: null,
 	car: false,
 	position: null,
-	navigation: null
+	navigation: null,
+	ahead: null
 };
 
 test('an order without the house: an adult, and nothing of a house', () => {

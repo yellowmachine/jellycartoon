@@ -2,6 +2,7 @@ import { STATIONS, COUNTRIES } from 'comun/radio.ts';
 import { parseRecipe } from 'comun/recipe.ts';
 import { distanceText, type LngLat, type Place } from 'comun/road.ts';
 import { isPoiKind, POI_KINDS, type FoundPlace } from 'comun/road/pois.ts';
+import { AHEAD_UP_TO_METRES } from 'comun/road-guide.ts';
 import { MAX_SNOOZE_MIN, SNOOZE_MIN, isAlarmPlace, type AlarmPlace } from 'comun/alarms.ts';
 import { EXPENSE_CATEGORIES, euros, isCategory, type ExpenseLine } from 'comun/expenses.ts';
 import { isUntilWord, UNTIL_WORDS, untilDay, untilText } from 'comun/fridge.ts';
@@ -298,6 +299,22 @@ function tools(house: boolean, rooms: Room[], salon: boolean, clipMinutes: numbe
 				place: {
 					type: 'string',
 					description: 'Dónde: «Totana», «Lorca, Murcia». Vacío: cerca de donde está.'
+				}
+			},
+			['what']
+		),
+		fn(
+			'find_on_route',
+			'Modo carretera: busca sitios de un tipo junto a la ruta que lleva, por delante, el primero al que llega primero: «para en la próxima gasolinera», «un sitio para comer de camino», «¿hay un cajero en la ruta?». Para parar en uno.',
+			{
+				what: {
+					type: 'string',
+					enum: Object.keys(POI_KINDS),
+					description: 'Qué tipo de sitio; el más parecido a lo que dice.'
+				},
+				within_km: {
+					type: 'number',
+					description: `En cuántos km por delante, si lo dice («en los próximos 20 km»), hasta ${AHEAD_UP_TO_METRES / 1000}. Sin él, ${ON_ROUTE_KM}.`
 				}
 			},
 			['what']
@@ -1154,6 +1171,27 @@ async function runTool(
 			);
 			return `Encontradas en OpenStreetMap (puede faltar alguna), la más cerca primero:\n${lines.join('\n')}\nDile las 2 o 3 primeras, muy corto: nombre y distancia (el horario, solo si importa y en palabras). Y pregúntale con ask dónde, una opción por sitio: label «Horno San José, 300 m»; command «${ctx.order.request.navigation ? 'Para en Horno San José' : 'Llévame a Horno San José'}», y detrás su para qué si lo dijo («… para comprar pan»).`;
 		}
+		case 'find_on_route': {
+			if (!isPoiKind(args.what)) return 'Ese tipo de sitio no se puede buscar.';
+			const what = args.what;
+			const ahead = ctx.order.request.ahead;
+			// No route on: around where we are.
+			if (!ahead) return runTool('find_places', { what }, ctx);
+			const km = Number(args.within_km);
+			const upTo =
+				Number.isFinite(km) && km > 0
+					? Math.min(km * 1000, AHEAD_UP_TO_METRES)
+					: ON_ROUTE_KM * 1000;
+			const found = await orsFor(ctx.k).placesAlong(ahead, what, upTo);
+			keepFound(ctx.k, found);
+			if (!found.length)
+				return `OpenStreetMap no tiene ningún sitio de «${what}» junto a la ruta en los próximos ${Math.round(upTo / 1000)} km (puede que falte). Díselo corto.`;
+			const lines = found.map(
+				(p, i) =>
+					`${i + 1}. ${p.name}, a ${distanceText(p.distance)} por la ruta, ${(p.off ?? 0) < 150 ? 'junto a la carretera' : `a ${distanceText(p.off ?? 0)} de la carretera`}${p.hours ? `; horario de OpenStreetMap «${p.hours}»` : ''}`
+			);
+			return `Junto a la ruta, en OpenStreetMap (puede faltar alguno), el primero al que llega primero:\n${lines.join('\n')}\nSi pidió «la próxima», dile solo la primera y pregúntale con ask si para; si no, las 2 o 3 primeras, muy corto: nombre y a cuántos km. Una opción por sitio: label «Repsol, 12 km»; command «Para en Repsol», y detrás su para qué si lo dijo.`;
+		}
 		case 'remove_stop': {
 			const stop = typeof args.stop === 'string' && args.stop.trim() ? args.stop.trim() : null;
 			ctx.outcome.actions.push({ kind: 'removeStop', name: stop });
@@ -1308,6 +1346,9 @@ async function runTool(
  * What `find_places` found last, for each person (#312): «para en Horno San José» or «la segunda»
  * goes to that one, not to a search by its name. Forgotten after a while.
  */
+/** How far ahead along the route `find_on_route` looks, if not said. */
+const ON_ROUTE_KM = 50;
+
 const lastFound = new Map<string, { until: number; places: FoundPlace[] }>();
 const FOUND_FOR_MS = 15 * 60_000;
 
@@ -1422,6 +1463,7 @@ const CAR =
 const ONLY_IN_THE_CAR = new Set([
 	'navigate_to',
 	'find_places',
+	'find_on_route',
 	'add_stop',
 	'remove_stop',
 	'where_am_i',

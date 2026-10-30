@@ -16,6 +16,33 @@ describe('parseVoiceRequest', () => {
 		});
 		expect(car?.position).toEqual([-4.02, 39.86]);
 		expect(car?.navigation).toBe('a Zocodover, quedan 2 km');
+		const ahead = (value: unknown, isCar = true) =>
+			parseVoiceRequest({ text: 'x', car: isCar, ahead: value })?.ahead;
+		expect(
+			ahead([
+				[-4, 40],
+				[-3.9, 40]
+			])
+		).toEqual([
+			[-4, 40],
+			[-3.9, 40]
+		]);
+		expect(
+			ahead(
+				[
+					[-4, 40],
+					[-3.9, 40]
+				],
+				false
+			)
+		).toBeNull();
+		expect(ahead([[-4, 40]])).toBeNull();
+		expect(
+			ahead([
+				[-4, 40],
+				[500, 40]
+			])
+		).toBeNull();
 		expect(parseVoiceRequest({ text: 'x', position: [-4.02, 39.86] })?.position).toBeNull();
 		expect(parseVoiceRequest({ text: 'x', car: true, position: [500, 39] })?.position).toBeNull();
 		expect(parseVoiceRequest({ text: 'x', car: true, position: ['a', 1] })?.position).toBeNull();
@@ -44,7 +71,8 @@ describe('parseVoiceRequest', () => {
 			film: null,
 			car: false,
 			position: null,
-			navigation: null
+			navigation: null,
+			ahead: null
 		});
 	});
 
@@ -59,7 +87,8 @@ describe('parseVoiceRequest', () => {
 			film: null,
 			car: false,
 			position: null,
-			navigation: null
+			navigation: null,
+			ahead: null
 		});
 	});
 
