@@ -19,7 +19,9 @@
 	let { data, children }: LayoutProps = $props();
 
 	/** jellycartoon's bar (#253): its sections, each where it is (nav.ts). */
-	const nav = $derived(navLinks(data.webUrl, data.user?.serviceAdmin, data.hasHouse));
+	const nav = $derived(
+		navLinks(data.webUrl, data.user?.serviceAdmin, data.hasHouse, data.family?.kid ?? false)
+	);
 	/** The user's initial, for their round badge (accents and all: «Á» for «Álvaro»). */
 	const initial = $derived([...(data.user?.name.trim() ?? '')][0]?.toLocaleUpperCase('es') ?? '?');
 	let headerHeight = $state(0);
@@ -88,7 +90,7 @@
 	let keyHolding = false;
 
 	function voiceKeyDown(e: KeyboardEvent) {
-		if (!data.user || !isVoiceKey(e)) return;
+		if (!data.user || data.family?.kid || !isVoiceKey(e)) return;
 		e.preventDefault();
 		if (e.repeat || keyHolding) return;
 		// With taps (Ajustes): once to start, once more to send.
@@ -155,83 +157,88 @@ trip's link (#81), for whoever has it. -->
 				userLinks={nav.userLinks}
 			>
 				{#snippet leading()}
-					<a
-						href="/voz"
-						title={micMode.tap
-							? 'Toca para hablar y otra vez para enviar (o Ctrl+Mayús+Espacio) · Mantén pulsado para abrir Hablar'
-							: 'Mantén pulsado para hablar (o Ctrl+Mayús+Espacio) · Pulsa para abrir Hablar'}
-						aria-label="Hablar"
-						aria-current={page.url.pathname === '/voz' ? 'page' : undefined}
-						draggable="false"
-						style="-webkit-touch-callout: none"
-						class={[
-							'-ml-3 shrink-0 touch-none rounded-md p-1 select-none hover:bg-zinc-800 hover:text-white',
-							voice.phase === 'listening'
-								? 'bg-red-500 text-white hover:bg-red-500'
-								: page.url.pathname === '/voz'
-									? 'text-amber-400'
-									: 'text-zinc-400'
-						]}
-						onpointerdown={(e) => {
-							if (e.button !== 0) return;
-							e.currentTarget.setPointerCapture(e.pointerId);
-							pressMic();
-						}}
-						onpointerup={() => releaseMic(false)}
-						onpointercancel={() => releaseMic(true)}
-						onclick={(e) => {
-							// The pointer's own handlers go or talk; only the keyboard (Enter) follows the link.
-							if (e.detail !== 0) e.preventDefault();
-						}}
-						oncontextmenu={(e) => e.preventDefault()}
-					>
-						<svg viewBox="0 0 24 24" class="h-6 w-6" fill="currentColor" aria-hidden="true">
-							<rect x="9" y="2.5" width="6" height="12" rx="3" />
-							<path
-								d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-								stroke-linecap="round"
-							/>
-						</svg>
-					</a>
-					<!-- A receipt's photo for Gastos (#194), at once: on phones and tablets, with their camera; a
-					     PC has the button in Gastos. The photo is read there. As at home. -->
-					{#if data.receipts}
-						<label
-							title="Foto de un ticket, para Gastos"
-							aria-label="Foto de un ticket"
-							class="hidden shrink-0 cursor-pointer rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white pointer-coarse:block"
+					<!-- Not for a child (#303): the voice is the grown-ups'. -->
+					{#if !data.family?.kid}
+						<a
+							href="/voz"
+							title={micMode.tap
+								? 'Toca para hablar y otra vez para enviar (o Ctrl+Mayús+Espacio) · Mantén pulsado para abrir Hablar'
+								: 'Mantén pulsado para hablar (o Ctrl+Mayús+Espacio) · Pulsa para abrir Hablar'}
+							aria-label="Hablar"
+							aria-current={page.url.pathname === '/voz' ? 'page' : undefined}
+							draggable="false"
+							style="-webkit-touch-callout: none"
+							class={[
+								'-ml-3 shrink-0 touch-none rounded-md p-1 select-none hover:bg-zinc-800 hover:text-white',
+								voice.phase === 'listening'
+									? 'bg-red-500 text-white hover:bg-red-500'
+									: page.url.pathname === '/voz'
+										? 'text-amber-400'
+										: 'text-zinc-400'
+							]}
+							onpointerdown={(e) => {
+								if (e.button !== 0) return;
+								e.currentTarget.setPointerCapture(e.pointerId);
+								pressMic();
+							}}
+							onpointerup={() => releaseMic(false)}
+							onpointercancel={() => releaseMic(true)}
+							onclick={(e) => {
+								// The pointer's own handlers go or talk; only the keyboard (Enter) follows the link.
+								if (e.detail !== 0) e.preventDefault();
+							}}
+							oncontextmenu={(e) => e.preventDefault()}
 						>
-							<svg
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="1.75"
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								class="h-6 w-6"
-								aria-hidden="true"
-							>
-								<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />
-								<path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
-								<path d="M12 17.5v-11" />
+							<svg viewBox="0 0 24 24" class="h-6 w-6" fill="currentColor" aria-hidden="true">
+								<rect x="9" y="2.5" width="6" height="12" rx="3" />
+								<path
+									d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+								/>
 							</svg>
-							<input
-								type="file"
-								accept="image/*"
-								capture="environment"
-								class="hidden"
-								onchange={(e) => {
-									const photo = e.currentTarget.files?.[0];
-									e.currentTarget.value = '';
-									if (!photo) return;
-									pendingReceipt.photo = photo;
-									if (page.url.pathname !== '/gastos') void goto('/gastos');
-								}}
-							/>
-						</label>
+						</a>
+						<!-- A receipt's photo for Gastos (#194), at once: on phones and tablets, with their camera; a
+					     PC has the button in Gastos. The photo is read there. As at home. -->
+						{#if data.receipts}
+							<label
+								title="Foto de un ticket, para Gastos"
+								aria-label="Foto de un ticket"
+								class="hidden shrink-0 cursor-pointer rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white pointer-coarse:block"
+							>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.75"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									class="h-6 w-6"
+									aria-hidden="true"
+								>
+									<path
+										d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"
+									/>
+									<path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
+									<path d="M12 17.5v-11" />
+								</svg>
+								<input
+									type="file"
+									accept="image/*"
+									capture="environment"
+									class="hidden"
+									onchange={(e) => {
+										const photo = e.currentTarget.files?.[0];
+										e.currentTarget.value = '';
+										if (!photo) return;
+										pendingReceipt.photo = photo;
+										if (page.url.pathname !== '/gastos') void goto('/gastos');
+									}}
+								/>
+							</label>
+						{/if}
 					{/if}
 				{/snippet}
 				{#snippet below()}

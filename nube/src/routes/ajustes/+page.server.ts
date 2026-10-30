@@ -7,6 +7,13 @@ import { APIError } from 'better-auth/api';
 import QRCode from 'qrcode';
 import type { Actions, PageServerLoad } from './$types';
 import { addPerson, deletePerson, familyPeople, updatePerson } from '#lib/server/agenda/agenda.ts';
+import {
+	familyAdults,
+	familyKids,
+	giveKidAccount,
+	setGuardians,
+	takeKidAccount
+} from '#lib/server/kids.ts';
 import { auth } from '#lib/server/auth.ts';
 import {
 	botStatus,
@@ -87,6 +94,8 @@ export const load: PageServerLoad = async ({ locals, request }) => {
 		satelliteVoice: admin ? await satelliteVoiceOf(k) : null,
 		twoFactor: Boolean(locals.user!.twoFactorEnabled),
 		people: await familyPeople(k),
+		/** The children with an account and who lets each in (#303), and the adults who may. */
+		kids: admin ? { kids: await familyKids(k), adults: await familyAdults(k) } : null,
 		telegramBot: admin ? { bot: await botStatus(membership.familyId) } : null,
 		/** «Entrar con la nube» (#279): its houses' clients, and the cloud's address for their .env. */
 		houseClients: admin ? { clients: await houseClients(request.headers), origin: ORIGIN } : null,
@@ -388,6 +397,40 @@ export const actions: Actions = {
 	deletePerson: async ({ request, locals }) => {
 		const id = Number((await request.formData()).get('id'));
 		await deletePerson(await kitchenOf(locals.user!.id), id);
+	},
+	/** A person without an account, a child's (#303): who lets it in, the adults ticked. */
+	giveKidAccount: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'personProblem');
+		if (denied) return denied;
+		const form = await request.formData();
+		const done = await giveKidAccount(
+			await kitchenOf(locals.user!.id),
+			Number(form.get('id')),
+			form.getAll('guardian').map(String)
+		);
+		if (!done) return fail(400, { personProblem: 'Esa persona ya tiene cuenta o no está' });
+		return { saved: 'kid' };
+	},
+	saveGuardians: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'personProblem');
+		if (denied) return denied;
+		const form = await request.formData();
+		const done = await setGuardians(
+			await kitchenOf(locals.user!.id),
+			String(form.get('kidId') ?? ''),
+			form.getAll('guardian').map(String)
+		);
+		if (!done) return fail(400, { personProblem: 'Ese peque no está' });
+		return { saved: 'kid' };
+	},
+	/** Back to a person without an account: its name, drawing and agenda stay. */
+	takeKidAccount: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'personProblem');
+		if (denied) return denied;
+		const kidId = String((await request.formData()).get('kidId') ?? '');
+		if (!(await takeKidAccount(await kitchenOf(locals.user!.id), kidId)))
+			return fail(400, { personProblem: 'Ese peque no está' });
+		return { saved: 'kid' };
 	},
 	/** Its address (jellycartoon's MEDIA_HOST) and the key made in its Ajustes → Casa → «La nube». */
 	saveHouse: async ({ request, locals }) => {

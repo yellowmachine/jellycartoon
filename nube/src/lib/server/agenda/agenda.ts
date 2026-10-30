@@ -79,10 +79,12 @@ export function agendaPeople(k: Kitchen): Promise<AgendaPerson[]> {
 				id: familyPerson.id,
 				name: sql<string>`coalesce(${user.name}, ${familyPerson.name})`,
 				userId: familyPerson.userId,
-				avatar: familyPerson.avatar
+				avatar: familyPerson.avatar,
+				role: familyMember.role
 			})
 			.from(familyPerson)
 			.leftJoin(user, eq(user.id, familyPerson.userId))
+			.leftJoin(familyMember, eq(familyMember.userId, familyPerson.userId))
 			.orderBy(asc(familyPerson.createdAt), asc(familyPerson.id));
 		return rows
 			.map((r) => {
@@ -90,7 +92,8 @@ export function agendaPeople(k: Kitchen): Promise<AgendaPerson[]> {
 				return {
 					id: String(r.id),
 					name: r.name,
-					kid: !r.userId,
+					// Without an account, or with a child's (#303).
+					kid: !r.userId || r.role === 'peque',
 					emoji: drawing?.emoji ?? null,
 					color: drawing?.color ?? null
 				};
@@ -108,7 +111,8 @@ export function familyPeople(k: Kitchen) {
 				id: familyPerson.id,
 				name: sql<string>`coalesce(${user.name}, ${familyPerson.name})`,
 				avatar: familyPerson.avatar,
-				account: sql<boolean>`${familyPerson.userId} is not null`
+				account: sql<boolean>`${familyPerson.userId} is not null`,
+				userId: familyPerson.userId
 			})
 			.from(familyPerson)
 			.leftJoin(user, eq(user.id, familyPerson.userId))

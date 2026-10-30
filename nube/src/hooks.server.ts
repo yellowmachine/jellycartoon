@@ -5,6 +5,7 @@ import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { auth } from '#lib/server/auth.ts';
 import { startScheduler } from '#lib/server/scheduler.ts';
 import { noteCosts } from '#lib/server/ai-spend.ts';
+import { isKidAccount, kidMayOpen } from '#lib/server/kids.ts';
 
 /**
  * Signing in, Better Auth's own and the health check; and the house's API, with its key, checked
@@ -72,6 +73,12 @@ const session: Handle = async ({ event, resolve }) => {
 	if (session) {
 		event.locals.session = session.session;
 		event.locals.user = session.user;
+		// A child, only where it may (#303): a page elsewhere takes it home; an API says no.
+		const { pathname } = event.url;
+		if (!kidMayOpen(pathname, event.request.method) && (await isKidAccount(session.user.id))) {
+			if (pathname.startsWith('/api/')) return new Response('Forbidden', { status: 403 });
+			redirect(303, '/');
+		}
 	} else if (
 		// `/` alone: the landing page, for whoever has no session.
 		event.url.pathname !== '/' &&

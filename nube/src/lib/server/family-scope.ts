@@ -8,7 +8,7 @@ export type AnyDb = PgDatabase<PgQueryResultHKT, typeof schema>;
 
 export interface Membership {
 	familyId: string;
-	role: 'admin' | 'member';
+	role: 'admin' | 'member' | 'peque';
 }
 
 /**

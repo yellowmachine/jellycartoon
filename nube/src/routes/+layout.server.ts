@@ -40,6 +40,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			return {
 				name: f.name,
 				admin: m.role === 'admin',
+				/** A child's account (#303): its bar has only what it may open (nav.ts). */
+				kid: m.role === 'peque',
 				webUrl: h?.webUrl ?? null,
 				hasHouse: Boolean(h),
 				theme: isTheme(me?.theme) ? me.theme : DEFAULT_THEME,

@@ -42,6 +42,9 @@
 	const tab = $derived(tabs.find((t) => t.id === page.url.searchParams.get('seccion'))?.id ?? 'mi');
 	const day = (d: Date) => d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 	/** The person being changed, or `nueva` for one being added. */
+	/** A child's account (#303), by its user. */
+	const kidOf = (userId: string | null) =>
+		userId ? (data.kids?.kids.find((k) => k.id === userId) ?? null) : null;
 	let editingPerson = $state<number | 'nueva' | null>(null);
 </script>
 
@@ -127,7 +130,8 @@
 			<h2 class="mb-1 font-semibold">Personas</h2>
 			<p class="mb-4 text-sm text-zinc-400">
 				Para quién es cada cosa de la Agenda y cada alarma: los de la familia con cuenta y los
-				peques, que no la tienen. Cada uno con su dibujo.
+				peques. Cada uno con su dibujo. A un peque le puedes dar su cuenta: entra eligiendo su
+				dibujo, sin contraseña, cuando uno de sus mayores le deja, y solo ve su agenda y la nevera.
 			</p>
 			<ul class="mb-4 divide-y divide-zinc-800">
 				{#each data.people as p (p.id)}
@@ -141,7 +145,7 @@
 							<span class="min-w-0 flex-1 truncate"
 								>{p.name}
 								<span class="text-xs text-zinc-500"
-									>{p.account ? '· con cuenta' : '· sin cuenta'}</span
+									>{kidOf(p.userId) ? '· peque' : p.account ? '· con cuenta' : '· sin cuenta'}</span
 								></span
 							>
 							<button
@@ -176,6 +180,73 @@
 								<AvatarPicker chosen={p.avatar} label="Su dibujo" />
 								<button class="{primary} self-start">Guardar</button>
 							</form>
+						{/if}
+						{#if data.kids}
+							{@const kid = kidOf(p.userId)}
+							{#if kid}
+								<!-- A child's account (#303): who lets it in, or back to a person without one. -->
+								<details class="mt-2 text-sm">
+									<summary class="cursor-pointer text-zinc-400">Quién le deja entrar</summary>
+									<form
+										method="post"
+										action="?seccion={tab}&/saveGuardians"
+										use:enhance={() =>
+											async ({ update }) =>
+												update({ reset: false })}
+										class="mt-2 flex flex-col gap-2"
+									>
+										<input type="hidden" name="kidId" value={kid.id} />
+										{#each data.kids.adults as a (a.id)}
+											<label class="flex items-center gap-2">
+												<input
+													type="checkbox"
+													name="guardian"
+													value={a.id}
+													checked={kid.guardians.includes(a.id)}
+												/>
+												{a.name}
+											</label>
+										{/each}
+										<div class="flex flex-wrap gap-2">
+											<button class={secondary}>Guardar</button>
+										</div>
+									</form>
+									<form
+										method="post"
+										action="?seccion={tab}&/takeKidAccount"
+										use:enhance
+										class="mt-3"
+									>
+										<input type="hidden" name="kidId" value={kid.id} />
+										<button class={secondary}>Quitarle la cuenta</button>
+										<span class="ml-2 text-xs text-zinc-500"
+											>Sigue en la familia, con su dibujo y su agenda.</span
+										>
+									</form>
+								</details>
+							{:else if !p.account}
+								<details class="mt-2 text-sm">
+									<summary class="cursor-pointer text-zinc-400">Darle cuenta de peque</summary>
+									<form
+										method="post"
+										action="?seccion={tab}&/giveKidAccount"
+										use:enhance
+										class="mt-2 flex flex-col gap-2"
+									>
+										<input type="hidden" name="id" value={p.id} />
+										<p class="text-xs text-zinc-500">
+											Entra eligiendo su dibujo, sin contraseña, cuando alguno de estos le deja:
+										</p>
+										{#each data.kids.adults as a (a.id)}
+											<label class="flex items-center gap-2">
+												<input type="checkbox" name="guardian" value={a.id} checked />
+												{a.name}
+											</label>
+										{/each}
+										<button class="{primary} self-start">Darle cuenta</button>
+									</form>
+								</details>
+							{/if}
 						{/if}
 					</li>
 				{/each}
