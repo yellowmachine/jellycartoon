@@ -10,10 +10,15 @@
 	 */
 	let { data }: PageProps = $props();
 
-	// The page's own copy: each answer changes it, without loading again.
-	let exercises = $derived(structuredClone($state.snapshot(data.exercises)));
+	// The page's own copy, deeply reactive: each answer changes it, without loading again. Made
+	// again for another homework (a $derived copy would not show changes made inside it).
+	let exercises = $state<typeof data.exercises>([]);
 	/** Where the child is: the first not done, or the end. */
 	let at = $state(-1);
+	$effect.pre(() => {
+		exercises = structuredClone($state.snapshot(data.exercises));
+		at = -1;
+	});
 	$effect(() => {
 		if (at === -1) at = exercises.findIndex((e) => !e.step.done);
 	});
