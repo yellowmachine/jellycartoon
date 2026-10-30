@@ -16,6 +16,7 @@ para_quien: >-
   usa toda la familia desde la tele, el móvil, la tablet o el ordenador.
 repositorio: https://github.com/yellowmachine/jellycartoon
 instalar: https://github.com/yellowmachine/jellycartoon#producción
+instalar_comando: curl -fsSL https://raw.githubusercontent.com/yellowmachine/jellycartoon/main/install.sh | sh
 ---
 
 ## Series y dibujos

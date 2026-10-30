@@ -89,11 +89,26 @@ Usa las imágenes que construye GitHub Actions (`ghcr.io/yellowmachine/jellycart
   (`v1.2.0`) construye `1.2.0`, `1.2` y `stable`, con sus novedades en las notas del release.
 - **`latest`**: cada push a `main`, para probar cambios. Se elige con `IMAGE_TAG=latest` en el `.env`.
 
-En el servidor solo hacen falta `compose.prod.yaml` y un `.env` con:
+### Instalar
+
+En un PC con Linux y Docker (x86_64), en una terminal:
 
 ```sh
-ORIGIN="https://<tu-dominio>"            # URL desde la que se abre la app (la sirve Caddy)
-CF_API_TOKEN="..."                       # token de Cloudflare para el certificado (ver abajo)
+curl -fsSL https://raw.githubusercontent.com/yellowmachine/jellycartoon/main/install.sh | sh
+```
+
+`install.sh` lo deja todo en `~/jellycartoon`: descarga `compose.prod.yaml`, pregunta cómo se llega
+(con el nombre del PC o con un dominio en Cloudflare, ver [Solo en casa](#solo-en-casa)), la
+carpeta de los capítulos y los extras (actualizar cada noche, la voz), escribe el `.env` con sus
+secretos, arranca y dice la dirección exacta. Se puede ejecutar otra vez sin miedo: no pisa ningún
+fichero, y con `.env` solo arranca. En Aurora o Bazzite sin DX (sin Docker) explica cómo pasar a
+DX y para; si el usuario está en el grupo `docker`, avisa (ver «Instalar en casa de otra persona»).
+
+A mano, en el servidor solo hacen falta `compose.prod.yaml` y un `.env` con:
+
+```sh
+ORIGIN="https://<nombre-o-dominio>"      # URL desde la que se abre la app (la sirve Caddy)
+TLS="internal"                           # o sin él, con CF_API_TOKEN: ver «Solo en casa»
 BETTER_AUTH_SECRET="..."                 # openssl rand -base64 32
 HOST_MEDIA_DIR="/ruta/a/los/videos"
 HOST_DATA_DIR="/ruta/a/los/convertidos"
@@ -108,21 +123,19 @@ docker compose -f compose.prod.yaml logs -f app
 - `ORIGIN` se lee al arrancar: la misma imagen sirve en cualquier dirección. Si cambia, edita el
   `.env` y `docker compose -f compose.prod.yaml up -d`.
 - La app solo escucha en `127.0.0.1:3000` del servidor. Delante va Caddy, que la sirve por HTTPS
-  en el dominio de `ORIGIN` (puerto 443). Detrás de un proxy https,
+  en el nombre de `ORIGIN` (puerto 443). Detrás de un proxy https,
   [adapter-node](https://svelte.dev/docs/kit/adapter-node) supone https por defecto, así que no
   hace falta `PROTOCOL_HEADER`.
-- El dominio apunta a la IP de Tailscale del servidor: solo se llega desde la tailnet, pero el
-  nombre lo resuelve cualquier DNS (no depende del DNS de Tailscale, que falla en algunos
-  móviles). Como Let's Encrypt no llega al servidor, el certificado se pide con el reto DNS-01
-  de Cloudflare ([caddy-dns/cloudflare](https://github.com/caddy-dns/cloudflare)); la imagen de
-  Caddy con ese módulo (`Dockerfile.caddy`) la construye GitHub Actions junto a la de la app
-  (`ghcr.io/yellowmachine/jellycartoon-caddy`, mismas etiquetas). Una vez:
-  1. En Cloudflare, un registro `A` del dominio → IP de Tailscale del servidor
-     (`tailscale ip -4`), en modo **DNS only** (sin proxy).
-  2. Un token de API (My Profile → API Tokens) con `Zone.Zone:Read` y `Zone.DNS:Edit` sobre esa
-     zona, en `CF_API_TOKEN`.
-  3. Si estaba Tailscale Serve, liberar el 443: `sudo tailscale serve --https=443 off`.
-  4. `docker compose -f compose.prod.yaml logs -f caddy` hasta ver `certificate obtained successfully`.
+- La app solo se abre en la red de casa. Desde fuera solo se llega a las APIs para otras apps
+  (la música por Subsonic y la de Seilide), por un túnel de rathole: ver
+  [Las APIs desde fuera](#las-apis-desde-fuera-con-rathole).
+- El certificado, con un dominio, lo pide Caddy a Let's Encrypt con el reto DNS-01 de Cloudflare
+  ([caddy-dns/cloudflare](https://github.com/caddy-dns/cloudflare)), porque Let's Encrypt no
+  llega a casa. La imagen de Caddy con ese módulo (`Dockerfile.caddy`) la construye GitHub
+  Actions junto a la de la app (`ghcr.io/yellowmachine/jellycartoon-caddy`, mismas etiquetas). Hace
+  falta un token de API de Cloudflare (My Profile → API Tokens) con `Zone.Zone:Read` y
+  `Zone.DNS:Edit` sobre la zona del dominio, en `CF_API_TOKEN`; la primera vez,
+  `docker compose -f compose.prod.yaml logs -f caddy` hasta ver `certificate obtained successfully`.
 - Si `HOST_DATA_DIR` es una ruta absoluta, cada capítulo convertido tiene un botón ⧉ que copia
   la ruta de su `master.m3u8` para abrirlo en el mismo PC con mpv u otro reproductor
   (`mpv <ruta>`). Por http desde otra IP el navegador no deja copiar: muestra la ruta seleccionada.
@@ -168,7 +181,7 @@ docker compose -f compose.prod.yaml logs -f app
   en Ajustes → Casa → Personas de la casa, adultos y peques, cada una con su dibujo. Un adulto se
   crea sin contraseña: la app da un QR y un enlace, de un solo uso y que vale 48 horas, con el que
   esa persona elige la suya y entra (`/bienvenida`). Se enseña el QR en la pantalla o se manda el
-  enlace por WhatsApp; solo funciona en la wifi de casa o con WireGuard. «Nuevo enlace para entrar»
+  enlace por WhatsApp; solo funciona en la wifi de casa. «Nuevo enlace para entrar»
   hace otro (el anterior deja de valer), también para quien ha olvidado su contraseña. El
   administrador nunca la sabe. `ALLOW_SIGNUP` ya no se usa.
 - "Hoy" usa `TZ` (por defecto `Europe/Madrid`).
@@ -243,13 +256,13 @@ docker compose -f compose.prod.yaml logs -f app
 
 ### Las APIs desde fuera, con rathole
 
-Para que otras apps lleguen desde fuera sin VPN (de momento la música por Subsonic, p. ej.
+Para que otras apps lleguen desde fuera (la música por Subsonic, p. ej.
 [Tempus](https://github.com/eddyizm/tempus)), un túnel [rathole](https://github.com/rapiz1/rathole)
 con un VPS (#253). El túnel es de cada casa, en el VPS que quiera: Seilide no da uno, solo usa la
 dirección que cada familia le da. La casa abre una conexión saliente al VPS, y lo que llega al VPS por un segundo
 nombre (`MEDIA_HOST`, p. ej. `media.<tu-dominio>`) se manda por ella al Caddy de casa **sin
 descifrar**: el certificado es el de casa y el VPS solo lo pasa. Por ese nombre solo se sirve
-`/rest` (Subsonic); el resto de la app da 404 y sigue siendo solo de casa o de la VPN.
+`/rest` (Subsonic); el resto de la app da 404 y sigue siendo solo de casa.
 
 1. En el VPS, el servidor de rathole (`rathole --genkey` para el par de claves, transporte
    `noise`, un servicio `jellycartoon` con su token) y algo que pase el 443 de `MEDIA_HOST` a ese
@@ -302,10 +315,10 @@ MEDIA_URL=https://media.tu-dominio.com MEDIA_KEY=casita_… PERSONA=tu@email bun
 
 y se abre `http://<IP de este PC>:8787` en el móvil.
 
-### Solo en casa (sin Tailscale)
+### Solo en casa
 
-Para una instalación que solo se usa en casa. **Solo funciona conectado a la wifi (o la red) de
-casa: fuera de ella no se llega**, ni con datos móviles. Quien la use debe saberlo.
+La app **solo funciona conectado a la wifi (o la red) de casa: fuera de ella no se llega**, ni con
+datos móviles. Quien la use debe saberlo. Fuera, lo de la familia está en Seilide.
 
 Hace falta HTTPS igualmente: sin él, el navegador no deja usar el micrófono (las órdenes de voz) y
 no guarda la sesión (sus cookies son `Secure`). Hay dos formas de tener un certificado:
@@ -369,13 +382,13 @@ raíz en todos los dispositivos.
 
 #### B. Un dominio que apunta a la IP de casa
 
-Como la instalación con Tailscale, pero el dominio apunta a la IP del PC **en la red de casa**. Desde
+El dominio apunta a la IP del PC **en la red de casa**. Desde
 fuera esa dirección no lleva a ningún sitio (es una IP privada), y en casa da un certificado de
 verdad de Let's Encrypt: no hay que instalar nada en ningún dispositivo.
 
 1. En Cloudflare, un registro `A` del dominio (por ejemplo `jelly.tudominio.es`) → la IP del PC en
    casa (`192.168.1.50`, la de `ip -4 addr`), en modo **DNS only** (sin proxy).
-2. El token de API de Cloudflare, como arriba (`Zone.Zone:Read` y `Zone.DNS:Edit`).
+2. El token de API de Cloudflare (`Zone.Zone:Read` y `Zone.DNS:Edit`, ver [Producción](#producción)).
 3. En el `.env`:
    ```sh
    ORIGIN="https://jelly.tudominio.es"
@@ -1105,8 +1118,7 @@ Environment="OLLAMA_HOST=0.0.0.0"
 sudo systemctl restart ollama
 ```
 
-Ollama no tiene contraseña: así lo puede usar cualquiera de la red de casa (y de la tailnet, si el
-PC está en ella). Si importa, en el cortafuegos se cierra el puerto 11434 menos para las redes de
+Ollama no tiene contraseña: así lo puede usar cualquiera de la red de casa. Si importa, en el cortafuegos se cierra el puerto 11434 menos para las redes de
 Docker (`172.16.0.0/12`). Con ufw, que por defecto lo cierra todo, eso es abrirlo solo para ellas:
 `sudo ufw allow from 172.16.0.0/12 to any port 11434 proto tcp`.
 
@@ -1288,6 +1300,12 @@ dilo en las notas («requiere actualizar el compose»): en cada casa hay que tra
 
 Una imagen nueva (como lo fue `-backup`) puede quedar privada en GitHub la primera vez. Si `pull`
 dice _denied_, en GitHub: Packages → la imagen → Package settings → Change visibility → Public.
+
+## Licencia
+
+[AGPL-3.0-or-later](LICENSE), para todo el repositorio: la casa, `nube/` (Seilide), `packages/` y
+`satellite/`. Se puede usar, cambiar y compartir, también con fines comerciales; quien ofrezca una
+versión modificada a otros, también por la red (un Seilide propio), tiene que publicar su código.
 
 ## Pendiente
 

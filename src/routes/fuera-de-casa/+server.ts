@@ -43,7 +43,7 @@ export const GET: RequestHandler = async () => {
 <main>
 	<div class="drawing">${drawing}</div>
 	<h1>Estás fuera de casa</h1>
-	<p>JellyCartoon solo se abre en la wifi de casa o con la VPN (WireGuard) encendida.</p>
+	<p>JellyCartoon solo se abre en la wifi de casa.</p>
 	${cloud ? '<p>Fuera, lo tuyo está en Seilide: series, música, la agenda, los gastos…</p>' : ''}
 	<div class="links">
 		${cloud ? `<a class="main" href="${escape(cloud)}">Ir a Seilide</a>` : ''}

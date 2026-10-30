@@ -29,7 +29,7 @@
 # MEDIA_HOST (optional): a second name, reached from outside through the rathole tunnel (the
 # `tunel` profile in compose.prod.yaml, #253). It serves only the APIs for other apps: Subsonic
 # (/rest, e.g. Tempus) and the video one for the cloud (/api/v1); the rest of the app stays at
-# home and on WireGuard.
+# home.
 {$ORIGIN} {$MEDIA_HOST} {
 	import tls-{$TLS:cloudflare}
 

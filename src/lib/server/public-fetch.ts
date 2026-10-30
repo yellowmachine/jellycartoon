@@ -16,7 +16,7 @@ const blocked = new BlockList();
 for (const [net, prefix] of [
 	['0.0.0.0', 8],
 	['10.0.0.0', 8],
-	// Carrier-grade NAT: Tailscale's addresses, the salon's among them.
+	// Carrier-grade NAT, also VPNs' (Tailscale's).
 	['100.64.0.0', 10],
 	['127.0.0.0', 8],
 	['169.254.0.0', 16],
