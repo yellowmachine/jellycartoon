@@ -206,6 +206,30 @@
 							)} km/h de media{t.maxSpeed ? ` · máx. ${Math.round(t.maxSpeed * 3.6)} km/h` : ''}
 						</span>
 					</button>
+					<!-- The car it went in (#317), with a car in Ajustes → Casa. -->
+					{#if data.cars.length}
+						<form
+							method="post"
+							action="?/setCar"
+							use:enhance={() =>
+								async ({ update }) =>
+									update({ reset: false })}
+						>
+							<input type="hidden" name="id" value={t.id} />
+							<select
+								name="car"
+								aria-label="Coche"
+								value={t.carId ?? ''}
+								onchange={(e) => e.currentTarget.form?.requestSubmit()}
+								class="rounded-md border-zinc-700 bg-zinc-900 py-0.5 text-sm"
+							>
+								<option value="">Sin coche</option>
+								{#each data.cars as c (c.id)}
+									<option value={c.id}>🚗 {c.name}</option>
+								{/each}
+							</select>
+						</form>
+					{/if}
 					<form method="post" action="?/delete" use:enhance>
 						<input type="hidden" name="id" value={t.id} />
 						<button class="text-sm text-zinc-500 hover:text-red-400">Borrar</button>

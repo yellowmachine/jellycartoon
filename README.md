@@ -103,6 +103,9 @@ carpeta de los capítulos y los extras (actualizar cada noche, la voz), escribe 
 secretos, arranca y dice la dirección exacta. Se puede ejecutar otra vez sin miedo: no pisa ningún
 fichero, y con `.env` solo arranca. En Aurora o Bazzite sin DX (sin Docker) explica cómo pasar a
 DX y para; si el usuario está en el grupo `docker`, avisa (ver «Instalar en casa de otra persona»).
+Y en el crontab de ese usuario, una vez, los domingos a las 5:00, borra las imágenes de Docker que
+dejan las actualizaciones (`docker image prune -f --filter until=168h`, solo las de hace más de una
+semana): cada una son unos 2 GB, y ni Docker ni WUD las borran.
 
 A mano, en el servidor solo hacen falta `compose.prod.yaml` y un `.env` con:
 

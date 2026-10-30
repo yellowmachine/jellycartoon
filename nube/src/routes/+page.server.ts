@@ -8,6 +8,7 @@ import { kitchenOf } from '#lib/server/fridge.ts';
 import { homeOf, homeWeather } from '#lib/server/home.ts';
 import { continueWatching } from '#lib/server/series.ts';
 import { nextTrip } from '#lib/server/trips/planned.ts';
+import { myCar } from '#lib/server/trips/cars.ts';
 import { askForAccess } from '#lib/server/waitlist.ts';
 import { EMAIL } from '#lib/invitation.ts';
 
@@ -37,6 +38,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 			weather: homeWeather(k).catch(() => null),
 			trip: nextTrip(k).catch((error) => {
 				console.warn('[portada] Sin el próximo viaje', String(error));
+				return null;
+			}),
+			car: myCar(k).catch((error) => {
+				console.warn('[portada] Sin el coche', String(error));
 				return null;
 			}),
 			watching: house ? continueWatching(who).catch(() => []) : Promise.resolve([])

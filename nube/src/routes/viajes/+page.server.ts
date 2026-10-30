@@ -33,6 +33,8 @@ import {
 	routeMapsOf
 } from '#lib/server/trips/route-maps.ts';
 import { isDeviceId } from 'comun/route-maps.ts';
+import { listCars, myCarId, parkCar } from '#lib/server/trips/cars.ts';
+import { MAX_CAR_NOTE } from '#lib/cars.ts';
 import { fold } from 'comun/music.ts';
 import { isLngLat } from 'comun/road.ts';
 import { MAX_STOPS, type RouteStop } from 'comun/saved-places.ts';
@@ -66,7 +68,7 @@ function nameOf(form: FormData, used: { id: number; name: string }[], id: number
  */
 export const load: PageServerLoad = async ({ locals }) => {
 	const k = await kitchenOf(locals.user!.id);
-	const [planned, people, map, places, routes, routeMaps] = await Promise.all([
+	const [planned, people, map, places, routes, routeMaps, cars, myCar] = await Promise.all([
 		listPlannedTrips(k),
 		agendaPeople(k),
 		access(path.join(MAP_DIR, 'espana.pmtiles')).then(
@@ -75,7 +77,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 		),
 		listSavedPlaces(k),
 		listSavedRoutes(k),
-		routeMapsOf(k)
+		routeMapsOf(k),
+		listCars(k),
+		myCarId(k)
 	]);
 	return {
 		planned,
@@ -84,7 +88,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 		map,
 		places,
 		routes,
-		routeMaps
+		routeMaps,
+		cars,
+		myCar
 	};
 };
 
@@ -112,6 +118,22 @@ async function legStops(form: FormData, k: Awaited<ReturnType<typeof kitchenOf>>
 }
 
 export const actions: Actions = {
+	/** «Aquí y ahora» (#317): the car is where this phone is. */
+	park: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = Number(form.get('id'));
+		const at = [Number(form.get('lon')), Number(form.get('lat'))];
+		if (!Number.isInteger(id)) return fail(400, { car: 'Coche no válido' });
+		if (!isLngLat(at)) return fail(400, { car: 'Falta dónde estás' });
+		const accuracy = Number(form.get('accuracy'));
+		const note =
+			String(form.get('note') ?? '')
+				.trim()
+				.slice(0, MAX_CAR_NOTE) || null;
+		const k = await kitchenOf(locals.user!.id);
+		if (!(await parkCar(k, id, at, Number.isFinite(accuracy) ? accuracy : null, note)))
+			return fail(404, { car: 'Ese coche ya no está' });
+	},
 	/** A new trip, or its name, who goes and «Solo para mí». */
 	saveTrip: async ({ request, locals }) => {
 		const form = await request.formData();

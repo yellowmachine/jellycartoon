@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Cars from '#lib/components/Cars.svelte';
 	import PlannedTrips from '#lib/components/PlannedTrips.svelte';
 	import RouteMaps from '#lib/components/RouteMaps.svelte';
 	import SavedPlaces from '#lib/components/SavedPlaces.svelte';
@@ -26,6 +27,16 @@
 	>
 </div>
 <ViajesTabs current="proximos" />
+
+<!-- Only with a car in Ajustes → Casa (#317). -->
+{#if data.cars.length}
+	<Cars
+		cars={data.cars}
+		mine={data.myCar}
+		map={data.map}
+		problem={form && 'car' in form ? (form.car ?? null) : null}
+	/>
+{/if}
 
 <PlannedTrips
 	trips={data.planned}

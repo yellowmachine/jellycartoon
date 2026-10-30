@@ -83,6 +83,9 @@ import {
 	saveHouse
 } from '#lib/server/house.ts';
 import { recordsTrips, setRecordTrips } from '#lib/server/trips/trips.ts';
+import { deleteCar, listCars, myCarId, saveCar, setMyCar } from '#lib/server/trips/cars.ts';
+import { MAX_CAR_NAME } from '#lib/cars.ts';
+import { fold } from 'comun/music.ts';
 import { subtitleStyleOf } from '#lib/server/subtitles.ts';
 
 export const load: PageServerLoad = async ({ locals, request, cookies }) => {
@@ -133,6 +136,9 @@ export const load: PageServerLoad = async ({ locals, request, cookies }) => {
 		myStyle: { text: (await personVoiceStyle(k, locals.user!.id)) ?? '' },
 		/** Whether the road mode keeps their trips (Viajes). */
 		recordTrips: await recordsTrips(k),
+		/** The family's cars (#317), and theirs. */
+		cars: (await listCars(k)).map(({ id, name }) => ({ id, name })),
+		myCar: await myCarId(k),
 		/** The AI's spending under the header (#193); null without the family's key. */
 		spendLine: (await openRouterKey(k))
 			? await withFamily(locals.user!.id, async (tx) => {
@@ -230,6 +236,35 @@ export const actions: Actions = {
 		const on = (await request.formData()).get('recordTrips') === 'on';
 		await setRecordTrips(await kitchenOf(locals.user!.id), on);
 		return { saved: 'recordTrips' };
+	},
+	/** A car (#317): a new one, or its new name; not one already there. */
+	saveCar: async ({ request, locals }) => {
+		const form = await request.formData();
+		const k = await kitchenOf(locals.user!.id);
+		const raw = form.get('id');
+		const id = raw ? Number(raw) : null;
+		if (id !== null && !Number.isInteger(id)) return fail(400, { carProblem: 'Coche no válido' });
+		const name = String(form.get('name') ?? '')
+			.trim()
+			.replace(/\s+/g, ' ')
+			.slice(0, MAX_CAR_NAME);
+		if (!name) return fail(400, { carProblem: 'Falta el nombre del coche' });
+		if ((await listCars(k)).some((c) => c.id !== id && fold(c.name) === fold(name)))
+			return fail(400, { carProblem: `Ya hay uno que se llama «${name}»` });
+		await saveCar(k, id, name);
+	},
+	deleteCar: async ({ request, locals }) => {
+		const id = Number((await request.formData()).get('id'));
+		if (!Number.isInteger(id)) return fail(400, { carProblem: 'Coche no válido' });
+		await deleteCar(await kitchenOf(locals.user!.id), id);
+	},
+	/** «El tuyo»: the car their trips go in, and the one on their home page. */
+	myCar: async ({ request, locals }) => {
+		const raw = (await request.formData()).get('car');
+		const id = raw ? Number(raw) : null;
+		if (id !== null && !Number.isInteger(id)) return fail(400, { carProblem: 'Coche no válido' });
+		await setMyCar(await kitchenOf(locals.user!.id), id);
+		return { saved: 'myCar' };
 	},
 	/** «Mostrar el gasto en IA bajo la cabecera». */
 	spendLine: async ({ request, locals }) => {
