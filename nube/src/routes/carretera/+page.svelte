@@ -501,7 +501,23 @@
 		if (!destination || !here) return void go(place);
 		if (via.length >= MAX_STOPS) return void (routeProblem = `Como mucho, ${MAX_STOPS} paradas`);
 		const stop = { name: place.label, at: place.at, reason };
-		void go(destination, 'stops', insertStop(via, stop, here, destination.at));
+		void withStops(insertStop(via, stop, here, destination.at));
+	}
+
+	/**
+	 * The same end through other stops, and what it changes said aloud: «6 minutos más; llegas a
+	 * Alicante hacia las 13:40». Driving only, not counting the time stopped.
+	 */
+	async function withStops(stops: WayStop[]) {
+		const end = destination!;
+		const before = eta?.arrival.getTime() ?? null;
+		if (!(await go(end, 'stops', stops)) || before === null || !eta) return;
+		const minutes = Math.round((eta.arrival.getTime() - before) / 60_000);
+		const change =
+			minutes === 0
+				? 'Casi sin desvío'
+				: `${Math.abs(minutes)} ${Math.abs(minutes) === 1 ? 'minuto' : 'minutos'} ${minutes > 0 ? 'más' : 'menos'}`;
+		say(`${change}; llegas a ${shortName(end.label)} hacia las ${clock.format(eta.arrival)}`);
 	}
 
 	/** One out by its name as said (or the only one there is), or all of them with null. */
@@ -510,11 +526,7 @@
 		const gone =
 			name === null ? null : (findByName(via, name) ?? (via.length === 1 ? via[0] : null));
 		if (name !== null && !gone) return;
-		void go(
-			destination,
-			'stops',
-			via.filter((s) => gone !== null && s !== gone)
-		);
+		void withStops(via.filter((s) => gone !== null && s !== gone));
 	}
 
 	/**
@@ -1040,7 +1052,7 @@ home. -->
 >
 	{#if mapShown}
 		<div class="relative h-full min-h-0">
-			<RoadMap {route} destination={destination?.at ?? null} onposition={positioned} />
+			<RoadMap {route} destination={destination?.at ?? null} stops={via} onposition={positioned} />
 			{@render maneuver('absolute inset-x-3 top-3')}
 			{@render searchBox()}
 			<!-- Out of the way of the next maneuver, at the top; «Mapa» brings it back. -->
@@ -1302,7 +1314,12 @@ home. -->
 					? 'relative h-[45dvh] shrink-0 short:h-[75dvh]'
 					: 'h-0 overflow-hidden'}
 			>
-				<RoadMap {route} destination={destination?.at ?? null} onposition={positioned} />
+				<RoadMap
+					{route}
+					destination={destination?.at ?? null}
+					stops={via}
+					onposition={positioned}
+				/>
 				{@render maneuver('absolute inset-x-3 top-3')}
 				{@render searchBox()}
 			</div>
