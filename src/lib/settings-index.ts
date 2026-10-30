@@ -184,7 +184,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		id: 'modelos',
 		tab: 'casa',
 		title: 'Modelos',
-		words: 'modelo ia películas escenas voz deberes conversar visión',
+		words: 'modelo ia películas escenas voz conversar visión',
 		shown: (d) => Boolean(d.ai)
 	},
 	{

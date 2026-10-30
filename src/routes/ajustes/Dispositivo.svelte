@@ -42,7 +42,7 @@
 	{#if !data.kid}
 		<PushNotices
 			about={page.data.guardian
-				? 'cuando un peque quiera entrar en un dispositivo de la casa o termine los deberes, y para entrar con tu cuenta en un aparato de la casa'
+				? 'cuando un peque quiera entrar en un dispositivo de la casa, y para entrar con tu cuenta en un aparato de la casa'
 				: 'para entrar con tu cuenta en un aparato de la casa'}
 		/>
 	{/if}

@@ -12,8 +12,6 @@ import {
 	DEFAULT_MODEL,
 	DEFAULT_VISION_MODEL,
 	DEFAULT_VOICE_MODEL,
-	DEFAULT_HOMEWORK_MODEL,
-	homeworkModel,
 	isAdmin,
 	openRouterConfig,
 	openRouterManagementKey,
@@ -180,13 +178,12 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		};
 		/** What the vision model looks for in episodes: only with Ollama (OLLAMA_URL). */
 		if (labellingEnabled) labels = { sets: await labelSets(), model: LABEL_MODEL };
-		const [config, chat, vision, voice, homework, kidAccounts, grownUps, devices, here, house] =
+		const [config, chat, vision, voice, kidAccounts, grownUps, devices, here, house] =
 			await Promise.all([
 				openRouterConfig(),
 				chatConfig(),
 				visionModel(),
 				voiceModel(),
-				homeworkModel(),
 				kidProfiles(),
 				adults(),
 				trustedDevices(),
@@ -219,8 +216,6 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 			voice: voiceEnabled,
 			voiceModel: voice,
 			defaultVoiceModel: DEFAULT_VOICE_MODEL,
-			homeworkModel: homework,
-			defaultHomeworkModel: DEFAULT_HOMEWORK_MODEL,
 			/** Streamed: OpenRouter answering slowly does not hold up the page. */
 			balance: keyBalance()
 		};
@@ -949,9 +944,7 @@ export const actions: Actions = {
 					? (['openrouter_vision_model', 'visionModel'] as const)
 					: use === 'voice'
 						? (['openrouter_voice_model', 'voiceModel'] as const)
-						: use === 'homework'
-							? (['openrouter_homework_model', 'homeworkModel'] as const)
-							: (['openrouter_model', 'model'] as const);
+						: (['openrouter_model', 'model'] as const);
 		await setAppSetting(key, model || null);
 		return { saved };
 	},

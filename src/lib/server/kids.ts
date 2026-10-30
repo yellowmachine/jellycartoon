@@ -146,9 +146,6 @@ const KIDS_ROUTES: Record<string, { id?: Check; actions?: string[]; methods?: st
 	'/api/movie-frame/[id]/[at]': { id: 'movie' },
 	'/api/movie-clip/[id]/[at]': { id: 'movie' },
 	'/api/health': {},
-	// Homework (#142): their own, checked by the page and the endpoint.
-	'/deberes/[id]': {},
-	'/api/deberes/[id]': { methods: ['POST'] },
 	'/api/progress': {},
 	'/api/sigues-ahi': {},
 	'/api/settings': {},
