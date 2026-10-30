@@ -5,15 +5,19 @@ import { kitchenOf } from '#lib/server/fridge.ts';
 import { markDose } from '#lib/server/medication.ts';
 
 /**
- * «✓ Tomada» in a dose's notice (#308), from the service worker with the session's cookie: that
- * dose, marked by whoever's phone it is. A child cannot (hooks.server.ts).
+ * «✓ Tomada» in a notice (#308), from the service worker with the session's cookie: its doses
+ * (one person's at one time, `id` once for each), marked by whoever's phone it is. A child cannot
+ * (hooks.server.ts).
  */
 export const POST: RequestHandler = async ({ url, locals }) => {
 	const day = url.searchParams.get('dia');
 	const time = url.searchParams.get('hora');
 	if (!isDay(day) || !isTime(time)) error(400, 'Toma no válida');
 	const k = await kitchenOf(locals.user!.id);
-	if (!(await markDose(k, Number(url.searchParams.get('id')), day, time, true)))
-		error(404, 'Esa toma ya no está');
+	const ids = url.searchParams.getAll('id').map(Number);
+	if (!ids.length) error(400, 'Toma no válida');
+	let marked = 0;
+	for (const id of ids) if (await markDose(k, id, day, time, true)) marked++;
+	if (!marked) error(404, 'Esa toma ya no está');
 	return new Response(null, { status: 204 });
 };
