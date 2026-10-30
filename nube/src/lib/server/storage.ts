@@ -4,6 +4,7 @@ import {
 	DeleteObjectCommand,
 	GetObjectCommand,
 	HeadBucketCommand,
+	ListObjectsV2Command,
 	PutObjectCommand,
 	S3Client
 } from '@aws-sdk/client-s3';
@@ -106,6 +107,23 @@ export async function readFile(familyId: string, area: string, name: string) {
 	} catch {
 		return null;
 	}
+}
+
+/** The names in a family's area (S3 lists a thousand at a time: followed to the end). */
+export async function listFiles(familyId: string, area: string) {
+	const s3 = await storage();
+	const prefix = `familias/${familyId}/${area}/`;
+	const names: string[] = [];
+	let token: string | undefined;
+	do {
+		const page = await s3.send(
+			new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: prefix, ContinuationToken: token })
+		);
+		for (const object of page.Contents ?? [])
+			if (object.Key) names.push(object.Key.slice(prefix.length));
+		token = page.IsTruncated ? page.NextContinuationToken : undefined;
+	} while (token);
+	return names;
 }
 
 /** As a page's response: the family's file, kept a while in the browser (it does not change). */

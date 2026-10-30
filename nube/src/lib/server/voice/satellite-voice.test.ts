@@ -14,8 +14,12 @@ const asked: { voice: string; input: string; instructions?: string }[] = [];
 /** How many were being said at once, at most. */
 let inFlight = 0;
 let mostInFlight = 0;
+/** Set, OpenRouter says no with it. */
+let failWith: string | null = null;
 mock.module('#lib/server/openrouter.ts', () => ({
+	sayableError: (message: string) => message,
 	speech: async (r: { voice: string; input: string; instructions?: string }) => {
+		if (failWith) throw new Error(failWith);
 		asked.push(r);
 		mostInFlight = Math.max(mostInFlight, ++inFlight);
 		await new Promise((resolve) => setTimeout(resolve, 5));
@@ -33,11 +37,24 @@ mock.module('#lib/server/storage.ts', () => ({
 	readFile: async (familyId: string, area: string, name: string) =>
 		files.get(`${familyId}/${area}/${name}`) ?? null,
 	removeFile: async (familyId: string, area: string, name: string) =>
-		void files.delete(`${familyId}/${area}/${name}`)
+		void files.delete(`${familyId}/${area}/${name}`),
+	listFiles: async (familyId: string, area: string) =>
+		[...files.keys()]
+			.filter((key) => key.startsWith(`${familyId}/${area}/`))
+			.map((key) => key.slice(`${familyId}/${area}/`.length))
 }));
 
-const { fillerSpeech, satelliteSpeech, satelliteVoiceOf, setSatelliteVoice, warmFillers } =
-	await import('./satellite-voice.ts');
+const phraseFiles = () => [...files.keys()].filter((name) => name.startsWith('A/frases-espera/'));
+
+const {
+	fillerSpeech,
+	phrasesState,
+	satelliteSpeech,
+	satelliteVoiceOf,
+	setSatelliteVoice,
+	startFillers,
+	warmFillers
+} = await import('./satellite-voice.ts');
 
 const db = drizzle(new PGlite(), { schema });
 const k: Kitchen = { familyId: 'A', userId: null, run: (fn) => db.transaction((tx) => fn(tx)) };
@@ -99,7 +116,7 @@ describe('the satellites voice', () => {
 	test('the phrases kept in the family files: said from there after a restart', async () => {
 		await setSatelliteVoice(k, null, { voice: 'Kore', tone: '', fillers: 'Ahí voy.' });
 		await warmFillers(k, 'clave');
-		expect([...files.keys()].filter((name) => name.startsWith('A/frases-espera/'))).toHaveLength(1);
+		expect(phraseFiles()).toHaveLength(1);
 		// The module again, with nothing in memory: as after a deploy.
 		const restarted: typeof import('./satellite-voice.ts') = await import(
 			`./satellite-voice.ts?${'reinicio'}`
@@ -112,6 +129,38 @@ describe('the satellites voice', () => {
 	test('changing the phrases deletes the recordings of those gone', async () => {
 		await setSatelliteVoice(k, null, { voice: 'Kore', tone: '', fillers: 'Ya casi.' });
 		await warmFillers(k, 'clave');
-		expect([...files.keys()].filter((name) => name.startsWith('A/frases-espera/'))).toHaveLength(1);
+		expect(phraseFiles()).toHaveLength(1);
+	});
+
+	test('each voice kept: going back to one, from its files', async () => {
+		await setSatelliteVoice(k, null, { voice: 'Leda', tone: '', fillers: 'Ya casi.' });
+		await warmFillers(k, 'clave');
+		expect(phraseFiles()).toHaveLength(2);
+		await setSatelliteVoice(k, null, { voice: 'Kore', tone: '', fillers: 'Ya casi.' });
+		asked.length = 0;
+		await warmFillers(k, 'clave');
+		expect(asked).toHaveLength(0);
+		expect((await phrasesState(k)).map((p) => p.state)).toEqual(['ready']);
+	});
+
+	test('a phrase taken out, out in every voice; and those named as before', async () => {
+		files.set('A/frases-espera/0123456789abcdef0123456789abcdef.wav', new Uint8Array(4));
+		await setSatelliteVoice(k, null, { voice: 'Kore', tone: '', fillers: 'Otra.' });
+		expect(phraseFiles()).toHaveLength(0);
+	});
+
+	test('how they are: failed and why, being recorded, ready', async () => {
+		await setSatelliteVoice(k, null, { voice: 'Kore', tone: '', fillers: 'Falla.' });
+		expect((await phrasesState(k))[0].state).toBe('missing');
+		failWith = 'No queda saldo en OpenRouter';
+		await warmFillers(k, 'clave');
+		expect(await phrasesState(k)).toEqual([
+			{ text: 'Falla.', state: 'failed', problem: 'No queda saldo en OpenRouter' }
+		]);
+		failWith = null;
+		const { done } = await startFillers(k, 'clave');
+		expect((await phrasesState(k))[0].state).toBe('recording');
+		await done;
+		expect((await phrasesState(k))[0]).toMatchObject({ state: 'ready', problem: null });
 	});
 });

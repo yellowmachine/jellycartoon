@@ -10,8 +10,8 @@ import { writeWav } from 'comun/wav.ts';
 import { createHash } from 'node:crypto';
 import { familySettings } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
-import { speech } from '#lib/server/openrouter.ts';
-import { putFile, readFile, removeFile, storageReady } from '#lib/server/storage.ts';
+import { sayableError, speech } from '#lib/server/openrouter.ts';
+import { listFiles, putFile, readFile, removeFile, storageReady } from '#lib/server/storage.ts';
 
 /**
  * How the satellites Seilide serves speak (#296), chosen in Ajustes → Familia: one of Gemini's
@@ -45,7 +45,6 @@ export async function setSatelliteVoice(
 	apiKey: string | null,
 	input: { voice: string; tone: string; fillers: string }
 ) {
-	const before = await satelliteVoiceOf(k);
 	const set = {
 		satelliteVoice: {
 			voice: isAiVoice(input.voice) ? input.voice : AI_VOICE.voice,
@@ -59,17 +58,30 @@ export async function setSatelliteVoice(
 			.values({ familyId: k.familyId, ...set })
 			.onConflictDoUpdate({ target: familySettings.familyId, set })
 	);
-	const after = await satelliteVoiceOf(k);
-	const kept = new Set(after.fillers.map((text) => phraseFile(after, text)));
-	for (const gone of before.fillers.map((text) => phraseFile(before, text)))
-		if (!kept.has(gone)) void forgetPhrase(k, gone);
-	if (apiKey) void warmFillers(k, apiKey);
+	await forgetGonePhrases(k);
+	if (apiKey) await startFillers(k, apiKey);
 }
 
-/** Where a phrase is kept, in the family's files: by voice, tone and text. */
+/**
+ * Where a phrase is kept, in the family's files: by its text, then voice and tone. Each voice's
+ * kept (#301): going back to one is at once, and free; a phrase taken out, all of its voices out.
+ */
 const PHRASES = 'frases-espera';
+const hash = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 16);
 const phraseFile = (voice: SatelliteVoice, text: string) =>
-	`${createHash('sha256').update(`${voice.voice}|${voice.tone}|${text}`).digest('hex').slice(0, 32)}.wav`;
+	`${hash(text)}-${hash(`${voice.voice}|${voice.tone}`)}.wav`;
+
+/** Those of phrases no longer there (and the ones named as before v2.16.4, by all in one). */
+async function forgetGonePhrases(k: Kitchen) {
+	if (!storageReady) return;
+	try {
+		const texts = new Set((await satelliteVoiceOf(k)).fillers.map(hash));
+		for (const name of await listFiles(k.familyId, PHRASES))
+			if (!texts.has(name.split('-')[0])) await forgetPhrase(k, name);
+	} catch (err) {
+		console.warn('[voz] No se pudieron borrar las frases de espera viejas', String(err));
+	}
+}
 
 /** Its recording, if kept; null without one (or without storage, or failing: recorded again). */
 async function storedPhrase(k: Kitchen, voice: SatelliteVoice, text: string) {
@@ -95,6 +107,9 @@ async function forgetPhrase(k: Kitchen, name: string) {
 	if (!storageReady) return;
 	await removeFile(k.familyId, PHRASES, name).catch(() => {});
 }
+
+/** The phrases that could not be recorded, by `saidKey`: why, said (until one is). */
+const failed = new Map<string, string>();
 
 /** Said, by family, voice, tone and text; `done` once it is there, to say it at once. */
 const said = new Map<string, { wav: Promise<Uint8Array<ArrayBuffer>>; done: boolean }>();
@@ -168,9 +183,16 @@ async function make(
 	if (answer) return record(k, apiKey, voice, text, true);
 	const stored = await storedPhrase(k, voice, text);
 	if (stored) return stored;
-	const wav = await record(k, apiKey, voice, text, false);
-	await keepPhrase(k, voice, text, wav);
-	return wav;
+	const key = saidKey(k, voice, text);
+	try {
+		const wav = await record(k, apiKey, voice, text, false);
+		failed.delete(key);
+		await keepPhrase(k, voice, text, wav);
+		return wav;
+	} catch (err) {
+		failed.set(key, sayableError(err instanceof Error ? err.message : String(err)));
+		throw err;
+	}
 }
 
 function say(k: Kitchen, apiKey: string, voice: SatelliteVoice, text: string, answer: boolean) {
@@ -228,8 +250,45 @@ export async function fillerSpeech(k: Kitchen, apiKey: string) {
 	return null;
 }
 
-/** All of them recorded beforehand, so that they sound at once: after choosing them, one by one. */
-export async function warmFillers(k: Kitchen, apiKey: string) {
+/**
+ * All of them being recorded, one by one (those kept, read): once this is back, `phrasesState`
+ * says so; `done`, when they are.
+ */
+export async function startFillers(k: Kitchen, apiKey: string) {
 	const voice = await satelliteVoiceOf(k);
-	await Promise.allSettled(voice.fillers.map((text) => say(k, apiKey, voice, text, false).wav));
+	const all = voice.fillers.map((text) => say(k, apiKey, voice, text, false).wav);
+	return { done: Promise.allSettled(all) };
+}
+
+/** All of them recorded beforehand, so that they sound at once: after choosing them. */
+export async function warmFillers(k: Kitchen, apiKey: string) {
+	await (
+		await startFillers(k, apiKey)
+	).done;
+}
+
+export type PhraseState = 'ready' | 'recording' | 'failed' | 'missing';
+
+/**
+ * How the family's phrases are, for Ajustes (#301): each one recorded (here, or kept in its
+ * files), being recorded, failed (and why), or not yet.
+ */
+export async function phrasesState(k: Kitchen) {
+	const voice = await satelliteVoiceOf(k);
+	const kept = new Set(
+		storageReady ? await listFiles(k.familyId, PHRASES).catch(() => [] as string[]) : []
+	);
+	return voice.fillers.map((text) => {
+		const key = saidKey(k, voice, text);
+		const entry = said.get(key);
+		const state: PhraseState =
+			entry?.done || kept.has(phraseFile(voice, text))
+				? 'ready'
+				: entry
+					? 'recording'
+					: failed.has(key)
+						? 'failed'
+						: 'missing';
+		return { text, state, problem: state === 'failed' ? failed.get(key)! : null };
+	});
 }
