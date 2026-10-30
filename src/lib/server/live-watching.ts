@@ -1,6 +1,13 @@
 import { eq, inArray } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { episode, episodeTitle, movie, movieTitle, series } from '#lib/server/db/schema.ts';
+import {
+	episode,
+	episodeTitle,
+	movie,
+	movieTitle,
+	series,
+	tvShortcut
+} from '#lib/server/db/schema.ts';
 import { CHANNELS } from 'comun/channels.ts';
 
 /**
@@ -14,7 +21,8 @@ const STALE_MS = 60_000;
 /** Without moving for longer, it is paused. */
 const STILL_MS = 20_000;
 
-type Target = { episodeId: number } | { movieId: number } | { channelId: string };
+type Target =
+	{ episodeId: number } | { movieId: number } | { channelId: string } | { shortcutId: number };
 
 interface Live {
 	target: Target;
@@ -115,7 +123,7 @@ export function stoppedLately(userIds: string[]) {
 
 export interface WatchingNow {
 	userId: string;
-	kind: 'episode' | 'film' | 'channel';
+	kind: 'episode' | 'film' | 'channel' | 'shortcut';
 	title: string;
 	/** The series and its number, «Película» or «En directo». */
 	detail: string;
@@ -142,7 +150,8 @@ export async function watchingNow(userIds: string[]): Promise<WatchingNow[]> {
 	});
 	const episodeIds = fresh.flatMap((f) => ('episodeId' in f.target ? [f.target.episodeId] : []));
 	const movieIds = fresh.flatMap((f) => ('movieId' in f.target ? [f.target.movieId] : []));
-	const [episodes, films] = await Promise.all([
+	const shortcutIds = fresh.flatMap((f) => ('shortcutId' in f.target ? [f.target.shortcutId] : []));
+	const [episodes, films, shortcuts] = await Promise.all([
 		episodeIds.length
 			? db
 					.select({
@@ -162,6 +171,12 @@ export async function watchingNow(userIds: string[]): Promise<WatchingNow[]> {
 					.select({ id: movie.id, title: movieTitle })
 					.from(movie)
 					.where(inArray(movie.id, movieIds))
+			: [],
+		shortcutIds.length
+			? db
+					.select({ id: tvShortcut.id, name: tvShortcut.name })
+					.from(tvShortcut)
+					.where(inArray(tvShortcut.id, shortcutIds))
 			: []
 	]);
 	return fresh.flatMap((f): WatchingNow[] => {
@@ -202,6 +217,23 @@ export async function watchingNow(userIds: string[]): Promise<WatchingNow[]> {
 					href: `/cine/${id}`,
 					positionSec: f.positionSec,
 					mirror: { movieId: id }
+				}
+			];
+		}
+		if ('shortcutId' in f.target) {
+			const id = f.target.shortcutId;
+			const shortcut = shortcuts.find((s) => s.id === id);
+			if (!shortcut) return [];
+			// A site of elsewhere, in its window on the TV (#327): nothing to mirror.
+			return [
+				{
+					...common,
+					kind: 'shortcut',
+					title: shortcut.name,
+					detail: 'Acceso directo de la tele',
+					href: '/tv',
+					positionSec: null,
+					mirror: null
 				}
 			];
 		}

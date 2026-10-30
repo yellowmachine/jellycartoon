@@ -21,6 +21,7 @@
 	import Satelites from './Satelites.svelte';
 	import Nube from './Nube.svelte';
 	import DondeCasa from './DondeCasa.svelte';
+	import AccesosDirectos from './AccesosDirectos.svelte';
 	import VozCasa from './VozCasa.svelte';
 	import Personas from './Personas.svelte';
 	import Version from './Version.svelte';
@@ -88,6 +89,7 @@
 				satellites: data.satellites,
 				cloudKeys: data.cloudKeys,
 				home: data.home,
+				shortcuts: data.shortcuts,
 				houseVoice: data.houseVoice,
 				kids: data.kids,
 				twoFactor: data.twoFactor
@@ -158,6 +160,8 @@
 		<Etiquetas {data} {form} {tab} />
 
 		<DondeCasa {data} {form} {tab} />
+
+		<AccesosDirectos {data} {form} {tab} />
 
 		<Satelites {data} {form} {tab} />
 

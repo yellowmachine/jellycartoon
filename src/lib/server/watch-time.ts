@@ -17,11 +17,13 @@ import { SLOT_MINUTES } from '#lib/kid-time.ts';
  * or staying (paused) do not count.
  */
 
-type Target = { episodeId: number } | { movieId: number } | { channelId: string };
+type Target =
+	{ episodeId: number } | { movieId: number } | { channelId: string } | { shortcutId: number };
 
 function keyOf(target: Target) {
 	if ('episodeId' in target) return `e${target.episodeId}`;
 	if ('movieId' in target) return `m${target.movieId}`;
+	if ('shortcutId' in target) return `s${target.shortcutId}`;
 	return `c${target.channelId}`;
 }
 
@@ -81,6 +83,7 @@ async function addOwnWatchTime(
 				episodeId: 'episodeId' in target ? target.episodeId : null,
 				movieId: 'movieId' in target ? target.movieId : null,
 				channelId: 'channelId' in target ? target.channelId : null,
+				shortcutId: 'shortcutId' in target ? target.shortcutId : null,
 				seconds: step
 			})
 			.onConflictDoUpdate({
@@ -90,7 +93,8 @@ async function addOwnWatchTime(
 					watchTime.minute,
 					watchTime.episodeId,
 					watchTime.movieId,
-					watchTime.channelId
+					watchTime.channelId,
+					watchTime.shortcutId
 				],
 				set: { seconds: sql`${watchTime.seconds} + ${step}` }
 			});

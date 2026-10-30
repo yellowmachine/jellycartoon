@@ -771,6 +771,13 @@
       "when": 1793349589042,
       "tag": "0109_far_redwing",
       "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1793393918637,
+      "tag": "0110_lyrical_boom_boom",
+      "breakpoints": true
     }
   ]
 }

@@ -325,6 +325,34 @@ export const movieTag = pgTable(
 	(t) => [primaryKey({ columns: [t.movieId, t.tagId] }), index('movie_tag_tag_idx').on(t.tagId)]
 );
 
+/**
+ * The TV view's shortcuts to sites of elsewhere (#327): NBA League Pass, Crunchyroll… opened in a
+ * window of their own, signed in once by hand in the salon's Chromium. Made in Ajustes → Casa.
+ */
+export const tvShortcut = pgTable('tv_shortcut', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	url: text('url').notNull(),
+	createdAt: timestamp('created_at').notNull().defaultNow()
+});
+
+/** The same tags as series': «infantil» is what a child's account may see (#17). */
+export const tvShortcutTag = pgTable(
+	'tv_shortcut_tag',
+	{
+		shortcutId: integer('shortcut_id')
+			.notNull()
+			.references(() => tvShortcut.id, { onDelete: 'cascade' }),
+		tagId: integer('tag_id')
+			.notNull()
+			.references(() => tag.id, { onDelete: 'cascade' })
+	},
+	(t) => [
+		primaryKey({ columns: [t.shortcutId, t.tagId] }),
+		index('tv_shortcut_tag_tag_idx').on(t.tagId)
+	]
+);
+
 /** Where each user is in each film, saved while mpv plays it. Like watch_progress. */
 export const movieProgress = pgTable(
 	'movie_progress',
@@ -365,17 +393,19 @@ export const watchTime = pgTable(
 		movieId: integer('movie_id').references(() => movie.id, { onDelete: 'cascade' }),
 		/** A TV channel, live: its id in channels.ts. */
 		channelId: text('channel_id'),
+		/** A site of elsewhere, from the TV view's shortcuts (#327): while its window is open. */
+		shortcutId: integer('shortcut_id').references(() => tvShortcut.id, { onDelete: 'cascade' }),
 		seconds: real('seconds').notNull().default(0)
 	},
 	(t) => [
 		// All but one are null: they are compared as equal, so there is one row per thing and day.
 		unique('watch_time_user_day_item')
-			.on(t.userId, t.day, t.minute, t.episodeId, t.movieId, t.channelId)
+			.on(t.userId, t.day, t.minute, t.episodeId, t.movieId, t.channelId, t.shortcutId)
 			.nullsNotDistinct(),
 		check('watch_time_minute', sql`${t.minute} between 0 and 1439`),
 		check(
 			'watch_time_one_item',
-			sql`num_nonnulls(${t.episodeId}, ${t.movieId}, ${t.channelId}) = 1`
+			sql`num_nonnulls(${t.episodeId}, ${t.movieId}, ${t.channelId}, ${t.shortcutId}) = 1`
 		)
 	]
 );
