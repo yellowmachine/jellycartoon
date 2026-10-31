@@ -26,9 +26,16 @@ export const POST: RequestHandler = async ({ request }) => {
 	const apiKey = await openRouterKey(k);
 	if (!apiKey) error(503, 'La familia no tiene clave de IA: ponla en Ajustes de Seilide');
 	try {
+		const started = performance.now();
 		const wav = body.filler
 			? await fillerSpeech(k, apiKey)
 			: await satelliteSpeech(k, apiKey, text);
+		// The phrases are kept: only the answers are worth timing.
+		if (!body.filler)
+			console.info(
+				`[voz] Dicho en ${Math.round(performance.now() - started)} ms (${text.length} letras)`,
+				{ familyId: k.familyId }
+			);
 		if (!wav) return new Response(null, { status: 204 });
 		return new Response(body.chime === true ? withChime(wav) : wav, {
 			headers: { 'content-type': 'audio/wav' }

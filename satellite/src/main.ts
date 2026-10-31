@@ -76,7 +76,12 @@ const MAX_MS = 30_000;
 
 type Session = Awaited<ReturnType<typeof ort.InferenceSession.create>>;
 
-const log = (text: string) => console.log(`${new Date().toLocaleTimeString('es-ES')} ${text}`);
+/** To the millisecond: to be put next to Seilide's log, order by order. */
+const log = (text: string) => {
+	const now = new Date();
+	const ms = String(now.getMilliseconds()).padStart(3, '0');
+	console.log(`${now.toLocaleTimeString('es-ES')}.${ms} ${text}`);
+};
 const db = (value: number | null) => (value === null ? '—' : `${value.toFixed(0)} dB`);
 
 /**
