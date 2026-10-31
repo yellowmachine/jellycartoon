@@ -192,6 +192,40 @@ export async function forget(k: Kitchen, userId: string | null, id: number) {
 	return gone?.text ?? null;
 }
 
+/**
+ * Changed in Ajustes, if `userId` may see it: its words and its last day. Confirmed by whoever
+ * changed it, it is no longer learned nor deduced (the voice says it plainly), and the rules
+ * waiting for memories see it as new. False if it is not one they see, or the text is empty.
+ */
+export async function editMemory(
+	k: Kitchen,
+	userId: string | null,
+	id: number,
+	text: string,
+	untilDay: string | null
+) {
+	const clean = text.trim().slice(0, MAX_MEMORY);
+	if (!clean) return false;
+	const [row] = await k.run((tx) =>
+		tx
+			.update(memory)
+			.set({
+				text: clean,
+				words: [...new Set(wordsOf(clean))],
+				untilDay: dayOrNull(untilDay),
+				source: null,
+				ruleId: null,
+				because: null,
+				updatedAt: new Date()
+			})
+			.where(and(eq(memory.familyId, k.familyId), eq(memory.id, id), visibleTo(userId)))
+			.returning({ userId: memory.userId })
+	);
+	if (!row) return false;
+	ruleEvent(k, 'recuerdo', clean, row.userId);
+	return true;
+}
+
 /** As the voice is told it: «12 (suyo): …», «13 (de la casa, hasta el 2026-11-06): …». */
 const line = (m: Memory) => {
 	const days = [

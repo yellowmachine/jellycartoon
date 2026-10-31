@@ -8,7 +8,14 @@ import { family, familyMember, user } from './db/schema.ts';
 import { familyScope } from './family-scope.ts';
 import type { Kitchen } from './fridge.ts';
 import { addDays, localDay } from 'comun/agenda.ts';
-import { forget, forgetOver, listMemories, recallMemories, remember } from './memory.ts';
+import {
+	editMemory,
+	forget,
+	forgetOver,
+	listMemories,
+	recallMemories,
+	remember
+} from './memory.ts';
 
 /**
  * What the voice remembers, on a real Postgres (PGlite) as the app's role: each person's only
@@ -104,5 +111,32 @@ describe('memory', () => {
 		});
 		const [m] = (await listMemories(ana, 'ana', true)).filter((m) => m.id === odd);
 		expect(m?.untilDay).toBeNull();
+	});
+
+	test('changed in Ajustes: only what one sees, and then confirmed, no longer learned', async () => {
+		const ana = kitchen('ana');
+		const alberto = kitchen('alberto');
+		const learned = await remember(
+			ana,
+			null,
+			'Los sábados hay mercado en Beled Rubio',
+			{},
+			{ source: 'conversacion', ruleId: null, because: 'de lo que se dijo a la voz', chain: [] }
+		);
+		const albertos = await remember(alberto, 'alberto', 'Mi taquilla es la 12');
+		// Ana does not change Alberto's; and nothing empty.
+		expect(await editMemory(ana, 'ana', albertos!, 'Otra cosa', null)).toBe(false);
+		expect(await editMemory(ana, 'ana', learned!, '  ', null)).toBe(false);
+		expect(
+			await editMemory(ana, 'ana', learned!, 'Los sábados hay mercado en Vélez-Rubio', '2099-12-31')
+		).toBe(true);
+		const [m] = (await listMemories(ana, 'ana', true)).filter((m) => m.id === learned);
+		expect(m).toMatchObject({
+			text: 'Los sábados hay mercado en Vélez-Rubio',
+			untilDay: '2099-12-31',
+			source: null,
+			because: null
+		});
+		expect(await recallMemories(ana, 'ana', '¿cuándo hay mercado?')).not.toContain('cautela');
 	});
 });

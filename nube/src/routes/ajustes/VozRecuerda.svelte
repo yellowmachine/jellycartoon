@@ -7,13 +7,15 @@
 	/**
 	 * Lo que se le ha pedido a la voz que recuerde («recuerda que la llave está en la maceta»): lo
 	 * tuyo, que solo ves tú (ni quien administra la familia), y lo de toda la casa. Se añade aquí o
-	 * por voz, y se quita con ×. Algo puede valer solo unos días («hasta el viernes, el coche está en
-	 * el taller», #331): luego se olvida solo.
+	 * por voz, se cambia con «Editar» y se quita con ×. Algo puede valer solo unos días («hasta el
+	 * viernes, el coche está en el taller», #331): luego se olvida solo.
 	 */
 	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
 
 	const mine = $derived(data.memories.filter((m) => m.userId));
 	const house = $derived(data.memories.filter((m) => !m.userId));
+	/** The one being changed. */
+	let editing = $state<number | null>(null);
 	const shortDay = (day: string) =>
 		new Date(`${day}T12:00`).toLocaleDateString('es-ES', {
 			weekday: 'short',
@@ -26,37 +28,83 @@
 	{#if memories.length}
 		<ul class="flex flex-col gap-1">
 			{#each memories as m (m.id)}
-				<li class="flex items-start gap-2">
-					<p class="min-w-0 flex-1 text-zinc-200">
-						{m.text}
-						{#if m.source === 'conversacion'}
-							<span class="block text-xs text-zinc-500">Aprendido de lo que hablas con la voz</span>
-						{:else if m.because}
-							<span class="block text-xs text-zinc-500"
-								>{m.ruleId
-									? `Deducido por una regla, ${m.because}`
-									: `Aprendido ${m.because}`}</span
-							>
-						{/if}
-						{#if m.fromDay || m.untilDay}
-							<span class="block text-xs text-zinc-500"
-								>{[
-									m.fromDay ? `desde el ${shortDay(m.fromDay)}` : null,
-									m.untilDay ? `hasta el ${shortDay(m.untilDay)}` : null
-								]
-									.filter(Boolean)
-									.join(', ')}</span
-							>
-						{/if}
-					</p>
-					<form method="post" action="?seccion={tab}&/forgetMemory" use:enhance>
-						<input type="hidden" name="id" value={m.id} />
-						<button
-							class="rounded px-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
-							aria-label="Olvidar «{m.text}»">×</button
+				{#if editing === m.id}
+					<li>
+						<form
+							method="post"
+							action="?seccion={tab}&/editMemory"
+							use:enhance={() =>
+								async ({ result, update }) => {
+									await update({ reset: false });
+									if (result.type === 'success') editing = null;
+								}}
+							class="flex flex-wrap items-center gap-2"
 						>
-					</form>
-				</li>
+							<input type="hidden" name="id" value={m.id} />
+							<input
+								name="text"
+								required
+								maxlength="300"
+								value={m.text}
+								aria-label="Lo que tiene que recordar"
+								class="{field} min-w-0 flex-1"
+							/>
+							<label class="flex items-center gap-1 text-xs text-zinc-500">
+								Hasta
+								<input
+									type="date"
+									name="until"
+									value={m.untilDay ?? ''}
+									class="{field} w-auto"
+									aria-label="Hasta (opcional)"
+								/>
+							</label>
+							<button class={secondary}>Guardar</button>
+							<button type="button" class={secondary} onclick={() => (editing = null)}
+								>Cancelar</button
+							>
+						</form>
+					</li>
+				{:else}
+					<li class="flex items-start gap-2">
+						<p class="min-w-0 flex-1 text-zinc-200">
+							{m.text}
+							{#if m.source === 'conversacion'}
+								<span class="block text-xs text-zinc-500"
+									>Aprendido de lo que hablas con la voz</span
+								>
+							{:else if m.because}
+								<span class="block text-xs text-zinc-500"
+									>{m.ruleId
+										? `Deducido por una regla, ${m.because}`
+										: `Aprendido ${m.because}`}</span
+								>
+							{/if}
+							{#if m.fromDay || m.untilDay}
+								<span class="block text-xs text-zinc-500"
+									>{[
+										m.fromDay ? `desde el ${shortDay(m.fromDay)}` : null,
+										m.untilDay ? `hasta el ${shortDay(m.untilDay)}` : null
+									]
+										.filter(Boolean)
+										.join(', ')}</span
+								>
+							{/if}
+						</p>
+						<button
+							class="rounded px-2 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+							onclick={() => (editing = m.id)}
+							aria-label="Editar «{m.text}»">Editar</button
+						>
+						<form method="post" action="?seccion={tab}&/forgetMemory" use:enhance>
+							<input type="hidden" name="id" value={m.id} />
+							<button
+								class="rounded px-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+								aria-label="Olvidar «{m.text}»">×</button
+							>
+						</form>
+					</li>
+				{/if}
 			{/each}
 		</ul>
 	{:else}
