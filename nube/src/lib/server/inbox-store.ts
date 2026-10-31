@@ -18,7 +18,9 @@ export type InboxKind =
 	| 'recado'
 	| 'regla'
 	| 'propuesta'
-	| 'aprendido';
+	| 'aprendido'
+	// The family's AI stopped (ai-block.ts), to who runs it.
+	| 'ia';
 
 /**
  * Something offered in the inbox, answered with yes or no (#331): to remember (phase 5; older ones

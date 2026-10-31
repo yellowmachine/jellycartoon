@@ -28,7 +28,8 @@
 		recado: 'Recado',
 		regla: 'Regla',
 		propuesta: 'Propuesta',
-		aprendido: 'Lo aprendido'
+		aprendido: 'Lo aprendido',
+		ia: 'La IA'
 	};
 </script>
 
