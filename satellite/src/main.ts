@@ -69,6 +69,8 @@ const FILLER_AFTER_MS = 1500;
 const RING_MAX_MS = 3 * 60_000;
 /** Between each «din-don» and its words: quiet enough for «hola casita» to be heard and stop it. */
 const RING_PAUSE_MS = 5000;
+/** Its notice's voice not to be had: asked for again only after this long. */
+const RING_RETRY_MS = 60_000;
 /** As holding the button: longer than this, it is over anyway. */
 const MAX_MS = 30_000;
 
@@ -381,16 +383,26 @@ async function ring() {
 	if (ringing) return;
 	ringing = true;
 	const started = Date.now();
+	// Asked for once while it rings the same: then said again as it came, not asked each time.
+	type Said = { text: string; voice: Uint8Array | null; failedAt: number };
+	let said = null as Said | null;
 	try {
 		while (alarms.play.length && Date.now() - started < RING_MAX_MS) {
 			if (!order && !busy) {
 				const text = `Aviso: ${alarms.play.join(' y ')}.`;
-				try {
-					const voice = await speech(text, { chime: true });
-					if (voice && alarms.play.length) await play(voice);
-				} catch (err) {
-					// The server not answering: at least its own «din-don».
-					log(`Sin voz para el aviso: ${err instanceof Error ? err.message : String(err)}`);
+				const again =
+					said?.text === text && (said.voice || Date.now() - said.failedAt < RING_RETRY_MS);
+				if (!again) {
+					try {
+						said = { text, voice: await speech(text, { chime: true }), failedAt: 0 };
+					} catch (err) {
+						log(`Sin voz para el aviso: ${err instanceof Error ? err.message : String(err)}`);
+						said = { text, voice: null, failedAt: Date.now() };
+					}
+				}
+				if (said?.voice && alarms.play.length) await play(said.voice);
+				else if (alarms.play.length) {
+					// No voice for it: at least its own «din-don».
 					await beep(880);
 					await beep(660);
 				}

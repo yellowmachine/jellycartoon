@@ -16,11 +16,14 @@ let inFlight = 0;
 let mostInFlight = 0;
 /** Set, OpenRouter says no with it. */
 let failWith: string | null = null;
+/** Every request it got, said or not. */
+const tried: string[] = [];
 mock.module('#lib/server/openrouter.ts', () => ({
 	// homework.test.ts's, unused here: a mock is the whole process's.
 	completeJson: async () => ({}),
 	sayableError: (message: string) => message,
 	speech: async (r: { voice: string; input: string; instructions?: string }) => {
+		tried.push(r.input);
 		if (failWith) throw new Error(failWith);
 		asked.push(r);
 		mostInFlight = Math.max(mostInFlight, ++inFlight);
@@ -28,6 +31,13 @@ mock.module('#lib/server/openrouter.ts', () => ({
 		inFlight--;
 		return { pcm: new Uint8Array(4), rate: 24_000 };
 	}
+}));
+
+// Its satellites told when the voice changes: none here.
+mock.module('#lib/server/satellites.ts', () => ({
+	satellitesChanged: async () => {},
+	familySatellites: async () => [],
+	servedSatellites: async () => []
 }));
 
 /** The family's files, faked: by area and name. */
@@ -149,6 +159,15 @@ describe('the satellites voice', () => {
 		files.set('A/frases-espera/0123456789abcdef0123456789abcdef.wav', new Uint8Array(4));
 		await setSatelliteVoice(k, null, { voice: 'Kore', tone: '', fillers: 'Otra.' });
 		expect(phraseFiles()).toHaveLength(0);
+	});
+
+	test('a sentence that could not be said: not asked again at once (an alarm rings it every few seconds)', async () => {
+		asked.length = 0;
+		failWith = 'No queda saldo en OpenRouter';
+		await expect(satelliteSpeech(k, 'clave', 'Aviso: la pasta.')).rejects.toThrow();
+		await expect(satelliteSpeech(k, 'clave', 'Aviso: la pasta.')).rejects.toThrow();
+		failWith = null;
+		expect(tried.filter((t) => t === 'Aviso: la pasta.')).toHaveLength(1);
 	});
 
 	test('how they are: failed and why, being recorded, ready', async () => {

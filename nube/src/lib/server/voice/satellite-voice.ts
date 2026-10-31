@@ -123,6 +123,8 @@ const failed = new Map<string, string>();
 /** Said, by family, voice, tone and text; `done` once it is there, to say it at once. */
 const said = new Map<string, { wav: Promise<Uint8Array<ArrayBuffer>>; done: boolean }>();
 const KEEP_SAID = 200;
+/** A sentence that could not be said, not asked again for this long. */
+const FAILED_MS = 60_000;
 /** Someone is waiting: Kore takes 2–4 s (2026-10-27), with room. */
 const TIMEOUT_MS = 15_000;
 
@@ -214,9 +216,15 @@ function say(k: Kitchen, apiKey: string, voice: SatelliteVoice, text: string, an
 		};
 		entry = made;
 		said.set(key, made);
+		// A sentence's failure too, a while: a ringing alarm asks for the same every few seconds,
+		// and each would be another request OpenRouter refuses. A phrase's, at once: Ajustes shows
+		// it failed, and saving again tries again.
 		made.wav.then(
 			() => (made.done = true),
-			() => said.delete(key)
+			() =>
+				answer
+					? setTimeout(() => said.get(key) === made && said.delete(key), FAILED_MS).unref?.()
+					: said.delete(key)
 		);
 		for (const old of [...said.keys()].slice(0, -KEEP_SAID)) said.delete(old);
 	}
