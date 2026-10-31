@@ -57,6 +57,7 @@ import { botHasGroup, sayInGroup } from '#lib/server/telegram/bot.ts';
 import { tellHouse } from '#lib/server/house.ts';
 import { orsFor } from '#lib/server/road/ors.ts';
 import { listSavedPlaces, listSavedRoutes } from '#lib/server/trips/places.ts';
+import { plannedTripsByVoice } from '#lib/server/trips/voice.ts';
 import { asksForRoute, findByName } from 'comun/saved-places.ts';
 import { familyPlace, openRouterKey, orsKey } from '#lib/server/family-settings.ts';
 import { chatWithTools, type Tool, type ToolChatMessage } from '#lib/server/openrouter.ts';
@@ -502,7 +503,7 @@ function tools(house: boolean, rooms: Room[], salon: boolean, clipMinutes: numbe
 		),
 		fn(
 			'agenda',
-			'Lo que hay apuntado en la agenda de la casa, día a día: «¿qué tenemos mañana?», «¿qué hay esta semana?», «¿cuándo es el dentista?».',
+			'Lo que hay apuntado en la agenda de la casa, día a día: «¿qué tenemos mañana?», «¿qué hay esta semana?», «¿cuándo es el dentista?». Los viajes, mejor con planned_trips.',
 			{
 				from: { type: 'string', description: 'El primer día, YYYY-MM-DD.' },
 				to: {
@@ -945,6 +946,17 @@ function ruleTools(satellite: boolean): Tool[] {
 	];
 }
 
+/** «¿Tengo algún viaje mañana?»: the trips still to come (Viajes → Próximos, #347). */
+const plannedTripsTool: Tool = {
+	type: 'function',
+	function: {
+		name: 'planned_trips',
+		description:
+			'Los viajes planeados que vienen (Viajes → Próximos), cada tramo con su día, hora, de dónde a dónde, cuánto se tarda y el tiempo al salir, al llegar y en el camino: «¿tengo algún viaje?», «¿a qué hora salimos mañana?», «¿qué tiempo hará en el viaje?». Mira aquí antes de decir que no sabes de un viaje.',
+		parameters: { type: 'object', properties: {}, required: [], additionalProperties: false }
+	}
+};
+
 /** «Ya me he tomado la pastilla»: their own doses due now, marked (Medicación, #308). */
 const markDoseTool: Tool = {
 	type: 'function',
@@ -1029,6 +1041,8 @@ function instructions(context: {
 Cómo responder:
 - Trátala de tú. Con cada orden va quién habla: llámala por su nombre de pila de vez en cuando (al saludar, al despedirse, con una buena noticia), no en cada respuesta.
 - Haz lo que pide con las herramientas, sin pedir confirmación. Si se equivoca, lo dirá («no, eso no», «para»).
+- Nunca digas que has hecho algo («lo anoto», «lo guardo», «te lo recuerdo», «pongo…») si no lo has hecho con su herramienta en esta orden.
+- El reconocimiento de voz a veces quita los «¿?»: si suena a pregunta («tengo algún viaje mañana», «hay leche»), es una pregunta; contéstala, no la guardes.
 - Al terminar una orden, contesta con «answer»: en español, una sola frase corta que diga lo que has hecho y dónde, p. ej. «Pongo Alaska y Dinarama aquí». Se lee en voz alta: sin listas, emojis, ids ni formato.
 - Si no está claro qué pide y no son pocas opciones que nombrar («media hora», sin más), pregúntalo con «answer» y «expects_answer»: su respuesta llega como la orden siguiente.
 - Si lo encuentras con otro nombre porque se oyó mal («Boyman Rhapsody» es «Bohemian Rhapsody»), no lo expliques: di solo lo que pones, con su nombre bien («Pongo Bohemian Rhapsody de Queen en toda la casa»). Cada palabra de más se tarda en decir.
@@ -1050,6 +1064,8 @@ Otras preguntas (de cocina, de lo que sea): si no pide nada de la app, contesta 
 - Si pregunta por algo de lo que suena (el podcast, la canción), contesta con lo que sepas sin cambiar lo que suena.
 - Una pregunta no es una orden: «¿cuánto tiempo cuezo la pasta?» se contesta; «pon Más de uno» se hace.
 - Si es de salud o de seguridad (alergias, algo que ha comido mal, un corte), contesta con prudencia y, si puede ser serio, dile que llame al médico o al 112.
+
+Viajes («¿tengo algún viaje?», «¿a qué hora salimos mañana?», «¿qué tiempo hará en el viaje?»): «planned_trips», sin preguntar, y contesta corto con lo que pregunta. Nunca digas que no sabes de un viaje sin mirarlo ahí.
 
 El tiempo («¿qué tiempo hará mañana?», «¿llueve esta tarde?», «¿hace frío para salir?»): «get_weather», sin preguntar. Contesta corto, solo lo que pregunta: el cielo, las temperaturas y, si puede llover, la probabilidad. Nunca lo inventes.
 
@@ -1276,6 +1292,8 @@ async function runTool(
 			ctx.outcome.done++;
 			return `Borrada: «${gone}».`;
 		}
+		case 'planned_trips':
+			return plannedTripsByVoice(ctx.k);
 		case 'mark_dose': {
 			const me = ctx.k.userId ? await personOf(ctx.k, ctx.k.userId) : null;
 			if (!me) return 'No sé quién habla: la medicación se marca desde su móvil.';
@@ -1885,6 +1903,7 @@ export async function runVoiceCommand(
 		messageTool,
 		...(kid ? [] : ruleTools(Boolean(satellite))),
 		...(kid || satellite ? [] : [markDoseTool]),
+		...(kid ? [] : [plannedTripsTool]),
 		...(learned ? [usedLearnedTool] : []),
 		...(kid ? [] : memoryTools(Boolean(satellite))),
 		...(settings.web.on ? [webSearchTool] : [])

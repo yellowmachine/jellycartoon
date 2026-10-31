@@ -41,7 +41,8 @@ const asLeg = (r: LegRow): PlannedLeg => ({
 
 /** The trips this person sees: the family's, and their own private ones. Soonest first. */
 export async function listPlannedTrips(k: Kitchen): Promise<PlannedTrip[]> {
-	const me = who(k);
+	// No one known (a satellite's voice, #347): only the family's.
+	const me = k.userId;
 	const rows = await k.run(async (tx) => {
 		const trips = await tx.select().from(plannedTrip).orderBy(asc(plannedTrip.createdAt));
 		const ids = trips.map((t) => t.id);
@@ -58,12 +59,12 @@ export async function listPlannedTrips(k: Kitchen): Promise<PlannedTrip[]> {
 		return { trips, legs, people };
 	});
 	const trips = rows.trips
-		.filter((t) => !t.private || t.userId === me)
+		.filter((t) => !t.private || (me !== null && t.userId === me))
 		.map((t) => ({
 			id: t.id,
 			name: t.name,
 			private: t.private,
-			mine: t.userId === me,
+			mine: me !== null && t.userId === me,
 			people: rows.people.filter((p) => p.tripId === t.id).map((p) => String(p.personId)),
 			legs: rows.legs.filter((l) => l.tripId === t.id).map(asLeg)
 		}));
