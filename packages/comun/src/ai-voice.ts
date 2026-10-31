@@ -25,6 +25,95 @@ export const AI_VOICES = [
 export const isAiVoice = (value: unknown): value is (typeof AI_VOICES)[number]['id'] =>
 	AI_VOICES.some((v) => v.id === value);
 
+/** Gemini's lighter speech model: the same voices, faster (1.8 s against 2.5, 2026-10-31). */
+const GEMINI_LITE = 'google/gemini-3.8-flash-lite-tts';
+
+/**
+ * The voices Seilide's satellites can speak with (Ajustes → Familia, #347): through OpenRouter's
+ * /audio/speech, with the family's key, each by its model. Gemini's, by their name, as saved
+ * before (Kore, the default); the others, chosen by ear on 2026-10-31, faster, and by their
+ * provider (`eleven:jessica`). `tone`: whether it takes «Cómo habla» (only Gemini's, as far as is
+ * known). `fast`: an answer said in under a second or so, measured that day.
+ */
+export const SATELLITE_VOICES = [
+	{
+		id: 'eleven:jessica',
+		model: 'elevenlabs/eleven-flash-v2.5',
+		voice: 'jessica',
+		label: 'Jessica · ElevenLabs',
+		tone: false,
+		fast: true
+	},
+	{
+		id: 'eleven-v3:sarah',
+		model: 'elevenlabs/eleven-v3-conversational',
+		voice: 'sarah',
+		label: 'Sarah · ElevenLabs v3',
+		tone: false,
+		fast: true
+	},
+	{
+		id: 'grok:eve',
+		model: 'x-ai/grok-voice-tts-1.0',
+		voice: 'eve',
+		label: 'Eve · Grok',
+		tone: false,
+		fast: true
+	},
+	{
+		id: 'grok:ara',
+		model: 'x-ai/grok-voice-tts-1.0',
+		voice: 'ara',
+		label: 'Ara · Grok',
+		tone: false,
+		fast: true
+	},
+	{
+		id: 'mai:marta',
+		model: 'microsoft/mai-voice-2.1-flash',
+		voice: 'es-ES-Marta:MAI-Voice-2.1-Flash',
+		label: 'Marta (España) · Microsoft',
+		tone: false,
+		fast: true
+	},
+	{
+		id: 'mai:valeria',
+		model: 'microsoft/mai-voice-2.1-flash',
+		voice: 'es-MX-Valeria:MAI-Voice-2.1-Flash',
+		label: 'Valeria (México) · Microsoft',
+		tone: false,
+		fast: true
+	},
+	...AI_VOICES.map((v) => ({
+		id: v.id,
+		model: GEMINI_LITE,
+		voice: v.id,
+		label: v.label,
+		tone: true,
+		fast: false
+	}))
+] as const satisfies readonly {
+	id: string;
+	model: string;
+	voice: string;
+	label: string;
+	tone: boolean;
+	fast: boolean;
+}[];
+
+export type SatelliteVoiceId = (typeof SATELLITE_VOICES)[number]['id'];
+
+export const isSatelliteVoice = (value: unknown): value is SatelliteVoiceId =>
+	SATELLITE_VOICES.some((v) => v.id === value);
+
+/** Its model and voice for OpenRouter; an unknown one, the default (Kore). */
+export function satelliteVoiceModel(id: string) {
+	return (
+		SATELLITE_VOICES.find((v) => v.id === id) ??
+		SATELLITE_VOICES.find((v) => v.id === AI_VOICE.voice)!
+	);
+}
+
 export const MAX_TONE_CHARS = 300;
 
 /** What a satellite says while the AI thinks: short, they fill a wait, they are not an answer. */
