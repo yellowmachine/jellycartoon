@@ -12,6 +12,7 @@
 	import { thumbUrl } from 'comun/thumb.svelte.ts';
 	import { tvShortcutWindow } from '#lib/tv-shortcut.svelte.ts';
 	import { BIG_PICTURE } from '#lib/tv-shortcut-kinds.ts';
+	import { CHANNELS } from 'comun/channels.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -29,15 +30,27 @@
 			fridge.today.events.length > 0
 	);
 
-	/** A shortcut's picture (#343): a frame, wide; a station's logo, on white; a game's box, whole. */
-	function iconShape(kind: string) {
-		if (kind === 'serie' || kind === 'pelicula') return 'w-40 object-cover';
-		if (kind === 'radio') return 'w-24 bg-white object-contain p-1.5';
-		if (kind === 'juego' || kind === 'steam') return 'w-24 object-contain';
-		return 'w-24 object-cover';
+	/**
+	 * A shortcut's tile (#343): a square with only its picture. A station that is on, with a green
+	 * border, as in /tv/radio.
+	 */
+	const tileClass = (on: boolean) => [
+		'relative block h-44 w-44 shrink-0 overflow-hidden rounded-2xl border-2 bg-gradient-to-br from-cyan-500/30 via-sky-600/15 to-zinc-900 shadow-lg transition duration-200 focus-visible:scale-105 focus-visible:shadow-2xl',
+		on ? 'border-emerald-400' : 'border-white/10 focus-visible:border-white/60'
+	];
+
+	/** Filling the square: a frame or a cover, cut; a station's logo, on white; a game's box, whole. */
+	function iconFit(kind: string) {
+		if (kind === 'radio') return 'bg-white object-contain p-3';
+		if (kind === 'juego' || kind === 'steam') return 'object-contain';
+		return 'object-cover';
 	}
-	const tileClass =
-		'flex h-36 items-center gap-5 rounded-2xl border border-white/10 bg-gradient-to-br from-cyan-500/30 via-sky-600/15 to-zinc-900 p-6 text-left shadow-lg transition duration-200 focus-visible:scale-105 focus-visible:border-white/30 focus-visible:shadow-2xl';
+
+	/** A channel has no picture: its brand's colour behind its name. */
+	function channelTone(id: string | null) {
+		const channel = CHANNELS.find((c) => c.id === id);
+		return channel && `linear-gradient(135deg, ${channel.color}99, transparent 80%)`;
+	}
 
 	type Shortcut = (typeof data.shortcuts)[number];
 
@@ -257,34 +270,31 @@
 				>
 			</div>
 		{/if}
-		<div class="grid grid-cols-4 gap-8">
+		<div class="flex flex-wrap gap-8">
 			{#each data.shortcuts as s (s.id)}
+				{@const on = s.kind === 'radio' && music.radio?.uuid === s.target}
 				{#snippet tile()}
-					<!-- A site's own icon, from its page (site-icon.ts), if it let us have it; the cover, the
-					     logo or the box of the rest. -->
+					<!-- Only its picture: a site's own icon, from its page (site-icon.ts), if it let us have
+					     it; the cover, the logo or the box of the rest. Without one, its name. -->
 					{#if s.icon}
-						<img
-							src={s.icon}
-							alt=""
-							class={['h-24 shrink-0 rounded-2xl shadow-md', iconShape(s.kind)]}
-						/>
+						<img src={s.icon} alt="" class={['h-full w-full', iconFit(s.kind)]} />
+					{:else}
+						<span class="flex h-full w-full items-center justify-center p-4 text-center">
+							<span class="line-clamp-3 text-2xl font-bold text-white">{s.name}</span>
+						</span>
 					{/if}
-					<span class="min-w-0">
-						<span class="block truncate text-3xl font-bold text-white">{s.name}</span>
-						<span class="block truncate text-lg text-zinc-300"
-							>{starting === s.id
-								? s.kind === 'canal'
-									? 'Sintonizando…'
-									: 'Un momento…'
-								: s.kind === 'radio' && music.radio?.uuid === s.target
-									? 'Sonando'
-									: s.detail}</span
+					{#if starting === s.id}
+						<span
+							class="absolute inset-0 flex items-center justify-center bg-zinc-950/70 text-xl text-white"
+							>{s.kind === 'canal' ? 'Sintonizando…' : 'Un momento…'}</span
 						>
-					</span>
+					{/if}
 				{/snippet}
 				{#if s.href}
 					<!-- Its page, where the episode, the version or the saved game is chosen (#343). -->
-					<a href={s.href} class={tileClass}>{@render tile()}</a>
+					<a href={s.href} aria-label={s.name} title={s.name} class={tileClass(false)}
+						>{@render tile()}</a
+					>
 				{:else if s.kind === 'canal'}
 					<!-- Live on the living room's mpv, as from /tv/canales; a child, within its time. -->
 					<form
@@ -301,18 +311,21 @@
 						}}
 					>
 						<input type="hidden" name="id" value={s.target} />
-						<button class={[tileClass, 'w-full']} disabled={starting !== null}
-							>{@render tile()}</button
+						<button
+							aria-label={s.name}
+							title={s.name}
+							class={tileClass(false)}
+							style:background-image={channelTone(s.target)}
+							disabled={starting !== null}>{@render tile()}</button
 						>
 					</form>
 				{:else}
 					<button
 						onclick={() => start(s)}
+						aria-label={on ? `${s.name}, sonando` : s.name}
+						title={s.name}
 						disabled={starting !== null}
-						class={[
-							tileClass,
-							s.kind === 'radio' && music.radio?.uuid === s.target && 'border-emerald-400!'
-						]}>{@render tile()}</button
+						class={tileClass(on)}>{@render tile()}</button
 					>
 				{/if}
 			{/each}

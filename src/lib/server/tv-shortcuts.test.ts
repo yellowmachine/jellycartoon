@@ -163,9 +163,6 @@ describe('shortcuts', () => {
 			'Coco',
 			'Para cenar'
 		]);
-		expect(tiles.find((t) => t.name === 'Bunk y McNulty')?.detail).toBe('Serie · The Wire');
-		expect(tiles.find((t) => t.name === 'Bluey')?.detail).toBe('Serie');
-		expect(tiles.find((t) => t.name === 'Crunchyroll')?.detail).toBe('crunchyroll.com');
 		// A podcast is each person's: one who does not follow it does not see it.
 		expect(
 			(await tvShortcutTiles({ userId: 'luis', kid: false })).map((t) => t.name)
