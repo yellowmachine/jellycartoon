@@ -1,0 +1,44 @@
+# Dozzle on the VPS: its containers' logs on a page, and alerts when one dies or logs an error
+# (https://dozzle.dev; the alerts, https://dozzle.dev/guide/alerts-and-webhooks). Deployed as a
+# Compose in Dokploy, which has no alerts for an app's errors or a container that falls. See
+# README.md next to this file.
+#
+# Dozzle does not get Docker's socket: a socket proxy does, and lets it only list containers, their
+# logs and events and the system's info, as Dozzle's own guide says
+# (https://dozzle.dev/guide/remote-hosts#connecting-with-a-socket-proxy). A `:ro` socket would not
+# limit the API: whoever controlled Dozzle would control every container.
+services:
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    restart: unless-stopped
+    environment:
+      # Listing containers (and their logs and stats) and the system's info; EVENTS is on by
+      # default. Everything that writes stays off.
+      CONTAINERS: 1
+      INFO: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # Only for Dozzle, on this compose's network: never a port outside.
+
+  dozzle:
+    image: amir20/dozzle:v11.3.5
+    restart: unless-stopped
+    depends_on:
+      - socket-proxy
+    environment:
+      # The VPS's Docker, through the proxy; «VPS», its name in the page.
+      DOZZLE_REMOTE_HOST: tcp://socket-proxy:2375|VPS
+      # Users from /data/users.yml (README.md): never open without a password.
+      DOZZLE_AUTH_PROVIDER: simple
+      DOZZLE_AUTH_TTL: 48h
+      DOZZLE_NO_ANALYTICS: 'true'
+      # Read by the alerts' destination as ${SLACK_WEBHOOK_URL} (Dokploy → Environment): the
+      # webhook's address is a secret, not in the saved settings.
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+    volumes:
+      # Its users, alerts and destinations (users.yml, notifications.yml…), on the VPS's disk:
+      # they survive each deploy.
+      - /srv/dozzle:/data
+    # Its page, through Dokploy's domain (Domains → port 8080); no port of its own.
+    expose:
+      - 8080
