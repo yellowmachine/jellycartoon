@@ -3,7 +3,9 @@ import {
 	BAD_KEY,
 	AiBlocked,
 	guarded,
+	logRefusal,
 	noteRefusal,
+	type OpenRouterError,
 	refusalWords
 } from '#lib/server/ai-block.ts';
 import { throughLane } from '#lib/server/ai-lane.ts';
@@ -70,7 +72,8 @@ export async function completeJson<T>(request: {
 					{ role: 'system', content: request.system },
 					{ role: 'user', content: request.prompt }
 				],
-				max_tokens: request.maxTokens ?? 16_384,
+				// What OpenRouter sets aside, by its price, against the credit: no more than needed.
+				max_tokens: request.maxTokens ?? 4_096,
 				response_format: {
 					type: 'json_schema',
 					json_schema: { name: request.name, strict: true, schema: request.schema }
@@ -100,8 +103,8 @@ export async function completeJson<T>(request: {
  * Our words for OpenRouter's no. A refused key or a 402, said in ours (ai-block.ts tells the 402s
  * apart, and logs theirs): the rest, theirs.
  */
-function refused(status: number, body: { error?: { message?: string } } | null) {
-	const words = refusalWords(status, body?.error?.message);
+function refused(status: number, body: { error?: OpenRouterError } | null) {
+	const words = refusalWords(status, body?.error);
 	return new Error(words ?? `OpenRouter: ${body?.error?.message ?? status}`);
 }
 
@@ -252,8 +255,9 @@ async function chatOnce(
 					messages: request.messages,
 					tools: request.tools,
 					...(toolChoice && { tool_choice: toolChoice }),
-					// Short answers here, but room for a model that reasons.
-					max_tokens: 4_096,
+					// Short answers here, but room for a model that reasons. OpenRouter sets aside what
+					// `max_tokens` could cost against the credit: without thinking, less.
+					max_tokens: noThinking ? 1_024 : 4_096,
 					...(noThinking && { reasoning: { effort: 'none' } }),
 					// Only providers that take tools.
 					provider: { require_parameters: true }
@@ -276,7 +280,7 @@ async function chatOnce(
 	const message = choice?.message;
 	if (!message) {
 		if (Number(choice?.error?.code) === 402) {
-			console.warn('[ia] OpenRouter dice 402:', choice.error.message ?? '(sin mensaje)');
+			logRefusal(402, choice.error);
 			const error = refused(402, { error: choice.error });
 			noteRefusal(request.apiKey, error.message);
 			throw error;

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { dollars } from 'comun/ai-spend.ts';
 	import { enhance } from '$app/forms';
 	import AvatarPicker from 'comun/components/AvatarPicker.svelte';
 	import PasswordInput from 'comun/components/PasswordInput.svelte';
@@ -46,6 +47,12 @@
 	).map((id) => ({ id, label: TAB_LABELS[id] }));
 	const tab = $derived(tabs.find((t) => t.id === page.url.searchParams.get('seccion'))?.id ?? 'mi');
 	const day = (d: Date) => d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+	/** How often the key's limit starts again (OpenRouter's `limit_reset`). */
+	const RESETS: Record<string, string> = {
+		daily: ' al día',
+		weekly: ' a la semana',
+		monthly: ' al mes'
+	};
 	/** The person being changed, or `nueva` for one being added. */
 	/** A child's account (#303), by its user. */
 	const kidOf = (userId: string | null) =>
@@ -464,6 +471,24 @@
 			{#if data.openRouter}
 				<p class="mb-3 font-mono text-sm">{data.openRouter}</p>
 			{/if}
+			<!-- The key's own spending limit (ai-spend.ts): reached, the AI stops (ai-block.ts). -->
+			{#await data.openRouterLimit then limit}
+				{#if limit}
+					<p class="mb-3 text-sm text-zinc-400">
+						Límite de gasto de la clave: {dollars(limit.limit)}{RESETS[limit.reset ?? ''] ??
+							''}{#if limit.remaining !== null}; quedan
+							<span class={limit.remaining < 0.5 ? 'text-red-400' : 'text-zinc-200'}
+								>{dollars(limit.remaining)}</span
+							>{/if}. Se cambia en
+						<a
+							href="https://openrouter.ai/keys"
+							target="_blank"
+							rel="noreferrer"
+							class="text-amber-400 hover:underline">openrouter.ai/keys</a
+						>.
+					</p>
+				{/if}
+			{/await}
 			{#if admin}
 				<form method="post" action="?seccion={tab}&/saveOpenRouter" use:enhance class="flex gap-2">
 					<PasswordInput

@@ -1,4 +1,5 @@
 import { fail } from '@sveltejs/kit';
+import { keyLimit } from '#lib/server/ai-spend.ts';
 import { eq } from 'drizzle-orm';
 import { isTheme } from 'comun/themes.ts';
 import { family, familyMember } from '#lib/server/db/schema.ts';
@@ -106,6 +107,8 @@ export const load: PageServerLoad = async ({ locals, request, cookies }) => {
 	return {
 		house: await houseLink(locals.user!.id),
 		openRouter: await openRouterKeyStart(k),
+		/** The key's own limit, if it has one, to who runs the family: it comes after the page. */
+		openRouterLimit: admin ? openRouterKey(k).then((key) => (key ? keyLimit(key) : null)) : null,
 		ors: await orsKeyStart(k),
 		houseKeys: await listHouseKeys(locals.user!.id),
 		/** The voice satellites Seilide serves (#296): its administrator. */
