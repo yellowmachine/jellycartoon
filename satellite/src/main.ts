@@ -63,8 +63,12 @@ const WORD = WAKE_WORDS[MODEL];
 const WORD_MS = 1500;
 /** After an order, this long before the word is heard again. */
 const QUIET_MS = 1500;
-/** The AI taking longer than this to answer, a phrase meanwhile («Vale», Ajustes → Casa). */
-const FILLER_AFTER_MS = 1500;
+/**
+ * The AI taking longer than this to answer, from what was heard, a phrase meanwhile («Vale», Ajustes
+ * → Casa). 1.5 s while Gemini took 2–4 s to say the answer; with the fast voices (#347), an answer
+ * is often there in 1.7–3 s, and a phrase at 1.5 s made it wait for its end: only the slow ones.
+ */
+const FILLER_AFTER_MS = 3000;
 /** As the phone's: more than this ringing, it stops sounding (no one is there). */
 const RING_MAX_MS = 3 * 60_000;
 /** Between each «din-don» and its words: quiet enough for «hola casita» to be heard and stop it. */
@@ -253,13 +257,18 @@ async function respond(wav: Uint8Array) {
 	const started = Date.now();
 	let waiting: ReturnType<typeof setTimeout> | undefined;
 	let saidFiller: Promise<void> = Promise.resolve();
+	/** When the phrase meanwhile started, if it did: to log how long the answer waited for it. */
+	let fillerAt: number | null = null;
 	/** Its answer asked something: listened for at once, without the word. */
 	let asked = false;
 	/** Done by what the voice had learned: listened for a moment, for a correction. */
 	let assumed = false;
 	try {
 		const done = await sendOrder(wav, () => {
-			waiting = setTimeout(() => (saidFiller = sayFiller()), FILLER_AFTER_MS);
+			waiting = setTimeout(() => {
+				fillerAt = Date.now();
+				saidFiller = sayFiller();
+			}, FILLER_AFTER_MS);
 		});
 		clearTimeout(waiting);
 		const ms = Date.now() - started;
@@ -286,8 +295,14 @@ async function respond(wav: Uint8Array) {
 				if (!voice) log(`Dicho por Snapcast (${Date.now() - started} ms desde la orden)`);
 				else if (speakerName) {
 					// Read while the phrase sounded; said after it.
+					const ready = Date.now();
 					await saidFiller;
-					log(`Dicho en voz (${Date.now() - started} ms desde la orden)`);
+					const waited = Date.now() - ready;
+					const filled =
+						fillerAt === null
+							? ''
+							: `; frase de espera a los ${fillerAt - started} ms, la respuesta esperó ${waited} ms por ella`;
+					log(`Dicho en voz (${Date.now() - started} ms desde la orden${filled})`);
 					await play(voice);
 				}
 			}
