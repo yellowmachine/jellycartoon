@@ -3,7 +3,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { openRouterKey } from '#lib/server/family-settings.ts';
 import { hasHouse } from '#lib/server/house.ts';
 import { isKidAccount } from '#lib/server/kids.ts';
-import { controlHouse, prayerKitchen, prayOnHouse } from '#lib/server/prayer-pages.ts';
+import { prayerKitchen, prayOnHouse } from '#lib/server/prayer-pages.ts';
 import { generatePrayer, listLists, listPrayers } from '#lib/server/prayers.ts';
 
 /**
@@ -36,10 +36,5 @@ export const actions: Actions = {
 		const sent = await prayOnHouse(locals, Number((await request.formData()).get('id')));
 		if ('problem' in sent) return fail(400, { problem: sent.problem });
 		return { inHouse: true, missing: sent.missing };
-	},
-	/** Pause, go on, next, previous or stop what plays in the house. */
-	houseControl: async ({ request, locals }) => {
-		const problem = await controlHouse(locals, String((await request.formData()).get('do')));
-		if (problem) return fail(400, { problem });
 	}
 };

@@ -8,6 +8,7 @@
 		MAX_TEXT,
 		MAX_TITLE,
 		prayerQueue,
+		STATUS_COLOR,
 		STATUS_LABEL,
 		tryPiece
 	} from '#lib/prayers.ts';
@@ -126,10 +127,16 @@
 				<button name="generate" value="1" class={primary} disabled={!changed && !!data.prayer}
 					>Guardar y generar la voz</button
 				>
-				<button class={secondary} disabled={!changed}>Guardar sin voz</button>
+				<button class={secondary} disabled={!changed}>Guardar sin generar</button>
 				{#if form && 'saved' in form && !changed}<span class="text-sm text-emerald-400"
 						>Guardado</span
 					>{/if}
+				{#if data.prayer}
+					<!-- How its voice goes, here too: «La voz» is below a long text. -->
+					<span class="text-sm {STATUS_COLOR[data.prayer.status]}"
+						>{STATUS_LABEL[data.prayer.status]}</span
+					>
+				{/if}
 			</div>
 		</form>
 	{/if}
