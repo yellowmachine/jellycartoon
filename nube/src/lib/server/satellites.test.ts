@@ -19,7 +19,8 @@ mock.module('#lib/server/house.ts', () => ({
 }));
 mock.module('#lib/server/satellites.ts', () => ({
 	familySatellites: async () => [],
-	servedSatellites: async () => []
+	servedSatellites: async () => [],
+	satellitesChanged: async () => {}
 }));
 mock.module('#lib/server/push.ts', () => ({ notify: async () => {} }));
 // Their inbox (#331) tells the phones: faked as they are.

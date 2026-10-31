@@ -26,7 +26,8 @@ mock.module('#lib/server/house.ts', () => ({
 // One satellite served by Seilide (#296), already connected: its alarms ring here, not at the house.
 mock.module('#lib/server/satellites.ts', () => ({
 	familySatellites: async () => [{ id: 'dormitorio', name: 'dormitorio' }],
-	servedSatellites: async () => [{ id: 'dormitorio', name: 'dormitorio' }]
+	servedSatellites: async () => [{ id: 'dormitorio', name: 'dormitorio' }],
+	satellitesChanged: async () => {}
 }));
 mock.module('#lib/server/push.ts', () => ({
 	notify: async (_: string, __: unknown, notice: { title: string; body: string }) =>

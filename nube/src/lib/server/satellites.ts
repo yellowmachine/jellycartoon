@@ -93,6 +93,12 @@ export function familySatellites(familyId: string) {
 	);
 }
 
+/** Every satellite of the family told again what it has (its voice changed, #296). */
+export async function satellitesChanged(familyId: string) {
+	for (const { id } of await familySatellites(familyId))
+		for (const listener of listeners.get(id) ?? []) listener();
+}
+
 /** Its own and the house's: every place an alarm can sound (the Agenda, its banner). */
 export async function allSatellites(familyId: string) {
 	const [own, house] = await Promise.all([familySatellites(familyId), houseSatellites(familyId)]);

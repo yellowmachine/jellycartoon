@@ -121,6 +121,8 @@ export interface Ringing {
 	snapclientId?: string;
 	/** Seilide's (#331): what it is to say once, out loud (a rule's notice), by its id. */
 	say?: { id: string; text: string }[];
+	/** Seilide's: which voice the family has, for its own phrases (fallback.ts). */
+	voice?: string;
 }
 
 /** After a dropped channel, tried again this long after. */

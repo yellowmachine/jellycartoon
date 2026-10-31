@@ -317,13 +317,15 @@ async function sayFiller() {
 }
 
 /** What rings where it is, as the server says (#241): all of it, and what it says itself. */
-let alarms: Ringing = { ringing: [], play: [] };
+const firstAlarms: Ringing = { ringing: [], play: [] };
+let alarms: Ringing = firstAlarms;
 let ringing = false;
-if (serverReady) keepFallbacks();
 if (serverReady)
 	void followAlarms((state) => {
 		const was = alarms;
 		alarms = state;
+		// Its own phrases, in the family's voice: again only if it changed, or one is missing.
+		if (state.voice !== was.voice || was === firstAlarms) void keepFallbacks(state.voice ?? null);
 		// Only Seilide says it: a house's satellite keeps the snapclient it has, if any.
 		if ('snapserver' in state)
 			followSnapserver(state.snapserver ?? null, state.name ?? null, state.snapclientId ?? null);

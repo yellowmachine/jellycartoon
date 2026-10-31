@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { SAID_NO_CREDIT } from '../../packages/comun/src/voice.ts';
 import { ServerError, speech } from './server.ts';
@@ -7,8 +7,9 @@ import { beep, play } from './sound.ts';
 
 /**
  * What the satellite says when Seilide cannot (#296): without internet, without credit, or its
- * voice failing. Recorded by Seilide in the family's voice while it can, and kept on its own disk,
- * again every day (the voice may have been changed); before the first time, a low beep.
+ * voice failing. Recorded by Seilide in the family's voice while it can, and kept on its own disk;
+ * again only when the family's voice changes (Seilide tells which it is with the notices) or one is
+ * missing, not at every start; before the first time, a low beep.
  */
 
 const PHRASES = {
@@ -22,29 +23,55 @@ const PHRASES = {
 export type Fallback = keyof typeof PHRASES;
 
 const DIR = process.env.FALLBACK_DIR ?? '/data/frases';
-/** Once a day, in the voice the family has then. */
-const REFRESH_MS = 24 * 60 * 60_000;
+/** Which voice they were recorded in, as Seilide told it. */
+const VOICE_FILE = path.join(DIR, 'voz.txt');
 
 /** By its text: a new phrase, a new file. */
 const fileOf = (text: string) =>
 	path.join(DIR, `${createHash('sha256').update(text).digest('hex').slice(0, 16)}.wav`);
 
-/** Each phrase, recorded now; one that fails stays as it was. Never fails. */
-async function record() {
+const exists = (file: string) =>
+	access(file).then(
+		() => true,
+		() => false
+	);
+
+/**
+ * Each phrase that has to be recorded, recorded now: all of them in a new voice, or only those
+ * missing. One that fails stays as it was, and the voice is not marked: tried again next time.
+ * Never fails.
+ */
+async function record(all: boolean, voice: string | null) {
 	await mkdir(DIR, { recursive: true }).catch(() => {});
-	for (const text of Object.values(PHRASES))
+	let failed = false;
+	for (const text of Object.values(PHRASES)) {
+		if (!all && (await exists(fileOf(text)))) continue;
 		try {
 			const wav = await speech(text);
 			if (wav) await writeFile(fileOf(text), wav);
 		} catch (err) {
+			failed = true;
 			console.error(`Sin grabar «${text}»:`, err instanceof Error ? err.message : String(err));
 		}
+	}
+	if (voice && !failed) await writeFile(VOICE_FILE, voice).catch(() => {});
 }
 
-/** Recorded at start and then every day. */
-export function keepFallbacks() {
-	void record();
-	setInterval(() => void record(), REFRESH_MS).unref();
+let recording = false;
+
+/**
+ * With each state of its notices: `voice`, the family's voice as Seilide tells it (none, a
+ * house's): recorded again if it is not the one they were recorded in; else only those missing.
+ */
+export async function keepFallbacks(voice: string | null) {
+	if (recording) return;
+	recording = true;
+	try {
+		const recordedIn = await readFile(VOICE_FILE, 'utf8').catch(() => null);
+		await record(Boolean(voice) && recordedIn?.trim() !== voice, voice);
+	} finally {
+		recording = false;
+	}
 }
 
 /** That one said, as it was recorded; a low beep if it never was. */

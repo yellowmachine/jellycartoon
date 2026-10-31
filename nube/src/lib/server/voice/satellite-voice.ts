@@ -11,6 +11,7 @@ import { createHash } from 'node:crypto';
 import { familySettings } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { sayableError, speech } from '#lib/server/openrouter.ts';
+import { satellitesChanged } from '#lib/server/satellites.ts';
 import { listFiles, putFile, readFile, removeFile, storageReady } from '#lib/server/storage.ts';
 
 /**
@@ -39,6 +40,12 @@ export async function satelliteVoiceOf(k: Kitchen): Promise<SatelliteVoice> {
 	};
 }
 
+/**
+ * Which voice it is, in a few letters (its voice and tone): told to the satellites with their
+ * notices, for them to record their own phrases again only when it changes.
+ */
+export const voiceKey = (voice: SatelliteVoice) => hash(`${voice.voice}|${voice.tone}`);
+
 /** Saved; an empty tone or no phrases, the default ones. Their recordings, made meanwhile. */
 export async function setSatelliteVoice(
 	k: Kitchen,
@@ -59,6 +66,8 @@ export async function setSatelliteVoice(
 			.onConflictDoUpdate({ target: familySettings.familyId, set })
 	);
 	await forgetGonePhrases(k);
+	// The satellites, at once: their own phrases, in the new voice.
+	await satellitesChanged(k.familyId);
 	if (apiKey) await startFillers(k, apiKey);
 }
 
