@@ -40,9 +40,29 @@
 		}
 	}
 
+	/**
+	 * The catalog, when it comes (+page.server.ts); null until then. After saving a Modo DJ setup
+	 * the page loads again: the albums shown stay until the new ones are here.
+	 */
+	let catalog = $state<MusicAlbum[] | null>(null);
+	let failed = $state(false);
+	$effect(() => {
+		let gone = false;
+		data.albums.then(
+			(albums) => {
+				if (!gone) [catalog, failed] = [albums, false];
+			},
+			() => {
+				if (!gone) failed = true;
+			}
+		);
+		return () => (gone = true);
+	});
+	const albums = $derived(catalog ?? []);
+
 	let search = $state('');
 	let view = $state(storedView());
-	const artists = $derived(groupByArtist(data.albums));
+	const artists = $derived(groupByArtist(albums));
 	let djDialog = $state<DjDialog>();
 	let djMenu = $state<HTMLElement>();
 
@@ -62,17 +82,17 @@
 		});
 		ms.addAll([
 			...artists.map((a, i) => ({ id: `r${i}`, title: a.name, artist: a.name })),
-			...data.albums.map((a) => ({ id: `a${a.id}`, title: a.title, artist: a.artist })),
-			...data.albums.flatMap((a) =>
+			...albums.map((a) => ({ id: `a${a.id}`, title: a.title, artist: a.artist })),
+			...albums.flatMap((a) =>
 				a.tracks.map((t) => ({ id: `t${t.id}`, title: t.title, artist: t.artist, album: a.title }))
 			)
 		]);
 		return ms;
 	});
 
-	const albumsById = $derived(new Map(data.albums.map((a) => [a.id, a])));
+	const albumsById = $derived(new Map(albums.map((a) => [a.id, a])));
 	const tracksById = $derived(
-		new Map(data.albums.flatMap((a) => a.tracks.map((t) => [t.id, t] as const)))
+		new Map(albums.flatMap((a) => a.tracks.map((t) => [t.id, t] as const)))
 	);
 
 	const results = $derived.by(() => {
@@ -213,7 +233,11 @@
 	/>
 </div>
 
-{#if data.albums.length === 0}
+{#if !catalog}
+	<p class="text-sm text-zinc-400">
+		{failed ? 'No se ha podido traer la música de casa.' : 'Trayendo la música de casa…'}
+	</p>
+{:else if albums.length === 0}
 	<p class="text-zinc-400">No hay música todavía: se cataloga en casa, en Gestión.</p>
 {:else if results}
 	{#if results.artists.length}
@@ -239,7 +263,7 @@
 {:else}
 	<div class="mb-4 flex items-center justify-between gap-3">
 		<p class="text-sm text-zinc-400">
-			{view === 'artists' ? `${artists.length} artistas · ` : ''}{data.albums.length} álbumes
+			{view === 'artists' ? `${artists.length} artistas · ` : ''}{albums.length} álbumes
 		</p>
 		<div
 			class="flex rounded-md border border-zinc-700 p-0.5 text-sm"
@@ -264,7 +288,7 @@
 	{#if view === 'artists'}
 		{@render artistGrid(artists)}
 	{:else}
-		<AlbumGrid albums={data.albums} />
+		<AlbumGrid {albums} />
 	{/if}
 {/if}
 
