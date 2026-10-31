@@ -34,6 +34,14 @@ export const STATUS_LABEL: Record<PrayerStatus, string> = {
 	error: 'No se pudo generar'
 };
 
+export const STATUS_COLOR: Record<PrayerStatus, string> = {
+	pendiente: 'text-zinc-500',
+	generando: 'text-amber-400',
+	lista: 'text-emerald-400',
+	cambiada: 'text-amber-400',
+	error: 'text-red-400'
+};
+
 export interface PrayerVoiceView {
 	id: number;
 	name: string;

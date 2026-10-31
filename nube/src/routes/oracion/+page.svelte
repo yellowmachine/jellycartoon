@@ -3,9 +3,16 @@
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { music } from 'comun/music-player.svelte.ts';
-	import { prayerQueue, STATUS_LABEL, type HouseNow, type PrayerView } from '#lib/prayers.ts';
+	import {
+		prayerQueue,
+		STATUS_COLOR,
+		STATUS_LABEL,
+		type HouseNow,
+		type PrayerView
+	} from '#lib/prayers.ts';
 	import { primary, secondary } from '#lib/styles.ts';
 	import type { PageProps } from './$types';
+	import HouseBar from './HouseBar.svelte';
 
 	let { data, form }: PageProps = $props();
 
@@ -76,23 +83,12 @@
 			askHouseNow++;
 		};
 
-	const clock = (sec: number | null) =>
-		sec == null ? '' : `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
-
 	const minutes = (sec: number | null) =>
 		sec == null ? '' : sec < 60 ? `${Math.round(sec)} s` : `${Math.round(sec / 60)} min`;
 
 	const listLength = (list: (typeof data.lists)[number]) =>
 		list.items.reduce((n, i) => n + (byId.get(i.prayerId)?.durationSec ?? 0) * i.times, 0) +
 		Math.max(list.items.reduce((n, i) => n + i.times, 0) - 1, 0) * list.pauseSec;
-
-	const statusColor: Record<PrayerView['status'], string> = {
-		pendiente: 'text-zinc-500',
-		generando: 'text-amber-400',
-		lista: 'text-emerald-400',
-		cambiada: 'text-amber-400',
-		error: 'text-red-400'
-	};
 </script>
 
 <svelte:head>
@@ -115,31 +111,7 @@
 	{/if}
 
 	{#if houseNow}
-		<section class="mb-6 rounded-md border border-amber-500/40 bg-zinc-900 p-3">
-			<p class="text-xs text-zinc-400">Sonando en toda la casa</p>
-			<p class="truncate">{houseNow.title}</p>
-			<p class="mb-2 truncate text-xs text-zinc-500">
-				{houseNow.album}{#if houseNow.durationSec}
-					· {clock(houseNow.positionSec)} / {clock(houseNow.durationSec)}{/if}
-			</p>
-			<form method="post" action="?/houseControl" use:enhance={fromHouse} class="flex gap-2">
-				<button name="do" value="previous" class={secondary} aria-label="Anterior">⏮</button>
-				<button
-					name="do"
-					value={houseNow.paused ? 'resume' : 'pause'}
-					class={primary}
-					aria-label={houseNow.paused ? 'Seguir' : 'Pausa'}>{houseNow.paused ? '▶' : '⏸'}</button
-				>
-				<button
-					name="do"
-					value="next"
-					class={secondary}
-					disabled={houseNow.last}
-					aria-label="Siguiente">⏭</button
-				>
-				<button name="do" value="stop" class={secondary} aria-label="Parar">■</button>
-			</form>
-		</section>
+		<HouseBar now={houseNow} asked={() => askHouseNow++} />
 	{:else if houseProblem && data.house}
 		<p class="mb-4 text-xs text-zinc-500">Casa: {houseProblem}</p>
 	{/if}
@@ -205,7 +177,7 @@
 				>
 				<span class="min-w-0 flex-1">
 					<span class="block truncate">{p.title}</span>
-					<span class="block text-xs {statusColor[p.status]}"
+					<span class="block text-xs {STATUS_COLOR[p.status]}"
 						>{STATUS_LABEL[p.status]}{#if p.durationSec && p.status !== 'generando'}
 							<span class="text-zinc-500"> · {minutes(p.durationSec)}</span>{/if}</span
 					>

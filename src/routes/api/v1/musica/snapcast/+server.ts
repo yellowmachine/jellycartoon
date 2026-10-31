@@ -15,7 +15,7 @@ import {
 /**
  * The house's Snapcast for Seilide (#339, Oración), in a grown-up's name (`cloudPerson`: not a
  * child): what it plays now, and `remote`, Seilide's own addresses in the whole house; then pause,
- * next, previous and stop.
+ * a point in the track (`seekTo`, seconds), next, previous and stop.
  */
 export const GET: RequestHandler = async ({ request }) => {
 	await cloudPerson(request);
@@ -41,6 +41,10 @@ export const POST: RequestHandler = async ({ request }) => {
 			case 'pause':
 				if (typeof body.value !== 'boolean') error(400, 'Orden no válida');
 				await controlSnapcast({ action: 'pause', value: body.value });
+				break;
+			case 'seekTo':
+				if (typeof body.value !== 'number' || !(body.value >= 0)) error(400, 'Orden no válida');
+				await controlSnapcast({ action: 'seekTo', value: body.value });
 				break;
 			case 'next':
 			case 'previous':

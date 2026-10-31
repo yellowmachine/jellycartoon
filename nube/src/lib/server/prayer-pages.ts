@@ -127,10 +127,18 @@ const CONTROLS: Record<string, object> = {
 	stop: { action: 'stop' }
 };
 
-/** A button of what plays in the house; why not, said for a person, or null. */
-export async function controlHouse(locals: App.Locals, what: string) {
+/**
+ * A button of what plays in the house, or `seek` to `value` seconds; why not, said for a person, or
+ * null.
+ */
+export async function controlHouse(locals: App.Locals, what: string, value?: unknown) {
 	await prayerKitchen(locals);
-	const body = CONTROLS[what];
+	const body =
+		what === 'seek'
+			? typeof value === 'number' && value >= 0
+				? { action: 'seekTo', value }
+				: undefined
+			: CONTROLS[what];
 	if (!body) return 'Orden no válida';
 	try {
 		await askHouse(locals.user!.id, locals.user!.email, '/musica/snapcast', {
