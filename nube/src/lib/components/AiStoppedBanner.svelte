@@ -3,11 +3,13 @@
 
 	/**
 	 * The family's AI stopped (ai-block.ts), to who runs it: why, where to recharge and «Ya he
-	 * recargado»; a key OpenRouter refuses, to Ajustes, where another one sets it going.
+	 * recargado»; the key's own limit reached, where to raise it; a key OpenRouter refuses, to
+	 * Ajustes, where another one sets it going.
 	 */
 	let { why }: { why: string } = $props();
 
 	const badKey = $derived(why.startsWith('OpenRouter no acepta la clave'));
+	const keyLimit = $derived(why.startsWith('La clave de OpenRouter ha llegado a su límite'));
 	let sending = $state(false);
 
 	async function recharged() {
@@ -28,6 +30,19 @@
 			La IA de la familia está parada: OpenRouter no acepta la clave. Pon otra en
 			<a href="/ajustes?seccion=familia#ia" class="underline">Ajustes</a>.
 		</span>
+	{:else if keyLimit}
+		<span>
+			La IA de la familia está parada: la clave de OpenRouter ha llegado a su límite de gasto.
+			Súbelo en
+			<a href="https://openrouter.ai/keys" class="underline" target="_blank" rel="noreferrer"
+				>openrouter.ai/keys</a
+			>, o espera a que se reinicie.
+		</span>
+		<button
+			class="rounded-md bg-red-500/20 px-3 py-1 text-red-100 hover:bg-red-500/30 disabled:opacity-50"
+			disabled={sending}
+			onclick={recharged}>Ya lo he subido</button
+		>
 	{:else}
 		<span>
 			La IA de la familia está parada: {why.toLowerCase()}. No funcionan la voz, el DJ ni los

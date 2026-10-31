@@ -42,6 +42,32 @@ export async function keyUsage(apiKey: string) {
 }
 
 /**
+ * The key's own spending limit (https://openrouter.ai/docs/api/reference/limits): what it may spend,
+ * what is left and how often it starts again; null without a limit, or if it cannot be asked. Not
+ * the account's credit, which a normal key cannot read.
+ */
+export async function keyLimit(apiKey: string) {
+	try {
+		const res = await fetch('https://openrouter.ai/api/v1/key', {
+			headers: { Authorization: `Bearer ${apiKey}` },
+			signal: AbortSignal.timeout(10_000)
+		});
+		if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+		const { data } = await res.json();
+		if (typeof data?.limit !== 'number') return null;
+		return {
+			limit: data.limit as number,
+			remaining: typeof data.limit_remaining === 'number' ? (data.limit_remaining as number) : null,
+			/** `daily`, `weekly`, `monthly`; null, never. */
+			reset: typeof data.limit_reset === 'string' ? (data.limit_reset as string) : null
+		};
+	} catch (error) {
+		console.warn('[ia] No se pudo consultar el límite de la clave en OpenRouter', String(error));
+		return null;
+	}
+}
+
+/**
  * Each request's cost, as it comes back, to the line and to Gastos → IA: from the server's start
  * (hooks.server.ts), not from the first page that imports this, or the costs before it are lost.
  */

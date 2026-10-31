@@ -1,6 +1,6 @@
 /**
  * Each family's AI stopped when OpenRouter keeps saying no (by its key, as ai-lane.ts): no credit,
- * not enough for the request, or a key it refuses. Then nothing goes out, every request fails at
+ * not enough for the request, the key's own limit reached, or a key it refuses. Then nothing goes out, every request fails at
  * once with why, until someone says «Ya he recargado», the key changes, or a try every
  * `PROBE_MS` comes back well. As the house's, which stops at the first no credit (its
  * openrouter.ts); here at the third in `WINDOW_MS`, as a 402 is not always no credit: «given your
@@ -12,14 +12,30 @@ export const NO_CREDIT = 'No queda saldo en OpenRouter';
 export const SHORT_CREDIT = 'El saldo de OpenRouter no llega para esto';
 export const TOO_MANY = 'OpenRouter tiene demasiadas peticiones a la vez';
 export const BAD_KEY = 'OpenRouter no acepta la clave: cámbiala en Ajustes';
+/** The key's own spending limit (openrouter.ai/keys), not the account's credit: recharging does not help. */
+export const KEY_LIMIT = 'La clave de OpenRouter ha llegado a su límite de gasto';
 
-/** Our words for a no from OpenRouter, from its status and its own (English) words; null, another no. */
-export function refusalWords(status: number, message = '') {
+/** OpenRouter's no, as it sends it: https://openrouter.ai/docs/api/reference/limits */
+export interface OpenRouterError {
+	message?: string;
+	/** Why a 402: `openrouter_in_flight_budget`, `openrouter_key_limit` or `openrouter_credits`. */
+	metadata?: { limit_source?: string } | null;
+}
+
+/** Our words for a no from OpenRouter, from its status and its error; null, another no. */
+export function refusalWords(status: number, error: OpenRouterError | null | undefined) {
+	const message = error?.message ?? '';
 	// Already ours: a stopped family's no, answered to an app (openrouter.ts).
 	if (accountProblem(message)) return message;
 	if (status === 401) return BAD_KEY;
 	if (status !== 402) return null;
-	// https://openrouter.ai/docs/api/reference/errors: all OpenRouter's 402s, told apart by their words.
+	switch (error?.metadata?.limit_source) {
+		case 'openrouter_in_flight_budget':
+			return TOO_MANY;
+		case 'openrouter_key_limit':
+			return KEY_LIMIT;
+	}
+	// Without its source (or `openrouter_credits`), by its words.
 	if (/in-flight/i.test(message)) return TOO_MANY;
 	if (/maximum cost|can only afford|fewer max_tokens/i.test(message)) return SHORT_CREDIT;
 	return NO_CREDIT;
@@ -27,7 +43,7 @@ export function refusalWords(status: number, message = '') {
 
 /** The family's key or credit: another model, or asking again, would not do better. */
 export const accountProblem = (message: string) =>
-	[NO_CREDIT, SHORT_CREDIT, TOO_MANY, BAD_KEY].includes(message);
+	[NO_CREDIT, SHORT_CREDIT, TOO_MANY, BAD_KEY, KEY_LIMIT].includes(message);
 
 /** The credit's words, said as «no credit» by the voice (and a satellite's 402). */
 export const creditProblem = (message: string) => message === NO_CREDIT || message === SHORT_CREDIT;
@@ -40,8 +56,9 @@ const FAILS = 3;
 const WINDOW_MS = 10 * 60_000;
 /** Stopped, one request goes out after this long, to see whether it can go on. */
 const PROBE_MS = 15 * 60_000;
-/** A «too many at once», asked again after this long, once. */
+/** A «too many at once», asked again once: after its `Retry-After`, between these. */
 const AGAIN_MS = 3_000;
+const AGAIN_MAX_MS = 10_000;
 
 export interface Block {
 	at: Date;
@@ -126,7 +143,8 @@ export function noteRefusal(apiKey: string, words: string) {
 
 /**
  * A request to OpenRouter with this key (`send`, through its lane): not sent while stopped, but a
- * try every `PROBE_MS`; a «too many at once» asked again once, after `AGAIN_MS`; its no counted.
+ * try every `PROBE_MS`; a «too many at once» asked again once, when OpenRouter says (`Retry-After`,
+ * at most `AGAIN_MAX_MS`); its no counted.
  * The answer as it came, for the caller to read.
  */
 export async function guarded(apiKey: string, send: () => Promise<Response>) {
@@ -139,7 +157,7 @@ export async function guarded(apiKey: string, send: () => Promise<Response>) {
 	let res = await send();
 	let words = await wordsOf(res);
 	if (words === TOO_MANY) {
-		await new Promise((resolve) => setTimeout(resolve, AGAIN_MS));
+		await new Promise((resolve) => setTimeout(resolve, againIn(res)));
 		res = await send();
 		words = await wordsOf(res);
 	}
@@ -158,9 +176,24 @@ async function wordsOf(res: Response) {
 		.clone()
 		.json()
 		.catch(() => null);
-	const message = body?.error?.message ?? '';
-	console.warn(`[ia] OpenRouter dice ${res.status}:`, message || '(sin mensaje)');
-	return refusalWords(res.status, message);
+	logRefusal(res.status, body?.error);
+	return refusalWords(res.status, body?.error);
+}
+
+/** OpenRouter's no in the log, in its words and with its source. */
+export function logRefusal(status: number, error: OpenRouterError | null | undefined) {
+	const source = error?.metadata?.limit_source;
+	console.warn(
+		`[ia] OpenRouter dice ${status}${source ? ` (${source})` : ''}:`,
+		error?.message || '(sin mensaje)'
+	);
+}
+
+/** How long before asking again: its `Retry-After`, in seconds, or `AGAIN_MS`; never over `AGAIN_MAX_MS`. */
+function againIn(res: Response) {
+	const seconds = Number(res.headers.get('retry-after'));
+	const ms = Number.isFinite(seconds) && seconds > 0 ? seconds * 1_000 : AGAIN_MS;
+	return Math.min(ms, AGAIN_MAX_MS);
 }
 
 /** For the tests: as at the start. */

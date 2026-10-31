@@ -5,6 +5,7 @@ import {
 	blockOf,
 	forgetBlocks,
 	guarded,
+	KEY_LIMIT,
 	NO_CREDIT,
 	refusalWords,
 	rememberBlock,
@@ -29,16 +30,23 @@ afterEach(() => {
 });
 
 describe('refusalWords', () => {
-	test('tells the 402s apart', () => {
-		expect(refusalWords(402, IN_FLIGHT)).toBe(TOO_MANY);
-		expect(refusalWords(402, "This request's maximum cost exceeds your available credits")).toBe(
-			SHORT_CREDIT
-		);
-		expect(refusalWords(402, NO_MONEY)).toBe(NO_CREDIT);
-		expect(refusalWords(401, 'User not found')).toBe(BAD_KEY);
-		expect(refusalWords(500, 'boom')).toBeNull();
+	test('tells the 402s apart by their source', () => {
+		const sourced = (limit_source: string) => ({ message: 'whatever', metadata: { limit_source } });
+		expect(refusalWords(402, sourced('openrouter_in_flight_budget'))).toBe(TOO_MANY);
+		expect(refusalWords(402, sourced('openrouter_key_limit'))).toBe(KEY_LIMIT);
+		expect(refusalWords(402, sourced('openrouter_credits'))).toBe(NO_CREDIT);
+	});
+
+	test('without a source, by their words', () => {
+		expect(refusalWords(402, { message: IN_FLIGHT })).toBe(TOO_MANY);
+		expect(
+			refusalWords(402, { message: "This request's maximum cost exceeds your available credits" })
+		).toBe(SHORT_CREDIT);
+		expect(refusalWords(402, { message: NO_MONEY })).toBe(NO_CREDIT);
+		expect(refusalWords(401, { message: 'User not found' })).toBe(BAD_KEY);
+		expect(refusalWords(500, { message: 'boom' })).toBeNull();
 		// Ours already (a stopped family's, to an app): as it is.
-		expect(refusalWords(402, SHORT_CREDIT)).toBe(SHORT_CREDIT);
+		expect(refusalWords(402, { message: KEY_LIMIT })).toBe(KEY_LIMIT);
 	});
 });
 
@@ -84,6 +92,36 @@ describe('guarded', () => {
 		for (let i = 0; i < 3; i++) await guarded('k1', async () => no(402, IN_FLIGHT));
 		expect(blockOf('k1')).toBeNull();
 	}, 30_000);
+
+	test('too many at once: asked again when OpenRouter says, at most ten seconds', async () => {
+		const busy = (after: string) =>
+			new Response(
+				JSON.stringify({
+					error: { message: 'x', metadata: { limit_source: 'openrouter_in_flight_budget' } }
+				}),
+				{ status: 402, headers: { 'Retry-After': after } }
+			);
+		const waited = async (first: Response) => {
+			const answers = [first, ok()];
+			const start = performance.now();
+			await guarded('k1', async () => answers.shift()!);
+			return performance.now() - start;
+		};
+		expect(await waited(busy('1'))).toBeLessThan(2_000);
+		expect(await waited(busy('60'))).toBeLessThan(11_000);
+	}, 20_000);
+
+	test("the key's own limit counts as no credit", async () => {
+		const limit = () =>
+			new Response(
+				JSON.stringify({
+					error: { message: 'x', metadata: { limit_source: 'openrouter_key_limit' } }
+				}),
+				{ status: 402 }
+			);
+		for (let i = 0; i < 3; i++) await guarded('k1', async () => limit());
+		expect(blockOf('k1')?.why).toBe(KEY_LIMIT);
+	});
 
 	test('stopped, one try after fifteen minutes; well, it goes on', async () => {
 		setSystemTime(new Date('2026-11-01T10:00:00Z'));

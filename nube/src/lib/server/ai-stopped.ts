@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { BAD_KEY, watchBlocks } from '#lib/server/ai-block.ts';
+import { BAD_KEY, KEY_LIMIT, watchBlocks } from '#lib/server/ai-block.ts';
 import { familyMember } from '#lib/server/db/schema.ts';
 import { asFamily } from '#lib/server/family.ts';
 import { familyOfKey, keepBlock } from '#lib/server/family-settings.ts';
@@ -37,7 +37,9 @@ export const keepBlocks = () =>
 					body:
 						block.why === BAD_KEY
 							? `${block.why}. Hasta entonces no funcionan la voz, el DJ ni los tickets.`
-							: `${block.why}. No funcionan la voz, el DJ ni los tickets hasta que se recargue en openrouter.ai y se pulse «Ya he recargado».`,
+							: block.why === KEY_LIMIT
+								? `${block.why}. No funcionan la voz, el DJ ni los tickets hasta que se suba en openrouter.ai/keys y se pulse «Ya lo he subido», o se reinicie el límite.`
+								: `${block.why}. No funcionan la voz, el DJ ni los tickets hasta que se recargue en openrouter.ai y se pulse «Ya he recargado».`,
 					tag: `ia-parada-${familyId}`,
 					url: block.why === BAD_KEY ? '/ajustes?seccion=familia#ia' : '/',
 					ttl: 24 * 60 * 60
