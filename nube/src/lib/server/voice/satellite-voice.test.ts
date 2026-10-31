@@ -10,7 +10,7 @@ import type { Kitchen } from '#lib/server/fridge.ts';
  * How Seilide's satellites speak (#296), on PGlite, with OpenRouter's speech faked: what it was
  * asked to say, and in which voice.
  */
-const asked: { voice: string; input: string; instructions?: string }[] = [];
+const asked: { model: string; voice: string; input: string; instructions?: string }[] = [];
 /** How many were being said at once, at most. */
 let inFlight = 0;
 let mostInFlight = 0;
@@ -24,7 +24,7 @@ mock.module('#lib/server/openrouter.ts', () => ({
 	// homework.test.ts's, unused here: a mock is the whole process's.
 	completeJson: async () => ({}),
 	sayableError,
-	speech: async (r: { voice: string; input: string; instructions?: string }) => {
+	speech: async (r: { model: string; voice: string; input: string; instructions?: string }) => {
 		tried.push(r.input);
 		if (failWith) throw new Error(failWith);
 		asked.push(r);
@@ -185,5 +185,34 @@ describe('the satellites voice', () => {
 		expect((await phrasesState(k))[0].state).toBe('recording');
 		await done;
 		expect((await phrasesState(k))[0]).toMatchObject({ state: 'ready', problem: null });
+	});
+});
+
+describe('which model says it (#347)', () => {
+	test('a Gemini voice, by the lighter model and with its tone', async () => {
+		await setSatelliteVoice(k, null, { voice: 'Kore', tone: 'Seria', fillers: '' });
+		asked.length = 0;
+		await satelliteSpeech(k, 'clave', 'Con Gemini');
+		expect(asked[0]).toMatchObject({
+			model: 'google/gemini-3.8-flash-lite-tts',
+			voice: 'Kore',
+			input: 'Con Gemini',
+			instructions: 'Seria'
+		});
+	});
+
+	test('a fast one, by its own model and voice, without the tone it does not take', async () => {
+		await setSatelliteVoice(k, null, { voice: 'mai:valeria', tone: 'Seria', fillers: '' });
+		const voice = await satelliteVoiceOf(k);
+		// Kept, for going back to a Gemini one.
+		expect(voice).toMatchObject({ voice: 'mai:valeria', tone: 'Seria' });
+		asked.length = 0;
+		await satelliteSpeech(k, 'clave', 'Rápida');
+		expect(asked[0]).toMatchObject({
+			model: 'microsoft/mai-voice-2.1-flash',
+			voice: 'es-MX-Valeria:MAI-Voice-2.1-Flash',
+			input: 'Rápida'
+		});
+		expect(asked[0]).not.toHaveProperty('instructions');
 	});
 });

@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { AI_VOICE, DEFAULT_TONE, isAiVoice, MAX_TONE_CHARS } from 'comun/ai-voice.ts';
+import { AI_VOICE, DEFAULT_TONE, isSatelliteVoice, MAX_TONE_CHARS } from 'comun/ai-voice.ts';
 import { openRouterKey } from '#lib/server/family-settings.ts';
 import { withFamily } from '#lib/server/family.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
@@ -24,7 +24,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const apiKey = await openRouterKey(k);
 	if (!apiKey) error(503, 'La familia no tiene clave de inteligencia artificial');
 	const voice = {
-		voice: isAiVoice(body.voice) ? body.voice : AI_VOICE.voice,
+		voice: isSatelliteVoice(body.voice) ? body.voice : AI_VOICE.voice,
 		tone:
 			(typeof body.tone === 'string' ? body.tone.trim().slice(0, MAX_TONE_CHARS) : '') ||
 			DEFAULT_TONE,

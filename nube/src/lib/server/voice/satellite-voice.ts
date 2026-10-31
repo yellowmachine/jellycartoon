@@ -1,10 +1,11 @@
 import {
 	AI_VOICE,
 	DEFAULT_TONE,
-	isAiVoice,
+	isSatelliteVoice,
 	MAX_TONE_CHARS,
 	parseFillers,
-	pickFiller
+	pickFiller,
+	satelliteVoiceModel
 } from 'comun/ai-voice.ts';
 import { writeWav } from 'comun/wav.ts';
 import { createHash } from 'node:crypto';
@@ -34,7 +35,7 @@ export async function satelliteVoiceOf(k: Kitchen): Promise<SatelliteVoice> {
 	);
 	const saved = row?.saved;
 	return {
-		voice: isAiVoice(saved?.voice) ? saved.voice : AI_VOICE.voice,
+		voice: isSatelliteVoice(saved?.voice) ? saved.voice : AI_VOICE.voice,
 		tone: saved?.tone?.trim() || DEFAULT_TONE,
 		fillers: parseFillers((saved?.fillers ?? []).join('\n'))
 	};
@@ -54,7 +55,7 @@ export async function setSatelliteVoice(
 ) {
 	const set = {
 		satelliteVoice: {
-			voice: isAiVoice(input.voice) ? input.voice : AI_VOICE.voice,
+			voice: isSatelliteVoice(input.voice) ? input.voice : AI_VOICE.voice,
 			tone: input.tone.trim().slice(0, MAX_TONE_CHARS),
 			fillers: parseFillers(input.fillers, { orDefault: false })
 		}
@@ -125,7 +126,7 @@ const said = new Map<string, { wav: Promise<Uint8Array<ArrayBuffer>>; done: bool
 const KEEP_SAID = 200;
 /** A sentence that could not be said, not asked again for this long. */
 const FAILED_MS = 60_000;
-/** Someone is waiting: Kore takes 2–4 s (2026-10-27), with room. */
+/** Someone is waiting: Kore took 2–4 s (2026-10-27), the fast ones under 1 s (#347); with room. */
 const TIMEOUT_MS = 15_000;
 
 /**
@@ -170,13 +171,15 @@ async function record(
 	text: string,
 	answer: boolean
 ) {
+	const chosen = satelliteVoiceModel(voice.voice);
 	const { pcm, rate } = await inTurn(k.familyId, answer, () =>
 		speech({
 			apiKey,
-			model: AI_VOICE.model,
-			voice: voice.voice,
+			model: chosen.model,
+			voice: chosen.voice,
 			input: text,
-			instructions: voice.tone,
+			// Only to those that take it: the others' accent is their voice's.
+			...(chosen.tone && { instructions: voice.tone }),
 			timeoutMs: TIMEOUT_MS
 		})
 	);

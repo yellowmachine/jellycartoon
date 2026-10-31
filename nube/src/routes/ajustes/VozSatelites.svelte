@@ -1,19 +1,30 @@
 <script lang="ts">
 	import Guardado from 'comun/components/Guardado.svelte';
 	import { enhance } from '$app/forms';
-	import { AI_VOICES, DEFAULT_TONE, MAX_FILLER_CHARS, MAX_TONE_CHARS } from 'comun/ai-voice.ts';
+	import {
+		DEFAULT_TONE,
+		MAX_FILLER_CHARS,
+		MAX_TONE_CHARS,
+		SATELLITE_VOICES,
+		satelliteVoiceModel
+	} from 'comun/ai-voice.ts';
 	import { onDestroy } from 'svelte';
 	import { primary, secondary, section, select } from '#lib/styles.ts';
 	import type { PageData, ActionData } from './$types';
 
 	/**
-	 * Cómo hablan los satélites que sirve Seilide (#296): una voz de Gemini, cómo dice las cosas
+	 * Cómo hablan los satélites que sirve Seilide (#296): una voz (las rápidas o las de Gemini, #347), cómo dice las cosas
 	 * (acento, ánimo) y las frases que dice mientras piensa la IA. «Probar» la oye aquí, antes de
 	 * guardar. Y cómo van las frases (#301): grabándose, listas o con su problema.
 	 */
 	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
 
 	let formEl = $state<HTMLFormElement>();
+	/** The one picked, saved or not: whether «Cómo habla» counts for it. */
+	let picked = $derived(data.satelliteVoice?.voice ?? '');
+	const takesTone = $derived(satelliteVoiceModel(picked).tone);
+	const fastVoices = SATELLITE_VOICES.filter((v) => v.fast);
+	const geminiVoices = SATELLITE_VOICES.filter((v) => !v.fast);
 	let trying = $state(false);
 	let problem = $state<string | null>(null);
 
@@ -80,8 +91,9 @@
 	<section class={section} id="voz-satelites">
 		<h2 class="mb-1 font-semibold">Voz de los satélites</h2>
 		<p class="mb-3 text-sm text-zinc-400">
-			Cómo contestan los satélites de voz de aquí arriba: una voz de Gemini, con la clave de IA de
-			la familia, y cómo dice las cosas. Cada frase nueva tarda dos o tres segundos en decirse.
+			Cómo contestan los satélites de voz de aquí arriba: una voz, con la clave de IA de la familia,
+			y cómo dice las cosas. Las rápidas dicen la respuesta en menos de un segundo; las de Gemini
+			tardan uno o dos, pero hacen caso a «Cómo habla».
 		</p>
 		<form
 			method="post"
@@ -94,10 +106,17 @@
 		>
 			<label class="flex flex-wrap items-center gap-2 text-zinc-300">
 				Voz
-				<select name="voice" class={select}>
-					{#each AI_VOICES as v (v.id)}
-						<option value={v.id} selected={v.id === data.satelliteVoice.voice}>{v.label}</option>
-					{/each}
+				<select name="voice" class={select} bind:value={picked}>
+					<optgroup label="Rápidas (contestan en menos de un segundo)">
+						{#each fastVoices as v (v.id)}
+							<option value={v.id}>{v.label}</option>
+						{/each}
+					</optgroup>
+					<optgroup label="Gemini (con «Cómo habla»; uno o dos segundos)">
+						{#each geminiVoices as v (v.id)}
+							<option value={v.id}>{v.label}</option>
+						{/each}
+					</optgroup>
 				</select>
 			</label>
 			<label class="flex flex-col gap-1 text-zinc-300">
@@ -108,8 +127,13 @@
 					maxlength={MAX_TONE_CHARS}
 					value={data.satelliteVoice.tone === DEFAULT_TONE ? '' : data.satelliteVoice.tone}
 					placeholder={DEFAULT_TONE}
-					class="{select} w-full"></textarea>
-				<span class="text-xs text-zinc-500">Vacío: como pone ahí, con acento de Buenos Aires.</span>
+					readonly={!takesTone}
+					class="{select} w-full {takesTone ? '' : 'opacity-50'}"></textarea>
+				<span class="text-xs text-zinc-500"
+					>{takesTone
+						? 'Vacío: como pone ahí, con acento de Buenos Aires.'
+						: 'Esta voz no lo usa: habla con su propio acento. Solo las de Gemini.'}</span
+				>
 			</label>
 			<label class="flex flex-col gap-1 text-zinc-300">
 				Mientras piensa, una de estas (una por línea)
