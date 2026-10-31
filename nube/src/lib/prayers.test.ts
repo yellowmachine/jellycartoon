@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import { MAX_TRY, prayerQueue, speechChunks, tryPiece, type PrayerView } from './prayers.ts';
+import {
+	MAX_TRY,
+	prayerQueue,
+	prayerRemote,
+	speechChunks,
+	tryPiece,
+	type PrayerView
+} from './prayers.ts';
 
 const prayer = (id: number, title: string, audio = true): PrayerView => ({
 	id,
@@ -9,7 +16,8 @@ const prayer = (id: number, title: string, audio = true): PrayerView => ({
 	status: audio ? 'lista' : 'pendiente',
 	durationSec: audio ? 20 : null,
 	error: null,
-	audioUrl: audio ? `/api/oracion/audio/${id}?v=x` : null
+	audioUrl: audio ? `/api/oracion/audio/${id}?v=x` : null,
+	audioKey: audio ? 'x' : null
 });
 
 describe('a list as the queue', () => {
@@ -93,4 +101,45 @@ test('what is tried of a text: its first whole lines, a few', () => {
 	expect(piece.startsWith('Santa María 0, ruega por nosotros.\nSanta María 1')).toBe(true);
 	expect(piece.endsWith('ruega por nosotros.')).toBe(true);
 	expect(tryPiece('')).toBe('');
+});
+
+test('a list for the house’s Snapcast: the same order, its addresses, the pauses for mpv', () => {
+	const { remote, missing } = prayerRemote(
+		{
+			id: 1,
+			title: 'Rosario',
+			pauseSec: 2,
+			items: [
+				{ prayerId: 1, times: 1 },
+				{ prayerId: 2, times: 2 },
+				{ prayerId: 3, times: 1 }
+			]
+		},
+		[prayer(1, 'Padre nuestro'), prayer(2, 'Ave María'), prayer(3, 'Credo', false)],
+		(id, key) => `https://seilide.app/api/oracion/pase/t/audio/${id}?v=${key}`
+	);
+	expect(missing).toBe(1);
+	expect(remote).toEqual({
+		artist: 'Oración',
+		album: 'Rosario',
+		items: [
+			{
+				title: 'Padre nuestro',
+				src: 'https://seilide.app/api/oracion/pase/t/audio/1?v=x',
+				durationSec: 20
+			},
+			{ pauseSec: 2 },
+			{
+				title: 'Ave María (1/2)',
+				src: 'https://seilide.app/api/oracion/pase/t/audio/2?v=x',
+				durationSec: 20
+			},
+			{ pauseSec: 2 },
+			{
+				title: 'Ave María (2/2)',
+				src: 'https://seilide.app/api/oracion/pase/t/audio/2?v=x',
+				durationSec: 20
+			}
+		]
+	});
 });

@@ -1,4 +1,4 @@
-import type { MusicTrack } from 'comun/music.ts';
+import type { MusicTrack, SnapcastRemote } from 'comun/music.ts';
 
 /**
  * Oración (#339), as the pages and the server both see it: a text's state, a list as the player's
@@ -53,6 +53,8 @@ export interface PrayerView {
 	error: string | null;
 	/** Where its recording is (the one there, even if `cambiada`); null, none. */
 	audioUrl: string | null;
+	/** What it was recorded with (prayers.ts, `recordingKey`); null, never recorded. */
+	audioKey: string | null;
 }
 
 export interface PrayerListView {
@@ -107,6 +109,37 @@ export function prayerQueue(list: PrayerListView, prayers: PrayerView[]) {
 		}
 	}
 	return { tracks, missing };
+}
+
+/**
+ * A list as the house's Snapcast plays it (#339): the same order as `prayerQueue`, with the house's
+ * addresses for each recording (`urlOf`, with a pass in them) and the pauses for mpv to make.
+ */
+export function prayerRemote(
+	list: PrayerListView,
+	prayers: PrayerView[],
+	urlOf: (id: number, audioKey: string) => string
+) {
+	const byId = new Map(prayers.map((p) => [p.id, p]));
+	const items: SnapcastRemote['items'] = [];
+	let missing = 0;
+	for (const item of list.items) {
+		const p = byId.get(item.prayerId);
+		if (!p?.audioKey) {
+			missing++;
+			continue;
+		}
+		for (let i = 1; i <= item.times; i++) {
+			if (items.length && list.pauseSec > 0) items.push({ pauseSec: list.pauseSec });
+			items.push({
+				title: item.times > 1 ? `${p.title} (${i}/${item.times})` : p.title,
+				src: urlOf(p.id, p.audioKey),
+				durationSec: p.durationSec
+			});
+		}
+	}
+	const remote: SnapcastRemote = { artist: 'Oración', album: list.title, items };
+	return { remote, missing };
 }
 
 /** What Gemini reads at a time, at most: a litany is longer than it reads well in one go. */

@@ -164,7 +164,8 @@ function asView(p: PrayerRow, voice: VoiceRow | undefined): PrayerView {
 				? (p.audioError ??
 					'Se cortó mientras se generaba (el servidor se reinició). Prueba otra vez.')
 				: null,
-		audioUrl: p.audioFile && p.audioKey ? prayerAudioUrl(p.id, p.audioKey) : null
+		audioUrl: p.audioFile && p.audioKey ? prayerAudioUrl(p.id, p.audioKey) : null,
+		audioKey: p.audioFile ? p.audioKey : null
 	};
 }
 

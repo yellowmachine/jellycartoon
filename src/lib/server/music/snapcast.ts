@@ -334,9 +334,11 @@ export async function snapcastRemaining() {
 	return typeof pos === 'number' && typeof count === 'number' && pos >= 0 ? count - pos - 1 : 0;
 }
 
-/** The songs in mpv's queue, as the app sent them. */
+/** The songs in mpv's queue, as the app sent them: not the DJ's words, nor Seilide's (#339). */
 export const queuedOnSnapcast = () =>
-	[...entries.values()].flatMap((e) => ('track' in e && !e.track.clip ? [e.track.id] : []));
+	[...entries.values()].flatMap((e) =>
+		'track' in e && !e.track.clip && !e.track.src ? [e.track.id] : []
+	);
 
 /** Modo DJ is on, or off: the remotes say it. */
 export function setSnapcastDj(on: boolean) {
@@ -427,6 +429,21 @@ export async function listenOnSnapcast(
 		);
 	}
 	log.info('música', `En Snapcast: ${items[0].episode.subtitle}, ${items.length} capítulos`, who);
+}
+
+/**
+ * What Seilide sends that is not the house's (#339, Oración: remote-snapcast.ts), instead of
+ * whatever was on: in its order, neither shuffled nor repeated, as a list to pray is.
+ */
+export async function remoteOnSnapcast(tracks: { track: MusicTrack; path: string }[]) {
+	if (!tracks.length) return;
+	entries.clear();
+	unattended = 0;
+	await mpv.command(['set_property', 'shuffle', false]);
+	await setLoops(false, false);
+	for (const [i, t] of tracks.entries())
+		await load(t.track, t.path, { flags: i ? 'append-play' : 'replace' });
+	log.info('música', `En Snapcast, de Seilide: ${tracks[0].track.album}, ${tracks.length} pistas`);
 }
 
 /**

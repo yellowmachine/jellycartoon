@@ -2,8 +2,10 @@ import { hkdfSync } from 'node:crypto';
 import { error } from '@sveltejs/kit';
 import { BETTER_AUTH_SECRET, ORIGIN } from '$app/env/private';
 import { houseKitchen, kitchenOf, type Kitchen } from '#lib/server/fridge.ts';
+import { askHouse, hasHouse, HouseProblem } from '#lib/server/house.ts';
 import { PASS_HOURS, readPrayerPass, signPrayerPass } from '#lib/server/prayer-pass.ts';
-import { prayerAudioFile, prayerModeOn } from '#lib/server/prayers.ts';
+import { listLists, listPrayers, prayerAudioFile, prayerModeOn } from '#lib/server/prayers.ts';
+import { prayerRemote } from '#lib/prayers.ts';
 import { readFile } from '#lib/server/storage.ts';
 
 /** The family's kitchen for Oración's pages and actions (#339): not there while it is off. */
@@ -65,4 +67,33 @@ export async function prayerAudio(k: Kitchen, id: number, request: Request) {
 		status: 206,
 		headers: { ...headers, 'Content-Range': `bytes ${start}-${end}/${size}` }
 	});
+}
+
+/**
+ * A list in the whole house, on its Snapcast (#339): its recordings by the family's pass, sent to
+ * the house in this person's name (a grown-up: the house refuses a child). How many texts were left
+ * out without a voice; or why it could not, said for a person.
+ */
+export async function prayOnHouse(
+	locals: App.Locals,
+	listId: number
+): Promise<{ missing: number } | { problem: string }> {
+	const k = await prayerKitchen(locals);
+	if (!(await hasHouse(locals.user!.id))) return { problem: 'Tu familia no tiene casa conectada' };
+	const list = (await listLists(k)).find((l) => l.id === listId);
+	if (!list) return { problem: 'Esa lista ya no está' };
+	const { remote, missing } = prayerRemote(list, await listPrayers(k), passAudioUrls(k.familyId));
+	if (!remote.items.length) return { problem: 'Ningún texto de la lista tiene voz todavía' };
+	try {
+		await askHouse(locals.user!.id, locals.user!.email, '/musica/snapcast', {
+			method: 'POST',
+			body: JSON.stringify({ action: 'remote', ...remote })
+		});
+	} catch (err) {
+		if (!(err instanceof HouseProblem)) throw err;
+		return {
+			problem: err.status === 404 ? 'Actualiza la casa para rezar en toda la casa' : err.message
+		};
+	}
+	return { missing };
 }

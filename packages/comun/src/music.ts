@@ -177,6 +177,20 @@ export interface SnapcastEpisode {
 /** Where on Snapcast: every speaker, or only one (its id) and the rest of its group. */
 export type SnapcastWhere = 'house' | { speakerId: string };
 
+/**
+ * What Seilide sends the house's Snapcast that is not the house's (#339, Oración): its own
+ * addresses, with a pass in them for mpv, and the pauses between them, played by mpv itself.
+ */
+export type SnapcastRemoteItem =
+	{ title: string; src: string; durationSec: number | null } | { pauseSec: number };
+
+export interface SnapcastRemote {
+	/** Where it comes from and what it is, as the queue shows them: «Oración», «Rosario». */
+	artist: string;
+	album: string;
+	items: SnapcastRemoteItem[];
+}
+
 /** The music on Snapcast: what its mpv is doing. Sent to every open page whenever it changes. */
 export interface SnapcastState {
 	/** Its mpv is waiting and the app is connected to it. */

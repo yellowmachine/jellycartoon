@@ -200,7 +200,7 @@
 					? '/radio'
 					: episode
 						? `/series/${episode.seriesId}`
-						: track && !track.clip
+						: track && !track.clip && !track.src
 							? `/musica/${track.albumId}`
 							: '/musica'}
 				class="flex min-w-0 flex-1 items-center gap-3"
