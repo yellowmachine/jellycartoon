@@ -115,6 +115,14 @@ export async function startUpdate(): Promise<'started' | 'not-ready'> {
 	// The app's service in compose.prod.yaml. Not by hostname: WUD's new container keeps the old one's.
 	const app = (containers: Container[]) =>
 		containers.find((c) => c.labels?.['com.docker.compose.service'] === 'app');
+	// Without its trigger WUD sees each new version and installs none: said, not waited for
+	// (2026-10-31, after its only variable went out of compose.prod.yaml).
+	const triggers: { type?: string; name?: string }[] = await wud('/api/triggers');
+	const [type, name] = TRIGGER.split('/');
+	if (!triggers.some((t) => t.type === type && t.name === name))
+		throw new Error(
+			`WUD no tiene con qué instalarla: le falta el disparador ${TRIGGER} (WUD_TRIGGER_DOCKER_JELLYCARTOON_PRUNE en compose.prod.yaml). Baja el compose nuevo y haz «docker compose -f compose.prod.yaml up -d».`
+		);
 	const self = app(await wud('/api/containers'));
 
 	if (!self) {

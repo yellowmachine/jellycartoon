@@ -347,6 +347,10 @@ services:
       # pulseaudio, mpv-music, snapserver), so the others still had it and the update failed
       # halfway (409, 2026-10-27 and 2026-10-30). The previous images, left without a tag, go
       # weekly by cron (install.sh, #316).
+      # This line is what makes the trigger exist: WUD only has the triggers that have a variable,
+      # so it stays, with PRUNE at its default. Without it (2026-10-30 to 31), WUD saw each new
+      # version and installed none.
+      WUD_TRIGGER_DOCKER_JELLYCARTOON_PRUNE: 'false'
       # Its web (http://127.0.0.1:3001 on this machine) and the API the app uses.
       WUD_AUTH_ADMIN_USER: admin
       WUD_AUTH_ADMIN_PASSWORD: ${WUD_PASSWORD:-}
