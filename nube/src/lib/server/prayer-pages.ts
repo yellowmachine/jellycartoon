@@ -5,7 +5,8 @@ import { houseKitchen, kitchenOf, type Kitchen } from '#lib/server/fridge.ts';
 import { askHouse, hasHouse, HouseProblem } from '#lib/server/house.ts';
 import { PASS_HOURS, readPrayerPass, signPrayerPass } from '#lib/server/prayer-pass.ts';
 import { listLists, listPrayers, prayerAudioFile, prayerModeOn } from '#lib/server/prayers.ts';
-import { prayerRemote } from '#lib/prayers.ts';
+import { prayerRemote, type HouseNow } from '#lib/prayers.ts';
+import type { SnapcastState } from 'comun/music.ts';
 import { readFile } from '#lib/server/storage.ts';
 
 /** The family's kitchen for Oración's pages and actions (#339): not there while it is off. */
@@ -96,4 +97,49 @@ export async function prayOnHouse(
 		};
 	}
 	return { missing };
+}
+
+/** What the whole house plays, if it is Seilide's (a list sent from here); null, nothing of it. */
+export async function houseNow(locals: App.Locals): Promise<HouseNow | null> {
+	await prayerKitchen(locals);
+	const { state } = await askHouse<{ state: SnapcastState }>(
+		locals.user!.id,
+		locals.user!.email,
+		'/musica/snapcast'
+	);
+	const track = state.active ? state.track : null;
+	if (!track?.src) return null;
+	return {
+		title: track.title,
+		album: track.album,
+		paused: state.paused,
+		positionSec: state.positionSec,
+		durationSec: state.durationSec,
+		last: state.playlistPos !== null && state.playlistPos === state.playlistCount
+	};
+}
+
+const CONTROLS: Record<string, object> = {
+	pause: { action: 'pause', value: true },
+	resume: { action: 'pause', value: false },
+	next: { action: 'next' },
+	previous: { action: 'previous' },
+	stop: { action: 'stop' }
+};
+
+/** A button of what plays in the house; why not, said for a person, or null. */
+export async function controlHouse(locals: App.Locals, what: string) {
+	await prayerKitchen(locals);
+	const body = CONTROLS[what];
+	if (!body) return 'Orden no válida';
+	try {
+		await askHouse(locals.user!.id, locals.user!.email, '/musica/snapcast', {
+			method: 'POST',
+			body: JSON.stringify(body)
+		});
+		return null;
+	} catch (err) {
+		if (!(err instanceof HouseProblem)) throw err;
+		return err.message;
+	}
 }

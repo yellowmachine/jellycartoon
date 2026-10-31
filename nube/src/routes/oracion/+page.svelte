@@ -3,7 +3,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { music } from 'comun/music-player.svelte.ts';
-	import { prayerQueue, STATUS_LABEL, type PrayerView } from '#lib/prayers.ts';
+	import { prayerQueue, STATUS_LABEL, type HouseNow, type PrayerView } from '#lib/prayers.ts';
 	import { primary, secondary } from '#lib/styles.ts';
 	import type { PageProps } from './$types';
 
@@ -36,6 +36,49 @@
 		if (tracks.length) music.play(tracks);
 	}
 
+	// ——— The whole house (Snapcast) ———
+
+	/** What it plays of Oración, as last asked; why it did not answer. */
+	let houseNow = $state<HouseNow | null>(null);
+	let houseProblem = $state<string | null>(null);
+	/** Asked again now (after a button), instead of at its next turn. */
+	let askHouseNow = $state(0);
+
+	async function askHouse() {
+		const res = await fetch('/api/oracion/casa').catch(() => null);
+		const body = res?.ok ? await res.json() : null;
+		houseNow = body?.now ?? null;
+		houseProblem = body ? body.problem : 'Sin conexión con Seilide';
+	}
+
+	// While the page is open: every few seconds while it plays there, less often while it does not.
+	$effect(() => {
+		if (!data.house) return;
+		void askHouseNow;
+		let timer: ReturnType<typeof setTimeout>;
+		let gone = false;
+		const tick = async () => {
+			if (document.visibilityState === 'visible') await askHouse();
+			if (!gone) timer = setTimeout(tick, houseNow ? 3000 : 15_000);
+		};
+		void tick();
+		return () => {
+			gone = true;
+			clearTimeout(timer);
+		};
+	});
+
+	/** After a button: what it plays, at once. */
+	const fromHouse =
+		() =>
+		async ({ update }: { update: (o?: { reset?: boolean }) => Promise<void> }) => {
+			await update({ reset: false });
+			askHouseNow++;
+		};
+
+	const clock = (sec: number | null) =>
+		sec == null ? '' : `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
+
 	const minutes = (sec: number | null) =>
 		sec == null ? '' : sec < 60 ? `${Math.round(sec)} s` : `${Math.round(sec / 60)} min`;
 
@@ -64,6 +107,41 @@
 	{/if}
 	{#if form && 'problem' in form}
 		<p class="mb-4 text-sm text-red-400">{form.problem}</p>
+	{:else if form && 'inHouse' in form && form.missing}
+		<p class="mb-4 text-sm text-amber-400">
+			{form.missing === 1 ? 'Un texto no tiene' : `${form.missing} textos no tienen`} voz todavía: se
+			salta{form.missing === 1 ? '' : 'n'}.
+		</p>
+	{/if}
+
+	{#if houseNow}
+		<section class="mb-6 rounded-md border border-amber-500/40 bg-zinc-900 p-3">
+			<p class="text-xs text-zinc-400">Sonando en toda la casa</p>
+			<p class="truncate">{houseNow.title}</p>
+			<p class="mb-2 truncate text-xs text-zinc-500">
+				{houseNow.album}{#if houseNow.durationSec}
+					· {clock(houseNow.positionSec)} / {clock(houseNow.durationSec)}{/if}
+			</p>
+			<form method="post" action="?/houseControl" use:enhance={fromHouse} class="flex gap-2">
+				<button name="do" value="previous" class={secondary} aria-label="Anterior">⏮</button>
+				<button
+					name="do"
+					value={houseNow.paused ? 'resume' : 'pause'}
+					class={primary}
+					aria-label={houseNow.paused ? 'Seguir' : 'Pausa'}>{houseNow.paused ? '▶' : '⏸'}</button
+				>
+				<button
+					name="do"
+					value="next"
+					class={secondary}
+					disabled={houseNow.last}
+					aria-label="Siguiente">⏭</button
+				>
+				<button name="do" value="stop" class={secondary} aria-label="Parar">■</button>
+			</form>
+		</section>
+	{:else if houseProblem && data.house}
+		<p class="mb-4 text-xs text-zinc-500">Casa: {houseProblem}</p>
 	{/if}
 
 	<div class="mb-2 flex items-center justify-between gap-3">
@@ -87,6 +165,14 @@
 							· {minutes(listLength(list))}{/if}</span
 					>
 				</span>
+				{#if data.house && list.items.length}
+					<form method="post" action="?/house" use:enhance={fromHouse}>
+						<input type="hidden" name="id" value={list.id} />
+						<button class="text-sm text-amber-400 hover:underline" title="Por Snapcast"
+							>▶ En toda la casa</button
+						>
+					</form>
+				{/if}
 				{#if !kid}<a href="/oracion/lista/{list.id}" class="text-sm text-zinc-400 hover:underline"
 						>Editar</a
 					>{/if}

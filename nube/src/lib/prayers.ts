@@ -64,6 +64,17 @@ export interface PrayerListView {
 	items: { prayerId: number; times: number }[];
 }
 
+/** What the whole house plays of Oración (#339, Snapcast), as the page shows it. */
+export interface HouseNow {
+	title: string;
+	album: string;
+	paused: boolean;
+	positionSec: number | null;
+	durationSec: number | null;
+	/** The last of the list: nothing after it. */
+	last: boolean;
+}
+
 /** Its recording's address: by what it was recorded with, as the browser keeps it a day. */
 export const prayerAudioUrl = (id: number, audioKey: string) =>
 	`/api/oracion/audio/${id}?v=${audioKey}`;
