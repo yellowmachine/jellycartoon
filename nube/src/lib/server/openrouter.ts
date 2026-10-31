@@ -1,3 +1,4 @@
+import { throughLane } from '#lib/server/ai-lane.ts';
 /**
  * OpenRouter (https://openrouter.ai), with the family's own key (family-settings.ts): an answer as
  * JSON to a schema, as jellycartoon's `completeJson`. Each request's cost goes to the spending's
@@ -41,29 +42,31 @@ export async function completeJson<T>(request: {
 	/** Longest answer, in tokens: without it OpenRouter reserves credit for the model's longest. */
 	maxTokens?: number;
 }): Promise<T> {
-	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-		method: 'POST',
-		headers: {
-			Authorization: `Bearer ${request.apiKey}`,
-			'Content-Type': 'application/json',
-			'X-OpenRouter-Title': 'Seilide'
-		},
-		body: JSON.stringify({
-			model: request.model ?? DEFAULT_MODEL,
-			messages: [
-				{ role: 'system', content: request.system },
-				{ role: 'user', content: request.prompt }
-			],
-			max_tokens: request.maxTokens ?? 16_384,
-			response_format: {
-				type: 'json_schema',
-				json_schema: { name: request.name, strict: true, schema: request.schema }
+	const res = await throughLane(request.apiKey, () =>
+		fetch('https://openrouter.ai/api/v1/chat/completions', {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${request.apiKey}`,
+				'Content-Type': 'application/json',
+				'X-OpenRouter-Title': 'Seilide'
 			},
-			// Only providers that honour the schema.
-			provider: { require_parameters: true }
-		}),
-		signal: AbortSignal.timeout(request.timeoutMs ?? 60_000)
-	});
+			body: JSON.stringify({
+				model: request.model ?? DEFAULT_MODEL,
+				messages: [
+					{ role: 'system', content: request.system },
+					{ role: 'user', content: request.prompt }
+				],
+				max_tokens: request.maxTokens ?? 16_384,
+				response_format: {
+					type: 'json_schema',
+					json_schema: { name: request.name, strict: true, schema: request.schema }
+				},
+				// Only providers that honour the schema.
+				provider: { require_parameters: true }
+			}),
+			signal: AbortSignal.timeout(request.timeoutMs ?? 60_000)
+		})
+	);
 	const body = await res.json().catch(() => null);
 	if (!res.ok) throw refused(res.status, body);
 	noteCost(request.apiKey, request.label, body);
@@ -232,23 +235,25 @@ async function chatOnce(
 ): Promise<{ content: string | null; toolCalls: ToolCall[]; usage: Usage | null }> {
 	const noThinking = request.think === false && (await canSkipThinking(request.model));
 	const ask = (toolChoice: typeof request.toolChoice) =>
-		fetch('https://openrouter.ai/api/v1/chat/completions', {
-			method: 'POST',
-			headers: headers(request.apiKey),
-			body: JSON.stringify({
-				model: request.model,
-				messages: request.messages,
-				tools: request.tools,
-				...(toolChoice && { tool_choice: toolChoice }),
-				// Short answers here, but room for a model that reasons.
-				max_tokens: 4_096,
-				...(noThinking && { reasoning: { effort: 'none' } }),
-				// Only providers that take tools.
-				provider: { require_parameters: true }
-				// No caching of its own: the caller marks what does not change (a `TextPart`).
-			}),
-			signal: AbortSignal.timeout(request.timeoutMs ?? 30_000)
-		});
+		throughLane(request.apiKey, () =>
+			fetch('https://openrouter.ai/api/v1/chat/completions', {
+				method: 'POST',
+				headers: headers(request.apiKey),
+				body: JSON.stringify({
+					model: request.model,
+					messages: request.messages,
+					tools: request.tools,
+					...(toolChoice && { tool_choice: toolChoice }),
+					// Short answers here, but room for a model that reasons.
+					max_tokens: 4_096,
+					...(noThinking && { reasoning: { effort: 'none' } }),
+					// Only providers that take tools.
+					provider: { require_parameters: true }
+					// No caching of its own: the caller marks what does not change (a `TextPart`).
+				}),
+				signal: AbortSignal.timeout(request.timeoutMs ?? 30_000)
+			})
+		);
 	let res = await ask(request.toolChoice);
 	let body = await res.json().catch(() => null);
 	// No provider of the model that says it takes `tool_choice` (Haiku 5.5's, since 2026-10-29):
@@ -286,20 +291,22 @@ export async function askWeb(request: {
 	label: string;
 	timeoutMs?: number;
 }) {
-	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-		method: 'POST',
-		headers: headers(request.apiKey),
-		body: JSON.stringify({
-			model: request.model,
-			messages: [
-				{ role: 'system', content: request.system },
-				{ role: 'user', content: request.prompt }
-			],
-			plugins: [{ id: 'web', max_results: 5 }],
-			max_tokens: 2048
-		}),
-		signal: AbortSignal.timeout(request.timeoutMs ?? 30_000)
-	});
+	const res = await throughLane(request.apiKey, () =>
+		fetch('https://openrouter.ai/api/v1/chat/completions', {
+			method: 'POST',
+			headers: headers(request.apiKey),
+			body: JSON.stringify({
+				model: request.model,
+				messages: [
+					{ role: 'system', content: request.system },
+					{ role: 'user', content: request.prompt }
+				],
+				plugins: [{ id: 'web', max_results: 5 }],
+				max_tokens: 2048
+			}),
+			signal: AbortSignal.timeout(request.timeoutMs ?? 30_000)
+		})
+	);
 	const body = await res.json().catch(() => null);
 	if (!res.ok) throw refused(res.status, body);
 	noteCost(request.apiKey, request.label, body);
@@ -350,12 +357,14 @@ export async function forwardChat(request: {
 	body: Record<string, unknown>;
 	signal: AbortSignal;
 }): Promise<Response> {
-	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-		method: 'POST',
-		headers: { ...headers(request.apiKey), 'X-OpenRouter-Title': request.label },
-		body: JSON.stringify(request.body),
-		signal: request.signal
-	});
+	const res = await throughLane(request.apiKey, () =>
+		fetch('https://openrouter.ai/api/v1/chat/completions', {
+			method: 'POST',
+			headers: { ...headers(request.apiKey), 'X-OpenRouter-Title': request.label },
+			body: JSON.stringify(request.body),
+			signal: request.signal
+		})
+	);
 	if (!res.ok) return refusedAnswer(res);
 	if (!request.body.stream || !res.body) {
 		const body = await res.json();
@@ -386,12 +395,14 @@ export async function forwardSpeech(request: {
 	body: Record<string, unknown>;
 	signal: AbortSignal;
 }): Promise<Response> {
-	const res = await fetch('https://openrouter.ai/api/v1/audio/speech', {
-		method: 'POST',
-		headers: { ...headers(request.apiKey), 'X-OpenRouter-Title': request.label },
-		body: JSON.stringify(request.body),
-		signal: request.signal
-	});
+	const res = await throughLane(request.apiKey, () =>
+		fetch('https://openrouter.ai/api/v1/audio/speech', {
+			method: 'POST',
+			headers: { ...headers(request.apiKey), 'X-OpenRouter-Title': request.label },
+			body: JSON.stringify(request.body),
+			signal: request.signal
+		})
+	);
 	if (!res.ok) return refusedAnswer(res);
 	return new Response(res.body, {
 		headers: { 'Content-Type': res.headers.get('content-type') ?? 'application/octet-stream' }
@@ -432,16 +443,18 @@ export async function transcribe(request: {
 	format: string;
 	timeoutMs?: number;
 }) {
-	const res = await fetch('https://openrouter.ai/api/v1/audio/transcriptions', {
-		method: 'POST',
-		headers: headers(request.apiKey),
-		body: JSON.stringify({
-			model: TRANSCRIBE_MODEL,
-			language: 'es',
-			input_audio: { data: Buffer.from(request.audio).toString('base64'), format: request.format }
-		}),
-		signal: AbortSignal.timeout(request.timeoutMs ?? 30_000)
-	});
+	const res = await throughLane(request.apiKey, () =>
+		fetch('https://openrouter.ai/api/v1/audio/transcriptions', {
+			method: 'POST',
+			headers: headers(request.apiKey),
+			body: JSON.stringify({
+				model: TRANSCRIBE_MODEL,
+				language: 'es',
+				input_audio: { data: Buffer.from(request.audio).toString('base64'), format: request.format }
+			}),
+			signal: AbortSignal.timeout(request.timeoutMs ?? 30_000)
+		})
+	);
 	const body = await res.json().catch(() => null);
 	if (!res.ok) throw refused(res.status, body);
 	noteCost(request.apiKey, 'Voz: oír', body);
@@ -462,18 +475,20 @@ export async function speech(request: {
 	instructions?: string;
 	timeoutMs?: number;
 }): Promise<{ pcm: Uint8Array; rate: number }> {
-	const res = await fetch('https://openrouter.ai/api/v1/audio/speech', {
-		method: 'POST',
-		headers: headers(request.apiKey),
-		body: JSON.stringify({
-			model: request.model,
-			voice: request.voice,
-			input: request.input,
-			...(request.instructions && { instructions: request.instructions }),
-			response_format: 'pcm'
-		}),
-		signal: AbortSignal.timeout(request.timeoutMs ?? 60_000)
-	});
+	const res = await throughLane(request.apiKey, () =>
+		fetch('https://openrouter.ai/api/v1/audio/speech', {
+			method: 'POST',
+			headers: headers(request.apiKey),
+			body: JSON.stringify({
+				model: request.model,
+				voice: request.voice,
+				input: request.input,
+				...(request.instructions && { instructions: request.instructions }),
+				response_format: 'pcm'
+			}),
+			signal: AbortSignal.timeout(request.timeoutMs ?? 60_000)
+		})
+	);
 	if (!res.ok) throw refused(res.status, await res.json().catch(() => null));
 	// E.g. `audio/pcm;rate=24000;channels=1`.
 	const rate = Number(/rate=(\d+)/.exec(res.headers.get('content-type') ?? '')?.[1]) || 24_000;

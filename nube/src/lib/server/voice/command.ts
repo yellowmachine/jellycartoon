@@ -89,7 +89,7 @@ import {
 import { familyPeople } from '#lib/server/agenda/agenda.ts';
 import { leaveMessage, MAX_MESSAGE } from '#lib/server/inbox.ts';
 import { ruleEvent } from '#lib/server/rule-events.ts';
-import { learnFromOrder } from '#lib/server/learn.ts';
+import { HEARD_MIN_CHARS } from '#lib/server/learn.ts';
 import { keepHeard } from '#lib/server/heard.ts';
 import { deleteRule, listRules, saveRule, sameName, translateRule } from '#lib/server/rules.ts';
 import { dosesFor, listMedication, markDose } from '#lib/server/medication.ts';
@@ -1780,23 +1780,20 @@ export async function runVoiceCommand(
 				k,
 				used.map((l) => l.id)
 			);
-		// The rules that wait for what is said (#331, phase 4): «cuando diga que pongo la lavadora».
 		if (!kid) {
+			// The rules that wait for what is said (#331, phase 4): «cuando diga que pongo la lavadora».
 			ruleEvent(k, 'dicho', request.text, satellite ? null : k.userId);
-			// Kept two weeks, to see what repeats (#331, phase 7).
-			void keepHeard(k, satellite ? null : k.userId, request.text).catch((err) =>
-				console.warn('[voz] no se ha guardado lo dicho:', err)
+			// Kept two weeks, to see what repeats (#331, phase 7); and, if the family has it on, queued to
+			// learn from once the voice is quiet (phase 6, learn.ts), unless the order itself kept or
+			// forgot something.
+			const learn =
+				settings.learn &&
+				request.text.trim().length >= HEARD_MIN_CHARS &&
+				!timing.rounds.some((r) => r.tools.some((t) => ASKED_TO_KEEP.has(t)));
+			void keepHeard(k, satellite ? null : k.userId, request.text, { answer: text, learn }).catch(
+				(err) => console.warn('[voz] no se ha guardado lo dicho:', err)
 			);
 		}
-		// What it told on the way, learned (#331, phase 6), unless the order itself kept or forgot it.
-		if (!kid && !timing.rounds.some((r) => r.tools.some((t) => ASKED_TO_KEEP.has(t))))
-			void learnFromOrder(
-				k,
-				satellite ? null : k.userId,
-				satellite ? null : order.who.name || null,
-				request.text,
-				text
-			).catch((err) => console.warn('[voz] no se ha aprendido de lo hablado:', err));
 		const answered = siteKey && afterOrder(siteKey, request.text, said, used);
 		if (answered && apiKey && site)
 			learnFrom(

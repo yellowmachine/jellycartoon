@@ -17,6 +17,7 @@ import { fridgeState, houseKitchen, kitchenOf, type Kitchen } from '#lib/server/
 import { tell } from '#lib/server/inbox.ts';
 import { listMemories, remember } from '#lib/server/memory.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
+import { inBackground } from '#lib/server/ai-lane.ts';
 import { listenRules } from '#lib/server/rule-events.ts';
 import { familySatellites, sayOnSatellites } from '#lib/server/satellites.ts';
 import { inQuietHours } from '#lib/server/voice/quiet-check.ts';
@@ -419,16 +420,19 @@ async function askMeaning(k: Kitchen, r: Rule, kind: Fitted, text: string) {
 	const apiKey = await openRouterKey(k);
 	if (apiKey)
 		try {
-			const a = await completeJson<{ encaja: boolean; porque: string }>({
-				apiKey,
-				label: 'Encajar una regla',
-				system: MATCH_SYSTEM,
-				prompt: `Regla: «${question.rule}».\n${question.what}: «${text}».\n¿Es lo que espera la regla?`,
-				name: 'match',
-				schema: MATCH_SCHEMA,
-				maxTokens: 200,
-				timeoutMs: 20_000
-			});
+			// Behind the voice: never taking its room in OpenRouter (ai-lane.ts).
+			const a = await inBackground(() =>
+				completeJson<{ encaja: boolean; porque: string }>({
+					apiKey,
+					label: 'Encajar una regla',
+					system: MATCH_SYSTEM,
+					prompt: `Regla: «${question.rule}».\n${question.what}: «${text}».\n¿Es lo que espera la regla?`,
+					name: 'match',
+					schema: MATCH_SCHEMA,
+					maxTokens: 200,
+					timeoutMs: 20_000
+				})
+			);
 			return { ok: a.encaja === true, why: String(a.porque ?? '').slice(0, 200) };
 		} catch (error) {
 			console.warn('[reglas] OpenRouter no contesta: al salón', { error: String(error) });

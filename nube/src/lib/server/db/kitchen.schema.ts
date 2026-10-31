@@ -128,6 +128,11 @@ export const familySettings = pgTable(
 		/** «Horas de silencio», «HH:MM» to «HH:MM»; null, none. */
 		voiceQuiet: jsonb('voice_quiet').$type<{ from: string; to: string }>(),
 		/**
+		 * «Aprender de lo que se habla» (#331, phase 6): after each order, the AI looks for something
+		 * worth remembering; off by default, as it runs at the same time as the answer's voice.
+		 */
+		voiceLearn: boolean('voice_learn').notNull().default(false),
+		/**
 		 * How the satellites Seilide serves speak (#296): Gemini's voice, how it says things, and what
 		 * they say while the AI thinks; null, Kore as the house's, with its phrases.
 		 */

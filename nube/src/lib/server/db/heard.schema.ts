@@ -1,11 +1,12 @@
-import { index, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, index, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { user } from './auth.schema.ts';
 import { family, familyRows } from './family.schema.ts';
 
 /**
- * What was said to the voice these last days (#331, phase 7), only to see what repeats («pongo la
- * lavadora» every few days) and propose a rule for it. A person's, only theirs; on a satellite,
- * the house's. Kept two weeks (heard.ts).
+ * What was said to the voice these last days (#331): to see what repeats («pongo la lavadora»
+ * every few days) and propose a rule for it (phase 7), and the queue of what to learn from (phase
+ * 6), away from the voice. A person's, only theirs; on a satellite, the house's. Kept two weeks
+ * (heard.ts).
  */
 export const heard = pgTable(
 	'heard',
@@ -17,6 +18,14 @@ export const heard = pgTable(
 		/** Whose; null, said on a satellite. */
 		userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
 		text: text('text').notNull(),
+		/** What the voice answered. */
+		answer: text('answer'),
+		/**
+		 * To be learned from (#331, phase 6, «Aprender de lo que se habla» on): the queue learn.ts
+		 * goes through when the voice is quiet; `learnedAt`, done.
+		 */
+		learn: boolean('learn').notNull().default(false),
+		learnedAt: timestamp('learned_at'),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [

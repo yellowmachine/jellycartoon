@@ -51,6 +51,7 @@ import {
 	setQuietHours,
 	setVoiceModel,
 	setVoiceStyle,
+	setVoiceLearn,
 	setWebSearch,
 	voiceSettings
 } from '#lib/server/voice/settings.ts';
@@ -136,6 +137,8 @@ export const load: PageServerLoad = async ({ locals, request, cookies }) => {
 		voiceModel: admin ? { model: voice.savedModel ?? '', fallback: DEFAULT_VOICE_MODEL } : null,
 		houseStyle: admin ? { text: voice.style ?? '' } : null,
 		voiceWeb: admin ? voice.web : null,
+		/** «Aprender de lo que se habla» (#331): only its administrator. */
+		voiceLearn: admin ? voice.learn : null,
 		voiceQuiet: admin ? { hours: voice.quiet } : null,
 		/** What the voice learned from its questions, by place (learned.ts). */
 		voiceLearned: admin ? await listLearned(k) : null,
@@ -339,6 +342,14 @@ export const actions: Actions = {
 			hints: String(form.get('hints') ?? '')
 		});
 		return { saved: 'voiceWeb' };
+	},
+	/** «Aprender de lo que se habla» (#331), on or off. */
+	saveVoiceLearn: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'voiceProblem');
+		if (denied) return denied;
+		const on = (await request.formData()).get('on') === 'on';
+		await setVoiceLearn(await kitchenOf(locals.user!.id), on);
+		return { saved: 'voiceLearn' };
 	},
 	/** «Horas de silencio»: both times, or none (`off`). */
 	saveVoiceQuiet: async ({ request, locals }) => {

@@ -7,7 +7,7 @@ import { ringDue } from '#lib/server/alarms/alarms.ts';
 import { sendDueDoses } from '#lib/server/medication.ts';
 import { forgetOver } from '#lib/server/memory.ts';
 import { checkTimedRules } from '#lib/server/rules.ts';
-import { proposeRules, SUMMARY_AT, summarizeLearned } from '#lib/server/learn.ts';
+import { learnPending, proposeRules, SUMMARY_AT, summarizeLearned } from '#lib/server/learn.ts';
 import { hasBot, startBot } from '#lib/server/telegram/bot.ts';
 import { refreshAll, REFRESH_HOURS } from '#lib/server/podcasts/podcasts.ts';
 
@@ -63,6 +63,8 @@ export function startScheduler() {
 				await eachFamily('Avisos de la agenda', (id) => sendDue(houseKitchen(id)));
 				await eachFamily('Tomas de medicación', (id) => sendDueDoses(houseKitchen(id)));
 				await eachFamily('Reglas', checkTimedRules);
+				// What was said, learned from once the voice is quiet (#331, phase 6).
+				await eachFamily('Aprender de lo hablado', learnPending);
 				// «Hoy he aprendido» (#331, phase 6), once a day; again after a restart only replaces it.
 				if (localTime() >= SUMMARY_AT && summarized !== localDay()) {
 					summarized = localDay();
