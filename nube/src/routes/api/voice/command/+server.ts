@@ -54,8 +54,11 @@ export const POST: RequestHandler = async ({ request }) => {
 	]);
 	let fromHouse: HouseVoiceOrder | null = null;
 	let note = SATELLITE_WITHOUT_HOUSE;
+	/** How long the house took to open the order: none, without it. */
+	let houseMs: number | null = null;
 	if (await familyHasHouse(k.familyId))
 		try {
+			const asked = performance.now();
 			fromHouse = await tellHouse<HouseVoiceOrder>(k.familyId, '/voz/orden', {
 				...command,
 				// Its own snapclient, if it plays the house's music: its room's speaker there.
@@ -65,6 +68,7 @@ export const POST: RequestHandler = async ({ request }) => {
 					speaker: snapserver ? snapclientIdOf(satellite.id) : null
 				}
 			});
+			houseMs = Math.round(performance.now() - asked);
 		} catch (err) {
 			if (!(err instanceof HouseProblem)) throw err;
 			console.warn(`[voz] ${satellite.name}: sin la casa: ${err.message}`, {
@@ -92,7 +96,19 @@ export const POST: RequestHandler = async ({ request }) => {
 		);
 		console.info(
 			`[voz] ${satellite.name}: «${command.text}» → «${reply.reply}» · ${Math.round(performance.now() - started)} ms`,
-			{ familyId: k.familyId, rounds: timing.rounds.map((r) => r.tools.join(', ') || 'texto') }
+			{
+				familyId: k.familyId,
+				// Where its time went, to study an order from the log alone.
+				house: houseMs,
+				prepare: timing.prepareMs,
+				rounds: timing.rounds.map((r) => ({
+					ms: r.ms,
+					tools: r.tools.join(', ') || 'texto',
+					prompt: r.prompt,
+					cached: r.cached,
+					completion: r.completion
+				}))
+			}
 		);
 		voiceAnswered(k.familyId);
 		return json(reply);
