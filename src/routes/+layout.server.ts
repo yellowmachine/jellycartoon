@@ -39,8 +39,8 @@ export const load: LayoutServerLoad = async ({ locals, isDataRequest }) => {
 		/** A child's account (#17): only what is tagged «infantil», and nothing to manage. */
 		kid,
 		/**
-		 * The family's cloud (#253), where the bar's Recetas, Nevera, Agenda and Gastos are: an adult's
-		 * way there; null, not connected (those links go to Ajustes to connect it) or a child's.
+		 * The family's cloud (#253), where Recetas, Nevera, Agenda and Gastos are: their old addresses
+		 * here and the radio's podcasts go there; null, not connected or a child's.
 		 */
 		cloud: kid || !locals.user ? null : await cloudUrl(),
 		/** The adults' page about what children watch, once there is a child's account. */

@@ -2,13 +2,13 @@ import type { NavLink, UserLink } from 'comun/components/SiteNav.svelte';
 import type { Section } from 'comun/components/SectionIcon.svelte';
 
 /**
- * The bar's sections, as jellycartoon's and in its order (#253), each where it is: in the cloud
- * (its page here), still at home but moving here (`pendiente`: a page that says so, with the way
- * to it at home), or the house's for good (`casa`: straight to jellycartoon, if its address was
- * given in Ajustes). `house`: nothing in it without a house connected (Ajustes), as a family that
- * uses only the cloud: not in its bar.
+ * The bar's sections, as jellycartoon's and in its order (#253): in the cloud (its page here), or
+ * still at home but moving here (`pendiente`: a page that says so, with the way to it at home).
+ * The house's for good (Cine, Salón, Juegos, Infantil, Gestión) are not here: each one knows where
+ * they are, as the house's bar has nothing of the cloud. `house`: nothing in it without a house
+ * connected (Ajustes), as a family that uses only the cloud: not in its bar.
  */
-type Where = 'nube' | 'pendiente' | 'casa';
+type Where = 'nube' | 'pendiente';
 
 const SECTIONS: {
 	path: string;
@@ -26,7 +26,6 @@ const SECTIONS: {
 		also: ['/watch'],
 		house: true
 	},
-	{ path: '/cine', label: 'Cine', icon: 'cine', where: 'casa' },
 	{ path: '/musica', label: 'Música', icon: 'musica', where: 'nube', house: true },
 	{ path: '/radio', label: 'Radio', icon: 'radio', where: 'nube' },
 	{ path: '/canales', label: 'Canales', icon: 'canales', where: 'nube' },
@@ -35,11 +34,8 @@ const SECTIONS: {
 	{ path: '/agenda', label: 'Agenda', icon: 'agenda', where: 'nube' },
 	{ path: '/gastos', label: 'Gastos', icon: 'gastos', where: 'nube' },
 	{ path: '/viajes', label: 'Viajes', icon: 'viajes', where: 'nube', also: ['/carretera'] },
-	{ path: '/salon', label: 'Salón', icon: 'salon', where: 'casa' },
-	{ path: '/juegos', label: 'Juegos', icon: 'juegos', where: 'casa' },
 	// Homework from the cartoons watched at the house (#142), for the grown-ups and the children.
-	{ path: '/deberes', label: 'Deberes', icon: 'infantil', where: 'nube', house: true },
-	{ path: '/infantil', label: 'Infantil', icon: 'infantil', where: 'casa' }
+	{ path: '/deberes', label: 'Deberes', icon: 'infantil', where: 'nube', house: true }
 ];
 
 /** Those still at home but moving here: each has its page saying so ([seccion=pendiente]). */
@@ -49,60 +45,30 @@ export const PENDING = SECTIONS.filter((s) => s.where === 'pendiente').map((s) =
 export const atHome = (webUrl: string | null, path: string) =>
 	webUrl ? `${webUrl}${path === '/series' ? '/' : path}` : `/en-casa${path}`;
 
-const link = (s: (typeof SECTIONS)[number], webUrl: string | null): NavLink => ({
-	href: s.where === 'casa' ? atHome(webUrl, s.path) : s.path,
+const link = (s: (typeof SECTIONS)[number]): NavLink => ({
+	href: s.path,
 	label: s.label,
 	icon: s.icon,
-	also: s.also,
-	external: s.where === 'casa' && Boolean(webUrl)
+	also: s.also
 });
 
 /** What a child's bar has (#303): what it may open (kids.ts), and no Ajustes. */
 const KID_SECTIONS = ['/series', '/musica', '/deberes', '/agenda', '/nevera'];
 
-/** With `hasHouse` false (no house connected), nothing of the house: its sections, Gestión, TV. */
-export function navLinks(
-	webUrl: string | null,
-	serviceAdmin = false,
-	hasHouse = true,
-	kid = false,
-	guardian = false
-) {
-	if (kid) {
-		const links = SECTIONS.filter(
-			(s) => KID_SECTIONS.includes(s.path) && (hasHouse || !s.house)
-		).map((s) => link(s, webUrl));
-		return { links, menuLinks: links, userLinks: [] };
-	}
-	const links = SECTIONS.filter((s) => hasHouse || (s.where !== 'casa' && !s.house)).map((s) =>
-		link(s, webUrl)
-	);
-	// Not a section to watch or listen to: in the user's menu, as at home; last in the phone's.
-	const gestion: NavLink = {
-		href: atHome(webUrl, '/library'),
-		label: 'Gestión',
-		icon: 'gestion',
-		external: Boolean(webUrl)
-	};
+/** With `hasHouse` false (no house connected), nothing of the house. */
+export function navLinks(serviceAdmin = false, hasHouse = true, kid = false, guardian = false) {
+	const links = SECTIONS.filter(
+		(s) => (!kid || KID_SECTIONS.includes(s.path)) && (hasHouse || !s.house)
+	).map(link);
+	if (kid) return { links, menuLinks: links, userLinks: [] };
 	const userLinks: UserLink[] = [
 		// What the app told them and the messages left for them (#331).
 		{ href: '/buzon', label: 'Buzón', icon: 'agenda' },
 		{ href: '/ajustes', label: 'Ajustes', icon: 'ajustes' },
 		// Their phone, handed to one of their children (#303).
 		...(guardian ? [{ href: '/pasar', label: 'Pasar a un peque', icon: 'infantil' as const }] : []),
-		...(hasHouse
-			? [
-					gestion,
-					{
-						href: atHome(webUrl, '/tv'),
-						label: 'Vista TV',
-						icon: 'series' as const,
-						external: Boolean(webUrl)
-					}
-				]
-			: []),
 		// Who runs the service: its families, its copies, the waiting list and the apps (/admin).
 		...(serviceAdmin ? [{ href: '/admin', label: 'Admin', icon: 'gestion' as const }] : [])
 	];
-	return { links, menuLinks: hasHouse ? [...links, gestion] : links, userLinks };
+	return { links, menuLinks: links, userLinks };
 }
