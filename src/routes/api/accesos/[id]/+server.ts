@@ -16,7 +16,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	if (!Number.isInteger(id) || typeof positionSec !== 'number' || positionSec < 0)
 		error(400, 'Bad request');
 	const shortcut = await openableShortcut(id, isKid(locals.user));
-	if (!shortcut) error(404, 'Not found');
+	// Only a site's has a window (#343: the rest open in the TV view).
+	if (!shortcut?.url) error(404, 'Not found');
 	const userId = locals.user!.id;
 	const sessionId = locals.session!.id;
 	const where =

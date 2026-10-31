@@ -165,7 +165,9 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		const place = await housePlace();
 		home = { place, name: place ? placeName(place) : null };
 		/** The TV view's shortcuts (#327): only with the TV view (MPV_SOCKET). */
-		if (mpvEnabled) shortcuts = await tvShortcuts(false);
+		// Only sites' yet: the rest (#343) are listed from its phase 2, with settingsShortcuts.
+		if (mpvEnabled)
+			shortcuts = (await tvShortcuts(false)).flatMap((s) => (s.url ? [{ ...s, url: s.url }] : []));
 		/** Voice satellites (#223): only where there is voice (WHISPER_URL). */
 		if (voiceEnabled) {
 			satellites = await listSatellites(request.headers);
@@ -960,20 +962,27 @@ export const actions: Actions = {
 		const form = await request.formData();
 		let saved;
 		try {
-			saved = await saveTvShortcut({
-				id: Number(form.get('id')) || undefined,
-				name: String(form.get('name') ?? ''),
-				url: String(form.get('url') ?? ''),
-				tags: String(form.get('tags') ?? '')
-			});
+			saved = await saveTvShortcut(
+				{
+					id: Number(form.get('id')) || undefined,
+					name: String(form.get('name') ?? ''),
+					kind: String(form.get('kind') ?? 'url'),
+					url: String(form.get('url') ?? ''),
+					target: String(form.get('target') ?? ''),
+					tags: String(form.get('tags') ?? '')
+				},
+				locals.user!.id
+			);
 		} catch (err) {
 			return fail(400, {
 				section: 'shortcuts',
 				message: err instanceof Error ? err.message : String(err)
 			});
 		}
-		// Its icon, from the site: new, another address, or none yet.
-		if (saved.findIcon && !(await refreshShortcutIcon(saved.id, saved.url)))
+		// No longer a site: the site's icon goes. Its icon, from the site: new, another address, or
+		// none yet.
+		await deleteIconFile(saved.oldIcon);
+		if (saved.findIcon && !(await refreshShortcutIcon(saved.id, saved.url!)))
 			return { saved: 'shortcut', noIcon: true };
 		return { saved: 'shortcut' };
 	},
@@ -982,7 +991,7 @@ export const actions: Actions = {
 		await requireAdmin(locals.user!.id);
 		const id = Number((await request.formData()).get('id'));
 		const shortcut = (await tvShortcuts(false)).find((s) => s.id === id);
-		if (!shortcut)
+		if (!shortcut?.url)
 			return fail(400, { section: 'shortcuts', message: 'Ese acceso directo ya no está' });
 		if (!(await refreshShortcutIcon(shortcut.id, shortcut.url)))
 			return { saved: 'shortcut', noIcon: true };
