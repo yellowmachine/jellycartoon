@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { familyMember } from '#lib/server/db/schema.ts';
 import { asFamily } from '#lib/server/family.ts';
-import { notify } from '#lib/server/push.ts';
+import { tell } from '#lib/server/inbox.ts';
 import { voiceAlarm, type VoiceNotice } from './alarm-rules.ts';
 import { FALLBACK_VOICE_MODEL } from './settings.ts';
 
@@ -15,7 +15,7 @@ const alarm = voiceAlarm();
 const detailOf = (error: unknown) =>
 	(error instanceof Error ? error.message : String(error)).slice(0, 200);
 
-async function tell(familyId: string, notice: VoiceNotice) {
+async function warnAdmins(familyId: string, notice: VoiceNotice) {
 	const admins = await asFamily(familyId, (tx) =>
 		tx.select({ id: familyMember.userId }).from(familyMember).where(eq(familyMember.role, 'admin'))
 	);
@@ -23,11 +23,12 @@ async function tell(familyId: string, notice: VoiceNotice) {
 		familyId,
 		detail: notice.detail
 	});
-	await notify(
+	await tell(
 		familyId,
 		admins.map((a) => a.id),
 		notice.kind === 'failing'
 			? {
+					kind: 'voz',
 					title: 'La voz está fallando',
 					body: `No ha podido con las últimas órdenes: ${notice.detail}`,
 					tag: 'voz-falla',
@@ -35,6 +36,7 @@ async function tell(familyId: string, notice: VoiceNotice) {
 					ttl: 3600
 				}
 			: {
+					kind: 'voz',
 					title: 'La voz va con el modelo de reserva',
 					body: `El modelo de la voz no contesta (${notice.detail}); mientras, contesta ${FALLBACK_VOICE_MODEL}. Se cambia en Ajustes.`,
 					tag: 'voz-reserva',
@@ -46,7 +48,7 @@ async function tell(familyId: string, notice: VoiceNotice) {
 
 const told = (familyId: string, notice: VoiceNotice | null) => {
 	if (notice)
-		void tell(familyId, notice).catch((error) =>
+		void warnAdmins(familyId, notice).catch((error) =>
 			console.warn('[voz] No se pudo avisar de que falla', { familyId, error: String(error) })
 		);
 };

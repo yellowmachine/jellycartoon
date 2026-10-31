@@ -31,8 +31,8 @@
 	 * The home page with a session (home.ts): what there is today in the family, at a glance on the
 	 * phone. A new family's first steps, until done; the doses still to take (#308), theirs and their
 	 * children's, to mark here; today's agenda with the alarms and timers that
-	 * ring today; the fridge's post-its and the list, live; the shortcuts; and «Seguir viendo» with a
-	 * house.
+	 * ring today; their «Buzón» still unread (#331); the fridge's post-its and the list, live; the
+	 * shortcuts; and «Seguir viendo» with a house.
 	 */
 	let {
 		name,
@@ -50,6 +50,7 @@
 			fridge: FridgeState;
 			tomorrow: Occurrence[];
 			alarms: Alarm[];
+			inbox: { count: number; latest: { id: number; title: string; body: string }[] };
 			steps: { key: boolean; invited: boolean } | null;
 			house: boolean;
 		};
@@ -371,6 +372,28 @@
 		</a>
 	{/if}
 {/await}
+
+{#if home.inbox.count}
+	<section class="{section} border-amber-500/40">
+		<div class="mb-3 flex items-baseline justify-between">
+			<h2 class="font-semibold">
+				📬 Buzón <span class="text-sm font-normal text-zinc-400">· {home.inbox.count} sin leer</span
+				>
+			</h2>
+			<a href="/buzon" class="text-sm text-amber-400 hover:underline">Ver todo</a>
+		</div>
+		<ul class="flex flex-col gap-1 text-sm">
+			{#each home.inbox.latest as n (n.id)}
+				<li class="truncate">
+					<a href="/buzon" class="hover:underline"
+						><span class="font-medium">{n.title}</span>
+						<span class="text-zinc-400">· {n.body}</span></a
+					>
+				</li>
+			{/each}
+		</ul>
+	</section>
+{/if}
 
 {#if home.doses.length}
 	<section class={section}>

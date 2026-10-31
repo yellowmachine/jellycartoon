@@ -112,6 +112,7 @@ import {
 	checkPassword,
 	disconnect as disconnectTelegram,
 	sendCode,
+	recentChats,
 	setTelegramOptions,
 	telegramOf
 } from '#lib/server/telegram/telegram.ts';
@@ -264,7 +265,16 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		keepHistory: isKid(locals.user) ? null : settings.keepHistory,
 		/** The road mode's trips kept (#81); adults only. */
 		/** Their own Telegram (#243), read aloud in the road mode: adults only. Never its session. */
-		telegram: isKid(locals.user) ? null : { account: await telegramOf(userId) },
+		telegram: isKid(locals.user)
+			? null
+			: {
+					account: await telegramOf(userId),
+					/** Their latest chats, to learn from (#331); none if Telegram does not answer. */
+					chats: await Promise.race([
+						recentChats(userId),
+						new Promise<never[]>((done) => setTimeout(() => done([]), 3000))
+					]).catch(() => [])
+				},
 		/** Langua, the language app: adults only. Never the token itself, only its end. */
 		langua: isKid(locals.user)
 			? null
@@ -835,9 +845,18 @@ export const actions: Actions = {
 	telegramOptions: async ({ request, locals }) => {
 		if (isKid(locals.user)) error(404, 'No encontrado');
 		const form = await request.formData();
+		const wanted = new Set(form.getAll('learn').map(String));
+		const [account, chats] = await Promise.all([
+			telegramOf(locals.user!.id),
+			recentChats(locals.user!.id).catch(() => [])
+		]);
+		// By their names now, or as they were saved if no longer among the latest.
+		const known = [...chats, ...(account?.learnChats ?? [])];
+		const learnChats = [...wanted].flatMap((id) => known.find((c) => c.id === id) ?? []);
 		await setTelegramOptions(locals.user!.id, {
 			groups: form.get('groups') === 'on',
-			markRead: form.get('markRead') === 'on'
+			markRead: form.get('markRead') === 'on',
+			learnChats
 		});
 		return { saved: 'telegram' };
 	},

@@ -10,6 +10,7 @@ import { log } from '#lib/server/log.ts';
 import { decrypt, encrypt } from '#lib/server/secret-box.ts';
 import type { TelegramKind, TelegramMessage } from 'comun/telegram.ts';
 import { likeness, words } from '#lib/server/voice/music-search.ts';
+import { askCloud, cloudLink } from '#lib/server/kitchen.ts';
 
 /**
  * A person's own Telegram account (#243), with Telegram's user API (MTProto) through GramJS
@@ -40,6 +41,12 @@ const pending = new Map<
 		at: number;
 	}
 >();
+/** Each person's chats Seilide learns from (#331), by id: their names. */
+const learning = new Map<string, Map<string, string>>();
+/** Shorter than this, nothing to remember («ok», «jaja», «👍»). */
+const LEARN_MIN_CHARS = 12;
+const RECENT_CHATS = 40;
+
 /** Each person's open road modes. */
 const listeners = new Map<string, Set<(message: TelegramMessage) => void>>();
 /** What was passed on, to mark it read by its key. */
@@ -67,7 +74,8 @@ export async function telegramOf(userId: string) {
 		.select({
 			name: telegramAccount.name,
 			groups: telegramAccount.groups,
-			markRead: telegramAccount.markRead
+			markRead: telegramAccount.markRead,
+			learnChats: telegramAccount.learnChats
 		})
 		.from(telegramAccount)
 		.where(eq(telegramAccount.userId, userId));
@@ -188,9 +196,21 @@ export async function disconnect(userId: string) {
 
 export async function setTelegramOptions(
 	userId: string,
-	options: { groups: boolean; markRead: boolean }
+	options: { groups: boolean; markRead: boolean; learnChats: { id: string; name: string }[] }
 ) {
 	await db.update(telegramAccount).set(options).where(eq(telegramAccount.userId, userId));
+	learning.set(userId, new Map(options.learnChats.map((c) => [c.id, c.name])));
+}
+
+/** For Ajustes: their latest chats (people and groups, not channels), to learn from. */
+export async function recentChats(userId: string) {
+	const c = clients.get(userId);
+	if (!c) return [];
+	const dialogs = await c.getDialogs({ limit: RECENT_CHATS });
+	return dialogs
+		.filter((d) => d.isUser || d.isGroup)
+		.filter((d) => !(d.entity instanceof Api.User && d.entity.bot))
+		.map((d) => ({ id: d.id!.toString(), name: d.title || d.name || 'Sin nombre' }));
 }
 
 async function stop(userId: string) {
@@ -229,6 +249,46 @@ function listen(userId: string, c: TelegramClient) {
 			),
 		new NewMessage({ incoming: true })
 	);
+	// Both ways, for what Seilide learns (#331).
+	c.addEventHandler(
+		(event: NewMessageEvent) =>
+			void learnFrom(userId, event).catch((error) =>
+				log.warn('telegram', 'No se pudo pasar a Seilide', { error: String(error) })
+			),
+		new NewMessage({})
+	);
+	void db
+		.select({ learnChats: telegramAccount.learnChats })
+		.from(telegramAccount)
+		.where(eq(telegramAccount.userId, userId))
+		.then(([row]) =>
+			learning.set(userId, new Map((row?.learnChats ?? []).map((c) => [c.id, c.name])))
+		);
+}
+
+/**
+ * A message in one of the chats they chose (Ajustes), sent or received, with words enough: passed to
+ * Seilide in their name, which offers in their «Buzón» what is worth remembering (#331, phase 5).
+ * Without Seilide connected, nothing.
+ */
+async function learnFrom(userId: string, event: NewMessageEvent) {
+	const m = event.message;
+	const chat = learning.get(userId)?.get(m.chatId?.toString() ?? '');
+	const text = m.text?.trim() ?? '';
+	if (!chat || text.length < LEARN_MIN_CHARS) return;
+	const link = await cloudLink();
+	if (!link) return;
+	const sender = m.out ? null : await m.getSender();
+	if (sender instanceof Api.User && sender.bot) return;
+	const from = m.out
+		? null
+		: sender instanceof Api.User
+			? [sender.firstName, sender.lastName].filter(Boolean).join(' ') || 'alguien'
+			: 'alguien';
+	await askCloud(link, '/telegram/aprender', {
+		userId,
+		body: { chat, from, text: text.slice(0, 2000), at: Date.now() }
+	});
 }
 
 const kindOf = (m: Api.Message): TelegramKind =>

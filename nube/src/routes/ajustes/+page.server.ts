@@ -33,13 +33,13 @@ import {
 import { BOT_EVENTS, parseBotEvents } from '#lib/telegram-bot.ts';
 import { withFamily } from '#lib/server/family.ts';
 import {
+	familyPlace,
 	openRouterKey,
 	openRouterKeyStart,
 	orsKeyStart,
+	setFamilyPlace,
 	setOpenRouterKey,
-	setOrsKey,
-	familyPlace,
-	setFamilyPlace
+	setOrsKey
 } from '#lib/server/family-settings.ts';
 import { placeName, type Place } from 'comun/weather.ts';
 import { findPlacesFor } from '#lib/server/places.ts';
@@ -56,6 +56,15 @@ import {
 } from '#lib/server/voice/settings.ts';
 import { forgetLearned, listLearned } from '#lib/server/voice/learned.ts';
 import { forget, listMemories, remember } from '#lib/server/memory.ts';
+import { RULE_TEMPLATES } from '#lib/rule-templates.ts';
+import {
+	deleteRule,
+	listRules,
+	saveRule,
+	setRulePaused,
+	translateRule,
+	tryRule
+} from '#lib/server/rules.ts';
 import { createHouseKey, deleteHouseKey, listHouseKeys } from '#lib/server/house-keys.ts';
 import {
 	createSatellite,
@@ -150,7 +159,35 @@ export const load: PageServerLoad = async ({ locals, request, cookies }) => {
 				})
 			: null,
 		/** What the voice remembers: theirs (no one else sees it) and the house's. */
-		memories: await listMemories(k, locals.user!.id),
+		memories: await listMemories(k, locals.user!.id, true),
+		/** Rules ready to turn on (#331, phase 7), and whether they have each one on. */
+		ruleTemplates: await listRules(k, locals.user!.id).then((rules) =>
+			RULE_TEMPLATES.map((t) => ({
+				id: t.id,
+				title: t.title,
+				does: t.does,
+				on: rules.some((r) => r.userId === locals.user!.id && r.spec.template === t.id)
+			}))
+		),
+		/** Their rules and the house's (#331): as understood, and the last time each told. */
+		rules: (await listRules(k, locals.user!.id)).map((r) => ({
+			id: r.id,
+			mine: Boolean(r.userId),
+			said: r.said,
+			understood: r.understood,
+			paused: r.paused,
+			aloud: r.spec.say ?? !r.userId,
+			lastFiredAt: r.lastFiredAt,
+			lastWhy: r.lastWhy
+		})),
+		/** «Cómo te aviso» (#331): the messages left for them, by email too. */
+		inboxByEmail: await withFamily(locals.user!.id, async (tx) => {
+			const [me] = await tx
+				.select({ on: familyMember.inboxByEmail })
+				.from(familyMember)
+				.where(eq(familyMember.userId, locals.user!.id));
+			return me?.on ?? false;
+		}),
 		/** How their subtitles look (Canales). */
 		subtitleStyle: await subtitleStyleOf(k)
 	};
@@ -267,6 +304,14 @@ export const actions: Actions = {
 		return { saved: 'myCar' };
 	},
 	/** «Mostrar el gasto en IA bajo la cabecera». */
+	/** «Cómo te aviso» (#331): the messages left for them, by email too. */
+	inboxByEmail: async ({ request, locals }) => {
+		const inboxByEmail = (await request.formData()).get('inboxByEmail') === 'on';
+		await withFamily(locals.user!.id, (tx) =>
+			tx.update(familyMember).set({ inboxByEmail }).where(eq(familyMember.userId, locals.user!.id))
+		);
+		return { saved: 'inboxByEmail' };
+	},
 	spendLine: async ({ request, locals }) => {
 		const spendLine = (await request.formData()).get('spendLine') === 'on';
 		await withFamily(locals.user!.id, (tx) =>
@@ -316,9 +361,70 @@ export const actions: Actions = {
 		await remember(
 			await kitchenOf(locals.user!.id),
 			form.get('whose') === 'house' ? null : locals.user!.id,
-			text
+			text,
+			{ untilDay: String(form.get('until') ?? '') || null }
 		);
 		return { saved: 'memory' };
+	},
+	/** «Reglas» (#331): a new one, or (with `id`) one said again, understood by the AI. */
+	saveRule: async ({ request, locals }) => {
+		const form = await request.formData();
+		const said = String(form.get('text') ?? '');
+		const id = form.get('id') ? Number(form.get('id')) : null;
+		if (!said.trim()) return fail(400, { ruleProblem: 'Escribe la regla', ruleId: id });
+		const k = await kitchenOf(locals.user!.id);
+		const made = await translateRule(k, said, locals.user!.name);
+		if ('problem' in made) return fail(400, { ruleProblem: made.problem, ruleId: id });
+		const whose = form.get('whose') === 'house' ? null : locals.user!.id;
+		const saved = await saveRule(
+			k,
+			id === null ? whose : locals.user!.id,
+			said,
+			made.understood,
+			made.spec,
+			Number.isInteger(id) ? id : null
+		);
+		if (!saved)
+			return fail(400, { ruleProblem: 'Ya hay demasiadas reglas en la familia', ruleId: id });
+		return { saved: 'rule', ruleId: saved };
+	},
+	/** One ready (#331, phase 7), turned on: its rules, theirs. */
+	activateTemplate: async ({ request, locals }) => {
+		const id = String((await request.formData()).get('id') ?? '');
+		const template = RULE_TEMPLATES.find((t) => t.id === id);
+		if (!template) return fail(400, { ruleProblem: 'Esa regla lista no existe', ruleId: null });
+		const k = await kitchenOf(locals.user!.id);
+		for (const r of template.rules)
+			if (!(await saveRule(k, locals.user!.id, r.said, r.understood, { ...r.spec, template: id })))
+				return fail(400, { ruleProblem: 'Ya hay demasiadas reglas en la familia', ruleId: null });
+		return { saved: 'rule' };
+	},
+	/** «Pausar» and «Seguir». */
+	pauseRule: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = Number(form.get('id'));
+		if (Number.isInteger(id))
+			await setRulePaused(
+				await kitchenOf(locals.user!.id),
+				locals.user!.id,
+				id,
+				form.get('paused') === 'true'
+			);
+		return { saved: 'rule' };
+	},
+	/** «Probar»: what it would do now. */
+	tryRule: async ({ request, locals }) => {
+		const id = Number((await request.formData()).get('id'));
+		const said = Number.isInteger(id)
+			? await tryRule(await kitchenOf(locals.user!.id), locals.user!.id, id)
+			: null;
+		return { ruleTried: { id, said: said ?? 'Esa regla ya no está.' } };
+	},
+	deleteRule: async ({ request, locals }) => {
+		const id = Number((await request.formData()).get('id'));
+		if (Number.isInteger(id))
+			await deleteRule(await kitchenOf(locals.user!.id), locals.user!.id, id);
+		return { saved: 'rule' };
 	},
 	/** And one forgotten: theirs, or the house's. */
 	forgetMemory: async ({ request, locals }) => {

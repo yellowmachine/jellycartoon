@@ -1,0 +1,179 @@
+<script lang="ts">
+	import { enhance } from '$app/forms';
+	import { field, primary, secondary, section } from '#lib/styles.ts';
+	import type { PageProps } from './$types';
+
+	/**
+	 * Tu Buzón (#331): lo que te ha avisado la app (la Agenda, las alarmas, la medicación, los
+	 * deberes, la voz, tus reglas), los recados que te dejan y lo que Seilide propone recordar de tus
+	 * chats de Telegram, lo último arriba; y para dejar uno a alguien de la familia. Solo lo ves tú.
+	 */
+	let { data, form }: PageProps = $props();
+
+	const unread = $derived(data.items.filter((n) => !n.readAt).length);
+	const when = (d: Date) => {
+		const day = d.toDateString() === new Date().toDateString();
+		return d.toLocaleString('es-ES', {
+			...(day ? {} : { weekday: 'short', day: 'numeric', month: 'short' }),
+			hour: '2-digit',
+			minute: '2-digit'
+		});
+	};
+	const KIND: Record<string, string> = {
+		agenda: 'Agenda',
+		alarma: 'Alarma',
+		medicacion: 'Medicación',
+		deberes: 'Deberes',
+		voz: 'La voz',
+		recado: 'Recado',
+		regla: 'Regla',
+		propuesta: 'Propuesta',
+		aprendido: 'Lo aprendido'
+	};
+</script>
+
+<svelte:head>
+	<title>Buzón · Seilide</title>
+</svelte:head>
+
+<div class="mx-auto max-w-2xl">
+	<div class="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+		<h1 class="text-2xl font-bold">Buzón</h1>
+		{#if unread}
+			<form method="post" action="?/readAll" use:enhance>
+				<button class="text-sm text-amber-400 hover:underline">Marcar todo como leído</button>
+			</form>
+		{/if}
+	</div>
+
+	<section class={section}>
+		{#if data.items.length}
+			<ul class="flex flex-col divide-y divide-zinc-800">
+				{#each data.items as n (n.id)}
+					<li class="flex items-start gap-3 py-2">
+						<div class="min-w-0 flex-1">
+							<a
+								href={n.url}
+								class={['block hover:underline', n.readAt ? 'text-zinc-400' : 'font-semibold']}
+							>
+								{#if n.level === 'urgente'}<span class="text-red-400">¡Urgente! </span>{/if}
+								{n.title}
+							</a>
+							{#if n.learned}
+								<ul class="text-sm">
+									{#each n.learned as l (l.id)}
+										<li class="flex items-start gap-2">
+											<span class={['flex-1', n.readAt ? 'text-zinc-500' : 'text-zinc-300']}
+												>{l.text}</span
+											>
+											<form method="post" action="?/unlearn" use:enhance>
+												<input type="hidden" name="id" value={n.id} />
+												<input type="hidden" name="memory" value={l.id} />
+												<button
+													class="rounded px-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+													aria-label="Olvidar «{l.text}»">×</button
+												>
+											</form>
+										</li>
+									{:else}
+										<li class="text-zinc-500">Nada: lo has quitado todo.</li>
+									{/each}
+								</ul>
+							{:else}
+								<p class={['text-sm', n.readAt ? 'text-zinc-500' : 'text-zinc-300']}>{n.body}</p>
+							{/if}
+							<p class="text-xs text-zinc-500">{KIND[n.kind] ?? n.kind} · {when(n.createdAt)}</p>
+							{#if n.proposal}
+								{@const p = n.proposal}
+								<p class="text-xs text-zinc-500">
+									{p.because[0]?.toUpperCase()}{p.because.slice(1)}{p.type === 'cita'
+										? `: ${p.day}${p.time ? `, ${p.time}` : ''}`
+										: p.type !== 'regla' && p.untilDay
+											? `, hasta el ${p.untilDay}`
+											: ''}.
+								</p>
+								<form method="post" action="?/proposal" use:enhance class="mt-1 flex gap-2">
+									<input type="hidden" name="id" value={n.id} />
+									<button name="keep" value="true" class={primary}
+										>{p.type === 'regla'
+											? 'Sí, créala'
+											: p.type === 'cita'
+												? 'Añadir a la Agenda'
+												: 'Guardar'}</button
+									>
+									<button name="keep" value="false" class={secondary}>No</button>
+								</form>
+								{#if form && 'proposalId' in form && form.proposalId === n.id}
+									<p class="text-sm text-red-400">{form.proposalProblem}</p>
+								{/if}
+							{/if}
+						</div>
+						{#if !n.readAt && !n.proposal}
+							<form method="post" action="?/read" use:enhance>
+								<input type="hidden" name="id" value={n.id} />
+								<button class={secondary}>Vale</button>
+							</form>
+						{/if}
+						<form method="post" action="?/remove" use:enhance>
+							<input type="hidden" name="id" value={n.id} />
+							<button
+								class="rounded px-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+								aria-label="Borrar «{n.title}»">×</button
+							>
+						</form>
+					</li>
+				{/each}
+			</ul>
+		{:else}
+			<p class="text-sm text-zinc-400">
+				Nada todavía. Aquí quedan los avisos de la app y los recados que te dejen.
+			</p>
+		{/if}
+	</section>
+
+	{#if data.people.length}
+		<section class={section}>
+			<h2 class="mb-1 font-semibold">Dejar un recado</h2>
+			<p class="mb-3 text-sm text-zinc-400">
+				Le llega a su Buzón y a su móvil. También por voz: «Alexa, déjale un recado a…».
+			</p>
+			<form
+				method="post"
+				action="?/leave"
+				use:enhance={() =>
+					async ({ update }) =>
+						update({ reset: true })}
+				class="flex flex-col gap-3 text-sm"
+			>
+				<div class="flex flex-wrap gap-3">
+					{#each data.people as p (p.id)}
+						<label class="flex items-center gap-1">
+							<input
+								type="checkbox"
+								name="to"
+								value={p.id}
+								class="rounded border-zinc-700 bg-zinc-900 text-amber-500"
+							/>
+							{p.name}
+						</label>
+					{/each}
+				</div>
+				<textarea
+					name="text"
+					required
+					rows="2"
+					maxlength={data.maxMessage}
+					placeholder="Que compres pan al volver"
+					class={field}></textarea>
+				<div class="flex items-center gap-3">
+					<button class={primary}>Dejar el recado</button>
+					{#if form && 'left' in form}
+						<span class="text-amber-400">✓ Dejado a {form.left}</span>
+					{:else if form && 'problem' in form}
+						<span class="text-red-400">{form.problem}</span>
+					{/if}
+				</div>
+			</form>
+		</section>
+	{/if}
+</div>

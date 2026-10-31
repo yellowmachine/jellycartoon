@@ -87,6 +87,14 @@ import {
 	remember
 } from '#lib/server/memory.ts';
 import { familyPeople } from '#lib/server/agenda/agenda.ts';
+import { leaveMessage, MAX_MESSAGE } from '#lib/server/inbox.ts';
+import { ruleEvent } from '#lib/server/rule-events.ts';
+import { learnFromOrder } from '#lib/server/learn.ts';
+import { keepHeard } from '#lib/server/heard.ts';
+import { deleteRule, listRules, saveRule, sameName, translateRule } from '#lib/server/rules.ts';
+import { dosesFor, listMedication, markDose } from '#lib/server/medication.ts';
+import { MAX_RULE } from '#lib/rules.ts';
+import { localDay, localTime } from 'comun/agenda.ts';
 
 /**
  * Voice commands (#33), the family's brain since #253: what was said in the house, to a model with
@@ -121,6 +129,14 @@ const ONE_ROUND = new Set([
 	'end_recipe',
 	'remember',
 	'forget_memory'
+]);
+/** An order that already kept or forgot something itself: nothing more to learn from it (#331). */
+const ASKED_TO_KEEP = new Set([
+	'remember',
+	'forget_memory',
+	'create_rule',
+	'delete_rule',
+	'leave_message'
 ]);
 const SAY = {
 	type: 'string',
@@ -811,11 +827,21 @@ function memoryTools(satellite: boolean): Tool[] {
 	return [
 		tool(
 			'remember',
-			'Guarda algo que te piden recordar para contestarlo cuando lo pregunten («recuerda que la llave de repuesto está en la maceta», «apúntate que la talla de pie de Lucía es la 32»). No los avisos con fecha (la agenda), ni la compra o las notas de la nevera. Si cambia algo ya guardado («ahora la llave está en el cajón»), olvida antes lo viejo con «forget_memory».',
+			'Guarda algo que te piden recordar para contestarlo cuando lo pregunten («recuerda que la llave de repuesto está en la maceta», «apúntate que la talla de pie de Lucía es la 32»), también solo por unos días («hasta el viernes, el coche está en el taller»). No los avisos a una hora (la agenda), ni la compra o las notas de la nevera. Si cambia algo ya guardado («ahora la llave está en el cajón»), olvida antes lo viejo con «forget_memory».',
 			{
 				text: {
 					type: 'string',
-					description: `Lo que hay que recordar, en una frase que se entienda sola, sin «yo» ni «mi»: «La llave de repuesto está en la maceta de la entrada». Hasta ${MAX_MEMORY} letras.`
+					description: `Lo que hay que recordar, en una frase que se entienda sola, sin «yo» ni «mi» ni las fechas: «La llave de repuesto está en la maceta de la entrada». Hasta ${MAX_MEMORY} letras.`
+				},
+				from_day: {
+					type: 'string',
+					description:
+						'Solo si vale a partir de un día («desde el lunes…»): ese día, AAAA-MM-DD, contando desde hoy.'
+				},
+				until_day: {
+					type: 'string',
+					description:
+						'Solo si vale hasta un día («hasta el viernes», «esta semana», «mientras estoy de viaje del 5 al 12»): el último día, AAAA-MM-DD, contando desde hoy; luego se olvida solo.'
 				},
 				...(satellite
 					? {}
@@ -832,7 +858,7 @@ function memoryTools(satellite: boolean): Tool[] {
 		),
 		tool(
 			'forget_memory',
-			'Olvida algo guardado, por su número (de lo que te han pedido recordar, o de «list_memories»).',
+			'Olvida algo guardado, por su número (de lo que te han pedido recordar, o de «list_memories»). También lo deducido por una regla cuando ya no vale («ya he recogido la ropa» olvida «Hay ropa tendida»).',
 			{ id: { type: 'integer' } },
 			['id']
 		),
@@ -844,6 +870,108 @@ function memoryTools(satellite: boolean): Tool[] {
 		)
 	];
 }
+
+/** A message for someone of the family, in their «Buzón» and on their phone (inbox.ts, #331). */
+const messageTool: Tool = {
+	type: 'function',
+	function: {
+		name: 'leave_message',
+		description:
+			'Deja un recado en el buzón de alguien de la familia, con aviso en su móvil («déjale un recado a Ana: que compre pan», «dile a papá que ya he llegado»). No para el grupo de Telegram ni para recordar algo uno mismo.',
+		parameters: {
+			type: 'object',
+			properties: {
+				to: {
+					type: 'array',
+					items: { type: 'string' },
+					description:
+						'Sus nombres, como en la familia del mensaje («Ana»), o «todos» para toda la familia menos quien habla.'
+				},
+				text: {
+					type: 'string',
+					description: `El recado, para leerlo quien lo recibe: «Que compres pan al volver». Hasta ${MAX_MESSAGE} letras.`
+				}
+			},
+			required: ['to', 'text'],
+			additionalProperties: false
+		}
+	}
+};
+
+/**
+ * The family's rules (rules.ts, #331): made from what is said (the AI understands it once, and the
+ * server checks it), said back, and taken out. Not for children; on a satellite, the house's.
+ */
+function ruleTools(satellite: boolean): Tool[] {
+	const tool = (name: string, description: string, properties: object, required: string[]) =>
+		({
+			type: 'function',
+			function: {
+				name,
+				description,
+				parameters: { type: 'object', properties, required, additionalProperties: false }
+			}
+		}) satisfies Tool;
+	return [
+		tool(
+			'create_rule',
+			'Crea una regla que se comprueba sola y avisa: «cuando vengan mis padres, recuérdame que les diga lo de las plantas», «si pongo leche en la lista y estoy de viaje, avísame», «todos los días a las diez, si no hay nada en la agenda, dime que descanse». No para un aviso a una hora fija (la agenda), ni para recordar algo (remember). Contesta con cómo la has entendido.',
+			{
+				text: {
+					type: 'string',
+					description: `La regla tal como la ha dicho, completa. Hasta ${MAX_RULE} letras.`
+				},
+				...(satellite
+					? {}
+					: {
+							whose: {
+								type: 'string',
+								enum: ['me', 'house'],
+								description:
+									'«me»: solo de quien habla, por defecto. «house»: de toda la casa, si es para todos.'
+							}
+						})
+			},
+			satellite ? ['text'] : ['text', 'whose']
+		),
+		tool(
+			'list_rules',
+			'Las reglas que puede ver quien habla, con su número: «¿qué reglas tengo?», o para borrar una.',
+			{},
+			[]
+		),
+		tool(
+			'delete_rule',
+			'Borra una regla por su número (de «list_rules»).',
+			{ id: { type: 'integer' } },
+			['id']
+		)
+	];
+}
+
+/** «Ya me he tomado la pastilla»: their own doses due now, marked (Medicación, #308). */
+const markDoseTool: Tool = {
+	type: 'function',
+	function: {
+		name: 'mark_dose',
+		description:
+			'Marca como tomada la medicación de quien habla que toca ahora o hace poco («ya me he tomado la pastilla», «me he tomado el Sintrom»). Solo la suya.',
+		parameters: {
+			type: 'object',
+			properties: {
+				name: {
+					type: 'string',
+					description: 'El nombre del medicamento, si lo dice; si no, vacío: las que tocan ahora.'
+				}
+			},
+			required: ['name'],
+			additionalProperties: false
+		}
+	}
+};
+
+/** A dose counts as «now» from this long before its time. */
+const DOSE_EARLY_MIN = 60;
 
 /** The family's Telegram group (#243), with its bot: only when it is in one. */
 const groupSayTool: Tool = {
@@ -1077,10 +1205,85 @@ async function runTool(
 		case 'remember': {
 			const text = typeof args.text === 'string' ? args.text : '';
 			const whose = ctx.memoryOf && args.whose === 'me' ? ctx.memoryOf : null;
-			const id = await remember(ctx.k, whose, text);
+			const day = (v: unknown) => (typeof v === 'string' ? v : null);
+			const id = await remember(ctx.k, whose, text, {
+				fromDay: day(args.from_day),
+				untilDay: day(args.until_day)
+			});
 			if (!id) return 'Falta qué recordar.';
 			ctx.outcome.done++;
 			return `Guardado con el número ${id}, ${whose ? 'solo para quien habla' : 'para toda la casa'}.`;
+		}
+		case 'leave_message': {
+			const text = typeof args.text === 'string' ? args.text : '';
+			const names = Array.isArray(args.to) ? args.to.filter((n) => typeof n === 'string') : [];
+			const people = (await familyPeople(ctx.k)).filter((p) => p.userId);
+			const speaker = ctx.order.satellite ? null : ctx.k.userId;
+			const all = names.some((n) => fold(n.trim()) === 'todos');
+			const to = all
+				? people.filter((p) => p.userId !== speaker)
+				: people.filter((p) => names.some((n) => sameName(p.name, n)));
+			const missing = all ? [] : names.filter((n) => !people.some((p) => sameName(p.name, n)));
+			if (missing.length)
+				return `No hay nadie con cuenta llamado ${missing.join(', ')}: los que pueden recibir recados son ${people.map((p) => p.name).join(', ') || 'nadie'}. Pregúntale a quién era.`;
+			const from = ctx.order.satellite
+				? { userId: null, name: ctx.order.satellite.name, place: true }
+				: { userId: ctx.k.userId, name: ctx.order.who.name || 'alguien de casa' };
+			const left = await leaveMessage(
+				ctx.k,
+				from,
+				to.map((p) => p.userId!),
+				text
+			);
+			if (!left) return 'Falta el recado o a quién.';
+			ctx.outcome.done++;
+			return `Recado dejado en el buzón de ${to.map((p) => p.name).join(', ')}, con aviso en su móvil: «${left}».`;
+		}
+		case 'create_rule': {
+			const said = typeof args.text === 'string' ? args.text : '';
+			const whose = ctx.memoryOf && args.whose !== 'house' ? ctx.memoryOf : null;
+			const made = await translateRule(
+				ctx.k,
+				said,
+				ctx.order.satellite ? null : ctx.order.who.name || null
+			);
+			if ('problem' in made) return `No se ha creado: ${made.problem} Díselo.`;
+			const id = await saveRule(ctx.k, whose, said, made.understood, made.spec);
+			if (!id)
+				return 'No se ha creado: la familia ya tiene demasiadas reglas (se borran en Ajustes).';
+			ctx.outcome.done++;
+			return `Regla ${id} creada, ${whose ? 'solo de quien habla' : 'de toda la casa'}. Así la ha entendido: «${made.understood}». Díselo corto, para que pueda corregirla.`;
+		}
+		case 'list_rules': {
+			const rules = await listRules(ctx.k, ctx.memoryOf);
+			return rules.length
+				? `Sus reglas: ${rules.map((r) => `${r.id}${r.paused ? ' (en pausa)' : ''}: ${r.understood}`).join(' · ')}`
+				: 'No hay ninguna regla todavía.';
+		}
+		case 'delete_rule': {
+			const id = Number(args.id);
+			const gone = Number.isInteger(id) ? await deleteRule(ctx.k, ctx.memoryOf, id) : null;
+			if (!gone) return `No hay ninguna regla con el número ${args.id} que pueda ver quien habla.`;
+			ctx.outcome.done++;
+			return `Borrada: «${gone}».`;
+		}
+		case 'mark_dose': {
+			const me = ctx.k.userId ? await personOf(ctx.k, ctx.k.userId) : null;
+			if (!me) return 'No sé quién habla: la medicación se marca desde su móvil.';
+			const name = typeof args.name === 'string' ? args.name.trim() : '';
+			const today = localDay();
+			const soon = localTime(new Date(Date.now() + DOSE_EARLY_MIN * 60_000));
+			const meds = await listMedication(ctx.k, Number(me));
+			const due = (await dosesFor(ctx.k, meds, today)).filter(
+				(d) => !d.takenAt && d.time <= soon && (!name || sameName(d.name, name))
+			);
+			if (!due.length)
+				return name
+					? `No tiene «${name}» por tomar ahora (ni pendiente de antes hoy).`
+					: 'No tiene ninguna toma pendiente ahora.';
+			for (const d of due) await markDose(ctx.k, d.medicationId, today, d.time, true);
+			ctx.outcome.done++;
+			return `Marcado como tomado: ${due.map((d) => `${d.name} de las ${d.time}`).join(', ')}.`;
 		}
 		case 'forget_memory': {
 			const id = Number(args.id);
@@ -1577,6 +1780,23 @@ export async function runVoiceCommand(
 				k,
 				used.map((l) => l.id)
 			);
+		// The rules that wait for what is said (#331, phase 4): «cuando diga que pongo la lavadora».
+		if (!kid) {
+			ruleEvent(k, 'dicho', request.text, satellite ? null : k.userId);
+			// Kept two weeks, to see what repeats (#331, phase 7).
+			void keepHeard(k, satellite ? null : k.userId, request.text).catch((err) =>
+				console.warn('[voz] no se ha guardado lo dicho:', err)
+			);
+		}
+		// What it told on the way, learned (#331, phase 6), unless the order itself kept or forgot it.
+		if (!kid && !timing.rounds.some((r) => r.tools.some((t) => ASKED_TO_KEEP.has(t))))
+			void learnFromOrder(
+				k,
+				satellite ? null : k.userId,
+				satellite ? null : order.who.name || null,
+				request.text,
+				text
+			).catch((err) => console.warn('[voz] no se ha aprendido de lo hablado:', err));
 		const answered = siteKey && afterOrder(siteKey, request.text, said, used);
 		if (answered && apiKey && site)
 			learnFrom(
@@ -1655,6 +1875,9 @@ export async function runVoiceCommand(
 		...tools(house.speakers, house.rooms, house.salon, house.clipMinutes),
 		...(house.tools as Tool[]),
 		...(group ? [groupSayTool] : []),
+		messageTool,
+		...(kid ? [] : ruleTools(Boolean(satellite))),
+		...(kid || satellite ? [] : [markDoseTool]),
 		...(learned ? [usedLearnedTool] : []),
 		...(kid ? [] : memoryTools(Boolean(satellite))),
 		...(settings.web.on ? [webSearchTool] : [])

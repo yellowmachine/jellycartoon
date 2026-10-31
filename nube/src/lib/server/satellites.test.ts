@@ -22,6 +22,8 @@ mock.module('#lib/server/satellites.ts', () => ({
 	servedSatellites: async () => []
 }));
 mock.module('#lib/server/push.ts', () => ({ notify: async () => {} }));
+// Their inbox (#331) tells the phones: faked as they are.
+mock.module('#lib/server/inbox.ts', () => ({ tell: async () => {} }));
 mock.module('#lib/server/telegram/bot.ts', () => ({ tellGroup: async () => {} }));
 mock.module('#lib/server/agenda/agenda.ts', () => ({ toldOf: async () => [] }));
 

@@ -7,12 +7,19 @@
 	/**
 	 * Lo que se le ha pedido a la voz que recuerde («recuerda que la llave está en la maceta»): lo
 	 * tuyo, que solo ves tú (ni quien administra la familia), y lo de toda la casa. Se añade aquí o
-	 * por voz, y se quita con ×.
+	 * por voz, y se quita con ×. Algo puede valer solo unos días («hasta el viernes, el coche está en
+	 * el taller», #331): luego se olvida solo.
 	 */
 	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
 
 	const mine = $derived(data.memories.filter((m) => m.userId));
 	const house = $derived(data.memories.filter((m) => !m.userId));
+	const shortDay = (day: string) =>
+		new Date(`${day}T12:00`).toLocaleDateString('es-ES', {
+			weekday: 'short',
+			day: 'numeric',
+			month: 'short'
+		});
 </script>
 
 {#snippet list(memories: typeof data.memories, empty: string)}
@@ -20,7 +27,28 @@
 		<ul class="flex flex-col gap-1">
 			{#each memories as m (m.id)}
 				<li class="flex items-start gap-2">
-					<p class="min-w-0 flex-1 text-zinc-200">{m.text}</p>
+					<p class="min-w-0 flex-1 text-zinc-200">
+						{m.text}
+						{#if m.source === 'conversacion'}
+							<span class="block text-xs text-zinc-500">Aprendido de lo que hablas con la voz</span>
+						{:else if m.because}
+							<span class="block text-xs text-zinc-500"
+								>{m.ruleId
+									? `Deducido por una regla, ${m.because}`
+									: `Aprendido ${m.because}`}</span
+							>
+						{/if}
+						{#if m.fromDay || m.untilDay}
+							<span class="block text-xs text-zinc-500"
+								>{[
+									m.fromDay ? `desde el ${shortDay(m.fromDay)}` : null,
+									m.untilDay ? `hasta el ${shortDay(m.untilDay)}` : null
+								]
+									.filter(Boolean)
+									.join(', ')}</span
+							>
+						{/if}
+					</p>
 					<form method="post" action="?seccion={tab}&/forgetMemory" use:enhance>
 						<input type="hidden" name="id" value={m.id} />
 						<button
@@ -41,7 +69,7 @@
 	<p class="mb-3 text-sm text-zinc-400">
 		Dile «recuerda que la llave de repuesto está en la maceta» y luego pregúntale «¿dónde está la
 		llave?». Lo tuyo solo lo ves y lo oyes tú; lo de la casa, toda la familia (y los satélites).
-		«¿Qué te he pedido que recuerdes?» te lo dice.
+		«¿Qué te he pedido que recuerdes?» te lo dice. Con «hasta el viernes…», lo olvida ese día.
 	</p>
 	<div class="flex flex-col gap-4 text-sm">
 		<div>
@@ -67,6 +95,10 @@
 				placeholder="La llave de repuesto está en la maceta"
 				class="{field} min-w-0 flex-1"
 			/>
+			<label class="flex items-center gap-1 text-xs text-zinc-500">
+				Hasta
+				<input type="date" name="until" class="{field} w-auto" aria-label="Hasta (opcional)" />
+			</label>
 			<select name="whose" class={select}>
 				<option value="me">Solo mío</option>
 				<option value="house">De la casa</option>

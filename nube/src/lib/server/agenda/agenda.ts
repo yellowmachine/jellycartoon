@@ -11,7 +11,7 @@ import {
 } from '#lib/server/db/schema.ts';
 import type { AnyDb } from '#lib/server/family-scope.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
-import { notify } from '#lib/server/push.ts';
+import { tell } from '#lib/server/inbox.ts';
 import { tellGroup } from '#lib/server/telegram/bot.ts';
 import { avatar, isAvatar } from 'comun/avatars.ts';
 import {
@@ -509,7 +509,8 @@ export async function sendDue(k: Kitchen) {
 			const forThem = ids.get(r.id) ?? [];
 			const who = names(people, forThem);
 			const when = e.startTime ?? 'todo el día';
-			await notify(k.familyId, await toldOf(k, forThem), {
+			await tell(k.familyId, await toldOf(k, forThem), {
+				kind: 'agenda',
 				title: `📅 ${e.remind === 'dia' ? 'Mañana' : 'En una hora'}: ${e.title}`,
 				body: who ? `${when} · ${who}` : when,
 				tag: `agenda-${r.id}`,

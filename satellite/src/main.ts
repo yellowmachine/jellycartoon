@@ -12,6 +12,7 @@ import {
 	followAlarms,
 	sendOrder,
 	serverName,
+	saidOnce,
 	serverReady,
 	speech,
 	stopAlarms,
@@ -330,7 +331,44 @@ if (serverReady)
 			log(state.ringing.length ? `Sonando: ${state.ringing.join(', ')}` : 'Nada sonando');
 		if (!state.play.length) hush();
 		else void ring();
+		void sayOnce();
 	});
+
+/** What it has said once already (#331), by its id: not again while the server still sends it. */
+const said = new Set<string>();
+let saying = false;
+
+/**
+ * What it is to say once (a rule's notice, #331): a «din-don» and the words, one after another,
+ * never over an order being heard or answered nor over what rings; then the server is told.
+ */
+async function sayOnce() {
+	if (saying) return;
+	saying = true;
+	try {
+		for (;;) {
+			const next = (alarms.say ?? []).find((s) => !said.has(s.id));
+			if (!next) break;
+			if (order || busy || ringing) {
+				await sleep(RING_PAUSE_MS);
+				continue;
+			}
+			said.add(next.id);
+			log(`Dice una vez: ${next.text}`);
+			try {
+				const voice = await speech(next.text, { chime: true });
+				if (voice) await play(voice);
+			} catch (err) {
+				log(`Sin voz para decirlo: ${err instanceof Error ? err.message : String(err)}`);
+			}
+			await saidOnce(next.id).catch((err) =>
+				log(`No se pudo decir que ya lo dijo: ${err instanceof Error ? err.message : String(err)}`)
+			);
+		}
+	} finally {
+		saying = false;
+	}
+}
 
 /**
  * What it has to say itself (not through Snapcast): a «din-don» and its name (as the AI wrote it),

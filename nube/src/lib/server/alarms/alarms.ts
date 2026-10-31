@@ -13,7 +13,7 @@ import type { AnyDb } from '#lib/server/family-scope.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { familyHasHouse, tellHouse } from '#lib/server/house.ts';
 import { familySatellites } from '#lib/server/satellites.ts';
-import { notify } from '#lib/server/push.ts';
+import { tell } from '#lib/server/inbox.ts';
 import { tellGroup } from '#lib/server/telegram/bot.ts';
 import { toldOf } from '#lib/server/agenda/agenda.ts';
 import { nextRing } from './next.ts';
@@ -582,7 +582,8 @@ async function ringAtHouse(k: Kitchen, row: Row) {
 		}
 	if (row.action === 'parar_musica') return;
 	const people = await k.run(async (tx) => (await peopleOf(tx, [row.id]))(row.id));
-	await notify(k.familyId, await toldOf(k, people), {
+	await tell(k.familyId, await toldOf(k, people), {
+		kind: 'alarma',
 		title: `${row.kind === 'temporizador' ? '⏲️' : '⏰'} ${row.label}`,
 		body: `Sonando en ${where}`,
 		tag: `alarma-${row.id}`,

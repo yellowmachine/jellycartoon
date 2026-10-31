@@ -6,7 +6,8 @@
 
 	/**
 	 * Tu Telegram (#243): conectado una vez, en el modo carretera se leen en voz alta los mensajes
-	 * que te llegan. Datos de my.telegram.org, el número, el código y, si la tiene, la contraseña.
+	 * que te llegan; y de los chats que elijas, Seilide aprende (#331). Datos de my.telegram.org, el
+	 * número, el código y, si la tiene, la contraseña.
 	 */
 	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
 
@@ -16,6 +17,13 @@
 		form && 'telegramStep' in form && form.telegramStep !== 'done' ? form.telegramStep : null
 	);
 	const problem = $derived(form && 'telegramProblem' in form ? form.telegramProblem : null);
+	/** Their latest chats, and those chosen that are no longer among them. */
+	const chatsToLearn = $derived([
+		...(data.telegram?.chats ?? []),
+		...(account?.learnChats ?? []).filter(
+			(l) => !(data.telegram?.chats ?? []).some((c) => c.id === l.id)
+		)
+	]);
 	let sending = $state(false);
 
 	const keep = () => {
@@ -55,6 +63,30 @@
 					<input type="checkbox" name="markRead" checked={account.markRead} class="rounded" />
 					Marcarlos como leídos al leerlos
 				</label>
+				<fieldset class="mt-2">
+					<legend class="font-medium">Aprender de estos chats</legend>
+					<p class="mb-2 text-xs text-zinc-500">
+						Lo que se dice en ellos (lo que te mandan y lo que mandas) pasa a Seilide, que te deja
+						en tu Buzón lo que merezca recordarse («llegamos el sábado a las 11») para que lo
+						guardes o no. Lo lee la IA de la familia en OpenRouter, o el Ollama de casa si falla.
+					</p>
+					<div class="flex max-h-48 flex-col gap-1 overflow-y-auto">
+						{#each chatsToLearn as c (c.id)}
+							<label class="flex items-center gap-2">
+								<input
+									type="checkbox"
+									name="learn"
+									value={c.id}
+									checked={account.learnChats.some((l) => l.id === c.id)}
+									class="rounded"
+								/>
+								{c.name}
+							</label>
+						{:else}
+							<span class="text-xs text-zinc-500">Telegram aún no ha dado tus chats.</span>
+						{/each}
+					</div>
+				</fieldset>
 				<div class="flex flex-wrap items-center gap-3">
 					<button class={primary} disabled={sending}>Guardar</button>
 					<button

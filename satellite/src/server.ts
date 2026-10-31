@@ -119,6 +119,8 @@ export interface Ringing {
 	/** And its name, for it to be known so there: «Dormitorio»; and its id there. */
 	name?: string;
 	snapclientId?: string;
+	/** Seilide's (#331): what it is to say once, out loud (a rule's notice), by its id. */
+	say?: { id: string; text: string }[];
 }
 
 /** After a dropped channel, tried again this long after. */
@@ -163,4 +165,9 @@ export async function followAlarms(onState: (state: Ringing) => void): Promise<n
 export async function stopAlarms() {
 	const res = await request('/api/satelite/avisos/parar', '{}', 'application/json');
 	return ((await res.json()) as { stopped: number }).stopped;
+}
+
+/** Said once (#331): the server forgets it. */
+export async function saidOnce(id: string) {
+	await request('/api/satelite/avisos/dicho', JSON.stringify({ id }), 'application/json');
 }
