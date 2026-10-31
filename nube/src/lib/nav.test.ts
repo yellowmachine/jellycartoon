@@ -20,3 +20,9 @@ test("with a house, what it serves through the cloud; nothing that goes to the h
 	expect(menuLinks.map((l) => l.label)).not.toContain('Gestión');
 	expect(userLinks.map((l) => l.label)).toEqual(['Buzón', 'Ajustes']);
 });
+
+test('Oración (#339), only with it on; for a child too', () => {
+	expect(navLinks(false, true).links.map((l) => l.label)).not.toContain('Oración');
+	expect(navLinks(false, true, false, false, true).links.map((l) => l.label)).toContain('Oración');
+	expect(navLinks(false, true, true, false, true).links.map((l) => l.label)).toContain('Oración');
+});

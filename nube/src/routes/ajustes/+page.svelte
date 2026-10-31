@@ -10,6 +10,7 @@
 	import EntrarConLaNube from './EntrarConLaNube.svelte';
 	import VozCaracter from './VozCaracter.svelte';
 	import DondeVivis from './DondeVivis.svelte';
+	import Oracion from './Oracion.svelte';
 	import VozInternet from './VozInternet.svelte';
 	import VozSilencio from './VozSilencio.svelte';
 	import VozAprende from './VozAprende.svelte';
@@ -303,6 +304,8 @@
 		<AparatoPeques {data} {form} {tab} all />
 
 		<DondeVivis {data} {form} {tab} />
+
+		<Oracion {data} {tab} />
 
 		<Coches {data} {form} {tab} />
 

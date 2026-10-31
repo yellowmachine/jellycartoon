@@ -147,6 +147,8 @@ export const familySettings = pgTable(
 			tone: string;
 			fillers: string[];
 		}>(),
+		/** Oración (#339): in the bar, for the whole family, only if it is on. */
+		prayerMode: boolean('prayer_mode').notNull().default(false),
 		/** «Dónde vivís» (Ajustes → Familia), optional: the weather on the home page and by voice. */
 		place: jsonb('place').$type<Place>(),
 		recipesBackdrop: integer('recipes_backdrop').references(() => recipe.id, {

@@ -18,6 +18,7 @@
 		| 'juegos'
 		| 'salon'
 		| 'infantil'
+		| 'oracion'
 		| 'gestion';
 </script>
 
@@ -102,6 +103,12 @@
 		<circle cx="12" cy="12" r="9" />
 		<path d="M8.5 14.5a4.5 4.5 0 0 0 7 0" />
 		<path d="M9 9.5h.01M15 9.5h.01" stroke-width="2.5" />
+	{:else if name === 'oracion'}
+		<!-- A candle. -->
+		<path d="M12 3c1.6 2 2.2 3.1 2.2 4.3a2.2 2.2 0 0 1-4.4 0c0-1.2.6-2.3 2.2-4.3z" />
+		<path d="M12 9.5V11" />
+		<rect x="9" y="11" width="6" height="9" rx="1" />
+		<path d="M6 21h12" />
 	{:else if name === 'gestion'}
 		<!-- A gear. -->
 		<circle cx="12" cy="12" r="3" />

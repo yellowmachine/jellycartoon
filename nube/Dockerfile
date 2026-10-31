@@ -15,8 +15,9 @@ RUN DATABASE_URL=postgres://build/build ORIGIN=http://localhost BETTER_AUTH_SECR
 
 FROM oven/bun:1-slim
 # poppler-utils: a bill's PDF read by its text (pdftotext), or its first page as a photo (pdftoppm).
+# ffmpeg: Oración's voices kept as Opus, not as Gemini's WAV (#339).
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends poppler-utils \
+	&& apt-get install -y --no-install-recommends poppler-utils ffmpeg \
 	&& rm -rf /var/lib/apt/lists/*
 # go-pmtiles, to cut a route's map out of Spain's (#164): the binary of its official image, the
 # same as jellycartoon's.

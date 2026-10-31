@@ -151,6 +151,13 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		shown: onlyAdmin
 	},
 	{
+		id: 'oracion',
+		tab: 'familia',
+		title: 'Oración',
+		words: 'oración rezar rezo religión rosario letanías plegarias misa vaticano',
+		shown: onlyAdmin
+	},
+	{
 		id: 'voz-aprende',
 		tab: 'familia',
 		title: 'Aprender de lo que se habla',
@@ -188,8 +195,8 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 	{
 		id: 'voz-aprendido',
 		tab: 'familia',
-		title: 'Lo que ha aprendido la voz',
-		words: 'aprender aprendido memoria recordar olvidar preguntas costumbres satélite voz',
+		title: 'Costumbres de la voz',
+		words: 'costumbres hábitos aprendido aprender preguntas sin preguntar olvidar satélite voz',
 		shown: onlyAdmin
 	},
 	{

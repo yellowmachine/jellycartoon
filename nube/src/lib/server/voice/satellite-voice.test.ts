@@ -18,10 +18,12 @@ let mostInFlight = 0;
 let failWith: string | null = null;
 /** Every request it got, said or not. */
 const tried: string[] = [];
+// The real one: a mock is the whole process's, and openrouter.test.ts tests it.
+const { sayableError } = await import('#lib/server/openrouter.ts');
 mock.module('#lib/server/openrouter.ts', () => ({
 	// homework.test.ts's, unused here: a mock is the whole process's.
 	completeJson: async () => ({}),
-	sayableError: (message: string) => message,
+	sayableError,
 	speech: async (r: { voice: string; input: string; instructions?: string }) => {
 		tried.push(r.input);
 		if (failWith) throw new Error(failWith);

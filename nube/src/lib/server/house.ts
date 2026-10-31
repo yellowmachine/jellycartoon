@@ -127,11 +127,19 @@ export async function askHouse<T>(
 	} catch {
 		throw new HouseProblem('La casa no contesta: ¿está encendida, con el túnel conectado?');
 	}
-	if (!response.ok) throw new HouseProblem(await problemOf(response));
+	if (!response.ok) throw new HouseProblem(await problemOf(response), response.status);
 	return response.json() as Promise<T>;
 }
 
-export class HouseProblem extends Error {}
+export class HouseProblem extends Error {
+	/** The house's own answer, when it gave one: a 404 is a house without that API yet. */
+	constructor(
+		message: string,
+		readonly status: number | null = null
+	) {
+		super(message);
+	}
+}
 
 /** Why the house said no: ours for the usual, else its own words («Whisper no contesta»). */
 async function problemOf(response: Response) {
@@ -177,7 +185,7 @@ export async function sendHouse<T>(
 	} catch {
 		throw new HouseProblem('La casa no contesta: ¿está encendida, con el túnel conectado?');
 	}
-	if (!response.ok) throw new HouseProblem(await problemOf(response));
+	if (!response.ok) throw new HouseProblem(await problemOf(response), response.status);
 	return response.json() as Promise<T>;
 }
 
@@ -219,6 +227,7 @@ export async function houseStream(
 	} catch {
 		throw new HouseProblem('La casa no contesta: ¿está encendida, con el túnel conectado?');
 	}
-	if (!response.ok || !response.body) throw new HouseProblem(await problemOf(response));
+	if (!response.ok || !response.body)
+		throw new HouseProblem(await problemOf(response), response.status);
 	return response.body;
 }

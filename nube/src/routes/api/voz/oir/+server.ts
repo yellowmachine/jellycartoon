@@ -4,14 +4,15 @@ import { openRouterKey } from '#lib/server/family-settings.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { askHouse, hasHouse, HouseProblem } from '#lib/server/house.ts';
 import { audioFormat, sayableError, transcribe } from '#lib/server/openrouter.ts';
+import { familyWords, heardPath } from '#lib/server/voice/heard-words.ts';
 
 /** An order is a few seconds: more than this is not one. */
 const MAX_BYTES = 5_000_000;
 
 /**
  * What the microphone recorded (#253): the text that was said, by the house's Whisper (its
- * /api/v1/voz/oir), which knows its music's names; without the house, or if it does not answer,
- * by OpenRouter with the family's key.
+ * /api/v1/voz/oir), which knows its music's names, told the family's (heard-words.ts); without
+ * the house, or if it does not answer, by OpenRouter with the family's key.
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const audio = await request.arrayBuffer();
@@ -25,7 +26,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				await askHouse<{ text: string }>(
 					locals.user!.id,
 					locals.user!.email,
-					'/voz/oir',
+					heardPath(await familyWords(await kitchenOf(locals.user!.id))),
 					{ method: 'POST', body: audio, headers: { 'content-type': type } },
 					30_000
 				)

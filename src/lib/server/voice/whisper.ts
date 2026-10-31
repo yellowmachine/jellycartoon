@@ -1,6 +1,6 @@
 import { WHISPER_SUBTITLES_URL, WHISPER_URL } from '$app/env/private';
 import { getAlbums } from '#lib/server/music/albums.ts';
-import { cleanTranscript } from './transcript.ts';
+import { cleanTranscript, whisperPrompt } from './transcript.ts';
 import { phrasesFromWhisper, type WhisperVerbose } from './whisper-cues.ts';
 
 /**
@@ -46,14 +46,14 @@ async function libraryHint() {
 	return hint.text;
 }
 
-/** What was said in `audio`; empty if nothing was. */
-export async function transcribe(audio: Blob) {
+/** What was said in `audio`; empty if nothing was. `familyWords`: names to write as they are. */
+export async function transcribe(audio: Blob, familyWords = '') {
 	const form = new FormData();
 	form.append('file', audio, 'voz');
 	form.append('response_format', 'json');
 	// The most likely words, not a sampled guess: an order, not prose.
 	form.append('temperature', '0');
-	const prompt = await libraryHint().catch(() => '');
+	const prompt = whisperPrompt(await libraryHint().catch(() => ''), familyWords, HINT_CHARS);
 	if (prompt) form.append('prompt', prompt);
 	const res = await fetch(`${WHISPER_URL}/inference`, {
 		method: 'POST',

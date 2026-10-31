@@ -17,6 +17,8 @@ const SECTIONS: {
 	where: Where;
 	also?: string[];
 	house?: true;
+	/** Only with Oración on (#339, Ajustes → Familia). */
+	prayer?: true;
 }[] = [
 	{
 		path: '/series',
@@ -35,7 +37,8 @@ const SECTIONS: {
 	{ path: '/gastos', label: 'Gastos', icon: 'gastos', where: 'nube' },
 	{ path: '/viajes', label: 'Viajes', icon: 'viajes', where: 'nube', also: ['/carretera'] },
 	// Homework from the cartoons watched at the house (#142), for the grown-ups and the children.
-	{ path: '/deberes', label: 'Deberes', icon: 'infantil', where: 'nube', house: true }
+	{ path: '/deberes', label: 'Deberes', icon: 'infantil', where: 'nube', house: true },
+	{ path: '/oracion', label: 'Oración', icon: 'oracion', where: 'nube', prayer: true }
 ];
 
 /** Those still at home but moving here: each has its page saying so ([seccion=pendiente]). */
@@ -53,12 +56,19 @@ const link = (s: (typeof SECTIONS)[number]): NavLink => ({
 });
 
 /** What a child's bar has (#303): what it may open (kids.ts), and no Ajustes. */
-const KID_SECTIONS = ['/series', '/musica', '/deberes', '/agenda', '/nevera'];
+const KID_SECTIONS = ['/series', '/musica', '/deberes', '/agenda', '/nevera', '/oracion'];
 
-/** With `hasHouse` false (no house connected), nothing of the house. */
-export function navLinks(serviceAdmin = false, hasHouse = true, kid = false, guardian = false) {
+/** With `hasHouse` false (no house connected), nothing of the house; `prayer`, Oración's on. */
+export function navLinks(
+	serviceAdmin = false,
+	hasHouse = true,
+	kid = false,
+	guardian = false,
+	prayer = false
+) {
 	const links = SECTIONS.filter(
-		(s) => (!kid || KID_SECTIONS.includes(s.path)) && (hasHouse || !s.house)
+		(s) =>
+			(!kid || KID_SECTIONS.includes(s.path)) && (hasHouse || !s.house) && (prayer || !s.prayer)
 	).map(link);
 	if (kid) return { links, menuLinks: links, userLinks: [] };
 	const userLinks: UserLink[] = [

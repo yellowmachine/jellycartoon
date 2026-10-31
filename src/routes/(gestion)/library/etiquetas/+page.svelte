@@ -30,7 +30,7 @@
 <p class="mb-6 text-sm text-zinc-400">
 	Las comparten todos. Cambiar o borrar una etiqueta la cambia en todas sus series y películas; si
 	le pones el nombre de otra que ya existe, se juntan en una. Las cuentas infantiles solo ven lo
-	etiquetado «infantil».
+	etiquetado «infantil», y lo etiquetado «+18» no sale en «Seguir viendo».
 </p>
 
 {#if !data.tags.length}

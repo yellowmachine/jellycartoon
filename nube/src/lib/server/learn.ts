@@ -11,6 +11,7 @@ import { fridgeState, houseKitchen, kitchenOf } from '#lib/server/fridge.ts';
 import { forget, learnedToday, listMemories, MAX_MEMORY, remember } from '#lib/server/memory.ts';
 import { agendaBetween } from '#lib/server/agenda/agenda.ts';
 import { pickLearned, sharesWords } from '#lib/server/voice/learned.ts';
+import { familyWords } from '#lib/server/voice/heard-words.ts';
 import { eq, ne } from 'drizzle-orm';
 import { completeJson } from '#lib/server/openrouter.ts';
 import { inBackground, quietFor } from '#lib/server/ai-lane.ts';
@@ -224,10 +225,10 @@ const HEARD_SCHEMA = {
 	}
 };
 
-const HEARD_SYSTEM = (today: string, who: string | null) =>
+const HEARD_SYSTEM = (today: string, who: string | null, words: string) =>
 	`Lees lo que ${who ?? 'alguien de la casa'} le ha dicho a la voz de casa estas últimas horas, orden a orden con la hora y lo que contestó la voz, y dices si, de paso, ha contado algo que merezca recordarse sin pedirlo: un plan con fecha, un dato de la familia o de la casa («mañana no hay cole, es fiesta», «a Lucía no le gustan las lentejas», «el viernes vienen mis padres»). Casi nunca: las órdenes («pon música», «qué hora es», «apaga la luz»), las preguntas, lo que solo valía en ese momento y lo que ya está en lo que recuerdas, no. Lo de varias órdenes que va junto («el viernes vienen mis padres», «a las 11»), en una sola cosa. Hoy es ${dayName(today, true)} (${today}).
 Por cada cosa (normalmente ninguna, «aprendido» vacío): «recuerdo» en una frase corta que se entienda sola, con nombres y fechas de verdad, sin «yo» ni «mañana» (vacío si solo es una cita); «hasta» el último día que vale (AAAA-MM-DD) o null si vale siempre; «de_casa» true si es de toda la casa y no solo de quien habla; y «sustituye» el número de lo que ya recuerdas que esto corrige («ahora la llave está en el cajón»), o null.
-${EVENT_LINE}`;
+${words ? `Lo dicho viene de un reconocimiento de voz que puede escribir mal los nombres: estos de la familia y de donde vive se escriben así, aunque se hayan oído de otra forma («Beled Rubio» por «Vélez Rubio»): ${words}.\n` : ''}${EVENT_LINE}`;
 
 /** Orders shorter than this tell nothing («para», «sube el volumen»): not queued. */
 export const HEARD_MIN_CHARS = 15;
@@ -263,7 +264,7 @@ export async function learnFromHeard(
 	const heard = await read<Heard>(
 		k,
 		'Aprender de lo hablado',
-		HEARD_SYSTEM(today, who),
+		HEARD_SYSTEM(today, who, await familyWords(k)),
 		prompt.slice(0, 12_000),
 		HEARD_SCHEMA
 	);

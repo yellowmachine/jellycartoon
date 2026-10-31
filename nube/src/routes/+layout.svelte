@@ -22,7 +22,13 @@
 
 	/** jellycartoon's bar (#253): the cloud's sections (nav.ts). */
 	const nav = $derived(
-		navLinks(data.user?.serviceAdmin, data.hasHouse, data.family?.kid ?? false, data.guardian)
+		navLinks(
+			data.user?.serviceAdmin,
+			data.hasHouse,
+			data.family?.kid ?? false,
+			data.guardian,
+			data.family?.prayer ?? false
+		)
 	);
 	/** The user's initial, for their round badge (accents and all: «Á» for «Álvaro»). */
 	const initial = $derived([...(data.user?.name.trim() ?? '')][0]?.toLocaleUpperCase('es') ?? '?');

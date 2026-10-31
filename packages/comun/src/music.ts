@@ -14,6 +14,8 @@ export interface MusicTrack {
 	hasCover: boolean;
 	/** Not a song: what the DJ says between them (Modo DJ), in the queue as one more. */
 	clip?: { id: string; text: string };
+	/** Not the library's: its own address (Seilide's Oración, #339), with no album to go to. */
+	src?: string;
 }
 
 export interface MusicAlbum {
@@ -73,9 +75,9 @@ export function setMusicUrls(own: Partial<MusicUrls>) {
 
 export const trackUrl = (id: number, opus = false) => urls.track(id, opus);
 export const coverUrl = (albumId: number) => urls.cover(albumId);
-/** What `track` sounds from: its file, or the DJ's words. */
+/** What `track` sounds from: its own address, the DJ's words, or its file. */
 export const audioUrl = (track: MusicTrack, opus = false) =>
-	track.clip ? urls.clip(track.clip.id) : trackUrl(track.id, opus);
+	track.src ?? (track.clip ? urls.clip(track.clip.id) : trackUrl(track.id, opus));
 
 /** Modo DJ: songs at random, and the DJ speaking every few. */
 export interface DjOptions {
@@ -174,6 +176,20 @@ export interface SnapcastEpisode {
 
 /** Where on Snapcast: every speaker, or only one (its id) and the rest of its group. */
 export type SnapcastWhere = 'house' | { speakerId: string };
+
+/**
+ * What Seilide sends the house's Snapcast that is not the house's (#339, Oración): its own
+ * addresses, with a pass in them for mpv, and the pauses between them, played by mpv itself.
+ */
+export type SnapcastRemoteItem =
+	{ title: string; src: string; durationSec: number | null } | { pauseSec: number };
+
+export interface SnapcastRemote {
+	/** Where it comes from and what it is, as the queue shows them: «Oración», «Rosario». */
+	artist: string;
+	album: string;
+	items: SnapcastRemoteItem[];
+}
 
 /** The music on Snapcast: what its mpv is doing. Sent to every open page whenever it changes. */
 export interface SnapcastState {
