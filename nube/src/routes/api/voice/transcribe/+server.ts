@@ -4,6 +4,7 @@ import { openRouterKey } from '#lib/server/family-settings.ts';
 import { audioFormat, sayableError, transcribe } from '#lib/server/openrouter.ts';
 import { familyHasHouse, HouseProblem, sendHouse } from '#lib/server/house.ts';
 import { satelliteRequest } from '#lib/server/satellites.ts';
+import { familyWords, heardPath } from '#lib/server/voice/heard-words.ts';
 
 /** An order is a few seconds: more than this is not one. */
 const MAX_BYTES = 5_000_000;
@@ -11,7 +12,7 @@ const MAX_BYTES = 5_000_000;
 /**
  * What a satellite of Seilide's recorded (#296), the house's path (its /api/voice/transcribe):
  * the text that was said, by the house's Whisper if the family has one (it knows its music's
- * names); without it, or if it does not answer, by OpenRouter with the family's key.
+ * names, and is told the family's: heard-words.ts); without it, or if it does not answer, by OpenRouter with the family's key.
  */
 export const POST: RequestHandler = async ({ request }) => {
 	const { k, satellite } = await satelliteRequest(request);
@@ -25,7 +26,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			const started = performance.now();
 			const heard = await sendHouse<{ text: string }>(
 				k.familyId,
-				'/voz/oir',
+				heardPath(await familyWords(k)),
 				{ method: 'POST', body: audio, type: 'audio/wav' },
 				30_000
 			);

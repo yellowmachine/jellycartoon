@@ -4,8 +4,9 @@
 	import type { PageData } from './$types';
 
 	/**
-	 * Lo que ha aprendido la voz de sus preguntas, por sitio (un satélite, una persona): para ver por
-	 * qué ya no pregunta algo, y olvidarlo si lo aprendió mal.
+	 * Costumbres de la voz: lo que ha aprendido de sus preguntas, por sitio (un satélite, una persona),
+	 * para ver por qué ya no pregunta algo, y olvidarlo si lo aprendió mal. Antes «Lo que ha aprendido
+	 * la voz», que el 2026-10-31 se confundió con «Lo que la voz recuerda» (Para mí).
 	 */
 	let { data, tab }: { data: PageData; tab: string } = $props();
 
@@ -16,11 +17,14 @@
 
 {#if data.voiceLearned}
 	<section class={section} id="voz-aprendido">
-		<h2 class="mb-1 font-semibold">Lo que ha aprendido la voz</h2>
+		<h2 class="mb-1 font-semibold">Costumbres de la voz</h2>
 		<p class="mb-3 text-sm text-zinc-400">
 			Cuando la voz duda y te pregunta («¿un temporizador de media hora, o parar la música?»), se
 			acuerda de lo que contestas, en ese sitio, y la próxima vez lo hace sin preguntar. Si aprendió
-			algo mal, quítalo con ×.
+			algo mal, quítalo con ×. Lo que le cuentas o le pides recordar no está aquí, sino en
+			<a href="?seccion=mi#voz-recuerda" class="text-amber-400 hover:underline"
+				>Para mí → Lo que la voz recuerda</a
+			>.
 		</p>
 		{#if byPlace.length}
 			<div class="flex flex-col gap-3 text-sm">

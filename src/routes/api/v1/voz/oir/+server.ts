@@ -9,9 +9,10 @@ const MAX_BYTES = 5_000_000;
 
 /**
  * What was recorded in the cloud (#253: its road mode's microphone), as it is: the text that was
- * said, by the house's Whisper, which knows its music's names.
+ * said, by the house's Whisper, which knows its music's names; `?palabras=`, the family's own
+ * (where it lives, its people), for Whisper to expect them too.
  */
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, url }) => {
 	await fromCloud(request);
 	if (!voiceEnabled) error(404, 'No hay voz configurada (WHISPER_URL)');
 	const audio = await request.blob();
@@ -19,7 +20,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (audio.size > MAX_BYTES) error(413, 'Demasiado largo');
 	try {
 		const started = performance.now();
-		const text = await transcribe(audio);
+		const text = await transcribe(audio, url.searchParams.get('palabras') ?? '');
 		log.info('voz', `Transcrito para Seilide en ${Math.round(performance.now() - started)} ms`, {
 			bytes: audio.size
 		});

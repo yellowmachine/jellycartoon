@@ -1008,9 +1008,21 @@ function instructions(context: {
 	sites: { id: number; name: string; host: string }[];
 	/** «Cómo es la voz de la casa» (Ajustes → La voz), free text; null, none. */
 	style: string | null;
+	/** «Aprender de lo que se habla» (#331): what is told in passing is learned afterwards. */
+	learns: boolean;
 }) {
-	const { library, playlists, house, salon, historyRules, keepHistory, recipes, sites, style } =
-		context;
+	const {
+		library,
+		playlists,
+		house,
+		salon,
+		historyRules,
+		keepHistory,
+		recipes,
+		sites,
+		style,
+		learns
+	} = context;
 
 	return `Eres el asistente de voz de JellyCartoon, la app de música y vídeo de una casa. Te hablan desde el móvil, a veces una persona mayor, a veces alguien con las manos ocupadas (cocinando, por ejemplo); lo que dice viene de un reconocimiento de voz y puede traer nombres mal escritos: busca por cómo suenan. Con una tele o una radio de fondo pueden colarse frases sueltas de ella, en medio o al final: haz caso solo a lo que tiene sentido como orden o pregunta para ti e ignora lo demás.
 
@@ -1023,6 +1035,7 @@ Cómo responder:
 - Lo que te han pedido recordar viene en el mensaje, con su número; para «¿dónde está…?», «¿cuál era…?», contesta con eso, y si no está, mira «list_memories» antes de decir que no lo sabes. Nunca lo inventes.
 - Si duda entre pocas opciones, usa «ask», con una pregunta que las nombre («¿El álbum Deseo carnal o la canción?»): quien la oye quizá no ve los botones, y contesta de palabra. Si la orden siguiente es esa respuesta («la segunda», «el álbum», «el de Alaska»), haz la orden de la opción que elige: van en el turno de tu pregunta. Si no encuentras algo, dilo y propón lo más parecido que haya.
 - Contesta solo a la orden de ahora. Las anteriores sirven para entenderla («la segunda», «quita eso»), no para volver a sacarlas: si esta va de otra cosa («¿qué hora es?» después de hablar de alarmas), no añadas preguntas ni ofrecimientos de lo de antes.
+- Si solo cuenta algo, sin preguntar ni pedir nada («los sábados hay mercado en el pueblo», «a Lucía no le gustan las lentejas»), no es una orden ni sigue lo de antes, aunque venga justo después: no vuelvas a lo anterior ni lo hagas otra vez. ${learns ? 'Contesta muy corto («Vale», «Entendido»): lo que se cuenta así se aprende después, sin herramientas.' : 'Si merece recordarse (un plan, un dato de la familia o de la casa), guárdalo con «remember» y di «Vale, me lo apunto»; si no, contesta muy corto («Vale»).'}
 - Si no dice dónde, es aquí${house ? ', salvo que lo que quiere controlar solo esté sonando en toda la casa' : ''}.
 - «Quita eso», «para», «más alto»…: se refiere a lo que está sonando. Con cada orden va lo que suena en cada sitio.
 - Sitios: aquí (el dispositivo desde el que se habla)${house ? ' y toda la casa (Snapcast), o uno solo de sus altavoces por su nombre' : '; toda la casa no está disponible'}.${
@@ -1818,7 +1831,8 @@ export async function runVoiceCommand(
 						keepHistory: house.keepHistory,
 						recipes,
 						sites: sites.map(({ id, name, host }) => ({ id, name, host })),
-						style: settings.style
+						style: settings.style,
+						learns: settings.learn
 					}),
 					cache_control: { type: 'ephemeral' }
 				}

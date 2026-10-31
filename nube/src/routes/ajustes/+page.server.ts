@@ -473,7 +473,7 @@ export const actions: Actions = {
 		if (Number.isInteger(id)) await forget(await kitchenOf(locals.user!.id), locals.user!.id, id);
 		return { saved: 'memory' };
 	},
-	/** One of «Lo que ha aprendido la voz», forgotten. */
+	/** One of «Costumbres de la voz», forgotten. */
 	forgetVoiceLearned: async ({ request, locals }) => {
 		const denied = await requireAdmin(locals.user!.id, 'voiceProblem');
 		if (denied) return denied;
