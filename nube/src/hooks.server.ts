@@ -6,6 +6,7 @@ import { auth } from '#lib/server/auth.ts';
 import { startScheduler } from '#lib/server/scheduler.ts';
 import { noteCosts } from '#lib/server/ai-spend.ts';
 import { isKidAccount, kidMayOpen } from '#lib/server/kids.ts';
+import { rejectMalformedPath } from 'comun/server/malformed-path.ts';
 
 /**
  * Signing in, Better Auth's own and the health check; and the house's API, with its key, checked
@@ -96,4 +97,4 @@ const session: Handle = async ({ event, resolve }) => {
 	return svelteKitHandler({ event, resolve, auth, building });
 };
 
-export const handle = sequence(checkCsrf, session);
+export const handle = sequence(rejectMalformedPath, checkCsrf, session);
