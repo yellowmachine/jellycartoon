@@ -28,6 +28,11 @@ export const memory = pgTable(
 		/** Deduced by a rule (#331, phase 4: «si pongo la lavadora, hay ropa tendida»), and why. */
 		ruleId: integer('rule_id').references(() => rule.id, { onDelete: 'set null' }),
 		because: text('because'),
+		/**
+		 * Where it came from, if not asked with «recuerda»: a rule's deduction, a Telegram message
+		 * kept from the «Buzón», or what was said to the voice (#331, phase 6).
+		 */
+		source: text('source', { enum: ['regla', 'telegram', 'conversacion'] }),
 		createdAt: timestamp('created_at').notNull().defaultNow(),
 		updatedAt: timestamp('updated_at').notNull().defaultNow()
 	},

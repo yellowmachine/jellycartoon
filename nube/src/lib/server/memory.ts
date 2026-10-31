@@ -31,14 +31,19 @@ export interface Memory {
 	/** Deduced by a rule (#331, phase 4) or learned (phase 5, no rule), and why; null, said. */
 	ruleId: number | null;
 	because: string | null;
+	/** Not asked with «recuerda»: a rule's, a Telegram message's, or what was said (phase 6). */
+	source: MemorySource | null;
 	updatedAt: Date;
 }
+
+export type MemorySource = 'regla' | 'telegram' | 'conversacion';
 
 /**
  * Deduced by a rule (which, why, and the rules it comes through: none twice, at most a few), or
  * learned elsewhere (no rule: a Telegram message, #331 phase 5), with why.
  */
 export interface Deduced {
+	source: MemorySource;
 	ruleId: number | null;
 	because: string;
 	chain: number[];
@@ -59,6 +64,7 @@ const COLUMNS = {
 	untilDay: memory.untilDay,
 	ruleId: memory.ruleId,
 	because: memory.because,
+	source: memory.source,
 	updatedAt: memory.updatedAt
 };
 
@@ -148,7 +154,8 @@ export async function remember(
 				fromDay,
 				untilDay,
 				ruleId: deduced?.ruleId ?? null,
-				because: deduced?.because ?? null
+				because: deduced?.because ?? null,
+				source: deduced?.source ?? null
 			})
 			.returning({ id: memory.id })
 	);
@@ -190,7 +197,11 @@ const line = (m: Memory) => {
 	const days = [
 		m.fromDay ? `desde el ${m.fromDay}` : null,
 		m.untilDay ? `hasta el ${m.untilDay}` : null,
-		m.because ? `${m.ruleId ? 'deducido ' : ''}${m.because}` : null
+		m.source === 'conversacion'
+			? 'aprendido de lo que habla, sin pedirlo: si lo usas, dilo con cautela («creo que me dijiste…»)'
+			: m.because
+				? `${m.ruleId ? 'deducido ' : ''}${m.because}`
+				: null
 	].filter(Boolean);
 	return `${m.id} (${[m.userId ? 'suyo' : 'de la casa', ...days].join(', ')}): ${m.text}`;
 };
@@ -212,4 +223,26 @@ export async function describeMemories(k: Kitchen, userId: string | null) {
 	return all.length
 		? `Lo que recuerdas: ${all.map(line).join(' · ')}`
 		: 'No te han pedido recordar nada todavía.';
+}
+
+/**
+ * What the voice learned today from what was said (#331, phase 6), for the day's summary: each
+ * person's, and the house's.
+ */
+export async function learnedToday(k: Kitchen) {
+	const today = localDay();
+	const rows = await k.run((tx) =>
+		tx
+			.select({ id: memory.id, userId: memory.userId, text: memory.text, at: memory.createdAt })
+			.from(memory)
+			.where(
+				and(
+					eq(memory.familyId, k.familyId),
+					eq(memory.source, 'conversacion'),
+					gte(memory.createdAt, new Date(Date.now() - 36 * 3600_000))
+				)
+			)
+			.orderBy(memory.createdAt)
+	);
+	return rows.filter((r) => localDay(r.at) === today);
 }

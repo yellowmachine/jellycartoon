@@ -89,6 +89,7 @@ import {
 import { familyPeople } from '#lib/server/agenda/agenda.ts';
 import { leaveMessage, MAX_MESSAGE } from '#lib/server/inbox.ts';
 import { ruleEvent } from '#lib/server/rule-events.ts';
+import { learnFromOrder } from '#lib/server/learn.ts';
 import { deleteRule, listRules, saveRule, sameName, translateRule } from '#lib/server/rules.ts';
 import { dosesFor, listMedication, markDose } from '#lib/server/medication.ts';
 import { MAX_RULE } from '#lib/rules.ts';
@@ -127,6 +128,14 @@ const ONE_ROUND = new Set([
 	'end_recipe',
 	'remember',
 	'forget_memory'
+]);
+/** An order that already kept or forgot something itself: nothing more to learn from it (#331). */
+const ASKED_TO_KEEP = new Set([
+	'remember',
+	'forget_memory',
+	'create_rule',
+	'delete_rule',
+	'leave_message'
 ]);
 const SAY = {
 	type: 'string',
@@ -1772,6 +1781,15 @@ export async function runVoiceCommand(
 			);
 		// The rules that wait for what is said (#331, phase 4): «cuando diga que pongo la lavadora».
 		if (!kid) ruleEvent(k, 'dicho', request.text, satellite ? null : k.userId);
+		// What it told on the way, learned (#331, phase 6), unless the order itself kept or forgot it.
+		if (!kid && !timing.rounds.some((r) => r.tools.some((t) => ASKED_TO_KEEP.has(t))))
+			void learnFromOrder(
+				k,
+				satellite ? null : k.userId,
+				satellite ? null : order.who.name || null,
+				request.text,
+				text
+			).catch((err) => console.warn('[voz] no se ha aprendido de lo hablado:', err));
 		const answered = siteKey && afterOrder(siteKey, request.text, said, used);
 		if (answered && apiKey && site)
 			learnFrom(

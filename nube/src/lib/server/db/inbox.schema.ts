@@ -42,6 +42,11 @@ export const inbox = pgTable(
 			untilDay: string | null;
 			because: string;
 		}>(),
+		/**
+		 * The day's «Hoy he aprendido» (#331, phase 6): what the voice learned from what was said,
+		 * each one to take out with ×.
+		 */
+		learned: jsonb('learned').$type<{ id: number; text: string }[]>(),
 		createdAt: timestamp('created_at').notNull().defaultNow(),
 		readAt: timestamp('read_at')
 	},

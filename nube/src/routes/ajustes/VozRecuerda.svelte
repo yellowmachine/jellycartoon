@@ -29,7 +29,9 @@
 				<li class="flex items-start gap-2">
 					<p class="min-w-0 flex-1 text-zinc-200">
 						{m.text}
-						{#if m.because}
+						{#if m.source === 'conversacion'}
+							<span class="block text-xs text-zinc-500">Aprendido de lo que hablas con la voz</span>
+						{:else if m.because}
 							<span class="block text-xs text-zinc-500"
 								>{m.ruleId
 									? `Deducido por una regla, ${m.because}`

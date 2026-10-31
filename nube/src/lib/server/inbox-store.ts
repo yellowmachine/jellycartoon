@@ -10,7 +10,15 @@ import type { PushMessage } from '#lib/server/push.ts';
  */
 
 export type InboxKind =
-	'agenda' | 'alarma' | 'medicacion' | 'deberes' | 'voz' | 'recado' | 'regla' | 'propuesta';
+	| 'agenda'
+	| 'alarma'
+	| 'medicacion'
+	| 'deberes'
+	| 'voz'
+	| 'recado'
+	| 'regla'
+	| 'propuesta'
+	| 'aprendido';
 
 /** Something to remember, offered in the inbox (#331, phase 5). */
 export interface Proposal {
@@ -18,6 +26,7 @@ export interface Proposal {
 	untilDay: string | null;
 	because: string;
 }
+
 export type InboxLevel = 'normal' | 'urgente';
 
 export interface Notice extends PushMessage {
@@ -27,6 +36,8 @@ export interface Notice extends PushMessage {
 	fromUserId?: string | null;
 	/** Something to remember, with «Guardar» and «No». */
 	proposal?: Proposal | null;
+	/** The day's «Hoy he aprendido»: its memories, each to take out. */
+	learned?: { id: number; text: string }[] | null;
 }
 
 /** Kept a while: a family's letterbox, not an archive. */
@@ -47,7 +58,8 @@ export async function keepInInbox(k: Kitchen, userIds: string[], notice: Notice)
 				url: notice.url,
 				tag: notice.tag || null,
 				fromUserId: notice.fromUserId ?? null,
-				proposal: notice.proposal ?? null
+				proposal: notice.proposal ?? null,
+				learned: notice.learned ?? null
 			};
 			// The same, still unread (a reminder said again): in its place, as on the phone.
 			const [again] = notice.tag
@@ -101,6 +113,7 @@ export interface InboxItem {
 	createdAt: Date;
 	readAt: Date | null;
 	proposal: Proposal | null;
+	learned: { id: number; text: string }[] | null;
 }
 
 /** Theirs, newest first. */
@@ -116,7 +129,8 @@ export function listInbox(k: Kitchen, userId: string): Promise<InboxItem[]> {
 				url: inbox.url,
 				createdAt: inbox.createdAt,
 				readAt: inbox.readAt,
-				proposal: inbox.proposal
+				proposal: inbox.proposal,
+				learned: inbox.learned
 			})
 			.from(inbox)
 			.where(and(eq(inbox.familyId, k.familyId), eq(inbox.userId, userId)))
@@ -170,5 +184,22 @@ export async function answerProposal(k: Kitchen, userId: string, id: number, kep
 			})
 			.where(eq(inbox.id, id));
 		return row.proposal;
+	});
+}
+
+/** One of «Hoy he aprendido» taken out (its memory is forgotten by the caller): the rest stay. */
+export async function dropLearned(k: Kitchen, userId: string, id: number, memoryId: number) {
+	return k.run(async (tx) => {
+		const [row] = await tx
+			.select({ learned: inbox.learned })
+			.from(inbox)
+			.where(and(eq(inbox.familyId, k.familyId), eq(inbox.userId, userId), eq(inbox.id, id)));
+		if (!row?.learned?.some((l) => l.id === memoryId)) return false;
+		const learned = row.learned.filter((l) => l.id !== memoryId);
+		await tx
+			.update(inbox)
+			.set({ learned, body: learned.map((l) => l.text).join(' · ') || 'Nada' })
+			.where(eq(inbox.id, id));
+		return true;
 	});
 }

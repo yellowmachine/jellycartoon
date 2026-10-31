@@ -596,7 +596,7 @@ async function deduce(k: Kitchen, r: Rule, why: string, chain: number[]) {
 		r.userId,
 		deduce.text,
 		{ untilDay: addDays(localDay(), deduce.days) },
-		{ ruleId: r.id, because: `porque ${why}`, chain: [...chain, r.id] }
+		{ source: 'regla', ruleId: r.id, because: `porque ${why}`, chain: [...chain, r.id] }
 	);
 	console.info(`[reglas] Deducido «${deduce.text}»: ${why}`, { id: r.id });
 }

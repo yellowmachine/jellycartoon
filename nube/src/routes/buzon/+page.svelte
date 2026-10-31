@@ -27,7 +27,8 @@
 		voz: 'La voz',
 		recado: 'Recado',
 		regla: 'Regla',
-		propuesta: 'De Telegram'
+		propuesta: 'De Telegram',
+		aprendido: 'Lo aprendido'
 	};
 </script>
 
@@ -58,7 +59,29 @@
 								{#if n.level === 'urgente'}<span class="text-red-400">¡Urgente! </span>{/if}
 								{n.title}
 							</a>
-							<p class={['text-sm', n.readAt ? 'text-zinc-500' : 'text-zinc-300']}>{n.body}</p>
+							{#if n.learned}
+								<ul class="text-sm">
+									{#each n.learned as l (l.id)}
+										<li class="flex items-start gap-2">
+											<span class={['flex-1', n.readAt ? 'text-zinc-500' : 'text-zinc-300']}
+												>{l.text}</span
+											>
+											<form method="post" action="?/unlearn" use:enhance>
+												<input type="hidden" name="id" value={n.id} />
+												<input type="hidden" name="memory" value={l.id} />
+												<button
+													class="rounded px-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+													aria-label="Olvidar «{l.text}»">×</button
+												>
+											</form>
+										</li>
+									{:else}
+										<li class="text-zinc-500">Nada: lo has quitado todo.</li>
+									{/each}
+								</ul>
+							{:else}
+								<p class={['text-sm', n.readAt ? 'text-zinc-500' : 'text-zinc-300']}>{n.body}</p>
+							{/if}
 							<p class="text-xs text-zinc-500">{KIND[n.kind] ?? n.kind} · {when(n.createdAt)}</p>
 							{#if n.proposal}
 								<p class="text-xs text-zinc-500">

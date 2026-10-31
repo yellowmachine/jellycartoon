@@ -3,8 +3,14 @@ import type { Actions, PageServerLoad } from './$types';
 import { familyPeople } from '#lib/server/agenda/agenda.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { leaveMessage, MAX_MESSAGE } from '#lib/server/inbox.ts';
-import { answerProposal, listInbox, markRead, removeFromInbox } from '#lib/server/inbox-store.ts';
-import { remember } from '#lib/server/memory.ts';
+import {
+	answerProposal,
+	dropLearned,
+	listInbox,
+	markRead,
+	removeFromInbox
+} from '#lib/server/inbox-store.ts';
+import { forget, remember } from '#lib/server/memory.ts';
 
 /**
  * Their «Buzón» (#331): what the app told them, newest first, and the messages left for them; and
@@ -57,8 +63,18 @@ export const actions: Actions = {
 				locals.user!.id,
 				offered.text,
 				{ untilDay: offered.untilDay },
-				{ ruleId: null, because: offered.because, chain: [] }
+				{ source: 'telegram', ruleId: null, because: offered.because, chain: [] }
 			);
+	},
+	/** One of «Hoy he aprendido» taken out (#331, phase 6): forgotten. */
+	unlearn: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = idOf(form);
+		const memoryId = Number(form.get('memory'));
+		if (id === null || !Number.isInteger(memoryId)) return;
+		const k = await kitchenOf(locals.user!.id);
+		if (await dropLearned(k, locals.user!.id, id, memoryId))
+			await forget(k, locals.user!.id, memoryId);
 	},
 	/** «Dejar un recado», to one or more of the family. */
 	leave: async ({ request, locals }) => {
