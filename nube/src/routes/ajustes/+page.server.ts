@@ -56,6 +56,7 @@ import {
 } from '#lib/server/voice/settings.ts';
 import { forgetLearned, listLearned } from '#lib/server/voice/learned.ts';
 import { forget, listMemories, remember } from '#lib/server/memory.ts';
+import { RULE_TEMPLATES } from '#lib/rule-templates.ts';
 import {
 	deleteRule,
 	listRules,
@@ -159,6 +160,15 @@ export const load: PageServerLoad = async ({ locals, request, cookies }) => {
 			: null,
 		/** What the voice remembers: theirs (no one else sees it) and the house's. */
 		memories: await listMemories(k, locals.user!.id, true),
+		/** Rules ready to turn on (#331, phase 7), and whether they have each one on. */
+		ruleTemplates: await listRules(k, locals.user!.id).then((rules) =>
+			RULE_TEMPLATES.map((t) => ({
+				id: t.id,
+				title: t.title,
+				does: t.does,
+				on: rules.some((r) => r.userId === locals.user!.id && r.spec.template === t.id)
+			}))
+		),
 		/** Their rules and the house's (#331): as understood, and the last time each told. */
 		rules: (await listRules(k, locals.user!.id)).map((r) => ({
 			id: r.id,
@@ -377,6 +387,17 @@ export const actions: Actions = {
 		if (!saved)
 			return fail(400, { ruleProblem: 'Ya hay demasiadas reglas en la familia', ruleId: id });
 		return { saved: 'rule', ruleId: saved };
+	},
+	/** One ready (#331, phase 7), turned on: its rules, theirs. */
+	activateTemplate: async ({ request, locals }) => {
+		const id = String((await request.formData()).get('id') ?? '');
+		const template = RULE_TEMPLATES.find((t) => t.id === id);
+		if (!template) return fail(400, { ruleProblem: 'Esa regla lista no existe', ruleId: null });
+		const k = await kitchenOf(locals.user!.id);
+		for (const r of template.rules)
+			if (!(await saveRule(k, locals.user!.id, r.said, r.understood, { ...r.spec, template: id })))
+				return fail(400, { ruleProblem: 'Ya hay demasiadas reglas en la familia', ruleId: null });
+		return { saved: 'rule' };
 	},
 	/** «Pausar» and «Seguir». */
 	pauseRule: async ({ request, locals }) => {

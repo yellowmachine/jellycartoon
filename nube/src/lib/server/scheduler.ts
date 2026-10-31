@@ -7,14 +7,14 @@ import { ringDue } from '#lib/server/alarms/alarms.ts';
 import { sendDueDoses } from '#lib/server/medication.ts';
 import { forgetOver } from '#lib/server/memory.ts';
 import { checkTimedRules } from '#lib/server/rules.ts';
-import { SUMMARY_AT, summarizeLearned } from '#lib/server/learn.ts';
+import { proposeRules, SUMMARY_AT, summarizeLearned } from '#lib/server/learn.ts';
 import { hasBot, startBot } from '#lib/server/telegram/bot.ts';
 import { refreshAll, REFRESH_HOURS } from '#lib/server/podcasts/podcasts.ts';
 
 /**
  * The cloud's own clock (#253): every few seconds, each family's alarms whose time has come; every
  * minute, its agenda's notices, its medication's doses (#308) and its rules (#331); in the evening,
- * what the voice learned that day (#331); at midnight,
+ * what the voice learned that day and the rules it proposes (#331); at midnight,
  * the fridges' «Hoy» and what the voice remembered until yesterday (#331); every few hours, its
  * podcasts' feeds. At startup, the families' Telegram bots. The families come from a function of
  * the database's owner that gives only their ids (migration 0007): each is then looked at within
@@ -67,6 +67,7 @@ export function startScheduler() {
 				if (localTime() >= SUMMARY_AT && summarized !== localDay()) {
 					summarized = localDay();
 					await eachFamily('Lo aprendido hoy', summarizeLearned);
+					await eachFamily('Reglas propuestas', proposeRules);
 				}
 			}
 			if (localDay() !== day) {

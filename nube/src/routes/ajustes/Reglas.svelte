@@ -43,6 +43,28 @@
 		«Alexa, crea una regla…».
 	</p>
 
+	<details class="mb-4 text-sm">
+		<summary class="cursor-pointer text-amber-400">Reglas listas para activar</summary>
+		<ul class="mt-2 flex flex-col gap-2">
+			{#each data.ruleTemplates as t (t.id)}
+				<li class="flex items-start gap-3">
+					<div class="min-w-0 flex-1">
+						<p class="text-zinc-200">{t.title}</p>
+						<p class="text-xs text-zinc-500">{t.does}</p>
+					</div>
+					{#if t.on}
+						<span class="text-xs text-amber-400">Activada</span>
+					{:else}
+						<form method="post" action="?seccion={tab}&/activateTemplate" use:enhance={keep}>
+							<input type="hidden" name="id" value={t.id} />
+							<button class={secondary}>Activar</button>
+						</form>
+					{/if}
+				</li>
+			{/each}
+		</ul>
+	</details>
+
 	{#if data.rules.length}
 		<ul class="mb-4 flex flex-col divide-y divide-zinc-800 text-sm">
 			{#each data.rules as r (r.id)}

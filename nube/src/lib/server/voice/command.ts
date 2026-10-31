@@ -90,6 +90,7 @@ import { familyPeople } from '#lib/server/agenda/agenda.ts';
 import { leaveMessage, MAX_MESSAGE } from '#lib/server/inbox.ts';
 import { ruleEvent } from '#lib/server/rule-events.ts';
 import { learnFromOrder } from '#lib/server/learn.ts';
+import { keepHeard } from '#lib/server/heard.ts';
 import { deleteRule, listRules, saveRule, sameName, translateRule } from '#lib/server/rules.ts';
 import { dosesFor, listMedication, markDose } from '#lib/server/medication.ts';
 import { MAX_RULE } from '#lib/rules.ts';
@@ -1780,7 +1781,13 @@ export async function runVoiceCommand(
 				used.map((l) => l.id)
 			);
 		// The rules that wait for what is said (#331, phase 4): «cuando diga que pongo la lavadora».
-		if (!kid) ruleEvent(k, 'dicho', request.text, satellite ? null : k.userId);
+		if (!kid) {
+			ruleEvent(k, 'dicho', request.text, satellite ? null : k.userId);
+			// Kept two weeks, to see what repeats (#331, phase 7).
+			void keepHeard(k, satellite ? null : k.userId, request.text).catch((err) =>
+				console.warn('[voz] no se ha guardado lo dicho:', err)
+			);
+		}
 		// What it told on the way, learned (#331, phase 6), unless the order itself kept or forgot it.
 		if (!kid && !timing.rounds.some((r) => r.tools.some((t) => ASKED_TO_KEEP.has(t))))
 			void learnFromOrder(

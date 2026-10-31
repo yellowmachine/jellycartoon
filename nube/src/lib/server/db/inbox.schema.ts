@@ -1,6 +1,7 @@
 import { index, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { user } from './auth.schema.ts';
 import { family, familyRows } from './family.schema.ts';
+import type { Proposal } from '#lib/server/inbox-store.ts';
 
 /**
  * Each person's «Buzón» (#331): what the app told them, kept after the phone's notice is gone
@@ -34,14 +35,10 @@ export const inbox = pgTable(
 		/** A message's: who left it; null, a satellite or the app itself. */
 		fromUserId: text('from_user_id').references(() => user.id, { onDelete: 'set null' }),
 		/**
-		 * Something to remember, offered (#331, phase 5: from a Telegram message): kept with
-		 * «Guardar», in their memory; gone once answered.
+		 * Something offered (#331): to remember (phase 5: from a Telegram message), a rule or an event
+		 * (phase 7); done with its yes, and gone once answered.
 		 */
-		proposal: jsonb('proposal').$type<{
-			text: string;
-			untilDay: string | null;
-			because: string;
-		}>(),
+		proposal: jsonb('proposal').$type<Proposal>(),
 		/**
 		 * The day's «Hoy he aprendido» (#331, phase 6): what the voice learned from what was said,
 		 * each one to take out with ×.

@@ -27,7 +27,7 @@
 		voz: 'La voz',
 		recado: 'Recado',
 		regla: 'Regla',
-		propuesta: 'De Telegram',
+		propuesta: 'Propuesta',
 		aprendido: 'Lo aprendido'
 	};
 </script>
@@ -84,17 +84,28 @@
 							{/if}
 							<p class="text-xs text-zinc-500">{KIND[n.kind] ?? n.kind} · {when(n.createdAt)}</p>
 							{#if n.proposal}
+								{@const p = n.proposal}
 								<p class="text-xs text-zinc-500">
-									{n.proposal.because[0]?.toUpperCase()}{n.proposal.because.slice(1)}{n.proposal
-										.untilDay
-										? `, hasta el ${n.proposal.untilDay}`
-										: ''}.
+									{p.because[0]?.toUpperCase()}{p.because.slice(1)}{p.type === 'cita'
+										? `: ${p.day}${p.time ? `, ${p.time}` : ''}`
+										: p.type !== 'regla' && p.untilDay
+											? `, hasta el ${p.untilDay}`
+											: ''}.
 								</p>
 								<form method="post" action="?/proposal" use:enhance class="mt-1 flex gap-2">
 									<input type="hidden" name="id" value={n.id} />
-									<button name="keep" value="true" class={primary}>Guardar</button>
+									<button name="keep" value="true" class={primary}
+										>{p.type === 'regla'
+											? 'Sí, créala'
+											: p.type === 'cita'
+												? 'Añadir a la Agenda'
+												: 'Guardar'}</button
+									>
 									<button name="keep" value="false" class={secondary}>No</button>
 								</form>
+								{#if form && 'proposalId' in form && form.proposalId === n.id}
+									<p class="text-sm text-red-400">{form.proposalProblem}</p>
+								{/if}
 							{/if}
 						</div>
 						{#if !n.readAt && !n.proposal}

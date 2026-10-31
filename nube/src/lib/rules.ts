@@ -121,6 +121,8 @@ export interface RuleSpec {
 	 * and it is not the quiet hours (an urgent one, even then). Unset (older ones): the house's.
 	 */
 	say?: boolean;
+	/** Activated from one ready (rule-templates.ts, phase 7): which. */
+	template?: string;
 }
 
 export const MAX_RULE = 500;

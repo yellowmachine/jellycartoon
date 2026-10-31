@@ -15,3 +15,4 @@ export * from './medication.schema.ts';
 export * from './backup.schema.ts';
 export * from './inbox.schema.ts';
 export * from './rule.schema.ts';
+export * from './heard.schema.ts';

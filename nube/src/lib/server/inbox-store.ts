@@ -20,12 +20,14 @@ export type InboxKind =
 	| 'propuesta'
 	| 'aprendido';
 
-/** Something to remember, offered in the inbox (#331, phase 5). */
-export interface Proposal {
-	text: string;
-	untilDay: string | null;
-	because: string;
-}
+/**
+ * Something offered in the inbox, answered with yes or no (#331): to remember (phase 5; older ones
+ * have no `type`), a rule for what repeats, or an event for the agenda (phase 7).
+ */
+export type Proposal =
+	| { type?: 'recuerdo'; text: string; untilDay: string | null; because: string }
+	| { type: 'regla'; said: string; because: string }
+	| { type: 'cita'; title: string; day: string; time: string | null; because: string };
 
 export type InboxLevel = 'normal' | 'urgente';
 
@@ -114,6 +116,7 @@ export interface InboxItem {
 	readAt: Date | null;
 	proposal: Proposal | null;
 	learned: { id: number; text: string }[] | null;
+	tag: string | null;
 }
 
 /** Theirs, newest first. */
@@ -130,7 +133,8 @@ export function listInbox(k: Kitchen, userId: string): Promise<InboxItem[]> {
 				createdAt: inbox.createdAt,
 				readAt: inbox.readAt,
 				proposal: inbox.proposal,
-				learned: inbox.learned
+				learned: inbox.learned,
+				tag: inbox.tag
 			})
 			.from(inbox)
 			.where(and(eq(inbox.familyId, k.familyId), eq(inbox.userId, userId)))
@@ -180,7 +184,13 @@ export async function answerProposal(k: Kitchen, userId: string, id: number, kep
 			.set({
 				proposal: null,
 				readAt: new Date(),
-				title: kept ? '✓ Guardado en lo que la voz recuerda' : '✗ No guardado'
+				title: kept
+					? row.proposal.type === 'regla'
+						? '✓ Regla creada'
+						: row.proposal.type === 'cita'
+							? '✓ Añadido a la Agenda'
+							: '✓ Guardado en lo que la voz recuerda'
+					: '✗ No'
 			})
 			.where(eq(inbox.id, id));
 		return row.proposal;

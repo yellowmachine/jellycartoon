@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { familyPeople } from '#lib/server/agenda/agenda.ts';
+import { addEvent, familyPeople } from '#lib/server/agenda/agenda.ts';
+import { saveRule, translateRule } from '#lib/server/rules.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { leaveMessage, MAX_MESSAGE } from '#lib/server/inbox.ts';
 import {
@@ -55,12 +56,34 @@ export const actions: Actions = {
 		const id = idOf(form);
 		if (id === null) return;
 		const kept = form.get('keep') === 'true';
-		const k = await kitchenOf(locals.user!.id);
-		const offered = await answerProposal(k, locals.user!.id, id, kept);
-		if (offered && kept)
+		const userId = locals.user!.id;
+		const k = await kitchenOf(userId);
+		const waiting = (await listInbox(k, userId)).find((n) => n.id === id)?.proposal;
+		if (!waiting) return;
+		// A rule: understood first; if it cannot be, it stays offered, with why.
+		if (kept && waiting.type === 'regla') {
+			const made = await translateRule(k, waiting.said, locals.user!.name);
+			if ('problem' in made) return fail(400, { proposalProblem: made.problem, proposalId: id });
+			await saveRule(k, userId, waiting.said, made.understood, made.spec);
+		}
+		const offered = await answerProposal(k, userId, id, kept);
+		if (!offered || !kept) return;
+		if (offered.type === 'cita')
+			await addEvent(k, {
+				title: offered.title,
+				notes: null,
+				startDay: offered.day,
+				startTime: offered.time,
+				endDay: null,
+				endTime: null,
+				repeat: { every: null },
+				remind: offered.time ? 'hora' : 'dia',
+				people: []
+			});
+		else if (offered.type !== 'regla')
 			await remember(
 				k,
-				locals.user!.id,
+				userId,
 				offered.text,
 				{ untilDay: offered.untilDay },
 				{ source: 'telegram', ruleId: null, because: offered.because, chain: [] }
