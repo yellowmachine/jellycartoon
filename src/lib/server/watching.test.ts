@@ -11,7 +11,12 @@ import { episode, series, seriesTag, tag, user, watchProgress } from '#lib/serve
  */
 const db = drizzle(new PGlite(), { schema });
 mock.module('#lib/server/db/index.ts', () => ({ db }));
-mock.module('#lib/server/kids.ts', () => ({ allowedSeries: () => undefined }));
+// Mocks last the whole run (Bun): with what playlist.test.ts and watching-together.test.ts need too.
+mock.module('#lib/server/kids.ts', () => ({
+	allowedSeries: () => undefined,
+	isKidAccount: async () => true,
+	KIDS_ROLE: 'infantil'
+}));
 const { continueWatching } = await import('./watching.ts');
 
 beforeAll(async () => {

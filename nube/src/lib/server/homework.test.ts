@@ -36,9 +36,11 @@ mock.module('#lib/server/house.ts', () => ({
 	}
 }));
 mock.module('#lib/server/family-settings.ts', () => ({ openRouterKey: async () => 'clave' }));
+// The real one: a mock is the whole process's, and openrouter.test.ts tests it.
+const { sayableError } = await import('#lib/server/openrouter.ts');
 mock.module('#lib/server/openrouter.ts', () => ({
 	// satellite-voice.test.ts's, unused here.
-	sayableError: (message: string) => message,
+	sayableError,
 	speech: async () => ({ pcm: new Uint8Array(4), rate: 24_000 }),
 	completeJson: async () => ({
 		exercises: [

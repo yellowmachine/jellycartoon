@@ -33,10 +33,12 @@ mock.module('#lib/server/storage.ts', () => ({
 }));
 const said: { input: string; voice: string; instructions?: string }[] = [];
 let refuse: string | null = null;
+// The real one: a mock is the whole process's, and openrouter.test.ts tests it.
+const { sayableError } = await import('#lib/server/openrouter.ts');
 mock.module('#lib/server/openrouter.ts', () => ({
 	// homework.test.ts's, unused here: a mock is the whole process's.
 	completeJson: async () => ({}),
-	sayableError: (m: string) => m,
+	sayableError,
 	speech: async (r: { input: string; voice: string; instructions?: string }) => {
 		if (refuse) throw new Error(refuse);
 		said.push(r);
