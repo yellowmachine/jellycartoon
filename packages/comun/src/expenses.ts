@@ -115,6 +115,30 @@ export interface ExpenseFavorite {
 	lines: ExpenseLine[];
 }
 
+/** The favourite of a place, one each: the one the voice puts in by its name. */
+export const favoriteOf = (favorites: ExpenseFavorite[], store: string) =>
+	favorites.find((f) => f.store.toLowerCase() === store.trim().toLowerCase());
+
+/**
+ * Whether an expense is its place's favourite as it is: the same category, amount and lines, not
+ * just the same place (the kebab of 5 €, not another day's three things there). A favourite
+ * without an amount is any amount.
+ */
+export function isFavorite(
+	e: { store: string; category: ExpenseCategory; total: number | null; lines: ExpenseLine[] },
+	f: ExpenseFavorite
+) {
+	const line = (l: ExpenseLine) => `${l.text.trim()}|${l.quantity ?? ''}|${l.amount}|${l.tag}`;
+	const lines = e.lines.filter((l) => l.text.trim());
+	return (
+		f.store.toLowerCase() === e.store.trim().toLowerCase() &&
+		f.category === e.category &&
+		(f.total === null || f.total === e.total) &&
+		lines.length === f.lines.length &&
+		lines.every((l, i) => line(l) === line(f.lines[i]))
+	);
+}
+
 export const MAX_LINES = 200;
 /** A receipt's total in cents, at most: a million euros is not a receipt. */
 const MAX_CENTS = 100_000_000;
