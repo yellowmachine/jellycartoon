@@ -4,7 +4,7 @@ import { tag, tvShortcut, tvShortcutTag } from '#lib/server/db/schema.ts';
 import { KIDS_TAG } from '#lib/kids-tag.ts';
 import { deleteUnusedTags, tagName } from '#lib/server/tags.ts';
 import { destinations, shortcutTarget, type Viewer } from '#lib/server/tv-shortcut-targets.ts';
-import { isShortcutKind, SHORTCUT_KINDS, type ShortcutKind } from '#lib/tv-shortcut-kinds.ts';
+import { isShortcutKind, type ShortcutKind } from '#lib/tv-shortcut-kinds.ts';
 
 /**
  * The TV view's shortcuts (#327), made in Ajustes → Casa, each with its tags: to sites of elsewhere
@@ -84,8 +84,6 @@ export interface TvShortcutTile {
 	kind: ShortcutKind;
 	target: string | null;
 	icon: string | null;
-	/** Under its name: a site's host, without `www.`; the kind, and what it opens if named otherwise. */
-	detail: string;
 	/** Its page in the TV view; null, a site's window, or it starts on its tile. */
 	href: string | null;
 }
@@ -97,19 +95,9 @@ export async function tvShortcutTiles(viewer: Viewer): Promise<TvShortcutTile[]>
 	return shortcuts.flatMap((s, i): TvShortcutTile[] => {
 		const tile = { id: s.id, name: s.name, kind: s.kind, target: s.target };
 		if (s.kind === 'url')
-			return [
-				{
-					...tile,
-					icon: s.icon && `/api/accesos/${s.id}/icono?${s.icon}`,
-					detail: new URL(s.url!).hostname.replace(/^www\./, ''),
-					href: null
-				}
-			];
+			return [{ ...tile, icon: s.icon && `/api/accesos/${s.id}/icono?${s.icon}`, href: null }];
 		const d = found[i];
-		if (!d) return [];
-		const kind = SHORTCUT_KINDS[s.kind];
-		const detail = d.name === s.name ? kind : `${kind} · ${d.name}`;
-		return [{ ...tile, icon: d.icon, detail, href: d.href }];
+		return d ? [{ ...tile, icon: d.icon, href: d.href }] : [];
 	});
 }
 
