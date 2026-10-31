@@ -27,6 +27,16 @@
 			fridge.today.events.length > 0
 	);
 
+	/** A shortcut's picture (#343): a frame, wide; a station's logo, on white; a game's box, whole. */
+	function iconShape(kind: string) {
+		if (kind === 'serie' || kind === 'pelicula') return 'w-40 object-cover';
+		if (kind === 'radio') return 'w-24 bg-white object-contain p-1.5';
+		if (kind === 'juego' || kind === 'steam') return 'w-24 object-contain';
+		return 'w-24 object-cover';
+	}
+	const tileClass =
+		'flex h-36 items-center gap-5 rounded-2xl border border-white/10 bg-gradient-to-br from-cyan-500/30 via-sky-600/15 to-zinc-900 p-6 text-left shadow-lg transition duration-200 focus-visible:scale-105 focus-visible:border-white/30 focus-visible:shadow-2xl';
+
 	const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 	const sections = $derived([
 		{
@@ -187,7 +197,7 @@
 
 {#if data.shortcuts.length}
 	<!-- Sites of elsewhere (#327), each in a window of its own: the remote's power button goes from it
-	     to here and back. -->
+	     to here and back. And the TV view's own (#343), to their page. -->
 	<section class="mb-12">
 		<h2 class="mb-4 text-3xl font-semibold">Accesos directos</h2>
 		{#if tvShortcutWindow.problem}
@@ -207,23 +217,29 @@
 		{/if}
 		<div class="grid grid-cols-4 gap-8">
 			{#each data.shortcuts as s (s.id)}
-				<button
-					onclick={() => tvShortcutWindow.start(s)}
-					class="flex h-36 items-center gap-5 rounded-2xl border border-white/10 bg-gradient-to-br from-cyan-500/30 via-sky-600/15 to-zinc-900 p-6 text-left shadow-lg transition duration-200 focus-visible:scale-105 focus-visible:border-white/30 focus-visible:shadow-2xl"
-				>
-					<!-- The site's own icon, from its page (site-icon.ts), if it let us have it. -->
+				{#snippet tile()}
+					<!-- A site's own icon, from its page (site-icon.ts), if it let us have it; the cover, the
+					     logo or the box of the rest. -->
 					{#if s.icon}
 						<img
 							src={s.icon}
 							alt=""
-							class="h-24 w-24 shrink-0 rounded-2xl object-cover shadow-md"
+							class={['h-24 shrink-0 rounded-2xl shadow-md', iconShape(s.kind)]}
 						/>
 					{/if}
 					<span class="min-w-0">
 						<span class="block truncate text-3xl font-bold text-white">{s.name}</span>
-						<span class="block truncate text-lg text-zinc-300">{s.host}</span>
+						<span class="block truncate text-lg text-zinc-300">{s.detail}</span>
 					</span>
-				</button>
+				{/snippet}
+				{#if s.href}
+					<!-- Its page, where the episode, the version or the saved game is chosen (#343). -->
+					<a href={s.href} class={tileClass}>{@render tile()}</a>
+				{:else}
+					<button onclick={() => tvShortcutWindow.start(s)} class={tileClass}
+						>{@render tile()}</button
+					>
+				{/if}
 			{/each}
 		</div>
 	</section>
