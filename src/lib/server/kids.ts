@@ -118,7 +118,7 @@ const KIDS_ROUTES: Record<string, { id?: Check; actions?: string[]; methods?: st
 	},
 	'/cine': { actions: ['play', 'setWatched'] },
 	'/cine/[id]': { id: 'movie', actions: ['play', 'setWatched'] },
-	'/tv': { actions: ['episode', 'today'] },
+	'/tv': { actions: ['episode', 'today', 'channel'] },
 	'/tv/series': {},
 	'/tv/series/[id]': { id: 'series', actions: ['episode'] },
 	'/tv/cine': { actions: ['play'] },

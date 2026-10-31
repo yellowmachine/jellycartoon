@@ -332,7 +332,15 @@ export const movieTag = pgTable(
 export const tvShortcut = pgTable('tv_shortcut', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
-	url: text('url').notNull(),
+	/**
+	 * What it opens (#343): a site of elsewhere (`url`), or something of the TV view's own (a series,
+	 * a channel, a station…; tv-shortcut-kinds.ts), named by `target`.
+	 */
+	kind: text('kind').notNull().default('url'),
+	/** A site's address; only for `url`. */
+	url: text('url'),
+	/** Which one, for the other kinds: its id, a station's uuid, `system/file` for a game… */
+	target: text('target'),
 	/** Its icon, from the site (site-icon.ts): its file in DATA_DIR/accesos; null, none found. */
 	icon: text('icon'),
 	createdAt: timestamp('created_at').notNull().defaultNow()

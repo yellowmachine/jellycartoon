@@ -8,8 +8,10 @@
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { coverUrl } from 'comun/music.ts';
 	import { music } from 'comun/music-player.svelte.ts';
+	import { musicTarget } from 'comun/music-target.svelte.ts';
 	import { thumbUrl } from 'comun/thumb.svelte.ts';
 	import { tvShortcutWindow } from '#lib/tv-shortcut.svelte.ts';
+	import { BIG_PICTURE } from '#lib/tv-shortcut-kinds.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -26,6 +28,48 @@
 			fridge.list.items.some((i) => !i.done) ||
 			fridge.today.events.length > 0
 	);
+
+	/** A shortcut's picture (#343): a frame, wide; a station's logo, on white; a game's box, whole. */
+	function iconShape(kind: string) {
+		if (kind === 'serie' || kind === 'pelicula') return 'w-40 object-cover';
+		if (kind === 'radio') return 'w-24 bg-white object-contain p-1.5';
+		if (kind === 'juego' || kind === 'steam') return 'w-24 object-contain';
+		return 'w-24 object-cover';
+	}
+	const tileClass =
+		'flex h-36 items-center gap-5 rounded-2xl border border-white/10 bg-gradient-to-br from-cyan-500/30 via-sky-600/15 to-zinc-900 p-6 text-left shadow-lg transition duration-200 focus-visible:scale-105 focus-visible:border-white/30 focus-visible:shadow-2xl';
+
+	type Shortcut = (typeof data.shortcuts)[number];
+
+	/** The shortcut starting now, and how it went: Steam comes over this page once it opens. */
+	let starting = $state<number | null>(null);
+	let started = $state<{ text: string; failed: boolean } | null>(null);
+
+	/**
+	 * A tile with no page (#343): a site, in its window; a station, on the TV's speakers (OK on the
+	 * one that is on stops it), as in /tv/radio; a Steam game or Big Picture, opened on the PC.
+	 */
+	async function start(s: Shortcut) {
+		started = null;
+		if (s.kind === 'url') return tvShortcutWindow.start(s);
+		const target = s.target!;
+		starting = s.id;
+		if (s.kind === 'radio') {
+			if (music.radio?.uuid === target) music.stop();
+			else await musicTarget.playRadio(target, false);
+		} else if (s.kind === 'steam') {
+			started = { text: `Abriendo «${s.name}» en Steam…`, failed: false };
+			const res = await fetch(
+				`/api/juegos/steam/${target === BIG_PICTURE ? 'bigpicture' : target}`,
+				{ method: 'POST' }
+			).catch(() => null);
+			if (!res?.ok) {
+				const text = res ? (await res.json().catch(() => null))?.message : 'Sin conexión';
+				started = { text: text ?? 'No se pudo abrir Steam', failed: true };
+			}
+		}
+		starting = null;
+	}
 
 	const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 	const sections = $derived([
@@ -187,11 +231,19 @@
 
 {#if data.shortcuts.length}
 	<!-- Sites of elsewhere (#327), each in a window of its own: the remote's power button goes from it
-	     to here and back. -->
+	     to here and back. And the TV view's own (#343), to their page. -->
 	<section class="mb-12">
 		<h2 class="mb-4 text-3xl font-semibold">Accesos directos</h2>
 		{#if tvShortcutWindow.problem}
 			<p class="mb-4 rounded-lg bg-red-950 p-4 text-red-200">{tvShortcutWindow.problem}</p>
+		{/if}
+		{#if musicTarget.error}
+			<p class="mb-4 rounded-lg bg-red-950 p-4 text-red-200">{musicTarget.error}</p>
+		{/if}
+		{#if started}
+			<p class={['mb-4 text-2xl', started.failed ? 'text-red-300' : 'text-sky-300']} role="status">
+				{started.text}
+			</p>
 		{/if}
 		{#if tvShortcutWindow.open}
 			<div class="mb-4 flex items-center gap-6 rounded-2xl border border-white/10 bg-zinc-900 p-5">
@@ -207,23 +259,62 @@
 		{/if}
 		<div class="grid grid-cols-4 gap-8">
 			{#each data.shortcuts as s (s.id)}
-				<button
-					onclick={() => tvShortcutWindow.start(s)}
-					class="flex h-36 items-center gap-5 rounded-2xl border border-white/10 bg-gradient-to-br from-cyan-500/30 via-sky-600/15 to-zinc-900 p-6 text-left shadow-lg transition duration-200 focus-visible:scale-105 focus-visible:border-white/30 focus-visible:shadow-2xl"
-				>
-					<!-- The site's own icon, from its page (site-icon.ts), if it let us have it. -->
+				{#snippet tile()}
+					<!-- A site's own icon, from its page (site-icon.ts), if it let us have it; the cover, the
+					     logo or the box of the rest. -->
 					{#if s.icon}
 						<img
 							src={s.icon}
 							alt=""
-							class="h-24 w-24 shrink-0 rounded-2xl object-cover shadow-md"
+							class={['h-24 shrink-0 rounded-2xl shadow-md', iconShape(s.kind)]}
 						/>
 					{/if}
 					<span class="min-w-0">
 						<span class="block truncate text-3xl font-bold text-white">{s.name}</span>
-						<span class="block truncate text-lg text-zinc-300">{s.host}</span>
+						<span class="block truncate text-lg text-zinc-300"
+							>{starting === s.id
+								? s.kind === 'canal'
+									? 'Sintonizando…'
+									: 'Un momento…'
+								: s.kind === 'radio' && music.radio?.uuid === s.target
+									? 'Sonando'
+									: s.detail}</span
+						>
 					</span>
-				</button>
+				{/snippet}
+				{#if s.href}
+					<!-- Its page, where the episode, the version or the saved game is chosen (#343). -->
+					<a href={s.href} class={tileClass}>{@render tile()}</a>
+				{:else if s.kind === 'canal'}
+					<!-- Live on the living room's mpv, as from /tv/canales; a child, within its time. -->
+					<form
+						method="post"
+						action="?/channel"
+						use:enhance={() => {
+							music.stop();
+							started = null;
+							starting = s.id;
+							return async ({ update }) => {
+								await update();
+								starting = null;
+							};
+						}}
+					>
+						<input type="hidden" name="id" value={s.target} />
+						<button class={[tileClass, 'w-full']} disabled={starting !== null}
+							>{@render tile()}</button
+						>
+					</form>
+				{:else}
+					<button
+						onclick={() => start(s)}
+						disabled={starting !== null}
+						class={[
+							tileClass,
+							s.kind === 'radio' && music.radio?.uuid === s.target && 'border-emerald-400!'
+						]}>{@render tile()}</button
+					>
+				{/if}
 			{/each}
 		</div>
 	</section>

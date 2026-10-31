@@ -1,75 +1,34 @@
 <script lang="ts">
 	import Guardado from 'comun/components/Guardado.svelte';
-	import { enhance } from '$app/forms';
-	import { section, select, secondary } from './styles.ts';
+	import { SHORTCUT_KINDS } from '#lib/tv-shortcut-kinds.ts';
+	import AccesoDirectoForm from './AccesoDirectoForm.svelte';
+	import { section } from './styles.ts';
 	import type { PageData, ActionData } from './$types';
 
-	/** Accesos directos de la vista TV (#327): webs de fuera, cada una en su ventana. */
+	/**
+	 * Accesos directos de la vista TV: webs de fuera, cada una en su ventana (#327), o cualquier cosa
+	 * de la propia vista TV (#343).
+	 */
 	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
 </script>
 
 {#if data.shortcuts}
 	<section class={section} id="accesos-directos">
 		<h2 class="mb-1 font-semibold">Accesos directos de la tele</h2>
-		<p class="mb-4 text-sm text-zinc-400">
-			Webs de fuera (NBA League Pass, Crunchyroll…) en la vista TV, cada una en su ventana: el botón
-			de encendido del mando va de la web a la vista TV y vuelve. La sesión de cada web se inicia
-			una vez a mano en el navegador de la tele. Con la etiqueta «infantil» la ven también los
-			peques, y el tiempo que está abierta delante cuenta en su límite del día. El icono sale de la
-			propia web, al guardarlo.
+		<p class="mb-2 text-sm text-zinc-400">
+			Lo que más se usa, a mano al abrir la vista TV: una serie, una película, un canal, una
+			emisora, un podcast, un álbum, una lista, un juego… Los que tienen ficha la abren; un canal,
+			una emisora o un juego de Steam se ponen en marcha directamente. Los peques ven los que son
+			para ellos (una serie o película «infantil», sus canales, la radio y la música), sin tener que
+			etiquetar el acceso.
 		</p>
-		{#snippet shortcutForm(s: { id: number; name: string; url: string; tags: string[] } | null)}
-			<form
-				method="post"
-				action="?seccion={tab}&/saveShortcut"
-				use:enhance={() =>
-					async ({ update }) =>
-						update({ reset: !s })}
-				class="flex flex-col gap-2"
-			>
-				{#if s}<input type="hidden" name="id" value={s.id} />{/if}
-				<input
-					name="name"
-					required
-					maxlength="40"
-					value={s?.name ?? ''}
-					placeholder="Crunchyroll"
-					aria-label="Nombre"
-					class="{select} min-w-0"
-				/>
-				<input
-					name="url"
-					type="url"
-					required
-					value={s?.url ?? ''}
-					placeholder="https://www.crunchyroll.com/es/"
-					aria-label="Dirección"
-					class="{select} min-w-0"
-				/>
-				<input
-					name="tags"
-					value={s?.tags.join(', ') ?? ''}
-					placeholder="infantil, dibujos"
-					aria-label="Etiquetas, separadas por comas"
-					class="{select} min-w-0"
-				/>
-				<div class="flex items-center gap-3">
-					<button class={secondary}>{s ? 'Guardar' : 'Añadir'}</button>
-					{#if s}
-						<button
-							formaction="?seccion={tab}&/shortcutIcon"
-							formnovalidate
-							class="text-sm text-zinc-300 hover:underline">Volver a buscar el icono</button
-						>
-						<button
-							formaction="?seccion={tab}&/deleteShortcut"
-							formnovalidate
-							class="text-sm text-red-400 hover:underline">Borrar</button
-						>
-					{/if}
-				</div>
-			</form>
-		{/snippet}
+		<p class="mb-4 text-sm text-zinc-400">
+			También webs de fuera (NBA League Pass, Crunchyroll…), cada una en su ventana: el botón de
+			encendido del mando va de la web a la vista TV y vuelve. La sesión de cada web se inicia una
+			vez a mano en el navegador de la tele. Con la etiqueta «infantil» la ven también los peques, y
+			el tiempo que está abierta delante cuenta en su límite del día. El icono sale de la propia
+			web, al guardarlo.
+		</p>
 		{#if data.shortcuts.length}
 			<ul class="mb-4 divide-y divide-zinc-800 rounded-md border border-zinc-800 text-sm">
 				{#each data.shortcuts as s (s.id)}
@@ -84,21 +43,32 @@
 									/>
 								{/if}
 								<span class="shrink-0 font-medium">{s.name}</span>
-								<span class="min-w-0 flex-1 truncate text-zinc-400">{s.url}</span>
+								{#if s.gone}
+									<span class="min-w-0 flex-1 truncate text-red-400"
+										>{SHORTCUT_KINDS[s.kind]} · ya no está</span
+									>
+								{:else}
+									<span class="min-w-0 flex-1 truncate text-zinc-400"
+										>{s.url ??
+											(s.opens === s.name
+												? SHORTCUT_KINDS[s.kind]
+												: `${SHORTCUT_KINDS[s.kind]} · ${s.opens}`)}</span
+									>
+								{/if}
 								{#each s.tags as t (t)}
 									<span class="shrink-0 rounded-full bg-zinc-800 px-2 text-xs text-zinc-300"
 										>{t}</span
 									>
 								{/each}
 							</summary>
-							<div class="border-t border-zinc-800 p-3">{@render shortcutForm(s)}</div>
+							<div class="border-t border-zinc-800 p-3"><AccesoDirectoForm {s} {tab} /></div>
 						</details>
 					</li>
 				{/each}
 			</ul>
 		{/if}
 		<h3 class="mb-2 text-sm text-zinc-300">Nuevo acceso directo</h3>
-		{@render shortcutForm(null)}
+		<AccesoDirectoForm s={null} {tab} />
 		<p class="mt-2 text-xs text-zinc-500">
 			Borrar uno borra también el tiempo que los peques pasaron en él.
 		</p>
