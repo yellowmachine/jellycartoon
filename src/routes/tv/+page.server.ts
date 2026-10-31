@@ -20,6 +20,7 @@ import { STATIONS } from 'comun/radio.ts';
 import { fridgeForScreen } from '#lib/server/kitchen.ts';
 import { watchingOnTv } from '#lib/server/watching-together.ts';
 import { tvShortcutTiles } from '#lib/server/tv-shortcuts.ts';
+import { playOnSalon } from '#lib/server/channel-actions.ts';
 
 /** Tiles in each card's mosaic: 3 × 2. */
 const MOSAIC = 6;
@@ -90,8 +91,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		 * Shortcuts (#327, #343): sites of elsewhere, each in a window of its own, and the TV view's own;
 		 * a child, only those for it.
 		 */
-		// Not yet those that start on their tile (a channel, a station, Steam: #343, phase 4).
-		shortcuts: (await tvShortcutTiles({ userId, kid })).filter((s) => s.kind === 'url' || s.href),
+		shortcuts: await tvShortcutTiles({ userId, kid }),
 		/** Watching together (#160): who, besides the one signed in. Changed from the parents' phone. */
 		together: kid && locals.session ? await watchingOnTv(userId, locals.session.id) : [],
 		today: pending[0] ? { next: pending[0], pending: pending.length } : null,
@@ -107,6 +107,8 @@ export const actions: Actions = {
 		const id = Number((await request.formData()).get('id'));
 		return playEpisodes(userId, await seriesQueue(userId, id));
 	},
+	/** A channel's shortcut (#343): live on the living room's mpv, as from /tv/canales. */
+	channel: playOnSalon,
 	/** Today's, from the first not watched. */
 	today: async ({ locals }) => {
 		const userId = locals.user!.id;
