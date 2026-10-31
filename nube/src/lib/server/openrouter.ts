@@ -1,9 +1,23 @@
+import {
+	accountProblem,
+	BAD_KEY,
+	AiBlocked,
+	guarded,
+	noteRefusal,
+	refusalWords
+} from '#lib/server/ai-block.ts';
 import { throughLane } from '#lib/server/ai-lane.ts';
 /**
  * OpenRouter (https://openrouter.ai), with the family's own key (family-settings.ts): an answer as
  * JSON to a schema, as jellycartoon's `completeJson`. Each request's cost goes to the spending's
  * line (#193, ai-spend.ts).
  */
+
+export { NO_CREDIT } from '#lib/server/ai-block.ts';
+
+/** A request with the family's key: in its lane (ai-lane.ts), and not while its AI is stopped (ai-block.ts). */
+const send = (apiKey: string, fetchIt: () => Promise<Response>) =>
+	guarded(apiKey, () => throughLane(apiKey, fetchIt));
 
 /** jellycartoon's defaults: short tasks, and photos (receipts, bills). */
 export const DEFAULT_MODEL = 'anthropic/claude-haiku-5.5';
@@ -42,7 +56,7 @@ export async function completeJson<T>(request: {
 	/** Longest answer, in tokens: without it OpenRouter reserves credit for the model's longest. */
 	maxTokens?: number;
 }): Promise<T> {
-	const res = await throughLane(request.apiKey, () =>
+	const res = await send(request.apiKey, () =>
 		fetch('https://openrouter.ai/api/v1/chat/completions', {
 			method: 'POST',
 			headers: {
@@ -82,19 +96,13 @@ export async function completeJson<T>(request: {
 	return JSON.parse(content) as T;
 }
 
-/** Why OpenRouter said no, in words: the voice reads it aloud. */
-export const NO_CREDIT = 'No queda saldo en OpenRouter';
-
 /**
- * Our words for OpenRouter's no. A refused key or no credit, said in ours: theirs, to the log, as
- * a 402 may be a key's own limit or a request costing more than what is left, not only no credit.
+ * Our words for OpenRouter's no. A refused key or a 402, said in ours (ai-block.ts tells the 402s
+ * apart, and logs theirs): the rest, theirs.
  */
 function refused(status: number, body: { error?: { message?: string } } | null) {
-	if (status === 401 || status === 402)
-		console.warn(`[ia] OpenRouter dice ${status}:`, body?.error?.message ?? '(sin mensaje)');
-	if (status === 401) return new Error('OpenRouter no acepta la clave: cámbiala en Ajustes');
-	if (status === 402) return new Error(NO_CREDIT);
-	return new Error(`OpenRouter: ${body?.error?.message ?? status}`);
+	const words = refusalWords(status, body?.error?.message);
+	return new Error(words ?? `OpenRouter: ${body?.error?.message ?? status}`);
 }
 
 /**
@@ -208,11 +216,6 @@ export type ToolChatAnswer = {
 	fellBack: string | null;
 };
 
-/** The family's key or credit: no other model would do better. */
-const accountProblem = (error: unknown) =>
-	error instanceof Error &&
-	(error.message === NO_CREDIT || error.message.startsWith('OpenRouter no acepta la clave'));
-
 /**
  * One turn of a conversation with tools (jellycartoon's, for the voice): the model answers with
  * text, or with the tools it wants called. The caller runs them, adds their results as `tool`
@@ -223,7 +226,12 @@ export async function chatWithTools(request: ToolChatRequest): Promise<ToolChatA
 		return { ...(await chatOnce(request)), fellBack: null };
 	} catch (error) {
 		const { fallbackModel } = request;
-		if (!fallbackModel || fallbackModel === request.model || accountProblem(error)) throw error;
+		if (
+			!fallbackModel ||
+			fallbackModel === request.model ||
+			(error instanceof Error && accountProblem(error.message))
+		)
+			throw error;
 		const why = error instanceof Error ? error.message : String(error);
 		console.warn(`[ia] ${request.model} falló; contesta ${fallbackModel}`, { why });
 		return { ...(await chatOnce({ ...request, model: fallbackModel })), fellBack: why };
@@ -235,7 +243,7 @@ async function chatOnce(
 ): Promise<{ content: string | null; toolCalls: ToolCall[]; usage: Usage | null }> {
 	const noThinking = request.think === false && (await canSkipThinking(request.model));
 	const ask = (toolChoice: typeof request.toolChoice) =>
-		throughLane(request.apiKey, () =>
+		send(request.apiKey, () =>
 			fetch('https://openrouter.ai/api/v1/chat/completions', {
 				method: 'POST',
 				headers: headers(request.apiKey),
@@ -267,7 +275,12 @@ async function chatOnce(
 	const choice = body?.choices?.[0];
 	const message = choice?.message;
 	if (!message) {
-		if (Number(choice?.error?.code) === 402) throw refused(402, { error: choice.error });
+		if (Number(choice?.error?.code) === 402) {
+			console.warn('[ia] OpenRouter dice 402:', choice.error.message ?? '(sin mensaje)');
+			const error = refused(402, { error: choice.error });
+			noteRefusal(request.apiKey, error.message);
+			throw error;
+		}
 		const why = body?.error?.message ?? choice?.error?.message;
 		throw new Error(`OpenRouter: respuesta vacía${why ? `: ${why}` : ''}`);
 	}
@@ -291,7 +304,7 @@ export async function askWeb(request: {
 	label: string;
 	timeoutMs?: number;
 }) {
-	const res = await throughLane(request.apiKey, () =>
+	const res = await send(request.apiKey, () =>
 		fetch('https://openrouter.ai/api/v1/chat/completions', {
 			method: 'POST',
 			headers: headers(request.apiKey),
@@ -347,6 +360,14 @@ async function refusedAnswer(res: Response) {
 	);
 }
 
+/** As `send`, for an app: its family's AI stopped, a no as OpenRouter's, for `refusedAnswer`. */
+const sendForApp = (apiKey: string, fetchIt: () => Promise<Response>) =>
+	send(apiKey, fetchIt).catch((error) => {
+		if (!(error instanceof AiBlocked)) throw error;
+		const status = error.message === BAD_KEY ? 401 : 402;
+		return Response.json({ error: { message: error.message } }, { status });
+	});
+
 /**
  * An app's request (#284, /api/ia), to OpenRouter as it came, with its family's key; its answer back
  * as it comes, streamed or not, and its cost noted; refused, as `refusedAnswer`.
@@ -357,7 +378,7 @@ export async function forwardChat(request: {
 	body: Record<string, unknown>;
 	signal: AbortSignal;
 }): Promise<Response> {
-	const res = await throughLane(request.apiKey, () =>
+	const res = await sendForApp(request.apiKey, () =>
 		fetch('https://openrouter.ai/api/v1/chat/completions', {
 			method: 'POST',
 			headers: { ...headers(request.apiKey), 'X-OpenRouter-Title': request.label },
@@ -395,7 +416,7 @@ export async function forwardSpeech(request: {
 	body: Record<string, unknown>;
 	signal: AbortSignal;
 }): Promise<Response> {
-	const res = await throughLane(request.apiKey, () =>
+	const res = await sendForApp(request.apiKey, () =>
 		fetch('https://openrouter.ai/api/v1/audio/speech', {
 			method: 'POST',
 			headers: { ...headers(request.apiKey), 'X-OpenRouter-Title': request.label },
@@ -443,7 +464,7 @@ export async function transcribe(request: {
 	format: string;
 	timeoutMs?: number;
 }) {
-	const res = await throughLane(request.apiKey, () =>
+	const res = await send(request.apiKey, () =>
 		fetch('https://openrouter.ai/api/v1/audio/transcriptions', {
 			method: 'POST',
 			headers: headers(request.apiKey),
@@ -475,7 +496,7 @@ export async function speech(request: {
 	instructions?: string;
 	timeoutMs?: number;
 }): Promise<{ pcm: Uint8Array; rate: number }> {
-	const res = await throughLane(request.apiKey, () =>
+	const res = await send(request.apiKey, () =>
 		fetch('https://openrouter.ai/api/v1/audio/speech', {
 			method: 'POST',
 			headers: headers(request.apiKey),

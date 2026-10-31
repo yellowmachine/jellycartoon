@@ -5,6 +5,7 @@ import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { auth } from '#lib/server/auth.ts';
 import { startScheduler } from '#lib/server/scheduler.ts';
 import { noteCosts } from '#lib/server/ai-spend.ts';
+import { keepBlocks } from '#lib/server/ai-stopped.ts';
 import { isKidAccount, kidMayOpen } from '#lib/server/kids.ts';
 import { rejectMalformedPath } from 'comun/server/malformed-path.ts';
 
@@ -12,11 +13,15 @@ import { rejectMalformedPath } from 'comun/server/malformed-path.ts';
  * Signing in, Better Auth's own and the health check; and the house's API, with its key, checked
  * by each route (house-keys.ts). The rest needs a session.
  */
-/** The cloud's own clock: the families' alarms and agenda notices (scheduler.ts); and the AI's costs. */
+/**
+ * The cloud's own clock: the families' alarms and agenda notices (scheduler.ts); the AI's costs,
+ * and each family's AI stopped (ai-stopped.ts).
+ */
 export const init: ServerInit = () => {
 	if (building) return;
 	startScheduler();
 	noteCosts();
+	keepBlocks();
 };
 
 /** `/s/`: a shared trip's link (#81), for whoever has it; `/invitacion/`, an invitation's. */

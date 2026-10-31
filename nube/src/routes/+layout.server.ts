@@ -5,6 +5,7 @@ import { DEFAULT_THEME, isTheme } from 'comun/themes.ts';
 import { NoFamily, withFamily } from '#lib/server/family.ts';
 import { house } from '#lib/server/db/schema.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
+import { aiBlockOf } from '#lib/server/family-settings.ts';
 import { canReadReceipts } from '#lib/server/expenses/receipt.ts';
 import { isServiceAdmin } from '#lib/server/invitations.ts';
 import { isGuardian } from '#lib/server/kid-login.ts';
@@ -20,7 +21,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			receipts: false,
 			spendLine: false,
 			theme: DEFAULT_THEME,
-			guardian: false
+			guardian: false,
+			aiBlocked: null
 		};
 	const user = {
 		name: locals.user.name,
@@ -55,6 +57,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		const receipts = !found.kid && (await canReadReceipts(k));
 		/** An adult who lets children in (#303): asked on any page, and «Pasar a…» in the menu. */
 		const guardian = !found.kid && (await isGuardian(k));
+		/** The family's AI stopped (ai-block.ts): the banner, with «Ya he recargado», for who runs it. */
+		const aiBlocked = found.admin ? await aiBlockOf(k) : null;
 		/** jellycartoon's own address, for the bar's sections of the house (nav.ts). */
 		return {
 			user,
@@ -67,7 +71,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			spendLine: found.spendLine && receipts,
 			/** Their colours (Ajustes), painted from the server: no flash of the default. */
 			theme: found.theme,
-			guardian
+			guardian,
+			aiBlocked: aiBlocked && { why: aiBlocked.why, at: aiBlocked.at.toISOString() }
 		};
 	} catch (error) {
 		if (error instanceof NoFamily)
@@ -79,7 +84,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 				receipts: false,
 				spendLine: false,
 				theme: DEFAULT_THEME,
-				guardian: false
+				guardian: false,
+				aiBlocked: null
 			};
 		throw error;
 	}

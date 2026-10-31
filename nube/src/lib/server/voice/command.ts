@@ -59,12 +59,8 @@ import { orsFor } from '#lib/server/road/ors.ts';
 import { listSavedPlaces, listSavedRoutes } from '#lib/server/trips/places.ts';
 import { asksForRoute, findByName } from 'comun/saved-places.ts';
 import { familyPlace, openRouterKey, orsKey } from '#lib/server/family-settings.ts';
-import {
-	chatWithTools,
-	NO_CREDIT,
-	type Tool,
-	type ToolChatMessage
-} from '#lib/server/openrouter.ts';
+import { chatWithTools, type Tool, type ToolChatMessage } from '#lib/server/openrouter.ts';
+import { creditProblem } from '#lib/server/ai-block.ts';
 import { quietCheck } from './quiet-check.ts';
 import {
 	afterOrder,
@@ -1931,7 +1927,7 @@ export async function runVoiceCommand(
 			});
 			if (answer.fellBack) voiceFellBack(k.familyId, answer.fellBack);
 		} catch (err) {
-			if (err instanceof Error && err.message === NO_CREDIT) return reply(SAID_NO_CREDIT);
+			if (err instanceof Error && creditProblem(err.message)) return reply(SAID_NO_CREDIT);
 			throw err;
 		}
 		timing.rounds.push({

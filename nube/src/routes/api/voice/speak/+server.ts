@@ -2,7 +2,8 @@ import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { withChime } from 'comun/chime.ts';
 import { openRouterKey } from '#lib/server/family-settings.ts';
-import { NO_CREDIT, sayableError } from '#lib/server/openrouter.ts';
+import { creditProblem } from '#lib/server/ai-block.ts';
+import { sayableError } from '#lib/server/openrouter.ts';
 import { satelliteRequest } from '#lib/server/satellites.ts';
 import { fillerSpeech, satelliteSpeech } from '#lib/server/voice/satellite-voice.ts';
 
@@ -35,6 +36,6 @@ export const POST: RequestHandler = async ({ request }) => {
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		console.error(`[voz] Al decirlo: ${message}`, { familyId: k.familyId });
-		error(message === NO_CREDIT ? 402 : 503, sayableError(message));
+		error(creditProblem(message) ? 402 : 503, sayableError(message));
 	}
 };

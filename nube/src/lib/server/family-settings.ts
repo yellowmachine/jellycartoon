@@ -2,6 +2,7 @@ import { familySettings } from './db/schema.ts';
 import type { Place } from 'comun/weather.ts';
 import type { Kitchen } from './fridge.ts';
 import { decrypt, encrypt } from './secret-box.ts';
+import { NO_CREDIT, rememberBlock, unblock, type Block } from './ai-block.ts';
 
 /** The family's settings row, if it has one. */
 const settingsOf = async (k: Kitchen) => {
@@ -21,7 +22,13 @@ export const familyOfKey = (key: string) => keyFamilies.get(key) ?? null;
 export async function openRouterKey(k: Kitchen) {
 	const row = await settingsOf(k);
 	const key = row?.openrouterKey ? decrypt(row.openrouterKey) : null;
-	if (key) keyFamilies.set(key, k.familyId);
+	if (key) {
+		keyFamilies.set(key, k.familyId);
+		rememberBlock(
+			key,
+			row?.aiBlockedAt ? { at: row.aiBlockedAt, why: row.aiBlockedWhy ?? NO_CREDIT } : null
+		);
+	}
 	return key;
 }
 
@@ -33,13 +40,34 @@ export async function openRouterKeyStart(k: Kitchen) {
 
 /** A new key, or none (null). */
 export async function setOpenRouterKey(k: Kitchen, key: string | null) {
+	// Another key: the AI stopped with the one before goes on (ai-block.ts).
+	const before = await openRouterKey(k);
+	if (before) unblock(before);
 	const openrouterKey = key ? encrypt(key) : null;
+	const set = { openrouterKey, aiBlockedAt: null, aiBlockedWhy: null };
 	await k.run((tx) =>
 		tx
 			.insert(familySettings)
-			.values({ familyId: k.familyId, openrouterKey })
-			.onConflictDoUpdate({ target: familySettings.familyId, set: { openrouterKey } })
+			.values({ familyId: k.familyId, ...set })
+			.onConflictDoUpdate({ target: familySettings.familyId, set })
 	);
+}
+
+/** The family's AI stopped, or going again (null), as ai-block.ts says: kept for a restart. */
+export async function keepBlock(k: Kitchen, block: Block | null) {
+	const set = { aiBlockedAt: block?.at ?? null, aiBlockedWhy: block?.why ?? null };
+	await k.run((tx) =>
+		tx
+			.insert(familySettings)
+			.values({ familyId: k.familyId, ...set })
+			.onConflictDoUpdate({ target: familySettings.familyId, set })
+	);
+}
+
+/** Stopped (ai-block.ts), and why: for the banner of who runs the family; null, going. */
+export async function aiBlockOf(k: Kitchen): Promise<Block | null> {
+	const row = await settingsOf(k);
+	return row?.aiBlockedAt ? { at: row.aiBlockedAt, why: row.aiBlockedWhy ?? NO_CREDIT } : null;
 }
 
 /** Its openrouteservice key, for the road mode's routes; null without one. */

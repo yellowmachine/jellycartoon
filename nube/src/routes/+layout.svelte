@@ -7,6 +7,7 @@
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import AlarmBanner from 'comun/components/AlarmBanner.svelte';
 	import KidRequests from '#lib/components/KidRequests.svelte';
+	import AiStoppedBanner from '#lib/components/AiStoppedBanner.svelte';
 	import SiteNav from 'comun/components/SiteNav.svelte';
 	import MusicBar from 'comun/components/MusicBar.svelte';
 	import AiSpendLine from 'comun/components/AiSpendLine.svelte';
@@ -257,6 +258,10 @@ trip's link (#81), for whoever has it. -->
 					</div>
 				{/snippet}
 			</SiteNav>
+			<!-- The family's AI stopped (ai-block.ts), to who runs it: «Ya he recargado». -->
+			{#if data.aiBlocked}
+				<AiStoppedBanner why={data.aiBlocked.why} />
+			{/if}
 			<!-- An alarm ringing in the house (#241), with «Parar»: wherever it sounds. -->
 			{#if data.family}
 				<AlarmBanner />

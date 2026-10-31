@@ -117,6 +117,12 @@ export const familySettings = pgTable(
 			.primaryKey()
 			.references(() => family.id, { onDelete: 'cascade' }),
 		openrouterKey: text('openrouter_key'),
+		/**
+		 * The family's AI stopped (ai-block.ts): since when, and why in our words («No queda saldo en
+		 * OpenRouter»…); null, going. Kept, so that a restart does not send to OpenRouter again.
+		 */
+		aiBlockedAt: timestamp('ai_blocked_at'),
+		aiBlockedWhy: text('ai_blocked_why'),
 		/** openrouteservice's key (#78), for the road mode's routes and places; encrypted. */
 		orsKey: text('ors_key'),
 		/** The voice's model (OpenRouter), for its orders; null, the default one. */
