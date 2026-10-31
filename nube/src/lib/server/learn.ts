@@ -6,6 +6,7 @@ import { familyMember, user } from '#lib/server/db/schema.ts';
 import { asFamily } from '#lib/server/family.ts';
 import { keepInInbox, listInbox } from '#lib/server/inbox-store.ts';
 import { heardOf, markLearned, pendingHeard } from '#lib/server/heard.ts';
+import { repeatsOf } from '#lib/server/learn-evidence.ts';
 import { listRules } from '#lib/server/rules.ts';
 import { fridgeState, houseKitchen, kitchenOf } from '#lib/server/fridge.ts';
 import { forget, learnedToday, listMemories, MAX_MEMORY, remember } from '#lib/server/memory.ts';
@@ -361,7 +362,7 @@ export async function summarizeLearned(familyId: string) {
 // ——— Rules for what repeats (phase 7) ———
 
 interface Proposed {
-	propuestas: { pregunta: string; regla: string }[];
+	propuestas: { pregunta: string; regla: string; frases: string[] }[];
 }
 
 const PROPOSED_SCHEMA = {
@@ -374,8 +375,12 @@ const PROPOSED_SCHEMA = {
 			items: {
 				type: 'object',
 				additionalProperties: false,
-				required: ['pregunta', 'regla'],
-				properties: { pregunta: { type: 'string' }, regla: { type: 'string' } }
+				required: ['pregunta', 'regla', 'frases'],
+				properties: {
+					pregunta: { type: 'string' },
+					regla: { type: 'string' },
+					frases: { type: 'array', items: { type: 'string' } }
+				}
 			}
 		}
 	}
@@ -383,7 +388,7 @@ const PROPOSED_SCHEMA = {
 
 const PROPOSE_SYSTEM = (who: string) =>
 	`Miras lo que ${who} le ha dicho a la voz de casa estas dos semanas, lo que recuerda, lo que hay en la nevera y sus reglas, y propones como mucho dos reglas nuevas para lo que se repite de verdad (tres veces o más) o para algo que claramente le vendría bien. Una regla se comprueba sola: cuando dice algo con ciertas palabras, cuando se pone algo en la nevera, cuando se recuerda algo, cuando empieza una cita de la Agenda o un viaje, cada día a una hora, cuando va a llover, helar, hacer calor o viento, o cuando una toma de Medicación sigue sin marcar; puede depender de estar de viaje, de lo que se recuerda, de la nevera, de la Agenda de hoy o del tiempo; y avisa, o deduce un dato para otras reglas («si digo que pongo la lavadora, ese día hay ropa tendida»).
-Nada que ya haga una de sus reglas ni que ya se le haya propuesto, nada de salud más allá de recordar lo apuntado, nada sobre otras personas que no sea de la casa. «regla» como la diría ${who}, en primera persona; «pregunta», corta y en segunda persona, para que diga sí o no («¿Sueles tender la ropa el día que pones la lavadora?»). Si no ves nada claro, ninguna: es lo normal.`;
+Nada que ya haga una de sus reglas ni que ya se le haya propuesto, nada de salud más allá de recordar lo apuntado, nada sobre otras personas que no sea de la casa. «regla» como la diría ${who}, en primera persona; «pregunta», corta y en segunda persona, para que diga sí o no («¿Sueles tender la ropa el día que pones la lavadora?»); «frases», lo que se repite, copiado tal cual de lo que ha dicho (unas palabras de cada vez que lo dijo, como «pongo la lavadora»): sin eso, tres veces o más, no la propongas. Si no ves nada claro, ninguna: es lo normal.`;
 
 /** Less said than this in two weeks: nothing to see repeat. */
 const PROPOSE_MIN_HEARD = 5;
@@ -431,6 +436,16 @@ export async function proposeRules(familyId: string) {
 				const question = p.pregunta.trim().slice(0, 200);
 				const rule = p.regla.trim().slice(0, 500);
 				if (!question || !rule || offered.includes(rule)) continue;
+				// Only on what was really said, three times or more: shown in the Buzón.
+				const repeats = repeatsOf(said, Array.isArray(p.frases) ? p.frases : []);
+				if (!repeats) {
+					console.info('[aprender] Regla sin base, no propuesta', {
+						userId: id,
+						rule,
+						frases: p.frases
+					});
+					continue;
+				}
 				await keepInInbox(k, [id], {
 					kind: 'propuesta',
 					title: `💡 ${question}`,
@@ -438,7 +453,7 @@ export async function proposeRules(familyId: string) {
 					tag: `regla-propuesta-${rule.toLowerCase().slice(0, 80)}`,
 					url: '/buzon',
 					ttl: 0,
-					proposal: { type: 'regla', said: rule, because: 'por lo que se repite estos días' }
+					proposal: { type: 'regla', said: rule, because: repeats.because }
 				});
 			}
 		} catch (error) {
