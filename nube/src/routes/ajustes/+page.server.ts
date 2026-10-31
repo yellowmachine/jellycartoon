@@ -56,7 +56,7 @@ import {
 	voiceSettings
 } from '#lib/server/voice/settings.ts';
 import { forgetLearned, listLearned } from '#lib/server/voice/learned.ts';
-import { forget, listMemories, remember } from '#lib/server/memory.ts';
+import { editMemory, forget, listMemories, remember } from '#lib/server/memory.ts';
 import { RULE_TEMPLATES } from '#lib/rule-templates.ts';
 import {
 	deleteRule,
@@ -438,6 +438,22 @@ export const actions: Actions = {
 		return { saved: 'rule' };
 	},
 	/** And one forgotten: theirs, or the house's. */
+	/** One changed: its words and its last day (theirs, or the house's). */
+	editMemory: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = Number(form.get('id'));
+		const text = String(form.get('text') ?? '');
+		if (!Number.isInteger(id) || !text.trim())
+			return fail(400, { memoryProblem: 'Escribe qué tiene que recordar' });
+		await editMemory(
+			await kitchenOf(locals.user!.id),
+			locals.user!.id,
+			id,
+			text,
+			String(form.get('until') ?? '') || null
+		);
+		return { saved: 'memory' };
+	},
 	forgetMemory: async ({ request, locals }) => {
 		const id = Number((await request.formData()).get('id'));
 		if (Number.isInteger(id)) await forget(await kitchenOf(locals.user!.id), locals.user!.id, id);
