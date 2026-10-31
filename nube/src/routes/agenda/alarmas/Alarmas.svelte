@@ -217,38 +217,44 @@
 			{#each alarms as a (a.id)}
 				{@const ringing = a.ringingSince !== null}
 				{@const timer = a.kind === 'temporizador'}
+				<!-- On the phone, two rows: what it is, and its buttons under the text; wider, one. -->
 				<li
-					class={['flex flex-wrap items-center gap-x-3 gap-y-2 py-2', ringing && 'text-amber-300']}
+					class={[
+						'flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:gap-3',
+						ringing && 'text-amber-300'
+					]}
 				>
-					<AlarmIcon
-						name={timer ? 'temporizador' : 'alarma'}
-						{ringing}
-						class={['h-6 w-6 shrink-0', ringing ? 'text-amber-400' : 'text-zinc-400']}
-					/>
-					<span class="min-w-0 flex-1">
-						<span class="block truncate">{a.label}</span>
-						<span class="block text-xs text-zinc-400">
-							{#if ringing}
-								Sonando
-							{:else if timer && a.endsAt}
-								<span class="font-medium text-zinc-200 tabular-nums">{left(a.endsAt)}</span>
-								· acaba a las {localTime(new Date(a.endsAt))}
-							{:else}
-								{a.time}{a.days.length ? ` · ${daysName(a.days)}` : ''}
-								· {a.paused ? 'pausada' : a.nextAt ? when(a.nextAt) : 'ya sonó'}
-							{/if}
-							{#if a.people.length}
-								· {a.people.map(personName).join(', ')}
-							{:else}
-								· de la casa
-							{/if}
-							{#if a.place !== 'casa'}
-								· en {placeName(a.place)}
-							{/if}
+					<span class="flex min-w-0 flex-1 items-center gap-3">
+						<AlarmIcon
+							name={timer ? 'temporizador' : 'alarma'}
+							{ringing}
+							class={['h-6 w-6 shrink-0', ringing ? 'text-amber-400' : 'text-zinc-400']}
+						/>
+						<span class="min-w-0 flex-1">
+							<span class="block truncate">{a.label}</span>
+							<span class="block text-xs text-zinc-400">
+								{#if ringing}
+									Sonando
+								{:else if timer && a.endsAt}
+									<span class="font-medium text-zinc-200 tabular-nums">{left(a.endsAt)}</span>
+									· acaba a las {localTime(new Date(a.endsAt))}
+								{:else}
+									{a.time}{a.days.length ? ` · ${daysName(a.days)}` : ''}
+									· {a.paused ? 'pausada' : a.nextAt ? when(a.nextAt) : 'ya sonó'}
+								{/if}
+								{#if a.people.length}
+									· {a.people.map(personName).join(', ')}
+								{:else}
+									· de la casa
+								{/if}
+								{#if a.place !== 'casa'}
+									· en {placeName(a.place)}
+								{/if}
+							</span>
 						</span>
 					</span>
 					{#if !readonly}
-						<span class="flex flex-wrap gap-2">
+						<span class="flex flex-wrap gap-2 pl-9 sm:pl-0">
 							{#if ringing}
 								{@render act(
 									a,
