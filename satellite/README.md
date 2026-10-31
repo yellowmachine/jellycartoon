@@ -19,7 +19,9 @@ jellycartoon, además, la música, la radio y los altavoces de la casa (#296).
 1. En Seilide, **Ajustes → Familia → «Satélites de voz» → Añadir**, con el nombre de la
    habitación. Enseña su `SERVER_URL` y su clave una sola vez: cópialas.
 2. En la Raspberry, una carpeta con `compose.prod.yaml` y `.env.example` de aquí, y el segundo
-   copiado como `.env`, con esas dos líneas rellenas.
+   copiado como `.env`, con esas dos líneas rellenas, y `WUD_PASSWORD` con una contraseña nueva
+   (`openssl rand -hex 16`): sin ella WUD no arranca (desde su 9.6 pide un administrador), y el
+   compose no se levanta.
 3. El micrófono y el altavoz, por su nombre en ALSA: `arecord -L` y `aplay -L` (por ejemplo
    `plughw:CARD=Microphone` y `plughw:CARD=Headphones`), en `MIC` y `SPEAKER`.
 4. `docker compose -f compose.prod.yaml up -d`, y para ver que oye:

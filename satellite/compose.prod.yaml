@@ -43,6 +43,11 @@ services:
       WUD_WATCHER_LOCAL_CRON: ${UPDATE_CRON:-30 4 * * *}
       WUD_WATCHER_LOCAL_WATCHBYDEFAULT: 'false'
       WUD_TRIGGER_DOCKER_SATELITE_PRUNE: 'true'
+      # Since WUD 9.6 it does not start without an administrator
+      # (https://getwud.app/docs/configuration/authentications/), as the house's. Its web has no port
+      # here: the password is only for it to start.
+      WUD_AUTH_ADMIN_USER: admin
+      WUD_AUTH_ADMIN_PASSWORD: ${WUD_PASSWORD:?Falta WUD_PASSWORD en el .env (openssl rand -hex 16)}
     volumes:
       # Control of Docker: whoever controls WUD controls this machine's containers.
       - /var/run/docker.sock:/var/run/docker.sock

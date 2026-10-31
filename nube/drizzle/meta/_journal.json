@@ -309,6 +309,20 @@
       "when": 1793405007557,
       "tag": "0043_right_kid_colt",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1793424802767,
+      "tag": "0044_white_cloak",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1793425322781,
+      "tag": "0045_flawless_tyger_tiger",
+      "breakpoints": true
     }
   ]
 }

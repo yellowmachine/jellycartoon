@@ -34,6 +34,8 @@ export interface VoiceSettings {
 	style: string | null;
 	web: WebSearchConfig;
 	quiet: QuietHours | null;
+	/** «Aprender de lo que se habla» (#331). */
+	learn: boolean;
 }
 
 const validQuiet = (q: QuietHours | null | undefined): q is QuietHours =>
@@ -49,12 +51,16 @@ export async function voiceSettings(k: Kitchen): Promise<VoiceSettings> {
 			on: row?.voiceWeb?.on === true,
 			hints: (row?.voiceWeb?.hints ?? '').slice(0, MAX_WEB_HINTS)
 		},
-		quiet: validQuiet(row?.voiceQuiet) ? row.voiceQuiet : null
+		quiet: validQuiet(row?.voiceQuiet) ? row.voiceQuiet : null,
+		learn: row?.voiceLearn ?? false
 	};
 }
 
 type Saved = Partial<
-	Pick<typeof familySettings.$inferInsert, 'voiceModel' | 'voiceStyle' | 'voiceWeb' | 'voiceQuiet'>
+	Pick<
+		typeof familySettings.$inferInsert,
+		'voiceModel' | 'voiceStyle' | 'voiceWeb' | 'voiceQuiet' | 'voiceLearn'
+	>
 >;
 
 async function save(k: Kitchen, set: Saved) {
@@ -75,6 +81,9 @@ export const setVoiceStyle = (k: Kitchen, text: string) =>
 
 export const setWebSearch = (k: Kitchen, config: WebSearchConfig) =>
 	save(k, { voiceWeb: { on: config.on, hints: config.hints.trim().slice(0, MAX_WEB_HINTS) } });
+
+/** «Aprender de lo que se habla» (#331), on or off. */
+export const setVoiceLearn = (k: Kitchen, on: boolean) => save(k, { voiceLearn: on });
 
 /** `null`, none. Equal ends are none too: silence all day would be a muted voice. */
 export const setQuietHours = (k: Kitchen, hours: QuietHours | null) =>

@@ -1,11 +1,11 @@
-import { dayName, localDay } from 'comun/agenda.ts';
+import { dayName, localDay, localTime } from 'comun/agenda.ts';
 import { openRouterKey } from '#lib/server/family-settings.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { familyHasHouse, sendHouse } from '#lib/server/house.ts';
 import { familyMember, user } from '#lib/server/db/schema.ts';
 import { asFamily } from '#lib/server/family.ts';
 import { keepInInbox, listInbox } from '#lib/server/inbox-store.ts';
-import { heardOf } from '#lib/server/heard.ts';
+import { heardOf, markLearned, pendingHeard } from '#lib/server/heard.ts';
 import { listRules } from '#lib/server/rules.ts';
 import { fridgeState, houseKitchen, kitchenOf } from '#lib/server/fridge.ts';
 import { forget, learnedToday, listMemories, MAX_MEMORY, remember } from '#lib/server/memory.ts';
@@ -13,6 +13,7 @@ import { agendaBetween } from '#lib/server/agenda/agenda.ts';
 import { pickLearned, sharesWords } from '#lib/server/voice/learned.ts';
 import { eq, ne } from 'drizzle-orm';
 import { completeJson } from '#lib/server/openrouter.ts';
+import { inBackground, quietFor } from '#lib/server/ai-lane.ts';
 
 /**
  * What a Telegram message has worth remembering (#331, phase 5): one of the chats a person chose
@@ -21,8 +22,9 @@ import { completeJson } from '#lib/server/openrouter.ts';
  * When there is something («llegamos el sábado a las 11»), it is offered in their «Buzón», with
  * «Guardar» and «No»: kept, it goes to their own memory, never on its own.
  *
- * And what is said to the voice (phase 6): after each order, whether it told something worth
- * remembering, without «recuerda» («mañana no hay cole, es fiesta»): kept at once, marked as
+ * And what is said to the voice (phase 6, if the family has it on): each order queued (heard.ts)
+ * and read by batches once the voice is quiet (`learnPending`), whether it told something worth
+ * remembering without «recuerda» («mañana no hay cole, es fiesta»): kept at once, marked as
  * learned from what was said (the voice says it with care), and each day at `SUMMARY_AT` the
  * day's in their «Buzón», each to take out with ×. Two ways, to see which works better.
  */
@@ -91,16 +93,19 @@ async function read<T>(
 	const apiKey = await openRouterKey(k);
 	if (apiKey)
 		try {
-			return await completeJson<T>({
-				apiKey,
-				label,
-				system,
-				prompt,
-				name: 'learned',
-				schema,
-				maxTokens: 300,
-				timeoutMs: 20_000
-			});
+			// Behind the voice: never taking its room in OpenRouter (ai-lane.ts).
+			return await inBackground(() =>
+				completeJson<T>({
+					apiKey,
+					label,
+					system,
+					prompt,
+					name: 'learned',
+					schema,
+					maxTokens: 300,
+					timeoutMs: 20_000
+				})
+			);
 		} catch (error) {
 			console.warn('[aprender] OpenRouter no contesta: al salón', { error: String(error) });
 		}
@@ -183,8 +188,8 @@ export async function learnFromTelegram(
 
 // ——— From what is said to the voice (phase 6) ———
 
-interface Heard {
-	merece: boolean;
+/** One thing learned from a few orders: something to remember, an event, or both. */
+interface HeardItem {
 	recuerdo: string;
 	hasta: string | null;
 	de_casa: boolean;
@@ -192,49 +197,63 @@ interface Heard {
 	cita: Event;
 }
 
+interface Heard {
+	aprendido: HeardItem[];
+}
+
 const HEARD_SCHEMA = {
 	type: 'object',
 	additionalProperties: false,
-	required: ['merece', 'recuerdo', 'hasta', 'de_casa', 'sustituye', 'cita'],
+	required: ['aprendido'],
 	properties: {
-		merece: { type: 'boolean' },
-		recuerdo: { type: 'string' },
-		hasta: { type: ['string', 'null'] },
-		de_casa: { type: 'boolean' },
-		sustituye: { type: ['integer', 'null'] },
-		cita: EVENT_SCHEMA
+		aprendido: {
+			type: 'array',
+			items: {
+				type: 'object',
+				additionalProperties: false,
+				required: ['recuerdo', 'hasta', 'de_casa', 'sustituye', 'cita'],
+				properties: {
+					recuerdo: { type: 'string' },
+					hasta: { type: ['string', 'null'] },
+					de_casa: { type: 'boolean' },
+					sustituye: { type: ['integer', 'null'] },
+					cita: EVENT_SCHEMA
+				}
+			}
+		}
 	}
 };
 
 const HEARD_SYSTEM = (today: string, who: string | null) =>
-	`Lees lo que ${who ?? 'alguien de la casa'} le ha dicho a la voz de casa y dices si, de paso, ha contado algo que merezca recordarse sin que lo pida: un plan con fecha, un dato de la familia o de la casa («mañana no hay cole, es fiesta», «a Lucía no le gustan las lentejas», «el viernes vienen mis padres»). Casi nunca: las órdenes («pon música», «qué hora es», «apaga la luz»), las preguntas, lo que solo vale ahora y lo que ya está en lo que recuerdas, no. Hoy es ${dayName(today, true)} (${today}).
-Si merece, «recuerdo» en una frase corta que se entienda sola, con nombres y fechas de verdad, sin «yo» ni «mañana»; «hasta» el último día que vale (AAAA-MM-DD) o null si vale siempre; «de_casa» true si es de toda la casa y no solo de quien habla; y «sustituye» el número de lo que ya recuerdas que esto corrige («ahora la llave está en el cajón»), o null. Si no, «merece» false, «recuerdo» vacío, «hasta» y «sustituye» null.
+	`Lees lo que ${who ?? 'alguien de la casa'} le ha dicho a la voz de casa estas últimas horas, orden a orden con la hora y lo que contestó la voz, y dices si, de paso, ha contado algo que merezca recordarse sin pedirlo: un plan con fecha, un dato de la familia o de la casa («mañana no hay cole, es fiesta», «a Lucía no le gustan las lentejas», «el viernes vienen mis padres»). Casi nunca: las órdenes («pon música», «qué hora es», «apaga la luz»), las preguntas, lo que solo valía en ese momento y lo que ya está en lo que recuerdas, no. Lo de varias órdenes que va junto («el viernes vienen mis padres», «a las 11»), en una sola cosa. Hoy es ${dayName(today, true)} (${today}).
+Por cada cosa (normalmente ninguna, «aprendido» vacío): «recuerdo» en una frase corta que se entienda sola, con nombres y fechas de verdad, sin «yo» ni «mañana» (vacío si solo es una cita); «hasta» el último día que vale (AAAA-MM-DD) o null si vale siempre; «de_casa» true si es de toda la casa y no solo de quien habla; y «sustituye» el número de lo que ya recuerdas que esto corrige («ahora la llave está en el cajón»), o null.
 ${EVENT_LINE}`;
 
-/** Orders shorter than this tell nothing («para», «sube el volumen»). */
-const HEARD_MIN_CHARS = 15;
+/** Orders shorter than this tell nothing («para», «sube el volumen»): not queued. */
+export const HEARD_MIN_CHARS = 15;
 
 /**
- * After an order (`said`, and what the voice answered): if it told something worth remembering,
- * kept at once in their memory (the house's if it is everyone's; on a satellite, `userId` null,
- * only that), correcting what it says is old. Never for children (the caller sees to it).
+ * A few orders of one person (`userId` null: said on satellites) that may have told something
+ * worth remembering, read together: what there is, kept at once in their memory (the house's if
+ * it is everyone's; on a satellite, only that), correcting what it says is old; an event, offered
+ * for the agenda. False if no AI answered (they stay in the queue).
  */
-export async function learnFromOrder(
+export async function learnFromHeard(
 	k: Kitchen,
 	userId: string | null,
 	who: string | null,
-	said: string,
-	answered: string
+	said: { text: string; answer: string | null; at: Date }[]
 ) {
-	if (said.trim().length < HEARD_MIN_CHARS) return null;
 	const today = localDay();
 	const known = pickLearned(
 		(await listMemories(k, userId)).map((m) => ({ ...m, title: m.text })),
-		said
+		said.map((s) => s.text).join(' ')
 	).slice(0, 10);
 	const prompt = [
-		`Ha dicho: «${said.trim().slice(0, 1000)}»`,
-		`La voz ha contestado: «${answered.slice(0, 500)}»`,
+		...said.map(
+			(s) =>
+				`[${dayName(localDay(s.at))}, ${localTime(s.at)}] Ha dicho: «${s.text}»${s.answer ? ` → la voz: «${s.answer}»` : ''}`
+		),
 		known.length
 			? `Lo que ya recuerdas: ${known.map((m) => `${m.id}: ${m.text}`).join(' · ')}`
 			: null
@@ -245,30 +264,67 @@ export async function learnFromOrder(
 		k,
 		'Aprender de lo hablado',
 		HEARD_SYSTEM(today, who),
-		prompt,
+		prompt.slice(0, 12_000),
 		HEARD_SCHEMA
 	);
-	// An event: offered to who said it (on a satellite, no one to ask).
-	if (heard?.cita && userId)
-		await proposeEvent(k, userId, heard.cita, 'de lo que dijiste a la voz');
-	const text = heard?.merece ? heard.recuerdo.trim().slice(0, MAX_MEMORY) : '';
-	if (!text) return null;
-	// On a satellite, no one known: only what is everyone's.
-	if (!userId && !heard!.de_casa) return null;
-	const whose = heard!.de_casa ? null : userId;
-	if (heard!.sustituye !== null && known.some((m) => m.id === heard!.sustituye))
-		await forget(k, userId, heard!.sustituye);
-	const untilDay =
-		heard!.hasta && DAY.test(heard!.hasta) && heard!.hasta >= today ? heard!.hasta : null;
-	await remember(
-		k,
-		whose,
-		text,
-		{ untilDay },
-		{ source: 'conversacion', ruleId: null, because: 'de lo que se dijo a la voz', chain: [] }
-	);
-	console.info('[aprender] De lo hablado', { userId, house: whose === null });
-	return text;
+	if (!heard) return false;
+	for (const item of heard.aprendido ?? []) {
+		// An event: offered to who said it (on a satellite, no one to ask).
+		if (item.cita && userId) await proposeEvent(k, userId, item.cita, 'de lo que dijiste a la voz');
+		const text = item.recuerdo.trim().slice(0, MAX_MEMORY);
+		// On a satellite, no one known: only what is everyone's.
+		if (!text || (!userId && !item.de_casa)) continue;
+		const whose = item.de_casa ? null : userId;
+		if (item.sustituye !== null && known.some((m) => m.id === item.sustituye))
+			await forget(k, userId, item.sustituye);
+		const untilDay = item.hasta && DAY.test(item.hasta) && item.hasta >= today ? item.hasta : null;
+		await remember(
+			k,
+			whose,
+			text,
+			{ untilDay },
+			{ source: 'conversacion', ruleId: null, because: 'de lo que se dijo a la voz', chain: [] }
+		);
+		console.info('[aprender] De lo hablado', { userId, house: whose === null });
+	}
+	return true;
+}
+
+/** The family's voice quiet this long: then what is queued is learned from. */
+const QUIET_MS = 2 * 60_000;
+/** At most this many orders in one reading. */
+const BATCH = 20;
+/** Queued longer than this and no AI answered: given up. */
+const GIVE_UP_MS = 24 * 3600_000;
+
+/**
+ * Every minute (scheduler.ts): what is queued to learn from (heard.ts), once the family's voice
+ * has been quiet a while (ai-lane.ts), one person at a time, a few orders in each reading. Away
+ * from the voice, in OpenRouter's background lane.
+ */
+export async function learnPending(familyId: string) {
+	const k = houseKitchen(familyId);
+	const apiKey = await openRouterKey(k);
+	if (apiKey && quietFor(apiKey) < QUIET_MS) return;
+	const pending = await pendingHeard(k);
+	if (!pending.length) return;
+	const byPerson = new Map<string | null, typeof pending>();
+	for (const p of pending) byPerson.set(p.userId, [...(byPerson.get(p.userId) ?? []), p]);
+	for (const [userId, rows] of byPerson) {
+		const batch = rows.slice(0, BATCH);
+		const pk = userId ? await kitchenOf(userId) : k;
+		const [me] = userId
+			? await asFamily(familyId, (tx) =>
+					tx.select({ name: user.name }).from(user).where(eq(user.id, userId))
+				)
+			: [];
+		const done = await learnFromHeard(pk, userId, me?.name ?? null, batch);
+		const old = batch.filter((b) => Date.now() - b.at.getTime() > GIVE_UP_MS);
+		await markLearned(
+			k,
+			(done ? batch : old).map((b) => b.id)
+		);
+	}
 }
 
 /** The day's summary goes at this time. */

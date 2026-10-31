@@ -11,6 +11,7 @@
 	import DondeVivis from './DondeVivis.svelte';
 	import VozInternet from './VozInternet.svelte';
 	import VozSilencio from './VozSilencio.svelte';
+	import VozAprende from './VozAprende.svelte';
 	import VozAprendido from './VozAprendido.svelte';
 	import VozRecuerda from './VozRecuerda.svelte';
 	import ComoTeAviso from './ComoTeAviso.svelte';
@@ -560,6 +561,8 @@
 		<VozInternet {data} {form} {tab} />
 
 		<VozSilencio {data} {form} {tab} />
+
+		<VozAprende {data} {tab} />
 
 		<VozAprendido {data} {tab} />
 

@@ -151,6 +151,13 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		shown: onlyAdmin
 	},
 	{
+		id: 'voz-aprende',
+		tab: 'familia',
+		title: 'Aprender de lo que se habla',
+		words: 'aprender aprendizaje memoria conversación hablar voz recordar sola',
+		shown: onlyAdmin
+	},
+	{
 		id: 'voz-internet',
 		tab: 'familia',
 		title: 'Buscar en internet desde la voz',

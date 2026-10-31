@@ -1,5 +1,11 @@
 import { redirect } from '@sveltejs/kit';
-import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit/hooks';
+import {
+	sequence,
+	type Handle,
+	type HandleServerError,
+	type ServerInit
+} from '@sveltejs/kit/hooks';
+import { rejectMalformedPath } from 'comun/server/malformed-path.ts';
 import { building } from '$app/env';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { auth } from '#lib/server/auth.ts';
@@ -127,4 +133,4 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 	return svelteKitHandler({ event, resolve, auth, building });
 };
 
-export const handle: Handle = handleBetterAuth;
+export const handle = sequence(rejectMalformedPath, handleBetterAuth);

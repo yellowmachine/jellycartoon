@@ -1,0 +1,1 @@
+ALTER TABLE "family_settings" ADD COLUMN "voice_learn" boolean DEFAULT false NOT NULL;
