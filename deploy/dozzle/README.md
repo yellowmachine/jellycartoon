@@ -9,22 +9,44 @@ sus registros y eventos (`compose.yaml`).
 
 ## Instalarlo
 
-1. **Su carpeta y su usuario**, en el VPS como root. La contraseña la pide sin que quede en el
-   historial:
+Se entra **con tu cuenta de Seilide** (y su verificación en dos pasos, si la tienes puesta: actívala
+en Seilide si no), o con la contraseña de `users.yml` si Seilide no contesta. `users.yml` decide
+quién entra: aunque alguien tenga cuenta en Seilide, si su correo no está ahí, no entra.
+
+1. **Elige el dominio** de Dozzle, p. ej. `registros.seilide.app` (en el DNS, al VPS, como
+   `seilide.app`).
+2. **En Seilide, /admin → Apps → nueva app**: nombre `Dozzle`, dirección de vuelta
+   `https://registros.seilide.app/api/auth/callback` (con tu dominio, exacta, con `https`), sin
+   marcar «Es para familias». Enseña su identificador y su secreto **una sola vez**: cópialos.
+3. **Su carpeta y su usuario**, en el VPS como root, con **el mismo correo que tu cuenta de
+   Seilide** (Dozzle os empareja por él). La contraseña la pide sin que quede en el historial:
 
    ```sh
    mkdir -p /srv/dozzle
-   docker run -it --rm amir20/dozzle:v11.3.5 generate admin --name "Miguel" > /srv/dozzle/users.yml
+   docker run -it --rm amir20/dozzle:v11.3.5 generate admin --name "Miguel" --email tu@correo > /srv/dozzle/users.yml
    chmod 600 /srv/dozzle/users.yml
    ```
 
-2. **En Dokploy**, un proyecto nuevo → **Compose** → proveedor **Raw**, con el contenido de
-   `compose.yaml`.
-3. **Environment**: `SLACK_WEBHOOK_URL=` con el _Incoming Webhook_ de Slack donde quieras los avisos
-   (el mismo canal que el de las releases sirve).
-4. **Domains**: el dominio que quieras (p. ej. `registros.seilide.app`), servicio `dozzle`, puerto
-   `8080`, con HTTPS.
-5. **Deploy**, y entra: tiene que pedir usuario y contraseña. Si no la pide, páralo: estaría abierto.
+4. **En Dokploy**, un proyecto nuevo → **Compose** → proveedor **GitHub**: repositorio
+   `yellowmachine/jellycartoon`, rama `main`, **Compose Path** `./deploy/dozzle/compose.yaml`. Si
+   quieres que se despliegue solo, **Trigger Type** «On push» y en **Watch Paths**
+   `deploy/dozzle/**` (si no, se desplegaría con cada push de la app).
+5. **Environment**:
+
+   ```sh
+   DOZZLE_OIDC_CLIENT_ID=…       # los de Seilide, del paso 2
+   DOZZLE_OIDC_CLIENT_SECRET=…
+   SLACK_WEBHOOK_URL=…           # el Incoming Webhook de Slack para los avisos
+   ```
+
+   Sin los dos de Seilide, el despliegue se para y dice cuál falta.
+
+6. **Domains**: el dominio del paso 1, servicio `dozzle`, puerto `8080`, con HTTPS.
+7. **Deploy**, y entra: tiene que pedir entrar, con el botón **Seilide** y con contraseña. Si entra
+   sin pedir nada, páralo: estaría abierto.
+
+Si «Seilide» falla al volver (un error de dirección de vuelta), la de /admin → Apps no es exactamente
+`https://<tu dominio>/api/auth/callback`, o el proxy no le dice a Dozzle que va por `https`.
 
 ## Los avisos
 
