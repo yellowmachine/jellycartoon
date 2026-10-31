@@ -18,6 +18,8 @@
 		addMonths,
 		byTag,
 		euros,
+		favoriteOf,
+		isFavorite,
 		linesSum,
 		monthName,
 		parseEuros,
@@ -123,12 +125,6 @@
 		};
 	}
 
-	/** The favourite of the name in the form, if there is one: «★», and it can be taken away. */
-	const favorite = $derived(
-		editing &&
-			data.favorites.find((f) => f.store.toLowerCase() === editing!.store.trim().toLowerCase())
-	);
-
 	/** The form as a favourite: no day; no amount if the box is empty. */
 	const asFavorite = $derived(
 		editing && {
@@ -140,6 +136,14 @@
 				.map((l) => ({ ...l, amount: parseEuros(l.amount) ?? 0 }))
 		}
 	);
+
+	/** The favourite of the name in the form, if there is one: «★» only if it is this expense. */
+	const favorite = $derived(editing && favoriteOf(data.favorites, editing.store));
+	const formIsFavorite = $derived(!!favorite && !!asFavorite && isFavorite(asFavorite, favorite));
+
+	/** Saving another one of the same place takes its favourite's place: said on the button. */
+	const instead = (f: ExpenseFavorite | undefined) =>
+		f ? ` · en lugar del ${f.total === null ? 'que hay' : `de ${euros(f.total)}`}` : '';
 
 	/**
 	 * One in the list, in the middle of the screen. A jump, not smooth: the form opening or closing
@@ -676,19 +680,21 @@
 					{#if !e.bill && e.store.trim()}
 						<form
 							method="post"
-							action={favorite ? '?/deleteFavorite' : '?/saveFavorite'}
+							action={formIsFavorite ? '?/deleteFavorite' : '?/saveFavorite'}
 							class="mt-2"
 							use:enhance={() =>
 								async ({ update }) =>
 									update({ reset: false })}
 						>
-							{#if favorite}
-								<input type="hidden" name="id" value={favorite.id} />
+							{#if formIsFavorite}
+								<input type="hidden" name="id" value={favorite!.id} />
 							{:else}
 								<input type="hidden" name="favorite" value={JSON.stringify(asFavorite)} />
 							{/if}
 							<button class="text-sm text-amber-400 hover:underline">
-								{favorite ? '★ Favorito · quitar' : '☆ Guardar como favorito'}
+								{formIsFavorite
+									? '★ Favorito · quitar'
+									: `☆ Guardar como favorito${instead(favorite ?? undefined)}`}
 							</button>
 						</form>
 					{/if}
@@ -830,6 +836,52 @@
 							<button class="{button} bg-zinc-800 hover:bg-zinc-700" onclick={() => edit(e)}
 								>Corregir</button
 							>
+							<!-- As in the form, without opening it to correct: «♥» only if it is this expense. -->
+							{#if !e.bill}
+								{@const placeFav = favoriteOf(data.favorites, e.store)}
+								{@const fav = placeFav && isFavorite(e, placeFav) ? placeFav : null}
+								<form
+									method="post"
+									action={fav ? '?/deleteFavorite' : '?/saveFavorite'}
+									use:enhance={() =>
+										async ({ update }) =>
+											update({ reset: false })}
+								>
+									{#if fav}
+										<input type="hidden" name="id" value={fav.id} />
+									{:else}
+										<input
+											type="hidden"
+											name="favorite"
+											value={JSON.stringify({
+												store: e.store,
+												category: e.category,
+												total: e.total,
+												lines: e.lines
+											})}
+										/>
+									{/if}
+									<button
+										class="{button} flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700"
+										aria-pressed={!!fav}
+									>
+										<svg
+											viewBox="0 0 24 24"
+											class="h-4 w-4 {fav ? 'text-amber-400' : 'text-zinc-400'}"
+											aria-hidden="true"
+										>
+											<path
+												d="M12 20.5s-7.5-4.6-9.2-9.4C1.6 7.6 3.9 4.5 7.2 4.5c2 0 3.6 1.1 4.8 2.8 1.2-1.7 2.8-2.8 4.8-2.8 3.3 0 5.6 3.1 4.4 6.6-1.7 4.8-9.2 9.4-9.2 9.4Z"
+												fill={fav ? 'currentColor' : 'none'}
+												stroke="currentColor"
+												stroke-width="2"
+												stroke-linejoin="round"
+											/>
+										</svg>
+										{fav ? 'Quitar de favoritos' : `Favorito${instead(placeFav)}`}
+									</button>
+								</form>
+							{/if}
 							{#if deleting === `gasto-${e.id}`}
 								<form method="post" action="?/delete" use:enhance class="flex gap-2">
 									<input type="hidden" name="id" value={e.id} />

@@ -6,7 +6,7 @@
 	import AlarmBanner from 'comun/components/AlarmBanner.svelte';
 	import SalonBar from '#lib/components/SalonBar.svelte';
 	import SnapcastBar from '#lib/components/SnapcastBar.svelte';
-	import SectionIcon, { type Section } from 'comun/components/SectionIcon.svelte';
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import SiteNav, { type NavLink, type UserLink } from 'comun/components/SiteNav.svelte';
 	import VoiceBubble from '#lib/components/VoiceBubble.svelte';
 	import TimerBar from '#lib/components/TimerBar.svelte';
@@ -85,15 +85,6 @@
 		return () => navigator.serviceWorker.removeEventListener('message', went);
 	});
 
-	/**
-	 * A section that lives in the cloud (#253): straight there, as the cloud's bar goes to the house;
-	 * without it connected, the house's page for it, which says how (Ajustes → Casa → «La nube»).
-	 */
-	const inCloud = (path: string, label: string, icon: Section) =>
-		data.cloud
-			? { href: `${data.cloud}${path}`, label, icon, external: true }
-			: { href: path, label, icon };
-
 	const links: NavLink[] = $derived([
 		// With Hoy and Listas in its tabs.
 		{ href: '/', label: 'Series', icon: 'series', also: ['/series', '/today', '/lists'] },
@@ -101,18 +92,8 @@
 		...(data.music ? [{ href: '/musica', label: 'Música', icon: 'musica' as const }] : []),
 		{ href: '/radio', label: 'Radio', icon: 'radio' },
 		{ href: '/canales', label: 'Canales', icon: 'canales' },
-		// The family's, in the cloud (#253): its recipe book, its post-its and shopping list (#131),
-		// its agenda (#200), its expenses (#194) and each one's trips with the road mode (#81). For
-		// the adults, who have an account there.
-		...(data.kid
-			? []
-			: [
-					inCloud('/recetas', 'Recetas', 'recetas'),
-					inCloud('/nevera', 'Nevera', 'nevera'),
-					inCloud('/agenda', 'Agenda', 'agenda'),
-					inCloud('/gastos', 'Gastos', 'gastos'),
-					inCloud('/viajes', 'Viajes', 'viajes')
-				]),
+		// Recetas, Nevera, Agenda, Gastos and Viajes are the cloud's (#253), with nothing of them
+		// here: each one knows where they are, as the cloud's bar has nothing of the house.
 		...(data.salon ? [{ href: '/salon', label: 'Salón', icon: 'salon' as const }] : []),
 		// What was played (#176): the games themselves are played in the TV view.
 		...(data.games ? [{ href: '/juegos', label: 'Juegos', icon: 'juegos' as const }] : []),

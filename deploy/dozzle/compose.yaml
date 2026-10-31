@@ -28,8 +28,16 @@ services:
     environment:
       # The VPS's Docker, through the proxy; «VPS», its name in the page.
       DOZZLE_REMOTE_HOST: tcp://socket-proxy:2375|VPS
-      # Users from /data/users.yml (README.md): never open without a password.
+      # Users from /data/users.yml (README.md): never open without one. They sign in with Seilide
+      # (its OpenID provider, with its two-step check), matched by their verified email; users.yml
+      # still says who gets in, and its password stays as the way in if Seilide does not answer
+      # (https://dozzle.dev/guide/authentication/oauth#sign-in-with-oidc).
       DOZZLE_AUTH_PROVIDER: simple
+      DOZZLE_AUTH_OIDC_ISSUER: https://seilide.app/api/auth
+      DOZZLE_AUTH_OIDC_NAME: Seilide
+      # Seilide's /admin → Apps gives them, once (Dokploy → Environment).
+      DOZZLE_AUTH_OIDC_CLIENT_ID: ${DOZZLE_OIDC_CLIENT_ID:?Falta DOZZLE_OIDC_CLIENT_ID (Seilide → /admin → Apps)}
+      DOZZLE_AUTH_OIDC_CLIENT_SECRET: ${DOZZLE_OIDC_CLIENT_SECRET:?Falta DOZZLE_OIDC_CLIENT_SECRET (Seilide → /admin → Apps)}
       DOZZLE_AUTH_TTL: 48h
       DOZZLE_NO_ANALYTICS: 'true'
       # Read by the alerts' destination as ${SLACK_WEBHOOK_URL} (Dokploy → Environment): the

@@ -4,6 +4,7 @@ import {
 	byTag,
 	euros,
 	isDay,
+	isFavorite,
 	parseEuros,
 	parseExpenseInput,
 	UNTAGGED,
@@ -87,4 +88,23 @@ test("a category by its lines' tags, what they miss apart and last", () => {
 		{ tag: UNTAGGED, total: 1708 }
 	]);
 	expect(byTag([{ ...receipt, total: 632 }])).toHaveLength(3);
+});
+
+test('a favourite is that expense, not any other at the same place', () => {
+	const kebab = { text: 'Kebab', quantity: 1, amount: 500, tag: 'Otros' as LineTag };
+	const fav = {
+		id: 1,
+		store: 'Kebab Ali',
+		category: 'Restaurantes' as const,
+		total: 500,
+		lines: [kebab]
+	};
+	const same = { store: ' kebab ali', category: fav.category, total: 500, lines: [kebab] };
+	expect(isFavorite(same, fav)).toBe(true);
+	expect(isFavorite({ ...same, total: 1400 }, fav)).toBe(false);
+	expect(isFavorite({ ...same, lines: [kebab, { ...kebab, text: 'Patatas' }] }, fav)).toBe(false);
+	expect(isFavorite({ ...same, store: 'Otro' }, fav)).toBe(false);
+	// Without an amount, any amount; lines without text, as if not there.
+	expect(isFavorite({ ...same, total: 700 }, { ...fav, total: null })).toBe(true);
+	expect(isFavorite({ ...same, lines: [kebab, { ...kebab, text: ' ' }] }, fav)).toBe(true);
 });

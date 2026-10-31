@@ -11,17 +11,19 @@ const whoOf = (locals: App.Locals) => ({ id: locals.user!.id, email: locals.user
 
 /**
  * Música's albums and artists (#253), as jellycartoon's: the house's catalog, searched in the
- * browser; and its Modo DJ, with this person's saved setups. Without the house, nothing.
+ * browser; and its Modo DJ, with this person's saved setups. The catalog, all of it, takes a
+ * while: not awaited, the page opens meanwhile and it comes after
+ * (https://svelte.dev/docs/kit/load#Streaming-with-promises).
  */
 export const load: PageServerLoad = async ({ locals }) => {
 	const who = whoOf(locals);
-	try {
-		const [albums, dj] = await Promise.all([catalog(who), djInfo(who)]);
-		return { albums, dj: dj.enabled, djVoices: dj.voices, djPresets: dj.presets };
-	} catch (error) {
+	// Without the house, nothing.
+	const albums = catalog(who).catch((error) => {
 		if (!(error instanceof HouseProblem)) throw error;
-		return { albums: [], dj: false, djVoices: false, djPresets: [] };
-	}
+		return [];
+	});
+	const dj = await djInfo(who);
+	return { albums, dj: dj.enabled, djVoices: dj.voices, djPresets: dj.presets };
 };
 
 export const actions: Actions = {
