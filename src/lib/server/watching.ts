@@ -1,6 +1,14 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, notExists, sql } from 'drizzle-orm';
+import { ADULT_TAG } from '#lib/kids-tag.ts';
 import { db } from '#lib/server/db/index.ts';
-import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
+import {
+	episode,
+	episodeTitle,
+	series,
+	seriesTag,
+	tag,
+	watchProgress
+} from '#lib/server/db/schema.ts';
 import { allowedSeries } from '#lib/server/kids.ts';
 
 /** What the home page and the TV view start with: the series, and what was left half watched. */
@@ -31,7 +39,10 @@ export async function allSeries() {
 	];
 }
 
-/** «Seguir viendo»: started, not finished nor taken out, the latest first. */
+/**
+ * «Seguir viendo»: started, not finished nor taken out, the latest first. Not a series tagged
+ * «+18», which anyone passing by would see here; still everywhere else.
+ */
 export function continueWatching(userId: string, limit = 8) {
 	return db
 		.select({
@@ -59,6 +70,13 @@ export function continueWatching(userId: string, limit = 8) {
 				eq(watchProgress.userId, userId),
 				eq(watchProgress.completed, false),
 				eq(watchProgress.dismissed, false),
+				notExists(
+					db
+						.select({ one: sql`1` })
+						.from(seriesTag)
+						.innerJoin(tag, eq(tag.id, seriesTag.tagId))
+						.where(and(eq(seriesTag.seriesId, series.id), eq(tag.name, ADULT_TAG)))
+				),
 				allowedSeries()
 			)
 		)
