@@ -33,7 +33,10 @@ const GEMINI_LITE = 'google/gemini-3.8-flash-lite-tts';
  * /audio/speech, with the family's key, each by its model. Gemini's, by their name, as saved
  * before (Kore, the default); the others, chosen by ear on 2026-10-31, faster, and by their
  * provider (`eleven:jessica`). `tone`: whether it takes «Cómo habla» (only Gemini's, as far as is
- * known). `fast`: an answer said in under a second or so, measured that day.
+ * known). `fast`: an answer said in under a second or so, measured that day. `per100`: what 100
+ * answers cost, in dollars, of about 53 letters each (the average of the 28 measured), at
+ * OpenRouter's prices that day: 15 $ per million letters MAI and Grok, 40 ElevenLabs; Gemini
+ * Flash-Lite 6 $ per million audio tokens, some 4 s each.
  */
 export const SATELLITE_VOICES = [
 	{
@@ -42,7 +45,8 @@ export const SATELLITE_VOICES = [
 		voice: 'jessica',
 		label: 'Jessica · ElevenLabs',
 		tone: false,
-		fast: true
+		fast: true,
+		per100: 0.21
 	},
 	{
 		id: 'eleven-v3:sarah',
@@ -50,7 +54,8 @@ export const SATELLITE_VOICES = [
 		voice: 'sarah',
 		label: 'Sarah · ElevenLabs v3',
 		tone: false,
-		fast: true
+		fast: true,
+		per100: 0.21
 	},
 	{
 		id: 'grok:eve',
@@ -58,7 +63,8 @@ export const SATELLITE_VOICES = [
 		voice: 'eve',
 		label: 'Eve · Grok',
 		tone: false,
-		fast: true
+		fast: true,
+		per100: 0.08
 	},
 	{
 		id: 'grok:ara',
@@ -66,7 +72,8 @@ export const SATELLITE_VOICES = [
 		voice: 'ara',
 		label: 'Ara · Grok',
 		tone: false,
-		fast: true
+		fast: true,
+		per100: 0.08
 	},
 	{
 		id: 'mai:marta',
@@ -74,7 +81,8 @@ export const SATELLITE_VOICES = [
 		voice: 'es-ES-Marta:MAI-Voice-2.1-Flash',
 		label: 'Marta (España) · Microsoft',
 		tone: false,
-		fast: true
+		fast: true,
+		per100: 0.08
 	},
 	{
 		id: 'mai:valeria',
@@ -82,7 +90,8 @@ export const SATELLITE_VOICES = [
 		voice: 'es-MX-Valeria:MAI-Voice-2.1-Flash',
 		label: 'Valeria (México) · Microsoft',
 		tone: false,
-		fast: true
+		fast: true,
+		per100: 0.08
 	},
 	...AI_VOICES.map((v) => ({
 		id: v.id,
@@ -90,7 +99,8 @@ export const SATELLITE_VOICES = [
 		voice: v.id,
 		label: v.label,
 		tone: true,
-		fast: false
+		fast: false,
+		per100: 0.07
 	}))
 ] as const satisfies readonly {
 	id: string;
@@ -99,12 +109,16 @@ export const SATELLITE_VOICES = [
 	label: string;
 	tone: boolean;
 	fast: boolean;
+	per100: number;
 }[];
 
 export type SatelliteVoiceId = (typeof SATELLITE_VOICES)[number]['id'];
 
 export const isSatelliteVoice = (value: unknown): value is SatelliteVoiceId =>
 	SATELLITE_VOICES.some((v) => v.id === value);
+
+/** What 100 answers cost, to be read: «0,08 $». */
+export const per100Text = (dollars: number) => `${dollars.toFixed(2).replace('.', ',')} $`;
 
 /** Its model and voice for OpenRouter; an unknown one, the default (Kore). */
 export function satelliteVoiceModel(id: string) {

@@ -735,7 +735,7 @@ y «Música mientras habla» dice cuánto baja la música de Snapcast mientras s
 −12 por defecto, como en el móvil). Valen para todo lo que dicen los satélites: respuestas, frases
 de espera y avisos de los temporizadores. El móvil y la tablet usan la voz del propio aparato.
 
-Si la IA tarda más de segundo y medio en contestar, el satélite dice antes una «frase de espera»
+Si la IA tarda más de tres segundos en contestar, el satélite dice antes una «frase de espera»
 («Vale.», «Un momento.»…), una distinta cada vez, y la respuesta detrás. Se cambian en Ajustes →
 Casa, debajo de la voz, una por línea. Piper las lee al arrancar y al cambiar la voz o las frases,
 y se quedan guardadas, así que suenan al momento (por Snapcast, con su segundo de búfer). Cada una

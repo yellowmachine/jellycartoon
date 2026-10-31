@@ -5,6 +5,7 @@
 		DEFAULT_TONE,
 		MAX_FILLER_CHARS,
 		MAX_TONE_CHARS,
+		per100Text,
 		SATELLITE_VOICES,
 		satelliteVoiceModel
 	} from 'comun/ai-voice.ts';
@@ -22,7 +23,8 @@
 	let formEl = $state<HTMLFormElement>();
 	/** The one picked, saved or not: whether «Cómo habla» counts for it. */
 	let picked = $derived(data.satelliteVoice?.voice ?? '');
-	const takesTone = $derived(satelliteVoiceModel(picked).tone);
+	const pickedVoice = $derived(satelliteVoiceModel(picked));
+	const takesTone = $derived(pickedVoice.tone);
 	const fastVoices = SATELLITE_VOICES.filter((v) => v.fast);
 	const geminiVoices = SATELLITE_VOICES.filter((v) => !v.fast);
 	let trying = $state(false);
@@ -109,16 +111,21 @@
 				<select name="voice" class={select} bind:value={picked}>
 					<optgroup label="Rápidas (contestan en menos de un segundo)">
 						{#each fastVoices as v (v.id)}
-							<option value={v.id}>{v.label}</option>
+							<option value={v.id}>{v.label} · {per100Text(v.per100)} cada 100</option>
 						{/each}
 					</optgroup>
 					<optgroup label="Gemini (con «Cómo habla»; uno o dos segundos)">
 						{#each geminiVoices as v (v.id)}
-							<option value={v.id}>{v.label}</option>
+							<option value={v.id}>{v.label} · {per100Text(v.per100)} cada 100</option>
 						{/each}
 					</optgroup>
 				</select>
 			</label>
+			<p class="-mt-1 text-xs text-zinc-500">
+				Unos {per100Text(pickedVoice.per100)} cada 100 respuestas de las normales (las largas, como el
+				tiempo, hasta tres veces más), de la clave de IA de la familia. Las frases de espera se graban
+				una vez.
+			</p>
 			<label class="flex flex-col gap-1 text-zinc-300">
 				Cómo habla (si quieres)
 				<textarea
