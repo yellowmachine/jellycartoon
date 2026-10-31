@@ -1,10 +1,68 @@
+import { hkdfSync } from 'node:crypto';
 import { error } from '@sveltejs/kit';
-import { kitchenOf } from '#lib/server/fridge.ts';
-import { prayerModeOn } from '#lib/server/prayers.ts';
+import { BETTER_AUTH_SECRET, ORIGIN } from '$app/env/private';
+import { houseKitchen, kitchenOf, type Kitchen } from '#lib/server/fridge.ts';
+import { PASS_HOURS, readPrayerPass, signPrayerPass } from '#lib/server/prayer-pass.ts';
+import { prayerAudioFile, prayerModeOn } from '#lib/server/prayers.ts';
+import { readFile } from '#lib/server/storage.ts';
 
 /** The family's kitchen for Oración's pages and actions (#339): not there while it is off. */
 export async function prayerKitchen(locals: App.Locals) {
 	const k = await kitchenOf(locals.user!.id);
 	if (!(await prayerModeOn(k))) error(404, 'Oración no está encendida (Ajustes → Familia)');
 	return k;
+}
+
+/** Oración's passes' own key, derived from BETTER_AUTH_SECRET (HKDF), as secret-box.ts's. */
+const PASS_KEY = Buffer.from(hkdfSync('sha256', BETTER_AUTH_SECRET, 'nube', 'prayer pass', 32));
+
+/**
+ * Where the house opens a text's recording (#339, por Snapcast): Seilide's own address, with a
+ * pass of the family's in its path, as mpv asks without a session. `audioKey` changes with each
+ * recording, as the page's.
+ */
+export function passAudioUrls(familyId: string) {
+	const token = signPrayerPass(PASS_KEY, {
+		familyId,
+		expires: Date.now() + PASS_HOURS * 3_600_000
+	});
+	return (id: number, audioKey: string) =>
+		`${ORIGIN}/api/oracion/pase/${token}/audio/${id}?v=${audioKey}`;
+}
+
+/** The family's kitchen a pass is for; a 404 if it is not one, or Oración is off now. */
+export async function passKitchen(token: string): Promise<Kitchen> {
+	const pass = readPrayerPass(PASS_KEY, token);
+	if (!pass) error(404, 'No encontrado');
+	const k = houseKitchen(pass.familyId);
+	if (!(await prayerModeOn(k))) error(404, 'No encontrado');
+	return k;
+}
+
+/**
+ * A text's recording, only to its family, with ranges, as the `<audio>` and mpv ask for them to go
+ * to a point of it: without them, it cannot move along it. `?v=` (what it was recorded with)
+ * changes with each recording, so it is kept a day.
+ */
+export async function prayerAudio(k: Kitchen, id: number, request: Request) {
+	const file = await prayerAudioFile(k, id);
+	const bytes = file ? await readFile(k.familyId, 'oracion', file) : null;
+	if (!bytes) error(404, 'Sin voz');
+	const headers = {
+		'Content-Type': 'audio/ogg',
+		'Accept-Ranges': 'bytes',
+		'Cache-Control': 'private, max-age=86400'
+	};
+	const range = /^bytes=(\d*)-(\d*)$/.exec(request.headers.get('range') ?? '');
+	if (!range || (!range[1] && !range[2])) return new Response(bytes, { headers });
+	const size = bytes.length;
+	// «bytes=-500»: the last 500.
+	const start = range[1] ? Number(range[1]) : Math.max(size - Number(range[2]), 0);
+	const end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+	if (start >= size || start > end)
+		return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } });
+	return new Response(bytes.subarray(start, end + 1), {
+		status: 206,
+		headers: { ...headers, 'Content-Range': `bytes ${start}-${end}/${size}` }
+	});
 }

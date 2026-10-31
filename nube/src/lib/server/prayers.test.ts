@@ -5,7 +5,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { sql } from 'drizzle-orm';
 import * as schema from './db/schema.ts';
 import { family, familyMember, user } from './db/schema.ts';
-import { familyScope } from './family-scope.ts';
+import { familyOnlyScope, familyScope } from './family-scope.ts';
 import type { Kitchen } from './fridge.ts';
 
 /**
@@ -15,6 +15,7 @@ import type { Kitchen } from './fridge.ts';
  */
 const db = drizzle(new PGlite(), { schema });
 const withFamily = familyScope(db, { role: 'app_user' });
+const asFamily = familyOnlyScope(db, { role: 'app_user' });
 
 const files = new Map<string, Uint8Array>();
 mock.module('#lib/server/storage.ts', () => ({
@@ -144,6 +145,15 @@ describe('Oración', () => {
 			// Ogg.
 			expect(new TextDecoder().decode(files.get(kept[0])!.subarray(0, 4))).toBe('OggS');
 			expect(await p.prayerAudioFile(otro, padre)).toBeNull();
+			// By the family's pass (the house's mpv, #339): the family alone, no person.
+			const byPass = (familyId: string): Kitchen => ({
+				familyId,
+				userId: null,
+				run: (fn) => asFamily(familyId, fn)
+			});
+			expect(await p.prayerAudioFile(byPass('A'), padre)).toBe(kept[0].split('/').at(-1)!);
+			expect(await p.prayerAudioFile(byPass('B'), padre)).toBeNull();
+			expect(await p.prayerModeOn(byPass('A'))).toBe(true);
 
 			await p.savePrayer(ana, padre, {
 				title: 'Padre nuestro',
