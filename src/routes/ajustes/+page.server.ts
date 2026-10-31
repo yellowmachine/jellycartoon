@@ -72,7 +72,12 @@ import {
 	setLanguaConfig
 } from '#lib/server/langua.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
-import { deleteTvShortcut, saveTvShortcut, tvShortcuts } from '#lib/server/tv-shortcuts.ts';
+import {
+	deleteTvShortcut,
+	saveTvShortcut,
+	settingsShortcuts,
+	tvShortcuts
+} from '#lib/server/tv-shortcuts.ts';
 import { deleteIconFile, refreshShortcutIcon } from '#lib/server/tv-shortcut-icons.ts';
 import { hasIntro } from '#lib/server/library/paths.ts';
 import { KNOWN_LANGUAGES, normalizeLang } from 'comun/languages.ts';
@@ -165,9 +170,8 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		const place = await housePlace();
 		home = { place, name: place ? placeName(place) : null };
 		/** The TV view's shortcuts (#327): only with the TV view (MPV_SOCKET). */
-		// Only sites' yet: the rest (#343) are listed from its phase 2, with settingsShortcuts.
-		if (mpvEnabled)
-			shortcuts = (await tvShortcuts(false)).flatMap((s) => (s.url ? [{ ...s, url: s.url }] : []));
+		// Sites and the TV view's own (#343), with what each opens and whether it is gone.
+		if (mpvEnabled) shortcuts = await settingsShortcuts(userId);
 		/** Voice satellites (#223): only where there is voice (WHISPER_URL). */
 		if (voiceEnabled) {
 			satellites = await listSatellites(request.headers);

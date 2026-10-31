@@ -23,3 +23,11 @@ export const isShortcutKind = (kind: string): kind is ShortcutKind =>
 
 /** A Steam shortcut to Big Picture alone, instead of a game. */
 export const BIG_PICTURE = 'bigpicture';
+
+/** One to choose in Ajustes (/api/accesos/destinos): what it keeps, and how it is shown. */
+export interface Candidate {
+	target: string;
+	name: string;
+	/** The artist, the console…; null, nothing to add. */
+	detail: string | null;
+}

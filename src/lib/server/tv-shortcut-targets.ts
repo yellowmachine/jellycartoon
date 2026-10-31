@@ -1,7 +1,8 @@
-import { and, eq, exists, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, exists, inArray, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import {
 	album,
+	albumArtistName,
 	albumTitle,
 	episode,
 	movie,
@@ -13,12 +14,12 @@ import {
 	tag
 } from '#lib/server/db/schema.ts';
 import { KIDS_TAG } from '#lib/kids-tag.ts';
-import { BIG_PICTURE, type ShortcutKind } from '#lib/tv-shortcut-kinds.ts';
+import { BIG_PICTURE, type Candidate, type ShortcutKind } from '#lib/tv-shortcut-kinds.ts';
 import { stationsInfo } from '#lib/server/radio.ts';
 import { podcastLists } from '#lib/server/podcasts.ts';
-import { findGame, systemCovers } from '#lib/server/games.ts';
+import { allGames, findGame, systemCovers } from '#lib/server/games.ts';
 import { steamGames, steamLaunchEnabled, steamPictureUrl } from '#lib/server/steam.ts';
-import { channelsFor } from 'comun/channels.ts';
+import { CHANNELS, channelsFor } from 'comun/channels.ts';
 import { STATIONS } from 'comun/radio.ts';
 
 /**
@@ -255,4 +256,63 @@ export async function destinations(
 		kid ? null : load('steam', steamOf)
 	]);
 	return targets.map((t) => found[t.kind]?.get(t.target) ?? null);
+}
+
+/**
+ * What a kind's shortcut can open, as an adult (`userId`) sees it, for Ajustes to choose from: in
+ * the order the TV view lists them.
+ */
+export async function candidates(kind: Target['kind'], userId: string): Promise<Candidate[]> {
+	const plain = (target: string | number, name: string, detail: string | null = null) => ({
+		target: String(target),
+		name,
+		detail
+	});
+	switch (kind) {
+		case 'serie':
+			return (
+				await db
+					.select({ id: series.id, title: series.title })
+					.from(series)
+					.orderBy(asc(series.title))
+			).map((r) => plain(r.id, r.title));
+		case 'pelicula':
+			return (
+				await db
+					.select({ id: movie.id, title: movieTitle, year: movie.year })
+					.from(movie)
+					.where(and(eq(movie.status, 'ready'), eq(movie.missing, false)))
+					.orderBy(asc(movieTitle))
+			).map((r) => plain(r.id, r.title, r.year ? String(r.year) : null));
+		case 'album':
+			return (
+				await db
+					.select({ id: album.id, title: albumTitle, artist: albumArtistName })
+					.from(album)
+					.orderBy(asc(albumArtistName), asc(albumTitle))
+			).map((r) => plain(r.id, r.title, r.artist));
+		case 'lista':
+			return (
+				await db
+					.select({ id: musicPlaylist.id, name: musicPlaylist.name })
+					.from(musicPlaylist)
+					.orderBy(asc(musicPlaylist.name))
+			).map((r) => plain(r.id, r.name));
+		case 'canal':
+			return CHANNELS.map((c) => plain(c.id, c.name, c.kids ? 'También peques' : null));
+		case 'radio':
+			return STATIONS.map((s) => plain(s.uuid, s.name, s.description));
+		case 'podcast':
+			return (await podcastLists(userId)).podcasts.map((p) => plain(p.id, p.title, p.author));
+		case 'juego':
+			return (await allGames()).flatMap((system) =>
+				system.games.map((g) => plain(`${g.system}/${g.file}`, g.title, system.name))
+			);
+		case 'steam':
+			if (!steamLaunchEnabled) return [];
+			return [
+				plain(BIG_PICTURE, 'Steam', 'Big Picture, con toda la biblioteca'),
+				...(await steamGames()).map((g) => plain(g.appid, g.name))
+			];
+	}
 }

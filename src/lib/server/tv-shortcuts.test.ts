@@ -37,6 +37,13 @@ mock.module('#lib/server/podcasts.ts', () => ({
 mock.module('#lib/server/games.ts', () => ({
 	findGame: async (system: string, file: string) =>
 		system === 'snes' && file === 'Mario World.sfc' ? { system, file, title: 'Mario World' } : null,
+	allGames: async () => [
+		{
+			id: 'snes',
+			name: 'Super Nintendo',
+			games: [{ system: 'snes', file: 'Mario World.sfc', title: 'Mario World' }]
+		}
+	],
 	systemCovers: async () => ({})
 }));
 mock.module('#lib/server/steam.ts', () => ({
@@ -54,7 +61,7 @@ const {
 	parseTags,
 	shortcutUrl
 } = await import('./tv-shortcuts.ts');
-const { shortcutTarget } = await import('./tv-shortcut-targets.ts');
+const { candidates, shortcutTarget } = await import('./tv-shortcut-targets.ts');
 
 const save = (s: Parameters<typeof saveTvShortcut>[0]) => saveTvShortcut(s, 'ana');
 
@@ -219,6 +226,17 @@ describe('shortcuts', () => {
 			icon: null,
 			name: 'Bluey'
 		});
+	});
+
+	test('what each kind can open, to choose in Ajustes', async () => {
+		expect((await candidates('serie', 'ana')).map((c) => c.name)).toEqual(['Bluey']);
+		expect(await candidates('juego', 'ana')).toEqual([
+			{ target: 'snes/Mario World.sfc', name: 'Mario World', detail: 'Super Nintendo' }
+		]);
+		expect((await candidates('steam', 'ana')).map((c) => c.target)).toEqual(['bigpicture', '220']);
+		expect(await candidates('podcast', 'luis')).toEqual([]);
+		const la1 = (await candidates('canal', 'ana')).find((c) => c.target === 'la1');
+		expect(la1?.name).toBe('La 1');
 	});
 
 	test('only a whole address, http or https', () => {
