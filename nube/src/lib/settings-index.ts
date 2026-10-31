@@ -151,6 +151,13 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		shown: onlyAdmin
 	},
 	{
+		id: 'oracion',
+		tab: 'familia',
+		title: 'Oración',
+		words: 'oración rezar rezo religión rosario letanías plegarias misa vaticano',
+		shown: onlyAdmin
+	},
+	{
 		id: 'voz-aprende',
 		tab: 'familia',
 		title: 'Aprender de lo que se habla',

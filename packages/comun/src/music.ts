@@ -14,6 +14,8 @@ export interface MusicTrack {
 	hasCover: boolean;
 	/** Not a song: what the DJ says between them (Modo DJ), in the queue as one more. */
 	clip?: { id: string; text: string };
+	/** Not the library's: its own address (Seilide's Oración, #339), with no album to go to. */
+	src?: string;
 }
 
 export interface MusicAlbum {
@@ -73,9 +75,9 @@ export function setMusicUrls(own: Partial<MusicUrls>) {
 
 export const trackUrl = (id: number, opus = false) => urls.track(id, opus);
 export const coverUrl = (albumId: number) => urls.cover(albumId);
-/** What `track` sounds from: its file, or the DJ's words. */
+/** What `track` sounds from: its own address, the DJ's words, or its file. */
 export const audioUrl = (track: MusicTrack, opus = false) =>
-	track.clip ? urls.clip(track.clip.id) : trackUrl(track.id, opus);
+	track.src ?? (track.clip ? urls.clip(track.clip.id) : trackUrl(track.id, opus));
 
 /** Modo DJ: songs at random, and the DJ speaking every few. */
 export interface DjOptions {

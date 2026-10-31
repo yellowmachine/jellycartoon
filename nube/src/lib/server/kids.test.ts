@@ -153,6 +153,12 @@ describe('where a child may go', () => {
 		expect(kidMayOpen('/watch/12', 'GET')).toBe(true);
 		expect(kidMayOpen('/musica/listas', 'GET')).toBe(true);
 	});
+	test('Oración (#339): to listen, not to change it', () => {
+		expect(kidMayOpen('/oracion', 'GET')).toBe(true);
+		expect(kidMayOpen('/api/oracion/audio/3', 'GET')).toBe(true);
+		expect(kidMayOpen('/oracion', 'POST')).toBe(false);
+		expect(kidMayOpen('/oracion/texto/3', 'POST')).toBe(false);
+	});
 	test('nothing else', () => {
 		for (const path of ['/gastos', '/ajustes', '/voz', '/viajes', '/api/gastos', '/api/music/dj'])
 			expect(kidMayOpen(path, 'GET')).toBe(false);

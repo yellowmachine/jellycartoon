@@ -192,8 +192,12 @@ const KID_APIS = [
 	'/api/deberes'
 ];
 
+/** Oración (#339): to pray with its lists, not to change them (nor to spend the AI's credit). */
+const KID_LISTEN = ['/oracion', '/api/oracion'];
+
 const under = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
 
 export const kidMayOpen = (path: string, method: string) =>
 	(KID_PAGES.includes(path) && (path !== '/agenda' || method === 'GET')) ||
+	(method === 'GET' && KID_LISTEN.some((prefix) => under(path, prefix))) ||
 	[...KID_SECTIONS, ...KID_APIS].some((prefix) => under(path, prefix));

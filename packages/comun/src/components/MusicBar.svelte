@@ -797,10 +797,10 @@ and the speed. -->
 		<!-- On the phone, two rows: what sounds, with all the width it can get (the title was barely
 		     readable next to five buttons), then the time and the controls. One row from sm. -->
 		<div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 sm:flex-nowrap sm:gap-3">
-			<!-- The DJ's words have no album to go to. -->
+			<!-- The DJ's words, and what is not the library's (a prayer), have no album to go to. -->
 			<svelte:element
-				this={current.clip ? 'div' : 'a'}
-				href={current.clip ? undefined : `/musica/${current.albumId}`}
+				this={current.clip || current.src ? 'div' : 'a'}
+				href={current.clip || current.src ? undefined : `/musica/${current.albumId}`}
 				class="order-1 flex min-w-0 flex-1 items-center gap-3"
 			>
 				{#if current.hasCover}

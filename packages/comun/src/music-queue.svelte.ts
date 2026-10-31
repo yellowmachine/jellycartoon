@@ -1,7 +1,7 @@
 import { onMount, untrack } from 'svelte';
 import { page } from '$app/state';
 import { shownDeviceName } from './device-name.svelte.ts';
-import type { QueueSave, SavedQueue } from './music.ts';
+import type { MusicTrack, QueueSave, SavedQueue } from './music.ts';
 import { music } from './music-player.svelte.ts';
 import type { PodcastPlaying } from './podcasts.ts';
 import type { RadioStream } from './radio.ts';
@@ -60,11 +60,13 @@ export function keepQueue() {
 	let savedAt: string | null = null;
 
 	function snapshot(): QueueSave {
-		// The DJ's words are not songs: they are left out, and so is Modo DJ.
-		const songs = music.queue.filter((t) => !t.clip);
+		// The DJ's words are not songs, nor what is not the library's (a prayer): left out, and so
+		// is Modo DJ.
+		const isSong = (t: MusicTrack) => !t.clip && !t.src;
+		const songs = music.queue.filter(isSong);
 		return {
 			trackIds: songs.map((t) => t.id),
-			index: music.queue.slice(0, music.index).filter((t) => !t.clip).length,
+			index: music.queue.slice(0, music.index).filter(isSong).length,
 			positionSec: untrack(() => music.positionSec),
 			shuffle: music.shuffle,
 			repeat: music.repeat,

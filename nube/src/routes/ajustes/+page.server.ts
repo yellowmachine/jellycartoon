@@ -98,6 +98,7 @@ import { deleteCar, listCars, myCarId, saveCar, setMyCar } from '#lib/server/tri
 import { MAX_CAR_NAME } from '#lib/cars.ts';
 import { fold } from 'comun/music.ts';
 import { subtitleStyleOf } from '#lib/server/subtitles.ts';
+import { prayerModeOn, setPrayerMode } from '#lib/server/prayers.ts';
 
 export const load: PageServerLoad = async ({ locals, request, cookies }) => {
 	const k = await kitchenOf(locals.user!.id);
@@ -145,6 +146,8 @@ export const load: PageServerLoad = async ({ locals, request, cookies }) => {
 		voiceQuiet: admin ? { hours: voice.quiet } : null,
 		/** What the voice learned from its questions, by place (learned.ts). */
 		voiceLearned: admin ? await listLearned(k) : null,
+		/** Oración (#339) in the bar, on or off: only its administrator. */
+		prayerMode: admin ? await prayerModeOn(k) : null,
 		/** «Dónde vivís», if said: only its administrator. */
 		place: admin ? await familyPlace(k).then((p) => ({ name: p ? placeName(p) : null })) : null,
 		/** And how it talks to each one. */
@@ -353,6 +356,14 @@ export const actions: Actions = {
 		const on = (await request.formData()).get('on') === 'on';
 		await setVoiceLearn(await kitchenOf(locals.user!.id), on);
 		return { saved: 'voiceLearn' };
+	},
+	/** Oración (#339), on or off. */
+	savePrayerMode: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'prayerProblem');
+		if (denied) return denied;
+		const on = (await request.formData()).get('on') === 'on';
+		await setPrayerMode(await kitchenOf(locals.user!.id), on);
+		return { saved: 'prayerMode' };
 	},
 	/** «Horas de silencio»: both times, or none (`off`). */
 	saveVoiceQuiet: async ({ request, locals }) => {
