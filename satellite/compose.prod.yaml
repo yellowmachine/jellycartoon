@@ -53,6 +53,25 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - wud_store:/store
 
+  # Optional, with `dns` in COMPOSE_PROFILES (#355): the house's primary DNS, on a Raspberry that is
+  # always on (the salon, secondary, with the same rewrite). Only on one of the satellites. As its
+  # Docker image says (https://hub.docker.com/r/adguard/adguardhome): the first time, its wizard on
+  # port 3000; in it, keep the web on port 3000 too. Pinned: WUD does not touch it (a new version
+  # by hand), so that a night update never leaves the house without DNS.
+  adguard:
+    image: adguard/adguardhome:v0.107.79
+    profiles: [dns]
+    restart: unless-stopped
+    ports:
+      - 53:53/tcp
+      - 53:53/udp
+      - 3000:3000/tcp
+    volumes:
+      - adguard_work:/opt/adguardhome/work
+      - adguard_conf:/opt/adguardhome/conf
+
 volumes:
   ordenes:
   wud_store:
+  adguard_work:
+  adguard_conf:
