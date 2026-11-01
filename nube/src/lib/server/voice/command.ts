@@ -1632,7 +1632,8 @@ async function travelTime(ctx: Turn, args: Record<string, unknown>): Promise<str
 	const to = said(args.to);
 	if (!to) return 'Falta adónde.';
 	const fromSaid = said(args.from);
-	const saved = await listSavedPlaces(ctx.k);
+	// Each person's (#151): on a satellite, nobody's, so none.
+	const saved = ctx.k.userId ? await listSavedPlaces(ctx.k) : [];
 	const savedPlace = (name: string) => {
 		const found = findByName(saved, name);
 		return found ? { label: found.name, at: found.at } : null;
