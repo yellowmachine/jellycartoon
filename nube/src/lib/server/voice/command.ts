@@ -352,7 +352,7 @@ function tools(house: boolean, rooms: Room[], salon: boolean, clipMinutes: numbe
 				to: {
 					type: 'string',
 					description:
-						'Adónde, como se diría a un navegador, con el pueblo o la ciudad si lo dice: «El Extremeño, Sangonera la Seca, Murcia», «Granada». Uno de sus sitios guardados, tal cual lo dice: «casa de los abuelos».'
+						'Adónde: el sitio, una coma y su pueblo o ciudad si lo dice, siempre con la coma: «El Extremeño, Sangonera la Seca, Murcia»; un pueblo solo, sin más: «Granada». Uno de sus sitios guardados, tal cual lo dice: «casa de los abuelos».'
 				},
 				from: {
 					type: 'string',
@@ -1064,6 +1064,7 @@ function instructions(context: {
 Cómo responder:
 - Trátala de tú. Con cada orden va quién habla: llámala por su nombre de pila de vez en cuando (al saludar, al despedirse, con una buena noticia), no en cada respuesta.
 - Haz lo que pide con las herramientas, sin pedir confirmación. Si se equivoca, lo dirá («no, eso no», «para»).
+- Habla de lo que has encontrado o hecho, nunca de cómo: nada de «la herramienta», «el sistema» ni «me ha devuelto».
 - Nunca digas que has hecho algo («lo anoto», «lo guardo», «te lo recuerdo», «pongo…») si no lo has hecho con su herramienta en esta orden.
 - El reconocimiento de voz a veces quita los «¿?»: si suena a pregunta («tengo algún viaje mañana», «hay leche»), es una pregunta; contéstala, no la guardes.
 - Al terminar una orden, contesta con «answer»: en español, una sola frase corta que diga lo que has hecho y dónde, p. ej. «Pongo Alaska y Dinarama aquí». Se lee en voz alta: sin listas, emojis, ids ni formato.
@@ -1091,7 +1092,7 @@ Otras preguntas (de cocina, de lo que sea): si no pide nada de la app, contesta 
 
 Viajes («¿tengo algún viaje?», «¿a qué hora salimos mañana?», «¿qué tiempo hará en el viaje?»): «planned_trips», sin preguntar, y contesta corto con lo que pregunta. Nunca digas que no sabes de un viaje sin mirarlo ahí.
 
-Cuánto se tarda o cuántos km hay en coche hasta un sitio («¿cuánto tardo a…?», «¿a qué hora llego…?»): «travel_time», sin preguntar y nunca en internet; también fuera del coche, desde la casa.
+Cuánto se tarda o cuántos km hay en coche hasta un sitio («¿cuánto tardo a…?», «¿a qué hora llego…?»): «travel_time», sin preguntar y nunca en internet; también fuera del coche, desde la casa. Si te dice que el sitio está mal, vuelve a llamarla con lo que te corrige.
 El tiempo («¿qué tiempo hará mañana?», «¿llueve esta tarde?», «¿hace frío para salir?»): «get_weather», sin preguntar. Contesta corto, solo lo que pregunta: el cielo, las temperaturas y, si puede llover, la probabilidad. Nunca lo inventes.
 
 Temporizadores («avísame en 10 minutos», «pon un temporizador de 20 minutos para el horno»): «set_timer», sin preguntar. Con cada orden va la lista de los que hay en este dispositivo.
@@ -1659,18 +1660,32 @@ async function travelTime(ctx: Turn, args: Record<string, unknown>): Promise<str
 		let note = '';
 		if (!place) {
 			const { what, town } = splitPlace(to);
-			// In Spain first: «Toledo» alone is first in Ohio.
 			const ors = orsFor(ctx.k);
-			const spain = await ors.searchPlaces(to, null, 'ES');
-			const results = spain.length ? spain : await ors.searchPlaces(to, null);
-			place = inTown(results, town);
-			// Not on the map in that town (a restaurant OpenStreetMap lacks): up to the town itself.
-			if (!place && town) {
-				const [found] = await ors.searchTowns(town, 1);
+			if (town) {
+				// The town among towns only (no street named after it), in Spain if there is one; then
+				// what is in it, searched around it, and only there.
+				const towns = await ors.searchTowns(town);
+				const found = towns.find((t) => t.country === 'España') ?? towns[0];
 				if (found) {
-					place = { label: placeName(found), at: [found.lon, found.lat] };
-					note = ` «${what}» no está en el mapa: es hasta el pueblo, ${found.name}; díselo.`;
+					const centre: LngLat = [found.lon, found.lat];
+					const results = await ors.searchPlaces(what, centre);
+					place = inTown(results, centre);
+					console.info('[rutas] travel_time', {
+						to,
+						town: placeName(found),
+						results: results.map((r) => r.label),
+						chosen: place?.label ?? null
+					});
+					// Not on the map there (a restaurant OpenStreetMap lacks): up to the town itself.
+					if (!place) {
+						place = { label: placeName(found), at: centre };
+						note = ` «${what}» no está en el mapa: es hasta el pueblo, ${found.name}; díselo.`;
+					}
 				}
+			} else {
+				// In Spain first: «Toledo» alone is first in Ohio.
+				const spain = await ors.searchPlaces(to, null, 'ES');
+				place = (spain.length ? spain : await ors.searchPlaces(to, null))[0] ?? null;
 			}
 		}
 		if (!place)

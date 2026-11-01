@@ -1,8 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import type { Place } from 'comun/road.ts';
+import type { LngLat, Place } from 'comun/road.ts';
 import { inTown, splitPlace } from './travel.ts';
-
-const place = (label: string): Place => ({ label, at: [0, 0] });
 
 describe('splitPlace', () => {
 	test('what and the town after it', () => {
@@ -17,17 +15,16 @@ describe('splitPlace', () => {
 });
 
 describe('inTown', () => {
-	const results = [
-		place('Calle Sangonera la Verde, Lumbreras, MU, España'),
-		place('El Extremeño, Avenida de Lorca, Sangonera La Seca, MU, España')
+	const sangonera: LngLat = [-1.2075, 37.9731];
+	const results: Place[] = [
+		// Its name in the label, but in Puerto Lumbreras, ~60 km away.
+		{ label: 'Calle Sangonera la Seca, Puerto Lumbreras, MU, España', at: [-1.8106, 37.5636] },
+		{ label: 'El Extremeño, Avenida de Lorca, Murcia, MU, España', at: [-1.2041, 37.9702] }
 	];
-	test('the first one in the town said, without minding accents or capitals', () => {
-		expect(inTown(results, 'Sangonera la Seca, Murcia')?.label).toStartWith('El Extremeño');
+	test('by where it is, not by its name', () => {
+		expect(inTown(results, sangonera)?.label).toStartWith('El Extremeño');
 	});
 	test('none there: none', () => {
-		expect(inTown(results.slice(0, 1), 'Sangonera la Seca')).toBeNull();
-	});
-	test('no town said: the first', () => {
-		expect(inTown(results, null)?.label).toStartWith('Calle');
+		expect(inTown(results.slice(0, 1), sangonera)).toBeNull();
 	});
 });
