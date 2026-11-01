@@ -587,6 +587,8 @@ sección Música; en desarrollo se usa `MUSIC_DIR`.
 - «+ Añadir a la cola» en un álbum lo pone detrás de lo que suena, sin cortarlo. El botón de la
   cola (☰ con ▶︎) en la barra de abajo la abre: lo que suena, lo que viene y, en gris, lo que ya
   sonó; tocar una canción salta a ella y ✕ la quita. En el navegador, no en Snapcast todavía.
+  Debajo, «Guardar la cola como lista nueva»: con un nombre, una lista con sus canciones tal como
+  está la cola (también lo que ya sonó; sin las palabras del DJ). En la casa y en Seilide.
 - Listas: en la pestaña «Listas» de Música se crean, renombran y borran listas de canciones,
   compartidas por toda la casa. El «+» de cada canción (en los álbumes y en el buscador) la añade a
   una lista, o a una nueva; una canción puede estar más de una vez. Dentro de la lista se ordena

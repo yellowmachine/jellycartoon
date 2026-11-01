@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import MediaIcon from './MediaIcon.svelte';
 	import PlayModes from './PlayModes.svelte';
@@ -46,6 +47,38 @@
 	let retryTimer: ReturnType<typeof setTimeout> | undefined;
 	/** The queue, open under the bar: what is on, what comes next and what already played. */
 	let showQueue = $state(false);
+
+	/**
+	 * The queue saved as a new list, as it is now (albums added, songs taken away or moved): its
+	 * songs only, not the DJ's words nor what is not the library's (Oración).
+	 */
+	const queueSongs = $derived(music.queue.filter((t) => !t.clip && !t.src));
+	let savingQueue = $state<'naming' | 'saving' | null>(null);
+	let queueSaved = $state<{ id: number; name: string } | null>(null);
+	let queueProblem = $state<string | null>(null);
+
+	async function saveQueue(e: SubmitEvent) {
+		e.preventDefault();
+		const name = String(new FormData(e.currentTarget as HTMLFormElement).get('name') ?? '').trim();
+		if (!name) return;
+		savingQueue = 'saving';
+		queueProblem = null;
+		const res = await fetch('/api/music/playlists', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ name, trackIds: queueSongs.map((t) => t.id) })
+		}).catch(() => null);
+		const body = await res?.json().catch(() => null);
+		if (!res?.ok) {
+			savingQueue = 'naming';
+			queueProblem = body?.message ?? 'Sin conexión';
+			return;
+		}
+		savingQueue = null;
+		queueSaved = { id: body.playlistId, name };
+		// The new list shows up in every «+» and in Listas.
+		await invalidateAll();
+	}
 	let queueList = $state<HTMLElement>();
 
 	// Opened: the one on in view, not the start of a long queue.
@@ -942,6 +975,48 @@ and the speed. -->
 					</li>
 				{/each}
 			</ol>
+			{#if queueSongs.length}
+				<div class="flex flex-wrap items-center gap-2 border-t border-zinc-800 px-2 pt-2 text-sm">
+					{#if savingQueue}
+						<form class="flex min-w-0 flex-1 gap-2" onsubmit={saveQueue}>
+							<!-- svelte-ignore a11y_autofocus -->
+							<input
+								name="name"
+								placeholder="Nombre de la lista"
+								aria-label="Nombre de la lista nueva"
+								maxlength="100"
+								autofocus
+								class="min-w-0 flex-1 rounded border-zinc-700 bg-zinc-950 py-1 text-sm"
+							/>
+							<button
+								class="rounded bg-amber-500 px-3 font-medium text-zinc-950 disabled:opacity-50"
+								disabled={savingQueue === 'saving'}
+								>{savingQueue === 'saving' ? 'Guardando…' : 'Guardar'}</button
+							>
+							<button
+								type="button"
+								class="text-zinc-400 hover:text-white"
+								onclick={() => ((savingQueue = null), (queueProblem = null))}>Cancelar</button
+							>
+						</form>
+					{:else}
+						<button
+							class="text-amber-400 hover:text-amber-300"
+							onclick={() => ((savingQueue = 'naming'), (queueSaved = null))}
+							>Guardar la cola como lista nueva ({queueSongs.length}
+							{queueSongs.length === 1 ? 'canción' : 'canciones'})</button
+						>
+						{#if queueSaved}
+							<a href="/musica/listas/{queueSaved.id}" class="text-zinc-400 hover:text-white"
+								>✓ Guardada: {queueSaved.name}</a
+							>
+						{/if}
+					{/if}
+					{#if queueProblem}
+						<p class="w-full text-xs text-red-400">{queueProblem}</p>
+					{/if}
+				</div>
+			{/if}
 		{/if}
 	</div>
 {/if}
