@@ -13,10 +13,11 @@ Se entra **con tu cuenta de Seilide** (y su verificación en dos pasos, si la ti
 en Seilide si no), o con la contraseña de `users.yml` si Seilide no contesta. `users.yml` decide
 quién entra: aunque alguien tenga cuenta en Seilide, si su correo no está ahí, no entra.
 
-1. **Elige el dominio** de Dozzle, p. ej. `registros.seilide.app` (en el DNS, al VPS, como
-   `seilide.app`).
+1. **El dominio** de Dozzle, `monitor.seilide.app`: en el DNS, un registro A a la IP del VPS, la
+   misma que `seilide.app` (no hay comodín: sin él, no resuelve). Antes de seguir,
+   `dig +short monitor.seilide.app` tiene que dar esa IP.
 2. **En Seilide, /admin → Apps → nueva app**: nombre `Dozzle`, dirección de vuelta
-   `https://registros.seilide.app/api/auth/callback` (con tu dominio, exacta, con `https`), sin
+   `https://monitor.seilide.app/api/auth/callback` (exacta, con `https`), sin
    marcar «Es para familias». Enseña su identificador y su secreto **una sola vez**: cópialos.
 3. **Su carpeta y su usuario**, en el VPS como root, con **el mismo correo que tu cuenta de
    Seilide** (Dozzle os empareja por él). La contraseña la pide sin que quede en el historial:
