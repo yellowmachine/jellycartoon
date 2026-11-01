@@ -36,6 +36,7 @@
 	import { durationText, estimate, Pace } from 'comun/road-eta.ts';
 	import { loadRecent, matching, remember, saveRecent } from 'comun/recent-places.ts';
 	import { toSay } from 'comun/road-voice.ts';
+	import { isDaytime } from 'comun/sun.ts';
 	import FuelSheet from 'comun/components/FuelSheet.svelte';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
@@ -773,6 +774,65 @@
 		route && guidance && !guidance.arrived ? estimate(route, guidance, pace) : null
 	);
 
+	/**
+	 * The light: by day, white with black letters, as read in the sun (the «sol» class below, the
+	 * map light too); at night, dark not to dazzle. `auto` by the sun where we are: from sunrise to
+	 * sunset; `dia` or `noche` by hand (a tunnel). Remembered in this browser.
+	 */
+	type Light = 'auto' | 'dia' | 'noche';
+	const LIGHT_KEY = 'carretera-luz';
+	const LIGHTS: Light[] = ['auto', 'dia', 'noche'];
+	/** Where we were last (to 0.1°, ~10 km: the sun's times barely change), for before the GPS. */
+	const PLACE_KEY = 'carretera-donde';
+	/** Never there yet, nor a GPS: the middle of Spain, ±40 min from anywhere in the peninsula. */
+	const SPAIN: LngLat = [-3.7, 40.4];
+	let lightMode = $state<Light>('auto');
+	let lastPlace = $state<LngLat | null>(null);
+	let now = $state(Date.now());
+	$effect(() => {
+		try {
+			const saved = localStorage.getItem(LIGHT_KEY);
+			if (LIGHTS.includes(saved as Light)) lightMode = saved as Light;
+			const place = JSON.parse(localStorage.getItem(PLACE_KEY) ?? 'null');
+			if (isLngLat(place)) lastPlace = place;
+		} catch {
+			// Private windows: auto, in the middle of Spain.
+		}
+		// Without the map on, no GPS: one rough position, an hour old is fine.
+		if (!here && 'geolocation' in navigator)
+			navigator.geolocation.getCurrentPosition(
+				(p) => (lastPlace ??= [p.coords.longitude, p.coords.latitude]),
+				() => {},
+				{ maximumAge: 3_600_000, timeout: 30_000 }
+			);
+		const clock = setInterval(() => (now = Date.now()), 60_000);
+		return () => clearInterval(clock);
+	});
+	$effect(() => {
+		if (!here) return;
+		const rounded: LngLat = [Math.round(here[0] * 10) / 10, Math.round(here[1] * 10) / 10];
+		if (rounded[0] === lastPlace?.[0] && rounded[1] === lastPlace[1]) return;
+		lastPlace = rounded;
+		try {
+			localStorage.setItem(PLACE_KEY, JSON.stringify(rounded));
+		} catch {
+			// Same.
+		}
+	});
+	const day = $derived(
+		lightMode === 'dia' ||
+			(lightMode === 'auto' && isDaytime(here ?? lastPlace ?? SPAIN, new Date(now)))
+	);
+	function nextLight() {
+		lightMode = LIGHTS[(LIGHTS.indexOf(lightMode) + 1) % LIGHTS.length]!;
+		try {
+			if (lightMode === 'auto') localStorage.removeItem(LIGHT_KEY);
+			else localStorage.setItem(LIGHT_KEY, lightMode);
+		} catch {
+			// Same.
+		}
+	}
+
 	/** Each position from the GPS: where we are, how fast, and the time driving for one's pace. */
 	function positioned(at: LngLat, metresPerSecond: number | null) {
 		pace.tick(Date.now(), metresPerSecond);
@@ -965,7 +1025,7 @@
 				{/if}
 			</div>
 			<button
-				class="rounded-xl bg-amber-500 px-5 text-xl font-semibold text-zinc-950 shadow-xl disabled:opacity-50"
+				class="rounded-xl bg-amber-500 px-5 text-xl font-semibold text-black shadow-xl disabled:opacity-50"
 				disabled={routeBusy !== null}>{routeBusy === 'search' ? 'Buscando…' : 'Buscar'}</button
 			>
 		</form>
@@ -980,7 +1040,7 @@
 			size,
 			voice.phase === 'listening'
 				? 'scale-110 bg-red-500 text-white'
-				: 'bg-amber-500 text-zinc-950 active:scale-95',
+				: 'bg-amber-500 text-black active:scale-95',
 			voice.phase === 'thinking' && 'opacity-60'
 		]}
 		aria-label={micMode.tap
@@ -1066,740 +1126,800 @@ home. -->
 	{/if}
 {/snippet}
 
-<div
-	class={['bg-zinc-950 text-zinc-100 select-none', mapShown && 'grid h-dvh grid-cols-2 gap-4 p-4']}
->
-	{#if mapShown}
-		<div class="relative h-full min-h-0">
-			<RoadMap {route} destination={destination?.at ?? null} stops={via} onposition={positioned} />
-			{@render maneuver('absolute inset-x-3 top-3')}
-			{@render searchBox()}
-			<!-- Out of the way of the next maneuver, at the top; «Mapa» brings it back. -->
-			<button
-				class="absolute right-3 bottom-10 rounded-full bg-zinc-950/80 px-4 py-2 text-lg text-zinc-200 shadow-lg active:bg-zinc-800"
-				onclick={() => (showMap = false)}>Ocultar mapa</button
-			>
-		</div>
-	{/if}
-	<div class={['flex flex-col gap-4', mapShown ? 'min-h-0' : 'min-h-dvh p-4']}>
-		{#if tab === null}
-			<!-- Leaving, and whether the trip is kept: in what plays' own first line. -->
-		{:else}
-			<!-- In a section: the way back, big; and what plays, to pause it. -->
-			<div class="flex items-center gap-3">
-				<button class="{big} h-16 gap-2 px-5 text-xl font-semibold" onclick={() => (tab = null)}
-					>← Inicio</button
-				>
-				<div class="flex min-w-0 flex-1 items-center gap-3 rounded-2xl bg-zinc-900 p-2">
-					{#if playing}
-						<span class="min-w-0 flex-1 truncate pl-2 text-lg">{playing.title}</span>
-						<button
-							class="{big} h-12 w-12 bg-amber-500! text-zinc-950!"
-							aria-label={music.playing ? 'Pausa' : 'Seguir'}
-							onclick={() => music.toggle()}
-							><MediaIcon name={music.playing ? 'pause' : 'play'} class="h-7 w-7" /></button
-						>
-					{:else}
-						<span class="min-w-0 flex-1 truncate pl-2 text-lg text-zinc-400">
-							{TABS.find((t) => t.id === tab)?.label}
-						</span>
-					{/if}
-				</div>
-				{@render mic('h-16 w-16', 'h-9 w-9')}
-			</div>
-			{#if voice.phase !== 'idle' || voice.problem || voice.reply}
-				<p class="text-center text-lg" aria-live="polite">{@render voiceLine()}</p>
-			{/if}
-		{/if}
+{#snippet lightButton()}
+	<button
+		class="rounded-full bg-zinc-950/80 px-4 py-2 text-lg text-zinc-100 shadow-lg active:scale-95"
+		title="Claro u oscuro: Auto, por el sol; Día; Noche"
+		onclick={nextLight}
+		>{lightMode === 'auto'
+			? `Auto · ${day ? '☀' : '☾'}`
+			: lightMode === 'dia'
+				? '☀ Día'
+				: '☾ Noche'}</button
+	>
+{/snippet}
 
-		{#if tripShare.url}
-			<!-- Shared: said, always in view, with its link and how to stop it (#81). -->
-			<div
-				class="flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-500/50 bg-emerald-500/10 p-3"
-			>
-				<span class="mr-auto text-lg text-emerald-300">● Compartiendo tu viaje</span>
-				<button class="rounded-xl bg-emerald-600 px-4 py-2 text-lg text-white" onclick={sendLink}
-					>{copied ? 'Enlace copiado' : 'Enviar enlace'}</button
-				>
-				<button
-					class="rounded-xl bg-zinc-800 px-4 py-2 text-lg"
-					onclick={() => void tripShare.stop()}>Dejar de compartir</button
-				>
-			</div>
-		{:else if tripShare.problem}
-			<p class="rounded-xl bg-red-950 p-3 text-red-200">{tripShare.problem}</p>
-		{/if}
-
-		{#if data.problem}
-			<p class="rounded-xl bg-amber-950 p-3 text-amber-200">
-				Sin la música de casa: {data.problem} La radio sí funciona.
-			</p>
-		{/if}
-
-		{#if screenProblem}
-			<p class="rounded-xl bg-amber-950 p-3 text-amber-200">{screenProblem}</p>
-		{/if}
-
-		{#if tab === null}
-			<div class={['flex flex-col gap-4', mapShown && 'min-h-0 flex-1 overflow-y-auto']}>
-				<!-- What plays, with buttons a thumb finds without looking; leaving, and the trip's dot, in
-				its first line. -->
-				<section class="rounded-3xl bg-zinc-900 p-4">
-					<div class="flex items-center gap-4">
-						<a
-							href="/"
-							class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-2xl text-zinc-300 active:bg-zinc-700"
-							aria-label="Salir del modo carretera"
-							title="Salir">←</a
-						>
-						{#if playing}
-							{#if playing.image}
-								<img
-									src={playing.image}
-									alt=""
-									class="h-20 w-20 shrink-0 rounded-xl bg-zinc-800 object-cover short:h-12 short:w-12"
-								/>
-							{/if}
-							<div class="min-w-0 flex-1">
-								<p class="truncate text-2xl font-semibold">{playing.title}</p>
-								<p class="truncate text-lg text-zinc-400">{playing.detail}</p>
-							</div>
-							{#if progress}
-								<div class="min-w-20 shrink-0">
-									<p class="text-right font-mono text-base text-zinc-300 tabular-nums">
-										{formatDuration(progress.at) || '0:00'}<span class="text-zinc-500"
-											>/{formatDuration(progress.duration)}</span
-										>
-									</p>
-									<div
-										class="mt-1 h-1.5 overflow-hidden rounded-full bg-zinc-800"
-										aria-hidden="true"
-									>
-										<div
-											class="h-full rounded-full bg-amber-500"
-											style:width="{(progress.at / progress.duration) * 100}%"
-										></div>
-									</div>
-								</div>
-							{/if}
-						{:else}
-							<p class="min-w-0 flex-1 py-4 text-center text-xl text-zinc-400">
-								No suena nada. Elige abajo.
-							</p>
-						{/if}
-						{#if data.map && wide && !showMap}
-							<button
-								class="shrink-0 rounded-full bg-zinc-800 px-4 py-2 text-base text-zinc-300 active:bg-zinc-700"
-								onclick={() => (showMap = true)}>Mapa</button
-							>
-						{/if}
-						<!-- Kept or not, and said: where one goes is not kept without knowing it (#81). -->
-						<button
-							class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-800 active:bg-zinc-700"
-							aria-label={!data.recordTrips
-								? 'No se guardan tus viajes'
-								: tripRecorder.problem
-									? 'No se guarda el viaje'
-									: 'Se guarda este viaje'}
-							aria-expanded={tripNote}
-							onclick={() => (tripNote = !tripNote)}
-						>
-							{#if !data.recordTrips}
-								<span class="h-4 w-4 rounded-full bg-zinc-500"></span>
-							{:else if tripRecorder.problem}
-								<span
-									class="flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-sm font-bold text-zinc-950"
-									>!</span
-								>
-							{:else}
-								<span class="h-4 w-4 animate-pulse rounded-full bg-red-500"></span>
-							{/if}
-						</button>
-					</div>
-					{#if tripNote}
-						<p class="mt-2 text-right text-base text-zinc-400">
-							{!data.recordTrips
-								? 'No se guardan tus viajes: «Guardar mis viajes», en Ajustes.'
-								: tripRecorder.problem
-									? `No se guarda el viaje: ${tripRecorder.problem}`
-									: 'Se guarda este viaje («Guardar mis viajes», en Ajustes).'}
-						</p>
-					{/if}
-					{#if playing}
-						<div class="mt-4 flex items-center justify-center gap-4 short:mt-2">
-							{#if music.podcast}
-								<button
-									class="{big} h-20 w-20 text-xl short:h-14 short:w-14"
-									aria-label="Atrás {SKIP_BACK} segundos"
-									onclick={() => music.skip(-SKIP_BACK)}>−{SKIP_BACK}</button
-								>
-							{:else if !music.radio}
-								<button
-									class="{big} h-20 w-20 short:h-14 short:w-14"
-									aria-label="Anterior"
-									onclick={() => music.previous()}
-									><MediaIcon name="previous" class="h-9 w-9" /></button
-								>
-							{/if}
-							<button
-								class="{big} h-24 w-24 bg-amber-500! text-zinc-950! short:h-16 short:w-16"
-								aria-label={music.playing ? 'Pausa' : 'Seguir'}
-								onclick={() => music.toggle()}
-								><MediaIcon name={music.playing ? 'pause' : 'play'} class="h-12 w-12" /></button
-							>
-							{#if music.podcast}
-								<button
-									class="{big} h-20 w-20 text-xl short:h-14 short:w-14"
-									aria-label="Adelante {SKIP_FORWARD} segundos"
-									onclick={() => music.skip(SKIP_FORWARD)}>+{SKIP_FORWARD}</button
-								>
-							{:else if !music.radio}
-								<button
-									class="{big} h-20 w-20 short:h-14 short:w-14"
-									aria-label="Siguiente"
-									disabled={music.index >= music.queue.length - 1 && !music.repeat}
-									onclick={() => music.next()}><MediaIcon name="next" class="h-9 w-9" /></button
-								>
-							{/if}
-						</div>
-					{/if}
-				</section>
-
-				<!-- The microphone: what to use while driving. And beside it, a photo (#81) and the fuel. -->
-				<section class="flex flex-col items-center gap-3">
-					<div class="flex items-center gap-6">
-						{@render mic('h-32 w-32 short:h-20 short:w-20', 'h-16 w-16 short:h-10 short:w-10')}
-						<button
-							class="flex h-20 w-20 items-center justify-center rounded-full bg-zinc-800 text-4xl shadow-xl active:scale-95 disabled:opacity-50 short:h-14 short:w-14 short:text-2xl"
-							aria-label="Hacer una foto"
-							title="Una foto hacia la carretera, con dónde y cuándo (o di «haz una foto»)"
-							disabled={roadPhotos.busy}
-							onclick={() => void roadPhotos.take()}>{roadPhotos.busy ? '…' : '📷'}</button
-						>
-						<!-- Fuel, stopped at the petrol station (#194): in Gastos, named after where we are. -->
-						<button
-							class="flex h-20 w-20 items-center justify-center rounded-full bg-zinc-800 text-4xl shadow-xl active:scale-95 short:h-14 short:w-14 short:text-2xl"
-							aria-label="Apuntar gasolina"
-							title="Apuntar lo que has echado de gasolina (o di «he echado 50 euros de gasolina»)"
-							onclick={() => (fueling = true)}>⛽</button
-						>
-					</div>
-					{#if roadPhotos.problem}
-						<p class="text-lg text-amber-300" aria-live="polite">{roadPhotos.problem}</p>
-					{/if}
-					{#if voice.phase !== 'idle' || voice.problem || voice.reply}
-						<p class="text-center text-xl" aria-live="polite">{@render voiceLine()}</p>
-					{/if}
-					{#if voice.options.length}
-						<div class="flex flex-wrap justify-center gap-3">
-							{#each voice.options as option (option.command)}
-								<button
-									class="rounded-full bg-zinc-800 px-6 py-3 text-xl active:bg-amber-500 active:text-zinc-950"
-									disabled={voice.phase !== 'idle'}
-									onclick={() => voice.command(option.command)}>{option.label}</button
-								>
-							{/each}
-						</div>
-					{/if}
-				</section>
-
-				{#if problem}
-					<p class="rounded-xl bg-red-950 p-3 text-red-200">{problem}</p>
-				{/if}
-
-				{#if mapInTab && route}
-					<!-- The route goes on out of its section: its next step, and back to the map. -->
-					<button class="contents" aria-label="Ver la ruta" onclick={() => (tab = 'ruta')}>
-						{@render maneuver('w-full')}
-					</button>
-				{/if}
-
-				<!-- A big button for each section: one touch, and its list. -->
-				<nav class="grid grid-cols-2 gap-3 sm:grid-cols-3" aria-label="Secciones">
-					{#each TABS as t (t.id)}
-						<button
-							class="flex min-h-24 flex-col items-center justify-center gap-1 rounded-2xl bg-zinc-900 text-lg font-semibold text-zinc-200 active:scale-95 active:bg-zinc-800 short:min-h-16"
-							onclick={() => (tab = t.id)}>{@render tabIcon(t.id)}{t.label}</button
-						>
-					{/each}
-				</nav>
-			</div>
-		{/if}
-
-		{#if tabMap}
-			<!-- Kept while a route is followed, out of sight elsewhere: its GPS guides. -->
-			<div
-				class={tab === 'ruta'
-					? 'relative h-[45dvh] shrink-0 short:h-[75dvh]'
-					: 'h-0 overflow-hidden'}
-			>
+<!-- The light, for all of it: the page, the fuel sheet and the dialog (their colours, below). -->
+<div class={['contents', day && 'sol']}>
+	<div
+		class={[
+			'bg-zinc-950 text-zinc-100 select-none',
+			mapShown && 'grid h-dvh grid-cols-2 gap-4 p-4'
+		]}
+	>
+		{#if mapShown}
+			<div class="relative h-full min-h-0">
 				<RoadMap
 					{route}
 					destination={destination?.at ?? null}
 					stops={via}
 					onposition={positioned}
+					light={day}
+					corner={lightButton}
 				/>
 				{@render maneuver('absolute inset-x-3 top-3')}
 				{@render searchBox()}
+				<!-- Out of the way of the next maneuver, at the top; «Mapa» brings it back. -->
+				<button
+					class="absolute right-3 bottom-10 rounded-full bg-zinc-950/80 px-4 py-2 text-lg text-zinc-200 shadow-lg active:bg-zinc-800"
+					onclick={() => (showMap = false)}>Ocultar mapa</button
+				>
 			</div>
 		{/if}
-
-		{#if tab !== null}
-			{#if problem}
-				<p class="rounded-xl bg-red-950 p-3 text-red-200">{problem}</p>
-			{/if}
-			<!-- The section's list, filling the rest, and scrolled on its own beside the map. -->
-			<div
-				class={[
-					'grid grid-cols-1 content-start gap-3 sm:grid-cols-2',
-					mapShown && 'min-h-0 flex-1 overflow-y-auto'
-				]}
-				role="region"
-				aria-label={TABS.find((t) => t.id === tab)?.label}
-			>
-				{#if tab === 'ruta'}
-					<div class="flex flex-col gap-3 sm:col-span-2">
-						{#if !tripShare.url}
-							<!-- Who waits for you, with a link: where you are, live, until you arrive (#81). -->
+		<div class={['flex flex-col gap-4', mapShown ? 'min-h-0' : 'min-h-dvh p-4']}>
+			{#if tab === null}
+				<!-- Leaving, and whether the trip is kept: in what plays' own first line. -->
+			{:else}
+				<!-- In a section: the way back, big; and what plays, to pause it. -->
+				<div class="flex items-center gap-3">
+					<button class="{big} h-16 gap-2 px-5 text-xl font-semibold" onclick={() => (tab = null)}
+						>← Inicio</button
+					>
+					<div class="flex min-w-0 flex-1 items-center gap-3 rounded-2xl bg-zinc-900 p-2">
+						{#if playing}
+							<span class="min-w-0 flex-1 truncate pl-2 text-lg">{playing.title}</span>
 							<button
-								class="rounded-xl bg-zinc-900 px-5 py-3 text-left text-lg text-zinc-200 active:bg-zinc-800 disabled:opacity-50"
-								disabled={tripShare.busy}
-								onclick={share}>{tripShare.busy ? 'Compartiendo…' : 'Compartir viaje'}</button
+								class="{big} h-12 w-12 bg-amber-500! text-black!"
+								aria-label={music.playing ? 'Pausa' : 'Seguir'}
+								onclick={() => music.toggle()}
+								><MediaIcon name={music.playing ? 'pause' : 'play'} class="h-7 w-7" /></button
 							>
-						{/if}
-						{#if route && destination}
-							<div class="rounded-2xl bg-zinc-900 p-4">
-								{#if following}
-									<p class="truncate text-base text-amber-300">
-										Ruta «{following}»{via.length
-											? ` · ${via.length} ${via.length === 1 ? 'parada' : 'paradas'} por delante`
-											: ''}
-									</p>
-								{:else if via.length}
-									<p class="truncate text-base text-amber-300">
-										Por {via
-											.map((s) => `${shortName(s.name)}${s.reason ? ` (${s.reason})` : ''}`)
-											.join(', ')}
-									</p>
-								{/if}
-								<p class="truncate text-xl font-semibold">{destination.label}</p>
-								<p class="text-lg text-zinc-300">
-									{distanceText(guidance?.remaining ?? route.distance)}{#if eta}
-										· {durationText(eta.seconds)} · llegada a las {clock.format(eta.arrival)}{/if}
-								</p>
-								<div class="mt-3 flex flex-wrap gap-2">
-									<button
-										class="rounded-xl bg-zinc-800 px-5 py-3 text-lg active:bg-zinc-700"
-										onclick={clearRoute}>Quitar ruta</button
-									>
-									<button
-										class={[
-											'rounded-xl px-5 py-3 text-lg',
-											spoken ? 'bg-amber-500/20 text-amber-300' : 'bg-zinc-800 text-zinc-400'
-										]}
-										aria-pressed={spoken}
-										onclick={() => setSpoken(!spoken)}>{spoken ? 'Voz: sí' : 'Voz: no'}</button
-									>
-								</div>
-							</div>
-							<ol bind:this={stepList} class="flex flex-col gap-2">
-								{#each route.steps as step, i (i)}
-									<li
-										class={[
-											'flex items-baseline gap-3 rounded-xl px-4 py-3 text-lg',
-											i === guidance?.nextIndex
-												? 'bg-amber-500/20 ring-2 ring-amber-400'
-												: i < (guidance?.nextIndex ?? 0)
-													? 'bg-zinc-900 text-zinc-500'
-													: 'bg-zinc-900'
-										]}
-										aria-current={i === guidance?.nextIndex ? 'step' : undefined}
-									>
-										<span class="min-w-0 flex-1">{step.instruction}</span>
-										{#if step.distance}
-											<span class="shrink-0 text-base text-zinc-400"
-												>{distanceText(step.distance)}</span
-											>
-										{/if}
-									</li>
-								{/each}
-							</ol>
 						{:else}
-							{#if !places && routeBusy !== 'search'}
-								<!-- Written on the map, parked. -->
-								<p class="text-lg text-zinc-400">Escribe el destino en el mapa, parado.</p>
-							{/if}
-							{#if routeBusy === 'search'}
-								<p class="text-lg text-zinc-300">Buscando…</p>
-							{/if}
-							{#if !here}
-								<p class="text-lg text-zinc-400">Esperando a saber dónde estás (el GPS)…</p>
-							{/if}
-							{#if !places && routeBusy !== 'search'}
-								<!-- Kept in Viajes (#151): one touch, from where we are. -->
-								{#each data.routes as saved (saved.id)}
-									<button
-										class="{tile} border-amber-400/30 bg-zinc-900"
-										disabled={routeBusy !== null}
-										onclick={() => follow(saved)}
-									>
-										<span class="min-w-0">
-											<span class="block truncate text-xl font-semibold">{saved.name}</span>
-											<span class="block truncate text-base text-zinc-400"
-												>Ruta · {saved.stops.map((s) => s.name).join(' → ')}</span
-											>
-										</span>
-									</button>
-								{/each}
-								{#each data.places as saved (saved.id)}
-									<button
-										class="{tile} border-white/10 bg-zinc-900"
-										disabled={routeBusy !== null}
-										onclick={() => go({ label: saved.name, at: saved.at })}
-									>
-										<span class="min-w-0 truncate text-xl font-semibold">{saved.name}</span>
-									</button>
-								{/each}
-							{/if}
-							{#each places ?? [] as place (place.label)}
-								<button
-									class="{tile} border-white/10 bg-zinc-900"
-									disabled={routeBusy !== null}
-									onclick={() => go(place)}
-								>
-									<span class="min-w-0 text-xl"
-										>{routeBusy === 'route' ? 'Calculando la ruta…' : place.label}</span
-									>
-								</button>
-							{:else}
-								{#if places}
-									<p class="text-lg text-zinc-400">No he encontrado ese sitio.</p>
-								{/if}
-							{/each}
-						{/if}
-						{#if routeProblem}
-							<p class="rounded-xl bg-red-950 p-3 text-red-200">{routeProblem}</p>
+							<span class="min-w-0 flex-1 truncate pl-2 text-lg text-zinc-400">
+								{TABS.find((t) => t.id === tab)?.label}
+							</span>
 						{/if}
 					</div>
-				{:else if tab === 'radio'}
-					{#each stations as station (station.uuid)}
-						{@const favicon = data.info?.[station.uuid]?.favicon}
-						{@const on = music.radio?.uuid === station.uuid}
-						<button
-							class={[
-								tile,
-								on ? 'border-emerald-400 bg-emerald-500/15' : 'border-white/10 bg-zinc-900'
-							]}
-							disabled={loading !== null}
-							onclick={() => radio(station)}
-						>
-							{#if favicon && !broken.has(station.uuid)}
-								<img
-									src={favicon}
-									alt=""
-									class="h-14 w-14 shrink-0 rounded-lg bg-white object-contain p-1"
-									onerror={() => broken.add(station.uuid)}
-								/>
+					{@render mic('h-16 w-16', 'h-9 w-9')}
+				</div>
+				{#if voice.phase !== 'idle' || voice.problem || voice.reply}
+					<p class="text-center text-lg" aria-live="polite">{@render voiceLine()}</p>
+				{/if}
+			{/if}
+
+			{#if tripShare.url}
+				<!-- Shared: said, always in view, with its link and how to stop it (#81). -->
+				<div
+					class="flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-500/50 bg-emerald-500/10 p-3"
+				>
+					<span class="mr-auto text-lg text-emerald-300">● Compartiendo tu viaje</span>
+					<button class="rounded-xl bg-emerald-600 px-4 py-2 text-lg text-white" onclick={sendLink}
+						>{copied ? 'Enlace copiado' : 'Enviar enlace'}</button
+					>
+					<button
+						class="rounded-xl bg-zinc-800 px-4 py-2 text-lg"
+						onclick={() => void tripShare.stop()}>Dejar de compartir</button
+					>
+				</div>
+			{:else if tripShare.problem}
+				<p class="rounded-xl bg-red-950 p-3 text-red-200">{tripShare.problem}</p>
+			{/if}
+
+			{#if data.problem}
+				<p class="rounded-xl bg-amber-950 p-3 text-amber-200">
+					Sin la música de casa: {data.problem} La radio sí funciona.
+				</p>
+			{/if}
+
+			{#if screenProblem}
+				<p class="rounded-xl bg-amber-950 p-3 text-amber-200">{screenProblem}</p>
+			{/if}
+
+			{#if tab === null}
+				<div class={['flex flex-col gap-4', mapShown && 'min-h-0 flex-1 overflow-y-auto']}>
+					<!-- What plays, with buttons a thumb finds without looking; leaving, and the trip's dot, in
+				its first line. -->
+					<section class="rounded-3xl bg-zinc-900 p-4">
+						<div class="flex items-center gap-4">
+							<a
+								href="/"
+								class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-2xl text-zinc-300 active:bg-zinc-700"
+								aria-label="Salir del modo carretera"
+								title="Salir">←</a
+							>
+							{#if playing}
+								{#if playing.image}
+									<img
+										src={playing.image}
+										alt=""
+										class="h-20 w-20 shrink-0 rounded-xl bg-zinc-800 object-cover short:h-12 short:w-12"
+									/>
+								{/if}
+								<div class="min-w-0 flex-1">
+									<p class="truncate text-2xl font-semibold">{playing.title}</p>
+									<p class="truncate text-lg text-zinc-400">{playing.detail}</p>
+								</div>
+								{#if progress}
+									<div class="min-w-20 shrink-0">
+										<p class="text-right font-mono text-base text-zinc-300 tabular-nums">
+											{formatDuration(progress.at) || '0:00'}<span class="text-zinc-500"
+												>/{formatDuration(progress.duration)}</span
+											>
+										</p>
+										<div
+											class="mt-1 h-1.5 overflow-hidden rounded-full bg-zinc-800"
+											aria-hidden="true"
+										>
+											<div
+												class="h-full rounded-full bg-amber-500"
+												style:width="{(progress.at / progress.duration) * 100}%"
+											></div>
+										</div>
+									</div>
+								{/if}
 							{:else}
-								<span
-									class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-2xl font-bold text-zinc-400"
-									>{station.name[0]}</span
+								<p class="min-w-0 flex-1 py-4 text-center text-xl text-zinc-400">
+									No suena nada. Elige abajo.
+								</p>
+							{/if}
+							{#if data.map && wide && !showMap}
+								<button
+									class="shrink-0 rounded-full bg-zinc-800 px-4 py-2 text-base text-zinc-300 active:bg-zinc-700"
+									onclick={() => (showMap = true)}>Mapa</button
 								>
 							{/if}
-							<span class="min-w-0">
-								<span class="block truncate text-xl font-semibold">
-									{loading === station.uuid ? 'Conectando…' : station.name}
-								</span>
-								<span class="block truncate text-base text-zinc-400"
-									>{on ? (music.playing ? '● Sonando' : 'En pausa') : station.description}</span
-								>
-							</span>
-						</button>
-					{/each}
-				{:else if tab === 'musica'}
-					{@const shuffling = playingHere('aleatorio')}
-					<button
-						class={[
-							tile,
-							'sm:col-span-2',
-							shuffling
-								? 'border-emerald-400 bg-emerald-500/15'
-								: 'border-amber-400/60 bg-amber-500/10'
-						]}
-						disabled={loading !== null}
-						onclick={everything}
-					>
-						<span
-							class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-amber-300"
-							><MediaIcon name="shuffle" class="h-8 w-8" /></span
-						>
-						<span class="min-w-0">
-							<span class="block truncate text-xl font-semibold">
-								{loading === 'aleatorio' ? 'Cargando…' : 'Todo aleatorio'}
-							</span>
-							<span class="block truncate text-base text-zinc-400"
-								>{shuffling
-									? music.playing
-										? '● Sonando'
-										: 'En pausa'
-									: 'De toda tu música'}</span
+							<!-- Kept or not, and said: where one goes is not kept without knowing it (#81). -->
+							<button
+								class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-800 active:bg-zinc-700"
+								aria-label={!data.recordTrips
+									? 'No se guardan tus viajes'
+									: tripRecorder.problem
+										? 'No se guarda el viaje'
+										: 'Se guarda este viaje'}
+								aria-expanded={tripNote}
+								onclick={() => (tripNote = !tripNote)}
 							>
-						</span>
-					</button>
-					{#each data.albums as a (a.id)}
-						{@const on = playingHere(`album-${a.id}`)}
-						<button
-							class={[
-								tile,
-								on ? 'border-emerald-400 bg-emerald-500/15' : 'border-white/10 bg-zinc-900'
-							]}
-							disabled={loading !== null}
-							onclick={() => album(a.id)}
-						>
-							{#if a.hasCover}
-								<img
-									src={coverUrl(a.id)}
-									alt=""
-									loading="lazy"
-									class="h-14 w-14 shrink-0 rounded-lg bg-zinc-800 object-cover"
-								/>
-							{:else}
-								<span
-									class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-2xl font-bold text-zinc-400"
-									>{a.title[0]}</span
-								>
-							{/if}
-							<span class="min-w-0">
-								<span class="block truncate text-xl font-semibold">
-									{loading === `album-${a.id}` ? 'Cargando…' : a.title}
-								</span>
-								<span class="block truncate text-base text-zinc-400"
-									>{on ? (music.playing ? '● Sonando' : 'En pausa') : a.artist}</span
-								>
-							</span>
-						</button>
-					{:else}
-						<p class="text-lg text-zinc-400">No hay música todavía.</p>
-					{/each}
-				{:else if tab === 'listas'}
-					{#each playlists as playlist (playlist.id)}
-						<button
-							class="{tile} border-white/10 bg-zinc-900"
-							disabled={loading !== null}
-							onclick={() => list(playlist.id)}
-						>
-							<span class="min-w-0">
-								<span class="block truncate text-xl font-semibold">
-									{loading === `lista-${playlist.id}` ? 'Cargando…' : playlist.name}
-								</span>
-								<span class="block text-base text-zinc-400">{playlist.total} canciones</span>
-							</span>
-						</button>
-					{:else}
-						<p class="text-lg text-zinc-400">No hay listas. Se hacen en Música.</p>
-					{/each}
-				{:else if tab === 'telegram'}
-					<button
-						class={[
-							tile,
-							'sm:col-span-2',
-							telegramOn ? 'border-sky-400 bg-sky-500/15' : 'border-white/10 bg-zinc-900'
-						]}
-						aria-pressed={telegramOn}
-						onclick={() => setTelegram(!telegramOn)}
-					>
-						<span class="text-3xl" aria-hidden="true">{telegramOn ? '🔊' : '🔇'}</span>
-						<span class="min-w-0">
-							<span class="block text-xl font-semibold"
-								>{telegramOn ? 'Leyendo los mensajes' : 'Leer los mensajes en voz alta'}</span
-							>
-							<span class="block text-base text-zinc-400"
-								>{telegramOn
-									? 'Cada uno se lee al llegar, con la música más baja'
-									: 'Los que te lleguen a Telegram mientras conduces'}</span
-							>
-						</span>
-					</button>
-					{#each telegramMessages as m (m.key)}
-						<div class="rounded-2xl border-2 border-white/10 bg-zinc-900 p-3 sm:col-span-2">
-							<span class="block text-base text-zinc-400"
-								>{m.chat ? `${m.from} · ${m.chat}` : m.from} · {new Date(m.at).toLocaleTimeString(
-									'es-ES',
-									{ hour: '2-digit', minute: '2-digit' }
-								)}</span
-							>
-							<span class="block text-lg">{m.text ?? telegramSaid(m)}</span>
+								{#if !data.recordTrips}
+									<span class="h-4 w-4 rounded-full bg-zinc-500"></span>
+								{:else if tripRecorder.problem}
+									<span
+										class="flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-sm font-bold text-black"
+										>!</span
+									>
+								{:else}
+									<span class="h-4 w-4 animate-pulse rounded-full bg-red-500"></span>
+								{/if}
+							</button>
 						</div>
-					{/each}
-				{:else if tab === 'dj'}
-					{@const setups = [
-						...(lastDj ? [{ id: 'dj-ultima', name: 'La última', options: lastDj }] : []),
-						...data.djPresets.map((p) => ({ id: `dj-${p.id}`, name: p.name, options: p.options }))
+						{#if tripNote}
+							<p class="mt-2 text-right text-base text-zinc-400">
+								{!data.recordTrips
+									? 'No se guardan tus viajes: «Guardar mis viajes», en Ajustes.'
+									: tripRecorder.problem
+										? `No se guarda el viaje: ${tripRecorder.problem}`
+										: 'Se guarda este viaje («Guardar mis viajes», en Ajustes).'}
+							</p>
+						{/if}
+						{#if playing}
+							<div class="mt-4 flex items-center justify-center gap-4 short:mt-2">
+								{#if music.podcast}
+									<button
+										class="{big} h-20 w-20 text-xl short:h-14 short:w-14"
+										aria-label="Atrás {SKIP_BACK} segundos"
+										onclick={() => music.skip(-SKIP_BACK)}>−{SKIP_BACK}</button
+									>
+								{:else if !music.radio}
+									<button
+										class="{big} h-20 w-20 short:h-14 short:w-14"
+										aria-label="Anterior"
+										onclick={() => music.previous()}
+										><MediaIcon name="previous" class="h-9 w-9" /></button
+									>
+								{/if}
+								<button
+									class="{big} h-24 w-24 bg-amber-500! text-black! short:h-16 short:w-16"
+									aria-label={music.playing ? 'Pausa' : 'Seguir'}
+									onclick={() => music.toggle()}
+									><MediaIcon name={music.playing ? 'pause' : 'play'} class="h-12 w-12" /></button
+								>
+								{#if music.podcast}
+									<button
+										class="{big} h-20 w-20 text-xl short:h-14 short:w-14"
+										aria-label="Adelante {SKIP_FORWARD} segundos"
+										onclick={() => music.skip(SKIP_FORWARD)}>+{SKIP_FORWARD}</button
+									>
+								{:else if !music.radio}
+									<button
+										class="{big} h-20 w-20 short:h-14 short:w-14"
+										aria-label="Siguiente"
+										disabled={music.index >= music.queue.length - 1 && !music.repeat}
+										onclick={() => music.next()}><MediaIcon name="next" class="h-9 w-9" /></button
+									>
+								{/if}
+							</div>
+						{/if}
+					</section>
+
+					<!-- The microphone: what to use while driving. And beside it, a photo (#81) and the fuel. -->
+					<section class="flex flex-col items-center gap-3">
+						<div class="flex items-center gap-6">
+							{@render mic('h-32 w-32 short:h-20 short:w-20', 'h-16 w-16 short:h-10 short:w-10')}
+							<button
+								class="flex h-20 w-20 items-center justify-center rounded-full bg-zinc-800 text-4xl shadow-xl active:scale-95 disabled:opacity-50 short:h-14 short:w-14 short:text-2xl"
+								aria-label="Hacer una foto"
+								title="Una foto hacia la carretera, con dónde y cuándo (o di «haz una foto»)"
+								disabled={roadPhotos.busy}
+								onclick={() => void roadPhotos.take()}>{roadPhotos.busy ? '…' : '📷'}</button
+							>
+							<!-- Fuel, stopped at the petrol station (#194): in Gastos, named after where we are. -->
+							<button
+								class="flex h-20 w-20 items-center justify-center rounded-full bg-zinc-800 text-4xl shadow-xl active:scale-95 short:h-14 short:w-14 short:text-2xl"
+								aria-label="Apuntar gasolina"
+								title="Apuntar lo que has echado de gasolina (o di «he echado 50 euros de gasolina»)"
+								onclick={() => (fueling = true)}>⛽</button
+							>
+						</div>
+						{#if roadPhotos.problem}
+							<p class="text-lg text-amber-300" aria-live="polite">{roadPhotos.problem}</p>
+						{/if}
+						{#if voice.phase !== 'idle' || voice.problem || voice.reply}
+							<p class="text-center text-xl" aria-live="polite">{@render voiceLine()}</p>
+						{/if}
+						{#if voice.options.length}
+							<div class="flex flex-wrap justify-center gap-3">
+								{#each voice.options as option (option.command)}
+									<button
+										class="rounded-full bg-zinc-800 px-6 py-3 text-xl active:bg-amber-500 active:text-black"
+										disabled={voice.phase !== 'idle'}
+										onclick={() => voice.command(option.command)}>{option.label}</button
+									>
+								{/each}
+							</div>
+						{/if}
+					</section>
+
+					{#if problem}
+						<p class="rounded-xl bg-red-950 p-3 text-red-200">{problem}</p>
+					{/if}
+
+					{#if mapInTab && route}
+						<!-- The route goes on out of its section: its next step, and back to the map. -->
+						<button class="contents" aria-label="Ver la ruta" onclick={() => (tab = 'ruta')}>
+							{@render maneuver('w-full')}
+						</button>
+					{/if}
+
+					<!-- A big button for each section: one touch, and its list. -->
+					<nav class="grid grid-cols-2 gap-3 sm:grid-cols-3" aria-label="Secciones">
+						{#each TABS as t (t.id)}
+							<button
+								class="flex min-h-24 flex-col items-center justify-center gap-1 rounded-2xl bg-zinc-900 text-lg font-semibold text-zinc-200 active:scale-95 active:bg-zinc-800 short:min-h-16"
+								onclick={() => (tab = t.id)}>{@render tabIcon(t.id)}{t.label}</button
+							>
+						{/each}
+					</nav>
+				</div>
+			{/if}
+
+			{#if tabMap}
+				<!-- Kept while a route is followed, out of sight elsewhere: its GPS guides. -->
+				<div
+					class={tab === 'ruta'
+						? 'relative h-[45dvh] shrink-0 short:h-[75dvh]'
+						: 'h-0 overflow-hidden'}
+				>
+					<RoadMap
+						{route}
+						destination={destination?.at ?? null}
+						stops={via}
+						onposition={positioned}
+						light={day}
+						corner={lightButton}
+					/>
+					{@render maneuver('absolute inset-x-3 top-3')}
+					{@render searchBox()}
+				</div>
+			{/if}
+
+			{#if tab !== null}
+				{#if problem}
+					<p class="rounded-xl bg-red-950 p-3 text-red-200">{problem}</p>
+				{/if}
+				<!-- The section's list, filling the rest, and scrolled on its own beside the map. -->
+				<div
+					class={[
+						'grid grid-cols-1 content-start gap-3 sm:grid-cols-2',
+						mapShown && 'min-h-0 flex-1 overflow-y-auto'
 					]}
-					{#each setups as setup (setup.id)}
-						{@const on = playingHere(setup.id) && music.dj}
+					role="region"
+					aria-label={TABS.find((t) => t.id === tab)?.label}
+				>
+					{#if tab === 'ruta'}
+						<div class="flex flex-col gap-3 sm:col-span-2">
+							{#if !tripShare.url}
+								<!-- Who waits for you, with a link: where you are, live, until you arrive (#81). -->
+								<button
+									class="rounded-xl bg-zinc-900 px-5 py-3 text-left text-lg text-zinc-200 active:bg-zinc-800 disabled:opacity-50"
+									disabled={tripShare.busy}
+									onclick={share}>{tripShare.busy ? 'Compartiendo…' : 'Compartir viaje'}</button
+								>
+							{/if}
+							{#if route && destination}
+								<div class="rounded-2xl bg-zinc-900 p-4">
+									{#if following}
+										<p class="truncate text-base text-amber-300">
+											Ruta «{following}»{via.length
+												? ` · ${via.length} ${via.length === 1 ? 'parada' : 'paradas'} por delante`
+												: ''}
+										</p>
+									{:else if via.length}
+										<p class="truncate text-base text-amber-300">
+											Por {via
+												.map((s) => `${shortName(s.name)}${s.reason ? ` (${s.reason})` : ''}`)
+												.join(', ')}
+										</p>
+									{/if}
+									<p class="truncate text-xl font-semibold">{destination.label}</p>
+									<p class="text-lg text-zinc-300">
+										{distanceText(guidance?.remaining ?? route.distance)}{#if eta}
+											· {durationText(eta.seconds)} · llegada a las {clock.format(eta.arrival)}{/if}
+									</p>
+									<div class="mt-3 flex flex-wrap gap-2">
+										<button
+											class="rounded-xl bg-zinc-800 px-5 py-3 text-lg active:bg-zinc-700"
+											onclick={clearRoute}>Quitar ruta</button
+										>
+										<button
+											class={[
+												'rounded-xl px-5 py-3 text-lg',
+												spoken ? 'bg-amber-500/20 text-amber-300' : 'bg-zinc-800 text-zinc-400'
+											]}
+											aria-pressed={spoken}
+											onclick={() => setSpoken(!spoken)}>{spoken ? 'Voz: sí' : 'Voz: no'}</button
+										>
+									</div>
+								</div>
+								<ol bind:this={stepList} class="flex flex-col gap-2">
+									{#each route.steps as step, i (i)}
+										<li
+											class={[
+												'flex items-baseline gap-3 rounded-xl px-4 py-3 text-lg',
+												i === guidance?.nextIndex
+													? 'bg-amber-500/20 ring-2 ring-amber-400'
+													: i < (guidance?.nextIndex ?? 0)
+														? 'bg-zinc-900 text-zinc-500'
+														: 'bg-zinc-900'
+											]}
+											aria-current={i === guidance?.nextIndex ? 'step' : undefined}
+										>
+											<span class="min-w-0 flex-1">{step.instruction}</span>
+											{#if step.distance}
+												<span class="shrink-0 text-base text-zinc-400"
+													>{distanceText(step.distance)}</span
+												>
+											{/if}
+										</li>
+									{/each}
+								</ol>
+							{:else}
+								{#if !places && routeBusy !== 'search'}
+									<!-- Written on the map, parked. -->
+									<p class="text-lg text-zinc-400">Escribe el destino en el mapa, parado.</p>
+								{/if}
+								{#if routeBusy === 'search'}
+									<p class="text-lg text-zinc-300">Buscando…</p>
+								{/if}
+								{#if !here}
+									<p class="text-lg text-zinc-400">Esperando a saber dónde estás (el GPS)…</p>
+								{/if}
+								{#if !places && routeBusy !== 'search'}
+									<!-- Kept in Viajes (#151): one touch, from where we are. -->
+									{#each data.routes as saved (saved.id)}
+										<button
+											class="{tile} border-amber-400/30 bg-zinc-900"
+											disabled={routeBusy !== null}
+											onclick={() => follow(saved)}
+										>
+											<span class="min-w-0">
+												<span class="block truncate text-xl font-semibold">{saved.name}</span>
+												<span class="block truncate text-base text-zinc-400"
+													>Ruta · {saved.stops.map((s) => s.name).join(' → ')}</span
+												>
+											</span>
+										</button>
+									{/each}
+									{#each data.places as saved (saved.id)}
+										<button
+											class="{tile} border-zinc-50/10 bg-zinc-900"
+											disabled={routeBusy !== null}
+											onclick={() => go({ label: saved.name, at: saved.at })}
+										>
+											<span class="min-w-0 truncate text-xl font-semibold">{saved.name}</span>
+										</button>
+									{/each}
+								{/if}
+								{#each places ?? [] as place (place.label)}
+									<button
+										class="{tile} border-zinc-50/10 bg-zinc-900"
+										disabled={routeBusy !== null}
+										onclick={() => go(place)}
+									>
+										<span class="min-w-0 text-xl"
+											>{routeBusy === 'route' ? 'Calculando la ruta…' : place.label}</span
+										>
+									</button>
+								{:else}
+									{#if places}
+										<p class="text-lg text-zinc-400">No he encontrado ese sitio.</p>
+									{/if}
+								{/each}
+							{/if}
+							{#if routeProblem}
+								<p class="rounded-xl bg-red-950 p-3 text-red-200">{routeProblem}</p>
+							{/if}
+						</div>
+					{:else if tab === 'radio'}
+						{#each stations as station (station.uuid)}
+							{@const favicon = data.info?.[station.uuid]?.favicon}
+							{@const on = music.radio?.uuid === station.uuid}
+							<button
+								class={[
+									tile,
+									on ? 'border-emerald-400 bg-emerald-500/15' : 'border-zinc-50/10 bg-zinc-900'
+								]}
+								disabled={loading !== null}
+								onclick={() => radio(station)}
+							>
+								{#if favicon && !broken.has(station.uuid)}
+									<img
+										src={favicon}
+										alt=""
+										class="h-14 w-14 shrink-0 rounded-lg bg-white object-contain p-1"
+										onerror={() => broken.add(station.uuid)}
+									/>
+								{:else}
+									<span
+										class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-2xl font-bold text-zinc-400"
+										>{station.name[0]}</span
+									>
+								{/if}
+								<span class="min-w-0">
+									<span class="block truncate text-xl font-semibold">
+										{loading === station.uuid ? 'Conectando…' : station.name}
+									</span>
+									<span class="block truncate text-base text-zinc-400"
+										>{on ? (music.playing ? '● Sonando' : 'En pausa') : station.description}</span
+									>
+								</span>
+							</button>
+						{/each}
+					{:else if tab === 'musica'}
+						{@const shuffling = playingHere('aleatorio')}
 						<button
 							class={[
 								tile,
-								on ? 'border-amber-400 bg-amber-500/15' : 'border-white/10 bg-zinc-900'
+								'sm:col-span-2',
+								shuffling
+									? 'border-emerald-400 bg-emerald-500/15'
+									: 'border-amber-400/60 bg-amber-500/10'
 							]}
 							disabled={loading !== null}
-							onclick={() => startDj(setup.id, setup.options)}
+							onclick={everything}
 						>
+							<span
+								class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-amber-300"
+								><MediaIcon name="shuffle" class="h-8 w-8" /></span
+							>
 							<span class="min-w-0">
 								<span class="block truncate text-xl font-semibold">
-									{loading === setup.id ? 'Poniendo…' : setup.name}
+									{loading === 'aleatorio' ? 'Cargando…' : 'Todo aleatorio'}
 								</span>
 								<span class="block truncate text-base text-zinc-400"
-									>{on
+									>{shuffling
 										? music.playing
 											? '● Sonando'
 											: 'En pausa'
-										: djArtists(setup.options.artists)}</span
+										: 'De toda tu música'}</span
 								>
 							</span>
 						</button>
-					{/each}
-					{#if !data.djPresets.length}
-						<p class="text-lg text-zinc-400">
-							Guarda una configuración en Música → Modo DJ para tenerla aquí.
-						</p>
-					{/if}
-				{:else if tab === 'podcasts'}
-					{#each data.inProgress as episode (episode.id)}
-						{@const on = music.podcast?.id === episode.id}
+						{#each data.albums as a (a.id)}
+							{@const on = playingHere(`album-${a.id}`)}
+							<button
+								class={[
+									tile,
+									on ? 'border-emerald-400 bg-emerald-500/15' : 'border-zinc-50/10 bg-zinc-900'
+								]}
+								disabled={loading !== null}
+								onclick={() => album(a.id)}
+							>
+								{#if a.hasCover}
+									<img
+										src={coverUrl(a.id)}
+										alt=""
+										loading="lazy"
+										class="h-14 w-14 shrink-0 rounded-lg bg-zinc-800 object-cover"
+									/>
+								{:else}
+									<span
+										class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-2xl font-bold text-zinc-400"
+										>{a.title[0]}</span
+									>
+								{/if}
+								<span class="min-w-0">
+									<span class="block truncate text-xl font-semibold">
+										{loading === `album-${a.id}` ? 'Cargando…' : a.title}
+									</span>
+									<span class="block truncate text-base text-zinc-400"
+										>{on ? (music.playing ? '● Sonando' : 'En pausa') : a.artist}</span
+									>
+								</span>
+							</button>
+						{:else}
+							<p class="text-lg text-zinc-400">No hay música todavía.</p>
+						{/each}
+					{:else if tab === 'listas'}
+						{#each playlists as playlist (playlist.id)}
+							<button
+								class="{tile} border-zinc-50/10 bg-zinc-900"
+								disabled={loading !== null}
+								onclick={() => list(playlist.id)}
+							>
+								<span class="min-w-0">
+									<span class="block truncate text-xl font-semibold">
+										{loading === `lista-${playlist.id}` ? 'Cargando…' : playlist.name}
+									</span>
+									<span class="block text-base text-zinc-400">{playlist.total} canciones</span>
+								</span>
+							</button>
+						{:else}
+							<p class="text-lg text-zinc-400">No hay listas. Se hacen en Música.</p>
+						{/each}
+					{:else if tab === 'telegram'}
 						<button
 							class={[
 								tile,
-								on ? 'border-amber-400 bg-amber-500/15' : 'border-white/10 bg-zinc-900'
+								'sm:col-span-2',
+								telegramOn ? 'border-sky-400 bg-sky-500/15' : 'border-zinc-50/10 bg-zinc-900'
 							]}
-							disabled={loading !== null}
-							onclick={() => podcast(episode.id)}
+							aria-pressed={telegramOn}
+							onclick={() => setTelegram(!telegramOn)}
 						>
-							{#if episode.imageUrl}
-								<img
-									src={episode.imageUrl}
-									alt=""
-									class="h-14 w-14 shrink-0 rounded-lg bg-zinc-800 object-cover"
-								/>
-							{/if}
+							<span class="text-3xl" aria-hidden="true">{telegramOn ? '🔊' : '🔇'}</span>
 							<span class="min-w-0">
-								<span class="block truncate text-xl font-semibold">{episode.title}</span>
-								<span class="block truncate text-base text-zinc-400"
-									>Seguir · {episode.podcastTitle}</span
+								<span class="block text-xl font-semibold"
+									>{telegramOn ? 'Leyendo los mensajes' : 'Leer los mensajes en voz alta'}</span
+								>
+								<span class="block text-base text-zinc-400"
+									>{telegramOn
+										? 'Cada uno se lee al llegar, con la música más baja'
+										: 'Los que te lleguen a Telegram mientras conduces'}</span
 								>
 							</span>
 						</button>
-					{/each}
-					{#each data.podcasts as p (p.id)}
-						{@const on = music.podcast?.id === p.latest.id}
-						<button
-							class={[
-								tile,
-								on ? 'border-amber-400 bg-amber-500/15' : 'border-white/10 bg-zinc-900'
-							]}
-							disabled={loading !== null}
-							onclick={() => podcast(p.latest.id)}
-						>
-							{#if p.imageUrl}
-								<img
-									src={p.imageUrl}
-									alt=""
-									class="h-14 w-14 shrink-0 rounded-lg bg-zinc-800 object-cover"
-								/>
-							{/if}
-							<span class="min-w-0">
-								<span class="block truncate text-xl font-semibold">{p.title}</span>
-								<span class="block truncate text-base text-zinc-400"
-									>Lo último: {p.latest.title}</span
+						{#each telegramMessages as m (m.key)}
+							<div class="rounded-2xl border-2 border-zinc-50/10 bg-zinc-900 p-3 sm:col-span-2">
+								<span class="block text-base text-zinc-400"
+									>{m.chat ? `${m.from} · ${m.chat}` : m.from} · {new Date(m.at).toLocaleTimeString(
+										'es-ES',
+										{ hour: '2-digit', minute: '2-digit' }
+									)}</span
 								>
-							</span>
-						</button>
-					{:else}
-						{#if !data.inProgress.length}
-							<p class="text-lg text-zinc-400">No sigues ningún podcast. Se siguen en Radio.</p>
+								<span class="block text-lg">{m.text ?? telegramSaid(m)}</span>
+							</div>
+						{/each}
+					{:else if tab === 'dj'}
+						{@const setups = [
+							...(lastDj ? [{ id: 'dj-ultima', name: 'La última', options: lastDj }] : []),
+							...data.djPresets.map((p) => ({ id: `dj-${p.id}`, name: p.name, options: p.options }))
+						]}
+						{#each setups as setup (setup.id)}
+							{@const on = playingHere(setup.id) && music.dj}
+							<button
+								class={[
+									tile,
+									on ? 'border-amber-400 bg-amber-500/15' : 'border-zinc-50/10 bg-zinc-900'
+								]}
+								disabled={loading !== null}
+								onclick={() => startDj(setup.id, setup.options)}
+							>
+								<span class="min-w-0">
+									<span class="block truncate text-xl font-semibold">
+										{loading === setup.id ? 'Poniendo…' : setup.name}
+									</span>
+									<span class="block truncate text-base text-zinc-400"
+										>{on
+											? music.playing
+												? '● Sonando'
+												: 'En pausa'
+											: djArtists(setup.options.artists)}</span
+									>
+								</span>
+							</button>
+						{/each}
+						{#if !data.djPresets.length}
+							<p class="text-lg text-zinc-400">
+								Guarda una configuración en Música → Modo DJ para tenerla aquí.
+							</p>
 						{/if}
-					{/each}
-				{/if}
-			</div>
-		{/if}
+					{:else if tab === 'podcasts'}
+						{#each data.inProgress as episode (episode.id)}
+							{@const on = music.podcast?.id === episode.id}
+							<button
+								class={[
+									tile,
+									on ? 'border-amber-400 bg-amber-500/15' : 'border-zinc-50/10 bg-zinc-900'
+								]}
+								disabled={loading !== null}
+								onclick={() => podcast(episode.id)}
+							>
+								{#if episode.imageUrl}
+									<img
+										src={episode.imageUrl}
+										alt=""
+										class="h-14 w-14 shrink-0 rounded-lg bg-zinc-800 object-cover"
+									/>
+								{/if}
+								<span class="min-w-0">
+									<span class="block truncate text-xl font-semibold">{episode.title}</span>
+									<span class="block truncate text-base text-zinc-400"
+										>Seguir · {episode.podcastTitle}</span
+									>
+								</span>
+							</button>
+						{/each}
+						{#each data.podcasts as p (p.id)}
+							{@const on = music.podcast?.id === p.latest.id}
+							<button
+								class={[
+									tile,
+									on ? 'border-amber-400 bg-amber-500/15' : 'border-zinc-50/10 bg-zinc-900'
+								]}
+								disabled={loading !== null}
+								onclick={() => podcast(p.latest.id)}
+							>
+								{#if p.imageUrl}
+									<img
+										src={p.imageUrl}
+										alt=""
+										class="h-14 w-14 shrink-0 rounded-lg bg-zinc-800 object-cover"
+									/>
+								{/if}
+								<span class="min-w-0">
+									<span class="block truncate text-xl font-semibold">{p.title}</span>
+									<span class="block truncate text-base text-zinc-400"
+										>Lo último: {p.latest.title}</span
+									>
+								</span>
+							</button>
+						{:else}
+							{#if !data.inProgress.length}
+								<p class="text-lg text-zinc-400">No sigues ningún podcast. Se siguen en Radio.</p>
+							{/if}
+						{/each}
+					{/if}
+				</div>
+			{/if}
+		</div>
 	</div>
+
+	<!-- Fuel (#194): over everything, as the photo just taken. -->
+	{#if fueling}
+		<FuelSheet
+			position={here}
+			onclose={() => (fueling = false)}
+			urls={{ read: '/gastos/leer', save: '/api/gastos/gasolina' }}
+		/>
+	{/if}
+
+	{#if roadPhotos.last}
+		<!-- The photo just taken, for a moment: whether it came out well, and whether it was kept. -->
+		<figure
+			class="fixed right-4 bottom-4 z-40 w-72 overflow-hidden rounded-2xl border-2 border-zinc-50/20 bg-zinc-900 shadow-2xl"
+			aria-live="polite"
+		>
+			<img
+				src={roadPhotos.last.url}
+				alt="La foto que acabas de hacer"
+				class="aspect-video w-full object-cover"
+			/>
+			<figcaption
+				class={[
+					'px-3 py-2 text-lg font-semibold',
+					roadPhotos.last.state === 'saved'
+						? 'bg-emerald-600 text-white'
+						: roadPhotos.last.state === 'waiting'
+							? 'bg-amber-600 text-white'
+							: 'text-zinc-300'
+				]}
+			>
+				{roadPhotos.last.state === 'saved'
+					? '✓ Foto guardada'
+					: roadPhotos.last.state === 'waiting'
+						? 'Sin cobertura: se guardará al volver'
+						: 'Guardando…'}
+			</figcaption>
+		</figure>
+	{/if}
+
+	<!-- Leaving, asked (see beforeNavigate): big, for a glance; «Seguir» first, and by itself. -->
+	<dialog
+		bind:this={exitDialog}
+		closedby="any"
+		onclose={() => {
+			clearTimeout(exitTimer);
+			exitOpen = false;
+		}}
+		class="m-auto w-md max-w-[calc(100vw-2rem)] rounded-3xl border border-zinc-700 bg-zinc-900 p-6 text-zinc-100 shadow-lg backdrop:bg-zinc-950/80"
+	>
+		<h2 class="text-2xl font-bold">¿Salir del modo carretera?</h2>
+		{#if data.recordTrips}
+			<p class="mt-2 text-lg text-zinc-400">Se deja de guardar el viaje.</p>
+		{/if}
+		<div class="mt-5 grid grid-cols-2 gap-3">
+			<button class="{big} h-20 text-2xl font-semibold" onclick={() => exitDialog?.close()}
+				>Seguir</button
+			>
+			<button
+				class="flex h-20 items-center justify-center rounded-2xl bg-red-700 text-2xl font-semibold text-white active:scale-95 active:bg-red-800"
+				onclick={exit}>Salir</button
+			>
+		</div>
+		{#if exitOpen}
+			<div
+				class="exit-countdown mt-5 h-1.5 rounded-full bg-amber-400"
+				style:animation-duration="{EXIT_ASK_MS}ms"
+			></div>
+		{/if}
+	</dialog>
+
+	<!-- The sound plays through MusicBar's <audio>; its bar is for the rest of the app. -->
+	<div class="hidden"><MusicBar /></div>
 </div>
 
-<!-- Fuel (#194): over everything, as the photo just taken. -->
-{#if fueling}
-	<FuelSheet
-		position={here}
-		onclose={() => (fueling = false)}
-		urls={{ read: '/gastos/leer', save: '/api/gastos/gasolina' }}
-	/>
-{/if}
-
-{#if roadPhotos.last}
-	<!-- The photo just taken, for a moment: whether it came out well, and whether it was kept. -->
-	<figure
-		class="fixed right-4 bottom-4 z-40 w-72 overflow-hidden rounded-2xl border-2 border-white/20 bg-zinc-900 shadow-2xl"
-		aria-live="polite"
-	>
-		<img
-			src={roadPhotos.last.url}
-			alt="La foto que acabas de hacer"
-			class="aspect-video w-full object-cover"
-		/>
-		<figcaption
-			class={[
-				'px-3 py-2 text-lg font-semibold',
-				roadPhotos.last.state === 'saved'
-					? 'bg-emerald-600 text-white'
-					: roadPhotos.last.state === 'waiting'
-						? 'bg-amber-600 text-white'
-						: 'text-zinc-300'
-			]}
-		>
-			{roadPhotos.last.state === 'saved'
-				? '✓ Foto guardada'
-				: roadPhotos.last.state === 'waiting'
-					? 'Sin cobertura: se guardará al volver'
-					: 'Guardando…'}
-		</figcaption>
-	</figure>
-{/if}
-
-<!-- Leaving, asked (see beforeNavigate): big, for a glance; «Seguir» first, and by itself. -->
-<dialog
-	bind:this={exitDialog}
-	closedby="any"
-	onclose={() => {
-		clearTimeout(exitTimer);
-		exitOpen = false;
-	}}
-	class="m-auto w-md max-w-[calc(100vw-2rem)] rounded-3xl border border-zinc-700 bg-zinc-900 p-6 text-zinc-100 shadow-lg backdrop:bg-zinc-950/80"
->
-	<h2 class="text-2xl font-bold">¿Salir del modo carretera?</h2>
-	{#if data.recordTrips}
-		<p class="mt-2 text-lg text-zinc-400">Se deja de guardar el viaje.</p>
-	{/if}
-	<div class="mt-5 grid grid-cols-2 gap-3">
-		<button class="{big} h-20 text-2xl font-semibold" onclick={() => exitDialog?.close()}
-			>Seguir</button
-		>
-		<button
-			class="flex h-20 items-center justify-center rounded-2xl bg-red-700 text-2xl font-semibold text-white active:scale-95 active:bg-red-800"
-			onclick={exit}>Salir</button
-		>
-	</div>
-	{#if exitOpen}
-		<div
-			class="exit-countdown mt-5 h-1.5 rounded-full bg-amber-400"
-			style:animation-duration="{EXIT_ASK_MS}ms"
-		></div>
-	{/if}
-</dialog>
-
-<!-- The sound plays through MusicBar's <audio>; its bar is for the rest of the app. -->
-<div class="hidden"><MusicBar /></div>
-
 <style>
+	/*
+	 * By day (#sol): what is near black turns white and the other way round, and the colours of the
+	 * notices darken, so the same classes read in the sun. Tailwind's own values
+	 * (tailwindcss/theme.css); black and white stay, for the letters on amber and on green or red.
+	 */
+	.sol {
+		color-scheme: light;
+		font-weight: 500;
+		--color-zinc-950: #fff;
+		--color-zinc-900: oklch(92% 0.004 286.32);
+		--color-zinc-800: oklch(87.1% 0.006 286.286);
+		--color-zinc-700: oklch(70.5% 0.015 286.067);
+		--color-zinc-600: oklch(55.2% 0.016 285.938);
+		--color-zinc-500: oklch(44.2% 0.017 285.786);
+		--color-zinc-400: oklch(37% 0.013 285.805);
+		--color-zinc-300: oklch(27.4% 0.006 286.033);
+		--color-zinc-200: oklch(21% 0.006 285.885);
+		--color-zinc-100: #000;
+		--color-zinc-50: #000;
+		--color-amber-200: oklch(41.4% 0.112 45.904);
+		--color-amber-300: oklch(47.3% 0.137 46.201);
+		--color-amber-400: oklch(55.5% 0.163 48.998);
+		--color-amber-950: oklch(96.2% 0.059 95.617);
+		--color-red-200: oklch(39.6% 0.141 25.723);
+		--color-red-300: oklch(44.4% 0.177 26.899);
+		--color-red-400: oklch(50.5% 0.213 27.518);
+		--color-red-950: oklch(93.6% 0.032 17.717);
+		--color-emerald-300: oklch(43.2% 0.095 166.913);
+		--color-emerald-400: oklch(50.8% 0.118 165.612);
+		--color-sky-400: oklch(50% 0.134 242.749);
+	}
+
 	/* «Seguir» by itself when it runs out. */
 	.exit-countdown {
 		animation-name: exit-countdown;
