@@ -13,6 +13,7 @@ const request = {
 	car: false,
 	position: null,
 	navigation: null,
+	trip: null,
 	ahead: null
 };
 

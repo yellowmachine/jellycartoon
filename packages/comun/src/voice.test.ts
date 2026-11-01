@@ -12,10 +12,13 @@ describe('parseVoiceRequest', () => {
 			text: '¿Dónde estoy?',
 			car: true,
 			position: [-4.02, 39.86],
-			navigation: 'a Zocodover, quedan 2 km'
+			navigation: 'a Zocodover, quedan 2 km',
+			trip: 'llevas 142 km y 1 h 40 min conduciendo'
 		});
 		expect(car?.position).toEqual([-4.02, 39.86]);
 		expect(car?.navigation).toBe('a Zocodover, quedan 2 km');
+		expect(car?.trip).toBe('llevas 142 km y 1 h 40 min conduciendo');
+		expect(parseVoiceRequest({ text: 'x', trip: 'llevas 3 km' })?.trip).toBeNull();
 		const ahead = (value: unknown, isCar = true) =>
 			parseVoiceRequest({ text: 'x', car: isCar, ahead: value })?.ahead;
 		expect(
@@ -72,6 +75,7 @@ describe('parseVoiceRequest', () => {
 			car: false,
 			position: null,
 			navigation: null,
+			trip: null,
 			ahead: null
 		});
 	});
@@ -88,6 +92,7 @@ describe('parseVoiceRequest', () => {
 			car: false,
 			position: null,
 			navigation: null,
+			trip: null,
 			ahead: null
 		});
 	});

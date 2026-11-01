@@ -220,6 +220,7 @@ class VoiceClient {
 				car: false,
 				position: null,
 				navigation: null,
+				trip: null,
 				ahead: null
 			})
 		}).catch(() => null);

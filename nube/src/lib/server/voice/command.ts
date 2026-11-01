@@ -2012,7 +2012,10 @@ export async function runVoiceCommand(
 							{
 								type: 'text' as const,
 								text: `[Ruta: ${request.navigation ?? 'ninguna'}.]`
-							}
+							},
+							...(request.trip
+								? [{ type: 'text' as const, text: `[Viaje hasta ahora: ${request.trip}.]` }]
+								: [])
 						]
 					: []),
 				...(note ? [{ type: 'text' as const, text: note }] : []),
