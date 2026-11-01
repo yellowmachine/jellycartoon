@@ -14,6 +14,8 @@
 		label?: string;
 		/** The menu's width: wide for long rows, e.g. `w-max min-w-40` for short ones. */
 		width?: string;
+		/** Instead of the round button's look, e.g. a button with text (`icon` gives the text). */
+		buttonClass?: string;
 	}
 
 	let {
@@ -22,7 +24,8 @@
 		plain = false,
 		icon,
 		label = 'Más acciones',
-		width = 'w-64'
+		width = 'w-64',
+		buttonClass
 	}: Props = $props();
 
 	let menu = $state<HTMLElement>();
@@ -32,7 +35,7 @@
 <!-- Native popover: closes with Esc or a click outside, positioned next to its button. -->
 <!-- Big enough for a finger and visible on the dark background. -->
 <button
-	class={[
+	class={buttonClass ?? [
 		'flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-zinc-200 hover:text-white',
 		!plain && 'bg-zinc-800 hover:bg-zinc-700'
 	]}
@@ -66,9 +69,15 @@
 </div>
 
 <style>
-	/* Below the button, aligned to its right edge; above it if there is no room underneath. */
+	/*
+	 * Below the button, aligned to its right edge; above it if there is no room underneath, and
+	 * from its left edge if there is none on the left (a text button near the screen's edge).
+	 */
 	.action-menu {
 		position-area: bottom span-left;
-		position-try-fallbacks: flip-block;
+		position-try-fallbacks:
+			flip-block,
+			flip-inline,
+			flip-block flip-inline;
 	}
 </style>

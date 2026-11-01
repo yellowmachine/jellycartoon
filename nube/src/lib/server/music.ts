@@ -1,5 +1,5 @@
 import type { DjOptions, DjPreset, MusicAlbum, MusicTrack } from 'comun/music.ts';
-import { askHouse } from './house.ts';
+import { askHouse, HouseProblem } from './house.ts';
 
 /**
  * The house's music, for Música and the road mode (#253): asked of its API with the family's house
@@ -105,6 +105,22 @@ export const changePlaylist = (who: Who, id: number, change: PlaylistChange) =>
 		method: 'POST',
 		body: JSON.stringify(change)
 	});
+
+/**
+ * Several at the end, in this order (a whole album): at once; a house from before that does not
+ * know `addMany` (400), one by one.
+ */
+export async function addManyToPlaylist(who: Who, id: number, trackIds: number[]) {
+	try {
+		await askHouse(who.id, who.email, `/musica/listas/${id}`, {
+			method: 'POST',
+			body: JSON.stringify({ action: 'addMany', trackIds })
+		});
+	} catch (err) {
+		if (!(err instanceof HouseProblem && err.status === 400)) throw err;
+		for (const trackId of trackIds) await changePlaylist(who, id, { action: 'add', trackId });
+	}
+}
 
 export const deletePlaylist = (who: Who, id: number) =>
 	askHouse(who.id, who.email, `/musica/listas/${id}`, { method: 'DELETE' });

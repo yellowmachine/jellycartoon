@@ -2,12 +2,14 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { cloudViewer } from '#lib/server/media-api.ts';
 import {
+	addManyToPlaylist,
 	addToPlaylist,
 	deletePlaylist,
 	getPlaylist,
 	moveInPlaylist,
 	removeFromPlaylist,
-	renamePlaylist
+	renamePlaylist,
+	trackIdsOf
 } from '#lib/server/music/playlists.ts';
 
 /** The music API (#253): a playlist and its tracks, in order; `items`, with each one's place. */
@@ -27,7 +29,8 @@ export const GET: RequestHandler = async ({ request, params }) => {
 
 /**
  * Changed from the cloud's Música, as from the house's: `{ action }`, `rename` (`name`), `add`
- * (`trackId`), `remove`, `up` or `down` (`itemId`).
+ * (`trackId`), `addMany` (`trackIds`, in that order: a whole album), `remove`, `up` or `down`
+ * (`itemId`).
  */
 export const POST: RequestHandler = async ({ request, params }) => {
 	await cloudViewer(request);
@@ -44,6 +47,12 @@ export const POST: RequestHandler = async ({ request, params }) => {
 			if (!Number.isInteger(body.trackId)) error(400, 'Canción no válida');
 			await addToPlaylist(id, body.trackId).catch(() => error(404, 'Esa lista ya no existe'));
 			break;
+		case 'addMany': {
+			const ids = trackIdsOf(body.trackIds);
+			if (!ids?.length) error(400, 'Canción no válida');
+			await addManyToPlaylist(id, ids).catch(() => error(404, 'Esa lista ya no existe'));
+			break;
+		}
 		case 'remove':
 		case 'up':
 		case 'down': {

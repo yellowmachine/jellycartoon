@@ -1,15 +1,15 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { HouseProblem } from '#lib/server/house.ts';
-import { changePlaylist, createPlaylist } from '#lib/server/music.ts';
+import { addManyToPlaylist, changePlaylist, createPlaylist } from '#lib/server/music.ts';
 
 /** At most this many at once, as the house takes them. */
 const MAX_TRACKS = 2000;
 
 /**
  * From the «+» of any track (comun's AddToPlaylist), as at home: into one of the house's
- * playlists, or into a new one (`name`). With `trackIds` and a `name`, a new one with all of them
- * in that order: the queue saved as a list (comun's MusicBar).
+ * playlists, or into a new one (`name`). With `trackIds`, all of them in that order: the queue
+ * saved as a new list (comun's MusicBar), or a whole album into any list.
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const who = { id: locals.user!.id, email: locals.user!.email };
@@ -26,8 +26,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			const id = await createPlaylist(who, name.trim().slice(0, 100), many ? trackIds : [trackId]);
 			return json({ playlistId: id });
 		}
-		if (many || !Number.isInteger(playlistId)) error(400, 'Lista no válida');
-		await changePlaylist(who, playlistId, { action: 'add', trackId });
+		if (!Number.isInteger(playlistId)) error(400, 'Lista no válida');
+		if (many) await addManyToPlaylist(who, playlistId, trackIds);
+		else await changePlaylist(who, playlistId, { action: 'add', trackId });
 		return json({ playlistId });
 	} catch (err) {
 		if (err instanceof HouseProblem) error(502, err.message);
