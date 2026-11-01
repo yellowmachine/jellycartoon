@@ -279,7 +279,7 @@
 
 	// As loud as the music, at the volume chosen.
 	$effect(() => {
-		if (voice) voice.volume = music.muted ? 0 : music.volume;
+		if (voice) voice.volume = music.chosenVolume;
 	});
 
 	// Something else on («siguiente», another album, ✕): the DJ stops talking.

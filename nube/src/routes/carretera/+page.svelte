@@ -833,6 +833,33 @@
 		}
 	}
 
+	/**
+	 * The music's own volume in the car, under the voice's: the tablet (or the car) goes loud for
+	 * the voice, the music lower; kept in this browser. Leaving the road mode, the usual one.
+	 */
+	const CAR_VOLUME_KEY = 'carretera-musica';
+	const CAR_VOLUME_STEP = 0.1;
+	let carVolume = $state(0.6);
+	$effect(() => {
+		try {
+			const saved = Number(localStorage.getItem(CAR_VOLUME_KEY));
+			if (localStorage.getItem(CAR_VOLUME_KEY) !== null && saved >= 0 && saved <= 1)
+				carVolume = saved;
+		} catch {
+			// Private windows: 60 %.
+		}
+		return () => music.setCarVolume(null);
+	});
+	$effect(() => music.setCarVolume(carVolume));
+	function changeCarVolume(by: number) {
+		carVolume = Math.round(Math.min(1, Math.max(0, carVolume + by)) * 10) / 10;
+		try {
+			localStorage.setItem(CAR_VOLUME_KEY, String(carVolume));
+		} catch {
+			// Same.
+		}
+	}
+
 	/** Each position from the GPS: where we are, how fast, and the time driving for one's pace. */
 	function positioned(at: LngLat, metresPerSecond: number | null) {
 		pace.tick(Date.now(), metresPerSecond);
@@ -1346,6 +1373,27 @@ home. -->
 										onclick={() => music.next()}><MediaIcon name="next" class="h-9 w-9" /></button
 									>
 								{/if}
+							</div>
+							<!-- The music's volume, here only: the tablet's buttons, loud, are for the voice. -->
+							<div class="mt-3 flex items-center justify-center gap-3 short:mt-2">
+								<button
+									class="{big} h-14 w-14 text-3xl short:h-12 short:w-12"
+									aria-label="Música más baja"
+									disabled={carVolume <= 0}
+									onclick={() => changeCarVolume(-CAR_VOLUME_STEP)}>−</button
+								>
+								<span
+									class="w-36 text-center text-lg text-zinc-300"
+									title="La música, aquí; la voz, con los botones de la tablet"
+								>
+									Música {Math.round(carVolume * 100)} %</span
+								>
+								<button
+									class="{big} h-14 w-14 text-3xl short:h-12 short:w-12"
+									aria-label="Música más alta"
+									disabled={carVolume >= 1}
+									onclick={() => changeCarVolume(CAR_VOLUME_STEP)}>+</button
+								>
 							</div>
 						{/if}
 					</section>

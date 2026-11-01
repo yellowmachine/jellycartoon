@@ -6,6 +6,11 @@ import { watchPlay } from './media-diagnostics.ts';
 
 /** The volume under spoken directions. */
 const DUCKED_VOLUME = 0.25;
+/**
+ * In the car, lower: the tablet's own voice cannot go over its buttons' volume, and the road's
+ * noise hides it.
+ */
+const CAR_DUCKED_VOLUME = 0.1;
 /** This browser's volume, from the bar on a PC (phones and tablets have their buttons). */
 const VOLUME_KEY = 'jellycartoon:volume';
 
@@ -64,6 +69,11 @@ class MusicPlayer {
 	/** From 0 to 1, as the PC's slider leaves it; kept in this browser. */
 	volume = $state(1);
 	muted = $state(false);
+	/**
+	 * In the road mode, its own music volume (from 0 to 1), under the voice's: the tablet goes loud,
+	 * for the voice, and the music lower. Null elsewhere.
+	 */
+	carVolume = $state<number | null>(null);
 
 	/** Paused while the user speaks to the voice assistant and it answers: it plays again after. */
 	#pausedByVoice = false;
@@ -106,9 +116,21 @@ class MusicPlayer {
 		this.#saveVolume();
 	}
 
+	/** The volume chosen here: the car's, in the road mode. */
+	get chosenVolume() {
+		return this.muted ? 0 : (this.carVolume ?? this.volume);
+	}
+
+	/** In the road mode (its volume) or out of it (null). */
+	setCarVolume(volume: number | null) {
+		this.carVolume = volume === null ? null : Math.min(1, Math.max(0, volume));
+		this.#applyVolume();
+	}
+
 	/** What the `<audio>` should sound at: the volume chosen, lower while something speaks. */
 	get #targetVolume() {
-		return this.muted ? 0 : this.volume * (this.#duckedBy.size ? DUCKED_VOLUME : 1);
+		const ducked = this.carVolume === null ? DUCKED_VOLUME : CAR_DUCKED_VOLUME;
+		return this.chosenVolume * (this.#duckedBy.size ? ducked : 1);
 	}
 
 	/** At once, or in `fadeMs` (the DJ coming in and going): never a jump from one song to another. */
