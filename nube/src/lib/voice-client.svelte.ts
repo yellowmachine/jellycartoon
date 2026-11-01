@@ -1,6 +1,11 @@
 import { music } from 'comun/music-player.svelte.ts';
 import { musicTarget } from 'comun/music-target.svelte.ts';
 import type { LngLat, Place } from 'comun/road.ts';
+import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
+import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
+import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
+import { recipe } from '#lib/recipe.svelte.ts';
+import { timers } from '#lib/timers.svelte.ts';
 import {
 	assistantTurn,
 	HISTORY_IDLE_MS,
@@ -18,7 +23,8 @@ import {
  * without it by OpenRouter (/api/voz/oir), and done by the family's AI, with the house's hands if
  * it has one (/api/voz/orden); the answer
  * is shown and read aloud with the device's own voice. Also «Alexa» in the road mode
- * (wake-word.svelte.ts). No timers, kitchen or videos.
+ * (wake-word.svelte.ts). The kitchen (#60) too: with its mode on, this browser's timers (also
+ * prepared ones) and the recipe being cooked, as at home. No videos.
  */
 
 /**
@@ -194,6 +200,8 @@ class VoiceClient {
 		this.reply = null;
 		this.options = [];
 		this.heard = text;
+		// Typed or tapped: that touch lets a timer set now ring later.
+		timers.unlockSound();
 		if (Date.now() - this.#historyAt > HISTORY_IDLE_MS) this.#history = [];
 		const res = await fetch('/api/voz/orden', {
 			method: 'POST',
@@ -203,8 +211,11 @@ class VoiceClient {
 				here: playingHere(),
 				video: null,
 				history: this.#history,
-				timers: [],
-				recipe: null,
+				// The kitchen's (#60), not in the road mode: there, the person's, on their phone.
+				timers: this.road ? [] : timers.describe(),
+				recipe: this.road ? null : recipe.describe(),
+				// Its timers still on after turning it off are the browser's too.
+				kitchen: !this.road && (kitchenMode.on || timers.any || recipe.current !== null),
 				film: null,
 				// In the road mode's page; elsewhere, Hablar or the bar's microphone.
 				car: this.road !== null,
@@ -222,6 +233,7 @@ class VoiceClient {
 		if (body.actions.some((a) => ['play', 'radio', 'control'].includes(a.kind)))
 			music.forgetPause();
 		for (const action of body.actions) await act(action);
+		kitchenLog.add(text, body.reply);
 		this.reply = body.reply;
 		this.options = body.options;
 		this.#history = [
@@ -263,8 +275,13 @@ class VoiceClient {
 	}
 }
 
-/** About to listen: what plays here pauses. */
+/**
+ * About to listen: a timer ringing stops (and what it paused plays again, to pause it now for the
+ * voice), and what plays here pauses. A press also lets the timers about to be set ring later.
+ */
 function pauseForVoice() {
+	timers.silence();
+	timers.unlockSound();
 	music.pauseForVoice();
 }
 
@@ -321,7 +338,26 @@ async function act(action: VoiceAction) {
 			return music[action.action]();
 		case 'stopIn':
 			return music.stopIn(action.minutes);
-		// Not here yet: the timers, the kitchen, videos.
+		case 'timer':
+			return timers.start(action.label, action.seconds);
+		case 'prepareTimer':
+			return timers.prepare(action.label, action.seconds, action.trigger);
+		case 'cancelTimer':
+			return void timers.cancel(action.label);
+		case 'kitchenMode':
+			// Turned on from another page (something playing): the kitchen opens over it.
+			if (action.on) kitchenPanel.show();
+			return kitchenMode.set(action.on);
+		case 'recipe':
+			recipe.start(action.recipe, action.step);
+			// Cooking: the screen stays on, to see the steps, over the page that is on.
+			kitchenPanel.show();
+			return kitchenMode.set(true);
+		case 'recipeStep':
+			return recipe.go(action.step);
+		case 'endRecipe':
+			return recipe.end();
+		// Not here yet: videos.
 	}
 }
 

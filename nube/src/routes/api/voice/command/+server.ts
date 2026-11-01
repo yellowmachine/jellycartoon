@@ -14,7 +14,7 @@ import {
 	snapserverOf
 } from '#lib/server/satellites.ts';
 import { voiceAnswered, voiceFailed } from '#lib/server/voice/alarm.ts';
-import { putOn, runVoiceCommand } from '#lib/server/voice/command.ts';
+import { KITCHEN_TOOLS, putOn, runVoiceCommand } from '#lib/server/voice/command.ts';
 import { inQuietHours } from '#lib/server/voice/quiet-check.ts';
 import { voiceSettings } from '#lib/server/voice/settings.ts';
 import {
@@ -26,13 +26,7 @@ import {
 /** What a satellite cannot do: it has no screen, no kitchen, and «cuando hierva» needs one. */
 const NOT_HERE = [
 	'prepare_timer',
-	'kitchen_mode',
-	'start_recipe',
-	'cook_saved_recipe',
-	'search_recipe_sites',
-	'cook_from_web',
-	'recipe_step',
-	'end_recipe',
+	...KITCHEN_TOOLS,
 	'search_video',
 	'series_episodes',
 	'play_video',

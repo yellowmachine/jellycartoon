@@ -1,5 +1,5 @@
 /**
- * The hint over the microphone in /voz and the kitchen panel («Mantén pulsado y habla»): closed
+ * The hint over the microphone in /voz («Mantén pulsado y habla»): closed
  * with its ×, it stays closed on this device. In the browser, like the microphone's mode.
  */
 

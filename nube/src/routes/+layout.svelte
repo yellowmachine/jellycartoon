@@ -12,6 +12,11 @@
 	import MusicBar from 'comun/components/MusicBar.svelte';
 	import AiSpendLine from 'comun/components/AiSpendLine.svelte';
 	import VoiceBubble from '#lib/components/VoiceBubble.svelte';
+	import VoicePanel from '#lib/components/VoicePanel.svelte';
+	import TimerBar from '#lib/components/TimerBar.svelte';
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
+	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
+	import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { navLinks } from '#lib/nav.ts';
@@ -33,6 +38,12 @@
 	/** The user's initial, for their round badge (accents and all: «Á» for «Álvaro»). */
 	const initial = $derived([...(data.user?.name.trim() ?? '')][0]?.toLocaleUpperCase('es') ?? '?');
 	let headerHeight = $state(0);
+	/** The voice is the grown-ups' (#303), and with it the kitchen (#60). */
+	const voiceOn = $derived(Boolean(data.user && data.family && !data.family.kid));
+	/** The kitchen panel (#60): over any page but Hablar, which is the same thing. */
+	const panelShown = $derived(
+		voiceOn && kitchenMode.on && kitchenPanel.open && page.url.pathname !== '/voz'
+	);
 
 	// A device that keeps routes' maps (#164) and music (#350): what it was ordered from any other,
 	// done now. The maps first: they say whether the device was forgotten.
@@ -138,7 +149,14 @@
 	});
 </script>
 
-<svelte:window onkeydown={voiceKeyDown} onkeyup={voiceKeyUp} onblur={() => voiceKeyUp()} />
+<svelte:window
+	onkeydown={(e) => {
+		voiceKeyDown(e);
+		if (e.key === 'Escape' && panelShown) kitchenPanel.hide();
+	}}
+	onkeyup={voiceKeyUp}
+	onblur={() => voiceKeyUp()}
+/>
 
 <svelte:head>
 	<title>Seilide</title>
@@ -154,7 +172,9 @@ trip's link (#81), for whoever has it. -->
 {#if page.url.pathname === '/carretera' || page.url.pathname.startsWith('/s/')}
 	{@render children()}
 {:else}
-	<div style:--header-h="{headerHeight}px">
+	<!-- With the kitchen panel at its side (wide screens) or under it (narrow: a phone, or split
+	     screen), the page takes the rest: what plays in it goes on. -->
+	<div class={[panelShown && 'pb-[55dvh] md:pr-[42%] md:pb-0']} style:--header-h="{headerHeight}px">
 		{#if data.user}
 			<SiteNav
 				bind:headerHeight
@@ -216,6 +236,33 @@ trip's link (#81), for whoever has it. -->
 								/>
 							</svg>
 						</a>
+						<!-- Kitchen mode (#60), one tap away: on, and its kitchen over the page; on, the kitchen
+						     opened or closed (the bar's × turns it off). In Hablar, which is the kitchen, on or off. -->
+						<button
+							title={page.url.pathname === '/voz'
+								? kitchenMode.on
+									? 'Quitar el modo cocina'
+									: 'Modo cocina: la pantalla no se apaga'
+								: !kitchenMode.on
+									? 'Modo cocina: la pantalla no se apaga'
+									: kitchenPanel.open
+										? 'Cerrar la cocina'
+										: 'Abrir la cocina'}
+							aria-label="Modo cocina"
+							aria-pressed={kitchenMode.on}
+							class={[
+								'shrink-0 rounded-md p-1 hover:bg-zinc-800 hover:text-white',
+								kitchenMode.on ? 'text-amber-400' : 'text-zinc-400'
+							]}
+							onclick={() => {
+								if (page.url.pathname === '/voz') return kitchenMode.set(!kitchenMode.on);
+								if (kitchenMode.on) return kitchenPanel.toggle();
+								void kitchenMode.set(true);
+								kitchenPanel.show();
+							}}
+						>
+							<SectionIcon name="recetas" class="h-6 w-6" />
+						</button>
 						<!-- A receipt's photo for Gastos (#194), at once: on phones and tablets, with their camera; a
 					     PC has the button in Gastos. The photo is read there. As at home. -->
 						{#if data.receipts}
@@ -260,8 +307,12 @@ trip's link (#81), for whoever has it. -->
 				{#snippet below()}
 					<div class="mx-auto flex max-w-6xl flex-col gap-1 px-4 has-[>div]:pb-2">
 						<!-- What the header's microphone heard and answered; Hablar shows it big itself. -->
-						{#if page.url.pathname !== '/voz'}
+						{#if page.url.pathname !== '/voz' && !panelShown}
 							<VoiceBubble />
+						{/if}
+						<!-- The kitchen's timers (#60), counting down; the one that ended, big. -->
+						{#if voiceOn}
+							<TimerBar />
 						{/if}
 						<!-- The radio and the podcasts (#253), going on from page to page, as at home. -->
 						<MusicBar />
@@ -298,4 +349,24 @@ trip's link (#81), for whoever has it. -->
 			{/if}
 		</main>
 	</div>
+
+	{#if panelShown}
+		<!-- Over the page, which stays as it is: what plays in it goes on. Its lower half on a narrow
+		     window (a phone, or split screen); a side on a tablet lying down or a computer. -->
+		<aside
+			class="fixed inset-x-0 bottom-0 z-30 h-[55dvh] overflow-y-auto border-t border-zinc-800 bg-zinc-950 md:top-0 md:left-auto md:h-auto md:w-[42%] md:border-t-0 md:border-l"
+			aria-label="Cocina"
+		>
+			<div
+				class="sticky top-0 z-10 flex items-center gap-3 border-b border-zinc-800 bg-zinc-950/95 px-4 py-2 backdrop-blur"
+			>
+				<span class="shrink-0 font-semibold text-amber-300">🍳 Cocina</span>
+				<button
+					class="ml-auto shrink-0 rounded-md px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800"
+					onclick={() => kitchenPanel.hide()}>Cerrar</button
+				>
+			</div>
+			<VoicePanel inPanel />
+		</aside>
+	{/if}
 {/if}

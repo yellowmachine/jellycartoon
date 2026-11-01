@@ -20,16 +20,6 @@
 		},
 		{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
 	],
-	"share_target": {
-		"action": "/compartido",
-		"method": "POST",
-		"enctype": "multipart/form-data",
-		"params": {
-			"title": "title",
-			"text": "text",
-			"url": "url"
-		}
-	},
 	"shortcuts": [
 		{ "name": "Hoy", "url": "/today" },
 		{ "name": "Cine", "url": "/cine" },

@@ -1,10 +1,6 @@
 import { goto } from '$app/navigation';
 import { page } from '$app/state';
 import { music } from 'comun/music-player.svelte.ts';
-import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
-import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
-import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
-import { recipe } from '#lib/recipe.svelte.ts';
 import { timers } from '#lib/timers.svelte.ts';
 import { musicTarget } from 'comun/music-target.svelte.ts';
 import { videoHere } from '#lib/video-here.svelte.ts';
@@ -214,7 +210,9 @@ class VoiceClient {
 				video: videoHere.position(),
 				history: this.#history,
 				timers: timers.describe(),
-				recipe: recipe.describe(),
+				// Cooking step by step, and its kitchen, are Seilide's (#60).
+				recipe: null,
+				kitchen: false,
 				film: filmOnScreen(),
 				// The road mode is the cloud's (#253): never here.
 				car: false,
@@ -238,7 +236,6 @@ class VoiceClient {
 		for (const action of body.actions) await act(action);
 		this.reply = body.reply;
 		this.options = body.options;
-		kitchenLog.add(text, body.reply);
 		this.#history = [
 			...this.#history,
 			{ role: 'user' as const, content: text },
@@ -402,23 +399,10 @@ async function act(action: VoiceAction) {
 			return musicTarget.playRadio(action.uuid, false);
 		case 'timer':
 			return timers.start(action.label, action.seconds);
-		case 'kitchenMode':
-			// Turned on from another page (the news playing): the kitchen opens over it.
-			if (action.on) kitchenPanel.show();
-			return kitchenMode.set(action.on);
 		case 'prepareTimer':
 			return timers.prepare(action.label, action.seconds, action.trigger);
 		case 'cancelTimer':
 			return void timers.cancel(action.label);
-		case 'recipe':
-			recipe.start(action.recipe, action.step);
-			// Cooking: the screen stays on, to see the steps, over the page that is on.
-			kitchenPanel.show();
-			return kitchenMode.set(true);
-		case 'recipeStep':
-			return recipe.go(action.step);
-		case 'endRecipe':
-			return recipe.end();
 		case 'handOver':
 			return videoHere.handOver();
 		case 'control':
@@ -428,6 +412,7 @@ async function act(action: VoiceAction) {
 			return music[action.action]();
 		case 'stopIn':
 			return music.stopIn(action.minutes);
+		// The kitchen (kitchenMode, recipe…) is Seilide's (#60): its brain does not offer it here.
 	}
 }
 

@@ -2,11 +2,10 @@
 	import { page } from '$app/state';
 
 	/**
-	 * Stations and podcasts, as tabs that are links (like Ajustes). Podcasts are not for children
-	 * yet. The podcasts are the cloud's (#253): at home, `podcasts` is their address there.
+	 * Seilide's stations and podcasts, as tabs that are links (like Ajustes). Podcasts are not for
+	 * children yet.
 	 */
-	let { podcasts = '/radio/podcasts' }: { podcasts?: string } = $props();
-
+	const podcasts = '/radio/podcasts';
 	const tabs = $derived([
 		{ href: '/radio', label: 'Emisoras' },
 		{ href: podcasts, label: 'Podcasts' }

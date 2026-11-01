@@ -1209,6 +1209,13 @@ interface Turn {
 	timersOf: string | null;
 	/** Said to one of Seilide's satellites (#296): its timers are kept here, at its place. */
 	timersAt: AlarmPlace | null;
+	/** Seilide's Hablar, not in the car: it can have the kitchen (#60). */
+	cookHere: boolean;
+	/**
+	 * Its kitchen mode is on (#60), or this order turned it on (a recipe, «modo cocina», a prepared
+	 * timer): its timers are the browser's, sent as actions (`deviceTimer`).
+	 */
+	kitchen: boolean;
 	apiKey: string;
 	settings: Awaited<ReturnType<typeof voiceSettings>>;
 	houseTools: Set<string>;
@@ -1228,6 +1235,17 @@ async function runTool(
 		const who = ctx.place ?? `user:${ctx.k.userId}`;
 		const wait = quietCheck(quiet, `${ctx.k.familyId}:${who}`, ctx.order.order, minuteNow());
 		if (wait) return wait;
+	}
+	if (ctx.cookHere && TIMER_TOOLS.has(name)) {
+		// Waiting for «ya hierve» is cooking: the kitchen comes on, and its timers with it.
+		if (name === 'prepare_timer' && !ctx.kitchen) {
+			ctx.outcome.actions.push({ kind: 'kitchenMode', on: true });
+			ctx.kitchen = true;
+		}
+		// «Avísame en casa» is still the house's, also from the kitchen; someone not among the
+		// family's people has no phone to be told on: theirs, the browser's too.
+		const inTheHouse = name === 'set_timer' && args.house === true && ctx.timersOf;
+		if ((ctx.kitchen || !ctx.timersOf) && !inTheHouse) return deviceTimer(name, args, ctx);
 	}
 	if (ctx.timersOf && (name === 'set_timer' || name === 'cancel_timer'))
 		return cloudTimer(name, args, ctx, ctx.timersOf);
@@ -1540,6 +1558,8 @@ async function runTool(
 		}
 		case 'kitchen_mode':
 			ctx.outcome.actions.push({ kind: 'kitchenMode', on: args.on !== false });
+			// The timers that follow in this order, where it now is.
+			if (ctx.cookHere) ctx.kitchen = args.on !== false;
 			return args.on !== false
 				? 'Modo cocina encendido: la pantalla no se apaga.'
 				: 'Modo cocina apagado.';
@@ -1553,6 +1573,8 @@ async function runTool(
 			if (typeof recipe === 'string') return recipe;
 			const step = Math.min(Math.max(Number(args.step) || 1, 1), recipe.steps.length);
 			ctx.outcome.actions.push({ kind: 'recipe', recipe, step: step - 1 });
+			// The device puts the kitchen on with it: its first step's timer, there.
+			if (ctx.cookHere) ctx.kitchen = true;
 			return `Receta «${recipe.title}» en marcha en el dispositivo, en el paso ${step} de ${recipe.steps.length}.`;
 		}
 		case 'cook_saved_recipe': {
@@ -1561,6 +1583,7 @@ async function runTool(
 			const recipe = parseRecipe(saved);
 			if (typeof recipe === 'string') return recipe;
 			ctx.outcome.actions.push({ kind: 'recipe', recipe, step: 0 });
+			if (ctx.cookHere) ctx.kitchen = true;
 			return [
 				`Receta «${recipe.title}» (de ${saved.sourceName}) en marcha en el dispositivo, en el paso 1 de ${recipe.steps.length}.`,
 				`Ingredientes: ${recipe.ingredients.join('; ') || 'no dichos'}.`,
@@ -1775,6 +1798,32 @@ async function cloudTimer(name: string, args: Record<string, unknown>, ctx: Turn
 	return `Temporizador «${timer}» de ${seconds} segundos puesto: ${place === 'casa' ? 'sonará en toda la casa y avisará en su móvil' : 'avisará en su móvil'}.`;
 }
 
+const TIMER_TOOLS = new Set(['set_timer', 'prepare_timer', 'cancel_timer']);
+
+/**
+ * The kitchen's (#60): in the browser it is said in, as actions, as jellycartoon's hands do for
+ * its devices (its hands.ts).
+ */
+function deviceTimer(name: string, args: Record<string, unknown>, ctx: Turn) {
+	if (name === 'cancel_timer') {
+		const label = typeof args.label === 'string' && args.label.trim() ? args.label.trim() : null;
+		ctx.outcome.actions.push({ kind: 'cancelTimer', label });
+		return label ? `Quitado el temporizador «${label}».` : 'Quitados todos los temporizadores.';
+	}
+	const minutes = Number(args.minutes);
+	if (!Number.isFinite(minutes) || minutes <= 0) return 'Falta cuántos minutos.';
+	const seconds = Math.round(Math.min(minutes * 60, MAX_TIMER_SEC));
+	const label = typeof args.label === 'string' ? args.label.trim().slice(0, 60) : '';
+	if (name === 'set_timer') {
+		ctx.outcome.actions.push({ kind: 'timer', label, seconds });
+		return `Temporizador${label ? ` «${label}»` : ''} de ${seconds} segundos puesto en el dispositivo.`;
+	}
+	const trigger = typeof args.trigger === 'string' ? args.trigger.trim().slice(0, 100) : '';
+	if (!trigger) return 'Falta cuándo tiene que arrancar.';
+	ctx.outcome.actions.push({ kind: 'prepareTimer', label, seconds, trigger });
+	return `Preparado${label ? ` «${label}»` : ''}: ${seconds} segundos cuando ${trigger}.`;
+}
+
 /** One of Seilide's satellites' (#296): at its place, for anyone in the room. */
 async function satelliteTimer(
 	name: string,
@@ -1827,12 +1876,11 @@ const ONLY_IN_THE_CAR = new Set([
 	'take_photo'
 ]);
 
-/** Nothing to see, cook or watch while driving: not even offered to the AI. */
-const NOT_IN_THE_CAR = new Set([
-	'search_video',
-	'series_episodes',
-	'play_video',
-	'send_clip',
+/**
+ * The kitchen (#60): its mode, and cooking step by step. Seilide's own, in its Hablar: neither in
+ * jellycartoon (whose orders come through /api/casa/voz) nor on a satellite, with no screen.
+ */
+export const KITCHEN_TOOLS = [
 	'kitchen_mode',
 	'start_recipe',
 	'cook_saved_recipe',
@@ -1840,6 +1888,16 @@ const NOT_IN_THE_CAR = new Set([
 	'cook_from_web',
 	'recipe_step',
 	'end_recipe'
+];
+
+/** Nothing to see, cook or watch while driving: not even offered to the AI. */
+const NOT_IN_THE_CAR = new Set([
+	'search_video',
+	'series_episodes',
+	'play_video',
+	'send_clip',
+	'prepare_timer',
+	...KITCHEN_TOOLS
 ]);
 
 /** As the AI would answer, for whoever asked: a satellite reads it aloud. */
@@ -1906,12 +1964,20 @@ export async function runVoiceCommand(
 		: null;
 	const timersOf = cloudTimers && !satellite ? me : null;
 	const timersAt = cloudTimers && satellite ? place : null;
-	// Said to the cloud by someone not among its people: no one to keep them for.
-	if (cloudTimers && !timersOf && !timersAt) without = [...without, 'set_timer', 'cancel_timer'];
-	if (!withHouse) without = [...without, ...ONLY_THE_HOUSE];
+	// Seilide's Hablar (#60): with its kitchen mode on, the browser's timers, as at home.
+	const cookHere = cloudTimers && !satellite && !request.car;
+	const kitchen = cookHere && request.kitchen;
+	// Said to the cloud by someone not among its people: no one to keep them for, but the kitchen.
+	if (cloudTimers && !timersOf && !timersAt && !cookHere)
+		without = [...without, 'set_timer', 'cancel_timer'];
+	if (!withHouse)
+		without = [
+			...without,
+			...ONLY_THE_HOUSE.filter((name) => !(cookHere && name === 'prepare_timer'))
+		];
 	const [alarmLines, timerLines] = await Promise.all([
 		describeAlarms(k, me, house.satellites),
-		timersOf ? describeTimersOf(k, timersOf) : request.timers
+		timersOf && !kitchen ? describeTimersOf(k, timersOf) : request.timers
 	]);
 	const timing: VoiceTiming = { prepareMs: Math.round(performance.now() - started), rounds: [] };
 	const outcome: Outcome = { actions: [], options: [], asked: null, done: 0, usedLearned: [] };
@@ -2000,7 +2066,7 @@ export async function runVoiceCommand(
 					type: 'text',
 					text: satellite
 						? `[Temporizadores y alarmas: ${[...house.timers, ...alarmLines].join('; ') || 'ninguno'}.]`
-						: `[Temporizadores ${timersOf ? 'suyos' : 'aquí'}: ${timerLines.length ? timerLines.join('; ') : 'ninguno'}.] [Alarmas (de la casa y suyas; suenan en toda la casa o en un satélite): ${alarmLines.length ? alarmLines.join('; ') : 'ninguna'}.]`
+						: `[Temporizadores ${timersOf && !kitchen ? 'suyos' : 'aquí'}: ${timerLines.length ? timerLines.join('; ') : 'ninguno'}.] [Alarmas (de la casa y suyas; suenan en toda la casa o en un satélite): ${alarmLines.length ? alarmLines.join('; ') : 'ninguna'}.]`
 				},
 				...(request.recipe
 					? [{ type: 'text' as const, text: `[Receta en marcha aquí:\n${request.recipe}]` }]
@@ -2068,6 +2134,8 @@ export async function runVoiceCommand(
 		place,
 		timersOf,
 		timersAt,
+		cookHere,
+		kitchen,
 		apiKey,
 		settings,
 		houseTools: new Set(house.tools.map((t) => t.function.name)),

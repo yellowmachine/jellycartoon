@@ -28,7 +28,7 @@ const WORD_KEY = 'jellycartoon:wake-word-model';
 const CLEAN_KEY = 'jellycartoon:wake-word-clean';
 /**
  * «Avanzado» (Ajustes): under the big microphone, the microphone's level, the word's score and its
- * threshold and cleaning, to try them where it is used (the kitchen, a video beside it).
+ * threshold and cleaning, to try them where it is used (music or a video beside it).
  */
 const ADVANCED_KEY = 'jellycartoon:wake-word-advanced';
 /** With «Avanzado»: cleaned also while the app plays here, to compare. */

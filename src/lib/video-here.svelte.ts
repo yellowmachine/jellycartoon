@@ -2,13 +2,13 @@
  * The video playing in this browser's player (an episode, or a channel live), for voice commands:
  * the microphone in the header pauses it while someone speaks (so Whisper does not hear the
  * episode) and tells the server what it is and where, so «manda los últimos 5 minutos a Langua»
- * ends right there. A kitchen timer that rings pauses it too, and the kitchen panel shows it.
+ * ends right there. A timer that rings pauses it too.
  */
 
 interface VideoHere {
 	/** Null for a channel live: no episode to send to Langua. */
 	episodeId: number | null;
-	/** «Friends · El de la boda», «La 1»: for the kitchen panel. */
+	/** «Friends · El de la boda», «La 1». */
 	title: string;
 	element: HTMLVideoElement;
 	/** It goes on elsewhere (Snapcast, #223): it stops, and no longer saves where it goes. */
@@ -17,7 +17,7 @@ interface VideoHere {
 
 class VideoHereState {
 	current = $state<VideoHere | null>(null);
-	/** As the <video> says: for the kitchen panel's button. */
+	/** As the <video> says: whether something sounds, for the wake word. */
 	playing = $state(false);
 	/** Paused by the microphone: played again once the answer has been read. */
 	#pausedByVoice = false;
@@ -46,7 +46,7 @@ class VideoHereState {
 		this.playing = false;
 	}
 
-	/** Tapped in the kitchen panel. */
+	/** The TV's remote (play/pause). */
 	toggle() {
 		const element = this.current?.element;
 		if (!element) return;

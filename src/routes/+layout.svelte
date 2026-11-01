@@ -10,12 +10,8 @@
 	import SiteNav, { type NavLink, type UserLink } from 'comun/components/SiteNav.svelte';
 	import VoiceBubble from '#lib/components/VoiceBubble.svelte';
 	import TimerBar from '#lib/components/TimerBar.svelte';
-	import VoicePanel from '#lib/components/VoicePanel.svelte';
-	import MediaIcon from 'comun/components/MediaIcon.svelte';
 	import OpeningQuote from '#lib/components/OpeningQuote.svelte';
 	import KidRequests from '#lib/components/KidRequests.svelte';
-	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
-	import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
 	import { videoHere } from '#lib/video-here.svelte.ts';
 	import { beforeNavigate, goto, invalidateAll } from '$app/navigation';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
@@ -92,8 +88,8 @@
 		...(data.music ? [{ href: '/musica', label: 'Música', icon: 'musica' as const }] : []),
 		{ href: '/radio', label: 'Radio', icon: 'radio' },
 		{ href: '/canales', label: 'Canales', icon: 'canales' },
-		// Recetas, Nevera, Agenda, Gastos and Viajes are the cloud's (#253), with nothing of them
-		// here: each one knows where they are, as the cloud's bar has nothing of the house.
+		// Recetas, Nevera, Agenda, Gastos, Viajes and the kitchen are Seilide's (#253): nothing of
+		// them here, not even a link, as Seilide's bar has nothing of the house.
 		...(data.salon ? [{ href: '/salon', label: 'Salón', icon: 'salon' as const }] : []),
 		// What was played (#176): the games themselves are played in the TV view.
 		...(data.games ? [{ href: '/juegos', label: 'Juegos', icon: 'juegos' as const }] : []),
@@ -221,17 +217,11 @@
 		e.preventDefault();
 		history.back();
 	}
-
-	/** The kitchen panel (#60): over any page but /voz, which is the same thing. */
-	const panelShown = $derived(
-		Boolean(data.voice) && kitchenMode.on && kitchenPanel.open && page.url.pathname !== '/voz'
-	);
 </script>
 
 <svelte:window
 	onkeydown={(e) => {
 		voiceKeyDown(e);
-		if (e.key === 'Escape' && panelShown) return kitchenPanel.hide();
 		back(e);
 	}}
 	onkeyup={voiceKeyUp}
@@ -284,10 +274,8 @@
 {#if page.url.pathname === '/tv' || page.url.pathname.startsWith('/tv/') || page.url.pathname === '/quien'}
 	{@render children()}
 {:else}
-	<!-- With the kitchen panel at its side (wide screens) or under it (narrow: a phone, or split
-	     screen), the page takes the rest: a video in it goes on being seen. -->
 	<!-- --header-h: how high the bar is on this screen, for what sticks under it (Ajustes, #178). -->
-	<div class={[panelShown && 'pb-[55dvh] md:pr-[42%] md:pb-0']} style:--header-h="{headerHeight}px">
+	<div style:--header-h="{headerHeight}px">
 		{#if data.user}
 			<SiteNav
 				bind:headerHeight
@@ -344,42 +332,15 @@
 								/>
 							</svg>
 						</a>
-						<!-- Kitchen mode (#60), one tap away: on, and its kitchen over the page; on, the kitchen
-						     opened or closed (the bar's × turns it off). In /voz, which is the kitchen, on or off. -->
-						<button
-							title={page.url.pathname === '/voz'
-								? kitchenMode.on
-									? 'Quitar el modo cocina'
-									: 'Modo cocina: la pantalla no se apaga'
-								: !kitchenMode.on
-									? 'Modo cocina: la pantalla no se apaga'
-									: kitchenPanel.open
-										? 'Cerrar la cocina'
-										: 'Abrir la cocina'}
-							aria-label="Modo cocina"
-							aria-pressed={kitchenMode.on}
-							class={[
-								'shrink-0 rounded-md p-1 hover:bg-zinc-800 hover:text-white',
-								kitchenMode.on ? 'text-amber-400' : 'text-zinc-400'
-							]}
-							onclick={() => {
-								if (page.url.pathname === '/voz') return kitchenMode.set(!kitchenMode.on);
-								if (kitchenMode.on) return kitchenPanel.toggle();
-								void kitchenMode.set(true);
-								kitchenPanel.show();
-							}}
-						>
-							<SectionIcon name="recetas" class="h-6 w-6" />
-						</button>
 					{/if}
 				{/snippet}
 				{#snippet below()}
 					<div class="mx-auto flex max-w-6xl flex-col gap-1 px-4 has-[>div]:pb-2">
 						<!-- What the header's microphone heard and answered; /voz shows it big itself. -->
-						{#if data.voice && page.url.pathname !== '/voz' && !panelShown}
+						{#if data.voice && page.url.pathname !== '/voz'}
 							<VoiceBubble />
 						{/if}
-						<!-- Kitchen timers set by voice, counting down; the one that ended, big. -->
+						<!-- Timers set by voice, counting down; the one that ended, big. -->
 						{#if data.voice}
 							<TimerBar />
 						{/if}
@@ -440,39 +401,4 @@
 			{@render children()}
 		</main>
 	</div>
-
-	{#if panelShown}
-		<!-- Over the page, which stays as it is: what plays in it goes on. Its lower half on a narrow
-		     window (a phone, or split screen); a side on a tablet lying down or a computer. -->
-		<aside
-			class="fixed inset-x-0 bottom-0 z-30 h-[55dvh] overflow-y-auto border-t border-zinc-800 bg-zinc-950 md:top-0 md:left-auto md:h-auto md:w-[42%] md:border-t-0 md:border-l"
-			aria-label="Cocina"
-		>
-			<div
-				class="sticky top-0 z-10 flex items-center gap-3 border-b border-zinc-800 bg-zinc-950/95 px-4 py-2 backdrop-blur"
-			>
-				<span class="shrink-0 font-semibold text-amber-300">🍳 Cocina</span>
-				{#if videoHere.current}
-					<!-- The video under it: paused or on with a tap, without going back to it. -->
-					<button
-						class="flex min-w-0 items-center gap-2 rounded-full bg-zinc-800 py-1 pr-3 pl-1 text-sm hover:bg-zinc-700"
-						aria-label="{videoHere.playing ? 'Pausar' : 'Seguir'}: {videoHere.current.title}"
-						onclick={() => videoHere.toggle()}
-					>
-						<span
-							class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500 text-zinc-950"
-							><MediaIcon name={videoHere.playing ? 'pause' : 'play'} class="h-4 w-4" /></span
-						>
-						<span class="truncate">{videoHere.current.title}</span>
-					</button>
-				{/if}
-				<button
-					class="ml-auto shrink-0 rounded-md px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800"
-					onclick={() => kitchenPanel.hide()}
-					>{videoHere.current ? 'Volver al vídeo' : 'Cerrar'}</button
-				>
-			</div>
-			<VoicePanel inPanel />
-		</aside>
-	{/if}
 {/if}

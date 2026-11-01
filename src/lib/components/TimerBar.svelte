@@ -1,25 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { page } from '$app/state';
-	import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
-	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
-	import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
-	import { recipe } from '#lib/recipe.svelte.ts';
 	import { formatLeft } from 'comun/timer-names.ts';
 	import { timers } from '#lib/timers.svelte.ts';
 
 	/**
-	 * The kitchen timers (#60), in the header: each counting down, with an × to take it away; one
-	 * that ended, big, with «Parar»; the prepared ones, waiting, after them.
+	 * The timers set by voice (#60), in the header: each counting down, with an × to take it away;
+	 * one that ended, big, with «Parar»; the prepared ones, waiting, after them.
 	 */
 
 	onMount(() => {
-		// Before the timers: one that ended while the page was closed moves the recipe on, and is
-		// written in the kitchen's session.
-		recipe.load();
-		kitchenLog.load();
-		// Kitchen mode before the timers too: whether what rings now is kept in its session.
-		kitchenMode.load();
 		timers.load();
 		// After a reload, sound needs a touch on the page first: any will do.
 		const unlock = () => timers.unlockSound();
@@ -43,53 +32,8 @@
 		>
 	</div>
 {/if}
-{#if timers.list.length || timers.prepared.length || kitchenMode.on || recipe.current}
+{#if timers.list.length || timers.prepared.length}
 	<div class="flex flex-wrap gap-2" aria-label="Temporizadores">
-		{#if recipe.current && page.url.pathname !== '/voz' && !kitchenMode.on}
-			<!-- The recipe being cooked: its step, big, is in /voz (with kitchen mode, in its panel). -->
-			<a
-				href="/voz"
-				class="flex items-center gap-2 rounded-full border border-amber-500/50 bg-amber-500/10 px-3 py-1 text-sm text-amber-300 hover:bg-amber-500/20"
-			>
-				<span class="max-w-48 truncate">🍳 {recipe.current.title}</span>
-				<span class="text-amber-300/70"
-					>paso {recipe.step + 1} de {recipe.current.steps.length}</span
-				>
-			</a>
-		{/if}
-		{#if kitchenMode.on}
-			<!-- On every page, to see it is on and turn it off; a tap opens or closes the kitchen over
-			     the page (#60), so a video there goes on. -->
-			<span
-				class="flex items-center gap-1 rounded-full border border-amber-500/50 bg-amber-500/10 py-1 pr-1 pl-1 text-sm text-amber-300"
-				title={kitchenMode.problem ?? 'La pantalla no se apaga'}
-			>
-				{#if page.url.pathname === '/voz'}
-					<span class="px-2"
-						>🍳 Modo cocina{kitchenMode.problem ? ' (sin pantalla encendida)' : ''}</span
-					>
-				{:else}
-					<button
-						class="flex min-w-0 items-center gap-2 rounded-full px-2 hover:bg-amber-500/20"
-						aria-expanded={kitchenPanel.open}
-						onclick={() => kitchenPanel.toggle()}
-					>
-						🍳 {kitchenPanel.open ? 'Cerrar la cocina' : 'Abrir la cocina'}
-						{#if recipe.current && !kitchenPanel.open}
-							<span class="max-w-40 truncate text-amber-300/70"
-								>· {recipe.current.title}, paso {recipe.step + 1} de {recipe.current.steps
-									.length}</span
-							>
-						{/if}
-					</button>
-				{/if}
-				<button
-					class="flex h-6 w-6 items-center justify-center rounded-full text-amber-300/70 hover:bg-zinc-800 hover:text-white"
-					aria-label="Quitar el modo cocina"
-					onclick={() => kitchenMode.set(false)}>×</button
-				>
-			</span>
-		{/if}
 		{#each timers.list.toSorted((a, b) => a.endsAt - b.endsAt) as timer (timer.id)}
 			<span
 				class="flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900 py-1 pr-1 pl-3 text-sm"
