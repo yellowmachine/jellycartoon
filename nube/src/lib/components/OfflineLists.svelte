@@ -15,9 +15,19 @@
 	 */
 	let {
 		lists,
-		view,
+		view: given,
 		problem
 	}: { lists: PlaylistSummary[]; view: OfflineListsView; problem: string | null } = $props();
+
+	/**
+	 * As the page gave it, or as asked again while a list goes down: from Seilide only, not the
+	 * whole page (each reload asked the house three times, and its key has a limit).
+	 */
+	let view = $derived(given);
+	async function refresh() {
+		const res = await fetch('/api/musica/sin-conexion').catch(() => null);
+		if (res?.ok) view = await res.json();
+	}
 
 	let mounted = $state(false);
 	let name = $state('');
@@ -39,7 +49,7 @@
 
 	onMount(() => {
 		mounted = true;
-		offlineMusic.onchange = () => void invalidateAll();
+		offlineMusic.onchange = () => void refresh();
 		return () => (offlineMusic.onchange = null);
 	});
 
@@ -50,7 +60,7 @@
 				(l.state === 'downloading' || l.state === 'pending') && l.deviceId !== routeMaps.device?.id
 		);
 		if (!away) return;
-		const timer = setInterval(() => void invalidateAll(), 5000);
+		const timer = setInterval(() => void refresh(), 5000);
 		return () => clearInterval(timer);
 	});
 

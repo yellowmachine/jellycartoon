@@ -5,7 +5,7 @@ import { eq, sql } from 'drizzle-orm';
 import { BETTER_AUTH_SECRET, MEDIA_HOST, ORIGIN } from '$app/env/private';
 import { auth } from '#lib/server/auth.ts';
 import { db } from '#lib/server/db/index.ts';
-import { user } from '#lib/server/db/auth.schema.ts';
+import { apikey, user } from '#lib/server/db/auth.schema.ts';
 import { episodeAllowed, isKid, KIDS_ROLE, seriesAllowed } from '#lib/server/kids.ts';
 import { videoAllowed } from '#lib/server/kid-time.ts';
 import {
@@ -52,7 +52,10 @@ const base = MEDIA_HOST ? `https://${MEDIA_HOST}` : ORIGIN;
 export async function fromCloud(request: Request) {
 	const key = request.headers.get(KEY_HEADER);
 	if (!key) error(401, 'Falta la clave');
-	const { valid, key: found } = await auth.api.verifyApiKey({ body: { key } });
+	const { valid, key: found, error: why } = await auth.api.verifyApiKey({ body: { key } });
+	// A key from before (freeCloudKeys) or a satellite's, over its limit: not a wrong key.
+	if (why?.code === 'RATE_LIMITED')
+		error(429, 'Demasiadas peticiones seguidas: prueba en un minuto');
 	if (!valid || !found || !isCloud(found.metadata)) error(401, 'Clave no válida');
 }
 
@@ -200,11 +203,41 @@ export async function listCloudKeys(headers: Headers) {
 		}));
 }
 
-/** A new one: the key, shown once. */
+/**
+ * A new one: the key, shown once. Without the api-key plugin's rate limit: the cloud asks for the
+ * whole family (music, series, voice, panels), and that limit only starts again after a minute
+ * without any request, so in steady use it never did (2026-11-01: «La casa no acepta la clave»
+ * while a list went down to the car's tablet). Made from the server, as only it may set that.
+ */
 export async function createCloudKey(name: string, headers: Headers) {
+	const session = await auth.api.getSession({ headers });
+	if (!session) error(401, 'Sin sesión');
 	const metadata: CloudMetadata = { cloud: true };
-	const created = await auth.api.createApiKey({ body: { name, metadata }, headers });
+	const created = await auth.api.createApiKey({
+		body: { name, metadata, userId: session.user.id, rateLimitEnabled: false }
+	});
 	return created.key;
+}
+
+/** The cloud's keys made before that, freed of the limit too: once, as the house starts. */
+export async function freeCloudKeys() {
+	const keys = await db
+		.select({ id: apikey.id, referenceId: apikey.referenceId, metadata: apikey.metadata })
+		.from(apikey)
+		.where(eq(apikey.rateLimitEnabled, true));
+	for (const k of keys) {
+		const metadata: unknown = (() => {
+			try {
+				return k.metadata ? JSON.parse(k.metadata) : null;
+			} catch {
+				return null;
+			}
+		})();
+		if (!isCloud(metadata)) continue;
+		await auth.api.updateApiKey({
+			body: { keyId: k.id, userId: k.referenceId, rateLimitEnabled: false }
+		});
+	}
 }
 
 export async function deleteCloudKey(id: string, headers: Headers) {
