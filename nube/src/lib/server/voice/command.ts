@@ -1,6 +1,7 @@
 import { STATIONS, COUNTRIES } from 'comun/radio.ts';
 import { parseRecipe } from 'comun/recipe.ts';
 import { distanceText, type LngLat, type Place } from 'comun/road.ts';
+import { durationText } from 'comun/road-eta.ts';
 import { isPoiKind, POI_KINDS, type FoundPlace } from 'comun/road/pois.ts';
 import { AHEAD_UP_TO_METRES } from 'comun/road-guide.ts';
 import { MAX_SNOOZE_MIN, SNOOZE_MIN, isAlarmPlace, type AlarmPlace } from 'comun/alarms.ts';
@@ -342,6 +343,27 @@ function tools(house: boolean, rooms: Room[], salon: boolean, clipMinutes: numbe
 				}
 			},
 			[]
+		),
+		fn(
+			'travel_time',
+			'Cuánto se tarda en coche y cuántos km hay hasta un sitio, por openrouteservice: «¿cuánto tardo a Murcia?», «¿cuántos km hay de aquí a Granada?», «¿a qué hora llego al restaurante El Extremeño, en Sangonera la Seca, si salgo a las 5?». Desde donde está (en el coche, su GPS; si no, la casa de la familia) o desde el sitio que diga. Solo contesta: no traza la ruta (para ir, en el coche, navigate_to). Nunca lo busques en internet.',
+			{
+				to: {
+					type: 'string',
+					description:
+						'Adónde, como se diría a un navegador, con el pueblo o la ciudad si lo dice: «El Extremeño, Sangonera la Seca, Murcia», «Granada». Uno de sus sitios guardados, tal cual lo dice: «casa de los abuelos».'
+				},
+				from: {
+					type: 'string',
+					description: 'Desde dónde, si lo dice («de Lorca a Murcia»). Vacío: desde donde está.'
+				},
+				leave_at: {
+					type: 'string',
+					description:
+						'A qué hora sale, HH:MM en 24 horas, si lo dice («si salgo a las 5» por la tarde: 17:00). Vacío: ahora.'
+				}
+			},
+			['to']
 		),
 		fn(
 			'where_am_i',
@@ -1068,6 +1090,7 @@ Otras preguntas (de cocina, de lo que sea): si no pide nada de la app, contesta 
 
 Viajes («¿tengo algún viaje?», «¿a qué hora salimos mañana?», «¿qué tiempo hará en el viaje?»): «planned_trips», sin preguntar, y contesta corto con lo que pregunta. Nunca digas que no sabes de un viaje sin mirarlo ahí.
 
+Cuánto se tarda o cuántos km hay en coche hasta un sitio («¿cuánto tardo a…?», «¿a qué hora llego…?»): «travel_time», sin preguntar y nunca en internet; también fuera del coche, desde la casa.
 El tiempo («¿qué tiempo hará mañana?», «¿llueve esta tarde?», «¿hace frío para salir?»): «get_weather», sin preguntar. Contesta corto, solo lo que pregunta: el cielo, las temperaturas y, si puede llover, la probabilidad. Nunca lo inventes.
 
 Temporizadores («avísame en 10 minutos», «pon un temporizador de 20 minutos para el horno»): «set_timer», sin preguntar. Con cada orden va la lista de los que hay en este dispositivo.
@@ -1428,6 +1451,8 @@ async function runTool(
 			ctx.outcome.actions.push({ kind: 'removeStop', name: stop });
 			return `${stop ? `Parada de ${stop} quitada` : 'Paradas quitadas'}; el destino sigue siendo el mismo: el mapa recalcula la ruta. Díselo corto.`;
 		}
+		case 'travel_time':
+			return travelTime(ctx, args);
 		case 'where_am_i': {
 			const position = ctx.order.request.position;
 			if (!position) return 'Todavía no se sabe dónde está: el GPS no ha dado la posición.';
@@ -1594,6 +1619,62 @@ function foundPlace(k: Kitchen, said: string): Place | null {
 	if (!kept || kept.until < Date.now()) return null;
 	const place = findByName(kept.places, said);
 	return place && { label: place.name, at: place.at };
+}
+
+/**
+ * «¿Cuánto tardo a…?» (`travel_time`), anywhere, not only in the car: by car, from where we are (the
+ * road mode's GPS, else the family's home, «Dónde vivís») or from where it says, to one of their
+ * saved places or a place searched near the start. What was found is said back, to tell whether it
+ * is the right one; no traffic (openrouteservice has none).
+ */
+async function travelTime(ctx: Turn, args: Record<string, unknown>): Promise<string> {
+	const said = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+	const to = said(args.to);
+	if (!to) return 'Falta adónde.';
+	const fromSaid = said(args.from);
+	const saved = await listSavedPlaces(ctx.k);
+	const savedPlace = (name: string) => {
+		const found = findByName(saved, name);
+		return found ? { label: found.name, at: found.at } : null;
+	};
+	try {
+		let from: { label: string; at: LngLat } | null = null;
+		if (fromSaid) {
+			from =
+				savedPlace(fromSaid) ?? (await searchPlace(ctx.k, fromSaid, ctx.order.request.position));
+			if (!from) return `No encuentro «${fromSaid}». Pídele que lo diga de otra forma.`;
+		} else if (ctx.order.request.position) {
+			from = { label: 'donde está ahora', at: ctx.order.request.position };
+		} else {
+			const home = await familyPlace(ctx.k);
+			if (home) from = { label: `casa (${home.name})`, at: [home.lon, home.lat] };
+		}
+		if (!from)
+			return 'No sé desde dónde: pregúntale desde qué pueblo o ciudad (la casa se pone en Ajustes → Familia, «Dónde vivís»).';
+		const place =
+			savedPlace(to) ?? foundPlace(ctx.k, to) ?? (await searchPlace(ctx.k, to, from.at));
+		if (!place)
+			return `No encuentro «${to}». Pídele que lo diga de otra forma (con el pueblo o la ciudad).`;
+		const route = await orsFor(ctx.k).drivingRoute([from.at, place.at]);
+		const leave = leaveAt(said(args.leave_at));
+		const arrive = new Date(leave.getTime() + route.duration * 1000);
+		const hhmm = (d: Date) =>
+			`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+		return `En coche desde ${from.label} hasta ${place.label}: ${durationText(route.duration)}, ${distanceText(route.distance)}, sin contar el tráfico; saliendo a las ${hhmm(leave)}, llega hacia las ${hhmm(arrive)}. Díselo corto: el tiempo y los km, y el sitio encontrado (nombre y pueblo) para que sepa si es ese; la hora de llegada solo si dijo cuándo sale o la pregunta.`;
+	} catch (err) {
+		return `No se pudo calcular: ${err instanceof Error ? err.message : String(err)}`;
+	}
+}
+
+/** «17:00» today (tomorrow, if it is already past), else now. */
+function leaveAt(said: string): Date {
+	const now = new Date();
+	const match = /^(\d{1,2}):(\d{2})$/.exec(said);
+	if (!match) return now;
+	const at = new Date(now);
+	at.setHours(Number(match[1]), Number(match[2]), 0, 0);
+	if (at.getTime() < now.getTime() - 60_000) at.setDate(at.getDate() + 1);
+	return at;
 }
 
 /** A place said, by openrouteservice: the nearest to where we are first, if it is known. */
