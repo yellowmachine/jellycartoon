@@ -105,7 +105,7 @@
 					<p class="text-lg text-amber-300" role="alert">{problem}</p>
 				{/if}
 				<button
-					class="{button} bg-amber-500 text-zinc-950"
+					class="{button} bg-amber-500 text-black"
 					disabled={saving || reading || !amount.trim()}>{saving ? 'Guardando…' : 'Guardar'}</button
 				>
 				{#if page.data.receipts && !read}

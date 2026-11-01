@@ -46,6 +46,12 @@
 				onclick={() => musicTarget.play(album.tracks, 0, false)}>▶︎ Reproducir</button
 			>
 			<AddToQueue tracks={album.tracks} toSnapcast={false} />
+			<AddToPlaylist
+				trackIds={album.tracks.map((t) => t.id)}
+				key="album"
+				playlists={data.playlists}
+				text="+ Añadir a una lista"
+			/>
 		</div>
 	</div>
 </div>

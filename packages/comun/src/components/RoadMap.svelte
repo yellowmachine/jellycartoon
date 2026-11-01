@@ -1,6 +1,6 @@
 <script lang="ts">
 	import 'maplibre-gl/dist/maplibre-gl.css';
-	import { untrack } from 'svelte';
+	import { untrack, type Snippet } from 'svelte';
 	import type { GeoJSONSource, Map as MapLibreMap, Marker } from 'maplibre-gl';
 	import { loadOurMap } from 'comun/our-map.ts';
 	import type { LngLat, Route } from 'comun/road.ts';
@@ -16,7 +16,9 @@
 		route = null,
 		destination = null,
 		stops = [],
-		onposition
+		onposition,
+		light = true,
+		corner
 	}: {
 		/** Drawn, and the map fitted to it when it is new (phase 3b). */
 		route?: Route | null;
@@ -25,6 +27,10 @@
 		stops?: { name: string; at: LngLat }[];
 		/** Each position the GPS gives, for the route to start from it; its speed in m/s, if known. */
 		onposition?: (at: LngLat, speed: number | null) => void;
+		/** Its style: light by day, dark at night not to dazzle; the road mode's light (sun.ts). */
+		light?: boolean;
+		/** Bottom left, over the map: the road mode's day/night button. */
+		corner?: Snippet;
 	} = $props();
 
 	/** Moving faster than this (m/s, ~11 km/h), the heading is the way we go; slower, it jumps. */
@@ -39,28 +45,6 @@
 	/** Each time a style is loaded (light or dark): the route is drawn on it again. */
 	let styleLoads = $state(0);
 
-	/**
-	 * Light by day; dark at night, not to dazzle. Remembered in this browser. The map's own style,
-	 * not the app's theme.
-	 */
-	const LIGHT_KEY = 'carretera-mapa-claro';
-	let light = $state(true);
-	$effect(() => {
-		try {
-			light = localStorage.getItem(LIGHT_KEY) !== 'no';
-		} catch {
-			// Private windows: light.
-		}
-	});
-	function setLight(value: boolean) {
-		light = value;
-		try {
-			if (value) localStorage.removeItem(LIGHT_KEY);
-			else localStorage.setItem(LIGHT_KEY, 'no');
-		} catch {
-			// Same.
-		}
-	}
 	/** Set once the map exists: its style, light or dark. */
 	let restyle: ((light: boolean) => void) | null = null;
 	let flag: Marker | null = null;
@@ -278,15 +262,12 @@
 			{problem}
 		</p>
 	{/if}
-	<button
-		class="absolute bottom-10 left-3 rounded-full bg-zinc-950/80 px-4 py-2 text-lg text-zinc-100 shadow-lg active:scale-95"
-		aria-pressed={!light}
-		title={light ? 'Mapa oscuro, para la noche' : 'Mapa claro'}
-		onclick={() => setLight(!light)}>{light ? '☾ Oscuro' : '☀ Claro'}</button
-	>
+	{#if corner}
+		<div class="absolute bottom-10 left-3">{@render corner()}</div>
+	{/if}
 	{#if !following && position}
 		<button
-			class="absolute bottom-10 left-1/2 -translate-x-1/2 rounded-full bg-amber-500 px-6 py-3 text-xl font-semibold text-zinc-950 shadow-xl active:scale-95"
+			class="absolute bottom-10 left-1/2 -translate-x-1/2 rounded-full bg-amber-500 px-6 py-3 text-xl font-semibold text-black shadow-xl active:scale-95"
 			onclick={recenter}>Recentrar</button
 		>
 	{/if}
