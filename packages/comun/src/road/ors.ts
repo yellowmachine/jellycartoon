@@ -74,9 +74,17 @@ export function createOrs(config: () => Promise<OrsConfig>, log: OrsLog) {
 		return body;
 	}
 
-	/** Up to five places for what was typed or said, the nearest to `near` first. */
-	async function searchPlaces(text: string, near: LngLat | null): Promise<Place[]> {
+	/**
+	 * Up to five places for what was typed or said, the nearest to `near` first; with `country`
+	 * (ISO alpha-2, «ES»), only there.
+	 */
+	async function searchPlaces(
+		text: string,
+		near: LngLat | null,
+		country?: string
+	): Promise<Place[]> {
 		const params = new URLSearchParams({ text, size: '5', lang: 'es' });
+		if (country) params.set('boundary.country', country);
 		if (near) {
 			params.set('focus.point.lon', String(near[0]));
 			params.set('focus.point.lat', String(near[1]));

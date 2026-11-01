@@ -2,6 +2,7 @@ import { STATIONS, COUNTRIES } from 'comun/radio.ts';
 import { parseRecipe } from 'comun/recipe.ts';
 import { distanceText, type LngLat, type Place } from 'comun/road.ts';
 import { durationText } from 'comun/road-eta.ts';
+import { inTown, splitPlace } from './travel.ts';
 import { isPoiKind, POI_KINDS, type FoundPlace } from 'comun/road/pois.ts';
 import { AHEAD_UP_TO_METRES } from 'comun/road-guide.ts';
 import { MAX_SNOOZE_MIN, SNOOZE_MIN, isAlarmPlace, type AlarmPlace } from 'comun/alarms.ts';
@@ -1652,8 +1653,26 @@ async function travelTime(ctx: Turn, args: Record<string, unknown>): Promise<str
 		}
 		if (!from)
 			return 'No sé desde dónde: pregúntale desde qué pueblo o ciudad (la casa se pone en Ajustes → Familia, «Dónde vivís»).';
-		const place =
-			savedPlace(to) ?? foundPlace(ctx.k, to) ?? (await searchPlace(ctx.k, to, from.at));
+		// Not near the start, as «llévame a…» in the car: where one asks the time to is seldom near,
+		// and near Vélez-Rubio «Sangonera la Seca» was a street of Lumbreras.
+		let place: { label: string; at: LngLat } | null = savedPlace(to) ?? foundPlace(ctx.k, to);
+		let note = '';
+		if (!place) {
+			const { what, town } = splitPlace(to);
+			// In Spain first: «Toledo» alone is first in Ohio.
+			const ors = orsFor(ctx.k);
+			const spain = await ors.searchPlaces(to, null, 'ES');
+			const results = spain.length ? spain : await ors.searchPlaces(to, null);
+			place = inTown(results, town);
+			// Not on the map in that town (a restaurant OpenStreetMap lacks): up to the town itself.
+			if (!place && town) {
+				const [found] = await ors.searchTowns(town, 1);
+				if (found) {
+					place = { label: placeName(found), at: [found.lon, found.lat] };
+					note = ` «${what}» no está en el mapa: es hasta el pueblo, ${found.name}; díselo.`;
+				}
+			}
+		}
 		if (!place)
 			return `No encuentro «${to}». Pídele que lo diga de otra forma (con el pueblo o la ciudad).`;
 		const route = await orsFor(ctx.k).drivingRoute([from.at, place.at]);
@@ -1661,7 +1680,7 @@ async function travelTime(ctx: Turn, args: Record<string, unknown>): Promise<str
 		const arrive = new Date(leave.getTime() + route.duration * 1000);
 		const hhmm = (d: Date) =>
 			`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-		return `En coche desde ${from.label} hasta ${place.label}: ${durationText(route.duration)}, ${distanceText(route.distance)}, sin contar el tráfico; saliendo a las ${hhmm(leave)}, llega hacia las ${hhmm(arrive)}. Díselo corto: el tiempo y los km, y el sitio encontrado (nombre y pueblo) para que sepa si es ese; la hora de llegada solo si dijo cuándo sale o la pregunta.`;
+		return `En coche desde ${from.label} hasta ${place.label}: ${durationText(route.duration)}, ${distanceText(route.distance)}, sin contar el tráfico; saliendo a las ${hhmm(leave)}, llega hacia las ${hhmm(arrive)}.${note} Díselo corto, sin hablar de herramientas: el tiempo y los km, y el sitio encontrado (nombre y pueblo) para que sepa si es ese; la hora de llegada solo si dijo cuándo sale o la pregunta. Si no es el sitio, que lo diga con el pueblo: «El Extremeño, Sangonera la Seca».`;
 	} catch (err) {
 		return `No se pudo calcular: ${err instanceof Error ? err.message : String(err)}`;
 	}
