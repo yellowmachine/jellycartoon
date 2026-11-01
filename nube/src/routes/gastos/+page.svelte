@@ -973,23 +973,43 @@
 		</p>
 		<ul class="mb-3 divide-y divide-zinc-800">
 			{#each data.recurring as r (r.id)}
-				<li class="flex items-center gap-3 py-2">
-					<span class="w-20 shrink-0 text-sm text-zinc-400"
-						>{r.month === null ? `día ${r.day}` : `${r.day} ${MONTHS[r.month - 1]}`}</span
-					>
+				<li class="flex items-center gap-2 py-2 sm:gap-3">
+					<!-- The day, and under it its month (or «al mes»): narrow, the phone needs the room. -->
+					<span class="w-10 shrink-0 text-center leading-tight text-zinc-400">
+						<span class="block text-base tabular-nums">{r.day}</span>
+						<span class="block text-xs"
+							>{r.month === null ? 'cada mes' : MONTHS[r.month - 1]!.slice(0, 3)}</span
+						>
+					</span>
 					<span class="min-w-0 flex-1">
 						<span class="block truncate">{r.name}</span>
 						<span class="block text-xs text-zinc-500">{r.category}</span>
 					</span>
-					<span class="text-right tabular-nums"
+					<span class="shrink-0 text-right tabular-nums"
 						>{euros(r.amount)}<span class="block text-xs text-zinc-500"
 							>{r.month === null ? 'al mes' : 'al año'}</span
 						></span
 					>
 					<button
-						class="{button} hover:bg-zinc-800"
-						onclick={() => openFixed({ ...r, amount: typed(r.amount) })}>Cambiar</button
+						class="{button} shrink-0 px-2 text-zinc-400 hover:bg-zinc-800"
+						aria-label="Cambiar {r.name}"
+						title="Cambiar"
+						onclick={() => openFixed({ ...r, amount: typed(r.amount) })}
 					>
+						<svg
+							viewBox="0 0 24 24"
+							class="h-5 w-5"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							aria-hidden="true"
+						>
+							<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4Z" />
+							<path d="m13.5 6.5 4 4" />
+						</svg>
+					</button>
 					{#if deleting === `fijo-${r.id}`}
 						<form method="post" action="?/deleteRecurring" use:enhance class="flex gap-1">
 							<input type="hidden" name="id" value={r.id} />
@@ -1002,7 +1022,7 @@
 						</form>
 					{:else}
 						<button
-							class="{button} text-zinc-400 hover:bg-zinc-800"
+							class="{button} shrink-0 px-2 text-zinc-400 hover:bg-zinc-800"
 							aria-label="Quitar {r.name}"
 							onclick={() => (deleting = `fijo-${r.id}`)}>✕</button
 						>
