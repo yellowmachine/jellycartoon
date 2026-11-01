@@ -27,7 +27,7 @@ import {
 	WAKE_WORDS,
 	type WakeWordModel
 } from '../../src/lib/wake-words.ts';
-import { AFTER_LEARNED_MS, FOLLOW_UP_MS } from '../../packages/comun/src/voice.ts';
+import { AFTER_LEARNED_MS, CONVERSATION_MS, FOLLOW_UP_MS } from '../../packages/comun/src/voice.ts';
 
 /**
  * The voice satellite (#223, phase 1): «hola casita» heard on a Raspberry in the living room, out of
@@ -147,9 +147,18 @@ interface Order {
 	end: SpeechEnd;
 	chunks: Int16Array[];
 	startedAt: number;
+	/** Opened by itself after an answer («Modo conversación»): nothing said ends it without a beep. */
+	quietEnd: boolean;
 }
 
 let order: Order | null = null;
+/**
+ * How loud the last wake word came (#361): the listening without the word after an answer (a
+ * question, «Modo conversación») takes only a voice as loud as that one, not a TV further away.
+ */
+let wordDb: number | null = null;
+/** Its soft beep, «Modo conversación»: listening by itself after an answer. */
+const CONVERSATION_HZ = 784;
 /** An order on its way to the server: no other until it answers. */
 let busy = false;
 let quietUntil = 0;
@@ -178,6 +187,7 @@ async function step(chunk: Float32Array) {
 			// Said by whoever gives the order, as near: how loud their voice comes.
 			const voiceDb = Math.max(...recent.map((r) => r.dbfs));
 			log(`«${WORD}» (${score.toFixed(2)}): escuchando (la palabra a ${db(voiceDb)})`);
+			wordDb = voiceDb;
 			begin(voiceDb);
 		}
 	}
@@ -187,8 +197,11 @@ async function step(chunk: Float32Array) {
  * Listening for an order: after the word, at its level (`voiceDb`); after a question, with no word,
  * set by the first speech, and longer to start (`waitMs`).
  */
-/** `hz`: its beep; lower after something done by what was learned, not a question. */
-function begin(voiceDb: number | null, waitMs = SPEECH_END.waitMs, hz = 880) {
+/**
+ * `hz`: its beep; lower after something done by what was learned, not a question. `conversation`:
+ * opened by itself after an answer (#361): a soft beep, and nothing said ends it quietly.
+ */
+function begin(voiceDb: number | null, waitMs = SPEECH_END.waitMs, hz = 880, conversation = false) {
 	// As touching the phone: what rings stops, and the order may be about it («quítalo»).
 	if (alarms.ringing.length) {
 		hush();
@@ -200,12 +213,13 @@ function begin(voiceDb: number | null, waitMs = SPEECH_END.waitMs, hz = 880) {
 	// Its attempt ends here: what it reached, with the order and not after it.
 	attempt = 0;
 	duck(true);
-	void beep(hz);
+	void beep(hz, conversation);
 	order = {
 		vad: vad(),
 		end: new SpeechEnd({ ...SPEECH_END, marginDb: MARGIN_DB, waitMs }, voiceDb),
 		chunks: [],
-		startedAt: Date.now()
+		startedAt: Date.now(),
+		quietEnd: conversation
 	};
 }
 
@@ -225,6 +239,7 @@ async function finish(current: Order, said: 'done' | 'nothing') {
 	const seconds = (current.chunks.length * CHUNK) / SAMPLE_RATE;
 	if (said === 'nothing') {
 		duck(false);
+		if (current.quietEnd) return log(`Conversación: nada más dicho en ${seconds.toFixed(1)} s`);
 		void beep(440);
 		return log(`Nada dicho en ${seconds.toFixed(1)} s`);
 	}
@@ -263,6 +278,8 @@ async function respond(wav: Uint8Array) {
 	let asked = false;
 	/** Done by what the voice had learned: listened for a moment, for a correction. */
 	let assumed = false;
+	/** «Modo conversación» (#361): listened for a moment after it, without the word. */
+	let talking = false;
 	try {
 		const done = await sendOrder(wav, () => {
 			waiting = setTimeout(() => {
@@ -280,6 +297,7 @@ async function respond(wav: Uint8Array) {
 			log(`«${done.text}» → «${done.reply.reply}» (acciones: ${actions}; ${ms} ms)`);
 			asked = done.reply.expectsAnswer;
 			assumed = done.reply.listenAfter === true;
+			talking = done.reply.conversation === true;
 			// Asked even without a speaker: the server may say it through Snapcast.
 			if (done.reply.reply) {
 				let voice: Uint8Array | null;
@@ -317,12 +335,16 @@ async function respond(wav: Uint8Array) {
 		clearTimeout(waiting);
 		busy = false;
 		quietUntil = Date.now() + QUIET_MS;
+		// Without the word: only a voice as loud as the last word's (#361), not a TV further away.
 		if (asked && !order) {
 			log(`Pregunta: escuchando la respuesta ${FOLLOW_UP_MS / 1000} s`);
-			begin(null, FOLLOW_UP_MS);
+			begin(wordDb, FOLLOW_UP_MS);
 		} else if (assumed && !order) {
 			log(`Por lo aprendido: escuchando ${AFTER_LEARNED_MS / 1000} s por si lo corrige`);
-			begin(null, AFTER_LEARNED_MS, 587);
+			begin(wordDb, AFTER_LEARNED_MS, 587);
+		} else if (talking && !order && !alarms.ringing.length) {
+			log(`Conversación: escuchando ${CONVERSATION_MS / 1000} s sin la palabra`);
+			begin(wordDb, CONVERSATION_MS, CONVERSATION_HZ, true);
 		} else duck(false);
 	}
 }

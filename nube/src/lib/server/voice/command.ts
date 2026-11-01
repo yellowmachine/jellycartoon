@@ -10,6 +10,7 @@ import { EXPENSE_CATEGORIES, euros, isCategory, type ExpenseLine } from 'comun/e
 import { isUntilWord, UNTIL_WORDS, untilDay, untilText } from 'comun/fridge.ts';
 import { fold } from 'comun/music.ts';
 import {
+	endsAsking,
 	MAX_STOP_LATER_MIN,
 	MAX_TIMER_SEC,
 	SAID_NO_CREDIT,
@@ -1064,6 +1065,7 @@ function instructions(context: {
 Cómo responder:
 - Trátala de tú. Con cada orden va quién habla: llámala por su nombre de pila de vez en cuando (al saludar, al despedirse, con una buena noticia), no en cada respuesta.
 - Haz lo que pide con las herramientas, sin pedir confirmación. Si se equivoca, lo dirá («no, eso no», «para»).
+- Si dudas de lo que has encontrado (un sitio, una canción, una serie que quizá no es la que dice), no le digas que lo compruebe: pregúntaselo con lo que has encontrado («Lo que encuentro es una calle en Lumbreras. ¿Es ahí?») y con «expects_answer», así contesta sin decir otra vez la palabra.
 - Habla de lo que has encontrado o hecho, nunca de cómo: nada de «la herramienta», «el sistema» ni «me ha devuelto».
 - Nunca digas que has hecho algo («lo anoto», «lo guardo», «te lo recuerdo», «pongo…») si no lo has hecho con su herramienta en esta orden.
 - El reconocimiento de voz a veces quita los «¿?»: si suena a pregunta («tengo algún viaje mañana», «hay leche»), es una pregunta; contéstala, no la guardes.
@@ -1155,6 +1157,13 @@ ${sites.map((s) => `- ${s.name} [web ${s.id}, ${s.host}]`).join('\n') || '(ningu
 
 /** What starts something sounding: in the «horas de silencio», only after a «sí». */
 const SOUNDING = new Set(['play_music', 'play_radio', 'play_video']);
+
+/**
+ * Whether the order put something on: then a satellite does not listen after it without the word
+ * (it would hear that instead of a correction or the next order).
+ */
+export const putOn = (timing: VoiceTiming) =>
+	timing.rounds.some((r) => r.tools.some((t) => SOUNDING.has(t)));
 
 /**
  * The house's own, done there (its /api/v1/voz): its music and speakers, its videos, its satellites'
@@ -1908,13 +1917,15 @@ export async function runVoiceCommand(
 	const outcome: Outcome = { actions: [], options: [], asked: null, done: 0, usedLearned: [] };
 	const siteKey = site && `${k.familyId}:${site}`;
 	const assumed = siteKey && assumedNote(siteKey);
-	const reply = (text: string, expectsAnswer = false) => {
+	const reply = (text: string, expectsAnswerSaid = false) => {
+		// Ending in a question, it waits for the answer even if the model forgot to say so (#361).
+		const expectsAnswer = expectsAnswerSaid || endsAsking(text);
 		// Only those the order has to do with: the model also says it of a «para».
 		const used = (learned?.picked ?? []).filter(
 			(l) => outcome.usedLearned.includes(l.id) && sharesWords(request.text, l)
 		);
 		// What was put on would be heard as the correction: then only with the word.
-		const sounding = timing.rounds.some((r) => r.tools.some((t) => SOUNDING.has(t)));
+		const sounding = putOn(timing);
 		const said = {
 			...replyOf(text, outcome, expectsAnswer),
 			...(used.length && !expectsAnswer && !sounding ? { listenAfter: true } : {})

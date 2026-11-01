@@ -74,6 +74,31 @@
 							</label>
 							<button class={secondary}>Guardar</button>
 						</form>
+						<!-- #361: saved as soon as it is touched. -->
+						<form
+							method="post"
+							action="?seccion={tab}&/saveConversation"
+							use:enhance={() =>
+								async ({ update }) =>
+									update({ reset: false })}
+							class="text-xs text-zinc-400"
+						>
+							<input type="hidden" name="id" value={s.id} />
+							<label class="flex items-start gap-2">
+								<input
+									type="checkbox"
+									name="conversation"
+									checked={s.conversation}
+									onchange={(e) => e.currentTarget.form?.requestSubmit()}
+									class="mt-0.5 accent-amber-500"
+								/>
+								<span>
+									Modo conversación: después de contestar, escucha 5 segundos sin la palabra, con un
+									pitido suave, por si sigues hablando. Mejor sin tele en la habitación: solo cuenta
+									una voz tan fuerte como la tuya, pero podría colarse.
+								</span>
+							</label>
+						</form>
 					</li>
 				{/each}
 			</ul>
