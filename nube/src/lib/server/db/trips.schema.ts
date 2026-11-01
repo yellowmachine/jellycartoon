@@ -238,6 +238,48 @@ export const routeMap = pgTable(
 ).enableRLS();
 
 /**
+ * A playlist of the house's carried on a device (#350), such as the car's tablet, for the stretches
+ * without coverage: ordered from any device, kept up to date by that one when the app opens on it.
+ * Taken away, the row goes; the device removes its songs the next time.
+ */
+export const offlineListState = pgEnum('offline_list_state', [
+	'pending',
+	'downloading',
+	'ready',
+	'failed'
+]);
+
+export const offlineList = pgTable(
+	'offline_list',
+	{
+		familyId: familyId(),
+		/** The house's playlist (music_playlist there): no key to it here. */
+		playlistId: integer('playlist_id').notNull(),
+		deviceId: text('device_id').notNull(),
+		/** Its name when ordered, or as the device last saw it: for the panel, the house away. */
+		name: text('name').notNull(),
+		state: offlineListState('state').notNull().default('pending'),
+		/** Its songs on the device, of how many. */
+		held: integer('held').notNull().default(0),
+		total: integer('total').notNull().default(0),
+		bytes: bigint('bytes', { mode: 'number' }).notNull().default(0),
+		/** Why it failed, as the device says it. */
+		problem: text('problem'),
+		createdAt: timestamp('created_at').notNull().defaultNow(),
+		updatedAt: timestamp('updated_at').notNull().defaultNow()
+	},
+	(t) => [
+		primaryKey({ columns: [t.playlistId, t.deviceId] }),
+		foreignKey({
+			name: 'offline_list_device_fk',
+			columns: [t.familyId, t.deviceId],
+			foreignColumns: [mapDevice.familyId, mapDevice.id]
+		}).onDelete('cascade'),
+		familyRows('offline_list_own', t.familyId)
+	]
+).enableRLS();
+
+/**
  * A trip still to come (Viajes → Próximos): its name, who goes, and its legs. The family's, so that
  * anyone sees when they leave and what weather they will have; or only its maker's (`private`).
  */

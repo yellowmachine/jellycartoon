@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { formatDuration } from 'comun/format.ts';
+	import OfflineLists from '#lib/components/OfflineLists.svelte';
 	import type { PageProps } from './$types';
 
 	/** The house's playlists (#253), as jellycartoon's: the same ones, for everyone at home. */
@@ -50,4 +51,12 @@
 	</ul>
 {:else}
 	<p class="mt-6 text-zinc-400">Todavía no hay listas.</p>
+{/if}
+
+{#if data.lists.length}
+	<OfflineLists
+		lists={data.lists}
+		view={data.offline}
+		problem={form && 'offline' in form ? (form.offline ?? null) : null}
+	/>
 {/if}

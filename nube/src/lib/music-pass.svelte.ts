@@ -1,5 +1,6 @@
 import { setMusicUrls } from 'comun/music.ts';
 import { setThumbBase } from 'comun/thumb.svelte.ts';
+import { offlineMusic } from '#lib/offline-music.svelte.ts';
 import type { MusicPass } from '#lib/server/music.ts';
 
 /**
@@ -20,13 +21,27 @@ export const seriesBackdropUrl = (seriesId: number) => `${images}/fondos/${serie
 
 export function usePass(pass: MusicPass) {
 	setMusicUrls({
-		track: (id) => `${pass.base}/pistas/${id}`,
-		cover: (albumId) => `${pass.base}/portadas/${albumId}`,
-		clip: (id) => `${pass.base}/locutor/${id}`
+		// Kept on this device, such as the car's tablet (#350): from its disk, coverage or not.
+		track: (id) => offlineMusic.urlOf(id) ?? `${pass.base}/pistas/${id}`,
+		cover: (albumId) => offlineMusic.coverOf(albumId) ?? `${pass.base}/portadas/${albumId}`,
+		clip: (id) => `${pass.base}/locutor/${id}`,
+		held: offlineMusic.has
 	});
 	images = pass.images;
 	setThumbBase(`${pass.images}/miniaturas`);
 	renewing ??= setInterval(() => void askPass(), RENEW_MS);
+}
+
+/**
+ * Without the house (no pass): only what this device keeps (#350), from its disk. Its songs only:
+ * the road mode puts on no other.
+ */
+export function useKept() {
+	setMusicUrls({
+		track: (id) => offlineMusic.urlOf(id) ?? '',
+		cover: (albumId) => offlineMusic.coverOf(albumId) ?? '',
+		held: offlineMusic.has
+	});
 }
 
 /** A pass asked for now, and used; why not, if the house does not give one. */

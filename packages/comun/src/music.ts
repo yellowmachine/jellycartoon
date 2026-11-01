@@ -61,6 +61,11 @@ export interface MusicUrls {
 	track: (id: number, opus: boolean) => string;
 	cover: (albumId: number) => string;
 	clip: (id: string) => string;
+	/**
+	 * Kept on this device (Seilide's music without coverage, #350): a song that fails is not tried
+	 * again if there are kept ones after it, it goes on to the next of them.
+	 */
+	held?: (id: number) => boolean;
 }
 
 const urls: MusicUrls = {
@@ -74,6 +79,8 @@ export function setMusicUrls(own: Partial<MusicUrls>) {
 }
 
 export const trackUrl = (id: number, opus = false) => urls.track(id, opus);
+/** Kept on this device (#350); without that, none are. */
+export const heldHere = (id: number) => urls.held?.(id) ?? false;
 export const coverUrl = (albumId: number) => urls.cover(albumId);
 /** What `track` sounds from: its own address, the DJ's words, or its file. */
 export const audioUrl = (track: MusicTrack, opus = false) =>
