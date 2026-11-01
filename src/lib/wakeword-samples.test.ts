@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { toWav } from '#lib/wakeword-recorder.ts';
+import { toWav } from 'comun/wakeword-recorder.ts';
 import { isSampleWav, maxBytes, speakerSlug } from '#lib/wakeword-samples.ts';
 
 describe('speakerSlug', () => {

@@ -17,8 +17,8 @@ import {
  * (or, with taps in Ajustes, a tap each). What was said is heard by the house's Whisper, or
  * without it by OpenRouter (/api/voz/oir), and done by the family's AI, with the house's hands if
  * it has one (/api/voz/orden); the answer
- * is shown and read aloud with the device's own voice. Only the button: no wake word here, no
- * timers, kitchen or videos.
+ * is shown and read aloud with the device's own voice. Also «Alexa» in the road mode
+ * (wake-word.svelte.ts). No timers, kitchen or videos.
  */
 
 /**
@@ -56,7 +56,7 @@ class VoiceClient {
 	problem = $state<string | null>(null);
 	/** Being read aloud: the header's bubble stays until it ends. */
 	speaking = $state(false);
-	/** Started by the wake word at home; never here, kept for the same page. */
+	/** Started by the wake word (the road mode's, wake-word.svelte.ts): its order ends at a silence. */
 	handsFree = $state(false);
 	/** The road mode's page: where we are, the route on, and how to ask for one. */
 	road: Road | null = null;
@@ -135,6 +135,28 @@ class VoiceClient {
 		}
 		if (this.#recorder?.state === 'recording') this.#recorder.stop();
 		return tap ? 'tap' : 'sent';
+	}
+
+	/**
+	 * The wake word heard: what plays pauses, and its own microphone listens (wake-word.svelte.ts).
+	 * False if busy (listening, thinking, reading aloud).
+	 */
+	beginHandsFree(): boolean {
+		if (this.phase !== 'idle' || this.#active || this.speaking) return false;
+		this.handsFree = true;
+		this.problem = null;
+		pauseForVoice();
+		this.phase = 'listening';
+		return true;
+	}
+
+	/** What was said after it (a WAV); null if nothing was, and what was paused plays again. */
+	endHandsFree(audio: Blob | null) {
+		if (!this.handsFree) return;
+		this.handsFree = false;
+		if (audio) return void this.#send(audio);
+		this.phase = 'idle';
+		resumeAfterVoice();
 	}
 
 	/** With taps (Ajustes): the first starts, the next sends; one right after the first cancels. */

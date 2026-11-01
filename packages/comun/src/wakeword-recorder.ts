@@ -1,4 +1,4 @@
-import { SAMPLE_RATE } from '#lib/wakeword.ts';
+import { SAMPLE_RATE } from './wakeword.ts';
 
 /**
  * Recording the house's voices saying the wake word (#144, phase 3): the microphone as the

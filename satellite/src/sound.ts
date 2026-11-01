@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
-import { SAMPLE_RATE } from '../../src/lib/wakeword.ts';
-import { toWav } from '../../src/lib/wakeword-recorder.ts';
+import { SAMPLE_RATE } from '../../packages/comun/src/wakeword.ts';
+import { toWav } from '../../packages/comun/src/wakeword-recorder.ts';
 
 /**
  * The satellite's speaker (#223, phase 3): `aplay` on `SPEAKER`, an ALSA device such as

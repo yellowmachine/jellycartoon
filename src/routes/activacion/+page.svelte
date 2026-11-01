@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import { listen, type Listening } from '#lib/wakeword-listener.ts';
+	import { listen, type Listening } from 'comun/wakeword-listener.ts';
 
 	/**
 	 * Trying wake words on this phone or tablet (#144, phase 1): «hola casita» and «hey luna», the

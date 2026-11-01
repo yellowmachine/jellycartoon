@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
-	import { peakLevel, record, toWav, type Recorder } from '#lib/wakeword-recorder.ts';
+	import { peakLevel, record, toWav, type Recorder } from 'comun/wakeword-recorder.ts';
 	import { speakerSlug } from '#lib/wakeword-samples.ts';
 
 	/**

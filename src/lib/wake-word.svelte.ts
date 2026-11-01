@@ -1,8 +1,8 @@
-import type { Listening } from '#lib/wakeword-listener.ts';
-import { SPEECH_END, SpeechEnd, type SpeechEndReport, type Vad } from '#lib/vad.ts';
-import { toWav } from '#lib/wakeword-recorder.ts';
+import type { Listening } from 'comun/wakeword-listener.ts';
+import { SPEECH_END, SpeechEnd, type SpeechEndReport, type Vad } from 'comun/vad.ts';
+import { toWav } from 'comun/wakeword-recorder.ts';
 import { voice } from '#lib/voice-client.svelte.ts';
-import { DEFAULT_WAKE_WORD, isWakeWord, type WakeWordModel } from '#lib/wake-words.ts';
+import { DEFAULT_WAKE_WORD, isWakeWord, type WakeWordModel } from 'comun/wake-words.ts';
 
 /**
  * Saying «hola casita» (or «Alexa», wake-words.ts) instead of pressing the microphone (#144, phase 2), on the phones and
@@ -230,7 +230,7 @@ class WakeWord {
 		const context = new AudioContext();
 		this.#context = context;
 		try {
-			const { listen } = await import('#lib/wakeword-listener.ts');
+			const { listen } = await import('comun/wakeword-listener.ts');
 			this.#listening = await listen(
 				{
 					models: [this.word],
@@ -415,7 +415,7 @@ class WakeWord {
 		if (!voice.beginHandsFree()) return void context.close();
 		this.preparing = true;
 		try {
-			const { listen } = await import('#lib/wakeword-listener.ts');
+			const { listen } = await import('comun/wakeword-listener.ts');
 			const listening = await listen(
 				{
 					models: [],

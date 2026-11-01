@@ -1,6 +1,6 @@
 import wasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.wasm?url';
-import { Vad } from '#lib/vad.ts';
-import { WakeWordDetector, type WakeWordModel } from '#lib/wakeword.ts';
+import { Vad } from './vad.ts';
+import { WakeWordDetector, type WakeWordModel } from './wakeword.ts';
 
 /**
  * Listening for wake words in this browser (#144): the microphone through an AudioWorklet that takes

@@ -1,11 +1,11 @@
 # Built from the repo's root: only what the satellite uses.
 *
 !package.json
-!src/lib/vad.ts
-!src/lib/wakeword.ts
-!src/lib/wakeword-recorder.ts
+!packages/comun/src/vad.ts
+!packages/comun/src/wakeword.ts
+!packages/comun/src/wakeword-recorder.ts
 !packages/comun/src/voice.ts
-!src/lib/wake-words.ts
+!packages/comun/src/wake-words.ts
 !satellite/package.json
 !satellite/bun.lock
 !satellite/src
