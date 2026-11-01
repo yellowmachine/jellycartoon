@@ -48,6 +48,8 @@
 	import FuelSheet from 'comun/components/FuelSheet.svelte';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
+	import { wakeWord } from '#lib/wake-word.svelte.ts';
+	import { WAKE_WORDS, isWakeWord } from 'comun/wake-words.ts';
 	import { telegramSaid, type TelegramMessage } from 'comun/telegram.ts';
 	import type { PageProps } from './$types';
 
@@ -915,6 +917,12 @@
 		return { name: shortName(stop.name), metres, seconds };
 	});
 
+	// «Alexa» instead of the button, turned on here on this tablet: only while Carretera is open.
+	$effect(() => {
+		wakeWord.want(wakeWord.on);
+		return () => wakeWord.want(false);
+	});
+
 	/** Each position from the GPS: where we are, how fast, and the time driving for one's pace. */
 	function positioned(at: LngLat, metresPerSecond: number | null) {
 		const now = Date.now();
@@ -1158,7 +1166,9 @@
 <!-- What the voice is doing, or said. -->
 {#snippet voiceLine()}
 	{#if voice.phase === 'listening'}
-		<span class="text-red-400">Te escucho…{micMode.tap ? ' toca para enviar' : ''}</span>
+		<span class="text-red-400"
+			>Te escucho…{micMode.tap && !voice.handsFree ? ' toca para enviar' : ''}</span
+		>
 	{:else if voice.phase === 'thinking'}
 		<span class="text-zinc-300">Un momento…</span>
 	{:else if voice.problem}
@@ -1520,6 +1530,47 @@ home. -->
 								onclick={() => (fueling = true)}>⛽</button
 							>
 						</div>
+						<!-- The wake word, on this tablet: off until turned on. -->
+						<div class="flex flex-wrap items-center justify-center gap-3">
+							<button
+								class={[
+									'rounded-full px-5 py-3 text-lg font-semibold shadow-lg active:scale-95',
+									wakeWord.on ? 'bg-amber-500 text-black' : 'bg-zinc-800 text-zinc-200'
+								]}
+								aria-pressed={wakeWord.on}
+								onclick={() => wakeWord.set(!wakeWord.on)}
+								>{wakeWord.on
+									? `«${WAKE_WORDS[wakeWord.word]}»: sí`
+									: `Decir «${WAKE_WORDS[wakeWord.word]}»: no`}</button
+							>
+							{#if wakeWord.on}
+								<select
+									class="rounded-full border-zinc-700 bg-zinc-900 py-3 text-lg text-zinc-200"
+									aria-label="Palabra"
+									value={wakeWord.word}
+									onchange={(e) => {
+										const word = e.currentTarget.value;
+										if (isWakeWord(word)) wakeWord.setWord(word);
+									}}
+								>
+									{#each Object.entries(WAKE_WORDS) as [model, name] (model)}
+										<option value={model}>{name}</option>
+									{/each}
+								</select>
+								<span class="text-lg text-zinc-400" aria-live="polite"
+									>{wakeWord.status === 'loading'
+										? 'Preparando…'
+										: wakeWord.status === 'tap'
+											? 'Toca la pantalla para empezar'
+											: wakeWord.status === 'on'
+												? 'Escuchando'
+												: ''}</span
+								>
+							{/if}
+						</div>
+						{#if wakeWord.on && wakeWord.problem}
+							<p class="text-lg text-amber-300" aria-live="polite">{wakeWord.problem}</p>
+						{/if}
 						{#if roadPhotos.problem}
 							<p class="text-lg text-amber-300" aria-live="polite">{roadPhotos.problem}</p>
 						{/if}

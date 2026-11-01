@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { micMode, type MicMode } from '#lib/mic-mode.svelte.ts';
 	import { WAKE_THRESHOLD, wakeWord } from '#lib/wake-word.svelte.ts';
-	import { WAKE_WORDS, type WakeWordModel } from '#lib/wake-words.ts';
+	import { WAKE_WORDS, type WakeWordModel } from 'comun/wake-words.ts';
 	import { section } from './styles.ts';
 	import type { PageData } from './$types';
 

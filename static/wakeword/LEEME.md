@@ -1,6 +1,6 @@
 # Modelos de palabra de activación (#144)
 
-Para detectar la palabra en el navegador con ONNX Runtime Web (`src/lib/wakeword.ts`).
+Para detectar la palabra en el navegador con ONNX Runtime Web (`packages/comun/src/wakeword.ts`).
 
 | Fichero | De dónde | Licencia |
 | --- | --- | --- |
@@ -10,7 +10,7 @@ Para detectar la palabra en el navegador con ONNX Runtime Web (`src/lib/wakeword
 | `hey_luna.onnx` | la misma colección, `en/Hey Luna` | MIT (la colección) |
 | `jelly_cartoon.onnx` | entrenado para esta casa igual que `candy_candy`: «Jelly Cartoon» dicho a la inglesa y a la española («yeli cartún») | uso en casa |
 | `jelly_cartoon_musica.onnx` | el mismo, entrenado con ~5 h de la música de casa de fondo y una capa de 128 (en vez de 32), para que la oiga con música sonando: a prueba en `/activacion` | uso en casa |
-| `silero_vad.onnx` | [Silero VAD v6.2.3](https://github.com/snakers4/silero-vad/releases/tag/v6.2.3) (`src/silero_vad/data/silero_vad.onnx`): saber cuándo se ha terminado de hablar tras la palabra (`src/lib/vad.ts`) | MIT |
+| `silero_vad.onnx` | [Silero VAD v6.2.3](https://github.com/snakers4/silero-vad/releases/tag/v6.2.3) (`src/silero_vad/data/silero_vad.onnx`): saber cuándo se ha terminado de hablar tras la palabra (`packages/comun/src/vad.ts`) | MIT |
 | `candy_candy.onnx` | entrenado para esta casa con el cuaderno oficial de openWakeWord, con voces de Piper en inglés y en español («kandi kandi», como se dice en España) | uso en casa |
 
 Los modelos de palabra los entrenó la comunidad con openWakeWord y voces sintéticas en inglés. Para

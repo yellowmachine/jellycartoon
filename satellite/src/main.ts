@@ -2,9 +2,14 @@ import { spawn } from 'node:child_process';
 import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
 import ort from 'onnxruntime-node';
-import { SPEECH_END, SpeechEnd, Vad } from '../../src/lib/vad.ts';
-import { CHUNK, SAMPLE_RATE, WakeWordDetector, type Run } from '../../src/lib/wakeword.ts';
-import { toWav } from '../../src/lib/wakeword-recorder.ts';
+import { SPEECH_END, SpeechEnd, Vad } from '../../packages/comun/src/vad.ts';
+import {
+	CHUNK,
+	SAMPLE_RATE,
+	WakeWordDetector,
+	type Run
+} from '../../packages/comun/src/wakeword.ts';
+import { toWav } from '../../packages/comun/src/wakeword-recorder.ts';
 import { Resampler } from './resample.ts';
 import {
 	duck,
@@ -26,7 +31,7 @@ import {
 	isWakeWord,
 	WAKE_WORDS,
 	type WakeWordModel
-} from '../../src/lib/wake-words.ts';
+} from '../../packages/comun/src/wake-words.ts';
 import { AFTER_LEARNED_MS, CONVERSATION_MS, FOLLOW_UP_MS } from '../../packages/comun/src/voice.ts';
 
 /**
