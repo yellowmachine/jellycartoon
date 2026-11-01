@@ -78,14 +78,21 @@ export const playlist = async (who: Who, id: number) =>
 		}>(who.id, who.email, `/musica/listas/${id}`)
 	).playlist;
 
-/** A new playlist, its id back. */
-export const createPlaylist = async (who: Who, name: string) =>
-	(
-		await askHouse<{ id: number }>(who.id, who.email, '/musica/listas', {
-			method: 'POST',
-			body: JSON.stringify({ name })
-		})
-	).id;
+/**
+ * A new playlist, its id back; with `trackIds`, those songs in it in that order (the queue saved as
+ * a list). A house from before takes only the name: then they go in one by one.
+ */
+export async function createPlaylist(who: Who, name: string, trackIds: number[] = []) {
+	const { id, added } = await askHouse<{ id: number; added?: number }>(
+		who.id,
+		who.email,
+		'/musica/listas',
+		{ method: 'POST', body: JSON.stringify({ name, trackIds }) }
+	);
+	if (added === undefined)
+		for (const trackId of trackIds) await changePlaylist(who, id, { action: 'add', trackId });
+	return id;
+}
 
 /** `rename` (`name`), `add` (`trackId`), `remove`, `up` or `down` (`itemId`). */
 export type PlaylistChange =

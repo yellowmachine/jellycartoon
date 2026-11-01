@@ -107,6 +107,30 @@ export async function addToPlaylist(playlistId: number, trackId: number) {
 	});
 }
 
+/** At most this many at once: a queue saved as a list. */
+export const MAX_TRACKS_AT_ONCE = 2000;
+
+/** Well-formed track ids, in their order (repeats kept), or null. */
+export function trackIdsOf(value: unknown): number[] | null {
+	if (!Array.isArray(value) || value.length > MAX_TRACKS_AT_ONCE) return null;
+	return value.every((id) => Number.isInteger(id) && id > 0) ? value : null;
+}
+
+/** Several at the end, in this order (a queue saved as a list): all or none. */
+export async function addManyToPlaylist(playlistId: number, trackIds: number[]) {
+	if (!trackIds.length) return;
+	await db.transaction(async (tx) => {
+		const [last] = await tx
+			.select({ position: sql<number | null>`max(${musicPlaylistItem.position})` })
+			.from(musicPlaylistItem)
+			.where(eq(musicPlaylistItem.playlistId, playlistId));
+		const start = Number(last?.position ?? -1) + 1;
+		await tx
+			.insert(musicPlaylistItem)
+			.values(trackIds.map((trackId, i) => ({ playlistId, trackId, position: start + i })));
+	});
+}
+
 export async function removeFromPlaylist(playlistId: number, itemId: number) {
 	await db
 		.delete(musicPlaylistItem)
