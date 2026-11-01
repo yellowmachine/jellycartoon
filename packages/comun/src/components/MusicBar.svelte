@@ -7,7 +7,7 @@
 	import { formatDuration } from '../format.ts';
 	import { GAVE_UP, RETRYING, TRIES, recoverFromErrors, retryDelay } from '../hls-recovery.ts';
 	import { dj } from '../dj.svelte.ts';
-	import { audioUrl, coverUrl, stopTime, type MusicTrack } from '../music.ts';
+	import { audioUrl, coverUrl, heldHere, stopTime, type MusicTrack } from '../music.ts';
 	import { music } from '../music-player.svelte.ts';
 	import { musicQuality } from '../music-quality.svelte.ts';
 	import { keepQueue } from '../music-queue.svelte.ts';
@@ -103,6 +103,19 @@
 			: podcast || listening
 				? 'No se pudo reproducir este episodio.'
 				: 'No se pudo reproducir esta canción.';
+		// A song not kept here, without coverage most likely: on to the next one kept (#350).
+		const song = !radio && !podcast && !listening ? music.current : null;
+		if (
+			song &&
+			!music.restored &&
+			!song.clip &&
+			!heldHere(song.id) &&
+			music.nextWhere((t) => heldHere(t.id))
+		) {
+			tries = 0;
+			problem = null;
+			return;
+		}
 		if (tries >= TRIES || music.restored) return void (problem = gaveUp);
 		tries++;
 		problem = RETRYING;

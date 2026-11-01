@@ -34,10 +34,18 @@
 	const initial = $derived([...(data.user?.name.trim() ?? '')][0]?.toLocaleUpperCase('es') ?? '?');
 	let headerHeight = $state(0);
 
-	// A device that keeps routes' maps (#164): what it was ordered from any other, done now.
+	// A device that keeps routes' maps (#164) and music (#350): what it was ordered from any other,
+	// done now. The maps first: they say whether the device was forgotten.
 	onMount(() => {
-		if (data.user)
-			void import('comun/route-maps.svelte.ts').then(({ routeMaps }) => routeMaps.sync());
+		if (!data.user) return;
+		void (async () => {
+			const { routeMaps } = await import('comun/route-maps.svelte.ts');
+			const { offlineMusic } = await import('#lib/offline-music.svelte.ts');
+			// What it already keeps sounds from its disk from the start.
+			await offlineMusic.open().catch(() => {});
+			await routeMaps.sync();
+			await offlineMusic.sync();
+		})();
 	});
 
 	/**

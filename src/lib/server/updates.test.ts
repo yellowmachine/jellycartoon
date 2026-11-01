@@ -19,8 +19,11 @@ const caddy = {
 	labels: { 'com.docker.compose.service': 'caddy' }
 };
 
-/** WUD's API: what each `METHOD path` answers, and every request made. */
+/** WUD's API: what each `METHOD path` answers, and every request made. Its trigger, always there. */
 let routes: Record<string, unknown>;
+const TRIGGERS = {
+	'GET /api/triggers': [{ id: 'docker.jellycartoon', type: 'docker', name: 'jellycartoon' }]
+};
 let calls: string[];
 const realFetch = globalThis.fetch;
 afterAll(() => {
@@ -31,8 +34,9 @@ beforeEach(() => {
 	globalThis.fetch = (async (input: URL, init?: RequestInit) => {
 		const key = `${init?.method ?? 'GET'} ${new URL(input).pathname}`;
 		calls.push(key);
-		if (!(key in routes)) return new Response('', { status: 404 });
-		return Response.json(routes[key]);
+		const answers: Record<string, unknown> = { ...TRIGGERS, ...routes };
+		if (!(key in answers)) return new Response('', { status: 404 });
+		return Response.json(answers[key]);
 	}) as typeof fetch;
 });
 
@@ -44,7 +48,11 @@ describe('startUpdate', () => {
 		};
 		expect(await startUpdate()).toBe('started');
 		// Never the trigger as well: that would update twice at once.
-		expect(calls).toEqual(['GET /api/containers', 'POST /api/containers/watch']);
+		expect(calls).toEqual([
+			'GET /api/triggers',
+			'GET /api/containers',
+			'POST /api/containers/watch'
+		]);
 	});
 
 	test('WUD does not know the app, and there is nothing new', async () => {
@@ -67,6 +75,7 @@ describe('startUpdate', () => {
 		};
 		expect(await startUpdate()).toBe('started');
 		expect(calls).toEqual([
+			'GET /api/triggers',
 			'GET /api/containers',
 			'POST /api/containers/app1/triggers/docker/jellycartoon'
 		]);
@@ -78,7 +87,20 @@ describe('startUpdate', () => {
 			'POST /api/containers/watch': [caddy, app(true)]
 		};
 		expect(await startUpdate()).toBe('started');
-		expect(calls).toEqual(['GET /api/containers', 'POST /api/containers/watch']);
+		expect(calls).toEqual([
+			'GET /api/triggers',
+			'GET /api/containers',
+			'POST /api/containers/watch'
+		]);
+	});
+
+	test('WUD without its trigger: said, and nothing asked of it', async () => {
+		routes = {
+			'GET /api/triggers': [],
+			'GET /api/containers': [caddy, app(true)]
+		};
+		await expect(startUpdate()).rejects.toThrow('WUD no tiene con qué instalarla');
+		expect(calls).toEqual(['GET /api/triggers']);
 	});
 
 	test('nothing new yet', async () => {

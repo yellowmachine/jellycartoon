@@ -337,6 +337,13 @@
       "when": 1793443758353,
       "tag": "0047_odd_wendell_vaughn",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793511803967,
+      "tag": "0048_careless_speed_demon",
+      "breakpoints": true
     }
   ]
 }

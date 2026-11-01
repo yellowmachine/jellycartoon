@@ -304,6 +304,18 @@ class MusicPlayer {
 		if (this.#audio?.error) this.#play();
 	}
 
+	/**
+	 * To the next track after this one that `fits` (#350: kept on the device, with no coverage);
+	 * false, there is none and it stays.
+	 */
+	nextWhere(fits: (track: MusicTrack) => boolean) {
+		const at = this.queue.findIndex((t, i) => i > this.index && !t.clip && fits(t));
+		if (at < 0) return false;
+		this.restored = null;
+		this.index = at;
+		return true;
+	}
+
 	next() {
 		this.restored = null;
 		if (this.index < this.queue.length - 1) this.index++;

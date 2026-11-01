@@ -74,6 +74,12 @@
 	};
 	const current = $derived(menuLinks.find((l) => l.href !== '/' && isCurrent(l.href)));
 	const settings = $derived(userLinks.find((l) => l.icon === 'ajustes'));
+	/** On a phone, the user's menu but Ajustes (by their name, at the foot): Buzón, Admin… */
+	const phoneUserLinks = $derived(
+		userLinks.filter(
+			(l): l is UserLink & { icon: Section } => l !== settings && l.icon !== 'ajustes'
+		)
+	);
 
 	/** The user's menu: a row with its icon, drawn as the sections' (Lucide's sliders and log-out). */
 	const userItem =
@@ -209,6 +215,25 @@
 				</li>
 			{/each}
 		</ul>
+		{#if phoneUserLinks.length}
+			<ul class="mt-2 grid grid-cols-2 gap-x-2 border-t border-zinc-800 pt-2">
+				{#each phoneUserLinks as link (link.href)}
+					<li>
+						<a
+							href={link.href}
+							onclick={() => menu?.hidePopover()}
+							class={[
+								'flex min-w-0 items-center gap-3 rounded-md px-2 py-3 text-base hover:bg-zinc-900',
+								!link.external && isCurrent(link.href) ? 'text-amber-400' : 'text-zinc-200'
+							]}
+							><SectionIcon name={link.icon} class="h-6 w-6 shrink-0" /><span class="truncate"
+								>{link.label}{@render out(link.external)}</span
+							></a
+						>
+					</li>
+				{/each}
+			</ul>
+		{/if}
 		<form
 			method="post"
 			action="/logout"

@@ -10,7 +10,8 @@
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { coverUrl, type DjOptions, type MusicTrack } from 'comun/music.ts';
 	import { dj } from 'comun/dj.svelte.ts';
-	import { usePass } from '#lib/music-pass.svelte.ts';
+	import { useKept, usePass } from '#lib/music-pass.svelte.ts';
+	import { offlineMusic } from '#lib/offline-music.svelte.ts';
 	import { music } from 'comun/music-player.svelte.ts';
 	import { musicTarget } from 'comun/music-target.svelte.ts';
 	import { STATIONS, type RadioStation } from 'comun/radio.ts';
@@ -79,7 +80,18 @@
 	/** The house's songs and covers, by the pass (music-pass.svelte.ts). */
 	$effect(() => {
 		if (data.pass) usePass(data.pass);
+		else useKept();
 	});
+
+	/**
+	 * The lists this device carries (#350): from its disk, as last updated. Without the house, the
+	 * only ones, and only the songs it has.
+	 */
+	const playlists = $derived(
+		data.pass
+			? data.playlists
+			: offlineMusic.lists.map((l) => ({ id: l.id, name: l.name, total: l.tracks.length }))
+	);
 
 	/**
 	 * The map (phase 3a), on the left with the screen wide enough: the tablet whole, sideways. In
@@ -214,8 +226,18 @@
 		});
 	}
 
-	const list = (id: number) =>
-		playFrom(`lista-${id}`, `/carretera/listas/${id}`, 'La lista está vacía.');
+	function list(id: number) {
+		const kept = offlineMusic.lists.find((l) => l.id === id);
+		if (!kept) return playFrom(`lista-${id}`, `/carretera/listas/${id}`, 'La lista está vacía.');
+		if (playingHere(`lista-${id}`)) return music.toggle();
+		// Carried here: as it is on the disk, no need of coverage. Without the house, what it has.
+		const tracks = data.pass ? kept.tracks : kept.tracks.filter((t) => offlineMusic.has(t.id));
+		if (!tracks.length) return void (problem = 'Todavía no hay canciones suyas en la tablet.');
+		music.play(tracks, 0);
+		playingFrom = `lista-${id}`;
+		problem = null;
+		if (tab !== 'ruta') tab = null;
+	}
 
 	const album = (id: number) =>
 		playFrom(`album-${id}`, `/carretera/album/${id}`, 'El álbum está vacío.');
@@ -317,12 +339,9 @@
 	const TABS: { id: Tab; label: string }[] = $derived([
 		{ id: 'radio', label: 'Radio' },
 		// The house's music, by its pass: without the house, only the radio.
-		...(data.pass
-			? [
-					{ id: 'musica' as const, label: 'Música' },
-					{ id: 'listas' as const, label: 'Listas' }
-				]
-			: []),
+		...(data.pass ? [{ id: 'musica' as const, label: 'Música' }] : []),
+		// Without the house, those this device carries (#350).
+		...(playlists.length || data.pass ? [{ id: 'listas' as const, label: 'Listas' }] : []),
 		// The family's, here (#253).
 		{ id: 'podcasts', label: 'Podcasts' },
 		// Only with the map beside, or a phone's own tab for it: where the route is drawn.
@@ -1563,7 +1582,7 @@ home. -->
 						<p class="text-lg text-zinc-400">No hay música todavía.</p>
 					{/each}
 				{:else if tab === 'listas'}
-					{#each data.playlists as playlist (playlist.id)}
+					{#each playlists as playlist (playlist.id)}
 						<button
 							class="{tile} border-white/10 bg-zinc-900"
 							disabled={loading !== null}

@@ -254,6 +254,16 @@ bajarlo. Se recortan en el servidor con `pmtiles`, que va en la imagen, y se gua
 `recorridos`, cada familia en su carpeta: solo los baja esa familia. Para que Android no los borre
 si falta espacio, mejor la app instalada en la pantalla de inicio.
 
+**Música sin cobertura** (#350): en Música → Listas, «En el coche, sin cobertura»: «Llevar» una lista
+en un dispositivo (los mismos que guardan mapas; si este aún no, se le pone nombre ahí mismo). Al
+abrir la app allí baja de la casa, con el pase de la música, la copia Opus de cada canción y su
+portada, y las guarda en el disco del navegador; cada vez que se abre la pone al día con la lista
+(las nuevas se bajan, las quitadas se borran; una canción en dos listas, una vez). Hasta 2 GB por
+dispositivo (unas 470 canciones): no se deja pedir una lista que no cabe por su duración, y si al
+bajar no cabe, se para y lo dice. En el modo carretera, las listas que lleva suenan desde el disco,
+haya o no cobertura; una canción que no tiene y no se puede tocar se salta a la siguiente que sí;
+sin la casa, en Listas salen solo esas. Sin red no hay DJ, ni voz, ni listas nuevas.
+
 Con el mapa, el destino se escribe en el propio mapa («¿A dónde vas?», arriba; solo parado y sin
 ruta: en marcha se esconde, y se pide por voz, «llévame a…»). Al escribir, debajo, los últimos
 destinos de ese dispositivo (el cole, los abuelos…; también sin escribir nada) y las sugerencias de
