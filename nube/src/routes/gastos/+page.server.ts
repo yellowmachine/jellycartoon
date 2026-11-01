@@ -11,6 +11,7 @@ import {
 	deleteFavorite,
 	deleteRecurring,
 	favoriteExpenses,
+	makeRecurring,
 	monthExpenses,
 	monthTotal,
 	recurringExpenses,
@@ -52,9 +53,12 @@ function recurringFrom(form: FormData) {
 	const category = form.get('category');
 	const amount = Number(form.get('amount'));
 	const day = Number(form.get('day'));
+	// Every year, in its month; else every month.
+	const month = form.get('every') === 'año' ? Number(form.get('month')) : null;
 	if (!name || !isCategory(category) || !Number.isInteger(amount) || amount <= 0) return null;
 	if (!Number.isInteger(day) || day < 1 || day > 28) return null;
-	return { name, category, amount, day };
+	if (month !== null && (!Number.isInteger(month) || month < 1 || month > 12)) return null;
+	return { name, category, amount, day, month };
 }
 
 export const actions: Actions = {
@@ -119,10 +123,19 @@ export const actions: Actions = {
 		const k = await kitchen(locals);
 		const form = await request.formData();
 		const r = recurringFrom(form);
-		if (!r) return fail(400, { message: 'Falta algo: el nombre, el importe o el día (1 a 28)' });
+		if (!r)
+			return fail(400, { message: 'Falta algo: el nombre, el importe, el día (1 a 28) o el mes' });
 		const id = Number(form.get('id'));
 		if (id) await updateRecurring(k, id, r);
 		else await addRecurring(k, r);
+		await addDueRecurring(k);
+	},
+	/** «🔁 Hacer fijo»: an expense written down, every month or every year from its day. */
+	makeRecurring: async ({ request, locals }) => {
+		const k = await kitchen(locals);
+		const form = await request.formData();
+		if (!(await makeRecurring(k, Number(form.get('id')), form.get('every') === 'año')))
+			return fail(404, { message: 'Ese gasto ya no está' });
 		await addDueRecurring(k);
 	},
 	deleteRecurring: async ({ request, locals }) => {

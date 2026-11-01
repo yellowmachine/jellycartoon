@@ -83,6 +83,8 @@ export interface Expense extends ExpenseInput {
 	hasReceipt: boolean;
 	/** A bill's (#232): its supply's period and consumption. */
 	bill: BillInput | null;
+	/** Added by a fixed one, or made one («🔁 Hacer fijo»). */
+	fixed: boolean;
 }
 
 /**
@@ -104,6 +106,8 @@ export interface RecurringExpense {
 	amount: number;
 	/** 1 to 28. */
 	day: number;
+	/** Every year, in this month (1 to 12): Prime, an insurance, the IBI. Null, every month. */
+	month: number | null;
 }
 
 /** A favourite (#194): an expense to put in again, its amount changeable; `total` null, none. */
@@ -226,6 +230,35 @@ export function addMonths(month: string, by: number) {
 	const [y, m] = month.split('-').map(Number);
 	const at = new Date(Date.UTC(y!, m! - 1 + by, 1));
 	return at.toISOString().slice(0, 7);
+}
+
+/**
+ * The month (`YYYY-MM`) a fixed one last fell due by `today` (`YYYY-MM-DD`), its day included:
+ * monthly, this month or the one before; yearly, this year's or last year's.
+ */
+export function lastDue(r: { day: number; month: number | null }, today: string) {
+	const thisMonth = monthOf(today);
+	const passed = (month: string) => `${month}-${String(r.day).padStart(2, '0')}` <= today;
+	if (r.month === null) return passed(thisMonth) ? thisMonth : addMonths(thisMonth, -1);
+	const thisYear = `${today.slice(0, 4)}-${String(r.month).padStart(2, '0')}`;
+	return passed(thisYear) ? thisYear : addMonths(thisYear, -12);
+}
+
+/**
+ * The months a fixed one is to be added in by `today`, after `lastMonth` (the last added; null,
+ * none yet: from this month on): also the ones missed while nobody looked.
+ */
+export function dueMonths(
+	r: { day: number; month: number | null },
+	lastMonth: string | null,
+	today: string
+) {
+	const last = lastDue(r, today);
+	const due: string[] = [];
+	let month = lastMonth ? addMonths(lastMonth, 1) : monthOf(today);
+	for (; month <= last; month = addMonths(month, 1))
+		if (r.month === null || Number(month.slice(5, 7)) === r.month) due.push(month);
+	return due;
 }
 
 /** «octubre de 2026». */

@@ -1,0 +1,1 @@
+ALTER TABLE "recurring_expense" ADD COLUMN "month" integer;

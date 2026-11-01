@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+	boolean,
 	index,
 	integer,
 	jsonb,
@@ -66,6 +67,11 @@ export const voiceSatellite = pgTable(
 		 * (its own snapclient, restarted when it changes); null, no music there.
 		 */
 		snapserver: text('snapserver'),
+		/**
+		 * «Modo conversación» (#361): after any answer it listens a few seconds without the wake
+		 * word. Off: with a TV in the room it would take the TV's words for orders.
+		 */
+		conversation: boolean('conversation').notNull().default(false),
 		createdAt: timestamp('created_at').notNull().defaultNow(),
 		lastSeenAt: timestamp('last_seen_at')
 	},

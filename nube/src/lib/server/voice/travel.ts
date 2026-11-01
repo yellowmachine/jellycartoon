@@ -1,14 +1,15 @@
-import type { Place } from 'comun/road.ts';
+import type { LngLat, Place } from 'comun/road.ts';
+import { metresBetween } from 'comun/road-guide.ts';
 
 /**
  * Where «¿cuánto tardo a…?» goes (`travel_time`), from what was said as a navigator would take it,
- * «El Extremeño, Sangonera la Seca, Murcia»: the first of openrouteservice's results in the town
- * said. Without its town in the label, it is somewhere else with a name alike («Calle Sangonera
- * la Verde», in Lumbreras, for «Sangonera la Seca» searched near Vélez-Rubio, 2026-11-01).
+ * «El Extremeño, Sangonera la Seca, Murcia»: the town first, among towns only, and then what is in
+ * it, by where it is. Not by its name: Puerto Lumbreras has a «Calle Sangonera la Seca», which
+ * openrouteservice gave for the restaurant (2026-11-01).
  */
 
-const plain = (text: string) =>
-	text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();
+/** How far from the town's centre what is in it can be: a town and its outskirts. */
+export const IN_TOWN_METRES = 6000;
 
 /** «El Extremeño, Sangonera la Seca, Murcia» → what («El Extremeño») and the town after it. */
 export function splitPlace(said: string): { what: string; town: string | null } {
@@ -17,9 +18,7 @@ export function splitPlace(said: string): { what: string; town: string | null } 
 	return { what, town: town || null };
 }
 
-/** The first result in `town` (its first part, «Sangonera la Seca»), or null; any, without one. */
-export function inTown(results: Place[], town: string | null): Place | null {
-	if (!town) return results[0] ?? null;
-	const wanted = plain(town.split(',')[0]!);
-	return results.find((p) => plain(p.label).includes(wanted)) ?? null;
+/** The first result within the town (`IN_TOWN_METRES` of its centre), or null. */
+export function inTown(results: Place[], town: LngLat): Place | null {
+	return results.find((p) => metresBetween(p.at, town) <= IN_TOWN_METRES) ?? null;
 }

@@ -116,6 +116,12 @@ export interface VoiceReply {
 	 * something on: that would be heard instead.
 	 */
 	listenAfter?: boolean;
+	/**
+	 * A satellite in «Modo conversación» (#361, Ajustes): it listens `CONVERSATION_MS` after this
+	 * answer, without the wake word, with a soft beep, and goes quiet without a sound if nothing is
+	 * said. Not after a question (`expectsAnswer`) nor after putting something on.
+	 */
+	conversation?: boolean;
 }
 
 /**
@@ -125,6 +131,14 @@ export interface VoiceReply {
 export const FOLLOW_UP_MS = 8000;
 /** After something done by what was learned, the satellite listens this long, for a correction. */
 export const AFTER_LEARNED_MS = 5000;
+/** In «Modo conversación» (#361), how long a satellite listens after any answer. */
+export const CONVERSATION_MS = 5000;
+
+/**
+ * Whether an answer ends asking something («¿Es ahí?», «… ¿te lo pongo?»): then it waits for the
+ * answer even if the AI did not say so (#361, phase 0).
+ */
+export const endsAsking = (text: string) => /\?[\s»"'”)]*$/.test(text.trim());
 
 /**
  * The answer as it goes in the conversation: with a choice, its options and their orders, so that

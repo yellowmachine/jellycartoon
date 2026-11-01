@@ -73,6 +73,24 @@ export async function setSnapserver(userId: string, id: string, snapserver: stri
 	for (const listener of listeners.get(id) ?? []) listener();
 }
 
+/** Whether it is in «Modo conversación» (#361): it listens after each answer, without the word. */
+export async function conversationOf(k: Kitchen, id: string) {
+	const [row] = await k.run((tx) =>
+		tx
+			.select({ conversation: voiceSatellite.conversation })
+			.from(voiceSatellite)
+			.where(eq(voiceSatellite.id, id))
+	);
+	return row?.conversation ?? false;
+}
+
+/** «Modo conversación» on or off, in Ajustes: used from its next answer, nothing to tell it. */
+export async function setConversation(userId: string, id: string, on: boolean) {
+	await withFamily(userId, (tx) =>
+		tx.update(voiceSatellite).set({ conversation: on }).where(eq(voiceSatellite.id, id))
+	);
+}
+
 /** The satellite a request comes from, and its family's kitchen: a 401 without a valid key. */
 export async function satelliteRequest(
 	request: Request
@@ -120,6 +138,7 @@ export function listSatellites(userId: string) {
 				name: voiceSatellite.name,
 				start: voiceSatellite.start,
 				snapserver: voiceSatellite.snapserver,
+				conversation: voiceSatellite.conversation,
 				createdAt: voiceSatellite.createdAt,
 				lastSeenAt: voiceSatellite.lastSeenAt
 			})

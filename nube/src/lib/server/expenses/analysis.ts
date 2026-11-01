@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { expense, expenseLine } from '#lib/server/db/schema.ts';
 import { addMonths } from 'comun/expenses.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
@@ -22,7 +22,10 @@ export async function expenseAnalysis(
 ) {
 	const since = `${addMonths(current, -11)}-01`;
 	const periodSince = `${addMonths(current, -(period - 1))}-01`;
-	const varying = withFixed ? undefined : ne(expense.source, 'fijo');
+	// Also the one made fixed («🔁 Hacer fijo»): it was written down by hand.
+	const varying = withFixed
+		? undefined
+		: and(ne(expense.source, 'fijo'), isNull(expense.recurringId));
 	const total = sql<number>`sum(${expense.total})::int`;
 
 	// One transaction, one after the other: the family's, as row-level security asks.

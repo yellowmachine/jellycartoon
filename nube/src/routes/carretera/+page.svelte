@@ -37,6 +37,14 @@
 	import { loadRecent, matching, remember, saveRecent } from 'comun/recent-places.ts';
 	import { toSay } from 'comun/road-voice.ts';
 	import { isDaytime } from 'comun/sun.ts';
+	import {
+		newTrip,
+		parseTrip,
+		REST_AFTER_SECONDS,
+		restDue,
+		tick,
+		type TripState
+	} from 'comun/road-trip.ts';
 	import FuelSheet from 'comun/components/FuelSheet.svelte';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
@@ -833,11 +841,88 @@
 		}
 	}
 
+	/**
+	 * The music's own volume in the car, under the voice's: the tablet (or the car) goes loud for
+	 * the voice, the music lower; kept in this browser. Leaving the road mode, the usual one.
+	 */
+	const CAR_VOLUME_KEY = 'carretera-musica';
+	const CAR_VOLUME_STEP = 0.1;
+	let carVolume = $state(0.6);
+	$effect(() => {
+		try {
+			const saved = Number(localStorage.getItem(CAR_VOLUME_KEY));
+			if (localStorage.getItem(CAR_VOLUME_KEY) !== null && saved >= 0 && saved <= 1)
+				carVolume = saved;
+		} catch {
+			// Private windows: 60 %.
+		}
+		return () => music.setCarVolume(null);
+	});
+	$effect(() => music.setCarVolume(carVolume));
+	function changeCarVolume(by: number) {
+		carVolume = Math.round(Math.min(1, Math.max(0, carVolume + by)) * 10) / 10;
+		try {
+			localStorage.setItem(CAR_VOLUME_KEY, String(carVolume));
+		} catch {
+			// Same.
+		}
+	}
+
+	/**
+	 * The trip so far (comun/road-trip.ts), for the strip on the map: km, time driving, the rest.
+	 * Kept in this browser, every few seconds: a reload on the way goes on with it.
+	 */
+	const TRIP_KEY = 'carretera-viaje';
+	const TRIP_SAVE_MS = 10_000;
+	let trip = $state<TripState>(newTrip());
+	let tripSavedAt = 0;
+	$effect(() => {
+		try {
+			trip = parseTrip(JSON.parse(localStorage.getItem(TRIP_KEY) ?? 'null'));
+		} catch {
+			// Private windows: from now.
+		}
+	});
+	function saveTrip(now: number) {
+		if (now - tripSavedAt < TRIP_SAVE_MS) return;
+		tripSavedAt = now;
+		try {
+			localStorage.setItem(TRIP_KEY, JSON.stringify(trip));
+		} catch {
+			// Same.
+		}
+	}
+	// Two hours driving without a rest: said once, and in the strip until one stops.
+	$effect(() => {
+		if (!restDue(trip)) return;
+		untrack(() => {
+			trip = { ...trip, restSaid: true };
+			if (spoken) say('Llevas dos horas conduciendo. Para a descansar un rato.');
+		});
+	});
+	/** «142 km», «8,4 km», «350 m». */
+	const kmText = (metres: number) =>
+		metres >= 10_000 ? `${Math.round(metres / 1000)} km` : distanceText(metres);
+
+	/** The next stop on the way: how far along the route, and about how long, at the pace left. */
+	const nextStop = $derived.by(() => {
+		const stop = via[0];
+		if (!stop || !route || !guidance) return null;
+		const metres = stopAhead(stop);
+		if (!Number.isFinite(metres) || metres < 0) return null;
+		const seconds =
+			eta && guidance.remaining > 0 ? eta.seconds * Math.min(1, metres / guidance.remaining) : null;
+		return { name: shortName(stop.name), metres, seconds };
+	});
+
 	/** Each position from the GPS: where we are, how fast, and the time driving for one's pace. */
 	function positioned(at: LngLat, metresPerSecond: number | null) {
-		pace.tick(Date.now(), metresPerSecond);
+		const now = Date.now();
+		pace.tick(now, metresPerSecond);
 		here = at;
 		speed = metresPerSecond;
+		trip = tick(trip, at, metresPerSecond, now);
+		saveTrip(now);
 	}
 
 	/**
@@ -1126,6 +1211,50 @@ home. -->
 	{/if}
 {/snippet}
 
+<!--
+	The trip at a glance, on the map: each figure always in its place (nothing moving to follow
+	with the eyes while driving). The rest, in amber after 2 h without one.
+-->
+{#snippet tripStrip(where: string)}
+	{#if trip.last}
+		{@const resting = trip.sinceBreak >= REST_AFTER_SECONDS}
+		<div
+			class="{where} grid auto-cols-fr grid-flow-col gap-3 rounded-2xl bg-zinc-950/90 px-4 py-2 shadow-xl"
+		>
+			<div class="min-w-0">
+				<p class="text-sm text-zinc-400">Llevas</p>
+				<p class="text-xl font-semibold tabular-nums">{kmText(trip.metres)}</p>
+			</div>
+			{#if nextStop}
+				<div class="min-w-0">
+					<p class="truncate text-sm text-zinc-400">{nextStop.name}</p>
+					<p class="truncate text-xl font-semibold tabular-nums">
+						{kmText(nextStop.metres)}{#if nextStop.seconds !== null}
+							· {durationText(nextStop.seconds)}{/if}
+					</p>
+				</div>
+			{/if}
+			{#if route && guidance && !guidance.arrived}
+				<div class="min-w-0">
+					<p class="text-sm text-zinc-400">Al destino</p>
+					<p class="truncate text-xl font-semibold tabular-nums">
+						{kmText(guidance.remaining)}{#if eta}
+							· {clock.format(eta.arrival)}{/if}
+					</p>
+				</div>
+			{/if}
+			<div class={['min-w-0', resting && 'rounded-xl bg-amber-500 px-2 text-black']}>
+				<p class={['text-sm', resting ? 'font-semibold' : 'text-zinc-400']}>
+					{resting ? '☕ Descansa' : 'Conduciendo'}
+				</p>
+				<p class="text-xl font-semibold tabular-nums">
+					{durationText(resting ? trip.sinceBreak : trip.moving)}{resting ? ' sin parar' : ''}
+				</p>
+			</div>
+		</div>
+	{/if}
+{/snippet}
+
 {#snippet lightButton()}
 	<button
 		class="rounded-full bg-zinc-950/80 px-4 py-2 text-lg text-zinc-100 shadow-lg active:scale-95"
@@ -1158,6 +1287,7 @@ home. -->
 					corner={lightButton}
 				/>
 				{@render maneuver('absolute inset-x-3 top-3')}
+				{@render tripStrip('absolute inset-x-3 bottom-24')}
 				{@render searchBox()}
 				<!-- Out of the way of the next maneuver, at the top; «Mapa» brings it back. -->
 				<button
@@ -1347,6 +1477,27 @@ home. -->
 									>
 								{/if}
 							</div>
+							<!-- The music's volume, here only: the tablet's buttons, loud, are for the voice. -->
+							<div class="mt-3 flex items-center justify-center gap-3 short:mt-2">
+								<button
+									class="{big} h-14 w-14 text-3xl short:h-12 short:w-12"
+									aria-label="Música más baja"
+									disabled={carVolume <= 0}
+									onclick={() => changeCarVolume(-CAR_VOLUME_STEP)}>−</button
+								>
+								<span
+									class="w-36 text-center text-lg text-zinc-300"
+									title="La música, aquí; la voz, con los botones de la tablet"
+								>
+									Música {Math.round(carVolume * 100)} %</span
+								>
+								<button
+									class="{big} h-14 w-14 text-3xl short:h-12 short:w-12"
+									aria-label="Música más alta"
+									disabled={carVolume >= 1}
+									onclick={() => changeCarVolume(CAR_VOLUME_STEP)}>+</button
+								>
+							</div>
 						{/if}
 					</section>
 
@@ -1476,7 +1627,7 @@ home. -->
 									</p>
 									<div class="mt-3 flex flex-wrap gap-2">
 										<button
-											class="rounded-xl bg-zinc-800 px-5 py-3 text-lg active:bg-zinc-700"
+											class="rounded-xl bg-red-700 px-5 py-3 text-lg font-semibold text-white active:bg-red-800"
 											onclick={clearRoute}>Quitar ruta</button
 										>
 										<button

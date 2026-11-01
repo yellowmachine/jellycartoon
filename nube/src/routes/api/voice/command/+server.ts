@@ -1,18 +1,22 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { parseVoiceRequest, type VoiceReply } from 'comun/voice.ts';
-import type { HouseVoiceOrder } from 'comun/house-voice.ts';
+import type { HouseVoiceOrder, VoiceTiming } from 'comun/house-voice.ts';
+import type { Kitchen } from '#lib/server/fridge.ts';
 import { familyHasHouse, HouseProblem, tellHouse } from '#lib/server/house.ts';
 import { describeTimersAt } from '#lib/server/alarms/alarms.ts';
 import { sayableError } from '#lib/server/openrouter.ts';
 import {
+	conversationOf,
 	familySatellites,
 	satelliteRequest,
 	snapclientIdOf,
 	snapserverOf
 } from '#lib/server/satellites.ts';
 import { voiceAnswered, voiceFailed } from '#lib/server/voice/alarm.ts';
-import { runVoiceCommand } from '#lib/server/voice/command.ts';
+import { putOn, runVoiceCommand } from '#lib/server/voice/command.ts';
+import { inQuietHours } from '#lib/server/voice/quiet-check.ts';
+import { voiceSettings } from '#lib/server/voice/settings.ts';
 import {
 	HOUSE_DOWN,
 	SATELLITE_WITHOUT_HOUSE,
@@ -111,7 +115,11 @@ export const POST: RequestHandler = async ({ request }) => {
 			}
 		);
 		voiceAnswered(k.familyId);
-		return json(reply);
+		return json(
+			(await keepsTalking(k, satellite.id, reply, timing))
+				? { ...reply, conversation: true }
+				: reply
+		);
 	} catch (err) {
 		voiceFailed(k.familyId, err);
 		const message = err instanceof Error ? err.message : String(err);
@@ -126,3 +134,21 @@ export const POST: RequestHandler = async ({ request }) => {
 		} satisfies VoiceReply);
 	}
 };
+
+/**
+ * «Modo conversación» (#361): whether it listens after this answer, without the word. Not after a
+ * question or something done by what was learned (they listen their own way), nor after putting
+ * something on (it would hear that), nor in the «horas de silencio» (its beep).
+ */
+async function keepsTalking(
+	k: Kitchen,
+	id: string,
+	reply: VoiceReply,
+	timing: VoiceTiming
+): Promise<boolean> {
+	if (reply.expectsAnswer || reply.listenAfter || putOn(timing)) return false;
+	if (!(await conversationOf(k, id))) return false;
+	const { quiet } = await voiceSettings(k);
+	const now = new Date();
+	return !quiet || !inQuietHours(quiet, now.getHours() * 60 + now.getMinutes());
+}

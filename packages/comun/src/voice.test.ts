@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { assistantTurn, HISTORY_TURNS, parseVoiceRequest } from './voice.ts';
+import { assistantTurn, endsAsking, HISTORY_TURNS, parseVoiceRequest } from './voice.ts';
 
 describe('parseVoiceRequest', () => {
 	test('in the road mode, only when it says so', () => {
@@ -178,5 +178,16 @@ describe('questions', () => {
 		);
 		const parsed = parseVoiceRequest({ text: 'la segunda', history: [long] });
 		expect(parsed?.history[0]?.content).toBe(long.content);
+	});
+});
+
+describe('endsAsking', () => {
+	test('a question at the end, even inside quotes', () => {
+		expect(endsAsking('Lo que encuentro es una calle en Lumbreras. ¿Es ahí?')).toBe(true);
+		expect(endsAsking('Te pregunto: «¿lo pongo?» ')).toBe(true);
+	});
+	test('a question in the middle, or none: no', () => {
+		expect(endsAsking('¿Sabes qué? Ya está puesto.')).toBe(false);
+		expect(endsAsking('Comprueba que sea el correcto.')).toBe(false);
 	});
 });

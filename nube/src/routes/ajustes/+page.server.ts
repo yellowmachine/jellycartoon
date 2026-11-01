@@ -73,6 +73,7 @@ import {
 	deleteSatellite,
 	listSatellites,
 	MAX_SATELLITE_NAME,
+	setConversation,
 	setSnapserver
 } from '#lib/server/satellites.ts';
 import { parseSnapserver } from '#lib/snapserver.ts';
@@ -773,6 +774,18 @@ export const actions: Actions = {
 			});
 		await setSnapserver(locals.user!.id, String(form.get('id') ?? ''), snapserver);
 		return { saved: 'snapserver' };
+	},
+	/** «Modo conversación» (#361): it listens after each answer, without the word. */
+	saveConversation: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'satelliteProblem');
+		if (denied) return denied;
+		const form = await request.formData();
+		await setConversation(
+			locals.user!.id,
+			String(form.get('id') ?? ''),
+			form.get('conversation') === 'on'
+		);
+		return { saved: 'conversation' };
 	},
 	deleteSatellite: async ({ request, locals }) => {
 		const denied = await requireAdmin(locals.user!.id, 'satelliteProblem');

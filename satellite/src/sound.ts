@@ -54,13 +54,17 @@ function playNow(wav: Uint8Array): Promise<void> {
 	});
 }
 
-/** As the phone's (wake-word.svelte.ts): 880 Hz heard, 660 sent, 440 nothing said. */
-export function beep(hz: number) {
-	const samples = new Int16Array(Math.round(SAMPLE_RATE * 0.15));
+/**
+ * As the phone's (wake-word.svelte.ts): 880 Hz heard, 660 sent, 440 nothing said. `soft`: quieter
+ * and shorter, for «Modo conversación» (#361), heard after every answer.
+ */
+export function beep(hz: number, soft = false) {
+	const samples = new Int16Array(Math.round(SAMPLE_RATE * (soft ? 0.08 : 0.15)));
+	const loud = soft ? 2500 : 8000;
 	for (let i = 0; i < samples.length; i++) {
 		// Faded in and out: no click.
 		const fade = Math.min(1, i / 160, (samples.length - i) / 160);
-		samples[i] = Math.round(8000 * fade * Math.sin((2 * Math.PI * hz * i) / SAMPLE_RATE));
+		samples[i] = Math.round(loud * fade * Math.sin((2 * Math.PI * hz * i) / SAMPLE_RATE));
 	}
 	return play(toWav(samples));
 }

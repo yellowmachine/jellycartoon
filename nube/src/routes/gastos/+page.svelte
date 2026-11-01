@@ -383,6 +383,13 @@
 		window.scrollTo({ top: fixedFrom, behavior: 'smooth' });
 	}
 
+	/** «enero»…«diciembre», for the yearly ones. */
+	const MONTHS = Array.from({ length: 12 }, (_, i) =>
+		new Date(Date.UTC(2026, i, 15)).toLocaleDateString('es-ES', { month: 'long', timeZone: 'UTC' })
+	);
+	/** «🔁 Hacer fijo» opened on this expense: every month or every year. */
+	let making = $state<number | null>(null);
+
 	const field =
 		'rounded-md border-zinc-700 bg-zinc-950 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500';
 	const button = 'rounded-md px-3 py-1.5 text-sm disabled:opacity-40';
@@ -397,7 +404,7 @@
 	<ExpenseTabs current="mes" />
 	<p class="mb-4 text-sm text-zinc-400">
 		Los de la casa, para todos los adultos. Con una foto del ticket, a mano, por voz («he gastado 40
-		euros en gasolina») o fijos de cada mes.
+		euros en gasolina») o fijos, de cada mes o de cada año.
 	</p>
 
 	<div class="mb-6 flex flex-wrap gap-2">
@@ -895,6 +902,43 @@
 									</button>
 								</form>
 							{/if}
+							{#if e.fixed}
+								<span class="py-1.5 text-zinc-400">🔁 Fijo</span>
+							{:else if making === e.id}
+								<form
+									method="post"
+									action="?/makeRecurring"
+									class="flex flex-wrap items-center gap-2"
+									use:enhance={() =>
+										async ({ result, update }) => {
+											if (result.type === 'failure')
+												problem = String(result.data?.message ?? 'No se pudo hacer fijo');
+											else making = null;
+											await update({ reset: false });
+										}}
+								>
+									<input type="hidden" name="id" value={e.id} />
+									<span class="py-1.5"
+										>🔁 Fijo, el día {Math.min(28, Number(e.date.slice(8, 10)))}:</span
+									>
+									<button name="every" value="mes" class="{button} bg-zinc-800 hover:bg-zinc-700"
+										>Cada mes</button
+									>
+									<button name="every" value="año" class="{button} bg-zinc-800 hover:bg-zinc-700"
+										>Cada año ({MONTHS[Number(e.date.slice(5, 7)) - 1]})</button
+									>
+									<button
+										type="button"
+										class="{button} hover:bg-zinc-800"
+										onclick={() => (making = null)}>No</button
+									>
+								</form>
+							{:else}
+								<button
+									class="{button} bg-zinc-800 hover:bg-zinc-700"
+									onclick={() => (making = e.id)}>🔁 Hacer fijo</button
+								>
+							{/if}
 							{#if deleting === `gasto-${e.id}`}
 								<form method="post" action="?/delete" use:enhance class="flex gap-2">
 									<input type="hidden" name="id" value={e.id} />
@@ -922,20 +966,26 @@
 	</ul>
 
 	<section class="mb-10">
-		<h2 class="mb-1 font-semibold">Fijos de cada mes</h2>
+		<h2 class="mb-1 font-semibold">Fijos</h2>
 		<p class="mb-3 text-sm text-zinc-400">
-			Se apuntan solos el día que toca. Uno nuevo empieza este mes si su día aún no ha llegado, y si
-			no, el que viene.
+			De cada mes o de cada año: se apuntan solos el día que toca. Uno nuevo empieza la próxima vez
+			que llegue su día. Uno ya apuntado se hace fijo con «🔁 Hacer fijo», al abrirlo.
 		</p>
 		<ul class="mb-3 divide-y divide-zinc-800">
 			{#each data.recurring as r (r.id)}
 				<li class="flex items-center gap-3 py-2">
-					<span class="w-14 shrink-0 text-sm text-zinc-400">día {r.day}</span>
+					<span class="w-20 shrink-0 text-sm text-zinc-400"
+						>{r.month === null ? `día ${r.day}` : `${r.day} ${MONTHS[r.month - 1]}`}</span
+					>
 					<span class="min-w-0 flex-1">
 						<span class="block truncate">{r.name}</span>
 						<span class="block text-xs text-zinc-500">{r.category}</span>
 					</span>
-					<span class="tabular-nums">{euros(r.amount)}</span>
+					<span class="text-right tabular-nums"
+						>{euros(r.amount)}<span class="block text-xs text-zinc-500"
+							>{r.month === null ? 'al mes' : 'al año'}</span
+						></span
+					>
 					<button
 						class="{button} hover:bg-zinc-800"
 						onclick={() => openFixed({ ...r, amount: typed(r.amount) })}>Cambiar</button
@@ -1010,6 +1060,29 @@
 						class="{field} text-right"
 					/>
 				</label>
+				<label class="flex flex-col gap-1 text-xs text-zinc-400">
+					Cada
+					<select
+						name="every"
+						value={f.month === null ? 'mes' : 'año'}
+						onchange={(e) =>
+							(f.month = e.currentTarget.value === 'año' ? Number(data.today.slice(5, 7)) : null)}
+						class={field}
+					>
+						<option value="mes">mes</option>
+						<option value="año">año</option>
+					</select>
+				</label>
+				{#if f.month !== null}
+					<label class="flex flex-col gap-1 text-xs text-zinc-400">
+						Mes
+						<select name="month" bind:value={f.month} class={field}>
+							{#each MONTHS as name, i (i)}
+								<option value={i + 1}>{name}</option>
+							{/each}
+						</select>
+					</label>
+				{/if}
 				<button class="{button} bg-amber-500 font-semibold text-zinc-950 hover:bg-amber-400"
 					>Guardar</button
 				>
@@ -1020,8 +1093,15 @@
 		{:else}
 			<button
 				class="text-sm text-amber-400 hover:underline"
-				onclick={() => openFixed({ id: null, name: '', category: 'Facturas', amount: '', day: 1 })}
-				>+ Fijo</button
+				onclick={() =>
+					openFixed({
+						id: null,
+						name: '',
+						category: 'Facturas',
+						amount: '',
+						day: 1,
+						month: null
+					})}>+ Fijo</button
 			>
 		{/if}
 	</section>
