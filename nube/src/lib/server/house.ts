@@ -82,7 +82,8 @@ export async function forgetHouse(userId: string) {
 const PROBLEMS: Record<number, string> = {
 	401: 'La casa no acepta la clave: crea otra en Ajustes → Casa → «Seilide» de jellycartoon',
 	403: 'La casa no conoce tu email: tiene que ser el mismo que el de tu cuenta de casa',
-	404: 'Esa dirección no tiene la API de vídeo: ¿es la de MEDIA_HOST, con jellycartoon 1.84 o más?'
+	404: 'Esa dirección no tiene la API de vídeo: ¿es la de MEDIA_HOST, con jellycartoon 1.84 o más?',
+	429: 'La casa tiene demasiadas peticiones seguidas de Seilide: prueba en un minuto'
 };
 
 /**

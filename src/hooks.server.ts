@@ -22,6 +22,7 @@ import { startSubtitles } from '#lib/server/auto-subtitles.ts';
 import { startLabelling } from '#lib/server/episode-labels.ts';
 import { startNightlyScan } from '#lib/server/library/nightly.ts';
 import { logStartup } from '#lib/server/startup.ts';
+import { freeCloudKeys } from '#lib/server/media-api.ts';
 import { wakeCatalog } from '#lib/server/cinema/catalog.ts';
 import { wakeExtras } from '#lib/server/cinema/info.ts';
 import { wakeMusicCatalog } from '#lib/server/music/catalog.ts';
@@ -55,6 +56,10 @@ export const init: ServerInit = async () => {
 	void startTelegram().catch((error) => log.error('telegram', 'Al arrancar', { error }));
 	// What the voice satellites say while the AI thinks (#223), read beforehand to sound at once.
 	if (piperEnabled) void warmFillers();
+	// The cloud's keys made with the rate limit (#350): without it.
+	void freeCloudKeys().catch((error) =>
+		log.error('nube', 'Al quitar el límite a sus claves', { error })
+	);
 	// In the Registro: which version started, and how each of the above starts.
 	await logStartup();
 	// adapter-node has closed the server on SIGTERM; the timers above would keep the process alive
