@@ -44,6 +44,29 @@ Suena por el mismo altavoz que la voz (`SPEAKER`), o por otro con `SNAPCLIENT_SO
 la Raspberry tenía el `snapclient` de Debian, se quita, para que no suene dos veces:
 `sudo systemctl disable --now snapclient`.
 
+## El DNS de la casa (AdGuard Home)
+
+Opcional, y solo en **uno** de los satélites (#355): que esa Raspberry, siempre encendida, sea el
+DNS primario de la casa, con el PC del salón de secundario. Así apagar o actualizar el salón no
+deja a nadie sin internet, y el nombre de la casa se resuelve dentro a la IP del salón.
+
+1. IP fija para la Raspberry: una reserva en el router.
+2. Que nada use ya el puerto 53 en ella: `sudo ss -lntup 'sport = :53'` no tiene que dar nada.
+3. En su `.env`, `COMPOSE_PROFILES="dns"`, y `docker compose -f compose.prod.yaml up -d`.
+4. `http://<IP-de-la-Raspberry>:3000`: el asistente de AdGuard. En él, deja la web en el
+   puerto **3000** (el único publicado) y el DNS en el 53.
+5. **Filtros → Reescrituras DNS**: el nombre de la casa (el de `ORIGIN`, sin `https://`) → la IP
+   del salón. La misma regla que en el DNS del salón, si lo tiene: los dos tienen que contestar
+   lo mismo, porque los aparatos preguntan a uno u otro.
+6. Comprobar desde otro equipo, antes de tocar el router:
+   `nslookup <nombre-de-la-casa> <IP-de-la-Raspberry>` (la IP del salón) y
+   `nslookup google.com <IP-de-la-Raspberry>`.
+7. En el router, el DHCP: DNS primario la Raspberry, secundario el salón. Los aparatos lo cogen
+   al renovar la IP (apagar y encender el wifi lo adelanta).
+
+WUD no lo actualiza: una versión nueva de AdGuard se cambia a mano en `compose.prod.yaml`, para que
+una actualización de noche no deje la casa sin DNS.
+
 ## Mientras se desarrolla
 
 `compose.yaml` lo construye desde este repositorio en la propia Raspberry, desde el PC:

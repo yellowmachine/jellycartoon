@@ -580,20 +580,26 @@
 						{e.bill ? 'Desglose' : 'Líneas'}
 						{#if e.lines.length}<span class="text-zinc-500">({e.lines.length})</span>{/if}
 					</h3>
-					<ul class="flex flex-col gap-1">
+					<!-- On a phone, a line with a kind takes two rows: what and how much on top, its kind
+					     (set by the AI, seldom changed) small below; one row from sm up. A bill's parts
+					     have no kind: one row always. -->
+					<ul class="flex flex-col divide-y divide-zinc-800 sm:gap-1 sm:divide-y-0">
 						{#each e.lines as line, i (i)}
-							<li class="flex items-center gap-1">
-								<input
-									bind:value={line.text}
-									aria-label="Línea {i + 1}"
-									class="{field} min-w-0 flex-1"
-								/>
+							<li
+								class={[
+									'grid items-center gap-x-1 py-1.5 sm:py-0',
+									e.bill
+										? 'grid-cols-[minmax(0,1fr)_5rem_auto]'
+										: 'grid-cols-[minmax(0,1fr)_5rem] sm:grid-cols-[minmax(0,1fr)_7rem_5rem_auto]'
+								]}
+							>
+								<input bind:value={line.text} aria-label="Línea {i + 1}" class="{field} min-w-0" />
 								<!-- A bill's parts are all of one thing: no kind to choose. -->
 								{#if !e.bill}
 									<select
 										bind:value={line.tag}
 										aria-label="Qué es la línea {i + 1}"
-										class="{field} w-28 shrink-0 truncate"
+										class="col-start-1 row-start-2 mt-0.5 justify-self-start truncate rounded-md border-transparent bg-transparent py-0.5 pl-0 text-xs text-zinc-400 focus:border-amber-500 focus:ring-amber-500 sm:col-start-2 sm:row-start-1 sm:mt-0 sm:w-full sm:justify-self-stretch sm:border-zinc-700 sm:bg-zinc-950 sm:py-1.5 sm:pl-3 sm:text-sm sm:text-inherit"
 									>
 										{#each LINE_TAGS as t (t)}
 											<option value={t}>{t}</option>
@@ -604,10 +610,17 @@
 									bind:value={line.amount}
 									inputmode="decimal"
 									aria-label="Importe de la línea {i + 1}"
-									class="{field} w-20 text-right"
+									class={[
+										`${field} w-full text-right`,
+										!e.bill && 'col-start-2 row-start-1 sm:col-start-3'
+									]}
 								/>
 								<button
-									class="rounded px-2 py-1 text-zinc-500 hover:bg-zinc-800 hover:text-white"
+									class={[
+										'rounded px-2 py-1 text-zinc-500 hover:bg-zinc-800 hover:text-white',
+										!e.bill &&
+											'col-start-2 row-start-2 justify-self-end sm:col-start-4 sm:row-start-1'
+									]}
 									aria-label="Quitar la línea {i + 1}"
 									onclick={() => e.lines.splice(i, 1)}>✕</button
 								>
