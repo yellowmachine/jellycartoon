@@ -25,8 +25,10 @@ import { today, type Kitchen } from '#lib/server/fridge.ts';
 import { isBillKind, isBillUnit, parseBillDetails, type BillInput } from 'comun/bills.ts';
 import {
 	addMonths,
+	dueMonths,
 	isCategory,
 	isTag,
+	lastDue,
 	monthOf,
 	type Expense,
 	type ExpenseFavorite,
@@ -94,6 +96,7 @@ function expensesWhere(k: Kitchen, where: SQL | undefined, limit?: number): Prom
 				total: expense.total,
 				source: expense.source,
 				receipt: expense.receipt,
+				recurringId: expense.recurringId,
 				by: user.name,
 				bill
 			})
@@ -116,10 +119,11 @@ function expensesWhere(k: Kitchen, where: SQL | undefined, limit?: number): Prom
 					)
 					.orderBy(asc(expenseLine.position))
 			: [];
-		return rows.map(({ receipt, category, bill, ...r }) => ({
+		return rows.map(({ receipt, category, bill, recurringId, ...r }) => ({
 			...r,
 			category: isCategory(category) ? category : 'Otros',
 			hasReceipt: Boolean(receipt),
+			fixed: recurringId !== null,
 			bill: bill ? billOf(bill) : null,
 			lines: lines
 				.filter((l) => l.expenseId === r.id)
@@ -275,31 +279,90 @@ export async function deleteFavorite(k: Kitchen, id: number) {
 
 export async function recurringExpenses(k: Kitchen): Promise<RecurringExpense[]> {
 	const rows = await k.run((tx) =>
-		tx.select().from(recurringExpense).orderBy(asc(recurringExpense.day))
+		tx
+			.select()
+			.from(recurringExpense)
+			.orderBy(sql`${recurringExpense.month} nulls first`, asc(recurringExpense.day))
 	);
 	return rows.map((r) => ({
 		id: r.id,
 		name: r.name,
 		category: isCategory(r.category) ? r.category : 'Otros',
 		amount: r.amount,
-		day: r.day
+		day: r.day,
+		month: r.month
 	}));
 }
 
+/** The later of two `YYYY-MM`. */
+const later = (a: string, b: string) => (a > b ? a : b);
+
 /**
- * A new fixed one starts this month if its day has not come yet, or the next if it has: the month
- * one is in was likely already written down by hand.
+ * A new fixed one starts at its next day to come: the one already gone (this month's, this
+ * year's) was likely already written down by hand.
  */
 export async function addRecurring(k: Kitchen, r: Omit<RecurringExpense, 'id'>) {
-	const now = today();
-	const lastMonth = Number(now.slice(8, 10)) >= r.day ? monthOf(now) : addMonths(monthOf(now), -1);
+	const lastMonth = lastDue(r, today());
 	await k.run((tx) =>
 		tx.insert(recurringExpense).values({ ...r, familyId: k.familyId, userId: k.userId, lastMonth })
 	);
 }
 
+/** Changed to a day or month already gone, it is not added for it: from the next one. */
 export async function updateRecurring(k: Kitchen, id: number, r: Omit<RecurringExpense, 'id'>) {
-	await k.run((tx) => tx.update(recurringExpense).set(r).where(eq(recurringExpense.id, id)));
+	await k.run(async (tx) => {
+		const [row] = await tx
+			.select({ lastMonth: recurringExpense.lastMonth })
+			.from(recurringExpense)
+			.where(eq(recurringExpense.id, id));
+		if (!row) return;
+		const due = lastDue(r, today());
+		const lastMonth = row.lastMonth ? later(row.lastMonth, due) : due;
+		await tx
+			.update(recurringExpense)
+			.set({ ...r, lastMonth })
+			.where(eq(recurringExpense.id, id));
+	});
+}
+
+/**
+ * «🔁 Hacer fijo»: an expense already written down (Prime, by hand) made a fixed one, every month
+ * or every year from its day (28 at most). It is the first: the next ones, from the next time on.
+ * False if it is not there; already one, nothing new.
+ */
+export async function makeRecurring(k: Kitchen, expenseId: number, yearly: boolean) {
+	return k.run(async (tx) => {
+		const [e] = await tx
+			.select({
+				date: expense.date,
+				store: expense.store,
+				category: expense.category,
+				total: expense.total,
+				recurringId: expense.recurringId
+			})
+			.from(expense)
+			.where(eq(expense.id, expenseId));
+		if (!e) return false;
+		if (e.recurringId !== null) return true;
+		const r = {
+			name: e.store.slice(0, 120),
+			category: isCategory(e.category) ? e.category : 'Otros',
+			amount: e.total,
+			day: Math.min(28, Number(e.date.slice(8, 10))),
+			month: yearly ? Number(e.date.slice(5, 7)) : null
+		};
+		const [row] = await tx
+			.insert(recurringExpense)
+			.values({
+				...r,
+				familyId: k.familyId,
+				userId: k.userId,
+				lastMonth: later(monthOf(e.date), lastDue(r, today()))
+			})
+			.returning({ id: recurringExpense.id });
+		await tx.update(expense).set({ recurringId: row!.id }).where(eq(expense.id, expenseId));
+		return true;
+	});
 }
 
 /** The expenses it already added stay, as paid: let go of first, then it goes. */
@@ -315,11 +378,9 @@ export async function deleteRecurring(k: Kitchen, id: number) {
  * nobody looked (from the month after the last one added). On opening Gastos, and by voice.
  */
 export async function addDueRecurring(k: Kitchen, now = today()) {
-	const thisMonth = monthOf(now);
-	const day = Number(now.slice(8, 10));
 	for (const r of await k.run((tx) => tx.select().from(recurringExpense))) {
-		let month = r.lastMonth ? addMonths(r.lastMonth, 1) : thisMonth;
-		while (month < thisMonth || (month === thisMonth && day >= r.day)) {
+		let previous = r.lastMonth;
+		for (const month of dueMonths(r, r.lastMonth, now)) {
 			// Claimed first: two pages opened at once add it once.
 			const claimed = await k.run((tx) =>
 				tx
@@ -328,9 +389,9 @@ export async function addDueRecurring(k: Kitchen, now = today()) {
 					.where(
 						and(
 							eq(recurringExpense.id, r.id),
-							r.lastMonth === null
+							previous === null
 								? sql`${recurringExpense.lastMonth} is null`
-								: eq(recurringExpense.lastMonth, addMonths(month, -1))
+								: eq(recurringExpense.lastMonth, previous)
 						)
 					)
 					.returning({ id: recurringExpense.id })
@@ -352,8 +413,7 @@ export async function addDueRecurring(k: Kitchen, now = today()) {
 				null,
 				r.userId
 			);
-			r.lastMonth = month;
-			month = addMonths(month, 1);
+			previous = month;
 		}
 	}
 }

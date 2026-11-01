@@ -351,6 +351,13 @@
       "when": 1793532654170,
       "tag": "0049_flawless_mister_sinister",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1793553907101,
+      "tag": "0050_hesitant_gabe_jones",
+      "breakpoints": true
     }
   ]
 }

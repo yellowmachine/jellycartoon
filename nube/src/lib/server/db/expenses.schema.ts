@@ -43,6 +43,8 @@ export const recurringExpense = pgTable(
 		amount: integer('amount').notNull(),
 		/** Day of the month, 1 to 28: every month has it. */
 		day: integer('day').notNull(),
+		/** Every year, in this month (1 to 12); null, every month. */
+		month: integer('month'),
 		/** The last month it was added, `YYYY-MM`; null, none yet. */
 		lastMonth: text('last_month'),
 		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),

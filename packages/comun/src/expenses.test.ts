@@ -1,5 +1,7 @@
 import { expect, test } from 'bun:test';
 import {
+	dueMonths,
+	lastDue,
 	addMonths,
 	byTag,
 	euros,
@@ -107,4 +109,28 @@ test('a favourite is that expense, not any other at the same place', () => {
 	// Without an amount, any amount; lines without text, as if not there.
 	expect(isFavorite({ ...same, total: 700 }, { ...fav, total: null })).toBe(true);
 	expect(isFavorite({ ...same, lines: [kebab, { ...kebab, text: ' ' }] }, fav)).toBe(true);
+});
+
+test('lastDue: monthly, this month once its day comes; yearly, this year once its day comes', () => {
+	expect(lastDue({ day: 15, month: null }, '2026-11-14')).toBe('2026-10');
+	expect(lastDue({ day: 15, month: null }, '2026-11-15')).toBe('2026-11');
+	expect(lastDue({ day: 1, month: null }, '2026-01-01')).toBe('2026-01');
+	expect(lastDue({ day: 10, month: 3 }, '2026-11-01')).toBe('2026-03');
+	expect(lastDue({ day: 10, month: 3 }, '2026-03-09')).toBe('2025-03');
+	expect(lastDue({ day: 10, month: 12 }, '2026-11-01')).toBe('2025-12');
+});
+
+test('dueMonths: monthly, each one missed; yearly, only its month', () => {
+	expect(dueMonths({ day: 5, month: null }, '2026-08', '2026-11-01')).toEqual([
+		'2026-09',
+		'2026-10'
+	]);
+	expect(dueMonths({ day: 1, month: null }, '2026-10', '2026-11-01')).toEqual(['2026-11']);
+	expect(dueMonths({ day: 5, month: null }, null, '2026-11-01')).toEqual([]);
+	expect(dueMonths({ day: 5, month: null }, null, '2026-11-05')).toEqual(['2026-11']);
+	expect(dueMonths({ day: 10, month: 3 }, '2025-03', '2026-11-01')).toEqual(['2026-03']);
+	expect(dueMonths({ day: 10, month: 3 }, '2026-03', '2026-11-01')).toEqual([]);
+	expect(dueMonths({ day: 10, month: 3 }, '2026-03', '2027-03-10')).toEqual(['2027-03']);
+	expect(dueMonths({ day: 10, month: 11 }, null, '2026-11-10')).toEqual(['2026-11']);
+	expect(dueMonths({ day: 10, month: 3 }, '2024-03', '2026-11-01')).toEqual(['2025-03', '2026-03']);
 });
