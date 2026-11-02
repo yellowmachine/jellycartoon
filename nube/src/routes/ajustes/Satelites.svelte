@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { field, primary, secondary, section } from '#lib/styles.ts';
 	import type { PageData, ActionData } from './$types';
+	import VozSatelites from './VozSatelites.svelte';
 
 	/**
 	 * Los satélites de voz que sirve Seilide (#296): una Raspberry en una habitación, con su clave,
@@ -122,5 +123,7 @@
 		{#if form && 'satelliteProblem' in form}
 			<p class="mt-3 text-sm text-red-400">{form.satelliteProblem}</p>
 		{/if}
+
+		<VozSatelites {data} {form} {tab} />
 	</section>
 {/if}

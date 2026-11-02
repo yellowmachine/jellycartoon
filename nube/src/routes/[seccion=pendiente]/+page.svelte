@@ -29,7 +29,7 @@
 	{:else}
 		<p class="text-sm text-zinc-400">
 			Para ir desde aquí, pon la dirección de jellycartoon en
-			<a href="/ajustes?seccion=familia#casa" class="text-amber-400 hover:underline">Ajustes</a>.
+			<a href="/ajustes?seccion=conexiones#casa" class="text-amber-400 hover:underline">Ajustes</a>.
 		</p>
 	{/if}
 </div>

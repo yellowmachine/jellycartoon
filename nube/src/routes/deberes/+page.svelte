@@ -109,7 +109,7 @@
 		{#if !data.ai}
 			<p class="text-sm text-zinc-400">
 				Hace falta la IA: pon la clave de OpenRouter en
-				<a href="/ajustes?seccion=familia#ia" class="text-amber-400 hover:underline">Ajustes</a>.
+				<a href="/ajustes?seccion=conexiones#ia" class="text-amber-400 hover:underline">Ajustes</a>.
 			</p>
 		{:else}
 			<form

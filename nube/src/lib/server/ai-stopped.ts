@@ -41,7 +41,7 @@ export const keepBlocks = () =>
 								? `${block.why}. No funcionan la voz, el DJ ni los tickets hasta que se suba en openrouter.ai/keys y se pulse «Ya lo he subido», o se reinicie el límite.`
 								: `${block.why}. No funcionan la voz, el DJ ni los tickets hasta que se recargue en openrouter.ai y se pulse «Ya he recargado».`,
 					tag: `ia-parada-${familyId}`,
-					url: block.why === BAD_KEY ? '/ajustes?seccion=familia#ia' : '/',
+					url: block.why === BAD_KEY ? '/ajustes?seccion=conexiones#ia' : '/',
 					ttl: 24 * 60 * 60
 				}
 			);

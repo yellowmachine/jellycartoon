@@ -10,7 +10,7 @@
 		satelliteVoiceModel
 	} from 'comun/ai-voice.ts';
 	import { onDestroy } from 'svelte';
-	import { primary, secondary, section, select } from '#lib/styles.ts';
+	import { primary, secondary, select } from '#lib/styles.ts';
 	import type { PageData, ActionData } from './$types';
 
 	/**
@@ -90,12 +90,13 @@
 </script>
 
 {#if data.satelliteVoice}
-	<section class={section} id="voz-satelites">
-		<h2 class="mb-1 font-semibold">Voz de los satélites</h2>
+	<!-- Inside «Satélites de voz» (Satelites.svelte): one section for them. -->
+	<div id="voz-satelites" class="mt-6 border-t border-zinc-800 pt-4">
+		<h3 class="mb-1 font-semibold">Su voz</h3>
 		<p class="mb-3 text-sm text-zinc-400">
-			Cómo contestan los satélites de voz de aquí arriba: una voz, con la clave de IA de la familia,
-			y cómo dice las cosas. Las rápidas dicen la respuesta en menos de un segundo; las de Gemini
-			tardan uno o dos, pero hacen caso a «Cómo habla».
+			Cómo contestan los satélites: una voz, con la clave de IA de la familia, y cómo dice las
+			cosas. Las rápidas dicen la respuesta en menos de un segundo; las de Gemini tardan uno o dos,
+			pero hacen caso a «Cómo habla».
 		</p>
 		<form
 			method="post"
@@ -191,5 +192,5 @@
 				<p class="text-sm text-red-400">{form.satelliteVoiceProblem}</p>
 			{/if}
 		</form>
-	</section>
+	</div>
 {/if}
