@@ -152,7 +152,10 @@ interface Order {
 	end: SpeechEnd;
 	chunks: Int16Array[];
 	startedAt: number;
-	/** Opened by itself after an answer («Modo conversación»): nothing said ends it without a beep. */
+	/**
+	 * Opened by itself after an answer (a question, by what was learned, «Modo conversación»), not by
+	 * the wake word: within a talk, without beeps (2026-11-02): neither «sent» nor «nothing said».
+	 */
 	quietEnd: boolean;
 }
 
@@ -162,8 +165,12 @@ let order: Order | null = null;
  * question, «Modo conversación») takes only a voice as loud as that one, not a TV further away.
  */
 let wordDb: number | null = null;
-/** Its soft beep, «Modo conversación»: listening by itself after an answer. */
-const CONVERSATION_HZ = 784;
+/**
+ * Twice, before the first answer of the «Modelo para conversar» in a talk: another voice, thinking.
+ * Once per talk (from the wake word on), not before each of its answers.
+ */
+const DEEP_HZ = 988;
+let deepSaid = false;
 /** An order on its way to the server: no other until it answers. */
 let busy = false;
 let quietUntil = 0;
@@ -193,6 +200,8 @@ async function step(chunk: Float32Array) {
 			const voiceDb = Math.max(...recent.map((r) => r.dbfs));
 			log(`«${WORD}» (${score.toFixed(2)}): escuchando (la palabra a ${db(voiceDb)})`);
 			wordDb = voiceDb;
+			// A new talk: the conversation's model is announced again, the first time.
+			deepSaid = false;
 			begin(voiceDb);
 		}
 	}
@@ -203,10 +212,16 @@ async function step(chunk: Float32Array) {
  * set by the first speech, and longer to start (`waitMs`).
  */
 /**
- * `hz`: its beep; lower after something done by what was learned, not a question. `conversation`:
- * opened by itself after an answer (#361): a soft beep, and nothing said ends it quietly.
+ * `hz`: its beep, only after the wake word: listening again by itself after an answer (a question,
+ * by what was learned, «Modo conversación») has none, as the person knows the talk goes on
+ * (2026-11-02). `conversation`: opened by itself after an answer (#361): nothing said ends it quietly.
  */
-function begin(voiceDb: number | null, waitMs = SPEECH_END.waitMs, hz = 880, conversation = false) {
+function begin(
+	voiceDb: number | null,
+	waitMs = SPEECH_END.waitMs,
+	hz: number | null = 880,
+	conversation = false
+) {
 	// As touching the phone: what rings stops, and the order may be about it («quítalo»).
 	if (alarms.ringing.length) {
 		hush();
@@ -218,13 +233,13 @@ function begin(voiceDb: number | null, waitMs = SPEECH_END.waitMs, hz = 880, con
 	// Its attempt ends here: what it reached, with the order and not after it.
 	attempt = 0;
 	duck(true);
-	void beep(hz, conversation);
+	if (hz !== null) void beep(hz);
 	order = {
 		vad: vad(),
 		end: new SpeechEnd({ ...SPEECH_END, marginDb: MARGIN_DB, waitMs }, voiceDb),
 		chunks: [],
 		startedAt: Date.now(),
-		quietEnd: conversation
+		quietEnd: conversation || hz === null
 	};
 }
 
@@ -244,7 +259,7 @@ async function finish(current: Order, said: 'done' | 'nothing') {
 	const seconds = (current.chunks.length * CHUNK) / SAMPLE_RATE;
 	if (said === 'nothing') {
 		duck(false);
-		if (current.quietEnd) return log(`Conversación: nada más dicho en ${seconds.toFixed(1)} s`);
+		if (current.quietEnd) return log(`Sin la palabra: nada más dicho en ${seconds.toFixed(1)} s`);
 		void beep(440);
 		return log(`Nada dicho en ${seconds.toFixed(1)} s`);
 	}
@@ -261,7 +276,7 @@ async function finish(current: Order, said: 'done' | 'nothing') {
 		at += c.length;
 	}
 	const wav = toWav(samples);
-	void beep(660);
+	if (!current.quietEnd) void beep(660);
 	await keep(wav);
 	// Not waited for here: the microphone goes on through the detector meanwhile.
 	if (serverReady) void respond(wav);
@@ -326,6 +341,12 @@ async function respond(wav: Uint8Array) {
 							? ''
 							: `; frase de espera a los ${fillerAt - started} ms, la respuesta esperó ${waited} ms por ella`;
 					log(`Dicho en voz (${Date.now() - started} ms desde la orden${filled})`);
+					// Answered by the conversation's model, the first time in this talk: two quick beeps.
+					if (done.reply.deep && !deepSaid) {
+						deepSaid = true;
+						await beep(DEEP_HZ, true);
+						await beep(DEEP_HZ, true);
+					}
 					await play(voice);
 				}
 			}
@@ -343,13 +364,13 @@ async function respond(wav: Uint8Array) {
 		// Without the word: only a voice as loud as the last word's (#361), not a TV further away.
 		if (asked && !order) {
 			log(`Pregunta: escuchando la respuesta ${FOLLOW_UP_MS / 1000} s`);
-			begin(wordDb, FOLLOW_UP_MS);
+			begin(wordDb, FOLLOW_UP_MS, null);
 		} else if (assumed && !order) {
 			log(`Por lo aprendido: escuchando ${AFTER_LEARNED_MS / 1000} s por si lo corrige`);
-			begin(wordDb, AFTER_LEARNED_MS, 587);
+			begin(wordDb, AFTER_LEARNED_MS, null);
 		} else if (talking && !order && !alarms.ringing.length) {
 			log(`Conversación: escuchando ${CONVERSATION_MS / 1000} s sin la palabra`);
-			begin(wordDb, CONVERSATION_MS, CONVERSATION_HZ, true);
+			begin(wordDb, CONVERSATION_MS, null, true);
 		} else duck(false);
 	}
 }

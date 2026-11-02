@@ -75,6 +75,7 @@ import {
 	sharesWords
 } from './learned.ts';
 import { FALLBACK_VOICE_MODEL, personVoiceStyle, voiceSettings } from './settings.ts';
+import { converse, CONVERSE_SENTENCES } from './converse.ts';
 import { voiceFellBack } from './alarm.ts';
 import { searchWeb, WEB_TOOL, webSearchTool } from './web-search.ts';
 import { forecast, placeName } from 'comun/weather.ts';
@@ -893,6 +894,30 @@ function memoryTools(satellite: boolean): Tool[] {
 }
 
 /** A message for someone of the family, in their «Buzón» and on their phone (inbox.ts, #331). */
+/**
+ * A question to think about, handed over to the «Modelo para conversar» (converse.ts): its answer
+ * is said as it comes, in a few sentences, instead of this model's one.
+ */
+const converseTool: Tool = {
+	type: 'function',
+	function: {
+		name: 'converse',
+		description: `Para una pregunta de pensar (una opinión, filosofía, el porqué de algo, explicar algo a fondo), no para una orden ni un dato rápido: contesta otra voz, más pensada, en ${CONVERSE_SENTENCES} frases. Sola, y sin «answer» después.`,
+		parameters: {
+			type: 'object',
+			properties: {
+				question: {
+					type: 'string',
+					description:
+						'Lo que pregunta, tal como lo ha dicho (con lo de antes que haga falta para entenderlo).'
+				}
+			},
+			required: ['question'],
+			additionalProperties: false
+		}
+	}
+};
+
 const messageTool: Tool = {
 	type: 'function',
 	function: {
@@ -1075,6 +1100,7 @@ Cómo responder:
 - Lo que te han pedido recordar viene en el mensaje, con su número; para «¿dónde está…?», «¿cuál era…?», contesta con eso, y si no está, mira «list_memories» antes de decir que no lo sabes. Nunca lo inventes.
 - Si no sabes lo que te preguntan, dilo y ya. Nunca añadas algo recordado que no tenga que ver con la pregunta («lo que sí sé es que el paraguas está en la biblioteca»): solo lo que conteste a lo que pregunta.
 - Los temporizadores de hoy que ya sonaron dicen también lo que se puso a enfriar, a cocer o a esperar («la cerveza del congelador, ya sonó y se paró hace 2 h»): para «¿tengo algo en el congelador?», «¿había puesto algo al horno?», contesta con eso, como lo que sabes («metiste la cerveza; su aviso sonó hace dos horas y lo paraste: si no la sacaste, sigue ahí»).
+- Si es una pregunta para pensar (una opinión, filosofía, el porqué de algo, que le expliques algo a fondo) y no una orden ni un dato, usa «converse» con la pregunta: contesta otra voz más pensada, en unas frases. Si la charla sigue con lo mismo («¿y por qué?», «pero entonces…»), vuelve a usarla. Un dato rápido («¿cuándo nació Kant?», «¿qué hora es?») lo contestas tú con «answer»; y «converse» nunca para hacer algo.
 - Si duda entre pocas opciones, usa «ask», con una pregunta que las nombre («¿El álbum Deseo carnal o la canción?»): quien la oye quizá no ve los botones, y contesta de palabra. Si la orden siguiente es esa respuesta («la segunda», «el álbum», «el de Alaska»), haz la orden de la opción que elige: van en el turno de tu pregunta. Si no encuentras algo, dilo y propón lo más parecido que haya.
 - Contesta solo a la orden de ahora. Las anteriores sirven para entenderla («la segunda», «quita eso»), no para volver a sacarlas: si esta va de otra cosa («¿qué hora es?» después de hablar de alarmas), no añadas preguntas ni ofrecimientos de lo de antes.
 - Si solo cuenta algo, sin preguntar ni pedir nada («los sábados hay mercado en el pueblo», «a Lucía no le gustan las lentejas»), no es una orden ni sigue lo de antes, aunque venga justo después: no vuelvas a lo anterior ni lo hagas otra vez. ${learns ? 'Contesta muy corto («Vale», «Entendido»): lo que se cuenta así se aprende después, sin herramientas.' : 'Si merece recordarse (un plan, un dato de la familia o de la casa), guárdalo con «remember» y di «Vale, me lo apunto»; si no, contesta muy corto («Vale»).'}
@@ -2105,7 +2131,8 @@ export async function runVoiceCommand(
 		...(kid ? [] : [plannedTripsTool]),
 		...(learned ? [usedLearnedTool] : []),
 		...(kid ? [] : memoryTools(Boolean(satellite))),
-		...(settings.web.on ? [webSearchTool] : [])
+		...(settings.web.on ? [webSearchTool] : []),
+		converseTool
 	]
 		.map((t) =>
 			timersOf && withHouse && t.function.name === 'set_timer'
@@ -2176,6 +2203,52 @@ export async function runVoiceCommand(
 		if (!answer.toolCalls.length)
 			return reply(answer.content ?? 'Hecho.', answer.content?.includes('?') ?? false);
 		const calls = answer.toolCalls.filter((c) => !noteUsedLearned(c, outcome));
+		// A question to think about: the conversation's model answers it, and that is the reply. If
+		// it cannot, this one is told so, and answers itself.
+		const handed = calls.find((c) => c.function.name === 'converse');
+		if (handed) {
+			let question = request.text;
+			try {
+				const args = JSON.parse(handed.function.arguments || '{}');
+				if (typeof args.question === 'string' && args.question.trim()) question = args.question;
+			} catch {
+				// What was said, as it is.
+			}
+			const thinking = performance.now();
+			try {
+				const text = await converse({
+					apiKey,
+					model: settings.conversationModel,
+					question,
+					history: request.history,
+					context: [
+						`[${house.today}]`,
+						satellite
+							? '[Te habla alguien de la casa desde un satélite de voz: no sabes quién es.]'
+							: `[Te habla: ${order.who.name}.${personStyle ? ` Cómo quiere que le hables: «${personStyle}».` : ''}]`,
+						...(settings.style ? [`[El carácter de la casa: «${settings.style}».]`] : [])
+					]
+				});
+				timing.rounds.push({
+					ms: Math.round(performance.now() - thinking),
+					prompt: 0,
+					cached: 0,
+					completion: 0,
+					tools: ['converse']
+				});
+				return { ...reply(text, text.endsWith('?')), deep: true };
+			} catch (err) {
+				if (err instanceof Error && creditProblem(err.message)) return reply(SAID_NO_CREDIT);
+				console.warn('[voz] el modelo para conversar no ha podido; contesta el de siempre', err);
+				messages.push({ role: 'assistant', content: answer.content, tool_calls: [handed] });
+				messages.push({
+					role: 'tool',
+					tool_call_id: handed.id,
+					content: 'No ha podido contestar. Contesta tú con «answer», en una o dos frases.'
+				});
+				continue;
+			}
+		}
 		const [only] = calls;
 		if (calls.length === 1 && only!.function.name === 'answer') {
 			let args: { text?: unknown; expects_answer?: unknown } = {};

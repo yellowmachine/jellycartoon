@@ -132,6 +132,11 @@ export interface VoiceReply {
 	 * said. Not after a question (`expectsAnswer`) nor after putting something on.
 	 */
 	conversation?: boolean;
+	/**
+	 * Answered by the «Modelo para conversar» (a question to think about, handed over): a satellite
+	 * beeps twice before saying it, so it is known which voice answers.
+	 */
+	deep?: boolean;
 }
 
 /**
