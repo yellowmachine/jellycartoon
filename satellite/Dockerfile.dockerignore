@@ -13,4 +13,5 @@
 !static/wakeword/embedding_model.onnx
 !static/wakeword/hola_casita.onnx
 !static/wakeword/alexa.onnx
+!static/wakeword/okapi.onnx
 !static/wakeword/silero_vad.onnx

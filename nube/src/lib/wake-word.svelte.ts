@@ -5,15 +5,22 @@ import { isWakeWord, type WakeWordModel } from 'comun/wake-words.ts';
 import { voice } from '#lib/voice-client.svelte.ts';
 
 /**
- * Saying «Alexa» instead of pressing the microphone, in the road mode (jellycartoon's
- * src/lib/wake-word.svelte.ts, without its tests and cleaning): on the tablets that turn it on
- * there, kept in the browser. It listens while Carretera is open and in front; heard, it beeps,
+ * Saying «Alexa» (or «Okapi», «hola casita») instead of pressing the microphone (jellycartoon's
+ * src/lib/wake-word.svelte.ts, without its tests and cleaning), turned on in each place on each
+ * device, kept in the browser: in the road mode, while Carretera is open and in front; in the
+ * kitchen (#60), while its mode is on, on any page. The word, one for the device. Heard, it beeps,
  * what plays pauses, and what is said next goes to the voice until a silence (comun/vad.ts).
  * Nothing leaves the tablet but that order. The sound is not cleaned: with music playing on the
  * tablet, the word went off better without it (tried at home, 2026-10-25).
  */
 
-const KEY = 'carretera-palabra';
+/** Where it can be turned on, and the key each one is kept under. */
+export type WakePlace = 'carretera' | 'cocina';
+const KEYS: Record<WakePlace, string> = {
+	carretera: 'carretera-palabra',
+	cocina: 'cocina-palabra'
+};
+/** The device's word (first chosen in Carretera: its key stays). */
 const WORD_KEY = 'carretera-palabra-cual';
 /** «Alexa» by default, as the satellites: the same word everywhere. */
 export const ROAD_WAKE_WORD: WakeWordModel = 'alexa';
@@ -53,8 +60,11 @@ interface Order {
 }
 
 class WakeWord {
-	/** Turned on in Carretera, on this tablet. */
-	on = $state(typeof window !== 'undefined' && read(KEY) === 'on');
+	/** Turned on in each place, on this device. */
+	on = $state<Record<WakePlace, boolean>>({
+		carretera: typeof window !== 'undefined' && read(KEYS.carretera) === 'on',
+		cocina: typeof window !== 'undefined' && read(KEYS.cocina) === 'on'
+	});
 	word = $state<WakeWordModel>(ROAD_WAKE_WORD);
 	/** `tap`: listening, but the browser lets the sound start only after a touch on the page. */
 	status = $state<'off' | 'loading' | 'on' | 'tap'>('off');
@@ -74,9 +84,9 @@ class WakeWord {
 		if (isWakeWord(word)) this.word = word;
 	}
 
-	set(on: boolean) {
-		this.on = on;
-		keep(KEY, on ? 'on' : null);
+	set(place: WakePlace, on: boolean) {
+		this.on[place] = on;
+		keep(KEYS[place], on ? 'on' : null);
 	}
 
 	/** A new word: listened for at once, if it was listening. */
@@ -90,7 +100,8 @@ class WakeWord {
 	}
 
 	/**
-	 * From the page: listening while it should (turned on, in Carretera). After a start that failed
+	 * From the page: listening while it should (turned on there: Carretera, or the kitchen's mode on).
+	 * After a start that failed
 	 * (`problem`), tried again only once it was not wanted for a while.
 	 */
 	want(wanted: boolean) {

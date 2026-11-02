@@ -927,7 +927,7 @@
 
 	// «Alexa» instead of the button, turned on here on this tablet: only while Carretera is open.
 	$effect(() => {
-		wakeWord.want(wakeWord.on);
+		wakeWord.want(wakeWord.on.carretera);
 		return () => wakeWord.want(false);
 	});
 
@@ -1543,15 +1543,15 @@ home. -->
 							<button
 								class={[
 									'rounded-full px-5 py-3 text-lg font-semibold shadow-lg active:scale-95',
-									wakeWord.on ? 'bg-amber-500 text-black' : 'bg-zinc-800 text-zinc-200'
+									wakeWord.on.carretera ? 'bg-amber-500 text-black' : 'bg-zinc-800 text-zinc-200'
 								]}
-								aria-pressed={wakeWord.on}
-								onclick={() => wakeWord.set(!wakeWord.on)}
-								>{wakeWord.on
+								aria-pressed={wakeWord.on.carretera}
+								onclick={() => wakeWord.set('carretera', !wakeWord.on.carretera)}
+								>{wakeWord.on.carretera
 									? `«${WAKE_WORDS[wakeWord.word]}»: sí`
 									: `Decir «${WAKE_WORDS[wakeWord.word]}»: no`}</button
 							>
-							{#if wakeWord.on}
+							{#if wakeWord.on.carretera}
 								<select
 									class="rounded-full border-zinc-700 bg-zinc-900 py-3 text-lg text-zinc-200"
 									aria-label="Palabra"
@@ -1576,7 +1576,7 @@ home. -->
 								>
 							{/if}
 						</div>
-						{#if wakeWord.on && wakeWord.problem}
+						{#if wakeWord.on.carretera && wakeWord.problem}
 							<p class="text-lg text-amber-300" aria-live="polite">{wakeWord.problem}</p>
 						{/if}
 						{#if roadPhotos.problem}
