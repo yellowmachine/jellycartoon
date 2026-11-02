@@ -8,6 +8,7 @@ import { log } from '#lib/server/log.ts';
 import { piper, piperEnabled } from '#lib/server/piper.ts';
 import { completeJson, speech } from '#lib/server/openrouter.ts';
 import { getAlbums, tracksById } from './albums.ts';
+import { getPlaylist } from './playlists.ts';
 import {
 	insertNextOnSnapcast,
 	nextOnSnapcast,
@@ -17,7 +18,7 @@ import {
 	setSnapcastDj,
 	snapcastRemaining
 } from './snapcast.ts';
-import { fold, type DjOptions, type DjVoice, type MusicTrack } from 'comun/music.ts';
+import { fold, playlistBatch, type DjOptions, type DjVoice, type MusicTrack } from 'comun/music.ts';
 
 /**
  * Modo DJ (#117): songs at random from the library (or from some artists), and every few of them
@@ -80,6 +81,30 @@ export async function randomTracks(artists: string[], count: number, exclude: nu
 	return tracks.slice(0, count);
 }
 
+/**
+ * Modo DJ's next songs: of its playlist if it has one (comun's playlistBatch: mixed, or in order
+ * from `offset`, the songs of it queued so far, and again from its first), or at random of its
+ * artists (`randomTracks`).
+ */
+export async function djTracks(
+	options: Pick<DjOptions, 'artists' | 'playlist' | 'inOrder'>,
+	count: number,
+	exclude: number[] = [],
+	offset = 0
+): Promise<MusicTrack[]> {
+	if (!options.playlist) return randomTracks(options.artists, count, exclude);
+	const list = await getPlaylist(options.playlist.id);
+	return playlistBatch(list?.items.map((i) => i.track) ?? [], count, {
+		inOrder: options.inOrder,
+		offset,
+		exclude
+	});
+}
+
+/** Said when there is nothing to play. */
+export const djEmpty = (options: Pick<DjOptions, 'playlist'>) =>
+	options.playlist ? 'La lista está vacía' : 'No hay canciones de esos artistas';
+
 const describe = (t: MusicTrack) => `«${t.title}», de ${t.artist} (álbum «${t.album}»)`;
 
 /**
@@ -87,9 +112,15 @@ const describe = (t: MusicTrack) => `«${t.title}», de ${t.artist} (álbum «${
  * the files say: the AI is told not to add anything, which is its main risk. Without a key, or if
  * the AI fails, the same said plainly.
  */
-async function words(played: MusicTrack[], next: MusicTrack | null, lang: DjOptions['lang']) {
+async function words(
+	played: MusicTrack[],
+	next: MusicTrack | null,
+	lang: DjOptions['lang'],
+	playlist: string | null
+) {
 	const english = lang === 'en';
 	const facts = [
+		...(playlist ? [`Suena la lista «${playlist}», de la casa.`] : []),
 		`Han sonado: ${played.map(describe).join('; ')}.`,
 		next ? `Ahora suena: ${describe(next)}.` : 'No se sabe qué suena después.'
 	].join('\n');
@@ -102,6 +133,7 @@ async function words(played: MusicTrack[], next: MusicTrack | null, lang: DjOpti
 					'Entre canción y canción dices en voz alta, en una a tres frases (unos 15 segundos),',
 					'qué ha sonado y qué viene ahora, con naturalidad y simpatía, como en la radio.',
 					'Usa SOLO los datos que te dan: no inventes años, historias, géneros ni nada que no esté.',
+					'Si te dicen qué lista suena, puedes nombrarla alguna vez, sin repetirla siempre.',
 					'Sin emojis ni acotaciones: es texto para leer en voz alta.',
 					english
 						? 'Habla en inglés (English), sencillo y claro: quien escucha está aprendiendo.'
@@ -223,10 +255,11 @@ export async function makeClip(
 	played: MusicTrack[],
 	next: MusicTrack | null,
 	lang: DjOptions['lang'],
-	voice: DjVoice
+	voice: DjVoice,
+	playlist: string | null = null
 ): Promise<MusicTrack> {
 	const started = performance.now();
-	const text = await words(played, next, lang);
+	const text = await words(played, next, lang, playlist);
 	const { id, durationSec, by } = await speak(text, lang, voice);
 	log.info('música', `Locutor del modo DJ: «${text}»`, {
 		lang,
@@ -257,14 +290,16 @@ const snap = {
 	played: [] as MusicTrack[],
 	/** The last entry seen: start-file can be told twice. */
 	entryId: -1,
+	/** The playlist's songs queued so far, for the next ones in order. */
+	offset: 0,
 	busy: false
 };
 
 export async function startDjOnSnapcast(options: DjOptions) {
-	const tracks = await tracksById((await randomTracks(options.artists, DJ_BATCH)).map((t) => t.id));
-	if (!tracks.length) throw new Error('No hay canciones de esos artistas');
+	const tracks = await tracksById((await djTracks(options, DJ_BATCH)).map((t) => t.id));
+	if (!tracks.length) throw new Error(djEmpty(options));
 	// On before the queue: its first song counts too.
-	Object.assign(snap, { options, played: [], entryId: -1 });
+	Object.assign(snap, { options, played: [], entryId: -1, offset: tracks.length });
 	setSnapcastDj(true);
 	try {
 		await queueOnSnapcast(tracks, { replace: true });
@@ -297,13 +332,22 @@ async function stepSnapcast(entryId: number, track: MusicTrack) {
 	try {
 		if ((await snapcastRemaining()) < DJ_REFILL_BELOW) {
 			const more = await tracksById(
-				(await randomTracks(options.artists, DJ_BATCH, queuedOnSnapcast())).map((t) => t.id)
+				(await djTracks(options, DJ_BATCH, queuedOnSnapcast(), snap.offset)).map((t) => t.id)
 			);
-			if (snap.options === options) await queueOnSnapcast(more, { replace: false });
+			if (snap.options === options) {
+				await queueOnSnapcast(more, { replace: false });
+				snap.offset += more.length;
+			}
 		}
 		if (track.clip || snap.played.length < options.every) return;
 		const played = snap.played;
-		const clip = await makeClip(played, await nextOnSnapcast(), options.lang, options.voice);
+		const clip = await makeClip(
+			played,
+			await nextOnSnapcast(),
+			options.lang,
+			options.voice,
+			options.playlist?.name ?? null
+		);
 		// Still on that song and in the same DJ mode: after it, and the count starts again.
 		if (snap.options !== options || snap.entryId !== entryId) return;
 		await insertNextOnSnapcast(clip, clipFile(clip.clip!.id));

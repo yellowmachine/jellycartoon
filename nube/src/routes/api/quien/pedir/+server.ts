@@ -7,7 +7,7 @@ import { askToEnter, deviceOf } from '#lib/server/kid-login.ts';
 /**
  * A child chose its drawing (#303): its adults are asked, unless it has a permission running here.
  * With the question, a QR for the device's screen: an adult beside it reads it (with Seilide's
- * «Leer el QR de un peque» or the phone's own camera) and answers there, notice or not.
+ * «Leer un QR», /qr, or the phone's own camera) and answers there, notice or not.
  */
 export const POST: RequestHandler = async ({ request, cookies }) => {
 	const device = await deviceOf(cookies);

@@ -18,7 +18,13 @@ test("with a house, what it serves through the cloud; nothing that goes to the h
 	for (const away of ['Cine', 'Salón', 'Juegos', 'Infantil']) expect(labels).not.toContain(away);
 	expect(links.some((l) => l.external || !l.href.startsWith('/'))).toBe(false);
 	expect(menuLinks.map((l) => l.label)).not.toContain('Gestión');
-	expect(userLinks.map((l) => l.label)).toEqual(['Buzón', 'Ajustes']);
+	// With a house, its TV's QR (#172).
+	expect(userLinks.map((l) => l.label)).toEqual(['Leer un QR', 'Buzón', 'Ajustes']);
+});
+
+test('«Leer un QR»: with a house or some child to let in; without either, not', () => {
+	expect(navLinks(false, false).userLinks.map((l) => l.label)).toEqual(['Buzón', 'Ajustes']);
+	expect(navLinks(false, false, false, true).userLinks.map((l) => l.label)).toContain('Leer un QR');
 });
 
 test('Oración (#339), only with it on; for a child too', () => {

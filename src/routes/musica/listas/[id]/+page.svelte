@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { mixed } from 'comun/music.ts';
 	import AddToQueue from 'comun/components/AddToQueue.svelte';
 	import { enhance } from '$app/forms';
 	import AlbumCover from 'comun/components/AlbumCover.svelte';
@@ -59,6 +60,18 @@
 			class="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-zinc-950 hover:bg-amber-400"
 			onclick={() => musicTarget.play(tracks, 0, toSnapcast)}>▶︎ Reproducir</button
 		>
+		<!-- Shuffled once, then played in that order (comun/music.ts, `mixed`): here or on Snapcast. -->
+		<button
+			class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800"
+			onclick={() => musicTarget.play(mixed(tracks), 0, toSnapcast)}>🔀 Mezclar y reproducir</button
+		>
+		{#if data.dj}
+			<!-- Modo DJ with this playlist's songs: its dialog in Música (comun's DjDialog). -->
+			<a
+				href="/musica?dj={data.playlist.id}&lista={encodeURIComponent(data.playlist.name)}"
+				class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800">🎙 Con DJ</a
+			>
+		{/if}
 		<AddToQueue {tracks} {toSnapcast} />
 	</div>
 	{#if data.snapcast}

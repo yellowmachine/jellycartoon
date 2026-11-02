@@ -2,11 +2,16 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import jsQR from 'jsqr';
+	import type { PageProps } from './$types';
+
+	let { data }: PageProps = $props();
 
 	/**
-	 * «Leer el QR de un peque» (#303): the camera, until it sees the QR on a child's device («¿Quién
-	 * eres?»), which opens its request to answer (/peques/permiso/…). Only Seilide's own links: any
-	 * other QR is said, not followed. Read here with jsQR, frame by frame, on every browser.
+	 * «Leer un QR»: the camera, until it sees the QR on a child's device («¿Quién eres?», #303),
+	 * which opens its request to answer (/peques/permiso/…), or on the house's TV (#172), which opens
+	 * the house's /entrar to let this adult in there (with «Entrar con Seilide» if the phone has no
+	 * session of the house yet). Only those links: any other QR is said, not followed. Read here with
+	 * jsQR, frame by frame, on every browser.
 	 */
 	let video = $state<HTMLVideoElement>();
 	let problem = $state<string | null>(null);
@@ -14,17 +19,35 @@
 
 	const REQUEST_PATH = /^\/peques\/permiso\/[\w-]+$/;
 
-	/** Its path, if the text is a link to a request of this Seilide; null otherwise. */
-	function requestPath(text: string) {
+	/** Where to go for what was read: a child's request here, or the house's TV; null, neither. */
+	function target(text: string): { here: string } | { house: string } | null {
+		let url: URL;
 		try {
-			const url = new URL(text);
-			return url.origin === location.origin && REQUEST_PATH.test(url.pathname)
-				? url.pathname
-				: null;
+			url = new URL(text);
 		} catch {
 			return null;
 		}
+		if (data.guardian && url.origin === location.origin && REQUEST_PATH.test(url.pathname))
+			return { here: url.pathname };
+		if (
+			data.houseOrigin &&
+			url.origin === data.houseOrigin &&
+			url.pathname === '/entrar' &&
+			url.searchParams.get('codigo')
+		)
+			return { house: url.href };
+		return null;
 	}
+
+	/** What it reads, said over the camera. */
+	const what = $derived(
+		[
+			data.houseOrigin && 'el de la tele, al elegir tu dibujo',
+			data.guardian && 'el del aparato de un peque, al elegir el suyo'
+		]
+			.filter(Boolean)
+			.join(', o ')
+	);
 
 	onMount(() => {
 		let stream: MediaStream | null = null;
@@ -44,10 +67,12 @@
 					inversionAttempts: 'dontInvert'
 				});
 				if (found) {
-					const path = requestPath(found.data);
-					if (path) {
+					const to = target(found.data);
+					if (to) {
 						stopped = true;
-						void goto(path);
+						if ('here' in to) void goto(to.here);
+						// The house's app: the whole page goes there.
+						else location.assign(to.house);
 						return;
 					}
 					wrong = true;
@@ -81,12 +106,21 @@
 </script>
 
 <svelte:head>
-	<title>Leer el QR de un peque · Seilide</title>
+	<title>Leer un QR · Seilide</title>
 </svelte:head>
 
 <div class="mx-auto flex max-w-md flex-col items-center gap-4 pt-6 text-center">
-	<h1 class="text-2xl font-bold">Leer el QR de un peque</h1>
-	<p class="text-sm text-zinc-400">Apunta al QR que sale en su aparato cuando elige su dibujo.</p>
+	<h1 class="text-2xl font-bold">Leer un QR</h1>
+	{#if what}
+		<p class="text-sm text-zinc-400">Apunta al QR: {what}.</p>
+	{/if}
+	{#if data.hasHouse && !data.houseOrigin}
+		<p class="text-sm text-amber-400">
+			Para leer el de la tele, pon la dirección de jellycartoon en
+			<a href="/ajustes?seccion=conexiones#casa" class="underline">Ajustes → Conexiones → Tu casa</a
+			>.
+		</p>
+	{/if}
 	{#if problem}
 		<p class="text-red-400">{problem}</p>
 	{:else}
@@ -97,7 +131,7 @@
 			class="aspect-square w-full max-w-sm rounded-xl bg-zinc-900 object-cover"
 		></video>
 		{#if wrong}
-			<p class="text-sm text-amber-400">Ese QR no es el de un peque de Seilide.</p>
+			<p class="text-sm text-amber-400">Ese QR no es de la tele ni de un peque de Seilide.</p>
 		{/if}
 	{/if}
 	<a href="/" class="text-zinc-400 hover:text-white">Cancelar</a>

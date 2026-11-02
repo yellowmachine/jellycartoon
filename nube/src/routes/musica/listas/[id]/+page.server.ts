@@ -4,6 +4,7 @@ import { HouseProblem } from '#lib/server/house.ts';
 import {
 	changePlaylist,
 	deletePlaylist,
+	djInfo,
 	playlist,
 	type PlaylistChange
 } from '#lib/server/music.ts';
@@ -13,7 +14,12 @@ const whoOf = (locals: App.Locals) => ({ id: locals.user!.id, email: locals.user
 /** A playlist of the house's (#253), with each item's place, to reorder and remove. */
 export const load: PageServerLoad = async ({ params, locals }) => {
 	try {
-		return { playlist: await playlist(whoOf(locals), Number(params.id)) };
+		const [list, dj] = await Promise.all([
+			playlist(whoOf(locals), Number(params.id)),
+			djInfo(whoOf(locals))
+		]);
+		/** «Con DJ»: Modo DJ with its songs, if the house has one. */
+		return { playlist: list, dj: dj.enabled };
 	} catch (err) {
 		if (err instanceof HouseProblem) error(404, err.message);
 		throw err;
