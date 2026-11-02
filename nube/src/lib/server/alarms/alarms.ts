@@ -32,8 +32,11 @@ import { nextRing } from './next.ts';
 
 /** A phone's notice of one ringing, no use after this: the house stops sounding by then. */
 const RING_MAX_MS = 3 * 60_000;
-/** Over this long, what is over is forgotten; told to the voice until then. */
-const KEEP_DONE_MS = 30 * 60_000;
+/**
+ * Over this long, what is over is forgotten; told to the voice until then: a day's worth, so that
+ * «¿tengo algo en el congelador?» hours later knows the beer's timer rang (2026-11-02).
+ */
+const KEEP_DONE_MS = 12 * 3600_000;
 /** What the AI may still call one with no name: as if it had none (as the house's). */
 const DEFAULT_LABEL = 'temporizador';
 

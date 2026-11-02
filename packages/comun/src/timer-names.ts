@@ -32,6 +32,13 @@ export function spokenLeft(sec: number) {
 	return m ? `${m} min${sec % 60 ? ` ${sec % 60} s` : ''}` : `${sec} s`;
 }
 
+/** How long ago, said: «25 min», «2 h 10 min». */
+export function spokenAgo(sec: number) {
+	const m = Math.floor(Math.max(0, sec) / 60);
+	if (m < 60) return spokenLeft(sec);
+	return `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`;
+}
+
 export const sameLabel = (a: string, b: string) =>
 	a.localeCompare(b, 'es', { sensitivity: 'base' }) === 0;
 
@@ -63,7 +70,7 @@ export function describeTimers(
 	return [
 		...done.map(
 			(d) =>
-				`${d.label}, ya ${d.how === 'sonó' ? 'sonó y se paró' : 'se quitó'} hace ${spokenLeft((now - d.at) / 1000)}: no lo vuelvas a poner si no lo pide`
+				`${d.label}, ya ${d.how === 'sonó' ? 'sonó y se paró' : 'se quitó'} hace ${spokenAgo((now - d.at) / 1000)}: no lo vuelvas a poner si no lo pide`
 		),
 		...running.map((t) => `${t.label}, quedan ${spokenLeft((t.endsAt - now) / 1000)}`),
 		...ringing.map((t) => `${t.label}, ya ha terminado y está sonando`),
