@@ -173,7 +173,9 @@
 
 <svelte:head>
 	<title>Seilide</title>
-	<link rel="icon" href={favicon} />
+	<!-- From static/, not inlined: some browsers show no icon for a data: URL (the snail, the same file). -->
+	<link rel="icon" href="/icon.svg" type="image/svg+xml" />
+	<link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png" />
 	<meta name="theme-color" content={themeColor(data.theme)} />
 	<!-- Their colours (Ajustes), as at home: values only from the themes' table. -->
 	<!-- eslint-disable-next-line svelte/no-at-html-tags -- a <style> made from the themes' own table, never from what was typed. -->
@@ -231,113 +233,116 @@ trip's link (#81), for whoever has it. -->
 				{#snippet leading()}
 					<!-- Not for a child (#303): the voice is the grown-ups'. -->
 					{#if !data.family?.kid}
-						<a
-							href="/voz"
-							title={micMode.tap
-								? 'Toca para hablar y otra vez para enviar (o Ctrl+Mayús+Espacio) · Mantén pulsado para abrir Hablar'
-								: 'Mantén pulsado para hablar (o Ctrl+Mayús+Espacio) · Pulsa para abrir Hablar'}
-							aria-label="Hablar"
-							aria-current={page.url.pathname === '/voz' ? 'page' : undefined}
-							draggable="false"
-							style="-webkit-touch-callout: none"
-							class={[
-								'-ml-3 shrink-0 touch-none rounded-md p-1 select-none hover:bg-zinc-800 hover:text-white',
-								voice.phase === 'listening'
-									? 'bg-red-500 text-white hover:bg-red-500'
-									: page.url.pathname === '/voz'
-										? 'text-amber-400'
-										: 'text-zinc-400'
-							]}
-							onpointerdown={(e) => {
-								if (e.button !== 0) return;
-								e.currentTarget.setPointerCapture(e.pointerId);
-								pressMic();
-							}}
-							onpointerup={() => releaseMic(false)}
-							onpointercancel={() => releaseMic(true)}
-							onclick={(e) => {
-								// The pointer's own handlers go or talk; only the keyboard (Enter) follows the link.
-								if (e.detail !== 0) e.preventDefault();
-							}}
-							oncontextmenu={(e) => e.preventDefault()}
-						>
-							<svg viewBox="0 0 24 24" class="h-6 w-6" fill="currentColor" aria-hidden="true">
-								<rect x="9" y="2.5" width="6" height="12" rx="3" />
-								<path
-									d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="2"
-									stroke-linecap="round"
-								/>
-							</svg>
-						</a>
-						<!-- Kitchen mode (#60), one tap away: on, and its kitchen over the page; on, the kitchen
-						     opened or closed (the bar's × turns it off). In Hablar, which is the kitchen, on or off. -->
-						<button
-							title={page.url.pathname === '/voz'
-								? kitchenMode.on
-									? 'Quitar el modo cocina'
-									: 'Modo cocina: la pantalla no se apaga'
-								: !kitchenMode.on
-									? 'Modo cocina: la pantalla no se apaga'
-									: kitchenPanel.open
-										? 'Cerrar la cocina'
-										: 'Abrir la cocina'}
-							aria-label="Modo cocina"
-							aria-pressed={kitchenMode.on}
-							class={[
-								'shrink-0 rounded-md p-1 hover:bg-zinc-800 hover:text-white',
-								kitchenMode.on ? 'text-amber-400' : 'text-zinc-400'
-							]}
-							onclick={() => {
-								if (page.url.pathname === '/voz') return kitchenMode.set(!kitchenMode.on);
-								if (kitchenMode.on) return kitchenPanel.toggle();
-								void kitchenMode.set(true);
-								kitchenPanel.show();
-							}}
-						>
-							<SectionIcon name="recetas" class="h-6 w-6" />
-						</button>
-						<!-- A receipt's photo for Gastos (#194), at once: on phones and tablets, with their camera; a
-					     PC has the button in Gastos. The photo is read there. As at home. -->
-						{#if data.receipts}
-							<label
-								title="Foto de un ticket, para Gastos"
-								aria-label="Foto de un ticket"
-								class="hidden shrink-0 cursor-pointer rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white pointer-coarse:block"
+						<!-- Close together, as one group of tools: the bar's gap is for the sections. -->
+						<div class="-ml-3 flex shrink-0 items-center gap-1">
+							<a
+								href="/voz"
+								title={micMode.tap
+									? 'Toca para hablar y otra vez para enviar (o Ctrl+Mayús+Espacio) · Mantén pulsado para abrir Hablar'
+									: 'Mantén pulsado para hablar (o Ctrl+Mayús+Espacio) · Pulsa para abrir Hablar'}
+								aria-label="Hablar"
+								aria-current={page.url.pathname === '/voz' ? 'page' : undefined}
+								draggable="false"
+								style="-webkit-touch-callout: none"
+								class={[
+									'shrink-0 touch-none rounded-md p-1 select-none hover:bg-zinc-800 hover:text-white',
+									voice.phase === 'listening'
+										? 'bg-red-500 text-white hover:bg-red-500'
+										: page.url.pathname === '/voz'
+											? 'text-amber-400'
+											: 'text-zinc-400'
+								]}
+								onpointerdown={(e) => {
+									if (e.button !== 0) return;
+									e.currentTarget.setPointerCapture(e.pointerId);
+									pressMic();
+								}}
+								onpointerup={() => releaseMic(false)}
+								onpointercancel={() => releaseMic(true)}
+								onclick={(e) => {
+									// The pointer's own handlers go or talk; only the keyboard (Enter) follows the link.
+									if (e.detail !== 0) e.preventDefault();
+								}}
+								oncontextmenu={(e) => e.preventDefault()}
 							>
-								<svg
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="1.75"
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									class="h-6 w-6"
-									aria-hidden="true"
-								>
+								<svg viewBox="0 0 24 24" class="h-6 w-6" fill="currentColor" aria-hidden="true">
+									<rect x="9" y="2.5" width="6" height="12" rx="3" />
 									<path
-										d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"
+										d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										stroke-linecap="round"
 									/>
-									<path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
-									<path d="M12 17.5v-11" />
 								</svg>
-								<input
-									type="file"
-									accept="image/*"
-									capture="environment"
-									class="hidden"
-									onchange={(e) => {
-										const photo = e.currentTarget.files?.[0];
-										e.currentTarget.value = '';
-										if (!photo) return;
-										pendingReceipt.photo = photo;
-										if (page.url.pathname !== '/gastos') void goto('/gastos');
-									}}
-								/>
-							</label>
-						{/if}
+							</a>
+							<!-- Kitchen mode (#60), one tap away: on, and its kitchen over the page; on, the kitchen
+							     opened or closed (the bar's × turns it off). In Hablar, which is the kitchen, on or off. -->
+							<button
+								title={page.url.pathname === '/voz'
+									? kitchenMode.on
+										? 'Quitar el modo cocina'
+										: 'Modo cocina: la pantalla no se apaga'
+									: !kitchenMode.on
+										? 'Modo cocina: la pantalla no se apaga'
+										: kitchenPanel.open
+											? 'Cerrar la cocina'
+											: 'Abrir la cocina'}
+								aria-label="Modo cocina"
+								aria-pressed={kitchenMode.on}
+								class={[
+									'shrink-0 rounded-md p-1 hover:bg-zinc-800 hover:text-white',
+									kitchenMode.on ? 'text-amber-400' : 'text-zinc-400'
+								]}
+								onclick={() => {
+									if (page.url.pathname === '/voz') return kitchenMode.set(!kitchenMode.on);
+									if (kitchenMode.on) return kitchenPanel.toggle();
+									void kitchenMode.set(true);
+									kitchenPanel.show();
+								}}
+							>
+								<SectionIcon name="recetas" class="h-6 w-6" />
+							</button>
+							<!-- A receipt's photo for Gastos (#194), at once: on phones and tablets, with their camera; a
+					     PC has the button in Gastos. The photo is read there. As at home. -->
+							{#if data.receipts}
+								<label
+									title="Foto de un ticket, para Gastos"
+									aria-label="Foto de un ticket"
+									class="hidden shrink-0 cursor-pointer rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white pointer-coarse:block"
+								>
+									<svg
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.75"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										class="h-6 w-6"
+										aria-hidden="true"
+									>
+										<path
+											d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"
+										/>
+										<path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
+										<path d="M12 17.5v-11" />
+									</svg>
+									<input
+										type="file"
+										accept="image/*"
+										capture="environment"
+										class="hidden"
+										onchange={(e) => {
+											const photo = e.currentTarget.files?.[0];
+											e.currentTarget.value = '';
+											if (!photo) return;
+											pendingReceipt.photo = photo;
+											if (page.url.pathname !== '/gastos') void goto('/gastos');
+										}}
+									/>
+								</label>
+							{/if}
+						</div>
 					{/if}
 				{/snippet}
 				{#snippet below()}
@@ -368,7 +373,8 @@ trip's link (#81), for whoever has it. -->
 				<AlarmBanner />
 			{/if}
 			<!-- A child asking to enter on the family's device (#303), to its adults. -->
-			{#if data.guardian}
+			<!-- Not on the page that answers one by its QR: the same request twice. -->
+			{#if data.guardian && !page.url.pathname.startsWith('/peques/')}
 				<KidRequests />
 			{/if}
 		{/if}
