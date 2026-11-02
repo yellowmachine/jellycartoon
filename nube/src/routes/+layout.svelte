@@ -2,6 +2,7 @@
 	import './layout.css';
 	import favicon from '#lib/assets/favicon.svg';
 	import { onMount } from 'svelte';
+	import { MediaQuery } from 'svelte/reactivity';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
@@ -21,6 +22,7 @@
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { navLinks } from '#lib/nav.ts';
 	import { themeColor, themeCss } from 'comun/themes.ts';
+	import { backKey, goBack } from 'comun/back.ts';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
@@ -44,6 +46,12 @@
 	const panelShown = $derived(
 		voiceOn && kitchenMode.on && kitchenPanel.open && page.url.pathname !== '/voz'
 	);
+	/**
+	 * Installed, the app has no browser buttons («standalone» in the manifest), and an iPhone no back
+	 * gesture either: its own arrow in the bar, but on the home page.
+	 */
+	const installed = new MediaQuery('(display-mode: standalone)', false);
+	const backShown = $derived(installed.current && page.url.pathname !== '/');
 
 	// A device that keeps routes' maps (#164) and music (#350): what it was ordered from any other,
 	// done now. The maps first: they say whether the device was forgotten.
@@ -152,7 +160,12 @@
 <svelte:window
 	onkeydown={(e) => {
 		voiceKeyDown(e);
-		if (e.key === 'Escape' && panelShown) kitchenPanel.hide();
+		if (e.key === 'Escape' && panelShown) {
+			kitchenPanel.hide();
+			e.preventDefault();
+		}
+		// Escape or Backspace go back, as at home (a PC); not in the road mode, which has its own way out.
+		if (page.url.pathname !== '/carretera') backKey(e);
 	}}
 	onkeyup={voiceKeyUp}
 	onblur={() => voiceKeyUp()}
@@ -178,6 +191,7 @@ trip's link (#81), for whoever has it. -->
 		{#if data.user}
 			<SiteNav
 				bind:headerHeight
+				brandOnPhone={!backShown}
 				brand={{
 					href: '/',
 					title: data.family ? `Seilide · ${data.family.name}` : 'Seilide',
@@ -192,6 +206,28 @@ trip's link (#81), for whoever has it. -->
 				}}
 				userLinks={nav.userLinks}
 			>
+				{#snippet start()}
+					{#if backShown}
+						<button
+							type="button"
+							title="Atrás"
+							aria-label="Atrás"
+							class="-mr-4 -ml-2 shrink-0 rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+							onclick={() => goBack(() => void goto('/'))}
+						>
+							<svg viewBox="0 0 24 24" class="h-6 w-6" aria-hidden="true">
+								<path
+									d="M15 5l-7 7 7 7"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2.5"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+								/>
+							</svg>
+						</button>
+					{/if}
+				{/snippet}
 				{#snippet leading()}
 					<!-- Not for a child (#303): the voice is the grown-ups'. -->
 					{#if !data.family?.kid}

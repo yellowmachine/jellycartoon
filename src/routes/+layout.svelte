@@ -22,6 +22,7 @@
 	import { page, updated } from '$app/state';
 	import { themeColor, themeCss } from 'comun/themes.ts';
 	import { avatar } from 'comun/avatars.ts';
+	import { backKey } from 'comun/back.ts';
 	import { onMount, untrack } from 'svelte';
 	import type { LayoutProps } from './$types';
 
@@ -203,26 +204,12 @@
 			? `${drawing.color} text-lg`
 			: 'bg-amber-500 text-sm font-semibold text-zinc-950 hover:bg-amber-400'
 	);
-
-	/**
-	 * Escape or Backspace go back, as a TV's «back» (a remote in the living room, which has no
-	 * browser buttons). Not while typing, or while a dialog, a menu or fullscreen is open: Escape
-	 * closes those itself.
-	 */
-	function back(e: KeyboardEvent) {
-		if ((e.key !== 'Escape' && e.key !== 'Backspace') || e.defaultPrevented) return;
-		const target = e.target as HTMLElement;
-		if (target.isContentEditable || target.closest('input, textarea, select')) return;
-		if (document.querySelector('dialog[open], :popover-open') || document.fullscreenElement) return;
-		e.preventDefault();
-		history.back();
-	}
 </script>
 
 <svelte:window
 	onkeydown={(e) => {
 		voiceKeyDown(e);
-		back(e);
+		backKey(e);
 	}}
 	onkeyup={voiceKeyUp}
 	onblur={() => voiceKeyUp()}
