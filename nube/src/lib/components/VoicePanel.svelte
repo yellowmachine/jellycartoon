@@ -6,6 +6,8 @@
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { voiceHint } from '#lib/voice-hint.svelte.ts';
+	import { wakeWord } from '#lib/wake-word.svelte.ts';
+	import { isWakeWord, WAKE_WORDS } from 'comun/wake-words.ts';
 
 	/**
 	 * Voice commands (#253), big, as jellycartoon's Hablar: held down, it listens; let go, it is
@@ -234,6 +236,50 @@
 			<p class="text-sm text-amber-400">{kitchenMode.problem}</p>
 		{:else if !kitchenMode.on}
 			<p class="text-xs text-zinc-500">Para el móvil en la cocina: la pantalla no se apaga.</p>
+		{/if}
+		<!-- The wake word in the kitchen, on this device: off until turned on; while the mode is on,
+		     on any page (wake-word.svelte.ts, from the layout). -->
+		{#if kitchenMode.on}
+			<div class="mt-2 flex flex-wrap items-center justify-center gap-2 text-sm">
+				<button
+					class={[
+						'rounded-full px-4 py-1.5',
+						wakeWord.on.cocina ? 'bg-amber-500 text-black' : 'bg-zinc-800 text-zinc-200'
+					]}
+					aria-pressed={wakeWord.on.cocina}
+					onclick={() => wakeWord.set('cocina', !wakeWord.on.cocina)}
+					>{wakeWord.on.cocina
+						? `«${WAKE_WORDS[wakeWord.word]}»: sí`
+						: `Decir «${WAKE_WORDS[wakeWord.word]}»: no`}</button
+				>
+				{#if wakeWord.on.cocina}
+					<select
+						class="rounded-full border-zinc-700 bg-zinc-900 py-1 text-sm text-zinc-200"
+						aria-label="Palabra"
+						value={wakeWord.word}
+						onchange={(e) => {
+							const word = e.currentTarget.value;
+							if (isWakeWord(word)) wakeWord.setWord(word);
+						}}
+					>
+						{#each Object.entries(WAKE_WORDS) as [model, name] (model)}
+							<option value={model}>{name}</option>
+						{/each}
+					</select>
+					<span class="text-zinc-400" aria-live="polite"
+						>{wakeWord.status === 'loading'
+							? 'Preparando…'
+							: wakeWord.status === 'tap'
+								? 'Toca la pantalla para empezar'
+								: wakeWord.status === 'on'
+									? 'Escuchando'
+									: ''}</span
+					>
+				{/if}
+			</div>
+			{#if wakeWord.on.cocina && wakeWord.problem}
+				<p class="text-sm text-amber-400">{wakeWord.problem}</p>
+			{/if}
 		{/if}
 	</div>
 </div>

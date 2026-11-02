@@ -17,6 +17,7 @@
 	import TimerBar from '#lib/components/TimerBar.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
+	import { wakeWord } from '#lib/wake-word.svelte.ts';
 	import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
@@ -46,6 +47,12 @@
 	const panelShown = $derived(
 		voiceOn && kitchenMode.on && kitchenPanel.open && page.url.pathname !== '/voz'
 	);
+	// The wake word in the kitchen (#60): while its mode is on and it is turned on there, on any
+	// page. Carretera has its own (its page says when).
+	$effect(() => {
+		if (page.url.pathname === '/carretera') return;
+		wakeWord.want(Boolean(voiceOn && kitchenMode.on && wakeWord.on.cocina));
+	});
 	/**
 	 * Installed, the app has no browser buttons («standalone» in the manifest), and an iPhone no back
 	 * gesture either: its own arrow in the bar, but on the home page.
