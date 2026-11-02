@@ -56,6 +56,12 @@ const THRESHOLD = Number(process.env.WAKE_THRESHOLD ?? 0.3);
 /** As the phone's «Margen» (vad.ts, `marginDb`). */
 const MARGIN_DB = Number(process.env.WAKE_MARGIN_DB ?? SPEECH_END.marginDb);
 const ORDERS_DIR = process.env.ORDERS_DIR ?? '/data/ordenes';
+/**
+ * `BARGE_IN=1` (#373): the wake word heard also while it waits for the answer or says it, which
+ * cuts it and listens to the new order. Off by default: without an echo-cancelling microphone (a
+ * reSpeaker XVF3800, with the speaker on its own output) it hears its own voice over yours.
+ */
+const BARGE_IN = process.env.BARGE_IN === '1';
 /** The last orders kept as WAV; older ones deleted. */
 const KEEP_ORDERS = 20;
 /** Which word wakes it (wake-words.ts): `hola_casita`, the default, or `alexa`. */
@@ -171,8 +177,10 @@ let wordDb: number | null = null;
  */
 const DEEP_HZ = 988;
 let deepSaid = false;
-/** An order on its way to the server: no other until it answers. */
+/** An order on its way to the server: no other until it answers (but with `BARGE_IN`). */
 let busy = false;
+/** Each answer's turn: one cut by the wake word (`BARGE_IN`) sees a newer one and stops. */
+let talk = 0;
 let quietUntil = 0;
 /** The highest score of an attempt (over half the threshold), logged once it falls. */
 let attempt = 0;
@@ -195,9 +203,16 @@ async function step(chunk: Float32Array) {
 			log(`Palabra: ${attempt.toFixed(2)} · ${attempt >= THRESHOLD ? 'saltó' : 'no llegó'}`);
 			attempt = 0;
 		}
-		if (score >= THRESHOLD && now >= quietUntil && !order && !busy) {
+		if (score >= THRESHOLD && now >= quietUntil && !order && (!busy || BARGE_IN)) {
 			// Said by whoever gives the order, as near: how loud their voice comes.
 			const voiceDb = Math.max(...recent.map((r) => r.dbfs));
+			// Over its own answer (`BARGE_IN`): that one is dropped, and what it says is cut.
+			if (busy) {
+				talk++;
+				busy = false;
+				hush();
+				log(`«${WORD}» (${score.toFixed(2)}) mientras hablaba o pensaba: cortado`);
+			}
 			log(`«${WORD}» (${score.toFixed(2)}): escuchando (la palabra a ${db(voiceDb)})`);
 			wordDb = voiceDb;
 			// A new talk: the conversation's model is announced again, the first time.
@@ -289,6 +304,9 @@ async function finish(current: Order, said: 'done' | 'nothing') {
  */
 async function respond(wav: Uint8Array) {
 	busy = true;
+	const mine = ++talk;
+	/** Cut by the wake word meanwhile (`BARGE_IN`): nothing more of it is said or done. */
+	const cut = () => mine !== talk;
 	const started = Date.now();
 	let waiting: ReturnType<typeof setTimeout> | undefined;
 	let saidFiller: Promise<void> = Promise.resolve();
@@ -303,11 +321,13 @@ async function respond(wav: Uint8Array) {
 	try {
 		const done = await sendOrder(wav, () => {
 			waiting = setTimeout(() => {
+				if (cut()) return;
 				fillerAt = Date.now();
 				saidFiller = sayFiller();
 			}, FILLER_AFTER_MS);
 		});
 		clearTimeout(waiting);
+		if (cut()) return;
 		const ms = Date.now() - started;
 		if (!done) {
 			log(`No se entendió nada (${ms} ms)`);
@@ -323,6 +343,7 @@ async function respond(wav: Uint8Array) {
 				let voice: Uint8Array | null;
 				try {
 					voice = await speech(done.reply.reply);
+					if (cut()) return;
 				} catch (err) {
 					// Done, but not said: the phrase kept for it (fallback.ts).
 					log(`Sin voz para la respuesta: ${err instanceof Error ? err.message : String(err)}`);
@@ -335,6 +356,7 @@ async function respond(wav: Uint8Array) {
 					// Read while the phrase sounded; said after it.
 					const ready = Date.now();
 					await saidFiller;
+					if (cut()) return;
 					const waited = Date.now() - ready;
 					const filled =
 						fillerAt === null
@@ -346,12 +368,14 @@ async function respond(wav: Uint8Array) {
 						deepSaid = true;
 						await beep(DEEP_HZ, true);
 						await beep(DEEP_HZ, true);
+						if (cut()) return;
 					}
 					await play(voice);
 				}
 			}
 		}
 	} catch (err) {
+		if (cut()) return;
 		log(`El servidor no respondió: ${err instanceof Error ? err.message : String(err)}`);
 		// Not reached, or too slow: no connection. An answer with an error (its path and status):
 		// the low beep, not «sin conexión».
@@ -359,19 +383,22 @@ async function respond(wav: Uint8Array) {
 		else await sayFallback('offline');
 	} finally {
 		clearTimeout(waiting);
-		busy = false;
-		quietUntil = Date.now() + QUIET_MS;
-		// Without the word: only a voice as loud as the last word's (#361), not a TV further away.
-		if (asked && !order) {
-			log(`Pregunta: escuchando la respuesta ${FOLLOW_UP_MS / 1000} s`);
-			begin(wordDb, FOLLOW_UP_MS, null);
-		} else if (assumed && !order) {
-			log(`Por lo aprendido: escuchando ${AFTER_LEARNED_MS / 1000} s por si lo corrige`);
-			begin(wordDb, AFTER_LEARNED_MS, null);
-		} else if (talking && !order && !alarms.ringing.length) {
-			log(`Conversación: escuchando ${CONVERSATION_MS / 1000} s sin la palabra`);
-			begin(wordDb, CONVERSATION_MS, null, true);
-		} else duck(false);
+		// Cut: the new order goes on, without this one's listening after it.
+		if (!cut()) {
+			busy = false;
+			quietUntil = Date.now() + QUIET_MS;
+			// Without the word: only a voice as loud as the last word's (#361), not a TV further away.
+			if (asked && !order) {
+				log(`Pregunta: escuchando la respuesta ${FOLLOW_UP_MS / 1000} s`);
+				begin(wordDb, FOLLOW_UP_MS, null);
+			} else if (assumed && !order) {
+				log(`Por lo aprendido: escuchando ${AFTER_LEARNED_MS / 1000} s por si lo corrige`);
+				begin(wordDb, AFTER_LEARNED_MS, null);
+			} else if (talking && !order && !alarms.ringing.length) {
+				log(`Conversación: escuchando ${CONVERSATION_MS / 1000} s sin la palabra`);
+				begin(wordDb, CONVERSATION_MS, null, true);
+			} else duck(false);
+		}
 	}
 }
 
@@ -535,5 +562,5 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const)
 	});
 
 log(
-	`Escuchando «${WORD}» en ${MIC}, ${MIC_RATE} Hz × ${MIC_CHANNELS} (umbral ${THRESHOLD}, margen ${MARGIN_DB} dB); ${serverReady ? `órdenes a ${serverName}` : 'sin servidor: órdenes solo al log'}; ${speakerName ? `altavoz ${speakerName}` : 'sin altavoz'}`
+	`Escuchando «${WORD}» en ${MIC}, ${MIC_RATE} Hz × ${MIC_CHANNELS} (umbral ${THRESHOLD}, margen ${MARGIN_DB} dB${BARGE_IN ? ', se le puede cortar hablando' : ''}); ${serverReady ? `órdenes a ${serverName}` : 'sin servidor: órdenes solo al log'}; ${speakerName ? `altavoz ${speakerName}` : 'sin altavoz'}`
 );
