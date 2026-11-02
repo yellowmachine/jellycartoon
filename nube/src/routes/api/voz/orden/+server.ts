@@ -10,31 +10,20 @@ import { voiceAnswered, voiceFailed } from '#lib/server/voice/alarm.ts';
 import { HOUSE_DOWN, NO_HOUSE, orderWithoutHouse } from '#lib/server/voice/without-house.ts';
 
 /**
- * What the cloud does not do yet: timers waiting for something (and with them, cooking), and
- * video. Its timers, kept here (command.ts, `cloudTimer`).
+ * What the cloud does not do yet: video. Its timers, kept here (command.ts, `cloudTimer`), or with
+ * the kitchen on (#60), the browser's.
  */
-const NOT_HERE = [
-	'prepare_timer',
-	'kitchen_mode',
-	'start_recipe',
-	'cook_saved_recipe',
-	'search_recipe_sites',
-	'cook_from_web',
-	'recipe_step',
-	'end_recipe',
-	'search_video',
-	'series_episodes',
-	'play_video',
-	'send_clip'
-];
+const NOT_HERE = ['search_video', 'series_episodes', 'play_video', 'send_clip'];
+
+/** How its timers go, for the AI: the person's, or the kitchen's (#60). */
+const TIMERS =
+	'Con el modo cocina (o cocinando una receta), los temporizadores suenan en este aparato, también los preparados («cuando hierva»); si no, avisan en su móvil';
 
 /** Away from the car, said to the AI: why those are not offered. */
-const AWAY =
-	'[Desde Seilide (Hablar en el móvil): aquí no hay temporizadores preparados («cuando hierva»), ni modo cocina ni recetas paso a paso, ni vídeo (series, películas, canales); eso está en jellycartoon, en casa. Si lo pide, díselo así, corto. Las alarmas sí, y los temporizadores: avisan en su móvil, o suenan en casa si lo dice.]';
+const AWAY = `[Desde Seilide (Hablar): aquí no hay vídeo (series, películas, canales); eso está en jellycartoon, en casa. Si lo pide, díselo así, corto. ${TIMERS}, o suenan en casa si lo dice.]`;
 
 /** The same without a house: nothing of it to send to. */
-const AWAY_WITHOUT_HOUSE =
-	'[Desde Seilide (Hablar en el móvil): aquí no hay temporizadores preparados («cuando hierva»), ni modo cocina ni recetas paso a paso. Si lo pide, díselo así, corto. Las alarmas sí, y los temporizadores: avisan en su móvil.]';
+const AWAY_WITHOUT_HOUSE = `[Desde Seilide (Hablar): ${TIMERS}.]`;
 
 /**
  * What was said to the cloud (#253), in its road mode or in Hablar, done: the house opens the order with what only it knows

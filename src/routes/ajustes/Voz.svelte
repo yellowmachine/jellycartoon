@@ -137,9 +137,9 @@
 				<span>
 					Avanzado: ver cómo oye, bajo el micrófono grande
 					<span class="block text-xs text-zinc-500"
-						>En Hablar y en el panel de cocina: el nivel del micrófono (azul), cuánto se parece a la
-						palabra (amarillo, con la raya del umbral), y el umbral y la limpieza para cambiarlos
-						mientras pruebas. Ahí se puede limpiar también con algo sonando en la app.</span
+						>En Hablar: el nivel del micrófono (azul), cuánto se parece a la palabra (amarillo, con
+						la raya del umbral), y el umbral y la limpieza para cambiarlos mientras pruebas. Ahí se
+						puede limpiar también con algo sonando en la app.</span
 					>
 				</span>
 			</label>

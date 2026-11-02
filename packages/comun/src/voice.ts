@@ -85,6 +85,11 @@ export interface VoiceRequest {
 	timers: string[];
 	/** The recipe being cooked here, as recipe.ts describes it, and its step; null if none. */
 	recipe: string | null;
+	/**
+	 * Seilide's kitchen mode is on here (#60): its timers are this browser's (`timers`), as at home,
+	 * not the person's ones that notify their phone.
+	 */
+	kitchen: boolean;
 	/** The film whose card is on this screen, to ask about it; null if none. */
 	film: number | null;
 	/** Said in the road mode (#78): driving, audio only, here only. */
@@ -96,6 +101,11 @@ export interface VoiceRequest {
 	 * stops ahead (#312).
 	 */
 	navigation: string | null;
+	/**
+	 * In the road mode, the trip so far (road-trip.ts): «llevas 142 km y 1 h 40 min conduciendo;
+	 * 1 h 10 min sin descansar». Null elsewhere, or not moved yet.
+	 */
+	trip: string | null;
 	/**
 	 * In the road mode, the route ahead from where we are (road-guide.ts's `lineAhead`), to look
 	 * along it (#312); null without one.
@@ -219,10 +229,12 @@ export function parseVoiceRequest(body: unknown): VoiceRequest | null {
 			.slice(0, 20),
 		// Thirty steps of a few lines each, and the ingredients.
 		recipe: text(b.recipe, 12_000),
+		kitchen: b.kitchen === true && b.car !== true,
 		film: Number.isInteger(b.film) && Number(b.film) > 0 ? Number(b.film) : null,
 		car: b.car === true,
 		position: b.car === true && isPoint(b.position) ? [b.position[0], b.position[1]] : null,
 		navigation: b.car === true ? text(b.navigation, 800) : null,
+		trip: b.car === true ? text(b.trip, 200) : null,
 		ahead:
 			b.car === true &&
 			Array.isArray(b.ahead) &&

@@ -1,20 +1,14 @@
 import type { RequestHandler } from './$types';
-import { NUBE_URL } from '$app/env/private';
-import { cloudUrl } from '#lib/server/kitchen.ts';
 // The cloud's drawing (#253): the house with its wifi behind, the snail off to the cloud.
 import drawing from 'comun/dibujos/fuera-de-casa.svg?raw';
 
 /**
  * The page the app shows when the house does not answer (src/service-worker): out of its wifi
  * without the VPN, or its server off. The service worker keeps it on installing, so it shows
- * without the house; from there, the cloud, and back by itself as soon as the house answers.
- * Public: it says nothing but where the family's cloud is.
+ * without the house, and back by itself as soon as the house answers. Public: it says nothing.
  */
 
-const escape = (text: string) => text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-
-export const GET: RequestHandler = async () => {
-	const cloud = (await cloudUrl()) ?? NUBE_URL ?? null;
+export const GET: RequestHandler = () => {
 	const html = `<!doctype html>
 <html lang="es">
 <head>
@@ -32,10 +26,9 @@ export const GET: RequestHandler = async () => {
 	h1 { color: #fbbf24; font-size: 1.5rem; margin: 1rem 0 .5rem; }
 	p { margin: 0 0 1rem; line-height: 1.5; }
 	.links { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: center; margin-top: 1.5rem; }
-	a, button { font: inherit; font-size: .95rem; border-radius: .375rem; padding: .6rem 1rem;
+	button { font: inherit; font-size: .95rem; border-radius: .375rem; padding: .6rem 1rem;
 		cursor: pointer; text-decoration: none; border: 0; }
 	.main { background: #f59e0b; color: #09090b; font-weight: 600; }
-	.other { background: #27272a; color: #e4e4e7; }
 	small { display: block; margin-top: 1.5rem; font-size: .8rem; color: #71717a; }
 </style>
 </head>
@@ -44,10 +37,8 @@ export const GET: RequestHandler = async () => {
 	<div class="drawing">${drawing}</div>
 	<h1>Estás fuera de casa</h1>
 	<p>JellyCartoon solo se abre en la wifi de casa.</p>
-	${cloud ? '<p>Fuera, lo tuyo está en Seilide: series, música, la agenda, los gastos…</p>' : ''}
 	<div class="links">
-		${cloud ? `<a class="main" href="${escape(cloud)}">Ir a Seilide</a>` : ''}
-		<button class="${cloud ? 'other' : 'main'}" onclick="location.reload()">Reintentar</button>
+		<button class="main" onclick="location.reload()">Reintentar</button>
 	</div>
 	<small>Si estás en casa, puede que el servidor esté apagado o reiniciándose. Esta página vuelve
 		sola en cuanto conteste.</small>

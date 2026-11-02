@@ -2,9 +2,7 @@
 	import '@fontsource/comic-neue/400.css';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { page } from '$app/state';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
-	import { atHome } from '#lib/nav.ts';
 	import { dayName, isOver, localDay, localTime, timeOn, type Occurrence } from 'comun/agenda.ts';
 	import type { Alarm } from 'comun/alarms.ts';
 	import { doseText, groupDoses, markValue, type Dose } from 'comun/medication.ts';
@@ -533,9 +531,8 @@
 	{/if}
 </section>
 
-<!-- Drawn as the bar's sections, not emoji. The kitchen mode is the house's (its timers, its
-     recipes step by step): there, turned on by the link. -->
-<div class={['mb-8 grid gap-3', home.house ? 'grid-cols-4' : 'grid-cols-3']}>
+<!-- Drawn as the bar's sections, not emoji. The kitchen mode (#60): Hablar with it on. -->
+<div class="mb-8 grid grid-cols-4 gap-3">
 	<a href="/voz" class={quick}><SectionIcon name="podcasts" class={icon} />Hablar</a>
 	{#if receipts}
 		<label class="{quick} cursor-pointer">
@@ -558,11 +555,7 @@
 		<a href="/gastos" class={quick}><SectionIcon name="gastos" class={icon} />Gastos</a>
 	{/if}
 	<a href="/carretera" class={quick}><SectionIcon name="viajes" class={icon} />Carretera</a>
-	{#if home.house}
-		<a href={atHome(page.data.webUrl ?? null, '/voz?cocina')} class={quick}
-			><SectionIcon name="recetas" class={icon} />Modo cocina</a
-		>
-	{/if}
+	<a href="/voz?cocina" class={quick}><SectionIcon name="recetas" class={icon} />Modo cocina</a>
 </div>
 
 {#if home.house}

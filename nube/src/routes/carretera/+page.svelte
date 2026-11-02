@@ -153,6 +153,14 @@
 				if (routable) tab = 'ruta';
 				void go(place);
 			},
+			trip: () =>
+				trip.last && trip.metres > 0
+					? `llevas ${kmText(trip.metres)} y ${durationText(trip.moving)} conduciendo; ${
+							trip.sinceBreak > 0
+								? `${durationText(trip.sinceBreak)} sin descansar`
+								: 'acabas de descansar'
+						}`
+					: null,
 			ahead: () =>
 				route && along && guidance && here
 					? lineAhead(route.line, along, here, along.at(-1)! - guidance.remaining)

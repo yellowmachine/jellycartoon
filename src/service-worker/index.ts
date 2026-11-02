@@ -3,10 +3,8 @@ import { self } from '$app/service-worker';
 
 /**
  * The app's service worker: for the adults' notices (Web Push, push.ts on the server), such as a
- * child asking to enter (#141), for what is shared to the app (a place, a link), and for a page
- * of its own when the house does not answer (out of its wifi without the VPN). Files (a bill's
- * PDF) are shared to the cloud's app now, where Gastos is (#253). It caches nothing else: the app
- * works as always without it.
+ * child asking to enter (#141), and for a page of its own when the house does not answer (out of
+ * its wifi without the VPN). It caches nothing else: the app works as always without it.
  */
 
 /** «Estás fuera de casa» and its picture, kept on installing: shown without the house. */
@@ -133,26 +131,6 @@ self.addEventListener('notificationclick', (event) => {
 				if (taken) return;
 			}
 			await self.clients.openWindow(url);
-		})()
-	);
-});
-
-/**
- * «Compartir → JellyCartoon» (the manifest's share_target, a POST): a link or a text goes on to
- * /compartido, in its address. Files go to the cloud's app now (#253).
- */
-self.addEventListener('fetch', (event) => {
-	const url = new URL(event.request.url);
-	if (event.request.method !== 'POST' || url.pathname !== '/compartido') return;
-	event.respondWith(
-		(async () => {
-			const form = await event.request.formData();
-			const params = new URLSearchParams();
-			for (const key of ['title', 'text', 'url']) {
-				const value = form.get(key);
-				if (typeof value === 'string' && value) params.set(key, value);
-			}
-			return Response.redirect(`/compartido?${params}`, 303);
 		})()
 	);
 });
