@@ -47,6 +47,7 @@ import { placeName, type Place } from 'comun/weather.ts';
 import { findPlacesFor } from '#lib/server/places.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import {
+	DEFAULT_CONVERSATION_MODEL,
 	DEFAULT_VOICE_MODEL,
 	personVoiceStyle,
 	setPersonVoiceStyle,
@@ -142,7 +143,14 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 				}))
 			: null,
 		/** The family's voice (#253): its model, its character, the web, the «horas de silencio». */
-		voiceModel: admin ? { model: voice.savedModel ?? '', fallback: DEFAULT_VOICE_MODEL } : null,
+		voiceModel: admin
+			? {
+					model: voice.savedModel ?? '',
+					fallback: DEFAULT_VOICE_MODEL,
+					conversation: voice.savedConversationModel ?? '',
+					conversationFallback: DEFAULT_CONVERSATION_MODEL
+				}
+			: null,
 		houseStyle: admin ? { text: voice.style ?? '' } : null,
 		voiceWeb: admin ? voice.web : null,
 		/** «Aprender de lo que se habla» (#331): only its administrator. */
@@ -336,10 +344,13 @@ export const actions: Actions = {
 	saveVoiceModel: async ({ request, locals }) => {
 		const denied = await requireAdmin(locals.user!.id, 'voiceProblem');
 		if (denied) return denied;
-		const model = String((await request.formData()).get('model') ?? '').trim();
-		if (model && !/^[\w.~-]+\/[\w.:~-]+$/.test(model))
-			return fail(400, { voiceProblem: 'El modelo es como «proveedor/modelo»' });
-		await setVoiceModel(await kitchenOf(locals.user!.id), model || null);
+		const form = await request.formData();
+		const model = String(form.get('model') ?? '').trim();
+		const conversation = String(form.get('conversation') ?? '').trim();
+		for (const m of [model, conversation])
+			if (m && !/^[\w.~-]+\/[\w.:~-]+$/.test(m))
+				return fail(400, { voiceProblem: 'El modelo es como «proveedor/modelo»' });
+		await setVoiceModel(await kitchenOf(locals.user!.id), model || null, conversation || null);
 		return { saved: 'voiceModel' };
 	},
 	/** «Buscar en internet desde la voz»: on or off, and where. */

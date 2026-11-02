@@ -19,6 +19,12 @@ export const DEFAULT_VOICE_MODEL = 'anthropic/claude-haiku-5.5';
  */
 export const FALLBACK_VOICE_MODEL = 'google/gemini-2.5-flash';
 
+/**
+ * «Modelo para conversar»: what the fast one hands over the questions to think about (an opinion,
+ * philosophy, a long explanation), in a few spoken sentences (converse.ts). Slower and dearer.
+ */
+export const DEFAULT_CONVERSATION_MODEL = 'anthropic/claude-sonnet-5.5';
+
 /** «Indicaciones para buscar», this long at most. */
 export const MAX_WEB_HINTS = 500;
 
@@ -31,6 +37,8 @@ export interface VoiceSettings {
 	model: string;
 	/** Exactly as saved: empty, the default. */
 	savedModel: string | null;
+	conversationModel: string;
+	savedConversationModel: string | null;
 	style: string | null;
 	web: WebSearchConfig;
 	quiet: QuietHours | null;
@@ -46,6 +54,8 @@ export async function voiceSettings(k: Kitchen): Promise<VoiceSettings> {
 	return {
 		model: row?.voiceModel ?? DEFAULT_VOICE_MODEL,
 		savedModel: row?.voiceModel ?? null,
+		conversationModel: row?.conversationModel ?? DEFAULT_CONVERSATION_MODEL,
+		savedConversationModel: row?.conversationModel ?? null,
 		style: row?.voiceStyle ?? null,
 		web: {
 			on: row?.voiceWeb?.on === true,
@@ -59,7 +69,7 @@ export async function voiceSettings(k: Kitchen): Promise<VoiceSettings> {
 type Saved = Partial<
 	Pick<
 		typeof familySettings.$inferInsert,
-		'voiceModel' | 'voiceStyle' | 'voiceWeb' | 'voiceQuiet' | 'voiceLearn'
+		'voiceModel' | 'conversationModel' | 'voiceStyle' | 'voiceWeb' | 'voiceQuiet' | 'voiceLearn'
 	>
 >;
 
@@ -72,9 +82,9 @@ async function save(k: Kitchen, set: Saved) {
 	);
 }
 
-/** An empty one goes back to the default. */
-export const setVoiceModel = (k: Kitchen, model: string | null) =>
-	save(k, { voiceModel: model || null });
+/** An empty one goes back to the default; the same for the conversation's. */
+export const setVoiceModel = (k: Kitchen, model: string | null, conversation: string | null) =>
+	save(k, { voiceModel: model || null, conversationModel: conversation || null });
 
 export const setVoiceStyle = (k: Kitchen, text: string) =>
 	save(k, { voiceStyle: text.trim().slice(0, MAX_VOICE_STYLE) || null });

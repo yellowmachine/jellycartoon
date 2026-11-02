@@ -358,20 +358,36 @@
 								update({ reset: false })}
 						class="flex flex-wrap gap-2"
 					>
-						<input
-							name="model"
-							value={data.voiceModel.model}
-							placeholder={data.voiceModel.fallback}
-							aria-label="Modelo para la voz"
-							class="{field} min-w-0 flex-1 font-mono"
-						/>
+						<label class="flex basis-full flex-col gap-1 text-sm text-zinc-400">
+							Para las órdenes (rápido)
+							<input
+								name="model"
+								value={data.voiceModel.model}
+								placeholder={data.voiceModel.fallback}
+								aria-label="Modelo para la voz"
+								class="{field} min-w-0 flex-1 font-mono"
+							/>
+						</label>
+						<label class="flex basis-full flex-col gap-1 text-sm text-zinc-400">
+							Para conversar (las preguntas de pensar: más lento y caro)
+							<input
+								name="conversation"
+								value={data.voiceModel.conversation}
+								placeholder={data.voiceModel.conversationFallback}
+								aria-label="Modelo para conversar"
+								class="{field} min-w-0 flex-1 font-mono"
+							/>
+						</label>
 						<button class={secondary}>Guardar</button>
 						{#if form && 'saved' in form && form.saved === 'voiceModel'}
 							<Guardado class="self-center text-sm text-amber-400">✓</Guardado>
 						{/if}
 					</form>
 					<p class="mt-1 text-xs text-zinc-500">
-						Vacío usa {data.voiceModel.fallback}. Los identificadores están en
+						Vacíos, {data.voiceModel.fallback} y {data.voiceModel.conversationFallback}. Las
+						preguntas para pensar (filosofía, una opinión, explicar algo a fondo) las pasa el rápido
+						al de conversar, que contesta en unas frases; en un satélite, con dos pitidos antes. Los
+						identificadores están en
 						<a
 							href="https://openrouter.ai/models"
 							class="hover:underline"

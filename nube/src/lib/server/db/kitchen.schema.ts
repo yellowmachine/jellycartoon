@@ -127,6 +127,8 @@ export const familySettings = pgTable(
 		orsKey: text('ors_key'),
 		/** The voice's model (OpenRouter), for its orders; null, the default one. */
 		voiceModel: text('voice_model'),
+		/** The voice's «Modelo para conversar»: questions to think about, handed over (voice/converse.ts). */
+		conversationModel: text('conversation_model'),
 		/** «Cómo es la voz de la casa», free text in its instructions; null, none. */
 		voiceStyle: text('voice_style'),
 		/** «Buscar en internet desde la voz»: on or off, and where to look. */
