@@ -7,8 +7,11 @@ import { sayableError } from '#lib/server/openrouter.ts';
 import { satelliteRequest } from '#lib/server/satellites.ts';
 import { fillerSpeech, satelliteSpeech } from '#lib/server/voice/satellite-voice.ts';
 
-/** An answer is a sentence or three: more than this is not one. */
-const MAX_CHARS = 1000;
+/**
+ * An answer is a sentence or three; one of the «Modelo para conversar» (converse.ts), a few more:
+ * on 2026-11-02 one about Dennett went past the 1000 there were, and was not said.
+ */
+const MAX_CHARS = 2500;
 
 /**
  * An answer read aloud for a satellite of Seilide's (#296), the house's path (its
