@@ -72,6 +72,10 @@ export function navLinks(
 	).map(link);
 	if (kid) return { links, menuLinks: links, userLinks: [] };
 	const userLinks: UserLink[] = [
+		// A child's QR on its device, read to let it in (#303): for who lets some child in.
+		...(guardian
+			? [{ href: '/peques/leer', label: 'Leer el QR de un peque', icon: 'infantil' as const }]
+			: []),
 		// What the app told them and the messages left for them (#331).
 		{ href: '/buzon', label: 'Buzón', icon: 'agenda' },
 		{ href: '/ajustes', label: 'Ajustes', icon: 'ajustes' },
