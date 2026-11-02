@@ -3,8 +3,8 @@ import { getAppSetting, setAppSetting } from '#lib/server/app-settings.ts';
 
 /**
  * Piper's HTTP server on the PC with the app (deploy/jellycartoon-piper.service): text read aloud,
- * as a WAV. The DJ's voice without OpenRouter (music/dj.ts), and the voice satellites' answers
- * (#223, /api/voice/speak) in the house's voice, chosen in Ajustes → Casa among those installed.
+ * as a WAV. The DJ's voice without OpenRouter (music/dj.ts), and the house's notices through
+ * Snapcast (#241, house-speech.ts) in its voice, chosen in Ajustes → Casa among those installed.
  */
 
 export const piperEnabled = Boolean(PIPER_URL);
@@ -91,7 +91,7 @@ export async function spanishVoices() {
 		.sort((a, b) => a.country.localeCompare(b.country) || a.label.localeCompare(b.label));
 }
 
-/** The house's voice for the satellites: chosen in Ajustes, or PIPER_VOICE_ES. */
+/** The house's voice for its notices through Snapcast: chosen in Ajustes, or PIPER_VOICE_ES. */
 export async function houseVoice(): Promise<PiperVoice> {
 	try {
 		const saved = JSON.parse((await getAppSetting('house_voice')) ?? 'null');

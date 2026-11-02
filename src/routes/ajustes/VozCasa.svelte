@@ -1,17 +1,13 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { section, primary, secondary, select } from './styles.ts';
-	import {
-		DEFAULT_TONE,
-		MAX_FILLER_CHARS,
-		MAX_FILLERS,
-		MAX_TONE_CHARS,
-		parseFillers
-	} from '#lib/voice-fillers.ts';
+	import { section, primary, secondary } from './styles.ts';
 	import { EXPRESSIVENESS, MUSIC_DUCK, SPEED, VOICE_GAIN } from '#lib/voice-levels.ts';
 	import type { PageData, ActionData } from './$types';
 
-	/** La voz de la casa (#223): con la que contestan los satélites, entre las de Piper instaladas. */
+	/**
+	 * La voz de la casa (#241): con la que dice sus avisos por Snapcast, entre las de Piper
+	 * instaladas. Los satélites son de Seilide, con su voz (#329).
+	 */
 	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
 
 	const SAMPLE = 'Hola, soy la voz de la casa. Mañana hará sol y unos veinte grados.';
@@ -24,14 +20,6 @@
 	let speed = $state(SPEED.default);
 	/** `on`, the answers in the AI voice; empty, Piper. */
 	let aiAnswers = $state('');
-	/** The phrases as being written: each one can be heard before saving them. */
-	let fillersText = $state('');
-	const savedFillers = $derived(data.houseVoice?.fillers.split('\n') ?? []);
-	/** How the AI voice is asked to say the next one it records. */
-	let tone = $state(DEFAULT_TONE);
-	/** The phrase being recorded. */
-	let busy = $state<string | null>(null);
-	const fillerLines = $derived(parseFillers(fillersText, { orDefault: false }));
 	$effect.pre(() => {
 		if (!data.houseVoice) return;
 		gainDb = data.houseVoice.levels.gainDb;
@@ -39,20 +27,16 @@
 		expressiveness = data.houseVoice.levels.expressiveness;
 		speed = data.houseVoice.levels.speed;
 		aiAnswers = data.houseVoice.levels.aiAnswers ? 'on' : '';
-		fillersText = data.houseVoice.fillers;
 	});
 
 	/** The one being heard, and a problem playing it. */
 	let playing = $state<string | null>(null);
 	let problem = $state<string | null>(null);
 
-	/**
-	 * Played here as the satellites say it: the sample in a voice, or a phrase as they would say it
-	 * (recorded, or Piper's). `id`, what shows it is playing.
-	 */
+	/** Played here as the house says it: the sample in a voice. `id`, what shows it is playing. */
 	async function listen(
 		id: string,
-		body: { text: string; voice?: string; speaker?: string | null } | { filler: string }
+		body: { text: string; voice?: string; speaker?: string | null }
 	) {
 		playing = id;
 		problem = null;
@@ -82,8 +66,9 @@
 	<section class={section} id="voz-casa">
 		<h2 class="mb-1 font-semibold">Voz de la casa</h2>
 		<p class="mb-4 text-sm text-zinc-400">
-			Con la que contestan los satélites de voz. Son las voces de Piper instaladas en el ordenador
-			de la casa; escúchalas antes de elegir.
+			Con la que la casa dice sus avisos por los altavoces (los temporizadores y las alarmas que
+			suenan en toda la casa). Son las voces de Piper instaladas en el ordenador de la casa;
+			escúchalas antes de elegir.
 		</p>
 		{#if hv.problem}
 			<p class="text-sm text-red-400">No se pudo preguntar a Piper: {hv.problem}</p>
@@ -127,9 +112,8 @@
 
 		<h3 class="mt-6 mb-1 font-semibold" id="volumen-voz">Cómo suena</h3>
 		<p class="mb-2 text-sm text-zinc-400">
-			Cómo lee Piper lo que dicen los satélites (100 %, a su manera; con mucha expresividad puede
-			sonar rara), su volumen, y cuánto baja la música mientras hablan por Snapcast. Guardado,
-			«Escuchar» y las frases de abajo ya suenan así.
+			Cómo lee Piper los avisos (100 %, a su manera; con mucha expresividad puede sonar rara), su
+			volumen, y cuánto baja la música mientras habla. Guardado, «Escuchar» ya suena así.
 		</p>
 		<form
 			method="post"
@@ -140,7 +124,7 @@
 					update({ reset: false })}
 		>
 			<fieldset class="flex flex-wrap items-center gap-3">
-				<legend class="float-left w-44">Respuestas con</legend>
+				<legend class="float-left w-44">Dicho con</legend>
 				<label class="flex items-center gap-1.5">
 					<input type="radio" name="aiAnswers" value="" bind:group={aiAnswers} />
 					Piper
@@ -151,8 +135,8 @@
 				</label>
 				{#if aiAnswers}
 					<span class="basis-full text-xs text-zinc-500">
-						La misma voz que las frases grabadas, pero cada respuesta tarda unos 2–3 s más y cuesta
-						algo; si falla, la dice Piper. Expresividad y velocidad son solo de Piper.
+						Más viva que Piper, pero cada aviso tarda unos 2–3 s más y cuesta algo; si falla, lo
+						dice Piper. Expresividad y velocidad son solo de Piper.
 					</span>
 				{/if}
 			</fieldset>
@@ -216,100 +200,6 @@
 				<button class={primary}>Guardar</button>
 				{#if form && 'saved' in form && form.saved === 'voiceLevels'}
 					<span class="text-green-400">Guardado</span>
-				{/if}
-			</div>
-		</form>
-
-		<h3 class="mt-6 mb-1 font-semibold" id="frases-espera">Frases de espera</h3>
-		<p class="mb-2 text-sm text-zinc-400">
-			Si la IA tarda en contestar, el satélite dice una de estas mientras, una distinta cada vez.
-			Una por línea; cortas, que solo llenan la espera. Debajo, cada una para escucharla tal como
-			está escrita: «¿?» y «¡!» cambian algo la entonación. Una vez guardadas, cada una se puede
-			grabar con una voz IA, más viva que la de Piper (unos céntimos, una vez); las que no, las dice
-			Piper.
-		</p>
-		<form
-			method="post"
-			action="?seccion={tab}&/saveFillers"
-			use:enhance={({ submitter }) => {
-				// Recording one: which, until it is done.
-				const text = submitter?.getAttribute('formaction')?.endsWith('/recordFiller')
-					? (submitter as HTMLButtonElement).value
-					: null;
-				busy = text;
-				return async ({ update }) => {
-					await update({ reset: false });
-					busy = null;
-				};
-			}}
-		>
-			<textarea
-				name="fillers"
-				rows={Math.min(8, fillersText.split('\n').length + 1)}
-				maxlength={MAX_FILLERS * (MAX_FILLER_CHARS + 1)}
-				bind:value={fillersText}
-				aria-label="Frases de espera, una por línea"
-				class="{select} mb-2 w-full"></textarea>
-			{#if fillerLines.length}
-				<!--
-					As written, before saving: «¡Vale!» or «Vale.», heard as the satellites will say it.
-					Saved ones can be recorded by the AI voice, one by one; the rest are Piper's.
-				-->
-				<ul class="mb-3 flex flex-col gap-1.5 text-sm">
-					{#each fillerLines as line (line)}
-						{@const recorded = hv.recordings[line]}
-						<li class="flex flex-wrap items-center gap-2">
-							<button
-								type="button"
-								class="rounded-full bg-zinc-800 px-3 py-1 hover:bg-zinc-700"
-								aria-label="Escuchar «{line}»"
-								onclick={() => listen(`frase|${line}`, { filler: line })}
-							>
-								{playing === `frase|${line}` ? '🔊' : '▶'}
-								{line}
-							</button>
-							{#if recorded}
-								<span class="text-xs text-amber-400" title={recorded.tone}>✨ voz IA</span>
-								<button
-									class="text-xs text-zinc-400 underline hover:text-white"
-									formaction="?seccion={tab}&/forgetFiller"
-									name="text"
-									value={line}
-									disabled={busy !== null}>Volver a Piper</button
-								>
-							{:else if savedFillers.includes(line)}
-								<button
-									class="text-xs text-zinc-400 underline hover:text-white"
-									formaction="?seccion={tab}&/recordFiller"
-									name="text"
-									value={line}
-									disabled={busy !== null}
-									>{busy === line ? 'Grabando…' : 'Grabar con voz IA'}</button
-								>
-							{/if}
-						</li>
-					{/each}
-				</ul>
-				<label class="mb-3 block text-sm">
-					<span class="text-zinc-400"
-						>Cómo la dice la voz IA al grabarla (acento, tono: «coqueta», «villana de película»…)</span
-					>
-					<input
-						name="tone"
-						maxlength={MAX_TONE_CHARS}
-						bind:value={tone}
-						class="{select} mt-1 w-full"
-					/>
-				</label>
-			{/if}
-			{#if form && 'fillerProblem' in form}
-				<p class="mb-2 text-sm text-red-400">{form.fillerProblem}</p>
-			{/if}
-			<div class="flex flex-wrap items-center gap-2">
-				<button class={primary}>Guardar</button>
-				<button class={secondary} name="reset" value="1">Volver a las de siempre</button>
-				{#if form && 'saved' in form && form.saved === 'fillers'}
-					<span class="text-sm text-green-400">Guardadas</span>
 				{/if}
 			</div>
 		</form>

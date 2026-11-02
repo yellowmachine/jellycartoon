@@ -4,10 +4,9 @@ import { AI_VOICE } from 'comun/ai-voice.ts';
 import { writeWav } from 'comun/wav.ts';
 
 /**
- * The AI voice of the satellites (#223): Gemini's Kore through OpenRouter, as the DJ's (music/dj.ts),
- * chosen by ear on 2026-10-27. For the phrases recorded while the AI thinks, and, if the house
- * chooses it (Ajustes → Casa, «Respuestas con»), for the answers instead of Piper: about 2.6 s
- * more for each (measured that day), against Piper's tenth of a second.
+ * The house's AI voice: Gemini's Kore through OpenRouter, as the DJ's (music/dj.ts), chosen by ear
+ * on 2026-10-27. If the house chooses it (Ajustes → Casa, «Dicho con»), for its notices instead
+ * of Piper: about 2.6 s more each (measured that day), against Piper's tenth of a second.
  */
 
 /**

@@ -8,7 +8,6 @@ import { describeTimersAt } from '#lib/server/alarms/alarms.ts';
 import { sayableError } from '#lib/server/openrouter.ts';
 import {
 	conversationOf,
-	familySatellites,
 	satelliteRequest,
 	snapclientIdOf,
 	snapserverOf
@@ -45,9 +44,8 @@ export const POST: RequestHandler = async ({ request }) => {
 	const command = parseVoiceRequest(await request.json().catch(() => null));
 	if (!command) error(400, 'Orden no válida');
 	const place = `satelite:${satellite.id}` as const;
-	const [timers, own, snapserver] = await Promise.all([
+	const [timers, snapserver] = await Promise.all([
 		describeTimersAt(k, place),
-		familySatellites(k.familyId),
 		snapserverOf(k, satellite.id)
 	]);
 	let fromHouse: HouseVoiceOrder | null = null;
@@ -74,14 +72,10 @@ export const POST: RequestHandler = async ({ request }) => {
 			});
 			note = HOUSE_DOWN;
 		}
-	// Its timers are Seilide's; where alarms sound, its satellites and the house's (in its order).
-	const satellites = [
-		...own,
-		...(fromHouse?.house.satellites ?? []).filter((h) => !own.some((o) => o.id === h.id))
-	];
+	// Its timers are Seilide's.
 	const order = fromHouse
-		? { ...fromHouse, request: command, house: { ...fromHouse.house, timers, satellites } }
-		: satelliteOrder(command, satellite, timers, satellites);
+		? { ...fromHouse, request: command, house: { ...fromHouse.house, timers } }
+		: satelliteOrder(command, satellite, timers);
 	const started = performance.now();
 	try {
 		const { timing, ...reply } = await runVoiceCommand(

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { DEFAULT_FILLERS, MAX_FILLER_CHARS, parseFillers, pickFiller } from './voice-fillers.ts';
+import { DEFAULT_FILLERS, MAX_FILLER_CHARS, parseFillers, pickFiller } from './ai-voice.ts';
 
 describe('parseFillers', () => {
 	test('one a line, trimmed, without empty lines or repeats', () => {

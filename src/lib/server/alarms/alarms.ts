@@ -12,15 +12,13 @@ import {
 	snapcastVoiceReady,
 	stopAfterTrackOnSnapcast
 } from '#lib/server/music/snapcast.ts';
-import { allSatellites, type Satellite } from '#lib/server/satellites.ts';
 import { houseSpeech } from '#lib/server/voice/house-speech.ts';
 
 /**
- * The house's timers (#241), kept by the server: set by voice in a satellite, and rung where they
- * are to sound when it is time: «din-don» and its name, again and again, until someone stops it (or
- * for `RING_MAX_MS`). In the whole house through Snapcast; in a voice satellite, where it answers:
- * through Snapcast too if it answers there, the server saying it, or on its own speaker, the
- * satellite told through its channel (/api/satelite/avisos).
+ * The house's timers (#241), kept by the server: set by voice (one of Seilide's satellites, with
+ * the house's hands), and rung when it is time: «din-don» and its name, again and again, until
+ * someone stops it (or for `RING_MAX_MS`), in the whole house through Snapcast. The satellites are
+ * Seilide's (#329): they ring their own there.
  *
  * The alarms are the family's, in the cloud (#253): it keeps their time and, when it comes, tells
  * the house (/api/v1/avisos), which rings them here as a row of its own (`cloudId`) until someone
@@ -42,7 +40,7 @@ const DEFAULT_LABEL = 'temporizador';
 
 const listeners = new Set<() => void>();
 
-/** The open Agendas and the satellites' channels, told on every change. */
+/** The open Agendas and banners, told on every change. */
 export function watchAlarms(listener: () => void) {
 	listeners.add(listener);
 	return () => void listeners.delete(listener);
@@ -132,27 +130,6 @@ export async function stopAlarm(id: number) {
 	changed();
 }
 
-/**
- * «Hola casita» (or «Alexa») while something rings where a satellite is: what rings in it and in
- * the whole house stops, as touching the phone stops its timers. How many.
- */
-export async function stopRingingAt(place: AlarmPlace) {
-	const stopped = await db
-		.update(alarm)
-		.set({
-			ringingSince: null,
-			doneAt: sql`case when ${alarm.nextAt} is null then now() else ${alarm.doneAt} end`
-		})
-		.where(and(isNotNull(alarm.ringingSince), inArray(alarm.place, [place, 'casa'])))
-		.returning({ label: alarm.label, cloudId: alarm.cloudId });
-	if (stopped.length) {
-		log.info('avisos', `Parados: ${stopped.map((s) => `«${s.label}»`).join(', ')}`, { place });
-		tellCloud(stopped);
-		changed();
-	}
-	return stopped.length;
-}
-
 /** Whether `userId` sees it, to stop it: the house's, or theirs. */
 export async function canTouch(id: number, userId: string) {
 	const people = await db.select().from(alarmPerson).where(eq(alarmPerson.alarmId, id));
@@ -171,7 +148,7 @@ export async function ringFromCloud(ring: {
 	place: AlarmPlace;
 	action: 'sonar' | 'parar_musica';
 }) {
-	const where = placeName(ring.place, await allSatellites());
+	const where = placeName(ring.place);
 	if (ring.action === 'parar_musica') {
 		log.info('avisos', `Para la música: «${ring.label}»`);
 		if (!(await stopAfterTrackOnSnapcast().catch(() => false)))
@@ -320,12 +297,10 @@ export async function describeTimersAt(place: AlarmPlace) {
 	);
 }
 
-/** «toda la casa», «el satélite Salón». */
-export function placeName(place: string, satellites: Satellite[]) {
-	if (place === 'casa') return 'toda la casa';
+/** «toda la casa», «el móvil»; a satellite's (Seilide's: the house does not know its name) is heard in the whole house. */
+export function placeName(place: string) {
 	if (place === 'movil') return 'el móvil';
-	const id = place.slice('satelite:'.length);
-	return `el satélite ${satellites.find((s) => s.id === id)?.name ?? '(ya no está)'}`;
+	return 'toda la casa';
 }
 
 // ——— When it is time ———
@@ -390,21 +365,6 @@ async function tellRinging(row: Row) {
 	if (!people.length) await tellGroup(`⏰ Suena: ${row.label}`);
 }
 
-/**
- * Where it is said: through Snapcast (the whole house, or a satellite's speaker if it answers
- * there), by the server; or by a satellite on its own speaker (`satellite`), told by its channel.
- */
-type Target = { snapcast: 'house' | string } | { satellite: string };
-
-function targetOf(place: string, satellites: Satellite[]): Target {
-	if (place === 'casa') return { snapcast: 'house' };
-	const satellite = satellites.find((s) => `satelite:${s.id}` === place);
-	// Gone: the house hears it all the same.
-	if (!satellite) return { snapcast: 'house' };
-	if (satellite.answerOn && snapcastVoiceReady()) return { snapcast: satellite.answerOn };
-	return { satellite: satellite.id };
-}
-
 /** Those ringing, and for less than `RING_MAX_MS`: to be heard. */
 async function sounding() {
 	const now = Date.now();
@@ -416,49 +376,25 @@ async function sounding() {
 	).filter((r) => now - r.since!.getTime() < RING_MAX_MS);
 }
 
-/**
- * What a satellite's channel says: what rings where it is (in it, or in the whole house), which
- * «hola casita» stops; and of those, what it has to say itself, on its own speaker.
- */
-export async function ringingFor(satelliteId: string) {
-	const place = `satelite:${satelliteId}`;
-	const satellites = await allSatellites();
-	const rows = (await sounding()).filter((r) => r.place === place || r.place === 'casa');
-	const itself = rows.filter((r) => {
-		const target = targetOf(r.place, satellites);
-		return 'satellite' in target && target.satellite === satelliteId;
-	});
-	return { ringing: rows.map((r) => r.label), play: itself.map((r) => r.label) };
-}
-
 let ringing = false;
 
 /**
  * The ringing ones the server says itself, through Snapcast over the music: «din-don» and their
- * names, each place's together, with a pause, until all are stopped or have rung for
- * `RING_MAX_MS`. A satellite on its own speaker rings by itself (`ringingFor`).
+ * names, together, with a pause, until all are stopped or have rung for `RING_MAX_MS`.
  */
 async function ringServer() {
 	if (ringing) return;
 	ringing = true;
 	try {
 		for (;;) {
-			const satellites = await allSatellites();
-			const byTarget = new Map<string, string[]>();
-			for (const r of await sounding()) {
-				const target = targetOf(r.place, satellites);
-				if (!('snapcast' in target)) continue;
-				byTarget.set(target.snapcast, [...(byTarget.get(target.snapcast) ?? []), r.label]);
-			}
-			if (!byTarget.size) break;
+			const labels = (await sounding()).map((r) => r.label);
+			if (!labels.length) break;
 			if (!snapcastVoiceReady()) {
 				log.warn('avisos', 'Sin Snapcast con voz: no puede sonar en la casa');
 				break;
 			}
-			for (const [where, labels] of byTarget) {
-				const words = `Aviso: ${labels.join(' y ')}.`;
-				await sayOnSnapcast(await houseSpeech(words, { chime: true }), where);
-			}
+			const words = `Aviso: ${labels.join(' y ')}.`;
+			await sayOnSnapcast(await houseSpeech(words, { chime: true }), 'house');
 			await sleep(RING_PAUSE_MS);
 		}
 	} catch (error) {

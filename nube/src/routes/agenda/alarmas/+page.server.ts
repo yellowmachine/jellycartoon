@@ -15,7 +15,7 @@ import {
 import { hasHouse } from '#lib/server/house.ts';
 import { agendaPeople, personOf } from '#lib/server/agenda/agenda.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
-import { allSatellites } from '#lib/server/satellites.ts';
+import { familySatellites } from '#lib/server/satellites.ts';
 
 /** The Agenda's alarms and timers (#241, #253): the house's and the user's. */
 export const load: PageServerLoad = async ({ locals }) => {
@@ -24,7 +24,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const [people, alarms, satellites, house] = await Promise.all([
 		agendaPeople(k),
 		listAlarms(k, me),
-		allSatellites(k.familyId),
+		familySatellites(k.familyId),
 		hasHouse(locals.user!.id)
 	]);
 	return { people, alarms, satellites, house, me, readonly: false };

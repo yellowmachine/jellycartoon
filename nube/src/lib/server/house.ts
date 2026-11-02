@@ -190,16 +190,6 @@ export async function sendHouse<T>(
 	return response.json() as Promise<T>;
 }
 
-/** The house's voice satellites, where an alarm can sound too; none if it does not answer. */
-export async function houseSatellites(familyId: string) {
-	try {
-		return (await tellHouse<{ satellites: { id: string; name: string }[] }>(familyId, '/satelites'))
-			.satellites;
-	} catch {
-		return [];
-	}
-}
-
 /**
  * A live stream from the house's API in this person's name (server-sent events: their Telegram's
  * messages), for as long as `signal` lasts: the browser's own request, closed when it goes.

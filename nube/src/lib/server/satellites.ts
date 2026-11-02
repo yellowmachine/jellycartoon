@@ -5,7 +5,6 @@ import { db } from './db/index.ts';
 import { voiceSatellite } from './db/schema.ts';
 import { asFamily, withFamily } from './family.ts';
 import { houseKitchen, type Kitchen } from './fridge.ts';
-import { houseSatellites } from './house.ts';
 import { newSatelliteKey, satelliteKeyScope, type KeySatellite } from './satellite-key-scope.ts';
 
 /**
@@ -115,12 +114,6 @@ export function familySatellites(familyId: string) {
 export async function satellitesChanged(familyId: string) {
 	for (const { id } of await familySatellites(familyId))
 		for (const listener of listeners.get(id) ?? []) listener();
-}
-
-/** Its own and the house's: every place an alarm can sound (the Agenda, its banner). */
-export async function allSatellites(familyId: string) {
-	const [own, house] = await Promise.all([familySatellites(familyId), houseSatellites(familyId)]);
-	return [...own, ...house];
 }
 
 /**

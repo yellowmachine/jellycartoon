@@ -1,5 +1,5 @@
 /**
- * How the voice satellites sound (#223), in Ajustes → Casa: their voice louder, the music lower
+ * How the house's voice sounds through Snapcast (#241), in Ajustes → Casa: louder, the music lower
  * while it speaks (in dB), and how Piper reads (in %, 100 its own way).
  */
 
@@ -13,8 +13,7 @@ export interface VoiceLevels {
 	/** How fast it reads: Piper's `length_scale`, its inverse. */
 	speed: number;
 	/**
-	 * The answers said by the AI voice (Gemini's Kore) instead of Piper: one voice with the phrases
-	 * recorded by it, about 2.6 s more for each answer.
+	 * Said by the AI voice (Gemini's Kore) instead of Piper: livelier, about 2.6 s more each time.
 	 */
 	aiAnswers: boolean;
 }

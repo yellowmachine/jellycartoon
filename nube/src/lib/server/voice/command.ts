@@ -1976,7 +1976,7 @@ export async function runVoiceCommand(
 			...ONLY_THE_HOUSE.filter((name) => !(cookHere && name === 'prepare_timer'))
 		];
 	const [alarmLines, timerLines] = await Promise.all([
-		describeAlarms(k, me, house.satellites),
+		describeAlarms(k, me),
 		timersOf && !kitchen ? describeTimersOf(k, timersOf) : request.timers
 	]);
 	const timing: VoiceTiming = { prepareMs: Math.round(performance.now() - started), rounds: [] };

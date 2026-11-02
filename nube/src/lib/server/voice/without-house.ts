@@ -29,7 +29,6 @@ export function orderWithoutHouse(request: VoiceRequest, name: string): HouseVoi
 			sounding: `[Ahora suena. Aquí: ${request.here ?? 'nada'}.]`,
 			watching: null,
 			timers: [],
-			satellites: [],
 			tools: []
 		}
 	};
@@ -50,14 +49,13 @@ export const HOUSE_DOWN =
 export function satelliteOrder(
 	request: VoiceRequest,
 	satellite: KeySatellite,
-	timers: string[],
-	satellites: { id: string; name: string }[]
+	timers: string[]
 ): HouseVoiceOrder {
 	const order = orderWithoutHouse(request, '');
 	return {
 		...order,
 		satellite: { id: satellite.id, name: satellite.name },
-		house: { ...order.house, sounding: '[Ahora suena: nada.]', timers, satellites }
+		house: { ...order.house, sounding: '[Ahora suena: nada.]', timers }
 	};
 }
 

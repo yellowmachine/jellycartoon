@@ -22,7 +22,6 @@ export interface SettingsShown {
 	ai: unknown;
 	spendLine: boolean | null;
 	labels: unknown;
-	satellites: unknown;
 	cloudKeys: unknown;
 	home: unknown;
 	shortcuts: unknown;
@@ -215,16 +214,8 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		tab: 'casa',
 		title: 'Voz de la casa',
 		words:
-			'voz piper satélite hombre mujer masculina femenina hablar respuesta frases espera vale momento tarda volumen alto fuerte música bajar',
+			'voz piper avisos temporizador alarma hombre mujer masculina femenina hablar volumen alto fuerte música bajar snapcast altavoces',
 		shown: (d) => Boolean(d.houseVoice)
-	},
-	{
-		id: 'satelites',
-		tab: 'casa',
-		title: 'Satélites de voz',
-		words:
-			'satélite raspberry micrófono hola casita clave salón alexa altavoz snapcast bajar música',
-		shown: (d) => Boolean(d.satellites)
 	},
 	{
 		id: 'nube',

@@ -349,13 +349,10 @@ export function placeName(place: string, satellites: { id: string; name: string 
 
 /**
  * For the house's voice, with each order: the alarms it may see (the house's and, from a phone,
- * its person's), with their id to change them. `satellites`, the house's, to say where they sound.
+ * its person's), with their id to change them, and where they sound (the family's satellites).
  */
-export async function describeAlarms(
-	k: Kitchen,
-	personId: string | null,
-	satellites: { id: string; name: string }[]
-) {
+export async function describeAlarms(k: Kitchen, personId: string | null) {
+	const satellites = await familySatellites(k.familyId);
 	const rows = await k.run(async (tx) => {
 		const rows = await tx.select().from(alarm);
 		const of = await peopleOf(

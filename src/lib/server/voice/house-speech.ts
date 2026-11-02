@@ -4,11 +4,11 @@ import { aiSpeech } from '#lib/server/voice/ai-voice.ts';
 import { withChime } from 'comun/chime.ts';
 import { getVoiceLevels } from '#lib/server/voice/levels.ts';
 import { louder } from 'comun/wav.ts';
-import { DEFAULT_TONE } from '#lib/voice-fillers.ts';
+import { DEFAULT_TONE } from 'comun/ai-voice.ts';
 import { piperStyle } from '#lib/voice-levels.ts';
 
 /**
- * What the house says aloud (#223, #241): a satellite's answer, or an alarm's words. As the house
+ * What the house says aloud through Snapcast (#241): an alarm's or a timer's words. As the house
  * chose in Ajustes → Casa: in Piper's voice, read its way («Expresividad», «Velocidad»), or in the
  * AI voice («Respuestas con»); as loud as «Volumen de la voz»; with `chime`, a timer's «din-don»
  * before it (chime.ts), as one sound. `voice`, that Piper voice instead («Escuchar» in Ajustes).

@@ -618,7 +618,7 @@ altavoces que tengan snapclient (una Raspberry, Snapdroid en el móvil…). Con
 - En un PC con PipeWire, el cliente va mejor con su salida por defecto: `snapclient -s default …`.
 - `pulseaudio`, que escribe la música en esa FIFO, como en la
   [guía de Snapcast](https://github.com/badaix/snapcast/blob/develop/doc/player_setup.md)
-  (`module-pipe-sink`), y mezcla encima las respuestas de los satélites de voz (más abajo).
+  (`module-pipe-sink`), y mezcla encima lo que dice la casa: sus avisos (más abajo).
 - `mpv-music`, un mpv sin ventana que suena en ese PulseAudio, y que la app controla por
   `HOST_DATA_DIR/mpv-music.sock`. Mantiene la salida abierta entre canciones, así que en Snapcast
   los álbumes suenan sin cortes.
@@ -640,17 +640,14 @@ automático») y se guarda por dónde vas, como si lo vieras. Tras los capítulo
 «¿Sigues ahí?» (Ajustes) sin tocar nada, se para: en un altavoz no hay quien conteste. El mpv de
 Snapcast lee el audio del mismo HLS del capítulo, en `HOST_DATA_DIR/hls`.
 
-Snapserver tiene además una segunda fuente, `Voz` (`HOST_DATA_DIR/snapvoz`), para que los
-satélites de voz (#223) contesten por Snapcast: la misma música, con las respuestas encima, que
-mezcla el PulseAudio (`deploy/pulse.pa`; Snapcast solo cambia de fuente, no mezcla). En Ajustes →
-Casa → Satélites de voz se elige, por cada satélite, el altavoz de su habitación, donde baja la
-música mientras te oye y contesta, y por dónde contesta: su propio altavoz, toda la casa o un
-altavoz de Snapcast. La respuesta suena encima de la música, que baja (−12 dB, como en el móvil)
-mientras habla, con un segundo de retraso, el del búfer. En toda la casa, en la misma música; en
-un altavoz, ese pasa a `Voz` y luego vuelve a la música, con un corte de casi un segundo en cada
-cambio (el de Snapcast al cambiar de fuente), y los demás siguen con ella tal cual. Después de actualizar,
-termina con `docker compose -f compose.prod.yaml up -d`: hay un servicio nuevo, `pulseaudio`, y la
-app necesita `SNAPCAST_PULSE_SOCKET`.
+La casa dice por Snapcast sus avisos (los temporizadores y las alarmas que suenan en toda la casa,
+más abajo): encima de la música, que baja (−12 dB, como en el móvil) mientras habla, con un segundo
+de retraso, el del búfer. Lo mezcla el PulseAudio (`deploy/pulse.pa`; Snapcast solo cambia de
+fuente, no mezcla). Después de actualizar, termina con
+`docker compose -f compose.prod.yaml up -d`: hay un servicio, `pulseaudio`, y la app necesita
+`SNAPCAST_PULSE_SOCKET`. La segunda fuente de snapserver, `Voz` (`HOST_DATA_DIR/snapvoz`), era para
+que los satélites de la casa contestasen en un solo altavoz; los satélites son de Seilide (#329) y
+la app ya no la usa.
 
 #### Modo DJ
 
@@ -714,7 +711,7 @@ Piper.
 
 #### Más voces, para la voz de la casa
 
-Los satélites de voz (#223) contestan con la «Voz de la casa», que se elige en Ajustes → Casa entre
+La casa dice sus avisos por Snapcast con la «Voz de la casa», que se elige en Ajustes → Casa entre
 las voces en español instaladas con Piper (se pueden escuchar antes). Para tener donde elegir, de
 hombre y de mujer, se instalan más en el PC con Piper, en su misma carpeta de datos (unos 400 MB
 estas):
@@ -734,29 +731,17 @@ y «Velocidad» (de 70 a 130 %) lo rápido que lee (`length_scale`); por defecto
 más viva y pausada que la suya. «Volumen de la voz» la sube hasta
 12 dB (con un limitador, sin que distorsione),
 y «Música mientras habla» dice cuánto baja la música de Snapcast mientras suena (de −6 a −30 dB;
-−12 por defecto, como en el móvil). Valen para todo lo que dicen los satélites: respuestas, frases
-de espera y avisos de los temporizadores. El móvil y la tablet usan la voz del propio aparato.
+−12 por defecto, como en el móvil). Valen para todo lo que dice la casa por Snapcast. El móvil y
+la tablet usan la voz del propio aparato. «Dicho con: Voz IA» hace que lo diga Kore (Gemini, por
+OpenRouter), más viva que Piper: cada aviso tarda unos 2–3 s más (medido) y cuesta algo; si Gemini
+falla o tarda más de 10 s, lo dice Piper. En el Registro queda lo que tardó cada uno («Voz IA: …
+ms»).
 
-Si la IA tarda más de tres segundos en contestar, el satélite dice antes una «frase de espera»
-(«Vale.», «Un momento.»…), una distinta cada vez, y la respuesta detrás. Se cambian en Ajustes →
-Casa, debajo de la voz, una por línea. Piper las lee al arrancar y al cambiar la voz o las frases,
-y se quedan guardadas, así que suenan al momento (por Snapcast, con su segundo de búfer). Cada una
-se puede escuchar antes de guardarla y, ya guardada, grabar con una voz IA («Grabar con voz IA»:
-Gemini, voz Kore, por OpenRouter; unos céntimos, una vez), más viva que Piper, con un tono a elegir
-(«acento rioplatense», «villana de película»…). Se guarda en `DATA_DIR/frases-espera`; las que no
-se graban, o con «Volver a Piper», las dice Piper. Al quitar una frase se borra su grabación.
-«Respuestas con: Voz IA» hace que también las respuestas y los avisos los diga Kore, la misma voz
-que las frases grabadas: cada respuesta tarda unos 2–3 s más (medido) y cuesta algo; si Gemini falla
-o tarda más de 10 s, la dice Piper. En el Registro queda lo que tardó cada una («Voz IA: … ms»).
-
-Los temporizadores y las alarmas de los satélites («avísame en una hora para pedir cita en la
-peluquería», «despiértame de lunes a viernes a las 7:30») los lleva el servidor (#241), y se ven y
-se cambian en la Agenda, en «Alarmas y temporizadores», donde también se ponen a mano: para la casa
-o para alguien, y sonando en toda la casa o en un satélite. Al cumplirse suenan por donde contesta
-ese satélite: dos «din-don» y su nombre dicho, y cinco segundos de silencio para que se oiga la
-palabra de activación, que lo para (o «Parar» en la Agenda); si nadie lo para, se calla a los tres
-minutos. Si el satélite contesta por Snapcast, lo dice el servidor; si no, el satélite, avisado por
-su canal (`/api/satelite/avisos`). Las alarmas que se piden desde el móvil suenan en toda la casa.
+Los temporizadores de la casa (#241) los lleva el servidor, y se ven y se paran en la Agenda, en
+«Alarmas y temporizadores». Al cumplirse suenan en toda la casa por Snapcast: dos «din-don» y su
+nombre dicho, y cinco segundos de silencio, hasta que alguien lo para («Parar» en la Agenda); si
+nadie lo para, se calla a los tres minutos. Las alarmas son de Seilide, que avisa a la casa cuando
+tienen que sonar aquí. Los satélites de voz son de Seilide (#329): los suyos suenan en ellos.
 
 ### Accesos directos de la tele
 

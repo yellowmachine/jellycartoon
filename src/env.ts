@@ -61,7 +61,7 @@ export const variables = defineEnvVars({
 	},
 	SNAPCAST_PULSE_SOCKET: {
 		description:
-			'Socket of the PulseAudio in front of snapserver (deploy/pulse.pa), which mixes the answers over the music of its `Voz` source. With it and SNAPSERVER_CONTROL, a voice satellite can answer through Snapcast speakers (Ajustes → Casa).',
+			'Socket of the PulseAudio in front of snapserver (deploy/pulse.pa), which mixes what the house says over the music. With it and SNAPSERVER_CONTROL, the house says its timers and alarms through Snapcast speakers (Ajustes → Casa → Voz de la casa).',
 		schema: (value) => value || undefined
 	},
 	SNAPSERVER_CONTROL: {

@@ -4,7 +4,14 @@
 	import { onMount } from 'svelte';
 	import SettingsSearch from 'comun/components/SettingsSearch.svelte';
 	import Colores from 'comun/components/Colores.svelte';
-	import { OLD_TABS, SETTINGS_INDEX, TAB_LABELS, type SettingsTab } from '#lib/settings-index.ts';
+	import {
+		OLD_TABS,
+		SETTINGS_INDEX,
+		TAB_LABELS,
+		type SettingsShown,
+		type SettingsTab
+	} from '#lib/settings-index.ts';
+	import { group } from './styles.ts';
 	import Reproduccion from './Reproduccion.svelte';
 	import ModoDj from './ModoDj.svelte';
 	import GastoIa from './GastoIa.svelte';
@@ -18,7 +25,6 @@
 	import MusicaAqui from './MusicaAqui.svelte';
 	import Ia from './Ia.svelte';
 	import Etiquetas from './Etiquetas.svelte';
-	import Satelites from './Satelites.svelte';
 	import Nube from './Nube.svelte';
 	import DondeCasa from './DondeCasa.svelte';
 	import AccesosDirectos from './AccesosDirectos.svelte';
@@ -42,6 +48,30 @@
 		const asked = page.url.searchParams.get('seccion');
 		return tabs.find((t) => t.id === asked)?.id ?? (asked && OLD_TABS[asked]) ?? 'mi';
 	});
+
+	/** Which sections this person sees, as the search knows them (settings-index.ts). */
+	const shown: SettingsShown = $derived({
+		kid: Boolean(data.kid),
+		intro: data.intro,
+		keepHistory: data.keepHistory,
+		langua: data.langua,
+		telegram: data.telegram,
+		musicApps: data.musicApps,
+		voice: Boolean(data.voice),
+		music: Boolean(data.music),
+		ai: data.ai,
+		spendLine: data.spendLine,
+		labels: data.labels,
+		cloudKeys: data.cloudKeys,
+		home: data.home,
+		shortcuts: data.shortcuts,
+		houseVoice: data.houseVoice,
+		kids: data.kids,
+		twoFactor: data.twoFactor
+	});
+	/** A group's title only with some of its sections to show. */
+	const any = (...ids: string[]) =>
+		SETTINGS_INDEX.some((e) => ids.includes(e.id) && (e.shown?.(shown) ?? true));
 
 	// A link from before #178 (`?seccion=aspecto#microfono`): its section, in the tab it is in now.
 	onMount(() => {
@@ -71,30 +101,7 @@
 		style:top="var(--header-h, 0px)"
 	>
 		<!-- What is in any tab, by a word (settings-index.ts): the page only draws the open one. -->
-		<SettingsSearch
-			index={SETTINGS_INDEX}
-			labels={TAB_LABELS}
-			shown={{
-				kid: Boolean(data.kid),
-				intro: data.intro,
-				keepHistory: data.keepHistory,
-				langua: data.langua,
-				telegram: data.telegram,
-				musicApps: data.musicApps,
-				voice: Boolean(data.voice),
-				music: Boolean(data.music),
-				ai: data.ai,
-				spendLine: data.spendLine,
-				labels: data.labels,
-				satellites: data.satellites,
-				cloudKeys: data.cloudKeys,
-				home: data.home,
-				shortcuts: data.shortcuts,
-				houseVoice: data.houseVoice,
-				kids: data.kids,
-				twoFactor: data.twoFactor
-			}}
-		/>
+		<SettingsSearch index={SETTINGS_INDEX} labels={TAB_LABELS} {shown} />
 
 		<!-- Tabs that are links, as in Gestión: each keeps its address, and «back» works. -->
 		<!-- Forms post to «?seccion=…&/action», so saving keeps the tab (the action is the «/» one). -->
@@ -117,11 +124,7 @@
 	{#if tab === 'mi'}
 		<p class="mb-6 text-sm text-zinc-400">Solo para ti, en todos tus aparatos.</p>
 
-		<Reproduccion {data} {form} {tab} />
-
-		<ModoDj {data} {tab} />
-
-		<LoQueSeGuarda {data} {tab} />
+		{#if any('colores', 'al-abrir')}<h2 class={group}>Cómo lo ves</h2>{/if}
 
 		<Colores
 			theme={data.theme}
@@ -131,13 +134,25 @@
 
 		<AlAbrir {data} {tab} />
 
-		<GastoIa {data} {tab} />
+		{#if any('reproduccion', 'modo-dj')}<h2 class={group}>Ver y escuchar</h2>{/if}
+
+		<Reproduccion {data} {form} {tab} />
+
+		<ModoDj {data} {tab} />
+
+		{#if any('langua', 'telegram', 'musica-en-apps')}<h2 class={group}>Con otras apps</h2>{/if}
 
 		<Langua {data} {form} {tab} />
 
 		<Telegram {data} {form} {tab} />
 
 		<MusicaEnApps {data} {form} {tab} />
+
+		{#if any('lo-que-veo', 'gasto-ia')}<h2 class={group}>Lo tuyo</h2>{/if}
+
+		<LoQueSeGuarda {data} {tab} />
+
+		<GastoIa {data} {tab} />
 	{/if}
 
 	{#if tab === 'aparato'}
@@ -155,21 +170,27 @@
 	{#if tab === 'casa'}
 		<p class="mb-6 text-sm text-zinc-400">Para toda la casa.</p>
 
-		<Ia {data} {form} {tab} />
+		{#if any('personas')}<h2 class={group}>Quiénes sois</h2>{/if}
 
-		<Etiquetas {data} {form} {tab} />
+		<Personas {data} {form} {tab} />
 
-		<DondeCasa {data} {form} {tab} />
+		{#if any('accesos-directos', 'etiquetas')}<h2 class={group}>La tele</h2>{/if}
 
 		<AccesosDirectos {data} {form} {tab} />
 
-		<Satelites {data} {form} {tab} />
+		<Etiquetas {data} {form} {tab} />
 
-		<Nube {data} {form} {tab} />
+		{#if any('donde-casa', 'voz-casa', 'ia', 'nube', 'version')}<h2 class={group}>
+				La casa y sus conexiones
+			</h2>{/if}
+
+		<DondeCasa {data} {form} {tab} />
 
 		<VozCasa {data} {form} {tab} />
 
-		<Personas {data} {form} {tab} />
+		<Ia {data} {form} {tab} />
+
+		<Nube {data} {form} {tab} />
 
 		<Version {data} {form} {tab} />
 	{/if}
