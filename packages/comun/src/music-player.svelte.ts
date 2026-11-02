@@ -1,4 +1,4 @@
-import type { MusicTrack, SavedQueue } from './music.ts';
+import { mixed, type MusicTrack, type SavedQueue } from './music.ts';
 import type { PodcastPlaying, Speed } from './podcasts.ts';
 import type { RadioStream } from './radio.ts';
 import type { EpisodeListening } from './episode-audio.ts';
@@ -19,12 +19,7 @@ const VOICE_REWIND = 3;
 
 /** In random order, with `first` first, so that the whole queue still comes after it. */
 function shuffled(tracks: MusicTrack[], first: number) {
-	const rest = tracks.filter((_, i) => i !== first);
-	// Fisher–Yates.
-	for (let i = rest.length - 1; i > 0; i--) {
-		const j = Math.floor(Math.random() * (i + 1));
-		[rest[i], rest[j]] = [rest[j], rest[i]];
-	}
+	const rest = mixed(tracks.filter((_, i) => i !== first));
 	return tracks[first] ? [tracks[first], ...rest] : rest;
 }
 

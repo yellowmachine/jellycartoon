@@ -26,6 +26,19 @@ export interface MusicAlbum {
 	tracks: MusicTrack[];
 }
 
+/**
+ * In random order (Fisher–Yates), as a new list: «Mezclar y reproducir» an album or a playlist, and
+ * the player's own shuffle.
+ */
+export function mixed<T>(items: readonly T[]): T[] {
+	const out = [...items];
+	for (let i = out.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[out[i], out[j]] = [out[j]!, out[i]!];
+	}
+	return out;
+}
+
 /** Accents and case do not matter: «heroes» finds «Héroes del Silencio». */
 export function fold(text: string) {
 	return text

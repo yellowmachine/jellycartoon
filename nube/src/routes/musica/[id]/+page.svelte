@@ -3,7 +3,7 @@
 	import AddToPlaylist from 'comun/components/AddToPlaylist.svelte';
 	import AlbumCover from 'comun/components/AlbumCover.svelte';
 	import { formatDuration } from 'comun/format.ts';
-	import { artistUrl } from 'comun/music.ts';
+	import { artistUrl, mixed } from 'comun/music.ts';
 	import { music } from 'comun/music-player.svelte.ts';
 	import { musicTarget } from 'comun/music-target.svelte.ts';
 	import type { PageProps } from './$types';
@@ -44,6 +44,12 @@
 			<button
 				class="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-zinc-950 hover:bg-amber-400"
 				onclick={() => musicTarget.play(album.tracks, 0, false)}>▶︎ Reproducir</button
+			>
+			<!-- Shuffled once, then played in that order (comun/music.ts, `mixed`): here or on Snapcast. -->
+			<button
+				class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800"
+				onclick={() => musicTarget.play(mixed(album.tracks), 0, false)}
+				>🔀 Mezclar y reproducir</button
 			>
 			<AddToQueue tracks={album.tracks} toSnapcast={false} />
 			<AddToPlaylist

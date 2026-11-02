@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	groupByArtist,
+	mixed,
 	masterVolume,
 	parseDjOptions,
 	parseQueueSave,
@@ -162,5 +163,20 @@ describe('where the music is', () => {
 		expect(coverUrl(3)).toBe('https://media.test/pase/portadas/3');
 		// The DJ's words, still jellycartoon's: not given.
 		expect(audioUrl({ clip: { id: 'x', text: '' } } as never)).toBe('/api/music/dj/x');
+	});
+});
+
+describe('mixed', () => {
+	test('the same items, in another order, as a new list', () => {
+		const items = Array.from({ length: 50 }, (_, i) => i);
+		const out = mixed(items);
+		expect(out).not.toBe(items);
+		expect([...out].sort((a, b) => a - b)).toEqual(items);
+		expect(out).not.toEqual(items);
+	});
+
+	test('none or one: as they are', () => {
+		expect(mixed([])).toEqual([]);
+		expect(mixed(['a'])).toEqual(['a']);
 	});
 });
