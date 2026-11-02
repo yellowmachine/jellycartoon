@@ -1,5 +1,6 @@
 import type { PageServerLoad } from './$types';
 import { consumptionByMonth } from 'comun/bill-months.ts';
+import { analyseBills, billWarnings } from 'comun/bill-analysis.ts';
 import { BILL_KINDS } from 'comun/bills.ts';
 import { addMonths, monthOf } from 'comun/expenses.ts';
 import { billKinds, billsOf } from '#lib/server/expenses/bills.ts';
@@ -7,7 +8,9 @@ import { kitchenOf, today } from '#lib/server/fridge.ts';
 
 /**
  * Gastos → Facturas (#232), for the adults: of one kind (`?de=Agua`, light by default), what was
- * consumed each of the last 12 months beside the same month a year before, and each bill.
+ * consumed each of the last 12 months beside the same month a year before, and each bill: what it
+ * costs and consumes a day and its real price, beside the same days a year before; and what to
+ * look at (bill-analysis.ts).
  */
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const k = await kitchenOf(locals.user!.id);
@@ -26,6 +29,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		kinds,
 		kind,
 		bills,
+		analysis: analyseBills(bills),
+		warnings: billWarnings(bills),
 		unit: bills[0]?.unit ?? (kind === 'Agua' ? 'm³' : 'kWh'),
 		months: months.map((month, i) => ({ month, now: now[i]!, before: before[i]! }))
 	};
