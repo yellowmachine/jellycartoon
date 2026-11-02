@@ -173,9 +173,10 @@ services:
   # of a rathole tunnel (https://github.com/rapiz1/rathole, #253). It keeps an outgoing connection to
   # the rathole server on a VPS, which sends MEDIA_HOST's connections through it to Caddy, still
   # encrypted: Caddy's certificate, the VPS only passes them on. No ports open at home. Its config
-  # from the .env (Compose's `configs` with `content`); pinned, WUD does not touch it.
+  # from the .env (Compose's `configs` with `content`); WUD does not touch it. Ours, rathole v0.5.0's
+  # own release for a PC and a Raspberry (Dockerfile.rathole, #378): rapiz1/rathole is only for PCs.
   rathole:
-    image: rapiz1/rathole:v0.5.0
+    image: ghcr.io/yellowmachine/jellycartoon-rathole:${IMAGE_TAG:-stable}
     profiles: [tunel]
     restart: unless-stopped
     depends_on:
