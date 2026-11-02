@@ -3,7 +3,7 @@
 	import SubtitleStylePanel from 'comun/components/SubtitleStylePanel.svelte';
 	import { enhance } from '$app/forms';
 	import { languageLabel } from 'comun/languages.ts';
-	import { ANSWER_SECONDS, ASK_EVERY_OPTIONS } from '#lib/still-there.ts';
+	import { ANSWER_SECONDS, ASK_AFTER_OPTIONS, askAfterLabel } from '#lib/still-there.ts';
 	import type { SubtitleStyle } from 'comun/subtitle-style.ts';
 	import { section, select, primary } from './styles.ts';
 	import type { PageData, ActionData } from './$types';
@@ -14,7 +14,7 @@
 	/** «¿Sigues ahí?» (#77), as a child's in /infantil. */
 	const ASK: { value: number | null; label: string }[] = [
 		{ value: null, label: 'Nunca' },
-		...ASK_EVERY_OPTIONS.map((n) => ({ value: n, label: `Cada ${n} capítulos` }))
+		...ASK_AFTER_OPTIONS.map((n) => ({ value: n, label: `Tras ${askAfterLabel(n)}` }))
 	];
 
 	// Changed here at once; several quick clicks become one save, as in the player.
@@ -117,7 +117,7 @@
 		<form
 			id="sigues-ahi"
 			method="post"
-			action="?seccion={tab}&/askEvery"
+			action="?seccion={tab}&/askAfter"
 			use:enhance={() =>
 				async ({ update }) =>
 					update({ reset: false })}
@@ -127,12 +127,12 @@
 				<span class="mr-1">Preguntar «¿Sigues ahí?»</span>
 				{#each ASK as option (option.value)}
 					<button
-						name="askEvery"
+						name="askAfter"
 						value={option.value ?? ''}
-						aria-pressed={data.stillThere.every === option.value}
+						aria-pressed={data.stillThere.after === option.value}
 						class={[
 							'rounded-full border px-3 py-1',
-							data.stillThere.every === option.value
+							data.stillThere.after === option.value
 								? 'border-amber-500 text-amber-400'
 								: 'border-zinc-700 hover:bg-zinc-900'
 						]}>{option.label}</button
@@ -140,9 +140,10 @@
 				{/each}
 			</div>
 			<p class="mt-1 text-xs text-zinc-500">
-				Con «siguiente automático», tras esos capítulos seguidos sin tocar nada el siguiente espera
-				a que contestes; si en {ANSWER_SECONDS / 60} minutos nadie lo hace, se para. Para cuando te duermes
-				con la serie. En el navegador y en el salón.
+				Con «siguiente automático», cuando pasa ese tiempo sin tocar nada, el capítulo que está
+				sonando acaba y el siguiente espera a que contestes; si en {ANSWER_SECONDS / 60} minutos nadie
+				lo hace, se para. Para cuando te duermes con la serie. En el navegador y en el salón; en un altavoz,
+				se para sin preguntar.
 			</p>
 		</form>
 	{/if}

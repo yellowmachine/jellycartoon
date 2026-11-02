@@ -12,8 +12,8 @@ import { addWatchTime } from '#lib/server/watch-time.ts';
 import { videoAllowedTogether } from '#lib/server/kid-time.ts';
 import { watchersOf } from '#lib/server/watching-together.ts';
 import { noteAsking, noteStopped, noteTouched } from '#lib/server/live-watching.ts';
-import { askEveryTogether } from '#lib/server/still-there.ts';
-import { ANSWER_SECONDS, QUESTION } from '#lib/still-there.ts';
+import { askAfterTogether } from '#lib/server/still-there.ts';
+import { ANSWER_SECONDS, QUESTION, longUnattended } from '#lib/still-there.ts';
 import type { Channel } from 'comun/channels.ts';
 import type { RemoteAction, RemoteState, Track } from '#lib/salon.ts';
 import { mpvSubtitleProperties, type SubtitleStyle } from 'comun/subtitle-style.ts';
@@ -192,10 +192,10 @@ const ASKING_PROPERTY = 'user-data/jellycartoon/asking';
 const OWN_START_MS = 5000;
 
 /**
- * «¿Sigues ahí?» (#77). Episodes mpv's list started by itself since anyone last touched anything:
- * a key of the remote (a seek, Play/Pausa, the menu, the microphone) or the phone's remote.
+ * «¿Sigues ahí?» (#77). When anyone last touched anything: a key of the remote (a seek,
+ * Play/Pausa, the menu, the microphone) or the phone's remote, or chose what is on.
  */
-let unattended = 0;
+let touchedAt = Date.now();
 /** The first of the queue, started by whoever chose it: not by itself. */
 let queueFirst: number | null = null;
 /** Asked and not answered: whom, and the stop when time is up. */
@@ -203,9 +203,9 @@ let question: { userId: string; timer: ReturnType<typeof setTimeout> } | null = 
 /** When the file on screen opened. */
 let loadedAt = 0;
 
-/** Someone touched something: the count starts again, and a question is answered. */
+/** Someone touched something: the time starts again, and a question is answered. */
 function someoneThere() {
-	unattended = 0;
+	touchedAt = Date.now();
 	const userId = current === null ? undefined : (playing.get(current) ?? live.get(current))?.userId;
 	if (userId) noteTouched(userId);
 	answered();
@@ -215,15 +215,18 @@ function someoneThere() {
 async function startedByItself(entryId: number) {
 	const entry = playing.get(entryId);
 	if (!entry || entryId === queueFirst || question) return;
-	unattended++;
-	const every = await askEveryTogether(entry.userId).catch(() => null);
-	if (!every || unattended < every || current !== entryId) return;
+	const after = await askAfterTogether(entry.userId).catch(() => null);
+	if (!longUnattended(touchedAt, after) || current !== entryId) return;
 	question = {
 		userId: entry.userId,
 		timer: setTimeout(() => void nobodyAnswered(), ANSWER_SECONDS * 1000)
 	};
 	noteAsking(entry.userId, true);
-	log.info('mpv', `${QUESTION} Tras ${unattended} capítulos seguidos`, { userId: entry.userId });
+	log.info(
+		'mpv',
+		`${QUESTION} Tras ${Math.round((Date.now() - touchedAt) / 60_000)} min sin tocar nada`,
+		{ userId: entry.userId }
+	);
 	try {
 		await command(['set_property', 'pause', true]);
 		await command(['set_property', ASKING_PROPERTY, true]);
@@ -248,7 +251,7 @@ function clearQuestion() {
 function answered() {
 	const userId = clearQuestion();
 	if (!userId) return;
-	unattended = 0;
+	touchedAt = Date.now();
 	noteAsking(userId, false);
 	void command(['set_property', 'pause', false]).catch(() => {});
 	log.info('mpv', 'Sigue ahí', { userId });
@@ -606,7 +609,7 @@ const oneOrder = inOrder();
 /** What was queued goes: what ended is already saved, and what is on saves when it ends. */
 function forgetQueue() {
 	// Chosen now: started by someone, and no question for what was on.
-	unattended = 0;
+	touchedAt = Date.now();
 	queueFirst = null;
 	const asked = clearQuestion();
 	if (asked) noteAsking(asked, false);
