@@ -12,8 +12,9 @@ export const variables = defineEnvVars({
 			'Secret used to sign tokens. For production use 32 characters generated with high entropy. See [Better Auth installation](https://www.better-auth.com/docs/installation).'
 	},
 	MEDIA_DIR: {
-		description: 'Read-only directory with the original videos, one folder per series.',
-		schema: withDefault('./media')
+		description:
+			'Read-only directory with the original videos, one folder per series. Set but empty: a house without video (#378), with only music, radio and podcasts (on a Raspberry); unset, `./media`.',
+		schema: (value) => (value === undefined ? './media' : value || undefined)
 	},
 	DATA_DIR: {
 		description: 'Writable directory for transcoded videos and thumbnails.',

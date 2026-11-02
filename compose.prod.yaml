@@ -20,7 +20,9 @@ services:
       POSTGRES_PASSWORD: jellycartoon
       POSTGRES_DB: jellycartoon
     volumes:
-      - pgdata:/var/lib/postgresql
+      # In Docker's volume; with HOST_DB_DIR, in that folder instead (#378: on a Raspberry, on its
+      # disk rather than the SD card, which Postgres wears out).
+      - ${HOST_DB_DIR:-pgdata}:/var/lib/postgresql
       # The copies WUD makes right before updating (the app's labels below).
       - ./update-backups:/backups
     healthcheck:
@@ -48,7 +50,8 @@ services:
       # The URL the app is opened from (Better Auth's baseURL), served by Caddy.
       ORIGIN: ${ORIGIN:?ORIGIN is required}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
-      MEDIA_DIR: /media
+      # Without HOST_MEDIA_DIR, a house without video (#378): only music, radio and podcasts.
+      MEDIA_DIR: ${HOST_MEDIA_DIR:+/media}
       DATA_DIR: /data
       # Shown on each episode, to open it with a native player on this PC.
       HOST_DATA_DIR: ${HOST_DATA_DIR}
@@ -122,7 +125,7 @@ services:
         ls -1t /backups/antes-de-actualizar-*.dump | tail -n +5 | xargs -r rm --
     volumes:
       # Writable only so DELETE_SOURCES can remove converted originals.
-      - ${HOST_MEDIA_DIR:?HOST_MEDIA_DIR is required}:/media
+      - ${HOST_MEDIA_DIR:-./no-media}:/media
       - ${HOST_DATA_DIR:?HOST_DATA_DIR is required}:/data
       # Read-only: films are never modified. Without HOST_CINEMA_DIR an empty folder is mounted
       # instead, and the app has no Cine section (CINEMA_DIR is unset).
@@ -159,7 +162,8 @@ services:
       ORIGIN: ${ORIGIN:?ORIGIN is required}
       # Cloudflare API token with Zone.Zone:Read and Zone.DNS:Edit on the domain's zone.
       CF_API_TOKEN: ${CF_API_TOKEN:-}
-      # `cloudflare` (a domain, the default) or `internal` (at home only, without one): README.
+      # `cloudflare` (a domain, the default), `internal` (at home only, without one) or `acme`
+      # (a domain through the tunnel, without the token: #355): README, deploy/Caddyfile.
       TLS: ${TLS:-cloudflare}
       # Optional, with the `tunel` profile: the name reached from outside through rathole, which
       # serves only the APIs for other apps (deploy/Caddyfile).
@@ -168,18 +172,26 @@ services:
       # Certificates and the ACME account: without them, a new certificate on every start.
       - caddy_data:/data
       - caddy_config:/config
+    networks:
+      - default
+      - tunel
 
   # Optional, with `tunel` in COMPOSE_PROFILES, MEDIA_HOST and the RATHOLE_* of the .env: the client
   # of a rathole tunnel (https://github.com/rapiz1/rathole, #253). It keeps an outgoing connection to
   # the rathole server on a VPS, which sends MEDIA_HOST's connections through it to Caddy, still
   # encrypted: Caddy's certificate, the VPS only passes them on. No ports open at home. Its config
-  # from the .env (Compose's `configs` with `content`); pinned, WUD does not touch it.
+  # from the .env (Compose's `configs` with `content`); pinned, WUD does not touch it. On a
+  # Raspberry (#378), RATHOLE_IMAGE: rapiz1/rathole is only for PCs (Dockerfile.rathole).
   rathole:
-    image: rapiz1/rathole:v0.5.0
+    image: ${RATHOLE_IMAGE:-rapiz1/rathole:v0.5.0}
     profiles: [tunel]
     restart: unless-stopped
     depends_on:
       - caddy
+    # Its own network with Caddy: Caddy knows what comes through the tunnel by its address, and
+    # serves it only the APIs (deploy/Caddyfile).
+    networks:
+      - tunel
     command: ['--client', '/config/client.toml']
     configs:
       - source: rathole
@@ -406,6 +418,13 @@ configs:
       [client.services.jellycartoon]
       token = "${RATHOLE_TOKEN:-}"
       local_addr = "caddy:443"
+
+networks:
+  # rathole → Caddy (#355), with its addresses fixed, as deploy/Caddyfile knows them.
+  tunel:
+    ipam:
+      config:
+        - subnet: 172.31.253.0/29
 
 volumes:
   pgdata:

@@ -1,0 +1,110 @@
+name: Imágenes del experimento
+
+# The house without video on a Raspberry (#378), tried on musicpi without touching the salon: the
+# images for a PC (amd64) and a Raspberry (arm64) under the `experimento` tag only, which no install
+# follows (they follow `stable`; docker.yml's tags are not touched). On each push to the
+# `experimento` branch (by hand, from a workflow on main, GitHub only runs it once it is there);
+# install.sh with IMAGE_TAG=experimento.
+on:
+  push:
+    branches: [experimento]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: experimento
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  # Each on its own runner, not emulated, pushed by digest and joined below into one image for
+  # both, as docker.yml does with the satellite's:
+  # https://docs.docker.com/build/ci/github-actions/multi-platform/#distribute-build-across-multiple-runners
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - { name: app, suffix: '', file: Dockerfile }
+          - { name: caddy, suffix: -caddy, file: Dockerfile.caddy }
+          - { name: backup, suffix: -backup, file: Dockerfile.backup }
+          - { name: rathole, suffix: -rathole, file: Dockerfile.rathole }
+        arch:
+          - { platform: linux/amd64, runner: ubuntu-latest, pair: linux-amd64 }
+          - { platform: linux/arm64, runner: ubuntu-24.04-arm, pair: linux-arm64 }
+    runs-on: ${{ matrix.arch.runner }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.image.file }}
+          platforms: ${{ matrix.arch.platform }}
+          # What the app shows (only the app's uses it).
+          build-args: |
+            APP_VERSION=sha-${{ github.sha }}
+          outputs: type=image,name=${{ env.IMAGE }}${{ matrix.image.suffix }},push-by-digest=true,name-canonical=true,push=true
+          # Apart from docker.yml's caches.
+          cache-from: type=gha,scope=experimento-${{ matrix.image.name }}-${{ matrix.arch.pair }}
+          cache-to: type=gha,scope=experimento-${{ matrix.image.name }}-${{ matrix.arch.pair }},mode=max
+
+      - run: |
+          mkdir -p ${{ runner.temp }}/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.image.name }}-${{ matrix.arch.pair }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # Both platforms of each, as `experimento`.
+  merge:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - { name: app, suffix: '' }
+          - { name: caddy, suffix: -caddy }
+          - { name: backup, suffix: -backup }
+          - { name: rathole, suffix: -rathole }
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-${{ matrix.image.name }}-*
+          merge-multiple: true
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v4
+
+      - working-directory: ${{ runner.temp }}/digests
+        run: |
+          docker buildx imagetools create -t "$IMAGE${{ matrix.image.suffix }}:experimento" \
+            $(printf "$IMAGE${{ matrix.image.suffix }}@sha256:%s " *)
+
+      - run: docker buildx imagetools inspect "$IMAGE${{ matrix.image.suffix }}:experimento"

@@ -1,14 +1,22 @@
 #!/bin/sh
-# Installs JellyCartoon in ~/jellycartoon on any x86_64 Linux with Docker (#103): checks Docker,
+# Installs JellyCartoon in ~/jellycartoon on any x86_64 Linux with Docker (#103), or on a Raspberry
+# (arm64) as a house without video: music, radio and podcasts (#378). It checks Docker,
 # downloads compose.prod.yaml from main (the last release), asks the least it can, writes the .env
 # with its secrets, starts it and says the address to open. Run it again whenever: a file that is
 # already there is never overwritten, and with a .env it only starts what it says. The screen's
 # part (mpv, the remote) is scripts/pantalla.sh; the rest, "Producción" in the README.
 #
 #   curl -fsSL https://raw.githubusercontent.com/yellowmachine/jellycartoon/main/install.sh | sh
+#
+# To try a branch's (#378): JELLYCARTOON_REF, where compose.prod.yaml comes from, and IMAGE_TAG,
+# the images' channel (written to the .env), e.g.
+#   curl -fsSL https://raw.githubusercontent.com/yellowmachine/jellycartoon/experimento/install.sh |
+#     JELLYCARTOON_REF=experimento IMAGE_TAG=experimento sh
 set -eu
 
-base=https://raw.githubusercontent.com/yellowmachine/jellycartoon/main
+ref=${JELLYCARTOON_REF:-main}
+tag=${IMAGE_TAG:-}
+base=https://raw.githubusercontent.com/yellowmachine/jellycartoon/$ref
 dir=$HOME/jellycartoon
 compose="docker compose -f compose.prod.yaml"
 
@@ -51,8 +59,13 @@ say
 # --- What it needs -------------------------------------------------------------------------------
 
 [ "$(uname -s)" = Linux ] || fail "JellyCartoon se instala en un ordenador con Linux."
-# The images are built only for x86_64 (PCs), not for ARM (Raspberry Pi…).
-[ "$(uname -m)" = x86_64 ] || fail "Este ordenador es $(uname -m): JellyCartoon solo funciona en PCs (x86_64)."
+# A PC (x86_64), the whole house; a Raspberry (aarch64), without video (#378): converting it is too
+# much for it, and only music, radio and podcasts are left.
+case $(uname -m) in
+x86_64) music_only= ;;
+aarch64 | arm64) music_only=1 ;;
+*) fail "Este ordenador es $(uname -m): JellyCartoon funciona en PCs (x86_64) y Raspberry de 64 bits." ;;
+esac
 command -v curl >/dev/null || fail "Falta curl."
 command -v openssl >/dev/null || fail "Falta openssl."
 
@@ -167,24 +180,45 @@ y vuelve a pegar el comando de instalar."
 	esac
 
 	say
-	media=$(ask "Carpeta donde copiarás los capítulos" "$dir/media")
-	media=${media%/}
+	media=
+	music=
+	profiles=
+	if [ -n "$music_only" ]; then
+		say "En una Raspberry, JellyCartoon es solo música, radio y podcasts: sin series ni películas."
+		music=$(ask "Carpeta con la música (una carpeta por disco)" "$dir/musica")
+		music=${music%/}
+		# The music to the satellites and the house's speakers, by Snapcast.
+		profiles=snapcast
+	else
+		media=$(ask "Carpeta donde copiarás los capítulos" "$dir/media")
+		media=${media%/}
+	fi
 
 	say
-	profiles=
+	data=$(ask "Carpeta para los datos de JellyCartoon y su base de datos" "$dir/data")
+	data=${data%/}
+
+	say
 	wud_password=
 	if yes "¿Actualizar solo cada noche a la última versión?" s; then
-		profiles=updates
+		profiles=${profiles:+$profiles,}updates
 		wud_password=$(openssl rand -hex 16)
 	fi
 	whisper=
-	# Whisper runs on the GPU through /dev/dri (compose.prod.yaml).
-	if [ -e /dev/dri ] && yes "¿Órdenes de voz y subtítulos automáticos? (descarga un modelo de unos 500 MB)" n; then
+	# Whisper runs on the GPU through /dev/dri (compose.prod.yaml); not on a Raspberry.
+	if [ -z "$music_only" ] && [ -e /dev/dri ] &&
+		yes "¿Órdenes de voz y subtítulos automáticos? (descarga un modelo de unos 500 MB)" n; then
 		profiles=${profiles:+$profiles,}voz
 		whisper=small
 	fi
 
-	mkdir -p "$media" data
+	[ -z "$media" ] || mkdir -p "$media"
+	[ -z "$music" ] || mkdir -p "$music"
+	mkdir -p "$data"
+	# Elsewhere than the default, the database too (in Docker's volume otherwise): on a Raspberry,
+	# on its disk rather than the SD card, which Postgres wears out (#378).
+	db_dir=
+	[ "$data" = "$dir/data" ] || db_dir=$data/postgres
 	umask 077
 	{
 		say "# Written by install.sh on $(date +%F). The rest of the variables: README, «Producción»."
@@ -192,8 +226,11 @@ y vuelve a pegar el comando de instalar."
 		say "TLS=\"$tls\""
 		[ -z "$token" ] || say "CF_API_TOKEN=\"$token\""
 		say "BETTER_AUTH_SECRET=\"$(secret)\""
-		say "HOST_MEDIA_DIR=\"$media\""
-		say "HOST_DATA_DIR=\"$dir/data\""
+		[ -z "$media" ] || say "HOST_MEDIA_DIR=\"$media\""
+		[ -z "$music" ] || say "HOST_MUSIC_DIR=\"$music\""
+		[ -z "$tag" ] || say "IMAGE_TAG=\"$tag\""
+		say "HOST_DATA_DIR=\"$data\""
+		[ -z "$db_dir" ] || say "HOST_DB_DIR=\"$db_dir\""
 		say "PUID=$(id -u)"
 		say "PGID=$(id -g)"
 		[ -z "$profiles" ] || say "COMPOSE_PROFILES=\"$profiles\""
