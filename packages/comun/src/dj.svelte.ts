@@ -25,6 +25,13 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 	return res.json();
 }
 
+/** Where the songs come from: its artists, or its playlist (mixed or in order). */
+const source = (options: DjOptions) => ({
+	artists: options.artists,
+	playlist: options.playlist ?? null,
+	inOrder: options.inOrder ?? false
+});
+
 class Dj {
 	/** As it was started; it is on while the queue is still its own (`music.dj`). */
 	options = $state<DjOptions | null>(null);
@@ -36,6 +43,8 @@ class Dj {
 	/** The last one followed: `step` runs on every change, and once per track is enough. */
 	#seen: MusicTrack | undefined;
 	#refilling = false;
+	/** The playlist's songs queued so far, for the next ones in order. */
+	#offset = 0;
 
 	get on() {
 		return music.dj && this.options !== null;
@@ -68,11 +77,16 @@ class Dj {
 	/** Instead of whatever was on, here. */
 	async start(options: DjOptions) {
 		const tracks = await post<MusicTrack[]>('/api/music/dj/random', {
-			artists: options.artists,
-			exclude: []
+			...source(options),
+			exclude: [],
+			offset: 0
 		});
-		if (!tracks.length) throw new Error('No hay canciones de esos artistas');
+		if (!tracks.length)
+			throw new Error(
+				options.playlist ? 'La lista está vacía' : 'No hay canciones de esos artistas'
+			);
 		this.options = options;
+		this.#offset = tracks.length;
 		this.#played = [];
 		this.#seen = undefined;
 		music.play(tracks, 0, true);
@@ -100,7 +114,8 @@ class Dj {
 				played: this.#played.map((t) => t.id),
 				next: next && !next.clip ? next.id : null,
 				lang: options.lang,
-				voice: options.voice
+				voice: options.voice,
+				playlist: options.playlist?.name ?? null
 			});
 			// Still on that song, in the same Modo DJ: after it, and the count starts again. If not,
 			// the next song tries again.
@@ -119,13 +134,17 @@ class Dj {
 		this.#refilling = true;
 		try {
 			const tracks = await post<MusicTrack[]>('/api/music/dj/random', {
-				artists: options.artists,
+				...source(options),
 				exclude: music.queue
 					.filter((t) => !t.clip)
 					.slice(-EXCLUDE)
-					.map((t) => t.id)
+					.map((t) => t.id),
+				offset: this.#offset
 			});
-			if (this.options === options && music.dj) music.append(tracks);
+			if (this.options === options && music.dj) {
+				music.append(tracks);
+				this.#offset += tracks.length;
+			}
 		} catch {
 			// Tried again at the next song.
 		} finally {

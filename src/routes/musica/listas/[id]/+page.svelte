@@ -65,6 +65,13 @@
 			class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800"
 			onclick={() => musicTarget.play(mixed(tracks), 0, toSnapcast)}>🔀 Mezclar y reproducir</button
 		>
+		{#if data.dj}
+			<!-- Modo DJ with this playlist's songs: its dialog in Música (comun's DjDialog). -->
+			<a
+				href="/musica?dj={data.playlist.id}&lista={encodeURIComponent(data.playlist.name)}"
+				class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800">🎙 Con DJ</a
+			>
+		{/if}
 		<AddToQueue {tracks} {toSnapcast} />
 	</div>
 	{#if data.snapcast}

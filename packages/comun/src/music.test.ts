@@ -4,6 +4,7 @@ import {
 	mixed,
 	masterVolume,
 	parseDjOptions,
+	playlistBatch,
 	parseQueueSave,
 	scaleVolumes,
 	type MusicAlbum,
@@ -132,7 +133,9 @@ describe('parseDjOptions', () => {
 			artists: ['Mecano'],
 			lang: 'es',
 			every: 3,
-			voice: 'male'
+			voice: 'male',
+			playlist: null,
+			inOrder: false
 		});
 		expect(parseDjOptions({ ...options, voice: 'female' })?.voice).toBe('female');
 		expect(parseDjOptions({ ...options, artists: [], lang: 'en' })?.artists).toEqual([]);
@@ -147,6 +150,43 @@ describe('parseDjOptions', () => {
 		expect(parseDjOptions({ ...options, artists: [1] })).toBeNull();
 		expect(parseDjOptions({ ...options, artists: 'Mecano' })).toBeNull();
 		expect(parseDjOptions(null)).toBeNull();
+	});
+
+	test('a playlist, mixed or in order; not one that is not', () => {
+		const list = { id: 4, name: 'Verano' };
+		expect(parseDjOptions({ ...options, playlist: list, inOrder: true })).toMatchObject({
+			playlist: list,
+			inOrder: true
+		});
+		expect(parseDjOptions({ ...options, playlist: { id: 0, name: 'x' } })).toBeNull();
+		expect(parseDjOptions({ ...options, playlist: { id: 4 } })).toBeNull();
+		expect(parseDjOptions({ ...options, inOrder: 'sí' })).toBeNull();
+	});
+});
+
+describe('playlistBatch', () => {
+	const list = [1, 2, 3, 4, 5].map((id) => ({ id }));
+	const ids = (t: { id: number }[]) => t.map((x) => x.id);
+
+	test('mixed: those not yet queued, all of them', () => {
+		const out = ids(playlistBatch(list, 30, { exclude: [1, 2] }));
+		expect([...out].sort()).toEqual([3, 4, 5]);
+	});
+
+	test('mixed, all queued already: all of them again (and mixed)', () => {
+		expect(ids(playlistBatch(list, 30, { exclude: [1, 2, 3, 4, 5] })).sort()).toEqual([
+			1, 2, 3, 4, 5
+		]);
+	});
+
+	test('in order: from where it went, and from the first again after the last', () => {
+		expect(ids(playlistBatch(list, 3, { inOrder: true, offset: 0 }))).toEqual([1, 2, 3]);
+		expect(ids(playlistBatch(list, 4, { inOrder: true, offset: 3 }))).toEqual([4, 5, 1, 2]);
+	});
+
+	test('an empty playlist: nothing', () => {
+		expect(playlistBatch([], 30)).toEqual([]);
+		expect(playlistBatch([], 3, { inOrder: true })).toEqual([]);
 	});
 });
 

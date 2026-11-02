@@ -1,6 +1,8 @@
 <script lang="ts">
 	import MiniSearch from 'minisearch';
 	import { enhance } from '$app/forms';
+	import { replaceState } from '$app/navigation';
+	import { page } from '$app/state';
 	import AlbumCover from 'comun/components/AlbumCover.svelte';
 	import AlbumGrid from 'comun/components/AlbumGrid.svelte';
 	import DjDialog from 'comun/components/DjDialog.svelte';
@@ -65,6 +67,16 @@
 	const artists = $derived(groupByArtist(albums));
 	let djDialog = $state<DjDialog>();
 	let djMenu = $state<HTMLElement>();
+
+	// «Con DJ» from a playlist's page (/musica?dj=<id>&lista=<name>): the dialog with that playlist.
+	let djAsked = false;
+	$effect(() => {
+		const id = Number(page.url.searchParams.get('dj'));
+		if (djAsked || !djDialog || !Number.isInteger(id) || id <= 0) return;
+		djAsked = true;
+		djDialog.open(undefined, { id, name: page.url.searchParams.get('lista') || 'la lista' });
+		replaceState('/musica', {});
+	});
 
 	interface Doc {
 		id: string;

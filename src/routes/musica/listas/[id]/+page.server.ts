@@ -1,5 +1,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { isKid } from '#lib/server/kids.ts';
+import { djEnabled } from '#lib/server/music/dj.ts';
 import {
 	deletePlaylist,
 	getPlaylist,
@@ -8,10 +10,11 @@ import {
 	renamePlaylist
 } from '#lib/server/music/playlists.ts';
 
-export const load: PageServerLoad = async ({ params }) => {
+export const load: PageServerLoad = async ({ params, locals }) => {
 	const playlist = await getPlaylist(Number(params.id));
 	if (!playlist) error(404, 'Lista no encontrada');
-	return { playlist };
+	/** «Con DJ»: Modo DJ with its songs, if there is one (not for a child's account, #117). */
+	return { playlist, dj: !isKid(locals.user) && (await djEnabled()) };
 };
 
 async function itemId(request: Request) {

@@ -108,6 +108,52 @@ export interface DjOptions {
 	every: number;
 	/** The DJ's voice, a man's or a woman's (OpenRouter's; Piper has only its own). */
 	voice: DjVoice;
+	/**
+	 * Songs of this playlist instead of the library (and its artists): mixed, and again mixed once
+	 * all have sounded; or `inOrder`, from its first, and again from it. Absent in setups saved before.
+	 */
+	playlist?: DjPlaylist | null;
+	inOrder?: boolean;
+}
+
+/** A playlist as Modo DJ keeps it: its id, and its name for the DJ to say. */
+export interface DjPlaylist {
+	id: number;
+	name: string;
+}
+
+const isDjPlaylist = (value: unknown): value is DjPlaylist => {
+	const p = value as DjPlaylist | null;
+	return (
+		Boolean(p) &&
+		typeof p === 'object' &&
+		Number.isInteger(p!.id) &&
+		p!.id > 0 &&
+		typeof p!.name === 'string' &&
+		p!.name.length <= 120
+	);
+};
+
+/**
+ * The next `count` songs of a playlist for Modo DJ. Mixed: those not yet queued (`exclude`), in
+ * random order; once every one is, all of them again, mixed again. In order: from `offset` (the
+ * songs of it queued so far), and from its first again after its last.
+ */
+export function playlistBatch<T extends { id: number }>(
+	tracks: readonly T[],
+	count: number,
+	{
+		inOrder = false,
+		offset = 0,
+		exclude = []
+	}: { inOrder?: boolean; offset?: number; exclude?: readonly number[] } = {}
+): T[] {
+	if (!tracks.length) return [];
+	if (inOrder)
+		return Array.from({ length: count }, (_, i) => tracks[(offset + i) % tracks.length]!);
+	const skip = new Set(exclude);
+	const fresh = tracks.filter((t) => !skip.has(t.id));
+	return mixed(fresh.length ? fresh : tracks).slice(0, count);
 }
 
 export type DjVoice = 'male' | 'female';
@@ -138,7 +184,10 @@ export function parseDjOptions(body: unknown): DjOptions | null {
 	)
 		return null;
 	if (!isDjVoice(voice)) return null;
-	return { artists: artists as string[], lang, every: every as number, voice };
+	const { playlist = null, inOrder = false } = body as Record<string, unknown>;
+	if (playlist !== null && !isDjPlaylist(playlist)) return null;
+	if (typeof inOrder !== 'boolean') return null;
+	return { artists: artists as string[], lang, every: every as number, voice, playlist, inOrder };
 }
 
 /** A Snapcast client: a speaker somewhere in the house. */

@@ -6,15 +6,16 @@
 		DJ_EVERY,
 		fold,
 		type DjOptions,
+		type DjPlaylist,
 		type DjPreset,
 		type MusicArtist
 	} from 'comun/music.ts';
 	import { musicTarget } from 'comun/music-target.svelte.ts';
 
 	/**
-	 * Modo DJ (#117): which artists (none, the whole library), the DJ's language and how often it
-	 * speaks; then it starts where the music sounds (this browser or Snapcast). A setup can be
-	 * saved with a name, to start it again from the menu.
+	 * Modo DJ (#117): which artists (none, the whole library) or one playlist (opened from it, mixed
+	 * or in order), the DJ's language and how often it speaks; then it starts where the music sounds
+	 * (this browser or Snapcast). A setup can be saved with a name, to start it again from the menu.
 	 */
 	let { artists, voices }: { artists: MusicArtist[]; voices: boolean } = $props();
 
@@ -23,6 +24,9 @@
 	let lang = $state<DjOptions['lang']>('es');
 	let every = $state(DJ_EVERY.default);
 	let voice = $state(DJ_DEFAULT_VOICE);
+	/** Its songs from a playlist instead of the library; null, the library. */
+	let playlist = $state<DjPlaylist | null>(null);
+	let inOrder = $state(false);
 	let filter = $state('');
 	let starting = $state(false);
 	let problem = $state<string | null>(null);
@@ -33,7 +37,14 @@
 	/** As last saved, to show it is so until something changes. */
 	let savedAs = $state<string | null>(null);
 
-	const options = $derived<DjOptions>({ artists: chosen, lang, every, voice });
+	const options = $derived<DjOptions>({
+		artists: playlist ? [] : chosen,
+		lang,
+		every,
+		voice,
+		playlist,
+		inOrder: playlist ? inOrder : false
+	});
 	const saved = $derived(savedAs === JSON.stringify({ name: name.trim(), options }));
 
 	const shown = $derived(
@@ -46,8 +57,11 @@
 		return names.filter((a) => there.has(a));
 	}
 
-	/** A saved setup to edit, or a new one starting from the last one used here. */
-	export function open(preset?: DjPreset) {
+	/**
+	 * A saved setup to edit, or a new one starting from the last one used here; with `list`, of that
+	 * playlist (its page's «Con DJ»), mixed.
+	 */
+	export function open(preset?: DjPreset, list?: DjPlaylist) {
 		const from = preset?.options ?? dj.remembered();
 		if (from) {
 			chosen = existing(from.artists);
@@ -56,6 +70,8 @@
 			// Saved before there was a choice.
 			voice = from.voice ?? DJ_DEFAULT_VOICE;
 		}
+		playlist = list ?? preset?.options.playlist ?? null;
+		inOrder = list ? false : (preset?.options.inOrder ?? false);
 		presetId = preset?.id ?? null;
 		name = preset?.name ?? '';
 		filter = '';
@@ -117,40 +133,72 @@
 >
 	<h2 class="mb-1 font-semibold">Modo DJ{presetId !== null ? ` · ${name}` : ''}</h2>
 	<p class="mb-4 text-zinc-400">
-		Canciones al azar y, cada pocas, un locutor que dice qué ha sonado y qué viene, como en la
-		radio. Suena {musicTarget.value === 'snapcast' ? 'en Snapcast' : 'en este dispositivo'}.
+		{playlist ? 'Las canciones de una lista' : 'Canciones al azar'} y, cada pocas, un locutor que dice
+		qué ha sonado y qué viene, como en la radio. Suena {musicTarget.value === 'snapcast'
+			? 'en Snapcast'
+			: 'en este dispositivo'}.
 	</p>
 
-	<h3 class="mb-1 text-zinc-300">
-		Artistas <span class="text-zinc-500"
-			>· {chosen.length ? `${chosen.length} elegidos` : 'ninguno: toda la música'}</span
-		>
-	</h3>
-	<input
-		type="search"
-		bind:value={filter}
-		placeholder="Buscar artista"
-		aria-label="Buscar artista"
-		class="mb-2 w-full rounded-md border-zinc-700 bg-zinc-950 py-1 text-sm"
-	/>
-	<div class="mb-4 max-h-48 overflow-y-auto rounded-md border border-zinc-800 p-1">
-		{#each shown as artist (artist.name)}
-			<label class="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-zinc-800">
+	{#if playlist}
+		<h3 class="mb-1 text-zinc-300">Lista «{playlist.name}»</h3>
+		<div class="mb-4 flex flex-wrap items-center gap-4">
+			<label class="flex items-center gap-2">
 				<input
-					type="checkbox"
-					class="rounded border-zinc-600 bg-zinc-900 text-amber-500"
-					checked={chosen.includes(artist.name)}
-					onchange={(e) =>
-						(chosen = e.currentTarget.checked
-							? [...chosen, artist.name]
-							: chosen.filter((a) => a !== artist.name))}
+					type="radio"
+					bind:group={inOrder}
+					value={false}
+					class="border-zinc-600 bg-zinc-900 text-amber-500"
 				/>
-				<span class="truncate">{artist.name}</span>
+				Mezclada
 			</label>
-		{:else}
-			<p class="px-2 py-1 text-zinc-500">Ningún artista con «{filter}».</p>
-		{/each}
-	</div>
+			<label class="flex items-center gap-2">
+				<input
+					type="radio"
+					bind:group={inOrder}
+					value={true}
+					class="border-zinc-600 bg-zinc-900 text-amber-500"
+				/>
+				En su orden
+			</label>
+			<span class="text-zinc-500">Al acabar, vuelve a empezar.</span>
+			<button
+				type="button"
+				class="text-zinc-400 hover:text-white hover:underline"
+				onclick={() => (playlist = null)}>Toda la música</button
+			>
+		</div>
+	{:else}
+		<h3 class="mb-1 text-zinc-300">
+			Artistas <span class="text-zinc-500"
+				>· {chosen.length ? `${chosen.length} elegidos` : 'ninguno: toda la música'}</span
+			>
+		</h3>
+		<input
+			type="search"
+			bind:value={filter}
+			placeholder="Buscar artista"
+			aria-label="Buscar artista"
+			class="mb-2 w-full rounded-md border-zinc-700 bg-zinc-950 py-1 text-sm"
+		/>
+		<div class="mb-4 max-h-48 overflow-y-auto rounded-md border border-zinc-800 p-1">
+			{#each shown as artist (artist.name)}
+				<label class="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-zinc-800">
+					<input
+						type="checkbox"
+						class="rounded border-zinc-600 bg-zinc-900 text-amber-500"
+						checked={chosen.includes(artist.name)}
+						onchange={(e) =>
+							(chosen = e.currentTarget.checked
+								? [...chosen, artist.name]
+								: chosen.filter((a) => a !== artist.name))}
+					/>
+					<span class="truncate">{artist.name}</span>
+				</label>
+			{:else}
+				<p class="px-2 py-1 text-zinc-500">Ningún artista con «{filter}».</p>
+			{/each}
+		</div>
+	{/if}
 
 	<div class="mb-4 flex flex-wrap items-center gap-4">
 		<label class="flex items-center gap-2">
