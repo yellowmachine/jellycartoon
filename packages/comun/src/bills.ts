@@ -29,6 +29,11 @@ export interface BillDetails {
 	consumption: BillPeriod[];
 	/** Power contracted in each period, kW. */
 	power: BillPeriod[];
+	/**
+	 * The price of the power contracted in each period, € per kW and day, before taxes: with
+	 * `maxPower`, what lowering it would save (bill-analysis.ts). Bills read before it, empty.
+	 */
+	powerPrice: BillPeriod[];
 	/** The highest power demanded in the last year, kW: what says the contracted one is too much. */
 	maxPower: BillPeriod[];
 	/** Price of the energy (or water) as billed, €/unit, before taxes. */
@@ -56,12 +61,12 @@ const MAX_PERIODS = 6;
 const finite = (value: unknown, max = 1_000_000) =>
 	typeof value === 'number' && Number.isFinite(value) && value >= 0 && value < max ? value : null;
 
-function periods(value: unknown): BillPeriod[] {
+function periods(value: unknown, max?: number): BillPeriod[] {
 	if (!Array.isArray(value)) return [];
 	return value.slice(0, MAX_PERIODS).flatMap((p: unknown) => {
 		const { name, value: v } = (p && typeof p === 'object' ? p : {}) as Record<string, unknown>;
 		const n = typeof name === 'string' ? name.trim().slice(0, 40) : '';
-		const amount = finite(v);
+		const amount = finite(v, max);
 		return n && amount !== null ? [{ name: n, value: amount }] : [];
 	});
 }
@@ -73,6 +78,7 @@ export function parseBillDetails(value: unknown): BillDetails {
 		tariff: typeof d.tariff === 'string' && d.tariff.trim() ? d.tariff.trim().slice(0, 120) : null,
 		consumption: periods(d.consumption),
 		power: periods(d.power),
+		powerPrice: periods(d.powerPrice, 10),
 		maxPower: periods(d.maxPower),
 		unitPrice: finite(d.unitPrice, 100),
 		areaAverage: finite(d.areaAverage)

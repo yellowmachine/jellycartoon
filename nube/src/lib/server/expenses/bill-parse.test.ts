@@ -62,6 +62,10 @@ test("the model's answer: the parts as lines, the supply apart", () => {
 				{ name: 'P1', value: 3.45 },
 				{ name: 'P2', value: 3.45 }
 			],
+			powerPrice: [
+				{ name: 'P1', value: 0.0819 },
+				{ name: 'P2', value: 0.0025 }
+			],
 			maxPower: [
 				{ name: 'P1', value: 2.7 },
 				{ name: 'P2', value: 2.52 }
@@ -97,6 +101,10 @@ test("the model's answer: the parts as lines, the supply apart", () => {
 				power: [
 					{ name: 'P1', value: 3.45 },
 					{ name: 'P2', value: 3.45 }
+				],
+				powerPrice: [
+					{ name: 'P1', value: 0.0819 },
+					{ name: 'P2', value: 0.0025 }
 				],
 				maxPower: [
 					{ name: 'P1', value: 2.7 },

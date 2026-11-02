@@ -1,5 +1,13 @@
 import { describe, expect, test } from 'bun:test';
-import { analyseBills, billWarnings, changeOf, perDay, yearBefore } from './bill-analysis.ts';
+import {
+	analyseBills,
+	billWarnings,
+	changeOf,
+	perDay,
+	powerAnalysis,
+	yearBefore
+} from './bill-analysis.ts';
+import type { BillDetails, BillInput } from './bills.ts';
 
 const bill = (
 	id: number,
@@ -94,5 +102,75 @@ describe('billWarnings', () => {
 				bill(2, '2025-09-01', '2025-09-30', 5000, 150)
 			])
 		).toEqual([]);
+	});
+});
+
+describe('powerAnalysis', () => {
+	const details = (d: Partial<BillDetails>): Pick<BillInput, 'details'> => ({
+		details: {
+			tariff: null,
+			consumption: [],
+			power: [],
+			powerPrice: [],
+			maxPower: [],
+			unitPrice: null,
+			areaAverage: null,
+			...d
+		}
+	});
+	const p = (name: string, value: number) => ({ name, value });
+
+	test('spare power: the one to contract, with a margin, and what it saves a year', () => {
+		const a = powerAnalysis([
+			details({
+				power: [p('P1', 4.6), p('P2', 4.6)],
+				maxPower: [p('P1', 2.7), p('P2', 2.5)],
+				powerPrice: [p('P1', 0.08), p('P2', 0.003)]
+			})
+		])!;
+		// 2,7 kW + 15 % = 3,105: 3,2 kW. 2,5 + 15 % = 2,875: 2,9 kW.
+		expect(a.periods.map((x) => x.proposed)).toEqual([3.2, 2.9]);
+		expect(a.spare).toBe(true);
+		// (4,6 − 3,2) × 0,08 × 365 + (4,6 − 2,9) × 0,003 × 365 ≈ 40,88 + 1,86.
+		expect(a.savingPerYear).toBe(43);
+	});
+
+	test('without its price, the spare power but not the saving', () => {
+		const a = powerAnalysis([details({ power: [p('P1', 4.6)], maxPower: [p('P1', 2.7)] })])!;
+		expect(a.spare).toBe(true);
+		expect(a.savingPerYear).toBeNull();
+	});
+
+	test('the price from an older bill, the power from the latest that says it', () => {
+		const a = powerAnalysis([
+			details({ power: [p('P1', 4.6)], maxPower: [p('P1', 2.7)] }),
+			details({ powerPrice: [p('P1', 0.08)] })
+		])!;
+		expect(a.periods[0]!.pricePerKwDay).toBe(0.08);
+	});
+
+	test('one highest for all the periods counts for each', () => {
+		const a = powerAnalysis([
+			details({ power: [p('P1', 3.45), p('P2', 3.45)], maxPower: [p('Máxima', 3.3)] })
+		])!;
+		expect(a.periods.map((x) => x.used)).toEqual([3.3, 3.3]);
+	});
+
+	test('just enough: never more than contracted, and nothing spare', () => {
+		const a = powerAnalysis([details({ power: [p('P1', 3.45)], maxPower: [p('P1', 3.2)] })])!;
+		expect(a.periods[0]!.proposed).toBe(3.45);
+		expect(a.spare).toBe(false);
+		expect(a.savingPerYear).toBeNull();
+	});
+
+	test('a round number with the margin is not rounded up twice', () => {
+		// 2 kW + 15 % = 2,3, not 2,4 by a float's last digit.
+		const a = powerAnalysis([details({ power: [p('P1', 4.6)], maxPower: [p('P1', 2)] })])!;
+		expect(a.periods[0]!.proposed).toBe(2.3);
+	});
+
+	test('without the highest used: nothing to say', () => {
+		expect(powerAnalysis([details({ power: [p('P1', 3.45)] })])).toBeNull();
+		expect(powerAnalysis([])).toBeNull();
 	});
 });

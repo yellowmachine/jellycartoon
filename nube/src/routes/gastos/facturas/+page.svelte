@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ExpenseTabs from '#lib/components/ExpenseTabs.svelte';
+	import { POWER_MARGIN } from 'comun/bill-analysis.ts';
 	import { billDays } from 'comun/bills.ts';
 	import { euros, monthName } from 'comun/expenses.ts';
 	import type { PageProps } from './$types';
@@ -46,6 +47,8 @@
 	/** A price per unit, to the tenth of a cent: «0,214 €/kWh». */
 	const perUnit = (cents: number) =>
 		`${(cents / 100).toLocaleString('es-ES', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} €/${data.unit}`;
+	const kw = (value: number) =>
+		`${value.toLocaleString('es-ES', { maximumFractionDigits: 2 })}\u00a0kW`;
 	const perDayUnits = (units: number) =>
 		`${units.toLocaleString('es-ES', { maximumFractionDigits: 1 })} ${data.unit}`;
 
@@ -167,6 +170,48 @@
 							>
 						{/if}
 					</div>
+				{/if}
+			</section>
+		{/if}
+
+		<!-- Is too much power contracted? (bill-analysis.ts, powerAnalysis) -->
+		{#if data.power}
+			{@const pw = data.power}
+			<section class="mb-8 rounded-lg bg-zinc-900 p-4">
+				<h2 class="text-sm text-zinc-400">Potencia contratada</h2>
+				<ul class="mt-1 text-sm">
+					{#each pw.periods as x (x.name)}
+						<li>
+							<span class="text-zinc-400">{x.name}:</span>
+							<span class="font-semibold tabular-nums">{kw(x.contracted)}</span>
+							contratados · la más alta en un año, <span class="tabular-nums">{kw(x.used)}</span>
+						</li>
+					{/each}
+				</ul>
+				{#if pw.spare}
+					<p class="mt-2 text-sm">
+						Os sobra potencia: con {pw.periods
+							.map((x) =>
+								pw.periods.length > 1 ? `${kw(x.proposed)} en ${x.name}` : kw(x.proposed)
+							)
+							.join(' y ')}
+						(la más alta y un {Math.round(POWER_MARGIN * 100)}&nbsp;% de margen) os bastaría{#if pw.savingPerYear !== null},
+							y ahorraríais unos <span class="font-semibold text-green-400"
+								>{pw.savingPerYear}&nbsp;€ al año</span
+							> más impuestos{/if}.
+					</p>
+					{#if pw.savingPerYear === null}
+						<p class="mt-1 text-xs text-zinc-500">
+							Cuánto ahorraríais, con la próxima factura que se lea: las de antes no traen el precio
+							de la potencia.
+						</p>
+					{/if}
+					<p class="mt-1 text-xs text-zinc-500">
+						Antes de bajarla, pregunta a tu compañía cuánto cuesta el cambio, y piensa si vais a
+						enchufar algo grande (un coche eléctrico, una placa de inducción nueva).
+					</p>
+				{:else}
+					<p class="mt-2 text-sm text-zinc-400">Va justa para lo que usáis: bien así.</p>
 				{/if}
 			</section>
 		{/if}

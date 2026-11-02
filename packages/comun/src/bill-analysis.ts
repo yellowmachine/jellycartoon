@@ -122,3 +122,77 @@ export function billWarnings(bills: AnalysedBill[]): BillWarning[] {
 	}
 	return warnings;
 }
+
+/** Kept over the highest power used, when proposing a lower one: a new appliance, a cold winter. */
+export const POWER_MARGIN = 0.15;
+/** Less spare than this is not worth changing the contract for. */
+const MIN_SPARE_KW = 0.3;
+
+export interface PowerPeriod {
+	/** «P1», «P2». */
+	name: string;
+	/** Contracted, kW. */
+	contracted: number;
+	/** The highest used in the last year, kW. */
+	used: number;
+	/** What could be contracted instead: the highest used with `POWER_MARGIN`, to the tenth of a kW. */
+	proposed: number;
+	/** € per kW and day, before taxes; null if no bill says. */
+	pricePerKwDay: number | null;
+}
+
+export interface PowerAnalysis {
+	periods: PowerPeriod[];
+	/** Whether lowering it is worth it (some period with `MIN_SPARE_KW` spare). */
+	spare: boolean;
+	/** What it would save a year, before taxes (euros); null without the power's price. */
+	savingPerYear: number | null;
+}
+
+/**
+ * Is too much power contracted? (#232) From the latest bill that says the contracted power and the
+ * highest used in a year (the bill gives that year's highest), and the latest that says its price:
+ * each period's spare power, the one to contract instead, and what it would save a year. A bill
+ * with one highest for all its periods counts it for each. Null without those numbers.
+ */
+export function powerAnalysis(bills: Pick<BillInput, 'details'>[]): PowerAnalysis | null {
+	const withPower = bills.find((b) => b.details.power.length && b.details.maxPower.length);
+	if (!withPower) return null;
+	const { power, maxPower } = withPower.details;
+	const prices = bills.find((b) => b.details.powerPrice.length)?.details.powerPrice ?? [];
+	const periods = power.flatMap((p) => {
+		const used =
+			maxPower.find((m) => m.name === p.name)?.value ??
+			(maxPower.length === 1 ? maxPower[0]!.value : null);
+		if (used === null) return [];
+		const proposed = Math.min(
+			p.value,
+			Math.ceil(Math.round(used * (1 + POWER_MARGIN) * 1e6) / 1e5) / 10
+		);
+		return [
+			{
+				name: p.name,
+				contracted: p.value,
+				used,
+				proposed,
+				pricePerKwDay: prices.find((x) => x.name === p.name)?.value ?? null
+			}
+		];
+	});
+	if (!periods.length) return null;
+	const spare = periods.some((p) => p.contracted - p.proposed >= MIN_SPARE_KW);
+	const priced = periods.every((p) => p.pricePerKwDay !== null);
+	return {
+		periods,
+		spare,
+		savingPerYear:
+			spare && priced
+				? Math.round(
+						periods.reduce(
+							(sum, p) => sum + (p.contracted - p.proposed) * p.pricePerKwDay! * 365,
+							0
+						)
+					)
+				: null
+	};
+}
