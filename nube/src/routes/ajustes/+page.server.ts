@@ -1,4 +1,5 @@
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
+import { OAUTH_COOKIE, openRouterAuth } from 'comun/openrouter-oauth.ts';
 import { keyLimit } from '#lib/server/ai-spend.ts';
 import { eq } from 'drizzle-orm';
 import { isTheme } from 'comun/themes.ts';
@@ -101,7 +102,7 @@ import { fold } from 'comun/music.ts';
 import { subtitleStyleOf } from '#lib/server/subtitles.ts';
 import { prayerModeOn, setPrayerMode } from '#lib/server/prayers.ts';
 
-export const load: PageServerLoad = async ({ locals, request, cookies }) => {
+export const load: PageServerLoad = async ({ locals, request, cookies, url }) => {
 	const k = await kitchenOf(locals.user!.id);
 	const membership = await withFamily(locals.user!.id, async (_, m) => m);
 	const admin = membership.role === 'admin';
@@ -109,6 +110,8 @@ export const load: PageServerLoad = async ({ locals, request, cookies }) => {
 	return {
 		house: await houseLink(locals.user!.id),
 		openRouter: await openRouterKeyStart(k),
+		/** Back from «Conectar con OpenRouter» (ajustes/openrouter): how it went. */
+		openRouterConnected: url.searchParams.get('openrouter'),
 		/** The key's own limit, if it has one, to who runs the family: it comes after the page. */
 		openRouterLimit: admin ? openRouterKey(k).then((key) => (key ? keyLimit(key) : null)) : null,
 		ors: await orsKeyStart(k),
@@ -808,6 +811,24 @@ export const actions: Actions = {
 			return fail(400, { openRouterProblem: 'Las claves de OpenRouter empiezan por sk-or-' });
 		await setOpenRouterKey(await kitchenOf(locals.user!.id), key || null);
 		return { saved: 'openRouter' };
+	},
+	/**
+	 * «Conectar con OpenRouter» (OAuth with PKCE, comun/openrouter-oauth.ts): off to OpenRouter, which
+	 * sends the browser back to ajustes/openrouter with a code for a key of the family's own.
+	 */
+	connectOpenRouter: async ({ locals, cookies }) => {
+		const denied = await requireAdmin(locals.user!.id, 'openRouterProblem');
+		if (denied) return denied;
+		const auth = openRouterAuth(`${ORIGIN}/ajustes/openrouter`, 'Seilide');
+		cookies.set(OAUTH_COOKIE, JSON.stringify({ verifier: auth.verifier, state: auth.state }), {
+			path: '/ajustes',
+			httpOnly: true,
+			// Sent when OpenRouter's page sends the browser back here.
+			sameSite: 'lax',
+			maxAge: 600
+		});
+		// Kit only goes to another site when told which one.
+		redirect(303, auth.url, { external: ['https://openrouter.ai'] });
 	},
 	/** openrouteservice's key (#78), for the road mode's routes: the family's administrator. */
 	saveOrs: async ({ request, locals }) => {

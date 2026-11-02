@@ -413,8 +413,9 @@
 					target="_blank"
 					rel="noreferrer"
 					class="text-amber-400 hover:underline">OpenRouter</a
-				> de la familia: con ella las recetas guardadas quedan con pasos cortos y sus temporizadores,
-				y se leen páginas sin datos de receta. Se guarda cifrada.
+				> de la familia: con ella piensa la voz (la de los móviles y la de los satélites), se leen los
+				tickets y las facturas, y las recetas quedan con pasos cortos y sus temporizadores. Lo que se
+				usa se paga con el crédito de esa cuenta. Se guarda cifrada.
 			</p>
 			{#if data.openRouter}
 				<p class="mb-3 font-mono text-sm">{data.openRouter}</p>
@@ -437,17 +438,55 @@
 					</p>
 				{/if}
 			{/await}
+			{#if data.openRouterConnected}
+				<p
+					class={[
+						'mb-3 text-sm',
+						data.openRouterConnected === 'ok' ? 'text-amber-400' : 'text-red-400'
+					]}
+				>
+					{{
+						ok: '✓ Conectado con OpenRouter: la familia ya tiene su clave.',
+						cancelado: 'No se ha conectado: se canceló en OpenRouter.',
+						caducado:
+							'No se ha conectado: tardó demasiado o se empezó en otro navegador. Prueba otra vez.'
+					}[data.openRouterConnected] ??
+						'No se ha podido conectar con OpenRouter. Prueba otra vez.'}
+				</p>
+			{/if}
 			{#if admin}
-				<form method="post" action="?seccion={tab}&/saveOpenRouter" use:enhance class="flex gap-2">
-					<PasswordInput
-						name="key"
-						placeholder={data.openRouter ? 'Otra clave (vacía, quitarla)' : 'sk-or-…'}
-						autocomplete="new-password"
-						box="flex-1"
-						class="{field} font-mono"
-					/>
-					<button class={primary}>Guardar</button>
+				<!-- Off to OpenRouter and back (OAuth): not enhanced, the browser goes there itself. -->
+				<form method="post" action="?seccion={tab}&/connectOpenRouter" class="mb-2">
+					<button class={data.openRouter ? secondary : primary}
+						>{data.openRouter
+							? 'Volver a conectar con OpenRouter'
+							: 'Conectar con OpenRouter'}</button
+					>
 				</form>
+				<p class="mb-3 text-xs text-zinc-500">
+					Entras en OpenRouter (o te creas la cuenta), lo autorizas y vuelves aquí con la clave
+					hecha. Lo que se use se paga con el crédito de esa cuenta.
+				</p>
+				<details class="text-sm">
+					<summary class="cursor-pointer text-zinc-400 hover:text-white">
+						O pega una clave a mano
+					</summary>
+					<form
+						method="post"
+						action="?seccion={tab}&/saveOpenRouter"
+						use:enhance
+						class="mt-2 flex gap-2"
+					>
+						<PasswordInput
+							name="key"
+							placeholder={data.openRouter ? 'Otra clave (vacía, quitarla)' : 'sk-or-…'}
+							autocomplete="new-password"
+							box="flex-1"
+							class="{field} font-mono"
+						/>
+						<button class={primary}>Guardar</button>
+					</form>
+				</details>
 			{/if}
 			{#if form && 'openRouterProblem' in form}
 				<p class="mt-3 text-sm text-red-400">{form.openRouterProblem}</p>

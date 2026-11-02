@@ -45,10 +45,9 @@ import {
 	accountCredits,
 	completeJson,
 	creditRecharged,
-	keyBalance,
-	OAUTH_COOKIE,
-	openRouterAuth
+	keyBalance
 } from '#lib/server/openrouter.ts';
+import { OAUTH_COOKIE, openRouterAuth } from 'comun/openrouter-oauth.ts';
 import { getSettings, setKeepHistory } from '#lib/server/settings.ts';
 import {
 	languaConfig,
@@ -798,7 +797,7 @@ export const actions: Actions = {
 	 */
 	connectOpenRouter: async ({ locals, cookies, url }) => {
 		await requireAdmin(locals.user!.id);
-		const auth = openRouterAuth(`${url.origin}/ajustes/openrouter`);
+		const auth = openRouterAuth(`${url.origin}/ajustes/openrouter`, 'JellyCartoon');
 		cookies.set(OAUTH_COOKIE, JSON.stringify({ verifier: auth.verifier, state: auth.state }), {
 			path: '/ajustes',
 			httpOnly: true,
