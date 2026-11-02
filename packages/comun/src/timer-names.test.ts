@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { formatLeft, sameLabel, timeLabel } from './timer-names.ts';
+import { describeTimers, formatLeft, sameLabel, spokenAgo, timeLabel } from './timer-names.ts';
 
 test('timeLabel: a name from the time, for one with no name', () => {
 	expect(timeLabel(300)).toBe('5 minutos');
@@ -20,4 +20,26 @@ test('sameLabel ignores case and accents', () => {
 	expect(sameLabel('La Pasta', 'la pasta')).toBe(true);
 	expect(sameLabel('el jamón', 'el jamon')).toBe(true);
 	expect(sameLabel('el arroz', 'la pasta')).toBe(false);
+});
+
+test('spokenAgo: minutes, and hours once past one', () => {
+	expect(spokenAgo(25 * 60)).toBe('25 min');
+	expect(spokenAgo(2 * 3600 + 10 * 60)).toBe('2 h 10 min');
+	expect(spokenAgo(3 * 3600)).toBe('3 h');
+});
+
+test('a timer that rang hours ago is told in hours, with what it was', () => {
+	const now = Date.parse('2026-11-02T12:00:00Z');
+	const [line] = describeTimers(
+		{
+			done: [{ label: 'la cerveza del congelador', how: 'sonó', at: now - 2 * 3600_000 }],
+			running: [],
+			ringing: [],
+			prepared: []
+		},
+		now
+	);
+	expect(line).toBe(
+		'la cerveza del congelador, ya sonó y se paró hace 2 h: no lo vuelvas a poner si no lo pide'
+	);
 });
