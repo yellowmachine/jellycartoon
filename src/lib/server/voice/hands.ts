@@ -53,7 +53,7 @@ import {
 	prepareTimerAt,
 	startTimerAt
 } from '#lib/server/alarms/alarms.ts';
-import { allSatellites, cloudSatellite, type Satellite } from '#lib/server/satellites.ts';
+import { cloudSatellite, type Satellite } from '#lib/server/satellites.ts';
 import {
 	runTelegramTool,
 	TELEGRAM_TOOLS,
@@ -144,8 +144,8 @@ function libraryLines(albums: MusicAlbum[]) {
 /**
  * An order, opened: what only the house knows, for the cloud's AI, and what its hands will need,
  * kept until `close` (or `ORDER_MS`, if the cloud never says). `user`: who speaks; `satellite`:
- * said to a voice satellite (#223), by anyone in the room: `user` is who made its key, in whose name
- * what it does goes, but without their name nor what they watch.
+ * said to one of Seilide's voice satellites (#296), by anyone in the room: `user` is whoever
+ * manages the house, in whose name what it does goes, but without their name nor what they watch.
  */
 async function openOrder(
 	request: VoiceRequest,
@@ -156,7 +156,7 @@ async function openOrder(
 	const order = randomUUID();
 	// In the car the house's speakers are far away.
 	const house = snapcastReady() && !request.car;
-	const [albums, playlists, { hoursSince }, keepHistory, watching, timers, satellites, kid, rooms] =
+	const [albums, playlists, { hoursSince }, keepHistory, watching, timers, kid, rooms] =
 		await Promise.all([
 			getAlbums(),
 			listPlaylists(),
@@ -164,7 +164,6 @@ async function openOrder(
 			satellite ? true : keepsHistory(user.id),
 			videoText(request.video),
 			place ? describeTimersAt(place) : [],
-			allSatellites(),
 			satellite ? false : isKidAccount(user.id),
 			house
 				? listSpeakers().then((list) => (list ?? []).map((s) => ({ id: s.id, name: s.name })))
@@ -221,7 +220,6 @@ async function openOrder(
 						.filter(Boolean)
 						.join('\n') || null,
 				timers,
-				satellites: satellites.map(({ id, name }) => ({ id, name })),
 				tools
 			}
 		},
@@ -238,15 +236,14 @@ async function openOrder(
  */
 export async function runVoiceCommand(
 	request: VoiceRequest,
-	user: Person,
-	satellite: Satellite | null = null
+	user: Person
 ): Promise<VoiceReply & { timing: VoiceTiming }> {
 	const started = performance.now();
-	const { body, close } = await openOrder(request, user, satellite);
+	const { body, close } = await openOrder(request, user);
 	const prepareMs = Math.round(performance.now() - started);
 	try {
 		const reply = await askCloud<VoiceReply & { timing: VoiceTiming }>(await linked(), '/voz', {
-			userId: satellite ? null : user.id,
+			userId: user.id,
 			body,
 			timeoutMs: ORDER_MS
 		});
@@ -267,8 +264,7 @@ export async function orderFromCloud(request: VoiceRequest, user: Person) {
 }
 
 /**
- * An order said to one of the satellites Seilide serves (#296), as said to one of the house's: by
- * anyone in the room, with its own snapclient as its speaker if it has one (`cloudSatellite`).
+ * An order said to one of the satellites Seilide serves (#296): by anyone in the room, with its own snapclient as its speaker if it has one (`cloudSatellite`).
  * Null if the house has no one to do it in the name of.
  */
 export async function orderForCloudSatellite(

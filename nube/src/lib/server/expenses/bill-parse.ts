@@ -61,6 +61,7 @@ export const BILL_SCHEMA = {
 		tariff: { type: ['string', 'null'] },
 		consumptionByPeriod: PERIODS,
 		power: PERIODS,
+		powerPrice: PERIODS,
 		maxPower: PERIODS,
 		unitPrice: { type: ['number', 'null'] },
 		areaAverage: { type: ['number', 'null'] }
@@ -79,6 +80,7 @@ export const BILL_SCHEMA = {
 		'tariff',
 		'consumptionByPeriod',
 		'power',
+		'powerPrice',
 		'maxPower',
 		'unitPrice',
 		'areaAverage'
@@ -103,7 +105,8 @@ export const BILL_PROMPT =
 	'como la nombra. El consumo de cada periodo de la tarifa, con su nombre corto (P1, P2, P3) y ' +
 	'solo si la factura lo desglosa («P1: 91 kWh»); los de todos los periodos suman el consumo ' +
 	'total. La potencia contratada (kW) solo de los periodos que la tienen (en la tarifa 2.0TD, P1 ' +
-	'y P2), la máxima demandada si la dice (kW), el precio de la ' +
+	'y P2); el precio de esa potencia en cada periodo, en euros por kW y día sin impuestos (si lo da ' +
+	'por kW y año, divídelo entre 365; «P1: 0,0819»); la máxima demandada si la dice (kW), el precio de la ' +
 	'energía o del agua por unidad sin impuestos (€) y el consumo medio de la zona o del código ' +
 	'postal si lo dice. Si no es un suministro, del periodo, el consumo y la tarifa solo lo que ' +
 	'diga, y sin desglose, ninguna parte. Lo que no diga: null, o la lista vacía. Los números usan ' +

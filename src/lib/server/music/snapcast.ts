@@ -588,7 +588,7 @@ export function stopOnSnapcastIn(minutes: number | null) {
 	}, minutes * 60_000);
 }
 
-/** The speakers as they are now, to choose a satellite's (Ajustes); null without snapserver. */
+/** The speakers as they are now (the voice's rooms); null without snapserver. */
 export async function listSpeakers() {
 	if (!control) return null;
 	try {
@@ -611,7 +611,7 @@ const ducked = new Map<
 const oneDuck = inOrder();
 
 /**
- * A voice satellite's own speaker (#223, Ajustes) lowered while it hears an order and answers, so that
+ * A voice satellite's own speaker (one of Seilide's, #296) lowered while it hears an order and answers, so that
  * the music covers neither, and back as it was after; not back if someone changed it meanwhile.
  * Lowered even if nothing plays: mpv's state may not be known yet, and lowering silence does nothing.
  */
@@ -655,16 +655,8 @@ const LEAD_MS = 300;
 const TAIL_MS = 1500;
 /** Longer than this, paplay is stuck: given up. */
 const SAY_MAX_MS = 120_000;
-/** One answer at a time: two satellites at once would talk over each other. */
+/** One at a time: two notices at once would talk over each other. */
 const oneAnswer = inOrder();
-/**
- * The groups left on `Voz` after a filler (voice-fillers.ts), for the answer that comes after it:
- * moving them back and forth is near a second of silence each time. Back to the music by
- * themselves if it does not come.
- */
-const held = new Map<string, ReturnType<typeof setTimeout>>();
-/** Longer than the AI takes to answer (the satellite's, 30 s). */
-const HOLD_MS = 40_000;
 
 /**
  * PulseAudio's module that lowers the music under the answers (deploy/pulse.pa), at the house's
@@ -692,19 +684,18 @@ async function setDucking(db: number) {
 	);
 }
 
-/** The satellites' answers can go to Snapcast: its PulseAudio is there, and its control. */
+/** The house can speak through Snapcast: its PulseAudio is there, and its control. */
 export const snapcastVoiceReady = () =>
 	Boolean(control && SNAPCAST_PULSE_SOCKET && existsSync(SNAPCAST_PULSE_SOCKET));
 
 /**
- * A voice satellite's answer (#223), Piper's WAV, said through Snapcast over the music, lowered
+ * What the house says (#241: a notice), a WAV, said through Snapcast over the music, lowered
  * while it sounds. In the whole house, into the music itself: no speaker changes source, as each
  * change is near a second of silence. On one speaker (its id) and the rest of its group, they are
  * moved to the `Voz` source while it is said (the same music, with it) and back to what they played;
- * the others go on with the music as it is. Ends once it has been heard; a `filler`, once played,
- * as the answer follows it, which finds them still on `Voz`.
+ * the others go on with the music as it is. Ends once it has been heard.
  */
-export const sayOnSnapcast = (wav: Uint8Array, where: 'house' | string, { filler = false } = {}) =>
+export const sayOnSnapcast = (wav: Uint8Array, where: 'house' | string) =>
 	oneAnswer(async () => {
 		const all = await speakers().groups();
 		const house = where === 'house';
@@ -722,7 +713,6 @@ export const sayOnSnapcast = (wav: Uint8Array, where: 'house' | string, { filler
 		const moved = house ? [] : groups;
 		try {
 			const toMove = moved.filter((g) => g.streamId !== VOICE_STREAM);
-			for (const g of moved) clearTimeout(held.get(g.id));
 			if (toMove.length) {
 				await Promise.all(toMove.map((g) => speakers().setGroupStream(g.id, VOICE_STREAM)));
 				await sleep(LEAD_MS);
@@ -732,24 +722,13 @@ export const sayOnSnapcast = (wav: Uint8Array, where: 'house' | string, { filler
 			args.push(`--device=${house ? MUSIC_SINK : VOICE_SINK}`);
 			args.push(`--property=media.role=${VOICE_ROLE}`, file);
 			await run('paplay', args, { pausable: false, signal: AbortSignal.timeout(SAY_MAX_MS) });
-			if (!filler) await sleep(TAIL_MS);
+			await sleep(TAIL_MS);
 		} finally {
 			await rm(file, { force: true });
 			// Left on the voice by an answer cut short (the app restarted): to the music.
 			const back = (g: (typeof groups)[number]) =>
 				g.streamId === VOICE_STREAM ? MUSIC_STREAM : g.streamId;
-			for (const g of moved) held.delete(g.id);
-			if (filler)
-				for (const g of moved) {
-					const timer = setTimeout(() => {
-						held.delete(g.id);
-						speakers()
-							.setGroupStream(g.id, back(g))
-							.catch(() => {});
-					}, HOLD_MS);
-					held.set(g.id, timer);
-				}
-			else await Promise.all(moved.map((g) => speakers().setGroupStream(g.id, back(g))));
+			await Promise.all(moved.map((g) => speakers().setGroupStream(g.id, back(g))));
 		}
 	});
 

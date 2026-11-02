@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { dollars } from 'comun/ai-spend.ts';
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import AvatarPicker from 'comun/components/AvatarPicker.svelte';
 	import PasswordInput from 'comun/components/PasswordInput.svelte';
 	import PushNotices from 'comun/components/PushNotices.svelte';
@@ -19,7 +21,6 @@
 	import ComoTeAviso from './ComoTeAviso.svelte';
 	import Reglas from './Reglas.svelte';
 	import Satelites from './Satelites.svelte';
-	import VozSatelites from './VozSatelites.svelte';
 	import Guardado from 'comun/components/Guardado.svelte';
 	import { avatar, isAvatar } from 'comun/avatars.ts';
 	import { page } from '$app/state';
@@ -31,8 +32,8 @@
 	import FondoMusica from './FondoMusica.svelte';
 	import Subtitulos from './Subtitulos.svelte';
 	import SettingsSearch from 'comun/components/SettingsSearch.svelte';
-	import { field, primary, secondary, section } from '#lib/styles.ts';
-	import { SETTINGS_INDEX, TAB_LABELS, type SettingsTab } from '#lib/settings-index.ts';
+	import { field, group, primary, secondary, section } from '#lib/styles.ts';
+	import { SETTINGS_INDEX, TAB_LABELS } from '#lib/settings-index.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -41,12 +42,27 @@
 
 	/**
 	 * By whom it is for, as at home (#178): what is yours wherever you are, what is only this
-	 * browser's, what is the whole family's, and the account.
+	 * browser's, what is the whole family's, what the administrator sets once (the services' keys,
+	 * the bot, the house) and the account.
 	 */
-	const tabs: { id: SettingsTab; label: string }[] = (
-		['mi', 'aparato', 'familia', 'cuenta'] as const
-	).map((id) => ({ id, label: TAB_LABELS[id] }));
+	const tabs = $derived(
+		(['mi', 'aparato', 'familia', 'conexiones', 'cuenta'] as const)
+			.filter((id) => id !== 'conexiones' || admin)
+			.map((id) => ({ id, label: TAB_LABELS[id] }))
+	);
 	const tab = $derived(tabs.find((t) => t.id === page.url.searchParams.get('seccion'))?.id ?? 'mi');
+
+	// A section that moved to another tab (`?seccion=familia#ia`, from before «Conexiones»): its tab now.
+	onMount(() => {
+		const id = location.hash.slice(1);
+		const now = SETTINGS_INDEX.find((e) => e.id === id)?.tab;
+		if (!now || now === tab || !tabs.some((t) => t.id === now)) return;
+		const url = new URL(location.href);
+		url.searchParams.set('seccion', now);
+		void goto(url, { replaceState: true }).then(() =>
+			document.getElementById(id)?.scrollIntoView({ block: 'start' })
+		);
+	});
 	const day = (d: Date) => d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 	/** How often the key's limit starts again (OpenRouter's `limit_reset`). */
 	const RESETS: Record<string, string> = {
@@ -102,6 +118,8 @@
 	{#if tab === 'mi'}
 		<p class="mb-6 text-sm text-zinc-400">Solo para ti, en todos tus aparatos.</p>
 
+		<h2 class={group}>Cómo lo ves</h2>
+
 		<Colores
 			theme={data.theme}
 			{tab}
@@ -110,15 +128,19 @@
 			problem={form && 'themeProblem' in form ? form.themeProblem : null}
 		/>
 
+		<Subtitulos {data} />
+
+		<h2 class={group}>La voz contigo</h2>
+
 		<VozCaracter {data} {form} {tab} which="mio" />
 
 		<VozRecuerda {data} {form} {tab} />
 
 		<Reglas {data} {form} {tab} />
 
-		<ComoTeAviso {data} {tab} />
+		<h2 class={group}>Avisos y lo tuyo</h2>
 
-		<Subtitulos {data} />
+		<ComoTeAviso {data} {tab} />
 
 		<GuardarViajes {data} {tab} />
 
@@ -135,15 +157,17 @@
 			<PushNotices about="cuando suena una alarma, y los avisos de la Agenda" />
 		</section>
 
-		<AparatoPeques {data} {form} {tab} />
-
 		<Microfono />
 
 		<FondoMusica />
+
+		<AparatoPeques {data} {form} {tab} />
 	{/if}
 
 	{#if tab === 'familia'}
 		<p class="mb-6 text-sm text-zinc-400">Para toda la familia.</p>
+
+		<h2 class={group}>Quiénes sois</h2>
 
 		<section class={section} id="personas">
 			<h2 class="mb-1 font-semibold">Personas</h2>
@@ -301,15 +325,206 @@
 			{/if}
 		</section>
 
+		<Invitaciones {data} {form} {tab} />
+
 		<AparatoPeques {data} {form} {tab} all />
+
+		<h2 class={group}>Vuestro día a día</h2>
 
 		<DondeVivis {data} {form} {tab} />
 
-		<Oracion {data} {tab} />
-
 		<Coches {data} {form} {tab} />
 
-		<Invitaciones {data} {form} {tab} />
+		<Oracion {data} {tab} />
+
+		<!-- The administrator's (the rest is not theirs to change): its heading only with them. -->
+		{#if admin}
+			<h2 class={group}>La voz de la casa</h2>
+
+			{#if data.voiceModel}
+				<section class={section} id="voz">
+					<h2 class="mb-1 font-semibold">La voz</h2>
+					<p class="mb-3 text-sm text-zinc-400">
+						La voz de casa (el móvil, la tablet, los satélites) piensa aquí, con la clave de
+						OpenRouter de la familia: lo que se le dice llega de casa como texto y casa hace lo suyo
+						(la música, los vídeos, los temporizadores). Su modelo: mejor uno rápido, porque se
+						espera con el móvil en la mano, y que use bien las herramientas.
+					</p>
+					<form
+						method="post"
+						action="?seccion={tab}&/saveVoiceModel"
+						use:enhance={() =>
+							async ({ update }) =>
+								update({ reset: false })}
+						class="flex flex-wrap gap-2"
+					>
+						<input
+							name="model"
+							value={data.voiceModel.model}
+							placeholder={data.voiceModel.fallback}
+							aria-label="Modelo para la voz"
+							class="{field} min-w-0 flex-1 font-mono"
+						/>
+						<button class={secondary}>Guardar</button>
+						{#if form && 'saved' in form && form.saved === 'voiceModel'}
+							<Guardado class="self-center text-sm text-amber-400">✓</Guardado>
+						{/if}
+					</form>
+					<p class="mt-1 text-xs text-zinc-500">
+						Vacío usa {data.voiceModel.fallback}. Los identificadores están en
+						<a
+							href="https://openrouter.ai/models"
+							class="hover:underline"
+							target="_blank"
+							rel="noreferrer">openrouter.ai/models</a
+						>.
+					</p>
+					{#if form && 'voiceProblem' in form}
+						<p class="mt-3 text-sm text-red-400">{form.voiceProblem}</p>
+					{/if}
+				</section>
+			{/if}
+
+			<VozCaracter {data} {form} {tab} which="casa" />
+
+			<VozSilencio {data} {form} {tab} />
+
+			<VozInternet {data} {form} {tab} />
+
+			<VozAprende {data} {tab} />
+
+			<VozAprendido {data} {tab} />
+
+			<Satelites {data} {form} {tab} />
+		{/if}
+	{/if}
+
+	{#if tab === 'conexiones' && admin}
+		<p class="mb-6 text-sm text-zinc-400">
+			Lo que se pone una vez: las claves de la IA y de las rutas, el bot y cómo se habla con la
+			casa.
+		</p>
+
+		<section class={section} id="ia">
+			<h2 class="mb-1 font-semibold">IA (OpenRouter)</h2>
+			<p class="mb-4 text-sm text-zinc-400">
+				La clave de <a
+					href="https://openrouter.ai/keys"
+					target="_blank"
+					rel="noreferrer"
+					class="text-amber-400 hover:underline">OpenRouter</a
+				> de la familia: con ella piensa la voz (la de los móviles y la de los satélites), se leen los
+				tickets y las facturas, y las recetas quedan con pasos cortos y sus temporizadores. Lo que se
+				usa se paga con el crédito de esa cuenta. Se guarda cifrada.
+			</p>
+			{#if data.openRouter}
+				<p class="mb-3 font-mono text-sm">{data.openRouter}</p>
+			{/if}
+			<!-- The key's own spending limit (ai-spend.ts): reached, the AI stops (ai-block.ts). -->
+			{#await data.openRouterLimit then limit}
+				{#if limit}
+					<p class="mb-3 text-sm text-zinc-400">
+						Límite de gasto de la clave: {dollars(limit.limit)}{RESETS[limit.reset ?? ''] ??
+							''}{#if limit.remaining !== null}; quedan
+							<span class={limit.remaining < 0.5 ? 'text-red-400' : 'text-zinc-200'}
+								>{dollars(limit.remaining)}</span
+							>{/if}. Se cambia en
+						<a
+							href="https://openrouter.ai/keys"
+							target="_blank"
+							rel="noreferrer"
+							class="text-amber-400 hover:underline">openrouter.ai/keys</a
+						>.
+					</p>
+				{/if}
+			{/await}
+			{#if data.openRouterConnected}
+				<p
+					class={[
+						'mb-3 text-sm',
+						data.openRouterConnected === 'ok' ? 'text-amber-400' : 'text-red-400'
+					]}
+				>
+					{{
+						ok: '✓ Conectado con OpenRouter: la familia ya tiene su clave.',
+						cancelado: 'No se ha conectado: se canceló en OpenRouter.',
+						caducado:
+							'No se ha conectado: tardó demasiado o se empezó en otro navegador. Prueba otra vez.'
+					}[data.openRouterConnected] ??
+						'No se ha podido conectar con OpenRouter. Prueba otra vez.'}
+				</p>
+			{/if}
+			{#if admin}
+				<!-- Off to OpenRouter and back (OAuth): not enhanced, the browser goes there itself. -->
+				<form method="post" action="?seccion={tab}&/connectOpenRouter" class="mb-2">
+					<button class={data.openRouter ? secondary : primary}
+						>{data.openRouter
+							? 'Volver a conectar con OpenRouter'
+							: 'Conectar con OpenRouter'}</button
+					>
+				</form>
+				<p class="mb-3 text-xs text-zinc-500">
+					Entras en OpenRouter (o te creas la cuenta), lo autorizas y vuelves aquí con la clave
+					hecha. Lo que se use se paga con el crédito de esa cuenta.
+				</p>
+				<details class="text-sm">
+					<summary class="cursor-pointer text-zinc-400 hover:text-white">
+						O pega una clave a mano
+					</summary>
+					<form
+						method="post"
+						action="?seccion={tab}&/saveOpenRouter"
+						use:enhance
+						class="mt-2 flex gap-2"
+					>
+						<PasswordInput
+							name="key"
+							placeholder={data.openRouter ? 'Otra clave (vacía, quitarla)' : 'sk-or-…'}
+							autocomplete="new-password"
+							box="flex-1"
+							class="{field} font-mono"
+						/>
+						<button class={primary}>Guardar</button>
+					</form>
+				</details>
+			{/if}
+			{#if form && 'openRouterProblem' in form}
+				<p class="mt-3 text-sm text-red-400">{form.openRouterProblem}</p>
+			{/if}
+		</section>
+
+		<section class={section} id="rutas">
+			<h2 class="mb-1 font-semibold">Rutas (openrouteservice)</h2>
+			<p class="mb-4 text-sm text-zinc-400">
+				La clave de <a
+					href="https://openrouteservice.org/dev/#/signup"
+					target="_blank"
+					rel="noreferrer"
+					class="text-amber-400 hover:underline">openrouteservice</a
+				> de la familia, gratis: con ella el modo carretera busca sitios y traza la ruta en coche, con
+				sus indicaciones. Su plan gratuito da unas 2.000 rutas y 1.000 búsquedas al día. Se guarda cifrada.
+			</p>
+			{#if data.ors}
+				<p class="mb-3 font-mono text-sm">{data.ors}</p>
+			{/if}
+			{#if admin}
+				<form method="post" action="?seccion={tab}&/saveOrs" use:enhance class="flex gap-2">
+					<PasswordInput
+						name="key"
+						placeholder={data.ors ? 'Otra clave (vacía, quitarla)' : 'La clave de openrouteservice'}
+						autocomplete="new-password"
+						box="flex-1"
+						class="{field} font-mono"
+					/>
+					<button class={primary}>Guardar</button>
+				</form>
+			{/if}
+			{#if form && 'orsProblem' in form}
+				<p class="mt-3 text-sm text-red-400">{form.orsProblem}</p>
+			{/if}
+		</section>
+
+		<TelegramBot {data} {form} {tab} />
 
 		<section class={section} id="casa">
 			<h2 class="mb-1 font-semibold">Tu casa</h2>
@@ -454,147 +669,7 @@
 			{/if}
 		</section>
 
-		<Satelites {data} {form} {tab} />
-
-		<VozSatelites {data} {form} {tab} />
-
 		<EntrarConLaNube {data} {form} {tab} />
-
-		<section class={section} id="ia">
-			<h2 class="mb-1 font-semibold">IA (OpenRouter)</h2>
-			<p class="mb-4 text-sm text-zinc-400">
-				La clave de <a
-					href="https://openrouter.ai/keys"
-					target="_blank"
-					rel="noreferrer"
-					class="text-amber-400 hover:underline">OpenRouter</a
-				> de la familia: con ella las recetas guardadas quedan con pasos cortos y sus temporizadores,
-				y se leen páginas sin datos de receta. Se guarda cifrada.
-			</p>
-			{#if data.openRouter}
-				<p class="mb-3 font-mono text-sm">{data.openRouter}</p>
-			{/if}
-			<!-- The key's own spending limit (ai-spend.ts): reached, the AI stops (ai-block.ts). -->
-			{#await data.openRouterLimit then limit}
-				{#if limit}
-					<p class="mb-3 text-sm text-zinc-400">
-						Límite de gasto de la clave: {dollars(limit.limit)}{RESETS[limit.reset ?? ''] ??
-							''}{#if limit.remaining !== null}; quedan
-							<span class={limit.remaining < 0.5 ? 'text-red-400' : 'text-zinc-200'}
-								>{dollars(limit.remaining)}</span
-							>{/if}. Se cambia en
-						<a
-							href="https://openrouter.ai/keys"
-							target="_blank"
-							rel="noreferrer"
-							class="text-amber-400 hover:underline">openrouter.ai/keys</a
-						>.
-					</p>
-				{/if}
-			{/await}
-			{#if admin}
-				<form method="post" action="?seccion={tab}&/saveOpenRouter" use:enhance class="flex gap-2">
-					<PasswordInput
-						name="key"
-						placeholder={data.openRouter ? 'Otra clave (vacía, quitarla)' : 'sk-or-…'}
-						autocomplete="new-password"
-						box="flex-1"
-						class="{field} font-mono"
-					/>
-					<button class={primary}>Guardar</button>
-				</form>
-			{/if}
-			{#if form && 'openRouterProblem' in form}
-				<p class="mt-3 text-sm text-red-400">{form.openRouterProblem}</p>
-			{/if}
-		</section>
-
-		<section class={section} id="rutas">
-			<h2 class="mb-1 font-semibold">Rutas (openrouteservice)</h2>
-			<p class="mb-4 text-sm text-zinc-400">
-				La clave de <a
-					href="https://openrouteservice.org/dev/#/signup"
-					target="_blank"
-					rel="noreferrer"
-					class="text-amber-400 hover:underline">openrouteservice</a
-				> de la familia, gratis: con ella el modo carretera busca sitios y traza la ruta en coche, con
-				sus indicaciones. Su plan gratuito da unas 2.000 rutas y 1.000 búsquedas al día. Se guarda cifrada.
-			</p>
-			{#if data.ors}
-				<p class="mb-3 font-mono text-sm">{data.ors}</p>
-			{/if}
-			{#if admin}
-				<form method="post" action="?seccion={tab}&/saveOrs" use:enhance class="flex gap-2">
-					<PasswordInput
-						name="key"
-						placeholder={data.ors ? 'Otra clave (vacía, quitarla)' : 'La clave de openrouteservice'}
-						autocomplete="new-password"
-						box="flex-1"
-						class="{field} font-mono"
-					/>
-					<button class={primary}>Guardar</button>
-				</form>
-			{/if}
-			{#if form && 'orsProblem' in form}
-				<p class="mt-3 text-sm text-red-400">{form.orsProblem}</p>
-			{/if}
-		</section>
-
-		{#if data.voiceModel}
-			<section class={section} id="voz">
-				<h2 class="mb-1 font-semibold">La voz</h2>
-				<p class="mb-3 text-sm text-zinc-400">
-					La voz de casa (el móvil, la tablet, los satélites) piensa aquí, con la clave de
-					OpenRouter de la familia: lo que se le dice llega de casa como texto y casa hace lo suyo
-					(la música, los vídeos, los temporizadores). Su modelo: mejor uno rápido, porque se espera
-					con el móvil en la mano, y que use bien las herramientas.
-				</p>
-				<form
-					method="post"
-					action="?seccion={tab}&/saveVoiceModel"
-					use:enhance={() =>
-						async ({ update }) =>
-							update({ reset: false })}
-					class="flex flex-wrap gap-2"
-				>
-					<input
-						name="model"
-						value={data.voiceModel.model}
-						placeholder={data.voiceModel.fallback}
-						aria-label="Modelo para la voz"
-						class="{field} min-w-0 flex-1 font-mono"
-					/>
-					<button class={secondary}>Guardar</button>
-					{#if form && 'saved' in form && form.saved === 'voiceModel'}
-						<Guardado class="self-center text-sm text-amber-400">✓</Guardado>
-					{/if}
-				</form>
-				<p class="mt-1 text-xs text-zinc-500">
-					Vacío usa {data.voiceModel.fallback}. Los identificadores están en
-					<a
-						href="https://openrouter.ai/models"
-						class="hover:underline"
-						target="_blank"
-						rel="noreferrer">openrouter.ai/models</a
-					>.
-				</p>
-				{#if form && 'voiceProblem' in form}
-					<p class="mt-3 text-sm text-red-400">{form.voiceProblem}</p>
-				{/if}
-			</section>
-		{/if}
-
-		<VozCaracter {data} {form} {tab} which="casa" />
-
-		<VozInternet {data} {form} {tab} />
-
-		<VozSilencio {data} {form} {tab} />
-
-		<VozAprende {data} {tab} />
-
-		<VozAprendido {data} {tab} />
-
-		<TelegramBot {data} {form} {tab} />
 	{/if}
 
 	{#if tab === 'cuenta'}

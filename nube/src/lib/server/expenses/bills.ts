@@ -1,10 +1,13 @@
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import type { BillKind } from 'comun/bills.ts';
-import { bill, expense } from '#lib/server/db/schema.ts';
+import { bill, expense, expenseLine } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { billOf } from './expenses.ts';
 
-/** The family's bills of one kind (#232), the latest first, with what was paid. */
+/**
+ * The family's bills of one kind (#232), the latest first, with what was paid and what its parts
+ * add up to (null without parts): a bill that does not add up is to be checked.
+ */
 export async function billsOf(k: Kitchen, kind: BillKind) {
 	const rows = await k.run((tx) =>
 		tx
@@ -13,6 +16,9 @@ export async function billsOf(k: Kitchen, kind: BillKind) {
 				date: expense.date,
 				store: expense.store,
 				total: expense.total,
+				partsSum: sql<
+					number | null
+				>`(select sum(${expenseLine.amount})::int from ${expenseLine} where ${expenseLine.expenseId} = ${expense.id})`,
 				bill
 			})
 			.from(bill)

@@ -16,11 +16,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!command) error(400, 'Orden no válida');
 	try {
 		const started = performance.now();
-		// A satellite's (#223): in the name of who made its key, said by «la casa».
-		const satellite = locals.satellite;
-		const { timing, ...reply } = satellite
-			? await runVoiceCommand(command, { id: satellite.ownerId, name: '' }, satellite)
-			: await runVoiceCommand(command, { id: locals.user!.id, name: locals.user!.name });
+		const { timing, ...reply } = await runVoiceCommand(command, {
+			id: locals.user!.id,
+			name: locals.user!.name
+		});
 		const ms = Math.round(performance.now() - started);
 		// Where the time went, in the line itself: «2,4 s (preparar 0,04 · IA 1,1 + 0,9)».
 		const parts = [
@@ -32,7 +31,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			`«${command.text}» → «${reply.reply}» · ${seconds(ms)} s (${parts.join(' · ')})`,
 			{
 				ms,
-				...(satellite ? { satellite: satellite.name } : {}),
 				...timing,
 				// Names, not «[Array ...]»: none is text instead of a tool.
 				rounds: timing.rounds.map((r) => ({ ...r, tools: r.tools.join(', ') || 'texto' })),
@@ -45,7 +43,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json(reply);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
-		// Said, not an error: a satellite reads it aloud (with Piper, which needs no cloud).
+		// Said, not an error: the device reads it aloud.
 		if (err instanceof CloudProblem) {
 			log.warn('voz', `«${command.text}»: ${message}`);
 			return json({

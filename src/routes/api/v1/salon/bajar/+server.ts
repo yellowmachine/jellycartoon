@@ -6,7 +6,7 @@ import { duckSpeaker } from '#lib/server/music/snapcast.ts';
 
 /**
  * The living room lowered while someone speaks to one of the satellites Seilide serves (#296), as
- * to the house's (/api/salon/bajar): mpv, and its own snapclient (`speaker`, its id on Snapcast).
+ * Hablar does here (/api/salon/bajar): mpv, and its own snapclient (`speaker`, its id on Snapcast).
  */
 export const POST: RequestHandler = async ({ request }) => {
 	await fromCloud(request);

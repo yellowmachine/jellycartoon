@@ -214,7 +214,7 @@
 						done: home.steps.key,
 						label: 'Pon la clave de IA',
 						hint: 'Para la voz, los tickets y las recetas.',
-						href: '/ajustes?seccion=familia#ia'
+						href: '/ajustes?seccion=conexiones#ia'
 					},
 					{
 						done: home.steps.invited,

@@ -19,8 +19,7 @@ import {
 
 /**
  * The video API for other apps (#253): the series, for the cloud's app, through the rathole tunnel
- * (MEDIA_HOST). The cloud comes with a key of its own (better-auth's api-key plugin, as the
- * satellites), made by the administrator in Ajustes → Casa and kept on the cloud's server, and
+ * (MEDIA_HOST). The cloud comes with a key of its own (better-auth's api-key plugin), made by the administrator in Ajustes → Casa and kept on the cloud's server, and
  * says in whose name it asks: the person's email, the same in both apps. A child of the cloud
  * (#303) too, for what it may watch and listen to (`cloudViewer`), as a child of the house. The
  * video itself, with signed links (media-token.ts).
@@ -32,7 +31,7 @@ const PERSON_HEADER = 'x-persona';
 const KID_HEADER = 'x-peque';
 export const KID_EMAIL = /@peques\.invalid$/;
 
-/** Marked so in its key: not a satellite's (satellites.ts). */
+/** Marked so in its key (the house's voice satellites had keys too, until #329). */
 interface CloudMetadata {
 	cloud: true;
 }
@@ -53,7 +52,7 @@ export async function fromCloud(request: Request) {
 	const key = request.headers.get(KEY_HEADER);
 	if (!key) error(401, 'Falta la clave');
 	const { valid, key: found, error: why } = await auth.api.verifyApiKey({ body: { key } });
-	// A key from before (freeCloudKeys) or a satellite's, over its limit: not a wrong key.
+	// A key from before (freeCloudKeys), over its limit: not a wrong key.
 	if (why?.code === 'RATE_LIMITED')
 		error(429, 'Demasiadas peticiones seguidas: prueba en un minuto');
 	if (!valid || !found || !isCloud(found.metadata)) error(401, 'Clave no válida');

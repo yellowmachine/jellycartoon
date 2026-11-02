@@ -30,7 +30,7 @@
 	 * The app's bar (jellycartoon's, #253): the same in the house and in the cloud. On wide screens
 	 * every section in a row; on a tablet, as a tab bar, each icon over its name; on a phone, the
 	 * section you are in and a menu with all of them. The user's round badge opens their menu. What
-	 * only one app has goes in its snippets: after the name (`leading`: the microphone, the
+	 * only one app has goes in its snippets: before the name (`start`: Seilide's «Atrás»), after it (`leading`: the microphone, the
 	 * receipt's photo), instead of the badge's menu (`account`: a child's), and under the bar
 	 * (`below`: what plays, the timers…).
 	 */
@@ -45,6 +45,9 @@
 		/** The phone's menu offers «Salir» (not to a child, who could not get back in). */
 		canLeave = true,
 		headerHeight = $bindable(0),
+		/** The brand's name on a phone too; without it, only its picture (room for Seilide's «Atrás»). */
+		brandOnPhone = true,
+		start,
 		leading,
 		account,
 		below
@@ -56,6 +59,8 @@
 		userLinks: UserLink[];
 		canLeave?: boolean;
 		headerHeight?: number;
+		brandOnPhone?: boolean;
+		start?: Snippet;
 		leading?: Snippet;
 		account?: Snippet<[{ isCurrent: (href: string) => boolean }]>;
 		below?: Snippet;
@@ -110,14 +115,18 @@
 	class="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur"
 >
 	<nav class="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3 md:max-lg:gap-3 md:max-lg:py-2">
+		{@render start?.()}
 		<!-- On a tablet, only the picture: the sections need the room. -->
 		<a
 			href={brand.href}
 			title={brand.title}
-			class="flex shrink-0 items-center gap-2 text-lg font-bold text-amber-400"
+			class="flex min-w-0 items-center gap-2 text-lg font-bold text-amber-400"
 		>
-			<img src={brand.image} alt="" class="h-7 w-7 rounded-md" />
-			<span class="md:max-lg:sr-only">{brand.title}</span>
+			<img src={brand.image} alt="" class="h-7 w-7 shrink-0 rounded-md" />
+			<!-- A long family's name, cut short on a phone: the buttons after it stay in. -->
+			<span class={['truncate md:max-lg:sr-only', !brandOnPhone && 'max-md:sr-only']}
+				>{brand.title}</span
+			>
 		</a>
 		{@render leading?.()}
 		<!-- Wide screens: every link in a row; with its icon from xl, as with every section both do

@@ -17,15 +17,8 @@ mock.module('#lib/server/log.ts', () => ({
 		warn: (source: string, message: string) => logged.push({ source, message })
 	}
 }));
-const {
-	completeJson,
-	creditRecharged,
-	creditRunOutAt,
-	describeUsage,
-	NO_CREDIT,
-	openRouterAuth,
-	streamChat
-} = await import('./openrouter.ts');
+const { completeJson, creditRecharged, creditRunOutAt, describeUsage, NO_CREDIT, streamChat } =
+	await import('./openrouter.ts');
 
 const realFetch = globalThis.fetch;
 afterEach(() => (globalThis.fetch = realFetch));
@@ -269,20 +262,5 @@ describe('no credit left', () => {
 		answer([`data: ${JSON.stringify({ error: { code: 402, message: 'no' } })}\n\n`]);
 		await expect(collect()).rejects.toThrow(NO_CREDIT);
 		creditRecharged();
-	});
-});
-
-describe('openRouterAuth', () => {
-	test('PKCE S256: the challenge is the verifier hashed, with the way back and a state', async () => {
-		const { url, verifier, state } = openRouterAuth('https://casa.example/ajustes/openrouter');
-		const link = new URL(url);
-		expect(link.origin + link.pathname).toBe('https://openrouter.ai/auth');
-		expect(link.searchParams.get('callback_url')).toBe('https://casa.example/ajustes/openrouter');
-		expect(link.searchParams.get('code_challenge_method')).toBe('S256');
-		expect(link.searchParams.get('state')).toBe(state);
-		const hash = new Uint8Array(
-			await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
-		);
-		expect(link.searchParams.get('code_challenge')).toBe(Buffer.from(hash).toString('base64url'));
 	});
 });

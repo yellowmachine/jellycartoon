@@ -15,7 +15,6 @@ import { db } from '#lib/server/db/index.ts';
 import { session as sessionTable } from '#lib/server/db/schema.ts';
 import { eq } from 'drizzle-orm';
 import { allowedWhileSettingUp, mustSetUp, SETUP_PATH } from '#lib/server/two-factor.ts';
-import { SATELLITE_PATHS, satelliteOf } from '#lib/server/satellites.ts';
 import { guardVideoTime } from '#lib/server/kid-time.ts';
 import { startWorker } from '#lib/server/library/worker.ts';
 import { startSubtitles } from '#lib/server/auto-subtitles.ts';
@@ -30,8 +29,6 @@ import { startAlarms } from '#lib/server/alarms/alarms.ts';
 import { startTelegram } from '#lib/server/telegram/telegram.ts';
 import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
 import { log, startLogCleanup } from '#lib/server/log.ts';
-import { piperEnabled } from '#lib/server/piper.ts';
-import { warmFillers } from '#lib/server/voice-fillers.ts';
 
 export const init: ServerInit = async () => {
 	if (building) return;
@@ -54,8 +51,6 @@ export const init: ServerInit = async () => {
 	startAlarms();
 	// The Telegram accounts connected (#243), listened to again.
 	void startTelegram().catch((error) => log.error('telegram', 'Al arrancar', { error }));
-	// What the voice satellites say while the AI thinks (#223), read beforehand to sound at once.
-	if (piperEnabled) void warmFillers();
 	// The cloud's keys made with the rate limit (#350): without it.
 	void freeCloudKeys().catch((error) =>
 		log.error('nube', 'Al quitar el límite a sus claves', { error })
@@ -108,12 +103,6 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 		redirect(303, '/quien');
 	}
 
-	// A voice satellite with its key (#223): only on its few paths, and never a session.
-	const satellite =
-		!session && SATELLITE_PATHS.includes(event.url.pathname)
-			? await satelliteOf(event.request)
-			: null;
-
 	if (session) {
 		event.locals.session = session.session;
 		event.locals.user = session.user;
@@ -125,8 +114,6 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 		}
 		await guardKids(event);
 		await guardVideoTime(event);
-	} else if (satellite) {
-		event.locals.satellite = satellite;
 	} else if (!PUBLIC_PATHS.some((p) => event.url.pathname.startsWith(p))) {
 		if (event.url.pathname.startsWith('/api/')) {
 			return new Response('Unauthorized', { status: 401 });

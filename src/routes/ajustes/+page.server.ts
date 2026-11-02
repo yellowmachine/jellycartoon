@@ -21,15 +21,9 @@ import {
 	voiceModel
 } from '#lib/server/app-settings.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
-import {
-	createSatellite,
-	deleteSatellite,
-	listSatellites,
-	setSatelliteSpeakers
-} from '#lib/server/satellites.ts';
 import { createCloudKey, deleteCloudKey, listCloudKeys } from '#lib/server/media-api.ts';
 import { askCloud, cloudLink, CloudProblem, setCloudLink } from '#lib/server/kitchen.ts';
-import { listSpeakers, snapcastVoiceReady } from '#lib/server/music/snapcast.ts';
+import { snapcastVoiceReady } from '#lib/server/music/snapcast.ts';
 import {
 	findPlaces,
 	housePlace,
@@ -45,25 +39,15 @@ import {
 	spanishVoices,
 	type VoiceOption
 } from '#lib/server/piper.ts';
-import {
-	forgetFiller,
-	getFillers,
-	getRecordings,
-	recordFiller,
-	setFillers,
-	warmFillers
-} from '#lib/server/voice-fillers.ts';
-import { DEFAULT_TONE, MAX_TONE_CHARS } from '#lib/voice-fillers.ts';
 import { getVoiceLevels, setVoiceLevels } from '#lib/server/voice/levels.ts';
 import { parseVoiceLevels } from '#lib/voice-levels.ts';
 import {
 	accountCredits,
 	completeJson,
 	creditRecharged,
-	keyBalance,
-	OAUTH_COOKIE,
-	openRouterAuth
+	keyBalance
 } from '#lib/server/openrouter.ts';
+import { OAUTH_COOKIE, openRouterAuth } from 'comun/openrouter-oauth.ts';
 import { getSettings, setKeepHistory } from '#lib/server/settings.ts';
 import {
 	languaConfig,
@@ -138,15 +122,12 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 	let kids = null;
 	let people = null;
 	let labels = null;
-	let satellites = null;
-	let satelliteSpeakers = null;
-	let satelliteAnswers = false;
 	let cloudKeys = null;
 	let home = null;
 	let shortcuts = null;
 	let houseVoiceChoice = null;
 	if (admin) {
-		/** The voice the satellites answer with (#223): among Piper's installed ones. */
+		/** The voice the house says its alarms with, through Snapcast (#241): among Piper's installed ones. */
 		if (piperEnabled) {
 			let options: VoiceOption[] = [];
 			let problem: string | null = null;
@@ -159,8 +140,6 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 				options,
 				problem,
 				chosen: await houseVoice(),
-				fillers: (await getFillers()).join('\n'),
-				recordings: await getRecordings(),
 				levels: await getVoiceLevels(),
 				/** «Música mientras habla» only matters if they answer through Snapcast. */
 				snapcast: snapcastVoiceReady()
@@ -172,14 +151,6 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		/** The TV view's shortcuts (#327): only with the TV view (MPV_SOCKET). */
 		// Sites and the TV view's own (#343), with what each opens and whether it is gone.
 		if (mpvEnabled) shortcuts = await settingsShortcuts(userId);
-		/** Voice satellites (#223): only where there is voice (WHISPER_URL). */
-		if (voiceEnabled) {
-			satellites = await listSatellites(request.headers);
-			/** Each one's room speaker, lowered while it listens: the Snapcast ones. */
-			satelliteSpeakers = await listSpeakers();
-			/** And answering through them: with snapserver's `Voz` source. */
-			satelliteAnswers = snapcastVoiceReady();
-		}
 		/** The cloud's keys for the video API (#253), and the tunnel's name it reaches it by. */
 		const link = await cloudLink();
 		cloudKeys = {
@@ -289,9 +260,6 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 				: { url: null, tokenHint: null },
 		ai,
 		labels,
-		satellites,
-		satelliteSpeakers,
-		satelliteAnswers,
 		cloudKeys,
 		home,
 		shortcuts,
@@ -337,68 +305,27 @@ export const actions: Actions = {
 			throw err;
 		}
 	},
-	/** The satellites' voice (#223). */
+	/** The house's voice, for what it says through Snapcast (#241). */
 	saveHouseVoice: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);
 		const form = await request.formData();
 		const voice = { voice: form.get('voice'), speaker: form.get('speaker') || null };
 		if (!isPiperVoice(voice)) return fail(400, { voiceProblem: 'Voz no válida' });
 		await setHouseVoice(voice);
-		void warmFillers();
 		log.info(
 			'ajustes',
 			`Voz de la casa: ${voice.voice}${voice.speaker ? ` ${voice.speaker}` : ''}`
 		);
 		return { saved: 'houseVoice' };
 	},
-	/** The satellites' voice louder, and the music lower under it (#223). */
+	/** The house's voice louder, and the music lower under it (#241). */
 	saveVoiceLevels: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);
 		const form = await request.formData();
 		const levels = parseVoiceLevels(Object.fromEntries(form));
 		await setVoiceLevels(levels);
-		// Read again in its new way, to sound at once.
-		void warmFillers();
-		log.info('ajustes', 'Volumen de la voz de los satélites', { ...levels });
+		log.info('ajustes', 'Volumen de la voz de la casa', { ...levels });
 		return { saved: 'voiceLevels' };
-	},
-	/** One of the phrases said while the AI thinks, recorded by the AI voice (#223). */
-	recordFiller: async ({ request, locals }) => {
-		await requireAdmin(locals.user!.id);
-		const form = await request.formData();
-		const text = String(form.get('text') ?? '');
-		if (!(await getFillers()).includes(text))
-			return fail(400, { fillerProblem: 'Guarda la frase antes de grabarla' });
-		const tone =
-			String(form.get('tone') ?? '')
-				.trim()
-				.slice(0, MAX_TONE_CHARS) || DEFAULT_TONE;
-		try {
-			await recordFiller(text, tone);
-		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-			log.warn('ajustes', 'No se pudo grabar la frase de espera', { text, error: err });
-			return fail(502, { fillerProblem: `No se pudo grabar: ${message}` });
-		}
-		log.info('ajustes', 'Frase de espera grabada con voz IA', { text, tone });
-		return { saved: 'fillerRecorded' };
-	},
-	/** That phrase back to Piper's voice. */
-	forgetFiller: async ({ request, locals }) => {
-		await requireAdmin(locals.user!.id);
-		const text = String((await request.formData()).get('text') ?? '');
-		await forgetFiller(text);
-		log.info('ajustes', 'Frase de espera de vuelta a Piper', { text });
-		return { saved: 'fillerForgotten' };
-	},
-	/** What the satellites say while the AI thinks (#223), one a line; empty, the default ones. */
-	saveFillers: async ({ request, locals }) => {
-		await requireAdmin(locals.user!.id);
-		const form = await request.formData();
-		const text = form.get('reset') ? null : String(form.get('fillers') ?? '');
-		await setFillers(text);
-		log.info('ajustes', 'Frases de espera de los satélites', { fillers: await getFillers() });
-		return { saved: 'fillers' };
 	},
 	/** Where the house is (#223): what Open-Meteo finds by that name, to choose one. */
 	findHousePlace: async ({ request, locals }) => {
@@ -436,34 +363,6 @@ export const actions: Actions = {
 		await requireAdmin(locals.user!.id);
 		await setHousePlace(null);
 		return { saved: 'house' };
-	},
-	/** A voice satellite (#223): its key, shown once. */
-	createSatellite: async ({ request, locals }) => {
-		await requireAdmin(locals.user!.id);
-		const name = String((await request.formData()).get('name') ?? '').trim();
-		if (!name || name.length > 32)
-			return fail(400, { satelliteProblem: 'Ponle un nombre de hasta 32 letras' });
-		const key = await createSatellite(name, request.headers);
-		log.info('ajustes', `Satélite de voz nuevo: «${name}»`);
-		return { satelliteKey: key, satelliteName: name };
-	},
-	/** Its room's speaker (#223), lowered while it listens, and where it answers; empty, none. */
-	saveSatelliteSpeakers: async ({ request, locals }) => {
-		await requireAdmin(locals.user!.id);
-		const form = await request.formData();
-		const id = String(form.get('id') ?? '');
-		const speaker = String(form.get('speaker') ?? '') || null;
-		const answer = String(form.get('answer') ?? '') || null;
-		await setSatelliteSpeakers(id, { speaker, answer }, request.headers);
-		log.info('ajustes', 'Altavoces del satélite de voz', { id, speaker, answer });
-		return { saved: 'satellites' };
-	},
-	deleteSatellite: async ({ request, locals }) => {
-		await requireAdmin(locals.user!.id);
-		const id = String((await request.formData()).get('id') ?? '');
-		await deleteSatellite(id, request.headers);
-		log.info('ajustes', 'Satélite de voz quitado', { id });
-		return { saved: 'satellites' };
 	},
 	/** A key for the cloud's video API (#253), shown once. */
 	createCloudKey: async ({ request, locals }) => {
@@ -898,7 +797,7 @@ export const actions: Actions = {
 	 */
 	connectOpenRouter: async ({ locals, cookies, url }) => {
 		await requireAdmin(locals.user!.id);
-		const auth = openRouterAuth(`${url.origin}/ajustes/openrouter`);
+		const auth = openRouterAuth(`${url.origin}/ajustes/openrouter`, 'JellyCartoon');
 		cookies.set(OAUTH_COOKIE, JSON.stringify({ verifier: auth.verifier, state: auth.state }), {
 			path: '/ajustes',
 			httpOnly: true,

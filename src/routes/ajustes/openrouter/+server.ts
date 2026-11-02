@@ -2,7 +2,8 @@ import { error, redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isAdmin, setAppSetting } from '#lib/server/app-settings.ts';
 import { log } from '#lib/server/log.ts';
-import { creditRecharged, OAUTH_COOKIE, openRouterKeyFromCode } from '#lib/server/openrouter.ts';
+import { creditRecharged } from '#lib/server/openrouter.ts';
+import { OAUTH_COOKIE, openRouterKeyFromCode, pendingAuth } from 'comun/openrouter-oauth.ts';
 
 /**
  * Back from OpenRouter after «Conectar con OpenRouter» (Ajustes): its code, for the key, which
@@ -18,12 +19,7 @@ export const GET: RequestHandler = async ({ url, cookies, locals }) => {
 	const code = url.searchParams.get('code');
 	// Cancelled there, or no code: nothing changes.
 	if (!code) return back('cancelado');
-	let pending: { verifier?: string; state?: string } = {};
-	try {
-		pending = JSON.parse(saved ?? '{}');
-	} catch {
-		// Stays empty.
-	}
+	const pending = pendingAuth(saved);
 	// Not the request this browser started (or more than 10 minutes ago).
 	if (!pending.verifier || pending.state !== url.searchParams.get('state')) return back('caducado');
 	try {

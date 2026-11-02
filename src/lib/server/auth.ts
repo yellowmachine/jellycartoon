@@ -114,10 +114,10 @@ export const auth = betterAuth({
 			expiresIn: 60,
 			storeToken: 'hashed'
 		}),
-		// The voice satellites (#223): a key each, made by the administrator in Ajustes and kept on the
-		// device. Not a session (`enableSessionForAPIKeys`, which the plugin advises against): only
-		// checked on the few paths a satellite uses (hooks.server.ts, satellites.ts). An order is two
-		// requests: plenty a minute, against a key that leaked being tried over and over.
+		// Seilide's keys for the video API (#253, media-api.ts), made by the administrator in Ajustes and
+		// kept on its server. Not a session (`enableSessionForAPIKeys`, which the plugin advises
+		// against): only checked on the paths it uses. Until #329 the house's voice satellites had one
+		// too; now they are Seilide's.
 		apiKey({
 			defaultPrefix: 'casita_',
 			// Its start in Ajustes, to tell one from another: the prefix and four more.

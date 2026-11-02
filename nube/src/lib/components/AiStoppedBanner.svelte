@@ -28,7 +28,7 @@
 	{#if badKey}
 		<span>
 			La IA de la familia está parada: OpenRouter no acepta la clave. Pon otra en
-			<a href="/ajustes?seccion=familia#ia" class="underline">Ajustes</a>.
+			<a href="/ajustes?seccion=conexiones#ia" class="underline">Ajustes</a>.
 		</span>
 	{:else if keyLimit}
 		<span>

@@ -6,12 +6,13 @@ import { searchSettings as search, type SettingsEntry } from 'comun/settings-sea
  * by. A test checks every `id` is on the page.
  */
 
-export type SettingsTab = 'mi' | 'aparato' | 'familia' | 'cuenta';
+export type SettingsTab = 'mi' | 'aparato' | 'familia' | 'conexiones' | 'cuenta';
 
 export const TAB_LABELS: Record<SettingsTab, string> = {
 	mi: 'Para mí',
 	aparato: 'Este aparato',
 	familia: 'Familia',
+	conexiones: 'Conexiones',
 	cuenta: 'Cuenta'
 };
 
@@ -114,25 +115,25 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 	},
 	{
 		id: 'casa',
-		tab: 'familia',
+		tab: 'conexiones',
 		title: 'Tu casa',
 		words: 'jellycartoon dirección túnel rathole conectar series música media'
 	},
 	{
 		id: 'clave-casa',
-		tab: 'familia',
+		tab: 'conexiones',
 		title: 'Clave para la casa',
 		words: 'api key nube_ voz tele conectar casa'
 	},
 	{
 		id: 'ia',
-		tab: 'familia',
+		tab: 'conexiones',
 		title: 'IA (OpenRouter)',
 		words: 'inteligencia artificial openrouter clave recetas tickets facturas saldo'
 	},
 	{
 		id: 'rutas',
-		tab: 'familia',
+		tab: 'conexiones',
 		title: 'Rutas (openrouteservice)',
 		words: 'mapa carretera navegación coche ors clave'
 	},
@@ -201,7 +202,7 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 	},
 	{
 		id: 'entrar-con-la-nube',
-		tab: 'familia',
+		tab: 'conexiones',
 		title: 'Entrar en casa con Seilide',
 		words: 'oidc openid cuenta única login entrar casa jellycartoon cliente secreto env',
 		shown: onlyAdmin
@@ -215,7 +216,7 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 	},
 	{
 		id: 'telegram-bot',
-		tab: 'familia',
+		tab: 'conexiones',
 		title: 'Bot de Telegram',
 		words: 'telegram grupo avisos bot botfather mensajes',
 		shown: onlyAdmin
