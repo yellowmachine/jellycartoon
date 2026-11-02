@@ -126,8 +126,12 @@ const said = new Map<string, { wav: Promise<Uint8Array<ArrayBuffer>>; done: bool
 const KEEP_SAID = 200;
 /** A sentence that could not be said, not asked again for this long. */
 const FAILED_MS = 60_000;
-/** Someone is waiting: Kore took 2–4 s (2026-10-27), the fast ones under 1 s (#347); with room. */
+/**
+ * Someone is waiting: Kore took 2–4 s (2026-10-27), the fast ones under 1 s (#347); with room. A
+ * long one (a conversation's answer, converse.ts) takes longer to record: more, by its length.
+ */
 const TIMEOUT_MS = 15_000;
+const timeoutFor = (text: string) => Math.max(TIMEOUT_MS, text.length * 30);
 
 /**
  * By family, what waits to be said, the answers before the phrases. OpenRouter counts what is in
@@ -180,7 +184,7 @@ async function record(
 			input: text,
 			// Only to those that take it: the others' accent is their voice's.
 			...(chosen.tone && { instructions: voice.tone }),
-			timeoutMs: TIMEOUT_MS
+			timeoutMs: timeoutFor(text)
 		})
 	);
 	return writeWav(rate, 1, pcm);
