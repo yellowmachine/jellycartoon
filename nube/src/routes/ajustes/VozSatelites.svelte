@@ -2,6 +2,7 @@
 	import Guardado from 'comun/components/Guardado.svelte';
 	import { enhance } from '$app/forms';
 	import {
+		DEFAULT_GREETINGS,
 		DEFAULT_TONE,
 		MAX_FILLER_CHARS,
 		MAX_TONE_CHARS,
@@ -16,13 +17,15 @@
 	/**
 	 * Cómo hablan los satélites que sirve Seilide (#296): una voz (las rápidas o las de Gemini, #347), cómo dice las cosas
 	 * (acento, ánimo) y las frases que dice mientras piensa la IA. «Probar» la oye aquí, antes de
-	 * guardar. Y cómo van las frases (#301): grabándose, listas o con su problema.
+	 * guardar. Y cómo van las frases (#301): grabándose, listas o con su problema. «Al oír la
+	 * palabra»: en vez del pitido, una frase («¿Sí?»), que graba cada satélite.
 	 */
 	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
 
 	let formEl = $state<HTMLFormElement>();
 	/** The one picked, saved or not: whether «Cómo habla» counts for it. */
 	let picked = $derived(data.satelliteVoice?.voice ?? '');
+	let greet = $derived(data.satelliteVoice?.greet ?? false);
 	const pickedVoice = $derived(satelliteVoiceModel(picked));
 	const takesTone = $derived(pickedVoice.tone);
 	const fastVoices = SATELLITE_VOICES.filter((v) => v.fast);
@@ -155,6 +158,28 @@
 					Se graban al guardar; una que aún no está grabada no se dice.</span
 				>
 			</label>
+			<label class="flex items-center gap-2 text-zinc-300">
+				<input type="checkbox" name="greet" bind:checked={greet} />
+				Al oír la palabra, contesta con una frase en vez del pitido
+			</label>
+			{#if greet}
+				<label class="-mt-1 flex flex-col gap-1 text-zinc-300">
+					Una de estas (una por línea)
+					<textarea
+						name="greetings"
+						rows="3"
+						value={data.satelliteVoice.greetings.join('\n')}
+						placeholder={DEFAULT_GREETINGS.join('\n')}
+						class="{select} w-full"></textarea>
+					<span class="text-xs text-zinc-500"
+						>Muy cortas: si ya estás hablando tras la palabra, no la dice. Sin el pitido de
+						«enviado». Vacío, las de siempre. Cada satélite las graba al guardar; mientras, el
+						pitido.</span
+					>
+				</label>
+			{:else}
+				<input type="hidden" name="greetings" value={data.satelliteVoice.greetings.join('\n')} />
+			{/if}
 			{#if phrases?.length}
 				<div class="-mt-1 flex flex-col gap-1">
 					<span class="text-xs" aria-live="polite">

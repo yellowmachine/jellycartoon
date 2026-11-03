@@ -28,7 +28,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		tone:
 			(typeof body.tone === 'string' ? body.tone.trim().slice(0, MAX_TONE_CHARS) : '') ||
 			DEFAULT_TONE,
-		fillers: []
+		fillers: [],
+		greet: false,
+		greetings: []
 	};
 	try {
 		return new Response(await satelliteSpeech(k, apiKey, text, voice), {
