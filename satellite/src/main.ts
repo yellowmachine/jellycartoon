@@ -176,8 +176,11 @@ interface Order {
 	greet: { at: number; wav: Uint8Array; speechMs: number } | null;
 	/** Its phrase sounding: what the microphone hears is not the order. */
 	held: boolean;
-	/** Its phrase on hearing the word instead of the beep (Ajustes): no «sent» beep either. */
-	quietSent: boolean;
+	/**
+	 * How «sent» sounds: its beep (no phrase set); none, its phrase was said («¿Sí?», it was heard);
+	 * soft, there was one but it was not said (the order came in one go): a sign it was heard.
+	 */
+	sent: 'beep' | 'none' | 'soft';
 	/**
 	 * Opened by itself after an answer (a question, by what was learned, «Modo conversación»), not by
 	 * the wake word: within a talk, without beeps (2026-11-02): neither «sent» nor «nothing said».
@@ -280,7 +283,7 @@ function begin(
 		waitMs,
 		greet: phrase && { at: Date.now() + GREET_WAIT_MS, wav: phrase, speechMs: 0 },
 		held: false,
-		quietSent: phrase !== null,
+		sent: phrase ? 'soft' : 'beep',
 		quietEnd: conversation || hz === null
 	};
 }
@@ -310,6 +313,7 @@ async function greet(current: Order) {
 	const wav = current.greet!.wav;
 	current.greet = null;
 	current.held = true;
+	current.sent = 'none';
 	await play(wav);
 	await sleep(GREET_TAIL_MS);
 	if (order !== current) return;
@@ -347,7 +351,7 @@ async function finish(current: Order, said: 'done' | 'nothing') {
 		at += c.length;
 	}
 	const wav = toWav(samples);
-	if (!current.quietEnd && !current.quietSent) void beep(660);
+	if (!current.quietEnd && current.sent !== 'none') void beep(660, current.sent === 'soft');
 	await keep(wav);
 	// Not waited for here: the microphone goes on through the detector meanwhile.
 	if (serverReady) void respond(wav);
