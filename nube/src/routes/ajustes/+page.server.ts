@@ -772,7 +772,9 @@ export const actions: Actions = {
 		await setSatelliteVoice(k, await openRouterKey(k), {
 			voice: String(form.get('voice') ?? ''),
 			tone: String(form.get('tone') ?? ''),
-			fillers: String(form.get('fillers') ?? '')
+			fillers: String(form.get('fillers') ?? ''),
+			greet: form.get('greet') === 'on',
+			greetings: String(form.get('greetings') ?? '')
 		});
 		return { saved: 'satelliteVoice' };
 	},

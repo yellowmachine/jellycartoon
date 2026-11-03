@@ -2,7 +2,7 @@ import { Bot, GrammyError } from 'grammy';
 import { eq } from 'drizzle-orm';
 import { telegramBot } from '#lib/server/db/schema.ts';
 import { asFamily } from '#lib/server/family.ts';
-import { decrypt, encrypt } from '#lib/server/secret-box.ts';
+import { openFor, sealFor } from '#lib/server/family-secret.ts';
 import { parseBotEvents, type BotEvent, type BotEvents } from '#lib/telegram-bot.ts';
 
 /**
@@ -32,7 +32,7 @@ const bots = new Map<string, Bot>();
 
 async function load(familyId: string): Promise<Saved | null> {
 	const [row] = await asFamily(familyId, (tx) => tx.select().from(telegramBot));
-	const token = row ? decrypt(row.token) : null;
+	const token = row ? await openFor(familyId, row.token) : null;
 	if (!row || !token) return null;
 	return {
 		token,
@@ -44,9 +44,11 @@ async function load(familyId: string): Promise<Saved | null> {
 }
 
 async function save(familyId: string, saved: Saved | null) {
+	// Before the transaction: with the KMS, its key may take asking for.
+	const token = saved && (await sealFor(familyId, saved.token));
 	await asFamily(familyId, async (tx) => {
-		if (!saved) return void (await tx.delete(telegramBot));
-		const values = { ...saved, token: encrypt(saved.token) };
+		if (!saved || !token) return void (await tx.delete(telegramBot));
+		const values = { ...saved, token };
 		await tx
 			.insert(telegramBot)
 			.values({ familyId, ...values })

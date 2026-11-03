@@ -145,7 +145,7 @@ export function isFavorite(
 
 export const MAX_LINES = 200;
 /** A receipt's total in cents, at most: a million euros is not a receipt. */
-const MAX_CENTS = 100_000_000;
+export const MAX_CENTS = 100_000_000;
 
 /** «12,30 €», as in Spain. */
 export function euros(cents: number) {

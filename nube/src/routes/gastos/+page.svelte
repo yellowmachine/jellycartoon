@@ -396,11 +396,11 @@
 </script>
 
 <svelte:head>
-	<title>Gastos · Seilide</title>
+	<title>Gastos · Dinero · Seilide</title>
 </svelte:head>
 
 <div class="mx-auto max-w-3xl">
-	<h1 class="mb-3 text-2xl font-bold">Gastos</h1>
+	<h1 class="mb-3 text-2xl font-bold">Dinero</h1>
 	<ExpenseTabs current="mes" />
 	<p class="mb-4 text-sm text-zinc-400">
 		Los de la casa, para todos los adultos. Con una foto del ticket, a mano, por voz («he gastado 40
@@ -748,6 +748,17 @@
 				? `El mes anterior, ${euros(data.previous)}`
 				: 'Sin gastos apuntados el mes anterior'}
 		</p>
+		<!-- What came in this month (#384), and the difference: the rest in Ingresos. -->
+		{#if data.income}
+			<p class="-mt-2 mb-3 text-sm">
+				<a href="/gastos/ingresos?mes={data.month}" class="text-zinc-400 hover:underline"
+					>Ingresos, <span class="text-emerald-400">{euros(data.income)}</span>; diferencia,
+					<span class={data.income - total < 0 ? 'text-red-400' : 'text-emerald-400'}
+						>{data.income - total > 0 ? '+' : ''}{euros(data.income - total)}</span
+					></a
+				>
+			</p>
+		{/if}
 		<ul class="flex flex-col gap-1.5">
 			{#each byCategory as c (c.category)}
 				<li>

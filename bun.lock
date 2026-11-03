@@ -64,6 +64,8 @@
         "@aws-sdk/client-s3": "3.1012.0",
         "@better-auth/oauth-provider": "1.7.7",
         "@fontsource/comic-neue": "5.3.0",
+        "@scaleway/sdk-client": "^2.16.0",
+        "@scaleway/sdk-key-manager": "^2.23.0",
         "@turf/buffer": "7",
         "@turf/helpers": "7",
         "@turf/simplify": "7",
@@ -497,6 +499,14 @@
     "@rolldown/binding-win32-x64-msvc": ["@rolldown/binding-win32-x64-msvc@1.2.12", "", { "os": "win32", "cpu": "x64" }, "sha512-WIw2haVKwjuYdXkHaoC0mF8Le71TuCBxjrdKqLbJGctbBABj+ClfmNvtbOnzpq3RokNo5+V1qhtSzJyXorsklQ=="],
 
     "@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.1", "", {}, "sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw=="],
+
+    "@scaleway/random-name": ["@scaleway/random-name@6.0.2", "", {}, "sha512-fhR2aCzxoZlOZcCM42srbALdpdqMy79LwOK5mVf4sGG1uknn095mr5PQ/0/zwfk/FX2KycZwbKJzr4zP6CG3Zg=="],
+
+    "@scaleway/sdk-client": ["@scaleway/sdk-client@2.16.0", "", {}, "sha512-ZUoMPWY8b0YVD8hCvKVhyjJQwkwHmTKJQaGC6fWjexu7JF2LnYnWlVamZlImbyrThskhUvFP2VGEaYKbVLmCiw=="],
+
+    "@scaleway/sdk-key-manager": ["@scaleway/sdk-key-manager@2.23.0", "", { "dependencies": { "@scaleway/random-name": "6.0.2", "@scaleway/sdk-std": "2.9.5" }, "peerDependencies": { "@scaleway/sdk-client": "^2.16.0" } }, "sha512-DZ8TsrtStMxemrk8q4ekFGgVRPDEoIe+RRC78D+CMB1U0m2NplVeCej3xNS9cBn//eIhfLCy/8+kc1eowCBjiQ=="],
+
+    "@scaleway/sdk-std": ["@scaleway/sdk-std@2.9.5", "", { "peerDependencies": { "@scaleway/sdk-client": "2.16.0" } }, "sha512-BajSiMBG+/vVDkXjKq2JfsIvrRcJQ5EJpsfpjXMHV9JhGBro0IAh3zawsgbcTrBLnu7E7fRw9els7TNgOXPdyw=="],
 
     "@smithy/config-resolver": ["@smithy/config-resolver@4.7.2", "", { "dependencies": { "@smithy/core": "^3.33.2", "tslib": "^2.6.2" } }, "sha512-Y1XfSefHIOub9762qm3ShafdlEE/Va8h3kLUeMq765fNeWeNLcOP2YUPr86H1SlyGwZTOqQ67RlBZPZ3k9Djgg=="],
 

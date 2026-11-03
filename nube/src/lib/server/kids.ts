@@ -10,7 +10,7 @@ import {
 } from '#lib/server/db/schema.ts';
 import { NoFamily, withFamily } from '#lib/server/family.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
-import { encrypt } from '#lib/server/secret-box.ts';
+import { sealFor } from '#lib/server/family-secret.ts';
 
 /**
  * Children's accounts (#303): one of the family's people without an account (Ajustes → Familia →
@@ -94,13 +94,12 @@ export async function giveKidAccount(k: Kitchen, personId: number, guardians: st
 			accountId: created.id,
 			password: await ctx.password.hash(credential)
 		});
+		const secret = await sealFor(k.familyId, credential);
 		await k.run(async (tx) => {
 			await tx
 				.insert(familyMember)
 				.values({ userId: created.id, familyId: k.familyId, role: 'peque' });
-			await tx
-				.insert(kidAccount)
-				.values({ userId: created.id, familyId: k.familyId, secret: encrypt(credential) });
+			await tx.insert(kidAccount).values({ userId: created.id, familyId: k.familyId, secret });
 			if (allowed.length)
 				await tx
 					.insert(kidGuardian)

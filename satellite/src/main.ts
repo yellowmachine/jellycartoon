@@ -24,7 +24,7 @@ import {
 	type Ringing
 } from './server.ts';
 import { beep, hush, play, speakerName } from './sound.ts';
-import { fallbackFor, keepFallbacks, sayFallback } from './fallback.ts';
+import { fallbackFor, greeting, keepFallbacks, sayFallback } from './fallback.ts';
 import { followSnapserver } from './snapclient.ts';
 import {
 	DEFAULT_WAKE_WORD,
@@ -88,6 +88,17 @@ const RING_PAUSE_MS = 5000;
 const RING_RETRY_MS = 60_000;
 /** As holding the button: longer than this, it is over anyway. */
 const MAX_MS = 30_000;
+/**
+ * With a phrase on hearing the word («¿Sí?», Ajustes): said only if nothing more is said this
+ * long after the word, as «Nubika, pon música» in one go would be cut by it. Speech of this much
+ * in that time (the VAD's), already the order; less, the word's own tail.
+ */
+const GREET_WAIT_MS = 400;
+const GREET_SPEECH_MS = 128;
+/** After the phrase, this long more before listening: the speaker's last of it, and the room's. */
+const GREET_TAIL_MS = 200;
+/** Silero's frames, of 512 samples at 16 kHz. */
+const VAD_FRAME_MS = 32;
 
 type Session = Awaited<ReturnType<typeof ort.InferenceSession.create>>;
 
@@ -158,6 +169,15 @@ interface Order {
 	end: SpeechEnd;
 	chunks: Int16Array[];
 	startedAt: number;
+	/** For its SpeechEnd again, after its phrase on hearing the word. */
+	voiceDb: number | null;
+	waitMs: number;
+	/** Its phrase on hearing the word, waiting to know whether it is said, with the speech heard meanwhile. */
+	greet: { at: number; wav: Uint8Array; speechMs: number } | null;
+	/** Its phrase sounding: what the microphone hears is not the order. */
+	held: boolean;
+	/** Its phrase on hearing the word instead of the beep (Ajustes): no «sent» beep either. */
+	quietSent: boolean;
 	/**
 	 * Opened by itself after an answer (a question, by what was learned, «Modo conversación»), not by
 	 * the wake word: within a talk, without beeps (2026-11-02): neither «sent» nor «nothing said».
@@ -248,23 +268,59 @@ function begin(
 	// Its attempt ends here: what it reached, with the order and not after it.
 	attempt = 0;
 	duck(true);
-	if (hz !== null) void beep(hz);
+	// After the word, its phrase instead of the beep, if the family wants and it is recorded.
+	const phrase = hz !== null && speakerName ? greeting() : null;
+	if (hz !== null && !phrase) void beep(hz);
 	order = {
 		vad: vad(),
 		end: new SpeechEnd({ ...SPEECH_END, marginDb: MARGIN_DB, waitMs }, voiceDb),
 		chunks: [],
 		startedAt: Date.now(),
+		voiceDb,
+		waitMs,
+		greet: phrase && { at: Date.now() + GREET_WAIT_MS, wav: phrase, speechMs: 0 },
+		held: false,
+		quietSent: phrase !== null,
 		quietEnd: conversation || hz === null
 	};
 }
 
 async function listen(current: Order, chunk: Float32Array, now: number) {
+	if (current.held) return;
 	current.chunks.push(Int16Array.from(chunk));
 	for (const { probability, dbfs } of await current.vad.push(chunk)) {
+		if (current.greet && probability >= 0.5) current.greet.speechMs += VAD_FRAME_MS;
 		const said = current.end.frame(probability, dbfs);
 		if (said !== 'listening') return finish(current, said);
 	}
+	if (current.greet) {
+		if (current.greet.speechMs >= GREET_SPEECH_MS) {
+			log(`Ya hablaba (${current.greet.speechMs} ms de voz): sin la frase`);
+			current.greet = null;
+		} else if (now >= current.greet.at) void greet(current);
+	}
 	if (now - current.startedAt >= MAX_MS) return finish(current, 'done');
+}
+
+/**
+ * Its phrase on hearing the word, said; meanwhile and a moment after, the microphone is not the
+ * order (it would hear itself, «¿sí? pon música»), and the order is listened for from then on.
+ */
+async function greet(current: Order) {
+	const wav = current.greet!.wav;
+	current.greet = null;
+	current.held = true;
+	await play(wav);
+	await sleep(GREET_TAIL_MS);
+	if (order !== current) return;
+	current.vad = vad();
+	current.end = new SpeechEnd(
+		{ ...SPEECH_END, marginDb: MARGIN_DB, waitMs: current.waitMs },
+		current.voiceDb
+	);
+	current.chunks = [];
+	current.startedAt = Date.now();
+	current.held = false;
 }
 
 async function finish(current: Order, said: 'done' | 'nothing') {
@@ -291,7 +347,7 @@ async function finish(current: Order, said: 'done' | 'nothing') {
 		at += c.length;
 	}
 	const wav = toWav(samples);
-	if (!current.quietEnd) void beep(660);
+	if (!current.quietEnd && !current.quietSent) void beep(660);
 	await keep(wav);
 	// Not waited for here: the microphone goes on through the detector meanwhile.
 	if (serverReady) void respond(wav);
@@ -422,7 +478,11 @@ if (serverReady)
 		const was = alarms;
 		alarms = state;
 		// Its own phrases, in the family's voice: again only if it changed, or one is missing.
-		if (state.voice !== was.voice || was === firstAlarms) void keepFallbacks(state.voice ?? null);
+		// And what it says on hearing its word, if it changed.
+		const greetingsChanged =
+			(state.greetings ?? []).join('\n') !== (was.greetings ?? []).join('\n');
+		if (state.voice !== was.voice || greetingsChanged || was === firstAlarms)
+			void keepFallbacks(state.voice ?? null, state.greetings ?? []);
 		// Only Seilide says it: a house's satellite keeps the snapclient it has, if any.
 		if ('snapserver' in state)
 			followSnapserver(state.snapserver ?? null, state.name ?? null, state.snapclientId ?? null);

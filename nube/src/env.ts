@@ -78,5 +78,22 @@ export const variables = defineEnvVars({
 	BETTER_AUTH_SECRET: {
 		description:
 			"Secret used to sign tokens and to encrypt what the app keeps (the houses' keys). 32 characters generated with high entropy: `openssl rand -base64 32`."
+	},
+	SCW_ACCESS_KEY: {
+		description:
+			"The KMS (#326, family-secret.ts): the access key of Scaleway's IAM application for Seilide, with only Key Manager's permission and a condition on the VPS's IP. With the three SCW_* set, each family's secrets are kept with its own data key, wrapped by Key Manager; without them, as before (BETTER_AUTH_SECRET alone).",
+		schema: (value) => value || undefined
+	},
+	SCW_SECRET_KEY: {
+		description: 'Its secret key.',
+		schema: (value) => value || undefined
+	},
+	SCW_KMS_KEY_ID: {
+		description: "The Key Manager key that wraps the families' data keys (symmetric encryption).",
+		schema: (value) => value || undefined
+	},
+	SCW_DEFAULT_REGION: {
+		description: 'Its region: `fr-par` by default.',
+		schema: (value) => value || 'fr-par'
 	}
 });

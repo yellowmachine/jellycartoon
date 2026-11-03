@@ -142,12 +142,16 @@ export const familySettings = pgTable(
 		voiceLearn: boolean('voice_learn').notNull().default(false),
 		/**
 		 * How the satellites Seilide serves speak (#296): Gemini's voice, how it says things, and what
-		 * they say while the AI thinks; null, Kore as the house's, with its phrases.
+		 * they say while the AI thinks; and, on hearing the wake word, a phrase instead of the beep
+		 * (`greet`, with its `greetings`; saved before them, the beep). Null, Kore as the house's,
+		 * with its phrases.
 		 */
 		satelliteVoice: jsonb('satellite_voice').$type<{
 			voice: string;
 			tone: string;
 			fillers: string[];
+			greet?: boolean;
+			greetings?: string[];
 		}>(),
 		/** Oración (#339): in the bar, for the whole family, only if it is on. */
 		prayerMode: boolean('prayer_mode').notNull().default(false),

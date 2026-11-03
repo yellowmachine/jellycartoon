@@ -14,6 +14,7 @@ import { today } from '#lib/server/fridge.ts';
 import { putFile, removeFile, renameFile } from '#lib/server/storage.ts';
 import { BILL_PROMPT, BILL_SCHEMA, billDraftFromAnswer, redact } from './bill-parse.ts';
 import { draftFromAnswer, RECEIPT_SCHEMA, receiptPrompt } from './receipt-parse.ts';
+import { INCOME_PROMPT, INCOME_SCHEMA, incomeDraftFromAnswer } from './income-parse.ts';
 
 const run = promisify(execFile);
 
@@ -152,6 +153,42 @@ const TICKET = {
 	name: 'ticket'
 };
 
+const INCOME = {
+	label: 'Leer la factura de un ingreso',
+	system: 'Lees facturas y justificantes de cobros y devuelves lo que pone, sin inventar.',
+	name: 'ingreso'
+};
+
+/**
+ * An income's invoice (#384), as a PDF or a picture, read as the supplies' bills: a PDF by its
+ * text, without what identifies the family (`redact`); a scanned one, or a picture, by the vision
+ * model. Nothing is kept: the page sends the file again with the income.
+ */
+export async function readIncomeInvoice(k: Kitchen, file: Buffer, mime: string) {
+	let text = '';
+	let image: Buffer | null = mime === 'application/pdf' ? null : file;
+	let imageMime = mime;
+	if (mime === 'application/pdf')
+		await withPdf(file, async (pdf) => {
+			text = await pdfText(pdf);
+			if (text.length < MIN_PDF_TEXT) {
+				image = await pdfImage(pdf);
+				imageMime = 'image/jpeg';
+				text = '';
+			}
+		});
+	const answer = await read(k, {
+		prompt: text
+			? `${INCOME_PROMPT}\n\nEl texto de la factura:\n\n${redact(text)}`
+			: `${INCOME_PROMPT} Está en la imagen.`,
+		schema: INCOME_SCHEMA,
+		image: (image as Buffer | null)?.toString('base64') ?? null,
+		mime: imageMime,
+		...INCOME
+	});
+	return incomeDraftFromAnswer(answer, today());
+}
+
 const BILL = {
 	label: 'Leer una factura',
 	system: 'Lees facturas de suministros de casa y devuelves lo que pone, sin inventar.',
@@ -164,6 +201,8 @@ interface Reading {
 	schema: Record<string, unknown>;
 	/** The photo, in base64; without it, the prompt is all. */
 	image: string | null;
+	/** Its type: a JPEG unless said. */
+	mime?: string;
 	name: string;
 	/** For the spending's line. */
 	label: string;
@@ -183,7 +222,10 @@ async function read(k: Kitchen, reading: Reading) {
 		prompt: reading.image
 			? [
 					{ type: 'text', text: reading.prompt },
-					{ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${reading.image}` } }
+					{
+						type: 'image_url',
+						image_url: { url: `data:${reading.mime ?? 'image/jpeg'};base64,${reading.image}` }
+					}
 				]
 			: reading.prompt,
 		name: reading.name,

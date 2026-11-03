@@ -18,7 +18,7 @@ import {
 import { asFamily } from '#lib/server/family.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { notify } from '#lib/server/push.ts';
-import { decrypt } from '#lib/server/secret-box.ts';
+import { openFor } from '#lib/server/family-secret.ts';
 
 /**
  * Children who enter with an adult's permission (#303), as at home (jellycartoon's #141). On a
@@ -362,7 +362,7 @@ async function signInAs(familyId: string, kidId: string, until: Date) {
 			.innerJoin(user, eq(user.id, kidAccount.userId))
 			.where(eq(kidAccount.userId, kidId))
 	);
-	const credential = kid ? decrypt(kid.secret) : null;
+	const credential = kid ? await openFor(familyId, kid.secret) : null;
 	if (!kid || !credential) {
 		console.error('[peques] Sin la credencial del peque: dale la cuenta otra vez', { kidId });
 		return null;

@@ -1,7 +1,7 @@
 import { familySettings } from './db/schema.ts';
 import type { Place } from 'comun/weather.ts';
 import type { Kitchen } from './fridge.ts';
-import { decrypt, encrypt } from './secret-box.ts';
+import { openFor, sealFor } from './family-secret.ts';
 import { NO_CREDIT, rememberBlock, unblock, type Block } from './ai-block.ts';
 
 /** The family's settings row, if it has one. */
@@ -21,7 +21,7 @@ export const familyOfKey = (key: string) => keyFamilies.get(key) ?? null;
 /** Its OpenRouter key, for the AI (recipes); null without one, or if it cannot be read. */
 export async function openRouterKey(k: Kitchen) {
 	const row = await settingsOf(k);
-	const key = row?.openrouterKey ? decrypt(row.openrouterKey) : null;
+	const key = row?.openrouterKey ? await openFor(k.familyId, row.openrouterKey) : null;
 	if (key) {
 		keyFamilies.set(key, k.familyId);
 		rememberBlock(
@@ -43,7 +43,7 @@ export async function setOpenRouterKey(k: Kitchen, key: string | null) {
 	// Another key: the AI stopped with the one before goes on (ai-block.ts).
 	const before = await openRouterKey(k);
 	if (before) unblock(before);
-	const openrouterKey = key ? encrypt(key) : null;
+	const openrouterKey = key ? await sealFor(k.familyId, key) : null;
 	const set = { openrouterKey, aiBlockedAt: null, aiBlockedWhy: null };
 	await k.run((tx) =>
 		tx
@@ -73,7 +73,7 @@ export async function aiBlockOf(k: Kitchen): Promise<Block | null> {
 /** Its openrouteservice key, for the road mode's routes; null without one. */
 export async function orsKey(k: Kitchen) {
 	const row = await settingsOf(k);
-	return row?.orsKey ? decrypt(row.orsKey) : null;
+	return row?.orsKey ? openFor(k.familyId, row.orsKey) : null;
 }
 
 /** How it starts, for Ajustes. */
@@ -84,7 +84,7 @@ export async function orsKeyStart(k: Kitchen) {
 
 /** A new key, or none (null). */
 export async function setOrsKey(k: Kitchen, key: string | null) {
-	const value = key ? encrypt(key) : null;
+	const value = key ? await sealFor(k.familyId, key) : null;
 	await k.run((tx) =>
 		tx
 			.insert(familySettings)

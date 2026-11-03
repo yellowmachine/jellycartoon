@@ -6,6 +6,7 @@ import { auth } from '#lib/server/auth.ts';
 import { startScheduler } from '#lib/server/scheduler.ts';
 import { noteCosts } from '#lib/server/ai-spend.ts';
 import { keepBlocks } from '#lib/server/ai-stopped.ts';
+import { migrateToKms } from '#lib/server/kms-migrate.ts';
 import { isKidAccount, kidMayOpen } from '#lib/server/kids.ts';
 import { rejectMalformedPath } from 'comun/server/malformed-path.ts';
 
@@ -22,6 +23,8 @@ export const init: ServerInit = () => {
 	startScheduler();
 	noteCosts();
 	keepBlocks();
+	// With the KMS just on (#326), what was kept before it, kept again with it.
+	void migrateToKms();
 };
 
 /** `/s/`: a shared trip's link (#81), for whoever has it; `/invitacion/`, an invitation's. */

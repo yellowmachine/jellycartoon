@@ -123,6 +123,8 @@ export interface Ringing {
 	say?: { id: string; text: string }[];
 	/** Seilide's: which voice the family has, for its own phrases (fallback.ts). */
 	voice?: string;
+	/** Seilide's: what it says on hearing its word instead of the beep (fallback.ts); none, the beep. */
+	greetings?: string[];
 }
 
 /** After a dropped channel, tried again this long after. */

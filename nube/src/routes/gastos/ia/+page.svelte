@@ -44,7 +44,7 @@
 </svelte:head>
 
 <div class="mx-auto max-w-3xl">
-	<h1 class="mb-3 text-2xl font-bold">Gastos</h1>
+	<h1 class="mb-3 text-2xl font-bold">Dinero</h1>
 	<ExpenseTabs current="ia" />
 	<p class="mb-4 text-sm text-zinc-400">
 		Lo que cuesta la inteligencia artificial de la familia, la de Seilide y la de casa, en dólares,

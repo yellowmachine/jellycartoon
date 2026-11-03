@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { DEFAULT_FILLERS, MAX_FILLER_CHARS, parseFillers, pickFiller } from './ai-voice.ts';
+import {
+	DEFAULT_FILLERS,
+	DEFAULT_GREETINGS,
+	MAX_FILLER_CHARS,
+	parseFillers,
+	pickFiller
+} from './ai-voice.ts';
 
 describe('parseFillers', () => {
 	test('one a line, trimmed, without empty lines or repeats', () => {
@@ -10,6 +16,11 @@ describe('parseFillers', () => {
 		expect(parseFillers(null)).toEqual(DEFAULT_FILLERS);
 		expect(parseFillers('  \n ')).toEqual(DEFAULT_FILLERS);
 		expect(parseFillers('\n', { orDefault: false })).toEqual([]);
+	});
+
+	test('the greetings, with their own default ones', () => {
+		expect(parseFillers('', { defaults: DEFAULT_GREETINGS })).toEqual(DEFAULT_GREETINGS);
+		expect(parseFillers('¿Qué tal?', { defaults: DEFAULT_GREETINGS })).toEqual(['¿Qué tal?']);
 	});
 
 	test('a long line cut', () => {

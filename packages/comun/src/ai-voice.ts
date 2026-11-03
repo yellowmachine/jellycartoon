@@ -141,8 +141,20 @@ export const DEFAULT_FILLERS = [
 export const MAX_FILLERS = 20;
 export const MAX_FILLER_CHARS = 60;
 
-/** The saved lines, trimmed, without repeats; the default ones if there are none (and `orDefault`). */
-export function parseFillers(text: string | null, { orDefault = true } = {}) {
+/**
+ * What a satellite says on hearing the wake word, instead of the beep, if the family wants
+ * («Al oír la palabra», Ajustes): short, it only says it is listening.
+ */
+export const DEFAULT_GREETINGS = ['¿Sí?', 'Dime.', '¿Qué necesitas?'];
+
+/**
+ * The saved lines, trimmed, without repeats; the default ones if there are none (and `orDefault`):
+ * `defaults`, the fillers' or the greetings'.
+ */
+export function parseFillers(
+	text: string | null,
+	{ orDefault = true, defaults = DEFAULT_FILLERS } = {}
+) {
 	const list = [
 		...new Set(
 			(text ?? '')
@@ -151,7 +163,7 @@ export function parseFillers(text: string | null, { orDefault = true } = {}) {
 				.filter(Boolean)
 		)
 	].slice(0, MAX_FILLERS);
-	return list.length || !orDefault ? list : DEFAULT_FILLERS;
+	return list.length || !orDefault ? list : defaults;
 }
 
 /** One at random, not the same as the last time when there are more. */

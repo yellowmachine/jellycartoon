@@ -1,5 +1,6 @@
 import {
 	AI_VOICE,
+	DEFAULT_GREETINGS,
 	DEFAULT_TONE,
 	isSatelliteVoice,
 	MAX_TONE_CHARS,
@@ -27,6 +28,9 @@ export interface SatelliteVoice {
 	tone: string;
 	/** As saved: none, the default ones. */
 	fillers: string[];
+	/** «Al oír la palabra»: a phrase instead of the beep, one of `greetings` (none, the default ones). */
+	greet: boolean;
+	greetings: string[];
 }
 
 export async function satelliteVoiceOf(k: Kitchen): Promise<SatelliteVoice> {
@@ -37,9 +41,17 @@ export async function satelliteVoiceOf(k: Kitchen): Promise<SatelliteVoice> {
 	return {
 		voice: isSatelliteVoice(saved?.voice) ? saved.voice : AI_VOICE.voice,
 		tone: saved?.tone?.trim() || DEFAULT_TONE,
-		fillers: parseFillers((saved?.fillers ?? []).join('\n'))
+		fillers: parseFillers((saved?.fillers ?? []).join('\n')),
+		greet: saved?.greet === true,
+		greetings: parseFillers((saved?.greetings ?? []).join('\n'), { defaults: DEFAULT_GREETINGS })
 	};
 }
+
+/**
+ * What the satellites say on hearing the wake word, told with their notices: none, the beep. They
+ * record them themselves, as their phrases for when Seilide cannot answer (satellite/fallback.ts).
+ */
+export const greetingsOf = (voice: SatelliteVoice) => (voice.greet ? voice.greetings : []);
 
 /**
  * Which voice it is, in a few letters (its voice and tone): told to the satellites with their
@@ -51,13 +63,15 @@ export const voiceKey = (voice: SatelliteVoice) => hash(`${voice.voice}|${voice.
 export async function setSatelliteVoice(
 	k: Kitchen,
 	apiKey: string | null,
-	input: { voice: string; tone: string; fillers: string }
+	input: { voice: string; tone: string; fillers: string; greet?: boolean; greetings?: string }
 ) {
 	const set = {
 		satelliteVoice: {
 			voice: isSatelliteVoice(input.voice) ? input.voice : AI_VOICE.voice,
 			tone: input.tone.trim().slice(0, MAX_TONE_CHARS),
-			fillers: parseFillers(input.fillers, { orDefault: false })
+			fillers: parseFillers(input.fillers, { orDefault: false }),
+			greet: input.greet === true,
+			greetings: parseFillers(input.greetings ?? '', { orDefault: false })
 		}
 	};
 	await k.run((tx) =>
