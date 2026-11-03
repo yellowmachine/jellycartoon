@@ -43,6 +43,8 @@
 		"@aws-sdk/client-s3": "3.1012.0",
 		"@better-auth/oauth-provider": "1.7.7",
 		"@fontsource/comic-neue": "5.3.0",
+		"@scaleway/sdk-client": "^2.16.0",
+		"@scaleway/sdk-key-manager": "^2.23.0",
 		"@turf/buffer": "7",
 		"@turf/helpers": "7",
 		"@turf/simplify": "7",

@@ -1,0 +1,114 @@
+import { describe, expect, test } from 'bun:test';
+import { envelope, isEnveloped, type KeyStore, type Kms } from './envelope.ts';
+
+/**
+ * Envelope encryption (#326) with a fake KMS: it "wraps" by prefixing the family (so that one bound
+ * to another family is refused, as Key Manager's associated data does) and counts its calls.
+ */
+function fakes() {
+	const calls = { wrap: 0, unwrap: 0 };
+	let down = false;
+	const kms: Kms = {
+		async wrap(key, familyId) {
+			calls.wrap++;
+			if (down) throw new Error('KMS caído');
+			return `${familyId}:${key.toString('base64')}`;
+		},
+		async unwrap(wrapped, familyId) {
+			calls.unwrap++;
+			if (down) throw new Error('KMS caído');
+			const [owner, key] = wrapped.split(':');
+			if (owner !== familyId) throw new Error('Otra familia');
+			return Buffer.from(key!, 'base64');
+		}
+	};
+	const kept = new Map<string, string>();
+	const store: KeyStore = {
+		get: async (familyId) => kept.get(familyId) ?? null,
+		async put(familyId, wrapped) {
+			if (!kept.has(familyId)) kept.set(familyId, wrapped);
+			return kept.get(familyId)!;
+		}
+	};
+	let clock = 0;
+	const box = envelope({ kms, store, cacheMs: 1000, now: () => clock });
+	return {
+		box,
+		calls,
+		kept,
+		kms,
+		store,
+		later: (ms: number) => (clock += ms),
+		fail: (on: boolean) => (down = on)
+	};
+}
+
+describe('envelope', () => {
+	test('kept and read back, with its prefix, never the text itself', async () => {
+		const { box } = fakes();
+		const sealed = await box.seal('A', 'sk-or-secreta');
+		expect(isEnveloped(sealed)).toBe(true);
+		expect(sealed).not.toContain('secreta');
+		expect(await box.open('A', sealed)).toBe('sk-or-secreta');
+	});
+
+	test('one data key per family, made once and kept only wrapped', async () => {
+		const { box, kept, calls } = fakes();
+		await box.seal('A', 'uno');
+		await box.seal('A', 'dos');
+		await box.seal('B', 'tres');
+		expect(calls.wrap).toBe(2);
+		expect([...kept.keys()].sort()).toEqual(['A', 'B']);
+	});
+
+	test('in memory a while: the KMS asked again only after it', async () => {
+		const { box, calls, later } = fakes();
+		const sealed = await box.seal('A', 'clave');
+		box.forget();
+		await box.open('A', sealed);
+		await box.open('A', sealed);
+		expect(calls.unwrap).toBe(1);
+		later(1001);
+		await box.open('A', sealed);
+		expect(calls.unwrap).toBe(2);
+	});
+
+	test('many at once: one question to the KMS', async () => {
+		const { box, calls } = fakes();
+		const sealed = await box.seal('A', 'clave');
+		box.forget();
+		await Promise.all([1, 2, 3, 4].map(() => box.open('A', sealed)));
+		expect(calls.unwrap).toBe(1);
+	});
+
+	test('bound to its family: another family cannot read it', async () => {
+		const { box } = fakes();
+		await box.seal('B', 'de B');
+		const sealed = await box.seal('A', 'de A');
+		expect(await box.open('B', sealed)).toBeNull();
+	});
+
+	test('a family without a key yet: nothing to read, and none made by reading', async () => {
+		const { box, kept } = fakes();
+		expect(await box.open('A', 'kms1.x.y.z')).toBeNull();
+		expect(kept.size).toBe(0);
+	});
+
+	test('two servers making it at once: both use the one kept', async () => {
+		const first = fakes();
+		const second = envelope({ kms: first.kms, store: first.store });
+		const [a, b] = await Promise.all([first.box.seal('A', 'uno'), second.seal('A', 'dos')]);
+		expect(await second.open('A', a)).toBe('uno');
+		expect(await first.box.open('A', b)).toBe('dos');
+	});
+
+	test('the KMS down and nothing in memory: it fails, not «no key»', async () => {
+		const { box, fail } = fakes();
+		const sealed = await box.seal('A', 'clave');
+		box.forget();
+		fail(true);
+		await expect(box.open('A', sealed)).rejects.toThrow('KMS caído');
+		fail(false);
+		expect(await box.open('A', sealed)).toBe('clave');
+	});
+});

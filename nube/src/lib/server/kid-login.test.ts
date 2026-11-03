@@ -28,9 +28,9 @@ const asFamily = familyOnlyScope(db, { role: 'app_user' });
 mock.module('#lib/server/db/index.ts', () => ({ db }));
 // The whole module, as kids.test.ts's: a mock is the process's, whichever test runs first.
 mock.module('#lib/server/family.ts', () => ({ withFamily, asFamily, NoFamily }));
-mock.module('#lib/server/secret-box.ts', () => ({
-	encrypt: (text: string) => text,
-	decrypt: (text: string) => text
+mock.module('#lib/server/family-secret.ts', () => ({
+	sealFor: async (_: string, text: string) => text,
+	openFor: async (_: string, text: string) => text
 }));
 const told: { to: string[]; title: string }[] = [];
 mock.module('#lib/server/push.ts', () => ({

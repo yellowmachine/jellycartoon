@@ -43,6 +43,11 @@ export function adminScope(db: AnyDb, { role }: { role?: string } = {}) {
 		});
 
 	return {
+		/** Every family's id: for what goes through all of them (kms-migrate.ts). */
+		async familyIds() {
+			const rows = await asAdmin((tx) => tx.select({ id: family.id }).from(family));
+			return rows.map((r) => r.id);
+		},
 		async counts() {
 			const since = new Date(Date.now() - ACTIVE_DAYS * 24 * 60 * 60 * 1000);
 			return asAdmin(async (tx) => {

@@ -3,7 +3,7 @@ import { db } from './db/index.ts';
 import { house, user } from './db/schema.ts';
 import { asFamily, withFamily } from './family.ts';
 import { isKidAccount } from './kids.ts';
-import { decrypt, encrypt } from './secret-box.ts';
+import { openFor, sealFor } from './family-secret.ts';
 
 export { houseUrl } from './house-url.ts';
 
@@ -25,7 +25,7 @@ export interface HouseLink {
 export async function houseLink(userId: string): Promise<HouseLink | null> {
 	const [row] = await withFamily(userId, (tx) => tx.select().from(house));
 	if (!row) return null;
-	const key = decrypt(row.key);
+	const key = await openFor(row.familyId, row.key);
 	return {
 		url: row.url,
 		webUrl: row.webUrl,
@@ -63,7 +63,7 @@ export async function saveHouse(
 ) {
 	await withFamily(userId, async (tx, { familyId }) => {
 		const [row] = await tx.select({ key: house.key }).from(house);
-		const stored = key ? encrypt(key) : row?.key;
+		const stored = key ? await sealFor(familyId, key) : row?.key;
 		if (!stored) throw new Error('Falta la clave');
 		await tx
 			.insert(house)
@@ -110,7 +110,7 @@ export async function askHouse<T>(
 ): Promise<T> {
 	const [row] = await withFamily(userId, (tx) => tx.select().from(house));
 	if (!row) throw new HouseProblem('Tu familia aún no ha conectado su casa');
-	const key = decrypt(row.key);
+	const key = await openFor(row.familyId, row.key);
 	if (!key) throw new HouseProblem('La clave guardada no se puede leer: vuelve a ponerla');
 	let response: Response;
 	try {
@@ -173,7 +173,7 @@ export async function sendHouse<T>(
 ): Promise<T> {
 	const [row] = await asFamily(familyId, (tx) => tx.select().from(house));
 	if (!row) throw new HouseProblem('Tu familia aún no ha conectado su casa');
-	const key = decrypt(row.key);
+	const key = await openFor(row.familyId, row.key);
 	if (!key) throw new HouseProblem('La clave guardada no se puede leer: vuelve a ponerla');
 	let response: Response;
 	try {
@@ -202,7 +202,7 @@ export async function houseStream(
 ) {
 	const [row] = await withFamily(userId, (tx) => tx.select().from(house));
 	if (!row) throw new HouseProblem('Tu familia aún no ha conectado su casa');
-	const key = decrypt(row.key);
+	const key = await openFor(row.familyId, row.key);
 	if (!key) throw new HouseProblem('La clave guardada no se puede leer: vuelve a ponerla');
 	let response: Response;
 	try {

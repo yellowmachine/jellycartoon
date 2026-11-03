@@ -21,9 +21,9 @@ mock.module('#lib/server/family.ts', () => ({
 	asFamily: familyOnlyScope(db, { role: 'app_user' }),
 	NoFamily
 }));
-mock.module('#lib/server/secret-box.ts', () => ({
-	encrypt: (text: string) => `cifrado:${text}`,
-	decrypt: (text: string) => text
+mock.module('#lib/server/family-secret.ts', () => ({
+	sealFor: async (_: string, text: string) => `cifrado:${text}`,
+	openFor: async (_: string, text: string) => text
 }));
 let made = 0;
 mock.module('#lib/server/auth.ts', () => ({
