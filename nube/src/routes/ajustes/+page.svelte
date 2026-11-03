@@ -436,9 +436,25 @@
 			{#if data.openRouter}
 				<p class="mb-3 font-mono text-sm">{data.openRouter}</p>
 			{/if}
-			<!-- The key's own spending limit (ai-spend.ts): reached, the AI stops (ai-block.ts). -->
+			<!-- The key's own spending limit (ai-spend.ts): reached, the AI stops (ai-block.ts). Without
+			one, said: a key taken from Seilide could spend all of the account's credit (#326). -->
 			{#await data.openRouterLimit then limit}
-				{#if limit}
+				{#if limit && limit.limit === null}
+					<p
+						class="mb-3 rounded border border-amber-700/60 bg-amber-950/40 p-3 text-sm text-amber-200"
+					>
+						Esta clave no tiene límite de gasto: puede gastar todo el crédito de la cuenta de
+						OpenRouter. Mejor ponerle uno, por ejemplo unos dólares al mes, lo que uséis más un
+						margen: si alguien llegara a hacerse con ella, no podría gastar más que eso. En
+						<a
+							href="https://openrouter.ai/keys"
+							target="_blank"
+							rel="noreferrer"
+							class="text-amber-400 underline">openrouter.ai/keys</a
+						>, editando la clave: el límite y cada cuánto empieza otra vez. Llegado a él, la IA para
+						hasta que empiece de nuevo.
+					</p>
+				{:else if limit && limit.limit !== null}
 					<p class="mb-3 text-sm text-zinc-400">
 						Límite de gasto de la clave: {dollars(limit.limit)}{RESETS[limit.reset ?? ''] ??
 							''}{#if limit.remaining !== null}; quedan
@@ -481,7 +497,8 @@
 				</form>
 				<p class="mb-3 text-xs text-zinc-500">
 					Entras en OpenRouter (o te creas la cuenta), lo autorizas y vuelves aquí con la clave
-					hecha. Lo que se use se paga con el crédito de esa cuenta.
+					hecha. Lo que se use se paga con el crédito de esa cuenta. Después, ponle un límite de
+					gasto a la clave en openrouter.ai/keys.
 				</p>
 				<details class="text-sm">
 					<summary class="cursor-pointer text-zinc-400 hover:text-white">

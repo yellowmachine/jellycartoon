@@ -42,9 +42,9 @@ export async function keyUsage(apiKey: string) {
 }
 
 /**
- * The key's own spending limit (https://openrouter.ai/docs/api/reference/limits): what it may spend,
- * what is left and how often it starts again; null without a limit, or if it cannot be asked. Not
- * the account's credit, which a normal key cannot read.
+ * The key's own spending limit (https://openrouter.ai/docs/api/reference/limits): what it may spend
+ * (null, none: all of the account's credit), what is left and how often it starts again; null if
+ * it cannot be asked. Not the account's credit, which a normal key cannot read.
  */
 export async function keyLimit(apiKey: string) {
 	try {
@@ -54,9 +54,9 @@ export async function keyLimit(apiKey: string) {
 		});
 		if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
 		const { data } = await res.json();
-		if (typeof data?.limit !== 'number') return null;
+		if (!data) return null;
 		return {
-			limit: data.limit as number,
+			limit: typeof data.limit === 'number' ? (data.limit as number) : null,
 			remaining: typeof data.limit_remaining === 'number' ? (data.limit_remaining as number) : null,
 			/** `daily`, `weekly`, `monthly`; null, never. */
 			reset: typeof data.limit_reset === 'string' ? (data.limit_reset as string) : null
