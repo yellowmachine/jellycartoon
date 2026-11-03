@@ -1,8 +1,10 @@
 ---
-title: JellyCartoon y Seilide
+# The tab says «Inicio | JellyCartoon y Seilide»; the page, the hero's title.
+title: Inicio
 description: La documentación de JellyCartoon (la casa), Seilide (la nube) y el satélite de voz.
 template: splash
 hero:
+  title: JellyCartoon y Seilide
   tagline: Tus series, tu música y tu tele en casa, y el día a día de la familia en la nube.
   actions:
     - text: Instalar la casa
