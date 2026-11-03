@@ -3,6 +3,8 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import starlightLinksValidator from 'starlight-links-validator';
+// Gruvbox (2026-11-03), cálido y retro: elegido de momento, a falta de lo que diga la familia.
+import starlightThemeGruvbox from 'starlight-theme-gruvbox';
 
 const casa = [
 	'',
@@ -44,8 +46,8 @@ export default defineConfig({
 	site: 'https://docs.seilide.app',
 	integrations: [
 		starlight({
-			// A link to a page or a heading that does not exist fails the build.
-			plugins: [starlightLinksValidator()],
+			// A link to a page or a heading that does not exist fails the build; and the Gruvbox theme.
+			plugins: [starlightLinksValidator(), starlightThemeGruvbox()],
 			title: 'JellyCartoon y Seilide',
 			defaultLocale: 'root',
 			locales: { root: { label: 'Español', lang: 'es' } },
