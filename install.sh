@@ -4,7 +4,7 @@
 # downloads compose.prod.yaml from main (the last release), asks the least it can, writes the .env
 # with its secrets, starts it and says the address to open. Run it again whenever: a file that is
 # already there is never overwritten, and with a .env it only starts what it says. The screen's
-# part (mpv, the remote) is scripts/pantalla.sh; the rest, "Producción" in the README.
+# part (mpv, the remote) is scripts/pantalla.sh; the rest, https://docs.seilide.app/tecnica/casa/produccion/
 #
 #   curl -fsSL https://raw.githubusercontent.com/yellowmachine/jellycartoon/main/install.sh | sh
 #
@@ -124,7 +124,8 @@ fi
 if id -Gn | tr ' ' '\n' | grep -qx docker; then
 	say "Aviso: $(id -un) está en el grupo docker, que puede hacer cualquier cosa en este ordenador."
 	say "En tu casa vale. Si instalas en casa de otra persona, mejor con un usuario administrador"
-	say "aparte, y que el suyo no esté en ese grupo («Instalar en casa de otra persona», en el README)."
+	say "aparte, y que el suyo no esté en ese grupo («Instalar en casa de otra persona»):"
+	say "  https://docs.seilide.app/tecnica/casa/produccion/"
 	say
 fi
 
@@ -236,7 +237,7 @@ y vuelve a pegar el comando de instalar."
 	[ "$data" = "$dir/data" ] || db_dir=$data/postgres
 	umask 077
 	{
-		say "# Written by install.sh on $(date +%F). The rest of the variables: README, «Producción»."
+		say "# Written by install.sh on $(date +%F). The rest of the variables: https://docs.seilide.app/tecnica/casa/produccion/"
 		say "ORIGIN=\"$origin\""
 		say "TLS=\"$tls\""
 		[ -z "$token" ] || say "CF_API_TOKEN=\"$token\""
@@ -316,7 +317,8 @@ if [ "$tls" = internal ]; then
 	say
 	say "Falta una cosa en cada aparato que vaya a usarla (móvil, tablet, ordenador), una sola vez:"
 	say "instalar el certificado $dir/jellycartoon-raiz.crt. Pásalo por correo, una memoria o la red,"
-	say "y sigue los pasos de su sistema en el README, «A. Certificado propio de Caddy»."
+	say "y sigue los pasos de su sistema en «A. Certificado propio de Caddy»:"
+	say "  https://docs.seilide.app/tecnica/casa/solo-en-casa/#a-certificado-propio-de-caddy"
 	say "Sin él, el navegador dice que la conexión no es segura: no aceptes el aviso, instala el certificado."
 	say "Solo funciona con la wifi de casa. Y conviene una IP fija para este ordenador (en el router,"
 	say "«reserva DHCP»)."

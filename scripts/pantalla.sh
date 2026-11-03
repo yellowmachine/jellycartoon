@@ -4,7 +4,7 @@
 # games, with KDE what the remote's power button does (deploy/kwin, #159), what Chromium's Flatpak
 # needs for game controllers (#176) and, if the remote's receiver is plugged in, its udev hwdb.
 # Only what changed, showing how; run it again whenever. See "Ver en el salón", "Mando del salón"
-# and "Steam" in the README.
+# and "Steam" in the docs (docs/src/content/docs/tecnica/casa/).
 #
 #   scripts/pantalla.sh                         # todas las casas de ~/.config/jellycartoon/casas
 #   scripts/pantalla.sh salon                   # solo esa, por su nombre en ese fichero

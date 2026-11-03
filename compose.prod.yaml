@@ -163,7 +163,7 @@ services:
       # Cloudflare API token with Zone.Zone:Read and Zone.DNS:Edit on the domain's zone.
       CF_API_TOKEN: ${CF_API_TOKEN:-}
       # `cloudflare` (a domain, the default), `internal` (at home only, without one) or `acme`
-      # (a domain through the tunnel, without the token: #355): README, deploy/Caddyfile.
+      # (a domain through the tunnel, without the token: #355): docs/…/casa/solo-en-casa.md, deploy/Caddyfile.
       TLS: ${TLS:-cloudflare}
       # Optional, with the `tunel` profile: the name reached from outside through rathole, which
       # serves only the APIs for other apps (deploy/Caddyfile).
@@ -376,7 +376,7 @@ services:
 
   # Optional, with `backup` in COMPOSE_PROFILES and the R2_* and BACKUP_AGE_RECIPIENT of the .env:
   # every night, the database to a Cloudflare R2 bucket, encrypted with age before it leaves (see
-  # «Copia en Cloudflare R2» in the README). Old copies go by the bucket's lifecycle rule.
+  # «Copia en Cloudflare R2» in the docs, docs/…/casa/copias.md). Old copies go by the bucket's lifecycle rule.
   backup:
     image: ghcr.io/yellowmachine/jellycartoon-backup:${IMAGE_TAG:-stable}
     profiles: [backup]

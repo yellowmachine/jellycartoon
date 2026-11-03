@@ -16,3 +16,7 @@ bun.lockb
 
 # Claude Code's own settings on this machine (ignored by git too).
 /.claude/
+
+# The documentation (docs/, #380): Astro's build output and generated types.
+/docs/dist/
+/docs/.astro/
