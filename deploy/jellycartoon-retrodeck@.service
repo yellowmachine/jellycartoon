@@ -1,0 +1,12 @@
+# Opens the game (or only RetroDECK) that JellyCartoon sends on the socket
+# (jellycartoon-retrodeck.socket): deploy/jellycartoon-retrodeck.sh, installed by
+# scripts/pantalla.sh.
+[Unit]
+Description=Abrir un juego en RetroDECK para JellyCartoon
+
+[Service]
+StandardInput=socket
+StandardOutput=journal
+# @GAMES@ is replaced on install: HOST_GAMES_DIR, the folder the app mounts as /games.
+Environment=GAMES_DIR=@GAMES@
+ExecStart=%h/.local/bin/jellycartoon-retrodeck

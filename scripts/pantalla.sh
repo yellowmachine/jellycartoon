@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Installs, from this PC over SSH, what the PC with the screen needs besides the app: the mpv
 # service, its keys and menu for the remote (deploy/mpv), with Steam the service that opens its
-# games, with KDE what the remote's power button does (deploy/kwin, #159), what Chromium's Flatpak
+# games, with RetroDECK the one that opens the retro games there, with KDE what the remote's power button does (deploy/kwin, #159), what Chromium's Flatpak
 # needs for game controllers (#176) and, if the remote's receiver is plugged in, its udev hwdb.
 # Only what changed, showing how; run it again whenever. See "Ver en el salón", "Mando del salón"
-# and "Steam" in the docs (docs/src/content/docs/tecnica/casa/).
+# "Steam" and "RetroDECK" in the docs (docs/src/content/docs/tecnica/casa/).
 #
 #   scripts/pantalla.sh                         # todas las casas de ~/.config/jellycartoon/casas
 #   scripts/pantalla.sh salon                   # solo esa, por su nombre en ese fichero
@@ -83,6 +83,34 @@ elif command -v steam >/dev/null; then
 	fi
 else
 	echo "  · Sin Steam: sin servicio para abrir sus juegos"
+fi
+
+# Retro games in RetroDECK (the game's page → «Jugar en RetroDECK»): its socket next to Steam's,
+# and the service that opens each game from the ROMs folder the app mounts as /games
+# (HOST_GAMES_DIR). Only with RetroDECK's Flatpak and that folder.
+games=
+[[ -n $app ]] &&
+	games=$("${docker[@]}" inspect -f '{{range .Mounts}}{{if eq .Destination "/games"}}{{.Source}}{{end}}{{end}}' "$app")
+if [[ -z $data ]]; then
+	:
+elif ! flatpak info net.retrodeck.retrodeck >/dev/null 2>&1; then
+	echo "  · Sin RetroDECK: los juegos retro solo en el navegador"
+elif [[ -z $games || $games == */no-games ]]; then
+	echo "  · Sin carpeta de juegos (HOST_GAMES_DIR): sin servicio de RetroDECK"
+else
+	sed "s|@SOCKET@|$data/retrodeck.sock|" "$files/jellycartoon-retrodeck.socket" >"$files/retrodeck-socket"
+	sed "s|@GAMES@|$games|" "$files/jellycartoon-retrodeck@.service" >"$files/retrodeck-service"
+	retrodeck=
+	install_file "$files/retrodeck-socket" ~/.config/systemd/user/jellycartoon-retrodeck.socket && retrodeck=1
+	install_file "$files/retrodeck-service" ~/.config/systemd/user/jellycartoon-retrodeck@.service &&
+		retrodeck=1
+	install_file "$files/jellycartoon-retrodeck.sh" ~/.local/bin/jellycartoon-retrodeck &&
+		chmod +x ~/.local/bin/jellycartoon-retrodeck
+	if [[ -n $retrodeck ]] || ! systemctl --user is-active -q jellycartoon-retrodeck.socket; then
+		systemctl --user daemon-reload
+		systemctl --user enable jellycartoon-retrodeck.socket >/dev/null 2>&1
+		systemctl --user restart jellycartoon-retrodeck.socket && echo "  ✓ RetroDECK: socket escuchando"
+	fi
 fi
 
 # The remote's power button (#159): the TV view's launcher, the service that opens it and the KWin
@@ -198,7 +226,9 @@ for house in "${selected[@]}"; do
 		continue
 	fi
 	tar -C "$deploy" -c mpv kwin 70-mando-g20s.hwdb jellycartoon-mpv.service jellycartoon-tv.desktop \
-		jellycartoon-tv.service jellycartoon-steam.socket jellycartoon-steam@.service jellycartoon-steam.sh | ssh "$dest" tar -x -C "$dir"
+		jellycartoon-tv.service jellycartoon-steam.socket jellycartoon-steam@.service jellycartoon-steam.sh \
+		jellycartoon-retrodeck.socket jellycartoon-retrodeck@.service jellycartoon-retrodeck.sh |
+		ssh "$dest" tar -x -C "$dir"
 	ssh "$dest" "cat > $dir/pantalla.sh" <<<"$remote"
 	ssh -t "$dest" bash "$dir/pantalla.sh" "$project" || echo "  ✗ Algo falló en $name"
 	echo

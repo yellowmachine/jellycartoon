@@ -55,6 +55,11 @@ export const variables = defineEnvVars({
 			"Socket of the systemd service on the PC with the screen that opens Steam's games (deploy/jellycartoon-steam.socket). Without it Steam's games are listed but not launched.",
 		schema: (value) => value || undefined
 	},
+	RETRODECK_SOCKET: {
+		description:
+			"Socket of the systemd service on the PC with the screen that opens GAMES_DIR's games in RetroDECK (deploy/jellycartoon-retrodeck.socket). Without it, or while it is not there, they are only played in the browser.",
+		schema: (value) => value || undefined
+	},
 	MUSIC_MPV_SOCKET: {
 		description:
 			'IPC socket of an mpv that plays music into Snapcast (its output is the FIFO of a snapserver `pipe` source). With it, albums can be sent to Snapcast from the Música page.',

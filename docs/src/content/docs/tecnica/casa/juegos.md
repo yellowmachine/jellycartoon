@@ -5,7 +5,8 @@ title: 'Juegos'
 Un experimento (#176): juegos retro en la Vista TV, con
 [EmulatorJS](https://emulatorjs.org) (GPL-3.0) en el navegador y un mando de juego. Con
 `HOST_GAMES_DIR="/ruta/a/las/roms"` en el `.env` se monta de solo lectura y aparece la tarjeta
-Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`.
+Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`. También se pueden abrir en
+[RetroDECK](#retrodeck), en el PC de la pantalla.
 `install.sh` lo pregunta. En una Raspberry conectada a la tele, sin PC: ver
 [Una sola Raspberry](/tecnica/casa/raspberry/).
 
@@ -101,3 +102,32 @@ y `docker compose -f compose.prod.yaml up -d`. En desarrollo, `STEAM_DIR` con es
 - No está para los peques, y el tiempo de juego no se cuenta todavía.
 - Si no abre nada: `systemctl --user status jellycartoon-steam.socket` y
   `journalctl --user -u 'jellycartoon-steam@*'` en ese PC, y el Registro de la app.
+
+## RetroDECK
+
+Los juegos de `HOST_GAMES_DIR` también se pueden jugar en
+[RetroDECK](https://retrodeck.net) en el PC de la pantalla, en vez de en el navegador: con su
+Flatpak (`net.retrodeck.retrodeck`) instalado allí, la página de cada juego tiene
+«Jugar en RetroDECK», y `/tv/juegos`, una tarjeta RetroDECK al final que lo abre sin juego, con
+su propio menú (ES-DE).
+
+- Para abrirlos, `scripts/pantalla.sh` instala en ese PC un socket de systemd del usuario
+  (`deploy/jellycartoon-retrodeck.socket`) en `HOST_DATA_DIR/retrodeck.sock`, junto al de Steam,
+  y `jellycartoon-retrodeck@.service`, con la carpeta de las ROMs (la que la app monta en
+  `/games`). Solo si RetroDECK está instalado y hay `HOST_GAMES_DIR`. La app ofrece el botón y la
+  tarjeta solo mientras está el socket. En desarrollo, `RETRODECK_SOCKET` con el socket.
+- La app manda la carpeta de la consola y el fichero (`snes/Tetris (World).sfc`), o `retrodeck`
+  para la tarjeta, y `deploy/jellycartoon-retrodeck.sh` (en `~/.local/bin`) lo abre con la línea
+  de comandos de RetroDECK, `flatpak run net.retrodeck.retrodeck -s <sistema> <rom>`. Solo
+  acepta una consola conocida y un fichero de su carpeta.
+- El sistema de ES-DE es el nombre de la carpeta, salvo `arcade`, que es `fbneo` (el `arcade` de
+  ES-DE es MAME). ES-DE elige el emulador: el que tenga elegido para ese sistema o ese juego y, si
+  no, el primero, con RetroArch y sus núcleos, que vienen con RetroDECK (Mesen para NES, Snes9x,
+  Gambatte, mGBA, Genesis Plus GX y FinalBurn Neo).
+- Las partidas guardadas, la pila del cartucho, los mandos, los shaders y el menú son los de
+  RetroDECK, no los de la app: no se comparten con el navegador. Tampoco se cuenta el tiempo de
+  juego.
+- Al salir del juego vuelve a verse la Vista TV en Chromium.
+- No está para los peques.
+- Si no abre nada: `systemctl --user status jellycartoon-retrodeck.socket` y
+  `journalctl --user -u 'jellycartoon-retrodeck@*'` en ese PC, y el Registro de la app.
