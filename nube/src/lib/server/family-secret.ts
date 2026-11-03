@@ -79,6 +79,21 @@ let box: Promise<ReturnType<typeof envelope>> | null = null;
 const boxOf = () =>
 	(box ??= Promise.all([scaleway(), keyStore()]).then(([kms, store]) => envelope({ kms, store })));
 
+/**
+ * Whether Key Manager wraps and unwraps as expected, with a key made for this alone and kept
+ * nowhere: at the start, before anything is kept with it (kms-migrate.ts). Its problem, said.
+ */
+export async function checkKms(): Promise<string | null> {
+	try {
+		const kms = await scaleway();
+		const probe = Buffer.from(crypto.getRandomValues(new Uint8Array(32)));
+		const back = await kms.unwrap(await kms.wrap(probe, 'comprobacion'), 'comprobacion');
+		return back.equals(probe) ? null : 'devuelve otra clave';
+	} catch (err) {
+		return err instanceof Error ? err.message : String(err);
+	}
+}
+
 /** `text`, to be kept for the family: with its data key if the KMS is on, else as before. */
 export async function sealFor(familyId: string, text: string) {
 	return kmsOn ? (await boxOf()).seal(familyId, text) : encrypt(text);

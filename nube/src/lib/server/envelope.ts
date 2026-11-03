@@ -45,6 +45,10 @@ export function envelope({ kms, store, cacheMs = CACHE_MS, now = Date.now }: Env
 		if (!make) return null;
 		const fresh = randomBytes(32);
 		const mine = await kms.wrap(fresh, familyId);
+		// Unwrapped back before it is kept: a KMS that wraps but cannot unwrap (a wrong encoding, a
+		// missing permission) must not leave the family's secrets kept with a key no one can read.
+		if (!(await kms.unwrap(mine, familyId)).equals(fresh))
+			throw new Error('El KMS no devuelve la clave que envolvió');
 		// Two servers at once: the first one's is the one kept, and the one used.
 		const stored = await store.put(familyId, mine);
 		return stored === mine ? fresh : kms.unwrap(stored, familyId);

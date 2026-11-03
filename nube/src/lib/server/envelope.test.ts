@@ -58,6 +58,8 @@ describe('envelope', () => {
 		await box.seal('A', 'dos');
 		await box.seal('B', 'tres');
 		expect(calls.wrap).toBe(2);
+		// Each one unwrapped once, to check it, before it was kept.
+		expect(calls.unwrap).toBe(2);
 		expect([...kept.keys()].sort()).toEqual(['A', 'B']);
 	});
 
@@ -65,6 +67,7 @@ describe('envelope', () => {
 		const { box, calls, later } = fakes();
 		const sealed = await box.seal('A', 'clave');
 		box.forget();
+		calls.unwrap = 0;
 		await box.open('A', sealed);
 		await box.open('A', sealed);
 		expect(calls.unwrap).toBe(1);
@@ -77,6 +80,7 @@ describe('envelope', () => {
 		const { box, calls } = fakes();
 		const sealed = await box.seal('A', 'clave');
 		box.forget();
+		calls.unwrap = 0;
 		await Promise.all([1, 2, 3, 4].map(() => box.open('A', sealed)));
 		expect(calls.unwrap).toBe(1);
 	});
@@ -100,6 +104,13 @@ describe('envelope', () => {
 		const [a, b] = await Promise.all([first.box.seal('A', 'uno'), second.seal('A', 'dos')]);
 		expect(await second.open('A', a)).toBe('uno');
 		expect(await first.box.open('A', b)).toBe('dos');
+	});
+
+	test('a KMS that wraps but cannot unwrap: nothing kept, and it fails', async () => {
+		const { box, kms, kept } = fakes();
+		kms.unwrap = async () => Buffer.alloc(32);
+		await expect(box.seal('A', 'clave')).rejects.toThrow('no devuelve la clave');
+		expect(kept.size).toBe(0);
 	});
 
 	test('the KMS down and nothing in memory: it fails, not «no key»', async () => {

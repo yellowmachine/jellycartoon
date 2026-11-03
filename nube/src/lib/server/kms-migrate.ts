@@ -2,16 +2,24 @@ import { eq } from 'drizzle-orm';
 import { admin } from './admin.ts';
 import { familySettings, house, kidAccount, telegramBot } from './db/schema.ts';
 import { asFamily } from './family.ts';
-import { kmsOn, openFor, sealFor, sealedNow } from './family-secret.ts';
+import { checkKms, kmsOn, openFor, sealFor, sealedNow } from './family-secret.ts';
 
 /**
  * With the KMS just on (#326): every family's secrets kept before it (secret-box.ts's), read and
- * kept again with the family's data key (family-secret.ts), at the server's start. Those already
+ * kept again with the family's data key (family-secret.ts), at the server's start, once Key
+ * Manager has been seen to wrap and unwrap a key made for that alone. Those already
  * kept with it are left as they are, so starting again does nothing more. One that cannot be read
  * stays as it was, said in the log. Never fails.
  */
 export async function migrateToKms() {
 	if (!kmsOn) return;
+	// First, that Key Manager answers as it should: else nothing is kept with it.
+	const problem = await checkKms();
+	if (problem) {
+		console.error(`[kms] Key Manager no funciona como debe, no se pasa nada: ${problem}`);
+		return;
+	}
+	console.info('[kms] Key Manager responde: envuelve y desenvuelve bien');
 	let moved = 0;
 	try {
 		for (const familyId of await admin.familyIds()) moved += await migrateFamily(familyId);
