@@ -18,6 +18,18 @@
 	};
 	const toneOf = (id: string) => TONES[id] ?? TONES.gb;
 	const plural = (n: number) => `${n} ${n === 1 ? 'juego' : 'juegos'}`;
+
+	/** What happened with RetroDECK's card: RetroDECK comes over this page once it opens. */
+	let status = $state<{ text: string; failed: boolean } | null>(null);
+
+	async function openRetrodeck() {
+		status = { text: 'Abriendo RetroDECK…', failed: false };
+		const res = await fetch('/api/juegos/retrodeck', { method: 'POST' }).catch(() => null);
+		if (!res?.ok) {
+			const text = res ? (await res.json().catch(() => null))?.message : 'Sin conexión';
+			status = { text: text ?? 'No se pudo abrir RetroDECK', failed: true };
+		}
+	}
 </script>
 
 <svelte:head>
@@ -71,7 +83,31 @@
 			</span>
 		</a>
 	{/each}
+	{#if data.retrodeck}
+		<!-- Not a console: RetroDECK's own menu on the PC with the screen, with all its games. -->
+		<button
+			type="button"
+			onclick={openRetrodeck}
+			class="group relative flex h-64 flex-col justify-between overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 p-8 text-left text-orange-300 shadow-lg transition duration-200 focus-visible:scale-105 focus-visible:border-white/30 focus-visible:shadow-2xl"
+		>
+			<span
+				class="absolute inset-0 bg-gradient-to-br from-orange-500/45 via-amber-600/25 to-transparent"
+				aria-hidden="true"
+			></span>
+			<SectionIcon name="juegos" class="relative h-20 w-20 drop-shadow-lg" />
+			<span class="relative">
+				<span class="block text-5xl font-bold text-white drop-shadow-lg">RetroDECK</span>
+				<span class="mt-1 block text-xl text-zinc-200">En el PC del salón</span>
+			</span>
+		</button>
+	{/if}
 </nav>
+
+{#if status}
+	<p class={['mt-8 text-2xl', status.failed ? 'text-red-300' : 'text-sky-300']} role="status">
+		{status.text}
+	</p>
+{/if}
 
 <!-- At the end, so the remote starts on the consoles. -->
 <div class="mt-16 flex justify-center">

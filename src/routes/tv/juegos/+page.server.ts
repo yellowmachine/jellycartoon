@@ -2,12 +2,16 @@ import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { allGames, systemCovers } from '#lib/server/games.ts';
 import { gamesRoot, steamRoot } from '#lib/server/library/paths.ts';
+import { retrodeckEnabled } from '#lib/server/retrodeck.ts';
 import { steamGames, steamPictureUrl } from '#lib/server/steam.ts';
 
 /** Tiles in each console's mosaic: 3 × 2, as in the TV view's cards. */
 const MOSAIC = 6;
 
-/** One card per console with games, and Steam's last; their games are on their own page. */
+/**
+ * One card per console with games, and Steam's last; their games are on their own page. Then
+ * RetroDECK's, which opens it on the PC with the screen.
+ */
 export const load: PageServerLoad = async () => {
 	if (!gamesRoot && !steamRoot) error(404, 'No hay carpeta de juegos (GAMES_DIR ni STEAM_DIR)');
 	const [systems, steam] = await Promise.all([gamesRoot ? allGames() : [], steamGames()]);
@@ -21,6 +25,7 @@ export const load: PageServerLoad = async () => {
 		}))
 	);
 	return {
+		retrodeck: await retrodeckEnabled(),
 		systems: steam.length
 			? [
 					...consoles,

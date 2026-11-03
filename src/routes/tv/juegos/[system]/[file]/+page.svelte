@@ -46,6 +46,8 @@
 
 {#if form && 'message' in form}
 	<p class="mb-8 rounded-lg bg-red-950 p-4 text-red-200">{form.message}</p>
+{:else if form && 'opened' in form}
+	<p class="mb-8 text-2xl text-sky-300" role="status">{form.opened}</p>
 {/if}
 
 <div class="mb-12 grid grid-cols-3 gap-12">
@@ -64,6 +66,16 @@
 				<span class="block text-xl text-zinc-400">{data.system}</span>
 			</span>
 		</a>
+		{#if data.retrodeck}
+			<!-- Instead of the browser: RetroDECK on the PC with the screen, with its own saves. -->
+			<form method="post" action="?/retrodeck" use:enhance class="mt-4">
+				<button
+					class="flex w-full items-center gap-5 rounded-2xl border-2 border-white/10 bg-zinc-900/90 px-6 py-4 text-left transition duration-150 focus-visible:scale-105 focus-visible:border-sky-300 focus-visible:bg-zinc-800"
+				>
+					<span class="block text-2xl font-semibold">Jugar en RetroDECK</span>
+				</button>
+			</form>
+		{/if}
 		{#if data.played.seconds >= 60 && data.played.last}
 			<p class="mt-4 text-xl text-zinc-300">
 				Has jugado {formatPlayed(data.played.seconds)} · la última vez, {when(data.played.last)}

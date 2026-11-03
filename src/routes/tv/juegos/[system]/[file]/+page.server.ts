@@ -17,6 +17,7 @@ import {
 import { savesOf } from '#lib/server/game-saves.ts';
 import { gameTotals } from '#lib/server/game-sessions.ts';
 import { log } from '#lib/server/log.ts';
+import { openInRetrodeck, retrodeckEnabled } from '#lib/server/retrodeck.ts';
 
 /** Only what the page shows. */
 const card = (row: GameRow) => ({
@@ -56,6 +57,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		saves: await savesOf(locals.user!.id, row.id),
 		/** How long the person has played it, and the last time. */
 		played: await gameTotals(locals.user!.id, row.id),
+		/** Whether it can also be played in RetroDECK, on the PC with the screen. */
+		retrodeck: await retrodeckEnabled(),
 		// Looked up the first time, while the page is already shown.
 		info: row.status
 			? card(row)
@@ -70,6 +73,26 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 };
 
 export const actions: Actions = {
+	/** In RetroDECK on the PC with the screen, instead of in the browser: it comes over this page. */
+	retrodeck: async ({ params }) => {
+		const { game } = await found(params);
+		if (!(await retrodeckEnabled()))
+			return fail(503, { message: 'Sin el servicio de RetroDECK (RETRODECK_SOCKET)' });
+		try {
+			await openInRetrodeck(game.system, game.file);
+		} catch (problem) {
+			log.warn('juegos', 'No se pudo abrir el juego en RetroDECK', {
+				system: game.system,
+				file: game.file,
+				error: problem
+			});
+			return fail(503, {
+				message: 'El PC del salón no abre RetroDECK: ¿está su servicio? (scripts/pantalla.sh)'
+			});
+		}
+		log.info('juegos', 'Juego abierto en RetroDECK', { system: game.system, file: game.file });
+		return { opened: `Abriendo «${game.title}» en RetroDECK…` };
+	},
 	/** One of its pictures as its background. */
 	backdrop: async ({ params, request }) => {
 		const { row } = await found(params);

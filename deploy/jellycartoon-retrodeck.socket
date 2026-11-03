@@ -1,0 +1,16 @@
+# Where JellyCartoon asks to open retro games in RetroDECK (the game's page in /tv → «Jugar en
+# RetroDECK», and the RetroDECK card in /tv/juegos): a systemd user socket on the PC with the screen
+# and RetroDECK; each connection starts jellycartoon-retrodeck@.service. See "RetroDECK" in the docs
+# (docs/src/content/docs/tecnica/casa/juegos.md).
+[Unit]
+Description=Juegos retro en RetroDECK para JellyCartoon
+
+[Socket]
+# @SOCKET@ is replaced on install: <HOST_DATA_DIR>/retrodeck.sock, which the app sees as
+# /data/retrodeck.sock.
+ListenStream=@SOCKET@
+Accept=yes
+SocketMode=0600
+
+[Install]
+WantedBy=sockets.target
