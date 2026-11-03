@@ -43,6 +43,12 @@ services:
       MIGRATE_DATABASE_URL: postgres://nube:${POSTGRES_PASSWORD}@nube-db:5432/nube
       ORIGIN: ${ORIGIN:?ORIGIN is required}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
+      # The KMS (#326): Scaleway's IAM application for Seilide and its Key Manager key. With the
+      # three, each family's secrets are kept with its own data key (family-secret.ts); empty, as before.
+      SCW_ACCESS_KEY: ${SCW_ACCESS_KEY:-}
+      SCW_SECRET_KEY: ${SCW_SECRET_KEY:-}
+      SCW_KMS_KEY_ID: ${SCW_KMS_KEY_ID:-}
+      SCW_DEFAULT_REGION: ${SCW_DEFAULT_REGION:-fr-par}
       # The families' days and times on the wall (the agenda, the alarms): one zone for now.
       TZ: ${TZ:-Europe/Madrid}
       # The first family and its administrator's invitation, made on starting (scripts/migrate.ts).
