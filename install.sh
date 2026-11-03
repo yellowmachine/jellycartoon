@@ -194,6 +194,15 @@ y vuelve a pegar el comando de instalar."
 		media=${media%/}
 	fi
 
+	# Retro games in /tv (#176), played in the browser of the device with the screen: the house only
+	# serves the ROMs, so a Raspberry is enough.
+	games=
+	say
+	if yes "¿Juegos retro en la Vista TV (NES, Super Nintendo, Game Boy, Mega Drive…)?" n; then
+		games=$(ask "Carpeta con las ROMs (una carpeta por consola)" "$dir/roms")
+		games=${games%/}
+	fi
+
 	say
 	data=$(ask "Carpeta para los datos de JellyCartoon y su base de datos" "$dir/data")
 	data=${data%/}
@@ -214,6 +223,12 @@ y vuelve a pegar el comando de instalar."
 
 	[ -z "$media" ] || mkdir -p "$media"
 	[ -z "$music" ] || mkdir -p "$music"
+	# One folder per system, as games.ts names them: the others are not listed.
+	if [ -n "$games" ]; then
+		for system in nes snes gb gbc gba mastersystem megadrive arcade; do
+			mkdir -p "$games/$system"
+		done
+	fi
 	mkdir -p "$data"
 	# Elsewhere than the default, the database too (in Docker's volume otherwise): on a Raspberry,
 	# on its disk rather than the SD card, which Postgres wears out (#378).
@@ -228,6 +243,7 @@ y vuelve a pegar el comando de instalar."
 		say "BETTER_AUTH_SECRET=\"$(secret)\""
 		[ -z "$media" ] || say "HOST_MEDIA_DIR=\"$media\""
 		[ -z "$music" ] || say "HOST_MUSIC_DIR=\"$music\""
+		[ -z "$games" ] || say "HOST_GAMES_DIR=\"$games\""
 		[ -z "$tag" ] || say "IMAGE_TAG=\"$tag\""
 		say "HOST_DATA_DIR=\"$data\""
 		[ -z "$db_dir" ] || say "HOST_DB_DIR=\"$db_dir\""
