@@ -24,9 +24,14 @@ quién entra: aunque alguien tenga cuenta en Seilide, si su correo no está ahí
 
    ```sh
    mkdir -p /srv/dozzle
-   docker run -it --rm amir20/dozzle:v11.3.5 generate admin --name "Miguel" --email tu@correo > /srv/dozzle/users.yml
+   read -rsp 'Contraseña para Dozzle: ' PW; echo
+   printf '%s\n' "$PW" | docker run -i --rm amir20/dozzle:v11.3.5 generate admin --name "Miguel" --email tu@correo > /srv/dozzle/users.yml
+   unset PW
    chmod 600 /srv/dozzle/users.yml
    ```
+
+   Sin `-t`: con él, Docker mezcla en la salida su «Password:», que acabaría dentro de `users.yml`
+   (y no se ve que espera la contraseña).
 
 4. **En Dokploy**, un proyecto nuevo → **Compose** → proveedor **GitHub**: repositorio
    `yellowmachine/jellycartoon`, rama `main`, **Compose Path** `./deploy/dozzle/compose.yaml`. Si
