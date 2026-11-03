@@ -21,7 +21,8 @@ COPY satellite/package.json ./
 COPY --from=build /app/satellite/node_modules ./node_modules
 COPY --from=build /app/satellite/dist/main.js ./
 COPY static/wakeword/melspectrogram.onnx static/wakeword/embedding_model.onnx static/wakeword/hola_casita.onnx \
-	static/wakeword/alexa.onnx static/wakeword/okapi.onnx static/wakeword/silero_vad.onnx ./models/
+	static/wakeword/alexa.onnx static/wakeword/okapi.onnx static/wakeword/ocarina.onnx \
+	static/wakeword/silero_vad.onnx ./models/
 RUN mkdir -p /data && chown node:node /data
 USER node
 CMD ["node", "main.js"]

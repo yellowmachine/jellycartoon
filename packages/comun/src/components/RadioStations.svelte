@@ -6,6 +6,7 @@
 		COUNTRIES,
 		LANGUAGES,
 		STATIONS,
+		type Headline,
 		type RadioStation,
 		type RadioStationInfo
 	} from '../radio.ts';
@@ -13,17 +14,52 @@
 	/**
 	 * The stations (#58), the same in the house and in the cloud (#253): each one played here, or in
 	 * the whole house (`snapcast`, at home, with its `switcher`). `info`, how each did in Radio
-	 * Browser's last check; null, it could not be asked.
+	 * Browser's last check; null, it could not be asked. `headlines`, where the playing station's
+	 * headlines are asked for (#387, Seilide's `/radio/titulares`): without it, none are shown.
 	 */
 	let {
 		info,
 		snapcast = false,
-		switcher
+		switcher,
+		headlines
 	}: {
 		info: Record<string, RadioStationInfo> | null;
 		snapcast?: boolean;
 		switcher?: Snippet;
+		headlines?: string;
 	} = $props();
+
+	/** The station playing, if it has its broadcaster's feed. */
+	const withNews = $derived(
+		headlines ? STATIONS.find((s) => s.uuid === music.radio?.uuid && s.feed) : undefined
+	);
+	let news = $state<{ uuid: string; list: Headline[] } | null>(null);
+	let newsFailed = $state(false);
+
+	// Asked again for each station that starts; the server keeps them a while.
+	$effect(() => {
+		const station = withNews;
+		if (!station || !headlines) return;
+		const controller = new AbortController();
+		newsFailed = false;
+		fetch(`${headlines}/${station.uuid}`, { signal: controller.signal })
+			.then((res) => (res.ok ? (res.json() as Promise<Headline[]>) : Promise.reject(res.status)))
+			.then((list) => (news = { uuid: station.uuid, list }))
+			.catch(() => {
+				if (!controller.signal.aborted) newsFailed = true;
+			});
+		return () => controller.abort();
+	});
+
+	/** «hace 5 min», «hace 3 h», or the day. */
+	function ago(at: string | null) {
+		if (!at) return '';
+		const minutes = Math.round((Date.now() - Date.parse(at)) / 60_000);
+		if (minutes < 1) return 'ahora';
+		if (minutes < 60) return `hace ${minutes} min`;
+		if (minutes < 24 * 60) return `hace ${Math.round(minutes / 60)} h`;
+		return new Date(at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+	}
 
 	let loading = $state<string | null>(null);
 
@@ -50,6 +86,34 @@
 	<div class="mb-6">{@render switcher()}</div>
 {:else if musicTarget.error}
 	<p class="mb-4 text-sm text-red-400">{musicTarget.error}</p>
+{/if}
+
+{#if withNews}
+	<!-- The playing station's headlines (#387): each one on its broadcaster's site. -->
+	<section class="mb-8 rounded-md border border-zinc-800 p-4" aria-live="polite">
+		<h2 class="mb-3 font-semibold">Titulares de {withNews.name}</h2>
+		{#if news?.uuid === withNews.uuid && news.list.length}
+			<ul class="flex flex-col gap-2">
+				{#each news.list as h (h.link)}
+					<li>
+						<a
+							href={h.link}
+							target="_blank"
+							rel="noreferrer"
+							class="group flex items-baseline gap-3"
+						>
+							<span class="min-w-0 flex-1 group-hover:underline">{h.title}</span>
+							<span class="shrink-0 text-xs text-zinc-500">{ago(h.at)}</span>
+						</a>
+					</li>
+				{/each}
+			</ul>
+		{:else if newsFailed || news?.uuid === withNews.uuid}
+			<p class="text-sm text-zinc-400">Ahora mismo no se pueden traer sus titulares.</p>
+		{:else}
+			<p class="text-sm text-zinc-400">Trayendo sus titulares…</p>
+		{/if}
+	</section>
 {/if}
 
 {#each LANGUAGES as language (language.code)}

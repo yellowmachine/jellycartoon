@@ -4,8 +4,15 @@
  * own, trained by them with much more data than the community's «hola casita» (LEEME.md): tried as
  * the house's, with the Echo off (2026-10-27). «Okapi», ours (trained in ../wakeup, 2026-11-02), the
  * same in English and Spanish and without «Alexa»'s non-commercial licence: tried with our voices.
+ * «Ocarina», ours too (2026-11-03, 100.000 examples): over «Okapi» in ../wakeup's comparison
+ * with music, to be tried with our voices and with «cocina» said around.
  */
-export const WAKE_WORDS = { hola_casita: 'hola casita', alexa: 'Alexa', okapi: 'Okapi' } as const;
+export const WAKE_WORDS = {
+	hola_casita: 'hola casita',
+	alexa: 'Alexa',
+	okapi: 'Okapi',
+	ocarina: 'Ocarina'
+} as const;
 
 export type WakeWordModel = keyof typeof WAKE_WORDS;
 

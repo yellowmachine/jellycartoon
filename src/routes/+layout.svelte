@@ -22,11 +22,22 @@
 	import { page, updated } from '$app/state';
 	import { themeColor, themeCss } from 'comun/themes.ts';
 	import { avatar } from 'comun/avatars.ts';
-	import { backKey } from 'comun/back.ts';
+	import { backKey, goBack } from 'comun/back.ts';
+	import { MediaQuery } from 'svelte/reactivity';
 	import { onMount, untrack } from 'svelte';
 	import type { LayoutProps } from './$types';
 
 	let { children, data }: LayoutProps = $props();
+
+	/**
+	 * Without the browser's buttons (installed, «standalone» in the manifest, or full screen), and an
+	 * iPhone without its back gesture: an arrow before the name, out of the home page, as Seilide's.
+	 */
+	const noBrowserBar = new MediaQuery(
+		'(display-mode: standalone), (display-mode: fullscreen)',
+		false
+	);
+	const backShown = $derived(noBrowserBar.current && page.url.pathname !== '/');
 
 	/** The AI's credit banner: «Ya he recargado», and the page again without it. */
 	let recharging = $state(false);
@@ -275,6 +286,7 @@
 		{#if data.user}
 			<SiteNav
 				bind:headerHeight
+				brandOnPhone={!backShown}
 				brand={{ href: '/', title: 'JellyCartoon', image: favicon }}
 				{links}
 				{menuLinks}
@@ -283,6 +295,28 @@
 				canLeave={!data.kid}
 				account={data.kid ? kidAccount : undefined}
 			>
+				{#snippet start()}
+					{#if backShown}
+						<button
+							type="button"
+							title="Atrás"
+							aria-label="Atrás"
+							class="-mr-4 -ml-2 shrink-0 rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+							onclick={() => goBack(() => void goto('/'))}
+						>
+							<svg viewBox="0 0 24 24" class="h-6 w-6" aria-hidden="true">
+								<path
+									d="M15 5l-7 7 7 7"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2.5"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+								/>
+							</svg>
+						</button>
+					{/if}
+				{/snippet}
 				{#snippet leading()}
 					{#if data.voice}
 						<a

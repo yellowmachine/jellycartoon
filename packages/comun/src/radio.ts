@@ -17,6 +17,19 @@ export interface RadioStation {
 	/** Talk (news, culture) is the best for the ear; music, for a while. */
 	kind: 'talk' | 'music';
 	description: string;
+	/**
+	 * Its broadcaster's own news feed (RSS or Atom, #387), for its headlines while it plays: found on
+	 * its site and checked by hand (2026-11-03). None, none shown.
+	 */
+	feed?: string;
+}
+
+/** A headline of a station's feed (#387): opened on the broadcaster's site. */
+export interface Headline {
+	title: string;
+	link: string;
+	/** When it was published, ISO; null if the feed does not say. */
+	at: string | null;
 }
 
 /** Spoken ones first in each language. */
@@ -27,7 +40,8 @@ export const STATIONS: RadioStation[] = [
 		language: 'en',
 		country: 'GB',
 		kind: 'talk',
-		description: 'Noticias y reportajes de todo el mundo'
+		description: 'Noticias y reportajes de todo el mundo',
+		feed: 'https://feeds.bbci.co.uk/news/world/rss.xml'
 	},
 	{
 		uuid: '98137c2d-ce68-4e33-8cb7-ddf3692ecc9d',
@@ -35,7 +49,8 @@ export const STATIONS: RadioStation[] = [
 		language: 'en',
 		country: 'GB',
 		kind: 'talk',
-		description: 'Noticias, documentales, teatro y humor'
+		description: 'Noticias, documentales, teatro y humor',
+		feed: 'https://feeds.bbci.co.uk/news/rss.xml'
 	},
 	{
 		uuid: '7ba4c184-fc2b-11e9-bbf2-52543be04c81',
@@ -43,7 +58,8 @@ export const STATIONS: RadioStation[] = [
 		language: 'en',
 		country: 'US',
 		kind: 'talk',
-		description: 'La radio pública de Estados Unidos'
+		description: 'La radio pública de Estados Unidos',
+		feed: 'https://feeds.npr.org/1001/rss.xml'
 	},
 	{
 		uuid: '535d3971-0a8f-4ccd-9dbe-2444bc7d339b',
@@ -51,7 +67,9 @@ export const STATIONS: RadioStation[] = [
 		language: 'en',
 		country: 'US',
 		kind: 'talk',
-		description: 'Radio pública de Nueva York'
+		description: 'Radio pública de Nueva York',
+		// Its newsroom, New York Public Radio's: WNYC's site has no feed of its own.
+		feed: 'https://gothamist.com/feed'
 	},
 	{
 		uuid: '3606ef8c-cd58-4440-8c47-dbf1e0cacdac',
@@ -67,7 +85,8 @@ export const STATIONS: RadioStation[] = [
 		language: 'fr',
 		country: 'FR',
 		kind: 'talk',
-		description: 'Actualidad, entrevistas y magacines'
+		description: 'Actualidad, entrevistas y magacines',
+		feed: 'https://www.radiofrance.fr/franceinter/rss'
 	},
 	{
 		uuid: '5515db8e-8d5e-4f11-a923-f41fef8b7032',
@@ -75,7 +94,8 @@ export const STATIONS: RadioStation[] = [
 		language: 'fr',
 		country: 'FR',
 		kind: 'talk',
-		description: 'Cultura, historia, ciencia y debates'
+		description: 'Cultura, historia, ciencia y debates',
+		feed: 'https://www.radiofrance.fr/franceculture/rss'
 	},
 	{
 		uuid: '0e9765da-71c6-41b5-b358-dddab24e302b',
@@ -83,7 +103,8 @@ export const STATIONS: RadioStation[] = [
 		language: 'fr',
 		country: 'FR',
 		kind: 'talk',
-		description: 'Noticias las 24 horas'
+		description: 'Noticias las 24 horas',
+		feed: 'https://www.francetvinfo.fr/titres.rss'
 	},
 	{
 		uuid: 'cbca0f46-ced9-4154-8157-c87039765207',
@@ -91,7 +112,8 @@ export const STATIONS: RadioStation[] = [
 		language: 'fr',
 		country: 'FR',
 		kind: 'talk',
-		description: 'Radio France Internationale: noticias del mundo'
+		description: 'Radio France Internationale: noticias del mundo',
+		feed: 'https://www.rfi.fr/fr/rss'
 	},
 	{
 		uuid: '7b6aca3d-dfa3-47dd-9f57-820b04c3f339',
@@ -107,7 +129,8 @@ export const STATIONS: RadioStation[] = [
 		language: 'it',
 		country: 'IT',
 		kind: 'talk',
-		description: 'Noticias, deporte y actualidad'
+		description: 'Noticias, deporte y actualidad',
+		feed: 'https://www.rainews.it/rss/tutti'
 	},
 	{
 		uuid: '9608eb3e-0601-11e8-ae97-52543be04c81',
@@ -147,7 +170,8 @@ export const STATIONS: RadioStation[] = [
 		language: 'es',
 		country: 'ES',
 		kind: 'talk',
-		description: 'Actualidad y tertulias'
+		description: 'Actualidad y tertulias',
+		feed: 'https://cadenaser.com/arc/outboundfeeds/rss/?outputType=xml'
 	},
 	{
 		// «Cope Madrid FM» in Radio Browser, but its stream is the national one (net1).
@@ -156,7 +180,8 @@ export const STATIONS: RadioStation[] = [
 		language: 'es',
 		country: 'ES',
 		kind: 'talk',
-		description: 'Actualidad, tertulias y deporte'
+		description: 'Actualidad, tertulias y deporte',
+		feed: 'https://www.cope.es/api/es/news/rss.xml'
 	},
 	{
 		// «Onda Cero Madrid» in Radio Browser: the national stream, and the entry with a logo.
@@ -165,7 +190,8 @@ export const STATIONS: RadioStation[] = [
 		language: 'es',
 		country: 'ES',
 		kind: 'talk',
-		description: 'Actualidad, tertulias y magacines'
+		description: 'Actualidad, tertulias y magacines',
+		feed: 'https://www.ondacero.es/rss/8145.xml'
 	},
 	{
 		// The entry with an https stream: the page is served over https.
@@ -174,7 +200,8 @@ export const STATIONS: RadioStation[] = [
 		language: 'es',
 		country: 'ES',
 		kind: 'talk',
-		description: 'Actualidad y tertulias'
+		description: 'Actualidad y tertulias',
+		feed: 'https://esradio.libertaddigital.com/rss.xml'
 	},
 	{
 		uuid: 'd8b6ba19-f431-471e-9598-94f42af0d3ac',
