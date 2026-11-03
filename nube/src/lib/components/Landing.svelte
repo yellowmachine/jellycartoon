@@ -31,8 +31,8 @@
 		},
 		{
 			icon: 'gastos',
-			title: 'Gastos',
-			text: 'Haz una foto al ticket y se apunta solo, con los gastos fijos de cada mes.'
+			title: 'Dinero',
+			text: 'Haz una foto al ticket y se apunta solo, con los gastos fijos de cada mes y lo que entra, con su factura.'
 		},
 		{
 			icon: 'viajes',

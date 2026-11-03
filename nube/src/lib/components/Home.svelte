@@ -552,7 +552,7 @@
 			/>
 		</label>
 	{:else}
-		<a href="/gastos" class={quick}><SectionIcon name="gastos" class={icon} />Gastos</a>
+		<a href="/gastos" class={quick}><SectionIcon name="gastos" class={icon} />Dinero</a>
 	{/if}
 	<a href="/carretera" class={quick}><SectionIcon name="viajes" class={icon} />Carretera</a>
 	<a href="/voz?cocina" class={quick}><SectionIcon name="recetas" class={icon} />Modo cocina</a>

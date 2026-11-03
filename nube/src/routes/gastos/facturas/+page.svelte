@@ -77,7 +77,7 @@
 </svelte:head>
 
 <div class="mx-auto max-w-3xl">
-	<h1 class="mb-3 text-2xl font-bold">Gastos</h1>
+	<h1 class="mb-3 text-2xl font-bold">Dinero</h1>
 	<ExpenseTabs current="facturas" />
 
 	{#if data.kinds.length > 1}

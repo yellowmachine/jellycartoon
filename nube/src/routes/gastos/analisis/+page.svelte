@@ -41,7 +41,7 @@
 </svelte:head>
 
 <div class="mx-auto max-w-3xl">
-	<h1 class="mb-3 text-2xl font-bold">Gastos</h1>
+	<h1 class="mb-3 text-2xl font-bold">Dinero</h1>
 	<ExpenseTabs current="analisis" />
 
 	<div class="mb-6 flex flex-wrap items-center gap-2">

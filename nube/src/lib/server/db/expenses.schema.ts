@@ -90,6 +90,33 @@ export const expense = pgTable(
 	]
 ).enableRLS();
 
+/**
+ * What came in (#384), in Dinero beside the expenses: a harvest sold, a refund, a payslip. In
+ * cents. Its invoice, a photo or a PDF, kept in the family's storage (storage.ts, `ingresos`).
+ */
+export const income = pgTable(
+	'income',
+	{
+		id: serial('id').primaryKey(),
+		familyId: familyId(),
+		date: date('date').notNull(),
+		/** What it was: «Cosecha de almendra». */
+		concept: text('concept').notNull(),
+		/** One of INCOME_CATEGORIES (comun/income.ts). */
+		category: text('category').notNull(),
+		amount: integer('amount').notNull(),
+		/** Who wrote it down; null if their account is gone. */
+		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+		/** Its invoice's name in the family's storage; null, none. */
+		document: text('document'),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [
+		index('income_family_date_idx').on(t.familyId, t.date),
+		familyRows('income_own', t.familyId)
+	]
+).enableRLS();
+
 /** A receipt's lines, as read from it and corrected. */
 export const expenseLine = pgTable(
 	'expense_line',

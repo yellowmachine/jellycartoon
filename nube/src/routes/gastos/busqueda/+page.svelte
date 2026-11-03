@@ -31,11 +31,11 @@
 </script>
 
 <svelte:head>
-	<title>Búsqueda · Gastos · Seilide</title>
+	<title>Búsqueda · Dinero · Seilide</title>
 </svelte:head>
 
 <div class="mx-auto max-w-3xl">
-	<h1 class="mb-3 text-2xl font-bold">Gastos</h1>
+	<h1 class="mb-3 text-2xl font-bold">Dinero</h1>
 	<ExpenseTabs current="busqueda" />
 
 	<form method="get" class="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
