@@ -31,6 +31,35 @@
 	}
 	let draft = $state<Draft | null>(null);
 	let problem = $state<string | null>(null);
+	/** The invoice chosen in the form, to read it before saving. */
+	let chosen = $state<File | null>(null);
+	let reading = $state(false);
+
+	/**
+	 * What the invoice says, by the AI (/gastos/ingresos/leer), into the form: what it could read,
+	 * over what was there. Nothing is saved: the form sends the file with the income.
+	 */
+	async function readInvoice() {
+		if (!chosen || !draft) return;
+		reading = true;
+		problem = null;
+		const body = new FormData();
+		body.set('factura', chosen);
+		const res = await fetch('/gastos/ingresos/leer', { method: 'POST', body }).catch(() => null);
+		reading = false;
+		if (!res?.ok) {
+			problem = (await res?.json().catch(() => null))?.message ?? 'No se pudo leer la factura';
+			return;
+		}
+		const read: { date?: string; concept?: string; category?: IncomeCategory; amount?: number } =
+			await res.json();
+		if (!draft) return;
+		if (read.concept) draft.concept = read.concept;
+		if (read.category) draft.category = read.category;
+		if (read.amount) draft.amount = typed(read.amount);
+		if (read.date) draft.date = read.date;
+	}
+
 	/** The one asked «¿Borrar?» about. */
 	let deleting = $state<number | null>(null);
 
@@ -38,6 +67,7 @@
 
 	function newOne() {
 		problem = null;
+		chosen = null;
 		// In the month being looked at: its last day if it is not this one.
 		const date = data.month === data.current ? data.today : `${data.month}-${lastDay(data.month)}`;
 		draft = { id: null, date, concept: '', category: 'Otros', amount: '', hasDocument: false };
@@ -45,6 +75,7 @@
 
 	function edit(i: Income) {
 		problem = null;
+		chosen = null;
 		draft = {
 			id: i.id,
 			date: i.date,
@@ -81,7 +112,8 @@
 	<ExpenseTabs current="ingresos" />
 	<p class="mb-4 text-sm text-zinc-400">
 		Lo que entra en casa: una cosecha vendida, una devolución, una nómina… Cada uno con su factura,
-		si la hay, en foto o en PDF.
+		si la hay, en foto o en PDF, que la IA puede leer. También por voz: «apunta un ingreso de 800
+		euros de la cosecha».
 	</p>
 
 	<nav class="mb-4 flex items-center justify-between gap-2">
@@ -187,8 +219,18 @@
 					type="file"
 					accept="application/pdf,image/jpeg,image/png,image/webp"
 					class="text-sm text-zinc-300 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-zinc-100"
+					onchange={(e) => (chosen = e.currentTarget.files?.[0] ?? null)}
 				/>
 			</label>
+			{#if chosen && data.canRead}
+				<button
+					type="button"
+					class="{button} bg-zinc-800 hover:bg-zinc-700"
+					disabled={reading}
+					onclick={readInvoice}>{reading ? 'Leyendo…' : '✨ Leer la factura'}</button
+				>
+				<span class="text-xs text-zinc-500">Rellena lo de arriba con lo que pone: revísalo.</span>
+			{/if}
 			{#if draft.hasDocument}
 				<label class="flex items-center gap-2 text-xs text-zinc-400">
 					<input type="checkbox" name="quitarFactura" class="rounded" /> Quitar la factura

@@ -4,6 +4,7 @@ import { addMonths, monthOf, parseEuros } from 'comun/expenses.ts';
 import { parseIncomeInput } from 'comun/income.ts';
 import { kitchenOf, today } from '#lib/server/fridge.ts';
 import { monthTotal } from '#lib/server/expenses/expenses.ts';
+import { canReadReceipts } from '#lib/server/expenses/receipt.ts';
 import {
 	addIncome,
 	deleteIncome,
@@ -23,8 +24,20 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const asked = url.searchParams.get('mes');
 	const month =
 		asked && /^\d{4}-(0[1-9]|1[0-2])$/.test(asked) && asked <= current ? asked : current;
-	const [incomes, spent] = await Promise.all([monthIncome(k, month), monthTotal(k, month)]);
-	return { month, current, incomes, spent, today: today(), previousMonth: addMonths(month, -1) };
+	const [incomes, spent, canRead] = await Promise.all([
+		monthIncome(k, month),
+		monthTotal(k, month),
+		canReadReceipts(k)
+	]);
+	return {
+		month,
+		current,
+		incomes,
+		spent,
+		canRead,
+		today: today(),
+		previousMonth: addMonths(month, -1)
+	};
 };
 
 /** Its invoice as sent, if any; or why not. */

@@ -7,6 +7,7 @@ import { isPoiKind, POI_KINDS, type FoundPlace } from 'comun/road/pois.ts';
 import { AHEAD_UP_TO_METRES } from 'comun/road-guide.ts';
 import { MAX_SNOOZE_MIN, SNOOZE_MIN, isAlarmPlace, type AlarmPlace } from 'comun/alarms.ts';
 import { EXPENSE_CATEGORIES, euros, isCategory, type ExpenseLine } from 'comun/expenses.ts';
+import { INCOME_CATEGORIES, isIncomeCategory, parseIncomeInput } from 'comun/income.ts';
 import { isUntilWord, UNTIL_WORDS, untilDay, untilText } from 'comun/fridge.ts';
 import { fold } from 'comun/music.ts';
 import {
@@ -34,6 +35,7 @@ import {
 	type Kitchen
 } from '#lib/server/fridge.ts';
 import { addExpense, favoriteExpenses } from '#lib/server/expenses/expenses.ts';
+import { addIncome } from '#lib/server/expenses/income.ts';
 import { getRecipe, importRecipe, listRecipes } from '#lib/server/recipes/import.ts';
 import {
 	isFavouritePage,
@@ -485,6 +487,24 @@ function tools(house: boolean, rooms: Room[], salon: boolean, clipMinutes: numbe
 				}
 			},
 			[]
+		),
+		fn(
+			'add_income',
+			'Apunta un ingreso en Dinero (#384), lo que entra en casa, que ven todos los adultos. «Apunta un ingreso de 800 euros de la cosecha», «hoy me han pagado 1.200 de la nómina», «Hacienda me ha devuelto 230 euros». No es un gasto: lo que se cobra, no lo que se paga.',
+			{
+				amount: { type: 'number', description: 'Lo cobrado, en euros: 800.' },
+				what: {
+					type: 'string',
+					description:
+						'Qué fue, corto y con mayúscula, como se apuntaría: «Cosecha», «Nómina», «Devolución de Hacienda».'
+				},
+				category: {
+					type: 'string',
+					enum: [...INCOME_CATEGORIES],
+					description: 'La categoría que mejor le va.'
+				}
+			},
+			['amount', 'what']
 		),
 		fn(
 			'add_event',
@@ -1570,6 +1590,21 @@ async function runTool(
 			if (total === null) return `Falta cuánto, en euros: «${what}» no tiene importe guardado.`;
 			await addExpense(ctx.k, { date: today(), store: what, category, total, lines }, 'voz');
 			return `Apuntado en Gastos: ${what}, ${euros(total)} (${category}).`;
+		}
+		case 'add_income': {
+			if (kid) return 'El dinero es cosa de los mayores.';
+			const amount = Number(args.amount);
+			if (!Number.isFinite(amount) || amount <= 0 || amount >= 1_000_000)
+				return 'Importe no válido, en euros.';
+			const input = parseIncomeInput({
+				date: today(),
+				concept: typeof args.what === 'string' ? args.what : '',
+				category: isIncomeCategory(args.category) ? args.category : 'Otros',
+				amount: Math.round(amount * 100)
+			});
+			if (!input) return 'Falta qué fue.';
+			await addIncome(ctx.k, input, null);
+			return `Apuntado en Dinero, en ingresos: ${input.concept}, ${euros(input.amount)} (${input.category}). La factura se añade en Dinero → Ingresos.`;
 		}
 		case 'add_event':
 			if (kid) return 'La agenda la apuntan los mayores.';
