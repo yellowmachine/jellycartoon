@@ -25,7 +25,7 @@ mock.module('#lib/server/watching-together.ts', () => ({
 
 const { addWatchTime } = await import('./watch-time.ts');
 const { watchingElsewhere } = await import('./live-watching.ts');
-const { lowestAskEvery } = await import('./still-there.ts');
+const { shortestAskAfter } = await import('./still-there.ts');
 
 const seconds = (userId: string) =>
 	inserted.filter((i) => i.userId === userId).reduce((sum, i) => sum + i.seconds, 0);
@@ -56,8 +56,8 @@ describe('watching together (#160)', () => {
 		expect([...busy]).toEqual(['lucia']);
 	});
 
-	test('«¿Sigues ahí?»: the lowest of the group; never, only if never for all', () => {
-		expect(lowestAskEvery([3, null, 2])).toBe(2);
-		expect(lowestAskEvery([null, null])).toBeNull();
+	test('«¿Sigues ahí?»: the shortest time of the group; never, only if never for all', () => {
+		expect(shortestAskAfter([90, null, 60])).toBe(60);
+		expect(shortestAskAfter([null, null])).toBeNull();
 	});
 });

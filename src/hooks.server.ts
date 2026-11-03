@@ -27,7 +27,7 @@ import { wakeExtras } from '#lib/server/cinema/info.ts';
 import { wakeMusicCatalog } from '#lib/server/music/catalog.ts';
 import { startAlarms } from '#lib/server/alarms/alarms.ts';
 import { startTelegram } from '#lib/server/telegram/telegram.ts';
-import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
+import { cinemaRoot, musicRoot, videoEnabled } from '#lib/server/library/paths.ts';
 import { log, startLogCleanup } from '#lib/server/log.ts';
 
 export const init: ServerInit = async () => {
@@ -39,11 +39,14 @@ export const init: ServerInit = async () => {
 	if (cinemaRoot) void wakeExtras();
 	// Tracks whose tags were not read yet, and covers not looked up.
 	if (musicRoot) wakeMusicCatalog();
-	await startWorker();
-	// Subtitles left waiting, or half made, by a restart.
-	await startSubtitles();
-	// Episodes left waiting to be labelled, or half done, by a restart.
-	await startLabelling();
+	// Without video (#378), no conversions, subtitles nor labels.
+	if (videoEnabled) {
+		await startWorker();
+		// Subtitles left waiting, or half made, by a restart.
+		await startSubtitles();
+		// Episodes left waiting to be labelled, or half done, by a restart.
+		await startLabelling();
+	}
 	// Every night, what was added to the folders: converted and subtitled by the morning.
 	startNightlyScan();
 	// New episodes of the followed podcasts, every few hours.

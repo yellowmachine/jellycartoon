@@ -21,7 +21,7 @@
 	const salon = watchSalon();
 
 	/**
-	 * The remote's keys that Chromium does not get as they are, remapped by udev (the README's
+	 * The remote's keys that Chromium does not get as they are, remapped by udev (the docs'
 	 * «Mando del salón»): F7 its Home, F8 its Play/Pause, F9 its microphone. Its OK is Enter and its
 	 * Back the browser's, which need nothing here.
 	 */

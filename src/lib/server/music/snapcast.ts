@@ -11,7 +11,8 @@ import { log } from '#lib/server/log.ts';
 import { getVoiceLevels } from '#lib/server/voice/levels.ts';
 import { MpvClient, StateBroadcast, type MpvMessage } from '#lib/server/mpv-client.ts';
 import { saveProgress } from '#lib/server/progress.ts';
-import { askEvery } from '#lib/server/still-there.ts';
+import { askAfter } from '#lib/server/still-there.ts';
+import { longUnattended } from '#lib/still-there.ts';
 import { addWatchTime } from '#lib/server/watch-time.ts';
 import type {
 	MusicTrack,
@@ -384,19 +385,19 @@ async function save(listening: Listening, reachedEnd: boolean) {
 }
 
 /**
- * «¿Sigues ahí?» (#77) on Snapcast: episodes started by themselves since anyone touched anything.
- * Nobody can answer on a speaker, so at the user's number of them it stops instead of asking: for
- * falling asleep listening.
+ * «¿Sigues ahí?» (#77) on Snapcast: when anyone last touched anything. Nobody can answer on a
+ * speaker, so when an episode starts by itself after the user's time with nobody touching
+ * anything, it stops instead of asking: for falling asleep listening.
  */
-let unattended = 0;
+let touchedAt = Date.now();
 
 async function startedByItself(entryId: number) {
 	const entry = entries.get(entryId);
 	if (!entry || !('listening' in entry) || entry.listening.chosen) return;
-	unattended++;
-	const every = await askEvery(entry.listening.userId).catch(() => null);
-	if (!every || unattended < every || current !== entryId) return;
-	log.info('música', `Snapcast se para tras ${unattended} capítulos seguidos`, {
+	const after = await askAfter(entry.listening.userId).catch(() => null);
+	if (!longUnattended(touchedAt, after) || current !== entryId) return;
+	const minutes = Math.round((Date.now() - touchedAt) / 60_000);
+	log.info('música', `Snapcast se para tras ${minutes} min sin tocar nada`, {
 		userId: entry.listening.userId
 	});
 	// Not heard: its progress stays as it was.
@@ -414,7 +415,7 @@ export async function listenOnSnapcast(
 ) {
 	if (!items.length) return;
 	entries.clear();
-	unattended = 0;
+	touchedAt = Date.now();
 	await mpv.command(['set_property', 'shuffle', false]);
 	await setLoops(false, false);
 	for (const [i, item] of items.entries()) {
@@ -438,7 +439,7 @@ export async function listenOnSnapcast(
 export async function remoteOnSnapcast(tracks: { track: MusicTrack; path: string }[]) {
 	if (!tracks.length) return;
 	entries.clear();
-	unattended = 0;
+	touchedAt = Date.now();
 	await mpv.command(['set_property', 'shuffle', false]);
 	await setLoops(false, false);
 	for (const [i, t] of tracks.entries())
@@ -483,7 +484,7 @@ export async function controlSnapcast(
 	>
 ) {
 	// Someone is there: «¿Sigues ahí?» counts again.
-	unattended = 0;
+	touchedAt = Date.now();
 	switch (action.action) {
 		case 'pause':
 			// A station connects again: back to live, not to where it was paused.

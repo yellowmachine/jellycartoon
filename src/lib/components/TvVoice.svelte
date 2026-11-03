@@ -4,7 +4,7 @@
 	import { voice } from '#lib/voice-client.svelte.ts';
 
 	/**
-	 * Voice in the TV view (#33): the remote's microphone key (F9, remapped by udev, see the README)
+	 * Voice in the TV view (#33): the remote's microphone key (F9, remapped by udev, see «Mando del salón» in the docs)
 	 * starts and sends, and here, big, what it heard and what the AI answered. A question's options
 	 * get the remote's focus. It goes away by itself, as the header's bubble does.
 	 *

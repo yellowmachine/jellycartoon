@@ -459,10 +459,10 @@ export const kidSettings = pgTable('kid_settings', {
 	/** «No, hasta mañana»: off until this day (server time zone, like `playlist.day`). */
 	videoOffUntil: date('video_off_until'),
 	/**
-	 * «¿Sigues ahí?» (#77): asked after this many episodes started by themselves, with nobody
-	 * touching anything; null, never.
+	 * «¿Sigues ahí?» (#77): asked as the next episode starts by itself, once nobody has touched
+	 * anything for these minutes; null, never.
 	 */
-	askEvery: integer('ask_every').default(3)
+	askAfterMin: integer('ask_after_min').default(90)
 });
 
 /** `ambiguous`: several films could be it, the user chooses (`candidates`). */
@@ -702,10 +702,11 @@ export const userSettings = pgTable('user_settings', {
 	/** When an episode ends, the next one starts (the series' or the playlist's). */
 	autoNext: boolean('auto_next').notNull().default(true),
 	/**
-	 * «¿Sigues ahí?» (#77) for an adult, for who falls asleep with the series: after this many episodes
-	 * started by themselves with nobody touching anything; null, never. A child's is in kid_settings.
+	 * «¿Sigues ahí?» (#77) for an adult, for who falls asleep with the series: as the next episode
+	 * starts by itself, once nobody has touched anything for these minutes; null, never. A child's
+	 * is in kid_settings.
 	 */
-	askEvery: integer('ask_every'),
+	askAfterMin: integer('ask_after_min'),
 	/** Films in the living room start with the Cine Club intro (DATA_DIR/cortinilla.mp4), if present. */
 	intro: boolean('intro').notNull().default(true),
 	/** The app's colours (themes.ts); unknown ones are the default. */

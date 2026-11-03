@@ -26,8 +26,8 @@ import { today } from '#lib/server/playlist.ts';
 import { continueWatching } from '#lib/server/watching.ts';
 import { CHANNELS } from 'comun/channels.ts';
 import { stoppedLately, watchingNow } from '#lib/server/live-watching.ts';
-import { askEvery } from '#lib/server/still-there.ts';
-import { ASK_EVERY_OPTIONS } from '#lib/still-there.ts';
+import { askAfter } from '#lib/server/still-there.ts';
+import { ASK_AFTER_OPTIONS } from '#lib/still-there.ts';
 
 /** Days in the chart, today included. */
 const DAYS = 7;
@@ -214,8 +214,8 @@ async function stats(userId: string, from: string) {
 			.sort((a, b) => b.at.getTime() - a.at.getTime())
 			.slice(0, 10),
 		lastActivity,
-		/** «¿Sigues ahí?» after this many episodes in a row (#77); null, never. */
-		askEvery: await askEvery(userId)
+		/** «¿Sigues ahí?» after these minutes with nobody touching anything (#77); null, never. */
+		askAfter: await askAfter(userId)
 	};
 }
 
@@ -233,22 +233,22 @@ export const actions: Actions = {
 		log.info('infantil', 'Acceso al vídeo cambiado', { userId, access });
 		return { userId, access };
 	},
-	/** «¿Sigues ahí?» (#77): after how many episodes in a row by themselves; empty, never. */
-	askEvery: async ({ request }) => {
+	/** «¿Sigues ahí?» (#77): after how many minutes with nobody touching anything; empty, never. */
+	askAfter: async ({ request }) => {
 		const form = await request.formData();
 		const userId = String(form.get('userId') ?? '');
 		if (!(await isKidAccount(userId)))
 			return fail(400, { userId, message: 'No es una cuenta infantil' });
-		const value = String(form.get('askEvery') ?? '');
-		const every = value ? Number(value) : null;
-		if (every !== null && !(ASK_EVERY_OPTIONS as readonly number[]).includes(every))
+		const value = String(form.get('askAfter') ?? '');
+		const after = value ? Number(value) : null;
+		if (after !== null && !(ASK_AFTER_OPTIONS as readonly number[]).includes(after))
 			return fail(400, { userId, message: 'Opción no válida' });
 		await db
 			.insert(kidSettings)
-			.values({ userId, askEvery: every })
-			.onConflictDoUpdate({ target: kidSettings.userId, set: { askEvery: every } });
-		log.info('infantil', '«¿Sigues ahí?» cambiado', { userId, askEvery: every });
-		return { userId, askEvery: every };
+			.values({ userId, askAfterMin: after })
+			.onConflictDoUpdate({ target: kidSettings.userId, set: { askAfterMin: after } });
+		log.info('infantil', '«¿Sigues ahí?» cambiado', { userId, askAfter: after });
+		return { userId, askAfter: after };
 	},
 	/**
 	 * A child's schedule and daily limit, replaced whole (#18): `slot` as `weekday|17:00|19:00`, and

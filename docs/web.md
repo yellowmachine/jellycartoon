@@ -1,7 +1,7 @@
 ---
 # Lo que lee la web del producto (#100), en su propio repo. Texto para quien no es técnico; lo
-# técnico está en el README. Cada «##» es una función: su título, una frase corta (`resumen`) y
-# unas líneas. Las capturas, cuando estén, en docs/capturas/ con el nombre que dice cada una.
+# técnico está en la documentación (https://docs.seilide.app, en src/content/docs/). Cada «##» es
+# una función: su título, una frase corta (`resumen`) y unas líneas. Las capturas, cuando estén, en docs/capturas/ con el nombre que dice cada una.
 # `icono` (opcional): nombre de un icono de https://lucide.dev/icons, junto al título.
 # `grupo` (opcional): el bloque de la portada en el que va, en el orden en que aparecen.
 # `instalar_comando` (opcional): la línea de terminal que instala la app; la web la enseña en la
@@ -18,7 +18,7 @@ para_quien: >-
   cocinar o viajar con ayuda, sin depender de plataformas. Se instala en un ordenador de casa; la
   usa toda la familia desde la tele, el móvil, la tablet o el ordenador.
 repositorio: https://github.com/yellowmachine/jellycartoon
-instalar: https://github.com/yellowmachine/jellycartoon#producción
+instalar: https://docs.seilide.app/tecnica/casa/produccion/
 instalar_comando: curl -fsSL https://raw.githubusercontent.com/yellowmachine/jellycartoon/main/install.sh | sh
 en_casa: >-
   JellyCartoon se instala en un ordenador de casa, y cada casa tiene la suya. Tus vídeos, tu música,

@@ -1,4 +1,8 @@
 FROM oven/bun:1 AS build
+# What node-gyp needs (https://github.com/nodejs/node-gyp#on-unix): on a Raspberry (arm64, #378)
+# bufferutil (telegram → websocket) has no prebuilt binary and is compiled here. Only to build.
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+	&& rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 # The repository's workspaces (#253): the shared package, and the cloud's package.json only, so
 # that the lockfile matches; only this app's dependencies are installed.

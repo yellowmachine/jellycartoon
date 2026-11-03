@@ -8,7 +8,7 @@
 # with the disk unplugged nothing is copied to the internal one. Run it from the folder with
 # compose.prod.yaml and .env (or set COMPOSE_FILE). The database
 # goes first: an episode converted while copying is at worst converted again after a restore,
-# never marked as ready without its files. See "Copia de seguridad" in the README.
+# never marked as ready without its files. See "Copia de seguridad" in the docs (docs/…/casa/copias.md).
 set -euo pipefail
 
 usage() {

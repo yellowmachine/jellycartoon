@@ -94,8 +94,8 @@ import {
 } from '#lib/server/kid-login.ts';
 import { isAvatar } from 'comun/avatars.ts';
 import { avatarOf, createAdult, houseAdults, invite, setAvatar } from '#lib/server/people.ts';
-import { askEvery } from '#lib/server/still-there.ts';
-import { ASK_EVERY_OPTIONS } from '#lib/still-there.ts';
+import { askAfter } from '#lib/server/still-there.ts';
+import { ASK_AFTER_OPTIONS } from '#lib/still-there.ts';
 import {
 	checkCode,
 	checkPassword,
@@ -237,7 +237,7 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		/** The month's AI spending under the header (#193): an adult's, with a key to ask; null, not shown. */
 		spendLine: !isKid(locals.user) && (await openRouterConfig()).apiKey ? settings.spendLine : null,
 		/** «¿Sigues ahí?» (#77): adults only; a child's is chosen in /infantil. */
-		stillThere: isKid(locals.user) ? null : { every: await askEvery(userId) },
+		stillThere: isKid(locals.user) ? null : { after: await askAfter(userId) },
 		/** «Guardar lo que veo»: adults only, a child's is always kept for the adults (#17). */
 		keepHistory: isKid(locals.user) ? null : settings.keepHistory,
 		/** The road mode's trips kept (#81); adults only. */
@@ -636,18 +636,18 @@ export const actions: Actions = {
 			.onConflictDoUpdate({ target: userSettings.userId, set: values });
 		return { saved: 'intro' };
 	},
-	/** «¿Sigues ahí?» (#77) for an adult: never, or after this many episodes in a row. */
-	askEvery: async ({ request, locals }) => {
+	/** «¿Sigues ahí?» (#77) for an adult: never, or after these minutes with nobody touching anything. */
+	askAfter: async ({ request, locals }) => {
 		if (isKid(locals.user)) error(403, 'Solo adultos');
-		const value = String((await request.formData()).get('askEvery') ?? '');
-		const every = value === '' ? null : Number(value);
-		if (every !== null && !(ASK_EVERY_OPTIONS as readonly number[]).includes(every))
-			return fail(400, { section: 'askEvery', message: 'Valor no válido' });
+		const value = String((await request.formData()).get('askAfter') ?? '');
+		const after = value === '' ? null : Number(value);
+		if (after !== null && !(ASK_AFTER_OPTIONS as readonly number[]).includes(after))
+			return fail(400, { section: 'askAfter', message: 'Valor no válido' });
 		await db
 			.insert(userSettings)
-			.values({ userId: locals.user!.id, askEvery: every })
-			.onConflictDoUpdate({ target: userSettings.userId, set: { askEvery: every } });
-		return { saved: 'askEvery' };
+			.values({ userId: locals.user!.id, askAfterMin: after })
+			.onConflictDoUpdate({ target: userSettings.userId, set: { askAfterMin: after } });
+		return { saved: 'askAfter' };
 	},
 	openingQuote: async ({ request, locals }) => {
 		const values = { openingQuote: (await request.formData()).get('openingQuote') === 'on' };

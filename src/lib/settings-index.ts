@@ -73,7 +73,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		id: 'sigues-ahi',
 		tab: 'mi',
 		title: '¿Sigues ahí?',
-		words: 'dormir dormirse siguiente automático capítulos seguidos parar pregunta',
+		words: 'dormir dormirse siguiente automático capítulos seguidos tiempo horas parar pregunta',
 		shown: (d) => !d.kid
 	},
 	{

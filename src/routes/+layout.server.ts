@@ -1,5 +1,5 @@
 import type { LayoutServerLoad } from './$types';
-import { cinemaRoot, gamesRoot, musicRoot } from '#lib/server/library/paths.ts';
+import { cinemaRoot, gamesRoot, musicRoot, videoEnabled } from '#lib/server/library/paths.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { snapcastReady } from '#lib/server/music/snapcast.ts';
 import { hasKids, isKid } from '#lib/server/kids.ts';
@@ -41,6 +41,8 @@ export const load: LayoutServerLoad = async ({ locals, isDataRequest }) => {
 		kidsPage: Boolean(locals.user) && !kid && (await hasKids()),
 		/** Lets in a child who asks on a device of the house (#141): its requests, on any page. */
 		guardian: Boolean(locals.user) && !kid && (await isGuardian(locals.user!.id)),
+		/** Series: only with a videos folder (MEDIA_DIR; a house without video, #378). */
+		video: videoEnabled,
 		/** Only with a films folder (CINEMA_DIR). */
 		cinema: Boolean(cinemaRoot),
 		/** Only with a music folder (MUSIC_DIR). */

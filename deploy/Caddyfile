@@ -15,7 +15,8 @@
 
 # The certificate, by TLS in the .env: `cloudflare` (the default), a real one from Let's Encrypt
 # with Cloudflare's DNS-01 challenge, for a domain; `internal`, signed by Caddy's own authority,
-# for an install only at home without a domain, whose root each device installs.
+# for an install only at home without a domain, whose root each device installs; `acme`, a real
+# one without Cloudflare's module nor a token (#355, #378), see below.
 (tls-cloudflare) {
 	tls {
 		dns cloudflare {env.CF_API_TOKEN}
@@ -24,6 +25,19 @@
 
 (tls-internal) {
 	tls internal
+}
+
+# ORIGIN's name points, in the public DNS, to the VPS (the hub), which passes 443 through rathole
+# to this Caddy without decrypting it; at home, the house's DNS gives the house's IP. Let's Encrypt
+# validates it that way, by TLS-ALPN-01. Without HTTP-01: the hub passes only 443, and each failed
+# try counts against Let's Encrypt's limits.
+# https://caddyserver.com/docs/caddyfile/directives/tls#acme
+(tls-acme) {
+	tls {
+		issuer acme {
+			disable_http_challenge
+		}
+	}
 }
 
 # MEDIA_HOST (optional): a second name, reached from outside through the rathole tunnel (the
@@ -37,6 +51,15 @@
 	# would leave the whole site to the 404).
 	@media-not-api expression `{host} == "{$MEDIA_HOST}" && !path('/rest/*', '/api/v1/*')`
 	respond @media-not-api 404
+
+	# Whatever the name: what comes through the tunnel, from rathole's own network
+	# (compose.prod.yaml), only gets the APIs too (#355). With TLS=acme, ORIGIN's is reached that
+	# way from outside.
+	@tunnel-not-api {
+		remote_ip 172.31.253.0/29
+		not path /rest/* /api/v1/*
+	}
+	respond @tunnel-not-api 404
 
 	reverse_proxy app:3000
 

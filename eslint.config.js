@@ -12,7 +12,7 @@ const gitignore = (dir) => path.resolve(import.meta.dirname, dir, '.gitignore');
 export default defineConfig(
 	includeIgnoreFile(gitignore('.')),
 	// The cloud's own, from its folder: its build and SvelteKit's generated files.
-	{ ignores: ['nube/.svelte-kit/', 'nube/build/'] },
+	{ ignores: ['nube/.svelte-kit/', 'nube/build/', 'docs/dist/', 'docs/.astro/'] },
 	js.configs.recommended,
 	ts.configs.recommended,
 	svelte.configs.recommended,

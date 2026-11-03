@@ -1,7 +1,7 @@
 # Production, as a Docker Compose app in Dokploy (Compose Path: ./nube/compose.prod.yaml), as
 # svelte-thinking's: Postgres and the app in one stack, the app's image built by GitHub (#277).
 # The first time Postgres starts it runs scripts/init-db.sh, which makes the app's role (nube_app)
-# with its password: no SQL by hand. The variables, in Dokploy's Environment (README): passwords
+# with its password: no SQL by hand. The variables, in Dokploy's Environment (docs/…/seilide/produccion.md): passwords
 # in hex (`openssl rand -hex 24`), as they go inside the URLs below.
 name: nube
 

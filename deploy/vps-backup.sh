@@ -12,7 +12,7 @@
 # one's dump does not restore cleanly in an older Postgres), and no password. The S3 keys come from
 # the app's container, and its Environment is the .env Dokploy writes next to its compose file;
 # R2's, from /etc/vps-backup.env (only root reads it). How it went, well or not, goes to Seilide's
-# /admin (BACKUP_REPORT_*). See «Copias del VPS» in nube/README.md.
+# /admin (BACKUP_REPORT_*). See «Copias del VPS» in docs/…/seilide/produccion.md.
 set -euo pipefail
 
 [[ $# -ge 3 ]] || {

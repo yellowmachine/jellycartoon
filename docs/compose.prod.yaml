@@ -1,0 +1,19 @@
+# Production of the documentation (#380), as a Docker Compose app in Dokploy (Compose Path:
+# ./docs/compose.prod.yaml), as Seilide's: the image, built by GitHub
+# (.github/workflows/docs-image.yml), only pulled here. Its domain, docs.seilide.app, set in
+# Dokploy: service `docs`, port 80.
+name: docs
+
+services:
+  docs:
+    # DOCS_TAG, a commit's `sha-…` to go back to it.
+    image: ghcr.io/yellowmachine/jellycartoon-docs:${DOCS_TAG:-main}
+    pull_policy: always
+    restart: unless-stopped
+    # Dokploy's network, for Traefik.
+    networks:
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true

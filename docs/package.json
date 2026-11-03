@@ -1,0 +1,17 @@
+{
+	"name": "jellycartoon-docs",
+	"private": true,
+	"license": "AGPL-3.0-or-later",
+	"type": "module",
+	"scripts": {
+		"dev": "bun --bun astro dev",
+		"build": "bun --bun astro build",
+		"preview": "bun --bun astro preview"
+	},
+	"dependencies": {
+		"@astrojs/starlight": "^0.42.8",
+		"astro": "^7.4.5",
+		"sharp": "^0.35.5",
+		"starlight-links-validator": "^0.27.0"
+	}
+}

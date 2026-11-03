@@ -11,7 +11,7 @@
 #
 # Only the last BACKUP_KEEP nights stay (7), the older ones deleted after each copy: by number, not
 # by age, so that copies that stop going up do not take the last good ones with them. See «Copia en
-# Cloudflare R2» in the README.
+# Cloudflare R2» in the docs (docs/…/casa/copias.md).
 set -euo pipefail
 
 log() { echo "[$(date '+%F %T')] $*"; }

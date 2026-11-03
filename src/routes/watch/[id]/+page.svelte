@@ -7,7 +7,7 @@
 	import PlayerFrame from '#lib/components/PlayerFrame.svelte';
 	import PlayerListen from '#lib/components/PlayerListen.svelte';
 	import { houseLinks, outOfTime, playsAtHome } from '#lib/house-player.ts';
-	import { ANSWER_SECONDS, QUESTION } from '#lib/still-there.ts';
+	import { ANSWER_SECONDS, QUESTION, askAfterLabel } from '#lib/still-there.ts';
 	import { stillThere } from '#lib/still-there.svelte.ts';
 	import { videoHere } from '#lib/video-here.svelte.ts';
 	import type { PageProps } from './$types';
@@ -37,13 +37,11 @@
 	}
 
 	/**
-	 * «¿Sigues ahí?» (#77): this one waits, unstarted, when enough came by themselves with nobody
-	 * touching anything; without an answer in time it stays stopped (`stopped`). Each episode's
-	 * page decides it once, as it opens.
+	 * «¿Sigues ahí?» (#77): this one waits, unstarted, when it came by itself and nobody has touched
+	 * anything for the chosen time; without an answer in time it stays stopped (`stopped`). Each
+	 * episode's page decides it once, as it opens.
 	 */
-	let asking = $derived(
-		data.askEvery !== null && untrack(() => stillThere.unattended) >= data.askEvery
-	);
+	let asking = $derived(untrack(() => stillThere.shouldAsk(data.askAfter)));
 	let stopped = $state(false);
 
 	function tell(state: 'asking' | 'answered' | 'stopped') {
@@ -137,7 +135,7 @@
 		<p class="mb-5 text-zinc-300">
 			{stopped
 				? 'Nadie contestó, así que no ha seguido.'
-				: 'Llevas varios capítulos seguidos sin tocar nada.'}
+				: `Llevas ${askAfterLabel(data.askAfter ?? 0)} sin tocar nada.`}
 		</p>
 		<button
 			class="rounded-md bg-amber-500 px-5 py-2.5 text-lg font-medium text-zinc-950 hover:bg-amber-400"

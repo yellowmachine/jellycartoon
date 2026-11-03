@@ -84,7 +84,16 @@
 
 	const links: NavLink[] = $derived([
 		// With Hoy and Listas in its tabs.
-		{ href: '/', label: 'Series', icon: 'series', also: ['/series', '/today', '/lists'] },
+		...(data.video
+			? [
+					{
+						href: '/',
+						label: 'Series',
+						icon: 'series' as const,
+						also: ['/series', '/today', '/lists']
+					}
+				]
+			: []),
 		...(data.cinema ? [{ href: '/cine', label: 'Cine', icon: 'cine' as const }] : []),
 		...(data.music ? [{ href: '/musica', label: 'Música', icon: 'musica' as const }] : []),
 		{ href: '/radio', label: 'Radio', icon: 'radio' },

@@ -2,7 +2,7 @@ import { setLastScan } from '#lib/server/app-settings.ts';
 import { scanCinema } from '#lib/server/cinema/scan.ts';
 import { log } from '#lib/server/log.ts';
 import { msUntilHour } from '#lib/schedule.ts';
-import { cinemaRoot } from './paths.ts';
+import { cinemaRoot, videoEnabled } from './paths.ts';
 import { scanLibrary } from './scan.ts';
 
 /**
@@ -14,6 +14,8 @@ export const NIGHTLY_SCAN_HOUR = 3;
 
 /** The series folder, scanned, and how it went kept for Gestión: at night or by its button. */
 export async function scanSeries() {
+	// A house without video (#378): nothing to scan.
+	if (!videoEnabled) return { series: 0, added: 0, changed: 0, missing: 0, waiting: 0 };
 	const result = await scanLibrary();
 	await setLastScan('series', result);
 	return result;

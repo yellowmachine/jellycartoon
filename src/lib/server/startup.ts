@@ -5,7 +5,7 @@ import { FILM_DETAILS_VERSION } from '#lib/server/cinema/info.ts';
 import { db } from '#lib/server/db/index.ts';
 import { episode, movie, movieInfo, subtitleJob, track } from '#lib/server/db/schema.ts';
 import { NIGHTLY_SCAN_HOUR } from '#lib/server/library/nightly.ts';
-import { cinemaRoot, musicRoot } from '#lib/server/library/paths.ts';
+import { cinemaRoot, musicRoot, videoEnabled } from '#lib/server/library/paths.ts';
 import { workerStatus } from '#lib/server/library/worker.ts';
 import { log } from '#lib/server/log.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
@@ -26,16 +26,18 @@ const STATES = { running: 'en marcha', paused: 'en pausa', stopped: 'parada' };
 export async function logStartup() {
 	try {
 		const [episodes, subtitles, paused, films, stale, tracks, opus] = await Promise.all([
-			howMany(
-				db
-					.select({ n })
-					.from(episode)
-					.where(and(eq(episode.status, 'pending'), eq(episode.missing, false)))
-			),
-			voiceEnabled
+			videoEnabled
+				? howMany(
+						db
+							.select({ n })
+							.from(episode)
+							.where(and(eq(episode.status, 'pending'), eq(episode.missing, false)))
+					)
+				: 0,
+			videoEnabled && voiceEnabled
 				? howMany(db.select({ n }).from(subtitleJob).where(eq(subtitleJob.state, 'queued')))
 				: 0,
-			voiceEnabled ? subtitlesPaused() : false,
+			videoEnabled && voiceEnabled ? subtitlesPaused() : false,
 			cinemaRoot
 				? howMany(
 						db
@@ -77,15 +79,19 @@ export async function logStartup() {
 					)
 				: 0
 		]);
-		const worker = workerStatus().state;
+		// Without video (#378) the conversions never start: their saved state would say otherwise.
+		const worker = videoEnabled ? workerStatus().state : null;
 		const parts = [
-			`conversión ${STATES[worker]}, ${episodes} ${episodes === 1 ? 'pendiente' : 'pendientes'}`,
-			...(voiceEnabled
+			worker
+				? `conversión ${STATES[worker]}, ${episodes} ${episodes === 1 ? 'pendiente' : 'pendientes'}`
+				: 'sin vídeo',
+			...(videoEnabled && voiceEnabled
 				? [`subtítulos ${paused ? 'en pausa' : 'en marcha'}, ${subtitles} en cola`]
 				: []),
 			...(cinemaRoot ? [`películas: ${films} por catalogar, ${stale} fichas por completar`] : []),
 			...(musicRoot ? [`música: ${tracks} pistas por leer, ${opus} por comprimir en Opus`] : []),
-			`escaneo nocturno a las ${NIGHTLY_SCAN_HOUR}:00`
+			// It scans the series and the films: with neither, there is nothing at night.
+			...(videoEnabled || cinemaRoot ? [`escaneo nocturno a las ${NIGHTLY_SCAN_HOUR}:00`] : [])
 		];
 		log.info(
 			'arranque',

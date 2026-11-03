@@ -1,6 +1,6 @@
 #!/bin/bash
 # The app's role, once, when the database is made (Postgres' /docker-entrypoint-initdb.d in
-# compose.yaml; by hand in production, see the README). Not the tables' owner, who makes them in the
+# compose.yaml; by hand in production, see docs/…/seilide/produccion.md). Not the tables' owner, who makes them in the
 # migrations (MIGRATE_DATABASE_URL): so row-level security applies to the app (family.schema.ts).
 set -euo pipefail
 

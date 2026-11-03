@@ -5,14 +5,14 @@
 	import KidRulesForm from '#lib/components/KidRulesForm.svelte';
 	import { formatRemaining } from 'comun/format.ts';
 	import { clock, closedText, type VideoAccess } from '#lib/kid-time.ts';
-	import { ANSWER_SECONDS, ASK_EVERY_OPTIONS } from '#lib/still-there.ts';
+	import { ANSWER_SECONDS, ASK_AFTER_OPTIONS, askAfterLabel } from '#lib/still-there.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
 	const ASK: { value: number | null; label: string }[] = [
 		{ value: null, label: 'Nunca' },
-		...ASK_EVERY_OPTIONS.map((n) => ({ value: n, label: `Cada ${n} capítulos` }))
+		...ASK_AFTER_OPTIONS.map((n) => ({ value: n, label: `Tras ${askAfterLabel(n)}` }))
 	];
 
 	const ACCESS: { value: VideoAccess; label: string }[] = [
@@ -112,7 +112,7 @@
 		<!-- #77: with «siguiente automático», whether anyone is still there. -->
 		<form
 			method="post"
-			action="?/askEvery"
+			action="?/askAfter"
 			use:enhance={() =>
 				async ({ update }) =>
 					update({ reset: false })}
@@ -123,12 +123,12 @@
 				<span class="mr-1 text-zinc-300">Preguntar «¿Sigues ahí?»</span>
 				{#each ASK as option (option.value)}
 					<button
-						name="askEvery"
+						name="askAfter"
 						value={option.value ?? ''}
-						aria-pressed={kid.askEvery === option.value}
+						aria-pressed={kid.askAfter === option.value}
 						class={[
 							'rounded-full border px-3 py-1',
-							kid.askEvery === option.value
+							kid.askAfter === option.value
 								? 'border-amber-500 text-amber-400'
 								: 'border-zinc-700 hover:bg-zinc-900'
 						]}>{option.label}</button
@@ -136,8 +136,8 @@
 				{/each}
 			</div>
 			<p class="mt-1 text-zinc-500">
-				Tras esos capítulos seguidos sin tocar nada, el siguiente espera a que conteste; si en
-				{ANSWER_SECONDS / 60} minutos nadie lo hace, se para.
+				Cuando pasa ese tiempo sin tocar nada, el capítulo que está sonando acaba y el siguiente
+				espera a que conteste; si en {ANSWER_SECONDS / 60} minutos nadie lo hace, se para.
 			</p>
 		</form>
 

@@ -12,7 +12,12 @@ import {
 	STEAM_DIR
 } from '$app/env/private';
 
-export const mediaRoot = path.resolve(MEDIA_DIR);
+/**
+ * With a videos folder (MEDIA_DIR): series, conversions, subtitles and labels. Without one, a house
+ * with only music, radio and podcasts (#378): none of them starts, and Series is not shown.
+ */
+export const videoEnabled = Boolean(MEDIA_DIR);
+export const mediaRoot = path.resolve(MEDIA_DIR ?? './media');
 export const dataRoot = path.resolve(DATA_DIR);
 
 export const sourceFile = (relative: string) => path.join(mediaRoot, relative);
