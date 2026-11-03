@@ -3,7 +3,10 @@
 	import RadioTabs from 'comun/components/RadioTabs.svelte';
 	import type { PageProps } from './$types';
 
-	/** The stations (#253), as at home, played on this device; and the family's podcasts. */
+	/**
+	 * The stations (#253), as at home, played on this device, with the playing one's headlines (#387);
+	 * and the family's podcasts.
+	 */
 	let { data }: PageProps = $props();
 </script>
 
@@ -15,4 +18,4 @@
 	<h1 class="mr-auto text-2xl font-bold">Radio</h1>
 </div>
 <RadioTabs />
-<RadioStations info={data.info} />
+<RadioStations info={data.info} headlines="/radio/titulares" />
