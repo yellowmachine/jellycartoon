@@ -26,8 +26,11 @@ import { normalizeTags } from './tags.ts';
  */
 
 const USER_AGENT = 'JellyCartoon/1.0 (https://github.com/yellowmachine/jellycartoon)';
-/** Between two of LRCLIB's: it asks for none, but it is someone else's free service. */
-const PAUSE_MS = 400;
+/**
+ * Between two of LRCLIB's: someone else's free service, which said «429» after some twenty songs
+ * at 0.4 s on 2026-11-04.
+ */
+const PAUSE_MS = 1_500;
 const AGAIN_DAYS = 30;
 /** Its duration and LRCLIB's, this far apart at most: another recording otherwise. */
 const SAME_SECONDS = 3;
@@ -43,15 +46,26 @@ interface LrclibTrack {
 	syncedLyrics: string | null;
 }
 
-/** LRCLIB's, or null if it has none; throws if it does not answer. */
+/** Asked too much (429) or busy (503): it says how long to wait, or this; then again, a few times. */
+const BUSY_WAIT_S = 60;
+const BUSY_TRIES = 5;
+
+/** LRCLIB's, or null if it has none; throws if it does not answer, or stays busy. */
 async function lrclib(pathAndQuery: string): Promise<unknown> {
-	const res = await fetch(`https://lrclib.net/api/${pathAndQuery}`, {
-		headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-		signal: AbortSignal.timeout(15_000)
-	});
-	if (res.status === 404) return null;
-	if (!res.ok) throw new Error(`LRCLIB respondió ${res.status}`);
-	return res.json();
+	for (let attempt = 0; ; attempt++) {
+		const res = await fetch(`https://lrclib.net/api/${pathAndQuery}`, {
+			headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+			signal: AbortSignal.timeout(15_000)
+		});
+		if ((res.status === 429 || res.status === 503) && attempt < BUSY_TRIES) {
+			const after = Number(res.headers.get('retry-after'));
+			await sleep((after > 0 ? after : BUSY_WAIT_S * (attempt + 1)) * 1000);
+			continue;
+		}
+		if (res.status === 404) return null;
+		if (!res.ok) throw new Error(`LRCLIB respondió ${res.status}`);
+		return res.json();
+	}
 }
 
 /** «Song (Official Video)», «Song [Remastered 2011]», «Song - Live»: the song's own name. */
