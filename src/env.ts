@@ -160,6 +160,11 @@ export const variables = defineEnvVars({
 			'The version this build is: `1.2.0` in the images of a release, `sha-…` in the others. Set by the image, not by hand.',
 		schema: withDefault('dev')
 	},
+	ELECTRIC_REPLICA: {
+		description:
+			"Piloto (#394): with any value, keeps a read-only copy of what is Seilide's (replica.ts), by the house's key for it.",
+		schema: (value) => value || undefined
+	},
 	NUBE_URL: {
 		description:
 			"Optional address of the family's cloud (nube/, #279), e.g. `https://seilide.app`. With NUBE_CLIENT_ID and NUBE_CLIENT_SECRET, made in the cloud's Ajustes → Familia, the house's login offers «Entrar con Seilide».",

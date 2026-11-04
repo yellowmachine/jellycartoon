@@ -53,12 +53,15 @@ docker compose up -d electric
 
 docker exec -i piloto-electric-seilide-db-1 psql -v ON_ERROR_STOP=1 -q -U nube -d nube <publicar.sql
 
+(cd "$raiz" && bun --no-env-file "$PWD/piloto-electric/preparar.ts")
+
 parar_apps
 
 env -i PATH="$PATH" HOME="$HOME" PILOTO_ELECTRIC=1 HOST=127.0.0.1 PORT=3470 \
 	DATABASE_URL=postgres://nube_app:nube_app@127.0.0.1:5440/nube \
 	ORIGIN=https://127.0.0.1:3470 BETTER_AUTH_SECRET=piloto-seilide-secreto-de-pruebas-32 \
 	S3_ENDPOINT=http://127.0.0.1:1 S3_BUCKET=nube S3_ACCESS_KEY_ID=nube S3_SECRET_ACCESS_KEY=nube \
+	ELECTRIC_URL=http://127.0.0.1:5441 ELECTRIC_SECRET=piloto-secreto \
 	nohup bun --no-env-file "$raiz/nube/build/index.js" >"$datos/seilide.log" 2>&1 &
 echo $! >"$pids/seilide"
 
@@ -67,6 +70,7 @@ env -i PATH="$PATH" HOME="$HOME" PILOTO_ELECTRIC=1 HOST=127.0.0.1 PORT=3460 \
 	ORIGIN=https://127.0.0.1:3460 BETTER_AUTH_SECRET=piloto-casa-secreto-de-pruebas-32 \
 	MEDIA_DIR="$datos/media" DATA_DIR="$datos/casa" CINEMA_DIR="$datos/cine" MUSIC_DIR="$datos/musica" \
 	GAMES_DIR="$datos/juegos" DELETE_SOURCES=false OPENROUTER_API_KEY= \
+	ELECTRIC_REPLICA=1 \
 	nohup bun --no-env-file "$raiz/build/index.js" >"$datos/casa.log" 2>&1 &
 echo $! >"$pids/casa"
 

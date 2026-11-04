@@ -45,6 +45,15 @@ export const variables = defineEnvVars({
 			"The service's administrator: the first family's (scripts/migrate.ts), and who is told by email of each family asking to come in (the landing page's «Pedir acceso»).",
 		schema: (value) => value?.trim() || undefined
 	},
+	ELECTRIC_URL: {
+		description:
+			'Piloto (#394): where Electric answers, only on the internal network. Without it, /api/casa/sync gives 503.',
+		schema: (value) => value || undefined
+	},
+	ELECTRIC_SECRET: {
+		description: "Piloto (#394): Electric's API secret. Never sent to a house.",
+		schema: (value) => value || undefined
+	},
 	BACKUP_REPORT_TOKEN: {
 		description:
 			"What each night's copy of the VPS's apps (deploy/vps-backup.sh) shows to report how it went, for /admin: `openssl rand -hex 32`, the same in the VPS's /etc/vps-backup.env. Without it, no report is taken.",

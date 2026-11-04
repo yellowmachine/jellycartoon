@@ -58,15 +58,21 @@ export const tag = pgTable('tag', {
 	name: text('name').notNull().unique()
 });
 
+/** Hasta dónde ha bajado cada tabla copiada de Seilide (#394, replica.ts). */
+export const replicaState = pgTable('replica_state', {
+	shape: text('shape').primaryKey(),
+	handle: text('handle').notNull(),
+	offset: text('offset').notNull(),
+	updatedAt: timestamp('updated_at').notNull().defaultNow()
+});
+
 export const seriesTag = pgTable(
 	'series_tag',
 	{
-		seriesId: integer('series_id')
-			.notNull()
-			.references(() => series.id, { onDelete: 'cascade' }),
-		tagId: integer('tag_id')
-			.notNull()
-			.references(() => tag.id, { onDelete: 'cascade' })
+		// Copia de Seilide (#394, replica.ts): sin claves foráneas, porque cada tabla baja por su
+		// lado, y una fila puede llegar antes que su etiqueta.
+		seriesId: integer('series_id').notNull(),
+		tagId: integer('tag_id').notNull()
 	},
 	(t) => [primaryKey({ columns: [t.seriesId, t.tagId] }), index('series_tag_tag_idx').on(t.tagId)]
 );
