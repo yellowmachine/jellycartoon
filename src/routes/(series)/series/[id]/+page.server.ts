@@ -11,7 +11,7 @@ import { takeThumbnail } from '#lib/server/library/thumbnail.ts';
 import { ignoreEpisodes, retryEpisode, wakeWorker } from '#lib/server/library/worker.ts';
 import { removeLight, requestLight } from '#lib/server/library/light.ts';
 import { getActiveList, getListNames, seriesListItems, toggleInList } from '#lib/server/lists.ts';
-import { clearProgress, markWatched, saveProgress } from '#lib/server/progress.ts';
+import { clearProgress, dismissProgress, markWatched, saveProgress } from '#lib/server/progress.ts';
 import { log } from '#lib/server/log.ts';
 import { parseView, viewCookie } from '#lib/views.ts';
 import { addSeriesTag, getTags, removeSeriesTag, seriesTags, tagName } from '#lib/server/tags.ts';
@@ -68,6 +68,8 @@ export const load: PageServerLoad = async ({ params, locals, cookies }) => {
 			durationSec: episode.durationSec,
 			positionSec: watchProgress.positionSec,
 			completed: watchProgress.completed,
+			/** Out of «Seguir viendo» by hand. */
+			dismissed: watchProgress.dismissed,
 			error: episode.error,
 			sourcePath: episode.sourcePath,
 			sourceSize: episode.sourceSize,
@@ -349,6 +351,17 @@ export const actions: Actions = {
 		return { subtitlesQueued: queued, subtitlesSkipped: ids.length - queued };
 	},
 	/** The selected converted ones get a light version (light.ts), made after the conversions. */
+	/** The selected, watched (those already were keep their day) or back to not watched. */
+	watchedMany: async ({ params, request, locals }) => {
+		const ids = await idsOfSeries(Number(params.id), await request.formData());
+		await markWatched(locals.user!.id, ids);
+		return { watchedMarked: ids.length };
+	},
+	unwatchedMany: async ({ params, request, locals }) => {
+		const ids = await idsOfSeries(Number(params.id), await request.formData());
+		await clearProgress(locals.user!.id, ids);
+		return { watchedCleared: ids.length };
+	},
 	lightMany: async ({ params, request }) => {
 		const ids = await idsOfSeries(Number(params.id), await request.formData());
 		const queued = await requestLight(ids);
@@ -422,6 +435,7 @@ export const actions: Actions = {
 		}
 	},
 	/** Every episode before this one in the series, in season and number order (extras apart). */
+	/** «Marcar hasta este como vistos»: the ones before it in the series, and it. */
 	markPreviousWatched: async ({ params, request, locals }) => {
 		const id = Number((await request.formData()).get('id'));
 		const seriesId = Number(params.id);
@@ -434,10 +448,22 @@ export const actions: Actions = {
 			.select({ id: episode.id })
 			.from(episode)
 			.where(and(eq(episode.seriesId, seriesId), eq(episode.missing, false), episodesBefore(ep)));
-		await markWatched(
-			locals.user!.id,
-			previous.map((e) => e.id)
-		);
+		await markWatched(locals.user!.id, [...previous.map((e) => e.id), id]);
+	},
+	/** Out of «Seguir viendo», keeping where it was left. */
+	dismiss: async ({ params, request, locals }) => {
+		const ep = await seriesEpisode(params.id, await request.formData());
+		if (!ep) return fail(400, { message: 'Capítulo no válido' });
+		await dismissProgress(locals.user!.id, ep.id);
+	},
+	/** One episode's light version (light.ts), as the selected ones'. */
+	light: async ({ params, request }) => {
+		const ids = await idsOfSeries(Number(params.id), await request.formData());
+		await requestLight(ids);
+		wakeWorker();
+	},
+	removeLight: async ({ params, request }) => {
+		await removeLight(await idsOfSeries(Number(params.id), await request.formData()));
 	},
 	/**
 	 * Moves the selected episodes to the end of another season, numbered in their current order.

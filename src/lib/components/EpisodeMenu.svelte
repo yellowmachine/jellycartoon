@@ -26,6 +26,10 @@
 			convertSec: number | null;
 			audioTracks: AudioTrack[];
 			subtitles: SubtitleTrack[];
+			/** Out of «Seguir viendo» by hand. */
+			dismissed?: boolean | null;
+			/** Its light 720p version (light.ts): asked for, being made, there, or failed; null, none. */
+			light?: 'pending' | 'processing' | 'ready' | 'error' | null;
 			/** Path to the video on the host, for mpv; only once converted. */
 			playlist?: string | null;
 			/**
@@ -43,7 +47,7 @@
 		};
 		/** Whether it can be played on the host's screen. */
 		salon: boolean;
-		/** Episodes before this one in the series not watched yet. */
+		/** Episodes before this one in the series not watched yet: «hasta este» marks them and it. */
 		previousUnwatched: number;
 		/** The user's lists, and whether this episode is in each one. */
 		lists: { id: number; name: string; added: boolean }[];
@@ -84,15 +88,39 @@
 	<span class={menuItem}>{label}</span>
 {/snippet}
 
+{#snippet subtitlesFor(
+	language: { lang: string; label: string },
+	job: NonNullable<Props['episode']['autoSubtitles']>['job'],
+	close: () => void,
+	inside: boolean
+)}
+	{@const remake = episode.subtitles.some((s) => s.file === `sub_auto_${language.lang}.vtt`)}
+	{@const failed = job?.state === 'failed' && job.lang === language.lang ? job : null}
+	<form method="post" action="?/autoSubtitles" use:enhance={closeAfter(close)}>
+		<input type="hidden" name="id" value={episode.id} />
+		<input type="hidden" name="lang" value={language.lang} />
+		<button class="w-full {inside ? 'pl-4' : ''}" title={failed?.message}>
+			{@render item(
+				inside
+					? `${failed ? 'Reintentar en' : remake ? 'Rehacer en' : 'En'} ${language.label}`
+					: `${failed ? 'Reintentar subtítulos' : remake ? 'Rehacer subtítulos' : 'Subtítulos automáticos'} en ${language.label}`
+			)}
+		</button>
+	</form>
+{/snippet}
+
 <ActionMenu id="episode-menu-{episode.id}">
 	{#snippet children(close)}
+		<!-- Watching it. -->
 		{#if ready}
 			{#if resumeAt}
 				<a href="/watch/{episode.id}"
 					>{@render item(`Continuar desde ${formatDuration(resumeAt)}`)}</a
 				>
 			{/if}
-			<a href="/watch/{episode.id}?t=0">{@render item('Empezar desde el principio')}</a>
+			<a href="/watch/{episode.id}?t=0"
+				>{@render item(resumeAt ? 'Empezar desde el principio' : '▶︎ Ver')}</a
+			>
 			{#if listen && manage && episode.audioTracks.length}
 				<!-- Only its audio, in the music player: it goes on with the screen off (#154). -->
 				<button
@@ -123,7 +151,6 @@
 				{/if}
 			{/if}
 			{#if salon}
-				<hr class="my-1 border-zinc-800" />
 				{#if resumeAt}
 					<form method="post" action="?/salon" use:enhance={closeAfter(close)}>
 						<input type="hidden" name="id" value={episode.id} />
@@ -141,8 +168,10 @@
 						)}
 					</button>
 				</form>
-				<hr class="my-1 border-zinc-800" />
 			{/if}
+
+			<!-- Yours: whether you saw it, and your lists. -->
+			<hr class="my-1 border-zinc-800" />
 			<form method="post" action="?/setWatched" use:enhance={closeAfter(close)}>
 				<input type="hidden" name="id" value={episode.id} />
 				<input type="hidden" name="watched" value={String(!episode.completed)} />
@@ -155,16 +184,19 @@
 					<input type="hidden" name="id" value={episode.id} />
 					<button class="w-full">
 						{@render item(
-							previousUnwatched === 1
-								? 'Marcar el anterior como visto'
-								: `Marcar los ${previousUnwatched} anteriores como vistos`
+							`Marcar hasta este como vistos (${previousUnwatched + (episode.completed ? 0 : 1)})`
 						)}
 					</button>
 				</form>
 			{/if}
-
-			<hr class="my-1 border-zinc-800" />
-			<p class="px-3 pt-1 pb-0.5 text-xs text-zinc-500">Añadir a</p>
+			{#if resumeAt && !episode.dismissed}
+				<!-- Begun and not to be finished: out of «Seguir viendo», without saying it was seen. -->
+				<form method="post" action="?/dismiss" use:enhance={closeAfter(close)}>
+					<input type="hidden" name="id" value={episode.id} />
+					<button class="w-full">{@render item('Quitar de «Seguir viendo»')}</button>
+				</form>
+			{/if}
+			<p class="px-3 pt-2 pb-0.5 text-xs text-zinc-500">Añadir a</p>
 			{#each lists as list (list.id)}
 				<!-- Stays open: it is common to add the same episode to several lists. -->
 				<form method="post" action="?/toggleList" use:enhance>
@@ -181,26 +213,27 @@
 			{:else}
 				<a href="/lists">{@render item('Crear una lista…')}</a>
 			{/each}
-			<hr class="my-1 border-zinc-800" />
-		{:else if manage && (episode.status === 'error' || episode.status === 'ignored')}
-			<form method="post" action="?/retry" use:enhance={closeAfter(close)}>
-				<input type="hidden" name="id" value={episode.id} />
-				<button class="w-full">
-					{@render item(
-						episode.status === 'error' ? 'Reintentar la conversión' : 'Convertir de todos modos'
-					)}
-				</button>
-			</form>
-			{#if episode.status === 'error'}
-				<form method="post" action="?/ignore" use:enhance={closeAfter(close)}>
-					<input type="hidden" name="id" value={episode.id} />
-					<button class="w-full">{@render item('Ignorar (no convertir)')}</button>
-				</form>
-			{/if}
-			<hr class="my-1 border-zinc-800" />
 		{/if}
 
+		<!-- Looking after it: grown-ups only (#17). -->
 		{#if manage}
+			<hr class="my-1 border-zinc-800" />
+			{#if episode.status === 'error' || episode.status === 'ignored'}
+				<form method="post" action="?/retry" use:enhance={closeAfter(close)}>
+					<input type="hidden" name="id" value={episode.id} />
+					<button class="w-full">
+						{@render item(
+							episode.status === 'error' ? 'Reintentar la conversión' : 'Convertir de todos modos'
+						)}
+					</button>
+				</form>
+				{#if episode.status === 'error'}
+					<form method="post" action="?/ignore" use:enhance={closeAfter(close)}>
+						<input type="hidden" name="id" value={episode.id} />
+						<button class="w-full">{@render item('Ignorar (no convertir)')}</button>
+					</form>
+				{/if}
+			{/if}
 			<button
 				class="w-full"
 				onclick={() => {
@@ -210,61 +243,88 @@
 			>
 				{@render item('Editar título')}
 			</button>
-		{/if}
-		{#if episode.playlist}
-			<CopyPathItem
-				path={episode.playlist}
-				label="Copiar ruta (para mpv u otro reproductor)"
-				onclose={close}
-			/>
-		{/if}
-		{#if ready && manage && episode.autoSubtitles}
-			{@const job = episode.autoSubtitles.job}
-			{#if job?.state === 'running' || job?.state === 'queued'}
-				<p class="px-3 py-1.5 text-sm text-zinc-400">
-					{job.state === 'queued'
-						? 'Subtítulos: esperando turno…'
-						: `Haciendo subtítulos… ${job.total ? `${Math.round((job.done / job.total) * 100)} %` : ''}`}
-				</p>
-			{:else}
-				<!-- One per language: a film may have eight tracks, and only the one watched matters. -->
-				{#each episode.autoSubtitles.languages as language (language.lang)}
-					{@const remake = episode.subtitles.some(
-						(s) => s.file === `sub_auto_${language.lang}.vtt`
-					)}
-					{@const failed = job?.state === 'failed' && job.lang === language.lang ? job : null}
-					<form method="post" action="?/autoSubtitles" use:enhance={closeAfter(close)}>
-						<input type="hidden" name="id" value={episode.id} />
-						<input type="hidden" name="lang" value={language.lang} />
-						<button class="w-full" title={failed?.message}>
-							{@render item(
-								`${failed ? 'Reintentar subtítulos' : remake ? 'Rehacer subtítulos' : 'Subtítulos automáticos'} en ${language.label}`
-							)}
-						</button>
-					</form>
-				{/each}
+			{#if ready && episode.autoSubtitles}
+				{@const job = episode.autoSubtitles.job}
+				{@const languages = episode.autoSubtitles.languages}
+				{#if job?.state === 'running' || job?.state === 'queued'}
+					<p class="px-3 py-1.5 text-sm text-zinc-400">
+						{job.state === 'queued'
+							? 'Subtítulos: esperando turno…'
+							: `Haciendo subtítulos… ${job.total ? `${Math.round((job.done / job.total) * 100)} %` : ''}`}
+					</p>
+				{:else if languages.length === 1}
+					{@render subtitlesFor(languages[0]!, job, close, false)}
+				{:else if languages.length}
+					<!-- One per language: a film may have eight tracks, and only the one watched matters. -->
+					<details>
+						<summary class="{menuItem} cursor-pointer list-none">Subtítulos automáticos…</summary>
+						{#each languages as language (language.lang)}
+							{@render subtitlesFor(language, job, close, true)}
+						{/each}
+					</details>
+				{/if}
+			{/if}
+			{#if ready}
+				<form
+					method="post"
+					action="?/regenerateThumbnail"
+					use:enhance={() => {
+						regenerating = true;
+						return async ({ result, update }) => {
+							await update();
+							if (result.type === 'success') thumbChanged(episode.id);
+							regenerating = false;
+							close();
+						};
+					}}
+				>
+					<input type="hidden" name="id" value={episode.id} />
+					<button class="w-full" disabled={regenerating}>
+						{@render item(regenerating ? 'Sacando miniatura…' : 'Otra miniatura')}
+					</button>
+				</form>
+				{#if episode.light !== undefined}
+					<!-- 720p for the phone away from home (light.ts), made after the conversions. -->
+					{#if episode.light === 'pending' || episode.light === 'processing'}
+						<form method="post" action="?/removeLight" use:enhance={closeAfter(close)}>
+							<input type="hidden" name="id" value={episode.id} />
+							<button class="w-full">
+								{@render item(
+									episode.light === 'processing'
+										? 'Haciendo la versión ligera… (parar)'
+										: 'Versión ligera en cola (quitar)'
+								)}
+							</button>
+						</form>
+					{:else if episode.light === 'ready'}
+						<form method="post" action="?/removeLight" use:enhance={closeAfter(close)}>
+							<input type="hidden" name="id" value={episode.id} />
+							<button class="w-full">{@render item('Quitar la versión ligera (720p)')}</button>
+						</form>
+					{:else}
+						<form method="post" action="?/light" use:enhance={closeAfter(close)}>
+							<input type="hidden" name="id" value={episode.id} />
+							<button class="w-full">
+								{@render item(
+									episode.light === 'error'
+										? 'Reintentar la versión ligera (720p)'
+										: 'Crear versión ligera (720p)'
+								)}
+							</button>
+						</form>
+					{/if}
+				{/if}
+			{/if}
+			{#if episode.playlist}
+				<CopyPathItem
+					path={episode.playlist}
+					label="Copiar ruta (para mpv u otro reproductor)"
+					onclose={close}
+				/>
 			{/if}
 		{/if}
-		{#if ready && manage}
-			<form
-				method="post"
-				action="?/regenerateThumbnail"
-				use:enhance={() => {
-					regenerating = true;
-					return async ({ result, update }) => {
-						await update();
-						if (result.type === 'success') thumbChanged(episode.id);
-						regenerating = false;
-						close();
-					};
-				}}
-			>
-				<input type="hidden" name="id" value={episode.id} />
-				<button class="w-full" disabled={regenerating}>
-					{@render item(regenerating ? 'Sacando miniatura…' : 'Otra miniatura')}
-				</button>
-			</form>
-		{/if}
+
+		<hr class="my-1 border-zinc-800" />
 		<button
 			class="w-full"
 			onclick={() => {

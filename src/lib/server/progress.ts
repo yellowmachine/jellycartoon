@@ -79,10 +79,12 @@ export async function dismissProgress(userId: string, episodeId: number) {
 }
 
 /** Back to never played: no position and not watched. Lists keep their own ticks. */
-export async function clearProgress(userId: string, episodeId: number) {
+export async function clearProgress(userId: string, episodeId: number | number[]) {
+	const ids = Array.isArray(episodeId) ? episodeId : [episodeId];
+	if (!ids.length) return;
 	await db
 		.delete(watchProgress)
-		.where(and(eq(watchProgress.userId, userId), eq(watchProgress.episodeId, episodeId)));
+		.where(and(eq(watchProgress.userId, userId), inArray(watchProgress.episodeId, ids)));
 }
 
 async function tickOff(userId: string, episodeIds: number[]) {
