@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import type { HourAhead } from 'comun/weather.ts';
 import type { RuleSpec } from '#lib/rules.ts';
 import { minutesOf, momentOf, type Rule, type World } from './rule-check.ts';
-import { simulate, type Deduced } from './rule-sim.ts';
+import { madeUpWeather, NO_IFS, simulate, withIfs, type Deduced, type WhatIf } from './rule-sim.ts';
 
 /**
  * «¿Qué pasaría…?» (#389) in a world made up here: a Wednesday with rain in the afternoon, the
@@ -85,14 +85,17 @@ function worldAt(minute: number, deduced: readonly Deduced[]): World {
 	};
 }
 
-const run = (rules: Rule[], from: string, to: string) =>
-	simulate({
+const run = (rules: Rule[], from: string, to: string, ifs: Partial<WhatIf> = {}) => {
+	const all = { ...NO_IFS, ...ifs };
+	return simulate({
 		rules,
 		from: minutesOf(DAY, from),
 		to: minutesOf(DAY, to),
-		world: worldAt,
+		happens: all.happens && { ...all.happens, ownerId: 'yo' },
+		world: (minute, deduced) => withIfs(worldAt(minute, deduced), all, 'yo'),
 		tells: async () => ({ how: 'te avisaría' })
 	});
+};
 
 describe('¿Qué pasaría…?', () => {
 	test('by the clock, at its time, and in order', async () => {
@@ -191,5 +194,94 @@ describe('¿Qué pasaría…?', () => {
 			'Se mira cuando ponen en la nevera algo con «leche». Si pasara entonces, avisaría: hoy hay «Vienen los abuelos» en la Agenda.',
 			'En pausa: no haría nada.'
 		]);
+	});
+});
+
+describe('y si…', () => {
+	test('the weather made up: every hour of it, the rest calm', () => {
+		const h = madeUpWeather(DAY, '22:40', 'helada', 3);
+		expect(h.map((x) => x.at)).toEqual([`${DAY}T22:00`, `${DAY}T23:00`, '2026-11-05T00:00']);
+		expect(h.every((x) => x.temperature === -3 && x.rain === 0)).toBe(true);
+	});
+
+	test('that it freezes, instead of the forecast', async () => {
+		const frost = { what: 'helada', hours: 12, threshold: 0, where: 'casa' } as const;
+		const rules = [ruleOf({ when: when({ kind: 'tiempo', weather: frost }) })];
+		expect((await run(rules, '20:00', '23:59'))[0]!.does).toBeNull();
+		const [o] = await run(rules, '20:00', '23:59', { weather: 'helada' });
+		expect([o!.at, o!.does]).toEqual(['20:00', 'avisa']);
+		expect(o!.said).toContain('va a helar (-3 °C a las 20:00) en casa');
+	});
+
+	test('that I am away: my rules and the house’s see it, another’s does not', async () => {
+		const away = [{ kind: 'de_viaje', words: [], negate: false }] as RuleSpec['conditions'];
+		const mine = ruleOf({ when: when({ kind: 'cada_dia', time: '09:00' }), conditions: away });
+		const house = ruleOf(
+			{ when: when({ kind: 'cada_dia', time: '09:00' }), conditions: away },
+			{
+				userId: null
+			}
+		);
+		const other = ruleOf(
+			{ when: when({ kind: 'cada_dia', time: '09:00' }), conditions: away },
+			{
+				userId: 'otra'
+			}
+		);
+		const out = await run([mine, house, other], '09:00', '09:59', { away: true });
+		expect(out.map((o) => o.does)).toEqual(['avisa', 'avisa', null]);
+		expect(out[0]!.said).toContain('estás de viaje («un viaje (de prueba)»)');
+		expect(out[1]!.said).toContain('alguien está de viaje');
+	});
+
+	test('the doses all marked: none late', async () => {
+		const rules = [ruleOf({ when: when({ kind: 'toma_sin_marcar' }) })];
+		expect((await run(rules, '09:00', '10:59'))[0]!.does).toBe('avisa');
+		const [o] = await run(rules, '09:00', '10:59', { doses: 'marcadas' });
+		expect(o!.said).toBe(
+			'Entonces no le toca: se mira cuando una toma de Medicación sigue sin marcar.'
+		);
+	});
+
+	test('something said: the rules waiting for it, and what they deduce, through', async () => {
+		const washing = ruleOf({
+			when: when({ kind: 'dicho', words: ['lavadora'] }),
+			then: 'deducir',
+			deduce: { text: 'Hay ropa tendida', days: 0 }
+		});
+		const clothes = ruleOf({
+			when: when({
+				kind: 'tiempo',
+				weather: { what: 'lluvia', hours: 3, threshold: 60, where: 'casa' }
+			}),
+			conditions: [{ kind: 'recuerdo', words: ['ropa'], negate: false }]
+		});
+		const other = ruleOf({ when: when({ kind: 'dicho', words: ['basura'] }) });
+		const out = await run([washing, clothes, other], '10:00', '23:59', {
+			happens: { kind: 'dicho', text: 'voy a poner la lavadora' }
+		});
+		expect(out.map((o) => [o.at, o.does])).toEqual([
+			['10:00', 'deduce'],
+			['10:00', null],
+			['13:00', 'avisa']
+		]);
+		expect(out[0]!.said).toContain('dicen «voy a poner la lavadora» a las 10:00');
+		expect(out[1]!.said).toBe('No avisaría: «voy a poner la lavadora» no dice «basura».');
+	});
+
+	test('something put on the fridge: there for the conditions too', async () => {
+		const [o] = await run(
+			[
+				ruleOf({
+					when: when({ kind: 'cada_dia', time: '11:00' }),
+					conditions: [{ kind: 'nevera', words: ['pan'], negate: false }]
+				})
+			],
+			'10:00',
+			'11:59',
+			{ happens: { kind: 'nevera', text: 'pan de molde' } }
+		);
+		expect(o!.does).toBe('avisa');
+		expect(o!.said).toContain('en la nevera pone «pan de molde»');
 	});
 });

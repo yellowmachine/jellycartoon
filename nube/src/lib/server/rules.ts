@@ -35,12 +35,13 @@ import {
 	momentOf,
 	sameName,
 	weatherFor,
+	waitsFor,
 	type Fitted,
 	type Rule,
 	type Trip,
 	type World
 } from '#lib/server/rule-check.ts';
-import { DRAFT_ID, simulate, type Deduced } from '#lib/server/rule-sim.ts';
+import { DRAFT_ID, simulate, withIfs, type Deduced, type WhatIf } from '#lib/server/rule-sim.ts';
 import { voiceSettings } from '#lib/server/voice/settings.ts';
 import { MAX_RULE, RULE_SCHEMA, specOf, type RuleSpec, type TranslatedRule } from '#lib/rules.ts';
 
@@ -518,7 +519,13 @@ async function deduce(k: Kitchen, r: Rule, why: string, chain: number[]) {
  * satellites, when one it is for is at home (not on a trip that day) and it is not the quiet hours
  * (an urgent one, even then). Null, not one for out loud; else the satellites, or why not.
  */
-async function aloud(k: Kitchen, r: Rule, to: string[], w: World) {
+async function aloud(
+	k: Kitchen,
+	r: Rule,
+	to: string[],
+	w: World,
+	away: (userId: string) => boolean = () => false
+) {
 	const { notice } = r.spec;
 	if (!(r.spec.say ?? !r.userId)) return null;
 	const [satellites, settings] = await Promise.all([
@@ -530,7 +537,7 @@ async function aloud(k: Kitchen, r: Rule, to: string[], w: World) {
 	if (notice.level !== 'urgente' && settings.quiet && inQuietHours(settings.quiet, minute))
 		return { satellites: [], why: 'son las Horas de silencio' };
 	for (const userId of to)
-		if (!awayOn(await tripsFor(await kitchenOf(userId), userId), w.today))
+		if (!away(userId) && !awayOn(await tripsFor(await kitchenOf(userId), userId), w.today))
 			return { satellites: satellites.map((s) => s.id), why: '' };
 	return { satellites: [], why: 'no hay nadie en casa' };
 }
@@ -602,11 +609,6 @@ export async function onEvent(
 		await tryFire(w, rk, r, `${kind}:${Date.now()}`, because + fit.why, chain);
 	}
 }
-
-/** Whether something of `ownerId`'s (null: the house's) is for `r`, as `onEvent` says. */
-const waitsFor = (r: Rule, kind: 'nevera' | 'recuerdo' | 'dicho', ownerId: string | null) =>
-	kind === 'nevera' ||
-	(kind === 'dicho' ? !r.userId || r.userId === ownerId : !ownerId || r.userId === ownerId);
 
 listenRules(onEvent);
 
@@ -724,7 +726,7 @@ const listed = (names: string[]) =>
  * To whom and how a notice would go then: «te avisaría en el Buzón y en el móvil, y en voz alta en
  * casa»; and, not out loud though it says so, why not.
  */
-async function tellsSaid(familyId: string, r: Rule, w: World) {
+async function tellsSaid(familyId: string, r: Rule, w: World, away: (userId: string) => boolean) {
 	const k = await kitchenFor(familyId, r.userId);
 	const to = await recipients(k, r);
 	const people = await familyPeople(k);
@@ -735,7 +737,7 @@ async function tellsSaid(familyId: string, r: Rule, w: World) {
 			: names.length
 				? `avisaría a ${listed(names)}`
 				: 'avisaría (a nadie con cuenta)';
-	const out = await aloud(k, r, to, w);
+	const out = await aloud(k, r, to, w, away);
 	const how = `${who} en el Buzón y en el móvil${r.spec.notice.level === 'urgente' ? ' (urgente)' : ''}`;
 	if (!out) return { how };
 	return out.satellites.length
@@ -754,6 +756,8 @@ export interface SimulationAsked {
 	draftHouse: boolean;
 	/** What only its meaning says, asked of the AI too. */
 	ai: boolean;
+	/** «Y si…» (phase 2). */
+	ifs: WhatIf;
 }
 
 /**
@@ -801,15 +805,16 @@ export async function simulateRules(k: Kitchen, userId: string, who: string, o: 
 		rules,
 		from,
 		to,
+		happens: o.ifs.happens && { ...o.ifs.happens, ownerId: userId },
 		world: (minute, deduced) => {
 			const then = momentOf(minute);
-			return worldOf(
-				k.familyId,
-				{ today: then.day, time: then.time, from, to },
-				{ meaning, deduced }
+			return withIfs(
+				worldOf(k.familyId, { today: then.day, time: then.time, from, to }, { meaning, deduced }),
+				o.ifs,
+				userId
 			);
 		},
-		tells: (r, w) => tellsSaid(k.familyId, r, w)
+		tells: (r, w) => tellsSaid(k.familyId, r, w, (id) => o.ifs.away && id === userId)
 	});
 	let cost: number | null = 0;
 	for (const letters of unasked.values()) {

@@ -138,6 +138,15 @@ async function firstFitting<T>(
 	return null;
 }
 
+/**
+ * Whether something of `ownerId`'s (null: the house's) that happened is for `r`: a post-it, for
+ * every rule; something said, for its person's and the house's; something remembered, a person's
+ * for theirs, the house's for all.
+ */
+export const waitsFor = (r: Rule, kind: 'nevera' | 'recuerdo' | 'dicho', ownerId: string | null) =>
+	kind === 'nevera' ||
+	(kind === 'dicho' ? !r.userId || r.userId === ownerId : !ownerId || r.userId === ownerId);
+
 /** Its person's trip that day, if any. */
 export const awayOn = (trips: Trip[], day: string) =>
 	trips.find((t) => t.first.day <= day && day <= t.last.day);

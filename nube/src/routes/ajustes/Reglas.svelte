@@ -19,7 +19,8 @@
 	 * recuérdame lo de las plantas»), aquí o a la voz; la IA las entiende una vez y luego se
 	 * comprueban solas. Cada una como la entendió, la última vez que avisó y por qué; y Pausar,
 	 * Probar, Cambiar (se reescribe y se vuelve a entender) y Borrar. Las tuyas solo las ves tú.
-	 * Y «¿Qué pasaría…?» (#389): todas en un momento que elijas, sin avisar ni guardar nada.
+	 * Y «¿Qué pasaría…?» (#389): todas en un momento que elijas, sin avisar ni guardar nada, y
+	 * «y si…» cambia lo que haya entonces (el tiempo, un viaje, las tomas, algo dicho).
 	 */
 	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
 
@@ -38,6 +39,12 @@
 		});
 	/** «¿Qué pasaría…?» (#389): what was asked, and what it would do. */
 	const sim = $derived(form && 'simulation' in form ? (form.simulation as Simulation) : null);
+	const ifs = $derived(sim?.asked.ifs);
+	const hasIfs = $derived(
+		Boolean(
+			ifs && (ifs.weather !== 'prevision' || ifs.away || ifs.doses !== 'como_esten' || ifs.happens)
+		)
+	);
 	const today = localDay();
 	const nextHour = `${String((new Date().getHours() + 1) % 24).padStart(2, '0')}:00`;
 	const DOES = { avisa: '🔔', deduce: '💡' } as const;
@@ -215,6 +222,53 @@
 					<option value="dia">hasta el final del día</option>
 				</select>
 			</div>
+			<details class="rounded-md border border-zinc-800 px-3 py-2" open={hasIfs}>
+				<summary class="cursor-pointer text-zinc-300">Y si…</summary>
+				<div class="mt-2 flex flex-col gap-2">
+					<label class="flex flex-wrap items-center gap-2">
+						<span class="text-zinc-400">El tiempo:</span>
+						<select name="ifWeather" value={ifs?.weather ?? 'prevision'} class={select}>
+							<option value="prevision">como diga la previsión</option>
+							<option value="lluvia">que llueva</option>
+							<option value="sin_lluvia">que no llueva (ni nada)</option>
+							<option value="helada">que hiele</option>
+							<option value="calor">que haga mucho calor</option>
+							<option value="viento">que haga mucho viento</option>
+							<option value="nieve">que nieve</option>
+						</select>
+					</label>
+					<label class="flex items-center gap-2">
+						<input type="checkbox" name="ifAway" checked={ifs?.away ?? false} />
+						<span>Que yo esté de viaje ese día</span>
+					</label>
+					<label class="flex flex-wrap items-center gap-2">
+						<span class="text-zinc-400">Medicación:</span>
+						<select name="ifDoses" value={ifs?.doses ?? 'como_esten'} class={select}>
+							<option value="como_esten">las tomas, como estén</option>
+							<option value="sin_marcar">ninguna toma marcada</option>
+							<option value="marcadas">todas las tomas marcadas</option>
+						</select>
+					</label>
+					<div class="flex flex-col gap-2">
+						<select name="ifKind" value={ifs?.happens?.kind ?? 'dicho'} class="{select} self-start">
+							<option value="dicho">Que diga a la voz</option>
+							<option value="nevera">Que ponga en la nevera</option>
+							<option value="recuerdo">Que pida recordar</option>
+						</select>
+						<input
+							name="ifText"
+							maxlength="200"
+							placeholder="voy a poner la lavadora"
+							value={ifs?.happens?.text ?? ''}
+							class="{field} w-full"
+						/>
+					</div>
+					<p class="text-xs text-zinc-500">
+						Lo que digas o pongas, a la hora elegida. El tiempo inventado vale para todo el rato que
+						miras.
+					</p>
+				</div>
+			</details>
 			<textarea
 				name="draft"
 				rows="2"
