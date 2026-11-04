@@ -61,11 +61,14 @@ import {
 import { forgetLearned, listLearned } from '#lib/server/voice/learned.ts';
 import { editMemory, forget, listMemories, remember } from '#lib/server/memory.ts';
 import { RULE_TEMPLATES } from '#lib/rule-templates.ts';
+import { NO_IFS, WEATHER_IFS, type WhatIf } from '#lib/server/rule-sim.ts';
 import {
 	deleteRule,
 	listRules,
 	saveRule,
 	setRulePaused,
+	simulateRules,
+	translateCost,
 	translateRule,
 	tryRule
 } from '#lib/server/rules.ts';
@@ -102,6 +105,25 @@ import { MAX_CAR_NAME } from '#lib/cars.ts';
 import { fold } from 'comun/music.ts';
 import { subtitleStyleOf } from '#lib/server/subtitles.ts';
 import { prayerModeOn, setPrayerMode } from '#lib/server/prayers.ts';
+
+/** «¿Qué pasaría…?»'s «y si…» (#389, phase 2), from its form: what is not known, as it is. */
+function ifsOf(form: FormData): WhatIf {
+	const weather = String(form.get('ifWeather') ?? '');
+	const doses = String(form.get('ifDoses') ?? '');
+	const kind = String(form.get('ifKind') ?? '');
+	const text = String(form.get('ifText') ?? '')
+		.trim()
+		.slice(0, 200);
+	return {
+		weather: (WEATHER_IFS as readonly string[]).includes(weather)
+			? (weather as WhatIf['weather'])
+			: NO_IFS.weather,
+		away: form.get('ifAway') === 'on',
+		doses: doses === 'sin_marcar' || doses === 'marcadas' ? doses : NO_IFS.doses,
+		happens:
+			text && (kind === 'dicho' || kind === 'nevera' || kind === 'recuerdo') ? { kind, text } : null
+	};
+}
 
 export const load: PageServerLoad = async ({ locals, request, cookies, url }) => {
 	const k = await kitchenOf(locals.user!.id);
@@ -181,6 +203,8 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 			: null,
 		/** What the voice remembers: theirs (no one else sees it) and the house's. */
 		memories: await listMemories(k, locals.user!.id, true),
+		/** «¿Qué pasaría…?» (#389): about what understanding a rule written to try costs; streamed. */
+		ruleDraftCost: translateCost(k).catch(() => null),
 		/** Rules ready to turn on (#331, phase 7), and whether they have each one on. */
 		ruleTemplates: await listRules(k, locals.user!.id).then((rules) =>
 			RULE_TEMPLATES.map((t) => ({
@@ -459,6 +483,27 @@ export const actions: Actions = {
 			? await tryRule(await kitchenOf(locals.user!.id), locals.user!.id, id)
 			: null;
 		return { ruleTried: { id, said: said ?? 'Esa regla ya no está.' } };
+	},
+	/** «¿Qué pasaría…?» (#389): the rules on a day to come, with nothing told nor kept. */
+	simulateRules: async ({ request, locals }) => {
+		const form = await request.formData();
+		const asked = {
+			day: String(form.get('day') ?? ''),
+			time: String(form.get('time') ?? ''),
+			wholeDay: form.get('span') === 'dia',
+			draft: String(form.get('draft') ?? ''),
+			draftHouse: form.get('whose') === 'house',
+			ai: form.get('ai') === '1',
+			ifs: ifsOf(form)
+		};
+		const result = await simulateRules(
+			await kitchenOf(locals.user!.id),
+			locals.user!.id,
+			locals.user!.name,
+			asked
+		);
+		if ('problem' in result) return fail(400, { simulation: { asked, problem: result.problem } });
+		return { simulation: { asked, ...result } };
 	},
 	deleteRule: async ({ request, locals }) => {
 		const id = Number((await request.formData()).get('id'));

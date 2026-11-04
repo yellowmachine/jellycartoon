@@ -737,6 +737,24 @@
 				>
 			</span>
 		{/if}
+		<!-- Yours only, as each episode's menu: those already watched keep their day. -->
+		<span class="flex items-center gap-2 text-sm">
+			Vistos
+			<button
+				formaction="?/watchedMany"
+				formnovalidate
+				disabled={selected.size === 0}
+				class="rounded-md border border-zinc-700 px-3 py-1 hover:bg-zinc-900 disabled:opacity-50"
+				>Marcar</button
+			>
+			<button
+				formaction="?/unwatchedMany"
+				formnovalidate
+				disabled={selected.size === 0}
+				class="rounded-md border border-zinc-700 px-3 py-1 hover:bg-zinc-900 disabled:opacity-50"
+				>Desmarcar</button
+			>
+		</span>
 		<!-- 720p for the phone away from home (light.ts): made after the conversions, from these. -->
 		<span class="flex items-center gap-2 text-sm">
 			Versión ligera (720p)
@@ -770,6 +788,14 @@
 				para etiquetar{form.labelsSkipped
 					? ` · ${form.labelsSkipped} ya estaban en cola o no están convertidos`
 					: ''}.
+			</p>
+		{/if}
+		{#if form && ('watchedMarked' in form || 'watchedCleared' in form)}
+			{@const n = 'watchedMarked' in form ? form.watchedMarked : form.watchedCleared}
+			<p class="w-full text-sm text-amber-400">
+				{n === 1 ? '1 capítulo marcado' : `${n} capítulos marcados`} como {'watchedMarked' in form
+					? 'visto'
+					: 'no visto'}{n === 1 ? '' : 's'}.
 			</p>
 		{/if}
 		{#if form && 'lightQueued' in form}

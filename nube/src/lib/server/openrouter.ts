@@ -159,8 +159,28 @@ const headers = (apiKey: string) => ({
 	'X-OpenRouter-Title': 'Seilide'
 });
 
-/** Models whose thinking can be turned off, from OpenRouter's list; read once per process. */
-let thinkingOptional: Promise<Set<string>> | undefined;
+interface ModelInfo {
+	id: string;
+	reasoning?: { mandatory?: boolean; supported_efforts?: string[] };
+	/** Dollars per token, as text: «0.000001». */
+	pricing?: { prompt?: string; completion?: string };
+}
+
+/** OpenRouter's list of models, read once per process (again if it failed). */
+let modelList: Promise<ModelInfo[]> | undefined;
+
+function models() {
+	modelList ??= fetch('https://openrouter.ai/api/v1/models', {
+		signal: AbortSignal.timeout(10_000)
+	})
+		.then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+		.then((body: { data: ModelInfo[] }) => body.data)
+		.catch((error) => {
+			modelList = undefined;
+			throw error;
+		});
+	return modelList;
+}
 
 /**
  * Whether `effort: "none"` can go with `model`: those whose reasoning is mandatory refuse it
@@ -168,28 +188,32 @@ let thinkingOptional: Promise<Set<string>> | undefined;
  * no: the model thinks, as before, but answers.
  */
 async function canSkipThinking(model: string) {
-	thinkingOptional ??= fetch('https://openrouter.ai/api/v1/models', {
-		signal: AbortSignal.timeout(10_000)
-	})
-		.then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
-		.then(
-			(body: {
-				data: { id: string; reasoning?: { mandatory?: boolean; supported_efforts?: string[] } }[];
-			}) =>
-				new Set(
-					body.data
-						.filter(
-							(m) => !m.reasoning?.mandatory && m.reasoning?.supported_efforts?.includes('none')
-						)
-						.map((m) => m.id)
-				)
-		)
-		.catch((error) => {
-			console.warn('[ia] No se pudo leer qué modelos dejan de pensar', String(error));
-			thinkingOptional = undefined;
-			return new Set<string>();
-		});
-	return (await thinkingOptional).has(model);
+	try {
+		const m = (await models()).find((m) => m.id === model);
+		return Boolean(!m?.reasoning?.mandatory && m?.reasoning?.supported_efforts?.includes('none'));
+	} catch (error) {
+		console.warn('[ia] No se pudo leer qué modelos dejan de pensar', String(error));
+		return false;
+	}
+}
+
+/** Letters per token, about, in Spanish: to guess what a request costs before making it. */
+const LETTERS_PER_TOKEN = 3.5;
+
+/**
+ * About what a request to `model` costs, in dollars, by OpenRouter's prices: `letters` sent and
+ * `answer` tokens back (its most, to be safe). Null if the prices cannot be read.
+ */
+export async function guessCost(model: string, letters: number, answer: number) {
+	try {
+		const m = (await models()).find((m) => m.id === model);
+		const prompt = Number(m?.pricing?.prompt);
+		const completion = Number(m?.pricing?.completion);
+		if (!Number.isFinite(prompt) || !Number.isFinite(completion)) return null;
+		return (letters / LETTERS_PER_TOKEN) * prompt + answer * completion;
+	} catch {
+		return null;
+	}
 }
 
 type ToolChatRequest = {
