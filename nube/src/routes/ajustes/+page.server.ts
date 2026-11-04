@@ -66,6 +66,8 @@ import {
 	listRules,
 	saveRule,
 	setRulePaused,
+	simulateRules,
+	translateCost,
 	translateRule,
 	tryRule
 } from '#lib/server/rules.ts';
@@ -181,6 +183,8 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 			: null,
 		/** What the voice remembers: theirs (no one else sees it) and the house's. */
 		memories: await listMemories(k, locals.user!.id, true),
+		/** «¿Qué pasaría…?» (#389): about what understanding a rule written to try costs; streamed. */
+		ruleDraftCost: translateCost(k).catch(() => null),
 		/** Rules ready to turn on (#331, phase 7), and whether they have each one on. */
 		ruleTemplates: await listRules(k, locals.user!.id).then((rules) =>
 			RULE_TEMPLATES.map((t) => ({
@@ -459,6 +463,26 @@ export const actions: Actions = {
 			? await tryRule(await kitchenOf(locals.user!.id), locals.user!.id, id)
 			: null;
 		return { ruleTried: { id, said: said ?? 'Esa regla ya no está.' } };
+	},
+	/** «¿Qué pasaría…?» (#389): the rules on a day to come, with nothing told nor kept. */
+	simulateRules: async ({ request, locals }) => {
+		const form = await request.formData();
+		const asked = {
+			day: String(form.get('day') ?? ''),
+			time: String(form.get('time') ?? ''),
+			wholeDay: form.get('span') === 'dia',
+			draft: String(form.get('draft') ?? ''),
+			draftHouse: form.get('whose') === 'house',
+			ai: form.get('ai') === '1'
+		};
+		const result = await simulateRules(
+			await kitchenOf(locals.user!.id),
+			locals.user!.id,
+			locals.user!.name,
+			asked
+		);
+		if ('problem' in result) return fail(400, { simulation: { asked, problem: result.problem } });
+		return { simulation: { asked, ...result } };
 	},
 	deleteRule: async ({ request, locals }) => {
 		const id = Number((await request.formData()).get('id'));

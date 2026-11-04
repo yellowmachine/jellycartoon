@@ -1,6 +1,5 @@
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { addDays, dayName, localDay, localTime } from 'comun/agenda.ts';
-import { fold } from 'comun/music.ts';
 import { rule } from '#lib/server/db/schema.ts';
 import {
 	agendaBetween,
@@ -12,11 +11,11 @@ import {
 import { familyPlace, openRouterKey } from '#lib/server/family-settings.ts';
 import { familyHasHouse, sendHouse } from '#lib/server/house.ts';
 import { dosesFor, listMedication } from '#lib/server/medication.ts';
-import { hoursAhead, isSnow, type HourAhead } from 'comun/weather.ts';
+import { hoursAhead, type HourAhead } from 'comun/weather.ts';
 import { fridgeState, houseKitchen, kitchenOf, type Kitchen } from '#lib/server/fridge.ts';
 import { tell } from '#lib/server/inbox.ts';
 import { listMemories, remember } from '#lib/server/memory.ts';
-import { completeJson } from '#lib/server/openrouter.ts';
+import { completeJson, DEFAULT_MODEL, guessCost } from '#lib/server/openrouter.ts';
 import { inBackground } from '#lib/server/ai-lane.ts';
 import { listenRules } from '#lib/server/rule-events.ts';
 import { familySatellites, sayOnSatellites } from '#lib/server/satellites.ts';
@@ -24,17 +23,28 @@ import { inQuietHours } from '#lib/server/voice/quiet-check.ts';
 import { parseClock } from 'comun/clock.ts';
 import { listPlannedTrips } from '#lib/server/trips/planned.ts';
 import { hasWords } from '#lib/server/voice/learned.ts';
-import { voiceSettings } from '#lib/server/voice/settings.ts';
 import {
-	DOSE_LATE_MIN,
-	MAX_RULE,
-	RULE_SCHEMA,
-	specOf,
-	type Condition,
-	type RuleSpec,
-	type TranslatedRule,
-	type WeatherCheck
-} from '#lib/rules.ts';
+	awayOn,
+	conditionsHold,
+	dueIn,
+	fits,
+	LATE_MINUTES,
+	matchKey,
+	MAX_CHAIN,
+	minutesOf,
+	momentOf,
+	sameName,
+	weatherFor,
+	type Fitted,
+	type Rule,
+	type Trip,
+	type World
+} from '#lib/server/rule-check.ts';
+import { DRAFT_ID, simulate, type Deduced } from '#lib/server/rule-sim.ts';
+import { voiceSettings } from '#lib/server/voice/settings.ts';
+import { MAX_RULE, RULE_SCHEMA, specOf, type RuleSpec, type TranslatedRule } from '#lib/rules.ts';
+
+export { sameName, type Rule };
 
 /**
  * The family's rules (#331, phases 2 and 3): said by voice or written in Ajustes, understood by
@@ -45,32 +55,14 @@ import {
  * whom it says in their «Buzón» and on their phones (inbox.ts), with why. Each time once
  * (`fired`). What its words do not find is asked by its meaning (`fits`): of OpenRouter, or of
  * the house's Ollama if it fails. A person's, only theirs, as their memory; the house's,
- * everyone's.
+ * everyone's. Whether they hold, in rule-check.ts, in a «world» (#389): here the real one, now;
+ * and `simulateRules`, «¿Qué pasaría…?» in Ajustes, a moment to come, with nothing told.
  */
 
-/** A deduction feeds the next rule, at most this many in a row (#331, phase 4). */
-const MAX_CHAIN = 3;
 /** More than this and none is added: a family's rules, not a program. */
 const MAX_RULES = 100;
 /** What it was told for, kept to tell it once: the last few. */
 const KEEP_FIRED = 50;
-/** A time missed (the server was off): still told this long after. */
-const LATE_MINUTES = 60;
-/** An event of the whole day: looked at this time. */
-const ALL_DAY_AT = '09:00';
-
-export interface Rule {
-	id: number;
-	userId: string | null;
-	said: string;
-	understood: string;
-	spec: RuleSpec;
-	paused: boolean;
-	lastFiredAt: Date | null;
-	lastWhy: string | null;
-	fired: string[];
-	matches: Record<string, { ok: boolean; why: string }>;
-}
 
 const COLUMNS = {
 	id: rule.id,
@@ -178,13 +170,6 @@ export async function deleteRule(k: Kitchen, userId: string | null, id: number) 
 
 // ——— Understanding it ———
 
-/** «Ana», «ana», «Ána», and «Ana» for Ana María: the same person. */
-export const sameName = (full: string, said: string) => {
-	const a = fold(full.trim());
-	const b = fold(said.trim());
-	return a === b || a.split(/\s+/)[0] === b;
-};
-
 const SYSTEM = (today: string, people: string[], who: string) =>
 	`Conviertes una regla de una familia, dicha en español, en datos que un programa comprueba solo, sin IA. Hoy es ${dayName(today, true)} (${today}). La familia: ${people.join(', ') || 'nadie más'}. ${who}
 
@@ -262,9 +247,21 @@ export async function translateRule(
 	return 'problem' in made ? made : { spec: made.spec, understood: t.understood || text };
 }
 
-// ——— Checking it ———
+/**
+ * About what understanding a rule costs, in dollars, with the family's model: the instructions and
+ * a rule of `chars` letters, and its answer. Null if OpenRouter's prices cannot be read.
+ */
+export async function translateCost(k: Kitchen, chars = 150) {
+	const [settings, people] = await Promise.all([voiceSettings(k), familyPeople(k)]);
+	const system = SYSTEM(
+		localDay(),
+		people.map((p) => p.name),
+		''
+	);
+	return guessCost(settings.model, system.length + chars, 450);
+}
 
-const quoted = (words: string[]) => words.map((w) => `«${w}»`).join(' y ');
+// ——— Checking it, in the real world ———
 
 /** Whose kitchen a rule is looked at in: its person's (their private trips and memory), or the house's. */
 async function kitchenFor(familyId: string, userId: string | null) {
@@ -272,83 +269,15 @@ async function kitchenFor(familyId: string, userId: string | null) {
 }
 
 /** Trips of a rule's person (the house's: everyone's), with their first and last leg. */
-async function tripsFor(k: Kitchen, userId: string | null) {
+async function tripsFor(k: Kitchen, userId: string | null): Promise<Trip[]> {
 	const [trips, me] = await Promise.all([listPlannedTrips(k), userId ? personOf(k, userId) : null]);
 	return trips
 		.filter((t) => t.legs.length && (!userId || !t.people.length || (me && t.people.includes(me))))
 		.map((t) => ({ trip: t, first: t.legs[0]!, last: t.legs.at(-1)! }));
 }
 
-/** A condition now: whether it holds (negated already), and why in words. */
-async function holds(k: Kitchen, r: Rule, c: Condition): Promise<{ ok: boolean; why: string }> {
-	const today = localDay();
-	const mine = Boolean(r.userId);
-	let found: string | null = null;
-	let none = '';
-	switch (c.kind) {
-		case 'de_viaje': {
-			const away = (await tripsFor(k, r.userId)).find(
-				(t) => t.first.day <= today && today <= t.last.day
-			);
-			found = away ? `${mine ? 'estás' : 'alguien está'} de viaje («${away.trip.name}»)` : null;
-			none = mine ? 'no estás de viaje' : 'nadie está de viaje';
-			break;
-		}
-		case 'recuerdo': {
-			const m = await firstFitting(
-				k,
-				r,
-				c.words,
-				'recuerdo',
-				await listMemories(k, r.userId),
-				(m) => m.text
-			);
-			found = m
-				? `recuerdo «${m.item.text}»${m.why}${m.item.because ? ` (${m.item.because})` : ''}`
-				: null;
-			none = `no recuerdo nada con ${quoted(c.words)}`;
-			break;
-		}
-		case 'nevera': {
-			const fridge = await fridgeState(k);
-			const texts = [
-				...fridge.notes.map((n) => n.text),
-				...fridge.list.items.filter((i) => !i.done).map((i) => i.text)
-			];
-			const t = await firstFitting(k, r, c.words, 'nevera', texts, (t) => t);
-			found = t ? `en la nevera pone «${t.item}»${t.why}` : null;
-			none = `no hay nada en la nevera con ${quoted(c.words)}`;
-			break;
-		}
-		case 'tiempo': {
-			if (!c.weather) break;
-			const w = await weatherFor(k, r, c.weather);
-			found = w.hit;
-			none = w.none;
-			break;
-		}
-		case 'agenda_hoy': {
-			const { occurrences } = await agendaBetween(k, today, today);
-			const o = await firstFitting(
-				k,
-				r,
-				c.words,
-				'agenda',
-				occurrences.filter((o) => o.day <= today && today <= o.lastDay),
-				(o) => o.title
-			);
-			found = o ? `hoy hay «${o.item.title}» en la Agenda${o.why}` : null;
-			none = `hoy no hay nada en la Agenda con ${quoted(c.words)}`;
-			break;
-		}
-	}
-	const ok = c.negate ? !found : Boolean(found);
-	return { ok, why: found ?? none };
-}
-
 // ——— By its meaning (phase 3) ———
 
-type Fitted = 'agenda' | 'nevera' | 'recuerdo';
 const WHAT: Record<Fitted, string> = {
 	agenda: 'Cita de la Agenda',
 	nevera: 'En la nevera',
@@ -361,6 +290,8 @@ const houseQuiet = new Map<string, number>();
 const HOUSE_MS = 30_000;
 /** What its words did not find, kept with its answer: the last few. */
 const KEEP_MATCHES = 200;
+/** Its answer, at most, in tokens. */
+const MATCH_TOKENS = 200;
 
 const MATCH_SYSTEM =
 	'Dices si algo que ha pasado en una familia es lo que espera una de sus reglas. Solo true si es claramente eso (sinónimos, formas de decirlo, quién es quién); si dudas, false. En «porque», muy corto, por qué.';
@@ -370,45 +301,24 @@ const MATCH_SCHEMA = {
 	required: ['encaja', 'porque'],
 	properties: { encaja: { type: 'boolean' }, porque: { type: 'string' } }
 };
+const matchPrompt = (r: Rule, kind: Fitted, text: string) =>
+	`Regla: «${r.said}».\n${WHAT[kind]}: «${text}».\n¿Es lo que espera la regla?`;
 
 /**
- * Whether `text` is what `r` waits for with `words`: by its words (as before); else by its
- * meaning, asked once and kept (`matches`): of the family's AI in OpenRouter, or, if it fails, of
- * the house's Ollama. Neither: by its words only, and asked again later. `why`, to add to the
- * notice's: «, que encaja con…».
+ * By its meaning, what its words did not find: kept in `matches` from before, or asked now and
+ * kept (a rule not saved, only for this time).
  */
-async function fits(k: Kitchen, r: Rule, words: string[], kind: Fitted, text: string) {
-	if (hasWords(words, text)) return { ok: true, why: '' };
-	const key = `${kind}:${fold(text.trim()).slice(0, 200)}`;
+async function keptOrAsked(k: Kitchen, r: Rule, kind: Fitted, text: string) {
+	const key = matchKey(kind, text);
 	const kept = r.matches[key] ?? (await askMeaning(k, r, kind, text));
-	if (!kept) return { ok: false, why: '' };
-	if (!r.matches[key]) {
-		const matches = Object.fromEntries(
-			[...Object.entries(r.matches), [key, kept] as const].slice(-KEEP_MATCHES)
-		);
-		r.matches = matches;
+	if (!kept || r.matches[key]) return kept;
+	const matches = Object.fromEntries(
+		[...Object.entries(r.matches), [key, kept] as const].slice(-KEEP_MATCHES)
+	);
+	r.matches = matches;
+	if (r.id !== DRAFT_ID)
 		await k.run((tx) => tx.update(rule).set({ matches }).where(eq(rule.id, r.id)));
-	}
-	return {
-		ok: kept.ok,
-		why: kept.ok ? `, que encaja con ${quoted(words)}${kept.why ? ` (${kept.why})` : ''}` : ''
-	};
-}
-
-/** The first of `items` that fits, with why; null if none. */
-async function firstFitting<T>(
-	k: Kitchen,
-	r: Rule,
-	words: string[],
-	kind: Fitted,
-	items: T[],
-	textOf: (item: T) => string
-) {
-	for (const item of items) {
-		const fit = await fits(k, r, words, kind, textOf(item));
-		if (fit.ok) return { item, why: fit.why };
-	}
-	return null;
+	return kept;
 }
 
 /**
@@ -426,10 +336,10 @@ async function askMeaning(k: Kitchen, r: Rule, kind: Fitted, text: string) {
 					apiKey,
 					label: 'Encajar una regla',
 					system: MATCH_SYSTEM,
-					prompt: `Regla: «${question.rule}».\n${question.what}: «${text}».\n¿Es lo que espera la regla?`,
+					prompt: matchPrompt(r, kind, text),
 					name: 'match',
 					schema: MATCH_SCHEMA,
-					maxTokens: 200,
+					maxTokens: MATCH_TOKENS,
 					timeoutMs: 20_000
 				})
 			);
@@ -471,73 +381,76 @@ function forecastAt(lat: number, lon: number) {
 }
 
 /**
- * Where a rule's weather is looked at: at home (Ajustes → «Dónde vivís»), or, `donde_este` and its
- * person on a trip today, where they arrived last. Null if the family has not said where it lives.
+ * The world a family's rules are looked at in: its sources, as they are, seen from `today` at
+ * `time`; with `meaning`, what its words do not find asked so (by default, kept or asked and
+ * kept); with `deduced`, what a simulation deduced, remembered too.
  */
-async function placeFor(k: Kitchen, r: Rule, where: WeatherCheck['where']) {
-	const today = localDay();
-	if (where === 'donde_este') {
-		const away = (await tripsFor(k, r.userId)).find(
-			(t) => t.first.day <= today && today <= t.last.day
-		);
-		const leg = away?.trip.legs.filter((l) => l.day <= today).at(-1);
-		if (leg) return { lat: leg.end[1], lon: leg.end[0], at: `en ${leg.to}` };
-	}
-	const home = await familyPlace(k);
-	return home && { lat: home.lat, lon: home.lon, at: 'en casa' };
-}
-
-const hourOf = (h: HourAhead) => `a las ${h.at.slice(11, 16)}`;
-const COMES = {
-	lluvia: (h: HourAhead) => `va a llover (${h.rain} % ${hourOf(h)})`,
-	helada: (h: HourAhead) => `va a helar (${h.temperature} °C ${hourOf(h)})`,
-	calor: (h: HourAhead) => `va a hacer calor (${h.temperature} °C ${hourOf(h)})`,
-	viento: (h: HourAhead) => `va a hacer viento (${h.wind} km/h ${hourOf(h)})`,
-	nieve: (h: HourAhead) => `va a nevar (${hourOf(h)})`
-};
-const NOT_COMING = {
-	lluvia: 'no va a llover',
-	helada: 'no va a helar',
-	calor: 'no va a hacer calor',
-	viento: 'no va a hacer viento',
-	nieve: 'no va a nevar'
-};
-
-/** The weather it waits for, in its next hours: the hour it comes (in words), or why not. */
-async function weatherFor(k: Kitchen, r: Rule, w: WeatherCheck) {
-	const place = await placeFor(k, r, w.where);
-	if (!place) return { hit: null, none: 'no sé dónde vivís (Ajustes → «Dónde vivís»)' };
-	let hours: HourAhead[];
-	try {
-		hours = (await forecastAt(place.lat, place.lon)).slice(0, w.hours);
-	} catch (error) {
-		return {
-			hit: null,
-			none: `no sé el tiempo (${error instanceof Error ? error.message : error})`
-		};
-	}
-	const comes = hours.find((h) =>
-		w.what === 'lluvia'
-			? h.rain >= w.threshold
-			: w.what === 'helada'
-				? h.temperature <= w.threshold
-				: w.what === 'calor'
-					? h.temperature >= w.threshold
-					: w.what === 'viento'
-						? h.wind >= w.threshold
-						: isSnow(h.code)
-	);
+function worldOf(
+	familyId: string,
+	at: Pick<World, 'today' | 'time' | 'from' | 'to'>,
+	{ meaning, deduced = [] }: { meaning?: World['meaning']; deduced?: readonly Deduced[] } = {}
+): World {
+	const kitchens = new Map<string, Promise<Kitchen>>();
+	const kitchen = (r: Rule) => {
+		const key = r.userId ?? '';
+		if (!kitchens.has(key)) kitchens.set(key, kitchenFor(familyId, r.userId));
+		return kitchens.get(key)!;
+	};
 	return {
-		hit: comes ? `${COMES[w.what](comes)} ${place.at}` : null,
-		none: `${NOT_COMING[w.what]} ${place.at} en las próximas ${w.hours} h`
+		...at,
+		trips: async (r) => tripsFor(await kitchen(r), r.userId),
+		memories: async (r) => [
+			...deduced.filter((d) => !d.userId || d.userId === r.userId),
+			...(await listMemories(await kitchen(r), r.userId, false, at.today))
+		],
+		fridge: async (r) => {
+			const fridge = await fridgeState(await kitchen(r));
+			return [
+				...fridge.notes.map((n) => n.text),
+				...fridge.list.items.filter((i) => !i.done).map((i) => i.text)
+			];
+		},
+		agenda: async (r, from, to) => (await agendaBetween(await kitchen(r), from, to)).occurrences,
+		doses: async (r, day) => {
+			const k = await kitchen(r);
+			const [meds, people] = await Promise.all([listMedication(k), agendaPeople(k)]);
+			return (await dosesFor(k, meds, day)).map((d) => ({
+				time: d.time,
+				name: d.name,
+				personId: d.personId,
+				who: people.find((p) => p.id === d.personId)?.name ?? '',
+				taken: Boolean(d.takenAt)
+			}));
+		},
+		home: async (r) => familyPlace(await kitchen(r)),
+		forecast: async (lat, lon, day, time) => {
+			const from = `${day}T${time.slice(0, 2)}:00`;
+			const hours = (await forecastAt(lat, lon)).filter((h) => h.at >= from);
+			if (!hours.length) throw new Error('la previsión no llega hasta entonces');
+			return hours;
+		},
+		meaning: meaning ?? (async (r, kind, text) => keptOrAsked(await kitchen(r), r, kind, text))
 	};
 }
 
-/** All of its conditions now: whether they hold, and why. */
-async function conditionsHold(k: Kitchen, r: Rule) {
-	const checked = [];
-	for (const c of r.spec.conditions) checked.push(await holds(k, r, c));
-	return { ok: checked.every((c) => c.ok), why: checked.map((c) => c.why) };
+/** Now: what is due by the clock in its last hour, as a time missed is still told that long after. */
+function worldNow(familyId: string) {
+	const today = localDay();
+	const time = localTime();
+	const now = minutesOf(today, time);
+	return worldOf(familyId, { today, time, from: now - LATE_MINUTES + 1, to: now });
+}
+
+// ——— Doing it ———
+
+/** Whom a rule's notice is for: their accounts. */
+async function recipients(k: Kitchen, r: Rule) {
+	const { notice } = r.spec;
+	return notice.to === 'personas'
+		? notice.userIds
+		: notice.to === 'yo' && r.userId
+			? [r.userId]
+			: await familyAccounts(k);
 }
 
 /** Told: once for `key` (two servers, or a minute again, tell nothing), to whom it says. */
@@ -567,12 +480,7 @@ async function fire(k: Kitchen, r: Rule, key: string, why: string, chain: number
 		return true;
 	}
 	const { notice } = r.spec;
-	const to =
-		notice.to === 'personas'
-			? notice.userIds
-			: notice.to === 'yo' && r.userId
-				? [r.userId]
-				: await familyAccounts(k);
+	const to = await recipients(k, r);
 	await tell(k.familyId, to, {
 		kind: 'regla',
 		level: notice.level,
@@ -606,34 +514,35 @@ async function deduce(k: Kitchen, r: Rule, why: string, chain: number[]) {
 }
 
 /**
- * Out loud too, if it says so (the house's, unless it said not): on the family's satellites, once,
- * when one it is for is at home (not on a trip today) and it is not the quiet hours (an urgent one,
- * even then).
+ * Whether it goes out loud too, if it says so (the house's, unless it said not): on the family's
+ * satellites, when one it is for is at home (not on a trip that day) and it is not the quiet hours
+ * (an urgent one, even then). Null, not one for out loud; else the satellites, or why not.
  */
-async function sayAtHome(k: Kitchen, r: Rule, to: string[]) {
+async function aloud(k: Kitchen, r: Rule, to: string[], w: World) {
 	const { notice } = r.spec;
-	if (!(r.spec.say ?? !r.userId)) return;
+	if (!(r.spec.say ?? !r.userId)) return null;
 	const [satellites, settings] = await Promise.all([
 		familySatellites(k.familyId),
 		voiceSettings(k)
 	]);
-	if (!satellites.length) return;
-	const minute = parseClock(localTime())!;
-	if (notice.level !== 'urgente' && settings.quiet && inQuietHours(settings.quiet, minute)) return;
-	const today = localDay();
-	let home = false;
-	for (const userId of to) {
-		const trips = await tripsFor(await kitchenOf(userId), userId);
-		if (!trips.some((t) => t.first.day <= today && today <= t.last.day)) {
-			home = true;
-			break;
-		}
-	}
-	if (!home) return;
-	const names = notice.to === 'personas' ? notice.names : [];
+	if (!satellites.length) return { satellites: [], why: 'no hay satélites' };
+	const minute = parseClock(w.time)!;
+	if (notice.level !== 'urgente' && settings.quiet && inQuietHours(settings.quiet, minute))
+		return { satellites: [], why: 'son las Horas de silencio' };
+	for (const userId of to)
+		if (!awayOn(await tripsFor(await kitchenOf(userId), userId), w.today))
+			return { satellites: satellites.map((s) => s.id), why: '' };
+	return { satellites: [], why: 'no hay nadie en casa' };
+}
+
+/** Out loud too, if it says so and can (`aloud`), once. */
+async function sayAtHome(k: Kitchen, r: Rule, to: string[]) {
+	const out = await aloud(k, r, to, worldNow(k.familyId));
+	if (!out?.satellites.length) return;
+	const names = r.spec.notice.to === 'personas' ? r.spec.notice.names : [];
 	sayOnSatellites(
-		satellites.map((s) => s.id),
-		`${names.length ? `Aviso para ${names.join(' y ')}: ` : 'Aviso: '}${notice.text}`
+		out.satellites,
+		`${names.length ? `Aviso para ${names.join(' y ')}: ` : 'Aviso: '}${r.spec.notice.text}`
 	);
 }
 
@@ -641,13 +550,20 @@ async function sayAtHome(k: Kitchen, r: Rule, to: string[]) {
  * If its conditions hold now, told (or deduced) for `key`, with `because` and them as why. `chain`:
  * the rules what happened came through (a deduction's), none twice and at most `MAX_CHAIN`.
  */
-async function tryFire(k: Kitchen, r: Rule, key: string, because: string, chain: number[] = []) {
+async function tryFire(
+	w: World,
+	k: Kitchen,
+	r: Rule,
+	key: string,
+	because: string,
+	chain: number[] = []
+) {
 	if (r.paused || r.fired.includes(key)) return false;
 	if (chain.includes(r.id) || chain.length >= MAX_CHAIN) {
 		if (chain.length) console.info('[reglas] Cadena cortada', { id: r.id, chain });
 		return false;
 	}
-	const { ok, why } = await conditionsHold(k, r);
+	const { ok, why } = await conditionsHold(w, r);
 	if (!ok) return false;
 	return fire(k, r, key, [because, ...why].join(' y '), chain);
 }
@@ -667,105 +583,32 @@ export async function onEvent(
 	chain: number[] = []
 ) {
 	const rules = (await allRules(houseKitchen(k.familyId))).filter(
-		(r) =>
-			!r.paused &&
-			r.spec.when.kind === kind &&
-			(kind === 'nevera' ||
-				(kind === 'dicho' ? !r.userId || r.userId === ownerId : !ownerId || r.userId === ownerId))
+		(r) => !r.paused && r.spec.when.kind === kind && waitsFor(r, kind, ownerId)
 	);
-	const at = localTime();
+	const w = worldNow(k.familyId);
 	for (const r of rules) {
 		const rk = await kitchenFor(k.familyId, r.userId);
 		const fit =
 			kind === 'dicho'
 				? { ok: hasWords(r.spec.when.words, text), why: '' }
-				: await fits(rk, r, r.spec.when.words, kind, text);
+				: await fits(w, r, r.spec.when.words, kind, text);
 		if (!fit.ok) continue;
 		const because =
 			kind === 'nevera'
 				? `han puesto en la nevera «${text}»`
 				: kind === 'dicho'
-					? `han dicho «${text}» a las ${at}`
+					? `han dicho «${text}» a las ${w.time}`
 					: `me han pedido recordar «${text}»`;
-		await tryFire(rk, r, `${kind}:${Date.now()}`, because + fit.why, chain);
+		await tryFire(w, rk, r, `${kind}:${Date.now()}`, because + fit.why, chain);
 	}
 }
+
+/** Whether something of `ownerId`'s (null: the house's) is for `r`, as `onEvent` says. */
+const waitsFor = (r: Rule, kind: 'nevera' | 'recuerdo' | 'dicho', ownerId: string | null) =>
+	kind === 'nevera' ||
+	(kind === 'dicho' ? !r.userId || r.userId === ownerId : !ownerId || r.userId === ownerId);
 
 listenRules(onEvent);
-
-/** `YYYY-MM-DD` and `HH:MM` as minutes, on the wall's clock: to compare and subtract. */
-const minutesOf = (day: string, time: string) => {
-	const [y, m, d] = day.split('-').map(Number);
-	const [hh, mm] = time.split(':').map(Number);
-	return Date.UTC(y!, m! - 1, d!, hh!, mm!) / 60_000;
-};
-
-/** What it waits for by the clock, due now (or a little late): each with its key and why. */
-async function dueNow(k: Kitchen, r: Rule) {
-	const today = localDay();
-	const now = minutesOf(today, localTime());
-	const due = (day: string, time: string) => {
-		const at = minutesOf(day, time) - r.spec.when.minutesBefore;
-		return now >= at && now < at + LATE_MINUTES;
-	};
-	const { when } = r.spec;
-	const found: { key: string; why: string }[] = [];
-	if (when.kind === 'cada_dia' && when.time && due(today, when.time))
-		found.push({ key: `cada_dia:${today}`, why: `son las ${when.time}` });
-	if (when.kind === 'agenda') {
-		const ahead = Math.ceil(when.minutesBefore / (24 * 60)) + 1;
-		const { occurrences } = await agendaBetween(k, today, addDays(today, ahead));
-		for (const o of occurrences) {
-			// Its time first: only then, if its words do not say, asked by its meaning.
-			if (!due(o.day, o.startTime ?? ALL_DAY_AT)) continue;
-			const fit = await fits(k, r, when.words, 'agenda', o.title);
-			if (fit.ok)
-				found.push({
-					key: `agenda:${o.eventId}:${o.day}`,
-					why: `${when.minutesBefore ? 'va a empezar' : 'empieza'} «${o.title}» (${dayName(o.day)}${o.startTime ? `, ${o.startTime}` : ''})${fit.why}`
-				});
-		}
-	}
-	if (when.kind === 'viaje_empieza' || when.kind === 'viaje_acaba')
-		for (const { trip, first, last } of await tripsFor(k, r.userId)) {
-			const leg = when.kind === 'viaje_empieza' ? first : last;
-			if (when.kind === 'viaje_acaba' && first === last) continue;
-			if (due(leg.day, leg.time))
-				found.push({
-					key: `${when.kind}:${trip.id}:${leg.day}`,
-					why: `${when.kind === 'viaje_empieza' ? 'empieza' : 'acaba'} el viaje «${trip.name}»`
-				});
-		}
-	if (when.kind === 'toma_sin_marcar') found.push(...(await dosesLate(k, r, now)));
-	return found;
-}
-
-/**
- * Doses still not marked `minutesAfter` their time (Medicación, #308), of the people it names
- * (none: anyone's): a person's at the same time, together.
- */
-async function dosesLate(k: Kitchen, r: Rule, now: number) {
-	const today = localDay();
-	const after = r.spec.when.minutesAfter ?? DOSE_LATE_MIN;
-	const [meds, people] = await Promise.all([listMedication(k), agendaPeople(k)]);
-	const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? '';
-	const late = (await dosesFor(k, meds, today)).filter((d) => {
-		const at = minutesOf(today, d.time) + after;
-		return (
-			!d.takenAt &&
-			now >= at &&
-			now < at + LATE_MINUTES &&
-			(!r.spec.when.words.length || r.spec.when.words.some((w) => sameName(nameOf(d.personId), w)))
-		);
-	});
-	const groups = new Map<string, typeof late>();
-	for (const d of late)
-		groups.set(`${d.personId}:${d.time}`, [...(groups.get(`${d.personId}:${d.time}`) ?? []), d]);
-	return [...groups].map(([key, doses]) => ({
-		key: `toma:${key}:${today}`,
-		why: `la toma de las ${doses[0]!.time} de ${nameOf(doses[0]!.personId) || 'alguien'} (${doses.map((d) => d.name).join(', ')}) sigue sin marcar`
-	}));
-}
 
 /** The weather a rule waits for (`tiempo`), looked at this often. */
 const WEATHER_EVERY_MS = 30 * 60_000;
@@ -777,12 +620,12 @@ const HOLDING = 'tiempo:se_cumple';
  * A rule that waits for the weather: every half hour, told when it comes to hold (once; again if
  * it stops holding and comes back, or the next day), as long as its conditions hold too.
  */
-async function checkWeather(k: Kitchen, r: Rule) {
-	const w = r.spec.when.weather;
-	if (!w || Date.now() - (weatherLooked.get(r.id) ?? 0) < WEATHER_EVERY_MS) return;
+async function checkWeather(w: World, k: Kitchen, r: Rule) {
+	const weather = r.spec.when.weather;
+	if (!weather || Date.now() - (weatherLooked.get(r.id) ?? 0) < WEATHER_EVERY_MS) return;
 	weatherLooked.set(r.id, Date.now());
-	const today = localDay();
-	const { hit } = await weatherFor(k, r, w);
+	const today = w.today;
+	const { hit } = await weatherFor(w, r, weather);
 	const holding = r.fired.includes(HOLDING);
 	const toldToday = r.fired.includes(`tiempo:${today}`);
 	if (!hit) {
@@ -795,7 +638,7 @@ async function checkWeather(k: Kitchen, r: Rule) {
 		return;
 	}
 	if (holding && toldToday) return;
-	if (await tryFire(k, r, `tiempo:${today}:${Date.now()}`, hit)) {
+	if (await tryFire(w, k, r, `tiempo:${today}:${Date.now()}`, hit)) {
 		const [now] = await k.run((tx) =>
 			tx.select({ fired: rule.fired }).from(rule).where(eq(rule.id, r.id))
 		);
@@ -816,13 +659,14 @@ async function setFired(k: Kitchen, r: Rule, fired: string[]) {
 /** Every minute, for a family (scheduler.ts): the rules that wait for the clock. */
 export async function checkTimedRules(familyId: string) {
 	const rules = (await allRules(houseKitchen(familyId))).filter(
-		(r) => !r.paused && !['nevera', 'recuerdo'].includes(r.spec.when.kind)
+		(r) => !r.paused && !['nevera', 'recuerdo', 'dicho'].includes(r.spec.when.kind)
 	);
+	const w = worldNow(familyId);
 	for (const r of rules) {
 		try {
 			const k = await kitchenFor(familyId, r.userId);
-			if (r.spec.when.kind === 'tiempo') await checkWeather(k, r);
-			else for (const { key, why } of await dueNow(k, r)) await tryFire(k, r, key, why);
+			if (r.spec.when.kind === 'tiempo') await checkWeather(w, k, r);
+			else for (const { key, why } of await dueIn(w, r)) await tryFire(w, k, r, key, why);
 		} catch (error) {
 			console.warn('[reglas] No se pudo mirar', { id: r.id, error: String(error) });
 		}
@@ -833,14 +677,15 @@ export async function checkTimedRules(familyId: string) {
 export async function tryRule(k: Kitchen, userId: string | null, id: number) {
 	const r = (await listRules(k, userId)).find((r) => r.id === id);
 	if (!r) return null;
-	const { ok, why } = await conditionsHold(k, r);
+	const w = worldNow(k.familyId);
+	const { ok, why } = await conditionsHold(w, r);
 	const { weather } = r.spec.when;
 	// Waiting for the weather: it is part of what has to hold now.
 	if (r.spec.when.kind === 'tiempo' && weather) {
-		const w = await weatherFor(k, r, weather);
-		return w.hit && ok
-			? `Ahora sí avisaría: ${[w.hit, ...why].join(' y ')}.`
-			: `Ahora no avisaría: ${[w.hit ?? w.none, ...why].join(' y ')}.`;
+		const found = await weatherFor(w, r, weather);
+		return found.hit && ok
+			? `Ahora sí avisaría: ${[found.hit, ...why].join(' y ')}.`
+			: `Ahora no avisaría: ${[found.hit ?? found.none, ...why].join(' y ')}.`;
 	}
 	const [does, will] =
 		r.spec.then === 'deducir' && r.spec.deduce
@@ -851,4 +696,125 @@ export async function tryRule(k: Kitchen, userId: string | null, id: number) {
 	return ok
 		? `Ahora sí se cumple (${why.join(' y ')}): ${does} en cuanto llegue su momento.`
 		: `Ahora no ${does}: ${why.join(' y ')}.`;
+}
+
+// ——— «¿Qué pasaría…?» (#389) ———
+
+/** How far ahead a moment can be tried: the Agenda and the trips know, the weather 3 days. */
+export const SIMULATE_DAYS = 7;
+/** A rule written to try, understood once and kept a while: trying it again costs nothing. */
+const DRAFT_MS = 15 * 60_000;
+const drafts = new Map<string, { at: number; made: Awaited<ReturnType<typeof translateRule>> }>();
+
+async function draftOf(k: Kitchen, who: string, said: string) {
+	const key = `${k.userId}|${said.trim()}`;
+	const kept = drafts.get(key);
+	if (kept && Date.now() - kept.at < DRAFT_MS && !('problem' in kept.made)) return kept.made;
+	const made = await translateRule(k, said, who);
+	for (const [old, d] of drafts) if (Date.now() - d.at >= DRAFT_MS) drafts.delete(old);
+	drafts.set(key, { at: Date.now(), made });
+	return made;
+}
+
+/** «Ana, Luis y Miguel». */
+const listed = (names: string[]) =>
+	names.length > 1 ? `${names.slice(0, -1).join(', ')} y ${names.at(-1)}` : (names[0] ?? '');
+
+/**
+ * To whom and how a notice would go then: «te avisaría en el Buzón y en el móvil, y en voz alta en
+ * casa»; and, not out loud though it says so, why not.
+ */
+async function tellsSaid(familyId: string, r: Rule, w: World) {
+	const k = await kitchenFor(familyId, r.userId);
+	const to = await recipients(k, r);
+	const people = await familyPeople(k);
+	const names = to.map((id) => people.find((p) => p.userId === id)?.name ?? '').filter(Boolean);
+	const who =
+		r.spec.notice.to === 'yo' && r.userId
+			? 'te avisaría'
+			: names.length
+				? `avisaría a ${listed(names)}`
+				: 'avisaría (a nadie con cuenta)';
+	const out = await aloud(k, r, to, w);
+	const how = `${who} en el Buzón y en el móvil${r.spec.notice.level === 'urgente' ? ' (urgente)' : ''}`;
+	if (!out) return { how };
+	return out.satellites.length
+		? { how: `${how}, y en voz alta en casa` }
+		: { how, after: `En voz alta no: ${out.why}.` };
+}
+
+export interface SimulationAsked {
+	/** `YYYY-MM-DD` and `HH:MM`. */
+	day: string;
+	time: string;
+	/** Till the end of that day; else, that hour. */
+	wholeDay: boolean;
+	/** A rule written to try too (not saved), and whose it would be. */
+	draft: string;
+	draftHouse: boolean;
+	/** What only its meaning says, asked of the AI too. */
+	ai: boolean;
+}
+
+/**
+ * «¿Qué pasaría…?»: the rules `userId` sees (and one written to try), on a day to come, from a
+ * time: what each would do then and why, with nothing told nor kept; but for what its words do not
+ * say, asked of the AI if `ai` (and its answer kept with the rule, as the server would). Else how
+ * many such questions there are, and about what asking them would cost.
+ */
+export async function simulateRules(k: Kitchen, userId: string, who: string, o: SimulationAsked) {
+	const today = localDay();
+	if (o.day < today || o.day > addDays(today, SIMULATE_DAYS) || !parseClock(o.time))
+		return { problem: `Elige un momento de aquí a ${SIMULATE_DAYS} días.` };
+	const rules = await listRules(k, userId);
+	if (o.draft.trim()) {
+		const made = await draftOf(k, who, o.draft);
+		if ('problem' in made) return { problem: made.problem };
+		rules.unshift({
+			id: DRAFT_ID,
+			userId: o.draftHouse ? null : userId,
+			said: o.draft.trim().slice(0, MAX_RULE),
+			understood: made.understood,
+			spec: made.spec,
+			paused: false,
+			lastFiredAt: null,
+			lastWhy: null,
+			fired: [],
+			matches: {}
+		});
+	}
+	if (!rules.length) return { problem: 'No hay reglas que probar: escribe una.' };
+	const from = minutesOf(o.day, o.time);
+	const to = o.wholeDay
+		? minutesOf(o.day, '23:59')
+		: Math.min(from + 59, minutesOf(o.day, '23:59'));
+	/** What would be asked by its meaning, and its prompt's letters. */
+	const unasked = new Map<string, number>();
+	const meaning: World['meaning'] = async (r, kind, text) => {
+		const key = matchKey(kind, text);
+		if (r.matches[key]) return r.matches[key];
+		if (o.ai) return keptOrAsked(await kitchenFor(k.familyId, r.userId), r, kind, text);
+		unasked.set(`${r.id}|${key}`, MATCH_SYSTEM.length + matchPrompt(r, kind, text).length);
+		return null;
+	};
+	const outcomes = await simulate({
+		rules,
+		from,
+		to,
+		world: (minute, deduced) => {
+			const then = momentOf(minute);
+			return worldOf(
+				k.familyId,
+				{ today: then.day, time: then.time, from, to },
+				{ meaning, deduced }
+			);
+		},
+		tells: (r, w) => tellsSaid(k.familyId, r, w)
+	});
+	let cost: number | null = 0;
+	for (const letters of unasked.values()) {
+		const one = await guessCost(DEFAULT_MODEL, letters, MATCH_TOKENS);
+		cost = one === null || cost === null ? null : cost + one;
+	}
+	return { outcomes, unasked: unasked.size, cost: unasked.size ? cost : null };
 }

@@ -84,18 +84,19 @@ const visibleTo = (userId: string | null) =>
 
 /**
  * What `userId` may see (null, a satellite: only the house's), newest first: what holds today, or
- * with `later`, what is still to begin too (Ajustes).
+ * with `later`, what is still to begin too (Ajustes); on `day`, what holds then (a simulation, #389).
  */
 export async function listMemories(
 	k: Kitchen,
 	userId: string | null,
-	later = false
+	later = false,
+	day = localDay()
 ): Promise<Memory[]> {
 	return k.run((tx) =>
 		tx
 			.select(COLUMNS)
 			.from(memory)
-			.where(and(eq(memory.familyId, k.familyId), visibleTo(userId), current(localDay(), !later)))
+			.where(and(eq(memory.familyId, k.familyId), visibleTo(userId), current(day, !later)))
 			.orderBy(desc(memory.updatedAt))
 	);
 }
