@@ -22,6 +22,7 @@ mock.module('#lib/server/family.ts', () => ({
 	NoFamily
 }));
 mock.module('#lib/server/family-secret.ts', () => ({
+	kmsOn: true,
 	sealFor: async (_: string, text: string) => `cifrado:${text}`,
 	openFor: async (_: string, text: string) => text,
 	sealFileFor: async (_: string, bytes: Uint8Array) => bytes,

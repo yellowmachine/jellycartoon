@@ -4,7 +4,7 @@ import { eq as sqlEq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import * as schema from '#lib/server/db/schema.ts';
-import { family, paper } from '#lib/server/db/schema.ts';
+import { calendarEvent, family, paper, paperEvent } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { parsePaperInput } from 'comun/papers.ts';
 
@@ -46,8 +46,17 @@ mock.module('#lib/server/family-secret.ts', () => ({
 	openFileFor: async (_: string, bytes: Uint8Array) => (kmsDown ? null : flip(bytes))
 }));
 
-const { addPaper, deletePaper, familyPapers, NotAPaper, paperFile, updatePaper } =
-	await import('./papers.ts');
+const {
+	addPaper,
+	deletePaper,
+	familyPapers,
+	linkPaper,
+	NotAPaper,
+	paperFile,
+	papersOfEvents,
+	unlinkPaper,
+	updatePaper
+} = await import('./papers.ts');
 
 const db = drizzle(new PGlite(), { schema });
 const a: Kitchen = {
@@ -157,6 +166,101 @@ describe('papers', () => {
 			kmsDown = false;
 		}
 		await deletePaper(a, id);
+	});
+});
+
+describe('the papers of an event (#399)', () => {
+	const newEvent = async (familyId = 'A') =>
+		(
+			await db
+				.insert(calendarEvent)
+				.values({ familyId, title: 'Médico', startDay: '2026-11-12' })
+				.returning({ id: calendarEvent.id })
+		)[0]!.id;
+	const removeEvent = (id: number) => db.delete(calendarEvent).where(sqlEq(calendarEvent.id, id));
+
+	test('in the event and in Papeles, sealed the same, both of its papers', async () => {
+		const event = await newEvent();
+		const appointment = await addPaper(a, { ...rent, name: 'Cita' }, PDF);
+		const request = await addPaper(a, { ...rent, name: 'Análisis' }, JPEG);
+		expect(await linkPaper(a, appointment, event)).toBe(true);
+		expect(await linkPaper(a, request, event)).toBe(true);
+		expect((await papersOfEvents(a, [event]))[event]).toEqual([
+			{ id: request, name: 'Análisis', file: 'image' },
+			{ id: appointment, name: 'Cita', file: 'pdf' }
+		]);
+		const papers = await familyPapers(a);
+		expect(papers.find((p) => p.id === request)!.events).toEqual([
+			{ id: event, title: 'Médico', day: '2026-11-12', repeats: false }
+		]);
+		await deletePaper(a, appointment);
+		await deletePaper(a, request);
+		await removeEvent(event);
+	});
+
+	test('one paper, in two events, linked twice only once', async () => {
+		const [first, second] = [await newEvent(), await newEvent()];
+		const id = await addPaper(a, rent, PDF);
+		await linkPaper(a, id, first);
+		await linkPaper(a, id, first);
+		await linkPaper(a, id, second);
+		const [read] = await familyPapers(a);
+		expect(read!.events.map((e) => e.id).sort()).toEqual([first, second].sort());
+		await deletePaper(a, id);
+		await removeEvent(first);
+		await removeEvent(second);
+	});
+
+	test('the event deleted, or the paper taken out of it: the paper and its file stay', async () => {
+		const [first, second] = [await newEvent(), await newEvent()];
+		const id = await addPaper(a, rent, PDF);
+		await linkPaper(a, id, first);
+		await linkPaper(a, id, second);
+		await removeEvent(first);
+		await unlinkPaper(a, id, second);
+		const [read] = await familyPapers(a);
+		expect(read!.events).toEqual([]);
+		expect(await paperFile(a, id)).not.toBeNull();
+		await deletePaper(a, id);
+		await removeEvent(second);
+	});
+
+	test('the paper deleted: out of its event, the event stays', async () => {
+		const event = await newEvent();
+		const id = await addPaper(a, rent, PDF);
+		await linkPaper(a, id, event);
+		await deletePaper(a, id);
+		expect(await db.select().from(paperEvent)).toEqual([]);
+		expect(await papersOfEvents(a, [event])).toEqual({});
+		await removeEvent(event);
+	});
+
+	test('nothing gone, or another family’s: not linked', async () => {
+		await db.insert(family).values({ id: 'B', name: 'Casa B' }).onConflictDoNothing();
+		const theirs = await newEvent('B');
+		const event = await newEvent();
+		const id = await addPaper(a, rent, PDF);
+		expect(await linkPaper(a, id, theirs)).toBe(false);
+		expect(await linkPaper(a, id, 99999)).toBe(false);
+		expect(await linkPaper(a, 99999, event)).toBe(false);
+		expect(await db.select().from(paperEvent)).toEqual([]);
+		await deletePaper(a, id);
+		await removeEvent(theirs);
+		await removeEvent(event);
+	});
+
+	test('the KMS down: the event still loads, its paper without a name', async () => {
+		const event = await newEvent();
+		const id = await addPaper(a, rent, PDF);
+		await linkPaper(a, id, event);
+		kmsDown = true;
+		try {
+			expect((await papersOfEvents(a, [event]))[event]).toEqual([{ id, name: null, file: 'pdf' }]);
+		} finally {
+			kmsDown = false;
+		}
+		await deletePaper(a, id);
+		await removeEvent(event);
 	});
 });
 

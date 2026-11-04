@@ -14,6 +14,7 @@ import {
 } from '#lib/server/agenda/agenda.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { isKidAccount } from '#lib/server/kids.ts';
+import { papersOfEvents, papersReady } from '#lib/server/papers.ts';
 
 /**
  * The family's agenda (#253; jellycartoon's #200): a week (`?dia=2026-10-26`, its Monday to its
@@ -39,6 +40,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		agendaPeople(k),
 		kid ? null : icsToken(k)
 	]);
+	// Its papers (#399), only for the grown-ups, who can open Papeles: a child, not even their names.
+	const withPapers = !kid && papersReady();
 	return {
 		view,
 		day,
@@ -48,6 +51,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		events,
 		occurrences,
 		people,
+		papersReady: withPapers,
+		papers: withPapers
+			? await papersOfEvents(
+					k,
+					events.map((e) => e.id)
+				)
+			: {},
 		readonly: kid,
 		kid,
 		ics: token ? `${ORIGIN}/api/calendario/${token}.ics` : null

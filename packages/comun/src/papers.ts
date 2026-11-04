@@ -37,7 +37,21 @@ export interface Paper {
 	file: 'pdf' | 'image';
 	/** Who wrote it down; null if their account is gone. */
 	by: string | null;
+	/** The agenda's events it belongs to (#399). */
+	events: PaperEvent[];
 }
+
+/** An event of the agenda, as a paper says it belongs to it. */
+export interface PaperEvent {
+	id: number;
+	title: string;
+	/** Its first day. */
+	day: string;
+	repeats: boolean;
+}
+
+/** A paper as its event shows it: no more of it is read for the agenda. */
+export type EventPaper = Pick<Paper, 'id' | 'name' | 'file'>;
 
 export const MAX_PAPER_NAME = 120;
 export const MAX_PAPER_NOTES = 5000;

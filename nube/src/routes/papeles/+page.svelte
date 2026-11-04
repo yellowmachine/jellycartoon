@@ -1,14 +1,8 @@
 <script lang="ts">
-	import { tick } from 'svelte';
 	import { enhance } from '$app/forms';
-	import { smallerPhoto } from 'comun/receipt-photo.ts';
-	import {
-		MAX_PAPER_NAME,
-		MAX_PAPER_NOTES,
-		PAPER_CATEGORIES,
-		type Paper,
-		type PaperCategory
-	} from 'comun/papers.ts';
+	import type { Paper, PaperEvent } from 'comun/papers.ts';
+	import PaperForm, { asPaperFile, type PaperDraft } from '#lib/components/PaperForm.svelte';
+	import PaperPick from '#lib/components/PaperPick.svelte';
 	import type { PageProps } from './$types';
 
 	/**
@@ -17,66 +11,46 @@
 	 */
 	let { data }: PageProps = $props();
 
-	/** The one being written: new (`id` null) or corrected. */
-	interface Draft {
-		id: number | null;
-		name: string;
-		category: PaperCategory;
-		notes: string;
-	}
-	let draft = $state<Draft | null>(null);
-	let problem = $state<string | null>(null);
-	let sending = $state(false);
+	/** The one being written. */
+	let draft = $state<PaperDraft | null>(null);
+	/** The photo or file a new one was opened with. */
+	let file = $state<File | null>(null);
 	let search = $state('');
 	/** The one asked «¿Borrar?» about. */
 	let deleting = $state<number | null>(null);
-	/** The form's own file input: what it sends with the paper. */
-	let fileInput = $state<HTMLInputElement>();
-	let hasFile = $state(false);
 
 	const found = $derived.by(() => {
 		const words = search.trim().toLocaleLowerCase('es');
 		if (!words) return data.papers;
 		return data.papers.filter((p) =>
-			[p.name, p.notes, p.category].some((text) => text?.toLocaleLowerCase('es').includes(words))
+			[p.name, p.notes, p.category, ...p.events.map((e) => e.title)].some((text) =>
+				text?.toLocaleLowerCase('es').includes(words)
+			)
 		);
 	});
 
-	function newOne() {
-		problem = null;
-		hasFile = false;
-		draft = { id: null, name: '', category: 'Casa', notes: '' };
-	}
-
 	function edit(p: Paper) {
-		problem = null;
-		hasFile = false;
+		file = null;
 		draft = { id: p.id, name: p.name ?? '', category: p.category, notes: p.notes ?? '' };
 	}
 
-	/**
-	 * More kept than a receipt's, as it is read later, and by a person. A picture the browser
-	 * cannot draw, as it is, for the server to refuse it with its reason.
-	 */
-	async function asPaperFile(file: File) {
-		if (file.type === 'application/pdf') return file;
-		const photo = await smallerPhoto(file, { longest: 3000, quality: 0.9 });
-		return photo instanceof File ? photo : new File([photo], 'papel.jpg', { type: photo.type });
+	/** A new one from a photo or a file: the form open with it, to give it a name. */
+	async function fromFile(original: File) {
+		file = null;
+		draft = { id: null, name: '', category: 'Casa', notes: '' };
+		file = await asPaperFile(original);
 	}
 
-	/** A new one from a photo or a file: the form open with it, to give it a name. */
-	async function fromFile(input: HTMLInputElement) {
-		const original = input.files?.[0];
-		// The same file can be chosen again after cancelling.
-		input.value = '';
-		if (!original) return;
-		newOne();
-		const file = await asPaperFile(original);
-		await tick();
-		const picked = new DataTransfer();
-		picked.items.add(file);
-		if (fileInput) fileInput.files = picked.files;
-		hasFile = true;
+	/** «Médico, 12 nov 2026»; one that repeats, by its name. */
+	function eventName(e: PaperEvent) {
+		if (e.repeats) return `${e.title} 🔁`;
+		const day = new Date(`${e.day}T12:00:00Z`).toLocaleDateString('es-ES', {
+			day: 'numeric',
+			month: 'short',
+			year: 'numeric',
+			timeZone: 'UTC'
+		});
+		return `${e.title}, ${day}`;
 	}
 
 	const field =
@@ -102,107 +76,22 @@
 		</p>
 	{:else}
 		{#if draft}
-			<form
-				method="post"
-				action="?/save"
-				enctype="multipart/form-data"
-				class="mb-6 flex flex-col gap-3 rounded-lg bg-zinc-900 p-3"
-				use:enhance={() => {
-					sending = true;
-					problem = null;
-					return async ({ result, update }) => {
-						sending = false;
-						if (result.type === 'failure')
-							problem = String(result.data?.message ?? 'No se pudo guardar');
-						else if (result.type === 'error') problem = 'No se pudo guardar';
-						await update({ reset: false });
-						if (result.type === 'success') draft = null;
-					};
-				}}
-			>
-				{#if draft.id}<input type="hidden" name="id" value={draft.id} />{/if}
-				<div class="flex flex-wrap gap-3">
-					<label class="flex min-w-48 flex-1 flex-col gap-1 text-xs text-zinc-400">
-						Nombre
-						<input
-							name="name"
-							bind:value={draft.name}
-							maxlength={MAX_PAPER_NAME}
-							required
-							class={field}
-							placeholder="Contrato de alquiler"
-						/>
-					</label>
-					<label class="flex flex-col gap-1 text-xs text-zinc-400">
-						Categoría
-						<select name="category" bind:value={draft.category} class={field}>
-							{#each PAPER_CATEGORIES as c (c)}
-								<option value={c}>{c}</option>
-							{/each}
-						</select>
-					</label>
-				</div>
-				<label class="flex flex-col gap-1 text-xs text-zinc-400">
-					Anotaciones
-					<textarea
-						name="notes"
-						bind:value={draft.notes}
-						maxlength={MAX_PAPER_NOTES}
-						rows="4"
-						class={field}
-						placeholder="Lo que quieras recordar: la fianza, cuándo se renueva, con quién hablar…"
-					></textarea>
-				</label>
-				<label class="flex flex-col gap-1 text-xs text-zinc-400">
-					{draft.id ? 'Otro fichero (si quieres cambiarlo)' : 'Fichero (PDF o foto, hasta 10 MB)'}
-					<input
-						bind:this={fileInput}
-						name="fichero"
-						type="file"
-						accept="application/pdf,image/jpeg,image/png,image/webp"
-						required={!draft.id}
-						class="text-sm text-zinc-300 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-zinc-100"
-						onchange={(e) => (hasFile = Boolean(e.currentTarget.files?.length))}
+			{#key draft}
+				<div class="mb-6">
+					<PaperForm
+						action="?/save"
+						{draft}
+						{file}
+						onclose={() => {
+							draft = null;
+							file = null;
+						}}
 					/>
-				</label>
-				<div class="flex gap-2">
-					<button
-						class="{button} bg-amber-500 font-medium text-zinc-950 hover:bg-amber-400"
-						disabled={sending || (!draft.id && !hasFile)}
-					>
-						{sending ? 'Guardando…' : 'Guardar'}
-					</button>
-					<button
-						type="button"
-						class="{button} text-zinc-400 hover:bg-zinc-800"
-						onclick={() => (draft = null)}>Cancelar</button
-					>
 				</div>
-				{#if problem}<p class="text-sm text-red-400">{problem}</p>{/if}
-			</form>
+			{/key}
 		{:else}
 			<div class="mb-6 flex flex-wrap gap-2">
-				<label
-					class="{button} cursor-pointer bg-amber-500 font-medium text-zinc-950 hover:bg-amber-400"
-				>
-					📷 Desde una foto
-					<input
-						type="file"
-						accept="image/*"
-						capture="environment"
-						class="hidden"
-						onchange={(e) => fromFile(e.currentTarget)}
-					/>
-				</label>
-				<label class="{button} cursor-pointer bg-zinc-800 hover:bg-zinc-700">
-					📄 Desde un archivo
-					<input
-						type="file"
-						accept="application/pdf,image/jpeg,image/png,image/webp"
-						class="hidden"
-						onchange={(e) => fromFile(e.currentTarget)}
-					/>
-				</label>
+				<PaperPick onpick={fromFile} />
 			</div>
 		{/if}
 
@@ -237,6 +126,17 @@
 									{p.category}{#if p.by}
 										· {p.by}{/if}
 								</p>
+								{#if p.events.length}
+									<p class="text-xs text-zinc-500">
+										{p.events.length > 1 ? 'De las citas:' : 'De la cita:'}
+										{#each p.events as e, i (e.id)}
+											{i ? ', ' : ''}<a
+												href="/agenda?dia={e.day}&evento={e.id}"
+												class="text-zinc-300 hover:underline">{eventName(e)}</a
+											>
+										{/each}
+									</p>
+								{/if}
 							</div>
 							<button
 								class="{button} shrink-0 px-2 text-zinc-400 hover:bg-zinc-800"
