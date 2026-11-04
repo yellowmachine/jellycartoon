@@ -2,7 +2,13 @@ import { and, asc, eq, exists, inArray, ne, or, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { tag, tvShortcut, tvShortcutTag } from '#lib/server/db/schema.ts';
 import { KIDS_TAG } from '#lib/kids-tag.ts';
-import { deleteUnusedTags, tagName } from '#lib/server/tags.ts';
+import {
+	deleteUnusedTags,
+	ensureTagsHere,
+	releaseTagsHere,
+	tagName,
+	tagsAreReplicated
+} from '#lib/server/tags.ts';
 import { destinations, shortcutTarget, type Viewer } from '#lib/server/tv-shortcut-targets.ts';
 import { isShortcutKind, type ShortcutKind } from '#lib/tv-shortcut-kinds.ts';
 
@@ -176,7 +182,10 @@ export async function saveTvShortcut(
 		name ||= found.name.slice(0, 40);
 	}
 	const tags = parseTags(s.tags);
-	return db.transaction(async (tx) => {
+	// Copia de Seilide (#394): las etiquetas, allí y antes, fuera de la transacción.
+	const replicated = tagsAreReplicated() ? await ensureTagsHere(tags) : null;
+	let released: number[] = [];
+	const saved = await db.transaction(async (tx) => {
 		let id = s.id;
 		let findIcon = kind === 'url';
 		let oldIcon: string | null = null;
@@ -204,24 +213,27 @@ export async function saveTvShortcut(
 			.where(eq(tvShortcutTag.shortcutId, id!));
 		await tx.delete(tvShortcutTag).where(eq(tvShortcutTag.shortcutId, id!));
 		if (tags.length) {
-			await tx
-				.insert(tag)
-				.values(tags.map((n) => ({ name: n })))
-				.onConflictDoNothing();
-			const ids = await tx.select({ id: tag.id }).from(tag).where(inArray(tag.name, tags));
+			if (!replicated)
+				await tx
+					.insert(tag)
+					.values(tags.map((n) => ({ name: n })))
+					.onConflictDoNothing();
+			const ids =
+				replicated ?? (await tx.select({ id: tag.id }).from(tag).where(inArray(tag.name, tags)));
 			await tx.insert(tvShortcutTag).values(ids.map((t) => ({ shortcutId: id!, tagId: t.id })));
 		}
-		await deleteUnusedTags(
-			tx,
-			before.map((b) => b.tagId)
-		);
+		released = before.map((b) => b.tagId);
+		await deleteUnusedTags(tx, released);
 		return { id: id!, url, findIcon, oldIcon };
 	});
+	if (replicated) await releaseTagsHere(released);
+	return saved;
 }
 
 /** Out, with its tags nothing else has; its icon's file, to delete. */
 export async function deleteTvShortcut(id: number) {
-	return db.transaction(async (tx) => {
+	let released: number[] = [];
+	const icon = await db.transaction(async (tx) => {
 		const before = await tx
 			.select({ tagId: tvShortcutTag.tagId })
 			.from(tvShortcutTag)
@@ -230,12 +242,12 @@ export async function deleteTvShortcut(id: number) {
 			.delete(tvShortcut)
 			.where(eq(tvShortcut.id, id))
 			.returning({ icon: tvShortcut.icon });
-		await deleteUnusedTags(
-			tx,
-			before.map((b) => b.tagId)
-		);
+		released = before.map((b) => b.tagId);
+		await deleteUnusedTags(tx, released);
 		return gone?.icon ?? null;
 	});
+	if (tagsAreReplicated()) await releaseTagsHere(released);
+	return icon;
 }
 
 /** Its icon's file, or none; the one before, to delete. */

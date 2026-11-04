@@ -4,6 +4,7 @@ import {
 	deleteTag,
 	getTagsWithItems,
 	otherTagNamed,
+	orCloudFail,
 	renameTag,
 	tagName
 } from '#lib/server/tags.ts';
@@ -22,11 +23,11 @@ export const actions: Actions = {
 		const other = await otherTagNamed(tagId, name);
 		if (other && !form.has('merge'))
 			return fail(409, { tagId, merge: { name, series: other.series, films: other.films } });
-		await renameTag(tagId, name);
+		return orCloudFail(() => renameTag(tagId, name), { tagId });
 	},
 	delete: async ({ request }) => {
 		const tagId = Number((await request.formData()).get('tagId'));
 		if (!Number.isInteger(tagId)) return fail(400, { message: 'Etiqueta no válida' });
-		await deleteTag(tagId);
+		return orCloudFail(() => deleteTag(tagId), { tagId });
 	}
 };

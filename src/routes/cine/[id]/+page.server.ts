@@ -11,7 +11,14 @@ import { namingState, startNaming } from '#lib/server/cinema/scenes.ts';
 import { mpvEnabled } from '#lib/server/cinema/mpv.ts';
 import { cinemaRoot, hostMoviePath } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
-import { addMovieTag, getTags, movieTags, removeMovieTag, tagName } from '#lib/server/tags.ts';
+import {
+	addMovieTag,
+	getTags,
+	movieTags,
+	orCloudFail,
+	removeMovieTag,
+	tagName
+} from '#lib/server/tags.ts';
 import {
 	filmAutoSubtitles,
 	requestSubtitles,
@@ -100,12 +107,12 @@ export const actions: Actions = {
 		const name = tagName(String((await request.formData()).get('name') ?? ''));
 		if (!name) return fail(400, { message: 'Escribe una etiqueta' });
 		if (name.length > 40) return fail(400, { message: 'Etiqueta demasiado larga' });
-		await addMovieTag(Number(params.id), name);
+		return orCloudFail(() => addMovieTag(Number(params.id), name));
 	},
 	removeTag: async ({ params, request }) => {
 		const tagId = Number((await request.formData()).get('tagId'));
 		if (!Number.isInteger(tagId)) return fail(400, { message: 'Etiqueta no válida' });
-		await removeMovieTag(Number(params.id), tagId);
+		return orCloudFail(() => removeMovieTag(Number(params.id), tagId));
 	},
 	/** «It is this one», among the candidates. */
 	choose: async ({ params, request }) => {

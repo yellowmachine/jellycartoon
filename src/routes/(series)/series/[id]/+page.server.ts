@@ -14,7 +14,14 @@ import { getActiveList, getListNames, seriesListItems, toggleInList } from '#lib
 import { clearProgress, dismissProgress, markWatched, saveProgress } from '#lib/server/progress.ts';
 import { log } from '#lib/server/log.ts';
 import { parseView, viewCookie } from '#lib/views.ts';
-import { addSeriesTag, getTags, removeSeriesTag, seriesTags, tagName } from '#lib/server/tags.ts';
+import {
+	addSeriesTag,
+	getTags,
+	orCloudFail,
+	removeSeriesTag,
+	seriesTags,
+	tagName
+} from '#lib/server/tags.ts';
 import { playEpisodes, seriesQueue } from '#lib/server/cinema/episode-actions.ts';
 import {
 	cancelSubtitles,
@@ -277,12 +284,12 @@ export const actions: Actions = {
 		const name = tagName(String((await request.formData()).get('name') ?? ''));
 		if (!name) return fail(400, { message: 'Escribe una etiqueta' });
 		if (name.length > 40) return fail(400, { message: 'Etiqueta demasiado larga' });
-		await addSeriesTag(Number(params.id), name);
+		return orCloudFail(() => addSeriesTag(Number(params.id), name));
 	},
 	removeTag: async ({ params, request }) => {
 		const tagId = Number((await request.formData()).get('tagId'));
 		if (!Number.isInteger(tagId)) return fail(400, { message: 'Etiqueta no válida' });
-		await removeSeriesTag(Number(params.id), tagId);
+		return orCloudFail(() => removeSeriesTag(Number(params.id), tagId));
 	},
 	/** Into the given list, or the active one if none is given. */
 	toggleList: async ({ request, locals }) => {

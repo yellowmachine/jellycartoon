@@ -7,7 +7,7 @@ import {
 } from '@electric-sql/client';
 import { ELECTRIC_REPLICA } from '$app/env/private';
 import { db } from '#lib/server/db/index.ts';
-import { cloudLink } from '#lib/server/kitchen.ts';
+import { askCloud, cloudLink, CloudProblem, linked } from '#lib/server/kitchen.ts';
 import { log } from '#lib/server/log.ts';
 import {
 	applyChanges,
@@ -18,6 +18,7 @@ import {
 	type Change,
 	type ReplicaName
 } from '#lib/server/replica-apply.ts';
+import { useCloudTags } from '#lib/server/tags.ts';
 
 /**
  * La copia de solo lectura de lo que es de Seilide (#394, piloto), con ELECTRIC_REPLICA: baja por
@@ -98,5 +99,12 @@ async function keepFollowing(name: ReplicaName) {
 
 export function startReplica() {
 	if (!ELECTRIC_REPLICA) return;
+	useCloudTags({
+		ask: async <T>(body: Record<string, unknown>) =>
+			askCloud<T>(await linked(), '/etiquetas', { body }),
+		problem: (message) => new CloudProblem(message),
+		isProblem: (error) => error instanceof CloudProblem,
+		note: (message) => log.info('replica', message)
+	});
 	for (const name of Object.keys(REPLICAS) as ReplicaName[]) void keepFollowing(name);
 }
