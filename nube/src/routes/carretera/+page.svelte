@@ -750,10 +750,12 @@
 		setTimeout(() => (copied = false), 2500);
 	}
 
-	// The step being done, in view in the list.
+	// The step being done, in view in the list: only when it changes, not at each position, or the
+	// list could not be scrolled by hand (up to «Quitar ruta», for one).
 	let stepList = $state<HTMLOListElement>();
+	const stepIndex = $derived(guidance?.nextIndex);
 	$effect(() => {
-		const index = guidance?.nextIndex;
+		const index = stepIndex;
 		if (index === undefined || index < 0) return;
 		stepList?.children[index]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 	});
@@ -997,9 +999,17 @@
 			Recalculando la ruta…
 		</p>
 	{:else if guidance?.arrived && destination}
-		<p class="{where} rounded-2xl bg-emerald-600/95 p-4 text-2xl font-semibold text-white">
-			Has llegado: {destination.label}
-		</p>
+		<!-- Done: the way out of the route here, not at the top of a long list of steps. -->
+		<div class="{where} flex items-center gap-3 rounded-2xl bg-emerald-600/95 p-4 text-white">
+			<div class="min-w-0 flex-1">
+				<p class="text-2xl font-semibold">Has llegado</p>
+				<p class="truncate text-lg">{destination.label}</p>
+			</div>
+			<button
+				class="shrink-0 rounded-xl bg-white px-5 py-3 text-lg font-semibold text-black active:scale-95"
+				onclick={clearRoute}>Terminar</button
+			>
+		</div>
 	{:else if guidance?.next}
 		<div class="{where} flex items-center gap-4 rounded-2xl bg-zinc-950/90 p-4 text-left shadow-xl">
 			<ManeuverIcon type={guidance.next.type} class="h-16 w-16 shrink-0 text-amber-400" />
@@ -1287,7 +1297,7 @@ home. -->
 {/snippet}
 
 <!-- The light, for all of it: the page, the fuel sheet and the dialog (their colours, below). -->
-<div class={['contents', day && 'sol']}>
+<div class={['road-mode contents', day && 'sol']}>
 	<div
 		class={[
 			'bg-zinc-950 text-zinc-100 select-none',
@@ -1603,10 +1613,15 @@ home. -->
 					{/if}
 
 					{#if mapInTab && route}
-						<!-- The route goes on out of its section: its next step, and back to the map. -->
-						<button class="contents" aria-label="Ver la ruta" onclick={() => (tab = 'ruta')}>
+						{#if guidance?.arrived}
+							<!-- Not inside the button below: this notice has its own. -->
 							{@render maneuver('w-full')}
-						</button>
+						{:else}
+							<!-- The route goes on out of its section: its next step, and back to the map. -->
+							<button class="contents" aria-label="Ver la ruta" onclick={() => (tab = 'ruta')}>
+								{@render maneuver('w-full')}
+							</button>
+						{/if}
 					{/if}
 
 					<!-- A big button for each section: one touch, and its list. -->
@@ -1626,7 +1641,7 @@ home. -->
 				<div
 					class={tab === 'ruta'
 						? 'relative h-[45dvh] shrink-0 short:h-[75dvh]'
-						: 'h-0 overflow-hidden'}
+						: 'relative h-0 overflow-hidden'}
 				>
 					<RoadMap
 						{route}
@@ -2098,6 +2113,14 @@ home. -->
 </div>
 
 <style>
+	/*
+	 * All of the road mode a bit bigger, read at a glance from the seat: sizes and spaces are in rem,
+	 * so this is the one number to change. Only while this page is open.
+	 */
+	:global(html:has(.road-mode)) {
+		font-size: 112.5%;
+	}
+
 	/*
 	 * By day (#sol): what is near black turns white and the other way round, and the colours of the
 	 * notices darken, so the same classes read in the sun. Tailwind's own values

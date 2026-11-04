@@ -96,7 +96,7 @@ Con la ruta puesta, guía según avanzas: arriba del mapa, en grande, la próxim
 flecha y a cuántos metros; en la lista, el paso que toca, resaltado; y lo que queda y la hora de
 llegada, al día. Al elegir el destino se ve la ruta entera unos segundos y luego el mapa vuelve a
 seguirte. Si te sales más de 50 m durante unas posiciones, recalcula desde donde estés (como mucho
-una vez cada 20 s, por la cuota). Al llegar, «Has llegado».
+una vez cada 20 s, por la cuota). Al llegar, «Has llegado», con «Terminar» al lado.
 
 Y lo dice en voz alta, con la voz del dispositivo y la música más baja mientras habla: cada
 maniobra con antelación («En 300 metros, gira a la izquierda por Calle Real», unos 20 s antes según
