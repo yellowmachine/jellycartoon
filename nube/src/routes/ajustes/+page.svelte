@@ -462,6 +462,15 @@
 			<!-- The key's own spending limit (ai-spend.ts): reached, the AI stops (ai-block.ts). Without
 			one, said: a key taken from Seilide could spend all of the account's credit (#326). -->
 			{#await data.openRouterLimit then limit}
+				{#if limit?.expiresAt}
+					<p class="mb-3 text-sm text-zinc-400">
+						Esta clave caduca el {new Date(limit.expiresAt).toLocaleDateString('es-ES', {
+							day: 'numeric',
+							month: 'long',
+							year: 'numeric'
+						})}: ese día se para la IA. Quien administra recibe un aviso una semana antes.
+					</p>
+				{/if}
 				{#if limit && limit.limit === null}
 					<p
 						class="mb-3 rounded border border-amber-700/60 bg-amber-950/40 p-3 text-sm text-amber-200"

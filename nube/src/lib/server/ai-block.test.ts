@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, setSystemTime, test } from 'bun:test';
 import {
 	AiBlocked,
+	daysToWarn,
+	KEY_EXPIRED,
 	BAD_KEY,
 	blockOf,
 	forgetBlocks,
@@ -44,6 +46,9 @@ describe('refusalWords', () => {
 		).toBe(SHORT_CREDIT);
 		expect(refusalWords(402, { message: NO_MONEY })).toBe(NO_CREDIT);
 		expect(refusalWords(401, { message: 'User not found' })).toBe(BAD_KEY);
+		// As OpenRouter said it on 2026-11-04.
+		expect(refusalWords(401, { message: 'API key expired.' })).toBe(KEY_EXPIRED);
+		expect(refusalWords(502, { message: KEY_EXPIRED })).toBe(KEY_EXPIRED);
 		expect(refusalWords(500, { message: 'boom' })).toBeNull();
 		// Ours already (a stopped family's, to an app): as it is.
 		expect(refusalWords(402, { message: KEY_LIMIT })).toBe(KEY_LIMIT);
@@ -83,6 +88,8 @@ describe('guarded', () => {
 	test('a key refused stops it at once', async () => {
 		await guarded('k1', async () => no(401, 'User not found'));
 		expect(blockOf('k1')?.why).toBe(BAD_KEY);
+		await guarded('k2', async () => no(401, 'API key expired.'));
+		expect(blockOf('k2')?.why).toBe(KEY_EXPIRED);
 	});
 
 	test('too many at once: asked again once, and never counted', async () => {
@@ -154,5 +161,30 @@ describe('guarded', () => {
 		expect(blockOf('k1')).toBeNull();
 		expect(told).toEqual([null]);
 		stop();
+	});
+});
+
+describe('daysToWarn', () => {
+	const now = Date.parse('2026-11-04T10:00:00Z');
+	const inDays = (days: number) => new Date(now + days * 24 * 60 * 60_000).toISOString();
+
+	test('a week before, three days before and the last two', () => {
+		expect([8, 7, 6, 5, 4, 3, 2, 1].map((d) => daysToWarn(inDays(d), now))).toEqual([
+			null,
+			7,
+			null,
+			null,
+			null,
+			3,
+			2,
+			1
+		]);
+		expect(daysToWarn(inDays(0.5), now)).toBe(1);
+	});
+
+	test('without a date, unreadable or already past: nothing', () => {
+		expect(daysToWarn(null, now)).toBeNull();
+		expect(daysToWarn('no es una fecha', now)).toBeNull();
+		expect(daysToWarn(inDays(-1), now)).toBeNull();
 	});
 });

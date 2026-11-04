@@ -1,6 +1,6 @@
 import {
 	accountProblem,
-	BAD_KEY,
+	keyRefused,
 	AiBlocked,
 	guarded,
 	logRefusal,
@@ -392,7 +392,7 @@ async function refusedAnswer(res: Response) {
 const sendForApp = (apiKey: string, fetchIt: () => Promise<Response>) =>
 	send(apiKey, fetchIt).catch((error) => {
 		if (!(error instanceof AiBlocked)) throw error;
-		const status = error.message === BAD_KEY ? 401 : 402;
+		const status = keyRefused(error.message) ? 401 : 402;
 		return Response.json({ error: { message: error.message } }, { status });
 	});
 

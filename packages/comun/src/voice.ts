@@ -177,6 +177,9 @@ export const MAX_VOICE_STYLE = 500;
 export const SAID_NO_CREDIT =
 	'Se ha acabado el crédito de la inteligencia artificial de la familia. Hay que recargarlo en OpenRouter.';
 
+/** Said when the family's key has expired: as `SAID_NO_CREDIT`, kept recorded by each satellite. */
+export const SAID_KEY_EXPIRED = 'La clave de OpenRouter ha caducado: pon otra en Ajustes';
+
 /** The turns before that are kept: the last exchanges are enough. */
 export const HISTORY_TURNS = 6;
 /**

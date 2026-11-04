@@ -98,6 +98,51 @@ Para probarlo ya, una de las líneas de `deploy/vps-backup.cron`:
 `/var/log/vps-backup.log`. El nombre de cada app es el de su carpeta en `/etc/dokploy/compose`: si se
 vuelve a crear una en Dokploy, cambia el suyo en `/etc/cron.d/vps-backup`.
 
+### Copia antes de desplegar
+
+Un merge a main despliega Seilide solo (`nube-image.yml` → el webhook de Dokploy), migraciones
+incluidas. Antes, el workflow hace una copia como la de cada noche (#392): entra por SSH al VPS con
+una clave que solo puede lanzar esa copia, y si falla no despliega. Se guarda aparte, como
+`seilide-despliegue-<fecha>`, con sus propias 7: así no echan a las de cada noche, que se guardan
+por número. En /admin sale como otra, en rojo solo si falló (no por los días sin copia).
+
+Una vez. En tu PC, la clave (sin frase: la usa GitHub):
+
+```sh
+ssh-keygen -t ed25519 -N '' -C github-copia-seilide -f copia-seilide
+```
+
+En el VPS, como root: un usuario solo para esto, su clave atada a un comando (`restrict`: sin
+shell, sin reenvíos, sin terminal, pida lo que pida quien entra) y ese comando, sin contraseña, con
+`sudo`:
+
+```sh
+useradd --system --create-home --shell /bin/sh copias
+install -d -m 700 -o copias -g copias /home/copias/.ssh
+printf 'command="sudo -n /usr/local/sbin/vps-backup.sh seilide-despliegue jellycartoon-nube-nube-98dnxl db s3:rustfs:nube",restrict %s\n' \
+  "$(cat copia-seilide.pub)" > /home/copias/.ssh/authorized_keys   # copia-seilide.pub, subida antes (scp)
+chown copias:copias /home/copias/.ssh/authorized_keys
+chmod 600 /home/copias/.ssh/authorized_keys
+echo 'copias ALL=(root) NOPASSWD: /usr/local/sbin/vps-backup.sh seilide-despliegue jellycartoon-nube-nube-98dnxl db s3\:rustfs\:nube' \
+  > /etc/sudoers.d/copias
+chmod 440 /etc/sudoers.d/copias
+visudo -cf /etc/sudoers.d/copias
+```
+
+Si `sshd_config` tiene `AllowUsers`, añade `copias`; y el SSH del VPS tiene que admitir a GitHub
+(sus IP cambian). Desde tu PC, para probarla: `ssh -i copia-seilide copias@<VPS>` hace una copia y
+sale.
+
+En GitHub (Settings → Secrets and variables → Actions), junto a `DOKPLOY_NUBE_WEBHOOK_URL`:
+
+- `VPS_BACKUP_SSH_KEY`: el contenido de `copia-seilide` (la privada). Después, bórrala de tu PC.
+- `VPS_BACKUP_HOST`: `copias@<IP o nombre del VPS>`.
+- `VPS_BACKUP_KNOWN_HOSTS`: lo que da `ssh-keyscan -t ed25519 <IP o nombre del VPS>`, comprobado
+  contra la huella del VPS (`ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`, en él).
+
+Sin `VPS_BACKUP_SSH_KEY`, el workflow avisa y despliega como antes: entonces, con migraciones, la
+copia a mano antes del merge.
+
 Para leer una copia: `age -d -i vps-copias.key <fichero>.age > <fichero>`. La base de datos se
 restaura con el `pg_restore` de su versión (`--clean --if-exists`, como su dueño), y los ficheros se
 suben a su bucket con `rclone copy`.

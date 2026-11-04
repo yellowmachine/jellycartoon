@@ -86,7 +86,8 @@ describe('backups', () => {
 			{ name: 'seilide', ok: true, log: 'Subida b', createdAt: hoursAgo(25) },
 			{ name: 'langua', ok: false, log: 'pg_dump: error', createdAt: hoursAgo(2) },
 			{ name: 'langua', ok: true, log: 'Subida', createdAt: hoursAgo(26) },
-			{ name: 'scholio', ok: true, log: 'Subida', createdAt: hoursAgo(30) }
+			{ name: 'scholio', ok: true, log: 'Subida', createdAt: hoursAgo(30) },
+			{ name: 'seilide-despliegue', ok: true, log: 'Subida', createdAt: hoursAgo(100) }
 		]);
 		const byName = Object.fromEntries((await admin.backups()).map((b) => [b.name, b]));
 		expect(byName.seilide.alarm).toBe(false);
@@ -94,6 +95,8 @@ describe('backups', () => {
 		expect(byName.langua.alarm).toBe(true);
 		expect(byName.langua.lastOk?.log).toBe('Subida');
 		expect(byName.scholio.alarm).toBe(true);
+		// Before a deploy (#392), not every night: old is fine.
+		expect(byName['seilide-despliegue'].alarm).toBe(false);
 	});
 
 	test('a report is kept; those of over a month, gone', async () => {
