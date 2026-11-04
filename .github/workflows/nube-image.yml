@@ -72,6 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       WEBHOOK: ${{ secrets.DOKPLOY_NUBE_WEBHOOK_URL }}
+      BACKUP_SSH_KEY: ${{ secrets.VPS_BACKUP_SSH_KEY }}
     steps:
       - uses: docker/setup-buildx-action@v4
         if: env.WEBHOOK != ''
@@ -95,6 +96,29 @@ jobs:
           done
           echo "::error::La etiqueta no llegó a ser $TARGET"
           exit 1
+
+      # A copy of Seilide on the VPS before it changes (#392): its database, Environment and files,
+      # as each night's, by SSH with a key that can do only that (the command is the VPS's, in its
+      # authorized_keys: «Copia antes de desplegar» in docs/…/seilide/produccion.md). Failing, no
+      # deploy. Without the key, as before: then the copy is made by hand before merging.
+      - name: Copy Seilide before deploying
+        if: env.WEBHOOK != ''
+        env:
+          HOST: ${{ secrets.VPS_BACKUP_HOST }}
+          KNOWN_HOSTS: ${{ secrets.VPS_BACKUP_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$BACKUP_SSH_KEY" ]; then
+            echo "::warning::Sin VPS_BACKUP_SSH_KEY: sin copia antes de desplegar (hazla a mano si hay migraciones)."
+            exit 0
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$BACKUP_SSH_KEY" > ~/.ssh/copias
+          chmod 600 ~/.ssh/copias
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # What runs is the VPS's own command for this key, whatever is asked here.
+          ssh -i ~/.ssh/copias -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes "$HOST" copia
+          rm -f ~/.ssh/copias
 
       # Dokploy's webhook is the one its own GitHub integration calls on every push: only with
       # GitHub's event header and a ref in the body is it a deploy (else a 301, «Branch Not Match»,

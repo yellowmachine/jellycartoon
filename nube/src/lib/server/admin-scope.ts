@@ -9,6 +9,11 @@ import type { AnyDb } from './family-scope.ts';
 export const ACTIVE_DAYS = 30;
 /** A night's copy is late after this long without a good one: a day and a bit. */
 export const BACKUP_LATE_HOURS = 26;
+/**
+ * The copies made before a deploy (#392, `<app>-despliegue`): when there is one, not every night,
+ * so only a failed one is an alarm, never their age.
+ */
+export const isDeployCopy = (name: string) => name.endsWith('-despliegue');
 /** The runs shown of each app, and those kept: a week's. */
 const RUNS_SHOWN = 7;
 const RUNS_KEPT_DAYS = 30;
@@ -91,7 +96,8 @@ export function adminScope(db: AnyDb, { role }: { role?: string } = {}) {
 					name,
 					lastOk,
 					runs: runs.slice(0, RUNS_SHOWN),
-					alarm: !runs[0].ok || !lastOk || lastOk.createdAt.getTime() < late
+					alarm:
+						!runs[0].ok || (!isDeployCopy(name) && (!lastOk || lastOk.createdAt.getTime() < late))
 				};
 			});
 		},

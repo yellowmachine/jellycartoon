@@ -113,8 +113,15 @@ prune() {
 	for stamp in $old; do
 		rclone lsf --files-only --include "$name_start-$stamp.*" "r2:$R2_BUCKET" |
 			while read -r file; do
-				rclone deletefile "r2:$R2_BUCKET/$file" && log "Borrada $file" ||
-					log "No se pudo borrar $file; se intentará mañana"
+				# Locked by the bucket's rule (its days not over): said in a line, without rclone's
+				# retries filling the log, and deleted another night.
+				if err=$(rclone deletefile --retries 1 --low-level-retries 1 "r2:$R2_BUCKET/$file" 2>&1); then
+					log "Borrada $file"
+				elif grep -q ObjectLocked <<<"$err"; then
+					log "Aún protegida por el bloqueo del bucket: $file; se borrará otra noche"
+				else
+					log "No se pudo borrar $file; se intentará mañana: $(tail -n 1 <<<"$err")"
+				fi
 			done
 	done
 }
