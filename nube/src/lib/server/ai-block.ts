@@ -1,3 +1,5 @@
+import { SAID_KEY_EXPIRED } from 'comun/voice.ts';
+
 /**
  * Each family's AI stopped when OpenRouter keeps saying no (by its key, as ai-lane.ts): no credit,
  * not enough for the request, the key's own limit reached, or a key it refuses. Then nothing goes out, every request fails at
@@ -12,6 +14,8 @@ export const NO_CREDIT = 'No queda saldo en OpenRouter';
 export const SHORT_CREDIT = 'El saldo de OpenRouter no llega para esto';
 export const TOO_MANY = 'OpenRouter tiene demasiadas peticiones a la vez';
 export const BAD_KEY = 'OpenRouter no acepta la clave: cámbiala en Ajustes';
+/** Its date passed (OpenRouter's «API key expired», a 401): only another key sets it going. */
+export const KEY_EXPIRED = SAID_KEY_EXPIRED;
 /** The key's own spending limit (openrouter.ai/keys), not the account's credit: recharging does not help. */
 export const KEY_LIMIT = 'La clave de OpenRouter ha llegado a su límite de gasto';
 
@@ -27,7 +31,7 @@ export function refusalWords(status: number, error: OpenRouterError | null | und
 	const message = error?.message ?? '';
 	// Already ours: a stopped family's no, answered to an app (openrouter.ts).
 	if (accountProblem(message)) return message;
-	if (status === 401) return BAD_KEY;
+	if (status === 401) return /expired/i.test(message) ? KEY_EXPIRED : BAD_KEY;
 	if (status !== 402) return null;
 	switch (error?.metadata?.limit_source) {
 		case 'openrouter_in_flight_budget':
@@ -43,7 +47,21 @@ export function refusalWords(status: number, error: OpenRouterError | null | und
 
 /** The family's key or credit: another model, or asking again, would not do better. */
 export const accountProblem = (message: string) =>
-	[NO_CREDIT, SHORT_CREDIT, TOO_MANY, BAD_KEY, KEY_LIMIT].includes(message);
+	[NO_CREDIT, SHORT_CREDIT, TOO_MANY, BAD_KEY, KEY_EXPIRED, KEY_LIMIT].includes(message);
+
+/** The key itself is no good: stopped at the first no, and only another key sets it going. */
+export const keyRefused = (message: string) => message === BAD_KEY || message === KEY_EXPIRED;
+
+/**
+ * Days left of a key, if today is a day to say so: a week before, three days before and each of
+ * the last two. Counted, not remembered: a day's check at a fixed time needs nothing kept. Null, not today.
+ */
+export function daysToWarn(expiresAt: string | null | undefined, now = Date.now()) {
+	const at = expiresAt ? Date.parse(expiresAt) : NaN;
+	if (!Number.isFinite(at) || at <= now) return null;
+	const days = Math.ceil((at - now) / (24 * 60 * 60_000));
+	return days === 7 || days === 3 || days <= 2 ? days : null;
+}
 
 /** The credit's words, said as «no credit» by the voice (and a satellite's 402). */
 export const creditProblem = (message: string) => message === NO_CREDIT || message === SHORT_CREDIT;
@@ -137,7 +155,7 @@ export function noteRefusal(apiKey: string, words: string) {
 		return;
 	}
 	state.fails = [...state.fails.filter((t) => now - t < WINDOW_MS), now];
-	if (words === BAD_KEY || state.fails.length >= FAILS)
+	if (keyRefused(words) || state.fails.length >= FAILS)
 		setBlock(apiKey, { at: new Date(now), why: words });
 }
 

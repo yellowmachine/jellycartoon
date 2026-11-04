@@ -3,12 +3,13 @@
 
 	/**
 	 * The family's AI stopped (ai-block.ts), to who runs it: why, where to recharge and «Ya he
-	 * recargado»; the key's own limit reached, where to raise it; a key OpenRouter refuses, to
+	 * recargado»; the key's own limit reached, where to raise it; a key OpenRouter refuses or expired, to
 	 * Ajustes, where another one sets it going.
 	 */
 	let { why }: { why: string } = $props();
 
 	const badKey = $derived(why.startsWith('OpenRouter no acepta la clave'));
+	const expired = $derived(why.startsWith('La clave de OpenRouter ha caducado'));
 	const keyLimit = $derived(why.startsWith('La clave de OpenRouter ha llegado a su límite'));
 	let sending = $state(false);
 
@@ -25,7 +26,12 @@
 	class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-red-500/30 bg-red-500/10 px-4 py-2 text-center text-sm text-red-300"
 	role="alert"
 >
-	{#if badKey}
+	{#if expired}
+		<span>
+			La IA de la familia está parada: la clave de OpenRouter ha caducado. Pon otra en
+			<a href="/ajustes?seccion=conexiones#ia" class="underline">Ajustes</a>.
+		</span>
+	{:else if badKey}
 		<span>
 			La IA de la familia está parada: OpenRouter no acepta la clave. Pon otra en
 			<a href="/ajustes?seccion=conexiones#ia" class="underline">Ajustes</a>.

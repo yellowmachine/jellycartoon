@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { access, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { SAID_NO_CREDIT } from '../../packages/comun/src/voice.ts';
+import { SAID_KEY_EXPIRED, SAID_NO_CREDIT } from '../../packages/comun/src/voice.ts';
 import { ServerError, speech } from './server.ts';
 import { beep, play } from './sound.ts';
 
@@ -17,6 +17,7 @@ import { beep, play } from './sound.ts';
 const PHRASES = {
 	offline: 'No tengo conexión con Seilide. Prueba dentro de un rato.',
 	noCredit: SAID_NO_CREDIT,
+	keyExpired: SAID_KEY_EXPIRED,
 	noVoice: 'Hecho, pero ahora no puedo hablar.',
 	/** Its answer did nothing (a question, the time): not «hecho». */
 	noVoiceNothingDone: 'Ahora no puedo hablar. Prueba dentro de un rato.'
@@ -127,10 +128,16 @@ export async function sayFallback(which: Fallback) {
 
 /**
  * The answer it could not have said: the credit's own phrase (its answer, or its voice, without
- * credit: a 402), or whether something was done.
+ * credit: a 402), the expired key's (Seilide's words, in the answer or in its voice's no), or
+ * whether something was done.
  */
 export function fallbackFor(reply: string, actions: number, err: unknown): Fallback {
 	if (reply === SAID_NO_CREDIT || (err instanceof ServerError && err.status === 402))
 		return 'noCredit';
+	if (
+		reply === SAID_KEY_EXPIRED ||
+		(err instanceof ServerError && err.message.includes(SAID_KEY_EXPIRED))
+	)
+		return 'keyExpired';
 	return actions ? 'noVoice' : 'noVoiceNothingDone';
 }

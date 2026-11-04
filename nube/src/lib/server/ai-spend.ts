@@ -59,7 +59,9 @@ export async function keyLimit(apiKey: string) {
 			limit: typeof data.limit === 'number' ? (data.limit as number) : null,
 			remaining: typeof data.limit_remaining === 'number' ? (data.limit_remaining as number) : null,
 			/** `daily`, `weekly`, `monthly`; null, never. */
-			reset: typeof data.limit_reset === 'string' ? (data.limit_reset as string) : null
+			reset: typeof data.limit_reset === 'string' ? (data.limit_reset as string) : null,
+			/** When it expires, ISO 8601 (the key's own date, openrouter.ai/keys); null, never. */
+			expiresAt: typeof data.expires_at === 'string' ? (data.expires_at as string) : null
 		};
 	} catch (error) {
 		console.warn('[ia] No se pudo consultar el límite de la clave en OpenRouter', String(error));
