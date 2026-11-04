@@ -23,7 +23,9 @@ mock.module('#lib/server/family.ts', () => ({
 }));
 mock.module('#lib/server/family-secret.ts', () => ({
 	sealFor: async (_: string, text: string) => `cifrado:${text}`,
-	openFor: async (_: string, text: string) => text
+	openFor: async (_: string, text: string) => text,
+	sealFileFor: async (_: string, bytes: Uint8Array) => bytes,
+	openFileFor: async (_: string, bytes: Uint8Array) => bytes
 }));
 let made = 0;
 mock.module('#lib/server/auth.ts', () => ({
@@ -145,6 +147,8 @@ describe('where a child may go', () => {
 		expect(kidMayOpen('/agenda', 'GET')).toBe(true);
 		expect(kidMayOpen('/agenda', 'POST')).toBe(false);
 		expect(kidMayOpen('/agenda/alarmas', 'GET')).toBe(false);
+		expect(kidMayOpen('/papeles', 'GET')).toBe(false);
+		expect(kidMayOpen('/papeles/1/fichero', 'GET')).toBe(false);
 		expect(kidMayOpen('/nevera', 'POST')).toBe(true);
 		expect(kidMayOpen('/api/nevera/notas', 'GET')).toBe(true);
 		expect(kidMayOpen('/deberes/3', 'GET')).toBe(true);

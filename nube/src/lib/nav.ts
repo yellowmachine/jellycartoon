@@ -35,6 +35,7 @@ const SECTIONS: {
 	{ path: '/nevera', label: 'Nevera', icon: 'nevera', where: 'nube' },
 	{ path: '/agenda', label: 'Agenda', icon: 'agenda', where: 'nube' },
 	{ path: '/gastos', label: 'Dinero', icon: 'gastos', where: 'nube' },
+	{ path: '/papeles', label: 'Papeles', icon: 'papeles', where: 'nube' },
 	{ path: '/viajes', label: 'Viajes', icon: 'viajes', where: 'nube', also: ['/carretera'] },
 	// Homework from the cartoons watched at the house (#142), for the grown-ups and the children.
 	{ path: '/deberes', label: 'Deberes', icon: 'infantil', where: 'nube', house: true },

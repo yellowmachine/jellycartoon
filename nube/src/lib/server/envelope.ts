@@ -105,6 +105,31 @@ export function envelope({ kms, store, cacheMs = CACHE_MS, now = Date.now }: Env
 				return null;
 			}
 		},
+		/** A file kept for the family (Papeles, #384): `iv`, `tag` and the data, bound to the family. */
+		async sealBytes(familyId: string, bytes: Uint8Array) {
+			const key = (await keyOf(familyId, true))!;
+			const iv = randomBytes(12);
+			const cipher = createCipheriv('aes-256-gcm', key, iv);
+			cipher.setAAD(Buffer.from(familyId));
+			const data = Buffer.concat([cipher.update(bytes), cipher.final()]);
+			return new Uint8Array(Buffer.concat([iv, cipher.getAuthTag(), data]));
+		},
+		/** Read back; null if it cannot be (another family's, changed). Throws if the KMS fails. */
+		async openBytes(familyId: string, sealed: Uint8Array) {
+			const key = await keyOf(familyId, false);
+			if (!key) return null;
+			try {
+				const bytes = Buffer.from(sealed);
+				const decipher = createDecipheriv('aes-256-gcm', key, bytes.subarray(0, 12));
+				decipher.setAAD(Buffer.from(familyId));
+				decipher.setAuthTag(bytes.subarray(12, 28));
+				return new Uint8Array(
+					Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()])
+				);
+			} catch {
+				return null;
+			}
+		},
 		/** Forgotten from memory: the next one asks the KMS again. */
 		forget: () => cache.clear()
 	};

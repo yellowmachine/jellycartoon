@@ -4,18 +4,23 @@
  * the phone held it (EXIF), as JPEG.
  */
 const LONGEST = 2000;
+const QUALITY = 0.85;
 
-export async function smallerPhoto(file: File): Promise<Blob> {
+/** `longest` and `quality`: a paper to be read later (#384) keeps more than a receipt. */
+export async function smallerPhoto(
+	file: File,
+	{ longest = LONGEST, quality = QUALITY }: { longest?: number; quality?: number } = {}
+): Promise<Blob> {
 	try {
 		const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-		const scale = Math.min(1, LONGEST / Math.max(bitmap.width, bitmap.height));
+		const scale = Math.min(1, longest / Math.max(bitmap.width, bitmap.height));
 		const canvas = document.createElement('canvas');
 		canvas.width = Math.round(bitmap.width * scale);
 		canvas.height = Math.round(bitmap.height * scale);
 		canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
 		bitmap.close();
 		const blob = await new Promise<Blob | null>((resolve) =>
-			canvas.toBlob(resolve, 'image/jpeg', 0.85)
+			canvas.toBlob(resolve, 'image/jpeg', quality)
 		);
 		return blob ?? file;
 	} catch {

@@ -123,3 +123,35 @@ describe('envelope', () => {
 		expect(await box.open('A', sealed)).toBe('clave');
 	});
 });
+
+describe('files', () => {
+	const file = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0, 255, 1, 2, 3]);
+
+	test('read back as they were, and not readable as kept', async () => {
+		const { box } = fakes();
+		const sealed = await box.sealBytes('A', file);
+		expect(Buffer.from(sealed).includes(Buffer.from(file))).toBe(false);
+		expect(await box.openBytes('A', sealed)).toEqual(file);
+	});
+
+	test('each time different', async () => {
+		const { box } = fakes();
+		expect(await box.sealBytes('A', file)).not.toEqual(await box.sealBytes('A', file));
+	});
+
+	test("changed, cut or another family's: null, never garbage", async () => {
+		const { box } = fakes();
+		const sealed = await box.sealBytes('A', file);
+		const changed = sealed.slice();
+		changed[changed.length - 1]! ^= 1;
+		expect(await box.openBytes('A', changed)).toBeNull();
+		expect(await box.openBytes('A', sealed.slice(0, 10))).toBeNull();
+		await box.sealBytes('B', file);
+		expect(await box.openBytes('B', sealed)).toBeNull();
+	});
+
+	test('a family without a key: null', async () => {
+		const { box } = fakes();
+		expect(await box.openBytes('A', new Uint8Array(40))).toBeNull();
+	});
+});

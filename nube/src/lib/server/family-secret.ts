@@ -121,5 +121,29 @@ export async function openFor(familyId: string, value: string) {
 	}
 }
 
+/**
+ * A file of the family's Papeles (#384), to be kept: with its data key, and only with the KMS on.
+ * Without it there is no sealing a file (`kmsOn`, and the pages say so): throws, and nothing is
+ * kept, as it is never kept as it came.
+ */
+export async function sealFileFor(familyId: string, bytes: Uint8Array) {
+	if (!kmsOn) throw new Error('Sin KMS no se cifran ficheros');
+	return (await boxOf()).sealBytes(familyId, bytes);
+}
+
+/** What was kept, read back; null if it cannot be, or the KMS is not answering (said in the log). */
+export async function openFileFor(familyId: string, sealed: Uint8Array) {
+	if (!kmsOn) return null;
+	try {
+		return await (await boxOf()).openBytes(familyId, sealed);
+	} catch (err) {
+		console.error('[kms] No se pudo leer un fichero de la familia', {
+			familyId,
+			error: err instanceof Error ? err.message : String(err)
+		});
+		return null;
+	}
+}
+
 /** Whether it is kept as the KMS would keep it now: for scripts/kms-migrar.ts. */
 export const sealedNow = (value: string) => isEnveloped(value) === kmsOn;
