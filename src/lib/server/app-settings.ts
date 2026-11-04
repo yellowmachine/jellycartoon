@@ -42,7 +42,9 @@ type Key =
 	| 'voice_filler_recordings'
 	| 'openrouter_credit_out'
 	| 'nube_url'
-	| 'nube_key';
+	| 'nube_key'
+	| 'ai_episode_titles'
+	| 'ai_opening_quote';
 
 export async function getAppSetting(key: Key) {
 	return get(key);
@@ -149,4 +151,24 @@ export async function setAutoSubtitleLanguages(langs: string[]) {
 export async function isAdmin(userId: string) {
 	const [first] = await db.select({ id: user.id }).from(user).orderBy(asc(user.createdAt)).limit(1);
 	return first?.id === userId;
+}
+
+/**
+ * What uses the AI the most, off until the administrator turns it on in Ajustes → Casa, told what
+ * it costs: titles and numbering for a series' episodes (frames and the episode list, with the
+ * vision model) and the lines of the opening title card (an episode's subtitles each time the app
+ * opens, without anyone asking). Off, the button is not there; the card picks lines by itself.
+ */
+export const COSTLY_AI = {
+	titles: 'ai_episode_titles',
+	quote: 'ai_opening_quote'
+} as const satisfies Record<string, Key>;
+export type CostlyAi = keyof typeof COSTLY_AI;
+
+export async function costlyAiOn(which: CostlyAi) {
+	return (await get(COSTLY_AI[which])) === 'on';
+}
+
+export async function setCostlyAi(which: CostlyAi, on: boolean) {
+	await setAppSetting(COSTLY_AI[which], on ? 'on' : null);
 }

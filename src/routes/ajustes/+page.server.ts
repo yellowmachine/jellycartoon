@@ -12,7 +12,9 @@ import {
 	DEFAULT_MODEL,
 	DEFAULT_VISION_MODEL,
 	DEFAULT_VOICE_MODEL,
+	costlyAiOn,
 	isAdmin,
+	setCostlyAi,
 	openRouterConfig,
 	openRouterManagementKey,
 	setAppSetting,
@@ -21,6 +23,9 @@ import {
 	voiceModel
 } from '#lib/server/app-settings.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
+import { titlesBatchCost } from '#lib/server/library/episode-titles.ts';
+import { quoteCost } from '#lib/server/opening-quote.ts';
+import { BATCH_SIZE } from '#lib/episode-titles.ts';
 import { createCloudKey, deleteCloudKey, listCloudKeys } from '#lib/server/media-api.ts';
 import { askCloud, cloudLink, CloudProblem, setCloudLink } from '#lib/server/kitchen.ts';
 import { snapcastVoiceReady } from '#lib/server/music/snapcast.ts';
@@ -200,7 +205,16 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 			voiceModel: voice,
 			defaultVoiceModel: DEFAULT_VOICE_MODEL,
 			/** Streamed: OpenRouter answering slowly does not hold up the page. */
-			balance: keyBalance()
+			balance: keyBalance(),
+			/** What uses the AI the most, off until turned on here; and about what each costs, streamed. */
+			costly: {
+				titles: await costlyAiOn('titles'),
+				quote: await costlyAiOn('quote'),
+				batch: BATCH_SIZE,
+				cost: Promise.all([titlesBatchCost(vision), quoteCost()])
+					.then(([titles, quote]) => ({ titles, quote }))
+					.catch(() => ({ titles: null, quote: null }))
+			}
 		};
 	}
 
@@ -926,6 +940,15 @@ export const actions: Actions = {
 						: (['openrouter_model', 'model'] as const);
 		await setAppSetting(key, model || null);
 		return { saved };
+	},
+	/** «Lo que más gasta»: on, after being told what it costs, or off. */
+	costlyAi: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const form = await request.formData();
+		const which = form.get('which');
+		if (which !== 'titles' && which !== 'quote') return fail(400, { message: 'No existe' });
+		await setCostlyAi(which, form.get('on') === 'true');
+		return { saved: `costly-${which}` };
 	},
 	saveChatWeb: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);

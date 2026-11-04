@@ -3,7 +3,7 @@ import { and, asc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, series, watchProgress } from '#lib/server/db/schema.ts';
-import { openRouterConfig } from '#lib/server/app-settings.ts';
+import { costlyAiOn, isAdmin, openRouterConfig } from '#lib/server/app-settings.ts';
 import { deleteSeries } from '#lib/server/library/delete-series.ts';
 import { deleteEpisodes } from '#lib/server/library/delete-episodes.ts';
 import { hostPlaylist } from '#lib/server/library/paths.ts';
@@ -161,6 +161,9 @@ export const load: PageServerLoad = async ({ params, locals, cookies }) => {
 		labelSets: (await labelling()).map((s) => ({ id: s.id, name: s.name })),
 		/** Proposing titles needs an OpenRouter key. */
 		canPropose: Boolean(apiKey),
+		/** Off until turned on in Ajustes → Casa: it is what costs the most. */
+		titlesOn: await costlyAiOn('titles'),
+		admin: await isAdmin(locals.user!.id),
 		proposal: {
 			...proposalState(id),
 			rows: await proposalRows(id, saved?.titleProposal ?? []),
@@ -209,6 +212,8 @@ export const actions: Actions = {
 	},
 	/** Titles and numbering from the AI, in the background: the page asks until it is done. */
 	proposeTitles: async ({ params, request }) => {
+		if (!(await costlyAiOn('titles')))
+			return fail(400, { message: 'Poner títulos con la IA está apagado (Ajustes → Casa)' });
 		startProposal(Number(params.id), (await request.formData()).get('all') === 'true');
 	},
 	stopTitles: async ({ params }) => {

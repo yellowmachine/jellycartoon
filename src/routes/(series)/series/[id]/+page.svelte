@@ -282,6 +282,8 @@
 		<EpisodeTitles
 			proposal={data.proposal}
 			canPropose={data.canPropose && 'status' in info && info.status === 'found'}
+			titlesOn={data.titlesOn}
+			admin={data.admin}
 		/>
 	{/if}
 {/await}

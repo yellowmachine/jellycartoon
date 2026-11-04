@@ -2,12 +2,29 @@
 	import Guardado from 'comun/components/Guardado.svelte';
 	import { enhance } from '$app/forms';
 	import { section, select, primary, secondary, dollars } from './styles.ts';
+	import { cost } from 'comun/ai-spend.ts';
 	import type { PageData, ActionData } from './$types';
 
 	/** Inteligencia artificial: clave, crédito y modelos de OpenRouter. */
 	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
 
 	let testing = $state(false);
+	/** «Lo que más gasta»: which one is being turned on, its cost said, waiting for «Encender». */
+	let confirming = $state<'titles' | 'quote' | null>(null);
+	const COSTLY = {
+		titles: {
+			title: 'Poner títulos y numeración a los capítulos',
+			does: 'En cada serie, el botón «Poner títulos con la IA»: le manda la lista de episodios de Wikipedia y tres fotogramas de cada capítulo al modelo de escenas y títulos, el más caro.',
+			price: (c: { titles: number | null }, batch: number) =>
+				c.titles === null ? null : `unos ${cost(c.titles)} por cada ${batch} capítulos`
+		},
+		quote: {
+			title: 'Elegir las frases del rótulo de inicio',
+			does: 'Cada vez que se abre la app, sin que nadie lo pida, le pasa los subtítulos de otro capítulo para elegir sus mejores frases, hasta haberlos visto todos. Apagado, el rótulo sale igual, con frases elegidas sin IA.',
+			price: (c: { quote: number | null }) =>
+				c.quote === null ? null : `unos ${cost(c.quote)} por capítulo, uno cada vez que se abre`
+		}
+	} as const;
 </script>
 
 {#if data.ai}
@@ -322,5 +339,62 @@
 		{#if form && 'section' in form && form.section === 'ai'}
 			<p class="mt-3 text-sm break-words text-red-400">{form.message}</p>
 		{/if}
+
+		<h3 id="ia-cara" class="mt-6 mb-1 text-sm text-zinc-300">Lo que más gasta</h3>
+		<p class="mb-3 text-sm text-zinc-400">
+			Apagado hasta que lo enciendas: antes te decimos más o menos lo que cuesta.
+		</p>
+		<ul class="flex flex-col gap-3 text-sm">
+			{#each ['titles', 'quote'] as const as which (which)}
+				{@const on = data.ai.costly[which]}
+				<li class="rounded-md border border-zinc-800 p-3">
+					<p class="text-zinc-200">
+						{COSTLY[which].title} ·
+						<span class={on ? 'text-amber-400' : 'text-zinc-500'}
+							>{on ? 'encendido' : 'apagado'}</span
+						>
+					</p>
+					<p class="mt-1 text-xs text-zinc-500">{COSTLY[which].does}</p>
+					{#if confirming === which}
+						<p class="mt-2 text-amber-300">
+							{#await data.ai.costly.cost}
+								Mirando lo que cuesta…
+							{:then c}
+								{@const price = COSTLY[which].price(c, data.ai.costly.batch)}
+								{price
+									? `Cuesta ${price}, con los precios de hoy de OpenRouter, de tu crédito.`
+									: 'No he podido ver los precios de OpenRouter: gasta de tu crédito.'}
+							{/await}
+						</p>
+					{/if}
+					<form
+						method="post"
+						action="?seccion={tab}&/costlyAi"
+						use:enhance={() =>
+							async ({ update }) => {
+								await update({ reset: false });
+								confirming = null;
+							}}
+						class="mt-2 flex gap-2"
+					>
+						<input type="hidden" name="which" value={which} />
+						{#if on}
+							<input type="hidden" name="on" value="false" />
+							<button class={secondary}>Apagar</button>
+						{:else if confirming === which}
+							<input type="hidden" name="on" value="true" />
+							<button class={primary}>Encender</button>
+							<button type="button" class={secondary} onclick={() => (confirming = null)}
+								>Mejor no</button
+							>
+						{:else}
+							<button type="button" class={secondary} onclick={() => (confirming = which)}
+								>Encender…</button
+							>
+						{/if}
+					</form>
+				</li>
+			{/each}
+		</ul>
 	</section>
 {/if}

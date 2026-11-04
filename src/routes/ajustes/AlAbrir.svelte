@@ -28,7 +28,7 @@
 				Una frase de tus series
 				<span class="block text-xs text-zinc-500"
 					>Unos segundos, en blanco sobre negro, como los rótulos de Frasier entre escenas. Sale de
-					los subtítulos, mejor de la serie que estás viendo{data.ai?.keySource
+					los subtítulos, mejor de la serie que estás viendo{data.ai?.costly.quote
 						? ', y la IA elige las más ingeniosas'
 						: ''}. Cualquier tecla o toque la quita.</span
 				>
