@@ -44,7 +44,8 @@ type Key =
 	| 'nube_url'
 	| 'nube_key'
 	| 'ai_episode_titles'
-	| 'ai_opening_quote';
+	| 'ai_opening_quote'
+	| 'openrouter_own';
 
 export async function getAppSetting(key: Key) {
 	return get(key);
@@ -71,12 +72,41 @@ export async function setAppSetting(key: Key, value: string | null) {
 }
 
 /** The key in .env wins over the one in Ajustes, like the rest of the deploy configuration. */
+/**
+ * What stands for the key when the house uses the family's, in Seilide: the requests go to its
+ * gateway (/api/casa/ia, openrouter.ts `aiTarget`) with the house's key for Seilide, and the
+ * family's key never leaves Seilide. Not a key: OpenRouter's start with `sk-or-`.
+ */
+export const SEILIDE_KEY = 'seilide';
+
+/**
+ * The house's AI: by default, with a Seilide connected (Ajustes → Casa → Nube), the family's key
+ * there; with «Usar una clave propia» (`openrouter_own`), or no Seilide, its own (the .env's, or
+ * the one saved in Ajustes).
+ */
 export async function openRouterConfig() {
-	const panelKey = await get('openrouter_api_key');
-	const panelModel = await get('openrouter_model');
+	const [panelKey, panelModel, own, cloudUrl, cloudKey] = await Promise.all([
+		get('openrouter_api_key'),
+		get('openrouter_model'),
+		get('openrouter_own'),
+		get('nube_url'),
+		get('nube_key')
+	]);
+	const ownKey = OPENROUTER_API_KEY ?? panelKey;
+	const viaSeilide = Boolean(cloudUrl && cloudKey) && own !== 'on';
 	return {
-		apiKey: OPENROUTER_API_KEY ?? panelKey,
-		keySource: OPENROUTER_API_KEY ? ('env' as const) : panelKey ? ('panel' as const) : null,
+		apiKey: viaSeilide ? SEILIDE_KEY : ownKey,
+		keySource: viaSeilide
+			? ('seilide' as const)
+			: OPENROUTER_API_KEY
+				? ('env' as const)
+				: panelKey
+					? ('panel' as const)
+					: null,
+		/** There is one of its own, to go back to. */
+		hasOwnKey: Boolean(ownKey),
+		/** Seilide is connected: the family's key can be used. */
+		canUseSeilide: Boolean(cloudUrl && cloudKey),
 		model: panelModel ?? OPENROUTER_MODEL ?? DEFAULT_MODEL
 	};
 }

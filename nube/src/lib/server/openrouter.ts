@@ -405,7 +405,10 @@ export async function forwardChat(request: {
 	label: string;
 	body: Record<string, unknown>;
 	signal: AbortSignal;
+	/** Its cost to Gastos → IA here; not the house's, which sends its own with its words (#193). */
+	counted?: boolean;
 }): Promise<Response> {
+	const note = request.counted === false ? () => {} : noteCost;
 	const res = await sendForApp(request.apiKey, () =>
 		fetch('https://openrouter.ai/api/v1/chat/completions', {
 			method: 'POST',
@@ -417,13 +420,13 @@ export async function forwardChat(request: {
 	if (!res.ok) return refusedAnswer(res);
 	if (!request.body.stream || !res.body) {
 		const body = await res.json();
-		noteCost(request.apiKey, request.label, body);
+		note(request.apiKey, request.label, body);
 		return Response.json(body);
 	}
 	const [toApp, toCount] = res.body.tee();
 	void new Response(toCount)
 		.text()
-		.then((text) => noteCost(request.apiKey, request.label, { usage: usageOfStream(text) }))
+		.then((text) => note(request.apiKey, request.label, { usage: usageOfStream(text) }))
 		.catch(() => {
 			// Cut short by the app: what was spent is not known.
 		});
@@ -443,6 +446,7 @@ export async function forwardSpeech(request: {
 	label: string;
 	body: Record<string, unknown>;
 	signal: AbortSignal;
+	counted?: boolean;
 }): Promise<Response> {
 	const res = await sendForApp(request.apiKey, () =>
 		fetch('https://openrouter.ai/api/v1/audio/speech', {
@@ -455,6 +459,26 @@ export async function forwardSpeech(request: {
 	if (!res.ok) return refusedAnswer(res);
 	return new Response(res.body, {
 		headers: { 'Content-Type': res.headers.get('content-type') ?? 'application/octet-stream' }
+	});
+}
+
+/**
+ * OpenRouter's figures for a key, its own (`/key`: its limit, what it has left and spent), as they
+ * come: for the house that uses the family's (app-ai.ts).
+ */
+export async function fetchKey(apiKey: string): Promise<Response> {
+	const res = await fetch('https://openrouter.ai/api/v1/key', {
+		headers: headers(apiKey),
+		signal: AbortSignal.timeout(10_000)
+	}).catch(() => null);
+	if (!res)
+		return Response.json(
+			{ error: { message: 'OpenRouter no contesta', code: 502 } },
+			{ status: 502 }
+		);
+	return new Response(res.body, {
+		status: res.status,
+		headers: { 'Content-Type': res.headers.get('content-type') ?? 'application/json' }
 	});
 }
 

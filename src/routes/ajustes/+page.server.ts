@@ -191,7 +191,15 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 			chatWeb: chat.web,
 			keySource: config.keySource,
 			// Never the key itself: only enough to recognise it.
-			keyHint: config.apiKey ? `…${config.apiKey.slice(-4)}` : null,
+			keyHint:
+				config.keySource === 'seilide'
+					? 'Seilide'
+					: config.apiKey
+						? `…${config.apiKey.slice(-4)}`
+						: null,
+			/** The family's key in Seilide can be used (connected), and whether there is one of its own. */
+			canUseSeilide: config.canUseSeilide,
+			hasOwnKey: config.hasOwnKey,
 			/** Only whether there is one: it never leaves the server. */
 			hasManagementKey: Boolean(await openRouterManagementKey()),
 			/** Back from «Conectar con OpenRouter»: `ok`, or what went wrong. */
@@ -940,6 +948,13 @@ export const actions: Actions = {
 						: (['openrouter_model', 'model'] as const);
 		await setAppSetting(key, model || null);
 		return { saved };
+	},
+	/** The family's key in Seilide, or the house's own. */
+	aiSource: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const own = (await request.formData()).get('own') === 'true';
+		await setAppSetting('openrouter_own', own ? 'on' : null);
+		return { saved: 'aiSource' };
 	},
 	/** «Lo que más gasta»: on, after being told what it costs, or off. */
 	costlyAi: async ({ request, locals }) => {

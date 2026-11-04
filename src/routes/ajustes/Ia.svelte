@@ -52,7 +52,19 @@
 				}[data.ai.connected] ?? 'No se ha podido conectar con OpenRouter. Prueba otra vez.'}
 			</p>
 		{/if}
-		{#if data.ai.keySource === 'env'}
+		{#if data.ai.keySource === 'seilide'}
+			<p class="mb-2 text-sm">
+				Usa la clave de OpenRouter de la familia, la de Seilide: allí se cambia, se le pone límite
+				de gasto y se ve lo que se gasta. La clave no sale de Seilide; la casa le pide a Seilide y
+				Seilide a OpenRouter.
+			</p>
+			<form method="post" action="?seccion={tab}&/aiSource" use:enhance class="mb-4">
+				<input type="hidden" name="own" value="true" />
+				<button class={secondary}>
+					{data.ai.hasOwnKey ? 'Usar la clave propia de la casa' : 'Usar una clave propia'}
+				</button>
+			</form>
+		{:else if data.ai.keySource === 'env'}
 			<p class="mb-4 text-sm">
 				Configurada en el <code>.env</code> (OPENROUTER_API_KEY) · {data.ai.keyHint}. Para
 				cambiarla, edita el
@@ -100,6 +112,13 @@
 					<button class={secondary}>{data.ai.keyHint ? 'Cambiar' : 'Guardar'}</button>
 				</form>
 			</details>
+		{/if}
+		{#if data.ai.keySource !== 'seilide' && data.ai.canUseSeilide}
+			<form method="post" action="?seccion={tab}&/aiSource" use:enhance class="mb-4 text-sm">
+				<input type="hidden" name="own" value="false" />
+				<button class={secondary}>Usar la clave de la familia, la de Seilide</button>
+				<span class="ml-2 text-xs text-zinc-500">Una sola clave, con su límite, para todo.</span>
+			</form>
 		{/if}
 
 		{#if data.ai.keyHint}
