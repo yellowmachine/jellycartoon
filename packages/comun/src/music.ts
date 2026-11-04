@@ -74,6 +74,8 @@ export interface MusicUrls {
 	track: (id: number, opus: boolean) => string;
 	cover: (albumId: number) => string;
 	clip: (id: string) => string;
+	/** A song's lyrics (JSON, comun/lyrics.ts). */
+	lyrics: (id: number) => string;
 	/**
 	 * Kept on this device (Seilide's music without coverage, #350): a song that fails is not tried
 	 * again if there are kept ones after it, it goes on to the next of them.
@@ -84,7 +86,8 @@ export interface MusicUrls {
 const urls: MusicUrls = {
 	track: (id, opus) => `/api/music/track/${id}${opus ? '?format=opus' : ''}`,
 	cover: (albumId) => `/api/music/cover/${albumId}`,
-	clip: (id) => `/api/music/dj/${id}`
+	clip: (id) => `/api/music/dj/${id}`,
+	lyrics: (id) => `/api/music/lyrics/${id}`
 };
 
 export function setMusicUrls(own: Partial<MusicUrls>) {
@@ -95,6 +98,7 @@ export const trackUrl = (id: number, opus = false) => urls.track(id, opus);
 /** Kept on this device (#350); without that, none are. */
 export const heldHere = (id: number) => urls.held?.(id) ?? false;
 export const coverUrl = (albumId: number) => urls.cover(albumId);
+export const lyricsUrl = (id: number) => urls.lyrics(id);
 /** What `track` sounds from: its own address, the DJ's words, or its file. */
 export const audioUrl = (track: MusicTrack, opus = false) =>
 	track.src ?? (track.clip ? urls.clip(track.clip.id) : trackUrl(track.id, opus));

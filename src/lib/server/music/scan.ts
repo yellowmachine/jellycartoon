@@ -8,6 +8,7 @@ import { log } from '#lib/server/log.ts';
 import { wakeMusicCatalog } from './catalog.ts';
 import { musicProgress } from './status.ts';
 import { isDownload, isMusicFile, isOpus } from './tags.ts';
+import { forgetLyrics } from './lyrics.ts';
 
 /** Modified less than a minute ago: probably still being copied. */
 const SETTLE_MS = 60_000;
@@ -88,11 +89,12 @@ async function runScan(): Promise<MusicScanResult> {
 				.values({ path: file, title: path.parse(file).name, opus, ...fileFields });
 			result.added++;
 		} else if (existing.size !== info.size || existing.mtime.getTime() !== info.mtime.getTime()) {
-			// Retagged or replaced: its tags are read again, and its Opus made again.
+			// Retagged or replaced: its tags are read again, its Opus made again, its lyrics looked for again.
 			await db
 				.update(track)
 				.set({ ...fileFields, status: 'pending', error: null, opus, opusError: null })
 				.where(eq(track.id, existing.id));
+			await forgetLyrics(existing.id);
 			result.changed++;
 		} else {
 			await db.update(track).set({ missing: false }).where(eq(track.id, existing.id));

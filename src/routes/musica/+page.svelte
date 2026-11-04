@@ -252,6 +252,8 @@
 			<span class="text-amber-400"
 				>buscando portadas · {progress.coversDone} de {progress.coversTotal}</span
 			>
+		{:else if progress.phase === 'lyrics'}
+			<span class="text-amber-400">buscando letras</span>
 		{:else if totals.opusPending}
 			<span class="text-amber-400">comprimiendo para el móvil · quedan {totals.opusPending}</span>
 		{:else}
