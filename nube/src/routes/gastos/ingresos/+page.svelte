@@ -310,37 +310,45 @@
 
 	<ul class="mb-10 divide-y divide-zinc-800">
 		{#each data.incomes as i (i.id)}
-			<li class="flex items-center gap-3 py-2">
-				<span class="w-14 shrink-0 text-sm text-zinc-400">{day(i.date)}</span>
+			<!-- On a phone, in two lines: what it was and how much, and under them what can be done. -->
+			<li class="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+				<span class="w-14 shrink-0 self-start text-sm text-zinc-400 sm:self-center"
+					>{day(i.date)}</span
+				>
 				<span class="min-w-0 flex-1">
-					<span class="block truncate">{i.concept}</span>
+					<span class="block break-words sm:truncate">{i.concept}</span>
 					<span class="block text-xs text-zinc-500"
 						>{i.category}{#if i.by}
 							· {i.by}{/if}</span
 					>
 				</span>
-				{#if i.document}
-					<a
-						href="/gastos/ingresos/{i.id}/factura"
-						target="_blank"
-						rel="noreferrer"
-						class="shrink-0 text-sm text-amber-400 hover:underline"
-						title="Ver la factura">{i.document === 'pdf' ? '📄' : '🖼️'} Factura</a
+				<span
+					class="shrink-0 self-start text-right text-emerald-400 tabular-nums sm:order-1 sm:self-center"
+					>{euros(i.amount)}</span
+				>
+				<span class="flex w-full items-center justify-end gap-1 sm:contents">
+					{#if i.document}
+						<a
+							href="/gastos/ingresos/{i.id}/factura"
+							target="_blank"
+							rel="noreferrer"
+							class="mr-auto shrink-0 text-sm text-amber-400 hover:underline sm:mr-0"
+							title="Ver la factura">{i.document === 'pdf' ? '📄' : '🖼️'} Factura</a
+						>
+					{/if}
+					<button
+						class="{button} px-2 text-zinc-400 hover:bg-zinc-800 sm:order-2"
+						aria-label="Cambiar {i.concept}"
+						title="Cambiar"
+						onclick={() => edit(i)}>✎</button
 					>
-				{/if}
-				<span class="shrink-0 text-right text-emerald-400 tabular-nums">{euros(i.amount)}</span>
-				<button
-					class="{button} shrink-0 px-2 text-zinc-400 hover:bg-zinc-800"
-					aria-label="Cambiar {i.concept}"
-					title="Cambiar"
-					onclick={() => edit(i)}>✎</button
-				>
-				<button
-					class="{button} shrink-0 px-2 text-zinc-400 hover:bg-zinc-800 hover:text-red-400"
-					aria-label="Borrar {i.concept}"
-					title="Borrar"
-					onclick={() => (deleting = i.id)}>✕</button
-				>
+					<button
+						class="{button} px-2 text-zinc-400 hover:bg-zinc-800 hover:text-red-400 sm:order-2"
+						aria-label="Borrar {i.concept}"
+						title="Borrar"
+						onclick={() => (deleting = i.id)}>✕</button
+					>
+				</span>
 			</li>
 			{#if deleting === i.id}
 				<li class="py-2">

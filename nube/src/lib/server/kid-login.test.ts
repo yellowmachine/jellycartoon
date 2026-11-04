@@ -30,7 +30,9 @@ mock.module('#lib/server/db/index.ts', () => ({ db }));
 mock.module('#lib/server/family.ts', () => ({ withFamily, asFamily, NoFamily }));
 mock.module('#lib/server/family-secret.ts', () => ({
 	sealFor: async (_: string, text: string) => text,
-	openFor: async (_: string, text: string) => text
+	openFor: async (_: string, text: string) => text,
+	sealFileFor: async (_: string, bytes: Uint8Array) => bytes,
+	openFileFor: async (_: string, bytes: Uint8Array) => bytes
 }));
 const told: { to: string[]; title: string }[] = [];
 mock.module('#lib/server/push.ts', () => ({
