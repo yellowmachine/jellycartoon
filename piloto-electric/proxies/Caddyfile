@@ -1,0 +1,5 @@
+# Como un proxy de producción, con compresión: delante de la Seilide del piloto.
+:5443 {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3470
+}

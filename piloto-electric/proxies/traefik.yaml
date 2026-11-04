@@ -1,0 +1,9 @@
+# Traefik con sus tiempos por defecto, como el de Dokploy: delante de la Seilide del piloto.
+entryPoints:
+  web:
+    address: ':5444'
+providers:
+  file:
+    filename: /etc/traefik/rutas.yaml
+log:
+  level: ERROR

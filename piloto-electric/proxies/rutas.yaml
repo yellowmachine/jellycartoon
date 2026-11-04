@@ -1,0 +1,15 @@
+http:
+  routers:
+    seilide:
+      entryPoints: [web]
+      rule: PathPrefix(`/`)
+      service: seilide
+      middlewares: [comprimir]
+  middlewares:
+    comprimir:
+      compress: {}
+  services:
+    seilide:
+      loadBalancer:
+        servers:
+          - url: http://127.0.0.1:3470

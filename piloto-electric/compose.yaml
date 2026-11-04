@@ -60,6 +60,22 @@ services:
       interval: 3s
       retries: 20
 
+  # Delante de Seilide, para la fase 5.
+  caddy:
+    image: caddy:2-alpine
+    profiles: [proxies]
+    network_mode: host
+    volumes:
+      - ./proxies/Caddyfile:/etc/caddy/Caddyfile:ro
+
+  traefik:
+    image: traefik:v3.6
+    profiles: [proxies]
+    network_mode: host
+    volumes:
+      - ./proxies/traefik.yaml:/etc/traefik/traefik.yaml:ro
+      - ./proxies/rutas.yaml:/etc/traefik/rutas.yaml:ro
+
 volumes:
   seilide-pgdata:
   electric-data:
