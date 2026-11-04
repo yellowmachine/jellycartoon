@@ -7,11 +7,29 @@
 	import { coverUrl } from 'comun/music.ts';
 	import { music } from 'comun/music-player.svelte.ts';
 	import { SKIP_BACK, SKIP_FORWARD } from 'comun/podcasts.ts';
+	import LyricsView from 'comun/components/Lyrics.svelte';
+	import { loadLyrics } from 'comun/lyrics-store.svelte.ts';
+	import type { Lyrics } from 'comun/lyrics.ts';
 
 	/** What sounds on the TV, big, with its controls for the remote: a song or a podcast episode. */
 	const current = $derived(music.radio ? undefined : music.current);
 	const podcast = $derived(music.podcast);
 	const upcoming = $derived(music.queue.slice(music.index + 1, music.index + 4));
+
+	/** Its lyrics, always on the TV when it has some (lyrics.ts), where «A continuación» was. */
+	let lyrics = $state<Lyrics | null>(null);
+	$effect(() => {
+		const song = current && !current.clip && !current.src ? current.id : null;
+		lyrics = null;
+		if (song === null) return;
+		let gone = false;
+		void loadLyrics(song).then((found) => {
+			if (!gone) lyrics = found;
+		});
+		return () => {
+			gone = true;
+		};
+	});
 	const progress = $derived(
 		music.durationSec ? Math.min(1, music.positionSec / music.durationSec) : 0
 	);
@@ -161,7 +179,19 @@
 				>
 			</div>
 
-			{#if upcoming.length}
+			{#if lyrics}
+				<LyricsView
+					{lyrics}
+					positionSec={music.positionSec}
+					big
+					class="mt-10 h-[38vh] [mask-image:linear-gradient(transparent,black_15%,black_85%,transparent)] pb-[19vh]"
+				/>
+				{#if upcoming.length}
+					<p class="mt-4 truncate text-2xl text-zinc-500">
+						Después: {upcoming[0]!.title} · {upcoming[0]!.artist}
+					</p>
+				{/if}
+			{:else if upcoming.length}
 				<h2 class="mt-12 mb-3 text-2xl font-semibold text-zinc-400">A continuación</h2>
 				<ol class="space-y-1 text-2xl">
 					{#each upcoming as t, i (`${i}:${t.id}`)}

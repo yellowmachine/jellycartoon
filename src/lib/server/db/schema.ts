@@ -799,6 +799,24 @@ export const track = pgTable(
 	(t) => [index('track_album_idx').on(t.albumId, t.number)]
 );
 
+/** What was found of a song's lyrics (lyrics.ts): with times, without, none (instrumental), or not found. */
+export const lyricsKind = pgEnum('lyrics_kind', ['synced', 'plain', 'instrumental', 'none']);
+
+/**
+ * A song's lyrics, looked for once (lyrics.ts): in its tags, a `.lrc` beside it, or LRCLIB; as LRC
+ * if synced. Not found (`none`), looked for again after a while, as LRCLIB grows.
+ */
+export const trackLyrics = pgTable('track_lyrics', {
+	trackId: integer('track_id')
+		.primaryKey()
+		.references(() => track.id, { onDelete: 'cascade' }),
+	kind: lyricsKind('kind').notNull(),
+	text: text('text'),
+	/** `etiqueta`, `lrc` or `lrclib`. */
+	source: text('source'),
+	checkedAt: timestamp('checked_at').notNull().defaultNow()
+});
+
 /** The titles to show: the one set by hand, or the one from the tags. */
 export const albumTitle = sql<string>`coalesce(${album.customTitle}, ${album.title})`;
 export const trackTitle = sql<string>`coalesce(${track.customTitle}, ${track.title})`;

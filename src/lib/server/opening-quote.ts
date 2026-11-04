@@ -1,8 +1,8 @@
 import { and, desc, eq, isNull, sql, type SQL } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeQuotes, series, watchProgress } from '#lib/server/db/schema.ts';
-import { openRouterConfig } from '#lib/server/app-settings.ts';
-import { completeJson } from '#lib/server/openrouter.ts';
+import { costlyAiOn, openRouterConfig } from '#lib/server/app-settings.ts';
+import { completeJson, guessCost } from '#lib/server/openrouter.ts';
 import { log } from '#lib/server/log.ts';
 import { allowedEpisodes } from '#lib/server/kids.ts';
 import { isAutoFile, readCues } from '#lib/server/auto-subtitle-files.ts';
@@ -107,7 +107,8 @@ async function chooseNext(seriesId: number | null, lang: string | null) {
 	if (choosing || Date.now() < pausedUntil) return;
 	choosing = true;
 	try {
-		if (!(await openRouterConfig()).apiKey) return;
+		// Off until turned on in Ajustes → Casa: the card picks lines by itself (`goodLine`).
+		if (!(await costlyAiOn('quote')) || !(await openRouterConfig()).apiKey) return;
 		const next = await db
 			.select({
 				id: episode.id,
@@ -145,6 +146,14 @@ async function chooseNext(seriesId: number | null, lang: string | null) {
 	} finally {
 		choosing = false;
 	}
+}
+
+/**
+ * About what choosing an episode's lines costs (Ajustes → Casa tells it before turning it on): a
+ * sitcom's subtitles, some 400 lines, and a short answer; one episode each time the app opens.
+ */
+export async function quoteCost() {
+	return guessCost((await openRouterConfig()).model, 400 * 14 + 300, 60);
 }
 
 async function askAi(

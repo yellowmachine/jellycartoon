@@ -12,7 +12,9 @@ import {
 	DEFAULT_MODEL,
 	DEFAULT_VISION_MODEL,
 	DEFAULT_VOICE_MODEL,
+	costlyAiOn,
 	isAdmin,
+	setCostlyAi,
 	openRouterConfig,
 	openRouterManagementKey,
 	setAppSetting,
@@ -21,6 +23,9 @@ import {
 	voiceModel
 } from '#lib/server/app-settings.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
+import { titlesBatchCost } from '#lib/server/library/episode-titles.ts';
+import { quoteCost } from '#lib/server/opening-quote.ts';
+import { BATCH_SIZE } from '#lib/episode-titles.ts';
 import { createCloudKey, deleteCloudKey, listCloudKeys } from '#lib/server/media-api.ts';
 import { askCloud, cloudLink, CloudProblem, setCloudLink } from '#lib/server/kitchen.ts';
 import { snapcastVoiceReady } from '#lib/server/music/snapcast.ts';
@@ -186,7 +191,15 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 			chatWeb: chat.web,
 			keySource: config.keySource,
 			// Never the key itself: only enough to recognise it.
-			keyHint: config.apiKey ? `…${config.apiKey.slice(-4)}` : null,
+			keyHint:
+				config.keySource === 'seilide'
+					? 'Seilide'
+					: config.apiKey
+						? `…${config.apiKey.slice(-4)}`
+						: null,
+			/** The family's key in Seilide can be used (connected), and whether there is one of its own. */
+			canUseSeilide: config.canUseSeilide,
+			hasOwnKey: config.hasOwnKey,
 			/** Only whether there is one: it never leaves the server. */
 			hasManagementKey: Boolean(await openRouterManagementKey()),
 			/** Back from «Conectar con OpenRouter»: `ok`, or what went wrong. */
@@ -200,7 +213,16 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 			voiceModel: voice,
 			defaultVoiceModel: DEFAULT_VOICE_MODEL,
 			/** Streamed: OpenRouter answering slowly does not hold up the page. */
-			balance: keyBalance()
+			balance: keyBalance(),
+			/** What uses the AI the most, off until turned on here; and about what each costs, streamed. */
+			costly: {
+				titles: await costlyAiOn('titles'),
+				quote: await costlyAiOn('quote'),
+				batch: BATCH_SIZE,
+				cost: Promise.all([titlesBatchCost(vision), quoteCost()])
+					.then(([titles, quote]) => ({ titles, quote }))
+					.catch(() => ({ titles: null, quote: null }))
+			}
 		};
 	}
 
@@ -926,6 +948,22 @@ export const actions: Actions = {
 						: (['openrouter_model', 'model'] as const);
 		await setAppSetting(key, model || null);
 		return { saved };
+	},
+	/** The family's key in Seilide, or the house's own. */
+	aiSource: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const own = (await request.formData()).get('own') === 'true';
+		await setAppSetting('openrouter_own', own ? 'on' : null);
+		return { saved: 'aiSource' };
+	},
+	/** «Lo que más gasta»: on, after being told what it costs, or off. */
+	costlyAi: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const form = await request.formData();
+		const which = form.get('which');
+		if (which !== 'titles' && which !== 'quote') return fail(400, { message: 'No existe' });
+		await setCostlyAi(which, form.get('on') === 'true');
+		return { saved: `costly-${which}` };
 	},
 	saveChatWeb: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);

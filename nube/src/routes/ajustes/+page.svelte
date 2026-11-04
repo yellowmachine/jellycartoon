@@ -436,6 +436,29 @@
 			{#if data.openRouter}
 				<p class="mb-3 font-mono text-sm">{data.openRouter}</p>
 			{/if}
+			<!-- The key before, still alive in OpenRouter: an app cannot delete it, so it is said. -->
+			{#if data.openRouterOld}
+				<div
+					class="mb-3 rounded border border-amber-700/60 bg-amber-950/40 p-3 text-sm text-amber-200"
+				>
+					<p>
+						La clave anterior, <span class="font-mono">{data.openRouterOld.hint}</span>{data
+							.openRouterOld.at
+							? `, cambiada el ${new Date(data.openRouterOld.at).toLocaleDateString('es-ES')}`
+							: ''}, sigue existiendo en OpenRouter. Seilide ya no la usa, pero quien la tuviera
+						podría seguir gastando con ella. Bórrala en
+						<a
+							href="https://openrouter.ai/keys"
+							target="_blank"
+							rel="noreferrer"
+							class="text-amber-400 underline">openrouter.ai/keys</a
+						>: es la que empieza y acaba así.
+					</p>
+					<form method="post" action="?seccion={tab}&/forgetOldOpenRouter" use:enhance class="mt-2">
+						<button class={secondary}>Ya la he borrado</button>
+					</form>
+				</div>
+			{/if}
 			<!-- The key's own spending limit (ai-spend.ts): reached, the AI stops (ai-block.ts). Without
 			one, said: a key taken from Seilide could spend all of the account's credit (#326). -->
 			{#await data.openRouterLimit then limit}
@@ -497,8 +520,9 @@
 				</form>
 				<p class="mb-3 text-xs text-zinc-500">
 					Entras en OpenRouter (o te creas la cuenta), lo autorizas y vuelves aquí con la clave
-					hecha. Lo que se use se paga con el crédito de esa cuenta. Después, ponle un límite de
-					gasto a la clave en openrouter.ai/keys.
+					hecha, con el nombre «Seilide», el de la familia y la fecha. Lo que se use se paga con el
+					crédito de esa cuenta. Después, ponle un límite de gasto a la clave en openrouter.ai/keys;
+					y si cambias de clave, borra allí la anterior.
 				</p>
 				<details class="text-sm">
 					<summary class="cursor-pointer text-zinc-400 hover:text-white">

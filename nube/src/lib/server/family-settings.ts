@@ -32,24 +32,51 @@ export async function openRouterKey(k: Kitchen) {
 	return key;
 }
 
+/** How a key starts and ends: enough to recognise it in openrouter.ai/keys. */
+const keyHint = (key: string) => `${key.slice(0, 12)}…${key.slice(-4)}`;
+
 /** How it starts, for Ajustes: the key itself never leaves the server. */
 export async function openRouterKeyStart(k: Kitchen) {
 	const key = await openRouterKey(k);
-	return key ? `${key.slice(0, 12)}…${key.slice(-4)}` : null;
+	return key ? keyHint(key) : null;
 }
 
-/** A new key, or none (null). */
+/**
+ * A new key, or none (null). The one before, if another, is still alive in OpenRouter (an app
+ * cannot delete it): how it starts and ends is kept, for Ajustes to say to delete it there.
+ */
 export async function setOpenRouterKey(k: Kitchen, key: string | null) {
 	// Another key: the AI stopped with the one before goes on (ai-block.ts).
 	const before = await openRouterKey(k);
 	if (before) unblock(before);
 	const openrouterKey = key ? await sealFor(k.familyId, key) : null;
-	const set = { openrouterKey, aiBlockedAt: null, aiBlockedWhy: null };
+	const set = {
+		openrouterKey,
+		aiBlockedAt: null,
+		aiBlockedWhy: null,
+		// The same one again (to unblock it): nothing to delete.
+		...(before && before !== key
+			? { openrouterOldKey: keyHint(before), openrouterOldAt: new Date() }
+			: {})
+	};
 	await k.run((tx) =>
 		tx
 			.insert(familySettings)
 			.values({ familyId: k.familyId, ...set })
 			.onConflictDoUpdate({ target: familySettings.familyId, set })
+	);
+}
+
+/** The key before, still to be deleted in openrouter.ai/keys: how it starts and ends, and when. */
+export async function oldOpenRouterKey(k: Kitchen) {
+	const row = await settingsOf(k);
+	return row?.openrouterOldKey ? { hint: row.openrouterOldKey, at: row.openrouterOldAt } : null;
+}
+
+/** «Ya la he borrado». */
+export async function forgetOldOpenRouterKey(k: Kitchen) {
+	await k.run((tx) =>
+		tx.update(familySettings).set({ openrouterOldKey: null, openrouterOldAt: null })
 	);
 }
 

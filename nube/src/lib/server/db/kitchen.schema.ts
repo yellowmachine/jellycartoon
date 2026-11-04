@@ -118,6 +118,12 @@ export const familySettings = pgTable(
 			.references(() => family.id, { onDelete: 'cascade' }),
 		openrouterKey: text('openrouter_key'),
 		/**
+		 * The key before, after another took its place: only how it starts and ends, to find it in
+		 * openrouter.ai/keys and delete it there (an app cannot); and when. Null once deleted.
+		 */
+		openrouterOldKey: text('openrouter_old_key'),
+		openrouterOldAt: timestamp('openrouter_old_at'),
+		/**
 		 * The family's AI stopped (ai-block.ts): since when, and why in our words («No queda saldo en
 		 * OpenRouter»…); null, going. Kept, so that a restart does not send to OpenRouter again.
 		 */

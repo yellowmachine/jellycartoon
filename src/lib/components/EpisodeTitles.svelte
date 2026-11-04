@@ -26,9 +26,13 @@
 		};
 		/** There is an OpenRouter key and the series has its info. */
 		canPropose: boolean;
+		/** Turned on in Ajustes → Casa: off by default, it is what costs the most. */
+		titlesOn: boolean;
+		/** Who can turn it on. */
+		admin: boolean;
 	}
 
-	let { proposal, canPropose }: Props = $props();
+	let { proposal, canPropose, titlesOn, admin }: Props = $props();
 
 	const season = (p: TitleProposal) => (p.isEpisode ? p.season : 0);
 	const changed = $derived(
@@ -165,6 +169,18 @@
 				<button formaction="?/discardTitles" class={button}>Descartar</button>
 			</div>
 		</form>
+	{:else if canPropose && !titlesOn}
+		<p class="text-xs text-zinc-500">
+			Poner títulos y numeración con la IA está apagado: es lo que más gasta.
+			{#if admin}
+				Se enciende en <a
+					href="/ajustes?seccion=casa#ia-cara"
+					class="text-amber-400 hover:underline">Ajustes → Casa</a
+				>.
+			{:else}
+				Lo puede encender quien administra la casa.
+			{/if}
+		</p>
 	{:else if canPropose}
 		{@const missing = proposal.total - proposal.titled}
 		<div class="flex flex-wrap items-center gap-3">

@@ -2,6 +2,9 @@
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import MediaIcon from './MediaIcon.svelte';
+	import LyricsView from './Lyrics.svelte';
+	import { loadLyrics } from '../lyrics-store.svelte.ts';
+	import type { Lyrics } from '../lyrics.ts';
 	import PlayModes from './PlayModes.svelte';
 	import { untrack } from 'svelte';
 	import type Hls from 'hls.js';
@@ -47,6 +50,21 @@
 	let retryTimer: ReturnType<typeof setTimeout> | undefined;
 	/** The queue, open under the bar: what is on, what comes next and what already played. */
 	let showQueue = $state(false);
+	/** The song's lyrics, if it has some (lyrics.ts): «Letra» opens them under the bar. */
+	let songLyrics = $state<Lyrics | null>(null);
+	let showLyrics = $state(false);
+	$effect(() => {
+		const song = current && !current.clip && !current.src ? current.id : null;
+		songLyrics = null;
+		if (song === null) return;
+		let gone = false;
+		void loadLyrics(song).then((found) => {
+			if (!gone) songLyrics = found;
+		});
+		return () => {
+			gone = true;
+		};
+	});
 
 	/**
 	 * The queue saved as a new list, as it is now (albums added, songs taken away or moved): its
@@ -896,8 +914,23 @@ and the speed. -->
 				aria-label="Cola"
 				aria-expanded={showQueue}
 				title="Cola: lo que suena y lo que viene"
-				onclick={() => (showQueue = !showQueue)}><MediaIcon name="queue" /></button
+				onclick={() => {
+					showQueue = !showQueue;
+					showLyrics = false;
+				}}><MediaIcon name="queue" /></button
 			>
+			{#if songLyrics}
+				<button
+					class={[ghost, 'order-2 sm:order-8', showLyrics && 'bg-zinc-800 text-white']}
+					aria-label="Letra"
+					aria-expanded={showLyrics}
+					title="Letra de la canción"
+					onclick={() => {
+						showLyrics = !showLyrics;
+						showQueue = false;
+					}}><MediaIcon name="lyrics" /></button
+				>
+			{/if}
 			<button
 				class="{ghost} order-2 sm:order-9"
 				aria-label="Cerrar"
@@ -934,6 +967,13 @@ and the speed. -->
 				>
 			</span>
 		</div>
+		{#if showLyrics && songLyrics}
+			<LyricsView
+				lyrics={songLyrics}
+				positionSec={music.positionSec}
+				class="mt-2 max-h-[50vh] border-t border-zinc-800 px-2 pt-2 pb-[25vh] text-center"
+			/>
+		{/if}
 		{#if showQueue}
 			<!-- «+ Añadir a la cola» of an album adds at the end. What played stays, dimmed: it is
 			     still the queue, and «anterior» or repeat go back to it. -->

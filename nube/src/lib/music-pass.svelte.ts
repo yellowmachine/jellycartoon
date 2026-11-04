@@ -25,6 +25,7 @@ export function usePass(pass: MusicPass) {
 		track: (id) => offlineMusic.urlOf(id) ?? `${pass.base}/pistas/${id}`,
 		cover: (albumId) => offlineMusic.coverOf(albumId) ?? `${pass.base}/portadas/${albumId}`,
 		clip: (id) => `${pass.base}/locutor/${id}`,
+		lyrics: (id) => `${pass.base}/letras/${id}`,
 		held: offlineMusic.has
 	});
 	images = pass.images;
@@ -40,6 +41,7 @@ export function useKept() {
 	setMusicUrls({
 		track: (id) => offlineMusic.urlOf(id) ?? '',
 		cover: (albumId) => offlineMusic.coverOf(albumId) ?? '',
+		lyrics: () => '',
 		held: offlineMusic.has
 	});
 }

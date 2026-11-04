@@ -3,6 +3,7 @@ import { afterEach, describe, expect, mock, test } from 'bun:test';
 /** The app's settings, in memory: where the credit's running out is kept. */
 const settings = new Map<string, string>();
 mock.module('#lib/server/app-settings.ts', () => ({
+	SEILIDE_KEY: 'seilide',
 	openRouterConfig: async () => ({ apiKey: 'k', model: 'anthropic/claude-haiku-5.5' }),
 	openRouterManagementKey: async () => null,
 	getAppSetting: async (key: string) => settings.get(key) ?? null,

@@ -10,6 +10,7 @@
 		| 'repeat'
 		| 'single'
 		| 'queue'
+		| 'lyrics'
 		| 'volume'
 		| 'muted';
 </script>
@@ -86,6 +87,16 @@
 			stroke-width="2"
 			stroke-linecap="round"
 		/>
+	{:else if name === 'lyrics'}
+		<!-- Lines of words, with a note: the song's lyrics. -->
+		<path
+			d="M4 6h10M4 10h10M4 14h6"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="2"
+			stroke-linecap="round"
+		/>
+		<path d="M17 8v8.2a2.6 2.6 0 1 1-1.6-2.4V6.5l4.6-1.2v2.4Z" />
 	{:else if name === 'volume' || name === 'muted'}
 		<!-- A speaker: with its sound, or crossed out. -->
 		<path

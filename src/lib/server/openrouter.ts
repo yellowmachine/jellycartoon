@@ -2,12 +2,42 @@ import {
 	getAppSetting,
 	openRouterConfig,
 	openRouterManagementKey,
+	SEILIDE_KEY,
 	setAppSetting
 } from '#lib/server/app-settings.ts';
 import { log } from '#lib/server/log.ts';
 
 /** Where the account's credit is bought, and seen. */
 export const CREDITS_URL = 'https://openrouter.ai/settings/credits';
+
+/**
+ * Where a request to the AI goes, and with what: OpenRouter's API with the house's own key; or,
+ * with the family's (`SEILIDE_KEY`), Seilide's gateway for the house (/api/casa/ia/v1, the same
+ * shape) with the house's key for Seilide, its label in `X-Title` for Gastos → IA there.
+ */
+async function aiTarget(
+	apiKey: string,
+	path: 'chat/completions' | 'audio/speech' | 'key',
+	label = ''
+) {
+	if (apiKey !== SEILIDE_KEY)
+		return {
+			url: `https://openrouter.ai/api/v1/${path}`,
+			headers: { Authorization: `Bearer ${apiKey}` } as Record<string, string>
+		};
+	// Only then: what links to Seilide brings the database with it.
+	const { cloudLink } = await import('#lib/server/kitchen.ts');
+	const link = await cloudLink();
+	if (!link) throw new Error('Seilide no está conectada: Ajustes → Casa → Nube');
+	return {
+		url: `${link.url}/api/casa/ia/v1/${path}`,
+		// Encoded: a header takes no «—» nor emoji, and a series' title may have them.
+		headers: { 'x-api-key': link.key, 'X-Title': encodeURIComponent(label) } as Record<
+			string,
+			string
+		>
+	};
+}
 
 /** Said wherever the AI fails for it: voice, the DJ, a film's card… */
 export const NO_CREDIT = `Se ha acabado el crédito de OpenRouter (o la clave ha llegado a su límite): recárgalo en ${CREDITS_URL}`;
@@ -160,10 +190,11 @@ export async function completeJson<T>(request: {
 	const model = request.model ?? config.model;
 	if (!apiKey) throw new Error('No hay clave de OpenRouter: ponla en Ajustes');
 
-	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+	const target = await aiTarget(apiKey, 'chat/completions', request.label);
+	const res = await fetch(target.url, {
 		method: 'POST',
 		headers: {
-			Authorization: `Bearer ${apiKey}`,
+			...target.headers,
 			'Content-Type': 'application/json',
 			// Optional attribution, so the app shows by name in OpenRouter's activity page.
 			'X-OpenRouter-Title': 'JellyCartoon'
@@ -261,10 +292,11 @@ export async function* streamChat(request: {
 	};
 	stillAlive();
 	try {
-		const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+		const target = await aiTarget(request.apiKey, 'chat/completions', request.label);
+		const res = await fetch(target.url, {
 			method: 'POST',
 			headers: {
-				Authorization: `Bearer ${request.apiKey}`,
+				...target.headers,
 				'Content-Type': 'application/json',
 				'X-OpenRouter-Title': 'JellyCartoon'
 			},
@@ -320,8 +352,28 @@ export async function* streamChat(request: {
 	}
 }
 
-/** Models whose thinking can be turned off, from OpenRouter's list; read once per process. */
-let thinkingOptional: Promise<Set<string>> | undefined;
+interface ModelInfo {
+	id: string;
+	reasoning?: { mandatory?: boolean; supported_efforts?: string[] };
+	/** Dollars per token, as text: «0.000001». */
+	pricing?: { prompt?: string; completion?: string };
+}
+
+/** OpenRouter's list of models, read once per process (again if it failed). */
+let modelList: Promise<ModelInfo[]> | undefined;
+
+function models() {
+	modelList ??= fetch('https://openrouter.ai/api/v1/models', {
+		signal: AbortSignal.timeout(10_000)
+	})
+		.then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+		.then((body: { data: ModelInfo[] }) => body.data)
+		.catch((error) => {
+			modelList = undefined;
+			throw error;
+		});
+	return modelList;
+}
 
 /**
  * Whether `effort: "none"` can go with `model`: those whose reasoning is mandatory refuse it
@@ -329,28 +381,29 @@ let thinkingOptional: Promise<Set<string>> | undefined;
  * no: the model thinks, as before, but answers.
  */
 async function canSkipThinking(model: string) {
-	thinkingOptional ??= fetch('https://openrouter.ai/api/v1/models', {
-		signal: AbortSignal.timeout(10_000)
-	})
-		.then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
-		.then(
-			(body: {
-				data: { id: string; reasoning?: { mandatory?: boolean; supported_efforts?: string[] } }[];
-			}) =>
-				new Set(
-					body.data
-						.filter(
-							(m) => !m.reasoning?.mandatory && m.reasoning?.supported_efforts?.includes('none')
-						)
-						.map((m) => m.id)
-				)
-		)
-		.catch((error) => {
-			log.warn('ia', 'No se pudo leer qué modelos dejan de pensar', { error });
-			thinkingOptional = undefined;
-			return new Set<string>();
-		});
-	return (await thinkingOptional).has(model);
+	try {
+		const m = (await models()).find((m) => m.id === model);
+		return Boolean(!m?.reasoning?.mandatory && m?.reasoning?.supported_efforts?.includes('none'));
+	} catch (error) {
+		log.warn('ia', 'No se pudo leer qué modelos dejan de pensar', { error });
+		return false;
+	}
+}
+
+/**
+ * About what a request to `model` costs, in dollars, by OpenRouter's prices: `sent` tokens and
+ * `answer` tokens back. Null if the prices cannot be read.
+ */
+export async function guessCost(model: string, sent: number, answer: number) {
+	try {
+		const m = (await models()).find((m) => m.id === model);
+		const prompt = Number(m?.pricing?.prompt);
+		const completion = Number(m?.pricing?.completion);
+		if (!Number.isFinite(prompt) || !Number.isFinite(completion)) return null;
+		return sent * prompt + answer * completion;
+	} catch {
+		return null;
+	}
 }
 
 /** A function the model can call: https://openrouter.ai/docs/guides/features/tool-calling */
@@ -393,10 +446,11 @@ export async function askWeb(request: {
 	await needCredit();
 	const { apiKey } = await openRouterConfig();
 	if (!apiKey) throw new Error('No hay clave de OpenRouter: ponla en Ajustes');
-	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+	const target = await aiTarget(apiKey, 'chat/completions', request.label);
+	const res = await fetch(target.url, {
 		method: 'POST',
 		headers: {
-			Authorization: `Bearer ${apiKey}`,
+			...target.headers,
 			'Content-Type': 'application/json',
 			'X-OpenRouter-Title': 'JellyCartoon'
 		},
@@ -442,10 +496,11 @@ export async function chatWithTools(request: {
 	if (!apiKey) throw new Error('No hay clave de OpenRouter: ponla en Ajustes');
 	const noThinking = request.think === false && (await canSkipThinking(request.model));
 
-	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+	const target = await aiTarget(apiKey, 'chat/completions', request.label);
+	const res = await fetch(target.url, {
 		method: 'POST',
 		headers: {
-			Authorization: `Bearer ${apiKey}`,
+			...target.headers,
 			'Content-Type': 'application/json',
 			'X-OpenRouter-Title': 'JellyCartoon'
 		},
@@ -495,10 +550,11 @@ export async function speech(request: {
 	await needCredit();
 	const { apiKey } = await openRouterConfig();
 	if (!apiKey) throw new Error('No hay clave de OpenRouter: ponla en Ajustes');
-	const res = await fetch('https://openrouter.ai/api/v1/audio/speech', {
+	const target = await aiTarget(apiKey, 'audio/speech', 'Voz');
+	const res = await fetch(target.url, {
 		method: 'POST',
 		headers: {
-			Authorization: `Bearer ${apiKey}`,
+			...target.headers,
 			'Content-Type': 'application/json',
 			'X-OpenRouter-Title': 'JellyCartoon'
 		},
@@ -570,11 +626,11 @@ export async function keyBalance(): Promise<KeyBalance | null> {
 	if (!apiKey) return null;
 	try {
 		const [res, credits] = await Promise.all([
-			fetch('https://openrouter.ai/api/v1/key', {
-				headers: { Authorization: `Bearer ${apiKey}` },
-				signal: AbortSignal.timeout(10_000)
-			}),
-			managementKey
+			aiTarget(apiKey, 'key').then((target) =>
+				fetch(target.url, { headers: target.headers, signal: AbortSignal.timeout(10_000) })
+			),
+			// The account's credit: only with a management key, and with the house's own key.
+			managementKey && apiKey !== SEILIDE_KEY
 				? accountCredits(managementKey).then(
 						(credits) => ({ credits, problem: null }),
 						(error: Error) => ({ credits: null, problem: error.message })

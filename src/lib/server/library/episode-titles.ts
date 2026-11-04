@@ -4,11 +4,11 @@ import { and, asc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { episode, episodeTitle, seriesInfo } from '#lib/server/db/schema.ts';
 import { visionModel } from '#lib/server/app-settings.ts';
-import { completeJson, type ContentPart } from '#lib/server/openrouter.ts';
+import { completeJson, guessCost, type ContentPart } from '#lib/server/openrouter.ts';
 import { log } from '#lib/server/log.ts';
 import { FRAME_WIDTHS } from '#lib/birds-eye.ts';
 import { formatDuration } from 'comun/format.ts';
-import { titleBatches, type TitleProposal } from '#lib/episode-titles.ts';
+import { BATCH_SIZE, titleBatches, type TitleProposal } from '#lib/episode-titles.ts';
 import { inTurn } from '#lib/server/cinema/frames.ts';
 import { wikipediaPageText } from '#lib/server/cinema/wikidata.ts';
 import { withoutProse } from '#lib/server/cinema/html-text.ts';
@@ -61,6 +61,16 @@ export function startProposal(seriesId: number, all = false) {
  * are 36,000 characters, Shin Chan has hundreds.
  */
 const PAGE_CHARS = 80_000;
+
+/**
+ * About what a batch of `BATCH_SIZE` episodes costs with `model` (Ajustes → Casa tells it before
+ * turning it on): the episode list, at most, three frames each (a few hundred tokens a picture)
+ * and the answer.
+ */
+export async function titlesBatchCost(model?: string) {
+	const sent = PAGE_CHARS / 3.5 + BATCH_SIZE * (3 * 600 + 60) + 1_500;
+	return guessCost(model ?? (await visionModel()), sent, BATCH_SIZE * 80);
+}
 
 /** Seconds of the frames from the start: classic cartoons show their title card there. */
 const EARLY_FRAMES = [8, 20];
