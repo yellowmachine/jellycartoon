@@ -4,7 +4,7 @@ import { eq as sqlEq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import * as schema from '#lib/server/db/schema.ts';
-import { calendarEvent, family, paper, paperEvent } from '#lib/server/db/schema.ts';
+import { calendarEvent, family, familyPerson, paper, paperEvent } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { parsePaperInput } from 'comun/papers.ts';
 
@@ -69,9 +69,10 @@ const PDF = new TextEncoder().encode('%PDF-1.7 contrato');
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
 const rent = {
 	name: 'Contrato de alquiler',
-	category: 'Casa',
-	notes: 'Fianza de dos meses'
-} as const;
+	category: 'Casa' as const,
+	notes: 'Fianza de dos meses',
+	people: [] as string[]
+};
 
 beforeAll(async () => {
 	await migrate(db, { migrationsFolder: `${import.meta.dir}/../../../drizzle` });
@@ -83,7 +84,8 @@ describe('parsePaperInput', () => {
 		expect(parsePaperInput({ name: ' Póliza ', category: 'Seguros', notes: ' hola ' })).toEqual({
 			name: 'Póliza',
 			category: 'Seguros',
-			notes: 'hola'
+			notes: 'hola',
+			people: []
 		});
 	});
 
@@ -106,7 +108,11 @@ describe('papers', () => {
 	});
 
 	test('read back, sorted by name, and its file as it came', async () => {
-		const second = await addPaper(a, { name: 'Zapatos', category: 'Otros', notes: '' }, JPEG);
+		const second = await addPaper(
+			a,
+			{ name: 'Zapatos', category: 'Otros', notes: '', people: [] },
+			JPEG
+		);
 		const first = await addPaper(a, rent, PDF);
 		const papers = await familyPapers(a);
 		expect(papers.map((p) => p.name)).toEqual(['Contrato de alquiler', 'Zapatos']);
@@ -166,6 +172,38 @@ describe('papers', () => {
 			kmsDown = false;
 		}
 		await deletePaper(a, id);
+	});
+});
+
+describe('whose a paper is (#401)', () => {
+	const newPerson = async (familyId: string, name: string) =>
+		String(
+			(
+				await db.insert(familyPerson).values({ familyId, name }).returning({ id: familyPerson.id })
+			)[0]!.id
+		);
+	const read = async (id: number) => (await familyPapers(a)).find((p) => p.id === id)!;
+
+	test('kept and changed; an id not of the family, left out; the person gone, it stays', async () => {
+		await db.insert(family).values({ id: 'B', name: 'Casa B' }).onConflictDoNothing();
+		const lucia = await newPerson('A', 'Lucía');
+		const pablo = await newPerson('A', 'Pablo');
+		const theirs = await newPerson('B', 'Otra');
+		const id = await addPaper(a, { ...rent, people: [lucia, theirs, 'x'] }, PDF);
+		expect((await read(id)).people).toEqual([lucia]);
+		await updatePaper(a, id, { ...rent, people: [pablo] });
+		expect((await read(id)).people).toEqual([pablo]);
+		await db.delete(familyPerson).where(sqlEq(familyPerson.id, Number(pablo)));
+		expect((await read(id)).people).toEqual([]);
+		await deletePaper(a, id);
+		await db.delete(familyPerson).where(sqlEq(familyPerson.id, Number(lucia)));
+		await db.delete(familyPerson).where(sqlEq(familyPerson.id, Number(theirs)));
+	});
+
+	test('taken from a form, only strings', () => {
+		expect(
+			parsePaperInput({ name: 'Póliza', category: 'Seguros', people: ['3', 4, null] })?.people
+		).toEqual(['3']);
 	});
 });
 

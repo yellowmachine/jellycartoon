@@ -10,6 +10,7 @@
 		name: string;
 		category: PaperCategory;
 		notes: string;
+		people: string[];
 	}
 
 	/**
@@ -35,6 +36,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
+	import type { AgendaPerson } from 'comun/agenda.ts';
 	import { MAX_PAPER_NAME, MAX_PAPER_NOTES, PAPER_CATEGORIES } from 'comun/papers.ts';
 
 	/**
@@ -44,12 +46,15 @@
 	let {
 		action,
 		draft,
+		people,
 		eventId = null,
 		file = null,
 		onclose
 	}: {
 		action: string;
 		draft: PaperDraft;
+		/** Whose it can be. */
+		people: AgendaPerson[];
 		/** New, it belongs to this event of the agenda. */
 		eventId?: number | null;
 		/** The photo or file it was opened with, when it is ready. */
@@ -61,6 +66,7 @@
 	let name = $state(start.name);
 	let category = $state(start.category);
 	let notes = $state(start.notes);
+	let owners = $state([...start.people]);
 	let problem = $state<string | null>(null);
 	let sending = $state(false);
 	let fileInput = $state<HTMLInputElement>();
@@ -119,6 +125,31 @@
 			</select>
 		</label>
 	</div>
+	{#if people.length}
+		<div>
+			<p class="mb-1 text-xs text-zinc-400">De quién es (si es de alguien)</p>
+			<div class="flex flex-wrap gap-2">
+				{#each people as p (p.id)}
+					{@const on = owners.includes(p.id)}
+					<button
+						type="button"
+						aria-pressed={on}
+						class={[
+							'rounded-full border px-3 py-1 text-sm',
+							on
+								? 'border-amber-500 text-amber-300'
+								: 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+						]}
+						onclick={() => (owners = on ? owners.filter((id) => id !== p.id) : [...owners, p.id])}
+						>{p.name}</button
+					>
+				{/each}
+			</div>
+			{#each owners as id (id)}
+				<input type="hidden" name="people" value={id} />
+			{/each}
+		</div>
+	{/if}
 	<label class="flex flex-col gap-1 text-xs text-zinc-400">
 		Anotaciones
 		<textarea

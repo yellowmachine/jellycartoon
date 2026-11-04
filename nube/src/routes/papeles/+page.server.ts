@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { parsePaperInput } from 'comun/papers.ts';
+import { agendaPeople } from '#lib/server/agenda/agenda.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import {
 	addPaper,
@@ -16,8 +17,10 @@ import {
 
 /** Papeles (#384): the family's, sealed. The agenda's events post their papers here too (#399). */
 export const load: PageServerLoad = async ({ locals }) => {
-	if (!papersReady()) return { ready: false, papers: [] };
-	return { ready: true, papers: await familyPapers(await kitchenOf(locals.user!.id)) };
+	if (!papersReady()) return { ready: false, papers: [], people: [] };
+	const k = await kitchenOf(locals.user!.id);
+	const [papers, people] = await Promise.all([familyPapers(k), agendaPeople(k)]);
+	return { ready: true, papers, people };
 };
 
 export const actions: Actions = {
@@ -32,7 +35,8 @@ export const actions: Actions = {
 		const input = parsePaperInput({
 			name: form.get('name'),
 			category: form.get('category'),
-			notes: form.get('notes')
+			notes: form.get('notes'),
+			people: form.getAll('people')
 		});
 		if (!input) return fail(400, { message: 'Falta el nombre o la categoría' });
 		const sent = form.get('fichero');

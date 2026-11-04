@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, gte, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNotNull, lt, sql } from 'drizzle-orm';
 import { addMonths } from 'comun/expenses.ts';
 import { isIncomeCategory, type Income, type IncomeInput } from 'comun/income.ts';
 import { income, user } from '#lib/server/db/schema.ts';
+import { likeOf, plain } from '#lib/server/expenses/plain.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { putFile, removeFile } from '#lib/server/storage.ts';
 
@@ -72,6 +73,20 @@ export async function monthIncome(k: Kitchen, month: string): Promise<Income[]> 
 		category: isIncomeCategory(category) ? category : 'Otros',
 		document: document ? (document.endsWith('.pdf') ? 'pdf' : 'image') : null
 	}));
+}
+
+/** Those with an invoice kept whose concept has `text`, the newest first: for Papeles (documents.ts). */
+export function searchIncomeDocuments(k: Kitchen, text: string, limit: number) {
+	return k.run((tx) =>
+		tx
+			.select({ id: income.id, date: income.date, concept: income.concept, amount: income.amount })
+			.from(income)
+			.where(
+				and(isNotNull(income.document), sql`${plain(income.concept)} like ${plain(likeOf(text))}`)
+			)
+			.orderBy(desc(income.date), desc(income.id))
+			.limit(limit)
+	);
 }
 
 /** A month's, without them: for Mes, beside its expenses. */

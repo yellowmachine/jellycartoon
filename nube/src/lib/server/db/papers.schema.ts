@@ -9,7 +9,7 @@ import {
 	timestamp,
 	unique
 } from 'drizzle-orm/pg-core';
-import { calendarEvent } from './agenda.schema.ts';
+import { calendarEvent, familyPerson } from './agenda.schema.ts';
 import { user } from './auth.schema.ts';
 import { family, familyRows } from './family.schema.ts';
 
@@ -73,5 +73,34 @@ export const paperEvent = pgTable(
 			foreignColumns: [calendarEvent.familyId, calendarEvent.id]
 		}).onDelete('cascade'),
 		familyRows('paper_event_own', t.familyId)
+	]
+).enableRLS();
+
+/**
+ * Whose a paper is, if it is anyone's (#401): the people of the agenda, children without an account
+ * too. Without it, the family's. Both of its own family, as `paperEvent`.
+ */
+export const paperPerson = pgTable(
+	'paper_person',
+	{
+		familyId: text('family_id')
+			.notNull()
+			.references(() => family.id, { onDelete: 'cascade' }),
+		paperId: integer('paper_id').notNull(),
+		personId: integer('person_id').notNull()
+	},
+	(t) => [
+		primaryKey({ columns: [t.paperId, t.personId] }),
+		foreignKey({
+			name: 'paper_person_paper_fk',
+			columns: [t.familyId, t.paperId],
+			foreignColumns: [paper.familyId, paper.id]
+		}).onDelete('cascade'),
+		foreignKey({
+			name: 'paper_person_person_fk',
+			columns: [t.familyId, t.personId],
+			foreignColumns: [familyPerson.familyId, familyPerson.id]
+		}).onDelete('cascade'),
+		familyRows('paper_person_own', t.familyId)
 	]
 ).enableRLS();
