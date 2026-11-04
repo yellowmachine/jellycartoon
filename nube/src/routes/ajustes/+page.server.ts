@@ -37,6 +37,8 @@ import { withFamily } from '#lib/server/family.ts';
 import {
 	familyPlace,
 	openRouterKey,
+	oldOpenRouterKey,
+	forgetOldOpenRouterKey,
 	openRouterKeyStart,
 	orsKeyStart,
 	setFamilyPlace,
@@ -133,6 +135,8 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 	return {
 		house: await houseLink(locals.user!.id),
 		openRouter: await openRouterKeyStart(k),
+		/** The key before, still alive in OpenRouter until deleted there: how it starts and ends. */
+		openRouterOld: admin ? await oldOpenRouterKey(k) : null,
 		/** Back from «Conectar con OpenRouter» (ajustes/openrouter): how it went. */
 		openRouterConnected: url.searchParams.get('openrouter'),
 		/** The key's own limit, if it has one, to who runs the family: it comes after the page. */
@@ -861,6 +865,13 @@ export const actions: Actions = {
 		return { saved: 'houseKeys' };
 	},
 	/** The family's OpenRouter key (https://openrouter.ai/keys), for the AI; empty, none. */
+	/** «Ya la he borrado»: the key before, deleted in openrouter.ai/keys. */
+	forgetOldOpenRouter: async ({ locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'openRouterProblem');
+		if (denied) return denied;
+		await forgetOldOpenRouterKey(await kitchenOf(locals.user!.id));
+		return { saved: 'openRouterOld' };
+	},
 	saveOpenRouter: async ({ request, locals }) => {
 		const denied = await requireAdmin(locals.user!.id, 'openRouterProblem');
 		if (denied) return denied;
@@ -877,7 +888,18 @@ export const actions: Actions = {
 	connectOpenRouter: async ({ locals, cookies }) => {
 		const denied = await requireAdmin(locals.user!.id, 'openRouterProblem');
 		if (denied) return denied;
-		const auth = openRouterAuth(`${ORIGIN}/ajustes/openrouter`, 'Seilide');
+		// Its name in openrouter.ai/keys: whose and since when, to tell it from the one before.
+		const name = await withFamily(locals.user!.id, async (tx, m) => {
+			const [f] = await tx
+				.select({ name: family.name })
+				.from(family)
+				.where(eq(family.id, m.familyId));
+			return f?.name ?? '';
+		});
+		const auth = openRouterAuth(
+			`${ORIGIN}/ajustes/openrouter`,
+			['Seilide', name, new Date().toLocaleDateString('es-ES')].filter(Boolean).join(' · ')
+		);
 		cookies.set(OAUTH_COOKIE, JSON.stringify({ verifier: auth.verifier, state: auth.state }), {
 			path: '/ajustes',
 			httpOnly: true,
