@@ -21,12 +21,16 @@
 	import type { PageProps } from './$types';
 	import { goto } from '$app/navigation';
 	import AgendaTabs from '#lib/components/AgendaTabs.svelte';
+	import EventPapers from '#lib/components/EventPapers.svelte';
 
 	let { data }: PageProps = $props();
 
 	// The alarms were down here before their tab: an old link (a notice) goes there.
 	onMount(() => {
 		if (location.hash === '#alarmas') void goto('/agenda/alarmas', { replaceState: true });
+		// From a paper of Papeles (#399): this one, open.
+		const asked = eventOf(Number(new URLSearchParams(location.search).get('evento')));
+		if (asked && !data.readonly) change(asked, null);
 	});
 
 	const person = (id: string) => data.people.find((p) => p.id === id);
@@ -86,7 +90,7 @@
 		});
 	}
 
-	function change(e: AgendaEvent, day: string) {
+	function change(e: AgendaEvent, day: string | null) {
 		void open({
 			id: e.id,
 			day,
@@ -216,7 +220,9 @@
 	{#snippet inside()}
 		<span class="w-24 shrink-0 text-sm text-zinc-400 tabular-nums">{timeOn(o, day)}</span>
 		<span class="min-w-0 flex-1">
-			<span class="block truncate">{o.title}{o.repeats ? ' 🔁' : ''}</span>
+			<span class="block truncate"
+				>{o.title}{o.repeats ? ' 🔁' : ''}{data.papers[o.eventId]?.length ? ' 📎' : ''}</span
+			>
 			{#if detail}<span class="block truncate text-xs text-zinc-500">{detail}</span>{/if}
 		</span>
 		{@render badges(o.people)}
@@ -412,18 +418,26 @@
 					method="post"
 					action="?/save"
 					class="flex flex-wrap items-center gap-2"
-					use:enhance={({ cancel }) => {
+					use:enhance={({ cancel, submitter }) => {
 						if (!e.title.trim()) {
 							problem = 'Falta qué es';
 							return cancel();
 						}
 						saving = true;
+						const thenPapers = submitter?.hasAttribute('data-papers');
+						const { startDay } = e;
 						return async ({ result, update }) => {
 							saving = false;
-							if (result.type === 'success') editing = null;
-							else if (result.type === 'failure')
+							if (result.type === 'failure')
 								problem = String(result.data?.message ?? 'No se pudo guardar');
 							await update({ reset: false });
+							if (result.type !== 'success') return;
+							editing = null;
+							if (!thenPapers) return;
+							// Saved to add its papers (#399): open again, in the days that show it.
+							await goto(href(startDay), { reset: false });
+							const saved = eventOf(Number(result.data?.saved));
+							if (saved) change(saved, null);
 						};
 					}}
 				>
@@ -433,6 +447,11 @@
 						class="{button} bg-amber-500 font-semibold text-zinc-950 hover:bg-amber-400"
 						disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</button
 					>
+					{#if !e.id && data.papersReady}
+						<button data-papers class="{button} bg-zinc-800 hover:bg-zinc-700" disabled={saving}
+							>Guardar y añadir papeles</button
+						>
+					{/if}
 					<button type="button" class="{button} hover:bg-zinc-800" onclick={() => (editing = null)}
 						>Cancelar</button
 					>
@@ -472,7 +491,8 @@
 							>
 								<input type="hidden" name="id" value={id} />
 								<span class="text-sm"
-									>{eventOf(id)?.repeat.every ? '¿Borrarlo, todas las veces?' : '¿Borrarlo?'}</span
+									>{eventOf(id)?.repeat.every ? '¿Borrarlo, todas las veces?' : '¿Borrarlo?'}
+									{#if data.papers[id]?.length}Sus papeles se quedan en Papeles.{/if}</span
 								>
 								<button class="{button} bg-red-700 hover:bg-red-600">Sí</button>
 								<button
@@ -496,6 +516,11 @@
 							{repeatText(eventOf(id)!.repeat)}. Lo que se cambia aquí, cambia todas las veces; para
 							moverlo solo una, «esta vez no» y apunta otro.
 						</p>
+					{/if}
+					{#if data.papersReady}
+						{#key id}
+							<EventPapers eventId={id} title={e.title} papers={data.papers[id] ?? []} />
+						{/key}
 					{/if}
 				{/if}
 			</div>

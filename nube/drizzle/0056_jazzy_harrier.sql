@@ -1,0 +1,1 @@
+ALTER TABLE "paper" ADD CONSTRAINT "paper_family_id" UNIQUE("family_id","id");

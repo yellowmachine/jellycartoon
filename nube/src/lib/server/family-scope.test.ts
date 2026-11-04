@@ -25,6 +25,8 @@ import {
 	calendarEvent,
 	calendarEventPerson,
 	familyPerson,
+	paper,
+	paperEvent,
 	pushSubscription,
 	telegramBot
 } from './db/schema.ts';
@@ -415,6 +417,29 @@ describe('the agenda and the alarms (#253)', () => {
 				tx.insert(alarmPerson).values({ familyId: 'B', alarmId: theirAlarm.id, personId: lucia.id })
 			)
 		).rejects.toThrow();
+	});
+
+	test('a paper is not in another family’s event, nor its link seen by it (#399)', async () => {
+		const addPaper = (familyId: string) =>
+			asFamily(familyId, (tx) =>
+				tx
+					.insert(paper)
+					.values({ familyId, name: 'sellado', category: 'Salud', file: 'x.pdf' })
+					.returning({ id: paper.id })
+			);
+		const [mine] = await addPaper('A');
+		const [theirs] = await addPaper('B');
+		const [ours] = await asFamily('A', (tx) => tx.select().from(calendarEvent));
+		await expect(
+			asFamily('B', (tx) =>
+				tx.insert(paperEvent).values({ familyId: 'B', paperId: theirs.id, eventId: ours.id })
+			)
+		).rejects.toThrow();
+		await asFamily('A', (tx) =>
+			tx.insert(paperEvent).values({ familyId: 'A', paperId: mine.id, eventId: ours.id })
+		);
+		expect(await asFamily('B', (tx) => tx.select().from(paperEvent))).toHaveLength(0);
+		expect(await asFamily('A', (tx) => tx.select().from(paperEvent))).toHaveLength(1);
 	});
 
 	test('the .ics link is found by its secret alone', async () => {
