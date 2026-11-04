@@ -1,0 +1,66 @@
+# Piloto de Electric (#394): solo para pruebas, en esta máquina. Nada de esto va a producción.
+#   seilide-db  el Postgres de Seilide, con replicación lógica (127.0.0.1:5440)
+#   electric    baja lo publicado de seilide-db por HTTP (127.0.0.1:5441)
+#   casa-db     el Postgres de la casa (127.0.0.1:5442)
+# Las dos apps corren fuera, compiladas: ver arrancar.sh.
+name: piloto-electric
+
+services:
+  seilide-db:
+    image: postgres:18
+    command: ['postgres', '-c', 'wal_level=logical', '-c', 'max_slot_wal_keep_size=1GB']
+    environment:
+      POSTGRES_USER: nube
+      POSTGRES_PASSWORD: nube
+      POSTGRES_DB: nube
+      APP_DB_USER: nube_app
+      APP_DB_PASSWORD: nube_app
+      ELECTRIC_DB_USER: electric
+      ELECTRIC_DB_PASSWORD: electric
+    ports:
+      - 127.0.0.1:5440:5432
+    volumes:
+      - seilide-pgdata:/var/lib/postgresql
+      - ../nube/scripts/init-db.sh:/docker-entrypoint-initdb.d/10-init-db.sh:ro
+      - ./init-electric.sh:/docker-entrypoint-initdb.d/20-electric.sh:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U nube -d nube']
+      interval: 3s
+      retries: 20
+
+  electric:
+    image: electricsql/electric:1.8.1
+    depends_on:
+      seilide-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://electric:electric@seilide-db:5432/nube?sslmode=disable
+      # La app tiene las tablas y el rol de Electric solo las lee; la publicación la llevan las
+      # migraciones (https://electric.ax/docs/sync/guides/postgres-permissions, modo manual).
+      ELECTRIC_MANUAL_TABLE_PUBLISHING: 'true'
+      ELECTRIC_SECRET: piloto-secreto
+      ELECTRIC_STORAGE_DIR: /var/lib/electric
+    ports:
+      - 127.0.0.1:5441:3000
+    volumes:
+      - electric-data:/var/lib/electric
+
+  casa-db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: jellycartoon
+      POSTGRES_PASSWORD: jellycartoon
+      POSTGRES_DB: jellycartoon
+    ports:
+      - 127.0.0.1:5442:5432
+    volumes:
+      - casa-pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U jellycartoon']
+      interval: 3s
+      retries: 20
+
+volumes:
+  seilide-pgdata:
+  electric-data:
+  casa-pgdata:

@@ -19,3 +19,4 @@ export * from './heard.schema.ts';
 export * from './prayer.schema.ts';
 export * from './data-key.schema.ts';
 export * from './papers.schema.ts';
+export * from './tags.schema.ts';
