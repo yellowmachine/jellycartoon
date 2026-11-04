@@ -519,7 +519,13 @@
 					{/if}
 					{#if data.papersReady}
 						{#key id}
-							<EventPapers eventId={id} title={e.title} papers={data.papers[id] ?? []} />
+							<EventPapers
+								eventId={id}
+								title={e.title}
+								papers={data.papers[id] ?? []}
+								people={data.people}
+								eventPeople={e.people}
+							/>
 						{/key}
 					{/if}
 				{/if}

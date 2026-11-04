@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import type { AgendaPerson } from 'comun/agenda.ts';
 	import type { EventPaper } from 'comun/papers.ts';
 	import PaperForm, {
 		afterPaperAction,
@@ -12,8 +13,20 @@
 	 * The papers of an event of the agenda (#399): papers of Papeles, sealed the same, new or chosen
 	 * from there, by whose actions they are kept. Taken out of here, they stay there.
 	 */
-	let { eventId, title, papers }: { eventId: number; title: string; papers: EventPaper[] } =
-		$props();
+	let {
+		eventId,
+		title,
+		papers,
+		people,
+		eventPeople
+	}: {
+		eventId: number;
+		title: string;
+		papers: EventPaper[];
+		people: AgendaPerson[];
+		/** Who the event is for: whose a new paper of it is, to begin with. */
+		eventPeople: string[];
+	} = $props();
 
 	let draft = $state<PaperDraft | null>(null);
 	let file = $state<File | null>(null);
@@ -28,7 +41,13 @@
 		problem = null;
 		choices = null;
 		file = null;
-		draft = { id: null, name: title.trim(), category: 'Otros', notes: '' };
+		draft = {
+			id: null,
+			name: title.trim(),
+			category: 'Otros',
+			notes: '',
+			people: [...eventPeople]
+		};
 		file = await asPaperFile(original);
 	}
 
@@ -105,6 +124,7 @@
 		<PaperForm
 			action="/papeles?/save"
 			{draft}
+			{people}
 			{eventId}
 			{file}
 			onclose={() => {

@@ -7,7 +7,15 @@ import {
 	type PaperEvent,
 	type PaperInput
 } from 'comun/papers.ts';
-import { calendarEvent, paper, paperEvent, user } from '#lib/server/db/schema.ts';
+import {
+	calendarEvent,
+	familyPerson,
+	paper,
+	paperEvent,
+	paperPerson,
+	user
+} from '#lib/server/db/schema.ts';
+import type { AnyDb } from '#lib/server/family-scope.ts';
 import { kindOf, MAX_DOCUMENT_BYTES, typeOf } from '#lib/server/expenses/income.ts';
 import { kmsOn, openFileFor, openFor, sealFileFor, sealFor } from '#lib/server/family-secret.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
@@ -65,9 +73,25 @@ const sealed = async (k: Kitchen, input: PaperInput) => ({
 	notes: input.notes ? await sealFor(k.familyId, input.notes) : null
 });
 
+/** Whose it is: only the family's people, an id that is not, left out. */
+async function writePeople(tx: AnyDb, k: Kitchen, paperId: number, people: string[]) {
+	await tx.delete(paperPerson).where(eq(paperPerson.paperId, paperId));
+	const ids = people.map(Number).filter(Number.isInteger);
+	const real = ids.length
+		? await tx
+				.select({ id: familyPerson.id })
+				.from(familyPerson)
+				.where(and(eq(familyPerson.familyId, k.familyId), inArray(familyPerson.id, ids)))
+		: [];
+	if (real.length)
+		await tx
+			.insert(paperPerson)
+			.values(real.map((p) => ({ familyId: k.familyId, paperId, personId: p.id })));
+}
+
 /** The family's, by name: read here, as the database cannot sort what it cannot read. */
 export async function familyPapers(k: Kitchen): Promise<Paper[]> {
-	const { rows, links } = await k.run(async (tx) => ({
+	const { rows, links, owners } = await k.run(async (tx) => ({
 		rows: await tx
 			.select({
 				id: paper.id,
@@ -89,8 +113,12 @@ export async function familyPapers(k: Kitchen): Promise<Paper[]> {
 			})
 			.from(paperEvent)
 			.innerJoin(calendarEvent, eq(calendarEvent.id, paperEvent.eventId))
-			.orderBy(calendarEvent.startDay)
+			.orderBy(calendarEvent.startDay),
+		owners: await tx.select().from(paperPerson)
 	}));
+	const people = new Map<number, string[]>();
+	for (const o of owners)
+		people.set(o.paperId, [...(people.get(o.paperId) ?? []), String(o.personId)]);
 	const events = new Map<number, PaperEvent[]>();
 	for (const { paperId, repeat, ...event } of links)
 		events.set(paperId, [...(events.get(paperId) ?? []), { ...event, repeats: repeat !== null }]);
@@ -102,7 +130,8 @@ export async function familyPapers(k: Kitchen): Promise<Paper[]> {
 			notes: r.notes ? await openFor(k.familyId, r.notes) : null,
 			file: fileKind(r.file),
 			by: r.by,
-			events: events.get(r.id) ?? []
+			events: events.get(r.id) ?? [],
+			people: people.get(r.id) ?? []
 		}))
 	);
 	return papers.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '', 'es'));
@@ -173,13 +202,14 @@ export async function addPaper(k: Kitchen, input: PaperInput, file: Uint8Array) 
 	const values = await sealed(k, input);
 	const name = await keepFile(k, file);
 	try {
-		const [row] = await k.run((tx) =>
-			tx
+		return await k.run(async (tx) => {
+			const [row] = await tx
 				.insert(paper)
 				.values({ familyId: k.familyId, ...values, file: name, userId: k.userId })
-				.returning({ id: paper.id })
-		);
-		return row!.id;
+				.returning({ id: paper.id });
+			await writePeople(tx, k, row!.id, input.people);
+			return row!.id;
+		});
 	} catch (err) {
 		await forgetFile(k, name);
 		throw err;
@@ -199,13 +229,15 @@ export async function updatePaper(
 	if (!before) return false;
 	const values = await sealed(k, input);
 	const fresh = file ? await keepFile(k, file) : null;
-	const [row] = await k.run((tx) =>
-		tx
+	const row = await k.run(async (tx) => {
+		const [updated] = await tx
 			.update(paper)
 			.set({ ...values, file: fresh ?? before.file })
 			.where(eq(paper.id, id))
-			.returning({ id: paper.id })
-	);
+			.returning({ id: paper.id });
+		if (updated) await writePeople(tx, k, id, input.people);
+		return updated;
+	});
 	if (!row) {
 		if (fresh) await forgetFile(k, fresh);
 		return false;

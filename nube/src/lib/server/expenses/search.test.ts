@@ -5,7 +5,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { sql } from 'drizzle-orm';
 import { localDay } from 'comun/agenda.ts';
 import * as schema from '#lib/server/db/schema.ts';
-import { expense, expenseLine, family } from '#lib/server/db/schema.ts';
+import { expense, expenseLine, family, income } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 
 /** Gastos → Búsqueda on a real Postgres (PGlite, in memory), with the migrations as they are. */
@@ -25,6 +25,7 @@ const k: Kitchen = {
 mock.module('#lib/server/fridge.ts', () => ({ houseKitchen: () => k, today: localDay }));
 mock.module('./receipt.ts', () => ({ keepReceipt: () => null, removeReceipt: () => null }));
 const { searchExpenses } = await import('./expenses.ts');
+const { moneyDocuments } = await import('./documents.ts');
 
 beforeAll(async () => {
 	await migrate(db, { migrationsFolder: `${import.meta.dir}/../../../../drizzle` });
@@ -75,3 +76,65 @@ test('between two days', async () =>
 			(e) => e.store
 		)
 	).toEqual(['Café Central']));
+
+test('what Papeles finds (#401): only with its file, by line or concept, the newest first', async () => {
+	const [media] = await db
+		.insert(expense)
+		.values({
+			familyId: 'A',
+			date: '2026-09-01',
+			store: 'MediaMarkt',
+			category: 'Casa',
+			total: 49900,
+			source: 'mano',
+			receipt: 'media.pdf'
+		})
+		.returning();
+	await db.insert(expenseLine).values({
+		familyId: 'A',
+		expenseId: media.id,
+		position: 0,
+		text: 'Lavadora Bosch',
+		amount: 49900
+	});
+	// The same words, without a file: not a paper.
+	await db.insert(expense).values({
+		familyId: 'A',
+		date: '2026-09-02',
+		store: 'Lavadora a mano',
+		category: 'Casa',
+		total: 100,
+		source: 'mano'
+	});
+	const [sale] = await db
+		.insert(income)
+		.values({
+			familyId: 'A',
+			date: '2026-10-01',
+			concept: 'Venta de lavadora vieja',
+			category: 'Otros',
+			amount: 5000,
+			document: 'venta.pdf'
+		})
+		.returning();
+	await db.insert(income).values({
+		familyId: 'A',
+		date: '2026-10-02',
+		concept: 'Lavadora sin factura',
+		category: 'Otros',
+		amount: 100
+	});
+	const found = await moneyDocuments(k, 'LAVADORA');
+	expect(found.map((d) => [d.kind, d.id])).toEqual([
+		['ingreso', sale.id],
+		['gasto', media.id]
+	]);
+	expect(found[1]).toMatchObject({
+		title: 'MediaMarkt',
+		line: 'Lavadora Bosch',
+		file: `/gastos/ticket/${media.id}`,
+		place: `/gastos?mes=2026-09&gasto=${media.id}`
+	});
+	expect(found[0]!.line).toBeNull();
+	expect(await moneyDocuments(k, 'nada de esto')).toEqual([]);
+});

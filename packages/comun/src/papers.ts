@@ -25,6 +25,8 @@ export interface PaperInput {
 	category: PaperCategory;
 	/** Free text: «lo renovamos en marzo, la fianza son dos meses». Empty, none. */
 	notes: string;
+	/** Whose it is: people of the agenda; none, the family's. */
+	people: string[];
 }
 
 export interface Paper {
@@ -39,6 +41,8 @@ export interface Paper {
 	by: string | null;
 	/** The agenda's events it belongs to (#399). */
 	events: PaperEvent[];
+	/** Whose it is (#401): people of the agenda; none, the family's. */
+	people: string[];
 }
 
 /** An event of the agenda, as a paper says it belongs to it. */
@@ -50,6 +54,26 @@ export interface PaperEvent {
 	repeats: boolean;
 }
 
+/**
+ * What Papeles also finds in Dinero (#401): an expense or income with a receipt or invoice kept.
+ * Not a paper: it is only gone to, where it is.
+ */
+export interface MoneyDocument {
+	kind: 'gasto' | 'factura' | 'ingreso';
+	id: number;
+	/** The shop, or the concept. */
+	title: string;
+	day: string;
+	/** In cents. */
+	amount: number;
+	/** The receipt's line it was found by, if not by its title. */
+	line: string | null;
+	/** Where its file opens. */
+	file: string;
+	/** Where it is, to change it. */
+	place: string;
+}
+
 /** A paper as its event shows it: no more of it is read for the agenda. */
 export type EventPaper = Pick<Paper, 'id' | 'name' | 'file'>;
 
@@ -59,11 +83,12 @@ export const MAX_PAPER_NOTES = 5000;
 /** What a page sends to be saved, only if well formed. */
 export function parsePaperInput(body: unknown): PaperInput | null {
 	if (!body || typeof body !== 'object') return null;
-	const { name, category, notes } = body as Record<string, unknown>;
+	const { name, category, notes, people } = body as Record<string, unknown>;
 	if (typeof name !== 'string' || !name.trim() || !isPaperCategory(category)) return null;
 	return {
 		name: name.trim().slice(0, MAX_PAPER_NAME),
 		category,
-		notes: typeof notes === 'string' ? notes.trim().slice(0, MAX_PAPER_NOTES) : ''
+		notes: typeof notes === 'string' ? notes.trim().slice(0, MAX_PAPER_NOTES) : '',
+		people: Array.isArray(people) ? people.filter((p) => typeof p === 'string') : []
 	};
 }

@@ -5,13 +5,14 @@ import {
 	eq,
 	gte,
 	inArray,
+	isNotNull,
 	lt,
 	lte,
 	or,
 	sql,
-	type SQL,
-	type SQLWrapper
+	type SQL
 } from 'drizzle-orm';
+import { likeOf, plain } from '#lib/server/expenses/plain.ts';
 import {
 	bill,
 	expense,
@@ -54,19 +55,17 @@ export const monthExpenses = (k: Kitchen, month: string) =>
 /** At most, in a search (Gastos → Búsqueda): the newest; no pages yet. */
 export const SEARCH_LIMIT = 200;
 
-/** Lowercase and without accents, in SQL: «Café» finds «cafe». No extension (unaccent) needed. */
-const plain = (value: SQLWrapper | string) =>
-	sql`translate(lower(${value}), 'áàäâéèëêíìïîóòöôúùüûñç', 'aaaaeeeeiiiioooouuuunc')`;
-
 /**
  * Gastos → Búsqueda: those whose shop or any of whose lines has `text` (case and accents aside),
  * between two days (both included, either may be missing). The newest first, at most SEARCH_LIMIT.
+ * `withFile`, only those with a receipt or bill kept (what Papeles finds, documents.ts).
  */
 export function searchExpenses(
 	k: Kitchen,
-	{ text, from, to }: { text: string; from: string | null; to: string | null }
+	{ text, from, to }: { text: string; from: string | null; to: string | null },
+	{ withFile = false, limit = SEARCH_LIMIT }: { withFile?: boolean; limit?: number } = {}
 ) {
-	const like = `%${text.toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+	const like = likeOf(text);
 	return expensesWhere(
 		k,
 		and(
@@ -78,9 +77,10 @@ export function searchExpenses(
 					)
 				: undefined,
 			from ? gte(expense.date, from) : undefined,
-			to ? lte(expense.date, to) : undefined
+			to ? lte(expense.date, to) : undefined,
+			withFile ? isNotNull(expense.receipt) : undefined
 		),
-		SEARCH_LIMIT
+		limit
 	);
 }
 
