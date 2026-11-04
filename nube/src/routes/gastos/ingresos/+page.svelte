@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { addMonths, euros, monthName } from 'comun/expenses.ts';
+	import { smallerPhoto } from 'comun/receipt-photo.ts';
 	import {
 		INCOME_CATEGORIES,
 		MAX_CONCEPT,
@@ -12,8 +14,8 @@
 
 	/**
 	 * Dinero → Ingresos (#384): what came in this month, each with its invoice (a photo or a PDF),
-	 * and the month's difference with its expenses. Written down by hand; read from the invoice and
-	 * by voice, later.
+	 * and the month's difference with its expenses. Written down by hand, from a photo or a file
+	 * (read by the AI, to check before saving), or by voice.
 	 */
 	let { data, form }: PageProps = $props();
 
@@ -58,6 +60,33 @@
 		if (read.category) draft.category = read.category;
 		if (read.amount) draft.amount = typed(read.amount);
 		if (read.date) draft.date = read.date;
+	}
+
+	/** The form's own file input: what it sends with the income. */
+	let documentInput = $state<HTMLInputElement>();
+
+	/** A PDF as it is; a photo smaller, as the tickets': as a file, for the form's input. */
+	async function asInvoice(file: File) {
+		if (file.type === 'application/pdf') return file;
+		const photo = await smallerPhoto(file);
+		return photo instanceof File ? photo : new File([photo], 'factura.jpg', { type: photo.type });
+	}
+
+	/** A new one from a photo or a file: the form open with it as its invoice, and read. */
+	async function fromDocument(input: HTMLInputElement) {
+		const original = input.files?.[0];
+		// The same file can be chosen again after cancelling.
+		input.value = '';
+		if (!original) return;
+		newOne();
+		reading = true;
+		const file = await asInvoice(original);
+		chosen = file;
+		await tick();
+		const picked = new DataTransfer();
+		picked.items.add(file);
+		if (documentInput) documentInput.files = picked.files;
+		await readInvoice();
 	}
 
 	/** The one asked «¿Borrar?» about. */
@@ -215,6 +244,7 @@
 			<label class="flex w-full flex-col gap-1 text-xs text-zinc-400">
 				{draft.hasDocument ? 'Otra factura (si quieres cambiarla)' : 'Factura (si la hay)'}
 				<input
+					bind:this={documentInput}
 					name="factura"
 					type="file"
 					accept="application/pdf,image/jpeg,image/png,image/webp"
@@ -249,10 +279,33 @@
 			{#if problem}<p class="w-full text-sm text-red-400">{problem}</p>{/if}
 		</form>
 	{:else}
-		<button
-			class="{button} mb-6 bg-amber-500 font-medium text-zinc-950 hover:bg-amber-400"
-			onclick={newOne}>+ Apuntar un ingreso</button
-		>
+		<div class="mb-6 flex flex-wrap gap-2">
+			<button
+				class="{button} bg-amber-500 font-medium text-zinc-950 hover:bg-amber-400"
+				onclick={newOne}>+ Apuntar un ingreso</button
+			>
+			{#if data.canRead}
+				<label class="{button} cursor-pointer bg-zinc-800 hover:bg-zinc-700">
+					📷 Desde una foto
+					<input
+						type="file"
+						accept="image/*"
+						capture="environment"
+						class="hidden"
+						onchange={(e) => fromDocument(e.currentTarget)}
+					/>
+				</label>
+				<label class="{button} cursor-pointer bg-zinc-800 hover:bg-zinc-700">
+					📄 Desde un archivo
+					<input
+						type="file"
+						accept="application/pdf,image/jpeg,image/png,image/webp"
+						class="hidden"
+						onchange={(e) => fromDocument(e.currentTarget)}
+					/>
+				</label>
+			{/if}
+		</div>
 	{/if}
 
 	<ul class="mb-10 divide-y divide-zinc-800">
