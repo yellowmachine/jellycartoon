@@ -126,6 +126,25 @@ export function createOrs(config: () => Promise<OrsConfig>, log: OrsLog) {
 	}
 
 	/**
+	 * The street at a point, by its name alone («Calle Reloj»), for where the car is (#317): no
+	 * number, which would be a guess. Null if none is within 200 m: in the country, no street.
+	 */
+	async function streetNear(at: LngLat): Promise<string | null> {
+		const params = new URLSearchParams({
+			'point.lon': String(at[0]),
+			'point.lat': String(at[1]),
+			'boundary.circle.radius': '0.2',
+			layers: 'street',
+			size: '1',
+			lang: 'es'
+		});
+		const body = (await ors('search', `/geocode/reverse?${params}`)) as {
+			features?: { properties?: { name?: string } }[];
+		} | null;
+		return body?.features?.[0]?.properties?.name ?? null;
+	}
+
+	/**
 	 * The town or village nearest to a point, by its name alone («Pajares»): for a warning on a
 	 * trip's way (route-weather.ts). Null if none is known.
 	 */
@@ -266,6 +285,7 @@ export function createOrs(config: () => Promise<OrsConfig>, log: OrsLog) {
 		searchTowns,
 		suggestPlaces,
 		whereIs,
+		streetNear,
 		townNear,
 		placeName,
 		placesAround,

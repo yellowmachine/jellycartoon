@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
 	import PlacesMap from '#lib/components/PlacesMap.svelte';
-	import { agoText, isMoving, MAX_CAR_NOTE, walkTo, type CarView } from '#lib/cars.ts';
+	import { agoText, isMoving, MAX_CAR_NOTE, walkTo, whereAmI, type CarView } from '#lib/cars.ts';
 	import { field, primary, section } from '#lib/styles.ts';
 	import type { LngLat } from 'comun/road.ts';
 
@@ -40,32 +40,21 @@
 	let locating = $state<number | null>(null);
 	let gpsProblem = $state<{ car: number; text: string } | null>(null);
 
-	function here(e: MouseEvent, carId: number) {
+	async function here(e: MouseEvent, carId: number) {
 		const form = (e.currentTarget as HTMLButtonElement).form!;
-		if (!('geolocation' in navigator))
-			return void (gpsProblem = { car: carId, text: 'Este navegador no da la posición.' });
 		locating = carId;
 		gpsProblem = null;
-		navigator.geolocation.getCurrentPosition(
-			({ coords }) => {
-				locating = null;
-				form.lon.value = String(coords.longitude);
-				form.lat.value = String(coords.latitude);
-				form.accuracy.value = String(Math.round(coords.accuracy));
-				form.requestSubmit();
-			},
-			(err) => {
-				locating = null;
-				gpsProblem = {
-					car: carId,
-					text:
-						err.code === err.PERMISSION_DENIED
-							? 'Sin permiso para la posición: dalo en el navegador.'
-							: 'No llega la posición del GPS: prueba otra vez, mejor al aire libre.'
-				};
-			},
-			{ enableHighAccuracy: true, timeout: 20_000, maximumAge: 0 }
-		);
+		try {
+			const { lon, lat, accuracy } = await whereAmI();
+			form.lon.value = String(lon);
+			form.lat.value = String(lat);
+			form.accuracy.value = String(accuracy);
+			form.requestSubmit();
+		} catch (err) {
+			gpsProblem = { car: carId, text: (err as Error).message };
+		} finally {
+			locating = null;
+		}
 	}
 </script>
 

@@ -18,6 +18,8 @@ export type CarPlace = {
 	note: string | null;
 	/** From the end of a trip (not said by hand). */
 	trip: boolean;
+	/** The street it is in, on the home page, if it is known. */
+	street?: string | null;
 };
 
 export type CarView = { id: number; name: string; place: CarPlace | null };
@@ -53,3 +55,28 @@ export function agoText(when: Date, now: Date) {
 /** «Llévame»: Google Maps on foot to it, the app on the phone if it is there (its Maps URLs). */
 export const walkTo = ([lon, lat]: LngLat) =>
 	`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=walking`;
+
+/** Where this device is, for «Aquí y ahora»; what went wrong, for people, if not. */
+export function whereAmI() {
+	return new Promise<{ lon: number; lat: number; accuracy: number }>((resolve, reject) => {
+		if (!('geolocation' in navigator))
+			return reject(new Error('Este navegador no da la posición.'));
+		navigator.geolocation.getCurrentPosition(
+			({ coords }) =>
+				resolve({
+					lon: coords.longitude,
+					lat: coords.latitude,
+					accuracy: Math.round(coords.accuracy)
+				}),
+			(err) =>
+				reject(
+					new Error(
+						err.code === err.PERMISSION_DENIED
+							? 'Sin permiso para la posición: dalo en el navegador.'
+							: 'No llega la posición del GPS: prueba otra vez, mejor al aire libre.'
+					)
+				),
+			{ enableHighAccuracy: true, timeout: 20_000, maximumAge: 0 }
+		);
+	});
+}
