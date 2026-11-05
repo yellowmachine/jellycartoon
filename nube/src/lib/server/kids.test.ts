@@ -167,7 +167,16 @@ describe('where a child may go', () => {
 		expect(kidMayOpen('/oracion/texto/3', 'POST')).toBe(false);
 	});
 	test('nothing else', () => {
-		for (const path of ['/gastos', '/ajustes', '/voz', '/viajes', '/api/gastos', '/api/music/dj'])
+		for (const path of [
+			'/gastos',
+			'/ajustes',
+			'/voz',
+			'/viajes',
+			'/paseos',
+			'/paseos/guardar',
+			'/api/gastos',
+			'/api/music/dj'
+		])
 			expect(kidMayOpen(path, 'GET')).toBe(false);
 		expect(kidMayOpen('/neveras', 'GET')).toBe(false);
 	});

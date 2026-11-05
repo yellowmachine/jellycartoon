@@ -15,6 +15,7 @@
 	import VoiceBubble from '#lib/components/VoiceBubble.svelte';
 	import VoicePanel from '#lib/components/VoicePanel.svelte';
 	import TimerBar from '#lib/components/TimerBar.svelte';
+	import WalkBar from '#lib/components/WalkBar.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 	import { wakeWord } from '#lib/wake-word.svelte.ts';
@@ -362,6 +363,10 @@ trip's link (#81), for whoever has it. -->
 						<!-- The kitchen's timers (#60), counting down; the one that ended, big. -->
 						{#if voiceOn}
 							<TimerBar />
+						{/if}
+						<!-- A walk going on (#410), the grown-ups'. -->
+						{#if voiceOn && data.user}
+							<WalkBar userId={data.user.id} />
 						{/if}
 						<!-- The radio and the podcasts (#253), going on from page to page, as at home. -->
 						<MusicBar />

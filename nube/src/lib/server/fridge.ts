@@ -50,7 +50,10 @@ function changed(familyId: string) {
 
 /** The family's day, `YYYY-MM-DD`: post-its «hasta hoy» go at its midnight. */
 const TIME_ZONE = process.env.TZ || 'Europe/Madrid';
-export const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE }).format();
+const dayFormat = new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE });
+export const today = () => dayFormat.format();
+/** A moment's day in the family's time, `YYYY-MM-DD`. */
+export const dayOf = (moment: Date) => dayFormat.format(moment);
 
 /** Lower case and without accents: «Cebolla» is the «cebolla» already there. */
 const fold = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
