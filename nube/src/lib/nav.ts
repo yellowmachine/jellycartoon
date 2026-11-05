@@ -17,8 +17,12 @@ const SECTIONS: {
 	where: Where;
 	also?: string[];
 	house?: true;
-	/** Only with Oración on (#339, Ajustes → Familia). */
+	/** Only with Oración on (#339, Ajustes → Familia → Secciones). */
 	prayer?: true;
+	/** Out of the bar until the family turns it on. */
+	startsOff?: true;
+	/** Said in Ajustes, under its name. */
+	about?: string;
 }[] = [
 	{
 		path: '/series',
@@ -38,9 +42,57 @@ const SECTIONS: {
 	{ path: '/papeles', label: 'Papeles', icon: 'papeles', where: 'nube' },
 	{ path: '/viajes', label: 'Viajes', icon: 'viajes', where: 'nube', also: ['/carretera'] },
 	// Homework from the cartoons watched at the house (#142), for the grown-ups and the children.
-	{ path: '/deberes', label: 'Deberes', icon: 'infantil', where: 'nube', house: true },
-	{ path: '/oracion', label: 'Oración', icon: 'oracion', where: 'nube', prayer: true }
+	{
+		path: '/deberes',
+		label: 'Deberes',
+		icon: 'infantil',
+		where: 'nube',
+		house: true,
+		startsOff: true,
+		about: 'Deberes sobre los dibujos que ven los peques en casa.'
+	},
+	{
+		path: '/oracion',
+		label: 'Oración',
+		icon: 'oracion',
+		where: 'nube',
+		prayer: true,
+		about:
+			'Para pegar oraciones y letanías, darles voz con la IA y rezarlas en listas. Los peques solo las escuchan. Apagada, tampoco se abre.'
+	}
 ];
+
+/** What the family chose in Ajustes, section by section; one it never touched goes by its default. */
+export type SectionChoices = Record<string, boolean>;
+
+const chosen = (s: (typeof SECTIONS)[number], saved: SectionChoices) =>
+	saved[s.path] ?? !s.startsOff;
+
+/** Whether the family has this section out: for the bar, and for its card on the home page. */
+export const sectionOn = (path: string, saved: SectionChoices = {}) => {
+	const s = SECTIONS.find((x) => x.path === path);
+	return s ? chosen(s, saved) : true;
+};
+
+/** Ajustes' list: without a house, nothing of it (as in the bar). Oración, with its own on or off. */
+export const sectionList = (hasHouse: boolean, saved: SectionChoices, prayer: boolean) =>
+	SECTIONS.filter((s) => hasHouse || !s.house).map((s) => ({
+		path: s.path,
+		label: s.label,
+		about: s.about,
+		on: s.prayer ? prayer : chosen(s, saved)
+	}));
+
+/**
+ * What to keep from Ajustes' form, whose ticked ones are `ticked`: those it showed, and as they
+ * were those it did not (a house's, without a house now). Oración is not here: its own on or off.
+ */
+export function savedSections(hasHouse: boolean, before: SectionChoices, ticked: string[]) {
+	const after = { ...before };
+	for (const s of SECTIONS)
+		if (!s.prayer && (hasHouse || !s.house)) after[s.path] = ticked.includes(s.path);
+	return after;
+}
 
 /** Those still at home but moving here: each has its page saying so ([seccion=pendiente]). */
 export const PENDING = SECTIONS.filter((s) => s.where === 'pendiente').map((s) => s.path.slice(1));
@@ -59,17 +111,23 @@ const link = (s: (typeof SECTIONS)[number]): NavLink => ({
 /** What a child's bar has (#303): what it may open (kids.ts), and no Ajustes. */
 const KID_SECTIONS = ['/series', '/musica', '/deberes', '/agenda', '/nevera', '/oracion'];
 
-/** With `hasHouse` false (no house connected), nothing of the house; `prayer`, Oración's on. */
+/**
+ * With `hasHouse` false (no house connected), nothing of the house; `prayer`, Oración's on;
+ * `sections`, what the family has out (Ajustes). Only the bar: their pages still open.
+ */
 export function navLinks(
 	serviceAdmin = false,
 	hasHouse = true,
 	kid = false,
 	guardian = false,
-	prayer = false
+	prayer = false,
+	sections: SectionChoices = {}
 ) {
 	const links = SECTIONS.filter(
 		(s) =>
-			(!kid || KID_SECTIONS.includes(s.path)) && (hasHouse || !s.house) && (prayer || !s.prayer)
+			(!kid || KID_SECTIONS.includes(s.path)) &&
+			(hasHouse || !s.house) &&
+			(s.prayer ? prayer : chosen(s, sections))
 	).map(link);
 	if (kid) return { links, menuLinks: links, userLinks: [] };
 	const userLinks: UserLink[] = [

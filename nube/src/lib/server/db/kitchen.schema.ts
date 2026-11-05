@@ -161,6 +161,8 @@ export const familySettings = pgTable(
 		}>(),
 		/** Oración (#339): in the bar, for the whole family, only if it is on. */
 		prayerMode: boolean('prayer_mode').notNull().default(false),
+		/** The sections the family chose to have out or not (nav.ts); one not here, its default. */
+		sections: jsonb('sections').$type<Record<string, boolean>>().notNull().default({}),
 		/** «Dónde vivís» (Ajustes → Familia), optional: the weather on the home page and by voice. */
 		place: jsonb('place').$type<Place>(),
 		recipesBackdrop: integer('recipes_backdrop').references(() => recipe.id, {

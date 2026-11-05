@@ -12,7 +12,7 @@
 	import EntrarConLaNube from './EntrarConLaNube.svelte';
 	import VozCaracter from './VozCaracter.svelte';
 	import DondeVivis from './DondeVivis.svelte';
-	import Oracion from './Oracion.svelte';
+	import Secciones from './Secciones.svelte';
 	import VozInternet from './VozInternet.svelte';
 	import VozSilencio from './VozSilencio.svelte';
 	import VozAprende from './VozAprende.svelte';
@@ -335,7 +335,7 @@
 
 		<Coches {data} {form} {tab} />
 
-		<Oracion {data} {tab} />
+		<Secciones {data} {tab} />
 
 		<!-- The administrator's (the rest is not theirs to change): its heading only with them. -->
 		{#if admin}

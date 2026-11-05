@@ -2,9 +2,12 @@
 	import Landing from '#lib/components/Landing.svelte';
 	import Home from '#lib/components/Home.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
+	import { sectionOn } from '#lib/nav.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+	/** What the family has out (Ajustes): for a child too. */
+	const shows = (path: string) => sectionOn(path, data.family?.sections);
 	const tile =
 		'flex flex-col items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-lg font-semibold hover:border-amber-500/60';
 </script>
@@ -14,7 +17,7 @@
 {:else if 'kid' in data && data.kid}
 	<!-- A child's (#303): only what it may open. -->
 	<h1 class="mb-6 text-2xl font-bold">Hola, {data.user.name}</h1>
-	{#each data.homework as h (h.id)}
+	{#each shows('/deberes') ? data.homework : [] as h (h.id)}
 		<a
 			href="/deberes/hacer/{h.id}"
 			class="mb-4 flex items-center gap-4 rounded-lg border border-sky-700/60 bg-gradient-to-r from-sky-500/20 to-transparent p-4 hover:border-sky-400"
@@ -42,12 +45,18 @@
 	{/if}
 	<div class="grid grid-cols-2 gap-4">
 		<!-- Series and music are the house's: without one connected, not there. -->
-		{#if data.house}
+		{#if data.house && shows('/series')}
 			<a href="/series" class={tile}><SectionIcon name="series" class="h-12 w-12" />Series</a>
+		{/if}
+		{#if data.house && shows('/musica')}
 			<a href="/musica" class={tile}><SectionIcon name="musica" class="h-12 w-12" />Música</a>
 		{/if}
-		<a href="/agenda" class={tile}><SectionIcon name="agenda" class="h-12 w-12" />Mi agenda</a>
-		<a href="/nevera" class={tile}><SectionIcon name="nevera" class="h-12 w-12" />La nevera</a>
+		{#if shows('/agenda')}
+			<a href="/agenda" class={tile}><SectionIcon name="agenda" class="h-12 w-12" />Mi agenda</a>
+		{/if}
+		{#if shows('/nevera')}
+			<a href="/nevera" class={tile}><SectionIcon name="nevera" class="h-12 w-12" />La nevera</a>
+		{/if}
 	</div>
 {:else if data.home}
 	<Home
@@ -56,6 +65,7 @@
 		weather={data.weather}
 		trip={data.trip}
 		car={data.car}
+		sections={data.family?.sections}
 	/>
 {:else}
 	<h1 class="mb-2 text-2xl font-bold">Hola, {data.user.name}</h1>

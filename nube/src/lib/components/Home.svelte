@@ -16,6 +16,7 @@
 		type LegWeather,
 		type PlannedLeg
 	} from '#lib/planned-trips.ts';
+	import { sectionOn, type SectionChoices } from '#lib/nav.ts';
 	import { durationText } from '#lib/trips.ts';
 	import type { CarView } from '#lib/cars.ts';
 	import CarCard from '#lib/components/CarCard.svelte';
@@ -32,9 +33,12 @@
 		home,
 		weather,
 		trip,
-		car
+		car,
+		sections
 	}: {
 		name: string;
+		/** What the family has out (Ajustes): without a section, nor its card here. */
+		sections?: SectionChoices;
 		home: {
 			me: string | null;
 			doses: Dose[];
@@ -407,94 +411,98 @@
 	</section>
 {/if}
 
-<section class={section}>
-	<div class="mb-3 flex items-baseline justify-between">
-		<h2 class="font-semibold">Hoy</h2>
-		<a href="/agenda" class="text-sm text-amber-400 hover:underline">Agenda</a>
-	</div>
-	{#if lines.length}
-		<ul class="flex flex-col gap-2">
-			{#each lines as l (l.key)}
-				<li class={['flex gap-3', l.over && 'text-zinc-500']}>
-					<span
-						class={[
-							'w-28 shrink-0 text-sm tabular-nums',
-							l.ringing ? 'font-semibold text-amber-400' : 'text-zinc-400'
-						]}>{l.time}</span
-					>
-					<span class="min-w-0 flex-1"
-						>{l.title}{#if l.who}<span class="text-sm text-zinc-500"> · {l.who}</span>{/if}</span
-					>
-				</li>
-			{/each}
-		</ul>
-	{:else}
-		<p class="text-sm text-zinc-400">Nada para hoy.</p>
-	{/if}
-	{#if home.tomorrow.length}
-		<p class="mt-3 border-t border-zinc-800 pt-3 text-sm text-zinc-400">
-			Mañana: {home.tomorrow
-				.map((o) => (o.startTime ? `${o.startTime} ${o.title}` : o.title))
-				.join(' · ')}
-		</p>
-	{/if}
-</section>
-
-<section class={section}>
-	<div class="mb-3 flex items-baseline justify-between">
-		<h2 class="font-semibold">En la nevera</h2>
-		<a href="/nevera" class="text-sm text-amber-400 hover:underline">Nevera</a>
-	</div>
-	{#if fridge.notes.length}
-		<ul class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-			{#each fridge.notes as note (note.id)}
-				{@const paper = PAPERS[note.author?.paper ?? 0]}
-				<li
-					class="paper hand line-clamp-5 text-lg leading-snug break-words"
-					style="--bg: {paper.bg}; --ink: {paper.ink}; transform: rotate({tiltFor(note.id)}deg)"
-				>
-					{note.text}
-				</li>
-			{/each}
-		</ul>
-	{/if}
-	<a href="/nevera" class="text-sm hover:underline"
-		>🛒 {toBuy ? `Compra: ${toBuy} ${toBuy === 1 ? 'cosa' : 'cosas'}` : 'La compra está vacía'} →</a
-	>
-	{#if adding}
-		<form onsubmit={add} class="mt-3 flex gap-2">
-			<!-- svelte-ignore a11y_autofocus -->
-			<input
-				bind:value={text}
-				autofocus
-				maxlength={adding === 'note' ? MAX_NOTE : MAX_ITEM}
-				placeholder={adding === 'note' ? 'Recoger el paquete…' : 'Leche…'}
-				aria-label={adding === 'note' ? 'Texto del post-it' : 'Qué comprar'}
-				class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm"
-			/>
-			<button class="rounded-md bg-amber-500 px-3 py-1 text-sm font-semibold text-zinc-950"
-				>{adding === 'note' ? 'Pegar' : 'Añadir'}</button
-			>
-			<button
-				type="button"
-				onclick={() => ((adding = null), (text = ''))}
-				class="text-sm text-zinc-400 hover:text-white">Cancelar</button
-			>
-		</form>
-	{:else}
-		<div class="mt-3 flex gap-4 text-sm">
-			<button onclick={() => (adding = 'note')} class="text-amber-400 hover:underline"
-				>+ Post-it</button
-			>
-			<button onclick={() => (adding = 'item')} class="text-amber-400 hover:underline"
-				>+ A la compra</button
-			>
+{#if sectionOn('/agenda', sections)}
+	<section class={section}>
+		<div class="mb-3 flex items-baseline justify-between">
+			<h2 class="font-semibold">Hoy</h2>
+			<a href="/agenda" class="text-sm text-amber-400 hover:underline">Agenda</a>
 		</div>
-	{/if}
-	{#if problem}
-		<p class="mt-2 text-sm text-red-400">{problem}</p>
-	{/if}
-</section>
+		{#if lines.length}
+			<ul class="flex flex-col gap-2">
+				{#each lines as l (l.key)}
+					<li class={['flex gap-3', l.over && 'text-zinc-500']}>
+						<span
+							class={[
+								'w-28 shrink-0 text-sm tabular-nums',
+								l.ringing ? 'font-semibold text-amber-400' : 'text-zinc-400'
+							]}>{l.time}</span
+						>
+						<span class="min-w-0 flex-1"
+							>{l.title}{#if l.who}<span class="text-sm text-zinc-500"> · {l.who}</span>{/if}</span
+						>
+					</li>
+				{/each}
+			</ul>
+		{:else}
+			<p class="text-sm text-zinc-400">Nada para hoy.</p>
+		{/if}
+		{#if home.tomorrow.length}
+			<p class="mt-3 border-t border-zinc-800 pt-3 text-sm text-zinc-400">
+				Mañana: {home.tomorrow
+					.map((o) => (o.startTime ? `${o.startTime} ${o.title}` : o.title))
+					.join(' · ')}
+			</p>
+		{/if}
+	</section>
+{/if}
+
+{#if sectionOn('/nevera', sections)}
+	<section class={section}>
+		<div class="mb-3 flex items-baseline justify-between">
+			<h2 class="font-semibold">En la nevera</h2>
+			<a href="/nevera" class="text-sm text-amber-400 hover:underline">Nevera</a>
+		</div>
+		{#if fridge.notes.length}
+			<ul class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+				{#each fridge.notes as note (note.id)}
+					{@const paper = PAPERS[note.author?.paper ?? 0]}
+					<li
+						class="paper hand line-clamp-5 text-lg leading-snug break-words"
+						style="--bg: {paper.bg}; --ink: {paper.ink}; transform: rotate({tiltFor(note.id)}deg)"
+					>
+						{note.text}
+					</li>
+				{/each}
+			</ul>
+		{/if}
+		<a href="/nevera" class="text-sm hover:underline"
+			>🛒 {toBuy ? `Compra: ${toBuy} ${toBuy === 1 ? 'cosa' : 'cosas'}` : 'La compra está vacía'} →</a
+		>
+		{#if adding}
+			<form onsubmit={add} class="mt-3 flex gap-2">
+				<!-- svelte-ignore a11y_autofocus -->
+				<input
+					bind:value={text}
+					autofocus
+					maxlength={adding === 'note' ? MAX_NOTE : MAX_ITEM}
+					placeholder={adding === 'note' ? 'Recoger el paquete…' : 'Leche…'}
+					aria-label={adding === 'note' ? 'Texto del post-it' : 'Qué comprar'}
+					class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-900 py-1 text-sm"
+				/>
+				<button class="rounded-md bg-amber-500 px-3 py-1 text-sm font-semibold text-zinc-950"
+					>{adding === 'note' ? 'Pegar' : 'Añadir'}</button
+				>
+				<button
+					type="button"
+					onclick={() => ((adding = null), (text = ''))}
+					class="text-sm text-zinc-400 hover:text-white">Cancelar</button
+				>
+			</form>
+		{:else}
+			<div class="mt-3 flex gap-4 text-sm">
+				<button onclick={() => (adding = 'note')} class="text-amber-400 hover:underline"
+					>+ Post-it</button
+				>
+				<button onclick={() => (adding = 'item')} class="text-amber-400 hover:underline"
+					>+ A la compra</button
+				>
+			</div>
+		{/if}
+		{#if problem}
+			<p class="mt-2 text-sm text-red-400">{problem}</p>
+		{/if}
+	</section>
+{/if}
 
 <style>
 	.paper {

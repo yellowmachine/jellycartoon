@@ -152,10 +152,11 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		shown: onlyAdmin
 	},
 	{
-		id: 'oracion',
+		id: 'secciones',
 		tab: 'familia',
-		title: 'Oración',
-		words: 'oración rezar rezo religión rosario letanías plegarias misa vaticano',
+		title: 'Secciones de la barra',
+		words:
+			'secciones módulos barra menú ocultar quitar mostrar encender apagar deberes series música radio canales recetas nevera agenda dinero gastos papeles viajes oración rezar rezo religión rosario letanías plegarias misa vaticano',
 		shown: onlyAdmin
 	},
 	{
