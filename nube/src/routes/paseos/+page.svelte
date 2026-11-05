@@ -4,7 +4,20 @@
 	import TripMap from '#lib/components/TripMap.svelte';
 	import { durationText, type StoredPoint } from '#lib/trips.ts';
 	import { walkRecorder as walk } from '#lib/walk-recorder.svelte.ts';
-	import { clockText, paceText, walkDistanceText, type WalkDiagnosis } from '#lib/walks.ts';
+	import { offlineMusic } from '#lib/offline-music.svelte.ts';
+	import { playWalkList } from '#lib/walk-music.ts';
+	import {
+		CUE_EVERY,
+		WALK_GOALS,
+		clockText,
+		goalKey,
+		goalLeftText,
+		goalText,
+		paceText,
+		walkDistanceText,
+		type CueEvery,
+		type WalkDiagnosis
+	} from '#lib/walks.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -30,11 +43,41 @@
 	/** «Descartar», asked twice, without a dialog. */
 	let sure = $state(false);
 
+	/**
+	 * The house's lists, asked for once and only when a walk can start, not with the page (its key
+	 * has a limit), and those this device carries, which need no coverage.
+	 */
+	let houseLists = $state<{ id: number; name: string }[]>([]);
+	let listsAsked = false;
+	$effect(() => {
+		if (walk.startedAt !== null || listsAsked) return;
+		listsAsked = true;
+		void fetch('/paseos/musica')
+			.then((res) => (res.ok ? res.json() : []))
+			.then((lists) => (houseLists = lists))
+			.catch(() => {});
+	});
+	const lists = $derived.by(() => {
+		const carried = new Set(offlineMusic.lists.map((l) => l.id));
+		return [
+			...offlineMusic.lists.map((l) => ({ id: l.id, name: `${l.name} (sin conexión)` })),
+			...houseLists.filter((l) => !carried.has(l.id))
+		];
+	});
+	/** Why the music did not start: the walk goes on all the same. */
+	let musicProblem = $state<string | null>(null);
+
 	function start() {
 		sure = false;
+		musicProblem = null;
 		now = Date.now();
 		walk.start();
+		const list = lists.find((l) => l.id === walk.plan.list);
+		if (list) void playWalkList(list.id).then((problem) => (musicProblem = problem));
 	}
+
+	const select =
+		'rounded-md border-zinc-700 bg-zinc-950 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500';
 
 	/** The walk opened, and its way once it comes. */
 	let opened = $state<number | null>(null);
@@ -77,6 +120,15 @@
 				? ` · ${paceText(walk.distance, elapsed)}`
 				: ''}
 		</p>
+		{#if walk.plan.goal}
+			<p class="mb-4 text-sm text-zinc-300">
+				Objetivo: {goalText(walk.plan.goal)} · {goalLeftText(
+					walk.plan.goal,
+					walk.distance,
+					elapsed
+				) ?? 'conseguido'}
+			</p>
+		{/if}
 		{#if !walk.located && !walk.problem}
 			<p class="mb-4 text-sm text-zinc-400">Buscando el GPS…</p>
 		{/if}
@@ -93,10 +145,66 @@
 			para el bolsillo: baja antes el brillo, gasta batería, y no pulses el botón de encendido.
 		</p>
 	{:else}
+		<div class="mb-4 flex flex-wrap gap-3">
+			<label class="flex flex-col gap-1 text-xs text-zinc-400">
+				Avisos por voz
+				<select
+					class={select}
+					value={walk.plan.every ?? ''}
+					onchange={(e) =>
+						walk.choose({ every: (e.currentTarget.value || null) as CueEvery | null })}
+				>
+					<option value="">Sin avisos</option>
+					{#each Object.entries(CUE_EVERY) as [value, label] (value)}
+						<option {value}>{label}</option>
+					{/each}
+				</select>
+			</label>
+			<label class="flex flex-col gap-1 text-xs text-zinc-400">
+				Objetivo
+				<select
+					class={select}
+					value={walk.plan.goal ? goalKey(walk.plan.goal) : ''}
+					onchange={(e) => {
+						const key = e.currentTarget.value;
+						walk.choose({ goal: WALK_GOALS.find((g) => goalKey(g) === key) ?? null });
+					}}
+				>
+					<option value="">Sin objetivo</option>
+					{#each WALK_GOALS as g (goalKey(g))}
+						<option value={goalKey(g)}>{goalText(g)}</option>
+					{/each}
+				</select>
+			</label>
+			{#if lists.length}
+				<label class="flex min-w-0 flex-col gap-1 text-xs text-zinc-400">
+					Música
+					<select
+						class="{select} max-w-full"
+						value={lists.some((l) => l.id === walk.plan.list) ? String(walk.plan.list) : ''}
+						onchange={(e) =>
+							walk.choose({ list: e.currentTarget.value ? Number(e.currentTarget.value) : null })}
+					>
+						<option value="">Sin música</option>
+						{#each lists as l (l.id)}
+							<option value={String(l.id)}>{l.name}</option>
+						{/each}
+					</select>
+				</label>
+			{/if}
+		</div>
+		{#if walk.plan.goal}
+			<p class="mb-4 text-sm text-zinc-400">
+				Te avisa por voz a mitad de objetivo, para dar la vuelta, y al llegar.
+			</p>
+		{/if}
 		<button
 			class="rounded-md bg-emerald-600 px-6 py-3 text-lg font-semibold text-white"
 			onclick={start}>Empezar</button
 		>
+	{/if}
+	{#if musicProblem}
+		<p class="mt-3 text-sm text-amber-300" role="alert">{musicProblem}</p>
 	{/if}
 	{#if walk.problem}
 		<p class="mt-3 text-sm text-amber-300" role="alert">{walk.problem}</p>

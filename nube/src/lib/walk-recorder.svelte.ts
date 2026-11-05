@@ -6,9 +6,15 @@ import {
 	FASTEST_WALK,
 	GAP_AFTER_MS,
 	MAX_POINTS,
+	dueCue,
+	noCues,
 	noDiagnosis,
+	noPlan,
+	parsePlan,
 	worthWalking,
-	type WalkDiagnosis
+	type WalkCues,
+	type WalkDiagnosis,
+	type WalkPlan
 } from '#lib/walks.ts';
 
 /**
@@ -20,6 +26,10 @@ import {
 
 /** Without a position kept, what is known is written down this often. */
 const SAVE_EVERY_MS = 15_000;
+/** How often it looks whether the voice has something to say. */
+const CUE_CHECK_MS = 1000;
+/** The music back up if the browser never says the voice ended, as happens on some phones. */
+const DUCK_AT_MOST_MS = 15_000;
 
 interface Kept {
 	startedAt: number;
@@ -31,6 +41,9 @@ interface Kept {
 	hiddenAt: number | null;
 	hiddenInGap: boolean;
 	musicInGap: boolean;
+	/** Missing in a walk kept before these existed. */
+	plan?: WalkPlan;
+	cues?: WalkCues;
 }
 
 class WalkRecorder {
@@ -43,7 +56,12 @@ class WalkRecorder {
 	problem = $state<string | null>(null);
 	/** Whether the GPS has said anything yet. */
 	located = $state(false);
+	/** What the next walk does, or this one. */
+	plan = $state<WalkPlan>(noPlan());
 
+	#cues = noCues();
+	#cueTimer: ReturnType<typeof setInterval> | null = null;
+	#duckTimer: ReturnType<typeof setTimeout> | undefined;
 	#userId: string | null = null;
 	#points: TripPoint[] = [];
 	#diagnosis = noDiagnosis();
@@ -63,14 +81,31 @@ class WalkRecorder {
 		return `paseo:${this.#userId}`;
 	}
 
+	get #planKey() {
+		return `paseo-plan:${this.#userId}`;
+	}
+
+	/** Changed before starting: remembered for the next walk. */
+	choose(change: Partial<WalkPlan>) {
+		this.plan = { ...this.plan, ...change };
+		try {
+			localStorage.setItem(this.#planKey, JSON.stringify(this.plan));
+		} catch {
+			// Private window: chosen for this one only.
+		}
+	}
+
 	/** At the start, for who is signed in: a walk left going on goes on; a finished one is sent. */
 	open(userId: string) {
 		if (this.#userId === userId) return;
 		this.#stopWatching();
 		this.#reset();
 		this.#userId = userId;
+		this.plan = this.#readPlan();
 		const kept = this.#read();
 		if (!kept) return;
+		this.plan = kept.plan ? parsePlan(kept.plan) : this.plan;
+		this.#cues = kept.cues ?? noCues();
 		this.startedAt = kept.startedAt;
 		this.endedAt = kept.endedAt;
 		this.distance = kept.distance;
@@ -95,6 +130,8 @@ class WalkRecorder {
 		this.#musicInGap = music.playing;
 		this.#save();
 		this.#startWatching();
+		// Said within the press: browsers let a page speak only after one.
+		if (this.plan.every || this.plan.goal) this.#say('Paseo empezado.');
 	}
 
 	async finish() {
@@ -157,6 +194,15 @@ class WalkRecorder {
 		this.#hiddenInGap = false;
 		this.#musicInGap = false;
 		this.#reopened = false;
+		this.#cues = noCues();
+	}
+
+	#readPlan() {
+		try {
+			return parsePlan(JSON.parse(localStorage.getItem(this.#planKey) ?? 'null'));
+		} catch {
+			return noPlan();
+		}
 	}
 
 	#read(): Kept | null {
@@ -181,7 +227,9 @@ class WalkRecorder {
 					lastFix: this.#lastFix,
 					hiddenAt: this.#hiddenAt,
 					hiddenInGap: this.#hiddenInGap,
-					musicInGap: this.#musicInGap
+					musicInGap: this.#musicInGap,
+					plan: this.plan,
+					cues: this.#cues
 				} satisfies Kept)
 			);
 		} catch {
@@ -190,6 +238,7 @@ class WalkRecorder {
 	}
 
 	#startWatching() {
+		this.#cueTimer ??= setInterval(this.#checkCue, CUE_CHECK_MS);
 		if (!('geolocation' in navigator)) {
 			this.problem = 'Este navegador no da la posición: solo se cuenta el tiempo.';
 			return;
@@ -200,6 +249,8 @@ class WalkRecorder {
 	}
 
 	#stopWatching() {
+		if (this.#cueTimer !== null) clearInterval(this.#cueTimer);
+		this.#cueTimer = null;
 		this.#clearGps();
 		document.removeEventListener('visibilitychange', this.#onVisibility);
 		removeEventListener('pagehide', this.#onLeave);
@@ -266,6 +317,34 @@ class WalkRecorder {
 			}
 		}
 		if (changed || Date.now() - this.#savedAt >= SAVE_EVERY_MS) this.#save();
+	}
+
+	#checkCue = () => {
+		if (!this.recording) return;
+		const seconds = (Date.now() - this.startedAt!) / 1000;
+		const { text, cues } = dueCue(this.plan, this.#cues, this.distance, seconds);
+		this.#cues = cues;
+		if (!text) return;
+		this.#save();
+		this.#say(text);
+	};
+
+	/** With the device's own voice, without AI, over the music, which goes down meanwhile. */
+	#say(text: string) {
+		if (!('speechSynthesis' in window)) return;
+		const utterance = new SpeechSynthesisUtterance(text);
+		utterance.lang = 'es-ES';
+		music.duck(true, 'paseo');
+		const up = () => {
+			clearTimeout(this.#duckTimer);
+			music.duck(false, 'paseo');
+		};
+		clearTimeout(this.#duckTimer);
+		this.#duckTimer = setTimeout(up, DUCK_AT_MOST_MS);
+		utterance.onend = utterance.onerror = () => {
+			if (!speechSynthesis.speaking) up();
+		};
+		speechSynthesis.speak(utterance);
 	}
 
 	/** How long the screen was off, once it is on again. */

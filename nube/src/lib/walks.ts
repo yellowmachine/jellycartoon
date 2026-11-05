@@ -152,3 +152,115 @@ export function walkTotals(
 	};
 	return { week: add(mondayOf(today)), month: add(`${today.slice(0, 7)}-01`) };
 }
+
+/** How often the voice says how it goes (#416). */
+export const CUE_EVERY = { km: 'Cada km', '5min': 'Cada 5 minutos', '10min': 'Cada 10 minutos' };
+export type CueEvery = keyof typeof CUE_EVERY;
+
+/** What the walk is for: a time or a distance, chosen from a few. */
+export interface WalkGoal {
+	kind: 'minutes' | 'km';
+	value: number;
+}
+export const WALK_GOALS: WalkGoal[] = [
+	...[15, 30, 45, 60, 90].map((value) => ({ kind: 'minutes' as const, value })),
+	...[2, 3, 5, 8, 10].map((value) => ({ kind: 'km' as const, value }))
+];
+export const goalKey = (g: WalkGoal) => `${g.kind}:${g.value}`;
+export const goalText = (g: WalkGoal) => `${g.value} ${g.kind === 'km' ? 'km' : 'min'}`;
+
+/** What is chosen before starting; remembered on the device for the next walk. */
+export interface WalkPlan {
+	every: CueEvery | null;
+	goal: WalkGoal | null;
+	/** The playlist to put on. */
+	list: number | null;
+}
+export const noPlan = (): WalkPlan => ({ every: null, goal: null, list: null });
+
+/** One kept on the device, as far as it is still valid. */
+export function parsePlan(kept: unknown): WalkPlan {
+	const p = (kept ?? {}) as Partial<WalkPlan>;
+	const key = p.goal && goalKey(p.goal);
+	return {
+		every: typeof p.every === 'string' && Object.hasOwn(CUE_EVERY, p.every) ? p.every : null,
+		goal: WALK_GOALS.find((g) => goalKey(g) === key) ?? null,
+		list: Number.isInteger(p.list) ? (p.list as number) : null
+	};
+}
+
+/** What the voice has already said of a walk, so as not to say it again. */
+export interface WalkCues {
+	/** The last km or period said. */
+	marks: number;
+	half: boolean;
+	reached: boolean;
+}
+export const noCues = (): WalkCues => ({ marks: 0, half: false, reached: false });
+
+/** «1,2 kilómetros», «1 kilómetro», «800 metros»: to be heard. */
+export function spokenDistance(metres: number) {
+	if (metres < 1000) return `${Math.round(metres / 10) * 10} metros`;
+	const km = Math.round(metres / 100) / 10;
+	return km === 1 ? '1 kilómetro' : `${km.toLocaleString('es-ES')} kilómetros`;
+}
+
+/** «1 hora y 5 minutos», «1 minuto». */
+export function spokenTime(seconds: number) {
+	const total = Math.floor(seconds / 60);
+	const minutes = total % 60;
+	const said = minutes === 1 ? '1 minuto' : `${minutes} minutos`;
+	if (total < 60) return said;
+	const hours = Math.floor(total / 60);
+	const inHours = hours === 1 ? '1 hora' : `${hours} horas`;
+	return minutes ? `${inHours} y ${said}` : inHours;
+}
+
+/** How far along the goal is, from 0; 1 is there. */
+function goalShare(goal: WalkGoal, metres: number, seconds: number) {
+	return goal.kind === 'km' ? metres / (goal.value * 1000) : seconds / (goal.value * 60);
+}
+
+/**
+ * What the voice has to say now, if anything, and what is then already said. One thing at a time:
+ * reaching the goal is said over the half of it (the GPS came back late), and either of them over
+ * a km or a period, as they say how it goes too. Marks passed meanwhile are not said one by one.
+ */
+export function dueCue(plan: WalkPlan, done: WalkCues, metres: number, seconds: number) {
+	const next = { ...done };
+	const share = plan.goal ? goalShare(plan.goal, metres, seconds) : 0;
+	const marks =
+		plan.every === 'km'
+			? Math.floor(metres / 1000)
+			: plan.every
+				? Math.floor(seconds / (plan.every === '5min' ? 300 : 600))
+				: 0;
+	const newMark = marks > done.marks;
+	next.marks = Math.max(done.marks, marks);
+	const inTime = `${spokenTime(seconds)}, ${spokenDistance(metres)}`;
+	if (share >= 1 && !done.reached) {
+		next.reached = true;
+		next.half = true;
+		return { text: `Objetivo conseguido: ${inTime}.`, cues: next };
+	}
+	if (share >= 0.5 && !done.half) {
+		next.half = true;
+		return { text: `Mitad del objetivo: ${inTime}. Puedes dar la vuelta.`, cues: next };
+	}
+	if (!newMark) return { text: null, cues: next };
+	return {
+		text:
+			plan.every === 'km'
+				? `${spokenDistance(metres)}, ${spokenTime(seconds)}.`
+				: `${spokenTime(seconds)}, ${spokenDistance(metres)}.`,
+		cues: next
+	};
+}
+
+/** «Faltan 12 min», «Faltan 1,20 km»; null, reached. */
+export function goalLeftText(goal: WalkGoal, metres: number, seconds: number) {
+	if (goalShare(goal, metres, seconds) >= 1) return null;
+	return goal.kind === 'km'
+		? `Faltan ${walkDistanceText(goal.value * 1000 - metres)}`
+		: `Faltan ${Math.ceil(goal.value - seconds / 60)} min`;
+}
