@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import { enhance } from '$app/forms';
 	import Guardado from 'comun/components/Guardado.svelte';
 	import { MAX_CAR_NAME } from '#lib/cars.ts';
@@ -59,10 +60,14 @@
 								class="text-sm text-zinc-400 hover:text-white"
 								onclick={() => (editing = c.id)}>Cambiar</button
 							>
-							<form method="post" action="?seccion={tab}&/deleteCar" use:enhance>
-								<input type="hidden" name="id" value={c.id} />
-								<button class="text-sm text-zinc-500 hover:text-red-400">Quitar</button>
-							</form>
+							<ConfirmForm
+								action="?seccion={tab}&/deleteCar"
+								fields={{ id: c.id }}
+								label="Quitar"
+								question="¿Quitar este coche? Se pierden dónde está aparcado y su relación con los viajes."
+								yes="Sí, quitar"
+								class="text-sm text-zinc-500 hover:text-red-400"
+							/>
 						</div>
 					{/if}
 				</li>

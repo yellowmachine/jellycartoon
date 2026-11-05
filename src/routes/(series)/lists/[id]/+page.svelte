@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import { enhance } from '$app/forms';
 	import PlaylistView from '#lib/components/PlaylistView.svelte';
 	import TitleForm from 'comun/components/TitleForm.svelte';
@@ -22,6 +23,16 @@
 			{label}
 		</button>
 	</form>
+{/snippet}
+
+{#snippet restart()}
+	<ConfirmForm
+		action="?/restart"
+		label="Volver a empezar"
+		question="¿Volver a empezar? Se quitan todas las marcas de la lista."
+		yes="Sí, volver a empezar"
+		class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900"
+	/>
 {/snippet}
 
 <a href="/lists" class="text-sm text-zinc-400 hover:text-white">← Listas</a>
@@ -67,7 +78,7 @@
 	<PlaylistView {items} settings={data.settings} salon={data.salon}>
 		{#snippet finished()}
 			<p class="text-lg">¡Lista terminada!</p>
-			{@render listButton('restart', 'Volver a empezar')}
+			{@render restart()}
 		{/snippet}
 		{#snippet itemActions(item, index)}
 			<form method="post" use:enhance class="flex shrink-0 flex-col text-xs text-zinc-500">
@@ -96,7 +107,7 @@
 		{/snippet}
 		{#snippet footer()}
 			{#if remainingSec < totalSec}
-				<div class="mt-4">{@render listButton('restart', 'Volver a empezar')}</div>
+				<div class="mt-4">{@render restart()}</div>
 			{/if}
 		{/snippet}
 	</PlaylistView>

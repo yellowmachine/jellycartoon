@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { formatDuration } from 'comun/format.ts';
@@ -70,9 +71,13 @@
 						>{refreshing ? 'Buscando…' : 'Buscar episodios nuevos'}</button
 					>
 				</form>
-				<form method="post" action="?/unsubscribe" use:enhance>
-					<button class="{small} text-zinc-400">Dejar de seguir</button>
-				</form>
+				<ConfirmForm
+					action="?/unsubscribe"
+					label="Dejar de seguir"
+					question="¿Dejar de seguirlo? Si nadie más de la familia lo sigue, se borran sus episodios y lo que llevabais escuchado."
+					yes="Sí, dejar de seguir"
+					class="{small} text-zinc-400"
+				/>
 			{:else}
 				<form method="post" action="?/subscribe" use:enhance>
 					<button

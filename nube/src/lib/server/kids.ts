@@ -11,6 +11,7 @@ import {
 import { NoFamily, withFamily } from '#lib/server/family.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { sealFor } from '#lib/server/family-secret.ts';
+import { personFiles, removePersonFiles } from '#lib/server/person-files.ts';
 
 /**
  * Children's accounts (#303): one of the family's people without an account (Ajustes → Familia →
@@ -147,8 +148,10 @@ export async function takeKidAccount(k: Kitchen, kidId: string) {
 		await k.run((tx) =>
 			tx.update(familyPerson).set({ name: account.name }).where(eq(familyPerson.userId, kidId))
 		);
+	const files = await personFiles(k, kidId);
 	const ctx = await auth.$context;
 	await ctx.internalAdapter.deleteUser(kidId);
+	await removePersonFiles(k, files);
 	kids.delete(kidId);
 	return true;
 }

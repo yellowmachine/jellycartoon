@@ -129,7 +129,11 @@
 
 <section class="mt-10 border-t border-zinc-800 pt-6">
 	{#if confirmDelete}
-		<form method="post" action="?/delete" use:enhance class="flex items-center gap-2">
+		<form method="post" action="?/delete" use:enhance class="flex flex-wrap items-center gap-2">
+			<span class="w-full text-sm text-zinc-400">
+				Es de toda la casa, con {tracks.length === 1 ? '1 canción' : `${tracks.length} canciones`}.
+				No se puede deshacer.
+			</span>
 			<button class="rounded-md bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-500">
 				Sí, borrar la lista
 			</button>

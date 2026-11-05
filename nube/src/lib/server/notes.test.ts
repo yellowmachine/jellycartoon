@@ -51,6 +51,7 @@ const {
 } = await import('./notes.ts');
 const { addWalkPhoto, deleteWalk, walkPhotoFile, walkPhotos } = await import('./walks/walks.ts');
 const { NotADocument } = await import('./expenses/income.ts');
+const { personFiles, removePersonFiles } = await import('./person-files.ts');
 
 const db = drizzle(new PGlite(), { schema });
 const kitchen = (userId: string | null): Kitchen => ({
@@ -260,4 +261,18 @@ test('a photo: only a picture, and only of a walk that is there', async () => {
 		})
 	).toBe(false);
 	expect(files.size).toBe(0);
+});
+
+test('an account taken: the files of what was only theirs, and no one else’s', async () => {
+	await aWalk();
+	const base = { at: new Date(), lon: null, lat: null, startedAt: STARTED };
+	await addWalkPhoto(ana, { ...base, clientId: 'foto-ana-1', file: JPEG });
+	await addRecordedNote(ana, anaWho, recording());
+	await addRecordedNote(kitchen('luis'), { id: 'luis', email: 'l@example.test' }, recording());
+	await addSaidNote(ana, 'ana', 'Sin audio');
+	const files = await personFiles(ana, 'ana');
+	expect(files.map((f) => f.area).sort()).toEqual(['notas', 'paseos']);
+	await removePersonFiles(ana, files);
+	expect(files.length).toBe(2);
+	expect([...(await personFiles(ana, 'luis'))].length).toBe(1);
 });

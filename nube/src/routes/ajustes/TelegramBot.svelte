@@ -16,6 +16,7 @@
 	const saved = $derived(form && 'saved' in form ? form.saved : null);
 	/** What is being done, from the button pressed: its form's action. */
 	let busy = $state<string | null>(null);
+	let forgetting = $state(false);
 	const keep = ({ action }: { action: URL }) => {
 		busy = action.search.split('/').at(-1) ?? null;
 		return async ({ update }: { update: (o?: { reset?: boolean }) => Promise<void> }) => {
@@ -81,10 +82,26 @@
 							>{busy === 'botTest' ? 'Enviando…' : 'Enviar una prueba'}</button
 						>
 					{/if}
-					<button
-						class="text-sm text-red-400 hover:underline"
-						formaction="?seccion={tab}&/botForget">Desconectar</button
-					>
+					{#if forgetting}
+						<span class="text-sm text-red-300"
+							>¿Desconectarlo? Habrá que volver a pegar su token y elegir sus opciones.</span
+						>
+						<button
+							class="text-sm font-medium text-red-400 hover:underline"
+							formaction="?seccion={tab}&/botForget">Sí, desconectar</button
+						>
+						<button
+							type="button"
+							class="text-sm text-zinc-400 hover:text-white"
+							onclick={() => (forgetting = false)}>No</button
+						>
+					{:else}
+						<button
+							type="button"
+							class="text-sm text-red-400 hover:underline"
+							onclick={() => (forgetting = true)}>Desconectar</button
+						>
+					{/if}
 					{#if saved === 'bot-options'}<span class="text-amber-400">✓ Guardado</span>{/if}
 					{#if saved === 'bot-test'}<span class="text-amber-400">✓ Enviada al grupo</span>{/if}
 				</div>

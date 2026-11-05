@@ -94,7 +94,9 @@ export const load: PageServerLoad = async ({ params, locals, cookies }) => {
 	const [stored] = await db
 		.select({
 			episodes: sql<number>`count(*)::int`,
-			outputBytes: sql<number>`coalesce(sum(${episode.outputSize}), 0)::bigint`
+			outputBytes: sql<number>`coalesce(sum(${episode.outputSize}), 0)::bigint`,
+			// DELETE_SOURCES: the converted copy is the only one left.
+			withoutOriginal: sql<number>`count(*) filter (where ${episode.sourceRemoved})::int`
 		})
 		.from(episode)
 		.where(eq(episode.seriesId, id));
@@ -155,7 +157,11 @@ export const load: PageServerLoad = async ({ params, locals, cookies }) => {
 		activeList,
 		lists,
 		listItems,
-		stored: { episodes: stored.episodes, outputBytes: Number(stored.outputBytes) },
+		stored: {
+			episodes: stored.episodes,
+			outputBytes: Number(stored.outputBytes),
+			withoutOriginal: stored.withoutOriginal
+		},
 		seasons: [...seasons].map(([season, episodes]) => ({ season, episodes })),
 		/** «Etiquetar» needs Ollama (OLLAMA_URL) and a set of labels (Ajustes → Casa). */
 		labelSets: (await labelling()).map((s) => ({ id: s.id, name: s.name })),
