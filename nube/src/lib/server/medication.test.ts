@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, mock, setSystemTime, test } from 'bun:test';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
@@ -14,6 +14,10 @@ import type { MedicationInput } from 'comun/medication.ts';
  * The family's medication (#308), on a real Postgres (PGlite) as the app's role: saved, marked,
  * and each dose's notice, once, to the right phones (faked).
  */
+// At noon, whenever it runs: late at night, the 22:00 dose saved below would be due as well.
+setSystemTime(new Date(2026, 10, 5, 12, 0));
+afterAll(() => void setSystemTime());
+
 const db = drizzle(new PGlite(), { schema });
 const withFamily = familyScope(db, { role: 'app_user' });
 const asFamily = familyOnlyScope(db, { role: 'app_user' });

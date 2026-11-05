@@ -109,7 +109,6 @@
 	 * half of it (Android's split screen, the navigator beside) it is not even made, nor the GPS asked.
 	 */
 	let wide = $state(false);
-	let showMap = $state(true);
 	$effect(() => {
 		const query = matchMedia('(min-width: 768px)');
 		const update = () => (wide = query.matches);
@@ -117,7 +116,7 @@
 		query.addEventListener('change', update);
 		return () => query.removeEventListener('change', update);
 	});
-	const mapShown = $derived(data.map && wide && showMap);
+	const mapShown = $derived(data.map && wide);
 
 	/**
 	 * A phone upright: no room beside, so the map has its own tab, Ruta. Told from the tablet in half
@@ -751,12 +750,13 @@
 	}
 
 	// The step being done, in view in the list: only when it changes, not at each position, or the
-	// list could not be scrolled by hand (up to «Quitar ruta», for one).
+	// list could not be scrolled by hand (up to «Quitar ruta», for one). Only beside the map, where
+	// the list scrolls on its own; on a phone it would take the whole page, and the map out of sight.
 	let stepList = $state<HTMLOListElement>();
 	const stepIndex = $derived(guidance?.nextIndex);
 	$effect(() => {
 		const index = stepIndex;
-		if (index === undefined || index < 0) return;
+		if (!mapShown || index === undefined || index < 0) return;
 		stepList?.children[index]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 	});
 
@@ -1315,13 +1315,8 @@ home. -->
 					corner={lightButton}
 				/>
 				{@render maneuver('absolute inset-x-3 top-3')}
-				{@render tripStrip('absolute inset-x-3 bottom-24')}
+				{@render tripStrip('absolute inset-x-3 bottom-16')}
 				{@render searchBox()}
-				<!-- Out of the way of the next maneuver, at the top; «Mapa» brings it back. -->
-				<button
-					class="absolute right-3 bottom-10 rounded-full bg-zinc-950/80 px-4 py-2 text-lg text-zinc-200 shadow-lg active:bg-zinc-800"
-					onclick={() => (showMap = false)}>Ocultar mapa</button
-				>
 			</div>
 		{/if}
 		<div class={['flex flex-col gap-4', mapShown ? 'min-h-0' : 'min-h-dvh p-4']}>
@@ -1429,12 +1424,6 @@ home. -->
 								<p class="min-w-0 flex-1 py-4 text-center text-xl text-zinc-400">
 									No suena nada. Elige abajo.
 								</p>
-							{/if}
-							{#if data.map && wide && !showMap}
-								<button
-									class="shrink-0 rounded-full bg-zinc-800 px-4 py-2 text-base text-zinc-300 active:bg-zinc-700"
-									onclick={() => (showMap = true)}>Mapa</button
-								>
 							{/if}
 							<!-- Kept or not, and said: where one goes is not kept without knowing it (#81). -->
 							<button

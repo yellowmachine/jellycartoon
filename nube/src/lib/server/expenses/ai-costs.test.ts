@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, mock, setSystemTime, test } from 'bun:test';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
@@ -24,6 +24,10 @@ const k: Kitchen = {
 // Bun's module mocks are the whole run's: the same as search.test.ts's.
 mock.module('#lib/server/fridge.ts', () => ({ houseKitchen: () => k, today: localDay }));
 const { addAiCost, aiCostStats } = await import('./ai-costs.ts');
+
+// A fixed day and hour, whenever it runs: «today» here must not change halfway through at midnight.
+setSystemTime(new Date(2026, 10, 11, 12, 0));
+afterAll(() => void setSystemTime());
 
 const at = (day: string, hour = 12) => new Date(`${day}T${String(hour).padStart(2, '0')}:00:00`);
 const today = localDay();

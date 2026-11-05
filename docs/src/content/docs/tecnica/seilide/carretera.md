@@ -4,7 +4,7 @@ title: 'Modo carretera y Viajes'
 
 Para una tablet fija junto al volante, en horizontal y con la pantalla partida de Android: a un
 lado el navegador (Google Maps u Organic Maps, que hacen la navegación y el tráfico), al otro
-`/carretera` («Modo carretera» en Viajes y en Inicio). Solo sonido, y nunca vídeo:
+`/carretera` («Modo carretera» en Viajes). Solo sonido, y nunca vídeo:
 
 - Lo que suena en grande, con botones enormes (anterior, pausa y siguiente; en un podcast, −15 y
   +30 s), y un micrófono gigante, como el de la cocina.
@@ -30,8 +30,7 @@ lado el navegador (Google Maps u Organic Maps, que hacen la navegación y el tr�
   los chats con una persona y sin marcarlos como leídos; los grupos y el marcarlos, en Ajustes.
 - La pantalla no se apaga mientras está abierto (Wake Lock).
 - En la misma línea que lo que suena: «←» para salir y un punto, rojo si se guarda el viaje y gris
-  si no (tocándolo dice qué es; ámbar si algo falla). «Ocultar mapa» va sobre el mapa, y «Mapa» lo
-  vuelve a poner.
+  si no (tocándolo dice qué es; ámbar si algo falla).
 
 Con la tablet entera en horizontal (la pantalla ancha, sin partir), a la izquierda va un mapa
 propio ([MapLibre](https://maplibre.org)), con dónde estás por el GPS del navegador: la flecha

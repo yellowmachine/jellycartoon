@@ -1,14 +1,11 @@
 <script lang="ts">
 	import '@fontsource/comic-neue/400.css';
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
-	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { dayName, isOver, localDay, localTime, timeOn, type Occurrence } from 'comun/agenda.ts';
 	import type { Alarm } from 'comun/alarms.ts';
 	import { doseText, groupDoses, markValue, type Dose } from 'comun/medication.ts';
 	import { enhance } from '$app/forms';
 	import { MAX_ITEM, MAX_NOTE, PAPERS, tiltFor, type FridgeState } from 'comun/fridge.ts';
-	import { thumbUrl } from 'comun/thumb.svelte.ts';
 	import { distanceText } from 'comun/road.ts';
 	import { skyIcon, type HourWeather, type WeatherGlance } from 'comun/weather.ts';
 	import {
@@ -21,25 +18,20 @@
 	} from '#lib/planned-trips.ts';
 	import { durationText } from '#lib/trips.ts';
 	import { agoText, isMoving, walkTo, type CarView } from '#lib/cars.ts';
-	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import { section } from '#lib/styles.ts';
-	import type { Watching } from '#lib/server/series.ts';
 
 	/**
 	 * The home page with a session (home.ts): what there is today in the family, at a glance on the
 	 * phone. A new family's first steps, until done; the doses still to take (#308), theirs and their
 	 * children's, to mark here; today's agenda with the alarms and timers that
-	 * ring today; their «Buzón» still unread (#331); the fridge's post-its and the list, live; the
-	 * shortcuts; and «Seguir viendo» with a house.
+	 * ring today; their «Buzón» still unread (#331); the fridge's post-its and the list, live.
 	 */
 	let {
 		name,
 		home,
 		weather,
 		trip,
-		car,
-		watching,
-		receipts
+		car
 	}: {
 		name: string;
 		home: {
@@ -50,7 +42,6 @@
 			alarms: Alarm[];
 			inbox: { count: number; latest: { id: number; title: string; body: string }[] };
 			steps: { key: boolean; invited: boolean } | null;
-			house: boolean;
 		};
 		weather: Promise<(WeatherGlance & { place: string }) | null>;
 		/** Their next trip (Viajes → Próximos): its next leg, its weather, and the one after. */
@@ -62,9 +53,7 @@
 		} | null>;
 		/** Their car and where it is (#317), if they have one. */
 		car: Promise<CarView | null>;
-		watching: Promise<Watching[]>;
 		/** A receipt's photo can be read (the family's AI). */
-		receipts: boolean;
 	} = $props();
 
 	// What the others change, here at once (SSE), as in Nevera.
@@ -243,10 +232,6 @@
 
 	const tripWeather = (w: HourWeather) =>
 		`${skyIcon(w.code)} ${w.temperature} °C${w.rain >= 30 ? `, lluvia ${w.rain} %` : ''}${w.wind >= 40 ? `, viento ${w.wind} km/h` : ''}`;
-
-	const quick =
-		'flex flex-col items-center gap-1 rounded-md border border-zinc-800 p-3 text-center text-sm leading-tight hover:border-amber-500/60';
-	const icon = 'h-7 w-7 text-amber-400';
 </script>
 
 <header class="mb-6">
@@ -530,67 +515,6 @@
 		<p class="mt-2 text-sm text-red-400">{problem}</p>
 	{/if}
 </section>
-
-<!-- Drawn as the bar's sections, not emoji. The kitchen mode (#60): Hablar with it on. -->
-<div class="mb-8 grid grid-cols-4 gap-3">
-	<a href="/voz" class={quick}><SectionIcon name="podcasts" class={icon} />Hablar</a>
-	{#if receipts}
-		<label class="{quick} cursor-pointer">
-			<SectionIcon name="gastos" class={icon} />Ticket
-			<input
-				type="file"
-				accept="image/*"
-				capture="environment"
-				class="hidden"
-				onchange={(e) => {
-					const photo = e.currentTarget.files?.[0];
-					e.currentTarget.value = '';
-					if (!photo) return;
-					pendingReceipt.photo = photo;
-					void goto('/gastos');
-				}}
-			/>
-		</label>
-	{:else}
-		<a href="/gastos" class={quick}><SectionIcon name="gastos" class={icon} />Dinero</a>
-	{/if}
-	<a href="/carretera" class={quick}><SectionIcon name="viajes" class={icon} />Carretera</a>
-	<a href="/voz?cocina" class={quick}><SectionIcon name="recetas" class={icon} />Modo cocina</a>
-</div>
-
-{#if home.house}
-	{#await watching then episodes}
-		{#if episodes.length}
-			<section class="mb-8">
-				<div class="mb-3 flex items-baseline justify-between">
-					<h2 class="font-semibold">Seguir viendo</h2>
-					<a href="/series" class="text-sm text-amber-400 hover:underline">Series</a>
-				</div>
-				<div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
-					{#each episodes.slice(0, 3) as ep (ep.id)}
-						<a href="/watch/{ep.id}" class="group">
-							<div class="relative aspect-video overflow-hidden rounded-md bg-zinc-800">
-								<img
-									src={thumbUrl(ep.id)}
-									alt=""
-									class="h-full w-full object-cover group-hover:opacity-80"
-								/>
-								<div class="absolute inset-x-0 bottom-0 h-1 bg-zinc-700">
-									<div
-										class="h-full bg-amber-400"
-										style:width="{(ep.positionSec / (ep.durationSec || 1)) * 100}%"
-									></div>
-								</div>
-							</div>
-							<p class="mt-1 truncate text-sm">{ep.seriesTitle}</p>
-							<p class="truncate text-xs text-zinc-400">T{ep.season} E{ep.number} · {ep.title}</p>
-						</a>
-					{/each}
-				</div>
-			</section>
-		{/if}
-	{/await}
-{/if}
 
 <style>
 	.paper {

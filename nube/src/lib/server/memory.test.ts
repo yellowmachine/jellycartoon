@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, setSystemTime, test } from 'bun:test';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
@@ -21,6 +21,10 @@ import {
  * What the voice remembers, on a real Postgres (PGlite) as the app's role: each person's only
  * theirs, not even the administrator's; the house's, everyone's.
  */
+// A fixed day and hour, whenever it runs: «today» here must not change halfway through at midnight.
+setSystemTime(new Date(2026, 10, 11, 12, 0));
+afterAll(() => void setSystemTime());
+
 const db = drizzle(new PGlite(), { schema });
 const withFamily = familyScope(db, { role: 'app_user' });
 const kitchen = (userId: string): Kitchen => ({
