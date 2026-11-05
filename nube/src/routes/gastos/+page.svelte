@@ -48,8 +48,8 @@
 		 * photo, whose printed total is right and its lines may be misread.
 		 */
 		fromLines: boolean;
-		/** A receipt read and waiting to be kept with it. */
-		receipt: string | null;
+		/** A receipt or bill read, as read: sent with the expense, as nothing is kept before. */
+		receipt: Blob | null;
 		readBy: ExpenseDraft['readBy'] | null;
 		/** The photo, as taken: to compare with what was read. */
 		photo: string | null;
@@ -193,7 +193,7 @@
 		form.set('foto', photo, 'ticket.jpg');
 		const res = await fetch('/gastos/leer', { method: 'POST', body: form }).catch(() => null);
 		if (photoInput) photoInput.value = '';
-		await review(res, photo);
+		await review(res, photo, photo);
 	}
 
 	/** A bill (#232): its PDF as it is, a photo smaller. */
@@ -209,11 +209,11 @@
 			() => null
 		);
 		if (billInput) billInput.value = '';
-		await review(res, isPdf ? null : sent);
+		await review(res, sent, isPdf ? null : sent);
 	}
 
 	/** What the model read, in the boxes to check; the photo beside it, if there was one. */
-	async function review(res: Response | null, photo: Blob | null) {
+	async function review(res: Response | null, file: Blob, photo: Blob | null) {
 		const body = await res?.json().catch(() => null);
 		reading = null;
 		if (!res?.ok) return void (problem = body?.message ?? 'Sin conexión');
@@ -221,7 +221,7 @@
 		editing = {
 			id: null,
 			fromLines: false,
-			receipt: draft.receipt,
+			receipt: file,
 			readBy: draft.readBy,
 			photo: photo && URL.createObjectURL(photo),
 			date: draft.date,
@@ -657,12 +657,14 @@
 					<form
 						method="post"
 						action="?/save"
+						enctype="multipart/form-data"
 						class="mt-4 flex flex-wrap items-center gap-2"
-						use:enhance={({ cancel }) => {
+						use:enhance={({ cancel, formData }) => {
 							if (!asInput || 'error' in asInput) {
 								problem = asInput?.error ?? null;
 								return cancel();
 							}
+							if (e.receipt) formData.set('fichero', e.receipt, 'ticket');
 							saving = true;
 							return async ({ result, update }) => {
 								saving = false;
@@ -681,7 +683,6 @@
 						}}
 					>
 						{#if e.id}<input type="hidden" name="id" value={e.id} />{/if}
-						{#if e.receipt}<input type="hidden" name="receipt" value={e.receipt} />{/if}
 						<input
 							type="hidden"
 							name="expense"

@@ -17,10 +17,6 @@ mock.module('#lib/server/storage.ts', () => ({
 	storageReady: true,
 	putFile: async (familyId: string, area: string, name: string, body: Uint8Array) =>
 		void files.set(at(familyId, area, name), body),
-	renameFile: async (familyId: string, area: string, from: string, to: string) => {
-		files.set(at(familyId, area, to), files.get(at(familyId, area, from))!);
-		files.delete(at(familyId, area, from));
-	},
 	readFile: async (familyId: string, area: string, name: string) =>
 		files.get(at(familyId, area, name)) ?? null,
 	removeFile: async (familyId: string, area: string, name: string) =>

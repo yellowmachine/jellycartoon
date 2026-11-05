@@ -88,11 +88,10 @@ export interface Expense extends ExpenseInput {
 }
 
 /**
- * A receipt or a bill read, to be checked before it is saved: its photo or PDF waits under
- * `receipt`.
+ * A receipt or a bill read, to be checked before it is saved: its photo or PDF waits in the page,
+ * which sends it with the expense.
  */
 export interface ExpenseDraft extends ExpenseInput {
-	receipt: string;
 	/** Which model read it, for the Registro and to say so. */
 	readBy: 'ollama' | 'openrouter';
 	/** A bill's (#232), with what it says of the supply. */

@@ -1,5 +1,4 @@
 import {
-	CopyObjectCommand,
 	CreateBucketCommand,
 	DeleteObjectCommand,
 	GetObjectCommand,
@@ -71,24 +70,6 @@ export async function putFile(
 			ContentType: contentType
 		})
 	);
-}
-
-/** Renamed (S3 has no rename: a copy, and the old one out). False if it was not there. */
-export async function renameFile(familyId: string, area: string, from: string, to: string) {
-	const s3 = await storage();
-	try {
-		await s3.send(
-			new CopyObjectCommand({
-				Bucket: S3_BUCKET,
-				CopySource: `${S3_BUCKET}/${keyOf(familyId, area, from)}`,
-				Key: keyOf(familyId, area, to)
-			})
-		);
-	} catch {
-		return false;
-	}
-	await s3.send(new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: keyOf(familyId, area, from) }));
-	return true;
 }
 
 export async function removeFile(familyId: string, area: string, name: string) {

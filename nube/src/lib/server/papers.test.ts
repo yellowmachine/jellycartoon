@@ -22,7 +22,6 @@ mock.module('#lib/server/storage.ts', () => ({
 		files.get(at(familyId, area, name)) ?? null,
 	removeFile: async (familyId: string, area: string, name: string) =>
 		void files.delete(at(familyId, area, name)),
-	renameFile: async () => {},
 	listFiles: async () => [],
 	fileResponse: async () => new Response()
 }));

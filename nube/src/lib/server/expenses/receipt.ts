@@ -1,5 +1,4 @@
 import { execFile } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -11,7 +10,8 @@ import { openRouterKey } from '#lib/server/family-settings.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { completeJson, VISION_MODEL } from '#lib/server/openrouter.ts';
 import { today } from '#lib/server/fridge.ts';
-import { putFile, removeFile, renameFile } from '#lib/server/storage.ts';
+import { removeFile } from '#lib/server/storage.ts';
+import { keepDocument, MAX_DOCUMENT_BYTES } from './income.ts';
 import { BILL_PROMPT, BILL_SCHEMA, billDraftFromAnswer, redact } from './bill-parse.ts';
 import { draftFromAnswer, RECEIPT_SCHEMA, receiptPrompt } from './receipt-parse.ts';
 import { INCOME_PROMPT, INCOME_SCHEMA, incomeDraftFromAnswer } from './income-parse.ts';
@@ -20,9 +20,8 @@ const run = promisify(execFile);
 
 /**
  * A receipt's photo read by a vision model (jellycartoon's #194), and a bill's PDF by its text
- * (#232), with the family's OpenRouter key (#253; no Ollama in the cloud). The file waits in the
- * family's storage (storage.ts) until the expense is saved; one never saved is left there, under
- * `tmp-`.
+ * (#232), with the family's OpenRouter key (#253; no Ollama in the cloud). Nothing is kept on
+ * reading: the page keeps the file and sends it again with the expense, as Ingresos does.
  */
 
 /** In the family's storage. */
@@ -54,7 +53,6 @@ export async function canReadReceipts(k: Kitchen) {
 }
 
 export async function readReceipt(k: Kitchen, image: Buffer): Promise<ExpenseDraft> {
-	const receipt = await keepWaiting(k, image, 'jpg');
 	const prompt = receiptPrompt(await knownStores(k).catch(() => []));
 	const answer = await read(k, {
 		prompt,
@@ -63,7 +61,7 @@ export async function readReceipt(k: Kitchen, image: Buffer): Promise<ExpenseDra
 		...TICKET
 	});
 	const draft = draftFromAnswer(answer, today());
-	return { ...draft, receipt, readBy: 'openrouter', bill: null };
+	return { ...draft, readBy: 'openrouter', bill: null };
 }
 
 /**
@@ -72,7 +70,6 @@ export async function readReceipt(k: Kitchen, image: Buffer): Promise<ExpenseDra
  * one without text (scanned) goes as its first page's image.
  */
 export async function readBill(k: Kitchen, file: Buffer, isPdf: boolean): Promise<ExpenseDraft> {
-	const receipt = await keepWaiting(k, file, isPdf ? 'pdf' : 'jpg');
 	let text = '';
 	let image: Buffer | null = isPdf ? null : file;
 	if (isPdf)
@@ -92,24 +89,11 @@ export async function readBill(k: Kitchen, file: Buffer, isPdf: boolean): Promis
 		...BILL
 	});
 	const draft = billDraftFromAnswer(answer, today());
-	return { ...draft, receipt, readBy: 'openrouter' };
+	return { ...draft, readBy: 'openrouter' };
 }
 
 /** Less than this in a PDF: scanned, with no text to read. */
 const MIN_PDF_TEXT = 100;
-
-/** What a page sends to be read, kept in the family's storage until its expense is saved. */
-async function keepWaiting(k: Kitchen, file: Buffer, extension: 'jpg' | 'pdf') {
-	const name = `tmp-${randomUUID()}.${extension}`;
-	await putFile(
-		k.familyId,
-		AREA,
-		name,
-		file,
-		extension === 'pdf' ? 'application/pdf' : 'image/jpeg'
-	);
-	return name;
-}
 
 /** The PDF in a folder of its own for a moment: poppler's tools read files. */
 async function withPdf(file: Buffer, work: (pdf: string) => Promise<void>) {
@@ -236,13 +220,16 @@ async function read(k: Kitchen, reading: Reading) {
 	});
 }
 
-/** A receipt or bill read and waiting (`tmp-…`), kept with its expense: its file's new name. */
-export async function keepReceipt(k: Kitchen, receipt: string, expenseId: number) {
-	const waiting = /^tmp-[\w-]+\.(jpg|pdf)$/.exec(receipt);
-	if (!waiting) return null;
-	const kept = `${expenseId}.${waiting[1]}`;
-	return (await renameFile(k.familyId, AREA, receipt, kept)) ? kept : null;
+/** The receipt or bill sent with an expense, if any; or why not. */
+export async function receiptFrom(form: FormData) {
+	const file = form.get('fichero');
+	if (!(file instanceof File) || !file.size) return { file: null };
+	if (file.size > MAX_DOCUMENT_BYTES) return { problem: 'El archivo pasa de 10 MB' };
+	return { file: new Uint8Array(await file.arrayBuffer()) };
 }
+
+/** A receipt or bill kept: its name. Throws if it is not a PDF or a picture. */
+export const keepReceipt = (k: Kitchen, file: Uint8Array) => keepDocument(k, file, AREA);
 
 export async function removeReceipt(k: Kitchen, file: string | null) {
 	if (file) await removeFile(k.familyId, AREA, path.basename(file)).catch(() => {});

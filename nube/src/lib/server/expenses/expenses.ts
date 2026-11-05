@@ -180,34 +180,34 @@ async function writeLines(tx: AnyDb, familyId: string, expenseId: number, input:
 }
 
 /**
- * A new one, by `userId` (the kitchen's own by default: the person, or the house's voice); a receipt
- * or bill read (`tmp-…`), kept with it. Its id.
+ * A new one, by `userId` (the kitchen's own by default: the person, or the house's voice); with its
+ * receipt or bill, if sent. Its id. Throws NotADocument if that is not a PDF or a picture.
  */
 export async function addExpense(
 	k: Kitchen,
 	input: ExpenseInput,
 	source: ExpenseSource,
-	receipt: string | null = null,
+	file: Uint8Array | null = null,
 	recurringId: number | null = null,
 	billInput: BillInput | null = null,
 	userId: string | null = k.userId
 ) {
 	const { lines: _, ...values } = input;
-	const id = await k.run(async (tx) => {
-		const [row] = await tx
-			.insert(expense)
-			.values({ ...values, familyId: k.familyId, source, userId, recurringId })
-			.returning({ id: expense.id });
-		await writeLines(tx, k.familyId, row!.id, input);
-		if (billInput) await writeBill(tx, k.familyId, row!.id, billInput);
-		return row!.id;
-	});
-	if (receipt) {
-		const kept = await keepReceipt(k, receipt, id);
-		if (kept)
-			await k.run((tx) => tx.update(expense).set({ receipt: kept }).where(eq(expense.id, id)));
+	const receipt = file ? await keepReceipt(k, file) : null;
+	try {
+		return await k.run(async (tx) => {
+			const [row] = await tx
+				.insert(expense)
+				.values({ ...values, familyId: k.familyId, source, userId, recurringId, receipt })
+				.returning({ id: expense.id });
+			await writeLines(tx, k.familyId, row!.id, input);
+			if (billInput) await writeBill(tx, k.familyId, row!.id, billInput);
+			return row!.id;
+		});
+	} catch (err) {
+		await removeReceipt(k, receipt);
+		throw err;
 	}
-	return id;
 }
 
 /** Corrected by any adult: its lines and its bill as they are now. False if it is gone. */

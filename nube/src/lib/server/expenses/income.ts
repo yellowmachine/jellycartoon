@@ -100,18 +100,18 @@ export async function monthIncomeTotal(k: Kitchen, month: string) {
 	return row?.total ?? 0;
 }
 
-/** The invoice kept, by what it is; its name. Throws if it is not a PDF or a picture. */
-async function keepDocument(k: Kitchen, file: Uint8Array) {
+/** The file kept in `area`, by what it is; its name. Throws if it is not a PDF or a picture. */
+export async function keepDocument(k: Kitchen, file: Uint8Array, area = INCOME_AREA) {
 	const kind = kindOf(file);
 	if (!kind) throw new NotADocument();
 	const name = `${randomUUID()}.${KINDS[kind].ext}`;
-	await putFile(k.familyId, INCOME_AREA, name, file, KINDS[kind].type);
+	await putFile(k.familyId, area, name, file, KINDS[kind].type);
 	return name;
 }
 
 export class NotADocument extends Error {
 	constructor() {
-		super('La factura tiene que ser un PDF o una foto (JPG, PNG o WebP)');
+		super('Tiene que ser un PDF o una foto (JPG, PNG o WebP)');
 	}
 }
 
