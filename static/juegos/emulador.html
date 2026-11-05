@@ -60,7 +60,10 @@
 				// The cartridge's save every minute rather than every five: to the server, when it changed.
 				window.EJS_defaultOptions = {
 					'save-state-location': 'browser',
-					'save-save-interval': '60'
+					'save-save-interval': '60',
+					// EmulatorJS has them on only where it takes the browser for a phone, and a tablet's may
+					// pass for a computer. Without a touch screen they are not shown (showTouchButtons).
+					...(web ? { 'virtual-gamepad': 'enabled' } : {})
 				};
 				// A BIOS (Neo Geo's `neogeo.zip`), next to the game and as it is: FBNeo looks for it
 				// there, zipped. EJS_biosUrl would unzip it.
