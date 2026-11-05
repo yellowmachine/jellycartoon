@@ -1,4 +1,5 @@
 import { error } from '@sveltejs/kit';
+import type { PlayerData } from 'comun/games.ts';
 import { controlsOf } from '#lib/server/game-controls.ts';
 import { shaderFor } from '#lib/server/game-shaders.ts';
 import { savesOf } from '#lib/server/game-saves.ts';
@@ -15,6 +16,7 @@ import {
 	systemCovers,
 	type GameRow
 } from '#lib/server/games.ts';
+import { gamesRoot } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 import { retrodeckEnabled } from '#lib/server/retrodeck.ts';
 
@@ -29,7 +31,7 @@ const MOSAIC = 6;
 /** One per console with games, with its games' boxes already fetched (when they were shown). */
 export const consoleCards = async () =>
 	Promise.all(
-		(await allGames()).map(async (s) => ({
+		(gamesRoot ? await allGames() : []).map(async (s) => ({
 			id: s.id,
 			name: s.name,
 			count: s.games.length,
@@ -74,8 +76,21 @@ export async function foundGame(params: { system: string; file: string }) {
 	return { game, row: await gameRow(game.system, game.file) };
 }
 
-/** A game's page: what it is, its background and «Jugar». */
-export async function gamePage(params: { system: string; file: string }, userId: string) {
+/** What the page says at once: which game, and the person's with it. */
+export async function gameSummary(params: { system: string; file: string }, userId: string) {
+	const { game, row } = await foundGame(params);
+	return {
+		title: game.title,
+		system: SYSTEMS[game.system].name,
+		/** The person's saved games of it, to go on from one. */
+		saves: await savesOf(userId, row.id),
+		/** How long the person has played it, and the last time. */
+		played: await gameTotals(userId, row.id)
+	};
+}
+
+/** What may take a while the first time: its pictures, and what it is, each to be awaited. */
+export async function gameDetails(params: { system: string; file: string }) {
 	const { game, row } = await foundGame(params);
 	// libretro's pictures the first time, while the page is already shown.
 	const pictures = fetchPictures(row, game).catch((problem) =>
@@ -85,16 +100,8 @@ export async function gamePage(params: { system: string; file: string }, userId:
 		})
 	);
 	return {
-		title: game.title,
-		system: SYSTEMS[game.system].name,
 		backdrop: pictures.then(() => gameBackdropUrl(row.id)),
 		pictures: pictures.then(() => gamePictures(row.id)),
-		/** The person's saved games of it, to go on from one. */
-		saves: await savesOf(userId, row.id),
-		/** How long the person has played it, and the last time. */
-		played: await gameTotals(userId, row.id),
-		/** Whether it can also be played in RetroDECK, on the PC with the screen. */
-		retrodeck: await retrodeckEnabled(),
 		// Looked up the first time, while the page is already shown.
 		info: row.status
 			? card(row)
@@ -108,8 +115,22 @@ export async function gamePage(params: { system: string; file: string }, userId:
 	};
 }
 
+/** A game's page: what it is, its background and «Jugar». */
+export async function gamePage(params: { system: string; file: string }, userId: string) {
+	const [summary, details] = await Promise.all([gameSummary(params, userId), gameDetails(params)]);
+	return {
+		...summary,
+		...details,
+		/** Whether it can also be played in RetroDECK, on the PC with the screen. */
+		retrodeck: await retrodeckEnabled()
+	};
+}
+
 /** What the player needs (GamePlayer.svelte). */
-export async function playerPage(params: { system: string; file: string }, userId: string) {
+export async function playerPage(
+	params: { system: string; file: string },
+	userId: string
+): Promise<PlayerData> {
 	const { game, row } = await foundGame(params);
 	return {
 		title: game.title,
@@ -131,5 +152,3 @@ export async function playerPage(params: { system: string; file: string }, userI
 		shader: await shaderFor(game.system, row.id)
 	};
 }
-
-export type PlayerData = Awaited<ReturnType<typeof playerPage>>;

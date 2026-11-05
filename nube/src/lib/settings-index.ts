@@ -156,7 +156,7 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		tab: 'familia',
 		title: 'Secciones de la barra',
 		words:
-			'secciones módulos barra menú ocultar quitar mostrar encender apagar deberes series música radio canales recetas nevera agenda dinero gastos papeles viajes oración rezar rezo religión rosario letanías plegarias misa vaticano',
+			'secciones módulos barra menú ocultar quitar mostrar encender apagar juegos consolas deberes series música radio canales recetas nevera agenda dinero gastos papeles viajes oración rezar rezo religión rosario letanías plegarias misa vaticano',
 		shown: onlyAdmin
 	},
 	{

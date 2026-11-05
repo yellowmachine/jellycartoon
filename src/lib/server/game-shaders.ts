@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { gameShader } from '#lib/server/db/schema.ts';
-import { ALL, gameScope, isShader, systemScope, type Shader } from '#lib/game-shaders.ts';
+import { ALL, gameScope, isShader, systemScope, type Shader } from 'comun/game-shaders.ts';
 
 /** Every one set, by where. */
 export async function shaders() {

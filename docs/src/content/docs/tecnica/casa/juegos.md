@@ -24,6 +24,11 @@ Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`. También se pueden abrir en
   donde el navegador la tenga. En una pantalla táctil, los botones en pantalla salen solo si no hay
   mando conectado. La pantalla no se apaga mientras se juega. Steam y RetroDECK no, porque se abren en
   el PC del salón.
+- En Seilide (#405), la sección Juegos, apagada hasta encenderla en Ajustes → Familia → Secciones,
+  con una casa conectada y solo para adultos. Las ROM se quedan en casa: Seilide pasa lo que pide el
+  juego por `/api/juegos/…` a `/api/v1/juegos/…` de la casa, en nombre de la persona (que tiene que
+  tener el mismo email en las dos), y las partidas son las de la tele. Sin RetroDECK, Steam ni
+  cambiar shaders; los botones del mando y las estadísticas se cambian y se ven en la casa.
 - En `/tv/juegos`, una tarjeta por consola; dentro, sus juegos en cuadrícula, cada uno con su
   carátula.
 - Las imágenes vienen de las miniaturas de

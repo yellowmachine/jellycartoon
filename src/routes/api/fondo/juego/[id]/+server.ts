@@ -14,7 +14,7 @@ const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 export const GET: RequestHandler = async ({ params, request }) =>
 	fileResponse(request, gameBackdropFile(Number(params.id)), 'image/png', 'private, no-cache');
 
-/** From the game, while playing (static/juegos/emulador.html): this capture from now on. */
+/** From the game, while playing (comun's emulador.html): this capture from now on. */
 export const POST: RequestHandler = async ({ params, request }) => {
 	const id = Number(params.id);
 	const [row] = await db.select({ id: game.id }).from(game).where(eq(game.id, id));
