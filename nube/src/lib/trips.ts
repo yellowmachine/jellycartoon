@@ -25,6 +25,21 @@ export const NEW_TRIP_AFTER_MS = 10 * 60_000;
 /** Faster than this between two points (~250 km/h) is the GPS jumping, not the car. */
 const IMPOSSIBLE_SPEED = 70;
 
+/** A position as the browser sent it, or something else. */
+export const isTripPoint = (p: unknown): p is TripPoint => {
+	const q = p as TripPoint | null;
+	return (
+		typeof q?.t === 'number' &&
+		Number.isFinite(q.t) &&
+		Array.isArray(q.at) &&
+		q.at.length === 2 &&
+		q.at.every(Number.isFinite) &&
+		Math.abs(q.at[0]) <= 180 &&
+		Math.abs(q.at[1]) <= 90 &&
+		(q.speed === null || (typeof q.speed === 'number' && Number.isFinite(q.speed)))
+	);
+};
+
 /** Whether the browser keeps this position, after the last one it kept. */
 export function worthKeeping(last: TripPoint | null, next: TripPoint, accuracy: number | null) {
 	if (accuracy !== null && accuracy > WORST_ACCURACY_METRES) return false;
@@ -35,7 +50,11 @@ export function worthKeeping(last: TripPoint | null, next: TripPoint, accuracy: 
  * New points for a trip, after its last one (null for a new trip): in order, without the GPS's
  * jumps; and the metres they add and the fastest speed among them.
  */
-export function addPoints(last: StoredPoint | null, points: TripPoint[]) {
+export function addPoints(
+	last: StoredPoint | null,
+	points: TripPoint[],
+	impossibleSpeed = IMPOSSIBLE_SPEED
+) {
 	const sorted = [...points].sort((a, b) => a.t - b.t);
 	const kept: StoredPoint[] = [];
 	let previous = last;
@@ -46,7 +65,7 @@ export function addPoints(last: StoredPoint | null, points: TripPoint[]) {
 		if (previous) {
 			const metres = metresBetween([previous[0], previous[1]], p.at);
 			const seconds = sec - previous[2];
-			if (seconds <= 0 || metres / seconds > IMPOSSIBLE_SPEED) continue;
+			if (seconds <= 0 || metres / seconds > impossibleSpeed) continue;
 			distance += metres;
 		}
 		if (p.speed !== null && p.speed < IMPOSSIBLE_SPEED) maxSpeed = Math.max(maxSpeed ?? 0, p.speed);

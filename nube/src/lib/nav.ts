@@ -41,6 +41,14 @@ const SECTIONS: {
 	{ path: '/gastos', label: 'Dinero', icon: 'gastos', where: 'nube' },
 	{ path: '/papeles', label: 'Papeles', icon: 'papeles', where: 'nube' },
 	{ path: '/viajes', label: 'Viajes', icon: 'viajes', where: 'nube', also: ['/carretera'] },
+	{
+		path: '/paseos',
+		label: 'Paseos',
+		icon: 'paseos',
+		where: 'nube',
+		startsOff: true,
+		about: 'Tiempo, km y recorrido al salir a andar, privados de cada persona. Solo adultos.'
+	},
 	// Homework from the cartoons watched at the house (#142), for the grown-ups and the children.
 	{
 		path: '/deberes',

@@ -26,6 +26,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			aiBlocked: null
 		};
 	const user = {
+		id: locals.user.id,
 		name: locals.user.name,
 		email: locals.user.email,
 		/** Who lets families in (/admin/lista-de-espera): ADMIN_EMAIL. */
