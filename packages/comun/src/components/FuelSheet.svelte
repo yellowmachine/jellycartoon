@@ -22,8 +22,8 @@
 
 	/** As written in the box, «50,30». */
 	let amount = $state('');
-	/** A receipt read: its name and lines, and its photo waiting to be kept with it. */
-	let read = $state<{ store: string; lines: ExpenseLine[]; receipt: string } | null>(null);
+	/** A receipt read: its name and lines, and its photo, to send it with the expense. */
+	let read = $state<{ store: string; lines: ExpenseLine[]; photo: Blob } | null>(null);
 	let reading = $state(false);
 	let saving = $state(false);
 	let problem = $state<string | null>(null);
@@ -34,13 +34,14 @@
 		problem = null;
 		reading = true;
 		const form = new FormData();
-		form.set('foto', await smallerPhoto(file), 'ticket.jpg');
+		const photo = await smallerPhoto(file);
+		form.set('foto', photo, 'ticket.jpg');
 		const res = await fetch(urls.read, { method: 'POST', body: form }).catch(() => null);
 		const body = await res?.json().catch(() => null);
 		reading = false;
 		if (!res?.ok) return void (problem = body?.message ?? 'Sin conexión');
 		const draft = body as ExpenseDraft;
-		read = { store: draft.store, lines: draft.lines, receipt: draft.receipt };
+		read = { store: draft.store, lines: draft.lines, photo };
 		if (draft.total) amount = (draft.total / 100).toFixed(2).replace('.', ',');
 	}
 
@@ -50,17 +51,18 @@
 		if (!total || total <= 0) return void (problem = 'Escribe cuánto, en euros: 50,30');
 		problem = null;
 		saving = true;
-		const res = await fetch(urls.save, {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({
+		const form = new FormData();
+		form.set(
+			'gasto',
+			JSON.stringify({
 				total,
 				position,
 				store: read?.store ?? null,
-				lines: read?.lines ?? [],
-				receipt: read?.receipt ?? null
+				lines: read?.lines ?? []
 			})
-		}).catch(() => null);
+		);
+		if (read) form.set('fichero', read.photo, 'ticket.jpg');
+		const res = await fetch(urls.save, { method: 'POST', body: form }).catch(() => null);
 		const body = await res?.json().catch(() => null);
 		saving = false;
 		if (!res?.ok) return void (problem = body?.message ?? 'Sin conexión');

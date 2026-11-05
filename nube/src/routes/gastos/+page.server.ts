@@ -19,8 +19,8 @@ import {
 	updateExpense,
 	updateRecurring
 } from '#lib/server/expenses/expenses.ts';
-import { canReadReceipts } from '#lib/server/expenses/receipt.ts';
-import { monthIncomeTotal } from '#lib/server/expenses/income.ts';
+import { canReadReceipts, receiptFrom } from '#lib/server/expenses/receipt.ts';
+import { monthIncomeTotal, NotADocument } from '#lib/server/expenses/income.ts';
 
 /**
  * The family's expenses (#253; jellycartoon's #194): a month's (`?mes=2026-10`), by category and one by
@@ -74,7 +74,10 @@ function recurringFrom(form: FormData) {
 }
 
 export const actions: Actions = {
-	/** New (from a receipt read, by hand) or corrected: `expense` as JSON, as the page has it. */
+	/**
+	 * New (from a receipt read, by hand) or corrected: `expense` as JSON, as the page has it, and a
+	 * new one's receipt or bill as `fichero`.
+	 */
 	save: async ({ request, locals }) => {
 		const k = await kitchen(locals);
 		const form = await request.formData();
@@ -98,9 +101,15 @@ export const actions: Actions = {
 				return fail(404, { message: 'Ese gasto ya no está' });
 			return { saved: id };
 		}
-		const receipt = String(form.get('receipt') ?? '') || null;
-		const source = bill ? 'factura' : receipt ? 'ticket' : 'mano';
-		return { saved: await addExpense(k, input, source, receipt, null, bill) };
+		const receipt = await receiptFrom(form);
+		if ('problem' in receipt) return fail(400, { message: receipt.problem });
+		const source = bill ? 'factura' : receipt.file ? 'ticket' : 'mano';
+		try {
+			return { saved: await addExpense(k, input, source, receipt.file, null, bill) };
+		} catch (err) {
+			if (err instanceof NotADocument) return fail(400, { message: err.message });
+			throw err;
+		}
 	},
 	delete: async ({ request, locals }) => {
 		const k = await kitchen(locals);

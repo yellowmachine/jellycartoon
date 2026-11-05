@@ -23,7 +23,19 @@ const k: Kitchen = {
 };
 // Bun's module mocks are the whole run's: the same as ai-costs.test.ts's.
 mock.module('#lib/server/fridge.ts', () => ({ houseKitchen: () => k, today: localDay }));
-mock.module('./receipt.ts', () => ({ keepReceipt: () => null, removeReceipt: () => null }));
+mock.module('#lib/server/storage.ts', () => ({
+	storageReady: true,
+	putFile: async () => {},
+	removeFile: async () => {},
+	readFile: async () => null,
+	listFiles: async () => [],
+	fileResponse: async () => new Response()
+}));
+mock.module('#lib/server/openrouter.ts', () => ({
+	completeJson: async () => ({}),
+	VISION_MODEL: ''
+}));
+mock.module('#lib/server/family-settings.ts', () => ({ openRouterKey: async () => null }));
 const { searchExpenses } = await import('./expenses.ts');
 const { moneyDocuments } = await import('./documents.ts');
 
