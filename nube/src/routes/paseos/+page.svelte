@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import WalkLock from './WalkLock.svelte';
 	import TripMap from '#lib/components/TripMap.svelte';
 	import { durationText, type StoredPoint } from '#lib/trips.ts';
 	import { walkRecorder as walk } from '#lib/walk-recorder.svelte.ts';
@@ -84,8 +85,13 @@
 				class="rounded-md bg-red-600 px-6 py-3 text-lg font-semibold text-white"
 				onclick={() => walk.finish()}>Terminar</button
 			>
+			<WalkLock />
 			{@render discard()}
 		</div>
+		<p class="mt-3 text-sm text-zinc-400">
+			Con la pantalla apagada, el GPS no graba. «Bloquear pantalla» la deja en negro y encendida
+			para el bolsillo: baja antes el brillo, gasta batería, y no pulses el botón de encendido.
+		</p>
 	{:else}
 		<button
 			class="rounded-md bg-emerald-600 px-6 py-3 text-lg font-semibold text-white"
