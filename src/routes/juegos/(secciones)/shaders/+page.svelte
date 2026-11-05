@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { SHADERS, shaderName, type Shader } from '#lib/game-shaders.ts';
+	import { SHADERS, shaderName, type Shader } from 'comun/game-shaders.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();

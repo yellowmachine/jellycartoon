@@ -146,6 +146,8 @@ describe('where a child may go', () => {
 	test('its agenda (only to look), the fridge, homework and its way out', () => {
 		expect(kidMayOpen('/', 'GET')).toBe(true);
 		expect(kidMayOpen('/agenda', 'GET')).toBe(true);
+		expect(kidMayOpen('/juegos', 'GET')).toBe(false);
+		expect(kidMayOpen('/api/juegos/snes/mario.7z', 'GET')).toBe(false);
 		expect(kidMayOpen('/agenda', 'POST')).toBe(false);
 		expect(kidMayOpen('/agenda/alarmas', 'GET')).toBe(false);
 		expect(kidMayOpen('/papeles', 'GET')).toBe(false);

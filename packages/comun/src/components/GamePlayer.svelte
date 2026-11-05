@@ -1,18 +1,28 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
-	import { beforeNavigate, goto, pushState } from '$app/navigation';
-	import { page } from '$app/state';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
-	import { SHADERS, shaderName, type Shader } from '#lib/game-shaders.ts';
+	import { SHADERS, shaderName, type Shader } from 'comun/game-shaders.ts';
 	import { music } from 'comun/music-player.svelte.ts';
-	import type { PlayerData } from '#lib/server/game-pages.ts';
+	import type { PlayerData, PlayerNavigation } from 'comun/games.ts';
 
 	/**
 	 * A game being played (#176), over the page: in the TV view with the remote, or in a browser
 	 * (`web`, #405) on a phone, a tablet or a computer: with a button for its menu, as there may be
 	 * nothing else to open it with, and the screen kept on, as a gamepad does not touch it.
 	 */
-	let { data, web = false }: { data: PlayerData; web?: boolean } = $props();
+	let {
+		data,
+		nav,
+		saveId = 0,
+		web = false
+	}: {
+		data: PlayerData;
+		/** The app's router (`$app/navigation`). */
+		nav: PlayerNavigation;
+		/** A saved game to open it at (`?partida=`). */
+		saveId?: number;
+		web?: boolean;
+	} = $props();
 	let frame = $state<HTMLIFrameElement>();
 	let menuBox = $state<HTMLElement>();
 
@@ -54,7 +64,6 @@
 	 * emulator has started.
 	 */
 	onMount(() => {
-		const saveId = Number(page.url.searchParams.get('partida'));
 		if (!saveId) return;
 		let tries = 0;
 		const timer = setInterval(() => {
@@ -184,16 +193,17 @@
 	 * not close it that way: what was played since would be lost.
 	 */
 	let saved = false;
-	beforeNavigate((nav) => {
+	// svelte-ignore state_referenced_locally
+	nav.beforeNavigate((leaving) => {
 		const running = emulator();
 		// Closing the tab or the browser does close its page: EmulatorJS saves by itself.
-		if (saved || nav.type === 'leave' || !running) return;
-		nav.cancel();
+		if (saved || leaving.type === 'leave' || !running) return;
+		leaving.cancel();
 		saved = true;
 		// Back cancelled: SvelteKit puts the history where it was with a step of its own, which has
 		// to end before taking ours.
 		const restored =
-			nav.type === 'popstate'
+			leaving.type === 'popstate'
 				? new Promise((done) =>
 						addEventListener('popstate', () => setTimeout(done), { once: true })
 					)
@@ -207,8 +217,8 @@
 		});
 		void Promise.all([restored, flushed]).then(() => {
 			// The same step again: Back goes back in the history rather than forward to the list.
-			if (nav.type === 'popstate') history.go(nav.delta);
-			else if (nav.to) void goto(nav.to.url);
+			if (leaving.type === 'popstate') history.go(leaving.delta);
+			else if (leaving.to) void nav.goto(leaving.to.url);
 		});
 	});
 
@@ -241,7 +251,7 @@
 					]).catch(() => null)
 				: null;
 			opening = false;
-			pushState('', { gameMenu: 'menu' });
+			nav.pushState('', { gameMenu: 'menu' } as never);
 			menu = 'menu';
 		};
 		// Back: one step less. Several at once (history.go) are one popstate: those, done already.
@@ -333,7 +343,7 @@
 		saves = null;
 		deleting = null;
 		message = '';
-		pushState('', { gameMenu: 'partidas' });
+		nav.pushState('', { gameMenu: 'partidas' } as never);
 		menu = 'partidas';
 		const res = await fetch(`/api/juegos/partidas/${data.gameId}`).catch(() => null);
 		saves = res?.ok ? await res.json() : [];
@@ -403,7 +413,7 @@
 
 	function showShaders() {
 		message = '';
-		pushState('', { gameMenu: 'imagen' });
+		nav.pushState('', { gameMenu: 'imagen' } as never);
 		menu = 'imagen';
 	}
 

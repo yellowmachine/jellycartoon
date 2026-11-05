@@ -2,7 +2,7 @@ import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { game } from '#lib/server/db/schema.ts';
-import { ALL, gameScope, isShader, systemScope } from '#lib/game-shaders.ts';
+import { ALL, gameScope, isShader, systemScope } from 'comun/game-shaders.ts';
 import { setShader, shaders } from '#lib/server/game-shaders.ts';
 import { allGames, findGame, gameRow, SYSTEMS } from '#lib/server/games.ts';
 import { gamesRoot } from '#lib/server/library/paths.ts';

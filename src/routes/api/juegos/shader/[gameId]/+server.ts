@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { game } from '#lib/server/db/schema.ts';
-import { gameScope, isShader } from '#lib/game-shaders.ts';
+import { gameScope, isShader } from 'comun/game-shaders.ts';
 import { setShader } from '#lib/server/game-shaders.ts';
 
 /**

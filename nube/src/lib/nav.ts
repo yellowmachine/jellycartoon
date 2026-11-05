@@ -52,6 +52,16 @@ const SECTIONS: {
 		about: 'Deberes sobre los dibujos que ven los peques en casa.'
 	},
 	{
+		path: '/juegos',
+		label: 'Juegos',
+		icon: 'juegos',
+		where: 'nube',
+		house: true,
+		startsOff: true,
+		about:
+			'Los juegos retro de la casa, en el navegador: las mismas partidas que en la tele. Solo adultos.'
+	},
+	{
 		path: '/oracion',
 		label: 'Oración',
 		icon: 'oracion',

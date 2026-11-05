@@ -80,3 +80,11 @@ test('saved: what the form showed; a house section without a house, as it was', 
 	expect(after['/oracion']).toBeUndefined();
 	expect(savedSections(true, { '/deberes': true }, [])['/deberes']).toBe(false);
 });
+
+test('Juegos (#405): with a house, off until the family turns it on, and never for a child', () => {
+	expect(barOf({})).not.toContain('Juegos');
+	expect(barOf({ '/juegos': true })).toContain('Juegos');
+	expect(barOf({ '/juegos': true }, true)).not.toContain('Juegos');
+	const noHouse = navLinks(false, false, false, false, false, { '/juegos': true });
+	expect(noHouse.links.map((l) => l.label)).not.toContain('Juegos');
+});
