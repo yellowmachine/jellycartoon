@@ -45,6 +45,7 @@ type Key =
 	| 'nube_key'
 	| 'ai_episode_titles'
 	| 'ai_opening_quote'
+	| 'ai_scene_names'
 	| 'openrouter_own';
 
 export async function getAppSetting(key: Key) {
@@ -186,11 +187,14 @@ export async function isAdmin(userId: string) {
 /**
  * What uses the AI the most, off until the administrator turns it on in Ajustes → Casa, told what
  * it costs: titles and numbering for a series' episodes (frames and the episode list, with the
- * vision model) and the lines of the opening title card (an episode's subtitles each time the app
- * opens, without anyone asking). Off, the button is not there; the card picks lines by itself.
+ * vision model), a film's scene names (a frame of each chapter and its Wikipedia articles, with
+ * the same model) and the lines of the opening title card (an episode's subtitles each time the
+ * app opens, without anyone asking). Off, the button is not there; names already given stay; the
+ * card picks lines by itself.
  */
 export const COSTLY_AI = {
 	titles: 'ai_episode_titles',
+	scenes: 'ai_scene_names',
 	quote: 'ai_opening_quote'
 } as const satisfies Record<string, Key>;
 export type CostlyAi = keyof typeof COSTLY_AI;

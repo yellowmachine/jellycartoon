@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { movie, movieProgress, movieTitle } from '#lib/server/db/schema.ts';
-import { chatConfig } from '#lib/server/app-settings.ts';
+import { chatConfig, costlyAiOn } from '#lib/server/app-settings.ts';
 import { chatHistory } from '#lib/server/cinema/chat.ts';
 import { play, rename, setWatched } from '#lib/server/cinema/film-actions.ts';
 import { choose, forget, identify, lookUp, savedMovieInfo } from '#lib/server/cinema/info.ts';
@@ -65,6 +65,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		/** Talking about the film needs an OpenRouter key. */
 		canChat: Boolean(apiKey),
 		naming: namingState(id),
+		/** Off until turned on in Ajustes → Casa: it is among what uses the AI the most. */
+		scenesOn: await costlyAiOn('scenes'),
 		/**
 		 * Subtitles made by Whisper (only with it, WHISPER_URL), which mpv adds: those there are,
 		 * whether the film has audio in a language without its own, and how the last request goes.
@@ -129,6 +131,8 @@ export const actions: Actions = {
 	},
 	/** Name the chapters with the AI, in the background: the page asks until it is done. */
 	nameScenes: async ({ params }) => {
+		if (!(await costlyAiOn('scenes')))
+			return fail(400, { message: 'Nombrar las escenas con la IA está apagado (Ajustes → Casa)' });
 		startNaming(Number(params.id));
 	},
 	/** In the background: the page follows how it goes (`autoSubtitles.job`). */

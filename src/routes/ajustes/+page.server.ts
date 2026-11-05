@@ -24,6 +24,7 @@ import {
 } from '#lib/server/app-settings.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
 import { titlesBatchCost } from '#lib/server/library/episode-titles.ts';
+import { scenesCost } from '#lib/server/cinema/scenes.ts';
 import { quoteCost } from '#lib/server/opening-quote.ts';
 import { BATCH_SIZE } from '#lib/episode-titles.ts';
 import { createCloudKey, deleteCloudKey, listCloudKeys } from '#lib/server/media-api.ts';
@@ -217,11 +218,12 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 			/** What uses the AI the most, off until turned on here; and about what each costs, streamed. */
 			costly: {
 				titles: await costlyAiOn('titles'),
+				scenes: await costlyAiOn('scenes'),
 				quote: await costlyAiOn('quote'),
 				batch: BATCH_SIZE,
-				cost: Promise.all([titlesBatchCost(vision), quoteCost()])
-					.then(([titles, quote]) => ({ titles, quote }))
-					.catch(() => ({ titles: null, quote: null }))
+				cost: Promise.all([titlesBatchCost(vision), scenesCost(vision), quoteCost()])
+					.then(([titles, scenes, quote]) => ({ titles, scenes, quote }))
+					.catch(() => ({ titles: null, scenes: null, quote: null }))
 			}
 		};
 	}
@@ -961,7 +963,8 @@ export const actions: Actions = {
 		await requireAdmin(locals.user!.id);
 		const form = await request.formData();
 		const which = form.get('which');
-		if (which !== 'titles' && which !== 'quote') return fail(400, { message: 'No existe' });
+		if (which !== 'titles' && which !== 'scenes' && which !== 'quote')
+			return fail(400, { message: 'No existe' });
 		await setCostlyAi(which, form.get('on') === 'true');
 		return { saved: `costly-${which}` };
 	},

@@ -360,7 +360,7 @@
 		names={found?.scenes ?? null}
 		completed={film.completed ?? false}
 		mpv={data.mpv}
-		canName={data.canChat && !!found && !data.kid}
+		canName={data.scenesOn && data.canChat && !!found && !data.kid}
 		naming={data.naming}
 	/>
 {/snippet}

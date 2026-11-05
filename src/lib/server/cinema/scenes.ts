@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { movie, movieInfo, movieTitle } from '#lib/server/db/schema.ts';
 import { visionModel } from '#lib/server/app-settings.ts';
-import { completeJson, type ContentPart } from '#lib/server/openrouter.ts';
+import { completeJson, guessCost, type ContentPart } from '#lib/server/openrouter.ts';
 import { log } from '#lib/server/log.ts';
 import { FRAME_WIDTHS } from '#lib/birds-eye.ts';
 import { formatDuration } from 'comun/format.ts';
@@ -17,6 +17,20 @@ import { filmArticles } from './wikidata.ts';
 const naming = new Map<number, Promise<void>>();
 /** Why the last attempt failed, until it is tried again. */
 const failures = new Map<number, string>();
+
+/** A film's, more or less: to tell what it costs. */
+const USUAL_CHAPTERS = 20;
+/** Its Wikipedia articles, more or less. */
+const USUAL_ARTICLES_CHARS = 40_000;
+
+/**
+ * About what naming a film's scenes costs with `model` (Ajustes → Casa tells it before turning it
+ * on): its articles, a frame of each chapter (a few hundred tokens a picture) and the answer.
+ */
+export async function scenesCost(model?: string) {
+	const sent = USUAL_ARTICLES_CHARS / 3.5 + USUAL_CHAPTERS * (600 + 40) + 500;
+	return guessCost(model ?? (await visionModel()), sent, USUAL_CHAPTERS * 30);
+}
 
 export function namingState(movieId: number) {
 	return { naming: naming.has(movieId), failed: failures.get(movieId) ?? null };
