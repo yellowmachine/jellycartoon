@@ -435,7 +435,7 @@
 				<input
 					bind:this={billInput}
 					type="file"
-					accept="application/pdf,.pdf,image/*"
+					accept="application/pdf,.pdf"
 					class="hidden"
 					onchange={(e) => readBill(e.currentTarget.files?.[0])}
 				/>

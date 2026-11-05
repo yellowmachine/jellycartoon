@@ -90,8 +90,8 @@
 
 	{#if !data.bills.length}
 		<p class="mb-4 text-zinc-400">
-			Aún no hay facturas de {data.kind.toLowerCase()}. En el mes, «📄 Factura» con su PDF o una
-			foto; desde el móvil, también «Compartir → JellyCartoon» desde la app de la compañía.
+			Aún no hay facturas de {data.kind.toLowerCase()}. En el mes, «📄 Factura» con su PDF; desde el
+			móvil, también «Compartir → JellyCartoon» desde la app de la compañía.
 		</p>
 	{:else}
 		<!-- What to look at (bill-analysis.ts): a bill that does not add up, a much dearer one. -->
