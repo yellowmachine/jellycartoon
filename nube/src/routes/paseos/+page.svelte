@@ -153,7 +153,11 @@
 						</span>
 						{#if w.diagnosis.gaps.length}
 							<span class="block text-sm text-amber-300">
-								GPS cortado {shortTime(gapSeconds(w.diagnosis))}: los km pueden quedarse cortos
+								GPS cortado {shortTime(gapSeconds(w.diagnosis))}: los km pueden quedarse cortos{w.diagnosis.gaps.some(
+									(gap) => gap.hidden
+								)
+									? '. Con la pantalla apagada no se miden bien: usa «Bloquear pantalla»'
+									: ''}
 							</span>
 						{/if}
 					</button>
