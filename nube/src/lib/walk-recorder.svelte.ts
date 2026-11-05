@@ -1,7 +1,15 @@
 import { invalidateAll } from '$app/navigation';
 import { music } from 'comun/music-player.svelte.ts';
 import { metresBetween } from 'comun/road-guide.ts';
+import { noteRecorder } from '#lib/note-recorder.svelte.ts';
 import { addPoints, type StoredPoint, type TripPoint } from '#lib/trips.ts';
+import {
+	attachmentsOf,
+	dropWalkAttachments,
+	keepAttachment,
+	sendAttachments,
+	type Attachment
+} from '#lib/walk-attachments.ts';
 import {
 	FASTEST_WALK,
 	GAP_AFTER_MS,
@@ -58,6 +66,9 @@ class WalkRecorder {
 	located = $state(false);
 	/** What the next walk does, or this one. */
 	plan = $state<WalkPlan>(noPlan());
+	/** Taken on this walk, waiting on this device until it is sent. */
+	photos = $state(0);
+	notes = $state(0);
 
 	#cues = noCues();
 	#cueTimer: ReturnType<typeof setInterval> | null = null;
@@ -120,6 +131,37 @@ class WalkRecorder {
 			this.#countHidden();
 			this.#startWatching();
 		} else void this.send();
+		void this.#countAttachments();
+	}
+
+	/** A photo or a note of this walk, where it is now; kept on this device until the walk is sent. */
+	async attach(kind: Attachment['kind'], blob: Blob) {
+		if (!this.recording || !this.#userId) return;
+		try {
+			await keepAttachment({
+				userId: this.#userId,
+				kind,
+				blob,
+				at: Date.now(),
+				position: this.#lastFix?.at ?? null,
+				walk: this.startedAt
+			});
+		} catch {
+			this.problem = 'No se ha podido guardar en este móvil: quizá no le queda sitio.';
+			return;
+		}
+		await this.#countAttachments();
+	}
+
+	async #countAttachments() {
+		if (!this.#userId) return;
+		const all = await attachmentsOf(this.#userId).catch(() => []);
+		const mine = all.filter((a) => a.walk === this.startedAt);
+		this.photos = mine.filter((a) => a.kind === 'foto').length;
+		this.notes = mine.filter((a) => a.kind === 'nota').length;
+		// What is left of walks already at the server.
+		if (all.length > mine.length)
+			void sendAttachments(this.#userId, this.startedAt).catch(() => {});
 	}
 
 	start() {
@@ -162,13 +204,19 @@ class WalkRecorder {
 			this.problem = 'No se ha podido enviar: el paseo sigue guardado en este móvil.';
 			return;
 		}
+		const userId = this.#userId;
 		this.#forget();
+		// Its photos and notes now: heard one by one, so as not to hold up the walk being kept.
 		await invalidateAll();
+		const sent = userId ? await sendAttachments(userId).catch(() => 0) : 0;
+		if (sent) await invalidateAll();
 	}
 
 	/** Thrown away, going on or not sent. */
 	discard() {
 		this.#stopWatching();
+		if (this.#userId && this.startedAt !== null)
+			void dropWalkAttachments(this.#userId, this.startedAt).catch(() => {});
 		this.#forget();
 	}
 
@@ -195,6 +243,8 @@ class WalkRecorder {
 		this.#musicInGap = false;
 		this.#reopened = false;
 		this.#cues = noCues();
+		this.photos = 0;
+		this.notes = 0;
 	}
 
 	#readPlan() {
@@ -320,7 +370,8 @@ class WalkRecorder {
 	}
 
 	#checkCue = () => {
-		if (!this.recording) return;
+		// Not said over a note being recorded: it waits until it ends.
+		if (!this.recording || noteRecorder.recording) return;
 		const seconds = (Date.now() - this.startedAt!) / 1000;
 		const { text, cues } = dueCue(this.plan, this.#cues, this.distance, seconds);
 		this.#cues = cues;

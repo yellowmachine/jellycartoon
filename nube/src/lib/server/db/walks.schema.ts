@@ -45,3 +45,32 @@ export const walk = pgTable(
 		familyRows('walk_own', t.familyId)
 	]
 ).enableRLS();
+
+/** The photos taken on a walk (#416), where they were taken: private to their person, as the walk. */
+export const walkPhoto = pgTable(
+	'walk_photo',
+	{
+		id: serial('id').primaryKey(),
+		familyId: text('family_id')
+			.notNull()
+			.references(() => family.id, { onDelete: 'cascade' }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		walkId: integer('walk_id')
+			.notNull()
+			.references(() => walk.id, { onDelete: 'cascade' }),
+		/** The device's own id for it: sent twice (the answer got lost), it is kept once. */
+		clientId: text('client_id').notNull(),
+		/** Its file in the family's storage. */
+		file: text('file').notNull(),
+		lon: real('lon'),
+		lat: real('lat'),
+		at: timestamp('at').notNull()
+	},
+	(t) => [
+		unique('walk_photo_user_client').on(t.userId, t.clientId),
+		index('walk_photo_walk_idx').on(t.walkId),
+		familyRows('walk_photo_own', t.familyId)
+	]
+).enableRLS();

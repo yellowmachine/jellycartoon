@@ -1,7 +1,11 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import WalkLock from './WalkLock.svelte';
+	import NoteButton from '#lib/components/NoteButton.svelte';
 	import TripMap from '#lib/components/TripMap.svelte';
+	import { noteRecorder } from '#lib/note-recorder.svelte.ts';
+	import type { Note } from '#lib/notes.ts';
+	import { smallerPhoto } from 'comun/receipt-photo.ts';
 	import { durationText, type StoredPoint } from '#lib/trips.ts';
 	import { walkRecorder as walk } from '#lib/walk-recorder.svelte.ts';
 	import { offlineMusic } from '#lib/offline-music.svelte.ts';
@@ -76,19 +80,30 @@
 		if (list) void playWalkList(list.id).then((problem) => (musicProblem = problem));
 	}
 
+	/** A photo smaller, as the tickets': on the walk, where it was taken. */
+	async function photo(input: HTMLInputElement) {
+		const taken = input.files?.[0];
+		input.value = '';
+		if (taken) await walk.attach('foto', await smallerPhoto(taken));
+	}
+
 	const select =
 		'rounded-md border-zinc-700 bg-zinc-950 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500';
 
 	/** The walk opened, and its way once it comes. */
 	let opened = $state<number | null>(null);
 	let line = $state<StoredPoint[] | null>(null);
+	let photos = $state<{ id: number; lon: number | null; lat: number | null }[]>([]);
+	let notes = $state<Note[]>([]);
 	async function open(id: number) {
 		if (opened === id) return void (opened = null);
 		opened = id;
 		line = null;
+		photos = [];
+		notes = [];
 		const res = await fetch(`/paseos/${id}/recorrido`).catch(() => null);
 		if (opened !== id || !res?.ok) return;
-		line = (await res.json()).line;
+		({ line, photos, notes } = await res.json());
 	}
 </script>
 
@@ -140,6 +155,31 @@
 			<WalkLock />
 			{@render discard()}
 		</div>
+		<div class="mt-4 flex flex-wrap items-center gap-3">
+			<label class="cursor-pointer rounded-md bg-zinc-800 px-4 py-2 hover:bg-zinc-700">
+				📷 Foto
+				<input
+					type="file"
+					accept="image/*"
+					capture="environment"
+					class="hidden"
+					onchange={(e) => photo(e.currentTarget)}
+				/>
+			</label>
+			<NoteButton
+				onrecorded={(audio) => walk.attach('nota', audio)}
+				class="rounded-md bg-zinc-800 px-4 py-2 hover:bg-zinc-700"
+			/>
+			{#if walk.photos || walk.notes}
+				<span class="text-sm text-zinc-400">
+					{walk.photos === 1 ? '1 foto' : `${walk.photos} fotos`} ·
+					{walk.notes === 1 ? '1 nota' : `${walk.notes} notas`}
+				</span>
+			{/if}
+		</div>
+		{#if noteRecorder.problem}
+			<p class="mt-3 text-sm text-amber-300" role="alert">{noteRecorder.problem}</p>
+		{/if}
 		<p class="mt-3 text-sm text-zinc-400">
 			Con la pantalla apagada, el GPS no graba. «Bloquear pantalla» la deja en negro y encendida
 			para el bolsillo: baja antes el brillo, gasta batería, y no pulses el botón de encendido.
@@ -281,9 +321,44 @@
 						{:else if !data.map}
 							<p class="text-sm text-zinc-400">No hay mapa (scripts/mapa.sh).</p>
 						{:else if line}
-							<TripMap {line} />
+							<TripMap {line} {photos} photoBase="/paseos/fotos" />
 						{:else}
 							<p class="text-sm text-zinc-400">Cargando el recorrido…</p>
+						{/if}
+						{#if photos.length}
+							<div class="mt-3 grid grid-cols-3 gap-2">
+								{#each photos as p (p.id)}
+									<a href="/paseos/fotos/{p.id}" target="_blank" rel="noreferrer">
+										<img
+											src="/paseos/fotos/{p.id}"
+											alt="Foto del paseo"
+											loading="lazy"
+											class="aspect-square w-full rounded object-cover"
+										/>
+									</a>
+								{/each}
+							</div>
+						{/if}
+						{#if notes.length}
+							<ul class="mt-3 flex flex-col gap-3 text-sm">
+								{#each notes as n (n.id)}
+									<li>
+										<span class="text-zinc-500">{time.format(new Date(n.at))}</span>
+										{n.hearing === 'ready'
+											? n.text || '(sin palabras)'
+											: n.hearing === 'pending'
+												? 'Transcribiendo…'
+												: 'No se pudo transcribir'}
+										{#if n.hasAudio}
+											<audio controls preload="none" src="/notas/{n.id}/audio" class="mt-1 w-full"
+											></audio>
+										{/if}
+									</li>
+								{/each}
+							</ul>
+							<a href="/notas" class="mt-1 inline-block text-sm text-amber-400 hover:underline"
+								>Corregirlas en Notas</a
+							>
 						{/if}
 						<!-- The test of #410: whether the GPS goes on with the screen off. -->
 						<div class="mt-3 text-sm text-zinc-400">

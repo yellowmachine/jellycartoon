@@ -25,7 +25,17 @@ mock.module('#lib/server/openrouter.ts', () => ({
 	VISION_MODEL: ''
 }));
 mock.module('#lib/server/family-settings.ts', () => ({ openRouterKey: async () => null }));
-mock.module('#lib/server/fridge.ts', () => ({ today: () => '2026-11-05' }));
+mock.module('#lib/server/fridge.ts', () => ({
+	today: () => '2026-11-05',
+	dayOf: (d: Date) => d.toISOString().slice(0, 10),
+	// A mock is the whole process's: for the tests that come after and only import these.
+	houseKitchen: () => {
+		throw new Error('Sin cocina en esta prueba');
+	},
+	kitchenOf: () => {
+		throw new Error('Sin cocina en esta prueba');
+	}
+}));
 
 const { addExpense } = await import('./expenses.ts');
 const { NotADocument } = await import('./income.ts');
