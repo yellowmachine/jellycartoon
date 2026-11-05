@@ -10,13 +10,19 @@
 
 	let testing = $state(false);
 	/** «Lo que más gasta»: which one is being turned on, its cost said, waiting for «Encender». */
-	let confirming = $state<'titles' | 'quote' | null>(null);
+	let confirming = $state<'titles' | 'scenes' | 'quote' | null>(null);
 	const COSTLY = {
 		titles: {
 			title: 'Poner títulos y numeración a los capítulos',
 			does: 'En cada serie, el botón «Poner títulos con la IA»: le manda la lista de episodios de Wikipedia y tres fotogramas de cada capítulo al modelo de escenas y títulos, el más caro.',
 			price: (c: { titles: number | null }, batch: number) =>
 				c.titles === null ? null : `unos ${cost(c.titles)} por cada ${batch} capítulos`
+		},
+		scenes: {
+			title: 'Poner nombre a las escenas de las películas',
+			does: 'En cada película con capítulos, el botón «Ponerles nombre con la IA»: le manda sus artículos de Wikipedia y un fotograma de cada capítulo. Los nombres ya puestos se quedan aunque lo apagues.',
+			price: (c: { scenes: number | null }) =>
+				c.scenes === null ? null : `unos ${cost(c.scenes)} por película`
 		},
 		quote: {
 			title: 'Elegir las frases del rótulo de inicio',
@@ -364,7 +370,7 @@
 			Apagado hasta que lo enciendas: antes te decimos más o menos lo que cuesta.
 		</p>
 		<ul class="flex flex-col gap-3 text-sm">
-			{#each ['titles', 'quote'] as const as which (which)}
+			{#each ['titles', 'scenes', 'quote'] as const as which (which)}
 				{@const on = data.ai.costly[which]}
 				<li class="rounded-md border border-zinc-800 p-3">
 					<p class="text-zinc-200">
