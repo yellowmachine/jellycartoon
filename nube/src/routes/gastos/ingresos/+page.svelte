@@ -67,7 +67,7 @@
 
 	/** A PDF as it is; a photo smaller, as the tickets': as a file, for the form's input. */
 	async function asInvoice(file: File) {
-		if (file.type === 'application/pdf') return file;
+		if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) return file;
 		const photo = await smallerPhoto(file);
 		return photo instanceof File ? photo : new File([photo], 'factura.jpg', { type: photo.type });
 	}
@@ -247,7 +247,7 @@
 					bind:this={documentInput}
 					name="factura"
 					type="file"
-					accept="application/pdf,image/jpeg,image/png,image/webp"
+					accept="application/pdf,.pdf"
 					class="text-sm text-zinc-300 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-zinc-100"
 					onchange={(e) => (chosen = e.currentTarget.files?.[0] ?? null)}
 				/>
@@ -279,14 +279,13 @@
 			{#if problem}<p class="w-full text-sm text-red-400">{problem}</p>{/if}
 		</form>
 	{:else}
+		<!-- The same three as in Gastos, in the same order. -->
 		<div class="mb-6 flex flex-wrap gap-2">
-			<button
-				class="{button} bg-amber-500 font-medium text-zinc-950 hover:bg-amber-400"
-				onclick={newOne}>+ Apuntar un ingreso</button
-			>
 			{#if data.canRead}
-				<label class="{button} cursor-pointer bg-zinc-800 hover:bg-zinc-700">
-					📷 Desde una foto
+				<label
+					class="cursor-pointer rounded-md bg-amber-500 px-4 py-2 font-semibold text-zinc-950 hover:bg-amber-400"
+				>
+					📷 Foto
 					<input
 						type="file"
 						accept="image/*"
@@ -295,16 +294,20 @@
 						onchange={(e) => fromDocument(e.currentTarget)}
 					/>
 				</label>
-				<label class="{button} cursor-pointer bg-zinc-800 hover:bg-zinc-700">
-					📄 Desde un archivo
+				<label class="cursor-pointer rounded-md bg-zinc-800 px-4 py-2 hover:bg-zinc-700">
+					📄 Factura
+					<!-- Only PDF: with images too, Android offers the camera and no files. -->
 					<input
 						type="file"
-						accept="application/pdf,image/jpeg,image/png,image/webp"
+						accept="application/pdf,.pdf"
 						class="hidden"
 						onchange={(e) => fromDocument(e.currentTarget)}
 					/>
 				</label>
 			{/if}
+			<button class="rounded-md bg-zinc-800 px-4 py-2 hover:bg-zinc-700" onclick={newOne}
+				>+ A mano</button
+			>
 		</div>
 	{/if}
 
