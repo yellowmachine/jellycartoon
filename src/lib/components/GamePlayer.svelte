@@ -97,7 +97,8 @@
 			backdrop: data.backdrop,
 			cartridge: data.cartridge,
 			controls: JSON.stringify(data.controls),
-			shader: data.shader.own ?? data.shader.inherited,
+			// The house's are for the TV: on a phone they can make the game slow.
+			shader: web ? 'disabled' : (data.shader.own ?? data.shader.inherited),
 			...(web ? { vista: 'web' } : {}),
 			...(data.bios ? { bios: data.bios } : {})
 		})}`
