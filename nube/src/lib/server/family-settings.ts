@@ -136,6 +136,20 @@ export async function toggleRecipesBackdrop(k: Kitchen, id: number) {
 	);
 }
 
+/** The sections it chose to have out or not (Ajustes → Familia → Secciones, nav.ts). */
+export async function familySections(k: Kitchen) {
+	return (await settingsOf(k))?.sections ?? {};
+}
+
+export async function setFamilySections(k: Kitchen, sections: Record<string, boolean>) {
+	await k.run((tx) =>
+		tx
+			.insert(familySettings)
+			.values({ familyId: k.familyId, sections })
+			.onConflictDoUpdate({ target: familySettings.familyId, set: { sections } })
+	);
+}
+
 /** «Dónde vivís» (Ajustes → Familia), for the weather; null, not said. */
 export async function familyPlace(k: Kitchen) {
 	return (await settingsOf(k))?.place ?? null;

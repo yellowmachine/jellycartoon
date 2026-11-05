@@ -1,0 +1,1 @@
+ALTER TABLE "family_settings" ADD COLUMN "sections" jsonb DEFAULT '{}'::jsonb NOT NULL;

@@ -349,10 +349,7 @@ async function act(action: VoiceAction) {
 			if (action.on) kitchenPanel.show();
 			return kitchenMode.set(action.on);
 		case 'recipe':
-			recipe.start(action.recipe, action.step);
-			// Cooking: the screen stays on, to see the steps, over the page that is on.
-			kitchenPanel.show();
-			return kitchenMode.set(true);
+			return kitchenMode.cook(action.recipe, action.step);
 		case 'recipeStep':
 			return recipe.go(action.step);
 		case 'endRecipe':

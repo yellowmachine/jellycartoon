@@ -27,9 +27,9 @@
 	import SectionIcon from './SectionIcon.svelte';
 
 	/**
-	 * The app's bar (jellycartoon's, #253): the same in the house and in the cloud. On wide screens
-	 * every section in a row; on a tablet, as a tab bar, each icon over its name; on a phone, the
-	 * section you are in and a menu with all of them. The user's round badge opens their menu. What
+	 * The app's bar (jellycartoon's, #253): the same in the house and in the cloud. From a tablet up,
+	 * as a tab bar, each icon over its name; on a phone, the section you are in and a menu with all
+	 * of them. The user's round badge opens their menu. What
 	 * only one app has goes in its snippets: before the name (`start`: Seilide's «Atrás»), after it (`leading`: the microphone, the
 	 * receipt's photo), instead of the badge's menu (`account`: a child's), and under the bar
 	 * (`below`: what plays, the timers…).
@@ -114,15 +114,13 @@
 	bind:offsetHeight={headerHeight}
 	class="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur"
 >
-	<nav
-		class="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3 md:max-lg:gap-3 md:max-lg:py-2 lg:max-xl:gap-4"
-	>
+	<nav class="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3 md:gap-3 md:py-2">
 		{@render start?.()}
 		<!-- On a tablet, only the picture: the sections need the room. -->
 		<a
 			href={brand.href}
 			title={brand.title}
-			class="flex min-w-0 items-center gap-2 text-lg font-bold text-amber-400"
+			class="flex min-w-0 items-center gap-2 text-lg font-bold text-amber-400 lg:max-w-60"
 		>
 			<!-- max-w-none: with little room, the name is cut short, and the picture stays whole. -->
 			<img src={brand.image} alt="" class="h-7 w-7 max-w-none shrink-0 rounded-md" />
@@ -132,21 +130,19 @@
 			>
 		</a>
 		{@render leading?.()}
-		<!-- Wide screens: every link in a row, without its icon: with every section and the bar's
-		     width, they would leave the brand no room. A tablet (md, up to lg): every link too, its
-		     icon over a small name, as a tab bar; the one you are in, in amber. -->
+		<!-- From a tablet up: every link, its icon over a small name, as a tab bar, sharing the room the
+		     brand leaves; the one you are in, in amber. -->
 		{#each links as link (link.href)}
 			<a
 				href={link.href}
 				class={[
-					'hidden items-center gap-1.5 text-sm hover:text-white lg:inline-flex',
-					'md:max-lg:flex md:max-lg:min-w-0 md:max-lg:flex-1 md:max-lg:flex-col md:max-lg:gap-0.5 md:max-lg:text-[11px]',
-					isCurrent(link.href) ? 'text-white md:max-lg:text-amber-400' : 'text-zinc-400'
+					'hidden items-center hover:text-white',
+					'md:flex md:min-w-0 md:flex-1 md:flex-col md:gap-0.5 md:text-[11px]',
+					isCurrent(link.href) ? 'text-amber-400' : 'text-zinc-400'
 				]}
-				><SectionIcon
-					name={link.icon}
-					class="hidden h-[18px] w-[18px] shrink-0 md:max-lg:block md:max-lg:h-6 md:max-lg:w-6"
-				/><span class="max-w-full truncate">{link.label}{@render out(link.external)}</span></a
+				><SectionIcon name={link.icon} class="hidden h-6 w-6 shrink-0 md:block" /><span
+					class="max-w-full truncate">{link.label}{@render out(link.external)}</span
+				></a
 			>
 		{/each}
 		<div class="ml-auto hidden items-center md:flex">

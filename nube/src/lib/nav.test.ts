@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { navLinks } from './nav.ts';
+import { navLinks, savedSections, sectionList, sectionOn } from './nav.ts';
 
 test('without a house connected, nothing of it in the bar', () => {
 	const { links, userLinks } = navLinks(false, false);
@@ -31,4 +31,52 @@ test('Oración (#339), only with it on; for a child too', () => {
 	expect(navLinks(false, true).links.map((l) => l.label)).not.toContain('Oración');
 	expect(navLinks(false, true, false, false, true).links.map((l) => l.label)).toContain('Oración');
 	expect(navLinks(false, true, true, false, true).links.map((l) => l.label)).toContain('Oración');
+});
+
+const barOf = (sections: Record<string, boolean>, kid = false) =>
+	navLinks(false, true, kid, false, false, sections).links.map((l) => l.label);
+
+test('Deberes starts out of the bar, for a child too, until the family turns it on', () => {
+	expect(barOf({})).not.toContain('Deberes');
+	expect(barOf({}, true)).not.toContain('Deberes');
+	expect(barOf({ '/deberes': true })).toContain('Deberes');
+	expect(barOf({ '/deberes': true }, true)).toContain('Deberes');
+});
+
+test('a section turned off, out of the bar; the rest as they were', () => {
+	expect(barOf({})).toContain('Recetas');
+	expect(barOf({ '/recetas': false })).not.toContain('Recetas');
+	expect(barOf({ '/recetas': false })).toContain('Nevera');
+	expect(barOf({ '/series': false }, true)).not.toContain('Series');
+	expect(sectionOn('/nevera')).toBe(true);
+	expect(sectionOn('/nevera', { '/nevera': false })).toBe(false);
+});
+
+test('Oración goes by its own on or off, not by the choices', () => {
+	expect(barOf({ '/oracion': true })).not.toContain('Oración');
+	const on = navLinks(false, true, false, false, true, { '/oracion': false });
+	expect(on.links.map((l) => l.label)).toContain('Oración');
+});
+
+test("Ajustes' list: without a house, nothing of it; Oración, its own", () => {
+	const paths = (hasHouse: boolean) => sectionList(hasHouse, {}, false).map((s) => s.path);
+	expect(paths(true)).toContain('/deberes');
+	expect(paths(false)).not.toContain('/deberes');
+	expect(paths(false)).not.toContain('/series');
+	expect(paths(false)).toContain('/recetas');
+	const on = (path: string, prayer: boolean) =>
+		sectionList(true, {}, prayer).find((s) => s.path === path)?.on;
+	expect(on('/oracion', true)).toBe(true);
+	expect(on('/oracion', false)).toBe(false);
+	expect(on('/deberes', false)).toBe(false);
+	expect(on('/recetas', false)).toBe(true);
+});
+
+test('saved: what the form showed; a house section without a house, as it was', () => {
+	const after = savedSections(false, { '/deberes': true, '/recetas': false }, ['/recetas']);
+	expect(after['/deberes']).toBe(true);
+	expect(after['/recetas']).toBe(true);
+	expect(after['/nevera']).toBe(false);
+	expect(after['/oracion']).toBeUndefined();
+	expect(savedSections(true, { '/deberes': true }, [])['/deberes']).toBe(false);
 });

@@ -71,14 +71,23 @@ describe('afterTimer', () => {
 	const recipe = parseRecipe(carbonara) as Recipe;
 
 	test("a step's timer: the step after it", () => {
-		expect(afterTimer(recipe, ['La pasta'], sameLabel)).toEqual({
+		expect(afterTimer(recipe, ['La pasta'], sameLabel, 1)).toEqual({
 			step: 2,
 			say: 'Siguiente paso: Mientras, dora el guanciale en una sartén sin aceite.'
 		});
 	});
 
+	test('the cook behind its step: on to the step after it', () => {
+		expect(afterTimer(recipe, ['la pasta'], sameLabel, 0)?.step).toBe(2);
+	});
+
+	test('the cook already past its step: stays there, nothing more to say', () => {
+		expect(afterTimer(recipe, ['la pasta'], sameLabel, 2)).toBeNull();
+		expect(afterTimer(recipe, ['la pasta'], sameLabel, 3)).toBeNull();
+	});
+
 	test('another timer: nothing to say', () => {
-		expect(afterTimer(recipe, ['el horno'], sameLabel)).toBeNull();
+		expect(afterTimer(recipe, ['el horno'], sameLabel, 1)).toBeNull();
 	});
 
 	test('the last step: finished', () => {
@@ -86,7 +95,7 @@ describe('afterTimer', () => {
 			title: 'Huevo pasado por agua',
 			steps: [{ text: 'Cuécelo.', timer_minutes: 3, timer_label: 'el huevo' }]
 		}) as Recipe;
-		expect(afterTimer(last, ['el huevo'], sameLabel)).toEqual({
+		expect(afterTimer(last, ['el huevo'], sameLabel, 0)).toEqual({
 			step: 0,
 			say: 'Y con esto, has terminado. ¡Que aproveche!'
 		});

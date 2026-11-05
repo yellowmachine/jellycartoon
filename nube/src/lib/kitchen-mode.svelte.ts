@@ -2,6 +2,7 @@ import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
 import { recipe } from '#lib/recipe.svelte.ts';
 import { timers } from '#lib/timers.svelte.ts';
+import type { Recipe } from 'comun/recipe.ts';
 
 /**
  * Kitchen mode (#60): the phone on the kitchen wall keeps its screen on, to see the timers and
@@ -65,6 +66,13 @@ class KitchenMode {
 		this.#remember(since);
 		this.#check = setInterval(() => this.#autoOff(), CHECK_EVERY_MS);
 		await this.#acquire();
+	}
+
+	/** Cooking, by voice or from the recipe book: the screen stays on, to see the steps, over the page that is on. */
+	cook(cooked: Recipe, step = 0) {
+		recipe.start(cooked, step);
+		kitchenPanel.show();
+		return this.set(true);
 	}
 
 	#remember(since: number | null) {

@@ -96,17 +96,19 @@ export function describeRecipe(recipe: Recipe, step: number) {
 
 /**
  * What is said when a step's timer ends: that it is done and the step after it, or that the
- * recipe is finished. Null if none of `labels` is a step's timer.
+ * recipe is finished. Null if none of `labels` is a step's timer, or if the cook, on step `at`, is
+ * already past it: the recipe never goes back on its own.
  */
 export function afterTimer(
 	recipe: Recipe,
 	labels: string[],
-	same: (a: string, b: string) => boolean
+	same: (a: string, b: string) => boolean,
+	at: number
 ) {
 	const index = recipe.steps.findIndex(
 		(s) => s.timer && labels.some((label) => same(label, s.timer!.label))
 	);
-	if (index === -1) return null;
+	if (index === -1 || at > index) return null;
 	const next = recipe.steps[index + 1];
 	return {
 		step: next ? index + 1 : index,

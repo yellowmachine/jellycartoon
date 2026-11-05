@@ -1,13 +1,35 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import Backdrop from 'comun/components/Backdrop.svelte';
-	import { describeTimer } from 'comun/recipe.ts';
+	import { describeTimer, parseRecipe, type Recipe } from 'comun/recipe.ts';
+	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
+	import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
+	import { recipe as inProgress } from '#lib/recipe.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
 	const r = $derived(data.recipe);
 	let confirmDelete = $state(false);
+	let confirmReplace = $state(false);
+
+	/** As the kitchen takes it; without steps, nothing to cook. */
+	const cookable = $derived.by((): Recipe | null => {
+		const parsed = parseRecipe(r);
+		return typeof parsed === 'string' ? null : parsed;
+	});
+	/** This one is already being cooked: going back to it, not starting over. */
+	const cooking = $derived(inProgress.current?.title === cookable?.title);
+
+	function cook() {
+		confirmReplace = false;
+		if (cookable) void kitchenMode.cook(cookable);
+	}
+
+	function openKitchen() {
+		kitchenPanel.show();
+		void kitchenMode.set(true);
+	}
 </script>
 
 <svelte:head>
@@ -22,13 +44,39 @@
 	<div class="min-w-0">
 		<h1 class="text-2xl font-bold [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]">{r.title}</h1>
 		<p class="text-zinc-400 [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]">
-			{#if r.servings}Para {r.servings} ·
-			{/if}De
+			{r.servings ? `Para ${r.servings} · ` : ''}De
 			<a href={r.sourceUrl} target="_blank" rel="noreferrer" class="hover:underline"
 				>{r.sourceName}</a
 			>
 		</p>
 		<div class="mt-4 flex flex-wrap items-center gap-2">
+			{#if cookable}
+				{#if confirmReplace}
+					<span class="text-sm text-zinc-300"
+						>¿Dejar «{inProgress.current?.title}» y cocinar esta?</span
+					>
+					<button
+						class="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-semibold text-zinc-950 hover:bg-amber-400"
+						onclick={cook}>Sí</button
+					>
+					<button
+						class="rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:bg-zinc-800"
+						onclick={() => (confirmReplace = false)}>No</button
+					>
+				{:else}
+					<button
+						class="rounded-md bg-amber-500 px-4 py-1.5 font-semibold text-zinc-950 hover:bg-amber-400"
+						onclick={() => {
+							if (cooking) openKitchen();
+							else if (inProgress.current) confirmReplace = true;
+							else cook();
+						}}
+						>🍳 {cooking
+							? `Seguir cocinando · paso ${inProgress.step + 1} de ${cookable.steps.length}`
+							: 'Cocinar'}</button
+					>
+				{/if}
+			{/if}
 			{#if r.imageUrl}
 				<form method="post" action="?/backdrop" use:enhance>
 					<button

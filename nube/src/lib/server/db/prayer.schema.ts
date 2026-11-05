@@ -14,7 +14,7 @@ import { family, familyRows } from './family.schema.ts';
 /**
  * Oración (#339): texts pasted to pray (litanies, prayers from vatican.va), each read aloud once by
  * one of the family's named voices and kept (storage.ts, `oracion`), and lists that chain them.
- * Only with Ajustes → Familia → Oración on (`family_settings.prayer_mode`).
+ * Only with Oración on in Ajustes → Familia → Secciones (`family_settings.prayer_mode`).
  */
 
 const familyId = () =>

@@ -43,8 +43,11 @@ import {
 	orsKeyStart,
 	setFamilyPlace,
 	setOpenRouterKey,
-	setOrsKey
+	setOrsKey,
+	familySections,
+	setFamilySections
 } from '#lib/server/family-settings.ts';
+import { savedSections, sectionList } from '#lib/nav.ts';
 import { placeName, type Place } from 'comun/weather.ts';
 import { findPlacesFor } from '#lib/server/places.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
@@ -98,6 +101,7 @@ import {
 	forgetHouse,
 	houseLink,
 	HouseProblem,
+	hasHouse,
 	houseUrl,
 	saveHouse
 } from '#lib/server/house.ts';
@@ -184,8 +188,10 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		voiceQuiet: admin ? { hours: voice.quiet } : null,
 		/** What the voice learned from its questions, by place (learned.ts). */
 		voiceLearned: admin ? await listLearned(k) : null,
-		/** Oración (#339) in the bar, on or off: only its administrator. */
-		prayerMode: admin ? await prayerModeOn(k) : null,
+		/** The bar's sections, on or off, Oración (#339) too: only its administrator. */
+		sections: admin
+			? sectionList(await hasHouse(locals.user!.id), await familySections(k), await prayerModeOn(k))
+			: null,
 		/** «Dónde vivís», if said: only its administrator. */
 		place: admin ? await familyPlace(k).then((p) => ({ name: p ? placeName(p) : null })) : null,
 		/** And how it talks to each one. */
@@ -400,13 +406,18 @@ export const actions: Actions = {
 		await setVoiceLearn(await kitchenOf(locals.user!.id), on);
 		return { saved: 'voiceLearn' };
 	},
-	/** Oración (#339), on or off. */
-	savePrayerMode: async ({ request, locals }) => {
-		const denied = await requireAdmin(locals.user!.id, 'prayerProblem');
+	/** The bar's sections, the ticked ones on; Oración (#339) with its own on or off. */
+	saveSections: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'sectionsProblem');
 		if (denied) return denied;
-		const on = (await request.formData()).get('on') === 'on';
-		await setPrayerMode(await kitchenOf(locals.user!.id), on);
-		return { saved: 'prayerMode' };
+		const ticked = (await request.formData()).getAll('on').map(String);
+		const k = await kitchenOf(locals.user!.id);
+		await setPrayerMode(k, ticked.includes('/oracion'));
+		await setFamilySections(
+			k,
+			savedSections(await hasHouse(locals.user!.id), await familySections(k), ticked)
+		);
+		return { saved: 'sections' };
 	},
 	/** «Horas de silencio»: both times, or none (`off`). */
 	saveVoiceQuiet: async ({ request, locals }) => {

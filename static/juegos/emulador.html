@@ -43,6 +43,8 @@
 		<script>
 			const params = new URLSearchParams(location.search);
 			const rom = params.get('rom') ?? '';
+			/** In a browser (#405), not the TV view with its remote. */
+			const web = params.get('vista') === 'web';
 			// Only the app's games.
 			if (rom.startsWith('/api/juegos/')) {
 				window.EJS_player = '#game';
@@ -51,8 +53,9 @@
 				window.EJS_gameName = params.get('title');
 				window.EJS_pathtodata = 'https://cdn.emulatorjs.org/4.2.3/data/';
 				window.EJS_language = 'es-ES';
-				// Straight into the game: it was chosen with the remote already.
-				window.EJS_startOnLoaded = true;
+				// Straight into the game: it was chosen with the remote already. In a browser its button:
+				// the sound can only start after a touch in this frame.
+				window.EJS_startOnLoaded = !web;
 				// «Guardar Estado» into this browser rather than a file to download, in the living room.
 				// The cartridge's save every minute rather than every five: to the server, when it changed.
 				window.EJS_defaultOptions = {
@@ -89,6 +92,7 @@
 					// The house's shader (/juegos/shaders), as if chosen in its menu: over what that kept.
 					const shader = params.get('shader');
 					if (shader) emulator.changeSettingOption?.('shader', shader);
+					if (web) showTouchButtons(emulator);
 					await loadCartridge(emulator).catch(() => {});
 					emulator.on('saveSaveFiles', sendCartridge);
 					ready.resolve();
@@ -97,6 +101,21 @@
 				loader.src = window.EJS_pathtodata + 'loader.js';
 				document.body.append(loader);
 			}
+			/**
+			 * On a touch screen, the on-screen buttons only without a gamepad: they would cover the game.
+			 * Its own setting, the one its menu changes (EmulatorJS has it only with a touch screen).
+			 */
+			function showTouchButtons(emulator) {
+				if (!emulator.hasTouchScreen && !emulator.touch) return;
+				const update = () => {
+					const pad = navigator.getGamepads().some((p) => p?.connected);
+					emulator.changeSettingOption('virtual-gamepad', pad ? 'disabled' : 'enabled');
+				};
+				update();
+				addEventListener('gamepadconnected', update);
+				addEventListener('gamepaddisconnected', update);
+			}
+
 			const backdrop = params.get('backdrop') ?? '';
 			/** Each of the console's buttons to the gamepad's that does it (game-controls.ts). */
 			const controls = (() => {
@@ -241,8 +260,8 @@
 						if (!e.repeat) void capture();
 					}
 					// Its OK: the game's menu (in the page around, /jugar). Not to EmulatorJS, for which
-					// Enter is Start: the gamepad has its own.
-					else if (e.key === 'Enter') {
+					// Enter is Start: the gamepad has its own. In a browser it may be a keyboard's: its Start.
+					else if (e.key === 'Enter' && !web) {
 						e.preventDefault();
 						e.stopImmediatePropagation();
 						if (!e.repeat) openMenu();
@@ -258,6 +277,8 @@
 			 * second. Not EmulatorJS' «FPS» option: in 4.2.3 its menu has it, but nothing shows it.
 			 */
 			const fps = document.getElementById('fps');
+			// Not over EmulatorJS' menu button, which a browser shows in that corner.
+			if (web) fps.style.right = '56px';
 			let lastFrame = null;
 			let lastTime = 0;
 			setInterval(() => {
