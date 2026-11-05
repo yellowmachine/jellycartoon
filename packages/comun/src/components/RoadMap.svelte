@@ -254,7 +254,7 @@
 	}
 </script>
 
-<div class="relative h-full w-full overflow-hidden rounded-3xl bg-zinc-900">
+<div class="road-map relative h-full w-full overflow-hidden rounded-3xl bg-zinc-900">
 	<div bind:this={container} class="h-full w-full"></div>
 	<!-- Below the top: the road mode writes where to there. -->
 	{#if problem}
@@ -263,17 +263,23 @@
 		</p>
 	{/if}
 	{#if corner}
-		<div class="absolute bottom-10 left-3">{@render corner()}</div>
+		<!-- In the credits' row, at their left. -->
+		<div class="absolute bottom-2 left-3">{@render corner()}</div>
 	{/if}
 	{#if !following && position}
 		<button
-			class="absolute bottom-10 left-1/2 -translate-x-1/2 rounded-full bg-amber-500 px-6 py-3 text-xl font-semibold text-black shadow-xl active:scale-95"
+			class="absolute bottom-16 left-1/2 z-10 -translate-x-1/2 rounded-full bg-amber-500 px-6 py-3 text-xl font-semibold text-black shadow-xl active:scale-95 sm:right-12 sm:bottom-2 sm:left-auto sm:translate-x-0"
 			onclick={recenter}>Recentrar</button
 		>
 	{/if}
 </div>
 
 <style>
+	/* The credits, open, wrapped beside the corner's button instead of under it. */
+	.road-map :global(.maplibregl-ctrl-bottom-right) {
+		max-width: calc(100% - 8rem);
+	}
+
 	/* Where we are: an arrow pointing the way we go (the marker turns with the heading). */
 	:global(.road-map-me) {
 		width: 34px;

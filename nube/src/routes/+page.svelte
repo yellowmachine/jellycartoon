@@ -56,8 +56,6 @@
 		weather={data.weather}
 		trip={data.trip}
 		car={data.car}
-		watching={data.watching}
-		receipts={data.receipts}
 	/>
 {:else}
 	<h1 class="mb-2 text-2xl font-bold">Hola, {data.user.name}</h1>

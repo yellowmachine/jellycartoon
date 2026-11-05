@@ -114,7 +114,9 @@
 	bind:offsetHeight={headerHeight}
 	class="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur"
 >
-	<nav class="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3 md:max-lg:gap-3 md:max-lg:py-2">
+	<nav
+		class="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3 md:max-lg:gap-3 md:max-lg:py-2 lg:max-xl:gap-4"
+	>
 		{@render start?.()}
 		<!-- On a tablet, only the picture: the sections need the room. -->
 		<a
@@ -122,16 +124,17 @@
 			title={brand.title}
 			class="flex min-w-0 items-center gap-2 text-lg font-bold text-amber-400"
 		>
-			<img src={brand.image} alt="" class="h-7 w-7 shrink-0 rounded-md" />
+			<!-- max-w-none: with little room, the name is cut short, and the picture stays whole. -->
+			<img src={brand.image} alt="" class="h-7 w-7 max-w-none shrink-0 rounded-md" />
 			<!-- A long family's name, cut short on a phone: the buttons after it stay in. -->
 			<span class={['truncate md:max-lg:sr-only', !brandOnPhone && 'max-md:sr-only']}
 				>{brand.title}</span
 			>
 		</a>
 		{@render leading?.()}
-		<!-- Wide screens: every link in a row; with its icon from xl, as with every section both do
-		     not fit in 1024px. A tablet (md, up to lg): every link too, its icon over a small
-		     name, as a tab bar; the one you are in, in amber. -->
+		<!-- Wide screens: every link in a row, without its icon: with every section and the bar's
+		     width, they would leave the brand no room. A tablet (md, up to lg): every link too, its
+		     icon over a small name, as a tab bar; the one you are in, in amber. -->
 		{#each links as link (link.href)}
 			<a
 				href={link.href}
@@ -142,7 +145,7 @@
 				]}
 				><SectionIcon
 					name={link.icon}
-					class="hidden h-[18px] w-[18px] shrink-0 md:max-lg:block md:max-lg:h-6 md:max-lg:w-6 xl:block"
+					class="hidden h-[18px] w-[18px] shrink-0 md:max-lg:block md:max-lg:h-6 md:max-lg:w-6"
 				/><span class="max-w-full truncate">{link.label}{@render out(link.external)}</span></a
 			>
 		{/each}
