@@ -75,13 +75,14 @@ toda la casa.
 
 ## Juegos
 
-resumen: Las consolas de siempre y tu Steam, en la tele y con un mando.
+resumen: Las consolas de siempre y tu Steam, en la tele, el móvil o la tablet.
 grupo: Oír y jugar
 icono: gamepad-2
 
 Tus juegos de la NES, la Super Nintendo, la Game Boy, la Mega Drive o las recreativas, en la tele
-del salón con un mando de juego. Cada uno guarda sus partidas y las sigue desde cualquier aparato.
-Y los juegos de Steam del ordenador, desde la misma pantalla.
+del salón con un mando de juego, o en el móvil y la tablet, con un mando o con botones en la pantalla.
+Cada uno guarda sus partidas y las sigue desde cualquier aparato. Y los juegos de Steam del ordenador,
+desde la pantalla de la tele.
 
 ## Canales de televisión
 

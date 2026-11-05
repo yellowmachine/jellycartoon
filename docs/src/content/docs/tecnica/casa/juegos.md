@@ -18,6 +18,12 @@ Juegos en `/tv`; en desarrollo se usa `GAMES_DIR`. También se pueden abrir en
   misma carpeta: no sale en la lista y se le pasa al juego que la usa. Los nombres completos salen
   de la lista de juegos de FBNeo, que se baja una vez de GitHub (13 MB) y se guarda en
   `HOST_DATA_DIR/juegos`.
+- También en el navegador (#405), para adultos: `/juegos`, con las mismas consolas, partidas,
+  cartuchos y tiempo de juego que en la tele. Se empieza tocando «Iniciar juego», porque el sonido
+  necesita un toque. El botón «Menú» abre el mismo menú, sin «Imagen», y «Pantalla completa» sale
+  donde el navegador la tenga. En una pantalla táctil, los botones en pantalla salen solo si no hay
+  mando conectado. La pantalla no se apaga mientras se juega. Steam y RetroDECK no, porque se abren en
+  el PC del salón.
 - En `/tv/juegos`, una tarjeta por consola; dentro, sus juegos en cuadrícula, cada uno con su
   carátula.
 - Las imágenes vienen de las miniaturas de
