@@ -86,12 +86,12 @@ class RecipeInProgress {
 	}
 
 	/**
-	 * Some timers ended: if one is a step's, the recipe goes on to the step after it, and that is
-	 * what is said, to go with «Ya está: la pasta».
+	 * Some timers ended: if one is a step's and the cook is not past it, the recipe goes on to the
+	 * step after it, and that is what is said, to go with «Ya está: la pasta».
 	 */
 	afterTimers(labels: string[]) {
 		if (!this.current) return null;
-		const next = afterTimer(this.current, labels, sameLabel);
+		const next = afterTimer(this.current, labels, sameLabel, this.step);
 		if (!next) return null;
 		this.go(next.step);
 		return next.say;

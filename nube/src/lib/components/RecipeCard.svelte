@@ -1,16 +1,28 @@
 <script lang="ts">
 	import { describeTimer } from 'comun/recipe.ts';
+	import { formatLeft, sameLabel, spokenLeft } from 'comun/timer-names.ts';
 	import { recipe } from '#lib/recipe.svelte.ts';
+	import { timers } from '#lib/timers.svelte.ts';
 
 	/**
 	 * The recipe being cooked (#60), on /voz: the step the cook is on, big enough to read from
 	 * across the kitchen, with buttons to go on or back (read aloud), the ingredients and every
-	 * step. The AI moves it too, by voice, and the timers when they end.
+	 * step. The AI moves it too, by voice, and the timers when they end. A step's timer starts by
+	 * voice or with its button here: only the cook knows when the water boils.
 	 */
 
 	const current = $derived(recipe.current!);
 	const step = $derived(current.steps[recipe.step]!);
 	const last = $derived(recipe.step === current.steps.length - 1);
+	const running = $derived(
+		step.timer && timers.list.find((t) => sameLabel(t.label, step.timer!.label))
+	);
+
+	function startTimer() {
+		// This tap is what lets it ring later, as the microphone's press does.
+		timers.unlockSound();
+		timers.start(step.timer!.label, step.timer!.minutes * 60);
+	}
 
 	const nav =
 		'rounded-2xl bg-zinc-800 px-6 py-4 text-2xl font-semibold transition hover:bg-zinc-700 active:scale-95 disabled:opacity-30';
@@ -35,6 +47,16 @@
 	<p class="text-3xl leading-snug font-semibold">{step.text}</p>
 	{#if step.timer}
 		<p class="mt-3 text-lg text-amber-400">⏱ {describeTimer(step.timer)}</p>
+		{#if running}
+			<p class="mt-3 text-2xl font-semibold text-amber-300 tabular-nums">
+				⏱ Contando: {formatLeft((running.endsAt - timers.now) / 1000)}
+			</p>
+		{:else}
+			<button
+				class="mt-3 w-full rounded-2xl bg-amber-500 px-6 py-4 text-2xl font-semibold text-zinc-950 transition hover:bg-amber-400 active:scale-95"
+				onclick={startTimer}>⏱ Poner {spokenLeft(step.timer.minutes * 60)}</button
+			>
+		{/if}
 	{/if}
 
 	<div class="mt-6 grid grid-cols-2 gap-3">
