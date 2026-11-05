@@ -18,5 +18,6 @@ export * from './inbox.schema.ts';
 export * from './rule.schema.ts';
 export * from './heard.schema.ts';
 export * from './prayer.schema.ts';
+export * from './notes.schema.ts';
 export * from './data-key.schema.ts';
 export * from './papers.schema.ts';

@@ -428,6 +428,13 @@
       "when": 1793866934773,
       "tag": "0060_greedy_kabuki",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1793895490312,
+      "tag": "0061_curvy_whiplash",
+      "breakpoints": true
     }
   ]
 }

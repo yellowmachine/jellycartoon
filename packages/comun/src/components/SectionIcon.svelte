@@ -12,6 +12,7 @@
 		| 'recetas'
 		| 'viajes'
 		| 'paseos'
+		| 'notas'
 		| 'nevera'
 		| 'gastos'
 		| 'papeles'
@@ -101,6 +102,14 @@
 		<circle cx="7" cy="17" r="2" />
 		<path d="M9 17h6" />
 		<circle cx="17" cy="17" r="2" />
+	{:else if name === 'notas'}
+		<!-- A notebook with a pencil's line (Lucide's notebook-pen, simplified). -->
+		<path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4" />
+		<path d="M2 6h4" />
+		<path d="M2 10h4" />
+		<path d="M2 14h4" />
+		<path d="M2 18h4" />
+		<path d="M18.4 2.6a2.1 2.1 0 1 1 3 3L16 11l-4 1 1-4Z" />
 	{:else if name === 'paseos'}
 		<!-- Footprints (Lucide's footprints). -->
 		<path

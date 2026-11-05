@@ -49,6 +49,13 @@ const SECTIONS: {
 		startsOff: true,
 		about: 'Tiempo, km y recorrido al salir a andar, privados de cada persona. Solo adultos.'
 	},
+	{
+		path: '/notas',
+		label: 'Notas',
+		icon: 'notas',
+		where: 'nube',
+		about: 'Notas dictadas, privadas de cada persona, para buscarlas luego. Solo adultos.'
+	},
 	// Homework from the cartoons watched at the house (#142), for the grown-ups and the children.
 	{
 		path: '/deberes',

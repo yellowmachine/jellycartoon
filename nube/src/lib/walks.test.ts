@@ -3,8 +3,14 @@ import { addPoints, type TripPoint } from '#lib/trips.ts';
 import {
 	FASTEST_WALK,
 	clockText,
+	dueCue,
+	goalLeftText,
 	mondayOf,
+	noCues,
 	noDiagnosis,
+	parsePlan,
+	spokenDistance,
+	spokenTime,
 	paceText,
 	parseWalk,
 	walkDistanceText,
@@ -88,5 +94,84 @@ describe('totals', () => {
 		);
 		expect(totals.week).toEqual({ walks: 2, distance: 2000, seconds: 1200 });
 		expect(totals.month).toEqual({ walks: 3, distance: 3000, seconds: 1800 });
+	});
+});
+
+describe('voice cues', () => {
+	const plan = (over = {}) => ({ every: null, goal: null, list: null, ...over });
+
+	test('nothing chosen, nothing said', () => {
+		expect(dueCue(plan(), noCues(), 5000, 3000).text).toBeNull();
+	});
+
+	test('each km once, not the ones passed one by one', () => {
+		const km = plan({ every: 'km' });
+		expect(dueCue(km, noCues(), 900, 600).text).toBeNull();
+		const first = dueCue(km, noCues(), 1040, 720);
+		expect(first.text).toBe('1 kilómetro, 12 minutos.');
+		expect(dueCue(km, first.cues, 1500, 900).text).toBeNull();
+		const late = dueCue(km, first.cues, 3210, 2000);
+		expect(late.text).toBe('3,2 kilómetros, 33 minutos.');
+		expect(late.cues.marks).toBe(3);
+	});
+
+	test('every some minutes', () => {
+		const every = plan({ every: '10min' });
+		expect(dueCue(every, noCues(), 700, 599).text).toBeNull();
+		expect(dueCue(every, noCues(), 780, 601).text).toBe('10 minutos, 780 metros.');
+	});
+
+	test('a goal by time: its half and its end, once each, with no periodic cues', () => {
+		const goal = plan({ goal: { kind: 'minutes', value: 30 } });
+		expect(dueCue(goal, noCues(), 1000, 899).text).toBeNull();
+		const half = dueCue(goal, noCues(), 1000, 900);
+		expect(half.text).toContain('Puedes dar la vuelta');
+		expect(dueCue(goal, half.cues, 1100, 950).text).toBeNull();
+		const end = dueCue(goal, half.cues, 2400, 1800);
+		expect(end.text).toBe('Objetivo conseguido: 30 minutos, 2,4 kilómetros.');
+		expect(dueCue(goal, end.cues, 2500, 1900).text).toBeNull();
+	});
+
+	test('a goal by km, reached with a km mark: the goal is said, the mark not again', () => {
+		const goal = plan({ every: 'km', goal: { kind: 'km', value: 2 } });
+		const half = dueCue(goal, noCues(), 1000, 700);
+		expect(half.text).toContain('Mitad');
+		expect(half.cues.marks).toBe(1);
+		const end = dueCue(goal, half.cues, 2000, 1400);
+		expect(end.text).toContain('Objetivo conseguido');
+		expect(dueCue(goal, end.cues, 2100, 1450).text).toBeNull();
+	});
+
+	test('reached late, its half is not said after it', () => {
+		const goal = plan({ goal: { kind: 'km', value: 2 } });
+		const end = dueCue(goal, noCues(), 2500, 1500);
+		expect(end.text).toContain('Objetivo conseguido');
+		expect(dueCue(goal, end.cues, 2600, 1600).text).toBeNull();
+	});
+
+	test('said to be heard', () => {
+		expect(spokenDistance(804)).toBe('800 metros');
+		expect(spokenDistance(2000)).toBe('2 kilómetros');
+		expect(spokenTime(60)).toBe('1 minuto');
+		expect(spokenTime(3900)).toBe('1 hora y 5 minutos');
+		expect(spokenTime(7200)).toBe('2 horas');
+	});
+
+	test('what is left of the goal', () => {
+		expect(goalLeftText({ kind: 'minutes', value: 30 }, 0, 1081)).toBe('Faltan 12 min');
+		expect(goalLeftText({ kind: 'km', value: 2 }, 800, 0)).toBe('Faltan 1,20 km');
+		expect(goalLeftText({ kind: 'km', value: 2 }, 2000, 0)).toBeNull();
+	});
+
+	test('a plan kept on the device, as far as it is valid', () => {
+		expect(parsePlan(null)).toEqual(plan());
+		expect(parsePlan({ every: 'nunca', goal: { kind: 'km', value: 7 }, list: 'x' })).toEqual(
+			plan()
+		);
+		expect(parsePlan({ every: 'km', goal: { kind: 'km', value: 5 }, list: 3 })).toEqual({
+			every: 'km',
+			goal: { kind: 'km', value: 5 },
+			list: 3
+		});
 	});
 });

@@ -9,9 +9,14 @@
 	 */
 	let {
 		line,
-		photos = []
-	}: { line: StoredPoint[]; photos?: { id: number; lon: number | null; lat: number | null }[] } =
-		$props();
+		photos = [],
+		photoBase = '/viajes/fotos'
+	}: {
+		line: StoredPoint[];
+		photos?: { id: number; lon: number | null; lat: number | null }[];
+		/** Where the photos are: a trip's, unless said. */
+		photoBase?: string;
+	} = $props();
 
 	let container = $state<HTMLDivElement>();
 	let problem = $state<string | null>(null);
@@ -61,7 +66,7 @@
 			for (const photo of photos) {
 				if (photo.lon === null || photo.lat === null) continue;
 				const img = document.createElement('img');
-				img.src = `/viajes/fotos/${photo.id}`;
+				img.src = `${photoBase}/${photo.id}`;
 				img.alt = '';
 				img.className = 'trip-photo';
 				new maplibregl.Marker({ color: '#0ea5e9', scale: 0.8 })

@@ -89,6 +89,8 @@ import {
 	recallMemories,
 	remember
 } from '#lib/server/memory.ts';
+import { addSaidNote, describeNotes } from '#lib/server/notes.ts';
+import { MAX_NOTE_TEXT } from '#lib/notes.ts';
 import { familyPeople } from '#lib/server/agenda/agenda.ts';
 import { leaveMessage, MAX_MESSAGE } from '#lib/server/inbox.ts';
 import { ruleEvent } from '#lib/server/rule-events.ts';
@@ -131,12 +133,14 @@ const ONE_ROUND = new Set([
 	'recipe_step',
 	'end_recipe',
 	'remember',
-	'forget_memory'
+	'forget_memory',
+	'take_note'
 ]);
 /** An order that already kept or forgot something itself: nothing more to learn from it (#331). */
 const ASKED_TO_KEEP = new Set([
 	'remember',
 	'forget_memory',
+	'take_note',
 	'create_rule',
 	'delete_rule',
 	'leave_message'
@@ -905,6 +909,30 @@ function memoryTools(satellite: boolean): Tool[] {
 			['id']
 		),
 		tool(
+			'take_note',
+			'Guarda una nota que dicta para buscarla cuando la pida («toma nota: llamar al fontanero el lunes», «nota: idea para el huerto»). Es para quien pide expresamente una nota. No es para lo que debes tener en cuenta al contestar («recuerda…», «apúntate que…»): para eso, «remember».',
+			{
+				text: {
+					type: 'string',
+					description: `La nota, con sus palabras, sin «toma nota». Hasta ${MAX_NOTE_TEXT} letras.`
+				}
+			},
+			['text']
+		),
+		tool(
+			'find_notes',
+			'Busca las notas que puede ver quien habla, las dictadas aquí y las grabadas en Seilide o en un paseo, solo cuando las pide («¿qué apunté ayer sobre el coche?», «léeme mis notas»). Devuelve las más recientes con su día.',
+			{
+				words: {
+					type: 'string',
+					description: 'Lo que debe poner la nota: una o dos palabras («coche»). Vacío, todas.'
+				},
+				from_day: { type: 'string', description: 'Desde qué día, AAAA-MM-DD, si lo dice.' },
+				until_day: { type: 'string', description: 'Hasta qué día, AAAA-MM-DD, si lo dice.' }
+			},
+			[]
+		),
+		tool(
 			'list_memories',
 			'Todo lo que te han pedido recordar y puede ver quien habla, para «¿qué te he pedido que recuerdes?», o para buscar algo que no está en el mensaje.',
 			{},
@@ -1118,6 +1146,7 @@ Cómo responder:
 - Si no está claro qué pide y no son pocas opciones que nombrar («media hora», sin más), pregúntalo con «answer» y «expects_answer»: su respuesta llega como la orden siguiente.
 - Si lo encuentras con otro nombre porque se oyó mal («Boyman Rhapsody» es «Bohemian Rhapsody»), no lo expliques: di solo lo que pones, con su nombre bien («Pongo Bohemian Rhapsody de Queen en toda la casa»). Cada palabra de más se tarda en decir.
 - Lo que te han pedido recordar viene en el mensaje, con su número; para «¿dónde está…?», «¿cuál era…?», contesta con eso, y si no está, mira «list_memories» antes de decir que no lo sabes. Nunca lo inventes.
+- Las notas no vienen en el mensaje y no las uses por tu cuenta: guárdalas con «take_note» si pide una nota, y míralas con «find_notes» solo si pregunta por sus notas o por lo que apuntó.
 - Si no sabes lo que te preguntan, dilo y ya. Nunca añadas algo recordado que no tenga que ver con la pregunta («lo que sí sé es que el paraguas está en la biblioteca»): solo lo que conteste a lo que pregunta.
 - Los temporizadores de hoy que ya sonaron dicen también lo que se puso a enfriar, a cocer o a esperar («la cerveza del congelador, ya sonó y se paró hace 2 h»): para «¿tengo algo en el congelador?», «¿había puesto algo al horno?», contesta con eso, como lo que sabes («metiste la cerveza; su aviso sonó hace dos horas y lo paraste: si no la sacaste, sigue ahí»).
 - Si es una pregunta para pensar (una opinión, filosofía, el porqué de algo, que le expliques algo a fondo) y no una orden ni un dato, usa «converse» con la pregunta: contesta otra voz más pensada, en unas frases. Si la charla sigue con lo mismo («¿y por qué?», «pero entonces…»), vuelve a usarla. Un dato rápido («¿cuándo nació Kant?», «¿qué hora es?») lo contestas tú con «answer»; y «converse» nunca para hacer algo.
@@ -1422,6 +1451,20 @@ async function runTool(
 		}
 		case 'list_memories':
 			return describeMemories(ctx.k, ctx.memoryOf);
+		case 'take_note': {
+			const text = typeof args.text === 'string' ? args.text : '';
+			if (!(await addSaidNote(ctx.k, ctx.memoryOf, text))) return 'Falta qué apuntar.';
+			ctx.outcome.done++;
+			return `Nota guardada, ${ctx.memoryOf ? 'solo para quien habla' : 'para toda la casa'}.`;
+		}
+		case 'find_notes': {
+			const text = (v: unknown) => (typeof v === 'string' ? v : null);
+			return describeNotes(ctx.k, ctx.memoryOf, {
+				words: text(args.words),
+				fromDay: text(args.from_day),
+				untilDay: text(args.until_day)
+			});
+		}
 		case 'group_say': {
 			const text = typeof args.text === 'string' ? args.text.trim().slice(0, 1000) : '';
 			if (!text) return 'Falta qué decir.';
