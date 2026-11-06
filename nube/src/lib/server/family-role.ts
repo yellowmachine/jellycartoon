@@ -75,6 +75,21 @@ export function stepDownAdmin(
 	});
 }
 
+/** Its name, by whoever administers it (#315): a family made on leaving comes with a plain one. */
+export function renameFamily(
+	withFamily: ReturnType<typeof familyScope>,
+	userId: string,
+	name: string
+): Promise<{ ok: true } | { ok: false; problem: string }> {
+	const clean = name.trim().slice(0, 60);
+	return withFamily(userId, async (tx, m) => {
+		if (m.role !== 'admin') return { ok: false, problem: 'Solo quien administra la familia' };
+		if (!clean) return { ok: false, problem: 'Ponle un nombre' };
+		await tx.update(family).set({ name: clean }).where(eq(family.id, m.familyId));
+		return { ok: true };
+	});
+}
+
 /** The family's adults, by what they are: who administers, and who it can be handed over to. */
 export async function adminsAndAdults(
 	withFamily: ReturnType<typeof familyScope>,

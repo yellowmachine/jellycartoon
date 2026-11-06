@@ -34,8 +34,14 @@ import {
 } from '#lib/server/telegram/bot.ts';
 import { BOT_EVENTS, parseBotEvents } from '#lib/telegram-bot.ts';
 import { withFamily } from '#lib/server/family.ts';
-import { adminsAndAdults, handOverAdmin, stepDownAdmin } from '#lib/server/family-role.ts';
+import {
+	adminsAndAdults,
+	handOverAdmin,
+	renameFamily,
+	stepDownAdmin
+} from '#lib/server/family-role.ts';
 import { accountDeletion } from '#lib/server/account-deletion.ts';
+import { leaveFamily } from '#lib/server/family-move.ts';
 import { isServiceAdmin } from '#lib/server/invitations.ts';
 import { sendAdminHandedOver } from '#lib/server/emails.ts';
 import {
@@ -169,6 +175,8 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		telegramBot: admin ? { bot: await botStatus(membership.familyId) } : null,
 		/** «Entrar con la nube» (#279): its houses' clients, and the cloud's address for their .env. */
 		houseClients: admin ? { clients: await houseClients(request.headers), origin: ORIGIN } : null,
+		/** Whether they can leave their family, or what stops it (#315). */
+		leaving: await accountDeletion.stateOf(locals.user!.id),
 		/** What deleting one's account would do (#315); the service's administrator's, nothing. */
 		deletion: isServiceAdmin(locals.user!.email)
 			? null
@@ -675,10 +683,28 @@ export const actions: Actions = {
 		);
 		return { handedOver: { name: done.name, sent } };
 	},
+	renameFamily: async ({ request, locals }) => {
+		const name = String((await request.formData()).get('name') ?? '');
+		const done = await renameFamily(withFamily, locals.user!.id, name);
+		if (!done.ok) return fail(400, { handOverProblem: done.problem });
+		return { saved: 'family-name' };
+	},
 	stepDownAdmin: async ({ locals }) => {
 		const done = await stepDownAdmin(withFamily, locals.user!.id);
 		if (!done.ok) return fail(400, { handOverProblem: done.problem });
 		return { saved: 'stepped-down' };
+	},
+	/** Out of the family, with what is theirs (#315): themselves, or someone else by its admin. */
+	leaveFamily: async ({ locals }) => {
+		const done = await leaveFamily(locals.user!.id, locals.user!.id);
+		if (!done.ok) return fail(400, { leaveProblem: done.problem });
+		return { left: { family: done.familyName } };
+	},
+	unlinkMember: async ({ request, locals }) => {
+		const userId = String((await request.formData()).get('userId') ?? '');
+		const done = await leaveFamily(locals.user!.id, userId);
+		if (!done.ok) return fail(400, { personProblem: done.problem });
+		return { unlinked: { name: done.name } };
 	},
 	/** «Eliminar mi cuenta» (#315): an email with the link to its page (/cuenta/eliminar). */
 	requestDeletion: async ({ request, locals }) => {

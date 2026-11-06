@@ -1,6 +1,7 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
-	import { secondary, section } from '#lib/styles.ts';
+	import { field, secondary, section } from '#lib/styles.ts';
 	import type { PageData, ActionData } from './$types';
 
 	/**
@@ -27,6 +28,26 @@
 			</p>
 		{/if}
 		{#if data.handOver}
+			<form
+				method="post"
+				action="?seccion={tab}&/renameFamily"
+				class="mb-4 flex gap-2"
+				use:enhance={() =>
+					async ({ update }) =>
+						update({ reset: false })}
+			>
+				<label class="min-w-0 flex-1 text-sm text-zinc-400">
+					Nombre de la familia
+					<input
+						name="name"
+						value={data.family?.name ?? ''}
+						required
+						maxlength="60"
+						class="{field} mt-1"
+					/>
+				</label>
+				<button class="{secondary} self-end">Guardar</button>
+			</form>
 			<p class="mb-4 text-sm text-zinc-400">
 				Puedes pasársela a otro adulto de la familia. Es inmediato: dejas de administrar, y solo
 				quien administre podrá devolvértela.

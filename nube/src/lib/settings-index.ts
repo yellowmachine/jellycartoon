@@ -230,6 +230,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		shown: onlyAdmin
 	},
 	{
+		id: 'salir-familia',
+		tab: 'cuenta',
+		title: 'Salir de la familia',
+		words: 'salir irme dejar familia separarme separacion desvincular cambiar otra'
+	},
+	{
 		id: 'eliminar-cuenta',
 		tab: 'cuenta',
 		title: 'Eliminar mi cuenta',

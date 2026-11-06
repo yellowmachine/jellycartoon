@@ -131,6 +131,20 @@ export function sendAccountDeleted(to: string) {
 	});
 }
 
+/** To whoever was unlinked from their family (#315): what happened, and that they lost nothing. */
+export function sendUnlinked(i: { to: string; oldFamily: string; family: string }) {
+	return sendMail({
+		to: i.to,
+		subject: `Ya no estás en «${i.oldFamily}» en ${NAME}`,
+		html: page([
+			`Quien administra <strong>${escape(i.oldFamily)}</strong> te ha desvinculado de la familia.`,
+			`Sigues teniendo tu cuenta, y ahora tienes tu propia familia, <strong>${escape(i.family)}</strong>, con lo tuyo: tus viajes, paseos, notas y fotos, lo que recuerda la voz, tu medicación, y una copia de las citas y papeles que compartías.`,
+			'Los gastos, la nevera y las recetas se han quedado allí, y también lo de los peques.',
+			`<a href="${ORIGIN}" style="color:#b45309">Entrar en ${NAME}</a>`
+		])
+	});
+}
+
 /** Something of their «Buzón» (#331): a message left for them, or an urgent notice. */
 export function sendInboxMail(to: string, title: string, body: string, url: string) {
 	const link = new URL(url, ORIGIN).href;

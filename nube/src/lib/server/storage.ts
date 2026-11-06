@@ -1,4 +1,5 @@
 import {
+	CopyObjectCommand,
 	CreateBucketCommand,
 	DeleteObjectCommand,
 	GetObjectCommand,
@@ -105,6 +106,23 @@ export async function listFiles(familyId: string, area: string) {
 		token = page.IsTruncated ? page.NextContinuationToken : undefined;
 	} while (token);
 	return names;
+}
+
+/** A file, from a family to another (#315). One that is not there is said, and is not a failure. */
+export async function copyFile(fromFamily: string, toFamily: string, area: string, name: string) {
+	const s3 = await storage();
+	try {
+		await s3.send(
+			new CopyObjectCommand({
+				Bucket: S3_BUCKET,
+				CopySource: `${S3_BUCKET}/${keyOf(fromFamily, area, name)}`,
+				Key: keyOf(toFamily, area, name)
+			})
+		);
+	} catch (error) {
+		if ((error as { name?: string }).name !== 'NoSuchKey') throw error;
+		console.warn('[ficheros] No está para copiarlo', area, name);
+	}
 }
 
 /** All of a family's files, whatever their area: the family is gone (#315). */

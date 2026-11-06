@@ -183,35 +183,12 @@ export function accountDeletionScope(db: AnyDb, { role }: { role?: string } = {}
 				const own = await personFiles(kitchen, userId);
 				const papers = await leaveFamily(tx, userId, name);
 
-				const mine = await tx
-					.select({ kidId: kidGuardian.kidId })
-					.from(kidGuardian)
-					.where(eq(kidGuardian.guardianId, userId));
-				const kidIds = mine.map((k) => k.kidId);
-				const others = kidIds.length
-					? await tx
-							.select({ kidId: kidGuardian.kidId })
-							.from(kidGuardian)
-							.where(and(inArray(kidGuardian.kidId, kidIds), ne(kidGuardian.guardianId, userId)))
-					: [];
-				const covered = new Set(others.map((o) => o.kidId));
-				const orphans = kidIds.filter((id) => !covered.has(id));
-				const orphanKids = orphans.length
-					? await tx
-							.select({ name: user.name })
-							.from(user)
-							.where(inArray(user.id, orphans))
-							.then((rows) => rows.map((r) => r.name))
-					: [];
-				const admins = await tx
-					.select({ id: familyMember.userId })
-					.from(familyMember)
-					.where(and(eq(familyMember.role, 'admin'), ne(familyMember.userId, userId)));
+				const { orphanKids, admins } = await orphansOf(tx, userId);
 				return {
 					familyId: m.familyId,
 					files: [...own, ...papers],
 					orphanKids,
-					admins: admins.map((a) => a.id)
+					admins
 				};
 			});
 			Object.assign(plan, found);
@@ -225,6 +202,33 @@ export function accountDeletionScope(db: AnyDb, { role }: { role?: string } = {}
 	}
 
 	return { stateOf, prepare };
+}
+
+/** Children only they let in, by name, and who else administers: to be told when they go. */
+export async function orphansOf(tx: AnyDb, userId: string) {
+	const mine = await tx
+		.select({ kidId: kidGuardian.kidId })
+		.from(kidGuardian)
+		.where(eq(kidGuardian.guardianId, userId));
+	const kidIds = mine.map((k) => k.kidId);
+	const others = kidIds.length
+		? await tx
+				.select({ kidId: kidGuardian.kidId })
+				.from(kidGuardian)
+				.where(and(inArray(kidGuardian.kidId, kidIds), ne(kidGuardian.guardianId, userId)))
+		: [];
+	const covered = new Set(others.map((o) => o.kidId));
+	const orphans = kidIds.filter((id) => !covered.has(id));
+	const orphanKids = orphans.length
+		? (await tx.select({ name: user.name }).from(user).where(inArray(user.id, orphans))).map(
+				(r) => r.name
+			)
+		: [];
+	const admins = await tx
+		.select({ id: familyMember.userId })
+		.from(familyMember)
+		.where(and(eq(familyMember.role, 'admin'), ne(familyMember.userId, userId)));
+	return { orphanKids, admins: admins.map((a) => a.id) };
 }
 
 /** Told when it is asked, and again in case things changed since. */

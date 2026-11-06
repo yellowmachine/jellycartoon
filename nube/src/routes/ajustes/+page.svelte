@@ -210,6 +210,18 @@
 								/>
 							{/if}
 						</div>
+						{#if data.handOver?.others.some((a) => a.id === p.userId)}
+							<div class="mt-2 pl-11">
+								<ConfirmForm
+									action="?seccion={tab}&/unlinkMember"
+									fields={{ userId: p.userId ?? '' }}
+									label="Desvincular de la familia"
+									question="¿Desvincular a {p.name}? Conserva su cuenta y pasa a su propia familia, con sus viajes, paseos, notas, fotos y medicación, y una copia de lo que compartís. Deja de ver todo lo demás de esta familia."
+									yes="Sí, desvincular"
+									class="text-sm text-zinc-400 hover:text-white hover:underline"
+								/>
+							</div>
+						{/if}
 						{#if editingPerson === p.id}
 							<form
 								method="post"
@@ -326,6 +338,11 @@
 			{/if}
 			{#if form && 'personProblem' in form}
 				<p class="mt-3 text-sm text-red-400">{form.personProblem}</p>
+			{/if}
+			{#if form && 'unlinked' in form && typeof form.unlinked === 'object'}
+				<p class="mt-3 text-sm text-zinc-300">
+					{form.unlinked.name} ya no está en la familia, y tiene la suya.
+				</p>
 			{/if}
 		</section>
 
@@ -759,6 +776,41 @@
 				>Descargar mis datos</a
 			>
 		</section>
+
+		{#if (form && 'left' in form) || data.leaving.kind === 'stays' || data.leaving.kind === 'handOverFirst'}
+			<section class={section} id="salir-familia">
+				<h2 class="mb-1 font-semibold">Salir de la familia</h2>
+				{#if form && 'left' in form && typeof form.left === 'object'}
+					<p class="text-sm text-green-400">
+						✓ Ya has salido. Ahora estás en «{form.left.family}», con lo tuyo. Puedes cambiarle el
+						nombre e invitar a quien quieras, en la pestaña Familia.
+					</p>
+				{:else if data.leaving.kind === 'handOverFirst'}
+					<p class="text-sm text-zinc-400">
+						Eres quien administra la familia y hay más adultos. Antes tienes que
+						<a class="text-amber-500 hover:underline" href="?seccion=familia#administracion"
+							>pasarle la administración a uno de ellos</a
+						>.
+					</p>
+				{:else}
+					<p class="mb-4 text-sm text-zinc-400">
+						Conservas tu cuenta y pasas a tu propia familia, con tus viajes, paseos, notas, fotos y
+						medicación, y una copia de lo que compartes. Dejas de ver todo lo demás de esta familia,
+						como los gastos, la nevera y las recetas, y la casa.
+					</p>
+					<ConfirmForm
+						action="?seccion={tab}&/leaveFamily"
+						label="Salir de la familia"
+						question="¿Salir de la familia? Para volver, tendrían que invitarte."
+						yes="Sí, salir"
+						class={secondary}
+					/>
+				{/if}
+				{#if form && 'leaveProblem' in form}
+					<p class="mt-3 text-sm text-red-400">{form.leaveProblem}</p>
+				{/if}
+			</section>
+		{/if}
 
 		{#if data.deletion}
 			<section class={section} id="eliminar-cuenta">

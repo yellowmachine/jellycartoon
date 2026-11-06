@@ -5,7 +5,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { sql } from 'drizzle-orm';
 import * as schema from './db/schema.ts';
 import { family, familyMember, user } from './db/schema.ts';
-import { adminsAndAdults, handOverAdmin } from './family-role.ts';
+import { adminsAndAdults, handOverAdmin, renameFamily } from './family-role.ts';
 import { familyScope } from './family-scope.ts';
 
 /** On a real Postgres (PGlite), as the app's role, to which row-level security applies. */
@@ -48,6 +48,17 @@ beforeEach(async () => {
 		{ userId: 'peque', familyId: 'A', role: 'peque' },
 		{ userId: 'berta', familyId: 'B', role: 'admin' }
 	]);
+});
+
+describe('its name (#315)', () => {
+	test('only whoever administers, and only theirs', async () => {
+		expect((await renameFamily(withFamily, 'luis', 'Otra')).ok).toBe(false);
+		expect((await renameFamily(withFamily, 'ana', '   ')).ok).toBe(false);
+		expect(await renameFamily(withFamily, 'ana', ' Los Pérez ')).toEqual({ ok: true });
+		const names = await db.select().from(family).orderBy(family.id);
+		expect(names.map((f) => f.name)).toEqual(['Los Pérez', 'Casa B']);
+		await renameFamily(withFamily, 'ana', 'Casa A');
+	});
 });
 
 describe('handing over the administration (#315)', () => {
