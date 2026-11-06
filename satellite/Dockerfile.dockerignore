@@ -15,4 +15,5 @@
 !static/wakeword/alexa.onnx
 !static/wakeword/okapi.onnx
 !static/wakeword/ocarina.onnx
+!static/wakeword/kusanagi.onnx
 !static/wakeword/silero_vad.onnx

@@ -6,12 +6,15 @@
  * same in English and Spanish and without «Alexa»'s non-commercial licence: tried with our voices.
  * «Ocarina», ours too (2026-11-03, 100.000 examples): over «Okapi» in ../wakeup's comparison
  * with music, to be tried with our voices and with «cocina» said around.
+ * «Kusanagi», ours too (2026-11-06, 100.000 examples), ku-sa-NA-gui: like «Ocarina» in that
+ * comparison, to be tried with our voices and with the TV on.
  */
 export const WAKE_WORDS = {
 	hola_casita: 'hola casita',
 	alexa: 'Alexa',
 	okapi: 'Okapi',
-	ocarina: 'Ocarina'
+	ocarina: 'Ocarina',
+	kusanagi: 'Kusanagi'
 } as const;
 
 export type WakeWordModel = keyof typeof WAKE_WORDS;
