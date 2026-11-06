@@ -23,6 +23,8 @@ export const DEFAULT_VISION_MODEL = 'anthropic/claude-sonnet-5.5';
 export const DEFAULT_VOICE_MODEL = 'anthropic/claude-haiku-5.5';
 
 type Key =
+	/** Since which day what is watched goes to Seilide (#421). */
+	| 'watch_log_since'
 	| 'openrouter_api_key'
 	| 'openrouter_management_key'
 	| 'openrouter_model'

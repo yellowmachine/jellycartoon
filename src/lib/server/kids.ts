@@ -1,6 +1,7 @@
 import { error, type RequestEvent } from '@sveltejs/kit';
 import { and, eq, exists, sql } from 'drizzle-orm';
 import { getRequestEvent } from '$app/server';
+import { KIDS_ROLE } from '#lib/kids-role.ts';
 import { KIDS_TAG } from '#lib/kids-tag.ts';
 import { db } from '#lib/server/db/index.ts';
 import { episode, movie, movieTag, series, seriesTag, tag, user } from '#lib/server/db/schema.ts';
@@ -9,8 +10,7 @@ import { episode, movie, movieTag, series, seriesTag, tag, user } from '#lib/ser
  * Children's accounts (#17): created from Ajustes with the role «infantil», they only see the series
  * and films with this tag. Enforced here, on the server, not by hiding things in the page.
  */
-export { KIDS_TAG };
-export const KIDS_ROLE = 'infantil';
+export { KIDS_ROLE, KIDS_TAG };
 
 /** The address Seilide gives its children's accounts (#303): nobody reads it. */
 export const KID_EMAIL = /@peques\.invalid$/i;

@@ -13,11 +13,12 @@ import { orsFor } from '#lib/server/road/ors.ts';
 import { orsKey } from '#lib/server/family-settings.ts';
 import { askForAccess } from '#lib/server/waitlist.ts';
 import { EMAIL } from '#lib/invitation.ts';
+import { news } from '#lib/server/news.ts';
 
 /**
  * Without a session, the landing page (hooks.server.ts lets `/` through); with one, what there is
- * today in the family (home.ts). The weather and the next trip come after the page, as they ask
- * outside (Open-Meteo).
+ * today in the family (home.ts). The weather, the next trip and the news come after the page, as
+ * they ask outside (Open-Meteo, their Miniflux).
  */
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) return { home: null };
@@ -39,6 +40,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		return {
 			home: await homeOf(k, userId, admin),
 			weather: homeWeather(k).catch(() => null),
+			news: news.newsOf(userId).catch((error) => {
+				console.warn('[portada] Sin las noticias', String(error));
+				return null;
+			}),
 			trip: nextTrip(k).catch((error) => {
 				console.warn('[portada] Sin el próximo viaje', String(error));
 				return null;

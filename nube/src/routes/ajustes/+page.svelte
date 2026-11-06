@@ -21,6 +21,7 @@
 	import VozAprendido from './VozAprendido.svelte';
 	import VozRecuerda from './VozRecuerda.svelte';
 	import ComoTeAviso from './ComoTeAviso.svelte';
+	import Noticias from './Noticias.svelte';
 	import Reglas from './Reglas.svelte';
 	import Satelites from './Satelites.svelte';
 	import Guardado from 'comun/components/Guardado.svelte';
@@ -141,6 +142,8 @@
 		<Reglas {data} {form} {tab} />
 
 		<h2 class={group}>Avisos y lo tuyo</h2>
+
+		<Noticias {data} {form} {tab} />
 
 		<ComoTeAviso {data} {tab} />
 

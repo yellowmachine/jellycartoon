@@ -31,7 +31,8 @@ import { scenesCost } from '#lib/server/cinema/scenes.ts';
 import { quoteCost } from '#lib/server/opening-quote.ts';
 import { BATCH_SIZE } from '#lib/episode-titles.ts';
 import { createCloudKey, deleteCloudKey, listCloudKeys } from '#lib/server/media-api.ts';
-import { askCloud, cloudLink, CloudProblem, setCloudLink } from '#lib/server/kitchen.ts';
+import { askCloud, cloudLink, cloudUrl, CloudProblem, setCloudLink } from '#lib/server/kitchen.ts';
+import { sendWatchLogNow } from '#lib/server/watch-log.ts';
 import { snapcastVoiceReady } from '#lib/server/music/snapcast.ts';
 import {
 	findPlaces,
@@ -290,6 +291,8 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		stillThere: isKid(locals.user) ? null : { after: await askAfter(userId) },
 		/** «Guardar lo que veo»: adults only, a child's is always kept for the adults (#17). */
 		keepHistory: isKid(locals.user) ? null : settings.keepHistory,
+		/** Then what they watch also goes to Seilide's statistics (#421). */
+		sendsWatchToCloud: Boolean(await cloudUrl()),
 		/** The road mode's trips kept (#81); adults only. */
 		/** Their own Telegram (#243), read aloud in the road mode: adults only. Never its session. */
 		telegram: isKid(locals.user)
@@ -750,6 +753,8 @@ export const actions: Actions = {
 	history: async ({ request, locals }) => {
 		if (isKid(locals.user)) error(404, 'No encontrado');
 		await setKeepHistory(locals.user!.id, (await request.formData()).get('keepHistory') === 'on');
+		// What Seilide has of them goes now rather than within 10 minutes; without an answer, later.
+		void sendWatchLogNow();
 		return { saved: 'history' };
 	},
 	saveLangua: async ({ request, locals }) => {

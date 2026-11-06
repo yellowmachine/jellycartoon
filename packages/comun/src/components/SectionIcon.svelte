@@ -13,6 +13,7 @@
 		| 'viajes'
 		| 'paseos'
 		| 'notas'
+		| 'estadisticas'
 		| 'nevera'
 		| 'gastos'
 		| 'papeles'
@@ -110,6 +111,9 @@
 		<path d="M2 14h4" />
 		<path d="M2 18h4" />
 		<path d="M18.4 2.6a2.1 2.1 0 1 1 3 3L16 11l-4 1 1-4Z" />
+	{:else if name === 'estadisticas'}
+		<!-- Three columns on a line. -->
+		<path d="M3 20.5h18M6.5 20.5v-6M12 20.5V5M17.5 20.5v-10" />
 	{:else if name === 'paseos'}
 		<!-- Footprints (Lucide's footprints). -->
 		<path

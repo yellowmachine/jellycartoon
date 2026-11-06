@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { userSettings } from '#lib/server/db/schema.ts';
+import { userSettings, watchTime } from '#lib/server/db/schema.ts';
 import { sanitizeSubtitleStyle, type SubtitleStyle } from 'comun/subtitle-style.ts';
 import { DEFAULT_THEME, isTheme, type ThemeId } from 'comun/themes.ts';
 
@@ -49,11 +49,22 @@ export async function keepsHistory(userId: string) {
 	return keep;
 }
 
-/** «Guardar lo que veo», in Ajustes: off deletes nothing already kept. */
+/**
+ * «Guardar lo que veo», in Ajustes: off deletes nothing kept here, and what Seilide has of them, yes
+ * (#421). So nothing kept here is sent there again if it is turned on later, only what comes next.
+ */
 export async function setKeepHistory(userId: string, keepHistory: boolean) {
-	await db
-		.insert(userSettings)
-		.values({ userId, keepHistory })
-		.onConflictDoUpdate({ target: userSettings.userId, set: { keepHistory } });
+	await db.transaction(async (tx) => {
+		const off = keepHistory ? {} : { forgetSentWatch: true };
+		await tx
+			.insert(userSettings)
+			.values({ userId, keepHistory, ...off })
+			.onConflictDoUpdate({ target: userSettings.userId, set: { keepHistory, ...off } });
+		if (!keepHistory)
+			await tx
+				.update(watchTime)
+				.set({ sentSeconds: sql`${watchTime.seconds}` })
+				.where(eq(watchTime.userId, userId));
+	});
 	keepsHistoryCache.set(userId, keepHistory);
 }

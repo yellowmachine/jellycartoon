@@ -267,6 +267,11 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: { file: 'notas', where: [mine()], stored: { area: 'notas', column: 'audio' } },
 		note: 'Its audio too'
 	},
+	watch_log: {
+		leaving: 'moves',
+		joining: 'moves',
+		zip: { file: 'visto-en-casa', where: [mine()] }
+	},
 
 	// The voice: only rows with their user_id; null is the whole house's.
 	memory: {
@@ -492,6 +497,22 @@ export const PERSON_DATA: Record<string, PersonData> = {
 	},
 
 	// The account: it is the same one.
+	user_data_key: {
+		leaving: 'account',
+		joining: 'account',
+		zip: false
+	},
+	user_secret: {
+		leaving: 'account',
+		joining: 'account',
+		zip: false
+	},
+	miniflux_link: {
+		leaving: 'account',
+		joining: 'account',
+		zip: { file: 'miniflux', where: [mine()] },
+		note: 'Its address; the key is a user_secret'
+	},
 	session: {
 		leaving: 'account',
 		joining: 'account',

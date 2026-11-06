@@ -51,6 +51,20 @@ export function familyOnlyScope(db: AnyDb, { role }: { role?: string } = {}) {
 	};
 }
 
+/**
+ * A person's rows of no family (user.schema.ts): they go with them, so no membership is looked for.
+ * Only `app.user_id`: no family's rows are seen here.
+ */
+export function userScope(db: AnyDb, { role }: { role?: string } = {}) {
+	return async function asUser<T>(userId: string, fn: (tx: AnyDb) => Promise<T>): Promise<T> {
+		return db.transaction(async (tx) => {
+			if (role) await tx.execute(sql`select set_config('role', ${role}, true)`);
+			await tx.execute(sql`select set_config('app.user_id', ${userId}, true)`);
+			return fn(tx as unknown as AnyDb);
+		});
+	};
+}
+
 /** Someone with an account and no family yet: let in by mistake, or theirs was removed. */
 export class NoFamily extends Error {
 	constructor() {

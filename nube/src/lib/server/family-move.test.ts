@@ -41,7 +41,8 @@ import {
 	tripPhoto,
 	user,
 	walk,
-	walkPhoto
+	walkPhoto,
+	watchLog
 } from './db/schema.ts';
 import { PERSON_DATA } from './person-data.ts';
 
@@ -248,6 +249,17 @@ describe('what goes (#315)', () => {
 			},
 			{ id: 9, familyId: 'A', userId: 'ana', text: 'De Ana', audio: 'a.webm', source: 'pagina' }
 		]);
+		const watched = {
+			day: '2026-11-06',
+			minute: 1270,
+			item: 'e1',
+			kind: 'serie',
+			title: 'T'
+		} as const;
+		await db.insert(watchLog).values([
+			{ ...watched, familyId: 'A', userId: 'luis', seconds: 60 },
+			{ ...watched, familyId: 'A', userId: 'ana', seconds: 90 }
+		]);
 		await db.insert(memory).values([
 			{ familyId: 'A', userId: 'luis', text: 'Suyo', words: [] },
 			{ familyId: 'A', userId: null, text: 'De la casa', words: [] }
@@ -275,6 +287,9 @@ describe('what goes (#315)', () => {
 
 		const { familyId } = await leftOk('ana', 'luis');
 
+		const log = await db.select().from(watchLog);
+		expect(log.find((r) => r.userId === 'ana')?.familyId).toBe('A');
+		expect(log.find((r) => r.userId === 'luis')?.familyId).not.toBe('A');
 		const [n] = await db.select().from(note).where(eq(note.id, 8));
 		expect(n).toMatchObject({ familyId, walkId: 3, audio: 'n.webm' });
 		expect((await db.select().from(note).where(eq(note.id, 9)))[0].familyId).toBe('A');

@@ -41,7 +41,8 @@ import {
 	tripPhoto,
 	user,
 	walk,
-	walkPhoto
+	walkPhoto,
+	watchLog
 } from './db/schema.ts';
 import type { AnyDb } from './family-scope.ts';
 import { openFileFor, openFor, sealFileFor, sealFor } from './family-secret.ts';
@@ -68,6 +69,7 @@ export const MOVED_IN_ORDER = [
 	'walk',
 	'walk_photo',
 	'note',
+	'watch_log',
 	'rule',
 	'memory',
 	'heard',
@@ -162,6 +164,7 @@ async function pick(tx: AnyDb, userId: string): Promise<Picked> {
 	moved.set('walk', await mine(walk, walk.userId));
 	moved.set('walk_photo', await mine(walkPhoto, walkPhoto.userId));
 	moved.set('note', await mine(note, note.userId));
+	moved.set('watch_log', await mine(watchLog, watchLog.userId));
 	moved.set('rule', await mine(rule, rule.userId));
 	moved.set('memory', await mine(memory, memory.userId));
 	moved.set('heard', await mine(heard, heard.userId));
@@ -508,6 +511,7 @@ async function move(
 	await tx.delete(heard).where(eq(heard.userId, userId));
 	await tx.delete(memory).where(eq(memory.userId, userId));
 	await tx.delete(rule).where(eq(rule.userId, userId));
+	await tx.delete(watchLog).where(eq(watchLog.userId, userId));
 	await tx.delete(note).where(eq(note.userId, userId));
 	await tx.delete(walkPhoto).where(eq(walkPhoto.userId, userId));
 	await tx.delete(walk).where(eq(walk.userId, userId));
@@ -600,6 +604,7 @@ async function move(
 	await write(walk, of('walk'));
 	await write(walkPhoto, of('walk_photo'));
 	await write(note, of('note'));
+	await write(watchLog, of('watch_log'));
 	await write(rule, of('rule'));
 	await write(memory, of('memory'), (r) => ({
 		ruleId: ruleIds.has(r.ruleId as number) ? r.ruleId : null
