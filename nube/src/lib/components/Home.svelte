@@ -19,6 +19,7 @@
 	import { sectionOn, type SectionChoices } from '#lib/nav.ts';
 	import { durationText } from '#lib/trips.ts';
 	import type { CarView } from '#lib/cars.ts';
+	import type { NewsCard } from '#lib/news.ts';
 	import CarCard from '#lib/components/CarCard.svelte';
 	import { section } from '#lib/styles.ts';
 
@@ -32,6 +33,7 @@
 		name,
 		home,
 		weather,
+		news,
 		trip,
 		car,
 		sections
@@ -49,6 +51,8 @@
 			steps: { key: boolean; invited: boolean } | null;
 		};
 		weather: Promise<(WeatherGlance & { place: string }) | null>;
+		/** Their unread news (#428), if they have their Miniflux in Ajustes. */
+		news: Promise<NewsCard | null>;
 		/** Their next trip (Viajes → Próximos): its next leg, its weather, and the one after. */
 		trip: Promise<{
 			trip: { id: number; name: string };
@@ -234,6 +238,26 @@
 		}
 	]);
 	const pending = $derived(steps.some((s) => !s.done));
+
+	// A piece of news opened: off the card, and read in Miniflux, without holding up the link.
+	let readNews = $state<number[]>([]);
+	function openedNews(id: number) {
+		if (readNews.includes(id)) return;
+		readNews.push(id);
+		void fetch('/api/noticias/leida', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ id }),
+			keepalive: true
+		}).catch(() => {});
+	}
+	/** Its time if today, else its day. */
+	function newsWhen(at: string) {
+		const d = new Date(at);
+		return localDay(d) === today
+			? localTime(d)
+			: d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+	}
 
 	const tripWeather = (w: HourWeather) =>
 		`${skyIcon(w.code)} ${w.temperature} °C${w.rain >= 30 ? `, lluvia ${w.rain} %` : ''}${w.wind >= 40 ? `, viento ${w.wind} km/h` : ''}`;
@@ -503,6 +527,53 @@
 		{/if}
 	</section>
 {/if}
+
+{#await news then card}
+	{#if card}
+		{@const items = card.items.filter((i) => !readNews.includes(i.id))}
+		<section class={section}>
+			<div class="mb-3 flex items-baseline justify-between">
+				<h2 class="font-semibold">📰 Noticias</h2>
+				<a
+					href={card.url}
+					target="_blank"
+					rel="noopener"
+					class="text-sm text-amber-400 hover:underline">Miniflux</a
+				>
+			</div>
+			{#if card.problem === 'key'}
+				<p class="text-sm text-zinc-400">
+					Miniflux no acepta la clave.
+					<a href="/ajustes?seccion=mi#noticias" class="text-amber-400 hover:underline"
+						>Cámbiala en Ajustes</a
+					>
+				</p>
+			{:else if card.problem === 'down'}
+				<p class="text-sm text-zinc-400">Miniflux no contesta ahora.</p>
+			{:else if items.length}
+				<ul class="flex flex-col gap-3">
+					{#each items as item (item.id)}
+						<li>
+							<a
+								href={item.url}
+								target="_blank"
+								rel="noopener noreferrer"
+								onclick={() => openedNews(item.id)}
+								onauxclick={(e) => e.button === 1 && openedNews(item.id)}
+								class="hover:underline">{item.title}</a
+							>
+							<p class="text-sm text-zinc-500">
+								{[item.source, item.at && newsWhen(item.at)].filter(Boolean).join(' · ')}
+							</p>
+						</li>
+					{/each}
+				</ul>
+			{:else}
+				<p class="text-sm text-zinc-400">Nada sin leer.</p>
+			{/if}
+		</section>
+	{/if}
+{/await}
 
 <style>
 	.paper {

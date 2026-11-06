@@ -52,6 +52,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		words: 'reglas cuando si entonces avisar automático condiciones'
 	},
 	{
+		id: 'noticias',
+		tab: 'mi',
+		title: 'Noticias',
+		words: 'miniflux rss feeds agregador titulares periódico inicio clave api'
+	},
+	{
 		id: 'como-te-aviso',
 		tab: 'mi',
 		title: 'Cómo te aviso',

@@ -98,12 +98,20 @@ async function gunzip(bytes: Uint8Array<ArrayBuffer>, max: number) {
 }
 
 /**
- * GET of a public web address, following its redirects (each checked), up to `maxBytes`. Why not,
- * in Spanish, if it cannot be.
+ * A public web address, following its redirects (each checked), up to `maxBytes`. Why not, in
+ * Spanish, if it cannot be. `redirects: false` for what carries a secret in its headers: they are
+ * sent again on each hop, so another address never gets to see them.
  */
 export async function fetchPublic(
 	address: string,
-	options: { headers?: HeadersInit; timeoutMs?: number; maxBytes: number }
+	options: {
+		method?: string;
+		body?: string;
+		headers?: HeadersInit;
+		timeoutMs?: number;
+		maxBytes: number;
+		redirects?: boolean;
+	}
 ) {
 	let url: URL;
 	try {
@@ -114,13 +122,18 @@ export async function fetchPublic(
 	const signal = AbortSignal.timeout(options.timeoutMs ?? 20_000);
 	for (let hop = 0; ; hop++) {
 		await assertPublic(url);
-		const res = await fetch(url, { headers: options.headers, redirect: 'manual', signal }).catch(
-			(err) => {
-				throw new Error(`No se pudo descargar: ${err instanceof Error ? err.message : err}`);
-			}
-		);
+		const res = await fetch(url, {
+			method: options.method,
+			body: options.body,
+			headers: options.headers,
+			redirect: 'manual',
+			signal
+		}).catch((err) => {
+			throw new Error(`No se pudo descargar: ${err instanceof Error ? err.message : err}`);
+		});
 		const location = res.headers.get('location');
 		if (res.status >= 300 && res.status < 400 && location) {
+			if (options.redirects === false) throw new Error('Esa dirección redirige a otra');
 			if (hop >= MAX_REDIRECTS) throw new Error('Demasiadas redirecciones');
 			url = new URL(location, url);
 			continue;

@@ -62,6 +62,7 @@ import { savedSections, sectionList } from '#lib/nav.ts';
 import { placeName, type Place } from 'comun/weather.ts';
 import { findPlacesFor } from '#lib/server/places.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
+import { news } from '#lib/server/news.ts';
 import {
 	DEFAULT_CONVERSATION_MODEL,
 	DEFAULT_VOICE_MODEL,
@@ -148,6 +149,8 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 	const admin = membership.role === 'admin';
 	const voice = await voiceSettings(k);
 	return {
+		/** Their Miniflux's address (#428). */
+		news: await news.linkOf(locals.user!.id),
 		house: await houseLink(locals.user!.id),
 		openRouter: await openRouterKeyStart(k),
 		/** The key before, still alive in OpenRouter until deleted there: how it starts and ends. */
@@ -379,6 +382,20 @@ export const actions: Actions = {
 	},
 	/** «Mostrar el gasto en IA bajo la cabecera». */
 	/** «Cómo te aviso» (#331): the messages left for them, by email too. */
+	/** Noticias (#428): their Miniflux, once it has accepted the key. */
+	saveNews: async ({ request, locals }) => {
+		const form = await request.formData();
+		const newsUrl = String(form.get('url') ?? '').slice(0, 500);
+		const key = String(form.get('key') ?? '')
+			.trim()
+			.slice(0, 500);
+		const newsProblem = await news.save(locals.user!.id, newsUrl, key);
+		return newsProblem ? fail(400, { newsProblem, newsUrl }) : { saved: 'news' };
+	},
+	removeNews: async ({ locals }) => {
+		await news.remove(locals.user!.id);
+		return { saved: 'newsRemoved' };
+	},
 	inboxByEmail: async ({ request, locals }) => {
 		const inboxByEmail = (await request.formData()).get('inboxByEmail') === 'on';
 		await withFamily(locals.user!.id, (tx) =>

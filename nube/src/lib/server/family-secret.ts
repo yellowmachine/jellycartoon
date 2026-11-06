@@ -21,8 +21,8 @@ import { decrypt, encrypt } from './secret-box.ts';
 
 export const kmsOn = Boolean(SCW_ACCESS_KEY && SCW_SECRET_KEY && SCW_KMS_KEY_ID);
 
-/** Key Manager through Scaleway's own SDK; the family as associated data. */
-async function scaleway(): Promise<Kms> {
+/** Key Manager through Scaleway's own SDK; the family (or who it is bound to) as associated data. */
+export async function scaleway(): Promise<Kms> {
 	const { createClient } = await import('@scaleway/sdk-client');
 	const { KeyManagerv1alpha1 } = await import('@scaleway/sdk-key-manager');
 	const api = new KeyManagerv1alpha1.API(

@@ -63,6 +63,7 @@
 		name={data.user.name}
 		home={data.home}
 		weather={data.weather}
+		news={data.news}
 		trip={data.trip}
 		car={data.car}
 		sections={data.family?.sections}
