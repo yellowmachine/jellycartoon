@@ -760,6 +760,42 @@
 			>
 		</section>
 
+		{#if data.deletion}
+			<section class={section} id="eliminar-cuenta">
+				<h2 class="mb-1 font-semibold">Eliminar mi cuenta</h2>
+				{#if data.deletion.kind === 'handOverFirst'}
+					<p class="text-sm text-zinc-400">
+						Eres quien administra la familia y hay más adultos. Antes tienes que
+						<a class="text-amber-500 hover:underline" href="?seccion=familia#administracion"
+							>pasarle la administración a uno de ellos</a
+						>.
+					</p>
+				{:else}
+					<p class="mb-4 text-sm text-zinc-400">
+						{#if data.deletion.kind === 'lastAdult'}
+							Eres el único adulto: se borraría también toda la familia{data.deletion.kids.length
+								? `, y las cuentas de ${data.deletion.kids.join(', ')}`
+								: ''}.
+						{:else}
+							Se borra lo tuyo, y lo que compartes sigue en la familia.
+						{/if}
+						Te mandamos un correo con un enlace, y allí se ve todo lo que se pierde y se confirma. No
+						se borra nada todavía.
+					</p>
+					{#if form && 'deletionAsked' in form}
+						<p class="text-sm text-green-400">✓ Mira tu correo. El enlace dura 24 horas.</p>
+					{:else}
+						<form method="post" action="?seccion={tab}&/requestDeletion" use:enhance>
+							<button class={secondary}>Eliminar mi cuenta</button>
+						</form>
+					{/if}
+				{/if}
+				{#if form && 'deletionProblem' in form}
+					<p class="mt-3 text-sm text-red-400">{form.deletionProblem}</p>
+				{/if}
+			</section>
+		{/if}
+
 		<section class={section} id="dos-pasos">
 			<h2 class="mb-1 font-semibold">Verificación en dos pasos</h2>
 			<p class="mb-4 text-sm text-zinc-400">

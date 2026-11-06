@@ -230,6 +230,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		shown: onlyAdmin
 	},
 	{
+		id: 'eliminar-cuenta',
+		tab: 'cuenta',
+		title: 'Eliminar mi cuenta',
+		words: 'borrar eliminar cuenta baja darme de baja irme quitar definitivamente rgpd'
+	},
+	{
 		id: 'mis-datos',
 		tab: 'cuenta',
 		title: 'Tus datos',

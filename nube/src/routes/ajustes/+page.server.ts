@@ -34,7 +34,9 @@ import {
 } from '#lib/server/telegram/bot.ts';
 import { BOT_EVENTS, parseBotEvents } from '#lib/telegram-bot.ts';
 import { withFamily } from '#lib/server/family.ts';
-import { adminsAndAdults, handOverAdmin } from '#lib/server/family-role.ts';
+import { adminsAndAdults, handOverAdmin, stepDownAdmin } from '#lib/server/family-role.ts';
+import { accountDeletion } from '#lib/server/account-deletion.ts';
+import { isServiceAdmin } from '#lib/server/invitations.ts';
 import { sendAdminHandedOver } from '#lib/server/emails.ts';
 import {
 	familyPlace,
@@ -167,6 +169,10 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		telegramBot: admin ? { bot: await botStatus(membership.familyId) } : null,
 		/** «Entrar con la nube» (#279): its houses' clients, and the cloud's address for their .env. */
 		houseClients: admin ? { clients: await houseClients(request.headers), origin: ORIGIN } : null,
+		/** What deleting one's account would do (#315); the service's administrator's, nothing. */
+		deletion: isServiceAdmin(locals.user!.email)
+			? null
+			: await accountDeletion.stateOf(locals.user!.id),
 		/** Who it can be handed over to (#315): only its administrator. */
 		handOver: admin ? await adminsAndAdults(withFamily, locals.user!.id) : null,
 		/** The family's open invitations, with their links: only its administrator. */
@@ -668,6 +674,25 @@ export const actions: Actions = {
 			}
 		);
 		return { handedOver: { name: done.name, sent } };
+	},
+	stepDownAdmin: async ({ locals }) => {
+		const done = await stepDownAdmin(withFamily, locals.user!.id);
+		if (!done.ok) return fail(400, { handOverProblem: done.problem });
+		return { saved: 'stepped-down' };
+	},
+	/** «Eliminar mi cuenta» (#315): an email with the link to its page (/cuenta/eliminar). */
+	requestDeletion: async ({ request, locals }) => {
+		if (isServiceAdmin(locals.user!.email))
+			return fail(400, { deletionProblem: 'Eres quien administra el servicio' });
+		if ((await accountDeletion.stateOf(locals.user!.id)).kind === 'handOverFirst')
+			return fail(400, { deletionProblem: 'Antes, pasa la administración a otro adulto' });
+		try {
+			await auth.api.deleteUser({ body: {}, headers: request.headers });
+		} catch (error) {
+			console.error('[cuentas] El correo para eliminar la cuenta no salió:', error);
+			return fail(500, { deletionProblem: 'No se pudo mandar el correo. Prueba otra vez' });
+		}
+		return { deletionAsked: true };
 	},
 	/** One of the family without an account (a child), for the agenda and the alarms. */
 	addPerson: async ({ request, locals }) => {

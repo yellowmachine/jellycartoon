@@ -52,6 +52,17 @@
 					No hay otro adulto al que pasársela. Invítalo primero, aquí arriba.
 				</p>
 			{/if}
+			{#if data.handOver.admins.length > 1}
+				<div class="mt-4">
+					<ConfirmForm
+						action="?seccion={tab}&/stepDownAdmin"
+						label="Dejar de administrar"
+						question="¿Dejar de administrar? La familia sigue con quien también la administra."
+						yes="Sí, dejarlo"
+						class={secondary}
+					/>
+				</div>
+			{/if}
 			{#if problem}
 				<p class="mt-3 text-sm text-red-400">{problem}</p>
 			{/if}

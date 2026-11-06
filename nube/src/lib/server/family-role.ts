@@ -52,6 +52,29 @@ export function handOverAdmin(
 	});
 }
 
+/**
+ * No longer administering, with another who does (#315). The family's administrators locked and
+ * counted: two doing it at the same time go one after the other, and the second one cannot.
+ */
+export function stepDownAdmin(
+	withFamily: ReturnType<typeof familyScope>,
+	userId: string
+): Promise<{ ok: true } | { ok: false; problem: string }> {
+	return withFamily(userId, async (tx) => {
+		const admins = await tx
+			.select({ userId: familyMember.userId })
+			.from(familyMember)
+			.where(eq(familyMember.role, 'admin'))
+			.orderBy(familyMember.userId)
+			.for('update');
+		if (!admins.some((a) => a.userId === userId))
+			return { ok: false, problem: 'Solo quien administra la familia' };
+		if (admins.length < 2) return { ok: false, problem: 'No hay nadie más que la administre' };
+		await tx.update(familyMember).set({ role: 'member' }).where(eq(familyMember.userId, userId));
+		return { ok: true };
+	});
+}
+
 /** The family's adults, by what they are: who administers, and who it can be handed over to. */
 export async function adminsAndAdults(
 	withFamily: ReturnType<typeof familyScope>,

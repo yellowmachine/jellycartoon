@@ -30,6 +30,8 @@ export const init: ServerInit = () => {
 /** `/s/`: a shared trip's link (#81), for whoever has it; `/invitacion/`, an invitation's. */
 const PUBLIC_PATHS = [
 	'/login',
+	// «Eliminar mi cuenta» (#315): by then there is no session.
+	'/cuenta/eliminada',
 	'/api/auth',
 	'/api/health',
 	'/api/casa/',

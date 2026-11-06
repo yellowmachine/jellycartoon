@@ -107,6 +107,22 @@ export async function listFiles(familyId: string, area: string) {
 	return names;
 }
 
+/** All of a family's files, whatever their area: the family is gone (#315). */
+export async function removeAllFiles(familyId: string) {
+	const s3 = await storage();
+	const prefix = `familias/${familyId}/`;
+	let token: string | undefined;
+	do {
+		const page = await s3.send(
+			new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: prefix, ContinuationToken: token })
+		);
+		for (const object of page.Contents ?? [])
+			if (object.Key)
+				await s3.send(new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: object.Key }));
+		token = page.IsTruncated ? page.NextContinuationToken : undefined;
+	} while (token);
+}
+
 /** As a page's response: the family's file, kept a while in the browser (it does not change). */
 export async function fileResponse(familyId: string, area: string, name: string, type: string) {
 	const bytes = await readFile(familyId, area, name);

@@ -106,6 +106,31 @@ export function sendAdminHandedOver(i: { to: string; fromName: string; familyNam
 	});
 }
 
+/** The link to delete one's account (#315): it opens a page, and it is there it is done. */
+export function sendDeleteAccountMail(to: string, link: string) {
+	return sendMail({
+		to,
+		subject: `Eliminar tu cuenta de ${NAME}`,
+		html: page([
+			'Has pedido eliminar tu cuenta. Para hacerlo, abre este enlace con la sesión iniciada: allí verás lo que se borra y tendrás que confirmarlo.',
+			`<a href="${escape(link)}" style="display:inline-block;background:#dc2626;color:#fff;padding:10px 20px;border-radius:6px;font-weight:600;text-decoration:none">Eliminar mi cuenta</a>`,
+			'El enlace caduca en 24 horas. Si no lo has pedido tú, no hagas nada y cambia tu contraseña: alguien ha entrado con tu cuenta.'
+		])
+	});
+}
+
+/** It is done (#315). */
+export function sendAccountDeleted(to: string) {
+	return sendMail({
+		to,
+		subject: `Tu cuenta de ${NAME} se ha eliminado`,
+		html: page([
+			'Tu cuenta se ha eliminado. Lo que quedaba sigue hasta 7 noches más en las copias de seguridad, y luego desaparece.',
+			'Si no has sido tú, responde a este correo.'
+		])
+	});
+}
+
 /** Something of their «Buzón» (#331): a message left for them, or an urgent notice. */
 export function sendInboxMail(to: string, title: string, body: string, url: string) {
 	const link = new URL(url, ORIGIN).href;

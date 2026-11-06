@@ -14,6 +14,9 @@
  *   without an account, or forgets the membership.
  * - `account`: of the account, of no family: nothing to move.
  */
+/** Where a paper's file is kept (papers.ts): here so as not to need all that papers.ts brings. */
+export const PAPERS_AREA_NAME = 'papeles';
+
 export type Leaving =
 	| 'moves'
 	| 'onlyTheirsOrCopy'
