@@ -137,6 +137,11 @@ export interface VoiceReply {
 	 * beeps twice before saying it, so it is known which voice answers.
 	 */
 	deep?: boolean;
+	/**
+	 * Another device of the family heard the same order and is doing it (Seilide's order-twins.ts):
+	 * nothing to do or say here.
+	 */
+	elsewhere?: boolean;
 }
 
 /**

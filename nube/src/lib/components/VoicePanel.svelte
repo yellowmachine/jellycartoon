@@ -253,19 +253,21 @@
 						: `Decir «${WAKE_WORDS[wakeWord.word]}»: no`}</button
 				>
 				{#if wakeWord.on.cocina}
-					<select
-						class="rounded-full border-zinc-700 bg-zinc-900 py-1 text-sm text-zinc-200"
-						aria-label="Palabra"
-						value={wakeWord.word}
-						onchange={(e) => {
-							const word = e.currentTarget.value;
-							if (isWakeWord(word)) wakeWord.setWord(word);
-						}}
-					>
-						{#each Object.entries(WAKE_WORDS) as [model, name] (model)}
-							<option value={model}>{name}</option>
-						{/each}
-					</select>
+					{#if !wakeWord.familyWord}
+						<select
+							class="rounded-full border-zinc-700 bg-zinc-900 py-1 text-sm text-zinc-200"
+							aria-label="Palabra"
+							value={wakeWord.word}
+							onchange={(e) => {
+								const word = e.currentTarget.value;
+								if (isWakeWord(word)) wakeWord.setWord(word);
+							}}
+						>
+							{#each Object.entries(WAKE_WORDS) as [model, name] (model)}
+								<option value={model}>{name}</option>
+							{/each}
+						</select>
+					{/if}
 					<span class="text-zinc-400" aria-live="polite"
 						>{wakeWord.status === 'loading'
 							? 'Preparando…'

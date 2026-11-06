@@ -5,6 +5,7 @@ import { DEFAULT_THEME, isTheme } from 'comun/themes.ts';
 import { NoFamily, withFamily } from '#lib/server/family.ts';
 import { house } from '#lib/server/db/schema.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
+import { satelliteVoiceOf } from '#lib/server/voice/satellite-voice.ts';
 import { aiBlockOf, familySections } from '#lib/server/family-settings.ts';
 import { canReadReceipts } from '#lib/server/expenses/receipt.ts';
 import { isServiceAdmin } from '#lib/server/invitations.ts';
@@ -59,6 +60,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		const prayer = await prayerModeOn(k);
 		/** The sections it has out (Ajustes → Familia → Secciones), for the bar and the home page. */
 		const sections = await familySections(k);
+		/** The word of all the family's devices (Ajustes): none, each chooses. */
+		const { wakeWord } = await satelliteVoiceOf(k);
 		/** A receipt's photo from the bar (Gastos): with the family's AI to read it. */
 		const receipts = !found.kid && (await canReadReceipts(k));
 		/** An adult who lets children in (#303): asked on any page, and «Pasar a…» in the menu. */
@@ -68,7 +71,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		/** jellycartoon's own address, for the bar's sections of the house (nav.ts). */
 		return {
 			user,
-			family: { ...found, prayer, sections },
+			family: { ...found, prayer, sections, wakeWord },
 			webUrl: found.webUrl,
 			/** A house connected (Ajustes): without one, the bar shows nothing of it (nav.ts). */
 			hasHouse: found.hasHouse,

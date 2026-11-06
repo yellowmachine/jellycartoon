@@ -49,6 +49,10 @@
 	const panelShown = $derived(
 		voiceOn && kitchenMode.on && kitchenPanel.open && page.url.pathname !== '/voz'
 	);
+	// The family's word, kept on the device for when there is no connection.
+	$effect(() => {
+		if (data.family) wakeWord.setFamilyWord(data.family.wakeWord);
+	});
 	// The wake word in the kitchen (#60): while its mode is on and it is turned on there, on any
 	// page. Carretera has its own (its page says when).
 	$effect(() => {

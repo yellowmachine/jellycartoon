@@ -1,12 +1,13 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { parseVoiceRequest } from 'comun/voice.ts';
+import { parseVoiceRequest, type VoiceReply } from 'comun/voice.ts';
 import type { HouseVoiceOrder } from 'comun/house-voice.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { askHouse, hasHouse, HouseProblem } from '#lib/server/house.ts';
 import { runVoiceCommand } from '#lib/server/voice/command.ts';
 import { sayableError } from '#lib/server/openrouter.ts';
 import { voiceAnswered, voiceFailed } from '#lib/server/voice/alarm.ts';
+import { heardElsewhere } from '#lib/server/voice/order-twins.ts';
 import { HOUSE_DOWN, NO_HOUSE, orderWithoutHouse } from '#lib/server/voice/without-house.ts';
 
 /**
@@ -34,6 +35,19 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const command = parseVoiceRequest(await request.json().catch(() => null));
 	if (!command) error(400, 'Orden no válida');
 	const k = await kitchenOf(locals.user!.id);
+	// In the car, away from the rest of the family's devices: never someone else's.
+	if (!command.car && heardElsewhere(k.familyId, `sesion:${locals.session!.id}`, command.text)) {
+		console.info(`[voz] Hablar: «${command.text}»: ya la hace otro aparato`, {
+			familyId: k.familyId
+		});
+		return json({
+			reply: '',
+			actions: [],
+			options: [],
+			expectsAnswer: false,
+			elsewhere: true
+		} satisfies VoiceReply);
+	}
 	// Without the house (none, or it does not answer), Seilide makes the order itself, with nothing of it.
 	let order: HouseVoiceOrder | null = null;
 	let houseNote = NO_HOUSE;

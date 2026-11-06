@@ -834,7 +834,8 @@ export const actions: Actions = {
 			tone: String(form.get('tone') ?? ''),
 			fillers: String(form.get('fillers') ?? ''),
 			greet: form.get('greet') === 'on',
-			greetings: String(form.get('greetings') ?? '')
+			greetings: String(form.get('greetings') ?? ''),
+			wakeWord: String(form.get('wakeWord') ?? '')
 		});
 		return { saved: 'satelliteVoice' };
 	},

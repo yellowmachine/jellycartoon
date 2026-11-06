@@ -8,7 +8,8 @@ import { voice } from '#lib/voice-client.svelte.ts';
  * Saying «Alexa» (or «Okapi», «Ocarina», «Kusanagi», «hola casita») instead of pressing the microphone (jellycartoon's
  * src/lib/wake-word.svelte.ts, without its tests and cleaning), turned on in each place on each
  * device, kept in the browser: in the road mode, while Carretera is open and in front; in the
- * kitchen (#60), while its mode is on, on any page. The word, one for the device. Heard, it beeps,
+ * kitchen (#60), while its mode is on, on any page. The word, the family's if it chose one
+ * (Ajustes, the same as its satellites'), or else one for the device. Heard, it beeps,
  * what plays pauses, and what is said next goes to the voice until a silence (comun/vad.ts).
  * Nothing leaves the tablet but that order. The sound is not cleaned: with music playing on the
  * tablet, the word went off better without it (tried at home, 2026-10-25).
@@ -22,6 +23,8 @@ const KEYS: Record<WakePlace, string> = {
 };
 /** The device's word (first chosen in Carretera: its key stays). */
 const WORD_KEY = 'carretera-palabra-cual';
+/** The family's word, as last told: to have it with no connection, on the road. */
+const FAMILY_WORD_KEY = 'familia-palabra';
 /** «Alexa» by default, as the satellites: the same word everywhere. */
 export const ROAD_WAKE_WORD: WakeWordModel = 'alexa';
 /** How sure the model must be: as at home and on the satellites. */
@@ -65,7 +68,12 @@ class WakeWord {
 		carretera: typeof window !== 'undefined' && read(KEYS.carretera) === 'on',
 		cocina: typeof window !== 'undefined' && read(KEYS.cocina) === 'on'
 	});
-	word = $state<WakeWordModel>(ROAD_WAKE_WORD);
+	/** The one chosen on this device, for when the family has none. */
+	#ownWord = $state<WakeWordModel>(ROAD_WAKE_WORD);
+	/** The family's (Ajustes): no choosing on the device then. */
+	familyWord = $state<WakeWordModel | null>(null);
+	/** The word it listens for. */
+	word = $derived<WakeWordModel>(this.familyWord ?? this.#ownWord);
 	/** `tap`: listening, but the browser lets the sound start only after a touch on the page. */
 	status = $state<'off' | 'loading' | 'on' | 'tap'>('off');
 	problem = $state<string | null>(null);
@@ -80,8 +88,11 @@ class WakeWord {
 	#recent: { at: number; dbfs: number }[] = [];
 
 	constructor() {
-		const word = typeof window === 'undefined' ? null : read(WORD_KEY);
-		if (isWakeWord(word)) this.word = word;
+		if (typeof window === 'undefined') return;
+		const word = read(WORD_KEY);
+		if (isWakeWord(word)) this.#ownWord = word;
+		const family = read(FAMILY_WORD_KEY);
+		if (isWakeWord(family)) this.familyWord = family;
 	}
 
 	set(place: WakePlace, on: boolean) {
@@ -89,11 +100,25 @@ class WakeWord {
 		keep(KEYS[place], on ? 'on' : null);
 	}
 
-	/** A new word: listened for at once, if it was listening. */
+	/** Chosen on this device. */
 	setWord(word: WakeWordModel) {
-		if (word === this.word) return;
-		this.word = word;
+		const was = this.word;
+		this.#ownWord = word;
 		keep(WORD_KEY, word === ROAD_WAKE_WORD ? null : word);
+		this.#wordChanged(was);
+	}
+
+	/** The family's, as the server says it; none, the device's again. */
+	setFamilyWord(word: WakeWordModel | null) {
+		const was = this.word;
+		this.familyWord = word;
+		keep(FAMILY_WORD_KEY, word);
+		this.#wordChanged(was);
+	}
+
+	/** A new word: listened for at once, if it was listening. */
+	#wordChanged(was: WakeWordModel) {
+		if (this.word === was) return;
 		if (this.status === 'off' || this.status === 'loading') return;
 		this.#stop();
 		if (this.#wanted) void this.#start();

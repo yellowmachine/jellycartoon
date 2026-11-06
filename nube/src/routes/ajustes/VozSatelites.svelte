@@ -10,6 +10,7 @@
 		SATELLITE_VOICES,
 		satelliteVoiceModel
 	} from 'comun/ai-voice.ts';
+	import { WAKE_WORDS } from 'comun/wake-words.ts';
 	import { onDestroy } from 'svelte';
 	import { primary, secondary, select } from '#lib/styles.ts';
 	import type { PageData, ActionData } from './$types';
@@ -18,7 +19,8 @@
 	 * Cómo hablan los satélites que sirve Seilide (#296): una voz (las rápidas o las de Gemini, #347), cómo dice las cosas
 	 * (acento, ánimo) y las frases que dice mientras piensa la IA. «Probar» la oye aquí, antes de
 	 * guardar. Y cómo van las frases (#301): grabándose, listas o con su problema. «Al oír la
-	 * palabra»: en vez del pitido, una frase («¿Sí?»), que graba cada satélite.
+	 * palabra»: en vez del pitido, una frase («¿Sí?»), que graba cada satélite. Y la palabra que los
+	 * despierta, la misma para todos, también para los móviles y las tablets.
 	 */
 	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
 
@@ -156,6 +158,20 @@
 				<span class="text-xs text-zinc-500"
 					>Cortas, de hasta {MAX_FILLER_CHARS} letras: se dicen si la IA tarda. Vacío, las de siempre.
 					Se graban al guardar; una que aún no está grabada no se dice.</span
+				>
+			</label>
+			<label class="flex flex-col gap-1 text-zinc-300">
+				Palabra que los despierta
+				<select name="wakeWord" class="{select} w-full" value={data.satelliteVoice.wakeWord ?? ''}>
+					<option value="">La que tenga cada aparato</option>
+					{#each Object.entries(WAKE_WORDS) as [model, label] (model)}
+						<option value={model}>{label}</option>
+					{/each}
+				</select>
+				<span class="text-xs text-zinc-500"
+					>La misma para los satélites, los móviles y las tablets de la familia: los satélites
+					cambian en unos segundos; un móvil o una tablet abiertos, al recargar. Cada aparato sigue
+					decidiendo si escucha. Si dos oyen la misma orden, solo la hace uno.</span
 				>
 			</label>
 			<label class="flex items-center gap-2 text-zinc-300">

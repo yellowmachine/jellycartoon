@@ -30,7 +30,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			DEFAULT_TONE,
 		fillers: [],
 		greet: false,
-		greetings: []
+		greetings: [],
+		wakeWord: null
 	};
 	try {
 		return new Response(await satelliteSpeech(k, apiKey, text, voice), {

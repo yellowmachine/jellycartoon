@@ -229,6 +229,12 @@ class VoiceClient {
 		if (!res?.ok || !body || !('reply' in body))
 			return this.#fail((body && 'message' in body && body.message) || 'Sin conexión');
 		this.phase = 'idle';
+		// Another device of the family is doing it: nothing here, and what was paused goes on.
+		if (body.elsewhere) {
+			this.heard = null;
+			resumeAfterVoice();
+			return;
+		}
 		// Something else to hear, or «para»: what was paused does not come back over it.
 		if (body.actions.some((a) => ['play', 'radio', 'control'].includes(a.kind)))
 			music.forgetPause();
