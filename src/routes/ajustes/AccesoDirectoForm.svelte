@@ -47,6 +47,7 @@
 	// The form's own from here on: what it was, only to start with.
 	// svelte-ignore state_referenced_locally
 	let kind = $state<ShortcutKind>(s?.kind ?? 'url');
+	let deleting = $state(false);
 	// svelte-ignore state_referenced_locally
 	let target = $state(s?.target ?? '');
 	let search = $state('');
@@ -158,11 +159,27 @@
 					class="text-sm text-zinc-300 hover:underline">Volver a buscar el icono</button
 				>
 			{/if}
-			<button
-				formaction="?seccion={tab}&/deleteShortcut"
-				formnovalidate
-				class="text-sm text-red-400 hover:underline">Borrar</button
-			>
+			{#if deleting}
+				<span class="text-sm text-red-300"
+					>¿Borrarlo? También se pierde el tiempo que han pasado los peques en él.</span
+				>
+				<button
+					formaction="?seccion={tab}&/deleteShortcut"
+					formnovalidate
+					class="text-sm font-medium text-red-400 hover:underline">Sí, borrar</button
+				>
+				<button
+					type="button"
+					class="text-sm text-zinc-400 hover:text-white"
+					onclick={() => (deleting = false)}>No</button
+				>
+			{:else}
+				<button
+					type="button"
+					class="text-sm text-red-400 hover:underline"
+					onclick={() => (deleting = true)}>Borrar</button
+				>
+			{/if}
 		{/if}
 	</div>
 </form>

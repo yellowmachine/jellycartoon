@@ -43,6 +43,8 @@
 	let view = $derived(data.view);
 	let grid = $derived(view === 'grid');
 	let confirmDelete = $state(false);
+	/** «Desmarcar» asked about: it loses where each episode was. */
+	let unmarking = $state(false);
 	/** What is being renamed: the series, an episode id, or nothing. */
 	let editing = $state<'series' | number | null>(null);
 	/** `listId:episodeId` of every episode of the series already in one of the user's lists. */
@@ -749,13 +751,29 @@
 				class="rounded-md border border-zinc-700 px-3 py-1 hover:bg-zinc-900 disabled:opacity-50"
 				>Marcar</button
 			>
-			<button
-				formaction="?/unwatchedMany"
-				formnovalidate
-				disabled={selected.size === 0}
-				class="rounded-md border border-zinc-700 px-3 py-1 hover:bg-zinc-900 disabled:opacity-50"
-				>Desmarcar</button
-			>
+			{#if unmarking && selected.size}
+				<span class="text-red-300">
+					¿Desmarcar {selected.size === 1 ? '1 episodio' : `${selected.size} episodios`}? Se pierde
+					por dónde ibas.
+				</span>
+				<button
+					formaction="?/unwatchedMany"
+					formnovalidate
+					class="font-medium text-red-400 hover:underline">Sí, desmarcar</button
+				>
+				<button
+					type="button"
+					class="text-zinc-400 hover:text-white"
+					onclick={() => (unmarking = false)}>No</button
+				>
+			{:else}
+				<button
+					type="button"
+					disabled={selected.size === 0}
+					class="rounded-md border border-zinc-700 px-3 py-1 hover:bg-zinc-900 disabled:opacity-50"
+					onclick={() => (unmarking = true)}>Desmarcar</button
+				>
+			{/if}
 		</span>
 		<!-- 720p for the phone away from home (light.ts): made after the conversions, from these. -->
 		<span class="flex items-center gap-2 text-sm">
@@ -829,8 +847,20 @@
 			<p class="mb-3 text-sm text-zinc-400">
 				Se borran {data.stored.episodes} episodios convertidos ({formatBytes(
 					data.stored.outputBytes
-				)}) y el progreso de visionado. Los originales no se tocan: si siguen en la carpeta de
-				medios, la serie volverá en el próximo escaneo.
+				)}) y el progreso de visionado.
+				{#if data.stored.withoutOriginal}
+					<strong class="text-red-300">
+						{data.stored.withoutOriginal === data.stored.episodes
+							? 'Ninguno conserva su original: se pierden para siempre.'
+							: data.stored.withoutOriginal === 1
+								? '1 ya no conserva su original: se pierde para siempre.'
+								: `${data.stored.withoutOriginal} ya no conservan su original: se pierden para siempre.`}
+					</strong>
+				{/if}
+				{#if data.stored.withoutOriginal < data.stored.episodes}
+					Los originales que queden no se tocan: si siguen en la carpeta de medios, esos episodios
+					volverán en el próximo escaneo.
+				{/if}
 			</p>
 			<form method="post" action="?/delete" use:enhance class="flex items-center gap-2">
 				<button class="rounded-md bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-500">

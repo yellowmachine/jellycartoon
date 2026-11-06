@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import WalkLock from './WalkLock.svelte';
 	import NoteButton from '#lib/components/NoteButton.svelte';
 	import TripMap from '#lib/components/TripMap.svelte';
@@ -309,10 +309,13 @@
 							</span>
 						{/if}
 					</button>
-					<form method="post" action="?/delete" use:enhance>
-						<input type="hidden" name="id" value={w.id} />
-						<button class="text-sm text-zinc-500 hover:text-red-400">Borrar</button>
-					</form>
+					<ConfirmForm
+						action="?/delete"
+						fields={{ id: w.id }}
+						label="Borrar"
+						question="¿Borrar este paseo y sus fotos? Sus notas se quedan."
+						class="text-sm text-zinc-500 hover:text-red-400"
+					/>
 				</div>
 				{#if opened === w.id}
 					<div class="mt-3">

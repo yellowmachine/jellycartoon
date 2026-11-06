@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import { dollars } from 'comun/ai-spend.ts';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
@@ -198,10 +199,14 @@
 								>Cambiar</button
 							>
 							{#if !p.account}
-								<form method="post" action="?seccion={tab}&/deletePerson" use:enhance>
-									<input type="hidden" name="id" value={p.id} />
-									<button class={secondary}>Quitar</button>
-								</form>
+								<ConfirmForm
+									action="?seccion={tab}&/deletePerson"
+									fields={{ id: p.id }}
+									label="Quitar"
+									question="¿Quitar a {p.name}? Se borran sus medicaciones y su historial de tomas, y deja de salir en citas, alarmas, viajes y papeles."
+									yes="Sí, quitar"
+									class={secondary}
+								/>
 							{/if}
 						</div>
 						{#if editingPerson === p.id}
@@ -255,18 +260,16 @@
 											<button class={secondary}>Guardar</button>
 										</div>
 									</form>
-									<form
-										method="post"
-										action="?seccion={tab}&/takeKidAccount"
-										use:enhance
-										class="mt-3"
-									>
-										<input type="hidden" name="kidId" value={kid.id} />
-										<button class={secondary}>Quitarle la cuenta</button>
-										<span class="ml-2 text-xs text-zinc-500"
-											>Sigue en la familia, con su dibujo y su agenda.</span
-										>
-									</form>
+									<div class="mt-3 flex flex-wrap items-center gap-2">
+										<ConfirmForm
+											action="?seccion={tab}&/takeKidAccount"
+											fields={{ kidId: kid.id }}
+											label="Quitarle la cuenta"
+											question="¿Quitarle la cuenta? Sigue en la familia, con su dibujo y su agenda, pero se borra lo suyo, como sus deberes y su progreso. No se puede deshacer."
+											yes="Sí, quitársela"
+											class={secondary}
+										/>
+									</div>
 								</details>
 							{:else if !p.account}
 								<details class="mt-2 text-sm">
@@ -666,9 +669,13 @@
 						<button class={secondary}>Probar</button>
 					</form>
 					{#if admin}
-						<form method="post" action="?seccion={tab}&/forgetHouse" use:enhance>
-							<button class={secondary}>Desconectar</button>
-						</form>
+						<ConfirmForm
+							action="?seccion={tab}&/forgetHouse"
+							label="Desconectar"
+							question="¿Desconectar la casa? Para volver a conectarla harán falta su dirección y una clave nueva."
+							yes="Sí, desconectar"
+							class={secondary}
+						/>
 					{/if}
 				</div>
 			{/if}

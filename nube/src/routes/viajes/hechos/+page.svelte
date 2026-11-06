@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import ViajesTabs from '#lib/components/ViajesTabs.svelte';
 	import TripMap from '#lib/components/TripMap.svelte';
 	import { distanceText } from 'comun/road.ts';
@@ -230,10 +231,13 @@
 							</select>
 						</form>
 					{/if}
-					<form method="post" action="?/delete" use:enhance>
-						<input type="hidden" name="id" value={t.id} />
-						<button class="text-sm text-zinc-500 hover:text-red-400">Borrar</button>
-					</form>
+					<ConfirmForm
+						action="?/delete"
+						fields={{ id: t.id }}
+						label="Borrar"
+						question="¿Borrar este viaje? Sus fotos se quedan."
+						class="text-sm text-zinc-500 hover:text-red-400"
+					/>
 				</div>
 				{#if opened === t.id}
 					<div class="mt-3">
@@ -287,10 +291,13 @@
 				</a>
 				<div class="flex items-center justify-between gap-2 px-2 py-1.5 text-xs text-zinc-400">
 					<span>{day.format(new Date(photo.takenAt))}, {time.format(new Date(photo.takenAt))}</span>
-					<form method="post" action="?/deletePhoto" use:enhance>
-						<input type="hidden" name="id" value={photo.id} />
-						<button class="hover:text-red-400">Borrar</button>
-					</form>
+					<ConfirmForm
+						action="?/deletePhoto"
+						fields={{ id: photo.id }}
+						label="Borrar"
+						question="¿Borrar esta foto?"
+						class="hover:text-red-400"
+					/>
 				</div>
 			</li>
 		{/each}

@@ -18,7 +18,8 @@
 		{ model: 'jelly_cartoon', label: 'Jelly Cartoon' },
 		{ model: 'jelly_cartoon_musica', label: 'Jelly Cartoon (música)' },
 		{ model: 'okapi', label: 'Okapi' },
-		{ model: 'ocarina', label: 'Ocarina' }
+		{ model: 'ocarina', label: 'Ocarina' },
+		{ model: 'kusanagi', label: 'Kusanagi' }
 	];
 	/** After a detection, the same word is not counted again for this long. */
 	const QUIET_MS = 2000;

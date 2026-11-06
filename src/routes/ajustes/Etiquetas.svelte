@@ -6,6 +6,8 @@
 
 	/** Etiquetas de los capítulos: sus conjuntos, para Ollama. */
 	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
+	/** The set asked «¿Borrarlo?» about. */
+	let deletingSet = $state<number | null>(null);
 </script>
 
 {#if data.labels}
@@ -47,11 +49,27 @@
 				<div class="flex items-center gap-3">
 					<button class={secondary}>{set ? 'Guardar' : 'Crear conjunto'}</button>
 					{#if set?.id}
-						<button
-							formaction="?seccion={tab}&/deleteLabelSet"
-							formnovalidate
-							class="text-sm text-red-400 hover:underline">Borrar</button
-						>
+						{#if deletingSet === set.id}
+							<span class="text-sm text-red-300"
+								>¿Borrarlo? Se pierden sus resultados en todos los episodios.</span
+							>
+							<button
+								formaction="?seccion={tab}&/deleteLabelSet"
+								formnovalidate
+								class="text-sm font-medium text-red-400 hover:underline">Sí, borrar</button
+							>
+							<button
+								type="button"
+								class="text-sm text-zinc-400 hover:text-white"
+								onclick={() => (deletingSet = null)}>No</button
+							>
+						{:else}
+							<button
+								type="button"
+								class="text-sm text-red-400 hover:underline"
+								onclick={() => (deletingSet = set?.id ?? null)}>Borrar</button
+							>
+						{/if}
 					{/if}
 				</div>
 			</form>

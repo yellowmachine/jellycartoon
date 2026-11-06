@@ -373,7 +373,7 @@
 									}}
 							>
 								<input type="hidden" name="id" value={e.id} />
-								<span class="text-sm">¿Quitarlo?</span>
+								<span class="text-sm">¿Quitarlo? Se pierde su historial de tomas.</span>
 								<button class="{button} bg-red-700 hover:bg-red-600">Sí</button>
 								<button
 									type="button"
