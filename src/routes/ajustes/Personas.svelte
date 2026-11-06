@@ -159,38 +159,47 @@
 			{/each}
 		</ul>
 
-		<h3 class="mb-2 text-sm text-zinc-300">Nuevo adulto</h3>
-		<form
-			method="post"
-			action="?seccion={tab}&/createAdult"
-			use:enhance
-			class="mb-6 flex flex-col gap-3"
-		>
-			<div class="grid gap-2 sm:grid-cols-2">
-				<input
-					name="name"
-					required
-					placeholder="Nombre"
-					aria-label="Nombre"
-					class="{select} min-w-0"
-				/>
-				<input
-					name="email"
-					type="email"
-					required
-					autocomplete="off"
-					placeholder="ana@ejemplo.com"
-					aria-label="Email"
-					class="{select} min-w-0"
-				/>
-			</div>
-			<AvatarPicker chosen={AVATARS[0].id} label="Dibujo del adulto nuevo" />
-			<p class="text-xs text-zinc-500">
-				Sin contraseña: la app te da un enlace y un QR para que la elija. El email es para entrar;
-				no se le manda nada.
+		{#if data.kids?.seilide}
+			<p class="mb-6 text-sm text-zinc-400">
+				Los adultos se invitan en Seilide. Con su invitación, entran aquí con «Entrar con Seilide».
+				<a href={data.kids.seilide.url} class="text-amber-400 hover:underline"
+					>Abrir la familia en Seilide</a
+				>
 			</p>
-			<button class="{primary} self-start">Añadir</button>
-		</form>
+		{:else}
+			<h3 class="mb-2 text-sm text-zinc-300">Nuevo adulto</h3>
+			<form
+				method="post"
+				action="?seccion={tab}&/createAdult"
+				use:enhance
+				class="mb-6 flex flex-col gap-3"
+			>
+				<div class="grid gap-2 sm:grid-cols-2">
+					<input
+						name="name"
+						required
+						placeholder="Nombre"
+						aria-label="Nombre"
+						class="{select} min-w-0"
+					/>
+					<input
+						name="email"
+						type="email"
+						required
+						autocomplete="off"
+						placeholder="ana@ejemplo.com"
+						aria-label="Email"
+						class="{select} min-w-0"
+					/>
+				</div>
+				<AvatarPicker chosen={AVATARS[0].id} label="Dibujo del adulto nuevo" />
+				<p class="text-xs text-zinc-500">
+					Sin contraseña: la app te da un enlace y un QR para que la elija. El email es para entrar;
+					no se le manda nada.
+				</p>
+				<button class="{primary} self-start">Añadir</button>
+			</form>
+		{/if}
 
 		<h3 id="cuentas-infantiles" class="mb-1 text-sm text-zinc-300">Peques</h3>
 		<p class="mb-3 text-xs text-zinc-500">
@@ -212,97 +221,123 @@
 								>
 								<span class="min-w-0 flex-1 truncate">{kid.name}</span>
 								<span class="shrink-0 text-xs text-zinc-400"
-									>{kid.byApproval ? 'Entra con permiso' : 'Con contraseña'}</span
+									>{kid.fromSeilide
+										? 'De Seilide'
+										: kid.byApproval
+											? 'Entra con permiso'
+											: 'Con contraseña'}</span
 								>
 							</summary>
-							<form
-								method="post"
-								action="?seccion={tab}&/saveKid"
-								use:enhance={() =>
-									async ({ update }) =>
-										update({ reset: false })}
-								class="flex flex-col gap-3 border-t border-zinc-800 p-3"
-							>
-								<input type="hidden" name="kidId" value={kid.id} />
-								<AvatarPicker chosen={kid.avatar} label={`Dibujo de ${kid.name}`} />
-								<label class="flex items-center gap-2">
+							{#if kid.fromSeilide}
+								<p class="border-t border-zinc-800 p-3 text-sm text-zinc-400">
+									Su dibujo y quién le deja entrar se cambian en Seilide. Su horario y lo que ve, en
+									<a href="/infantil" class="text-amber-400 hover:underline">Infantil</a>.
+								</p>
+							{:else}
+								<form
+									method="post"
+									action="?seccion={tab}&/saveKid"
+									use:enhance={() =>
+										async ({ update }) =>
+											update({ reset: false })}
+									class="flex flex-col gap-3 border-t border-zinc-800 p-3"
+								>
+									<input type="hidden" name="kidId" value={kid.id} />
+									<AvatarPicker chosen={kid.avatar} label={`Dibujo de ${kid.name}`} />
+									<label class="flex items-center gap-2">
+										<input
+											type="checkbox"
+											name="byApproval"
+											checked={kid.byApproval}
+											class="rounded border-zinc-600 bg-zinc-900 text-amber-500"
+										/>
+										Entra con permiso, sin contraseña
+									</label>
+									{@render guardians(kid.id, kid.guardians)}
 									<input
-										type="checkbox"
-										name="byApproval"
-										checked={kid.byApproval}
-										class="rounded border-zinc-600 bg-zinc-900 text-amber-500"
+										name="password"
+										type="password"
+										minlength="8"
+										autocomplete="new-password"
+										placeholder={kid.byApproval
+											? 'Contraseña, si deja de entrar con permiso'
+											: 'Nueva contraseña (vacía, la de siempre)'}
+										aria-label="Contraseña"
+										class="{select} min-w-0"
 									/>
-									Entra con permiso, sin contraseña
-								</label>
-								{@render guardians(kid.id, kid.guardians)}
-								<input
-									name="password"
-									type="password"
-									minlength="8"
-									autocomplete="new-password"
-									placeholder={kid.byApproval
-										? 'Contraseña, si deja de entrar con permiso'
-										: 'Nueva contraseña (vacía, la de siempre)'}
-									aria-label="Contraseña"
-									class="{select} min-w-0"
-								/>
-								<button class="{primary} self-start">Guardar</button>
-							</form>
+									<button class="{primary} self-start">Guardar</button>
+								</form>
+							{/if}
 						</details>
 					</li>
 				{/each}
 			</ul>
 		{/if}
 
-		<h3 class="mb-2 text-sm text-zinc-300">Nuevo peque</h3>
-		<form method="post" action="?seccion={tab}&/createKid" use:enhance class="flex flex-col gap-3">
-			<input
-				name="name"
-				required
-				placeholder="Nombre"
-				aria-label="Nombre"
-				class="{select} min-w-0"
-			/>
-			<AvatarPicker chosen={AVATARS[0].id} label="Dibujo del peque nuevo" />
-			<label class="flex items-center gap-2 text-sm">
+		{#if data.kids?.seilide?.kids}
+			<p class="text-sm text-zinc-400">
+				Los peques nuevos se crean en Seilide, con su dibujo y quién les deja entrar, y aparecen
+				aquí en unos minutos.
+				<a href={data.kids.seilide.url} class="text-amber-400 hover:underline"
+					>Abrir la familia en Seilide</a
+				>
+			</p>
+		{:else}
+			<h3 class="mb-2 text-sm text-zinc-300">Nuevo peque</h3>
+			<form
+				method="post"
+				action="?seccion={tab}&/createKid"
+				use:enhance
+				class="flex flex-col gap-3"
+			>
 				<input
-					type="checkbox"
-					name="byApproval"
-					bind:checked={newKidByApproval}
-					class="rounded border-zinc-600 bg-zinc-900 text-amber-500"
+					name="name"
+					required
+					placeholder="Nombre"
+					aria-label="Nombre"
+					class="{select} min-w-0"
 				/>
-				Entra con permiso, sin contraseña
-			</label>
-			{#if newKidByApproval}
-				{@render guardians(null, [])}
-			{:else}
-				<div class="grid gap-2 sm:grid-cols-2">
+				<AvatarPicker chosen={AVATARS[0].id} label="Dibujo del peque nuevo" />
+				<label class="flex items-center gap-2 text-sm">
 					<input
-						name="email"
-						type="email"
-						required
-						autocomplete="off"
-						placeholder="lucia@casa.local"
-						aria-label="Email para entrar"
-						class="{select} min-w-0"
+						type="checkbox"
+						name="byApproval"
+						bind:checked={newKidByApproval}
+						class="rounded border-zinc-600 bg-zinc-900 text-amber-500"
 					/>
-					<input
-						name="password"
-						type="password"
-						required
-						minlength="8"
-						autocomplete="new-password"
-						placeholder="Contraseña"
-						aria-label="Contraseña"
-						class="{select} min-w-0"
-					/>
-				</div>
-				<p class="text-xs text-zinc-500">
-					El email solo sirve para entrar: no hace falta que exista.
-				</p>
-			{/if}
-			<button class="{primary} self-start">Crear</button>
-		</form>
+					Entra con permiso, sin contraseña
+				</label>
+				{#if newKidByApproval}
+					{@render guardians(null, [])}
+				{:else}
+					<div class="grid gap-2 sm:grid-cols-2">
+						<input
+							name="email"
+							type="email"
+							required
+							autocomplete="off"
+							placeholder="lucia@casa.local"
+							aria-label="Email para entrar"
+							class="{select} min-w-0"
+						/>
+						<input
+							name="password"
+							type="password"
+							required
+							minlength="8"
+							autocomplete="new-password"
+							placeholder="Contraseña"
+							aria-label="Contraseña"
+							class="{select} min-w-0"
+						/>
+					</div>
+					<p class="text-xs text-zinc-500">
+						El email solo sirve para entrar: no hace falta que exista.
+					</p>
+				{/if}
+				<button class="{primary} self-start">Crear</button>
+			</form>
+		{/if}
 
 		<h3 id="dispositivos-casa" class="mt-6 mb-1 text-sm text-zinc-300">Dispositivos de la casa</h3>
 		<p class="mb-2 text-xs text-zinc-500">

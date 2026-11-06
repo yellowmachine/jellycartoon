@@ -128,6 +128,9 @@ export async function saveKid(
 /** Whether each child enters with permission; changed only by saveKid. */
 const byApprovalCache = new Map<string, boolean>();
 
+/** After a change made elsewhere (seilide-kids.ts). */
+export const forgetByApproval = (kidId: string) => byApprovalCache.delete(kidId);
+
 export async function entersByApproval(kidId: string) {
 	let value = byApprovalCache.get(kidId);
 	if (value === undefined) {

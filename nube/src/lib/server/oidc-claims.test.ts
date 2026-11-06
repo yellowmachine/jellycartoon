@@ -12,6 +12,12 @@ describe('a house', () => {
 		}));
 	test('another family does not', () => expect(idTokenAnswer('f2', base, house).ok).toBe(false));
 	test('nor someone of no family', () => expect(idTokenAnswer(null, base, house).ok).toBe(false));
+	test('its adults get in', () => {
+		expect(idTokenAnswer('f1', base, house, 'admin').ok).toBe(true);
+		expect(idTokenAnswer('f1', base, house, 'member').ok).toBe(true);
+	});
+	test('its children do not: they would be adults there', () =>
+		expect(idTokenAnswer('f1', base, house, 'peque').ok).toBe(false));
 });
 
 describe('an app', () => {

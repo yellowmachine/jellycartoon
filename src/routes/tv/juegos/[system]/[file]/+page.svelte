@@ -1,8 +1,10 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
 	import Backdrop from 'comun/components/Backdrop.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
+	import SaveDeleteButton from 'comun/components/games/SaveDeleteButton.svelte';
 	import TvHeader from '#lib/components/TvHeader.svelte';
 	import { formatPlayed } from 'comun/format.ts';
 	import type { PageProps } from './$types';
@@ -25,6 +27,27 @@
 			hour: '2-digit',
 			minute: '2-digit'
 		});
+
+	/** The saved games deleted here, until the page is read again. */
+	let deleted = $state<number[]>([]);
+	let problem = $state(false);
+	const saves = $derived(data.saves.filter((s) => !deleted.includes(s.id)));
+	let savesGrid = $state<HTMLElement>();
+
+	/**
+	 * The remote needs something with the focus: the card that took its place or, with none left,
+	 * «Jugar». Never another bin, where a second OK would delete that one too.
+	 */
+	async function saveDeleted(id: number, index: number) {
+		problem = false;
+		deleted.push(id);
+		await tick();
+		const cards = savesGrid?.querySelectorAll<HTMLElement>('a');
+		(
+			cards?.[Math.min(index, cards.length - 1)] ??
+			document.querySelector<HTMLElement>('[data-focus]')
+		)?.focus();
+	}
 
 	const facts = (info: NonNullable<Awaited<typeof data.info>>) =>
 		[info.year, info.developers.join(', '), info.genres.join(', '), info.modes.join(', ')].filter(
@@ -154,34 +177,53 @@
 	</div>
 </div>
 
-{#if data.saves.length}
-	<!-- Each one opens the game at that moment; deleting them is in the game's menu. -->
+{#if saves.length}
+	<!--
+		The picture opens the game at that moment. The bin goes under it and not over it: the gamepad's
+		moves (tv-gamepad.ts) skip what lies inside what has the focus.
+	-->
 	<section class="mb-12">
 		<h2 class="mb-4 text-3xl font-semibold">Partidas guardadas</h2>
-		<div class="grid grid-cols-5 gap-6">
-			{#each data.saves as save (save.id)}
-				<a
-					href="{page.url.pathname}/jugar?partida={save.id}"
-					class="group block rounded-lg transition-transform duration-150 focus-visible:scale-105"
-				>
-					<div class="aspect-[4/3] overflow-hidden rounded-lg bg-zinc-800">
-						{#if save.picture}
-							<img
-								src={save.picture}
-								alt=""
-								loading="lazy"
-								class="pixelated h-full w-full object-cover"
-							/>
-						{:else}
-							<span class="flex h-full items-center justify-center text-zinc-600"
-								><SectionIcon name="juegos" class="h-1/3 w-1/3" /></span
-							>
-						{/if}
+		{#if problem}
+			<p role="alert" class="mb-4 text-2xl text-red-300">No se pudo borrar la partida.</p>
+		{/if}
+		<div bind:this={savesGrid} class="grid grid-cols-5 gap-6">
+			{#each saves as save, i (save.id)}
+				<div class="group">
+					<a
+						href="{page.url.pathname}/jugar?partida={save.id}"
+						class="block rounded-lg transition-transform duration-150 focus-visible:scale-105"
+					>
+						<div class="aspect-[4/3] overflow-hidden rounded-lg bg-zinc-800">
+							{#if save.picture}
+								<img
+									src={save.picture}
+									alt=""
+									loading="lazy"
+									class="pixelated h-full w-full object-cover"
+								/>
+							{:else}
+								<span class="flex h-full items-center justify-center text-zinc-600"
+									><SectionIcon name="juegos" class="h-1/3 w-1/3" /></span
+								>
+							{/if}
+						</div>
+					</a>
+					<div class="mt-2 flex items-start gap-2">
+						<p
+							class="min-w-0 flex-1 text-xl group-has-[a:focus-visible]:text-lime-300 first-letter:uppercase"
+						>
+							{when(save.createdAt)}
+						</p>
+						<SaveDeleteButton
+							saveId={save.id}
+							label={when(save.createdAt)}
+							class="h-14 w-14"
+							ondeleted={() => saveDeleted(save.id, i)}
+							onfailed={() => (problem = true)}
+						/>
 					</div>
-					<p class="mt-2 truncate text-xl group-focus-visible:text-lime-300 first-letter:uppercase">
-						{when(save.createdAt)}
-					</p>
-				</a>
+				</div>
 			{/each}
 		</div>
 	</section>

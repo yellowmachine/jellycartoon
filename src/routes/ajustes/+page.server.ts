@@ -3,7 +3,10 @@ import { APIError } from 'better-auth/api';
 import { eq } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
-import { user, userSettings } from '#lib/server/db/schema.ts';
+import { account as accountTable, user, userSettings } from '#lib/server/db/schema.ts';
+import { KID_EMAIL } from '#lib/server/kids.ts';
+import { nube, NUBE_PROVIDER } from '#lib/server/nube-login.ts';
+import { seilideAccount } from '#lib/seilide-account.ts';
 import { auth } from '#lib/server/auth.ts';
 import { isKid, KIDS_ROLE } from '#lib/server/kids.ts';
 import {
@@ -185,7 +188,16 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		 * Children's accounts (#17), and how they enter (#141): with a password, or choosing their
 		 * avatar on a device of the house while one of their parents or guardians lets them in.
 		 */
-		kids = { accounts: kidAccounts, adults: grownUps, devices, here: here?.id ?? null };
+		kids = {
+			accounts: kidAccounts.map((kid) => ({ ...kid, fromSeilide: KID_EMAIL.test(kid.email) })),
+			adults: grownUps,
+			devices,
+			here: here?.id ?? null,
+			/** With Seilide, people are made there (#279); the children, once it tells the house. */
+			seilide: nube
+				? { url: new URL('/ajustes?seccion=familia', nube.url).href, kids: Boolean(link) }
+				: null
+		};
 		ai = {
 			chatModel: chat.model,
 			defaultChatModel: DEFAULT_CHAT_MODEL,
@@ -229,26 +241,39 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 	}
 
 	const twoFactorOn = Boolean(locals.user!.twoFactorEnabled);
+	const providers = (
+		await db
+			.select({ providerId: accountTable.providerId })
+			.from(accountTable)
+			.where(eq(accountTable.userId, userId))
+	).map((a) => a.providerId);
 	return {
 		account: {
 			name: locals.user!.name,
 			email: locals.user!.email,
 			/** An adult chooses their own drawing (#157); a child's, the administrator. */
-			avatar: isKid(locals.user) ? undefined : ((await avatarOf(locals.user!))?.id ?? null)
+			avatar: isKid(locals.user) ? undefined : ((await avatarOf(locals.user!))?.id ?? null),
+			/** Who enters with Seilide looks after their account there (#279). */
+			seilide: isKid(locals.user)
+				? null
+				: seilideAccount(providers, nube?.url ?? null, NUBE_PROVIDER)
 		},
 		/**
-		 * The second step after the password: not for children's accounts; the administrator always
-		 * has it. How many recovery codes are left, as each is used once.
+		 * The second step after the password: not for children's accounts, nor for who has no password
+		 * here, as who enters with Seilide (#279): it is asked for to change anything, and it protects
+		 * nothing of theirs. The administrator always has it. How many recovery codes are left, as each
+		 * is used once.
 		 */
-		twoFactor: canUseTwoFactor(locals.user!)
-			? {
-					enabled: twoFactorOn,
-					required: admin,
-					codesLeft: twoFactorOn
-						? (await auth.api.viewBackupCodes({ body: { userId } })).backupCodes.length
-						: null
-				}
-			: null,
+		twoFactor:
+			canUseTwoFactor(locals.user!) && providers.includes('credential')
+				? {
+						enabled: twoFactorOn,
+						required: admin,
+						codesLeft: twoFactorOn
+							? (await auth.api.viewBackupCodes({ body: { userId } })).backupCodes.length
+							: null
+					}
+				: null,
 		playback: { audioLang: settings.audioLang, subtitleLang: settings.subtitleLang },
 		/** Also for mpv in the living room, where films are watched. */
 		subtitleStyle: settings.subtitleStyle,
@@ -491,6 +516,7 @@ export const actions: Actions = {
 	 */
 	createAdult: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);
+		if (nube) return fail(400, { section: 'people', message: 'Los adultos se invitan en Seilide' });
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim();
 		const email = String(form.get('email') ?? '').trim();
@@ -549,6 +575,8 @@ export const actions: Actions = {
 	 */
 	createKid: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);
+		if (nube && (await cloudLink()))
+			return fail(400, { section: 'kids', message: 'Los peques se crean en Seilide' });
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim();
 		const byApproval = form.get('byApproval') === 'on';
@@ -593,10 +621,12 @@ export const actions: Actions = {
 		if (password && password.length < 8)
 			return fail(400, { section: 'kids', message: 'La contraseña, de 8 caracteres o más' });
 		const [kid] = await db
-			.select({ name: user.name, role: user.role })
+			.select({ name: user.name, role: user.role, email: user.email })
 			.from(user)
 			.where(eq(user.id, kidId));
 		if (kid?.role !== KIDS_ROLE) return fail(400, { section: 'kids', message: 'No es un peque' });
+		if (KID_EMAIL.test(kid.email))
+			return fail(400, { section: 'kids', message: 'Sus datos se cambian en Seilide' });
 		try {
 			await saveKidProfile(
 				kidId,

@@ -6,6 +6,9 @@
  * in, and the token always carries their family. An app's (`app` in its metadata, app-clients.ts:
  * Langua, Librarian) is of no family: anyone with a cloud account gets in, and the family comes only
  * with the `family` scope, which only the apps of families are allowed (Langua, not Librarian).
+ *
+ * A child never enters a house this way: there it would be an adult, as the house gives a new
+ * account a normal role. In a house, it chooses its drawing.
  */
 export const FAMILY_CLAIM = 'https://nube.scholio.review/family';
 export const FAMILY_SCOPE = 'family';
@@ -16,11 +19,14 @@ export type IdTokenAnswer =
 export function idTokenAnswer(
 	familyId: string | null,
 	scopes: string[],
-	metadata?: Record<string, unknown>
+	metadata?: Record<string, unknown>,
+	role?: string | null
 ): IdTokenAnswer {
 	const houseFamily = typeof metadata?.familyId === 'string' ? metadata.familyId : null;
 	if (houseFamily && houseFamily !== familyId)
 		return { ok: false, message: 'Esta casa es de otra familia' };
+	if (houseFamily && role === 'peque')
+		return { ok: false, message: 'En la casa, los peques entran eligiendo su dibujo' };
 	const wantsFamily = Boolean(houseFamily) || scopes.includes(FAMILY_SCOPE);
 	if (!wantsFamily) return { ok: true, claims: {} };
 	if (!familyId) return { ok: false, message: 'Esta app es para familias, y no estás en ninguna' };

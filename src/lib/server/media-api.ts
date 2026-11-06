@@ -6,7 +6,7 @@ import { BETTER_AUTH_SECRET, MEDIA_HOST, ORIGIN } from '$app/env/private';
 import { auth } from '#lib/server/auth.ts';
 import { db } from '#lib/server/db/index.ts';
 import { apikey, user } from '#lib/server/db/auth.schema.ts';
-import { episodeAllowed, isKid, KIDS_ROLE, seriesAllowed } from '#lib/server/kids.ts';
+import { episodeAllowed, isKid, KID_EMAIL, KIDS_ROLE, seriesAllowed } from '#lib/server/kids.ts';
 import { videoAllowed } from '#lib/server/kid-time.ts';
 import {
 	GRANT_HOURS,
@@ -29,7 +29,6 @@ const KEY_HEADER = 'x-api-key';
 const PERSON_HEADER = 'x-persona';
 /** A child of the cloud (#303): its name, with its inner email (`@peques.invalid`) as `x-persona`. */
 const KID_HEADER = 'x-peque';
-export const KID_EMAIL = /@peques\.invalid$/;
 
 /** Marked so in its key (the house's voice satellites had keys too, until #329). */
 interface CloudMetadata {

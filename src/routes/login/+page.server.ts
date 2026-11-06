@@ -8,7 +8,9 @@ import { isAdmin } from '#lib/server/app-settings.ts';
 import { db } from '#lib/server/db/index.ts';
 import { user } from '#lib/server/db/schema.ts';
 import { eq } from 'drizzle-orm';
+import { log } from '#lib/server/log.ts';
 import { nube, NUBE_PROVIDER } from '#lib/server/nube-login.ts';
+import { restartForSeilide, seilideIsBack } from '#lib/server/seilide-watch.ts';
 
 const safeNext = (url: URL) => {
 	const next = url.searchParams.get('next') ?? '/';
@@ -28,7 +30,9 @@ const NUBE_PROBLEMS: Record<string, string> = {
 	invalid_code: 'Seilide no te deja entrar en esta casa: ¿es la de tu familia?',
 	account_not_linked: 'No se pudo unir tu cuenta de Seilide con la de esta casa',
 	unable_to_link_account: 'No se pudo unir tu cuenta de Seilide con la de esta casa',
-	access_denied: 'Has cancelado la entrada con Seilide'
+	access_denied: 'Has cancelado la entrada con Seilide',
+	seilide_no_disponible:
+		'Seilide no responde ahora mismo. Prueba en un rato; si sigue igual, hay que reiniciar la casa'
 };
 
 /** After these, the code is no longer asked for: the password again. */
@@ -49,9 +53,13 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 		passwordChanged: url.searchParams.has('cambiada'),
 		/** «Entrar con la nube», with this house's client in the `.env` (#279). */
 		nube: Boolean(nube),
-		nubeProblem: url.searchParams.has('error')
-			? (NUBE_PROBLEMS[url.searchParams.get('error')!] ?? 'No se pudo entrar con Seilide')
-			: null
+		/** It answers again, and the house must restart to enter with it (#279). */
+		seilideBack: seilideIsBack(),
+		// «Seilide does not answer» under the banner saying it does: only the banner.
+		nubeProblem:
+			url.searchParams.has('error') && !seilideIsBack()
+				? (NUBE_PROBLEMS[url.searchParams.get('error')!] ?? 'No se pudo entrar con Seilide')
+				: null
 	};
 };
 
@@ -60,17 +68,38 @@ export const actions: Actions = {
 	 * To the family's cloud, which comes back to Better Auth's callback with the session, and then
 	 * to `next`. No second step here: the cloud asked for its own (#279).
 	 */
+	/** From the banner: anyone at the door may ask, and only while Seilide is back (#279). */
+	restart: async () => {
+		if (!restartForSeilide())
+			return fail(409, { message: 'Ahora no hace falta reiniciar la casa' });
+		return { restarting: true };
+	},
 	nube: async ({ request, url }) => {
 		if (!nube) return fail(404, { message: 'Esta casa no entra con Seilide' });
-		const { url: to } = await auth.api.signInSocial({
-			body: {
-				provider: NUBE_PROVIDER,
-				callbackURL: safeNext(url),
-				// The «¿Quién eres?» of the house's devices would come first (load, above).
-				errorCallbackURL: '/login?adulto'
-			},
-			headers: request.headers
-		});
+		let to: string | undefined;
+		try {
+			({ url: to } = await auth.api.signInSocial({
+				body: {
+					provider: NUBE_PROVIDER,
+					callbackURL: safeNext(url),
+					// The «¿Quién eres?» of the house's devices would come first (load, above).
+					errorCallbackURL: '/login?adulto'
+				},
+				headers: request.headers
+			}));
+		} catch (error) {
+			if (!(error instanceof APIError)) throw error;
+			// Better Auth asks Seilide for its addresses only when the house starts: with no answer
+			// then, it does not know this way in until it starts again (#279).
+			log.error('nube', 'No se puede entrar con Seilide: ¿no respondía al arrancar la casa?', {
+				error
+			});
+			const next = url.searchParams.get('next');
+			redirect(
+				303,
+				`/login?adulto&error=seilide_no_disponible${next ? `&next=${encodeURIComponent(next)}` : ''}`
+			);
+		}
 		if (!to) return fail(500, { message: 'No se pudo entrar con Seilide' });
 		redirect(303, to, { external: true });
 	},

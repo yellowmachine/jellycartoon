@@ -6,6 +6,7 @@ import { isTheme } from 'comun/themes.ts';
 import { family, familyMember } from '#lib/server/db/schema.ts';
 import { EMAIL } from '#lib/invitation.ts';
 import { APIError } from 'better-auth/api';
+import { sendPasswordChanged } from '#lib/server/emails.ts';
 import QRCode from 'qrcode';
 import type { Actions, PageServerLoad } from './$types';
 import { addPerson, deletePerson, familyPeople, updatePerson } from '#lib/server/agenda/agenda.ts';
@@ -1007,6 +1008,35 @@ export const actions: Actions = {
 		return { saved: 'ors' };
 	},
 	/** The second step: the password, then its QR and recovery codes, then a code to turn it on. */
+	/** Another password: every other session ends, and this one goes on (its cookie is new). */
+	changePassword: async ({ request, locals }) => {
+		const form = await request.formData();
+		try {
+			await auth.api.changePassword({
+				body: {
+					currentPassword: String(form.get('current') ?? ''),
+					newPassword: String(form.get('password') ?? ''),
+					revokeOtherSessions: true
+				},
+				headers: request.headers
+			});
+		} catch (error) {
+			if (!(error instanceof APIError)) throw error;
+			const code = String(error.body?.code ?? '');
+			return fail(400, {
+				passwordProblem:
+					code === 'PASSWORD_TOO_SHORT'
+						? 'La nueva, de 10 caracteres por lo menos'
+						: code === 'PASSWORD_TOO_LONG'
+							? 'La nueva es demasiado larga'
+							: 'Esa no es tu contraseña de ahora'
+			});
+		}
+		void sendPasswordChanged(locals.user!.email).catch((e) =>
+			console.error('[cuentas] No se pudo avisar del cambio de contraseña', e)
+		);
+		return { saved: 'password' };
+	},
 	enableTwoFactor: async ({ request }) => {
 		const password = String((await request.formData()).get('password') ?? '');
 		try {

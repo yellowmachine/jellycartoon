@@ -37,7 +37,7 @@ export const load: PageServerLoad = async ({ locals, url, cookies }) => {
 	if (!url.searchParams.has('adulto') && !signedOAuthQuery(url) && (await deviceOf(cookies)))
 		redirect(303, '/quien');
 	/** Come from a house (#279): given back on entering, to go back there (oauth-return.ts). */
-	return { oauthQuery: signedOAuthQuery(url) };
+	return { oauthQuery: signedOAuthQuery(url), passwordChanged: url.searchParams.has('cambiada') };
 };
 
 /**
