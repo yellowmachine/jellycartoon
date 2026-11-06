@@ -22,8 +22,10 @@ function candidates() {
 
 /**
  * The focus to the nearest thing in that direction: ahead of the current one, and as little to its
- * side as possible (counted three times what is ahead, so a row or column is kept). With nothing
- * focused, the page's first.
+ * side as possible (counted three times what is ahead, so a row or column is kept). To its side is
+ * how far apart they are, none if they share a row or column, or the small bin in the corner under
+ * a saved game's picture would lose to the next row's picture. With nothing focused, the page's
+ * first.
  */
 export function moveFocus(direction: Direction) {
 	const all = candidates();
@@ -40,19 +42,25 @@ export function moveFocus(direction: Direction) {
 	for (const el of all) {
 		if (el === current || el.contains(current) || current.contains(el)) continue;
 		const r = el.getBoundingClientRect();
-		const x = r.left + r.width / 2;
-		const y = r.top + r.height / 2;
-		const [ahead, aside] =
+		const across = direction === 'left' || direction === 'right';
+		const ahead =
 			direction === 'right'
-				? [r.left - from.right, Math.abs(y - cy)]
+				? r.left - from.right
 				: direction === 'left'
-					? [from.left - r.right, Math.abs(y - cy)]
+					? from.left - r.right
 					: direction === 'down'
-						? [r.top - from.bottom, Math.abs(x - cx)]
-						: [from.top - r.bottom, Math.abs(x - cx)];
+						? r.top - from.bottom
+						: from.top - r.bottom;
 		// Overlapping a little still counts as ahead; behind does not.
 		if (ahead < -4) continue;
-		const score = Math.max(ahead, 0) + aside * 3;
+		const aside = across
+			? Math.max(r.top - from.bottom, from.top - r.bottom, 0)
+			: Math.max(r.left - from.right, from.left - r.right, 0);
+		// Between those sharing a row or column, and as far ahead, the one most in line.
+		const offCentre = across
+			? Math.abs(r.top + r.height / 2 - cy)
+			: Math.abs(r.left + r.width / 2 - cx);
+		const score = Math.max(ahead, 0) + aside * 3 + offCentre * 0.01;
 		if (score < bestScore) {
 			bestScore = score;
 			best = el;
