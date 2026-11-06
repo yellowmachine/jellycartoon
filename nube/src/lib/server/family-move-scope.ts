@@ -114,7 +114,7 @@ export type MoveResult =
 	  }
 	| { ok: false; problem: string };
 
-const setFamily = (tx: AnyDb, familyId: string) =>
+export const setFamily = (tx: AnyDb, familyId: string) =>
 	tx.execute(sql`select set_config('app.family_id', ${familyId}, true)`);
 
 /** Of a person who stays behind: empty in the new family. Theirs, as it is. */
@@ -430,7 +430,7 @@ export function familyMoveScope(
 	return { leave };
 }
 
-class Stopped extends Error {}
+export class Stopped extends Error {}
 
 /** The move itself: all of it, or nothing. */
 async function move(

@@ -2,6 +2,7 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { APIError } from 'better-auth/api';
 import type { Actions, PageServerLoad } from './$types';
 import { auth } from '#lib/server/auth.ts';
+import { familyJoin } from '#lib/server/family-join.ts';
 import { invitations } from '#lib/server/invitations.ts';
 
 /** What the link invites to, and who is looking: anyone with it, as svelte-thinking's. */
@@ -10,7 +11,9 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	if (!invitation) error(404, 'Esta invitación no existe: puede que te la hayan mandado de nuevo');
 	return {
 		invitation,
-		me: locals.user ? { email: locals.user.email, name: locals.user.name } : null
+		me: locals.user ? { email: locals.user.email, name: locals.user.name } : null,
+		/** With a family already: what accepting would do, or what stops it (#315). */
+		joining: locals.user ? await familyJoin.stateOf(params.token, locals.user.id) : null
 	};
 };
 
@@ -62,6 +65,18 @@ export const actions: Actions = {
 	/** With the account already in: into the family. */
 	accept: async ({ params, request, locals }) => {
 		if (!locals.user) redirect(303, `/login?next=/invitacion/${params.token}`);
+		const state = await familyJoin.stateOf(params.token, locals.user.id);
+		if (state.kind !== 'none') {
+			const joined = await familyJoin.join(params.token, locals.user).catch((error) => {
+				console.error('[familias] No se pudo unir a la familia:', error);
+				return {
+					ok: false,
+					problem: 'No se pudo hacer, y no ha cambiado nada. Prueba otra vez'
+				} as const;
+			});
+			if (!joined.ok) return fail(400, { message: joined.problem });
+			redirect(303, '/');
+		}
 		const accepted = await invitations.accept(
 			params.token,
 			locals.user,
