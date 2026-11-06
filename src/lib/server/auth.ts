@@ -15,6 +15,7 @@ import { db } from '#lib/server/db/index.ts';
 import { user } from '#lib/server/db/schema.ts';
 import { INVITATION_SECONDS, markUsed, recordInvitation } from '#lib/server/invitations.ts';
 import { keepSignInLink } from '#lib/server/sign-in-links.ts';
+import { KID_EMAIL } from '#lib/server/kids.ts';
 import {
 	dropHousePassword,
 	nube,
@@ -60,6 +61,17 @@ export const auth = betterAuth({
 		accountLinking: { trustedProviders: [NUBE_PROVIDER], requireLocalEmailVerified: false }
 	},
 	databaseHooks: {
+		user: {
+			create: {
+				/**
+				 * Seilide's children are made as children by what they watch from there (media-api.ts),
+				 * never through here: entering with Seilide, one would be a normal account.
+				 */
+				before: async (person) => {
+					if (KID_EMAIL.test(person.email)) return false;
+				}
+			}
+		},
 		account: {
 			create: {
 				after: async (account) => {

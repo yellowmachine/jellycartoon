@@ -12,6 +12,9 @@ import { episode, movie, movieTag, series, seriesTag, tag, user } from '#lib/ser
 export { KIDS_TAG };
 export const KIDS_ROLE = 'infantil';
 
+/** The address Seilide gives its children's accounts (#303): nobody reads it. */
+export const KID_EMAIL = /@peques\.invalid$/i;
+
 export const isKid = (user: { role?: string | null } | undefined | null) =>
 	user?.role === KIDS_ROLE;
 

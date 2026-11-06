@@ -1,7 +1,8 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { watchedBy } from '#lib/server/homework-source.ts';
-import { cloudKid, cloudPerson, KID_EMAIL } from '#lib/server/media-api.ts';
+import { KID_EMAIL } from '#lib/server/kids.ts';
+import { cloudKid, cloudPerson } from '#lib/server/media-api.ts';
 
 /**
  * Homework (#142, prepared in Seilide): what one of the cloud's children watched lately, for an

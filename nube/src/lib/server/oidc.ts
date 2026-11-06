@@ -37,7 +37,8 @@ export async function idTokenClaims({
 	scopes: string[];
 	metadata?: Record<string, unknown>;
 }) {
-	const answer = idTokenAnswer(await familyOf(user.id), scopes, metadata);
+	const membership = await membershipOf(user.id);
+	const answer = idTokenAnswer(membership?.familyId ?? null, scopes, metadata, membership?.role);
 	if (!answer.ok) throw new APIError('FORBIDDEN', { message: answer.message });
 	return answer.claims;
 }
