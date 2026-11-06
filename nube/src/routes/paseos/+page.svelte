@@ -128,6 +128,19 @@
 			{@render discard()}
 		</div>
 	{:else if walk.recording}
+		{#if walk.lostSeconds}
+			<div
+				class="mb-4 flex items-start gap-2 rounded-md bg-amber-500/15 p-3 text-sm text-amber-200"
+			>
+				<p class="flex-1" role="alert">
+					Con la pantalla apagada o en otra app no se han medido {shortTime(walk.lostSeconds)}. La
+					próxima vez, usa 🔒 «Bloquear pantalla».
+				</p>
+				<button class="px-1" aria-label="Cerrar el aviso" onclick={() => walk.forgetLost()}
+					>✕</button
+				>
+			</div>
+		{/if}
 		<p class="text-5xl font-semibold tabular-nums">{clockText(elapsed)}</p>
 		<p class="mt-1 mb-4 text-lg text-zinc-300">
 			{walkDistanceText(walk.distance)}{paceText(walk.distance, elapsed)
@@ -146,14 +159,7 @@
 		{#if !walk.located && !walk.problem}
 			<p class="mb-4 text-sm text-zinc-400">Buscando el GPS…</p>
 		{/if}
-		<div class="flex flex-wrap items-center gap-3">
-			<button
-				class="rounded-md bg-red-600 px-6 py-3 text-lg font-semibold text-white"
-				onclick={() => walk.finish()}>Terminar</button
-			>
-			<WalkLock />
-			{@render discard()}
-		</div>
+		<WalkLock onlock={() => walk.forgetLost()} />
 		<div class="mt-4 flex flex-wrap items-center gap-3">
 			<label class="cursor-pointer rounded-md bg-zinc-800 px-4 py-2 hover:bg-zinc-700">
 				📷 Foto
@@ -179,9 +185,15 @@
 		{#if noteRecorder.problem}
 			<p class="mt-3 text-sm text-amber-300" role="alert">{noteRecorder.problem}</p>
 		{/if}
+		<div class="mt-8 flex flex-wrap items-center gap-3">
+			<button
+				class="rounded-md bg-red-600 px-4 py-2 font-semibold text-white"
+				onclick={() => walk.finish()}>Terminar</button
+			>
+			{@render discard()}
+		</div>
 		<p class="mt-3 text-sm text-zinc-400">
-			Con la pantalla apagada, el GPS no graba. «Bloquear pantalla» la deja en negro y encendida
-			para el bolsillo: baja antes el brillo, gasta batería, y no pulses el botón de encendido.
+			«Bloquear pantalla» la deja en negro y encendida: baja antes el brillo, porque gasta batería.
 		</p>
 	{:else}
 		<div class="mb-4 flex flex-wrap gap-3">

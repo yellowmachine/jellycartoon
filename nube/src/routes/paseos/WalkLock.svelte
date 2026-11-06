@@ -17,6 +17,8 @@
 	 */
 	const OPEN_AFTER_MS = 400;
 
+	let { onlock }: { onlock?: () => void } = $props();
+
 	let dialog = $state<HTMLDialogElement>();
 	let locked = $state(false);
 	let hint = $state(false);
@@ -56,6 +58,7 @@
 			return;
 		}
 		locked = true;
+		onlock?.();
 		dialog?.showModal();
 		document.addEventListener('visibilitychange', onVisibility);
 		showHint();
@@ -110,12 +113,17 @@
 	onDestroy(unlock);
 </script>
 
+<!-- The first thing on the screen: the phone's own button stops the GPS, and nothing else says so. -->
 <button
-	class="rounded-md border border-zinc-700 px-4 py-3 font-medium hover:bg-zinc-900"
-	onclick={lock}>Bloquear pantalla</button
+	class="w-full rounded-md bg-amber-500 px-4 py-4 text-zinc-950 hover:bg-amber-400"
+	onclick={lock}
 >
+	<span class="block text-xl font-bold">🔒 Bloquear pantalla</span>
+	<span class="block text-sm">Sigue midiendo en el bolsillo</span>
+</button>
+<p class="mt-2 text-sm text-amber-300">⚠ Con el botón de encendido se para el GPS</p>
 {#if problem}
-	<p class="w-full text-sm text-amber-300" role="alert">{problem}</p>
+	<p class="mt-2 text-sm text-amber-300" role="alert">{problem}</p>
 {/if}
 
 <!-- The back gesture closes a dialog by itself: refused, or the walk is left unlocked in a pocket. -->

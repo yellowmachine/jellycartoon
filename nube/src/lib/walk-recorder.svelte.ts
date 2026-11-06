@@ -69,6 +69,8 @@ class WalkRecorder {
 	/** Taken on this walk, waiting on this device until it is sent. */
 	photos = $state(0);
 	notes = $state(0);
+	/** Lost since last told, with the page hidden: to tell who walks how to keep it. */
+	lostSeconds = $state(0);
 
 	#cues = noCues();
 	#cueTimer: ReturnType<typeof setInterval> | null = null;
@@ -164,6 +166,11 @@ class WalkRecorder {
 			void sendAttachments(this.#userId, this.startedAt).catch(() => {});
 	}
 
+	/** Told, or the screen locked as it should: not said again until more is lost. */
+	forgetLost() {
+		this.lostSeconds = 0;
+	}
+
 	start() {
 		if (this.startedAt !== null) return;
 		this.#reset();
@@ -235,6 +242,7 @@ class WalkRecorder {
 		this.distance = 0;
 		this.problem = null;
 		this.located = false;
+		this.lostSeconds = 0;
 		this.#points = [];
 		this.#diagnosis = noDiagnosis();
 		this.#lastFix = null;
@@ -336,9 +344,11 @@ class WalkRecorder {
 		const hidden = document.hidden;
 		let changed = false;
 		if (this.#lastFix && fix.t - this.#lastFix.t >= GAP_AFTER_MS) {
+			const seconds = Math.round((fix.t - this.#lastFix.t) / 1000);
+			if (this.#hiddenInGap || hidden) this.lostSeconds += seconds;
 			d.gaps.push({
 				at: Math.round(this.#lastFix.t / 1000),
-				seconds: Math.round((fix.t - this.#lastFix.t) / 1000),
+				seconds,
 				metres: Math.round(metresBetween(this.#lastFix.at, fix.at)),
 				hidden: this.#hiddenInGap || hidden,
 				music: this.#musicInGap,
