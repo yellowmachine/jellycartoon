@@ -2,9 +2,9 @@ import { randomBytes } from 'node:crypto';
 import { and, eq, like, sql } from 'drizzle-orm';
 import { auth } from '#lib/server/auth.ts';
 import { db } from '#lib/server/db/index.ts';
-import { account, kidGuardian, kidProfile, session, user } from '#lib/server/db/schema.ts';
+import { account, kidGuardian, kidProfile, user } from '#lib/server/db/schema.ts';
 import { forgetByApproval } from '#lib/server/kid-login.ts';
-import { isKid } from '#lib/server/kids.ts';
+import { isKid, KIDS_ROLE } from '#lib/server/kids.ts';
 import { log } from '#lib/server/log.ts';
 import { cloudKid } from '#lib/server/media-api.ts';
 import { decrypt, encrypt } from '#lib/server/secret-box.ts';
@@ -74,20 +74,22 @@ async function keepKid(kid: SeilideKid) {
 	forgetByApproval(id);
 }
 
-/** No longer a child of Seilide's: off «¿Quién eres?», without a session. Its history stays. */
+/**
+ * No longer a child of Seilide's: its account goes too, with its history and rules. Given an
+ * account there again, it would have another address, and so be another child here.
+ */
 async function dropGone(here: SeilideKid[]) {
 	const emails = new Set(here.map((k) => k.email));
 	const known = await db
 		.select({ id: user.id, email: user.email })
-		.from(kidProfile)
-		.innerJoin(user, eq(user.id, kidProfile.userId))
-		.where(like(user.email, '%@peques.invalid'));
+		.from(user)
+		.where(and(eq(user.role, KIDS_ROLE), like(user.email, '%@peques.invalid')));
+	const ctx = await auth.$context;
 	for (const kid of known) {
 		if (emails.has(kid.email.toLowerCase())) continue;
-		await db.delete(session).where(eq(session.userId, kid.id));
-		await db.delete(kidProfile).where(eq(kidProfile.userId, kid.id));
+		await ctx.internalAdapter.deleteUser(kid.id);
 		forgetByApproval(kid.id);
-		log.info('peques', 'Ya no es un peque de Seilide', { kidId: kid.id });
+		log.info('peques', 'Ya no es un peque de Seilide: borrado', { kidId: kid.id });
 	}
 }
 

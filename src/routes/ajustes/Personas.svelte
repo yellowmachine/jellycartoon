@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import Guardado from 'comun/components/Guardado.svelte';
 	import { enhance } from '$app/forms';
 	import { AVATARS, avatar } from 'comun/avatars.ts';
@@ -230,7 +231,8 @@
 							</summary>
 							{#if kid.fromSeilide}
 								<p class="border-t border-zinc-800 p-3 text-sm text-zinc-400">
-									Su dibujo y quién le deja entrar se cambian en Seilide. Su horario y lo que ve, en
+									Su dibujo y quién le deja entrar se cambian en Seilide, y se borra allí. Su
+									horario y lo que ve, en
 									<a href="/infantil" class="text-amber-400 hover:underline">Infantil</a>.
 								</p>
 							{:else}
@@ -267,6 +269,15 @@
 									/>
 									<button class="{primary} self-start">Guardar</button>
 								</form>
+								<div class="border-t border-zinc-800 p-3">
+									<ConfirmForm
+										action="?seccion={tab}&/deleteKid"
+										fields={{ kidId: kid.id }}
+										label="Borrar a {kid.name}"
+										question="¿Borrar a {kid.name}? Se pierden su cuenta, lo que ha visto y sus reglas."
+										class="text-sm text-red-400 hover:underline"
+									/>
+								</div>
 							{/if}
 						</details>
 					</li>
