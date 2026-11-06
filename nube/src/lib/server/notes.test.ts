@@ -208,6 +208,7 @@ test('found without caring for accents, also by its days; said only with text', 
 	});
 	expect(said).toBe('2026-11-04: Revisión del Coche');
 	expect(await addSaidNote(ana, 'ana', '   ')).toBeNull();
+	expect(await addSaidNote(ana, 'ana', '   ', 'escrita')).toBeNull();
 });
 
 test('deleted: its audio goes', async () => {
@@ -275,4 +276,16 @@ test('an account taken: the files of what was only theirs, and no one else’s',
 	await removePersonFiles(ana, files);
 	expect(files.length).toBe(2);
 	expect([...(await personFiles(ana, 'luis'))].length).toBe(1);
+});
+
+test('written by hand: own, found, marked as written, with nothing to hear', async () => {
+	await addSaidNote(ana, 'ana', '  Comprar sellos  ', 'escrita');
+	const [found] = await listNotes(ana, 'ana', 'sellos');
+	expect(found).toMatchObject({
+		text: 'Comprar sellos',
+		source: 'escrita',
+		hasAudio: false,
+		mine: true
+	});
+	expect(await listNotes(kitchen('luis'), 'luis', 'sellos')).toEqual([]);
 });

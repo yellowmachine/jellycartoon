@@ -36,7 +36,7 @@ export const note = pgTable(
 			.default('ready'),
 		/** Its file in the family's storage, if it was recorded. */
 		audio: text('audio'),
-		source: text('source', { enum: ['pagina', 'paseo', 'voz'] }).notNull(),
+		source: text('source', { enum: ['pagina', 'paseo', 'voz', 'escrita'] }).notNull(),
 		/** The walk it was recorded on: the walk gone, the note stays, with its place. */
 		walkId: integer('walk_id').references(() => walk.id, { onDelete: 'set null' }),
 		lon: real('lon'),

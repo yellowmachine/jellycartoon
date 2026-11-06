@@ -33,7 +33,7 @@ export interface Note {
 	text: string;
 	hearing: 'ready' | 'pending' | 'failed';
 	hasAudio: boolean;
-	source: 'pagina' | 'paseo' | 'voz';
+	source: 'pagina' | 'paseo' | 'voz' | 'escrita';
 	/** Not: said to a satellite, of the whole house. */
 	mine: boolean;
 	lon: number | null;

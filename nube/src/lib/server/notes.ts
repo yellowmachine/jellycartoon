@@ -48,14 +48,19 @@ function viewOf({
 	return { ...n, hasAudio: audio !== null, mine: userId !== null };
 }
 
-/** Said to the voice: only its words. Null if there are none. */
-export async function addSaidNote(k: Kitchen, userId: string | null, said: string) {
+/** Said to the voice, or written by hand: only its words. Null if there are none. */
+export async function addSaidNote(
+	k: Kitchen,
+	userId: string | null,
+	said: string,
+	source: 'voz' | 'escrita' = 'voz'
+) {
 	const text = said.trim().slice(0, MAX_NOTE_TEXT);
 	if (!text) return null;
 	const [row] = await k.run((tx) =>
 		tx
 			.insert(note)
-			.values({ familyId: k.familyId, userId, text, source: 'voz' })
+			.values({ familyId: k.familyId, userId, text, source })
 			.returning({ id: note.id })
 	);
 	return row!.id;
