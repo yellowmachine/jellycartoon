@@ -255,7 +255,8 @@ interface Order {
 	sent: 'beep' | 'none' | 'soft';
 	/**
 	 * Opened by itself after an answer (a question, by what was learned, «Modo conversación»), not by
-	 * the wake word: within a talk, without beeps (2026-11-02): neither «sent» nor «nothing said».
+	 * the wake word: within a talk, without beeps (2026-11-02): neither «sent» nor «nothing said»;
+	 * nothing said is the talk's end, with its beep (`endTalk`).
 	 */
 	quietEnd: boolean;
 }
@@ -272,6 +273,8 @@ let wordDb: number | null = null;
  */
 const DEEP_HZ = 988;
 let deepSaid = false;
+/** The talk is over: it stopped listening, and takes only the word now (`endTalk`). */
+const END_HZ = 523;
 /** An order on its way to the server: no other until it answers (but with `BARGE_IN`). */
 let busy = false;
 /** Each answer's turn: one cut by the wake word (`BARGE_IN`) sees a newer one and stops. */
@@ -328,7 +331,7 @@ async function step(chunk: Float32Array) {
 /**
  * `hz`: its beep, only after the wake word: listening again by itself after an answer (a question,
  * by what was learned, «Modo conversación») has none, as the person knows the talk goes on
- * (2026-11-02). `conversation`: opened by itself after an answer (#361): nothing said ends it quietly.
+ * (2026-11-02). `conversation`: opened by itself after an answer (#361).
  */
 function begin(
 	voiceDb: number | null,
@@ -403,14 +406,26 @@ async function greet(current: Order) {
 	current.held = false;
 }
 
+/**
+ * The talk over for good, an order answered or the listening after it run out: its beep, with
+ * the music still low, unless something rings. A new order meanwhile keeps the music low.
+ */
+async function endTalk() {
+	if (!alarms.ringing.length) await beep(END_HZ);
+	if (!order) duck(false);
+}
+
 async function finish(current: Order, said: 'done' | 'nothing') {
 	order = null;
 	quietUntil = Date.now() + QUIET_MS;
 	const { voiceDb, backgroundDb, backgroundMs, capped } = current.end.report;
 	const seconds = (current.chunks.length * CHUNK) / SAMPLE_RATE;
 	if (said === 'nothing') {
+		if (current.quietEnd) {
+			log(`Sin la palabra: nada más dicho en ${seconds.toFixed(1)} s`);
+			return endTalk();
+		}
 		duck(false);
-		if (current.quietEnd) return log(`Sin la palabra: nada más dicho en ${seconds.toFixed(1)} s`);
 		void beep(440);
 		return log(`Nada dicho en ${seconds.toFixed(1)} s`);
 	}
@@ -454,6 +469,8 @@ async function respond(wav: Uint8Array) {
 	let assumed = false;
 	/** «Modo conversación» (#361): listened for a moment after it, without the word. */
 	let talking = false;
+	/** Its low beep sounded (not understood, an error): that one already ends the talk. */
+	let endSaid = false;
 	try {
 		const done = await sendOrder(wav, () => {
 			waiting = setTimeout(() => {
@@ -467,6 +484,7 @@ async function respond(wav: Uint8Array) {
 		const ms = Date.now() - started;
 		if (!done) {
 			log(`No se entendió nada (${ms} ms)`);
+			endSaid = true;
 			await beep(440);
 		} else {
 			const actions = done.reply.actions.map((a) => a.kind).join(', ') || 'ninguna';
@@ -515,8 +533,10 @@ async function respond(wav: Uint8Array) {
 		log(`El servidor no respondió: ${err instanceof Error ? err.message : String(err)}`);
 		// Not reached, or too slow: no connection. An answer with an error (its path and status):
 		// the low beep, not «sin conexión».
-		if (err instanceof Error && err.message.startsWith('/api/')) await beep(440);
-		else await sayFallback('offline');
+		if (err instanceof Error && err.message.startsWith('/api/')) {
+			endSaid = true;
+			await beep(440);
+		} else await sayFallback('offline');
 	} finally {
 		clearTimeout(waiting);
 		// Cut: the new order goes on, without this one's listening after it.
@@ -533,7 +553,8 @@ async function respond(wav: Uint8Array) {
 			} else if (talking && !order && !alarms.ringing.length) {
 				log(`Conversación: escuchando ${CONVERSATION_MS / 1000} s sin la palabra`);
 				begin(wordDb, CONVERSATION_MS, null, true);
-			} else duck(false);
+			} else if (endSaid) duck(false);
+			else await endTalk();
 		}
 	}
 }
