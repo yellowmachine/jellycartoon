@@ -216,11 +216,36 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		shown: onlyAdmin
 	},
 	{
+		id: 'administracion',
+		tab: 'familia',
+		title: 'Administración',
+		words: 'administrador administrar pasar rol ceder familia cambiar quien manda',
+		shown: onlyAdmin
+	},
+	{
 		id: 'telegram-bot',
 		tab: 'conexiones',
 		title: 'Bot de Telegram',
 		words: 'telegram grupo avisos bot botfather mensajes',
 		shown: onlyAdmin
+	},
+	{
+		id: 'salir-familia',
+		tab: 'cuenta',
+		title: 'Salir de la familia',
+		words: 'salir irme dejar familia separarme separacion desvincular cambiar otra'
+	},
+	{
+		id: 'eliminar-cuenta',
+		tab: 'cuenta',
+		title: 'Eliminar mi cuenta',
+		words: 'borrar eliminar cuenta baja darme de baja irme quitar definitivamente rgpd'
+	},
+	{
+		id: 'mis-datos',
+		tab: 'cuenta',
+		title: 'Tus datos',
+		words: 'descargar datos zip exportar copia portabilidad rgpd mis llevarme'
 	},
 	{
 		id: 'dos-pasos',

@@ -26,6 +26,7 @@ import { wakeCatalog } from '#lib/server/cinema/catalog.ts';
 import { wakeExtras } from '#lib/server/cinema/info.ts';
 import { wakeMusicCatalog } from '#lib/server/music/catalog.ts';
 import { startAlarms } from '#lib/server/alarms/alarms.ts';
+import { startClosingSessionsOfGone } from '#lib/server/nube-members.ts';
 import { startTelegram } from '#lib/server/telegram/telegram.ts';
 import { cinemaRoot, musicRoot, videoEnabled } from '#lib/server/library/paths.ts';
 import { log, startLogCleanup } from '#lib/server/log.ts';
@@ -52,6 +53,8 @@ export const init: ServerInit = async () => {
 	// New episodes of the followed podcasts, every few hours.
 	// The timers (#241): what came due while it was off rings now. The alarms, in the cloud (#253).
 	startAlarms();
+	// Who left the family in Seilide: no session open here (#315).
+	startClosingSessionsOfGone();
 	// The Telegram accounts connected (#243), listened to again.
 	void startTelegram().catch((error) => log.error('telegram', 'Al arrancar', { error }));
 	// The cloud's keys made with the rate limit (#350): without it.

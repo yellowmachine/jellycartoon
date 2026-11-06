@@ -55,7 +55,8 @@ function playNow(wav: Uint8Array): Promise<void> {
 }
 
 /**
- * As the phone's (wake-word.svelte.ts): 880 Hz heard, 660 sent, 440 nothing said. `soft`: quieter
+ * As the phone's (wake-word.svelte.ts): 880 Hz heard, 660 sent, 440 nothing said; only here, 523
+ * the talk over (`endTalk`, main.ts). `soft`: quieter
  * and shorter: the double beep before the «Modelo para conversar» answers (main.ts).
  */
 export function beep(hz: number, soft = false) {

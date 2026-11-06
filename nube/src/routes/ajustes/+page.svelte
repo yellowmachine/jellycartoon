@@ -9,6 +9,7 @@
 	import PushNotices from 'comun/components/PushNotices.svelte';
 	import TelegramBot from './TelegramBot.svelte';
 	import Invitaciones from './Invitaciones.svelte';
+	import PasarAdministracion from './PasarAdministracion.svelte';
 	import AparatoPeques from './AparatoPeques.svelte';
 	import EntrarConLaNube from './EntrarConLaNube.svelte';
 	import VozCaracter from './VozCaracter.svelte';
@@ -209,6 +210,18 @@
 								/>
 							{/if}
 						</div>
+						{#if data.handOver?.others.some((a) => a.id === p.userId)}
+							<div class="mt-2 pl-11">
+								<ConfirmForm
+									action="?seccion={tab}&/unlinkMember"
+									fields={{ userId: p.userId ?? '' }}
+									label="Desvincular de la familia"
+									question="¿Desvincular a {p.name}? Conserva su cuenta y pasa a su propia familia, con sus viajes, paseos, notas, fotos y medicación, y una copia de lo que compartís. Deja de ver todo lo demás de esta familia."
+									yes="Sí, desvincular"
+									class="text-sm text-zinc-400 hover:text-white hover:underline"
+								/>
+							</div>
+						{/if}
 						{#if editingPerson === p.id}
 							<form
 								method="post"
@@ -326,9 +339,16 @@
 			{#if form && 'personProblem' in form}
 				<p class="mt-3 text-sm text-red-400">{form.personProblem}</p>
 			{/if}
+			{#if form && 'unlinked' in form && typeof form.unlinked === 'object'}
+				<p class="mt-3 text-sm text-zinc-300">
+					{form.unlinked.name} ya no está en la familia, y tiene la suya.
+				</p>
+			{/if}
 		</section>
 
 		<Invitaciones {data} {form} {tab} />
+
+		<PasarAdministracion {data} {form} {tab} />
 
 		<AparatoPeques {data} {form} {tab} all />
 
@@ -746,6 +766,88 @@
 	{/if}
 
 	{#if tab === 'cuenta'}
+		<section class={section} id="mis-datos">
+			<h2 class="mb-1 font-semibold">Tus datos</h2>
+			<p class="mb-4 text-sm text-zinc-400">
+				Un zip con lo tuyo y lo que has escrito en lo compartido, con tus fotos, audios y
+				documentos. Nada de otras personas. Los Papeles van descifrados: guárdalo con cuidado.
+			</p>
+			<a href="/ajustes/mis-datos" download data-sveltekit-reload class={secondary}
+				>Descargar mis datos</a
+			>
+		</section>
+
+		{#if (form && 'left' in form) || data.leaving.kind === 'stays' || data.leaving.kind === 'handOverFirst'}
+			<section class={section} id="salir-familia">
+				<h2 class="mb-1 font-semibold">Salir de la familia</h2>
+				{#if form && 'left' in form && typeof form.left === 'object'}
+					<p class="text-sm text-green-400">
+						✓ Ya has salido. Ahora estás en «{form.left.family}», con lo tuyo. Puedes cambiarle el
+						nombre e invitar a quien quieras, en la pestaña Familia.
+					</p>
+				{:else if data.leaving.kind === 'handOverFirst'}
+					<p class="text-sm text-zinc-400">
+						Eres quien administra la familia y hay más adultos. Antes tienes que
+						<a class="text-amber-500 hover:underline" href="?seccion=familia#administracion"
+							>pasarle la administración a uno de ellos</a
+						>.
+					</p>
+				{:else}
+					<p class="mb-4 text-sm text-zinc-400">
+						Conservas tu cuenta y pasas a tu propia familia, con tus viajes, paseos, notas, fotos y
+						medicación, y una copia de lo que compartes. Dejas de ver todo lo demás de esta familia,
+						como los gastos, la nevera y las recetas, y la casa.
+					</p>
+					<ConfirmForm
+						action="?seccion={tab}&/leaveFamily"
+						label="Salir de la familia"
+						question="¿Salir de la familia? Para volver, tendrían que invitarte."
+						yes="Sí, salir"
+						class={secondary}
+					/>
+				{/if}
+				{#if form && 'leaveProblem' in form}
+					<p class="mt-3 text-sm text-red-400">{form.leaveProblem}</p>
+				{/if}
+			</section>
+		{/if}
+
+		{#if data.deletion}
+			<section class={section} id="eliminar-cuenta">
+				<h2 class="mb-1 font-semibold">Eliminar mi cuenta</h2>
+				{#if data.deletion.kind === 'handOverFirst'}
+					<p class="text-sm text-zinc-400">
+						Eres quien administra la familia y hay más adultos. Antes tienes que
+						<a class="text-amber-500 hover:underline" href="?seccion=familia#administracion"
+							>pasarle la administración a uno de ellos</a
+						>.
+					</p>
+				{:else}
+					<p class="mb-4 text-sm text-zinc-400">
+						{#if data.deletion.kind === 'lastAdult'}
+							Eres el único adulto: se borraría también toda la familia{data.deletion.kids.length
+								? `, y las cuentas de ${data.deletion.kids.join(', ')}`
+								: ''}.
+						{:else}
+							Se borra lo tuyo, y lo que compartes sigue en la familia.
+						{/if}
+						Te mandamos un correo con un enlace, y allí se ve todo lo que se pierde y se confirma. No
+						se borra nada todavía.
+					</p>
+					{#if form && 'deletionAsked' in form}
+						<p class="text-sm text-green-400">✓ Mira tu correo. El enlace dura 24 horas.</p>
+					{:else}
+						<form method="post" action="?seccion={tab}&/requestDeletion" use:enhance>
+							<button class={secondary}>Eliminar mi cuenta</button>
+						</form>
+					{/if}
+				{/if}
+				{#if form && 'deletionProblem' in form}
+					<p class="mt-3 text-sm text-red-400">{form.deletionProblem}</p>
+				{/if}
+			</section>
+		{/if}
+
 		<section class={section} id="dos-pasos">
 			<h2 class="mb-1 font-semibold">Verificación en dos pasos</h2>
 			<p class="mb-4 text-sm text-zinc-400">

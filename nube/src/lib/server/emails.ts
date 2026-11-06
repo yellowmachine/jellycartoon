@@ -93,6 +93,58 @@ export function sendInvitation(i: {
 	});
 }
 
+/** To whoever now administers the family (#315): it was handed to them, with no accepting. */
+export function sendAdminHandedOver(i: { to: string; fromName: string; familyName: string }) {
+	return sendMail({
+		to: i.to,
+		subject: `Ahora administras «${i.familyName}» en ${NAME}`,
+		html: page([
+			`${escape(i.fromName)} te ha pasado la administración de la familia <strong>${escape(i.familyName)}</strong>, y ha dejado de administrarla.`,
+			'Ahora decides sus invitaciones, sus personas y sus ajustes.',
+			`<a href="${ORIGIN}/ajustes?seccion=familia" style="color:#b45309">Abrir los ajustes de la familia</a>`
+		])
+	});
+}
+
+/** The link to delete one's account (#315): it opens a page, and it is there it is done. */
+export function sendDeleteAccountMail(to: string, link: string) {
+	return sendMail({
+		to,
+		subject: `Eliminar tu cuenta de ${NAME}`,
+		html: page([
+			'Has pedido eliminar tu cuenta. Para hacerlo, abre este enlace con la sesión iniciada: allí verás lo que se borra y tendrás que confirmarlo.',
+			`<a href="${escape(link)}" style="display:inline-block;background:#dc2626;color:#fff;padding:10px 20px;border-radius:6px;font-weight:600;text-decoration:none">Eliminar mi cuenta</a>`,
+			'El enlace caduca en 24 horas. Si no lo has pedido tú, no hagas nada y cambia tu contraseña: alguien ha entrado con tu cuenta.'
+		])
+	});
+}
+
+/** It is done (#315). */
+export function sendAccountDeleted(to: string) {
+	return sendMail({
+		to,
+		subject: `Tu cuenta de ${NAME} se ha eliminado`,
+		html: page([
+			'Tu cuenta se ha eliminado. Lo que quedaba sigue hasta 7 noches más en las copias de seguridad, y luego desaparece.',
+			'Si no has sido tú, responde a este correo.'
+		])
+	});
+}
+
+/** To whoever was unlinked from their family (#315): what happened, and that they lost nothing. */
+export function sendUnlinked(i: { to: string; oldFamily: string; family: string }) {
+	return sendMail({
+		to: i.to,
+		subject: `Ya no estás en «${i.oldFamily}» en ${NAME}`,
+		html: page([
+			`Quien administra <strong>${escape(i.oldFamily)}</strong> te ha desvinculado de la familia.`,
+			`Sigues teniendo tu cuenta, y ahora tienes tu propia familia, <strong>${escape(i.family)}</strong>, con lo tuyo: tus viajes, paseos, notas y fotos, lo que recuerda la voz, tu medicación, y una copia de las citas y papeles que compartías.`,
+			'Los gastos, la nevera y las recetas se han quedado allí, y también lo de los peques.',
+			`<a href="${ORIGIN}" style="color:#b45309">Entrar en ${NAME}</a>`
+		])
+	});
+}
+
 /** Something of their «Buzón» (#331): a message left for them, or an urgent notice. */
 export function sendInboxMail(to: string, title: string, body: string, url: string) {
 	const link = new URL(url, ORIGIN).href;

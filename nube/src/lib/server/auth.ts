@@ -9,6 +9,8 @@ import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { getRequestEvent } from '$app/server';
 import { db } from '#lib/server/db/index.ts';
 import { DISABLED_PATHS } from '#lib/server/auth-paths.ts';
+import { afterDeleteAccount, beforeDeleteAccount } from '#lib/server/account-deletion.ts';
+import { sendDeleteAccountMail } from '#lib/server/emails.ts';
 import { invitations } from '#lib/server/invitations.ts';
 import {
 	clientPrivileges,
@@ -24,6 +26,16 @@ export const auth = betterAuth({
 	database: drizzleAdapter(db, { provider: 'pg' }),
 	emailAndPassword: { enabled: true, minPasswordLength: 10 },
 	disabledPaths: DISABLED_PATHS,
+	user: {
+		// «Eliminar mi cuenta» (#315): by a link in an email, kept a day, to its page (auth-paths.ts).
+		deleteUser: {
+			enabled: true,
+			sendDeleteAccountVerification: ({ user, token }) =>
+				sendDeleteAccountMail(user.email, `${ORIGIN}/cuenta/eliminar?token=${token}`),
+			beforeDelete: (user) => beforeDeleteAccount(user),
+			afterDelete: (user) => afterDeleteAccount(user)
+		}
+	},
 	hooks: {
 		/**
 		 * Only who was invited signs up: the app is on the internet. From the invitation's page

@@ -35,6 +35,16 @@ import {
 import { BOT_EVENTS, parseBotEvents } from '#lib/telegram-bot.ts';
 import { withFamily } from '#lib/server/family.ts';
 import {
+	adminsAndAdults,
+	handOverAdmin,
+	renameFamily,
+	stepDownAdmin
+} from '#lib/server/family-role.ts';
+import { accountDeletion } from '#lib/server/account-deletion.ts';
+import { leaveFamily } from '#lib/server/family-move.ts';
+import { isServiceAdmin } from '#lib/server/invitations.ts';
+import { sendAdminHandedOver } from '#lib/server/emails.ts';
+import {
 	familyPlace,
 	openRouterKey,
 	oldOpenRouterKey,
@@ -165,6 +175,14 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		telegramBot: admin ? { bot: await botStatus(membership.familyId) } : null,
 		/** «Entrar con la nube» (#279): its houses' clients, and the cloud's address for their .env. */
 		houseClients: admin ? { clients: await houseClients(request.headers), origin: ORIGIN } : null,
+		/** Whether they can leave their family, or what stops it (#315). */
+		leaving: await accountDeletion.stateOf(locals.user!.id),
+		/** What deleting one's account would do (#315); the service's administrator's, nothing. */
+		deletion: isServiceAdmin(locals.user!.email)
+			? null
+			: await accountDeletion.stateOf(locals.user!.id),
+		/** Who it can be handed over to (#315): only its administrator. */
+		handOver: admin ? await adminsAndAdults(withFamily, locals.user!.id) : null,
 		/** The family's open invitations, with their links: only its administrator. */
 		invitations: admin
 			? (await invitations.ofFamily(membership.familyId)).map(({ token, ...i }) => ({
@@ -646,6 +664,61 @@ export const actions: Actions = {
 		if (!familyId) return fail(403, { inviteProblem: 'Solo quien administra la familia' });
 		await invitations.cancel(String((await request.formData()).get('id') ?? ''), familyId);
 		return { saved: 'invitation-cancelled' };
+	},
+	/** The family's administration, to another of its adults (#315); they are told by email. */
+	handOverAdmin: async ({ request, locals }) => {
+		const to = String((await request.formData()).get('to') ?? '');
+		const done = await handOverAdmin(withFamily, locals.user!.id, to);
+		if (!done.ok) return fail(400, { handOverProblem: done.problem });
+		const sent = await sendAdminHandedOver({
+			to: done.email,
+			fromName: done.fromName,
+			familyName: done.familyName
+		}).then(
+			() => true,
+			(error) => {
+				console.error('[familia] El correo de la administración no salió:', error);
+				return false;
+			}
+		);
+		return { handedOver: { name: done.name, sent } };
+	},
+	renameFamily: async ({ request, locals }) => {
+		const name = String((await request.formData()).get('name') ?? '');
+		const done = await renameFamily(withFamily, locals.user!.id, name);
+		if (!done.ok) return fail(400, { handOverProblem: done.problem });
+		return { saved: 'family-name' };
+	},
+	stepDownAdmin: async ({ locals }) => {
+		const done = await stepDownAdmin(withFamily, locals.user!.id);
+		if (!done.ok) return fail(400, { handOverProblem: done.problem });
+		return { saved: 'stepped-down' };
+	},
+	/** Out of the family, with what is theirs (#315): themselves, or someone else by its admin. */
+	leaveFamily: async ({ locals }) => {
+		const done = await leaveFamily(locals.user!.id, locals.user!.id);
+		if (!done.ok) return fail(400, { leaveProblem: done.problem });
+		return { left: { family: done.familyName } };
+	},
+	unlinkMember: async ({ request, locals }) => {
+		const userId = String((await request.formData()).get('userId') ?? '');
+		const done = await leaveFamily(locals.user!.id, userId);
+		if (!done.ok) return fail(400, { personProblem: done.problem });
+		return { unlinked: { name: done.name } };
+	},
+	/** «Eliminar mi cuenta» (#315): an email with the link to its page (/cuenta/eliminar). */
+	requestDeletion: async ({ request, locals }) => {
+		if (isServiceAdmin(locals.user!.email))
+			return fail(400, { deletionProblem: 'Eres quien administra el servicio' });
+		if ((await accountDeletion.stateOf(locals.user!.id)).kind === 'handOverFirst')
+			return fail(400, { deletionProblem: 'Antes, pasa la administración a otro adulto' });
+		try {
+			await auth.api.deleteUser({ body: {}, headers: request.headers });
+		} catch (error) {
+			console.error('[cuentas] El correo para eliminar la cuenta no salió:', error);
+			return fail(500, { deletionProblem: 'No se pudo mandar el correo. Prueba otra vez' });
+		}
+		return { deletionAsked: true };
 	},
 	/** One of the family without an account (a child), for the agenda and the alarms. */
 	addPerson: async ({ request, locals }) => {

@@ -30,6 +30,9 @@ música, si no encuentra todas las palabras, devuelve lo que más se parece por 
   pitido, sin decir «hola casita» ni pulsar nada, en el móvil, la tablet y los satélites: se
   contesta de palabra («la segunda», «el álbum»). Las opciones van con su orden en la conversación,
   así que la IA sabe cuál es. Si no se dice nada, se cierra y quedan los botones.
+- **Fin de la charla, en los satélites**: un pitido (523 Hz) cuando deja de escuchar del todo, tras
+  la respuesta o al agotarse la escucha sin la palabra. Si no entendió o hubo un error, el grave
+  (440 Hz) ya hace de final.
 - Recuerda los últimos turnos: «no, eso no, los Pegamoides» funciona.
 - Internet, si se activa en Ajustes → Casa («Buscar en internet desde la voz»): para lo que no
   sabe porque es de hoy (un resultado, una noticia, un horario), con la búsqueda web de OpenRouter

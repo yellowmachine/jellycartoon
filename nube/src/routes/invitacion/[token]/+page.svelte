@@ -74,7 +74,29 @@
 		{/snippet}
 
 		{#if data.me}
-			{#if mine}
+			{#if mine && data.joining?.kind === 'blocked'}
+				<p class="text-sm text-amber-400">{data.joining.problem}</p>
+			{:else if mine}
+				{#if data.joining?.kind === 'canJoin'}
+					<div class="mb-4 space-y-2 text-sm text-zinc-300">
+						<p>
+							Tu familia <strong>«{data.joining.familyName}»</strong> desaparece y todo lo tuyo pasa
+							a
+							<strong>{inv.familyName}</strong>.
+						</p>
+						<p class="text-amber-400">
+							Sus adultos verán tus gastos, ingresos, nevera, recetas, oraciones, citas, medicación
+							y papeles, como los de cualquiera de esa familia. Tus viajes, paseos, notas y lo que
+							recuerda la voz siguen siendo solo tuyos.
+						</p>
+						<p>
+							Tus claves y ajustes de la familia no se conservan. Si quieres guardar algo aparte,
+							<a class="text-amber-500 hover:underline" href="/ajustes/mis-datos" download
+								>descarga antes tus datos</a
+							>.
+						</p>
+					</div>
+				{/if}
 				<form method="post" action="?/accept" use:enhance={sending} class="space-y-4">
 					{@render familyName()}
 					{#if form?.message}<p class="text-sm text-red-400">{form.message}</p>{/if}
