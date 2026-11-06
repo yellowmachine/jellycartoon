@@ -19,6 +19,9 @@ export const nube =
 		? { url: NUBE_URL, clientId: NUBE_CLIENT_ID, clientSecret: NUBE_CLIENT_SECRET }
 		: null;
 
+/** Where the cloud says its addresses: asked by Better Auth only when the house starts. */
+export const nubeDiscoveryUrl = (url: string) => `${url}/api/auth/.well-known/openid-configuration`;
+
 /**
  * Just joined to their cloud account: their password here is no longer needed, and goes. Except the
  * administrator's, for when the cloud does not answer, and children's, who do not enter this way.

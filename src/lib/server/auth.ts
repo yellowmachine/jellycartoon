@@ -15,7 +15,12 @@ import { db } from '#lib/server/db/index.ts';
 import { user } from '#lib/server/db/schema.ts';
 import { INVITATION_SECONDS, markUsed, recordInvitation } from '#lib/server/invitations.ts';
 import { keepSignInLink } from '#lib/server/sign-in-links.ts';
-import { dropHousePassword, nube, NUBE_PROVIDER } from '#lib/server/nube-login.ts';
+import {
+	dropHousePassword,
+	nube,
+	NUBE_PROVIDER,
+	nubeDiscoveryUrl
+} from '#lib/server/nube-login.ts';
 
 const ac = createAccessControl(defaultStatements);
 
@@ -135,7 +140,7 @@ export const auth = betterAuth({
 							{
 								providerId: NUBE_PROVIDER,
 								name: 'Seilide',
-								discoveryUrl: `${nube.url}/api/auth/.well-known/openid-configuration`,
+								discoveryUrl: nubeDiscoveryUrl(nube.url),
 								requireIdTokenVerification: true,
 								clientId: nube.clientId,
 								clientSecret: nube.clientSecret,

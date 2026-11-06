@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { enhance, type SubmitFunction } from '$app/forms';
 	import { page } from '$app/state';
 	import favicon from '#lib/assets/favicon.svg';
 	import PasswordInput from 'comun/components/PasswordInput.svelte';
@@ -21,6 +21,25 @@
 		return `?${next ? `next=${encodeURIComponent(next)}&` : ''}/${name}`;
 	};
 
+	/** The banner, once the house restarts: when it answers again, here without the old problem. */
+	let restarting = $state(false);
+	const restart: SubmitFunction = () => {
+		restarting = true;
+		return async ({ result, update }) => {
+			if (result.type !== 'success') {
+				restarting = false;
+				return update();
+			}
+			const url = new URL(location.href);
+			url.searchParams.delete('error');
+			setTimeout(async function look() {
+				const up = await fetch('/api/health', { cache: 'no-store' }).catch(() => null);
+				if (up?.ok) location.assign(url);
+				else setTimeout(look, 2000);
+			}, 3000);
+		};
+	};
+
 	const field =
 		'block w-full rounded-md border-zinc-700 bg-zinc-900 text-zinc-100 focus:border-amber-400 focus:ring-amber-400';
 	const input = `mt-1 ${field}`;
@@ -29,6 +48,21 @@
 </script>
 
 <div class="mx-auto mt-16 max-w-sm">
+	{#if data.seilideBack}
+		<form method="post" action="?/restart" use:enhance={restart} class="mb-6">
+			<button
+				disabled={restarting}
+				class="w-full rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-left text-sm text-amber-200 hover:bg-amber-500/20"
+			>
+				{#if restarting}
+					Reiniciando la casa… Esto tarda unos segundos.
+				{:else}
+					<strong class="font-semibold">Seilide ya responde.</strong> Toca aquí para reiniciar la casa
+					y poder entrar con Seilide. Se cortará lo que esté en marcha.
+				{/if}
+			</button>
+		</form>
+	{/if}
 	<img src={favicon} alt="" class="mx-auto mb-4 h-20 w-20 rounded-2xl" />
 	<h1 class="text-center text-3xl font-bold text-amber-400">JellyCartoon</h1>
 	<p class="mt-2 mb-8 text-center text-zinc-400">Tus series y películas, en casa.</p>

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { seilideAccount } from './seilide-account.ts';
+import { seilideAccount, usableDiscovery } from './seilide-account.ts';
 
 const NUBE = 'https://seilide.app';
 
@@ -27,5 +27,22 @@ describe('seilideAccount', () => {
 		expect(seilideAccount(['nube'], `${NUBE}/`, 'nube')?.url).toBe(
 			'https://seilide.app/ajustes?seccion=cuenta'
 		);
+	});
+});
+
+describe('usableDiscovery', () => {
+	const good = {
+		issuer: `${NUBE}/api/auth`,
+		authorization_endpoint: `${NUBE}/api/auth/oauth2/authorize`,
+		token_endpoint: `${NUBE}/api/auth/oauth2/token`,
+		jwks_uri: `${NUBE}/api/auth/jwks`
+	};
+
+	test('with all it needs', () => expect(usableDiscovery(good)).toBe(true));
+
+	test('a page that answers something else does not count', () => {
+		expect(usableDiscovery({ ...good, jwks_uri: undefined })).toBe(false);
+		expect(usableDiscovery(null)).toBe(false);
+		expect(usableDiscovery('<html>')).toBe(false);
 	});
 });

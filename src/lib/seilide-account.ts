@@ -10,3 +10,11 @@ export function seilideAccount(providers: string[], nubeUrl: string | null, nube
 		ownPassword: providers.includes('credential')
 	};
 }
+
+/** What Better Auth needs of Seilide's answer to verify who comes in. */
+export function usableDiscovery(doc: unknown) {
+	const d = (doc ?? {}) as Record<string, unknown>;
+	return [d.issuer, d.authorization_endpoint, d.token_endpoint, d.jwks_uri].every(
+		(v) => typeof v === 'string' && v !== ''
+	);
+}
