@@ -3,7 +3,9 @@ import { APIError } from 'better-auth/api';
 import { eq } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
-import { user, userSettings } from '#lib/server/db/schema.ts';
+import { account as accountTable, user, userSettings } from '#lib/server/db/schema.ts';
+import { nube, NUBE_PROVIDER } from '#lib/server/nube-login.ts';
+import { seilideAccount } from '#lib/seilide-account.ts';
 import { auth } from '#lib/server/auth.ts';
 import { isKid, KIDS_ROLE } from '#lib/server/kids.ts';
 import {
@@ -229,26 +231,39 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 	}
 
 	const twoFactorOn = Boolean(locals.user!.twoFactorEnabled);
+	const providers = (
+		await db
+			.select({ providerId: accountTable.providerId })
+			.from(accountTable)
+			.where(eq(accountTable.userId, userId))
+	).map((a) => a.providerId);
 	return {
 		account: {
 			name: locals.user!.name,
 			email: locals.user!.email,
 			/** An adult chooses their own drawing (#157); a child's, the administrator. */
-			avatar: isKid(locals.user) ? undefined : ((await avatarOf(locals.user!))?.id ?? null)
+			avatar: isKid(locals.user) ? undefined : ((await avatarOf(locals.user!))?.id ?? null),
+			/** Who enters with Seilide looks after their account there (#279). */
+			seilide: isKid(locals.user)
+				? null
+				: seilideAccount(providers, nube?.url ?? null, NUBE_PROVIDER)
 		},
 		/**
-		 * The second step after the password: not for children's accounts; the administrator always
-		 * has it. How many recovery codes are left, as each is used once.
+		 * The second step after the password: not for children's accounts, nor for who has no password
+		 * here, as who enters with Seilide (#279): it is asked for to change anything, and it protects
+		 * nothing of theirs. The administrator always has it. How many recovery codes are left, as each
+		 * is used once.
 		 */
-		twoFactor: canUseTwoFactor(locals.user!)
-			? {
-					enabled: twoFactorOn,
-					required: admin,
-					codesLeft: twoFactorOn
-						? (await auth.api.viewBackupCodes({ body: { userId } })).backupCodes.length
-						: null
-				}
-			: null,
+		twoFactor:
+			canUseTwoFactor(locals.user!) && providers.includes('credential')
+				? {
+						enabled: twoFactorOn,
+						required: admin,
+						codesLeft: twoFactorOn
+							? (await auth.api.viewBackupCodes({ body: { userId } })).backupCodes.length
+							: null
+					}
+				: null,
 		playback: { audioLang: settings.audioLang, subtitleLang: settings.subtitleLang },
 		/** Also for mpv in the living room, where films are watched. */
 		subtitleStyle: settings.subtitleStyle,

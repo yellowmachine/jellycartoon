@@ -12,6 +12,12 @@
 	{@const tf = data.twoFactor}
 	<section class={section} id="dos-pasos">
 		<h2 class="mb-1 font-semibold">Verificación en dos pasos</h2>
+		{#if data.account.seilide?.ownPassword}
+			<p class="mb-3 text-sm text-zinc-400">
+				La de tu contraseña de esta casa, para entrar si Seilide no responde. La de tu cuenta está
+				en Seilide.
+			</p>
+		{/if}
 		{#if !tf.enabled}
 			<p class="mb-3 text-sm text-zinc-400">
 				Tras la contraseña, un código de una app en tu móvil (Proton Pass, Google Authenticator…):

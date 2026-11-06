@@ -256,7 +256,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		id: 'cuenta',
 		tab: 'cuenta',
 		title: 'Cuenta',
-		words: 'salir cerrar sesión correo email usuario dibujo avatar'
+		words: 'salir cerrar sesión correo email usuario dibujo avatar seilide eliminar'
 	},
 	{
 		id: 'dos-pasos',
