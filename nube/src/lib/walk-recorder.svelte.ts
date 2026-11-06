@@ -7,9 +7,9 @@ import {
 	attachmentsOf,
 	dropWalkAttachments,
 	keepAttachment,
-	sendAttachments,
 	type Attachment
 } from '#lib/walk-attachments.ts';
+import { walkUploads } from '#lib/walk-uploads.svelte.ts';
 import {
 	FASTEST_WALK,
 	GAP_AFTER_MS,
@@ -71,6 +71,8 @@ class WalkRecorder {
 	notes = $state(0);
 	/** Lost since last told, with the page hidden: to tell who walks how to keep it. */
 	lostSeconds = $state(0);
+	/** A photo or a note that was not kept: stays until read, unlike `problem`, which the GPS clears. */
+	notKept = $state<string | null>(null);
 
 	#cues = noCues();
 	#cueTimer: ReturnType<typeof setInterval> | null = null;
@@ -85,6 +87,9 @@ class WalkRecorder {
 	#reopened = false;
 	#savedAt = 0;
 	#watch: number | null = null;
+	/** Photos and notes on their way to this device's queue: «Terminar» waits for them. */
+	#keeping = new Set<Promise<void>>();
+	#finishing = false;
 
 	get recording() {
 		return this.startedAt !== null && this.endedAt === null;
@@ -97,6 +102,44 @@ class WalkRecorder {
 	get #planKey() {
 		return `paseo-plan:${this.#userId}`;
 	}
+
+	get #cameraKey() {
+		return `paseo-camara:${this.#userId}`;
+	}
+
+	/**
+	 * The camera opening: Android may close the page meanwhile, and then the photo never reaches it.
+	 * Written down, to know on opening again.
+	 */
+	cameraOpens() {
+		try {
+			localStorage.setItem(this.#cameraKey, String(this.startedAt));
+		} catch {
+			// Private window: nothing can be told afterwards.
+		}
+	}
+
+	/** Back from the camera in the same page, with a photo or without. */
+	cameraCloses() {
+		try {
+			localStorage.removeItem(this.#cameraKey);
+		} catch {
+			// As above.
+		}
+	}
+
+	#cameraLeftOpen() {
+		try {
+			return localStorage.getItem(this.#cameraKey) === String(this.startedAt);
+		} catch {
+			return false;
+		}
+	}
+
+	#onOnline = () => walkUploads.retry();
+	#onShown = () => {
+		if (!document.hidden) walkUploads.retry();
+	};
 
 	/** Changed before starting: remembered for the next walk. */
 	choose(change: Partial<WalkPlan>) {
@@ -115,8 +158,12 @@ class WalkRecorder {
 		this.#reset();
 		this.#userId = userId;
 		this.plan = this.#readPlan();
+		walkUploads.holdBack(() => this.startedAt);
+		addEventListener('online', this.#onOnline);
+		document.addEventListener('visibilitychange', this.#onShown);
 		const kept = this.#read();
-		if (!kept) return;
+		// What another walk or an earlier visit left waiting, whatever is going on now.
+		if (!kept) return void walkUploads.send(userId);
 		this.plan = kept.plan ? parsePlan(kept.plan) : this.plan;
 		this.#cues = kept.cues ?? noCues();
 		this.startedAt = kept.startedAt;
@@ -129,6 +176,12 @@ class WalkRecorder {
 		this.#hiddenInGap = kept.hiddenInGap;
 		this.#musicInGap = kept.musicInGap;
 		this.#reopened = true;
+		void walkUploads.send(userId);
+		if (this.#cameraLeftOpen()) {
+			this.cameraCloses();
+			this.notKept =
+				'El móvil cerró la página mientras usabas la cámara, y esa foto no se ha guardado.';
+		}
 		if (this.recording) {
 			this.#countHidden();
 			this.#startWatching();
@@ -136,20 +189,28 @@ class WalkRecorder {
 		void this.#countAttachments();
 	}
 
-	/** A photo or a note of this walk, where it is now; kept on this device until the walk is sent. */
-	async attach(kind: Attachment['kind'], blob: Blob) {
-		if (!this.recording || !this.#userId) return;
+	/**
+	 * A photo or a note of this walk, where it is now, even if it takes a moment to be ready; kept on
+	 * this device until the walk is sent.
+	 */
+	attach(kind: Attachment['kind'], blob: Blob | Promise<Blob>) {
+		if (!this.recording || !this.#userId) return Promise.resolve();
+		const userId = this.#userId;
+		const walk = this.startedAt;
+		const at = Date.now();
+		const position = this.#lastFix?.at ?? null;
+		const job = this.#keep({ userId, kind, at, position, walk }, blob).finally(() =>
+			this.#keeping.delete(job)
+		);
+		this.#keeping.add(job);
+		return job;
+	}
+
+	async #keep(a: Omit<Attachment, 'id' | 'blob'>, blob: Blob | Promise<Blob>) {
 		try {
-			await keepAttachment({
-				userId: this.#userId,
-				kind,
-				blob,
-				at: Date.now(),
-				position: this.#lastFix?.at ?? null,
-				walk: this.startedAt
-			});
+			await keepAttachment({ ...a, blob: await blob });
 		} catch {
-			this.problem = 'No se ha podido guardar en este móvil: quizá no le queda sitio.';
+			this.notKept = `No se ha podido guardar ${a.kind === 'foto' ? 'la foto' : 'la nota'} en este móvil: quizá no le queda sitio.`;
 			return;
 		}
 		await this.#countAttachments();
@@ -161,9 +222,6 @@ class WalkRecorder {
 		const mine = all.filter((a) => a.walk === this.startedAt);
 		this.photos = mine.filter((a) => a.kind === 'foto').length;
 		this.notes = mine.filter((a) => a.kind === 'nota').length;
-		// What is left of walks already at the server.
-		if (all.length > mine.length)
-			void sendAttachments(this.#userId, this.startedAt).catch(() => {});
 	}
 
 	/** Told, or the screen locked as it should: not said again until more is lost. */
@@ -184,7 +242,12 @@ class WalkRecorder {
 	}
 
 	async finish() {
-		if (!this.recording) return;
+		if (!this.recording || this.#finishing) return;
+		this.#finishing = true;
+		// A note being recorded and a photo just taken are part of it.
+		await noteRecorder.end();
+		await Promise.allSettled(this.#keeping);
+		this.#finishing = false;
 		this.#stopWatching();
 		this.#countHidden();
 		this.endedAt = Date.now();
@@ -207,20 +270,24 @@ class WalkRecorder {
 			})
 		}).catch(() => null);
 		this.sending = false;
-		if (!res?.ok) {
-			this.problem = 'No se ha podido enviar: el paseo sigue guardado en este móvil.';
+		// Without a session it is sent to the login page, whose answer is no less an «ok».
+		if (!res?.ok || res.redirected) {
+			this.problem = res?.redirected
+				? 'Hay que volver a entrar: el paseo sigue guardado en este móvil y se enviará después.'
+				: 'No se ha podido enviar: el paseo sigue guardado en este móvil.';
 			return;
 		}
 		const userId = this.#userId;
 		this.#forget();
-		// Its photos and notes now: heard one by one, so as not to hold up the walk being kept.
+		// Its photos and notes now: one by one, so as not to hold up the walk being kept.
 		await invalidateAll();
-		const sent = userId ? await sendAttachments(userId).catch(() => 0) : 0;
-		if (sent) await invalidateAll();
+		if (userId) await walkUploads.send(userId);
 	}
 
 	/** Thrown away, going on or not sent. */
 	discard() {
+		noteRecorder.stop();
+		this.cameraCloses();
 		this.#stopWatching();
 		if (this.#userId && this.startedAt !== null)
 			void dropWalkAttachments(this.#userId, this.startedAt).catch(() => {});
@@ -243,6 +310,7 @@ class WalkRecorder {
 		this.problem = null;
 		this.located = false;
 		this.lostSeconds = 0;
+		this.notKept = null;
 		this.#points = [];
 		this.#diagnosis = noDiagnosis();
 		this.#lastFix = null;

@@ -3,11 +3,13 @@
 	import WalkLock from './WalkLock.svelte';
 	import NoteButton from '#lib/components/NoteButton.svelte';
 	import TripMap from '#lib/components/TripMap.svelte';
+	import WalkUploads from '#lib/components/WalkUploads.svelte';
 	import { noteRecorder } from '#lib/note-recorder.svelte.ts';
 	import type { Note } from '#lib/notes.ts';
 	import { smallerPhoto } from 'comun/receipt-photo.ts';
 	import { durationText, type StoredPoint } from '#lib/trips.ts';
 	import { walkRecorder as walk } from '#lib/walk-recorder.svelte.ts';
+	import { walkUploads } from '#lib/walk-uploads.svelte.ts';
 	import { offlineMusic } from '#lib/offline-music.svelte.ts';
 	import { playWalkList } from '#lib/walk-music.ts';
 	import {
@@ -83,7 +85,8 @@
 	async function photo(input: HTMLInputElement) {
 		const taken = input.files?.[0];
 		input.value = '';
-		if (taken) await walk.attach('foto', await smallerPhoto(taken));
+		walk.cameraCloses();
+		if (taken) await walk.attach('foto', smallerPhoto(taken));
 	}
 
 	const select =
@@ -104,6 +107,20 @@
 		if (opened !== id || !res?.ok) return;
 		({ line, photos, notes } = await res.json());
 	}
+
+	// Its photos and notes arrive after the walk: the one opened shows them as they do.
+	$effect(() => {
+		if (!walkUploads.arrived || opened === null) return;
+		const id = opened;
+		void fetch(`/paseos/${id}/recorrido`)
+			.then((res) => (res.ok ? res.json() : null))
+			.then((fresh) => {
+				if (!fresh || opened !== id) return;
+				photos = fresh.photos;
+				notes = fresh.notes;
+			})
+			.catch(() => {});
+	});
 </script>
 
 <svelte:head>
@@ -112,6 +129,8 @@
 
 <h1 class="mb-1 text-2xl font-bold">Paseos</h1>
 <p class="mb-6 text-sm text-zinc-400">Tiempo, km y recorrido al salir a andar, solo para ti.</p>
+
+<WalkUploads />
 
 <section class="mb-8 rounded-md border border-zinc-800 p-4">
 	{#if walk.endedAt !== null}
@@ -128,6 +147,14 @@
 			{@render discard()}
 		</div>
 	{:else if walk.recording}
+		{#if walk.notKept}
+			<div class="mb-4 flex items-start gap-2 rounded-md bg-red-500/15 p-3 text-sm text-red-200">
+				<p class="flex-1" role="alert">{walk.notKept}</p>
+				<button class="px-1" aria-label="Cerrar el aviso" onclick={() => (walk.notKept = null)}
+					>✕</button
+				>
+			</div>
+		{/if}
 		{#if walk.lostSeconds}
 			<div
 				class="mb-4 flex items-start gap-2 rounded-md bg-amber-500/15 p-3 text-sm text-amber-200"
@@ -168,6 +195,8 @@
 					accept="image/*"
 					capture="environment"
 					class="hidden"
+					onclick={() => walk.cameraOpens()}
+					oncancel={() => walk.cameraCloses()}
 					onchange={(e) => photo(e.currentTarget)}
 				/>
 			</label>
