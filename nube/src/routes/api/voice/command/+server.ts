@@ -13,6 +13,7 @@ import {
 	snapserverOf
 } from '#lib/server/satellites.ts';
 import { voiceAnswered, voiceFailed } from '#lib/server/voice/alarm.ts';
+import { heardElsewhere } from '#lib/server/voice/order-twins.ts';
 import { KITCHEN_TOOLS, putOn, runVoiceCommand } from '#lib/server/voice/command.ts';
 import { inQuietHours } from '#lib/server/voice/quiet-check.ts';
 import { voiceSettings } from '#lib/server/voice/settings.ts';
@@ -43,6 +44,18 @@ export const POST: RequestHandler = async ({ request }) => {
 	const { k, satellite } = await satelliteRequest(request);
 	const command = parseVoiceRequest(await request.json().catch(() => null));
 	if (!command) error(400, 'Orden no válida');
+	if (heardElsewhere(k.familyId, `satelite:${satellite.id}`, command.text)) {
+		console.info(`[voz] ${satellite.name}: «${command.text}»: ya la hace otro aparato`, {
+			familyId: k.familyId
+		});
+		return json({
+			reply: '',
+			actions: [],
+			options: [],
+			expectsAnswer: false,
+			elsewhere: true
+		} satisfies VoiceReply);
+	}
 	const place = `satelite:${satellite.id}` as const;
 	const [timers, snapserver] = await Promise.all([
 		describeTimersAt(k, place),

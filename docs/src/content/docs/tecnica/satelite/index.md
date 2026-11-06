@@ -39,8 +39,10 @@ Se actualiza solo: WUD mira cada noche (a las 4:30, `UPDATE_CRON`) si hay versi�
 ## La palabra que lo despierta
 
 Cada satélite empieza con la de su `WAKE_WORD`. Si la familia elige una en Seilide (Ajustes →
-Familia → «Palabra que los despierta»), esa vale para todos: cambian en unos segundos, sin
-reiniciar, y la recuerdan aunque arranquen sin conexión. `WAKE_THRESHOLD` sigue siendo de cada
+Familia → «Palabra que los despierta»), esa vale para todos, y para los móviles y tablets en
+Carretera y Cocina. Los satélites cambian en unos segundos, sin reiniciar, y la recuerdan aunque
+arranquen sin conexión. Si dos aparatos oyen la misma orden, Seilide solo hace la primera en llegar
+(`order-twins.ts`), salvo en Carretera y en lo que llega por la app de casa. `WAKE_THRESHOLD` sigue siendo de cada
 satélite, porque depende de su micrófono y de su habitación.
 
 ## Con la música de la casa (Snapcast)

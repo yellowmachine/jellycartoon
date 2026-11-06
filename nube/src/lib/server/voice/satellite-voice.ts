@@ -32,7 +32,7 @@ export interface SatelliteVoice {
 	/** «Al oír la palabra»: a phrase instead of the beep, one of `greetings` (none, the default ones). */
 	greet: boolean;
 	greetings: string[];
-	/** The word that wakes all of the family's satellites; none, each its own (`WAKE_WORD`). */
+	/** The word that wakes all of the family's devices; none, each its own (`WAKE_WORD`, its choice). */
 	wakeWord: WakeWordModel | null;
 }
 

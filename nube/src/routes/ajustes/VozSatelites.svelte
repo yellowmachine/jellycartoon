@@ -20,7 +20,7 @@
 	 * (acento, ánimo) y las frases que dice mientras piensa la IA. «Probar» la oye aquí, antes de
 	 * guardar. Y cómo van las frases (#301): grabándose, listas o con su problema. «Al oír la
 	 * palabra»: en vez del pitido, una frase («¿Sí?»), que graba cada satélite. Y la palabra que los
-	 * despierta, la misma para todos.
+	 * despierta, la misma para todos, también para los móviles y las tablets.
 	 */
 	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
 
@@ -163,14 +163,15 @@
 			<label class="flex flex-col gap-1 text-zinc-300">
 				Palabra que los despierta
 				<select name="wakeWord" class="{select} w-full" value={data.satelliteVoice.wakeWord ?? ''}>
-					<option value="">La que tenga cada satélite</option>
+					<option value="">La que tenga cada aparato</option>
 					{#each Object.entries(WAKE_WORDS) as [model, label] (model)}
 						<option value={model}>{label}</option>
 					{/each}
 				</select>
 				<span class="text-xs text-zinc-500"
-					>La misma para todos los satélites, que cambian en unos segundos. Los móviles y las
-					tablets eligen la suya.</span
+					>La misma para los satélites, los móviles y las tablets de la familia: los satélites
+					cambian en unos segundos; un móvil o una tablet abiertos, al recargar. Cada aparato sigue
+					decidiendo si escucha. Si dos oyen la misma orden, solo la hace uno.</span
 				>
 			</label>
 			<label class="flex items-center gap-2 text-zinc-300">
