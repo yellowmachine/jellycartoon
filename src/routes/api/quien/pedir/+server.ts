@@ -1,4 +1,6 @@
 import { error, json } from '@sveltejs/kit';
+import QRCode from 'qrcode';
+import { ORIGIN } from '$app/env/private';
 import type { RequestHandler } from './$types';
 import { askToEnter, deviceOf } from '#lib/server/kid-login.ts';
 
@@ -10,5 +12,11 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	if (typeof kidId !== 'string') error(400, 'Petición no válida');
 	const result = await askToEnter(kidId, device);
 	if ('error' in result) error(429, result.error);
-	return json(result);
+	if (!('requestId' in result)) return json(result);
+	// For an adult beside it, notice or not: read, it opens the answer on their phone.
+	const qr = await QRCode.toString(`${ORIGIN}/peques/permiso/${result.requestId}`, {
+		type: 'svg',
+		margin: 1
+	});
+	return json({ ...result, qr });
 };

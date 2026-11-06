@@ -249,7 +249,8 @@
 {/if}
 
 <!-- A child asking to enter on a device of the house (#141): to its parents, on any page. -->
-{#if data.guardian}
+<!-- Not on the page that answers one by its QR: the same request twice. -->
+{#if data.guardian && !page.url.pathname.startsWith('/peques/')}
 	<KidRequests />
 {/if}
 

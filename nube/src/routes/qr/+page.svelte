@@ -8,9 +8,9 @@
 
 	/**
 	 * «Leer un QR»: the camera, until it sees the QR on a child's device («¿Quién eres?», #303),
-	 * which opens its request to answer (/peques/permiso/…), or on the house's TV (#172), which opens
-	 * the house's /entrar to let this adult in there (with «Entrar con Seilide» if the phone has no
-	 * session of the house yet). Only those links: any other QR is said, not followed. Read here with
+	 * which opens its request to answer (/peques/permiso/…), or on the house's TV, which opens there
+	 * /entrar to let this adult in (#172) or /peques/permiso/… to let a child in (#279), with «Entrar
+	 * con Seilide» if the phone has no session of the house yet. Only those links: any other QR is said, not followed. Read here with
 	 * jsQR, frame by frame, on every browser.
 	 */
 	let video = $state<HTMLVideoElement>();
@@ -32,8 +32,8 @@
 		if (
 			data.houseOrigin &&
 			url.origin === data.houseOrigin &&
-			url.pathname === '/entrar' &&
-			url.searchParams.get('codigo')
+			((url.pathname === '/entrar' && url.searchParams.get('codigo')) ||
+				REQUEST_PATH.test(url.pathname))
 		)
 			return { house: url.href };
 		return null;
@@ -42,7 +42,7 @@
 	/** What it reads, said over the camera. */
 	const what = $derived(
 		[
-			data.houseOrigin && 'el de la tele, al elegir tu dibujo',
+			data.houseOrigin && 'el de la tele, al elegir un dibujo',
 			data.guardian && 'el del aparato de un peque, al elegir el suyo'
 		]
 			.filter(Boolean)
