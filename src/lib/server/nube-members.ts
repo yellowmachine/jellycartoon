@@ -4,6 +4,7 @@ import { askCloud, cloudLink } from '#lib/server/kitchen.ts';
 import { log } from '#lib/server/log.ts';
 import { nube, NUBE_PROVIDER } from '#lib/server/nube-login.ts';
 import { closeSessionsOfThoseNotIn } from '#lib/server/nube-members-scope.ts';
+import { keepSeilideKids } from '#lib/server/seilide-kids.ts';
 
 /**
  * Whoever enters the house with Seilide and is no longer in its family (#315: unlinked, gone, or
@@ -20,7 +21,9 @@ async function closeSessionsOfGone() {
 	if (!nube) return;
 	const link = await cloudLink();
 	if (!link) return;
-	const { adults } = await askCloud<{ adults?: unknown }>(link, '/personas');
+	const { adults, kids } = await askCloud<{ adults?: unknown; kids?: unknown }>(link, '/personas');
+	// A family always has someone: a list without anyone is not one to act on.
+	if (Array.isArray(adults) && adults.length) await keepSeilideKids(kids);
 	const closed = await closeSessionsOfThoseNotIn(db, adults, { provider: NUBE_PROVIDER, isAdmin });
 	if (closed) log.info('nube', 'Sesiones cerradas de quien ya no está en la familia', { closed });
 }

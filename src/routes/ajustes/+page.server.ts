@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { account as accountTable, user, userSettings } from '#lib/server/db/schema.ts';
+import { KID_EMAIL } from '#lib/server/kids.ts';
 import { nube, NUBE_PROVIDER } from '#lib/server/nube-login.ts';
 import { seilideAccount } from '#lib/seilide-account.ts';
 import { auth } from '#lib/server/auth.ts';
@@ -187,7 +188,16 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		 * Children's accounts (#17), and how they enter (#141): with a password, or choosing their
 		 * avatar on a device of the house while one of their parents or guardians lets them in.
 		 */
-		kids = { accounts: kidAccounts, adults: grownUps, devices, here: here?.id ?? null };
+		kids = {
+			accounts: kidAccounts.map((kid) => ({ ...kid, fromSeilide: KID_EMAIL.test(kid.email) })),
+			adults: grownUps,
+			devices,
+			here: here?.id ?? null,
+			/** With Seilide, people are made there (#279); the children, once it tells the house. */
+			seilide: nube
+				? { url: new URL('/ajustes?seccion=familia', nube.url).href, kids: Boolean(link) }
+				: null
+		};
 		ai = {
 			chatModel: chat.model,
 			defaultChatModel: DEFAULT_CHAT_MODEL,
@@ -506,6 +516,7 @@ export const actions: Actions = {
 	 */
 	createAdult: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);
+		if (nube) return fail(400, { section: 'people', message: 'Los adultos se invitan en Seilide' });
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim();
 		const email = String(form.get('email') ?? '').trim();
@@ -564,6 +575,8 @@ export const actions: Actions = {
 	 */
 	createKid: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);
+		if (nube && (await cloudLink()))
+			return fail(400, { section: 'kids', message: 'Los peques se crean en Seilide' });
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim();
 		const byApproval = form.get('byApproval') === 'on';
@@ -608,10 +621,12 @@ export const actions: Actions = {
 		if (password && password.length < 8)
 			return fail(400, { section: 'kids', message: 'La contraseña, de 8 caracteres o más' });
 		const [kid] = await db
-			.select({ name: user.name, role: user.role })
+			.select({ name: user.name, role: user.role, email: user.email })
 			.from(user)
 			.where(eq(user.id, kidId));
 		if (kid?.role !== KIDS_ROLE) return fail(400, { section: 'kids', message: 'No es un peque' });
+		if (KID_EMAIL.test(kid.email))
+			return fail(400, { section: 'kids', message: 'Sus datos se cambian en Seilide' });
 		try {
 			await saveKidProfile(
 				kidId,

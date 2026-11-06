@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { seilideAccount, usableDiscovery } from './seilide-account.ts';
+import { parseSeilideKids, seilideAccount, usableDiscovery } from './seilide-account.ts';
 
 const NUBE = 'https://seilide.app';
 
@@ -44,5 +44,28 @@ describe('usableDiscovery', () => {
 		expect(usableDiscovery({ ...good, jwks_uri: undefined })).toBe(false);
 		expect(usableDiscovery(null)).toBe(false);
 		expect(usableDiscovery('<html>')).toBe(false);
+	});
+});
+
+describe('parseSeilideKids', () => {
+	test('as Seilide says them, with its address in small letters', () => {
+		expect(
+			parseSeilideKids([
+				{ email: 'P-1@peques.invalid', name: ' Lucía ', avatar: 'zorro', guardians: ['a@t.es'] }
+			])
+		).toEqual([
+			{ email: 'p-1@peques.invalid', name: 'Lucía', avatar: 'zorro', guardians: ['a@t.es'] }
+		]);
+	});
+
+	test('someone with a real address is not a child of Seilide', () => {
+		expect(parseSeilideKids([{ email: 'ana@t.es', name: 'Ana' }])).toEqual([]);
+	});
+
+	test('no drawing nor guardians, and something else than a list', () => {
+		expect(parseSeilideKids([{ email: 'p@peques.invalid', name: '' }])).toEqual([
+			{ email: 'p@peques.invalid', name: 'Peque', avatar: null, guardians: [] }
+		]);
+		expect(parseSeilideKids('nada')).toEqual([]);
 	});
 });
