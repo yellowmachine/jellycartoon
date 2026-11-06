@@ -93,6 +93,19 @@ export function sendInvitation(i: {
 	});
 }
 
+/** To whoever now administers the family (#315): it was handed to them, with no accepting. */
+export function sendAdminHandedOver(i: { to: string; fromName: string; familyName: string }) {
+	return sendMail({
+		to: i.to,
+		subject: `Ahora administras «${i.familyName}» en ${NAME}`,
+		html: page([
+			`${escape(i.fromName)} te ha pasado la administración de la familia <strong>${escape(i.familyName)}</strong>, y ha dejado de administrarla.`,
+			'Ahora decides sus invitaciones, sus personas y sus ajustes.',
+			`<a href="${ORIGIN}/ajustes?seccion=familia" style="color:#b45309">Abrir los ajustes de la familia</a>`
+		])
+	});
+}
+
 /** Something of their «Buzón» (#331): a message left for them, or an urgent notice. */
 export function sendInboxMail(to: string, title: string, body: string, url: string) {
 	const link = new URL(url, ORIGIN).href;

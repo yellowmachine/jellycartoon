@@ -9,6 +9,7 @@
 	import PushNotices from 'comun/components/PushNotices.svelte';
 	import TelegramBot from './TelegramBot.svelte';
 	import Invitaciones from './Invitaciones.svelte';
+	import PasarAdministracion from './PasarAdministracion.svelte';
 	import AparatoPeques from './AparatoPeques.svelte';
 	import EntrarConLaNube from './EntrarConLaNube.svelte';
 	import VozCaracter from './VozCaracter.svelte';
@@ -329,6 +330,8 @@
 		</section>
 
 		<Invitaciones {data} {form} {tab} />
+
+		<PasarAdministracion {data} {form} {tab} />
 
 		<AparatoPeques {data} {form} {tab} all />
 

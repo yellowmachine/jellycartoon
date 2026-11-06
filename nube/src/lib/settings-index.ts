@@ -216,6 +216,13 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		shown: onlyAdmin
 	},
 	{
+		id: 'administracion',
+		tab: 'familia',
+		title: 'Administración',
+		words: 'administrador administrar pasar rol ceder familia cambiar quien manda',
+		shown: onlyAdmin
+	},
+	{
 		id: 'telegram-bot',
 		tab: 'conexiones',
 		title: 'Bot de Telegram',
