@@ -28,7 +28,6 @@
 
 	const day = new Intl.DateTimeFormat('es', { weekday: 'short', day: 'numeric', month: 'short' });
 	const time = new Intl.DateTimeFormat('es', { timeStyle: 'short' });
-	const count = new Intl.NumberFormat('es');
 
 	let now = $state(Date.now());
 	$effect(() => {
@@ -363,29 +362,6 @@
 								>Corregirlas en Notas</a
 							>
 						{/if}
-						<!-- The test of #410: whether the GPS goes on with the screen off. -->
-						<div class="mt-3 text-sm text-zinc-400">
-							<p>
-								Posiciones del GPS: {count.format(w.diagnosis.fixes)}, {count.format(
-									w.diagnosis.hiddenFixes
-								)} con la pantalla apagada y {count.format(w.diagnosis.musicFixes)} con música.
-							</p>
-							<p>Pantalla apagada: {shortTime(w.diagnosis.hiddenSeconds)}.</p>
-							{#if w.diagnosis.gaps.length}
-								<ul class="mt-1 list-disc pl-5">
-									{#each w.diagnosis.gaps as gap (gap.at)}
-										<li>
-											{time.format(new Date(gap.at * 1000))}: {shortTime(gap.seconds)} sin GPS, {gap.metres}
-											m en línea recta{gap.hidden ? ', pantalla apagada' : ''}{gap.music
-												? ', con música'
-												: ''}{gap.reopened ? ', el móvil cerró la página' : ''}
-										</li>
-									{/each}
-								</ul>
-							{:else}
-								<p>Sin cortes del GPS.</p>
-							{/if}
-						</div>
 					</div>
 				{/if}
 			</li>
