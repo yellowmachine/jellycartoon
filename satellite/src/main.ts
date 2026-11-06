@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
 import ort from 'onnxruntime-node';
 import { SPEECH_END, SpeechEnd, Vad } from '../../packages/comun/src/vad.ts';
@@ -64,12 +64,17 @@ const ORDERS_DIR = process.env.ORDERS_DIR ?? '/data/ordenes';
 const BARGE_IN = process.env.BARGE_IN === '1';
 /** The last orders kept as WAV; older ones deleted. */
 const KEEP_ORDERS = 20;
-/** Which word wakes it (wake-words.ts): `hola_casita`, the default, or `alexa`. */
-const MODEL: WakeWordModel = isWakeWord(process.env.WAKE_WORD)
+/** Its own word (wake-words.ts): until the family chooses one for all its satellites, in Seilide. */
+const OWN_MODEL: WakeWordModel = isWakeWord(process.env.WAKE_WORD)
 	? process.env.WAKE_WORD
 	: DEFAULT_WAKE_WORD;
-/** As it is said, for the log: «hola casita», «Alexa». */
-const WORD = WAKE_WORDS[MODEL];
+/** The family's word, as last told: with no connection at the start, it is still that one. */
+const WORD_FILE = process.env.WAKE_WORD_FILE ?? '/data/palabra';
+let keptWord = await readFile(WORD_FILE, 'utf8')
+	.then((text) => text.trim())
+	.catch(() => null);
+/** Which word wakes it now. */
+let model: WakeWordModel = isWakeWord(keptWord) ? keptWord : OWN_MODEL;
 /** As the phone's: the word's level is the loudest of this long before it went off. */
 const WORD_MS = 1500;
 /** After an order, this long before the word is heard again. */
@@ -125,13 +130,13 @@ async function load(file: string): Promise<Session> {
 const [melspectrogram, embedding, word, silero] = await Promise.all([
 	load('melspectrogram'),
 	load('embedding_model'),
-	load(MODEL),
+	load(model),
 	load('silero_vad')
 ]);
 const sessions = new Map<string, Session>([
 	['melspectrogram', melspectrogram],
 	['embedding', embedding],
-	[MODEL, word]
+	[model, word]
 ]);
 
 const run: Run = async (name, input, dims) => {
@@ -142,11 +147,78 @@ const run: Run = async (name, input, dims) => {
 	return out[session.outputNames[0]!]!.data as Float32Array;
 };
 
-const frames = Number(
-	(word.inputMetadata[0] as { shape?: number[] } | undefined)?.shape?.[1] ?? 16
-);
-const detector = new WakeWordDetector(run, [{ name: MODEL, frames }]);
-await detector.warmUp();
+async function detectorOf(name: WakeWordModel, session: Session) {
+	const frames = Number(
+		(session.inputMetadata[0] as { shape?: number[] } | undefined)?.shape?.[1] ?? 16
+	);
+	const ready = new WakeWordDetector(run, [{ name, frames }]);
+	await ready.warmUp();
+	return ready;
+}
+
+let detector = await detectorOf(model, word);
+let wordSession = word;
+/** The word the family wants, and the change to it, made between two chunks by `step`. */
+let wantedModel = model;
+let changingWord = false;
+let changeWordNow: (() => void) | null = null;
+
+/** One at a time, and to the last one asked for. It goes on with the one it has until the new one is ready. */
+async function changeWord() {
+	if (changingWord) return;
+	changingWord = true;
+	while (wantedModel !== model) {
+		const next = wantedModel;
+		try {
+			const session = await load(next);
+			const ready = await detectorOf(next, session);
+			await new Promise<void>((done) => {
+				changeWordNow = () => {
+					const gone = { model, session: wordSession };
+					sessions.delete(gone.model);
+					sessions.set(next, session);
+					detector = ready;
+					wordSession = session;
+					model = next;
+					attempt = 0;
+					void gone.session.release();
+					log(`Ahora escucha «${WAKE_WORDS[next]}»`);
+					done();
+				};
+			});
+		} catch (err) {
+			log(
+				`No se pudo cambiar a «${WAKE_WORDS[next]}»: ${err instanceof Error ? err.message : String(err)}`
+			);
+			wantedModel = model;
+		}
+	}
+	changingWord = false;
+}
+
+/**
+ * The family's word, as Seilide tells it: none, its own; not told (a house), as it is. One this
+ * image does not have yet (a newer word, before its update): it goes on with the one it has.
+ */
+function followWord(told: string | null | undefined) {
+	if (told === undefined) return;
+	if (told !== null && !isWakeWord(told)) {
+		if (told !== refusedWord)
+			log(`Esta versión no tiene la palabra «${told}»: sigue con la que tiene`);
+		refusedWord = told;
+		return;
+	}
+	refusedWord = null;
+	if (told !== keptWord) {
+		keptWord = told;
+		void (told ? writeFile(WORD_FILE, told) : rm(WORD_FILE, { force: true })).catch((err) =>
+			log(`No se pudo guardar la palabra: ${err instanceof Error ? err.message : String(err)}`)
+		);
+	}
+	wantedModel = told ?? OWN_MODEL;
+	void changeWord();
+}
+let refusedWord: string | null = null;
 
 const sampleRate = new ort.Tensor('int64', BigInt64Array.from([BigInt(SAMPLE_RATE)]), []);
 /** A fresh Silero VAD for each order, as the phone's `vad()`. */
@@ -211,6 +283,10 @@ let attempt = 0;
 const recent: { at: number; dbfs: number }[] = [];
 
 async function step(chunk: Float32Array) {
+	if (changeWordNow) {
+		changeWordNow();
+		changeWordNow = null;
+	}
 	const now = Date.now();
 	let sum = 0;
 	for (let i = 0; i < chunk.length; i++) sum += (chunk[i]! / 32768) ** 2;
@@ -234,9 +310,9 @@ async function step(chunk: Float32Array) {
 				talk++;
 				busy = false;
 				hush();
-				log(`«${WORD}» (${score.toFixed(2)}) mientras hablaba o pensaba: cortado`);
+				log(`«${WAKE_WORDS[model]}» (${score.toFixed(2)}) mientras hablaba o pensaba: cortado`);
 			}
-			log(`«${WORD}» (${score.toFixed(2)}): escuchando (la palabra a ${db(voiceDb)})`);
+			log(`«${WAKE_WORDS[model]}» (${score.toFixed(2)}): escuchando (la palabra a ${db(voiceDb)})`);
 			wordDb = voiceDb;
 			// A new talk: the conversation's model is announced again, the first time.
 			deepSaid = false;
@@ -481,6 +557,7 @@ if (serverReady)
 	void followAlarms((state) => {
 		const was = alarms;
 		alarms = state;
+		followWord(state.wakeWord);
 		// Its own phrases, in the family's voice: again only if it changed, or one is missing.
 		// And what it says on hearing its word, if it changed.
 		const greetingsChanged =
@@ -626,5 +703,5 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const)
 	});
 
 log(
-	`Escuchando «${WORD}» en ${MIC}, ${MIC_RATE} Hz × ${MIC_CHANNELS} (umbral ${THRESHOLD}, margen ${MARGIN_DB} dB${BARGE_IN ? ', se le puede cortar hablando' : ''}); ${serverReady ? `órdenes a ${serverName}` : 'sin servidor: órdenes solo al log'}; ${speakerName ? `altavoz ${speakerName}` : 'sin altavoz'}`
+	`Escuchando «${WAKE_WORDS[model]}» en ${MIC}, ${MIC_RATE} Hz × ${MIC_CHANNELS} (umbral ${THRESHOLD}, margen ${MARGIN_DB} dB${BARGE_IN ? ', se le puede cortar hablando' : ''}); ${serverReady ? `órdenes a ${serverName}` : 'sin servidor: órdenes solo al log'}; ${speakerName ? `altavoz ${speakerName}` : 'sin altavoz'}`
 );

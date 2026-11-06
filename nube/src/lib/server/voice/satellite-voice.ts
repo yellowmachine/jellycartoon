@@ -8,6 +8,7 @@ import {
 	pickFiller,
 	satelliteVoiceModel
 } from 'comun/ai-voice.ts';
+import { isWakeWord, type WakeWordModel } from 'comun/wake-words.ts';
 import { writeWav } from 'comun/wav.ts';
 import { createHash } from 'node:crypto';
 import { familySettings } from '#lib/server/db/schema.ts';
@@ -31,6 +32,8 @@ export interface SatelliteVoice {
 	/** «Al oír la palabra»: a phrase instead of the beep, one of `greetings` (none, the default ones). */
 	greet: boolean;
 	greetings: string[];
+	/** The word that wakes all of the family's satellites; none, each its own (`WAKE_WORD`). */
+	wakeWord: WakeWordModel | null;
 }
 
 export async function satelliteVoiceOf(k: Kitchen): Promise<SatelliteVoice> {
@@ -43,7 +46,8 @@ export async function satelliteVoiceOf(k: Kitchen): Promise<SatelliteVoice> {
 		tone: saved?.tone?.trim() || DEFAULT_TONE,
 		fillers: parseFillers((saved?.fillers ?? []).join('\n')),
 		greet: saved?.greet === true,
-		greetings: parseFillers((saved?.greetings ?? []).join('\n'), { defaults: DEFAULT_GREETINGS })
+		greetings: parseFillers((saved?.greetings ?? []).join('\n'), { defaults: DEFAULT_GREETINGS }),
+		wakeWord: isWakeWord(saved?.wakeWord) ? saved.wakeWord : null
 	};
 }
 
@@ -63,7 +67,14 @@ export const voiceKey = (voice: SatelliteVoice) => hash(`${voice.voice}|${voice.
 export async function setSatelliteVoice(
 	k: Kitchen,
 	apiKey: string | null,
-	input: { voice: string; tone: string; fillers: string; greet?: boolean; greetings?: string }
+	input: {
+		voice: string;
+		tone: string;
+		fillers: string;
+		greet?: boolean;
+		greetings?: string;
+		wakeWord?: string;
+	}
 ) {
 	const set = {
 		satelliteVoice: {
@@ -71,7 +82,8 @@ export async function setSatelliteVoice(
 			tone: input.tone.trim().slice(0, MAX_TONE_CHARS),
 			fillers: parseFillers(input.fillers, { orDefault: false }),
 			greet: input.greet === true,
-			greetings: parseFillers(input.greetings ?? '', { orDefault: false })
+			greetings: parseFillers(input.greetings ?? '', { orDefault: false }),
+			...(isWakeWord(input.wakeWord) ? { wakeWord: input.wakeWord } : {})
 		}
 	};
 	await k.run((tx) =>

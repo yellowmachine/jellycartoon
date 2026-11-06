@@ -99,10 +99,23 @@ describe('the satellites voice', () => {
 			tone: 'Seria',
 			fillers: ['Ya va.'],
 			greet: false,
-			greetings: DEFAULT_GREETINGS
+			greetings: DEFAULT_GREETINGS,
+			wakeWord: null
 		});
 		await setSatelliteVoice(k, null, { voice: 'Leda', tone: '', fillers: 'Ya va.' });
 		expect((await satelliteVoiceOf(k)).voice).toBe('Leda');
+	});
+
+	test('the word of all the satellites: one of ours, or none, each its own', async () => {
+		const before = await satelliteVoiceOf(k);
+		const base = { voice: before.voice, tone: before.tone, fillers: '' };
+		await setSatelliteVoice(k, null, { ...base, wakeWord: 'kusanagi' });
+		expect((await satelliteVoiceOf(k)).wakeWord).toBe('kusanagi');
+		await setSatelliteVoice(k, null, { ...base, wakeWord: 'nada-de-esto' });
+		expect((await satelliteVoiceOf(k)).wakeWord).toBeNull();
+		await setSatelliteVoice(k, null, { ...base, wakeWord: 'okapi' });
+		await setSatelliteVoice(k, null, { ...base, wakeWord: '' });
+		expect((await satelliteVoiceOf(k)).wakeWord).toBeNull();
 	});
 
 	test('on hearing the word: the beep unless asked, then the phrases as written', async () => {

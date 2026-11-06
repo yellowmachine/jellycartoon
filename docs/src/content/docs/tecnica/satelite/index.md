@@ -36,6 +36,13 @@ sonar: mejor sin sesión gráfica, o con el audio del escritorio apagado. Sin pr
 
 Se actualiza solo: WUD mira cada noche (a las 4:30, `UPDATE_CRON`) si hay versión nueva, y la pone.
 
+## La palabra que lo despierta
+
+Cada satélite empieza con la de su `WAKE_WORD`. Si la familia elige una en Seilide (Ajustes →
+Familia → «Palabra que los despierta»), esa vale para todos: cambian en unos segundos, sin
+reiniciar, y la recuerdan aunque arranquen sin conexión. `WAKE_THRESHOLD` sigue siendo de cada
+satélite, porque depende de su micrófono y de su habitación.
+
 ## Con la música de la casa (Snapcast)
 
 Para que la música de jellycartoon suene también en esta habitación, el satélite lleva su propio

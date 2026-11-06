@@ -15,8 +15,8 @@ import { greetingsOf, satelliteVoiceOf, voiceKey } from '#lib/server/voice/satel
  * /api/satelite/avisos): what rings where it is (in it or in the whole house), which its wake word
  * stops, and what it says itself; what it is to say once (a rule's notice, #331, `say`); which
  * voice the family has (`voice`, for it to record its own phrases again only when it changes); what
- * it says on hearing its word instead of the beep (`greetings`, none for the beep); and the
- * snapserver it plays from (Ajustes), for its own snapclient, with its name and its id there.
+ * it says on hearing its word instead of the beep (`greetings`, none for the beep); the word
+ * itself (`wakeWord`, the same for all; none, each its own); and the snapserver it plays from (Ajustes), for its own snapclient, with its name and its id there.
  * Again on every change.
  */
 export const GET: RequestHandler = async ({ request }) => {
@@ -28,6 +28,7 @@ export const GET: RequestHandler = async ({ request }) => {
 		say: { id: string; text: string }[];
 		voice: string;
 		greetings: string[];
+		wakeWord: string | null;
 	};
 	return sseResponse<State>(request, (listener) => {
 		const send = () =>
@@ -44,7 +45,8 @@ export const GET: RequestHandler = async ({ request }) => {
 						snapclientId: snapclientIdOf(satellite.id),
 						say: saysFor(satellite.id),
 						voice: voiceKey(voice),
-						greetings: greetingsOf(voice)
+						greetings: greetingsOf(voice),
+						wakeWord: voice.wakeWord
 					})
 				)
 				.catch((err) => console.warn('[avisos] Para el satélite', err));

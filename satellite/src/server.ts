@@ -125,6 +125,8 @@ export interface Ringing {
 	voice?: string;
 	/** Seilide's: what it says on hearing its word instead of the beep (fallback.ts); none, the beep. */
 	greetings?: string[];
+	/** Seilide's: the word of all the family's satellites; null, each its own (`WAKE_WORD`). */
+	wakeWord?: string | null;
 }
 
 /** After a dropped channel, tried again this long after. */
