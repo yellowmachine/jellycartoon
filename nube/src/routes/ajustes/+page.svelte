@@ -749,6 +749,17 @@
 	{/if}
 
 	{#if tab === 'cuenta'}
+		<section class={section} id="mis-datos">
+			<h2 class="mb-1 font-semibold">Tus datos</h2>
+			<p class="mb-4 text-sm text-zinc-400">
+				Un zip con lo tuyo y lo que has escrito en lo compartido, con tus fotos, audios y
+				documentos. Nada de otras personas. Los Papeles van descifrados: guárdalo con cuidado.
+			</p>
+			<a href="/ajustes/mis-datos" download data-sveltekit-reload class={secondary}
+				>Descargar mis datos</a
+			>
+		</section>
+
 		<section class={section} id="dos-pasos">
 			<h2 class="mb-1 font-semibold">Verificación en dos pasos</h2>
 			<p class="mb-4 text-sm text-zinc-400">

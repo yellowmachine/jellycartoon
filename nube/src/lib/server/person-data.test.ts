@@ -1,13 +1,15 @@
 import { describe, expect, test } from 'bun:test';
-import { is } from 'drizzle-orm';
+import { getTableColumns, is } from 'drizzle-orm';
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import * as schema from './db/schema.ts';
 import { user } from './db/schema.ts';
 import { PERSON_DATA } from './person-data.ts';
 
-const tables = (Object.values(schema) as unknown[])
-	.filter((value): value is PgTable => is(value, PgTable))
-	.map((table) => getTableConfig(table));
+const pgTables = (Object.values(schema) as unknown[]).filter((value): value is PgTable =>
+	is(value, PgTable)
+);
+const tables = pgTables.map((table) => getTableConfig(table));
+const byName = new Map(pgTables.map((table) => [getTableConfig(table).name, table]));
 
 /** Of a family, or of a person: what leaving has to answer for. */
 const answerable = tables
@@ -29,6 +31,32 @@ describe('what leaving does to each table (#315)', () => {
 
 	test('nothing on the list is gone from the schema', () => {
 		expect(Object.keys(PERSON_DATA).filter((name) => !answerable.includes(name))).toEqual([]);
+	});
+
+	test('what the zip takes is there: its columns, and its tables to come from', () => {
+		const wrong = Object.entries(PERSON_DATA).flatMap(([name, { zip }]) => {
+			if (!zip) return [];
+			const of = (table: string) => getTableColumns(byName.get(table)!);
+			const columns = of(name);
+			const names = [
+				...zip.where.map((w) => w.column),
+				...(zip.sealed ?? []),
+				...(zip.stored ? [zip.stored.column] : [])
+			];
+			const among = zip.where.flatMap((w) => ('among' in w ? [w.among] : []));
+			return [
+				...names.filter((c) => !(c in columns)).map((c) => `${name}.${c}`),
+				...among
+					.filter((a) => !PERSON_DATA[a.table]?.zip || !(a.column in of(a.table)))
+					.map((a) => `${name} → ${a.table}.${a.column}`)
+			];
+		});
+		expect(wrong).toEqual([]);
+	});
+
+	test('no two tables share a file in the zip', () => {
+		const files = Object.values(PERSON_DATA).flatMap(({ zip }) => (zip ? [zip.file] : []));
+		expect(files.length).toBe(new Set(files).size);
 	});
 
 	test('nothing that leaves is tied by its family to something that stays', () => {

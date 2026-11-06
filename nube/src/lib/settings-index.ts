@@ -230,6 +230,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		shown: onlyAdmin
 	},
 	{
+		id: 'mis-datos',
+		tab: 'cuenta',
+		title: 'Tus datos',
+		words: 'descargar datos zip exportar copia portabilidad rgpd mis llevarme'
+	},
+	{
 		id: 'dos-pasos',
 		tab: 'cuenta',
 		title: 'Verificación en dos pasos',
