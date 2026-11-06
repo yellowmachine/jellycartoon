@@ -76,6 +76,17 @@ const SECTIONS: {
 		about:
 			'Los juegos retro de la casa, en el navegador: las mismas partidas que en la tele. Solo adultos.'
 	},
+	// What is watched at home (#421), from a copy the house sends: adults only.
+	{
+		path: '/estadisticas',
+		label: 'Estadísticas',
+		icon: 'estadisticas',
+		where: 'nube',
+		house: true,
+		startsOff: true,
+		about:
+			'Cuántas horas se ve en casa, por persona y por serie, y a qué horas. Cada adulto ve las suyas y las de los peques. Solo adultos.'
+	},
 	{
 		path: '/oracion',
 		label: 'Oración',

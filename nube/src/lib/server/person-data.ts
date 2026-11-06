@@ -267,6 +267,11 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: { file: 'notas', where: [mine()], stored: { area: 'notas', column: 'audio' } },
 		note: 'Its audio too'
 	},
+	watch_log: {
+		leaving: 'moves',
+		joining: 'moves',
+		zip: { file: 'visto-en-casa', where: [mine()] }
+	},
 
 	// The voice: only rows with their user_id; null is the whole house's.
 	memory: {

@@ -30,7 +30,11 @@
 					<span class="block text-xs text-zinc-500"
 						>Qué series, películas y canales ves, cuánto rato y a qué horas{data.voice
 							? ', para preguntárselo a la IA en Hablar («¿qué capítulo vi el viernes?»)'
-							: ''}. Solo lo puedes consultar tú. Apagarlo no borra lo ya guardado.</span
+							: ''}. Solo lo puedes consultar tú{data.sendsWatchToCloud
+							? ', también en las estadísticas de Seilide, donde llega una copia'
+							: ''}. Apagarlo no borra lo ya guardado aquí{data.sendsWatchToCloud
+							? ', y sí la copia de Seilide'
+							: ''}.</span
 					>
 				</span>
 			</label>

@@ -28,6 +28,7 @@ import { wakeMusicCatalog } from '#lib/server/music/catalog.ts';
 import { startAlarms } from '#lib/server/alarms/alarms.ts';
 import { startClosingSessionsOfGone } from '#lib/server/nube-members.ts';
 import { startWatchingSeilide } from '#lib/server/seilide-watch.ts';
+import { startSendingWatchLog } from '#lib/server/watch-log.ts';
 import { startTelegram } from '#lib/server/telegram/telegram.ts';
 import { cinemaRoot, musicRoot, videoEnabled } from '#lib/server/library/paths.ts';
 import { log, startLogCleanup } from '#lib/server/log.ts';
@@ -56,6 +57,8 @@ export const init: ServerInit = async () => {
 	startAlarms();
 	// Who left the family in Seilide: no session open here (#315).
 	startClosingSessionsOfGone();
+	// What is watched here, for Seilide's statistics (#421).
+	startSendingWatchLog();
 	// Started without reaching Seilide: /login offers a restart once it answers (#279).
 	void startWatchingSeilide().catch((error) => log.error('nube', 'Al mirar Seilide', { error }));
 	// The Telegram accounts connected (#243), listened to again.

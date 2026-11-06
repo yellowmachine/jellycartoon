@@ -405,7 +405,9 @@ export const watchTime = pgTable(
 		channelId: text('channel_id'),
 		/** A site of elsewhere, from the TV view's shortcuts (#327): while its window is open. */
 		shortcutId: integer('shortcut_id').references(() => tvShortcut.id, { onDelete: 'cascade' }),
-		seconds: real('seconds').notNull().default(0)
+		seconds: real('seconds').notNull().default(0),
+		/** Of `seconds`, how many Seilide knows (#421): what differs is still to send. */
+		sentSeconds: real('sent_seconds').notNull().default(0)
 	},
 	(t) => [
 		// All but one are null: they are compared as equal, so there is one row per thing and day.
@@ -713,6 +715,8 @@ export const userSettings = pgTable('user_settings', {
 	theme: text('theme').notNull().default('jellycartoon'),
 	/** What an adult watches is kept in watch_time, for them to ask about; a child's, always. */
 	keepHistory: boolean('keep_history').notNull().default(true),
+	/** «Guardar lo que veo» turned off: what Seilide has of them is still to delete there (#421). */
+	forgetSentWatch: boolean('forget_sent_watch').notNull().default(false),
 	/** Langua, the language app: where to send audio clips (`send_clip` in voice commands), and its token. */
 	languaUrl: text('langua_url'),
 	languaToken: text('langua_token'),
