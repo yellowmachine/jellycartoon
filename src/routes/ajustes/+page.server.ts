@@ -93,6 +93,7 @@ import {
 import { canUseTwoFactor } from '#lib/server/two-factor.ts';
 import { randomBytes } from 'node:crypto';
 import {
+	forgetByApproval,
 	adults,
 	deviceOf,
 	forgetDevice,
@@ -610,6 +611,22 @@ export const actions: Actions = {
 		return { saved: 'kids' };
 	},
 	/** A child's avatar, how it enters, and who lets it in (#141). */
+	/** A child made here, with what it has watched and its rules. Seilide's, from Seilide. */
+	deleteKid: async ({ request, locals }) => {
+		await requireAdmin(locals.user!.id);
+		const kidId = String((await request.formData()).get('kidId') ?? '');
+		const [kid] = await db
+			.select({ name: user.name, role: user.role, email: user.email })
+			.from(user)
+			.where(eq(user.id, kidId));
+		if (kid?.role !== KIDS_ROLE) return fail(400, { section: 'kids', message: 'No es un peque' });
+		if (KID_EMAIL.test(kid.email))
+			return fail(400, { section: 'kids', message: 'Se borra en Seilide' });
+		await auth.api.removeUser({ body: { userId: kidId }, headers: request.headers });
+		forgetByApproval(kidId);
+		log.info('ajustes', `Peque borrado: ${kid.name}`);
+		return { saved: 'kid' };
+	},
 	saveKid: async ({ request, locals }) => {
 		await requireAdmin(locals.user!.id);
 		const form = await request.formData();
