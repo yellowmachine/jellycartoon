@@ -15,7 +15,8 @@ import {
 	parseWalk,
 	walkDistanceText,
 	walkTotals,
-	worthWalking
+	worthWalking,
+	photoCopyName
 } from '#lib/walks.ts';
 
 const at = (north: number, t = 0): TripPoint => ({
@@ -174,4 +175,11 @@ describe('voice cues', () => {
 			list: 3
 		});
 	});
+});
+
+test('photoCopyName: by when it was taken, with its own extension', () => {
+	const at = new Date(2026, 10, 6, 9, 5, 7);
+	expect(photoCopyName(at, 'IMG_1.JPG')).toBe('paseo-2026-11-06-09-05-07.jpg');
+	expect(photoCopyName(at, 'foto.heic')).toBe('paseo-2026-11-06-09-05-07.heic');
+	expect(photoCopyName(at, 'sin-extension')).toBe('paseo-2026-11-06-09-05-07.jpg');
 });

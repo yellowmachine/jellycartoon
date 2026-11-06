@@ -1,7 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { kitchenOf } from '#lib/server/fridge.ts';
-import { deleteNote, editNote, hearAgain, listNotes } from '#lib/server/notes.ts';
+import { addSaidNote, deleteNote, editNote, hearAgain, listNotes } from '#lib/server/notes.ts';
 
 /** Notas (#416): one's own and those of the whole house, the latest first; `?q=`, searched. */
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -15,6 +15,12 @@ const idOf = (form: FormData) => {
 };
 
 export const actions: Actions = {
+	write: async ({ request, locals }) => {
+		const text = String((await request.formData()).get('text') ?? '');
+		const k = await kitchenOf(locals.user!.id);
+		if (!(await addSaidNote(k, locals.user!.id, text, 'escrita')))
+			return fail(400, { message: 'Una nota necesita algo escrito' });
+	},
 	edit: async ({ request, locals }) => {
 		const form = await request.formData();
 		const id = idOf(form);

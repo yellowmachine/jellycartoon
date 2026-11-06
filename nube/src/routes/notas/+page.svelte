@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
 	import NoteButton from '#lib/components/NoteButton.svelte';
+	import WalkUploads from '#lib/components/WalkUploads.svelte';
 	import { noteRecorder } from '#lib/note-recorder.svelte.ts';
-	import { attachmentsOf, keepAttachment, sendAttachments } from '#lib/walk-attachments.ts';
-	import { walkRecorder as walk } from '#lib/walk-recorder.svelte.ts';
+	import { MAX_NOTE_TEXT } from '#lib/notes.ts';
+	import { keepAttachment } from '#lib/walk-attachments.ts';
+	import { walkUploads } from '#lib/walk-uploads.svelte.ts';
 	import type { PageProps } from './$types';
 
 	/**
@@ -15,31 +16,18 @@
 	let { data, form }: PageProps = $props();
 
 	const when = new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeStyle: 'short' });
-	const SOURCE = { pagina: 'Grabada', paseo: 'En un paseo', voz: 'Por voz' };
+	const SOURCE = { pagina: 'Grabada', paseo: 'En un paseo', voz: 'Por voz', escrita: 'Escrita' };
 
+	/** The form for a note written by hand. */
+	let writing = $state(false);
 	let editing = $state<number | null>(null);
 	let deleting = $state<number | null>(null);
-	let sending = $state(false);
-	/** Recorded and not at the server yet. */
-	let waiting = $state(0);
 	let problem = $state<string | null>(null);
 
-	async function send() {
-		const userId = data.user!.id;
-		sending = true;
-		// What a walk going on or not sent yet took, it sends itself afterwards.
-		const sent = await sendAttachments(userId, walk.startedAt).catch(() => 0);
-		waiting = (await attachmentsOf(userId).catch(() => [])).length;
-		sending = false;
-		// Only then: without coverage, asking for the page again would leave the browser's error.
-		if (sent) await invalidateAll();
-	}
+	// What a walk going on or not sent yet took, it sends itself afterwards.
+	const send = () => walkUploads.send(data.user!.id);
 
-	onMount(() => {
-		void attachmentsOf(data.user!.id)
-			.then((all) => (waiting = all.length))
-			.catch(() => {});
-	});
+	onMount(() => void walkUploads.look(data.user!.id));
 
 	async function recorded(audio: Blob) {
 		problem = null;
@@ -66,8 +54,8 @@
 
 <h1 class="mb-1 text-2xl font-bold">Notas</h1>
 <p class="mb-6 text-sm text-zinc-400">
-	Lo que dictas, para buscarlo luego: aquí, en un paseo o diciéndole a la voz «toma nota». Solo para
-	ti; las dichas a un altavoz, para toda la casa.
+	Lo que escribes o dictas, para buscarlo luego: aquí, en un paseo o diciéndole a la voz «toma
+	nota». Solo para ti; las dichas a un altavoz, para toda la casa.
 </p>
 
 <div class="mb-4 flex flex-wrap items-center gap-3">
@@ -75,15 +63,41 @@
 		onrecorded={recorded}
 		class="rounded-md bg-amber-500 px-4 py-2 font-semibold text-zinc-950"
 	/>
-	{#if sending}
-		<span class="text-sm text-zinc-400">Guardando y transcribiendo…</span>
-	{:else if waiting}
-		<span class="text-sm text-amber-300">
-			{waiting === 1 ? '1 sin enviar' : `${waiting} sin enviar`}
-		</span>
-		<button class="text-sm text-amber-400 hover:underline" onclick={send}>Enviar</button>
-	{/if}
+	<button
+		class="rounded-md bg-zinc-800 px-4 py-2 hover:bg-zinc-700"
+		onclick={() => (writing = true)}>✍️ Escribir</button
+	>
 </div>
+{#if writing}
+	<form
+		method="post"
+		action="?/write"
+		class="mb-4"
+		use:enhance={() =>
+			async ({ result, update }) => {
+				await update();
+				if (result.type === 'success') writing = false;
+			}}
+	>
+		<!-- svelte-ignore a11y_autofocus -->
+		<textarea
+			name="text"
+			rows="3"
+			required
+			autofocus
+			maxlength={MAX_NOTE_TEXT}
+			aria-label="Nota"
+			placeholder="Escribe la nota"
+			class="mb-2 w-full rounded-md border-zinc-700 bg-zinc-950 text-sm focus:border-amber-500 focus:ring-amber-500"
+		></textarea>
+		<div class="flex gap-3 text-sm">
+			<button class="rounded-md bg-amber-500 px-3 py-1 font-medium text-zinc-950">Guardar</button>
+			<button type="button" class="text-zinc-400" onclick={() => (writing = false)}>Cancelar</button
+			>
+		</div>
+	</form>
+{/if}
+<WalkUploads />
 {#if noteRecorder.problem || problem}
 	<p class="mb-4 text-sm text-amber-300" role="alert">{noteRecorder.problem ?? problem}</p>
 {/if}

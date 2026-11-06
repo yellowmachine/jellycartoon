@@ -21,6 +21,7 @@
 		favoriteOf,
 		isFavorite,
 		linesSum,
+		MONTH_NAMES,
 		monthName,
 		parseEuros,
 		type Expense,
@@ -383,10 +384,6 @@
 		window.scrollTo({ top: fixedFrom, behavior: 'smooth' });
 	}
 
-	/** «enero»…«diciembre», for the yearly ones. */
-	const MONTHS = Array.from({ length: 12 }, (_, i) =>
-		new Date(Date.UTC(2026, i, 15)).toLocaleDateString('es-ES', { month: 'long', timeZone: 'UTC' })
-	);
 	/** «🔁 Hacer fijo» opened on this expense: every month or every year. */
 	let making = $state<number | null>(null);
 
@@ -937,7 +934,7 @@
 										>Cada mes</button
 									>
 									<button name="every" value="año" class="{button} bg-zinc-800 hover:bg-zinc-700"
-										>Cada año ({MONTHS[Number(e.date.slice(5, 7)) - 1]})</button
+										>Cada año ({MONTH_NAMES[Number(e.date.slice(5, 7)) - 1]})</button
 									>
 									<button
 										type="button"
@@ -990,7 +987,7 @@
 					<span class="w-10 shrink-0 text-center leading-tight text-zinc-400">
 						<span class="block text-base tabular-nums">{r.day}</span>
 						<span class="block text-xs"
-							>{r.month === null ? 'cada mes' : MONTHS[r.month - 1]!.slice(0, 3)}</span
+							>{r.month === null ? 'cada mes' : MONTH_NAMES[r.month - 1]!.slice(0, 3)}</span
 						>
 					</span>
 					<span class="min-w-0 flex-1">
@@ -1109,7 +1106,7 @@
 					<label class="flex flex-col gap-1 text-xs text-zinc-400">
 						Mes
 						<select name="month" bind:value={f.month} class={field}>
-							{#each MONTHS as name, i (i)}
+							{#each MONTH_NAMES as name, i (i)}
 								<option value={i + 1}>{name}</option>
 							{/each}
 						</select>

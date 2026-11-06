@@ -20,7 +20,11 @@ import {
 	updateRecurring
 } from '#lib/server/expenses/expenses.ts';
 import { canReadReceipts, receiptFrom } from '#lib/server/expenses/receipt.ts';
-import { monthIncomeTotal, NotADocument } from '#lib/server/expenses/income.ts';
+import {
+	addDueRecurringIncome,
+	monthIncomeTotal,
+	NotADocument
+} from '#lib/server/expenses/income.ts';
 
 /**
  * The family's expenses (#253; jellycartoon's #194): a month's (`?mes=2026-10`), by category and one by
@@ -32,7 +36,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const asked = url.searchParams.get('mes');
 	const month =
 		asked && /^\d{4}-(0[1-9]|1[0-2])$/.test(asked) && asked <= current ? asked : current;
-	await addDueRecurring(k);
+	await Promise.all([addDueRecurring(k), addDueRecurringIncome(k, today())]);
 	const [expenses, previous, recurring, favorites, canRead, income] = await Promise.all([
 		monthExpenses(k, month),
 		monthTotal(k, addMonths(month, -1)),

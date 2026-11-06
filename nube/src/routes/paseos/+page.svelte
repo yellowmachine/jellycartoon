@@ -3,11 +3,13 @@
 	import WalkLock from './WalkLock.svelte';
 	import NoteButton from '#lib/components/NoteButton.svelte';
 	import TripMap from '#lib/components/TripMap.svelte';
+	import WalkUploads from '#lib/components/WalkUploads.svelte';
 	import { noteRecorder } from '#lib/note-recorder.svelte.ts';
 	import type { Note } from '#lib/notes.ts';
 	import { smallerPhoto } from 'comun/receipt-photo.ts';
 	import { durationText, type StoredPoint } from '#lib/trips.ts';
 	import { walkRecorder as walk } from '#lib/walk-recorder.svelte.ts';
+	import { walkUploads } from '#lib/walk-uploads.svelte.ts';
 	import { offlineMusic } from '#lib/offline-music.svelte.ts';
 	import { playWalkList } from '#lib/walk-music.ts';
 	import {
@@ -18,6 +20,7 @@
 		goalLeftText,
 		goalText,
 		paceText,
+		photoCopyName,
 		walkDistanceText,
 		type CueEvery,
 		type WalkDiagnosis
@@ -79,11 +82,29 @@
 		if (list) void playWalkList(list.id).then((problem) => (musicProblem = problem));
 	}
 
+	/**
+	 * The photo as it was taken, downloaded: a page cannot write to the gallery, and the camera gives
+	 * it to the page without keeping its own. Stays on the phone whatever happens to what is sent.
+	 */
+	function keepCopy(file: File) {
+		const url = URL.createObjectURL(file);
+		const link = document.createElement('a');
+		link.href = url;
+		link.download = photoCopyName(new Date(), file.name);
+		document.body.append(link);
+		link.click();
+		link.remove();
+		setTimeout(() => URL.revokeObjectURL(url), 60_000);
+	}
+
 	/** A photo smaller, as the tickets': on the walk, where it was taken. */
 	async function photo(input: HTMLInputElement) {
 		const taken = input.files?.[0];
 		input.value = '';
-		if (taken) await walk.attach('foto', await smallerPhoto(taken));
+		walk.cameraCloses();
+		if (!taken) return;
+		keepCopy(taken);
+		await walk.attach('foto', smallerPhoto(taken));
 	}
 
 	const select =
@@ -104,6 +125,20 @@
 		if (opened !== id || !res?.ok) return;
 		({ line, photos, notes } = await res.json());
 	}
+
+	// Its photos and notes arrive after the walk: the one opened shows them as they do.
+	$effect(() => {
+		if (!walkUploads.arrived || opened === null) return;
+		const id = opened;
+		void fetch(`/paseos/${id}/recorrido`)
+			.then((res) => (res.ok ? res.json() : null))
+			.then((fresh) => {
+				if (!fresh || opened !== id) return;
+				photos = fresh.photos;
+				notes = fresh.notes;
+			})
+			.catch(() => {});
+	});
 </script>
 
 <svelte:head>
@@ -112,6 +147,8 @@
 
 <h1 class="mb-1 text-2xl font-bold">Paseos</h1>
 <p class="mb-6 text-sm text-zinc-400">Tiempo, km y recorrido al salir a andar, solo para ti.</p>
+
+<WalkUploads />
 
 <section class="mb-8 rounded-md border border-zinc-800 p-4">
 	{#if walk.endedAt !== null}
@@ -128,6 +165,27 @@
 			{@render discard()}
 		</div>
 	{:else if walk.recording}
+		{#if walk.notKept}
+			<div class="mb-4 flex items-start gap-2 rounded-md bg-red-500/15 p-3 text-sm text-red-200">
+				<p class="flex-1" role="alert">{walk.notKept}</p>
+				<button class="px-1" aria-label="Cerrar el aviso" onclick={() => (walk.notKept = null)}
+					>✕</button
+				>
+			</div>
+		{/if}
+		{#if walk.lostSeconds}
+			<div
+				class="mb-4 flex items-start gap-2 rounded-md bg-amber-500/15 p-3 text-sm text-amber-200"
+			>
+				<p class="flex-1" role="alert">
+					Con la pantalla apagada o en otra app no se han medido {shortTime(walk.lostSeconds)}. La
+					próxima vez, usa 🔒 «Bloquear pantalla».
+				</p>
+				<button class="px-1" aria-label="Cerrar el aviso" onclick={() => walk.forgetLost()}
+					>✕</button
+				>
+			</div>
+		{/if}
 		<p class="text-5xl font-semibold tabular-nums">{clockText(elapsed)}</p>
 		<p class="mt-1 mb-4 text-lg text-zinc-300">
 			{walkDistanceText(walk.distance)}{paceText(walk.distance, elapsed)
@@ -146,14 +204,7 @@
 		{#if !walk.located && !walk.problem}
 			<p class="mb-4 text-sm text-zinc-400">Buscando el GPS…</p>
 		{/if}
-		<div class="flex flex-wrap items-center gap-3">
-			<button
-				class="rounded-md bg-red-600 px-6 py-3 text-lg font-semibold text-white"
-				onclick={() => walk.finish()}>Terminar</button
-			>
-			<WalkLock />
-			{@render discard()}
-		</div>
+		<WalkLock onlock={() => walk.forgetLost()} />
 		<div class="mt-4 flex flex-wrap items-center gap-3">
 			<label class="cursor-pointer rounded-md bg-zinc-800 px-4 py-2 hover:bg-zinc-700">
 				📷 Foto
@@ -162,6 +213,8 @@
 					accept="image/*"
 					capture="environment"
 					class="hidden"
+					onclick={() => walk.cameraOpens()}
+					oncancel={() => walk.cameraCloses()}
 					onchange={(e) => photo(e.currentTarget)}
 				/>
 			</label>
@@ -179,9 +232,16 @@
 		{#if noteRecorder.problem}
 			<p class="mt-3 text-sm text-amber-300" role="alert">{noteRecorder.problem}</p>
 		{/if}
+		<div class="mt-8 flex flex-wrap items-center gap-3">
+			<button
+				class="rounded-md bg-red-600 px-4 py-2 font-semibold text-white"
+				onclick={() => walk.finish()}>Terminar</button
+			>
+			{@render discard()}
+		</div>
 		<p class="mt-3 text-sm text-zinc-400">
-			Con la pantalla apagada, el GPS no graba. «Bloquear pantalla» la deja en negro y encendida
-			para el bolsillo: baja antes el brillo, gasta batería, y no pulses el botón de encendido.
+			«Bloquear pantalla» la deja en negro y encendida: baja antes el brillo, porque gasta batería.
+			Cada foto se descarga también en el móvil, en Descargas.
 		</p>
 	{:else}
 		<div class="mb-4 flex flex-wrap gap-3">

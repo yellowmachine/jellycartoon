@@ -264,3 +264,12 @@ export function goalLeftText(goal: WalkGoal, metres: number, seconds: number) {
 		? `Faltan ${walkDistanceText(goal.value * 1000 - metres)}`
 		: `Faltan ${Math.ceil(goal.value - seconds / 60)} min`;
 }
+
+/** The copy of a walk's photo kept on the phone: «paseo-2026-11-06-10-32-05.jpg», as it came. */
+export function photoCopyName(at: Date, original: string) {
+	const two = (n: number) => String(n).padStart(2, '0');
+	const day = `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())}`;
+	const time = `${two(at.getHours())}-${two(at.getMinutes())}-${two(at.getSeconds())}`;
+	const ext = /\.([a-z0-9]{1,5})$/i.exec(original)?.[1]?.toLowerCase() ?? 'jpg';
+	return `paseo-${day}-${time}.${ext}`;
+}

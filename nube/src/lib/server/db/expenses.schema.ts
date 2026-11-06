@@ -94,6 +94,31 @@ export const expense = pgTable(
  * What came in (#384), in Dinero beside the expenses: a harvest sold, a refund, a payslip. In
  * cents. Its invoice, a photo or a PDF, kept in the family's storage (storage.ts, `ingresos`).
  */
+/** Coming in every month or year (a payslip, a pension): added by itself on its day. */
+export const recurringIncome = pgTable(
+	'recurring_income',
+	{
+		id: serial('id').primaryKey(),
+		familyId: familyId(),
+		concept: text('concept').notNull(),
+		/** One of INCOME_CATEGORIES (comun/income.ts). */
+		category: text('category').notNull(),
+		amount: integer('amount').notNull(),
+		/** Day of the month, 1 to 28: every month has it. */
+		day: integer('day').notNull(),
+		/** Every year, in this month (1 to 12); null, every month. */
+		month: integer('month'),
+		/** The last month it was added, `YYYY-MM`; null, none yet. */
+		lastMonth: text('last_month'),
+		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [
+		unique('recurring_income_family_id').on(t.familyId, t.id),
+		familyRows('recurring_income_own', t.familyId)
+	]
+).enableRLS();
+
 export const income = pgTable(
 	'income',
 	{
@@ -109,10 +134,18 @@ export const income = pgTable(
 		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
 		/** Its invoice's name in the family's storage; null, none. */
 		document: text('document'),
+		/** The fixed one it came from. */
+		recurringId: integer('recurring_id'),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [
 		index('income_family_date_idx').on(t.familyId, t.date),
+		// Of its own family. Deleting a fixed one, its income is let go of first (income.ts).
+		foreignKey({
+			name: 'income_recurring_fk',
+			columns: [t.familyId, t.recurringId],
+			foreignColumns: [recurringIncome.familyId, recurringIncome.id]
+		}),
 		familyRows('income_own', t.familyId)
 	]
 ).enableRLS();

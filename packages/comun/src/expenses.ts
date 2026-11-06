@@ -260,6 +260,14 @@ export function dueMonths(
 	return due;
 }
 
+/** The later of two `YYYY-MM`. */
+export const laterMonth = (a: string, b: string) => (a > b ? a : b);
+
+/** «enero»…«diciembre», for the yearly fixed ones. */
+export const MONTH_NAMES = Array.from({ length: 12 }, (_, i) =>
+	new Date(Date.UTC(2026, i, 15)).toLocaleDateString('es-ES', { month: 'long', timeZone: 'UTC' })
+);
+
 /** «octubre de 2026». */
 export function monthName(month: string) {
 	const [y, m] = month.split('-').map(Number);
