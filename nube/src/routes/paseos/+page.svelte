@@ -20,6 +20,7 @@
 		goalLeftText,
 		goalText,
 		paceText,
+		photoCopyName,
 		walkDistanceText,
 		type CueEvery,
 		type WalkDiagnosis
@@ -81,12 +82,29 @@
 		if (list) void playWalkList(list.id).then((problem) => (musicProblem = problem));
 	}
 
+	/**
+	 * The photo as it was taken, downloaded: a page cannot write to the gallery, and the camera gives
+	 * it to the page without keeping its own. Stays on the phone whatever happens to what is sent.
+	 */
+	function keepCopy(file: File) {
+		const url = URL.createObjectURL(file);
+		const link = document.createElement('a');
+		link.href = url;
+		link.download = photoCopyName(new Date(), file.name);
+		document.body.append(link);
+		link.click();
+		link.remove();
+		setTimeout(() => URL.revokeObjectURL(url), 60_000);
+	}
+
 	/** A photo smaller, as the tickets': on the walk, where it was taken. */
 	async function photo(input: HTMLInputElement) {
 		const taken = input.files?.[0];
 		input.value = '';
 		walk.cameraCloses();
-		if (taken) await walk.attach('foto', smallerPhoto(taken));
+		if (!taken) return;
+		keepCopy(taken);
+		await walk.attach('foto', smallerPhoto(taken));
 	}
 
 	const select =
@@ -223,6 +241,7 @@
 		</div>
 		<p class="mt-3 text-sm text-zinc-400">
 			«Bloquear pantalla» la deja en negro y encendida: baja antes el brillo, porque gasta batería.
+			Cada foto se descarga también en el móvil, en Descargas.
 		</p>
 	{:else}
 		<div class="mb-4 flex flex-wrap gap-3">
