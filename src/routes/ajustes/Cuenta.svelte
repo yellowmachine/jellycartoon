@@ -29,8 +29,8 @@
 	</form>
 	{#if data.account.seilide}
 		<p class="mt-3 text-sm text-zinc-400">
-			Tu cuenta está en Seilide: allí tienes los dos pasos, tus datos, salir de la familia y
-			eliminar la cuenta.
+			Tu cuenta está en Seilide: allí tienes la contraseña, los dos pasos, tus datos, salir de la
+			familia y eliminar la cuenta.
 			<a href={data.account.seilide.url} class="text-amber-400 hover:underline"
 				>Abrir tu cuenta en Seilide</a
 			>

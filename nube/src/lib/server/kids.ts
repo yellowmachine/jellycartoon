@@ -1,3 +1,4 @@
+import { KID_EMAIL_DOMAIN } from '#lib/server/password-reset.ts';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { auth } from '#lib/server/auth.ts';
@@ -22,7 +23,7 @@ import { personFiles, removePersonFiles } from '#lib/server/person-files.ts';
  */
 
 /** Its inner email: never sent anything (`.invalid`, RFC 2606). */
-const kidEmail = () => `peque-${randomUUID()}@peques.invalid`;
+const kidEmail = () => `peque-${randomUUID()}@${KID_EMAIL_DOMAIN}`;
 
 /** The family's adults: who may let its children in. */
 export function familyAdults(k: Kitchen) {

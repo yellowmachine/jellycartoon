@@ -10,7 +10,12 @@ import { getRequestEvent } from '$app/server';
 import { db } from '#lib/server/db/index.ts';
 import { DISABLED_PATHS } from '#lib/server/auth-paths.ts';
 import { afterDeleteAccount, beforeDeleteAccount } from '#lib/server/account-deletion.ts';
-import { sendDeleteAccountMail } from '#lib/server/emails.ts';
+import {
+	sendDeleteAccountMail,
+	sendPasswordChanged,
+	sendPasswordResetMail
+} from '#lib/server/emails.ts';
+import { mayMailReset } from '#lib/server/password-reset.ts';
 import { invitations } from '#lib/server/invitations.ts';
 import {
 	clientPrivileges,
@@ -24,7 +29,23 @@ export const auth = betterAuth({
 	baseURL: ORIGIN,
 	secret: BETTER_AUTH_SECRET,
 	database: drizzleAdapter(db, { provider: 'pg' }),
-	emailAndPassword: { enabled: true, minPasswordLength: 10 },
+	emailAndPassword: {
+		enabled: true,
+		minPasswordLength: 10,
+		revokeSessionsOnPasswordReset: true,
+		// Not awaited, as Better Auth's docs ask: the answer takes as long with an account as without.
+		sendResetPassword: async ({ user, token }) => {
+			if (!mayMailReset(user.email)) return;
+			void sendPasswordResetMail(user.email, `${ORIGIN}/login/nueva?token=${token}`).catch((e) =>
+				console.error('[cuentas] No se pudo mandar el enlace de la contraseña', e)
+			);
+		},
+		onPasswordReset: async ({ user }) => {
+			void sendPasswordChanged(user.email).catch((e) =>
+				console.error('[cuentas] No se pudo avisar del cambio de contraseña', e)
+			);
+		}
+	},
 	disabledPaths: DISABLED_PATHS,
 	user: {
 		// «Eliminar mi cuenta» (#315): by a link in an email, kept a day, to its page (auth-paths.ts).

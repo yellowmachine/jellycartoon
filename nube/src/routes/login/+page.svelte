@@ -93,6 +93,11 @@
 			{recovery ? 'Usar el código de la app' : '¿Sin el móvil? Usa un código de recuperación'}
 		</button>
 	{:else}
+		{#if data.passwordChanged}
+			<p role="status" class="mb-4 text-sm text-green-400">
+				✓ Contraseña cambiada. Entra con la nueva.
+			</p>
+		{/if}
 		<form method="post" action={action('signIn')} use:enhance={toHouse} class="space-y-4">
 			<!-- Come from a house (#279): back there once in. -->
 			{#if data.oauthQuery}<input type="hidden" name="oauth_query" value={data.oauthQuery} />{/if}
@@ -116,6 +121,9 @@
 			{/if}
 			<button class={primary}>Entrar</button>
 		</form>
+		<p class="mt-4 text-center text-sm">
+			<a href="/login/olvidada" class="text-zinc-400 hover:text-white">He olvidado mi contraseña</a>
+		</p>
 		<!-- An account is made only from an invitation's link (/invitacion/<token>). -->
 		<p class="mt-4 text-center text-sm text-zinc-400">
 			¿Te han invitado? Abre el enlace del correo para crear tu cuenta. ¿No? <a

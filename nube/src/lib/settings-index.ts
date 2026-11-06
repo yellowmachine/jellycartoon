@@ -248,6 +248,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		words: 'descargar datos zip exportar copia portabilidad rgpd mis llevarme'
 	},
 	{
+		id: 'contrasena',
+		tab: 'cuenta',
+		title: 'Contraseña',
+		words: 'cambiar clave olvidada seguridad'
+	},
+	{
 		id: 'dos-pasos',
 		tab: 'cuenta',
 		title: 'Verificación en dos pasos',

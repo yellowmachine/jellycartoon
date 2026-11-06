@@ -119,6 +119,31 @@ export function sendDeleteAccountMail(to: string, link: string) {
 	});
 }
 
+/** The link to choose another password: it opens a page, and it is there it is done. */
+export function sendPasswordResetMail(to: string, link: string) {
+	return sendMail({
+		to,
+		subject: `Elegir otra contraseña en ${NAME}`,
+		html: page([
+			'Has pedido elegir otra contraseña. Hazlo con este enlace:',
+			`<a href="${escape(link)}" style="display:inline-block;background:#f59e0b;color:#18181b;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600">Elegir contraseña</a>`,
+			'El enlace caduca en una hora. Si no lo has pedido tú, no hagas nada: tu contraseña sigue siendo la misma.'
+		])
+	});
+}
+
+/** So that a change nobody asked for does not go unnoticed. */
+export function sendPasswordChanged(to: string) {
+	return sendMail({
+		to,
+		subject: `Tu contraseña de ${NAME} ha cambiado`,
+		html: page([
+			'La contraseña de tu cuenta acaba de cambiar.',
+			`Si no has sido tú, pide otra en <a href="${ORIGIN}/login/olvidada">${new URL(ORIGIN).host}/login/olvidada</a> y responde a este correo.`
+		])
+	});
+}
+
 /** It is done (#315). */
 export function sendAccountDeleted(to: string) {
 	return sendMail({

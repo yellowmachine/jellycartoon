@@ -848,6 +848,36 @@
 			</section>
 		{/if}
 
+		<section class={section} id="contrasena">
+			<h2 class="mb-1 font-semibold">Contraseña</h2>
+			<p class="mb-4 text-sm text-zinc-400">
+				Al cambiarla se cierra tu sesión en los demás aparatos, y te avisamos por correo.
+			</p>
+			<form method="post" action="?seccion={tab}&/changePassword" use:enhance class="space-y-3">
+				<PasswordInput
+					name="current"
+					required
+					placeholder="Tu contraseña de ahora"
+					autocomplete="current-password"
+					class={field}
+				/>
+				<PasswordInput
+					name="password"
+					required
+					minlength={10}
+					placeholder="La nueva, de 10 caracteres por lo menos"
+					autocomplete="new-password"
+					class={field}
+				/>
+				<button class={secondary}>Cambiar</button>
+			</form>
+			{#if form && 'passwordProblem' in form}
+				<p class="mt-3 text-sm text-red-400">{form.passwordProblem}</p>
+			{:else if form && 'saved' in form && form.saved === 'password'}
+				<p role="status" class="mt-3 text-sm text-green-400">✓ Contraseña cambiada</p>
+			{/if}
+		</section>
+
 		<section class={section} id="dos-pasos">
 			<h2 class="mb-1 font-semibold">Verificación en dos pasos</h2>
 			<p class="mb-4 text-sm text-zinc-400">
