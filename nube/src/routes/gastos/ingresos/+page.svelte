@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import { enhance } from '$app/forms';
-	import { addMonths, euros, monthName } from 'comun/expenses.ts';
+	import { addMonths, euros, MONTH_NAMES, monthName } from 'comun/expenses.ts';
 	import { smallerPhoto } from 'comun/receipt-photo.ts';
 	import {
 		INCOME_CATEGORIES,
 		MAX_CONCEPT,
 		type Income,
-		type IncomeCategory
+		type IncomeCategory,
+		type RecurringIncome
 	} from 'comun/income.ts';
 	import ExpenseTabs from '#lib/components/ExpenseTabs.svelte';
 	import type { PageProps } from './$types';
@@ -15,7 +16,7 @@
 	/**
 	 * Dinero → Ingresos (#384): what came in this month, each with its invoice (a photo or a PDF),
 	 * and the month's difference with its expenses. Written down by hand, from a photo or a file
-	 * (read by the AI, to check before saving), or by voice.
+	 * (read by the AI, to check before saving), or by voice. The fixed ones add themselves.
 	 */
 	let { data, form }: PageProps = $props();
 
@@ -114,6 +115,32 @@
 			hasDocument: i.document !== null
 		};
 	}
+
+	/** A fixed one being written: new, or which. */
+	let fixed = $state<
+		(Omit<RecurringIncome, 'id' | 'amount'> & { id: number | null; amount: string }) | null
+	>(null);
+	let fixedForm = $state<HTMLFormElement>();
+	/** Where the page was when it opened: back there on closing it. */
+	let fixedFrom = 0;
+
+	/** Its form goes under the list: brought into view, with many it would be out of sight. */
+	async function openFixed(value: NonNullable<typeof fixed>) {
+		if (!fixed) fixedFrom = window.scrollY;
+		fixed = value;
+		await tick();
+		fixedForm?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+	}
+
+	function closeFixed() {
+		fixed = null;
+		window.scrollTo({ top: fixedFrom, behavior: 'smooth' });
+	}
+
+	/** «🔁» opened on this income: every month or every year. */
+	let making = $state<number | null>(null);
+	/** The fixed one asked about before taking it away. */
+	let removing = $state<number | null>(null);
 
 	function lastDay(month: string) {
 		const [y, m] = month.split('-').map(Number);
@@ -321,7 +348,8 @@
 				<span class="min-w-0 flex-1">
 					<span class="block break-words sm:truncate">{i.concept}</span>
 					<span class="block text-xs text-zinc-500"
-						>{i.category}{#if i.by}
+						>{i.category}{#if i.fixed}
+							· 🔁 Fijo{/if}{#if i.by}
 							· {i.by}{/if}</span
 					>
 				</span>
@@ -339,6 +367,14 @@
 							title="Ver la factura">{i.document === 'pdf' ? '📄' : '🖼️'} Factura</a
 						>
 					{/if}
+					{#if !i.fixed}
+						<button
+							class="{button} px-2 text-zinc-400 hover:bg-zinc-800 sm:order-2"
+							aria-label="Hacer fijo {i.concept}"
+							title="Hacer fijo"
+							onclick={() => (making = i.id)}>🔁</button
+						>
+					{/if}
 					<button
 						class="{button} px-2 text-zinc-400 hover:bg-zinc-800 sm:order-2"
 						aria-label="Cambiar {i.concept}"
@@ -353,6 +389,32 @@
 					>
 				</span>
 			</li>
+			{#if making === i.id}
+				<li class="py-2">
+					<form
+						method="post"
+						action="?/makeRecurring"
+						class="flex flex-wrap items-center gap-2 text-sm"
+						use:enhance={() =>
+							async ({ update }) => {
+								making = null;
+								await update({ reset: false });
+							}}
+					>
+						<input type="hidden" name="id" value={i.id} />
+						<span>🔁 Fijo, el día {Math.min(28, Number(i.date.slice(8, 10)))}:</span>
+						<button name="every" value="mes" class="{button} bg-zinc-800 hover:bg-zinc-700"
+							>Cada mes</button
+						>
+						<button name="every" value="año" class="{button} bg-zinc-800 hover:bg-zinc-700"
+							>Cada año ({MONTH_NAMES[Number(i.date.slice(5, 7)) - 1]})</button
+						>
+						<button type="button" class="{button} hover:bg-zinc-800" onclick={() => (making = null)}
+							>No</button
+						>
+					</form>
+				</li>
+			{/if}
 			{#if deleting === i.id}
 				<li class="py-2">
 					<form method="post" action="?/delete" use:enhance class="flex items-center gap-2">
@@ -371,7 +433,164 @@
 			<li class="py-4 text-zinc-400">Ningún ingreso apuntado este mes.</li>
 		{/each}
 	</ul>
-	{#if form && 'message' in form && !draft}
-		<p class="text-sm text-red-400">{form.message}</p>
+	{#if form && 'message' in form && !draft && !fixed}
+		<p class="mb-4 text-sm text-red-400">{form.message}</p>
 	{/if}
+
+	<section class="mb-10">
+		<h2 class="mb-1 font-semibold">Fijos</h2>
+		<p class="mb-3 text-sm text-zinc-400">
+			De cada mes o de cada año, como una nómina o una pensión: se apuntan solos el día que toca,
+			con este importe, y salen con «🔁 Fijo». Si ese mes fue otra cantidad, se cambia en la lista
+			con ✎. Uno nuevo empieza la próxima vez que llegue su día. Uno ya apuntado se hace fijo con
+			🔁.
+		</p>
+		<ul class="mb-3 divide-y divide-zinc-800">
+			{#each data.recurring as r (r.id)}
+				<li class="flex items-center gap-2 py-2 sm:gap-3">
+					<span class="w-10 shrink-0 text-center leading-tight text-zinc-400">
+						<span class="block text-base tabular-nums">{r.day}</span>
+						<span class="block text-xs"
+							>{r.month === null ? 'cada mes' : MONTH_NAMES[r.month - 1]!.slice(0, 3)}</span
+						>
+					</span>
+					<span class="min-w-0 flex-1">
+						<span class="block truncate">{r.concept}</span>
+						<span class="block text-xs text-zinc-500">{r.category}</span>
+					</span>
+					<span class="shrink-0 text-right text-emerald-400 tabular-nums"
+						>{euros(r.amount)}<span class="block text-xs text-zinc-500"
+							>{r.month === null ? 'al mes' : 'al año'}</span
+						></span
+					>
+					<button
+						class="{button} shrink-0 px-2 text-zinc-400 hover:bg-zinc-800"
+						aria-label="Cambiar el fijo {r.concept}"
+						title="Cambiar"
+						onclick={() => openFixed({ ...r, amount: typed(r.amount) })}>✎</button
+					>
+					{#if removing === r.id}
+						<form method="post" action="?/deleteRecurring" use:enhance class="flex gap-1">
+							<input type="hidden" name="id" value={r.id} />
+							<button class="{button} bg-red-700 hover:bg-red-600">Quitar</button>
+							<button
+								type="button"
+								class="{button} hover:bg-zinc-800"
+								onclick={() => (removing = null)}>No</button
+							>
+						</form>
+					{:else}
+						<button
+							class="{button} shrink-0 px-2 text-zinc-400 hover:bg-zinc-800 hover:text-red-400"
+							aria-label="Quitar el fijo {r.concept}"
+							title="Quitar: los ya apuntados se quedan"
+							onclick={() => (removing = r.id)}>✕</button
+						>
+					{/if}
+				</li>
+			{/each}
+		</ul>
+		{#if fixed}
+			{@const f = fixed}
+			<form
+				method="post"
+				action="?/saveRecurring"
+				bind:this={fixedForm}
+				class="flex flex-wrap items-end gap-2 rounded-lg bg-zinc-900 p-3"
+				use:enhance={() =>
+					async ({ result, update }) => {
+						await update({ reset: false });
+						if (result.type === 'success') closeFixed();
+					}}
+			>
+				{#if f.id}<input type="hidden" name="id" value={f.id} />{/if}
+				<label class="flex min-w-40 flex-1 flex-col gap-1 text-xs text-zinc-400">
+					Qué
+					<input
+						name="concept"
+						bind:value={f.concept}
+						maxlength={MAX_CONCEPT}
+						required
+						class={field}
+						placeholder="Nómina"
+					/>
+				</label>
+				<label class="flex flex-col gap-1 text-xs text-zinc-400">
+					Categoría
+					<select name="category" bind:value={f.category} class={field}>
+						{#each INCOME_CATEGORIES as c (c)}
+							<option value={c}>{c}</option>
+						{/each}
+					</select>
+				</label>
+				<label class="flex w-24 flex-col gap-1 text-xs text-zinc-400">
+					Importe (€)
+					<input
+						name="amount"
+						bind:value={f.amount}
+						inputmode="decimal"
+						required
+						class="{field} text-right"
+					/>
+				</label>
+				<label class="flex w-20 flex-col gap-1 text-xs text-zinc-400">
+					Día
+					<input
+						name="day"
+						type="number"
+						min="1"
+						max="28"
+						required
+						bind:value={f.day}
+						class="{field} text-right"
+					/>
+				</label>
+				<label class="flex flex-col gap-1 text-xs text-zinc-400">
+					Cada
+					<select
+						name="every"
+						value={f.month === null ? 'mes' : 'año'}
+						onchange={(e) =>
+							(f.month = e.currentTarget.value === 'año' ? Number(data.today.slice(5, 7)) : null)}
+						class={field}
+					>
+						<option value="mes">mes</option>
+						<option value="año">año</option>
+					</select>
+				</label>
+				{#if f.month !== null}
+					<label class="flex flex-col gap-1 text-xs text-zinc-400">
+						Mes
+						<select name="month" bind:value={f.month} class={field}>
+							{#each MONTH_NAMES as name, i (i)}
+								<option value={i + 1}>{name}</option>
+							{/each}
+						</select>
+					</label>
+				{/if}
+				<button class="{button} bg-amber-500 font-semibold text-zinc-950 hover:bg-amber-400"
+					>Guardar</button
+				>
+				<button type="button" class="{button} hover:bg-zinc-800" onclick={closeFixed}
+					>Cancelar</button
+				>
+				{#if form && 'message' in form}
+					<p class="w-full text-sm text-red-400">{form.message}</p>
+				{/if}
+			</form>
+		{:else}
+			<button
+				class="text-sm text-amber-400 hover:underline"
+				onclick={() =>
+					openFixed({
+						id: null,
+						concept: '',
+						category: 'Trabajo',
+						amount: '',
+						day: 1,
+						month: null
+					})}>+ Fijo</button
+			>
+		{/if}
+	</section>
 </div>

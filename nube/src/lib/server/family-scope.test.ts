@@ -18,6 +18,8 @@ import {
 	expense,
 	expenseLine,
 	recurringExpense,
+	recurringIncome,
+	income,
 	user,
 	agendaLink,
 	alarm,
@@ -351,6 +353,26 @@ describe('the expenses, each family’s', () => {
 		const rows = await asFamily('A', (tx) => tx.select().from(expense));
 		expect(rows).toHaveLength(1);
 		expect(rows[0].recurringId).toBeNull();
+	});
+
+	test('nor an income come from another family’s fixed one', async () => {
+		const [fixed] = await db
+			.insert(recurringIncome)
+			.values({ familyId: 'A', concept: 'Nómina', category: 'Trabajo', amount: 1, day: 1 })
+			.returning();
+		await expect(asFamily('B', (tx) => tx.select().from(recurringIncome))).resolves.toEqual([]);
+		await expect(
+			asFamily('B', (tx) =>
+				tx.insert(income).values({
+					familyId: 'B',
+					date: '2026-10-01',
+					concept: 'x',
+					category: 'Trabajo',
+					amount: 1,
+					recurringId: fixed.id
+				})
+			)
+		).rejects.toThrow();
 	});
 });
 

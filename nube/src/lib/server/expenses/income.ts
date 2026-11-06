@@ -1,15 +1,22 @@
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, gte, isNotNull, lt, sql } from 'drizzle-orm';
-import { addMonths } from 'comun/expenses.ts';
-import { isIncomeCategory, type Income, type IncomeInput } from 'comun/income.ts';
-import { income, user } from '#lib/server/db/schema.ts';
+import { and, asc, desc, eq, gte, isNotNull, lt, sql } from 'drizzle-orm';
+import { addMonths, dueMonths, lastDue, laterMonth, monthOf } from 'comun/expenses.ts';
+import {
+	isIncomeCategory,
+	MAX_CONCEPT,
+	type Income,
+	type IncomeInput,
+	type RecurringIncome
+} from 'comun/income.ts';
+import { income, recurringIncome, user } from '#lib/server/db/schema.ts';
 import { likeOf, plain } from '#lib/server/expenses/plain.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { putFile, removeFile } from '#lib/server/storage.ts';
 
 /**
  * The family's income (#384), in Dinero: every adult sees and changes all of it, as its expenses.
- * Each with its invoice if there is one, a photo or a PDF in the family's storage.
+ * Each with its invoice if there is one, a photo or a PDF in the family's storage. And the fixed
+ * ones, as the expenses': added by themselves on their day.
  */
 
 /** In the family's storage. */
@@ -61,6 +68,7 @@ export async function monthIncome(k: Kitchen, month: string): Promise<Income[]> 
 				category: income.category,
 				amount: income.amount,
 				document: income.document,
+				recurringId: income.recurringId,
 				by: user.name
 			})
 			.from(income)
@@ -68,10 +76,11 @@ export async function monthIncome(k: Kitchen, month: string): Promise<Income[]> 
 			.where(inMonth(month))
 			.orderBy(desc(income.date), desc(income.id))
 	);
-	return rows.map(({ category, document, ...r }) => ({
+	return rows.map(({ category, document, recurringId, ...r }) => ({
 		...r,
 		category: isIncomeCategory(category) ? category : 'Otros',
-		document: document ? (document.endsWith('.pdf') ? 'pdf' : 'image') : null
+		document: document ? (document.endsWith('.pdf') ? 'pdf' : 'image') : null,
+		fixed: recurringId !== null
 	}));
 }
 
@@ -183,4 +192,147 @@ export async function incomeDocument(k: Kitchen, id: number) {
 		tx.select({ document: income.document }).from(income).where(eq(income.id, id))
 	);
 	return row?.document ?? null;
+}
+
+export async function recurringIncomes(k: Kitchen): Promise<RecurringIncome[]> {
+	const rows = await k.run((tx) =>
+		tx
+			.select()
+			.from(recurringIncome)
+			.orderBy(sql`${recurringIncome.month} nulls first`, asc(recurringIncome.day))
+	);
+	return rows.map((r) => ({
+		id: r.id,
+		concept: r.concept,
+		category: isIncomeCategory(r.category) ? r.category : 'Otros',
+		amount: r.amount,
+		day: r.day,
+		month: r.month
+	}));
+}
+
+/**
+ * A new fixed one starts at its next day to come: the one already gone was likely already written
+ * down by hand.
+ */
+export async function addRecurringIncome(k: Kitchen, r: Omit<RecurringIncome, 'id'>, now: string) {
+	await k.run((tx) =>
+		tx
+			.insert(recurringIncome)
+			.values({ ...r, familyId: k.familyId, userId: k.userId, lastMonth: lastDue(r, now) })
+	);
+}
+
+/** Changed to a day or month already gone, it is not added for it: from the next one. */
+export async function updateRecurringIncome(
+	k: Kitchen,
+	id: number,
+	r: Omit<RecurringIncome, 'id'>,
+	now: string
+) {
+	await k.run(async (tx) => {
+		const [row] = await tx
+			.select({ lastMonth: recurringIncome.lastMonth })
+			.from(recurringIncome)
+			.where(eq(recurringIncome.id, id));
+		if (!row) return;
+		const due = lastDue(r, now);
+		await tx
+			.update(recurringIncome)
+			.set({ ...r, lastMonth: row.lastMonth ? laterMonth(row.lastMonth, due) : due })
+			.where(eq(recurringIncome.id, id));
+	});
+}
+
+/**
+ * «🔁»: an income already written down made a fixed one, every month or every year from its day
+ * (28 at most). It is the first: the next ones, from the next time on. False if it is not there;
+ * already one, nothing new.
+ */
+export async function makeRecurringIncome(
+	k: Kitchen,
+	incomeId: number,
+	yearly: boolean,
+	now: string
+) {
+	return k.run(async (tx) => {
+		const [i] = await tx
+			.select({
+				date: income.date,
+				concept: income.concept,
+				category: income.category,
+				amount: income.amount,
+				recurringId: income.recurringId
+			})
+			.from(income)
+			.where(eq(income.id, incomeId));
+		if (!i) return false;
+		if (i.recurringId !== null) return true;
+		const r = {
+			concept: i.concept.slice(0, MAX_CONCEPT),
+			category: isIncomeCategory(i.category) ? i.category : 'Otros',
+			amount: i.amount,
+			day: Math.min(28, Number(i.date.slice(8, 10))),
+			month: yearly ? Number(i.date.slice(5, 7)) : null
+		};
+		const [row] = await tx
+			.insert(recurringIncome)
+			.values({
+				...r,
+				familyId: k.familyId,
+				userId: k.userId,
+				lastMonth: laterMonth(monthOf(i.date), lastDue(r, now))
+			})
+			.returning({ id: recurringIncome.id });
+		await tx.update(income).set({ recurringId: row!.id }).where(eq(income.id, incomeId));
+		return true;
+	});
+}
+
+/** The income it already added stays, as received: let go of first, then it goes. */
+export async function deleteRecurringIncome(k: Kitchen, id: number) {
+	await k.run(async (tx) => {
+		await tx.update(income).set({ recurringId: null }).where(eq(income.recurringId, id));
+		await tx.delete(recurringIncome).where(eq(recurringIncome.id, id));
+	});
+}
+
+/**
+ * The family's fixed ones whose day has come, added: each month once, also the ones missed while
+ * nobody looked. On opening Dinero. Each claimed with its income in one go, so that two pages
+ * opened at once add it once and a failure leaves it to the next time.
+ */
+export async function addDueRecurringIncome(k: Kitchen, now: string) {
+	for (const r of await k.run((tx) => tx.select().from(recurringIncome))) {
+		let previous = r.lastMonth;
+		for (const month of dueMonths(r, r.lastMonth, now)) {
+			const claimed = await k.run(async (tx) => {
+				const rows = await tx
+					.update(recurringIncome)
+					.set({ lastMonth: month })
+					.where(
+						and(
+							eq(recurringIncome.id, r.id),
+							previous === null
+								? sql`${recurringIncome.lastMonth} is null`
+								: eq(recurringIncome.lastMonth, previous)
+						)
+					)
+					.returning({ id: recurringIncome.id });
+				if (!rows.length) return false;
+				await tx.insert(income).values({
+					familyId: k.familyId,
+					date: `${month}-${String(r.day).padStart(2, '0')}`,
+					concept: r.concept,
+					category: isIncomeCategory(r.category) ? r.category : 'Otros',
+					amount: r.amount,
+					userId: r.userId,
+					recurringId: r.id
+				});
+				return true;
+			});
+			if (!claimed) break;
+			previous = month;
+		}
+	}
 }

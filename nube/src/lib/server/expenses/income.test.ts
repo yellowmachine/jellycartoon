@@ -5,7 +5,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import * as schema from '#lib/server/db/schema.ts';
 import { family } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
-import { parseIncomeInput } from 'comun/income.ts';
+import { parseIncomeInput, parseRecurringIncome } from 'comun/income.ts';
 
 /**
  * Dinero's income (#384) on PGlite, with the family's files faked. The whole storage module, as
@@ -30,16 +30,22 @@ mock.module('#lib/server/storage.ts', () => ({
 
 const { readFile } = await import('#lib/server/storage.ts');
 const {
+	addDueRecurringIncome,
 	addIncome,
+	addRecurringIncome,
 	deleteIncome,
+	deleteRecurringIncome,
 	incomeDocument,
 	INCOME_AREA,
 	kindOf,
+	makeRecurringIncome,
 	monthIncome,
 	monthIncomeTotal,
 	NotADocument,
+	recurringIncomes,
 	typeOf,
-	updateIncome
+	updateIncome,
+	updateRecurringIncome
 } = await import('./income.ts');
 
 const db = drizzle(new PGlite(), { schema });
@@ -138,5 +144,140 @@ describe('income', () => {
 		expect(await kept(name)).toBe(false);
 		expect(await monthIncome(a, '2026-05')).toEqual([]);
 		expect(await updateIncome(a, id, harvest)).toBe(false);
+	});
+});
+
+describe('parseRecurringIncome', () => {
+	const salary = {
+		concept: ' Nómina ',
+		category: 'Trabajo',
+		amount: 150_000,
+		day: 28,
+		month: null
+	} as const;
+
+	test('well formed: trimmed', () => {
+		expect(parseRecurringIncome(salary)).toEqual({ ...salary, concept: 'Nómina' });
+		expect(parseRecurringIncome({ ...salary, month: 12 })?.month).toBe(12);
+	});
+
+	test('a day every month has, a real month, over zero', () => {
+		expect(parseRecurringIncome({ ...salary, day: 29 })).toBeNull();
+		expect(parseRecurringIncome({ ...salary, day: 0 })).toBeNull();
+		expect(parseRecurringIncome({ ...salary, month: 13 })).toBeNull();
+		expect(parseRecurringIncome({ ...salary, amount: null })).toBeNull();
+		expect(parseRecurringIncome({ ...salary, category: 'Lotería' })).toBeNull();
+		expect(parseRecurringIncome({ ...salary, concept: ' ' })).toBeNull();
+	});
+});
+
+describe('fixed income', () => {
+	// Each its own database: here the rows are not kept apart by family, as there is no app role.
+	async function own(id: string): Promise<Kitchen> {
+		const own = drizzle(new PGlite(), { schema });
+		await migrate(own, { migrationsFolder: `${import.meta.dir}/../../../../drizzle` });
+		await own.insert(family).values({ id, name: id });
+		return { familyId: id, userId: null, run: (fn) => own.transaction((tx) => fn(tx)) };
+	}
+	let b: Kitchen, c: Kitchen, d: Kitchen;
+
+	const salary = {
+		concept: 'Nómina',
+		category: 'Trabajo',
+		amount: 150_000,
+		day: 25,
+		month: null
+	} as const;
+	const concepts = async (k: Kitchen, month: string) =>
+		(await monthIncome(k, month)).map((i) => [i.date, i.concept, i.fixed]);
+
+	beforeAll(async () => {
+		[b, c, d] = await Promise.all([own('B'), own('C'), own('D')]);
+	});
+
+	test('starts at its next day, then once a month, also those nobody looked at', async () => {
+		await addRecurringIncome(b, salary, '2026-08-26');
+		await addDueRecurringIncome(b, '2026-08-31');
+		expect(await monthIncome(b, '2026-08')).toEqual([]);
+		await addDueRecurringIncome(b, '2026-09-24');
+		expect(await monthIncome(b, '2026-09')).toEqual([]);
+		await addDueRecurringIncome(b, '2026-11-25');
+		await addDueRecurringIncome(b, '2026-11-25');
+		expect(await concepts(b, '2026-09')).toEqual([['2026-09-25', 'Nómina', true]]);
+		expect(await concepts(b, '2026-10')).toEqual([['2026-10-25', 'Nómina', true]]);
+		expect(await concepts(b, '2026-11')).toEqual([['2026-11-25', 'Nómina', true]]);
+	});
+
+	test('two opened at once add it once', async () => {
+		await Promise.all([
+			addDueRecurringIncome(b, '2026-12-25'),
+			addDueRecurringIncome(b, '2026-12-25')
+		]);
+		expect(await monthIncomeTotal(b, '2026-12')).toBe(150_000);
+	});
+
+	test('one corrected or deleted by hand is not added again', async () => {
+		const [dec] = await monthIncome(b, '2026-12');
+		await updateIncome(b, dec!.id, { ...salary, date: dec!.date, amount: 170_000 });
+		await addDueRecurringIncome(b, '2026-12-31');
+		expect(await monthIncomeTotal(b, '2026-12')).toBe(170_000);
+		const [fixed] = await monthIncome(b, '2026-12');
+		expect(fixed!.fixed).toBe(true);
+		await deleteIncome(b, dec!.id);
+		await addDueRecurringIncome(b, '2026-12-31');
+		expect(await monthIncome(b, '2026-12')).toEqual([]);
+		await addDueRecurringIncome(b, '2027-01-25');
+		expect(await monthIncomeTotal(b, '2027-01')).toBe(150_000);
+	});
+
+	test('its new amount from the next one; moved to a day gone, not added for it', async () => {
+		const [r] = await recurringIncomes(b);
+		await updateRecurringIncome(b, r!.id, { ...salary, amount: 160_000, day: 10 }, '2027-02-15');
+		await addDueRecurringIncome(b, '2027-02-20');
+		expect(await monthIncome(b, '2027-02')).toEqual([]);
+		await addDueRecurringIncome(b, '2027-03-10');
+		expect(await monthIncomeTotal(b, '2027-03')).toBe(160_000);
+	});
+
+	test('yearly: only in its month', async () => {
+		await addRecurringIncome(
+			c,
+			{ ...salary, concept: 'Paga extra', day: 20, month: 12 },
+			'2026-01-10'
+		);
+		await addDueRecurringIncome(c, '2026-12-19');
+		expect(await monthIncome(c, '2026-12')).toEqual([]);
+		await addDueRecurringIncome(c, '2027-03-01');
+		expect(await concepts(c, '2026-12')).toEqual([['2026-12-20', 'Paga extra', true]]);
+		expect(await monthIncome(c, '2027-01')).toEqual([]);
+	});
+
+	test('one written down made fixed: it is the first, on day 28 at most', async () => {
+		const id = await addIncome(
+			d,
+			{ date: '2026-10-31', concept: 'Pensión', category: 'Ayudas y pensiones', amount: 90_000 },
+			null
+		);
+		expect(await makeRecurringIncome(d, id, false, '2026-11-01')).toBe(true);
+		expect(await makeRecurringIncome(d, id, false, '2026-11-01')).toBe(true);
+		expect(await makeRecurringIncome(d, 999_999, false, '2026-11-01')).toBe(false);
+		const fixed = await recurringIncomes(d);
+		expect(fixed).toHaveLength(1);
+		expect(fixed[0]).toMatchObject({ concept: 'Pensión', day: 28, month: null, amount: 90_000 });
+		await addDueRecurringIncome(d, '2026-11-27');
+		expect(await monthIncomeTotal(d, '2026-10')).toBe(90_000);
+		expect(await monthIncome(d, '2026-11')).toEqual([]);
+		await addDueRecurringIncome(d, '2026-11-28');
+		expect(await concepts(d, '2026-11')).toEqual([['2026-11-28', 'Pensión', true]]);
+	});
+
+	test('taken away: what it added stays, and no more come', async () => {
+		const [r] = await recurringIncomes(d);
+		await deleteRecurringIncome(d, r!.id);
+		expect(await recurringIncomes(d)).toEqual([]);
+		await addDueRecurringIncome(d, '2027-02-01');
+		expect(await monthIncome(d, '2026-12')).toEqual([]);
+		expect(await concepts(d, '2026-11')).toEqual([['2026-11-28', 'Pensión', false]]);
+		expect(await monthIncomeTotal(d, '2026-10')).toBe(90_000);
 	});
 });

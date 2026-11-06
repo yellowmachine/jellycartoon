@@ -30,6 +30,7 @@ import {
 	isCategory,
 	isTag,
 	lastDue,
+	laterMonth,
 	monthOf,
 	type Expense,
 	type ExpenseFavorite,
@@ -294,9 +295,6 @@ export async function recurringExpenses(k: Kitchen): Promise<RecurringExpense[]>
 	}));
 }
 
-/** The later of two `YYYY-MM`. */
-const later = (a: string, b: string) => (a > b ? a : b);
-
 /**
  * A new fixed one starts at its next day to come: the one already gone (this month's, this
  * year's) was likely already written down by hand.
@@ -317,7 +315,7 @@ export async function updateRecurring(k: Kitchen, id: number, r: Omit<RecurringE
 			.where(eq(recurringExpense.id, id));
 		if (!row) return;
 		const due = lastDue(r, today());
-		const lastMonth = row.lastMonth ? later(row.lastMonth, due) : due;
+		const lastMonth = row.lastMonth ? laterMonth(row.lastMonth, due) : due;
 		await tx
 			.update(recurringExpense)
 			.set({ ...r, lastMonth })
@@ -357,7 +355,7 @@ export async function makeRecurring(k: Kitchen, expenseId: number, yearly: boole
 				...r,
 				familyId: k.familyId,
 				userId: k.userId,
-				lastMonth: later(monthOf(e.date), lastDue(r, today()))
+				lastMonth: laterMonth(monthOf(e.date), lastDue(r, today()))
 			})
 			.returning({ id: recurringExpense.id });
 		await tx.update(expense).set({ recurringId: row!.id }).where(eq(expense.id, expenseId));
