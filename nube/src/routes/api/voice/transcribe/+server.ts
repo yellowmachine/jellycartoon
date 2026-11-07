@@ -13,6 +13,8 @@ const MAX_BYTES = 5_000_000;
  * What a satellite of Seilide's recorded (#296), the house's path (its /api/voice/transcribe):
  * the text that was said, by the house's Whisper if the family has one (it knows its music's
  * names, and is told the family's: heard-words.ts); without it, or if it does not answer, by OpenRouter with the family's key.
+ * `x-early`, what was said up to a pause, which may go on (satellite/src/early.ts): only by the
+ * house's, so a pause is not paid for; else 204, and the order comes whole when it ends.
  */
 export const POST: RequestHandler = async ({ request }) => {
 	const { k, satellite } = await satelliteRequest(request);
@@ -41,6 +43,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				familyId: k.familyId
 			});
 		}
+	if (request.headers.get('x-early') === '1') return new Response(null, { status: 204 });
 	const apiKey = await openRouterKey(k);
 	if (!apiKey) error(503, 'La familia no tiene clave de IA: ponla en Ajustes de Seilide');
 	try {

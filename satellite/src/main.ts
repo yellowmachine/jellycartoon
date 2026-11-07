@@ -10,13 +10,16 @@ import {
 	type Run
 } from '../../packages/comun/src/wakeword.ts';
 import { toWav } from '../../packages/comun/src/wakeword-recorder.ts';
+import { EarlyHearing } from './early.ts';
 import { Resampler } from './resample.ts';
 import {
 	duck,
 	filler,
 	followAlarms,
+	hearEarly,
 	sendOrder,
 	serverName,
+	setHearing,
 	saidOnce,
 	serverReady,
 	speech,
@@ -55,6 +58,13 @@ const MIC_CHANNELS = Number(process.env.MIC_CHANNELS ?? 2);
 const THRESHOLD = Number(process.env.WAKE_THRESHOLD ?? 0.3);
 /** As the phone's «Margen» (vad.ts, `marginDb`). */
 const MARGIN_DB = Number(process.env.WAKE_MARGIN_DB ?? SPEECH_END.marginDb);
+/**
+ * Quiet this long after speaking, the order is over. Shorter than the phone's (`SPEECH_END`): of
+ * about 6 s from the last word to the answer, 1.2 s went here (2026-11-07). Too short cuts a pause.
+ */
+const SILENCE_MS = Number(process.env.WAKE_SILENCE_MS ?? 800);
+/** Quiet this long, what was said goes to be heard, without waiting for the rest (early.ts); 0, off. */
+const EARLY_MS = Number(process.env.WAKE_EARLY_MS ?? 300);
 const ORDERS_DIR = process.env.ORDERS_DIR ?? '/data/ordenes';
 /**
  * `BARGE_IN=1` (#373): the wake word heard also while it waits for the answer or says it, which
@@ -239,6 +249,7 @@ function vad() {
 interface Order {
 	vad: Vad;
 	end: SpeechEnd;
+	early: EarlyHearing;
 	chunks: Int16Array[];
 	startedAt: number;
 	/** For its SpeechEnd again, after its phrase on hearing the word. */
@@ -355,7 +366,11 @@ function begin(
 	if (hz !== null && !phrase) void beep(hz);
 	order = {
 		vad: vad(),
-		end: new SpeechEnd({ ...SPEECH_END, marginDb: MARGIN_DB, waitMs }, voiceDb),
+		end: new SpeechEnd(
+			{ ...SPEECH_END, silenceMs: SILENCE_MS, marginDb: MARGIN_DB, waitMs },
+			voiceDb
+		),
+		early: new EarlyHearing(serverReady ? EARLY_MS : 0, timedHearEarly),
 		chunks: [],
 		startedAt: Date.now(),
 		voiceDb,
@@ -374,6 +389,8 @@ async function listen(current: Order, chunk: Float32Array, now: number) {
 		if (current.greet && probability >= 0.5) current.greet.speechMs += VAD_FRAME_MS;
 		const said = current.end.frame(probability, dbfs);
 		if (said !== 'listening') return finish(current, said);
+		const audio = () => toWav(joined(current.chunks));
+		if (current.early.update(current.end.quietMs, audio)) log('Seguía hablando: se vuelve a oír');
 	}
 	if (current.greet) {
 		if (current.greet.speechMs >= GREET_SPEECH_MS) {
@@ -391,6 +408,7 @@ async function listen(current: Order, chunk: Float32Array, now: number) {
 async function greet(current: Order) {
 	const wav = current.greet!.wav;
 	current.greet = null;
+	current.early.cancel();
 	current.held = true;
 	current.sent = 'none';
 	await play(wav);
@@ -398,7 +416,7 @@ async function greet(current: Order) {
 	if (order !== current) return;
 	current.vad = vad();
 	current.end = new SpeechEnd(
-		{ ...SPEECH_END, marginDb: MARGIN_DB, waitMs: current.waitMs },
+		{ ...SPEECH_END, silenceMs: SILENCE_MS, marginDb: MARGIN_DB, waitMs: current.waitMs },
 		current.voiceDb
 	);
 	current.chunks = [];
@@ -435,25 +453,38 @@ async function finish(current: Order, said: 'done' | 'nothing') {
 			: `de fondo ${db(backgroundDb)} (${(backgroundMs / 1000).toFixed(1)} s sin contar)`;
 	const how = capped ? 'por tiempo' : 'por silencio';
 	log(`Orden de ${seconds.toFixed(1)} s, ${how}: tu voz ${db(voiceDb)}, ${background}`);
-	const samples = new Int16Array(current.chunks.reduce((n, c) => n + c.length, 0));
-	let at = 0;
-	for (const c of current.chunks) {
-		samples.set(c, at);
-		at += c.length;
-	}
-	const wav = toWav(samples);
+	const wav = toWav(joined(current.chunks));
 	if (!current.quietEnd && current.sent !== 'none') void beep(660, current.sent === 'soft');
 	await keep(wav);
 	// Not waited for here: the microphone goes on through the detector meanwhile.
-	if (serverReady) void respond(wav);
+	if (serverReady) void respond(wav, current.early.heard);
 	else duck(false);
+}
+
+function joined(chunks: Int16Array[]) {
+	const samples = new Int16Array(chunks.reduce((n, c) => n + c.length, 0));
+	let at = 0;
+	for (const c of chunks) {
+		samples.set(c, at);
+		at += c.length;
+	}
+	return samples;
+}
+
+/** `hearEarly`, with its time in the log, to compare with the order's end. */
+async function timedHearEarly(wav: Uint8Array, signal: AbortSignal) {
+	const started = Date.now();
+	const text = await hearEarly(wav, signal);
+	if (!signal.aborted)
+		log(`Oído antes de acabar, en ${Date.now() - started} ms: ${text ? 'sí' : 'no'}`);
+	return text;
 }
 
 /**
  * To the server, and its answer to the log and aloud; not heard meanwhile, it is busy. If the AI
  * takes long, a phrase meanwhile («Vale»), and the answer after it.
  */
-async function respond(wav: Uint8Array) {
+async function respond(wav: Uint8Array, heard: Promise<string | null> | null = null) {
 	busy = true;
 	const mine = ++talk;
 	/** Cut by the wake word meanwhile (`BARGE_IN`): nothing more of it is said or done. */
@@ -472,13 +503,17 @@ async function respond(wav: Uint8Array) {
 	/** Its low beep sounded (not understood, an error): that one already ends the talk. */
 	let endSaid = false;
 	try {
-		const done = await sendOrder(wav, () => {
-			waiting = setTimeout(() => {
-				if (cut()) return;
-				fillerAt = Date.now();
-				saidFiller = sayFiller();
-			}, FILLER_AFTER_MS);
-		});
+		const done = await sendOrder(
+			wav,
+			() => {
+				waiting = setTimeout(() => {
+					if (cut()) return;
+					fillerAt = Date.now();
+					saidFiller = sayFiller();
+				}, FILLER_AFTER_MS);
+			},
+			heard
+		);
 		clearTimeout(waiting);
 		if (cut()) return;
 		const ms = Date.now() - started;
@@ -585,6 +620,7 @@ if (serverReady)
 			(state.greetings ?? []).join('\n') !== (was.greetings ?? []).join('\n');
 		if (state.voice !== was.voice || greetingsChanged || was === firstAlarms)
 			void keepFallbacks(state.voice ?? null, state.greetings ?? []);
+		if ('hearing' in state) setHearing(state.hearing ?? null);
 		// Only Seilide says it: a house's satellite keeps the snapclient it has, if any.
 		if ('snapserver' in state)
 			followSnapserver(state.snapserver ?? null, state.name ?? null, state.snapclientId ?? null);
