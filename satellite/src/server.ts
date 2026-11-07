@@ -23,6 +23,8 @@ export const serverName = SERVER_URL;
 const TIMEOUT_MS = 30_000;
 /** Said through Snapcast, it answers once heard: Piper, and the whole answer read. */
 const SPEECH_TIMEOUT_MS = 90_000;
+/** Heard ahead of time: longer than this, it goes the usual way. */
+const EARLY_TIMEOUT_MS = 5000;
 
 /** The server answered, with an error: its status says which. */
 export class ServerError extends Error {
@@ -38,13 +40,16 @@ async function request(
 	path: string,
 	body: Uint8Array | string,
 	type: string,
-	timeout = TIMEOUT_MS
+	timeout = TIMEOUT_MS,
+	extra: { signal?: AbortSignal; headers?: Record<string, string> } = {}
 ) {
 	const res = await fetch(`${SERVER_URL}${path}`, {
 		method: 'POST',
-		headers: { 'x-api-key': KEY!, 'content-type': type },
+		headers: { 'x-api-key': KEY!, 'content-type': type, ...extra.headers },
 		body,
-		signal: AbortSignal.timeout(timeout)
+		signal: extra.signal
+			? AbortSignal.any([AbortSignal.timeout(timeout), extra.signal])
+			: AbortSignal.timeout(timeout)
 	});
 	if (!res.ok)
 		throw new ServerError(`${path}: ${res.status} ${(await res.text()).slice(0, 200)}`, res.status);
@@ -81,11 +86,35 @@ export async function filler() {
 }
 
 /**
- * What was said and its answer; null if nothing was understood. `onHeard`, once it is known what
- * was said, as the AI starts on it. Its timers and alarms the server keeps (#241): it tells the AI.
+ * What was said up to now, while it may still go on (early.ts): `x-early`, only if it costs nothing
+ * (the house's Whisper), so a pause is not paid for. Never fails: null, it goes the usual way.
  */
-export async function sendOrder(wav: Uint8Array, onHeard?: (text: string) => void) {
-	const { text } = await post<{ text: string }>('/api/voice/transcribe', wav, 'audio/wav');
+export async function hearEarly(wav: Uint8Array, signal: AbortSignal) {
+	try {
+		const res = await request('/api/voice/transcribe', wav, 'audio/wav', EARLY_TIMEOUT_MS, {
+			signal,
+			headers: { 'x-early': '1' }
+		});
+		if (res.status === 204) return null;
+		const { text } = (await res.json()) as { text: string };
+		return text?.trim() ? text : null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * What was said and its answer; null if nothing was understood. `onHeard`, once it is known what
+ * was said, as the AI starts on it. `heard`, what was heard ahead of time, if it was; without text,
+ * the order is sent whole. Its timers and alarms the server keeps (#241): it tells the AI.
+ */
+export async function sendOrder(
+	wav: Uint8Array,
+	onHeard?: (text: string) => void,
+	heard?: Promise<string | null> | null
+) {
+	const text =
+		(await heard) ?? (await post<{ text: string }>('/api/voice/transcribe', wav, 'audio/wav')).text;
 	if (!text?.trim()) return null;
 	onHeard?.(text);
 	if (Date.now() - lastAt > HISTORY_IDLE_MS) history = [];

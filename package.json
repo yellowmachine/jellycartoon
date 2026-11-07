@@ -24,7 +24,7 @@
 		"db:studio": "bun --bun drizzle-kit studio",
 		"auth:schema": "bun --bun x auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes",
 		"start": "bun build/index.js",
-		"test": "bun test ./src ./packages"
+		"test": "bun test ./src ./packages ./satellite/src"
 	},
 	"devDependencies": {
 		"@electric-sql/pglite": "0.5.10",

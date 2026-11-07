@@ -129,6 +129,11 @@ export class SpeechEnd {
 		};
 	}
 
+	/** How long it has been quiet since speaking: 0 while speaking, or with nothing said yet. */
+	get quietMs() {
+		return this.#spoke ? this.#silence : 0;
+	}
+
 	/**
 	 * Each frame's probability, and its level if known: still listening, the order said and over,
 	 * or nothing said.

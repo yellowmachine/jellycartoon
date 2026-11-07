@@ -22,6 +22,8 @@ services:
       WAKE_WORD: ${WAKE_WORD:-hola_casita}
       WAKE_THRESHOLD: ${WAKE_THRESHOLD:-0.3}
       WAKE_MARGIN_DB: ${WAKE_MARGIN_DB:-15}
+      WAKE_SILENCE_MS: ${WAKE_SILENCE_MS:-800}
+      WAKE_EARLY_MS: ${WAKE_EARLY_MS:-300}
       # 1: the word cuts it while it waits for the answer or says it (#373).
       BARGE_IN: ${BARGE_IN:-0}
       TZ: ${TZ:-Europe/Madrid}
