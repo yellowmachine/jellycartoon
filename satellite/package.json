@@ -4,6 +4,10 @@
 	"license": "AGPL-3.0-or-later",
 	"type": "module",
 	"dependencies": {
+		"multicast-dns": "7.2.5",
 		"onnxruntime-node": "1.30.0"
+	},
+	"devDependencies": {
+		"@types/multicast-dns": "7.2.4"
 	}
 }

@@ -17,6 +17,8 @@ import {
 	filler,
 	followAlarms,
 	hearEarly,
+	plugAddressStart,
+	reportPlugTask,
 	sendOrder,
 	serverName,
 	setHearing,
@@ -29,13 +31,19 @@ import {
 import { beep, hush, play, speakerName } from './sound.ts';
 import { fallbackFor, greeting, keepFallbacks, sayFallback } from './fallback.ts';
 import { followSnapserver } from './snapclient.ts';
+import { doPlugTask } from './plugs.ts';
 import {
 	DEFAULT_WAKE_WORD,
 	isWakeWord,
 	WAKE_WORDS,
 	type WakeWordModel
 } from '../../packages/comun/src/wake-words.ts';
-import { AFTER_LEARNED_MS, CONVERSATION_MS, FOLLOW_UP_MS } from '../../packages/comun/src/voice.ts';
+import {
+	AFTER_LEARNED_MS,
+	CONVERSATION_MS,
+	FOLLOW_UP_MS,
+	type PlugTask
+} from '../../packages/comun/src/voice.ts';
 
 /**
  * The voice satellite (#223, phase 1): «hola casita» heard on a Raspberry in the living room, out of
@@ -629,7 +637,30 @@ if (serverReady)
 		if (!state.play.length) hush();
 		else void ring();
 		void sayOnce();
+		doPlugTasks(state.plugTasks ?? []);
 	});
+
+/** The plug tasks taken already (#396), by their id: not again while the server still sends them. */
+const plugTasksTaken = new Set<string>();
+
+/** Plugs to find or set up (#396), each once, answered to Seilide. */
+function doPlugTasks(tasks: PlugTask[]) {
+	for (const task of tasks) {
+		if (plugTasksTaken.has(task.id)) continue;
+		plugTasksTaken.add(task.id);
+		log(task.kind === 'buscar' ? 'Busca enchufes' : `Configura el enchufe ${task.deviceId}`);
+		void doPlugTask(task, plugAddressStart)
+			.then((result) => {
+				if (result.problem) log(`Enchufes: ${result.problem}`);
+				return reportPlugTask(result);
+			})
+			.catch((err) =>
+				log(
+					`Enchufes, sin respuesta a Seilide: ${err instanceof Error ? err.message : String(err)}`
+				)
+			);
+	}
+}
 
 /** What it has said once already (#331), by its id: not again while the server still sends it. */
 const said = new Set<string>();

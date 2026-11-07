@@ -7,6 +7,9 @@ services:
       dockerfile: satellite/Dockerfile
     image: jellycartoon-satellite:dev
     restart: unless-stopped
+    # The host's network (#396): finding the Shelly plugs by mDNS, whose multicast Docker's bridge
+    # does not pass. It opens no port.
+    network_mode: host
     devices:
       - /dev/snd
     group_add:

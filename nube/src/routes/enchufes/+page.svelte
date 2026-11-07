@@ -6,6 +6,7 @@
 		MAX_PLUG_NAME,
 		PLUG_KINDS,
 		powerText,
+		type FoundPlugView,
 		type PlugKind,
 		type PlugView
 	} from '#lib/plugs.ts';
@@ -14,7 +15,7 @@
 
 	/**
 	 * Enchufes (#396): a big button per plug, what it uses now, today and this month, and how to
-	 * connect a new one (its address, pasted into the plug's own page).
+	 * connect a new one: found and set up by a satellite, or its address pasted into its own page.
 	 */
 	let { data, form }: PageProps = $props();
 
@@ -30,6 +31,11 @@
 	let busy = $state<string | null>(null);
 	let editing = $state<string | null>(null);
 	let copied = $state(false);
+	/** «Buscar enchufes» (#396): what the satellites found, and the one being set up. */
+	type Search = { found: FoundPlugView[]; silent: string[]; satellites: number };
+	let found = $state<Search | null>(null);
+	let searching = $state(false);
+	let adding = $state<string | null>(null);
 
 	const kinds = Object.entries(PLUG_KINDS) as [PlugKind, { label: string; icon: string }][];
 
@@ -253,8 +259,7 @@
 	</ul>
 {/if}
 
-<section class={section}>
-	<h2 class="mb-3 font-semibold">{plugs.length ? 'Añadir otro enchufe' : 'Añadir un enchufe'}</h2>
+{#snippet byHand()}
 	<form method="post" action="?/add" use:enhance class="space-y-2">
 		<input
 			name="name"
@@ -272,4 +277,123 @@
 			<button class={primary}>Añadir</button>
 		</div>
 	</form>
-</section>
+{/snippet}
+
+{#if data.satellites}
+	<section class={section}>
+		<h2 class="mb-1 font-semibold">{plugs.length ? 'Añadir otro enchufe' : 'Añadir un enchufe'}</h2>
+		<p class="mb-3 text-sm text-zinc-400">
+			{data.satellites === 1 ? 'El satélite busca' : 'Los satélites buscan'} los enchufes Shelly de la
+			wifi de casa y los deja conectados a Seilide.
+		</p>
+		<form
+			method="post"
+			action="?/search"
+			use:enhance={() => {
+				searching = true;
+				return async ({ result }) => {
+					searching = false;
+					if (result.type === 'success') found = (result.data?.search as Search) ?? null;
+				};
+			}}
+		>
+			<button class={primary} disabled={searching}>
+				{searching ? 'Buscando… (unos segundos)' : '🔎 Buscar enchufes'}
+			</button>
+		</form>
+
+		{#if found}
+			{#if found.silent.length}
+				<p class="mt-3 text-sm text-amber-300">
+					No contesta: {found.silent.join(', ')}. Puede que esté apagado o sin actualizar.
+				</p>
+			{/if}
+			{#if !found.found.length}
+				<p class="mt-3 text-sm text-zinc-400">
+					No se ve ningún enchufe Shelly. Comprueba que está enchufado y en la wifi de casa.
+				</p>
+			{:else}
+				<ul class="mt-4 space-y-3">
+					{#each found.found as f (f.deviceId)}
+						<li class="rounded-md border border-zinc-800 p-3">
+							<p class="text-sm">
+								<span class="font-medium">Shelly {f.model}</span>
+								<span class="text-zinc-500">· {f.deviceId.slice(-6)} · {f.ip}</span>
+							</p>
+							{#if f.added}
+								<p class="mt-1 text-sm text-zinc-400">Ya está: {f.added}</p>
+							{:else if f.auth}
+								<p class="mt-1 text-sm text-zinc-400">
+									Tiene contraseña: quítasela un momento en su página y busca otra vez, o conéctalo
+									a mano.
+								</p>
+							{:else}
+								{#if f.elsewhere}
+									<p class="mt-1 text-sm text-amber-300">
+										Ya se conecta a otro sitio: si lo añades, pasa a conectarse a Seilide.
+									</p>
+								{/if}
+								<form
+									method="post"
+									action="?/addFound"
+									use:enhance={() => {
+										adding = f.deviceId;
+										return async ({ result, update }) => {
+											adding = null;
+											if (result.type === 'success' && found)
+												found = {
+													...found,
+													found: found.found.map((x) =>
+														x.deviceId === f.deviceId ? { ...x, added: 'añadido ahora' } : x
+													)
+												};
+											await update();
+										};
+									}}
+									class="mt-2 space-y-2"
+								>
+									<input type="hidden" name="satelliteId" value={f.satelliteId} />
+									<input type="hidden" name="deviceId" value={f.deviceId} />
+									<input type="hidden" name="ip" value={f.ip} />
+									<input
+										name="name"
+										maxlength={MAX_PLUG_NAME}
+										placeholder="Su nombre: «Lámpara del salón»…"
+										aria-label="Nombre"
+										class={field}
+									/>
+									<div class="flex flex-wrap items-center gap-2">
+										<select name="kind" aria-label="Qué hay enchufado" class={select}>
+											{#each kinds as [kind, k] (kind)}
+												<option value={kind}>{k.icon} {k.label}</option>
+											{/each}
+										</select>
+										<button class={primary} disabled={adding !== null}>
+											{adding === f.deviceId ? 'Conectando…' : 'Añadir'}
+										</button>
+									</div>
+								</form>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		{/if}
+
+		{#if form && 'connecting' in form && form.connecting}
+			<p class="mt-3 text-sm text-emerald-300">
+				Listo: el enchufe se está reiniciando y sale conectado en unos segundos.
+			</p>
+		{/if}
+
+		<details class="mt-4 text-sm">
+			<summary class="cursor-pointer text-zinc-400">Añadirlo a mano, con su dirección</summary>
+			<div class="mt-3">{@render byHand()}</div>
+		</details>
+	</section>
+{:else}
+	<section class={section}>
+		<h2 class="mb-3 font-semibold">{plugs.length ? 'Añadir otro enchufe' : 'Añadir un enchufe'}</h2>
+		{@render byHand()}
+	</section>
+{/if}

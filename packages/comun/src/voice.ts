@@ -11,6 +11,35 @@ export interface DirectHearing {
 	key: string;
 }
 
+/**
+ * Setting up a smart plug from a satellite (#396), which is inside the home's network as Seilide
+ * is not: find the Shelly plugs there, or point one at Seilide (its outbound WebSocket). Sent in
+ * its notices (`plugTasks`), answered at /api/satelite/enchufes.
+ */
+export type PlugTask =
+	| { id: string; kind: 'buscar' }
+	| { id: string; kind: 'configurar'; ip: string; deviceId: string; server: string };
+
+/** A Shelly found in the home's network. */
+export interface FoundPlug {
+	/** Its own id: «shellyplugmg3-9070696e4874». */
+	deviceId: string;
+	model: string;
+	ip: string;
+	/** With a password, the satellite cannot set it up. */
+	auth: boolean;
+	/** Where its outbound WebSocket points now, if on. */
+	server: string | null;
+}
+
+export interface PlugTaskResult {
+	id: string;
+	/** For «buscar». */
+	found?: FoundPlug[];
+	/** What went wrong; none, done. */
+	problem?: string;
+}
+
 /** Voice commands (#33), shared by the server and /voz. */
 
 /**

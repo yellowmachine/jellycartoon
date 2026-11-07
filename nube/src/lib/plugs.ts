@@ -51,3 +51,18 @@ export function energyText(wh: number) {
 
 /** Watts as the family reads them: «5 W», «1850 W». */
 export const powerText = (w: number) => `${Math.round(w).toLocaleString('es-ES')} W`;
+
+/** A Shelly a satellite found in the home's network (#396), for «Buscar enchufes». */
+export interface FoundPlugView {
+	deviceId: string;
+	model: string;
+	ip: string;
+	/** With a password: the satellite cannot set it up. */
+	auth: boolean;
+	satelliteId: string;
+	satelliteName: string;
+	/** The family's plug it is already, by its name. */
+	added: string | null;
+	/** Its outbound WebSocket already points somewhere else. */
+	elsewhere: boolean;
+}

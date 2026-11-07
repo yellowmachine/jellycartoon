@@ -9,6 +9,9 @@ services:
   satellite:
     image: ghcr.io/yellowmachine/jellycartoon-satellite:${IMAGE_TAG:-stable}
     restart: unless-stopped
+    # The host's network (#396): finding the Shelly plugs by mDNS, whose multicast Docker's bridge
+    # does not pass. It opens no port.
+    network_mode: host
     devices:
       - /dev/snd
     group_add:

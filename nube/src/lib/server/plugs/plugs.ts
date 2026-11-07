@@ -110,12 +110,19 @@ export function listPlugs(userId: string): Promise<PlugView[]> {
 const cleanName = (name: string, kind: PlugKind) =>
 	name.trim().slice(0, MAX_PLUG_NAME) || PLUG_KINDS[kind].label;
 
-/** A new plug: its token, shown once inside its address. */
-export async function createPlug(userId: string, name: string, kind: PlugKind) {
+/** A new plug: its token, shown once inside its address. Found by a satellite, its Shelly's id. */
+export async function createPlug(
+	userId: string,
+	name: string,
+	kind: PlugKind,
+	deviceId: string | null = null
+) {
 	const made = newPlugToken();
 	const id = randomUUID();
 	await withFamily(userId, (tx, { familyId }) =>
-		tx.insert(plug).values({ id, familyId, name: cleanName(name, kind), kind, hash: made.hash })
+		tx
+			.insert(plug)
+			.values({ id, familyId, name: cleanName(name, kind), kind, hash: made.hash, deviceId })
 	);
 	return { id, token: made.token };
 }

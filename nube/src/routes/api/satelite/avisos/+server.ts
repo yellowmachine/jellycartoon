@@ -1,7 +1,8 @@
-import type { DirectHearing } from 'comun/voice.ts';
+import type { DirectHearing, PlugTask } from 'comun/voice.ts';
 import type { RequestHandler } from './$types';
 import { ringingFor, watchAlarms } from '#lib/server/alarms/alarms.ts';
 import { directHearing } from '#lib/server/house.ts';
+import { plugTasksFor } from '#lib/server/plugs/setup.ts';
 import {
 	satelliteRequest,
 	saysFor,
@@ -21,7 +22,8 @@ import { greetingsOf, satelliteVoiceOf, voiceKey } from '#lib/server/voice/satel
  * it says on hearing its word instead of the beep (`greetings`, none for the beep); the word
  * itself (`wakeWord`, the same for all; none, each its own); and the snapserver it plays from (Ajustes), for its own snapclient, with its name and its id there.
  * And where it hears directly (`hearing`, #430), its house's Whisper, none to do it through here;
- * failing to know it never holds back what rings.
+ * failing to know it never holds back what rings. And the smart plugs it is to find or set up in
+ * its network (`plugTasks`, #396), answered at /api/satelite/enchufes.
  * Again on every change.
  */
 export const GET: RequestHandler = async ({ request }) => {
@@ -35,6 +37,7 @@ export const GET: RequestHandler = async ({ request }) => {
 		greetings: string[];
 		wakeWord: string | null;
 		hearing: DirectHearing | null;
+		plugTasks: PlugTask[];
 	};
 	return sseResponse<State>(request, (listener) => {
 		const send = () =>
@@ -56,7 +59,8 @@ export const GET: RequestHandler = async ({ request }) => {
 						voice: voiceKey(voice),
 						greetings: greetingsOf(voice),
 						wakeWord: voice.wakeWord,
-						hearing
+						hearing,
+						plugTasks: plugTasksFor(satellite.id)
 					})
 				)
 				.catch((err) => console.warn('[avisos] Para el satélite', err));

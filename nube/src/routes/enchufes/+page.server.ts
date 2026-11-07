@@ -9,11 +9,14 @@ import {
 	switchPlug,
 	updatePlug
 } from '#lib/server/plugs/plugs.ts';
+import { addFoundPlug, satellitesOf, searchPlugs } from '#lib/server/plugs/setup.ts';
 import { isPlugKind, MAX_PLUG_NAME, plugAddress } from '#lib/plugs.ts';
 
 /** Enchufes (#396): the family's smart plugs, on and off, and what they use. */
 export const load: PageServerLoad = async ({ locals }) => ({
-	plugs: await listPlugs(locals.user!.id)
+	plugs: await listPlugs(locals.user!.id),
+	/** With any, plugs are found and set up by them (#396). */
+	satellites: (await satellitesOf(locals.user!.id)).length
 });
 
 const nameAndKind = (form: FormData) => {
@@ -31,6 +34,22 @@ export const actions: Actions = {
 		if ('problem' in got) return fail(400, { problem: got.problem });
 		const { id, token } = await createPlug(locals.user!.id, got.name, got.kind);
 		return { address: { id, kind: got.kind, url: plugAddress(url.origin, token) } };
+	},
+	/** The Shelly the family's satellites see in the home's network. */
+	search: async ({ locals, url }) => ({ search: await searchPlugs(locals.user!.id, url.origin) }),
+	/** One of them, added and pointed at Seilide by the satellite that saw it. */
+	addFound: async ({ request, locals, url }) => {
+		const form = await request.formData();
+		const got = nameAndKind(form);
+		if ('problem' in got) return fail(400, { problem: got.problem });
+		const done = await addFoundPlug(locals.user!.id, url.origin, {
+			satelliteId: String(form.get('satelliteId') ?? ''),
+			deviceId: String(form.get('deviceId') ?? ''),
+			ip: String(form.get('ip') ?? ''),
+			...got
+		});
+		if ('problem' in done) return fail(409, { problem: done.problem });
+		return { connecting: done.id };
 	},
 	/** On or off. Not connected, it says so. */
 	switch: async ({ request, locals }) => {

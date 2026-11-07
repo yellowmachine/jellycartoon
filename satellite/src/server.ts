@@ -4,6 +4,8 @@ import {
 	HISTORY_IDLE_MS,
 	HISTORY_TURNS,
 	type DirectHearing,
+	type PlugTask,
+	type PlugTaskResult,
 	type VoiceReply,
 	type VoiceTurn
 } from '../../packages/comun/src/voice.ts';
@@ -199,6 +201,8 @@ export interface Ringing {
 	wakeWord?: string | null;
 	/** Seilide's (#430): its house's Whisper, to go to directly; null, through the server. */
 	hearing?: DirectHearing | null;
+	/** Seilide's (#396): smart plugs to find or set up in the home's network. */
+	plugTasks?: PlugTask[];
 }
 
 /** After a dropped channel, tried again this long after. */
@@ -248,4 +252,17 @@ export async function stopAlarms() {
 /** Said once (#331): the server forgets it. */
 export async function saidOnce(id: string) {
 	await request('/api/satelite/avisos/dicho', JSON.stringify({ id }), 'application/json');
+}
+
+/**
+ * Where its Seilide takes plugs (#396), `ws(s)://…/api/enchufe/`: the only address it will point a
+ * plug at, whatever it is told. Null without a server.
+ */
+export const plugAddressStart = SERVER_URL
+	? `${SERVER_URL.replace(/^http/, 'ws')}/api/enchufe/`
+	: null;
+
+/** A plug task done (#396): what it found, or what went wrong. */
+export async function reportPlugTask(result: PlugTaskResult) {
+	await request('/api/satelite/enchufes', JSON.stringify(result), 'application/json');
 }
