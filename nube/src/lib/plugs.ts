@@ -1,3 +1,5 @@
+import type { PlugScheduleView } from './plug-schedules.ts';
+
 /**
  * Smart plugs (#396), what the page and the server share: the kinds of thing plugged in, and what
  * the page is told of each plug.
@@ -41,6 +43,11 @@ export interface PlugView {
 	monthWh: number;
 	lastSeenAt: string | null;
 	model: string | null;
+	/** «En pausa» (#396): off, schedules off. */
+	paused: boolean;
+	/** A long heat going on (a water heater after a long pause), until then. */
+	heatUntil: string | null;
+	schedules: PlugScheduleView[];
 }
 
 /** Wh as the family reads it: «35 Wh», «1,2 kWh». */
@@ -50,6 +57,10 @@ export function energyText(wh: number) {
 }
 
 /** Watts as the family reads them: «5 W», «1850 W». */
+/** Euros as the family reads them: «0,03 €», «12,40 €». */
+export const euroText = (euros: number) =>
+	euros.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 });
+
 export const powerText = (w: number) => `${Math.round(w).toLocaleString('es-ES')} W`;
 
 /** A Shelly a satellite found in the home's network (#396), for «Buscar enchufes». */

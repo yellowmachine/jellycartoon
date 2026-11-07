@@ -7,6 +7,7 @@ import {
 	jsonb,
 	pgEnum,
 	pgTable,
+	real,
 	primaryKey,
 	serial,
 	text,
@@ -164,6 +165,8 @@ export const familySettings = pgTable(
 		prayerMode: boolean('prayer_mode').notNull().default(false),
 		/** The sections the family chose to have out or not (nav.ts); one not here, its default. */
 		sections: jsonb('sections').$type<Record<string, boolean>>().notNull().default({}),
+		/** What a kWh costs the family, in euros (#396): what each plug used, in money. Null, unknown. */
+		kwhPrice: real('kwh_price'),
 		/** «Dónde vivís» (Ajustes → Familia), optional: the weather on the home page and by voice. */
 		place: jsonb('place').$type<Place>(),
 		recipesBackdrop: integer('recipes_backdrop').references(() => recipe.id, {

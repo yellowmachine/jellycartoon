@@ -38,6 +38,8 @@ export interface HubDeps {
 	): Promise<void>;
 	/** What it used in that hour, added. */
 	addEnergy(familyId: string, plugId: string, hour: Date, wh: number): Promise<void>;
+	/** Just connected: its schedules and the rest put right (plugs.ts). */
+	onConnect?(familyId: string, plugId: string): void;
 	now?: () => Date;
 	log?: (message: string, error?: unknown) => void;
 }
@@ -223,6 +225,7 @@ export function createHub(deps: HubDeps) {
 		live.set(plug.id, { ...liveOf(plug.id), online: true });
 		tell(plug.familyId);
 		for (const text of early) onMessage(c, text);
+		deps.onConnect?.(plug.familyId, plug.id);
 
 		call(plug.id, 'Shelly.GetDeviceInfo')
 			.then((info) => {

@@ -1,12 +1,20 @@
 import { randomUUID } from 'node:crypto';
-import { asc, eq, gte, sql } from 'drizzle-orm';
+import { and, asc, count, eq, gte, sql } from 'drizzle-orm';
 import { db } from '../db/index.ts';
-import { plug, plugEnergy } from '../db/schema.ts';
+import { familySettings, plug, plugEnergy, plugSchedule } from '../db/schema.ts';
 import { asFamily, withFamily } from '../family.ts';
-import { createHub, type Hub } from './hub.ts';
+import { createHub, PlugOffline, type Hub } from './hub.ts';
 import { newPlugToken, plugKeyScope } from './plug-key-scope.ts';
 import { SWITCH_ID } from './shelly.ts';
 import { MAX_PLUG_NAME, PLUG_KINDS, type PlugKind, type PlugView } from '#lib/plugs.ts';
+import {
+	checkSchedule,
+	jobsFor,
+	MAX_SCHEDULES,
+	sameTimespec,
+	type PlugJob,
+	type PlugScheduleInput
+} from '#lib/plug-schedules.ts';
 
 /**
  * Smart plugs (#396): the family's, in Enchufes. Each connects to Seilide by itself (hub.ts), with
@@ -44,6 +52,11 @@ function makeHub() {
 						set: { wh: sql`${plugEnergy.wh} + excluded.wh` }
 					})
 			);
+		},
+		onConnect(familyId, plugId) {
+			void syncPlug(familyId, plugId).catch((e) => {
+				if (!(e instanceof PlugOffline)) console.error(`[enchufes] ${plugId}: sin sincronizar`, e);
+			});
 		}
 	});
 }
@@ -56,7 +69,10 @@ const PINGING = Symbol.for('seilide.enchufes.ping');
 const flags = globalThis as unknown as Record<symbol, boolean | undefined>;
 if (!flags[PINGING]) {
 	flags[PINGING] = true;
-	setInterval(() => globals[HUB_KEY]?.checkAlive(), 30_000).unref?.();
+	setInterval(() => {
+		globals[HUB_KEY]?.checkAlive();
+		endHeats();
+	}, 30_000).unref?.();
 }
 
 /** The family's plugs, with what they used today and this month (the family's days). */
@@ -72,10 +88,22 @@ export function listPlugs(userId: string): Promise<PlugView[]> {
 				output: plug.output,
 				deviceId: plug.deviceId,
 				model: plug.model,
-				lastSeenAt: plug.lastSeenAt
+				lastSeenAt: plug.lastSeenAt,
+				paused: plug.paused,
+				heatUntil: plug.heatUntil
 			})
 			.from(plug)
 			.orderBy(asc(plug.createdAt));
+		const schedules = await tx
+			.select({
+				id: plugSchedule.id,
+				plugId: plugSchedule.plugId,
+				days: plugSchedule.days,
+				start: plugSchedule.start,
+				end: plugSchedule.end
+			})
+			.from(plugSchedule)
+			.orderBy(asc(plugSchedule.start), asc(plugSchedule.id));
 		// A month at most is 31 days, plus a day for the time zone.
 		const since = new Date(Date.now() - 32 * 86_400_000);
 		const used = await tx
@@ -101,7 +129,12 @@ export function listPlugs(userId: string): Promise<PlugView[]> {
 				todayWh: Number(byPlug.get(p.id)?.today ?? 0),
 				monthWh: Number(byPlug.get(p.id)?.month ?? 0),
 				lastSeenAt: p.lastSeenAt?.toISOString() ?? null,
-				model: p.model
+				model: p.model,
+				paused: p.paused,
+				heatUntil: p.heatUntil && p.heatUntil > new Date() ? p.heatUntil.toISOString() : null,
+				schedules: schedules
+					.filter((x) => x.plugId === p.id)
+					.map(({ id, days, start, end }) => ({ id, days, start, end }))
 			};
 		});
 	});
@@ -161,12 +194,255 @@ export async function deletePlug(userId: string, id: string) {
 	await withFamily(userId, (tx) => tx.delete(plug).where(eq(plug.id, id)));
 }
 
-/** On or off: false if it is not the family's. Throws PlugOffline if it is not connected. */
+/**
+ * On or off: false if it is not the family's, `paused` if it is paused (it stays off). Throws
+ * PlugOffline if it is not connected.
+ */
 export async function switchPlug(userId: string, id: string, on: boolean) {
-	if (!(await isFamilys(userId, id))) return false;
+	const [row] = await withFamily(userId, (tx, { familyId }) =>
+		tx
+			.select({
+				paused: plug.paused,
+				heatUntil: plug.heatUntil,
+				familyId: sql<string>`${familyId}`
+			})
+			.from(plug)
+			.where(eq(plug.id, id))
+	);
+	if (!row) return false;
+	if (row.paused) return 'paused' as const;
 	await hub.call(id, 'Switch.Set', { id: SWITCH_ID, on });
+	// Switched off by hand in a long heat: the heat is over, its schedules back now.
+	if (!on && row.heatUntil && row.heatUntil > new Date()) {
+		await withFamily(userId, (tx) =>
+			tx.update(plug).set({ heatUntil: null }).where(eq(plug.id, id))
+		);
+		heats.delete(id);
+		await trySync(row.familyId, id);
+	}
 	return true;
 }
 
 /** The family, told when any of its plugs changes. */
 export const watchPlugs = (familyId: string, listener: () => void) => hub.watch(familyId, listener);
+
+/** The family's price of a kWh, in euros; null, unknown. */
+export async function kwhPrice(userId: string) {
+	const [row] = await withFamily(userId, (tx) =>
+		tx.select({ price: familySettings.kwhPrice }).from(familySettings)
+	);
+	return row?.price ?? null;
+}
+
+/** At most this, to catch a typo: no tariff is near it. */
+export const MAX_KWH_PRICE = 5;
+
+export async function setKwhPrice(userId: string, price: number | null) {
+	await withFamily(userId, (tx, { familyId }) =>
+		tx
+			.insert(familySettings)
+			.values({ familyId, kwhPrice: price })
+			.onConflictDoUpdate({ target: familySettings.familyId, set: { kwhPrice: price } })
+	);
+}
+
+// Schedules, pause and the long heat (#396, phase 2).
+
+/** A water heater paused this long, or this long without using anything, heats long on waking. */
+export const LONG_PAUSE_MS = 7 * 86_400_000;
+/** Less than this in that time is «nothing»: a water heater that heats uses kWh. */
+const NOTHING_WH = 50;
+/** How long that heat lasts, on without stopping. */
+export const HEAT_MS = 4 * 3_600_000;
+
+/** Heats going on now, by plug: when each ends, to put its schedules back then. */
+const HEATS = Symbol.for('seilide.enchufes.calentar');
+const heatGlobals = globalThis as unknown as Record<
+	symbol,
+	Map<string, { familyId: string; until: number }>
+>;
+const heats = (heatGlobals[HEATS] ??= new Map());
+
+function endHeats() {
+	const now = Date.now();
+	for (const [plugId, heat] of heats)
+		if (heat.until <= now) {
+			heats.delete(plugId);
+			void syncPlug(heat.familyId, plugId).catch(() => {});
+		}
+}
+
+/** The jobs of the plug's own, as it lists them. */
+interface ShellyJob {
+	id: number;
+	enable: boolean;
+	timespec: string;
+	calls?: { method?: string; params?: { on?: unknown } }[];
+}
+
+const sameJob = (job: ShellyJob, want: PlugJob) =>
+	job.enable === want.enable &&
+	sameTimespec(job.timespec, want.timespec) &&
+	job.calls?.length === 1 &&
+	job.calls[0]!.method === 'Switch.Set' &&
+	job.calls[0]!.params?.on === want.on;
+
+/**
+ * The plug made to match what Seilide keeps of it: its time zone the family's, its schedule jobs
+ * (only Seilide's: what the Shelly app put stays), off while paused, and on through a long heat.
+ * Not connected, it is done when it connects.
+ */
+export async function syncPlug(familyId: string, plugId: string) {
+	if (!hub.connected(plugId)) return;
+	const { row, schedules } = await asFamily(familyId, async (tx) => ({
+		row: (
+			await tx
+				.select({ paused: plug.paused, heatUntil: plug.heatUntil, scheduleJobs: plug.scheduleJobs })
+				.from(plug)
+				.where(eq(plug.id, plugId))
+		)[0],
+		schedules: await tx
+			.select({ days: plugSchedule.days, start: plugSchedule.start, end: plugSchedule.end })
+			.from(plugSchedule)
+			.where(eq(plugSchedule.plugId, plugId))
+			.orderBy(asc(plugSchedule.id))
+	}));
+	if (!row) return;
+
+	const config = (await hub.call(plugId, 'Sys.GetConfig')) as { location?: { tz?: unknown } };
+	if (config?.location?.tz !== TIME_ZONE)
+		await hub.call(plugId, 'Sys.SetConfig', { config: { location: { tz: TIME_ZONE } } });
+
+	const now = Date.now();
+	const heatLeft = row.heatUntil ? row.heatUntil.getTime() - now : 0;
+	if (heatLeft > 0) {
+		heats.set(plugId, { familyId, until: row.heatUntil!.getTime() });
+		// After a restart its timer is gone: on again, for what is left.
+		await hub.call(plugId, 'Switch.Set', {
+			id: SWITCH_ID,
+			on: true,
+			toggle_after: Math.ceil(heatLeft / 1000)
+		});
+	} else if (row.heatUntil) {
+		await asFamily(familyId, (tx) =>
+			tx.update(plug).set({ heatUntil: null }).where(eq(plug.id, plugId))
+		);
+	}
+	if (row.paused) await hub.call(plugId, 'Switch.Set', { id: SWITCH_ID, on: false });
+
+	const want = jobsFor(schedules, !row.paused && heatLeft <= 0);
+	const { jobs } = (await hub.call(plugId, 'Schedule.List')) as { jobs: ShellyJob[] };
+	// Only those it made: a reset plug may give their numbers to its own (its updates).
+	const ours = jobs.filter(
+		(j) => row.scheduleJobs.includes(j.id) && j.calls?.every((c) => c.method === 'Switch.Set')
+	);
+	if (ours.length === want.length && ours.every((j, i) => sameJob(j, want[i]!))) return;
+
+	for (const job of ours) await hub.call(plugId, 'Schedule.Delete', { id: job.id });
+	const made: number[] = [];
+	for (const job of want) {
+		const { id } = (await hub.call(plugId, 'Schedule.Create', {
+			enable: job.enable,
+			timespec: job.timespec,
+			calls: [{ method: 'Switch.Set', params: { id: SWITCH_ID, on: job.on } }]
+		})) as { id: number };
+		made.push(id);
+	}
+	await asFamily(familyId, (tx) =>
+		tx.update(plug).set({ scheduleJobs: made }).where(eq(plug.id, plugId))
+	);
+}
+
+/** The family's plug, with what the schedules and the pause need; null if not the family's. */
+async function familyPlug(userId: string, plugId: string) {
+	const [row] = await withFamily(userId, (tx, { familyId }) =>
+		tx
+			.select({
+				id: plug.id,
+				familyId: sql<string>`${familyId}`,
+				kind: plug.kind,
+				paused: plug.paused,
+				pausedAt: plug.pausedAt
+			})
+			.from(plug)
+			.where(eq(plug.id, plugId))
+	);
+	return row ?? null;
+}
+
+/** Synced now if connected; if not, when it connects. A failure is only logged: it is tried again then. */
+async function trySync(familyId: string, plugId: string) {
+	try {
+		await syncPlug(familyId, plugId);
+	} catch (e) {
+		if (!(e instanceof PlugOffline)) console.error(`[enchufes] ${plugId}: sin sincronizar`, e);
+	}
+}
+
+/** A schedule more: saved, and written to the plug. */
+export async function addSchedule(
+	userId: string,
+	plugId: string,
+	input: PlugScheduleInput
+): Promise<{ problem: string } | { ok: true }> {
+	const checked = checkSchedule(input);
+	if ('problem' in checked) return checked;
+	const p = await familyPlug(userId, plugId);
+	if (!p) return { problem: 'Ese enchufe ya no está' };
+	const added = await withFamily(userId, async (tx, { familyId }) => {
+		const [{ n }] = (await tx
+			.select({ n: count() })
+			.from(plugSchedule)
+			.where(eq(plugSchedule.plugId, plugId))) as [{ n: number }];
+		if (n >= MAX_SCHEDULES) return false;
+		await tx.insert(plugSchedule).values({ plugId, familyId, ...checked.ok });
+		return true;
+	});
+	if (!added) return { problem: `Como mucho ${MAX_SCHEDULES} horarios por enchufe` };
+	await trySync(p.familyId, plugId);
+	return { ok: true };
+}
+
+export async function deleteSchedule(userId: string, plugId: string, id: number) {
+	const p = await familyPlug(userId, plugId);
+	if (!p) return;
+	await withFamily(userId, (tx) =>
+		tx.delete(plugSchedule).where(and(eq(plugSchedule.id, id), eq(plugSchedule.plugId, plugId)))
+	);
+	await trySync(p.familyId, plugId);
+}
+
+/**
+ * «En pausa» (a water heater in summer, on holiday): off, and its schedules off. Out of a long pause,
+ * or after a long time using nothing, a water heater heats for HEAT_MS first, against legionella,
+ * and its schedules come back after. Whether it heats, said back.
+ */
+export async function setPaused(userId: string, plugId: string, paused: boolean) {
+	const p = await familyPlug(userId, plugId);
+	if (!p || p.paused === paused) return { heats: false };
+	const now = new Date();
+	let heatUntil: Date | null = null;
+	if (!paused && p.kind === 'termo') {
+		const longPause = p.pausedAt !== null && now.getTime() - p.pausedAt.getTime() >= LONG_PAUSE_MS;
+		const [{ wh }] = (await withFamily(userId, (tx) =>
+			tx
+				.select({ wh: sql<number>`coalesce(sum(${plugEnergy.wh}), 0)` })
+				.from(plugEnergy)
+				.where(
+					and(
+						eq(plugEnergy.plugId, plugId),
+						gte(plugEnergy.hour, new Date(now.getTime() - LONG_PAUSE_MS))
+					)
+				)
+		)) as [{ wh: number }];
+		if (longPause || Number(wh) < NOTHING_WH) heatUntil = new Date(now.getTime() + HEAT_MS);
+	}
+	await withFamily(userId, (tx) =>
+		tx
+			.update(plug)
+			.set({ paused, pausedAt: paused ? now : null, heatUntil })
+			.where(eq(plug.id, plugId))
+	);
+	await trySync(p.familyId, plugId);
+	return { heats: heatUntil !== null };
+}

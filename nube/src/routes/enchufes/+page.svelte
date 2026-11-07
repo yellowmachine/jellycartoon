@@ -3,6 +3,7 @@
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import {
 		energyText,
+		euroText,
 		MAX_PLUG_NAME,
 		PLUG_KINDS,
 		powerText,
@@ -11,6 +12,7 @@
 		type PlugView
 	} from '#lib/plugs.ts';
 	import { field, primary, secondary, section, select } from '#lib/styles.ts';
+	import { MAX_SCHEDULES, scheduleText, WEEK } from '#lib/plug-schedules.ts';
 	import type { PageProps } from './$types';
 
 	/**
@@ -36,6 +38,14 @@
 	let found = $state<Search | null>(null);
 	let searching = $state(false);
 	let adding = $state<string | null>(null);
+	/** The plug whose «Añadir horario» is open. */
+	let scheduling = $state<string | null>(null);
+
+	const euros = (wh: number) => (data.price === null ? null : euroText((wh / 1000) * data.price));
+	const priceText = $derived(
+		data.price === null ? '' : data.price.toLocaleString('es-ES', { maximumFractionDigits: 4 })
+	);
+	const hourFormat = new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit' });
 
 	const kinds = Object.entries(PLUG_KINDS) as [PlugKind, { label: string; icon: string }][];
 
@@ -48,6 +58,9 @@
 
 	function stateText(p: PlugView) {
 		if (p.waiting) return 'Sin conectar todavía';
+		if (p.paused) return 'En pausa';
+		if (p.heatUntil && p.online)
+			return `Calentando hasta las ${hourFormat.format(new Date(p.heatUntil))}`;
 		if (!p.online)
 			return p.lastSeenAt
 				? `Sin conexión desde el ${seenFormat.format(new Date(p.lastSeenAt))}`
@@ -143,7 +156,7 @@
 					<input type="hidden" name="id" value={p.id} />
 					<input type="hidden" name="on" value={String(!on)} />
 					<button
-						disabled={!p.online || busy === p.id}
+						disabled={!p.online || p.paused || busy === p.id}
 						class="flex w-full items-center gap-4 rounded-lg text-left disabled:cursor-not-allowed"
 						aria-label="{on ? 'Apagar' : 'Encender'} {p.name}"
 					>
@@ -156,7 +169,7 @@
 								>{stateText(p)}</span
 							>
 						</span>
-						{#if p.online}
+						{#if p.online && !p.paused}
 							<span
 								class="shrink-0 rounded-full px-4 py-2 text-sm font-semibold {on
 									? 'bg-amber-500 text-zinc-950'
@@ -180,12 +193,130 @@
 						<div>
 							<dt class="text-xs text-zinc-500">Hoy</dt>
 							<dd>{energyText(p.todayWh)}</dd>
+							{#if euros(p.todayWh)}<dd class="text-xs text-zinc-400">{euros(p.todayWh)}</dd>{/if}
 						</div>
 						<div>
 							<dt class="text-xs text-zinc-500">Este mes</dt>
 							<dd>{energyText(p.monthWh)}</dd>
+							{#if euros(p.monthWh)}<dd class="text-xs text-zinc-400">{euros(p.monthWh)}</dd>{/if}
 						</div>
 					</dl>
+
+					<div class="mt-4 border-t border-zinc-800 pt-3 text-sm">
+						{#if p.schedules.length}
+							<ul class="mb-2 space-y-1">
+								{#each p.schedules as sch (sch.id)}
+									<li class="flex items-center gap-2">
+										<span class="min-w-0 flex-1 {p.paused ? 'text-zinc-500 line-through' : ''}"
+											>⏰ {scheduleText(sch)}</span
+										>
+										<form method="post" action="?/unschedule" use:enhance>
+											<input type="hidden" name="id" value={p.id} />
+											<input type="hidden" name="scheduleId" value={sch.id} />
+											<button
+												class="px-2 text-zinc-500 hover:text-red-400"
+												aria-label="Quitar el horario {scheduleText(sch)}">✕</button
+											>
+										</form>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+						{#if scheduling === p.id}
+							<form
+								method="post"
+								action="?/schedule"
+								use:enhance={() =>
+									async ({ result, update }) => {
+										if (result.type === 'success') scheduling = null;
+										await update();
+									}}
+								class="space-y-3"
+							>
+								<input type="hidden" name="id" value={p.id} />
+								<fieldset class="flex flex-wrap gap-1">
+									<legend class="sr-only">Días</legend>
+									{#each WEEK as w (w.day)}
+										<label class="cursor-pointer">
+											<input
+												type="checkbox"
+												name="days"
+												value={w.day}
+												checked
+												class="peer sr-only"
+											/>
+											<span
+												title={w.name}
+												class="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-800 text-sm peer-checked:bg-amber-500 peer-checked:font-semibold peer-checked:text-zinc-950 peer-focus-visible:ring-2 peer-focus-visible:ring-amber-400"
+												>{w.short}</span
+											>
+										</label>
+									{/each}
+								</fieldset>
+								<div class="flex flex-wrap items-center gap-2">
+									<label class="flex items-center gap-2 whitespace-nowrap"
+										>Enciende a las
+										<input
+											type="time"
+											name="start"
+											required
+											value="07:00"
+											class="{field} w-auto py-1"
+										/></label
+									>
+									<label class="flex items-center gap-2 whitespace-nowrap"
+										>y apaga a las
+										<input
+											type="time"
+											name="end"
+											required
+											value="08:00"
+											class="{field} w-auto py-1"
+										/></label
+									>
+								</div>
+								{#if form && 'scheduleProblem' in form && form.scheduleProblem === p.id}
+									<p class="text-red-300">{form.problem}</p>
+								{/if}
+								<div class="flex gap-2">
+									<button class={primary}>Guardar</button>
+									<button type="button" class={secondary} onclick={() => (scheduling = null)}
+										>Cancelar</button
+									>
+								</div>
+							</form>
+						{:else if p.schedules.length < MAX_SCHEDULES}
+							<button
+								class="text-amber-400 hover:text-amber-300"
+								onclick={() => (scheduling = p.id)}>＋ Añadir horario</button
+							>
+						{/if}
+
+						{#if p.kind === 'termo'}
+							<form
+								method="post"
+								action="?/pause"
+								use:enhance
+								class="mt-3 flex flex-wrap items-center gap-3"
+							>
+								<input type="hidden" name="id" value={p.id} />
+								<input type="hidden" name="paused" value={String(!p.paused)} />
+								<button class={secondary}>{p.paused ? 'Quitar la pausa' : 'Poner en pausa'}</button>
+								<span class="text-xs text-zinc-500"
+									>{p.paused
+										? 'Apagado y sin horarios hasta que la quites.'
+										: 'Para el verano o las vacaciones: apagado y sin horarios.'}</span
+								>
+							</form>
+							{#if form && 'pausedId' in form && form.pausedId === p.id && form.heats}
+								<p class="mt-2 rounded-md bg-amber-950/60 px-3 py-2 text-amber-200">
+									Ha pasado mucho tiempo parado: se calienta 4 horas seguidas contra la legionela, y
+									luego vuelven los horarios. Para que sirva, el termostato del termo tiene que
+									estar a 60 °C o más.
+								</p>
+							{/if}
+						{/if}
+					</div>
 				{/if}
 
 				{#if editing === p.id}
@@ -257,6 +388,30 @@
 			</li>
 		{/each}
 	</ul>
+{/if}
+
+{#if plugs.length}
+	<form
+		method="post"
+		action="?/price"
+		use:enhance={() =>
+			async ({ update }) =>
+				update({ reset: false })}
+		class="mb-8 flex flex-wrap items-center gap-2 text-sm"
+	>
+		<label for="precio" class="text-zinc-400">Precio del kWh</label>
+		<input
+			id="precio"
+			name="price"
+			inputmode="decimal"
+			value={priceText}
+			placeholder="0,15"
+			class="w-24 rounded-md border-zinc-700 bg-zinc-900 py-1 text-zinc-100 focus:border-amber-400 focus:ring-amber-400"
+		/>
+		<span class="text-zinc-400">€</span>
+		<button class={secondary}>Guardar</button>
+		{#if form && 'priced' in form}<span class="text-emerald-300">✓ Guardado</span>{/if}
+	</form>
 {/if}
 
 {#snippet byHand()}

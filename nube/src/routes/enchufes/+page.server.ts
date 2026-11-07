@@ -2,10 +2,16 @@ import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { PlugOffline } from '#lib/server/plugs/hub.ts';
 import {
+	addSchedule,
 	createPlug,
+	deleteSchedule,
 	deletePlug,
+	kwhPrice,
 	listPlugs,
+	MAX_KWH_PRICE,
 	renewPlugToken,
+	setKwhPrice,
+	setPaused,
 	switchPlug,
 	updatePlug
 } from '#lib/server/plugs/plugs.ts';
@@ -15,6 +21,7 @@ import { isPlugKind, MAX_PLUG_NAME, plugAddress } from '#lib/plugs.ts';
 /** Enchufes (#396): the family's smart plugs, on and off, and what they use. */
 export const load: PageServerLoad = async ({ locals }) => ({
 	plugs: await listPlugs(locals.user!.id),
+	price: await kwhPrice(locals.user!.id),
 	/** With any, plugs are found and set up by them (#396). */
 	satellites: (await satellitesOf(locals.user!.id)).length
 });
@@ -56,8 +63,10 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const id = String(form.get('id') ?? '');
 		try {
-			if (!(await switchPlug(locals.user!.id, id, form.get('on') === 'true')))
-				return fail(404, { problem: 'Ese enchufe ya no está' });
+			const done = await switchPlug(locals.user!.id, id, form.get('on') === 'true');
+			if (!done) return fail(404, { problem: 'Ese enchufe ya no está' });
+			if (done === 'paused')
+				return fail(409, { switchProblem: id, problem: 'Está en pausa: quítale la pausa antes' });
 		} catch (e) {
 			if (e instanceof PlugOffline)
 				return fail(409, { switchProblem: id, problem: 'El enchufe no está conectado' });
@@ -82,6 +91,45 @@ export const actions: Actions = {
 		return {
 			address: { id, kind: isPlugKind(kind) ? kind : 'otro', url: plugAddress(url.origin, token) }
 		};
+	},
+	/** A schedule more for a plug (#396): days, and from when to when. */
+	schedule: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+		const done = await addSchedule(locals.user!.id, id, {
+			days: form.getAll('days').map(Number),
+			start: String(form.get('start') ?? ''),
+			end: String(form.get('end') ?? '')
+		});
+		if ('problem' in done) return fail(400, { scheduleProblem: id, problem: done.problem });
+		return { scheduled: id };
+	},
+	unschedule: async ({ request, locals }) => {
+		const form = await request.formData();
+		await deleteSchedule(
+			locals.user!.id,
+			String(form.get('id') ?? ''),
+			Number(form.get('scheduleId'))
+		);
+		return { unscheduled: true };
+	},
+	/** «En pausa», or back: out of a long pause a water heater heats long first. */
+	pause: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+		const { heats } = await setPaused(locals.user!.id, id, form.get('paused') === 'true');
+		return { pausedId: id, heats };
+	},
+	/** What a kWh costs, «0,15»; empty, unknown. */
+	price: async ({ request, locals }) => {
+		const raw = String((await request.formData()).get('price') ?? '')
+			.trim()
+			.replace(',', '.');
+		const price = raw === '' ? null : Number(raw);
+		if (price !== null && !(Number.isFinite(price) && price > 0 && price <= MAX_KWH_PRICE))
+			return fail(400, { problem: 'Pon el precio en euros, como 0,15' });
+		await setKwhPrice(locals.user!.id, price);
+		return { priced: true };
 	},
 	remove: async ({ request, locals }) => {
 		await deletePlug(locals.user!.id, String((await request.formData()).get('id') ?? ''));
