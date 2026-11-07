@@ -1,7 +1,9 @@
 import {
 	assistantTurn,
+	HEARING_KEY_HEADER,
 	HISTORY_IDLE_MS,
 	HISTORY_TURNS,
+	type DirectHearing,
 	type VoiceReply,
 	type VoiceTurn
 } from '../../packages/comun/src/voice.ts';
@@ -25,6 +27,40 @@ const TIMEOUT_MS = 30_000;
 const SPEECH_TIMEOUT_MS = 90_000;
 /** Heard ahead of time: longer than this, it goes the usual way. */
 const EARLY_TIMEOUT_MS = 5000;
+/** The house's Whisper, directly (#430): longer than this, it goes through the server. */
+const DIRECT_TIMEOUT_MS = 1000;
+
+/** Seilide's: where to hear directly; null, through it. */
+let hearing: DirectHearing | null = null;
+export const setHearing = (where: DirectHearing | null) => {
+	hearing = where;
+};
+
+/**
+ * What was said, by the house's Whisper with nothing in between (#430). Null if it goes through the
+ * server: no address, cut, too slow or failing. Empty if nothing was said.
+ */
+async function hearDirect(wav: Uint8Array, signal?: AbortSignal) {
+	if (!hearing) return null;
+	const started = Date.now();
+	try {
+		const timeout = AbortSignal.timeout(DIRECT_TIMEOUT_MS);
+		const res = await fetch(hearing.url, {
+			method: 'POST',
+			headers: { [HEARING_KEY_HEADER]: hearing.key, 'content-type': 'audio/wav' },
+			body: wav,
+			signal: signal ? AbortSignal.any([timeout, signal]) : timeout
+		});
+		if (!res.ok) throw new Error(`${res.status}`);
+		const { text } = (await res.json()) as { text: string };
+		console.log(`Oído en la casa, directo, en ${Date.now() - started} ms`);
+		return text;
+	} catch (err) {
+		if (!signal?.aborted)
+			console.error(`Whisper directo: ${err instanceof Error ? err.message : String(err)}`);
+		return null;
+	}
+}
 
 /** The server answered, with an error: its status says which. */
 export class ServerError extends Error {
@@ -90,6 +126,9 @@ export async function filler() {
  * (the house's Whisper), so a pause is not paid for. Never fails: null, it goes the usual way.
  */
 export async function hearEarly(wav: Uint8Array, signal: AbortSignal) {
+	const direct = await hearDirect(wav, signal);
+	if (direct !== null) return direct.trim() ? direct : null;
+	if (signal.aborted) return null;
 	try {
 		const res = await request('/api/voice/transcribe', wav, 'audio/wav', EARLY_TIMEOUT_MS, {
 			signal,
@@ -114,7 +153,9 @@ export async function sendOrder(
 	heard?: Promise<string | null> | null
 ) {
 	const text =
-		(await heard) ?? (await post<{ text: string }>('/api/voice/transcribe', wav, 'audio/wav')).text;
+		(await heard) ??
+		(await hearDirect(wav)) ??
+		(await post<{ text: string }>('/api/voice/transcribe', wav, 'audio/wav')).text;
 	if (!text?.trim()) return null;
 	onHeard?.(text);
 	if (Date.now() - lastAt > HISTORY_IDLE_MS) history = [];
@@ -156,6 +197,8 @@ export interface Ringing {
 	greetings?: string[];
 	/** Seilide's: the word of all the family's satellites; null, each its own (`WAKE_WORD`). */
 	wakeWord?: string | null;
+	/** Seilide's (#430): its house's Whisper, to go to directly; null, through the server. */
+	hearing?: DirectHearing | null;
 }
 
 /** After a dropped channel, tried again this long after. */

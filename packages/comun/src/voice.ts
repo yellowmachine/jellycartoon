@@ -2,6 +2,15 @@ import type { MusicTrack } from 'comun/music.ts';
 import type { Recipe } from 'comun/recipe.ts';
 import type { LngLat, Place } from 'comun/road.ts';
 
+/** A satellite's key to its house's Whisper alone, on going to it directly (#430). */
+export const HEARING_KEY_HEADER = 'x-voz-clave';
+
+/** Where a satellite hears directly (#430): the house's address, with the family's words, and its key. */
+export interface DirectHearing {
+	url: string;
+	key: string;
+}
+
 /** Voice commands (#33), shared by the server and /voz. */
 
 /**

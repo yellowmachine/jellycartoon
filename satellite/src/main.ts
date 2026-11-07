@@ -19,6 +19,7 @@ import {
 	hearEarly,
 	sendOrder,
 	serverName,
+	setHearing,
 	saidOnce,
 	serverReady,
 	speech,
@@ -619,6 +620,7 @@ if (serverReady)
 			(state.greetings ?? []).join('\n') !== (was.greetings ?? []).join('\n');
 		if (state.voice !== was.voice || greetingsChanged || was === firstAlarms)
 			void keepFallbacks(state.voice ?? null, state.greetings ?? []);
+		if ('hearing' in state) setHearing(state.hearing ?? null);
 		// Only Seilide says it: a house's satellite keeps the snapclient it has, if any.
 		if ('snapserver' in state)
 			followSnapserver(state.snapserver ?? null, state.name ?? null, state.snapclientId ?? null);

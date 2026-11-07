@@ -1,9 +1,11 @@
+import type { DirectHearing } from 'comun/voice.ts';
 import { eq } from 'drizzle-orm';
 import { db } from './db/index.ts';
 import { house, user } from './db/schema.ts';
 import { asFamily, withFamily } from './family.ts';
 import { isKidAccount } from './kids.ts';
 import { openFor, sealFor } from './family-secret.ts';
+import { hearingKeys } from './hearing-keys.ts';
 
 export { houseUrl } from './house-url.ts';
 
@@ -247,4 +249,30 @@ export async function houseStream(
 	if (!response.ok || !response.body)
 		throw new HouseProblem(await problemOf(response), response.status);
 	return response.body;
+}
+
+const hearingKey = hearingKeys((familyId, satellite) =>
+	sendHouse<{ key: string }>(
+		familyId,
+		'/voz/oir/clave',
+		{ method: 'POST', body: JSON.stringify({ satellite }) },
+		5000
+	).then((got) => got.key)
+);
+
+/**
+ * Where a satellite goes by itself to have its order written down (#430): the house's address, at
+ * `path` (heardPath), and a key that opens only that. Null without a house, or until the key is
+ * known: `known` is called then.
+ */
+export async function directHearing(
+	familyId: string,
+	satellite: string,
+	path: string,
+	known: () => void
+): Promise<DirectHearing | null> {
+	const [row] = await asFamily(familyId, (tx) => tx.select({ url: house.url }).from(house));
+	if (!row) return null;
+	const key = hearingKey(familyId, satellite, known);
+	return key ? { url: `${row.url}/api/v1${path}`, key } : null;
 }
