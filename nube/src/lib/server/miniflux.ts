@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import type { NewsCard, NewsItem } from '#lib/news.ts';
+import { MAX_NEWS, type NewsCard, type NewsGroup, type NewsItem } from '#lib/news.ts';
 import { minifluxLink } from './db/user.schema.ts';
 import type { AnyDb } from './family-scope.ts';
 import { isWebUrl, plainText } from './podcasts/feed.ts';
@@ -11,8 +11,9 @@ import { FetchError, fetchPublic } from './public-fetch.ts';
  * browser could not (CORS), and kept a while for each person.
  */
 
-/** The newest ones on the card. */
-export const MAX_NEWS = 8;
+export { MAX_NEWS };
+/** Categories asked for, at most: one request each. */
+export const MAX_GROUPS = 20;
 /** Kept this long, for each person: unread entries change every few minutes, the card need not. */
 const KEEP_MS = 15 * 60_000;
 /** A failed one, asked again after this. */
@@ -46,18 +47,42 @@ export function parseEntries(body: string): NewsItem[] {
 		const url = typeof e.url === 'string' ? e.url : null;
 		if (typeof e.id !== 'number' || !title || !isWebUrl(url)) return [];
 		const at = new Date(typeof e.published_at === 'string' ? e.published_at : NaN);
-		const source = (e.feed as { title?: unknown } | null | undefined)?.title;
+		const feed = e.feed as { title?: unknown; category?: { id?: unknown } } | null | undefined;
+		const source = feed?.title;
+		const group = feed?.category?.id;
 		return [
 			{
 				id: e.id,
 				title,
 				url,
 				at: Number.isNaN(at.getTime()) ? null : at.toISOString(),
-				source: typeof source === 'string' && source ? source : null
+				source: typeof source === 'string' && source ? source : null,
+				group: typeof group === 'number' ? group : null
 			}
 		];
 	});
 }
+
+/**
+ * What `GET /v1/categories?counts=true` answers: those with something unread. `unread` is null
+ * with a Miniflux older than 2.0.46, which has no counts.
+ */
+export function parseGroups(
+	body: string
+): (Omit<NewsGroup, 'unread'> & { unread: number | null })[] {
+	const list = JSON.parse(body) as unknown;
+	if (!Array.isArray(list)) throw new Error('No es una respuesta de Miniflux');
+	return list.flatMap((c: Record<string, unknown>) => {
+		const title = typeof c.title === 'string' ? c.title.trim() : '';
+		if (typeof c.id !== 'number' || !title) return [];
+		const unread = typeof c.total_unread === 'number' ? c.total_unread : null;
+		if (unread === 0) return [];
+		return [{ id: c.id, title, unread, hidden: c.hide_globally === true }];
+	});
+}
+
+/** Newest first; those with no date, last. */
+const newest = (a: NewsItem, b: NewsItem) => (b.at ?? '').localeCompare(a.at ?? '');
 
 /** A request with their key: never followed to another address (fetchPublic). */
 const ask = (
@@ -118,24 +143,54 @@ export function minifluxNews({ asUser, secrets }: MinifluxDeps) {
 	/** The card, and for how long. A failure keeps what there was, a little longer. */
 	async function read(userId: string, url: string, before: NewsCard | undefined) {
 		const key = await secrets.get(userId, KEY_NAME);
-		if (!key) return { card: { url, items: [], problem: 'key' as const }, keep: FAILED_MS };
+		const none = { url, items: [], groups: [] };
+		if (!key) return { card: { ...none, problem: 'key' as const }, keep: FAILED_MS };
 		try {
-			const { body } = await ask(
-				url,
-				key,
-				`/v1/entries?status=unread&order=published_at&direction=desc&limit=${MAX_NEWS}`
+			// The newest of each category, so that one writing a lot does not hide the others; the
+			// newest of all are among them.
+			const groups = parseGroups((await ask(url, key, '/v1/categories?counts=true')).body).slice(
+				0,
+				MAX_GROUPS
 			);
+			const lists = await Promise.all(
+				groups.map(async (g) => {
+					const { body } = await ask(
+						url,
+						key,
+						`/v1/categories/${g.id}/entries?status=unread&order=published_at&direction=desc&limit=${MAX_NEWS}`
+					);
+					return parseEntries(body)
+						.slice(0, MAX_NEWS)
+						.map((i) => ({ ...i, group: g.id }));
+				})
+			);
+			const seen = new Set<number>();
+			const items = lists
+				.flat()
+				.filter((i) => !seen.has(i.id) && seen.add(i.id))
+				.sort(newest);
 			return {
-				card: { url, items: parseEntries(body).slice(0, MAX_NEWS), problem: null },
+				card: {
+					url,
+					items,
+					groups: groups
+						.map((g, n) => ({ ...g, unread: g.unread ?? lists[n]!.length }))
+						.filter((g, n) => lists[n]!.length > 0),
+					problem: null
+				},
 				keep: KEEP_MS
 			};
 		} catch (err) {
-			if (refused(err))
-				return { card: { url, items: [], problem: 'key' as const }, keep: FAILED_MS };
+			if (refused(err)) return { card: { ...none, problem: 'key' as const }, keep: FAILED_MS };
 			console.warn('[noticias] Sin noticias de Miniflux', String(err));
 			const items = before?.items ?? [];
 			return {
-				card: { url, items, problem: items.length ? null : ('down' as const) },
+				card: {
+					url,
+					items,
+					groups: before?.groups ?? [],
+					problem: items.length ? null : ('down' as const)
+				},
 				keep: FAILED_MS
 			};
 		}
@@ -194,10 +249,17 @@ export function minifluxNews({ asUser, secrets }: MinifluxDeps) {
 		/** Off the card at once; in Miniflux, as read. If that fails, it comes back later: in the log. */
 		async markRead(userId: string, id: number) {
 			const hit = kept.get(userId);
-			if (hit)
+			const item = hit?.card.items.find((i) => i.id === id);
+			if (hit && item)
 				kept.set(userId, {
 					...hit,
-					card: { ...hit.card, items: hit.card.items.filter((i) => i.id !== id) }
+					card: {
+						...hit.card,
+						items: hit.card.items.filter((i) => i.id !== id),
+						groups: hit.card.groups.map((g) =>
+							g.id === item.group ? { ...g, unread: Math.max(0, g.unread - 1) } : g
+						)
+					}
 				});
 			const [url, key] = await Promise.all([linkOf(userId), secrets.get(userId, KEY_NAME)]);
 			if (!url || !key) return;

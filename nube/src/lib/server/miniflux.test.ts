@@ -6,7 +6,8 @@ import { sql } from 'drizzle-orm';
 import * as schema from './db/schema.ts';
 import { minifluxLink, user } from './db/schema.ts';
 import { userScope } from './family-scope.ts';
-import { MAX_NEWS, minifluxNews, minifluxUrl, parseEntries } from './miniflux.ts';
+import { MAX_NEWS, minifluxNews, minifluxUrl, parseEntries, parseGroups } from './miniflux.ts';
+import { newsShown, newsUnread } from '#lib/news.ts';
 
 /** With the real tables and RLS, and a fake Miniflux at a public address (fetchPublic asks no DNS). */
 const db = drizzle(new PGlite(), { schema });
@@ -45,15 +46,36 @@ afterEach(() => {
 	globalThis.fetch = realFetch;
 });
 
-const entry = (id: number, title = `Noticia ${id}`) => ({
+const entry = (id: number, title = `Noticia ${id}`, category = 1) => ({
 	id,
 	title,
 	url: `https://periodico.example/${id}`,
-	published_at: '2026-11-06T10:00:00+01:00',
+	published_at: new Date(Date.UTC(2026, 10, 6, 9, 0, id)).toISOString(),
 	content: '<p>artículo entero</p>',
-	feed: { title: 'El Periódico' }
+	feed: { title: 'El Periódico', category: { id: category, user_id: 1, title: `Cat ${category}` } }
 });
-const entries = (...list: unknown[]) => Response.json({ total: list.length, entries: list });
+type Entry = ReturnType<typeof entry>;
+const category = (id: number, unread: number, hidden = false) => ({
+	id,
+	title: `Cat ${id}`,
+	user_id: 1,
+	hide_globally: hidden,
+	feed_count: 2,
+	total_unread: unread
+});
+/** A Miniflux with these categories, each answering its unread entries (all of category 1 if none). */
+const entries =
+	(list: Entry[], categories = [category(1, list.length)]) =>
+	(url: URL) => {
+		if (url.pathname === '/v1/categories') return Response.json(categories);
+		const id = Number(url.pathname.match(/^\/v1\/categories\/(\d+)\/entries$/)?.[1]);
+		// As Miniflux: newest first, at most the limit.
+		const mine = list
+			.filter((e) => e.feed.category.id === id)
+			.sort((x, y) => y.published_at.localeCompare(x.published_at))
+			.slice(0, Number(url.searchParams.get('limit')) || undefined);
+		return Response.json({ total: mine.length, entries: mine });
+	};
 const me = () => Response.json({ id: 1, username: 'miguel' });
 /** Kept in memory: enough here, user-secret.test.ts has the real ones. */
 function deps() {
@@ -94,8 +116,9 @@ describe('parseEntries', () => {
 				id: 1,
 				title: 'Noticia 1',
 				url: 'https://periodico.example/1',
-				at: '2026-11-06T09:00:00.000Z',
-				source: 'El Periódico'
+				at: '2026-11-06T09:00:01.000Z',
+				source: 'El Periódico',
+				group: 1
 			}
 		]);
 	});
@@ -159,11 +182,14 @@ describe('the card', () => {
 		expect(await news.newsOf('cris')).toBeNull();
 		miniflux(() => me());
 		await news.save('cris', HOME, 'k');
-		miniflux(() => entries(...Array.from({ length: 12 }, (_, i) => entry(i + 1))));
+		miniflux(entries(Array.from({ length: 12 }, (_, i) => entry(i + 1))));
 		const card = await news.newsOf('cris');
 		expect(card?.items).toHaveLength(MAX_NEWS);
+		expect(card?.items[0]!.id).toBe(12);
 		expect(card?.problem).toBeNull();
-		const asks = asked[0]!.url.searchParams;
+		expect(asked[0]!.url.href).toBe(`${HOME}/v1/categories?counts=true`);
+		expect(asked[1]!.url.pathname).toBe('/v1/categories/1/entries');
+		const asks = asked[1]!.url.searchParams;
 		expect(Object.fromEntries(asks)).toEqual({
 			status: 'unread',
 			order: 'published_at',
@@ -177,13 +203,13 @@ describe('the card', () => {
 		const news = minifluxNews(d);
 		miniflux(() => me());
 		await news.save('dani', HOME, 'k');
-		miniflux(() => entries(entry(1)));
+		miniflux(entries([entry(1)]));
 		await news.newsOf('dani');
 		await news.newsOf('dani');
-		expect(asked).toHaveLength(1);
+		expect(asked).toHaveLength(2);
 		expect(await news.newsOf('eva')).toBeNull();
 		await news.newsOf('dani', Date.now() + 16 * 60_000);
-		expect(asked).toHaveLength(2);
+		expect(asked).toHaveLength(4);
 	});
 
 	test('a failure keeps what there was; with nothing, says so; a refused key, to change', async () => {
@@ -195,7 +221,7 @@ describe('the card', () => {
 		expect((await news.newsOf('eva'))?.problem).toBe('down');
 
 		const later = Date.now() + 3 * 60_000;
-		miniflux(() => entries(entry(1)));
+		miniflux(entries([entry(1)]));
 		expect((await news.newsOf('eva', later))?.items).toHaveLength(1);
 
 		miniflux(() => new Response('', { status: 500 }));
@@ -214,7 +240,7 @@ describe('the card', () => {
 		const news = minifluxNews(d);
 		miniflux(() => me());
 		await news.save('fran', HOME, 'k');
-		miniflux(() => entries(entry(1), entry(2)));
+		miniflux(entries([entry(1), entry(2)]));
 		await news.newsOf('fran');
 
 		miniflux(() => new Response(null, { status: 204 }));
@@ -225,7 +251,9 @@ describe('the card', () => {
 			entry_ids: [1],
 			status: 'read'
 		});
-		expect((await news.newsOf('fran'))?.items.map((i) => i.id)).toEqual([2]);
+		const after = await news.newsOf('fran');
+		expect(after?.items.map((i) => i.id)).toEqual([2]);
+		expect(after?.groups[0]!.unread).toBe(1);
 
 		miniflux(() => new Response('', { status: 500 }));
 		await news.markRead('fran', 2);
@@ -237,7 +265,7 @@ describe('the card', () => {
 		const news = minifluxNews(d);
 		miniflux(() => me());
 		await news.save('ana', HOME, 'k');
-		miniflux(() => entries(entry(1)));
+		miniflux(entries([entry(1)]));
 		await news.newsOf('ana');
 		await news.remove('ana');
 		expect(kept.size).toBe(0);
@@ -251,5 +279,75 @@ describe('the card', () => {
 		await news.save('ana', HOME, 'k');
 		const seen = await asUser('bea', (tx) => tx.select().from(minifluxLink));
 		expect(seen.map((r) => r.userId)).not.toContain('ana');
+	});
+});
+
+describe('categories', () => {
+	test('those with something unread; no counts in an old Miniflux, not a reason to skip', () => {
+		expect(
+			parseGroups(
+				JSON.stringify([
+					category(1, 3),
+					category(2, 0),
+					category(3, 5, true),
+					{ id: 4, title: 'Vieja' }
+				])
+			)
+		).toEqual([
+			{ id: 1, title: 'Cat 1', unread: 3, hidden: false },
+			{ id: 3, title: 'Cat 3', unread: 5, hidden: true },
+			{ id: 4, title: 'Vieja', unread: null, hidden: false }
+		]);
+		expect(() => parseGroups('{"error":"no"}')).toThrow();
+	});
+
+	test('the newest of each: one writing a lot does not hide the others', async () => {
+		const { deps: d } = deps();
+		const news = minifluxNews(d);
+		miniflux(() => me());
+		await news.save('cris', HOME, 'k2');
+		const busy = Array.from({ length: 20 }, (_, i) => entry(100 + i, undefined, 1));
+		const quiet = [entry(1, 'Poco', 2), entry(2, 'Más', 2)];
+		const hidden = [entry(50, 'Escondida', 3)];
+		const old = { id: 4, title: 'Sin cuenta', user_id: 1 };
+		miniflux(
+			entries(
+				[...busy, ...quiet, ...hidden, entry(60, 'De la vieja', 4)],
+				[category(1, 20), category(2, 2), category(3, 1, true), category(5, 0), old as never]
+			)
+		);
+		const card = (await news.newsOf('cris'))!;
+		expect(asked.map((a) => a.url.pathname)).not.toContain('/v1/categories/5/entries');
+		expect(card.groups.map((g) => [g.id, g.unread])).toEqual([
+			[1, 20],
+			[2, 2],
+			[3, 1],
+			[4, 1]
+		]);
+		expect(newsShown(card, 2).map((i) => i.title)).toEqual(['Más', 'Poco']);
+		expect(newsShown(card, 1)).toHaveLength(MAX_NEWS);
+		// «Todas»: the newest of all, but not the one hidden in Miniflux.
+		const all = newsShown(card, null);
+		expect(all.map((i) => i.id)).toEqual([119, 118, 117, 116, 115, 114, 113, 112]);
+		expect(newsShown(card, 3).map((i) => i.id)).toEqual([50]);
+		expect(all.map((i) => i.id)).not.toContain(50);
+		// One gone: «Todas».
+		expect(newsShown(card, 99)).toEqual(all);
+		// Opened here: off the list and the count.
+		expect(newsShown(card, 2, [2]).map((i) => i.id)).toEqual([1]);
+		expect(newsUnread(card, card.groups[1]!, [2])).toBe(1);
+	});
+
+	test('one category failing: like Miniflux down, what there was kept', async () => {
+		const { deps: d } = deps();
+		const news = minifluxNews(d);
+		miniflux(() => me());
+		await news.save('dani', HOME, 'k3');
+		miniflux((url) =>
+			url.pathname === '/v1/categories/2/entries'
+				? new Response('', { status: 500 })
+				: entries([entry(1)], [category(1, 1), category(2, 1)])(url)
+		);
+		expect((await news.newsOf('dani'))?.problem).toBe('down');
 	});
 });
