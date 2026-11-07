@@ -9,6 +9,8 @@ import { keepBlocks } from '#lib/server/ai-stopped.ts';
 import { migrateToKms } from '#lib/server/kms-migrate.ts';
 import { isKidAccount, kidMayOpen } from '#lib/server/kids.ts';
 import { rejectMalformedPath } from 'comun/server/malformed-path.ts';
+// The smart plugs' hub (#396), left on globalThis for server.js and the Vite plugin.
+import '#lib/server/plugs/plugs.ts';
 
 /**
  * Signing in, Better Auth's own and the health check; and the house's API, with its key, checked

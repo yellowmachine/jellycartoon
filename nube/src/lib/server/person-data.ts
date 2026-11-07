@@ -308,6 +308,17 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		joining: 'dropped',
 		zip: false
 	},
+	// Smart plugs (#396): the house's, each with its token, as the satellites.
+	plug: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false
+	},
+	plug_energy: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false
+	},
 
 	// Podcasts: followed person by person from the family's catalogue.
 	podcast: {

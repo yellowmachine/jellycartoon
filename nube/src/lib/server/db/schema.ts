@@ -23,3 +23,4 @@ export * from './data-key.schema.ts';
 export * from './papers.schema.ts';
 export * from './watch-log.schema.ts';
 export * from './user.schema.ts';
+export * from './plugs.schema.ts';
