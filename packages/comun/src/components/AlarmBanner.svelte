@@ -35,19 +35,24 @@
 	});
 </script>
 
-{#each ringing as alarm (alarm.id)}
-	<div
-		class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-amber-500/40 bg-amber-500/15 px-4 py-2 text-center text-amber-200"
-		role="alert"
-	>
-		<span class="text-base"
-			>⏰ Suena: <strong>{alarm.label}</strong>
-			<span class="text-sm text-amber-300/80">({alarm.where})</span></span
-		>
-		<button
-			class="rounded-md bg-amber-500 px-4 py-1.5 font-semibold text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
-			disabled={stopping === alarm.id}
-			onclick={() => stop(alarm.id)}>{stopping === alarm.id ? 'Parando…' : 'Parar'}</button
-		>
+<!-- Under the bar (--header-h, its layout's), in view however far down the page is. -->
+{#if ringing.length}
+	<div class="sticky z-[9] bg-zinc-950" style:top="var(--header-h, 0px)">
+		{#each ringing as alarm (alarm.id)}
+			<div
+				class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-amber-500/40 bg-amber-500/15 px-4 py-2 text-center text-amber-200"
+				role="alert"
+			>
+				<span class="text-base"
+					>⏰ Suena: <strong>{alarm.label}</strong>
+					<span class="text-sm text-amber-300/80">({alarm.where})</span></span
+				>
+				<button
+					class="rounded-md bg-amber-500 px-4 py-1.5 font-semibold text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
+					disabled={stopping === alarm.id}
+					onclick={() => stop(alarm.id)}>{stopping === alarm.id ? 'Parando…' : 'Parar'}</button
+				>
+			</div>
+		{/each}
 	</div>
-{/each}
+{/if}
