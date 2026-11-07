@@ -271,8 +271,11 @@ export async function directHearing(
 	path: string,
 	known: () => void
 ): Promise<DirectHearing | null> {
-	const [row] = await asFamily(familyId, (tx) => tx.select({ url: house.url }).from(house));
+	const [row] = await asFamily(familyId, (tx) =>
+		tx.select({ url: house.url, webUrl: house.webUrl }).from(house)
+	);
 	if (!row) return null;
 	const key = hearingKey(familyId, satellite, known);
-	return key ? { url: `${row.url}/api/v1${path}`, key } : null;
+	// Its own address, not the tunnel's: at home, that one reaches it without going out (split DNS).
+	return key ? { url: `${row.webUrl ?? row.url}/api/v1${path}`, key } : null;
 }
