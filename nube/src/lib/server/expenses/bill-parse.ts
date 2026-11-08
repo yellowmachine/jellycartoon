@@ -1,5 +1,6 @@
 import {
 	BILL_KINDS,
+	BILL_PRICINGS,
 	BILL_UNITS,
 	billDays,
 	isBillKind,
@@ -64,7 +65,11 @@ export const BILL_SCHEMA = {
 		powerPrice: PERIODS,
 		maxPower: PERIODS,
 		unitPrice: { type: ['number', 'null'] },
-		areaAverage: { type: ['number', 'null'] }
+		areaAverage: { type: ['number', 'null'] },
+		pricing: { type: ['string', 'null'], enum: [...BILL_PRICINGS, null] },
+		energyPrice: PERIODS,
+		electricityTax: { type: ['number', 'null'] },
+		vat: { type: ['number', 'null'] }
 	},
 	required: [
 		'provider',
@@ -83,7 +88,11 @@ export const BILL_SCHEMA = {
 		'powerPrice',
 		'maxPower',
 		'unitPrice',
-		'areaAverage'
+		'areaAverage',
+		'pricing',
+		'energyPrice',
+		'electricityTax',
+		'vat'
 	],
 	additionalProperties: false
 };
@@ -108,7 +117,11 @@ export const BILL_PROMPT =
 	'y P2); el precio de esa potencia en cada periodo, en euros por kW y día sin impuestos (si lo da ' +
 	'por kW y año, divídelo entre 365; «P1: 0,0819»); la máxima demandada si la dice (kW), el precio de la ' +
 	'energía o del agua por unidad sin impuestos (€) y el consumo medio de la zona o del código ' +
-	'postal si lo dice. Si no es un suministro, del periodo, el consumo y la tarifa solo lo que ' +
+	'postal si lo dice. En la luz, además: cómo se cobra la energía (fijo, un solo precio a todas ' +
+	'horas, como «Precio estable» o «Precio fijo»; periodos, un precio distinto en punta, llano y ' +
+	'valle; indexado, el PVPC o una tarifa indexada al mercado, que cambia cada hora); el precio de ' +
+	'la energía de cada periodo en €/kWh sin impuestos, solo si cambia de un periodo a otro ' +
+	'(«P1: 0,21»); y el porcentaje del impuesto eléctrico (5,1127) y del IVA (21) que aplica. Si no es un suministro, del periodo, el consumo y la tarifa solo lo que ' +
 	'diga, y sin desglose, ninguna parte. Lo que no diga: null, o la lista vacía. Los números usan ' +
 	'coma decimal: 8,18 es 8.18. Sin datos personales: ni nombre, ni DNI, ni cuenta, ni dirección.';
 

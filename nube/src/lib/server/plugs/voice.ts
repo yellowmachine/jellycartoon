@@ -1,4 +1,5 @@
 import type { Kitchen } from '../fridge.ts';
+import { kwhPriceText } from '#lib/kwh-price.ts';
 import type { Tool } from '../openrouter.ts';
 import { PlugOffline } from './hub.ts';
 import { kwhPriceIn, plugsOf, switchIn } from './plugs.ts';
@@ -22,19 +23,19 @@ import {
 export async function plugsForVoice(k: Kitchen) {
 	const [plugs, price] = await Promise.all([plugsOf(k), kwhPriceIn(k)]);
 	if (!plugs.length) return null;
-	const used = (wh: number) =>
-		`${energyText(wh)}${price === null ? '' : ` (${euroText((wh / 1000) * price)})`}`;
+	const used = (wh: number, euros: number | null) =>
+		`${energyText(wh)}${euros === null ? '' : ` (${euroText(euros)})`}`;
 	const lines = plugs.map((p) => {
 		const state = p.paused
 			? 'en pausa'
 			: !p.online
 				? 'sin conexión'
 				: `${p.output ? 'encendido' : 'apagado'}${p.power ? `, ${powerText(p.power)} ahora` : ''}`;
-		return `${p.name} (${PLUG_KINDS[p.kind].label.toLowerCase()}): ${state}; hoy ${used(p.todayWh)}, este mes ${used(p.monthWh)}`;
+		return `${p.name} (${PLUG_KINDS[p.kind].label.toLowerCase()}): ${state}; hoy ${used(p.todayWh, p.todayEuros)}, este mes ${used(p.monthWh, p.monthEuros)}`;
 	});
 	return {
 		plugs,
-		line: `[Enchufes de la familia (encender y apagar con «plug_switch», también un rato; lo gastado, de aquí): ${lines.join('. ')}.${price === null ? ' Sin precio del kWh: en euros no se sabe.' : ''}]`
+		line: `[Enchufes de la familia (encender y apagar con «plug_switch», también un rato; lo gastado, de aquí): ${lines.join('. ')}.${price === null ? ' Sin precio del kWh: en euros no se sabe.' : ` Precio del kWh: ${kwhPriceText(price)}.`}]`
 	};
 }
 

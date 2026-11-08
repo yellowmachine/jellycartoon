@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, count, eq, gte, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, sql } from 'drizzle-orm';
+import { parseBillDetails } from 'comun/bills.ts';
 import { db } from '../db/index.ts';
-import { familySettings, plug, plugEnergy, plugSchedule } from '../db/schema.ts';
+import { bill, expense, familySettings, plug, plugEnergy, plugSchedule } from '../db/schema.ts';
 import { asFamily, withFamily } from '../family.ts';
 import type { AnyDb } from '../family-scope.ts';
 import type { Kitchen } from '../fridge.ts';
@@ -24,6 +25,7 @@ import {
 	type PlugJob,
 	type PlugScheduleInput
 } from '#lib/plug-schedules.ts';
+import { billName, priceAt, priceFromBill, type KwhPrice } from '#lib/kwh-price.ts';
 
 /**
  * Smart plugs (#396): the family's, in Enchufes. Each connects to Seilide by itself (hub.ts), with
@@ -115,7 +117,6 @@ export const plugsOf = (k: Kitchen) => k.run((tx) => readPlugs(tx));
 
 async function readPlugs(tx: AnyDb): Promise<PlugView[]> {
 	const today = dayFormat.format(new Date());
-	const localDay = sql`((${plugEnergy.hour} at time zone 'UTC') at time zone ${TIME_ZONE})::date`;
 	const plugs = await tx
 		.select({
 			id: plug.id,
@@ -145,18 +146,33 @@ async function readPlugs(tx: AnyDb): Promise<PlugView[]> {
 		})
 		.from(plugSchedule)
 		.orderBy(asc(plugSchedule.start), asc(plugSchedule.id));
-	// A month at most is 31 days, plus a day for the time zone.
+	// A month at most is 31 days, plus a day for the time zone. By the hour: each at its price.
 	const since = new Date(Date.now() - 32 * 86_400_000);
-	const used = await tx
-		.select({
-			plugId: plugEnergy.plugId,
-			today: sql<number>`coalesce(sum(${plugEnergy.wh}) filter (where ${localDay} = ${today}::date), 0)`,
-			month: sql<number>`coalesce(sum(${plugEnergy.wh}) filter (where date_trunc('month', ${localDay}) = date_trunc('month', ${today}::date)), 0)`
-		})
-		.from(plugEnergy)
-		.where(gte(plugEnergy.hour, since))
-		.groupBy(plugEnergy.plugId);
-	const byPlug = new Map(used.map((u) => [u.plugId, u]));
+	const month = today.slice(0, 7);
+	const [hours, price] = await Promise.all([
+		tx
+			.select({ plugId: plugEnergy.plugId, hour: plugEnergy.hour, wh: plugEnergy.wh })
+			.from(plugEnergy)
+			.where(gte(plugEnergy.hour, since)),
+		priceOf(tx)
+	]);
+	const byPlug = new Map<
+		string,
+		{ today: number; month: number; todayEur: number; monthEur: number }
+	>();
+	for (const h of hours) {
+		const day = dayFormat.format(h.hour);
+		if (day.slice(0, 7) !== month) continue;
+		const sum = byPlug.get(h.plugId) ?? { today: 0, month: 0, todayEur: 0, monthEur: 0 };
+		const euros = price ? (h.wh / 1000) * priceAt(price, h.hour) : 0;
+		sum.month += h.wh;
+		sum.monthEur += euros;
+		if (day === today) {
+			sum.today += h.wh;
+			sum.todayEur += euros;
+		}
+		byPlug.set(h.plugId, sum);
+	}
 	return plugs.map((p) => {
 		const now = hub.liveOf(p.id);
 		return {
@@ -167,8 +183,10 @@ async function readPlugs(tx: AnyDb): Promise<PlugView[]> {
 			waiting: p.lastSeenAt === null && !now.online,
 			output: now.online ? now.output : p.output,
 			power: now.online ? now.power : null,
-			todayWh: Number(byPlug.get(p.id)?.today ?? 0),
-			monthWh: Number(byPlug.get(p.id)?.month ?? 0),
+			todayWh: byPlug.get(p.id)?.today ?? 0,
+			monthWh: byPlug.get(p.id)?.month ?? 0,
+			todayEuros: price ? (byPlug.get(p.id)?.todayEur ?? 0) : null,
+			monthEuros: price ? (byPlug.get(p.id)?.monthEur ?? 0) : null,
 			lastSeenAt: p.lastSeenAt?.toISOString() ?? null,
 			model: p.model,
 			paused: p.paused,
@@ -315,28 +333,53 @@ async function kitchenOfUser(userId: string): Promise<Pick<Kitchen, 'familyId' |
 /** The family, told when any of its plugs changes. */
 export const watchPlugs = (familyId: string, listener: () => void) => hub.watch(familyId, listener);
 
-/** The family's price of a kWh, in euros; null, unknown. */
+/** The family's price of a kWh (kwh-price.ts): by hand, or its last light bill's; null, unknown. */
 export async function kwhPrice(userId: string) {
 	return kwhPriceIn(await kitchenOfUser(userId));
 }
 
-export async function kwhPriceIn(k: Pick<Kitchen, 'run'>) {
-	const [row] = await k.run((tx) =>
+export const kwhPriceIn = (k: Pick<Kitchen, 'run'>) => k.run((tx) => priceOf(tx));
+
+/** The one written by hand in Enchufes, which wins over the bill's; null, none. */
+export async function manualKwhPrice(userId: string) {
+	const [row] = await withFamily(userId, (tx) =>
 		tx.select({ price: familySettings.kwhPrice }).from(familySettings)
 	);
 	return row?.price ?? null;
+}
+
+async function priceOf(tx: AnyDb): Promise<KwhPrice | null> {
+	const [own] = await tx.select({ price: familySettings.kwhPrice }).from(familySettings);
+	if (own?.price)
+		return { source: 'mano', pricing: 'fijo', flat: own.price, periods: null, from: null };
+	// The last light bill that says its price.
+	const bills = await tx
+		.select({ details: bill.details, store: expense.store, periodEnd: bill.periodEnd })
+		.from(bill)
+		.innerJoin(expense, eq(expense.id, bill.expenseId))
+		.where(eq(bill.kind, 'Luz'))
+		.orderBy(desc(bill.periodEnd), desc(bill.id))
+		.limit(3);
+	for (const b of bills) {
+		const price = priceFromBill(parseBillDetails(b.details), billName(b.store, b.periodEnd));
+		if (price) return price;
+	}
+	return null;
 }
 
 /** At most this, to catch a typo: no tariff is near it. */
 export const MAX_KWH_PRICE = 5;
 
 export async function setKwhPrice(userId: string, price: number | null) {
-	await withFamily(userId, (tx, { familyId }) =>
-		tx
+	const familyId = await withFamily(userId, async (tx, { familyId }) => {
+		await tx
 			.insert(familySettings)
 			.values({ familyId, kwhPrice: price })
-			.onConflictDoUpdate({ target: familySettings.familyId, set: { kwhPrice: price } })
-	);
+			.onConflictDoUpdate({ target: familySettings.familyId, set: { kwhPrice: price } });
+		return familyId;
+	});
+	// Its euros, new in the pages open.
+	hub.changed(familyId);
 }
 
 // Schedules, pause and the long heat (#396, phase 2).

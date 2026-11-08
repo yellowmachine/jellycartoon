@@ -4,7 +4,14 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { sql } from 'drizzle-orm';
 import * as schema from '../db/schema.ts';
-import { family, familyMember, plugEnergy, user } from '../db/schema.ts';
+import {
+	bill as billTable,
+	expense,
+	family,
+	familyMember,
+	plugEnergy,
+	user
+} from '../db/schema.ts';
 import { familyOnlyScope, familyScope, NoFamily } from '../family-scope.ts';
 import { plugKeyScope } from './plug-key-scope.ts';
 import type { PlugSocket } from './hub.ts';
@@ -290,10 +297,68 @@ describe('enchufes', () => {
 	test('the price of a kWh, the family’s', async () => {
 		expect(await kwhPrice('ana')).toBeNull();
 		await setKwhPrice('ana', 0.15);
-		expect(await kwhPrice('ana')).toBeCloseTo(0.15);
+		expect(await kwhPrice('ana')).toMatchObject({ source: 'mano', flat: 0.15 });
 		expect(await kwhPrice('otra')).toBeNull();
 		await setKwhPrice('ana', null);
 		expect(await kwhPrice('ana')).toBeNull();
+	});
+
+	test('the price from the last light bill; by hand, it wins; euros by the hour', async () => {
+		const bill = async (periodEnd: string, details: object) => {
+			const [e] = await asFamily('A', (tx) =>
+				tx
+					.insert(expense)
+					.values({
+						familyId: 'A',
+						date: periodEnd,
+						store: 'Pepeenergy',
+						category: 'Facturas',
+						total: 8309,
+						source: 'factura'
+					})
+					.returning({ id: expense.id })
+			);
+			await asFamily('A', (tx) =>
+				tx.insert(billTable).values({
+					familyId: 'A',
+					expenseId: e!.id,
+					kind: 'Luz',
+					periodStart: `${periodEnd.slice(0, 8)}01`,
+					periodEnd,
+					consumption: 280,
+					unit: 'kWh',
+					details: details as never
+				})
+			);
+		};
+		await bill('2026-08-31', { unitPrice: 0.15 });
+		await bill('2026-09-30', {
+			unitPrice: 0.198,
+			pricing: 'fijo',
+			electricityTax: 5.1127,
+			vat: 21
+		});
+		expect(await kwhPrice('ana')).toMatchObject({
+			source: 'factura',
+			pricing: 'fijo',
+			flat: 0.2518,
+			from: 'Pepeenergy, septiembre 2026'
+		});
+		expect(await kwhPrice('otra')).toBeNull();
+		// A kWh used this hour.
+		const stove = await createPlug('ana', 'Estufa', 'otro');
+		const hour = new Date();
+		hour.setUTCMinutes(0, 0, 0);
+		await asFamily('A', (tx) =>
+			tx.insert(plugEnergy).values({ plugId: stove.id, familyId: 'A', hour, wh: 1000 })
+		);
+		const view = (await listPlugs('ana')).find((p) => p.id === stove.id)!;
+		expect(view.todayEuros).toBeCloseTo(0.2518, 6);
+		expect(view.monthEuros).toBeCloseTo(0.2518, 6);
+		await deletePlug('ana', stove.id);
+		await setKwhPrice('ana', 0.3);
+		expect(await kwhPrice('ana')).toMatchObject({ source: 'mano', flat: 0.3 });
+		await setKwhPrice('ana', null);
 	});
 });
 

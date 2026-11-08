@@ -70,6 +70,9 @@ export interface PlugView {
 	power: number | null;
 	todayWh: number;
 	monthWh: number;
+	/** In euros, each hour at its price (kwh-price.ts); null without a price. */
+	todayEuros: number | null;
+	monthEuros: number | null;
 	lastSeenAt: string | null;
 	model: string | null;
 	notices: PlugNotices;

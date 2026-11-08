@@ -13,6 +13,7 @@
 		type PlugView
 	} from '#lib/plugs.ts';
 	import { field, primary, secondary, section, select } from '#lib/styles.ts';
+	import { kwhPriceText } from '#lib/kwh-price.ts';
 	import { MAX_SCHEDULES, scheduleText, WEEK } from '#lib/plug-schedules.ts';
 	import type { PageProps } from './$types';
 
@@ -42,9 +43,9 @@
 	/** The plug whose «Añadir horario» is open. */
 	let scheduling = $state<string | null>(null);
 
-	const euros = (wh: number) => (data.price === null ? null : euroText((wh / 1000) * data.price));
-	const priceText = $derived(
-		data.price === null ? '' : data.price.toLocaleString('es-ES', { maximumFractionDigits: 4 })
+	const euros = (value: number | null) => (value === null ? null : euroText(value));
+	const manualText = $derived(
+		data.manual === null ? '' : data.manual.toLocaleString('es-ES', { maximumFractionDigits: 4 })
 	);
 	const hourFormat = new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit' });
 
@@ -198,12 +199,16 @@
 						<div>
 							<dt class="text-xs text-zinc-500">Hoy</dt>
 							<dd>{energyText(p.todayWh)}</dd>
-							{#if euros(p.todayWh)}<dd class="text-xs text-zinc-400">{euros(p.todayWh)}</dd>{/if}
+							{#if euros(p.todayEuros)}<dd class="text-xs text-zinc-400">
+									{euros(p.todayEuros)}
+								</dd>{/if}
 						</div>
 						<div>
 							<dt class="text-xs text-zinc-500">Este mes</dt>
 							<dd>{energyText(p.monthWh)}</dd>
-							{#if euros(p.monthWh)}<dd class="text-xs text-zinc-400">{euros(p.monthWh)}</dd>{/if}
+							{#if euros(p.monthEuros)}<dd class="text-xs text-zinc-400">
+									{euros(p.monthEuros)}
+								</dd>{/if}
 						</div>
 					</dl>
 
@@ -460,20 +465,33 @@
 		use:enhance={() =>
 			async ({ update }) =>
 				update({ reset: false })}
-		class="mb-8 flex flex-wrap items-center gap-2 text-sm"
+		class="mb-8 space-y-2 text-sm"
 	>
-		<label for="precio" class="text-zinc-400">Precio del kWh</label>
-		<input
-			id="precio"
-			name="price"
-			inputmode="decimal"
-			value={priceText}
-			placeholder="0,15"
-			class="w-24 rounded-md border-zinc-700 bg-zinc-900 py-1 text-zinc-100 focus:border-amber-400 focus:ring-amber-400"
-		/>
-		<span class="text-zinc-400">€</span>
-		<button class={secondary}>Guardar</button>
-		{#if form && 'priced' in form}<span class="text-emerald-300">✓ Guardado</span>{/if}
+		<p class="text-zinc-400">
+			{#if data.price}
+				Precio del kWh: {kwhPriceText(data.price)}.
+			{:else}
+				Sin precio del kWh: sube la última factura de la luz a Gastos y se saca de ella, o ponlo
+				aquí.
+			{/if}
+		</p>
+		<div class="flex flex-wrap items-center gap-2">
+			<label for="precio" class="text-zinc-400">A mano</label>
+			<input
+				id="precio"
+				name="price"
+				inputmode="decimal"
+				value={manualText}
+				placeholder={data.price ? 'el de la factura' : '0,25'}
+				class="w-36 rounded-md border-zinc-700 bg-zinc-900 py-1 text-zinc-100 focus:border-amber-400 focus:ring-amber-400"
+			/>
+			<span class="text-zinc-400">€/kWh</span>
+			<button class={secondary}>Guardar</button>
+			{#if form && 'priced' in form}<span class="text-emerald-300">✓ Guardado</span>{/if}
+		</div>
+		<p class="text-xs text-zinc-500">
+			Puesto a mano, gana a la factura; vacío, se usa la última factura de la luz.
+		</p>
 	</form>
 {/if}
 

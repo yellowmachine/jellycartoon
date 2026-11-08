@@ -8,6 +8,7 @@ import {
 	deletePlug,
 	kwhPrice,
 	listPlugs,
+	manualKwhPrice,
 	MAX_KWH_PRICE,
 	renewPlugToken,
 	setKwhPrice,
@@ -23,6 +24,8 @@ import { isPlugKind, MAX_ON_HOURS, MAX_PLUG_NAME, plugAddress } from '#lib/plugs
 export const load: PageServerLoad = async ({ locals }) => ({
 	plugs: await listPlugs(locals.user!.id),
 	price: await kwhPrice(locals.user!.id),
+	/** Written by hand: it wins over the bill's. */
+	manual: await manualKwhPrice(locals.user!.id),
 	/** With any, plugs are found and set up by them (#396). */
 	satellites: (await satellitesOf(locals.user!.id)).length
 });
