@@ -64,7 +64,7 @@ import { orsFor } from '#lib/server/road/ors.ts';
 import { listSavedPlaces, listSavedRoutes } from '#lib/server/trips/places.ts';
 import { plannedTripsByVoice } from '#lib/server/trips/voice.ts';
 import { asksForRoute, findByName } from 'comun/saved-places.ts';
-import { familyPlace, openRouterKey, orsKey } from '#lib/server/family-settings.ts';
+import { familyPlace, openRouterKey } from '#lib/server/family-settings.ts';
 import { chatWithTools, type Tool, type ToolChatMessage } from '#lib/server/openrouter.ts';
 import { creditProblem } from '#lib/server/ai-block.ts';
 import { quietCheck } from './quiet-check.ts';
@@ -1246,7 +1246,7 @@ export const putOn = (timing: VoiceTiming) =>
 
 /**
  * The house's own, done there (its /api/v1/voz): its music and speakers, its videos, its satellites'
- * and devices' timers, the weather where it is, Langua;
+ * and devices' timers, Langua;
  * and the tools it sent with the order (what each one watched, their Telegram).
  */
 const HOUSE_TOOLS = new Set([
@@ -1256,7 +1256,6 @@ const HOUSE_TOOLS = new Set([
 	'control',
 	'stop_later',
 	'set_volume',
-	'get_weather',
 	'send_clip',
 	'search_video',
 	'series_episodes',
@@ -1268,10 +1267,10 @@ const HOUSE_TOOLS = new Set([
 
 /**
  * Without the house (a family with none, or it does not answer): what only it does, not offered.
- * The timers are the cloud's (`cloudTimer`), and the weather is asked from here (`cloudWeather`).
+ * The timers are the cloud's (`cloudTimer`).
  */
 const ONLY_THE_HOUSE = [...HOUSE_TOOLS].filter(
-	(name) => !['set_timer', 'cancel_timer', 'get_weather'].includes(name)
+	(name) => !['set_timer', 'cancel_timer'].includes(name)
 );
 
 /** One order's: the family's kitchen in the name of who speaks, and what the house sent. */
@@ -1332,14 +1331,8 @@ async function runTool(
 		return cloudTimer(name, args, ctx, ctx.timersOf);
 	if (ctx.timersAt && (name === 'set_timer' || name === 'cancel_timer'))
 		return satelliteTimer(name, args, ctx, ctx.timersAt);
-	// A place said, with the family's openrouteservice key: looked up here, also with a house, whose
-	// search (Open-Meteo's) takes only its name, not «Vélez-Rubio, Almería».
-	if (
-		name === 'get_weather' &&
-		(ctx.withoutHouse ||
-			(typeof args.place === 'string' && args.place.trim() && (await orsKey(ctx.k))))
-	)
-		return cloudWeather(ctx.k, args, ctx.order.request.position);
+	// Always here, with or without a house: where the family lives is «Dónde vivís» (Ajustes).
+	if (name === 'get_weather') return cloudWeather(ctx.k, args, ctx.order.request.position);
 	if (HOUSE_TOOLS.has(name) || ctx.houseTools.has(name)) {
 		const done = await tellHouse<HouseHandResult>(ctx.k.familyId, '/voz', {
 			order: ctx.order.order,
@@ -1866,7 +1859,7 @@ async function searchPlace(k: Kitchen, said: string, near: LngLat | null) {
 }
 
 /**
- * The weather without the house: the place said, where the phone is (the road mode's GPS), or where
+ * The weather, always from here (also with a house): the place said, where the phone is (the road mode's GPS), or where
  * the family lives (Ajustes, «Dónde vivís»).
  */
 async function cloudWeather(

@@ -291,19 +291,19 @@
 			no razone antes de responder (los que razonan, como GPT-5 u o3, cuestan mucho más aquí).
 		</p>
 
-		{#if data.ai.voice}
-			<h3 class="mb-2 text-sm text-zinc-300">Modelo para la voz</h3>
-			{@render modelForm(
-				'voice',
-				'Modelo para la voz',
-				data.ai.voiceModel,
-				data.ai.defaultVoiceModel
-			)}
-			<p class="mb-4 text-xs text-zinc-500">
-				Vacío usa {data.ai.defaultVoiceModel}. Convierte lo que se dice en /voz en acciones: mejor
-				uno rápido, porque se espera con el móvil en la mano, y que use bien las herramientas.
-			</p>
-		{/if}
+		<!-- The voice's own AI is Seilide's since #253: this one is only for these two. -->
+		<h3 class="mb-2 text-sm text-zinc-300">Modelo para el DJ y las preguntas sobre los peques</h3>
+		{@render modelForm(
+			'voice',
+			'Modelo para el DJ y las preguntas sobre los peques',
+			data.ai.voiceModel,
+			data.ai.defaultVoiceModel
+		)}
+		<p class="mb-4 text-xs text-zinc-500">
+			Vacío usa {data.ai.defaultVoiceModel}. Escribe lo que dice el DJ entre canciones y contesta lo
+			que preguntas sobre lo que ven los peques: mejor uno rápido y que use bien las herramientas.
+			Lo que se dice a la voz lo entiende la IA de Seilide.
+		</p>
 
 		<h3 class="mb-2 text-sm text-zinc-300">Modelo para conversar sobre películas</h3>
 		{@render modelForm(

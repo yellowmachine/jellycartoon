@@ -23,7 +23,6 @@ export interface SettingsShown {
 	spendLine: boolean | null;
 	labels: unknown;
 	cloudKeys: unknown;
-	home: unknown;
 	shortcuts: unknown;
 	houseVoice: unknown;
 	kids: unknown;
@@ -184,7 +183,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		id: 'modelos',
 		tab: 'casa',
 		title: 'Modelos',
-		words: 'modelo ia películas escenas voz conversar visión',
+		words: 'modelo ia películas escenas dj locutor peques preguntas conversar visión',
 		shown: (d) => Boolean(d.ai)
 	},
 	{
@@ -193,13 +192,6 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
 		title: 'Etiquetas de los capítulos',
 		words: 'etiquetas escenas capítulos ollama visión conjuntos',
 		shown: (d) => Boolean(d.labels)
-	},
-	{
-		id: 'donde-casa',
-		tab: 'casa',
-		title: 'Dónde está la casa',
-		words: 'tiempo previsión lluvia temperatura pueblo ciudad ubicación localización open-meteo',
-		shown: (d) => Boolean(d.home)
 	},
 	{
 		id: 'accesos-directos',

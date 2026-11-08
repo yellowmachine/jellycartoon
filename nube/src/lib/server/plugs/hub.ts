@@ -286,6 +286,11 @@ export function createHub(deps: HubDeps) {
 			listeners.set(familyId, set);
 			return () => void set.delete(listener);
 		},
+		/**
+		 * Something the pages show changed in Seilide, not in the plug (a schedule, its name, the
+		 * pause): told as its own changes, so that an open page, here or on another device, sees it.
+		 */
+		changed: (familyId: string) => tell(familyId),
 		connected: (plugId: string) => connections.has(plugId)
 	};
 }

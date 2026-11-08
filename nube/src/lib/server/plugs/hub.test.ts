@@ -227,6 +227,19 @@ describe('hub', () => {
 		expect(energy).toHaveLength(1);
 	});
 
+	test("a change made in Seilide (a schedule, the pause): its family's pages told, once", async () => {
+		const { hub } = setup();
+		let told = 0;
+		let others = 0;
+		hub.watch('A', () => told++);
+		hub.watch('B', () => others++);
+		hub.changed('A');
+		hub.changed('A');
+		await new Promise((r) => setTimeout(r, 1100));
+		expect(told).toBe(1);
+		expect(others).toBe(0);
+	});
+
 	test('idle, almost nothing saved nor told: when it was heard, every 10 minutes', async () => {
 		const { hub, saved, energy, setClock } = setup();
 		let told = 0;

@@ -60,7 +60,6 @@ import {
 	telegramTools
 } from '#lib/server/voice/telegram-tools.ts';
 import { allowedMovies, isKidAccount } from '#lib/server/kids.ts';
-import { findPlaces, forecast, housePlace, placeName } from '#lib/server/weather.ts';
 import {
 	MAX_STOP_LATER_MIN,
 	MAX_TIMER_SEC,
@@ -81,7 +80,7 @@ import type {
  * The house's part of the voice (#33), whose brain is in the cloud since #253: each order goes
  * there with what only the house knows (its music, what sounds, its speakers, what each one
  * watched), and the cloud asks back for what only the house can do (its hands: the music and the
- * speakers, the videos, the satellites' timers, the weather and the routes, Langua…), in that
+ * speakers, the videos, the satellites' timers, Langua…), in that
  * order's name, while it lasts.
  */
 
@@ -381,25 +380,6 @@ async function hand(
 			return minutes
 				? `La música de ${there} se parará dentro de ${minutes} minutos, al acabar la canción que suene.`
 				: `Quitado: la música de ${there} ya no se parará sola.`;
-		}
-		case 'get_weather': {
-			const asked = typeof args.place === 'string' ? args.place.trim() : '';
-			const house = await housePlace();
-			let where: { lat: number; lon: number; name: string } | null = null;
-			if (asked) {
-				// «Toledo» is first in Ohio: one in the house's country if there is one.
-				const found = await findPlaces(asked, 10);
-				const place = found.find((p) => p.country === (house?.country ?? 'España')) ?? found[0];
-				if (!place) return `No encuentro «${asked}». Díselo.`;
-				where = { lat: place.lat, lon: place.lon, name: placeName(place) };
-			} else if (ctx.position) {
-				where = { lon: ctx.position[0], lat: ctx.position[1], name: 'donde está ahora' };
-			} else if (house) {
-				where = { lat: house.lat, lon: house.lon, name: placeName(house) };
-			}
-			if (!where)
-				return 'No se sabe dónde está la casa: se pone en Ajustes → Casa, «Dónde está la casa». Díselo.';
-			return `El tiempo en ${where.name}:\n${await forecast(where.lat, where.lon)}`;
 		}
 		case 'set_volume': {
 			if (!ctx.house) return 'El volumen del dispositivo se cambia con sus botones.';

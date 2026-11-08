@@ -25,7 +25,6 @@ import {
 	visionModel,
 	voiceModel
 } from '#lib/server/app-settings.ts';
-import { voiceEnabled } from '#lib/server/voice/whisper.ts';
 import { titlesBatchCost } from '#lib/server/library/episode-titles.ts';
 import { scenesCost } from '#lib/server/cinema/scenes.ts';
 import { quoteCost } from '#lib/server/opening-quote.ts';
@@ -34,13 +33,6 @@ import { createCloudKey, deleteCloudKey, listCloudKeys } from '#lib/server/media
 import { askCloud, cloudLink, cloudUrl, CloudProblem, setCloudLink } from '#lib/server/kitchen.ts';
 import { sendWatchLogNow } from '#lib/server/watch-log.ts';
 import { snapcastVoiceReady } from '#lib/server/music/snapcast.ts';
-import {
-	findPlaces,
-	housePlace,
-	placeName,
-	setHousePlace,
-	type Place
-} from '#lib/server/weather.ts';
 import {
 	houseVoice,
 	isPiperVoice,
@@ -134,7 +126,6 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 	let people = null;
 	let labels = null;
 	let cloudKeys = null;
-	let home = null;
 	let shortcuts = null;
 	let houseVoiceChoice = null;
 	if (admin) {
@@ -156,9 +147,6 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 				snapcast: snapcastVoiceReady()
 			};
 		}
-		/** Where the house is, for the voice's weather (#223). */
-		const place = await housePlace();
-		home = { place, name: place ? placeName(place) : null };
 		/** The TV view's shortcuts (#327): only with the TV view (MPV_SOCKET). */
 		// Sites and the TV view's own (#343), with what each opens and whether it is gone.
 		if (mpvEnabled) shortcuts = await settingsShortcuts(userId);
@@ -224,7 +212,6 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 			visionModel: vision,
 			defaultVisionModel: DEFAULT_VISION_MODEL,
 			/** Only where there is voice (WHISPER_URL). */
-			voice: voiceEnabled,
 			voiceModel: voice,
 			defaultVoiceModel: DEFAULT_VOICE_MODEL,
 			/** Streamed: OpenRouter answering slowly does not hold up the page. */
@@ -314,7 +301,6 @@ export const load: PageServerLoad = async ({ locals, cookies, url, request }) =>
 		ai,
 		labels,
 		cloudKeys,
-		home,
 		shortcuts,
 		houseVoice: houseVoiceChoice,
 		/** Children's accounts (#17): only who manages the app creates them. */
@@ -379,43 +365,6 @@ export const actions: Actions = {
 		await setVoiceLevels(levels);
 		log.info('ajustes', 'Volumen de la voz de la casa', { ...levels });
 		return { saved: 'voiceLevels' };
-	},
-	/** Where the house is (#223): what Open-Meteo finds by that name, to choose one. */
-	findHousePlace: async ({ request, locals }) => {
-		await requireAdmin(locals.user!.id);
-		const name = String((await request.formData()).get('name') ?? '').trim();
-		if (!name) return fail(400, { placeProblem: 'Escribe el pueblo o la ciudad' });
-		try {
-			return { placeOptions: await findPlaces(name) };
-		} catch (err) {
-			return fail(503, { placeProblem: err instanceof Error ? err.message : String(err) });
-		}
-	},
-	saveHousePlace: async ({ request, locals }) => {
-		await requireAdmin(locals.user!.id);
-		let place: Place;
-		try {
-			const p = JSON.parse(String((await request.formData()).get('place') ?? ''));
-			if (!Number.isFinite(p.lat) || !Number.isFinite(p.lon) || typeof p.name !== 'string')
-				throw new Error();
-			place = {
-				name: p.name.slice(0, 100),
-				region: typeof p.region === 'string' ? p.region.slice(0, 100) : null,
-				country: typeof p.country === 'string' ? p.country.slice(0, 100) : null,
-				lat: p.lat,
-				lon: p.lon
-			};
-		} catch {
-			return fail(400, { placeProblem: 'Sitio no válido' });
-		}
-		await setHousePlace(place);
-		log.info('ajustes', `La casa está en ${placeName(place)}`);
-		return { saved: 'house' };
-	},
-	clearHousePlace: async ({ locals }) => {
-		await requireAdmin(locals.user!.id);
-		await setHousePlace(null);
-		return { saved: 'house' };
 	},
 	/** A key for the cloud's video API (#253), shown once. */
 	createCloudKey: async ({ request, locals }) => {
