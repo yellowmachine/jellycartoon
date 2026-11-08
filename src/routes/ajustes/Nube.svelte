@@ -13,10 +13,11 @@
 	<section class={section} id="nube">
 		<h2 class="mb-1 font-semibold">Seilide</h2>
 		<p class="mb-4 text-sm text-zinc-400">
-			Para que la app de Seilide enseñe las series fuera de casa, por el túnel
-			{#if data.cloudKeys.host}(<span class="font-mono">{data.cloudKeys.host}</span>){/if}. Con una
-			clave que se guarda en el servidor de Seilide, nunca en el navegador. De momento solo para
-			adultos.
+			Para que Seilide use lo de esta casa, por el túnel
+			{#if data.cloudKeys.host}(<span class="font-mono">{data.cloudKeys.host}</span>){/if}: las
+			series y la música fuera de casa, también para los peques; lo que la voz hace aquí (la música,
+			los altavoces, los vídeos) y el Telegram de cada uno. Con una clave que se guarda en el
+			servidor de Seilide, nunca en el navegador.
 		</p>
 
 		{#if form && 'cloudKey' in form}
@@ -64,11 +65,10 @@
 		<!-- The other way: the cloud's key for the house (#253). -->
 		<h3 class="mt-6 mb-1 text-sm font-semibold">Lo de la familia, en Seilide</h3>
 		<p class="mb-3 text-sm text-zinc-400">
-			Con la dirección de Seilide y la clave que da en su Ajustes («Clave para la casa»), la voz
-			apunta y lee en la nevera, las recetas, los gastos, la agenda y las alarmas de la familia,
-			allí; la tele enseña esa nevera, las alarmas de Seilide suenan en casa, y el bot de Telegram
-			de la familia (en los Ajustes de Seilide) avisa también de los temporizadores de casa. Sin
-			conectarla, nada de eso: vive en Seilide.
+			Con la dirección de Seilide y la clave que da en sus Ajustes («Clave para la casa»), esta casa
+			usa Seilide: lo que se dice a la voz aquí lo entiende la IA de Seilide, con la clave de la
+			familia; la tele enseña su nevera, sus alarmas suenan en casa, los peques y los adultos vienen
+			de allí, y allí se ven las horas de lo que se ve. Sin conectarla, la casa no tiene voz.
 		</p>
 		{#if data.cloudKeys.kitchen}
 			<p class="mb-3 text-sm">

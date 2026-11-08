@@ -26,7 +26,6 @@
 	import Ia from './Ia.svelte';
 	import Etiquetas from './Etiquetas.svelte';
 	import Nube from './Nube.svelte';
-	import DondeCasa from './DondeCasa.svelte';
 	import AccesosDirectos from './AccesosDirectos.svelte';
 	import VozCasa from './VozCasa.svelte';
 	import Personas from './Personas.svelte';
@@ -63,7 +62,6 @@
 		spendLine: data.spendLine,
 		labels: data.labels,
 		cloudKeys: data.cloudKeys,
-		home: data.home,
 		shortcuts: data.shortcuts,
 		houseVoice: data.houseVoice,
 		kids: data.kids,
@@ -180,11 +178,9 @@
 
 		<Etiquetas {data} {form} {tab} />
 
-		{#if any('donde-casa', 'voz-casa', 'ia', 'nube', 'version')}<h2 class={group}>
+		{#if any('voz-casa', 'ia', 'nube', 'version')}<h2 class={group}>
 				La casa y sus conexiones
 			</h2>{/if}
-
-		<DondeCasa {data} {form} {tab} />
 
 		<VozCasa {data} {form} {tab} />
 

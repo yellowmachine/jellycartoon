@@ -44,7 +44,7 @@ export async function linked() {
 	const link = await cloudLink();
 	if (!link)
 		throw new CloudProblem(
-			'La nevera, las recetas, los gastos, la agenda y las alarmas están en Seilide, y no está conectada: Ajustes → Casa → «Seilide»'
+			'La voz, la nevera y las alarmas son de Seilide, y no está conectada: Ajustes → Casa → «Seilide»'
 		);
 	return link;
 }

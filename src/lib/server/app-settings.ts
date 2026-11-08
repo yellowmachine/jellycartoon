@@ -37,7 +37,6 @@ type Key =
 	| 'last_scan_films'
 	| 'auto_subtitle_langs'
 	| 'vapid_keys'
-	| 'house_place'
 	| 'house_voice'
 	| 'voice_fillers'
 	| 'voice_levels'

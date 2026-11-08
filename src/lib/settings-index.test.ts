@@ -29,7 +29,6 @@ const admin: SettingsShown = {
 	spendLine: false,
 	labels: {},
 	cloudKeys: {},
-	home: {},
 	shortcuts: [],
 	houseVoice: {},
 	kids: {},
@@ -46,7 +45,6 @@ const kid: SettingsShown = {
 	spendLine: null,
 	labels: null,
 	cloudKeys: null,
-	home: null,
 	shortcuts: null,
 	houseVoice: null,
 	kids: null
