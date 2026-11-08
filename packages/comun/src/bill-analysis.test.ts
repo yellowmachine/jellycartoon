@@ -115,6 +115,10 @@ describe('powerAnalysis', () => {
 			maxPower: [],
 			unitPrice: null,
 			areaAverage: null,
+			pricing: null,
+			energyPrice: [],
+			electricityTax: null,
+			vat: null,
 			...d
 		}
 	});
