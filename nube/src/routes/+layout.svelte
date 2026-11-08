@@ -66,17 +66,22 @@
 	const installed = new MediaQuery('(display-mode: standalone)', false);
 	const backShown = $derived(installed.current && page.url.pathname !== '/');
 
-	// A device that keeps routes' maps (#164) and music (#350): what it was ordered from any other,
-	// done now. The maps first: they say whether the device was forgotten.
+	// A device that keeps routes' maps (#164), music (#350) and games: what it was ordered from any
+	// other, done now. The maps first: they say whether the device was forgotten. The games after
+	// the music, in the same 2 GB.
 	onMount(() => {
 		if (!data.user) return;
 		void (async () => {
 			const { routeMaps } = await import('comun/route-maps.svelte.ts');
 			const { offlineMusic } = await import('#lib/offline-music.svelte.ts');
+			const { offlineGames } = await import('#lib/offline-games.svelte.ts');
 			// What it already keeps sounds from its disk from the start.
 			await offlineMusic.open().catch(() => {});
+			await offlineGames.whenOpen().catch(() => {});
 			await routeMaps.sync();
+			offlineMusic.reserved = offlineGames.bytes;
 			await offlineMusic.sync();
+			await offlineGames.sync();
 		})();
 	});
 

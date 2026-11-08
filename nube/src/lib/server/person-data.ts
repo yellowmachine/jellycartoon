@@ -214,6 +214,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: false,
 		note: 'A playlist of the house on a device'
 	},
+	offline_game: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'A game of the house on a device'
+	},
 	car: {
 		leaving: 'onlyTheirsOrStays',
 		joining: 'moves',

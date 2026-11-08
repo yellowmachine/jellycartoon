@@ -1,5 +1,6 @@
 import { and, asc, eq } from 'drizzle-orm';
 import { mapDevice, offlineList } from '#lib/server/db/schema.ts';
+import { gameBytesOn } from '#lib/server/games-offline.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { HouseProblem } from '#lib/server/house.ts';
 import { playlistTracks, playlists } from '#lib/server/music.ts';
@@ -56,8 +57,8 @@ export async function offlineListsOf(k: Kitchen): Promise<OfflineListsView> {
 }
 
 /**
- * To carry on the device; not if, with the lists it already carries, it would go over 2 GB (told
- * by their length). Back, why not; null, ordered.
+ * To carry on the device; not if, with the lists it already carries (told by their length) and its
+ * games, it would go over 2 GB. Back, why not; null, ordered.
  */
 export async function orderOffline(k: Kitchen, who: Who, playlistId: number, deviceId: string) {
 	const [device] = await k.run((tx) =>
@@ -75,7 +76,9 @@ export async function orderOffline(k: Kitchen, who: Who, playlistId: number, dev
 	);
 	const ids = new Set([...carried.map((c) => c.playlistId), playlistId]);
 	const lengths = summaries.filter((p) => ids.has(p.id)).map((p) => p.durationSec);
-	if (estimatedBytes(lengths) > MAX_OFFLINE_BYTES) return noRoomText;
+	// The games it carries, in the same 2 GB.
+	if (estimatedBytes(lengths) + (await gameBytesOn(k, deviceId)) > MAX_OFFLINE_BYTES)
+		return noRoomText;
 	await k.run((tx) =>
 		tx
 			.insert(offlineList)

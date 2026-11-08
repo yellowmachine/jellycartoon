@@ -1,8 +1,9 @@
 <script lang="ts">
 	import GameConsoles from 'comun/components/games/GameConsoles.svelte';
+	import OfflineGamesPanel from '#lib/components/OfflineGamesPanel.svelte';
 	import type { PageProps } from './$types';
 
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 </script>
 
 <svelte:head>
@@ -19,3 +20,5 @@
 {/if}
 
 <GameConsoles systems={data.systems} />
+
+<OfflineGamesPanel view={data.offline} problem={form?.offline ?? null} />

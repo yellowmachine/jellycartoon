@@ -76,6 +76,10 @@ class OfflineMusic {
 	onchange: (() => void) | null = null;
 	/** The lists as last ordered, to play them with the house away. */
 	lists = $state<OfflineListOrder[]>([]);
+	/** What its songs and covers take here: the games share the 2 GB (offline-games.svelte.ts). */
+	bytes = $state(0);
+	/** What the device's games take, told before syncing: the same 2 GB. */
+	reserved = 0;
 	/** What it keeps, to sound from here: by track, and covers by album. */
 	#tracks = new Map<number, string>();
 	#covers = new Map<number, string>();
@@ -94,6 +98,7 @@ class OfflineMusic {
 		if (!this.supported || !routeMaps.device) return;
 		const dir = await folder();
 		const seen = { tracks: new Set<number>(), covers: new Set<number>() };
+		let bytes = 0;
 		for await (const [name, handle] of dir.entries()) {
 			if (handle.kind !== 'file') continue;
 			const track = TRACK.exec(name);
@@ -103,10 +108,12 @@ class OfflineMusic {
 			const id = Number((track ?? cover)![1]);
 			const map = kind === 'tracks' ? this.#tracks : this.#covers;
 			seen[kind].add(id);
-			if (map.has(id)) continue;
 			const file = await (handle as FileSystemFileHandle).getFile();
+			bytes += file.size;
+			if (map.has(id)) continue;
 			if (file.size) map.set(id, URL.createObjectURL(file));
 		}
+		this.bytes = bytes;
 		for (const [kind, map] of [
 			['tracks', this.#tracks],
 			['covers', this.#covers]
@@ -227,10 +234,15 @@ class OfflineMusic {
 					const held = () => tracks.filter((t) => sizeOf(t) !== undefined).length;
 					this.current = { playlistId: list.id, held: held(), total: tracks.length };
 					if (full || sizeOf(track) !== undefined) continue;
-					const got = await this.#take(dir, pass, track, Math.min(MAX_OFFLINE_BYTES - used, free));
+					const got = await this.#take(
+						dir,
+						pass,
+						track,
+						Math.min(MAX_OFFLINE_BYTES - this.reserved - used, free)
+					);
 					if (got === 'full') {
 						full =
-							MAX_OFFLINE_BYTES - used < free
+							MAX_OFFLINE_BYTES - this.reserved - used < free
 								? noRoomText
 								: 'No cabe: falta espacio en el dispositivo';
 						continue;

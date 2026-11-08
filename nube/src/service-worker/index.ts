@@ -1,10 +1,13 @@
+import { immutable } from '$app/manifest';
 import { self } from '$app/service-worker';
+import { EJS_CACHE, EJS_DATA, GAMES_CACHE, PLAYER_PAGE } from '#lib/offline-games.ts';
 import { SHARED_CACHE, SHARED_KEY } from '#lib/shared-file.ts';
 
 /**
  * The cloud's service worker (#253), as jellycartoon's: for the family's notices (Web Push,
- * push.ts on the server), such as an alarm ringing or the agenda's, and for files shared to the
- * app. It caches nothing else: the app works as always without it.
+ * push.ts on the server), such as an alarm ringing or the agenda's, for files shared to the app,
+ * and for the games carried without coverage (below). Nothing else is cached: the app works as
+ * always without it.
  *
  * «Compartir → Nube» (the manifest's share_target): a file, a bill's PDF or a photo, waits in the
  * cache for Gastos to take it; a link or a text goes on to /compartido, in its address. The way
@@ -115,4 +118,74 @@ self.addEventListener('notificationclick', (event) => {
 			await self.clients.openWindow(url);
 		})()
 	);
+});
+
+/**
+ * The app's own code (its hashed files, which never change), kept once it is loaded: so that
+ * /juegos/aqui opens with no network, its pages' code loaded beforehand (offline-games.svelte.ts).
+ * Only this version's: what a new one no longer has goes as it starts.
+ */
+const CODE_CACHE = 'codigo';
+const code = new Set(
+	immutable.map(({ path }) => new URL(path, `${self.location.origin}/`).pathname)
+);
+
+self.addEventListener('activate', (event) => {
+	event.waitUntil(
+		(async () => {
+			const cache = await caches.open(CODE_CACHE);
+			for (const request of await cache.keys())
+				if (!code.has(new URL(request.url).pathname)) await cache.delete(request);
+		})()
+	);
+});
+
+async function fromCode(request: Request) {
+	const cache = await caches.open(CODE_CACHE);
+	const kept = await cache.match(request);
+	if (kept) return kept;
+	const response = await fetch(request);
+	if (response.ok) await cache.put(request, response.clone());
+	return response;
+}
+
+/**
+ * What a game carried without coverage needs (offline-games.svelte.ts), from where it was kept and
+ * not from the network: the game and its box from the house, EmulatorJS' files from its CDN. A
+ * HEAD (EmulatorJS asks the game's size before taking it), the kept one's headers. Not kept, from
+ * the network as always.
+ */
+async function kept(name: string, request: Request) {
+	const found = await caches.open(name).then((c) => c.match(request.url));
+	if (!found) return fetch(request);
+	if (request.method === 'HEAD')
+		return new Response(null, { status: found.status, headers: found.headers });
+	return found;
+}
+
+/** The player's page: the network's, or the one kept when there is none. */
+async function playerPage(request: Request) {
+	try {
+		return await fetch(request);
+	} catch (problem) {
+		const found = await caches
+			.open(GAMES_CACHE)
+			.then((c) => c.match(PLAYER_PAGE, { ignoreSearch: true }));
+		if (found) return found;
+		throw problem;
+	}
+}
+
+self.addEventListener('fetch', (event) => {
+	const { request } = event;
+	if (request.method !== 'GET' && request.method !== 'HEAD') return;
+	const url = new URL(request.url);
+	const here = url.origin === self.location.origin;
+	if (here && request.method === 'GET' && code.has(url.pathname))
+		event.respondWith(fromCode(request));
+	else if (url.href.startsWith(EJS_DATA)) event.respondWith(kept(EJS_CACHE, request));
+	else if (here && url.pathname.startsWith('/api/juegos/'))
+		event.respondWith(kept(GAMES_CACHE, request));
+	else if (here && request.method === 'GET' && url.pathname === PLAYER_PAGE)
+		event.respondWith(playerPage(request));
 });
