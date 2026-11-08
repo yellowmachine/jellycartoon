@@ -3,10 +3,19 @@ import { and, asc, count, eq, gte, sql } from 'drizzle-orm';
 import { db } from '../db/index.ts';
 import { familySettings, plug, plugEnergy, plugSchedule } from '../db/schema.ts';
 import { asFamily, withFamily } from '../family.ts';
+import type { AnyDb } from '../family-scope.ts';
+import type { Kitchen } from '../fridge.ts';
 import { createHub, PlugOffline, type Hub } from './hub.ts';
 import { newPlugToken, plugKeyScope } from './plug-key-scope.ts';
 import { SWITCH_ID } from './shelly.ts';
-import { MAX_PLUG_NAME, PLUG_KINDS, type PlugKind, type PlugView } from '#lib/plugs.ts';
+import {
+	MAX_PLUG_NAME,
+	noticeDefaults,
+	PLUG_KINDS,
+	type PlugKind,
+	type PlugNotices,
+	type PlugView
+} from '#lib/plugs.ts';
 import {
 	checkSchedule,
 	jobsFor,
@@ -29,6 +38,21 @@ const dayFormat = new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE });
 export const HUB_KEY = Symbol.for('seilide.enchufes');
 
 const plugOfToken = plugKeyScope(db);
+
+/** Who watches the plugs for their notices (notices.ts, loaded by hooks.server.ts); none, no one. */
+export interface PlugWatcher {
+	load(familyId: string, plugId: string): void;
+	live(familyId: string, plugId: string, power: number | null, output: boolean | null): void;
+	gone(familyId: string, plugId: string): void;
+	tick(): void;
+	forget(plugId: string): void;
+}
+const WATCHER = Symbol.for('seilide.enchufes.avisos');
+const watcherGlobals = globalThis as unknown as Record<symbol, PlugWatcher | undefined>;
+export function setPlugWatcher(watcher: PlugWatcher) {
+	watcherGlobals[WATCHER] = watcher;
+}
+const watcher = () => watcherGlobals[WATCHER];
 
 function makeHub() {
 	return createHub({
@@ -53,7 +77,14 @@ function makeHub() {
 					})
 			);
 		},
+		onLive(familyId, plugId, live) {
+			watcher()?.live(familyId, plugId, live.power, live.output);
+		},
+		onGone(familyId, plugId) {
+			watcher()?.gone(familyId, plugId);
+		},
 		onConnect(familyId, plugId) {
+			watcher()?.load(familyId, plugId);
 			void syncPlug(familyId, plugId).catch((e) => {
 				if (!(e instanceof PlugOffline)) console.error(`[enchufes] ${plugId}: sin sincronizar`, e);
 			});
@@ -72,71 +103,87 @@ if (!flags[PINGING]) {
 	setInterval(() => {
 		globals[HUB_KEY]?.checkAlive();
 		endHeats();
+		watcher()?.tick();
 	}, 30_000).unref?.();
 }
 
 /** The family's plugs, with what they used today and this month (the family's days). */
-export function listPlugs(userId: string): Promise<PlugView[]> {
+export const listPlugs = (userId: string) => withFamily(userId, (tx) => readPlugs(tx));
+
+/** The same, in a kitchen: a person's, or the house's (a satellite, the voice). */
+export const plugsOf = (k: Kitchen) => k.run((tx) => readPlugs(tx));
+
+async function readPlugs(tx: AnyDb): Promise<PlugView[]> {
 	const today = dayFormat.format(new Date());
 	const localDay = sql`((${plugEnergy.hour} at time zone 'UTC') at time zone ${TIME_ZONE})::date`;
-	return withFamily(userId, async (tx) => {
-		const plugs = await tx
-			.select({
-				id: plug.id,
-				name: plug.name,
-				kind: plug.kind,
-				output: plug.output,
-				deviceId: plug.deviceId,
-				model: plug.model,
-				lastSeenAt: plug.lastSeenAt,
-				paused: plug.paused,
-				heatUntil: plug.heatUntil
-			})
-			.from(plug)
-			.orderBy(asc(plug.createdAt));
-		const schedules = await tx
-			.select({
-				id: plugSchedule.id,
-				plugId: plugSchedule.plugId,
-				days: plugSchedule.days,
-				start: plugSchedule.start,
-				end: plugSchedule.end
-			})
-			.from(plugSchedule)
-			.orderBy(asc(plugSchedule.start), asc(plugSchedule.id));
-		// A month at most is 31 days, plus a day for the time zone.
-		const since = new Date(Date.now() - 32 * 86_400_000);
-		const used = await tx
-			.select({
-				plugId: plugEnergy.plugId,
-				today: sql<number>`coalesce(sum(${plugEnergy.wh}) filter (where ${localDay} = ${today}::date), 0)`,
-				month: sql<number>`coalesce(sum(${plugEnergy.wh}) filter (where date_trunc('month', ${localDay}) = date_trunc('month', ${today}::date)), 0)`
-			})
-			.from(plugEnergy)
-			.where(gte(plugEnergy.hour, since))
-			.groupBy(plugEnergy.plugId);
-		const byPlug = new Map(used.map((u) => [u.plugId, u]));
-		return plugs.map((p) => {
-			const now = hub.liveOf(p.id);
-			return {
-				id: p.id,
-				name: p.name,
-				kind: p.kind,
-				online: now.online,
-				waiting: p.lastSeenAt === null && !now.online,
-				output: now.online ? now.output : p.output,
-				power: now.online ? now.power : null,
-				todayWh: Number(byPlug.get(p.id)?.today ?? 0),
-				monthWh: Number(byPlug.get(p.id)?.month ?? 0),
-				lastSeenAt: p.lastSeenAt?.toISOString() ?? null,
-				model: p.model,
-				paused: p.paused,
-				heatUntil: p.heatUntil && p.heatUntil > new Date() ? p.heatUntil.toISOString() : null,
-				schedules: schedules
-					.filter((x) => x.plugId === p.id)
-					.map(({ id, days, start, end }) => ({ id, days, start, end }))
-			};
-		});
+	const plugs = await tx
+		.select({
+			id: plug.id,
+			name: plug.name,
+			kind: plug.kind,
+			output: plug.output,
+			deviceId: plug.deviceId,
+			model: plug.model,
+			lastSeenAt: plug.lastSeenAt,
+			paused: plug.paused,
+			heatUntil: plug.heatUntil,
+			notifyDone: plug.notifyDone,
+			notifyStopped: plug.notifyStopped,
+			notifyOffline: plug.notifyOffline,
+			notifyOnHours: plug.notifyOnHours,
+			notifyAloud: plug.notifyAloud
+		})
+		.from(plug)
+		.orderBy(asc(plug.createdAt));
+	const schedules = await tx
+		.select({
+			id: plugSchedule.id,
+			plugId: plugSchedule.plugId,
+			days: plugSchedule.days,
+			start: plugSchedule.start,
+			end: plugSchedule.end
+		})
+		.from(plugSchedule)
+		.orderBy(asc(plugSchedule.start), asc(plugSchedule.id));
+	// A month at most is 31 days, plus a day for the time zone.
+	const since = new Date(Date.now() - 32 * 86_400_000);
+	const used = await tx
+		.select({
+			plugId: plugEnergy.plugId,
+			today: sql<number>`coalesce(sum(${plugEnergy.wh}) filter (where ${localDay} = ${today}::date), 0)`,
+			month: sql<number>`coalesce(sum(${plugEnergy.wh}) filter (where date_trunc('month', ${localDay}) = date_trunc('month', ${today}::date)), 0)`
+		})
+		.from(plugEnergy)
+		.where(gte(plugEnergy.hour, since))
+		.groupBy(plugEnergy.plugId);
+	const byPlug = new Map(used.map((u) => [u.plugId, u]));
+	return plugs.map((p) => {
+		const now = hub.liveOf(p.id);
+		return {
+			id: p.id,
+			name: p.name,
+			kind: p.kind,
+			online: now.online,
+			waiting: p.lastSeenAt === null && !now.online,
+			output: now.online ? now.output : p.output,
+			power: now.online ? now.power : null,
+			todayWh: Number(byPlug.get(p.id)?.today ?? 0),
+			monthWh: Number(byPlug.get(p.id)?.month ?? 0),
+			lastSeenAt: p.lastSeenAt?.toISOString() ?? null,
+			model: p.model,
+			paused: p.paused,
+			notices: {
+				done: p.notifyDone,
+				stopped: p.notifyStopped,
+				offline: p.notifyOffline,
+				onHours: p.notifyOnHours,
+				aloud: p.notifyAloud
+			},
+			heatUntil: p.heatUntil && p.heatUntil > new Date() ? p.heatUntil.toISOString() : null,
+			schedules: schedules
+				.filter((x) => x.plugId === p.id)
+				.map(({ id, days, start, end }) => ({ id, days, start, end }))
+		};
 	});
 }
 
@@ -153,9 +200,15 @@ export async function createPlug(
 	const made = newPlugToken();
 	const id = randomUUID();
 	await withFamily(userId, (tx, { familyId }) =>
-		tx
-			.insert(plug)
-			.values({ id, familyId, name: cleanName(name, kind), kind, hash: made.hash, deviceId })
+		tx.insert(plug).values({
+			id,
+			familyId,
+			name: cleanName(name, kind),
+			kind,
+			hash: made.hash,
+			deviceId,
+			...noticeDefaults(kind)
+		})
 	);
 	return { id, token: made.token };
 }
@@ -172,12 +225,15 @@ export async function renewPlugToken(userId: string, id: string) {
 }
 
 export async function updatePlug(userId: string, id: string, name: string, kind: PlugKind) {
-	await withFamily(userId, (tx) =>
+	const [row] = await withFamily(userId, (tx, { familyId }) =>
 		tx
 			.update(plug)
 			.set({ name: cleanName(name, kind), kind })
 			.where(eq(plug.id, id))
+			.returning({ familyId: sql<string>`${familyId}` })
 	);
+	// Its notices say its name.
+	if (row) watcher()?.load(row.familyId, id);
 }
 
 /** Whether this plug is the family's: only then is it sent orders. */
@@ -192,6 +248,7 @@ export async function deletePlug(userId: string, id: string) {
 	if (!(await isFamilys(userId, id))) return;
 	await hub.remove(id);
 	await withFamily(userId, (tx) => tx.delete(plug).where(eq(plug.id, id)));
+	watcher()?.forget(id);
 }
 
 /**
@@ -199,28 +256,30 @@ export async function deletePlug(userId: string, id: string) {
  * PlugOffline if it is not connected.
  */
 export async function switchPlug(userId: string, id: string, on: boolean) {
-	const [row] = await withFamily(userId, (tx, { familyId }) =>
-		tx
-			.select({
-				paused: plug.paused,
-				heatUntil: plug.heatUntil,
-				familyId: sql<string>`${familyId}`
-			})
-			.from(plug)
-			.where(eq(plug.id, id))
+	return switchIn(await kitchenOfUser(userId), id, on);
+}
+
+/** The same in a kitchen (the voice, a satellite's too). */
+export async function switchIn(k: Pick<Kitchen, 'familyId' | 'run'>, id: string, on: boolean) {
+	const [row] = await k.run((tx) =>
+		tx.select({ paused: plug.paused, heatUntil: plug.heatUntil }).from(plug).where(eq(plug.id, id))
 	);
 	if (!row) return false;
 	if (row.paused) return 'paused' as const;
 	await hub.call(id, 'Switch.Set', { id: SWITCH_ID, on });
 	// Switched off by hand in a long heat: the heat is over, its schedules back now.
 	if (!on && row.heatUntil && row.heatUntil > new Date()) {
-		await withFamily(userId, (tx) =>
-			tx.update(plug).set({ heatUntil: null }).where(eq(plug.id, id))
-		);
+		await k.run((tx) => tx.update(plug).set({ heatUntil: null }).where(eq(plug.id, id)));
 		heats.delete(id);
-		await trySync(row.familyId, id);
+		await trySync(k.familyId, id);
 	}
 	return true;
+}
+
+/** A person's family, to run in it. */
+async function kitchenOfUser(userId: string): Promise<Pick<Kitchen, 'familyId' | 'run'>> {
+	const familyId = await withFamily(userId, async (_, m) => m.familyId);
+	return { familyId, run: (fn) => withFamily(userId, (tx) => fn(tx)) };
 }
 
 /** The family, told when any of its plugs changes. */
@@ -228,7 +287,11 @@ export const watchPlugs = (familyId: string, listener: () => void) => hub.watch(
 
 /** The family's price of a kWh, in euros; null, unknown. */
 export async function kwhPrice(userId: string) {
-	const [row] = await withFamily(userId, (tx) =>
+	return kwhPriceIn(await kitchenOfUser(userId));
+}
+
+export async function kwhPriceIn(k: Pick<Kitchen, 'run'>) {
+	const [row] = await k.run((tx) =>
 		tx.select({ price: familySettings.kwhPrice }).from(familySettings)
 	);
 	return row?.price ?? null;
@@ -445,4 +508,22 @@ export async function setPaused(userId: string, plugId: string, paused: boolean)
 	);
 	await trySync(p.familyId, plugId);
 	return { heats: heatUntil !== null };
+}
+
+/** Its notices as chosen (#396, phase 3): watched from now on. */
+export async function setNotices(userId: string, plugId: string, notices: PlugNotices) {
+	const [row] = await withFamily(userId, (tx, { familyId }) =>
+		tx
+			.update(plug)
+			.set({
+				notifyDone: notices.done,
+				notifyStopped: notices.stopped,
+				notifyOffline: notices.offline,
+				notifyOnHours: notices.onHours,
+				notifyAloud: notices.aloud
+			})
+			.where(eq(plug.id, plugId))
+			.returning({ familyId: sql<string>`${familyId}` })
+	);
+	if (row) watcher()?.load(row.familyId, plugId);
 }

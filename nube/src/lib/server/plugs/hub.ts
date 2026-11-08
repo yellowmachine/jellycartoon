@@ -40,6 +40,9 @@ export interface HubDeps {
 	addEnergy(familyId: string, plugId: string, hour: Date, wh: number): Promise<void>;
 	/** Just connected: its schedules and the rest put right (plugs.ts). */
 	onConnect?(familyId: string, plugId: string): void;
+	/** Each reading of its, and when its connection is gone: for its notices (watch.ts). */
+	onLive?(familyId: string, plugId: string, live: PlugLive): void;
+	onGone?(familyId: string, plugId: string): void;
 	now?: () => Date;
 	log?: (message: string, error?: unknown) => void;
 }
@@ -118,6 +121,7 @@ export function createHub(deps: HubDeps) {
 			power: sw.power ?? before.power
 		};
 		live.set(c.plug.id, after);
+		deps.onLive?.(c.plug.familyId, c.plug.id, after);
 
 		const patch: SwitchState = {};
 		if (sw.output !== undefined && (full || sw.output !== before.output)) {
@@ -167,6 +171,7 @@ export function createHub(deps: HubDeps) {
 		connections.delete(c.plug.id);
 		live.set(c.plug.id, { ...liveOf(c.plug.id), online: false, power: null });
 		tell(c.plug.familyId);
+		deps.onGone?.(c.plug.familyId, c.plug.id);
 	}
 
 	/** An order to a connected plug: its answer, or PlugOffline, or its error. */

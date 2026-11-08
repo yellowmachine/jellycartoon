@@ -51,6 +51,16 @@ export const plug = pgTable(
 		pausedAt: timestamp('paused_at'),
 		/** That long heat, on until then; null, none. */
 		heatUntil: timestamp('heat_until'),
+		/**
+		 * Its notices (#396, phase 3), set by its kind when added: a washing machine done, a fridge
+		 * stopped, gone without connection (the power or the wifi), on longer than these hours (null,
+		 * never); and said out loud by the satellites too.
+		 */
+		notifyDone: boolean('notify_done').notNull().default(false),
+		notifyStopped: boolean('notify_stopped').notNull().default(false),
+		notifyOffline: boolean('notify_offline').notNull().default(false),
+		notifyOnHours: integer('notify_on_hours'),
+		notifyAloud: boolean('notify_aloud').notNull().default(false),
 		/** The ids of the plug's own schedule jobs that are Seilide's: only these it rewrites. */
 		scheduleJobs: integer('schedule_jobs')
 			.array()

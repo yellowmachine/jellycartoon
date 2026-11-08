@@ -11,12 +11,13 @@ import {
 	MAX_KWH_PRICE,
 	renewPlugToken,
 	setKwhPrice,
+	setNotices,
 	setPaused,
 	switchPlug,
 	updatePlug
 } from '#lib/server/plugs/plugs.ts';
 import { addFoundPlug, satellitesOf, searchPlugs } from '#lib/server/plugs/setup.ts';
-import { isPlugKind, MAX_PLUG_NAME, plugAddress } from '#lib/plugs.ts';
+import { isPlugKind, MAX_ON_HOURS, MAX_PLUG_NAME, plugAddress } from '#lib/plugs.ts';
 
 /** Enchufes (#396): the family's smart plugs, on and off, and what they use. */
 export const load: PageServerLoad = async ({ locals }) => ({
@@ -119,6 +120,22 @@ export const actions: Actions = {
 		const id = String(form.get('id') ?? '');
 		const { heats } = await setPaused(locals.user!.id, id, form.get('paused') === 'true');
 		return { pausedId: id, heats };
+	},
+	/** Its notices (#396, phase 3): which, and out loud or not. */
+	notices: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+		const hours = form.get('longOn') === 'on' ? Number(form.get('onHours')) : null;
+		if (hours !== null && !(Number.isInteger(hours) && hours >= 1 && hours <= MAX_ON_HOURS))
+			return fail(400, { noticesProblem: id, problem: `Entre 1 y ${MAX_ON_HOURS} horas` });
+		await setNotices(locals.user!.id, id, {
+			done: form.get('done') === 'on',
+			stopped: form.get('stopped') === 'on',
+			offline: form.get('offline') === 'on',
+			onHours: hours,
+			aloud: form.get('aloud') === 'on'
+		});
+		return { noticesSaved: id };
 	},
 	/** What a kWh costs, «0,15»; empty, unknown. */
 	price: async ({ request, locals }) => {

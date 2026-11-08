@@ -80,6 +80,8 @@ import { FALLBACK_VOICE_MODEL, personVoiceStyle, voiceSettings } from './setting
 import { converse, CONVERSE_SENTENCES } from './converse.ts';
 import { voiceFellBack } from './alarm.ts';
 import { searchWeb, WEB_TOOL, webSearchTool } from './web-search.ts';
+import { plugsForVoice, plugSwitchTool, switchByVoice } from '#lib/server/plugs/voice.ts';
+import type { PlugView } from '#lib/plugs.ts';
 import { forecast, placeName } from 'comun/weather.ts';
 import { findPlacesFor } from '#lib/server/places.ts';
 import {
@@ -1300,6 +1302,8 @@ interface Turn {
 	withoutHouse: boolean;
 	/** Whose memory it sees and keeps (memory.ts); null, the house's only (a satellite). */
 	memoryOf: string | null;
+	/** The family's smart plugs (#396), for `plug_switch`. */
+	plugs: PlugView[];
 }
 
 async function runTool(
@@ -1424,6 +1428,11 @@ async function runTool(
 		}
 		case 'planned_trips':
 			return plannedTripsByVoice(ctx.k);
+		case 'plug_switch': {
+			const { result, done } = await switchByVoice(ctx.k, ctx.plugs, args);
+			if (done) ctx.outcome.done++;
+			return result;
+		}
 		case 'mark_dose': {
 			const me = ctx.k.userId ? await personOf(ctx.k, ctx.k.userId) : null;
 			if (!me) return 'No sé quién habla: la medicación se marca desde su móvil.';
@@ -2050,7 +2059,8 @@ export async function runVoiceCommand(
 		learned,
 		remembered,
 		people,
-		home
+		home,
+		plugs
 	] = await Promise.all([
 		openRouterKey(k),
 		voiceSettings(k),
@@ -2062,7 +2072,9 @@ export async function runVoiceCommand(
 		recallLearned(k, site, request.text),
 		kid ? null : recallMemories(k, memoryOf, request.text),
 		familyPeople(k),
-		familyPlace(k)
+		familyPlace(k),
+		// The family's smart plugs (#396): what each is doing and has used. Failing, none.
+		kid ? null : plugsForVoice(k).catch(() => null)
 	]);
 	// Always there, short: who the family is and where it lives.
 	const profile = people.length
@@ -2194,6 +2206,7 @@ export async function runVoiceCommand(
 				...(learned ? [{ type: 'text' as const, text: learned.text }] : []),
 				...(assumed ? [{ type: 'text' as const, text: assumed }] : []),
 				...(profile ? [{ type: 'text' as const, text: profile }] : []),
+				...(plugs ? [{ type: 'text' as const, text: plugs.line }] : []),
 				...(remembered ? [{ type: 'text' as const, text: remembered }] : []),
 				{ type: 'text', text: request.text }
 			]
@@ -2207,6 +2220,7 @@ export async function runVoiceCommand(
 		...(kid ? [] : ruleTools(Boolean(satellite))),
 		...(kid || satellite ? [] : [markDoseTool]),
 		...(kid ? [] : [plannedTripsTool]),
+		...(plugs ? [plugSwitchTool] : []),
 		...(learned ? [usedLearnedTool] : []),
 		...(kid ? [] : memoryTools(Boolean(satellite))),
 		...(settings.web.on ? [webSearchTool] : []),
@@ -2247,7 +2261,8 @@ export async function runVoiceCommand(
 		settings,
 		houseTools: new Set(house.tools.map((t) => t.function.name)),
 		withoutHouse: !withHouse,
-		memoryOf
+		memoryOf,
+		plugs: plugs?.plugs ?? []
 	};
 
 	for (let round = 0; round < MAX_ROUNDS; round++) {

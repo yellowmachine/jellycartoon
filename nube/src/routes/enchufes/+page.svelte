@@ -4,6 +4,7 @@
 	import {
 		energyText,
 		euroText,
+		MAX_ON_HOURS,
 		MAX_PLUG_NAME,
 		PLUG_KINDS,
 		powerText,
@@ -349,6 +350,64 @@
 								>Cancelar</button
 							>
 						</div>
+					</form>
+					<form
+						method="post"
+						action="?/notices"
+						use:enhance={() =>
+							async ({ update }) =>
+								update({ reset: false })}
+						class="mt-4 space-y-2 border-t border-zinc-800 pt-3 text-sm"
+					>
+						<input type="hidden" name="id" value={p.id} />
+						<p class="font-medium">Avisos</p>
+						<label class="flex items-center gap-2">
+							<input type="checkbox" name="done" checked={p.notices.done} class="rounded" />
+							Cuando acabe (lavadora, lavavajillas…)
+						</label>
+						<label class="flex items-center gap-2">
+							<input type="checkbox" name="stopped" checked={p.notices.stopped} class="rounded" />
+							Si deja de funcionar 3 horas (nevera, congelador)
+						</label>
+						<label class="flex items-center gap-2">
+							<input type="checkbox" name="offline" checked={p.notices.offline} class="rounded" />
+							Si se queda sin conexión media hora (luz o wifi)
+						</label>
+						<label class="flex flex-wrap items-center gap-2">
+							<input
+								type="checkbox"
+								name="longOn"
+								checked={p.notices.onHours !== null}
+								class="rounded"
+							/>
+							Si lleva encendido más de
+							<input
+								type="number"
+								name="onHours"
+								min="1"
+								max={MAX_ON_HOURS}
+								value={p.notices.onHours ?? 1}
+								aria-label="Horas"
+								class="w-16 rounded-md border-zinc-700 bg-zinc-900 py-0.5 text-zinc-100"
+							/>
+							h
+						</label>
+						<label class="flex items-center gap-2">
+							<input type="checkbox" name="aloud" checked={p.notices.aloud} class="rounded" />
+							Decirlo también en casa, por los altavoces
+						</label>
+						{#if form && 'noticesProblem' in form && form.noticesProblem === p.id}
+							<p class="text-red-300">{form.problem}</p>
+						{/if}
+						<div class="flex items-center gap-3">
+							<button class={secondary}>Guardar avisos</button>
+							{#if form && 'noticesSaved' in form && form.noticesSaved === p.id}
+								<span class="text-emerald-300">✓ Guardado</span>
+							{/if}
+						</div>
+						<p class="text-xs text-zinc-500">
+							Llegan al Buzón y al móvil de los adultos de la familia.
+						</p>
 					</form>
 					<div class="mt-4 flex flex-wrap items-center gap-4 border-t border-zinc-800 pt-3">
 						<ConfirmForm

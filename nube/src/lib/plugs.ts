@@ -1,3 +1,4 @@
+import { fold } from 'comun/music.ts';
 import type { PlugScheduleView } from './plug-schedules.ts';
 
 /**
@@ -21,6 +22,34 @@ export const isPlugKind = (value: unknown): value is PlugKind =>
 
 export const MAX_PLUG_NAME = 40;
 
+/** A plug's notices (#396, phase 3). */
+export interface PlugNotices {
+	/** «Ha terminado»: a cycle over (a washing machine). */
+	done: boolean;
+	/** «Ha dejado de funcionar»: hours without using anything (a fridge). */
+	stopped: boolean;
+	/** «Sin conexión»: the power or the wifi gone at home. */
+	offline: boolean;
+	/** «Lleva encendido más de…» these hours; null, never. */
+	onHours: number | null;
+	/** Said out loud by the satellites too. */
+	aloud: boolean;
+}
+
+/** At most this many hours for «Lleva encendido más de…». */
+export const MAX_ON_HOURS = 48;
+
+/** As each kind starts: what is worth knowing about it. */
+export function noticeDefaults(kind: PlugKind) {
+	return {
+		notifyDone: kind === 'lavadora',
+		notifyStopped: kind === 'nevera',
+		notifyOffline: kind === 'nevera' || kind === 'termo',
+		notifyOnHours: null,
+		notifyAloud: false
+	};
+}
+
 /** Where a plug connects, with its token: what is pasted into its own page. */
 export const PLUG_PATH = '/api/enchufe/';
 
@@ -43,6 +72,7 @@ export interface PlugView {
 	monthWh: number;
 	lastSeenAt: string | null;
 	model: string | null;
+	notices: PlugNotices;
 	/** «En pausa» (#396): off, schedules off. */
 	paused: boolean;
 	/** A long heat going on (a water heater after a long pause), until then. */
@@ -76,4 +106,14 @@ export interface FoundPlugView {
 	added: string | null;
 	/** Its outbound WebSocket already points somewhere else. */
 	elsewhere: boolean;
+}
+
+/** The one meant: its name the same, or the only one whose name has it in it, or the reverse. */
+export function plugNamed<P extends { name: string }>(plugs: P[], said: string) {
+	const want = fold(said).trim();
+	if (!want) return null;
+	const same = plugs.filter((p) => fold(p.name).trim() === want);
+	if (same.length === 1) return same[0]!;
+	const near = plugs.filter((p) => fold(p.name).includes(want) || want.includes(fold(p.name)));
+	return near.length === 1 ? near[0]! : null;
 }
