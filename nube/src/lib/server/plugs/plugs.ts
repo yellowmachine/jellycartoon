@@ -199,8 +199,8 @@ export async function createPlug(
 ) {
 	const made = newPlugToken();
 	const id = randomUUID();
-	await withFamily(userId, (tx, { familyId }) =>
-		tx.insert(plug).values({
+	const familyId = await withFamily(userId, async (tx, { familyId }) => {
+		await tx.insert(plug).values({
 			id,
 			familyId,
 			name: cleanName(name, kind),
@@ -208,8 +208,10 @@ export async function createPlug(
 			hash: made.hash,
 			deviceId,
 			...noticeDefaults(kind)
-		})
-	);
+		});
+		return familyId;
+	});
+	hub.changed(familyId);
 	return { id, token: made.token };
 }
 
@@ -232,8 +234,10 @@ export async function updatePlug(userId: string, id: string, name: string, kind:
 			.where(eq(plug.id, id))
 			.returning({ familyId: sql<string>`${familyId}` })
 	);
+	if (!row) return;
 	// Its notices say its name.
-	if (row) watcher()?.load(row.familyId, id);
+	watcher()?.load(row.familyId, id);
+	hub.changed(row.familyId);
 }
 
 /** Whether this plug is the family's: only then is it sent orders. */
@@ -247,8 +251,12 @@ async function isFamilys(userId: string, id: string) {
 export async function deletePlug(userId: string, id: string) {
 	if (!(await isFamilys(userId, id))) return;
 	await hub.remove(id);
-	await withFamily(userId, (tx) => tx.delete(plug).where(eq(plug.id, id)));
+	const familyId = await withFamily(userId, async (tx, { familyId }) => {
+		await tx.delete(plug).where(eq(plug.id, id));
+		return familyId;
+	});
 	watcher()?.forget(id);
+	hub.changed(familyId);
 }
 
 /**
@@ -462,6 +470,7 @@ export async function addSchedule(
 		return true;
 	});
 	if (!added) return { problem: `Como mucho ${MAX_SCHEDULES} horarios por enchufe` };
+	hub.changed(p.familyId);
 	await trySync(p.familyId, plugId);
 	return { ok: true };
 }
@@ -472,6 +481,7 @@ export async function deleteSchedule(userId: string, plugId: string, id: number)
 	await withFamily(userId, (tx) =>
 		tx.delete(plugSchedule).where(and(eq(plugSchedule.id, id), eq(plugSchedule.plugId, plugId)))
 	);
+	hub.changed(p.familyId);
 	await trySync(p.familyId, plugId);
 }
 
@@ -506,6 +516,7 @@ export async function setPaused(userId: string, plugId: string, paused: boolean)
 			.set({ paused, pausedAt: paused ? now : null, heatUntil })
 			.where(eq(plug.id, plugId))
 	);
+	hub.changed(p.familyId);
 	await trySync(p.familyId, plugId);
 	return { heats: heatUntil !== null };
 }
@@ -525,5 +536,7 @@ export async function setNotices(userId: string, plugId: string, notices: PlugNo
 			.where(eq(plug.id, plugId))
 			.returning({ familyId: sql<string>`${familyId}` })
 	);
-	if (row) watcher()?.load(row.familyId, plugId);
+	if (!row) return;
+	watcher()?.load(row.familyId, plugId);
+	hub.changed(row.familyId);
 }
