@@ -10,6 +10,7 @@
 		type IncomeCategory,
 		type RecurringIncome
 	} from 'comun/income.ts';
+	import Caracol from '#lib/components/Caracol.svelte';
 	import ExpenseTabs from '#lib/components/ExpenseTabs.svelte';
 	import type { PageProps } from './$types';
 
@@ -286,7 +287,12 @@
 					disabled={reading}
 					onclick={readInvoice}>{reading ? 'Leyendo…' : '✨ Leer la factura'}</button
 				>
-				<span class="text-xs text-zinc-500">Rellena lo de arriba con lo que pone: revísalo.</span>
+				{#if reading}
+					<!-- The snail while the AI reads it, as when a page is slow to open. -->
+					<Caracol class="w-12 text-emerald-500" />
+				{:else}
+					<span class="text-xs text-zinc-500">Rellena lo de arriba con lo que pone: revísalo.</span>
+				{/if}
 			{/if}
 			{#if draft.hasDocument}
 				<label class="flex items-center gap-2 text-xs text-zinc-400">
