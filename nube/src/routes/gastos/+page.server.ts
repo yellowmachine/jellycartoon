@@ -21,6 +21,14 @@ import {
 } from '#lib/server/expenses/expenses.ts';
 import { canReadReceipts, receiptFrom } from '#lib/server/expenses/receipt.ts';
 import {
+	isFileHash,
+	lookingSame,
+	markNotSame,
+	monthRepeated
+} from '#lib/server/expenses/duplicates.ts';
+import { setNoticeKind } from '#lib/server/page-notices.ts';
+import { isPageNoticeKind } from 'comun/page-notices.ts';
+import {
 	addDueRecurringIncome,
 	monthIncomeTotal,
 	NotADocument
@@ -37,18 +45,21 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const month =
 		asked && /^\d{4}-(0[1-9]|1[0-2])$/.test(asked) && asked <= current ? asked : current;
 	await Promise.all([addDueRecurring(k), addDueRecurringIncome(k, today())]);
-	const [expenses, previous, recurring, favorites, canRead, income] = await Promise.all([
+	const [expenses, previous, recurring, favorites, canRead, income, repeated] = await Promise.all([
 		monthExpenses(k, month),
 		monthTotal(k, addMonths(month, -1)),
 		recurringExpenses(k),
 		favoriteExpenses(k),
 		canReadReceipts(k),
-		monthIncomeTotal(k, month)
+		monthIncomeTotal(k, month),
+		monthRepeated(k, month)
 	]);
 	return {
 		month,
 		current,
 		expenses,
+		/** Put in twice (#440): each newer one's id, with the one it looks the same as. */
+		repeated,
 		previous,
 		recurring,
 		favorites,
@@ -108,8 +119,17 @@ export const actions: Actions = {
 		const receipt = await receiptFrom(form);
 		if ('problem' in receipt) return fail(400, { message: receipt.problem });
 		const source = bill ? 'factura' : receipt.file ? 'ticket' : 'mano';
+		const hash = form.get('huella');
+		const fileHash = receipt.file && isFileHash(hash) ? hash : null;
+		// Put in twice (#440)? Asked before saving, unless «Guardar igual».
+		if (form.get('igual') !== 'on') {
+			const repeated = await lookingSame(k, { id: null, ...input, source, fileHash, bill });
+			if (repeated) return fail(409, { message: 'Parece repetido', repeated });
+		}
 		try {
-			return { saved: await addExpense(k, input, source, receipt.file, null, bill) };
+			return {
+				saved: await addExpense(k, input, source, receipt.file, null, bill, k.userId, fileHash)
+			};
 		} catch (err) {
 			if (err instanceof NotADocument) return fail(400, { message: err.message });
 			throw err;
@@ -118,6 +138,17 @@ export const actions: Actions = {
 	delete: async ({ request, locals }) => {
 		const k = await kitchen(locals);
 		await deleteExpense(k, Number((await request.formData()).get('id')));
+	},
+	/** «No es repetido» (#440): this one and the one it looked the same as. */
+	notRepeated: async ({ request, locals }) => {
+		const form = await request.formData();
+		await markNotSame(await kitchen(locals), Number(form.get('id')), Number(form.get('other')));
+	},
+	/** «No me lo vuelvas a decir» (#440): that kind of notice, off for the family. */
+	quietNotice: async ({ request, locals }) => {
+		const kind = (await request.formData()).get('kind');
+		if (!isPageNoticeKind(kind)) return fail(400, { message: 'Aviso no válido' });
+		await setNoticeKind(await kitchen(locals), kind, false);
 	},
 	/** «☆ Favorito»: the form's expense as it is, without its day; the amount, if written. */
 	saveFavorite: async ({ request, locals }) => {

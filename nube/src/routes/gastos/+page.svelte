@@ -23,6 +23,7 @@
 		linesSum,
 		MONTH_NAMES,
 		monthName,
+		monthOf,
 		parseEuros,
 		type Expense,
 		type ExpenseCategory,
@@ -32,7 +33,8 @@
 		type RecurringExpense
 	} from 'comun/expenses.ts';
 	import ExpenseTabs from '#lib/components/ExpenseTabs.svelte';
-	import { smallerPhoto } from 'comun/receipt-photo.ts';
+	import { fileHash, smallerPhoto } from 'comun/receipt-photo.ts';
+	import { sameText, type LooksSame } from 'comun/page-notices.ts';
 	import { takeSharedFile } from '#lib/shared-file.ts';
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import type { PageProps } from './$types';
@@ -54,6 +56,10 @@
 		readBy: ExpenseDraft['readBy'] | null;
 		/** The photo, as taken: to compare with what was read. */
 		photo: string | null;
+		/** The file's, as chosen (#440): to see it put in again. */
+		fileHash?: string | null;
+		/** The one it looks the same as (#440): asked before saving. */
+		repeated?: LooksSame | null;
 		date: string;
 		store: string;
 		category: ExpenseCategory;
@@ -189,12 +195,13 @@
 		if (!file) return;
 		close();
 		reading = 'ticket';
-		const photo = await smallerPhoto(file);
+		const [photo, hash] = await Promise.all([smallerPhoto(file), fileHash(file)]);
 		const form = new FormData();
 		form.set('foto', photo, 'ticket.jpg');
+		if (hash) form.set('huella', hash);
 		const res = await fetch('/gastos/leer', { method: 'POST', body: form }).catch(() => null);
 		if (photoInput) photoInput.value = '';
-		await review(res, photo, photo);
+		await review(res, photo, photo, hash);
 	}
 
 	/** A bill (#232): its PDF as it is, a photo smaller. */
@@ -203,28 +210,31 @@
 		close();
 		reading = 'factura';
 		const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
-		const sent = isPdf ? file : await smallerPhoto(file);
+		const [sent, hash] = await Promise.all([isPdf ? file : smallerPhoto(file), fileHash(file)]);
 		const form = new FormData();
 		form.set('factura', sent, isPdf ? 'factura.pdf' : 'factura.jpg');
+		if (hash) form.set('huella', hash);
 		const res = await fetch('/gastos/leer-factura', { method: 'POST', body: form }).catch(
 			() => null
 		);
 		if (billInput) billInput.value = '';
-		await review(res, sent, isPdf ? null : sent);
+		await review(res, sent, isPdf ? null : sent, hash);
 	}
 
 	/** What the model read, in the boxes to check; the photo beside it, if there was one. */
-	async function review(res: Response | null, file: Blob, photo: Blob | null) {
+	async function review(res: Response | null, file: Blob, photo: Blob | null, hash: string | null) {
 		const body = await res?.json().catch(() => null);
 		reading = null;
 		if (!res?.ok) return void (problem = body?.message ?? 'Sin conexión');
-		const draft = body as ExpenseDraft;
+		const draft = body as ExpenseDraft & { repeated: LooksSame | null };
 		editing = {
 			id: null,
 			fromLines: false,
 			receipt: file,
 			readBy: draft.readBy,
 			photo: photo && URL.createObjectURL(photo),
+			fileHash: hash,
+			repeated: draft.repeated,
 			date: draft.date,
 			store: draft.store,
 			category: draft.category,
@@ -651,6 +661,17 @@
 						</p>
 					{/if}
 
+					{#if e.repeated}
+						<div class="mt-4 rounded-md border border-amber-500/40 bg-amber-950/40 p-3 text-sm">
+							<p class="text-amber-200">{sameText(e.repeated, data.today)} ¿Lo guardo igual?</p>
+							<a
+								href="/gastos?mes={monthOf(e.repeated.date)}&gasto={e.repeated.id}"
+								target="_blank"
+								class="mt-1 inline-block text-amber-400 hover:underline">Ver el otro</a
+							>
+						</div>
+					{/if}
+
 					<form
 						method="post"
 						action="?/save"
@@ -668,6 +689,10 @@
 								if (result.type === 'success') {
 									open = Number(result.data?.saved) || null;
 									close();
+								} else if (result.type === 'failure' && result.data?.repeated && editing) {
+									// Put in before (#440): asked, nothing saved.
+									editing.repeated = result.data.repeated as LooksSame;
+									problem = null;
 								} else if (result.type === 'failure')
 									problem = String(result.data?.message ?? 'No se pudo guardar');
 								await update({ reset: false });
@@ -680,6 +705,12 @@
 						}}
 					>
 						{#if e.id}<input type="hidden" name="id" value={e.id} />{/if}
+						{#if e.fileHash && e.receipt}<input
+								type="hidden"
+								name="huella"
+								value={e.fileHash}
+							/>{/if}
+						{#if e.repeated}<input type="hidden" name="igual" value="on" />{/if}
 						<input
 							type="hidden"
 							name="expense"
@@ -687,7 +718,8 @@
 						/>
 						<button
 							class="{button} bg-amber-500 font-semibold text-zinc-950 hover:bg-amber-400"
-							disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</button
+							disabled={saving}
+							>{saving ? 'Guardando…' : e.repeated ? 'Guardar igual' : 'Guardar'}</button
 						>
 						<button type="button" class="{button} hover:bg-zinc-800" onclick={cancel}
 							>Cancelar</button
@@ -825,6 +857,60 @@
 					</span>
 					<span class="shrink-0 tabular-nums">{euros(e.total)}</span>
 				</button>
+				{#if data.repeated[e.id]}
+					{@const twin = data.repeated[e.id]}
+					<div
+						class="mb-3 rounded-md border border-amber-500/40 bg-amber-950/40 p-3 text-sm text-amber-200"
+					>
+						<p>{sameText(twin, data.today)}</p>
+						<div class="mt-2 flex flex-wrap items-center gap-2">
+							{#if monthOf(twin.date) === data.month}
+								<button
+									class="{button} bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
+									onclick={() => {
+										open = twin.id;
+										showExpense(twin.id);
+									}}>Ver el otro</button
+								>
+							{:else}
+								<a
+									href="/gastos?mes={monthOf(twin.date)}&gasto={twin.id}"
+									class="{button} bg-zinc-800 text-zinc-100 hover:bg-zinc-700">Ver el otro</a
+								>
+							{/if}
+							{#if deleting === `repetido-${e.id}`}
+								<form method="post" action="?/delete" use:enhance class="flex gap-2">
+									<input type="hidden" name="id" value={e.id} />
+									<span class="py-1.5">¿Borrar este?</span>
+									<button class="{button} bg-red-700 text-white hover:bg-red-600">Sí</button>
+									<button
+										type="button"
+										class="{button} hover:bg-zinc-800"
+										onclick={() => (deleting = null)}>No</button
+									>
+								</form>
+							{:else}
+								<button
+									class="{button} bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
+									onclick={() => (deleting = `repetido-${e.id}`)}>Borrar este</button
+								>
+							{/if}
+							<form method="post" action="?/notRepeated" use:enhance>
+								<input type="hidden" name="id" value={e.id} />
+								<input type="hidden" name="other" value={twin.id} />
+								<button class="{button} bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
+									>No es repetido</button
+								>
+							</form>
+							<form method="post" action="?/quietNotice" use:enhance>
+								<input type="hidden" name="kind" value="repetido" />
+								<button class="{button} text-zinc-400 hover:bg-zinc-800"
+									>No me lo vuelvas a decir</button
+								>
+							</form>
+						</div>
+					</div>
+				{/if}
 				{#if open === e.id}
 					<div class="mb-3 rounded-md bg-zinc-900 p-3 text-sm">
 						{#if e.bill}

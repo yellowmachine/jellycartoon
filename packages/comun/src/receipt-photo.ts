@@ -28,3 +28,16 @@ export async function smallerPhoto(
 		return file;
 	}
 }
+
+/**
+ * The SHA-256 of the file as chosen, before it is made smaller (#440): the same file put in twice.
+ * Null where the browser cannot (not over https).
+ */
+export async function fileHash(file: Blob): Promise<string | null> {
+	try {
+		const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+		return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+	} catch {
+		return null;
+	}
+}
