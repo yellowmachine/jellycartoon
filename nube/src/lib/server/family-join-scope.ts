@@ -56,6 +56,7 @@ import {
 	voiceSatellite,
 	walk,
 	walkPhoto,
+	walkShare,
 	watchLog
 } from './db/schema.ts';
 import { setFamily, Stopped } from './family-move-scope.ts';
@@ -109,6 +110,7 @@ const TABLES: [string, PgTable][] = [
 	['planned_leg', plannedLeg],
 	['walk', walk],
 	['walk_photo', walkPhoto],
+	['walk_share', walkShare],
 	['note', note],
 	['watch_log', watchLog],
 	['rule', rule],

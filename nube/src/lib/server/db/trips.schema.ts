@@ -280,6 +280,39 @@ export const offlineList = pgTable(
 ).enableRLS();
 
 /**
+ * A house's game carried on a device, to play it without coverage (offline-games.ts): ordered from
+ * any device, downloaded by that one when the app opens on it.
+ */
+export const offlineGame = pgTable(
+	'offline_game',
+	{
+		familyId: familyId(),
+		/** The house's console folder and file (jellycartoon's games.ts): no key to it here. */
+		system: text('system').notNull(),
+		file: text('file').notNull(),
+		deviceId: text('device_id').notNull(),
+		/** Its title when ordered: for the panel, the house away. */
+		title: text('title').notNull(),
+		state: offlineListState('state').notNull().default('pending'),
+		/** Its files' size: the house's when ordered, then the device's. */
+		bytes: bigint('bytes', { mode: 'number' }).notNull().default(0),
+		/** Why it failed, as the device says it. */
+		problem: text('problem'),
+		createdAt: timestamp('created_at').notNull().defaultNow(),
+		updatedAt: timestamp('updated_at').notNull().defaultNow()
+	},
+	(t) => [
+		primaryKey({ columns: [t.system, t.file, t.deviceId] }),
+		foreignKey({
+			name: 'offline_game_device_fk',
+			columns: [t.familyId, t.deviceId],
+			foreignColumns: [mapDevice.familyId, mapDevice.id]
+		}).onDelete('cascade'),
+		familyRows('offline_game_own', t.familyId)
+	]
+).enableRLS();
+
+/**
  * A trip still to come (Viajes → Próximos): its name, who goes, and its legs. The family's, so that
  * anyone sees when they leave and what weather they will have; or only its maker's (`private`).
  */

@@ -214,6 +214,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: false,
 		note: 'A playlist of the house on a device'
 	},
+	offline_game: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'A game of the house on a device'
+	},
 	car: {
 		leaving: 'onlyTheirsOrStays',
 		joining: 'moves',
@@ -260,6 +266,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		joining: 'moves',
 		zip: { file: 'paseos-fotos', where: [mine()], stored: { area: 'paseos', column: 'file' } },
 		note: 'Its file too'
+	},
+	walk_share: {
+		leaving: 'moves',
+		joining: 'moves',
+		zip: false,
+		note: 'Its links (#434), with their walk: they keep working. Not in the zip, only their hashes'
 	},
 	note: {
 		leaving: 'moves',

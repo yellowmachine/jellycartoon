@@ -8,14 +8,26 @@
 	 * where they were taken (touched, shown).
 	 */
 	let {
-		line,
+		line = [],
+		pieces,
 		photos = [],
-		photoBase = '/viajes/fotos'
+		photoBase = '/viajes/fotos',
+		openMap = false,
+		ends = true
 	}: {
-		line: StoredPoint[];
+		line?: StoredPoint[];
+		/** Its way in pieces, instead of `line`: a shared walk's, without its ends (#434). */
+		pieces?: [number, number][][];
 		photos?: { id: number; lon: number | null; lat: number | null }[];
 		/** Where the photos are: a trip's, unless said. */
 		photoBase?: string;
+		/**
+		 * OpenFreeMap's (free, no key, it allows this use: https://openfreemap.org), for whoever has a
+		 * link and no session: the cloud's own needs signing in (as /s/, #81).
+		 */
+		openMap?: boolean;
+		/** Where it started and ended, marked: not on a way without its ends, they would point at them. */
+		ends?: boolean;
 	} = $props();
 
 	let container = $state<HTMLDivElement>();
@@ -23,19 +35,37 @@
 
 	$effect(() => {
 		const el = container;
-		const points = line.map((p): [number, number] => [p[0], p[1]]);
+		const ways = (pieces ?? [line.map((p): [number, number] => [p[0], p[1]])]).filter(
+			(w) => w.length
+		);
+		const points = ways.flat();
 		if (!el || !points.length) return;
 		let cancelled = false;
 		let map: import('maplibre-gl').Map | null = null;
 		(async () => {
-			const { maplibregl, header, styleFor } = await loadOurMap();
+			let maplibregl: typeof import('maplibre-gl');
+			let style: import('maplibre-gl').StyleSpecification | string;
+			if (openMap) {
+				const [lib, { default: workerUrl }] = await Promise.all([
+					import('maplibre-gl'),
+					import('maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url')
+				]);
+				maplibregl = lib;
+				maplibregl.setWorkerUrl(workerUrl);
+				style = 'https://tiles.openfreemap.org/styles/liberty';
+			} else {
+				const ours = await loadOurMap();
+				if (cancelled) return;
+				if (!ours.header) return void (problem = 'No se pudo abrir el mapa.');
+				maplibregl = ours.maplibregl;
+				style = ours.styleFor(true);
+			}
 			if (cancelled) return;
-			if (!header) return void (problem = 'No se pudo abrir el mapa.');
 			const lons = points.map((p) => p[0]);
 			const lats = points.map((p) => p[1]);
 			map = new maplibregl.Map({
 				container: el,
-				style: styleFor(true),
+				style,
 				bounds: [
 					[Math.min(...lons), Math.min(...lats)],
 					[Math.max(...lons), Math.max(...lats)]
@@ -50,7 +80,7 @@
 					data: {
 						type: 'Feature',
 						properties: {},
-						geometry: { type: 'LineString', coordinates: points }
+						geometry: { type: 'MultiLineString', coordinates: ways }
 					}
 				});
 				created.addLayer({
@@ -61,8 +91,10 @@
 					paint: { 'line-color': '#f59e0b', 'line-width': 5 }
 				});
 			});
-			new maplibregl.Marker({ color: '#22c55e' }).setLngLat(points[0]!).addTo(created);
-			new maplibregl.Marker({ color: '#ef4444' }).setLngLat(points.at(-1)!).addTo(created);
+			if (ends) {
+				new maplibregl.Marker({ color: '#22c55e' }).setLngLat(points[0]!).addTo(created);
+				new maplibregl.Marker({ color: '#ef4444' }).setLngLat(points.at(-1)!).addTo(created);
+			}
 			for (const photo of photos) {
 				if (photo.lon === null || photo.lat === null) continue;
 				const img = document.createElement('img');

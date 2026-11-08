@@ -180,7 +180,17 @@ export async function isKidAccount(userId: string) {
  * way out. Not the DJ: the grown-ups' (the house refuses it too).
  */
 const KID_PAGES = ['/', '/agenda'];
-const KID_SECTIONS = ['/nevera', '/deberes', '/series', '/watch', '/musica', '/buzon', '/logout'];
+const KID_SECTIONS = [
+	'/nevera',
+	'/deberes',
+	'/series',
+	'/watch',
+	'/musica',
+	'/buzon',
+	'/logout',
+	// A walk shared by link (#434): open to anyone who has it, a child too.
+	'/p'
+];
 const KID_APIS = [
 	'/api/auth',
 	'/api/nevera',

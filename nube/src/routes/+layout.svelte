@@ -66,17 +66,22 @@
 	const installed = new MediaQuery('(display-mode: standalone)', false);
 	const backShown = $derived(installed.current && page.url.pathname !== '/');
 
-	// A device that keeps routes' maps (#164) and music (#350): what it was ordered from any other,
-	// done now. The maps first: they say whether the device was forgotten.
+	// A device that keeps routes' maps (#164), music (#350) and games: what it was ordered from any
+	// other, done now. The maps first: they say whether the device was forgotten. The games after
+	// the music, in the same 2 GB.
 	onMount(() => {
 		if (!data.user) return;
 		void (async () => {
 			const { routeMaps } = await import('comun/route-maps.svelte.ts');
 			const { offlineMusic } = await import('#lib/offline-music.svelte.ts');
+			const { offlineGames } = await import('#lib/offline-games.svelte.ts');
 			// What it already keeps sounds from its disk from the start.
 			await offlineMusic.open().catch(() => {});
+			await offlineGames.whenOpen().catch(() => {});
 			await routeMaps.sync();
+			offlineMusic.reserved = offlineGames.bytes;
 			await offlineMusic.sync();
+			await offlineGames.sync();
 		})();
 	});
 
@@ -196,8 +201,8 @@
 </svelte:head>
 
 <!-- The road mode is the whole screen, without the site around it, as at home; and a shared
-trip's link (#81), for whoever has it. -->
-{#if page.url.pathname === '/carretera' || page.url.pathname.startsWith('/s/')}
+trip's link (#81), for whoever has it, and a shared walk's (#434), with its own bar. -->
+{#if page.url.pathname === '/carretera' || page.url.pathname.startsWith('/s/') || page.url.pathname.startsWith('/p/')}
 	{@render children()}
 {:else}
 	<!-- With the kitchen panel at its side (wide screens) or under it (narrow: a phone, or split

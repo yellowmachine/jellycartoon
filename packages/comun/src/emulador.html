@@ -146,13 +146,44 @@
 			let leaving = false;
 			addEventListener('beforeunload', () => (leaving = true), true);
 			const same = (a, b) => a && b && a.length === b.length && a.every((x, i) => x === b[i]);
+			/**
+			 * Played here without coverage (a game carried on the car's tablet): the one this browser
+			 * keeps is newer than the server's, and goes up the next time there is network.
+			 */
+			const unsent = `jellycartoon-cartucho-sin-subir:${cartridge}`;
+			function markUnsent(on) {
+				try {
+					if (on) localStorage.setItem(unsent, '1');
+					else localStorage.removeItem(unsent);
+				} catch {
+					// Without storage, the server's wins next time, as before.
+				}
+			}
+			const isUnsent = () => {
+				try {
+					return localStorage.getItem(unsent) === '1';
+				} catch {
+					return false;
+				}
+			};
 
 			async function loadCartridge(emulator) {
 				if (!cartridge.startsWith('/api/juegos/cartucho/')) return;
 				const manager = emulator.gameManager;
 				const file = manager.getSaveFilePath();
 				const here = manager.FS.analyzePath(file).exists ? manager.FS.readFile(file) : null;
-				const res = await fetch(cartridge);
+				const res = await fetch(cartridge).catch(() => null);
+				// No network: with the one kept here, and what is saved goes up when there is.
+				if (!res) {
+					syncing = true;
+					return;
+				}
+				// What was played here without coverage, over the server's.
+				if (here && isUnsent()) {
+					syncing = true;
+					sendCartridge(here);
+					return;
+				}
 				let theirs;
 				if (res.ok) {
 					const unzipped = res.body.pipeThrough(new DecompressionStream('gzip'));
@@ -188,10 +219,12 @@
 				})
 					.then((res) => {
 						if (!res.ok) throw new Error(res.statusText);
+						markUnsent(false);
 					})
 					.catch(() => {
-						// Sent again next time.
+						// Sent again next time; until then, this browser's is the newest.
 						sent = null;
+						markUnsent(true);
 					});
 			}
 

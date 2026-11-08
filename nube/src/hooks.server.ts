@@ -31,7 +31,10 @@ export const init: ServerInit = () => {
 	void migrateToKms();
 };
 
-/** `/s/`: a shared trip's link (#81), for whoever has it; `/invitacion/`, an invitation's. */
+/**
+ * `/s/`: a shared trip's link (#81), for whoever has it; `/p/`, a shared walk's (#434);
+ * `/invitacion/`, an invitation's.
+ */
 const PUBLIC_PATHS = [
 	'/login',
 	// «Eliminar mi cuenta» (#315): by then there is no session.
@@ -51,6 +54,7 @@ const PUBLIC_PATHS = [
 	// Oración's recordings for the house's mpv (#339), with the family's pass (prayer-pass.ts).
 	'/api/oracion/pase/',
 	'/s/',
+	'/p/',
 	'/invitacion/',
 	// «¿Quién eres?» (#303): a child choosing its drawing on the family's device, by its cookie.
 	'/quien',
