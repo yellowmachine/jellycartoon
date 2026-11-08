@@ -32,7 +32,7 @@
 		type LineTag,
 		type RecurringExpense
 	} from 'comun/expenses.ts';
-	import Caracol from '#lib/components/Caracol.svelte';
+	import Espera from '#lib/components/Espera.svelte';
 	import ExpenseTabs from '#lib/components/ExpenseTabs.svelte';
 	import { fileHash, smallerPhoto } from 'comun/receipt-photo.ts';
 	import { sameText, type LooksSame } from 'comun/page-notices.ts';
@@ -466,18 +466,15 @@
 		</div>
 	{/if}
 	{#if reading}
-		<!-- The snail while the AI reads it, as when a page is slow to open. -->
-		<div class="mb-4 flex items-center gap-3" role="status">
-			<Caracol class="w-14 shrink-0 text-emerald-500" />
-			<p class="text-sm text-zinc-400">
-				{#if reading === 'factura'}
-					Unos segundos. Un PDF se lee por su texto, sin tu nombre, DNI, cuenta ni CUPS.
-				{:else}
-					Unos segundos. Si OpenRouter falla y lo lee Ollama en casa, la primera vez tarda más,
-					mientras carga el modelo.
-				{/if}
-			</p>
-		</div>
+		<!-- While the AI reads it: the screen veiled, the snail in the centre. -->
+		<Espera>
+			{#if reading === 'factura'}
+				Leyendo la factura… Un PDF se lee por su texto, sin tu nombre, DNI, cuenta ni CUPS.
+			{:else}
+				Leyendo el ticket… Si OpenRouter falla y lo lee Ollama en casa, la primera vez tarda más,
+				mientras carga el modelo.
+			{/if}
+		</Espera>
 	{/if}
 	{#if problem && !editing}
 		<p class="mb-4 rounded-md bg-red-950 p-3 text-sm text-red-200">{problem}</p>
