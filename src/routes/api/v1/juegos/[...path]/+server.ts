@@ -49,7 +49,9 @@ const handle: RequestHandler = async (event) => {
 	for (const [route, methods] of ROUTES) {
 		const params = matches(route, path);
 		if (!params) continue;
-		const handler = methods[event.request.method as keyof Methods];
+		// SvelteKit answers a HEAD with GET (Seilide asks a ROM's size so), the method still HEAD.
+		const method = event.request.method === 'HEAD' ? 'GET' : event.request.method;
+		const handler = methods[method as keyof Methods];
 		if (!handler) error(405, 'Método no permitido');
 		event.locals.user = { id: person.id } as App.Locals['user'];
 		return handler({ ...event, params } as unknown as RequestEvent<never, never>);

@@ -14,6 +14,7 @@ import { orsKey } from '#lib/server/family-settings.ts';
 import { askForAccess } from '#lib/server/waitlist.ts';
 import { EMAIL } from '#lib/invitation.ts';
 import { news } from '#lib/server/news.ts';
+import { SEEN_SHARE, sharedWalks } from '#lib/server/walks/shared.ts';
 
 /**
  * Without a session, the landing page (hooks.server.ts lets `/` through); with one, what there is
@@ -65,7 +66,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions: Actions = {
 	/** «Pedir acceso», from the landing page. */
-	ask: async ({ request }) => {
+	ask: async ({ request, cookies }) => {
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '')
 			.trim()
@@ -82,7 +83,11 @@ export const actions: Actions = {
 		if (form.get('web')) return { asked: true };
 		if (!name || !EMAIL.test(email))
 			return fail(400, { name, email, message, error: 'Escribe tu nombre y un email válido' });
-		await askForAccess({ name, email, message });
+		// Come from a walk shared by link (#434): whose it was, also if taken back since.
+		const seen = cookies.get(SEEN_SHARE.name);
+		const referredBy = seen ? await sharedWalks.sharerOf(seen).catch(() => null) : null;
+		await askForAccess({ name, email, message, referredBy });
+		if (seen) cookies.delete(SEEN_SHARE.name, { path: '/' });
 		return { asked: true };
 	}
 };

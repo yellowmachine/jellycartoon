@@ -525,6 +525,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 	},
 
 	// The account: it is the same one.
+	waitlist: {
+		leaving: 'account',
+		joining: 'account',
+		zip: false,
+		note: "The service's; referred_by, whose shared walk brought them (#434), is not theirs"
+	},
 	user_data_key: {
 		leaving: 'account',
 		joining: 'account',

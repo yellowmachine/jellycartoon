@@ -168,6 +168,17 @@ describe('walks shared by link (#434)', () => {
 		expect(await reader.open(other, { counted: true })).toBeNull();
 	});
 
+	test('who made a link, also taken back, to note where a request to come in came from', async () => {
+		const token = await made();
+		expect(await reader.sharerOf(token)).toBe('ana');
+		await revokeShare(ana, (await walkSharesOf(ana, walkId))[0]!.id);
+		expect(await reader.sharerOf(token)).toBe('ana');
+		expect(await reader.sharerOf('x'.repeat(43))).toBeNull();
+		expect(await reader.sharerOf("' or 1=1 --")).toBeNull();
+		await db.delete(walk).where(eq(walk.id, walkId));
+		expect(await reader.sharerOf(token)).toBeNull();
+	});
+
 	test('a token that does not exist, or is not one', async () => {
 		await made();
 		expect(await reader.open('x'.repeat(43), { counted: true })).toBeNull();

@@ -107,6 +107,24 @@ export function shareReader(db: AnyDb, { role }: { role?: string } = {}) {
 			});
 		},
 
+		/**
+		 * Who made that link, also taken back since (#434, phase 2): whoever saw it and asks to come
+		 * in is noted as come from them. Null if it never was, or its walk is gone.
+		 */
+		sharerOf(token: string): Promise<string | null> {
+			if (!TOKEN.test(token)) return Promise.resolve(null);
+			return db.transaction(async (tx) => {
+				const t = tx as unknown as AnyDb;
+				if (role) await t.execute(sql`select set_config('role', ${role}, true)`);
+				await t.execute(sql`select set_config('app.share_hash', ${shareHash(token)}, true)`);
+				const [share] = await t
+					.select({ userId: walkShare.userId })
+					.from(walkShare)
+					.where(eq(walkShare.tokenHash, shareHash(token)));
+				return share?.userId ?? null;
+			});
+		},
+
 		/** One of its photos' file, in its family: null if it is not one of those it shows. */
 		photo(token: string, photoId: number) {
 			return db.transaction(async (tx) => {

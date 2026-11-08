@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { user } from './auth.schema.ts';
 
 /**
  * Families that asked to come in from the landing page («Pedir acceso»), as svelte-thinking's
@@ -17,6 +18,10 @@ export const waitlist = pgTable(
 		status: text('status', { enum: ['pending', 'approved', 'rejected'] })
 			.notNull()
 			.default('pending'),
+		/** Where they came from, if from somewhere: today only a walk shared by link (#434). */
+		origin: text('origin', { enum: ['walk_share'] }),
+		/** Who shared it; gone with their account. */
+		referredBy: text('referred_by').references(() => user.id, { onDelete: 'set null' }),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [uniqueIndex('waitlist_email_idx').on(sql`lower(${t.email})`)]
