@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
+	import Caracol from '#lib/components/Caracol.svelte';
 	import { routeMaps } from 'comun/route-maps.svelte.ts';
 	import { offlineGames } from '#lib/offline-games.svelte.ts';
 	import { offlineMusic } from '#lib/offline-music.svelte.ts';
@@ -31,6 +32,7 @@
 
 <svelte:window ononline={retry} />
 
+<Caracol class="mb-4 w-28 text-emerald-500" />
 <h1 class="mb-1 text-2xl font-bold">Sin conexión</h1>
 <p class="mb-6 text-zinc-400">Ahora no llega la conexión con Seilide.</p>
 
