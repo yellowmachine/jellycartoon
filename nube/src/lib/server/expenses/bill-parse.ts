@@ -66,7 +66,8 @@ export const BILL_SCHEMA = {
 		maxPower: PERIODS,
 		unitPrice: { type: ['number', 'null'] },
 		areaAverage: { type: ['number', 'null'] },
-		pricing: { type: ['string', 'null'], enum: [...BILL_PRICINGS, null] },
+		// One of them or null as anyOf: Anthropic refuses an enum beside a list of types.
+		pricing: { anyOf: [{ type: 'string', enum: [...BILL_PRICINGS] }, { type: 'null' }] },
 		energyPrice: PERIODS,
 		electricityTax: { type: ['number', 'null'] },
 		vat: { type: ['number', 'null'] }

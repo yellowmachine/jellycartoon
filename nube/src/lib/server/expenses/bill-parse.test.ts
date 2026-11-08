@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { billDraftFromAnswer, redact } from './bill-parse.ts';
+import { BILL_SCHEMA, billDraftFromAnswer, redact } from './bill-parse.ts';
 
 const TODAY = '2026-10-27';
 
@@ -171,4 +171,16 @@ test('a card’s number, out', () => {
 	const out = redact('CONCEPTO: OP.TARJ.COMPRA COMERCIO 415006******8968 SEGUROS TUIO   73,34 EUR');
 	expect(out).not.toContain('8968');
 	expect(out).toContain('SEGUROS TUIO   73,34 EUR');
+});
+
+test('the schema as Anthropic takes it: no enum beside a list of types', () => {
+	const bad: string[] = [];
+	const walk = (node: unknown, at: string) => {
+		if (!node || typeof node !== 'object') return;
+		const n = node as Record<string, unknown>;
+		if (n.enum && Array.isArray(n.type)) bad.push(at);
+		for (const [key, value] of Object.entries(n)) walk(value, `${at}.${key}`);
+	};
+	walk(BILL_SCHEMA, 'bill');
+	expect(bad).toEqual([]);
 });
