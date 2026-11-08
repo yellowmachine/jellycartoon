@@ -3,6 +3,7 @@
 	import favicon from '#lib/assets/favicon.svg';
 	import { onMount } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
+	import { version } from '$app/env';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
@@ -83,6 +84,8 @@
 			await offlineMusic.sync();
 			await offlineGames.sync();
 		})();
+		// The pages that open with no network (offline-pages.ts), for this version.
+		void import('#lib/offline-pages.ts').then((p) => p.keepOfflinePages(version)).catch(() => {});
 	});
 
 	/**

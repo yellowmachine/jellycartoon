@@ -9,6 +9,7 @@ import { kitchenOf } from '#lib/server/fridge.ts';
 import { podcastLists } from '#lib/server/podcasts/podcasts.ts';
 import { listSavedPlaces, listSavedRoutes } from '#lib/server/trips/places.ts';
 import { recordsTrips } from '#lib/server/trips/trips.ts';
+import { KEPT_SOURCE } from '#lib/offline-pages.ts';
 
 /** Whether there is a map (scripts/mapa.sh, in MAP_DIR): shown beside, with the screen wide enough. */
 const hasMap = () =>
@@ -22,10 +23,38 @@ const hasMap = () =>
  * the radio, the family's podcasts (each with its newest episode), and the map. Without the house
  * (off, or not connected), the radio, the podcasts and the map still work. And Viajes': the
  * places and routes kept with a name, and whether this trip is kept (#81).
+ *
+ * `?guardada`: as the service worker keeps it, to open with no network (offline-pages.ts): only
+ * what works without, the lists this device carries, the map (along the routes it keeps), the
+ * places and routes. Nothing of the house's, nor the radio's or the podcasts'.
  */
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
 	const who = { id: locals.user!.id, email: locals.user!.email };
 	const k = await kitchenOf(locals.user!.id);
+	if (url.searchParams.has(KEPT_SOURCE)) {
+		const [map, places, routes, recordTrips] = await Promise.all([
+			hasMap(),
+			listSavedPlaces(k),
+			listSavedRoutes(k),
+			recordsTrips(k)
+		]);
+		return {
+			albums: [],
+			playlists: [],
+			pass: null,
+			dj: false,
+			djPresets: [],
+			telegram: false,
+			problem: null,
+			info: null,
+			map,
+			places,
+			routes,
+			recordTrips,
+			podcasts: [],
+			inProgress: []
+		};
+	}
 	const [info, map, lists, places, routes, recordTrips] = await Promise.all([
 		stationsInfo(),
 		hasMap(),
