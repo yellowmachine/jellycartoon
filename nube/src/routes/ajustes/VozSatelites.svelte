@@ -3,6 +3,7 @@
 	import { enhance } from '$app/forms';
 	import {
 		DEFAULT_GREETINGS,
+		GREETINGS_ON,
 		DEFAULT_TONE,
 		MAX_FILLER_CHARS,
 		MAX_TONE_CHARS,
@@ -174,27 +175,33 @@
 					decidiendo si escucha. Si dos oyen la misma orden, solo la hace uno.</span
 				>
 			</label>
-			<label class="flex items-center gap-2 text-zinc-300">
-				<input type="checkbox" name="greet" bind:checked={greet} />
-				Al oír la palabra, contesta con una frase en vez del pitido
-			</label>
-			{#if greet}
-				<label class="-mt-1 flex flex-col gap-1 text-zinc-300">
-					Una de estas (una por línea)
-					<textarea
-						name="greetings"
-						rows="3"
-						value={data.satelliteVoice.greetings.join('\n')}
-						placeholder={DEFAULT_GREETINGS.join('\n')}
-						class="{select} w-full"></textarea>
-					<span class="text-xs text-zinc-500"
-						>Muy cortas: si ya estás hablando tras la palabra, no la dice. Sin el pitido de
-						«enviado». Vacío, las de siempre. Cada satélite las graba al guardar; mientras, el
-						pitido.</span
-					>
-				</label>
-			{:else}
+			{#if !GREETINGS_ON}
+				<!-- Off for now (comun/ai-voice.ts): what was chosen kept as it is when saving. -->
+				{#if greet}<input type="hidden" name="greet" value="on" />{/if}
 				<input type="hidden" name="greetings" value={data.satelliteVoice.greetings.join('\n')} />
+			{:else}
+				<label class="flex items-center gap-2 text-zinc-300">
+					<input type="checkbox" name="greet" bind:checked={greet} />
+					Al oír la palabra, contesta con una frase en vez del pitido
+				</label>
+				{#if greet}
+					<label class="-mt-1 flex flex-col gap-1 text-zinc-300">
+						Una de estas (una por línea)
+						<textarea
+							name="greetings"
+							rows="3"
+							value={data.satelliteVoice.greetings.join('\n')}
+							placeholder={DEFAULT_GREETINGS.join('\n')}
+							class="{select} w-full"></textarea>
+						<span class="text-xs text-zinc-500"
+							>Muy cortas: si ya estás hablando tras la palabra, no la dice. Sin el pitido de
+							«enviado». Vacío, las de siempre. Cada satélite las graba al guardar; mientras, el
+							pitido.</span
+						>
+					</label>
+				{:else}
+					<input type="hidden" name="greetings" value={data.satelliteVoice.greetings.join('\n')} />
+				{/if}
 			{/if}
 			{#if phrases?.length}
 				<div class="-mt-1 flex flex-col gap-1">

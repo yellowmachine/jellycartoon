@@ -5,7 +5,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import * as schema from '#lib/server/db/schema.ts';
 import { family } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
-import { DEFAULT_GREETINGS } from 'comun/ai-voice.ts';
+import { DEFAULT_GREETINGS, GREETINGS_ON } from 'comun/ai-voice.ts';
 
 /**
  * How Seilide's satellites speak (#296), on PGlite, with OpenRouter's speech faked: what it was
@@ -118,18 +118,22 @@ describe('the satellites voice', () => {
 		expect((await satelliteVoiceOf(k)).wakeWord).toBeNull();
 	});
 
-	test('on hearing the word: the beep unless asked, then the phrases as written', async () => {
+	test('on hearing the word: the phrases kept as written, and the beep for now anyway', async () => {
 		const before = await satelliteVoiceOf(k);
 		const base = { voice: before.voice, tone: before.tone, fillers: '' };
 		expect(greetingsOf(before)).toEqual([]);
 		await setSatelliteVoice(k, null, { ...base, greet: true, greetings: '' });
-		expect(greetingsOf(await satelliteVoiceOf(k))).toEqual(DEFAULT_GREETINGS);
+		expect((await satelliteVoiceOf(k)).greetings).toEqual(DEFAULT_GREETINGS);
 		await setSatelliteVoice(k, null, {
 			...base,
 			greet: true,
 			greetings: ' ¿Sí? \n\nDime.'
 		});
-		expect(greetingsOf(await satelliteVoiceOf(k))).toEqual(['¿Sí?', 'Dime.']);
+		const saved = await satelliteVoiceOf(k);
+		expect(saved.greet).toBe(true);
+		expect(saved.greetings).toEqual(['¿Sí?', 'Dime.']);
+		// Off for every family (GREETINGS_ON): the satellites are told none, so they beep.
+		expect(greetingsOf(saved)).toEqual(GREETINGS_ON ? ['¿Sí?', 'Dime.'] : []);
 		await setSatelliteVoice(k, null, { ...base, fillers: before.fillers.join('\n') });
 	});
 

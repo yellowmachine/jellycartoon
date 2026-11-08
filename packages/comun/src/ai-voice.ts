@@ -148,6 +148,14 @@ export const MAX_FILLER_CHARS = 60;
 export const DEFAULT_GREETINGS = ['¿Sí?', 'Dime.', '¿Qué necesitas?'];
 
 /**
+ * Off for every family for now (2026-11-08), the beep instead: while the phrase sounds the
+ * satellite does not listen (it would hear itself), so «Makoto… qué hora es» with a natural pause
+ * lost the order under it. What each family chose stays saved, for when it comes back another way
+ * (an echo-cancelling microphone, #373, or something else).
+ */
+export const GREETINGS_ON = false;
+
+/**
  * The saved lines, trimmed, without repeats; the default ones if there are none (and `orDefault`):
  * `defaults`, the fillers' or the greetings'.
  */
