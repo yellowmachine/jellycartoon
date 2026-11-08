@@ -33,6 +33,7 @@ const {
 	switchPlug,
 	updatePlug
 } = await import('./plugs.ts');
+const { plugsForVoice, switchByVoice } = await import('./voice.ts');
 const plugOfToken = plugKeyScope(db, { role: 'app_user' });
 
 class FakePlug implements PlugSocket {
@@ -125,6 +126,7 @@ beforeAll(async () => {
 
 let lampId = '';
 let lampToken = '';
+let lampWs: FakePlug;
 
 describe('enchufes', () => {
 	test('a new one waits for its plug; another family does not see it', async () => {
@@ -145,7 +147,7 @@ describe('enchufes', () => {
 	});
 
 	test('connected: on, watts, and what it used by the hour', async () => {
-		const ws = new FakePlug();
+		const ws = (lampWs = new FakePlug());
 		await hub.attach(lampToken, ws);
 		ws.say({
 			src: 'shellyplugmg3-1',
@@ -167,6 +169,55 @@ describe('enchufes', () => {
 		expect(lamp!.monthWh).toBeCloseTo(0.5);
 		// Another family cannot switch it.
 		expect(await switchPlug('otra', lampId, false)).toBe(false);
+	});
+
+	test('by voice for a while: the plug’s own timer, and when it ends said back', async () => {
+		const k = { familyId: 'A', run: (fn: never) => asFamily('A', fn) } as never;
+		const plugs = (await plugsForVoice(k))!.plugs;
+		const last = () => lampWs.sent.at(-1);
+		const now = new Date('2026-11-08T14:00:00Z').getTime();
+		// On for half an hour: on now, off by itself after.
+		expect(
+			await switchByVoice(k, plugs, { name: 'lámpara', on: true, for_minutes: 30 }, now)
+		).toEqual({
+			result: 'Lámpara del salón encendido durante 30 min: se apaga a las 15:30.',
+			done: true
+		});
+		expect(last()).toMatchObject({
+			method: 'Switch.Set',
+			params: { on: true, toggle_after: 1800 }
+		});
+		// Off in an hour while on: kept on now, off after.
+		const on = plugs.map((p) => ({ ...p, output: true }));
+		expect(
+			await switchByVoice(k, on, { name: 'lámpara', on: false, in_minutes: 60 }, now)
+		).toMatchObject({
+			result: 'Lámpara del salón se apaga a las 16:00, dentro de 60 min.',
+			done: true
+		});
+		expect(last()).toMatchObject({
+			method: 'Switch.Set',
+			params: { on: true, toggle_after: 3600 }
+		});
+		const sent = lampWs.sent.length;
+		// Already as asked, «dentro de» has nothing to do; too long or both, refused.
+		expect(
+			await switchByVoice(k, on, { name: 'lámpara', on: true, in_minutes: 60 }, now)
+		).toMatchObject({ result: 'Lámpara del salón ya está encendido.', done: false });
+		expect(
+			(await switchByVoice(k, on, { name: 'lámpara', on: true, for_minutes: 2000 }, now)).done
+		).toBe(false);
+		expect(
+			(
+				await switchByVoice(
+					k,
+					on,
+					{ name: 'lámpara', on: true, for_minutes: 5, in_minutes: 5 },
+					now
+				)
+			).done
+		).toBe(false);
+		expect(lampWs.sent.length).toBe(sent);
 	});
 
 	test('today and this month by the family’s days; older ones left out', async () => {

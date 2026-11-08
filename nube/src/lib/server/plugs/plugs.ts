@@ -268,15 +268,31 @@ export async function switchPlug(userId: string, id: string, on: boolean) {
 }
 
 /** The same in a kitchen (the voice, a satellite's too). */
-export async function switchIn(k: Pick<Kitchen, 'familyId' | 'run'>, id: string, on: boolean) {
+/**
+ * On or off. With `backAfterS`, back the other way after those seconds: the plug's own timer
+ * (Switch.Set's toggle_after), so it happens without Seilide; a schedule's job or another switch
+ * before then cancels it, and a plug that loses power forgets it. Not in a long heat, whose timer it is.
+ */
+export async function switchIn(
+	k: Pick<Kitchen, 'familyId' | 'run'>,
+	id: string,
+	on: boolean,
+	backAfterS?: number
+) {
 	const [row] = await k.run((tx) =>
 		tx.select({ paused: plug.paused, heatUntil: plug.heatUntil }).from(plug).where(eq(plug.id, id))
 	);
 	if (!row) return false;
 	if (row.paused) return 'paused' as const;
-	await hub.call(id, 'Switch.Set', { id: SWITCH_ID, on });
+	const heating = row.heatUntil && row.heatUntil > new Date();
+	if (backAfterS && heating) return 'heating' as const;
+	await hub.call(
+		id,
+		'Switch.Set',
+		backAfterS ? { id: SWITCH_ID, on, toggle_after: backAfterS } : { id: SWITCH_ID, on }
+	);
 	// Switched off by hand in a long heat: the heat is over, its schedules back now.
-	if (!on && row.heatUntil && row.heatUntil > new Date()) {
+	if (!on && heating) {
 		await k.run((tx) => tx.update(plug).set({ heatUntil: null }).where(eq(plug.id, id)));
 		heats.delete(id);
 		await trySync(k.familyId, id);
