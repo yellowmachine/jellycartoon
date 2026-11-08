@@ -5,7 +5,7 @@
 	import { MediaQuery } from 'svelte/reactivity';
 	import { version } from '$app/env';
 	import { goto } from '$app/navigation';
-	import { page } from '$app/state';
+	import { navigating, page } from '$app/state';
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import AlarmBanner from 'comun/components/AlarmBanner.svelte';
 	import KidRequests from '#lib/components/KidRequests.svelte';
@@ -18,6 +18,7 @@
 	import TimerBar from '#lib/components/TimerBar.svelte';
 	import WalkBar from '#lib/components/WalkBar.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
+	import Caracol from '#lib/components/Caracol.svelte';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 	import { wakeWord } from '#lib/wake-word.svelte.ts';
 	import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
@@ -29,6 +30,22 @@
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
+
+	/**
+	 * The snail while going to another page takes a while (/musica from outside, through the
+	 * house): SvelteKit's `navigating` (https://svelte.dev/docs/kit/$app-state#navigating), shown
+	 * only after a moment, so a quick change does not flash it.
+	 */
+	const SLOW_MS = 400;
+	let slow = $state(false);
+	$effect(() => {
+		if (!navigating.to) {
+			slow = false;
+			return;
+		}
+		const timer = setTimeout(() => (slow = true), SLOW_MS);
+		return () => clearTimeout(timer);
+	});
 
 	/** jellycartoon's bar (#253): the cloud's sections (nav.ts). */
 	const nav = $derived(
@@ -202,6 +219,18 @@
 	<!-- eslint-disable-next-line svelte/no-at-html-tags -- a <style> made from the themes' own table, never from what was typed. -->
 	{@html themeCss(data.theme)}
 </svelte:head>
+
+{#if slow}
+	<div
+		class="pointer-events-none fixed inset-0 z-50 grid place-items-center"
+		role="status"
+		aria-label="Cargando"
+	>
+		<div class="rounded-2xl bg-zinc-900/90 p-5 shadow-lg ring-1 ring-zinc-700">
+			<Caracol class="w-20 text-emerald-500" />
+		</div>
+	</div>
+{/if}
 
 <!-- The road mode is the whole screen, without the site around it, as at home; and a shared
 trip's link (#81), for whoever has it, and a shared walk's (#434), with its own bar. -->
