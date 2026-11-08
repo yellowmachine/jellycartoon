@@ -1,4 +1,5 @@
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { db } from './db/index.ts';
 import { invitation, user, waitlist } from './db/schema.ts';
 import { sendWaitlistNotice, sendWaitlistReceived } from './emails.ts';
@@ -12,17 +13,24 @@ export async function askForAccess(request: {
 	email: string;
 	name: string;
 	message: string | null;
+	/** Who shared the walk they saw before asking (#434), if they came from one. */
+	referredBy?: string | null;
 }) {
+	const { referredBy, ...asked } = request;
 	const [added] = await db
 		.insert(waitlist)
-		.values({ id: crypto.randomUUID(), ...request })
+		.values({
+			id: crypto.randomUUID(),
+			...asked,
+			...(referredBy ? { origin: 'walk_share' as const, referredBy } : {})
+		})
 		.onConflictDoNothing()
 		.returning({ id: waitlist.id });
 	if (!added) return;
 	sendWaitlistReceived(request.email, request.name).catch((error) =>
 		console.error(`[waitlist] El correo a ${request.email} no salió:`, error)
 	);
-	sendWaitlistNotice(request).catch((error) =>
+	sendWaitlistNotice(asked).catch((error) =>
 		console.error('[waitlist] El aviso al administrador no salió:', error)
 	);
 }
@@ -32,6 +40,7 @@ export async function askForAccess(request: {
  * (an open one, perhaps lapsed) and whether they already have an account.
  */
 export async function waitingList() {
+	const referrer = alias(user, 'referrer');
 	const rows = await db
 		.select({
 			id: waitlist.id,
@@ -40,6 +49,9 @@ export async function waitingList() {
 			message: waitlist.message,
 			status: waitlist.status,
 			createdAt: waitlist.createdAt,
+			origin: waitlist.origin,
+			referrerName: referrer.name,
+			referrerEmail: referrer.email,
 			invitationExpiresAt: invitation.expiresAt,
 			hasAccount: sql<boolean>`exists (select 1 from ${user} where lower(${user.email}) = lower(${waitlist.email}))`
 		})
@@ -53,6 +65,7 @@ export async function waitingList() {
 				isNull(invitation.cancelledAt)
 			)
 		)
+		.leftJoin(referrer, eq(referrer.id, waitlist.referredBy))
 		.orderBy(desc(waitlist.createdAt));
 	return rows.map(({ invitationExpiresAt, ...r }) => ({
 		...r,

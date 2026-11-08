@@ -53,6 +53,13 @@
 						<span class="text-sm text-zinc-400">{e.email}</span>
 						<span class="ml-auto text-xs text-zinc-500">{day(e.createdAt)}</span>
 					</div>
+					{#if e.origin === 'walk_share'}
+						<p class="mt-1 text-sm text-zinc-400">
+							Vino de un paseo compartido{e.referrerName
+								? ` por ${e.referrerName} (${e.referrerEmail})`
+								: ''}
+						</p>
+					{/if}
 					{#if e.message}
 						<p class="mt-2 text-sm whitespace-pre-line text-zinc-300">{e.message}</p>
 					{/if}
