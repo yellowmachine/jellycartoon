@@ -1,6 +1,7 @@
 <script lang="ts">
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import WalkLock from './WalkLock.svelte';
+	import WalkShare from './WalkShare.svelte';
 	import NoteButton from '#lib/components/NoteButton.svelte';
 	import TripMap from '#lib/components/TripMap.svelte';
 	import WalkUploads from '#lib/components/WalkUploads.svelte';
@@ -422,6 +423,7 @@
 								>Corregirlas en Notas</a
 							>
 						{/if}
+						<WalkShare walkId={w.id} {photos} />
 					</div>
 				{/if}
 			</li>

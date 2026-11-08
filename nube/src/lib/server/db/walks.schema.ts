@@ -1,7 +1,10 @@
+import { sql } from 'drizzle-orm';
 import {
+	boolean,
 	index,
 	integer,
 	jsonb,
+	pgPolicy,
 	pgTable,
 	real,
 	serial,
@@ -72,5 +75,48 @@ export const walkPhoto = pgTable(
 		unique('walk_photo_user_client').on(t.userId, t.clientId),
 		index('walk_photo_walk_idx').on(t.walkId),
 		familyRows('walk_photo_own', t.familyId)
+	]
+).enableRLS();
+
+/**
+ * A walk shared by link (#434): for whoever has it, until it is taken back («Retirar») or the walk
+ * is deleted. Kept by its token's SHA-256 only: the link is shown once. The page that opens it
+ * finds it by that hash (`app.share_hash`), all its policy lets it see without a family, and only
+ * then reads the walk in its family (share-scope.ts).
+ */
+export const walkShare = pgTable(
+	'walk_share',
+	{
+		id: serial('id').primaryKey(),
+		familyId: text('family_id')
+			.notNull()
+			.references(() => family.id, { onDelete: 'cascade' }),
+		/** Who shared it: the walk's own person. */
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		walkId: integer('walk_id')
+			.notNull()
+			.references(() => walk.id, { onDelete: 'cascade' }),
+		tokenHash: text('token_hash').notNull().unique(),
+		/** «Grupo del cole», «Mamá»: to know it again in the list. */
+		label: text('label'),
+		/** The photos it shows, chosen when it was made. */
+		photoIds: jsonb('photo_ids').$type<number[]>().notNull().default([]),
+		/** Without its ends, near home (walk-share.ts). */
+		trim: boolean('trim').notNull().default(true),
+		createdAt: timestamp('created_at').notNull().defaultNow(),
+		opens: integer('opens').notNull().default(0),
+		lastOpenedAt: timestamp('last_opened_at'),
+		revokedAt: timestamp('revoked_at')
+	},
+	(t) => [
+		index('walk_share_user_idx').on(t.userId),
+		index('walk_share_walk_idx').on(t.walkId),
+		familyRows('walk_share_own', t.familyId),
+		pgPolicy('walk_share_by_token', {
+			for: 'select',
+			using: sql`${t.tokenHash} = nullif(current_setting('app.share_hash', true), '')`
+		})
 	]
 ).enableRLS();

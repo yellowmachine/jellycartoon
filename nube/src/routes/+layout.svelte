@@ -201,8 +201,8 @@
 </svelte:head>
 
 <!-- The road mode is the whole screen, without the site around it, as at home; and a shared
-trip's link (#81), for whoever has it. -->
-{#if page.url.pathname === '/carretera' || page.url.pathname.startsWith('/s/')}
+trip's link (#81), for whoever has it, and a shared walk's (#434), with its own bar. -->
+{#if page.url.pathname === '/carretera' || page.url.pathname.startsWith('/s/') || page.url.pathname.startsWith('/p/')}
 	{@render children()}
 {:else}
 	<!-- With the kitchen panel at its side (wide screens) or under it (narrow: a phone, or split
