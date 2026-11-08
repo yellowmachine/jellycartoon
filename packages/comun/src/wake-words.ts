@@ -8,13 +8,16 @@
  * with music, to be tried with our voices and with «cocina» said around.
  * «Kusanagi», ours too (2026-11-06, 100.000 examples), ku-sa-NA-gui: like «Ocarina» in that
  * comparison, to be tried with our voices and with the TV on.
+ * «Makoto», ours too (2026-11-07, 100.000 examples), ma-KO-to, from Makoto Konno: below «Kusanagi»
+ * in that comparison (73 % against 94 % without music), wanted by the user anyway, to be tried.
  */
 export const WAKE_WORDS = {
 	hola_casita: 'hola casita',
 	alexa: 'Alexa',
 	okapi: 'Okapi',
 	ocarina: 'Ocarina',
-	kusanagi: 'Kusanagi'
+	kusanagi: 'Kusanagi',
+	makoto: 'Makoto'
 } as const;
 
 export type WakeWordModel = keyof typeof WAKE_WORDS;
