@@ -348,7 +348,7 @@ export async function manualKwhPrice(userId: string) {
 	return row?.price ?? null;
 }
 
-async function priceOf(tx: AnyDb): Promise<KwhPrice | null> {
+export async function priceOf(tx: AnyDb): Promise<KwhPrice | null> {
 	const [own] = await tx.select({ price: familySettings.kwhPrice }).from(familySettings);
 	if (own?.price)
 		return { source: 'mano', pricing: 'fijo', flat: own.price, periods: null, from: null };

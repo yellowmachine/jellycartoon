@@ -89,7 +89,12 @@
 	<title>Enchufes · Seilide</title>
 </svelte:head>
 
-<h1 class="mb-1 text-2xl font-bold">Enchufes</h1>
+<div class="mb-1 flex items-baseline justify-between gap-2">
+	<h1 class="text-2xl font-bold">Enchufes</h1>
+	{#if plugs.length}
+		<a href="/enchufes/consumo" class="text-sm text-amber-400 hover:underline">📊 Consumo</a>
+	{/if}
+</div>
 <p class="mb-6 text-sm text-zinc-400">
 	Enciende y apaga los aparatos desde donde estés, y mira cuánto gastan. Funciona con enchufes
 	Shelly, sin instalar nada en casa.

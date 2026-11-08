@@ -456,3 +456,56 @@ describe('horarios, pausa y calentamiento', () => {
 		expect(ws.jobs.map((j) => j.id)).toEqual([1]);
 	});
 });
+
+describe('consumo', () => {
+	test('a week: by day, the one before as far in, each plug’s part; another family’s, no', async () => {
+		const { plugStats, dayStart } = await import('./stats.ts');
+		expect(dayStart('2026-11-08').toISOString()).toBe('2026-11-07T23:00:00.000Z');
+		// The night the clocks go back: 25 hours, from midnight in summer time.
+		expect(dayStart('2026-10-25').toISOString()).toBe('2026-10-24T22:00:00.000Z');
+		const heater = await createPlug('ana', 'Calentador', 'termo');
+		const fan = await createPlug('ana', 'Ventilador', 'otro');
+		const rows = [
+			{ plugId: heater.id, hour: '2026-11-08T05:00:00Z', wh: 1000 }, // Sunday 6:00
+			{ plugId: heater.id, hour: '2026-11-06T05:00:00Z', wh: 500 }, // Friday
+			{ plugId: fan.id, hour: '2026-11-06T17:00:00Z', wh: 500 },
+			{ plugId: heater.id, hour: '2026-11-01T05:00:00Z', wh: 800 }, // the Sunday before, 6:00
+			{ plugId: heater.id, hour: '2026-11-01T20:00:00Z', wh: 300 } // later than now, then
+		];
+		await asFamily('A', (tx) =>
+			tx
+				.insert(plugEnergy)
+				.values(rows.map((r) => ({ ...r, familyId: 'A', hour: new Date(r.hour) })))
+		);
+		const now = new Date('2026-11-08T12:00:00Z');
+		const week = (await plugStats('ana', {}, now))!;
+		expect(week).toMatchObject({
+			view: 'semana',
+			title: 'Semana del 2 al 8 de noviembre',
+			goingOn: true,
+			prevDay: '2026-10-26',
+			nextDay: null,
+			total: { wh: 2000 },
+			before: { wh: 800 }
+		});
+		expect(week.buckets.map((b) => b.wh)).toEqual([0, 0, 0, 0, 1000, 0, 1000]);
+		expect(week.total.euros).toBeCloseTo(2 * 0.2518, 6);
+		expect(week.byPlug.map((p) => [p.name, p.wh])).toEqual([
+			['Calentador', 1500],
+			['Ventilador', 500]
+		]);
+		// One plug, by the hour of a day.
+		const day = (await plugStats('ana', { view: 'dia', plugId: heater.id }, now))!;
+		expect(day.buckets[6]!.wh).toBe(1000);
+		expect(day.byPlug).toEqual([]);
+		// A whole week before: compared whole.
+		const last = (await plugStats('ana', { day: '2026-11-01' }, now))!;
+		expect(last).toMatchObject({ goingOn: false, total: { wh: 1100 }, nextDay: '2026-11-02' });
+		// Not its plug; a day to come is today.
+		expect(await plugStats('otra', { plugId: heater.id }, now)).toBeNull();
+		expect((await plugStats('otra', {}, now))!.total.wh).toBe(0);
+		expect((await plugStats('ana', { day: '2027-01-01' }, now))!.day).toBe('2026-11-08');
+		await deletePlug('ana', heater.id);
+		await deletePlug('ana', fan.id);
+	});
+});
