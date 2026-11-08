@@ -56,6 +56,12 @@ export const SYSTEMS: Record<
 		wikidata: ['Q10676'],
 		libretro: 'Sega - Mega Drive - Genesis'
 	},
+	atari2600: {
+		name: 'Atari 2600',
+		core: 'atari2600',
+		wikidata: ['Q206261'],
+		libretro: 'Atari - 2600'
+	},
 	// FinalBurn Neo, EmulatorJS' core for `arcade`: its ROMs as FBNeo names them (fbneo.ts). Arcade
 	// games, or Neo-Geo's, in Wikidata.
 	arcade: {
@@ -76,6 +82,20 @@ export type Game = {
 	bios: string | null;
 };
 
+/** What comes with downloaded collections and is not a game: pictures, lists, databases. */
+const NOT_GAMES = new Set([
+	'.jpg',
+	'.jpeg',
+	'.png',
+	'.gif',
+	'.txt',
+	'.nfo',
+	'.xml',
+	'.sqlite',
+	'.pdf',
+	'.torrent'
+]);
+
 /** «Super Mario World (Europe)» → «Super Mario World»: no region or version. */
 const titleOf = (name: string) => name.replace(/(\s*[([][^)\]]*[)\]])+$/, '').trim() || name;
 
@@ -91,7 +111,12 @@ async function gamesIn(system: string): Promise<Game[]> {
 	const entries = await readdir(path.join(gamesRoot!, system), { withFileTypes: true }).catch(
 		() => []
 	);
-	const files = entries.filter((e) => e.isFile() && !e.name.startsWith('.')).map((e) => e.name);
+	const files = entries
+		.filter(
+			(e) =>
+				e.isFile() && !e.name.startsWith('.') && !NOT_GAMES.has(path.extname(e.name).toLowerCase())
+		)
+		.map((e) => e.name);
 	const arcade = system === 'arcade' && files.length ? await arcadeList() : null;
 	return files
 		.flatMap((file): Game[] => {
