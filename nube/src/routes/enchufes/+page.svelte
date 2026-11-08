@@ -66,7 +66,11 @@
 			return p.lastSeenAt
 				? `Sin conexión desde el ${seenFormat.format(new Date(p.lastSeenAt))}`
 				: 'Sin conexión';
-		return p.output ? 'Encendido' : 'Apagado';
+		const state = p.output ? 'Encendido' : 'Apagado';
+		// Its own timer (by voice, «media hora»): when it switches back.
+		if (p.timerUntil)
+			return `${state} · se ${p.output ? 'apaga' : 'enciende'} a las ${hourFormat.format(new Date(p.timerUntil))}`;
+		return state;
 	}
 
 	async function copy(text: string) {

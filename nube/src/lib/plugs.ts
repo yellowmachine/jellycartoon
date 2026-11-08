@@ -77,6 +77,8 @@ export interface PlugView {
 	paused: boolean;
 	/** A long heat going on (a water heater after a long pause), until then. */
 	heatUntil: string | null;
+	/** Its own timer (by voice, «media hora»): when it switches back by itself. */
+	timerUntil: string | null;
 	schedules: PlugScheduleView[];
 }
 

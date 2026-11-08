@@ -180,6 +180,10 @@ async function readPlugs(tx: AnyDb): Promise<PlugView[]> {
 				aloud: p.notifyAloud
 			},
 			heatUntil: p.heatUntil && p.heatUntil > new Date() ? p.heatUntil.toISOString() : null,
+			timerUntil:
+				now.online && now.timerUntil && now.timerUntil > Date.now()
+					? new Date(now.timerUntil).toISOString()
+					: null,
 			schedules: schedules
 				.filter((x) => x.plugId === p.id)
 				.map(({ id, days, start, end }) => ({ id, days, start, end }))
@@ -291,6 +295,8 @@ export async function switchIn(
 		'Switch.Set',
 		backAfterS ? { id: SWITCH_ID, on, toggle_after: backAfterS } : { id: SWITCH_ID, on }
 	);
+	// Started one, or ended the one it had: for its page.
+	void hub.readTimer(id);
 	// Switched off by hand in a long heat: the heat is over, its schedules back now.
 	if (!on && heating) {
 		await k.run((tx) => tx.update(plug).set({ heatUntil: null }).where(eq(plug.id, id)));

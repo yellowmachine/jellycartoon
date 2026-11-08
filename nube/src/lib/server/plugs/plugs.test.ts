@@ -80,6 +80,11 @@ class FakePlug implements PlugSocket {
 			this.output = p.on;
 			this.timer = p.toggle_after ?? null;
 		}
+		if (frame.method === 'Switch.GetStatus')
+			result = {
+				output: this.output,
+				...(this.timer && { timer_started_at: Date.now() / 1000, timer_duration: this.timer })
+			};
 		queueMicrotask(() => this.say({ id: frame.id, src: 'x', dst: 'seilide', result }));
 	}
 	close(code?: number) {
@@ -89,6 +94,9 @@ class FakePlug implements PlugSocket {
 	terminate() {}
 	ping() {}
 }
+
+/** The last on or off it was told (after it, Seilide asks for its timer). */
+const lastSet = (ws: FakePlug) => ws.sent.findLast((f) => f.method === 'Switch.Set');
 
 const person = (id: string) => ({
 	id,
@@ -157,7 +165,7 @@ describe('enchufes', () => {
 		});
 		await settle();
 		expect(await switchPlug('ana', lampId, true)).toBe(true);
-		expect(ws.sent.at(-1)).toMatchObject({ method: 'Switch.Set', params: { id: 0, on: true } });
+		expect(lastSet(ws)).toMatchObject({ method: 'Switch.Set', params: { id: 0, on: true } });
 		ws.say(sw({ output: true, source: 'WS_out' }));
 		ws.say(sw({ apower: 5 }));
 		ws.say(sw({ apower: 5, aenergy: { total: 100.25 } }));
@@ -174,7 +182,7 @@ describe('enchufes', () => {
 	test('by voice for a while: the plug’s own timer, and when it ends said back', async () => {
 		const k = { familyId: 'A', run: (fn: never) => asFamily('A', fn) } as never;
 		const plugs = (await plugsForVoice(k))!.plugs;
-		const last = () => lampWs.sent.at(-1);
+		const last = () => lastSet(lampWs);
 		const now = new Date('2026-11-08T14:00:00Z').getTime();
 		// On for half an hour: on now, off by itself after.
 		expect(
@@ -187,6 +195,10 @@ describe('enchufes', () => {
 			method: 'Switch.Set',
 			params: { on: true, toggle_after: 1800 }
 		});
+		// Its page shows when it switches back.
+		await settle();
+		const until = (await listPlugs('ana'))[0]!.timerUntil;
+		expect(Date.parse(until!) - Date.now()).toBeGreaterThan(1790_000);
 		// Off in an hour while on: kept on now, off after.
 		const on = plugs.map((p) => ({ ...p, output: true }));
 		expect(
