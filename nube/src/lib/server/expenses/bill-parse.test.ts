@@ -71,7 +71,11 @@ test("the model's answer: the parts as lines, the supply apart", () => {
 				{ name: 'P2', value: 2.52 }
 			],
 			unitPrice: 0.198,
-			areaAverage: 199
+			areaAverage: 199,
+			pricing: 'fijo',
+			energyPrice: [],
+			electricityTax: 5.1127,
+			vat: 21
 		},
 		TODAY
 	);
@@ -111,7 +115,11 @@ test("the model's answer: the parts as lines, the supply apart", () => {
 					{ name: 'P2', value: 2.52 }
 				],
 				unitPrice: 0.198,
-				areaAverage: 199
+				areaAverage: 199,
+				pricing: 'fijo',
+				energyPrice: [],
+				electricityTax: 5.1127,
+				vat: 21
 			}
 		}
 	});

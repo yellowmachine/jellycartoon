@@ -150,7 +150,7 @@ describe('hub', () => {
 		ws.say(FULL);
 		await attaching;
 		await tick();
-		expect(hub.liveOf('p1')).toEqual({ online: true, output: false, power: 0 });
+		expect(hub.liveOf('p1')).toEqual({ online: true, output: false, power: 0, timerUntil: null });
 		expect(saved.some((s) => s.patch.output === false && s.patch.energyWh === 10)).toBe(true);
 	});
 
@@ -211,7 +211,7 @@ describe('hub', () => {
 		ws.say(status({ output: true, source: 'WS_out' }));
 		ws.say(status({ apower: 5.0 }));
 		await tick();
-		expect(hub.liveOf('p1')).toEqual({ online: true, output: true, power: 5 });
+		expect(hub.liveOf('p1')).toEqual({ online: true, output: true, power: 5, timerUntil: null });
 		expect(saved).toEqual([{ plugId: 'p1', patch: { output: true, power: undefined } }]);
 
 		setClock('2026-11-07T17:58:00Z');
@@ -225,6 +225,25 @@ describe('hub', () => {
 		ws.say(status({ aenergy: { total: 10.207 } }));
 		await tick();
 		expect(energy).toHaveLength(1);
+	});
+
+	test('its timer: said when it starts; after a switch without one, asked, and gone', async () => {
+		const { hub } = setup();
+		const ws = new FakePlug();
+		await hub.attach('tok', ws);
+		ws.say(status({ output: true, timer_started_at: 1_794_100_000.5, timer_duration: 1800 }));
+		await tick();
+		expect(hub.liveOf('p1').timerUntil).toBe(1_794_101_800_500);
+		// Its watts change: the timer stays.
+		ws.say(status({ apower: 30 }));
+		await tick();
+		expect(hub.liveOf('p1').timerUntil).toBe(1_794_101_800_500);
+		// Off (it ended, or someone switched it): asked, and the plug says none.
+		ws.say(status({ output: false }));
+		await tick();
+		await tick();
+		expect(ws.sent.at(-1)).toMatchObject({ method: 'Switch.GetStatus', params: { id: 0 } });
+		expect(hub.liveOf('p1').timerUntil).toBeNull();
 	});
 
 	test("a change made in Seilide (a schedule, the pause): its family's pages told, once", async () => {

@@ -70,6 +70,9 @@ export interface PlugView {
 	power: number | null;
 	todayWh: number;
 	monthWh: number;
+	/** In euros, each hour at its price (kwh-price.ts); null without a price. */
+	todayEuros: number | null;
+	monthEuros: number | null;
 	lastSeenAt: string | null;
 	model: string | null;
 	notices: PlugNotices;
@@ -77,6 +80,8 @@ export interface PlugView {
 	paused: boolean;
 	/** A long heat going on (a water heater after a long pause), until then. */
 	heatUntil: string | null;
+	/** Its own timer (by voice, «media hora»): when it switches back by itself. */
+	timerUntil: string | null;
 	schedules: PlugScheduleView[];
 }
 

@@ -18,6 +18,19 @@ export interface SwitchState {
 	power?: number;
 	/** Its energy counter, in Wh. */
 	energyWh?: number;
+	/** When its timer (Switch.Set's toggle_after) switches it back, in ms; only when it says one. */
+	timerUntil?: number;
+}
+
+/**
+ * When the timer of a switch's status ends, in ms; null without one. The plug gives
+ * `timer_started_at` (seconds) and `timer_duration` only while one runs.
+ */
+export function timerOf(sw: unknown): number | null {
+	const { timer_started_at: at, timer_duration: long } = (sw ?? {}) as Record<string, unknown>;
+	return typeof at === 'number' && typeof long === 'number' && Number.isFinite(at + long)
+		? Math.round((at + long) * 1000)
+		: null;
 }
 
 export type ShellyMessage =
@@ -42,6 +55,8 @@ export function switchOf(params: unknown): SwitchState | null {
 	if (typeof apower === 'number' && Number.isFinite(apower)) state.power = apower;
 	if (typeof aenergy?.total === 'number' && Number.isFinite(aenergy.total))
 		state.energyWh = aenergy.total;
+	const timer = timerOf(sw);
+	if (timer !== null) state.timerUntil = timer;
 	return Object.keys(state).length ? state : null;
 }
 

@@ -21,6 +21,14 @@ export interface BillPeriod {
 	value: number;
 }
 
+/**
+ * How the light's energy is priced (#396): one price at all hours («Precio estable»), one per
+ * period of the day (punta, llano, valle), or one that changes each hour with the market (PVPC,
+ * indexada), of which the bill gives only the average.
+ */
+export const BILL_PRICINGS = ['fijo', 'periodos', 'indexado'] as const;
+export type BillPricing = (typeof BILL_PRICINGS)[number];
+
 /** What is particular to each kind, as the bill says it; empty or null when it does not. */
 export interface BillDetails {
 	/** The tariff, as named: «Precio estable · 2.0TD». */
@@ -38,6 +46,13 @@ export interface BillDetails {
 	maxPower: BillPeriod[];
 	/** Price of the energy (or water) as billed, €/unit, before taxes. */
 	unitPrice: number | null;
+	/** The light's: how its energy is priced. Bills read before it, null. */
+	pricing: BillPricing | null;
+	/** The light's energy price in each period (P1, P2, P3), €/kWh before taxes; one price, empty. */
+	energyPrice: BillPeriod[];
+	/** The light's taxes, in %: the electricity tax (5,11 %) and VAT (21 %), as billed. */
+	electricityTax: number | null;
+	vat: number | null;
 	/** What the same postcode consumes on average, per month, when it says so. */
 	areaAverage: number | null;
 }
@@ -81,6 +96,10 @@ export function parseBillDetails(value: unknown): BillDetails {
 		powerPrice: periods(d.powerPrice, 10),
 		maxPower: periods(d.maxPower),
 		unitPrice: finite(d.unitPrice, 100),
+		pricing: BILL_PRICINGS.includes(d.pricing as BillPricing) ? (d.pricing as BillPricing) : null,
+		energyPrice: periods(d.energyPrice, 10),
+		electricityTax: finite(d.electricityTax, 100),
+		vat: finite(d.vat, 100),
 		areaAverage: finite(d.areaAverage)
 	};
 }

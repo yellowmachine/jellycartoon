@@ -1,5 +1,13 @@
 import type { KeyPlug } from './plug-key-scope.ts';
-import { energyRise, hourOf, parseMessage, request, type SwitchState } from './shelly.ts';
+import {
+	energyRise,
+	hourOf,
+	parseMessage,
+	request,
+	SWITCH_ID,
+	timerOf,
+	type SwitchState
+} from './shelly.ts';
 
 /**
  * The plugs connected right now (#396), each by its own outbound WebSocket: who it is (its token),
@@ -26,6 +34,8 @@ export interface PlugLive {
 	online: boolean;
 	output: boolean | null;
 	power: number | null;
+	/** When its timer switches it back, in ms (Switch.Set's toggle_after); null, none. */
+	timerUntil: number | null;
 }
 
 export interface HubDeps {
@@ -105,7 +115,7 @@ export function createHub(deps: HubDeps) {
 	}
 
 	function liveOf(plugId: string): PlugLive {
-		return live.get(plugId) ?? { online: false, output: null, power: null };
+		return live.get(plugId) ?? { online: false, output: null, power: null, timerUntil: null };
 	}
 
 	/**
@@ -115,12 +125,17 @@ export function createHub(deps: HubDeps) {
 	 */
 	async function onStatus(c: Connection, sw: SwitchState, full: boolean) {
 		const before = liveOf(c.plug.id);
+		const switched = sw.output !== undefined && sw.output !== before.output;
 		const after: PlugLive = {
 			online: true,
 			output: sw.output ?? before.output,
-			power: sw.power ?? before.power
+			power: sw.power ?? before.power,
+			// The whole state says all its timer; a change only when it starts one, so a switch
+			// without one is asked (it may have ended or been cancelled).
+			timerUntil: sw.timerUntil ?? (full ? null : before.timerUntil)
 		};
 		live.set(c.plug.id, after);
+		if (switched && !full && sw.timerUntil === undefined) void readTimer(c.plug.id);
 		deps.onLive?.(c.plug.familyId, c.plug.id, after);
 
 		const patch: SwitchState = {};
@@ -136,7 +151,12 @@ export function createHub(deps: HubDeps) {
 			patch.power = after.power ?? undefined;
 		}
 
-		if (after.output !== before.output || after.power !== before.power || rise > 0)
+		if (
+			after.output !== before.output ||
+			after.power !== before.power ||
+			after.timerUntil !== before.timerUntil ||
+			rise > 0
+		)
 			tell(c.plug.familyId);
 		if (rise > 0) await deps.addEnergy(c.plug.familyId, c.plug.id, hourOf(now()), rise);
 		const at = now().getTime();
@@ -169,9 +189,24 @@ export function createHub(deps: HubDeps) {
 		c.pending.clear();
 		if (connections.get(c.plug.id) !== c) return;
 		connections.delete(c.plug.id);
-		live.set(c.plug.id, { ...liveOf(c.plug.id), online: false, power: null });
+		live.set(c.plug.id, { ...liveOf(c.plug.id), online: false, power: null, timerUntil: null });
 		tell(c.plug.familyId);
 		deps.onGone?.(c.plug.familyId, c.plug.id);
+	}
+
+	/** Its timer, asked to the plug (Switch.GetStatus): after a switch, which may start or end one. */
+	async function readTimer(plugId: string) {
+		const c = connections.get(plugId);
+		if (!c) return;
+		try {
+			const timerUntil = timerOf(await call(plugId, 'Switch.GetStatus', { id: SWITCH_ID }));
+			const before = liveOf(plugId);
+			if (connections.get(plugId) !== c || before.timerUntil === timerUntil) return;
+			live.set(plugId, { ...before, timerUntil });
+			tell(c.plug.familyId);
+		} catch {
+			// Gone, or it did not answer: the next whole state says it.
+		}
 	}
 
 	/** An order to a connected plug: its answer, or PlugOffline, or its error. */
@@ -278,6 +313,7 @@ export function createHub(deps: HubDeps) {
 		call,
 		remove,
 		liveOf,
+		readTimer,
 		checkAlive,
 		/** The family's open pages, told when any of its plugs changes. */
 		watch(familyId: string, listener: () => void) {

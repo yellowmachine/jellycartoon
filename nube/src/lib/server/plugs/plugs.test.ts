@@ -4,7 +4,14 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { sql } from 'drizzle-orm';
 import * as schema from '../db/schema.ts';
-import { family, familyMember, plugEnergy, user } from '../db/schema.ts';
+import {
+	bill as billTable,
+	expense,
+	family,
+	familyMember,
+	plugEnergy,
+	user
+} from '../db/schema.ts';
 import { familyOnlyScope, familyScope, NoFamily } from '../family-scope.ts';
 import { plugKeyScope } from './plug-key-scope.ts';
 import type { PlugSocket } from './hub.ts';
@@ -33,6 +40,7 @@ const {
 	switchPlug,
 	updatePlug
 } = await import('./plugs.ts');
+const { plugsForVoice, switchByVoice } = await import('./voice.ts');
 const plugOfToken = plugKeyScope(db, { role: 'app_user' });
 
 class FakePlug implements PlugSocket {
@@ -79,6 +87,11 @@ class FakePlug implements PlugSocket {
 			this.output = p.on;
 			this.timer = p.toggle_after ?? null;
 		}
+		if (frame.method === 'Switch.GetStatus')
+			result = {
+				output: this.output,
+				...(this.timer && { timer_started_at: Date.now() / 1000, timer_duration: this.timer })
+			};
 		queueMicrotask(() => this.say({ id: frame.id, src: 'x', dst: 'seilide', result }));
 	}
 	close(code?: number) {
@@ -88,6 +101,9 @@ class FakePlug implements PlugSocket {
 	terminate() {}
 	ping() {}
 }
+
+/** The last on or off it was told (after it, Seilide asks for its timer). */
+const lastSet = (ws: FakePlug) => ws.sent.findLast((f) => f.method === 'Switch.Set');
 
 const person = (id: string) => ({
 	id,
@@ -125,6 +141,7 @@ beforeAll(async () => {
 
 let lampId = '';
 let lampToken = '';
+let lampWs: FakePlug;
 
 describe('enchufes', () => {
 	test('a new one waits for its plug; another family does not see it', async () => {
@@ -145,7 +162,7 @@ describe('enchufes', () => {
 	});
 
 	test('connected: on, watts, and what it used by the hour', async () => {
-		const ws = new FakePlug();
+		const ws = (lampWs = new FakePlug());
 		await hub.attach(lampToken, ws);
 		ws.say({
 			src: 'shellyplugmg3-1',
@@ -155,7 +172,7 @@ describe('enchufes', () => {
 		});
 		await settle();
 		expect(await switchPlug('ana', lampId, true)).toBe(true);
-		expect(ws.sent.at(-1)).toMatchObject({ method: 'Switch.Set', params: { id: 0, on: true } });
+		expect(lastSet(ws)).toMatchObject({ method: 'Switch.Set', params: { id: 0, on: true } });
 		ws.say(sw({ output: true, source: 'WS_out' }));
 		ws.say(sw({ apower: 5 }));
 		ws.say(sw({ apower: 5, aenergy: { total: 100.25 } }));
@@ -167,6 +184,59 @@ describe('enchufes', () => {
 		expect(lamp!.monthWh).toBeCloseTo(0.5);
 		// Another family cannot switch it.
 		expect(await switchPlug('otra', lampId, false)).toBe(false);
+	});
+
+	test('by voice for a while: the plug’s own timer, and when it ends said back', async () => {
+		const k = { familyId: 'A', run: (fn: never) => asFamily('A', fn) } as never;
+		const plugs = (await plugsForVoice(k))!.plugs;
+		const last = () => lastSet(lampWs);
+		const now = new Date('2026-11-08T14:00:00Z').getTime();
+		// On for half an hour: on now, off by itself after.
+		expect(
+			await switchByVoice(k, plugs, { name: 'lámpara', on: true, for_minutes: 30 }, now)
+		).toEqual({
+			result: 'Lámpara del salón encendido durante 30 min: se apaga a las 15:30.',
+			done: true
+		});
+		expect(last()).toMatchObject({
+			method: 'Switch.Set',
+			params: { on: true, toggle_after: 1800 }
+		});
+		// Its page shows when it switches back.
+		await settle();
+		const until = (await listPlugs('ana'))[0]!.timerUntil;
+		expect(Date.parse(until!) - Date.now()).toBeGreaterThan(1790_000);
+		// Off in an hour while on: kept on now, off after.
+		const on = plugs.map((p) => ({ ...p, output: true }));
+		expect(
+			await switchByVoice(k, on, { name: 'lámpara', on: false, in_minutes: 60 }, now)
+		).toMatchObject({
+			result: 'Lámpara del salón se apaga a las 16:00, dentro de 60 min.',
+			done: true
+		});
+		expect(last()).toMatchObject({
+			method: 'Switch.Set',
+			params: { on: true, toggle_after: 3600 }
+		});
+		const sent = lampWs.sent.length;
+		// Already as asked, «dentro de» has nothing to do; too long or both, refused.
+		expect(
+			await switchByVoice(k, on, { name: 'lámpara', on: true, in_minutes: 60 }, now)
+		).toMatchObject({ result: 'Lámpara del salón ya está encendido.', done: false });
+		expect(
+			(await switchByVoice(k, on, { name: 'lámpara', on: true, for_minutes: 2000 }, now)).done
+		).toBe(false);
+		expect(
+			(
+				await switchByVoice(
+					k,
+					on,
+					{ name: 'lámpara', on: true, for_minutes: 5, in_minutes: 5 },
+					now
+				)
+			).done
+		).toBe(false);
+		expect(lampWs.sent.length).toBe(sent);
 	});
 
 	test('today and this month by the family’s days; older ones left out', async () => {
@@ -227,10 +297,68 @@ describe('enchufes', () => {
 	test('the price of a kWh, the family’s', async () => {
 		expect(await kwhPrice('ana')).toBeNull();
 		await setKwhPrice('ana', 0.15);
-		expect(await kwhPrice('ana')).toBeCloseTo(0.15);
+		expect(await kwhPrice('ana')).toMatchObject({ source: 'mano', flat: 0.15 });
 		expect(await kwhPrice('otra')).toBeNull();
 		await setKwhPrice('ana', null);
 		expect(await kwhPrice('ana')).toBeNull();
+	});
+
+	test('the price from the last light bill; by hand, it wins; euros by the hour', async () => {
+		const bill = async (periodEnd: string, details: object) => {
+			const [e] = await asFamily('A', (tx) =>
+				tx
+					.insert(expense)
+					.values({
+						familyId: 'A',
+						date: periodEnd,
+						store: 'Pepeenergy',
+						category: 'Facturas',
+						total: 8309,
+						source: 'factura'
+					})
+					.returning({ id: expense.id })
+			);
+			await asFamily('A', (tx) =>
+				tx.insert(billTable).values({
+					familyId: 'A',
+					expenseId: e!.id,
+					kind: 'Luz',
+					periodStart: `${periodEnd.slice(0, 8)}01`,
+					periodEnd,
+					consumption: 280,
+					unit: 'kWh',
+					details: details as never
+				})
+			);
+		};
+		await bill('2026-08-31', { unitPrice: 0.15 });
+		await bill('2026-09-30', {
+			unitPrice: 0.198,
+			pricing: 'fijo',
+			electricityTax: 5.1127,
+			vat: 21
+		});
+		expect(await kwhPrice('ana')).toMatchObject({
+			source: 'factura',
+			pricing: 'fijo',
+			flat: 0.2518,
+			from: 'Pepeenergy, septiembre 2026'
+		});
+		expect(await kwhPrice('otra')).toBeNull();
+		// A kWh used this hour.
+		const stove = await createPlug('ana', 'Estufa', 'otro');
+		const hour = new Date();
+		hour.setUTCMinutes(0, 0, 0);
+		await asFamily('A', (tx) =>
+			tx.insert(plugEnergy).values({ plugId: stove.id, familyId: 'A', hour, wh: 1000 })
+		);
+		const view = (await listPlugs('ana')).find((p) => p.id === stove.id)!;
+		expect(view.todayEuros).toBeCloseTo(0.2518, 6);
+		expect(view.monthEuros).toBeCloseTo(0.2518, 6);
+		await deletePlug('ana', stove.id);
+		await setKwhPrice('ana', 0.3);
+		expect(await kwhPrice('ana')).toMatchObject({ source: 'mano', flat: 0.3 });
+		await setKwhPrice('ana', null);
 	});
 });
 
@@ -326,5 +454,58 @@ describe('horarios, pausa y calentamiento', () => {
 		await deleteSchedule('ana', termo, view!.schedules[0]!.id);
 		expect(ours()).toEqual([]);
 		expect(ws.jobs.map((j) => j.id)).toEqual([1]);
+	});
+});
+
+describe('consumo', () => {
+	test('a week: by day, the one before as far in, each plug’s part; another family’s, no', async () => {
+		const { plugStats, dayStart } = await import('./stats.ts');
+		expect(dayStart('2026-11-08').toISOString()).toBe('2026-11-07T23:00:00.000Z');
+		// The night the clocks go back: 25 hours, from midnight in summer time.
+		expect(dayStart('2026-10-25').toISOString()).toBe('2026-10-24T22:00:00.000Z');
+		const heater = await createPlug('ana', 'Calentador', 'termo');
+		const fan = await createPlug('ana', 'Ventilador', 'otro');
+		const rows = [
+			{ plugId: heater.id, hour: '2026-11-08T05:00:00Z', wh: 1000 }, // Sunday 6:00
+			{ plugId: heater.id, hour: '2026-11-06T05:00:00Z', wh: 500 }, // Friday
+			{ plugId: fan.id, hour: '2026-11-06T17:00:00Z', wh: 500 },
+			{ plugId: heater.id, hour: '2026-11-01T05:00:00Z', wh: 800 }, // the Sunday before, 6:00
+			{ plugId: heater.id, hour: '2026-11-01T20:00:00Z', wh: 300 } // later than now, then
+		];
+		await asFamily('A', (tx) =>
+			tx
+				.insert(plugEnergy)
+				.values(rows.map((r) => ({ ...r, familyId: 'A', hour: new Date(r.hour) })))
+		);
+		const now = new Date('2026-11-08T12:00:00Z');
+		const week = (await plugStats('ana', {}, now))!;
+		expect(week).toMatchObject({
+			view: 'semana',
+			title: 'Semana del 2 al 8 de noviembre',
+			goingOn: true,
+			prevDay: '2026-10-26',
+			nextDay: null,
+			total: { wh: 2000 },
+			before: { wh: 800 }
+		});
+		expect(week.buckets.map((b) => b.wh)).toEqual([0, 0, 0, 0, 1000, 0, 1000]);
+		expect(week.total.euros).toBeCloseTo(2 * 0.2518, 6);
+		expect(week.byPlug.map((p) => [p.name, p.wh])).toEqual([
+			['Calentador', 1500],
+			['Ventilador', 500]
+		]);
+		// One plug, by the hour of a day.
+		const day = (await plugStats('ana', { view: 'dia', plugId: heater.id }, now))!;
+		expect(day.buckets[6]!.wh).toBe(1000);
+		expect(day.byPlug).toEqual([]);
+		// A whole week before: compared whole.
+		const last = (await plugStats('ana', { day: '2026-11-01' }, now))!;
+		expect(last).toMatchObject({ goingOn: false, total: { wh: 1100 }, nextDay: '2026-11-02' });
+		// Not its plug; a day to come is today.
+		expect(await plugStats('otra', { plugId: heater.id }, now)).toBeNull();
+		expect((await plugStats('otra', {}, now))!.total.wh).toBe(0);
+		expect((await plugStats('ana', { day: '2027-01-01' }, now))!.day).toBe('2026-11-08');
+		await deletePlug('ana', heater.id);
+		await deletePlug('ana', fan.id);
 	});
 });
