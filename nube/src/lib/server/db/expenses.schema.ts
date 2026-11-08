@@ -7,6 +7,7 @@ import {
 	jsonb,
 	pgEnum,
 	pgTable,
+	primaryKey,
 	serial,
 	text,
 	timestamp,
@@ -75,10 +76,16 @@ export const expense = pgTable(
 		receipt: text('receipt'),
 		/** The fixed one it came from. */
 		recurringId: integer('recurring_id'),
+		/**
+		 * The SHA-256 of the receipt or bill as chosen, before the browser makes a photo smaller (#440):
+		 * the same file put in twice. Null, none or before there were.
+		 */
+		fileHash: text('file_hash'),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [
 		index('expense_family_date_idx').on(t.familyId, t.date),
+		index('expense_family_file_hash_idx').on(t.familyId, t.fileHash),
 		unique('expense_family_id').on(t.familyId, t.id),
 		// Of its own family. Deleting a fixed one, its expenses are let go of first (expenses.ts).
 		foreignKey({
@@ -205,6 +212,33 @@ export const bill = pgTable(
 			foreignColumns: [expense.familyId, expense.id]
 		}).onDelete('cascade'),
 		familyRows('bill_own', t.familyId)
+	]
+).enableRLS();
+
+/**
+ * Two expenses that looked the same and are not (#440, «No es repetido»): not said again. The
+ * smaller id first.
+ */
+export const expenseNotDuplicate = pgTable(
+	'expense_not_duplicate',
+	{
+		familyId: familyId(),
+		a: integer('a').notNull(),
+		b: integer('b').notNull()
+	},
+	(t) => [
+		primaryKey({ columns: [t.familyId, t.a, t.b] }),
+		foreignKey({
+			name: 'expense_not_duplicate_a_fk',
+			columns: [t.familyId, t.a],
+			foreignColumns: [expense.familyId, expense.id]
+		}).onDelete('cascade'),
+		foreignKey({
+			name: 'expense_not_duplicate_b_fk',
+			columns: [t.familyId, t.b],
+			foreignColumns: [expense.familyId, expense.id]
+		}).onDelete('cascade'),
+		familyRows('expense_not_duplicate_own', t.familyId)
 	]
 ).enableRLS();
 

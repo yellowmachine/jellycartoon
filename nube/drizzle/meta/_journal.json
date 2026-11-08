@@ -498,6 +498,13 @@
       "when": 1794143750020,
       "tag": "0070_brainy_midnight",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1794157564570,
+      "tag": "0071_gorgeous_thaddeus_ross",
+      "breakpoints": true
     }
   ]
 }

@@ -191,7 +191,9 @@ export async function addExpense(
 	file: Uint8Array | null = null,
 	recurringId: number | null = null,
 	billInput: BillInput | null = null,
-	userId: string | null = k.userId
+	userId: string | null = k.userId,
+	/** Its file's, as chosen (#440): to see it put in again. */
+	fileHash: string | null = null
 ) {
 	const { lines: _, ...values } = input;
 	const receipt = file ? await keepReceipt(k, file) : null;
@@ -199,7 +201,15 @@ export async function addExpense(
 		return await k.run(async (tx) => {
 			const [row] = await tx
 				.insert(expense)
-				.values({ ...values, familyId: k.familyId, source, userId, recurringId, receipt })
+				.values({
+					...values,
+					familyId: k.familyId,
+					source,
+					userId,
+					recurringId,
+					receipt,
+					fileHash: receipt ? fileHash : null
+				})
 				.returning({ id: expense.id });
 			await writeLines(tx, k.familyId, row!.id, input);
 			if (billInput) await writeBill(tx, k.familyId, row!.id, billInput);

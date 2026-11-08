@@ -374,6 +374,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		joining: 'moves',
 		zip: { file: 'gastos-lineas', where: [among('expenseId', 'expense', 'id')] }
 	},
+	expense_not_duplicate: {
+		leaving: 'stays',
+		joining: 'moves',
+		zip: false,
+		note: 'Pairs of expenses said not to be the same (#440)'
+	},
 	expense_favorite: {
 		leaving: 'stays',
 		joining: 'moves',

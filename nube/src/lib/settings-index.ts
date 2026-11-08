@@ -120,6 +120,13 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		words: 'coche coches dónde está aparcado aparcar parking mi coche el tuyo furgo'
 	},
 	{
+		id: 'avisos-paginas',
+		tab: 'familia',
+		title: 'Avisos en las páginas',
+		words:
+			'avisos amarillo repetido duplicado ticket factura dos veces descuido no me lo vuelvas a decir gastos'
+	},
+	{
 		id: 'casa',
 		tab: 'conexiones',
 		title: 'Tu casa',

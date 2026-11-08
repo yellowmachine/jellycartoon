@@ -123,6 +123,8 @@ import { MAX_CAR_NAME } from '#lib/cars.ts';
 import { fold } from 'comun/music.ts';
 import { subtitleStyleOf } from '#lib/server/subtitles.ts';
 import { prayerModeOn, setPrayerMode } from '#lib/server/prayers.ts';
+import { pageNoticesOf, setNoticeKind, setPageNotices } from '#lib/server/page-notices.ts';
+import { isPageNoticeKind } from 'comun/page-notices.ts';
 
 /** «¿Qué pasaría…?»'s «y si…» (#389, phase 2), from its form: what is not known, as it is. */
 function ifsOf(form: FormData): WhatIf {
@@ -214,6 +216,8 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		sections: admin
 			? sectionList(await hasHouse(locals.user!.id), await familySections(k), await prayerModeOn(k))
 			: null,
+		/** «Avisos en las páginas» (#440): any adult, as anyone may say «No me lo vuelvas a decir». */
+		pageNotices: await pageNoticesOf(k),
 		/** «Dónde vivís», if said: only its administrator. */
 		place: admin ? await familyPlace(k).then((p) => ({ name: p ? placeName(p) : null })) : null,
 		/** And how it talks to each one. */
@@ -441,6 +445,16 @@ export const actions: Actions = {
 		const on = (await request.formData()).get('on') === 'on';
 		await setVoiceLearn(await kitchenOf(locals.user!.id), on);
 		return { saved: 'voiceLearn' };
+	},
+	/** «Avisos en las páginas» (#440): on or off, and each kind shown, ticked or not. */
+	savePageNotices: async ({ request, locals }) => {
+		const form = await request.formData();
+		const k = await kitchenOf(locals.user!.id);
+		await setPageNotices(k, form.get('on') === 'on');
+		const ticked = form.getAll('kind').map(String);
+		for (const kind of form.getAll('shown').map(String).filter(isPageNoticeKind))
+			await setNoticeKind(k, kind, ticked.includes(kind));
+		return { saved: 'pageNotices' };
 	},
 	/** The bar's sections, the ticked ones on; Oración (#339) with its own on or off. */
 	saveSections: async ({ request, locals }) => {
