@@ -14,6 +14,7 @@
 		| 'paseos'
 		| 'notas'
 		| 'estadisticas'
+		| 'enchufes'
 		| 'nevera'
 		| 'gastos'
 		| 'papeles'
@@ -114,6 +115,10 @@
 	{:else if name === 'estadisticas'}
 		<!-- Three columns on a line. -->
 		<path d="M3 20.5h18M6.5 20.5v-6M12 20.5V5M17.5 20.5v-10" />
+	{:else if name === 'enchufes'}
+		<!-- A plug (Lucide's plug). -->
+		<path d="M12 22v-5M9 8V2M15 8V2" />
+		<path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
 	{:else if name === 'paseos'}
 		<!-- Footprints (Lucide's footprints). -->
 		<path

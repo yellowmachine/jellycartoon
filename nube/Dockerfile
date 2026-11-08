@@ -29,7 +29,7 @@ COPY --from=build /app/nube/build ./build
 COPY --from=build /app/nube/drizzle ./drizzle
 COPY --from=build /app/nube/scripts ./scripts
 COPY --from=build /app/nube/src/lib/server/db ./src/lib/server/db
-COPY --from=build /app/nube/package.json ./
+COPY --from=build /app/nube/package.json /app/nube/server.js ./
 ENV NODE_ENV=production PORT=3000
 # Requests up to this (adapter-node's default, 512K): Ingresos' invoices (10 MB) and the house's AI
 # through the family's key (/api/casa/ia), whose episode titles carry 75 frames.
@@ -38,4 +38,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=1m --retries=3 \
 	CMD ["bun", "-e", "fetch('http://localhost:3000/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
 # The migrations as the owner (MIGRATE_DATABASE_URL), then the app as its role (DATABASE_URL).
-CMD ["sh", "-c", "bun scripts/migrate.ts && exec bun build/index.js"]
+CMD ["sh", "-c", "bun scripts/migrate.ts && exec bun server.js"]

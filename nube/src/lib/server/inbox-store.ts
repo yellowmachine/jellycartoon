@@ -20,7 +20,9 @@ export type InboxKind =
 	| 'propuesta'
 	| 'aprendido'
 	// The family's AI stopped (ai-block.ts), to who runs it.
-	| 'ia';
+	| 'ia'
+	// A smart plug's (#396): a washing machine done, a fridge stopped…
+	| 'enchufe';
 
 /**
  * Something offered in the inbox, answered with yes or no (#331): to remember (phase 5; older ones

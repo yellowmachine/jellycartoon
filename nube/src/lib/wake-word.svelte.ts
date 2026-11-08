@@ -5,7 +5,7 @@ import { isWakeWord, type WakeWordModel } from 'comun/wake-words.ts';
 import { voice } from '#lib/voice-client.svelte.ts';
 
 /**
- * Saying «Alexa» (or «Okapi», «Ocarina», «Kusanagi», «hola casita») instead of pressing the microphone (jellycartoon's
+ * Saying «Alexa» (or «Okapi», «Ocarina», «Kusanagi», «Makoto», «hola casita») instead of pressing the microphone (jellycartoon's
  * src/lib/wake-word.svelte.ts, without its tests and cleaning), turned on in each place on each
  * device, kept in the browser: in the road mode, while Carretera is open and in front; in the
  * kitchen (#60), while its mode is on, on any page. The word, the family's if it chose one

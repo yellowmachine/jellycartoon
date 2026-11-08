@@ -19,7 +19,7 @@
 	import { sectionOn, type SectionChoices } from '#lib/nav.ts';
 	import { durationText } from '#lib/trips.ts';
 	import type { CarView } from '#lib/cars.ts';
-	import type { NewsCard } from '#lib/news.ts';
+	import { newsShown, newsUnread, type NewsCard } from '#lib/news.ts';
 	import CarCard from '#lib/components/CarCard.svelte';
 	import { section } from '#lib/styles.ts';
 
@@ -250,6 +250,26 @@
 			body: JSON.stringify({ id }),
 			keepalive: true
 		}).catch(() => {});
+	}
+	// The category chosen on the card: kept on this device. null is «Todas».
+	const NEWS_GROUP_KEY = 'seilide:noticias-categoria';
+	let newsGroup = $state<number | null>(null);
+	onMount(() => {
+		try {
+			const saved = Number(localStorage.getItem(NEWS_GROUP_KEY));
+			newsGroup = Number.isSafeInteger(saved) && saved > 0 ? saved : null;
+		} catch {
+			// A private window: «Todas».
+		}
+	});
+	function chooseNewsGroup(id: number | null) {
+		newsGroup = id;
+		try {
+			if (id === null) localStorage.removeItem(NEWS_GROUP_KEY);
+			else localStorage.setItem(NEWS_GROUP_KEY, String(id));
+		} catch {
+			// A private window: until it reloads.
+		}
 	}
 	/** Its time if today, else its day. */
 	function newsWhen(at: string) {
@@ -530,7 +550,8 @@
 
 {#await news then card}
 	{#if card}
-		{@const items = card.items.filter((i) => !readNews.includes(i.id))}
+		{@const group = card.groups.some((g) => g.id === newsGroup) ? newsGroup : null}
+		{@const items = newsShown(card, group, readNews)}
 		<section class={section}>
 			<div class="mb-3 flex items-baseline justify-between">
 				<h2 class="font-semibold">📰 Noticias</h2>
@@ -550,26 +571,51 @@
 				</p>
 			{:else if card.problem === 'down'}
 				<p class="text-sm text-zinc-400">Miniflux no contesta ahora.</p>
-			{:else if items.length}
-				<ul class="flex flex-col gap-3">
-					{#each items as item (item.id)}
-						<li>
-							<a
-								href={item.url}
-								target="_blank"
-								rel="noopener noreferrer"
-								onclick={() => openedNews(item.id)}
-								onauxclick={(e) => e.button === 1 && openedNews(item.id)}
-								class="hover:underline">{item.title}</a
-							>
-							<p class="text-sm text-zinc-500">
-								{[item.source, item.at && newsWhen(item.at)].filter(Boolean).join(' · ')}
-							</p>
-						</li>
-					{/each}
-				</ul>
 			{:else}
-				<p class="text-sm text-zinc-400">Nada sin leer.</p>
+				{#if card.groups.length > 1}
+					<div
+						class="-mx-1 mb-3 flex gap-2 overflow-x-auto px-1 pb-1"
+						role="group"
+						aria-label="Categorías"
+					>
+						{#each [null, ...card.groups] as g (g?.id ?? 0)}
+							{@const on = (g?.id ?? null) === group}
+							{@const count = g && newsUnread(card, g, readNews)}
+							<button
+								type="button"
+								aria-pressed={on}
+								onclick={() => chooseNewsGroup(g?.id ?? null)}
+								class="shrink-0 rounded-full px-3 py-1 text-sm whitespace-nowrap {on
+									? 'bg-amber-400 font-medium text-zinc-900'
+									: 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'}"
+								>{g ? g.title : 'Todas'}{#if count}<span
+										class="ml-1.5 {on ? 'text-zinc-700' : 'text-zinc-500'}">{count}</span
+									>{/if}</button
+							>
+						{/each}
+					</div>
+				{/if}
+				{#if items.length}
+					<ul class="flex flex-col gap-3">
+						{#each items as item (item.id)}
+							<li>
+								<a
+									href={item.url}
+									target="_blank"
+									rel="noopener noreferrer"
+									onclick={() => openedNews(item.id)}
+									onauxclick={(e) => e.button === 1 && openedNews(item.id)}
+									class="hover:underline">{item.title}</a
+								>
+								<p class="text-sm text-zinc-500">
+									{[item.source, item.at && newsWhen(item.at)].filter(Boolean).join(' · ')}
+								</p>
+							</li>
+						{/each}
+					</ul>
+				{:else}
+					<p class="text-sm text-zinc-400">Nada sin leer.</p>
+				{/if}
 			{/if}
 		</section>
 	{/if}

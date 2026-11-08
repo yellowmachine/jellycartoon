@@ -27,6 +27,11 @@ export function watchSatellite(id: string, listener: () => void) {
 	return () => void set.delete(listener);
 }
 
+/** This satellite told again what it has (a plug task for it, #396). */
+export function nudgeSatellite(id: string) {
+	for (const listener of listeners.get(id) ?? []) listener();
+}
+
 /** Said once (#331): what each satellite is to say, kept a while for it to come and say it. */
 const SAY_MS = 10 * 60_000;
 const toSay = new Map<string, { id: string; text: string; until: number }[]>();

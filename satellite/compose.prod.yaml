@@ -9,6 +9,9 @@ services:
   satellite:
     image: ghcr.io/yellowmachine/jellycartoon-satellite:${IMAGE_TAG:-stable}
     restart: unless-stopped
+    # The host's network (#396): finding the Shelly plugs by mDNS, whose multicast Docker's bridge
+    # does not pass. It opens no port.
+    network_mode: host
     devices:
       - /dev/snd
     group_add:
@@ -17,7 +20,7 @@ services:
       MIC: ${MIC:-default}
       MIC_RATE: ${MIC_RATE:-48000}
       MIC_CHANNELS: ${MIC_CHANNELS:-2}
-      # The word that wakes it (comun/wake-words.ts): hola_casita, alexa, okapi, ocarina or kusanagi.
+      # The word that wakes it (comun/wake-words.ts): hola_casita, alexa, okapi, ocarina, kusanagi or makoto.
       # Only until the family chooses one in Seilide (Ajustes), which then counts for all of them.
       WAKE_WORD: ${WAKE_WORD:-hola_casita}
       WAKE_THRESHOLD: ${WAKE_THRESHOLD:-0.3}
