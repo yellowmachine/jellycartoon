@@ -174,6 +174,17 @@
 			</section>
 		{/if}
 
+		{#if data.kind === 'Luz'}
+			<a
+				href="/gastos/facturas/simular"
+				class="mb-8 block rounded-lg bg-zinc-900 p-4 text-sm hover:bg-zinc-800"
+				><span class="font-semibold">¿Y si…?</span>
+				<span class="block text-zinc-400"
+					>Cuánto habrías pagado con otra tarifa, con tus facturas.</span
+				></a
+			>
+		{/if}
+
 		<!-- Is too much power contracted? (bill-analysis.ts, powerAnalysis) -->
 		{#if data.power}
 			{@const pw = data.power}
