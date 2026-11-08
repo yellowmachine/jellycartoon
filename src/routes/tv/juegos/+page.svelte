@@ -14,6 +14,7 @@
 		gba: { text: 'text-indigo-300', tone: 'from-indigo-500/45 via-violet-600/25' },
 		mastersystem: { text: 'text-rose-300', tone: 'from-rose-500/45 via-red-600/25' },
 		megadrive: { text: 'text-sky-300', tone: 'from-sky-500/45 via-blue-600/25' },
+		atari2600: { text: 'text-orange-300', tone: 'from-orange-500/45 via-amber-700/25' },
 		steam: { text: 'text-cyan-300', tone: 'from-cyan-500/45 via-slate-600/25' }
 	};
 	const toneOf = (id: string) => TONES[id] ?? TONES.gb;

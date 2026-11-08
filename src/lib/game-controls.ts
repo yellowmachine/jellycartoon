@@ -64,6 +64,11 @@ const CONSOLE_BUTTONS: Record<string, ConsoleButton[]> = {
 		{ id: 2, short: 'Mode', label: 'Mode' },
 		START
 	],
+	atari2600: [
+		{ id: 0, short: 'Fuego', label: 'Fuego' },
+		SELECT,
+		{ id: 3, short: 'Reset', label: 'Reset' }
+	],
 	// FinalBurn Neo: each game uses them its own way, in this order.
 	arcade: [
 		{ id: 0, short: '1', label: 'Botón 1' },
