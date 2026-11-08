@@ -1,6 +1,8 @@
+import { version } from '$app/env';
 import { immutable } from '$app/manifest';
 import { self } from '$app/service-worker';
 import { EJS_CACHE, EJS_DATA, GAMES_CACHE, PLAYER_PAGE } from '#lib/offline-games.ts';
+import { KEPT_PAGES, OFFLINE_PAGE, PAGES_CACHE_PREFIX } from '#lib/offline-pages.ts';
 import { SHARED_CACHE, SHARED_KEY } from '#lib/shared-file.ts';
 
 /**
@@ -121,14 +123,44 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 /**
- * The app's own code (its hashed files, which never change), kept once it is loaded: so that
- * /juegos/aqui opens with no network, its pages' code loaded beforehand (offline-games.svelte.ts).
- * Only this version's: what a new one no longer has goes as it starts.
+ * The app's own code (its hashed files, which never change), kept as a version installs, as in
+ * SvelteKit's documented service worker (https://svelte.dev/docs/kit/service-workers): so that the
+ * app opens with no network. Only what is missing: most files stay from one version to the next.
+ * Not the wake word's WebAssembly (14 MB), which only a voice with network uses. Only this
+ * version's: what a new one no longer has goes as it starts.
  */
 const CODE_CACHE = 'codigo';
 const code = new Set(
 	immutable.map(({ path }) => new URL(path, `${self.location.origin}/`).pathname)
 );
+/** This version's pages (offline-pages.ts): they name its code. */
+const PAGES_CACHE = `${PAGES_CACHE_PREFIX}${version}`;
+
+/** A page's own answer, to keep: not a redirect (to /login, the session gone) nor an error. */
+const isPage = (response: Response) =>
+	response.ok &&
+	!response.redirected &&
+	Boolean(response.headers.get('content-type')?.startsWith('text/html'));
+
+async function keepCode() {
+	const cache = await caches.open(CODE_CACHE);
+	const held = new Set((await cache.keys()).map((r) => new URL(r.url).pathname));
+	await cache.addAll([...code].filter((path) => !held.has(path) && !path.endsWith('.wasm')));
+}
+
+/** The pages, with the session's cookie: with none (not in), none kept, and the next time. */
+async function keepPages() {
+	const cache = await caches.open(PAGES_CACHE);
+	for (const { path, from } of KEPT_PAGES) {
+		const response = await fetch(from).catch(() => null);
+		if (response && isPage(response)) await cache.put(path, response);
+	}
+}
+
+self.addEventListener('install', (event) => {
+	// Without its code the new version does not install: the old one goes on, and it tries again.
+	event.waitUntil(Promise.all([keepCode(), keepPages().catch(() => {})]));
+});
 
 self.addEventListener('activate', (event) => {
 	event.waitUntil(
@@ -136,6 +168,8 @@ self.addEventListener('activate', (event) => {
 			const cache = await caches.open(CODE_CACHE);
 			for (const request of await cache.keys())
 				if (!code.has(new URL(request.url).pathname)) await cache.delete(request);
+			for (const name of await caches.keys())
+				if (name.startsWith(PAGES_CACHE_PREFIX) && name !== PAGES_CACHE) await caches.delete(name);
 		})()
 	);
 });
@@ -147,6 +181,32 @@ async function fromCode(request: Request) {
 	const response = await fetch(request);
 	if (response.ok) await cache.put(request, response.clone());
 	return response;
+}
+
+/**
+ * Going to a page: the network's, as always. A kept one (offline-pages.ts), kept again, fresh, if
+ * what it shows is the same (not Carretera's, with the server's data).
+ * With no network, the kept one; any other, «Sin conexión», with where it was going. The login's
+ * page, reached: the session is gone, and with it the kept pages, which show who was in.
+ */
+async function navigation(request: Request) {
+	const url = new URL(request.url);
+	const cache = await caches.open(PAGES_CACHE);
+	try {
+		const response = await fetch(request);
+		const kept = KEPT_PAGES.some((p) => p.path === url.pathname && p.from === p.path);
+		if (kept && isPage(response)) void cache.put(url.pathname, response.clone());
+		if (url.pathname === '/login' && response.ok) void caches.delete(PAGES_CACHE);
+		return response;
+	} catch (problem) {
+		const page = await cache.match(url.pathname);
+		if (page) return page;
+		if (url.pathname !== OFFLINE_PAGE && (await cache.match(OFFLINE_PAGE))) {
+			const from = encodeURIComponent(url.pathname + url.search);
+			return Response.redirect(`${OFFLINE_PAGE}?desde=${from}`, 302);
+		}
+		throw problem;
+	}
 }
 
 /**
@@ -188,4 +248,6 @@ self.addEventListener('fetch', (event) => {
 		event.respondWith(kept(GAMES_CACHE, request));
 	else if (here && request.method === 'GET' && url.pathname === PLAYER_PAGE)
 		event.respondWith(playerPage(request));
+	else if (here && request.method === 'GET' && request.mode === 'navigate')
+		event.respondWith(navigation(request));
 });
