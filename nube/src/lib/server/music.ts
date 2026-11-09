@@ -1,4 +1,11 @@
-import type { DjOptions, DjPreset, MusicAlbum, MusicFolder, MusicTrack } from 'comun/music.ts';
+import type {
+	DjOptions,
+	DjPreset,
+	MusicAlbum,
+	MusicFolder,
+	MusicTrack,
+	ProgressSave
+} from 'comun/music.ts';
 import { askHouse, HouseProblem } from './house.ts';
 
 /**
@@ -179,3 +186,11 @@ export const djWords = (who: Who, body: unknown) =>
 		{ method: 'POST', body: JSON.stringify(body) },
 		DJ_WORDS_MS
 	);
+
+/** Where who listens left each long audio without an album (track id → seconds). */
+export const musicProgress = async (who: Who) =>
+	(await askHouse<{ progress: Record<number, number> }>(who.id, who.email, '/musica/progreso'))
+		.progress;
+
+export const saveMusicProgress = (who: Who, save: ProgressSave) =>
+	askHouse(who.id, who.email, '/musica/progreso', { method: 'POST', body: JSON.stringify(save) });

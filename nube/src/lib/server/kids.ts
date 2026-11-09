@@ -200,6 +200,7 @@ const KID_APIS = [
 	'/api/series',
 	'/api/musica',
 	'/api/music/playlists',
+	'/api/music/progress',
 	'/api/subtitulos',
 	// Its answers (#142); the grown-ups' homework APIs refuse a child themselves.
 	'/api/deberes'

@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
 	groupByArtist,
+	parseProgressSave,
+	resumable,
 	mixed,
 	masterVolume,
 	parseDjOptions,
@@ -218,5 +220,42 @@ describe('mixed', () => {
 	test('none or one: as they are', () => {
 		expect(mixed([])).toEqual([]);
 		expect(mixed(['a'])).toEqual(['a']);
+	});
+});
+
+describe('long audios, where they were left', () => {
+	const t = (more: object) =>
+		({
+			id: 1,
+			title: 'x',
+			artist: '',
+			number: null,
+			durationSec: 3600,
+			albumId: 0,
+			album: 'Charlas',
+			hasCover: false,
+			...more
+		}) as Parameters<typeof resumable>[0];
+
+	test('only without an album, and long', () => {
+		expect(resumable(t({}))).toBe(true);
+		expect(resumable(t({ albumId: 3 }))).toBe(false);
+		expect(resumable(t({ durationSec: 240 }))).toBe(false);
+		expect(resumable(t({ durationSec: null }))).toBe(false);
+		expect(resumable(t({ src: '/oracion/1' }))).toBe(false);
+	});
+
+	test('what the browser sends', () => {
+		expect(parseProgressSave({ trackId: 4, positionSec: 61.5 })).toEqual({
+			trackId: 4,
+			positionSec: 61.5
+		});
+		expect(parseProgressSave({ trackId: 4, positionSec: -3 })).toEqual({
+			trackId: 4,
+			positionSec: 0
+		});
+		expect(parseProgressSave({ trackId: 0, positionSec: 1 })).toBeNull();
+		expect(parseProgressSave({ trackId: 4, positionSec: Infinity })).toBeNull();
+		expect(parseProgressSave(null)).toBeNull();
 	});
 });

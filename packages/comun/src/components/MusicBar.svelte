@@ -11,12 +11,26 @@
 	import { formatDuration } from '../format.ts';
 	import { GAVE_UP, RETRYING, TRIES, recoverFromErrors, retryDelay } from '../hls-recovery.ts';
 	import { dj } from '../dj.svelte.ts';
-	import { audioUrl, coverUrl, heldHere, stopTime, trackHome, type MusicTrack } from '../music.ts';
+	import {
+		audioUrl,
+		coverUrl,
+		heldHere,
+		resumable,
+		stopTime,
+		trackHome,
+		type MusicTrack
+	} from '../music.ts';
 	import { music } from '../music-player.svelte.ts';
 	import { musicQuality } from '../music-quality.svelte.ts';
 	import { keepQueue } from '../music-queue.svelte.ts';
 	import { keepPodcastProgress, podcastEnded } from '../podcast-player.svelte.ts';
 	import { keepListeningProgress, listeningEnded } from '../episode-listening.svelte.ts';
+	import {
+		heardTrack,
+		keepTrackProgress,
+		refreshProgress,
+		resumeAt
+	} from '../track-progress.svelte.ts';
 	import { SKIP_BACK, SKIP_FORWARD, SPEEDS, type Speed } from '../podcasts.ts';
 	import { COUNTRIES } from '../radio.ts';
 	import {
@@ -107,6 +121,26 @@
 	keepQueue();
 	keepPodcastProgress();
 	keepListeningProgress();
+	keepTrackProgress();
+
+	/**
+	 * The track whose audio `audio` has (set as it is loaded): its position is that one's, not the
+	 * one now on while it is being changed (track-progress).
+	 */
+	let loadedId: number | null = null;
+
+	/**
+	 * A long audio without an album, started where this page knew it was left: asked again (it may
+	 * have been heard elsewhere since) and taken there, unless it was moved by hand meanwhile.
+	 */
+	function goOnWhereLeft(el: HTMLAudioElement, track: MusicTrack, startAt: number) {
+		if (!resumable(track)) return;
+		void refreshProgress().then(() => {
+			const at = resumeAt(track);
+			if (loadedId !== track.id || el !== audio) return;
+			if (Math.abs(el.currentTime - startAt) < 3 && Math.abs(at - startAt) > 3) el.currentTime = at;
+		});
+	}
 
 	/** The speed chosen for podcasts, kept in this browser. */
 	const SPEED_KEY = 'podcast-speed';
@@ -389,22 +423,34 @@
 				music.positionSec = 0;
 			});
 			next.volume = ending.volume;
-			if (handingOff) handingOff = false;
-			else {
+			// A long audio without an album, where it was left; a song, from its start.
+			const startAt = current ? untrack(() => resumeAt(current)) : 0;
+			loadedId = current?.id ?? null;
+			if (handingOff) {
+				handingOff = false;
+				if (startAt) next.currentTime = startAt;
+			} else {
 				music.askedPauseAt = Date.now();
 				ending.pause();
-				next.currentTime = 0;
+				next.currentTime = startAt;
 				watchPlay(next.play(), 'música');
 			}
+			if (current) goOnWhereLeft(next, current, startAt);
 			return;
 		}
 		// Started in the other for a song that is not the one now: silenced.
 		if (handingOff) next?.pause();
 		handingOff = false;
 		audio.src = src;
-		const startAt = restored?.positionSec ?? untrack(() => podcast?.positionSec) ?? 0;
+		loadedId = podcast ? null : (current?.id ?? null);
+		const startAt =
+			restored?.positionSec ??
+			untrack(() => podcast?.positionSec ?? (current ? resumeAt(current) : 0));
 		if (startAt) audio.currentTime = startAt;
-		if (!restored) watchPlay(audio.play(), 'música');
+		if (!restored) {
+			watchPlay(audio.play(), 'música');
+			if (current && !podcast) goOnWhereLeft(audio, current, startAt);
+		}
 	});
 
 	// The next song, loading in the other `<audio>` (`preload="auto"`) while this one plays: with
@@ -604,6 +650,9 @@
 		if (listening && listeningLoaded === listening) listening.positionSec = audio.currentTime;
 		const duration = Number.isFinite(audio.duration) ? audio.duration : null;
 		music.durationSec = duration;
+		// A long audio without an album: where it is, to go on from there (track-progress).
+		if (current && !podcast && !radio && !listening && loadedId === current.id)
+			heardTrack(current, audio.currentTime, duration);
 		if (duration && 'mediaSession' in navigator) {
 			try {
 				navigator.mediaSession.setPositionState({

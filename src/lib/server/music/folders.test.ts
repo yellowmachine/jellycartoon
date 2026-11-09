@@ -3,7 +3,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import * as schema from '#lib/server/db/schema.ts';
-import { album, musicPlaylist, musicPlaylistItem, track } from '#lib/server/db/schema.ts';
+import { album, musicPlaylist, musicPlaylistItem, track, user } from '#lib/server/db/schema.ts';
 
 /**
  * Música → Carpetas: the music as it is on disk, with the audios that have no album (a podcast
@@ -20,6 +20,7 @@ mock.module('#lib/server/library/paths.ts', () => ({
 mock.module('./catalog.ts', () => ({ wakeMusicCatalog: async () => {} }));
 const { musicFolder, tracksById } = await import('./albums.ts');
 const { getPlaylist } = await import('./playlists.ts');
+const { getProgress, saveProgress } = await import('./progress.ts');
 
 const file = (path: string, more: Partial<typeof track.$inferInsert> = {}) => ({
 	path,
@@ -117,5 +118,23 @@ describe('Carpetas', () => {
 			['Episodio 9', false],
 			['Bohemian', true]
 		]);
+	});
+});
+
+describe('Where a long audio was left', () => {
+	test('kept per person, moved on, and forgotten once heard', async () => {
+		const now = new Date();
+		await db.insert(user).values([
+			{ id: 'ana', name: 'Ana', email: 'ana@casa', createdAt: now, updatedAt: now },
+			{ id: 'leo', name: 'Leo', email: 'leo@casa', createdAt: now, updatedAt: now }
+		]);
+		expect(await saveProgress('ana', { trackId: talk, positionSec: 600 })).toBe(true);
+		expect(await saveProgress('ana', { trackId: talk, positionSec: 1200.5 })).toBe(true);
+		expect(await saveProgress('leo', { trackId: talk, positionSec: 30 })).toBe(true);
+		expect(await getProgress('ana')).toEqual({ [talk]: 1200.5 });
+		expect(await saveProgress('ana', { trackId: 999_999, positionSec: 10 })).toBe(false);
+		await saveProgress('ana', { trackId: talk, positionSec: 0 });
+		expect(await getProgress('ana')).toEqual({});
+		expect(await getProgress('leo')).toEqual({ [talk]: 30 });
 	});
 });
