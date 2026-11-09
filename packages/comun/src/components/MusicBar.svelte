@@ -11,7 +11,7 @@
 	import { formatDuration } from '../format.ts';
 	import { GAVE_UP, RETRYING, TRIES, recoverFromErrors, retryDelay } from '../hls-recovery.ts';
 	import { dj } from '../dj.svelte.ts';
-	import { audioUrl, coverUrl, heldHere, stopTime, type MusicTrack } from '../music.ts';
+	import { audioUrl, coverUrl, heldHere, stopTime, trackHome, type MusicTrack } from '../music.ts';
 	import { music } from '../music-player.svelte.ts';
 	import { musicQuality } from '../music-quality.svelte.ts';
 	import { keepQueue } from '../music-queue.svelte.ts';
@@ -861,10 +861,11 @@ and the speed. -->
 		<!-- On the phone, two rows: what sounds, with all the width it can get (the title was barely
 		     readable next to five buttons), then the time and the controls. One row from sm. -->
 		<div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 sm:flex-nowrap sm:gap-3">
-			<!-- The DJ's words, and what is not the library's (a prayer), have no album to go to. -->
+			<!-- To its album, or its folder (an audio without one); the DJ's words, and what is not the
+			     library's (a prayer), have nowhere to go. -->
 			<svelte:element
-				this={current.clip || current.src ? 'div' : 'a'}
-				href={current.clip || current.src ? undefined : `/musica/${current.albumId}`}
+				this={trackHome(current) ? 'a' : 'div'}
+				href={trackHome(current) ?? undefined}
 				class="order-1 flex min-w-0 flex-1 items-center gap-3"
 			>
 				{#if current.hasCover}

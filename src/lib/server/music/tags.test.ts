@@ -3,6 +3,7 @@ import {
 	albumArtist,
 	audioType,
 	discIdFromToc,
+	fileTitle,
 	isDownload,
 	isMusicFile,
 	isOpus,
@@ -13,6 +14,12 @@ import {
 	titlesMatch,
 	trackNumber
 } from './tags.ts';
+
+test('fileTitle: without extension nor the video id', () => {
+	expect(fileTitle('Podcasts/La entrevista [ix5Ntnavdgg].opus')).toBe('La entrevista');
+	expect(fileTitle('Charlas/01 - Bienvenida.mp3')).toBe('01 - Bienvenida');
+	expect(fileTitle('x/[ix5Ntnavdgg].mp3')).toBe('[ix5Ntnavdgg]');
+});
 
 describe('isDownload', () => {
 	test('yt-dlp names, not CD rips', () => {
@@ -27,10 +34,11 @@ describe('isDownload', () => {
 	});
 });
 
-test('music files: FLAC rips and Opus, served as they are', () => {
+test('music files: FLAC rips, Opus and MP3, served as they are', () => {
 	expect(isMusicFile('Queen/01 - Bohemian Rhapsody.flac')).toBe(true);
 	expect(isMusicFile('Movida/001 - Alaska y Dinarama - A quién le importa.OPUS')).toBe(true);
-	expect(isMusicFile('80s/Song [ix5Ntnavdgg].mp3')).toBe(false);
+	expect(isMusicFile('Podcasts/Charla [ix5Ntnavdgg].MP3')).toBe(true);
+	expect(audioType('Podcasts/Charla.mp3')).toBe('audio/mpeg');
 	expect(isMusicFile('Queen/cover.jpg')).toBe(false);
 	expect(audioType('a/01.flac')).toBe('audio/flac');
 	expect(audioType('a/01.opus')).toBe('audio/ogg');

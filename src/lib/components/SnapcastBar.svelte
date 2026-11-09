@@ -2,7 +2,7 @@
 	import MediaIcon from 'comun/components/MediaIcon.svelte';
 	import PlayModes from 'comun/components/PlayModes.svelte';
 	import { formatDuration } from 'comun/format.ts';
-	import { coverUrl, masterSpeakers, masterVolume, stopTime } from 'comun/music.ts';
+	import { coverUrl, masterSpeakers, masterVolume, stopTime, trackHome } from 'comun/music.ts';
 	import { musicTarget, watchSnapcast } from 'comun/music-target.svelte.ts';
 	import { COUNTRIES } from 'comun/radio.ts';
 	import { thumbUrl } from 'comun/thumb.svelte.ts';
@@ -200,9 +200,7 @@
 					? '/radio'
 					: episode
 						? `/series/${episode.seriesId}`
-						: track && !track.clip && !track.src
-							? `/musica/${track.albumId}`
-							: '/musica'}
+						: ((track && trackHome(track)) ?? '/musica')}
 				class="flex min-w-0 flex-1 items-center gap-3"
 			>
 				{#if radio?.favicon}

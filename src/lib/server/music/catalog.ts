@@ -9,7 +9,14 @@ import { findCovers } from './covers.ts';
 import { findLyrics } from './lyrics.ts';
 import { wakeOpus } from './opus.ts';
 import { musicProgress } from './status.ts';
-import { albumArtist, discIdFromToc, normalizeTags, trackNumber } from './tags.ts';
+import {
+	albumArtist,
+	discIdFromToc,
+	fileTitle,
+	isDownload,
+	normalizeTags,
+	trackNumber
+} from './tags.ts';
 
 let running: Promise<void> | null = null;
 
@@ -34,7 +41,7 @@ export function wakeMusicCatalog() {
 async function readPending() {
 	musicProgress.phase = 'reading';
 	// Said once, when done: a line per track would fill the Registro.
-	const read = { ready: 0, ignored: 0 };
+	const read = { ready: 0, loose: 0 };
 	for (;;) {
 		const [next] = await db
 			.select({ id: track.id, path: track.path })
@@ -42,10 +49,10 @@ async function readPending() {
 			.where(and(eq(track.status, 'pending'), eq(track.missing, false)))
 			.limit(1);
 		if (!next) {
-			if (read.ready || read.ignored)
+			if (read.ready || read.loose)
 				log.info(
 					'música',
-					`Leídas las etiquetas de ${read.ready} pistas${read.ignored ? ` (${read.ignored} sin álbum, apartadas)` : ''}`,
+					`Leídas las etiquetas de ${read.ready + read.loose} pistas${read.loose ? ` (${read.loose} sin álbum, solo en Carpetas)` : ''}`,
 					{ ...read }
 				);
 			return;
@@ -57,12 +64,24 @@ async function readPending() {
 			// FLAC keeps its tags in the format; Ogg (Opus) in its audio stream.
 			const audio = info.streams.find((s) => s.codec_type === 'audio');
 			const tags = normalizeTags({ ...audio?.tags, ...info.format.tags });
-			if (!tags.album) {
+			const durationSec = Number(info.format.duration) || null;
+			// Without an album, or downloaded: an audio on its own, only in Carpetas.
+			if (!tags.album || isDownload(next.path)) {
 				await db
 					.update(track)
-					.set({ status: 'ignored', albumId: null, error: null })
+					.set({
+						status: 'ready',
+						error: null,
+						albumId: null,
+						title: tags.title ?? fileTitle(next.path),
+						artist: tags.artist ?? null,
+						albumArtist: null,
+						albumTitle: null,
+						number: trackNumber(tags.tracknumber ?? tags.track),
+						durationSec
+					})
 					.where(eq(track.id, next.id));
-				read.ignored++;
+				read.loose++;
 				continue;
 			}
 
@@ -79,12 +98,12 @@ async function readPending() {
 					status: 'ready',
 					error: null,
 					albumId,
-					title: tags.title ?? path.parse(next.path).name,
+					title: tags.title ?? fileTitle(next.path),
 					artist: tags.artist ?? null,
 					albumArtist: tags.albumartist ?? null,
 					albumTitle: tags.album,
 					number: trackNumber(tags.tracknumber ?? tags.track),
-					durationSec: Number(info.format.duration) || null
+					durationSec
 				})
 				.where(eq(track.id, next.id));
 			await refreshAlbum(albumId, discIdFromToc(tags.cdtoc));

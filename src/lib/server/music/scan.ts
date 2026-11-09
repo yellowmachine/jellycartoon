@@ -7,7 +7,7 @@ import { musicRoot } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 import { wakeMusicCatalog } from './catalog.ts';
 import { musicProgress } from './status.ts';
-import { isDownload, isMusicFile, isOpus } from './tags.ts';
+import { fileTitle, isMusicFile, isOpus } from './tags.ts';
 import { forgetLyrics } from './lyrics.ts';
 
 /** Modified less than a minute ago: probably still being copied. */
@@ -21,15 +21,15 @@ export interface MusicScanResult {
 }
 
 /**
- * FLAC and Opus files, and not downloads named after the video (yt-dlp's default keeps its id): CD
- * rips, and Opus saved with album tags.
+ * FLAC, Opus and MP3 files: CD rips, Opus saved with album tags, and audios on their own
+ * (downloads, podcasts, talks), seen only in Música → Carpetas.
  */
 async function walk(dir: string, files: string[]) {
 	for (const entry of await readdir(dir, { withFileTypes: true })) {
 		if (entry.name.startsWith('.')) continue;
 		const full = path.join(dir, entry.name);
 		if (entry.isDirectory()) await walk(full, files);
-		else if (isMusicFile(entry.name) && !isDownload(entry.name)) {
+		else if (isMusicFile(entry.name)) {
 			files.push(path.relative(musicRoot!, full));
 			musicProgress.found = files.length;
 		}
@@ -71,6 +71,9 @@ async function runScan(): Promise<MusicScanResult> {
 		).map((t) => [t.path, t])
 	);
 	const seen: string[] = [];
+	// Set aside before for having no album (or being a download): now they are read again, to be
+	// audios on their own, in Carpetas.
+	await db.update(track).set({ status: 'pending', error: null }).where(eq(track.status, 'ignored'));
 
 	for (const file of files) {
 		const info = await stat(path.join(musicRoot!, file));
@@ -84,9 +87,7 @@ async function runScan(): Promise<MusicScanResult> {
 		// An Opus file is its own copy for mobile data.
 		const opus = isOpus(file) ? ('ready' as const) : ('pending' as const);
 		if (!existing) {
-			await db
-				.insert(track)
-				.values({ path: file, title: path.parse(file).name, opus, ...fileFields });
+			await db.insert(track).values({ path: file, title: fileTitle(file), opus, ...fileFields });
 			result.added++;
 		} else if (existing.size !== info.size || existing.mtime.getTime() !== info.mtime.getTime()) {
 			// Retagged or replaced: its tags are read again, its Opus made again, its lyrics looked for again.

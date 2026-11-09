@@ -1,4 +1,5 @@
-import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
+import path from 'node:path';
 import { db } from '#lib/server/db/index.ts';
 import {
 	album,
@@ -9,7 +10,7 @@ import {
 	trackTitle
 } from '#lib/server/db/schema.ts';
 import { musicFile } from '#lib/server/library/paths.ts';
-import type { MusicAlbum, MusicTrack } from 'comun/music.ts';
+import type { MusicAlbum, MusicFolder, MusicTrack } from 'comun/music.ts';
 import { wakeMusicCatalog } from './catalog.ts';
 
 /** Albums with their tracks in order, by artist and title; one, or all of them. */
@@ -70,16 +71,117 @@ export async function tracksById(ids: number[]) {
 		.select({ id: track.id, path: track.path, albumId: track.albumId })
 		.from(track)
 		.where(and(inArray(track.id, ids), eq(track.status, 'ready'), eq(track.missing, false)));
-	const albumIds = [...new Set(rows.map((r) => r.albumId!))];
+	const albumIds = [...new Set(rows.flatMap((r) => (r.albumId ? [r.albumId] : [])))];
 	const tracks = new Map<number, MusicTrack>();
 	for (const id of albumIds)
 		for (const a of await getAlbums(id)) for (const t of a.tracks) tracks.set(t.id, t);
+	// Audios on their own (Carpetas): as their folder has them.
+	const loose = rows.filter((r) => !r.albumId).map((r) => r.id);
+	if (loose.length)
+		for (const t of await folderTracks(inArray(track.id, loose))) tracks.set(t.id, t);
 	const paths = new Map(rows.map((r) => [r.id, musicFile(r.path)]));
 	return ids.flatMap((id) => {
 		const t = tracks.get(id);
 		const path = paths.get(id);
 		return t && path ? [{ track: t, path }] : [];
 	});
+}
+
+// ——— Carpetas: the music as it is on disk ———
+
+/** A track's folder, relative to the music's: '' at its top. */
+export const folderOf = (file: string) => {
+	const dir = path.posix.dirname(file);
+	return dir === '.' ? '' : dir;
+};
+
+const natural = (a: string, b: string) =>
+	a.localeCompare(b, 'es', { sensitivity: 'base', numeric: true });
+
+/**
+ * The tracks that can be played where `where` says, with their album if they have one: the rest
+ * with their folder (`albumId` 0, `album` its folder's name), to go to from what sounds.
+ */
+async function folderTracks(where: SQL | undefined) {
+	const rows = await db
+		.select({
+			id: track.id,
+			path: track.path,
+			title: trackTitle,
+			artist: sql<string | null>`${trackArtist}`,
+			number: track.number,
+			durationSec: track.durationSec,
+			albumId: track.albumId,
+			album: sql<string | null>`${albumTitle}`,
+			coverStatus: album.coverStatus
+		})
+		.from(track)
+		.leftJoin(album, eq(album.id, track.albumId))
+		.where(and(eq(track.status, 'ready'), eq(track.missing, false), where));
+	return rows.map((r): MusicTrack & { path: string } => {
+		const folder = folderOf(r.path);
+		return {
+			id: r.id,
+			title: r.title,
+			artist: r.artist ?? '',
+			number: r.number,
+			durationSec: r.durationSec,
+			albumId: r.albumId ?? 0,
+			album: r.album ?? path.posix.basename(folder),
+			hasCover: Boolean(r.albumId) && r.coverStatus === 'found',
+			...(r.albumId ? {} : { folder }),
+			path: r.path
+		};
+	});
+}
+
+/**
+ * A folder of the music (Música → Carpetas): its folders, with how many audios each has inside,
+ * and its own audios in order (a disc's by number, the rest by name, as a file browser would).
+ * With and without an album, all that can be played. Null if nothing can be played in it.
+ */
+export async function musicFolder(folder: string): Promise<MusicFolder | null> {
+	const clean = folder
+		.split('/')
+		.filter((p) => p && p !== '.' && p !== '..')
+		.join('/');
+	const inside = clean ? sql`starts_with(${track.path}, ${`${clean}/`})` : undefined;
+	const all = await folderTracks(inside);
+	if (!all.length) return null;
+	const folders = new Map<
+		string,
+		{ path: string; name: string; tracks: number; durationSec: number }
+	>();
+	const tracks: (MusicTrack & { path: string })[] = [];
+	for (const t of all) {
+		const rest = clean ? t.path.slice(clean.length + 1) : t.path;
+		const slash = rest.indexOf('/');
+		if (slash < 0) {
+			tracks.push(t);
+			continue;
+		}
+		const name = rest.slice(0, slash);
+		const f = folders.get(name) ?? {
+			path: clean ? `${clean}/${name}` : name,
+			name,
+			tracks: 0,
+			durationSec: 0
+		};
+		f.tracks++;
+		f.durationSec += t.durationSec ?? 0;
+		folders.set(name, f);
+	}
+	tracks.sort(
+		(a, b) =>
+			(a.albumId && b.albumId ? (a.number ?? 999) - (b.number ?? 999) : 0) ||
+			natural(a.path, b.path)
+	);
+	return {
+		path: clean,
+		name: clean ? path.posix.basename(clean) : 'Música',
+		folders: [...folders.values()].sort((a, b) => natural(a.name, b.name)),
+		tracks: tracks.map(({ path: _, ...t }) => t)
+	};
 }
 
 /** For the TV view's Música card: how many albums can be played, and the newest covers. */
@@ -103,9 +205,10 @@ export async function albumCovers(limit: number) {
 export async function musicTotals() {
 	const [tracks] = await db
 		.select({
-			ready: sql<number>`count(*) filter (where ${track.status} = 'ready')::int`,
+			ready: sql<number>`count(*) filter (where ${track.status} = 'ready' and ${track.albumId} is not null)::int`,
 			pending: sql<number>`count(*) filter (where ${track.status} = 'pending')::int`,
-			ignored: sql<number>`count(*) filter (where ${track.status} = 'ignored')::int`,
+			// Without an album, or downloaded: only in Carpetas.
+			loose: sql<number>`count(*) filter (where ${track.status} = 'ready' and ${track.albumId} is null)::int`,
 			errors: sql<number>`count(*) filter (where ${track.status} = 'error')::int`,
 			// The Opus copies (#64), of the tracks that play.
 			opusPending: sql<number>`count(*) filter (where ${track.status} = 'ready' and ${track.opus} = 'pending')::int`,

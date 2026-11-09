@@ -30,7 +30,9 @@
 				<AlbumCover album={{ id: t.albumId, hasCover: t.hasCover }} class="w-10 shrink-0 rounded" />
 				<span class="min-w-0 flex-1">
 					<span class="block truncate text-sm">{t.title}</span>
-					<span class="block truncate text-xs text-zinc-400">{t.artist} · {t.album}</span>
+					<span class="block truncate text-xs text-zinc-400"
+						>{[t.artist, t.album].filter(Boolean).join(' · ')}</span
+					>
 				</span>
 				<span class="text-xs text-zinc-500">{formatDuration(t.durationSec)}</span>
 			</button>
