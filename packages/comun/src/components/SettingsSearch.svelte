@@ -32,6 +32,11 @@
 	 * measured, to it again.
 	 */
 	onMount(() => {
+		// Straight to typing on entering, with a keyboard (not on a phone, where it would open its
+		// keyboard over the page), and not when opened on a section.
+		if (!location.hash && matchMedia('(pointer: fine)').matches) {
+			search?.focus({ preventScroll: true });
+		}
 		const el = location.hash
 			? document.getElementById(decodeURIComponent(location.hash.slice(1)))
 			: null;
@@ -47,6 +52,7 @@
 		return () => cancelAnimationFrame(raf);
 	});
 
+	let search = $state<HTMLInputElement>();
 	let query = $state('');
 	const found = $derived(searchSettings(index, labels, query, shown));
 
@@ -110,6 +116,7 @@
 
 <div class="relative mb-4">
 	<input
+		bind:this={search}
 		bind:value={query}
 		type="search"
 		autocomplete="off"

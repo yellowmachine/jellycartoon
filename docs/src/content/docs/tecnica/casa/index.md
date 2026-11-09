@@ -26,10 +26,12 @@ SvelteKit 3 + Bun · Tailwind · Better Auth · Drizzle + Postgres · ffmpeg.
    misma serie. Lo visto se apunta al dueño de la playlist (pensando en el envío a otro dispositivo).
 4. **Reproducir**: hls.js (Safari usa su HLS nativo), con los controles de
    [Media Chrome](https://www.media-chrome.org) en los colores de la app, iguales en todos los
-   navegadores y en español. En su menú ⚙ se elige audio y subtítulos (y su estilo), «Al terminar»,
-   el tamaño y «Usar este fotograma como miniatura»; la elección se guarda por usuario y se aplica
-   a los siguientes episodios. El progreso también. Los adultos tienen también «Usar este fotograma
-   de fondo de la serie».
+   navegadores y en español. Su menú ⚙ tiene a la vista audio y subtítulos; «Escuchar en…» (solo el
+   audio en este aparato o por Snapcast, plegado); «Más ajustes ›», una segunda página con calidad,
+   «Al terminar», tamaño y estilo de los subtítulos; y «Fotograma…» plegado, con «Usar este
+   fotograma como miniatura» (los adultos, también «de fondo de la serie») y, si está, «Mandar a
+   Langua». La elección se guarda por usuario y se aplica a los siguientes episodios. El progreso
+   también. Seilide usa el mismo menú, sin lo de la casa.
    **Fondo**: arriba en la página de cada serie y película (también en la vista de tele) sale un
    fotograma suyo, nítido arriba y cada vez más difuminado y oscuro hacia abajo. Lo elige la app: de
    unos cuantos del medio del primer capítulo (o de la película), el de más color que no sea oscuro

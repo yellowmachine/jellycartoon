@@ -402,3 +402,29 @@ export function parseQueueSave(body: unknown): QueueSave | null {
 /** The bars' notice of «para dentro de media hora»: «a las 23:30». */
 export const stopTime = (at: number) =>
 	`a las ${new Date(at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+
+/**
+ * Long audios without an album (a podcast downloaded, a talk) go on where they were left, on any
+ * device; songs and albums start from the beginning, as always.
+ */
+export const RESUME_MIN_SEC = 10 * 60;
+/** This close to the end, it was heard: the next time it starts again. */
+export const RESUME_END_SEC = 30;
+
+export function resumable(t: MusicTrack) {
+	return t.albumId === 0 && !t.clip && !t.src && (t.durationSec ?? 0) >= RESUME_MIN_SEC;
+}
+
+/** Where a long audio was left (0: heard, or started again). */
+export interface ProgressSave {
+	trackId: number;
+	positionSec: number;
+}
+
+export function parseProgressSave(body: unknown): ProgressSave | null {
+	if (!body || typeof body !== 'object') return null;
+	const { trackId, positionSec } = body as Record<string, unknown>;
+	if (!Number.isInteger(trackId) || (trackId as number) <= 0) return null;
+	if (typeof positionSec !== 'number' || !Number.isFinite(positionSec)) return null;
+	return { trackId: trackId as number, positionSec: Math.max(positionSec, 0) };
+}

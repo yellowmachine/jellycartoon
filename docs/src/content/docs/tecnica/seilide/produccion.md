@@ -20,7 +20,7 @@ app (`nube_app`) con su contraseña: no hay SQL a mano.
    S3_SECRET_ACCESS_KEY=…        # openssl rand -hex 24
    ADMIN_FAMILY="Casa García"
    SMTP_HOST=smtp.protonmail.ch  # los correos («Pedir acceso» de la portada); sin él, no se envían
-   SMTP_USER=no-reply@scholio.review
+   SMTP_USER=no-reply@seilide.app
    SMTP_PASS=…                   # el token SMTP de Proton
    ```
    Quien pide acceso desde la portada (`/`) queda apuntado en la tabla `waitlist`, recibe un correo,

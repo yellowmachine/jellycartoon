@@ -104,20 +104,15 @@
 	// The remote needs something with the focus to start from: the first tile, or the one the page
 	// marks.
 	afterNavigate(() =>
-		(main?.querySelector<HTMLElement>('[data-focus]') ?? main?.querySelector('a, button'))?.focus()
+		(
+			main?.querySelector<HTMLElement>('[data-focus]') ??
+			// Not what is playing, in the header: it is reached going up.
+			main?.querySelector<HTMLElement>(':is(a, button):not(header *)')
+		)?.focus()
 	);
 
 	// A shortcut's window (#327) open before a reload of the TV view: its time goes on counting.
 	onMount(() => tvShortcutWindow.recover());
-
-	/** A song, or a podcast episode: the same bar, to the same controls. */
-	const playing = $derived(
-		music.podcast
-			? { text: `${music.podcast.title} · ${music.podcast.podcastTitle}`, podcast: true }
-			: !music.radio && music.current
-				? { text: `${music.current.title} · ${music.current.artist}`, podcast: false }
-				: null
-	);
 </script>
 
 <!-- Back from mpv (the window gets the focus again): what was watched moved on. -->
@@ -144,36 +139,3 @@
 
 <!-- The music sounds through its <audio>; its bar is for the whole app, not for the TV. -->
 <div class="hidden"><MusicBar /></div>
-
-{#if music.radio}
-	<!-- Wherever you are, that the radio is on. -->
-	<p
-		class="fixed right-8 bottom-8 flex items-center gap-3 rounded-full border border-emerald-400/40 bg-zinc-900/90 px-6 py-3 text-xl shadow-lg backdrop-blur"
-	>
-		<span class="h-3 w-3 animate-pulse rounded-full bg-emerald-400"></span>
-		{music.radio.name}
-	</p>
-{:else if playing && page.url.pathname !== '/tv/sonando'}
-	<!-- And what song or episode: a link to its controls, the remote gets there with the arrows. -->
-	<a
-		href="/tv/sonando"
-		class={[
-			'fixed right-8 bottom-8 flex max-w-xl items-center gap-3 rounded-full border bg-zinc-900/90 px-6 py-3 text-xl shadow-lg backdrop-blur transition duration-150 focus-visible:scale-105',
-			playing.podcast
-				? 'border-amber-400/40 focus-visible:border-amber-300'
-				: 'border-violet-400/40 focus-visible:border-violet-300'
-		]}
-	>
-		<span
-			class={[
-				'h-3 w-3 shrink-0 rounded-full',
-				!music.playing
-					? 'bg-zinc-500'
-					: playing.podcast
-						? 'animate-pulse bg-amber-400'
-						: 'animate-pulse bg-violet-400'
-			]}
-		></span>
-		<span class="truncate">{playing.text}</span>
-	</a>
-{/if}

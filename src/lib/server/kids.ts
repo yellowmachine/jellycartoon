@@ -164,7 +164,8 @@ const KIDS_ROUTES: Record<string, { id?: Check; actions?: string[]; methods?: st
 	'/api/music/playlists': {},
 	'/api/music/snapcast': {},
 	'/api/music/snapcast/events': {},
-	'/api/music/queue': {}
+	'/api/music/queue': {},
+	'/api/music/progress': {}
 };
 
 /** Where a child watches video in the browser: only at its times (see kid-time.ts). */

@@ -5,8 +5,8 @@
 	import { useFrameAsBackdrop } from '#lib/backdrop.svelte.ts';
 
 	/**
-	 * Last in the player's ⚙ menu, the house's: a clip to Langua (Ajustes), and the frame on screen
-	 * as the episode's thumbnail or the series' background.
+	 * Last in the player's ⚙ menu, folded, the house's: a clip to Langua (Ajustes), and the frame on
+	 * screen as the episode's thumbnail or the series' background.
 	 */
 	let { menu, langua = false }: { menu: PlayerMenu; langua?: boolean } = $props();
 
@@ -75,40 +75,45 @@
 	</div>
 {/snippet}
 
-{#if langua}
-	{@render choices(
-		'Mandar a Langua',
-		[1, 2, 5].map((m) => ({ label: `Últimos ${m} min`, pick: () => toLangua(m) }))
-	)}
-	{#if languaState}
-		<p class="px-2 text-zinc-400" role="status">{languaState}</p>
+<details>
+	<summary class="cursor-pointer rounded px-2 py-1.5 text-zinc-300 hover:bg-zinc-800"
+		>{langua ? '🖼 Fotograma y Langua…' : '🖼 Fotograma…'}</summary
+	>
+	{#if langua}
+		{@render choices(
+			'Mandar a Langua',
+			[1, 2, 5].map((m) => ({ label: `Últimos ${m} min`, pick: () => toLangua(m) }))
+		)}
+		{#if languaState}
+			<p class="px-2 text-zinc-400" role="status">{languaState}</p>
+		{/if}
 	{/if}
-{/if}
-<button
-	class="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800 disabled:opacity-50"
-	title="Usar el fotograma que se ve ahora como miniatura del capítulo"
-	disabled={thumbnailState === 'saving'}
-	onclick={useAsThumbnail}
->
-	{{
-		idle: 'Usar este fotograma como miniatura',
-		saving: 'Guardando…',
-		done: '✓ Miniatura cambiada',
-		failed: 'No se pudo cambiar'
-	}[thumbnailState]}
-</button>
-{#if !page.data.kid}
 	<button
 		class="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800 disabled:opacity-50"
-		title="Poner el fotograma que se ve ahora arriba en la página de la serie"
-		disabled={backdropState === 'saving'}
-		onclick={useAsBackdrop}
+		title="Usar el fotograma que se ve ahora como miniatura del capítulo"
+		disabled={thumbnailState === 'saving'}
+		onclick={useAsThumbnail}
 	>
 		{{
-			idle: 'Usar este fotograma de fondo de la serie',
+			idle: 'Usar este fotograma como miniatura',
 			saving: 'Guardando…',
-			done: '✓ Fondo cambiado',
+			done: '✓ Miniatura cambiada',
 			failed: 'No se pudo cambiar'
-		}[backdropState]}
+		}[thumbnailState]}
 	</button>
-{/if}
+	{#if !page.data.kid}
+		<button
+			class="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800 disabled:opacity-50"
+			title="Poner el fotograma que se ve ahora arriba en la página de la serie"
+			disabled={backdropState === 'saving'}
+			onclick={useAsBackdrop}
+		>
+			{{
+				idle: 'Usar este fotograma de fondo de la serie',
+				saving: 'Guardando…',
+				done: '✓ Fondo cambiado',
+				failed: 'No se pudo cambiar'
+			}[backdropState]}
+		</button>
+	{/if}
+</details>

@@ -912,6 +912,25 @@ export const musicQueue = pgTable('music_queue', {
 });
 
 /**
+ * Where each person left a long audio without an album (a podcast downloaded, a talk): it goes on
+ * from there, on any device and in Seilide. Gone once it is heard to its end.
+ */
+export const trackProgress = pgTable(
+	'track_progress',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		trackId: integer('track_id')
+			.notNull()
+			.references(() => track.id, { onDelete: 'cascade' }),
+		positionSec: real('position_sec').notNull(),
+		updatedAt: timestamp('updated_at').notNull().defaultNow()
+	},
+	(t) => [primaryKey({ columns: [t.userId, t.trackId] })]
+);
+
+/**
  * A child who enters with a parent's permission (#141): its avatar, and its credential, which only
  * the server knows and uses once one of its parents or guardians says yes (kid-login.ts). Encrypted
  * with a key from BETTER_AUTH_SECRET, so a copy of the database is not enough to enter.

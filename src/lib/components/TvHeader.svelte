@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import TvNowPlaying from './TvNowPlaying.svelte';
 
-	/** The top of each TV page: where you are, and the time, big enough for the sofa. */
+	/** The top of each TV page: where you are, what is playing, and the time, big enough for the sofa. */
 	let { title }: { title?: string } = $props();
 
 	let now = $state(new Date());
@@ -27,5 +28,8 @@
 			</h1>
 		{/if}
 	</div>
-	<p class="shrink-0 text-6xl font-light text-zinc-200 tabular-nums">{time}</p>
+	<div class="flex min-w-0 items-center gap-6">
+		<TvNowPlaying />
+		<p class="shrink-0 text-6xl font-light text-zinc-200 tabular-nums">{time}</p>
+	</div>
 </header>

@@ -4,6 +4,7 @@
 	import { music } from '../music-player.svelte.ts';
 	import AddToPlaylist from './AddToPlaylist.svelte';
 	import AlbumCover from './AlbumCover.svelte';
+	import { resumeAt } from '../track-progress.svelte.ts';
 
 	interface Props {
 		/** From different albums: each one with its cover, artist and album. */
@@ -33,6 +34,12 @@
 					<span class="block truncate text-xs text-zinc-400"
 						>{[t.artist, t.album].filter(Boolean).join(' · ')}</span
 					>
+					{#if resumeAt(t)}
+						<!-- A long audio without an album, left halfway: it goes on from there. -->
+						<span class="block text-xs text-amber-500/80"
+							>Vas por {formatDuration(resumeAt(t))}</span
+						>
+					{/if}
 				</span>
 				<span class="text-xs text-zinc-500">{formatDuration(t.durationSec)}</span>
 			</button>
