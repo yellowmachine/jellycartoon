@@ -5,8 +5,9 @@
 	import SnapcastListen from './SnapcastListen.svelte';
 
 	/**
-	 * First in the player's ⚙ menu, the house's: «Seguir solo con el audio» (#154) and, with
-	 * Snapcast, its audio on the house's speakers (#223). Not for a child's account.
+	 * In the player's ⚙ menu after the subtitles, folded as «Escuchar en…», the house's: «Seguir
+	 * solo con el audio» (#154) and, with Snapcast, its audio on the house's speakers (#223). Not
+	 * for a child's account.
 	 */
 	let { menu }: { menu: PlayerMenu } = $props();
 
@@ -34,17 +35,22 @@
 </script>
 
 {#if !page.data.kid && menu.audioTracks.length}
-	<button
-		class="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800"
-		title="Sigue desde aquí en el reproductor de música, que no se para con la pantalla apagada"
-		onclick={onlyAudio}>🎧 Seguir solo con el audio</button
-	>
-	{#if page.data.snapcast}
-		<SnapcastListen
-			episodeId={menu.episodeId}
-			startSec={() => menu.video()?.currentTime ?? null}
-			itemClass="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800"
-			onsent={menu.handOver}
-		/>
-	{/if}
+	<details>
+		<summary class="cursor-pointer rounded px-2 py-1.5 text-zinc-300 hover:bg-zinc-800"
+			>🎧 Escuchar en…</summary
+		>
+		<button
+			class="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800"
+			title="Sigue desde aquí en el reproductor de música, que no se para con la pantalla apagada"
+			onclick={onlyAudio}>Este aparato, sin la imagen</button
+		>
+		{#if page.data.snapcast}
+			<SnapcastListen
+				episodeId={menu.episodeId}
+				startSec={() => menu.video()?.currentTime ?? null}
+				itemClass="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800"
+				onsent={menu.handOver}
+			/>
+		{/if}
+	</details>
 {/if}

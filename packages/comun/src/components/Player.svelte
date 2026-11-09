@@ -85,7 +85,7 @@
 		here?: (element: HTMLVideoElement, handOver: () => void) => () => void;
 		/** Its pieces refused (403): out of a child's time at home (#18). */
 		onrefused?: () => void;
-		/** First and last in the ⚙ menu: what only one app has. */
+		/** In the ⚙ menu, what only one app has: after the subtitles, and last (folded each). */
 		menuTop?: Snippet<[PlayerMenu]>;
 		menuBottom?: Snippet<[PlayerMenu]>;
 	}
@@ -160,9 +160,22 @@
 	}
 
 	let pipSupported = $state(false);
-	/** The ⚙ menu over the video: audio, subtitles, what follows, its size. */
+	/** The ⚙ menu over the video: audio and subtitles; what a device sets once, in «Más ajustes». */
 	let menuOpen = $state(false);
 	let menu = $state<HTMLDivElement>();
+	/** «Más ajustes», a second page in the menu: what a device sets once (quality, size…). */
+	let menuPage = $state<'main' | 'more'>('main');
+
+	$effect(() => {
+		if (!menuOpen) menuPage = 'main';
+	});
+
+	/** To the other page, with the focus on its first button (the TV's remote). */
+	async function showMenuPage(page: 'main' | 'more') {
+		menuPage = page;
+		await tick();
+		menu?.querySelector('button')?.focus();
+	}
 
 	onMount(() => {
 		loadPlayerSize();
@@ -182,7 +195,9 @@
 		const escape = (e: KeyboardEvent) => {
 			if (e.key !== 'Escape') return;
 			e.preventDefault();
-			menuOpen = false;
+			// From «Más ajustes», back to the first page; from there, closed.
+			if (menuPage === 'more') void showMenuPage('main');
+			else menuOpen = false;
 		};
 		addEventListener('pointerdown', outside, true);
 		addEventListener('keydown', escape, true);
@@ -493,7 +508,7 @@ same look in every browser, the app's colours, and the player's options in its �
 				onended={onEnded}
 			>
 				{#each subtitles as sub, i (sub.file)}
-					<!-- Whisper's in the form chosen in «⚙ Estilo»: two lines that stay, or rolling up. -->
+					<!-- Whisper's in the form chosen in «⚙ Más ajustes → Estilo»: two lines that stay, or rolling up. -->
 					<track
 						kind="subtitles"
 						src="{links.hls}/{sub.file}{sub.file.startsWith('sub_auto_')
@@ -552,63 +567,76 @@ same look in every browser, the app's colours, and the player's options in its �
 					role="group"
 					aria-label="Opciones del vídeo"
 				>
-					{@render menuTop?.(menuApi)}
-					{#if qualities > 1}
-						<!-- Per device: the phone away from home in the light one (light.ts). -->
-						{@render choices('Calidad', [
-							{
-								label: 'Automática',
-								on: playerQuality.value === 'auto',
-								pick: () => chooseQuality('auto')
-							},
-							{
-								label: 'Ligera (720p)',
-								on: playerQuality.value === 'light',
-								pick: () => chooseQuality('light')
-							}
-						])}
-					{/if}
-					{#if audioTracks.length > 1}
-						{@render choices(
-							'Audio',
-							audioTracks.map((t, i) => ({
-								label: trackLabel(audioTracks, i),
-								on: i === audioIndex,
-								pick: () => chooseAudio(i)
-							}))
-						)}
-					{/if}
-					{#if subtitles.length}
-						{@render choices('Subtítulos', [
-							{ label: 'No', on: subtitleIndex < 0, pick: () => chooseSubtitle(-1) },
-							...subtitles.map((s, i) => ({
-								label: trackLabel(subtitles, i),
-								on: i === subtitleIndex,
-								pick: () => chooseSubtitle(i)
-							}))
-						])}
+					{#if menuPage === 'main'}
+						{#if audioTracks.length > 1}
+							{@render choices(
+								'Audio',
+								audioTracks.map((t, i) => ({
+									label: trackLabel(audioTracks, i),
+									on: i === audioIndex,
+									pick: () => chooseAudio(i)
+								}))
+							)}
+						{/if}
+						{#if subtitles.length}
+							{@render choices('Subtítulos', [
+								{ label: 'No', on: subtitleIndex < 0, pick: () => chooseSubtitle(-1) },
+								...subtitles.map((s, i) => ({
+									label: trackLabel(subtitles, i),
+									on: i === subtitleIndex,
+									pick: () => chooseSubtitle(i)
+								}))
+							])}
+						{/if}
+						{@render menuTop?.(menuApi)}
 						<button
 							class="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800"
-							aria-expanded={showStylePanel}
-							onclick={() => {
-								showStylePanel = !showStylePanel;
-								menuOpen = false;
-							}}>{showStylePanel ? 'Ocultar el estilo' : 'Estilo de los subtítulos…'}</button
+							onclick={() => showMenuPage('more')}>Más ajustes ›</button
 						>
+						{@render menuBottom?.(menuApi)}
+					{:else}
+						<button
+							class="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800"
+							onclick={() => showMenuPage('main')}>‹ Volver</button
+						>
+						{#if qualities > 1}
+							<!-- Per device: the phone away from home in the light one (light.ts). -->
+							{@render choices('Calidad', [
+								{
+									label: 'Automática',
+									on: playerQuality.value === 'auto',
+									pick: () => chooseQuality('auto')
+								},
+								{
+									label: 'Ligera (720p)',
+									on: playerQuality.value === 'light',
+									pick: () => chooseQuality('light')
+								}
+							])}
+						{/if}
+						{@render choices('Al terminar', [
+							{ label: 'Siguiente', on: autoNext, pick: () => chooseAutoNext(true) },
+							{ label: 'Parar', on: !autoNext, pick: () => chooseAutoNext(false) }
+						])}
+						{@render choices(
+							'Tamaño',
+							PLAYER_SIZES.map((s) => ({
+								label: s.label,
+								on: playerSize.value === s.value,
+								pick: () => chooseSize(s.value)
+							}))
+						)}
+						{#if subtitles.length}
+							<button
+								class="w-full rounded px-2 py-1.5 text-left text-zinc-300 hover:bg-zinc-800"
+								aria-expanded={showStylePanel}
+								onclick={() => {
+									showStylePanel = !showStylePanel;
+									menuOpen = false;
+								}}>{showStylePanel ? 'Ocultar el estilo' : 'Estilo de los subtítulos…'}</button
+							>
+						{/if}
 					{/if}
-					{@render choices('Al terminar', [
-						{ label: 'Siguiente', on: autoNext, pick: () => chooseAutoNext(true) },
-						{ label: 'Parar', on: !autoNext, pick: () => chooseAutoNext(false) }
-					])}
-					{@render choices(
-						'Tamaño',
-						PLAYER_SIZES.map((s) => ({
-							label: s.label,
-							on: playerSize.value === s.value,
-							pick: () => chooseSize(s.value)
-						}))
-					)}
-					{@render menuBottom?.(menuApi)}
 				</div>
 			{/if}
 
