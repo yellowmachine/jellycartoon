@@ -135,6 +135,17 @@ function setup(plugs: Record<string, KeyPlug> = { tok: LAMP }) {
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 describe('hub', () => {
+	test('after Seilide starts, reconnecting until it is back, or for a while', async () => {
+		const { hub, setClock } = setup();
+		expect(hub.reconnecting('p1')).toBe(true);
+		const ws = new FakePlug();
+		await hub.attach('tok', ws);
+		ws.close();
+		expect(hub.reconnecting('p1')).toBe(false);
+		setClock('2026-11-07T18:11:00Z');
+		expect(hub.reconnecting('p2')).toBe(false);
+	});
+
 	test('an unknown token is closed', async () => {
 		const { hub } = setup();
 		const ws = new FakePlug();

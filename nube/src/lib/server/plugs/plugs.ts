@@ -182,6 +182,7 @@ async function readPlugs(tx: AnyDb): Promise<PlugView[]> {
 			kind: p.kind,
 			online: now.online,
 			waiting: p.lastSeenAt === null && !now.online,
+			reconnecting: !now.online && p.lastSeenAt !== null && hub.reconnecting(p.id),
 			output: now.online ? now.output : p.output,
 			power: now.online ? now.power : null,
 			todayWh: byPlug.get(p.id)?.today ?? 0,

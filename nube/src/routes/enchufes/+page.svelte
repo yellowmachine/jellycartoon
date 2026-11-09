@@ -61,6 +61,8 @@
 	function stateText(p: PlugView) {
 		if (p.waiting) return 'Sin conectar todavía';
 		if (p.paused) return 'En pausa';
+		// Seilide has just started (a new version): each plug comes back by itself, some in minutes.
+		if (p.reconnecting) return 'Reconectando tras una actualización…';
 		if (p.heatUntil && p.online)
 			return `Calentando hasta las ${hourFormat.format(new Date(p.heatUntil))}`;
 		if (!p.online)

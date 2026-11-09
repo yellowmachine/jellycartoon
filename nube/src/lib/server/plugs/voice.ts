@@ -29,9 +29,11 @@ export async function plugsForVoice(k: Kitchen) {
 		const state = `${
 			p.paused
 				? 'en pausa'
-				: !p.online
-					? 'sin conexión'
-					: `${p.output ? 'encendido' : 'apagado'}${p.power ? `, ${powerText(p.power)} ahora` : ''}`
+				: p.reconnecting
+					? 'reconectando tras una actualización de Seilide, vuelve solo en unos minutos'
+					: !p.online
+						? 'sin conexión'
+						: `${p.output ? 'encendido' : 'apagado'}${p.power ? `, ${powerText(p.power)} ahora` : ''}`
 		}${p.locked ? ', con candado (no se enciende ni se apaga por voz)' : ''}`;
 		return `${p.name} (${PLUG_KINDS[p.kind].label.toLowerCase()}): ${state}; hoy ${used(p.todayWh, p.todayEuros)}, este mes ${used(p.monthWh, p.monthEuros)}`;
 	});

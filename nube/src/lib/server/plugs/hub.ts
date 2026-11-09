@@ -69,6 +69,12 @@ const CALL_TIMEOUT_MS = 5000;
 export const PING_MS = 30_000;
 /** The open pages are told at most this often: the watts change by the second. */
 const TELL_MS = 1000;
+/**
+ * After Seilide starts (a new version), the plugs come back by themselves, each at its own pace:
+ * seconds, or several minutes (2026-11-09). Until then, or this long, «reconectando», not «sin
+ * conexión».
+ */
+export const RECONNECT_MS = 15 * 60_000;
 /** With nothing changed, when it was last heard is saved at most this often. */
 export const SEEN_MS = 10 * 60_000;
 
@@ -102,6 +108,7 @@ export function createHub(deps: HubDeps) {
 	const live = new Map<string, PlugLive>();
 	const listeners = new Map<string, Set<() => void>>();
 	const telling = new Map<string, ReturnType<typeof setTimeout>>();
+	const startedAt = now().getTime();
 
 	function tell(familyId: string) {
 		if (telling.has(familyId)) return;
@@ -327,7 +334,13 @@ export function createHub(deps: HubDeps) {
 		 * pause): told as its own changes, so that an open page, here or on another device, sees it.
 		 */
 		changed: (familyId: string) => tell(familyId),
-		connected: (plugId: string) => connections.has(plugId)
+		connected: (plugId: string) => connections.has(plugId),
+		/**
+		 * Not back yet since Seilide started, and not long ago: still coming back after a new version.
+		 * One that came back and dropped again, no.
+		 */
+		reconnecting: (plugId: string) =>
+			!live.has(plugId) && now().getTime() - startedAt < RECONNECT_MS
 	};
 }
 
