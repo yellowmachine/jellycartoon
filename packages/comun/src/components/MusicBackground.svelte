@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { fade } from 'svelte/transition';
 	import { page } from '$app/state';
 	import {
 		coverPalette,
@@ -16,6 +17,8 @@
 	/**
 	 * Behind the Música pages: an aurora with the colours of the cover of what is playing, here or
 	 * on Snapcast; with nothing on, the album being looked at. It drifts only while music plays.
+	 * Or, in the «Portada» style, that cover itself, from the top left corner fading to the bottom
+	 * right, where the text goes (also a podcast's image, which the aurora cannot read: CORS).
 	 */
 	let { snapcast }: { snapcast: boolean } = $props();
 	// svelte-ignore state_referenced_locally
@@ -35,6 +38,16 @@
 		const album = page.data.album as { id: number; hasCover: boolean } | undefined;
 		return album ? { albumId: album.id, hasCover: album.hasCover, playing: false } : null;
 	});
+
+	const cover = $derived(musicBackground.style === 'cover');
+	const coverSrc = $derived.by(() => {
+		if (!cover) return null;
+		if (source) return source.hasCover ? coverUrl(source.albumId) : null;
+		return music.podcast?.imageUrl || null;
+	});
+	const coverPlaying = $derived(source ? source.playing : Boolean(music.podcast && music.playing));
+	/** The slow zoom: from 40 s a loop (fast) to 160 s (slow). */
+	const zoomSec = $derived(Math.round(160 - musicBackground.speed * 120));
 
 	/** What it is drawn with now, what it is heading to, and whether it shows at all. */
 	let shown: Palette | null = null;
@@ -62,7 +75,9 @@
 
 	$effect(() => {
 		const url =
-			source?.hasCover && musicBackground.style !== 'none' ? coverUrl(source.albumId) : null;
+			source?.hasCover && musicBackground.style !== 'none' && !cover
+				? coverUrl(source.albumId)
+				: null;
 		if (!url) {
 			visible = false;
 			return;
@@ -117,7 +132,7 @@
 
 		const draw = (p: Palette) => {
 			const style = musicBackground.style;
-			if (style !== 'none')
+			if (style !== 'none' && style !== 'cover')
 				drawBackground(ctx, w, h, style, source?.albumId ?? 0, clock, p, musicBackground.intensity);
 		};
 		// A change in Ajustes on another tab is not seen here; one here, at once.
@@ -171,6 +186,27 @@
 	});
 </script>
 
+{#if coverSrc}
+	<!-- The cover behind the page, one fading into the next when the album changes. -->
+	{#key coverSrc}
+		<div
+			class="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+			aria-hidden="true"
+			transition:fade|global={{ duration: 1500 }}
+		>
+			<img
+				src={coverSrc}
+				alt=""
+				class="cover-zoom absolute top-0 left-0 h-full w-[70vw] object-cover"
+				style:opacity={0.35 + musicBackground.intensity * 0.65}
+				style:animation-duration="{zoomSec}s"
+				style:animation-play-state={coverPlaying ? 'running' : 'paused'}
+			/>
+			<div class="absolute inset-0 bg-zinc-950/35"></div>
+		</div>
+	{/key}
+{/if}
+
 <!-- Behind everything, and a dark layer over it so that text always reads. -->
 <div
 	class={[
@@ -182,3 +218,25 @@
 	<canvas bind:this={canvas} class="h-full w-full"></canvas>
 	<div class="absolute inset-0 bg-zinc-950/35"></div>
 </div>
+
+<style>
+	/* Strong in the top left corner, gone by the bottom right one. */
+	.cover-zoom {
+		mask-image: linear-gradient(to bottom right, black 15%, rgb(0 0 0 / 0.5) 45%, transparent 85%);
+		transform-origin: top left;
+		animation: cover-zoom linear infinite alternate;
+	}
+	@keyframes cover-zoom {
+		from {
+			transform: scale(1);
+		}
+		to {
+			transform: scale(1.08);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.cover-zoom {
+			animation: none;
+		}
+	}
+</style>

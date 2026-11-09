@@ -8,7 +8,8 @@ import type { BackgroundStyle } from 'comun/music-background.ts';
 const KEY = 'jellycartoon:music-background';
 
 interface Saved {
-	style: BackgroundStyle | 'none';
+	/** A drawn style, the cover itself behind the page («Portada»), or none. */
+	style: BackgroundStyle | 'cover' | 'none';
 	/** 0 to 1. */
 	intensity: number;
 	/** 0 to 1. */

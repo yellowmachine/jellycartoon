@@ -2,8 +2,11 @@
 	import { onMount } from 'svelte';
 	import TvNowPlaying from './TvNowPlaying.svelte';
 
-	/** The top of each TV page: where you are, what is playing, and the time, big enough for the sofa. */
-	let { title }: { title?: string } = $props();
+	/**
+	 * The top of each TV page: where you are, what is playing, and the time, big enough for the sofa.
+	 * `plain`: only the time, for a page whose content says where you are (Sonando).
+	 */
+	let { title, plain = false }: { title?: string; plain?: boolean } = $props();
 
 	let now = $state(new Date());
 	onMount(() => {
@@ -18,7 +21,9 @@
 
 <header class="mb-10 flex items-end justify-between gap-8">
 	<div class="min-w-0">
-		{#if title}
+		{#if plain}
+			<!-- Nothing: the time stays on the right. -->
+		{:else if title}
 			<h1 class="truncate text-5xl font-bold">{title}</h1>
 			<p class="mt-2 text-xl text-zinc-500">Atrás para volver</p>
 		{:else}

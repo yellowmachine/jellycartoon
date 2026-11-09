@@ -6,6 +6,7 @@
 	import { formatDuration } from 'comun/format.ts';
 	import { coverUrl } from 'comun/music.ts';
 	import { music } from 'comun/music-player.svelte.ts';
+	import { musicBackground } from 'comun/music-background-settings.svelte.ts';
 	import { SKIP_BACK, SKIP_FORWARD } from 'comun/podcasts.ts';
 	import LyricsView from 'comun/components/Lyrics.svelte';
 	import { loadLyrics } from 'comun/lyrics-store.svelte.ts';
@@ -43,6 +44,9 @@
 		else if (document.activeElement === document.body) toggle?.focus();
 	});
 
+	/** With the «Portada» background (Ajustes) the cover is already behind: its column stays empty. */
+	const coverBehind = $derived(musicBackground.style === 'cover');
+
 	const control =
 		'flex items-center justify-center rounded-full transition duration-150 focus-visible:scale-110';
 </script>
@@ -53,12 +57,14 @@
 
 <MusicBackground snapcast={false} />
 
-<TvHeader title="Sonando" />
+<TvHeader plain />
 
 {#if podcast}
 	<div class="grid grid-cols-5 items-center gap-16">
 		<div class="col-span-2">
-			{#if podcast.imageUrl}
+			{#if podcast.imageUrl && coverBehind}
+				<!-- Behind, in the background. -->
+			{:else if podcast.imageUrl}
 				<img
 					src={podcast.imageUrl}
 					alt=""
@@ -120,7 +126,9 @@
 {:else if current}
 	<div class="grid grid-cols-5 items-center gap-16">
 		<div class="col-span-2">
-			{#if current.hasCover}
+			{#if current.hasCover && coverBehind}
+				<!-- Behind, in the background. -->
+			{:else if current.hasCover}
 				<img
 					src={coverUrl(current.albumId)}
 					alt=""
