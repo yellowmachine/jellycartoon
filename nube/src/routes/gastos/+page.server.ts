@@ -2,7 +2,8 @@ import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { parseBillInput } from 'comun/bills.ts';
 import { addMonths, isCategory, monthOf, parseExpenseInput } from 'comun/expenses.ts';
-import { kitchenOf, today } from '#lib/server/fridge.ts';
+import { kitchenOf, setItemsDone, today } from '#lib/server/fridge.ts';
+import { tickOffBought } from '#lib/server/expenses/bought-list.ts';
 import {
 	addDueRecurring,
 	addExpense,
@@ -126,14 +127,24 @@ export const actions: Actions = {
 			const repeated = await lookingSame(k, { id: null, ...input, source, fileHash, bill });
 			if (repeated) return fail(409, { message: 'Parece repetido', repeated });
 		}
+		let saved: number;
 		try {
-			return {
-				saved: await addExpense(k, input, source, receipt.file, null, bill, k.userId, fileHash)
-			};
+			saved = await addExpense(k, input, source, receipt.file, null, bill, k.userId, fileHash);
 		} catch (err) {
 			if (err instanceof NotADocument) return fail(400, { message: err.message });
 			throw err;
 		}
+		// What it has, off the shopping list (#451); a supply's bill has nothing of it.
+		const ticked = bill ? [] : await tickOffBought(k, input);
+		return { saved, ticked };
+	},
+	/** «Deshacer» (#451): what saving a purchase ticked off, back to buy. */
+	untick: async ({ request, locals }) => {
+		const ids = (await request.formData())
+			.getAll('item')
+			.map(Number)
+			.filter((n) => Number.isInteger(n) && n > 0);
+		await setItemsDone(await kitchen(locals), ids, false);
 	},
 	delete: async ({ request, locals }) => {
 		const k = await kitchen(locals);

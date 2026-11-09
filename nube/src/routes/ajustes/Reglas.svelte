@@ -254,6 +254,7 @@
 							<option value="dicho">Que diga a la voz</option>
 							<option value="nevera">Que ponga en la nevera</option>
 							<option value="recuerdo">Que pida recordar</option>
+							<option value="compra">Que se compre (separado por comas)</option>
 						</select>
 						<input
 							name="ifText"
@@ -264,8 +265,8 @@
 						/>
 					</div>
 					<p class="text-xs text-zinc-500">
-						Lo que digas o pongas, a la hora elegida. El tiempo inventado vale para todo el rato que
-						miras.
+						Lo que digas, pongas o se compre, a la hora elegida. El tiempo inventado vale para todo
+						el rato que miras.
 					</p>
 				</div>
 			</details>

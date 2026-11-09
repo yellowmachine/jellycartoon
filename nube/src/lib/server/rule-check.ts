@@ -51,7 +51,7 @@ export interface DoseOf {
 }
 
 /** What `fits` asks by meaning: the kind of thing, as the question puts it. */
-export type Fitted = 'agenda' | 'nevera' | 'recuerdo';
+export type Fitted = 'agenda' | 'nevera' | 'recuerdo' | 'compra';
 
 export interface World {
 	/** The wall's day and time it is looked at. */
@@ -80,6 +80,15 @@ export interface World {
 	 * or asked; null, not known (words only).
 	 */
 	meaning(r: Rule, kind: Fitted, text: string): Promise<{ ok: boolean; why: string } | null>;
+	/**
+	 * Several at once (a purchase's lines, #451), in one question; each answer as `meaning`'s, in
+	 * their order. Unset: one by one, with `meaning`.
+	 */
+	meanings?(
+		r: Rule,
+		kind: Fitted,
+		texts: string[]
+	): Promise<({ ok: boolean; why: string } | null)[]>;
 }
 
 /** «Ana», «ana», «Ána», and «Ana» for Ana María: the same person. */
@@ -122,6 +131,42 @@ export async function fits(w: World, r: Rule, words: string[], kind: Fitted, tex
 	};
 }
 
+/**
+ * Which of `texts` `r` waits for with `words` (a purchase's lines, #451): by their words; the rest by
+ * their meaning, all in one question if the world can. Those that fit, in their order.
+ */
+export async function fittingAll(
+	w: World,
+	r: Rule,
+	words: string[],
+	kind: Fitted,
+	texts: string[]
+) {
+	const byWords = texts.map((t) => hasWords(words, t));
+	const rest = texts.filter((_, i) => !byWords[i]);
+	const asked = !rest.length
+		? []
+		: w.meanings
+			? await w.meanings(r, kind, rest)
+			: await Promise.all(rest.map((t) => w.meaning(r, kind, t)));
+	let next = 0;
+	return texts.filter((_, i) => byWords[i] || asked[next++]?.ok === true);
+}
+
+/** Its lines in a reason, at most this many: «CERV MAHOU, COCA COLA Z y 3 más». */
+const SHOWN_ITEMS = 4;
+
+/** «CERV MAHOU, COCA COLA Z», its tags off; with how many more. */
+export function itemsSaid(items: string[]) {
+	const names = items.map((i) => i.replace(/\s*\([^)]*\)$/, ''));
+	const shown = names.slice(0, SHOWN_ITEMS).join(', ');
+	return names.length > SHOWN_ITEMS ? `${shown} y ${names.length - SHOWN_ITEMS} más` : shown;
+}
+
+/** Why, for a purchase: «han comprado en Mercadona: CERV MAHOU, COCA COLA Z». */
+export const boughtWhy = (store: string, items: string[]) =>
+	`han comprado${store.trim() ? ` en ${store.trim()}` : ''}: ${itemsSaid(items)}`;
+
 /** The first of `items` that fits, with why; null if none. */
 async function firstFitting<T>(
 	w: World,
@@ -139,12 +184,17 @@ async function firstFitting<T>(
 }
 
 /**
- * Whether something of `ownerId`'s (null: the house's) that happened is for `r`: a post-it, for
- * every rule; something said, for its person's and the house's; something remembered, a person's
+ * Whether something of `ownerId`'s (null: the house's) that happened is for `r`: a post-it or a
+ * purchase (the family's, as Gastos), for every rule; something said, for its person's and the house's; something remembered, a person's
  * for theirs, the house's for all.
  */
-export const waitsFor = (r: Rule, kind: 'nevera' | 'recuerdo' | 'dicho', ownerId: string | null) =>
+export const waitsFor = (
+	r: Rule,
+	kind: 'nevera' | 'recuerdo' | 'dicho' | 'compra',
+	ownerId: string | null
+) =>
 	kind === 'nevera' ||
+	kind === 'compra' ||
 	(kind === 'dicho' ? !r.userId || r.userId === ownerId : !ownerId || r.userId === ownerId);
 
 /** Its person's trip that day, if any. */

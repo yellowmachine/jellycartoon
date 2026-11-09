@@ -1,5 +1,7 @@
 import {
+	boughtWhy,
 	conditionsHold,
+	fittingAll,
 	dueIn,
 	fits,
 	MAX_CHAIN,
@@ -34,13 +36,13 @@ const WEATHER_EVERY_MIN = 30;
  * «Y si…» (phase 2): what is changed in the moment simulated. The weather, made up for the whole
  * span instead of the forecast; the one who looks, away on a trip that day; Medicación's doses, all
  * marked or none; and something that happens at its start: said to the voice, put on the fridge,
- * or asked to remember, by the one who looks.
+ * asked to remember, by the one who looks; or bought (#451: what, separated by commas).
  */
 export interface WhatIf {
 	weather: WeatherIf;
 	away: boolean;
 	doses: 'como_esten' | 'sin_marcar' | 'marcadas';
-	happens: { kind: 'dicho' | 'nevera' | 'recuerdo'; text: string } | null;
+	happens: { kind: 'dicho' | 'nevera' | 'recuerdo' | 'compra'; text: string } | null;
 }
 
 export const WEATHER_IFS = [
@@ -181,12 +183,22 @@ export function whenSaid(when: RuleSpec['when']) {
 			return `cuando le piden a la voz recordar ${about}`;
 		case 'dicho':
 			return `cuando le dicen a la voz ${about}`;
+		case 'compra':
+			return `cuando se guarda una compra con ${about}`;
 		case 'tiempo':
 			return 'cuando cambia el tiempo';
 	}
 }
 
-const EVENT_KINDS = new Set(['nevera', 'recuerdo', 'dicho']);
+const EVENT_KINDS = new Set(['nevera', 'recuerdo', 'dicho', 'compra']);
+
+/** What a made-up purchase has: «cerveza, leche» is two lines. */
+export const boughtItems = (text: string) =>
+	text
+		.split(/[,;\n]/)
+		.map((t) => t.trim())
+		.filter(Boolean)
+		.slice(0, 30);
 const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** What a rule would do, in words: «deduciría «Hay ropa tendida»», «avisaría». */
@@ -273,6 +285,21 @@ export async function simulate({
 		const time = momentOf(from).time;
 		for (const r of active) {
 			if (r.spec.when.kind !== kind || !waitsFor(r, kind, ownerId)) continue;
+			if (kind === 'compra') {
+				const found = await fittingAll(start, r, r.spec.when.words, kind, boughtItems(text));
+				if (!found.length) {
+					missed.set(r.id, {
+						minute: from,
+						why: `«${text}» no tiene ${quoted(r.spec.when.words)}`
+					});
+					continue;
+				}
+				const because = boughtWhy('', found);
+				const holds = await conditionsHold(start, r);
+				if (holds.ok) await act(r, start, from, [because, ...holds.why].join(' y '), []);
+				else missed.set(r.id, { minute: from, why: [because, ...holds.why].join(' pero ') });
+				continue;
+			}
 			const fit =
 				kind === 'dicho'
 					? { ok: hasWords(r.spec.when.words, text), why: '' }

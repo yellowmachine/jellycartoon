@@ -1,3 +1,4 @@
+import { tickOffBought } from '#lib/server/expenses/bought-list.ts';
 import { STATIONS, COUNTRIES } from 'comun/radio.ts';
 import { parseRecipe } from 'comun/recipe.ts';
 import { distanceText, type LngLat, type Place } from 'comun/road.ts';
@@ -1633,8 +1634,11 @@ async function runTool(
 			}
 			if (!what) return 'Falta en qué.';
 			if (total === null) return `Falta cuánto, en euros: «${what}» no tiene importe guardado.`;
-			await addExpense(ctx.k, { date: today(), store: what, category, total, lines }, 'voz');
-			return `Apuntado en Gastos: ${what}, ${euros(total)} (${category}).`;
+			const input = { date: today(), store: what, category, total, lines };
+			await addExpense(ctx.k, input, 'voz');
+			// Off the shopping list too, by its words only: no AI in the way of the answer (#451).
+			const ticked = await tickOffBought(ctx.k, input, { ai: false });
+			return `Apuntado en Gastos: ${what}, ${euros(total)} (${category}).${ticked.length ? ` Tachado de la lista: ${ticked.map((t) => t.text).join(', ')}.` : ''}`;
 		}
 		case 'add_income': {
 			if (kid) return 'El dinero es cosa de los mayores.';

@@ -235,6 +235,37 @@ export async function clearDone(k: Kitchen) {
 	changed(k.familyId);
 }
 
+/** What is left to buy, with its ids: to tick off what a ticket has (#451). */
+export function toBuyItems(k: Kitchen) {
+	return k.run(async (tx) =>
+		tx
+			.select({ id: fridgeItem.id, text: fridgeItem.text })
+			.from(fridgeItem)
+			.where(and(eq(fridgeItem.noteId, await listId(tx, k.familyId)), eq(fridgeItem.done, false)))
+			.orderBy(asc(fridgeItem.createdAt), asc(fridgeItem.id))
+	);
+}
+
+/** Several ticked off (bought) or back to buy at once, of the list: what changed. */
+export async function setItemsDone(k: Kitchen, ids: number[], done: boolean) {
+	if (!ids.length) return [];
+	const rows = await k.run(async (tx) =>
+		tx
+			.update(fridgeItem)
+			.set({ done })
+			.where(
+				and(
+					eq(fridgeItem.noteId, await listId(tx, k.familyId)),
+					inArray(fridgeItem.id, ids),
+					eq(fridgeItem.done, !done)
+				)
+			)
+			.returning({ id: fridgeItem.id, text: fridgeItem.text })
+	);
+	if (rows.length) changed(k.familyId);
+	return rows;
+}
+
 /** For the voice: what is left to buy. */
 export function toBuy(k: Kitchen) {
 	return k.run(async (tx) => {

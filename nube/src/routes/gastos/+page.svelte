@@ -90,6 +90,8 @@
 	let problem = $state<string | null>(null);
 	let reading = $state<'ticket' | 'factura' | null>(null);
 	let saving = $state(false);
+	/** What saving a purchase ticked off the shopping list (#451), to say so and undo it. */
+	let ticked = $state<{ id: number; text: string }[]>([]);
 	/** The one open in the list, with its lines: from Búsqueda, `?gasto=`. */
 	let open = $state<number | null>(Number(page.url.searchParams.get('gasto')) || null);
 	/** The category open in the month's totals, with its lines by tag. */
@@ -479,6 +481,30 @@
 	{#if problem && !editing}
 		<p class="mb-4 rounded-md bg-red-950 p-3 text-sm text-red-200">{problem}</p>
 	{/if}
+	{#if ticked.length}
+		<form
+			method="post"
+			action="?/untick"
+			class="mb-4 flex flex-wrap items-center gap-2 rounded-md bg-emerald-950 p-3 text-sm text-emerald-100"
+			use:enhance={() =>
+				async ({ update }) => {
+					ticked = [];
+					await update({ reset: false });
+				}}
+		>
+			<span class="flex-1">
+				✓ Tachado de la lista de la compra: {ticked.map((t) => t.text).join(', ')}.
+			</span>
+			{#each ticked as t (t.id)}<input type="hidden" name="item" value={t.id} />{/each}
+			<button class="rounded-md bg-emerald-900 px-3 py-1 hover:bg-emerald-800">Deshacer</button>
+			<button
+				type="button"
+				class="px-2 text-emerald-300 hover:text-white"
+				aria-label="Cerrar"
+				onclick={() => (ticked = [])}>✕</button
+			>
+		</form>
+	{/if}
 
 	{#if editing}
 		{@const e = editing}
@@ -690,6 +716,7 @@
 								saving = false;
 								if (result.type === 'success') {
 									open = Number(result.data?.saved) || null;
+									ticked = (result.data?.ticked as typeof ticked | undefined) ?? [];
 									close();
 								} else if (result.type === 'failure' && result.data?.repeated && editing) {
 									// Put in before (#440): asked, nothing saved.
