@@ -7,10 +7,22 @@
 		SAMPLE_PALETTE
 	} from 'comun/music-background.ts';
 	import { musicBackground } from 'comun/music-background-settings.svelte.ts';
+	import { coverUrl } from 'comun/music.ts';
+	import { music } from 'comun/music-player.svelte.ts';
 
 	/** The Música background on this device: its style, how strong and how fast, with a preview. */
 
-	const styles = [{ key: 'none' as const, label: 'Ninguno' }, ...BACKGROUND_STYLES];
+	const styles = [
+		{ key: 'none' as const, label: 'Ninguno' },
+		...BACKGROUND_STYLES,
+		{ key: 'cover' as const, label: 'Portada' }
+	];
+	/** For the «Portada» preview: the cover of what plays now, if any. */
+	const playingCover = $derived(
+		!music.radio && music.current?.hasCover
+			? coverUrl(music.current.albumId)
+			: music.podcast?.imageUrl || null
+	);
 	const button = (on: boolean) => [
 		'rounded-full border px-3 py-1 text-sm',
 		on ? 'border-amber-500 text-amber-400' : 'border-zinc-700 hover:bg-zinc-900'
@@ -38,7 +50,7 @@
 				canvas!.width = w;
 				canvas!.height = h;
 			}
-			if (style === 'none') {
+			if (style === 'none' || style === 'cover') {
 				ctx.clearRect(0, 0, w, h);
 				return;
 			}
@@ -94,11 +106,23 @@
 	<!-- With the colours of a cover, and the dark layer of the Música pages over it. -->
 	<div class="relative h-40 overflow-hidden rounded-md border border-zinc-800 bg-zinc-950">
 		<canvas bind:this={canvas} class="absolute inset-0 h-full w-full" aria-hidden="true"></canvas>
+		{#if musicBackground.style === 'cover' && playingCover}
+			<img
+				src={playingCover}
+				alt=""
+				class="absolute top-0 left-0 h-full w-[70%] [mask-image:linear-gradient(to_bottom_right,black_15%,rgb(0_0_0/0.5)_45%,transparent_85%)] object-cover"
+				style:opacity={0.35 + musicBackground.intensity * 0.65}
+			/>
+		{/if}
 		<div class="absolute inset-0 bg-zinc-950/35"></div>
-		<p class="absolute bottom-2 left-3 text-xs text-zinc-400">
+		<p class="absolute right-3 bottom-2 left-3 text-right text-xs text-zinc-400">
 			{musicBackground.style === 'none'
 				? 'Sin fondo: el de siempre.'
-				: 'Vista previa, con los colores de una portada.'}
+				: musicBackground.style === 'cover'
+					? playingCover
+						? 'La portada de lo que suena, apagándose hacia abajo a la derecha. La velocidad es la de su zoom lento.'
+						: 'La portada de lo que suena, apagándose hacia abajo a la derecha. Pon algo para verla aquí.'
+					: 'Vista previa, con los colores de una portada.'}
 		</p>
 	</div>
 </div>
