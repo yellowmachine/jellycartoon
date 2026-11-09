@@ -268,7 +268,13 @@ describe('enchufes', () => {
 		ws.close();
 		await settle();
 		const [lamp] = await listPlugs('ana');
-		expect(lamp).toMatchObject({ online: false, waiting: false, output: true, power: null });
+		expect(lamp).toMatchObject({
+			online: false,
+			waiting: false,
+			reconnecting: false,
+			output: true,
+			power: null
+		});
 	});
 
 	test('renamed; a new address and the old one no longer valid', async () => {

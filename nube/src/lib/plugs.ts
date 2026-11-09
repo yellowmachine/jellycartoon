@@ -65,6 +65,8 @@ export interface PlugView {
 	online: boolean;
 	/** Never connected yet: still to be set up. */
 	waiting: boolean;
+	/** Not connected, but Seilide has just started (a new version): it is coming back by itself. */
+	reconnecting: boolean;
 	output: boolean | null;
 	/** Watts now; null if not connected. */
 	power: number | null;
