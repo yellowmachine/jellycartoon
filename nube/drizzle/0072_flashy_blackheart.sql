@@ -1,0 +1,1 @@
+ALTER TABLE "plug" ADD COLUMN "locked" boolean DEFAULT false NOT NULL;

@@ -26,11 +26,13 @@ export async function plugsForVoice(k: Kitchen) {
 	const used = (wh: number, euros: number | null) =>
 		`${energyText(wh)}${euros === null ? '' : ` (${euroText(euros)})`}`;
 	const lines = plugs.map((p) => {
-		const state = p.paused
-			? 'en pausa'
-			: !p.online
-				? 'sin conexión'
-				: `${p.output ? 'encendido' : 'apagado'}${p.power ? `, ${powerText(p.power)} ahora` : ''}`;
+		const state = `${
+			p.paused
+				? 'en pausa'
+				: !p.online
+					? 'sin conexión'
+					: `${p.output ? 'encendido' : 'apagado'}${p.power ? `, ${powerText(p.power)} ahora` : ''}`
+		}${p.locked ? ', con candado (no se enciende ni se apaga por voz)' : ''}`;
 		return `${p.name} (${PLUG_KINDS[p.kind].label.toLowerCase()}): ${state}; hoy ${used(p.todayWh, p.todayEuros)}, este mes ${used(p.monthWh, p.monthEuros)}`;
 	});
 	return {
@@ -112,6 +114,11 @@ export async function switchByVoice(
 	const at = minutes ? clock.format(new Date(now + minutes * 60_000)) : '';
 	try {
 		const done = await switchIn(k, p.id, within ? !on : on, minutes ? minutes * 60 : undefined);
+		if (done === 'locked')
+			return {
+				result: `${p.name} tiene el candado puesto para no apagarlo sin querer: se quita desde Enchufes, por voz no se enciende ni se apaga.`,
+				done: false
+			};
 		if (done === 'paused')
 			return {
 				result: `${p.name} está en pausa: se quita desde Enchufes, no se enciende así.`,

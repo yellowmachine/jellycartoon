@@ -8,10 +8,12 @@ import {
 	deletePlug,
 	kwhPrice,
 	listPlugs,
+	LOCKED_PROBLEM,
 	manualKwhPrice,
 	MAX_KWH_PRICE,
 	renewPlugToken,
 	setKwhPrice,
+	setLocked,
 	setNotices,
 	setPaused,
 	switchPlug,
@@ -69,6 +71,7 @@ export const actions: Actions = {
 		try {
 			const done = await switchPlug(locals.user!.id, id, form.get('on') === 'true');
 			if (!done) return fail(404, { problem: 'Ese enchufe ya no está' });
+			if (done === 'locked') return fail(409, { switchProblem: id, problem: LOCKED_PROBLEM });
 			if (done === 'paused')
 				return fail(409, { switchProblem: id, problem: 'Está en pausa: quítale la pausa antes' });
 		} catch (e) {
@@ -121,8 +124,17 @@ export const actions: Actions = {
 	pause: async ({ request, locals }) => {
 		const form = await request.formData();
 		const id = String(form.get('id') ?? '');
-		const { heats } = await setPaused(locals.user!.id, id, form.get('paused') === 'true');
+		const { heats, locked } = await setPaused(locals.user!.id, id, form.get('paused') === 'true');
+		if (locked) return fail(409, { switchProblem: id, problem: LOCKED_PROBLEM });
 		return { pausedId: id, heats };
+	},
+	/** «Con candado» or without (any adult), against switching it off by a slip. */
+	lock: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+		if (!(await setLocked(locals.user!.id, id, form.get('locked') === 'true')))
+			return fail(404, { problem: 'Ese enchufe ya no está' });
+		return { lockedId: id };
 	},
 	/** Its notices (#396, phase 3): which, and out loud or not. */
 	notices: async ({ request, locals }) => {

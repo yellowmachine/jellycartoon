@@ -127,6 +127,7 @@ async function readPlugs(tx: AnyDb): Promise<PlugView[]> {
 			model: plug.model,
 			lastSeenAt: plug.lastSeenAt,
 			paused: plug.paused,
+			locked: plug.locked,
 			heatUntil: plug.heatUntil,
 			notifyDone: plug.notifyDone,
 			notifyStopped: plug.notifyStopped,
@@ -190,6 +191,7 @@ async function readPlugs(tx: AnyDb): Promise<PlugView[]> {
 			lastSeenAt: p.lastSeenAt?.toISOString() ?? null,
 			model: p.model,
 			paused: p.paused,
+			locked: p.locked,
 			notices: {
 				done: p.notifyDone,
 				stopped: p.notifyStopped,
@@ -282,7 +284,8 @@ export async function deletePlug(userId: string, id: string) {
 }
 
 /**
- * On or off: false if it is not the family's, `paused` if it is paused (it stays off). Throws
+ * On or off: false if it is not the family's, `locked` if it has its padlock, `paused` if it is
+ * paused (it stays off). Throws
  * PlugOffline if it is not connected.
  */
 export async function switchPlug(userId: string, id: string, on: boolean) {
@@ -302,9 +305,13 @@ export async function switchIn(
 	backAfterS?: number
 ) {
 	const [row] = await k.run((tx) =>
-		tx.select({ paused: plug.paused, heatUntil: plug.heatUntil }).from(plug).where(eq(plug.id, id))
+		tx
+			.select({ paused: plug.paused, locked: plug.locked, heatUntil: plug.heatUntil })
+			.from(plug)
+			.where(eq(plug.id, id))
 	);
 	if (!row) return false;
+	if (row.locked) return 'locked' as const;
 	if (row.paused) return 'paused' as const;
 	const heating = row.heatUntil && row.heatUntil > new Date();
 	if (backAfterS && heating) return 'heating' as const;
@@ -498,7 +505,8 @@ async function familyPlug(userId: string, plugId: string) {
 				familyId: sql<string>`${familyId}`,
 				kind: plug.kind,
 				paused: plug.paused,
-				pausedAt: plug.pausedAt
+				pausedAt: plug.pausedAt,
+				locked: plug.locked
 			})
 			.from(plug)
 			.where(eq(plug.id, plugId))
@@ -525,6 +533,7 @@ export async function addSchedule(
 	if ('problem' in checked) return checked;
 	const p = await familyPlug(userId, plugId);
 	if (!p) return { problem: 'Ese enchufe ya no está' };
+	if (p.locked) return { problem: LOCKED_PROBLEM };
 	const added = await withFamily(userId, async (tx, { familyId }) => {
 		const [{ n }] = (await tx
 			.select({ n: count() })
@@ -553,11 +562,17 @@ export async function deleteSchedule(userId: string, plugId: string, id: number)
 /**
  * «En pausa» (a water heater in summer, on holiday): off, and its schedules off. Out of a long pause,
  * or after a long time using nothing, a water heater heats for HEAT_MS first, against legionella,
- * and its schedules come back after. Whether it heats, said back.
+ * and its schedules come back after. Whether it heats, said back; `locked`, not done (either way:
+ * both switch it).
  */
-export async function setPaused(userId: string, plugId: string, paused: boolean) {
+export async function setPaused(
+	userId: string,
+	plugId: string,
+	paused: boolean
+): Promise<{ heats: boolean; locked?: true }> {
 	const p = await familyPlug(userId, plugId);
 	if (!p || p.paused === paused) return { heats: false };
+	if (p.locked) return { heats: false, locked: true };
 	const now = new Date();
 	let heatUntil: Date | null = null;
 	if (!paused && p.kind === 'termo') {
@@ -584,6 +599,25 @@ export async function setPaused(userId: string, plugId: string, paused: boolean)
 	hub.changed(p.familyId);
 	await trySync(p.familyId, plugId);
 	return { heats: heatUntil !== null };
+}
+
+/** What is said when the padlock stops something. */
+export const LOCKED_PROBLEM = 'Tiene el candado puesto: quítalo antes';
+
+/**
+ * «Con candado», or without: any adult of the family. Only a mark in Seilide, the plug is not told,
+ * and its own button still works.
+ */
+export async function setLocked(userId: string, plugId: string, locked: boolean) {
+	const [row] = await withFamily(userId, (tx, { familyId }) =>
+		tx
+			.update(plug)
+			.set({ locked })
+			.where(eq(plug.id, plugId))
+			.returning({ familyId: sql<string>`${familyId}` })
+	);
+	if (row) hub.changed(row.familyId);
+	return !!row;
 }
 
 /** Its notices as chosen (#396, phase 3): watched from now on. */

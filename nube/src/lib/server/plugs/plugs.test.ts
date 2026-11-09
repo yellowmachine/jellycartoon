@@ -36,6 +36,7 @@ const {
 	listPlugs,
 	renewPlugToken,
 	setKwhPrice,
+	setLocked,
 	setPaused,
 	switchPlug,
 	updatePlug
@@ -447,6 +448,34 @@ describe('horarios, pausa y calentamiento', () => {
 		await setPaused('ana', lamp.id, true);
 		expect(await setPaused('ana', lamp.id, false)).toEqual({ heats: false });
 		await deletePlug('ana', lamp.id);
+	});
+
+	test('with its padlock: not switched, paused nor scheduled, by hand or by voice; its schedules go on', async () => {
+		// Another family cannot put it.
+		expect(await setLocked('otra', termo, true)).toBe(false);
+		expect(await setLocked('ana', termo, true)).toBe(true);
+		expect((await listPlugs('ana')).find((p) => p.id === termo)!.locked).toBe(true);
+		const sent = ws.sent.length;
+		const jobs = JSON.stringify(ours());
+		expect(await switchPlug('ana', termo, false)).toBe('locked');
+		expect(await setPaused('ana', termo, true)).toEqual({ heats: false, locked: true });
+		expect(await addSchedule('ana', termo, { days: [2], start: '10:00', end: '11:00' })).toEqual({
+			problem: 'Tiene el candado puesto: quítalo antes'
+		});
+		const k = { familyId: 'A', run: (fn: never) => asFamily('A', fn) } as never;
+		const voice = (await plugsForVoice(k))!;
+		expect(voice.line).toContain('Termo (termo): ');
+		expect(voice.line).toMatch(/Termo \(termo\): [^;]*con candado/);
+		expect(await switchByVoice(k, voice.plugs, { name: 'termo', on: false })).toMatchObject({
+			done: false,
+			result: expect.stringContaining('candado')
+		});
+		expect(ws.sent.length).toBe(sent);
+		expect(JSON.stringify(ours())).toBe(jobs);
+		expect((await listPlugs('ana')).find((p) => p.id === termo)!.paused).toBe(false);
+		// Without it, as before.
+		expect(await setLocked('ana', termo, false)).toBe(true);
+		expect(await switchPlug('ana', termo, false)).toBe(true);
 	});
 
 	test('a schedule removed: its jobs gone from the plug', async () => {

@@ -153,44 +153,67 @@
 					? 'border-amber-500/60 bg-amber-500/10'
 					: 'border-zinc-800 bg-zinc-900/40'}"
 			>
-				<form
-					method="post"
-					action="?/switch"
-					use:enhance={() => {
-						busy = p.id;
-						return async ({ update }) => {
-							await update();
-							busy = null;
-						};
-					}}
-				>
-					<input type="hidden" name="id" value={p.id} />
-					<input type="hidden" name="on" value={String(!on)} />
-					<button
-						disabled={!p.online || p.paused || busy === p.id}
-						class="flex w-full items-center gap-4 rounded-lg text-left disabled:cursor-not-allowed"
-						aria-label="{on ? 'Apagar' : 'Encender'} {p.name}"
+				<div class="flex items-center gap-2">
+					<form
+						method="post"
+						action="?/switch"
+						class="min-w-0 flex-1"
+						use:enhance={() => {
+							busy = p.id;
+							return async ({ update }) => {
+								await update();
+								busy = null;
+							};
+						}}
 					>
-						<span class="text-4xl {on ? '' : 'opacity-60 grayscale'}" aria-hidden="true"
-							>{PLUG_KINDS[p.kind].icon}</span
+						<input type="hidden" name="id" value={p.id} />
+						<input type="hidden" name="on" value={String(!on)} />
+						<button
+							disabled={!p.online || p.paused || p.locked || busy === p.id}
+							class="flex w-full items-center gap-4 rounded-lg text-left disabled:cursor-not-allowed"
+							aria-label="{on ? 'Apagar' : 'Encender'} {p.name}"
 						>
-						<span class="min-w-0 flex-1">
-							<span class="block truncate text-lg font-semibold">{p.name}</span>
-							<span class="block text-sm {p.online ? 'text-zinc-300' : 'text-zinc-500'}"
-								>{stateText(p)}</span
+							<span class="text-4xl {on ? '' : 'opacity-60 grayscale'}" aria-hidden="true"
+								>{PLUG_KINDS[p.kind].icon}</span
 							>
-						</span>
-						{#if p.online && !p.paused}
-							<span
-								class="shrink-0 rounded-full px-4 py-2 text-sm font-semibold {on
-									? 'bg-amber-500 text-zinc-950'
-									: 'bg-zinc-800 text-zinc-200'}"
-							>
-								{busy === p.id ? '…' : on ? 'Apagar' : 'Encender'}
+							<span class="min-w-0 flex-1">
+								<span class="block truncate text-lg font-semibold">{p.name}</span>
+								<span class="block text-sm {p.online ? 'text-zinc-300' : 'text-zinc-500'}"
+									>{stateText(p)}{p.locked ? ' · con candado' : ''}</span
+								>
 							</span>
-						{/if}
-					</button>
-				</form>
+							{#if p.online && !p.paused}
+								<span
+									class="shrink-0 rounded-full px-4 py-2 text-sm font-semibold {p.locked
+										? 'bg-zinc-800 text-zinc-500'
+										: on
+											? 'bg-amber-500 text-zinc-950'
+											: 'bg-zinc-800 text-zinc-200'}"
+								>
+									{busy === p.id ? '…' : on ? 'Apagar' : 'Encender'}
+								</span>
+							{/if}
+						</button>
+					</form>
+					{#if !p.waiting}
+						<!-- The padlock: against switching it off by a slip (an office computer, measured only). -->
+						<form method="post" action="?/lock" use:enhance>
+							<input type="hidden" name="id" value={p.id} />
+							<input type="hidden" name="locked" value={String(!p.locked)} />
+							<button
+								class="shrink-0 rounded-full p-2 text-xl {p.locked
+									? 'bg-zinc-800'
+									: 'opacity-40 grayscale hover:opacity-80'}"
+								aria-pressed={p.locked}
+								aria-label="{p.locked ? 'Quitar el candado a' : 'Poner candado a'} {p.name}"
+								title={p.locked
+									? 'Con candado: no se enciende ni se apaga desde aquí ni por voz. Toca para quitarlo.'
+									: 'Poner candado, para no encenderlo ni apagarlo sin querer'}
+								>{p.locked ? '🔒' : '🔓'}</button
+							>
+						</form>
+					{/if}
+				</div>
 				{#if form && 'switchProblem' in form && form.switchProblem === p.id}
 					<p class="mt-2 text-sm text-red-300">{form.problem}</p>
 				{/if}
@@ -300,14 +323,14 @@
 									>
 								</div>
 							</form>
-						{:else if p.schedules.length < MAX_SCHEDULES}
+						{:else if p.schedules.length < MAX_SCHEDULES && !p.locked}
 							<button
 								class="text-amber-400 hover:text-amber-300"
 								onclick={() => (scheduling = p.id)}>＋ Añadir horario</button
 							>
 						{/if}
 
-						{#if p.kind === 'termo'}
+						{#if p.kind === 'termo' && !p.locked}
 							<form
 								method="post"
 								action="?/pause"
