@@ -1,7 +1,15 @@
 import { describe, expect, test } from 'bun:test';
 import type { HourAhead } from 'comun/weather.ts';
 import type { RuleSpec } from '#lib/rules.ts';
-import { minutesOf, momentOf, type Rule, type World } from './rule-check.ts';
+import {
+	boughtWhy,
+	fittingAll,
+	itemsSaid,
+	minutesOf,
+	momentOf,
+	type Rule,
+	type World
+} from './rule-check.ts';
 import { madeUpWeather, NO_IFS, simulate, withIfs, type Deduced, type WhatIf } from './rule-sim.ts';
 
 /**
@@ -283,5 +291,60 @@ describe('y si…', () => {
 		);
 		expect(o!.does).toBe('avisa');
 		expect(o!.said).toContain('en la nevera pone «pan de molde»');
+	});
+
+	test('something bought (#451): deduced once, with what fitted, and chained', async () => {
+		const fridge = ruleOf({
+			when: when({ kind: 'compra', words: ['bebida'] }),
+			then: 'deducir',
+			deduce: { text: 'Probablemente hay bebida en la nevera', days: 7 }
+		});
+		const party = ruleOf({ when: when({ kind: 'recuerdo', words: ['bebida'] }) });
+		const out = await run([fridge, party], '10:00', '10:59', {
+			happens: { kind: 'compra', text: 'Bebidas de cola, pan, Bebida isotónica' }
+		});
+		expect(out.map((o) => o.does)).toEqual(['deduce', 'avisa']);
+		expect(out[0]!.said).toContain(
+			'(vale 7 días más), porque han comprado: Bebidas de cola, Bebida isotónica.'
+		);
+	});
+
+	test('something bought that is not it: why not', async () => {
+		const [o] = await run(
+			[ruleOf({ when: when({ kind: 'compra', words: ['bebida'] }) })],
+			'10:00',
+			'10:59',
+			{ happens: { kind: 'compra', text: 'pan, leche' } }
+		);
+		expect(o!.does).toBeNull();
+		expect(o!.said).toBe('No avisaría: «pan, leche» no tiene «bebida».');
+	});
+});
+
+describe('fittingAll (#451)', () => {
+	test('by words first, the rest in one question, in their order', async () => {
+		const asked: string[][] = [];
+		const w: World = {
+			...worldAt(minutesOf(DAY, '10:00'), []),
+			meanings: async (_r, _kind, texts) => {
+				asked.push(texts);
+				return texts.map((t) => ({ ok: t.startsWith('CERV'), why: '' }));
+			}
+		};
+		const r = ruleOf({ when: when({ kind: 'compra', words: ['bebida'] }) });
+		const found = await fittingAll(w, r, ['bebida'], 'compra', [
+			'CERV MAHOU (Alcohol)',
+			'PAN BARRA (Panadería)',
+			'COCA COLA Z (Bebidas)'
+		]);
+		expect(found).toEqual(['CERV MAHOU (Alcohol)', 'COCA COLA Z (Bebidas)']);
+		expect(asked).toEqual([['CERV MAHOU (Alcohol)', 'PAN BARRA (Panadería)']]);
+	});
+
+	test('its reason: tags off, at most four', () => {
+		expect(boughtWhy('Mercadona', ['A (Bebidas)', 'B (Alcohol)'])).toBe(
+			'han comprado en Mercadona: A, B'
+		);
+		expect(itemsSaid(['a', 'b', 'c', 'd', 'e', 'f'])).toBe('a, b, c, d y 2 más');
 	});
 });

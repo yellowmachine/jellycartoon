@@ -9,8 +9,9 @@
  * When: an agenda event that starts (`minutesBefore` it), a post-it or something on the list
  * that goes up, something the voice is asked to remember, a trip that starts or ends (theirs; the
  * house's, anyone's), every day at `time`; the weather that comes to be (looked at every half
- * hour), a dose still not marked `minutesAfter` its time, or something said to the voice (phase 4:
- * «cuando diga que pongo la lavadora», by its words only).
+ * hour), a dose still not marked `minutesAfter` its time, something said to the voice (phase 4:
+ * «cuando diga que pongo la lavadora», by its words only), or a purchase saved in Gastos (#451:
+ * «si compro bebida», by what it has).
  */
 export const TRIGGERS = [
 	'agenda',
@@ -21,7 +22,8 @@ export const TRIGGERS = [
 	'viaje_acaba',
 	'cada_dia',
 	'tiempo',
-	'toma_sin_marcar'
+	'toma_sin_marcar',
+	'compra'
 ] as const;
 export type TriggerKind = (typeof TRIGGERS)[number];
 
@@ -63,7 +65,7 @@ export const DOSE_LATE_MIN = 30;
 export interface Trigger {
 	kind: TriggerKind;
 	/**
-	 * For agenda, nevera and recuerdo: the words it has to have («padres»); for toma_sin_marcar,
+	 * For agenda, nevera, recuerdo and compra: the words it has to have («padres»); for toma_sin_marcar,
 	 * whose doses (their names); none, any.
 	 */
 	words: string[];

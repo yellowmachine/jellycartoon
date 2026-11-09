@@ -39,6 +39,7 @@ import {
 	type RecurringExpense
 } from 'comun/expenses.ts';
 import { keepReceipt, removeReceipt } from './receipt.ts';
+import { ruleEvent } from '#lib/server/rule-events.ts';
 
 /**
  * The family's expenses (#253; jellycartoon's #194): every adult sees and changes all of them, as
@@ -198,7 +199,7 @@ export async function addExpense(
 	const { lines: _, ...values } = input;
 	const receipt = file ? await keepReceipt(k, file) : null;
 	try {
-		return await k.run(async (tx) => {
+		const id = await k.run(async (tx) => {
 			const [row] = await tx
 				.insert(expense)
 				.values({
@@ -215,10 +216,24 @@ export async function addExpense(
 			if (billInput) await writeBill(tx, k.familyId, row!.id, billInput);
 			return row!.id;
 		});
+		if (source !== 'fijo') ruleEvent(k, 'compra', input.store, userId, [], boughtOf(id, input));
+		return id;
 	} catch (err) {
 		await removeReceipt(k, receipt);
 		throw err;
 	}
+}
+
+/**
+ * What a purchase has, for the rules that wait for one (#451): each line with its tag, which the
+ * rule's words find too («bebida» in «COCA COLA Z 2L (Bebidas)»); none (by voice, «cerveza, 8 €»),
+ * what it was. Not its discounts.
+ */
+export function boughtOf(expenseId: number, input: ExpenseInput) {
+	const items = input.lines
+		.filter((l) => l.amount >= 0 && l.text.trim())
+		.map((l) => `${l.text.trim()} (${l.tag})`);
+	return { expenseId, items: items.length ? [...new Set(items)] : [input.store.trim()] };
 }
 
 /** Corrected by any adult: its lines and its bill as they are now. False if it is gone. */

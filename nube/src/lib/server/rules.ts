@@ -17,7 +17,7 @@ import { tell } from '#lib/server/inbox.ts';
 import { listMemories, remember } from '#lib/server/memory.ts';
 import { completeJson, DEFAULT_MODEL, guessCost } from '#lib/server/openrouter.ts';
 import { inBackground } from '#lib/server/ai-lane.ts';
-import { listenRules } from '#lib/server/rule-events.ts';
+import { listenRules, type Bought, type EventKind } from '#lib/server/rule-events.ts';
 import { familySatellites, sayOnSatellites } from '#lib/server/satellites.ts';
 import { inQuietHours } from '#lib/server/voice/quiet-check.ts';
 import { parseClock } from 'comun/clock.ts';
@@ -28,6 +28,8 @@ import {
 	conditionsHold,
 	dueIn,
 	fits,
+	boughtWhy,
+	fittingAll,
 	LATE_MINUTES,
 	matchKey,
 	MAX_CHAIN,
@@ -183,6 +185,7 @@ Cuándo se mira («when.kind»), solo una:
 - «tiempo»: cuando el tiempo de «weather» empieza a cumplirse (se mira cada media hora; avisa una vez, y otra si deja de cumplirse y vuelve, o al día siguiente): «si va a llover esta tarde, avísame para recoger la ropa».
 - «dicho»: cuando alguien le dice a la voz algo con «words» («cuando diga que pongo la lavadora» → ["lavadora"]), sea la orden que sea; solo por esas palabras.
 - «toma_sin_marcar»: cuando una toma de Medicación sigue sin marcar «minutes_after» minutos después de su hora (0: media hora); «words», el nombre de la persona que la toma (vacío: cualquiera).
+- «compra»: cuando se guarda en Gastos una compra (un ticket, una factura, un gasto dicho) con algo de «words» («si compro bebida» → ["bebida"]; «words», lo comprado en una o dos palabras, sin «comprar»); se mira una vez por compra.
 «words» son pocas palabras clave sueltas, tal como se escribirían en la cita o la nota, sin artículos; «time» es null salvo en «cada_dia».
 «weather» (en «when» y en cada condición; «what» «ninguno» si no hace falta): «what» es «lluvia», «helada», «calor», «viento» o «nieve»; «hours», las próximas horas que mirar («esta tarde» desde ahora, «mañana» hasta mañana por la noche); «threshold», el número si lo dice (lluvia en %, 60 si no; helada y calor en °C, 0 y 35 si no; viento en km/h, 50 si no; nieve, null) o null; «where», «casa» o «donde_este» (donde esté quien habla si está de viaje: «si en Lisboa llueve»).
 
@@ -193,7 +196,7 @@ Qué tiene que cumplirse además («conditions», puede estar vacío), cada una 
 - «agenda_hoy»: que haya hoy en la Agenda algo con «words».
 - «tiempo»: que en las próximas horas haga el tiempo de su «weather» («si mañana hiela»).
 
-Qué hace («then»): «avisar» (con «notice») o «deducir»: guardar un dato que luego sirve a otras reglas, sin avisar a nadie («si pongo la lavadora, ese día hay ropa tendida» → «deduce»: {"text": "Hay ropa tendida", "days": 0}). «deduce.text», el dato en una frase que se entienda sola, sin fechas; «deduce.days», cuántos días más vale (0, solo ese día). Sin deducir, «deduce» {"text": "", "days": 0}.
+Qué hace («then»): «avisar» (con «notice») o «deducir»: guardar un dato que luego sirve a otras reglas, sin avisar a nadie («si pongo la lavadora, ese día hay ropa tendida» → «deduce»: {"text": "Hay ropa tendida", "days": 0}). «deduce.text», el dato en una frase que se entienda sola, sin fechas; «deduce.days», cuántos días más vale (0, solo ese día; en «compra», 7 si no lo dice). Si la regla dice que es probable («probablemente», «seguramente»), el dato también: «Probablemente hay bebida en la nevera». Sin deducir, «deduce» {"text": "", "days": 0}.
 A quién y qué («notice», al avisar; al deducir, «text» vacío): «to» es «yo» (quien habla; en la casa, toda la familia), «casa» (toda la familia) o «personas» con sus nombres en «people», de los de la familia. «text» es el aviso tal como lo leerá quien lo recibe, corto y en segunda persona («Recuérdales a tus padres que rieguen las plantas»). «level» es «urgente» solo si lo pide o es un peligro.
 «once»: true si es para una sola vez («la próxima vez que…», «este viernes»).
 «say»: true si además hay que decirlo en voz alta en casa, por los altavoces de la voz: si lo pide («dímelo en voz alta», «avisa en casa», «que lo diga Alexa») o si es de toda la casa; false si es solo para el móvil de quien habla.
@@ -282,7 +285,8 @@ async function tripsFor(k: Kitchen, userId: string | null): Promise<Trip[]> {
 const WHAT: Record<Fitted, string> = {
 	agenda: 'Cita de la Agenda',
 	nevera: 'En la nevera',
-	recuerdo: 'Lo que se pide recordar'
+	recuerdo: 'Lo que se pide recordar',
+	compra: 'Línea de un ticket de compra, con su tipo entre paréntesis'
 };
 /** The house's Ollama not answering either: not asked again for a while (the clock looks every minute). */
 const HOUSE_AGAIN_MS = 10 * 60_000;
@@ -320,6 +324,86 @@ async function keptOrAsked(k: Kitchen, r: Rule, kind: Fitted, text: string) {
 	if (r.id !== DRAFT_ID)
 		await k.run((tx) => tx.update(rule).set({ matches }).where(eq(rule.id, r.id)));
 	return kept;
+}
+
+/** At most this many lines asked in one question: a long ticket's. */
+const MAX_ASKED = 60;
+const MANY_SYSTEM =
+	'Dices cuáles de las líneas de un ticket de compra son lo que espera una de las reglas de una familia. Cada línea lleva su tipo entre paréntesis. Solo las que claramente lo son (marcas, abreviaturas de ticket, sinónimos); si dudas, no. En «porque», muy corto, por qué.';
+const MANY_SCHEMA = {
+	type: 'object',
+	additionalProperties: false,
+	required: ['encajan'],
+	properties: {
+		encajan: {
+			type: 'array',
+			items: {
+				type: 'object',
+				additionalProperties: false,
+				required: ['n', 'porque'],
+				properties: { n: { type: 'integer' }, porque: { type: 'string' } }
+			}
+		}
+	}
+};
+const manyPrompt = (r: Rule, kind: Fitted, texts: string[]) =>
+	`Regla: «${r.said}».\n${WHAT[kind]}, numeradas:\n${texts.map((t, i) => `${i + 1}. ${t}`).join('\n')}\n¿Cuáles son lo que espera la regla? Sus números.`;
+
+/**
+ * Several by their meaning (a purchase's lines, #451): those kept in `matches`, and the rest asked
+ * of OpenRouter in one question and kept, each as `keptOrAsked` would. Without OpenRouter, or if it
+ * fails, one by one (the house's Ollama). In their order.
+ */
+async function keptOrAskedMany(k: Kitchen, r: Rule, kind: Fitted, texts: string[]) {
+	const answers = texts.map((t) => r.matches[matchKey(kind, t)] ?? null);
+	const unknown = texts.map((t, i) => ({ t, i })).filter((x) => !answers[x.i]);
+	if (!unknown.length) return answers;
+	const apiKey = await openRouterKey(k);
+	const asked = unknown.slice(0, MAX_ASKED);
+	let got: { encajan: { n: number; porque: string }[] } | null = null;
+	if (apiKey)
+		try {
+			got = await inBackground(() =>
+				completeJson<{ encajan: { n: number; porque: string }[] }>({
+					apiKey,
+					label: 'Encajar una regla',
+					system: MANY_SYSTEM,
+					prompt: manyPrompt(
+						r,
+						kind,
+						asked.map((x) => x.t)
+					),
+					name: 'matches',
+					schema: MANY_SCHEMA,
+					maxTokens: MATCH_TOKENS + 40 * asked.length,
+					timeoutMs: 30_000
+				})
+			);
+		} catch (error) {
+			console.warn('[reglas] OpenRouter no contesta: una a una', { error: String(error) });
+		}
+	if (!got) {
+		for (const x of asked) answers[x.i] = await keptOrAsked(k, r, kind, x.t);
+		return answers;
+	}
+	const fit = new Map(
+		(Array.isArray(got.encajan) ? got.encajan : []).map((e) => [
+			Number(e.n),
+			String(e.porque ?? '').slice(0, 200)
+		])
+	);
+	const kept = { ...r.matches };
+	asked.forEach((x, j) => {
+		const why = fit.get(j + 1);
+		const answer = { ok: why !== undefined, why: why ?? '' };
+		answers[x.i] = answer;
+		delete kept[matchKey(kind, x.t)];
+		kept[matchKey(kind, x.t)] = answer;
+	});
+	r.matches = Object.fromEntries(Object.entries(kept).slice(-KEEP_MATCHES));
+	if (r.id !== DRAFT_ID)
+		await k.run((tx) => tx.update(rule).set({ matches: r.matches }).where(eq(rule.id, r.id)));
+	return answers;
 }
 
 /**
@@ -383,13 +467,21 @@ function forecastAt(lat: number, lon: number) {
 
 /**
  * The world a family's rules are looked at in: its sources, as they are, seen from `today` at
- * `time`; with `meaning`, what its words do not find asked so (by default, kept or asked and
- * kept); with `deduced`, what a simulation deduced, remembered too.
+ * `time`; with `meaning` (and `meanings`, several at once), what its words do not find asked so
+ * (by default, kept or asked and kept); with `deduced`, what a simulation deduced, remembered too.
  */
 function worldOf(
 	familyId: string,
 	at: Pick<World, 'today' | 'time' | 'from' | 'to'>,
-	{ meaning, deduced = [] }: { meaning?: World['meaning']; deduced?: readonly Deduced[] } = {}
+	{
+		meaning,
+		meanings,
+		deduced = []
+	}: {
+		meaning?: World['meaning'];
+		meanings?: World['meanings'];
+		deduced?: readonly Deduced[];
+	} = {}
 ): World {
 	const kitchens = new Map<string, Promise<Kitchen>>();
 	const kitchen = (r: Rule) => {
@@ -430,7 +522,13 @@ function worldOf(
 			if (!hours.length) throw new Error('la previsión no llega hasta entonces');
 			return hours;
 		},
-		meaning: meaning ?? (async (r, kind, text) => keptOrAsked(await kitchen(r), r, kind, text))
+		meaning: meaning ?? (async (r, kind, text) => keptOrAsked(await kitchen(r), r, kind, text)),
+		// With its own `meaning` and no `meanings`, one by one through it.
+		meanings:
+			meanings ??
+			(meaning
+				? undefined
+				: async (r, kind, texts) => keptOrAskedMany(await kitchen(r), r, kind, texts))
 	};
 }
 
@@ -579,16 +677,19 @@ async function tryFire(
  * Something happened that rules may wait for: a post-it or something on the list (`nevera`, for
  * every rule), something remembered or deduced (`recuerdo`: a person's, only for their rules; the
  * house's, for all), something said to the voice (`dicho`: by a person, for their rules and the
- * house's; on a satellite, the house's; by its words only, as it is every order). From
+ * house's; on a satellite, the house's; by its words only, as it is every order), a purchase
+ * (`compra`, #451: `onPurchase`). From
  * rule-events.ts, after it is saved; `chain`, the rules it came through.
  */
 export async function onEvent(
 	k: Kitchen,
-	kind: 'nevera' | 'recuerdo' | 'dicho',
+	kind: EventKind,
 	text: string,
 	ownerId: string | null = null,
-	chain: number[] = []
+	chain: number[] = [],
+	bought?: Bought
 ) {
+	if (kind === 'compra') return bought ? onPurchase(k, text, bought) : undefined;
 	const rules = (await allRules(houseKitchen(k.familyId))).filter(
 		(r) => !r.paused && r.spec.when.kind === kind && waitsFor(r, kind, ownerId)
 	);
@@ -607,6 +708,30 @@ export async function onEvent(
 					? `han dicho «${text}» a las ${w.time}`
 					: `me han pedido recordar «${text}»`;
 		await tryFire(w, rk, r, `${kind}:${Date.now()}`, because + fit.why, chain);
+	}
+}
+
+/**
+ * A purchase saved in Gastos (#451), for every rule that waits for one: told or deduced once for
+ * it (not once per line), if any of its lines is what it waits for, with them in why.
+ */
+async function onPurchase(k: Kitchen, store: string, bought: Bought) {
+	const rules = (await allRules(houseKitchen(k.familyId))).filter(
+		(r) => !r.paused && r.spec.when.kind === 'compra'
+	);
+	if (!rules.length) return;
+	const w = worldNow(k.familyId);
+	for (const r of rules) {
+		const found = await fittingAll(w, r, r.spec.when.words, 'compra', bought.items);
+		if (!found.length) continue;
+		const rk = await kitchenFor(k.familyId, r.userId);
+		await tryFire(
+			w,
+			rk,
+			r,
+			`compra:${bought.expenseId}`,
+			`${boughtWhy(store, found)} el ${w.today}`
+		);
 	}
 }
 
@@ -661,7 +786,7 @@ async function setFired(k: Kitchen, r: Rule, fired: string[]) {
 /** Every minute, for a family (scheduler.ts): the rules that wait for the clock. */
 export async function checkTimedRules(familyId: string) {
 	const rules = (await allRules(houseKitchen(familyId))).filter(
-		(r) => !r.paused && !['nevera', 'recuerdo', 'dicho'].includes(r.spec.when.kind)
+		(r) => !r.paused && !['nevera', 'recuerdo', 'dicho', 'compra'].includes(r.spec.when.kind)
 	);
 	const w = worldNow(familyId);
 	for (const r of rules) {
@@ -801,6 +926,11 @@ export async function simulateRules(k: Kitchen, userId: string, who: string, o: 
 		unasked.set(`${r.id}|${key}`, MATCH_SYSTEM.length + matchPrompt(r, kind, text).length);
 		return null;
 	};
+	// A purchase's lines, with the AI, in one question; else one by one, to count them.
+	const meanings: World['meanings'] = o.ai
+		? async (r, kind, texts) =>
+				keptOrAskedMany(await kitchenFor(k.familyId, r.userId), r, kind, texts)
+		: undefined;
 	const outcomes = await simulate({
 		rules,
 		from,
@@ -809,7 +939,11 @@ export async function simulateRules(k: Kitchen, userId: string, who: string, o: 
 		world: (minute, deduced) => {
 			const then = momentOf(minute);
 			return withIfs(
-				worldOf(k.familyId, { today: then.day, time: then.time, from, to }, { meaning, deduced }),
+				worldOf(
+					k.familyId,
+					{ today: then.day, time: then.time, from, to },
+					{ meaning, meanings, deduced }
+				),
 				o.ifs,
 				userId
 			);

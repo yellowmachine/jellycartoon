@@ -141,7 +141,9 @@ function ifsOf(form: FormData): WhatIf {
 		away: form.get('ifAway') === 'on',
 		doses: doses === 'sin_marcar' || doses === 'marcadas' ? doses : NO_IFS.doses,
 		happens:
-			text && (kind === 'dicho' || kind === 'nevera' || kind === 'recuerdo') ? { kind, text } : null
+			text && (kind === 'dicho' || kind === 'nevera' || kind === 'recuerdo' || kind === 'compra')
+				? { kind, text }
+				: null
 	};
 }
 
