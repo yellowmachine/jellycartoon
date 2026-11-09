@@ -9,13 +9,40 @@ export interface MusicTrack {
 	artist: string;
 	number: number | null;
 	durationSec: number | null;
+	/** 0: none, an audio on its own (a podcast downloaded, a talk), with `folder` to go to instead. */
 	albumId: number;
+	/** Its album's title; without one, its folder's name. */
 	album: string;
 	hasCover: boolean;
+	/** Without an album: its folder in the music, to go to from what sounds («Podcasts/Charlas»). */
+	folder?: string;
 	/** Not a song: what the DJ says between them (Modo DJ), in the queue as one more. */
 	clip?: { id: string; text: string };
 	/** Not the library's: its own address (Seilide's Oración, #339), with no album to go to. */
 	src?: string;
+}
+
+/**
+ * A folder of the music as it is on disk (Música → Carpetas): its folders, each with how many
+ * audios it has inside (at any depth), and its own audios, with an album or without one.
+ */
+export interface MusicFolder {
+	/** Relative to the music's folder; '' the music's folder itself. */
+	path: string;
+	name: string;
+	folders: { path: string; name: string; tracks: number; durationSec: number }[];
+	tracks: MusicTrack[];
+}
+
+/** Where a folder of the music is seen (Música → Carpetas), in either app. */
+export const folderUrl = (path: string) =>
+	path ? `/musica/carpetas?ruta=${encodeURIComponent(path)}` : '/musica/carpetas';
+
+/** Where what sounds comes from: its album, or its folder; null, nowhere (the DJ's words, a prayer). */
+export function trackHome(t: Pick<MusicTrack, 'albumId' | 'folder' | 'clip' | 'src'>) {
+	if (t.clip || t.src) return null;
+	if (t.albumId) return `/musica/${t.albumId}`;
+	return t.folder !== undefined ? folderUrl(t.folder) : null;
 }
 
 export interface MusicAlbum {

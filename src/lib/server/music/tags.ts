@@ -4,10 +4,14 @@ import path from 'node:path';
 /** Pure helpers for the tags of ripped CDs, and for telling them apart from downloads. */
 
 /**
- * The music files catalogued, and their type: CD rips in FLAC, and Opus, like what yt-dlp gets
- * from YouTube with `-x --audio-format opus` (Ogg).
+ * The music files catalogued, and their type: CD rips in FLAC, Opus, like what yt-dlp gets from
+ * YouTube with `-x --audio-format opus` (Ogg), and MP3.
  */
-const AUDIO_TYPES: Record<string, string> = { '.flac': 'audio/flac', '.opus': 'audio/ogg' };
+const AUDIO_TYPES: Record<string, string> = {
+	'.flac': 'audio/flac',
+	'.opus': 'audio/ogg',
+	'.mp3': 'audio/mpeg'
+};
 
 export const isMusicFile = (file: string) => path.extname(file).toLowerCase() in AUDIO_TYPES;
 export const audioType = (file: string) => AUDIO_TYPES[path.extname(file).toLowerCase()]!;
@@ -15,7 +19,19 @@ export const audioType = (file: string) => AUDIO_TYPES[path.extname(file).toLowe
 export const isOpus = (file: string) => path.extname(file).toLowerCase() === '.opus';
 
 /** yt-dlp names files after the video, with its 11-character id: `Song [ix5Ntnavdgg].flac`. */
-export const isDownload = (file: string) => /\[[\w-]{11}\]\.\w+$/.test(file);
+const VIDEO_ID = /\s*\[[\w-]{11}\]$/;
+
+/**
+ * Downloaded with yt-dlp (it keeps the video's id): never an album, whatever its tags say (a
+ * folder of songs from many videos is not one), only in Música → Carpetas.
+ */
+export const isDownload = (file: string) => VIDEO_ID.test(path.parse(file).name);
+
+/** A file's name as a title: without its extension, nor yt-dlp's video id. */
+export const fileTitle = (file: string) => {
+	const name = path.parse(file).name;
+	return name.replace(VIDEO_ID, '').trim() || name;
+};
 
 /** Vorbis comments are case-insensitive: Asunder writes `ARTIST` and `track`, fre:ac `album_artist`. */
 export function normalizeTags(tags: Record<string, string> | undefined) {

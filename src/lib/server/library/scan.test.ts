@@ -3,7 +3,12 @@ import { describe, expect, mock, test } from 'bun:test';
 mock.module('#lib/server/db/index.ts', () => ({ db: {} }));
 mock.module('./worker.ts', () => ({ wakeWorker() {} }));
 mock.module('./ffmpeg.ts', () => ({ probeDuration: async () => null }));
-mock.module('./paths.ts', () => ({ mediaRoot: '/' }));
+// The whole run's (Bun): music/folders.test.ts needs the music's too.
+mock.module('./paths.ts', () => ({
+	mediaRoot: '/',
+	musicRoot: '/musica',
+	musicFile: (relative: string) => `/musica/${relative}`
+}));
 const { parseEpisode, noiseSegments } = await import('./scan.ts');
 
 // Names shaped like a real YouTube playlist downloaded with yt-dlp (Fleischer's Superman shorts,

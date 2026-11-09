@@ -1,4 +1,4 @@
-import type { DjOptions, DjPreset, MusicAlbum, MusicTrack } from 'comun/music.ts';
+import type { DjOptions, DjPreset, MusicAlbum, MusicFolder, MusicTrack } from 'comun/music.ts';
 import { askHouse, HouseProblem } from './house.ts';
 
 /**
@@ -82,6 +82,16 @@ export const playlist = async (who: Who, id: number) =>
  * A new playlist, its id back; with `trackIds`, those songs in it in that order (the queue saved as
  * a list). A house from before takes only the name: then they go in one by one.
  */
+/** Música → Carpetas: a folder of the house's music as it is on disk ('' its top). */
+export const musicFolder = async (who: Who, folder: string) =>
+	(
+		await askHouse<{ folder: MusicFolder }>(
+			who.id,
+			who.email,
+			`/musica/carpetas?ruta=${encodeURIComponent(folder)}`
+		)
+	).folder;
+
 export async function createPlaylist(who: Who, name: string, trackIds: number[] = []) {
 	const { id, added } = await askHouse<{ id: number; added?: number }>(
 		who.id,

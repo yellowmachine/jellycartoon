@@ -44,7 +44,7 @@
 	const totals = $derived(data.totals);
 	const busy = $derived(progress.phase !== 'idle' || totals.pending > 0 || totals.opusPending > 0);
 	/** Tags read so far, of every file found. */
-	const read = $derived(totals.ready + totals.ignored + totals.errors);
+	const read = $derived(totals.ready + totals.loose + totals.errors);
 
 	// While something is going on, the page follows it (also on other devices).
 	$effect(() => {
@@ -287,7 +287,7 @@
 			</div>
 		{/if}
 		<dl class="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
-			{#each [['Canciones', totals.ready], ['Álbumes', totals.albums], ['Con portada', totals.found], ['Sin etiqueta de álbum', totals.ignored], ['Errores', totals.errors + totals.opusErrors]] as [label, value] (label)}
+			{#each [['Canciones', totals.ready], ['Álbumes', totals.albums], ['Con portada', totals.found], ['Sin álbum (en Carpetas)', totals.loose], ['Errores', totals.errors + totals.opusErrors]] as [label, value] (label)}
 				<div class="rounded-md border border-zinc-800 p-2">
 					<dt class="text-xs text-zinc-400">{label}</dt>
 					<dd class="text-xl font-semibold">{value}</dd>

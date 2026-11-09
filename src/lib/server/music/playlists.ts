@@ -10,6 +10,8 @@ import {
 	trackTitle
 } from '#lib/server/db/schema.ts';
 import type { MusicTrack } from 'comun/music.ts';
+import path from 'node:path';
+import { folderOf } from './albums.ts';
 
 /** Playlists of tracks, shared by the whole house: anyone can change any of them. */
 
@@ -51,17 +53,19 @@ export async function getPlaylist(id: number) {
 		.select({
 			itemId: musicPlaylistItem.id,
 			id: track.id,
+			path: track.path,
 			title: trackTitle,
-			artist: trackArtist,
+			artist: sql<string | null>`${trackArtist}`,
 			number: track.number,
 			durationSec: track.durationSec,
 			albumId: album.id,
-			album: albumTitle,
+			album: sql<string | null>`${albumTitle}`,
 			coverStatus: album.coverStatus
 		})
 		.from(musicPlaylistItem)
 		.innerJoin(track, and(eq(track.id, musicPlaylistItem.trackId), playable))
-		.innerJoin(album, eq(album.id, track.albumId))
+		// Audios on their own (Carpetas) too: with their folder instead.
+		.leftJoin(album, eq(album.id, track.albumId))
 		.where(eq(musicPlaylistItem.playlistId, id))
 		.orderBy(asc(musicPlaylistItem.position), asc(musicPlaylistItem.id));
 	return {
@@ -71,12 +75,13 @@ export async function getPlaylist(id: number) {
 			track: {
 				id: r.id,
 				title: r.title,
-				artist: r.artist,
+				artist: r.artist ?? '',
 				number: r.number,
 				durationSec: r.durationSec,
-				albumId: r.albumId,
-				album: r.album,
-				hasCover: r.coverStatus === 'found'
+				albumId: r.albumId ?? 0,
+				album: r.album ?? path.posix.basename(folderOf(r.path)),
+				hasCover: r.albumId !== null && r.coverStatus === 'found',
+				...(r.albumId === null ? { folder: folderOf(r.path) } : {})
 			} satisfies MusicTrack
 		}))
 	};
