@@ -52,6 +52,12 @@ export const plug = pgTable(
 		/** That long heat, on until then; null, none. */
 		heatUntil: timestamp('heat_until'),
 		/**
+		 * «Con candado»: not switched on or off from Seilide (the card, the voice), nor paused, nor
+		 * given new schedules, against a slip (an office computer, measured only). Its schedules keep
+		 * going: they were set on purpose.
+		 */
+		locked: boolean('locked').notNull().default(false),
+		/**
 		 * Its notices (#396, phase 3), set by its kind when added: a washing machine done, a fridge
 		 * stopped, gone without connection (the power or the wifi), on longer than these hours (null,
 		 * never); and said out loud by the satellites too.

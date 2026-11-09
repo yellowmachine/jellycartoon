@@ -505,6 +505,13 @@
       "when": 1794157564570,
       "tag": "0071_gorgeous_thaddeus_ross",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1794214602072,
+      "tag": "0072_flashy_blackheart",
+      "breakpoints": true
     }
   ]
 }

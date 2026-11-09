@@ -78,6 +78,8 @@ export interface PlugView {
 	notices: PlugNotices;
 	/** «En pausa» (#396): off, schedules off. */
 	paused: boolean;
+	/** «Con candado»: not switched, paused nor given schedules from Seilide, against a slip. */
+	locked: boolean;
 	/** A long heat going on (a water heater after a long pause), until then. */
 	heatUntil: string | null;
 	/** Its own timer (by voice, «media hora»): when it switches back by itself. */
