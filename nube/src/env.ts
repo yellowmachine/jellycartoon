@@ -64,7 +64,7 @@ export const variables = defineEnvVars({
 		schema: (value) => value === 'true'
 	},
 	SMTP_USER: {
-		description: 'The SMTP login, e.g. `no-reply@scholio.review`.',
+		description: 'The SMTP login, e.g. `no-reply@seilide.app`.',
 		schema: (value) => value || undefined
 	},
 	SMTP_PASS: {
@@ -72,8 +72,8 @@ export const variables = defineEnvVars({
 		schema: (value) => value || undefined
 	},
 	EMAIL_FROM: {
-		description: 'Who the emails come from, e.g. `Seilide <no-reply@scholio.review>`.',
-		schema: (value) => value || 'Seilide <no-reply@scholio.review>'
+		description: 'Who the emails come from, e.g. `Seilide <no-reply@seilide.app>`.',
+		schema: (value) => value || 'Seilide <no-reply@seilide.app>'
 	},
 	BETTER_AUTH_SECRET: {
 		description:
