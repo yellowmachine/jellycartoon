@@ -20,7 +20,7 @@ import {
 	updatePlug
 } from '#lib/server/plugs/plugs.ts';
 import { addFoundPlug, satellitesOf, searchPlugs } from '#lib/server/plugs/setup.ts';
-import { isPlugKind, MAX_ON_HOURS, MAX_PLUG_NAME, plugAddress } from '#lib/plugs.ts';
+import { isPlugKind, MAX_ON_HOURS, MAX_PLUG_NAME, plugAddress, TIMER_MINUTES } from '#lib/plugs.ts';
 
 /** Enchufes (#396): the family's smart plugs, on and off, and what they use. */
 export const load: PageServerLoad = async ({ locals }) => ({
@@ -74,6 +74,38 @@ export const actions: Actions = {
 			if (done === 'locked') return fail(409, { switchProblem: id, problem: LOCKED_PROBLEM });
 			if (done === 'paused')
 				return fail(409, { switchProblem: id, problem: 'Está en pausa: quítale la pausa antes' });
+		} catch (e) {
+			if (e instanceof PlugOffline)
+				return fail(409, { switchProblem: id, problem: 'El enchufe no está conectado' });
+			throw e;
+		}
+		return { switched: id };
+	},
+	/**
+	 * Its timer (#396): on now and back off after `minutes` («Encender durante» from off, «Apagar
+	 * dentro de» from on, the same order), by the plug's own timer. Without `minutes`, «Quitar»:
+	 * switched as it is, which ends the timer.
+	 */
+	timer: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+		const raw = form.get('minutes');
+		const minutes = raw === null ? null : Number(raw);
+		if (minutes !== null && !TIMER_MINUTES.includes(minutes as never))
+			return fail(400, { switchProblem: id, problem: 'Elige uno de los botones' });
+		try {
+			const done = minutes
+				? await switchPlug(locals.user!.id, id, true, minutes * 60)
+				: await switchPlug(locals.user!.id, id, form.get('on') === 'true');
+			if (!done) return fail(404, { problem: 'Ese enchufe ya no está' });
+			if (done === 'locked') return fail(409, { switchProblem: id, problem: LOCKED_PROBLEM });
+			if (done === 'paused')
+				return fail(409, { switchProblem: id, problem: 'Está en pausa: quítale la pausa antes' });
+			if (done === 'heating')
+				return fail(409, {
+					switchProblem: id,
+					problem: 'Está calentando largo tras la pausa: ahora no lleva temporizador'
+				});
 		} catch (e) {
 			if (e instanceof PlugOffline)
 				return fail(409, { switchProblem: id, problem: 'El enchufe no está conectado' });

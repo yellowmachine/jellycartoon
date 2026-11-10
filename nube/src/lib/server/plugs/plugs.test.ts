@@ -240,6 +240,21 @@ describe('enchufes', () => {
 		expect(lampWs.sent.length).toBe(sent);
 	});
 
+	test('timer from Enchufes: on with the plug’s timer, and «Quitar» ends it', async () => {
+		expect(await switchPlug('ana', lampId, true, 15 * 60)).toBe(true);
+		expect(lastSet(lampWs)).toMatchObject({
+			method: 'Switch.Set',
+			params: { id: 0, on: true, toggle_after: 900 }
+		});
+		await settle();
+		expect((await listPlugs('ana'))[0]!.timerUntil).not.toBeNull();
+		// «Quitar»: switched as it is, without a timer.
+		expect(await switchPlug('ana', lampId, true)).toBe(true);
+		expect(lastSet(lampWs)!.params).toEqual({ id: 0, on: true });
+		await settle();
+		expect((await listPlugs('ana'))[0]!.timerUntil).toBeNull();
+	});
+
 	test('today and this month by the family’s days; older ones left out', async () => {
 		const hours = [
 			// 40 days ago: neither.
