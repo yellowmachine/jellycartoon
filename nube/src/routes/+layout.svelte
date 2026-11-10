@@ -443,7 +443,7 @@ trip's link (#81), for whoever has it, and a shared walk's (#434), with its own 
 		{/if}
 
 		<!-- Room under the page for the call button (#330): its end is never hidden behind it. -->
-		<main class={['mx-auto max-w-6xl px-4 py-6', callButtonShown && 'pb-28']}>
+		<main class={['mx-auto max-w-6xl px-4 py-6', callButtonShown && 'pb-36']}>
 			<!-- Without a family, only an invitation's page: the way into one. -->
 			{#if data.user && !data.family && !page.url.pathname.startsWith('/invitacion/')}
 				<p class="rounded-md border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
