@@ -21,7 +21,6 @@
 	import { roadPhotos } from '#lib/road-photos.svelte.ts';
 	import { tripRecorder } from '#lib/trip-recorder.svelte.ts';
 	import { tripShare } from '#lib/trip-share.svelte.ts';
-	import { formatDuration } from 'comun/format.ts';
 	import { distanceText, isLngLat, type LngLat, type Place, type Route } from 'comun/road.ts';
 	import { alongLine, guide, lineAhead, locate, metresBetween } from 'comun/road-guide.ts';
 	import {
@@ -49,6 +48,10 @@
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { wakeWord } from '#lib/wake-word.svelte.ts';
+	import CallPanel from '#lib/components/CallPanel.svelte';
+	// `phone` is this device's size, below: the call's, `tel`.
+	import { phone as tel } from '#lib/phone.svelte.ts';
+	import type { IncomingCall } from '#lib/calls.ts';
 	import { WAKE_WORDS, isWakeWord } from 'comun/wake-words.ts';
 	import { telegramSaid, type TelegramMessage } from 'comun/telegram.ts';
 	import type { PageProps } from './$types';
@@ -64,7 +67,8 @@
 
 	let { data }: PageProps = $props();
 
-	type Tab = 'radio' | 'musica' | 'listas' | 'podcasts' | 'ruta' | 'dj' | 'telegram';
+	type Tab =
+		'radio' | 'musica' | 'listas' | 'podcasts' | 'ruta' | 'mas' | 'llamar' | 'dj' | 'telegram';
 	/**
 	 * The right-hand side (or the whole screen, without the map beside): Inicio (`null`), with what
 	 * plays, the microphone and a big button for each section; or a section, its list filling it, with
@@ -353,20 +357,79 @@
 		(a, b) => Number(b.language === 'es') - Number(a.language === 'es')
 	);
 
-	/** Drawn, so they are seen at a glance; their names for whoever does not see them. */
-	const TABS: { id: Tab; label: string }[] = $derived([
-		{ id: 'radio', label: 'Radio' },
+	const LABELS: Record<Tab, string> = {
+		radio: 'Radio',
+		musica: 'Música',
+		listas: 'Listas',
+		podcasts: 'Podcasts',
+		ruta: 'Ruta',
+		mas: 'Más',
+		llamar: 'Llamar',
+		dj: 'DJ',
+		telegram: 'Telegram'
+	};
+	/**
+	 * Each section, its own colour: told at a glance from the seat, without reading. Shades the day
+	 * look (.sol, below) leaves as they are, with white letters on them; «Más», grey.
+	 */
+	const COLOURS: Record<Tab, string> = {
+		radio: 'bg-red-600 text-white',
+		musica: 'bg-green-600 text-white',
+		listas: 'bg-pink-600 text-white',
+		podcasts: 'bg-violet-600 text-white',
+		ruta: 'bg-blue-600 text-white',
+		mas: 'bg-zinc-800 text-zinc-100',
+		llamar: 'bg-green-700 text-white',
+		dj: 'bg-orange-600 text-white',
+		telegram: 'bg-sky-600 text-white'
+	};
+	/**
+	 * Inicio's tiles: always these six, always in the same place, so the hand learns them. One with
+	 * nothing to show stays dimmed in its place, with why, and the others do not move. DJ and Telegram,
+	 * less used while driving, inside «Más».
+	 */
+	const HOME: { id: Tab; off: string | null }[] = $derived([
+		{ id: 'radio', off: null },
 		// The house's music, by its pass: without the house, only the radio.
-		...(data.pass ? [{ id: 'musica' as const, label: 'Música' }] : []),
+		{ id: 'musica', off: data.pass ? null : 'Sin la casa' },
 		// Without the house, those this device carries (#350).
-		...(playlists.length || data.pass ? [{ id: 'listas' as const, label: 'Listas' }] : []),
+		{ id: 'listas', off: playlists.length || data.pass ? null : 'Aún no hay' },
 		// The family's, here (#253).
-		{ id: 'podcasts', label: 'Podcasts' },
+		{ id: 'podcasts', off: null },
 		// Only with the map beside, or a phone's own tab for it: where the route is drawn.
-		...(routable ? [{ id: 'ruta' as const, label: 'Ruta' }] : []),
-		...(data.dj ? [{ id: 'dj' as const, label: 'DJ' }] : []),
-		...(data.telegram ? [{ id: 'telegram' as const, label: 'Telegram' }] : [])
+		{ id: 'ruta', off: routable ? null : 'Sin mapa' },
+		{ id: 'mas', off: null }
 	]);
+	/** «←»: back to «Más» from what is inside it; to Inicio from the rest. */
+	const backTo = (t: Tab): Tab | null =>
+		t === 'dj' || t === 'telegram' || t === 'llamar' ? 'mas' : null;
+	/** What plays, as a section: its colour and drawing on the bar when it has no cover. */
+	const playingTab: Tab = $derived(music.radio ? 'radio' : music.podcast ? 'podcasts' : 'musica');
+
+	/**
+	 * Calls (#330): one ringing for this person shows here, big, with its ring, besides the notice;
+	 * and while one rings or lasts, what plays pauses, and goes on after.
+	 */
+	$effect(() => {
+		const events = new EventSource('/api/llamadas/entrantes');
+		events.onmessage = (e) => {
+			const ringing: IncomingCall[] = JSON.parse(e.data);
+			tel.stopRingingIfGone(ringing.map((c) => c.id));
+			const first = ringing[0];
+			if (first && !tel.busy) tel.incoming(first.id, first.fromName);
+		};
+		return () => events.close();
+	});
+	let pausedForCall = false;
+	$effect(() => {
+		if (tel.busy && music.playing) {
+			pausedForCall = true;
+			untrack(() => music.pause());
+		} else if (!tel.busy && pausedForCall) {
+			pausedForCall = false;
+			untrack(() => music.resume());
+		}
+	});
 
 	/**
 	 * The route (phase 3b): the destination searched by its name, and the way there by car with its
@@ -929,7 +992,8 @@
 
 	// «Alexa» instead of the button, turned on here on this tablet: only while Carretera is open.
 	$effect(() => {
-		wakeWord.want(wakeWord.on.carretera);
+		// Not during a call (#330): the other's voice would wake it.
+		wakeWord.want(wakeWord.on.carretera && !tel.busy);
 		return () => wakeWord.want(false);
 	});
 
@@ -1198,9 +1262,9 @@
 
 <!-- Each tab, drawn: Radio and Música as in the rest of the app; Podcasts as headphones here, as at
 home. -->
-{#snippet tabIcon(id: Tab)}
+{#snippet tabIcon(id: Tab, size: string)}
 	{#if id === 'radio' || id === 'musica'}
-		<SectionIcon name={id} class="h-8 w-8" />
+		<SectionIcon name={id} class={size} />
 	{:else}
 		<svg
 			viewBox="0 0 24 24"
@@ -1209,7 +1273,7 @@ home. -->
 			stroke-width="1.5"
 			stroke-linecap="round"
 			stroke-linejoin="round"
-			class="h-8 w-8"
+			class={size}
 			aria-hidden="true"
 		>
 			{#if id === 'podcasts'}
@@ -1224,6 +1288,16 @@ home. -->
 				<!-- A paper plane, as Telegram's. -->
 				<path d="M21 4 3 11l6 2 2 6 3-4 5 4z" />
 				<path d="m9 13 12-9" />
+			{:else if id === 'llamar'}
+				<!-- A handset. -->
+				<path
+					d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"
+				/>
+			{:else if id === 'mas'}
+				<!-- Three dots: the rest. -->
+				<circle cx="5" cy="12" r="2" fill="currentColor" />
+				<circle cx="12" cy="12" r="2" fill="currentColor" />
+				<circle cx="19" cy="12" r="2" fill="currentColor" />
 			{:else if id === 'dj'}
 				<!-- A record, and the DJ's hand on it. -->
 				<circle cx="12" cy="12" r="9" />
@@ -1319,290 +1393,114 @@ home. -->
 				{@render searchBox()}
 			</div>
 		{/if}
-		<div class={['flex flex-col gap-4', mapShown ? 'min-h-0' : 'min-h-dvh p-4']}>
+		<!--
+			The right-hand side: on top, the way out (or back) and the section; in the middle, Inicio's
+			tiles or the section's list; at the bottom, always the same bar, where the hand falls: what
+			plays, ▶, the next one, the volume and the microphone.
+		-->
+		<div class={['flex flex-col gap-3', mapShown ? 'min-h-0' : 'min-h-dvh p-4']}>
 			{#if tab === null}
-				<!-- Leaving, and whether the trip is kept: in what plays' own first line. -->
-			{:else}
-				<!-- In a section: the way back, big; and what plays, to pause it. -->
-				<div class="flex items-center gap-3">
-					<button class="{big} h-16 gap-2 px-5 text-xl font-semibold" onclick={() => (tab = null)}
-						>← Inicio</button
+				<!-- Leaving, and what is on without asking (the wake word, the trip kept): small, not to touch. -->
+				<div class="flex flex-wrap items-center gap-2">
+					<a
+						href="/"
+						class="rounded-full bg-zinc-900 px-4 py-2 text-lg text-zinc-200 active:bg-zinc-800"
+						aria-label="Salir del modo carretera">← Salir</a
 					>
-					<div class="flex min-w-0 flex-1 items-center gap-3 rounded-2xl bg-zinc-900 p-2">
-						{#if playing}
-							<span class="min-w-0 flex-1 truncate pl-2 text-lg">{playing.title}</span>
-							<button
-								class="{big} h-12 w-12 bg-amber-500! text-black!"
-								aria-label={music.playing ? 'Pausa' : 'Seguir'}
-								onclick={() => music.toggle()}
-								><MediaIcon name={music.playing ? 'pause' : 'play'} class="h-7 w-7" /></button
+					<div class="ml-auto flex flex-wrap justify-end gap-2">
+						{#if wakeWord.on.carretera}
+							<span
+								class="flex items-center gap-2 rounded-full bg-zinc-900 px-3 py-1.5 text-base text-zinc-300"
+								aria-live="polite"
 							>
-						{:else}
-							<span class="min-w-0 flex-1 truncate pl-2 text-lg text-zinc-400">
-								{TABS.find((t) => t.id === tab)?.label}
+								<span class="h-2.5 w-2.5 rounded-full bg-amber-400"></span>
+								{wakeWord.status === 'loading'
+									? 'Preparando…'
+									: wakeWord.status === 'tap'
+										? 'Toca la pantalla para empezar'
+										: `«${WAKE_WORDS[wakeWord.word]}» escucha`}
 							</span>
 						{/if}
-					</div>
-					{@render mic('h-16 w-16', 'h-9 w-9')}
-				</div>
-				{#if voice.phase !== 'idle' || voice.problem || voice.reply}
-					<p class="text-center text-lg" aria-live="polite">{@render voiceLine()}</p>
-				{/if}
-			{/if}
-
-			{#if tripShare.url}
-				<!-- Shared: said, always in view, with its link and how to stop it (#81). -->
-				<div
-					class="flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-500/50 bg-emerald-500/10 p-3"
-				>
-					<span class="mr-auto text-lg text-emerald-300">● Compartiendo tu viaje</span>
-					<button class="rounded-xl bg-emerald-600 px-4 py-2 text-lg text-white" onclick={sendLink}
-						>{copied ? 'Enlace copiado' : 'Enviar enlace'}</button
-					>
-					<button
-						class="rounded-xl bg-zinc-800 px-4 py-2 text-lg"
-						onclick={() => void tripShare.stop()}>Dejar de compartir</button
-					>
-				</div>
-			{:else if tripShare.problem}
-				<p class="rounded-xl bg-red-950 p-3 text-red-200">{tripShare.problem}</p>
-			{/if}
-
-			{#if data.problem}
-				<p class="rounded-xl bg-amber-950 p-3 text-amber-200">
-					Sin la música de casa: {data.problem} La radio sí funciona.
-				</p>
-			{/if}
-
-			{#if screenProblem}
-				<p class="rounded-xl bg-amber-950 p-3 text-amber-200">{screenProblem}</p>
-			{/if}
-
-			{#if tab === null}
-				<div class={['flex flex-col gap-4', mapShown && 'min-h-0 flex-1 overflow-y-auto']}>
-					<!-- What plays, with buttons a thumb finds without looking; leaving, and the trip's dot, in
-				its first line. -->
-					<section class="rounded-3xl bg-zinc-900 p-4">
-						<div class="flex items-center gap-4">
-							<a
-								href="/"
-								class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-2xl text-zinc-300 active:bg-zinc-700"
-								aria-label="Salir del modo carretera"
-								title="Salir">←</a
-							>
-							{#if playing}
-								{#if playing.image}
-									<img
-										src={playing.image}
-										alt=""
-										class="h-20 w-20 shrink-0 rounded-xl bg-zinc-800 object-cover short:h-12 short:w-12"
-									/>
-								{/if}
-								<div class="min-w-0 flex-1">
-									<p class="truncate text-2xl font-semibold">{playing.title}</p>
-									<p class="truncate text-lg text-zinc-400">{playing.detail}</p>
-								</div>
-								{#if progress}
-									<div class="min-w-20 shrink-0">
-										<p class="text-right font-mono text-base text-zinc-300 tabular-nums">
-											{formatDuration(progress.at) || '0:00'}<span class="text-zinc-500"
-												>/{formatDuration(progress.duration)}</span
-											>
-										</p>
-										<div
-											class="mt-1 h-1.5 overflow-hidden rounded-full bg-zinc-800"
-											aria-hidden="true"
-										>
-											<div
-												class="h-full rounded-full bg-amber-500"
-												style:width="{(progress.at / progress.duration) * 100}%"
-											></div>
-										</div>
-									</div>
-								{/if}
-							{:else}
-								<p class="min-w-0 flex-1 py-4 text-center text-xl text-zinc-400">
-									No suena nada. Elige abajo.
-								</p>
-							{/if}
-							<!-- Kept or not, and said: where one goes is not kept without knowing it (#81). -->
+						<!-- Kept or not, and said: where one goes is not kept without knowing it (#81). -->
+						{#if data.recordTrips}
 							<button
-								class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-800 active:bg-zinc-700"
-								aria-label={!data.recordTrips
-									? 'No se guardan tus viajes'
-									: tripRecorder.problem
-										? 'No se guarda el viaje'
-										: 'Se guarda este viaje'}
+								class="flex items-center gap-2 rounded-full bg-zinc-900 px-3 py-1.5 text-base text-zinc-300"
 								aria-expanded={tripNote}
 								onclick={() => (tripNote = !tripNote)}
 							>
-								{#if !data.recordTrips}
-									<span class="h-4 w-4 rounded-full bg-zinc-500"></span>
-								{:else if tripRecorder.problem}
+								{#if tripRecorder.problem}
 									<span
-										class="flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-sm font-bold text-black"
+										class="flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-black"
 										>!</span
 									>
+									No se guarda el viaje
 								{:else}
-									<span class="h-4 w-4 animate-pulse rounded-full bg-red-500"></span>
+									<span class="h-2.5 w-2.5 animate-pulse rounded-full bg-red-500"></span>
+									Guardando el viaje
 								{/if}
 							</button>
-						</div>
-						{#if tripNote}
-							<p class="mt-2 text-right text-base text-zinc-400">
-								{!data.recordTrips
-									? 'No se guardan tus viajes: «Guardar mis viajes», en Ajustes.'
-									: tripRecorder.problem
-										? `No se guarda el viaje: ${tripRecorder.problem}`
-										: 'Se guarda este viaje («Guardar mis viajes», en Ajustes).'}
-							</p>
 						{/if}
-						{#if playing}
-							<div class="mt-4 flex items-center justify-center gap-4 short:mt-2">
-								{#if music.podcast}
-									<button
-										class="{big} h-20 w-20 text-xl short:h-14 short:w-14"
-										aria-label="Atrás {SKIP_BACK} segundos"
-										onclick={() => music.skip(-SKIP_BACK)}>−{SKIP_BACK}</button
-									>
-								{:else if !music.radio}
-									<button
-										class="{big} h-20 w-20 short:h-14 short:w-14"
-										aria-label="Anterior"
-										onclick={() => music.previous()}
-										><MediaIcon name="previous" class="h-9 w-9" /></button
-									>
-								{/if}
-								<button
-									class="{big} h-24 w-24 bg-amber-500! text-black! short:h-16 short:w-16"
-									aria-label={music.playing ? 'Pausa' : 'Seguir'}
-									onclick={() => music.toggle()}
-									><MediaIcon name={music.playing ? 'pause' : 'play'} class="h-12 w-12" /></button
-								>
-								{#if music.podcast}
-									<button
-										class="{big} h-20 w-20 text-xl short:h-14 short:w-14"
-										aria-label="Adelante {SKIP_FORWARD} segundos"
-										onclick={() => music.skip(SKIP_FORWARD)}>+{SKIP_FORWARD}</button
-									>
-								{:else if !music.radio}
-									<button
-										class="{big} h-20 w-20 short:h-14 short:w-14"
-										aria-label="Siguiente"
-										disabled={music.index >= music.queue.length - 1 && !music.repeat}
-										onclick={() => music.next()}><MediaIcon name="next" class="h-9 w-9" /></button
-									>
-								{/if}
-							</div>
-							<!-- The music's volume, here only: the tablet's buttons, loud, are for the voice. -->
-							<div class="mt-3 flex items-center justify-center gap-3 short:mt-2">
-								<button
-									class="{big} h-14 w-14 text-3xl short:h-12 short:w-12"
-									aria-label="Música más baja"
-									disabled={carVolume <= 0}
-									onclick={() => changeCarVolume(-CAR_VOLUME_STEP)}>−</button
-								>
-								<span
-									class="w-36 text-center text-lg text-zinc-300"
-									title="La música, aquí; la voz, con los botones de la tablet"
-								>
-									Música {Math.round(carVolume * 100)} %</span
-								>
-								<button
-									class="{big} h-14 w-14 text-3xl short:h-12 short:w-12"
-									aria-label="Música más alta"
-									disabled={carVolume >= 1}
-									onclick={() => changeCarVolume(CAR_VOLUME_STEP)}>+</button
-								>
-							</div>
-						{/if}
-					</section>
+					</div>
+				</div>
+				{#if tripNote && data.recordTrips}
+					<p class="text-right text-base text-zinc-400">
+						{tripRecorder.problem
+							? `No se guarda el viaje: ${tripRecorder.problem}`
+							: 'Se guarda este viaje («Guardar mis viajes», en Ajustes).'}
+					</p>
+				{/if}
+			{:else}
+				<!-- In a section: the way back, big, and the section's own colour, to know where one is. -->
+				{@const back = backTo(tab)}
+				<div class="flex items-center gap-3">
+					<button class="{big} h-16 gap-2 px-5 text-xl font-semibold" onclick={() => (tab = back)}
+						>← {back ? LABELS[back] : 'Inicio'}</button
+					>
+					<div
+						class={['flex h-16 min-w-0 flex-1 items-center gap-3 rounded-2xl px-4', COLOURS[tab]]}
+					>
+						{@render tabIcon(tab, 'h-9 w-9 shrink-0')}
+						<span class="truncate text-2xl font-bold">{LABELS[tab]}</span>
+					</div>
+				</div>
+			{/if}
 
-					<!-- The microphone: what to use while driving. And beside it, a photo (#81) and the fuel. -->
-					<section class="flex flex-col items-center gap-3">
-						<div class="flex items-center gap-6">
-							{@render mic('h-32 w-32 short:h-20 short:w-20', 'h-16 w-16 short:h-10 short:w-10')}
-							<button
-								class="flex h-20 w-20 items-center justify-center rounded-full bg-zinc-800 text-4xl shadow-xl active:scale-95 disabled:opacity-50 short:h-14 short:w-14 short:text-2xl"
-								aria-label="Hacer una foto"
-								title="Una foto hacia la carretera, con dónde y cuándo (o di «haz una foto»)"
-								disabled={roadPhotos.busy}
-								onclick={() => void roadPhotos.take()}>{roadPhotos.busy ? '…' : '📷'}</button
-							>
-							<!-- Fuel, stopped at the petrol station (#194): in Gastos, named after where we are. -->
-							<button
-								class="flex h-20 w-20 items-center justify-center rounded-full bg-zinc-800 text-4xl shadow-xl active:scale-95 short:h-14 short:w-14 short:text-2xl"
-								aria-label="Apuntar gasolina"
-								title="Apuntar lo que has echado de gasolina (o di «he echado 50 euros de gasolina»)"
-								onclick={() => (fueling = true)}>⛽</button
-							>
-						</div>
-						<!-- The wake word, on this tablet: off until turned on. -->
-						<div class="flex flex-wrap items-center justify-center gap-3">
-							<button
-								class={[
-									'rounded-full px-5 py-3 text-lg font-semibold shadow-lg active:scale-95',
-									wakeWord.on.carretera ? 'bg-amber-500 text-black' : 'bg-zinc-800 text-zinc-200'
-								]}
-								aria-pressed={wakeWord.on.carretera}
-								onclick={() => wakeWord.set('carretera', !wakeWord.on.carretera)}
-								>{wakeWord.on.carretera
-									? `«${WAKE_WORDS[wakeWord.word]}»: sí`
-									: `Decir «${WAKE_WORDS[wakeWord.word]}»: no`}</button
-							>
-							{#if wakeWord.on.carretera}
-								{#if !wakeWord.familyWord}
-									<select
-										class="rounded-full border-zinc-700 bg-zinc-900 py-3 text-lg text-zinc-200"
-										aria-label="Palabra"
-										value={wakeWord.word}
-										onchange={(e) => {
-											const word = e.currentTarget.value;
-											if (isWakeWord(word)) wakeWord.setWord(word);
-										}}
-									>
-										{#each Object.entries(WAKE_WORDS) as [model, name] (model)}
-											<option value={model}>{name}</option>
-										{/each}
-									</select>
-								{/if}
-								<span class="text-lg text-zinc-400" aria-live="polite"
-									>{wakeWord.status === 'loading'
-										? 'Preparando…'
-										: wakeWord.status === 'tap'
-											? 'Toca la pantalla para empezar'
-											: wakeWord.status === 'on'
-												? 'Escuchando'
-												: ''}</span
-								>
-							{/if}
-						</div>
-						{#if wakeWord.on.carretera && wakeWord.problem}
-							<p class="text-lg text-amber-300" aria-live="polite">{wakeWord.problem}</p>
-						{/if}
-						{#if roadPhotos.problem}
-							<p class="text-lg text-amber-300" aria-live="polite">{roadPhotos.problem}</p>
-						{/if}
-						{#if voice.phase !== 'idle' || voice.problem || voice.reply}
-							<p class="text-center text-xl" aria-live="polite">{@render voiceLine()}</p>
-						{/if}
-						{#if voice.options.length}
-							<div class="flex flex-wrap justify-center gap-3">
-								{#each voice.options as option (option.command)}
-									<button
-										class="rounded-full bg-zinc-800 px-6 py-3 text-xl active:bg-amber-500 active:text-black"
-										disabled={voice.phase !== 'idle'}
-										onclick={() => voice.command(option.command)}>{option.label}</button
-									>
-								{/each}
-							</div>
-						{/if}
-					</section>
+			<!-- What changes: Inicio or the section, scrolled on its own beside the map. -->
+			<div class={['flex flex-col gap-3', mapShown ? 'min-h-0 flex-1 overflow-y-auto' : 'flex-1']}>
+				{#if tripShare.url}
+					<!-- Shared: said, always in view, with its link and how to stop it (#81). -->
+					<div
+						class="flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-500/50 bg-emerald-500/10 p-3"
+					>
+						<span class="mr-auto text-lg text-emerald-300">● Compartiendo tu viaje</span>
+						<button
+							class="rounded-xl bg-emerald-600 px-4 py-2 text-lg text-white"
+							onclick={sendLink}>{copied ? 'Enlace copiado' : 'Enviar enlace'}</button
+						>
+						<button
+							class="rounded-xl bg-zinc-800 px-4 py-2 text-lg"
+							onclick={() => void tripShare.stop()}>Dejar de compartir</button
+						>
+					</div>
+				{:else if tripShare.problem}
+					<p class="rounded-xl bg-red-950 p-3 text-red-200">{tripShare.problem}</p>
+				{/if}
 
-					{#if problem}
-						<p class="rounded-xl bg-red-950 p-3 text-red-200">{problem}</p>
-					{/if}
+				{#if data.problem}
+					<p class="rounded-xl bg-amber-950 p-3 text-amber-200">
+						Sin la música de casa: {data.problem} La radio sí funciona.
+					</p>
+				{/if}
 
+				{#if screenProblem}
+					<p class="rounded-xl bg-amber-950 p-3 text-amber-200">{screenProblem}</p>
+				{/if}
+
+				{#if tel.state !== 'idle'}
+					<!-- A call (#330): in place of everything else, big, until «Cerrar». -->
+					<CallPanel />
+				{/if}
+				{#if tab === null && tel.state === 'idle'}
 					{#if mapInTab && route}
 						{#if guidance?.arrived}
 							<!-- Not inside the button below: this notice has its own. -->
@@ -1615,417 +1513,720 @@ home. -->
 						{/if}
 					{/if}
 
-					<!-- A big button for each section: one touch, and its list. -->
-					<nav class="grid grid-cols-2 gap-3 sm:grid-cols-3" aria-label="Secciones">
-						{#each TABS as t (t.id)}
+					<!-- A big coloured tile for each section: one touch, and its list. -->
+					<nav
+						class={[
+							'grid gap-3',
+							mapShown
+								? 'min-h-48 flex-1 grid-cols-3 grid-rows-2'
+								: 'auto-rows-[7.5rem] grid-cols-2 sm:grid-cols-3'
+						]}
+						aria-label="Secciones"
+					>
+						{#each HOME as t (t.id)}
 							<button
-								class="flex min-h-24 flex-col items-center justify-center gap-1 rounded-2xl bg-zinc-900 text-lg font-semibold text-zinc-200 active:scale-95 active:bg-zinc-800 short:min-h-16"
-								onclick={() => (tab = t.id)}>{@render tabIcon(t.id)}{t.label}</button
+								class={[
+									'relative flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl font-bold shadow-lg active:scale-95 disabled:opacity-35 disabled:saturate-25',
+									COLOURS[t.id]
+								]}
+								disabled={t.off !== null}
+								onclick={() => (tab = t.id)}
 							>
+								{@render tabIcon(t.id, 'h-12 w-12 short:h-9 short:w-9')}
+								<span class="text-xl xl:text-2xl">{LABELS[t.id]}</span>
+								{#if t.off}
+									<span class="text-base font-normal">{t.off}</span>
+								{/if}
+							</button>
 						{/each}
 					</nav>
-				</div>
-			{/if}
-
-			{#if tabMap}
-				<!-- Kept while a route is followed, out of sight elsewhere: its GPS guides. -->
-				<div
-					class={tab === 'ruta'
-						? 'relative h-[45dvh] shrink-0 short:h-[75dvh]'
-						: 'relative h-0 overflow-hidden'}
-				>
-					<RoadMap
-						{route}
-						destination={destination?.at ?? null}
-						stops={via}
-						onposition={positioned}
-						light={day}
-						corner={lightButton}
-					/>
-					{@render maneuver('absolute inset-x-3 top-3')}
-					{@render searchBox()}
-				</div>
-			{/if}
-
-			{#if tab !== null}
-				{#if problem}
-					<p class="rounded-xl bg-red-950 p-3 text-red-200">{problem}</p>
 				{/if}
-				<!-- The section's list, filling the rest, and scrolled on its own beside the map. -->
-				<div
-					class={[
-						'grid grid-cols-1 content-start gap-3 sm:grid-cols-2',
-						mapShown && 'min-h-0 flex-1 overflow-y-auto'
-					]}
-					role="region"
-					aria-label={TABS.find((t) => t.id === tab)?.label}
-				>
-					{#if tab === 'ruta'}
-						<div class="flex flex-col gap-3 sm:col-span-2">
-							{#if !tripShare.url}
-								<!-- Who waits for you, with a link: where you are, live, until you arrive (#81). -->
-								<button
-									class="rounded-xl bg-zinc-900 px-5 py-3 text-left text-lg text-zinc-200 active:bg-zinc-800 disabled:opacity-50"
-									disabled={tripShare.busy}
-									onclick={share}>{tripShare.busy ? 'Compartiendo…' : 'Compartir viaje'}</button
-								>
-							{/if}
-							{#if route && destination}
-								<div class="rounded-2xl bg-zinc-900 p-4">
-									{#if following}
-										<p class="truncate text-base text-amber-300">
-											Ruta «{following}»{via.length
-												? ` · ${via.length} ${via.length === 1 ? 'parada' : 'paradas'} por delante`
-												: ''}
+
+				{#if tabMap}
+					<!-- Kept while a route is followed, out of sight elsewhere: its GPS guides. -->
+					<div
+						class={tab === 'ruta'
+							? 'relative h-[45dvh] shrink-0 short:h-[75dvh]'
+							: 'relative h-0 overflow-hidden'}
+					>
+						<RoadMap
+							{route}
+							destination={destination?.at ?? null}
+							stops={via}
+							onposition={positioned}
+							light={day}
+							corner={lightButton}
+						/>
+						{@render maneuver('absolute inset-x-3 top-3')}
+						{@render searchBox()}
+					</div>
+				{/if}
+
+				{#if tab !== null && tel.state === 'idle'}
+					<!-- The section's list. -->
+					<div
+						class="grid grid-cols-1 content-start gap-3 sm:grid-cols-2"
+						role="region"
+						aria-label={LABELS[tab]}
+					>
+						{#if tab === 'ruta'}
+							<div class="flex flex-col gap-3 sm:col-span-2">
+								{#if !tripShare.url}
+									<!-- Who waits for you, with a link: where you are, live, until you arrive (#81). -->
+									<button
+										class="rounded-xl bg-zinc-900 px-5 py-3 text-left text-lg text-zinc-200 active:bg-zinc-800 disabled:opacity-50"
+										disabled={tripShare.busy}
+										onclick={share}>{tripShare.busy ? 'Compartiendo…' : 'Compartir viaje'}</button
+									>
+								{/if}
+								{#if route && destination}
+									<div class="rounded-2xl bg-zinc-900 p-4">
+										{#if following}
+											<p class="truncate text-base text-amber-300">
+												Ruta «{following}»{via.length
+													? ` · ${via.length} ${via.length === 1 ? 'parada' : 'paradas'} por delante`
+													: ''}
+											</p>
+										{:else if via.length}
+											<p class="truncate text-base text-amber-300">
+												Por {via
+													.map((s) => `${shortName(s.name)}${s.reason ? ` (${s.reason})` : ''}`)
+													.join(', ')}
+											</p>
+										{/if}
+										<p class="truncate text-xl font-semibold">{destination.label}</p>
+										<p class="text-lg text-zinc-300">
+											{distanceText(guidance?.remaining ?? route.distance)}{#if eta}
+												· {durationText(eta.seconds)} · llegada a las {clock.format(
+													eta.arrival
+												)}{/if}
 										</p>
-									{:else if via.length}
-										<p class="truncate text-base text-amber-300">
-											Por {via
-												.map((s) => `${shortName(s.name)}${s.reason ? ` (${s.reason})` : ''}`)
-												.join(', ')}
-										</p>
-									{/if}
-									<p class="truncate text-xl font-semibold">{destination.label}</p>
-									<p class="text-lg text-zinc-300">
-										{distanceText(guidance?.remaining ?? route.distance)}{#if eta}
-											· {durationText(eta.seconds)} · llegada a las {clock.format(eta.arrival)}{/if}
-									</p>
-									<div class="mt-3 flex flex-wrap gap-2">
-										<button
-											class="rounded-xl bg-red-700 px-5 py-3 text-lg font-semibold text-white active:bg-red-800"
-											onclick={clearRoute}>Quitar ruta</button
-										>
-										<button
-											class={[
-												'rounded-xl px-5 py-3 text-lg',
-												spoken ? 'bg-amber-500/20 text-amber-300' : 'bg-zinc-800 text-zinc-400'
-											]}
-											aria-pressed={spoken}
-											onclick={() => setSpoken(!spoken)}>{spoken ? 'Voz: sí' : 'Voz: no'}</button
-										>
+										<div class="mt-3 flex flex-wrap gap-2">
+											<button
+												class="rounded-xl bg-red-700 px-5 py-3 text-lg font-semibold text-white active:bg-red-800"
+												onclick={clearRoute}>Quitar ruta</button
+											>
+											<button
+												class={[
+													'rounded-xl px-5 py-3 text-lg',
+													spoken ? 'bg-amber-500/20 text-amber-300' : 'bg-zinc-800 text-zinc-400'
+												]}
+												aria-pressed={spoken}
+												onclick={() => setSpoken(!spoken)}>{spoken ? 'Voz: sí' : 'Voz: no'}</button
+											>
+										</div>
 									</div>
-								</div>
-								<ol bind:this={stepList} class="flex flex-col gap-2">
-									{#each route.steps as step, i (i)}
-										<li
-											class={[
-												'flex items-baseline gap-3 rounded-xl px-4 py-3 text-lg',
-												i === guidance?.nextIndex
-													? 'bg-amber-500/20 ring-2 ring-amber-400'
-													: i < (guidance?.nextIndex ?? 0)
-														? 'bg-zinc-900 text-zinc-500'
-														: 'bg-zinc-900'
-											]}
-											aria-current={i === guidance?.nextIndex ? 'step' : undefined}
-										>
-											<span class="min-w-0 flex-1">{step.instruction}</span>
-											{#if step.distance}
-												<span class="shrink-0 text-base text-zinc-400"
-													>{distanceText(step.distance)}</span
-												>
-											{/if}
-										</li>
-									{/each}
-								</ol>
-							{:else}
-								{#if !places && routeBusy !== 'search'}
-									<!-- Written on the map, parked. -->
-									<p class="text-lg text-zinc-400">Escribe el destino en el mapa, parado.</p>
-								{/if}
-								{#if routeBusy === 'search'}
-									<p class="text-lg text-zinc-300">Buscando…</p>
-								{/if}
-								{#if !here}
-									<p class="text-lg text-zinc-400">Esperando a saber dónde estás (el GPS)…</p>
-								{/if}
-								{#if !places && routeBusy !== 'search'}
-									<!-- Kept in Viajes (#151): one touch, from where we are. -->
-									{#each data.routes as saved (saved.id)}
-										<button
-											class="{tile} border-amber-400/30 bg-zinc-900"
-											disabled={routeBusy !== null}
-											onclick={() => follow(saved)}
-										>
-											<span class="min-w-0">
-												<span class="block truncate text-xl font-semibold">{saved.name}</span>
-												<span class="block truncate text-base text-zinc-400"
-													>Ruta · {saved.stops.map((s) => s.name).join(' → ')}</span
-												>
-											</span>
-										</button>
-									{/each}
-									{#each data.places as saved (saved.id)}
+									<ol bind:this={stepList} class="flex flex-col gap-2">
+										{#each route.steps as step, i (i)}
+											<li
+												class={[
+													'flex items-baseline gap-3 rounded-xl px-4 py-3 text-lg',
+													i === guidance?.nextIndex
+														? 'bg-amber-500/20 ring-2 ring-amber-400'
+														: i < (guidance?.nextIndex ?? 0)
+															? 'bg-zinc-900 text-zinc-500'
+															: 'bg-zinc-900'
+												]}
+												aria-current={i === guidance?.nextIndex ? 'step' : undefined}
+											>
+												<span class="min-w-0 flex-1">{step.instruction}</span>
+												{#if step.distance}
+													<span class="shrink-0 text-base text-zinc-400"
+														>{distanceText(step.distance)}</span
+													>
+												{/if}
+											</li>
+										{/each}
+									</ol>
+								{:else}
+									{#if !places && routeBusy !== 'search'}
+										<!-- Written on the map, parked. -->
+										<p class="text-lg text-zinc-400">Escribe el destino en el mapa, parado.</p>
+									{/if}
+									{#if routeBusy === 'search'}
+										<p class="text-lg text-zinc-300">Buscando…</p>
+									{/if}
+									{#if !here}
+										<p class="text-lg text-zinc-400">Esperando a saber dónde estás (el GPS)…</p>
+									{/if}
+									{#if !places && routeBusy !== 'search'}
+										<!-- Kept in Viajes (#151): one touch, from where we are. -->
+										{#each data.routes as saved (saved.id)}
+											<button
+												class="{tile} border-amber-400/30 bg-zinc-900"
+												disabled={routeBusy !== null}
+												onclick={() => follow(saved)}
+											>
+												<span class="min-w-0">
+													<span class="block truncate text-xl font-semibold">{saved.name}</span>
+													<span class="block truncate text-base text-zinc-400"
+														>Ruta · {saved.stops.map((s) => s.name).join(' → ')}</span
+													>
+												</span>
+											</button>
+										{/each}
+										{#each data.places as saved (saved.id)}
+											<button
+												class="{tile} border-zinc-50/10 bg-zinc-900"
+												disabled={routeBusy !== null}
+												onclick={() => go({ label: saved.name, at: saved.at })}
+											>
+												<span class="min-w-0 truncate text-xl font-semibold">{saved.name}</span>
+											</button>
+										{/each}
+									{/if}
+									{#each places ?? [] as place (place.label)}
 										<button
 											class="{tile} border-zinc-50/10 bg-zinc-900"
 											disabled={routeBusy !== null}
-											onclick={() => go({ label: saved.name, at: saved.at })}
+											onclick={() => go(place)}
 										>
-											<span class="min-w-0 truncate text-xl font-semibold">{saved.name}</span>
+											<span class="min-w-0 text-xl"
+												>{routeBusy === 'route' ? 'Calculando la ruta…' : place.label}</span
+											>
 										</button>
+									{:else}
+										{#if places}
+											<p class="text-lg text-zinc-400">No he encontrado ese sitio.</p>
+										{/if}
 									{/each}
 								{/if}
-								{#each places ?? [] as place (place.label)}
-									<button
-										class="{tile} border-zinc-50/10 bg-zinc-900"
-										disabled={routeBusy !== null}
-										onclick={() => go(place)}
-									>
-										<span class="min-w-0 text-xl"
-											>{routeBusy === 'route' ? 'Calculando la ruta…' : place.label}</span
-										>
-									</button>
-								{:else}
-									{#if places}
-										<p class="text-lg text-zinc-400">No he encontrado ese sitio.</p>
-									{/if}
-								{/each}
-							{/if}
-							{#if routeProblem}
-								<p class="rounded-xl bg-red-950 p-3 text-red-200">{routeProblem}</p>
-							{/if}
-						</div>
-					{:else if tab === 'radio'}
-						{#each stations as station (station.uuid)}
-							{@const favicon = data.info?.[station.uuid]?.favicon}
-							{@const on = music.radio?.uuid === station.uuid}
-							<button
-								class={[
-									tile,
-									on ? 'border-emerald-400 bg-emerald-500/15' : 'border-zinc-50/10 bg-zinc-900'
-								]}
-								disabled={loading !== null}
-								onclick={() => radio(station)}
-							>
-								{#if favicon && !broken.has(station.uuid)}
-									<img
-										src={favicon}
-										alt=""
-										class="h-14 w-14 shrink-0 rounded-lg bg-white object-contain p-1"
-										onerror={() => broken.add(station.uuid)}
-									/>
-								{:else}
-									<span
-										class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-2xl font-bold text-zinc-400"
-										>{station.name[0]}</span
-									>
+								{#if routeProblem}
+									<p class="rounded-xl bg-red-950 p-3 text-red-200">{routeProblem}</p>
 								{/if}
-								<span class="min-w-0">
-									<span class="block truncate text-xl font-semibold">
-										{loading === station.uuid ? 'Conectando…' : station.name}
-									</span>
-									<span class="block truncate text-base text-zinc-400"
-										>{on ? (music.playing ? '● Sonando' : 'En pausa') : station.description}</span
-									>
-								</span>
-							</button>
-						{/each}
-					{:else if tab === 'musica'}
-						{@const shuffling = playingHere('aleatorio')}
-						<button
-							class={[
-								tile,
-								'sm:col-span-2',
-								shuffling
-									? 'border-emerald-400 bg-emerald-500/15'
-									: 'border-amber-400/60 bg-amber-500/10'
-							]}
-							disabled={loading !== null}
-							onclick={everything}
-						>
-							<span
-								class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-amber-300"
-								><MediaIcon name="shuffle" class="h-8 w-8" /></span
-							>
-							<span class="min-w-0">
-								<span class="block truncate text-xl font-semibold">
-									{loading === 'aleatorio' ? 'Cargando…' : 'Todo aleatorio'}
-								</span>
-								<span class="block truncate text-base text-zinc-400"
-									>{shuffling
-										? music.playing
-											? '● Sonando'
-											: 'En pausa'
-										: 'De toda tu música'}</span
-								>
-							</span>
-						</button>
-						{#each data.albums as a (a.id)}
-							{@const on = playingHere(`album-${a.id}`)}
-							<button
-								class={[
-									tile,
-									on ? 'border-emerald-400 bg-emerald-500/15' : 'border-zinc-50/10 bg-zinc-900'
-								]}
-								disabled={loading !== null}
-								onclick={() => album(a.id)}
-							>
-								{#if a.hasCover}
-									<img
-										src={coverUrl(a.id)}
-										alt=""
-										loading="lazy"
-										class="h-14 w-14 shrink-0 rounded-lg bg-zinc-800 object-cover"
-									/>
-								{:else}
-									<span
-										class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-2xl font-bold text-zinc-400"
-										>{a.title[0]}</span
-									>
-								{/if}
-								<span class="min-w-0">
-									<span class="block truncate text-xl font-semibold">
-										{loading === `album-${a.id}` ? 'Cargando…' : a.title}
-									</span>
-									<span class="block truncate text-base text-zinc-400"
-										>{on ? (music.playing ? '● Sonando' : 'En pausa') : a.artist}</span
-									>
-								</span>
-							</button>
-						{:else}
-							<p class="text-lg text-zinc-400">No hay música todavía.</p>
-						{/each}
-					{:else if tab === 'listas'}
-						{#each playlists as playlist (playlist.id)}
-							<button
-								class="{tile} border-zinc-50/10 bg-zinc-900"
-								disabled={loading !== null}
-								onclick={() => list(playlist.id)}
-							>
-								<span class="min-w-0">
-									<span class="block truncate text-xl font-semibold">
-										{loading === `lista-${playlist.id}` ? 'Cargando…' : playlist.name}
-									</span>
-									<span class="block text-base text-zinc-400">{playlist.total} canciones</span>
-								</span>
-							</button>
-						{:else}
-							<p class="text-lg text-zinc-400">No hay listas. Se hacen en Música.</p>
-						{/each}
-					{:else if tab === 'telegram'}
-						<button
-							class={[
-								tile,
-								'sm:col-span-2',
-								telegramOn ? 'border-sky-400 bg-sky-500/15' : 'border-zinc-50/10 bg-zinc-900'
-							]}
-							aria-pressed={telegramOn}
-							onclick={() => setTelegram(!telegramOn)}
-						>
-							<span class="text-3xl" aria-hidden="true">{telegramOn ? '🔊' : '🔇'}</span>
-							<span class="min-w-0">
-								<span class="block text-xl font-semibold"
-									>{telegramOn ? 'Leyendo los mensajes' : 'Leer los mensajes en voz alta'}</span
-								>
-								<span class="block text-base text-zinc-400"
-									>{telegramOn
-										? 'Cada uno se lee al llegar, con la música más baja'
-										: 'Los que te lleguen a Telegram mientras conduces'}</span
-								>
-							</span>
-						</button>
-						{#each telegramMessages as m (m.key)}
-							<div class="rounded-2xl border-2 border-zinc-50/10 bg-zinc-900 p-3 sm:col-span-2">
-								<span class="block text-base text-zinc-400"
-									>{m.chat ? `${m.from} · ${m.chat}` : m.from} · {new Date(m.at).toLocaleTimeString(
-										'es-ES',
-										{ hour: '2-digit', minute: '2-digit' }
-									)}</span
-								>
-								<span class="block text-lg">{m.text ?? telegramSaid(m)}</span>
 							</div>
-						{/each}
-					{:else if tab === 'dj'}
-						{@const setups = [
-							...(lastDj ? [{ id: 'dj-ultima', name: 'La última', options: lastDj }] : []),
-							...data.djPresets.map((p) => ({ id: `dj-${p.id}`, name: p.name, options: p.options }))
-						]}
-						{#each setups as setup (setup.id)}
-							{@const on = playingHere(setup.id) && music.dj}
+						{:else if tab === 'radio'}
+							{#each stations as station (station.uuid)}
+								{@const favicon = data.info?.[station.uuid]?.favicon}
+								{@const on = music.radio?.uuid === station.uuid}
+								<button
+									class={[
+										tile,
+										on ? 'border-emerald-400 bg-emerald-500/15' : 'border-zinc-50/10 bg-zinc-900'
+									]}
+									disabled={loading !== null}
+									onclick={() => radio(station)}
+								>
+									{#if favicon && !broken.has(station.uuid)}
+										<img
+											src={favicon}
+											alt=""
+											class="h-14 w-14 shrink-0 rounded-lg bg-white object-contain p-1"
+											onerror={() => broken.add(station.uuid)}
+										/>
+									{:else}
+										<span
+											class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-2xl font-bold text-zinc-400"
+											>{station.name[0]}</span
+										>
+									{/if}
+									<span class="min-w-0">
+										<span class="block truncate text-xl font-semibold">
+											{loading === station.uuid ? 'Conectando…' : station.name}
+										</span>
+										<span class="block truncate text-base text-zinc-400"
+											>{on ? (music.playing ? '● Sonando' : 'En pausa') : station.description}</span
+										>
+									</span>
+								</button>
+							{/each}
+						{:else if tab === 'musica'}
+							{@const shuffling = playingHere('aleatorio')}
+							{#if music.current && !music.radio && !music.podcast}
+								<!-- The previous song: here, not on the bar, where only the next one fits. -->
+								<button
+									class="{big} h-16 gap-3 text-xl font-semibold sm:col-span-2"
+									onclick={() => music.previous()}
+									><MediaIcon name="previous" class="h-8 w-8" /> Anterior</button
+								>
+							{/if}
 							<button
 								class={[
 									tile,
-									on ? 'border-amber-400 bg-amber-500/15' : 'border-zinc-50/10 bg-zinc-900'
+									'sm:col-span-2',
+									shuffling
+										? 'border-emerald-400 bg-emerald-500/15'
+										: 'border-amber-400/60 bg-amber-500/10'
 								]}
 								disabled={loading !== null}
-								onclick={() => startDj(setup.id, setup.options)}
+								onclick={everything}
 							>
+								<span
+									class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-amber-300"
+									><MediaIcon name="shuffle" class="h-8 w-8" /></span
+								>
 								<span class="min-w-0">
 									<span class="block truncate text-xl font-semibold">
-										{loading === setup.id ? 'Poniendo…' : setup.name}
+										{loading === 'aleatorio' ? 'Cargando…' : 'Todo aleatorio'}
 									</span>
 									<span class="block truncate text-base text-zinc-400"
-										>{on
+										>{shuffling
 											? music.playing
 												? '● Sonando'
 												: 'En pausa'
-											: djArtists(setup.options.artists)}</span
+											: 'De toda tu música'}</span
 									>
 								</span>
 							</button>
-						{/each}
-						{#if !data.djPresets.length}
-							<p class="text-lg text-zinc-400">
-								Guarda una configuración en Música → Modo DJ para tenerla aquí.
+							{#each data.albums as a (a.id)}
+								{@const on = playingHere(`album-${a.id}`)}
+								<button
+									class={[
+										tile,
+										on ? 'border-emerald-400 bg-emerald-500/15' : 'border-zinc-50/10 bg-zinc-900'
+									]}
+									disabled={loading !== null}
+									onclick={() => album(a.id)}
+								>
+									{#if a.hasCover}
+										<img
+											src={coverUrl(a.id)}
+											alt=""
+											loading="lazy"
+											class="h-14 w-14 shrink-0 rounded-lg bg-zinc-800 object-cover"
+										/>
+									{:else}
+										<span
+											class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-2xl font-bold text-zinc-400"
+											>{a.title[0]}</span
+										>
+									{/if}
+									<span class="min-w-0">
+										<span class="block truncate text-xl font-semibold">
+											{loading === `album-${a.id}` ? 'Cargando…' : a.title}
+										</span>
+										<span class="block truncate text-base text-zinc-400"
+											>{on ? (music.playing ? '● Sonando' : 'En pausa') : a.artist}</span
+										>
+									</span>
+								</button>
+							{:else}
+								<p class="text-lg text-zinc-400">No hay música todavía.</p>
+							{/each}
+						{:else if tab === 'listas'}
+							{#each playlists as playlist (playlist.id)}
+								<button
+									class="{tile} border-zinc-50/10 bg-zinc-900"
+									disabled={loading !== null}
+									onclick={() => list(playlist.id)}
+								>
+									<span class="min-w-0">
+										<span class="block truncate text-xl font-semibold">
+											{loading === `lista-${playlist.id}` ? 'Cargando…' : playlist.name}
+										</span>
+										<span class="block text-base text-zinc-400">{playlist.total} canciones</span>
+									</span>
+								</button>
+							{:else}
+								<p class="text-lg text-zinc-400">No hay listas. Se hacen en Música.</p>
+							{/each}
+						{:else if tab === 'telegram'}
+							<button
+								class={[
+									tile,
+									'sm:col-span-2',
+									telegramOn ? 'border-sky-400 bg-sky-500/15' : 'border-zinc-50/10 bg-zinc-900'
+								]}
+								aria-pressed={telegramOn}
+								onclick={() => setTelegram(!telegramOn)}
+							>
+								<span class="text-3xl" aria-hidden="true">{telegramOn ? '🔊' : '🔇'}</span>
+								<span class="min-w-0">
+									<span class="block text-xl font-semibold"
+										>{telegramOn ? 'Leyendo los mensajes' : 'Leer los mensajes en voz alta'}</span
+									>
+									<span class="block text-base text-zinc-400"
+										>{telegramOn
+											? 'Cada uno se lee al llegar, con la música más baja'
+											: 'Los que te lleguen a Telegram mientras conduces'}</span
+									>
+								</span>
+							</button>
+							{#each telegramMessages as m (m.key)}
+								<div class="rounded-2xl border-2 border-zinc-50/10 bg-zinc-900 p-3 sm:col-span-2">
+									<span class="block text-base text-zinc-400"
+										>{m.chat ? `${m.from} · ${m.chat}` : m.from} · {new Date(
+											m.at
+										).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span
+									>
+									<span class="block text-lg">{m.text ?? telegramSaid(m)}</span>
+								</div>
+							{/each}
+						{:else if tab === 'dj'}
+							{@const setups = [
+								...(lastDj ? [{ id: 'dj-ultima', name: 'La última', options: lastDj }] : []),
+								...data.djPresets.map((p) => ({
+									id: `dj-${p.id}`,
+									name: p.name,
+									options: p.options
+								}))
+							]}
+							{#each setups as setup (setup.id)}
+								{@const on = playingHere(setup.id) && music.dj}
+								<button
+									class={[
+										tile,
+										on ? 'border-amber-400 bg-amber-500/15' : 'border-zinc-50/10 bg-zinc-900'
+									]}
+									disabled={loading !== null}
+									onclick={() => startDj(setup.id, setup.options)}
+								>
+									<span class="min-w-0">
+										<span class="block truncate text-xl font-semibold">
+											{loading === setup.id ? 'Poniendo…' : setup.name}
+										</span>
+										<span class="block truncate text-base text-zinc-400"
+											>{on
+												? music.playing
+													? '● Sonando'
+													: 'En pausa'
+												: djArtists(setup.options.artists)}</span
+										>
+									</span>
+								</button>
+							{/each}
+							{#if !data.djPresets.length}
+								<p class="text-lg text-zinc-400">
+									Guarda una configuración en Música → Modo DJ para tenerla aquí.
+								</p>
+							{/if}
+						{:else if tab === 'podcasts'}
+							{#if music.podcast}
+								<!-- Back and forth in the one that plays; on the bar, only forward. -->
+								<div class="grid grid-cols-2 gap-3 sm:col-span-2">
+									<button
+										class="{big} h-16 text-xl font-semibold"
+										aria-label="Atrás {SKIP_BACK} segundos"
+										onclick={() => music.skip(-SKIP_BACK)}>−{SKIP_BACK} s</button
+									>
+									<button
+										class="{big} h-16 text-xl font-semibold"
+										aria-label="Adelante {SKIP_FORWARD} segundos"
+										onclick={() => music.skip(SKIP_FORWARD)}>+{SKIP_FORWARD} s</button
+									>
+								</div>
+							{/if}
+							{#each data.inProgress as episode (episode.id)}
+								{@const on = music.podcast?.id === episode.id}
+								<button
+									class={[
+										tile,
+										on ? 'border-amber-400 bg-amber-500/15' : 'border-zinc-50/10 bg-zinc-900'
+									]}
+									disabled={loading !== null}
+									onclick={() => podcast(episode.id)}
+								>
+									{#if episode.imageUrl}
+										<img
+											src={episode.imageUrl}
+											alt=""
+											class="h-14 w-14 shrink-0 rounded-lg bg-zinc-800 object-cover"
+										/>
+									{/if}
+									<span class="min-w-0">
+										<span class="block truncate text-xl font-semibold">{episode.title}</span>
+										<span class="block truncate text-base text-zinc-400"
+											>Seguir · {episode.podcastTitle}</span
+										>
+									</span>
+								</button>
+							{/each}
+							{#each data.podcasts as p (p.id)}
+								{@const on = music.podcast?.id === p.latest.id}
+								<button
+									class={[
+										tile,
+										on ? 'border-amber-400 bg-amber-500/15' : 'border-zinc-50/10 bg-zinc-900'
+									]}
+									disabled={loading !== null}
+									onclick={() => podcast(p.latest.id)}
+								>
+									{#if p.imageUrl}
+										<img
+											src={p.imageUrl}
+											alt=""
+											class="h-14 w-14 shrink-0 rounded-lg bg-zinc-800 object-cover"
+										/>
+									{/if}
+									<span class="min-w-0">
+										<span class="block truncate text-xl font-semibold">{p.title}</span>
+										<span class="block truncate text-base text-zinc-400"
+											>Lo último: {p.latest.title}</span
+										>
+									</span>
+								</button>
+							{:else}
+								{#if !data.inProgress.length}
+									<p class="text-lg text-zinc-400">No sigues ningún podcast. Se siguen en Radio.</p>
+								{/if}
+							{/each}
+						{:else if tab === 'llamar'}
+							<!-- Who of the family, by their name: one touch, and it rings (#330). -->
+							{#each data.callable as p (p.userId)}
+								<button
+									class={[tile, 'border-zinc-50/10 bg-zinc-900']}
+									onclick={() => void tel.call(p.userId, p.name)}
+								>
+									<span
+										class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-2xl font-bold text-white"
+										aria-hidden="true">{p.name.slice(0, 1).toUpperCase()}</span
+									>
+									<span class="min-w-0">
+										<span class="block truncate text-xl font-semibold">{p.name}</span>
+										{#if !p.notices}
+											<span class="block text-base text-zinc-400"
+												>Sin avisos: solo si tiene Seilide abierto</span
+											>
+										{/if}
+									</span>
+								</button>
+							{/each}
+						{:else if tab === 'mas'}
+							<!-- What is used less while driving, or stopped: one touch from Inicio, out of its way. -->
+							{#if data.callable.length}
+								<button
+									class={[tile, 'border-zinc-50/10 bg-zinc-900']}
+									onclick={() => (tab = 'llamar')}
+								>
+									<span
+										class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl {COLOURS.llamar}"
+										>{@render tabIcon('llamar', 'h-8 w-8')}</span
+									>
+									<span class="min-w-0">
+										<span class="block text-xl font-semibold">Llamar</span>
+										<span class="block text-base text-zinc-400">A alguien de la familia</span>
+									</span>
+								</button>
+							{/if}
+							{#if data.dj}
+								<button
+									class={[tile, 'border-zinc-50/10 bg-zinc-900']}
+									onclick={() => (tab = 'dj')}
+								>
+									<span
+										class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl {COLOURS.dj}"
+										>{@render tabIcon('dj', 'h-8 w-8')}</span
+									>
+									<span class="min-w-0">
+										<span class="block text-xl font-semibold">DJ</span>
+										<span class="block text-base text-zinc-400">Tus configuraciones de Modo DJ</span
+										>
+									</span>
+								</button>
+							{/if}
+							{#if data.telegram}
+								<button
+									class={[tile, 'border-zinc-50/10 bg-zinc-900']}
+									onclick={() => (tab = 'telegram')}
+								>
+									<span
+										class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl {COLOURS.telegram}"
+										>{@render tabIcon('telegram', 'h-8 w-8')}</span
+									>
+									<span class="min-w-0">
+										<span class="block text-xl font-semibold">Telegram</span>
+										<span class="block text-base text-zinc-400">Mensajes leídos en voz alta</span>
+									</span>
+								</button>
+							{/if}
+							<!-- A photo towards the road, with where and when (#81). -->
+							<button
+								class={[tile, 'border-zinc-50/10 bg-zinc-900']}
+								disabled={roadPhotos.busy}
+								onclick={() => void roadPhotos.take()}
+							>
+								<span class="text-4xl" aria-hidden="true">📷</span>
+								<span class="min-w-0">
+									<span class="block text-xl font-semibold"
+										>{roadPhotos.busy ? 'Haciendo la foto…' : 'Hacer una foto'}</span
+									>
+									<span class="block text-base text-zinc-400">O di «haz una foto»</span>
+								</span>
+							</button>
+							<!-- Fuel, stopped at the petrol station (#194): in Gastos, named after where we are. -->
+							<button
+								class={[tile, 'border-zinc-50/10 bg-zinc-900']}
+								onclick={() => (fueling = true)}
+							>
+								<span class="text-4xl" aria-hidden="true">⛽</span>
+								<span class="min-w-0">
+									<span class="block text-xl font-semibold">Apuntar gasolina</span>
+									<span class="block text-base text-zinc-400"
+										>O di «he echado 50 euros de gasolina»</span
+									>
+								</span>
+							</button>
+							<!-- The wake word, on this tablet: off until turned on. -->
+							<div class="flex flex-col gap-2">
+								<button
+									class={[
+										tile,
+										'w-full',
+										wakeWord.on.carretera
+											? 'border-amber-400 bg-amber-500/15'
+											: 'border-zinc-50/10 bg-zinc-900'
+									]}
+									aria-pressed={wakeWord.on.carretera}
+									onclick={() => wakeWord.set('carretera', !wakeWord.on.carretera)}
+								>
+									<span class="min-w-0">
+										<span class="block text-xl font-semibold"
+											>Decir «{WAKE_WORDS[wakeWord.word]}»</span
+										>
+										<span class="block text-base text-zinc-400"
+											>{wakeWord.on.carretera
+												? 'Sí: se le habla sin tocar la pantalla'
+												: 'No: solo con el micrófono'}</span
+										>
+									</span>
+								</button>
+								{#if wakeWord.on.carretera && !wakeWord.familyWord}
+									<select
+										class="rounded-xl border-zinc-700 bg-zinc-900 py-3 text-lg text-zinc-200"
+										aria-label="Palabra"
+										value={wakeWord.word}
+										onchange={(e) => {
+											const word = e.currentTarget.value;
+											if (isWakeWord(word)) wakeWord.setWord(word);
+										}}
+									>
+										{#each Object.entries(WAKE_WORDS) as [model, name] (model)}
+											<option value={model}>{name}</option>
+										{/each}
+									</select>
+								{/if}
+							</div>
+							<!-- Whether this trip is kept: said, and where it is changed. -->
+							<p
+								class="rounded-2xl border-2 border-zinc-50/10 bg-zinc-900 p-3 text-lg text-zinc-300"
+							>
+								{!data.recordTrips
+									? 'No se guardan tus viajes: «Guardar mis viajes», en Ajustes.'
+									: tripRecorder.problem
+										? `No se guarda el viaje: ${tripRecorder.problem}`
+										: 'Se guarda este viaje («Guardar mis viajes», en Ajustes).'}
 							</p>
 						{/if}
-					{:else if tab === 'podcasts'}
-						{#each data.inProgress as episode (episode.id)}
-							{@const on = music.podcast?.id === episode.id}
-							<button
-								class={[
-									tile,
-									on ? 'border-amber-400 bg-amber-500/15' : 'border-zinc-50/10 bg-zinc-900'
-								]}
-								disabled={loading !== null}
-								onclick={() => podcast(episode.id)}
-							>
-								{#if episode.imageUrl}
-									<img
-										src={episode.imageUrl}
-										alt=""
-										class="h-14 w-14 shrink-0 rounded-lg bg-zinc-800 object-cover"
-									/>
-								{/if}
-								<span class="min-w-0">
-									<span class="block truncate text-xl font-semibold">{episode.title}</span>
-									<span class="block truncate text-base text-zinc-400"
-										>Seguir · {episode.podcastTitle}</span
-									>
-								</span>
-							</button>
-						{/each}
-						{#each data.podcasts as p (p.id)}
-							{@const on = music.podcast?.id === p.latest.id}
-							<button
-								class={[
-									tile,
-									on ? 'border-amber-400 bg-amber-500/15' : 'border-zinc-50/10 bg-zinc-900'
-								]}
-								disabled={loading !== null}
-								onclick={() => podcast(p.latest.id)}
-							>
-								{#if p.imageUrl}
-									<img
-										src={p.imageUrl}
-										alt=""
-										class="h-14 w-14 shrink-0 rounded-lg bg-zinc-800 object-cover"
-									/>
-								{/if}
-								<span class="min-w-0">
-									<span class="block truncate text-xl font-semibold">{p.title}</span>
-									<span class="block truncate text-base text-zinc-400"
-										>Lo último: {p.latest.title}</span
-									>
-								</span>
-							</button>
-						{:else}
-							{#if !data.inProgress.length}
-								<p class="text-lg text-zinc-400">No sigues ningún podcast. Se siguen en Radio.</p>
-							{/if}
-						{/each}
-					{/if}
+					</div>
+				{/if}
+			</div>
+
+			<!-- What the voice and the rest say: just above the bar, where the eyes already are. -->
+			{#if problem}
+				<p class="rounded-xl bg-red-950 p-3 text-red-200">{problem}</p>
+			{/if}
+			{#if wakeWord.on.carretera && wakeWord.problem}
+				<p class="text-lg text-amber-300" aria-live="polite">{wakeWord.problem}</p>
+			{/if}
+			{#if roadPhotos.problem}
+				<p class="text-lg text-amber-300" aria-live="polite">{roadPhotos.problem}</p>
+			{/if}
+			{#if voice.phase !== 'idle' || voice.problem || voice.reply}
+				<p class="text-center text-xl" aria-live="polite">{@render voiceLine()}</p>
+			{/if}
+			{#if voice.options.length}
+				<div class="flex flex-wrap justify-center gap-3">
+					{#each voice.options as option (option.command)}
+						<button
+							class="rounded-full bg-zinc-800 px-6 py-3 text-xl active:bg-amber-500 active:text-black"
+							disabled={voice.phase !== 'idle'}
+							onclick={() => voice.command(option.command)}>{option.label}</button
+						>
+					{/each}
 				</div>
 			{/if}
+
+			<!--
+				The bar: the same in Inicio and in every section, each button always in its place. Beside
+				▶, the next song, or 30 s further in a podcast; with the radio, an empty place, so ▶ does
+				not move. The microphone, the biggest, in the corner nearest the hand.
+			-->
+			<div
+				class={[
+					'flex shrink-0 items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-2 shadow-xl',
+					!mapShown && 'sticky bottom-2 z-10'
+				]}
+			>
+				{#if playing}
+					{#if playing.image}
+						<img
+							src={playing.image}
+							alt=""
+							class="h-16 w-16 shrink-0 rounded-xl bg-zinc-800 object-cover short:h-12 short:w-12"
+						/>
+					{:else}
+						<span
+							class={[
+								'flex h-16 w-16 shrink-0 items-center justify-center rounded-xl short:h-12 short:w-12',
+								COLOURS[playingTab]
+							]}>{@render tabIcon(playingTab, 'h-9 w-9')}</span
+						>
+					{/if}
+					<div class="min-w-0 flex-1">
+						<p class="truncate text-xl font-semibold">{playing.title}</p>
+						<p class="truncate text-base text-zinc-400">{playing.detail}</p>
+						{#if progress}
+							<div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-zinc-800" aria-hidden="true">
+								<div
+									class="h-full rounded-full bg-zinc-300"
+									style:width="{(progress.at / progress.duration) * 100}%"
+								></div>
+							</div>
+						{/if}
+					</div>
+				{:else}
+					<p class="min-w-0 flex-1 truncate pl-2 text-lg text-zinc-400">No suena nada</p>
+				{/if}
+				<button
+					class="{big} h-16 w-16 rounded-full bg-zinc-100! text-zinc-950! short:h-14 short:w-14"
+					aria-label={music.playing ? 'Pausa' : 'Seguir'}
+					disabled={!playing}
+					onclick={() => music.toggle()}
+					><MediaIcon name={music.playing ? 'pause' : 'play'} class="h-9 w-9" /></button
+				>
+				{#if music.podcast}
+					<button
+						class="{big} h-14 w-14 rounded-full text-lg font-semibold"
+						aria-label="Adelante {SKIP_FORWARD} segundos"
+						onclick={() => music.skip(SKIP_FORWARD)}>+{SKIP_FORWARD}</button
+					>
+				{:else if playing && !music.radio}
+					<button
+						class="{big} h-14 w-14 rounded-full"
+						aria-label="Siguiente"
+						disabled={music.index >= music.queue.length - 1 && !music.repeat}
+						onclick={() => music.next()}><MediaIcon name="next" class="h-8 w-8" /></button
+					>
+				{:else}
+					<span class="hidden h-14 w-14 shrink-0 sm:block" aria-hidden="true"></span>
+				{/if}
+				<!-- The music's volume, here only: the tablet's buttons, loud, are for the voice. Not on a
+				phone upright: no room, and its own buttons are at hand. -->
+				<div
+					class="hidden shrink-0 flex-col items-center sm:flex"
+					title="La música, aquí; la voz, con los botones de la tablet"
+				>
+					<button
+						class="{big} h-9 w-12 rounded-xl text-2xl"
+						aria-label="Música más alta"
+						disabled={carVolume >= 1}
+						onclick={() => changeCarVolume(CAR_VOLUME_STEP)}>+</button
+					>
+					<span class="text-sm text-zinc-400 tabular-nums" aria-label="Volumen de la música"
+						>{Math.round(carVolume * 100)}</span
+					>
+					<button
+						class="{big} h-9 w-12 rounded-xl text-2xl"
+						aria-label="Música más baja"
+						disabled={carVolume <= 0}
+						onclick={() => changeCarVolume(-CAR_VOLUME_STEP)}>−</button
+					>
+				</div>
+				{@render mic(
+					'h-20 w-20 sm:h-24 sm:w-24 short:h-16 short:w-16',
+					'h-10 w-10 sm:h-12 sm:w-12 short:h-9 short:w-9'
+				)}
+			</div>
 		</div>
 	</div>
 

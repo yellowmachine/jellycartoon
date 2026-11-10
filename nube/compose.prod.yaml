@@ -70,6 +70,10 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY is required}
       MAP_DIR: /data/mapa
       ROUTE_MAPS_DIR: /data/recorridos
+      # The calls' coturn, below (#330): its name, and the secret it shares with the app. Without
+      # TURN_SECRET, no coturn either: calls only between devices that see each other.
+      TURN_HOST: ${TURN_HOST:-}
+      TURN_SECRET: ${TURN_SECRET:-}
     # The road mode's map (#78), in a folder of the VPS made with scripts/mapa.sh
     # (`nube/scripts/mapa.sh /opt/nube` → /opt/nube/mapa); read only. Without it, no map. And the strips
     # of it cut around the families' routes, for devices without coverage (#164).
@@ -96,6 +100,41 @@ services:
     networks:
       default:
         aliases: [nube-rustfs]
+
+  # The calls' relay (#330): when the two devices cannot reach each other (a tablet on mobile data,
+  # behind its carrier's NAT), the sound goes through here; Seilide only hands out passwords of a
+  # day for it (lib/server/turn.ts, `use-auth-secret`). On the host's network: TURN needs the VPS's
+  # own address and a range of UDP ports, which Docker's port mapping handles badly. Open in the VPS's
+  # firewall: 3478 UDP and TCP, and 49160-49200 UDP. Never towards private addresses (the VPS's other
+  # containers, its network): `denied-peer-ip`, as coturn's own security advice says.
+  coturn:
+    image: coturn/coturn:4.18.0
+    restart: unless-stopped
+    network_mode: host
+    # Only with COMPOSE_PROFILES=llamadas in the Environment, beside TURN_HOST and TURN_SECRET.
+    profiles: [llamadas]
+    command:
+      - -n
+      - --log-file=stdout
+      - --listening-port=3478
+      - --min-port=49160
+      - --max-port=49200
+      - --fingerprint
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SECRET:-}
+      - --realm=${TURN_HOST:-}
+      - --no-tls
+      - --no-multicast-peers
+      - --denied-peer-ip=0.0.0.0-0.255.255.255
+      - --denied-peer-ip=10.0.0.0-10.255.255.255
+      - --denied-peer-ip=100.64.0.0-100.127.255.255
+      - --denied-peer-ip=127.0.0.0-127.255.255.255
+      - --denied-peer-ip=169.254.0.0-169.254.255.255
+      - --denied-peer-ip=172.16.0.0-172.31.255.255
+      - --denied-peer-ip=192.168.0.0-192.168.255.255
+      - --denied-peer-ip=::1
+      - --denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+      - --denied-peer-ip=fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff
 
 volumes:
   pgdata:

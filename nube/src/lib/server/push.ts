@@ -27,9 +27,10 @@ export interface PushMessage {
 	sticky?: boolean;
 	/**
 	 * Its buttons, where the phone shows them (Android; not iOS): each, touched, makes a POST to
-	 * `post` without opening the app; if it fails, the app opens at `url`.
+	 * `post` without opening the app; if it fails, the app opens at `url`. One with a `url` of its
+	 * own instead opens the app there («Contestar» a call, #330).
 	 */
-	actions?: { action: string; title: string; post: string }[];
+	actions?: ({ action: string; title: string } & ({ post: string } | { url: string }))[];
 }
 
 /** A contact for the push services, as the protocol asks: the app's address, which is https. */
