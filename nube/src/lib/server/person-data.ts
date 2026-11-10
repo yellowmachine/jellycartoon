@@ -380,6 +380,18 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: false,
 		note: 'Pairs of expenses said not to be the same (#440)'
 	},
+	expense_tag: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'Own tags of lines (#459): the family’s; the new family has its own, names would clash'
+	},
+	expense_tag_rule: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'Line text → own tag (#459), with its tags'
+	},
 	expense_favorite: {
 		leaving: 'stays',
 		joining: 'moves',

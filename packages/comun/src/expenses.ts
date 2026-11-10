@@ -198,6 +198,25 @@ export function parseExpenseInput(body: unknown): ExpenseInput | null {
 	return { date, store: store.trim().slice(0, 120), category, total: sum, lines: parsed };
 }
 
+/**
+ * A line's text as an own tag's rule keeps it (#459): lowercase, without accents, its spaces one:
+ * «Barra  Picos» and «BARRA PICOS» are the same line, «barra picos integral» another.
+ */
+export const lineKey = (text: string) =>
+	text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/\s+/g, ' ').trim();
+
+/** A family's own tags (#459) and its rules: each line's key → its tag's id. */
+export interface OwnTags {
+	tags: { id: number; name: string }[];
+	rules: Record<string, number>;
+}
+
+/** The own tag of a line, if a rule gives it one. */
+export function ownTagOf(own: OwnTags, text: string) {
+	const id = own.rules[lineKey(text)];
+	return id === undefined ? null : (own.tags.find((t) => t.id === id) ?? null);
+}
+
 /** The lines' sum, to say when it is not the total (something misread, or a discount). */
 export const linesSum = (lines: ExpenseLine[]) => lines.reduce((sum, l) => sum + l.amount, 0);
 
