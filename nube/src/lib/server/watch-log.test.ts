@@ -7,6 +7,7 @@ import { family, familyMember, user, watchLog } from './db/schema.ts';
 import type { Kitchen } from './fridge.ts';
 import {
 	forgetWatched,
+	lastDays,
 	lastMondays,
 	mondayOf,
 	parseWatchRows,
@@ -140,7 +141,77 @@ test('what is older than the period does not count', async () => {
 	expect(stats.titles).toEqual([]);
 });
 
+test('the last days one by one, and what was watched in them, the latest first', async () => {
+	await saveWatched(k, 'peque', [
+		row({ seconds: 300, minute: 1270 }),
+		row({ seconds: 200, minute: 1280 }),
+		row({
+			seconds: 600,
+			day: '2026-11-05',
+			minute: 600,
+			item: 'm1',
+			kind: 'pelicula',
+			seriesTitle: null,
+			title: 'Peli',
+			season: null,
+			number: null
+		}),
+		row({ seconds: 60, day: '2026-10-20', item: 'e9' })
+	]);
+	const stats = await watchStats(k, 'ana', TODAY, 4, null);
+	expect(stats.days.length).toBe(14);
+	expect(stats.days.at(-1)).toEqual({ day: TODAY, seconds: 500 });
+	expect(stats.days.at(-2)).toEqual({ day: '2026-11-05', seconds: 600 });
+	expect(stats.days[0].day).toBe('2026-10-24');
+	// Older than the two weeks: in the weeks, not here.
+	expect(stats.latest.map((w) => [w.item, w.seconds, w.lastDay])).toEqual([
+		['e1', 500, TODAY],
+		['m1', 600, '2026-11-05']
+	]);
+	expect(stats.latest[0]).toMatchObject({ userId: 'peque', seriesTitle: 'Bluey', season: 1 });
+});
+
+test('the latest of all of them: another adult’s is not there', async () => {
+	await saveWatched(k, 'luis', [row({ item: 'e5', seriesTitle: 'De Luis' })]);
+	await saveWatched(k, 'ana', [row({ minute: 600 })]);
+	const stats = await watchStats(k, 'ana', TODAY, 4, null);
+	expect(stats.latest.map((w) => w.userId)).toEqual(['ana']);
+});
+
+test('of one kind: everything of that kind only, and the kinds there are to choose', async () => {
+	await saveWatched(k, 'ana', [
+		row({ seconds: 300 }),
+		row({
+			seconds: 900,
+			item: 's4',
+			kind: 'web',
+			seriesTitle: null,
+			title: 'NBA',
+			season: null,
+			number: null
+		})
+	]);
+	await saveWatched(k, 'peque', [
+		row({ seconds: 100, item: 'cclan', kind: 'canal', title: 'Clan', seriesTitle: null })
+	]);
+	const all = await watchStats(k, 'ana', TODAY, 4, null);
+	expect(all.kind).toBeNull();
+	expect(all.kinds).toEqual(['serie', 'canal', 'web']);
+	const webs = await watchStats(k, 'ana', TODAY, 4, null, 'web');
+	expect(webs.people.map((p) => [p.id, p.seconds])).toEqual([
+		['ana', 900],
+		['peque', 0]
+	]);
+	expect(webs.titles).toEqual([{ label: 'NBA', kind: 'web', seconds: 900 }]);
+	expect(webs.days.at(-1)?.seconds).toBe(900);
+	expect(webs.latest.map((w) => w.title)).toEqual(['NBA']);
+	expect(webs.hours[21].seconds).toBe(900);
+	// The kinds there are, of the person chosen.
+	expect((await watchStats(k, 'ana', TODAY, 4, 'peque')).kinds).toEqual(['canal']);
+});
+
 test('weeks go from Monday, this one the last', () => {
+	expect(lastDays(TODAY, 3)).toEqual(['2026-11-04', '2026-11-05', TODAY]);
 	expect(mondayOf('2026-11-08')).toBe('2026-11-02');
 	expect(mondayOf('2026-11-02')).toBe('2026-11-02');
 	expect(lastMondays(TODAY, 3)).toEqual(['2026-10-19', '2026-10-26', '2026-11-02']);

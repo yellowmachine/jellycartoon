@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, max, or, sql } from 'drizzle-orm';
 import { familyMember, user, watchLog } from './db/schema.ts';
 import type { Kitchen } from './fridge.ts';
 
@@ -8,7 +8,8 @@ import type { Kitchen } from './fridge.ts';
  * reads their own and the children's, never another adult's: at home, what one watches is theirs.
  */
 
-const KINDS = ['serie', 'pelicula', 'canal', 'web'] as const;
+export const KINDS = ['serie', 'pelicula', 'canal', 'web'] as const;
+export type WatchKind = (typeof KINDS)[number];
 export const MAX_ROWS = 500;
 const MAX_TEXT = 500;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -103,20 +104,35 @@ export function lastMondays(today: string, count: number) {
 }
 
 const TOP_TITLES = 15;
+/** The days seen one by one, as /infantil at home: these two weeks, today the last. */
+export const RECENT_DAYS = 14;
+const RECENT_ITEMS = 15;
+
+/** The `YYYY-MM-DD` of the last `count` days, today the last. */
+export function lastDays(today: string, count: number) {
+	const day = Date.parse(`${today}T00:00:00Z`);
+	return Array.from({ length: count }, (_, i) =>
+		new Date(day - (count - 1 - i) * 86_400_000).toISOString().slice(0, 10)
+	);
+}
 
 /**
  * The hours of the last `weeks` weeks: per person, of those `viewerId` may see; and of `personId`,
- * if it is one of them, or of all of them, per week, per series and per hour of the day.
+ * if it is one of them, or of all of them, per week, per series and per hour of the day. Also, the
+ * last `RECENT_DAYS` one by one and what was watched in them, the latest first. `kind`, of only
+ * that kind (series, films, channels or webs); `kinds`, those there are in the period, to choose.
  */
 export async function watchStats(
 	k: Kitchen,
 	viewerId: string,
 	today: string,
 	weeks: number,
-	personId: string | null
+	personId: string | null,
+	kind: WatchKind | null = null
 ) {
 	const mondays = lastMondays(today, weeks);
 	const from = mondays[0];
+	const days = lastDays(today, RECENT_DAYS);
 	return k.run(async (tx) => {
 		const visible = await tx
 			.select({ id: familyMember.userId, name: user.name })
@@ -126,15 +142,23 @@ export async function watchStats(
 		const ids = visible.map((p) => p.id);
 		const chosen = personId && ids.includes(personId) ? personId : null;
 		const seconds = sql<number>`coalesce(sum(${watchLog.seconds}), 0)::real`;
+		const ofKind = kind ? eq(watchLog.kind, kind) : undefined;
 
-		const perPerson = ids.length
+		const inPeriod = ids.length
 			? await tx
-					.select({ id: watchLog.userId, seconds })
+					.select({ id: watchLog.userId, kind: watchLog.kind, seconds })
 					.from(watchLog)
 					.where(and(inArray(watchLog.userId, ids), gte(watchLog.day, from)))
-					.groupBy(watchLog.userId)
+					.groupBy(watchLog.userId, watchLog.kind)
 			: [];
-		const whose = and(inArray(watchLog.userId, chosen ? [chosen] : ids), gte(watchLog.day, from));
+		const of = new Map<string, number>();
+		for (const p of inPeriod)
+			if (!kind || p.kind === kind) of.set(p.id, (of.get(p.id) ?? 0) + p.seconds);
+		const whoseIds = chosen ? [chosen] : ids;
+		const kinds = KINDS.filter((x) =>
+			inPeriod.some((p) => p.kind === x && whoseIds.includes(p.id) && p.seconds > 0)
+		);
+		const whose = and(inArray(watchLog.userId, whoseIds), gte(watchLog.day, from), ofKind);
 
 		const week = sql<string>`to_char(date_trunc('week', ${watchLog.day}::timestamp), 'YYYY-MM-DD')`;
 		const perWeek = await tx.select({ week, seconds }).from(watchLog).where(whose).groupBy(week);
@@ -148,11 +172,46 @@ export async function watchStats(
 			.groupBy(label, watchLog.kind)
 			.orderBy(sql`sum(${watchLog.seconds}) desc`);
 
-		const of = new Map(perPerson.map((p) => [p.id, p.seconds]));
+		const recent = and(inArray(watchLog.userId, whoseIds), gte(watchLog.day, days[0]), ofKind);
+		const day = sql<string>`to_char(${watchLog.day}, 'YYYY-MM-DD')`;
+		const perDay = await tx.select({ day, seconds }).from(watchLog).where(recent).groupBy(day);
+		const lastDay = sql<string>`to_char(${max(watchLog.day)}, 'YYYY-MM-DD')`;
+		const latest = await tx
+			.select({
+				userId: watchLog.userId,
+				item: watchLog.item,
+				kind: watchLog.kind,
+				seriesTitle: watchLog.seriesTitle,
+				title: watchLog.title,
+				season: watchLog.season,
+				number: watchLog.number,
+				seconds,
+				lastDay
+			})
+			.from(watchLog)
+			.where(recent)
+			.groupBy(
+				watchLog.userId,
+				watchLog.item,
+				watchLog.kind,
+				watchLog.seriesTitle,
+				watchLog.title,
+				watchLog.season,
+				watchLog.number
+			)
+			.orderBy(
+				desc(sql`max(${watchLog.day}::timestamp + ${watchLog.minute} * interval '1 minute')`),
+				sql`sum(${watchLog.seconds}) desc`
+			)
+			.limit(RECENT_ITEMS);
+
 		const ofWeek = new Map(perWeek.map((w) => [w.week, w.seconds]));
 		const ofHour = new Map(perHour.map((h) => [h.hour, h.seconds]));
+		const ofDay = new Map(perDay.map((d) => [d.day, d.seconds]));
 		return {
 			person: chosen,
+			kind,
+			kinds,
 			people: visible
 				.map((p) => ({
 					id: p.id,
@@ -164,7 +223,9 @@ export async function watchStats(
 			weeks: mondays.map((monday) => ({ monday, seconds: ofWeek.get(monday) ?? 0 })),
 			hours: Array.from({ length: 24 }, (_, h) => ({ hour: h, seconds: ofHour.get(h) ?? 0 })),
 			titles: perTitle.slice(0, TOP_TITLES),
-			moreTitles: Math.max(0, perTitle.length - TOP_TITLES)
+			moreTitles: Math.max(0, perTitle.length - TOP_TITLES),
+			days: days.map((d) => ({ day: d, seconds: ofDay.get(d) ?? 0 })),
+			latest
 		};
 	});
 }

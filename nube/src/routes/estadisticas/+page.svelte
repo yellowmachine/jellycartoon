@@ -20,12 +20,56 @@
 	const weekLabel = (monday: string) => dayMonth.format(new Date(`${monday}T00:00:00Z`));
 
 	const KIND = { serie: 'Serie', pelicula: 'Película', canal: 'Canal', web: 'Web' };
+	const KINDS = { serie: 'Series', pelicula: 'Películas', canal: 'Canales', web: 'Webs' };
 
-	const link = (persona: string | null, semanas: number) => {
-		const params = new URLSearchParams({ semanas: String(semanas) });
-		if (persona) params.set('persona', persona);
+	/** This page with what is chosen now, but for what changes. */
+	const link = (change: { persona?: string | null; semanas?: number; tipo?: string | null }) => {
+		const chosen = {
+			semanas: data.period,
+			persona: stats.person,
+			tipo: stats.kind as string | null,
+			...change
+		};
+		const params = new URLSearchParams({ semanas: String(chosen.semanas) });
+		if (chosen.persona) params.set('persona', chosen.persona);
+		if (chosen.tipo) params.set('tipo', chosen.tipo);
 		return `?${params}`;
 	};
+	const kindChips = $derived(
+		stats.kind && !stats.kinds.includes(stats.kind) ? [...stats.kinds, stats.kind] : stats.kinds
+	);
+
+	const weekdayDay = new Intl.DateTimeFormat('es', {
+		weekday: 'short',
+		day: 'numeric',
+		month: 'short',
+		timeZone: 'UTC'
+	});
+	const dayOf = (day: string) => new Date(`${day}T00:00:00Z`);
+	/** «Hoy», «Ayer», «lun, 3 nov». */
+	const dayLabel = (day: string) => {
+		if (day === data.today) return 'Hoy';
+		if (day === stats.days.at(-2)?.day) return 'Ayer';
+		return weekdayDay.format(dayOf(day));
+	};
+	const dayColumns = $derived(
+		stats.days.map((d) => ({ key: d.day, label: dayLabel(d.day), seconds: d.seconds }))
+	);
+	// Every four days, the last of them near today, as many as fit on a phone.
+	const dayTicks = $derived(
+		stats.days
+			.filter((_, i) => (stats.days.length - 2 - i) % 4 === 0)
+			.map((d) => ({ key: d.day, label: dayMonth.format(dayOf(d.day)) }))
+	);
+	const nameOfId = $derived(new Map(stats.people.map((p) => [p.id, nameOf(p)])));
+	/** Whose each one is, when it may be someone else's. */
+	const showWhose = $derived(!stats.person && stats.people.length > 1);
+	const detailOf = (w: (typeof stats.latest)[number]) =>
+		w.kind === 'serie'
+			? [w.season != null && w.number != null ? `T${w.season} E${w.number}` : null, w.title]
+					.filter(Boolean)
+					.join(' · ')
+			: KIND[w.kind];
 	const chip = (on: boolean) =>
 		`rounded-full px-3 py-1 text-sm ${on ? 'bg-amber-500 font-medium text-zinc-950' : 'bg-zinc-800 hover:bg-zinc-700'}`;
 
@@ -63,23 +107,40 @@
 <nav class="mb-3 flex flex-wrap gap-2" aria-label="Periodo">
 	{#each data.periods as weeks (weeks)}
 		<a
-			href={link(stats.person, weeks)}
+			href={link({ semanas: weeks })}
 			class={chip(weeks === data.period)}
 			aria-current={weeks === data.period ? 'true' : undefined}>{weeks} semanas</a
 		>
 	{/each}
 </nav>
 
+{#if stats.kind || kindChips.length > 1}
+	<nav class="mb-3 flex flex-wrap gap-2" aria-label="Tipo">
+		<a href={link({ tipo: null })} class={chip(!stats.kind)}>Todo</a>
+		{#each kindChips as kind (kind)}
+			<a
+				href={link({ tipo: kind })}
+				class={chip(stats.kind === kind)}
+				aria-current={stats.kind === kind ? 'true' : undefined}>{KINDS[kind]}</a
+			>
+		{/each}
+	</nav>
+{/if}
+
 {#if !total}
 	<p class="mt-6 text-zinc-400">
-		Todavía no hay nada en este periodo. Lo visto en casa llega aquí cada 10 minutos, desde que la
-		casa tiene esta versión y con Seilide conectada.
+		{#if stats.kind}
+			Nada de {KINDS[stats.kind].toLowerCase()} en este periodo.
+		{:else}
+			Todavía no hay nada en este periodo. Lo visto en casa llega aquí cada 10 minutos, desde que la
+			casa tiene esta versión y con Seilide conectada.
+		{/if}
 	</p>
 {:else}
 	<nav class="mb-6 flex flex-wrap gap-2" aria-label="Persona">
-		<a href={link(null, data.period)} class={chip(!stats.person)}>Todos</a>
+		<a href={link({ persona: null })} class={chip(!stats.person)}>Todos</a>
 		{#each stats.people as person (person.id)}
-			<a href={link(person.id, data.period)} class={chip(stats.person === person.id)}
+			<a href={link({ persona: person.id })} class={chip(stats.person === person.id)}
 				>{nameOf(person)}</a
 			>
 		{/each}
@@ -105,11 +166,32 @@
 		</ul>
 	</section>
 
+	<Columns title="Últimos {stats.days.length} días" columns={dayColumns} ticks={dayTicks} />
+
+	<section class="mb-8">
+		<h2 class="mb-2 font-semibold">Lo último</h2>
+		{#if stats.latest.length}
+			<ul class="space-y-2 text-sm">
+				{#each stats.latest as w (`${w.userId} ${w.item}`)}
+					<li>
+						<span class="block truncate">{w.seriesTitle ?? w.title}</span>
+						<span class="block truncate text-xs text-zinc-400">
+							{#if showWhose}{nameOfId.get(w.userId)} ·
+							{/if}{detailOf(w)} · {timeWatched(w.seconds)} · {dayLabel(w.lastDay)}
+						</span>
+					</li>
+				{/each}
+			</ul>
+		{:else}
+			<p class="text-sm text-zinc-400">Nada en estos {stats.days.length} días.</p>
+		{/if}
+	</section>
+
 	<Columns title="Por semana" columns={weekColumns} ticks={weekTicks} />
 	<Columns title="A qué horas" columns={hourColumns} ticks={hourTicks} />
 
 	<section class="mb-8">
-		<h2 class="mb-2 font-semibold">Por serie</h2>
+		<h2 class="mb-2 font-semibold">Por título</h2>
 		{#if stats.titles.length}
 			<ul class="space-y-2">
 				{#each stats.titles as title (`${title.kind} ${title.label}`)}
