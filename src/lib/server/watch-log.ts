@@ -3,10 +3,11 @@ import { db } from '#lib/server/db/index.ts';
 import { askCloud, cloudLink } from '#lib/server/kitchen.ts';
 import { log } from '#lib/server/log.ts';
 import { today } from '#lib/server/playlist.ts';
-import { sendWatchLog } from '#lib/server/watch-log-scope.ts';
+import { allGames } from '#lib/server/games.ts';
+import { sendWatchLog, tellKeepHistory, type SendWatch } from '#lib/server/watch-log-scope.ts';
 
 /**
- * Seilide's statistics of what is watched here (#421): every 10 minutes, what changed; if there is
+ * Seilide's statistics of what is watched and played here (#421): every 10 minutes, what changed; if there is
  * no internet, everything when it comes back. From the first day with Seilide connected, not the
  * history from before. «Seguir viendo» and the children's limits have nothing to do with this.
  */
@@ -14,6 +15,12 @@ const EVERY = 10 * 60_000;
 const SINCE = 'watch_log_since';
 
 let running = false;
+
+/** The games' names as the games screen shows them (FBNeo's for arcade games), by `system/file`. */
+async function gameNames() {
+	const systems = await allGames();
+	return new Map(systems.flatMap((s) => s.games.map((g) => [`${s.id}/${g.file}`, g.title])));
+}
 
 async function send() {
 	const link = await cloudLink();
@@ -23,9 +30,10 @@ async function send() {
 		since = today(new Date());
 		await setAppSetting(SINCE, since);
 	}
-	await sendWatchLog(db, since, (userId, body) =>
-		askCloud<{ known?: boolean }>(link, '/visto', { userId, body })
-	);
+	const send: SendWatch = (userId, body) =>
+		askCloud<{ known?: boolean }>(link, '/visto', { userId, body });
+	await tellKeepHistory(db, send);
+	await sendWatchLog(db, since, send, gameNames);
 }
 
 /** Now, as when turning off «Guardar lo que veo»; if it is at it, on its next round. */

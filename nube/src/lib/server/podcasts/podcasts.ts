@@ -8,6 +8,7 @@ import {
 import { houseKitchen, type Kitchen } from '#lib/server/fridge.ts';
 import { DONE_BEFORE_END, type PodcastPlaying, type PodcastResult } from 'comun/podcasts.ts';
 import { isWebUrl, parseFeed, type Feed } from './feed.ts';
+import { addListened } from '#lib/server/watch-log.ts';
 
 /**
  * Public podcasts (#10), the family's since #253: found in Apple's directory or by their feed's URL,
@@ -319,24 +320,44 @@ export async function episodeToPlay(k: Kitchen, episodeId: number): Promise<Podc
 	return { ...episode, positionSec: completed ? 0 : (positionSec ?? 0) };
 }
 
-/** Where this user is in it; listened to near the end, or when the player says it ended. */
+/**
+ * Where this user is in it; listened to near the end, or when the player says it ended. And what
+ * it moved forward since the last save from the same player (`source`: a browser session, the
+ * house), as time listened to for Estadísticas (#421).
+ */
 export async function saveProgress(
 	k: Kitchen,
 	episodeId: number,
 	positionSec: number,
-	ended: boolean
+	ended: boolean,
+	source: string
 ) {
 	const userId = who(k);
 	const [found] = await k.run((tx) =>
 		tx
-			.select({ durationSec: podcastEpisode.durationSec })
+			.select({
+				durationSec: podcastEpisode.durationSec,
+				title: podcastEpisode.title,
+				podcastTitle: podcast.title
+			})
 			.from(podcastEpisode)
+			.innerJoin(podcast, eq(podcast.id, podcastEpisode.podcastId))
 			.where(eq(podcastEpisode.id, episodeId))
 	);
 	if (!found) return false;
 	const completed =
 		ended || (found.durationSec !== null && positionSec >= found.durationSec - DONE_BEFORE_END);
 	await keepProgress(k, userId, episodeId, { positionSec, completed });
+	const what = {
+		item: `p${episodeId}`,
+		kind: 'podcast' as const,
+		seriesTitle: found.podcastTitle,
+		title: found.title
+	};
+	// Never in the way of saving where they are.
+	await addListened(k, userId, what, positionSec, source).catch((error) =>
+		console.warn('[podcasts] No se pudo apuntar el tiempo escuchado', String(error))
+	);
 	return true;
 }
 

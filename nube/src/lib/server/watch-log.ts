@@ -1,14 +1,36 @@
-import { and, eq, gte, inArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, max, or, sql } from 'drizzle-orm';
 import { familyMember, user, watchLog } from './db/schema.ts';
 import type { Kitchen } from './fridge.ts';
+import { localDay } from 'comun/agenda.ts';
+import { WatchSteps } from 'comun/watch-steps.ts';
 
 /**
- * What is watched at home, here (#421): the house sends the seconds of each slot (/api/casa/visto),
+ * What is watched and played at home, here (#421): the house sends the seconds of each slot (/api/casa/visto),
  * the whole of them and not what they grew by, so that sending twice changes nothing. Each adult
  * reads their own and the children's, never another adult's: at home, what one watches is theirs.
  */
 
-const KINDS = ['serie', 'pelicula', 'canal', 'web'] as const;
+export const KINDS = [
+	'serie',
+	'pelicula',
+	'canal',
+	'web',
+	'juego',
+	'podcast',
+	'cancion',
+	'radio'
+] as const;
+export type WatchKind = (typeof KINDS)[number];
+
+/** Estadísticas' tabs: watching, listening and playing are not added up together. */
+export const AREAS = {
+	ver: ['serie', 'pelicula', 'canal', 'web'],
+	escuchar: ['cancion', 'radio', 'podcast'],
+	jugar: ['juego']
+} as const satisfies Record<string, readonly WatchKind[]>;
+export type Area = keyof typeof AREAS;
+export const isArea = (value: unknown): value is Area =>
+	typeof value === 'string' && Object.hasOwn(AREAS, value);
 export const MAX_ROWS = 500;
 const MAX_TEXT = 500;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -87,6 +109,72 @@ export async function forgetWatched(k: Kitchen, userId: string) {
 	await k.run((tx) => tx.delete(watchLog).where(eq(watchLog.userId, userId)));
 }
 
+/** «Guardar lo que veo» as their house says it: off, what they listen to here is not counted. */
+export async function setKeepsHistory(k: Kitchen, userId: string, on: boolean) {
+	await k.run((tx) =>
+		tx.update(familyMember).set({ keepHistory: on }).where(eq(familyMember.userId, userId))
+	);
+}
+
+/** Whether what a person listens to here counts: a child's always; an adult's, as their house says. */
+async function keepsHistory(k: Kitchen, userId: string) {
+	const [member] = await k.run((tx) =>
+		tx
+			.select({ role: familyMember.role, keepHistory: familyMember.keepHistory })
+			.from(familyMember)
+			.where(eq(familyMember.userId, userId))
+	);
+	return !!member && (member.role === 'peque' || member.keepHistory);
+}
+
+/** The last position heard of each person, thing and player; in memory, a restart loses one step. */
+const steps = new WatchSteps();
+const SLOT_MINUTES = 10;
+
+/** What is listened to, as a slot's row says it, but for its time. */
+export type Listened = Pick<WatchRow, 'item' | 'kind' | 'seriesTitle' | 'title'>;
+
+/**
+ * Listened to here (#421), from where the player is now (`positionSec`), saved every few seconds:
+ * what it moved forward since the last save of the same `source` (a browser, the house) is time
+ * listened to, added to its slot. Not the house's rows, which come whole: these items are others.
+ */
+export async function addListened(
+	k: Kitchen,
+	userId: string,
+	what: Listened,
+	positionSec: number,
+	source: string,
+	now = new Date()
+) {
+	const step = steps.step(`${userId}:${what.item}:${source}`, positionSec, now.getTime());
+	if (!step || !(await keepsHistory(k, userId))) return;
+	const minute = now.getHours() * 60 + now.getMinutes();
+	const row = {
+		...what,
+		familyId: k.familyId,
+		userId,
+		day: localDay(now),
+		minute: minute - (minute % SLOT_MINUTES),
+		season: null,
+		number: null,
+		seconds: step
+	};
+	await k.run((tx) =>
+		tx
+			.insert(watchLog)
+			.values(row)
+			.onConflictDoUpdate({
+				target: [watchLog.userId, watchLog.day, watchLog.minute, watchLog.item],
+				set: {
+					seriesTitle: sql`excluded.series_title`,
+					title: sql`excluded.title`,
+					seconds: sql`${watchLog.seconds} + excluded.seconds`
+				}
+			})
+	);
+}
+
 /** The Monday of a `YYYY-MM-DD`'s week. */
 export function mondayOf(day: string) {
 	const date = new Date(`${day}T00:00:00Z`);
@@ -103,20 +191,39 @@ export function lastMondays(today: string, count: number) {
 }
 
 const TOP_TITLES = 15;
+/** The days seen one by one, as /infantil at home: these two weeks, today the last. */
+export const RECENT_DAYS = 14;
+const RECENT_ITEMS = 15;
+
+/** The `YYYY-MM-DD` of the last `count` days, today the last. */
+export function lastDays(today: string, count: number) {
+	const day = Date.parse(`${today}T00:00:00Z`);
+	return Array.from({ length: count }, (_, i) =>
+		new Date(day - (count - 1 - i) * 86_400_000).toISOString().slice(0, 10)
+	);
+}
 
 /**
  * The hours of the last `weeks` weeks: per person, of those `viewerId` may see; and of `personId`,
- * if it is one of them, or of all of them, per week, per series and per hour of the day.
+ * if it is one of them, or of all of them, per week, per series and per hour of the day. Also, the
+ * last `RECENT_DAYS` one by one and what was watched in them, the latest first. Of one `area`
+ * (Ver, Escuchar or Jugar; Ver if none) and, in it, of one `kind` if given; `kinds`, those of the
+ * area there are in the period, to choose; `areas`, the time of each, of whose it is.
  */
 export async function watchStats(
 	k: Kitchen,
 	viewerId: string,
 	today: string,
 	weeks: number,
-	personId: string | null
+	personId: string | null,
+	filter: { area?: Area; kind?: WatchKind | null } = {}
 ) {
+	const area = filter.area ?? 'ver';
+	const inArea: readonly WatchKind[] = AREAS[area];
+	const kind = filter.kind && inArea.includes(filter.kind) ? filter.kind : null;
 	const mondays = lastMondays(today, weeks);
 	const from = mondays[0];
+	const days = lastDays(today, RECENT_DAYS);
 	return k.run(async (tx) => {
 		const visible = await tx
 			.select({ id: familyMember.userId, name: user.name })
@@ -126,15 +233,29 @@ export async function watchStats(
 		const ids = visible.map((p) => p.id);
 		const chosen = personId && ids.includes(personId) ? personId : null;
 		const seconds = sql<number>`coalesce(sum(${watchLog.seconds}), 0)::real`;
+		const ofKind = kind ? eq(watchLog.kind, kind) : inArray(watchLog.kind, [...inArea]);
 
-		const perPerson = ids.length
+		const inPeriod = ids.length
 			? await tx
-					.select({ id: watchLog.userId, seconds })
+					.select({ id: watchLog.userId, kind: watchLog.kind, seconds })
 					.from(watchLog)
 					.where(and(inArray(watchLog.userId, ids), gte(watchLog.day, from)))
-					.groupBy(watchLog.userId)
+					.groupBy(watchLog.userId, watchLog.kind)
 			: [];
-		const whose = and(inArray(watchLog.userId, chosen ? [chosen] : ids), gte(watchLog.day, from));
+		const of = new Map<string, number>();
+		for (const p of inPeriod)
+			if (kind ? p.kind === kind : inArea.includes(p.kind))
+				of.set(p.id, (of.get(p.id) ?? 0) + p.seconds);
+		const whoseIds = chosen ? [chosen] : ids;
+		const theirs = inPeriod.filter((p) => whoseIds.includes(p.id) && p.seconds > 0);
+		const kinds = inArea.filter((x) => theirs.some((p) => p.kind === x));
+		const areas = (Object.keys(AREAS) as Area[]).map((a) => ({
+			area: a,
+			seconds: theirs
+				.filter((p) => (AREAS[a] as readonly WatchKind[]).includes(p.kind))
+				.reduce((n, p) => n + p.seconds, 0)
+		}));
+		const whose = and(inArray(watchLog.userId, whoseIds), gte(watchLog.day, from), ofKind);
 
 		const week = sql<string>`to_char(date_trunc('week', ${watchLog.day}::timestamp), 'YYYY-MM-DD')`;
 		const perWeek = await tx.select({ week, seconds }).from(watchLog).where(whose).groupBy(week);
@@ -148,11 +269,48 @@ export async function watchStats(
 			.groupBy(label, watchLog.kind)
 			.orderBy(sql`sum(${watchLog.seconds}) desc`);
 
-		const of = new Map(perPerson.map((p) => [p.id, p.seconds]));
+		const recent = and(inArray(watchLog.userId, whoseIds), gte(watchLog.day, days[0]), ofKind);
+		const day = sql<string>`to_char(${watchLog.day}, 'YYYY-MM-DD')`;
+		const perDay = await tx.select({ day, seconds }).from(watchLog).where(recent).groupBy(day);
+		const lastDay = sql<string>`to_char(${max(watchLog.day)}, 'YYYY-MM-DD')`;
+		const latest = await tx
+			.select({
+				userId: watchLog.userId,
+				item: watchLog.item,
+				kind: watchLog.kind,
+				seriesTitle: watchLog.seriesTitle,
+				title: watchLog.title,
+				season: watchLog.season,
+				number: watchLog.number,
+				seconds,
+				lastDay
+			})
+			.from(watchLog)
+			.where(recent)
+			.groupBy(
+				watchLog.userId,
+				watchLog.item,
+				watchLog.kind,
+				watchLog.seriesTitle,
+				watchLog.title,
+				watchLog.season,
+				watchLog.number
+			)
+			.orderBy(
+				desc(sql`max(${watchLog.day}::timestamp + ${watchLog.minute} * interval '1 minute')`),
+				sql`sum(${watchLog.seconds}) desc`
+			)
+			.limit(RECENT_ITEMS);
+
 		const ofWeek = new Map(perWeek.map((w) => [w.week, w.seconds]));
 		const ofHour = new Map(perHour.map((h) => [h.hour, h.seconds]));
+		const ofDay = new Map(perDay.map((d) => [d.day, d.seconds]));
 		return {
 			person: chosen,
+			area,
+			areas,
+			kind,
+			kinds,
 			people: visible
 				.map((p) => ({
 					id: p.id,
@@ -164,7 +322,9 @@ export async function watchStats(
 			weeks: mondays.map((monday) => ({ monday, seconds: ofWeek.get(monday) ?? 0 })),
 			hours: Array.from({ length: 24 }, (_, h) => ({ hour: h, seconds: ofHour.get(h) ?? 0 })),
 			titles: perTitle.slice(0, TOP_TITLES),
-			moreTitles: Math.max(0, perTitle.length - TOP_TITLES)
+			moreTitles: Math.max(0, perTitle.length - TOP_TITLES),
+			days: days.map((d) => ({ day: d, seconds: ofDay.get(d) ?? 0 })),
+			latest
 		};
 	});
 }

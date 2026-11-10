@@ -149,17 +149,17 @@ cp deploy/mpv/scripts/mando.lua ~/.config/mpv/scripts/
 systemctl --user restart jellycartoon-mpv
 ```
 
-| Tecla del mando | En el mpv del salón                                             |
-| --------------- | --------------------------------------------------------------- |
-| OK o Menú       | Abre el menú; dentro, elige; con «¿Sigues ahí?», contesta       |
-| Flechas         | En el menú, se mueven; sin menú, saltan 5 s (← →) o 1 min (↑ ↓) |
-| Volver          | Cierra el menú; sin menú, para y se vuelve a la vista TV        |
-| Play/Pausa      | Pausa o sigue                                                   |
-| Inicio          | Para y se vuelve a la vista TV                                  |
-| Encendido       | Pausa y trae la vista TV; otra vez, vuelve el vídeo y sigue     |
-| Micrófono       | Habla, como en la vista TV; el vídeo se pausa mientras tanto    |
-| Números         | Nada                                                            |
-| Vol+ / Vol−     | El volumen del sistema (no llegan a mpv)                        |
+| Tecla del mando | En el mpv del salón                                                                             |
+| --------------- | ----------------------------------------------------------------------------------------------- |
+| OK o Menú       | Abre el menú; dentro, elige; con «¿Sigues ahí?», contesta                                       |
+| Flechas         | En el menú, se mueven; sin menú, ↑ enseña los controles de mpv, ↓ los esconde y ← → saltan 10 s |
+| Volver          | Cierra el menú; sin menú, para y se vuelve a la vista TV                                        |
+| Play/Pausa      | Pausa o sigue                                                                                   |
+| Inicio          | Para y se vuelve a la vista TV                                                                  |
+| Encendido       | Pausa y trae la vista TV; otra vez, vuelve el vídeo y sigue                                     |
+| Micrófono       | Habla, como en la vista TV; el vídeo se pausa mientras tanto                                    |
+| Números         | Nada                                                                                            |
+| Vol+ / Vol−     | El volumen del sistema (no llegan a mpv)                                                        |
 
 - **El menú** tiene solo «Subtítulos» y «Audio», en español; si solo hay una de las dos cosas
   para elegir, va directo a ella. Los subtítulos empiezan por «Sin subtítulos», y las pistas se

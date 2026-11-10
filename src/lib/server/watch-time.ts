@@ -7,7 +7,7 @@ import { noteWatching } from '#lib/server/live-watching.ts';
 import { watchersOf } from '#lib/server/watching-together.ts';
 import { log } from '#lib/server/log.ts';
 import { today } from '#lib/server/playlist.ts';
-import { WatchSteps } from '#lib/server/watch-steps.ts';
+import { WatchSteps } from 'comun/watch-steps.ts';
 import { SLOT_MINUTES } from '#lib/kid-time.ts';
 
 /**

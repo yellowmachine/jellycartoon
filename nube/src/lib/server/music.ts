@@ -4,7 +4,8 @@ import type {
 	MusicAlbum,
 	MusicFolder,
 	MusicTrack,
-	ProgressSave
+	ProgressSave,
+	QueueSave
 } from 'comun/music.ts';
 import { askHouse, HouseProblem } from './house.ts';
 
@@ -191,6 +192,13 @@ export const djWords = (who: Who, body: unknown) =>
 export const musicProgress = async (who: Who) =>
 	(await askHouse<{ progress: Record<number, number> }>(who.id, who.email, '/musica/progreso'))
 		.progress;
+
+/** The queue this player saves every few seconds, for the house to count what is listened to (#421). */
+export const countListened = (who: Who, queue: QueueSave, source: string) =>
+	askHouse(who.id, who.email, '/musica/escucha', {
+		method: 'POST',
+		body: JSON.stringify({ queue, source })
+	});
 
 export const saveMusicProgress = (who: Who, save: ProgressSave) =>
 	askHouse(who.id, who.email, '/musica/progreso', { method: 'POST', body: JSON.stringify(save) });

@@ -18,7 +18,8 @@ export const POST: RequestHandler = async ({ request, params }) => {
 	const positionSec = body?.positionSec;
 	if (typeof positionSec !== 'number' || !Number.isFinite(positionSec) || positionSec < 0)
 		error(400, 'Posición no válida');
-	if (!(await saveProgress(k, Number(params.id), positionSec, body.ended === true)))
+	// The house's players, all as one: it does not say which.
+	if (!(await saveProgress(k, Number(params.id), positionSec, body.ended === true, 'casa')))
 		error(404, 'Episodio no encontrado');
 	return json({ ok: true });
 };

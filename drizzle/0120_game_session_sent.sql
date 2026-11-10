@@ -1,0 +1,1 @@
+ALTER TABLE "game_session" ADD COLUMN "sent_seconds" integer DEFAULT 0 NOT NULL;

@@ -3,6 +3,11 @@ import type { RequestHandler } from './$types';
 import { tracksById } from '#lib/server/music/albums.ts';
 import { clearQueue, getQueue, saveQueue } from '#lib/server/music/queue.ts';
 import { parseQueueSave, type SavedQueue } from 'comun/music.ts';
+import { db } from '#lib/server/db/index.ts';
+import { isKidAccount } from '#lib/server/kids.ts';
+import { log } from '#lib/server/log.ts';
+import { addListenTime } from '#lib/server/music/listen-time.ts';
+import { keepsHistory } from '#lib/server/settings.ts';
 
 /** What this user was playing, on whatever device, to go on with it; null if nothing. */
 export const GET: RequestHandler = async ({ locals }) => {
@@ -27,11 +32,19 @@ export const GET: RequestHandler = async ({ locals }) => {
 	} satisfies SavedQueue);
 };
 
-/** From the browser that is playing it. */
+/** From the browser that is playing it; also, the time listened to since its last save (#421). */
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const queue = parseQueueSave(await request.json().catch(() => null));
 	if (!queue) error(400, 'Cola no válida');
-	const savedAt = await saveQueue(locals.user!.id, queue);
+	const userId = locals.user!.id;
+	const savedAt = await saveQueue(userId, queue);
+	try {
+		const keeps = (await isKidAccount(userId)) || (await keepsHistory(userId));
+		await addListenTime(db, userId, queue, locals.session!.id, keeps);
+	} catch (problem) {
+		// Never in the way of saving the queue.
+		log.warn('música', 'No se pudo apuntar el tiempo escuchado', { userId, error: problem });
+	}
 	return json({ savedAt: savedAt.toISOString() });
 };
 
