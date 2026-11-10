@@ -7,7 +7,15 @@ import * as schema from '#lib/server/db/schema.ts';
 import { expense, expenseLine, expenseTag, family } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { lineKey, ownTagOf } from 'comun/expenses.ts';
-import { ownTags, taggedExpenseIds, tagLine } from './own-tags.ts';
+import {
+	deleteTag,
+	lineTexts,
+	ownTags,
+	renameTag,
+	taggedExpenseIds,
+	tagLine,
+	tagLines
+} from './own-tags.ts';
 
 /** Own tags of lines (#459) on a real Postgres (PGlite, in memory), with the migrations as they are. */
 const db = drizzle(new PGlite(), { schema });
@@ -122,4 +130,46 @@ test('the expenses with a line of a tag, between two days', async () => {
 	// Another family's tag: nothing of A's.
 	const picos = (await ownTags(b)).tags[0];
 	expect(await taggedExpenseIds(a, picos.id, { from: null, to: null })).toEqual([]);
+});
+
+test('the texts of the lines: each once, as written the most times, the most bought first', async () => {
+	const texts = await lineTexts(a);
+	expect(texts[0]).toMatchObject({ key: 'barra picos', count: 3, total: 150, last: '2026-11-05' });
+	expect(['BARRA PICOS', 'Barra picos', 'Barra Picos']).toContain(texts[0].text);
+	expect(texts.map((t) => t.key)).toContain('barra picos integral');
+	expect(await lineTexts(b)).toEqual([]);
+});
+
+test('many at once, to a new tag', async () => {
+	expect(await tagLines(a, ['leche', 'Barra picos integral', 'leche'], { name: 'Varios' })).toBe(
+		true
+	);
+	const own = await ownTags(a);
+	expect(ownTagOf(own, 'LECHE')?.name).toBe('Varios');
+	expect(ownTagOf(own, 'barra picos integral')?.name).toBe('Varios');
+	expect(await tagLines(a, ['  '], { name: 'Varios' })).toBe(false);
+});
+
+test('renamed; with another’s name, the two become one', async () => {
+	const varios = (await ownTags(a)).tags.find((t) => t.name === 'Varios')!;
+	expect(await renameTag(a, varios.id, 'Desayuno')).toBe(true);
+	expect(ownTagOf(await ownTags(a), 'leche')?.name).toBe('Desayuno');
+	expect(await renameTag(a, varios.id, 'PAN')).toBe(true);
+	const own = await ownTags(a);
+	expect(own.tags.map((t) => t.name)).toEqual(['Pan']);
+	expect(ownTagOf(own, 'leche')?.name).toBe('Pan');
+	expect(await renameTag(a, varios.id, 'Otro')).toBe(false);
+	expect(await renameTag(a, own.tags[0].id, ' ')).toBe(false);
+	// Another family's: not there.
+	expect(await renameTag(b, own.tags[0].id, 'Mío')).toBe(false);
+});
+
+test('deleted, and its lines with no own tag', async () => {
+	const [pan] = (await ownTags(a)).tags;
+	await deleteTag(b, pan.id);
+	expect((await ownTags(a)).tags.length).toBe(1);
+	await deleteTag(a, pan.id);
+	const own = await ownTags(a);
+	expect(own.tags).toEqual([]);
+	expect(own.rules).toEqual({});
 });

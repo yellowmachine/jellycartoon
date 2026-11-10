@@ -1,5 +1,6 @@
-import { and, asc, eq, gte, lte, notExists, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, lte, notExists, sql } from 'drizzle-orm';
 import { expense, expenseLine, expenseTag, expenseTagRule } from '#lib/server/db/schema.ts';
+import type { AnyDb } from '#lib/server/family-scope.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { lineKey, type OwnTags } from 'comun/expenses.ts';
 
@@ -26,13 +27,32 @@ export const ownTags = (k: Kitchen): Promise<OwnTags> =>
 /** What a line is given: one of the family's tags, a new one by its name, or none. */
 export type TagChoice = { tagId: number } | { name: string } | null;
 
+/** A tag's name as kept: its spaces one, at most TAG_NAME_MAX. */
+const cleanName = (name: string) => name.replace(/\s+/g, ' ').trim().slice(0, TAG_NAME_MAX);
+
+/** The tags left with no rule, deleted. */
+const dropUnused = (tx: AnyDb) =>
+	tx.delete(expenseTag).where(
+		notExists(
+			tx
+				.select({ one: sql`1` })
+				.from(expenseTagRule)
+				.where(
+					and(
+						eq(expenseTagRule.tagId, expenseTag.id),
+						eq(expenseTagRule.familyId, expenseTag.familyId)
+					)
+				)
+		)
+	);
+
 /**
- * Every line with `text` has that tag from now on, or none. A name already there (case and accents
- * aside) is that tag, not another. False: an empty text or name, or a tag that is not there.
+ * Every line with any of `texts` has that tag from now on, or none. A name already there (case and
+ * accents aside) is that tag, not another. False: no text or an empty name, or a tag not there.
  */
-export function tagLine(k: Kitchen, text: string, choice: TagChoice): Promise<boolean> {
-	const key = lineKey(text);
-	if (!key) return Promise.resolve(false);
+export function tagLines(k: Kitchen, texts: string[], choice: TagChoice): Promise<boolean> {
+	const keys = [...new Set(texts.map(lineKey).filter(Boolean))];
+	if (!keys.length) return Promise.resolve(false);
 	return k.run(async (tx) => {
 		let tagId: number | null = null;
 		if (choice && 'tagId' in choice) {
@@ -43,7 +63,7 @@ export function tagLine(k: Kitchen, text: string, choice: TagChoice): Promise<bo
 			if (!found) return false;
 			tagId = found.id;
 		} else if (choice) {
-			const name = choice.name.replace(/\s+/g, ' ').trim().slice(0, TAG_NAME_MAX);
+			const name = cleanName(choice.name);
 			if (!lineKey(name)) return false;
 			const tags = await tx.select().from(expenseTag);
 			tagId =
@@ -55,32 +75,94 @@ export function tagLine(k: Kitchen, text: string, choice: TagChoice): Promise<bo
 						.returning({ id: expenseTag.id })
 				)[0].id;
 		}
-		if (tagId === null) await tx.delete(expenseTagRule).where(eq(expenseTagRule.text, key));
+		if (tagId === null) await tx.delete(expenseTagRule).where(inArray(expenseTagRule.text, keys));
 		else
 			await tx
 				.insert(expenseTagRule)
-				.values({ familyId: k.familyId, text: key, tagId })
+				.values(keys.map((text) => ({ familyId: k.familyId, text, tagId })))
 				.onConflictDoUpdate({
 					target: [expenseTagRule.familyId, expenseTagRule.text],
 					set: { tagId }
 				});
-		// The ones left with no line.
-		await tx.delete(expenseTag).where(
-			notExists(
-				tx
-					.select({ one: sql`1` })
-					.from(expenseTagRule)
-					.where(
-						and(
-							eq(expenseTagRule.tagId, expenseTag.id),
-							eq(expenseTagRule.familyId, expenseTag.familyId)
-						)
-					)
-			)
-		);
+		await dropUnused(tx);
 		return true;
 	});
 }
+
+/** The same, for the lines with one text. */
+export const tagLine = (k: Kitchen, text: string, choice: TagChoice) => tagLines(k, [text], choice);
+
+/**
+ * Its new name; another's (case and accents aside), the two become that one, with all their lines.
+ * False: an empty name, or a tag not there.
+ */
+export function renameTag(k: Kitchen, id: number, name: string): Promise<boolean> {
+	const clean = cleanName(name);
+	if (!lineKey(clean)) return Promise.resolve(false);
+	return k.run(async (tx) => {
+		const tags = await tx.select().from(expenseTag);
+		if (!tags.some((t) => t.id === id)) return false;
+		const other = tags.find((t) => t.id !== id && lineKey(t.name) === lineKey(clean));
+		if (other) {
+			await tx.update(expenseTagRule).set({ tagId: other.id }).where(eq(expenseTagRule.tagId, id));
+			await dropUnused(tx);
+		} else await tx.update(expenseTag).set({ name: clean }).where(eq(expenseTag.id, id));
+		return true;
+	});
+}
+
+/** Gone, and its lines with no own tag. */
+export const deleteTag = (k: Kitchen, id: number) =>
+	k.run((tx) => tx.delete(expenseTag).where(eq(expenseTag.id, id)));
+
+/** Each text of the family's lines (#459, to tag many at once): as lineKey leaves it. */
+export interface LineText {
+	key: string;
+	/** As written the most times. */
+	text: string;
+	/** How many lines, and what they add up to. */
+	count: number;
+	total: number;
+	/** The last day it was bought. */
+	last: string;
+}
+
+/** All of them: the most bought first. */
+export const lineTexts = (k: Kitchen): Promise<LineText[]> =>
+	k.run(async (tx) => {
+		const lines = await tx
+			.select({ text: expenseLine.text, amount: expenseLine.amount, date: expense.date })
+			.from(expenseLine)
+			.innerJoin(
+				expense,
+				and(eq(expense.familyId, expenseLine.familyId), eq(expense.id, expenseLine.expenseId))
+			);
+		const byKey = new Map<string, LineText & { written: Map<string, number> }>();
+		for (const l of lines) {
+			const key = lineKey(l.text);
+			if (!key) continue;
+			const t = byKey.get(key) ?? {
+				key,
+				text: l.text.trim(),
+				count: 0,
+				total: 0,
+				last: l.date,
+				written: new Map<string, number>()
+			};
+			t.count++;
+			t.total += l.amount;
+			if (l.date > t.last) t.last = l.date;
+			const written = l.text.replace(/\s+/g, ' ').trim();
+			t.written.set(written, (t.written.get(written) ?? 0) + 1);
+			byKey.set(key, t);
+		}
+		return [...byKey.values()]
+			.map(({ written, ...t }) => ({
+				...t,
+				text: [...written].sort((a, b) => b[1] - a[1])[0][0]
+			}))
+			.sort((a, b) => b.count - a.count || b.last.localeCompare(a.last));
+	});
 
 /**
  * The expenses with a line of that tag between two days (both included, either may be missing):
