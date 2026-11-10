@@ -140,7 +140,8 @@ const ONE_ROUND = new Set([
 	'remember',
 	'forget_memory',
 	'take_note',
-	'call_person'
+	'call_person',
+	'call_phone'
 ]);
 /** An order that already kept or forgot something itself: nothing more to learn from it (#331). */
 const ASKED_TO_KEEP = new Set([
@@ -1309,6 +1310,8 @@ interface Turn {
 	plugs: PlugView[];
 	/** Who they may call (#330), for `call_person`: the road mode's only. */
 	callable: Callable[];
+	/** This device's phone contacts, by name (#330), for `call_phone`; undefined, it does not call. */
+	phoneContacts: string[] | undefined;
 }
 
 async function runTool(
@@ -1432,6 +1435,23 @@ async function runTool(
 			if (!person) return 'No está entre las personas a las que puede llamar.';
 			ctx.outcome.actions.push({ kind: 'call', userId: person.userId, name: person.name });
 			return `Llamando a ${person.name}.`;
+		}
+		case 'call_phone': {
+			const names = ctx.phoneContacts ?? [];
+			const contact =
+				typeof args.contact === 'number' && Number.isInteger(args.contact) ? args.contact : null;
+			const number = typeof args.number === 'string' ? args.number.replace(/[^\d+]/g, '') : '';
+			if (contact !== null && names[contact] !== undefined) {
+				ctx.outcome.actions.push({ kind: 'dial', contact, name: names[contact] });
+				return `Preparada la llamada a ${names[contact]}: la tablet espera que toque «Llamar».`;
+			}
+			if (number.replace('+', '').length >= 3) {
+				const name =
+					typeof args.name === 'string' && args.name.trim() ? args.name.trim() : undefined;
+				ctx.outcome.actions.push({ kind: 'dial', number, ...(name ? { name } : {}) });
+				return `Preparada la llamada al ${number}: la tablet espera que toque «Llamar».`;
+			}
+			return 'No está en los contactos de teléfono de este aparato ni has dicho un número.';
 		}
 		case 'plug_switch': {
 			const { result, done } = await switchByVoice(ctx.k, ctx.plugs, args);
@@ -2002,7 +2022,7 @@ function callTool(people: Callable[]): Tool {
 		function: {
 			name: 'call_person',
 			description:
-				'Modo carretera: llama por Seilide a alguien de la lista de a quién puede llamar. «Llama a mamá», «llama a Pepe», «quiero hablar con la abuela». Si el nombre encaja con dos, pregunta cuál. Si no está en la lista, dile que no puede llamarle desde aquí.',
+				'Modo carretera: llama por Seilide a alguien de la lista de a quién puede llamar. «Llama a mamá», «llama a Pepe», «quiero hablar con la abuela». Si el nombre encaja con dos, pregunta cuál. Si pide «por teléfono», o no está en esta lista pero sí en los contactos de teléfono, es «call_phone». Si no está en ninguna, dile que no puede llamarle desde aquí.',
 			parameters: {
 				type: 'object',
 				properties: {
@@ -2020,6 +2040,39 @@ function callTool(people: Callable[]): Tool {
 	};
 }
 
+/** This device's phone contacts (#330), by their place: the number stays on the device. */
+function phoneContactsLine(names: string[]) {
+	return `[Este aparato llama también por teléfono, con su SIM («call_phone»): por su número en esta lista, o un número que diga. Contactos de teléfono: ${names.length ? names.map((n, i) => `${i}. ${n}`).join('; ') : 'ninguno'}.]`;
+}
+
+/** «Llama a la farmacia», «llama al 968…» (#330): a normal call, with the device's SIM. */
+const phoneTool: Tool = {
+	type: 'function',
+	function: {
+		name: 'call_phone',
+		description:
+			'Modo carretera: una llamada de teléfono normal, con la SIM de este aparato, a uno de sus contactos de teléfono o a un número que diga. «Llama a la farmacia», «llama al 968 12 34 56», «llama a mamá por teléfono». La tablet enseña un botón grande y quien conduce lo toca: no digas que ya está llamando, sino que toque «Llamar».',
+		parameters: {
+			type: 'object',
+			properties: {
+				contact: {
+					type: 'integer',
+					description: 'Su número en la lista de contactos de teléfono.'
+				},
+				number: {
+					type: 'string',
+					description:
+						'El número de teléfono dicho, solo cifras (y + delante si lo dijo), si no es un contacto.'
+				},
+				name: { type: 'string', description: 'A quién es, si lo dijo, con un número.' },
+				say: SAY
+			},
+			required: ['say'],
+			additionalProperties: false
+		}
+	}
+};
+
 /** The road mode (#78): what is said while driving. */
 const CAR =
 	'[En el coche, conduciendo (modo carretera): solo audio, aquí. Nunca vídeo: si pide una serie, una película o un canal de televisión, dile que en el coche no se pone vídeo (no que no lo encuentras) y ofrécele música, radio o un podcast. Respuestas muy cortas: las oye quien conduce.]';
@@ -2035,7 +2088,8 @@ const ONLY_IN_THE_CAR = new Set([
 	'stop_navigation',
 	'take_photo',
 	// Calls are made from the browser (#330); for now, by voice only while driving.
-	'call_person'
+	'call_person',
+	'call_phone'
 ]);
 
 /**
@@ -2258,6 +2312,9 @@ export async function runVoiceCommand(
 				...(profile ? [{ type: 'text' as const, text: profile }] : []),
 				...(plugs ? [{ type: 'text' as const, text: plugs.line }] : []),
 				...(callable.length ? [{ type: 'text' as const, text: callableLine(callable) }] : []),
+				...(request.car && request.phoneContacts
+					? [{ type: 'text' as const, text: phoneContactsLine(request.phoneContacts) }]
+					: []),
 				...(remembered ? [{ type: 'text' as const, text: remembered }] : []),
 				{ type: 'text', text: request.text }
 			]
@@ -2273,6 +2330,7 @@ export async function runVoiceCommand(
 		...(kid ? [] : [plannedTripsTool]),
 		...(plugs ? [plugSwitchTool] : []),
 		...(callable.length ? [callTool(callable)] : []),
+		...(request.car && request.phoneContacts ? [phoneTool] : []),
 		...(learned ? [usedLearnedTool] : []),
 		...(kid ? [] : memoryTools(Boolean(satellite))),
 		...(settings.web.on ? [webSearchTool] : []),
@@ -2315,7 +2373,8 @@ export async function runVoiceCommand(
 		withoutHouse: !withHouse,
 		memoryOf,
 		plugs: plugs?.plugs ?? [],
-		callable
+		callable,
+		phoneContacts: request.car ? request.phoneContacts : undefined
 	};
 
 	for (let round = 0; round < MAX_ROUNDS; round++) {

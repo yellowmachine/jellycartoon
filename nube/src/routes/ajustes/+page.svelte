@@ -33,6 +33,7 @@
 	import Coches from './Coches.svelte';
 	import GastoIa from './GastoIa.svelte';
 	import Microfono from './Microfono.svelte';
+	import TelefonoAparato from './TelefonoAparato.svelte';
 	import FondoMusica from './FondoMusica.svelte';
 	import BotonLlamar from './BotonLlamar.svelte';
 	import FamiliasVinculadas from './FamiliasVinculadas.svelte';
@@ -170,6 +171,8 @@
 		</section>
 
 		<Microfono />
+
+		<TelefonoAparato />
 
 		<FondoMusica />
 

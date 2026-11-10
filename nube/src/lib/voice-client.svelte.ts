@@ -5,6 +5,7 @@ import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
 import { phone } from '#lib/phone.svelte.ts';
+import { simPhone } from '#lib/sim-phone.svelte.ts';
 import { callReplySaid, hangUpSaid } from '#lib/call-voice.ts';
 import { recipe } from '#lib/recipe.svelte.ts';
 import { timers } from '#lib/timers.svelte.ts';
@@ -241,7 +242,9 @@ class VoiceClient {
 				position: this.road?.position() ?? null,
 				navigation: this.road?.navigation() ?? null,
 				trip: this.road?.trip() ?? null,
-				ahead: this.road?.ahead() ?? null
+				ahead: this.road?.ahead() ?? null,
+				// A device that calls by phone (#330): its contacts' names, the numbers stay here.
+				phoneContacts: this.road && simPhone.on ? simPhone.names() : undefined
 			})
 		}).catch(() => null);
 		const body: VoiceReply | { message?: string } | null = await res?.json().catch(() => null);
@@ -361,6 +364,9 @@ async function act(action: VoiceAction) {
 		case 'call':
 			// Not awaited: it rings until answered, and the reply is read meanwhile.
 			return void phone.call(action.userId, action.name);
+		case 'dial':
+			// Shown big in the road mode, to be tapped: a page cannot call by itself.
+			return simPhone.ask(action);
 		case 'control':
 			if (action.action === 'pause') return music.pause();
 			if (action.action === 'resume') return music.resume();

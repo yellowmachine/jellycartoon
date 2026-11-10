@@ -95,6 +95,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		words: 'micrófono hablar voz mantener pulsado tocar toques atajo teclado'
 	},
 	{
+		id: 'telefono',
+		tab: 'aparato',
+		title: 'Llamar por teléfono',
+		words: 'teléfono sim llamar llamada contactos agenda móvil tablet coche número'
+	},
+	{
 		id: 'fondo-musica',
 		tab: 'aparato',
 		title: 'Fondo de Música',
