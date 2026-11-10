@@ -82,6 +82,8 @@ import { converse, CONVERSE_SENTENCES } from './converse.ts';
 import { voiceFellBack } from './alarm.ts';
 import { searchWeb, WEB_TOOL, webSearchTool } from './web-search.ts';
 import { plugsForVoice, plugSwitchTool, switchByVoice } from '#lib/server/plugs/voice.ts';
+import { calls } from '#lib/server/calls.ts';
+import type { Callable } from '#lib/calls.ts';
 import type { PlugView } from '#lib/plugs.ts';
 import { forecast, placeName } from 'comun/weather.ts';
 import { findPlacesFor } from '#lib/server/places.ts';
@@ -137,7 +139,8 @@ const ONE_ROUND = new Set([
 	'end_recipe',
 	'remember',
 	'forget_memory',
-	'take_note'
+	'take_note',
+	'call_person'
 ]);
 /** An order that already kept or forgot something itself: nothing more to learn from it (#331). */
 const ASKED_TO_KEEP = new Set([
@@ -1304,6 +1307,8 @@ interface Turn {
 	memoryOf: string | null;
 	/** The family's smart plugs (#396), for `plug_switch`. */
 	plugs: PlugView[];
+	/** Who they may call (#330), for `call_person`: the road mode's only. */
+	callable: Callable[];
 }
 
 async function runTool(
@@ -1422,6 +1427,12 @@ async function runTool(
 		}
 		case 'planned_trips':
 			return plannedTripsByVoice(ctx.k);
+		case 'call_person': {
+			const person = ctx.callable.find((p) => p.userId === args.id);
+			if (!person) return 'No está entre las personas a las que puede llamar.';
+			ctx.outcome.actions.push({ kind: 'call', userId: person.userId, name: person.name });
+			return `Llamando a ${person.name}.`;
+		}
 		case 'plug_switch': {
 			const { result, done } = await switchByVoice(ctx.k, ctx.plugs, args);
 			if (done) ctx.outcome.done++;
@@ -1972,6 +1983,43 @@ function minuteNow() {
 	return now.getHours() * 60 + now.getMinutes();
 }
 
+/**
+ * Who they may call (#330), for the model: their family, then the linked ones, by name; it calls
+ * by id, so two with the same name are told apart by their family.
+ */
+function callableLine(people: Callable[]) {
+	const who = people.map(
+		(p) =>
+			`${p.name}${p.family ? ` (de la familia ${p.family})` : ''}${p.notices ? '' : ' (sin avisos en su móvil: si no tiene Seilide abierta, no le suena)'}: id ${p.userId}`
+	);
+	return `[A quién puede llamar, por Seilide (no por teléfono), con «call_person»: ${who.join('; ')}.]`;
+}
+
+/** «Llama a mamá» (#330): a call from the road mode, to one of `callableLine`. */
+function callTool(people: Callable[]): Tool {
+	return {
+		type: 'function',
+		function: {
+			name: 'call_person',
+			description:
+				'Modo carretera: llama por Seilide a alguien de la lista de a quién puede llamar. «Llama a mamá», «llama a Pepe», «quiero hablar con la abuela». Si el nombre encaja con dos, pregunta cuál. Si no está en la lista, dile que no puede llamarle desde aquí.',
+			parameters: {
+				type: 'object',
+				properties: {
+					id: {
+						type: 'string',
+						enum: people.map((p) => p.userId),
+						description: 'Su id, de la lista.'
+					},
+					say: SAY
+				},
+				required: ['id', 'say'],
+				additionalProperties: false
+			}
+		}
+	};
+}
+
 /** The road mode (#78): what is said while driving. */
 const CAR =
 	'[En el coche, conduciendo (modo carretera): solo audio, aquí. Nunca vídeo: si pide una serie, una película o un canal de televisión, dile que en el coche no se pone vídeo (no que no lo encuentras) y ofrécele música, radio o un podcast. Respuestas muy cortas: las oye quien conduce.]';
@@ -1985,7 +2033,9 @@ const ONLY_IN_THE_CAR = new Set([
 	'remove_stop',
 	'where_am_i',
 	'stop_navigation',
-	'take_photo'
+	'take_photo',
+	// Calls are made from the browser (#330); for now, by voice only while driving.
+	'call_person'
 ]);
 
 /**
@@ -2057,7 +2107,8 @@ export async function runVoiceCommand(
 		remembered,
 		people,
 		home,
-		plugs
+		plugs,
+		callable
 	] = await Promise.all([
 		openRouterKey(k),
 		voiceSettings(k),
@@ -2071,7 +2122,9 @@ export async function runVoiceCommand(
 		familyPeople(k),
 		familyPlace(k),
 		// The family's smart plugs (#396): what each is doing and has used. Failing, none.
-		kid ? null : plugsForVoice(k).catch(() => null)
+		kid ? null : plugsForVoice(k).catch(() => null),
+		// Who they may call (#330), only in the car for now. Failing, no one.
+		request.car && k.userId && !satellite ? calls.callable(k.userId).catch(() => []) : []
 	]);
 	// Always there, short: who the family is and where it lives.
 	const profile = people.length
@@ -2204,6 +2257,7 @@ export async function runVoiceCommand(
 				...(assumed ? [{ type: 'text' as const, text: assumed }] : []),
 				...(profile ? [{ type: 'text' as const, text: profile }] : []),
 				...(plugs ? [{ type: 'text' as const, text: plugs.line }] : []),
+				...(callable.length ? [{ type: 'text' as const, text: callableLine(callable) }] : []),
 				...(remembered ? [{ type: 'text' as const, text: remembered }] : []),
 				{ type: 'text', text: request.text }
 			]
@@ -2218,6 +2272,7 @@ export async function runVoiceCommand(
 		...(kid || satellite ? [] : [markDoseTool]),
 		...(kid ? [] : [plannedTripsTool]),
 		...(plugs ? [plugSwitchTool] : []),
+		...(callable.length ? [callTool(callable)] : []),
 		...(learned ? [usedLearnedTool] : []),
 		...(kid ? [] : memoryTools(Boolean(satellite))),
 		...(settings.web.on ? [webSearchTool] : []),
@@ -2259,7 +2314,8 @@ export async function runVoiceCommand(
 		houseTools: new Set(house.tools.map((t) => t.function.name)),
 		withoutHouse: !withHouse,
 		memoryOf,
-		plugs: plugs?.plugs ?? []
+		plugs: plugs?.plugs ?? [],
+		callable
 	};
 
 	for (let round = 0; round < MAX_ROUNDS; round++) {

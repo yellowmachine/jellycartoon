@@ -84,7 +84,9 @@ export type VoiceAction =
 	/** A route kept in Viajes (#151), by its id: from where we are, through its stops ahead. */
 	| { kind: 'route'; id: number }
 	/** A photo with the road mode's camera (#81). */
-	| { kind: 'photo' };
+	| { kind: 'photo' }
+	/** A call from this browser (#330) to someone it may call, by their account. */
+	| { kind: 'call'; userId: string; name: string };
 
 /** The longest timer: a day. */
 export const MAX_TIMER_SEC = 24 * 3600;

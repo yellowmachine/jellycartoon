@@ -4,6 +4,7 @@ import type { LngLat, Place } from 'comun/road.ts';
 import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
+import { phone } from '#lib/phone.svelte.ts';
 import { recipe } from '#lib/recipe.svelte.ts';
 import { timers } from '#lib/timers.svelte.ts';
 import {
@@ -337,6 +338,9 @@ async function act(action: VoiceAction) {
 			return voice.road?.follow(action.id);
 		case 'photo':
 			return voice.road?.photo();
+		case 'call':
+			// Not awaited: it rings until answered, and the reply is read meanwhile.
+			return void phone.call(action.userId, action.name);
 		case 'control':
 			if (action.action === 'pause') return music.pause();
 			if (action.action === 'resume') return music.resume();
