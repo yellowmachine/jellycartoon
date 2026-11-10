@@ -28,6 +28,7 @@ import {
 	monthRepeated
 } from '#lib/server/expenses/duplicates.ts';
 import { setNoticeKind } from '#lib/server/page-notices.ts';
+import { ownTags, tagLine } from '#lib/server/expenses/own-tags.ts';
 import { isPageNoticeKind } from 'comun/page-notices.ts';
 import {
 	addDueRecurringIncome,
@@ -46,15 +47,17 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const month =
 		asked && /^\d{4}-(0[1-9]|1[0-2])$/.test(asked) && asked <= current ? asked : current;
 	await Promise.all([addDueRecurring(k), addDueRecurringIncome(k, today())]);
-	const [expenses, previous, recurring, favorites, canRead, income, repeated] = await Promise.all([
-		monthExpenses(k, month),
-		monthTotal(k, addMonths(month, -1)),
-		recurringExpenses(k),
-		favoriteExpenses(k),
-		canReadReceipts(k),
-		monthIncomeTotal(k, month),
-		monthRepeated(k, month)
-	]);
+	const [expenses, previous, recurring, favorites, canRead, income, repeated, own] =
+		await Promise.all([
+			monthExpenses(k, month),
+			monthTotal(k, addMonths(month, -1)),
+			recurringExpenses(k),
+			favoriteExpenses(k),
+			canReadReceipts(k),
+			monthIncomeTotal(k, month),
+			monthRepeated(k, month),
+			ownTags(k)
+		]);
 	return {
 		month,
 		current,
@@ -66,6 +69,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		favorites,
 		canRead,
 		income,
+		/** The family's own tags for the lines (#459), and which text has which. */
+		own,
 		today: today()
 	};
 };
@@ -181,6 +186,27 @@ export const actions: Actions = {
 			total: typedTotal == null ? null : input.total
 		});
 		return { favorite: store };
+	},
+	/**
+	 * A line's own tag (#459), for every line with its text: `tag` a tag's id, `nueva` with `name`, or
+	 * empty for none.
+	 */
+	tagLine: async ({ request, locals }) => {
+		const form = await request.formData();
+		const tag = String(form.get('tag') ?? '');
+		const choice =
+			tag === 'nueva'
+				? { name: String(form.get('name') ?? '') }
+				: tag
+					? { tagId: Number(tag) }
+					: null;
+		if (choice && 'tagId' in choice && !Number.isInteger(choice.tagId))
+			return fail(400, { message: 'Etiqueta no válida' });
+		if (!(await tagLine(await kitchen(locals), String(form.get('text') ?? ''), choice)))
+			return fail(400, {
+				message: tag === 'nueva' ? 'Escribe el nombre de la etiqueta' : 'Esa etiqueta ya no está'
+			});
+		return { tagged: true };
 	},
 	deleteFavorite: async ({ request, locals }) => {
 		const k = await kitchen(locals);

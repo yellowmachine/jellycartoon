@@ -1,13 +1,27 @@
 <script lang="ts">
-	import { euros, monthOf, type Expense } from 'comun/expenses.ts';
+	import { euros, monthOf, ownTagOf, type Expense } from 'comun/expenses.ts';
 	import ExpenseTabs from '#lib/components/ExpenseTabs.svelte';
 	import type { PageProps } from './$types';
 
-	/** Gastos → Búsqueda: by words and dates; each one, corrected in its month. */
+	/**
+	 * Gastos → Búsqueda: by words, dates and an own tag (#459); each one, corrected in its month. By a
+	 * tag, what counts is only its lines.
+	 */
 	let { data }: PageProps = $props();
 
 	let open = $state<number | null>(null);
 	const total = $derived(data.expenses.reduce((sum, e) => sum + e.total, 0));
+	/** Each expense's lines of the tag asked for, by its id. */
+	const tagged = $derived(
+		new Map(
+			data.expenses.map((e) => [
+				e.id,
+				data.tag ? e.lines.filter((l) => ownTagOf(data.own, l.text)?.id === data.tag!.id) : []
+			])
+		)
+	);
+	const taggedLines = $derived([...tagged.values()].flat());
+	const taggedTotal = $derived(taggedLines.reduce((sum, l) => sum + l.amount, 0));
 
 	const dayText = (day: string) =>
 		new Date(`${day}T12:00:00Z`).toLocaleDateString('es-ES', {
@@ -38,7 +52,12 @@
 	<h1 class="mb-3 text-2xl font-bold">Dinero</h1>
 	<ExpenseTabs current="busqueda" />
 
-	<form method="get" class="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
+	<form
+		method="get"
+		class="mb-6 grid grid-cols-2 gap-2 {data.own.tags.length
+			? 'sm:grid-cols-[1fr_auto_auto_auto_auto]'
+			: 'sm:grid-cols-[1fr_auto_auto_auto]'}"
+	>
 		<label class="col-span-2 flex flex-col gap-1 text-xs text-zinc-400 sm:col-span-1">
 			Texto
 			<input
@@ -57,6 +76,17 @@
 			Hasta
 			<input type="date" name="hasta" value={data.to ?? ''} class={field} />
 		</label>
+		{#if data.own.tags.length}
+			<label class="col-span-2 flex flex-col gap-1 text-xs text-zinc-400 sm:col-span-1">
+				Etiqueta propia
+				<select name="etiqueta" class={field}>
+					<option value="">Todas</option>
+					{#each data.own.tags as tag (tag.id)}
+						<option value={tag.id} selected={data.tag?.id === tag.id}>{tag.name}</option>
+					{/each}
+				</select>
+			</label>
+		{/if}
 		<button
 			class="{button} col-span-2 self-end bg-amber-600 font-semibold text-white hover:bg-amber-500 sm:col-span-1"
 			>Buscar</button
@@ -65,11 +95,17 @@
 
 	{#if data.asked}
 		<p class="mb-2 text-sm text-zinc-400">
-			{#if data.expenses.length}
+			{#if data.tag && data.expenses.length}
+				<span class="rounded bg-amber-900/60 px-1.5 text-amber-200">{data.tag.name}</span>:
+				<span class="font-semibold text-white tabular-nums">{euros(taggedTotal)}</span>
+				en {taggedLines.length}
+				{taggedLines.length === 1 ? 'línea' : 'líneas'} de {data.expenses.length}
+				{data.expenses.length === 1 ? 'gasto' : 'gastos'}
+			{:else if data.expenses.length}
 				{data.expenses.length}
 				{data.expenses.length === 1 ? 'gasto' : 'gastos'}:
 				<span class="font-semibold text-white tabular-nums">{euros(total)}</span>
-				{#if data.expenses.length === data.limit}
+				{#if data.limit !== null && data.expenses.length === data.limit}
 					· solo los {data.limit} más recientes: afina la búsqueda para ver los demás{/if}
 			{:else}
 				Ningún gasto con eso.
@@ -94,16 +130,34 @@
 									: ''}</span
 							>
 						</span>
-						<span class="shrink-0 tabular-nums">{euros(e.total)}</span>
+						{#if data.tag}
+							{@const lines = tagged.get(e.id) ?? []}
+							<span class="flex shrink-0 flex-col items-end">
+								<span class="text-amber-200 tabular-nums"
+									>{euros(lines.reduce((sum, l) => sum + l.amount, 0))}</span
+								>
+								<span class="text-xs text-zinc-500 tabular-nums">de {euros(e.total)}</span>
+							</span>
+						{:else}
+							<span class="shrink-0 tabular-nums">{euros(e.total)}</span>
+						{/if}
 					</button>
 					{#if open === e.id}
 						<div class="mb-3 rounded-md bg-zinc-900 p-3 text-sm">
 							{#if e.lines.length}
 								<ul class="mb-2">
 									{#each e.lines as line, i (i)}
+										{@const own = ownTagOf(data.own, line.text)}
 										<li class="flex justify-between gap-3">
-											<span class="min-w-0 truncate text-zinc-300"
-												>{line.text} <span class="text-xs text-zinc-500">· {line.tag}</span></span
+											<span
+												class="min-w-0 truncate {own && own.id === data.tag?.id
+													? 'text-amber-200'
+													: 'text-zinc-300'}"
+												>{line.text}
+												{#if own}<span class="rounded bg-amber-900/60 px-1.5 text-xs text-amber-200"
+														>{own.name}</span
+													>{/if}
+												<span class="text-xs text-zinc-500">· {line.tag}</span></span
 											>
 											<span class="shrink-0 tabular-nums">{euros(line.amount)}</span>
 										</li>
@@ -132,8 +186,8 @@
 		</ul>
 	{:else}
 		<p class="text-sm text-zinc-400">
-			Busca por lo que pone en la tienda o en las líneas del ticket, entre dos fechas, o las dos
-			cosas.
+			Busca por lo que pone en la tienda o en las líneas del ticket, entre dos fechas{#if data.own.tags.length},
+				por una etiqueta propia{/if}, o todo a la vez.
 		</p>
 	{/if}
 </div>

@@ -24,6 +24,7 @@
 		MONTH_NAMES,
 		monthName,
 		monthOf,
+		ownTagOf,
 		parseEuros,
 		type Expense,
 		type ExpenseCategory,
@@ -94,6 +95,11 @@
 	let ticked = $state<{ id: number; text: string }[]>([]);
 	/** The one open in the list, with its lines: from Búsqueda, `?gasto=`. */
 	let open = $state<number | null>(Number(page.url.searchParams.get('gasto')) || null);
+	/**
+	 * The line of the open expense whose own tag (#459) is being chosen: `tag` as the form's select
+	 * has it (an id, `nueva` or empty), `name` a new one's.
+	 */
+	let tagging = $state<{ i: number; tag: string; name: string } | null>(null);
 	/** The category open in the month's totals, with its lines by tag. */
 	let openCategory = $state<ExpenseCategory | null>(null);
 	let deleting = $state<string | null>(null);
@@ -872,7 +878,10 @@
 				<button
 					class="flex w-full items-center gap-3 py-2 text-left hover:bg-zinc-900"
 					aria-expanded={open === e.id}
-					onclick={() => (open = open === e.id ? null : e.id)}
+					onclick={() => {
+						open = open === e.id ? null : e.id;
+						tagging = null;
+					}}
 				>
 					<span class="w-14 shrink-0 text-sm text-zinc-400">{dayText(e.date)}</span>
 					<span class="min-w-0 flex-1">
@@ -954,11 +963,78 @@
 						{#if e.lines.length}
 							<ul class="mb-2">
 								{#each e.lines as line, i (i)}
-									<li class="flex justify-between gap-3">
-										<span class="min-w-0 truncate text-zinc-300"
-											>{line.text} <span class="text-xs text-zinc-500">· {line.tag}</span></span
+									{@const own = ownTagOf(data.own, line.text)}
+									<li>
+										<!-- Its own tag (#459): for every line with this text, of any receipt. -->
+										<button
+											class="flex w-full justify-between gap-3 rounded text-left hover:bg-zinc-800"
+											aria-expanded={tagging?.i === i}
+											title="Etiqueta propia"
+											onclick={() =>
+												(tagging =
+													tagging?.i === i
+														? null
+														: { i, tag: own ? String(own.id) : '', name: '' })}
 										>
-										<span class="shrink-0 tabular-nums">{euros(line.amount)}</span>
+											<span class="min-w-0 truncate text-zinc-300"
+												>{line.text}
+												{#if own}<span class="rounded bg-amber-900/60 px-1.5 text-xs text-amber-200"
+														>{own.name}</span
+													>{/if}
+												<span class="text-xs text-zinc-500">· {line.tag}</span></span
+											>
+											<span class="shrink-0 tabular-nums">{euros(line.amount)}</span>
+										</button>
+										{#if tagging?.i === i}
+											{@const t = tagging}
+											<form
+												method="post"
+												action="?/tagLine"
+												class="my-2 flex flex-wrap items-end gap-2 rounded-md bg-zinc-950 p-2"
+												use:enhance={() =>
+													async ({ result, update }) => {
+														if (result.type === 'success') {
+															tagging = null;
+															problem = null;
+														} else if (result.type === 'failure')
+															problem = String(result.data?.message ?? 'No se pudo guardar');
+														await update({ reset: false });
+													}}
+											>
+												<input type="hidden" name="text" value={line.text} />
+												<label class="flex flex-col gap-1 text-xs text-zinc-400">
+													Etiqueta propia
+													<select name="tag" bind:value={t.tag} class={field}>
+														<option value="">Ninguna</option>
+														{#each data.own.tags as tag (tag.id)}
+															<option value={String(tag.id)}>{tag.name}</option>
+														{/each}
+														<option value="nueva">Nueva…</option>
+													</select>
+												</label>
+												{#if t.tag === 'nueva'}
+													<label class="flex flex-col gap-1 text-xs text-zinc-400">
+														Nombre
+														<!-- svelte-ignore a11y_autofocus -->
+														<input
+															name="name"
+															bind:value={t.name}
+															maxlength="40"
+															placeholder="Pan, Agua…"
+															autofocus
+															class={field}
+														/>
+													</label>
+												{/if}
+												<button
+													class="{button} bg-amber-600 font-semibold text-white hover:bg-amber-500"
+													>Guardar</button
+												>
+												<p class="w-full text-xs text-zinc-500">
+													Para todas las líneas «{line.text}», de este ticket y de los demás.
+												</p>
+											</form>
+										{/if}
 									</li>
 								{/each}
 							</ul>

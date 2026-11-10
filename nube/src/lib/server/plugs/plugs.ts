@@ -286,11 +286,11 @@ export async function deletePlug(userId: string, id: string) {
 
 /**
  * On or off: false if it is not the family's, `locked` if it has its padlock, `paused` if it is
- * paused (it stays off). Throws
+ * paused (it stays off), `heating` with `backAfterS` in a long heat (see switchIn). Throws
  * PlugOffline if it is not connected.
  */
-export async function switchPlug(userId: string, id: string, on: boolean) {
-	return switchIn(await kitchenOfUser(userId), id, on);
+export async function switchPlug(userId: string, id: string, on: boolean, backAfterS?: number) {
+	return switchIn(await kitchenOfUser(userId), id, on, backAfterS);
 }
 
 /** The same in a kitchen (the voice, a satellite's too). */

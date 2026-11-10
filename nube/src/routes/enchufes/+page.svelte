@@ -8,6 +8,8 @@
 		MAX_PLUG_NAME,
 		PLUG_KINDS,
 		powerText,
+		TIMER_MINUTES,
+		timerLabel,
 		type FoundPlugView,
 		type PlugKind,
 		type PlugView
@@ -58,6 +60,10 @@
 		minute: '2-digit'
 	});
 
+	/** Its timer row (#396): only when it can be switched now. */
+	const canTime = (p: PlugView) =>
+		p.online && !p.paused && !p.locked && !p.heatUntil && p.output !== null;
+
 	function stateText(p: PlugView) {
 		if (p.waiting) return 'Sin conectar todavía';
 		if (p.paused) return 'En pausa';
@@ -70,8 +76,8 @@
 				? `Sin conexión desde el ${seenFormat.format(new Date(p.lastSeenAt))}`
 				: 'Sin conexión';
 		const state = p.output ? 'Encendido' : 'Apagado';
-		// Its own timer (by voice, «media hora»): when it switches back.
-		if (p.timerUntil)
+		// Its own timer (by voice, «media hora»): when it switches back, here if not in its row below.
+		if (p.timerUntil && !canTime(p))
 			return `${state} · se ${p.output ? 'apaga' : 'enciende'} a las ${hourFormat.format(new Date(p.timerUntil))}`;
 		return state;
 	}
@@ -216,6 +222,49 @@
 						</form>
 					{/if}
 				</div>
+				{#if canTime(p)}
+					<!-- Its timer (#396): the plug's own, so it happens without Seilide. -->
+					<form
+						method="post"
+						action="?/timer"
+						use:enhance={() => {
+							busy = p.id;
+							return async ({ update }) => {
+								await update();
+								busy = null;
+							};
+						}}
+						class="mt-3 flex flex-wrap items-center gap-2 text-sm"
+					>
+						<input type="hidden" name="id" value={p.id} />
+						{#if p.timerUntil}
+							<input type="hidden" name="on" value={String(p.output)} />
+							<span class="text-zinc-300"
+								>⏲️ Se {p.output ? 'apaga' : 'enciende'} a las {hourFormat.format(
+									new Date(p.timerUntil)
+								)}</span
+							>
+							<button
+								disabled={busy === p.id}
+								class="rounded-full bg-zinc-800 px-3 py-1 text-zinc-200 hover:bg-zinc-700"
+								>Quitar</button
+							>
+						{:else}
+							<span class="text-zinc-400"
+								>⏲️ {p.output ? 'Apagar dentro de' : 'Encender durante'}</span
+							>
+							{#each TIMER_MINUTES as m (m)}
+								<button
+									name="minutes"
+									value={m}
+									disabled={busy === p.id}
+									class="rounded-full bg-zinc-800 px-3 py-1 text-zinc-200 hover:bg-zinc-700"
+									>{timerLabel(m)}</button
+								>
+							{/each}
+						{/if}
+					</form>
+				{/if}
 				{#if form && 'switchProblem' in form && form.switchProblem === p.id}
 					<p class="mt-2 text-sm text-red-300">{form.problem}</p>
 				{/if}

@@ -89,6 +89,17 @@ test('between two days', async () =>
 		)
 	).toEqual(['Café Central']));
 
+test('only among some (#459), and with no words nor days, all of those', async () => {
+	const all = await searchExpenses(k, { text: '', from: null, to: null }, { limit: null });
+	const mercadona = all.find((e) => e.store === 'Mercadona')!;
+	expect(
+		(await searchExpenses(k, { text: '', from: null, to: null }, { ids: [mercadona.id] })).map(
+			(e) => e.store
+		)
+	).toEqual(['Mercadona']);
+	expect(await searchExpenses(k, { text: '', from: null, to: null }, { ids: [] })).toEqual([]);
+});
+
 test('what Papeles finds (#401): only with its file, by line or concept, the newest first', async () => {
 	const [media] = await db
 		.insert(expense)

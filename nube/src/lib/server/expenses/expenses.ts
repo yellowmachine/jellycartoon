@@ -61,12 +61,24 @@ export const SEARCH_LIMIT = 200;
  * Gastos → Búsqueda: those whose shop or any of whose lines has `text` (case and accents aside),
  * between two days (both included, either may be missing). The newest first, at most SEARCH_LIMIT.
  * `withFile`, only those with a receipt or bill kept (what Papeles finds, documents.ts).
+ * Words and days both missing, all of them (with `ids`, those).
  */
 export function searchExpenses(
 	k: Kitchen,
 	{ text, from, to }: { text: string; from: string | null; to: string | null },
-	{ withFile = false, limit = SEARCH_LIMIT }: { withFile?: boolean; limit?: number } = {}
+	{
+		withFile = false,
+		limit = SEARCH_LIMIT,
+		ids
+	}: {
+		withFile?: boolean;
+		/** Null, all of them. */
+		limit?: number | null;
+		/** Only among these (#459: those with a line of an own tag). */
+		ids?: number[];
+	} = {}
 ) {
+	if (ids && !ids.length) return Promise.resolve([]);
 	const like = likeOf(text);
 	return expensesWhere(
 		k,
@@ -80,9 +92,10 @@ export function searchExpenses(
 				: undefined,
 			from ? gte(expense.date, from) : undefined,
 			to ? lte(expense.date, to) : undefined,
-			withFile ? isNotNull(expense.receipt) : undefined
+			withFile ? isNotNull(expense.receipt) : undefined,
+			ids ? inArray(expense.id, ids) : undefined
 		),
-		limit
+		limit ?? undefined
 	);
 }
 

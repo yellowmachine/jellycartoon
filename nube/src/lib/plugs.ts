@@ -39,6 +39,11 @@ export interface PlugNotices {
 /** At most this many hours for «Lleva encendido más de…». */
 export const MAX_ON_HOURS = 48;
 
+/** Enchufes' timer buttons (#396): «Apagar dentro de» / «Encender durante», in minutes. */
+export const TIMER_MINUTES = [15, 30, 60, 120] as const;
+export const timerLabel = (minutes: number) =>
+	minutes < 60 ? `${minutes} min` : `${minutes / 60} h`;
+
 /** As each kind starts: what is worth knowing about it. */
 export function noticeDefaults(kind: PlugKind) {
 	return {

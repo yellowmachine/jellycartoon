@@ -263,6 +263,49 @@ export const expenseFavorite = pgTable(
 ).enableRLS();
 
 /**
+ * The family's own tags for receipt lines (#459): «Pan», «Agua», beside the fixed LINE_TAGS the
+ * model puts. Given to lines by expenseTagRule; one with no rule left is deleted.
+ */
+export const expenseTag = pgTable(
+	'expense_tag',
+	{
+		id: serial('id').primaryKey(),
+		familyId: familyId(),
+		name: text('name').notNull(),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [
+		unique('expense_tag_family_id').on(t.familyId, t.id),
+		unique('expense_tag_family_name').on(t.familyId, t.name),
+		familyRows('expense_tag_own', t.familyId)
+	]
+).enableRLS();
+
+/**
+ * «barra picos» → Pan (#459): every line with that text, as lineKey (comun/expenses.ts) leaves it,
+ * of any receipt, before or after, has that tag. Looked up when read, never copied to the lines: a
+ * rule changed or gone changes them all. One tag per text, so the sums add up.
+ */
+export const expenseTagRule = pgTable(
+	'expense_tag_rule',
+	{
+		familyId: familyId(),
+		text: text('text').notNull(),
+		tagId: integer('tag_id').notNull()
+	},
+	(t) => [
+		primaryKey({ columns: [t.familyId, t.text] }),
+		index('expense_tag_rule_tag_idx').on(t.tagId),
+		foreignKey({
+			name: 'expense_tag_rule_tag_fk',
+			columns: [t.familyId, t.tagId],
+			foreignColumns: [expenseTag.familyId, expenseTag.id]
+		}).onDelete('cascade'),
+		familyRows('expense_tag_rule_own', t.familyId)
+	]
+).enableRLS();
+
+/**
  * What each request to the AI cost (#193), for Gastos → IA: the cloud's own and the house's (it
  * tells them, /api/casa/gasto-ia). In dollars, as OpenRouter says it.
  */
