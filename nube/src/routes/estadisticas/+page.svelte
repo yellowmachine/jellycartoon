@@ -3,7 +3,10 @@
 	import { timeWatched } from './time-watched.ts';
 	import type { PageProps } from './$types';
 
-	/** Estadísticas (#421): what is watched and played at home, one's own and the children's. */
+	/**
+	 * Estadísticas (#421): what is watched, listened to and played, one's own and the children's, in
+	 * three tabs that are not added up together.
+	 */
 	let { data }: PageProps = $props();
 
 	const stats = $derived(data.stats);
@@ -40,15 +43,24 @@
 		radio: 'Radio'
 	};
 
+	const AREA = { ver: 'Ver', escuchar: 'Escuchar', jugar: 'Jugar' };
+
 	/** This page with what is chosen now, but for what changes. */
-	const link = (change: { persona?: string | null; semanas?: number; tipo?: string | null }) => {
+	const link = (change: {
+		persona?: string | null;
+		semanas?: number;
+		tipo?: string | null;
+		que?: string;
+	}) => {
 		const chosen = {
 			semanas: data.period,
 			persona: stats.person,
 			tipo: stats.kind as string | null,
+			que: stats.area as string,
 			...change
 		};
 		const params = new URLSearchParams({ semanas: String(chosen.semanas) });
+		if (chosen.que !== 'ver') params.set('que', chosen.que);
 		if (chosen.persona) params.set('persona', chosen.persona);
 		if (chosen.tipo) params.set('tipo', chosen.tipo);
 		return `?${params}`;
@@ -124,6 +136,24 @@
 	Lo que se ve, se juega y se escucha, tuyo y de los peques. Lo de otros adultos no sale aquí.
 </p>
 
+<nav class="mb-4 flex gap-1 border-b border-zinc-800" aria-label="Qué">
+	{#each stats.areas as a (a.area)}
+		<a
+			href={link({ que: a.area, tipo: null })}
+			class={[
+				'-mb-px border-b-2 px-3 py-2 text-sm',
+				a.area === stats.area
+					? 'border-amber-500 font-medium text-zinc-100'
+					: 'border-transparent text-zinc-400 hover:text-zinc-200'
+			]}
+			aria-current={a.area === stats.area ? 'page' : undefined}
+		>
+			{AREA[a.area]}
+			<span class="block text-xs text-zinc-500">{timeWatched(a.seconds)}</span>
+		</a>
+	{/each}
+</nav>
+
 <nav class="mb-3 flex flex-wrap gap-2" aria-label="Periodo">
 	{#each data.periods as weeks (weeks)}
 		<a
@@ -134,7 +164,7 @@
 	{/each}
 </nav>
 
-{#if stats.kind || kindChips.length > 1}
+{#if kindChips.length > 1 || (stats.kind && kindChips.length)}
 	<nav class="mb-3 flex flex-wrap gap-2" aria-label="Tipo">
 		<a href={link({ tipo: null })} class={chip(!stats.kind)}>Todo</a>
 		{#each kindChips as kind (kind)}
@@ -151,6 +181,8 @@
 	<p class="mt-6 text-zinc-400">
 		{#if stats.kind}
 			Nada de {KINDS[stats.kind].toLowerCase()} en este periodo.
+		{:else if stats.areas.some((a) => a.seconds)}
+			Nada que {stats.area} en este periodo.
 		{:else}
 			Todavía no hay nada en este periodo. Lo visto, jugado y escuchado en casa llega aquí cada 10
 			minutos, desde que la casa tiene esta versión y con Seilide conectada.

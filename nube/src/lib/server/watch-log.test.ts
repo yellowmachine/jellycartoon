@@ -199,7 +199,7 @@ test('of one kind: everything of that kind only, and the kinds there are to choo
 	const all = await watchStats(k, 'ana', TODAY, 4, null);
 	expect(all.kind).toBeNull();
 	expect(all.kinds).toEqual(['serie', 'canal', 'web']);
-	const webs = await watchStats(k, 'ana', TODAY, 4, null, 'web');
+	const webs = await watchStats(k, 'ana', TODAY, 4, null, { kind: 'web' });
 	expect(webs.people.map((p) => [p.id, p.seconds])).toEqual([
 		['ana', 900],
 		['peque', 0]
@@ -300,9 +300,51 @@ test('the house’s whole rows and what is listened to here live together', asyn
 	await addListened(k, 'ana', episode, 10, 'tab', at(21, 11, 0));
 	await addListened(k, 'ana', episode, 20, 'tab', at(21, 11, 10));
 	await saveWatched(k, 'ana', [row({ seconds: 400 })]);
-	const stats = await watchStats(k, 'ana', TODAY, 4, null);
-	expect(stats.titles.map((t) => [t.label, t.kind, t.seconds])).toEqual([
-		['Bluey', 'serie', 400],
+	const watched = await watchStats(k, 'ana', TODAY, 4, null);
+	expect(watched.titles.map((t) => [t.label, t.kind, t.seconds])).toEqual([
+		['Bluey', 'serie', 400]
+	]);
+	const heard = await watchStats(k, 'ana', TODAY, 4, null, { area: 'escuchar' });
+	expect(heard.titles.map((t) => [t.label, t.kind, t.seconds])).toEqual([
 		['La Ventana', 'podcast', 10]
 	]);
+});
+
+test('three tabs, never added up: each its own, and the time of each to choose', async () => {
+	const other = { seriesTitle: null, season: null, number: null };
+	await saveWatched(k, 'ana', [
+		row({ seconds: 600 }),
+		row({
+			item: 't1',
+			kind: 'cancion',
+			seriesTitle: 'Serrat',
+			title: 'Mediterráneo',
+			season: null,
+			number: null,
+			seconds: 1200
+		}),
+		row({ item: 'rbbc', kind: 'radio', title: 'BBC', ...other, seconds: 300 }),
+		row({ item: 'j1', kind: 'juego', title: 'Super Mario World', ...other, seconds: 900 })
+	]);
+	const watched = await watchStats(k, 'ana', TODAY, 4, null);
+	expect(watched.area).toBe('ver');
+	expect(watched.areas).toEqual([
+		{ area: 'ver', seconds: 600 },
+		{ area: 'escuchar', seconds: 1500 },
+		{ area: 'jugar', seconds: 900 }
+	]);
+	expect(watched.people.find((p) => p.id === 'ana')?.seconds).toBe(600);
+	expect(watched.kinds).toEqual(['serie']);
+
+	const heard = await watchStats(k, 'ana', TODAY, 4, null, { area: 'escuchar' });
+	expect(heard.people.find((p) => p.id === 'ana')?.seconds).toBe(1500);
+	expect(heard.kinds).toEqual(['cancion', 'radio']);
+	expect(heard.titles.map((t) => t.label)).toEqual(['Serrat', 'BBC']);
+	expect(heard.days.at(-1)?.seconds).toBe(1500);
+	expect(heard.latest.map((w) => w.item).sort()).toEqual(['rbbc', 't1']);
+
+	// A kind of another tab is not one of this one: the whole tab.
+	const played = await watchStats(k, 'ana', TODAY, 4, null, { area: 'jugar', kind: 'radio' });
+	expect(played.kind).toBeNull();
+	expect(played.titles.map((t) => t.label)).toEqual(['Super Mario World']);
 });
