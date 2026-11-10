@@ -35,6 +35,7 @@
 	import Microfono from './Microfono.svelte';
 	import FondoMusica from './FondoMusica.svelte';
 	import BotonLlamar from './BotonLlamar.svelte';
+	import FamiliasVinculadas from './FamiliasVinculadas.svelte';
 	import Subtitulos from './Subtitulos.svelte';
 	import SettingsSearch from 'comun/components/SettingsSearch.svelte';
 	import { field, group, primary, secondary, section } from '#lib/styles.ts';
@@ -360,6 +361,8 @@
 		</section>
 
 		<Invitaciones {data} {form} {tab} />
+
+		<FamiliasVinculadas {data} {form} {tab} />
 
 		<PasarAdministracion {data} {form} {tab} />
 

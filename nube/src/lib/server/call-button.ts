@@ -1,12 +1,14 @@
 import { eq } from 'drizzle-orm';
 import { familyMember, familyPerson, user } from './db/schema.ts';
 import type { AnyDb, Membership } from './family-scope.ts';
+import type { FamilyLinks, LinkedFamily } from './family-link-scope.ts';
 
 /**
  * «Botón de llamar siempre a mano» (#330): the big green phone at the bottom right, for
  * grandparents. Each one's, off by default; they or another adult of the family set it (a child
- * cannot: their adults do it for them). Its favorites, up to three of the family's accounts: one
- * alone is called with a tap; otherwise it opens Llamadas, with them first.
+ * cannot: their adults do it for them). Its favorites, up to three of the family's accounts or, for
+ * an adult, of the adults of a linked family (#464): one alone is called with a tap; otherwise it
+ * opens Llamadas, with them first.
  */
 export const MAX_FAVORITES = 3;
 
@@ -15,7 +17,9 @@ type WithFamily = <T>(userId: string, fn: (tx: AnyDb, m: Membership) => Promise<
 export interface CallButton {
 	userId: string;
 	on: boolean;
-	/** In the order they were chosen; only accounts still in the family, never themselves. */
+	/** A child: their favorites only of their own family (#464). */
+	kid: boolean;
+	/** In the order they were chosen; only those they can still call, never themselves. */
 	favorites: string[];
 }
 
@@ -45,36 +49,47 @@ function cleanFavorites(favorites: unknown, self: string, there: Set<string>) {
 	return [...seen].slice(0, MAX_FAVORITES);
 }
 
-export function callButtonStore(withFamily: WithFamily) {
+/** The linked families' adults, by user: whom an adult may also choose. */
+const linkedPeople = (families: LinkedFamily[]) =>
+	new Map(families.flatMap((f) => f.people.map((p) => [p.userId, p] as const)));
+
+export function callButtonStore(withFamily: WithFamily, links: Pick<FamilyLinks, 'linked'>) {
 	return {
 		/** Theirs, for every page: off, or on with their favorites' names (layout). */
 		async of(userId: string) {
-			return withFamily(userId, async (tx) => {
+			const mine = await withFamily(userId, async (tx) => {
 				const people = await accounts(tx);
 				const me = people.find((p) => p.userId === userId);
-				if (!me?.on) return null;
-				const there = new Set(people.map((p) => p.userId));
-				const byId = new Map(people.map((p) => [p.userId, p]));
-				return {
-					favorites: cleanFavorites(me.favorites, userId, there).map((id) => {
-						const p = byId.get(id)!;
-						return { userId: id, name: p.person ?? p.name, avatar: p.avatar };
-					})
-				};
+				return me?.on ? { me, people } : null;
 			});
+			if (!mine) return null;
+			const byId = new Map(
+				mine.people.map((p) => [p.userId, { name: p.person ?? p.name, avatar: p.avatar }])
+			);
+			// Only an adult has someone of a linked family among theirs.
+			const wanted = Array.isArray(mine.me.favorites) ? mine.me.favorites : [];
+			if (mine.me.role !== 'peque' && wanted.some((f) => !byId.has(f)))
+				for (const [id, p] of linkedPeople(await links.linked(userId)))
+					if (!byId.has(id)) byId.set(id, { name: p.name, avatar: p.avatar });
+			return {
+				favorites: cleanFavorites(wanted, userId, new Set(byId.keys())).map((id) => ({
+					userId: id,
+					...byId.get(id)!
+				}))
+			};
 		},
 
 		/** Everyone's in the family (Ajustes): an adult sees and sets them all. */
 		async all(userId: string): Promise<CallButton[]> {
-			return withFamily(userId, async (tx) => {
-				const people = await accounts(tx);
-				const there = new Set(people.map((p) => p.userId));
-				return people.map((p) => ({
-					userId: p.userId,
-					on: p.on,
-					favorites: cleanFavorites(p.favorites, p.userId, there)
-				}));
-			});
+			const people = await withFamily(userId, accounts);
+			const own = new Set(people.map((p) => p.userId));
+			const withLinked = new Set([...own, ...linkedPeople(await links.linked(userId)).keys()]);
+			return people.map((p) => ({
+				userId: p.userId,
+				on: p.on,
+				kid: p.role === 'peque',
+				favorites: cleanFavorites(p.favorites, p.userId, p.role === 'peque' ? own : withLinked)
+			}));
 		},
 
 		/** Set by them or another adult of the family: whether it is on, and who it calls. */
@@ -84,12 +99,15 @@ export function callButtonStore(withFamily: WithFamily) {
 			on: boolean,
 			favorites: string[]
 		): Promise<{ problem: string } | null> {
+			const linked = linkedPeople(await links.linked(byUserId));
 			return withFamily(byUserId, async (tx, m) => {
 				if (m.role === 'peque') return { problem: 'Esto lo cambia alguien mayor de tu familia.' };
 				const people = await accounts(tx);
-				if (!people.some((p) => p.userId === forUserId))
-					return { problem: 'No está en tu familia.' };
-				const chosen = cleanFavorites(favorites, forUserId, new Set(people.map((p) => p.userId)));
+				const whose = people.find((p) => p.userId === forUserId);
+				if (!whose) return { problem: 'No está en tu familia.' };
+				const there = new Set(people.map((p) => p.userId));
+				if (whose.role !== 'peque') for (const id of linked.keys()) there.add(id);
+				const chosen = cleanFavorites(favorites, forUserId, there);
 				await tx
 					.update(familyMember)
 					.set({ callButton: on, callFavorites: chosen })

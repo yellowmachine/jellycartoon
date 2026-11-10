@@ -229,6 +229,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		shown: onlyAdmin
 	},
 	{
+		id: 'familias-vinculadas',
+		tab: 'familia',
+		title: 'Familias vinculadas',
+		words: 'vincular unir otra familia padres abuelos hermana llamar llamadas contactos qr enlace'
+	},
+	{
 		id: 'administracion',
 		tab: 'familia',
 		title: 'Administración',

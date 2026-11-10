@@ -195,3 +195,57 @@ export const houseKey = pgTable(
 		})
 	]
 ).enableRLS();
+
+/** Set by family-links.ts while a link's page is open: the token its address carries. */
+const currentLinkToken = sql`nullif(current_setting('app.link_token', true), '')`;
+
+/**
+ * Two families linked (#464), each still closed: only what is chosen crosses, for now that their
+ * adults call each other. An adult of one invites with a link (its token), and an adult of the
+ * other accepts it: then `to_family_id` is theirs and the token goes. In pairs, never chained.
+ * Either family removes it, and it stops at once; each keeps its own calls.
+ */
+export const familyLink = pgTable(
+	'family_link',
+	{
+		id: text('id').primaryKey(),
+		/** The family that invited. */
+		fromFamilyId: text('from_family_id')
+			.notNull()
+			.references(() => family.id, { onDelete: 'cascade' }),
+		/** The family that accepted; none while the link waits. */
+		toFamilyId: text('to_family_id').references(() => family.id, { onDelete: 'cascade' }),
+		/** The link's `/vincular/<token>`, while it waits; gone once accepted. */
+		token: text('token').unique(),
+		invitedBy: text('invited_by').references(() => user.id, { onDelete: 'set null' }),
+		acceptedBy: text('accepted_by').references(() => user.id, { onDelete: 'set null' }),
+		createdAt: timestamp('created_at').notNull().defaultNow(),
+		expiresAt: timestamp('expires_at').notNull(),
+		acceptedAt: timestamp('accepted_at')
+	},
+	(t) => [
+		// One link per pair, whichever invited.
+		uniqueIndex('family_link_pair_idx')
+			.on(
+				sql`least(${t.fromFamilyId}, ${t.toFamilyId})`,
+				sql`greatest(${t.fromFamilyId}, ${t.toFamilyId})`
+			)
+			.where(sql`${t.toFamilyId} is not null`),
+		index('family_link_to_idx').on(t.toFamilyId),
+		pgPolicy('family_link_own', {
+			for: 'all',
+			using: sql`${currentFamily} in (${t.fromFamilyId}, ${t.toFamilyId})`,
+			withCheck: sql`${currentFamily} in (${t.fromFamilyId}, ${t.toFamilyId})`
+		}),
+		// The other family, with the link's address: to read what it invites to, and accept it.
+		pgPolicy('family_link_by_token', {
+			for: 'select',
+			using: sql`${t.token} = ${currentLinkToken}`
+		}),
+		pgPolicy('family_link_accept', {
+			for: 'update',
+			using: sql`${t.token} = ${currentLinkToken} and ${t.toFamilyId} is null`,
+			withCheck: sql`${t.toFamilyId} = ${currentFamily}`
+		})
+	]
+).enableRLS();

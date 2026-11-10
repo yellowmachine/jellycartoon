@@ -10,7 +10,7 @@ import { callButtonStore } from './call-button.ts';
 
 /** The call button (#330), on a real Postgres (PGlite) as the app's role. */
 const db = drizzle(new PGlite(), { schema });
-const store = callButtonStore(familyScope(db, { role: 'app_user' }));
+const store = callButtonStore(familyScope(db, { role: 'app_user' }), { linked: async () => [] });
 
 const account = (id: string) => ({
 	id,
@@ -73,7 +73,12 @@ describe('botón de llamar', () => {
 			'nadie'
 		]);
 		const mine = (await store.all('abuela')).find((b) => b.userId === 'abuela');
-		expect(mine).toEqual({ userId: 'abuela', on: true, favorites: ['pepe', 'ana', 'lucia'] });
+		expect(mine).toEqual({
+			userId: 'abuela',
+			on: true,
+			kid: false,
+			favorites: ['pepe', 'ana', 'lucia']
+		});
 	});
 
 	test('un peque no lo cambia, ni nadie el de otra familia', async () => {
@@ -84,7 +89,9 @@ describe('botón de llamar', () => {
 			problem: 'No está en tu familia.'
 		});
 		expect(await store.of('abuela')).not.toBeNull();
-		expect(await store.all('otro')).toEqual([{ userId: 'otro', on: false, favorites: [] }]);
+		expect(await store.all('otro')).toEqual([
+			{ userId: 'otro', on: false, kid: false, favorites: [] }
+		]);
 	});
 
 	test('apagado, no sale; un favorito que se fue, deja de salir', async () => {

@@ -549,6 +549,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		joining: 'dropped',
 		zip: false
 	},
+	family_link: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'Between families (#464): a new family links again if it wants'
+	},
 
 	// The account: it is the same one.
 	waitlist: {

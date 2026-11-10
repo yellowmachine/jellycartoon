@@ -7,6 +7,7 @@ import * as schema from './db/schema.ts';
 import { call, family, familyMember, familyPerson, pushSubscription, user } from './db/schema.ts';
 import { familyOnlyScope, familyScope } from './family-scope.ts';
 import { callHub } from './calls-hub.ts';
+import { familyLinkScope } from './family-link-scope.ts';
 import { parseCallMessage, type CallEvent } from '#lib/calls.ts';
 import { iceServers } from './turn.ts';
 import { createHmac } from 'node:crypto';
@@ -23,6 +24,7 @@ const hub = callHub({
 	withFamily,
 	asFamily,
 	notify: async (_family, to, m) => void told.push({ to, ...m }),
+	links: familyLinkScope(db, { role: 'app_user' }),
 	ringMs: 80,
 	goneMs: 40
 });

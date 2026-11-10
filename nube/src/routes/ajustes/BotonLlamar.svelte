@@ -25,8 +25,20 @@
 
 	const MAX = 3;
 	const saved = $derived(data.callButtons?.find((b) => b.userId === userId));
-	/** Who may be a favorite: the family's accounts, but them. */
-	const others = $derived(data.people.filter((p) => p.userId && p.userId !== userId));
+	/**
+	 * Who may be a favorite: the family's accounts, but them; for an adult, also the adults of the
+	 * linked families (#464), with their family's name.
+	 */
+	const others = $derived([
+		...data.people
+			.filter((p) => p.userId && p.userId !== userId)
+			.map((p) => ({ userId: p.userId!, name: p.name })),
+		...(saved?.kid
+			? []
+			: (data.familyLinks?.linked ?? []).flatMap((f) =>
+					f.people.map((p) => ({ userId: p.userId, name: `${p.name} (${f.familyName})` }))
+				))
+	]);
 	let on = $derived(saved?.on ?? false);
 	let favorites = $derived(saved?.favorites ?? []);
 
@@ -73,7 +85,7 @@
 					Favoritos, hasta {MAX}: salen primero y en grande en Llamadas
 				</legend>
 				{#each others as p (p.userId)}
-					{@const chosen = favorites.includes(p.userId!)}
+					{@const chosen = favorites.includes(p.userId)}
 					<label
 						class={['flex items-center gap-2', !chosen && favorites.length >= MAX && 'opacity-50']}
 					>
@@ -83,7 +95,7 @@
 							disabled={!chosen && favorites.length >= MAX}
 							onchange={(e) => {
 								favorites = e.currentTarget.checked
-									? [...favorites, p.userId!]
+									? [...favorites, p.userId]
 									: favorites.filter((f) => f !== p.userId);
 								save();
 							}}
