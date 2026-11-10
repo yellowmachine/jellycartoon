@@ -20,7 +20,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		await kitchenOf(locals.user!.id),
 		Number(params.id),
 		positionSec,
-		body.ended === true
+		body.ended === true,
+		locals.session!.id
 	);
 	if (!saved) error(404, 'Episodio no encontrado');
 	return json({ ok: true });

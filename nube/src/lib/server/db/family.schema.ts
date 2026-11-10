@@ -76,6 +76,11 @@ export const familyMember = pgTable(
 		inboxByEmail: boolean('inbox_by_email').notNull().default(false),
 		/** How their subtitles look (Ajustes, comun/subtitle-style.ts); unset choices, the default. */
 		subtitleStyle: jsonb('subtitle_style').$type<Partial<SubtitleStyle>>(),
+		/**
+		 * «Guardar lo que veo», as their house says it (#421): off, what they listen to here is not
+		 * counted for Estadísticas. Children's always is.
+		 */
+		keepHistory: boolean('keep_history').notNull().default(true),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [

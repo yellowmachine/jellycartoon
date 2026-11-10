@@ -1,0 +1,1 @@
+ALTER TABLE "family_member" ADD COLUMN "keep_history" boolean DEFAULT true NOT NULL;

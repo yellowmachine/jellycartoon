@@ -28,7 +28,8 @@ type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 /** Of a request. Seilide may not know the person: nothing to keep, nor to send again. */
 export type SendWatch = (
 	userId: string,
-	body: { action: 'save'; rows: WatchRow[] } | { action: 'forget' }
+	body:
+		{ action: 'save'; rows: WatchRow[] } | { action: 'forget' } | { action: 'keep'; on: boolean }
 ) => Promise<{ known?: boolean }>;
 
 export interface WatchRow {
@@ -119,6 +120,32 @@ function rowOf(r: Pending): WatchRow {
 		season: r.season,
 		number: r.number
 	};
+}
+
+/**
+ * «Guardar lo que veo» of each adult, told to Seilide when it is not what it was last told: it
+ * counts there what is listened to (podcasts, music in its app), and must know whom not to count.
+ * Children always count. Someone Seilide does not know counts as told.
+ */
+export async function tellKeepHistory(db: Db, send: SendWatch) {
+	const keep = sql<boolean>`coalesce(${userSettings.keepHistory}, true)`;
+	const people = await db
+		.select({ userId: user.id, on: keep })
+		.from(user)
+		.leftJoin(userSettings, eq(userSettings.userId, user.id))
+		.where(
+			and(
+				sql`${user.role} is distinct from ${KIDS_ROLE}`,
+				sql`${userSettings.keepHistorySent} is distinct from ${keep}`
+			)
+		);
+	for (const { userId, on } of people) {
+		await send(userId, { action: 'keep', on });
+		await db
+			.insert(userSettings)
+			.values({ userId, keepHistorySent: on })
+			.onConflictDoUpdate({ target: userSettings.userId, set: { keepHistorySent: on } });
+	}
 }
 
 /** What was turned off, deleted there. Before sending, for what comes after to stay. */

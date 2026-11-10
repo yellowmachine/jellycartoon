@@ -5,7 +5,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import * as schema from './db/schema.ts';
 import { episode, game, gameSession, series, user, userSettings, watchTime } from './db/schema.ts';
-import { sendWatchLog, type SendWatch, type WatchRow } from './watch-log-scope.ts';
+import { sendWatchLog, tellKeepHistory, type SendWatch, type WatchRow } from './watch-log-scope.ts';
 
 /** On a real Postgres (PGlite), with the migrations as they are and a Seilide that keeps what comes. */
 const db = drizzle(new PGlite(), { schema });
@@ -268,4 +268,31 @@ test('if Seilide refuses the games, what is watched is already sent and kept as 
 	expect(row.sentSeconds).toBe(300);
 	const [s] = await db.select().from(gameSession);
 	expect(s.sentSeconds).toBe(0);
+});
+
+test('«Guardar lo que veo» is told to Seilide once per adult, and again only when it changes', async () => {
+	await db.insert(userSettings).values({ userId: 'luis', keepHistory: false });
+	await tellKeepHistory(db, send);
+	expect(sent.map((s) => [s.userId, s.action, (s as { on?: boolean }).on])).toEqual([
+		['ana', 'keep', true],
+		['luis', 'keep', false]
+	]);
+
+	sent = [];
+	await tellKeepHistory(db, send);
+	expect(sent).toEqual([]);
+
+	await db.update(userSettings).set({ keepHistory: true }).where(eq(userSettings.userId, 'luis'));
+	await tellKeepHistory(db, send);
+	expect(sent.map((s) => [s.userId, (s as { on?: boolean }).on])).toEqual([['luis', true]]);
+});
+
+test('if telling fails, it is told next time', async () => {
+	answer = async () => {
+		throw new Error('Sin internet');
+	};
+	await expect(tellKeepHistory(db, send)).rejects.toThrow();
+	answer = async () => ({ known: false });
+	await tellKeepHistory(db, send);
+	expect(sent.map((s) => s.userId).sort()).toEqual(['ana', 'luis']);
 });

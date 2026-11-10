@@ -1,6 +1,8 @@
 import { and, desc, eq, gte, inArray, max, or, sql } from 'drizzle-orm';
 import { familyMember, user, watchLog } from './db/schema.ts';
 import type { Kitchen } from './fridge.ts';
+import { localDay } from 'comun/agenda.ts';
+import { WatchSteps } from 'comun/watch-steps.ts';
 
 /**
  * What is watched and played at home, here (#421): the house sends the seconds of each slot (/api/casa/visto),
@@ -8,7 +10,7 @@ import type { Kitchen } from './fridge.ts';
  * reads their own and the children's, never another adult's: at home, what one watches is theirs.
  */
 
-export const KINDS = ['serie', 'pelicula', 'canal', 'web', 'juego'] as const;
+export const KINDS = ['serie', 'pelicula', 'canal', 'web', 'juego', 'podcast'] as const;
 export type WatchKind = (typeof KINDS)[number];
 export const MAX_ROWS = 500;
 const MAX_TEXT = 500;
@@ -86,6 +88,72 @@ export async function saveWatched(k: Kitchen, userId: string, rows: WatchRow[]) 
 /** All that was sent of this person: «Guardar lo que veo» turned off at home. */
 export async function forgetWatched(k: Kitchen, userId: string) {
 	await k.run((tx) => tx.delete(watchLog).where(eq(watchLog.userId, userId)));
+}
+
+/** «Guardar lo que veo» as their house says it: off, what they listen to here is not counted. */
+export async function setKeepsHistory(k: Kitchen, userId: string, on: boolean) {
+	await k.run((tx) =>
+		tx.update(familyMember).set({ keepHistory: on }).where(eq(familyMember.userId, userId))
+	);
+}
+
+/** Whether what a person listens to here counts: a child's always; an adult's, as their house says. */
+async function keepsHistory(k: Kitchen, userId: string) {
+	const [member] = await k.run((tx) =>
+		tx
+			.select({ role: familyMember.role, keepHistory: familyMember.keepHistory })
+			.from(familyMember)
+			.where(eq(familyMember.userId, userId))
+	);
+	return !!member && (member.role === 'peque' || member.keepHistory);
+}
+
+/** The last position heard of each person, thing and player; in memory, a restart loses one step. */
+const steps = new WatchSteps();
+const SLOT_MINUTES = 10;
+
+/** What is listened to, as a slot's row says it, but for its time. */
+export type Listened = Pick<WatchRow, 'item' | 'kind' | 'seriesTitle' | 'title'>;
+
+/**
+ * Listened to here (#421), from where the player is now (`positionSec`), saved every few seconds:
+ * what it moved forward since the last save of the same `source` (a browser, the house) is time
+ * listened to, added to its slot. Not the house's rows, which come whole: these items are others.
+ */
+export async function addListened(
+	k: Kitchen,
+	userId: string,
+	what: Listened,
+	positionSec: number,
+	source: string,
+	now = new Date()
+) {
+	const step = steps.step(`${userId}:${what.item}:${source}`, positionSec, now.getTime());
+	if (!step || !(await keepsHistory(k, userId))) return;
+	const minute = now.getHours() * 60 + now.getMinutes();
+	const row = {
+		...what,
+		familyId: k.familyId,
+		userId,
+		day: localDay(now),
+		minute: minute - (minute % SLOT_MINUTES),
+		season: null,
+		number: null,
+		seconds: step
+	};
+	await k.run((tx) =>
+		tx
+			.insert(watchLog)
+			.values(row)
+			.onConflictDoUpdate({
+				target: [watchLog.userId, watchLog.day, watchLog.minute, watchLog.item],
+				set: {
+					seriesTitle: sql`excluded.series_title`,
+					title: sql`excluded.title`,
+					seconds: sql`${watchLog.seconds} + excluded.seconds`
+				}
+			})
+	);
 }
 
 /** The Monday of a `YYYY-MM-DD`'s week. */

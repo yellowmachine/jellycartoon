@@ -848,6 +848,13 @@
       "when": 1794290308757,
       "tag": "0120_game_session_sent",
       "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1794290752866,
+      "tag": "0121_keep_history_sent",
+      "breakpoints": true
     }
   ]
 }

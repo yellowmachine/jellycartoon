@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { userSettings, watchTime } from '#lib/server/db/schema.ts';
+import { gameSession, userSettings, watchTime } from '#lib/server/db/schema.ts';
 import { sanitizeSubtitleStyle, type SubtitleStyle } from 'comun/subtitle-style.ts';
 import { DEFAULT_THEME, isTheme, type ThemeId } from 'comun/themes.ts';
 
@@ -60,11 +60,16 @@ export async function setKeepHistory(userId: string, keepHistory: boolean) {
 			.insert(userSettings)
 			.values({ userId, keepHistory, ...off })
 			.onConflictDoUpdate({ target: userSettings.userId, set: { keepHistory, ...off } });
-		if (!keepHistory)
+		if (!keepHistory) {
 			await tx
 				.update(watchTime)
 				.set({ sentSeconds: sql`${watchTime.seconds}` })
 				.where(eq(watchTime.userId, userId));
+			await tx
+				.update(gameSession)
+				.set({ sentSeconds: sql`${gameSession.seconds}` })
+				.where(eq(gameSession.userId, userId));
+		}
 	});
 	keepsHistoryCache.set(userId, keepHistory);
 }

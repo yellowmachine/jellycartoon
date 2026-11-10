@@ -4,7 +4,7 @@ import { askCloud, cloudLink } from '#lib/server/kitchen.ts';
 import { log } from '#lib/server/log.ts';
 import { today } from '#lib/server/playlist.ts';
 import { allGames } from '#lib/server/games.ts';
-import { sendWatchLog } from '#lib/server/watch-log-scope.ts';
+import { sendWatchLog, tellKeepHistory, type SendWatch } from '#lib/server/watch-log-scope.ts';
 
 /**
  * Seilide's statistics of what is watched and played here (#421): every 10 minutes, what changed; if there is
@@ -30,12 +30,10 @@ async function send() {
 		since = today(new Date());
 		await setAppSetting(SINCE, since);
 	}
-	await sendWatchLog(
-		db,
-		since,
-		(userId, body) => askCloud<{ known?: boolean }>(link, '/visto', { userId, body }),
-		gameNames
-	);
+	const send: SendWatch = (userId, body) =>
+		askCloud<{ known?: boolean }>(link, '/visto', { userId, body });
+	await tellKeepHistory(db, send);
+	await sendWatchLog(db, since, send, gameNames);
 }
 
 /** Now, as when turning off «Guardar lo que veo»; if it is at it, on its next round. */

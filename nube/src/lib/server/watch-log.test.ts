@@ -6,12 +6,14 @@ import * as schema from './db/schema.ts';
 import { family, familyMember, user, watchLog } from './db/schema.ts';
 import type { Kitchen } from './fridge.ts';
 import {
+	addListened,
 	forgetWatched,
 	lastDays,
 	lastMondays,
 	mondayOf,
 	parseWatchRows,
 	saveWatched,
+	setKeepsHistory,
 	watchStats,
 	type WatchRow
 } from './watch-log.ts';
@@ -244,4 +246,63 @@ test('what the house sends is checked as a whole', () => {
 	expect(parseWatchRows('nada')).toBeNull();
 	expect(parseWatchRows(Array.from({ length: 501 }, () => row()))).toBeNull();
 	expect(parseWatchRows([null])).toBeNull();
+});
+
+const episode = { item: 'p7', kind: 'podcast' as const, seriesTitle: 'La Ventana', title: 'Lunes' };
+// In the server's time zone, as the slots are: 21:12 is in the 21:10 slot.
+const at = (h: number, m: number, s = 0) => new Date(2026, 10, 6, h, m, s);
+
+test('listened to: what the position moved forward, added to its slot', async () => {
+	await addListened(k, 'ana', episode, 100, 'tab1', at(21, 12, 0));
+	await addListened(k, 'ana', episode, 115, 'tab1', at(21, 12, 15));
+	await addListened(k, 'ana', episode, 130, 'tab1', at(21, 12, 30));
+	// Jumping ahead counts only the time that went by; going back, nothing.
+	await addListened(k, 'ana', episode, 900, 'tab1', at(21, 12, 45));
+	await addListened(k, 'ana', episode, 50, 'tab1', at(21, 13, 0));
+	const rows = await db.select().from(watchLog);
+	expect(rows.length).toBe(1);
+	expect(rows[0]).toMatchObject({
+		day: TODAY,
+		minute: 1270,
+		item: 'p7',
+		kind: 'podcast',
+		seriesTitle: 'La Ventana',
+		title: 'Lunes'
+	});
+	expect(rows[0].seconds).toBe(46);
+});
+
+test('each player on its own: two at once do not mix their positions', async () => {
+	await addListened(k, 'ana', episode, 100, 'movil', at(22, 0, 0));
+	await addListened(k, 'ana', episode, 2000, 'casa', at(22, 0, 5));
+	await addListened(k, 'ana', episode, 115, 'movil', at(22, 0, 15));
+	await addListened(k, 'ana', episode, 2010, 'casa', at(22, 0, 15));
+	const [row] = await db.select().from(watchLog);
+	expect(row.seconds).toBe(25);
+});
+
+test('listened to: not counted for an adult whose house says not to keep it; a child’s always', async () => {
+	await setKeepsHistory(k, 'luis', false);
+	await setKeepsHistory(k, 'peque', false);
+	for (const userId of ['luis', 'peque']) {
+		await addListened(k, userId, episode, 100, 'tab', at(18, 0, 0));
+		await addListened(k, userId, episode, 110, 'tab', at(18, 0, 10));
+	}
+	expect((await db.select().from(watchLog)).map((r) => r.userId)).toEqual(['peque']);
+
+	await setKeepsHistory(k, 'luis', true);
+	await addListened(k, 'luis', episode, 120, 'tab', at(18, 0, 20));
+	expect((await db.select().from(watchLog)).map((r) => r.userId).sort()).toEqual(['luis', 'peque']);
+});
+
+test('the house’s whole rows and what is listened to here live together', async () => {
+	await saveWatched(k, 'ana', [row()]);
+	await addListened(k, 'ana', episode, 10, 'tab', at(21, 11, 0));
+	await addListened(k, 'ana', episode, 20, 'tab', at(21, 11, 10));
+	await saveWatched(k, 'ana', [row({ seconds: 400 })]);
+	const stats = await watchStats(k, 'ana', TODAY, 4, null);
+	expect(stats.titles.map((t) => [t.label, t.kind, t.seconds])).toEqual([
+		['Bluey', 'serie', 400],
+		['La Ventana', 'podcast', 10]
+	]);
 });

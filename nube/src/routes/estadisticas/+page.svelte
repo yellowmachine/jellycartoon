@@ -19,13 +19,21 @@
 	});
 	const weekLabel = (monday: string) => dayMonth.format(new Date(`${monday}T00:00:00Z`));
 
-	const KIND = { serie: 'Serie', pelicula: 'Película', canal: 'Canal', web: 'Web', juego: 'Juego' };
+	const KIND = {
+		serie: 'Serie',
+		pelicula: 'Película',
+		canal: 'Canal',
+		web: 'Web',
+		juego: 'Juego',
+		podcast: 'Podcast'
+	};
 	const KINDS = {
 		serie: 'Series',
 		pelicula: 'Películas',
 		canal: 'Canales',
 		web: 'Webs',
-		juego: 'Juegos'
+		juego: 'Juegos',
+		podcast: 'Podcasts'
 	};
 
 	/** This page with what is chosen now, but for what changes. */
@@ -75,7 +83,9 @@
 			? [w.season != null && w.number != null ? `T${w.season} E${w.number}` : null, w.title]
 					.filter(Boolean)
 					.join(' · ')
-			: KIND[w.kind];
+			: w.kind === 'podcast'
+				? `Podcast · ${w.title}`
+				: KIND[w.kind];
 	const chip = (on: boolean) =>
 		`rounded-full px-3 py-1 text-sm ${on ? 'bg-amber-500 font-medium text-zinc-950' : 'bg-zinc-800 hover:bg-zinc-700'}`;
 
@@ -107,7 +117,7 @@
 
 <h1 class="mb-1 text-2xl font-bold">Estadísticas</h1>
 <p class="mb-6 text-sm text-zinc-400">
-	Lo que se ve y se juega en casa, tuyo y de los peques. Lo de otros adultos no sale aquí.
+	Lo que se ve, se juega y se escucha, tuyo y de los peques. Lo de otros adultos no sale aquí.
 </p>
 
 <nav class="mb-3 flex flex-wrap gap-2" aria-label="Periodo">

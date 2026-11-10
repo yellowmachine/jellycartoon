@@ -717,6 +717,11 @@ export const userSettings = pgTable('user_settings', {
 	keepHistory: boolean('keep_history').notNull().default(true),
 	/** «Guardar lo que veo» turned off: what Seilide has of them is still to delete there (#421). */
 	forgetSentWatch: boolean('forget_sent_watch').notNull().default(false),
+	/**
+	 * What Seilide was last told of `keepHistory` (#421), as it counts there what is listened to
+	 * (podcasts, and music in its app); null, nothing yet.
+	 */
+	keepHistorySent: boolean('keep_history_sent'),
 	/** Langua, the language app: where to send audio clips (`send_clip` in voice commands), and its token. */
 	languaUrl: text('langua_url'),
 	languaToken: text('langua_token'),
