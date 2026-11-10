@@ -62,6 +62,8 @@
 		'rounded-md border-zinc-700 bg-zinc-950 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500';
 	const button = 'rounded-md px-3 py-1.5 text-sm disabled:opacity-40';
 	const chip = 'rounded bg-amber-900/60 px-1.5 text-xs text-amber-200';
+	/** A tag's buttons, an icon each: with text they left its name no room on a phone. */
+	const icon = 'shrink-0 rounded-md bg-zinc-800 px-2.5 py-1.5 leading-none hover:bg-zinc-700';
 
 	/** After each form: what failed, said; else the page's data again. */
 	const done =
@@ -134,21 +136,25 @@
 					{:else}
 						<span class="min-w-0 flex-1">
 							<span class={chip}>{t.name}</span>
-							<span class="text-sm text-zinc-400"
+							<span class="block text-sm text-zinc-400"
 								>{sum?.texts ?? 0}
 								{sum?.texts === 1 ? 'texto' : 'textos'} · {euros(sum?.total ?? 0)} en total</span
 							>
 						</span>
 						<a
 							href="/gastos/busqueda?etiqueta={t.id}"
-							class="{button} bg-zinc-800 hover:bg-zinc-700">Buscar</a
+							class={icon}
+							title="Buscar sus gastos"
+							aria-label="Buscar los gastos de {t.name}">🔍</a
 						>
 						<button
-							class="{button} bg-zinc-800 hover:bg-zinc-700"
+							class={icon}
+							title="Cambiar nombre"
+							aria-label="Cambiar el nombre de {t.name}"
 							onclick={() => {
 								renaming = { id: t.id, name: t.name };
 								deleting = null;
-							}}>Cambiar nombre</button
+							}}>✏️</button
 						>
 						{#if deleting === t.id}
 							<form method="post" action="?/delete" use:enhance={done(() => (deleting = null))}>
@@ -163,9 +169,10 @@
 							>
 						{:else}
 							<button
-								class="{button} bg-zinc-800 hover:bg-zinc-700"
-								title="Sus líneas se quedan sin etiqueta propia"
-								onclick={() => (deleting = t.id)}>Borrar</button
+								class={icon}
+								title="Borrar: sus líneas se quedan sin etiqueta propia"
+								aria-label="Borrar {t.name}"
+								onclick={() => (deleting = t.id)}>🗑️</button
 							>
 						{/if}
 					{/if}
