@@ -102,6 +102,7 @@ class Phone {
 	#described = false;
 	#early: { type: 'ice'; candidate: unknown }[] = [];
 	#tones = new Tones();
+	#hushed = false;
 	/** This page, for Seilide: of the person's devices, which one is in the call. */
 	#device = typeof crypto !== 'undefined' ? crypto.randomUUID() : '';
 
@@ -190,12 +191,28 @@ class Phone {
 		this.problem = null;
 	}
 
+	/**
+	 * The ring quiet while the person speaks to the voice (#330: «Alexa, contesta»), so that the
+	 * microphone hears them and not it; `unhush` brings it back if it is still ringing.
+	 */
+	hush() {
+		if (this.state !== 'incoming') return;
+		this.#tones.stop();
+		this.#hushed = true;
+	}
+
+	unhush() {
+		if (this.#hushed && this.state === 'incoming') this.#tones.ring();
+		this.#hushed = false;
+	}
+
 	/** A ringing call, gone from the list of ringing ones: answered elsewhere, or over. */
 	stopRingingIfGone(ringing: string[]) {
 		if (this.state === 'incoming' && this.id && !ringing.includes(this.id)) this.#tones.stop();
 	}
 
 	#begin(id: string | null, role: 'caller' | 'callee', name: string, state: PhoneState) {
+		this.#hushed = false;
 		this.id = id;
 		this.role = role;
 		this.otherName = name;

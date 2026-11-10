@@ -5,6 +5,7 @@ import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
 import { phone } from '#lib/phone.svelte.ts';
+import { callReplySaid } from '#lib/call-voice.ts';
 import { recipe } from '#lib/recipe.svelte.ts';
 import { timers } from '#lib/timers.svelte.ts';
 import {
@@ -201,6 +202,15 @@ class VoiceClient {
 		this.reply = null;
 		this.options = [];
 		this.heard = text;
+		// A call ringing in the road mode (#330): «contesta» or «no contestes», here, at once.
+		const toCall = this.road && phone.state === 'incoming' ? callReplySaid(text) : null;
+		if (toCall) {
+			this.phase = 'idle';
+			if (toCall === 'answer') void phone.answer();
+			else phone.reject();
+			resumeAfterVoice();
+			return;
+		}
 		// Typed or tapped: that touch lets a timer set now ring later.
 		timers.unlockSound();
 		if (Date.now() - this.#historyAt > HISTORY_IDLE_MS) this.#history = [];
@@ -290,11 +300,13 @@ function pauseForVoice() {
 	timers.silence();
 	timers.unlockSound();
 	music.pauseForVoice();
+	phone.hush();
 }
 
 /** What was paused to speak, back where it was. */
 function resumeAfterVoice() {
 	music.resumeAfterVoice();
+	phone.unhush();
 }
 
 /**

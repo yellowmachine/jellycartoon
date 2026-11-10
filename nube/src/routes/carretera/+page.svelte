@@ -992,8 +992,8 @@
 
 	// «Alexa» instead of the button, turned on here on this tablet: only while Carretera is open.
 	$effect(() => {
-		// Not during a call (#330): the other's voice would wake it.
-		wakeWord.want(wakeWord.on.carretera && !tel.busy);
+		// Not during a call (#330): the other's voice would wake it. Yes while one rings, to answer it.
+		wakeWord.want(wakeWord.on.carretera && (!tel.busy || tel.state === 'incoming'));
 		return () => wakeWord.want(false);
 	});
 
@@ -1498,7 +1498,7 @@ home. -->
 
 				{#if tel.state !== 'idle'}
 					<!-- A call (#330): in place of everything else, big, until «Cerrar». -->
-					<CallPanel />
+					<CallPanel wakeWord={wakeWord.on.carretera ? WAKE_WORDS[wakeWord.word] : null} />
 				{/if}
 				{#if tab === null && tel.state === 'idle'}
 					{#if mapInTab && route}
