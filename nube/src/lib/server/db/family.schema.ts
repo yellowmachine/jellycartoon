@@ -81,6 +81,13 @@ export const familyMember = pgTable(
 		 * counted for Estadísticas. Children's always is.
 		 */
 		keepHistory: boolean('keep_history').notNull().default(true),
+		/**
+		 * «Botón de llamar siempre a mano» (#330): the big green phone at the bottom right of every page,
+		 * for grandparents. Off by default; they or another adult of the family turn it on.
+		 */
+		callButton: boolean('call_button').notNull().default(false),
+		/** Who it calls (#330): up to three of the family's accounts; one alone is called with a tap. */
+		callFavorites: jsonb('call_favorites').$type<string[]>().notNull().default([]),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [

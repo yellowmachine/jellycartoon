@@ -11,6 +11,7 @@ import { canReadReceipts } from '#lib/server/expenses/receipt.ts';
 import { isServiceAdmin } from '#lib/server/invitations.ts';
 import { isGuardian } from '#lib/server/kid-login.ts';
 import { prayerModeOn } from '#lib/server/prayers.ts';
+import { callButtons } from '#lib/server/call-buttons.ts';
 
 /** Who is in, and their family: null if their account is in none. */
 export const load: LayoutServerLoad = async ({ locals }) => {
@@ -24,7 +25,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			spendLine: false,
 			theme: DEFAULT_THEME,
 			guardian: false,
-			aiBlocked: null
+			aiBlocked: null,
+			callButton: null
 		};
 	const user = {
 		id: locals.user.id,
@@ -68,6 +70,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		const guardian = !found.kid && (await isGuardian(k));
 		/** The family's AI stopped (ai-block.ts): the banner, with «Ya he recargado», for who runs it. */
 		const aiBlocked = found.admin ? await aiBlockOf(k) : null;
+		/** «Botón de llamar siempre a mano» (#330): null, off; on, who it calls. */
+		const callButton = await callButtons.of(locals.user.id);
 		/** jellycartoon's own address, for the bar's sections of the house (nav.ts). */
 		return {
 			user,
@@ -81,7 +85,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			/** Their colours (Ajustes), painted from the server: no flash of the default. */
 			theme: found.theme,
 			guardian,
-			aiBlocked: aiBlocked && { why: aiBlocked.why, at: aiBlocked.at.toISOString() }
+			aiBlocked: aiBlocked && { why: aiBlocked.why, at: aiBlocked.at.toISOString() },
+			callButton
 		};
 	} catch (error) {
 		if (error instanceof NoFamily)
@@ -94,7 +99,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 				spendLine: false,
 				theme: DEFAULT_THEME,
 				guardian: false,
-				aiBlocked: null
+				aiBlocked: null,
+				callButton: null
 			};
 		throw error;
 	}

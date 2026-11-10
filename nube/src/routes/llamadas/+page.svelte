@@ -17,6 +17,14 @@
 		minute: '2-digit'
 	});
 
+	/** With the call button (#330), its favorites first, in their order, and bigger. */
+	const favorites = $derived(data.callButton?.favorites.map((f) => f.userId) ?? []);
+	const people = $derived([...data.people].sort((a, b) => rank(a.userId) - rank(b.userId)));
+	function rank(userId: string) {
+		const i = favorites.indexOf(userId);
+		return i === -1 ? favorites.length : i;
+	}
+
 	// Over: the history again, with this one.
 	let was = $state(phone.state);
 	$effect(() => {
@@ -39,16 +47,25 @@
 	<section class={section}>
 		<h2 class="mb-3 text-lg font-semibold">Llamar</h2>
 		{#if data.people.length}
-			<ul class="grid gap-2 sm:grid-cols-2">
-				{#each data.people as p (p.userId)}
+			<ul class={['grid gap-2', !favorites.length && 'sm:grid-cols-2']}>
+				{#each people as p (p.userId)}
+					{@const favorite = favorites.includes(p.userId)}
 					<li>
 						<button
-							class="flex w-full items-center gap-3 rounded-xl bg-zinc-900 p-3 text-left hover:bg-zinc-800 disabled:opacity-50"
+							class={[
+								'flex w-full items-center gap-3 rounded-xl text-left disabled:opacity-50',
+								favorite
+									? 'bg-emerald-900/60 p-4 text-xl ring-1 ring-emerald-700 hover:bg-emerald-900'
+									: 'bg-zinc-900 p-3 hover:bg-zinc-800'
+							]}
 							disabled={phone.busy}
 							onclick={() => phone.call(p.userId, p.name)}
 						>
 							<span
-								class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-700 font-bold text-white"
+								class={[
+									'flex shrink-0 items-center justify-center rounded-full bg-emerald-700 font-bold text-white',
+									favorite ? 'h-14 w-14 text-2xl' : 'h-10 w-10'
+								]}
 								aria-hidden="true">{p.name.slice(0, 1).toUpperCase()}</span
 							>
 							<span class="min-w-0">
