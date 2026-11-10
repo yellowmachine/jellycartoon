@@ -48,6 +48,10 @@
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { wakeWord } from '#lib/wake-word.svelte.ts';
+	import CallPanel from '#lib/components/CallPanel.svelte';
+	// `phone` is this device's size, below: the call's, `tel`.
+	import { phone as tel } from '#lib/phone.svelte.ts';
+	import type { IncomingCall } from '#lib/calls.ts';
 	import { WAKE_WORDS, isWakeWord } from 'comun/wake-words.ts';
 	import { telegramSaid, type TelegramMessage } from 'comun/telegram.ts';
 	import type { PageProps } from './$types';
@@ -63,7 +67,8 @@
 
 	let { data }: PageProps = $props();
 
-	type Tab = 'radio' | 'musica' | 'listas' | 'podcasts' | 'ruta' | 'mas' | 'dj' | 'telegram';
+	type Tab =
+		'radio' | 'musica' | 'listas' | 'podcasts' | 'ruta' | 'mas' | 'llamar' | 'dj' | 'telegram';
 	/**
 	 * The right-hand side (or the whole screen, without the map beside): Inicio (`null`), with what
 	 * plays, the microphone and a big button for each section; or a section, its list filling it, with
@@ -359,6 +364,7 @@
 		podcasts: 'Podcasts',
 		ruta: 'Ruta',
 		mas: 'Más',
+		llamar: 'Llamar',
 		dj: 'DJ',
 		telegram: 'Telegram'
 	};
@@ -373,6 +379,7 @@
 		podcasts: 'bg-violet-600 text-white',
 		ruta: 'bg-blue-600 text-white',
 		mas: 'bg-zinc-800 text-zinc-100',
+		llamar: 'bg-green-700 text-white',
 		dj: 'bg-orange-600 text-white',
 		telegram: 'bg-sky-600 text-white'
 	};
@@ -394,9 +401,35 @@
 		{ id: 'mas', off: null }
 	]);
 	/** «←»: back to «Más» from what is inside it; to Inicio from the rest. */
-	const backTo = (t: Tab): Tab | null => (t === 'dj' || t === 'telegram' ? 'mas' : null);
+	const backTo = (t: Tab): Tab | null =>
+		t === 'dj' || t === 'telegram' || t === 'llamar' ? 'mas' : null;
 	/** What plays, as a section: its colour and drawing on the bar when it has no cover. */
 	const playingTab: Tab = $derived(music.radio ? 'radio' : music.podcast ? 'podcasts' : 'musica');
+
+	/**
+	 * Calls (#330): one ringing for this person shows here, big, with its ring, besides the notice;
+	 * and while one rings or lasts, what plays pauses, and goes on after.
+	 */
+	$effect(() => {
+		const events = new EventSource('/api/llamadas/entrantes');
+		events.onmessage = (e) => {
+			const ringing: IncomingCall[] = JSON.parse(e.data);
+			tel.stopRingingIfGone(ringing.map((c) => c.id));
+			const first = ringing[0];
+			if (first && !tel.busy) tel.incoming(first.id, first.fromName);
+		};
+		return () => events.close();
+	});
+	let pausedForCall = false;
+	$effect(() => {
+		if (tel.busy && music.playing) {
+			pausedForCall = true;
+			untrack(() => music.pause());
+		} else if (!tel.busy && pausedForCall) {
+			pausedForCall = false;
+			untrack(() => music.resume());
+		}
+	});
 
 	/**
 	 * The route (phase 3b): the destination searched by its name, and the way there by car with its
@@ -959,7 +992,8 @@
 
 	// «Alexa» instead of the button, turned on here on this tablet: only while Carretera is open.
 	$effect(() => {
-		wakeWord.want(wakeWord.on.carretera);
+		// Not during a call (#330): the other's voice would wake it.
+		wakeWord.want(wakeWord.on.carretera && !tel.busy);
 		return () => wakeWord.want(false);
 	});
 
@@ -1254,6 +1288,11 @@ home. -->
 				<!-- A paper plane, as Telegram's. -->
 				<path d="M21 4 3 11l6 2 2 6 3-4 5 4z" />
 				<path d="m9 13 12-9" />
+			{:else if id === 'llamar'}
+				<!-- A handset. -->
+				<path
+					d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"
+				/>
 			{:else if id === 'mas'}
 				<!-- Three dots: the rest. -->
 				<circle cx="5" cy="12" r="2" fill="currentColor" />
@@ -1457,7 +1496,11 @@ home. -->
 					<p class="rounded-xl bg-amber-950 p-3 text-amber-200">{screenProblem}</p>
 				{/if}
 
-				{#if tab === null}
+				{#if tel.state !== 'idle'}
+					<!-- A call (#330): in place of everything else, big, until «Cerrar». -->
+					<CallPanel />
+				{/if}
+				{#if tab === null && tel.state === 'idle'}
 					{#if mapInTab && route}
 						{#if guidance?.arrived}
 							<!-- Not inside the button below: this notice has its own. -->
@@ -1519,7 +1562,7 @@ home. -->
 					</div>
 				{/if}
 
-				{#if tab !== null}
+				{#if tab !== null && tel.state === 'idle'}
 					<!-- The section's list. -->
 					<div
 						class="grid grid-cols-1 content-start gap-3 sm:grid-cols-2"
@@ -1917,8 +1960,44 @@ home. -->
 									<p class="text-lg text-zinc-400">No sigues ningún podcast. Se siguen en Radio.</p>
 								{/if}
 							{/each}
+						{:else if tab === 'llamar'}
+							<!-- Who of the family, by their name: one touch, and it rings (#330). -->
+							{#each data.callable as p (p.userId)}
+								<button
+									class={[tile, 'border-zinc-50/10 bg-zinc-900']}
+									onclick={() => void tel.call(p.userId, p.name)}
+								>
+									<span
+										class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-2xl font-bold text-white"
+										aria-hidden="true">{p.name.slice(0, 1).toUpperCase()}</span
+									>
+									<span class="min-w-0">
+										<span class="block truncate text-xl font-semibold">{p.name}</span>
+										{#if !p.notices}
+											<span class="block text-base text-zinc-400"
+												>Sin avisos: solo si tiene Seilide abierto</span
+											>
+										{/if}
+									</span>
+								</button>
+							{/each}
 						{:else if tab === 'mas'}
 							<!-- What is used less while driving, or stopped: one touch from Inicio, out of its way. -->
+							{#if data.callable.length}
+								<button
+									class={[tile, 'border-zinc-50/10 bg-zinc-900']}
+									onclick={() => (tab = 'llamar')}
+								>
+									<span
+										class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl {COLOURS.llamar}"
+										>{@render tabIcon('llamar', 'h-8 w-8')}</span
+									>
+									<span class="min-w-0">
+										<span class="block text-xl font-semibold">Llamar</span>
+										<span class="block text-base text-zinc-400">A alguien de la familia</span>
+									</span>
+								</button>
+							{/if}
 							{#if data.dj}
 								<button
 									class={[tile, 'border-zinc-50/10 bg-zinc-900']}

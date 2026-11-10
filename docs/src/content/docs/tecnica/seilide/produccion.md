@@ -46,6 +46,32 @@ Más familias, en la terminal del servicio `app`:
 `init-db.sh` solo corre con el volumen de Postgres vacío: cambiar `APP_DB_PASSWORD` después
 necesita `ALTER ROLE nube_app PASSWORD '…'` en la base de datos.
 
+## Llamadas (coturn)
+
+Las llamadas de la familia (#330) van de navegador a navegador por WebRTC. Seilide solo pone en
+contacto a los dos aparatos. Cuando no pueden verse directamente (una tablet con datos móviles,
+detrás del NAT de su compañía), el audio pasa por [coturn](https://github.com/coturn/coturn), que
+va en la misma pila con la red del host. Seilide le da a cada llamada una contraseña que vale un día
+(`use-auth-secret`), así que no hay usuarios que mantener.
+
+Una vez:
+
+1. En Cloudflare, un registro `A` `turn` → IP del VPS, en modo **DNS only** (el proxy de
+   Cloudflare no pasa UDP).
+2. En el cortafuegos del VPS, abiertos los puertos **3478 UDP y TCP** y el rango **49160-49200
+   UDP** (el relé).
+3. En el Environment de Dokploy:
+   ```sh
+   COMPOSE_PROFILES=llamadas
+   TURN_HOST=turn.seilide.app
+   TURN_SECRET=…                 # openssl rand -hex 32
+   ```
+   y **Deploy**. Sin `COMPOSE_PROFILES=llamadas` no arranca coturn, y las llamadas solo conectan
+   entre aparatos que se ven (la misma red).
+
+coturn no deja pasar audio hacia direcciones privadas (`denied-peer-ip`): nadie puede usarlo para
+llegar a los otros contenedores ni a la red del VPS.
+
 ## Copias del VPS
 
 Seilide, Langua, Librarian y Scholio, cada noche por el cron de root (#320): `deploy/vps-backup.sh`

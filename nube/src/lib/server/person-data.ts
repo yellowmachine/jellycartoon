@@ -124,6 +124,14 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		note: 'Their phones keep getting notices'
 	},
 
+	// Calls (#330): of two people, so the family keeps them; theirs, in their zip.
+	call: {
+		leaving: 'stays',
+		joining: 'moves',
+		zip: { file: 'llamadas', where: [mine('callerId'), mine('calleeId')] },
+		note: 'Their side stays, without moving the other’s history'
+	},
+
 	// Medication: by whom it is for (person_id), not by who wrote it down.
 	medication: {
 		leaving: 'moves',

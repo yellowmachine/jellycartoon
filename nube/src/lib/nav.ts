@@ -38,6 +38,8 @@ const SECTIONS: {
 	{ path: '/recetas', label: 'Recetas', icon: 'recetas', where: 'nube' },
 	{ path: '/nevera', label: 'Nevera', icon: 'nevera', where: 'nube' },
 	{ path: '/agenda', label: 'Agenda', icon: 'agenda', where: 'nube' },
+	// Calls between the family (#330): whom to call, and the history.
+	{ path: '/llamadas', label: 'Llamadas', icon: 'llamadas', where: 'nube', also: ['/llamada'] },
 	{ path: '/gastos', label: 'Dinero', icon: 'gastos', where: 'nube' },
 	{ path: '/papeles', label: 'Papeles', icon: 'papeles', where: 'nube' },
 	{ path: '/viajes', label: 'Viajes', icon: 'viajes', where: 'nube', also: ['/carretera'] },
@@ -154,7 +156,15 @@ const link = (s: (typeof SECTIONS)[number]): NavLink => ({
 });
 
 /** What a child's bar has (#303): what it may open (kids.ts), and no Ajustes. */
-const KID_SECTIONS = ['/series', '/musica', '/deberes', '/agenda', '/nevera', '/oracion'];
+const KID_SECTIONS = [
+	'/series',
+	'/musica',
+	'/deberes',
+	'/agenda',
+	'/nevera',
+	'/llamadas',
+	'/oracion'
+];
 
 /**
  * With `hasHouse` false (no house connected), nothing of the house; `prayer`, Oración's on;

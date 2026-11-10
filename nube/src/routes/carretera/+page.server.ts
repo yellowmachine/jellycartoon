@@ -10,6 +10,7 @@ import { podcastLists } from '#lib/server/podcasts/podcasts.ts';
 import { listSavedPlaces, listSavedRoutes } from '#lib/server/trips/places.ts';
 import { recordsTrips } from '#lib/server/trips/trips.ts';
 import { KEPT_SOURCE } from '#lib/offline-pages.ts';
+import { calls } from '#lib/server/calls.ts';
 
 /** Whether there is a map (scripts/mapa.sh, in MAP_DIR): shown beside, with the screen wide enough. */
 const hasMap = () =>
@@ -52,21 +53,25 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			routes,
 			recordTrips,
 			podcasts: [],
-			inProgress: []
+			inProgress: [],
+			callable: []
 		};
 	}
-	const [info, map, lists, places, routes, recordTrips] = await Promise.all([
+	const [info, map, lists, places, routes, recordTrips, callable] = await Promise.all([
 		stationsInfo(),
 		hasMap(),
 		podcastLists(k),
 		listSavedPlaces(k),
 		listSavedRoutes(k),
-		recordsTrips(k)
+		recordsTrips(k),
+		// Who of the family to call from the car (#330).
+		calls.callable(locals.user!.id)
 	]);
 	const kept = {
 		places,
 		routes,
 		recordTrips,
+		callable,
 		podcasts: lists.podcasts.flatMap((p) => (p.latest ? [{ ...p, latest: p.latest }] : [])),
 		inProgress: lists.inProgress
 	};

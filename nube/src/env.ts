@@ -75,6 +75,16 @@ export const variables = defineEnvVars({
 		description: 'Who the emails come from, e.g. `Seilide <no-reply@seilide.app>`.',
 		schema: (value) => value || 'Seilide <no-reply@seilide.app>'
 	},
+	TURN_HOST: {
+		description:
+			"The calls' coturn (#330, compose.prod.yaml), by its name: `turn.seilide.app`. It passes the sound when the two devices cannot reach each other (a tablet on mobile data). Without it, calls only connect when the two see each other (the same network).",
+		schema: (value) => value?.trim() || undefined
+	},
+	TURN_SECRET: {
+		description:
+			"coturn's shared secret (`static-auth-secret`, `use-auth-secret`), for the short-lived passwords Seilide hands each call: `openssl rand -hex 32`, the same in coturn's. Without it, only coturn's STUN.",
+		schema: (value) => value || undefined
+	},
 	BETTER_AUTH_SECRET: {
 		description:
 			"Secret used to sign tokens and to encrypt what the app keeps (the houses' keys). 32 characters generated with high entropy: `openssl rand -base64 32`."

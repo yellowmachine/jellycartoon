@@ -13,6 +13,7 @@
 		| 'viajes'
 		| 'paseos'
 		| 'notas'
+		| 'llamadas'
 		| 'estadisticas'
 		| 'enchufes'
 		| 'nevera'
@@ -104,6 +105,11 @@
 		<circle cx="7" cy="17" r="2" />
 		<path d="M9 17h6" />
 		<circle cx="17" cy="17" r="2" />
+	{:else if name === 'llamadas'}
+		<!-- A handset (Lucide's phone). -->
+		<path
+			d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"
+		/>
 	{:else if name === 'notas'}
 		<!-- A notebook with a pencil's line (Lucide's notebook-pen, simplified). -->
 		<path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4" />

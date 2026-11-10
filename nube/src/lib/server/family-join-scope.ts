@@ -25,6 +25,7 @@ import {
 	invitation,
 	medication,
 	medicationDose,
+	call,
 	memory,
 	note,
 	oauthClient,
@@ -98,6 +99,8 @@ const TABLES: [string, PgTable][] = [
 	['push_subscription', pushSubscription],
 	['medication', medication],
 	['medication_dose', medicationDose],
+	// Their calls, of a family of one: with no one else in it, their own history (#330).
+	['call', call],
 	['paper', paper],
 	['paper_person', paperPerson],
 	['paper_event', paperEvent],

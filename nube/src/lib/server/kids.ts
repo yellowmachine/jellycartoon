@@ -187,6 +187,9 @@ const KID_SECTIONS = [
 	'/watch',
 	'/musica',
 	'/buzon',
+	// Calls with their family (#330).
+	'/llamada',
+	'/llamadas',
 	'/logout',
 	// A walk shared by link (#434): open to anyone who has it, a child too.
 	'/p'
@@ -205,7 +208,8 @@ const KID_APIS = [
 	'/api/music/queue',
 	'/api/subtitulos',
 	// Its answers (#142); the grown-ups' homework APIs refuse a child themselves.
-	'/api/deberes'
+	'/api/deberes',
+	'/api/llamadas'
 ];
 
 /** Oración (#339): to pray with its lists, not to change them (nor to spend the AI's credit). */

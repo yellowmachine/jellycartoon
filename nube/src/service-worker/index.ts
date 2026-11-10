@@ -52,7 +52,7 @@ interface PushMessage {
 	tag: string;
 	url: string;
 	sticky?: boolean;
-	actions?: { action: string; title: string; post: string }[];
+	actions?: { action: string; title: string; post?: string; url?: string }[];
 }
 
 self.addEventListener('push', (event) => {
@@ -92,16 +92,17 @@ function wentThere(client: Client, to: string) {
  */
 self.addEventListener('notificationclick', (event) => {
 	event.notification.close();
-	const to: string = event.notification.data?.url ?? '/';
-	const url = new URL(to, self.location.origin).href;
 	const button = (event.notification.data?.actions as PushMessage['actions'])?.find(
 		(a) => a.action === event.action
 	);
+	// A button that opens a page of its own («Contestar», #330); otherwise the notice's.
+	const to: string = button?.url ?? event.notification.data?.url ?? '/';
+	const url = new URL(to, self.location.origin).href;
 	event.waitUntil(
 		(async () => {
 			// A button of its own («✓ Tomada», #308): done here, with the session's cookie. Failed (the
 			// session gone, no network), the app opens, to do it there.
-			if (button) {
+			if (button?.post) {
 				const res = await fetch(button.post, {
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
