@@ -195,3 +195,44 @@ export const taggedExpenseIds = (
 			);
 		return [...new Set(lines.filter((l) => texts.has(lineKey(l.text))).map((l) => l.expenseId))];
 	});
+
+/** An own tag's lines by month (#459, in Análisis): `YYYY-MM` → cents. */
+export interface TagMonths {
+	id: number;
+	name: string;
+	months: Record<string, number>;
+	total: number;
+}
+
+/**
+ * Each own tag's lines by month from `since` (a day) on, the largest first; those with nothing in
+ * it too, at 0, so a tag just made is there. The key made here, as the page makes it (lineKey).
+ */
+export const tagMonths = (k: Kitchen, since: string): Promise<TagMonths[]> =>
+	k.run(async (tx) => {
+		const [tags, rules, lines] = await Promise.all([
+			tx.select({ id: expenseTag.id, name: expenseTag.name }).from(expenseTag),
+			tx.select({ text: expenseTagRule.text, tagId: expenseTagRule.tagId }).from(expenseTagRule),
+			tx
+				.select({ text: expenseLine.text, amount: expenseLine.amount, date: expense.date })
+				.from(expenseLine)
+				.innerJoin(
+					expense,
+					and(eq(expense.familyId, expenseLine.familyId), eq(expense.id, expenseLine.expenseId))
+				)
+				.where(gte(expense.date, since))
+		]);
+		const ruleOf = new Map(rules.map((r) => [r.text, r.tagId]));
+		const byTag = new Map<number, TagMonths>(
+			tags.map((t) => [t.id, { ...t, months: {}, total: 0 }])
+		);
+		for (const l of lines) {
+			const id = ruleOf.get(lineKey(l.text));
+			const t = id === undefined ? undefined : byTag.get(id);
+			if (!t) continue;
+			const month = l.date.slice(0, 7);
+			t.months[month] = (t.months[month] ?? 0) + l.amount;
+			t.total += l.amount;
+		}
+		return [...byTag.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+	});

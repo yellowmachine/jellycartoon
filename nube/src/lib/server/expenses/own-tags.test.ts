@@ -13,6 +13,7 @@ import {
 	ownTags,
 	renameTag,
 	taggedExpenseIds,
+	tagMonths,
 	tagLine,
 	tagLines
 } from './own-tags.ts';
@@ -164,12 +165,28 @@ test('renamed; with another’s name, the two become one', async () => {
 	expect(await renameTag(b, own.tags[0].id, 'Mío')).toBe(false);
 });
 
+test('by month (Análisis): only its lines, from a day on, the largest first', async () => {
+	await tagLine(a, 'leche', { name: 'Leche' });
+	const months = await tagMonths(a, '2026-10-01');
+	expect(months.map((t) => [t.name, t.months, t.total])).toEqual([
+		// October: «Barra  Picos»; November: two «barra picos» and «Barra picos integral» (in Pan since
+		// the two tags became one).
+		['Pan', { '2026-10': 50, '2026-11': 150 }, 200],
+		['Leche', { '2026-10': 50 }, 50]
+	]);
+	expect((await tagMonths(a, '2026-11-01')).map((t) => [t.name, t.total])).toEqual([
+		['Pan', 150],
+		['Leche', 0]
+	]);
+	expect(await tagMonths(b, '2026-10-01')).toMatchObject([{ name: 'Picos', total: 0 }]);
+});
+
 test('deleted, and its lines with no own tag', async () => {
-	const [pan] = (await ownTags(a)).tags;
+	const pan = (await ownTags(a)).tags.find((t) => t.name === 'Pan')!;
 	await deleteTag(b, pan.id);
-	expect((await ownTags(a)).tags.length).toBe(1);
+	expect((await ownTags(a)).tags.length).toBe(2);
 	await deleteTag(a, pan.id);
 	const own = await ownTags(a);
-	expect(own.tags).toEqual([]);
-	expect(own.rules).toEqual({});
+	expect(own.tags.map((t) => t.name)).toEqual(['Leche']);
+	expect(Object.keys(own.rules)).toEqual(['leche']);
 });

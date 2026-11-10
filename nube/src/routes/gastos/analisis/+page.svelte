@@ -30,6 +30,13 @@
 			timeZone: 'UTC'
 		});
 
+	/** Búsqueda by an own tag (#459), from one month's first day to another's last. */
+	function tagSearch(id: number, from: string, to: string) {
+		const [year, month] = to.split('-').map(Number);
+		const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+		return `/gastos/busqueda?etiqueta=${id}&desde=${from}-01&hasta=${to}-${String(last).padStart(2, '0')}`;
+	}
+
 	const chip = (on: boolean) => [
 		'rounded-full px-3 py-1 text-sm',
 		on ? 'bg-amber-500 font-semibold text-zinc-950' : 'bg-zinc-800 hover:bg-zinc-700'
@@ -187,6 +194,61 @@
 			{/each}
 		</ul>
 	</section>
+
+	{#if data.ownTags.tags.length}
+		{@const own = data.ownTags}
+		<section class="mb-8">
+			<h2 class="mb-1 font-semibold">Tus etiquetas</h2>
+			<p class="mb-3 text-sm text-zinc-400">
+				Solo sus líneas, mes a mes, el más reciente primero. Toca un mes, o el total, para ver sus
+				gastos.
+			</p>
+			<!-- Wider than a phone with 12 months: it scrolls, the names staying where they are. -->
+			<div class="overflow-x-auto">
+				<table class="w-full text-sm tabular-nums">
+					<thead>
+						<tr class="text-xs text-zinc-500">
+							<th class="sticky left-0 bg-zinc-950 pr-3 text-left font-normal"></th>
+							{#each own.months as m (m)}
+								<th class="px-1.5 text-right font-normal whitespace-nowrap"
+									>{shortMonth(m)}{m === data.current ? ' (va)' : ''}</th
+								>
+							{/each}
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-zinc-800">
+						{#each own.tags as t (t.id)}
+							<tr>
+								<th class="sticky left-0 bg-zinc-950 py-2 pr-3 text-left font-normal">
+									<a href={tagSearch(t.id, own.months[own.months.length - 1], data.current)}>
+										<span
+											class="block max-w-32 truncate rounded bg-amber-900/60 px-1.5 text-xs text-amber-200"
+											>{t.name}</span
+										>
+										<span class="block text-xs whitespace-nowrap text-zinc-500"
+											>{euros(t.total)}{#if own.months.length > 1}
+												· {euros(Math.round(t.total / own.months.length))}/mes{/if}</span
+										>
+									</a>
+								</th>
+								{#each own.months as m (m)}
+									<td class="px-1.5 text-right whitespace-nowrap">
+										{#if t.months[m]}
+											<a href={tagSearch(t.id, m, m)} class="hover:text-amber-300"
+												>{euros(t.months[m])}</a
+											>
+										{:else}
+											<span class="text-zinc-600">—</span>
+										{/if}
+									</td>
+								{/each}
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		</section>
+	{/if}
 
 	<section class="mb-10">
 		<h2 class="mb-1 font-semibold">Dónde compráis</h2>
