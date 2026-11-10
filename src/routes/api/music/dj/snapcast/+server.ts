@@ -5,12 +5,12 @@ import { snapcastEnabled } from '#lib/server/music/snapcast.ts';
 import { parseDjOptions } from 'comun/music.ts';
 
 /** Modo DJ on Snapcast, instead of whatever was on. */
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!(await djEnabled()) || !snapcastEnabled) error(404, 'No hay modo DJ en Snapcast');
 	const options = parseDjOptions(await request.json());
 	if (!options) error(400, 'Opciones no válidas');
 	try {
-		await startDjOnSnapcast(options);
+		await startDjOnSnapcast(options, locals.user!.id);
 	} catch (err) {
 		error(503, err instanceof Error ? err.message : String(err));
 	}

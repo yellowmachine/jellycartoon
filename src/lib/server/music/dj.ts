@@ -295,14 +295,15 @@ const snap = {
 	busy: false
 };
 
-export async function startDjOnSnapcast(options: DjOptions) {
+/** `who`: who puts it on, whose time it is (#421). */
+export async function startDjOnSnapcast(options: DjOptions, who?: string) {
 	const tracks = await tracksById((await djTracks(options, DJ_BATCH)).map((t) => t.id));
 	if (!tracks.length) throw new Error(djEmpty(options));
 	// On before the queue: its first song counts too.
 	Object.assign(snap, { options, played: [], entryId: -1, offset: tracks.length });
 	setSnapcastDj(true);
 	try {
-		await queueOnSnapcast(tracks, { replace: true });
+		await queueOnSnapcast(tracks, { replace: true, who });
 	} catch (error) {
 		stopDjOnSnapcast();
 		throw error;

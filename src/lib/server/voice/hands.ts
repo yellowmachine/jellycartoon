@@ -342,7 +342,7 @@ async function hand(
 			const shuffle = typeof args.shuffle === 'boolean' ? args.shuffle : args.kind === 'artist';
 			if (where !== 'here') {
 				await soundOn(where);
-				await playHouse(music.tracks, music.start, shuffle);
+				await playHouse(music.tracks, music.start, shuffle, ctx.user.id);
 			} else ctx.outcome.actions.push({ kind: 'play', ...music, shuffle });
 			return `Sonando «${music.name}» (${music.tracks.length} canciones) en ${there}.`;
 		}
@@ -353,7 +353,7 @@ async function hand(
 				const stream = await streamFor(station.uuid);
 				if (!stream) return `${station.name} no está disponible ahora.`;
 				await soundOn(where);
-				await radioOnSnapcast(stream);
+				await radioOnSnapcast(stream, ctx.user.id);
 			} else ctx.outcome.actions.push({ kind: 'radio', uuid: station.uuid });
 			return `Sonando ${station.name} en ${there}.`;
 		}
@@ -569,12 +569,14 @@ async function resolveMusic(kind: string, id: string, albums: MusicAlbum[]) {
 	}
 }
 
-async function playHouse(tracks: MusicTrack[], start: number, shuffle: boolean) {
+/** `who`: who asked, whose time it is (#421). */
+async function playHouse(tracks: MusicTrack[], start: number, shuffle: boolean, who: string) {
 	await controlSnapcast({ action: 'shuffle', value: shuffle });
 	const found = await tracksById(tracks.map((t) => t.id));
 	await queueOnSnapcast(found, {
 		replace: true,
-		start: shuffle ? Math.floor(Math.random() * found.length) : start
+		start: shuffle ? Math.floor(Math.random() * found.length) : start,
+		who
 	});
 }
 

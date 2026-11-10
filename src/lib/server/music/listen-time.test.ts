@@ -5,7 +5,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import * as schema from '#lib/server/db/schema.ts';
 import { listenTime, track, user } from '#lib/server/db/schema.ts';
 import type { QueueSave } from 'comun/music.ts';
-import { addListenTime } from './listen-time.ts';
+import { addHeard, addListenTime } from './listen-time.ts';
 
 /** Time listened to in the app's player (#421), on PGlite with the migrations as they are. */
 const db = drizzle(new PGlite(), { schema });
@@ -99,4 +99,17 @@ test('nothing for a podcast, a station not ours, or who does not keep history', 
 		await addListenTime(db, 'ana', { ...q, positionSec: 15 }, tab, keeps, at(12, 15));
 	}
 	expect(await rows()).toEqual([]);
+});
+
+test('what sounds elsewhere (Snapcast), with its names as given; its end counts too', async () => {
+	const heard = { item: 't1', kind: 'cancion' as const, artist: 'Serrat', title: 'Mediterráneo' };
+	const where = `snapcast${source}`;
+	await addHeard(db, 'ana', heard, 1, where, true, at(12, 0));
+	await addHeard(db, 'ana', heard, 16, where, true, at(12, 15));
+	// Its end, a few seconds after.
+	await addHeard(db, 'ana', heard, 20, where, true, at(12, 19));
+	expect(await rows()).toMatchObject([{ item: 't1', artist: 'Serrat', seconds: 19 }]);
+	await addHeard(db, 'luis', heard, 1, where, false, at(12, 0));
+	await addHeard(db, 'luis', heard, 16, where, false, at(12, 15));
+	expect((await rows()).length).toBe(1);
 });

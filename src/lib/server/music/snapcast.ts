@@ -14,6 +14,10 @@ import { saveProgress } from '#lib/server/progress.ts';
 import { askAfter } from '#lib/server/still-there.ts';
 import { longUnattended } from '#lib/still-there.ts';
 import { addWatchTime } from '#lib/server/watch-time.ts';
+import { db } from '#lib/server/db/index.ts';
+import { isKidAccount } from '#lib/server/kids.ts';
+import { keepsHistory } from '#lib/server/settings.ts';
+import { addHeard, type Heard } from './listen-time.ts';
 import type {
 	MusicTrack,
 	SnapcastAction,
@@ -56,6 +60,11 @@ const entries = new Map<number, Entry>();
 let current: number | null = null;
 /** Stopped at the end of a track, with `single`. */
 let eofReached = false;
+/**
+ * Who put on the songs or the station that sound (#421): its time is theirs. Null, not known (what
+ * Seilide sends to pray, or a remote that does not say): not counted.
+ */
+let owner: string | null = null;
 
 const state: SnapcastState = {
 	available: false,
@@ -183,6 +192,7 @@ const mpv = new MpvClient(
 				case 'time-pos':
 					state.positionSec = number;
 					listened(number);
+					countHeard(current, number);
 					return pages.notify(true);
 				case 'duration':
 					state.durationSec = number;
@@ -223,6 +233,8 @@ const mpv = new MpvClient(
 				started(current, entries.get(current));
 				void startedByItself(current);
 			} else if (message.event === 'end-file' && message.playlist_entry_id !== undefined) {
+				// Its last moments, before the next one's position comes.
+				countHeard(message.playlist_entry_id, state.positionSec, true);
 				const entry = entries.get(message.playlist_entry_id);
 				if (entry && 'listening' in entry) void save(entry.listening, message.reason === 'eof');
 			}
@@ -274,8 +286,9 @@ const load = (track: MusicTrack, path: string, how: Parameters<typeof loadEntry>
  * A station, instead of whatever was on. mpv opens its stream as it is, HLS too; the container
  * needs the network for it.
  */
-export async function radioOnSnapcast(stream: RadioStream) {
+export async function radioOnSnapcast(stream: RadioStream, who?: string) {
 	entries.clear();
+	owner = who ?? null;
 	await loadEntry({ radio: stream }, stream.url, { flags: 'replace' });
 	log.info('música', `En Snapcast: ${stream.name}`, { url: stream.url });
 }
@@ -283,13 +296,16 @@ export async function radioOnSnapcast(stream: RadioStream) {
 /**
  * Queues the tracks, each with the path mpv opens it by (MUSIC_DIR is mounted at the same place
  * in its container). `replace`: instead of what was on, starting at `start`, with the ones before
- * it still in the queue to go back to.
+ * it still in the queue to go back to. `who`: who puts them on, whose time they are (#421); added
+ * to what was on, the queue stays of whoever had it.
  */
 export async function queueOnSnapcast(
 	tracks: { track: MusicTrack; path: string }[],
-	options: { replace: boolean; start?: number }
+	options: { replace: boolean; start?: number; who?: string }
 ) {
 	if (!tracks.length) return;
+	if (options.replace) owner = options.who ?? null;
+	else owner ??= options.who ?? null;
 	if (!options.replace) {
 		// append-play: it starts if nothing was on.
 		for (const t of tracks) await load(t.track, t.path, { flags: 'append-play' });
@@ -363,6 +379,43 @@ function listened(positionSec: number | null) {
 	if (!listening || positionSec === null) return;
 	listening.positionSec = positionSec;
 	if (Date.now() - savedAt >= SAVE_EVERY_MS) void save(listening, false);
+}
+
+/** How often the time of what sounds is counted while it plays (#421), as the app's player. */
+const COUNT_EVERY_MS = 15_000;
+let counted: { entry: number; at: number } | null = null;
+
+/** A song of the library or a station, with its names; not the DJ's words, nor an episode. */
+function heardOf(entry: Entry | undefined): Heard | null {
+	if (entry && 'track' in entry && !entry.track.clip && !entry.track.src)
+		return {
+			item: `t${entry.track.id}`,
+			kind: 'cancion',
+			artist: entry.track.artist || null,
+			title: entry.track.title
+		};
+	if (entry && 'radio' in entry)
+		return { item: `r${entry.radio.uuid}`, kind: 'radio', artist: null, title: entry.radio.name };
+	return null;
+}
+
+/**
+ * The time listened to of `entryId`, now at `positionSec`, to whoever put it on (listen-time.ts):
+ * every so often, at once when another starts (where it starts from), and at its end (`now`).
+ */
+function countHeard(entryId: number | null, positionSec: number | null, now = false) {
+	const heard = entryId === null ? null : heardOf(entries.get(entryId));
+	const userId = owner;
+	if (!heard || !userId || entryId === null || positionSec === null) return;
+	const at = Date.now();
+	if (!now && counted?.entry === entryId && at - counted.at < COUNT_EVERY_MS) return;
+	counted = { entry: entryId, at };
+	void (async () => {
+		const keeps = (await isKidAccount(userId)) || (await keepsHistory(userId));
+		await addHeard(db, userId, heard, positionSec, 'snapcast', keeps);
+	})().catch((error) =>
+		log.warn('música', 'No se pudo apuntar el tiempo escuchado en Snapcast', { userId, error })
+	);
 }
 
 const saveCurrent = async () => {
@@ -439,6 +492,7 @@ export async function listenOnSnapcast(
 export async function remoteOnSnapcast(tracks: { track: MusicTrack; path: string }[]) {
 	if (!tracks.length) return;
 	entries.clear();
+	owner = null;
 	touchedAt = Date.now();
 	await mpv.command(['set_property', 'shuffle', false]);
 	await setLoops(false, false);

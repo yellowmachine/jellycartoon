@@ -98,7 +98,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			// Only our stations, and their stream as Radio Browser has it now.
 			const stream = await streamFor(remote.uuid);
 			if (!stream) error(404, 'Emisora no encontrada');
-			await radioOnSnapcast(stream);
+			await radioOnSnapcast(stream, locals.user!.id);
 		} else if (remote.action === 'episode') {
 			await episodesOnSnapcast(locals.user!.id, remote.episodeId, remote.startSec, remote.where);
 		} else if (remote.action === 'play' || remote.action === 'append') {
@@ -106,7 +106,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			if (!tracks.length) error(400, 'No hay canciones que poner');
 			await queueOnSnapcast(tracks, {
 				replace: remote.action === 'play',
-				start: remote.action === 'play' ? remote.start : undefined
+				start: remote.action === 'play' ? remote.start : undefined,
+				who: locals.user!.id
 			});
 		} else {
 			await controlSnapcast(remote);

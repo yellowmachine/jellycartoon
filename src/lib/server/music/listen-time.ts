@@ -39,6 +39,47 @@ function slotOf(date: Date) {
 	return { day, minute: minute - (minute % SLOT_MINUTES) };
 }
 
+/** What sounds, with its names as they are kept. */
+export interface Heard {
+	/** `t12` a track, `r…` a station. */
+	item: string;
+	kind: 'cancion' | 'radio';
+	artist: string | null;
+	title: string;
+}
+
+/**
+ * Where `heard` is now (`positionSec`), from `source`: what it moved forward since the last time
+ * from there is added to its slot. Only for who keeps what they watch (`keeps`).
+ */
+export async function addHeard(
+	db: Db,
+	userId: string,
+	heard: Heard,
+	positionSec: number,
+	source: string,
+	keeps: boolean,
+	now = new Date()
+) {
+	const step = steps.step(`${userId}:${heard.item}:${source}`, positionSec, now.getTime());
+	if (!step || !keeps) return;
+	await save(db, userId, heard, step, now);
+}
+
+async function save(db: Db, userId: string, heard: Heard, seconds: number, now: Date) {
+	await db
+		.insert(listenTime)
+		.values({ userId, ...slotOf(now), ...heard, seconds })
+		.onConflictDoUpdate({
+			target: [listenTime.userId, listenTime.day, listenTime.minute, listenTime.item],
+			set: {
+				artist: sql`excluded.artist`,
+				title: sql`excluded.title`,
+				seconds: sql`${listenTime.seconds} + excluded.seconds`
+			}
+		});
+}
+
 /**
  * A save of `userId`'s queue from `source` (the browser's session). Only for who keeps what they
  * watch (`keeps`): children always, adults with «Guardar lo que veo».
@@ -55,28 +96,20 @@ export async function addListenTime(
 	if (!what) return;
 	const step = steps.step(`${userId}:${what.item}:${source}`, queue.positionSec, now.getTime());
 	if (!step || !keeps) return;
-	let named: { kind: 'cancion' | 'radio'; artist: string | null; title: string };
-	if (what.station) named = { kind: 'radio', artist: null, title: what.station.name };
-	else {
-		const [song] = await db
-			.select({
-				title: sql<string>`coalesce(${track.customTitle}, ${track.title})`,
-				artist: sql<string | null>`coalesce(${track.artist}, ${track.albumArtist})`
-			})
-			.from(track)
-			.where(eq(track.id, what.trackId));
-		if (!song) return;
-		named = { kind: 'cancion', ...song };
-	}
-	await db
-		.insert(listenTime)
-		.values({ userId, ...slotOf(now), item: what.item, ...named, seconds: step })
-		.onConflictDoUpdate({
-			target: [listenTime.userId, listenTime.day, listenTime.minute, listenTime.item],
-			set: {
-				artist: sql`excluded.artist`,
-				title: sql`excluded.title`,
-				seconds: sql`${listenTime.seconds} + excluded.seconds`
-			}
-		});
+	if (what.station)
+		return save(
+			db,
+			userId,
+			{ item: what.item, kind: 'radio', artist: null, title: what.station.name },
+			step,
+			now
+		);
+	const [song] = await db
+		.select({
+			title: sql<string>`coalesce(${track.customTitle}, ${track.title})`,
+			artist: sql<string | null>`coalesce(${track.artist}, ${track.albumArtist})`
+		})
+		.from(track)
+		.where(eq(track.id, what.trackId));
+	if (song) await save(db, userId, { item: what.item, kind: 'cancion', ...song }, step, now);
 }
