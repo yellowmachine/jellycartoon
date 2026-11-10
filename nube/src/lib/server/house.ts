@@ -83,25 +83,26 @@ export async function forgetHouse(userId: string) {
 /** Why the house did not answer, said for people. */
 const PROBLEMS: Record<number, string> = {
 	401: 'La casa no acepta la clave: crea otra en Ajustes → Casa → «Seilide» de jellycartoon',
-	403: 'La casa no conoce tu email: tiene que ser el mismo que el de tu cuenta de casa',
+	403: 'La casa no te deja entrar: tu cuenta allí está bloqueada, o la casa no está actualizada',
 	404: 'Esa dirección no tiene la API de vídeo: ¿es la de MEDIA_HOST, con jellycartoon 1.84 o más?',
 	429: 'La casa tiene demasiadas peticiones seguidas de Seilide: prueba en un minuto'
 };
 
 /**
+ * Who asks, besides their email (#303): a child of the family says so, with its name, and the
+ * house makes it one of its children (its media-api.ts), giving it only what is for them; an
+ * adult, their name, for the account the house makes them the first time.
+ */
+async function personHeaders(userId: string): Promise<Record<string, string>> {
+	const [person] = await db.select({ name: user.name }).from(user).where(eq(user.id, userId));
+	if (await isKidAccount(userId)) return { 'x-peque': encodeURIComponent(person?.name ?? 'Peque') };
+	return person?.name ? { 'x-nombre': encodeURIComponent(person.name) } : {};
+}
+
+/**
  * A request to the house's API, in this person's name. Throws with a sentence for people if it
  * does not answer as expected.
  */
-/**
- * A child of the family (#303) says so, with its name: the house makes it one of its children
- * (its media-api.ts), and gives it only what is for them.
- */
-async function kidHeader(userId: string): Promise<Record<string, string>> {
-	if (!(await isKidAccount(userId))) return {};
-	const [kid] = await db.select({ name: user.name }).from(user).where(eq(user.id, userId));
-	return { 'x-peque': encodeURIComponent(kid?.name ?? 'Peque') };
-}
-
 export async function askHouse<T>(
 	userId: string,
 	email: string,
@@ -121,7 +122,7 @@ export async function askHouse<T>(
 			headers: {
 				'x-api-key': key,
 				'x-persona': email,
-				...(await kidHeader(userId)),
+				...(await personHeaders(userId)),
 				'content-type': 'application/json',
 				...(init.headers as Record<string, string> | undefined)
 			},
@@ -209,6 +210,8 @@ export async function passToHouse(
 	if (!key) throw new HouseProblem('La clave guardada no se puede leer: vuelve a ponerla');
 	init.headers.set('x-api-key', key);
 	init.headers.set('x-persona', email);
+	for (const [name, value] of Object.entries(await personHeaders(userId)))
+		init.headers.set(name, value);
 	// A saved game goes as a form: SvelteKit refuses one from another origin, or from none.
 	init.headers.set('origin', row.url);
 	try {
@@ -238,7 +241,7 @@ export async function houseStream(
 			headers: {
 				'x-api-key': key,
 				'x-persona': email,
-				...(await kidHeader(userId)),
+				...(await personHeaders(userId)),
 				accept: 'text/event-stream'
 			},
 			signal

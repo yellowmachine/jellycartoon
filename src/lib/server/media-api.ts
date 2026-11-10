@@ -8,6 +8,7 @@ import { db } from '#lib/server/db/index.ts';
 import { apikey, user } from '#lib/server/db/auth.schema.ts';
 import { episodeAllowed, isKid, KID_EMAIL, KIDS_ROLE, seriesAllowed } from '#lib/server/kids.ts';
 import { videoAllowed } from '#lib/server/kid-time.ts';
+import { createAdult } from '#lib/server/people.ts';
 import {
 	GRANT_HOURS,
 	readGrant,
@@ -29,6 +30,8 @@ const KEY_HEADER = 'x-api-key';
 const PERSON_HEADER = 'x-persona';
 /** A child of the cloud (#303): its name, with its inner email (`@peques.invalid`) as `x-persona`. */
 const KID_HEADER = 'x-peque';
+/** An adult's name in the cloud, for the account the house makes them the first time. */
+const NAME_HEADER = 'x-nombre';
 
 /** Marked so in its key (the house's voice satellites had keys too, until #329). */
 interface CloudMetadata {
@@ -58,19 +61,46 @@ export async function fromCloud(request: Request) {
 }
 
 /**
- * The person a request of the cloud asks for: a 401 without a cloud key, a 403 if the person is
- * not an adult of the house.
+ * The person a request of the cloud asks for: a 401 without a cloud key, a 403 if the email is a
+ * child's or a blocked account's. An adult of the family in the cloud not yet known here gets an
+ * account the first time, as its children do (`cloudKid`): whoever the family lets into the cloud
+ * is of the house too, with no need to make them one by hand. Without a password, as the
+ * administrator's (people.ts): they enter here with Seilide, or with a link from Ajustes.
  */
 export async function cloudPerson(request: Request) {
 	await fromCloud(request);
 	const email = request.headers.get(PERSON_HEADER)?.trim().toLowerCase();
 	if (!email) error(400, `Falta ${PERSON_HEADER}`);
-	const [person] = await db
-		.select({ id: user.id, name: user.name, role: user.role, banned: user.banned })
-		.from(user)
-		.where(eq(sql`lower(${user.email})`, email));
+	const person = (await adultByEmail(email)) ?? (await cloudAdult(email, request));
 	if (!person || person.banned || isKid(person)) error(403, 'Nadie de la casa con ese email');
 	return { id: person.id, name: person.name };
+}
+
+const adultByEmail = async (email: string) =>
+	(
+		await db
+			.select({ id: user.id, name: user.name, role: user.role, banned: user.banned })
+			.from(user)
+			.where(eq(sql`lower(${user.email})`, email))
+	)[0];
+
+async function cloudAdult(email: string, request: Request) {
+	if (KID_EMAIL.test(email)) return undefined;
+	let name = '';
+	try {
+		name = decodeURIComponent(request.headers.get(NAME_HEADER) ?? '')
+			.trim()
+			.slice(0, 60);
+	} catch {
+		// Not encoded as the cloud does: its email instead.
+	}
+	name ||= email.split('@')[0];
+	try {
+		await createAdult({ name, email, avatar: '' });
+	} catch {
+		// Two requests at once (the music page asks for several things): the other made it.
+	}
+	return adultByEmail(email);
 }
 
 /**
