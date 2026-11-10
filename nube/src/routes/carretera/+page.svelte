@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { beforeNavigate, goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -49,6 +49,8 @@
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { wakeWord } from '#lib/wake-word.svelte.ts';
 	import CallPanel from '#lib/components/CallPanel.svelte';
+	import { simPhone } from '#lib/sim-phone.svelte.ts';
+	import { isCallable, numberText, telHref } from '#lib/sim-number.ts';
 	// `phone` is this device's size, below: the call's, `tel`.
 	import { phone as tel } from '#lib/phone.svelte.ts';
 	import type { IncomingCall } from '#lib/calls.ts';
@@ -992,8 +994,9 @@
 
 	// «Alexa» instead of the button, turned on here on this tablet: only while Carretera is open.
 	$effect(() => {
-		// Not during a call (#330): the other's voice would wake it.
-		wakeWord.want(wakeWord.on.carretera && !tel.busy);
+		// During a call (#330), with the echo cancelled, so that the other's voice does not wake it: to
+		// answer it while it rings, and to hang up («cuelga»).
+		wakeWord.want(wakeWord.on.carretera, tel.busy);
 		return () => wakeWord.want(false);
 	});
 
@@ -1050,6 +1053,13 @@
 		'flex shrink-0 items-center justify-center rounded-2xl bg-zinc-800 text-zinc-100 active:scale-95 active:bg-zinc-700 disabled:opacity-40';
 	const tile =
 		'flex min-h-20 items-center gap-3 rounded-2xl border-2 p-3 text-left active:scale-[0.98]';
+
+	/** A number typed in «Llamar → Teléfono» (#330). */
+	let dialed = $state('');
+	/** This device calls by phone (Ajustes): only known in the browser, after the page is drawn. */
+	let mounted = $state(false);
+	onMount(() => (mounted = true));
+	const simOn = $derived(mounted && simPhone.on);
 </script>
 
 <svelte:head>
@@ -1496,9 +1506,35 @@ home. -->
 					<p class="rounded-xl bg-amber-950 p-3 text-amber-200">{screenProblem}</p>
 				{/if}
 
+				{#if simPhone.pending && tel.state === 'idle'}
+					<!-- A phone call asked by voice (#330): a page cannot call by itself, so one big tap. -->
+					{@const p = simPhone.pending}
+					<section
+						class="flex flex-col items-center gap-5 rounded-3xl bg-zinc-900 p-6 text-center short:gap-3 short:p-4"
+						aria-live="polite"
+					>
+						<div>
+							<p class="text-3xl font-bold">{p.name ?? numberText(p.number)}</p>
+							<p class="text-2xl text-zinc-400 tabular-nums">
+								Por teléfono{p.name ? ` · ${numberText(p.number)}` : ''}
+							</p>
+						</div>
+						<div class="flex flex-wrap items-center justify-center gap-4">
+							<button
+								class="rounded-2xl bg-zinc-800 px-6 py-4 text-2xl font-semibold"
+								onclick={() => (simPhone.pending = null)}>Cancelar</button
+							>
+							<a
+								href={telHref(p.number)}
+								class="rounded-2xl bg-green-600 px-8 py-4 text-2xl font-bold text-white active:scale-95"
+								onclick={() => (simPhone.pending = null)}>Llamar</a
+							>
+						</div>
+					</section>
+				{/if}
 				{#if tel.state !== 'idle'}
 					<!-- A call (#330): in place of everything else, big, until «Cerrar». -->
-					<CallPanel />
+					<CallPanel wakeWord={wakeWord.on.carretera ? WAKE_WORDS[wakeWord.word] : null} />
 				{/if}
 				{#if tab === null && tel.state === 'idle'}
 					{#if mapInTab && route}
@@ -1981,9 +2017,50 @@ home. -->
 									</span>
 								</button>
 							{/each}
+							{#if simOn}
+								<!-- Normal calls, with the tablet's SIM (#330): Android's phone app, with the number. -->
+								<h3 class="col-span-full mt-2 text-lg font-semibold text-zinc-300">Teléfono</h3>
+								{#each simPhone.contacts as c (c.name)}
+									<a href={telHref(c.number)} class={[tile, 'border-zinc-50/10 bg-zinc-900']}>
+										<span
+											class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-700 text-2xl font-bold text-white"
+											aria-hidden="true">{c.name.slice(0, 1).toUpperCase()}</span
+										>
+										<span class="min-w-0">
+											<span class="block truncate text-xl font-semibold">{c.name}</span>
+											<span class="block text-base text-zinc-400 tabular-nums"
+												>{numberText(c.number)}</span
+											>
+										</span>
+									</a>
+								{/each}
+								<div class={[tile, 'border-zinc-50/10 bg-zinc-900']}>
+									<input
+										type="tel"
+										inputmode="tel"
+										autocomplete="off"
+										aria-label="Número de teléfono"
+										placeholder="Número"
+										bind:value={dialed}
+										class="min-w-0 flex-1 rounded-xl border-zinc-700 bg-zinc-950 px-3 py-2 text-2xl tabular-nums"
+									/>
+									{#if isCallable(dialed)}
+										<a
+											href={telHref(dialed)}
+											class="rounded-xl bg-green-600 px-4 py-3 text-xl font-bold text-white"
+											>Llamar</a
+										>
+									{/if}
+								</div>
+								{#if !simPhone.contacts.length}
+									<p class="col-span-full text-base text-zinc-400">
+										Los contactos de teléfono se añaden en Ajustes → Este aparato.
+									</p>
+								{/if}
+							{/if}
 						{:else if tab === 'mas'}
 							<!-- What is used less while driving, or stopped: one touch from Inicio, out of its way. -->
-							{#if data.callable.length}
+							{#if data.callable.length || simOn}
 								<button
 									class={[tile, 'border-zinc-50/10 bg-zinc-900']}
 									onclick={() => (tab = 'llamar')}
@@ -1994,7 +2071,13 @@ home. -->
 									>
 									<span class="min-w-0">
 										<span class="block text-xl font-semibold">Llamar</span>
-										<span class="block text-base text-zinc-400">A alguien de la familia</span>
+										<span class="block text-base text-zinc-400"
+											>{data.callable.length && simOn
+												? 'A la familia, o por teléfono'
+												: simOn
+													? 'Por teléfono'
+													: 'A alguien de la familia'}</span
+										>
 									</span>
 								</button>
 							{/if}

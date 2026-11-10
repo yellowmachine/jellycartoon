@@ -4,6 +4,9 @@ import type { LngLat, Place } from 'comun/road.ts';
 import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
+import { phone } from '#lib/phone.svelte.ts';
+import { simPhone } from '#lib/sim-phone.svelte.ts';
+import { callReplySaid, hangUpSaid } from '#lib/call-voice.ts';
 import { recipe } from '#lib/recipe.svelte.ts';
 import { timers } from '#lib/timers.svelte.ts';
 import {
@@ -200,6 +203,23 @@ class VoiceClient {
 		this.reply = null;
 		this.options = [];
 		this.heard = text;
+		// A call ringing in the road mode (#330): «contesta» or «no contestes», here, at once.
+		const toCall = this.road && phone.state === 'incoming' ? callReplySaid(text) : null;
+		if (toCall) {
+			this.phase = 'idle';
+			if (toCall === 'answer') void phone.answer();
+			else phone.reject();
+			resumeAfterVoice();
+			return;
+		}
+		// In a call, or calling (#330): only to end it. Nothing else, so the AI does not speak over it.
+		if (this.road && phone.busy && phone.state !== 'incoming') {
+			this.phase = 'idle';
+			if (hangUpSaid(text)) phone.hangup();
+			else this.problem = 'En una llamada, solo «cuelga».';
+			resumeAfterVoice();
+			return;
+		}
 		// Typed or tapped: that touch lets a timer set now ring later.
 		timers.unlockSound();
 		if (Date.now() - this.#historyAt > HISTORY_IDLE_MS) this.#history = [];
@@ -222,7 +242,9 @@ class VoiceClient {
 				position: this.road?.position() ?? null,
 				navigation: this.road?.navigation() ?? null,
 				trip: this.road?.trip() ?? null,
-				ahead: this.road?.ahead() ?? null
+				ahead: this.road?.ahead() ?? null,
+				// A device that calls by phone (#330): its contacts' names, the numbers stay here.
+				phoneContacts: this.road && simPhone.on ? simPhone.names() : undefined
 			})
 		}).catch(() => null);
 		const body: VoiceReply | { message?: string } | null = await res?.json().catch(() => null);
@@ -289,11 +311,13 @@ function pauseForVoice() {
 	timers.silence();
 	timers.unlockSound();
 	music.pauseForVoice();
+	phone.hush();
 }
 
 /** What was paused to speak, back where it was. */
 function resumeAfterVoice() {
 	music.resumeAfterVoice();
+	phone.unhush();
 }
 
 /**
@@ -337,6 +361,12 @@ async function act(action: VoiceAction) {
 			return voice.road?.follow(action.id);
 		case 'photo':
 			return voice.road?.photo();
+		case 'call':
+			// Not awaited: it rings until answered, and the reply is read meanwhile.
+			return void phone.call(action.userId, action.name);
+		case 'dial':
+			// Shown big in the road mode, to be tapped: a page cannot call by itself.
+			return simPhone.ask(action);
 		case 'control':
 			if (action.action === 'pause') return music.pause();
 			if (action.action === 'resume') return music.resume();

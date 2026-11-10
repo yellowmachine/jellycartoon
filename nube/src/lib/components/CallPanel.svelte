@@ -7,7 +7,14 @@
 	 * its buttons. «Contestar» green and «Colgar» red, as on every phone. The other's sound plays in
 	 * an <audio> of the page (a detached one does not always sound, plasma-extension-audio).
 	 */
-	let { onclose }: { onclose?: () => void } = $props();
+	let {
+		onclose,
+		wakeWord = null
+	}: {
+		onclose?: () => void;
+		/** The road mode's wake word, listening (#330): it says how to answer by voice. */
+		wakeWord?: string | null;
+	} = $props();
 
 	let audio = $state<HTMLAudioElement>();
 	let blocked = $state(false);
@@ -63,6 +70,9 @@
 			{status}
 		</p>
 	</div>
+	{#if wakeWord && phone.state === 'incoming'}
+		<p class="text-xl text-zinc-300">Di «{wakeWord}, contesta» o «{wakeWord}, no contestes»</p>
+	{/if}
 	{#if phone.problem}
 		<p class="rounded-xl bg-amber-950 p-3 text-lg text-amber-200">{phone.problem}</p>
 	{/if}

@@ -3,11 +3,13 @@ import type { RequestHandler } from './$types';
 import { isMapShare, sharedPlace } from 'comun/road/shared-place.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { orsFor } from '#lib/server/road/ors.ts';
+import { ownPath } from '#lib/own-link.ts';
 
 /**
  * Where «Compartir → Nube» lands (the manifest's share_target): a place from a map goes to
  * Carretera, with its route at once (jellycartoon's, #78); another link (a recipe's page), to
- * Recetas, waiting in its box; a file, through the service worker, to Gastos. From Android the
+ * Recetas, waiting in its box; a link of Seilide itself (an invitation to link families, #464), to
+ * its page; a file, through the service worker, to Gastos. From Android the
  * shared address comes inside `text`, not in `url`.
  */
 export const GET: RequestHandler = async ({ url, locals }) => {
@@ -16,10 +18,13 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		.filter(Boolean)
 		.join(' ')
 		.slice(0, 2000);
-	if (isMapShare(text)) redirect(303, await toRoad(text, locals.user!.id));
 	const shared = ['url', 'text', 'title']
 		.map((key) => url.searchParams.get(key)?.match(/https?:\/\/\S+/)?.[0] ?? null)
 		.find(Boolean);
+	const own = shared ? ownPath(shared, url.origin) : null;
+	// Not `/compartido` itself, which would come back here.
+	if (own && !own.startsWith('/compartido')) redirect(303, own);
+	if (isMapShare(text)) redirect(303, await toRoad(text, locals.user!.id));
 	redirect(303, shared ? `/recetas?url=${encodeURIComponent(shared)}` : '/');
 };
 

@@ -84,7 +84,14 @@ export type VoiceAction =
 	/** A route kept in Viajes (#151), by its id: from where we are, through its stops ahead. */
 	| { kind: 'route'; id: number }
 	/** A photo with the road mode's camera (#81). */
-	| { kind: 'photo' };
+	| { kind: 'photo' }
+	/** A call from this browser (#330) to someone it may call, by their account. */
+	| { kind: 'call'; userId: string; name: string }
+	/**
+	 * A normal phone call with this device's SIM (#330): one of its contacts by its place in
+	 * `phoneContacts`, or a number said. The device shows it to tap: a page cannot call by itself.
+	 */
+	| { kind: 'dial'; contact?: number; number?: string; name?: string };
 
 /** The longest timer: a day. */
 export const MAX_TIMER_SEC = 24 * 3600;
@@ -149,6 +156,11 @@ export interface VoiceRequest {
 	 * along it (#312); null without one.
 	 */
 	ahead: LngLat[] | null;
+	/**
+	 * In the road mode, on a device that calls by phone (#330, nube's sim-phone): its contacts' names,
+	 * in order (their place says which one). Their numbers stay on the device.
+	 */
+	phoneContacts?: string[];
 }
 
 export interface VoiceReply {
@@ -293,6 +305,10 @@ export function parseVoiceRequest(body: unknown): VoiceRequest | null {
 			b.ahead.length <= MAX_AHEAD &&
 			b.ahead.every(isPoint)
 				? (b.ahead as LngLat[])
-				: null
+				: null,
+		phoneContacts:
+			b.car === true && Array.isArray(b.phoneContacts)
+				? b.phoneContacts.slice(0, 60).map((n: unknown) => text(n, 60) ?? '?')
+				: undefined
 	};
 }
