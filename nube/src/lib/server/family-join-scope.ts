@@ -354,7 +354,11 @@ export function familyJoinScope(
 			(await tx.select({ url: recipe.sourceUrl }).from(recipe)).map((r) => r.url)
 		);
 
+		// A call with the new family while linked (#464): it already has its own row of it.
+		const calls = new Set((await tx.select({ id: call.id }).from(call)).map((c) => c.id));
+
 		const skip: Record<string, (row: Row) => boolean> = {
+			call: (r) => calls.has(r.id as string),
 			podcast: (r) => sameShow.has(r.id as number),
 			podcast_episode: (r) => sameEpisode.has(r.id as number),
 			recipe: (r) => urls.has(r.sourceUrl as string),

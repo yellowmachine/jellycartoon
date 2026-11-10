@@ -119,6 +119,7 @@ import {
 } from '#lib/server/house.ts';
 import { recordsTrips, setRecordTrips } from '#lib/server/trips/trips.ts';
 import { callButtons } from '#lib/server/call-buttons.ts';
+import { familyLinks } from '#lib/server/family-links.ts';
 import { deleteCar, listCars, myCarId, saveCar, setMyCar } from '#lib/server/trips/cars.ts';
 import { MAX_CAR_NAME } from '#lib/cars.ts';
 import { fold } from 'comun/music.ts';
@@ -147,6 +148,9 @@ function ifsOf(form: FormData): WhatIf {
 				: null
 	};
 }
+
+/** A family link's address (#464), to send by WhatsApp or show as a QR. */
+const linkAddress = (token: string) => `${ORIGIN}/vincular/${token}`;
 
 export const load: PageServerLoad = async ({ locals, request, cookies, url }) => {
 	const k = await kitchenOf(locals.user!.id);
@@ -229,6 +233,19 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		recordTrips: await recordsTrips(k),
 		/** «Botón de llamar siempre a mano» (#330): everyone's, as any adult may set anyone's. */
 		callButtons: await callButtons.all(locals.user!.id),
+		/** Linked families (#464): any adult, with the links still waiting and their QR. */
+		familyLinks:
+			membership.role === 'peque'
+				? null
+				: await familyLinks.ofFamily(locals.user!.id).then(async ({ linked, waiting }) => ({
+						linked,
+						waiting: await Promise.all(
+							waiting.map(async ({ token, ...w }) => {
+								const link = linkAddress(token);
+								return { ...w, link, qr: await QRCode.toDataURL(link, { margin: 1 }) };
+							})
+						)
+					})),
 		/** The family's cars (#317), and theirs. */
 		cars: (await listCars(k)).map(({ id, name }) => ({ id, name })),
 		myCar: await myCarId(k),
@@ -355,6 +372,19 @@ export const actions: Actions = {
 		return { saved: 'theme' };
 	},
 	/** «Botón de llamar siempre a mano» (#330): theirs or another's of the family, with its favorites. */
+	/** A link for another family to accept (#464): any adult. */
+	linkFamily: async ({ locals }) => {
+		const made = await familyLinks.invite(locals.user!.id);
+		if (!made.ok) return fail(403, { linkProblem: made.problem });
+		return { saved: 'family-link', linkMade: linkAddress(made.token) };
+	},
+	/** A link removed, waiting or accepted: the other family stops being seen at once. */
+	unlinkFamily: async ({ request, locals }) => {
+		const id = String((await request.formData()).get('id') ?? '');
+		const problem = await familyLinks.remove(locals.user!.id, id);
+		if (problem) return fail(403, { linkProblem: problem.problem });
+		return { saved: 'family-unlinked' };
+	},
 	callButton: async ({ request, locals }) => {
 		const form = await request.formData();
 		const problem = await callButtons.set(

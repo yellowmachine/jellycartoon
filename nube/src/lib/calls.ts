@@ -49,12 +49,14 @@ export interface IncomingCall {
 	fromName: string;
 }
 
-/** Someone of the family to call. */
+/** Someone to call: of the family, or an adult of a linked one (#464). */
 export interface Callable {
 	userId: string;
 	name: string;
 	/** Whether any of their devices gets Seilide's notices: if not, only an open page rings. */
 	notices: boolean;
+	/** Of a linked family (#464): its name. None, of one's own. */
+	family?: string;
 }
 
 /** A call of the history, as one of its two sees it. */

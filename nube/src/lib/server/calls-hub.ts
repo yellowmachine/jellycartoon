@@ -11,6 +11,7 @@ import {
 } from '#lib/calls.ts';
 import { call, familyMember, familyPerson, pushSubscription, user } from './db/schema.ts';
 import type { AnyDb, familyOnlyScope, familyScope } from './family-scope.ts';
+import type { FamilyLinks } from './family-link-scope.ts';
 import type { PushMessage } from './push.ts';
 
 /**
@@ -40,7 +41,8 @@ interface Side {
 
 interface Live {
 	id: string;
-	familyId: string;
+	/** The caller's family, and the callee's: the same, or linked (#464). Each has its row. */
+	families: { caller: string; callee: string };
 	caller: Side;
 	callee: Side;
 	state: 'ringing' | 'connected';
@@ -59,6 +61,8 @@ export interface HubDeps {
 	withFamily: ReturnType<typeof familyScope>;
 	asFamily: ReturnType<typeof familyOnlyScope>;
 	notify: (familyId: string, userIds: string[], message: PushMessage) => Promise<void>;
+	/** The families linked with theirs (#464): their adults are called too. */
+	links: Pick<FamilyLinks, 'linked' | 'linkedFamilyOf'>;
 	ringMs?: number;
 	goneMs?: number;
 }
@@ -77,6 +81,7 @@ export function callHub({
 	withFamily,
 	asFamily,
 	notify,
+	links,
 	ringMs = RING_SECONDS * 1000,
 	goneMs = 20_000
 }: HubDeps) {
@@ -88,6 +93,15 @@ export function callHub({
 	const other = (c: Live, s: Side) => (s === c.caller ? c.callee : c.caller);
 	const inCall = (userId: string) =>
 		[...live.values()].some((c) => c.caller.userId === userId || c.callee.userId === userId);
+
+	/**
+	 * The names of the people of linked families (#464) as their own family writes them; their rows
+	 * are not seen from here. Someone of a family no longer linked keeps their account's name.
+	 */
+	async function linkedNames(userId: string) {
+		const families = await links.linked(userId);
+		return new Map(families.flatMap((f) => f.people.map((p) => [p.userId, p.name] as const)));
+	}
 
 	/** Its listeners on the device in the call; before one is chosen, all of theirs. */
 	const inCallHere = (s: Side) =>
@@ -102,6 +116,12 @@ export function callHub({
 		if (here.length) for (const l of here) l(event);
 		// What the other side needs to connect waits for that device's page.
 		else s.queue.push(event);
+	}
+
+	/** The call's row, changed in each family that has one. */
+	async function update(c: Live, values: Partial<typeof call.$inferInsert>) {
+		for (const familyId of new Set([c.families.caller, c.families.callee]))
+			await asFamily(familyId, (tx) => tx.update(call).set(values).where(eq(call.id, c.id)));
 	}
 
 	function incomingOf(userId: string): IncomingCall[] {
@@ -124,12 +144,10 @@ export function callHub({
 		send(c.caller, event);
 		send(c.callee, event);
 		tellIncoming(c.callee.userId);
-		await asFamily(c.familyId, (tx) =>
-			tx.update(call).set({ endedAt: new Date(), outcome }).where(eq(call.id, c.id))
-		);
+		await update(c, { endedAt: new Date(), outcome });
 		// The ringing notice, replaced: by «perdida», or quietly by how it ended.
 		const missed = outcome === 'missed' || outcome === 'cancelled';
-		await notify(c.familyId, [c.callee.userId], {
+		await notify(c.families.callee, [c.callee.userId], {
 			title: missed ? `Llamada perdida de ${c.caller.name}` : `Llamada de ${c.caller.name}`,
 			body: missed ? 'Toca para devolverla' : outcome === 'answered' ? 'Terminada' : 'Rechazada',
 			tag: `llamada-${c.id}`,
@@ -154,9 +172,12 @@ export function callHub({
 	}
 
 	return {
-		/** The family's people this one can call: with an account, but themselves. */
+		/**
+		 * Who this one can call: the family's people with an account, but themselves; then, for an
+		 * adult, the adults of each linked family (#464), with its name.
+		 */
 		async callable(userId: string): Promise<Callable[]> {
-			return withFamily(userId, async (tx) => {
+			const own = await withFamily(userId, async (tx) => {
 				const people = await tx
 					.select({ userId: familyMember.userId, account: user.name, person: familyPerson.name })
 					.from(familyMember)
@@ -176,6 +197,15 @@ export function callHub({
 					}))
 					.sort((a, b) => a.name.localeCompare(b.name, 'es'));
 			});
+			const linked = (await links.linked(userId)).flatMap((f) =>
+				f.people.map((p) => ({
+					userId: p.userId,
+					name: p.name,
+					notices: p.notices,
+					family: f.familyName
+				}))
+			);
+			return [...own, ...linked];
 		},
 
 		/** A call to someone of the family: its id, or why not. */
@@ -187,26 +217,60 @@ export function callHub({
 			if (to === userId) return { problem: 'No te puedes llamar a ti.' };
 			if (inCall(userId)) return { problem: 'Ya estás en una llamada.' };
 			const id = crypto.randomUUID();
-			const made = await withFamily(userId, async (tx, { familyId }) => {
+			const busy = inCall(to);
+			const now = new Date();
+			const row = {
+				id,
+				callerId: userId,
+				calleeId: to,
+				startedAt: now,
+				...(busy ? { endedAt: now, outcome: 'busy' as const } : {})
+			};
+			const ours = await withFamily(userId, async (tx, { familyId }) => {
 				const [member] = await tx
 					.select({ userId: familyMember.userId })
 					.from(familyMember)
 					.where(eq(familyMember.userId, to));
-				if (!member) return null;
-				const names = await namesOf(tx, [userId, to]);
-				const busy = inCall(to);
-				const now = new Date();
-				await tx.insert(call).values({
-					id,
+				const names = await namesOf(tx, member ? [userId, to] : [userId]);
+				if (member) await tx.insert(call).values({ ...row, familyId });
+				return {
 					familyId,
-					callerId: userId,
-					calleeId: to,
-					startedAt: now,
-					...(busy ? { endedAt: now, outcome: 'busy' as const } : {})
-				});
-				return { familyId, busy, callerName: names.get(userId)!, calleeName: names.get(to)! };
+					member: Boolean(member),
+					callerName: names.get(userId)!,
+					calleeName: names.get(to)
+				};
 			});
-			if (!made) return { problem: 'No está en tu familia.' };
+			let made: {
+				families: Live['families'];
+				busy: boolean;
+				callerName: string;
+				calleeName: string;
+			};
+			if (ours.member) {
+				made = {
+					families: { caller: ours.familyId, callee: ours.familyId },
+					busy,
+					callerName: ours.callerName,
+					calleeName: ours.calleeName!
+				};
+			} else {
+				// An adult of a linked family (#464): the call in each family's history.
+				const linked = await links.linkedFamilyOf(userId, to);
+				const callee = linked?.people.find((p) => p.userId === to);
+				if (!linked || !callee) return { problem: 'No está en tu familia.' };
+				await asFamily(ours.familyId, (tx) =>
+					tx.insert(call).values({ ...row, familyId: ours.familyId })
+				);
+				await asFamily(linked.familyId, (tx) =>
+					tx.insert(call).values({ ...row, familyId: linked.familyId })
+				);
+				made = {
+					families: { caller: ours.familyId, callee: linked.familyId },
+					busy,
+					callerName: ours.callerName,
+					calleeName: callee.name
+				};
+			}
 			if (made.busy) return { problem: `${made.calleeName} está en otra llamada.`, id };
 
 			const fresh = (s: { userId: string; name: string }, device: string | null): Side => ({
@@ -218,7 +282,7 @@ export function callHub({
 			});
 			const c: Live = {
 				id,
-				familyId: made.familyId,
+				families: made.families,
 				caller: fresh({ userId, name: made.callerName }, device),
 				callee: fresh({ userId: to, name: made.calleeName }, null),
 				state: 'ringing',
@@ -226,7 +290,7 @@ export function callHub({
 			};
 			live.set(id, c);
 			tellIncoming(to);
-			await notify(made.familyId, [to], {
+			await notify(made.families.callee, [to], {
 				title: `${made.callerName} te llama`,
 				body: 'Toca para contestar',
 				tag: `llamada-${id}`,
@@ -253,6 +317,8 @@ export function callHub({
 					state: c.state,
 					outcome: null
 				};
+			// Before its transaction: the linked families are read in their own.
+			const known = await linkedNames(userId);
 			return withFamily(userId, async (tx) => {
 				const [row] = await tx
 					.select()
@@ -262,6 +328,8 @@ export function callHub({
 				const outgoing = row.callerId === userId;
 				const otherId = outgoing ? row.calleeId : row.callerId;
 				const names = otherId ? await namesOf(tx, [otherId]) : new Map<string, string>();
+				const linked = otherId && known.get(otherId);
+				if (linked) names.set(otherId, linked);
 				return {
 					id,
 					role: outgoing ? 'caller' : 'callee',
@@ -321,11 +389,9 @@ export function callHub({
 					send(c.caller, event);
 					send(c.callee, event);
 					tellIncoming(c.callee.userId);
-					await asFamily(c.familyId, (tx) =>
-						tx.update(call).set({ answeredAt: new Date() }).where(eq(call.id, id))
-					);
+					await update(c, { answeredAt: new Date() });
 					// The callee's other devices stop ringing.
-					await notify(c.familyId, [c.callee.userId], {
+					await notify(c.families.callee, [c.callee.userId], {
 						title: `Llamada de ${c.caller.name}`,
 						body: 'Contestada',
 						tag: `llamada-${id}`,
@@ -366,6 +432,7 @@ export function callHub({
 
 		/** Their calls, the newest first. */
 		async history(userId: string, limit = 50): Promise<CallRecord[]> {
+			const known = await linkedNames(userId);
 			return withFamily(userId, async (tx) => {
 				const caller = alias(user, 'caller');
 				const callee = alias(user, 'callee');
@@ -391,6 +458,7 @@ export function callHub({
 					.map((r) => (r.callerId === userId ? r.calleeId : r.callerId))
 					.filter((x): x is string => Boolean(x));
 				const names = others.length ? await namesOf(tx, others) : new Map<string, string>();
+				for (const [id, name] of known) names.set(id, name);
 				return rows.map((r) => {
 					const outgoing = r.callerId === userId;
 					const otherId = outgoing ? r.calleeId : r.callerId;

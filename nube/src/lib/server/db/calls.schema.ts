@@ -1,4 +1,4 @@
-import { index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { index, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
 import type { CallOutcome } from '#lib/calls.ts';
 import { user } from './auth.schema.ts';
 import { family, familyRows } from './family.schema.ts';
@@ -7,12 +7,14 @@ import { family, familyRows } from './family.schema.ts';
  * The family's calls (#330), for the history: who called whom, when, and how long they talked.
  * The call itself, while it rings and lasts, lives in the server's memory (calls.ts); this row is
  * made when it starts and closed when it ends. A person gone, their side stays without a name.
+ * Between linked families (#464), each family has its own row of the call, with the same id: its
+ * history stays its own.
  */
 export const call = pgTable(
 	'call',
 	{
 		/** Random: it is in the call's address (/llamada/…). */
-		id: text('id').primaryKey(),
+		id: text('id').notNull(),
 		familyId: text('family_id')
 			.notNull()
 			.references(() => family.id, { onDelete: 'cascade' }),
@@ -25,6 +27,7 @@ export const call = pgTable(
 		outcome: text('outcome').$type<CallOutcome>()
 	},
 	(t) => [
+		primaryKey({ columns: [t.id, t.familyId] }),
 		index('call_family_started_idx').on(t.familyId, t.startedAt),
 		familyRows('call_own', t.familyId)
 	]
