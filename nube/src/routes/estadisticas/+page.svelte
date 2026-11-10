@@ -3,7 +3,7 @@
 	import { timeWatched } from './time-watched.ts';
 	import type { PageProps } from './$types';
 
-	/** Estadísticas (#421): what is watched at home, one's own and the children's. */
+	/** Estadísticas (#421): what is watched and played at home, one's own and the children's. */
 	let { data }: PageProps = $props();
 
 	const stats = $derived(data.stats);
@@ -19,8 +19,14 @@
 	});
 	const weekLabel = (monday: string) => dayMonth.format(new Date(`${monday}T00:00:00Z`));
 
-	const KIND = { serie: 'Serie', pelicula: 'Película', canal: 'Canal', web: 'Web' };
-	const KINDS = { serie: 'Series', pelicula: 'Películas', canal: 'Canales', web: 'Webs' };
+	const KIND = { serie: 'Serie', pelicula: 'Película', canal: 'Canal', web: 'Web', juego: 'Juego' };
+	const KINDS = {
+		serie: 'Series',
+		pelicula: 'Películas',
+		canal: 'Canales',
+		web: 'Webs',
+		juego: 'Juegos'
+	};
 
 	/** This page with what is chosen now, but for what changes. */
 	const link = (change: { persona?: string | null; semanas?: number; tipo?: string | null }) => {
@@ -101,7 +107,7 @@
 
 <h1 class="mb-1 text-2xl font-bold">Estadísticas</h1>
 <p class="mb-6 text-sm text-zinc-400">
-	Lo que se ve en casa, tuyo y de los peques. Lo de otros adultos no sale aquí.
+	Lo que se ve y se juega en casa, tuyo y de los peques. Lo de otros adultos no sale aquí.
 </p>
 
 <nav class="mb-3 flex flex-wrap gap-2" aria-label="Periodo">
@@ -132,8 +138,8 @@
 		{#if stats.kind}
 			Nada de {KINDS[stats.kind].toLowerCase()} en este periodo.
 		{:else}
-			Todavía no hay nada en este periodo. Lo visto en casa llega aquí cada 10 minutos, desde que la
-			casa tiene esta versión y con Seilide conectada.
+			Todavía no hay nada en este periodo. Lo visto y jugado en casa llega aquí cada 10 minutos,
+			desde que la casa tiene esta versión y con Seilide conectada.
 		{/if}
 	</p>
 {:else}

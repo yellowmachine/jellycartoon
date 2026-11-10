@@ -7,7 +7,8 @@ const PERIODS = [4, 12, 26, 52];
 
 /**
  * Estadísticas (#421): one's own hours and the children's; `?persona=`, of one of them; `?tipo=`,
- * only series, films, channels or webs.
+ * only series, films, channels, webs or
+ * games.
  */
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const asked = Number(url.searchParams.get('semanas'));

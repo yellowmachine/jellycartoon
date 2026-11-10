@@ -21,12 +21,15 @@ export const watchLog = pgTable(
 		day: date('day').notNull(),
 		/** The minute of the day its slot starts: 21:10 is 1270. */
 		minute: integer('minute').notNull(),
-		/** The house's own id for it: `e12` an episode, `m3` a film, `c…` a channel, `s4` a shortcut. */
+		/**
+		 * The house's own id for it: `e12` an episode, `m3` a film, `c…` a channel, `s4` a shortcut,
+		 * `j7` a game (its sessions, all in the slot each started in).
+		 */
 		item: text('item').notNull(),
-		kind: text('kind', { enum: ['serie', 'pelicula', 'canal', 'web'] }).notNull(),
+		kind: text('kind', { enum: ['serie', 'pelicula', 'canal', 'web', 'juego'] }).notNull(),
 		/** The series, for an episode. */
 		seriesTitle: text('series_title'),
-		/** The episode's, or the film's, the channel's or the shortcut's name. */
+		/** The episode's, or the film's, the channel's, the shortcut's or the game's name. */
 		title: text('title').notNull(),
 		season: integer('season'),
 		number: integer('number'),

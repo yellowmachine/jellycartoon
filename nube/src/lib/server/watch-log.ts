@@ -3,12 +3,12 @@ import { familyMember, user, watchLog } from './db/schema.ts';
 import type { Kitchen } from './fridge.ts';
 
 /**
- * What is watched at home, here (#421): the house sends the seconds of each slot (/api/casa/visto),
+ * What is watched and played at home, here (#421): the house sends the seconds of each slot (/api/casa/visto),
  * the whole of them and not what they grew by, so that sending twice changes nothing. Each adult
  * reads their own and the children's, never another adult's: at home, what one watches is theirs.
  */
 
-export const KINDS = ['serie', 'pelicula', 'canal', 'web'] as const;
+export const KINDS = ['serie', 'pelicula', 'canal', 'web', 'juego'] as const;
 export type WatchKind = (typeof KINDS)[number];
 export const MAX_ROWS = 500;
 const MAX_TEXT = 500;
@@ -120,7 +120,7 @@ export function lastDays(today: string, count: number) {
  * The hours of the last `weeks` weeks: per person, of those `viewerId` may see; and of `personId`,
  * if it is one of them, or of all of them, per week, per series and per hour of the day. Also, the
  * last `RECENT_DAYS` one by one and what was watched in them, the latest first. `kind`, of only
- * that kind (series, films, channels or webs); `kinds`, those there are in the period, to choose.
+ * that kind (series, films, channels, webs or games); `kinds`, those there are in the period, to choose.
  */
 export async function watchStats(
 	k: Kitchen,

@@ -1182,7 +1182,9 @@ export const gameSession = pgTable(
 		startedAt: timestamp('started_at').notNull().defaultNow(),
 		/** The last time the page said it was still there: the end, once it is left. */
 		endedAt: timestamp('ended_at').notNull().defaultNow(),
-		seconds: integer('seconds').notNull().default(0)
+		seconds: integer('seconds').notNull().default(0),
+		/** What Seilide was last sent of it (#421), for its statistics. */
+		sentSeconds: integer('sent_seconds').notNull().default(0)
 	},
 	(t) => [index('game_session_user_idx').on(t.userId, t.startedAt)]
 );

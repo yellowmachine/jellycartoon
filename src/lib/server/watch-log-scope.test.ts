@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import * as schema from './db/schema.ts';
-import { episode, series, user, userSettings, watchTime } from './db/schema.ts';
+import { episode, game, gameSession, series, user, userSettings, watchTime } from './db/schema.ts';
 import { sendWatchLog, type SendWatch, type WatchRow } from './watch-log-scope.ts';
 
 /** On a real Postgres (PGlite), with the migrations as they are and a Seilide that keeps what comes. */
@@ -47,6 +47,8 @@ beforeEach(async () => {
 	sent = [];
 	answer = async () => ({ known: true });
 	await db.delete(watchTime);
+	await db.delete(gameSession);
+	await db.delete(game);
 	await db.delete(userSettings);
 	await db.delete(user);
 	await db.delete(episode);
@@ -168,4 +170,102 @@ test('forgetting goes before sending, until it is answered, and only once', asyn
 	sent = [];
 	await sendWatchLog(db, SINCE, send);
 	expect(sent).toEqual([]);
+});
+
+/** Played at home: Super Mario World, and an arcade one with no name in the screen. */
+const games = async () => new Map([['snes/smw.sfc', 'Super Mario World']]);
+const session = (
+	userId: string,
+	at: Date,
+	seconds: number,
+	over: Partial<typeof gameSession.$inferInsert> = {}
+) => ({ userId, gameId: 1, startedAt: at, endedAt: at, seconds, ...over });
+// In the server's time zone, as the slots are.
+const at = (h: number, m: number, day = 6) => new Date(2026, 10, day, h, m);
+
+async function withGames() {
+	await db.insert(game).values([
+		{ id: 1, system: 'snes', file: 'smw.sfc' },
+		{ id: 2, system: 'arcade', file: 'pacman.zip' }
+	] as never);
+}
+
+test('games go after what is watched, each slot once with the sessions in it summed', async () => {
+	await withGames();
+	await db.insert(watchTime).values(slot('ana'));
+	await db
+		.insert(gameSession)
+		.values([
+			session('ana', at(21, 12), 120),
+			session('ana', at(21, 18), 60),
+			session('ana', at(21, 25), 300),
+			session('ana', at(22, 0), 30, { gameId: 2 })
+		]);
+	await sendWatchLog(db, SINCE, send, games);
+	expect(sent.map((s) => s.rows!.map((r) => r.kind))).toEqual([
+		['serie'],
+		['juego', 'juego', 'juego']
+	]);
+	const played = sent[1].rows!.map((r) => [r.day, r.minute, r.item, r.title, r.seconds]);
+	expect(played).toEqual([
+		[SINCE, 1270, 'j1', 'Super Mario World', 180],
+		[SINCE, 1280, 'j1', 'Super Mario World', 300],
+		[SINCE, 1320, 'j2', 'pacman.zip', 30]
+	]);
+	expect(sent[1].rows![0]).toMatchObject({ seriesTitle: null, season: null, number: null });
+
+	sent = [];
+	await sendWatchLog(db, SINCE, send, games);
+	expect(sent).toEqual([]);
+});
+
+test('a session that grows sends its whole slot again, with the others in it', async () => {
+	await withGames();
+	await db
+		.insert(gameSession)
+		.values([
+			session('ana', at(21, 12), 120, { id: 1 }),
+			session('ana', at(21, 18), 60, { id: 2 })
+		]);
+	await sendWatchLog(db, SINCE, send, games);
+	sent = [];
+	await db.update(gameSession).set({ seconds: 90 }).where(eq(gameSession.id, 2));
+	await sendWatchLog(db, SINCE, send, games);
+	expect(saved().map((r) => [r.minute, r.seconds])).toEqual([[1270, 210]]);
+});
+
+test('games: not of who does not keep history, nor from before; a child’s always', async () => {
+	await withGames();
+	await db.insert(userSettings).values({ userId: 'luis', keepHistory: false });
+	await db
+		.insert(gameSession)
+		.values([
+			session('luis', at(21, 0), 100),
+			session('ana', at(21, 0, 5), 100),
+			session('peque', at(18, 0), 100)
+		]);
+	await sendWatchLog(db, SINCE, send, games);
+	expect(sent.map((s) => s.userId)).toEqual(['peque']);
+});
+
+test('without the games’ names, no games are sent', async () => {
+	await withGames();
+	await db.insert(gameSession).values(session('ana', at(21, 12), 120));
+	await sendWatchLog(db, SINCE, send);
+	expect(sent).toEqual([]);
+});
+
+test('if Seilide refuses the games, what is watched is already sent and kept as sent', async () => {
+	await withGames();
+	await db.insert(watchTime).values(slot('ana'));
+	await db.insert(gameSession).values(session('ana', at(21, 12), 120));
+	const refusing: SendWatch = async (userId, body) => {
+		if (body.action === 'save' && body.rows.some((r) => r.kind === 'juego')) throw new Error('400');
+		return send(userId, body);
+	};
+	await expect(sendWatchLog(db, SINCE, refusing, games)).rejects.toThrow('400');
+	const [row] = await db.select().from(watchTime);
+	expect(row.sentSeconds).toBe(300);
+	const [s] = await db.select().from(gameSession);
+	expect(s.sentSeconds).toBe(0);
 });

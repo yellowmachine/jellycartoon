@@ -219,6 +219,15 @@ test('weeks go from Monday, this one the last', () => {
 
 test('what the house sends is checked as a whole', () => {
 	expect(parseWatchRows([row()])).toEqual([row()]);
+	const played = row({
+		item: 'j7',
+		kind: 'juego',
+		seriesTitle: null,
+		title: 'Super Mario World',
+		season: null,
+		number: null
+	});
+	expect(parseWatchRows([played])).toEqual([played]);
 	for (const bad of [
 		{ minute: 1440 },
 		{ minute: 1.5 },
