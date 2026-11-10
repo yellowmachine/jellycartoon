@@ -4,10 +4,10 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { sql } from 'drizzle-orm';
 import * as schema from '#lib/server/db/schema.ts';
-import { expenseTag, family } from '#lib/server/db/schema.ts';
+import { expense, expenseLine, expenseTag, family } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { lineKey, ownTagOf } from 'comun/expenses.ts';
-import { ownTags, tagLine } from './own-tags.ts';
+import { ownTags, taggedExpenseIds, tagLine } from './own-tags.ts';
 
 /** Own tags of lines (#459) on a real Postgres (PGlite, in memory), with the migrations as they are. */
 const db = drizzle(new PGlite(), { schema });
@@ -85,4 +85,41 @@ test('each family sees only its own', async () => {
 	expect(ownTagOf(await ownTags(b), 'barra picos')?.name).toBe('Picos');
 	expect(ownTagOf(await ownTags(a), 'barra picos')?.name).toBe('Pan');
 	expect((await db.select().from(expenseTag)).length).toBe(2);
+});
+
+test('the expenses with a line of a tag, between two days', async () => {
+	const add = async (date: string, lines: string[]) => {
+		const [e] = await db
+			.insert(expense)
+			.values({
+				familyId: 'A',
+				date,
+				store: 'Horno',
+				category: 'Comida',
+				total: 100,
+				source: 'mano'
+			})
+			.returning();
+		await db.insert(expenseLine).values(
+			lines.map((text, position) => ({
+				familyId: 'A',
+				expenseId: e.id,
+				position,
+				text,
+				amount: 50
+			}))
+		);
+		return e.id;
+	};
+	const october = await add('2026-10-05', ['Barra  Picos', 'Leche']);
+	const november = await add('2026-11-05', ['BARRA PICOS', 'Barra picos']);
+	await add('2026-11-06', ['Barra picos integral']);
+	const pan = (await ownTags(a)).tags.find((t) => t.name === 'Pan')!;
+	expect((await taggedExpenseIds(a, pan.id, { from: null, to: null })).sort()).toEqual(
+		[october, november].sort()
+	);
+	expect(await taggedExpenseIds(a, pan.id, { from: '2026-11-01', to: null })).toEqual([november]);
+	// Another family's tag: nothing of A's.
+	const picos = (await ownTags(b)).tags[0];
+	expect(await taggedExpenseIds(a, picos.id, { from: null, to: null })).toEqual([]);
 });

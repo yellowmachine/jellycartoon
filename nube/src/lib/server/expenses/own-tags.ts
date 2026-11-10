@@ -1,5 +1,5 @@
-import { and, asc, eq, notExists, sql } from 'drizzle-orm';
-import { expenseTag, expenseTagRule } from '#lib/server/db/schema.ts';
+import { and, asc, eq, gte, lte, notExists, sql } from 'drizzle-orm';
+import { expense, expenseLine, expenseTag, expenseTagRule } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { lineKey, type OwnTags } from 'comun/expenses.ts';
 
@@ -81,3 +81,35 @@ export function tagLine(k: Kitchen, text: string, choice: TagChoice): Promise<bo
 		return true;
 	});
 }
+
+/**
+ * The expenses with a line of that tag between two days (both included, either may be missing):
+ * their ids. The key made here, as the page makes it (lineKey), not in SQL.
+ */
+export const taggedExpenseIds = (
+	k: Kitchen,
+	tagId: number,
+	{ from, to }: { from: string | null; to: string | null }
+): Promise<number[]> =>
+	k.run(async (tx) => {
+		const texts = new Set(
+			(
+				await tx
+					.select({ text: expenseTagRule.text })
+					.from(expenseTagRule)
+					.where(eq(expenseTagRule.tagId, tagId))
+			).map((r) => r.text)
+		);
+		if (!texts.size) return [];
+		const lines = await tx
+			.select({ expenseId: expenseLine.expenseId, text: expenseLine.text })
+			.from(expenseLine)
+			.innerJoin(
+				expense,
+				and(eq(expense.familyId, expenseLine.familyId), eq(expense.id, expenseLine.expenseId))
+			)
+			.where(
+				and(from ? gte(expense.date, from) : undefined, to ? lte(expense.date, to) : undefined)
+			);
+		return [...new Set(lines.filter((l) => texts.has(lineKey(l.text))).map((l) => l.expenseId))];
+	});
