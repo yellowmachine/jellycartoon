@@ -79,6 +79,8 @@ class WakeWord {
 	problem = $state<string | null>(null);
 
 	#wanted = false;
+	/** The microphone's sound cleaned (echo cancelled): during a call, so the other's voice does not wake it. */
+	#clean = false;
 	#listening: Listening | null = null;
 	#context: AudioContext | null = null;
 	#paused = false;
@@ -129,9 +131,17 @@ class WakeWord {
 	 * After a start that failed
 	 * (`problem`), tried again only once it was not wanted for a while.
 	 */
-	want(wanted: boolean) {
+	want(wanted: boolean, clean = false) {
 		const again = wanted && this.#wanted;
 		this.#wanted = wanted;
+		// Cleaned or not, from now on: listening already, it starts again that way.
+		if (clean !== this.#clean) {
+			this.#clean = clean;
+			if (wanted && this.status !== 'off' && this.status !== 'loading') {
+				this.#stop();
+				return void this.#start();
+			}
+		}
 		if (wanted && this.status === 'off' && !(again && this.problem)) void this.#start();
 		else if (!wanted && this.status !== 'loading') this.#stop();
 	}
@@ -147,7 +157,7 @@ class WakeWord {
 			this.#listening = await listen(
 				{
 					models: [this.word],
-					processing: false,
+					processing: this.#clean,
 					vad: true,
 					onScores: ([score]) => this.#score(score ?? 0),
 					onLevel: (dbfs) => this.#level(dbfs),

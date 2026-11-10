@@ -5,7 +5,7 @@ import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
 import { phone } from '#lib/phone.svelte.ts';
-import { callReplySaid } from '#lib/call-voice.ts';
+import { callReplySaid, hangUpSaid } from '#lib/call-voice.ts';
 import { recipe } from '#lib/recipe.svelte.ts';
 import { timers } from '#lib/timers.svelte.ts';
 import {
@@ -208,6 +208,14 @@ class VoiceClient {
 			this.phase = 'idle';
 			if (toCall === 'answer') void phone.answer();
 			else phone.reject();
+			resumeAfterVoice();
+			return;
+		}
+		// In a call, or calling (#330): only to end it. Nothing else, so the AI does not speak over it.
+		if (this.road && phone.busy && phone.state !== 'incoming') {
+			this.phase = 'idle';
+			if (hangUpSaid(text)) phone.hangup();
+			else this.problem = 'En una llamada, solo «cuelga».';
 			resumeAfterVoice();
 			return;
 		}

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { callReplySaid } from './call-voice.ts';
+import { callReplySaid, hangUpSaid } from './call-voice.ts';
 
 describe('callReplySaid', () => {
 	test('answering, as Whisper writes it', () => {
@@ -39,5 +39,23 @@ describe('callReplySaid', () => {
 			'contesta a Pepe que llego tarde'
 		])
 			expect(callReplySaid(said)).toBeNull();
+	});
+});
+
+describe('hangUpSaid', () => {
+	test('ending the call', () => {
+		for (const said of [
+			'Cuelga.',
+			'Cuelga la llamada',
+			'Corta',
+			'Termina la llamada',
+			'Ya está',
+			'Adiós'
+		])
+			expect(hangUpSaid(said)).toBe(true);
+	});
+	test('anything else', () => {
+		for (const said of ['Pon la radio', 'Sube el volumen', 'Cuelga la ropa luego', ''])
+			expect(hangUpSaid(said)).toBe(false);
 	});
 });

@@ -992,8 +992,9 @@
 
 	// «Alexa» instead of the button, turned on here on this tablet: only while Carretera is open.
 	$effect(() => {
-		// Not during a call (#330): the other's voice would wake it. Yes while one rings, to answer it.
-		wakeWord.want(wakeWord.on.carretera && (!tel.busy || tel.state === 'incoming'));
+		// During a call (#330), with the echo cancelled, so that the other's voice does not wake it: to
+		// answer it while it rings, and to hang up («cuelga»).
+		wakeWord.want(wakeWord.on.carretera, tel.busy);
 		return () => wakeWord.want(false);
 	});
 
