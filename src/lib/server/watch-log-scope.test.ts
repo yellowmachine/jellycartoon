@@ -4,7 +4,16 @@ import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import * as schema from './db/schema.ts';
-import { episode, game, gameSession, series, user, userSettings, watchTime } from './db/schema.ts';
+import {
+	episode,
+	game,
+	gameSession,
+	listenTime,
+	series,
+	user,
+	userSettings,
+	watchTime
+} from './db/schema.ts';
 import { sendWatchLog, tellKeepHistory, type SendWatch, type WatchRow } from './watch-log-scope.ts';
 
 /** On a real Postgres (PGlite), with the migrations as they are and a Seilide that keeps what comes. */
@@ -48,6 +57,7 @@ beforeEach(async () => {
 	answer = async () => ({ known: true });
 	await db.delete(watchTime);
 	await db.delete(gameSession);
+	await db.delete(listenTime);
 	await db.delete(game);
 	await db.delete(userSettings);
 	await db.delete(user);
@@ -295,4 +305,55 @@ test('if telling fails, it is told next time', async () => {
 	answer = async () => ({ known: false });
 	await tellKeepHistory(db, send);
 	expect(sent.map((s) => s.userId).sort()).toEqual(['ana', 'luis']);
+});
+
+test('songs and stations go after what is watched, whole slots, once', async () => {
+	await db.insert(watchTime).values(slot('ana'));
+	await db.insert(listenTime).values([
+		{
+			userId: 'ana',
+			day: SINCE,
+			minute: 600,
+			item: 't1',
+			kind: 'cancion',
+			artist: 'Serrat',
+			title: 'Mediterráneo',
+			seconds: 200
+		},
+		{
+			userId: 'ana',
+			day: SINCE,
+			minute: 610,
+			item: 'rbbc',
+			kind: 'radio',
+			title: 'BBC',
+			seconds: 90
+		},
+		{
+			userId: 'luis',
+			day: '2026-11-05',
+			minute: 600,
+			item: 't1',
+			kind: 'cancion',
+			title: 'Antes',
+			seconds: 50
+		}
+	]);
+	await sendWatchLog(db, SINCE, send);
+	expect(sent.map((s) => s.rows!.map((r) => r.kind))).toEqual([['serie'], ['cancion', 'radio']]);
+	expect(sent[1].rows![0]).toEqual({
+		day: SINCE,
+		minute: 600,
+		item: 't1',
+		kind: 'cancion',
+		seriesTitle: 'Serrat',
+		title: 'Mediterráneo',
+		season: null,
+		number: null,
+		seconds: 200
+	});
+
+	sent = [];
+	await sendWatchLog(db, SINCE, send);
+	expect(sent).toEqual([]);
 });

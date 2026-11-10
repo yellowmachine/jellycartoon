@@ -1171,6 +1171,40 @@ export const gameSave = pgTable(
 );
 
 /**
+ * Time listened to in this app's player (#421): songs of the library and radio stations, per
+ * person, day and slot, from the queue saved every few seconds while it plays. Apart from
+ * `watch_time`, as the children's video limits add that up. Its names kept with it, as Seilide
+ * gets them. Children's always; adults', with «Guardar lo que veo».
+ */
+export const listenTime = pgTable(
+	'listen_time',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		/** In the server's time zone, like `watch_time`'s. */
+		day: date('day').notNull(),
+		/** The minute of the day its 10-minute slot starts: 21:10 is 1270. */
+		minute: integer('minute').notNull(),
+		/** `t12` a track, `r…` a station by its Radio Browser uuid. */
+		item: text('item').notNull(),
+		kind: text('kind', { enum: ['cancion', 'radio'] }).notNull(),
+		/** The song's artist; null for a station. */
+		artist: text('artist'),
+		/** The song's, or the station's name. */
+		title: text('title').notNull(),
+		seconds: real('seconds').notNull().default(0),
+		/** Of `seconds`, how many Seilide knows: what differs is still to send. */
+		sentSeconds: real('sent_seconds').notNull().default(0)
+	},
+	(t) => [
+		unique('listen_time_slot').on(t.userId, t.day, t.minute, t.item),
+		check('listen_time_minute', sql`${t.minute} between 0 and 1439`)
+	]
+);
+
+/**
  * A time a person played a game (#176): from the emulator starting to leaving it, and the seconds
  * actually played in it (paused or in its menu do not count). Kept only with «Guardar historial».
  */

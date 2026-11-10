@@ -5,6 +5,7 @@ import {
 	episodeTitle,
 	game,
 	gameSession,
+	listenTime,
 	movie,
 	movieTitle,
 	series,
@@ -36,7 +37,7 @@ export interface WatchRow {
 	day: string;
 	minute: number;
 	item: string;
-	kind: 'serie' | 'pelicula' | 'canal' | 'web' | 'juego';
+	kind: 'serie' | 'pelicula' | 'canal' | 'web' | 'juego' | 'cancion' | 'radio';
 	seriesTitle: string | null;
 	title: string;
 	season: number | null;
@@ -183,7 +184,62 @@ export async function sendWatchLog(db: Db, since: string, send: SendWatch, games
 		}
 		if (rows.length < BATCH) break;
 	}
+	await sendListened(db, since, send);
 	if (games) await sendGames(db, since, send, games);
+}
+
+/** Songs and stations listened to here (listen-time.ts), as what is watched: whole slots. */
+async function sendListened(db: Db, since: string, send: SendWatch) {
+	for (;;) {
+		const rows = await db
+			.select({
+				id: listenTime.id,
+				userId: listenTime.userId,
+				day: listenTime.day,
+				minute: listenTime.minute,
+				item: listenTime.item,
+				kind: listenTime.kind,
+				artist: listenTime.artist,
+				title: listenTime.title,
+				seconds: listenTime.seconds
+			})
+			.from(listenTime)
+			.innerJoin(user, eq(user.id, listenTime.userId))
+			.leftJoin(userSettings, eq(userSettings.userId, listenTime.userId))
+			.where(
+				and(
+					gte(listenTime.day, since),
+					sql`${listenTime.seconds} > ${listenTime.sentSeconds} + ${MIN_NEW_SECONDS}`,
+					keeps
+				)
+			)
+			.orderBy(asc(listenTime.userId), asc(listenTime.id))
+			.limit(BATCH);
+		for (const [userId, theirs] of Map.groupBy(rows, (r) => r.userId)) {
+			await send(userId, {
+				action: 'save',
+				rows: theirs.map((r) => ({
+					day: r.day,
+					minute: r.minute,
+					item: r.item,
+					kind: r.kind,
+					seriesTitle: r.artist,
+					title: r.title,
+					season: null,
+					number: null,
+					seconds: r.seconds
+				}))
+			});
+			await db.transaction(async (tx) => {
+				for (const r of theirs)
+					await tx
+						.update(listenTime)
+						.set({ sentSeconds: r.seconds })
+						.where(eq(listenTime.id, r.id));
+			});
+		}
+		if (rows.length < BATCH) return;
+	}
 }
 
 /** The day and slot a time is in, in the server's time zone (TZ), as watch-time.ts does. */

@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
-import { gameSession, userSettings, watchTime } from '#lib/server/db/schema.ts';
+import { gameSession, listenTime, userSettings, watchTime } from '#lib/server/db/schema.ts';
 import { sanitizeSubtitleStyle, type SubtitleStyle } from 'comun/subtitle-style.ts';
 import { DEFAULT_THEME, isTheme, type ThemeId } from 'comun/themes.ts';
 
@@ -69,6 +69,10 @@ export async function setKeepHistory(userId: string, keepHistory: boolean) {
 				.update(gameSession)
 				.set({ sentSeconds: sql`${gameSession.seconds}` })
 				.where(eq(gameSession.userId, userId));
+			await tx
+				.update(listenTime)
+				.set({ sentSeconds: sql`${listenTime.seconds}` })
+				.where(eq(listenTime.userId, userId));
 		}
 	});
 	keepsHistoryCache.set(userId, keepHistory);

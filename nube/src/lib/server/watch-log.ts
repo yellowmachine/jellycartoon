@@ -10,7 +10,16 @@ import { WatchSteps } from 'comun/watch-steps.ts';
  * reads their own and the children's, never another adult's: at home, what one watches is theirs.
  */
 
-export const KINDS = ['serie', 'pelicula', 'canal', 'web', 'juego', 'podcast'] as const;
+export const KINDS = [
+	'serie',
+	'pelicula',
+	'canal',
+	'web',
+	'juego',
+	'podcast',
+	'cancion',
+	'radio'
+] as const;
 export type WatchKind = (typeof KINDS)[number];
 export const MAX_ROWS = 500;
 const MAX_TEXT = 500;

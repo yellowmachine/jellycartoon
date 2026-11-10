@@ -25,7 +25,9 @@
 		canal: 'Canal',
 		web: 'Web',
 		juego: 'Juego',
-		podcast: 'Podcast'
+		podcast: 'Podcast',
+		cancion: 'Canción',
+		radio: 'Radio'
 	};
 	const KINDS = {
 		serie: 'Series',
@@ -33,7 +35,9 @@
 		canal: 'Canales',
 		web: 'Webs',
 		juego: 'Juegos',
-		podcast: 'Podcasts'
+		podcast: 'Podcasts',
+		cancion: 'Música',
+		radio: 'Radio'
 	};
 
 	/** This page with what is chosen now, but for what changes. */
@@ -83,8 +87,8 @@
 			? [w.season != null && w.number != null ? `T${w.season} E${w.number}` : null, w.title]
 					.filter(Boolean)
 					.join(' · ')
-			: w.kind === 'podcast'
-				? `Podcast · ${w.title}`
+			: w.kind === 'podcast' || (w.kind === 'cancion' && w.seriesTitle)
+				? `${KIND[w.kind]} · ${w.title}`
 				: KIND[w.kind];
 	const chip = (on: boolean) =>
 		`rounded-full px-3 py-1 text-sm ${on ? 'bg-amber-500 font-medium text-zinc-950' : 'bg-zinc-800 hover:bg-zinc-700'}`;
@@ -148,8 +152,8 @@
 		{#if stats.kind}
 			Nada de {KINDS[stats.kind].toLowerCase()} en este periodo.
 		{:else}
-			Todavía no hay nada en este periodo. Lo visto y jugado en casa llega aquí cada 10 minutos,
-			desde que la casa tiene esta versión y con Seilide conectada.
+			Todavía no hay nada en este periodo. Lo visto, jugado y escuchado en casa llega aquí cada 10
+			minutos, desde que la casa tiene esta versión y con Seilide conectada.
 		{/if}
 	</p>
 {:else}

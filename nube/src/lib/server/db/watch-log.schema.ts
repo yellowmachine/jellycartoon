@@ -23,13 +23,14 @@ export const watchLog = pgTable(
 		minute: integer('minute').notNull(),
 		/**
 		 * The house's own id for it: `e12` an episode, `m3` a film, `c…` a channel, `s4` a shortcut,
-		 * `j7` a game (its sessions, all in the slot each started in); `p9` a podcast episode, counted here.
+		 * `j7` a game (its sessions, all in the slot each started in); `p9` a podcast episode, counted here; `t3` a song and
+		 * `r…` a station, of the house's player.
 		 */
 		item: text('item').notNull(),
 		kind: text('kind', {
-			enum: ['serie', 'pelicula', 'canal', 'web', 'juego', 'podcast']
+			enum: ['serie', 'pelicula', 'canal', 'web', 'juego', 'podcast', 'cancion', 'radio']
 		}).notNull(),
-		/** The series, for an episode. */
+		/** The series, for an episode; the podcast, for one of its episodes; the artist, for a song. */
 		seriesTitle: text('series_title'),
 		/** The episode's, or the film's, the channel's, the shortcut's or the game's name. */
 		title: text('title').notNull(),
