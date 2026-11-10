@@ -34,6 +34,7 @@
 	import GastoIa from './GastoIa.svelte';
 	import Microfono from './Microfono.svelte';
 	import FondoMusica from './FondoMusica.svelte';
+	import BotonLlamar from './BotonLlamar.svelte';
 	import Subtitulos from './Subtitulos.svelte';
 	import SettingsSearch from 'comun/components/SettingsSearch.svelte';
 	import { field, group, primary, secondary, section } from '#lib/styles.ts';
@@ -149,6 +150,10 @@
 		<ComoTeAviso {data} {tab} />
 
 		<GuardarViajes {data} {tab} />
+
+		{#if data.user}
+			<BotonLlamar {data} {tab} userId={data.user.id} />
+		{/if}
 
 		<GastoIa {data} {tab} />
 	{/if}
@@ -311,6 +316,10 @@
 									</form>
 								</details>
 							{/if}
+						{/if}
+						<!-- Their call button (#330), set for them: who needs it seldom opens Ajustes. -->
+						{#if p.userId && p.userId !== data.user?.id && data.callButtons}
+							<BotonLlamar {data} {tab} userId={p.userId} name={p.name} />
 						{/if}
 					</li>
 				{/each}

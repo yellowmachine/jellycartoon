@@ -118,6 +118,7 @@ import {
 	saveHouse
 } from '#lib/server/house.ts';
 import { recordsTrips, setRecordTrips } from '#lib/server/trips/trips.ts';
+import { callButtons } from '#lib/server/call-buttons.ts';
 import { deleteCar, listCars, myCarId, saveCar, setMyCar } from '#lib/server/trips/cars.ts';
 import { MAX_CAR_NAME } from '#lib/cars.ts';
 import { fold } from 'comun/music.ts';
@@ -226,6 +227,8 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		myStyle: { text: (await personVoiceStyle(k, locals.user!.id)) ?? '' },
 		/** Whether the road mode keeps their trips (Viajes). */
 		recordTrips: await recordsTrips(k),
+		/** «Botón de llamar siempre a mano» (#330): everyone's, as any adult may set anyone's. */
+		callButtons: await callButtons.all(locals.user!.id),
 		/** The family's cars (#317), and theirs. */
 		cars: (await listCars(k)).map(({ id, name }) => ({ id, name })),
 		myCar: await myCarId(k),
@@ -350,6 +353,18 @@ export const actions: Actions = {
 			tx.update(familyMember).set({ theme }).where(eq(familyMember.userId, locals.user!.id))
 		);
 		return { saved: 'theme' };
+	},
+	/** «Botón de llamar siempre a mano» (#330): theirs or another's of the family, with its favorites. */
+	callButton: async ({ request, locals }) => {
+		const form = await request.formData();
+		const problem = await callButtons.set(
+			locals.user!.id,
+			String(form.get('userId') ?? ''),
+			form.get('on') === 'on',
+			form.getAll('favorite').map(String)
+		);
+		if (problem) return fail(400, { callButtonProblem: problem.problem });
+		return { saved: 'callButton' };
 	},
 	/** «Guardar mis viajes»: off deletes nothing already kept. */
 	recordTrips: async ({ request, locals }) => {

@@ -19,6 +19,7 @@
 	import WalkBar from '#lib/components/WalkBar.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import Caracol from '#lib/components/Caracol.svelte';
+	import CallButton from '#lib/components/CallButton.svelte';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 	import { wakeWord } from '#lib/wake-word.svelte.ts';
 	import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
@@ -77,6 +78,14 @@
 		if (page.url.pathname === '/carretera') return;
 		wakeWord.want(Boolean(voiceOn && kitchenMode.on && wakeWord.on.cocina));
 	});
+	/**
+	 * «Botón de llamar siempre a mano» (#330), if theirs is on: not where a call already is, nor over
+	 * a game or a video, which take the whole screen.
+	 */
+	const callButtonShown = $derived(
+		Boolean(data.callButton && data.family) &&
+			!/^\/(llamadas?|watch|juegos\/)/.test(page.url.pathname)
+	);
 	/**
 	 * Installed, the app has no browser buttons («standalone» in the manifest), and an iPhone no back
 	 * gesture either: its own arrow in the bar, but on the home page.
@@ -433,7 +442,8 @@ trip's link (#81), for whoever has it, and a shared walk's (#434), with its own 
 			{/if}
 		{/if}
 
-		<main class="mx-auto max-w-6xl px-4 py-6">
+		<!-- Room under the page for the call button (#330): its end is never hidden behind it. -->
+		<main class={['mx-auto max-w-6xl px-4 py-6', callButtonShown && 'pb-28']}>
 			<!-- Without a family, only an invitation's page: the way into one. -->
 			{#if data.user && !data.family && !page.url.pathname.startsWith('/invitacion/')}
 				<p class="rounded-md border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
@@ -464,5 +474,9 @@ trip's link (#81), for whoever has it, and a shared walk's (#434), with its own 
 			</div>
 			<VoicePanel inPanel />
 		</aside>
+	{/if}
+
+	{#if callButtonShown && data.callButton}
+		<CallButton favorites={data.callButton.favorites} aboveKitchen={panelShown} />
 	{/if}
 {/if}
