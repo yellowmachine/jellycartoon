@@ -6,7 +6,7 @@
 	/**
 	 * Costumbres de la voz: lo que ha aprendido de sus preguntas, por sitio (un satélite, una persona),
 	 * para ver por qué ya no pregunta algo, y olvidarlo si lo aprendió mal. Antes «Lo que ha aprendido
-	 * la voz», que el 2026-10-31 se confundió con «Lo que la voz recuerda» (Para mí).
+	 * la voz», que el 2026-10-31 se confundió con «Lo que la voz recuerda» (entonces en Ajustes → Para mí; desde #470, los dos en Reglas → Memoria).
 	 */
 	let { data, tab }: { data: PageData; tab: string } = $props();
 
@@ -21,10 +21,8 @@
 		<p class="mb-3 text-sm text-zinc-400">
 			Cuando la voz duda y te pregunta («¿un temporizador de media hora, o parar la música?»), se
 			acuerda de lo que contestas, en ese sitio, y la próxima vez lo hace sin preguntar. Si aprendió
-			algo mal, quítalo con ×. Lo que le cuentas o le pides recordar no está aquí, sino en
-			<a href="?seccion=mi#voz-recuerda" class="text-amber-400 hover:underline"
-				>Para mí → Lo que la voz recuerda</a
-			>.
+			algo mal, quítalo con ×. Lo que le cuentas o le pides recordar no está aquí, sino arriba, en
+			«Lo que la voz recuerda». Solo lo ve quien administra la familia.
 		</p>
 		{#if byPlace.length}
 			<div class="flex flex-col gap-3 text-sm">
@@ -38,7 +36,7 @@
 										<p class="text-zinc-200">{l.title}</p>
 										<p class="text-xs text-zinc-500">{l.rule}</p>
 									</div>
-									<form method="post" action="?seccion={tab}&/forgetVoiceLearned" use:enhance>
+									<form method="post" action="?ver={tab}&/forgetVoiceLearned" use:enhance>
 										<input type="hidden" name="id" value={l.id} />
 										<button
 											class="rounded px-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"

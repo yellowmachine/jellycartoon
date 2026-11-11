@@ -586,7 +586,7 @@ async function fire(k: Kitchen, r: Rule, key: string, why: string, chain: number
 		title: `🔔 ${notice.text}`,
 		body: `Porque ${why}.`,
 		tag: `regla-${r.id}-${key}`,
-		url: '/ajustes?seccion=mi#reglas',
+		url: '/reglas',
 		ttl: 6 * 3600
 	});
 	await sayAtHome(k, r, to);
