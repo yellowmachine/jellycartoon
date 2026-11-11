@@ -32,7 +32,10 @@ const onList: string[] = [];
 const added: string[][] = [];
 const savedRecipes: { title: string; from: string }[] = [];
 
+// The real module's, as the tests after this one use them (a mock is the process's); its chat, faked.
+const openrouter = await import('#lib/server/openrouter.ts');
 mock.module('#lib/server/openrouter.ts', () => ({
+	...openrouter,
 	chatWithTools: async (r: { messages: ToolChatMessage[] }) => {
 		sent.push(structuredClone(r.messages));
 		if (fails) throw new Error(fails);
@@ -41,8 +44,7 @@ mock.module('#lib/server/openrouter.ts', () => ({
 			usage: null,
 			fellBack: null
 		};
-	},
-	sayableError: (m: string) => (m.startsWith('OpenRouter:') ? 'La IA no ha podido contestar' : m)
+	}
 }));
 mock.module('#lib/server/family-settings.ts', () => ({ openRouterKey: async () => 'clave' }));
 mock.module('#lib/server/voice/settings.ts', () => ({
@@ -51,6 +53,8 @@ mock.module('#lib/server/voice/settings.ts', () => ({
 }));
 // As other tests fake it (a mock is the process's), with what this module uses of it.
 const fridge = () => ({
+	dayOf: (d: Date) => d.toISOString().slice(0, 10),
+	today: () => '2026-11-11',
 	houseKitchen: () => {
 		throw new Error('Sin cocina en esta prueba');
 	},
@@ -222,9 +226,9 @@ test('another person of the family sees nothing of it, nor acts on its cards; no
 });
 
 test('a failure saves nothing, in our words; an empty question is refused', async () => {
-	fails = 'OpenRouter: 500';
+	fails = 'No queda saldo en OpenRouter';
 	await expect(chat.askChat(ana, { id: 'ana', name: 'Ana' }, 'Hola')).rejects.toThrow(
-		'La IA no ha podido contestar'
+		'No queda saldo en OpenRouter'
 	);
 	expect(await chat.chatHistory(ana, 'ana')).toEqual([]);
 	await expect(chat.askChat(ana, { id: 'ana', name: 'Ana' }, '   ')).rejects.toThrow(
