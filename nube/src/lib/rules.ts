@@ -5,6 +5,8 @@
  * memory does: accents and case aside, the same first five letters («tendida», «tendido»).
  */
 
+import { timeLabel } from 'comun/timer-names.ts';
+
 /**
  * When: an agenda event that starts (`minutesBefore` it), a post-it or something on the list
  * that goes up, something the voice is asked to remember, a trip that starts or ends (theirs; the
@@ -106,15 +108,36 @@ export interface Deduction {
 	days: number;
 }
 
+/**
+ * What a rule that starts a timer keeps: one of the house's, `minutes` from then, rung in the whole
+ * house with `label` (alarms.ts, `startTimerAt`): «Saca las bebidas del congelador», an hour after
+ * the purchase.
+ */
+export interface RuleTimer {
+	minutes: number;
+	label: string;
+}
+
+/** What it would do, in words: «pondría un temporizador de 1 hora en casa: «Sacar las bebidas…»». */
+export const timerSaid = (t: RuleTimer, verb: string) =>
+	`${verb} un temporizador de ${timeLabel(t.minutes * 60)} en casa: «${t.label}»`;
+
+/** A rule's timer lasts at most a day (`MAX_TIMER_SEC`). */
+const MAX_TIMER_MIN = 24 * 60;
+
 /** A deduction lasts at most this long. */
 const MAX_DEDUCED_DAYS = 30;
 
 export interface RuleSpec {
 	when: Trigger;
 	conditions: Condition[];
-	/** What it does: tell (`notice`), or deduce (`deduce`); unset (older ones), tell. */
-	then?: 'avisar' | 'deducir';
+	/**
+	 * What it does: tell (`notice`), deduce (`deduce`) or start a timer in the house (`timer`);
+	 * unset (older ones), tell.
+	 */
+	then?: 'avisar' | 'deducir' | 'temporizador';
 	deduce?: Deduction | null;
+	timer?: RuleTimer | null;
 	notice: RuleNotice;
 	/** Told once, and then paused. */
 	once: boolean;
@@ -185,6 +208,7 @@ export interface TranslatedRule {
 	conditions: { kind: string; words: string[]; negate: boolean; weather: TranslatedWeather }[];
 	then: string;
 	deduce: { text: string; days: number };
+	timer: { minutes: number; label: string };
 	notice: { to: string; people: string[]; text: string; level: string };
 	once: boolean;
 	say: boolean;
@@ -204,9 +228,14 @@ export function specOf(
 	if (t.when.kind === 'cada_dia' && !time) return { problem: 'Falta a qué hora mirarla.' };
 	const weather = weatherOf(t.when.weather);
 	if (t.when.kind === 'tiempo' && !weather) return { problem: 'Falta qué tiempo esperar.' };
-	const then = t.then === 'deducir' ? 'deducir' : 'avisar';
+	const then = isOneOf(['deducir', 'temporizador'] as const, t.then) ? t.then : 'avisar';
 	const deduced = (t.deduce?.text ?? '').trim().slice(0, MAX_RULE);
 	if (then === 'deducir' && !deduced) return { problem: 'Falta qué deducir.' };
+	const minutes = Math.round(Number(t.timer?.minutes));
+	if (then === 'temporizador' && !(minutes > 0))
+		return { problem: 'Falta cuánto tiene que durar el temporizador.' };
+	const label = (t.timer?.label ?? '').trim().slice(0, 60);
+	if (then === 'temporizador' && !label) return { problem: 'Falta para qué es el temporizador.' };
 	const text = (t.notice?.text ?? '').trim().slice(0, MAX_RULE);
 	if (then === 'avisar' && !text) return { problem: 'Falta qué avisar.' };
 	const to = isOneOf(['yo', 'casa', 'personas'] as const, t.notice.to) ? t.notice.to : 'yo';
@@ -248,6 +277,7 @@ export function specOf(
 				then === 'deducir'
 					? { text: deduced, days: within(t.deduce.days, 0, MAX_DEDUCED_DAYS, 0) }
 					: null,
+			timer: then === 'temporizador' ? { minutes: Math.min(minutes, MAX_TIMER_MIN), label } : null,
 			notice: {
 				to,
 				userIds: people.map((x) => x.p!.userId),
@@ -256,7 +286,8 @@ export function specOf(
 				level: t.notice.level === 'urgente' ? 'urgente' : 'normal'
 			},
 			once: t.once === true,
-			say: t.say === true
+			// A timer rings in the whole house by itself.
+			say: then === 'temporizador' ? false : t.say === true
 		}
 	};
 }
@@ -286,6 +317,7 @@ export const RULE_SCHEMA = {
 		'conditions',
 		'then',
 		'deduce',
+		'timer',
 		'notice',
 		'once',
 		'say'
@@ -321,12 +353,18 @@ export const RULE_SCHEMA = {
 				}
 			}
 		},
-		then: { type: 'string', enum: ['avisar', 'deducir'] },
+		then: { type: 'string', enum: ['avisar', 'deducir', 'temporizador'] },
 		deduce: {
 			type: 'object',
 			additionalProperties: false,
 			required: ['text', 'days'],
 			properties: { text: { type: 'string' }, days: { type: 'integer' } }
+		},
+		timer: {
+			type: 'object',
+			additionalProperties: false,
+			required: ['minutes', 'label'],
+			properties: { minutes: { type: 'integer' }, label: { type: 'string' } }
 		},
 		notice: {
 			type: 'object',

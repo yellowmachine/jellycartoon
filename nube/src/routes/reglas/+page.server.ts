@@ -69,7 +69,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			said: r.said,
 			understood: r.understood,
 			paused: r.paused,
-			aloud: r.spec.say ?? !r.userId,
+			aloud: r.spec.then !== 'temporizador' && (r.spec.say ?? !r.userId),
+			timer: r.spec.then === 'temporizador' && r.spec.timer ? r.spec.timer : null,
 			lastFiredAt: r.lastFiredAt,
 			lastWhy: r.lastWhy
 		}))
