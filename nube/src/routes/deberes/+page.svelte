@@ -202,7 +202,7 @@
 						<input
 							bind:value={query}
 							placeholder="U otro capítulo: busca la serie o el título"
-							class="{select} min-w-0 flex-1 px-3"
+							class="{select} min-w-40 flex-1 px-3"
 							onkeydown={(e) => {
 								if (e.key === 'Enter') {
 									e.preventDefault();

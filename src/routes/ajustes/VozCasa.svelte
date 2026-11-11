@@ -124,7 +124,7 @@
 					update({ reset: false })}
 		>
 			<fieldset class="flex flex-wrap items-center gap-3">
-				<legend class="float-left w-44">Dicho con</legend>
+				<legend class="float-left w-28 sm:w-44">Dicho con</legend>
 				<label class="flex items-center gap-1.5">
 					<input type="radio" name="aiAnswers" value="" bind:group={aiAnswers} />
 					Piper
@@ -141,7 +141,7 @@
 				{/if}
 			</fieldset>
 			<label class="flex flex-wrap items-center gap-3">
-				<span class="w-44">Expresividad</span>
+				<span class="w-28 sm:w-44">Expresividad</span>
 				<input
 					type="range"
 					name="expressiveness"
@@ -149,12 +149,12 @@
 					max={EXPRESSIVENESS.max}
 					step="5"
 					bind:value={expressiveness}
-					class="flex-1"
+					class="min-w-32 flex-1"
 				/>
 				<span class="w-16 text-right tabular-nums">{expressiveness} %</span>
 			</label>
 			<label class="flex flex-wrap items-center gap-3">
-				<span class="w-44">Velocidad</span>
+				<span class="w-28 sm:w-44">Velocidad</span>
 				<input
 					type="range"
 					name="speed"
@@ -162,12 +162,12 @@
 					max={SPEED.max}
 					step="5"
 					bind:value={speed}
-					class="flex-1"
+					class="min-w-32 flex-1"
 				/>
 				<span class="w-16 text-right tabular-nums">{speed} %</span>
 			</label>
 			<label class="flex flex-wrap items-center gap-3">
-				<span class="w-44">Volumen de la voz</span>
+				<span class="w-28 sm:w-44">Volumen de la voz</span>
 				<input
 					type="range"
 					name="gainDb"
@@ -175,13 +175,13 @@
 					max={VOICE_GAIN.max}
 					step="1"
 					bind:value={gainDb}
-					class="flex-1"
+					class="min-w-32 flex-1"
 				/>
 				<span class="w-16 text-right tabular-nums">+{gainDb} dB</span>
 			</label>
 			{#if hv.snapcast}
 				<label class="flex flex-wrap items-center gap-3">
-					<span class="w-44">Música mientras habla</span>
+					<span class="w-28 sm:w-44">Música mientras habla</span>
 					<input
 						type="range"
 						name="duckDb"
@@ -189,7 +189,7 @@
 						max={MUSIC_DUCK.max}
 						step="1"
 						bind:value={duckDb}
-						class="flex-1"
+						class="min-w-32 flex-1"
 					/>
 					<span class="w-16 text-right tabular-nums">{duckDb} dB</span>
 				</label>

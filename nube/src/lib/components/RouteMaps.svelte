@@ -116,7 +116,7 @@
 					bind:value={name}
 					maxlength={MAX_DEVICE_NAME}
 					placeholder="Tablet coche"
-					class="{select} min-w-0 flex-1 px-3"
+					class="{select} min-w-40 flex-1 px-3"
 				/>
 				<button
 					class="rounded-md bg-amber-500 px-3 py-1 font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"

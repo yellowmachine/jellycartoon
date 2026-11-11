@@ -1013,7 +1013,7 @@
 													</select>
 												</label>
 												{#if t.tag === 'nueva'}
-													<label class="flex flex-col gap-1 text-xs text-zinc-400">
+													<label class="flex min-w-40 flex-1 flex-col gap-1 text-xs text-zinc-400">
 														Nombre
 														<!-- svelte-ignore a11y_autofocus -->
 														<input
@@ -1022,7 +1022,7 @@
 															maxlength="40"
 															placeholder="Pan, Agua…"
 															autofocus
-															class={field}
+															class="{field} w-full"
 														/>
 													</label>
 												{/if}

@@ -106,7 +106,7 @@
 						name="note"
 						maxlength={MAX_CAR_NOTE}
 						placeholder="Nota, si quieres: planta -2, plaza 47"
-						class="{field} min-w-0 flex-1 text-sm"
+						class="{field} min-w-40 flex-1 text-sm"
 					/>
 					<button
 						type="button"

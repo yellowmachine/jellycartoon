@@ -62,7 +62,7 @@
 				name="name"
 				placeholder="Nombre (p. ej. Sobrinos)"
 				aria-label="Nombre de la lista"
-				class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-900 text-sm"
+				class="min-w-40 flex-1 rounded-md border-zinc-700 bg-zinc-900 text-sm"
 			/>
 			<label class="flex items-center gap-2">
 				<input

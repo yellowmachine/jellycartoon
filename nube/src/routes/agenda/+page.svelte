@@ -610,7 +610,7 @@
 				<input
 					readonly
 					value={data.ics}
-					class="{field} min-w-0 flex-1 text-xs"
+					class="{field} min-w-40 flex-1 text-xs"
 					aria-label="Enlace .ics"
 				/>
 				<button class="{button} bg-zinc-800 hover:bg-zinc-700" onclick={() => copy(data.ics!)}
