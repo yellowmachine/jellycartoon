@@ -17,8 +17,9 @@
 	/**
 	 * Las reglas (#331): se dicen con palabras («cuando vengan mis padres, si estoy de viaje,
 	 * recuérdame lo de las plantas»), aquí o a la voz; la IA las entiende una vez y luego se
-	 * comprueban solas. Cada una como la entendió, la última vez que avisó y por qué; y Pausar,
-	 * Probar, Cambiar (se reescribe y se vuelve a entender) y Borrar. Las tuyas solo las ves tú.
+	 * comprueban solas. Cada una en su tarjeta, como la entendió, la última vez que avisó y por qué;
+	 * a la derecha un interruptor (activa o en pausa) y Probar. Tocando el texto se cambia (se
+	 * reescribe y se vuelve a entender) y ahí, lejos del dedo, está Borrar. Las tuyas solo las ves tú.
 	 * Y «¿Qué pasaría…?» (#389): todas en un momento que elijas, sin avisar ni guardar nada, y
 	 * «y si…» cambia lo que haya entonces (el tiempo, un viaje, las tomas, algo dicho).
 	 */
@@ -91,9 +92,9 @@
 	</details>
 
 	{#if data.rules.length}
-		<ul class="mb-4 flex flex-col divide-y divide-zinc-800 text-sm">
+		<ul class="mb-4 flex flex-col gap-2 text-sm">
 			{#each data.rules as r (r.id)}
-				<li class="py-2">
+				<li class="rounded-md border border-zinc-800 bg-zinc-900/40 p-3">
 					{#if editing === r.id}
 						<form
 							method="post"
@@ -107,50 +108,98 @@
 						>
 							<input type="hidden" name="id" value={r.id} />
 							<textarea name="text" rows="2" maxlength="500" class={field}>{r.said}</textarea>
-							<div class="flex gap-2">
+							<p class="text-xs text-zinc-500">La IA la vuelve a entender al guardar.</p>
+							<div class="flex flex-wrap items-center gap-2">
 								<button class={secondary}>Guardar</button>
 								<button type="button" class={secondary} onclick={() => (editing = null)}
 									>Cancelar</button
 								>
+								<button
+									formaction="?ver={tab}&/deleteRule"
+									class="ml-auto rounded-md px-3 py-1 text-sm text-red-400 hover:bg-red-950/50"
+									aria-label="Borrar «{r.understood}»">Borrar la regla</button
+								>
 							</div>
 						</form>
 					{:else}
-						<p class={r.paused ? 'text-zinc-500' : 'text-zinc-200'}>
-							{#if r.paused}<span class="text-xs uppercase">En pausa · </span>{/if}
-							{r.understood}
-						</p>
-						<p class="text-xs text-zinc-500">
-							{r.mine ? 'Solo tuya' : 'De toda la casa'}{r.aloud
-								? ' · También en voz alta en casa'
-								: ''} · Dicho: «{r.said}»
-						</p>
-						{#if r.lastFiredAt}
-							<p class="text-xs text-zinc-500">
-								Avisó el {when(r.lastFiredAt)}{r.lastWhy ? `, porque ${r.lastWhy}` : ''}.
-							</p>
-						{/if}
-						{#if tried?.id === r.id}
-							<p class="text-xs text-amber-400">{tried.said}</p>
-						{/if}
-						<div class="mt-1 flex flex-wrap gap-2">
-							<form method="post" action="?ver={tab}&/pauseRule" use:enhance={keep}>
-								<input type="hidden" name="id" value={r.id} />
-								<input type="hidden" name="paused" value={String(!r.paused)} />
-								<button class={secondary}>{r.paused ? 'Seguir' : 'Pausar'}</button>
-							</form>
-							<form method="post" action="?ver={tab}&/tryRule" use:enhance={keep}>
-								<input type="hidden" name="id" value={r.id} />
-								<button class={secondary}>Probar</button>
-							</form>
-							<button class={secondary} onclick={() => (editing = r.id)}>Cambiar</button>
-							<form method="post" action="?ver={tab}&/deleteRule" use:enhance={keep}>
-								<input type="hidden" name="id" value={r.id} />
-								<button class={secondary} aria-label="Borrar «{r.understood}»">Borrar</button>
-							</form>
+						<div class="flex items-start gap-3">
+							<div class="min-w-0 flex-1">
+								<button
+									type="button"
+									class="group text-left {r.paused ? 'text-zinc-500' : 'text-zinc-100'}"
+									onclick={() => (editing = r.id)}
+									title="Cambiar"
+								>
+									{r.understood}
+									<svg
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.5"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										class="ml-0.5 inline size-3.5 align-[-2px] text-zinc-500 group-hover:text-amber-400"
+										aria-hidden="true"><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg
+									>
+									<span class="sr-only">(cambiar)</span>
+								</button>
+								<p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500">
+									<span
+										class="rounded-full px-2 py-0.5 {r.mine
+											? 'bg-sky-950 text-sky-300'
+											: 'bg-amber-950 text-amber-300'}">{r.mine ? 'Solo tuya' : 'De la casa'}</span
+									>
+									{#if r.aloud}<span>🔊 También en voz alta</span>{/if}
+									{#if r.paused}<span class="uppercase">En pausa</span>{/if}
+								</p>
+								{#if r.lastFiredAt}
+									<p class="mt-1 text-xs text-zinc-500">
+										Avisó el {when(r.lastFiredAt)}{r.lastWhy ? `, porque ${r.lastWhy}` : ''}.
+									</p>
+								{/if}
+								{#if tried?.id === r.id}
+									<p class="mt-1 text-xs text-amber-400">{tried.said}</p>
+								{/if}
+							</div>
+							<div class="flex shrink-0 flex-col items-center gap-2">
+								<form method="post" action="?ver={tab}&/pauseRule" use:enhance={keep}>
+									<input type="hidden" name="id" value={r.id} />
+									<input type="hidden" name="paused" value={String(!r.paused)} />
+									<button
+										role="switch"
+										aria-checked={!r.paused}
+										aria-label="Activa"
+										title={r.paused ? 'En pausa: tócalo para seguir' : 'Activa: tócalo para pausar'}
+										class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors {r.paused
+											? 'bg-zinc-700'
+											: 'bg-amber-500'}"
+									>
+										<span
+											class="inline-block size-5 rounded-full bg-white shadow transition-transform {r.paused
+												? 'translate-x-0.5'
+												: 'translate-x-[22px]'}"
+										></span>
+									</button>
+								</form>
+								<form method="post" action="?ver={tab}&/tryRule" use:enhance={keep}>
+									<input type="hidden" name="id" value={r.id} />
+									<button
+										class="flex flex-col items-center rounded-md px-1.5 py-1 text-zinc-400 hover:bg-zinc-800 hover:text-amber-400"
+										title="Mirar ahora si avisaría"
+									>
+										<svg viewBox="0 0 24 24" fill="currentColor" class="size-5" aria-hidden="true"
+											><path
+												d="M8 5.5v13a1 1 0 0 0 1.5.9l10-6.5a1 1 0 0 0 0-1.7l-10-6.5A1 1 0 0 0 8 5.5Z"
+											/></svg
+										>
+										<span class="text-[10px] leading-none">Probar</span>
+									</button>
+								</form>
+							</div>
 						</div>
 					{/if}
 					{#if problemFor(r.id)}
-						<p class="text-sm text-red-400">{problemFor(r.id)}</p>
+						<p class="mt-1 text-sm text-red-400">{problemFor(r.id)}</p>
 					{/if}
 				</li>
 			{/each}
