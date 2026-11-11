@@ -312,6 +312,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: { file: 'dicho-a-la-voz', where: [mine()] },
 		note: 'Only with their user_id'
 	},
+	// «Preguntar» (#470): their chat with the AI, only theirs.
+	chat_message: {
+		leaving: 'moves',
+		joining: 'moves',
+		zip: { file: 'preguntar', where: [mine()] }
+	},
 	inbox: {
 		leaving: 'moves',
 		joining: 'moves',
@@ -554,6 +560,18 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		joining: 'dropped',
 		zip: false,
 		note: 'Between families (#464): a new family links again if it wants'
+	},
+	companion: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: '«Compañía» (#469): goes with its satellites, which a joining family drops'
+	},
+	companion_check: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'Only ✓ and ✗ of the asking, never what was said'
 	},
 
 	// The account: it is the same one.

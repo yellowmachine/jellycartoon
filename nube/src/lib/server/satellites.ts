@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { tellSatellite } from './satellite-live.ts';
 import { error } from '@sveltejs/kit';
 import { asc, eq } from 'drizzle-orm';
 import { db } from './db/index.ts';
@@ -17,46 +18,18 @@ const satelliteOfKey = satelliteKeyScope(db);
 
 export const MAX_SATELLITE_NAME = 40;
 
-/** Those open on each satellite (its /api/satelite/avisos), told when it changes. */
-const listeners = new Map<string, Set<() => void>>();
-
-export function watchSatellite(id: string, listener: () => void) {
-	const set = listeners.get(id) ?? new Set();
-	set.add(listener);
-	listeners.set(id, set);
-	return () => void set.delete(listener);
-}
-
-/** This satellite told again what it has (a plug task for it, #396). */
-export function nudgeSatellite(id: string) {
-	for (const listener of listeners.get(id) ?? []) listener();
-}
-
-/** Said once (#331): what each satellite is to say, kept a while for it to come and say it. */
-const SAY_MS = 10 * 60_000;
-const toSay = new Map<string, { id: string; text: string; until: number }[]>();
-
-/** For these satellites to say once, out loud: told to them at once. */
-export function sayOnSatellites(ids: string[], text: string) {
-	const until = Date.now() + SAY_MS;
-	for (const id of ids) {
-		const kept = (toSay.get(id) ?? []).filter((s) => s.until > Date.now());
-		toSay.set(id, [...kept, { id: randomUUID(), text, until }]);
-		for (const listener of listeners.get(id) ?? []) listener();
-	}
-}
-
-/** What it has still to say, oldest first. */
-export const saysFor = (id: string) =>
-	(toSay.get(id) ?? []).filter((s) => s.until > Date.now()).map(({ id, text }) => ({ id, text }));
-
-/** Said: not again. */
-export function saidOn(id: string, sayId: string) {
-	toSay.set(
-		id,
-		(toSay.get(id) ?? []).filter((s) => s.id !== sayId)
-	);
-}
+export {
+	nudgeSatellite,
+	presenceOf,
+	saidOn,
+	satelliteBeat,
+	satelliteHere,
+	sayOnSatellites,
+	saysFor,
+	tellSatellite,
+	unsay,
+	watchSatellite
+} from './satellite-live.ts';
 
 /** Its snapserver, as saved; null, none. */
 export async function snapserverOf(k: Kitchen, id: string) {
@@ -74,7 +47,7 @@ export async function setSnapserver(userId: string, id: string, snapserver: stri
 	await withFamily(userId, (tx) =>
 		tx.update(voiceSatellite).set({ snapserver }).where(eq(voiceSatellite.id, id))
 	);
-	for (const listener of listeners.get(id) ?? []) listener();
+	tellSatellite(id);
 }
 
 /** Whether it is in «Modo conversación» (#361): it listens after each answer, without the word. */
@@ -117,8 +90,7 @@ export function familySatellites(familyId: string) {
 
 /** Every satellite of the family told again what it has (its voice changed, #296). */
 export async function satellitesChanged(familyId: string) {
-	for (const { id } of await familySatellites(familyId))
-		for (const listener of listeners.get(id) ?? []) listener();
+	for (const { id } of await familySatellites(familyId)) tellSatellite(id);
 }
 
 /**

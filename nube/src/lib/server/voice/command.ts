@@ -82,6 +82,7 @@ import { converse, CONVERSE_SENTENCES } from './converse.ts';
 import { voiceFellBack } from './alarm.ts';
 import { searchWeb, WEB_TOOL, webSearchTool } from './web-search.ts';
 import { plugsForVoice, plugSwitchTool, switchByVoice } from '#lib/server/plugs/voice.ts';
+import { companionAway, companionOn } from '#lib/server/companion.ts';
 import { calls } from '#lib/server/calls.ts';
 import type { Callable } from '#lib/calls.ts';
 import type { PlugView } from '#lib/plugs.ts';
@@ -1314,6 +1315,28 @@ interface Turn {
 	phoneContacts: string[] | undefined;
 }
 
+/** «Compañía» (#469): out of home or back, said to a satellite. */
+const companionAwayTool: Tool = {
+	type: 'function',
+	function: {
+		name: 'companion_away',
+		description:
+			'«Compañía»: la casa pregunta cada rato a quien vive aquí si está bien. Cuando dice que sale de casa («me voy a comprar», «salgo un rato», «me voy a misa hasta la una»), away true: no se le pregunta mientras tanto; minutes, si dice cuánto (si no, 3 horas). Cuando dice que ya ha vuelto («ya estoy aquí», «ya he vuelto»), away false. Contesta corto, sin explicar el sistema.',
+		parameters: {
+			type: 'object',
+			properties: {
+				away: { type: 'boolean', description: 'true, sale; false, ha vuelto.' },
+				minutes: {
+					type: 'integer',
+					description: 'Cuánto estará fuera, si lo dice (de 15 a 720).'
+				}
+			},
+			required: ['away'],
+			additionalProperties: false
+		}
+	}
+};
+
 async function runTool(
 	name: string,
 	args: Record<string, unknown>,
@@ -1452,6 +1475,12 @@ async function runTool(
 				return `Preparada la llamada al ${number}: la tablet espera que toque «Llamar».`;
 			}
 			return 'No está en los contactos de teléfono de este aparato ni has dicho un número.';
+		}
+		case 'companion_away': {
+			const minutes = typeof args.minutes === 'number' ? args.minutes : null;
+			const result = await companionAway(ctx.k, args.away === true, minutes);
+			ctx.outcome.done++;
+			return result;
 		}
 		case 'plug_switch': {
 			const { result, done } = await switchByVoice(ctx.k, ctx.plugs, args);
@@ -2162,7 +2191,8 @@ export async function runVoiceCommand(
 		people,
 		home,
 		plugs,
-		callable
+		callable,
+		companion
 	] = await Promise.all([
 		openRouterKey(k),
 		voiceSettings(k),
@@ -2178,7 +2208,9 @@ export async function runVoiceCommand(
 		// The family's smart plugs (#396): what each is doing and has used. Failing, none.
 		kid ? null : plugsForVoice(k).catch(() => null),
 		// Who they may call (#330), only in the car for now. Failing, no one.
-		request.car && k.userId && !satellite ? calls.callable(k.userId).catch(() => []) : []
+		request.car && k.userId && !satellite ? calls.callable(k.userId).catch(() => []) : [],
+		// «Compañía» (#469): «me voy» and «ya estoy aquí», said to a satellite.
+		satellite ? companionOn(k) : false
 	]);
 	// Always there, short: who the family is and where it lives.
 	const profile = people.length
@@ -2329,6 +2361,7 @@ export async function runVoiceCommand(
 		...(kid || satellite ? [] : [markDoseTool]),
 		...(kid ? [] : [plannedTripsTool]),
 		...(plugs ? [plugSwitchTool] : []),
+		...(companion ? [companionAwayTool] : []),
 		...(callable.length ? [callTool(callable)] : []),
 		...(request.car && request.phoneContacts ? [phoneTool] : []),
 		...(learned ? [usedLearnedTool] : []),

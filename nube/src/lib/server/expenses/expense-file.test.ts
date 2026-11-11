@@ -22,7 +22,12 @@ mock.module('#lib/server/storage.ts', () => ({
 }));
 mock.module('#lib/server/openrouter.ts', () => ({
 	completeJson: async () => ({}),
-	VISION_MODEL: ''
+	VISION_MODEL: '',
+	// chat.test.ts's, unused here.
+	chatWithTools: async () => {
+		throw new Error('Sin IA en esta prueba');
+	},
+	sayableError: (message: string) => message
 }));
 mock.module('#lib/server/family-settings.ts', () => ({ openRouterKey: async () => null }));
 mock.module('#lib/server/fridge.ts', () => ({
@@ -34,7 +39,10 @@ mock.module('#lib/server/fridge.ts', () => ({
 	},
 	kitchenOf: () => {
 		throw new Error('Sin cocina en esta prueba');
-	}
+	},
+	// chat.test.ts's, unused here: a mock's names are fixed by the first one.
+	toBuy: async () => [],
+	addItems: async () => []
 }));
 
 const { addExpense } = await import('./expenses.ts');

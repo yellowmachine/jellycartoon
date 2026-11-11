@@ -2,13 +2,17 @@ import { error, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { recipesBackdropId, toggleRecipesBackdrop } from '#lib/server/family-settings.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
-import { deleteRecipe, getRecipe } from '#lib/server/recipes/import.ts';
+import { deleteRecipe, getRecipe, sourceLink } from '#lib/server/recipes/import.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const k = await kitchenOf(locals.user!.id);
 	const recipe = await getRecipe(k, Number(params.id));
 	if (!recipe) error(404, 'Receta no encontrada');
-	return { recipe, isBackdrop: (await recipesBackdropId(k)) === recipe.id };
+	return {
+		recipe,
+		link: sourceLink(recipe.sourceUrl),
+		isBackdrop: (await recipesBackdropId(k)) === recipe.id
+	};
 };
 
 export const actions: Actions = {

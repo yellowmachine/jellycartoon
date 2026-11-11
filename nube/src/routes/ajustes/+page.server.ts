@@ -99,6 +99,14 @@ import {
 	setSnapserver
 } from '#lib/server/satellites.ts';
 import { parseSnapserver } from '#lib/snapserver.ts';
+import {
+	askSoon,
+	COMPANION_LIMITS,
+	companionSettings,
+	onlyOwnSatellites,
+	ownCompanion,
+	saveCompanion
+} from '#lib/server/companion.ts';
 import { satelliteVoiceOf, setSatelliteVoice } from '#lib/server/voice/satellite-voice.ts';
 import { invitationLink, invitations, inviteAndSend } from '#lib/server/invitations.ts';
 import {
@@ -217,6 +225,14 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		/** «Aprender de lo que se habla» (#331): only its administrator. */
 		voiceLearn: admin ? voice.learn : null,
 		voiceQuiet: admin ? { hours: voice.quiet } : null,
+		/** «Compañía» (#469): how it is set, and how it is going. */
+		companion: admin
+			? {
+					settings: await companionSettings(locals.user!.id),
+					view: await ownCompanion(locals.user!.id),
+					limits: COMPANION_LIMITS
+				}
+			: null,
 		/** What the voice learned from its questions, by place (learned.ts). */
 		voiceLearned: admin ? await listLearned(k) : null,
 		/** The bar's sections, on or off, Oración (#339) too: only its administrator. */
@@ -515,6 +531,45 @@ export const actions: Actions = {
 			savedSections(await hasHouse(locals.user!.id), await familySections(k), ticked)
 		);
 		return { saved: 'sections' };
+	},
+	/** «Compañía» (#469): on or off, whom, how often, when, and how many tries. */
+	saveCompanion: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'companionProblem');
+		if (denied) return denied;
+		const form = await request.formData();
+		const time = (name: string, or: string) => {
+			const v = String(form.get(name) ?? '');
+			return /^\d{2}:\d{2}$/.test(v) ? v : or;
+		};
+		const number = (name: keyof typeof COMPANION_LIMITS, or: number) => {
+			const n = Math.round(Number(form.get(name)));
+			const { min, max } = COMPANION_LIMITS[name];
+			return Number.isFinite(n) ? Math.min(Math.max(n, min), max) : or;
+		};
+		const fromTime = time('fromTime', '09:00');
+		const toTime = time('toTime', '22:00');
+		if (fromTime === toTime)
+			return fail(400, {
+				companionProblem: 'Las horas de empezar y acabar no pueden ser la misma'
+			});
+		await saveCompanion(locals.user!.id, {
+			on: form.get('on') === 'on',
+			name: String(form.get('name') ?? ''),
+			satelliteIds: await onlyOwnSatellites(locals.user!.id, form.getAll('satellite').map(String)),
+			everyMinutes: number('everyMinutes', 30),
+			fromTime,
+			toTime,
+			retries: number('retries', 2),
+			retryMinutes: number('retryMinutes', 2)
+		});
+		return { saved: 'companion' };
+	},
+	/** «Preguntar ahora», to try it. */
+	askCompanionNow: async ({ locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'companionProblem');
+		if (denied) return denied;
+		await askSoon(locals.user!.id);
+		return { saved: 'companionAsk' };
 	},
 	/** «Horas de silencio»: both times, or none (`off`). */
 	saveVoiceQuiet: async ({ request, locals }) => {

@@ -180,6 +180,38 @@ export async function importRecipe(k: Kitchen, address: string) {
 	return { id, existing: !row };
 }
 
+/** Where a recipe written in «Preguntar» (#470) comes from: no page, so not a link. */
+export const CHAT_SOURCE = 'chat:';
+export const CHAT_SOURCE_NAME = 'Escrita en «Preguntar»';
+
+/** A web page's address, to link to; null for one written in the chat. */
+export const sourceLink = (sourceUrl: string) =>
+	/^https?:\/\//.test(sourceUrl) ? sourceUrl : null;
+
+/**
+ * A recipe the AI wrote in «Preguntar» (#470), into the book: its own `sourceUrl` (`chat:` and the
+ * message and card it came from), so saving it twice keeps one.
+ */
+export async function saveWrittenRecipe(k: Kitchen, written: Recipe, from: string) {
+	const sourceUrl = `${CHAT_SOURCE}${from}`;
+	const [row] = await k.run((tx) =>
+		tx
+			.insert(recipe)
+			.values({
+				...recipeFields(written),
+				familyId: k.familyId,
+				sourceUrl,
+				sourceName: CHAT_SOURCE_NAME,
+				createdBy: k.userId
+			})
+			.onConflictDoNothing()
+			.returning({ id: recipe.id })
+	);
+	const id = row?.id ?? (await saved(k, sourceUrl));
+	if (!id) throw new Error('No se pudo guardar la receta');
+	return id;
+}
+
 const recipeFields = (r: Recipe) => ({
 	title: r.title,
 	servings: r.servings,

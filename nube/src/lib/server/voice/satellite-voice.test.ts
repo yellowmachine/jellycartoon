@@ -33,6 +33,10 @@ mock.module('#lib/server/openrouter.ts', () => ({
 		await new Promise((resolve) => setTimeout(resolve, 5));
 		inFlight--;
 		return { pcm: new Uint8Array(4), rate: 24_000 };
+	},
+	// chat.test.ts's, unused here.
+	chatWithTools: async () => {
+		throw new Error('Sin IA en esta prueba');
 	}
 }));
 

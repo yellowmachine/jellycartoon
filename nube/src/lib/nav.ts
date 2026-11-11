@@ -51,6 +51,15 @@ const SECTIONS: {
 		startsOff: true,
 		about: 'Tiempo, km y recorrido al salir a andar, privados de cada persona. Solo adultos.'
 	},
+	// A chat with the family's AI (#470), each adult their own; children have none.
+	{
+		path: '/preguntar',
+		label: 'Preguntar',
+		icon: 'preguntar',
+		where: 'nube',
+		about:
+			'Un chat con la IA, privado de cada persona, que propone qué comprar o una receta para guardar con un toque. Solo adultos.'
+	},
 	{
 		path: '/notas',
 		label: 'Notas',

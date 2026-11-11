@@ -22,7 +22,12 @@ const k: Kitchen = {
 		})
 };
 // Bun's module mocks are the whole run's: the same as search.test.ts's.
-mock.module('#lib/server/fridge.ts', () => ({ houseKitchen: () => k, today: localDay }));
+mock.module('#lib/server/fridge.ts', () => ({
+	houseKitchen: () => k,
+	today: localDay, // chat.test.ts's, unused here: a mock's names are fixed by the first one.
+	toBuy: async () => [],
+	addItems: async () => []
+}));
 const { addAiCost, aiCostStats } = await import('./ai-costs.ts');
 
 // A fixed day and hour, whenever it runs: «today» here must not change halfway through at midnight.

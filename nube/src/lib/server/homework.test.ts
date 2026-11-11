@@ -65,7 +65,11 @@ mock.module('#lib/server/openrouter.ts', () => ({
 				at: null
 			}
 		]
-	})
+	}),
+	// chat.test.ts's, unused here.
+	chatWithTools: async () => {
+		throw new Error('Sin IA en esta prueba');
+	}
 }));
 const told: { to: string[]; title: string; url: string }[] = [];
 mock.module('#lib/server/push.ts', () => ({

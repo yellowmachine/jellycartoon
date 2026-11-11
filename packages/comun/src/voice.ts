@@ -5,6 +5,24 @@ import type { LngLat, Place } from 'comun/road.ts';
 /** A satellite's key to its house's Whisper alone, on going to it directly (#430). */
 export const HEARING_KEY_HEADER = 'x-voz-clave';
 
+/**
+ * What a satellite can do, said on connecting to Seilide's /api/satelite/avisos, by name and comma
+ * separated: `compania`, listen after a question of «Compañía» and send the answer back (#469).
+ * An older image says nothing, and is not asked: it would ask and never answer.
+ */
+export const SATELLITE_CAN_HEADER = 'x-satelite-puede';
+
+/**
+ * After a question of «Compañía» (#469), how long the satellite listens for the answer: longer than
+ * a question of the AI (`FOLLOW_UP_MS`), as an older person may take a moment.
+ */
+export const COMPANION_LISTEN_MS = 12_000;
+
+/** Seilide's answer to what was heard after a question of «Compañía» (#469): what to say back. */
+export interface CompanionReply {
+	reply: string;
+}
+
 /** Where a satellite hears directly (#430): the house's address, with the family's words, and its key. */
 export interface DirectHearing {
 	url: string;

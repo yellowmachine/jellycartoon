@@ -13,6 +13,7 @@ import { toWav } from '../../packages/comun/src/wakeword-recorder.ts';
 import { EarlyHearing } from './early.ts';
 import { Resampler } from './resample.ts';
 import {
+	answerCompanion,
 	duck,
 	filler,
 	followAlarms,
@@ -25,6 +26,7 @@ import {
 	saidOnce,
 	serverReady,
 	speech,
+	startBeats,
 	stopAlarms,
 	type Ringing
 } from './server.ts';
@@ -40,6 +42,7 @@ import {
 } from '../../packages/comun/src/wake-words.ts';
 import {
 	AFTER_LEARNED_MS,
+	COMPANION_LISTEN_MS,
 	CONVERSATION_MS,
 	FOLLOW_UP_MS,
 	type PlugTask
@@ -278,6 +281,8 @@ interface Order {
 	 * nothing said is the talk's end, with its beep (`endTalk`).
 	 */
 	quietEnd: boolean;
+	/** After a question of «Compañía» (#469): what is said goes to Seilide as its answer. */
+	companion: boolean;
 }
 
 let order: Order | null = null;
@@ -356,7 +361,8 @@ function begin(
 	voiceDb: number | null,
 	waitMs = SPEECH_END.waitMs,
 	hz: number | null = 880,
-	conversation = false
+	conversation = false,
+	companion = false
 ) {
 	// As touching the phone: what rings stops, and the order may be about it («quítalo»).
 	if (alarms.ringing.length) {
@@ -386,7 +392,8 @@ function begin(
 		greet: phrase && { at: Date.now() + GREET_WAIT_MS, wav: phrase, speechMs: 0 },
 		held: false,
 		sent: phrase ? 'soft' : 'beep',
-		quietEnd: conversation || hz === null
+		quietEnd: conversation || hz === null,
+		companion
 	};
 }
 
@@ -444,6 +451,7 @@ async function endTalk() {
 async function finish(current: Order, said: 'done' | 'nothing') {
 	order = null;
 	quietUntil = Date.now() + QUIET_MS;
+	if (current.companion) return companionAnswered(current, said);
 	const { voiceDb, backgroundDb, backgroundMs, capped } = current.end.report;
 	const seconds = (current.chunks.length * CHUNK) / SAMPLE_RATE;
 	if (said === 'nothing') {
@@ -602,6 +610,35 @@ async function respond(wav: Uint8Array, heard: Promise<string | null> | null = n
 	}
 }
 
+/**
+ * After a question of «Compañía» (#469): what was said to Seilide, which judges it (an answer, or
+ * the TV?) and says what to say back. Nothing said: nothing sent, Seilide asks again later.
+ */
+async function companionAnswered(current: Order, said: 'done' | 'nothing') {
+	const seconds = (current.chunks.length * CHUNK) / SAMPLE_RATE;
+	if (said === 'nothing') {
+		duck(false);
+		return log(`Compañía: nada dicho en ${seconds.toFixed(1)} s`);
+	}
+	busy = true;
+	try {
+		const wav = toWav(joined(current.chunks));
+		await keep(wav);
+		const { text, reply } = await answerCompanion(wav);
+		log(`Compañía: «${text}» → «${reply || '(no es una respuesta)'}»`);
+		if (reply) {
+			const voice = await speech(reply);
+			if (voice && speakerName) await play(voice);
+		}
+	} catch (err) {
+		log(`Compañía, sin respuesta de Seilide: ${err instanceof Error ? err.message : String(err)}`);
+	} finally {
+		busy = false;
+		quietUntil = Date.now() + QUIET_MS;
+		duck(false);
+	}
+}
+
 /** A phrase while the AI thinks: on its speaker, or through Snapcast by the server. Never fails. */
 async function sayFiller() {
 	try {
@@ -639,6 +676,8 @@ if (serverReady)
 		void sayOnce();
 		doPlugTasks(state.plugTasks ?? []);
 	});
+
+startBeats();
 
 /** The plug tasks taken already (#396), by their id: not again while the server still sends them. */
 const plugTasksTaken = new Set<string>();
@@ -686,6 +725,11 @@ async function sayOnce() {
 			try {
 				const voice = await speech(next.text, { chime: true });
 				if (voice) await play(voice);
+				// A question of «Compañía» (#469): its answer listened for, without the word.
+				if (next.listen && !order) {
+					log(`Compañía: escuchando la respuesta ${COMPANION_LISTEN_MS / 1000} s`);
+					begin(null, COMPANION_LISTEN_MS, null, false, true);
+				}
 			} catch (err) {
 				log(`Sin voz para decirlo: ${err instanceof Error ? err.message : String(err)}`);
 			}
