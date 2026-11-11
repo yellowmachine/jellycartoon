@@ -154,6 +154,9 @@ describe('where a child may go', () => {
 		// «Preguntar» (#470): adults only.
 		expect(kidMayOpen('/preguntar', 'GET')).toBe(false);
 		expect(kidMayOpen('/preguntar', 'POST')).toBe(false);
+		// Reglas y memoria, out of Ajustes: adults only.
+		expect(kidMayOpen('/reglas', 'GET')).toBe(false);
+		expect(kidMayOpen('/reglas', 'POST')).toBe(false);
 		expect(kidMayOpen('/api/juegos/snes/mario.7z', 'GET')).toBe(false);
 		expect(kidMayOpen('/agenda', 'POST')).toBe(false);
 		expect(kidMayOpen('/agenda/alarmas', 'GET')).toBe(false);

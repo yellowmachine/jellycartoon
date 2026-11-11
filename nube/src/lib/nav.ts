@@ -60,6 +60,15 @@ const SECTIONS: {
 		about:
 			'Un chat con la IA, privado de cada persona, que propone qué comprar o una receta para guardar con un toque. Solo adultos.'
 	},
+	// Rules and what the voice remembers (#331, #389), out of Ajustes: adults only.
+	{
+		path: '/reglas',
+		label: 'Reglas',
+		icon: 'reglas',
+		where: 'nube',
+		about:
+			'Avisos que se dicen con palabras («si alguien pone leche en la lista, avísame»), «¿Qué pasaría…?» y lo que la voz recuerda. Solo adultos.'
+	},
 	{
 		path: '/notas',
 		label: 'Notas',

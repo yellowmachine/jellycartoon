@@ -40,16 +40,11 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		words: 'voz carácter personalidad tono humor tomar el pelo chistes asistente estilo'
 	},
 	{
-		id: 'voz-recuerda',
+		id: 'reglas-y-memoria',
 		tab: 'mi',
-		title: 'Lo que la voz recuerda',
-		words: 'memoria recordar recuerda olvidar apuntar llave talla datos voz'
-	},
-	{
-		id: 'reglas',
-		tab: 'mi',
-		title: 'Reglas',
-		words: 'reglas cuando si entonces avisar automático condiciones'
+		title: 'Reglas y memoria (en su página)',
+		words:
+			'reglas cuando si entonces avisar automático condiciones qué pasaría memoria recordar recuerda olvidar apuntar llave talla datos voz costumbres hábitos aprendido'
 	},
 	{
 		id: 'noticias',
@@ -219,13 +214,6 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		tab: 'familia',
 		title: 'Horas de silencio',
 		words: 'noche madrugada dormir silencio no molestar música voz confirmar preguntar',
-		shown: onlyAdmin
-	},
-	{
-		id: 'voz-aprendido',
-		tab: 'familia',
-		title: 'Costumbres de la voz',
-		words: 'costumbres hábitos aprendido aprender preguntas sin preguntar olvidar satélite voz',
 		shown: onlyAdmin
 	},
 	{

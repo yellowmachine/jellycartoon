@@ -1,7 +1,7 @@
 import type { RuleSpec } from '#lib/rules.ts';
 
 /**
- * Rules ready to turn on (#331, phase 7), in Ajustes → Reglas: to find out what rules can do
+ * Rules ready to turn on (#331, phase 7), in Reglas: to find out what rules can do
  * without having to think of one. Written here as data, as the AI would (no AI to turn them on);
  * each one's person's, theirs. A ready one may be several rules: the washing machine's deduces,
  * and the rain's tells.

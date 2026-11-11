@@ -14,6 +14,7 @@
 		| 'paseos'
 		| 'notas'
 		| 'preguntar'
+		| 'reglas'
 		| 'llamadas'
 		| 'estadisticas'
 		| 'enchufes'
@@ -115,6 +116,13 @@
 		<!-- A speech bubble with three dots (Lucide's message-circle-more). -->
 		<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
 		<path d="M8 12h.01M12 12h.01M16 12h.01" />
+	{:else if name === 'reglas'}
+		<!-- A branch: when this, then that (Lucide's git-fork). -->
+		<circle cx="12" cy="18" r="3" />
+		<circle cx="6" cy="6" r="3" />
+		<circle cx="18" cy="6" r="3" />
+		<path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9" />
+		<path d="M12 12v3" />
 	{:else if name === 'notas'}
 		<!-- A notebook with a pencil's line (Lucide's notebook-pen, simplified). -->
 		<path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4" />

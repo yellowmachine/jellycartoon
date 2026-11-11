@@ -19,11 +19,8 @@
 	import VozInternet from './VozInternet.svelte';
 	import VozSilencio from './VozSilencio.svelte';
 	import VozAprende from './VozAprende.svelte';
-	import VozAprendido from './VozAprendido.svelte';
-	import VozRecuerda from './VozRecuerda.svelte';
 	import ComoTeAviso from './ComoTeAviso.svelte';
 	import Noticias from './Noticias.svelte';
-	import Reglas from './Reglas.svelte';
 	import Satelites from './Satelites.svelte';
 	import Compania from './Compania.svelte';
 	import Guardado from 'comun/components/Guardado.svelte';
@@ -63,6 +60,12 @@
 	// A section that moved to another tab (`?seccion=familia#ia`, from before «Conexiones»): its tab now.
 	onMount(() => {
 		const id = location.hash.slice(1);
+		// Moved to their own page (/reglas): the rules, and what the voice remembers and learned.
+		const moved = { reglas: 'reglas', 'voz-recuerda': 'memoria', 'voz-aprendido': 'memoria' };
+		if (id in moved) {
+			void goto(`/reglas?ver=${moved[id as keyof typeof moved]}#${id}`, { replaceState: true });
+			return;
+		}
 		const now = SETTINGS_INDEX.find((e) => e.id === id)?.tab;
 		if (!now || now === tab || !tabs.some((t) => t.id === now)) return;
 		const url = new URL(location.href);
@@ -142,9 +145,14 @@
 
 		<VozCaracter {data} {form} {tab} which="mio" />
 
-		<VozRecuerda {data} {form} {tab} />
-
-		<Reglas {data} {form} {tab} />
+		<!-- Reglas and the voice's memory have their own page (/reglas): only the way to it. -->
+		<section class={section} id="reglas-y-memoria">
+			<h2 class="mb-1 font-semibold">Reglas y memoria</h2>
+			<p class="text-sm text-zinc-400">
+				Las reglas, «¿Qué pasaría…?» y lo que la voz recuerda están ahora en su página:
+				<a href="/reglas" class="text-amber-400 hover:underline">Reglas →</a>
+			</p>
+		</section>
 
 		<h2 class={group}>Avisos y lo tuyo</h2>
 
@@ -453,8 +461,6 @@
 			<VozInternet {data} {form} {tab} />
 
 			<VozAprende {data} {tab} />
-
-			<VozAprendido {data} {tab} />
 
 			<Satelites {data} {form} {tab} />
 

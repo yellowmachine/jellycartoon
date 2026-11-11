@@ -80,7 +80,7 @@
 					{#if t.on}
 						<span class="text-xs text-amber-400">Activada</span>
 					{:else}
-						<form method="post" action="?seccion={tab}&/activateTemplate" use:enhance={keep}>
+						<form method="post" action="?ver={tab}&/activateTemplate" use:enhance={keep}>
 							<input type="hidden" name="id" value={t.id} />
 							<button class={secondary}>Activar</button>
 						</form>
@@ -97,7 +97,7 @@
 					{#if editing === r.id}
 						<form
 							method="post"
-							action="?seccion={tab}&/saveRule"
+							action="?ver={tab}&/saveRule"
 							use:enhance={() =>
 								async ({ result, update }) => {
 									await update({ reset: false });
@@ -133,17 +133,17 @@
 							<p class="text-xs text-amber-400">{tried.said}</p>
 						{/if}
 						<div class="mt-1 flex flex-wrap gap-2">
-							<form method="post" action="?seccion={tab}&/pauseRule" use:enhance={keep}>
+							<form method="post" action="?ver={tab}&/pauseRule" use:enhance={keep}>
 								<input type="hidden" name="id" value={r.id} />
 								<input type="hidden" name="paused" value={String(!r.paused)} />
 								<button class={secondary}>{r.paused ? 'Seguir' : 'Pausar'}</button>
 							</form>
-							<form method="post" action="?seccion={tab}&/tryRule" use:enhance={keep}>
+							<form method="post" action="?ver={tab}&/tryRule" use:enhance={keep}>
 								<input type="hidden" name="id" value={r.id} />
 								<button class={secondary}>Probar</button>
 							</form>
 							<button class={secondary} onclick={() => (editing = r.id)}>Cambiar</button>
-							<form method="post" action="?seccion={tab}&/deleteRule" use:enhance={keep}>
+							<form method="post" action="?ver={tab}&/deleteRule" use:enhance={keep}>
 								<input type="hidden" name="id" value={r.id} />
 								<button class={secondary} aria-label="Borrar «{r.understood}»">Borrar</button>
 							</form>
@@ -159,7 +159,7 @@
 
 	<form
 		method="post"
-		action="?seccion={tab}&/saveRule"
+		action="?ver={tab}&/saveRule"
 		use:enhance={() =>
 			async ({ result, update }) =>
 				update({ reset: result.type === 'success' })}
@@ -196,7 +196,7 @@
 		</p>
 		<form
 			method="post"
-			action="?seccion={tab}&/simulateRules"
+			action="?ver={tab}&/simulateRules"
 			use:enhance={() => {
 				simulating = true;
 				return async ({ update }) => {

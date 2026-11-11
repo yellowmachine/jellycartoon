@@ -32,7 +32,7 @@
 					<li>
 						<form
 							method="post"
-							action="?seccion={tab}&/editMemory"
+							action="?ver={tab}&/editMemory"
 							use:enhance={() =>
 								async ({ result, update }) => {
 									await update({ reset: false });
@@ -96,7 +96,7 @@
 							onclick={() => (editing = m.id)}
 							aria-label="Editar «{m.text}»">Editar</button
 						>
-						<form method="post" action="?seccion={tab}&/forgetMemory" use:enhance>
+						<form method="post" action="?ver={tab}&/forgetMemory" use:enhance>
 							<input type="hidden" name="id" value={m.id} />
 							<button
 								class="rounded px-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
@@ -130,7 +130,7 @@
 		</div>
 		<form
 			method="post"
-			action="?seccion={tab}&/addMemory"
+			action="?ver={tab}&/addMemory"
 			use:enhance={() =>
 				async ({ update }) =>
 					update({ reset: true })}
