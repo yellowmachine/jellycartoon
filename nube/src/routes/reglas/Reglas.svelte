@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Guardado from 'comun/components/Guardado.svelte';
+	import Espera from '#lib/components/Espera.svelte';
 	import { cost } from 'comun/ai-spend.ts';
 	import { addDays, localDay } from 'comun/agenda.ts';
 	import { enhance } from '$app/forms';
@@ -48,8 +49,10 @@
 	);
 	const today = localDay();
 	const nextHour = `${String((new Date().getHours() + 1) % 24).padStart(2, '0')}:00`;
-	const DOES = { avisa: '🔔', deduce: '💡' } as const;
+	const DOES = { avisa: '🔔', deduce: '💡', temporizador: '⏲️' } as const;
 	let simulating = $state(false);
+	/** While the AI understands one that is saved: the snail, as when Gastos reads a ticket. */
+	let understanding = $state(false);
 
 	const problemFor = (id: number | null) =>
 		form && 'ruleProblem' in form && (form.ruleId ?? null) === id ? form.ruleProblem : null;
@@ -60,6 +63,9 @@
 </script>
 
 <section class={section} id="reglas">
+	{#if understanding}
+		<Espera>Entendiendo la regla…</Espera>
+	{/if}
 	<h2 class="mb-1 font-semibold">Reglas</h2>
 	<p class="mb-3 text-sm text-zinc-400">
 		Dile cuándo avisar y de qué, con tus palabras: «cuando vengan mis padres, si estoy de viaje,
@@ -99,11 +105,15 @@
 						<form
 							method="post"
 							action="?ver={tab}&/saveRule"
-							use:enhance={() =>
-								async ({ result, update }) => {
+							use:enhance={({ action }) => {
+								// Deleting asks nothing of the AI.
+								understanding = action.search.includes('/saveRule');
+								return async ({ result, update }) => {
 									await update({ reset: false });
+									understanding = false;
 									if (result.type === 'success') editing = null;
-								}}
+								};
+							}}
 							class="flex flex-col gap-2"
 						>
 							<input type="hidden" name="id" value={r.id} />
@@ -150,11 +160,13 @@
 											: 'bg-amber-950 text-amber-300'}">{r.mine ? 'Solo tuya' : 'De la casa'}</span
 									>
 									{#if r.aloud}<span>🔊 También en voz alta</span>{/if}
+									{#if r.timer}<span>⏲️ Temporizador en casa</span>{/if}
 									{#if r.paused}<span class="uppercase">En pausa</span>{/if}
 								</p>
 								{#if r.lastFiredAt}
 									<p class="mt-1 text-xs text-zinc-500">
-										Avisó el {when(r.lastFiredAt)}{r.lastWhy ? `, porque ${r.lastWhy}` : ''}.
+										{r.timer ? 'Puso el temporizador el' : 'Avisó el'}
+										{when(r.lastFiredAt)}{r.lastWhy ? `, porque ${r.lastWhy}` : ''}.
 									</p>
 								{/if}
 								{#if tried?.id === r.id}
@@ -209,9 +221,13 @@
 	<form
 		method="post"
 		action="?ver={tab}&/saveRule"
-		use:enhance={() =>
-			async ({ result, update }) =>
-				update({ reset: result.type === 'success' })}
+		use:enhance={() => {
+			understanding = true;
+			return async ({ result, update }) => {
+				await update({ reset: result.type === 'success' });
+				understanding = false;
+			};
+		}}
 		class="flex flex-col gap-2 text-sm"
 	>
 		<textarea

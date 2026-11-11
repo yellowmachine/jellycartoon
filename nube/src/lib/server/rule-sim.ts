@@ -16,7 +16,7 @@ import {
 import { addDays } from 'comun/agenda.ts';
 import { hasWords } from '#lib/server/voice/learned.ts';
 import type { HourAhead } from 'comun/weather.ts';
-import type { RuleSpec } from '#lib/rules.ts';
+import { timerSaid, type RuleSpec } from '#lib/rules.ts';
 
 /**
  * «¿Qué pasaría…?» (#389): a family's rules (#331) looked at in a span of a day to come, in the
@@ -154,7 +154,7 @@ export interface Outcome {
 	/** `HH:MM` it would do it, or holds at; null, it does not wait for the clock. */
 	at: string | null;
 	/** What it would do: tell, keep a fact; null, nothing. */
-	does: 'avisa' | 'deduce' | null;
+	does: 'avisa' | 'deduce' | 'temporizador' | null;
 	said: string;
 }
 
@@ -203,7 +203,11 @@ const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** What a rule would do, in words: «deduciría «Hay ropa tendida»», «avisaría». */
 const doesSaid = (r: Rule) =>
-	r.spec.then === 'deducir' && r.spec.deduce ? `deduciría «${r.spec.deduce.text}»` : 'avisaría';
+	r.spec.then === 'deducir' && r.spec.deduce
+		? `deduciría «${r.spec.deduce.text}»`
+		: r.spec.then === 'temporizador' && r.spec.timer
+			? timerSaid(r.spec.timer, 'pondría')
+			: 'avisaría';
 
 /**
  * The rules, in the span `from`…`to` (minutes, as `minutesOf`, the same day). `world`, the world
@@ -265,6 +269,15 @@ export async function simulate({
 				if (holds.ok) await act(q, w, minute, [because, ...holds.why].join(' y '), through);
 				else missed.set(q.id, { minute, why: [because, ...holds.why].join(' pero ') });
 			}
+			return;
+		}
+		if (r.spec.then === 'temporizador' && r.spec.timer) {
+			said(
+				r,
+				minute,
+				'temporizador',
+				`${capital(timerSaid(r.spec.timer, 'pondría'))}. Porque ${why}.`
+			);
 			return;
 		}
 		const { how, after } = await tells(r, w);

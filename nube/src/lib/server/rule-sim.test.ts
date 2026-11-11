@@ -309,6 +309,27 @@ describe('y si…', () => {
 		);
 	});
 
+	test('something bought that starts a timer: how long and what for, in the house', async () => {
+		const freezer = ruleOf({
+			when: when({ kind: 'compra', words: ['bebida'] }),
+			then: 'temporizador',
+			timer: { minutes: 60, label: 'Sacar las bebidas del congelador' }
+		});
+		const [o] = await run([freezer], '10:00', '10:59', {
+			happens: { kind: 'compra', text: 'Bebidas de cola, pan' }
+		});
+		expect(o!.does).toBe('temporizador');
+		expect(o!.said).toBe(
+			'Pondría un temporizador de 1 hora en casa: «Sacar las bebidas del congelador». Porque han comprado: Bebidas de cola.'
+		);
+		const [not] = await run([freezer], '10:00', '10:59', {
+			happens: { kind: 'compra', text: 'pan' }
+		});
+		expect(not!.said).toBe(
+			'No pondría un temporizador de 1 hora en casa: «Sacar las bebidas del congelador»: «pan» no tiene «bebida».'
+		);
+	});
+
 	test('something bought that is not it: why not', async () => {
 		const [o] = await run(
 			[ruleOf({ when: when({ kind: 'compra', words: ['bebida'] }) })],

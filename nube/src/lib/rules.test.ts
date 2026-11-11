@@ -19,6 +19,7 @@ const answer = (over: Partial<TranslatedRule> = {}): TranslatedRule => ({
 	conditions: [{ kind: 'de_viaje', words: [], negate: false, weather: none }],
 	then: 'avisar',
 	deduce: { text: '', days: 0 },
+	timer: { minutes: 0, label: '' },
 	notice: { to: 'yo', people: [], text: 'Recuérdales lo de las plantas', level: 'normal' },
 	once: false,
 	say: false,
@@ -38,6 +39,7 @@ describe('specOf', () => {
 				conditions: [{ kind: 'de_viaje', words: [], negate: false }],
 				then: 'avisar',
 				deduce: null,
+				timer: null,
 				notice: {
 					to: 'yo',
 					userIds: [],
@@ -231,5 +233,42 @@ describe('specOf', () => {
 		expect(
 			specOf(answer({ then: 'deducir', deduce: { text: 'Algo', days: 999 } }), resolve)
 		).toMatchObject({ spec: { deduce: { days: 30 } } });
+	});
+
+	test('a rule that starts a timer in the house: how long, what for, never said out loud too', () => {
+		const made = specOf(
+			answer({
+				when: {
+					kind: 'compra',
+					words: ['bebida'],
+					minutes_before: 0,
+					minutes_after: 0,
+					time: null,
+					weather: none
+				},
+				conditions: [],
+				then: 'temporizador',
+				timer: { minutes: 60, label: ' Sacar las bebidas del congelador ' },
+				notice: { to: 'yo', people: [], text: '', level: 'normal' },
+				say: true
+			}),
+			resolve
+		);
+		expect(made).toMatchObject({
+			spec: {
+				when: { kind: 'compra', words: ['bebida'] },
+				then: 'temporizador',
+				timer: { minutes: 60, label: 'Sacar las bebidas del congelador' },
+				deduce: null,
+				say: false
+			}
+		});
+		const timer = (minutes: number, label: string) =>
+			specOf(answer({ then: 'temporizador', timer: { minutes, label } }), resolve);
+		expect(timer(0, 'Algo')).toEqual({
+			problem: 'Falta cuánto tiene que durar el temporizador.'
+		});
+		expect(timer(30, ' ')).toEqual({ problem: 'Falta para qué es el temporizador.' });
+		expect(timer(5000, 'Algo')).toMatchObject({ spec: { timer: { minutes: 1440 } } });
 	});
 });

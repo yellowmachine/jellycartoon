@@ -14,6 +14,7 @@ import { dosesFor, listMedication } from '#lib/server/medication.ts';
 import { hoursAhead, type HourAhead } from 'comun/weather.ts';
 import { fridgeState, houseKitchen, kitchenOf, type Kitchen } from '#lib/server/fridge.ts';
 import { tell } from '#lib/server/inbox.ts';
+import { startTimerAt } from '#lib/server/alarms/alarms.ts';
 import { listMemories, remember } from '#lib/server/memory.ts';
 import { completeJson, DEFAULT_MODEL, guessCost } from '#lib/server/openrouter.ts';
 import { inBackground } from '#lib/server/ai-lane.ts';
@@ -45,7 +46,14 @@ import {
 } from '#lib/server/rule-check.ts';
 import { DRAFT_ID, simulate, withIfs, type Deduced, type WhatIf } from '#lib/server/rule-sim.ts';
 import { voiceSettings } from '#lib/server/voice/settings.ts';
-import { MAX_RULE, RULE_SCHEMA, specOf, type RuleSpec, type TranslatedRule } from '#lib/rules.ts';
+import {
+	MAX_RULE,
+	RULE_SCHEMA,
+	specOf,
+	timerSaid,
+	type RuleSpec,
+	type TranslatedRule
+} from '#lib/rules.ts';
 
 export { sameName, type Rule };
 
@@ -196,7 +204,8 @@ Qué tiene que cumplirse además («conditions», puede estar vacío), cada una 
 - «agenda_hoy»: que haya hoy en la Agenda algo con «words».
 - «tiempo»: que en las próximas horas haga el tiempo de su «weather» («si mañana hiela»).
 
-Qué hace («then»): «avisar» (con «notice») o «deducir»: guardar un dato que luego sirve a otras reglas, sin avisar a nadie («si pongo la lavadora, ese día hay ropa tendida» → «deduce»: {"text": "Hay ropa tendida", "days": 0}). «deduce.text», el dato en una frase que se entienda sola, sin fechas; «deduce.days», cuántos días más vale (0, solo ese día; en «compra», 7 si no lo dice). Si la regla dice que es probable («probablemente», «seguramente»), el dato también: «Probablemente hay bebida en la nevera». Sin deducir, «deduce» {"text": "", "days": 0}.
+Qué hace («then»): «avisar» (con «notice»), «temporizador» o «deducir»: guardar un dato que luego sirve a otras reglas, sin avisar a nadie («si pongo la lavadora, ese día hay ropa tendida» → «deduce»: {"text": "Hay ropa tendida", "days": 0}). «deduce.text», el dato en una frase que se entienda sola, sin fechas; «deduce.days», cuántos días más vale (0, solo ese día; en «compra», 7 si no lo dice). Si la regla dice que es probable («probablemente», «seguramente»), el dato también: «Probablemente hay bebida en la nevera». Sin deducir, «deduce» {"text": "", "days": 0}.
+«temporizador»: pone un temporizador de la casa que suena en toda la casa al acabar, cuando la regla pide esperar un rato después de lo que pasa («una hora después», «a los 20 minutos», «ponme un temporizador»): «timer.minutes», cuántos minutos; «timer.label», para qué, corto y como se diría al sonar («Sacar las bebidas del congelador»). «notice.text» vacío y «say» false: el temporizador ya suena. Sin temporizador, «timer» {"minutes": 0, "label": ""}.
 A quién y qué («notice», al avisar; al deducir, «text» vacío): «to» es «yo» (quien habla; en la casa, toda la familia), «casa» (toda la familia) o «personas» con sus nombres en «people», de los de la familia. «text» es el aviso tal como lo leerá quien lo recibe, corto y en segunda persona («Recuérdales a tus padres que rieguen las plantas»). «level» es «urgente» solo si lo pide o es un peligro.
 «once»: true si es para una sola vez («la próxima vez que…», «este viernes»).
 «say»: true si además hay que decirlo en voz alta en casa, por los altavoces de la voz: si lo pide («dímelo en voz alta», «avisa en casa», «que lo diga Alexa») o si es de toda la casa; false si es solo para el móvil de quien habla.
@@ -578,6 +587,14 @@ async function fire(k: Kitchen, r: Rule, key: string, why: string, chain: number
 		await deduce(k, r, why, chain);
 		return true;
 	}
+	if (r.spec.then === 'temporizador' && r.spec.timer) {
+		const { minutes, label } = r.spec.timer;
+		const name = await startTimerAt(k, 'casa', { label, seconds: minutes * 60 });
+		console.info(`[reglas] «${r.understood}»: temporizador «${name}», ${minutes} min: ${why}`, {
+			id: r.id
+		});
+		return true;
+	}
 	const { notice } = r.spec;
 	const to = await recipients(k, r);
 	await tell(k.familyId, to, {
@@ -817,7 +834,9 @@ export async function tryRule(k: Kitchen, userId: string | null, id: number) {
 	const [does, will] =
 		r.spec.then === 'deducir' && r.spec.deduce
 			? [`deduciría «${r.spec.deduce.text}»`, `deducirá «${r.spec.deduce.text}»`]
-			: ['avisaría', 'avisará'];
+			: r.spec.then === 'temporizador' && r.spec.timer
+				? [timerSaid(r.spec.timer, 'pondría'), timerSaid(r.spec.timer, 'pondrá')]
+				: ['avisaría', 'avisará'];
 	if (!r.spec.conditions.length)
 		return `No tiene condiciones: ${will} siempre que llegue su momento.`;
 	return ok
