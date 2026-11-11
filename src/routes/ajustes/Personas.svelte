@@ -83,7 +83,7 @@
 								readonly
 								value={invited.url}
 								aria-label="Enlace"
-								class="{select} min-w-0 flex-1 font-mono text-xs"
+								class="{select} min-w-40 flex-1 font-mono text-xs"
 								onfocus={(e) => e.currentTarget.select()}
 							/>
 							<button type="button" class={secondary} onclick={() => copyLink(invited.url)}

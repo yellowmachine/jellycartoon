@@ -99,7 +99,7 @@ describe('totals', () => {
 });
 
 describe('voice cues', () => {
-	const plan = (over = {}) => ({ every: null, goal: null, list: null, ...over });
+	const plan = (over = {}) => ({ every: null, goal: null, ...over });
 
 	test('nothing chosen, nothing said', () => {
 		expect(dueCue(plan(), noCues(), 5000, 3000).text).toBeNull();
@@ -171,8 +171,7 @@ describe('voice cues', () => {
 		);
 		expect(parsePlan({ every: 'km', goal: { kind: 'km', value: 5 }, list: 3 })).toEqual({
 			every: 'km',
-			goal: { kind: 'km', value: 5 },
-			list: 3
+			goal: { kind: 'km', value: 5 }
 		});
 	});
 });

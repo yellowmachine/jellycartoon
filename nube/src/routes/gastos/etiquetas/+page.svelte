@@ -119,7 +119,7 @@
 								maxlength="40"
 								aria-label="Nombre nuevo"
 								autofocus
-								class="{field} min-w-0 flex-1"
+								class="{field} basis-full"
 							/>
 							<button class="{button} bg-amber-600 font-semibold text-white hover:bg-amber-500"
 								>Guardar</button
@@ -191,7 +191,7 @@
 		Cada texto, con las veces que se ha comprado. La etiqueta vale para todas sus líneas, las de
 		antes y las que vengan.
 	</p>
-	<div class="mb-3 grid grid-cols-[1fr_auto] gap-2">
+	<div class="mb-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
 		<input
 			type="search"
 			bind:value={search}
@@ -285,7 +285,7 @@
 					maxlength="40"
 					placeholder="Pan, Agua…"
 					aria-label="Nombre de la etiqueta nueva"
-					class="{field} min-w-0 flex-1"
+					class="{field} basis-full"
 				/>
 			{/if}
 			<button class="{button} bg-amber-600 font-semibold text-white hover:bg-amber-500"

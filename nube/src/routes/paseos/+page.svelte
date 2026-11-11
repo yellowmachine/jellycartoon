@@ -11,8 +11,6 @@
 	import { durationText, type StoredPoint } from '#lib/trips.ts';
 	import { walkRecorder as walk } from '#lib/walk-recorder.svelte.ts';
 	import { walkUploads } from '#lib/walk-uploads.svelte.ts';
-	import { offlineMusic } from '#lib/offline-music.svelte.ts';
-	import { playWalkList } from '#lib/walk-music.ts';
 	import {
 		CUE_EVERY,
 		WALK_GOALS,
@@ -50,37 +48,10 @@
 	/** «Descartar», asked twice, without a dialog. */
 	let sure = $state(false);
 
-	/**
-	 * The house's lists, asked for once and only when a walk can start, not with the page (its key
-	 * has a limit), and those this device carries, which need no coverage.
-	 */
-	let houseLists = $state<{ id: number; name: string }[]>([]);
-	let listsAsked = false;
-	$effect(() => {
-		if (walk.startedAt !== null || listsAsked) return;
-		listsAsked = true;
-		void fetch('/paseos/musica')
-			.then((res) => (res.ok ? res.json() : []))
-			.then((lists) => (houseLists = lists))
-			.catch(() => {});
-	});
-	const lists = $derived.by(() => {
-		const carried = new Set(offlineMusic.lists.map((l) => l.id));
-		return [
-			...offlineMusic.lists.map((l) => ({ id: l.id, name: `${l.name} (sin conexión)` })),
-			...houseLists.filter((l) => !carried.has(l.id))
-		];
-	});
-	/** Why the music did not start: the walk goes on all the same. */
-	let musicProblem = $state<string | null>(null);
-
 	function start() {
 		sure = false;
-		musicProblem = null;
 		now = Date.now();
 		walk.start();
-		const list = lists.find((l) => l.id === walk.plan.list);
-		if (list) void playWalkList(list.id).then((problem) => (musicProblem = problem));
 	}
 
 	/**
@@ -276,22 +247,6 @@
 					{/each}
 				</select>
 			</label>
-			{#if lists.length}
-				<label class="flex min-w-0 flex-col gap-1 text-xs text-zinc-400">
-					Música
-					<select
-						class="{select} max-w-full"
-						value={lists.some((l) => l.id === walk.plan.list) ? String(walk.plan.list) : ''}
-						onchange={(e) =>
-							walk.choose({ list: e.currentTarget.value ? Number(e.currentTarget.value) : null })}
-					>
-						<option value="">Sin música</option>
-						{#each lists as l (l.id)}
-							<option value={String(l.id)}>{l.name}</option>
-						{/each}
-					</select>
-				</label>
-			{/if}
 		</div>
 		{#if walk.plan.goal}
 			<p class="mb-4 text-sm text-zinc-400">
@@ -302,9 +257,6 @@
 			class="rounded-md bg-emerald-600 px-6 py-3 text-lg font-semibold text-white"
 			onclick={start}>Empezar</button
 		>
-	{/if}
-	{#if musicProblem}
-		<p class="mt-3 text-sm text-amber-300" role="alert">{musicProblem}</p>
 	{/if}
 	{#if walk.problem}
 		<p class="mt-3 text-sm text-amber-300" role="alert">{walk.problem}</p>
