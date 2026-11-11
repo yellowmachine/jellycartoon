@@ -297,7 +297,7 @@ export async function answerCompanion(wav: Uint8Array) {
 export function startBeats() {
 	if (!serverReady) return;
 	const beat = () =>
-		void request('/api/satelite/latido', '', 'text/plain').catch((err) =>
+		void request('/api/satelite/latido', '{}', 'application/json').catch((err) =>
 			console.error(`Sin latido: ${err instanceof Error ? err.message : String(err)}`)
 		);
 	beat();
