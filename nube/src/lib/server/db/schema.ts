@@ -25,3 +25,4 @@ export * from './watch-log.schema.ts';
 export * from './user.schema.ts';
 export * from './plugs.schema.ts';
 export * from './calls.schema.ts';
+export * from './companion.schema.ts';

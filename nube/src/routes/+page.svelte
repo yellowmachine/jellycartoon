@@ -8,6 +8,7 @@
 	let { data, form }: PageProps = $props();
 	/** What the family has out (Ajustes): for a child too. */
 	const shows = (path: string) => sectionOn(path, data.family?.sections);
+	const timeOf = (d: Date) => d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 	const tile =
 		'flex flex-col items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-lg font-semibold hover:border-amber-500/60';
 </script>
@@ -59,6 +60,36 @@
 		{/if}
 	</div>
 {:else if data.home}
+	{#each data.companions ?? [] as c (c.familyId)}
+		<!-- «Compañía» (#469): someone who lives alone in a linked family. -->
+		<a
+			href="/compania"
+			class={[
+				'mb-4 flex items-center gap-4 rounded-lg border p-4',
+				c.alert
+					? 'border-red-700/70 bg-gradient-to-r from-red-500/20 to-transparent hover:border-red-400'
+					: 'border-zinc-800 hover:border-amber-500/60'
+			]}
+		>
+			<span class="text-3xl" aria-hidden="true">{c.alert ? '⚠️' : c.paused ? '⏸' : '🫶'}</span>
+			<div class="min-w-0">
+				<p class={['font-semibold', c.alert ? 'text-red-300' : '']}>{c.name}</p>
+				<p class="truncate text-sm text-zinc-400">
+					{#if c.alert?.kind === 'silent'}
+						No contesta desde las {timeOf(c.alert.since)}
+					{:else if c.alert}
+						Su satélite no responde
+					{:else if c.paused}
+						En pausa hasta las {timeOf(c.paused.until)}
+					{:else if c.lastAnswerAt}
+						✓ {timeOf(c.lastAnswerAt)}
+					{:else}
+						Aún no ha contestado
+					{/if}
+				</p>
+			</div>
+		</a>
+	{/each}
 	<Home
 		name={data.user.name}
 		home={data.home}

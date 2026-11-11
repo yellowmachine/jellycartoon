@@ -555,6 +555,18 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: false,
 		note: 'Between families (#464): a new family links again if it wants'
 	},
+	companion: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: '«Compañía» (#469): goes with its satellites, which a joining family drops'
+	},
+	companion_check: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'Only ✓ and ✗ of the asking, never what was said'
+	},
 
 	// The account: it is the same one.
 	waitlist: {

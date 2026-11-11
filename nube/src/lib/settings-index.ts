@@ -207,6 +207,14 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		shown: onlyAdmin
 	},
 	{
+		id: 'compania',
+		tab: 'familia',
+		title: 'Compañía',
+		words:
+			'compañía mayores solo sola abuela abuelo preguntar cómo estás avisar familia vinculada satélite cuidar',
+		shown: onlyAdmin
+	},
+	{
 		id: 'voz-silencio',
 		tab: 'familia',
 		title: 'Horas de silencio',

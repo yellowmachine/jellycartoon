@@ -15,6 +15,7 @@ import { askForAccess } from '#lib/server/waitlist.ts';
 import { EMAIL } from '#lib/invitation.ts';
 import { news } from '#lib/server/news.ts';
 import { SEEN_SHARE, sharedWalks } from '#lib/server/walks/shared.ts';
+import { companionsFor } from '#lib/server/companion.ts';
 
 /**
  * Without a session, the landing page (hooks.server.ts lets `/` through); with one, what there is
@@ -40,6 +41,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 		const admin = await withFamily(userId, async (_, m) => m.role === 'admin');
 		return {
 			home: await homeOf(k, userId, admin),
+			// «Compañía» (#469): the linked families' people who live alone, first if one does not answer.
+			companions: await companionsFor(userId).catch((error) => {
+				console.warn('[portada] Sin Compañía', String(error));
+				return [];
+			}),
 			weather: homeWeather(k).catch(() => null),
 			news: news.newsOf(userId).catch((error) => {
 				console.warn('[portada] Sin las noticias', String(error));

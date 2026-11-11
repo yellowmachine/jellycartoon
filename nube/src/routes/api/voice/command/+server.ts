@@ -5,6 +5,7 @@ import type { HouseVoiceOrder, VoiceTiming } from 'comun/house-voice.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { familyHasHouse, HouseProblem, tellHouse } from '#lib/server/house.ts';
 import { describeTimersAt } from '#lib/server/alarms/alarms.ts';
+import { companionHeard } from '#lib/server/companion.ts';
 import { sayableError } from '#lib/server/openrouter.ts';
 import {
 	conversationOf,
@@ -44,6 +45,9 @@ export const POST: RequestHandler = async ({ request }) => {
 	const { k, satellite } = await satelliteRequest(request);
 	const command = parseVoiceRequest(await request.json().catch(() => null));
 	if (!command) error(400, 'Orden no válida');
+	// «Compañía» (#469): anything said to a satellite is a sign of them. Before the order: its
+	// «me voy» pauses after this.
+	await companionHeard(k.familyId);
 	if (heardElsewhere(k.familyId, `satelite:${satellite.id}`, command.text)) {
 		console.info(`[voz] ${satellite.name}: «${command.text}»: ya la hace otro aparato`, {
 			familyId: k.familyId

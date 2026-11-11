@@ -5,6 +5,7 @@ import { houseKitchen } from '#lib/server/fridge.ts';
 import { newDay, sendDue } from '#lib/server/agenda/agenda.ts';
 import { ringDue } from '#lib/server/alarms/alarms.ts';
 import { sendDueDoses } from '#lib/server/medication.ts';
+import { companionTick } from '#lib/server/companion.ts';
 import { forgetOver } from '#lib/server/memory.ts';
 import { checkTimedRules } from '#lib/server/rules.ts';
 import { warnKeyExpiring } from '#lib/server/ai-stopped.ts';
@@ -14,7 +15,7 @@ import { refreshAll, REFRESH_HOURS } from '#lib/server/podcasts/podcasts.ts';
 
 /**
  * The cloud's own clock (#253): every few seconds, each family's alarms whose time has come; every
- * minute, its agenda's notices, its medication's doses (#308) and its rules (#331); in the evening,
+ * minute, its agenda's notices, its medication's doses (#308), «Compañía» (#469) and its rules (#331); in the evening,
  * what the voice learned that day and the rules it proposes (#331); each morning, whether its
  * OpenRouter key is about to expire; at midnight,
  * the fridges' «Hoy» and what the voice remembered until yesterday (#331); every few hours, its
@@ -67,6 +68,8 @@ export function startScheduler() {
 				lastNotices = Date.now();
 				await eachFamily('Avisos de la agenda', (id) => sendDue(houseKitchen(id)));
 				await eachFamily('Tomas de medicación', (id) => sendDueDoses(houseKitchen(id)));
+				// «Compañía» (#469): ask, ask again, or tell the linked families.
+				await eachFamily('Compañía', (id) => companionTick(id));
 				await eachFamily('Reglas', checkTimedRules);
 				// What was said, learned from once the voice is quiet (#331, phase 6).
 				await eachFamily('Aprender de lo hablado', learnPending);

@@ -1,6 +1,8 @@
 import {
 	assistantTurn,
 	HEARING_KEY_HEADER,
+	SATELLITE_CAN_HEADER,
+	type CompanionReply,
 	HISTORY_IDLE_MS,
 	HISTORY_TURNS,
 	type DirectHearing,
@@ -191,8 +193,11 @@ export interface Ringing {
 	/** And its name, for it to be known so there: «Dormitorio»; and its id there. */
 	name?: string;
 	snapclientId?: string;
-	/** Seilide's (#331): what it is to say once, out loud (a rule's notice), by its id. */
-	say?: { id: string; text: string }[];
+	/**
+	 * Seilide's (#331): what it is to say once, out loud (a rule's notice), by its id. With `listen`,
+	 * a question of «Compañía» (#469): listened for after it, the answer sent (`answerCompanion`).
+	 */
+	say?: { id: string; text: string; listen?: boolean }[];
 	/** Seilide's: which voice the family has, for its own phrases (fallback.ts). */
 	voice?: string;
 	/** Seilide's: what it says on hearing its word instead of the beep (fallback.ts); none, the beep. */
@@ -217,7 +222,12 @@ export async function followAlarms(onState: (state: Ringing) => void): Promise<n
 	for (;;) {
 		try {
 			const res = await fetch(`${SERVER_URL}/api/satelite/avisos`, {
-				headers: { 'x-api-key': KEY!, accept: 'text/event-stream' }
+				// What it can do: Seilide asks «Compañía»'s questions (#469) only to those that say so.
+				headers: {
+					'x-api-key': KEY!,
+					accept: 'text/event-stream',
+					[SATELLITE_CAN_HEADER]: 'compania'
+				}
 			});
 			if (!res.ok || !res.body) throw new Error(`${res.status}`);
 			const decoder = new TextDecoder();
@@ -265,4 +275,31 @@ export const plugAddressStart = SERVER_URL
 /** A plug task done (#396): what it found, or what went wrong. */
 export async function reportPlugTask(result: PlugTaskResult) {
 	await request('/api/satelite/enchufes', JSON.stringify(result), 'application/json');
+}
+
+/**
+ * What was heard after a question of «Compañía» (#469), as text: Seilide judges it and says what to
+ * say back (empty, nothing). Transcribed as an order is: the house's Whisper directly, or Seilide.
+ */
+export async function answerCompanion(wav: Uint8Array) {
+	const text =
+		(await hearDirect(wav)) ??
+		(await post<{ text: string }>('/api/voice/transcribe', wav, 'audio/wav')).text;
+	const { reply } = await post<CompanionReply>(
+		'/api/satelite/compania',
+		JSON.stringify({ text: text ?? '' }),
+		'application/json'
+	);
+	return { text: text ?? '', reply };
+}
+
+/** Every minute, a beat to Seilide (#469): there, for «Compañía». Never fails. */
+export function startBeats() {
+	if (!serverReady) return;
+	const beat = () =>
+		void request('/api/satelite/latido', '', 'text/plain').catch((err) =>
+			console.error(`Sin latido: ${err instanceof Error ? err.message : String(err)}`)
+		);
+	beat();
+	setInterval(beat, 60_000).unref();
 }

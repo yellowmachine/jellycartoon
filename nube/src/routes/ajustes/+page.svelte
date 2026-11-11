@@ -25,6 +25,7 @@
 	import Noticias from './Noticias.svelte';
 	import Reglas from './Reglas.svelte';
 	import Satelites from './Satelites.svelte';
+	import Compania from './Compania.svelte';
 	import Guardado from 'comun/components/Guardado.svelte';
 	import { avatar, isAvatar } from 'comun/avatars.ts';
 	import { page } from '$app/state';
@@ -456,6 +457,8 @@
 			<VozAprendido {data} {tab} />
 
 			<Satelites {data} {form} {tab} />
+
+			<Compania {data} {form} {tab} />
 		{/if}
 	{/if}
 

@@ -1,9 +1,10 @@
-import type { DirectHearing, PlugTask } from 'comun/voice.ts';
+import { SATELLITE_CAN_HEADER, type DirectHearing, type PlugTask } from 'comun/voice.ts';
 import type { RequestHandler } from './$types';
 import { ringingFor, watchAlarms } from '#lib/server/alarms/alarms.ts';
 import { directHearing } from '#lib/server/house.ts';
 import { plugTasksFor } from '#lib/server/plugs/setup.ts';
 import {
+	satelliteHere,
 	satelliteRequest,
 	saysFor,
 	snapclientIdOf,
@@ -24,7 +25,9 @@ import { greetingsOf, satelliteVoiceOf, voiceKey } from '#lib/server/voice/satel
  * And where it hears directly (`hearing`, #430), its house's Whisper, none to do it through here;
  * failing to know it never holds back what rings. And the smart plugs it is to find or set up in
  * its network (`plugTasks`, #396), answered at /api/satelite/enchufes.
- * Again on every change.
+ * Again on every change. While open, it is there for «Compañía» (#469), which asks only those that
+ * say they can (`SATELLITE_CAN_HEADER`): a `say` with `listen` is a question, its answer sent to
+ * /api/satelite/compania.
  */
 export const GET: RequestHandler = async ({ request }) => {
 	const { k, satellite } = await satelliteRequest(request);
@@ -32,13 +35,17 @@ export const GET: RequestHandler = async ({ request }) => {
 		snapserver: string | null;
 		name: string;
 		snapclientId: string;
-		say: { id: string; text: string }[];
+		say: { id: string; text: string; listen?: boolean }[];
 		voice: string;
 		greetings: string[];
 		wakeWord: string | null;
 		hearing: DirectHearing | null;
 		plugTasks: PlugTask[];
 	};
+	const canAsk = (request.headers.get(SATELLITE_CAN_HEADER) ?? '')
+		.split(',')
+		.map((c) => c.trim())
+		.includes('compania');
 	return sseResponse<State>(request, (listener) => {
 		const send = () =>
 			void Promise.all([
@@ -65,7 +72,11 @@ export const GET: RequestHandler = async ({ request }) => {
 				)
 				.catch((err) => console.warn('[avisos] Para el satélite', err));
 		send();
-		const unwatch = [watchAlarms(k.familyId, send), watchSatellite(satellite.id, send)];
+		const unwatch = [
+			watchAlarms(k.familyId, send),
+			watchSatellite(satellite.id, send),
+			satelliteHere(satellite.id, canAsk)
+		];
 		return () => unwatch.forEach((u) => u());
 	});
 };
