@@ -39,12 +39,19 @@ mock.module('#lib/server/family-links.ts', () => ({
 	familyLinks: familyLinkScope(db, { role: 'app_user' })
 }));
 // The fridge's module brings the agenda's, and its emails: only its kitchen, as it is.
+// With the names later tests fake too (chat.test.ts): a mock's names are fixed by the first one.
+const notHere = () => {
+	throw new Error('No en esta prueba');
+};
 mock.module('#lib/server/fridge.ts', () => ({
 	houseKitchen: (familyId: string) => ({
 		familyId,
 		userId: null,
 		run: <T>(fn: (tx: never) => Promise<T>) => asFamily(familyId, fn as never)
-	})
+	}),
+	kitchenOf: notHere,
+	toBuy: notHere,
+	addItems: notHere
 }));
 // As other tests fake it (a mock is the process's): Carmen's one satellite.
 mock.module('#lib/server/satellites.ts', () => ({
@@ -59,7 +66,9 @@ mock.module('#lib/server/push.ts', () => ({
 }));
 mock.module('#lib/server/family-settings.ts', () => ({ openRouterKey: async () => 'clave' }));
 mock.module('#lib/server/openrouter.ts', () => ({
-	completeJson: async (r: { name: string; prompt: string }) => ai(r.name, r.prompt)
+	completeJson: async (r: { name: string; prompt: string }) => ai(r.name, r.prompt),
+	chatWithTools: notHere,
+	sayableError: (message: string) => message
 }));
 
 const c = await import('./companion.ts');

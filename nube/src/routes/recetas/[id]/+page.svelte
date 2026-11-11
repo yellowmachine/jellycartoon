@@ -44,10 +44,10 @@
 	<div class="min-w-0">
 		<h1 class="text-2xl font-bold [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]">{r.title}</h1>
 		<p class="text-zinc-400 [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]">
-			{r.servings ? `Para ${r.servings} · ` : ''}De
-			<a href={r.sourceUrl} target="_blank" rel="noreferrer" class="hover:underline"
-				>{r.sourceName}</a
-			>
+			{r.servings ? `Para ${r.servings} · ` : ''}{#if data.link}De
+				<a href={data.link} target="_blank" rel="noreferrer" class="hover:underline"
+					>{r.sourceName}</a
+				>{:else}{r.sourceName}{/if}
 		</p>
 		<div class="mt-4 flex flex-wrap items-center gap-2">
 			{#if cookable}

@@ -312,6 +312,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: { file: 'dicho-a-la-voz', where: [mine()] },
 		note: 'Only with their user_id'
 	},
+	// «Preguntar» (#470): their chat with the AI, only theirs.
+	chat_message: {
+		leaving: 'moves',
+		joining: 'moves',
+		zip: { file: 'preguntar', where: [mine()] }
+	},
 	inbox: {
 		leaving: 'moves',
 		joining: 'moves',

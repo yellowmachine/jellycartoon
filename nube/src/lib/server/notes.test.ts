@@ -33,7 +33,10 @@ mock.module('#lib/server/fridge.ts', () => ({
 	},
 	kitchenOf: () => {
 		throw new Error('Sin cocina en esta prueba');
-	}
+	},
+	// chat.test.ts's, unused here: a mock's names are fixed by the first one.
+	toBuy: async () => [],
+	addItems: async () => []
 }));
 mock.module('#lib/server/family-settings.ts', () => ({ openRouterKey: async () => null }));
 

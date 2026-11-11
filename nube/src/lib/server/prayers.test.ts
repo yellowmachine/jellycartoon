@@ -44,6 +44,10 @@ mock.module('#lib/server/openrouter.ts', () => ({
 		said.push(r);
 		// A second of silence at 24 kHz.
 		return { pcm: new Uint8Array(48_000), rate: 24_000 };
+	},
+	// chat.test.ts's, unused here.
+	chatWithTools: async () => {
+		throw new Error('Sin IA en esta prueba');
 	}
 }));
 

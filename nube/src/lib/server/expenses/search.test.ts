@@ -22,7 +22,12 @@ const k: Kitchen = {
 		})
 };
 // Bun's module mocks are the whole run's: the same as ai-costs.test.ts's.
-mock.module('#lib/server/fridge.ts', () => ({ houseKitchen: () => k, today: localDay }));
+mock.module('#lib/server/fridge.ts', () => ({
+	houseKitchen: () => k,
+	today: localDay, // chat.test.ts's, unused here: a mock's names are fixed by the first one.
+	toBuy: async () => [],
+	addItems: async () => []
+}));
 mock.module('#lib/server/storage.ts', () => ({
 	storageReady: true,
 	putFile: async () => {},
@@ -33,7 +38,12 @@ mock.module('#lib/server/storage.ts', () => ({
 }));
 mock.module('#lib/server/openrouter.ts', () => ({
 	completeJson: async () => ({}),
-	VISION_MODEL: ''
+	VISION_MODEL: '',
+	// chat.test.ts's, unused here.
+	chatWithTools: async () => {
+		throw new Error('Sin IA en esta prueba');
+	},
+	sayableError: (message: string) => message
 }));
 mock.module('#lib/server/family-settings.ts', () => ({ openRouterKey: async () => null }));
 const { searchExpenses } = await import('./expenses.ts');
