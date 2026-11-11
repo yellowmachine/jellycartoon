@@ -173,10 +173,8 @@ export const goalText = (g: WalkGoal) => `${g.value} ${g.kind === 'km' ? 'km' : 
 export interface WalkPlan {
 	every: CueEvery | null;
 	goal: WalkGoal | null;
-	/** The playlist to put on. */
-	list: number | null;
 }
-export const noPlan = (): WalkPlan => ({ every: null, goal: null, list: null });
+export const noPlan = (): WalkPlan => ({ every: null, goal: null });
 
 /** One kept on the device, as far as it is still valid. */
 export function parsePlan(kept: unknown): WalkPlan {
@@ -184,8 +182,7 @@ export function parsePlan(kept: unknown): WalkPlan {
 	const key = p.goal && goalKey(p.goal);
 	return {
 		every: typeof p.every === 'string' && Object.hasOwn(CUE_EVERY, p.every) ? p.every : null,
-		goal: WALK_GOALS.find((g) => goalKey(g) === key) ?? null,
-		list: Number.isInteger(p.list) ? (p.list as number) : null
+		goal: WALK_GOALS.find((g) => goalKey(g) === key) ?? null
 	};
 }
 
