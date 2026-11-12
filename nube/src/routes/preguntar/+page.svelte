@@ -5,7 +5,7 @@
 	import { MAX_CHAT_QUESTION } from '#lib/chat.ts';
 	import type { PageProps } from './$types';
 	import RecipeCard from './RecipeCard.svelte';
-	import ShoppingCard from './ShoppingCard.svelte';
+	import ShoppingCard from '#lib/components/ShoppingCard.svelte';
 
 	/**
 	 * «Preguntar» (#470): a chat with the family's AI, each person their own. Its answers bring cards
@@ -118,7 +118,10 @@
 							{#if m.text}<p class="whitespace-pre-line text-zinc-200">{m.text}</p>{/if}
 							{#each m.cards as card, i (i)}
 								{#if card.kind === 'compra'}
-									<ShoppingCard {card} message={m.id} index={i} toBuy={data.toBuy} />
+									<ShoppingCard items={card.items} added={card.added} toBuy={data.toBuy}>
+										<input type="hidden" name="message" value={m.id} />
+										<input type="hidden" name="card" value={i} />
+									</ShoppingCard>
 								{:else}
 									<RecipeCard {card} message={m.id} index={i} />
 								{/if}

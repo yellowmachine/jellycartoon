@@ -12,7 +12,8 @@ vídeo, de satélite de voz y de pantalla para los juegos retro. Así no se ha p
   por USB, o el de la tele por HDMI.
 - **1. La casa**, con `install.sh` como arriba. En una Raspberry es solo música, radio y podcasts
   (sin series ni películas: convertir vídeo es demasiado para ella) y sin Steam. Pregunta la
-  carpeta de la música, la de los datos (en el SSD: también lleva la base de datos) y «¿Juegos
+  carpeta de la música, la de los datos (en el SSD: también lleva la base de datos, en
+  `HOST_DB_DIR`, porque Postgres desgasta la tarjeta SD) y «¿Juegos
   retro en la Vista TV?»: con un sí, la carpeta de las ROMs, con una carpeta por consola ya
   creada (ver [Juegos](/tecnica/casa/juegos/)).
 - **2. El satélite**, en otra carpeta, como dice [Satélite de voz](/tecnica/satelite/): se

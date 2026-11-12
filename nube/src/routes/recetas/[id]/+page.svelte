@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import Backdrop from 'comun/components/Backdrop.svelte';
+	import Espera from '#lib/components/Espera.svelte';
+	import ShoppingCard from '#lib/components/ShoppingCard.svelte';
+	import type { RecipeShoppingItem } from '#lib/recipe-shopping.ts';
 	import { describeTimer, parseRecipe, type Recipe } from 'comun/recipe.ts';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 	import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
@@ -25,6 +28,14 @@
 		confirmReplace = false;
 		if (cookable) void kitchenMode.cook(cookable);
 	}
+
+	/** «Añadir a la compra»: its things to buy, once asked for; what is on the list, then. */
+	let shopping = $state<RecipeShoppingItem[] | null>(null);
+	let byAi = $state(true);
+	let buying = $state<string[]>([]);
+	let added = $state<string[] | null>(null);
+	let preparing = $state(false);
+	let shoppingProblem = $state<string | null>(null);
 
 	function openKitchen() {
 		kitchenPanel.show();
@@ -115,13 +126,66 @@
 <div class="grid gap-8 md:grid-cols-3">
 	<section>
 		<h2 class="mb-2 font-semibold">Ingredientes</h2>
-		<ul class="list-disc space-y-1 pl-5 text-zinc-300">
-			{#each r.ingredients as ingredient, i (i)}
-				<li>{ingredient}</li>
-			{:else}
-				<li class="list-none text-zinc-500">La web no los dice aparte.</li>
-			{/each}
-		</ul>
+		{#if shopping}
+			<ShoppingCard
+				items={shopping.map((s) => s.item)}
+				usual={shopping.filter((s) => s.usual).map((s) => s.item)}
+				{added}
+				toBuy={buying}
+				onadded={(data) => {
+					added = [...(added ?? []), ...((data?.added as string[] | undefined) ?? [])];
+					buying = (data?.toBuy as string[] | undefined) ?? buying;
+				}}
+			/>
+			{#if !byAi}
+				<p class="mt-2 text-xs text-zinc-500">
+					Van como los escribe la receta: sin IA (Ajustes) no se ordenan para la compra.
+				</p>
+			{/if}
+			<button
+				class="mt-2 text-sm text-zinc-400 hover:text-white"
+				onclick={() => {
+					shopping = null;
+					added = null;
+				}}>← Ver los ingredientes</button
+			>
+		{:else}
+			<ul class="list-disc space-y-1 pl-5 text-zinc-300">
+				{#each r.ingredients as ingredient, i (i)}
+					<li>{ingredient}</li>
+				{:else}
+					<li class="list-none text-zinc-500">La web no los dice aparte.</li>
+				{/each}
+			</ul>
+			{#if r.ingredients.length}
+				<form
+					method="post"
+					action="?/shopping"
+					use:enhance={() => {
+						preparing = true;
+						shoppingProblem = null;
+						return async ({ result }) => {
+							preparing = false;
+							if (result.type === 'success' && result.data) {
+								shopping = result.data.shopping as RecipeShoppingItem[];
+								byAi = Boolean(result.data.byAi);
+								buying = result.data.toBuy as string[];
+							} else
+								shoppingProblem =
+									result.type === 'failure'
+										? String(result.data?.message ?? 'No se pudo')
+										: 'No se pudo';
+						};
+					}}
+				>
+					<button
+						class="mt-3 rounded-md px-3 py-1.5 text-sm text-amber-400 ring-1 ring-amber-500/40 hover:bg-amber-500/10 disabled:opacity-40"
+						disabled={preparing}>🛒 Añadir a la compra</button
+					>
+				</form>
+				{#if shoppingProblem}<p class="mt-2 text-sm text-red-400">{shoppingProblem}</p>{/if}
+			{/if}
+		{/if}
 	</section>
 	<section class="md:col-span-2">
 		<h2 class="mb-2 font-semibold">Pasos</h2>
@@ -140,3 +204,8 @@
 		</ol>
 	</section>
 </div>
+
+{#if preparing}
+	<!-- The first time the AI makes them into things to buy: the screen veiled, the snail. -->
+	<Espera>Preparando la lista de la compra…</Espera>
+{/if}

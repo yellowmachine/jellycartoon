@@ -10,4 +10,7 @@ USER postgres
 # Unhealthy when a whole day has gone by without a copy going up (26 h: a slow night still counts).
 HEALTHCHECK --interval=30m --timeout=10s \
 	CMD ["sh", "-c", "test -n \"$(find /tmp/last-backup-ok -mmin -1560)\""]
+# postgres:18 stops with SIGINT, which bash keeps until its `sleep` ends (hours): Docker killed it
+# at 10 s on every stop, and after a Docker restart (a system update) it stayed down.
+STOPSIGNAL SIGTERM
 ENTRYPOINT ["backup-r2.sh"]

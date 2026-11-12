@@ -15,6 +15,7 @@ import {
 	unique
 } from 'drizzle-orm/pg-core';
 import type { RecipeStep } from 'comun/recipe.ts';
+import type { RecipeShoppingItem } from '#lib/recipe-shopping.ts';
 import type { Place } from 'comun/weather.ts';
 import { user } from './auth.schema.ts';
 import { family, familyRows } from './family.schema.ts';
@@ -96,6 +97,8 @@ export const recipe = pgTable(
 		servings: integer('servings'),
 		ingredients: jsonb('ingredients').$type<string[]>().notNull().default([]),
 		steps: jsonb('steps').$type<RecipeStep[]>().notNull(),
+		/** Its ingredients as things to buy, made by the AI the first time they are asked for. */
+		shopping: jsonb('shopping').$type<RecipeShoppingItem[]>(),
 		imageUrl: text('image_url'),
 		/** The page it came from: one recipe per page, in each family. */
 		sourceUrl: text('source_url').notNull(),

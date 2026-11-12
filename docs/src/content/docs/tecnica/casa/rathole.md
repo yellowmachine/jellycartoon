@@ -15,6 +15,7 @@ descifrar**: el certificado es el de casa y el VPS solo lo pasa. Por ese nombre 
    servicio sin descifrarlo (en Traefik, un router TCP con `HostSNI` y `tls.passthrough`).
 2. En Cloudflare, un registro `A` de `MEDIA_HOST` → IP pública del VPS, en modo **DNS only**.
 3. En el `.env` de casa:
+
    ```sh
    COMPOSE_PROFILES="snapcast,tunel"     # además de los que ya hubiera
    MEDIA_HOST="media.tu-dominio.com"     # sin https://
@@ -22,8 +23,14 @@ descifrar**: el certificado es el de casa y el VPS solo lo pasa. Por ese nombre 
    RATHOLE_SERVER_PUBLIC_KEY="…"         # la pública del servidor
    RATHOLE_TOKEN="…"
    ```
+
    y `docker compose -f compose.prod.yaml up -d`. Caddy pide el certificado de `MEDIA_HOST` con
    el mismo reto DNS-01.
+
+   La imagen de rathole (`rapiz1/rathole:v0.5.0`) es solo para PC (amd64). En una Raspberry,
+   `RATHOLE_IMAGE="ghcr.io/yellowmachine/jellycartoon-rathole:experimento"`, la de
+   `Dockerfile.rathole`, que de momento solo se construye para la rama `experimento` (#378). WUD no
+   la actualiza: va fijada.
 
 ## La API de vídeo, para Seilide
 
