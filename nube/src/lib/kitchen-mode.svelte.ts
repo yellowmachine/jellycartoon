@@ -1,5 +1,6 @@
+import { goto } from '$app/navigation';
+import { page } from '$app/state';
 import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
-import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
 import { recipe } from '#lib/recipe.svelte.ts';
 import { timers } from '#lib/timers.svelte.ts';
 import type { Recipe } from 'comun/recipe.ts';
@@ -13,6 +14,17 @@ import type { Recipe } from 'comun/recipe.ts';
  */
 
 const STORAGE_KEY = 'kitchen-mode';
+
+/**
+ * The kitchen's screen (#483): the steps on the left, and on the right its home (/cocina, the
+ * recipe), the recipe book or these sections as they are (a series, a channel, the music…), without the site around them: one tap
+ * from the steps to the music and back. What plays goes on from one to another. Any other page, the site as usual
+ * (with «Volver a la cocina» in the header).
+ */
+const KITCHEN_PATHS = ['/cocina', '/recetas', '/series', '/watch', '/canales', '/musica', '/radio'];
+
+export const inKitchen = (pathname: string) =>
+	KITCHEN_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 /** On this long, with no timer running or waiting, it turns itself off. */
 const AUTO_OFF_MS = 3 * 3600_000;
 const CHECK_EVERY_MS = 60_000;
@@ -51,10 +63,7 @@ class KitchenMode {
 		this.problem = null;
 		// What is said is kept while it is on; off, the session is over.
 		kitchenLog.active = value;
-		if (!value) {
-			kitchenLog.clear();
-			kitchenPanel.hide();
-		}
+		if (!value) kitchenLog.clear();
 		clearInterval(this.#check);
 		if (!value) {
 			await this.#lock?.release().catch(() => {});
@@ -68,11 +77,29 @@ class KitchenMode {
 		await this.#acquire();
 	}
 
-	/** Cooking, by voice or from the recipe book: the screen stays on, to see the steps, over the page that is on. */
-	cook(cooked: Recipe, step = 0) {
+	/**
+	 * Into the kitchen's screen. From a tap (`tap`), on a tablet or phone the browser's full screen
+	 * too, without its bar: it only allows it from a touch, and an installed app has no bar.
+	 * Already in it (the music on the right), it stays where it is.
+	 */
+	enter(tap = false) {
+		if (tap) fullScreen();
+		if (!inKitchen(page.url.pathname)) void goto('/cocina');
+		return this.on ? Promise.resolve() : this.set(true);
+	}
+
+	/** «Salir de la cocina»: off, out of the full screen, and to the home page. What plays goes on. */
+	leave() {
+		if (document.fullscreenElement === document.documentElement)
+			void document.exitFullscreen().catch(() => {});
+		void goto('/');
+		return this.set(false);
+	}
+
+	/** Cooking, by voice or from the recipe book: the kitchen's screen, with the steps. */
+	cook(cooked: Recipe, step = 0, tap = false) {
 		recipe.start(cooked, step);
-		kitchenPanel.show();
-		return this.set(true);
+		return this.enter(tap);
 	}
 
 	#remember(since: number | null) {
@@ -108,4 +135,33 @@ class KitchenMode {
 	}
 }
 
+/** Full screen on a touch screen not installed as an app: the tablet on the kitchen's wall. */
+function fullScreen() {
+	if (!document.fullscreenEnabled || document.fullscreenElement) return;
+	if (!matchMedia('(pointer: coarse)').matches) return;
+	if (matchMedia('(display-mode: standalone)').matches) return;
+	void document.documentElement.requestFullscreen().catch(() => {});
+}
+
 export const kitchenMode = new KitchenMode();
+
+/**
+ * The video on the kitchen's screen (#483), a series or a channel: paused while a timer rings or
+ * the voice listens and answers, and on again after, as the music. By the page's own <video>
+ * playing with sound, whichever player it is.
+ */
+const pausedVideos = new Set<HTMLVideoElement>();
+
+export function pauseKitchenVideo() {
+	if (!kitchenMode.on || !inKitchen(location.pathname)) return;
+	for (const video of document.querySelectorAll('video'))
+		if (!video.paused && !video.ended && !video.muted) {
+			video.pause();
+			pausedVideos.add(video);
+		}
+}
+
+export function resumeKitchenVideo() {
+	for (const video of pausedVideos) if (video.isConnected) void video.play().catch(() => {});
+	pausedVideos.clear();
+}

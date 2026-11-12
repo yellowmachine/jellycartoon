@@ -2,8 +2,7 @@ import { music } from 'comun/music-player.svelte.ts';
 import { musicTarget } from 'comun/music-target.svelte.ts';
 import type { LngLat, Place } from 'comun/road.ts';
 import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
-import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
-import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
+import { kitchenMode, pauseKitchenVideo, resumeKitchenVideo } from '#lib/kitchen-mode.svelte.ts';
 import { phone } from '#lib/phone.svelte.ts';
 import { simPhone } from '#lib/sim-phone.svelte.ts';
 import { callReplySaid, hangUpSaid } from '#lib/call-voice.ts';
@@ -311,12 +310,14 @@ function pauseForVoice() {
 	timers.silence();
 	timers.unlockSound();
 	music.pauseForVoice();
+	pauseKitchenVideo();
 	phone.hush();
 }
 
 /** What was paused to speak, back where it was. */
 function resumeAfterVoice() {
 	music.resumeAfterVoice();
+	resumeKitchenVideo();
 	phone.unhush();
 }
 
@@ -381,9 +382,8 @@ async function act(action: VoiceAction) {
 		case 'cancelTimer':
 			return void timers.cancel(action.label);
 		case 'kitchenMode':
-			// Turned on from another page (something playing): the kitchen opens over it.
-			if (action.on) kitchenPanel.show();
-			return kitchenMode.set(action.on);
+			// The kitchen's screen (#483); off, out of it.
+			return action.on ? kitchenMode.enter() : kitchenMode.leave();
 		case 'recipe':
 			return kitchenMode.cook(action.recipe, action.step);
 		case 'recipeStep':

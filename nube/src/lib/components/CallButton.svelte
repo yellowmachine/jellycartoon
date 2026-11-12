@@ -14,14 +14,7 @@
 	 * faces together; none, the handset alone. During a call, the other's face with a cream line
 	 * going round it, and the talk's clock.
 	 */
-	let {
-		favorites,
-		aboveKitchen = false
-	}: {
-		favorites: { userId: string; name: string }[];
-		/** The kitchen panel open: under the page on a phone, at its side on a wider screen. */
-		aboveKitchen?: boolean;
-	} = $props();
+	let { favorites }: { favorites: { userId: string; name: string }[] } = $props();
 
 	const only = $derived(favorites.length === 1 ? favorites[0] : null);
 	const label = $derived(
@@ -69,11 +62,8 @@
 	aria-label={label}
 	title={label}
 	onclick={press}
-	style:bottom={aboveKitchen ? undefined : 'max(1rem, env(safe-area-inset-bottom))'}
-	class={[
-		'group fixed right-4 z-40 flex max-w-[calc(100vw-2rem)] cursor-pointer flex-col items-center gap-1.5 rounded-2xl focus-visible:outline-offset-4',
-		aboveKitchen && 'bottom-[calc(55dvh+1rem)] md:right-[calc(42%+1rem)] md:bottom-4'
-	]}
+	style:bottom="max(1rem, env(safe-area-inset-bottom))"
+	class="group fixed right-4 z-40 flex max-w-[calc(100vw-2rem)] cursor-pointer flex-col items-center gap-1.5 rounded-2xl focus-visible:outline-offset-4"
 >
 	<span class="relative flex">
 		<!-- An amber handset at the corner: what a tap does. -->

@@ -13,10 +13,10 @@
 	 * Voice commands (#253), big, as jellycartoon's Hablar: held down, it listens; let go, it is
 	 * sent. Its answer is shown big and read aloud. The same as the header's microphone
 	 * (voice-client.svelte.ts), with room for the options and for writing instead. In Hablar, and
-	 * in the kitchen panel (`inPanel`, #60), over any page: what plays there goes on.
+	 * on the left of the kitchen's screen (`kitchen`, #483), with the steps.
 	 */
 
-	let { inPanel = false }: { inPanel?: boolean } = $props();
+	let { kitchen = false }: { kitchen?: boolean } = $props();
 
 	/** Written instead of said: to try a sentence, or where there is no microphone. */
 	let typed = $state('');
@@ -40,7 +40,7 @@
 <div
 	class={[
 		'flex flex-col items-center text-center',
-		inPanel ? 'gap-8 px-4 py-4 md:py-6' : 'min-h-[70vh] justify-center gap-10 py-8'
+		kitchen ? 'gap-8 px-4 py-4 md:py-6' : 'min-h-[70vh] justify-center gap-10 py-8'
 	]}
 >
 	<!-- Cooking (#60): the step first; the microphone, smaller, under it. -->
@@ -84,7 +84,7 @@
 	<button
 		class={[
 			'flex touch-none items-center justify-center rounded-full shadow-2xl transition duration-150 select-none',
-			inPanel ? 'h-24 w-24 md:h-32 md:w-32' : recipe.current ? 'h-40 w-40' : 'h-56 w-56',
+			kitchen ? 'h-24 w-24 md:h-32 md:w-32' : recipe.current ? 'h-40 w-40' : 'h-56 w-56',
 			voice.phase === 'listening'
 				? 'scale-110 bg-red-500 text-white'
 				: 'bg-amber-500 text-zinc-950 active:scale-95',
@@ -115,7 +115,7 @@
 	>
 		<svg
 			viewBox="0 0 24 24"
-			class={inPanel ? 'h-12 w-12 md:h-16 md:w-16' : 'h-24 w-24'}
+			class={kitchen ? 'h-12 w-12 md:h-16 md:w-16' : 'h-24 w-24'}
 			fill="currentColor"
 			aria-hidden="true"
 		>
@@ -219,28 +219,20 @@
 		>
 	</form>
 
-	<!-- The phone on the kitchen wall: the screen stays on, to see the timers and press here. -->
-	<div class="flex flex-col items-center gap-1">
+	{#if !kitchen}
+		<!-- The kitchen's screen (#483): the steps, and beside them the recipe, the music, the radio. -->
 		<button
-			class={[
-				'rounded-full border px-4 py-2 text-base',
-				kitchenMode.on
-					? 'border-amber-500 bg-amber-500/15 text-amber-300'
-					: 'border-zinc-700 text-zinc-300 hover:bg-zinc-900'
-			]}
-			aria-pressed={kitchenMode.on}
-			onclick={() => kitchenMode.set(!kitchenMode.on)}
-			>🍳 Modo cocina{kitchenMode.on ? ': pantalla siempre encendida' : ''}</button
+			class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300 hover:bg-zinc-900"
+			onclick={() => kitchenMode.enter(true)}>🍳 Cocina: pasos, música y radio</button
 		>
-		{#if kitchenMode.problem}
-			<p class="text-sm text-amber-400">{kitchenMode.problem}</p>
-		{:else if !kitchenMode.on}
-			<p class="text-xs text-zinc-500">Para el móvil en la cocina: la pantalla no se apaga.</p>
-		{/if}
-		<!-- The wake word in the kitchen, on this device: off until turned on; while the mode is on,
-		     on any page (wake-word.svelte.ts, from the layout). -->
-		{#if kitchenMode.on}
-			<div class="mt-2 flex flex-wrap items-center justify-center gap-2 text-sm">
+	{:else}
+		<div class="flex flex-col items-center gap-1">
+			{#if kitchenMode.problem}
+				<p class="text-sm text-amber-400">{kitchenMode.problem}</p>
+			{/if}
+			<!-- The wake word in the kitchen, on this device: off until turned on; while the kitchen is
+			     on (wake-word.svelte.ts, from the layout). -->
+			<div class="flex flex-wrap items-center justify-center gap-2 text-sm">
 				<button
 					class={[
 						'rounded-full px-4 py-1.5',
@@ -282,6 +274,6 @@
 			{#if wakeWord.on.cocina && wakeWord.problem}
 				<p class="text-sm text-amber-400">{wakeWord.problem}</p>
 			{/if}
-		{/if}
-	</div>
+		</div>
+	{/if}
 </div>
