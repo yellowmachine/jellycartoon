@@ -6,7 +6,6 @@
 	import type { RecipeShoppingItem } from '#lib/recipe-shopping.ts';
 	import { describeTimer, parseRecipe, type Recipe } from 'comun/recipe.ts';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
-	import { kitchenPanel } from '#lib/kitchen-panel.svelte.ts';
 	import { recipe as inProgress } from '#lib/recipe.svelte.ts';
 	import type { PageProps } from './$types';
 
@@ -26,7 +25,7 @@
 
 	function cook() {
 		confirmReplace = false;
-		if (cookable) void kitchenMode.cook(cookable);
+		if (cookable) void kitchenMode.cook(cookable, 0, true);
 	}
 
 	/** «Añadir a la compra»: its things to buy, once asked for; what is on the list, then. */
@@ -36,11 +35,6 @@
 	let added = $state<string[] | null>(null);
 	let preparing = $state(false);
 	let shoppingProblem = $state<string | null>(null);
-
-	function openKitchen() {
-		kitchenPanel.show();
-		void kitchenMode.set(true);
-	}
 </script>
 
 <svelte:head>
@@ -78,7 +72,7 @@
 					<button
 						class="rounded-md bg-amber-500 px-4 py-1.5 font-semibold text-zinc-950 hover:bg-amber-400"
 						onclick={() => {
-							if (cooking) openKitchen();
+							if (cooking) void kitchenMode.enter(true);
 							else if (inProgress.current) confirmReplace = true;
 							else cook();
 						}}

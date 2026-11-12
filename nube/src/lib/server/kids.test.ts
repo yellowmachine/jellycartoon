@@ -181,6 +181,7 @@ describe('where a child may go', () => {
 			'/gastos',
 			'/ajustes',
 			'/voz',
+			'/cocina',
 			'/viajes',
 			'/paseos',
 			'/paseos/guardar',
