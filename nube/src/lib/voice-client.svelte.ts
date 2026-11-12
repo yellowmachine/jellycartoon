@@ -2,7 +2,7 @@ import { music } from 'comun/music-player.svelte.ts';
 import { musicTarget } from 'comun/music-target.svelte.ts';
 import type { LngLat, Place } from 'comun/road.ts';
 import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
-import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
+import { kitchenMode, pauseKitchenVideo, resumeKitchenVideo } from '#lib/kitchen-mode.svelte.ts';
 import { phone } from '#lib/phone.svelte.ts';
 import { simPhone } from '#lib/sim-phone.svelte.ts';
 import { callReplySaid, hangUpSaid } from '#lib/call-voice.ts';
@@ -310,12 +310,14 @@ function pauseForVoice() {
 	timers.silence();
 	timers.unlockSound();
 	music.pauseForVoice();
+	pauseKitchenVideo();
 	phone.hush();
 }
 
 /** What was paused to speak, back where it was. */
 function resumeAfterVoice() {
 	music.resumeAfterVoice();
+	resumeKitchenVideo();
 	phone.unhush();
 }
 

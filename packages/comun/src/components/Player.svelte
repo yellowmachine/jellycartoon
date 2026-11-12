@@ -88,6 +88,8 @@
 		/** In the âš™ menu, what only one app has: after the subtitles, and last (folded each). */
 		menuTop?: Snippet<[PlayerMenu]>;
 		menuBottom?: Snippet<[PlayerMenu]>;
+		/** In a part of the screen (Seilide's kitchen, #483): never wider than it, whatever the size. */
+		contained?: boolean;
 	}
 
 	let {
@@ -105,8 +107,12 @@
 		here,
 		onrefused,
 		menuTop,
-		menuBottom
+		menuBottom,
+		contained = false
 	}: Props = $props();
+
+	/** The window's whole width: chosen, and room for it. */
+	const cinema = $derived(playerSize.value === 'cinema' && !contained);
 
 	let video = $state<HTMLVideoElement>();
 	let hls: Hls | null = null;
@@ -482,7 +488,7 @@ same look in every browser, the app's colours, and the player's options in its â
 		'relative',
 		playerSize.value === 'small' && 'mx-auto max-w-2xl',
 		// Breaks out of the page container to the full window width, without needing fullscreen.
-		playerSize.value === 'cinema' && 'relative left-1/2 w-screen -translate-x-1/2 bg-black'
+		cinema && 'relative left-1/2 w-screen -translate-x-1/2 bg-black'
 	]}
 >
 	{#key episodeId}
@@ -490,9 +496,7 @@ same look in every browser, the app's colours, and the player's options in its â
 			lang="es"
 			class={[
 				'jc-player block w-full overflow-hidden bg-black',
-				playerSize.value === 'cinema'
-					? 'mx-auto max-h-[calc(100dvh-3.5rem)]'
-					: 'aspect-video rounded-md'
+				cinema ? 'mx-auto max-h-[calc(100dvh-3.5rem)]' : 'aspect-video rounded-md'
 			]}
 		>
 			<video

@@ -17,11 +17,11 @@ const STORAGE_KEY = 'kitchen-mode';
 
 /**
  * The kitchen's screen (#483): the steps on the left, and on the right its home (/cocina, the
- * recipe), the recipe book or these sections as they are, without the site around them: one tap
+ * recipe), the recipe book or these sections as they are (a series, a channel, the music…), without the site around them: one tap
  * from the steps to the music and back. What plays goes on from one to another. Any other page, the site as usual
  * (with «Volver a la cocina» in the header).
  */
-const KITCHEN_PATHS = ['/cocina', '/recetas', '/musica', '/radio'];
+const KITCHEN_PATHS = ['/cocina', '/recetas', '/series', '/watch', '/canales', '/musica', '/radio'];
 
 export const inKitchen = (pathname: string) =>
 	KITCHEN_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -144,3 +144,24 @@ function fullScreen() {
 }
 
 export const kitchenMode = new KitchenMode();
+
+/**
+ * The video on the kitchen's screen (#483), a series or a channel: paused while a timer rings or
+ * the voice listens and answers, and on again after, as the music. By the page's own <video>
+ * playing with sound, whichever player it is.
+ */
+const pausedVideos = new Set<HTMLVideoElement>();
+
+export function pauseKitchenVideo() {
+	if (!kitchenMode.on || !inKitchen(location.pathname)) return;
+	for (const video of document.querySelectorAll('video'))
+		if (!video.paused && !video.ended && !video.muted) {
+			video.pause();
+			pausedVideos.add(video);
+		}
+}
+
+export function resumeKitchenVideo() {
+	for (const video of pausedVideos) if (video.isConnected) void video.play().catch(() => {});
+	pausedVideos.clear();
+}

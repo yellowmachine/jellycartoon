@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import EpisodeCard from 'comun/components/EpisodeCard.svelte';
 	import Player, { type PlayerLinks } from 'comun/components/Player.svelte';
+	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 	import type { PageProps } from './$types';
 
 	/**
@@ -56,7 +57,8 @@
 	 */
 	function ended(next: boolean) {
 		if (!next || !data.nextId) return;
-		if (document.fullscreenElement) return playNext();
+		const full = document.fullscreenElement;
+		if (full && full !== document.documentElement) return playNext();
 		countdown = COUNTDOWN;
 		timer = setInterval(() => {
 			if (countdown === null) return;
@@ -116,6 +118,7 @@
 	onautonextchange={(value) => (autoNext = value)}
 	overlay={countdown !== null ? upNext : undefined}
 	{links}
+	contained={kitchenMode.on}
 />
 
 <!-- What comes after: the next one with «siguiente automático»; without it, others to go on with. -->

@@ -11,7 +11,8 @@
 	 * The kitchen's screen (#483), for the tablet on the kitchen's wall, lying down: the whole
 	 * screen, without the site's bar, as the road mode. On the left (40 %) the steps, the
 	 * microphone and the timers, always there; on the right the page that is on, under big tabs:
-	 * the recipe (/cocina), the music, the radio and the podcasts, as they are in the site. The
+	 * the recipe (/cocina), the series, the channels, the music, the radio and the podcasts, as they
+	 * are in the site. The
 	 * right side scrolls with the window, so each page keeps its own scroll and «back» works. On a
 	 * narrow screen, one over the other.
 	 */
@@ -19,6 +20,8 @@
 
 	const TABS = [
 		{ href: '/cocina', label: 'Receta', icon: '🍳', also: '/recetas' },
+		{ href: '/series', label: 'Series', icon: '📺', also: '/watch' },
+		{ href: '/canales', label: 'Canales', icon: '📡' },
 		{ href: '/musica', label: 'Música', icon: '🎵' },
 		{ href: '/radio', label: 'Radio', icon: '📻', not: '/radio/podcasts' },
 		{ href: '/radio/podcasts', label: 'Podcasts', icon: '🎙️' }
@@ -51,23 +54,30 @@
 		class="sticky top-0 z-20 border-b border-zinc-800 bg-zinc-950/95 backdrop-blur"
 	>
 		<div class="flex items-center gap-2 px-3 py-2">
-			<nav class="flex min-w-0 flex-1 gap-2 overflow-x-auto" aria-label="Cocina">
+			<!-- Six, side by side in the 60 %: the icon over its name, all the same width. -->
+			<nav class="grid min-w-0 flex-1 grid-cols-6 gap-1.5" aria-label="Cocina">
 				{#each TABS as t (t.href)}
 					<a
 						href={t.href}
 						aria-current={current(t) ? 'page' : undefined}
 						class={[
-							'flex shrink-0 items-center gap-2 rounded-xl px-4 py-3 text-lg font-semibold transition active:scale-95',
+							'flex min-w-0 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-base font-semibold transition active:scale-95',
 							current(t)
 								? 'bg-amber-500 text-zinc-950'
 								: 'bg-zinc-900 text-zinc-200 hover:bg-zinc-800'
-						]}><span aria-hidden="true">{t.icon}</span>{t.label}</a
+						]}
+						><span class="text-2xl leading-none" aria-hidden="true">{t.icon}</span><span
+							class="max-w-full truncate">{t.label}</span
+						></a
 					>
 				{/each}
 			</nav>
 			<button
-				class="shrink-0 rounded-xl px-4 py-3 text-base text-zinc-300 hover:bg-zinc-800"
-				onclick={() => kitchenMode.leave()}>Salir de la cocina</button
+				class="flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-white"
+				aria-label="Salir de la cocina"
+				title="Salir de la cocina"
+				onclick={() => kitchenMode.leave()}
+				><span class="text-2xl leading-none" aria-hidden="true">✕</span>Salir</button
 			>
 		</div>
 		<!-- What plays, from one tab to another. -->
