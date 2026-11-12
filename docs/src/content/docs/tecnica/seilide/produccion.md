@@ -10,6 +10,7 @@ app (`nube_app`) con su contraseña: no hay SQL a mano.
    **Compose Path** `./nube/compose.prod.yaml`.
 2. **Environment** (contraseñas en hexadecimal, porque van dentro de las URLs:
    `openssl rand -hex 24`):
+
    ```sh
    POSTGRES_PASSWORD=…
    APP_DB_PASSWORD=…
@@ -22,9 +23,16 @@ app (`nube_app`) con su contraseña: no hay SQL a mano.
    SMTP_HOST=smtp.protonmail.ch  # los correos («Pedir acceso» de la portada); sin él, no se envían
    SMTP_USER=no-reply@seilide.app
    SMTP_PASS=…                   # el token SMTP de Proton
+   # SMTP_PORT=587               # 587 con STARTTLS (por defecto); 465 con SMTP_SECURE=true
+   # EMAIL_FROM="Seilide <no-reply@seilide.app>"   # quién manda los correos (por defecto, este)
    ```
+
    Quien pide acceso desde la portada (`/`) queda apuntado en la tabla `waitlist`, recibe un correo,
-   y a `ADMIN_EMAIL` le llega un aviso (responderlo le escribe a esa persona).
+   y a `ADMIN_EMAIL` le llega un aviso (responderlo le escribe a esa persona). Sin `SMTP_HOST` no
+   se manda ningún correo: solo salen en el log.
+
+   Y las variables del KMS, en [Las claves de cada familia (KMS)](#las-claves-de-cada-familia-kms).
+
 3. **Domains:** `seilide.tu-dominio.com` → servicio `app`, puerto 3000, con HTTPS (Let's Encrypt).
    En Cloudflare, un registro `A` `seilide` → IP del VPS, en modo DNS only.
 4. **Deploy.** La imagen la construye GitHub (`.github/workflows/nube-image.yml`, #277) en cada push
@@ -45,6 +53,65 @@ Más familias, en la terminal del servicio `app`:
 
 `init-db.sh` solo corre con el volumen de Postgres vacío: cambiar `APP_DB_PASSWORD` después
 necesita `ALTER ROLE nube_app PASSWORD '…'` en la base de datos.
+
+## Las claves de cada familia (KMS)
+
+Lo que cada familia le da a Seilide y no puede salir de él (#326): su clave de OpenRouter y la de
+openrouteservice, la clave de su casa, el token de su bot de Telegram y la credencial con la que
+entra cada peque (no tienen contraseña). Se guarda cifrado con una **clave de datos de la familia**, y esa clave, a su vez, la
+envuelve [Scaleway Key Manager](https://www.scaleway.com/en/docs/key-manager/) (cifrado de sobre,
+`src/lib/server/family-secret.ts` y `envelope.ts`). En la base de datos solo está envuelta
+(`family_data_key`), atada a su familia, y cada secreto lleva delante `kms1.`.
+
+Así, **una copia de la base de datos con su `.env` no basta** para leerlos: además hay que poder
+pedirle a Key Manager que desenvuelva la clave, y Key Manager solo contesta a la IP del VPS. Seilide
+guarda en memoria la clave desenvuelta de cada familia 10 minutos, para no llamar a Scaleway en cada
+orden de voz.
+
+Sin las tres variables `SCW_*`, Seilide cifra como antes, solo con `BETTER_AUTH_SECRET`
+(`secret-box.ts`): así funcionan el desarrollo, los tests y cualquier otra instalación. Las casas
+no usan el KMS nunca, porque tienen que funcionar sin internet.
+
+Una vez, en la [consola de Scaleway](https://console.scaleway.com):
+
+1. **Key Manager → crear una clave** simétrica (AES-256-GCM) en `fr-par`, para cifrar y descifrar.
+   Su ID va en `SCW_KMS_KEY_ID`.
+2. **IAM → una aplicación solo para Seilide**, con una política que le dé **solo** los permisos de
+   Key Manager y una
+   [condición por petición](https://www.scaleway.com/en/docs/iam/reference-content/understanding-request-level-conditions/):
+   `inIpRange(request.ip, "<IP del VPS>/32")`. Basta con que _una_ política le dé acceso para que
+   valga, así que esa aplicación no puede tener ninguna otra sin la condición.
+3. **Una clave de API de esa aplicación**, que va en el Environment de Dokploy:
+   ```sh
+   SCW_ACCESS_KEY=SCW…
+   SCW_SECRET_KEY=…
+   SCW_KMS_KEY_ID=…
+   # SCW_DEFAULT_REGION=fr-par   # por defecto
+   ```
+   Va en el `.env` como las demás, y por eso también en la copia de cada noche. No pasa nada: la
+   copia va cifrada con age, y fuera del VPS la clave no sirve por la condición de IP.
+4. **Deploy.** Al arrancar, Seilide comprueba que Key Manager envuelve y desenvuelve bien
+   (`[kms] Key Manager responde` en el log) y vuelve a guardar con él lo que estaba cifrado sin el
+   KMS (`kms-migrate.ts`). Lo ya pasado no se toca, así que arrancar otra vez no hace nada más. Si
+   Key Manager no contesta bien, no pasa nada al KMS y lo dice en el log.
+
+**Una vez puesto, no se puede quitar:** lo guardado con el KMS no se lee sin él. Lo que hay que
+tener en cuenta:
+
+- **Restaurar en otro VPS** (otra IP): cambiar la IP de la condición en la política de IAM antes de
+  arrancar, o Seilide no podrá leer los secretos.
+- **Si se pierde la clave de Key Manager o la cuenta de Scaleway**, los secretos ya no se pueden
+  leer. Cada familia tiene que volver a poner los suyos en Ajustes: las claves de OpenRouter y de
+  openrouteservice (se crean otras en sus webs), la de su casa y su bot de Telegram. Los peques,
+  que entran con una credencial que solo sabe el servidor, no pueden entrar con la guardada. Lo
+  demás de la base de datos no se pierde.
+- **Botón de emergencia:** revocando la clave de API de la aplicación de IAM, ninguna copia de la
+  base de datos sirve para leer los secretos, tampoco desde el VPS, hasta que se cree otra.
+- **Key Manager caído:** las familias sin su clave en la memoria de Seilide se quedan sin IA (ni
+  nada que use un secreto) hasta que vuelva.
+
+El KMS no protege si alguien controla la app en marcha (root en el VPS), porque puede pedirle a
+Key Manager lo mismo que ella. Para eso está el límite de crédito en cada clave de OpenRouter.
 
 ## Llamadas (coturn)
 

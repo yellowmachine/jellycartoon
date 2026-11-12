@@ -81,6 +81,12 @@ docker compose -f compose.prod.yaml logs -f app
   primera cuenta (la que administra): las demás las crea ella en Ajustes; con el perfil `updates`,
   WUD actualiza solo.
 - Para fijar una versión concreta: `IMAGE_TAG=sha-abc1234` en el `.env`.
+- **Calidad de las conversiones:** `X264_PRESET` (por defecto `medium`; de `veryfast` a `slow`:
+  más lento, menos ocupa con la misma calidad) y `X264_CRF` (por defecto `20`; más bajo, mejor y
+  más grande; 20 va bien para fuentes en SD). Solo cambian lo que se convierta a partir de ese
+  momento.
+- **La IA de la casa:** `OPENROUTER_API_KEY` y `OPENROUTER_MODEL` (un modelo de OpenRouter, por
+  ejemplo `anthropic/claude-haiku-5.5`) en el `.env`, si no se ponen en Ajustes.
 - `DELETE_SOURCES=true` borra de `HOST_MEDIA_DIR` cada original (y sus subtítulos externos) en
   cuanto se convierte; el episodio sigue en el catálogo. Útil si guardas copia en otro disco.
   Los ficheros modificados hace menos de un minuto se ignoran al escanear (copias en curso).

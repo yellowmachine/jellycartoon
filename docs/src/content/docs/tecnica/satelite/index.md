@@ -36,6 +36,31 @@ sonar: mejor sin sesión gráfica, o con el audio del escritorio apagado. Sin pr
 
 Se actualiza solo: WUD mira cada noche (a las 4:30, `UPDATE_CRON`) si hay versión nueva, y la pone.
 
+## Los ajustes del `.env`
+
+| Variable                   | Por defecto         | Para qué                                                                                                                                                                                                                   |
+| -------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SERVER_URL`               | (obligatoria)       | La dirección de Seilide, la que enseña al darlo de alta.                                                                                                                                                                   |
+| `SATELLITE_KEY`            | (obligatoria)       | Su clave, también de ahí. Sin ellas dos el compose no se levanta.                                                                                                                                                          |
+| `MIC`                      | `default`           | El micrófono, por su nombre en ALSA (`arecord -L`).                                                                                                                                                                        |
+| `MIC_RATE`, `MIC_CHANNELS` | `48000`, `2`        | Lo que da el micrófono tal cual (`/proc/asound/cardN/stream0`), para que ALSA no tenga que convertir. Un micrófono de un canal: `MIC_CHANNELS=1`.                                                                          |
+| `SPEAKER`                  | (el de por defecto) | El altavoz, por su nombre en ALSA (`aplay -L`).                                                                                                                                                                            |
+| `SNAPCLIENT_SOUNDCARD`     | (el de `SPEAKER`)   | Otro altavoz para la música de la casa.                                                                                                                                                                                    |
+| `WAKE_WORD`                | `hola_casita`       | Su palabra, hasta que la familia elija una en Seilide: `hola_casita`, `alexa`, `okapi`, `ocarina`, `kusanagi` o `makoto`.                                                                                                  |
+| `WAKE_THRESHOLD`           | `0.3`               | Cuánto tiene que parecerse lo que oye a la palabra (0 a 1). Más bajo, la oye mejor, pero también se despierta más sin que se la digan.                                                                                     |
+| `WAKE_MARGIN_DB`           | `15`                | Cuánto más fuerte que el ruido de fondo tiene que ser la voz para contar como que se habla, como el «Margen» del móvil.                                                                                                    |
+| `WAKE_SILENCE_MS`          | `800`               | Cuánto silencio, en milisegundos, da la orden por acabada. Más corto contesta antes, pero corta a quien hace una pausa.                                                                                                    |
+| `WAKE_EARLY_MS`            | `300`               | Con este silencio manda ya lo dicho a oír, sin esperar al final, y contesta antes; `0`, no.                                                                                                                                |
+| `BARGE_IN`                 | `0`                 | `1`: también oye la palabra mientras piensa o contesta, y le corta para oír la nueva orden (#373). Solo con un micrófono que cancele el eco (un reSpeaker XVF3800, con el altavoz en su salida): si no, se oye a sí mismo. |
+| `TZ`                       | `Europe/Madrid`     | Su hora.                                                                                                                                                                                                                   |
+| `COMPOSE_PROFILES`         | (vacío)             | `dns` en uno solo de los satélites: el [DNS de la casa](#el-dns-de-la-casa-adguard-home).                                                                                                                                  |
+| `WUD_PASSWORD`             | (obligatoria)       | La de WUD, que lo actualiza: `openssl rand -hex 16`.                                                                                                                                                                       |
+| `UPDATE_CRON`              | `30 4 * * *`        | Cuándo mira WUD si hay versión nueva.                                                                                                                                                                                      |
+
+«Por defecto» es lo que pone el compose si la variable falta; el `.env.example` que se copia al
+instalar ya trae `WAKE_WORD="alexa"` y `WAKE_THRESHOLD="0.5"`. Cambiar el `.env` necesita
+`docker compose -f compose.prod.yaml up -d` para que valga.
+
 ## La palabra que lo despierta
 
 Cada satélite empieza con la de su `WAKE_WORD`. Si la familia elige una en Seilide (Ajustes →
