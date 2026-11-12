@@ -189,6 +189,9 @@ services:
     image: ${RATHOLE_IMAGE:-rapiz1/rathole:v0.5.0}
     profiles: [tunel]
     restart: unless-stopped
+    # rathole as PID 1 ignores SIGTERM: Docker had to kill it, and after a Docker restart (a system
+    # update) it stayed down. With an init it stops in time and comes back like the rest.
+    init: true
     depends_on:
       - caddy
     # Its own network with Caddy: Caddy knows what comes through the tunnel by its address, and
