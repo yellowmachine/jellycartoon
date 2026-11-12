@@ -1,3 +1,4 @@
+import { reconcileFiles } from '#lib/server/storage.ts';
 import { redirect } from '@sveltejs/kit';
 import { sequence, type Handle, type ServerInit } from '@sveltejs/kit/hooks';
 import { building, dev } from '$app/env';
@@ -29,6 +30,10 @@ export const init: ServerInit = () => {
 	keepBlocks();
 	// With the KMS just on (#326), what was kept before it, kept again with it.
 	void migrateToKms();
+	// Each family's files counted (#480): those from before, and what went wrong between the two.
+	void reconcileFiles().catch((err) =>
+		console.error('[ficheros] No se pudo poner al día el espacio', err)
+	);
 };
 
 /**

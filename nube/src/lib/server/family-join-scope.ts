@@ -255,7 +255,8 @@ export function familyJoinScope(
 					PAPERS_AREA_NAME,
 					p.file,
 					await sealFileFor(to, open),
-					'application/octet-stream'
+					'application/octet-stream',
+					{ quota: false }
 				);
 				copied.push({ area: PAPERS_AREA_NAME, name: p.file });
 			}

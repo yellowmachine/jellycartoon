@@ -19,6 +19,7 @@ import {
 	updateIncome,
 	updateRecurringIncome
 } from '#lib/server/expenses/income.ts';
+import { refused } from '#lib/server/storage.ts';
 
 /**
  * Dinero → Ingresos (#384): a month's (`?mes=2026-10`), one by one with their invoice, and the
@@ -98,6 +99,8 @@ export const actions: Actions = {
 			return { saved: await addIncome(k, input, document.file) };
 		} catch (err) {
 			if (err instanceof NotADocument) return fail(400, { message: err.message });
+			const no = refused(err);
+			if (no) return fail(no.status, { message: no.message });
 			throw err;
 		}
 	},

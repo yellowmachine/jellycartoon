@@ -8,6 +8,7 @@
 	import PasswordInput from 'comun/components/PasswordInput.svelte';
 	import PushNotices from 'comun/components/PushNotices.svelte';
 	import TelegramBot from './TelegramBot.svelte';
+	import Espacio from './Espacio.svelte';
 	import Invitaciones from './Invitaciones.svelte';
 	import PasarAdministracion from './PasarAdministracion.svelte';
 	import AparatoPeques from './AparatoPeques.svelte';
@@ -377,6 +378,8 @@
 		<FamiliasVinculadas {data} {form} {tab} />
 
 		<PasarAdministracion {data} {form} {tab} />
+
+		<Espacio {data} />
 
 		<AparatoPeques {data} {form} {tab} all />
 

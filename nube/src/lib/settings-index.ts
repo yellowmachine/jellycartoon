@@ -108,6 +108,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		words: 'familia peques niños hijos dibujo avatar sin cuenta agenda'
 	},
 	{
+		id: 'espacio',
+		tab: 'familia',
+		title: 'Espacio',
+		words: 'espacio almacenamiento lleno cuota fotos ficheros gigas megas sitio ocupa'
+	},
+	{
 		id: 'donde-vivis',
 		tab: 'familia',
 		title: 'Dónde vivís',

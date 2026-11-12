@@ -30,6 +30,11 @@ export const variables = defineEnvVars({
 		description: "The S3 storage's secret key.",
 		schema: (value) => value || undefined
 	},
+	STORAGE_QUOTA_MB: {
+		description:
+			"How much each family may keep in the storage (#480), in MB: 1024 (1 GB) by default. The satellites' waiting phrases are not counted. A family's own is set in /admin.",
+		schema: (value) => Number(value || 1024)
+	},
 	MAP_DIR: {
 		description:
 			"The road mode's map (#78): Spain's PMTiles and its style's fonts and icons, made with scripts/mapa.sh. Without it, the road mode goes without a map.",

@@ -14,6 +14,7 @@ import {
 	unlinkPaper,
 	updatePaper
 } from '#lib/server/papers.ts';
+import { refused } from '#lib/server/storage.ts';
 
 /** Papeles (#384): the family's, sealed. The agenda's events post their papers here too (#399). */
 export const load: PageServerLoad = async ({ locals }) => {
@@ -59,6 +60,8 @@ export const actions: Actions = {
 			return { saved };
 		} catch (err) {
 			if (err instanceof NotAPaper) return fail(400, { message: err.message });
+			const no = refused(err);
+			if (no) return fail(no.status, { message: no.message });
 			console.error('[papeles] No se pudo guardar', String(err));
 			return fail(503, { message: 'No se ha podido cifrar ni guardar. Prueba en un rato' });
 		}

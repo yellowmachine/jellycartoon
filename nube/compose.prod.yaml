@@ -68,6 +68,8 @@ services:
       S3_BUCKET: nube
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID is required}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY is required}
+      # What each family may keep there, in MB (#480); a family's own, in /admin → Espacio.
+      STORAGE_QUOTA_MB: ${STORAGE_QUOTA_MB:-1024}
       MAP_DIR: /data/mapa
       ROUTE_MAPS_DIR: /data/recorridos
       # The calls' coturn, below (#330): its name, and the secret it shares with the app. Without

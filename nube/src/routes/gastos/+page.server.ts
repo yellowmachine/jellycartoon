@@ -35,6 +35,7 @@ import {
 	monthIncomeTotal,
 	NotADocument
 } from '#lib/server/expenses/income.ts';
+import { refused } from '#lib/server/storage.ts';
 
 /**
  * The family's expenses (#253; jellycartoon's #194): a month's (`?mes=2026-10`), by category and one by
@@ -137,6 +138,8 @@ export const actions: Actions = {
 			saved = await addExpense(k, input, source, receipt.file, null, bill, k.userId, fileHash);
 		} catch (err) {
 			if (err instanceof NotADocument) return fail(400, { message: err.message });
+			const no = refused(err);
+			if (no) return fail(no.status, { message: no.message });
 			throw err;
 		}
 		// What it has, off the shopping list (#451); a supply's bill has nothing of it.
