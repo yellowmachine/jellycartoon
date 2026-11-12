@@ -379,7 +379,7 @@
 
 		<PasarAdministracion {data} {form} {tab} />
 
-		<Espacio {data} />
+		<Espacio {data} {form} {tab} />
 
 		<AparatoPeques {data} {form} {tab} all />
 

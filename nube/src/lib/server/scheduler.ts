@@ -12,6 +12,7 @@ import { warnKeyExpiring } from '#lib/server/ai-stopped.ts';
 import { learnPending, proposeRules, SUMMARY_AT, summarizeLearned } from '#lib/server/learn.ts';
 import { hasBot, startBot } from '#lib/server/telegram/bot.ts';
 import { refreshAll, REFRESH_HOURS } from '#lib/server/podcasts/podcasts.ts';
+import { cleanupCopies } from '#lib/server/storage-move.ts';
 
 /**
  * The cloud's own clock (#253): every few seconds, each family's alarms whose time has come; every
@@ -92,6 +93,10 @@ export function startScheduler() {
 				await eachFamily('Lo que ya no hay que recordar', async (id) => {
 					await forgetOver(houseKitchen(id));
 				});
+				// Their copies in Seilide's storage, a week after moving to their own (#480).
+				await cleanupCopies().catch((error) =>
+					console.error('[reloj] Copias de ficheros en Seilide', error)
+				);
 			}
 		} catch (error) {
 			console.error('[reloj] No se pudo mirar', error);

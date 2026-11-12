@@ -1,4 +1,5 @@
 import { reconcileFiles } from '#lib/server/storage.ts';
+import { resumeMoves } from '#lib/server/storage-move.ts';
 import { redirect } from '@sveltejs/kit';
 import { sequence, type Handle, type ServerInit } from '@sveltejs/kit/hooks';
 import { building, dev } from '$app/env';
@@ -34,6 +35,8 @@ export const init: ServerInit = () => {
 	void reconcileFiles().catch((err) =>
 		console.error('[ficheros] No se pudo poner al día el espacio', err)
 	);
+	// Files on their way to a family's own storage (#480): on from where a restart stopped them.
+	void resumeMoves().catch((err) => console.error('[ficheros] No se pudo seguir el paso', err));
 };
 
 /**

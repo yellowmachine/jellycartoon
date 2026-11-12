@@ -118,6 +118,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: false,
 		note: 'Kept by storage.ts as it copies and removes the files'
 	},
+	family_storage: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'The new family starts in Seilide’s storage; its own bucket is the old family’s'
+	},
 	storage_quota: {
 		leaving: 'stays',
 		joining: 'dropped',

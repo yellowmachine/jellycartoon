@@ -138,4 +138,10 @@ describe('reconcile', () => {
 		expect((await quota.usage('B')).used).toBe(40);
 		expect(await quota.reconcile([])).toEqual({ added: 0, removed: 3 });
 	});
+
+	test('families with their own storage are left alone', async () => {
+		await quota.kept('A', 'fotos', 'suya.jpg', 100);
+		expect(await quota.reconcile([], new Set(['A']))).toEqual({ added: 0, removed: 0 });
+		expect((await quota.usage('A')).used).toBe(100);
+	});
 });

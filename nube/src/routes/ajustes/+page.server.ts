@@ -2,7 +2,16 @@ import { fail, redirect } from '@sveltejs/kit';
 import { OAUTH_COOKIE, openRouterAuth } from 'comun/openrouter-oauth.ts';
 import { keyLimit } from '#lib/server/ai-spend.ts';
 import { fileQuota } from '#lib/server/file-quota.ts';
-import { storageReady } from '#lib/server/storage.ts';
+import { familyStorage, storageReady } from '#lib/server/storage.ts';
+import { bucketFrom } from '#lib/server/storage-bucket.ts';
+import {
+	cancelMove,
+	changeKeys,
+	continueMove,
+	startMove,
+	storageView,
+	testBucket
+} from '#lib/server/storage-move.ts';
 import { eq } from 'drizzle-orm';
 import { isTheme } from 'comun/themes.ts';
 import { family, familyMember } from '#lib/server/db/schema.ts';
@@ -153,6 +162,10 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		people: await familyPeople(k),
 		/** How much the family keeps in the storage, and may (#480). */
 		storage: storageReady ? await fileQuota.usage(membership.familyId) : null,
+		/** Where its files are (#480, phase 2): Seilide's or its own, and a move going on. */
+		storagePlace: storageReady
+			? { ...storageView(await familyStorage.of(membership.familyId)), admin }
+			: null,
 		/** The children with an account and who lets each in (#303), and the adults who may. */
 		kids: admin ? { kids: await familyKids(k), adults: await familyAdults(k) } : null,
 		/** The children's devices (#303): this one, if it is, and all of them. Its administrator. */
@@ -294,7 +307,60 @@ function placeFrom(value: unknown): Place | null {
 	}
 }
 
+/** The storage's actions (#480): its administrator only, with the bucket the form sent if any. */
+async function storageAction(
+	locals: App.Locals,
+	request: Request,
+	work: (familyId: string, form: FormData) => Promise<string | null | { ok: string }>
+) {
+	const familyId = await adminFamily(locals.user!.id);
+	if (!familyId) return fail(403, { storageProblem: 'Solo quien administra la familia' });
+	const result = await work(familyId, await request.formData());
+	if (typeof result === 'string') return fail(400, { storageProblem: result });
+	return { storageOk: result?.ok ?? 'Hecho' };
+}
+
+const sentBucket = (form: FormData) => {
+	const b = bucketFrom(form);
+	return 'problem' in b ? b.problem : b;
+};
+
 export const actions: Actions = {
+	/** «Probar»: the bucket as written, without moving anything. */
+	storageTest: ({ locals, request }) =>
+		storageAction(locals, request, async (_, form) => {
+			const b = sentBucket(form);
+			if (typeof b === 'string') return b;
+			return (await testBucket(b)) ?? { ok: 'Funciona: se puede escribir, leer, listar y borrar' };
+		}),
+	/** «Pasar los ficheros»: to its own bucket, for good (or from one of its own to another). */
+	storageMove: ({ locals, request }) =>
+		storageAction(locals, request, async (familyId, form) => {
+			if (form.get('confirm') !== 'on') return 'Marca que entiendes que no hay vuelta atrás';
+			const b = sentBucket(form);
+			if (typeof b === 'string') return b;
+			return (await startMove(familyId, b)) ?? { ok: 'Empezado' };
+		}),
+	/** «Seguir» after a problem, with other keys for the same bucket if they were written. */
+	storageContinue: ({ locals, request }) =>
+		storageAction(locals, request, async (familyId, form) => {
+			if (!form.get('accessKeyId')) return continueMove(familyId);
+			const b = sentBucket(form);
+			if (typeof b === 'string') return b;
+			return continueMove(familyId, b);
+		}),
+	storageCancel: ({ locals, request }) =>
+		storageAction(locals, request, async (familyId) => {
+			await cancelMove(familyId);
+			return { ok: 'Cancelado: los ficheros siguen donde estaban' };
+		}),
+	/** Other keys for the bucket it is already in. */
+	storageKeys: ({ locals, request }) =>
+		storageAction(locals, request, async (familyId, form) => {
+			const b = sentBucket(form);
+			if (typeof b === 'string') return b;
+			return (await changeKeys(familyId, b)) ?? { ok: 'Claves cambiadas' };
+		}),
 	/** «Dónde vivís»: the towns found by that name (places.ts), to choose one. */
 	findPlace: async ({ request, locals }) => {
 		const denied = await requireAdmin(locals.user!.id, 'placeProblem');
