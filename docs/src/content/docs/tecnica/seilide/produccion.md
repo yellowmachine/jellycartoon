@@ -114,6 +114,27 @@ tener en cuenta:
 El KMS no protege si alguien controla la app en marcha (root en el VPS), porque puede pedirle a
 Key Manager lo mismo que ella. Para eso está el límite de crédito en cada clave de OpenRouter.
 
+## Ficheros de las familias: cuota y almacenamiento propio
+
+Las fotos, notas de voz, tickets, facturas y papeles de cada familia van al rustfs de la pila
+(bucket `nube`, `familias/<id>/…`), con una cuota por familia: `STORAGE_QUOTA_MB` (1 GB por
+defecto) y la de cada una en **/admin → Espacio**. Las frases de espera de los satélites no cuentan.
+Al arrancar, Seilide cuadra lo que tiene apuntado con lo que hay en el bucket.
+
+Una familia puede pasar sus ficheros a **su propio S3** (Cloudflare R2, Backblaze B2, AWS,
+Scaleway, un MinIO…) desde **Ajustes → Familia → Espacio**: entonces no tiene cuota. Las claves se
+guardan cifradas como sus otros secretos. El paso:
+
+- Solo de ida para la familia: puede pasar a otro almacenamiento suyo, pero no volver al de Seilide.
+  Si se queda tirada, **/admin → Espacio → Devolver a Seilide** lo hace.
+- Mientras se pasa, todo sigue funcionando: se escribe en los dos sitios y se lee del de antes. La
+  copia salta lo que ya está, así que tras un reinicio sigue sola desde donde iba; si su bucket
+  falla, se para con el motivo y la familia le da a «Seguir».
+- Al acabar, la copia en el rustfs de Seilide se borra a los 7 días.
+- Solo se llega a direcciones `https://` públicas: nunca a una IP privada, `localhost` ni a los
+  contenedores de la pila.
+- Si se borra la familia, lo que haya en su bucket no se toca.
+
 ## Llamadas (coturn)
 
 Las llamadas de la familia (#330) van de navegador a navegador por WebRTC. Seilide solo pone en

@@ -50,6 +50,24 @@
 						style="width: {share * 100}%"
 					></div>
 				</div>
+				{#if f.place && f.place.state !== 'interno'}
+					<p class="mb-2 text-sm text-zinc-400">
+						Propio: {f.place.label ?? 'Seilide'}
+						{#if f.place.state === 'pasando'}
+							→ {f.place.nextLabel}: {f.place.done} de {f.place.total}{f.place.problem
+								? ` (parado: ${f.place.problem})`
+								: ''}
+						{/if}
+					</p>
+					<form method="post" use:enhance class="mb-3 flex gap-2">
+						<input type="hidden" name="family" value={f.familyId} />
+						{#if f.place.state === 'pasando'}
+							<button class={secondary} formaction="?/cancel">Cancelar el paso</button>
+						{:else}
+							<button class={secondary} formaction="?/back">Devolver a Seilide</button>
+						{/if}
+					</form>
+				{/if}
 				<form method="post" action="?/limit" use:enhance class="flex items-center gap-2">
 					<input type="hidden" name="family" value={f.familyId} />
 					<input

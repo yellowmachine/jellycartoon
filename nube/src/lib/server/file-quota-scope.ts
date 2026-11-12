@@ -174,13 +174,16 @@ export function fileQuotaScope(
 
 		/**
 		 * The table set right against what is in the bucket: what is there and not here comes in (the
-		 * files from before #480), what is here and not there goes. Families no longer here are skipped.
+		 * files from before #480), what is here and not there goes. Families no longer here, and
+		 * `skip` (theirs are not only in Seilide's storage), are left alone.
 		 */
-		async reconcile(objects: StoredObject[]) {
+		async reconcile(objects: StoredObject[], skip: ReadonlySet<string> = new Set()) {
 			const ids = new Set(
-				await asAdmin(async (tx) =>
-					(await tx.select({ id: family.id }).from(family)).map((f) => f.id)
-				)
+				(
+					await asAdmin(async (tx) =>
+						(await tx.select({ id: family.id }).from(family)).map((f) => f.id)
+					)
+				).filter((id) => !skip.has(id))
 			);
 			const byFamily = new Map<string, StoredObject[]>();
 			for (const id of ids) byFamily.set(id, []);

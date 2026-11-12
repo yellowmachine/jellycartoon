@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
 	bigint,
+	boolean,
 	integer,
 	pgPolicy,
 	pgTable,
@@ -54,4 +55,37 @@ export const storageQuota = pgTable(
 		}),
 		pgPolicy('storage_quota_admin', { for: 'all', using: serviceAdmin, withCheck: serviceAdmin })
 	]
+).enableRLS();
+
+/**
+ * A family's own storage (#480, phase 2): its S3/R2, kept sealed with its key (family-secret.ts).
+ * No row, Seilide's. Once on its own it never goes back by itself (only the service's administrator,
+ * in /admin); to another of its own, yes. While `moving`, its files are copied to `next` (null:
+ * back to Seilide's, the administrator's way out), written in both and read from `current` first.
+ */
+export const familyStorage = pgTable(
+	'family_storage',
+	{
+		familyId: text('family_id')
+			.primaryKey()
+			.references(() => family.id, { onDelete: 'cascade' }),
+		/** Where its files are, sealed (storage-place.ts' `Bucket`); null, Seilide's. */
+		current: text('current'),
+		/** What it says, without its keys: «r2.cloudflarestorage.com · fotos · seilide/». */
+		currentLabel: text('current_label'),
+		moving: boolean('moving').notNull().default(false),
+		/** Where they are going while `moving`, sealed; null, to Seilide's. */
+		next: text('next'),
+		nextLabel: text('next_label'),
+		/** How far: files copied of all. */
+		done: integer('done').notNull().default(0),
+		total: integer('total').notNull().default(0),
+		/** Why it stopped, to say in Ajustes: fixed, «Seguir». */
+		problem: text('problem'),
+		movedAt: timestamp('moved_at'),
+		/** When its copies in Seilide's storage go, a week after moving out of it. */
+		cleanupAt: timestamp('cleanup_at'),
+		updatedAt: timestamp('updated_at').notNull().defaultNow()
+	},
+	(t) => [familyRows('family_storage_own', t.familyId), adminReads('family_storage_admin_reads')]
 ).enableRLS();
