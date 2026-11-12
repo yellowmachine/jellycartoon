@@ -19,6 +19,7 @@ app (`nube_app`) con su contraseña: no hay SQL a mano.
    ADMIN_EMAIL=tu@email          # tu familia y tu invitación, al arrancar
    S3_ACCESS_KEY_ID=…            # el rustfs de la pila (fotos de tickets, facturas): openssl rand -hex 12
    S3_SECRET_ACCESS_KEY=…        # openssl rand -hex 24
+   # STORAGE_QUOTA_MB=1024       # lo que puede guardar cada familia (por defecto 1 GB); la de una, en /admin → Espacio
    ADMIN_FAMILY="Casa García"
    SMTP_HOST=smtp.protonmail.ch  # los correos («Pedir acceso» de la portada); sin él, no se envían
    SMTP_USER=no-reply@seilide.app

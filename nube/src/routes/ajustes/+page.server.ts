@@ -1,6 +1,8 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { OAUTH_COOKIE, openRouterAuth } from 'comun/openrouter-oauth.ts';
 import { keyLimit } from '#lib/server/ai-spend.ts';
+import { fileQuota } from '#lib/server/file-quota.ts';
+import { storageReady } from '#lib/server/storage.ts';
 import { eq } from 'drizzle-orm';
 import { isTheme } from 'comun/themes.ts';
 import { family, familyMember } from '#lib/server/db/schema.ts';
@@ -149,6 +151,8 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		satelliteVoice: admin ? await satelliteVoiceOf(k) : null,
 		twoFactor: Boolean(locals.user!.twoFactorEnabled),
 		people: await familyPeople(k),
+		/** How much the family keeps in the storage, and may (#480). */
+		storage: storageReady ? await fileQuota.usage(membership.familyId) : null,
 		/** The children with an account and who lets each in (#303), and the adults who may. */
 		kids: admin ? { kids: await familyKids(k), adults: await familyAdults(k) } : null,
 		/** The children's devices (#303): this one, if it is, and all of them. Its administrator. */

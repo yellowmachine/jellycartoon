@@ -111,6 +111,19 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: { file: 'alarmas-personas', where: [forMe()] },
 		note: 'Follows its alarm'
 	},
+	// The storage's own count (#480): storage.ts keeps it as files are copied and removed.
+	stored_file: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'Kept by storage.ts as it copies and removes the files'
+	},
+	storage_quota: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'The new family starts with the default quota'
+	},
 	agenda_link: {
 		leaving: 'stays',
 		joining: 'dropped',

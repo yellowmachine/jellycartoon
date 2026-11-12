@@ -110,6 +110,10 @@
 				<span class="text-sm font-normal text-zinc-400">esperando</span>
 			</p>
 		</a>
+		<a href="/admin/espacio" class={link}>
+			<p class="text-xs text-zinc-400 uppercase">Espacio</p>
+			<p class="text-sm text-zinc-400">Lo que guarda cada familia, y su cuota.</p>
+		</a>
 		<a href="/admin/apps" class={link}>
 			<p class="text-xs text-zinc-400 uppercase">Apps</p>
 			<p class="text-sm text-zinc-400">Las que entran con la cuenta de Seilide.</p>

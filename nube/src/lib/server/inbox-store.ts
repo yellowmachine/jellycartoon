@@ -22,7 +22,9 @@ export type InboxKind =
 	// The family's AI stopped (ai-block.ts), to who runs it.
 	| 'ia'
 	// A smart plug's (#396): a washing machine done, a fridge stopped…
-	| 'enchufe';
+	| 'enchufe'
+	// The family's storage almost full (#480), to who runs it.
+	| 'espacio';
 
 /**
  * Something offered in the inbox, answered with yes or no (#331): to remember (phase 5; older ones

@@ -68,7 +68,8 @@ const REJECTED: Record<number, string> = {
 	400: 'el servidor no lo entiende',
 	404: 'su paseo ya no está',
 	413: 'es demasiado grande',
-	415: 'no es un formato admitido'
+	415: 'no es un formato admitido',
+	507: 'la familia ha llenado su espacio en Seilide'
 };
 
 /** A rejected one, back in the queue. */

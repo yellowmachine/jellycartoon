@@ -384,7 +384,8 @@ export function familyMoveScope(
 						PAPERS_AREA_NAME,
 						p.file,
 						await sealFileFor(newFamilyId, open),
-						'application/octet-stream'
+						'application/octet-stream',
+						{ quota: false }
 					);
 				} else console.warn('[familias] Falta el fichero de un papel', p.id);
 				if (picked.papers.only.includes(p.id))
