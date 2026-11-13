@@ -16,6 +16,7 @@
 		EXPENSE_CATEGORIES,
 		LINE_TAGS,
 		addMonths,
+		byStore,
 		byTag,
 		euros,
 		favoriteOf,
@@ -102,6 +103,8 @@
 	let tagging = $state<{ i: number; tag: string; name: string } | null>(null);
 	/** The category open in the month's totals, with its lines by tag. */
 	let openCategory = $state<ExpenseCategory | null>(null);
+	/** The month's summary by category, or by shop: Amazon apart from what it sold. */
+	let summaryBy = $state<'categoria' | 'tienda'>('categoria');
 	let deleting = $state<string | null>(null);
 	let photoInput = $state<HTMLInputElement>();
 	let billInput = $state<HTMLInputElement>();
@@ -359,6 +362,8 @@
 			.sort((a, b) => b.total - a.total)
 	);
 	const largest = $derived(byCategory[0]?.total ?? 0);
+	const stores = $derived(byStore(data.expenses));
+	const largestStore = $derived(Math.max(0, ...stores.map((s) => s.total)));
 
 	const dayText = (day: string) =>
 		new Date(`${day}T12:00:00Z`).toLocaleDateString('es-ES', {
@@ -824,52 +829,83 @@
 				>
 			</p>
 		{/if}
-		<ul class="flex flex-col gap-1.5">
-			{#each byCategory as c (c.category)}
-				<li>
-					<svelte:element
-						this={c.tags.length ? 'button' : 'div'}
-						class="grid w-full grid-cols-[8rem_1fr_auto] items-center gap-2 text-left text-sm"
-						aria-expanded={c.tags.length ? openCategory === c.category : undefined}
-						onclick={c.tags.length
-							? () => (openCategory = openCategory === c.category ? null : c.category)
-							: undefined}
-						role={c.tags.length ? undefined : 'presentation'}
+		{#if data.expenses.length}
+			<div role="tablist" aria-label="Resumen del mes" class="mb-3 flex gap-1 text-sm">
+				{#each [['categoria', 'Categorías'], ['tienda', 'Tiendas']] as const as [key, label] (key)}
+					<button
+						role="tab"
+						aria-selected={summaryBy === key}
+						class="rounded-md px-3 py-1 {summaryBy === key
+							? 'bg-zinc-700 text-zinc-100'
+							: 'text-zinc-400 hover:bg-zinc-800'}"
+						onclick={() => (summaryBy = key)}>{label}</button
 					>
-						<span class="truncate"
-							>{c.category}{#if c.tags.length}<span class="text-zinc-500">
-									{openCategory === c.category ? '▾' : '▸'}</span
-								>{/if}</span
-						>
+				{/each}
+			</div>
+		{/if}
+		{#if summaryBy === 'tienda'}
+			<ul class="flex flex-col gap-1.5">
+				{#each stores as s (s.store)}
+					<li class="grid grid-cols-[8rem_1fr_auto] items-center gap-2 text-sm">
+						<span class="truncate">{s.store}<span class="text-zinc-500"> · {s.count}</span></span>
 						<span class="h-2 overflow-hidden rounded-full bg-zinc-800">
 							<span
 								class="block h-full rounded-full bg-amber-500"
-								style:width="{(c.total / largest) * 100}%"
+								style:width="{(Math.max(s.total, 0) / largestStore) * 100}%"
 							></span>
 						</span>
-						<span class="text-right tabular-nums">{euros(c.total)}</span>
-					</svelte:element>
-					{#if openCategory === c.category}
-						<ul class="mt-1 mb-2 flex flex-col gap-1 pl-3">
-							{#each c.tags as t (t.tag)}
-								<li
-									class="grid grid-cols-[7.25rem_1fr_auto] items-center gap-2 text-xs text-zinc-300"
-								>
-									<span class="truncate">{t.tag}</span>
-									<span class="h-1.5 overflow-hidden rounded-full bg-zinc-800">
-										<span
-											class="block h-full rounded-full bg-amber-500/60"
-											style:width="{(Math.max(t.total, 0) / c.total) * 100}%"
-										></span>
-									</span>
-									<span class="text-right tabular-nums">{euros(t.total)}</span>
-								</li>
-							{/each}
-						</ul>
-					{/if}
-				</li>
-			{/each}
-		</ul>
+						<span class="text-right tabular-nums">{euros(s.total)}</span>
+					</li>
+				{/each}
+			</ul>
+		{:else}
+			<ul class="flex flex-col gap-1.5">
+				{#each byCategory as c (c.category)}
+					<li>
+						<svelte:element
+							this={c.tags.length ? 'button' : 'div'}
+							class="grid w-full grid-cols-[8rem_1fr_auto] items-center gap-2 text-left text-sm"
+							aria-expanded={c.tags.length ? openCategory === c.category : undefined}
+							onclick={c.tags.length
+								? () => (openCategory = openCategory === c.category ? null : c.category)
+								: undefined}
+							role={c.tags.length ? undefined : 'presentation'}
+						>
+							<span class="truncate"
+								>{c.category}{#if c.tags.length}<span class="text-zinc-500">
+										{openCategory === c.category ? '▾' : '▸'}</span
+									>{/if}</span
+							>
+							<span class="h-2 overflow-hidden rounded-full bg-zinc-800">
+								<span
+									class="block h-full rounded-full bg-amber-500"
+									style:width="{(c.total / largest) * 100}%"
+								></span>
+							</span>
+							<span class="text-right tabular-nums">{euros(c.total)}</span>
+						</svelte:element>
+						{#if openCategory === c.category}
+							<ul class="mt-1 mb-2 flex flex-col gap-1 pl-3">
+								{#each c.tags as t (t.tag)}
+									<li
+										class="grid grid-cols-[7.25rem_1fr_auto] items-center gap-2 text-xs text-zinc-300"
+									>
+										<span class="truncate">{t.tag}</span>
+										<span class="h-1.5 overflow-hidden rounded-full bg-zinc-800">
+											<span
+												class="block h-full rounded-full bg-amber-500/60"
+												style:width="{(Math.max(t.total, 0) / c.total) * 100}%"
+											></span>
+										</span>
+										<span class="text-right tabular-nums">{euros(t.total)}</span>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		{/if}
 	</section>
 
 	<ul class="mb-10 divide-y divide-zinc-800">

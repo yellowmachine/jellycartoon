@@ -3,12 +3,14 @@ import {
 	dueMonths,
 	lastDue,
 	addMonths,
+	byStore,
 	byTag,
 	euros,
 	isDay,
 	isFavorite,
 	parseEuros,
 	parseExpenseInput,
+	NO_STORE,
 	UNTAGGED,
 	type LineTag
 } from './expenses.ts';
@@ -90,6 +92,23 @@ test("a category by its lines' tags, what they miss apart and last", () => {
 		{ tag: UNTAGGED, total: 1708 }
 	]);
 	expect(byTag([{ ...receipt, total: 632 }])).toHaveLength(3);
+});
+
+test('a month by shop: one shop however written, the ones with no shop last', () => {
+	expect(
+		byStore([
+			{ store: 'Amazon', total: 2000 },
+			{ store: ' amazon ', total: 1500 },
+			{ store: 'Amazon', total: 500 },
+			{ store: '', total: 9000 },
+			{ store: 'Mercadona', total: 3000 },
+			{ store: 'Bar', total: 0 }
+		])
+	).toEqual([
+		{ store: 'Amazon', total: 4000, count: 3 },
+		{ store: 'Mercadona', total: 3000, count: 1 },
+		{ store: NO_STORE, total: 9000, count: 1 }
+	]);
 });
 
 test('a favourite is that expense, not any other at the same place', () => {
