@@ -1,5 +1,7 @@
 <script lang="ts">
 	import TvEpisode from '#lib/components/TvEpisode.svelte';
+	import TvEpisodeMenu from '#lib/components/TvEpisodeMenu.svelte';
+	import { pushState } from '$app/navigation';
 	import TvHeader from '#lib/components/TvHeader.svelte';
 	import Backdrop from 'comun/components/Backdrop.svelte';
 	import { backdropUrl } from '#lib/backdrop.svelte.ts';
@@ -34,6 +36,33 @@
 		].filter(Boolean)
 	);
 	const hasCard = $derived(Boolean(info && (facts.length || info.synopsis)));
+
+	/**
+	 * The remote's Menú on an episode: its options, as a step in the history so Back closes them.
+	 * The episode had the focus, and gets it back if the menu's own closing could not give it.
+	 */
+	let opener: HTMLElement | null = null;
+	function openMenu(id: number, from: HTMLElement) {
+		opener = from;
+		pushState('', { episodeMenu: id });
+	}
+	const menuFor = $derived(data.episodes.find((e) => e.id === page.state.episodeMenu) ?? null);
+	$effect(() => {
+		if (!menuFor && opener) {
+			if (document.activeElement !== opener) opener.focus();
+			opener = null;
+		}
+	});
+	/** Before it, of its kind (extras with extras), one not watched yet. */
+	function anyBefore(ep: { id: number; season: number }) {
+		const kind = data.episodes.filter((e) => (e.season === 0) === (ep.season === 0));
+		return kind
+			.slice(
+				0,
+				kind.findIndex((e) => e.id === ep.id)
+			)
+			.some((e) => !e.completed);
+	}
 </script>
 
 <svelte:head>
@@ -62,6 +91,7 @@
 					detail={formatDuration(data.next.durationSec)}
 					positionSec={data.next.positionSec}
 					durationSec={data.next.durationSec}
+					onmenu={(from) => openMenu(data.next!.id, from)}
 				/>
 			</div>
 		{/if}
@@ -109,6 +139,19 @@
 			positionSec={ep.positionSec}
 			durationSec={ep.durationSec}
 			completed={ep.completed}
+			onmenu={(from) => openMenu(ep.id, from)}
 		/>
 	{/each}
 </div>
+
+{#if menuFor}
+	<TvEpisodeMenu
+		id={menuFor.id}
+		heading="{menuFor.season === 0
+			? 'Extras'
+			: `T${menuFor.season}`} E{menuFor.number} · {menuFor.title}"
+		started={Boolean(menuFor.positionSec)}
+		completed={Boolean(menuFor.completed)}
+		upTo={anyBefore(menuFor)}
+	/>
+{/if}

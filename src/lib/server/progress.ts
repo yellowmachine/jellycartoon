@@ -1,6 +1,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import {
+	episode,
 	playlist,
 	playlistItem,
 	userList,
@@ -8,6 +9,7 @@ import {
 	watchProgress
 } from '#lib/server/db/schema.ts';
 import { today } from '#lib/server/playlist.ts';
+import { episodesBefore } from '#lib/server/episode-order.ts';
 
 /**
  * A watched episode has its position reset to 0: the next visit starts over. Playing it brings it
@@ -68,6 +70,43 @@ export async function markWatched(userId: string, episodeIds: number[]) {
 			userId,
 			marked.map((m) => m.episodeId)
 		);
+}
+
+/** An episode of this series, watched or back to never played; false if it is not of it. */
+export async function setEpisodeWatched(
+	userId: string,
+	seriesId: number,
+	episodeId: number,
+	watched: boolean
+) {
+	if (!Number.isInteger(episodeId)) return false;
+	const [ep] = await db
+		.select({ id: episode.id })
+		.from(episode)
+		.where(and(eq(episode.id, episodeId), eq(episode.seriesId, seriesId)));
+	if (!ep) return false;
+	if (watched) await saveProgress(userId, ep.id, 0, true);
+	else await clearProgress(userId, ep.id);
+	return true;
+}
+
+/**
+ * «Marcar hasta este como vistos»: the ones before it in its series (extras with extras), and it;
+ * false if it is not of the series.
+ */
+export async function markWatchedUpTo(userId: string, seriesId: number, episodeId: number) {
+	if (!Number.isInteger(episodeId)) return false;
+	const [ep] = await db
+		.select({ season: episode.season, number: episode.number })
+		.from(episode)
+		.where(and(eq(episode.id, episodeId), eq(episode.seriesId, seriesId)));
+	if (!ep) return false;
+	const previous = await db
+		.select({ id: episode.id })
+		.from(episode)
+		.where(and(eq(episode.seriesId, seriesId), eq(episode.missing, false), episodesBefore(ep)));
+	await markWatched(userId, [...previous.map((e) => e.id), episodeId]);
+	return true;
 }
 
 /** Out of «Seguir viendo», keeping where it was left. */
