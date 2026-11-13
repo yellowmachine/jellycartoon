@@ -14,6 +14,18 @@ import { NoFamily } from './family-scope.ts';
  * own user and credential faked: given to a person without one, its adults, and taken back.
  */
 const db = drizzle(new PGlite(), { schema });
+// Its own: with --isolate, nothing another test mocked reaches here (storage.ts needs the env).
+mock.module('#lib/server/storage.ts', () => ({
+	storageReady: false,
+	MAX_FILE_BYTES: 16 * 1024 * 1024,
+	putFile: async () => {},
+	removeFile: async () => {},
+	readFile: async () => null,
+	listFiles: async () => [],
+	copyFile: async () => {},
+	removeAllFiles: async () => {},
+	fileResponse: async () => new Response()
+}));
 const withFamily = familyScope(db, { role: 'app_user' });
 // The whole module, as kid-login.test.ts's: a mock is the process's, whichever test runs first.
 mock.module('#lib/server/family.ts', () => ({

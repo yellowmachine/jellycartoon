@@ -58,7 +58,8 @@ mock.module('#lib/server/satellites.ts', () => ({
 	familySatellites: async (familyId: string) =>
 		familyId === 'E' ? [{ id: SAT, name: 'Salón' }] : [],
 	servedSatellites: async () => [],
-	satellitesChanged: async () => {}
+	satellitesChanged: async () => {},
+	snapserverOf: async () => null
 }));
 mock.module('#lib/server/push.ts', () => ({
 	notify: async (family: string, to: string[], m: { title: string; body: string }) =>

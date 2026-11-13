@@ -44,7 +44,8 @@ mock.module('#lib/server/openrouter.ts', () => ({
 mock.module('#lib/server/satellites.ts', () => ({
 	satellitesChanged: async () => {},
 	familySatellites: async () => [],
-	servedSatellites: async () => []
+	servedSatellites: async () => [],
+	snapserverOf: async () => null
 }));
 
 /** The family's files, faked: by area and name. */

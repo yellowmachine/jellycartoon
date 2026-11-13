@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { boughtOf } from './expenses.ts';
+import { boughtOf } from './bought.ts';
 
 describe('boughtOf (#451)', () => {
 	test('each line with its tag, once, without discounts', () => {

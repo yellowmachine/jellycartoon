@@ -12,7 +12,7 @@ import { alarm, alarmPerson, familyPerson } from '#lib/server/db/schema.ts';
 import type { AnyDb } from '#lib/server/family-scope.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { familyHasHouse, tellHouse } from '#lib/server/house.ts';
-import { familySatellites } from '#lib/server/satellites.ts';
+import { familySatellites, snapserverOf } from '#lib/server/satellites.ts';
 import { tell } from '#lib/server/inbox.ts';
 import { tellGroup } from '#lib/server/telegram/bot.ts';
 import { toldOf } from '#lib/server/agenda/agenda.ts';
@@ -704,11 +704,21 @@ async function ringingAt(k: Kitchen, place: AlarmPlace) {
 
 /**
  * What rings where one of Seilide's satellites is, as the house tells its own (/api/satelite/avisos):
- * all of it, which its wake word stops; and what it says itself, all of it too (no Snapcast here).
+ * all of it, which its wake word stops; and what it says itself: its own, and the whole house's
+ * only when no Snapcast brings it there. With a house and a snapserver in Ajustes, the house says
+ * those through Snapcast (its alarms.ts), heard there too: one voice, at once in every room, not
+ * the satellite's own a few seconds before the house's (2026-11-13).
  */
 export async function ringingFor(k: Kitchen, satelliteId: string) {
-	const labels = (await ringingAt(k, `satelite:${satelliteId}`)).map((r) => r.label);
-	return { ringing: labels, play: labels };
+	const rows = await ringingAt(k, `satelite:${satelliteId}`);
+	const bySnapcast =
+		rows.some((r) => r.place === 'casa') &&
+		Boolean(await snapserverOf(k, satelliteId)) &&
+		(await familyHasHouse(k.familyId));
+	return {
+		ringing: rows.map((r) => r.label),
+		play: rows.filter((r) => !bySnapcast || r.place !== 'casa').map((r) => r.label)
+	};
 }
 
 /**

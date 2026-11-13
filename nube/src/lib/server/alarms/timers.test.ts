@@ -12,6 +12,7 @@ import type { Kitchen } from '#lib/server/fridge.ts';
  * are: what the house and the phones are told, faked.
  */
 const house: { path: string; body: { place: string } }[] = [];
+const snapserver: { value: string | null } = { value: null };
 const notices: { title: string; body: string }[] = [];
 mock.module('#lib/server/house.ts', () => ({
 	tellHouse: async (_: string, path: string, body: { place: string }) => {
@@ -27,7 +28,9 @@ mock.module('#lib/server/house.ts', () => ({
 mock.module('#lib/server/satellites.ts', () => ({
 	familySatellites: async () => [{ id: 'dormitorio', name: 'dormitorio' }],
 	servedSatellites: async () => [{ id: 'dormitorio', name: 'dormitorio' }],
-	satellitesChanged: async () => {}
+	satellitesChanged: async () => {},
+	// Its snapserver in Ajustes, or none.
+	snapserverOf: async () => snapserver.value
 }));
 mock.module('#lib/server/push.ts', () => ({
 	notify: async (_: string, __: unknown, notice: { title: string; body: string }) =>
@@ -139,5 +142,30 @@ describe('the satellites Seilide serves (#296)', () => {
 			play: ['la siesta']
 		});
 		expect(house.length).toBe(before);
+	});
+});
+
+describe('the whole house, where a satellite of Seilide is (2026-11-13)', () => {
+	test('said by the house through Snapcast if it plays from it; by itself if not', async () => {
+		await db.insert(alarm).values({
+			familyId: 'A',
+			kind: 'alarma',
+			label: 'sacar la bebida',
+			time: '10:00',
+			startDay: '2026-11-13',
+			place: 'casa',
+			ringingSince: new Date()
+		});
+		// Its wake word stops it either way.
+		expect(await ringingFor(k, 'dormitorio')).toEqual({
+			ringing: ['la siesta', 'sacar la bebida'],
+			play: ['la siesta', 'sacar la bebida']
+		});
+		snapserver.value = 'salon.local';
+		expect(await ringingFor(k, 'dormitorio')).toEqual({
+			ringing: ['la siesta', 'sacar la bebida'],
+			play: ['la siesta']
+		});
+		snapserver.value = null;
 	});
 });
