@@ -1,0 +1,1 @@
+ALTER TABLE "family_settings" ADD COLUMN "voice_hear_cloud" boolean DEFAULT false NOT NULL;

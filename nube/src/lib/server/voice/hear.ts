@@ -3,6 +3,7 @@ import type { Kitchen } from '#lib/server/fridge.ts';
 import { askHouse, hasHouse, HouseProblem } from '#lib/server/house.ts';
 import { audioFormat, sayableError, transcribe } from '#lib/server/openrouter.ts';
 import { familyWords, heardPath } from '#lib/server/voice/heard-words.ts';
+import { hearsByHouse } from '#lib/server/voice/settings.ts';
 
 /** Why what was said could not be heard, to say so. */
 export class HearProblem extends Error {
@@ -17,7 +18,8 @@ export class HearProblem extends Error {
 /**
  * What was said in a recording: by the house's Whisper (its /api/v1/voz/oir), which knows its
  * music's names, told the family's (heard-words.ts); without the house, or if it does not answer,
- * by OpenRouter with the family's key. Throws a HearProblem.
+ * by OpenRouter with the family's key; always by OpenRouter if the family chose so (Ajustes, «Quién
+ * oye lo que se dice»). Throws a HearProblem.
  */
 export async function hearAudio(
 	k: Kitchen,
@@ -27,7 +29,7 @@ export async function hearAudio(
 	timeoutMs = 30_000
 ) {
 	let houseDown: string | null = null;
-	if (await hasHouse(who.id))
+	if ((await hasHouse(who.id)) && (await hearsByHouse(k)))
 		try {
 			const { text } = await askHouse<{ text: string }>(
 				who.id,
