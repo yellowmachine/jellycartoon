@@ -30,6 +30,14 @@
 	const time = (at: number) =>
 		new Date(at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
+	/** While it listens or thinks: beside the microphone in the kitchen, over it in Hablar. */
+	const listening = () =>
+		voice.phase === 'thinking'
+			? 'Un momento…'
+			: micMode.tap
+				? 'Te escucho… toca para enviar'
+				: 'Te escucho…';
+
 	/** Held down, or (Ajustes) a tap to start and another to send. */
 	function press() {
 		if (micMode.tap) voice.toggle();
@@ -40,7 +48,8 @@
 <div
 	class={[
 		'flex flex-col items-center text-center',
-		kitchen ? 'gap-8 px-4 py-4 md:py-6' : 'min-h-[70vh] justify-center gap-10 py-8'
+		// In the kitchen, room at the end so the fixed microphone never covers the last line.
+		kitchen ? 'gap-8 px-4 pt-4 pb-36 md:pt-6 md:pb-44' : 'min-h-[70vh] justify-center gap-10 py-8'
 	]}
 >
 	<!-- Cooking (#60): the step first; the microphone, smaller, under it. -->
@@ -48,14 +57,8 @@
 		<RecipeCard />
 	{/if}
 
-	{#if voice.phase === 'listening' || voice.phase === 'thinking'}
-		<p class="text-3xl font-semibold text-zinc-200">
-			{voice.phase === 'thinking'
-				? 'Un momento…'
-				: micMode.tap
-					? 'Te escucho… toca para enviar'
-					: 'Te escucho…'}
-		</p>
+	{#if !kitchen && (voice.phase === 'listening' || voice.phase === 'thinking')}
+		<p class="text-3xl font-semibold text-zinc-200">{listening()}</p>
 	{:else if !voiceHint.closed}
 		<!-- Closed once, it stays closed on this device. -->
 		<div
@@ -80,65 +83,88 @@
 		</div>
 	{/if}
 
-	<!-- Touch: no selecting text nor the menu of a long press, and no scrolling while it is held. -->
-	<button
-		class={[
-			'flex touch-none items-center justify-center rounded-full shadow-2xl transition duration-150 select-none',
-			kitchen ? 'h-24 w-24 md:h-32 md:w-32' : recipe.current ? 'h-40 w-40' : 'h-56 w-56',
-			voice.phase === 'listening'
-				? 'scale-110 bg-red-500 text-white'
-				: 'bg-amber-500 text-zinc-950 active:scale-95',
-			voice.phase === 'thinking' && 'opacity-60'
-		]}
-		aria-label={micMode.tap
-			? voice.phase === 'listening'
-				? 'Toca para enviar'
-				: 'Toca para hablar'
-			: 'Mantén pulsado para hablar'}
-		disabled={voice.phase === 'thinking'}
-		onpointerdown={(e) => {
-			e.currentTarget.setPointerCapture(e.pointerId);
-			press();
-		}}
-		onpointerup={release}
-		onpointercancel={release}
-		oncontextmenu={(e) => e.preventDefault()}
-		onkeydown={(e) => {
-			if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) {
-				e.preventDefault();
-				press();
-			}
-		}}
-		onkeyup={(e) => {
-			if (e.key === ' ' || e.key === 'Enter') release();
-		}}
-	>
-		<svg
-			viewBox="0 0 24 24"
-			class={kitchen ? 'h-12 w-12 md:h-16 md:w-16' : 'h-24 w-24'}
-			fill="currentColor"
-			aria-hidden="true"
+	{#if kitchen}
+		<!-- The kitchen (#483): fixed at the bottom right of the left 40 %, however long the step;
+		     on a narrow screen, at the bottom right of the screen. What it is doing, on its left. -->
+		<div
+			class="fixed right-4 bottom-4 z-40 flex items-center gap-3 md:right-auto md:bottom-6 md:left-[calc(40%-1.5rem)] md:-translate-x-full"
 		>
-			<rect x="9" y="2.5" width="6" height="12" rx="3" />
-			<path
-				d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-				stroke-linecap="round"
-			/>
-		</svg>
-	</button>
+			{#if voice.phase === 'listening' || voice.phase === 'thinking'}
+				<p
+					class="rounded-2xl bg-zinc-900 px-4 py-3 text-xl font-semibold text-zinc-200 shadow-xl ring-1 ring-zinc-700"
+					aria-live="polite"
+				>
+					{listening()}
+				</p>
+			{/if}
+			{@render mic()}
+		</div>
+	{:else}
+		{@render mic()}
 
-	<!-- With a mouse, a keyboard is likely: the shortcut, from any page. -->
-	<p class="-mt-6 hidden text-sm text-zinc-500 pointer-fine:block">
-		O {micMode.tap ? 'pulsa' : 'mantén'} <kbd class="rounded border border-zinc-700 px-1">Ctrl</kbd>
-		+
-		<kbd class="rounded border border-zinc-700 px-1">Mayús</kbd> +
-		<kbd class="rounded border border-zinc-700 px-1">Espacio</kbd>{micMode.tap
-			? ': una vez para empezar y otra para enviar,'
-			: ','} en cualquier página.
-	</p>
+		<!-- With a mouse, a keyboard is likely: the shortcut, from any page. -->
+		<p class="-mt-6 hidden text-sm text-zinc-500 pointer-fine:block">
+			O {micMode.tap ? 'pulsa' : 'mantén'}
+			<kbd class="rounded border border-zinc-700 px-1">Ctrl</kbd>
+			+
+			<kbd class="rounded border border-zinc-700 px-1">Mayús</kbd> +
+			<kbd class="rounded border border-zinc-700 px-1">Espacio</kbd>{micMode.tap
+				? ': una vez para empezar y otra para enviar,'
+				: ','} en cualquier página.
+		</p>
+	{/if}
+
+	{#snippet mic()}
+		<!-- Touch: no selecting text nor the menu of a long press, and no scrolling while it is held. -->
+		<button
+			class={[
+				'flex touch-none items-center justify-center rounded-full shadow-2xl transition duration-150 select-none',
+				kitchen ? 'h-24 w-24 md:h-32 md:w-32' : recipe.current ? 'h-40 w-40' : 'h-56 w-56',
+				voice.phase === 'listening'
+					? 'scale-110 bg-red-500 text-white'
+					: 'bg-amber-500 text-zinc-950 active:scale-95',
+				voice.phase === 'thinking' && 'opacity-60'
+			]}
+			aria-label={micMode.tap
+				? voice.phase === 'listening'
+					? 'Toca para enviar'
+					: 'Toca para hablar'
+				: 'Mantén pulsado para hablar'}
+			disabled={voice.phase === 'thinking'}
+			onpointerdown={(e) => {
+				e.currentTarget.setPointerCapture(e.pointerId);
+				press();
+			}}
+			onpointerup={release}
+			onpointercancel={release}
+			oncontextmenu={(e) => e.preventDefault()}
+			onkeydown={(e) => {
+				if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) {
+					e.preventDefault();
+					press();
+				}
+			}}
+			onkeyup={(e) => {
+				if (e.key === ' ' || e.key === 'Enter') release();
+			}}
+		>
+			<svg
+				viewBox="0 0 24 24"
+				class={kitchen ? 'h-12 w-12 md:h-16 md:w-16' : 'h-24 w-24'}
+				fill="currentColor"
+				aria-hidden="true"
+			>
+				<rect x="9" y="2.5" width="6" height="12" rx="3" />
+				<path
+					d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+				/>
+			</svg>
+		</button>
+	{/snippet}
 
 	{#snippet choices()}
 		{#if voice.options.length}
