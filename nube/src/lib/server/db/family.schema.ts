@@ -88,6 +88,11 @@ export const familyMember = pgTable(
 		callButton: boolean('call_button').notNull().default(false),
 		/** Who it calls (#330): up to three of the family's accounts; one alone is called with a tap. */
 		callFavorites: jsonb('call_favorites').$type<string[]>().notNull().default([]),
+		/**
+		 * «Mi barra» (Ajustes → Para mí, nav.ts): the sections they took out of their own bar, among
+		 * those the family has; one not here, out. Children have none: theirs is the family's.
+		 */
+		sections: jsonb('sections').$type<Record<string, boolean>>().notNull().default({}),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [

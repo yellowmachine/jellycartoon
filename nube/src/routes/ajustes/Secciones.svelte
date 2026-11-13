@@ -4,18 +4,20 @@
 	import type { PageData } from './$types';
 
 	/**
-	 * What the whole family has in its bar, children included: only who runs it changes it. Turned
-	 * off, a section leaves the bar and its card on the home page; nothing is deleted, and voice and
-	 * links still reach it, but for Oración (#339), which does not open at all.
+	 * What the family has, children included: only who runs it changes it. Turned off, a section
+	 * leaves everyone's bar and its card on the home page; nothing is deleted, and voice and links
+	 * still reach it, but for Oración (#339), which does not open at all. Of what is on, each adult
+	 * chooses what goes in their own bar (MiBarra.svelte); children see all of it.
 	 */
 	let { data, tab }: { data: PageData; tab: string } = $props();
 </script>
 
 {#if data.sections}
 	<section class={section} id="secciones">
-		<h2 class="mb-1 font-semibold">Secciones de la barra</h2>
+		<h2 class="mb-1 font-semibold">Secciones de la familia</h2>
 		<p class="mb-3 text-sm text-zinc-400">
-			Para toda la familia, peques incluidos. Quitar una no borra nada, y la voz sigue funcionando.
+			Las que tiene la familia: los peques las ven todas, y cada adulto elige cuáles quiere en su
+			barra (Para mí → Mi barra). Quitar una no borra nada, y la voz sigue funcionando.
 		</p>
 		<form
 			method="post"

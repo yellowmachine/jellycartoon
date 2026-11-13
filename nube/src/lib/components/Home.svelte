@@ -36,11 +36,14 @@
 		news,
 		trip,
 		car,
-		sections
+		sections,
+		mine
 	}: {
 		name: string;
 		/** What the family has out (Ajustes): without a section, nor its card here. */
 		sections?: SectionChoices;
+		/** And what they took out of their own bar (Ajustes → «Mi barra»). */
+		mine?: SectionChoices;
 		home: {
 			me: string | null;
 			doses: Dose[];
@@ -455,7 +458,7 @@
 	</section>
 {/if}
 
-{#if sectionOn('/agenda', sections)}
+{#if sectionOn('/agenda', sections, mine)}
 	<section class={section}>
 		<div class="mb-3 flex items-baseline justify-between">
 			<h2 class="font-semibold">Hoy</h2>
@@ -490,7 +493,7 @@
 	</section>
 {/if}
 
-{#if sectionOn('/nevera', sections)}
+{#if sectionOn('/nevera', sections, mine)}
 	<section class={section}>
 		<div class="mb-3 flex items-baseline justify-between">
 			<h2 class="font-semibold">En la nevera</h2>

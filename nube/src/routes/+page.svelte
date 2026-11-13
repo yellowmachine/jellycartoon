@@ -6,8 +6,8 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	/** What the family has out (Ajustes): for a child too. */
-	const shows = (path: string) => sectionOn(path, data.family?.sections);
+	/** What the family has out (Ajustes), and of it what this adult keeps in their bar. */
+	const shows = (path: string) => sectionOn(path, data.family?.sections, data.family?.mine);
 	const timeOf = (d: Date) => d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 	const tile =
 		'flex flex-col items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-lg font-semibold hover:border-amber-500/60';
@@ -98,6 +98,7 @@
 		trip={data.trip}
 		car={data.car}
 		sections={data.family?.sections}
+		mine={data.family?.mine}
 	/>
 {:else}
 	<h1 class="mb-2 text-2xl font-bold">Hola, {data.user.name}</h1>

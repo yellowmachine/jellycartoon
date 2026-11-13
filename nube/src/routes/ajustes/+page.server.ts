@@ -69,7 +69,7 @@ import {
 	familySections,
 	setFamilySections
 } from '#lib/server/family-settings.ts';
-import { savedSections, sectionList } from '#lib/nav.ts';
+import { mySectionList, savedMine, savedSections, sectionList } from '#lib/nav.ts';
 import { placeName, type Place } from 'comun/weather.ts';
 import { findPlacesFor } from '#lib/server/places.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
@@ -137,6 +137,16 @@ import { isPageNoticeKind } from 'comun/page-notices.ts';
 
 /** A family link's address (#464), to send by WhatsApp or show as a QR. */
 const linkAddress = (token: string) => `${ORIGIN}/vincular/${token}`;
+
+/** «Mi barra»: the sections this person took out of their own bar (nav.ts). */
+const mySections = (userId: string) =>
+	withFamily(userId, async (tx) => {
+		const [me] = await tx
+			.select({ sections: familyMember.sections })
+			.from(familyMember)
+			.where(eq(familyMember.userId, userId));
+		return me?.sections ?? {};
+	});
 
 export const load: PageServerLoad = async ({ locals, request, cookies, url }) => {
 	const k = await kitchenOf(locals.user!.id);
@@ -249,6 +259,13 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		/** The family's cars (#317), and theirs. */
 		cars: (await listCars(k)).map(({ id, name }) => ({ id, name })),
 		myCar: await myCarId(k),
+		/** «Mi barra»: what the family has, and which of it they keep in their own bar. */
+		mySections: mySectionList(
+			await hasHouse(locals.user!.id),
+			await familySections(k),
+			await prayerModeOn(k),
+			await mySections(locals.user!.id)
+		),
 		/** The AI's spending under the header (#193); null without the family's key. */
 		spendLine: (await openRouterKey(k))
 			? await withFamily(locals.user!.id, async (tx) => {
@@ -482,6 +499,20 @@ export const actions: Actions = {
 			tx.update(familyMember).set({ inboxByEmail }).where(eq(familyMember.userId, locals.user!.id))
 		);
 		return { saved: 'inboxByEmail' };
+	},
+	/** «Mi barra»: among those the form showed, the ticked ones in their bar; the rest as they were. */
+	saveMySections: async ({ request, locals }) => {
+		const form = await request.formData();
+		const ticked = form.getAll('on').map(String);
+		const sections = savedMine(
+			await mySections(locals.user!.id),
+			form.getAll('shown').map(String),
+			ticked
+		);
+		await withFamily(locals.user!.id, (tx) =>
+			tx.update(familyMember).set({ sections }).where(eq(familyMember.userId, locals.user!.id))
+		);
+		return { saved: 'mySections' };
 	},
 	spendLine: async ({ request, locals }) => {
 		const spendLine = (await request.formData()).get('spendLine') === 'on';

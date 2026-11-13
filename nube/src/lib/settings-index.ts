@@ -65,6 +65,13 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		words: 'subtítulos letra tamaño color fondo canales tele estilo'
 	},
 	{
+		id: 'mi-barra',
+		tab: 'mi',
+		title: 'Mi barra',
+		words:
+			'mi barra secciones menú ocultar quitar mostrar ver arriba series música radio canales recetas nevera agenda llamadas dinero gastos papeles viajes paseos preguntar reglas notas enchufes deberes juegos estadísticas oración'
+	},
+	{
 		id: 'viajes',
 		tab: 'mi',
 		title: 'Tus viajes',
@@ -174,7 +181,7 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 	{
 		id: 'secciones',
 		tab: 'familia',
-		title: 'Secciones de la barra',
+		title: 'Secciones de la familia',
 		words:
 			'secciones módulos barra menú ocultar quitar mostrar encender apagar juegos consolas deberes series música radio canales recetas nevera agenda dinero gastos papeles viajes oración rezar rezo religión rosario letanías plegarias misa vaticano',
 		shown: onlyAdmin
