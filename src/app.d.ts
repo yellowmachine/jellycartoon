@@ -21,6 +21,8 @@ declare global {
 			snake?: boolean;
 			/** A game's own menu, over the emulator (#176): its options, or the saved games. */
 			gameMenu?: 'menu' | 'partidas' | 'imagen';
+			/** An episode's options on the TV view (the remote's Menú key): its id. */
+			episodeMenu?: number;
 		}
 		// interface Platform {}
 	}

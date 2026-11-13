@@ -4,7 +4,10 @@
 	import { thumbUrl } from 'comun/thumb.svelte.ts';
 	import EpisodePreview from './EpisodePreview.svelte';
 
-	/** An episode on the TV view: OK plays it in the living room. */
+	/**
+	 * An episode on the TV view: OK plays it in the living room; the remote's Menú (a right click),
+	 * `onmenu`, its options.
+	 */
 	let {
 		id,
 		heading,
@@ -12,7 +15,8 @@
 		positionSec = null,
 		durationSec = null,
 		completed = false,
-		action = '?/episode'
+		action = '?/episode',
+		onmenu
 	}: {
 		id: number;
 		heading: string;
@@ -21,6 +25,8 @@
 		durationSec?: number | null;
 		completed?: boolean | null;
 		action?: string;
+		/** The remote's Menú key on it: `contextmenu`, what Chromium sends for that key. */
+		onmenu?: (opener: HTMLElement) => void;
 	} = $props();
 
 	/**
@@ -47,6 +53,11 @@
 	<input type="hidden" name="id" value={id} />
 	<button
 		class="group block w-full rounded-lg text-left transition-transform duration-150 focus-visible:scale-105"
+		oncontextmenu={onmenu &&
+			((e) => {
+				e.preventDefault();
+				onmenu(e.currentTarget);
+			})}
 	>
 		<div class="relative aspect-video overflow-hidden rounded-lg bg-zinc-800">
 			<img src={thumbUrl(id)} alt="" class="h-full w-full object-cover" />

@@ -11,7 +11,13 @@ import { takeThumbnail } from '#lib/server/library/thumbnail.ts';
 import { ignoreEpisodes, retryEpisode, wakeWorker } from '#lib/server/library/worker.ts';
 import { removeLight, requestLight } from '#lib/server/library/light.ts';
 import { getActiveList, getListNames, seriesListItems, toggleInList } from '#lib/server/lists.ts';
-import { clearProgress, dismissProgress, markWatched, saveProgress } from '#lib/server/progress.ts';
+import {
+	clearProgress,
+	dismissProgress,
+	markWatched,
+	markWatchedUpTo,
+	setEpisodeWatched
+} from '#lib/server/progress.ts';
 import { log } from '#lib/server/log.ts';
 import { parseView, viewCookie } from '#lib/views.ts';
 import { addSeriesTag, getTags, removeSeriesTag, seriesTags, tagName } from '#lib/server/tags.ts';
@@ -24,7 +30,7 @@ import {
 } from '#lib/server/auto-subtitles.ts';
 import { voiceEnabled } from '#lib/server/voice/whisper.ts';
 import { getSettings } from '#lib/server/settings.ts';
-import { episodeOrder, episodesBefore } from '#lib/server/episode-order.ts';
+import { episodeOrder } from '#lib/server/episode-order.ts';
 import {
 	cancelLabels,
 	labelJobs,
@@ -310,10 +316,13 @@ export const actions: Actions = {
 	},
 	setWatched: async ({ params, request, locals }) => {
 		const form = await request.formData();
-		const ep = await seriesEpisode(params.id, form);
-		if (!ep) return fail(400, { message: 'Capítulo no válido' });
-		if (form.get('watched') === 'true') await saveProgress(locals.user!.id, ep.id, 0, true);
-		else await clearProgress(locals.user!.id, ep.id);
+		const set = await setEpisodeWatched(
+			locals.user!.id,
+			Number(params.id),
+			Number(form.get('id')),
+			form.get('watched') === 'true'
+		);
+		if (!set) return fail(400, { message: 'Capítulo no válido' });
 	},
 	retry: async ({ params, request }) => {
 		const ep = await seriesEpisode(params.id, await request.formData());
@@ -445,21 +454,11 @@ export const actions: Actions = {
 			return fail(500, { message: 'No se pudo sacar la miniatura' });
 		}
 	},
-	/** Every episode before this one in the series, in season and number order (extras apart). */
 	/** «Marcar hasta este como vistos»: the ones before it in the series, and it. */
 	markPreviousWatched: async ({ params, request, locals }) => {
 		const id = Number((await request.formData()).get('id'));
-		const seriesId = Number(params.id);
-		const [ep] = await db
-			.select({ season: episode.season, number: episode.number })
-			.from(episode)
-			.where(and(eq(episode.id, id), eq(episode.seriesId, seriesId)));
-		if (!ep) return fail(400, { message: 'Capítulo no válido' });
-		const previous = await db
-			.select({ id: episode.id })
-			.from(episode)
-			.where(and(eq(episode.seriesId, seriesId), eq(episode.missing, false), episodesBefore(ep)));
-		await markWatched(locals.user!.id, [...previous.map((e) => e.id), id]);
+		if (!(await markWatchedUpTo(locals.user!.id, Number(params.id), id)))
+			return fail(400, { message: 'Capítulo no válido' });
 	},
 	/** Out of «Seguir viendo», keeping where it was left. */
 	dismiss: async ({ params, request, locals }) => {
