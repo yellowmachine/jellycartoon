@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import Dibujo from 'comun/components/Dibujo.svelte';
+	import Caracol from '#lib/components/Caracol.svelte';
 	import SectionIcon, { type Section } from 'comun/components/SectionIcon.svelte';
 	import { field } from '#lib/styles.ts';
 
@@ -23,7 +24,11 @@
 			title: 'Nevera',
 			text: 'Post-its para todos y la lista de la compra, que se tacha en el súper.'
 		},
-		{ icon: 'recetas', title: 'Recetas', text: 'El recetario de la familia, a mano en la cocina.' },
+		{
+			icon: 'recetas',
+			title: 'Recetas',
+			text: 'El recetario de la familia y el modo cocina: los pasos en grande y los temporizadores, con las manos libres.'
+		},
 		{
 			icon: 'agenda',
 			title: 'Agenda',
@@ -32,7 +37,22 @@
 		{
 			icon: 'gastos',
 			title: 'Dinero',
-			text: 'Haz una foto al ticket y se apunta solo, con los gastos fijos de cada mes y lo que entra, con su factura.'
+			text: 'Haz una foto al ticket y se apunta solo, con los gastos fijos de cada mes y lo que entra. Y los papeles importantes, cifrados.'
+		},
+		{
+			icon: 'preguntar',
+			title: 'La voz',
+			text: 'Háblale desde el móvil, o desde un altavoz en cada cuarto: «pon un temporizador», «¿qué tenemos hoy?».'
+		},
+		{
+			icon: 'paseos',
+			title: 'Paseos',
+			text: 'Tu ruta con el móvil en el bolsillo, con fotos y notas de voz por el camino.'
+		},
+		{
+			icon: 'llamadas',
+			title: 'Llamadas',
+			text: 'Llama con un toque a los tuyos, y a la familia de los abuelos si la enlazáis.'
 		},
 		{
 			icon: 'viajes',
@@ -72,6 +92,15 @@
 		<!-- The snail on its way, the trail back to the house: the house, carried along. -->
 		<Dibujo name="portada" class="mx-auto mb-8 max-w-md text-zinc-100" />
 		<h1 class="text-4xl font-bold sm:text-5xl">Las cosas de casa, en un solo sitio</h1>
+		<!-- The name, said as a Spanish speaker would (Irish /ˈʃɛlʲɪdʲə/): «sh» as in «show». -->
+		<p
+			class="mt-3 flex flex-col items-center justify-center gap-1 text-sm text-zinc-400 sm:flex-row sm:gap-2"
+		>
+			<Caracol class="w-8 shrink-0 text-emerald-500" />
+			<span>
+				<i>Seilide</i> (se dice «shé-li-ye») es «caracol» en irlandés: lleva la casa a cuestas.
+			</span>
+		</p>
 		<p class="mx-auto mt-4 max-w-2xl text-lg text-zinc-400">
 			La nevera, las recetas, la agenda y los gastos de tu familia, desde el móvil de cada uno. Y se
 			le puede hablar: «apunta leche en la lista».
