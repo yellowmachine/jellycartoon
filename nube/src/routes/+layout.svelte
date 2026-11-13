@@ -55,7 +55,8 @@
 			data.family?.kid ?? false,
 			data.guardian,
 			data.family?.prayer ?? false,
-			data.family?.sections
+			data.family?.sections,
+			data.family?.mine
 		)
 	);
 	/** The user's initial, for their round badge (accents and all: «Á» for «Álvaro»). */

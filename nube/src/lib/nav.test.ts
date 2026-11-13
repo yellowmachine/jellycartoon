@@ -1,5 +1,12 @@
 import { expect, test } from 'bun:test';
-import { navLinks, savedSections, sectionList, sectionOn } from './nav.ts';
+import {
+	mySectionList,
+	navLinks,
+	savedMine,
+	savedSections,
+	sectionList,
+	sectionOn
+} from './nav.ts';
 
 test('without a house connected, nothing of it in the bar', () => {
 	const { links, userLinks } = navLinks(false, false);
@@ -87,4 +94,50 @@ test('Juegos (#405): with a house, off until the family turns it on, and never f
 	expect(barOf({ '/juegos': true }, true)).not.toContain('Juegos');
 	const noHouse = navLinks(false, false, false, false, false, { '/juegos': true });
 	expect(noHouse.links.map((l) => l.label)).not.toContain('Juegos');
+});
+
+const myBar = (family: Record<string, boolean>, mine: Record<string, boolean>, kid = false) =>
+	navLinks(false, true, kid, false, false, family, mine).links.map((l) => l.label);
+
+test('«Mi barra»: an adult takes a section out of their own bar; the family still has it', () => {
+	expect(myBar({}, { '/recetas': false })).not.toContain('Recetas');
+	expect(myBar({}, { '/recetas': false })).toContain('Nevera');
+	expect(myBar({}, {})).toContain('Recetas');
+	expect(sectionOn('/nevera', {}, { '/nevera': false })).toBe(false);
+	expect(sectionOn('/nevera', { '/nevera': false }, { '/nevera': true })).toBe(false);
+});
+
+test('«Mi barra» cannot bring what the family does not have; a child goes by the family', () => {
+	expect(myBar({}, { '/juegos': true })).not.toContain('Juegos');
+	expect(myBar({ '/juegos': true }, {})).toContain('Juegos');
+	expect(myBar({}, { '/series': false }, true)).toContain('Series');
+});
+
+test('Oración: on for the family, each adult may still take it out of their bar', () => {
+	const bar = (mine: Record<string, boolean>) =>
+		navLinks(false, true, false, false, true, {}, mine).links.map((l) => l.label);
+	expect(bar({})).toContain('Oración');
+	expect(bar({ '/oracion': false })).not.toContain('Oración');
+	expect(
+		navLinks(false, true, false, false, false, {}, { '/oracion': true }).links.map((l) => l.label)
+	).not.toContain('Oración');
+});
+
+test("«Mi barra»'s list: only what the family has; saved, only what it showed", () => {
+	const list = mySectionList(true, { '/recetas': false }, false, { '/nevera': false });
+	const paths = list.map((s) => s.path);
+	expect(paths).not.toContain('/recetas');
+	expect(paths).not.toContain('/juegos');
+	expect(paths).not.toContain('/oracion');
+	expect(list.find((s) => s.path === '/nevera')?.on).toBe(false);
+	expect(list.find((s) => s.path === '/agenda')?.on).toBe(true);
+	expect(mySectionList(false, {}, true, {}).map((s) => s.path)).not.toContain('/series');
+	expect(mySectionList(false, {}, true, {}).map((s) => s.path)).toContain('/oracion');
+
+	const after = savedMine(
+		{ '/recetas': false, '/nevera': false },
+		['/nevera', '/agenda'],
+		['/nevera']
+	);
+	expect(after).toEqual({ '/recetas': false, '/nevera': true, '/agenda': false });
 });

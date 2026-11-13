@@ -133,10 +133,24 @@ export type SectionChoices = Record<string, boolean>;
 const chosen = (s: (typeof SECTIONS)[number], saved: SectionChoices) =>
 	saved[s.path] ?? !s.startsOff;
 
-/** Whether the family has this section out: for the bar, and for its card on the home page. */
-export const sectionOn = (path: string, saved: SectionChoices = {}) => {
+/**
+ * Each adult's own bar, among what the family has (Ajustes → Para mí → «Mi barra»): one they never
+ * touched, out if the family has it. Children have none: theirs is the family's.
+ */
+const mineOn = (path: string, mine: SectionChoices) => mine[path] ?? true;
+
+/** Out for this person: the family has it, and they did not take it out of their bar. */
+const shown = (
+	s: (typeof SECTIONS)[number],
+	saved: SectionChoices,
+	prayer: boolean,
+	mine: SectionChoices
+) => (s.prayer ? prayer : chosen(s, saved)) && mineOn(s.path, mine);
+
+/** Whether this person has this section out: for the bar, and for its card on the home page. */
+export const sectionOn = (path: string, saved: SectionChoices = {}, mine: SectionChoices = {}) => {
 	const s = SECTIONS.find((x) => x.path === path);
-	return s ? chosen(s, saved) : true;
+	return s ? chosen(s, saved) && mineOn(path, mine) : true;
 };
 
 /** Ajustes' list: without a house, nothing of it (as in the bar). Oración, with its own on or off. */
@@ -156,6 +170,27 @@ export function savedSections(hasHouse: boolean, before: SectionChoices, ticked:
 	const after = { ...before };
 	for (const s of SECTIONS)
 		if (!s.prayer && (hasHouse || !s.house)) after[s.path] = ticked.includes(s.path);
+	return after;
+}
+
+/** «Mi barra»: what the family has (with or without a house, Oración by its own on), each as theirs. */
+export const mySectionList = (
+	hasHouse: boolean,
+	saved: SectionChoices,
+	prayer: boolean,
+	mine: SectionChoices
+) =>
+	SECTIONS.filter((s) => (hasHouse || !s.house) && (s.prayer ? prayer : chosen(s, saved))).map(
+		(s) => ({ path: s.path, label: s.label, on: mineOn(s.path, mine) })
+	);
+
+/**
+ * What to keep from «Mi barra», whose ticked ones are `ticked` among the `shown` it had: the rest as
+ * they were, so a section the family turns off and on again comes back as the person left it.
+ */
+export function savedMine(before: SectionChoices, shown: string[], ticked: string[]) {
+	const after = { ...before };
+	for (const s of SECTIONS) if (shown.includes(s.path)) after[s.path] = ticked.includes(s.path);
 	return after;
 }
 
@@ -186,7 +221,8 @@ const KID_SECTIONS = [
 
 /**
  * With `hasHouse` false (no house connected), nothing of the house; `prayer`, Oración's on;
- * `sections`, what the family has out (Ajustes). Only the bar: their pages still open.
+ * `sections`, what the family has out (Ajustes); `mine`, what this adult took out of their own
+ * bar (a child's is the family's). Only the bar: their pages still open.
  */
 export function navLinks(
 	serviceAdmin = false,
@@ -194,13 +230,14 @@ export function navLinks(
 	kid = false,
 	guardian = false,
 	prayer = false,
-	sections: SectionChoices = {}
+	sections: SectionChoices = {},
+	mine: SectionChoices = {}
 ) {
 	const links = SECTIONS.filter(
 		(s) =>
 			(!kid || KID_SECTIONS.includes(s.path)) &&
 			(hasHouse || !s.house) &&
-			(s.prayer ? prayer : chosen(s, sections))
+			shown(s, sections, prayer, kid ? {} : mine)
 	).map(link);
 	if (kid) return { links, menuLinks: links, userLinks: [] };
 	const userLinks: UserLink[] = [

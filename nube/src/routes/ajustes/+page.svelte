@@ -16,6 +16,7 @@
 	import VozCaracter from './VozCaracter.svelte';
 	import DondeVivis from './DondeVivis.svelte';
 	import Secciones from './Secciones.svelte';
+	import MiBarra from './MiBarra.svelte';
 	import AvisosPaginas from './AvisosPaginas.svelte';
 	import VozInternet from './VozInternet.svelte';
 	import VozSilencio from './VozSilencio.svelte';
@@ -142,6 +143,8 @@
 		/>
 
 		<Subtitulos {data} />
+
+		<MiBarra {data} {tab} />
 
 		<h2 class={group}>La voz contigo</h2>
 

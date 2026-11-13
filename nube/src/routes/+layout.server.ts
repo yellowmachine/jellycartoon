@@ -43,7 +43,11 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 				.from(family)
 				.where(eq(family.id, m.familyId));
 			const [me] = await tx
-				.select({ theme: familyMember.theme, spendLine: familyMember.spendLine })
+				.select({
+					theme: familyMember.theme,
+					spendLine: familyMember.spendLine,
+					mine: familyMember.sections
+				})
 				.from(familyMember)
 				.where(eq(familyMember.userId, locals.user!.id));
 			return {
@@ -54,7 +58,9 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 				webUrl: h?.webUrl ?? null,
 				hasHouse: Boolean(h),
 				theme: isTheme(me?.theme) ? me.theme : DEFAULT_THEME,
-				spendLine: Boolean(me?.spendLine)
+				spendLine: Boolean(me?.spendLine),
+				/** «Mi barra»: what they took out of their own bar (nav.ts); a child, none. */
+				mine: m.role === 'peque' ? {} : (me?.mine ?? {})
 			};
 		});
 		const k = await kitchenOf(locals.user.id);
