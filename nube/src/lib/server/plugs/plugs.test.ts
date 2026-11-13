@@ -544,6 +544,10 @@ describe('consumo', () => {
 			['Calentador', 1500],
 			['Ventilador', 500]
 		]);
+		// Each column's parts, by plug: Friday's from both.
+		expect(week.buckets[4]!.parts).toEqual({ [heater.id]: 500, [fan.id]: 500 });
+		expect(week.buckets[6]!.parts).toEqual({ [heater.id]: 1000 });
+		expect(week.buckets[0]!.parts).toEqual({});
 		// One plug, by the hour of a day.
 		const day = (await plugStats('ana', { view: 'dia', plugId: heater.id }, now))!;
 		expect(day.buckets[6]!.wh).toBe(1000);
