@@ -151,6 +151,11 @@ export const familySettings = pgTable(
 		 */
 		voiceLearn: boolean('voice_learn').notNull().default(false),
 		/**
+		 * «Quién oye lo que se dice»: true, always OpenRouter, even with a house and its Whisper (to try
+		 * the voice as a family without a house has it); false, the house's Whisper first.
+		 */
+		voiceHearCloud: boolean('voice_hear_cloud').notNull().default(false),
+		/**
 		 * How the satellites Seilide serves speak (#296): Gemini's voice, how it says things, and what
 		 * they say while the AI thinks; and, on hearing the wake word, a phrase instead of the beep
 		 * (`greet`, with its `greetings`; saved before them, the beep), and the word that wakes all of

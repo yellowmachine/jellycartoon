@@ -68,7 +68,7 @@ import { asksForRoute, findByName } from 'comun/saved-places.ts';
 import { familyPlace, openRouterKey } from '#lib/server/family-settings.ts';
 import { chatWithTools, type Tool, type ToolChatMessage } from '#lib/server/openrouter.ts';
 import { creditProblem } from '#lib/server/ai-block.ts';
-import { quietCheck } from './quiet-check.ts';
+import { inQuietHours, quietCheck } from './quiet-check.ts';
 import {
 	afterOrder,
 	assumedNote,
@@ -1150,6 +1150,7 @@ Cómo responder:
 - Habla de lo que has encontrado o hecho, nunca de cómo: nada de «la herramienta», «el sistema» ni «me ha devuelto».
 - Nunca digas que has hecho algo («lo anoto», «lo guardo», «te lo recuerdo», «pongo…») si no lo has hecho con su herramienta en esta orden.
 - El reconocimiento de voz a veces quita los «¿?»: si suena a pregunta («tengo algún viaje mañana», «hay leche»), es una pregunta; contéstala, no la guardes.
+- El reconocimiento de voz a veces escribe otra frase que suena igual o casi: si lo que llega no tiene sentido como orden, o se refiere a algo que no se ha dicho, piensa qué frase suena así y haz esa. «Dímela ahora» es «dime la hora»; «¿qué haces?», dicho de madrugada, seguramente «¿qué hora es?». Si dudas entre dos, haz la más probable y dila en tu respuesta («Son las cuatro y cuatro»): si no era eso, lo dirá.
 - Al terminar una orden, contesta con «answer»: en español, una sola frase corta que diga lo que has hecho y dónde, p. ej. «Pongo Alaska y Dinarama aquí». Se lee en voz alta: sin listas, emojis, ids ni formato.
 - Si no está claro qué pide y no son pocas opciones que nombrar («media hora», sin más), pregúntalo con «answer» y «expects_answer»: su respuesta llega como la orden siguiente.
 - Si lo encuentras con otro nombre porque se oyó mal («Boyman Rhapsody» es «Bohemian Rhapsody»), no lo expliques: di solo lo que pones, con su nombre bien («Pongo Bohemian Rhapsody de Queen en toda la casa»). Cada palabra de más se tarda en decir.
@@ -2216,6 +2217,10 @@ export async function runVoiceCommand(
 	const profile = people.length
 		? `[La familia: ${people.map((p) => p.name).join(', ')}.${home ? ` Vivís en ${placeName(home)}.` : ''}]`
 		: null;
+	// In the «horas de silencio» (not in the car): one short sentence, as to someone in bed.
+	const quietNow = Boolean(
+		settings.quiet && !request.car && inQuietHours(settings.quiet, minuteNow())
+	);
 	const timersOf = cloudTimers && !satellite ? me : null;
 	const timersAt = cloudTimers && satellite ? place : null;
 	// Seilide's Hablar (#60): with its kitchen mode on, the browser's timers, as at home.
@@ -2348,6 +2353,14 @@ export async function runVoiceCommand(
 					? [{ type: 'text' as const, text: phoneContactsLine(request.phoneContacts) }]
 					: []),
 				...(remembered ? [{ type: 'text' as const, text: remembered }] : []),
+				...(quietNow
+					? [
+							{
+								type: 'text' as const,
+								text: `[Son horas de silencio en casa (de ${settings.quiet!.from} a ${settings.quiet!.to}): seguramente se acaba de despertar o está en la cama. Contesta en una sola frase muy corta, con lo que pide y nada más: sin contar lo que suena, sin ofrecer nada.]`
+							}
+						]
+					: []),
 				{ type: 'text', text: request.text }
 			]
 		}

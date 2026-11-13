@@ -13,6 +13,7 @@ import {
 } from '#lib/server/satellites.ts';
 import { sseResponse } from '#lib/server/sse.ts';
 import { familyWords, heardPath } from '#lib/server/voice/heard-words.ts';
+import { hearsByHouse } from '#lib/server/voice/settings.ts';
 import { greetingsOf, satelliteVoiceOf, voiceKey } from '#lib/server/voice/satellite-voice.ts';
 
 /**
@@ -52,8 +53,11 @@ export const GET: RequestHandler = async ({ request }) => {
 				ringingFor(k, satellite.id),
 				snapserverOf(k, satellite.id),
 				satelliteVoiceOf(k),
-				familyWords(k)
-					.then((words) => directHearing(k.familyId, satellite.id, heardPath(words), send))
+				// None when the family hears by OpenRouter always: then through here.
+				Promise.all([hearsByHouse(k), familyWords(k)])
+					.then(([byHouse, words]) =>
+						byHouse ? directHearing(k.familyId, satellite.id, heardPath(words), send) : null
+					)
 					.catch(() => null)
 			])
 				.then(([ringing, snapserver, voice, hearing]) =>

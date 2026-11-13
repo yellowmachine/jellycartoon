@@ -83,6 +83,7 @@ import {
 	setVoiceModel,
 	setVoiceStyle,
 	setVoiceLearn,
+	setHearCloud,
 	setWebSearch,
 	voiceSettings
 } from '#lib/server/voice/settings.ts';
@@ -92,6 +93,7 @@ import {
 	deleteSatellite,
 	listSatellites,
 	MAX_SATELLITE_NAME,
+	satellitesChanged,
 	setConversation,
 	setSnapserver
 } from '#lib/server/satellites.ts';
@@ -206,6 +208,8 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		voiceWeb: admin ? voice.web : null,
 		/** «Aprender de lo que se habla» (#331): only its administrator. */
 		voiceLearn: admin ? voice.learn : null,
+		/** «Quién oye lo que se dice»: only with a house, its administrator. */
+		voiceHear: admin && (await hasHouse(locals.user!.id)) ? { cloud: voice.hearCloud } : null,
 		voiceQuiet: admin ? { hours: voice.quiet } : null,
 		/** «Compañía» (#469): how it is set, and how it is going. */
 		companion: admin
@@ -517,6 +521,17 @@ export const actions: Actions = {
 		const on = (await request.formData()).get('on') === 'on';
 		await setVoiceLearn(await kitchenOf(locals.user!.id), on);
 		return { saved: 'voiceLearn' };
+	},
+	/** «Quién oye lo que se dice»: the house's Whisper first, or OpenRouter always. */
+	saveVoiceHear: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'voiceProblem');
+		if (denied) return denied;
+		const cloud = (await request.formData()).get('hear') === 'openrouter';
+		const k = await kitchenOf(locals.user!.id);
+		await setHearCloud(k, cloud);
+		// They hear by the house directly (#430) or through here: told where now.
+		await satellitesChanged(k.familyId);
+		return { saved: 'voiceHear' };
 	},
 	/** «Avisos en las páginas» (#440): on or off, and each kind shown, ticked or not. */
 	savePageNotices: async ({ request, locals }) => {

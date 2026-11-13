@@ -44,6 +44,8 @@ export interface VoiceSettings {
 	quiet: QuietHours | null;
 	/** «Aprender de lo que se habla» (#331). */
 	learn: boolean;
+	/** «Quién oye lo que se dice»: OpenRouter always, even with a house. */
+	hearCloud: boolean;
 }
 
 const validQuiet = (q: QuietHours | null | undefined): q is QuietHours =>
@@ -62,14 +64,21 @@ export async function voiceSettings(k: Kitchen): Promise<VoiceSettings> {
 			hints: (row?.voiceWeb?.hints ?? '').slice(0, MAX_WEB_HINTS)
 		},
 		quiet: validQuiet(row?.voiceQuiet) ? row.voiceQuiet : null,
-		learn: row?.voiceLearn ?? false
+		learn: row?.voiceLearn ?? false,
+		hearCloud: row?.voiceHearCloud ?? false
 	};
 }
 
 type Saved = Partial<
 	Pick<
 		typeof familySettings.$inferInsert,
-		'voiceModel' | 'conversationModel' | 'voiceStyle' | 'voiceWeb' | 'voiceQuiet' | 'voiceLearn'
+		| 'voiceModel'
+		| 'conversationModel'
+		| 'voiceStyle'
+		| 'voiceWeb'
+		| 'voiceQuiet'
+		| 'voiceLearn'
+		| 'voiceHearCloud'
 	>
 >;
 
@@ -94,6 +103,20 @@ export const setWebSearch = (k: Kitchen, config: WebSearchConfig) =>
 
 /** «Aprender de lo que se habla» (#331), on or off. */
 export const setVoiceLearn = (k: Kitchen, on: boolean) => save(k, { voiceLearn: on });
+
+/**
+ * Whether what is said is heard by the house's Whisper (when there is a house): not when the
+ * family chose OpenRouter always («Quién oye lo que se dice»).
+ */
+export async function hearsByHouse(k: Kitchen) {
+	const [row] = await k.run((tx) =>
+		tx.select({ cloud: familySettings.voiceHearCloud }).from(familySettings)
+	);
+	return !row?.cloud;
+}
+
+/** OpenRouter always, or the house's Whisper first (then tell the satellites: satellitesChanged). */
+export const setHearCloud = (k: Kitchen, cloud: boolean) => save(k, { voiceHearCloud: cloud });
 
 /** `null`, none. Equal ends are none too: silence all day would be a muted voice. */
 export const setQuietHours = (k: Kitchen, hours: QuietHours | null) =>

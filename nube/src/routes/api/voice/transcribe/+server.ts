@@ -5,6 +5,7 @@ import { audioFormat, sayableError, transcribe } from '#lib/server/openrouter.ts
 import { familyHasHouse, HouseProblem, sendHouse } from '#lib/server/house.ts';
 import { satelliteRequest } from '#lib/server/satellites.ts';
 import { familyWords, heardPath } from '#lib/server/voice/heard-words.ts';
+import { hearsByHouse } from '#lib/server/voice/settings.ts';
 
 /** An order is a few seconds: more than this is not one. */
 const MAX_BYTES = 5_000_000;
@@ -23,7 +24,8 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (audio.byteLength > MAX_BYTES) error(413, 'Demasiado largo');
 	const format = audioFormat(request.headers.get('content-type') ?? 'audio/wav');
 	if (!format) error(415, 'Ese audio no se puede leer');
-	if (await familyHasHouse(k.familyId))
+	// Not by the house when the family chose OpenRouter always (Ajustes, «Quién oye lo que se dice»).
+	if ((await familyHasHouse(k.familyId)) && (await hearsByHouse(k)))
 		try {
 			const started = performance.now();
 			const heard = await sendHouse<{ text: string }>(

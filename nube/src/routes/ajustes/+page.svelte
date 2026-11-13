@@ -20,6 +20,7 @@
 	import VozInternet from './VozInternet.svelte';
 	import VozSilencio from './VozSilencio.svelte';
 	import VozAprende from './VozAprende.svelte';
+	import VozOir from './VozOir.svelte';
 	import ComoTeAviso from './ComoTeAviso.svelte';
 	import Noticias from './Noticias.svelte';
 	import Satelites from './Satelites.svelte';
@@ -464,6 +465,7 @@
 			<VozInternet {data} {form} {tab} />
 
 			<VozAprende {data} {tab} />
+			<VozOir {data} {tab} />
 
 			<Satelites {data} {form} {tab} />
 
