@@ -166,6 +166,7 @@ fi
 
 install_file "$files/mpv/input.conf" ~/.config/mpv/input.conf && changed=1
 install_file "$files/mpv/scripts/mando.lua" ~/.config/mpv/scripts/mando.lua && changed=1
+install_file "$files/mpv/script-opts/osc.conf" ~/.config/mpv/script-opts/osc.conf && changed=1
 
 # The remote's receiver: vendor and product as in the hwdb (4842:0001).
 receiver=
