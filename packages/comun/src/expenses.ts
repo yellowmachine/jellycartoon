@@ -240,6 +240,37 @@ export function byTag(expenses: ExpenseInput[]) {
 		.sort((a, b) => (a.tag === UNTAGGED ? 1 : b.tag === UNTAGGED ? -1 : b.total - a.total));
 }
 
+/** The expenses with no shop written (said by voice, some fixed ones), as one more. */
+export const NO_STORE = 'Sin tienda';
+
+/**
+ * The month's expenses by shop, largest first, to see Amazon apart from what it sold: the same
+ * shop written differently («Amazon», « amazon ») together, with the spelling written most often;
+ * the ones with no shop, last, so it adds up to the month's total.
+ */
+export function byStore(expenses: { store: string; total: number }[]) {
+	const shops = new Map<string, { total: number; count: number; names: Map<string, number> }>();
+	for (const e of expenses) {
+		const name = e.store.replace(/\s+/g, ' ').trim();
+		const key = lineKey(name);
+		const shop = shops.get(key) ?? { total: 0, count: 0, names: new Map() };
+		shop.total += e.total;
+		shop.count += 1;
+		shop.names.set(name, (shop.names.get(name) ?? 0) + 1);
+		shops.set(key, shop);
+	}
+	return [...shops]
+		.map(([key, s]) => ({
+			store: key ? [...s.names].sort((a, b) => b[1] - a[1])[0]![0] : NO_STORE,
+			total: s.total,
+			count: s.count,
+			none: !key
+		}))
+		.filter((s) => s.total !== 0)
+		.sort((a, b) => (a.none ? 1 : b.none ? -1 : b.total - a.total))
+		.map(({ none: _, ...s }) => s);
+}
+
 /** `YYYY-MM` of a day. */
 export const monthOf = (day: string) => day.slice(0, 7);
 
