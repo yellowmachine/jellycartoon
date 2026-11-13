@@ -15,7 +15,7 @@
 		"db:migrate": "bun scripts/migrate.ts",
 		"familia": "bun scripts/crear-familia.ts",
 		"start": "bun server.js",
-		"test": "bun test src"
+		"test": "bun test --isolate src"
 	},
 	"devDependencies": {
 		"@electric-sql/pglite": "0.5.10",

@@ -4,7 +4,7 @@ import { openRouterKey } from '#lib/server/family-settings.ts';
 import { setItemsDone, toBuyItems, type Kitchen } from '#lib/server/fridge.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
 import { askedPrompt, byWords, fromAnswer, SCHEMA, SYSTEM, type ListItem } from './bought-match.ts';
-import { boughtOf } from './expenses.ts';
+import { boughtOf } from './bought.ts';
 
 /**
  * What a purchase has, off the shopping list (#451, phase 2): saved in Gastos, what is on the list
