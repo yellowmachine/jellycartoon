@@ -10,6 +10,18 @@
 	let { data }: PageProps = $props();
 
 	let open = $state<number | null>(null);
+
+	// The filters as written, before «Buscar», for «Descargar hoja».
+	let q = $derived(data.text);
+	let from = $derived(data.from ?? '');
+	let to = $derived(data.to ?? '');
+	let tagId = $derived(data.tag ? String(data.tag.id) : '');
+	/** The same search as a spreadsheet: every one, and with no filter, the whole history. */
+	const sheet = $derived(
+		`/gastos/busqueda/hoja?${new URLSearchParams(
+			Object.entries({ q: q.trim(), desde: from, hasta: to, etiqueta: tagId }).filter(([, v]) => v)
+		)}`
+	);
 	const total = $derived(data.expenses.reduce((sum, e) => sum + e.total, 0));
 	/** Each expense's lines of the tag asked for, by its id. */
 	const tagged = $derived(
@@ -63,26 +75,26 @@
 			<input
 				type="search"
 				name="q"
-				value={data.text}
+				bind:value={q}
 				placeholder="Tienda o algo comprado: «tuio», «leche»…"
 				class={field}
 			/>
 		</label>
 		<label class="flex flex-col gap-1 text-xs text-zinc-400">
 			Desde
-			<input type="date" name="desde" value={data.from ?? ''} class={field} />
+			<input type="date" name="desde" bind:value={from} class={field} />
 		</label>
 		<label class="flex flex-col gap-1 text-xs text-zinc-400">
 			Hasta
-			<input type="date" name="hasta" value={data.to ?? ''} class={field} />
+			<input type="date" name="hasta" bind:value={to} class={field} />
 		</label>
 		{#if data.own.tags.length}
 			<label class="col-span-2 flex flex-col gap-1 text-xs text-zinc-400 sm:col-span-1">
 				Etiqueta propia
-				<select name="etiqueta" class={field}>
+				<select name="etiqueta" bind:value={tagId} class={field}>
 					<option value="">Todas</option>
 					{#each data.own.tags as tag (tag.id)}
-						<option value={tag.id} selected={data.tag?.id === tag.id}>{tag.name}</option>
+						<option value={String(tag.id)}>{tag.name}</option>
 					{/each}
 				</select>
 			</label>
@@ -90,6 +102,15 @@
 		<button
 			class="{button} col-span-2 self-end bg-amber-600 font-semibold text-white hover:bg-amber-500 sm:col-span-1"
 			>Buscar</button
+		>
+		<!-- Straight to the file, without drawing a whole year here first. -->
+		<a
+			href={sheet}
+			download
+			data-sveltekit-reload
+			class="{button} col-span-2 text-center text-zinc-300 ring-1 ring-zinc-700 hover:bg-zinc-800 sm:col-span-full sm:justify-self-end"
+			title="Hoja de cálculo (.ods) con todo lo que encuentren estos filtros; sin ninguno, todo"
+			>⬇ Descargar hoja</a
 		>
 	</form>
 
