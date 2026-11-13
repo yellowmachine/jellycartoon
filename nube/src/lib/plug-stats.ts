@@ -25,6 +25,8 @@ export interface StatsBucket {
 	wh: number;
 	/** At today's price; null without one. */
 	euros: number | null;
+	/** Each plug's Wh in it, by its id: the column's coloured parts with all of them. */
+	parts: Record<string, number>;
 }
 
 export interface PlugStats {

@@ -103,7 +103,12 @@ export async function statsIn(
 	const mine = (rows as Row[]).filter((r) => !plugId || r.plugId === plugId);
 	const euros = (r: Row) => (price ? (r.wh / 1000) * priceAt(price, r.hour) : 0);
 
-	const buckets = b.buckets.map((bucket) => ({ ...bucket, wh: 0, euros: 0 }));
+	const buckets = b.buckets.map((bucket) => ({
+		...bucket,
+		wh: 0,
+		euros: 0,
+		parts: {} as Record<string, number>
+	}));
 	const index = new Map(buckets.map((x, i) => [x.key, i]));
 	const byPlug = new Map<string, { wh: number; euros: number }>();
 	const byPeriod: Record<PeriodName, { wh: number; euros: number }> = {
@@ -126,8 +131,10 @@ export async function statsIn(
 		const key = b.keyOf(local.day, local.hour);
 		const i = index.get(key);
 		if (i === undefined) continue;
-		buckets[i]!.wh += r.wh;
-		buckets[i]!.euros += eur;
+		const bucket = buckets[i]!;
+		bucket.wh += r.wh;
+		bucket.euros += eur;
+		bucket.parts[r.plugId] = (bucket.parts[r.plugId] ?? 0) + r.wh;
 		total.wh += r.wh;
 		total.euros += eur;
 		const one = byPlug.get(r.plugId) ?? { wh: 0, euros: 0 };
