@@ -163,6 +163,12 @@
 			{/each}
 		</ul>
 		<p class="mt-2 text-center text-xs text-zinc-500">Con una familia de ejemplo.</p>
+		<!-- The family's guide (#495), each screen told step by step. -->
+		<p class="mt-3 text-center text-sm">
+			<a href="https://docs.seilide.app/guia/" class="text-amber-400 hover:underline"
+				>Ver todo lo que hace →</a
+			>
+		</p>
 	</section>
 
 	<section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -1,8 +1,9 @@
 /**
- * The app's screenshots for the landing page (#495), made again whenever a screen changes: a
- * throwaway Seilide (compose.yaml, no volumes), an invented family (datos.ts), a pretend house for
- * Música and Carretera (casa-falsa.ts), and a headless Chromium as an installed app on a phone.
- * They land in static/capturas/ as .webp. Everything is removed at the end, also on failure.
+ * The app's screenshots for the landing page and the family's guide (#495), made again whenever a
+ * screen changes: a throwaway Seilide (compose.yaml, no volumes), an invented family (datos.ts), a
+ * pretend house for Música and Carretera (casa-falsa.ts), and a headless Chromium as an installed
+ * app on a phone. They land as .webp in static/capturas/ (the landing page) and in
+ * ../docs/src/assets/guia/ (the guide). Everything is removed at the end, also on failure.
  *
  *   bun scripts/capturas/capturas.ts            (from nube/; builds the app if there is no build/)
  *   bun scripts/capturas/capturas.ts --build    (builds it again first)
@@ -17,7 +18,6 @@ import { randomBytes } from 'node:crypto';
 import type { Subprocess } from 'bun';
 
 const NUBE = path.resolve(import.meta.dir, '../..');
-const OUT = path.join(NUBE, 'static/capturas');
 const COMPOSE = ['docker', 'compose', '-f', path.join(import.meta.dir, 'compose.yaml')];
 const APP_PORT = 3472;
 const HOUSE_PORT = 19443;
@@ -30,13 +30,59 @@ const PASSWORD = 'capturas-de-ejemplo-2026';
 /** A phone (390 × 844 CSS px), twice as sharp: 780 px wide images. */
 const PHONE = { width: 390, height: 844, deviceScaleFactor: 2, mobile: true };
 
-/** What is shot: its file in static/capturas/, its page, and how long it may settle. */
-const SHOTS = [
-	{ name: 'gastos', path: '/gastos' },
-	{ name: 'agenda', path: '/agenda' },
-	{ name: 'carretera', path: '/carretera' },
-	{ name: 'musica', path: '/musica' }
+/** Where each goes: the landing page's strip, and the family's guide at docs.seilide.app. */
+const PLACES = {
+	portada: path.join(NUBE, 'static/capturas'),
+	guia: path.join(NUBE, '../docs/src/assets/guia')
+};
+
+/**
+ * What is shot: its file's name, its page, where it goes, and what is done on the page before (in
+ * the page, with `tap` and `type` from STEPS; awaited).
+ */
+const SHOTS: { name: string; path: string; to: (keyof typeof PLACES)[]; steps?: string }[] = [
+	{ name: 'gastos', path: '/gastos', to: ['portada', 'guia'] },
+	{
+		name: 'gastos-ticket',
+		path: '/gastos',
+		to: ['guia'],
+		// A receipt being checked, as after its photo is read: its lines, each with what it is.
+		steps: `await tap('Supermercado El Sol', 'button[aria-expanded]'); await tap('Corregir');
+			scrollTo(0, Math.max(0, document.querySelector('input[placeholder="Mercadona"]').getBoundingClientRect().top + scrollY - 150));`
+	},
+	{ name: 'agenda', path: '/agenda', to: ['portada', 'guia'] },
+	{
+		name: 'agenda-apuntar',
+		path: '/agenda',
+		to: ['guia'],
+		steps: `await tap('+ Apuntar'); await type('input[placeholder^="Dentista"]', 'Revisión del pediatra');
+			await tap('Pablo', 'button[aria-pressed]'); await tap('1 hora antes');
+			scrollTo(0, document.querySelector('input[placeholder^="Dentista"]').getBoundingClientRect().top + scrollY - 110);`
+	},
+	{ name: 'carretera', path: '/carretera', to: ['portada', 'guia'] },
+	{ name: 'carretera-mas', path: '/carretera', to: ['guia'], steps: `await tap('Más');` },
+	{ name: 'musica', path: '/musica', to: ['portada', 'guia'] },
+	{ name: 'musica-album', path: '/musica/3', to: ['guia'] },
+	{ name: 'musica-listas', path: '/musica/listas', to: ['guia'] }
 ];
+
+/** For a shot's steps: touch what shows that text (inside `within`, if given), and write in a field. */
+const STEPS = `
+const settle = () => new Promise((ok) => setTimeout(ok, 400));
+window.tap = async (text, within = 'button, a, [role="button"]') => {
+	const found = [...document.querySelectorAll(within)].find((el) => el.textContent.trim().includes(text));
+	if (!found) throw new Error('No encuentro «' + text + '»');
+	found.click();
+	await settle();
+};
+window.type = async (selector, value) => {
+	const field = document.querySelector(selector);
+	if (!field) throw new Error('No encuentro ' + selector);
+	field.value = value;
+	field.dispatchEvent(new Event('input', { bubbles: true }));
+	field.blur();
+	await settle();
+};`;
 
 /**
  * Before any page's script: installed (display-mode standalone), in Madrid for Carretera (called
@@ -236,6 +282,8 @@ try {
 		},
 		session
 	);
+	// A key that looks like one (never used: nothing is read), for Gastos' «📷 Ticket» and «📄 Factura».
+	await post(`${APP}/ajustes?/saveOpenRouter`, { key: 'sk-or-v1-capturas-de-ejemplo' }, session);
 
 	console.log('· Chromium');
 	const chromium = Bun.spawn(
@@ -258,7 +306,7 @@ try {
 		async () => (await fetch(`http://127.0.0.1:${CDP_PORT}/json/version`)).ok
 	);
 
-	await mkdir(OUT, { recursive: true });
+	for (const dir of Object.values(PLACES)) await mkdir(dir, { recursive: true });
 	// Its value may end in «=»: only the first one splits.
 	const cut = session.indexOf('=');
 	const [cookieName, cookieValue] = [session.slice(0, cut), session.slice(cut + 1)];
@@ -289,12 +337,23 @@ try {
 		await loaded;
 		// The covers, the streamed catalog, the fonts.
 		await Bun.sleep(2500);
+		if (shot.steps) {
+			const done = await cdp.send<{ exceptionDetails?: { exception?: { description?: string } } }>(
+				'Runtime.evaluate',
+				{ expression: `(async () => { ${STEPS}\n${shot.steps}\n})()`, awaitPromise: true }
+			);
+			if (done.exceptionDetails)
+				throw new Error(`${shot.name}: ${done.exceptionDetails.exception?.description}`);
+			await Bun.sleep(1200);
+		}
 		const { data } = await cdp.send<{ data: string }>('Page.captureScreenshot', {
 			format: 'webp',
 			quality: 82
 		});
-		await writeFile(path.join(OUT, `${shot.name}.webp`), Buffer.from(data, 'base64'));
-		console.log(`  ✓ static/capturas/${shot.name}.webp`);
+		for (const place of shot.to) {
+			await writeFile(path.join(PLACES[place], `${shot.name}.webp`), Buffer.from(data, 'base64'));
+			console.log(`  ✓ ${path.relative(path.join(NUBE, '..'), PLACES[place])}/${shot.name}.webp`);
+		}
 		cdp.close();
 		await fetch(`http://127.0.0.1:${CDP_PORT}/json/close/${target.id}`);
 	}

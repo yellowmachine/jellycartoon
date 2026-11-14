@@ -1,5 +1,6 @@
 // The documentation (#380), at docs.seilide.app: Starlight, a static site served by Caddy
-// (Dockerfile). For now only the technical part, from the READMEs; the family's guide comes later.
+// (Dockerfile). The family's guide (guia/, its screenshots by nube/scripts/capturas/, #495) and the
+// technical part, from the READMEs.
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import starlightLinksValidator from 'starlight-links-validator';
@@ -40,6 +41,7 @@ const seilide = [
 	'carretera',
 	'privacidad-gastos'
 ];
+const guia = ['', 'dinero', 'agenda', 'carretera', 'musica'];
 const pages = (base, slugs) => slugs.map((s) => (s ? `${base}/${s}` : base));
 
 export default defineConfig({
@@ -60,6 +62,7 @@ export default defineConfig({
 			],
 			editLink: { baseUrl: 'https://github.com/yellowmachine/jellycartoon/edit/main/docs/' },
 			sidebar: [
+				{ label: 'Guía de Seilide', items: pages('guia', guia) },
 				{ label: 'JellyCartoon, la casa', items: pages('tecnica/casa', casa) },
 				{ label: 'Seilide, la nube', items: pages('tecnica/seilide', seilide) },
 				{ label: 'Satélite de voz', items: ['tecnica/satelite'] }

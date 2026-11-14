@@ -7,9 +7,12 @@ hero:
   title: JellyCartoon y Seilide
   tagline: Tus series, tu música y tu tele en casa, y el día a día de la familia en la nube.
   actions:
+    - text: Guía de Seilide
+      link: /guia/
+      icon: right-arrow
     - text: Instalar la casa
       link: /tecnica/casa/produccion/
-      icon: right-arrow
+      variant: minimal
     - text: Cómo funciona
       link: /tecnica/casa/
       variant: minimal
@@ -22,5 +25,5 @@ hero:
 - **[Satélite de voz](/tecnica/satelite/):** una Raspberry con micrófono y altavoz en una
   habitación, que habla con Seilide.
 
-Esta es la parte técnica: instalar, configurar y cómo está hecho. La guía para la familia, con lo
-que hace cada cosa y cómo se usa, está en preparación.
+La **[guía de Seilide](/guia/)** es para la familia: cómo se usa cada cosa, paso a paso y con
+capturas. Lo demás es la parte técnica: instalar, configurar y cómo está hecho.
