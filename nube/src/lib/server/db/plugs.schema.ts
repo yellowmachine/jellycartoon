@@ -37,6 +37,11 @@ export const plug = pgTable(
 		deviceId: text('device_id'),
 		/** Its model («S3PL-30110EU»), once it has connected. */
 		model: text('model'),
+		/**
+		 * Its address in the home's wifi («192.168.68.57»), as it said on connecting (Wifi.GetStatus):
+		 * a link to its own page, for who runs the family. Null, not known.
+		 */
+		ip: text('ip'),
 		/** On or off, as last told; null, never connected. */
 		output: boolean('output'),
 		/** Watts, as last told. */

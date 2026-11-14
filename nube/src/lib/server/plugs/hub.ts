@@ -4,6 +4,7 @@ import {
 	hourOf,
 	parseMessage,
 	request,
+	staIpOf,
 	SWITCH_ID,
 	timerOf,
 	type SwitchState
@@ -44,7 +45,7 @@ export interface HubDeps {
 	save(
 		familyId: string,
 		plugId: string,
-		patch: SwitchState & { deviceId?: string; model?: string }
+		patch: SwitchState & { deviceId?: string; model?: string; ip?: string }
 	): Promise<void>;
 	/** What it used in that hour, added. */
 	addEnergy(familyId: string, plugId: string, hour: Date, wh: number): Promise<void>;
@@ -282,6 +283,15 @@ export function createHub(deps: HubDeps) {
 			})
 			.catch((e) => {
 				if (!(e instanceof PlugOffline)) log(`${plug.id}: sin datos del aparato`, e);
+			});
+		// Its address in the wifi, for the link to its own page: a new one comes with a new connection.
+		call(plug.id, 'Wifi.GetStatus')
+			.then((status) => {
+				const ip = staIpOf(status);
+				if (ip) return deps.save(plug.familyId, plug.id, { ip });
+			})
+			.catch((e) => {
+				if (!(e instanceof PlugOffline)) log(`${plug.id}: sin su dirección en la wifi`, e);
 			});
 	}
 

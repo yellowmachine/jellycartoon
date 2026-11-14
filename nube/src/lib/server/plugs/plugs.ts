@@ -66,6 +66,7 @@ function makeHub() {
 			if (patch.energyWh !== undefined) set.energyWh = patch.energyWh;
 			if (patch.deviceId) set.deviceId = patch.deviceId;
 			if (patch.model) set.model = patch.model;
+			if (patch.ip) set.ip = patch.ip;
 			await asFamily(familyId, (tx) => tx.update(plug).set(set).where(eq(plug.id, plugId)));
 		},
 		async addEnergy(familyId, plugId, hour, wh) {
@@ -109,13 +110,17 @@ if (!flags[PINGING]) {
 	}, 30_000).unref?.();
 }
 
-/** The family's plugs, with what they used today and this month (the family's days). */
-export const listPlugs = (userId: string) => withFamily(userId, (tx) => readPlugs(tx));
+/**
+ * The family's plugs, with what they used today and this month (the family's days). Their address
+ * in the wifi, only for who runs the family: its page lets anyone do anything to it.
+ */
+export const listPlugs = (userId: string) =>
+	withFamily(userId, (tx, m) => readPlugs(tx, m.role === 'admin'));
 
 /** The same, in a kitchen: a person's, or the house's (a satellite, the voice). */
-export const plugsOf = (k: Kitchen) => k.run((tx) => readPlugs(tx));
+export const plugsOf = (k: Kitchen) => k.run((tx) => readPlugs(tx, false));
 
-async function readPlugs(tx: AnyDb): Promise<PlugView[]> {
+async function readPlugs(tx: AnyDb, withIp: boolean): Promise<PlugView[]> {
 	const today = dayFormat.format(new Date());
 	const plugs = await tx
 		.select({
@@ -125,6 +130,7 @@ async function readPlugs(tx: AnyDb): Promise<PlugView[]> {
 			output: plug.output,
 			deviceId: plug.deviceId,
 			model: plug.model,
+			ip: plug.ip,
 			lastSeenAt: plug.lastSeenAt,
 			paused: plug.paused,
 			locked: plug.locked,
@@ -191,6 +197,7 @@ async function readPlugs(tx: AnyDb): Promise<PlugView[]> {
 			monthEuros: price ? (byPlug.get(p.id)?.monthEur ?? 0) : null,
 			lastSeenAt: p.lastSeenAt?.toISOString() ?? null,
 			model: p.model,
+			ip: withIp ? p.ip : null,
 			paused: p.paused,
 			locked: p.locked,
 			notices: {

@@ -82,6 +82,8 @@ export interface PlugView {
 	monthEuros: number | null;
 	lastSeenAt: string | null;
 	model: string | null;
+	/** Its address in the home's wifi, for a link to its own page: only who runs the family. */
+	ip: string | null;
 	notices: PlugNotices;
 	/** «En pausa» (#396): off, schedules off. */
 	paused: boolean;

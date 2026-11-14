@@ -60,6 +60,19 @@ export function switchOf(params: unknown): SwitchState | null {
 	return Object.keys(state).length ? state : null;
 }
 
+/**
+ * Its IPv4 address in the wifi, from Wifi.GetStatus's `sta_ip`
+ * (https://shelly-api-docs.shelly.cloud/gen2/ComponentsAndServices/WiFi#status); null without one.
+ */
+export function staIpOf(status: unknown): string | null {
+	const ip = (status as { sta_ip?: unknown } | null)?.sta_ip;
+	if (typeof ip !== 'string') return null;
+	const parts = ip.split('.');
+	return parts.length === 4 && parts.every((p) => /^\d{1,3}$/.test(p) && Number(p) <= 255)
+		? ip
+		: null;
+}
+
 /** A frame from the plug, or null if it is not one Seilide understands. */
 export function parseMessage(text: string): ShellyMessage | null {
 	let frame: Record<string, unknown>;
