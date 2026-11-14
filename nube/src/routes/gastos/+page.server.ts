@@ -2,7 +2,7 @@ import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { parseBillInput } from 'comun/bills.ts';
 import { addMonths, isCategory, monthOf, parseExpenseInput } from 'comun/expenses.ts';
-import { kitchenOf, setItemsDone, today } from '#lib/server/fridge.ts';
+import { kitchenOf, setItemsDone, today, type Kitchen } from '#lib/server/fridge.ts';
 import { tickOffBought } from '#lib/server/expenses/bought-list.ts';
 import {
 	addDueRecurring,
@@ -36,6 +36,7 @@ import {
 	NotADocument
 } from '#lib/server/expenses/income.ts';
 import { refused } from '#lib/server/storage.ts';
+import { attachReceipt, dropReceipt } from '#lib/server/expenses/fixed-receipt.ts';
 
 /**
  * The family's expenses (#253; jellycartoon's #194): a month's (`?mes=2026-10`), by category and one by
@@ -95,6 +96,20 @@ function recurringFrom(form: FormData) {
 	return { name, category, amount, day, month };
 }
 
+/** A receipt kept on the expense `id` (#501); why not, as the page says it. */
+async function attaching(k: Kitchen, id: number, file: Uint8Array, fileHash: string | null) {
+	try {
+		if (!(await attachReceipt(k, id, file, fileHash)))
+			return fail(404, { message: 'Ese gasto ya no está' });
+	} catch (err) {
+		if (err instanceof NotADocument) return fail(400, { message: err.message });
+		const no = refused(err);
+		if (no) return fail(no.status, { message: no.message });
+		throw err;
+	}
+	return null;
+}
+
 export const actions: Actions = {
 	/**
 	 * New (from a receipt read, by hand) or corrected: `expense` as JSON, as the page has it, and a
@@ -118,16 +133,21 @@ export const actions: Actions = {
 		if (billBody !== null && !bill)
 			return fail(400, { message: 'Falta algo de la factura: el periodo o el consumo' });
 		const id = Number(form.get('id'));
+		const receipt = await receiptFrom(form);
+		if ('problem' in receipt) return fail(400, { message: receipt.problem });
+		const hash = form.get('huella');
+		const fileHash = receipt.file && isFileHash(hash) ? hash : null;
 		if (id) {
 			if (!(await updateExpense(k, id, input, bill)))
 				return fail(404, { message: 'Ese gasto ya no está' });
+			// A fixed one's receipt or bill of the month, read (#501): kept on it, not as another.
+			if (receipt.file) {
+				const problem = await attaching(k, id, receipt.file, fileHash);
+				if (problem) return problem;
+			}
 			return { saved: id };
 		}
-		const receipt = await receiptFrom(form);
-		if ('problem' in receipt) return fail(400, { message: receipt.problem });
 		const source = bill ? 'factura' : receipt.file ? 'ticket' : 'mano';
-		const hash = form.get('huella');
-		const fileHash = receipt.file && isFileHash(hash) ? hash : null;
 		// Put in twice (#440)? Asked before saving, unless «Guardar igual».
 		if (form.get('igual') !== 'on') {
 			const repeated = await lookingSame(k, { id: null, ...input, source, fileHash, bill });
@@ -145,6 +165,28 @@ export const actions: Actions = {
 		// What it has, off the shopping list (#451); a supply's bill has nothing of it.
 		const ticked = bill ? [] : await tickOffBought(k, input);
 		return { saved, ticked };
+	},
+	/**
+	 * «📎 Recibo» on a fixed one (#501) without reading it (no AI, or it could not): `fichero` kept
+	 * on the expense `id` as it is, its amount as it was.
+	 */
+	attachReceipt: async ({ request, locals }) => {
+		const k = await kitchen(locals);
+		const form = await request.formData();
+		const receipt = await receiptFrom(form);
+		if ('problem' in receipt) return fail(400, { message: receipt.problem });
+		if (!receipt.file) return fail(400, { message: 'Falta el recibo' });
+		const hash = form.get('huella');
+		const id = Number(form.get('id'));
+		const problem = await attaching(k, id, receipt.file, isFileHash(hash) ? hash : null);
+		if (problem) return problem;
+		return { saved: id };
+	},
+	/** «Quitar el recibo» (#501): its file, not what it says. */
+	dropReceipt: async ({ request, locals }) => {
+		const k = await kitchen(locals);
+		if (!(await dropReceipt(k, Number((await request.formData()).get('id')))))
+			return fail(404, { message: 'Ese recibo ya no está' });
 	},
 	/** «Deshacer» (#451): what saving a purchase ticked off, back to buy. */
 	untick: async ({ request, locals }) => {

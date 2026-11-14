@@ -1,7 +1,8 @@
 <script lang="ts">
 	import GuideLink from '#lib/components/GuideLink.svelte';
 	import { onMount, tick, untrack } from 'svelte';
-	import { enhance } from '$app/forms';
+	import { applyAction, deserialize, enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import { afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import {
@@ -32,6 +33,7 @@
 		type ExpenseCategory,
 		type ExpenseDraft,
 		type ExpenseFavorite,
+		type FixedMatch,
 		type LineTag,
 		type RecurringExpense
 	} from 'comun/expenses.ts';
@@ -64,6 +66,10 @@
 		fileHash?: string | null;
 		/** The one it looks the same as (#440): asked before saving. */
 		repeated?: LooksSame | null;
+		/** The fixed one it may be the month's receipt of (#501): asked, «¿Es el recibo de…?». */
+		fixed?: FixedMatch | null;
+		/** The fixed one it is the month's receipt of (#501): said in the title. */
+		receiptOf?: string | null;
 		date: string;
 		store: string;
 		category: ExpenseCategory;
@@ -91,6 +97,8 @@
 	/** The form, at the top of the page: brought into view when an expense down the list opens in it. */
 	let editForm = $state<HTMLElement>();
 	let problem = $state<string | null>(null);
+	/** Done, but not all (#501): a receipt kept without being read. Amber, neither error nor ok. */
+	let notice = $state<string | null>(null);
 	let reading = $state<'ticket' | 'factura' | null>(null);
 	let saving = $state(false);
 	/** What saving a purchase ticked off the shopping list (#451), to say so and undo it. */
@@ -114,6 +122,7 @@
 		if (editing?.photo) URL.revokeObjectURL(editing.photo);
 		editing = null;
 		problem = null;
+		notice = null;
 	}
 
 	function byHand() {
@@ -217,10 +226,14 @@
 		await review(res, photo, photo, hash);
 	}
 
-	/** A bill (#232): its PDF as it is, a photo smaller. */
-	async function readBill(file: File | undefined) {
+	/**
+	 * A bill (#232): its PDF as it is, a photo smaller. `into`, a fixed one's of the month (#501):
+	 * what it says on that expense, kept on it.
+	 */
+	async function readBill(file: File | undefined, into: Expense | null = null) {
 		if (!file) return;
 		close();
+		if (into && !data.canRead) return attachOnly(into, file);
 		reading = 'factura';
 		const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
 		const [sent, hash] = await Promise.all([isPdf ? file : smallerPhoto(file), fileHash(file)]);
@@ -231,15 +244,56 @@
 			() => null
 		);
 		if (billInput) billInput.value = '';
-		await review(res, sent, isPdf ? null : sent, hash);
+		// Not read (no connection, nothing a bill): kept on the fixed one as it is, its amount as it was.
+		if (into && !res?.ok) {
+			reading = null;
+			const why = (await res?.json().catch(() => null))?.message ?? 'sin conexión';
+			return attachOnly(into, file, `Guardado el recibo, sin leer (${why}).`);
+		}
+		await review(res, sent, isPdf ? null : sent, hash, into);
+	}
+
+	/** «📎 Recibo» on a fixed one (#501), not read: kept on it as it is. */
+	async function attachOnly(e: Expense, file: File, done: string | null = null) {
+		reading = 'factura';
+		const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+		const [sent, hash] = await Promise.all([isPdf ? file : smallerPhoto(file), fileHash(file)]);
+		const form = new FormData();
+		form.set('id', String(e.id));
+		form.set('fichero', sent, isPdf ? 'recibo.pdf' : 'recibo.jpg');
+		if (hash) form.set('huella', hash);
+		const res = await fetch('?/attachReceipt', {
+			method: 'POST',
+			body: form,
+			headers: { 'x-sveltejs-action': 'true' }
+		}).catch(() => null);
+		reading = null;
+		const result = res ? deserialize(await res.text()) : null;
+		if (result?.type === 'success') {
+			notice = done;
+			open = e.id;
+			await invalidateAll();
+		} else if (result?.type === 'failure')
+			problem = String(result.data?.message ?? 'No se pudo guardar el recibo');
+		else if (result) await applyAction(result);
+		else problem = 'Sin conexión';
 	}
 
 	/** What the model read, in the boxes to check; the photo beside it, if there was one. */
-	async function review(res: Response | null, file: Blob, photo: Blob | null, hash: string | null) {
+	async function review(
+		res: Response | null,
+		file: Blob,
+		photo: Blob | null,
+		hash: string | null,
+		into: Expense | null = null
+	) {
 		const body = await res?.json().catch(() => null);
 		reading = null;
 		if (!res?.ok) return void (problem = body?.message ?? 'Sin conexión');
-		const draft = body as ExpenseDraft & { repeated: LooksSame | null };
+		const draft = body as ExpenseDraft & {
+			repeated: LooksSame | null;
+			fixed: FixedMatch | null;
+		};
 		editing = {
 			id: null,
 			fromLines: false,
@@ -253,9 +307,34 @@
 			category: draft.category,
 			total: draft.total ? typed(draft.total) : '',
 			lines: draft.lines.map((l) => ({ ...l, amount: typed(l.amount) })),
-			bill: billBoxes(draft.bill)
+			bill: billBoxes(draft.bill),
+			fixed: into ? null : draft.fixed
 		};
+		if (!into) return;
+		onFixed(into);
+		// Opened from down the list: the form, up there.
+		await tick();
+		editForm?.scrollIntoView({ block: 'start' });
 	}
+
+	/**
+	 * Read on a fixed one, or said it is its (#501): that expense's name, kind and day, what was read
+	 * for the rest (the amount: a bill's changes every month). Not new: nothing to look the same as.
+	 */
+	function onFixed(f: Pick<Expense, 'id' | 'store' | 'category' | 'date' | 'total'>) {
+		if (!editing) return;
+		editing.id = f.id;
+		editing.store = f.store;
+		editing.category = f.category;
+		editing.date = f.date;
+		if (!parseEuros(editing.total)) editing.total = typed(f.total);
+		editing.repeated = null;
+		editing.fixed = null;
+		editing.receiptOf = f.store;
+	}
+
+	/** Its month's name, «noviembre»: of a fixed one asked about (#501). */
+	const monthWord = (day: string) => MONTH_NAMES[Number(day.slice(5, 7)) - 1]!.toLowerCase();
 
 	// Shared to the app from another (the manifest's share_target, #232): a PDF, as a bill; a
 	// photo, as a ticket.
@@ -493,6 +572,18 @@
 	{#if problem && !editing}
 		<p class="mb-4 rounded-md bg-red-950 p-3 text-sm text-red-200">{problem}</p>
 	{/if}
+	{#if notice && !editing}
+		<p
+			class="mb-4 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-950/60 p-3 text-sm text-amber-200"
+		>
+			<span class="flex-1">{notice}</span>
+			<button
+				class="px-1 text-amber-300 hover:text-white"
+				aria-label="Cerrar"
+				onclick={() => (notice = null)}>✕</button
+			>
+		</p>
+	{/if}
 	{#if ticked.length}
 		<form
 			method="post"
@@ -525,13 +616,15 @@
 			class="mb-8 scroll-mt-[calc(var(--header-h,0px)+1rem)] rounded-lg border border-zinc-700 bg-zinc-900 p-4"
 		>
 			<h2 class="mb-1 font-semibold">
-				{e.id
-					? e.bill
-						? 'Corregir la factura'
-						: 'Corregir el gasto'
-					: e.receipt
-						? 'Revisa lo que se ha leído'
-						: 'Nuevo gasto'}
+				{e.receiptOf
+					? `El recibo de ${e.receiptOf} de ${monthWord(e.date)}`
+					: e.id
+						? e.bill
+							? 'Corregir la factura'
+							: 'Corregir el gasto'
+						: e.receipt
+							? 'Revisa lo que se ha leído'
+							: 'Nuevo gasto'}
 			</h2>
 			{#if e.readBy}
 				<p class="mb-3 text-xs text-zinc-500">
@@ -701,6 +794,25 @@
 						</p>
 					{/if}
 
+					{#if e.fixed && !e.id}
+						{@const f = e.fixed}
+						<div class="mt-4 rounded-md border border-sky-500/40 bg-sky-950/40 p-3 text-sm">
+							<p class="text-sky-100">
+								¿Es el recibo de <strong>{f.store}</strong> de {monthWord(f.date)}? Apuntado el
+								{shortDay(f.date)} por {euros(f.total)}, 🔁 fijo y sin recibo.
+							</p>
+							<div class="mt-2 flex flex-wrap gap-2">
+								<button
+									class="{button} bg-sky-700 font-semibold text-white hover:bg-sky-600"
+									onclick={() => onFixed(f)}>Sí, ponerlo ahí</button
+								>
+								<button
+									class="{button} hover:bg-zinc-800"
+									onclick={() => editing && (editing.fixed = null)}>No, es otro gasto</button
+								>
+							</div>
+						</div>
+					{/if}
 					{#if e.repeated}
 						<div class="mt-4 rounded-md border border-amber-500/40 bg-amber-950/40 p-3 text-sm">
 							<p class="text-amber-200">{sameText(e.repeated, data.today)} ¿Lo guardo igual?</p>
@@ -1087,8 +1199,57 @@
 									href="/gastos/ticket/{e.id}"
 									target="_blank"
 									class="{button} bg-zinc-800 hover:bg-zinc-700"
-									>{e.bill ? 'Ver factura' : 'Ver ticket'}</a
+									>{e.bill ? 'Ver factura' : e.fixed ? 'Ver recibo' : 'Ver ticket'}</a
 								>
+							{/if}
+							<!-- The month's receipt of a fixed one (#501): read, its amount and bill on it. -->
+							{#if e.fixed}
+								<label
+									class={[
+										`${button} cursor-pointer bg-zinc-800 hover:bg-zinc-700`,
+										reading && 'pointer-events-none opacity-60'
+									]}
+								>
+									{e.hasReceipt ? 'Cambiar el recibo' : '📎 Recibo'}
+									<input
+										type="file"
+										accept="application/pdf,.pdf,image/*"
+										class="hidden"
+										onchange={(ev) => {
+											const file = ev.currentTarget.files?.[0];
+											ev.currentTarget.value = '';
+											void readBill(file, e);
+										}}
+									/>
+								</label>
+								{#if e.hasReceipt}
+									{#if deleting === `recibo-${e.id}`}
+										<form
+											method="post"
+											action="?/dropReceipt"
+											use:enhance={() =>
+												async ({ update }) => {
+													deleting = null;
+													await update({ reset: false });
+												}}
+											class="flex gap-2"
+										>
+											<input type="hidden" name="id" value={e.id} />
+											<span class="py-1.5">¿Quitar el recibo?</span>
+											<button class="{button} bg-red-700 hover:bg-red-600">Sí</button>
+											<button
+												type="button"
+												class="{button} hover:bg-zinc-800"
+												onclick={() => (deleting = null)}>No</button
+											>
+										</form>
+									{:else}
+										<button
+											class="{button} text-zinc-400 hover:bg-zinc-800"
+											onclick={() => (deleting = `recibo-${e.id}`)}>Quitar el recibo</button
+										>
+									{/if}
+								{/if}
 							{/if}
 							<button class="{button} bg-zinc-800 hover:bg-zinc-700" onclick={() => edit(e)}
 								>Corregir</button

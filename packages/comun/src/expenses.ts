@@ -98,6 +98,19 @@ export interface ExpenseDraft extends ExpenseInput {
 	bill: BillInput | null;
 }
 
+/**
+ * The fixed one a receipt or bill just read may be the month's of (#501): «¿Es el recibo de Luz de
+ * noviembre?». Of its month or the one before (a bill comes late), without a receipt yet.
+ */
+export interface FixedMatch {
+	/** The expense the fixed one added that month. */
+	id: number;
+	date: string;
+	store: string;
+	category: ExpenseCategory;
+	total: number;
+}
+
 export interface RecurringExpense {
 	id: number;
 	name: string;
