@@ -2,13 +2,14 @@
 	import { goto } from '$app/navigation';
 	import EpisodeCard from 'comun/components/EpisodeCard.svelte';
 	import Player, { type PlayerLinks } from 'comun/components/Player.svelte';
+	import { stillThere, tellStillThere } from '#lib/still-there.svelte.ts';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 	import type { PageProps } from './$types';
 
 	/**
 	 * An episode (#253), as jellycartoon's page: the player, and after it the next one (with a
 	 * countdown, with «siguiente automático») or others to go on with. The video and where it is
-	 * saved, straight from the house by its signed links. Without the house's «¿Sigues ahí?».
+	 * saved, straight from the house by its signed links. «¿Sigues ahí?» (#77) as chosen at home.
 	 */
 	let { data }: PageProps = $props();
 
@@ -46,9 +47,12 @@
 		countdown = null;
 	}
 
-	function playNext() {
+	/** `byItself`: the countdown ended, nobody chose it. */
+	function playNext(byItself = false) {
 		stopCountdown();
-		if (data.nextId) void goto(`/watch/${data.nextId}`);
+		if (!data.nextId) return;
+		if (byItself) stillThere.startedByItself();
+		void goto(`/watch/${data.nextId}`);
 	}
 
 	/**
@@ -58,12 +62,12 @@
 	function ended(next: boolean) {
 		if (!next || !data.nextId) return;
 		const full = document.fullscreenElement;
-		if (full && full !== document.documentElement) return playNext();
+		if (full && full !== document.documentElement) return playNext(true);
 		countdown = COUNTDOWN;
 		timer = setInterval(() => {
 			if (countdown === null) return;
 			countdown -= 1;
-			if (countdown <= 0) playNext();
+			if (countdown <= 0) playNext(true);
 		}, 1000);
 	}
 
@@ -86,7 +90,7 @@
 			<div class="mt-4 flex justify-center gap-3">
 				<button
 					class="rounded-md bg-amber-500 px-4 py-2 font-medium text-zinc-950 hover:bg-amber-400"
-					onclick={playNext}>Ver ahora</button
+					onclick={() => playNext()}>Ver ahora</button
 				>
 				<button
 					class="rounded-md border border-zinc-600 px-4 py-2 hover:bg-zinc-800"
@@ -119,6 +123,8 @@
 	overlay={countdown !== null ? upNext : undefined}
 	{links}
 	contained={kitchenMode.on}
+	askAfter={data.askAfter ?? null}
+	onstillthere={tellStillThere}
 />
 
 <!-- What comes after: the next one with «siguiente automático»; without it, others to go on with. -->

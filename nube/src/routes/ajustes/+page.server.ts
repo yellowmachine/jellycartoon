@@ -134,6 +134,9 @@ import { subtitleStyleOf } from '#lib/server/subtitles.ts';
 import { prayerModeOn, setPrayerMode } from '#lib/server/prayers.ts';
 import { pageNoticesOf, setNoticeKind, setPageNotices } from '#lib/server/page-notices.ts';
 import { isPageNoticeKind } from 'comun/page-notices.ts';
+import { ASK_AFTER_OPTIONS } from 'comun/still-there.ts';
+import { setAskAfter } from '#lib/server/series.ts';
+import { setKidAskAfter, stillThereSettings } from '#lib/server/still-there.ts';
 
 /** A family link's address (#464), to send by WhatsApp or show as a QR. */
 const linkAddress = (token: string) => `${ORIGIN}/vincular/${token}`;
@@ -153,7 +156,20 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 	const membership = await withFamily(locals.user!.id, async (_, m) => m);
 	const admin = membership.role === 'admin';
 	const voice = await voiceSettings(k);
+	const kids = admin ? await familyKids(k) : [];
+	const withHouse = await hasHouse(locals.user!.id);
 	return {
+		/**
+		 * «¿Sigues ahí?» (#77), kept at home: theirs and, for who runs the family, each child's. It
+		 * comes after the page (the house may be slow); null for a child, or without a house.
+		 */
+		stillThere:
+			withHouse && membership.role !== 'peque'
+				? stillThereSettings(
+						{ id: locals.user!.id, email: locals.user!.email },
+						kids.map((kid) => kid.id)
+					)
+				: null,
 		/** Their Miniflux's address (#428). */
 		news: await news.linkOf(locals.user!.id),
 		house: await houseLink(locals.user!.id),
@@ -179,7 +195,7 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 			? { ...storageView(await familyStorage.of(membership.familyId)), admin }
 			: null,
 		/** The children with an account and who lets each in (#303), and the adults who may. */
-		kids: admin ? { kids: await familyKids(k), adults: await familyAdults(k) } : null,
+		kids: admin ? { kids, adults: await familyAdults(k) } : null,
 		/** The children's devices (#303): this one, if it is, and all of them. Its administrator. */
 		kidDevices: admin
 			? {
@@ -347,6 +363,33 @@ const sentBucket = (form: FormData) => {
 };
 
 export const actions: Actions = {
+	/** «¿Sigues ahí?» (#77): theirs, or a child's (`kidId`) by who runs the family. Empty, never. */
+	askAfter: async ({ request, locals }) => {
+		const form = await request.formData();
+		const value = String(form.get('askAfter') ?? '');
+		const after = value === '' ? null : Number(value);
+		const kidId = String(form.get('kidId') ?? '');
+		if (after !== null && !(ASK_AFTER_OPTIONS as readonly number[]).includes(after))
+			return fail(400, { askAfterProblem: 'Valor no válido', kidId });
+		try {
+			if (kidId) {
+				const denied = await requireAdmin(locals.user!.id, 'askAfterProblem');
+				if (denied) return denied;
+				const k = await kitchenOf(locals.user!.id);
+				if (!(await familyKids(k)).some((kid) => kid.id === kidId))
+					return fail(400, { askAfterProblem: 'Ese peque no está', kidId });
+				await setKidAskAfter(kidId, after);
+			} else {
+				const peque = await withFamily(locals.user!.id, async (_, m) => m.role === 'peque');
+				if (peque) return fail(403, { askAfterProblem: 'Solo adultos', kidId });
+				await setAskAfter({ id: locals.user!.id, email: locals.user!.email }, after);
+			}
+		} catch (err) {
+			if (err instanceof HouseProblem) return fail(502, { askAfterProblem: err.message, kidId });
+			throw err;
+		}
+		return { saved: 'askAfter', kidId };
+	},
 	/** «Probar»: the bucket as written, without moving anything. */
 	storageTest: ({ locals, request }) =>
 		storageAction(locals, request, async (_, form) => {

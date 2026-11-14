@@ -14,6 +14,7 @@
 		"db:generate": "bun --bun drizzle-kit generate",
 		"db:migrate": "bun scripts/migrate.ts",
 		"familia": "bun scripts/crear-familia.ts",
+		"capturas": "bun scripts/capturas/capturas.ts",
 		"start": "bun server.js",
 		"test": "bun test --isolate src"
 	},

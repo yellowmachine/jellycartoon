@@ -98,7 +98,7 @@ import {
 import { isAvatar } from 'comun/avatars.ts';
 import { avatarOf, createAdult, houseAdults, invite, setAvatar } from '#lib/server/people.ts';
 import { askAfter } from '#lib/server/still-there.ts';
-import { ASK_AFTER_OPTIONS } from '#lib/still-there.ts';
+import { ASK_AFTER_OPTIONS } from 'comun/still-there.ts';
 import {
 	checkCode,
 	checkPassword,

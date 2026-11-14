@@ -9,6 +9,8 @@
 	import { thumbUrl } from 'comun/thumb.svelte.ts';
 	import { watchMedia, watchPlay } from 'comun/media-diagnostics.ts';
 	import { music } from 'comun/music-player.svelte.ts';
+	import { ANSWER_SECONDS, QUESTION, askAfterLabel } from 'comun/still-there.ts';
+	import { stillThere } from 'comun/still-there.svelte.ts';
 	import SubtitleStylePanel from 'comun/components/SubtitleStylePanel.svelte';
 	import { playerQuality, type Quality } from 'comun/player-quality.svelte.ts';
 	import {
@@ -90,6 +92,14 @@
 		menuBottom?: Snippet<[PlayerMenu]>;
 		/** In a part of the screen (Seilide's kitchen, #483): never wider than it, whatever the size. */
 		contained?: boolean;
+		/**
+		 * «¿Sigues ahí?» (#77): after these minutes with nobody touching anything, an episode that
+		 * came by itself (the page calls `stillThere.startedByItself()`) waits for an answer; null,
+		 * never. Not given: not asked, and touches here not counted.
+		 */
+		askAfter?: number | null;
+		/** The question asked, answered, or stopped for nobody answering. */
+		onstillthere?: (state: 'asking' | 'answered' | 'stopped') => void;
 	}
 
 	let {
@@ -108,8 +118,50 @@
 		onrefused,
 		menuTop,
 		menuBottom,
-		contained = false
+		contained = false,
+		askAfter,
+		onstillthere
 	}: Props = $props();
+
+	/**
+	 * «¿Sigues ahí?» (#77): decided once per episode, as it opens (the page stays the same from one
+	 * episode to the next, so by `episodeId`, and nothing else). Then only an answer changes it.
+	 */
+	let asking = $derived.by(() => {
+		void episodeId;
+		return untrack(() => askAfter !== undefined && stillThere.shouldAsk(askAfter));
+	});
+	/** Nobody answered in time: it stays stopped, and says so. */
+	let stopped = $state(false);
+
+	$effect(() => {
+		if (!asking) return;
+		untrack(() => {
+			stopped = false;
+			onstillthere?.('asking');
+			// Over the native fullscreen nothing shows: out of it, to see the question.
+			if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+		});
+		const timer = setTimeout(() => {
+			stopped = true;
+			onstillthere?.('stopped');
+		}, ANSWER_SECONDS * 1000);
+		return () => clearTimeout(timer);
+	});
+
+	/** «Sí, sigo aquí»: it plays. `play`: false when it was started some other way (its controls). */
+	function answer(play = true) {
+		stillThere.someoneThere();
+		asking = false;
+		stopped = false;
+		onstillthere?.('answered');
+		if (play && video) watchPlay(video.play(), 'vídeo');
+	}
+
+	/** A touch, a click or a key anywhere on the page: someone is there. */
+	function someoneThere() {
+		if (askAfter !== undefined) stillThere.someoneThere();
+	}
 
 	/** The window's whole width: chosen, and room for it. */
 	const cinema = $derived(playerSize.value === 'cinema' && !contained);
@@ -258,7 +310,7 @@
 						untrack(() => playerQuality.value),
 						false
 					);
-					if (untrack(() => autoplay)) watchPlay(el.play(), 'vídeo');
+					if (untrack(() => autoplay && !asking)) watchPlay(el.play(), 'vídeo');
 				});
 				// Out of a child's time (#18) the server refuses the video's pieces: the notice says why.
 				instance.on(Hls.Events.ERROR, (_event, data) => {
@@ -275,7 +327,7 @@
 					() => {
 						if (start) el.currentTime = start;
 						selectNativeAudio(untrack(() => audioIndex));
-						if (untrack(() => autoplay)) watchPlay(el.play(), 'vídeo');
+						if (untrack(() => autoplay && !asking)) watchPlay(el.play(), 'vídeo');
 					},
 					{ once: true }
 				);
@@ -407,6 +459,8 @@
 	 * on from where the audio got to.
 	 */
 	function playedHere() {
+		// Played from its own controls while asking: that is an answer too.
+		if (asking) answer(false);
 		const listening = music.listening;
 		if (listening?.id === episodeId && video) {
 			const at = listening.positionSec;
@@ -473,7 +527,7 @@
 	}
 </script>
 
-<svelte:window onpagehide={save} />
+<svelte:window onpagehide={save} onpointerdown={someoneThere} onkeydown={someoneThere} />
 
 <svelte:head>
 	<!-- eslint-disable-next-line svelte/no-at-html-tags -- a <style> for the subtitles, made from the settings' numbers and colours. -->
@@ -644,7 +698,22 @@ same look in every browser, the app's colours, and the player's options in its �
 				</div>
 			{/if}
 
-			{#if overlay}
+			{#if asking}
+				<div class="absolute inset-0 z-20 flex items-center justify-center bg-black/75 p-4">
+					<div class="w-full max-w-sm text-center">
+						<p class="mb-2 text-2xl font-semibold">{stopped ? 'Se ha parado' : QUESTION}</p>
+						<p class="mb-5 text-zinc-300">
+							{stopped
+								? 'Nadie contestó, así que no ha seguido.'
+								: `Llevas ${askAfterLabel(askAfter ?? 0)} sin tocar nada.`}
+						</p>
+						<button
+							class="rounded-md bg-amber-500 px-5 py-2.5 text-lg font-medium text-zinc-950 hover:bg-amber-400"
+							onclick={() => answer()}>{stopped ? 'Seguir viendo' : 'Sí, sigo aquí'}</button
+						>
+					</div>
+				</div>
+			{:else if overlay}
 				<div class="absolute inset-0 z-20 flex items-center justify-center bg-black/75 p-4">
 					{@render overlay()}
 				</div>

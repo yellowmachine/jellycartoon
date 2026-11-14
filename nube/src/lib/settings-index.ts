@@ -65,6 +65,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		words: 'subtítulos letra tamaño color fondo canales tele estilo'
 	},
 	{
+		id: 'sigues-ahi',
+		tab: 'mi',
+		title: '¿Sigues ahí?',
+		words: 'sigues ahí series capítulos siguiente automático dormir parar preguntar'
+	},
+	{
 		id: 'mi-barra',
 		tab: 'mi',
 		title: 'Mi barra',

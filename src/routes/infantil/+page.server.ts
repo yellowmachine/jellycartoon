@@ -27,7 +27,7 @@ import { continueWatching } from '#lib/server/watching.ts';
 import { CHANNELS } from 'comun/channels.ts';
 import { stoppedLately, watchingNow } from '#lib/server/live-watching.ts';
 import { askAfter } from '#lib/server/still-there.ts';
-import { ASK_AFTER_OPTIONS } from '#lib/still-there.ts';
+import { ASK_AFTER_OPTIONS } from 'comun/still-there.ts';
 
 /** Days in the chart, today included. */
 const DAYS = 7;

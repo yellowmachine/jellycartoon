@@ -39,6 +39,7 @@
 	import BotonLlamar from './BotonLlamar.svelte';
 	import FamiliasVinculadas from './FamiliasVinculadas.svelte';
 	import Subtitulos from './Subtitulos.svelte';
+	import SiguesAhi from './SiguesAhi.svelte';
 	import SettingsSearch from 'comun/components/SettingsSearch.svelte';
 	import { field, group, primary, secondary, section } from '#lib/styles.ts';
 	import { SETTINGS_INDEX, TAB_LABELS } from '#lib/settings-index.ts';
@@ -143,6 +144,23 @@
 		/>
 
 		<Subtitulos {data} />
+
+		{#if data.stillThere}
+			{#await data.stillThere then still}
+				{#if still.mine !== undefined}
+					<section class={section} id="sigues-ahi">
+						<h2 class="mb-2 font-semibold">Series</h2>
+						<SiguesAhi
+							value={still.mine}
+							{tab}
+							problem={form && 'askAfterProblem' in form && !form.kidId
+								? form.askAfterProblem
+								: null}
+						/>
+					</section>
+				{/if}
+			{/await}
+		{/if}
 
 		<MiBarra {data} {tab} />
 
@@ -275,7 +293,9 @@
 							{#if kid}
 								<!-- A child's account (#303): who lets it in, or back to a person without one. -->
 								<details class="mt-2 text-sm">
-									<summary class="cursor-pointer text-zinc-400">Quién le deja entrar</summary>
+									<summary class="cursor-pointer text-zinc-400"
+										>Quién le deja entrar · «¿Sigues ahí?»</summary
+									>
 									<form
 										method="post"
 										action="?seccion={tab}&/saveGuardians"
@@ -300,6 +320,22 @@
 											<button class={secondary}>Guardar</button>
 										</div>
 									</form>
+									{#if data.stillThere}
+										{#await data.stillThere then still}
+											{#if still.kids[kid.id] !== undefined}
+												<div class="mt-3">
+													<SiguesAhi
+														value={still.kids[kid.id] ?? null}
+														{tab}
+														kidId={kid.id}
+														problem={form && 'askAfterProblem' in form && form.kidId === kid.id
+															? form.askAfterProblem
+															: null}
+													/>
+												</div>
+											{/if}
+										{/await}
+									{/if}
 									<div class="mt-3 flex flex-wrap items-center gap-2">
 										<ConfirmForm
 											action="?seccion={tab}&/takeKidAccount"

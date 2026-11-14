@@ -3,7 +3,7 @@
 	import SubtitleStylePanel from 'comun/components/SubtitleStylePanel.svelte';
 	import { enhance } from '$app/forms';
 	import { languageLabel } from 'comun/languages.ts';
-	import { ANSWER_SECONDS, ASK_AFTER_OPTIONS, askAfterLabel } from '#lib/still-there.ts';
+	import { ANSWER_SECONDS, ASK_AFTER_OPTIONS, askAfterLabel } from 'comun/still-there.ts';
 	import type { SubtitleStyle } from 'comun/subtitle-style.ts';
 	import { section, select, primary } from './styles.ts';
 	import type { PageData, ActionData } from './$types';

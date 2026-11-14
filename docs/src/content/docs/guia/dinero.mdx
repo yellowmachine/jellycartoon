@@ -1,0 +1,66 @@
+---
+title: 'Apuntar los gastos'
+description: En Dinero, los gastos de la casa con una foto del ticket, a mano o por voz, y en qué se va el dinero cada mes.
+---
+
+import Capturas from '../../../components/Capturas.astro';
+import mes from '../../../assets/guia/gastos.webp';
+import ticket from '../../../assets/guia/gastos-ticket.webp';
+
+En **Dinero → Gastos** se apuntan los gastos de la casa. Los ven y los apuntan todos los adultos de
+la familia (los peques no entran aquí).
+
+<Capturas
+	shots={[
+		{
+			src: mes,
+			alt: 'Dinero → Gastos: los botones Ticket, Factura y A mano, el total del mes con el del mes anterior y las barras por categoría',
+			caption: 'El mes, por categorías'
+		},
+		{
+			src: ticket,
+			alt: 'Un ticket del supermercado ya leído: la tienda, el día, el total y cada línea con su importe y lo que es',
+			caption: 'Un ticket leído, línea a línea'
+		}
+	]}
+/>
+
+## Con una foto del ticket
+
+1. Toca **📷 Ticket** y hazle una foto al ticket, con el ticket entero y recto.
+2. Espera unos segundos mientras la app lo lee.
+3. Revisa lo que ha leído: la tienda, el día, el total y cada línea, con lo que es (fruta, lácteos,
+   limpieza…). Si algo está mal, se cambia tocándolo.
+4. Toca **Guardar**.
+
+Si las líneas no suman el total, la app lo avisa: puede que haya leído mal un número o que falte
+un descuento (un descuento se escribe en negativo, -2,00). Si ese ticket ya estaba apuntado, también
+lo dice antes de guardarlo otra vez.
+
+Las facturas de la luz, el agua o el gas en PDF, igual con **📄 Factura**.
+
+:::note
+Los botones de ticket y factura salen cuando la familia tiene la IA conectada. Lo hace quien
+administra la familia, en Ajustes → Conexiones → IA (OpenRouter).
+:::
+
+## A mano o por voz
+
+- **+ A mano**: la tienda, el importe y la categoría.
+- **Por voz**, desde el micrófono de arriba: «he gastado 40 euros en gasolina».
+- **Favoritos**: lo que se repite (el café, el pan) se guarda con **☆ Guardar como favorito** al
+  apuntarlo, y la próxima vez se apunta con un toque desde su botón ★.
+
+## Los gastos fijos
+
+El alquiler, la comunidad, el seguro o una suscripción se apuntan una vez en **Fijos**, abajo del
+todo, con **+ Fijo**: cada mes (o cada año) se añaden solos el día que toca.
+
+## En qué se va el dinero
+
+Arriba, el total del mes y el del mes anterior, y una barra por categoría: supermercado, gasolina,
+facturas… En **Tiendas**, lo mismo por tienda. Con las flechas se pasa de un mes a otro, y debajo
+están todos los gastos del mes: al tocar uno se ven sus líneas.
+
+En las otras pestañas de Dinero están los **Ingresos**, el **Análisis** de varios meses y las
+**Facturas**.

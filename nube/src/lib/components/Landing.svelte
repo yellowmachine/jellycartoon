@@ -66,6 +66,33 @@
 		}
 	];
 
+	/**
+	 * How it looks inside (#495): phone screenshots of an invented family, made again with
+	 * scripts/capturas/capturas.ts (static/capturas/). 390 × 844, at twice the pixels.
+	 */
+	const SHOTS: { file: string; title: string; alt: string }[] = [
+		{
+			file: 'gastos',
+			title: 'Dinero',
+			alt: 'Los gastos del mes por categorías, comparados con el mes anterior, y los tickets debajo'
+		},
+		{
+			file: 'agenda',
+			title: 'Agenda',
+			alt: 'La semana de la familia: natación, fútbol, la reunión del cole, cada cosa con quien va'
+		},
+		{
+			file: 'carretera',
+			title: 'Modo carretera',
+			alt: 'Botones grandes para el coche: radio, música, listas, podcasts y ruta, y el micrófono'
+		},
+		{
+			file: 'musica',
+			title: 'Música',
+			alt: 'Los discos de la casa con sus portadas, para escucharlos también fuera'
+		}
+	];
+
 	/** The house's install (#103), from its last release. */
 	const INSTALL =
 		'curl -fsSL https://raw.githubusercontent.com/yellowmachine/jellycartoon/main/install.sh | sh';
@@ -111,6 +138,37 @@
 		>
 			Pedir acceso
 		</a>
+	</section>
+
+	<!-- Sideways on a phone, one beside the other from sm. -->
+	<section aria-label="Cómo se ve" class="mb-12">
+		<ul
+			class="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-4 sm:overflow-visible sm:px-0"
+		>
+			{#each SHOTS as shot (shot.file)}
+				<li class="w-52 shrink-0 snap-center sm:w-auto">
+					<figure>
+						<img
+							src="/capturas/{shot.file}.webp"
+							alt={shot.alt}
+							width="390"
+							height="844"
+							loading="lazy"
+							decoding="async"
+							class="h-auto w-full rounded-xl border border-zinc-800"
+						/>
+						<figcaption class="mt-2 text-center text-sm text-zinc-400">{shot.title}</figcaption>
+					</figure>
+				</li>
+			{/each}
+		</ul>
+		<p class="mt-2 text-center text-xs text-zinc-500">Con una familia de ejemplo.</p>
+		<!-- The family's guide (#495), each screen told step by step. -->
+		<p class="mt-3 text-center text-sm">
+			<a href="https://docs.seilide.app/guia/" class="text-amber-400 hover:underline"
+				>Ver todo lo que hace →</a
+			>
+		</p>
 	</section>
 
 	<section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
