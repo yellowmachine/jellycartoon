@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import EpisodeCard from 'comun/components/EpisodeCard.svelte';
 	import Player, { type PlayerLinks } from 'comun/components/Player.svelte';
-	import { stillThere } from 'comun/still-there.svelte.ts';
+	import { stillThere, tellStillThere } from '#lib/still-there.svelte.ts';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 	import type { PageProps } from './$types';
 
@@ -124,6 +124,7 @@
 	{links}
 	contained={kitchenMode.on}
 	askAfter={data.askAfter ?? null}
+	onstillthere={tellStillThere}
 />
 
 <!-- What comes after: the next one with «siguiente automático»; without it, others to go on with. -->

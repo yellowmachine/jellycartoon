@@ -120,6 +120,17 @@ export const setWatched = (who: Who, episodeId: number, watched: boolean) =>
 		body: JSON.stringify({ watched })
 	});
 
+/** «¿Sigues ahí?» (#77): after how many minutes, as at home; null, never. A child's too (#303). */
+export const askAfterOf = async (who: Who) =>
+	(await askHouse<{ askAfter: number | null }>(who.id, who.email, '/sigues-ahi')).askAfter;
+
+export const setAskAfter = (who: Who, askAfter: number | null) =>
+	askHouse(who.id, who.email, '/sigues-ahi', { method: 'PUT', body: JSON.stringify({ askAfter }) });
+
+/** What happened in the player here, for /infantil's «Ahora» at home. */
+export const tellStillThere = (who: Who, state: 'here' | 'asking' | 'answered' | 'stopped') =>
+	askHouse(who.id, who.email, '/sigues-ahi', { method: 'POST', body: JSON.stringify({ state }) });
+
 /** Their audio and subtitles' languages and what follows, at home. */
 export const savePlayerChoices = (
 	who: Who,
