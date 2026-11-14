@@ -37,7 +37,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.list?.title ?? 'Nueva lista'} · Oración · JellyCartoon</title>
+	<title>{data.list?.title ?? 'Nueva lista'} · Oración · Seilide</title>
 </svelte:head>
 
 <div class="mx-auto max-w-3xl">

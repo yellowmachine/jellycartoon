@@ -7,7 +7,7 @@
 </script>
 
 <svelte:head>
-	<title>Alarmas · Agenda · JellyCartoon</title>
+	<title>Alarmas · Agenda · Seilide</title>
 </svelte:head>
 
 <div class="mx-auto max-w-3xl">

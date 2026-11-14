@@ -690,7 +690,7 @@
 	}
 
 	/**
-	 * Shared from a map («Compartir → JellyCartoon» in Google Maps, through /compartido): its route at
+	 * Shared from a map («Compartir → Seilide» in Google Maps, through /compartido): its route at
 	 * once, or, not found, its name in the box to search. Once: the address is left clean, so that
 	 * reloading does not ask for it again.
 	 */

@@ -63,7 +63,17 @@ const SHOTS: { name: string; path: string; to: (keyof typeof PLACES)[]; steps?: 
 	{ name: 'carretera-mas', path: '/carretera', to: ['guia'], steps: `await tap('Más');` },
 	{ name: 'musica', path: '/musica', to: ['portada', 'guia'] },
 	{ name: 'musica-album', path: '/musica/3', to: ['guia'] },
-	{ name: 'musica-listas', path: '/musica/listas', to: ['guia'] }
+	{ name: 'musica-listas', path: '/musica/listas', to: ['guia'] },
+	{ name: 'recetas', path: '/recetas', to: ['guia'] },
+	{ name: 'receta', path: '/recetas/1', to: ['guia'] },
+	{ name: 'nevera', path: '/nevera', to: ['guia'] },
+	{
+		name: 'nevera-lista',
+		path: '/nevera',
+		to: ['guia'],
+		// The list, whole, with what was bought ticked off and its button to clear it.
+		steps: `scrollTo(0, [...document.querySelectorAll('h2')].find((h) => h.textContent.includes('Lista de la compra')).getBoundingClientRect().top + scrollY - 120);`
+	}
 ];
 
 /** For a shot's steps: touch what shows that text (inside `within`, if given), and write in a field. */

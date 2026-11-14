@@ -155,6 +155,88 @@ try {
 			insert into saved_place (family_id, user_id, name, lon, lat, address)
 			values (${family}, ${userId}, ${name}, ${lon}, ${lat}, ${address})`;
 
+	// Nevera: post-its for everyone, and the shopping list with a couple already bought.
+	for (const [text, until] of [
+		['Llamar al fontanero', null],
+		['La cena está en el horno 🍲', day(0)],
+		['Mañana, comida con la abuela', day(1)]
+	] as const)
+		await sql`
+			insert into fridge_note (family_id, user_id, text, until)
+			values (${family}, ${userId}, ${text}, ${until})`;
+	const [list] = await sql`
+		insert into fridge_note (family_id, kind, user_id, text)
+		values (${family}, 'list', ${userId}, 'Lista de la compra') returning id`;
+	for (const [text, done] of [
+		['leche', false],
+		['pan', false],
+		['huevos', false],
+		['tomates', false],
+		['detergente', false],
+		['yogures', true],
+		['plátanos', true]
+	] as const)
+		await sql`
+			insert into fridge_item (family_id, note_id, text, done, user_id)
+			values (${family}, ${list!.id}, ${text}, ${done}, ${userId})`;
+
+	// Recetas: two saved from a (made-up) cooking site, with their steps ready for the kitchen.
+	const step = (text: string, timer: [string, number, string | null] | null = null) => ({
+		text,
+		timer: timer && { label: timer[0], minutes: timer[1], trigger: timer[2] }
+	});
+	for (const [title, servings, ingredients, steps, slug] of [
+		[
+			'Macarrones con tomate',
+			4,
+			[
+				'400 g de macarrones',
+				'500 g de tomate triturado',
+				'1 cebolla',
+				'200 g de carne picada',
+				'Queso rallado',
+				'Aceite de oliva y sal'
+			],
+			[
+				step('Pon a hervir una olla grande de agua con sal.'),
+				step('Pica la cebolla y sofríela con un chorro de aceite.', ['la cebolla', 5, null]),
+				step('Añade la carne picada y deja que se dore.', ['la carne', 6, null]),
+				step('Echa el tomate y deja que se haga a fuego lento mientras cueces la pasta.', [
+					'la salsa',
+					15,
+					null
+				]),
+				step('Echa los macarrones al agua hirviendo y remueve.', [
+					'la pasta',
+					10,
+					'eches la pasta'
+				]),
+				step('Escurre la pasta, mézclala con la salsa y sirve con queso rallado.')
+			],
+			'macarrones-con-tomate'
+		],
+		[
+			'Tortilla de patatas',
+			4,
+			['4 patatas', '6 huevos', '1 cebolla', 'Aceite de oliva', 'Sal'],
+			[
+				step('Pela las patatas y córtalas en láminas finas; pica la cebolla.'),
+				step('Fríe la patata y la cebolla a fuego medio en abundante aceite.', [
+					'las patatas',
+					20,
+					null
+				]),
+				step('Bate los huevos con sal y mézclalos con la patata escurrida.'),
+				step('Cuaja la tortilla por un lado, dale la vuelta con un plato y cuájala por el otro.')
+			],
+			'tortilla-de-patatas'
+		]
+	] as const)
+		await sql`
+			insert into recipe (family_id, title, servings, ingredients, steps, source_url, source_name, created_by)
+			values (${family}, ${title}, ${servings}, ${sql.json([...ingredients])}, ${sql.json(steps as never)},
+				${`https://recetas.ejemplo.es/${slug}`}, 'Recetas de ejemplo', ${userId})`;
+
 	console.log(`[datos] familia de ejemplo lista (${family})`);
 } finally {
 	await sql.end();

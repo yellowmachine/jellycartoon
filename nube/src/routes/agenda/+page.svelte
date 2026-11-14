@@ -267,7 +267,7 @@
 {/snippet}
 
 <svelte:head>
-	<title>Agenda · JellyCartoon</title>
+	<title>Agenda · Seilide</title>
 </svelte:head>
 
 <div class="mx-auto max-w-3xl">

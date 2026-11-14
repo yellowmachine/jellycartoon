@@ -36,7 +36,7 @@
 <p class="mb-4 max-w-2xl text-sm text-zinc-400">
 	Las recetas de la familia, para cocinarlas paso a paso en la cocina de casa («vamos a hacer los
 	macarrones»). Se guardan desde la página de una web de cocina: pega aquí su dirección o, en el
-	móvil, compártela desde el navegador con JellyCartoon.
+	móvil, compártela desde el navegador con Seilide.
 </p>
 
 <form

@@ -92,7 +92,7 @@
 </script>
 
 <svelte:head>
-	<title>Oración · JellyCartoon</title>
+	<title>Oración · Seilide</title>
 </svelte:head>
 
 <div class="mx-auto max-w-3xl">
