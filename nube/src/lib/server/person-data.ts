@@ -632,6 +632,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		joining: 'account',
 		zip: { file: 'banco-cuentas', where: [mine()] }
 	},
+	section_visit: {
+		leaving: 'account',
+		joining: 'account',
+		zip: { file: 'secciones-usadas', where: [mine()] },
+		note: 'Which sections they opened and how often (/admin), kept 90 days'
+	},
 	miniflux_link: {
 		leaving: 'account',
 		joining: 'account',

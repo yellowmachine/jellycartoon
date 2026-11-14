@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
-import { pgPolicy, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
+import { date, integer, pgPolicy, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
 import { user } from './auth.schema.ts';
-import { currentUser } from './family.schema.ts';
+import { adminReads, currentUser, serviceAdmin } from './family.schema.ts';
 
 /**
  * What is a person's and of no family (#428): it goes with them when they leave or join one, with
@@ -65,4 +65,30 @@ export const minifluxLink = pgTable(
 			.$onUpdate(() => new Date())
 	},
 	(t) => [userRows('miniflux_link_own', t.userId)]
+).enableRLS();
+
+/**
+ * Which sections each person opens (/admin, «Qué usa»): how many times a day, at most once every
+ * half hour (section-visits.ts), and when last. Only the section, never what was done in it; kept
+ * VISITS_KEPT_DAYS. The service's administrator reads them and forgets the old ones.
+ */
+export const sectionVisit = pgTable(
+	'section_visit',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		/** As the bar has it: `/gastos`, `/` for the home page. */
+		section: text('section').notNull(),
+		/** The house's day. */
+		day: date('day').notNull(),
+		visits: integer('visits').notNull().default(0),
+		lastAt: timestamp('last_at').notNull().defaultNow()
+	},
+	(t) => [
+		primaryKey({ columns: [t.userId, t.section, t.day] }),
+		userRows('section_visit_own', t.userId),
+		adminReads('section_visit_admin_reads'),
+		pgPolicy('section_visit_admin_forgets', { for: 'delete', using: serviceAdmin })
+	]
 ).enableRLS();

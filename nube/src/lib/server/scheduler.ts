@@ -14,6 +14,7 @@ import { hasBot, startBot } from '#lib/server/telegram/bot.ts';
 import { refreshAll, REFRESH_HOURS } from '#lib/server/podcasts/podcasts.ts';
 import { cleanupCopies } from '#lib/server/storage-move.ts';
 import { syncFamily } from '#lib/server/banks/bank.ts';
+import { visits } from '#lib/server/section-visits.ts';
 
 /**
  * The cloud's own clock (#253): every few seconds, each family's alarms whose time has come; every
@@ -98,6 +99,10 @@ export function startScheduler() {
 				await eachFamily('Lo que ya no hay que recordar', async (id) => {
 					await forgetOver(houseKitchen(id));
 				});
+				// Which sections each one opened, over 90 days ago (/admin, «Qué usa»).
+				await visits
+					.forgetOld()
+					.catch((error) => console.error('[reloj] Secciones usadas antiguas', error));
 				// Their copies in Seilide's storage, a week after moving to their own (#480).
 				await cleanupCopies().catch((error) =>
 					console.error('[reloj] Copias de ficheros en Seilide', error)

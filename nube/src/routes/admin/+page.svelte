@@ -63,7 +63,8 @@
 
 	<h2 class="mb-1 text-lg font-semibold">Última vez</h2>
 	<p class="mb-2 text-sm text-zinc-400">
-		El último día que cada cuenta entró en Seilide, y desde dónde. Solo cuándo, nunca qué hizo.
+		Cuándo entró cada cuenta por última vez, desde dónde y qué secciones ha abierto en los últimos
+		{data.usageDays} días (cada una cuenta una vez cada media hora). Nunca qué hizo dentro.
 	</p>
 	<ul class="mb-8 divide-y divide-zinc-800 rounded-md border border-zinc-800">
 		{#each data.lastSeen as p (p.id)}
@@ -71,6 +72,11 @@
 				<span class="min-w-0">
 					<span class="block truncate">{p.name}</span>
 					<span class="block truncate text-xs text-zinc-500">{p.email}</span>
+					{#if p.sections.length}
+						<span class="mt-0.5 block text-xs text-zinc-400">
+							{p.sections.map((s) => `${s.label} ${s.visits}`).join(' · ')}
+						</span>
+					{/if}
 				</span>
 				<span class="shrink-0 text-right">
 					<span
@@ -79,7 +85,12 @@
 							p.daysAgo === null || p.daysAgo > 7
 								? 'text-zinc-500'
 								: p.daysAgo <= 1 && 'text-amber-400'
-						]}>{ago(p.daysAgo)}</span
+						]}
+						>{ago(p.daysAgo)}{#if p.at}, {p.at.toLocaleTimeString('es-ES', {
+								hour: '2-digit',
+								minute: '2-digit',
+								timeZone: 'Europe/Madrid'
+							})}{/if}</span
 					>
 					{#if p.device}<span class="block text-xs text-zinc-500">{p.device}</span>{/if}
 				</span>
