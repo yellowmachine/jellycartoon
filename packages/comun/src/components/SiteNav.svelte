@@ -67,6 +67,33 @@
 	} = $props();
 
 	let menu = $state<HTMLElement>();
+	let bar = $state<HTMLElement>();
+	/**
+	 * From a tablet up, only the icons when some name does not fit whole under its icon: a name cut
+	 * short helps nobody. Each tab's width does not depend on its name (flex-1 from 0), and a hidden
+	 * name still gives its whole width (scrollWidth), so it is measured the same both ways and the bar
+	 * does not flicker. The name stays for screen readers and as the tip under the mouse.
+	 */
+	let iconsOnly = $state(false);
+	$effect(() => {
+		const nav = bar;
+		// Measured again when the sections change, not only their number.
+		if (!nav || !links.map((l) => l.label).join()) return;
+		const check = () => {
+			let fits = true;
+			for (const tab of nav.querySelectorAll<HTMLElement>('[data-tab]')) {
+				const name = tab.lastElementChild as HTMLElement | null;
+				if (!tab.clientWidth || !name) return; // a phone: no bar
+				if (name.scrollWidth > tab.clientWidth) fits = false;
+			}
+			iconsOnly = !fits;
+		};
+		const watch = new ResizeObserver(check);
+		watch.observe(nav);
+		check();
+		void document.fonts?.ready.then(check);
+		return () => watch.disconnect();
+	});
 
 	const under = (path: string, href: string) => path === href || path.startsWith(`${href}/`);
 	/** The section a page is in: its own address or, for those with tabs, any of theirs. */
@@ -114,7 +141,7 @@
 	bind:offsetHeight={headerHeight}
 	class="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur"
 >
-	<nav class="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3 md:gap-3 md:py-2">
+	<nav bind:this={bar} class="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3 md:gap-3 md:py-2">
 		{@render start?.()}
 		<!-- On a tablet, only the picture: the sections need the room. -->
 		<a
@@ -131,17 +158,20 @@
 		</a>
 		{@render leading?.()}
 		<!-- From a tablet up: every link, its icon over a small name, as a tab bar, sharing the room the
-		     brand leaves; the one you are in, in amber. -->
+		     brand leaves; the one you are in, in amber. Only the icons when the names do not fit. -->
 		{#each links as link (link.href)}
 			<a
 				href={link.href}
+				data-tab
+				title={iconsOnly ? link.label : undefined}
 				class={[
 					'hidden items-center hover:text-white',
 					'md:flex md:min-w-0 md:flex-1 md:flex-col md:gap-0.5 md:text-[11px]',
 					isCurrent(link.href) ? 'text-amber-400' : 'text-zinc-400'
 				]}
 				><SectionIcon name={link.icon} class="hidden h-6 w-6 shrink-0 md:block" /><span
-					class="max-w-full truncate">{link.label}{@render out(link.external)}</span
+					class={iconsOnly ? 'md:sr-only' : 'max-w-full truncate'}
+					>{link.label}{@render out(link.external)}</span
 				></a
 			>
 		{/each}
