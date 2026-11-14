@@ -57,3 +57,10 @@ Varias familias en una sola app, cada una aislada por la seguridad por filas de 
 - **La casa:** en Ajustes, la dirección de fuera de jellycartoon (su `MEDIA_HOST`) y la clave de su
   Ajustes → Casa → «Seilide». La clave se guarda cifrada y no sale del servidor; cada petición a
   casa va en nombre de la persona, por su email (el mismo en las dos apps).
+- **Lo que ve el administrador del servicio (`/admin`):** cifras (familias, cuentas, activas), las
+  copias del VPS y, de cada cuenta, cuándo entró por última vez, desde qué aparato y qué secciones
+  ha abierto en la última semana, con cuántas veces (cada sección cuenta una vez cada media hora).
+  Nunca qué hizo dentro: ni sus gastos, ni lo que escucha, ni sus notas. Lo manda la página después
+  de cada navegación (`/api/visita`, no al precargar un enlace) a la tabla `section_visit` de la
+  persona, que solo ella y el administrador leen; se borra a los 90 días, va en el zip de sus datos
+  y se va con su cuenta (`src/lib/server/section-visits-scope.ts`).

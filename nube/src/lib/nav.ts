@@ -262,3 +262,29 @@ export function navLinks(
 	];
 	return { links, menuLinks: links, userLinks };
 }
+
+/**
+ * The section a page is in, for /admin's «Qué usa» (section-visits.ts): the bar's, also by their
+ * other paths, and the home page, Ajustes and the kitchen. Null, none of them (a shared link, an
+ * invitation).
+ */
+export function sectionOfPath(pathname: string): { path: string; label: string } | null {
+	const first = `/${pathname.split('/')[1] ?? ''}`;
+	if (first === '/') return { path: '/', label: 'Inicio' };
+	const s = SECTIONS.find((x) => x.path === first || x.also?.includes(first));
+	if (s) return { path: s.path, label: s.label };
+	return EXTRA_SECTIONS.find((x) => x.path === first) ?? null;
+}
+
+const EXTRA_SECTIONS = [
+	{ path: '/ajustes', label: 'Ajustes' },
+	{ path: '/cocina', label: 'Cocina' },
+	{ path: '/mapa', label: 'Mapa' }
+];
+
+/** A section's name by its path: one no longer in the bar, as it was kept. */
+export const sectionLabel = (path: string) =>
+	(path === '/' ? 'Inicio' : null) ??
+	SECTIONS.find((s) => s.path === path)?.label ??
+	EXTRA_SECTIONS.find((s) => s.path === path)?.label ??
+	path;

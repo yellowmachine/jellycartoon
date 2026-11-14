@@ -47,11 +47,13 @@ export async function expenseAnalysis(
 				.innerJoin(expense, eq(expense.id, expenseLine.expenseId))
 				.where(and(gte(expense.date, since), varying))
 				.groupBy(monthOfDate, expense.category, expenseLine.tag),
-			// Shops: receipts and written by hand, not the fixed ones' or voice's names.
+			// Shops: receipts, written by hand and the bank's (#502), not the fixed ones' or voice's names.
 			db
 				.select({ store: expense.store, total, visits: sql<number>`count(*)::int` })
 				.from(expense)
-				.where(and(gte(expense.date, periodSince), inArray(expense.source, ['ticket', 'mano'])))
+				.where(
+					and(gte(expense.date, periodSince), inArray(expense.source, ['ticket', 'mano', 'banco']))
+				)
 				.groupBy(expense.store)
 				.orderBy(desc(total))
 				.limit(STORES),

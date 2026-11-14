@@ -196,6 +196,8 @@ const KID_SECTIONS = [
 ];
 const KID_APIS = [
 	'/api/auth',
+	// Only which section it opened, for /admin (section-visits-scope.ts).
+	'/api/visita',
 	'/api/nevera',
 	'/api/avisos',
 	'/api/push',

@@ -66,7 +66,9 @@ const PUBLIC_PATHS = [
 	'/invitacion/',
 	// «¿Quién eres?» (#303): a child choosing its drawing on the family's device, by its cookie.
 	'/quien',
-	'/api/quien/'
+	'/api/quien/',
+	// bunq's calls on each movement (#502), with the token in their address (banks/bank.ts).
+	'/api/bancos/'
 ];
 
 /**
@@ -92,6 +94,8 @@ const checkCsrf: Handle = ({ event, resolve }) => {
 	const forbidden =
 		!dev &&
 		!CLIENT_POSTS.includes(url.pathname) &&
+		// bunq's calls (#502): from its servers, without an Origin; only a token, nothing read.
+		!url.pathname.startsWith('/api/bancos/') &&
 		['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method) &&
 		(!type || FORM_TYPES.includes(type)) &&
 		request.headers.get('origin') !== url.origin;

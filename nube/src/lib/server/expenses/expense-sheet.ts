@@ -13,7 +13,8 @@ const SOURCES: Record<Expense['source'], string> = {
 	factura: 'Factura',
 	voz: 'Voz',
 	mano: 'A mano',
-	fijo: 'Fijo'
+	fijo: 'Fijo',
+	banco: 'Banco'
 };
 
 /** Two decimals and thousands; the euro, in the header: SheetJS leaves a format's text out of an .ods. */

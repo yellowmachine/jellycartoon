@@ -8,7 +8,7 @@ import type { LooksSame, SameBy } from 'comun/page-notices.ts';
 /**
  * A receipt or a bill put in twice (#440, phase 1), by rules: the same file; a bill of the same
  * supply and period; or the same day and total, one of them a receipt or a bill (two coffees by
- * hand the same day are not). Said when it is read and when it is saved, and in the month's page,
+ * hand the same day are not; a bank's payment and anything else, #502). Said when it is read and when it is saved, and in the month's page,
  * on the newer of the two; not again once «No es repetido».
  */
 
@@ -41,6 +41,9 @@ export function sameBy(a: Compared, b: Compared): SameBy | null {
 			? 'periodo'
 			: null;
 	if (a.date !== b.date || a.total !== b.total) return null;
+	// A bank's payment (#502) and anything else: a receipt or one by hand put in after its payment
+	// came. Two of the bank's are two payments (two coffees), never the same one.
+	if (a.source === 'banco' || b.source === 'banco') return a.source !== b.source ? 'dia' : null;
 	return WITH_DOCUMENT.includes(a.source) || WITH_DOCUMENT.includes(b.source) ? 'dia' : null;
 }
 

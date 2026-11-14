@@ -4,7 +4,7 @@
 	import { onMount } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { version } from '$app/env';
-	import { goto } from '$app/navigation';
+	import { afterNavigate, goto } from '$app/navigation';
 	import { navigating, page } from '$app/state';
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import AlarmBanner from 'comun/components/AlarmBanner.svelte';
@@ -24,7 +24,7 @@
 	import { wakeWord } from '#lib/wake-word.svelte.ts';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
-	import { navLinks } from '#lib/nav.ts';
+	import { navLinks, sectionOfPath } from '#lib/nav.ts';
 	import { themeColor, themeCss } from 'comun/themes.ts';
 	import { backKey, goBack } from 'comun/back.ts';
 	import type { LayoutProps } from './$types';
@@ -186,6 +186,23 @@
 		keyHolding = false;
 		voice.stop();
 	}
+
+	// Which section they went to, for /admin's «Qué usa» (section-visits-scope.ts): after a real
+	// navigation, not a link's preload; the same section, said again only after half an hour.
+	const told = new Map<string, number>();
+	afterNavigate(({ to }) => {
+		const section = to?.url && sectionOfPath(to.url.pathname);
+		if (!data.user || !section) return;
+		const now = Date.now();
+		if (now - (told.get(section.path) ?? -Infinity) < 30 * 60_000) return;
+		told.set(section.path, now);
+		void fetch('/api/visita', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ path: to!.url.pathname }),
+			keepalive: true
+		}).catch(() => {});
+	});
 
 	// A notice touched (Web Push, the service worker): its page, here, without loading again.
 	onMount(() => {

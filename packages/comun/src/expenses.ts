@@ -56,7 +56,7 @@ export type LineTag = (typeof LINE_TAGS)[number];
 
 export const isTag = (value: unknown): value is LineTag => LINE_TAGS.includes(value as LineTag);
 
-export type ExpenseSource = 'ticket' | 'factura' | 'voz' | 'mano' | 'fijo';
+export type ExpenseSource = 'ticket' | 'factura' | 'voz' | 'mano' | 'fijo' | 'banco';
 
 export interface ExpenseLine {
 	text: string;
@@ -96,6 +96,19 @@ export interface ExpenseDraft extends ExpenseInput {
 	readBy: 'ollama' | 'openrouter';
 	/** A bill's (#232), with what it says of the supply. */
 	bill: BillInput | null;
+}
+
+/**
+ * The fixed one a receipt or bill just read may be the month's of (#501): «¿Es el recibo de Luz de
+ * noviembre?». Of its month or the one before (a bill comes late), without a receipt yet.
+ */
+export interface FixedMatch {
+	/** The expense the fixed one added that month. */
+	id: number;
+	date: string;
+	store: string;
+	category: ExpenseCategory;
+	total: number;
 }
 
 export interface RecurringExpense {

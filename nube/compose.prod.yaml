@@ -56,6 +56,7 @@ services:
       ADMIN_FAMILY: ${ADMIN_FAMILY:-}
       # How each night's copy went (deploy/vps-backup.sh), for /admin: the same in /etc/vps-backup.env.
       BACKUP_REPORT_TOKEN: ${BACKUP_REPORT_TOKEN:-}
+      BUNQ_SANDBOX: ${BUNQ_SANDBOX:-}
       # The app's emails (the landing page's «Pedir acceso»): Proton's SMTP. Without SMTP_HOST, none.
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}

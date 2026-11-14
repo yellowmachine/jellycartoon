@@ -430,6 +430,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		joining: 'moves',
 		zip: { file: 'gastos-favoritos', where: [mine()] }
 	},
+	bank_payment: {
+		leaving: 'stays',
+		joining: 'moves',
+		zip: false,
+		note: 'Only which bank payment made or was joined to which expense (#502): the expense is in the zip'
+	},
 	recurring_expense: {
 		leaving: 'stays',
 		joining: 'moves',
@@ -614,6 +620,23 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		leaving: 'account',
 		joining: 'account',
 		zip: false
+	},
+	bank_link: {
+		leaving: 'account',
+		joining: 'account',
+		zip: false,
+		note: 'Their bank connection (#502): ids and a token hash; the key is a user_secret'
+	},
+	bank_account: {
+		leaving: 'account',
+		joining: 'account',
+		zip: { file: 'banco-cuentas', where: [mine()] }
+	},
+	section_visit: {
+		leaving: 'account',
+		joining: 'account',
+		zip: { file: 'secciones-usadas', where: [mine()] },
+		note: 'Which sections they opened and how often (/admin), kept 90 days'
 	},
 	miniflux_link: {
 		leaving: 'account',

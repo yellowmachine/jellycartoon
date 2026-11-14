@@ -31,7 +31,15 @@ const familyId = () =>
 		.notNull()
 		.references(() => family.id, { onDelete: 'cascade' });
 
-export const expenseSource = pgEnum('expense_source', ['ticket', 'voz', 'mano', 'fijo', 'factura']);
+export const expenseSource = pgEnum('expense_source', [
+	'ticket',
+	'voz',
+	'mano',
+	'fijo',
+	'factura',
+	// A payment brought in from the bank (#502).
+	'banco'
+]);
 
 /** Paid every month (rent, light, a subscription): added by itself on its day. */
 export const recurringExpense = pgTable(

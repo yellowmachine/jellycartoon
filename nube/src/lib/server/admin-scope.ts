@@ -18,6 +18,17 @@ export const isDeployCopy = (name: string) => name.endsWith('-despliegue');
 const RUNS_SHOWN = 7;
 const RUNS_KEPT_DAYS = 30;
 
+/** A person, and the last day they came in (/admin, «Última vez»). */
+export interface LastSeen {
+	id: string;
+	name: string;
+	email: string;
+	/** Their newest session's last use: Better Auth refreshes it once a day, so it says the day. */
+	lastSeen: Date | null;
+	/** That session's browser, as it said it. */
+	userAgent: string | null;
+}
+
 export interface BackupRun {
 	ok: boolean;
 	log: string;
@@ -74,6 +85,33 @@ export function adminScope(db: AnyDb, { role }: { role?: string } = {}) {
 					waiting: waiting.n
 				};
 			});
+		},
+
+		/**
+		 * «Última vez»: every account, with the last day they came in and from what; the most recent
+		 * first, those never in (or whose sessions have expired and gone) last. Only when, never what
+		 * they did.
+		 */
+		async lastSeen(): Promise<LastSeen[]> {
+			// Every name with its table: Drizzle writes a column bare, and inside the subquery
+			// "id" would be the session's.
+			const newest = (what: string) =>
+				sql.raw(`select ${what} from "session" s where s.user_id = "user"."id"`);
+			const rows = await asAdmin((tx) =>
+				tx
+					.select({
+						id: user.id,
+						name: user.name,
+						email: user.email,
+						lastSeen: sql<Date | null>`(${newest('max(s.updated_at)')})`,
+						userAgent: sql<
+							string | null
+						>`(${newest('s.user_agent')} order by s.updated_at desc limit 1)`
+					})
+					.from(user)
+					.orderBy(sql`(${newest('max(s.updated_at)')}) desc nulls last`, user.name)
+			);
+			return rows.map((r) => ({ ...r, lastSeen: r.lastSeen ? new Date(r.lastSeen) : null }));
 		},
 
 		/** Each app that has reported, by name, with its last week's runs. */

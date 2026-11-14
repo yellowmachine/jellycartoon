@@ -51,6 +51,7 @@ import {
 	recipeSiteSitemap,
 	recurringExpense,
 	recurringIncome,
+	bankPayment,
 	rule,
 	savedPlace,
 	savedRoute,
@@ -85,6 +86,8 @@ const TABLES: [string, PgTable][] = [
 	['bill', bill],
 	['expense_not_duplicate', expenseNotDuplicate],
 	['expense_favorite', expenseFavorite],
+	// Which bank payment made which expense (#502): so they do not come in again there.
+	['bank_payment', bankPayment],
 	['recurring_income', recurringIncome],
 	['income', income],
 	['fridge_note', fridgeNote],

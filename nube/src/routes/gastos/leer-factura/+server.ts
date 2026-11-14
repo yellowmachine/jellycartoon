@@ -3,13 +3,14 @@ import type { RequestHandler } from './$types';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { readBill } from '#lib/server/expenses/receipt.ts';
 import { isFileHash, lookingSame } from '#lib/server/expenses/duplicates.ts';
+import { fixedMatchOf } from '#lib/server/expenses/fixed-receipt.ts';
 
 /** A bill's PDF, as downloaded from the company, or a photo made smaller in the browser. */
 const MAX_BYTES = 8 * 1024 * 1024;
 
 /**
  * A bill (#232), read: what it says, to check and save, and the one it looks the same as (#440), if
- * any. Nothing is saved yet.
+ * any, and the fixed one it may be the month's of (#501). Nothing is saved yet.
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const k = await kitchenOf(locals.user!.id);
@@ -31,7 +32,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			source: 'factura',
 			fileHash: isFileHash(hash) ? hash : null
 		}).catch(() => null);
-		return json({ ...draft, repeated });
+		// A fixed one's of that month or the one before, without its receipt yet (#501)?
+		const fixed = await fixedMatchOf(k, draft).catch(() => null);
+		return json({ ...draft, repeated, fixed });
 	} catch (err) {
 		error(502, err instanceof Error ? err.message : 'No se pudo leer la factura');
 	}
