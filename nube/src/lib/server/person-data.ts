@@ -470,7 +470,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 	recipe: {
 		leaving: 'stays',
 		joining: 'moves',
-		zip: { file: 'recetas', where: [mine('createdBy')] }
+		zip: {
+			file: 'recetas',
+			where: [mine('createdBy')],
+			stored: { area: 'recetas', column: 'photo' }
+		},
+		note: 'Its own photo too'
 	},
 	recipe_site: {
 		leaving: 'stays',

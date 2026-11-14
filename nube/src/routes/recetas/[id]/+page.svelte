@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { deserialize, enhance } from '$app/forms';
+	import { refreshAll } from '$app/navigation';
+	import { smallerPhoto } from 'comun/receipt-photo.ts';
 	import Backdrop from 'comun/components/Backdrop.svelte';
 	import Espera from '#lib/components/Espera.svelte';
 	import ShoppingCard from '#lib/components/ShoppingCard.svelte';
@@ -35,6 +37,49 @@
 	let added = $state<string[] | null>(null);
 	let preparing = $state(false);
 	let shoppingProblem = $state<string | null>(null);
+
+	/** Its picture: the family's own photo, or one of the dish from the favourite sites. */
+	let photoBusy = $state<'subiendo' | 'buscando' | null>(null);
+	let photoProblem = $state<string | null>(null);
+	let confirmRemovePhoto = $state(false);
+
+	/** Sent to an action, and the page read again after it. */
+	async function act(action: string, body = new FormData()) {
+		photoProblem = null;
+		const res = await fetch(`?/${action}`, {
+			method: 'POST',
+			body,
+			headers: { 'x-sveltekit-action': 'true' }
+		}).catch(() => null);
+		const result = res ? deserialize(await res.text()) : null;
+		if (result?.type === 'success') await refreshAll();
+		else
+			photoProblem =
+				result?.type === 'failure'
+					? String(result.data?.photoProblem ?? 'No se pudo')
+					: 'No se pudo: prueba otra vez';
+	}
+
+	async function putPhoto(input: HTMLInputElement) {
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		photoBusy = 'subiendo';
+		const small = await smallerPhoto(file, { longest: 1600, quality: 0.85 });
+		const body = new FormData();
+		body.set(
+			'photo',
+			small instanceof File ? small : new File([small], 'plato.jpg', { type: small.type })
+		);
+		await act('photo', body);
+		photoBusy = null;
+	}
+
+	async function lookForPicture() {
+		photoBusy = 'buscando';
+		await act('findPicture');
+		photoBusy = null;
+	}
 </script>
 
 <svelte:head>
@@ -95,6 +140,55 @@
 					>
 				</form>
 			{/if}
+			<!-- Its picture (#470's recipes have none): the family's photo, or one from their sites. -->
+			<label
+				class={[
+					'cursor-pointer rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-white',
+					photoBusy && 'pointer-events-none opacity-50'
+				]}
+			>
+				{photoBusy === 'subiendo'
+					? 'Subiendo…'
+					: r.hasPhoto
+						? '📷 Cambiar la foto'
+						: '📷 Poner foto'}
+				<input
+					type="file"
+					accept="image/*"
+					class="sr-only"
+					disabled={photoBusy !== null}
+					onchange={(e) => putPhoto(e.currentTarget)}
+				/>
+			</label>
+			{#if !r.imageUrl}
+				<button
+					class="rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-50"
+					disabled={photoBusy !== null}
+					onclick={lookForPicture}
+					>{photoBusy === 'buscando' ? 'Buscando…' : '🔎 Buscar foto en mis webs'}</button
+				>
+			{/if}
+			{#if r.hasPhoto}
+				{#if confirmRemovePhoto}
+					<span class="text-sm text-zinc-400">¿Quitar vuestra foto?</span>
+					<button
+						class="rounded-md px-3 py-1.5 text-sm text-red-400 hover:bg-zinc-800"
+						onclick={async () => {
+							confirmRemovePhoto = false;
+							await act('removePhoto');
+						}}>Sí, quitarla</button
+					>
+					<button
+						class="rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:bg-zinc-800"
+						onclick={() => (confirmRemovePhoto = false)}>No</button
+					>
+				{:else}
+					<button
+						class="rounded-md px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-800 hover:text-white"
+						onclick={() => (confirmRemovePhoto = true)}>Quitar la foto</button
+					>
+				{/if}
+			{/if}
 			{#if confirmDelete}
 				<form method="post" action="?/delete" use:enhance class="flex items-center gap-2">
 					<span class="text-sm text-zinc-400">¿Quitarla del recetario?</span>
@@ -114,6 +208,7 @@
 				>
 			{/if}
 		</div>
+		{#if photoProblem}<p class="mt-2 text-sm text-red-400" role="alert">{photoProblem}</p>{/if}
 	</div>
 </header>
 

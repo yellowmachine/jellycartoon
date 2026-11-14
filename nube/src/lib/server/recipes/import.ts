@@ -5,6 +5,7 @@ import { openRouterKey, recipesBackdropId } from '#lib/server/family-settings.ts
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
 import { fetchPublic } from '#lib/server/public-fetch.ts';
+import { forgetPhoto, pictureFromSites, pictureOf } from './photos.ts';
 import { findRecipe, normalizeRecipe, readPage, type PageRecipe } from './schema-org.ts';
 
 /**
@@ -209,6 +210,11 @@ export async function saveWrittenRecipe(k: Kitchen, written: Recipe, from: strin
 	);
 	const id = row?.id ?? (await saved(k, sourceUrl));
 	if (!id) throw new Error('No se pudo guardar la receta');
+	// No page, so no picture: one of the same dish from the favourite sites, after (it takes a while).
+	if (row)
+		void pictureFromSites(k, id, written.title).catch((err) =>
+			console.warn('[recetas] No se pudo buscar su foto', { id, problem: String(err) })
+		);
 	return id;
 }
 
@@ -220,18 +226,20 @@ const recipeFields = (r: Recipe) => ({
 });
 
 /** The book, by title. */
-export function listRecipes(k: Kitchen) {
-	return k.run((tx) =>
+export async function listRecipes(k: Kitchen) {
+	const rows = await k.run((tx) =>
 		tx
 			.select({
 				id: recipe.id,
 				title: recipe.title,
 				imageUrl: recipe.imageUrl,
+				photo: recipe.photo,
 				sourceName: recipe.sourceName
 			})
 			.from(recipe)
 			.orderBy(asc(recipe.title))
 	);
+	return rows.map(({ photo, ...r }) => ({ ...r, imageUrl: pictureOf({ ...r, photo }) }));
 }
 
 /** The picture behind the book's page, if that recipe is still there and has one. */
@@ -239,17 +247,28 @@ export async function recipesBackdrop(k: Kitchen) {
 	const id = await recipesBackdropId(k);
 	if (id === null) return null;
 	const [row] = await k.run((tx) =>
-		tx.select({ imageUrl: recipe.imageUrl }).from(recipe).where(eq(recipe.id, id))
+		tx
+			.select({ id: recipe.id, imageUrl: recipe.imageUrl, photo: recipe.photo })
+			.from(recipe)
+			.where(eq(recipe.id, id))
 	);
-	return row?.imageUrl ?? null;
+	return row ? pictureOf(row) : null;
 }
 
-/** One recipe, ready to cook (as the voice's), with where it came from. */
+/**
+ * One recipe, ready to cook (as the voice's), with where it came from; `imageUrl`, the picture to
+ * show (its own photo first), and `hasPhoto`, whether it has its own.
+ */
 export async function getRecipe(k: Kitchen, id: number) {
 	const [row] = await k.run((tx) => tx.select().from(recipe).where(eq(recipe.id, id)));
-	return row ?? null;
+	if (!row) return null;
+	const { photo, ...rest } = row;
+	return { ...rest, imageUrl: pictureOf(row), hasPhoto: photo !== null };
 }
 
 export async function deleteRecipe(k: Kitchen, id: number) {
-	await k.run((tx) => tx.delete(recipe).where(eq(recipe.id, id)));
+	const [gone] = await k.run((tx) =>
+		tx.delete(recipe).where(eq(recipe.id, id)).returning({ photo: recipe.photo })
+	);
+	await forgetPhoto(k, gone?.photo ?? null);
 }

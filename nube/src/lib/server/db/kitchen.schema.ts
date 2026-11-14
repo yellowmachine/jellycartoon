@@ -100,6 +100,11 @@ export const recipe = pgTable(
 		/** Its ingredients as things to buy, made by the AI the first time they are asked for. */
 		shopping: jsonb('shopping').$type<RecipeShoppingItem[]>(),
 		imageUrl: text('image_url'),
+		/**
+		 * The family's own photo of it, its file in their storage (area `recetas`): over `imageUrl`,
+		 * the site's. Null, none.
+		 */
+		photo: text('photo'),
 		/** The page it came from: one recipe per page, in each family. */
 		sourceUrl: text('source_url').notNull(),
 		/** The site's name, or its host: «Las recetas de…». */

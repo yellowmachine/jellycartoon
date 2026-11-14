@@ -1,0 +1,1 @@
+ALTER TABLE "recipe" ADD COLUMN "photo" text;
