@@ -1,4 +1,5 @@
 <script lang="ts">
+	import GuideLink from '#lib/components/GuideLink.svelte';
 	import { page } from '$app/state';
 	import Reglas from './Reglas.svelte';
 	import VozRecuerda from './VozRecuerda.svelte';
@@ -24,7 +25,9 @@
 </svelte:head>
 
 <div class="mx-auto max-w-2xl">
-	<h1 class="mb-4 text-2xl font-bold">Reglas</h1>
+	<h1 class="mb-4 text-2xl font-bold">
+		Reglas<GuideLink page="voz#reglas-que-avise-sola" label="las reglas" />
+	</h1>
 
 	<nav class="mb-6 flex gap-5 overflow-x-auto border-b border-zinc-800">
 		{#each tabs as t (t.id)}

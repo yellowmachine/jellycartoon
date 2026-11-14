@@ -1,0 +1,42 @@
+---
+title: '¿Dónde está el coche?'
+description: Dónde se aparcó cada coche de la familia, quién y cuándo, con una nota, y cómo llegar andando hasta él.
+---
+
+import Capturas from '../../../components/Capturas.astro';
+import inicio from '../../../assets/guia/inicio-coche.webp';
+
+Seilide se acuerda de dónde está aparcado cada coche de la familia: en la portada sale el tuyo, con
+la calle, desde cuándo y quién lo dejó.
+
+<Capturas
+	shots={[
+		{
+			src: inicio,
+			alt: 'La portada: la tarjeta del coche, «El Seat, aparcado hace 1 h, Ana, planta -2, plaza 47», con los botones Llévame y No está ahí',
+			caption: 'El coche, en la portada'
+		}
+	]}
+/>
+
+## Añadir los coches
+
+En **Ajustes → Familia → Coches**, añade cada coche con un nombre («El Seat») y elige cuál es **el
+tuyo**. Cada uno elige el suyo.
+
+## Cómo sabe dónde está
+
+- **Solo:** al acabar un viaje en el [modo carretera](/guia/carretera/), se queda donde terminó.
+  Para eso tienes que tener marcado **Guardar mis viajes** en Ajustes → Para mí → Tus viajes.
+- **A mano:** en **Viajes → ¿Dónde está el coche?**, al aparcar, toca **Aquí y ahora**. Si quieres,
+  escribe antes una nota: «planta -2, plaza 47».
+
+Si en la portada no está bien, **No está ahí** pregunta «¿Está donde estás tú ahora?»; con **Sí,
+márcalo** se queda donde está tu móvil.
+
+## Ir hasta él
+
+**Llévame** abre Google Maps con el camino andando hasta el coche. En **Viajes**, **En el mapa**
+enseña dónde está.
+
+Si alguien se lo ha llevado, sale **En marcha** y con quién.

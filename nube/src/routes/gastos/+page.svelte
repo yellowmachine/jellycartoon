@@ -1,4 +1,5 @@
 <script lang="ts">
+	import GuideLink from '#lib/components/GuideLink.svelte';
 	import { onMount, tick, untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { afterNavigate, replaceState } from '$app/navigation';
@@ -421,7 +422,7 @@
 </svelte:head>
 
 <div class="mx-auto max-w-3xl">
-	<h1 class="mb-3 text-2xl font-bold">Dinero</h1>
+	<h1 class="mb-3 text-2xl font-bold">Dinero<GuideLink page="dinero" label="los gastos" /></h1>
 	<ExpenseTabs current="mes" />
 	<p class="mb-4 text-sm text-zinc-400">
 		Los de la casa, para todos los adultos. Con una foto del ticket, a mano, por voz («he gastado 40

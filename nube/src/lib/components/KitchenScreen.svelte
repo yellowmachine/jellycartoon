@@ -72,6 +72,16 @@
 					>
 				{/each}
 			</nav>
+			<!-- Its page in the family's guide (#495), in another tab. -->
+			<a
+				href="https://docs.seilide.app/guia/recetas/#cocinar"
+				target="_blank"
+				rel="noopener"
+				class="flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-white"
+				aria-label="Cómo se usa la cocina (guía)"
+				title="Cómo se usa la cocina"
+				><span class="text-2xl leading-none" aria-hidden="true">?</span>Ayuda</a
+			>
 			<button
 				class="flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-white"
 				aria-label="Salir de la cocina"

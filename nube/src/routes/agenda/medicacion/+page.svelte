@@ -130,7 +130,7 @@
 {/snippet}
 
 <svelte:head>
-	<title>Medicación · Agenda · JellyCartoon</title>
+	<title>Medicación · Agenda · Seilide</title>
 </svelte:head>
 
 <div class="mx-auto max-w-3xl">

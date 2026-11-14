@@ -1,0 +1,83 @@
+---
+title: 'Recetas y modo cocina'
+description: El recetario de la familia, guardado desde cualquier web de cocina, y el modo cocina para seguir una receta paso a paso, con temporizadores y la voz.
+---
+
+import Capturas from '../../../components/Capturas.astro';
+import recetario from '../../../assets/guia/recetas.webp';
+import receta from '../../../assets/guia/receta.webp';
+
+En **Recetas** está el recetario de la familia: las recetas que os gustan, guardadas desde la web
+de cocina donde las encontrasteis. Desde ahí se cocinan paso a paso, con los temporizadores puestos
+y sin tocar la pantalla con las manos sucias.
+
+<Capturas
+	shots={[
+		{
+			src: recetario,
+			alt: 'El recetario: el cuadro para pegar la dirección de una receta con el botón Guardar, dos recetas guardadas y las webs favoritas',
+			caption: 'El recetario'
+		},
+		{
+			src: receta,
+			alt: 'Una receta, macarrones con tomate: el botón Cocinar, los ingredientes, «Añadir a la compra» y los pasos, algunos con su temporizador',
+			caption: 'Una receta, con sus temporizadores'
+		}
+	]}
+/>
+
+## Guardar una receta
+
+1. Busca la receta en tu web de cocina de siempre.
+2. Copia su dirección y pégala arriba, en el recetario, o compártela desde el navegador del móvil
+   con **Seilide**.
+3. Toca **Guardar** y espera unos segundos mientras la app la lee.
+
+Queda con sus ingredientes y sus pasos, cortos y con los temporizadores que hagan falta («la pasta,
+10 min»). Si la receta trae foto, **Usar de fondo del recetario** la pone detrás de la página del
+recetario.
+
+:::note
+Los pasos salen preparados y con temporizadores cuando la familia tiene la IA conectada (Ajustes →
+Conexiones → IA). Sin ella, la receta se guarda con los pasos tal cual los escribe la web.
+:::
+
+## Webs favoritas
+
+Abajo del recetario se añaden las webs de cocina que más usáis, pegando la dirección de cualquier
+página suya. Luego se buscan recetas en ellas sin salir de la app: «macarrones gratinados»,
+«croquetas»… También por voz: «busca recetas de croquetas».
+
+## Cocinar
+
+1. Abre la receta y toca **🍳 Cocinar**. La pantalla pasa al modo cocina: los pasos a la izquierda
+   y, a la derecha, la receta, las series, los canales, la música, la radio o los podcasts, por si
+   queréis algo de fondo mientras cocináis.
+2. Pasa de un paso a otro con **Siguiente →** y **← Anterior**, o diciéndolo en voz alta (abajo).
+   Cada paso se lee en voz alta.
+3. Si el paso tiene temporizador, **⏱ Poner 10 min** lo arranca. Por voz arranca solo cuando llega
+   su momento: «ya he echado la pasta».
+4. Cuando suena un temporizador, la serie se pausa y sigue después.
+5. Al acabar, **Terminar**; para salir del modo cocina, **✕ Salir**.
+
+El icono de la olla, arriba, abre el modo cocina en cualquier momento, con la receta que estaba en
+marcha.
+
+Lo que se puede decir mientras cocinas:
+
+- «Siguiente» o «ya está», para pasar al siguiente paso.
+- «Vuelve al anterior».
+- «Ya hierve el agua», «ya he echado la pasta».
+- «Vamos a hacer los macarrones», para empezar una receta del recetario sin tocar nada.
+
+:::tip
+El modo cocina está pensado para una tablet fija en la cocina, en horizontal. En el móvil también
+funciona.
+:::
+
+## Añadir a la compra
+
+En la receta, **🛒 Añadir a la compra** prepara sus ingredientes como cosas que comprar. Lo que ya
+está en la lista sale como «en la lista», y lo que se suele tener en casa (la sal, el aceite) sin
+marcar, con un «¿lo tienes?». Marca lo que falte y añádelo a la [lista de la
+compra](/guia/nevera/).

@@ -17,7 +17,7 @@
 </script>
 
 <svelte:head>
-	<title>Voces · Oración · JellyCartoon</title>
+	<title>Voces · Oración · Seilide</title>
 </svelte:head>
 
 <div class="mx-auto max-w-3xl">

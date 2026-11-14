@@ -155,6 +155,127 @@ try {
 			insert into saved_place (family_id, user_id, name, lon, lat, address)
 			values (${family}, ${userId}, ${name}, ${lon}, ${lat}, ${address})`;
 
+	// Nevera: post-its for everyone, and the shopping list with a couple already bought.
+	for (const [text, until] of [
+		['Llamar al fontanero', null],
+		['La cena está en el horno 🍲', day(0)],
+		['Mañana, comida con la abuela', day(1)]
+	] as const)
+		await sql`
+			insert into fridge_note (family_id, user_id, text, until)
+			values (${family}, ${userId}, ${text}, ${until})`;
+	const [list] = await sql`
+		insert into fridge_note (family_id, kind, user_id, text)
+		values (${family}, 'list', ${userId}, 'Lista de la compra') returning id`;
+	for (const [text, done] of [
+		['leche', false],
+		['pan', false],
+		['huevos', false],
+		['tomates', false],
+		['detergente', false],
+		['yogures', true],
+		['plátanos', true]
+	] as const)
+		await sql`
+			insert into fridge_item (family_id, note_id, text, done, user_id)
+			values (${family}, ${list!.id}, ${text}, ${done}, ${userId})`;
+
+	// Recetas: two saved from a (made-up) cooking site, with their steps ready for the kitchen.
+	const step = (text: string, timer: [string, number, string | null] | null = null) => ({
+		text,
+		timer: timer && { label: timer[0], minutes: timer[1], trigger: timer[2] }
+	});
+	for (const [title, servings, ingredients, steps, slug] of [
+		[
+			'Macarrones con tomate',
+			4,
+			[
+				'400 g de macarrones',
+				'500 g de tomate triturado',
+				'1 cebolla',
+				'200 g de carne picada',
+				'Queso rallado',
+				'Aceite de oliva y sal'
+			],
+			[
+				step('Pon a hervir una olla grande de agua con sal.'),
+				step('Pica la cebolla y sofríela con un chorro de aceite.', ['la cebolla', 5, null]),
+				step('Añade la carne picada y deja que se dore.', ['la carne', 6, null]),
+				step('Echa el tomate y deja que se haga a fuego lento mientras cueces la pasta.', [
+					'la salsa',
+					15,
+					null
+				]),
+				step('Echa los macarrones al agua hirviendo y remueve.', [
+					'la pasta',
+					10,
+					'eches la pasta'
+				]),
+				step('Escurre la pasta, mézclala con la salsa y sirve con queso rallado.')
+			],
+			'macarrones-con-tomate'
+		],
+		[
+			'Tortilla de patatas',
+			4,
+			['4 patatas', '6 huevos', '1 cebolla', 'Aceite de oliva', 'Sal'],
+			[
+				step('Pela las patatas y córtalas en láminas finas; pica la cebolla.'),
+				step('Fríe la patata y la cebolla a fuego medio en abundante aceite.', [
+					'las patatas',
+					20,
+					null
+				]),
+				step('Bate los huevos con sal y mézclalos con la patata escurrida.'),
+				step('Cuaja la tortilla por un lado, dale la vuelta con un plato y cuájala por el otro.')
+			],
+			'tortilla-de-patatas'
+		]
+	] as const)
+		await sql`
+			insert into recipe (family_id, title, servings, ingredients, steps, source_url, source_name, created_by)
+			values (${family}, ${title}, ${servings}, ${sql.json([...ingredients])}, ${sql.json(steps as never)},
+				${`https://recetas.ejemplo.es/${slug}`}, 'Recetas de ejemplo', ${userId})`;
+
+	// Another adult with an account, Javier, to call (Llamadas); no password: never signs in.
+	const javier = 'capturas-javier';
+	await sql`
+		insert into "user" (id, name, email, email_verified, created_at, updated_at)
+		values (${javier}, 'Javier', 'javier@ejemplo.es', true, now(), now())`;
+	await sql`
+		insert into family_member (user_id, family_id, role) values (${javier}, ${family}, 'member')`;
+	await sql`
+		insert into family_person (family_id, name, avatar, user_id)
+		values (${family}, 'Javier', 'panda', ${javier})`;
+
+	// Paseos: two of Ana's, this week, a loop in the Retiro and one along the river.
+	const loop = (lon: number, lat: number, r: number, n: number, start: number) =>
+		Array.from({ length: n + 1 }, (_, i): [number, number, number] => {
+			const a = (i / n) * 2 * Math.PI;
+			return [lon + r * 1.3 * Math.cos(a), lat + r * Math.sin(a), start + i * 20];
+		});
+	for (const [daysAgo, minutes, metres, lon, lat] of [
+		[1, 42, 3650, -3.6835, 40.4153],
+		[3, 31, 2700, -3.7203, 40.4005]
+	] as const) {
+		const start = new Date();
+		start.setDate(start.getDate() - daysAgo);
+		start.setHours(19, 10, 0, 0);
+		const end = new Date(start.getTime() + minutes * 60_000);
+		const line = loop(lon, lat, 0.004, (minutes * 60) / 20, Math.floor(start.getTime() / 1000));
+		await sql`
+			insert into walk (family_id, user_id, started_at, ended_at, distance, points, line, diagnosis)
+			values (${family}, ${userId}, ${start}, ${end}, ${metres}, ${line.length}, ${sql.json(line)},
+				${sql.json({ fixes: line.length, hiddenFixes: 0, musicFixes: 0, hiddenSeconds: 0, gaps: [] })})`;
+	}
+
+	// Coches: the family's, Ana's, parked an hour ago near home with a note.
+	const [car] = await sql`
+		insert into car (family_id, name, lon, lat, accuracy, parked_at, parked_by, note)
+		values (${family}, 'El Seat', -3.7012, 40.4189, 8, now() - interval '1 hour', ${userId},
+			'Planta -2, plaza 47') returning id`;
+	await sql`insert into car_driver (family_id, user_id, car_id) values (${family}, ${userId}, ${car!.id})`;
+
 	console.log(`[datos] familia de ejemplo lista (${family})`);
 } finally {
 	await sql.end();

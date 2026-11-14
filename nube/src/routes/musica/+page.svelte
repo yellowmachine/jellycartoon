@@ -1,4 +1,5 @@
 <script lang="ts">
+	import GuideLink from '#lib/components/GuideLink.svelte';
 	import MiniSearch from 'minisearch';
 	import { enhance } from '$app/forms';
 	import { replaceState } from '$app/navigation';
@@ -172,7 +173,7 @@
 {/snippet}
 
 <div class="mb-6 flex flex-wrap items-center gap-3">
-	<h1 class="mr-auto text-2xl font-bold">Música</h1>
+	<h1 class="mr-auto text-2xl font-bold">Música<GuideLink page="musica" label="la música" /></h1>
 	{#if data.dj}
 		{@const djClass = 'rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900'}
 		{@const djTitle = 'Canciones al azar con un locutor entre ellas, como en la radio'}

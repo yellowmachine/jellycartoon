@@ -68,7 +68,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.prayer?.title ?? 'Nuevo texto'} · Oración · JellyCartoon</title>
+	<title>{data.prayer?.title ?? 'Nuevo texto'} · Oración · Seilide</title>
 </svelte:head>
 
 <div class="mx-auto max-w-3xl">
