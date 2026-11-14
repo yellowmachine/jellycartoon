@@ -1,4 +1,5 @@
 import type { Recipe } from 'comun/recipe.ts';
+import type { Block } from '#lib/blocks.ts';
 
 /**
  * «Preguntar» (#470): what each answer of the chat brings besides its words, as the page shows
@@ -19,7 +20,23 @@ export interface RecipeCard {
 	savedId: number | null;
 }
 
-export type ChatCard = ShoppingCard | RecipeCard;
+/**
+ * A page of Seilide, already filtered (#504 phase 3): beside the panel, it opens by itself in the
+ * main part; elsewhere, a tap opens it.
+ */
+export interface PageCard {
+	kind: 'pagina';
+	href: string;
+	label: string;
+}
+
+/** A chart or other block (#504 phase 3), with the figures it had when it was made. */
+export interface BlockCard {
+	kind: 'bloque';
+	block: Block;
+}
+
+export type ChatCard = ShoppingCard | RecipeCard | PageCard | BlockCard;
 
 export interface ChatMessage {
 	id: number;

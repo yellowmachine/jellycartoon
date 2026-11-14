@@ -75,6 +75,7 @@ mock.module('#lib/server/trips/voice.ts', () => ({
 	plannedTripsByVoice: async () => (called.push('trips'), '')
 }));
 const reads = await import('./chat-reads.ts');
+const { spendingBars } = await import('./blocks.ts');
 const k = kitchen('A');
 
 beforeAll(async () => {
@@ -193,4 +194,59 @@ test('a read by its name; an unknown one, said so', async () => {
 	expect(await reads.runRead(k, 'ana', 'borrar_todo', {})).toBe(
 		'No hay ninguna herramienta «borrar_todo».'
 	);
+});
+
+test('a chart of what was spent (#504): month by month, each category a series, empty months at nought', async () => {
+	const block = await spendingBars(k, '2026-08', '2026-10', null);
+	expect(block).toEqual({
+		kind: 'barras',
+		title: 'Gastos de 2026-08 a 2026-10',
+		labels: ['2026-08', '2026-09', '2026-10'],
+		series: [
+			{ name: 'Casa', values: [0, 0, 7345] },
+			{ name: 'Supermercado', values: [0, 6500, 0] },
+			{ name: 'Gasolina', values: [0, 0, 6000] }
+		]
+	});
+	expect(await spendingBars(k, '2026-10', '2026-10', ' Octubre ')).toMatchObject({
+		title: 'Octubre',
+		labels: ['2026-10']
+	});
+	expect(await spendingBars(k, '2026-01', '2026-02', null)).toBe(
+		'No hay gastos apuntados entre 2026-01 y 2026-02: no hay gráfica.'
+	);
+	expect(await spendingBars(k, '2023-01', '2026-10', null)).toBe(
+		'Como mucho 24 meses en una gráfica.'
+	);
+});
+
+test('more categories than colours: the biggest keep theirs, the rest together in «Resto»', async () => {
+	const many = kitchen('C');
+	await db.insert(family).values({ id: 'C', name: 'Casa C' });
+	const categories = [
+		'Supermercado',
+		'Restaurantes',
+		'Gasolina',
+		'Coche',
+		'Casa',
+		'Facturas',
+		'Seguros',
+		'Ropa',
+		'Ocio'
+	];
+	await db.insert(expense).values(
+		categories.map((category, i) => ({
+			familyId: 'C',
+			date: '2026-10-10',
+			store: category,
+			category,
+			total: (10 - i) * 100,
+			source: 'mano' as const
+		}))
+	);
+	const block = await spendingBars(many, '2026-10', '2026-10', null);
+	if (typeof block === 'string') throw new Error(block);
+	expect(block.series.map((s) => s.name)).toEqual([...categories.slice(0, 6), 'Resto']);
+	// Seguros, Ropa and Ocio: 400 + 300 + 200.
+	expect(block.series.at(-1)!.values).toEqual([900]);
 });

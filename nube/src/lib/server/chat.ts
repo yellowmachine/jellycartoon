@@ -19,6 +19,9 @@ import {
 } from '#lib/server/openrouter.ts';
 import { getRecipe, listRecipes, saveWrittenRecipe } from '#lib/server/recipes/import.ts';
 import { isRead, READ_TOOLS, runRead } from '#lib/server/chat-reads.ts';
+import { describeBlock, spendingBars } from '#lib/server/blocks.ts';
+import { openPage, PAGES } from '#lib/chat-pages.ts';
+import { euros } from 'comun/expenses.ts';
 import { localDay } from 'comun/agenda.ts';
 import { FALLBACK_VOICE_MODEL, voiceSettings } from '#lib/server/voice/settings.ts';
 
@@ -119,6 +122,37 @@ const TOOLS: Tool[] = [
 		'Lee entera una receta del recetario de la familia (ingredientes y pasos), para contestar sobre ella o adaptarla.',
 		{ id: { type: 'integer', description: 'Su número en el recetario.' } },
 		['id']
+	),
+	fn(
+		'open_page',
+		`Abre una página de Seilide ya filtrada, para enseñar lo que hablas: al lado del chat, en grande, la propia sección. Úsala cuando la respuesta se ve mejor en su página («enséñame los gastos de octubre», «¿qué tenemos esta semana?»), no para todo. Páginas: ${Object.entries(
+			PAGES
+		)
+			.map(([name, what]) => `«${name}»: ${what}`)
+			.join('; ')}.`,
+		{
+			page: { type: 'string', enum: Object.keys(PAGES) },
+			month: { type: 'string', description: 'gastos_mes, ingresos_mes: el mes, AAAA-MM.' },
+			months: { type: 'integer', description: 'analisis: 3, 6 o 12 meses.' },
+			without_fixed: { type: 'boolean', description: 'analisis: sin los gastos fijos.' },
+			words: { type: 'string', description: 'busqueda, notas: qué buscar.' },
+			from_day: { type: 'string', description: 'busqueda: desde qué día, AAAA-MM-DD.' },
+			to_day: { type: 'string', description: 'busqueda: hasta qué día, AAAA-MM-DD.' },
+			kind: { type: 'string', description: 'facturas: «Luz», «Agua» o «Gas».' },
+			day: { type: 'string', description: 'agenda: un día de la semana o del mes, AAAA-MM-DD.' },
+			month_view: { type: 'boolean', description: 'agenda: el mes entero en vez de la semana.' }
+		},
+		['page']
+	),
+	fn(
+		'show_spending_chart',
+		'Una gráfica de barras de lo gastado mes a mes, cada categoría en su color, hecha por Seilide con sus cifras: para comparar meses o ver en qué se va el dinero. Va en el chat; no repitas sus cifras una a una en el texto, comenta lo que se ve.',
+		{
+			from_month: { type: 'string', description: 'El primer mes, AAAA-MM.' },
+			to_month: { type: 'string', description: 'El último mes, AAAA-MM; como mucho, 24 meses.' },
+			title: { type: 'string', description: 'El título, corto: «Gastos de este año».' }
+		},
+		['from_month', 'to_month']
 	)
 ];
 
@@ -142,6 +176,7 @@ Cómo escribir:
 - Lo que se puede hacer con un toque va en tarjetas, no en el texto:
   - Si hace falta comprar algo (ingredientes, utensilios para empezar), propónlo con «propose_shopping», en una sola tarjeta, y no repitas la lista en el texto. No propongas lo que ya está en la lista de la compra (abajo) ni lo que la persona ha dicho que tiene; si alguna de esas hace falta, dilo en una frase.
   - Una receta para hacer, con «propose_recipe», entera; no la escribas también en el texto. Ajústala a lo que ha dicho (su molde, su horno, cuántos son). Si está en el recetario (abajo), léela con «read_recipe» antes de hablar de ella.
+- Para enseñar algo que se ve mejor que con palabras: una gráfica de gastos («show_spending_chart») o la propia página de la sección ya filtrada («open_page»), que se abre en grande al lado del chat. Solo cuando ayuda; no las dos para lo mismo.
 - Los datos de la familia (agenda, gastos, notas, lo que recuerda la voz, reglas, viajes) no vienen en este mensaje: léelos con sus herramientas antes de contestar, y cruza varias si la pregunta lo pide. Las cifras y las fechas, solo las que te den las herramientas; si no hay datos, dilo. Di de qué días o meses hablas.
 - El texto acompaña a las tarjetas: por qué esas cosas, un consejo, qué viene después. Breve.
 - Lo que conviene «para más adelante» (no ahora), en el texto, en pocas líneas: no en la tarjeta de compra.
@@ -167,6 +202,8 @@ function cardLine(card: ChatCard) {
 					? `Añadió a la lista: ${card.added.join('; ')}.`
 					: 'No añadió nada.'
 		}]`;
+	if (card.kind === 'pagina') return `[Página abierta: ${card.label}]`;
+	if (card.kind === 'bloque') return `[Gráfica enseñada: ${describeBlock(card.block, euros)}]`;
 	return `[Tarjeta de receta${card.savedId ? `, guardada en el recetario (receta ${card.savedId})` : ', sin guardar'}:\n${describeRecipe(card.recipe, -1)}]`;
 }
 
@@ -244,6 +281,23 @@ async function runTool(
 			return {
 				result: `Tarjeta de la receta «${recipe.title}» enseñada; la persona decide si la guarda o la cocina.`,
 				card: { kind: 'receta', recipe, savedId: null }
+			};
+		}
+		case 'open_page': {
+			const { page, ...filters } = args;
+			const opened = openPage(page, filters);
+			if (typeof opened === 'string') return { result: opened };
+			return {
+				result: `Abierta «${opened.label}»: la persona la ve en grande. No describas la página entera; di lo importante.`,
+				card: { kind: 'pagina', ...opened }
+			};
+		}
+		case 'show_spending_chart': {
+			const block = await spendingBars(k, args.from_month, args.to_month, args.title);
+			if (typeof block === 'string') return { result: block };
+			return {
+				result: `Gráfica enseñada. Lo que muestra:\n${describeBlock(block, euros)}`,
+				card: { kind: 'bloque', block }
 			};
 		}
 		case 'read_recipe': {

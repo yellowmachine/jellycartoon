@@ -37,7 +37,11 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const question = String(form.get('question') ?? '');
 		// From the panel: the page it is beside, told to the AI by its section's name.
-		const section = sectionOfPath(String(form.get('path') ?? '').slice(0, 200));
+		const section = sectionOfPath(
+			String(form.get('path') ?? '')
+				.split('?')[0]!
+				.slice(0, 200)
+		);
 		const user = locals.user!;
 		try {
 			const k = await kitchenOf(user.id);

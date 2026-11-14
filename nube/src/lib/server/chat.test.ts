@@ -4,7 +4,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { sql } from 'drizzle-orm';
 import * as schema from './db/schema.ts';
-import { family, user } from './db/schema.ts';
+import { expense, family, user } from './db/schema.ts';
 import { familyOnlyScope } from './family-scope.ts';
 import type { Kitchen } from './fridge.ts';
 import type { ToolCall, ToolChatMessage } from './openrouter.ts';
@@ -290,4 +290,62 @@ test('it reads a section (#504) as the person who asks, and answers with what it
 	expect(a!.cards).toEqual([]);
 	// The AI is offered the reads, and told to read before it answers.
 	expect(sent[0]![0]!.content as string).toContain('léelos con sus herramientas');
+});
+
+test('it shows (#504 phase 3): a page already filtered and a chart with the database’s figures', async () => {
+	await db.insert(expense).values([
+		{
+			familyId: 'A',
+			date: '2026-10-02',
+			store: 'Repsol',
+			category: 'Gasolina',
+			total: 6000,
+			source: 'mano'
+		},
+		{
+			familyId: 'A',
+			date: '2026-10-05',
+			store: 'Lidl',
+			category: 'Supermercado',
+			total: 2500,
+			source: 'mano'
+		}
+	]);
+	answers = [
+		{
+			content: null,
+			toolCalls: [
+				call('open_page', { page: 'analisis', months: 12 }),
+				call('show_spending_chart', { from_month: '2026-10', to_month: '2026-10' }),
+				call('open_page', { page: 'https://malo.example' }, 'malo')
+			]
+		},
+		{ content: 'En octubre, sobre todo gasolina.', toolCalls: [] }
+	];
+	const [, a] = await chat.askChat(ana, { id: 'ana', name: 'Ana' }, '¿En qué gasto más?');
+	expect(a!.cards).toEqual([
+		{ kind: 'pagina', href: '/gastos/analisis?meses=12', label: 'Dinero → Análisis, 12 meses' },
+		{
+			kind: 'bloque',
+			block: {
+				kind: 'barras',
+				title: 'Gastos de 2026-10',
+				labels: ['2026-10'],
+				series: [
+					{ name: 'Gasolina', values: [6000] },
+					{ name: 'Supermercado', values: [2500] }
+				]
+			}
+		}
+	]);
+	// The AI was told the chart's figures, and that the made-up page is not one.
+	const told = sent[1]!.filter((m) => m.role === 'tool').map((m) => m.content as string);
+	expect(told[1]).toContain('2026-10: 85,00 € (Gasolina 60,00 €, Supermercado 25,00 €)');
+	expect(told[2]).toBe('No hay ninguna página «https://malo.example».');
+	// Asked again, it knows what it showed.
+	await chat.askChat(ana, { id: 'ana', name: 'Ana' }, '¿Y eso es mucho?');
+	const history = JSON.stringify(sent.at(-1));
+	expect(history).toContain('[Página abierta: Dinero → Análisis, 12 meses]');
+	expect(history).toContain('[Gráfica enseñada: «Gastos de 2026-10»');
+	await db.delete(expense);
 });

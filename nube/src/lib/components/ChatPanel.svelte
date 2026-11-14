@@ -38,7 +38,7 @@
 			messages={data.messages}
 			toBuy={data.toBuy}
 			hasAi={data.hasAi}
-			path={page.url.pathname}
+			path={page.url.pathname + page.url.search}
 			compact
 		>
 			{#snippet heading()}

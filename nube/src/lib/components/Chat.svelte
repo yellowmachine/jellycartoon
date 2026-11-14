@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
+	import BarsBlock from '#lib/components/BarsBlock.svelte';
 	import { tick, type Snippet } from 'svelte';
 	import Caracol from '#lib/components/Caracol.svelte';
 	import ChatRecipeCard from '#lib/components/ChatRecipeCard.svelte';
@@ -11,7 +13,8 @@
 	 * (things to buy, a recipe) that do something only when tapped. Its page and the side panel
 	 * beside any page (#504) show this same chat: every form goes to /preguntar's actions, and what
 	 * they answer updates it here, so the page around it stays where it is. `path`, in the panel: the
-	 * page it is beside, for the AI to know which section the question is about.
+	 * page it is beside, for the AI to know which section the question is about; and where a page the
+	 * AI opens shows, by itself, in the main part (#504 phase 3; «Atrás» goes back).
 	 */
 	let {
 		messages: initial,
@@ -170,6 +173,18 @@
 										<input type="hidden" name="message" value={m.id} />
 										<input type="hidden" name="card" value={i} />
 									</ShoppingCard>
+								{:else if card.kind === 'pagina'}
+									<a
+										href={card.href}
+										class="mt-2 flex items-center justify-between gap-2 rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-zinc-200 hover:border-amber-500/60 hover:bg-zinc-900"
+									>
+										<span class="min-w-0 truncate">{card.label}</span>
+										<span class="shrink-0 text-sm text-amber-400"
+											>{path === card.href ? 'Abierta al lado' : 'Ver →'}</span
+										>
+									</a>
+								{:else if card.kind === 'bloque'}
+									<BarsBlock block={card.block} />
 								{:else}
 									<ChatRecipeCard
 										{card}
@@ -219,7 +234,11 @@
 				return async ({ result }) => {
 					pending = null;
 					if (result.type === 'success' && Array.isArray(result.data?.messages)) {
-						messages = [...messages, ...(result.data.messages as ChatMessage[])];
+						const added = result.data.messages as ChatMessage[];
+						messages = [...messages, ...added];
+						// In the panel, the page it opened shows beside it (the last, if several).
+						const opened = added.flatMap((m) => m.cards).findLast((c) => c.kind === 'pagina');
+						if (path && opened?.kind === 'pagina') void goto(opened.href);
 						return;
 					}
 					question = said;
