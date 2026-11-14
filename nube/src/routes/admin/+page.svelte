@@ -4,6 +4,7 @@
 
 	/**
 	 * The service's administrator's page, as svelte-thinking's /admin: how many families and people,
+	 * the last day each one came in,
 	 * how each night's copy of the VPS's apps went (deploy/vps-backup.sh, #320), and the waiting list
 	 * and the apps.
 	 */
@@ -16,6 +17,15 @@
 			hour: '2-digit',
 			minute: '2-digit'
 		});
+	/** «hoy», «ayer», «hace 5 días». */
+	const ago = (days: number | null) =>
+		days === null
+			? 'Nunca, o hace más de un mes'
+			: days <= 0
+				? 'Hoy'
+				: days === 1
+					? 'Ayer'
+					: `Hace ${days} días`;
 	const card = section.replace('mb-8 ', '');
 	const link = `${card} block transition-colors hover:border-amber-400`;
 	let open = $state<string | null>(null);
@@ -50,6 +60,32 @@
 			</p>
 		</div>
 	</div>
+
+	<h2 class="mb-1 text-lg font-semibold">Última vez</h2>
+	<p class="mb-2 text-sm text-zinc-400">
+		El último día que cada cuenta entró en Seilide, y desde dónde. Solo cuándo, nunca qué hizo.
+	</p>
+	<ul class="mb-8 divide-y divide-zinc-800 rounded-md border border-zinc-800">
+		{#each data.lastSeen as p (p.id)}
+			<li class="flex items-baseline justify-between gap-3 px-3 py-2 text-sm">
+				<span class="min-w-0">
+					<span class="block truncate">{p.name}</span>
+					<span class="block truncate text-xs text-zinc-500">{p.email}</span>
+				</span>
+				<span class="shrink-0 text-right">
+					<span
+						class={[
+							'block',
+							p.daysAgo === null || p.daysAgo > 7
+								? 'text-zinc-500'
+								: p.daysAgo <= 1 && 'text-amber-400'
+						]}>{ago(p.daysAgo)}</span
+					>
+					{#if p.device}<span class="block text-xs text-zinc-500">{p.device}</span>{/if}
+				</span>
+			</li>
+		{/each}
+	</ul>
 
 	<h2 class="mb-2 text-lg font-semibold">Copias</h2>
 	{#if !data.backups.length}

@@ -79,6 +79,23 @@ describe('counts', () => {
 	});
 });
 
+describe('última vez', () => {
+	test('each account with its newest session and browser; never in, last', async () => {
+		await db
+			.update(session)
+			.set({ userAgent: 'Mozilla/5.0 (Linux; Android 14) Chrome/130.0 Mobile' })
+			.where(sql`${session.id} = 's1'`);
+		const seen = await admin.lastSeen();
+		expect(seen.map((p) => [p.id, p.userAgent])).toEqual([
+			['ana', 'Mozilla/5.0 (Linux; Android 14) Chrome/130.0 Mobile'],
+			['berta', null],
+			['carla', null]
+		]);
+		expect(seen[0]!.lastSeen!.getTime()).toBeGreaterThan(hoursAgo(1.1).getTime());
+		expect(seen[2]!.lastSeen).toBeNull();
+	});
+});
+
 describe('backups', () => {
 	test('good, failed and late', async () => {
 		await db.insert(backupRun).values([
