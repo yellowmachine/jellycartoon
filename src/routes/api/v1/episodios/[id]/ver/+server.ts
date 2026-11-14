@@ -4,6 +4,7 @@ import type { RequestHandler } from './$types';
 import { db } from '#lib/server/db/index.ts';
 import { episode } from '#lib/server/db/schema.ts';
 import { cloudViewer, grantLinks, kidMayWatch } from '#lib/server/media-api.ts';
+import { askAfter } from '#lib/server/still-there.ts';
 import { watchPage } from '#lib/server/watch-page.ts';
 
 /**
@@ -11,7 +12,7 @@ import { watchPage } from '#lib/server/watch-page.ts';
  * the house's (watch-page.ts): its audios and subtitles, where it was left (`{ "inicio": 0 }`, from
  * there instead), the next one and others, and their choices. The 720p version by default (the
  * house's upload is the limit); `{ "calidad": "original" }` for the other. Without a 720p one, the
- * original.
+ * original. `askAfter`: their «¿Sigues ahí?» (#77), in minutes or null (never), as chosen at home.
  */
 export const POST: RequestHandler = async ({ request, params }) => {
 	const person = await cloudViewer(request);
@@ -19,12 +20,13 @@ export const POST: RequestHandler = async ({ request, params }) => {
 	await kidMayWatch(person, id);
 	const body = await request.json().catch(() => ({}));
 	const start = typeof body?.inicio === 'number' && body.inicio >= 0 ? body.inicio : null;
-	const [[e], watch] = await Promise.all([
+	const [[e], watch, ask] = await Promise.all([
 		db
 			.select({ light: episode.light })
 			.from(episode)
 			.where(and(eq(episode.id, id), eq(episode.missing, false))),
-		watchPage(person.id, id, start)
+		watchPage(person.id, id, start),
+		askAfter(person.id)
 	]);
 	if (!e || !watch) error(404, 'Capítulo no encontrado');
 	const quality = body?.calidad !== 'original' && e.light === 'ready' ? 'light' : 'original';
@@ -32,6 +34,7 @@ export const POST: RequestHandler = async ({ request, params }) => {
 		...grantLinks(person.id, id, quality),
 		quality,
 		positionSec: watch.episode.positionSec ?? 0,
-		...watch
+		...watch,
+		askAfter: ask
 	});
 };

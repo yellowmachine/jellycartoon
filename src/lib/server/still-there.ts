@@ -3,7 +3,7 @@ import { db } from '#lib/server/db/index.ts';
 import { kidSettings, userSettings } from '#lib/server/db/schema.ts';
 import { isKidAccount } from '#lib/server/kids.ts';
 import { watchersOf } from '#lib/server/watching-together.ts';
-import { ASK_AFTER_DEFAULT } from '#lib/still-there.ts';
+import { ASK_AFTER_DEFAULT } from 'comun/still-there.ts';
 
 /**
  * After how many minutes with nobody touching anything to ask this user «¿Sigues ahí?» (#77), as

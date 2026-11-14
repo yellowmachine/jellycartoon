@@ -86,6 +86,8 @@ export interface WatchLinks {
 		subtitleStyle: SubtitleStyle;
 		autoNext: boolean;
 	};
+	/** «¿Sigues ahí?» (#77) after these minutes, as chosen at home; null, never. Not from older houses. */
+	askAfter?: number | null;
 }
 
 export const allSeries = async (who: Who) =>

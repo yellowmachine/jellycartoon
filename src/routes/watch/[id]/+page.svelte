@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import EpisodeCard from 'comun/components/EpisodeCard.svelte';
 	import Player from 'comun/components/Player.svelte';
@@ -7,9 +6,7 @@
 	import PlayerFrame from '#lib/components/PlayerFrame.svelte';
 	import PlayerListen from '#lib/components/PlayerListen.svelte';
 	import { houseLinks, outOfTime, playsAtHome } from '#lib/house-player.ts';
-	import { ANSWER_SECONDS, QUESTION, askAfterLabel } from '#lib/still-there.ts';
-	import { stillThere } from '#lib/still-there.svelte.ts';
-	import { videoHere } from '#lib/video-here.svelte.ts';
+	import { stillThere, tellStillThere } from '#lib/still-there.svelte.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -34,54 +31,6 @@
 		if (!data.nextId) return;
 		if (byItself) stillThere.startedByItself();
 		void goto(`/watch/${data.nextId}`);
-	}
-
-	/**
-	 * «¿Sigues ahí?» (#77): this one waits, unstarted, when it came by itself and nobody has touched
-	 * anything for the chosen time; without an answer in time it stays stopped (`stopped`). Each
-	 * episode's page decides it once, as it opens.
-	 */
-	let asking = $derived(untrack(() => stillThere.shouldAsk(data.askAfter)));
-	let stopped = $state(false);
-
-	function tell(state: 'asking' | 'answered' | 'stopped') {
-		void fetch('/api/sigues-ahi', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ state })
-		}).catch(() => {});
-	}
-
-	$effect(() => {
-		if (!asking) return;
-		stopped = false;
-		tell('asking');
-		// Over the native fullscreen nothing shows: out of it, to see the question.
-		if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-		const timer = setTimeout(() => {
-			stopped = true;
-			tell('stopped');
-		}, ANSWER_SECONDS * 1000);
-		return () => clearTimeout(timer);
-	});
-
-	/** «Sigo aquí»: it plays. `play`: false when it was already started some other way. */
-	function answer(play = true) {
-		stillThere.someoneThere();
-		asking = false;
-		stopped = false;
-		tell('answered');
-		if (play) void videoHere.current?.element.play().catch(() => {});
-	}
-
-	// Started from the player's own controls: that is an answer too.
-	$effect(() => {
-		if (asking && videoHere.playing) untrack(() => answer(false));
-	});
-
-	/** A touch, a click or a key on this page: someone is there. */
-	function someoneThere() {
-		stillThere.someoneThere();
 	}
 
 	/**
@@ -129,23 +78,6 @@
 	{/if}
 {/snippet}
 
-{#snippet question()}
-	<div class="w-full max-w-sm text-center">
-		<p class="mb-2 text-2xl font-semibold">{stopped ? 'Se ha parado' : QUESTION}</p>
-		<p class="mb-5 text-zinc-300">
-			{stopped
-				? 'Nadie contestó, así que no ha seguido.'
-				: `Llevas ${askAfterLabel(data.askAfter ?? 0)} sin tocar nada.`}
-		</p>
-		<button
-			class="rounded-md bg-amber-500 px-5 py-2.5 text-lg font-medium text-zinc-950 hover:bg-amber-400"
-			onclick={() => answer()}>{stopped ? 'Seguir viendo' : 'Sí, sigo aquí'}</button
-		>
-	</div>
-{/snippet}
-
-<svelte:window onpointerdown={someoneThere} onkeydown={someoneThere} />
-
 <div class="mb-4">
 	<a href="/series/{data.episode.seriesId}" class="text-sm text-zinc-400 hover:text-white">
 		← {data.episode.seriesTitle}
@@ -165,8 +97,9 @@
 	settings={data.settings}
 	onended={ended}
 	onautonextchange={(value) => (autoNext = value)}
-	autoplay={!asking}
-	overlay={asking ? question : countdown !== null ? upNext : undefined}
+	overlay={countdown !== null ? upNext : undefined}
+	askAfter={data.askAfter}
+	onstillthere={tellStillThere}
 	links={houseLinks(data.episode.id)}
 	here={playsAtHome(
 		data.episode.id,

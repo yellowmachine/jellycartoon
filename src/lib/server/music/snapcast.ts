@@ -12,7 +12,7 @@ import { getVoiceLevels } from '#lib/server/voice/levels.ts';
 import { MpvClient, StateBroadcast, type MpvMessage } from '#lib/server/mpv-client.ts';
 import { saveProgress } from '#lib/server/progress.ts';
 import { askAfter } from '#lib/server/still-there.ts';
-import { longUnattended } from '#lib/still-there.ts';
+import { longUnattended } from 'comun/still-there.ts';
 import { addWatchTime } from '#lib/server/watch-time.ts';
 import { db } from '#lib/server/db/index.ts';
 import { isKidAccount } from '#lib/server/kids.ts';

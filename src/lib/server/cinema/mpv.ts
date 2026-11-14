@@ -13,7 +13,7 @@ import { videoAllowedTogether } from '#lib/server/kid-time.ts';
 import { watchersOf } from '#lib/server/watching-together.ts';
 import { noteAsking, noteStopped, noteTouched } from '#lib/server/live-watching.ts';
 import { askAfterTogether } from '#lib/server/still-there.ts';
-import { ANSWER_SECONDS, QUESTION, longUnattended } from '#lib/still-there.ts';
+import { ANSWER_SECONDS, QUESTION, longUnattended } from 'comun/still-there.ts';
 import type { Channel } from 'comun/channels.ts';
 import type { RemoteAction, RemoteState, Track } from '#lib/salon.ts';
 import { mpvSubtitleProperties, type SubtitleStyle } from 'comun/subtitle-style.ts';

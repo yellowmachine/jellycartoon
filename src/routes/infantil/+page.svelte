@@ -5,7 +5,7 @@
 	import KidRulesForm from '#lib/components/KidRulesForm.svelte';
 	import { formatRemaining } from 'comun/format.ts';
 	import { clock, closedText, type VideoAccess } from '#lib/kid-time.ts';
-	import { ANSWER_SECONDS, ASK_AFTER_OPTIONS, askAfterLabel } from '#lib/still-there.ts';
+	import { ANSWER_SECONDS, ASK_AFTER_OPTIONS, askAfterLabel } from 'comun/still-there.ts';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
