@@ -7,13 +7,26 @@
 
 	/**
 	 * A recipe written by the AI (#470): its ingredients and steps, with «Guardar en Recetas» (into
-	 * the family's book) and «Cocinar ahora» (the kitchen mode, as from Recetas).
+	 * the family's book) and «Cocinar ahora» (the kitchen mode, as from Recetas). Saved through
+	 * /preguntar's action from any page (the side panel, #504): `onsaved` gets its number there, and
+	 * the page stays where it is.
 	 */
-	let { card, message, index }: { card: RecipeCard; message: number; index: number } = $props();
+	let {
+		card,
+		message,
+		index,
+		onsaved
+	}: {
+		card: RecipeCard;
+		message: number;
+		index: number;
+		onsaved: (savedId: number) => void;
+	} = $props();
 
 	const r = $derived(card.recipe);
 	let confirmReplace = $state(false);
 	let saving = $state(false);
+	let problem = $state<string | null>(null);
 
 	function cook() {
 		confirmReplace = false;
@@ -78,12 +91,16 @@
 		{:else}
 			<form
 				method="post"
-				action="?/save"
+				action="/preguntar?/save"
 				use:enhance={() => {
 					saving = true;
-					return async ({ update }) => {
+					problem = null;
+					// Not update(): from another page it would take there (Kit 3).
+					return async ({ result }) => {
 						saving = false;
-						await update({ reset: false });
+						if (result.type === 'success' && typeof result.data?.savedId === 'number')
+							onsaved(result.data.savedId);
+						else problem = 'No se pudo guardar';
 					};
 				}}
 			>
@@ -96,4 +113,5 @@
 			</form>
 		{/if}
 	</div>
+	{#if problem}<p class="mt-2 text-sm text-red-400">{problem}</p>{/if}
 </div>

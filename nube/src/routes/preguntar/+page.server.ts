@@ -10,10 +10,12 @@ import {
 } from '#lib/server/chat.ts';
 import { openRouterKey } from '#lib/server/family-settings.ts';
 import { kitchenOf, toBuy } from '#lib/server/fridge.ts';
+import { sectionOfPath } from '#lib/nav.ts';
 
 /**
  * «Preguntar» (#470): this person's chat with the family's AI. Children never get here: kids.ts
- * does not let them in (neither the page nor its actions).
+ * does not let them in (neither the page nor its actions). The side panel (#504) posts here too,
+ * from any page: each action answers what changed, so the panel updates without loading this page.
  */
 export const load: PageServerLoad = async ({ locals }) => {
 	const k = await kitchenOf(locals.user!.id);
@@ -32,11 +34,24 @@ const numberOf = (form: FormData, name: string) => {
 
 export const actions: Actions = {
 	ask: async ({ request, locals }) => {
-		const question = String((await request.formData()).get('question') ?? '');
+		const form = await request.formData();
+		const question = String(form.get('question') ?? '');
+		// From the panel: the page it is beside, told to the AI by its section's name.
+		const section = sectionOfPath(
+			String(form.get('path') ?? '')
+				.split('?')[0]!
+				.slice(0, 200)
+		);
 		const user = locals.user!;
 		try {
 			const k = await kitchenOf(user.id);
-			await askChat(k, { id: user.id, name: user.name }, question);
+			const messages = await askChat(
+				k,
+				{ id: user.id, name: user.name },
+				question,
+				section && section.path !== '/preguntar' ? section.label : null
+			);
+			return { messages };
 		} catch (err) {
 			if (err instanceof ChatError) return fail(503, { question, message: err.message });
 			throw err;
@@ -53,6 +68,7 @@ export const actions: Actions = {
 		const k = await kitchenOf(locals.user!.id);
 		const added = await addFromCard(k, locals.user!.id, message, card, ticked);
 		if (added === null) return fail(404, { message: 'Esa tarjeta ya no está' });
+		return { added };
 	},
 	/** A recipe card, into the family's recipe book. */
 	save: async ({ request, locals }) => {
@@ -63,6 +79,7 @@ export const actions: Actions = {
 		const k = await kitchenOf(locals.user!.id);
 		const id = await saveRecipeFromCard(k, locals.user!.id, message, card);
 		if (id === null) return fail(404, { message: 'Esa tarjeta ya no está' });
+		return { savedId: id };
 	},
 	/** «Empezar de nuevo». */
 	clear: async ({ locals }) => {

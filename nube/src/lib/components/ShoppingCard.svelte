@@ -15,6 +15,7 @@
 		usual = [],
 		toBuy,
 		action = '?/add',
+		refresh = true,
 		onadded,
 		children
 	}: {
@@ -25,6 +26,9 @@
 		usual?: string[];
 		toBuy: string[];
 		action?: string;
+		/** Load the page's data again after adding; not from a form sent to another page's action
+		 * (the chat's panel, #504), where Kit 3's update() would take there. */
+		refresh?: boolean;
 		/** After adding, what the action answered. */
 		onadded?: (data: Record<string, unknown> | undefined) => void;
 		children?: Snippet;
@@ -67,7 +71,7 @@
 			else {
 				ticked = {};
 				if (result.type === 'success') onadded?.(result.data);
-				await update({ reset: false });
+				if (refresh) await update({ reset: false });
 			}
 		};
 	}}

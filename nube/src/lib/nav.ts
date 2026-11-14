@@ -58,7 +58,7 @@ const SECTIONS: {
 		icon: 'preguntar',
 		where: 'nube',
 		about:
-			'Un chat con la IA, privado de cada persona, que propone qué comprar o una receta para guardar con un toque. Solo adultos.'
+			'Un chat con la IA, privado de cada persona, que mira la agenda, el dinero y tus notas para contestar, y propone qué comprar o una receta para guardar con un toque. En el ordenador, también al lado de cualquier página. Solo adultos.'
 	},
 	// Rules and what the voice remembers (#331, #389), out of Ajustes: adults only.
 	{

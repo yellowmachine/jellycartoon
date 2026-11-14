@@ -18,6 +18,11 @@ import {
 	type ToolChatMessage
 } from '#lib/server/openrouter.ts';
 import { getRecipe, listRecipes, saveWrittenRecipe } from '#lib/server/recipes/import.ts';
+import { isRead, READ_TOOLS, runRead } from '#lib/server/chat-reads.ts';
+import { describeBlock, spendingBars } from '#lib/server/blocks.ts';
+import { openPage, PAGES } from '#lib/chat-pages.ts';
+import { euros } from 'comun/expenses.ts';
+import { localDay } from 'comun/agenda.ts';
 import { FALLBACK_VOICE_MODEL, voiceSettings } from '#lib/server/voice/settings.ts';
 
 /**
@@ -29,8 +34,11 @@ import { FALLBACK_VOICE_MODEL, voiceSettings } from '#lib/server/voice/settings.
 
 /** The messages sent with each question: enough to follow the thread, not a whole month. */
 const HISTORY = 20;
-/** Rounds of tools at most: then what it said and the cards it made are the answer. */
-const MAX_ROUNDS = 4;
+/**
+ * Rounds of tools at most: then what it said and the cards it made are the answer. Crossing
+ * sections (#504) takes a few reads before the cards.
+ */
+const MAX_ROUNDS = 6;
 /** What the page shows, the latest. */
 const SHOWN = 200;
 /** A thinking model writing a whole recipe: the person is waiting, but reading, not listening. */
@@ -114,12 +122,45 @@ const TOOLS: Tool[] = [
 		'Lee entera una receta del recetario de la familia (ingredientes y pasos), para contestar sobre ella o adaptarla.',
 		{ id: { type: 'integer', description: 'Su número en el recetario.' } },
 		['id']
+	),
+	fn(
+		'open_page',
+		`Abre una página de Seilide ya filtrada, para enseñar lo que hablas: al lado del chat, en grande, la propia sección. Úsala cuando la respuesta se ve mejor en su página («enséñame los gastos de octubre», «¿qué tenemos esta semana?»), no para todo. Páginas: ${Object.entries(
+			PAGES
+		)
+			.map(([name, what]) => `«${name}»: ${what}`)
+			.join('; ')}.`,
+		{
+			page: { type: 'string', enum: Object.keys(PAGES) },
+			month: { type: 'string', description: 'gastos_mes, ingresos_mes: el mes, AAAA-MM.' },
+			months: { type: 'integer', description: 'analisis: 3, 6 o 12 meses.' },
+			without_fixed: { type: 'boolean', description: 'analisis: sin los gastos fijos.' },
+			words: { type: 'string', description: 'busqueda, notas: qué buscar.' },
+			from_day: { type: 'string', description: 'busqueda: desde qué día, AAAA-MM-DD.' },
+			to_day: { type: 'string', description: 'busqueda: hasta qué día, AAAA-MM-DD.' },
+			kind: { type: 'string', description: 'facturas: «Luz», «Agua» o «Gas».' },
+			day: { type: 'string', description: 'agenda: un día de la semana o del mes, AAAA-MM-DD.' },
+			month_view: { type: 'boolean', description: 'agenda: el mes entero en vez de la semana.' }
+		},
+		['page']
+	),
+	fn(
+		'show_spending_chart',
+		'Una gráfica de barras de lo gastado mes a mes, cada categoría en su color, hecha por Seilide con sus cifras: para comparar meses o ver en qué se va el dinero. Va en el chat; no repitas sus cifras una a una en el texto, comenta lo que se ve.',
+		{
+			from_month: { type: 'string', description: 'El primer mes, AAAA-MM.' },
+			to_month: { type: 'string', description: 'El último mes, AAAA-MM; como mucho, 24 meses.' },
+			title: { type: 'string', description: 'El título, corto: «Gastos de este año».' }
+		},
+		['from_month', 'to_month']
 	)
 ];
 
 function system(context: {
 	name: string;
 	style: string | null;
+	/** The section they are looking at, with the chat beside it (#504); none from Preguntar itself. */
+	section?: string | null;
 	toBuy: string[];
 	recipes: { id: number; title: string }[];
 }) {
@@ -131,15 +172,18 @@ function system(context: {
 	return `Eres el asistente de Seilide, la app de una familia, en su sección «Preguntar»: un chat por escrito con ${context.name}. Contesta en español de España, de tú, claro y sin rodeos.
 
 Cómo escribir:
-- Es un chat en el móvil: párrafos cortos. Sin títulos, negritas ni tablas (no se ven). Para enumerar, líneas que empiecen por «- ».
+- Es un chat en el móvil o en un panel estrecho al lado de la app: párrafos cortos. Sin títulos, negritas ni tablas (no se ven). Para enumerar, líneas que empiecen por «- ».
 - Lo que se puede hacer con un toque va en tarjetas, no en el texto:
   - Si hace falta comprar algo (ingredientes, utensilios para empezar), propónlo con «propose_shopping», en una sola tarjeta, y no repitas la lista en el texto. No propongas lo que ya está en la lista de la compra (abajo) ni lo que la persona ha dicho que tiene; si alguna de esas hace falta, dilo en una frase.
   - Una receta para hacer, con «propose_recipe», entera; no la escribas también en el texto. Ajústala a lo que ha dicho (su molde, su horno, cuántos son). Si está en el recetario (abajo), léela con «read_recipe» antes de hablar de ella.
+- Para enseñar algo que se ve mejor que con palabras: una gráfica de gastos («show_spending_chart») o la propia página de la sección ya filtrada («open_page»), que se abre en grande al lado del chat. Solo cuando ayuda; no las dos para lo mismo.
+- Los datos de la familia (agenda, gastos, notas, lo que recuerda la voz, reglas, viajes) no vienen en este mensaje: léelos con sus herramientas antes de contestar, y cruza varias si la pregunta lo pide. Las cifras y las fechas, solo las que te den las herramientas; si no hay datos, dilo. Di de qué días o meses hablas.
 - El texto acompaña a las tarjetas: por qué esas cosas, un consejo, qué viene después. Breve.
 - Lo que conviene «para más adelante» (no ahora), en el texto, en pocas líneas: no en la tarjeta de compra.
 - Nada se guarda sin que la persona lo toque: no digas que has añadido o guardado nada. Si después aparece en lo hablado que lo añadió o guardó, ya está hecho.
 ${context.style ? `- El carácter de la casa, solo el tono: «${context.style}».\n` : ''}
-Ahora es ${today}.
+Ahora es ${today} (${localDay()}).
+${context.section ? `\nEscribe desde el panel de Preguntar abierto al lado de la sección «${context.section}» de Seilide, que está mirando: si la pregunta no dice de qué habla, seguramente va de eso. Si es de una sección que tus herramientas no leen, dilo en una frase, sin inventar sus datos.\n` : ''}
 
 Lista de la compra de la familia, por comprar:
 ${context.toBuy.map((t) => `- ${t}`).join('\n') || '(vacía)'}
@@ -158,6 +202,8 @@ function cardLine(card: ChatCard) {
 					? `Añadió a la lista: ${card.added.join('; ')}.`
 					: 'No añadió nada.'
 		}]`;
+	if (card.kind === 'pagina') return `[Página abierta: ${card.label}]`;
+	if (card.kind === 'bloque') return `[Gráfica enseñada: ${describeBlock(card.block, euros)}]`;
 	return `[Tarjeta de receta${card.savedId ? `, guardada en el recetario (receta ${card.savedId})` : ', sin guardar'}:\n${describeRecipe(card.recipe, -1)}]`;
 }
 
@@ -211,8 +257,15 @@ export function shoppingItems(value: unknown): string[] {
 }
 
 /** A tool run: its result for the AI, and the card it makes, if any. */
-async function runTool(k: Kitchen, call: ToolCall): Promise<{ result: string; card?: ChatCard }> {
+async function runTool(
+	k: Kitchen,
+	userId: string,
+	call: ToolCall
+): Promise<{ result: string; card?: ChatCard }> {
 	const args = parseArgs(call);
+	// The sections' reads (#504): what the person may see of them.
+	if (isRead(call.function.name))
+		return { result: await runRead(k, userId, call.function.name, args) };
 	switch (call.function.name) {
 		case 'propose_shopping': {
 			const items = shoppingItems(args.items);
@@ -228,6 +281,23 @@ async function runTool(k: Kitchen, call: ToolCall): Promise<{ result: string; ca
 			return {
 				result: `Tarjeta de la receta «${recipe.title}» enseñada; la persona decide si la guarda o la cocina.`,
 				card: { kind: 'receta', recipe, savedId: null }
+			};
+		}
+		case 'open_page': {
+			const { page, ...filters } = args;
+			const opened = openPage(page, filters);
+			if (typeof opened === 'string') return { result: opened };
+			return {
+				result: `Abierta «${opened.label}»: la persona la ve en grande. No describas la página entera; di lo importante.`,
+				card: { kind: 'pagina', ...opened }
+			};
+		}
+		case 'show_spending_chart': {
+			const block = await spendingBars(k, args.from_month, args.to_month, args.title);
+			if (typeof block === 'string') return { result: block };
+			return {
+				result: `Gráfica enseñada. Lo que muestra:\n${describeBlock(block, euros)}`,
+				card: { kind: 'bloque', block }
 			};
 		}
 		case 'read_recipe': {
@@ -254,7 +324,9 @@ export class ChatError extends Error {}
 export async function askChat(
 	k: Kitchen,
 	who: { id: string; name: string },
-	question: string
+	question: string,
+	/** The section's name, when asked from the panel beside it (#504). */
+	section: string | null = null
 ): Promise<ChatMessage[]> {
 	const said = question.trim().slice(0, MAX_CHAT_QUESTION);
 	if (!said) throw new ChatError('Escribe algo');
@@ -271,7 +343,7 @@ export async function askChat(
 	const messages: ToolChatMessage[] = [
 		{
 			role: 'system',
-			content: system({ name: who.name, style: settings.style, toBuy: buying, recipes })
+			content: system({ name: who.name, style: settings.style, section, toBuy: buying, recipes })
 		},
 		...history.map((m): ToolChatMessage => ({ role: m.role, content: asText(m) || '(sin texto)' })),
 		{ role: 'user', content: said }
@@ -286,14 +358,14 @@ export async function askChat(
 				model: settings.conversationModel,
 				fallbackModel: FALLBACK_VOICE_MODEL,
 				messages,
-				tools: TOOLS,
+				tools: [...TOOLS, ...READ_TOOLS],
 				timeoutMs: TIMEOUT_MS
 			});
 			if (answer.content) text = answer.content.trim();
 			if (!answer.toolCalls.length) break;
 			messages.push({ role: 'assistant', content: answer.content, tool_calls: answer.toolCalls });
 			for (const call of answer.toolCalls) {
-				const { result, card } = await runTool(k, call);
+				const { result, card } = await runTool(k, who.id, call);
 				if (card) cards.push(card);
 				messages.push({ role: 'tool', tool_call_id: call.id, content: result });
 			}
