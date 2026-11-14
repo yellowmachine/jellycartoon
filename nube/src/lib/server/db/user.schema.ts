@@ -9,7 +9,7 @@ import { currentUser } from './family.schema.ts';
  */
 
 /** A policy for all of a table's commands: only this person's rows, read or written. */
-const userRows = (name: string, userId: unknown) =>
+export const userRows = (name: string, userId: unknown) =>
 	pgPolicy(name, {
 		for: 'all',
 		using: sql`${userId} = ${currentUser}`,

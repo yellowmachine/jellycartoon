@@ -13,6 +13,7 @@ import { learnPending, proposeRules, SUMMARY_AT, summarizeLearned } from '#lib/s
 import { hasBot, startBot } from '#lib/server/telegram/bot.ts';
 import { refreshAll, REFRESH_HOURS } from '#lib/server/podcasts/podcasts.ts';
 import { cleanupCopies } from '#lib/server/storage-move.ts';
+import { syncFamily } from '#lib/server/banks/bank.ts';
 
 /**
  * The cloud's own clock (#253): every few seconds, each family's alarms whose time has come; every
@@ -20,7 +21,7 @@ import { cleanupCopies } from '#lib/server/storage-move.ts';
  * what the voice learned that day and the rules it proposes (#331); each morning, whether its
  * OpenRouter key is about to expire; at midnight,
  * the fridges' «Hoy» and what the voice remembered until yesterday (#331); every few hours, its
- * podcasts' feeds. At startup, the families' Telegram bots. The families come from a function of
+ * podcasts' feeds; every hour, the payments of each one's bank (#502). At startup, the families' Telegram bots. The families come from a function of
  * the database's owner that gives only their ids (migration 0007): each is then looked at within
  * its own family, as everything else.
  */
@@ -55,6 +56,10 @@ export function startScheduler() {
 	const podcasts = () => void eachFamily('Podcasts', refreshAll);
 	setTimeout(podcasts, 5 * 60_000).unref();
 	setInterval(podcasts, REFRESH_HOURS * 60 * 60_000).unref();
+	// Dinero's bank (#502): what bunq's calls missed, every hour, a while after starting.
+	const banks = () => void eachFamily('Banco', syncFamily);
+	setTimeout(banks, 10 * 60_000).unref();
+	setInterval(banks, 60 * 60_000).unref();
 	let day = localDay();
 	let summarized = '';
 	let keysChecked = '';

@@ -230,7 +230,10 @@ export async function addExpense(
 			if (billInput) await writeBill(tx, k.familyId, row!.id, billInput);
 			return row!.id;
 		});
-		if (source !== 'fijo') ruleEvent(k, 'compra', input.store, userId, [], boughtOf(id, input));
+		// Not a fixed one's; a bank's payment (#502), by banks/bank.ts, only when just made: a whole
+		// year brought in at once would set off a rule for each.
+		if (source !== 'fijo' && source !== 'banco')
+			ruleEvent(k, 'compra', input.store, userId, [], boughtOf(id, input));
 		return id;
 	} catch (err) {
 		await removeReceipt(k, receipt);

@@ -1,12 +1,15 @@
 <script lang="ts">
 	/**
 	 * Dinero's views (#194): a month's expenses, what came in (#384), the analysis of several, the
-	 * bills' supplies (#232), a search by words and dates, the own tags (#459), and what the AI costs (#193).
+	 * bills' supplies (#232), a search by words and dates, the own tags (#459), what the AI costs (#193) and
+	 * each one's bank (#502).
 	 */
 	let {
 		current
-	}: { current: 'mes' | 'ingresos' | 'analisis' | 'facturas' | 'busqueda' | 'etiquetas' | 'ia' } =
-		$props();
+	}: {
+		current:
+			'mes' | 'ingresos' | 'analisis' | 'facturas' | 'busqueda' | 'etiquetas' | 'ia' | 'banco';
+	} = $props();
 
 	const TABS = [
 		{ id: 'mes', href: '/gastos', label: 'Gastos' },
@@ -15,7 +18,8 @@
 		{ id: 'facturas', href: '/gastos/facturas', label: 'Facturas' },
 		{ id: 'busqueda', href: '/gastos/busqueda', label: 'Búsqueda' },
 		{ id: 'etiquetas', href: '/gastos/etiquetas', label: 'Etiquetas' },
-		{ id: 'ia', href: '/gastos/ia', label: 'IA' }
+		{ id: 'ia', href: '/gastos/ia', label: 'IA' },
+		{ id: 'banco', href: '/gastos/banco', label: 'Banco' }
 	] as const;
 </script>
 

@@ -56,7 +56,7 @@ export type LineTag = (typeof LINE_TAGS)[number];
 
 export const isTag = (value: unknown): value is LineTag => LINE_TAGS.includes(value as LineTag);
 
-export type ExpenseSource = 'ticket' | 'factura' | 'voz' | 'mano' | 'fijo';
+export type ExpenseSource = 'ticket' | 'factura' | 'voz' | 'mano' | 'fijo' | 'banco';
 
 export interface ExpenseLine {
 	text: string;

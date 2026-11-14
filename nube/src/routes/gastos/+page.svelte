@@ -464,7 +464,9 @@
 		factura: '📄',
 		voz: '🎙',
 		mano: '✍',
-		fijo: '🔁'
+		fijo: '🔁',
+		// Brought in from the bank (#502).
+		banco: '💳'
 	};
 
 	/** A fixed one being written: new, or which. */

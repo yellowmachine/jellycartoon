@@ -610,6 +610,13 @@
       "when": 1794649255661,
       "tag": "0086_acoustic_titania",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1794669770866,
+      "tag": "0087_dry_hairball",
+      "breakpoints": true
     }
   ]
 }

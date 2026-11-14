@@ -48,7 +48,8 @@
 		factura: '📄',
 		voz: '🎙',
 		mano: '✍',
-		fijo: '🔁'
+		fijo: '🔁',
+		banco: '💳'
 	};
 
 	const field =

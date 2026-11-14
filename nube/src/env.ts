@@ -55,6 +55,11 @@ export const variables = defineEnvVars({
 			"What each night's copy of the VPS's apps (deploy/vps-backup.sh) shows to report how it went, for /admin: `openssl rand -hex 32`, the same in the VPS's /etc/vps-backup.env. Without it, no report is taken.",
 		schema: (value) => value || undefined
 	},
+	BUNQ_SANDBOX: {
+		description:
+			"`true`: Dinero's bank (#502) talks to bunq's sandbox (https://public-api.sandbox.bunq.com) instead of the real bunq, with a sandbox user's API key, to try it out. Its calls come from any address, so they are not checked.",
+		schema: (value) => value === 'true'
+	},
 	SMTP_HOST: {
 		description:
 			'The SMTP server the app sends its emails through (e.g. `smtp.protonmail.ch`). Without it, none is sent: only logged.',
