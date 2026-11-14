@@ -1,4 +1,5 @@
 <script lang="ts">
+	import GuideLink from '#lib/components/GuideLink.svelte';
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import WalkLock from './WalkLock.svelte';
 	import WalkShare from './WalkShare.svelte';
@@ -117,7 +118,7 @@
 	<title>Paseos · Seilide</title>
 </svelte:head>
 
-<h1 class="mb-1 text-2xl font-bold">Paseos</h1>
+<h1 class="mb-1 text-2xl font-bold">Paseos<GuideLink page="paseos" label="los paseos" /></h1>
 <p class="mb-6 text-sm text-zinc-400">Tiempo, km y recorrido al salir a andar, solo para ti.</p>
 
 <WalkUploads />

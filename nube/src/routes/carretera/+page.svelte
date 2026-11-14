@@ -2179,6 +2179,19 @@ home. -->
 									</select>
 								{/if}
 							</div>
+							<!-- Its page in the family's guide (#495), in another tab: parked, with time to read. -->
+							<a
+								href="https://docs.seilide.app/guia/carretera/"
+								target="_blank"
+								rel="noopener"
+								class={[tile, 'border-zinc-50/10 bg-zinc-900']}
+							>
+								<span class="text-4xl" aria-hidden="true">❓</span>
+								<span class="min-w-0">
+									<span class="block text-xl font-semibold">Cómo se usa</span>
+									<span class="block text-base text-zinc-400">La guía del modo carretera</span>
+								</span>
+							</a>
 							<!-- Whether this trip is kept: said, and where it is changed. -->
 							<p
 								class="rounded-2xl border-2 border-zinc-50/10 bg-zinc-900 p-3 text-lg text-zinc-300"

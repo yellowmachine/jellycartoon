@@ -1,4 +1,5 @@
 <script lang="ts">
+	import GuideLink from '#lib/components/GuideLink.svelte';
 	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
 	import PlacesMap from '#lib/components/PlacesMap.svelte';
@@ -59,7 +60,9 @@
 </script>
 
 <section class="{section} mt-6" id="coches">
-	<h2 class="mb-3 font-semibold">¿Dónde está el coche?</h2>
+	<h2 class="mb-3 font-semibold">
+		¿Dónde está el coche?<GuideLink page="coche" label="el coche" />
+	</h2>
 	<ul class="flex flex-col gap-4">
 		{#each sorted as c (c.id)}
 			<li>

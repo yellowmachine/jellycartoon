@@ -1,4 +1,5 @@
 <script lang="ts">
+	import GuideLink from '#lib/components/GuideLink.svelte';
 	import FridgeBoard from 'comun/components/FridgeBoard.svelte';
 	import type { FridgeState } from 'comun/fridge.ts';
 	import type { PageProps } from './$types';
@@ -18,7 +19,7 @@
 	<title>Nevera · Seilide</title>
 </svelte:head>
 
-<h1 class="mb-1 text-2xl font-bold">Nevera</h1>
+<h1 class="mb-1 text-2xl font-bold">Nevera<GuideLink page="nevera" label="la nevera" /></h1>
 <p class="mb-6 text-sm text-zinc-400">
 	Post-its para toda la familia, y la lista de la compra. Lo que apuntéis aquí lo ven los demás al
 	momento.

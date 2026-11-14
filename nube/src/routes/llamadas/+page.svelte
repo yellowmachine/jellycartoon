@@ -1,4 +1,5 @@
 <script lang="ts">
+	import GuideLink from '#lib/components/GuideLink.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import CallPanel from '#lib/components/CallPanel.svelte';
@@ -59,7 +60,9 @@
 </svelte:head>
 
 <div class="mx-auto max-w-2xl">
-	<h1 class="mb-4 text-2xl font-bold">Llamadas</h1>
+	<h1 class="mb-4 text-2xl font-bold">
+		Llamadas<GuideLink page="llamadas" label="las llamadas" />
+	</h1>
 
 	{#if phone.state !== 'idle'}
 		<div class="mb-8"><CallPanel /></div>
