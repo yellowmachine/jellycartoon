@@ -87,6 +87,22 @@ mock.module('#lib/server/recipes/import.ts', () => ({
 	}
 }));
 
+// The sections' reads (#504), faked: chat-reads.test.ts tests them; here, that the chat uses them.
+const reads: { userId: string; name: string; args: Record<string, unknown> }[] = [];
+mock.module('#lib/server/chat-reads.ts', () => ({
+	READ_TOOLS: [
+		{
+			type: 'function',
+			function: { name: 'read_spending', description: '', parameters: { type: 'object' } }
+		}
+	],
+	isRead: (name: string) => name === 'read_spending',
+	runRead: async (_k: Kitchen, userId: string, name: string, args: Record<string, unknown>) => {
+		reads.push({ userId, name, args });
+		return '2026-10: 412,30 € (Comida 300,00 €, Casa 112,30 €)';
+	}
+}));
+
 const chat = await import('./chat.ts');
 
 const ana = kitchen('A', 'ana');
@@ -242,7 +258,7 @@ test('it reads a saved recipe when asked, and stops after a few rounds of tools'
 		toolCalls: [call('read_recipe', { id: 7 }, `r${i}`)]
 	}));
 	const [, a] = await chat.askChat(ana, { id: 'ana', name: 'Ana' }, '¿Cómo hago las lentejas?');
-	expect(sent).toHaveLength(4);
+	expect(sent).toHaveLength(6);
 	expect(JSON.stringify(sent[1])).toContain('Cuécelas');
 	expect(a!.text).toContain('No sé qué contestar');
 });
@@ -252,4 +268,26 @@ test('from the panel beside a section (#504), the AI is told which one; from its
 	expect(sent[0]![0]!.content as string).toContain('al lado de la sección «Dinero»');
 	await chat.askChat(ana, { id: 'ana', name: 'Ana' }, 'Hola');
 	expect(sent[1]![0]!.content as string).not.toContain('al lado de la sección');
+});
+
+test('it reads a section (#504) as the person who asks, and answers with what it read', async () => {
+	answers = [
+		{
+			content: null,
+			toolCalls: [call('read_spending', { from_month: '2026-10', to_month: '2026-10' })]
+		},
+		{ content: 'En octubre, 412,30 €: sobre todo comida.', toolCalls: [] }
+	];
+	const [, a] = await chat.askChat(ana, { id: 'ana', name: 'Ana' }, '¿Cuánto gastamos en octubre?');
+	expect(reads).toEqual([
+		{ userId: 'ana', name: 'read_spending', args: { from_month: '2026-10', to_month: '2026-10' } }
+	]);
+	expect(sent[1]!.at(-1)).toMatchObject({
+		role: 'tool',
+		content: expect.stringContaining('412,30 €')
+	});
+	expect(a!.text).toBe('En octubre, 412,30 €: sobre todo comida.');
+	expect(a!.cards).toEqual([]);
+	// The AI is offered the reads, and told to read before it answers.
+	expect(sent[0]![0]!.content as string).toContain('léelos con sus herramientas');
 });

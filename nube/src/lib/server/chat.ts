@@ -18,6 +18,8 @@ import {
 	type ToolChatMessage
 } from '#lib/server/openrouter.ts';
 import { getRecipe, listRecipes, saveWrittenRecipe } from '#lib/server/recipes/import.ts';
+import { isRead, READ_TOOLS, runRead } from '#lib/server/chat-reads.ts';
+import { localDay } from 'comun/agenda.ts';
 import { FALLBACK_VOICE_MODEL, voiceSettings } from '#lib/server/voice/settings.ts';
 
 /**
@@ -29,8 +31,11 @@ import { FALLBACK_VOICE_MODEL, voiceSettings } from '#lib/server/voice/settings.
 
 /** The messages sent with each question: enough to follow the thread, not a whole month. */
 const HISTORY = 20;
-/** Rounds of tools at most: then what it said and the cards it made are the answer. */
-const MAX_ROUNDS = 4;
+/**
+ * Rounds of tools at most: then what it said and the cards it made are the answer. Crossing
+ * sections (#504) takes a few reads before the cards.
+ */
+const MAX_ROUNDS = 6;
 /** What the page shows, the latest. */
 const SHOWN = 200;
 /** A thinking model writing a whole recipe: the person is waiting, but reading, not listening. */
@@ -137,12 +142,13 @@ Cómo escribir:
 - Lo que se puede hacer con un toque va en tarjetas, no en el texto:
   - Si hace falta comprar algo (ingredientes, utensilios para empezar), propónlo con «propose_shopping», en una sola tarjeta, y no repitas la lista en el texto. No propongas lo que ya está en la lista de la compra (abajo) ni lo que la persona ha dicho que tiene; si alguna de esas hace falta, dilo en una frase.
   - Una receta para hacer, con «propose_recipe», entera; no la escribas también en el texto. Ajústala a lo que ha dicho (su molde, su horno, cuántos son). Si está en el recetario (abajo), léela con «read_recipe» antes de hablar de ella.
+- Los datos de la familia (agenda, gastos, notas, lo que recuerda la voz, reglas, viajes) no vienen en este mensaje: léelos con sus herramientas antes de contestar, y cruza varias si la pregunta lo pide. Las cifras y las fechas, solo las que te den las herramientas; si no hay datos, dilo. Di de qué días o meses hablas.
 - El texto acompaña a las tarjetas: por qué esas cosas, un consejo, qué viene después. Breve.
 - Lo que conviene «para más adelante» (no ahora), en el texto, en pocas líneas: no en la tarjeta de compra.
 - Nada se guarda sin que la persona lo toque: no digas que has añadido o guardado nada. Si después aparece en lo hablado que lo añadió o guardó, ya está hecho.
 ${context.style ? `- El carácter de la casa, solo el tono: «${context.style}».\n` : ''}
-Ahora es ${today}.
-${context.section ? `\nEscribe desde el panel de Preguntar abierto al lado de la sección «${context.section}» de Seilide, que está mirando: si la pregunta no dice de qué habla, seguramente va de eso. Si no puedes ver sus datos, dilo en una frase, sin inventarlos.\n` : ''}
+Ahora es ${today} (${localDay()}).
+${context.section ? `\nEscribe desde el panel de Preguntar abierto al lado de la sección «${context.section}» de Seilide, que está mirando: si la pregunta no dice de qué habla, seguramente va de eso. Si es de una sección que tus herramientas no leen, dilo en una frase, sin inventar sus datos.\n` : ''}
 
 Lista de la compra de la familia, por comprar:
 ${context.toBuy.map((t) => `- ${t}`).join('\n') || '(vacía)'}
@@ -214,8 +220,15 @@ export function shoppingItems(value: unknown): string[] {
 }
 
 /** A tool run: its result for the AI, and the card it makes, if any. */
-async function runTool(k: Kitchen, call: ToolCall): Promise<{ result: string; card?: ChatCard }> {
+async function runTool(
+	k: Kitchen,
+	userId: string,
+	call: ToolCall
+): Promise<{ result: string; card?: ChatCard }> {
 	const args = parseArgs(call);
+	// The sections' reads (#504): what the person may see of them.
+	if (isRead(call.function.name))
+		return { result: await runRead(k, userId, call.function.name, args) };
 	switch (call.function.name) {
 		case 'propose_shopping': {
 			const items = shoppingItems(args.items);
@@ -291,14 +304,14 @@ export async function askChat(
 				model: settings.conversationModel,
 				fallbackModel: FALLBACK_VOICE_MODEL,
 				messages,
-				tools: TOOLS,
+				tools: [...TOOLS, ...READ_TOOLS],
 				timeoutMs: TIMEOUT_MS
 			});
 			if (answer.content) text = answer.content.trim();
 			if (!answer.toolCalls.length) break;
 			messages.push({ role: 'assistant', content: answer.content, tool_calls: answer.toolCalls });
 			for (const call of answer.toolCalls) {
-				const { result, card } = await runTool(k, call);
+				const { result, card } = await runTool(k, who.id, call);
 				if (card) cards.push(card);
 				messages.push({ role: 'tool', tool_call_id: call.id, content: result });
 			}

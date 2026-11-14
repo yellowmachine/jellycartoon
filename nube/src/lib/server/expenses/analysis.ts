@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
 import { expense, expenseLine } from '#lib/server/db/schema.ts';
 import { addMonths } from 'comun/expenses.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
@@ -72,4 +72,24 @@ export async function expenseAnalysis(
 		}),
 		stores
 	};
+}
+
+/**
+ * What was spent by month and category between two months (both in), the fixed ones too: for
+ * «Preguntar» (#504), which crosses it with the rest. Only sums, as Análisis.
+ */
+export function expenseSums(k: Kitchen, from: string, to: string) {
+	return k.run((db) =>
+		db
+			.select({
+				month: monthOfDate,
+				category: expense.category,
+				total: sql<number>`sum(${expense.total})::int`,
+				count: sql<number>`count(*)::int`
+			})
+			.from(expense)
+			.where(and(gte(expense.date, `${from}-01`), lt(expense.date, `${addMonths(to, 1)}-01`)))
+			.groupBy(monthOfDate, expense.category)
+			.orderBy(monthOfDate, expense.category)
+	);
 }
