@@ -497,6 +497,24 @@
 							Llegan al Buzón y al móvil de los adultos de la familia.
 						</p>
 					</form>
+					{#if p.ip}
+						<!-- Who runs the family: the plug's own page, in the home's wifi. -->
+						<details class="mt-4 text-sm">
+							<summary class="cursor-pointer text-zinc-400">Avanzado</summary>
+							<p class="mt-2">
+								<a
+									href="http://{p.ip}/"
+									target="_blank"
+									rel="noopener noreferrer"
+									class="text-amber-400 hover:underline">Abrir el enchufe ({p.ip}) ↗</a
+								>
+							</p>
+							<p class="mt-1 text-xs text-zinc-500">
+								Su propia página, la del Shelly: solo desde la wifi de casa. Ahí se puede cambiar
+								todo, también desconectarlo de Seilide: mejor no tocar si no sabes qué es.
+							</p>
+						</details>
+					{/if}
 					<div class="mt-4 flex flex-wrap items-center gap-4 border-t border-zinc-800 pt-3">
 						<ConfirmForm
 							action="?/renew"

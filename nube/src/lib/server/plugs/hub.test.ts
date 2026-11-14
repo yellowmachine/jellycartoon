@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { createHub, PlugOffline, type HubDeps, type PlugSocket } from './hub.ts';
 import type { KeyPlug } from './plug-key-scope.ts';
-import { energyRise, hourOf, parseMessage, switchOf } from './shelly.ts';
+import { energyRise, hourOf, parseMessage, staIpOf, switchOf } from './shelly.ts';
 
 /**
  * The plugs' hub (#396) with a fake Shelly: frames as a Plug M Gen3 sent them on 2026-11-07.
@@ -51,6 +51,14 @@ describe('shelly', () => {
 		});
 		expect(parseMessage('no json')).toBeNull();
 		expect(parseMessage('{"method":"NotifyEvent","params":{}}')).toBeNull();
+	});
+
+	test('its address in the wifi, only an IPv4 one', () => {
+		expect(staIpOf({ sta_ip: '192.168.68.57', status: 'got ip' })).toBe('192.168.68.57');
+		expect(staIpOf({ sta_ip: null })).toBeNull();
+		expect(staIpOf({ sta_ip: '999.1.1.1' })).toBeNull();
+		expect(staIpOf({ sta_ip: 'http://evil/' })).toBeNull();
+		expect(staIpOf(null)).toBeNull();
 	});
 
 	test('energy rises, starts from where it stands, survives a reset', () => {
@@ -180,6 +188,17 @@ describe('hub', () => {
 			plugId: 'p1',
 			patch: { deviceId: 'shellyplugmg3-9070696e4874', model: 'S3PL-30110EU' }
 		});
+	});
+
+	test('asks its address in the wifi, and keeps it', async () => {
+		const { hub, saved } = setup();
+		const ws = new FakePlug();
+		ws.answer = (m) => (m === 'Wifi.GetStatus' ? { sta_ip: '192.168.68.57' } : {});
+		await hub.attach('tok', ws);
+		await tick();
+		await tick();
+		expect(ws.sent.map((f) => f.method)).toContain('Wifi.GetStatus');
+		expect(saved).toContainEqual({ plugId: 'p1', patch: { ip: '192.168.68.57' } });
 	});
 
 	test('orders go and their answers come back', async () => {
