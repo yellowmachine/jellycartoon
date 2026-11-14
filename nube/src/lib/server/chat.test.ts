@@ -246,3 +246,10 @@ test('it reads a saved recipe when asked, and stops after a few rounds of tools'
 	expect(JSON.stringify(sent[1])).toContain('Cuécelas');
 	expect(a!.text).toContain('No sé qué contestar');
 });
+
+test('from the panel beside a section (#504), the AI is told which one; from its page, none', async () => {
+	await chat.askChat(ana, { id: 'ana', name: 'Ana' }, '¿Y el mes pasado?', 'Dinero');
+	expect(sent[0]![0]!.content as string).toContain('al lado de la sección «Dinero»');
+	await chat.askChat(ana, { id: 'ana', name: 'Ana' }, 'Hola');
+	expect(sent[1]![0]!.content as string).not.toContain('al lado de la sección');
+});

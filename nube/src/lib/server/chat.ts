@@ -120,6 +120,8 @@ const TOOLS: Tool[] = [
 function system(context: {
 	name: string;
 	style: string | null;
+	/** The section they are looking at, with the chat beside it (#504); none from Preguntar itself. */
+	section?: string | null;
 	toBuy: string[];
 	recipes: { id: number; title: string }[];
 }) {
@@ -131,7 +133,7 @@ function system(context: {
 	return `Eres el asistente de Seilide, la app de una familia, en su sección «Preguntar»: un chat por escrito con ${context.name}. Contesta en español de España, de tú, claro y sin rodeos.
 
 Cómo escribir:
-- Es un chat en el móvil: párrafos cortos. Sin títulos, negritas ni tablas (no se ven). Para enumerar, líneas que empiecen por «- ».
+- Es un chat en el móvil o en un panel estrecho al lado de la app: párrafos cortos. Sin títulos, negritas ni tablas (no se ven). Para enumerar, líneas que empiecen por «- ».
 - Lo que se puede hacer con un toque va en tarjetas, no en el texto:
   - Si hace falta comprar algo (ingredientes, utensilios para empezar), propónlo con «propose_shopping», en una sola tarjeta, y no repitas la lista en el texto. No propongas lo que ya está en la lista de la compra (abajo) ni lo que la persona ha dicho que tiene; si alguna de esas hace falta, dilo en una frase.
   - Una receta para hacer, con «propose_recipe», entera; no la escribas también en el texto. Ajústala a lo que ha dicho (su molde, su horno, cuántos son). Si está en el recetario (abajo), léela con «read_recipe» antes de hablar de ella.
@@ -140,6 +142,7 @@ Cómo escribir:
 - Nada se guarda sin que la persona lo toque: no digas que has añadido o guardado nada. Si después aparece en lo hablado que lo añadió o guardó, ya está hecho.
 ${context.style ? `- El carácter de la casa, solo el tono: «${context.style}».\n` : ''}
 Ahora es ${today}.
+${context.section ? `\nEscribe desde el panel de Preguntar abierto al lado de la sección «${context.section}» de Seilide, que está mirando: si la pregunta no dice de qué habla, seguramente va de eso. Si no puedes ver sus datos, dilo en una frase, sin inventarlos.\n` : ''}
 
 Lista de la compra de la familia, por comprar:
 ${context.toBuy.map((t) => `- ${t}`).join('\n') || '(vacía)'}
@@ -254,7 +257,9 @@ export class ChatError extends Error {}
 export async function askChat(
 	k: Kitchen,
 	who: { id: string; name: string },
-	question: string
+	question: string,
+	/** The section's name, when asked from the panel beside it (#504). */
+	section: string | null = null
 ): Promise<ChatMessage[]> {
 	const said = question.trim().slice(0, MAX_CHAT_QUESTION);
 	if (!said) throw new ChatError('Escribe algo');
@@ -271,7 +276,7 @@ export async function askChat(
 	const messages: ToolChatMessage[] = [
 		{
 			role: 'system',
-			content: system({ name: who.name, style: settings.style, toBuy: buying, recipes })
+			content: system({ name: who.name, style: settings.style, section, toBuy: buying, recipes })
 		},
 		...history.map((m): ToolChatMessage => ({ role: m.role, content: asText(m) || '(sin texto)' })),
 		{ role: 'user', content: said }

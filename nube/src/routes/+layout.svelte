@@ -20,6 +20,8 @@
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import Caracol from '#lib/components/Caracol.svelte';
 	import CallButton from '#lib/components/CallButton.svelte';
+	import ChatPanel from '#lib/components/ChatPanel.svelte';
+	import { chatPanel } from '#lib/chat-panel.svelte.ts';
 	import { inKitchen, kitchenMode } from '#lib/kitchen-mode.svelte.ts';
 	import { wakeWord } from '#lib/wake-word.svelte.ts';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
@@ -88,6 +90,13 @@
 	 * Installed, the app has no browser buttons («standalone» in the manifest), and an iPhone no back
 	 * gesture either: its own arrow in the bar, but on the home page.
 	 */
+	/**
+	 * «Preguntar» beside any page (#504), on a wide screen: for whoever has it in their bar (not the
+	 * children, nor with the section off). Not on its own page, which is the same chat.
+	 */
+	const chatOn = $derived(nav.menuLinks.some((l) => l.href === '/preguntar'));
+	const chatShown = $derived(chatOn && chatPanel.open && page.url.pathname !== '/preguntar');
+
 	const installed = new MediaQuery('(display-mode: standalone)', false);
 	const backShown = $derived(installed.current && page.url.pathname !== '/');
 
@@ -260,7 +269,8 @@ trip's link (#81), for whoever has it, and a shared walk's (#434), with its own 
 {:else if kitchenShown}
 	<KitchenScreen>{@render children()}</KitchenScreen>
 {:else}
-	<div style:--header-h="{headerHeight}px">
+	<!-- With the chat's panel, the whole page (its bar too) leaves it the room on the right. -->
+	<div style:--header-h="{headerHeight}px" class={[chatShown && 'lg:pr-96']}>
 		{#if data.user}
 			<SiteNav
 				bind:headerHeight
@@ -359,6 +369,22 @@ trip's link (#81), for whoever has it, and a shared walk's (#434), with its own 
 							>
 								<SectionIcon name="recetas" class="h-6 w-6" />
 							</button>
+							<!-- «Preguntar» on the right of the page (#504): only where it fits; elsewhere, and on
+							     its own page, its section in the bar. -->
+							{#if chatOn && page.url.pathname !== '/preguntar'}
+								<button
+									title={chatShown ? 'Cerrar Preguntar' : 'Preguntar, al lado de esta página'}
+									aria-label="Preguntar al lado"
+									aria-pressed={chatShown}
+									class={[
+										'hidden shrink-0 rounded-md p-1 hover:bg-zinc-800 hover:text-white lg:block',
+										chatShown ? 'text-amber-400' : 'text-zinc-400'
+									]}
+									onclick={() => chatPanel.toggle()}
+								>
+									<SectionIcon name="preguntar" class="h-6 w-6" />
+								</button>
+							{/if}
 							<!-- A receipt's photo for Gastos (#194), at once: on phones and tablets, with their camera; a
 					     PC has the button in Gastos. The photo is read there. As at home. -->
 							{#if data.receipts}
@@ -453,7 +479,11 @@ trip's link (#81), for whoever has it, and a shared walk's (#434), with its own 
 		</main>
 	</div>
 
+	{#if chatShown}
+		<ChatPanel />
+	{/if}
+
 	{#if callButtonShown && data.callButton}
-		<CallButton favorites={data.callButton.favorites} />
+		<CallButton favorites={data.callButton.favorites} beside={chatShown} />
 	{/if}
 {/if}

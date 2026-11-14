@@ -14,7 +14,14 @@
 	 * faces together; none, the handset alone. During a call, the other's face with a cream line
 	 * going round it, and the talk's clock.
 	 */
-	let { favorites }: { favorites: { userId: string; name: string }[] } = $props();
+	let {
+		favorites,
+		beside = false
+	}: {
+		favorites: { userId: string; name: string }[];
+		/** With «Preguntar»'s panel open on the right (#504): at the page's corner, not over it. */
+		beside?: boolean;
+	} = $props();
 
 	const only = $derived(favorites.length === 1 ? favorites[0] : null);
 	const label = $derived(
@@ -63,7 +70,10 @@
 	title={label}
 	onclick={press}
 	style:bottom="max(1rem, env(safe-area-inset-bottom))"
-	class="group fixed right-4 z-40 flex max-w-[calc(100vw-2rem)] cursor-pointer flex-col items-center gap-1.5 rounded-2xl focus-visible:outline-offset-4"
+	class={[
+		'group fixed right-4 z-40 flex max-w-[calc(100vw-2rem)] cursor-pointer flex-col items-center gap-1.5 rounded-2xl focus-visible:outline-offset-4',
+		beside && 'lg:right-[25rem]'
+	]}
 >
 	<span class="relative flex">
 		<!-- An amber handset at the corner: what a tap does. -->
