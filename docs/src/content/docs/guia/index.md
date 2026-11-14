@@ -18,6 +18,8 @@ en la tuya saldrán vuestras cosas.
   todos, que se tacha sola al guardar el ticket.
 - **[Recetas y modo cocina](/guia/recetas/):** el recetario de la familia y cocinar paso a paso, con
   temporizadores y la voz.
+- **[Hablarle a la voz](/guia/voz/):** pedirle cosas hablando, lo que recuerda y las reglas que
+  avisan solas.
 - **[El modo carretera](/guia/carretera/):** la radio, la música y los podcasts en el coche, con
   botones grandes y la voz.
 - **[Escuchar la música de casa](/guia/musica/):** los discos de casa en el móvil, también fuera y

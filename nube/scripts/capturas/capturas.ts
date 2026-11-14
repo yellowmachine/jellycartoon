@@ -66,6 +66,8 @@ const SHOTS: { name: string; path: string; to: (keyof typeof PLACES)[]; steps?: 
 	{ name: 'musica-listas', path: '/musica/listas', to: ['guia'] },
 	{ name: 'recetas', path: '/recetas', to: ['guia'] },
 	{ name: 'receta', path: '/recetas/1', to: ['guia'] },
+	{ name: 'voz', path: '/voz', to: ['guia'] },
+	{ name: 'reglas', path: '/reglas', to: ['guia'] },
 	{ name: 'nevera', path: '/nevera', to: ['guia'] },
 	{
 		name: 'nevera-lista',
