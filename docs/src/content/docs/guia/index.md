@@ -24,6 +24,11 @@ en la tuya saldrán vuestras cosas.
   botones grandes y la voz.
 - **[Escuchar la música de casa](/guia/musica/):** los discos de casa en el móvil, también fuera y
   sin cobertura.
+- **[Salir a andar](/guia/paseos/):** tiempo, km y recorrido de cada paseo, con fotos y notas de
+  voz.
+- **[Llamar a la familia](/guia/llamadas/):** llamadas por internet entre los mayores, también con
+  los abuelos.
+- **[¿Dónde está el coche?](/guia/coche/):** dónde se aparcó cada coche y cómo llegar andando.
 
 ## Instalarla en el móvil
 

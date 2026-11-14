@@ -68,6 +68,10 @@ const SHOTS: { name: string; path: string; to: (keyof typeof PLACES)[]; steps?: 
 	{ name: 'receta', path: '/recetas/1', to: ['guia'] },
 	{ name: 'voz', path: '/voz', to: ['guia'] },
 	{ name: 'reglas', path: '/reglas', to: ['guia'] },
+	{ name: 'paseos', path: '/paseos', to: ['guia'] },
+	{ name: 'llamadas', path: '/llamadas', to: ['guia'] },
+	// Without «Primeros pasos» (hidden as Ana would): the car's card first.
+	{ name: 'inicio-coche', path: '/', to: ['guia'], steps: `await tap('Ocultar');` },
 	{ name: 'nevera', path: '/nevera', to: ['guia'] },
 	{
 		name: 'nevera-lista',

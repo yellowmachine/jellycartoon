@@ -1,0 +1,58 @@
+---
+title: 'Salir a andar'
+description: En Paseos, el tiempo, los km y el recorrido de cada paseo, con avisos por voz, un objetivo, fotos y notas de voz, y compartirlo si quieres.
+---
+
+import Capturas from '../../../components/Capturas.astro';
+import paseos from '../../../assets/guia/paseos.webp';
+
+En **Paseos** se apunta cada vez que sales a andar: el tiempo, los km, el ritmo y el recorrido en
+el mapa. Tus paseos solo los ves tú.
+
+<Capturas
+	shots={[
+		{
+			src: paseos,
+			alt: 'Paseos: «Avisos por voz» y «Objetivo», el botón Empezar, lo andado esta semana y este mes, y dos paseos con sus km, minutos y ritmo',
+			caption: 'Antes de salir, y tus paseos'
+		}
+	]}
+/>
+
+## Salir a andar
+
+1. Si quieres, elige **Avisos por voz** (cada km, cada 5 o cada 10 minutos) y un **Objetivo** (unos
+   minutos o unos km). Con objetivo, te avisa a mitad, para dar la vuelta, y al llegar.
+2. Toca **Empezar**. Espera un momento a que encuentre el GPS.
+3. Toca **🔒 Bloquear pantalla** y guárdate el móvil en el bolsillo.
+4. Al volver, desbloquéala manteniendo pulsado 2 segundos y toca **Terminar**.
+
+:::caution[Con el botón de encendido se para]
+Si apagas la pantalla con el botón de encendido o cambias de app, el móvil deja de dar el GPS y
+esos minutos no se miden. Por eso **Bloquear pantalla**: la deja en negro pero encendida. Baja antes
+el brillo, porque gasta batería.
+:::
+
+## Fotos y notas por el camino
+
+- **📷 Foto**: queda en el mapa, donde la hiciste, y se guarda también en el móvil, en Descargas.
+- **Nota de voz**: graba lo que digas («idea para el huerto») y queda en **Notas**, con su texto.
+
+Si al terminar no hay cobertura, el paseo espera en el móvil y se envía después con **Enviar**.
+
+## Tus paseos
+
+Arriba, lo andado **esta semana** y **este mes**. Debajo, cada paseo: al tocarlo se abre su
+recorrido en el mapa, con sus fotos. **Borrar** lo quita con sus fotos (las notas se quedan).
+
+## Compartir un paseo
+
+En un paseo abierto, **Compartir** crea un enlace para mandarlo, por ejemplo por WhatsApp:
+
+- **Para quién**: un nombre para acordarte tú («Grupo del cole»); quien lo recibe no lo ve.
+- **Sin el principio ni el final**: quita unos 250 m alrededor de donde empezaste y acabaste, que
+  suele ser casa, y las fotos de ahí.
+- **Fotos**: toca las que no quieras mandar.
+
+Quien abre el enlace ve el paseo sin necesidad de cuenta. En **Mis paseos compartidos** están todos
+los enlaces, y **Retirar** deja de enseñarlo.

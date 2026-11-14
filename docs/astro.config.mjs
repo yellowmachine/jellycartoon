@@ -41,7 +41,19 @@ const seilide = [
 	'carretera',
 	'privacidad-gastos'
 ];
-const guia = ['', 'dinero', 'agenda', 'nevera', 'recetas', 'voz', 'carretera', 'musica'];
+const guia = [
+	'',
+	'dinero',
+	'agenda',
+	'nevera',
+	'recetas',
+	'voz',
+	'carretera',
+	'musica',
+	'paseos',
+	'llamadas',
+	'coche'
+];
 const pages = (base, slugs) => slugs.map((s) => (s ? `${base}/${s}` : base));
 
 export default defineConfig({

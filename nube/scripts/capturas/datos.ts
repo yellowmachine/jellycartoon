@@ -237,6 +237,45 @@ try {
 			values (${family}, ${title}, ${servings}, ${sql.json([...ingredients])}, ${sql.json(steps as never)},
 				${`https://recetas.ejemplo.es/${slug}`}, 'Recetas de ejemplo', ${userId})`;
 
+	// Another adult with an account, Javier, to call (Llamadas); no password: never signs in.
+	const javier = 'capturas-javier';
+	await sql`
+		insert into "user" (id, name, email, email_verified, created_at, updated_at)
+		values (${javier}, 'Javier', 'javier@ejemplo.es', true, now(), now())`;
+	await sql`
+		insert into family_member (user_id, family_id, role) values (${javier}, ${family}, 'member')`;
+	await sql`
+		insert into family_person (family_id, name, avatar, user_id)
+		values (${family}, 'Javier', 'panda', ${javier})`;
+
+	// Paseos: two of Ana's, this week, a loop in the Retiro and one along the river.
+	const loop = (lon: number, lat: number, r: number, n: number, start: number) =>
+		Array.from({ length: n + 1 }, (_, i): [number, number, number] => {
+			const a = (i / n) * 2 * Math.PI;
+			return [lon + r * 1.3 * Math.cos(a), lat + r * Math.sin(a), start + i * 20];
+		});
+	for (const [daysAgo, minutes, metres, lon, lat] of [
+		[1, 42, 3650, -3.6835, 40.4153],
+		[3, 31, 2700, -3.7203, 40.4005]
+	] as const) {
+		const start = new Date();
+		start.setDate(start.getDate() - daysAgo);
+		start.setHours(19, 10, 0, 0);
+		const end = new Date(start.getTime() + minutes * 60_000);
+		const line = loop(lon, lat, 0.004, (minutes * 60) / 20, Math.floor(start.getTime() / 1000));
+		await sql`
+			insert into walk (family_id, user_id, started_at, ended_at, distance, points, line, diagnosis)
+			values (${family}, ${userId}, ${start}, ${end}, ${metres}, ${line.length}, ${sql.json(line)},
+				${sql.json({ fixes: line.length, hiddenFixes: 0, musicFixes: 0, hiddenSeconds: 0, gaps: [] })})`;
+	}
+
+	// Coches: the family's, Ana's, parked an hour ago near home with a note.
+	const [car] = await sql`
+		insert into car (family_id, name, lon, lat, accuracy, parked_at, parked_by, note)
+		values (${family}, 'El Seat', -3.7012, 40.4189, 8, now() - interval '1 hour', ${userId},
+			'Planta -2, plaza 47') returning id`;
+	await sql`insert into car_driver (family_id, user_id, car_id) values (${family}, ${userId}, ${car!.id})`;
+
 	console.log(`[datos] familia de ejemplo lista (${family})`);
 } finally {
 	await sql.end();
