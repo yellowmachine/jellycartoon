@@ -103,10 +103,10 @@
 </script>
 
 <svelte:head>
-	<title>Consumo · Enchufes · Seilide</title>
+	<title>Consumo · Energía · Seilide</title>
 </svelte:head>
 
-<h1 class="mb-3 text-2xl font-bold">Enchufes</h1>
+<h1 class="mb-3 text-2xl font-bold">Energía</h1>
 <EnchufesTabs current="consumo" />
 
 {#if !s.plugs.length}

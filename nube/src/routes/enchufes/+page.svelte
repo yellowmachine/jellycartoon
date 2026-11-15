@@ -95,10 +95,10 @@
 </script>
 
 <svelte:head>
-	<title>Enchufes · Seilide</title>
+	<title>Enchufes · Energía · Seilide</title>
 </svelte:head>
 
-<h1 class="mb-3 text-2xl font-bold">Enchufes</h1>
+<h1 class="mb-3 text-2xl font-bold">Energía</h1>
 <EnchufesTabs current="enchufes" />
 <p class="mb-6 text-sm text-zinc-400">
 	Enciende y apaga los aparatos desde donde estés, y mira cuánto gastan. Funciona con enchufes

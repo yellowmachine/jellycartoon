@@ -115,11 +115,11 @@ test('what cannot be read is said', async () => {
 			from_day: '2025-12-30',
 			to_day: '2025-12-31'
 		})
-	).toBe('Esos días aún no había «Radiador del salón» en Enchufes.');
+	).toBe('Esos días aún no había «Radiador del salón» en Energía.');
 	expect(
 		await describePlugEnergy(kitchen('A'), { from_day: '2026-01-01', to_day: '2026-06-01' })
 	).toContain('Como mucho 92 días');
 	expect(await describePlugEnergy(kitchen('C'), { from_day: '2026-01-01' })).toBe(
-		'La familia no tiene enchufes en Enchufes.'
+		'La familia no tiene enchufes en Energía.'
 	);
 });

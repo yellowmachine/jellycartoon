@@ -105,7 +105,7 @@ export async function switchByVoice(
 	const within = minutesOf(args.in_minutes);
 	if (during === 'bad' || within === 'bad' || (during && within))
 		return {
-			result: `Un rato es de 1 a ${MAX_TIMED_MIN} minutos, «durante» o «dentro de», uno solo. Para más, un horario en Enchufes.`,
+			result: `Un rato es de 1 a ${MAX_TIMED_MIN} minutos, «durante» o «dentro de», uno solo. Para más, un horario en Energía.`,
 			done: false
 		};
 	const verb = (v: boolean) => (v ? 'encender' : 'apagar');
@@ -118,12 +118,12 @@ export async function switchByVoice(
 		const done = await switchIn(k, p.id, within ? !on : on, minutes ? minutes * 60 : undefined);
 		if (done === 'locked')
 			return {
-				result: `${p.name} tiene el candado puesto para no apagarlo sin querer: se quita desde Enchufes, por voz no se enciende ni se apaga.`,
+				result: `${p.name} tiene el candado puesto para no apagarlo sin querer: se quita desde Energía, por voz no se enciende ni se apaga.`,
 				done: false
 			};
 		if (done === 'paused')
 			return {
-				result: `${p.name} está en pausa: se quita desde Enchufes, no se enciende así.`,
+				result: `${p.name} está en pausa: se quita desde Energía, no se enciende así.`,
 				done: false
 			};
 		if (done === 'heating')

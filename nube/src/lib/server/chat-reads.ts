@@ -122,7 +122,7 @@ export const READ_TOOLS: Tool[] = [
 	),
 	fn(
 		'read_plug_energy',
-		`Lo que gastaron los enchufes de la familia (Enchufes), día a día: kWh y euros, de uno por su nombre o de todos, con el total. Para «¿cuánto gastó el termo esta semana?» o, junto con read_weather, «¿el radiador gastó más los días fríos?». Como mucho ${ENERGY_DAYS} días por llamada.`,
+		`Lo que gastaron los enchufes de la familia (Energía → Enchufes), día a día: kWh y euros, de uno por su nombre o de todos, con el total. Para «¿cuánto gastó el termo esta semana?» o, junto con read_weather, «¿el radiador gastó más los días fríos?». Como mucho ${ENERGY_DAYS} días por llamada.`,
 		{
 			plug: {
 				type: 'string',

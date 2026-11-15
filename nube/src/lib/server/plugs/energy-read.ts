@@ -43,7 +43,7 @@ export async function describePlugEnergy(k: Kitchen, args: Record<string, unknow
 			.select({ id: plug.id, name: plug.name, createdAt: plug.createdAt })
 			.from(plug)
 			.orderBy(asc(plug.createdAt));
-		if (!plugs.length) return 'La familia no tiene enchufes en Enchufes.';
+		if (!plugs.length) return 'La familia no tiene enchufes en Energía.';
 		const asked = typeof args.plug === 'string' ? plain(args.plug.trim()) : '';
 		const chosen = asked ? plugs.filter((p) => plain(p.name).includes(asked)) : plugs;
 		if (!chosen.length)
@@ -84,7 +84,7 @@ export async function describePlugEnergy(k: Kitchen, args: Record<string, unknow
 		const several = chosen.length > 1;
 		const money = (eur: number) => (price ? `, ${euroText(eur)}` : '');
 		const lines = [
-			`Consumo de ${several ? `los enchufes (${chosen.map((p) => p.name).join(', ')})` : `«${chosen[0]!.name}»`} del ${first} al ${last}, día a día${price ? ` (euros al precio de Enchufes, ${price.source === 'mano' ? 'puesto a mano' : 'de la última factura de la luz'})` : ' (sin precio del kWh: ni puesto en Enchufes ni de una factura de la luz)'}:`
+			`Consumo de ${several ? `los enchufes (${chosen.map((p) => p.name).join(', ')})` : `«${chosen[0]!.name}»`} del ${first} al ${last}, día a día${price ? ` (euros al precio de Energía, ${price.source === 'mano' ? 'puesto a mano' : 'de la última factura de la luz'})` : ' (sin precio del kWh: ni puesto en Energía ni de una factura de la luz)'}:`
 		];
 		for (let day = first; day <= last; day = addDays(day, 1)) {
 			const d = byDay.get(day);
@@ -103,7 +103,7 @@ export async function describePlugEnergy(k: Kitchen, args: Record<string, unknow
 			lines.push(`${day}: ${energyText(d.wh)}${money(d.euros)}${parts}`);
 		}
 		if (lines.length === 1)
-			return `Esos días aún no había ${several ? 'enchufes' : `«${chosen[0]!.name}»`} en Enchufes.`;
+			return `Esos días aún no había ${several ? 'enchufes' : `«${chosen[0]!.name}»`} en Energía.`;
 		const total = [...byPlug.values()].reduce(
 			(s, p) => ({ wh: s.wh + p.wh, euros: s.euros + p.euros }),
 			{ wh: 0, euros: 0 }
