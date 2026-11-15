@@ -274,6 +274,17 @@ test('messages over 30 days old go each night, only that family’s; the recent 
 	expect(await chat.chatHistory(other, 'otro')).toHaveLength(2);
 });
 
+test('the AI reads only the last two hours of the chat; the person sees it all', async () => {
+	answers = ['De ayer.', 'De ahora.', 'Vale.'].map((content) => ({ content, toolCalls: [] }));
+	await chat.askChat(ana, { id: 'ana', name: 'Ana' }, 'Ayer en Gastos');
+	await db.execute(sql`update chat_message set created_at = now() - interval '3 hours'`);
+	await chat.askChat(ana, { id: 'ana', name: 'Ana' }, 'Hace un rato');
+	sent.length = 0;
+	await chat.askChat(ana, { id: 'ana', name: 'Ana' }, 'Ahora');
+	expect(sent[0]!.slice(1).map((m) => m.content)).toEqual(['Hace un rato', 'De ahora.', 'Ahora']);
+	expect(await chat.chatHistory(ana, 'ana')).toHaveLength(6);
+});
+
 test('a failure saves nothing, in our words; an empty question is refused', async () => {
 	fails = 'No queda saldo en OpenRouter';
 	await expect(chat.askChat(ana, { id: 'ana', name: 'Ana' }, 'Hola')).rejects.toThrow(

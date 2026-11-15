@@ -55,6 +55,25 @@ export interface ChatMessage {
 	createdAt: Date;
 }
 
+/** The messages sent with each question: enough to follow the thread, not a whole month. */
+export const CHAT_HISTORY = 20;
+/**
+ * Of those, only the last hours': one conversation for every page, and a question today is not
+ * read in the light of yesterday's in another section. The person still sees the whole month.
+ */
+export const CHAT_CONTEXT_MS = 2 * 60 * 60_000;
+
+/**
+ * Where the AI starts reading the chat at `now`: the index of the first message it is sent with
+ * the next question (the last CHAT_HISTORY, of the last CHAT_CONTEXT_MS). Its length, none.
+ */
+export function firstRead(messages: Pick<ChatMessage, 'createdAt'>[], now = Date.now()) {
+	let i = Math.max(0, messages.length - CHAT_HISTORY);
+	while (i < messages.length && now - new Date(messages[i]!.createdAt).getTime() >= CHAT_CONTEXT_MS)
+		i++;
+	return i;
+}
+
 /** A question, not a letter. */
 export const MAX_CHAT_QUESTION = 2_000;
 /** Items in a card: more than this is not a list to tick. */

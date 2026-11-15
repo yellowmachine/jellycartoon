@@ -6,7 +6,7 @@
 	import Caracol from '#lib/components/Caracol.svelte';
 	import ChatRecipeCard from '#lib/components/ChatRecipeCard.svelte';
 	import ShoppingCard from '#lib/components/ShoppingCard.svelte';
-	import { MAX_CHAT_QUESTION, type ChatMessage } from '#lib/chat.ts';
+	import { firstRead, MAX_CHAT_QUESTION, type ChatMessage } from '#lib/chat.ts';
 
 	/**
 	 * «Preguntar» (#470): a chat with the family's AI, each person their own. Its answers bring cards
@@ -56,6 +56,17 @@
 		void pending;
 		void toBottom();
 	});
+
+	/**
+	 * What the AI no longer reads (over 2 hours, or before its last 20): dimmed above a line. The
+	 * clock moves it every minute, and each question sent.
+	 */
+	let now = $state(Date.now());
+	$effect(() => {
+		const id = setInterval(() => (now = Date.now()), 60_000);
+		return () => clearInterval(id);
+	});
+	const cut = $derived(firstRead(messages, now));
 
 	const time = new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit' });
 
@@ -146,8 +157,15 @@
 		{/if}
 
 		<ol class={['flex flex-col gap-4', compact && 'text-sm']}>
-			{#each messages as m (m.id)}
-				<li class={m.role === 'user' ? 'flex justify-end' : ''}>
+			{#each messages as m, n (m.id)}
+				{#if n === cut && n > 0}
+					<li role="separator" class="flex items-center gap-2 text-xs text-zinc-500">
+						<span class="h-px flex-1 bg-zinc-800"></span>
+						Lo de arriba ya no lo tiene en cuenta la IA
+						<span class="h-px flex-1 bg-zinc-800"></span>
+					</li>
+				{/if}
+				<li class={[m.role === 'user' && 'flex justify-end', n < cut && 'opacity-50']}>
 					{#if m.role === 'user'}
 						<div
 							class="max-w-[85%] rounded-2xl rounded-br-sm bg-amber-500/15 px-3 py-2 whitespace-pre-line text-zinc-100"
@@ -216,6 +234,13 @@
 					{/if}
 				</li>
 			{/each}
+			{#if messages.length && cut === messages.length}
+				<li role="separator" class="flex items-center gap-2 text-xs text-zinc-500">
+					<span class="h-px flex-1 bg-zinc-800"></span>
+					La IA empieza de cero: lo de arriba es solo para ti
+					<span class="h-px flex-1 bg-zinc-800"></span>
+				</li>
+			{/if}
 			{#if pending}
 				<li class="flex justify-end">
 					<div
@@ -250,6 +275,7 @@
 				// Not update(): from another page it would take there (Kit 3).
 				return async ({ result }) => {
 					pending = null;
+					now = Date.now();
 					if (result.type === 'success' && Array.isArray(result.data?.messages)) {
 						const added = result.data.messages as ChatMessage[];
 						messages = [...messages, ...added];
