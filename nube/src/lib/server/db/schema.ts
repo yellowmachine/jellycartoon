@@ -29,3 +29,4 @@ export * from './companion.schema.ts';
 export * from './chat.schema.ts';
 export * from './storage.schema.ts';
 export * from './banks.schema.ts';
+export * from './fuel.schema.ts';

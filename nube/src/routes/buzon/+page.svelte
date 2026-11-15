@@ -29,7 +29,10 @@
 		regla: 'Regla',
 		propuesta: 'Propuesta',
 		aprendido: 'Lo aprendido',
-		ia: 'La IA'
+		ia: 'La IA',
+		enchufe: 'Enchufes',
+		espacio: 'Espacio',
+		energia: 'Energía'
 	};
 </script>
 
