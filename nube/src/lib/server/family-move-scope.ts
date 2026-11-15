@@ -10,6 +10,7 @@ import {
 	car,
 	carDriver,
 	chatMessage,
+	report,
 	family,
 	familyMember,
 	familyPerson,
@@ -78,6 +79,7 @@ export const MOVED_IN_ORDER = [
 	'heard',
 	'inbox',
 	'chat_message',
+	'report',
 	'push_subscription',
 	'medication',
 	'medication_dose',
@@ -175,6 +177,7 @@ async function pick(tx: AnyDb, userId: string): Promise<Picked> {
 	moved.set('heard', await mine(heard, heard.userId));
 	moved.set('inbox', await mine(inbox, inbox.userId));
 	moved.set('chat_message', await mine(chatMessage, chatMessage.userId));
+	moved.set('report', await mine(report, report.userId));
 	moved.set('push_subscription', await mine(pushSubscription, pushSubscription.userId));
 	moved.set('podcast_subscription', await mine(podcastSubscription, podcastSubscription.userId));
 	moved.set('podcast_progress', await mine(podcastProgress, podcastProgress.userId));
@@ -621,6 +624,7 @@ async function move(
 	await write(heard, of('heard'));
 	await write(inbox, of('inbox'), (r) => ({ fromUserId: onlyMine(r.fromUserId, userId) }));
 	await write(chatMessage, of('chat_message'));
+	await write(report, of('report'));
 	await write(pushSubscription, of('push_subscription'));
 	await write(medication, of('medication'), (r) => ({
 		personId,

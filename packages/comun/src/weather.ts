@@ -6,6 +6,8 @@
 
 const GEOCODING_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
+/** The forecasts as they were, kept since 2022: the weather of days gone (a trip's report, #505). */
+const PAST_URL = 'https://historical-forecast-api.open-meteo.com/v1/forecast';
 const TIMEOUT_MS = 10_000;
 /** A week ahead, as the voice is asked «¿y el sábado?». */
 const DAYS = 7;
@@ -273,3 +275,49 @@ export async function hoursAhead(lat: number, lon: number, hours: number): Promi
 
 /** Snow, by its WMO codes (as Open-Meteo gives them): snowfall, grains and showers. */
 export const isSnow = (code: number) => (code >= 71 && code <= 77) || code === 85 || code === 86;
+
+/** One day gone: its sky, lowest and highest, and rain (mm). */
+export interface DayWeather {
+	day: string;
+	code: number;
+	sky: string;
+	min: number;
+	max: number;
+	rain: number;
+}
+
+/**
+ * The weather it was at `lat`, `lon` from `from` to `to` (`YYYY-MM-DD`, both included), day by day:
+ * Open-Meteo's forecasts as they were (its Historical Forecast API, from 2022).
+ */
+export async function pastWeather(
+	lat: number,
+	lon: number,
+	from: string,
+	to: string
+): Promise<DayWeather[]> {
+	const url = new URL(PAST_URL);
+	url.searchParams.set('latitude', String(lat));
+	url.searchParams.set('longitude', String(lon));
+	url.searchParams.set(
+		'daily',
+		'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum'
+	);
+	url.searchParams.set('timezone', TIME_ZONE);
+	url.searchParams.set('start_date', from);
+	url.searchParams.set('end_date', to);
+	const d = (await getJson(url)).daily;
+	const days: DayWeather[] = [];
+	for (let i = 0; i < (d?.time?.length ?? 0); i++) {
+		if (d.weather_code[i] === null || d.temperature_2m_max[i] === null) continue;
+		days.push({
+			day: d.time[i],
+			code: d.weather_code[i],
+			sky: sky(d.weather_code[i]),
+			min: round(d.temperature_2m_min[i]),
+			max: round(d.temperature_2m_max[i]),
+			rain: d.precipitation_sum[i] ?? 0
+		});
+	}
+	return days;
+}

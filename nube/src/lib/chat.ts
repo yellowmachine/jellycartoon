@@ -36,7 +36,16 @@ export interface BlockCard {
 	block: Block;
 }
 
-export type ChatCard = ShoppingCard | RecipeCard | PageCard | BlockCard;
+/** A report made from the chat (#505), kept in Preguntar → Informes: a tap opens it. */
+export interface ReportCard {
+	kind: 'informe';
+	id: number;
+	title: string;
+	from: string;
+	to: string;
+}
+
+export type ChatCard = ShoppingCard | RecipeCard | PageCard | BlockCard | ReportCard;
 
 export interface ChatMessage {
 	id: number;

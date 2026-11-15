@@ -21,6 +21,8 @@ import { getRecipe, listRecipes, saveWrittenRecipe } from '#lib/server/recipes/i
 import { isRead, READ_TOOLS, runRead } from '#lib/server/chat-reads.ts';
 import { describeBlock, spendingBars } from '#lib/server/blocks.ts';
 import { openPage, PAGES } from '#lib/chat-pages.ts';
+import { MAX_PIECES, REPORT_BLOCKS, REPORT_DAYS } from '#lib/reports.ts';
+import { describePiece, makeReport } from '#lib/server/reports.ts';
 import { euros } from 'comun/expenses.ts';
 import { localDay } from 'comun/agenda.ts';
 import { FALLBACK_VOICE_MODEL, voiceSettings } from '#lib/server/voice/settings.ts';
@@ -153,6 +155,39 @@ const TOOLS: Tool[] = [
 			title: { type: 'string', description: 'El título, corto: «Gastos de este año».' }
 		},
 		['from_month', 'to_month']
+	),
+	fn(
+		'make_report',
+		`Hace un informe y lo guarda en Preguntar → Informes, donde se vuelve a abrir: un documento de unos días (un viaje, unas vacaciones, un mes) con bloques que Seilide llena con sus datos. Tú eliges los bloques, en orden, y escribes un texto corto antes de cada uno; las cifras las pone Seilide, no las escribas. Solo cuando lo pide («hazme un informe», «guárdamelo»), y con los días ya confirmados. Bloques: ${Object.entries(
+			REPORT_BLOCKS
+		)
+			.map(([name, what]) => `«${name}»: ${what}`)
+			.join('; ')}. Para un viaje: cifras, mapa, tiempo, fotos, gastos y agenda.`,
+		{
+			title: { type: 'string', description: 'El título, corto: «Alicante, julio de 2026».' },
+			from_day: { type: 'string', description: 'El primer día, AAAA-MM-DD.' },
+			to_day: {
+				type: 'string',
+				description: `El último día, AAAA-MM-DD; como mucho ${REPORT_DAYS} días.`
+			},
+			pieces: {
+				type: 'array',
+				description: `Las partes, en orden, hasta ${MAX_PIECES}.`,
+				items: {
+					type: 'object',
+					properties: {
+						text: {
+							type: 'string',
+							description: 'Lo que va antes del bloque: una o dos frases, sin cifras. Vacío, nada.'
+						},
+						block: { type: 'string', enum: Object.keys(REPORT_BLOCKS) }
+					},
+					required: ['text', 'block'],
+					additionalProperties: false
+				}
+			}
+		},
+		['title', 'from_day', 'to_day', 'pieces']
 	)
 ];
 
@@ -178,9 +213,10 @@ Cómo escribir:
   - Una receta para hacer, con «propose_recipe», entera; no la escribas también en el texto. Ajústala a lo que ha dicho (su molde, su horno, cuántos son). Si está en el recetario (abajo), léela con «read_recipe» antes de hablar de ella.
 - Para enseñar algo que se ve mejor que con palabras: una gráfica de gastos («show_spending_chart») o la propia página de la sección ya filtrada («open_page»), que se abre en grande al lado del chat. Solo cuando ayuda; no las dos para lo mismo.
 - Los datos de la familia (agenda, gastos, notas, lo que recuerda la voz, reglas, viajes) no vienen en este mensaje: léelos con sus herramientas antes de contestar, y cruza varias si la pregunta lo pide. Las cifras y las fechas, solo las que te den las herramientas; si no hay datos, dilo. Di de qué días o meses hablas.
+- Si pregunta por un viaje o unos días que no dice con fecha («mis viajes a Alicante», «las vacaciones»), búscalos primero con «find_trips» y pregunta si son esos, con sus fechas, antes de leer nada más ni sacar cifras. Confirmados, lee sus días con «read_period».
 - El texto acompaña a las tarjetas: por qué esas cosas, un consejo, qué viene después. Breve.
 - Lo que conviene «para más adelante» (no ahora), en el texto, en pocas líneas: no en la tarjeta de compra.
-- Nada se guarda sin que la persona lo toque: no digas que has añadido o guardado nada. Si después aparece en lo hablado que lo añadió o guardó, ya está hecho.
+- Nada se guarda sin que la persona lo toque, salvo los informes que pide («make_report» los guarda): no digas que has añadido o guardado nada más. Si después aparece en lo hablado que lo añadió o guardó, ya está hecho.
 ${context.style ? `- El carácter de la casa, solo el tono: «${context.style}».\n` : ''}
 Ahora es ${today} (${localDay()}).
 ${context.section ? `\nEscribe desde el panel de Preguntar abierto al lado de la sección «${context.section}» de Seilide, que está mirando: si la pregunta no dice de qué habla, seguramente va de eso. Si es de una sección que tus herramientas no leen, dilo en una frase, sin inventar sus datos.\n` : ''}
@@ -204,6 +240,8 @@ function cardLine(card: ChatCard) {
 		}]`;
 	if (card.kind === 'pagina') return `[Página abierta: ${card.label}]`;
 	if (card.kind === 'bloque') return `[Gráfica enseñada: ${describeBlock(card.block, euros)}]`;
+	if (card.kind === 'informe')
+		return `[Informe guardado en Informes: «${card.title}», del ${card.from} al ${card.to}]`;
 	return `[Tarjeta de receta${card.savedId ? `, guardada en el recetario (receta ${card.savedId})` : ', sin guardar'}:\n${describeRecipe(card.recipe, -1)}]`;
 }
 
@@ -298,6 +336,18 @@ async function runTool(
 			return {
 				result: `Gráfica enseñada. Lo que muestra:\n${describeBlock(block, euros)}`,
 				card: { kind: 'bloque', block }
+			};
+		}
+		case 'make_report': {
+			const made = await makeReport(k, userId, args);
+			if (typeof made === 'string') return { result: made };
+			const shown = made.pieces
+				.map((p) => describePiece(p))
+				.filter(Boolean)
+				.join('\n');
+			return {
+				result: `Informe «${made.title}» guardado en Informes; la persona lo abre desde la tarjeta. Lleva:\n${shown}\nEn el chat, una o dos frases: no repitas el informe.`,
+				card: { kind: 'informe', id: made.id, title: made.title, from: made.from, to: made.to }
 			};
 		}
 		case 'read_recipe': {

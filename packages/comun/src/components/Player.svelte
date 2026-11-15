@@ -580,7 +580,12 @@ same look in every browser, the app's colours, and the player's options in its â
 			</video>
 			<media-loading-indicator slot="centered-chrome" noautohide></media-loading-indicator>
 			<!-- Touch: a tap shows the controls and this, big in the middle; a second, play or pause. -->
-			<media-play-button slot="centered-chrome" class="jc-center-play"></media-play-button>
+			<!-- Not over Â«Â¿Sigues ahÃ­?Â» nor the next one's card: it showed through them. -->
+			<media-play-button
+				slot="centered-chrome"
+				class="jc-center-play"
+				class:jc-hidden={asking || !!overlay}
+			></media-play-button>
 			<media-control-bar>
 				<media-play-button></media-play-button>
 				<media-seek-backward-button seekoffset="10"></media-seek-backward-button>
@@ -699,7 +704,9 @@ same look in every browser, the app's colours, and the player's options in its â
 			{/if}
 
 			{#if asking}
-				<div class="absolute inset-0 z-20 flex items-center justify-center bg-black/75 p-4">
+				<div
+					class="absolute inset-0 z-20 flex items-center justify-center bg-black/75 p-4 leading-normal"
+				>
 					<div class="w-full max-w-sm text-center">
 						<p class="mb-2 text-2xl font-semibold">{stopped ? 'Se ha parado' : QUESTION}</p>
 						<p class="mb-5 text-zinc-300">
@@ -714,8 +721,10 @@ same look in every browser, the app's colours, and the player's options in its â
 					</div>
 				</div>
 			{:else if overlay}
-				<div class="absolute inset-0 z-20 flex items-center justify-center bg-black/75 p-4">
-					{@render overlay()}
+				<!-- Scrolls if still taller than a short video; m-auto centres it without cutting its top.
+				     leading-normal: Media Chrome sets line-height 0, which flattened the buttons. -->
+				<div class="absolute inset-0 z-20 flex overflow-y-auto bg-black/75 p-4 leading-normal">
+					<div class="m-auto flex w-full justify-center">{@render overlay()}</div>
 				</div>
 			{/if}
 		</media-controller>
@@ -778,6 +787,9 @@ same look in every browser, the app's colours, and the player's options in its â
 		--media-control-hover-background: rgb(9 9 11 / 0.8);
 		border-radius: 9999px;
 		padding: 1rem;
+	}
+	.jc-hidden {
+		display: none;
 	}
 	.jc-menu-button {
 		display: flex;

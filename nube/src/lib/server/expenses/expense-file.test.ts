@@ -178,6 +178,12 @@ test('the best fixed one: by name, then its own month, then the nearest amount',
 	const ticket = { date: '2026-11-10', store: 'Gimnasio Fit', total: 3500, bill: null };
 	// By its name, in the shop.
 	expect(bestFixed(ticket, [c(1, '2026-11-01', 'Gimnasio', 3000)])?.id).toBe(1);
+	// A receipt of the shop far from it is another purchase: the order is not Prime.
+	const order = { date: '2026-11-11', store: 'Amazon', total: 4250, bill: null };
+	expect(bestFixed(order, [c(8, '2026-11-11', 'Amazon Prime', 499)])).toBeNull();
+	expect(bestFixed({ ...order, total: 499 }, [c(8, '2026-11-11', 'Amazon Prime', 499)])?.id).toBe(
+		8
+	);
 	// By an amount near enough, without the name; not far.
 	expect(bestFixed(ticket, [c(2, '2026-11-01', 'Cuota', 3520)])?.id).toBe(2);
 	expect(bestFixed(ticket, [c(3, '2026-11-01', 'Cuota', 5000)])).toBeNull();
