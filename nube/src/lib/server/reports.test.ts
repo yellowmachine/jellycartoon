@@ -63,6 +63,10 @@ mock.module('#lib/server/agenda/agenda.ts', () => ({
 		day === '2026-07-13' ? ['Cena con los primos a las 21:00'] : []
 }));
 mock.module('#lib/server/trips/planned.ts', () => ({ listPlannedTrips: async () => [] }));
+// Tested in energy/energy-block.test.ts.
+mock.module('#lib/server/energy/energy-block.ts', () => ({
+	energyBlock: async () => 'La familia no tiene enchufes ni butano o pellet en Energía.'
+}));
 // Open-Meteo, asked where they were: the farthest the drives got.
 const asked: string[] = [];
 mock.module('comun/weather.ts', () => ({
