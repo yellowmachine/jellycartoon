@@ -379,3 +379,82 @@ export async function pastWeather(
 	}
 	return days;
 }
+
+/** A day's weather for reading (Preguntar's read_weather): its mean too, and whether forecast. */
+export interface DayReading {
+	day: string;
+	sky: string;
+	/** °C, one decimal. */
+	min: number;
+	max: number;
+	mean: number;
+	/** mm. */
+	rain: number;
+	forecast: boolean;
+}
+
+/** Days back the forecast API answers by dates (it keeps about three months). */
+const RECENT_DAYS = 90;
+const minusDays = (day: string, n: number) => {
+	const d = new Date(`${day}T12:00:00Z`);
+	d.setUTCDate(d.getUTCDate() - n);
+	return d.toISOString().slice(0, 10);
+};
+
+/**
+ * At `lat`, `lon`, from `from` to `to` (both included), day by day; with `everyHours`, also
+ * those hours' temperature. The last three months and the next days from the forecast API (its
+ * days from `today` on are forecasts); older, from its forecasts as they were (since 2022), and
+ * then nothing from today on. `to` past FORECAST_DAYS is cut there.
+ */
+export async function readWeather(
+	lat: number,
+	lon: number,
+	from: string,
+	to: string,
+	today: string,
+	everyHours: number | null = null
+): Promise<{ days: DayReading[]; hours: { at: string; temperature: number }[] }> {
+	const recent = from >= minusDays(today, RECENT_DAYS);
+	const last = recent
+		? [to, minusDays(today, -(FORECAST_DAYS - 1))].sort()[0]!
+		: [to, minusDays(today, 1)].sort()[0]!;
+	if (last < from) return { days: [], hours: [] };
+	const url = new URL(recent ? FORECAST_URL : PAST_URL);
+	url.searchParams.set('latitude', String(lat));
+	url.searchParams.set('longitude', String(lon));
+	url.searchParams.set(
+		'daily',
+		'weather_code,temperature_2m_max,temperature_2m_min,temperature_2m_mean,precipitation_sum'
+	);
+	if (everyHours) url.searchParams.set('hourly', 'temperature_2m');
+	url.searchParams.set('timezone', TIME_ZONE);
+	url.searchParams.set('start_date', from);
+	url.searchParams.set('end_date', last);
+	const data = await getJson(url);
+	const d = data.daily;
+	// + 0: never «-0».
+	const one = (n: number) => Math.round(n * 10) / 10 + 0;
+	const days: DayReading[] = [];
+	for (let i = 0; i < (d?.time?.length ?? 0); i++) {
+		if (d.temperature_2m_max[i] === null || d.temperature_2m_min[i] === null) continue;
+		const min = one(d.temperature_2m_min[i]);
+		const max = one(d.temperature_2m_max[i]);
+		days.push({
+			day: d.time[i],
+			sky: sky(d.weather_code[i]),
+			min,
+			max,
+			mean: one(d.temperature_2m_mean?.[i] ?? (min + max) / 2),
+			rain: one(d.precipitation_sum[i] ?? 0),
+			forecast: d.time[i] >= today
+		});
+	}
+	const h = data.hourly;
+	const hours: { at: string; temperature: number }[] = [];
+	if (everyHours)
+		for (let i = 0; i < (h?.time?.length ?? 0); i += everyHours)
+			if (h.temperature_2m[i] !== null)
+				hours.push({ at: h.time[i], temperature: one(h.temperature_2m[i]) });
+	return { days, hours };
+}
