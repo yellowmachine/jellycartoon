@@ -8,6 +8,7 @@ import { sendDueDoses } from '#lib/server/medication.ts';
 import { companionTick } from '#lib/server/companion.ts';
 import { forgetOver } from '#lib/server/memory.ts';
 import { forgetOldChat } from '#lib/server/chat.ts';
+import { fuelAlerts } from '#lib/server/energy/fuel.ts';
 import { checkTimedRules } from '#lib/server/rules.ts';
 import { warnKeyExpiring } from '#lib/server/ai-stopped.ts';
 import { learnPending, proposeRules, SUMMARY_AT, summarizeLearned } from '#lib/server/learn.ts';
@@ -21,7 +22,7 @@ import { visits } from '#lib/server/section-visits.ts';
  * The cloud's own clock (#253): every few seconds, each family's alarms whose time has come; every
  * minute, its agenda's notices, its medication's doses (#308), «Compañía» (#469) and its rules (#331); in the evening,
  * what the voice learned that day and the rules it proposes (#331); each morning, whether its
- * OpenRouter key is about to expire; at midnight,
+ * OpenRouter key is about to expire and whether their butane or pellet runs out (#513); at midnight,
  * the fridges' «Hoy», what the voice remembered until yesterday (#331) and Preguntar's messages
  * over a month old (#470); every few hours, its
  * podcasts' feeds; every hour, the payments of each one's bank (#502). At startup, the families' Telegram bots. The families come from a function of
@@ -86,6 +87,8 @@ export function startScheduler() {
 				if (localTime() >= KEY_CHECK_AT && keysChecked !== localDay()) {
 					keysChecked = localDay();
 					await eachFamily('Caducidad de la clave de IA', warnKeyExpiring);
+					// Butane or pellet about to run out with the cold to come (#513).
+					await eachFamily('Butano y pellet', fuelAlerts);
 				}
 				// «Hoy he aprendido» (#331, phase 6), once a day; again after a restart only replaces it.
 				if (localTime() >= SUMMARY_AT && summarized !== localDay()) {

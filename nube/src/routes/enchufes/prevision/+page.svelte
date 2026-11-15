@@ -1,6 +1,9 @@
 <script lang="ts">
 	import DegreeDayBars from '#lib/components/DegreeDayBars.svelte';
 	import EnchufesTabs from '#lib/components/EnchufesTabs.svelte';
+	import FuelCard from '#lib/components/FuelCard.svelte';
+	import { enhance } from '$app/forms';
+	import { FUEL_KINDS, type FuelKind } from '#lib/fuel.ts';
 	import { SURE_DAYS } from '#lib/energy-forecast.ts';
 	import { euroText } from '#lib/plugs.ts';
 	import type { PageProps } from './$types';
@@ -15,6 +18,9 @@
 	const n0 = (n: number) => Math.round(n).toLocaleString('es-ES');
 	const n1 = (n: number) => n.toLocaleString('es-ES', { maximumFractionDigits: 1 });
 	const n2 = (n: number) => n.toLocaleString('es-ES', { maximumFractionDigits: 2 });
+	const missing = $derived(
+		(Object.keys(FUEL_KINDS) as FuelKind[]).filter((k) => !data.fuels.some((f) => f.kind === k))
+	);
 	const colder = $derived.by(() => {
 		if (!f || f.degreesBefore === null) return null;
 		const diff = f.degrees - f.degreesBefore;
@@ -122,4 +128,31 @@
 			como que no gastó.
 		</p>
 	{/if}
+
+	<section class="mt-8">
+		<h2 class="mb-2 font-semibold">Butano y pellet</h2>
+		{#if data.fuels.length}
+			<div class="flex flex-col gap-2">
+				{#each data.fuels as fuel (fuel.id)}<FuelCard f={fuel} />{/each}
+			</div>
+		{:else}
+			<p class="mb-2 text-sm text-zinc-400">
+				Si calentáis con bombonas de butano o con pellet, Seilide calcula cuánto os dura con el frío
+				que viene y avisa antes de que se acabe.
+			</p>
+		{/if}
+		{#if missing.length}
+			<div class="mt-3 flex flex-wrap gap-2">
+				{#each missing as kind (kind)}
+					<form method="post" action="?/addFuel" use:enhance>
+						<input type="hidden" name="kind" value={kind} />
+						<button
+							class="rounded-md border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
+							>+ {FUEL_KINDS[kind].icon} {FUEL_KINDS[kind].name}</button
+						>
+					</form>
+				{/each}
+			</div>
+		{/if}
+	</section>
 {/if}

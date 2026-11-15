@@ -37,7 +37,8 @@ const pastKept = new Map<string, Promise<DayReading[] | null>>();
 /** The next days change: kept half an hour. */
 const nextKept = new Map<string, { at: number; days: Promise<DayReading[] | null> }>();
 
-function past(lat: number, lon: number, from: string, to: string, today: string) {
+/** The weather of days gone, kept (it does not change). */
+export function pastDays(lat: number, lon: number, from: string, to: string, today: string) {
 	const key = `${lat.toFixed(3)},${lon.toFixed(3)},${from},${to}`;
 	let found = pastKept.get(key);
 	if (!found) {
@@ -54,7 +55,8 @@ function past(lat: number, lon: number, from: string, to: string, today: string)
 	return found;
 }
 
-function next(lat: number, lon: number, today: string) {
+/** The next FORECAST_AHEAD days, today first, kept half an hour. */
+export function nextDays(lat: number, lon: number, today: string) {
 	const key = `${lat.toFixed(3)},${lon.toFixed(3)},${today}`;
 	const found = nextKept.get(key);
 	if (found && Date.now() - found.at < 30 * 60_000) return found.days;
@@ -101,7 +103,7 @@ export async function energyForecast(k: Kitchen): Promise<EnergyForecast | strin
 	const place = await familyPlace(k);
 	if (!place) return null;
 	const today = localDay();
-	const ahead = await next(place.lat, place.lon, today);
+	const ahead = await nextDays(place.lat, place.lon, today);
 	if (!ahead?.length) return 'No se pudo saber la previsión del tiempo. Prueba dentro de un rato.';
 	const days = ahead.map((d) => ({
 		day: d.day,
@@ -111,7 +113,7 @@ export async function energyForecast(k: Kitchen): Promise<EnergyForecast | strin
 		degrees: heatingDegrees(d.mean)
 	}));
 	const degreeDays = days.map((d) => d.degrees);
-	const before = await past(
+	const before = await pastDays(
 		place.lat,
 		place.lon,
 		addDays(today, -days.length),
@@ -170,7 +172,7 @@ async function plugWay(k: Kitchen, lat: number, lon: number, today: string): Pro
 	}
 	const known = Math.round((Date.parse(yesterday) - Date.parse(from)) / 86_400_000) + 1;
 	if (known < MIN_DAYS) return { have: known, need: MIN_DAYS };
-	const weather = await past(lat, lon, from, yesterday, today);
+	const weather = await pastDays(lat, lon, from, yesterday, today);
 	if (!weather?.length) return { have: known, need: MIN_DAYS };
 	const fit = fitLine(weather.map((d) => ({ x: heatingDegrees(d.mean), y: kwh.get(d.day) ?? 0 })));
 	return fit ? { fit } : null;
@@ -205,7 +207,7 @@ async function billWay(k: Kitchen, lat: number, lon: number, today: string): Pro
 	const points = (
 		await Promise.all(
 			usable.map(async (r) => {
-				const weather = await past(lat, lon, r.start, r.end, today);
+				const weather = await pastDays(lat, lon, r.start, r.end, today);
 				if (!weather?.length) return null;
 				const n = billDays({ periodStart: r.start, periodEnd: r.end });
 				const degrees = weather.reduce((s, d) => s + heatingDegrees(d.mean), 0);

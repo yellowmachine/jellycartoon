@@ -24,7 +24,9 @@ export type InboxKind =
 	// A smart plug's (#396): a washing machine done, a fridge stopped…
 	| 'enchufe'
 	// The family's storage almost full (#480), to who runs it.
-	| 'espacio';
+	| 'espacio'
+	// Butane or pellet about to run out (#513).
+	| 'energia';
 
 /**
  * Something offered in the inbox, answered with yes or no (#331): to remember (phase 5; older ones
