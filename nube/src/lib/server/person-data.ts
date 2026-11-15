@@ -386,6 +386,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		joining: 'dropped',
 		zip: false
 	},
+	// Solar panels (#513): the house's roof.
+	solar: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false
+	},
 
 	// Podcasts: followed person by person from the family's catalogue.
 	podcast: {

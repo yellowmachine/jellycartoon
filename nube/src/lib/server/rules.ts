@@ -46,6 +46,7 @@ import {
 } from '#lib/server/rule-check.ts';
 import { DRAFT_ID, simulate, withIfs, type Deduced, type WhatIf } from '#lib/server/rule-sim.ts';
 import { voiceSettings } from '#lib/server/voice/settings.ts';
+import { solarState } from '#lib/server/energy/solar.ts';
 import {
 	MAX_RULE,
 	RULE_SCHEMA,
@@ -203,6 +204,7 @@ Qué tiene que cumplirse además («conditions», puede estar vacío), cada una 
 - «nevera»: que haya en la nevera un post-it o algo en la lista con «words».
 - «agenda_hoy»: que haya hoy en la Agenda algo con «words».
 - «tiempo»: que en las próximas horas haga el tiempo de su «weather» («si mañana hiela»).
+- «placas»: lo que harán las placas solares de la familia según Energía → Previsión, en «solar»: «sobra_sol» (hoy, en las horas que quedan, sobra sol de las placas: buen momento para la lavadora o el termo), «bateria_no_llega» (esta noche la batería se acaba antes de que salga el sol) o «poco_sol_manana» (mañana darán menos de la mitad que hoy). «solar» es «ninguno» en las demás condiciones.
 
 Qué hace («then»): «avisar» (con «notice»), «temporizador» o «deducir»: guardar un dato que luego sirve a otras reglas, sin avisar a nadie («si pongo la lavadora, ese día hay ropa tendida» → «deduce»: {"text": "Hay ropa tendida", "days": 0}). «deduce.text», el dato en una frase que se entienda sola, sin fechas; «deduce.days», cuántos días más vale (0, solo ese día; en «compra», 7 si no lo dice). Si la regla dice que es probable («probablemente», «seguramente»), el dato también: «Probablemente hay bebida en la nevera». Sin deducir, «deduce» {"text": "", "days": 0}.
 «temporizador»: pone un temporizador de la casa que suena en toda la casa al acabar, cuando la regla pide esperar un rato después de lo que pasa («una hora después», «a los 20 minutos», «ponme un temporizador»): «timer.minutes», cuántos minutos; «timer.label», para qué, corto y como se diría al sonar («Sacar las bebidas del congelador»). «notice.text» vacío y «say» false: el temporizador ya suena. Sin temporizador, «timer» {"minutes": 0, "label": ""}.
@@ -525,6 +527,15 @@ function worldOf(
 			}));
 		},
 		home: async (r) => familyPlace(await kitchen(r)),
+		solar: async (r) => {
+			const s = await solarState(await kitchen(r));
+			if (!s) return null;
+			if (s.forecast === null) return 'no sé dónde vivís (Ajustes → «Dónde vivís»)';
+			if (typeof s.forecast === 'string') return s.forecast;
+			return s.forecast.days.length
+				? s.forecast.days
+				: 'falta lo que gasta la casa al día (Energía → Previsión → Placas)';
+		},
 		forecast: async (lat, lon, day, time) => {
 			const from = `${day}T${time.slice(0, 2)}:00`;
 			const hours = (await forecastAt(lat, lon)).filter((h) => h.at >= from);

@@ -14,7 +14,9 @@ export const REPORT_BLOCKS = {
 	gastos: 'los gastos de esos días, uno a uno y por categoría (se pueden quitar los que no tocan)',
 	barras: 'la gráfica de lo gastado mes a mes por categoría, de los meses de esos días',
 	agenda: 'lo apuntado en la agenda esos días',
-	tiempo: 'el tiempo que hizo cada día donde se estuvo'
+	tiempo: 'el tiempo que hizo cada día donde se estuvo',
+	energia:
+		'la energía de casa esos días: lo que gastaron los enchufes cada día frente al frío (grados-día), y las bombonas de butano o sacos de pellet empezados'
 } as const;
 
 export type ReportBlockKind = keyof typeof REPORT_BLOCKS;
@@ -94,8 +96,30 @@ export interface WeatherBlock {
 	days: { day: string; code: number; sky: string; min: number; max: number; rain: number }[];
 }
 
+export interface EnergyBlock {
+	kind: 'energia';
+	/** Where the cold was looked at: where the family lives. */
+	place: string | null;
+	/**
+	 * Each day: the plugs' kWh (null, no plugs then), and its heating degree-days (null, not
+	 * known).
+	 */
+	days: { day: string; kwh: number | null; degrees: number | null }[];
+	/** € a kWh, at Energía's price when it was made; null, none. */
+	price: number | null;
+	/** Butane bottles or pellet sacks started those days. */
+	fuels: { kind: 'butano' | 'pellet'; units: number }[];
+}
+
 export type ReportBlock =
-	StatsBlock | MapBlock | PhotosBlock | ExpensesBlock | BarsBlock | AgendaBlock | WeatherBlock;
+	| StatsBlock
+	| MapBlock
+	| PhotosBlock
+	| ExpensesBlock
+	| BarsBlock
+	| AgendaBlock
+	| WeatherBlock
+	| EnergyBlock;
 
 /**
  * A piece of a report: the AI's words, then a block (or none: only words). `block` null with a

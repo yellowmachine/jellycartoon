@@ -331,6 +331,51 @@ export async function hoursAhead(lat: number, lon: number, hours: number): Promi
 	}));
 }
 
+/** The sun on one hour of panels: `day` and the hour it starts (0–23), in Spain's time. */
+export interface SunHour {
+	day: string;
+	hour: number;
+	/** W/m² on the panels, that hour's mean. */
+	wm2: number;
+}
+
+/**
+ * The sun forecast on panels at `lat`, `lon` tilted `tilt` degrees (0 flat, 90 upright) and facing
+ * `azimuth` (0 south, −90 east, 90 west, ±180 north), as Open-Meteo gives it
+ * (`global_tilted_irradiance`), from `today` FORECAST_DAYS ahead. Each value of Open-Meteo is the
+ * mean of the hour before its time: the one at 13:00 is 12:00 to 13:00, so here it is hour 12.
+ */
+export async function sunOnPanels(
+	lat: number,
+	lon: number,
+	tilt: number,
+	azimuth: number,
+	today: string
+): Promise<SunHour[]> {
+	const url = new URL(FORECAST_URL);
+	url.searchParams.set('latitude', String(lat));
+	url.searchParams.set('longitude', String(lon));
+	url.searchParams.set('hourly', 'global_tilted_irradiance');
+	url.searchParams.set('tilt', String(tilt));
+	url.searchParams.set('azimuth', String(azimuth));
+	url.searchParams.set('timezone', TIME_ZONE);
+	url.searchParams.set('start_date', today);
+	url.searchParams.set('end_date', minusDays(today, -(FORECAST_DAYS - 1)));
+	const h = (await getJson(url)).hourly;
+	const out: SunHour[] = [];
+	for (let i = 0; i < (h?.time?.length ?? 0); i++) {
+		const wm2 = h.global_tilted_irradiance[i];
+		if (wm2 === null || wm2 === undefined) continue;
+		const at = h.time[i] as string;
+		const end = Number(at.slice(11, 13));
+		// The hour ending at midnight is the last of the day before.
+		const day = end === 0 ? minusDays(at.slice(0, 10), 1) : at.slice(0, 10);
+		if (day < today) continue;
+		out.push({ day, hour: end === 0 ? 23 : end - 1, wm2: Math.max(0, wm2) });
+	}
+	return out;
+}
+
 /** Snow, by its WMO codes (as Open-Meteo gives them): snowfall, grains and showers. */
 export const isSnow = (code: number) => (code >= 71 && code <= 77) || code === 85 || code === 86;
 

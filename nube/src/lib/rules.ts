@@ -31,10 +31,25 @@ export type TriggerKind = (typeof TRIGGERS)[number];
 
 /**
  * What has to hold too (or not, `negate`): being away on a trip today, something remembered, a
- * post-it or something on the list, something in today's agenda, the weather in the next hours.
+ * post-it or something on the list, something in today's agenda, the weather in the next hours,
+ * or what the solar panels will do (Energía → Previsión, #513).
  */
-export const CONDITIONS = ['de_viaje', 'recuerdo', 'nevera', 'agenda_hoy', 'tiempo'] as const;
+export const CONDITIONS = [
+	'de_viaje',
+	'recuerdo',
+	'nevera',
+	'agenda_hoy',
+	'tiempo',
+	'placas'
+] as const;
 export type ConditionKind = (typeof CONDITIONS)[number];
+
+/**
+ * The panels' (#513 phase 4), as Energía → Previsión forecasts them: sun to spare today (still to
+ * come), the battery not lasting tonight, or little sun tomorrow (less than half of today's).
+ */
+export const SOLAR_CHECKS = ['sobra_sol', 'bateria_no_llega', 'poco_sol_manana'] as const;
+export type SolarCheck = (typeof SOLAR_CHECKS)[number];
 
 /** The weather looked at (Open-Meteo): rain, frost, heat, wind or snow. */
 export const WEATHERS = ['lluvia', 'helada', 'calor', 'viento', 'nieve'] as const;
@@ -87,6 +102,8 @@ export interface Condition {
 	negate: boolean;
 	/** For tiempo. */
 	weather?: WeatherCheck | null;
+	/** For placas. */
+	solar?: SolarCheck | null;
 }
 
 export interface RuleNotice {
@@ -205,7 +222,14 @@ export interface TranslatedRule {
 		time: string | null;
 		weather: TranslatedWeather;
 	};
-	conditions: { kind: string; words: string[]; negate: boolean; weather: TranslatedWeather }[];
+	conditions: {
+		kind: string;
+		words: string[];
+		negate: boolean;
+		weather: TranslatedWeather;
+		/** `ninguno` where there is none. */
+		solar?: string;
+	}[];
 	then: string;
 	deduce: { text: string; days: number };
 	timer: { minutes: number; label: string };
@@ -263,14 +287,18 @@ export function specOf(
 			},
 			conditions: (Array.isArray(t.conditions) ? t.conditions : [])
 				.filter(
-					(c) => isOneOf(CONDITIONS, c?.kind) && (c.kind !== 'tiempo' || weatherOf(c.weather))
+					(c) =>
+						isOneOf(CONDITIONS, c?.kind) &&
+						(c.kind !== 'tiempo' || weatherOf(c.weather)) &&
+						(c.kind !== 'placas' || isOneOf(SOLAR_CHECKS, c.solar))
 				)
 				.slice(0, MAX_CONDITIONS)
 				.map((c) => ({
 					kind: c.kind as ConditionKind,
 					words: wordList(c.words),
 					negate: c.negate === true,
-					...(c.kind === 'tiempo' ? { weather: weatherOf(c.weather) } : {})
+					...(c.kind === 'tiempo' ? { weather: weatherOf(c.weather) } : {}),
+					...(c.kind === 'placas' ? { solar: c.solar as SolarCheck } : {})
 				})),
 			then,
 			deduce:
@@ -344,12 +372,13 @@ export const RULE_SCHEMA = {
 			items: {
 				type: 'object',
 				additionalProperties: false,
-				required: ['kind', 'words', 'negate', 'weather'],
+				required: ['kind', 'words', 'negate', 'weather', 'solar'],
 				properties: {
 					kind: { type: 'string', enum: [...CONDITIONS] },
 					words,
 					negate: { type: 'boolean' },
-					weather: weatherSchema
+					weather: weatherSchema,
+					solar: { type: 'string', enum: ['ninguno', ...SOLAR_CHECKS] }
 				}
 			}
 		},

@@ -112,6 +112,44 @@ export const RULE_TEMPLATES: RuleTemplate[] = [
 		]
 	},
 	{
+		id: 'sobra-sol',
+		title: 'Sobra sol de las placas',
+		does: 'Con placas solares en Energía → Previsión: cada día a las 9:00, si hoy va a sobrar sol, te avisa de las horas para poner la lavadora, el lavavajillas o el termo.',
+		rules: [
+			{
+				said: 'Todas las mañanas a las 9, si hoy sobra sol de las placas, avísame para poner la lavadora',
+				understood:
+					'Todos los días a las 09:00, si hoy sobra sol de las placas, te avisaré: «Sobra sol: buen momento para la lavadora, el lavavajillas o el termo».',
+				spec: {
+					when: { kind: 'cada_dia', words: [], minutesBefore: 0, time: '09:00' },
+					conditions: [{ kind: 'placas', words: [], negate: false, solar: 'sobra_sol' }],
+					then: 'avisar',
+					deduce: null,
+					...toMe('Sobra sol: buen momento para la lavadora, el lavavajillas o el termo')
+				}
+			}
+		]
+	},
+	{
+		id: 'poco-sol-manana',
+		title: 'Mañana poco sol',
+		does: 'Con placas solares: cada día a las 10:00, si mañana van a dar menos de la mitad que hoy, te avisa para poner hoy lo que gasta mucho.',
+		rules: [
+			{
+				said: 'Todos los días a las 10, si mañana las placas van a dar poco, avísame para poner hoy la lavadora',
+				understood:
+					'Todos los días a las 10:00, si mañana las placas darán menos de la mitad que hoy, te avisaré: «Mañana habrá poco sol: lo que gaste mucho, mejor hoy».',
+				spec: {
+					when: { kind: 'cada_dia', words: [], minutesBefore: 0, time: '10:00' },
+					conditions: [{ kind: 'placas', words: [], negate: false, solar: 'poco_sol_manana' }],
+					then: 'avisar',
+					deduce: null,
+					...toMe('Mañana habrá poco sol: lo que gaste mucho, mejor hoy')
+				}
+			}
+		]
+	},
+	{
 		id: 'plantas-viaje',
 		title: 'Plantas antes de un viaje',
 		does: 'La víspera de un viaje tuyo de Viajes, te recuerda dejar a alguien al cargo de las plantas.',

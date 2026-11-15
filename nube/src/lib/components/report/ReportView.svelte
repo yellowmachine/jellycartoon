@@ -7,6 +7,7 @@
 	import MovesList from './MovesList.svelte';
 	import PhotosBlock from './PhotosBlock.svelte';
 	import StatsBlock from './StatsBlock.svelte';
+	import EnergyBlock from './EnergyBlock.svelte';
 	import WeatherBlock from './WeatherBlock.svelte';
 
 	/** A report's pieces (#505): the AI's words, then each block drawn by Seilide. */
@@ -48,6 +49,8 @@
 				return [{ href: `/agenda?dia=${report.from}`, text: 'Agenda' }];
 			case 'tiempo':
 				return [{ href: 'https://open-meteo.com/', text: 'Open-Meteo', out: true }];
+			case 'energia':
+				return [{ href: '/enchufes/consumo', text: 'Consumo' }];
 			default:
 				return [];
 		}
@@ -78,6 +81,8 @@
 				<AgendaBlock block={p.block} />
 			{:else if p.block?.kind === 'tiempo'}
 				<WeatherBlock block={p.block} />
+			{:else if p.block?.kind === 'energia'}
+				<EnergyBlock block={p.block} />
 			{/if}
 			{#if sources(p).length}
 				<p class="text-right text-xs text-zinc-500">

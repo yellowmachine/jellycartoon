@@ -52,6 +52,10 @@ mock.module('#lib/server/plugs/energy-read.ts', () => ({
 	ENERGY_DAYS: 92,
 	describePlugEnergy: async () => ''
 }));
+// Tested in energy/forecast-read.test.ts.
+mock.module('#lib/server/energy/forecast-read.ts', () => ({
+	describeEnergyForecast: async () => ''
+}));
 // Tested in weather-read.test.ts.
 mock.module('#lib/server/weather-read.ts', () => ({
 	WEATHER_DAYS: 92,

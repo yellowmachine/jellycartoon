@@ -146,7 +146,7 @@ export async function energyForecast(k: Kitchen): Promise<EnergyForecast | strin
 	};
 }
 
-type Learning = { fit: Fit } | { have: number; need: number } | null;
+export type Learning = { fit: Fit } | { have: number; need: number } | null;
 
 /** From the plugs: each whole day since the first was added (up to PLUG_DAYS), its kWh and cold. */
 async function plugWay(k: Kitchen, lat: number, lon: number, today: string): Promise<Learning> {
@@ -178,8 +178,18 @@ async function plugWay(k: Kitchen, lat: number, lon: number, today: string): Pro
 	return fit ? { fit } : null;
 }
 
-/** From the light bills that say their kWh: each its kWh a day against its cold a day. */
-async function billWay(k: Kitchen, lat: number, lon: number, today: string): Promise<Learning> {
+/**
+ * From the light bills that say their kWh: each its kWh a day against its cold a day. Only those
+ * ending before `until` (today; with solar panels, the day they came: before, the bills said the
+ * whole house).
+ */
+export async function billWay(
+	k: Kitchen,
+	lat: number,
+	lon: number,
+	today: string,
+	until = today
+): Promise<Learning> {
 	const rows = await k.run((tx) =>
 		tx
 			.select({
@@ -198,7 +208,7 @@ async function billWay(k: Kitchen, lat: number, lon: number, today: string): Pro
 				r.kwh !== null &&
 				r.kwh > 0 &&
 				r.unit === 'kWh' &&
-				r.end < today &&
+				r.end < until &&
 				billDays({ periodStart: r.start, periodEnd: r.end }) <= BILL_MAX_DAYS
 		)
 		.slice(-BILLS);

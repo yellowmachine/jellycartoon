@@ -11,11 +11,12 @@ import { listRules } from '#lib/server/rules.ts';
 import { plannedTripsByVoice } from '#lib/server/trips/voice.ts';
 import { describeWeather, WEATHER_DAYS } from '#lib/server/weather-read.ts';
 import { describePlugEnergy, ENERGY_DAYS } from '#lib/server/plugs/energy-read.ts';
+import { describeEnergyForecast } from '#lib/server/energy/forecast-read.ts';
 
 /**
  * What «Preguntar» can read of the family's sections (#504, phase 2), to answer and to cross them:
  * the agenda, the money, the notes, what the voice remembers, the rules, the trips, and everything
- * of a few days (#505: periods.ts), and the weather (Open-Meteo, with degree-days: weather-read.ts) and what the plugs used (energy-read.ts). The same reads as the voice (command.ts) where it has them,
+ * of a few days (#505: periods.ts), and the weather (Open-Meteo, with degree-days: weather-read.ts) and what the plugs used (energy-read.ts), and Energía's forecast (forecast-read.ts). The same reads as the voice (command.ts) where it has them,
  * with what each person may see: their own notes and memories, the family's agenda and money. Only
  * reading: what is done, the chat proposes as cards.
  */
@@ -132,6 +133,12 @@ export const READ_TOOLS: Tool[] = [
 			to_day: { type: 'string', description: 'El último día, AAAA-MM-DD. Vacío, solo el primero.' }
 		},
 		['from_day']
+	),
+	fn(
+		'read_energy_forecast',
+		'Energía → Previsión de la familia, para los próximos 15 días: el frío (grados-día), la luz que se llevará (aprendida de los enchufes y de las facturas), el butano o el pellet (hasta cuándo llega lo que hay en casa, cuántos comprar) y las placas solares (lo que darán, lo que vendrá de la red, si la batería llega a la noche, las horas en que sobra sol). Para «¿cuánto saldrá la luz esta quincena?», «¿me llega el butano?», «¿cuándo pongo la lavadora?».',
+		{},
+		[]
 	),
 	fn(
 		'planned_trips',
@@ -257,6 +264,8 @@ export async function runRead(
 			return describeWeather(k, args);
 		case 'read_plug_energy':
 			return describePlugEnergy(k, args);
+		case 'read_energy_forecast':
+			return describeEnergyForecast(k);
 		default:
 			return `No hay ninguna herramienta «${name}».`;
 	}

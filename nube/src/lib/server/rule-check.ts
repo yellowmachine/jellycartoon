@@ -4,7 +4,14 @@ import { fold } from 'comun/music.ts';
 import { isSnow, type HourAhead } from 'comun/weather.ts';
 import type { PlannedLeg, PlannedTrip } from '#lib/planned-trips.ts';
 import { hasWords } from '#lib/server/voice/learned.ts';
-import { DOSE_LATE_MIN, type Condition, type RuleSpec, type WeatherCheck } from '#lib/rules.ts';
+import {
+	DOSE_LATE_MIN,
+	type Condition,
+	type RuleSpec,
+	type SolarCheck,
+	type WeatherCheck
+} from '#lib/rules.ts';
+import type { SolarDay } from '#lib/solar.ts';
 
 /**
  * Whether a rule (#331) holds, and why in words, looked at in a «world» (#389): the day and the
@@ -75,6 +82,11 @@ export interface World {
 	home(r: Rule): Promise<{ lat: number; lon: number } | null>;
 	/** The next hours' weather at a place, from `day` at `time`'s hour. */
 	forecast(lat: number, lon: number, day: string, time: string): Promise<HourAhead[]>;
+	/**
+	 * What the family's solar panels will do, day by day from today (Energía → Previsión); null,
+	 * no panels or no forecast (with why). Unset: not known.
+	 */
+	solar?(r: Rule): Promise<SolarDay[] | string | null>;
 	/**
 	 * Whether `text` is what `r` waits for, by its meaning, when its words do not find it: kept,
 	 * or asked; null, not known (words only).
@@ -235,6 +247,13 @@ async function holds(w: World, r: Rule, c: Condition): Promise<{ ok: boolean; wh
 			none = weather.none;
 			break;
 		}
+		case 'placas': {
+			if (!c.solar) break;
+			const said = await solarFor(w, r, c.solar);
+			found = said.hit;
+			none = said.none;
+			break;
+		}
 		case 'agenda_hoy': {
 			const o = await firstFitting(
 				w,
@@ -319,6 +338,42 @@ export async function weatherFor(w: World, r: Rule, check: WeatherCheck) {
 		hit: comes ? `${COMES[check.what](comes)} ${place.at}` : null,
 		none: `${NOT_COMING[check.what]} ${place.at} en las próximas ${check.hours} h`
 	};
+}
+
+const n0 = (n: number) => Math.round(n).toLocaleString('es-ES');
+const atHour = (h: number) => `a las ${h}${h < 12 ? ' de madrugada' : ''}`;
+
+/** What the panels will do that a rule waits for (#513): in words, or why not. */
+export async function solarFor(w: World, r: Rule, check: SolarCheck) {
+	const days = w.solar ? await w.solar(r) : 'no sé lo que harán las placas';
+	if (days === null) return { hit: null, none: 'no hay placas en Energía → Previsión' };
+	if (typeof days === 'string') return { hit: null, none: days };
+	const i = days.findIndex((d) => d.day === w.today);
+	const today = days[i];
+	if (!today) return { hit: null, none: 'la previsión de las placas no llega a ese día' };
+	if (check === 'sobra_sol') {
+		const hour = Number(w.time.slice(0, 2));
+		const spare = today.spare;
+		if (!spare) return { hit: null, none: 'hoy no sobra sol de las placas' };
+		if (hour >= spare.to)
+			return { hit: null, none: `ya pasó el sol que sobraba hoy (de ${spare.from} a ${spare.to})` };
+		return {
+			hit: `hoy sobra sol de las placas de ${Math.max(spare.from, hour)} a ${spare.to} (unos ${n0(spare.kwh)} kWh)`,
+			none: ''
+		};
+	}
+	if (check === 'bateria_no_llega')
+		return today.emptyAt === null
+			? { hit: null, none: 'esta noche la batería llega a la mañana' }
+			: { hit: `esta noche la batería se acaba ${atHour(today.emptyAt)}`, none: '' };
+	const next = days[i + 1];
+	if (!next) return { hit: null, none: 'la previsión de las placas no llega a mañana' };
+	return next.made < today.made * 0.5
+		? {
+				hit: `mañana las placas darán unos ${n0(next.made)} kWh, menos de la mitad que hoy (${n0(today.made)})`,
+				none: ''
+			}
+		: { hit: null, none: `mañana las placas darán unos ${n0(next.made)} kWh, como hoy o más` };
 }
 
 /** What a rule waits for by the clock, due in the world's span: when, its key and why. */

@@ -10,6 +10,7 @@ import { report, savedPlace, trip, tripPhoto, walk, walkPhoto } from '#lib/serve
 import { searchExpenses } from '#lib/server/expenses/expenses.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { listPlannedTrips } from '#lib/server/trips/planned.ts';
+import { energyBlock } from '#lib/server/energy/energy-block.ts';
 import {
 	isReportBlockKind,
 	keptExpenses,
@@ -256,6 +257,8 @@ export async function buildBlock(
 			if (!days?.length) return 'No se pudo saber el tiempo que hizo.';
 			return { kind: 'tiempo', place: where.name, days };
 		}
+		case 'energia':
+			return energyBlock(k, from, to);
 	}
 }
 
@@ -284,6 +287,13 @@ export function describePiece(p: ReportPiece, excluded: number[] = []): string {
 			return `[gráfica: ${b.title}]`;
 		case 'agenda':
 			return `[agenda: ${b.days.map((d) => `${d.day} ${d.events.join('; ')}`).join(' | ')}]`;
+		case 'energia': {
+			const known = b.days.filter((d) => d.kwh !== null);
+			const total = known.reduce((s, d) => s + d.kwh!, 0);
+			const degrees = b.days.reduce((s, d) => s + (d.degrees ?? 0), 0);
+			const fuels = b.fuels.map((f) => `${f.units} de ${f.kind} empezadas`).join(', ');
+			return `[energía${b.place ? ` en ${b.place}` : ''}: ${known.length ? `enchufes ${total.toFixed(1)} kWh${b.price ? ` (${euros(Math.round(total * b.price * 100))})` : ''}, ` : ''}${Math.round(degrees)} grados-día; ${b.days.map((d) => `${d.day} ${d.kwh ?? '–'} kWh ${d.degrees ?? '–'} gd`).join('; ')}${fuels ? `; ${fuels}` : ''}]`;
+		}
 		case 'tiempo':
 			return `[tiempo${b.place ? ` en ${b.place}` : ''}: ${b.days.map((d) => `${d.day} ${d.sky} ${d.min}–${d.max} °C${d.rain ? ` ${d.rain} mm` : ''}`).join('; ')}]`;
 	}
