@@ -337,6 +337,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		joining: 'moves',
 		zip: { file: 'preguntar', where: [mine()] }
 	},
+	// Their reports (#505), only theirs as the chat.
+	report: {
+		leaving: 'moves',
+		joining: 'moves',
+		zip: { file: 'informes', where: [mine()] }
+	},
 	inbox: {
 		leaving: 'moves',
 		joining: 'moves',

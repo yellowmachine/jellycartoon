@@ -624,6 +624,13 @@
       "when": 1794671717091,
       "tag": "0088_dear_power_man",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1794720477549,
+      "tag": "0089_curvy_eternity",
+      "breakpoints": true
     }
   ]
 }

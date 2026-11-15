@@ -103,6 +103,24 @@ mock.module('#lib/server/chat-reads.ts', () => ({
 	}
 }));
 
+// Reports (#505), faked: reports.test.ts tests them; here, the card and what the AI is told.
+const madeReports: { userId: string; args: Record<string, unknown> }[] = [];
+mock.module('#lib/server/reports.ts', () => ({
+	makeReport: async (_k: Kitchen, userId: string, args: Record<string, unknown>) => {
+		if (!args.title) return 'Falta el título.';
+		madeReports.push({ userId, args });
+		return {
+			id: 7,
+			title: args.title,
+			from: '2026-07-12',
+			to: '2026-07-14',
+			pieces: [{ text: '', kind: 'cifras', block: null, empty: 'nada' }],
+			excluded: []
+		};
+	},
+	describePiece: (p: { kind: string; empty: string }) => `[${p.kind}: ${p.empty}]`
+}));
+
 const chat = await import('./chat.ts');
 
 const ana = kitchen('A', 'ana');
@@ -348,4 +366,37 @@ test('it shows (#504 phase 3): a page already filtered and a chart with the data
 	expect(history).toContain('[Página abierta: Dinero → Análisis, 12 meses]');
 	expect(history).toContain('[Gráfica enseñada: «Gastos de 2026-10»');
 	await db.delete(expense);
+});
+
+test('a report (#505): made as who asks, its card, and later the AI knows it', async () => {
+	answers = [
+		{
+			content: null,
+			toolCalls: [
+				call('make_report', {
+					title: 'Alicante, julio',
+					from_day: '2026-07-12',
+					to_day: '2026-07-14',
+					pieces: [{ text: '', block: 'cifras' }]
+				}),
+				call('make_report', { title: '' }, 'mal')
+			]
+		},
+		{ content: 'Ya lo tienes en Informes.', toolCalls: [] }
+	];
+	const [, a] = await chat.askChat(ana, { id: 'ana', name: 'Ana' }, 'Hazme un informe del viaje');
+	expect(a!.cards).toEqual([
+		{ kind: 'informe', id: 7, title: 'Alicante, julio', from: '2026-07-12', to: '2026-07-14' }
+	]);
+	expect(madeReports.map((r) => r.userId)).toEqual(['ana']);
+	const told = sent
+		.at(-1)!
+		.filter((m) => m.role === 'tool')
+		.map((m) => m.content as string);
+	expect(told[0]).toContain('[cifras: nada]');
+	expect(told[1]).toBe('Falta el título.');
+	await chat.askChat(ana, { id: 'ana', name: 'Ana' }, '¿Dónde está?');
+	expect(JSON.stringify(sent.at(-1))).toContain(
+		'[Informe guardado en Informes: «Alicante, julio», del 2026-07-12 al 2026-07-14]'
+	);
 });

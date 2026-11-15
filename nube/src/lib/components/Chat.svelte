@@ -79,7 +79,12 @@
 
 <!-- In the panel, as tall as it: the box to write in at its foot, as in any chat. -->
 <div class={['flex flex-col', compact && 'flex-1']}>
-	<header class="mb-4 flex flex-wrap items-center justify-between gap-2">
+	<header
+		class={[
+			'flex flex-wrap items-center gap-2',
+			heading ? 'mb-4 justify-between' : 'mb-2 justify-end'
+		]}
+	>
 		{@render heading?.()}
 		{#if messages.length}
 			{#if confirmClear}
@@ -185,6 +190,17 @@
 									</a>
 								{:else if card.kind === 'bloque'}
 									<BarsBlock block={card.block} />
+								{:else if card.kind === 'informe'}
+									<a
+										href="/preguntar/informes/{card.id}"
+										class="mt-2 flex items-center justify-between gap-2 rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-zinc-200 hover:border-amber-500/60 hover:bg-zinc-900"
+									>
+										<span class="min-w-0">
+											<span class="block truncate">📄 {card.title}</span>
+											<span class="block text-xs text-zinc-500">Guardado en Informes</span>
+										</span>
+										<span class="shrink-0 text-sm text-amber-400">Abrir →</span>
+									</a>
 								{:else}
 									<ChatRecipeCard
 										{card}
