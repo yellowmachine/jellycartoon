@@ -11,13 +11,27 @@ import {
 	saveFuel,
 	startedFuel
 } from '#lib/server/energy/fuel.ts';
+import {
+	addSolar,
+	removeSolar,
+	saveSolar,
+	solarInput,
+	solarState
+} from '#lib/server/energy/solar.ts';
 import { isFuelKind } from '#lib/fuel.ts';
 
-/** Energía → Previsión (#513): the cold to come, the light it will take, and butane or pellet. */
+/**
+ * Energía → Previsión (#513): the cold to come, the light it will take, butane or pellet, and what
+ * the solar panels will make.
+ */
 export const load: PageServerLoad = async ({ locals }) => {
 	const k = await kitchenOf(locals.user!.id);
-	const [forecast, fuels] = await Promise.all([energyForecast(k), fuelStates(k)]);
-	return { forecast, fuels };
+	const [forecast, fuels, solar] = await Promise.all([
+		energyForecast(k),
+		fuelStates(k),
+		solarState(k)
+	]);
+	return { forecast, fuels, solar };
 };
 
 const idOf = (form: FormData) => Number(form.get('id'));
@@ -25,6 +39,18 @@ const isDay = (v: unknown): v is string =>
 	typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && v <= localDay();
 
 export const actions: Actions = {
+	addSolar: async ({ locals }) => {
+		await addSolar(await kitchenOf(locals.user!.id));
+	},
+	removeSolar: async ({ locals }) => {
+		await removeSolar(await kitchenOf(locals.user!.id));
+	},
+	saveSolar: async ({ request, locals }) => {
+		const input = solarInput(await request.formData(), localDay());
+		if (typeof input === 'string') return fail(400, { solarProblem: input });
+		await saveSolar(await kitchenOf(locals.user!.id), input);
+		return { solarSaved: true };
+	},
 	addFuel: async ({ request, locals }) => {
 		const kind = (await request.formData()).get('kind');
 		if (!isFuelKind(kind)) return fail(400, { fuelProblem: 'No sé qué combustible es' });

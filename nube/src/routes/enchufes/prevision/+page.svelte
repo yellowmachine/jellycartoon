@@ -2,6 +2,7 @@
 	import DegreeDayBars from '#lib/components/DegreeDayBars.svelte';
 	import EnchufesTabs from '#lib/components/EnchufesTabs.svelte';
 	import FuelCard from '#lib/components/FuelCard.svelte';
+	import SolarCard from '#lib/components/SolarCard.svelte';
 	import { enhance } from '$app/forms';
 	import { FUEL_KINDS, type FuelKind } from '#lib/fuel.ts';
 	import { SURE_DAYS } from '#lib/energy-forecast.ts';
@@ -12,7 +13,7 @@
 	 * Energía → Previsión (#513, phase 1): the cold of the next days and the light it will take,
 	 * learned from the plugs (what is plugged in) and from the light bills (the whole house).
 	 */
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 	const f = $derived(typeof data.forecast === 'object' ? data.forecast : null);
 
 	const n0 = (n: number) => Math.round(n).toLocaleString('es-ES');
@@ -115,7 +116,9 @@
 			{#if f.bills}
 				{@render way(
 					'Toda la casa',
-					'Según las facturas de la luz leídas en Dinero: la casa entera, una cifra por factura.',
+					data.solar
+						? 'Según las facturas de la luz leídas en Dinero. Con placas, solo lo que viene de la red.'
+						: 'Según las facturas de la luz leídas en Dinero: la casa entera, una cifra por factura.',
 					f.bills,
 					'Aún aprendiendo: hacen falta tres facturas de la luz leídas en Dinero',
 					'facturas'
@@ -128,6 +131,27 @@
 			como que no gastó.
 		</p>
 	{/if}
+
+	<section class="mt-8">
+		<h2 class="mb-2 font-semibold">Placas solares</h2>
+		{#if data.solar}
+			<SolarCard
+				s={data.solar}
+				problem={form && 'solarProblem' in form ? (form.solarProblem ?? null) : null}
+			/>
+		{:else}
+			<p class="mb-2 text-sm text-zinc-400">
+				Si tenéis placas, Seilide calcula lo que darán con el sol que viene, si la batería llega a
+				la noche y las mejores horas para la lavadora o el termo.
+			</p>
+			<form method="post" action="?/addSolar" use:enhance>
+				<button
+					class="rounded-md border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
+					>+ ☀️ Placas solares</button
+				>
+			</form>
+		{/if}
+	</section>
 
 	<section class="mt-8">
 		<h2 class="mb-2 font-semibold">Butano y pellet</h2>
