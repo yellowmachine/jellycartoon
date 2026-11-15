@@ -128,7 +128,8 @@
 			<div class="mb-6 text-zinc-400">
 				<p class={compact ? 'text-sm' : ''}>
 					Pregunta lo que quieras. Si hace falta comprar algo o hay una receta, te la preparo para
-					que la añadas a la lista o la guardes con un toque. Lo que hablamos solo lo ves tú.
+					que la añadas a la lista o la guardes con un toque. Lo que hablamos solo lo ves tú y se
+					borra a los 30 días; lo que guardes (la lista, las recetas, los informes) se queda.
 				</p>
 				<div class="mt-4 flex flex-col gap-2">
 					{#each EXAMPLES as example (example)}

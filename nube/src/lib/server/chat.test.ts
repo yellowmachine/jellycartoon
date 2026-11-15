@@ -259,6 +259,21 @@ test('another person of the family sees nothing of it, nor acts on its cards; no
 	expect(added).toEqual([]);
 });
 
+test('messages over 30 days old go each night, only that family’s; the recent stay', async () => {
+	answers = ['Vieja.', 'Nueva.', 'De la otra casa.'].map((content) => ({ content, toolCalls: [] }));
+	await chat.askChat(ana, { id: 'ana', name: 'Ana' }, 'Hace mucho');
+	await db.execute(sql`update chat_message set created_at = now() - interval '31 days'`);
+	await chat.askChat(ana, { id: 'ana', name: 'Ana' }, 'Hoy');
+	const other = kitchen('B', 'otro');
+	await chat.askChat(other, { id: 'otro', name: 'Otro' }, 'Hace mucho');
+	await db.execute(
+		sql`update chat_message set created_at = now() - interval '31 days' where family_id = 'B'`
+	);
+	expect(await chat.forgetOldChat(ana)).toBe(2);
+	expect((await chat.chatHistory(ana, 'ana')).map((m) => m.text)).toEqual(['Hoy', 'Nueva.']);
+	expect(await chat.chatHistory(other, 'otro')).toHaveLength(2);
+});
+
 test('a failure saves nothing, in our words; an empty question is refused', async () => {
 	fails = 'No queda saldo en OpenRouter';
 	await expect(chat.askChat(ana, { id: 'ana', name: 'Ana' }, 'Hola')).rejects.toThrow(

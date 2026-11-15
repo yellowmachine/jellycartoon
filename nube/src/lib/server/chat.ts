@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, lt } from 'drizzle-orm';
 import { describeRecipe, parseRecipe } from 'comun/recipe.ts';
 import {
 	MAX_CARD_ITEMS,
@@ -508,6 +508,24 @@ export async function saveRecipeFromCard(
 	found.cards[index] = { ...found.card, savedId: id };
 	await saveCards(k, userId, messageId, found.cards);
 	return id;
+}
+
+/**
+ * Days a chat's message is kept: what is worth keeping already lives elsewhere (the list, the
+ * recipes, the reports, «recuerda»), and the AI reads only the last HISTORY.
+ */
+export const CHAT_DAYS = 30;
+
+/** Each night (scheduler.ts): the family's messages older than CHAT_DAYS, gone. How many. */
+export async function forgetOldChat(k: Kitchen, now = new Date()) {
+	const before = new Date(now.getTime() - CHAT_DAYS * 86_400_000);
+	const gone = await k.run((tx) =>
+		tx
+			.delete(chatMessage)
+			.where(and(eq(chatMessage.familyId, k.familyId), lt(chatMessage.createdAt, before)))
+			.returning({ id: chatMessage.id })
+	);
+	return gone.length;
 }
 
 /** «Empezar de nuevo»: their whole chat, gone. */
