@@ -6,14 +6,16 @@ import type { Kitchen } from '#lib/server/fridge.ts';
 import { describeMemories } from '#lib/server/memory.ts';
 import { describeNotes } from '#lib/server/notes.ts';
 import type { Tool } from '#lib/server/openrouter.ts';
+import { findTrips, PERIOD_DAYS, readPeriod } from '#lib/server/periods.ts';
 import { listRules } from '#lib/server/rules.ts';
 import { plannedTripsByVoice } from '#lib/server/trips/voice.ts';
 
 /**
  * What «Preguntar» can read of the family's sections (#504, phase 2), to answer and to cross them:
- * the agenda, the money, the notes, what the voice remembers, the rules, the trips. The same reads
- * as the voice (command.ts) where it has them, with what each person may see: their own notes and
- * memories, the family's agenda and money. Only reading: what is done, the chat proposes as cards.
+ * the agenda, the money, the notes, what the voice remembers, the rules, the trips, and everything
+ * of a few days (#505: periods.ts). The same reads as the voice (command.ts) where it has them,
+ * with what each person may see: their own notes and memories, the family's agenda and money. Only
+ * reading: what is done, the chat proposes as cards.
  */
 
 /** Months asked at once, at most: two years. */
@@ -108,6 +110,31 @@ export const READ_TOOLS: Tool[] = [
 		'Los próximos viajes planeados de la familia, con el tiempo que hará.',
 		{},
 		[]
+	),
+	fn(
+		'find_trips',
+		'Los viajes de esta persona a un sitio o entre dos días, ya hechos o planeados: los trayectos grabados en el modo carretera (ida, vuelta y km), los viajes de Viajes y lo apuntado en la agenda. «Mis dos últimos viajes a Alicante», «¿cuándo fuimos a la playa?». Para saber sus días antes de read_period.',
+		{
+			place: {
+				type: 'string',
+				description: 'El sitio, una o dos palabras («Alicante»). Vacío, todos los viajes largos.'
+			},
+			from_day: {
+				type: 'string',
+				description: 'Desde qué día, AAAA-MM-DD. Vacío, dos años atrás.'
+			},
+			to_day: { type: 'string', description: 'Hasta qué día, AAAA-MM-DD. Vacío, hoy.' }
+		},
+		[]
+	),
+	fn(
+		'read_period',
+		`Todo lo de unos días, de todas las secciones: trayectos en coche, paseos y fotos de esta persona, gastos de la familia (por categoría y uno a uno), la agenda y sus notas. Para un viaje, unas vacaciones o «¿qué hicimos la semana pasada?». Como mucho ${PERIOD_DAYS} días.`,
+		{
+			from_day: { type: 'string', description: 'El primer día, AAAA-MM-DD.' },
+			to_day: { type: 'string', description: 'El último día, AAAA-MM-DD.' }
+		},
+		['from_day', 'to_day']
 	)
 ];
 
@@ -194,6 +221,10 @@ export async function runRead(
 		}
 		case 'planned_trips':
 			return plannedTripsByVoice(k);
+		case 'find_trips':
+			return findTrips(k, userId, args);
+		case 'read_period':
+			return readPeriod(k, userId, args);
 		default:
 			return `No hay ninguna herramienta «${name}».`;
 	}

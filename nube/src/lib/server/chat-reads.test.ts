@@ -74,6 +74,18 @@ mock.module('#lib/server/rules.ts', () => ({
 mock.module('#lib/server/trips/voice.ts', () => ({
 	plannedTripsByVoice: async () => (called.push('trips'), '')
 }));
+// Tested in periods.test.ts.
+mock.module('#lib/server/periods.ts', () => ({
+	PERIOD_DAYS: 31,
+	findTrips: async (_k: Kitchen, userId: string, args: { place: string }) => (
+		called.push(`find_trips ${userId} ${args.place}`),
+		''
+	),
+	readPeriod: async (_k: Kitchen, userId: string, args: { from_day: string }) => (
+		called.push(`read_period ${userId} ${args.from_day}`),
+		''
+	)
+}));
 const reads = await import('./chat-reads.ts');
 const { spendingBars } = await import('./blocks.ts');
 const k = kitchen('A');
@@ -176,12 +188,16 @@ test('the voice’s reads, as the person who asks: their notes, memories and rul
 	await reads.runRead(k, 'ana', 'list_memories', {});
 	expect(await reads.runRead(k, 'ana', 'list_rules', {})).toBe('Si falta leche, avisa (en pausa)');
 	await reads.runRead(k, 'ana', 'planned_trips', {});
+	await reads.runRead(k, 'ana', 'find_trips', { place: 'Alicante' });
+	await reads.runRead(k, 'ana', 'read_period', { from_day: '2026-07-12', to_day: '2026-07-14' });
 	expect(called).toEqual([
 		'agenda 2026-11-16 null',
 		'notes ana coche',
 		'memories ana',
 		'rules ana',
-		'trips'
+		'trips',
+		'find_trips ana Alicante',
+		'read_period ana 2026-07-12'
 	]);
 });
 
