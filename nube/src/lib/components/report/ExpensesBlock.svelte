@@ -8,7 +8,16 @@
 	 * made, only their day: «Quitar» takes away one that is not of this trip (bought online, at
 	 * home), and it stays away when the report is brought up to date.
 	 */
-	let { block, excluded }: { block: ExpensesBlock; excluded: number[] } = $props();
+	let {
+		block,
+		excluded,
+		from,
+		to
+	}: { block: ExpensesBlock; excluded: number[]; from: string; to: string } = $props();
+
+	/** Gastos → Búsqueda with that category those days (all of them, the taken away too). */
+	const searchOf = (category: string) =>
+		`/gastos/busqueda?${new URLSearchParams({ desde: from, hasta: to, categoria: category })}`;
 
 	const kept = $derived(keptExpenses(block.items, excluded));
 	const total = $derived(kept.reduce((s, e) => s + e.total, 0));
@@ -36,7 +45,11 @@
 	<ul class="mb-3 flex flex-col gap-1.5">
 		{#each sums as s (s.category)}
 			<li class="grid grid-cols-[7rem_1fr_auto] items-center gap-2 text-sm">
-				<span class="truncate">{s.category}</span>
+				<a
+					href={searchOf(s.category)}
+					title="Ver en Gastos"
+					class="truncate hover:text-white hover:underline">{s.category}</a
+				>
 				<span class="h-2 overflow-hidden rounded-full bg-zinc-800">
 					<span
 						class="block h-full rounded-full bg-amber-500"

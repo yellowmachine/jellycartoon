@@ -1,6 +1,8 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, lt } from 'drizzle-orm';
 import { describeRecipe, parseRecipe } from 'comun/recipe.ts';
 import {
+	CHAT_HISTORY,
+	firstRead,
 	MAX_CARD_ITEMS,
 	MAX_CHAT_QUESTION,
 	type ChatCard,
@@ -34,8 +36,6 @@ import { FALLBACK_VOICE_MODEL, voiceSettings } from '#lib/server/voice/settings.
  * theirs (every query by their user id); children have no chat (kids.ts lets them nowhere near).
  */
 
-/** The messages sent with each question: enough to follow the thread, not a whole month. */
-const HISTORY = 20;
 /**
  * Rounds of tools at most: then what it said and the cards it made are the answer. Crossing
  * sections (#504) takes a few reads before the cards.
@@ -383,7 +383,7 @@ export async function askChat(
 	const [apiKey, settings, history, buying, recipes] = await Promise.all([
 		openRouterKey(k),
 		voiceSettings(k),
-		chatHistory(k, who.id, HISTORY),
+		chatHistory(k, who.id, CHAT_HISTORY),
 		toBuy(k),
 		listRecipes(k)
 	]);
@@ -395,7 +395,9 @@ export async function askChat(
 			role: 'system',
 			content: system({ name: who.name, style: settings.style, section, toBuy: buying, recipes })
 		},
-		...history.map((m): ToolChatMessage => ({ role: m.role, content: asText(m) || '(sin texto)' })),
+		...history
+			.slice(firstRead(history))
+			.map((m): ToolChatMessage => ({ role: m.role, content: asText(m) || '(sin texto)' })),
 		{ role: 'user', content: said }
 	];
 	const cards: ChatCard[] = [];
@@ -508,6 +510,24 @@ export async function saveRecipeFromCard(
 	found.cards[index] = { ...found.card, savedId: id };
 	await saveCards(k, userId, messageId, found.cards);
 	return id;
+}
+
+/**
+ * Days a chat's message is kept: what is worth keeping already lives elsewhere (the list, the
+ * recipes, the reports, «recuerda»), and the AI reads only the last CHAT_HISTORY.
+ */
+export const CHAT_DAYS = 30;
+
+/** Each night (scheduler.ts): the family's messages older than CHAT_DAYS, gone. How many. */
+export async function forgetOldChat(k: Kitchen, now = new Date()) {
+	const before = new Date(now.getTime() - CHAT_DAYS * 86_400_000);
+	const gone = await k.run((tx) =>
+		tx
+			.delete(chatMessage)
+			.where(and(eq(chatMessage.familyId, k.familyId), lt(chatMessage.createdAt, before)))
+			.returning({ id: chatMessage.id })
+	);
+	return gone.length;
 }
 
 /** «Empezar de nuevo»: their whole chat, gone. */

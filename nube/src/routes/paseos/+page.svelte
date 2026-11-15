@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { afterNavigate } from '$app/navigation';
+	import { page } from '$app/state';
 	import GuideLink from '#lib/components/GuideLink.svelte';
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import WalkLock from './WalkLock.svelte';
@@ -98,6 +100,14 @@
 		if (opened !== id || !res?.ok) return;
 		({ line, photos, notes } = await res.json());
 	}
+
+	// From a report (#505), `?paseo=`: that one opened, in view.
+	afterNavigate(() => {
+		const id = Number(page.url.searchParams.get('paseo'));
+		if (!id || opened === id) return;
+		void open(id);
+		document.getElementById('paseo-' + id)?.scrollIntoView({ block: 'center' });
+	});
 
 	// Its photos and notes arrive after the walk: the one opened shows them as they do.
 	$effect(() => {
@@ -298,7 +308,7 @@
 
 	<ul class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
 		{#each data.walks as w (w.id)}
-			<li class="p-3">
+			<li id="paseo-{w.id}" class="p-3">
 				<div class="flex items-center gap-4">
 					<button class="min-w-0 flex-1 text-left hover:text-amber-300" onclick={() => open(w.id)}>
 						<span class="block font-medium">

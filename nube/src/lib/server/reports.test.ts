@@ -234,6 +234,14 @@ test("a trip's report: each block from the database, what its person sees", asyn
 	expect(blockOf(made.pieces, 'cifras').expenses).toHaveLength(3);
 	expect(blockOf(made.pieces, 'mapa').ways).toHaveLength(3);
 	expect(blockOf(made.pieces, 'mapa').photos).toHaveLength(1);
+	// Each drive and walk of hers, in order, to open in Viajes or Paseos; not Pedro's.
+	expect(
+		blockOf(made.pieces, 'mapa').moves?.map((m) => [m.from, m.distance, m.destination])
+	).toEqual([
+		['viaje', 80_000, 'Alicante'],
+		['paseo', 4200, null],
+		['viaje', 80_000, null]
+	]);
 	expect(blockOf(made.pieces, 'fotos').photos.map((p) => p.from)).toEqual(['viaje', 'paseo']);
 	// Not the rent: a fixed one is not of the trip.
 	expect(blockOf(made.pieces, 'gastos').items.map((e) => e.store)).toEqual([

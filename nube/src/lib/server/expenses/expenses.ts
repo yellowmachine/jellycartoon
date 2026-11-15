@@ -70,13 +70,16 @@ export function searchExpenses(
 	{
 		withFile = false,
 		limit = SEARCH_LIMIT,
-		ids
+		ids,
+		category
 	}: {
 		withFile?: boolean;
 		/** Null, all of them. */
 		limit?: number | null;
 		/** Only among these (#459: those with a line of an own tag). */
 		ids?: number[];
+		/** Only those of this category. */
+		category?: string | null;
 	} = {}
 ) {
 	if (ids && !ids.length) return Promise.resolve([]);
@@ -94,7 +97,8 @@ export function searchExpenses(
 			from ? gte(expense.date, from) : undefined,
 			to ? lte(expense.date, to) : undefined,
 			withFile ? isNotNull(expense.receipt) : undefined,
-			ids ? inArray(expense.id, ids) : undefined
+			ids ? inArray(expense.id, ids) : undefined,
+			category ? eq(expense.category, category) : undefined
 		),
 		limit ?? undefined
 	);

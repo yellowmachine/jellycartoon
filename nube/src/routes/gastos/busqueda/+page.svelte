@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { euros, monthOf, ownTagOf, type Expense } from 'comun/expenses.ts';
+	import { EXPENSE_CATEGORIES, euros, monthOf, ownTagOf, type Expense } from 'comun/expenses.ts';
 	import ExpenseTabs from '#lib/components/ExpenseTabs.svelte';
 	import type { PageProps } from './$types';
 
 	/**
-	 * Gastos → Búsqueda: by words, dates and an own tag (#459); each one, corrected in its month. By a
+	 * Gastos → Búsqueda: by words, dates, a category and an own tag (#459); each one, corrected in its month. By a
 	 * tag, what counts is only its lines.
 	 */
 	let { data }: PageProps = $props();
@@ -16,10 +16,17 @@
 	let from = $derived(data.from ?? '');
 	let to = $derived(data.to ?? '');
 	let tagId = $derived(data.tag ? String(data.tag.id) : '');
+	let category = $derived(data.category ?? '');
 	/** The same search as a spreadsheet: every one, and with no filter, the whole history. */
 	const sheet = $derived(
 		`/gastos/busqueda/hoja?${new URLSearchParams(
-			Object.entries({ q: q.trim(), desde: from, hasta: to, etiqueta: tagId }).filter(([, v]) => v)
+			Object.entries({
+				q: q.trim(),
+				desde: from,
+				hasta: to,
+				categoria: category,
+				etiqueta: tagId
+			}).filter(([, v]) => v)
 		)}`
 	);
 	const total = $derived(data.expenses.reduce((sum, e) => sum + e.total, 0));
@@ -68,8 +75,8 @@
 	<form
 		method="get"
 		class="mb-6 grid grid-cols-2 gap-2 {data.own.tags.length
-			? 'sm:grid-cols-[1fr_auto_auto_auto_auto]'
-			: 'sm:grid-cols-[1fr_auto_auto_auto]'}"
+			? 'sm:grid-cols-[1fr_auto_auto_auto_auto_auto]'
+			: 'sm:grid-cols-[1fr_auto_auto_auto_auto]'}"
 	>
 		<label class="col-span-2 flex flex-col gap-1 text-xs text-zinc-400 sm:col-span-1">
 			Texto
@@ -88,6 +95,15 @@
 		<label class="flex flex-col gap-1 text-xs text-zinc-400">
 			Hasta
 			<input type="date" name="hasta" bind:value={to} class={field} />
+		</label>
+		<label class="col-span-2 flex flex-col gap-1 text-xs text-zinc-400 sm:col-span-1">
+			Categoría
+			<select name="categoria" bind:value={category} class={field}>
+				<option value="">Todas</option>
+				{#each EXPENSE_CATEGORIES as c (c)}
+					<option value={c}>{c}</option>
+				{/each}
+			</select>
 		</label>
 		{#if data.own.tags.length}
 			<label class="col-span-2 flex flex-col gap-1 text-xs text-zinc-400 sm:col-span-1">

@@ -171,3 +171,22 @@ test('what Papeles finds (#401): only with its file, by line or concept, the new
 	expect(found[0]!.line).toBeNull();
 	expect(await moneyDocuments(k, 'nada de esto')).toEqual([]);
 });
+
+test('by category, with the days', async () => {
+	expect(
+		(
+			await searchExpenses(
+				k,
+				{ text: '', from: '2026-10-01', to: '2026-10-31' },
+				{ category: 'Comida' }
+			)
+		).map((e) => e.store)
+	).toEqual(['Café Central', 'Mercadona']);
+	expect(
+		await searchExpenses(
+			k,
+			{ text: '', from: '2026-10-01', to: '2026-10-31' },
+			{ category: 'Gasolina' }
+		)
+	).toEqual([]);
+});

@@ -60,6 +60,7 @@ async function movesOf(k: Kitchen, userId: string, from: string, to: string) {
 		k.run((tx) =>
 			tx
 				.select({
+					id: trip.id,
 					startedAt: trip.startedAt,
 					distance: trip.distance,
 					destination: trip.destination,
@@ -71,7 +72,12 @@ async function movesOf(k: Kitchen, userId: string, from: string, to: string) {
 		),
 		k.run((tx) =>
 			tx
-				.select({ distance: walk.distance, line: walk.line })
+				.select({
+					id: walk.id,
+					startedAt: walk.startedAt,
+					distance: walk.distance,
+					line: walk.line
+				})
 				.from(walk)
 				.where(and(eq(walk.userId, userId), gte(walk.startedAt, since), lte(walk.startedAt, until)))
 				.orderBy(asc(walk.startedAt))
@@ -176,7 +182,23 @@ export async function buildBlock(
 			return {
 				kind: 'mapa',
 				ways,
-				photos: m.photos.map((p) => ({ id: p.id, lon: p.lon, lat: p.lat }))
+				photos: m.photos.map((p) => ({ id: p.id, lon: p.lon, lat: p.lat })),
+				moves: [
+					...m.drives.map((d) => ({
+						from: 'viaje' as const,
+						id: d.id,
+						at: d.startedAt.toISOString(),
+						distance: d.distance,
+						destination: d.destination
+					})),
+					...m.walks.map((w) => ({
+						from: 'paseo' as const,
+						id: w.id,
+						at: w.startedAt.toISOString(),
+						distance: w.distance,
+						destination: null
+					}))
+				].sort((a, b) => a.at.localeCompare(b.at))
 			};
 		}
 		case 'fotos': {

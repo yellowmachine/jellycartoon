@@ -4,6 +4,7 @@
 	import type { Report } from '#lib/reports.ts';
 	import AgendaBlock from './AgendaBlock.svelte';
 	import ExpensesBlock from './ExpensesBlock.svelte';
+	import MovesList from './MovesList.svelte';
 	import PhotosBlock from './PhotosBlock.svelte';
 	import StatsBlock from './StatsBlock.svelte';
 	import WeatherBlock from './WeatherBlock.svelte';
@@ -61,10 +62,16 @@
 				<StatsBlock block={p.block} excluded={report.excluded} />
 			{:else if p.block?.kind === 'mapa'}
 				<TripMap pieces={p.block.ways} photos={p.block.photos} ends={false} />
+				{#if p.block.moves?.length}<MovesList moves={p.block.moves} />{/if}
 			{:else if p.block?.kind === 'fotos'}
 				<PhotosBlock block={p.block} />
 			{:else if p.block?.kind === 'gastos'}
-				<ExpensesBlock block={p.block} excluded={report.excluded} />
+				<ExpensesBlock
+					block={p.block}
+					excluded={report.excluded}
+					from={report.from}
+					to={report.to}
+				/>
 			{:else if p.block?.kind === 'barras'}
 				<BarsBlock block={p.block} />
 			{:else if p.block?.kind === 'agenda'}

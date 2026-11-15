@@ -8,11 +8,19 @@ import { deleteTrips, listTrips, recordsTrips, tripStats } from '#lib/server/tri
 import { deletePhoto, listPhotos } from '#lib/server/trips/photos.ts';
 import { listCars, setTripCar } from '#lib/server/trips/cars.ts';
 
-/** The road mode's trips (#81): each one's own, kept if turned on in Ajustes, with their photos. */
-export const load: PageServerLoad = async ({ locals }) => {
+/**
+ * The road mode's trips (#81): each one's own, kept if turned on in Ajustes, with their photos.
+ * `?viaje=`, that one opened (from a report, #505): if older than the list, added at its end.
+ */
+export const load: PageServerLoad = async ({ locals, url }) => {
 	const k = await kitchenOf(locals.user!.id);
+	const asked = Number(url.searchParams.get('viaje')) || null;
 	const [trips, stats, recordTrips, map, photos, cars] = await Promise.all([
-		listTrips(k),
+		listTrips(k).then(async (list) =>
+			asked && !list.some((t) => t.id === asked)
+				? [...list, ...(await listTrips(k, 1, asked))]
+				: list
+		),
 		tripStats(k),
 		recordsTrips(k),
 		access(path.join(MAP_DIR, 'espana.pmtiles')).then(

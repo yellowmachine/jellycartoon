@@ -7,6 +7,7 @@ import { ringDue } from '#lib/server/alarms/alarms.ts';
 import { sendDueDoses } from '#lib/server/medication.ts';
 import { companionTick } from '#lib/server/companion.ts';
 import { forgetOver } from '#lib/server/memory.ts';
+import { forgetOldChat } from '#lib/server/chat.ts';
 import { checkTimedRules } from '#lib/server/rules.ts';
 import { warnKeyExpiring } from '#lib/server/ai-stopped.ts';
 import { learnPending, proposeRules, SUMMARY_AT, summarizeLearned } from '#lib/server/learn.ts';
@@ -21,7 +22,8 @@ import { visits } from '#lib/server/section-visits.ts';
  * minute, its agenda's notices, its medication's doses (#308), «Compañía» (#469) and its rules (#331); in the evening,
  * what the voice learned that day and the rules it proposes (#331); each morning, whether its
  * OpenRouter key is about to expire; at midnight,
- * the fridges' «Hoy» and what the voice remembered until yesterday (#331); every few hours, its
+ * the fridges' «Hoy», what the voice remembered until yesterday (#331) and Preguntar's messages
+ * over a month old (#470); every few hours, its
  * podcasts' feeds; every hour, the payments of each one's bank (#502). At startup, the families' Telegram bots. The families come from a function of
  * the database's owner that gives only their ids (migration 0007): each is then looked at within
  * its own family, as everything else.
@@ -98,6 +100,10 @@ export function startScheduler() {
 				// What the voice was to remember until yesterday (#331).
 				await eachFamily('Lo que ya no hay que recordar', async (id) => {
 					await forgetOver(houseKitchen(id));
+				});
+				// Preguntar's messages over CHAT_DAYS old (#470); the reports stay.
+				await eachFamily('Conversaciones antiguas', async (id) => {
+					await forgetOldChat(houseKitchen(id));
 				});
 				// Which sections each one opened, over 90 days ago (/admin, «Qué usa»).
 				await visits

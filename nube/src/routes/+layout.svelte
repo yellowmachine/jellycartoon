@@ -485,6 +485,17 @@ trip's link (#81), for whoever has it, and a shared walk's (#434), with its own 
 
 	{#if chatShown}
 		<ChatPanel />
+	{:else if chatOn && page.url.pathname !== '/preguntar'}
+		<!-- Closed, a tab on the right edge opens it (as the bar's button), where it fits. -->
+		<button
+			title="Preguntar, al lado de esta página"
+			aria-label="Abrir Preguntar al lado"
+			class="fixed top-1/2 right-0 z-20 hidden -translate-y-1/2 items-center gap-1 rounded-l-lg border border-r-0 border-zinc-700 bg-zinc-900 px-1.5 py-3 text-xs text-zinc-400 shadow-lg [writing-mode:vertical-rl] hover:bg-zinc-800 hover:text-white lg:flex"
+			onclick={() => chatPanel.toggle()}
+		>
+			<SectionIcon name="preguntar" class="h-5 w-5" />
+			Preguntar
+		</button>
 	{/if}
 
 	{#if callButtonShown && data.callButton}
