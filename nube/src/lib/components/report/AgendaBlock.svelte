@@ -16,7 +16,11 @@
 <ul class="flex flex-col gap-2 rounded-xl border border-zinc-800 bg-zinc-900 p-3 text-sm">
 	{#each block.days as d (d.day)}
 		<li>
-			<p class="text-zinc-400 first-letter:uppercase">{day(d.day)}</p>
+			<a
+				href="/agenda?dia={d.day}"
+				class="block text-zinc-400 first-letter:uppercase hover:text-white hover:underline"
+				>{day(d.day)}</a
+			>
 			<ul class="ml-4 list-disc text-zinc-200">
 				{#each d.events as e, i (i)}<li>{e}</li>{/each}
 			</ul>
