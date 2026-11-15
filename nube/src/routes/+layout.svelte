@@ -7,6 +7,7 @@
 	import { afterNavigate, goto } from '$app/navigation';
 	import { navigating, page } from '$app/state';
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
+	import { installApp } from '#lib/install-app.svelte.ts';
 	import AlarmBanner from 'comun/components/AlarmBanner.svelte';
 	import KidRequests from '#lib/components/KidRequests.svelte';
 	import AiStoppedBanner from '#lib/components/AiStoppedBanner.svelte';
@@ -103,6 +104,9 @@
 	// A device that keeps routes' maps (#164), music (#350) and games: what it was ordered from any
 	// other, done now. The maps first: they say whether the device was forgotten. The games after
 	// the music, in the same 2 GB.
+	// The browser's offer to install comes once, early: kept for any page (InstallApp).
+	onMount(() => installApp.watch());
+
 	onMount(() => {
 		if (!data.user) return;
 		void (async () => {

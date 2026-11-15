@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { installApp } from '#lib/install-app.svelte.ts';
+	import InstallApp from '#lib/components/InstallApp.svelte';
 	import Dibujo from 'comun/components/Dibujo.svelte';
 	import Caracol from '#lib/components/Caracol.svelte';
 	import SectionIcon, { type Section } from 'comun/components/SectionIcon.svelte';
@@ -181,7 +183,20 @@
 		{/each}
 	</section>
 
-	<section class="mt-12 rounded-md border border-zinc-800 p-6 text-zinc-400">
+	<!-- Hidden once opened as an app (InstallApp). -->
+	{#if !installApp.installed}
+		<section id="instalar" class="mt-12 rounded-md border border-zinc-800 p-6 text-zinc-400">
+			<h2 class="mb-2 font-semibold text-zinc-100">Instálala en el móvil o el PC</h2>
+			<p class="mb-4 text-sm">
+				Seilide es una web que se instala como una app, sin tienda: con su icono, a pantalla
+				completa y con avisos aunque esté cerrada. Puedes instalarla ya y entrar cuando tengas
+				acceso.
+			</p>
+			<InstallApp others />
+		</section>
+	{/if}
+
+	<section class="mt-6 rounded-md border border-zinc-800 p-6 text-zinc-400">
 		<h2 class="mb-2 font-semibold text-zinc-100">Cada familia, lo suyo</h2>
 		<p class="text-sm">
 			Lo de tu familia solo lo ve tu familia: la base de datos separa a cada una por sí misma, no

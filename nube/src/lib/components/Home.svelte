@@ -18,6 +18,8 @@
 	} from '#lib/planned-trips.ts';
 	import { sectionOn, type SectionChoices } from '#lib/nav.ts';
 	import { durationText } from '#lib/trips.ts';
+	import { installApp } from '#lib/install-app.svelte.ts';
+	import InstallApp from '#lib/components/InstallApp.svelte';
 	import type { CarView } from '#lib/cars.ts';
 	import { newsShown, newsUnread, type NewsCard } from '#lib/news.ts';
 	import CarCard from '#lib/components/CarCard.svelte';
@@ -170,31 +172,20 @@
 
 	// The first steps: what the server knows, and what only this device does (installed, notices).
 	const STEPS_KEY = 'seilide:primeros-pasos';
-	let installed = $state(true);
 	let notices = $state(true);
 	let stepsClosed = $state(true);
-	let installPrompt = $state<(Event & { prompt: () => Promise<void> }) | null>(null);
 	onMount(() => {
 		try {
 			stepsClosed = localStorage.getItem(STEPS_KEY) === 'cerrado';
 		} catch {
 			stepsClosed = false;
 		}
-		installed =
-			matchMedia('(display-mode: standalone)').matches ||
-			(navigator as Navigator & { standalone?: boolean }).standalone === true;
-		const keep = (e: Event) => {
-			e.preventDefault();
-			installPrompt = e as typeof installPrompt;
-		};
-		addEventListener('beforeinstallprompt', keep);
 		void (async () => {
 			if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
 			if (Notification.permission !== 'granted') return void (notices = false);
 			const reg = await navigator.serviceWorker.getRegistration();
 			notices = Boolean(await reg?.pushManager.getSubscription());
 		})();
-		return () => removeEventListener('beforeinstallprompt', keep);
 	});
 	function closeSteps() {
 		stepsClosed = true;
@@ -203,10 +194,6 @@
 		} catch {
 			// A private window: closed until it reloads.
 		}
-	}
-	async function install() {
-		await installPrompt?.prompt();
-		installPrompt = null;
 	}
 	const steps = $derived([
 		...(home.steps
@@ -226,11 +213,9 @@
 				]
 			: []),
 		{
-			done: installed,
+			done: installApp.installed,
 			label: 'Instala Seilide en el móvil',
-			hint: installPrompt
-				? null
-				: 'En el menú del navegador, «Instalar» o «Añadir a pantalla de inicio».',
+			install: true,
 			href: null
 		},
 		{
@@ -321,12 +306,12 @@
 							<span class="text-zinc-500 line-through">{s.label}</span>
 						{:else if s.href}
 							<a href={s.href} class="text-amber-400 hover:underline">{s.label}</a>
-						{:else if installPrompt}
-							<button onclick={install} class="text-amber-400 hover:underline">{s.label}</button>
 						{:else}
 							<span>{s.label}</span>
 						{/if}
-						{#if !s.done && s.hint}
+						{#if !s.done && 'install' in s}
+							<div class="mt-2"><InstallApp /></div>
+						{:else if !s.done && s.hint}
 							<p class="text-sm text-zinc-400">{s.hint}</p>
 						{/if}
 					</div>
