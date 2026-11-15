@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import EpisodeCard from 'comun/components/EpisodeCard.svelte';
+	import UpNext from 'comun/components/UpNext.svelte';
 	import Player from 'comun/components/Player.svelte';
 	import EpisodePreview from '#lib/components/EpisodePreview.svelte';
 	import PlayerFrame from '#lib/components/PlayerFrame.svelte';
@@ -61,20 +62,7 @@
 
 {#snippet upNext()}
 	{#if data.next}
-		<div class="w-full max-w-xs text-center">
-			<p class="mb-3 text-lg font-semibold">Siguiente en {countdown} s</p>
-			<EpisodeCard episode={data.next} {preview} />
-			<div class="mt-4 flex justify-center gap-3">
-				<button
-					class="rounded-md bg-amber-500 px-4 py-2 font-medium text-zinc-950 hover:bg-amber-400"
-					onclick={() => playNext()}>Ver ahora</button
-				>
-				<button
-					class="rounded-md border border-zinc-600 px-4 py-2 hover:bg-zinc-800"
-					onclick={stopCountdown}>Cancelar</button
-				>
-			</div>
-		</div>
+		<UpNext episode={data.next} {countdown} onplay={() => playNext()} oncancel={stopCountdown} />
 	{/if}
 {/snippet}
 
