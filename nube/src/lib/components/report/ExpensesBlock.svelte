@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { euros } from 'comun/expenses.ts';
+	import { euros, monthOf } from 'comun/expenses.ts';
 	import { keptExpenses, type ExpensesBlock } from '#lib/reports.ts';
 
 	/**
@@ -56,7 +56,11 @@
 			{@const out = excluded.includes(e.id)}
 			<li class={['flex items-center gap-2 py-1.5', out && 'text-zinc-600 line-through']}>
 				<span class="w-20 shrink-0 text-zinc-500">{day(e.date)}</span>
-				<span class="min-w-0 flex-1 truncate">{e.store}</span>
+				<a
+					href="/gastos?mes={monthOf(e.date)}&gasto={e.id}"
+					title="Abrir en Gastos"
+					class="min-w-0 flex-1 truncate hover:text-white hover:underline">{e.store}</a
+				>
 				<span class="shrink-0 tabular-nums">{euros(e.total)}</span>
 				<form method="post" action="?/quitar" use:enhance class="shrink-0">
 					<input type="hidden" name="expense" value={e.id} />
