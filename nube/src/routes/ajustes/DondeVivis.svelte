@@ -15,6 +15,34 @@
 	const found = $derived(
 		form && 'familyPlaces' in form ? (form.familyPlaces as Place[] | undefined) : undefined
 	);
+
+	/** «Usar mi ubicación»: the phone's position, sent by the hidden form once it comes. */
+	let locating = $state(false);
+	let locateProblem = $state<string | null>(null);
+	let positionForm: HTMLFormElement | undefined = $state();
+	let lat = $state('');
+	let lon = $state('');
+	function locate() {
+		locateProblem = null;
+		if (!navigator.geolocation) return void (locateProblem = 'Este navegador no da la ubicación.');
+		locating = true;
+		navigator.geolocation.getCurrentPosition(
+			(position) => {
+				lat = String(position.coords.latitude);
+				lon = String(position.coords.longitude);
+				// After Svelte writes the values into the inputs.
+				queueMicrotask(() => positionForm?.requestSubmit());
+			},
+			(error) => {
+				locating = false;
+				locateProblem =
+					error.code === error.PERMISSION_DENIED
+						? 'Sin permiso para la ubicación: dáselo a Seilide en el navegador y prueba otra vez.'
+						: 'No se pudo saber la ubicación. Prueba otra vez, mejor junto a una ventana.';
+			},
+			{ enableHighAccuracy: true, timeout: 20_000, maximumAge: 0 }
+		);
+	}
 </script>
 
 {#if data.place}
@@ -33,7 +61,10 @@
 		</p>
 
 		{#if data.place.name}
-			<p class="mb-3 text-sm">{data.place.name}</p>
+			<p class="mb-3 text-sm">
+				{data.place.name}
+				{#if data.place.exact}<span class="text-zinc-400"> · 📍 el punto exacto de casa</span>{/if}
+			</p>
 		{/if}
 
 		<form method="post" action="?seccion={tab}&/findPlace" use:enhance class="flex gap-2">
@@ -65,6 +96,29 @@
 		{#if form && 'placeProblem' in form}
 			<p class="mt-2 text-sm text-red-400">{form.placeProblem}</p>
 		{/if}
+
+		<form
+			method="post"
+			action="?seccion={tab}&/usePosition"
+			bind:this={positionForm}
+			use:enhance={() =>
+				async ({ update }) => {
+					await update();
+					locating = false;
+				}}
+			class="mt-3"
+		>
+			<input type="hidden" name="lat" value={lat} />
+			<input type="hidden" name="lon" value={lon} />
+			<button type="button" class={secondary} disabled={locating} onclick={locate}
+				>{locating ? 'Buscando la ubicación…' : '📍 Usar mi ubicación'}</button
+			>
+			<p class="mt-1 text-xs text-zinc-500">
+				Púlsalo estando en casa: la temperatura de fuera se calcula para ese punto, con su altura,
+				en vez del centro del pueblo.
+			</p>
+			{#if locateProblem}<p class="mt-1 text-sm text-red-400">{locateProblem}</p>{/if}
+		</form>
 
 		<div class="mt-3 flex items-center gap-3">
 			{#if data.place.name}

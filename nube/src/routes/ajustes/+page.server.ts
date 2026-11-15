@@ -252,7 +252,9 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		/** «Avisos en las páginas» (#440): any adult, as anyone may say «No me lo vuelvas a decir». */
 		pageNotices: await pageNoticesOf(k),
 		/** «Dónde vivís», if said: only its administrator. */
-		place: admin ? await familyPlace(k).then((p) => ({ name: p ? placeName(p) : null })) : null,
+		place: admin
+			? await familyPlace(k).then((p) => ({ name: p ? placeName(p) : null, exact: !!p?.exact }))
+			: null,
 		/** And how it talks to each one. */
 		myStyle: { text: (await personVoiceStyle(k, locals.user!.id)) ?? '' },
 		/** Whether the road mode keeps their trips (Viajes). */
@@ -443,6 +445,30 @@ export const actions: Actions = {
 		const place = placeFrom((await request.formData()).get('place'));
 		if (!place) return fail(400, { placeProblem: 'Sitio no válido' });
 		await setFamilyPlace(await kitchenOf(locals.user!.id), place);
+		return { saved: 'place' };
+	},
+	/**
+	 * «Usar mi ubicación», pressed at home: the house's own point for the weather (Open-Meteo takes any
+	 * point, its altitude too), the town's name kept.
+	 */
+	usePosition: async ({ request, locals }) => {
+		const denied = await requireAdmin(locals.user!.id, 'placeProblem');
+		if (denied) return denied;
+		const form = await request.formData();
+		const lat = Number(form.get('lat'));
+		const lon = Number(form.get('lon'));
+		if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180)
+			return fail(400, { placeProblem: 'Ubicación no válida' });
+		const k = await kitchenOf(locals.user!.id);
+		const before = await familyPlace(k);
+		await setFamilyPlace(k, {
+			name: before?.name ?? 'Casa',
+			region: before?.region ?? null,
+			country: before?.country ?? null,
+			lat: Math.round(lat * 10_000) / 10_000,
+			lon: Math.round(lon * 10_000) / 10_000,
+			exact: true
+		});
 		return { saved: 'place' };
 	},
 	clearPlace: async ({ locals }) => {

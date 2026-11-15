@@ -1,4 +1,5 @@
 <script lang="ts">
+	import EnchufesTabs from '#lib/components/EnchufesTabs.svelte';
 	import { enhance } from '$app/forms';
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import {
@@ -97,12 +98,8 @@
 	<title>Enchufes · Seilide</title>
 </svelte:head>
 
-<div class="mb-1 flex items-baseline justify-between gap-2">
-	<h1 class="text-2xl font-bold">Enchufes</h1>
-	{#if plugs.length}
-		<a href="/enchufes/consumo" class="text-sm text-amber-400 hover:underline">📊 Consumo</a>
-	{/if}
-</div>
+<h1 class="mb-3 text-2xl font-bold">Enchufes</h1>
+<EnchufesTabs current="enchufes" />
 <p class="mb-6 text-sm text-zinc-400">
 	Enciende y apaga los aparatos desde donde estés, y mira cuánto gastan. Funciona con enchufes
 	Shelly, sin instalar nada en casa.

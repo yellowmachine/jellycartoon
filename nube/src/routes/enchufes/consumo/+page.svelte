@@ -2,6 +2,7 @@
 	import { energyText, euroText } from '#lib/plugs.ts';
 	import { kwhPriceText } from '#lib/kwh-price.ts';
 	import { STATS_VIEWS, VIEW_LABELS, type StatsView } from '#lib/plug-stats.ts';
+	import EnchufesTabs from '#lib/components/EnchufesTabs.svelte';
 	import type { PageProps } from './$types';
 
 	/**
@@ -105,10 +106,8 @@
 	<title>Consumo · Enchufes · Seilide</title>
 </svelte:head>
 
-<p class="mb-2 text-sm">
-	<a href="/enchufes" class="text-zinc-400 hover:text-white">← Enchufes</a>
-</p>
-<h1 class="mb-4 text-2xl font-bold">Consumo</h1>
+<h1 class="mb-3 text-2xl font-bold">Enchufes</h1>
+<EnchufesTabs current="consumo" />
 
 {#if !s.plugs.length}
 	<p class="text-zinc-400">Todavía no hay enchufes: añade uno en Enchufes.</p>

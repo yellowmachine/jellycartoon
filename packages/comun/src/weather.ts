@@ -22,6 +22,8 @@ export interface Place {
 	country: string | null;
 	lat: number;
 	lon: number;
+	/** The house's own point, from the phone's location there; else the town's centre. */
+	exact?: boolean;
 }
 
 export const placeName = (p: Place) => [p.name, p.region, p.country].filter(Boolean).join(', ');
@@ -176,6 +178,62 @@ export async function weatherGlance(lat: number, lon: number): Promise<WeatherGl
 		min: round(data.daily.temperature_2m_min[0]),
 		max: round(data.daily.temperature_2m_max[0]),
 		rain: data.daily.precipitation_probability_max[0] ?? 0
+	};
+}
+
+/** Outside where they live (Enchufes → Temperatura): now, today's lowest and highest, and hour by hour. */
+export interface OutsideWeather {
+	/** °C and relative humidity %, now, as Open-Meteo estimates them for that point. */
+	temperature: number;
+	humidity: number;
+	min: number;
+	max: number;
+	/** The last `days` days' hours up to now: `YYYY-MM-DDTHH:MM` in Spain's time, °C (one decimal). */
+	hours: { at: string; temperature: number }[];
+}
+
+/** Days back Open-Meteo's forecast API gives (`past_days`, at most 92): what the chart shows. */
+export const OUTSIDE_DAYS = 30;
+
+export async function outsideWeather(
+	lat: number,
+	lon: number,
+	now = new Date()
+): Promise<OutsideWeather> {
+	const url = new URL(FORECAST_URL);
+	url.searchParams.set('latitude', String(lat));
+	url.searchParams.set('longitude', String(lon));
+	url.searchParams.set('current', 'temperature_2m,relative_humidity_2m');
+	url.searchParams.set('hourly', 'temperature_2m');
+	url.searchParams.set('daily', 'temperature_2m_max,temperature_2m_min');
+	url.searchParams.set('timezone', TIME_ZONE);
+	url.searchParams.set('past_days', String(OUTSIDE_DAYS));
+	url.searchParams.set('forecast_days', '1');
+	const data = await getJson(url);
+	// Today's hours still to come are a forecast: only up to this one.
+	const until = new Intl.DateTimeFormat('sv-SE', {
+		timeZone: TIME_ZONE,
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit'
+	})
+		.format(now)
+		.replace(' ', 'T');
+	const h = data.hourly;
+	const hours: OutsideWeather['hours'] = [];
+	for (let i = 0; i < (h?.time?.length ?? 0); i++) {
+		if (h.time[i] > until || h.temperature_2m[i] === null) continue;
+		hours.push({ at: h.time[i], temperature: Math.round(h.temperature_2m[i] * 10) / 10 });
+	}
+	const last = data.daily.time.length - 1;
+	return {
+		temperature: Math.round(data.current.temperature_2m * 10) / 10,
+		humidity: round(data.current.relative_humidity_2m),
+		min: round(data.daily.temperature_2m_min[last]),
+		max: round(data.daily.temperature_2m_max[last]),
+		hours
 	};
 }
 
