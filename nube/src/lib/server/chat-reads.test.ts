@@ -86,6 +86,14 @@ mock.module('#lib/server/periods.ts', () => ({
 		''
 	)
 }));
+// Tested in plugs/energy-read.test.ts.
+mock.module('#lib/server/plugs/energy-read.ts', () => ({
+	ENERGY_DAYS: 92,
+	describePlugEnergy: async (_k: Kitchen, args: { plug: string }) => (
+		called.push(`energy ${args.plug}`),
+		''
+	)
+}));
 // Tested in weather-read.test.ts.
 mock.module('#lib/server/weather-read.ts', () => ({
 	WEATHER_DAYS: 92,
@@ -199,6 +207,7 @@ test('the voice’s reads, as the person who asks: their notes, memories and rul
 	await reads.runRead(k, 'ana', 'find_trips', { place: 'Alicante' });
 	await reads.runRead(k, 'ana', 'read_period', { from_day: '2026-07-12', to_day: '2026-07-14' });
 	await reads.runRead(k, 'ana', 'read_weather', { from_day: '2026-01-01' });
+	await reads.runRead(k, 'ana', 'read_plug_energy', { plug: 'termo', from_day: '2026-01-01' });
 	expect(called).toEqual([
 		'agenda 2026-11-16 null',
 		'notes ana coche',
@@ -207,7 +216,8 @@ test('the voice’s reads, as the person who asks: their notes, memories and rul
 		'trips',
 		'find_trips ana Alicante',
 		'read_period ana 2026-07-12',
-		'weather 2026-01-01'
+		'weather 2026-01-01',
+		'energy termo'
 	]);
 });
 
