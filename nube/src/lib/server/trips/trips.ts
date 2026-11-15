@@ -87,8 +87,11 @@ export async function addTripPoints(k: Kitchen, points: TripPoint[], destination
 	});
 }
 
-/** The trips, the latest first, without their positions. */
-export async function listTrips(k: Kitchen, limit = 100) {
+/**
+ * The trips, the latest first, without their positions. `only`, that one alone (a report's link to
+ * an old trip, #505).
+ */
+export async function listTrips(k: Kitchen, limit = 100, only?: number) {
 	const userId = who(k);
 	return k.run((tx) =>
 		tx
@@ -102,7 +105,7 @@ export async function listTrips(k: Kitchen, limit = 100) {
 				carId: trip.carId
 			})
 			.from(trip)
-			.where(eq(trip.userId, userId))
+			.where(and(eq(trip.userId, userId), only === undefined ? undefined : eq(trip.id, only)))
 			.orderBy(desc(trip.startedAt))
 			.limit(limit)
 	);

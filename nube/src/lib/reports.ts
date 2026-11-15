@@ -40,6 +40,17 @@ export interface MapBlock {
 	ways: [number, number][][];
 	/** The road mode's photos, where they were taken. */
 	photos: { id: number; lon: number | null; lat: number | null }[];
+	/** Each drive and walk, to open it in its page; reports made before this have none. */
+	moves?: MoveRef[];
+}
+
+export interface MoveRef {
+	from: 'viaje' | 'paseo';
+	id: number;
+	at: string;
+	/** Metres. */
+	distance: number;
+	destination: string | null;
 }
 
 export interface PhotoRef {

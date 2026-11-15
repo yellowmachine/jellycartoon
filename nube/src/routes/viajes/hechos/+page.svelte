@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { afterNavigate } from '$app/navigation';
+	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import ViajesTabs from '#lib/components/ViajesTabs.svelte';
@@ -53,6 +55,14 @@
 		photosOfTrip = body.photos;
 		line = body.line;
 	}
+
+	// From a report (#505), `?viaje=`: that one opened, in view.
+	afterNavigate(() => {
+		const id = Number(page.url.searchParams.get('viaje'));
+		if (!id || opened === id) return;
+		void open(id);
+		document.getElementById('viaje-' + id)?.scrollIntoView({ block: 'center' });
+	});
 
 	/**
 	 * The last trip, first: back home, what was just kept is what is wanted. Its way and its photos
@@ -192,7 +202,7 @@
 {#if data.trips.length}
 	<ul class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
 		{#each data.trips as t (t.id)}
-			<li class="p-3">
+			<li id="viaje-{t.id}" class="p-3">
 				<div class="flex flex-wrap items-center gap-x-4 gap-y-1">
 					<button class="min-w-0 flex-1 text-left hover:text-amber-300" onclick={() => open(t.id)}>
 						<span class="block font-medium">

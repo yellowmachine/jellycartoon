@@ -7,11 +7,19 @@ import { dayOf, kitchenOf, today } from '#lib/server/fridge.ts';
 import { deleteWalk, listWalks } from '#lib/server/walks/walks.ts';
 import { walkTotals } from '#lib/walks.ts';
 
-/** Paseos (#410): one's own walks, with this week's and this month's added up. */
-export const load: PageServerLoad = async ({ locals }) => {
+/**
+ * Paseos (#410): one's own walks, with this week's and this month's added up. `?paseo=`, that one
+ * opened (from a report, #505): if it is older than the list, it is added at its end.
+ */
+export const load: PageServerLoad = async ({ locals, url }) => {
 	const k = await kitchenOf(locals.user!.id);
+	const asked = Number(url.searchParams.get('paseo')) || null;
 	const [walks, map] = await Promise.all([
-		listWalks(k),
+		listWalks(k).then(async (list) =>
+			asked && !list.some((w) => w.id === asked)
+				? [...list, ...(await listWalks(k, 1, asked))]
+				: list
+		),
 		access(path.join(MAP_DIR, 'espana.pmtiles')).then(
 			() => true,
 			() => false

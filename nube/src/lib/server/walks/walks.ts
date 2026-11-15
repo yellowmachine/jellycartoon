@@ -31,7 +31,8 @@ export async function saveWalk(k: Kitchen, w: NonNullable<ReturnType<typeof pars
 }
 
 /** The walks, the latest first, without their positions. */
-export function listWalks(k: Kitchen, limit = 100) {
+/** `only`, that one alone (a report's link to an old walk, #505). */
+export function listWalks(k: Kitchen, limit = 100, only?: number) {
 	const userId = who(k);
 	return k.run((tx) =>
 		tx
@@ -44,7 +45,7 @@ export function listWalks(k: Kitchen, limit = 100) {
 				diagnosis: walk.diagnosis
 			})
 			.from(walk)
-			.where(eq(walk.userId, userId))
+			.where(and(eq(walk.userId, userId), only === undefined ? undefined : eq(walk.id, only)))
 			.orderBy(desc(walk.startedAt))
 			.limit(limit)
 	);
