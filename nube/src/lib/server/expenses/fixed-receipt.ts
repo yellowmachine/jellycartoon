@@ -72,6 +72,14 @@ export async function dropReceipt(k: Kitchen, id: number) {
 const nearAmount = (a: number, b: number) =>
 	a > 0 && Math.abs(a - b) <= Math.max(100, Math.round(b * 0.05));
 
+/**
+ * Near enough with its name too: a quarter or 2 € (the gym gone up). Only a bill's may be far by
+ * name alone, as the light changes each month; a receipt of the shop is not the subscription
+ * otherwise (the Amazon order of 40 € is not Prime's 4,99 €).
+ */
+const namedAmount = (a: number, b: number) =>
+	a > 0 && Math.abs(a - b) <= Math.max(200, Math.round(b * 0.25));
+
 /** «Luz» in «Luz Iberdrola», «Iberdrola» in «Luz (Iberdrola)», or the bill's supply in the name. */
 function sameName(fixedName: string, draft: Pick<ExpenseDraft, 'store' | 'bill'>) {
 	const name = plainText(fixedName).trim();
@@ -85,7 +93,7 @@ function sameName(fixedName: string, draft: Pick<ExpenseDraft, 'store' | 'bill'>
 
 /**
  * Of those fixed ones' expenses, the one the receipt or bill read is likely of: by its name (the
- * shop, or the bill's supply), else by an amount near enough; of its own month before the one
+ * shop, or the bill's supply; a receipt's with an amount not far), else by an amount near enough; of its own month before the one
  * before; then the nearest amount. Null, none.
  */
 export function bestFixed(
@@ -95,7 +103,11 @@ export function bestFixed(
 	const month = monthOf(draft.date);
 	const scored = candidates
 		.map((c) => ({ c, named: sameName(c.store, draft) }))
-		.filter(({ c, named }) => named || nearAmount(draft.total, c.total))
+		.filter(({ c, named }) =>
+			named
+				? draft.bill !== null || namedAmount(draft.total, c.total)
+				: nearAmount(draft.total, c.total)
+		)
 		.sort(
 			(a, b) =>
 				Number(b.named) - Number(a.named) ||
