@@ -22,6 +22,8 @@ export interface Place {
 	country: string | null;
 	lat: number;
 	lon: number;
+	/** The house's own point, from the phone's location there; else the town's centre. */
+	exact?: boolean;
 }
 
 export const placeName = (p: Place) => [p.name, p.region, p.country].filter(Boolean).join(', ');
@@ -179,6 +181,62 @@ export async function weatherGlance(lat: number, lon: number): Promise<WeatherGl
 	};
 }
 
+/** Outside where they live (Enchufes → Temperatura): now, today's lowest and highest, and hour by hour. */
+export interface OutsideWeather {
+	/** °C and relative humidity %, now, as Open-Meteo estimates them for that point. */
+	temperature: number;
+	humidity: number;
+	min: number;
+	max: number;
+	/** The last `days` days' hours up to now: `YYYY-MM-DDTHH:MM` in Spain's time, °C (one decimal). */
+	hours: { at: string; temperature: number }[];
+}
+
+/** Days back Open-Meteo's forecast API gives (`past_days`, at most 92): what the chart shows. */
+export const OUTSIDE_DAYS = 30;
+
+export async function outsideWeather(
+	lat: number,
+	lon: number,
+	now = new Date()
+): Promise<OutsideWeather> {
+	const url = new URL(FORECAST_URL);
+	url.searchParams.set('latitude', String(lat));
+	url.searchParams.set('longitude', String(lon));
+	url.searchParams.set('current', 'temperature_2m,relative_humidity_2m');
+	url.searchParams.set('hourly', 'temperature_2m');
+	url.searchParams.set('daily', 'temperature_2m_max,temperature_2m_min');
+	url.searchParams.set('timezone', TIME_ZONE);
+	url.searchParams.set('past_days', String(OUTSIDE_DAYS));
+	url.searchParams.set('forecast_days', '1');
+	const data = await getJson(url);
+	// Today's hours still to come are a forecast: only up to this one.
+	const until = new Intl.DateTimeFormat('sv-SE', {
+		timeZone: TIME_ZONE,
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit'
+	})
+		.format(now)
+		.replace(' ', 'T');
+	const h = data.hourly;
+	const hours: OutsideWeather['hours'] = [];
+	for (let i = 0; i < (h?.time?.length ?? 0); i++) {
+		if (h.time[i] > until || h.temperature_2m[i] === null) continue;
+		hours.push({ at: h.time[i], temperature: Math.round(h.temperature_2m[i] * 10) / 10 });
+	}
+	const last = data.daily.time.length - 1;
+	return {
+		temperature: Math.round(data.current.temperature_2m * 10) / 10,
+		humidity: round(data.current.relative_humidity_2m),
+		min: round(data.daily.temperature_2m_min[last]),
+		max: round(data.daily.temperature_2m_max[last]),
+		hours
+	};
+}
+
 /** An emoji for WMO's code: the sky at a glance. */
 export function skyIcon(code: number) {
 	if (code === 0 || code === 1) return '☀️';
@@ -320,4 +378,83 @@ export async function pastWeather(
 		});
 	}
 	return days;
+}
+
+/** A day's weather for reading (Preguntar's read_weather): its mean too, and whether forecast. */
+export interface DayReading {
+	day: string;
+	sky: string;
+	/** °C, one decimal. */
+	min: number;
+	max: number;
+	mean: number;
+	/** mm. */
+	rain: number;
+	forecast: boolean;
+}
+
+/** Days back the forecast API answers by dates (it keeps about three months). */
+const RECENT_DAYS = 90;
+const minusDays = (day: string, n: number) => {
+	const d = new Date(`${day}T12:00:00Z`);
+	d.setUTCDate(d.getUTCDate() - n);
+	return d.toISOString().slice(0, 10);
+};
+
+/**
+ * At `lat`, `lon`, from `from` to `to` (both included), day by day; with `everyHours`, also
+ * those hours' temperature. The last three months and the next days from the forecast API (its
+ * days from `today` on are forecasts); older, from its forecasts as they were (since 2022), and
+ * then nothing from today on. `to` past FORECAST_DAYS is cut there.
+ */
+export async function readWeather(
+	lat: number,
+	lon: number,
+	from: string,
+	to: string,
+	today: string,
+	everyHours: number | null = null
+): Promise<{ days: DayReading[]; hours: { at: string; temperature: number }[] }> {
+	const recent = from >= minusDays(today, RECENT_DAYS);
+	const last = recent
+		? [to, minusDays(today, -(FORECAST_DAYS - 1))].sort()[0]!
+		: [to, minusDays(today, 1)].sort()[0]!;
+	if (last < from) return { days: [], hours: [] };
+	const url = new URL(recent ? FORECAST_URL : PAST_URL);
+	url.searchParams.set('latitude', String(lat));
+	url.searchParams.set('longitude', String(lon));
+	url.searchParams.set(
+		'daily',
+		'weather_code,temperature_2m_max,temperature_2m_min,temperature_2m_mean,precipitation_sum'
+	);
+	if (everyHours) url.searchParams.set('hourly', 'temperature_2m');
+	url.searchParams.set('timezone', TIME_ZONE);
+	url.searchParams.set('start_date', from);
+	url.searchParams.set('end_date', last);
+	const data = await getJson(url);
+	const d = data.daily;
+	// + 0: never «-0».
+	const one = (n: number) => Math.round(n * 10) / 10 + 0;
+	const days: DayReading[] = [];
+	for (let i = 0; i < (d?.time?.length ?? 0); i++) {
+		if (d.temperature_2m_max[i] === null || d.temperature_2m_min[i] === null) continue;
+		const min = one(d.temperature_2m_min[i]);
+		const max = one(d.temperature_2m_max[i]);
+		days.push({
+			day: d.time[i],
+			sky: sky(d.weather_code[i]),
+			min,
+			max,
+			mean: one(d.temperature_2m_mean?.[i] ?? (min + max) / 2),
+			rain: one(d.precipitation_sum[i] ?? 0),
+			forecast: d.time[i] >= today
+		});
+	}
+	const h = data.hourly;
+	const hours: { at: string; temperature: number }[] = [];
+	if (everyHours)
+		for (let i = 0; i < (h?.time?.length ?? 0); i += everyHours)
+			if (h.temperature_2m[i] !== null)
+				hours.push({ at: h.time[i], temperature: one(h.temperature_2m[i]) });
+	return { days, hours };
 }

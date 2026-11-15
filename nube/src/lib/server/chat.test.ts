@@ -47,6 +47,16 @@ mock.module('#lib/server/openrouter.ts', () => ({
 	}
 }));
 mock.module('#lib/server/family-settings.ts', () => ({ openRouterKey: async () => 'clave' }));
+// Tested in plugs/energy-read.test.ts.
+mock.module('#lib/server/plugs/energy-read.ts', () => ({
+	ENERGY_DAYS: 92,
+	describePlugEnergy: async () => ''
+}));
+// Tested in weather-read.test.ts.
+mock.module('#lib/server/weather-read.ts', () => ({
+	WEATHER_DAYS: 92,
+	describeWeather: async () => ''
+}));
 mock.module('#lib/server/voice/settings.ts', () => ({
 	FALLBACK_VOICE_MODEL: 'otro/modelo',
 	voiceSettings: async () => ({ conversationModel: 'modelo', style: null })

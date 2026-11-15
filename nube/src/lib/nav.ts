@@ -76,14 +76,16 @@ const SECTIONS: {
 		where: 'nube',
 		about: 'Notas dictadas, privadas de cada persona, para buscarlas luego. Solo adultos.'
 	},
-	// Smart plugs (#396): Shelly plugs that connect to Seilide by themselves.
+	// Energía (#396, #508): Shelly plugs that connect to Seilide by themselves, the temperature, and
+	// what is to come. Its address stays /enchufes: the families' sections and the notices use it.
 	{
 		path: '/enchufes',
-		label: 'Enchufes',
+		label: 'Energía',
 		icon: 'enchufes',
 		where: 'nube',
 		startsOff: true,
-		about: 'Encender y apagar aparatos desde fuera y ver cuánto gastan, con enchufes Shelly.'
+		about:
+			'Encender y apagar aparatos desde fuera con enchufes Shelly, ver cuánto gastan y la temperatura de fuera.'
 	},
 	// Homework from the cartoons watched at the house (#142), for the grown-ups and the children.
 	{
