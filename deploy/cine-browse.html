@@ -1,0 +1,19 @@
+{{- /* The film folder's listing on :8097 (deploy/Caddyfile), like Apache's: one plain link per
+entry, its text the same as its address, which is what Kodi reads in an HTTP source (Caddy's own
+listing has icons and «./» in front, so Kodi may skip entries). Sprig's trimPrefix comes with Caddy's
+templates: https://caddyserver.com/docs/modules/http.handlers.file_server#browse */ -}}
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Index of {{html .Name}}</title></head>
+<body>
+<h1>Index of {{html .Name}}</h1>
+<pre>
+{{- if .CanGoUp}}
+<a href="../">../</a>
+{{- end}}
+{{- range .Items}}
+<a href="{{html (trimPrefix "./" .URL)}}">{{html .Name}}</a>
+{{- end}}
+</pre>
+</body>
+</html>

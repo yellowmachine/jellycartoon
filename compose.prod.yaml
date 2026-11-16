@@ -160,6 +160,8 @@ services:
     ports:
       - 443:443
       - 443:443/udp
+      # The film folder by plain HTTP, for Kodi and other players at home (deploy/Caddyfile).
+      - 8097:8097
     environment:
       # The site address (https://<domain>), for the Caddyfile in the image (deploy/Caddyfile).
       ORIGIN: ${ORIGIN:?ORIGIN is required}
@@ -175,6 +177,8 @@ services:
       # Certificates and the ACME account: without them, a new certificate on every start.
       - caddy_data:/data
       - caddy_config:/config
+      # Served as it is on 8097 (deploy/Caddyfile), read-only like the app's.
+      - ${HOST_CINEMA_DIR:-./no-cinema}:/cinema:ro
     networks:
       - default
       - tunel
