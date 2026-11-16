@@ -91,3 +91,23 @@
 			HTML 503
 	}
 }
+
+# The film folder (HOST_CINEMA_DIR, mounted read-only on /cinema) as it is, by plain HTTP on 8097,
+# for players that play the mkv themselves with all its audio and subtitle tracks: Kodi on a Google
+# TV projector, with the source http://salon.local:8097/. Without HTTPS, so that any player takes
+# it; only for the house's network, and never what comes through the tunnel (only 443 goes through
+# it anyway). file_server answers Range requests, so the player can jump anywhere.
+# https://caddyserver.com/docs/caddyfile/directives/file_server
+http://:8097 {
+	@outside {
+		not remote_ip private_ranges
+	}
+	@tunnel remote_ip 172.31.253.0/29
+	respond @outside 403
+	respond @tunnel 403
+
+	root * /cinema
+	file_server {
+		browse /etc/caddy/cine-browse.html
+	}
+}

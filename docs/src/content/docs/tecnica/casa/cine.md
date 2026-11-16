@@ -124,3 +124,20 @@ systemctl --user enable --now jellycartoon-mpv
   Cada uno la quita en Ajustes, y el mando tiene «Saltar a la película». No se sube al repo:
   `data/` está en `.gitignore`.
 - Si no se ve nada: `systemctl --user status jellycartoon-mpv` y el Registro de la app.
+
+## En el proyector o en otra tele, con Kodi
+
+Caddy sirve también la carpeta de Cine tal cual, por HTTP en el puerto **8097** y solo para la red
+de casa (lo que llega por el túnel no). Así un reproductor que abra el mkv por su cuenta lo ve con
+todos sus audios y subtítulos y sin perder calidad: nada se convierte. En Google TV o Android TV,
+con [Kodi](https://kodi.tv): Vídeos → Archivos → Añadir vídeos → Buscar → Añadir ubicación de red,
+protocolo «Servidor web (HTTP)», servidor `salon.local` (o su IP), puerto `8097`. Se pueden saltar
+escenas: Caddy contesta por trozos (Range).
+
+- Los subtítulos que hace Whisper no van: están aparte, en la carpeta de la app, y solo los añade
+  el mpv del salón. Los que trae el mkv sí.
+- Lo que se ve en Kodi no cuenta en la app: ni el progreso ni «Vista».
+- Las películas más pesadas van a unos 30 Mbps de media, con picos del doble. Con el proyector en
+  wifi de 5 GHz va sobrado; si se para, sube la caché de Kodi (Ajustes → Servicios → Caché).
+- Hace falta el puerto en el compose (`8097:8097`) y la carpeta montada en Caddy: tras actualizar
+  `compose.prod.yaml`, `docker compose -f compose.prod.yaml up -d`.

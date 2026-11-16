@@ -8,3 +8,5 @@ COPY --from=builder /usr/bin/caddy /usr/bin/caddy
 # The site, with ORIGIN and CF_API_TOKEN from the environment: inside the image, not in the compose,
 # so that it is still there when WUD recreates the container (#20).
 COPY deploy/Caddyfile /etc/caddy/Caddyfile
+# The film folder's listing on :8097, as Kodi reads it (deploy/Caddyfile).
+COPY deploy/cine-browse.html /etc/caddy/cine-browse.html

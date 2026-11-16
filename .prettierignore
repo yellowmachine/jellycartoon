@@ -20,3 +20,6 @@ bun.lockb
 # The documentation (docs/, #380): Astro's build output and generated types.
 /docs/dist/
 /docs/.astro/
+
+# A Go template for Caddy's listing, not HTML that Prettier can read.
+/deploy/cine-browse.html
