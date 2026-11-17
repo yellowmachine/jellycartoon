@@ -1,4 +1,4 @@
-import { accountDeletionScope, type DeletionPlan } from './account-deletion-scope.ts';
+import { accountDeletionScope, planToKeep, type DeletionPlan } from './account-deletion-scope.ts';
 import { bank } from './banks/bank.ts';
 import { db } from './db/index.ts';
 import { removeAllFiles, removeFile } from './storage.ts';
@@ -10,6 +10,10 @@ import { removeAllFiles, removeFile } from './storage.ts';
  */
 export const accountDeletion = accountDeletionScope(db);
 
+/**
+ * Each deletion's plan, from before the account goes to after. Kept when it fails on the way, for
+ * the next try to finish it (planToKeep); lost only if the app restarts in between.
+ */
 const plans = new Map<string, DeletionPlan>();
 
 export async function beforeDeleteAccount(person: { id: string; email: string; name: string }) {
@@ -21,7 +25,8 @@ export async function beforeDeleteAccount(person: { id: string; email: string; n
 		await bank
 			.disconnect(person.id)
 			.catch((error) => console.warn('[cuentas] No se pudo desconectar el banco', String(error)));
-	plans.set(person.id, await accountDeletion.prepare(person.id, person.email, person.name));
+	const fresh = await accountDeletion.prepare(person.id, person.email, person.name);
+	plans.set(person.id, planToKeep(plans.get(person.id), fresh));
 }
 
 export async function afterDeleteAccount(person: { id: string; name: string; email: string }) {
@@ -45,6 +50,7 @@ export async function afterDeleteAccount(person: { id: string; name: string; ema
 		);
 	if (plan.orphanKids.length && plan.admins.length) {
 		const { tell } = await import('./inbox.ts');
+		// The account is gone by now: whatever fails here is not to be told as a failed deletion.
 		await tell(familyId, plan.admins, {
 			kind: 'recado',
 			title: 'Hay peques sin adulto',
@@ -52,6 +58,8 @@ export async function afterDeleteAccount(person: { id: string; name: string; ema
 			url: '/ajustes?seccion=familia#personas',
 			tag: 'peques-sin-adulto',
 			ttl: 7 * 24 * 60 * 60
-		});
+		}).catch((error) =>
+			console.error('[cuentas] No se pudo avisar de los peques sin adulto', error)
+		);
 	}
 }

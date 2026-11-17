@@ -47,7 +47,12 @@ export const actions: Actions = {
 				return fail(400, {
 					problem: 'Este enlace ya no vale. Pide otro correo desde Ajustes → Cuenta'
 				});
-			throw err;
+			// Part of it may be done already (your things, or the family): another email finishes it.
+			console.error('[cuentas] La eliminación no terminó:', err);
+			return fail(500, {
+				problem:
+					'No se pudo terminar de eliminar la cuenta. Pide otro correo desde Ajustes → Cuenta para acabar'
+			});
 		}
 		redirect(303, '/cuenta/eliminada');
 	}

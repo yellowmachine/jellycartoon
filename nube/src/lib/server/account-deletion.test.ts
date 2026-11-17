@@ -35,7 +35,7 @@ mock.module('#lib/server/storage.ts', () => ({
 	fileResponse: async () => new Response()
 }));
 
-const { accountDeletionScope, KidAccount, MustHandOver } =
+const { accountDeletionScope, KidAccount, MustHandOver, planToKeep } =
 	await import('./account-deletion-scope.ts');
 
 /** On a real Postgres (PGlite), as the app's role; the account deleted as Better Auth does. */
@@ -274,5 +274,40 @@ describe('no longer administering (#315)', () => {
 
 	test('not by someone who does not administer', async () => {
 		expect((await stepDownAdmin(withFamily, 'luis')).ok).toBe(false);
+	});
+});
+
+describe('a deletion that fails on the way (#315)', () => {
+	const plan = (familyId: string | null, files: string[]) => ({
+		familyId,
+		familyGone: false,
+		files: files.map((name) => ({ area: 'notas', name })),
+		orphanKids: [],
+		admins: []
+	});
+
+	test('trying again, with no family left, finishes what the first try found', () => {
+		const first = plan('A', ['paseo.jpg']);
+		expect(planToKeep(first, plan(null, []))).toEqual(first);
+	});
+
+	test('a first try, or one with a family, is what it finds', () => {
+		const fresh = plan('A', ['nota.webm']);
+		expect(planToKeep(undefined, fresh)).toEqual(fresh);
+		expect(planToKeep(plan('B', ['viejo.jpg']), fresh)).toEqual(fresh);
+	});
+
+	test('the only adult, with the family gone and the account not: trying again finds no family', async () => {
+		const first = await deletion.prepare('sola', 'sola@test.es', 'sola');
+		expect(first).toMatchObject({ familyId: 'S', familyGone: true });
+		expect(await deletion.stateOf('sola')).toEqual({ kind: 'noFamily' });
+		const again = await deletion.prepare('sola', 'sola@test.es', 'sola');
+		expect(planToKeep(first, again)).toMatchObject({ familyId: 'S', familyGone: true });
+	});
+
+	test('a member, with the account not gone, is still one: trying again finds it all again', async () => {
+		await deletion.prepare('luis', 'luis@test.es', 'luis');
+		expect(await deletion.stateOf('luis')).toEqual({ kind: 'stays' });
+		expect((await deletion.prepare('luis', 'luis@test.es', 'luis')).familyId).toBe('A');
 	});
 });

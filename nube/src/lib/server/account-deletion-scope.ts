@@ -208,6 +208,17 @@ export function accountDeletionScope(db: AnyDb, { role }: { role?: string } = {}
 	return { stateOf, prepare };
 }
 
+/**
+ * The plan to finish with: a deletion that failed after `prepare` (Better Auth's own step) left the
+ * person with no family, so trying again finds nothing; what the first try found (its files, its
+ * children with no adult) is still what is left to do.
+ */
+export function planToKeep(pending: DeletionPlan | undefined, fresh: DeletionPlan): DeletionPlan {
+	return pending && !fresh.familyId
+		? { ...pending, files: [...pending.files, ...fresh.files] }
+		: fresh;
+}
+
 /** Children only they let in, by name, and who else administers: to be told when they go. */
 export async function orphansOf(tx: AnyDb, userId: string) {
 	const mine = await tx
