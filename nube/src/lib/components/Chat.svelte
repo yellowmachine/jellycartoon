@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import BarsBlock from '#lib/components/BarsBlock.svelte';
 	import { tick, type Snippet } from 'svelte';
 	import Caracol from '#lib/components/Caracol.svelte';
@@ -192,6 +192,8 @@
 													: c
 											);
 											toBuy = [...new Set([...toBuy, ...added])];
+											// The page beside it read again, without moving: the shopping list shows them.
+											void invalidateAll();
 										}}
 									>
 										<input type="hidden" name="message" value={m.id} />

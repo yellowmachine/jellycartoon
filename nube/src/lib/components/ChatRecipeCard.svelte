@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
+	import { justSaved } from '#lib/chat-saved.svelte.ts';
 	import { describeTimer } from 'comun/recipe.ts';
 	import type { RecipeCard } from '#lib/chat.ts';
 	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
@@ -9,7 +11,8 @@
 	 * A recipe written by the AI (#470): its ingredients and steps, with «Guardar en Recetas» (into
 	 * the family's book) and «Cocinar ahora» (the kitchen mode, as from Recetas). Saved through
 	 * /preguntar's action from any page (the side panel, #504): `onsaved` gets its number there, and
-	 * the page stays where it is.
+	 * the page stays where it is, with its data read again (Recetas beside it shows the new one, and
+	 * points it out: chat-saved.svelte.ts).
 	 */
 	let {
 		card,
@@ -95,12 +98,15 @@
 				use:enhance={() => {
 					saving = true;
 					problem = null;
-					// Not update(): from another page it would take there (Kit 3).
+					// Not update(): from another page it would take there (Kit 3). invalidateAll() reads
+					// the page beside it again without moving.
 					return async ({ result }) => {
 						saving = false;
-						if (result.type === 'success' && typeof result.data?.savedId === 'number')
+						if (result.type === 'success' && typeof result.data?.savedId === 'number') {
 							onsaved(result.data.savedId);
-						else problem = 'No se pudo guardar';
+							justSaved.recipeId = result.data.savedId;
+							void invalidateAll();
+						} else problem = 'No se pudo guardar';
 					};
 				}}
 			>
