@@ -135,6 +135,20 @@ export class SnapserverControl {
 		this.#update(id, { volume: next.percent, muted: next.muted });
 	}
 
+	/**
+	 * The speaker's own mute. Unmuting also unmutes its group, if it was muted (the bar's «Todos»,
+	 * or a voice order that played only in another room: `soundOnly`), or it would stay silent.
+	 */
+	async setMuted(id: string, muted: boolean) {
+		const current = this.#speakers.get(id);
+		if (!current) throw new Error('Ese altavoz ya no está');
+		if (!muted && current.groupMuted) {
+			await this.request('Group.SetMute', { id: current.groupId, mute: false });
+			this.#groupMuted(current.groupId, false);
+		}
+		if (current.muted !== muted) await this.setVolume(id, { muted });
+	}
+
 	/** All the speakers that are on, keeping their balance (see scaleVolumes). */
 	async setMasterVolume(value: number) {
 		const volumes = scaleVolumes([...this.#speakers.values()], value);

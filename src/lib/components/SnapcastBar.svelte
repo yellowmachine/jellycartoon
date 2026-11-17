@@ -135,19 +135,14 @@
 									>
 								{/if}
 								<button
-									class="w-6 shrink-0 text-sm disabled:opacity-50"
-									disabled={speaker.groupMuted}
-									aria-label={speaker.muted ? 'Quitar silencio' : 'Silenciar'}
-									title={speaker.groupMuted
-										? 'Silenciados todos'
-										: speaker.muted
-											? 'Quitar silencio'
-											: 'Silenciar'}
+									class="w-6 shrink-0 text-sm"
+									aria-label={speaker.muted || speaker.groupMuted ? 'Quitar silencio' : 'Silenciar'}
+									title={speaker.muted || speaker.groupMuted ? 'Quitar silencio' : 'Silenciar'}
 									onclick={() =>
 										musicTarget.send({
 											action: 'mute',
 											speakerId: speaker.id,
-											value: !speaker.muted
+											value: !(speaker.muted || speaker.groupMuted)
 										})}>{speaker.muted || speaker.groupMuted ? '🔇' : '🔊'}</button
 								>
 								<input
