@@ -20,6 +20,7 @@ import { startWorker } from '#lib/server/library/worker.ts';
 import { startSubtitles } from '#lib/server/auto-subtitles.ts';
 import { startLabelling } from '#lib/server/episode-labels.ts';
 import { startNightlyScan } from '#lib/server/library/nightly.ts';
+import { startInbox } from '#lib/server/cinema/inbox.ts';
 import { logStartup } from '#lib/server/startup.ts';
 import { freeCloudKeys } from '#lib/server/media-api.ts';
 import { wakeCatalog } from '#lib/server/cinema/catalog.ts';
@@ -40,6 +41,8 @@ export const init: ServerInit = async () => {
 	if (cinemaRoot) wakeCatalog();
 	// Info saved before Wikidata's awards, sagas and crew were read: completed in the background.
 	if (cinemaRoot) void wakeExtras();
+	// New rips left in Cine's entrada/: encoded and moved to Cine while nobody uses the salon.
+	if (cinemaRoot) await startInbox();
 	// Tracks whose tags were not read yet, and covers not looked up.
 	if (musicRoot) wakeMusicCatalog();
 	// Without video (#378), no conversions, subtitles nor labels.

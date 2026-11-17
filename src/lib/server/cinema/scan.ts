@@ -8,6 +8,7 @@ import { cinemaRoot } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 import { looksUnmounted } from '#lib/scan-safety.ts';
 import { wakeCatalog } from './catalog.ts';
+import { INBOX } from './inbox-plan.ts';
 import { wakeInfo } from './info.ts';
 import { parseMovieName } from './title.ts';
 
@@ -31,6 +32,8 @@ export interface CinemaScanResult {
 async function walk(dir: string, found: { files: string[]; discs: string[] }) {
 	for (const entry of await readdir(dir, { withFileTypes: true })) {
 		if (entry.name.startsWith('.')) continue;
+		// The rips waiting to be encoded (inbox.ts): in Cine once they are done.
+		if (dir === cinemaRoot && entry.name === INBOX) continue;
 		const full = path.join(dir, entry.name);
 		if (entry.isDirectory()) {
 			if (DISC_FOLDERS.has(entry.name.toUpperCase())) {

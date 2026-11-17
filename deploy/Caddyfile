@@ -113,5 +113,8 @@ http://:8097 http://{$CINEMA_HOST:cine.invalid} {
 	root * /cinema
 	file_server {
 		browse /etc/caddy/cine-browse.html
+		# The rips waiting to be encoded (Gestión → Entrada): in Cine once they are done. The full
+		# path answers 404; the bare name keeps it out of the listing too.
+		hide /cinema/entrada entrada
 	}
 }
