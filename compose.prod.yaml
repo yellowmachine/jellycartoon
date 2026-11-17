@@ -160,8 +160,10 @@ services:
     ports:
       - 443:443
       - 443:443/udp
-      # The film folder by plain HTTP, for Kodi and other players at home (deploy/Caddyfile).
+      # The film folder by plain HTTP, for Kodi and other players at home (deploy/Caddyfile): on
+      # 8097 with any name, on 80 with CINEMA_HOST.
       - 8097:8097
+      - 80:80
     environment:
       # The site address (https://<domain>), for the Caddyfile in the image (deploy/Caddyfile).
       ORIGIN: ${ORIGIN:?ORIGIN is required}
@@ -173,6 +175,10 @@ services:
       # Optional, with the `tunel` profile: the name reached from outside through rathole, which
       # serves only the APIs for other apps (deploy/Caddyfile).
       MEDIA_HOST: ${MEDIA_HOST:-}
+      # Optional: a name for the film folder on port 80, without a port in Kodi (deploy/Caddyfile).
+      # Never empty: Caddy's default doesn't take an empty value, and `http://` alone would serve
+      # the films to every name on 80. .invalid never resolves (RFC 6761).
+      CINEMA_HOST: ${CINEMA_HOST:-cine.invalid}
     volumes:
       # Certificates and the ACME account: without them, a new certificate on every start.
       - caddy_data:/data
