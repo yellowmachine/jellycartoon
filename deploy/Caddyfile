@@ -92,13 +92,17 @@
 	}
 }
 
-# The film folder (HOST_CINEMA_DIR, mounted read-only on /cinema) as it is, by plain HTTP on 8097,
-# for players that play the mkv themselves with all its audio and subtitle tracks: Kodi on a Google
-# TV projector, with the source http://salon.local:8097/. Without HTTPS, so that any player takes
-# it; only for the house's network, and never what comes through the tunnel (only 443 goes through
-# it anyway). file_server answers Range requests, so the player can jump anywhere.
+# The film folder (HOST_CINEMA_DIR, mounted read-only on /cinema) as it is, by plain HTTP, for
+# players that play the mkv themselves with all its audio and subtitle tracks: Kodi on a Google TV
+# projector. On 8097 with any name or IP (http://192.168.1.10:8097/), and on 80 with CINEMA_HOST
+# (optional), a name the house's DNS gives (e.g. cine.home.arpa, an AdGuard rewrite), so that the
+# player's source has no port (http://cine.home.arpa/). Its own name, not every name on 80: other
+# folders can get theirs the same way. Not «.local»: that is mDNS's, and Android may ask only mDNS.
+# Without HTTPS, so that any player takes it; only for the house's network, and never what comes
+# through the tunnel (only 443 goes through it anyway). file_server answers Range requests, so the
+# player can jump anywhere.
 # https://caddyserver.com/docs/caddyfile/directives/file_server
-http://:8097 {
+http://:8097 http://{$CINEMA_HOST:cine.invalid} {
 	@outside {
 		not remote_ip private_ranges
 	}

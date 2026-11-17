@@ -127,17 +127,25 @@ systemctl --user enable --now jellycartoon-mpv
 
 ## En el proyector o en otra tele, con Kodi
 
-Caddy sirve también la carpeta de Cine tal cual, por HTTP en el puerto **8097** y solo para la red
-de casa (lo que llega por el túnel no). Así un reproductor que abra el mkv por su cuenta lo ve con
-todos sus audios y subtítulos y sin perder calidad: nada se convierte. En Google TV o Android TV,
-con [Kodi](https://kodi.tv): Vídeos → Archivos → Añadir vídeos → Buscar → Añadir ubicación de red,
-protocolo «Servidor web (HTTP)», servidor `salon.local` (o su IP), puerto `8097`. Se pueden saltar
-escenas: Caddy contesta por trozos (Range).
+Caddy sirve también la carpeta de Cine tal cual, por HTTP y solo para la red de casa (lo que llega
+por el túnel no). Así un reproductor que abra el mkv por su cuenta lo ve con todos sus audios y
+subtítulos y sin perder calidad: nada se convierte. En Google TV o Android TV, con
+[Kodi](https://kodi.tv): Vídeos → Archivos → Añadir vídeos → Buscar → Añadir ubicación de red,
+protocolo «Servidor web (HTTP)». Se pueden saltar escenas: Caddy contesta por trozos (Range).
+
+- **Con nombre, sin puerto (lo mejor):** pon `CINEMA_HOST="cine.home.arpa"` en el `.env` y, en el DNS
+  de casa, ese nombre apuntando a la IP del servidor (en AdGuard, Filtros → Reescrituras DNS; si
+  hay dos DNS, en los dos). En Kodi, servidor `cine.home.arpa` y puerto `80`. La IP del servidor,
+  fija (una reserva en el router).
+- **Sin nombre:** servidor la IP del servidor y puerto `8097`.
+- No uses `salon.local` ni ningún nombre `.local`: eso es mDNS, y Android no siempre lo resuelve.
+  Kodi abre una conexión nueva en cada salto; si esa falla, se cierra el reproductor y la fuente
+  no vuelve hasta reiniciar Kodi.
 
 - Los subtítulos que hace Whisper no van: están aparte, en la carpeta de la app, y solo los añade
   el mpv del salón. Los que trae el mkv sí.
 - Lo que se ve en Kodi no cuenta en la app: ni el progreso ni «Vista».
 - Las películas más pesadas van a unos 30 Mbps de media, con picos del doble. Con el proyector en
   wifi de 5 GHz va sobrado; si se para, sube la caché de Kodi (Ajustes → Servicios → Caché).
-- Hace falta el puerto en el compose (`8097:8097`) y la carpeta montada en Caddy: tras actualizar
+- Hacen falta los puertos en el compose (`8097:8097`, `80:80`) y la carpeta montada en Caddy: tras actualizar
   `compose.prod.yaml`, `docker compose -f compose.prod.yaml up -d`.
