@@ -8,6 +8,7 @@ import { db } from '#lib/server/db/index.ts';
 import { steamGame } from '#lib/server/db/schema.ts';
 import { steamRoot } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
+import { noteSalonUse } from '#lib/server/cinema/inbox.ts';
 
 /**
  * Steam's games on the PC with the screen: those installed, read from its own files, and launched
@@ -110,6 +111,8 @@ export const openBigPicture = () => tellSteamService('bigpicture');
 
 /** A line to the service (deploy/jellycartoon-steam.sh): an appid, or `bigpicture`. */
 function tellSteamService(line: string) {
+	// A game on the TV: Cine's inbox waits (cinema/inbox.ts).
+	noteSalonUse('un juego de Steam');
 	return new Promise<void>((resolve, reject) => {
 		const socket = net.createConnection(STEAM_SOCKET!, () => socket.end(`${line}\n`));
 		socket.setTimeout(3000, () => socket.destroy(new Error('El servicio de Steam no contesta')));

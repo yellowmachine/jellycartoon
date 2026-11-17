@@ -1,6 +1,7 @@
 import { stat } from 'node:fs/promises';
 import net from 'node:net';
 import { RETRODECK_SOCKET } from '$app/env/private';
+import { noteSalonUse } from '#lib/server/cinema/inbox.ts';
 
 /**
  * GAMES_DIR's games opened in RetroDECK on the PC with the screen, instead of in the browser: by a
@@ -27,6 +28,8 @@ export const openRetrodeck = () => tellRetrodeckService('retrodeck');
 
 /** A line to the service (deploy/jellycartoon-retrodeck.sh). */
 function tellRetrodeckService(line: string) {
+	// A game on the TV: Cine's inbox waits (cinema/inbox.ts).
+	noteSalonUse('un juego de RetroDECK');
 	return new Promise<void>((resolve, reject) => {
 		const socket = net.createConnection(RETRODECK_SOCKET!, () => socket.end(`${line}\n`));
 		socket.setTimeout(3000, () =>

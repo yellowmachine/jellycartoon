@@ -19,6 +19,7 @@ interface ProbeStream {
 	width?: number;
 	height?: number;
 	color_transfer?: string;
+	avg_frame_rate?: string;
 	channels?: number;
 	disposition?: { default?: number; attached_pic?: number; forced?: number };
 	/** Ogg (Opus) keeps a file's tags here, not in the format's. */
@@ -49,6 +50,8 @@ export function run(
 		signal?: AbortSignal;
 		/** Frozen with the worker; off for work that isn't the worker's, like scanning. */
 		pausable?: boolean;
+		/** The process, as soon as it starts: for work that freezes it on its own (cinema/inbox.ts). */
+		onSpawn?: (child: ChildProcess) => void;
 	} = {}
 ) {
 	return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
@@ -59,6 +62,7 @@ export function run(
 			// A frozen process only handles SIGTERM once resumed; SIGKILL works right away.
 			killSignal: 'SIGKILL'
 		});
+		options.onSpawn?.(child);
 		if (options.pausable !== false) {
 			// The worker's (conversions) at the lowest priority: they only take the CPU nobody else
 			// wants, so the music on Snapcast, the app and the rest of the PC keep going smoothly.

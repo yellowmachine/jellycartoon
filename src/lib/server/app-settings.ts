@@ -47,7 +47,10 @@ type Key =
 	| 'ai_episode_titles'
 	| 'ai_opening_quote'
 	| 'ai_scene_names'
-	| 'openrouter_own';
+	| 'openrouter_own'
+	/** Gestión → Entrada: paused by hand, and the files that failed (cinema/inbox.ts). */
+	| 'cinema_inbox_paused'
+	| 'cinema_inbox_failed';
 
 export async function getAppSetting(key: Key) {
 	return get(key);

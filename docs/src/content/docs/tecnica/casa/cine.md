@@ -125,6 +125,33 @@ systemctl --user enable --now jellycartoon-mpv
   `data/` está en `.gitignore`.
 - Si no se ve nada: `systemctl --user status jellycartoon-mpv` y el Registro de la app.
 
+## Entrada: películas recién ripeadas
+
+Las películas recién ripeadas (con MakeMKV) se dejan en la carpeta `entrada` dentro de la de Cine
+(la app la crea). Cuando un fichero termina de copiarse (dos minutos sin cambiar de tamaño), se pasa
+a HEVC con x265 (CRF 18, `medium`: mucho más pequeña sin que se note) con todos sus audios,
+subtítulos y capítulos, se comprueba que dura lo mismo, se borra el original y va a Cine con el
+mismo nombre (una película en su carpeta, `entrada/Alien/title_t00.mkv`, conserva la carpeta). Las
+que ya son HEVC, o no son mkv, pasan tal cual. Se ve y se pausa en Gestión → Entrada.
+
+Codifica una a una y solo mientras nadie usa el salón:
+
+- Siempre con la prioridad más baja de procesador y de disco: solo usa lo que no quiere nadie.
+- Se congela (sin perder nada) si el mpv del salón tiene algo puesto, si se abre un juego desde la
+  app (Steam, RetroDECK) o si el resto del ordenador trabaja (más de medio núcleo de media en un
+  minuto, o dos de golpe: un juego, la Vista TV, una conversión). Sigue 10 minutos después de que
+  acabe. La música y la voz gastan poco y no la paran.
+- La suspensión de la noche la congela con todo lo demás, y sigue al despertar.
+- Si la app se reinicia (una actualización), esa película empieza de nuevo: x265 no puede seguir
+  un fichero a medias.
+- En el salón (Ryzen 5 8600G) va a algo más de la mitad del tiempo real: unas 3,5–4 h por película
+  de 2 h.
+
+Si una falla (o se cancela), se queda en `entrada` y Gestión dice por qué; «Reintentar», o copiarla
+de nuevo, la vuelve a intentar. Ni el escaneo ni Kodi ven la carpeta `entrada`. Para escribir en
+ella y mover a Cine, la app monta la carpeta de Cine con permiso de escritura: tras actualizar
+`compose.prod.yaml`, `docker compose -f compose.prod.yaml up -d`.
+
 ## En el proyector o en otra tele, con Kodi
 
 Caddy sirve también la carpeta de Cine tal cual, por HTTP y solo para la red de casa (lo que llega

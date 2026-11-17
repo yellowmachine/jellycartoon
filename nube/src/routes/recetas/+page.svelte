@@ -5,6 +5,8 @@
 	import Backdrop from 'comun/components/Backdrop.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { poll } from 'comun/poll.ts';
+	import { justSaved } from '#lib/chat-saved.svelte.ts';
+	import { tick } from 'svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -21,6 +23,25 @@
 	$effect(() => {
 		if (!data.sites.some((s) => s.indexing)) return;
 		return poll(invalidateAll, 3000);
+	});
+
+	/**
+	 * Just saved from the chat beside it: pointed out for a few seconds, and scrolled to if it is
+	 * out of sight. The page does not go to it: the chat's card has the link.
+	 */
+	let pointed = $state<number | null>(null);
+	$effect(() => {
+		const id = justSaved.recipeId;
+		if (id === null || !data.recipes.some((r) => r.id === id)) return;
+		justSaved.recipeId = null;
+		pointed = id;
+		void tick().then(() =>
+			document
+				.getElementById(`receta-${id}`)
+				?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+		);
+		const timer = setTimeout(() => (pointed = null), 4000);
+		return () => clearTimeout(timer);
 	});
 
 	const day = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short' });
@@ -82,7 +103,13 @@
 		<div class="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
 			{#each data.recipes as r (r.id)}
 				{@const isBackdrop = r.id === data.backdropId}
-				<div class="group relative min-w-0">
+				<div
+					id="receta-{r.id}"
+					class="group relative min-w-0 rounded-md ring-offset-4 ring-offset-zinc-950 transition-shadow duration-500 {pointed ===
+					r.id
+						? 'ring-2 ring-amber-400'
+						: ''}"
+				>
 					<a href="/recetas/{r.id}" class="block">
 						{#if r.imageUrl}
 							<img

@@ -25,6 +25,7 @@
 			label: 'Etiquetado',
 			match: (p: string) => p === '/library/etiquetado'
 		},
+		{ href: '/library/entrada', label: 'Entrada', match: (p: string) => p === '/library/entrada' },
 		{ href: '/library/nube', label: 'Seilide', match: (p: string) => p === '/library/nube' },
 		{ href: '/logs', label: 'Registro', match: (p: string) => p === '/logs' }
 	];
