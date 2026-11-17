@@ -209,9 +209,10 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		/** Whether they can leave their family, or what stops it (#315). */
 		leaving: await accountDeletion.stateOf(locals.user!.id),
 		/** What deleting one's account would do (#315); the service's administrator's, nothing. */
-		deletion: isServiceAdmin(locals.user!.email)
-			? null
-			: await accountDeletion.stateOf(locals.user!.id),
+		deletion:
+			isServiceAdmin(locals.user!.email) || membership.role === 'peque'
+				? null
+				: await accountDeletion.stateOf(locals.user!.id),
 		/** Who it can be handed over to (#315): only its administrator. */
 		handOver: admin ? await adminsAndAdults(withFamily, locals.user!.id) : null,
 		/** The family's open invitations, with their links: only its administrator. */
@@ -844,7 +845,10 @@ export const actions: Actions = {
 	requestDeletion: async ({ request, locals }) => {
 		if (isServiceAdmin(locals.user!.email))
 			return fail(400, { deletionProblem: 'Eres quien administra el servicio' });
-		if ((await accountDeletion.stateOf(locals.user!.id)).kind === 'handOverFirst')
+		const state = await accountDeletion.stateOf(locals.user!.id);
+		if (state.kind === 'kid')
+			return fail(403, { deletionProblem: 'Las cuentas de peque las quitan sus adultos' });
+		if (state.kind === 'handOverFirst')
 			return fail(400, { deletionProblem: 'Antes, pasa la administración a otro adulto' });
 		try {
 			await auth.api.deleteUser({ body: {}, headers: request.headers });

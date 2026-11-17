@@ -48,6 +48,12 @@
 					</li>
 				</ul>
 			{/if}
+			{#if data.state.kind !== 'noFamily'}
+				<p class="mb-3 text-sm text-zinc-300">
+					Si tenéis una casa conectada, lo que guarda ella de ti, como lo que has visto, se queda en
+					ella, y ya no podrás entrar.
+				</p>
+			{/if}
 			<p class="mb-3 text-sm text-zinc-300">
 				No se puede deshacer. Lo borrado sigue hasta 7 noches más en las copias de seguridad, y
 				luego desaparece. Si quieres conservar algo,

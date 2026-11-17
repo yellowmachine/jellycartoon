@@ -35,8 +35,10 @@ import { personFiles } from './person-files.ts';
  * - `lastAdult`: there is no other adult: the family and its children's accounts go too.
  * - `handOverFirst`: they are its only administrator and there are other adults.
  * - `noFamily`: only the account.
+ * - `kid`: a child's account is not deleted by the child (nor do they leave): their adults decide.
  */
 export type DeletionState =
+	| { kind: 'kid' }
 	| { kind: 'stays' }
 	| { kind: 'lastAdult'; kids: string[] }
 	| { kind: 'handOverFirst' }
@@ -67,6 +69,7 @@ export function accountDeletionScope(db: AnyDb, { role }: { role?: string } = {}
 
 	async function stateOf(userId: string): Promise<DeletionState> {
 		const found = await inFamily<DeletionState>(userId, async (tx, m) => {
+			if (m.role === 'peque') return { kind: 'kid' };
 			const others = await tx
 				.select({ role: familyMember.role, name: user.name })
 				.from(familyMember)
@@ -150,6 +153,7 @@ export function accountDeletionScope(db: AnyDb, { role }: { role?: string } = {}
 	async function prepare(userId: string, email: string, name: string): Promise<DeletionPlan> {
 		const state = await stateOf(userId);
 		if (state.kind === 'handOverFirst') throw new MustHandOver();
+		if (state.kind === 'kid') throw new KidAccount();
 
 		const plan: DeletionPlan = {
 			familyId: null,
@@ -204,6 +208,17 @@ export function accountDeletionScope(db: AnyDb, { role }: { role?: string } = {}
 	return { stateOf, prepare };
 }
 
+/**
+ * The plan to finish with: a deletion that failed after `prepare` (Better Auth's own step) left the
+ * person with no family, so trying again finds nothing; what the first try found (its files, its
+ * children with no adult) is still what is left to do.
+ */
+export function planToKeep(pending: DeletionPlan | undefined, fresh: DeletionPlan): DeletionPlan {
+	return pending && !fresh.familyId
+		? { ...pending, files: [...pending.files, ...fresh.files] }
+		: fresh;
+}
+
 /** Children only they let in, by name, and who else administers: to be told when they go. */
 export async function orphansOf(tx: AnyDb, userId: string) {
 	const mine = await tx
@@ -235,5 +250,12 @@ export async function orphansOf(tx: AnyDb, userId: string) {
 export class MustHandOver extends Error {
 	constructor() {
 		super('Antes de eliminar tu cuenta, pasa la administración a otro adulto');
+	}
+}
+
+/** A child's account, which only their adults remove (Ajustes → Familia). */
+export class KidAccount extends Error {
+	constructor() {
+		super('Las cuentas de peque las quitan sus adultos');
 	}
 }
