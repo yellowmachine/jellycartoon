@@ -35,7 +35,8 @@ mock.module('#lib/server/storage.ts', () => ({
 	fileResponse: async () => new Response()
 }));
 
-const { accountDeletionScope, MustHandOver } = await import('./account-deletion-scope.ts');
+const { accountDeletionScope, KidAccount, MustHandOver } =
+	await import('./account-deletion-scope.ts');
 
 /** On a real Postgres (PGlite), as the app's role; the account deleted as Better Auth does. */
 const db = drizzle(new PGlite(), { schema });
@@ -109,6 +110,16 @@ describe('what deleting would do (#315)', () => {
 
 	test('the only adult is told of the family and its children', async () => {
 		expect(await deletion.stateOf('sola')).toEqual({ kind: 'lastAdult', kids: ['hijo'] });
+	});
+
+	test('a child does not delete their own account: their adults do', async () => {
+		expect(await deletion.stateOf('peque')).toEqual({ kind: 'kid' });
+		await expect(deletion.prepare('peque', 'peque@test.es', 'peque')).rejects.toBeInstanceOf(
+			KidAccount
+		);
+		expect(
+			await db.select().from(familyPerson).where(eq(familyPerson.userId, 'peque'))
+		).toHaveLength(1);
 	});
 
 	test('someone with no family only has an account', async () => {

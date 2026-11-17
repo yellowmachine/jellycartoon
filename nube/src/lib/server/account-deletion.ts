@@ -1,4 +1,5 @@
 import { accountDeletionScope, type DeletionPlan } from './account-deletion-scope.ts';
+import { bank } from './banks/bank.ts';
 import { db } from './db/index.ts';
 import { removeAllFiles, removeFile } from './storage.ts';
 
@@ -12,6 +13,14 @@ export const accountDeletion = accountDeletionScope(db);
 const plans = new Map<string, DeletionPlan>();
 
 export async function beforeDeleteAccount(person: { id: string; email: string; name: string }) {
+	// Their bank first, while its key and the family are still there: the address bunq calls on each
+	// movement, taken off at bunq. The account's cascade only forgets it here, and bunq would go on
+	// calling. Not when deleting is to be refused (prepare says why).
+	const { kind } = await accountDeletion.stateOf(person.id);
+	if (kind !== 'handOverFirst' && kind !== 'kid')
+		await bank
+			.disconnect(person.id)
+			.catch((error) => console.warn('[cuentas] No se pudo desconectar el banco', String(error)));
 	plans.set(person.id, await accountDeletion.prepare(person.id, person.email, person.name));
 }
 
