@@ -161,23 +161,9 @@
 					onpointercancel={() => holdEnd(false)}
 					onlostpointercapture={() => holdEnd(false)}
 					oncontextmenu={(e) => e.preventDefault()}
-					><span class="relative text-2xl leading-none" aria-hidden="true"
-						>✕{#if holding}<svg
-								class="absolute -inset-2 h-[calc(100%+1rem)] w-[calc(100%+1rem)] -rotate-90"
-								viewBox="0 0 36 36"
-								><circle
-									class="fill"
-									cx="18"
-									cy="18"
-									r="16"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="3"
-									pathLength="100"
-									style:animation-duration="{HOLD_MS}ms"
-								/></svg
-							>{/if}</span
-					><span>{held ? 'Suelta' : holding ? 'Mantén…' : 'Salir'}</span></button
+					><span class="relative text-2xl leading-none" aria-hidden="true">✕</span><span
+						>{held ? 'Suelta' : holding ? 'Mantén…' : 'Salir'}</span
+					></button
 				>
 			</div>
 			<!-- What plays, from one tab to another. -->
@@ -191,6 +177,40 @@
 		</main>
 	</div>
 </div>
+
+<!-- «Salir» held down (#532): the ring in the middle of the screen, where the finger on the button
+     does not cover it; nothing to touch, the button keeps the touch. -->
+{#if holding}
+	<div
+		class="pointer-events-none fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-zinc-950/60"
+		role="status"
+	>
+		<svg class="h-48 w-48 -rotate-90" viewBox="0 0 36 36" aria-hidden="true"
+			><circle
+				cx="18"
+				cy="18"
+				r="16"
+				fill="none"
+				class="stroke-zinc-700"
+				stroke-width="2.5"
+			/><circle
+				class="fill"
+				cx="18"
+				cy="18"
+				r="16"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2.5"
+				stroke-linecap="round"
+				pathLength="100"
+				style:animation-duration="{HOLD_MS}ms"
+			/></svg
+		>
+		<p class="text-3xl font-semibold text-white">
+			{held ? 'Suelta para salir' : 'Mantén pulsado…'}
+		</p>
+	</div>
+{/if}
 
 <VistaRest />
 
