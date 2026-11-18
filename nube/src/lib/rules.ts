@@ -12,8 +12,9 @@ import { timeLabel } from 'comun/timer-names.ts';
  * that goes up, something the voice is asked to remember, a trip that starts or ends (theirs; the
  * house's, anyone's), every day at `time`; the weather that comes to be (looked at every half
  * hour), a dose still not marked `minutesAfter` its time, something said to the voice (phase 4:
- * «cuando diga que pongo la lavadora», by its words only), or a purchase saved in Gastos (#451:
- * «si compro bebida», by what it has).
+ * «cuando diga que pongo la lavadora», by its words only), a purchase saved in Gastos (#451:
+ * «si compro bebida», by what it has), or a plug's appliance that starts or ends a cycle (#528:
+ * «cuando acabe la lavadora», by the plug's name or kind).
  */
 export const TRIGGERS = [
 	'agenda',
@@ -25,9 +26,17 @@ export const TRIGGERS = [
 	'cada_dia',
 	'tiempo',
 	'toma_sin_marcar',
-	'compra'
+	'compra',
+	'enchufe'
 ] as const;
 export type TriggerKind = (typeof TRIGGERS)[number];
+
+/**
+ * A plug's moment (#528), as plugs/watch.ts reads its watts: a cycle starts (working a few
+ * minutes: a wash, not a blip) or ends (idle a few minutes after one).
+ */
+export const PLUG_MOMENTS = ['empieza', 'termina'] as const;
+export type PlugMoment = (typeof PLUG_MOMENTS)[number];
 
 /**
  * What has to hold too (or not, `negate`): being away on a trip today, something remembered, a
@@ -83,7 +92,7 @@ export interface Trigger {
 	kind: TriggerKind;
 	/**
 	 * For agenda, nevera, recuerdo and compra: the words it has to have («padres»); for toma_sin_marcar,
-	 * whose doses (their names); none, any.
+	 * whose doses (their names); for enchufe, the plug's name or kind («lavadora»); none, any.
 	 */
 	words: string[];
 	/** For agenda and the trips: this long before it starts; 0, when it starts. */
@@ -94,6 +103,8 @@ export interface Trigger {
 	weather?: WeatherCheck | null;
 	/** For toma_sin_marcar: this long after its time (unset: `DOSE_LATE_MIN`). */
 	minutesAfter?: number;
+	/** For enchufe: when its cycle starts or ends. */
+	plug?: PlugMoment;
 }
 
 export interface Condition {
@@ -221,6 +232,8 @@ export interface TranslatedRule {
 		minutes_after: number;
 		time: string | null;
 		weather: TranslatedWeather;
+		/** `ninguno` where there is none. */
+		plug?: string;
 	};
 	conditions: {
 		kind: string;
@@ -283,6 +296,10 @@ export function specOf(
 				...(t.when.kind === 'tiempo' ? { weather } : {}),
 				...(t.when.kind === 'toma_sin_marcar'
 					? { minutesAfter: within(t.when.minutes_after, 1, 24 * 60, DOSE_LATE_MIN) }
+					: {}),
+				// «Cuando la lavadora…», without saying which: when it ends, as the template's.
+				...(t.when.kind === 'enchufe'
+					? { plug: isOneOf(PLUG_MOMENTS, t.when.plug) ? t.when.plug : 'termina' }
 					: {})
 			},
 			conditions: (Array.isArray(t.conditions) ? t.conditions : [])
@@ -357,14 +374,15 @@ export const RULE_SCHEMA = {
 		when: {
 			type: 'object',
 			additionalProperties: false,
-			required: ['kind', 'words', 'minutes_before', 'minutes_after', 'time', 'weather'],
+			required: ['kind', 'words', 'minutes_before', 'minutes_after', 'time', 'weather', 'plug'],
 			properties: {
 				kind: { type: 'string', enum: [...TRIGGERS] },
 				words,
 				minutes_before: { type: 'integer' },
 				minutes_after: { type: 'integer' },
 				time: { type: ['string', 'null'] },
-				weather: weatherSchema
+				weather: weatherSchema,
+				plug: { type: 'string', enum: ['ninguno', ...PLUG_MOMENTS] }
 			}
 		},
 		conditions: {

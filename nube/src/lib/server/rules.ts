@@ -39,7 +39,10 @@ import {
 	sameName,
 	weatherFor,
 	waitsFor,
+	plugFits,
+	plugWhy,
 	type Fitted,
+	type PlugHappened,
 	type Rule,
 	type Trip,
 	type World
@@ -195,6 +198,7 @@ Cuándo se mira («when.kind»), solo una:
 - «dicho»: cuando alguien le dice a la voz algo con «words» («cuando diga que pongo la lavadora» → ["lavadora"]), sea la orden que sea; solo por esas palabras.
 - «toma_sin_marcar»: cuando una toma de Medicación sigue sin marcar «minutes_after» minutos después de su hora (0: media hora); «words», el nombre de la persona que la toma (vacío: cualquiera).
 - «compra»: cuando se guarda en Gastos una compra (un ticket, una factura, un gasto dicho) con algo de «words» («si compro bebida» → ["bebida"]; «words», lo comprado en una o dos palabras, sin «comprar»); se mira una vez por compra.
+- «enchufe»: cuando un aparato enchufado a un enchufe de Enchufes empieza o acaba de funcionar (un lavado, no un momento): «plug» «empieza» o «termina» («cuando acabe la lavadora», «cuando la lavadora termine» → «termina»; «cuando ponga la lavadora», «cuando arranque» → «empieza»; sin decirlo, «termina»); «words», el aparato en una palabra («lavadora», «lavavajillas», «secadora»; vacío: cualquiera). «plug» es «ninguno» en los demás.
 «words» son pocas palabras clave sueltas, tal como se escribirían en la cita o la nota, sin artículos; «time» es null salvo en «cada_dia».
 «weather» (en «when» y en cada condición; «what» «ninguno» si no hace falta): «what» es «lluvia», «helada», «calor», «viento» o «nieve»; «hours», las próximas horas que mirar («esta tarde» desde ahora, «mañana» hasta mañana por la noche); «threshold», el número si lo dice (lluvia en %, 60 si no; helada y calor en °C, 0 y 35 si no; viento en km/h, 50 si no; nieve, null) o null; «where», «casa» o «donde_este» (donde esté quien habla si está de viaje: «si en Lisboa llueve»).
 
@@ -212,7 +216,7 @@ A quién y qué («notice», al avisar; al deducir, «text» vacío): «to» es 
 «once»: true si es para una sola vez («la próxima vez que…», «este viernes»).
 «say»: true si además hay que decirlo en voz alta en casa, por los altavoces de la voz: si lo pide («dímelo en voz alta», «avisa en casa», «que lo diga Alexa») o si es de toda la casa; false si es solo para el móvil de quien habla.
 «understood»: la regla en una frase, como la comprobará el programa, para leérsela a quien la dijo («Cuando empiece en la Agenda algo con «padres», si estás de viaje, te avisaré: …»).
-Si no se puede con esto (otra familia, sensores, algo sin cuándo), «possible» false y en «why_not» por qué, corto; lo demás, lo más parecido posible.`;
+Si no se puede con esto (otra familia, otros sensores que no sean los enchufes, algo sin cuándo), «possible» false y en «why_not» por qué, corto; lo demás, lo más parecido posible.`;
 
 /**
  * What was said, understood by the AI as a rule the server can check: its sentence and its data,
@@ -706,8 +710,8 @@ async function tryFire(
  * every rule), something remembered or deduced (`recuerdo`: a person's, only for their rules; the
  * house's, for all), something said to the voice (`dicho`: by a person, for their rules and the
  * house's; on a satellite, the house's; by its words only, as it is every order), a purchase
- * (`compra`, #451: `onPurchase`). From
- * rule-events.ts, after it is saved; `chain`, the rules it came through.
+ * (`compra`, #451: `onPurchase`), a plug's cycle that starts or ends (`enchufe`, #528: `onPlug`).
+ * From rule-events.ts, after it is saved; `chain`, the rules it came through.
  */
 export async function onEvent(
 	k: Kitchen,
@@ -715,9 +719,11 @@ export async function onEvent(
 	text: string,
 	ownerId: string | null = null,
 	chain: number[] = [],
-	bought?: Bought
+	bought?: Bought,
+	plug?: PlugHappened
 ) {
 	if (kind === 'compra') return bought ? onPurchase(k, text, bought) : undefined;
+	if (kind === 'enchufe') return plug ? onPlug(k, plug) : undefined;
 	const rules = (await allRules(houseKitchen(k.familyId))).filter(
 		(r) => !r.paused && r.spec.when.kind === kind && waitsFor(r, kind, ownerId)
 	);
@@ -760,6 +766,22 @@ async function onPurchase(k: Kitchen, store: string, bought: Bought) {
 			`compra:${bought.expenseId}`,
 			`${boughtWhy(store, found)} el ${w.today}`
 		);
+	}
+}
+
+/**
+ * A plug's cycle that started or ended (#528), for every rule that waits for that moment of a plug
+ * with its words (the family's, as Enchufes): told or deduced once for it.
+ */
+async function onPlug(k: Kitchen, p: PlugHappened) {
+	const rules = (await allRules(houseKitchen(k.familyId))).filter(
+		(r) => !r.paused && plugFits(r, p)
+	);
+	if (!rules.length) return;
+	const w = worldNow(k.familyId);
+	for (const r of rules) {
+		const rk = await kitchenFor(k.familyId, r.userId);
+		await tryFire(w, rk, r, `enchufe:${p.plugId}:${p.moment}:${Date.now()}`, plugWhy(p, w.time));
 	}
 }
 
@@ -814,7 +836,8 @@ async function setFired(k: Kitchen, r: Rule, fired: string[]) {
 /** Every minute, for a family (scheduler.ts): the rules that wait for the clock. */
 export async function checkTimedRules(familyId: string) {
 	const rules = (await allRules(houseKitchen(familyId))).filter(
-		(r) => !r.paused && !['nevera', 'recuerdo', 'dicho', 'compra'].includes(r.spec.when.kind)
+		(r) =>
+			!r.paused && !['nevera', 'recuerdo', 'dicho', 'compra', 'enchufe'].includes(r.spec.when.kind)
 	);
 	const w = worldNow(familyId);
 	for (const r of rules) {

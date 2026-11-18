@@ -7,6 +7,9 @@ import type { RuleSpec } from '#lib/rules.ts';
  * and the rain's tells.
  */
 
+/** Rain in the next hours that would not let the washing dry (#528). */
+const RAIN_SOON = { what: 'lluvia' as const, hours: 6, threshold: 60, where: 'casa' as const };
+
 export interface RuleTemplate {
 	id: string;
 	title: string;
@@ -25,8 +28,44 @@ export const RULE_TEMPLATES: RuleTemplate[] = [
 	{
 		id: 'ropa-lluvia',
 		title: 'Ropa tendida y lluvia',
-		does: 'Cuando le dices a Alexa que pones la lavadora, recuerda que ese día hay ropa tendida; si va a llover en las próximas 3 horas, te avisa para recogerla (también en voz alta en casa).',
+		does: 'Cuando acaba la lavadora (con un enchufe de Enchufes) o le dices a Alexa que la pones, recuerda que ese día hay ropa tendida; si va a llover en las próximas 3 horas, te avisa para recogerla (también en voz alta en casa). Si al acabar va a llover pronto, te dice que mejor no la tiendas fuera.',
 		rules: [
+			{
+				said: 'Cuando acabe la lavadora, si no va a llover, ese día hay ropa tendida',
+				understood:
+					'Cuando «lavadora» termine, si no va a llover en casa en las próximas 6 horas, recordaré hasta esta noche: «Hay ropa tendida».',
+				spec: {
+					when: {
+						kind: 'enchufe',
+						words: ['lavadora'],
+						minutesBefore: 0,
+						time: null,
+						plug: 'termina'
+					},
+					conditions: [{ kind: 'tiempo', words: [], negate: true, weather: RAIN_SOON }],
+					then: 'deducir',
+					deduce: { text: 'Hay ropa tendida', days: 0 },
+					...toMe('')
+				}
+			},
+			{
+				said: 'Cuando acabe la lavadora, si va a llover, avísame para no tenderla fuera',
+				understood:
+					'Cuando «lavadora» termine, si va a llover en casa en las próximas 6 horas, te avisaré: «Va a llover: mejor no tiendas la ropa fuera».',
+				spec: {
+					when: {
+						kind: 'enchufe',
+						words: ['lavadora'],
+						minutesBefore: 0,
+						time: null,
+						plug: 'termina'
+					},
+					conditions: [{ kind: 'tiempo', words: [], negate: false, weather: RAIN_SOON }],
+					then: 'avisar',
+					deduce: null,
+					...toMe('Va a llover: mejor no tiendas la ropa fuera', true)
+				}
+			},
 			{
 				said: 'Si digo que pongo la lavadora, ese día hay ropa tendida',
 				understood:

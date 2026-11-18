@@ -2,6 +2,7 @@
  * What a plug's watts say (#396, phase 3), as they arrive (hub.ts): a washing machine has finished,
  * a fridge has stopped, it has gone without connection, or it has been on too long. Only in memory:
  * after a restart it starts counting again. Each notice once, until what it watches starts again.
+ * And, for the rules (#528), whatever the notices: a cycle that starts and one that ends.
  */
 
 export interface WatchSettings {
@@ -13,6 +14,8 @@ export interface WatchSettings {
 }
 
 export type WatchEvent = 'done' | 'stopped' | 'offline' | 'longOn';
+/** For the rules (#528): a cycle (a wash) starts, or it ends; told always. */
+export type CycleEvent = 'started' | 'finished';
 
 /** More than this, it is working; less than IDLE_W, it is not. In between, as it was. */
 export const RUNNING_W = 10;
@@ -48,8 +51,8 @@ export class PlugWatch {
 	}
 
 	/** Its watts and whether it is on, as they come. What it says now. */
-	seen(power: number | null, output: boolean | null, now: number): WatchEvent[] {
-		const events: WatchEvent[] = [];
+	seen(power: number | null, output: boolean | null, now: number): (WatchEvent | CycleEvent)[] {
+		const events: (WatchEvent | CycleEvent)[] = [];
 		this.offlineSince = null;
 		this.offlineTold = false;
 
@@ -72,7 +75,10 @@ export class PlugWatch {
 		if (power > RUNNING_W) {
 			this.runningSince ??= now;
 			this.idleSince = null;
-			if (now - this.runningSince >= CYCLE_MS) this.cycle = true;
+			if (!this.cycle && now - this.runningSince >= CYCLE_MS) {
+				this.cycle = true;
+				events.push('started');
+			}
 		} else if (power < IDLE_W) {
 			this.runningSince = null;
 			if (this.cycle) this.idleSince ??= now;
@@ -89,8 +95,8 @@ export class PlugWatch {
 	}
 
 	/** What time alone says: called now and then, and with each reading. */
-	tick(now: number): WatchEvent[] {
-		const events: WatchEvent[] = [];
+	tick(now: number): (WatchEvent | CycleEvent)[] {
+		const events: (WatchEvent | CycleEvent)[] = [];
 		if (this.offlineSince !== null) {
 			if (this.settings.offline && !this.offlineTold && now - this.offlineSince >= OFFLINE_MS) {
 				this.offlineTold = true;
@@ -101,6 +107,7 @@ export class PlugWatch {
 		if (this.cycle && this.idleSince !== null && now - this.idleSince >= DONE_MS) {
 			this.cycle = false;
 			this.idleSince = null;
+			events.push('finished');
 			if (this.settings.done) events.push('done');
 		}
 		if (

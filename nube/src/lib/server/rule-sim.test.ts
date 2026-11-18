@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { HourAhead } from 'comun/weather.ts';
+import { RULE_TEMPLATES } from '#lib/rule-templates.ts';
 import type { RuleSpec } from '#lib/rules.ts';
 import {
 	boughtWhy,
@@ -275,6 +276,47 @@ describe('y si…', () => {
 		]);
 		expect(out[0]!.said).toContain('dicen «voy a poner la lavadora» a las 10:00');
 		expect(out[1]!.said).toBe('No avisaría: «voy a poner la lavadora» no dice «basura».');
+	});
+
+	test('a plug that ends (#528): the washing machine, by its name; not when it starts', async () => {
+		const ends = ruleOf({
+			when: when({ kind: 'enchufe', words: ['lavadora'], plug: 'termina' }),
+			then: 'deducir',
+			deduce: { text: 'Hay ropa tendida', days: 0 }
+		});
+		const starts = ruleOf({
+			when: when({ kind: 'enchufe', words: ['lavadora'], plug: 'empieza' })
+		});
+		const dishes = ruleOf({ when: when({ kind: 'enchufe', words: ['lavavajillas'] }) });
+		const out = await run([ends, starts, dishes], '10:00', '10:59', {
+			happens: { kind: 'enchufe_termina', text: 'Lavadora' }
+		});
+		const of = (r: Rule) => out.find((o) => o.id === r.id)!;
+		expect(of(ends).does).toBe('deduce');
+		expect(of(ends).said).toContain('«Lavadora» ha terminado a las 10:00');
+		expect(of(starts).said).toBe('No avisaría: espera a que empiece.');
+		expect(of(dishes).said).toBe('No avisaría: «Lavadora» no es «lavavajillas».');
+	});
+
+	test('the ready one for the washing (#528): rain soon, not out; dry, hung and then picked up', async () => {
+		const ready = RULE_TEMPLATES.find((t) => t.id === 'ropa-lluvia')!;
+		const rules = ready.rules.map((t) => ruleOf(t.spec));
+		const [dried, notOut, , pickUp] = rules;
+		const ends = (at: string) =>
+			run(rules, at, '23:59', { happens: { kind: 'enchufe_termina', text: 'Lavadora' } });
+		// At 10:00 it rains at 15:00, within 6 hours: not hung out, so nothing to pick up.
+		let out = await ends('10:00');
+		let of = (r: Rule) => out.find((o) => o.id === r.id)!;
+		expect(of(notOut!).does).toBe('avisa');
+		expect(of(notOut!).said).toContain('mejor no tiendas la ropa fuera');
+		expect(of(dried!).does).toBeNull();
+		expect(of(pickUp!).does).toBeNull();
+		// At 7:00 dry until 13:00: hung out; at 13:00, the rain of 15:00 within 3 hours: «recoge la ropa».
+		out = await ends('07:00');
+		of = (r: Rule) => out.find((o) => o.id === r.id)!;
+		expect(of(dried!).does).toBe('deduce');
+		expect(of(notOut!).does).toBeNull();
+		expect([of(pickUp!).at, of(pickUp!).does]).toEqual(['13:00', 'avisa']);
 	});
 
 	test('something put on the fridge: there for the conditions too', async () => {

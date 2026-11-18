@@ -5,7 +5,13 @@ import { kitchenOf } from '#lib/server/fridge.ts';
 import { forgetLearned, listLearned } from '#lib/server/voice/learned.ts';
 import { editMemory, forget, listMemories, remember } from '#lib/server/memory.ts';
 import { RULE_TEMPLATES } from '#lib/rule-templates.ts';
-import { NO_IFS, WEATHER_IFS, type WhatIf } from '#lib/server/rule-sim.ts';
+import {
+	HAPPENS,
+	NO_IFS,
+	WEATHER_IFS,
+	type HappensKind,
+	type WhatIf
+} from '#lib/server/rule-sim.ts';
 import {
 	deleteRule,
 	listRules,
@@ -38,8 +44,8 @@ function ifsOf(form: FormData): WhatIf {
 		away: form.get('ifAway') === 'on',
 		doses: doses === 'sin_marcar' || doses === 'marcadas' ? doses : NO_IFS.doses,
 		happens:
-			text && (kind === 'dicho' || kind === 'nevera' || kind === 'recuerdo' || kind === 'compra')
-				? { kind, text }
+			text && (HAPPENS as readonly string[]).includes(kind)
+				? { kind: kind as HappensKind, text }
 				: null
 	};
 }

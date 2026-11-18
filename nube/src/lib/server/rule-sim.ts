@@ -6,9 +6,12 @@ import {
 	fits,
 	MAX_CHAIN,
 	momentOf,
+	plugFits,
+	plugWhy,
 	quoted,
 	waitsFor,
 	weatherFor,
+	type PlugHappened,
 	type Rule,
 	type Trip,
 	type World
@@ -36,14 +39,26 @@ const WEATHER_EVERY_MIN = 30;
  * «Y si…» (phase 2): what is changed in the moment simulated. The weather, made up for the whole
  * span instead of the forecast; the one who looks, away on a trip that day; Medicación's doses, all
  * marked or none; and something that happens at its start: said to the voice, put on the fridge,
- * asked to remember, by the one who looks; or bought (#451: what, separated by commas).
+ * asked to remember, by the one who looks; bought (#451: what, separated by commas); or a plug's
+ * appliance that starts or ends (#528: its name, «lavadora»).
  */
 export interface WhatIf {
 	weather: WeatherIf;
 	away: boolean;
 	doses: 'como_esten' | 'sin_marcar' | 'marcadas';
-	happens: { kind: 'dicho' | 'nevera' | 'recuerdo' | 'compra'; text: string } | null;
+	happens: { kind: HappensKind; text: string } | null;
 }
+
+/** What may happen at its start: an event's kind, or a plug's appliance starting or ending. */
+export const HAPPENS = [
+	'dicho',
+	'nevera',
+	'recuerdo',
+	'compra',
+	'enchufe_empieza',
+	'enchufe_termina'
+] as const;
+export type HappensKind = (typeof HAPPENS)[number];
 
 export const WEATHER_IFS = [
 	'prevision',
@@ -185,12 +200,14 @@ export function whenSaid(when: RuleSpec['when']) {
 			return `cuando le dicen a la voz ${about}`;
 		case 'compra':
 			return `cuando se guarda una compra con ${about}`;
+		case 'enchufe':
+			return `cuando ${when.words.length ? `${quoted(when.words)}` : 'un aparato de Enchufes'} ${when.plug === 'empieza' ? 'empieza' : 'termina'}`;
 		case 'tiempo':
 			return 'cuando cambia el tiempo';
 	}
 }
 
-const EVENT_KINDS = new Set(['nevera', 'recuerdo', 'dicho', 'compra']);
+const EVENT_KINDS = new Set(['nevera', 'recuerdo', 'dicho', 'compra', 'enchufe']);
 
 /** What a made-up purchase has: «cerveza, leche» is two lines. */
 export const boughtItems = (text: string) =>
@@ -297,6 +314,30 @@ export async function simulate({
 		const { kind, text, ownerId } = happens;
 		const time = momentOf(from).time;
 		for (const r of active) {
+			if (kind === 'enchufe_empieza' || kind === 'enchufe_termina') {
+				if (r.spec.when.kind !== 'enchufe') continue;
+				const p: PlugHappened = {
+					plugId: 'simulado',
+					name: text.trim(),
+					kindLabel: '',
+					moment: kind === 'enchufe_empieza' ? 'empieza' : 'termina'
+				};
+				if (!plugFits(r, p)) {
+					missed.set(r.id, {
+						minute: from,
+						why:
+							(r.spec.when.plug ?? 'termina') !== p.moment
+								? `espera a que ${r.spec.when.plug === 'empieza' ? 'empiece' : 'termine'}`
+								: `«${p.name}» no es ${quoted(r.spec.when.words)}`
+					});
+					continue;
+				}
+				const because = plugWhy(p, time);
+				const holds = await conditionsHold(start, r);
+				if (holds.ok) await act(r, start, from, [because, ...holds.why].join(' y '), []);
+				else missed.set(r.id, { minute: from, why: [because, ...holds.why].join(' pero ') });
+				continue;
+			}
 			if (r.spec.when.kind !== kind || !waitsFor(r, kind, ownerId)) continue;
 			if (kind === 'compra') {
 				const found = await fittingAll(start, r, r.spec.when.words, kind, boughtItems(text));
