@@ -11,11 +11,14 @@
 		tracks: MusicTrack[];
 		/** Unique on the page, for the playlist menus. */
 		key: string;
-		playlists: { id: number; name: string }[];
+		/** Without them (Seilide's «Tu música», #534), no «+». */
+		playlists?: { id: number; name: string }[] | null;
+		/** Where their «+» adds (AddToPlaylist's `endpoint`). */
+		listEndpoint?: string;
 		onplay: (track: MusicTrack, index: number) => void;
 	}
 
-	let { tracks, key, playlists, onplay }: Props = $props();
+	let { tracks, key, playlists, listEndpoint, onplay }: Props = $props();
 </script>
 
 <ol class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
@@ -24,11 +27,14 @@
 			<button
 				class={[
 					'flex min-w-0 flex-1 items-center gap-3 p-2 text-left hover:bg-zinc-900',
-					music.current?.id === t.id && 'text-amber-400'
+					music.current?.id === t.id && music.current.src === t.src && 'text-amber-400'
 				]}
 				onclick={() => onplay(t, i)}
 			>
-				<AlbumCover album={{ id: t.albumId, hasCover: t.hasCover }} class="w-10 shrink-0 rounded" />
+				<AlbumCover
+					album={{ id: t.albumId, hasCover: t.hasCover, cover: t.cover }}
+					class="w-10 shrink-0 rounded"
+				/>
 				<span class="min-w-0 flex-1">
 					<span class="block truncate text-sm">{t.title}</span>
 					<span class="block truncate text-xs text-zinc-400"
@@ -43,7 +49,12 @@
 				</span>
 				<span class="text-xs text-zinc-500">{formatDuration(t.durationSec)}</span>
 			</button>
-			<AddToPlaylist trackId={t.id} key="{key}-{t.id}" {playlists} />
+			{#if playlists}<AddToPlaylist
+					trackId={t.id}
+					key="{key}-{t.id}"
+					{playlists}
+					endpoint={listEndpoint}
+				/>{/if}
 		</li>
 	{/each}
 </ol>

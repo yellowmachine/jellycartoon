@@ -42,6 +42,10 @@ const SIGNED_SECONDS = 6 * 60 * 60;
 const STALE_MS = 30 * 60_000;
 /** The area of the family's storage the covers inside tracks are kept in (storage.ts). */
 const COVERS_AREA = 'musica';
+/** An album's names as shown: the family's, or its tags'. */
+const shownTitle = sql<string>`coalesce(${ownAlbum.customTitle}, ${ownAlbum.title})`;
+const shownArtist = sql<string>`coalesce(${ownAlbum.customArtist}, ${ownAlbum.artist})`;
+
 /** What a file without an album tag is in (own-music-index.ts): no album to look up. */
 const NO_ALBUM = 'Sin álbum';
 
@@ -305,7 +309,7 @@ async function findCovers(familyId: string) {
 	if (!storageReady) return;
 	const pending = await asFamily(familyId, (tx) =>
 		tx
-			.select({ id: ownAlbum.id, title: ownAlbum.title, artist: ownAlbum.artist })
+			.select({ id: ownAlbum.id, title: shownTitle, artist: shownArtist })
 			.from(ownAlbum)
 			.where(
 				and(
@@ -314,7 +318,7 @@ async function findCovers(familyId: string) {
 					isNull(ownAlbum.coverFile)
 				)
 			)
-			.orderBy(asc(ownAlbum.artist), asc(ownAlbum.title))
+			.orderBy(asc(shownArtist), asc(shownTitle))
 	);
 	const progress = (coversDone: number) =>
 		asFamily(familyId, (tx) =>
@@ -333,7 +337,8 @@ async function findCovers(familyId: string) {
 			const bytes = a.title === NO_ALBUM ? null : await findCover(a.title, a.artist);
 			failing = 0;
 			if (bytes) {
-				const name = `portada-${a.id}.jpg`;
+				// A new name each time: its address changes (coverVersion), and the browser's copy goes.
+				const name = `portada-${a.id}-${Date.now()}.jpg`;
 				await putFile(familyId, COVERS_AREA, name, bytes, 'image/jpeg');
 				await asFamily(familyId, (tx) =>
 					tx
@@ -362,6 +367,45 @@ async function findCovers(familyId: string) {
 	}
 }
 
+/**
+ * An album's title and artist as the family wants them (#534); the same as its tags', back to
+ * them. Its cover from MusicBrainz, or none found, is looked up again with the new names; one in
+ * its folder or its tracks stays. False, not the family's.
+ */
+export async function renameAlbum(
+	familyId: string,
+	id: number,
+	names: { title: string; artist: string }
+) {
+	const changed = await asFamily(familyId, async (tx) => {
+		const [album] = await tx.select().from(ownAlbum).where(eq(ownAlbum.id, id));
+		if (!album) return null;
+		const customTitle = names.title === album.title ? null : names.title;
+		const customArtist = names.artist === album.artist ? null : names.artist;
+		const fromMusicBrainz = album.coverSource === 'musicbrainz';
+		const lookAgain = fromMusicBrainz || album.coverStatus === 'no';
+		await tx
+			.update(ownAlbum)
+			.set({
+				customTitle,
+				customArtist,
+				...(lookAgain
+					? {
+							coverStatus: 'pendiente' as const,
+							coverSource: null,
+							...(fromMusicBrainz ? { coverFile: null, coverType: null } : {})
+						}
+					: {})
+			})
+			.where(eq(ownAlbum.id, id));
+		return { lookAgain, oldFile: fromMusicBrainz ? album.coverFile : null };
+	});
+	if (!changed) return false;
+	if (changed.oldFile) await removeFile(familyId, COVERS_AREA, changed.oldFile).catch(() => {});
+	if (changed.lookAgain) void indexMusic(familyId);
+	return true;
+}
+
 /** «Buscar portadas otra vez»: the albums not found before, looked up again with the next reading. */
 export async function retryCovers(familyId: string) {
 	await asFamily(familyId, (tx) =>
@@ -379,13 +423,13 @@ export async function management(familyId: string) {
 		const albums = await tx
 			.select({
 				id: ownAlbum.id,
-				title: ownAlbum.title,
-				artist: ownAlbum.artist,
+				title: shownTitle,
+				artist: shownArtist,
 				status: ownAlbum.coverStatus,
 				source: ownAlbum.coverSource
 			})
 			.from(ownAlbum)
-			.orderBy(asc(ownAlbum.artist), asc(ownAlbum.title));
+			.orderBy(asc(shownArtist), asc(shownTitle));
 		const count = (source: string) => albums.filter((a) => a.source === source).length;
 		return {
 			source,
@@ -558,18 +602,18 @@ export interface OwnAlbumRow {
 	id: number;
 	title: string;
 	artist: string;
+	tags: { title: string; artist: string } | null;
 	year: number | null;
 	hasCover: boolean;
+	/** Changes with its cover: in its address, so the browser does not keep showing the old one. */
+	coverVersion: string | null;
 	tracks: OwnTrackRow[];
 }
 
 /** Every album with its tracks in order: the tab searches and groups them in the browser. */
 export async function ownCatalog(familyId: string): Promise<OwnAlbumRow[]> {
 	return asFamily(familyId, async (tx) => {
-		const albums = await tx
-			.select()
-			.from(ownAlbum)
-			.orderBy(asc(ownAlbum.artist), asc(ownAlbum.title));
+		const albums = await tx.select().from(ownAlbum);
 		const tracks = await tx
 			.select({
 				id: ownTrack.id,
@@ -590,17 +634,27 @@ export async function ownCatalog(familyId: string): Promise<OwnAlbumRow[]> {
 		return albums
 			.map((a) => ({
 				id: a.id,
-				title: a.title,
-				artist: a.artist,
+				title: a.customTitle ?? a.title,
+				artist: a.customArtist ?? a.artist,
+				/** What its tags say, when the family wrote another name. */
+				tags:
+					a.customTitle !== null || a.customArtist !== null
+						? { title: a.title, artist: a.artist }
+						: null,
 				year: a.year,
 				hasCover: Boolean(a.coverKey || a.coverFile),
+				coverVersion: a.coverKey ?? a.coverFile,
 				tracks: byAlbum.get(a.id) ?? []
 			}))
-			.filter((a) => a.tracks.length);
+			.filter((a) => a.tracks.length)
+			.sort(
+				(a, b) =>
+					a.artist.localeCompare(b.artist, 'es', { sensitivity: 'base' }) ||
+					a.title.localeCompare(b.title, 'es', { sensitivity: 'base' })
+			);
 	});
 }
 
-/** A presigned address of the bucket for a key; with its type, for a bucket that says another. */
 /**
  * A client only to sign addresses, one per bucket and keys: without the checksum the SDK now asks
  * for by default (`x-amz-checksum-mode` in the address), which not every S3 takes.
@@ -623,6 +677,7 @@ function signerOf(b: Bucket) {
 	return s3;
 }
 
+/** A presigned address of the bucket for a key; with its type, for a bucket that says another. */
 async function signed(b: Bucket, key: string, type?: string) {
 	return getSignedUrl(
 		signerOf(b),

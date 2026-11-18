@@ -38,11 +38,26 @@ fichero vacío y se borra), para avisar de que bastan unas de solo lectura.
 - **Gestión** (`/musica/tu-musica/gestion`, quien administra): la fase (`leyendo`, `portadas`) con
   su progreso, las portadas por origen, los discos sin portada y los ficheros que fallaron
   (`music_source.failures`, los cien primeros).
+- **Cambiar el nombre** de un disco (los mayores, en su página): `custom_title` y `custom_artist`
+  en `own_album`, aparte de `title` y `artist`, que son los de las etiquetas y por los que se
+  agrupan las pistas al leer; así una nueva lectura no lo deshace. Igual que las etiquetas, vuelve a
+  null. Si su portada era de MusicBrainz o no se encontró, se borra y se busca otra vez con el nombre
+  nuevo. Las portadas de MusicBrainz llevan la hora en su nombre, y la dirección de la portada su
+  versión (`?v=`), para que el navegador no siga mostrando la vieja.
+- **La pantalla**, la misma que Álbumes: `MusicLibrary.svelte` (buscador de artistas, álbumes y
+  canciones con MiniSearch, vista por álbumes o artistas, mosaico de artistas), con su página de
+  artista (`/musica/tu-musica/artista/<nombre>`). `MusicAlbum.cover`/`href` y
+  `AlbumCover`/`AlbumGrid`/`TrackRows` aceptan su portada y su página.
+- **Listas** (fase 2): `own_playlist` y `own_playlist_item` (posición; la pista borrada del bucket
+  sale de sus listas por la clave ajena), de toda la familia, en `own-music-lists.ts`. Salen en la
+  pestaña Listas, en «De Tu música»; sin casa, solo ellas. El «+» (`AddToPlaylist` con `endpoint`)
+  añade por `/api/music/own/playlists`; su página (`/musica/tu-musica/listas/<id>`) reproduce,
+  sube, baja, quita, renombra y borra. Una lista lleva solo canciones de una fuente.
 - **Escuchar**: cada pista entra en el reproductor con `src` = `/api/music/own/tracks/<id>`, que mira
   la familia y contesta un 302 a una URL prefirmada de 6 horas (con su `Content-Type`, por si el
   bucket dice `application/octet-stream`). El audio va del bucket al navegador; la dirección de la
   cola no caduca. Las portadas, igual en `/api/music/own/covers/<id>` (o desde el almacenamiento si
   es la incrustada). `MusicTrack.cover` y `MusicTrack.home` dan su portada y su álbum al reproductor.
-- **Fuera por ahora**: listas, Modo DJ, sin conexión (#350, que ya salta las pistas con `src`),
+- **Fuera por ahora**: Modo DJ, sin conexión (#350, que ya salta las pistas con `src`),
   modo carretera, voz, Snapcast y transcodificar. La cola guardada tampoco las lleva (se salta lo que
   tiene `src`).

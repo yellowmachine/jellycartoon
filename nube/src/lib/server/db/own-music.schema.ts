@@ -58,9 +58,16 @@ export const ownAlbum = pgTable(
 		familyId: text('family_id')
 			.notNull()
 			.references(() => family.id, { onDelete: 'cascade' }),
+		/** As its tags say: with `artist`, what its tracks are grouped by when the bucket is read. */
 		title: text('title').notNull(),
 		/** The album's artist (or the first track's). */
 		artist: text('artist').notNull(),
+		/**
+		 * As the family wrote them (#534), instead of the tags': kept apart, so reading the bucket
+		 * again (only reading: it is never written) does not undo them. Null, the tags'.
+		 */
+		customTitle: text('custom_title'),
+		customArtist: text('custom_artist'),
 		year: integer('year'),
 		/** Its cover: a picture in the bucket (`cover.jpg`, `folder.jpg`…), by its key. */
 		coverKey: text('cover_key'),
@@ -111,5 +118,45 @@ export const ownTrack = pgTable(
 		uniqueIndex('own_track_family_key').on(t.familyId, t.key),
 		index('own_track_album').on(t.albumId),
 		familyRows('own_track_own', t.familyId)
+	]
+).enableRLS();
+
+/**
+ * A playlist of «Tu música» (#534, phase 2): of the whole family, as the house's are of the whole
+ * house, but kept here, and only with the bucket's songs (the house's lists, only with the
+ * house's).
+ */
+export const ownPlaylist = pgTable(
+	'own_playlist',
+	{
+		id: serial('id').primaryKey(),
+		familyId: text('family_id')
+			.notNull()
+			.references(() => family.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [familyRows('own_playlist_own', t.familyId)]
+).enableRLS();
+
+export const ownPlaylistItem = pgTable(
+	'own_playlist_item',
+	{
+		id: serial('id').primaryKey(),
+		familyId: text('family_id')
+			.notNull()
+			.references(() => family.id, { onDelete: 'cascade' }),
+		playlistId: integer('playlist_id')
+			.notNull()
+			.references(() => ownPlaylist.id, { onDelete: 'cascade' }),
+		/** A song gone from the bucket goes from its lists too. */
+		trackId: integer('track_id')
+			.notNull()
+			.references(() => ownTrack.id, { onDelete: 'cascade' }),
+		position: integer('position').notNull()
+	},
+	(t) => [
+		index('own_playlist_item_list').on(t.playlistId, t.position),
+		familyRows('own_playlist_item_own', t.familyId)
 	]
 ).enableRLS();

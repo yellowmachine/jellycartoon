@@ -56,6 +56,9 @@ export interface MusicAlbum {
 	artist: string;
 	hasCover: boolean;
 	tracks: MusicTrack[];
+	/** Its own cover and page, not the library's (Seilide's «Tu música», #534). */
+	cover?: string;
+	href?: string;
 }
 
 /**

@@ -143,6 +143,18 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: false,
 		note: 'An index of the family’s bucket, read again from it'
 	},
+	own_playlist: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'The whole family’s lists of its bucket’s songs, which stay with the bucket'
+	},
+	own_playlist_item: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'Follows its list'
+	},
 	storage_quota: {
 		leaving: 'stays',
 		joining: 'dropped',
