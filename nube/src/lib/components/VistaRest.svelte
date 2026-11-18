@@ -16,6 +16,8 @@
 	import { videoPlaying, vista } from '#lib/vista.svelte.ts';
 	import { isNight, shouldRest } from '#lib/vista-idle.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
+	import { wakeWord } from '#lib/wake-word.svelte.ts';
+	import { WAKE_WORDS } from 'comun/wake-words.ts';
 
 	/**
 	 * The Vista resting (#525): left untouched a while, the whole screen goes dark with only what is
@@ -27,7 +29,8 @@
 	 * family's «Horas de silencio», or 23:00–07:00) it rests sooner, without photos and dim: a web
 	 * page cannot lower the screen's light, so what it shows is darker (with the tablet's own
 	 * automatic brightness, the rest). While a song or an episode plays, its cover and title instead
-	 * of the photos (dimmed with the rest at night).
+	 * of the photos (dimmed with the rest at night). Waiting for the wake word, a small dot in a
+	 * corner that breathes as the microphone's halo (MicButton): it is still listening.
 	 */
 
 	type Cards = {
@@ -200,6 +203,14 @@
 					</p>
 				{/each}
 			</div>
+
+			{#if wakeWord.status === 'on'}
+				<span
+					class="breathing absolute bottom-4 left-4 h-3 w-3 rounded-full bg-amber-400"
+					role="img"
+					aria-label="Esperando «{WAKE_WORDS[wakeWord.word]}»"
+				></span>
+			{/if}
 		</div>
 
 		<!-- Who does not answer: never dimmed, also at night. -->
@@ -212,3 +223,25 @@
 		{/if}
 	</button>
 {/if}
+
+<style>
+	/* As MicButton's halo: slow, only its opacity. */
+	.breathing {
+		animation: breathe 4s ease-in-out infinite;
+	}
+	@keyframes breathe {
+		0%,
+		100% {
+			opacity: 0.25;
+		}
+		50% {
+			opacity: 0.9;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.breathing {
+			animation: none;
+			opacity: 0.6;
+		}
+	}
+</style>

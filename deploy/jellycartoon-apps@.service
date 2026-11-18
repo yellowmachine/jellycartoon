@@ -1,0 +1,11 @@
+# Lists, opens or gives the icon of a Flatpak app of this PC, as JellyCartoon asks on the socket
+# (jellycartoon-apps.socket): deploy/jellycartoon-apps.sh, installed by scripts/pantalla.sh. Its
+# answer goes back on the socket; what it says of itself, to the journal.
+[Unit]
+Description=Aplicación del PC para JellyCartoon
+
+[Service]
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+ExecStart=%h/.local/bin/jellycartoon-apps

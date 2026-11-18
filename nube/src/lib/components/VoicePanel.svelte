@@ -1,4 +1,5 @@
 <script lang="ts">
+	import MicButton from '#lib/components/MicButton.svelte';
 	import RecipeCard from '#lib/components/RecipeCard.svelte';
 	import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
 	import { vista } from '#lib/vista.svelte.ts';
@@ -115,55 +116,12 @@
 	{/if}
 
 	{#snippet mic()}
-		<!-- Touch: no selecting text nor the menu of a long press, and no scrolling while it is held. -->
-		<button
-			class={[
-				'flex touch-none items-center justify-center rounded-full shadow-2xl transition duration-150 select-none',
-				kitchen ? 'h-24 w-24 md:h-32 md:w-32' : recipe.current ? 'h-40 w-40' : 'h-56 w-56',
-				voice.phase === 'listening'
-					? 'scale-110 bg-red-500 text-white'
-					: 'bg-amber-500 text-zinc-950 active:scale-95',
-				voice.phase === 'thinking' && 'opacity-60'
-			]}
-			aria-label={micMode.tap
-				? voice.phase === 'listening'
-					? 'Toca para enviar'
-					: 'Toca para hablar'
-				: 'Mantén pulsado para hablar'}
-			disabled={voice.phase === 'thinking'}
-			onpointerdown={(e) => {
-				e.currentTarget.setPointerCapture(e.pointerId);
-				press();
-			}}
-			onpointerup={release}
-			onpointercancel={release}
-			oncontextmenu={(e) => e.preventDefault()}
-			onkeydown={(e) => {
-				if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) {
-					e.preventDefault();
-					press();
-				}
-			}}
-			onkeyup={(e) => {
-				if (e.key === ' ' || e.key === 'Enter') release();
-			}}
-		>
-			<svg
-				viewBox="0 0 24 24"
-				class={kitchen ? 'h-12 w-12 md:h-16 md:w-16' : 'h-24 w-24'}
-				fill="currentColor"
-				aria-hidden="true"
-			>
-				<rect x="9" y="2.5" width="6" height="12" rx="3" />
-				<path
-					d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="2"
-					stroke-linecap="round"
-				/>
-			</svg>
-		</button>
+		<MicButton
+			class={kitchen ? 'h-24 w-24 md:h-32 md:w-32' : recipe.current ? 'h-40 w-40' : 'h-56 w-56'}
+			iconClass={kitchen ? 'h-12 w-12 md:h-16 md:w-16' : 'h-24 w-24'}
+			{press}
+			{release}
+		/>
 	{/snippet}
 
 	{#snippet choices()}

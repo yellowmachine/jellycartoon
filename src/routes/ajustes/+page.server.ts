@@ -64,7 +64,11 @@ import {
 	settingsShortcuts,
 	tvShortcuts
 } from '#lib/server/tv-shortcuts.ts';
-import { deleteIconFile, refreshShortcutIcon } from '#lib/server/tv-shortcut-icons.ts';
+import {
+	deleteIconFile,
+	refreshAppIcon,
+	refreshShortcutIcon
+} from '#lib/server/tv-shortcut-icons.ts';
 import { hasIntro } from '#lib/server/library/paths.ts';
 import { KNOWN_LANGUAGES, normalizeLang } from 'comun/languages.ts';
 import { isTheme } from 'comun/themes.ts';
@@ -328,6 +332,14 @@ async function requireAdmin(userId: string) {
 /** `''` is "by default" (audio) or "none" (subtitles), as in the player. */
 const lang = (value: FormDataEntryValue | null) =>
 	typeof value === 'string' && value ? normalizeLang(value) : null;
+
+/** A shortcut's own icon: a site's, from the site; a PC app's (#530), from the PC. */
+const findIcon = (s: { id: number; kind: string; url: string | null; target: string | null }) =>
+	s.kind === 'app'
+		? refreshAppIcon(s.id, s.target ?? '')
+		: s.url
+			? refreshShortcutIcon(s.id, s.url)
+			: Promise.resolve(false);
 
 export const actions: Actions = {
 	/** Ten new recovery codes, shown once; the ones before stop working. */
@@ -907,11 +919,10 @@ export const actions: Actions = {
 				message: err instanceof Error ? err.message : String(err)
 			});
 		}
-		// No longer a site: the site's icon goes. Its icon, from the site: new, another address, or
-		// none yet.
+		// No longer a site nor an app: its icon goes. Its icon, from the site or from the PC (#530):
+		// new, another address or app, or none yet.
 		await deleteIconFile(saved.oldIcon);
-		if (saved.findIcon && !(await refreshShortcutIcon(saved.id, saved.url!)))
-			return { saved: 'shortcut', noIcon: true };
+		if (saved.findIcon && !(await findIcon(saved))) return { saved: 'shortcut', noIcon: true };
 		return { saved: 'shortcut' };
 	},
 	/** «Volver a buscar el icono»: the site may have let us in this time, or changed it. */
@@ -919,10 +930,9 @@ export const actions: Actions = {
 		await requireAdmin(locals.user!.id);
 		const id = Number((await request.formData()).get('id'));
 		const shortcut = (await tvShortcuts(false)).find((s) => s.id === id);
-		if (!shortcut?.url)
+		if (!shortcut || !(shortcut.url || (shortcut.kind === 'app' && shortcut.target)))
 			return fail(400, { section: 'shortcuts', message: 'Ese acceso directo ya no está' });
-		if (!(await refreshShortcutIcon(shortcut.id, shortcut.url)))
-			return { saved: 'shortcut', noIcon: true };
+		if (!(await findIcon(shortcut))) return { saved: 'shortcut', noIcon: true };
 		return { saved: 'shortcut' };
 	},
 	/** Out, with the time watched on it and its icon. */

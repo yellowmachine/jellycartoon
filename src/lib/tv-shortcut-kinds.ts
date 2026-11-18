@@ -1,7 +1,8 @@
 /**
  * What a TV shortcut can open (#343): a site of elsewhere, as at first (#327), or anything of the
  * TV view's own. Those with a page of their own open it, where the episode, the version or the
- * saved game is chosen; a channel, a station and a Steam game start at once.
+ * saved game is chosen; a channel, a station, a Steam game and an app of the PC (#530) start at
+ * once.
  */
 export const SHORTCUT_KINDS = {
 	url: 'Web',
@@ -13,7 +14,8 @@ export const SHORTCUT_KINDS = {
 	album: 'Álbum',
 	lista: 'Lista de música',
 	juego: 'Juego',
-	steam: 'Steam'
+	steam: 'Steam',
+	app: 'Aplicación del PC'
 } as const;
 
 export type ShortcutKind = keyof typeof SHORTCUT_KINDS;

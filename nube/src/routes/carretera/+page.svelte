@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 	import { SvelteSet } from 'svelte/reactivity';
 	import MediaIcon from 'comun/components/MediaIcon.svelte';
+	import MicButton from '#lib/components/MicButton.svelte';
 	import MusicBar from 'comun/components/MusicBar.svelte';
 	import ManeuverIcon from 'comun/components/ManeuverIcon.svelte';
 	import RoadMap from 'comun/components/RoadMap.svelte';
@@ -1217,42 +1218,10 @@
 	{/if}
 {/snippet}
 
-<!-- The microphone: held, or a tap to start and another to send (Ajustes). -->
+<!-- The microphone: held, or a tap to start and another to send (Ajustes). Its halo, still while
+     driving. -->
 {#snippet mic(size: string, icon: string)}
-	<button
-		class={[
-			'flex shrink-0 touch-none items-center justify-center rounded-full shadow-2xl transition duration-150',
-			size,
-			voice.phase === 'listening'
-				? 'scale-110 bg-red-500 text-white'
-				: 'bg-amber-500 text-black active:scale-95',
-			voice.phase === 'thinking' && 'opacity-60'
-		]}
-		aria-label={micMode.tap
-			? voice.phase === 'listening'
-				? 'Toca para enviar'
-				: 'Toca para hablar'
-			: 'Mantén pulsado para hablar'}
-		disabled={voice.phase === 'thinking'}
-		onpointerdown={(e) => {
-			e.currentTarget.setPointerCapture(e.pointerId);
-			press();
-		}}
-		onpointerup={release}
-		onpointercancel={release}
-		oncontextmenu={(e) => e.preventDefault()}
-	>
-		<svg viewBox="0 0 24 24" class={icon} fill="currentColor" aria-hidden="true">
-			<rect x="9" y="2.5" width="6" height="12" rx="3" />
-			<path
-				d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-				stroke-linecap="round"
-			/>
-		</svg>
-	</button>
+	<MicButton class={size} iconClass={icon} {press} {release} still />
 {/snippet}
 
 <!-- What the voice is doing, or said. -->
