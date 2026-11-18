@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+	anyFolderOf,
 	bucketFrom,
 	bucketProblem,
 	copyFiles,
@@ -215,5 +216,14 @@ describe('the copy', () => {
 			wait: noWait
 		});
 		expect(result).toEqual({ done: 1, missing: 0, problem: null });
+	});
+});
+
+describe('a music folder (#534)', () => {
+	test('accents and spaces, as people name them; never . or ..', () => {
+		expect(anyFolderOf('/Música/Mis discos')).toBe('Música/Mis discos/');
+		expect(anyFolderOf('')).toBe('');
+		expect(anyFolderOf('a/../b')).toBeNull();
+		expect(anyFolderOf('a/\nb')).toBeNull();
 	});
 });

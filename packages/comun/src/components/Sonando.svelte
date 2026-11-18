@@ -3,7 +3,7 @@
 	import SectionIcon from './SectionIcon.svelte';
 	import LyricsView from './Lyrics.svelte';
 	import { formatDuration } from '../format.ts';
-	import { coverUrl } from '../music.ts';
+	import { trackCover } from '../music.ts';
 	import { music } from '../music-player.svelte.ts';
 	import { musicBackground } from '../music-background-settings.svelte.ts';
 	import { SKIP_BACK, SKIP_FORWARD } from '../podcasts.ts';
@@ -173,7 +173,7 @@
 	</div>
 {:else if current}
 	<div class={s.grid}>
-		{@render cover(current.hasCover ? coverUrl(current.albumId) : null, coverBehind, 'musica')}
+		{@render cover(trackCover(current), coverBehind, 'musica')}
 
 		<div class="col-span-3 min-w-0">
 			<p class={[s.title, 'truncate font-bold']}>{current.title}</p>

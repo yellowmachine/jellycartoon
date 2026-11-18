@@ -15,6 +15,7 @@ import { learnPending, proposeRules, SUMMARY_AT, summarizeLearned } from '#lib/s
 import { hasBot, startBot } from '#lib/server/telegram/bot.ts';
 import { refreshAll, REFRESH_HOURS } from '#lib/server/podcasts/podcasts.ts';
 import { cleanupCopies } from '#lib/server/storage-move.ts';
+import { indexAll } from '#lib/server/own-music.ts';
 import { syncFamily } from '#lib/server/banks/bank.ts';
 import { visits } from '#lib/server/section-visits.ts';
 
@@ -112,6 +113,10 @@ export function startScheduler() {
 				await visits
 					.forgetOld()
 					.catch((error) => console.error('[reloj] Secciones usadas antiguas', error));
+				// «Tu música» (#534): each family's bucket read again, not waited for (it takes long).
+				void families()
+					.then(indexAll)
+					.catch((error) => console.error('[reloj] Tu música', error));
 				// Their copies in Seilide's storage, a week after moving to their own (#480).
 				await cleanupCopies().catch((error) =>
 					console.error('[reloj] Copias de ficheros en Seilide', error)

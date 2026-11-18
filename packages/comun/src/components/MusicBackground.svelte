@@ -10,7 +10,7 @@
 		type Palette
 	} from 'comun/music-background.ts';
 	import { musicBackground } from 'comun/music-background-settings.svelte.ts';
-	import { coverUrl } from 'comun/music.ts';
+	import { coverUrl, trackCover } from 'comun/music.ts';
 	import { music } from 'comun/music-player.svelte.ts';
 	import { watchSnapcast } from 'comun/music-target.svelte.ts';
 
@@ -29,20 +29,22 @@
 		const local = music.radio ? undefined : music.current;
 		const onSnapcast = s?.active && !s.radio ? s.track : null;
 		if (onSnapcast && !s!.paused)
-			return { albumId: onSnapcast.albumId, hasCover: onSnapcast.hasCover, playing: true };
+			return { albumId: onSnapcast.albumId, url: trackCover(onSnapcast), playing: true };
 		if (local && music.playing)
-			return { albumId: local.albumId, hasCover: local.hasCover, playing: true };
+			return { albumId: local.albumId, url: trackCover(local), playing: true };
 		if (onSnapcast)
-			return { albumId: onSnapcast.albumId, hasCover: onSnapcast.hasCover, playing: false };
-		if (local) return { albumId: local.albumId, hasCover: local.hasCover, playing: false };
+			return { albumId: onSnapcast.albumId, url: trackCover(onSnapcast), playing: false };
+		if (local) return { albumId: local.albumId, url: trackCover(local), playing: false };
 		const album = page.data.album as { id: number; hasCover: boolean } | undefined;
-		return album ? { albumId: album.id, hasCover: album.hasCover, playing: false } : null;
+		return album
+			? { albumId: album.id, url: album.hasCover ? coverUrl(album.id) : null, playing: false }
+			: null;
 	});
 
 	const cover = $derived(musicBackground.style === 'cover');
 	const coverSrc = $derived.by(() => {
 		if (!cover) return null;
-		if (source) return source.hasCover ? coverUrl(source.albumId) : null;
+		if (source) return source.url;
 		return music.podcast?.imageUrl || null;
 	});
 	const coverPlaying = $derived(source ? source.playing : Boolean(music.podcast && music.playing));
@@ -67,17 +69,14 @@
 			musicBackground.style,
 			musicBackground.intensity,
 			musicBackground.speed,
-			source?.albumId,
+			source?.url,
 			source?.playing
 		];
 		wake();
 	});
 
 	$effect(() => {
-		const url =
-			source?.hasCover && musicBackground.style !== 'none' && !cover
-				? coverUrl(source.albumId)
-				: null;
+		const url = source?.url && musicBackground.style !== 'none' && !cover ? source.url : null;
 		if (!url) {
 			visible = false;
 			return;

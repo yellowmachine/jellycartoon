@@ -4,6 +4,7 @@ import { keyLimit } from '#lib/server/ai-spend.ts';
 import { fileQuota } from '#lib/server/file-quota.ts';
 import { familyStorage, storageReady } from '#lib/server/storage.ts';
 import { bucketFrom } from '#lib/server/storage-bucket.ts';
+import { indexMusic, removeSource, saveSource, sourceView } from '#lib/server/own-music.ts';
 import {
 	cancelMove,
 	changeKeys,
@@ -191,6 +192,8 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		/** How much the family keeps in the storage, and may (#480). */
 		storage: storageReady ? await fileQuota.usage(membership.familyId) : null,
 		/** Where its files are (#480, phase 2): Seilide's or its own, and a move going on. */
+		/** «Tu música» (#534): the family's bucket for Música, to who runs the family. */
+		ownMusic: admin ? await sourceView(membership.familyId) : null,
 		storagePlace: storageReady
 			? { ...storageView(await familyStorage.of(membership.familyId)), admin }
 			: null,
@@ -421,6 +424,30 @@ export const actions: Actions = {
 			await cancelMove(familyId);
 			return { ok: 'Cancelado: los ficheros siguen donde estaban' };
 		}),
+	/** «Tu música» (#534): its bucket for Música, tried and saved; the index begins. */
+	ownMusicSave: async ({ locals, request }) => {
+		const familyId = await adminFamily(locals.user!.id);
+		if (!familyId) return fail(403, { ownMusicProblem: 'Solo quien administra la familia' });
+		const b = bucketFrom(await request.formData(), { anyFolder: true });
+		if ('problem' in b) return fail(400, { ownMusicProblem: b.problem });
+		const problem = await saveSource(familyId, b);
+		if (problem) return fail(400, { ownMusicProblem: problem });
+		return { ownMusicOk: 'Guardado: buscando la música' };
+	},
+	/** «Volver a buscar»: what is new or changed in the bucket. */
+	ownMusicIndex: async ({ locals }) => {
+		const familyId = await adminFamily(locals.user!.id);
+		if (!familyId) return fail(403, { ownMusicProblem: 'Solo quien administra la familia' });
+		void indexMusic(familyId);
+		return { ownMusicOk: 'Buscando' };
+	},
+	/** «Quitar»: its index and keys go; the bucket stays as it is. */
+	ownMusicRemove: async ({ locals }) => {
+		const familyId = await adminFamily(locals.user!.id);
+		if (!familyId) return fail(403, { ownMusicProblem: 'Solo quien administra la familia' });
+		await removeSource(familyId);
+		return { ownMusicOk: 'Quitado. Vuestro almacenamiento sigue como estaba' };
+	},
 	/** Other keys for the bucket it is already in. */
 	storageKeys: ({ locals, request }) =>
 		storageAction(locals, request, async (familyId, form) => {

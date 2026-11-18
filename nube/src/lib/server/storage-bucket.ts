@@ -22,9 +22,12 @@ export interface Bucket {
 export const DEFAULT_PREFIX = 'seilide/';
 
 /** The bucket as the form sent it, or what is wrong with it. */
-export function bucketFrom(form: {
-	get(name: string): FormDataEntryValue | null;
-}): Bucket | { problem: string } {
+export function bucketFrom(
+	form: {
+		get(name: string): FormDataEntryValue | null;
+	},
+	{ anyFolder = false }: { anyFolder?: boolean } = {}
+): Bucket | { problem: string } {
 	const text = (name: string) => String(form.get(name) ?? '').trim();
 	let endpoint: URL;
 	try {
@@ -37,9 +40,15 @@ export function bucketFrom(form: {
 		return {
 			problem: 'Ese nombre de bucket no vale: letras minúsculas, números, puntos y guiones'
 		};
-	const prefix = folderOf(form.get('prefix') === null ? DEFAULT_PREFIX : text('prefix'));
+	const prefix = (anyFolder ? anyFolderOf : folderOf)(
+		form.get('prefix') === null ? DEFAULT_PREFIX : text('prefix')
+	);
 	if (prefix === null)
-		return { problem: 'La carpeta solo puede tener letras, números, guiones, puntos y /' };
+		return {
+			problem: anyFolder
+				? 'Esa carpeta no vale'
+				: 'La carpeta solo puede tener letras, números, guiones, puntos y /'
+		};
 	const accessKeyId = text('accessKeyId');
 	const secretAccessKey = text('secretAccessKey');
 	if (!accessKeyId || !secretAccessKey) return { problem: 'Faltan las claves de acceso' };
@@ -57,6 +66,17 @@ export function bucketFrom(form: {
 export function folderOf(text: string) {
 	const parts = text.split('/').filter(Boolean);
 	if (parts.some((p) => !/^[\w.-]+$/.test(p) || p === '.' || p === '..')) return null;
+	return parts.length ? `${parts.join('/')}/` : '';
+}
+
+/**
+ * A folder already in the bucket, to be read (Tu música, #534): accents, spaces and all, as
+ * people name their music; never `.` or `..`, nor control characters.
+ */
+export function anyFolderOf(text: string) {
+	const parts = text.split('/').filter(Boolean);
+	// eslint-disable-next-line no-control-regex
+	if (parts.some((p) => p === '.' || p === '..' || /[\u0000-\u001f\u007f]/.test(p))) return null;
 	return parts.length ? `${parts.join('/')}/` : '';
 }
 

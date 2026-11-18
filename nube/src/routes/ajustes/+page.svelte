@@ -9,6 +9,7 @@
 	import PushNotices from 'comun/components/PushNotices.svelte';
 	import TelegramBot from './TelegramBot.svelte';
 	import Espacio from './Espacio.svelte';
+	import TuMusica from './TuMusica.svelte';
 	import Invitaciones from './Invitaciones.svelte';
 	import PasarAdministracion from './PasarAdministracion.svelte';
 	import AparatoPeques from './AparatoPeques.svelte';
@@ -840,6 +841,8 @@
 		</section>
 
 		<EntrarConLaNube {data} {form} {tab} />
+
+		<TuMusica {data} {form} {tab} />
 	{/if}
 
 	{#if tab === 'cuenta'}

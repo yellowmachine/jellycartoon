@@ -133,6 +133,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		words: 'espacio almacenamiento lleno cuota fotos ficheros gigas megas sitio ocupa'
 	},
 	{
+		id: 'tu-musica',
+		tab: 'conexiones',
+		title: 'Tu música',
+		words: 'musica canciones s3 r2 backblaze bucket almacenamiento albumes mp3 flac'
+	},
+	{
 		id: 'donde-vivis',
 		tab: 'familia',
 		title: 'Dónde vivís',
