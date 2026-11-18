@@ -16,13 +16,23 @@ describe('plug watch', () => {
 		at(20, 2);
 		at(22, 400);
 		at(40, 1);
-		expect(said).toEqual([]);
+		// Working 5 minutes, at 10: a cycle has started (for the rules, #528); once, pauses aside.
+		expect(said).toEqual(['started']);
 		said.push(...w.tick(42 * MIN));
-		expect(said).toEqual([]);
+		expect(said).toEqual(['started']);
 		said.push(...w.tick(43 * MIN));
-		expect(said).toEqual(['done']);
+		expect(said).toEqual(['started', 'finished', 'done']);
 		said.push(...w.tick(60 * MIN));
-		expect(said).toEqual(['done']);
+		expect(said).toEqual(['started', 'finished', 'done']);
+	});
+
+	test('without notices, the rules are still told when a cycle starts and ends (#528)', () => {
+		const w = new PlugWatch({ done: false, stopped: false, offline: false, onHours: null }, 0);
+		expect(w.seen(2000, true, 0)).toEqual([]);
+		expect(w.seen(1800, true, 5 * MIN)).toEqual(['started']);
+		expect(w.seen(1, true, 50 * MIN)).toEqual([]);
+		expect(w.tick(53 * MIN)).toEqual(['finished']);
+		expect(w.tick(60 * MIN)).toEqual([]);
 	});
 
 	test('a blip is not a cycle', () => {

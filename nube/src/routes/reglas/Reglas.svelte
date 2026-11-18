@@ -320,6 +320,8 @@
 							<option value="nevera">Que ponga en la nevera</option>
 							<option value="recuerdo">Que pida recordar</option>
 							<option value="compra">Que se compre (separado por comas)</option>
+							<option value="enchufe_empieza">Que empiece un aparato (su nombre)</option>
+							<option value="enchufe_termina">Que termine un aparato (su nombre)</option>
 						</select>
 						<input
 							name="ifText"
@@ -330,8 +332,8 @@
 						/>
 					</div>
 					<p class="text-xs text-zinc-500">
-						Lo que digas, pongas o se compre, a la hora elegida. El tiempo inventado vale para todo
-						el rato que miras.
+						Lo que digas, pongas, se compre o haga un aparato de Enchufes, a la hora elegida. El
+						tiempo inventado vale para todo el rato que miras.
 					</p>
 				</div>
 			</details>

@@ -202,6 +202,33 @@ describe('specOf', () => {
 		expect(dose(45)).toMatchObject({ spec: { when: { minutesAfter: 45 } } });
 	});
 
+	test('a plug (#528): when it starts or ends; without saying, when it ends', () => {
+		const plug = (moment: string) =>
+			specOf(
+				answer({
+					when: {
+						kind: 'enchufe',
+						words: ['lavadora'],
+						minutes_before: 0,
+						minutes_after: 0,
+						time: null,
+						weather: none,
+						plug: moment
+					}
+				}),
+				resolve
+			);
+		expect(plug('empieza')).toMatchObject({
+			spec: { when: { kind: 'enchufe', words: ['lavadora'], plug: 'empieza' } }
+		});
+		expect(plug('termina')).toMatchObject({ spec: { when: { plug: 'termina' } } });
+		expect(plug('ninguno')).toMatchObject({ spec: { when: { plug: 'termina' } } });
+		// Another «when» has no plug moment.
+		expect('plug' in (specOf(answer(), resolve) as { spec: { when: object } }).spec.when).toBe(
+			false
+		);
+	});
+
 	test('a rule that deduces (phase 4): what, until when, and no notice needed', () => {
 		const made = specOf(
 			answer({

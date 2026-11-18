@@ -7,6 +7,7 @@ import { hasWords } from '#lib/server/voice/learned.ts';
 import {
 	DOSE_LATE_MIN,
 	type Condition,
+	type PlugMoment,
 	type RuleSpec,
 	type SolarCheck,
 	type WeatherCheck
@@ -208,6 +209,25 @@ export const waitsFor = (
 	kind === 'nevera' ||
 	kind === 'compra' ||
 	(kind === 'dicho' ? !r.userId || r.userId === ownerId : !ownerId || r.userId === ownerId);
+
+/** A plug's cycle that started or ended (#528): which plug, its name and kind, and when. */
+export interface PlugHappened {
+	plugId: string;
+	/** Its name and its kind's («Bosch» · «Lavadora»): what the rule's words are looked for in. */
+	name: string;
+	kindLabel: string;
+	moment: PlugMoment;
+}
+
+/** Whether a rule waits for this plug's moment: its moment (unset, «termina»), and its words. */
+export const plugFits = (r: Rule, p: PlugHappened) =>
+	r.spec.when.kind === 'enchufe' &&
+	(r.spec.when.plug ?? 'termina') === p.moment &&
+	hasWords(r.spec.when.words, `${p.name} ${p.kindLabel}`);
+
+/** ««Lavadora» ha terminado a las 10:05». */
+export const plugWhy = (p: PlugHappened, time: string) =>
+	`«${p.name}» ha ${p.moment === 'empieza' ? 'empezado' : 'terminado'} a las ${time}`;
 
 /** Its person's trip that day, if any. */
 export const awayOn = (trips: Trip[], day: string) =>

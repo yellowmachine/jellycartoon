@@ -9,20 +9,25 @@ import { familyAdults } from '../kids.ts';
 import { familySatellites, sayOnSatellites } from '../satellites.ts';
 import { inQuietHours } from '../voice/quiet-check.ts';
 import { voiceSettings } from '../voice/settings.ts';
+import { ruleEvent } from '../rule-events.ts';
+import { isPlugKind, PLUG_KINDS, type PlugKind } from '#lib/plugs.ts';
 import { setPlugWatcher } from './plugs.ts';
-import { PlugWatch, type WatchEvent } from './watch.ts';
+import { PlugWatch, type CycleEvent, type WatchEvent } from './watch.ts';
 
 /**
  * The plugs' notices (#396, phase 3): what watch.ts reads in their watts, told to the family's
  * adults (their «Buzón» and phones) and, if chosen, said by the satellites, except in the «Horas de
  * silencio» (a fridge stopped, even then). Loaded by hooks.server.ts, so that plugs.ts need not
  * bring the inbox along. Only plugs seen since Seilide started are watched: one that never
- * connects again after a restart is not told about.
+ * connects again after a restart is not told about. Every plug is watched, for the rules too
+ * (#528): a cycle that starts or ends goes to them (rule-events.ts), whatever its notices; not a
+ * fridge's, whose motor starts and stops all day.
  */
 
 interface Watched {
 	familyId: string;
 	name: string;
+	kind: PlugKind;
 	hours: number | null;
 	aloud: boolean;
 	watch: PlugWatch;
@@ -89,19 +94,35 @@ async function notify(plugId: string, w: Watched, event: WatchEvent) {
 		);
 }
 
-function emit(plugId: string, w: Watched, events: WatchEvent[]) {
+const CYCLE: Record<CycleEvent, 'empieza' | 'termina'> = {
+	started: 'empieza',
+	finished: 'termina'
+};
+const isCycle = (event: WatchEvent | CycleEvent): event is CycleEvent => event in CYCLE;
+
+function emit(plugId: string, w: Watched, events: (WatchEvent | CycleEvent)[]) {
 	for (const event of events)
-		notify(plugId, w, event).catch((error) =>
-			console.error('[enchufes] Aviso no mandado', { plugId, event, error })
-		);
+		if (isCycle(event)) {
+			if (w.kind !== 'nevera')
+				ruleEvent(houseKitchen(w.familyId), 'enchufe', w.name, null, [], undefined, {
+					plugId,
+					name: w.name,
+					kindLabel: PLUG_KINDS[w.kind].label,
+					moment: CYCLE[event]
+				});
+		} else
+			notify(plugId, w, event).catch((error) =>
+				console.error('[enchufes] Aviso no mandado', { plugId, event, error })
+			);
 }
 
-/** Its notices as saved: watched if any is on, keeping what it was counting. */
+/** Its notices as saved, keeping what it was counting. */
 async function load(familyId: string, plugId: string) {
 	const [row] = await asFamily(familyId, (tx) =>
 		tx
 			.select({
 				name: plug.name,
+				kind: plug.kind,
 				done: plug.notifyDone,
 				stopped: plug.notifyStopped,
 				offline: plug.notifyOffline,
@@ -111,7 +132,7 @@ async function load(familyId: string, plugId: string) {
 			.from(plug)
 			.where(eq(plug.id, plugId))
 	);
-	if (!row || !(row.done || row.stopped || row.offline || row.onHours !== null)) {
+	if (!row) {
 		watched.delete(plugId);
 		return;
 	}
@@ -126,6 +147,7 @@ async function load(familyId: string, plugId: string) {
 	watched.set(plugId, {
 		familyId,
 		name: row.name,
+		kind: isPlugKind(row.kind) ? row.kind : 'otro',
 		hours: row.onHours,
 		aloud: row.aloud,
 		watch: before?.watch ?? new PlugWatch(settings, Date.now())
