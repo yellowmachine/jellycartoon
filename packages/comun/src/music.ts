@@ -162,6 +162,8 @@ export interface DjOptions {
 export interface DjPlaylist {
 	id: number;
 	name: string;
+	/** A list of Seilide's «Tu música» (#534), not the house's: Seilide is its DJ. */
+	own?: boolean;
 }
 
 const isDjPlaylist = (value: unknown): value is DjPlaylist => {
@@ -172,7 +174,8 @@ const isDjPlaylist = (value: unknown): value is DjPlaylist => {
 		Number.isInteger(p!.id) &&
 		p!.id > 0 &&
 		typeof p!.name === 'string' &&
-		p!.name.length <= 120
+		p!.name.length <= 120 &&
+		(p!.own === undefined || typeof p!.own === 'boolean')
 	);
 };
 
