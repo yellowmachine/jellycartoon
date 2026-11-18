@@ -72,6 +72,7 @@ describe('parseVoiceRequest', () => {
 			timers: [],
 			recipe: null,
 			kitchen: false,
+			vistaLocked: false,
 			film: null,
 			car: false,
 			position: null,
@@ -79,6 +80,15 @@ describe('parseVoiceRequest', () => {
 			trip: null,
 			ahead: null
 		});
+	});
+
+	test("Seilide's locked Vista (#532): only when it says so", () => {
+		expect(parseVoiceRequest({ text: 'Cierra la Vista', vistaLocked: true })?.vistaLocked).toBe(
+			true
+		);
+		expect(parseVoiceRequest({ text: 'Cierra la Vista', vistaLocked: 'sí' })?.vistaLocked).toBe(
+			false
+		);
 	});
 
 	test('nothing playing, and no history', () => {
@@ -90,6 +100,7 @@ describe('parseVoiceRequest', () => {
 			timers: [],
 			recipe: null,
 			kitchen: false,
+			vistaLocked: false,
 			film: null,
 			car: false,
 			position: null,

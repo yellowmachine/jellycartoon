@@ -1301,6 +1301,8 @@ interface Turn {
 	 * timer): its timers are the browser's, sent as actions (`deviceTimer`).
 	 */
 	kitchen: boolean;
+	/** The Vista is locked where it is said (#532): «cierra la Vista» does not close it. */
+	vistaLocked: boolean;
 	apiKey: string;
 	settings: Awaited<ReturnType<typeof voiceSettings>>;
 	houseTools: Set<string>;
@@ -1730,6 +1732,8 @@ async function runTool(
 			return `Post-it pegado en la nevera${until ? ` (${untilText(until)})` : ''}: «${text}».`;
 		}
 		case 'kitchen_mode':
+			if (args.on === false && ctx.vistaLocked)
+				return 'Esta pantalla está bloqueada: para salir de la Vista, mantén pulsado «Salir» tres segundos.';
 			ctx.outcome.actions.push({ kind: 'kitchenMode', on: args.on !== false });
 			// The timers that follow in this order, where it now is.
 			if (ctx.cookHere) ctx.kitchen = args.on !== false;
@@ -2411,6 +2415,7 @@ export async function runVoiceCommand(
 		timersAt,
 		cookHere,
 		kitchen,
+		vistaLocked: request.vistaLocked === true,
 		apiKey,
 		settings,
 		houseTools: new Set(house.tools.map((t) => t.function.name)),

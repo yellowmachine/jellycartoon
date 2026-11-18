@@ -4,7 +4,7 @@
 	import { onMount } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { version } from '$app/env';
-	import { afterNavigate, goto } from '$app/navigation';
+	import { afterNavigate, goto, pushState } from '$app/navigation';
 	import { navigating, page } from '$app/state';
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import { installApp } from '#lib/install-app.svelte.ts';
@@ -89,6 +89,12 @@
 			if (goBack) void vista.enter();
 		}, 5000);
 		return () => clearInterval(check);
+	});
+	// Locked (#532): Android's back on the Vista's home or recipe would close the installed app.
+	// One more entry there, put back each time back takes it.
+	$effect(() => {
+		if (vista.kiosk && ['/vista', '/cocina'].includes(page.url.pathname) && !page.state.vistaGuard)
+			pushState('', { vistaGuard: true });
 	});
 	// The family's word, kept on the device for when there is no connection.
 	$effect(() => {

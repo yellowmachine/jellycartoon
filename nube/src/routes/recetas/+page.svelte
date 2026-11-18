@@ -6,6 +6,7 @@
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { poll } from 'comun/poll.ts';
 	import { justSaved } from '#lib/chat-saved.svelte.ts';
+	import { vista } from '#lib/vista.svelte.ts';
 	import { tick } from 'svelte';
 	import type { PageProps } from './$types';
 
@@ -57,43 +58,46 @@
 <h1 class="mb-1 text-2xl font-bold [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]">
 	Recetario<GuideLink page="recetas" label="el recetario" />
 </h1>
-<p class="mb-4 max-w-2xl text-sm text-zinc-400">
-	Las recetas de la familia, para cocinarlas paso a paso en la cocina de casa («vamos a hacer los
-	macarrones»). Se guardan desde la página de una web de cocina: pega aquí su dirección o, en el
-	móvil, compártela desde el navegador con Seilide.
-</p>
+<!-- Locked Vista (#532): nothing to save from other sites. -->
+{#if !vista.kiosk}
+	<p class="mb-4 max-w-2xl text-sm text-zinc-400">
+		Las recetas de la familia, para cocinarlas paso a paso en la cocina de casa («vamos a hacer los
+		macarrones»). Se guardan desde la página de una web de cocina: pega aquí su dirección o, en el
+		móvil, compártela desde el navegador con Seilide.
+	</p>
 
-<form
-	method="post"
-	action="?/import"
-	class="mb-2 flex max-w-2xl gap-2"
-	use:enhance={() => {
-		saving = true;
-		return async ({ update }) => {
-			await update({ reset: false });
-			saving = false;
-		};
-	}}
->
-	<input
-		type="url"
-		name="url"
-		value={form?.url ?? data.shared ?? ''}
-		required
-		autocomplete="url"
-		placeholder="https://…/receta-de-macarrones"
-		aria-label="Dirección de la receta"
-		class="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
-	/>
-	<button
-		class="rounded-md bg-amber-500 px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
-		disabled={saving}>{saving ? 'Leyendo la receta…' : 'Guardar'}</button
+	<form
+		method="post"
+		action="?/import"
+		class="mb-2 flex max-w-2xl gap-2"
+		use:enhance={() => {
+			saving = true;
+			return async ({ update }) => {
+				await update({ reset: false });
+				saving = false;
+			};
+		}}
 	>
-</form>
-{#if form?.error}
-	<p class="mb-4 text-sm text-red-400">{form.error}</p>
-{:else if data.shared}
-	<p class="mb-4 text-sm text-amber-300">Compartida desde el móvil: pulsa «Guardar».</p>
+		<input
+			type="url"
+			name="url"
+			value={form?.url ?? data.shared ?? ''}
+			required
+			autocomplete="url"
+			placeholder="https://…/receta-de-macarrones"
+			aria-label="Dirección de la receta"
+			class="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
+		/>
+		<button
+			class="rounded-md bg-amber-500 px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
+			disabled={saving}>{saving ? 'Leyendo la receta…' : 'Guardar'}</button
+		>
+	</form>
+	{#if form?.error}
+		<p class="mb-4 text-sm text-red-400">{form.error}</p>
+	{:else if data.shared}
+		<p class="mb-4 text-sm text-amber-300">Compartida desde el móvil: pulsa «Guardar».</p>
+	{/if}
 {/if}
 
 <section class="mt-6">
@@ -130,7 +134,7 @@
 					</a>
 					<!-- Outside the link, on a layer as big as the picture, in its corner: shown on hover
 				     (always by touch, or if it is the background already). -->
-					{#if r.imageUrl}
+					{#if r.imageUrl && !vista.kiosk}
 						<div class="pointer-events-none absolute inset-x-0 top-0 aspect-square">
 							<form
 								method="post"
@@ -179,174 +183,177 @@
 	{/if}
 </section>
 
-{#if data.sites.length}
-	<section class="mt-10">
-		<h2 class="mb-1 text-lg font-semibold">Buscar en las webs favoritas</h2>
+<!-- Locked Vista (#532): no looking for recipes elsewhere, nor managing the sites. -->
+{#if !vista.kiosk}
+	{#if data.sites.length}
+		<section class="mt-10">
+			<h2 class="mb-1 text-lg font-semibold">Buscar en las webs favoritas</h2>
+			<p class="mb-3 text-sm text-zinc-400">
+				Por las palabras de sus direcciones. También por voz: «busca macarrones gratinados en
+				{data.sites[0]!.name}».
+			</p>
+			<form method="get" class="mb-3 flex max-w-2xl gap-2">
+				<input
+					type="search"
+					name="q"
+					value={data.q}
+					placeholder="Macarrones gratinados, croquetas…"
+					aria-label="Buscar recetas en las webs favoritas"
+					class="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
+				/>
+				<button class="rounded-md bg-zinc-800 px-4 py-2 text-sm hover:bg-zinc-700">Buscar</button>
+			</form>
+			{#if data.results}
+				{#if !data.results.length}
+					<p class="text-sm text-zinc-400">No hay ninguna con esas palabras.</p>
+				{:else}
+					<ul class="max-w-2xl divide-y divide-zinc-800">
+						{#each data.results as result (result.url)}
+							<li class="flex items-center gap-3 py-2">
+								<span class="min-w-0 flex-1">
+									<a
+										href={result.url}
+										target="_blank"
+										rel="noreferrer"
+										class="block truncate hover:text-amber-400">{result.title}</a
+									>
+									<span class="block truncate text-xs text-zinc-500">{result.site}</span>
+								</span>
+								<form
+									method="post"
+									action="?/import"
+									use:enhance={() => {
+										importing = result.url;
+										return async ({ update }) => {
+											await update({ reset: false });
+											importing = null;
+										};
+									}}
+								>
+									<input type="hidden" name="url" value={result.url} />
+									<button
+										class="shrink-0 rounded-md border border-zinc-600 px-3 py-1.5 text-sm hover:bg-zinc-800 disabled:opacity-50"
+										disabled={importing !== null}
+										>{importing === result.url ? 'Leyendo…' : 'Guardar'}</button
+									>
+								</form>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			{/if}
+		</section>
+	{/if}
+
+	<section class="mt-10 max-w-2xl">
+		<h2 class="mb-1 text-lg font-semibold">Webs favoritas</h2>
 		<p class="mb-3 text-sm text-zinc-400">
-			Por las palabras de sus direcciones. También por voz: «busca macarrones gratinados en
-			{data.sites[0]!.name}».
+			Webs de cocina donde buscar recetas sin salir de casa: pega cualquier página suya. Se lee su
+			mapa (sitemap) y se vuelve a leer cada semana.
 		</p>
-		<form method="get" class="mb-3 flex max-w-2xl gap-2">
+		<form
+			method="post"
+			action="?/addSite"
+			class="mb-2 flex gap-2"
+			use:enhance={() => {
+				addingSite = true;
+				return async ({ update }) => {
+					await update();
+					addingSite = false;
+				};
+			}}
+		>
 			<input
-				type="search"
-				name="q"
-				value={data.q}
-				placeholder="Macarrones gratinados, croquetas…"
-				aria-label="Buscar recetas en las webs favoritas"
+				type="url"
+				name="site"
+				value={form?.site ?? ''}
+				required
+				placeholder="https://…"
+				aria-label="Dirección de la web de cocina"
 				class="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
 			/>
-			<button class="rounded-md bg-zinc-800 px-4 py-2 text-sm hover:bg-zinc-700">Buscar</button>
+			<button
+				class="rounded-md border border-zinc-600 px-4 py-2 text-sm hover:bg-zinc-800 disabled:opacity-50"
+				disabled={addingSite}>{addingSite ? 'Añadiendo…' : 'Añadir'}</button
+			>
 		</form>
-		{#if data.results}
-			{#if !data.results.length}
-				<p class="text-sm text-zinc-400">No hay ninguna con esas palabras.</p>
-			{:else}
-				<ul class="max-w-2xl divide-y divide-zinc-800">
-					{#each data.results as result (result.url)}
-						<li class="flex items-center gap-3 py-2">
-							<span class="min-w-0 flex-1">
-								<a
-									href={result.url}
-									target="_blank"
-									rel="noreferrer"
-									class="block truncate hover:text-amber-400">{result.title}</a
-								>
-								<span class="block truncate text-xs text-zinc-500">{result.site}</span>
-							</span>
+		{#if form?.siteError}
+			<p class="mb-2 text-sm text-red-400">{form.siteError}</p>
+		{/if}
+		<ul class="divide-y divide-zinc-800">
+			{#each data.sites as site (site.id)}
+				<li class="flex items-center gap-3 py-2">
+					<span class="min-w-0 flex-1">
+						{#if renaming === site.id}
 							<form
 								method="post"
-								action="?/import"
-								use:enhance={() => {
-									importing = result.url;
-									return async ({ update }) => {
-										await update({ reset: false });
-										importing = null;
-									};
-								}}
+								action="?/renameSite"
+								class="flex gap-2"
+								use:enhance={() =>
+									async ({ update }) => {
+										await update();
+										renaming = null;
+									}}
 							>
-								<input type="hidden" name="url" value={result.url} />
-								<button
-									class="shrink-0 rounded-md border border-zinc-600 px-3 py-1.5 text-sm hover:bg-zinc-800 disabled:opacity-50"
-									disabled={importing !== null}
-									>{importing === result.url ? 'Leyendo…' : 'Guardar'}</button
+								<input type="hidden" name="id" value={site.id} />
+								<!-- svelte-ignore a11y_autofocus -->
+								<input
+									name="name"
+									value={site.name}
+									required
+									maxlength="80"
+									autofocus
+									aria-label="Nombre de la web"
+									onkeydown={(e) => e.key === 'Escape' && (renaming = null)}
+									class="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+								/>
+								<button class="rounded-md bg-zinc-800 px-3 py-1 text-sm hover:bg-zinc-700"
+									>Guardar</button
 								>
 							</form>
-						</li>
-					{/each}
-				</ul>
-			{/if}
-		{/if}
-	</section>
-{/if}
-
-<section class="mt-10 max-w-2xl">
-	<h2 class="mb-1 text-lg font-semibold">Webs favoritas</h2>
-	<p class="mb-3 text-sm text-zinc-400">
-		Webs de cocina donde buscar recetas sin salir de casa: pega cualquier página suya. Se lee su
-		mapa (sitemap) y se vuelve a leer cada semana.
-	</p>
-	<form
-		method="post"
-		action="?/addSite"
-		class="mb-2 flex gap-2"
-		use:enhance={() => {
-			addingSite = true;
-			return async ({ update }) => {
-				await update();
-				addingSite = false;
-			};
-		}}
-	>
-		<input
-			type="url"
-			name="site"
-			value={form?.site ?? ''}
-			required
-			placeholder="https://…"
-			aria-label="Dirección de la web de cocina"
-			class="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
-		/>
-		<button
-			class="rounded-md border border-zinc-600 px-4 py-2 text-sm hover:bg-zinc-800 disabled:opacity-50"
-			disabled={addingSite}>{addingSite ? 'Añadiendo…' : 'Añadir'}</button
-		>
-	</form>
-	{#if form?.siteError}
-		<p class="mb-2 text-sm text-red-400">{form.siteError}</p>
-	{/if}
-	<ul class="divide-y divide-zinc-800">
-		{#each data.sites as site (site.id)}
-			<li class="flex items-center gap-3 py-2">
-				<span class="min-w-0 flex-1">
-					{#if renaming === site.id}
-						<form
-							method="post"
-							action="?/renameSite"
-							class="flex gap-2"
-							use:enhance={() =>
-								async ({ update }) => {
-									await update();
-									renaming = null;
-								}}
-						>
-							<input type="hidden" name="id" value={site.id} />
-							<!-- svelte-ignore a11y_autofocus -->
-							<input
-								name="name"
-								value={site.name}
-								required
-								maxlength="80"
-								autofocus
-								aria-label="Nombre de la web"
-								onkeydown={(e) => e.key === 'Escape' && (renaming = null)}
-								class="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
-							/>
-							<button class="rounded-md bg-zinc-800 px-3 py-1 text-sm hover:bg-zinc-700"
-								>Guardar</button
-							>
-						</form>
-					{:else}
-						<span class="block truncate">{site.name}</span>
-					{/if}
-					<span class="block truncate text-xs text-zinc-500">
-						{site.host} ·
-						{#if site.indexing}
-							<span class="text-amber-400"
-								>leyendo su mapa{site.progress?.total
-									? `: ${site.progress.done} de ${site.progress.total} · ${site.progress.pages.toLocaleString('es-ES')} páginas`
-									: '…'}</span
-							>
-						{:else if site.lastError}
-							<span class="text-amber-400">{site.lastError}</span>
-						{:else if site.indexedAt}
-							{site.pages} páginas, leído el {day.format(new Date(site.indexedAt))}
 						{:else}
-							sin leer todavía
+							<span class="block truncate">{site.name}</span>
+						{/if}
+						<span class="block truncate text-xs text-zinc-500">
+							{site.host} ·
+							{#if site.indexing}
+								<span class="text-amber-400"
+									>leyendo su mapa{site.progress?.total
+										? `: ${site.progress.done} de ${site.progress.total} · ${site.progress.pages.toLocaleString('es-ES')} páginas`
+										: '…'}</span
+								>
+							{:else if site.lastError}
+								<span class="text-amber-400">{site.lastError}</span>
+							{:else if site.indexedAt}
+								{site.pages} páginas, leído el {day.format(new Date(site.indexedAt))}
+							{:else}
+								sin leer todavía
+							{/if}
+						</span>
+						{#if site.indexing && site.progress?.total}
+							<span class="mt-1 block h-1 overflow-hidden rounded bg-zinc-800">
+								<span
+									class="block h-full bg-amber-400"
+									style:width="{(site.progress.done / site.progress.total) * 100}%"
+								></span>
+							</span>
 						{/if}
 					</span>
-					{#if site.indexing && site.progress?.total}
-						<span class="mt-1 block h-1 overflow-hidden rounded bg-zinc-800">
-							<span
-								class="block h-full bg-amber-400"
-								style:width="{(site.progress.done / site.progress.total) * 100}%"
-							></span>
-						</span>
+					{#if renaming !== site.id}
+						<button class={small} onclick={() => (renaming = site.id)}>Renombrar</button>
 					{/if}
-				</span>
-				{#if renaming !== site.id}
-					<button class={small} onclick={() => (renaming = site.id)}>Renombrar</button>
-				{/if}
-				<form method="post" action="?/refreshSite" use:enhance>
-					<input type="hidden" name="id" value={site.id} />
-					<button class={small} disabled={site.indexing}>Volver a leer</button>
-				</form>
-				<form method="post" action="?/removeSite" use:enhance>
-					<input type="hidden" name="id" value={site.id} />
-					<button class={small}>Quitar</button>
-				</form>
-			</li>
-		{:else}
-			<li class="py-2 text-sm text-zinc-500">Ninguna todavía.</li>
-		{/each}
-	</ul>
-</section>
+					<form method="post" action="?/refreshSite" use:enhance>
+						<input type="hidden" name="id" value={site.id} />
+						<button class={small} disabled={site.indexing}>Volver a leer</button>
+					</form>
+					<form method="post" action="?/removeSite" use:enhance>
+						<input type="hidden" name="id" value={site.id} />
+						<button class={small}>Quitar</button>
+					</form>
+				</li>
+			{:else}
+				<li class="py-2 text-sm text-zinc-500">Ninguna todavía.</li>
+			{/each}
+		</ul>
+	</section>
+{/if}

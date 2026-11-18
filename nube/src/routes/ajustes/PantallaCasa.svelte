@@ -48,6 +48,22 @@
 		Las de los paseos de la cuenta abierta en este aparato, que verá quien pase por delante. Una
 		cada minuto, mientras descansa.
 	</p>
+	<label class={['mt-3 flex items-center gap-2 text-sm', !vista.homeScreen && 'opacity-50']}>
+		<input
+			type="checkbox"
+			checked={vista.lockedChosen}
+			disabled={!vista.homeScreen}
+			onchange={(e) => vista.setLocked(e.currentTarget.checked)}
+			class="rounded border-zinc-700 bg-zinc-900 text-amber-500"
+		/>
+		Bloqueada, para quien no está acostumbrado
+	</label>
+	<p class="mt-1 ml-6 text-xs text-zinc-500">
+		En la Vista no hay enlaces que lleven fuera de ella (a otras secciones o a otras webs) ni nada
+		que administrar (añadir o borrar recetas, listas de música, podcasts), y la voz no la cierra.
+		Para salir, mantén pulsado «Salir» 3 segundos. Fija además la aplicación en Android (ver la
+		guía).
+	</p>
 	{#if vista.homeScreen && vista.problem}
 		<p class="mt-2 text-sm text-amber-400">{vista.problem}</p>
 	{/if}

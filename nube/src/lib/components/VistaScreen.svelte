@@ -43,6 +43,23 @@
 	};
 
 	let tabsHeight = $state(0);
+
+	/** Locked (#532): «Salir» held down this long; let go before, nothing. */
+	const HOLD_MS = 3000;
+	let holding = $state(false);
+	let holdTimer: ReturnType<typeof setTimeout> | undefined;
+	function holdStart() {
+		if (!vista.locked) return;
+		holding = true;
+		holdTimer = setTimeout(() => {
+			holding = false;
+			void vista.leave();
+		}, HOLD_MS);
+	}
+	function holdEnd() {
+		clearTimeout(holdTimer);
+		holding = false;
+	}
 </script>
 
 <!-- The left, fixed on a wide screen: what scrolls is the right. Opaque, over a page's background.
@@ -84,22 +101,46 @@
 						>
 					{/each}
 				</nav>
-				<!-- Its page in the family's guide (#495), in another tab. -->
-				<a
-					href="https://docs.seilide.app/guia/vista/"
-					target="_blank"
-					rel="noopener"
-					class="flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-white"
-					aria-label="Cómo se usa la Vista (guía)"
-					title="Cómo se usa la Vista"
-					><span class="text-2xl leading-none" aria-hidden="true">?</span>Ayuda</a
-				>
+				<!-- Its page in the family's guide (#495), in another tab; locked (#532), not: it leaves. -->
+				{#if !vista.locked}<a
+						href="https://docs.seilide.app/guia/vista/"
+						target="_blank"
+						rel="noopener"
+						class="flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-white"
+						aria-label="Cómo se usa la Vista (guía)"
+						title="Cómo se usa la Vista"
+						><span class="text-2xl leading-none" aria-hidden="true">?</span>Ayuda</a
+					>{/if}
+				<!-- Locked (#532): held down 3 s, with a ring that fills; a tap alone does nothing. -->
 				<button
-					class="flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-white"
-					aria-label="Salir de la Vista"
-					title="Salir de la Vista: la web de siempre"
-					onclick={() => vista.leave()}
-					><span class="text-2xl leading-none" aria-hidden="true">✕</span>Salir</button
+					class="relative flex shrink-0 touch-none flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-sm text-zinc-400 select-none hover:bg-zinc-800 hover:text-white"
+					aria-label={vista.locked ? 'Salir de la Vista: mantén pulsado' : 'Salir de la Vista'}
+					title={vista.locked
+						? 'Mantén pulsado 3 segundos para salir'
+						: 'Salir de la Vista: la web de siempre'}
+					onclick={() => vista.locked || vista.leave()}
+					onpointerdown={holdStart}
+					onpointerup={holdEnd}
+					onpointerleave={holdEnd}
+					onpointercancel={holdEnd}
+					oncontextmenu={(e) => e.preventDefault()}
+					><span class="relative text-2xl leading-none" aria-hidden="true"
+						>✕{#if holding}<svg
+								class="absolute -inset-2 h-[calc(100%+1rem)] w-[calc(100%+1rem)] -rotate-90"
+								viewBox="0 0 36 36"
+								><circle
+									class="fill"
+									cx="18"
+									cy="18"
+									r="16"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="3"
+									pathLength="100"
+									style:animation-duration="{HOLD_MS}ms"
+								/></svg
+							>{/if}</span
+					>{holding ? 'Mantén…' : 'Salir'}</button
 				>
 			</div>
 			<!-- What plays, from one tab to another. -->
@@ -115,3 +156,18 @@
 </div>
 
 <VistaRest />
+
+<style>
+	/* «Salir» held down (#532): the ring fills in HOLD_MS. */
+	.fill {
+		stroke-dasharray: 100;
+		stroke-dashoffset: 100;
+		animation: fill linear forwards;
+		color: var(--color-amber-400);
+	}
+	@keyframes fill {
+		to {
+			stroke-dashoffset: 0;
+		}
+	}
+</style>

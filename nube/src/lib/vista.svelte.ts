@@ -17,6 +17,7 @@ import type { Recipe } from 'comun/recipe.ts';
 const STORAGE_KEY = 'kitchen-mode';
 const HOME_SCREEN_KEY = 'vista-pantalla-casa';
 const PHOTOS_KEY = 'vista-fotos';
+const LOCKED_KEY = 'vista-bloqueada';
 
 /**
  * The Vista's screen: the voice and the timers on the left, and on the right its home (/vista,
@@ -53,6 +54,21 @@ class Vista {
 	homeScreen = $state(false);
 	/** Resting, its walks' photos behind the clock (VistaRest.svelte), on this device. */
 	photos = $state(false);
+	/**
+	 * «Bloqueada» (#532), chosen on this device: for a house of people not used to this. Only on a
+	 * «pantalla de casa» (`locked`).
+	 */
+	lockedChosen = $state(false);
+	/**
+	 * Locked (#532): in the Vista, no links out of it (to other sections or other sites), nothing to
+	 * manage (recipes, lists, podcasts), «Salir» held down 3 s, and the voice does not close it.
+	 */
+	locked = $derived(this.homeScreen && this.lockedChosen);
+	/**
+	 * In the locked Vista now (#532): what the pages it shows (recipes, music, radio, podcasts) hide;
+	 * the same pages out of it, as usual.
+	 */
+	kiosk = $derived(this.on && this.locked);
 	/** The last touch or key on the page (ms): what resting and coming back count from. */
 	touchedAt = $state(Date.now());
 
@@ -76,6 +92,7 @@ class Vista {
 		try {
 			this.homeScreen = localStorage.getItem(HOME_SCREEN_KEY) === 'on';
 			this.photos = localStorage.getItem(PHOTOS_KEY) === 'on';
+			this.lockedChosen = localStorage.getItem(LOCKED_KEY) === 'on';
 			const at = Number(localStorage.getItem(STORAGE_KEY));
 			if (this.homeScreen) {
 				// Opened (the home page): it starts in the Vista; another page (a link), there.
@@ -108,6 +125,17 @@ class Vista {
 		try {
 			if (value) localStorage.setItem(PHOTOS_KEY, 'on');
 			else localStorage.removeItem(PHOTOS_KEY);
+		} catch {
+			// A private window: until it reloads.
+		}
+	}
+
+	/** Ajustes → Este aparato: «Bloqueada» (#532). */
+	setLocked(value: boolean) {
+		this.lockedChosen = value;
+		try {
+			if (value) localStorage.setItem(LOCKED_KEY, 'on');
+			else localStorage.removeItem(LOCKED_KEY);
 		} catch {
 			// A private window: until it reloads.
 		}

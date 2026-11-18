@@ -94,7 +94,7 @@
 	<div class="min-w-0">
 		<h1 class="text-2xl font-bold [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]">{r.title}</h1>
 		<p class="text-zinc-400 [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]">
-			{r.servings ? `Para ${r.servings} · ` : ''}{#if data.link}De
+			{r.servings ? `Para ${r.servings} · ` : ''}{#if data.link && !vista.kiosk}De
 				<a href={data.link} target="_blank" rel="noreferrer" class="hover:underline"
 					>{r.sourceName}</a
 				>{:else}{r.sourceName}{/if}
@@ -127,85 +127,88 @@
 					>
 				{/if}
 			{/if}
-			{#if r.imageUrl}
-				<form method="post" action="?/backdrop" use:enhance>
-					<button
-						class={[
-							'rounded-md px-3 py-1.5 text-sm hover:bg-zinc-800',
-							data.isBackdrop ? 'text-amber-400' : 'text-zinc-400 hover:text-white'
-						]}
-						aria-pressed={data.isBackdrop}
-						title="Su imagen, de fondo de la página del recetario"
-						>{data.isBackdrop ? 'Fondo del recetario ✓' : 'Usar de fondo del recetario'}</button
-					>
-				</form>
-			{/if}
-			<!-- Its picture (#470's recipes have none): the family's photo, or one from their sites. -->
-			<label
-				class={[
-					'cursor-pointer rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-white',
-					photoBusy && 'pointer-events-none opacity-50'
-				]}
-			>
-				{photoBusy === 'subiendo'
-					? 'Subiendo…'
-					: r.hasPhoto
-						? '📷 Cambiar la foto'
-						: '📷 Poner foto'}
-				<input
-					type="file"
-					accept="image/*"
-					class="sr-only"
-					disabled={photoBusy !== null}
-					onchange={(e) => putPhoto(e.currentTarget)}
-				/>
-			</label>
-			{#if !r.imageUrl}
-				<button
-					class="rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-50"
-					disabled={photoBusy !== null}
-					onclick={lookForPicture}
-					>{photoBusy === 'buscando' ? 'Buscando…' : '🔎 Buscar foto en mis webs'}</button
+			<!-- Locked Vista (#532): only cooking; nothing to manage. -->
+			{#if !vista.kiosk}
+				{#if r.imageUrl}
+					<form method="post" action="?/backdrop" use:enhance>
+						<button
+							class={[
+								'rounded-md px-3 py-1.5 text-sm hover:bg-zinc-800',
+								data.isBackdrop ? 'text-amber-400' : 'text-zinc-400 hover:text-white'
+							]}
+							aria-pressed={data.isBackdrop}
+							title="Su imagen, de fondo de la página del recetario"
+							>{data.isBackdrop ? 'Fondo del recetario ✓' : 'Usar de fondo del recetario'}</button
+						>
+					</form>
+				{/if}
+				<!-- Its picture (#470's recipes have none): the family's photo, or one from their sites. -->
+				<label
+					class={[
+						'cursor-pointer rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-white',
+						photoBusy && 'pointer-events-none opacity-50'
+					]}
 				>
-			{/if}
-			{#if r.hasPhoto}
-				{#if confirmRemovePhoto}
-					<span class="text-sm text-zinc-400">¿Quitar vuestra foto?</span>
+					{photoBusy === 'subiendo'
+						? 'Subiendo…'
+						: r.hasPhoto
+							? '📷 Cambiar la foto'
+							: '📷 Poner foto'}
+					<input
+						type="file"
+						accept="image/*"
+						class="sr-only"
+						disabled={photoBusy !== null}
+						onchange={(e) => putPhoto(e.currentTarget)}
+					/>
+				</label>
+				{#if !r.imageUrl}
 					<button
-						class="rounded-md px-3 py-1.5 text-sm text-red-400 hover:bg-zinc-800"
-						onclick={async () => {
-							confirmRemovePhoto = false;
-							await act('removePhoto');
-						}}>Sí, quitarla</button
+						class="rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-50"
+						disabled={photoBusy !== null}
+						onclick={lookForPicture}
+						>{photoBusy === 'buscando' ? 'Buscando…' : '🔎 Buscar foto en mis webs'}</button
 					>
-					<button
-						class="rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:bg-zinc-800"
-						onclick={() => (confirmRemovePhoto = false)}>No</button
-					>
+				{/if}
+				{#if r.hasPhoto}
+					{#if confirmRemovePhoto}
+						<span class="text-sm text-zinc-400">¿Quitar vuestra foto?</span>
+						<button
+							class="rounded-md px-3 py-1.5 text-sm text-red-400 hover:bg-zinc-800"
+							onclick={async () => {
+								confirmRemovePhoto = false;
+								await act('removePhoto');
+							}}>Sí, quitarla</button
+						>
+						<button
+							class="rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:bg-zinc-800"
+							onclick={() => (confirmRemovePhoto = false)}>No</button
+						>
+					{:else}
+						<button
+							class="rounded-md px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-800 hover:text-white"
+							onclick={() => (confirmRemovePhoto = true)}>Quitar la foto</button
+						>
+					{/if}
+				{/if}
+				{#if confirmDelete}
+					<form method="post" action="?/delete" use:enhance class="flex items-center gap-2">
+						<span class="text-sm text-zinc-400">¿Quitarla del recetario?</span>
+						<button class="rounded-md bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-500"
+							>Quitar</button
+						>
+						<button
+							type="button"
+							class="rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:bg-zinc-800"
+							onclick={() => (confirmDelete = false)}>No</button
+						>
+					</form>
 				{:else}
 					<button
 						class="rounded-md px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-800 hover:text-white"
-						onclick={() => (confirmRemovePhoto = true)}>Quitar la foto</button
+						onclick={() => (confirmDelete = true)}>Quitar</button
 					>
 				{/if}
-			{/if}
-			{#if confirmDelete}
-				<form method="post" action="?/delete" use:enhance class="flex items-center gap-2">
-					<span class="text-sm text-zinc-400">¿Quitarla del recetario?</span>
-					<button class="rounded-md bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-500"
-						>Quitar</button
-					>
-					<button
-						type="button"
-						class="rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:bg-zinc-800"
-						onclick={() => (confirmDelete = false)}>No</button
-					>
-				</form>
-			{:else}
-				<button
-					class="rounded-md px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-800 hover:text-white"
-					onclick={() => (confirmDelete = true)}>Quitar</button
-				>
 			{/if}
 		</div>
 		{#if photoProblem}<p class="mt-2 text-sm text-red-400" role="alert">{photoProblem}</p>{/if}

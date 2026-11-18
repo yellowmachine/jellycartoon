@@ -1,6 +1,7 @@
 <script lang="ts">
 	import RadioStations from 'comun/components/RadioStations.svelte';
 	import RadioTabs from 'comun/components/RadioTabs.svelte';
+	import { vista } from '#lib/vista.svelte.ts';
 	import type { PageProps } from './$types';
 
 	/**
@@ -18,4 +19,5 @@
 	<h1 class="mr-auto text-2xl font-bold">Radio</h1>
 </div>
 <RadioTabs />
-<RadioStations info={data.info} headlines="/radio/titulares" />
+<!-- Locked Vista (#532): the headlines without their links to other sites. -->
+<RadioStations info={data.info} headlines="/radio/titulares" external={!vista.kiosk} />

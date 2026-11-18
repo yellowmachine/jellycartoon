@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
+	import { vista } from '#lib/vista.svelte.ts';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { formatDuration } from 'comun/format.ts';
@@ -54,47 +55,50 @@
 		{#if podcast.description}
 			<p class="mt-2 max-w-3xl text-sm whitespace-pre-line text-zinc-300">{podcast.description}</p>
 		{/if}
-		<div class="mt-3 flex flex-wrap items-center gap-2">
-			{#if podcast.subscribed}
-				<form
-					method="post"
-					action="?/refresh"
-					use:enhance={() => {
-						refreshing = true;
-						return async ({ update }) => {
-							await update();
-							refreshing = false;
-						};
-					}}
-				>
-					<button class={small} disabled={refreshing}
-						>{refreshing ? 'Buscando…' : 'Buscar episodios nuevos'}</button
+		<!-- Locked Vista (#532): no following, nor its site. -->
+		{#if !vista.kiosk}
+			<div class="mt-3 flex flex-wrap items-center gap-2">
+				{#if podcast.subscribed}
+					<form
+						method="post"
+						action="?/refresh"
+						use:enhance={() => {
+							refreshing = true;
+							return async ({ update }) => {
+								await update();
+								refreshing = false;
+							};
+						}}
 					>
-				</form>
-				<ConfirmForm
-					action="?/unsubscribe"
-					label="Dejar de seguir"
-					question="¿Dejar de seguirlo? Si nadie más de la familia lo sigue, se borran sus episodios y lo que llevabais escuchado."
-					yes="Sí, dejar de seguir"
-					class="{small} text-zinc-400"
-				/>
-			{:else}
-				<form method="post" action="?/subscribe" use:enhance>
-					<button
-						class="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-zinc-950 hover:bg-amber-400"
-						>Seguir</button
+						<button class={small} disabled={refreshing}
+							>{refreshing ? 'Buscando…' : 'Buscar episodios nuevos'}</button
+						>
+					</form>
+					<ConfirmForm
+						action="?/unsubscribe"
+						label="Dejar de seguir"
+						question="¿Dejar de seguirlo? Si nadie más de la familia lo sigue, se borran sus episodios y lo que llevabais escuchado."
+						yes="Sí, dejar de seguir"
+						class="{small} text-zinc-400"
+					/>
+				{:else}
+					<form method="post" action="?/subscribe" use:enhance>
+						<button
+							class="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-zinc-950 hover:bg-amber-400"
+							>Seguir</button
+						>
+					</form>
+				{/if}
+				{#if podcast.link}
+					<a
+						href={podcast.link}
+						target="_blank"
+						rel="noreferrer"
+						class="text-sm text-zinc-400 hover:underline">Su web</a
 					>
-				</form>
-			{/if}
-			{#if podcast.link}
-				<a
-					href={podcast.link}
-					target="_blank"
-					rel="noreferrer"
-					class="text-sm text-zinc-400 hover:underline">Su web</a
-				>
-			{/if}
-		</div>
+				{/if}
+			</div>
+		{/if}
 		{#if form?.error || podcast.lastError}
 			<p class="mt-2 text-sm text-amber-400">
 				No se pudo actualizar: {form?.error ?? podcast.lastError}

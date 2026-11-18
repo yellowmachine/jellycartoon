@@ -1,7 +1,10 @@
 <script lang="ts">
+	import { vista } from '#lib/vista.svelte.ts';
+
 	/**
 	 * «?» beside a section's title (#495): its page in the family's guide at docs.seilide.app, in
-	 * another tab. Inline, so it sits in the title's line without changing its layout.
+	 * another tab. Inline, so it sits in the title's line without changing its layout. Not in the
+	 * locked Vista (#532): it would leave it.
 	 */
 	let {
 		page,
@@ -18,14 +21,14 @@
 	const [slug, heading] = $derived(page.split('#'));
 </script>
 
-<a
-	href="https://docs.seilide.app/guia/{slug}/{heading ? `#${heading}` : ''}"
-	target="_blank"
-	rel="noopener"
-	title="Cómo se usa {label}"
-	aria-label="Cómo se usa {label} (guía)"
-	class={[
-		'ml-2 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-zinc-600 align-middle text-sm font-semibold text-zinc-400 [text-shadow:none] hover:border-amber-400 hover:text-amber-400',
-		className
-	]}>?</a
->
+{#if !vista.kiosk}<a
+		href="https://docs.seilide.app/guia/{slug}/{heading ? `#${heading}` : ''}"
+		target="_blank"
+		rel="noopener"
+		title="Cómo se usa {label}"
+		aria-label="Cómo se usa {label} (guía)"
+		class={[
+			'ml-2 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-zinc-600 align-middle text-sm font-semibold text-zinc-400 [text-shadow:none] hover:border-amber-400 hover:text-amber-400',
+			className
+		]}>?</a
+	>{/if}

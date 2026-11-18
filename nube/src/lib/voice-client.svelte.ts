@@ -235,6 +235,7 @@ class VoiceClient {
 				recipe: this.road ? null : recipe.describe(),
 				// Its timers still on after turning it off are the browser's too.
 				kitchen: !this.road && (vista.on || timers.any || recipe.current !== null),
+				vistaLocked: vista.locked,
 				film: null,
 				// In the road mode's page; elsewhere, Hablar or the bar's microphone.
 				car: this.road !== null,
@@ -383,7 +384,8 @@ async function act(action: VoiceAction) {
 			return void timers.cancel(action.label);
 		case 'kitchenMode':
 			// The Vista (#525); off, out of it.
-			return action.on ? vista.enter() : vista.leave();
+			// Locked (#532): the voice does not close it; only «Salir», held down.
+			return action.on ? vista.enter() : vista.locked ? undefined : vista.leave();
 		case 'recipe':
 			return vista.cook(action.recipe, action.step);
 		case 'recipeStep':

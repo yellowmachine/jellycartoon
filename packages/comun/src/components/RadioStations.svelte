@@ -16,17 +16,21 @@
 	 * the whole house (`snapcast`, at home, with its `switcher`). `info`, how each did in Radio
 	 * Browser's last check; null, it could not be asked. `headlines`, where the playing station's
 	 * headlines are asked for (#387, Seilide's `/radio/titulares`): without it, none are shown.
+	 * `external` false (Seilide's locked Vista, #532): the headlines and Radio Browser without their
+	 * links to other sites.
 	 */
 	let {
 		info,
 		snapcast = false,
 		switcher,
-		headlines
+		headlines,
+		external = true
 	}: {
 		info: Record<string, RadioStationInfo> | null;
 		snapcast?: boolean;
 		switcher?: Snippet;
 		headlines?: string;
+		external?: boolean;
 	} = $props();
 
 	/** The station playing, if it has its broadcaster's feed. */
@@ -96,15 +100,16 @@
 			<ul class="flex flex-col gap-2">
 				{#each news.list as h (h.link)}
 					<li>
-						<a
-							href={h.link}
-							target="_blank"
-							rel="noreferrer"
+						<svelte:element
+							this={external ? 'a' : 'p'}
+							href={external ? h.link : undefined}
+							target={external ? '_blank' : undefined}
+							rel={external ? 'noreferrer' : undefined}
 							class="group flex items-baseline gap-3"
 						>
-							<span class="min-w-0 flex-1 group-hover:underline">{h.title}</span>
+							<span class={['min-w-0 flex-1', external && 'group-hover:underline']}>{h.title}</span>
 							<span class="shrink-0 text-xs text-zinc-500">{ago(h.at)}</span>
-						</a>
+						</svelte:element>
 					</li>
 				{/each}
 			</ul>
@@ -166,10 +171,10 @@
 {/each}
 
 <p class="text-xs text-zinc-500">
-	Emisoras y logos de <a
-		href="https://www.radio-browser.info"
-		class="hover:underline"
-		target="_blank"
-		rel="noreferrer">Radio Browser</a
-	>.
+	Emisoras y logos de {#if external}<a
+			href="https://www.radio-browser.info"
+			class="hover:underline"
+			target="_blank"
+			rel="noreferrer">Radio Browser</a
+		>{:else}Radio Browser{/if}.
 </p>
