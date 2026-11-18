@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import type { Attachment } from 'svelte/attachments';
 	import { page } from '$app/state';
 	import { music } from 'comun/music-player.svelte.ts';
 	import AlarmBanner from 'comun/components/AlarmBanner.svelte';
@@ -44,22 +45,46 @@
 
 	let tabsHeight = $state(0);
 
-	/** Locked (#532): «Salir» held down this long; let go before, nothing. */
+	/**
+	 * Locked (#532): «Salir» held down this long, and then let go; let go before, nothing. It leaves
+	 * on letting go, not when the ring fills: with the finger still down, the page under it once out
+	 * (the site's bar, with its «Vista» button in the same corner) would take the touch and go back.
+	 */
 	const HOLD_MS = 3000;
 	let holding = $state(false);
+	let held = $state(false);
 	let holdTimer: ReturnType<typeof setTimeout> | undefined;
 	function holdStart() {
 		if (!vista.locked) return;
 		holding = true;
+		held = false;
 		holdTimer = setTimeout(() => {
-			holding = false;
-			void vista.leave();
+			held = true;
+			navigator.vibrate?.(60);
 		}, HOLD_MS);
 	}
-	function holdEnd() {
+	function holdEnd(letGo: boolean) {
 		clearTimeout(holdTimer);
+		const leave = letGo && held;
 		holding = false;
+		held = false;
+		if (leave) void vista.leave();
 	}
+	/**
+	 * Android's own long press (a menu, selecting, the tap after it) would take the touch from the
+	 * hold: stopped at the touch itself. Not passive, which Svelte's ontouchstart is; the pointer
+	 * events still come, and they do the hold.
+	 */
+	const noLongPress: Attachment<HTMLElement> = (el) => {
+		const stop = (e: TouchEvent) => {
+			if (vista.locked && e.cancelable) e.preventDefault();
+		};
+		const types = ['touchstart', 'touchmove', 'touchend'] as const;
+		for (const type of types) el.addEventListener(type, stop, { passive: false });
+		return () => {
+			for (const type of types) el.removeEventListener(type, stop);
+		};
+	};
 </script>
 
 <!-- The left, fixed on a wide screen: what scrolls is the right. Opaque, over a page's background.
@@ -113,16 +138,15 @@
 					>{/if}
 				<!-- Locked (#532): held down 3 s, with a ring that fills; a tap alone does nothing. -->
 				<button
-					class="relative flex shrink-0 touch-none flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-sm text-zinc-400 select-none hover:bg-zinc-800 hover:text-white"
+					class="relative flex shrink-0 touch-none flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-sm text-zinc-400 select-none [-webkit-touch-callout:none] hover:bg-zinc-800 hover:text-white"
 					aria-label={vista.locked ? 'Salir de la Vista: mantén pulsado' : 'Salir de la Vista'}
-					title={vista.locked
-						? 'Mantén pulsado 3 segundos para salir'
-						: 'Salir de la Vista: la web de siempre'}
+					title={vista.locked ? undefined : 'Salir de la Vista: la web de siempre'}
 					onclick={() => vista.locked || vista.leave()}
+					{@attach noLongPress}
 					onpointerdown={holdStart}
-					onpointerup={holdEnd}
-					onpointerleave={holdEnd}
-					onpointercancel={holdEnd}
+					onpointerup={() => holdEnd(true)}
+					onpointerleave={() => holdEnd(false)}
+					onpointercancel={() => holdEnd(false)}
 					oncontextmenu={(e) => e.preventDefault()}
 					><span class="relative text-2xl leading-none" aria-hidden="true"
 						>✕{#if holding}<svg
@@ -140,7 +164,7 @@
 									style:animation-duration="{HOLD_MS}ms"
 								/></svg
 							>{/if}</span
-					>{holding ? 'Mantén…' : 'Salir'}</button
+					>{held ? 'Suelta' : holding ? 'Mantén…' : 'Salir'}</button
 				>
 			</div>
 			<!-- What plays, from one tab to another. -->

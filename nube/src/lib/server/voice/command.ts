@@ -1733,7 +1733,7 @@ async function runTool(
 		}
 		case 'kitchen_mode':
 			if (args.on === false && ctx.vistaLocked)
-				return 'Esta pantalla está bloqueada: para salir de la Vista, mantén pulsado «Salir» tres segundos.';
+				return 'Esta pantalla está bloqueada: para salir de la Vista, mantén pulsado «Salir» tres segundos y suelta.';
 			ctx.outcome.actions.push({ kind: 'kitchenMode', on: args.on !== false });
 			// The timers that follow in this order, where it now is.
 			if (ctx.cookHere) ctx.kitchen = args.on !== false;
