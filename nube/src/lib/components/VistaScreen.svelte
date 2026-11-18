@@ -85,6 +85,14 @@
 			for (const type of types) el.removeEventListener(type, stop);
 		};
 	};
+	// Locked (#532): no browser menu on a long press anywhere in the Vista (on a link it would offer
+	// to open it elsewhere, out of it).
+	$effect(() => {
+		if (!vista.kiosk) return;
+		const stop = (e: Event) => e.preventDefault();
+		addEventListener('contextmenu', stop);
+		return () => removeEventListener('contextmenu', stop);
+	});
 </script>
 
 <!-- The left, fixed on a wide screen: what scrolls is the right. Opaque, over a page's background.
@@ -136,17 +144,22 @@
 						title="Cómo se usa la Vista"
 						><span class="text-2xl leading-none" aria-hidden="true">?</span>Ayuda</a
 					>{/if}
-				<!-- Locked (#532): held down 3 s, with a ring that fills; a tap alone does nothing. -->
+				<!-- Locked (#532): held down 3 s, with a ring that fills; a tap alone does nothing. Anywhere on
+				     it (its children take no touch), and as wide whatever it says: growing under the
+				     finger, from «Salir» to «Mantén…», lost the touch on a tablet. -->
 				<button
-					class="relative flex shrink-0 touch-none flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-sm text-zinc-400 select-none [-webkit-touch-callout:none] hover:bg-zinc-800 hover:text-white"
+					class="relative flex w-20 shrink-0 touch-none flex-col items-center gap-0.5 self-stretch rounded-xl px-2 py-2 text-sm text-zinc-400 select-none [-webkit-touch-callout:none] *:pointer-events-none hover:bg-zinc-800 hover:text-white"
 					aria-label={vista.locked ? 'Salir de la Vista: mantén pulsado' : 'Salir de la Vista'}
 					title={vista.locked ? undefined : 'Salir de la Vista: la web de siempre'}
 					onclick={() => vista.locked || vista.leave()}
 					{@attach noLongPress}
-					onpointerdown={holdStart}
+					onpointerdown={(e) => {
+						e.currentTarget.setPointerCapture(e.pointerId);
+						holdStart();
+					}}
 					onpointerup={() => holdEnd(true)}
-					onpointerleave={() => holdEnd(false)}
 					onpointercancel={() => holdEnd(false)}
+					onlostpointercapture={() => holdEnd(false)}
 					oncontextmenu={(e) => e.preventDefault()}
 					><span class="relative text-2xl leading-none" aria-hidden="true"
 						>✕{#if holding}<svg
@@ -164,7 +177,7 @@
 									style:animation-duration="{HOLD_MS}ms"
 								/></svg
 							>{/if}</span
-					>{held ? 'Suelta' : holding ? 'Mantén…' : 'Salir'}</button
+					><span>{held ? 'Suelta' : holding ? 'Mantén…' : 'Salir'}</span></button
 				>
 			</div>
 			<!-- What plays, from one tab to another. -->
