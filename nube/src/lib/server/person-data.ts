@@ -124,6 +124,25 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: false,
 		note: 'The new family starts in Seilide’s storage; its own bucket is the old family’s'
 	},
+	// «Tu música» (#534): the family's bucket and what was read of it, not anyone's.
+	music_source: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'The family’s bucket for Música; its keys are not to be read'
+	},
+	own_album: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'An index of the family’s bucket, read again from it'
+	},
+	own_track: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'An index of the family’s bucket, read again from it'
+	},
 	storage_quota: {
 		leaving: 'stays',
 		joining: 'dropped',

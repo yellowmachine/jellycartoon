@@ -7,6 +7,8 @@
 
 	const onLists = $derived(page.url.pathname.startsWith('/musica/listas'));
 	const onFolders = $derived(page.url.pathname.startsWith('/musica/carpetas'));
+	/** «Tu música» (#534): the family's own bucket, not the house's. */
+	const onOwn = $derived(page.url.pathname.startsWith('/musica/tu-musica'));
 	const tab = (selected: boolean) => [
 		'border-b-2 px-1 pb-2 text-sm',
 		selected ? 'border-amber-500 text-white' : 'border-transparent text-zinc-400 hover:text-white'
@@ -20,8 +22,8 @@
 <nav class="mb-6 flex gap-6 border-b border-zinc-800">
 	<a
 		href="/musica"
-		class={tab(!onLists && !onFolders)}
-		aria-current={!onLists && !onFolders ? 'page' : undefined}>Álbumes</a
+		class={tab(!onLists && !onFolders && !onOwn)}
+		aria-current={!onLists && !onFolders && !onOwn ? 'page' : undefined}>Álbumes</a
 	>
 	<a href="/musica/listas" class={tab(onLists)} aria-current={onLists ? 'page' : undefined}
 		>Listas</a
@@ -30,9 +32,12 @@
 	<a href="/musica/carpetas" class={tab(onFolders)} aria-current={onFolders ? 'page' : undefined}
 		>Carpetas</a
 	>
+	<a href="/musica/tu-musica" class={tab(onOwn)} aria-current={onOwn ? 'page' : undefined}
+		>Tu música</a
+	>
 </nav>
 
-{#if data.houseProblem || data.passProblem}
+{#if !onOwn && (data.houseProblem || data.passProblem)}
 	<p class="mb-6 rounded-md border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
 		La música es la de casa: {data.houseProblem ?? data.passProblem}
 	</p>

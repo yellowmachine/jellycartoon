@@ -7,7 +7,7 @@
 		SAMPLE_PALETTE
 	} from 'comun/music-background.ts';
 	import { musicBackground } from 'comun/music-background-settings.svelte.ts';
-	import { coverUrl } from 'comun/music.ts';
+	import { trackCover } from 'comun/music.ts';
 	import { music } from 'comun/music-player.svelte.ts';
 
 	/** The Música background on this device: its style, how strong and how fast, with a preview. */
@@ -19,9 +19,8 @@
 	];
 	/** For the «Portada» preview: the cover of what plays now, if any. */
 	const playingCover = $derived(
-		!music.radio && music.current?.hasCover
-			? coverUrl(music.current.albumId)
-			: music.podcast?.imageUrl || null
+		(!music.radio && music.current ? trackCover(music.current) : null) ??
+			(music.podcast?.imageUrl || null)
 	);
 	const button = (on: boolean) => [
 		'rounded-full border px-3 py-1 text-sm',

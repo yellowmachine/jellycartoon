@@ -13,10 +13,10 @@
 	import { dj } from '../dj.svelte.ts';
 	import {
 		audioUrl,
-		coverUrl,
 		heldHere,
 		resumable,
 		stopTime,
+		trackCover,
 		trackHome,
 		type MusicTrack
 	} from '../music.ts';
@@ -627,8 +627,8 @@
 								title: current.title,
 								artist: current.artist,
 								album: current.album,
-								artwork: current.hasCover
-									? [{ src: coverUrl(current.albumId), sizes: '500x500', type: 'image/jpeg' }]
+								artwork: trackCover(current)
+									? [{ src: trackCover(current)!, sizes: '500x500', type: 'image/jpeg' }]
 									: []
 							})
 						: null;
@@ -917,9 +917,9 @@ and the speed. -->
 				href={trackHome(current) ?? undefined}
 				class="order-1 flex min-w-0 flex-1 items-center gap-3"
 			>
-				{#if current.hasCover}
+				{#if trackCover(current)}
 					<img
-						src={coverUrl(current.albumId)}
+						src={trackCover(current)}
 						alt=""
 						class="h-10 w-10 shrink-0 rounded bg-zinc-800 object-cover"
 					/>

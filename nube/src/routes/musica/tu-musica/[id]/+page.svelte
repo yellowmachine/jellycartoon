@@ -1,0 +1,115 @@
+<script lang="ts">
+	import AddToQueue from 'comun/components/AddToQueue.svelte';
+	import { formatDuration } from 'comun/format.ts';
+	import { mixed } from 'comun/music.ts';
+	import { music } from 'comun/music-player.svelte.ts';
+	import { musicTarget } from 'comun/music-target.svelte.ts';
+	import { ownCoverUrl, ownTrackSrc, playable, playableTracks } from '#lib/own-music.ts';
+	import type { PageProps } from './$types';
+
+	/**
+	 * An album of «Tu música» (#534): to play it, shuffled or not, or queue it. What this browser
+	 * cannot play (an ALAC .m4a, a .wma) is there, greyed, and left out.
+	 */
+	let { data }: PageProps = $props();
+
+	const album = $derived(data.ownAlbum);
+	const tracks = $derived(playableTracks(album));
+	const totalSec = $derived(album.tracks.reduce((sum, t) => sum + (t.durationSec ?? 0), 0));
+	/** What sounds is this album's track (its own address: house ids may be the same numbers). */
+	const isCurrent = (id: number) => music.current?.src === ownTrackSrc(id);
+	const play = (id: number) =>
+		void musicTarget.play(
+			tracks,
+			Math.max(
+				0,
+				tracks.findIndex((t) => t.id === id)
+			),
+			false
+		);
+</script>
+
+<svelte:head>
+	<title>{album.title} · Seilide</title>
+</svelte:head>
+
+<nav class="flex min-w-0 items-center gap-1.5 text-sm text-zinc-400">
+	<a href="/musica/tu-musica" class="shrink-0 hover:text-white">Tu música</a>
+	<span aria-hidden="true">›</span>
+	<span class="truncate">{album.artist}</span>
+</nav>
+
+<div class="mt-3 mb-6 flex flex-col gap-4 sm:flex-row sm:items-end">
+	{#if album.hasCover}
+		<img
+			src={ownCoverUrl(album.id)}
+			alt=""
+			class="aspect-square w-48 shrink-0 rounded-md bg-zinc-800 object-cover"
+		/>
+	{:else}
+		<span
+			class="flex aspect-square w-48 shrink-0 items-center justify-center rounded-md bg-zinc-800 text-5xl text-zinc-600"
+			aria-hidden="true">♪</span
+		>
+	{/if}
+	<div class="min-w-0">
+		<h1 class="text-2xl font-bold">{album.title}</h1>
+		<p class="text-zinc-300">{album.artist}{album.year ? ` · ${album.year}` : ''}</p>
+		<p class="mb-3 text-sm text-zinc-400">
+			{album.tracks.length} canciones · {formatDuration(totalSec)}
+		</p>
+		{#if tracks.length}
+			<div class="flex flex-wrap gap-2">
+				<button
+					class="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-zinc-950 hover:bg-amber-400"
+					onclick={() => musicTarget.play(tracks, 0, false)}>▶︎ Reproducir</button
+				>
+				<button
+					class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800"
+					onclick={() => musicTarget.play(mixed(tracks), 0, false)}>🔀 Mezclar y reproducir</button
+				>
+				<AddToQueue {tracks} toSnapcast={false} />
+			</div>
+		{/if}
+	</div>
+</div>
+
+<ol class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
+	{#each album.tracks as t, i (t.id)}
+		<li>
+			{#if playable(t.mime)}
+				<button
+					class={[
+						'flex w-full min-w-0 items-center gap-3 px-3 py-2 text-left hover:bg-zinc-900',
+						isCurrent(t.id) && 'text-amber-400'
+					]}
+					onclick={() => play(t.id)}
+				>
+					<span class="w-6 shrink-0 text-right font-mono text-xs text-zinc-500 tabular-nums">
+						{isCurrent(t.id) && music.playing ? '♪' : (t.number ?? i + 1)}
+					</span>
+					<span class="min-w-0 flex-1">
+						<span class="block truncate text-sm">{t.title}</span>
+						{#if t.artist !== album.artist}
+							<span class="block truncate text-xs text-zinc-400">{t.artist}</span>
+						{/if}
+					</span>
+					<span class="text-xs text-zinc-500">{formatDuration(t.durationSec)}</span>
+				</button>
+			{:else}
+				<div
+					class="flex min-w-0 items-center gap-3 px-3 py-2 text-zinc-600"
+					title="Este navegador no lo puede reproducir"
+				>
+					<span class="w-6 shrink-0 text-right font-mono text-xs tabular-nums"
+						>{t.number ?? i + 1}</span
+					>
+					<span class="min-w-0 flex-1">
+						<span class="block truncate text-sm">{t.title}</span>
+						<span class="block truncate text-xs">Este navegador no lo puede reproducir</span>
+					</span>
+				</div>
+			{/if}
+		</li>
+	{/each}
+</ol>

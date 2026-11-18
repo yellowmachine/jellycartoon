@@ -62,3 +62,29 @@ no haya cobertura:
 
 Se bajan solas la próxima vez que se abra Seilide en ese aparato, y se ponen al día cuando cambia la
 lista. Caben unas 500 canciones (2 GB) por aparato.
+
+## Tu música, en vuestro almacenamiento
+
+Si la familia guarda música en su propio almacenamiento en la nube (Amazon S3, Cloudflare R2,
+Backblaze…), sale en **Música → Tu música**, aunque no tengáis la casa conectada. Seilide no la
+copia ni la sube a ningún sitio: solo la lee. La ve toda la familia, también los peques.
+
+Para conectarlo, quien administra la familia va a **Ajustes → Conexiones → Tu música** y escribe
+la dirección del almacenamiento, el bucket, la carpeta donde está la música y unas claves. Mejor
+unas claves que **solo puedan leer**: Seilide avisa si las que pones también pueden escribir.
+
+Al guardar, Seilide busca las canciones (mp3, m4a, flac, ogg, opus y wav, también dentro de
+carpetas) y lee sus etiquetas: título, artista, disco y número. Una canción sin etiquetas toma el
+nombre del fichero y el disco de su carpeta. La portada es la imagen de la carpeta (`cover.jpg`,
+`folder.jpg`…) o la que lleve dentro la canción. Cada día vuelve a mirar si hay algo nuevo, y en
+Ajustes está **Volver a buscar** para no esperar.
+
+En **Tu música** se ven los discos o los artistas, con un buscador, **▶︎ Reproducir**, **🔀 Mezclar
+y reproducir** y **🔀 Todo aleatorio**. Lo que el navegador no sabe reproducir (por ejemplo, Apple
+Lossless en un móvil Android) sale en gris.
+
+Por ahora, esta música no entra en las listas, ni en el Modo DJ, ni se guarda para cuando no hay
+cobertura, ni suena en los altavoces de casa.
+
+Es para música que tengáis derecho a escuchar, y solo para la familia: Seilide no la comparte con
+nadie.

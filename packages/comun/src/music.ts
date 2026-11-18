@@ -20,6 +20,10 @@ export interface MusicTrack {
 	clip?: { id: string; text: string };
 	/** Not the library's: its own address (Seilide's Oración, #339), with no album to go to. */
 	src?: string;
+	/** With `src`, its own cover (Seilide's «Tu música», #534), instead of the library's. */
+	cover?: string;
+	/** With `src`, where it comes from (its album in «Tu música», #534). */
+	home?: string;
 }
 
 /**
@@ -39,8 +43,9 @@ export const folderUrl = (path: string) =>
 	path ? `/musica/carpetas?ruta=${encodeURIComponent(path)}` : '/musica/carpetas';
 
 /** Where what sounds comes from: its album, or its folder; null, nowhere (the DJ's words, a prayer). */
-export function trackHome(t: Pick<MusicTrack, 'albumId' | 'folder' | 'clip' | 'src'>) {
-	if (t.clip || t.src) return null;
+export function trackHome(t: Pick<MusicTrack, 'albumId' | 'folder' | 'clip' | 'src' | 'home'>) {
+	if (t.src) return t.home ?? null;
+	if (t.clip) return null;
 	if (t.albumId) return `/musica/${t.albumId}`;
 	return t.folder !== undefined ? folderUrl(t.folder) : null;
 }
@@ -125,6 +130,9 @@ export const trackUrl = (id: number, opus = false) => urls.track(id, opus);
 /** Kept on this device (#350); without that, none are. */
 export const heldHere = (id: number) => urls.held?.(id) ?? false;
 export const coverUrl = (albumId: number) => urls.cover(albumId);
+/** What sounds' cover: its own (#534), or its album's in the library; null, none. */
+export const trackCover = (t: Pick<MusicTrack, 'cover' | 'hasCover' | 'albumId'>) =>
+	t.cover ?? (t.hasCover ? coverUrl(t.albumId) : null);
 export const lyricsUrl = (id: number) => urls.lyrics(id);
 /** What `track` sounds from: its own address, the DJ's words, or its file. */
 export const audioUrl = (track: MusicTrack, opus = false) =>
