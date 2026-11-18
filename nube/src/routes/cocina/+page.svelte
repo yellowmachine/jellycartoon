@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
-	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
+	import { vista } from '#lib/vista.svelte.ts';
 	import { recipe } from '#lib/recipe.svelte.ts';
 	import type { PageProps } from './$types';
 
@@ -14,8 +14,8 @@
 
 	// Come here (a link, a reload once the mode went off): the kitchen, on.
 	onMount(() => {
-		kitchenMode.load();
-		if (!kitchenMode.on) void kitchenMode.set(true);
+		vista.load();
+		if (!vista.on) void vista.set(true);
 	});
 
 	const current = $derived(recipe.current);

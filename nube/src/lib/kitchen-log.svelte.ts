@@ -20,7 +20,7 @@ export interface KitchenLogEntry {
 class KitchenLog {
 	/** The newest first. */
 	entries = $state<KitchenLogEntry[]>([]);
-	/** Kitchen mode is on (kitchen-mode.svelte.ts says so): only then is anything kept. */
+	/** Kitchen mode is on (vista.svelte.ts says so): only then is anything kept. */
 	active = false;
 	#loaded = false;
 

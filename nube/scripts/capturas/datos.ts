@@ -180,6 +180,20 @@ try {
 			insert into fridge_item (family_id, note_id, text, done, user_id)
 			values (${family}, ${list!.id}, ${text}, ${done}, ${userId})`;
 
+	// Medicación (#308): the grandmother's pills, one in the morning and one at night (the Vista, #525).
+	await sql`
+		insert into medication (family_id, person_id, name, dose, times, start_day, user_id)
+		values (${family}, ${people['Abuela Carmen']!}, 'Sintrom', '1 pastilla', '{09:00,21:00}', ${day(-30)}, ${userId})`;
+
+	// Enchufes (#396): two that have connected before (not now: no Shelly here).
+	for (const [id, name, kind, output] of [
+		['capturas-lampara', 'Lámpara del salón', 'lampara', true],
+		['capturas-termo', 'Termo', 'termo', false]
+	] as const)
+		await sql`
+			insert into plug (id, family_id, name, kind, hash, device_id, output, last_seen_at)
+			values (${id}, ${family}, ${name}, ${kind}, ${id}, ${id}, ${output}, now())`;
+
 	// Recetas: two saved from a (made-up) cooking site, with their steps ready for the kitchen.
 	const step = (text: string, timer: [string, number, string | null] | null = null) => ({
 		text,

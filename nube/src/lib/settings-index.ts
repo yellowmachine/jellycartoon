@@ -115,6 +115,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		words: 'fondo música colores portada animación aurora movimiento'
 	},
 	{
+		id: 'pantalla-casa',
+		tab: 'aparato',
+		title: 'Pantalla de casa',
+		words: 'vista tablet pared cocina pantalla encendida reposo reloj kiosco soporte'
+	},
+	{
 		id: 'personas',
 		tab: 'familia',
 		title: 'Personas',

@@ -2,7 +2,7 @@ import { music } from 'comun/music-player.svelte.ts';
 import { musicTarget } from 'comun/music-target.svelte.ts';
 import type { LngLat, Place } from 'comun/road.ts';
 import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
-import { kitchenMode, pauseKitchenVideo, resumeKitchenVideo } from '#lib/kitchen-mode.svelte.ts';
+import { vista, pauseVistaVideo, resumeVistaVideo } from '#lib/vista.svelte.ts';
 import { phone } from '#lib/phone.svelte.ts';
 import { simPhone } from '#lib/sim-phone.svelte.ts';
 import { callReplySaid, hangUpSaid } from '#lib/call-voice.ts';
@@ -234,7 +234,7 @@ class VoiceClient {
 				timers: this.road ? [] : timers.describe(),
 				recipe: this.road ? null : recipe.describe(),
 				// Its timers still on after turning it off are the browser's too.
-				kitchen: !this.road && (kitchenMode.on || timers.any || recipe.current !== null),
+				kitchen: !this.road && (vista.on || timers.any || recipe.current !== null),
 				film: null,
 				// In the road mode's page; elsewhere, Hablar or the bar's microphone.
 				car: this.road !== null,
@@ -310,14 +310,14 @@ function pauseForVoice() {
 	timers.silence();
 	timers.unlockSound();
 	music.pauseForVoice();
-	pauseKitchenVideo();
+	pauseVistaVideo();
 	phone.hush();
 }
 
 /** What was paused to speak, back where it was. */
 function resumeAfterVoice() {
 	music.resumeAfterVoice();
-	resumeKitchenVideo();
+	resumeVistaVideo();
 	phone.unhush();
 }
 
@@ -382,10 +382,10 @@ async function act(action: VoiceAction) {
 		case 'cancelTimer':
 			return void timers.cancel(action.label);
 		case 'kitchenMode':
-			// The kitchen's screen (#483); off, out of it.
-			return action.on ? kitchenMode.enter() : kitchenMode.leave();
+			// The Vista (#525); off, out of it.
+			return action.on ? vista.enter() : vista.leave();
 		case 'recipe':
-			return kitchenMode.cook(action.recipe, action.step);
+			return vista.cook(action.recipe, action.step);
 		case 'recipeStep':
 			return recipe.go(action.step);
 		case 'endRecipe':

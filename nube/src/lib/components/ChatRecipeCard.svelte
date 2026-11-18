@@ -4,7 +4,7 @@
 	import { justSaved } from '#lib/chat-saved.svelte.ts';
 	import { describeTimer } from 'comun/recipe.ts';
 	import type { RecipeCard } from '#lib/chat.ts';
-	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
+	import { vista } from '#lib/vista.svelte.ts';
 	import { recipe as inProgress } from '#lib/recipe.svelte.ts';
 
 	/**
@@ -33,7 +33,7 @@
 
 	function cook() {
 		confirmReplace = false;
-		void kitchenMode.cook(r);
+		void vista.cook(r);
 	}
 </script>
 

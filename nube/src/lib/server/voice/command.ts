@@ -623,7 +623,7 @@ function tools(house: boolean, rooms: Room[], salon: boolean, clipMinutes: numbe
 		),
 		fn(
 			'kitchen_mode',
-			'Enciende o apaga el modo cocina en el dispositivo desde el que se habla: la pantalla no se apaga, para el móvil en la pared de la cocina.',
+			'Abre o cierra la Vista (antes «modo cocina») en el dispositivo desde el que se habla: la pantalla de casa a pantalla completa, con lo de hoy, la receta, la música y los temporizadores, y la pantalla no se apaga.',
 			{ on: { type: 'boolean' } },
 			['on']
 		),
@@ -1193,7 +1193,7 @@ Alarmas a una hora («despiértame a las 7», «todos los días laborables a las
 - «Quita el temporizador», «ya está», «para la alarma»: «cancel_timer»; si hay varios y no está claro cuál, usa «ask».
 - Di cuánto y para qué, corto: «Te aviso en diez minutos para la pasta».
 - «Cuando hierva, pon 8 minutos para la pasta»: «prepare_timer», uno por cada cosa que espera. Di lo que queda preparado, corto: «Vale: ocho minutos cuando hierva y media hora cuando esté el sofrito».
-- «Modo cocina», «que no se apague la pantalla»: «kitchen_mode». Se apaga solo a las tres horas sin temporizadores.
+- «Abre la Vista», «modo cocina», «que no se apague la pantalla»: «kitchen_mode». «Cierra la Vista», «sal de la Vista»: on false. Se apaga sola a las tres horas sin temporizadores, salvo en una pantalla de casa.
 - Cuando diga que ya ha pasado lo que espera uno preparado («ya hierve», «ya está el sofrito»), arráncalo con «set_timer» con su mismo nombre y sus minutos. Si no está claro cuál, usa «ask».
 
 Recetas para cocinar ahora («vamos a hacer una carbonara», «quiero una receta de macarrones gratinados»), en este orden. Si solo pregunta cómo se hace algo, contesta sin ellas.
@@ -1733,9 +1733,7 @@ async function runTool(
 			ctx.outcome.actions.push({ kind: 'kitchenMode', on: args.on !== false });
 			// The timers that follow in this order, where it now is.
 			if (ctx.cookHere) ctx.kitchen = args.on !== false;
-			return args.on !== false
-				? 'Modo cocina encendido: la pantalla no se apaga.'
-				: 'Modo cocina apagado.';
+			return args.on !== false ? 'Vista abierta: la pantalla no se apaga.' : 'Vista cerrada.';
 		// Where it is said (a satellite's), or for who speaks.
 		case 'set_alarm':
 			return setAlarmByVoice(ctx.k, args, ctx.place, !ctx.withoutHouse);

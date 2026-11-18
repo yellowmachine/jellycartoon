@@ -209,6 +209,12 @@ export async function pendingDosesOf(k: Kitchen, userId: string) {
 	return doses.filter((d) => !d.takenAt);
 }
 
+/** Today's doses still to take in the whole family: the Vista's (#525), a screen for everyone. */
+export async function pendingDosesToday(k: Kitchen) {
+	const doses = await dosesFor(k, await listMedication(k), localDay());
+	return doses.filter((d) => !d.takenAt);
+}
+
 /**
  * Every minute, for a family (scheduler.ts): the doses whose time has come, told once (each one's
  * row is made first: two servers, or one already marked, tell nothing). A person's at the same

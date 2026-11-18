@@ -47,6 +47,7 @@ const guia = [
 	'agenda',
 	'nevera',
 	'recetas',
+	'vista',
 	'voz',
 	'carretera',
 	'musica',

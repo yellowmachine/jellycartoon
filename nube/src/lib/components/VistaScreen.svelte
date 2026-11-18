@@ -4,21 +4,23 @@
 	import AlarmBanner from 'comun/components/AlarmBanner.svelte';
 	import MusicBar from 'comun/components/MusicBar.svelte';
 	import TimerBar from '#lib/components/TimerBar.svelte';
+	import VistaRest from '#lib/components/VistaRest.svelte';
 	import VoicePanel from '#lib/components/VoicePanel.svelte';
-	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
+	import { vista } from '#lib/vista.svelte.ts';
 
 	/**
-	 * The kitchen's screen (#483), for the tablet on the kitchen's wall, lying down: the whole
-	 * screen, without the site's bar, as the road mode. On the left (40 %) the steps, the
-	 * microphone and the timers, always there; on the right the page that is on, under big tabs:
-	 * the recipe (/cocina), the series, the channels, the music, the radio and the podcasts, as they
-	 * are in the site. The
-	 * right side scrolls with the window, so each page keeps its own scroll and «back» works. On a
-	 * narrow screen, one over the other.
+	 * The Vista's screen (#525, what was the kitchen's, #483), for the tablet on the wall, lying
+	 * down: the whole screen, without the site's bar, as the road mode. On the left (40 %) the
+	 * microphone, the timers and the steps while cooking, always there; on the right the page that
+	 * is on, under big tabs: today in the house (/vista), the recipe (/cocina), the series, the
+	 * channels, the music, the radio and the podcasts, as they are in the site. The right side
+	 * scrolls with the window, so each page keeps its own scroll and «back» works. On a narrow
+	 * screen, one over the other. Untouched a while, it rests (VistaRest.svelte).
 	 */
 	let { children }: { children: Snippet } = $props();
 
 	const TABS = [
+		{ href: '/vista', label: 'Inicio', icon: '🏠' },
 		{ href: '/cocina', label: 'Receta', icon: '🍳', also: '/recetas' },
 		{ href: '/series', label: 'Series', icon: '📺', also: '/watch' },
 		{ href: '/canales', label: 'Canales', icon: '📡' },
@@ -54,8 +56,8 @@
 		class="sticky top-0 z-20 border-b border-zinc-800 bg-zinc-950/95 backdrop-blur"
 	>
 		<div class="flex items-center gap-2 px-3 py-2">
-			<!-- Six, side by side in the 60 %: the icon over its name, all the same width. -->
-			<nav class="grid min-w-0 flex-1 grid-cols-6 gap-1.5" aria-label="Cocina">
+			<!-- Seven, side by side in the 60 %: the icon over its name, all the same width. -->
+			<nav class="grid min-w-0 flex-1 grid-cols-7 gap-1.5" aria-label="Vista">
 				{#each TABS as t (t.href)}
 					<a
 						href={t.href}
@@ -74,19 +76,19 @@
 			</nav>
 			<!-- Its page in the family's guide (#495), in another tab. -->
 			<a
-				href="https://docs.seilide.app/guia/recetas/#cocinar"
+				href="https://docs.seilide.app/guia/vista/"
 				target="_blank"
 				rel="noopener"
 				class="flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-white"
-				aria-label="Cómo se usa la cocina (guía)"
-				title="Cómo se usa la cocina"
+				aria-label="Cómo se usa la Vista (guía)"
+				title="Cómo se usa la Vista"
 				><span class="text-2xl leading-none" aria-hidden="true">?</span>Ayuda</a
 			>
 			<button
 				class="flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-white"
-				aria-label="Salir de la cocina"
-				title="Salir de la cocina"
-				onclick={() => kitchenMode.leave()}
+				aria-label="Salir de la Vista"
+				title="Salir de la Vista: la web de siempre"
+				onclick={() => vista.leave()}
 				><span class="text-2xl leading-none" aria-hidden="true">✕</span>Salir</button
 			>
 		</div>
@@ -100,3 +102,5 @@
 		{@render children()}
 	</main>
 </div>
+
+<VistaRest />

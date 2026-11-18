@@ -7,7 +7,7 @@
 	import ShoppingCard from '#lib/components/ShoppingCard.svelte';
 	import type { RecipeShoppingItem } from '#lib/recipe-shopping.ts';
 	import { describeTimer, parseRecipe, type Recipe } from 'comun/recipe.ts';
-	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
+	import { vista } from '#lib/vista.svelte.ts';
 	import { recipe as inProgress } from '#lib/recipe.svelte.ts';
 	import type { PageProps } from './$types';
 
@@ -27,7 +27,7 @@
 
 	function cook() {
 		confirmReplace = false;
-		if (cookable) void kitchenMode.cook(cookable, 0, true);
+		if (cookable) void vista.cook(cookable, 0, true);
 	}
 
 	/** «Añadir a la compra»: its things to buy, once asked for; what is on the list, then. */
@@ -117,7 +117,7 @@
 					<button
 						class="rounded-md bg-amber-500 px-4 py-1.5 font-semibold text-zinc-950 hover:bg-amber-400"
 						onclick={() => {
-							if (cooking) void kitchenMode.enter(true);
+							if (cooking) void vista.enter(true);
 							else if (inProgress.current) confirmReplace = true;
 							else cook();
 						}}

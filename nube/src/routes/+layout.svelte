@@ -15,7 +15,7 @@
 	import MusicBar from 'comun/components/MusicBar.svelte';
 	import AiSpendLine from 'comun/components/AiSpendLine.svelte';
 	import VoiceBubble from '#lib/components/VoiceBubble.svelte';
-	import KitchenScreen from '#lib/components/KitchenScreen.svelte';
+	import VistaScreen from '#lib/components/VistaScreen.svelte';
 	import TimerBar from '#lib/components/TimerBar.svelte';
 	import WalkBar from '#lib/components/WalkBar.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
@@ -23,10 +23,12 @@
 	import CallButton from '#lib/components/CallButton.svelte';
 	import ChatPanel from '#lib/components/ChatPanel.svelte';
 	import { chatPanel } from '#lib/chat-panel.svelte.ts';
-	import { inKitchen, kitchenMode } from '#lib/kitchen-mode.svelte.ts';
+	import { inVista, videoPlaying, vista } from '#lib/vista.svelte.ts';
+	import { shouldGoBack } from '#lib/vista-idle.ts';
 	import { wakeWord } from '#lib/wake-word.svelte.ts';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
+	import { timers } from '#lib/timers.svelte.ts';
 	import { navLinks, sectionOfPath } from '#lib/nav.ts';
 	import { themeColor, themeCss } from 'comun/themes.ts';
 	import { backKey, goBack } from 'comun/back.ts';
@@ -65,19 +67,38 @@
 	/** The user's initial, for their round badge (accents and all: «Á» for «Álvaro»). */
 	const initial = $derived([...(data.user?.name.trim() ?? '')][0]?.toLocaleUpperCase('es') ?? '?');
 	let headerHeight = $state(0);
-	/** The voice is the grown-ups' (#303), and with it the kitchen (#60). */
+	/** The voice is the grown-ups' (#303), and with it the Vista (#525, was the kitchen's, #60). */
 	const voiceOn = $derived(Boolean(data.user && data.family && !data.family.kid));
-	/** The kitchen's screen (#483): on, in its own page or a section it shows on its right. */
-	const kitchenShown = $derived(voiceOn && kitchenMode.on && inKitchen(page.url.pathname));
+	/** The Vista's screen (#525): on, in its own page or a section it shows on its right. */
+	const vistaShown = $derived(voiceOn && vista.on && inVista(page.url.pathname));
+	// As it was left on this device; a «pantalla de casa» starts in it.
+	$effect(() => {
+		if (voiceOn) vista.load();
+	});
+	// A «pantalla de casa» (#525) left elsewhere untouched goes back to the Vista by itself.
+	$effect(() => {
+		if (!voiceOn || !vista.homeScreen) return;
+		const check = setInterval(() => {
+			if (inVista(location.pathname) && vista.on) return;
+			const goBack = shouldGoBack({
+				idleMs: Date.now() - vista.touchedAt,
+				videoPlaying: videoPlaying(),
+				voiceBusy: voice.phase !== 'idle' || voice.speaking,
+				ringing: timers.ringing.length > 0
+			});
+			if (goBack) void vista.enter();
+		}, 5000);
+		return () => clearInterval(check);
+	});
 	// The family's word, kept on the device for when there is no connection.
 	$effect(() => {
 		if (data.family) wakeWord.setFamilyWord(data.family.wakeWord);
 	});
-	// The wake word in the kitchen (#60): while its mode is on and it is turned on there, on any
+	// The wake word in the Vista (#60): while it is on and it is turned on there, on any
 	// page. Carretera has its own (its page says when).
 	$effect(() => {
 		if (page.url.pathname === '/carretera') return;
-		wakeWord.want(Boolean(voiceOn && kitchenMode.on && wakeWord.on.cocina));
+		wakeWord.want(Boolean(voiceOn && vista.on && wakeWord.on.cocina));
 	});
 	/**
 	 * «Botón de llamar siempre a mano» (#330), if theirs is on: not where a call already is, nor over
@@ -235,9 +256,9 @@
 <svelte:window
 	onkeydown={(e) => {
 		voiceKeyDown(e);
-		// Escape or Backspace go back, as at home (a PC); not in the road mode nor the kitchen's
-		// home, which have their own way out.
-		if (page.url.pathname !== '/carretera' && page.url.pathname !== '/cocina') backKey(e);
+		// Escape or Backspace go back, as at home (a PC); not in the road mode nor the Vista's
+		// home and recipe, which have their own way out.
+		if (!['/carretera', '/vista', '/cocina'].includes(page.url.pathname)) backKey(e);
 	}}
 	onkeyup={voiceKeyUp}
 	onblur={() => voiceKeyUp()}
@@ -270,8 +291,8 @@
 trip's link (#81), for whoever has it, and a shared walk's (#434), with its own bar. -->
 {#if page.url.pathname === '/carretera' || page.url.pathname.startsWith('/s/') || page.url.pathname.startsWith('/p/')}
 	{@render children()}
-{:else if kitchenShown}
-	<KitchenScreen>{@render children()}</KitchenScreen>
+{:else if vistaShown}
+	<VistaScreen>{@render children()}</VistaScreen>
 {:else}
 	<!-- With the chat's panel, the whole page (its bar too) leaves it the room on the right. -->
 	<div style:--header-h="{headerHeight}px" class={[chatShown && 'lg:pr-96']}>
@@ -361,17 +382,37 @@ trip's link (#81), for whoever has it, and a shared walk's (#434), with its own 
 									/>
 								</svg>
 							</a>
-							<!-- The kitchen's screen (#483), one tap away: the steps, the recipe, the music. -->
+							<!-- The Vista (#525), one tap away: today in the house, the recipe, the music. -->
 							<button
-								title="Cocina: pasos, música y radio a pantalla completa"
-								aria-label="Cocina"
+								title="Vista: la pantalla de casa, a pantalla completa"
+								aria-label="Vista"
 								class={[
 									'shrink-0 rounded-md p-1 hover:bg-zinc-800 hover:text-white',
-									kitchenMode.on ? 'text-amber-400' : 'text-zinc-400'
+									vista.on ? 'text-amber-400' : 'text-zinc-400'
 								]}
-								onclick={() => kitchenMode.enter(true)}
+								onclick={() => vista.enter(true)}
 							>
-								<SectionIcon name="recetas" class="h-6 w-6" />
+								<!-- A screen on its stand with a house: the tablet on the wall. -->
+								<svg viewBox="0 0 24 24" class="h-6 w-6" aria-hidden="true">
+									<rect
+										x="2.5"
+										y="3.5"
+										width="19"
+										height="13"
+										rx="2"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+									/>
+									<path
+										d="M8.5 12.5v-3L12 7l3.5 2.5v3M9 20.5h6M12 16.5v4"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+									/>
+								</svg>
 							</button>
 							<!-- «Preguntar» on the right of the page (#504): only where it fits; elsewhere, and on
 							     its own page, its section in the bar. -->
