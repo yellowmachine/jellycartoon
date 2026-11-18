@@ -29,6 +29,12 @@
 			el tiempo que está abierta delante cuenta en su límite del día. El icono sale de la propia
 			web, al guardarlo.
 		</p>
+		<p class="mb-4 text-sm text-zinc-400">
+			Y aplicaciones de Flathub instaladas en el PC de la tele (Red, para ver YouTube con el mando):
+			se abren por encima de la vista TV, y el botón de encendido del mando vuelve. Solo para
+			adultos. El icono sale de la propia aplicación; si el acceso era una web, se queda con el
+			suyo. Hace falta el servicio de scripts/pantalla.sh en ese PC.
+		</p>
 		{#if data.shortcuts.length}
 			<ul class="mb-4 divide-y divide-zinc-800 rounded-md border border-zinc-800 text-sm">
 				{#each data.shortcuts as s (s.id)}
@@ -76,8 +82,8 @@
 			<p class="mt-3 text-sm break-words text-red-400">{form.message}</p>
 		{:else if form && 'noIcon' in form && form.noIcon}
 			<p class="mt-3 text-sm text-amber-400">
-				Guardado, sin icono: la web no deja leerlo desde el servidor o no tiene uno grande. El
-				recuadro sale con su nombre.
+				Guardado, sin icono: la web no deja leerlo desde el servidor o no tiene uno grande (o la
+				aplicación no tiene uno). El recuadro sale con su nombre.
 			</p>
 		{:else if form && 'saved' in form && form.saved === 'shortcut'}
 			<Guardado class="mt-3 block text-sm text-amber-400">✓ Guardado</Guardado>

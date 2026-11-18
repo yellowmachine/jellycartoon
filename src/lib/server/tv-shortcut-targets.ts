@@ -19,6 +19,8 @@ import { stationsInfo } from '#lib/server/radio.ts';
 import { podcastLists } from '#lib/server/podcasts.ts';
 import { allGames, findGame, systemCovers } from '#lib/server/games.ts';
 import { steamGames, steamLaunchEnabled, steamPictureUrl } from '#lib/server/steam.ts';
+import { isAppId } from '#lib/pc-apps.ts';
+import { pcApps } from '#lib/server/pc-apps.ts';
 import { CHANNELS, channelsFor } from 'comun/channels.ts';
 import { STATIONS } from 'comun/radio.ts';
 
@@ -64,7 +66,9 @@ export function shortcutTarget(kind: Target['kind'], text: string) {
 				? /^[^/]+\/[^/]+$/.test(target)
 				: kind === 'steam'
 					? target === BIG_PICTURE || isId(target)
-					: target.length > 0;
+					: kind === 'app'
+						? isAppId(target)
+						: target.length > 0;
 	if (!valid) throw new Error('Elige qué abre');
 	return target;
 }
@@ -229,6 +233,17 @@ async function steamOf() {
 	return found;
 }
 
+/**
+ * The PC's apps (#530), by id: its name; its icon is the shortcut's own (tv-shortcuts.ts). None if
+ * the service does not answer: they could not be opened either.
+ */
+async function appsOf() {
+	const apps = await pcApps().catch(() => []);
+	return new Map(
+		apps.map((a): [string, Destination] => [a.id, { name: a.name, icon: null, href: null }])
+	);
+}
+
 /** Each target's destination, in order; null, gone or not for this viewer. */
 export async function destinations(
 	targets: Target[],
@@ -253,7 +268,9 @@ export async function destinations(
 			: load('juego', () =>
 					gamesOf(targets.filter((t) => t.kind === 'juego').map((t) => t.target))
 				),
-		kid ? null : load('steam', steamOf)
+		kid ? null : load('steam', steamOf),
+		// A PC's app (#530), adults only, as Steam.
+		kid ? null : load('app', appsOf)
 	]);
 	return targets.map((t) => found[t.kind]?.get(t.target) ?? null);
 }
@@ -314,5 +331,7 @@ export async function candidates(kind: Target['kind'], userId: string): Promise<
 				plain(BIG_PICTURE, 'Steam', 'Big Picture, con toda la biblioteca'),
 				...(await steamGames()).map((g) => plain(g.appid, g.name))
 			];
+		case 'app':
+			return (await pcApps().catch(() => [])).map((a) => plain(a.id, a.name, a.id));
 	}
 }

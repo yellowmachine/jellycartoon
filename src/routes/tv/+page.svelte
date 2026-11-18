@@ -60,7 +60,8 @@
 
 	/**
 	 * A tile with no page (#343): a site, in its window; a station, on the TV's speakers (OK on the
-	 * one that is on stops it), as in /tv/radio; a Steam game or Big Picture, opened on the PC.
+	 * one that is on stops it), as in /tv/radio; a Steam game or Big Picture, or an app (#530),
+	 * opened on the PC.
 	 */
 	async function start(s: Shortcut) {
 		started = null;
@@ -79,6 +80,13 @@
 			if (!res?.ok) {
 				const text = res ? (await res.json().catch(() => null))?.message : 'Sin conexión';
 				started = { text: text ?? 'No se pudo abrir Steam', failed: true };
+			}
+		} else if (s.kind === 'app') {
+			started = { text: `Abriendo «${s.name}»…`, failed: false };
+			const res = await fetch(`/api/accesos/${s.id}/abrir`, { method: 'POST' }).catch(() => null);
+			if (!res?.ok) {
+				const text = res ? (await res.json().catch(() => null))?.message : 'Sin conexión';
+				started = { text: text ?? `No se pudo abrir «${s.name}»`, failed: true };
 			}
 		}
 		starting = null;

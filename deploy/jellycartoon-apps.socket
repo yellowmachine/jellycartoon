@@ -1,0 +1,13 @@
+# Where JellyCartoon asks for the PC's apps (#530: TV shortcuts «Aplicación del PC»): a systemd user
+# socket on the PC with the screen; each connection starts jellycartoon-apps@.service.
+[Unit]
+Description=Aplicaciones del PC para JellyCartoon
+
+[Socket]
+# @SOCKET@ is replaced on install: <HOST_DATA_DIR>/apps.sock, which the app sees as /data/apps.sock.
+ListenStream=@SOCKET@
+Accept=yes
+SocketMode=0600
+
+[Install]
+WantedBy=sockets.target

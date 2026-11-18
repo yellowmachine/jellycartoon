@@ -152,7 +152,7 @@
 	<div class="flex items-center gap-3">
 		<button class={secondary}>{s ? 'Guardar' : 'Añadir'}</button>
 		{#if s}
-			{#if s.kind === 'url'}
+			{#if s.kind === 'url' || s.kind === 'app'}
 				<button
 					formaction="?seccion={tab}&/shortcutIcon"
 					formnovalidate

@@ -88,6 +88,9 @@ export interface TvShortcutTile {
 	href: string | null;
 }
 
+/** A site's and a PC app's (#530) icon is the shortcut's own; the rest, their destination's. */
+const ownIcon = (kind: ShortcutKind) => kind === 'url' || kind === 'app';
+
 /** The TV view's tiles, by name: without those gone, nor those not for this viewer. */
 export async function tvShortcutTiles(viewer: Viewer): Promise<TvShortcutTile[]> {
 	const shortcuts = await tvShortcuts(viewer.kid);
@@ -97,7 +100,9 @@ export async function tvShortcutTiles(viewer: Viewer): Promise<TvShortcutTile[]>
 		if (s.kind === 'url')
 			return [{ ...tile, icon: s.icon && `/api/accesos/${s.id}/icono?${s.icon}`, href: null }];
 		const d = found[i];
-		return d ? [{ ...tile, icon: d.icon, href: d.href }] : [];
+		if (!d) return [];
+		const icon = ownIcon(s.kind) ? s.icon && `/api/accesos/${s.id}/icono?${s.icon}` : d.icon;
+		return [{ ...tile, icon, href: d.href }];
 	});
 }
 
@@ -147,8 +152,9 @@ export function shortcutUrl(text: string) {
  * New, or changed: its name, what it opens and its tags (those it no longer has, gone if nothing
  * else has them). A site's address; another kind's target, checked to be there as `userId` sees it
  * (a podcast is each person's), and with no name, the destination's. Whether its icon is to be
- * looked for (a site: new, another address, or none yet); the one it had, to delete, if no longer
- * a site.
+ * looked for (a site: new, another address, or none yet; a PC's app, #530: new, another app, or
+ * none yet: a site made an app keeps its icon), and from where; the one it had, to delete, if it
+ * no longer keeps one.
  */
 export async function saveTvShortcut(
 	s: {
@@ -178,19 +184,26 @@ export async function saveTvShortcut(
 	const tags = parseTags(s.tags);
 	return db.transaction(async (tx) => {
 		let id = s.id;
-		let findIcon = kind === 'url';
+		let findIcon = ownIcon(kind);
 		let oldIcon: string | null = null;
 		if (id) {
 			const [before] = await tx
-				.select({ url: tvShortcut.url, icon: tvShortcut.icon })
+				.select({
+					kind: tvShortcut.kind,
+					url: tvShortcut.url,
+					target: tvShortcut.target,
+					icon: tvShortcut.icon
+				})
 				.from(tvShortcut)
 				.where(eq(tvShortcut.id, id));
 			if (!before) throw new Error('Ese acceso directo ya no está');
-			findIcon &&= before.url !== url || !before.icon;
-			if (kind !== 'url') oldIcon = before.icon;
+			findIcon &&=
+				!before.icon ||
+				(kind === 'url' ? before.url !== url : before.kind === 'app' && before.target !== target);
+			if (!ownIcon(kind)) oldIcon = before.icon;
 			await tx
 				.update(tvShortcut)
-				.set({ name, kind, url, target, ...(kind === 'url' ? {} : { icon: null }) })
+				.set({ name, kind, url, target, ...(ownIcon(kind) ? {} : { icon: null }) })
 				.where(eq(tvShortcut.id, id));
 		} else {
 			[{ id }] = await tx
@@ -215,7 +228,7 @@ export async function saveTvShortcut(
 			tx,
 			before.map((b) => b.tagId)
 		);
-		return { id: id!, url, findIcon, oldIcon };
+		return { id: id!, kind, url, target, findIcon, oldIcon };
 	});
 }
 

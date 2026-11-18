@@ -19,3 +19,24 @@ Con la etiqueta «infantil» los ven también los peques, y el tiempo que la ven
 delante cuenta en su límite del día, como un canal en directo: no se abre fuera de su horario o sin
 tiempo, y al acabarse la Vista TV cierra la ventana y dice por qué. En /infantil sale en «Ahora» y
 en «Estos días». Mientras está abierta, la Vista TV tiene «Cerrar …» para quitarla del todo.
+
+## Aplicaciones del PC
+
+Un acceso directo también puede abrir una **aplicación de Flathub instalada en el PC de la
+pantalla** (#530): Red (`com.ktechpit.red`), por ejemplo, para ver YouTube en su modo TV con el
+mando. En Ajustes se elige de la lista de las instaladas allí; en la Vista TV, al tocar el recuadro,
+se abre por encima, y el botón de encendido del mando va de ella a la Vista TV y vuelve (en Red,
+que arranque en modo TV se elige en sus propios ajustes).
+
+- `scripts/pantalla.sh` instala en ese PC, si tiene Flatpak, un socket de systemd del usuario
+  (`deploy/jellycartoon-apps.socket`) en `HOST_DATA_DIR/apps.sock`, junto al de Steam, y
+  `jellycartoon-apps@.service` con `deploy/jellycartoon-apps.sh` (en `~/.local/bin`). La app lo
+  busca en `DATA_DIR/apps.sock`: no hay variable en el compose.
+- Por el socket, una orden por conexión: `list` (las apps, `<id>\t<nombre>`), `run <id>` (contesta
+  `ok` o `no` y la abre con `flatpak run`) e `icon <id>` (su PNG más grande de los que exporta
+  Flatpak, que es el icono del recuadro; si el acceso era una web, se queda con el suyo, y en
+  Ajustes está «Volver a buscar el icono»). Solo un id como los de Flatpak y de una app instalada:
+  nada más llega a `flatpak`.
+- Solo para adultos, como Steam. No se cuenta el tiempo.
+- Si no abre nada: `systemctl --user status jellycartoon-apps.socket` y
+  `journalctl --user -u 'jellycartoon-apps@*'` en ese PC, y el Registro de la app.

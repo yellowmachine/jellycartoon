@@ -51,6 +51,10 @@ mock.module('#lib/server/steam.ts', () => ({
 	steamGames: async () => [{ appid: 220, name: 'Half-Life 2', pictures: {} }],
 	steamPictureUrl: (appid: number, kind: string) => `/api/juegos/steam/${appid}/${kind}`
 }));
+// The PC's apps (#530): Red installed there.
+mock.module('#lib/server/pc-apps.ts', () => ({
+	pcApps: async () => [{ id: 'com.ktechpit.red', name: 'Red' }]
+}));
 const {
 	tvShortcuts,
 	tvShortcutTiles,
@@ -200,6 +204,52 @@ describe('shortcuts', () => {
 		expect(() => shortcutTarget('pelicula', 'abc')).toThrow();
 		expect(() => shortcutTarget('juego', '../etc/passwd')).toThrow();
 		expect(shortcutTarget('steam', 'bigpicture')).toBe('bigpicture');
+		expect(() => shortcutTarget('app', '../../bin/sh')).toThrow();
+		expect(() => shortcutTarget('app', 'red; rm -rf ~')).toThrow();
+		expect(shortcutTarget('app', 'com.ktechpit.red')).toBe('com.ktechpit.red');
+		expect(save({ name: 'X', kind: 'app', target: 'org.no.instalada', tags: '' })).rejects.toThrow(
+			'Eso ya no está'
+		);
+	});
+
+	test('a site that becomes a PC app (#530): it keeps its icon; adults only', async () => {
+		const site = await save({ name: 'Youtube', url: 'https://www.youtube.com/', tags: 'infantil' });
+		await db
+			.update(schema.tvShortcut)
+			.set({ icon: '9-1.png' })
+			.where(eq(schema.tvShortcut.id, site.id));
+		const changed = await save({
+			id: site.id,
+			name: 'Youtube',
+			kind: 'app',
+			target: 'com.ktechpit.red',
+			tags: ''
+		});
+		expect(changed).toMatchObject({ kind: 'app', findIcon: false, oldIcon: null });
+		const adult = await tvShortcutTiles({ userId: 'ana', kid: false });
+		expect(adult.find((t) => t.id === site.id)).toMatchObject({
+			kind: 'app',
+			target: 'com.ktechpit.red',
+			icon: `/api/accesos/${site.id}/icono?9-1.png`,
+			href: null
+		});
+		expect((await tvShortcutTiles({ userId: 'peque', kid: true })).map((t) => t.id)).not.toContain(
+			site.id
+		);
+		// Another app: its icon, looked for again.
+		await db
+			.update(schema.tvShortcut)
+			.set({ target: 'org.otra.app' })
+			.where(eq(schema.tvShortcut.id, site.id));
+		const again = await save({
+			id: site.id,
+			name: 'Youtube',
+			kind: 'app',
+			target: 'com.ktechpit.red',
+			tags: ''
+		});
+		expect(again.findIcon).toBe(true);
+		await deleteTvShortcut(site.id);
 	});
 
 	test('a site that becomes a series: its icon, to delete, and no address', async () => {
@@ -234,6 +284,9 @@ describe('shortcuts', () => {
 			{ target: 'snes/Mario World.sfc', name: 'Mario World', detail: 'Super Nintendo' }
 		]);
 		expect((await candidates('steam', 'ana')).map((c) => c.target)).toEqual(['bigpicture', '220']);
+		expect(await candidates('app', 'ana')).toEqual([
+			{ target: 'com.ktechpit.red', name: 'Red', detail: 'com.ktechpit.red' }
+		]);
 		expect(await candidates('podcast', 'luis')).toEqual([]);
 		const la1 = (await candidates('canal', 'ana')).find((c) => c.target === 'la1');
 		expect(la1?.name).toBe('La 1');

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Installs, from this PC over SSH, what the PC with the screen needs besides the app: the mpv
 # service, its keys and menu for the remote (deploy/mpv), with Steam the service that opens its
-# games, with RetroDECK the one that opens the retro games there, with KDE what the remote's power button does (deploy/kwin, #159), what Chromium's Flatpak
+# games, with RetroDECK the one that opens the retro games there, with Flatpak the one that opens
+# its apps (#530), with KDE what the remote's power button does (deploy/kwin, #159), what Chromium's Flatpak
 # needs for game controllers (#176) and, if the remote's receiver is plugged in, its udev hwdb.
 # Only what changed, showing how; run it again whenever. See "Ver en el salón", "Mando del salón"
 # "Steam" and "RetroDECK" in the docs (docs/src/content/docs/tecnica/casa/).
@@ -111,6 +112,27 @@ else
 		systemctl --user enable jellycartoon-retrodeck.socket >/dev/null 2>&1
 		systemctl --user restart jellycartoon-retrodeck.socket && echo "  ✓ RetroDECK: socket escuchando"
 	fi
+fi
+
+# The PC's apps (#530: TV shortcuts «Aplicación del PC», Red for YouTube): their socket next to
+# Steam's, and the service that lists them, opens one or gives its icon. Only with Flatpak.
+if [[ -z $data ]]; then
+	:
+elif command -v flatpak >/dev/null; then
+	sed "s|@SOCKET@|$data/apps.sock|" "$files/jellycartoon-apps.socket" >"$files/apps-socket"
+	apps=
+	install_file "$files/apps-socket" ~/.config/systemd/user/jellycartoon-apps.socket && apps=1
+	install_file "$files/jellycartoon-apps@.service" ~/.config/systemd/user/jellycartoon-apps@.service &&
+		apps=1
+	install_file "$files/jellycartoon-apps.sh" ~/.local/bin/jellycartoon-apps &&
+		chmod +x ~/.local/bin/jellycartoon-apps
+	if [[ -n $apps ]] || ! systemctl --user is-active -q jellycartoon-apps.socket; then
+		systemctl --user daemon-reload
+		systemctl --user enable jellycartoon-apps.socket >/dev/null 2>&1
+		systemctl --user restart jellycartoon-apps.socket && echo "  ✓ Aplicaciones del PC: socket escuchando"
+	fi
+else
+	echo "  · Sin Flatpak: sin accesos directos a aplicaciones del PC"
 fi
 
 # The remote's power button (#159): the TV view's launcher, the service that opens it and the KWin
@@ -228,7 +250,8 @@ for house in "${selected[@]}"; do
 	fi
 	tar -C "$deploy" -c mpv kwin 70-mando-g20s.hwdb jellycartoon-mpv.service jellycartoon-tv.desktop \
 		jellycartoon-tv.service jellycartoon-steam.socket jellycartoon-steam@.service jellycartoon-steam.sh \
-		jellycartoon-retrodeck.socket jellycartoon-retrodeck@.service jellycartoon-retrodeck.sh |
+		jellycartoon-retrodeck.socket jellycartoon-retrodeck@.service jellycartoon-retrodeck.sh \
+		jellycartoon-apps.socket jellycartoon-apps@.service jellycartoon-apps.sh |
 		ssh "$dest" tar -x -C "$dir"
 	ssh "$dest" "cat > $dir/pantalla.sh" <<<"$remote"
 	ssh -t "$dest" bash "$dir/pantalla.sh" "$project" || echo "  ✗ Algo falló en $name"

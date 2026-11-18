@@ -3,6 +3,7 @@ import path from 'node:path';
 import { dataRoot } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
 import { findSiteIcon } from '#lib/server/site-icon.ts';
+import { pcAppIcon } from '#lib/server/pc-apps.ts';
 import { setShortcutIcon } from '#lib/server/tv-shortcuts.ts';
 
 /**
@@ -30,7 +31,20 @@ export async function refreshShortcutIcon(id: number, url: string) {
 		log.warn('accesos', 'No se pudo leer el icono de la web', { url, error });
 		return null;
 	});
-	if (!icon) return false;
+	return icon ? keepIcon(id, icon) : false;
+}
+
+/** A PC app's (#530), from the PC's service, as Flatpak exports it: whether there was one. */
+export async function refreshAppIcon(id: number, appId: string) {
+	const bytes = await pcAppIcon(appId).catch((error) => {
+		log.warn('accesos', 'No se pudo leer el icono de la aplicación', { appId, error });
+		return null;
+	});
+	return bytes ? keepIcon(id, { kind: 'png', bytes }) : false;
+}
+
+/** Kept as the shortcut's icon, under a new name; the one before, deleted. */
+async function keepIcon(id: number, icon: { kind: 'png' | 'jpg' | 'webp'; bytes: Uint8Array }) {
 	await mkdir(DIR, { recursive: true });
 	const name = `${id}-${Date.now()}.${icon.kind}`;
 	await writeFile(path.join(DIR, name), icon.bytes);
