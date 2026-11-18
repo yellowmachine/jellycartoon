@@ -5,6 +5,7 @@
 	import type { Alarm } from 'comun/alarms.ts';
 	import { doseText, groupDoses, markValue, type Dose } from 'comun/medication.ts';
 	import { enhance } from '$app/forms';
+	import { refreshAll } from '$app/navigation';
 	import { MAX_ITEM, MAX_NOTE, PAPERS, tiltFor, type FridgeState } from 'comun/fridge.ts';
 	import { distanceText } from 'comun/road.ts';
 	import { skyIcon, type HourWeather, type WeatherGlance } from 'comun/weather.ts';
@@ -360,7 +361,11 @@
 					<form
 						method="post"
 						action="/agenda/medicacion?/mark"
-						use:enhance
+						use:enhance={() =>
+							// Another route's action: `update()` would go there (Kit 3); only this page's data again.
+							async ({ result }) => {
+								if (result.type === 'success') await refreshAll();
+							}}
 						class="flex items-center gap-3"
 					>
 						<input type="hidden" name="day" value={g.day} />

@@ -2,6 +2,7 @@
 	import '@fontsource/comic-neue/400.css';
 	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
+	import { refreshAll } from '$app/navigation';
 	import { dayName, localDay, localTime } from 'comun/agenda.ts';
 	import { doseText, groupDoses, markValue } from 'comun/medication.ts';
 	import { PAPERS, tiltFor, type FridgeState } from 'comun/fridge.ts';
@@ -59,6 +60,8 @@
 	/** The plug being sent an order, and why the last one could not be. */
 	let switching = $state<string | null>(null);
 	let plugProblem = $state<string | null>(null);
+	/** Why the last dose could not be marked. */
+	let doseProblem = $state<string | null>(null);
 
 	const card = 'rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5';
 	const cardTitle = 'mb-4 flex items-baseline justify-between text-2xl font-semibold';
@@ -148,7 +151,14 @@
 						<form
 							method="post"
 							action="/agenda/medicacion?/mark"
-							use:enhance
+							use:enhance={() => {
+								doseProblem = null;
+								// Another route's action: `update()` would go there (Kit 3), out of the Vista.
+								return async ({ result }) => {
+									if (result.type === 'success') await refreshAll();
+									else doseProblem = 'No se pudo marcar: prueba otra vez.';
+								};
+							}}
 							class="flex items-center gap-4 text-xl"
 						>
 							<input type="hidden" name="day" value={g.day} />
@@ -179,6 +189,9 @@
 					</li>
 				{/each}
 			</ul>
+			{#if doseProblem}
+				<p class="mt-3 text-lg text-red-400">{doseProblem}</p>
+			{/if}
 		</section>
 	{/if}
 
@@ -226,11 +239,13 @@
 							use:enhance={() => {
 								switching = p.id;
 								plugProblem = null;
-								return async ({ result, update }) => {
+								// Another route's action: no `update()`, which would go there (Kit 3); the
+								// plug's new state comes by its events.
+								return async ({ result }) => {
 									switching = null;
 									if (result.type === 'failure')
 										plugProblem = String(result.data?.problem ?? 'No se pudo');
-									await update({ reset: false, invalidateAll: false });
+									else if (result.type === 'error') plugProblem = 'No se pudo';
 								};
 							}}
 						>
