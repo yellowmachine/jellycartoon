@@ -3,6 +3,7 @@ import {
 	boolean,
 	index,
 	integer,
+	jsonb,
 	pgTable,
 	serial,
 	text,
@@ -30,9 +31,16 @@ export const musicSource = pgTable(
 		canWrite: boolean('can_write').notNull().default(false),
 		/** Indexing now: since when (one at a time per family; a stale one, from a restart, is let go). */
 		scanningSince: timestamp('scanning_since'),
+		/** What the indexing is doing: `leyendo` the files' tags, `portadas` looking covers up. */
+		phase: text('phase').$type<'leyendo' | 'portadas'>(),
 		/** How far the indexing is: files read of all. */
 		done: integer('done').notNull().default(0),
 		total: integer('total').notNull().default(0),
+		/** And the covers looked up in MusicBrainz, of all to look up. */
+		coversDone: integer('covers_done').notNull().default(0),
+		coversTotal: integer('covers_total').notNull().default(0),
+		/** The files that could not be read the last time, and why (the first hundred), for Gestión. */
+		failures: jsonb('failures').$type<{ key: string; error: string }[]>().notNull().default([]),
 		/** The last one that ended, and what it found. */
 		indexedAt: timestamp('indexed_at'),
 		tracks: integer('tracks').notNull().default(0),
@@ -58,7 +66,17 @@ export const ownAlbum = pgTable(
 		coverKey: text('cover_key'),
 		/** Or the one inside a track, kept in the family's storage (storage.ts, area `musica`). */
 		coverFile: text('cover_file'),
-		coverType: text('cover_type')
+		coverType: text('cover_type'),
+		/**
+		 * `pendiente`: to look up in MusicBrainz; `encontrada` (from `coverSource`); `no`: looked up
+		 * and not there, not looked up again but by «Buscar portadas otra vez».
+		 */
+		coverStatus: text('cover_status')
+			.$type<'pendiente' | 'encontrada' | 'no'>()
+			.notNull()
+			.default('pendiente'),
+		/** Where its cover came from: `carpeta`, `cancion` or `musicbrainz`. */
+		coverSource: text('cover_source').$type<'carpeta' | 'cancion' | 'musicbrainz'>()
 	},
 	(t) => [
 		uniqueIndex('own_album_family_title_artist').on(t.familyId, t.title, t.artist),

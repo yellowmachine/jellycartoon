@@ -652,6 +652,13 @@
       "when": 1795027504888,
       "tag": "0092_lean_spiral",
       "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1795030542833,
+      "tag": "0093_magical_black_panther",
+      "breakpoints": true
     }
   ]
 }
