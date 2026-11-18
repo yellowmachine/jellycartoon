@@ -58,9 +58,16 @@ export const ownAlbum = pgTable(
 		familyId: text('family_id')
 			.notNull()
 			.references(() => family.id, { onDelete: 'cascade' }),
+		/** As its tags say: with `artist`, what its tracks are grouped by when the bucket is read. */
 		title: text('title').notNull(),
 		/** The album's artist (or the first track's). */
 		artist: text('artist').notNull(),
+		/**
+		 * As the family wrote them (#534), instead of the tags': kept apart, so reading the bucket
+		 * again (only reading: it is never written) does not undo them. Null, the tags'.
+		 */
+		customTitle: text('custom_title'),
+		customArtist: text('custom_artist'),
 		year: integer('year'),
 		/** Its cover: a picture in the bucket (`cover.jpg`, `folder.jpg`…), by its key. */
 		coverKey: text('cover_key'),

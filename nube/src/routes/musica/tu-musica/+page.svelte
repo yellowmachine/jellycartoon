@@ -71,7 +71,7 @@
 	<a href={ownAlbumUrl(a.id)} class="group block min-w-0">
 		{#if a.hasCover}
 			<img
-				src={ownCoverUrl(a.id)}
+				src={ownCoverUrl(a.id, a.coverVersion)}
 				alt=""
 				loading="lazy"
 				class="aspect-square w-full rounded-md bg-zinc-800 object-cover group-hover:opacity-80"

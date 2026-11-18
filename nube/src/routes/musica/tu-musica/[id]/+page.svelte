@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import AddToQueue from 'comun/components/AddToQueue.svelte';
 	import { formatDuration } from 'comun/format.ts';
 	import { mixed } from 'comun/music.ts';
@@ -11,7 +12,11 @@
 	 * An album of «Tu música» (#534): to play it, shuffled or not, or queue it. What this browser
 	 * cannot play (an ALAC .m4a, a .wma) is there, greyed, and left out.
 	 */
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
+
+	/** «Editar»: its title and artist, as the family wants them (the bucket is never written). */
+	let editing = $state(false);
+	let saving = $state(false);
 
 	const album = $derived(data.ownAlbum);
 	const tracks = $derived(playableTracks(album));
@@ -42,7 +47,7 @@
 <div class="mt-3 mb-6 flex flex-col gap-4 sm:flex-row sm:items-end">
 	{#if album.hasCover}
 		<img
-			src={ownCoverUrl(album.id)}
+			src={ownCoverUrl(album.id, album.coverVersion)}
 			alt=""
 			class="aspect-square w-48 shrink-0 rounded-md bg-zinc-800 object-cover"
 		/>
@@ -53,10 +58,75 @@
 		>
 	{/if}
 	<div class="min-w-0">
-		<h1 class="text-2xl font-bold">{album.title}</h1>
-		<p class="text-zinc-300">{album.artist}{album.year ? ` · ${album.year}` : ''}</p>
+		{#if editing}
+			<form
+				method="post"
+				action="?/rename"
+				class="mb-3 space-y-2"
+				use:enhance={() => {
+					saving = true;
+					return async ({ update, result }) => {
+						await update({ reset: false });
+						saving = false;
+						if (result.type === 'success') editing = false;
+					};
+				}}
+			>
+				<label class="block text-sm text-zinc-400">
+					Disco
+					<input
+						name="title"
+						value={album.title}
+						maxlength="300"
+						class="mt-1 block w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-base text-white"
+					/>
+				</label>
+				<label class="block text-sm text-zinc-400">
+					Artista
+					<input
+						name="artist"
+						value={album.artist}
+						maxlength="300"
+						class="mt-1 block w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-base text-white"
+					/>
+				</label>
+				{#if album.tags}
+					<p class="text-xs text-zinc-500">
+						Sus etiquetas dicen «{album.tags.title}» de {album.tags.artist}. Vacío, vuelve a eso.
+					</p>
+				{/if}
+				<p class="text-xs text-zinc-500">
+					Solo cambia en Seilide: los ficheros de vuestro almacenamiento no se tocan. Si la portada
+					era de MusicBrainz, se busca otra vez con el nombre nuevo.
+				</p>
+				<div class="flex gap-2">
+					<button
+						class="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
+						disabled={saving}>Guardar</button
+					>
+					<button
+						type="button"
+						class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800"
+						onclick={() => (editing = false)}>Cancelar</button
+					>
+				</div>
+				{#if form?.problem}<p class="text-sm text-red-400">{form.problem}</p>{/if}
+			</form>
+		{:else}
+			<h1 class="text-2xl font-bold">
+				{album.title}
+				{#if data.canEdit}<button
+						class="ml-1 align-middle text-base font-normal text-zinc-400 hover:text-white"
+						aria-label="Editar el disco y el artista"
+						title="Editar el disco y el artista"
+						onclick={() => (editing = true)}>✎</button
+					>{/if}
+			</h1>
+			<p class="text-zinc-300">{album.artist}{album.year ? ` · ${album.year}` : ''}</p>
+		{/if}
 		<p class="mb-3 text-sm text-zinc-400">
-			{album.tracks.length} canciones · {formatDuration(totalSec)}
+			{album.tracks.length}
+			{album.tracks.length === 1 ? 'canción' : 'canciones'} · {formatDuration(totalSec)}
 		</p>
 		{#if tracks.length}
 			<div class="flex flex-wrap gap-2">

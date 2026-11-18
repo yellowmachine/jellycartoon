@@ -38,6 +38,12 @@ fichero vacío y se borra), para avisar de que bastan unas de solo lectura.
 - **Gestión** (`/musica/tu-musica/gestion`, quien administra): la fase (`leyendo`, `portadas`) con
   su progreso, las portadas por origen, los discos sin portada y los ficheros que fallaron
   (`music_source.failures`, los cien primeros).
+- **Cambiar el nombre** de un disco (los mayores, en su página): `custom_title` y `custom_artist`
+  en `own_album`, aparte de `title` y `artist`, que son los de las etiquetas y por los que se
+  agrupan las pistas al leer; así una nueva lectura no lo deshace. Igual que las etiquetas, vuelve a
+  null. Si su portada era de MusicBrainz o no se encontró, se borra y se busca otra vez con el nombre
+  nuevo. Las portadas de MusicBrainz llevan la hora en su nombre, y la dirección de la portada su
+  versión (`?v=`), para que el navegador no siga mostrando la vieja.
 - **Escuchar**: cada pista entra en el reproductor con `src` = `/api/music/own/tracks/<id>`, que mira
   la familia y contesta un 302 a una URL prefirmada de 6 horas (con su `Content-Type`, por si el
   bucket dice `application/octet-stream`). El audio va del bucket al navegador; la dirección de la

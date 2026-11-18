@@ -9,13 +9,14 @@ import type { OwnAlbumRow, OwnTrackRow } from '#lib/server/own-music.ts';
 export type { OwnAlbumRow, OwnTrackRow };
 
 export const ownAlbumUrl = (id: number) => `/musica/tu-musica/${id}`;
-export const ownCoverUrl = (id: number) => `/api/music/own/covers/${id}`;
+export const ownCoverUrl = (id: number, version?: string | null) =>
+	`/api/music/own/covers/${id}${version ? `?v=${encodeURIComponent(version)}` : ''}`;
 export const ownTrackSrc = (id: number) => `/api/music/own/tracks/${id}`;
 
 /** For the player: its address in Seilide, which sends it on to the bucket. */
 export const asTrack = (
 	t: OwnTrackRow,
-	a: Pick<OwnAlbumRow, 'id' | 'title' | 'hasCover'>
+	a: Pick<OwnAlbumRow, 'id' | 'title' | 'hasCover' | 'coverVersion'>
 ): MusicTrack => ({
 	id: t.id,
 	title: t.title,
@@ -26,7 +27,7 @@ export const asTrack = (
 	album: a.title,
 	hasCover: false,
 	src: ownTrackSrc(t.id),
-	cover: a.hasCover ? ownCoverUrl(a.id) : undefined,
+	cover: a.hasCover ? ownCoverUrl(a.id, a.coverVersion) : undefined,
 	home: ownAlbumUrl(a.id)
 });
 
