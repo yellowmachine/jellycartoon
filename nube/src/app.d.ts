@@ -10,6 +10,10 @@ declare global {
 			user?: User;
 			session?: Session;
 		}
+		interface PageState {
+			/** The locked Vista's extra entry (#532): Android's back takes it, not the app. */
+			vistaGuard?: boolean;
+		}
 	}
 }
 

@@ -153,6 +153,8 @@ export interface VoiceRequest {
 	 * not the person's ones that notify their phone.
 	 */
 	kitchen: boolean;
+	/** Seilide's Vista locked on this device (#532): the voice does not close it. */
+	vistaLocked?: boolean;
 	/** The film whose card is on this screen, to ask about it; null if none. */
 	film: number | null;
 	/** Said in the road mode (#78): driving, audio only, here only. */
@@ -311,6 +313,7 @@ export function parseVoiceRequest(body: unknown): VoiceRequest | null {
 		// Thirty steps of a few lines each, and the ingredients.
 		recipe: text(b.recipe, 12_000),
 		kitchen: b.kitchen === true && b.car !== true,
+		vistaLocked: b.vistaLocked === true,
 		film: Number.isInteger(b.film) && Number(b.film) > 0 ? Number(b.film) : null,
 		car: b.car === true,
 		position: b.car === true && isPoint(b.position) ? [b.position[0], b.position[1]] : null,

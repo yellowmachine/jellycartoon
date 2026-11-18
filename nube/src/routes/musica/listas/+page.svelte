@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { vista } from '#lib/vista.svelte.ts';
 	import { formatDuration } from 'comun/format.ts';
 	import OfflineLists from '#lib/components/OfflineLists.svelte';
 	import type { PageProps } from './$types';
@@ -17,17 +18,20 @@
 	canciones con el «+» de cada una, en los álbumes o en el buscador.
 </p>
 
-<form method="post" action="?/create" use:enhance class="mb-2 flex max-w-md gap-2">
-	<input
-		name="name"
-		placeholder="Nombre de la lista nueva"
-		aria-label="Nombre de la lista nueva"
-		class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-900 text-sm"
-	/>
-	<button class="rounded-md bg-amber-500 px-4 py-2 font-medium text-zinc-950 hover:bg-amber-400">
-		Crear
-	</button>
-</form>
+<!-- Locked Vista (#532): the lists to listen to, not to make. -->
+{#if !vista.kiosk}
+	<form method="post" action="?/create" use:enhance class="mb-2 flex max-w-md gap-2">
+		<input
+			name="name"
+			placeholder="Nombre de la lista nueva"
+			aria-label="Nombre de la lista nueva"
+			class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-900 text-sm"
+		/>
+		<button class="rounded-md bg-amber-500 px-4 py-2 font-medium text-zinc-950 hover:bg-amber-400">
+			Crear
+		</button>
+	</form>
+{/if}
 {#if form?.message}
 	<p class="text-sm text-red-400">{form.message}</p>
 {/if}

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { mixed } from 'comun/music.ts';
+	import { vista } from '#lib/vista.svelte.ts';
 	import AddToQueue from 'comun/components/AddToQueue.svelte';
 	import { enhance } from '$app/forms';
 	import AlbumCover from 'comun/components/AlbumCover.svelte';
@@ -31,12 +32,12 @@
 	{:else}
 		<h1 class="flex items-center gap-2 text-2xl font-bold">
 			{playlist.name}
-			<button
-				class="rounded-md px-2 py-1 text-base text-zinc-500 hover:bg-zinc-800 hover:text-white"
-				title="Cambiar nombre"
-				aria-label="Cambiar nombre"
-				onclick={() => (renaming = true)}>✎</button
-			>
+			{#if !vista.kiosk}<button
+					class="rounded-md px-2 py-1 text-base text-zinc-500 hover:bg-zinc-800 hover:text-white"
+					title="Cambiar nombre"
+					aria-label="Cambiar nombre"
+					onclick={() => (renaming = true)}>✎</button
+				>{/if}
 		</h1>
 	{/if}
 </div>
@@ -94,52 +95,57 @@
 					</span>
 					<span class="text-xs text-zinc-500">{formatDuration(t.durationSec)}</span>
 				</button>
-				<form method="post" use:enhance class="flex shrink-0 flex-col text-xs text-zinc-500">
-					<input type="hidden" name="itemId" value={item.itemId} />
-					<button
-						formaction="?/up"
-						disabled={i === 0}
-						class="px-2 hover:text-white disabled:invisible"
-						title="Subir"
-						aria-label="Subir">▲</button
-					>
-					<button
-						formaction="?/remove"
-						class="px-2 hover:text-red-400"
-						title="Quitar de la lista"
-						aria-label="Quitar de la lista">✕</button
-					>
-					<button
-						formaction="?/down"
-						disabled={i === playlist.items.length - 1}
-						class="px-2 hover:text-white disabled:invisible"
-						title="Bajar"
-						aria-label="Bajar">▼</button
-					>
-				</form>
+				<!-- Locked Vista (#532): listened to as it is. -->
+				{#if !vista.kiosk}
+					<form method="post" use:enhance class="flex shrink-0 flex-col text-xs text-zinc-500">
+						<input type="hidden" name="itemId" value={item.itemId} />
+						<button
+							formaction="?/up"
+							disabled={i === 0}
+							class="px-2 hover:text-white disabled:invisible"
+							title="Subir"
+							aria-label="Subir">▲</button
+						>
+						<button
+							formaction="?/remove"
+							class="px-2 hover:text-red-400"
+							title="Quitar de la lista"
+							aria-label="Quitar de la lista">✕</button
+						>
+						<button
+							formaction="?/down"
+							disabled={i === playlist.items.length - 1}
+							class="px-2 hover:text-white disabled:invisible"
+							title="Bajar"
+							aria-label="Bajar">▼</button
+						>
+					</form>
+				{/if}
 			</li>
 		{/each}
 	</ol>
 {/if}
 
-<section class="mt-10 border-t border-zinc-800 pt-6">
-	{#if confirmDelete}
-		<form method="post" action="?/delete" use:enhance class="flex items-center gap-2">
-			<button class="rounded-md bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-500">
-				Sí, borrar la lista
-			</button>
+{#if !vista.kiosk}
+	<section class="mt-10 border-t border-zinc-800 pt-6">
+		{#if confirmDelete}
+			<form method="post" action="?/delete" use:enhance class="flex items-center gap-2">
+				<button class="rounded-md bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-500">
+					Sí, borrar la lista
+				</button>
+				<button
+					type="button"
+					class="rounded-md px-3 py-2 text-zinc-400 hover:text-white"
+					onclick={() => (confirmDelete = false)}>Cancelar</button
+				>
+			</form>
+		{:else}
 			<button
-				type="button"
-				class="rounded-md px-3 py-2 text-zinc-400 hover:text-white"
-				onclick={() => (confirmDelete = false)}>Cancelar</button
+				class="rounded-md border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900"
+				onclick={() => (confirmDelete = true)}
 			>
-		</form>
-	{:else}
-		<button
-			class="rounded-md border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900"
-			onclick={() => (confirmDelete = true)}
-		>
-			Borrar lista
-		</button>
-	{/if}
-</section>
+				Borrar lista
+			</button>
+		{/if}
+	</section>
+{/if}

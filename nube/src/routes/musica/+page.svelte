@@ -1,5 +1,6 @@
 <script lang="ts">
 	import GuideLink from '#lib/components/GuideLink.svelte';
+	import { vista } from '#lib/vista.svelte.ts';
 	import MiniSearch from 'minisearch';
 	import { enhance } from '$app/forms';
 	import { replaceState } from '$app/navigation';
@@ -207,28 +208,30 @@
 								djDialog?.startPreset(preset);
 							}}>{preset.name}</button
 						>
-						<!-- On hover with a mouse; always there on a touch screen. -->
-						<div
-							class="flex shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100"
-						>
-							<button
-								class="px-2 py-1.5 text-zinc-400 hover:text-white"
-								title="Editar"
-								aria-label="Editar {preset.name}"
-								onclick={() => {
-									djMenu?.hidePopover();
-									djDialog?.open(preset);
-								}}>✎</button
+						<!-- On hover with a mouse; always there on a touch screen. Not in the locked Vista (#532). -->
+						{#if !vista.kiosk}
+							<div
+								class="flex shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100"
 							>
-							<form method="post" action="?/djDelete" use:enhance>
-								<input type="hidden" name="id" value={preset.id} />
 								<button
-									class="px-2 py-1.5 text-zinc-400 hover:text-red-400"
-									title="Borrar"
-									aria-label="Borrar {preset.name}">✕</button
+									class="px-2 py-1.5 text-zinc-400 hover:text-white"
+									title="Editar"
+									aria-label="Editar {preset.name}"
+									onclick={() => {
+										djMenu?.hidePopover();
+										djDialog?.open(preset);
+									}}>✎</button
 								>
-							</form>
-						</div>
+								<form method="post" action="?/djDelete" use:enhance>
+									<input type="hidden" name="id" value={preset.id} />
+									<button
+										class="px-2 py-1.5 text-zinc-400 hover:text-red-400"
+										title="Borrar"
+										aria-label="Borrar {preset.name}">✕</button
+									>
+								</form>
+							</div>
+						{/if}
 					</div>
 				{/each}
 			</div>

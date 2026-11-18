@@ -2,6 +2,7 @@
 	import '@fontsource/comic-neue/400.css';
 	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
+	import { refreshAll } from '$app/navigation';
 	import { dayName, localDay, localTime } from 'comun/agenda.ts';
 	import { doseText, groupDoses, markValue } from 'comun/medication.ts';
 	import { PAPERS, tiltFor, type FridgeState } from 'comun/fridge.ts';
@@ -17,7 +18,8 @@
 	 * The Vista's home (#525), on the right of its screen: today in the house, big, to read from
 	 * across the room and touch with a finger. Who does not answer in «Compañía» first; then the
 	 * clock and the weather, today's agenda with the house's alarms, the doses still to take, the
-	 * fridge and the plugs. Each card, only if the family has its section out (Ajustes).
+	 * fridge and the plugs. Each card, only if the family has its section out (Ajustes). Locked
+	 * (#532), without the links to those sections: nothing leaves the Vista.
 	 */
 	let { data }: PageProps = $props();
 
@@ -59,6 +61,8 @@
 	/** The plug being sent an order, and why the last one could not be. */
 	let switching = $state<string | null>(null);
 	let plugProblem = $state<string | null>(null);
+	/** Why the last dose could not be marked. */
+	let doseProblem = $state<string | null>(null);
 
 	const card = 'rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5';
 	const cardTitle = 'mb-4 flex items-baseline justify-between text-2xl font-semibold';
@@ -69,8 +73,10 @@
 </svelte:head>
 
 {#each data.vista.alerts as c (c.familyId)}
-	<a
-		href="/compania"
+	<!-- Locked (#532): only the warning, no way to Compañía. -->
+	<svelte:element
+		this={vista.locked ? 'div' : 'a'}
+		href={vista.locked ? undefined : '/compania'}
 		class="mb-6 flex items-center gap-4 rounded-2xl border border-red-700/70 bg-gradient-to-r from-red-500/25 to-transparent p-5 hover:border-red-400"
 	>
 		<span class="text-5xl" aria-hidden="true">⚠️</span>
@@ -82,7 +88,7 @@
 					: 'Su satélite no responde'}
 			</p>
 		</div>
-	</a>
+	</svelte:element>
 {/each}
 
 <header class="mb-8 flex flex-wrap items-end justify-between gap-x-8 gap-y-2">
@@ -109,7 +115,9 @@
 	{#if shows('/agenda')}
 		<section class={card}>
 			<h2 class={cardTitle}>
-				Hoy <a href="/agenda" class="text-base font-normal text-amber-400">Agenda</a>
+				Hoy {#if !vista.locked}<a href="/agenda" class="text-base font-normal text-amber-400"
+						>Agenda</a
+					>{/if}
 			</h2>
 			{#if lines.length}
 				<ul class="flex flex-col gap-3 text-xl">
@@ -139,7 +147,9 @@
 		<section class={card}>
 			<h2 class={cardTitle}>
 				Tomas de hoy
-				<a href="/agenda/medicacion" class="text-base font-normal text-amber-400">Medicación</a>
+				{#if !vista.locked}<a href="/agenda/medicacion" class="text-base font-normal text-amber-400"
+						>Medicación</a
+					>{/if}
 			</h2>
 			<ul class="flex flex-col gap-3">
 				{#each groupDoses(data.vista.doses) as g (`${g.time}-${g.personId}`)}
@@ -148,7 +158,14 @@
 						<form
 							method="post"
 							action="/agenda/medicacion?/mark"
-							use:enhance
+							use:enhance={() => {
+								doseProblem = null;
+								// Another route's action: `update()` would go there (Kit 3), out of the Vista.
+								return async ({ result }) => {
+									if (result.type === 'success') await refreshAll();
+									else doseProblem = 'No se pudo marcar: prueba otra vez.';
+								};
+							}}
 							class="flex items-center gap-4 text-xl"
 						>
 							<input type="hidden" name="day" value={g.day} />
@@ -179,13 +196,19 @@
 					</li>
 				{/each}
 			</ul>
+			{#if doseProblem}
+				<p class="mt-3 text-lg text-red-400">{doseProblem}</p>
+			{/if}
 		</section>
 	{/if}
 
 	{#if shows('/nevera')}
 		<section class={card}>
 			<h2 class={cardTitle}>
-				En la nevera <a href="/nevera" class="text-base font-normal text-amber-400">Nevera</a>
+				En la nevera {#if !vista.locked}<a
+						href="/nevera"
+						class="text-base font-normal text-amber-400">Nevera</a
+					>{/if}
 			</h2>
 			{#if fridge.notes.length}
 				<ul class="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -200,21 +223,27 @@
 					{/each}
 				</ul>
 			{/if}
-			<a href="/nevera" class="block text-xl hover:underline">
+			<svelte:element
+				this={vista.locked ? 'p' : 'a'}
+				href={vista.locked ? undefined : '/nevera'}
+				class={['block text-xl', !vista.locked && 'hover:underline']}
+			>
 				🛒 {toBuy.length
 					? `Compra: ${toBuy
 							.slice(0, 4)
 							.map((i) => i.text)
 							.join(', ')}${toBuy.length > 4 ? ` y ${toBuy.length - 4} más` : ''}`
 					: 'La compra está vacía'}
-			</a>
+			</svelte:element>
 		</section>
 	{/if}
 
 	{#if plugs.length && shows('/enchufes')}
 		<section class={card}>
 			<h2 class={cardTitle}>
-				Enchufes <a href="/enchufes" class="text-base font-normal text-amber-400">Consumo</a>
+				Enchufes {#if !vista.locked}<a href="/enchufes" class="text-base font-normal text-amber-400"
+						>Consumo</a
+					>{/if}
 			</h2>
 			<ul class="grid grid-cols-2 gap-3">
 				{#each plugs as p (p.id)}
@@ -226,11 +255,13 @@
 							use:enhance={() => {
 								switching = p.id;
 								plugProblem = null;
-								return async ({ result, update }) => {
+								// Another route's action: no `update()`, which would go there (Kit 3); the
+								// plug's new state comes by its events.
+								return async ({ result }) => {
 									switching = null;
 									if (result.type === 'failure')
 										plugProblem = String(result.data?.problem ?? 'No se pudo');
-									await update({ reset: false, invalidateAll: false });
+									else if (result.type === 'error') plugProblem = 'No se pudo';
 								};
 							}}
 						>
