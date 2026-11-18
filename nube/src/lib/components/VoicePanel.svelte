@@ -224,26 +224,29 @@
 		</ol>
 	{/if}
 
-	<form
-		class="flex w-full max-w-xl gap-2"
-		onsubmit={(e) => {
-			e.preventDefault();
-			if (!typed.trim() || voice.phase !== 'idle') return;
-			void voice.command(typed.trim());
-			typed = '';
-		}}
-	>
-		<input
-			bind:value={typed}
-			placeholder="O escríbelo aquí"
-			aria-label="Escribir la orden"
-			class="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-base"
-		/>
-		<button
-			class="rounded-md bg-zinc-800 px-4 py-2 text-base hover:bg-zinc-700"
-			disabled={voice.phase !== 'idle'}>Enviar</button
+	<!-- Written instead of said: in Hablar; in the Vista, across the room, nobody types. -->
+	{#if !kitchen}
+		<form
+			class="flex w-full max-w-xl gap-2"
+			onsubmit={(e) => {
+				e.preventDefault();
+				if (!typed.trim() || voice.phase !== 'idle') return;
+				void voice.command(typed.trim());
+				typed = '';
+			}}
 		>
-	</form>
+			<input
+				bind:value={typed}
+				placeholder="O escríbelo aquí"
+				aria-label="Escribir la orden"
+				class="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-base"
+			/>
+			<button
+				class="rounded-md bg-zinc-800 px-4 py-2 text-base hover:bg-zinc-700"
+				disabled={voice.phase !== 'idle'}>Enviar</button
+			>
+		</form>
+	{/if}
 
 	{#if !kitchen}
 		<!-- The Vista (#525): today in the house, the recipe, the music, the radio. -->
