@@ -25,6 +25,9 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 	return res.json();
 }
 
+/** Who is its DJ: the house's API, or Seilide for a list of «Tu música» (#534). */
+const api = (options: DjOptions) => (options.playlist?.own ? '/api/music/own/dj' : '/api/music/dj');
+
 /** Where the songs come from: its artists, or its playlist (mixed or in order). */
 const source = (options: DjOptions) => ({
 	artists: options.artists,
@@ -69,14 +72,16 @@ class Dj {
 
 	/** Where the music sounds now (this browser or Snapcast), remembered to start with it again. */
 	async play(options: DjOptions) {
-		if (musicTarget.value === 'snapcast') await post('/api/music/dj/snapcast', options);
+		// «Tu música» does not sound on the house's speakers: always here.
+		if (musicTarget.value === 'snapcast' && !options.playlist?.own)
+			await post('/api/music/dj/snapcast', options);
 		else await this.start(options);
 		this.remember(options);
 	}
 
 	/** Instead of whatever was on, here. */
 	async start(options: DjOptions) {
-		const tracks = await post<MusicTrack[]>('/api/music/dj/random', {
+		const tracks = await post<MusicTrack[]>(`${api(options)}/random`, {
 			...source(options),
 			exclude: [],
 			offset: 0
@@ -110,7 +115,8 @@ class Dj {
 		this.preparing = true;
 		try {
 			const next = music.queue[music.index + 1];
-			const clip = await post<MusicTrack>('/api/music/dj/clip', {
+			const clip = await post<MusicTrack>(`${api(options)}/clip`, {
+				playlistId: options.playlist?.id ?? null,
 				played: this.#played.map((t) => t.id),
 				next: next && !next.clip ? next.id : null,
 				lang: options.lang,
@@ -133,7 +139,7 @@ class Dj {
 		if (this.#refilling || music.queue.length - music.index - 1 >= REFILL_BELOW) return;
 		this.#refilling = true;
 		try {
-			const tracks = await post<MusicTrack[]>('/api/music/dj/random', {
+			const tracks = await post<MusicTrack[]>(`${api(options)}/random`, {
 				...source(options),
 				exclude: music.queue
 					.filter((t) => !t.clip)

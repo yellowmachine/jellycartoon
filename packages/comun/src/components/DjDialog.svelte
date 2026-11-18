@@ -17,7 +17,19 @@
 	 * or in order), the DJ's language and how often it speaks; then it starts where the music sounds
 	 * (this browser or Snapcast). A setup can be saved with a name, to start it again from the menu.
 	 */
-	let { artists, voices }: { artists: MusicArtist[]; voices: boolean } = $props();
+	let {
+		artists,
+		voices,
+		library = true
+	}: {
+		artists: MusicArtist[];
+		voices: boolean;
+		/**
+		 * The house's: its whole library to choose from, and setups saved there. Without it (a list
+		 * of Seilide's «Tu música», #534), only that list, and nothing saved.
+		 */
+		library?: boolean;
+	} = $props();
 
 	let dialog = $state<HTMLDialogElement>();
 	let chosen = $state<string[]>([]);
@@ -161,11 +173,13 @@
 				En su orden
 			</label>
 			<span class="text-zinc-500">Al acabar, vuelve a empezar.</span>
-			<button
-				type="button"
-				class="text-zinc-400 hover:text-white hover:underline"
-				onclick={() => (playlist = null)}>Toda la música</button
-			>
+			{#if library}
+				<button
+					type="button"
+					class="text-zinc-400 hover:text-white hover:underline"
+					onclick={() => (playlist = null)}>Toda la música</button
+				>
+			{/if}
 		</div>
 	{:else}
 		<h3 class="mb-1 text-zinc-300">
@@ -229,28 +243,30 @@
 		{/if}
 	</div>
 
-	<form
-		method="post"
-		action="/musica?/djSave"
-		use:enhance={save}
-		class="mb-4 flex items-center gap-2"
-	>
-		{#if presetId !== null}<input type="hidden" name="id" value={presetId} />{/if}
-		<input type="hidden" name="options" value={JSON.stringify(options)} />
-		<input
-			name="name"
-			bind:value={name}
-			maxlength="60"
-			placeholder="Nombre, para usarla otra vez"
-			aria-label="Nombre de la configuración"
-			class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-950 py-1 text-sm"
-		/>
-		<button
-			disabled={saving || !name.trim()}
-			class="rounded-md border border-zinc-700 px-3 py-1 hover:bg-zinc-800 disabled:opacity-50"
-			>{saving ? 'Guardando…' : saved ? 'Guardada ✓' : 'Guardar'}</button
+	{#if library}
+		<form
+			method="post"
+			action="/musica?/djSave"
+			use:enhance={save}
+			class="mb-4 flex items-center gap-2"
 		>
-	</form>
+			{#if presetId !== null}<input type="hidden" name="id" value={presetId} />{/if}
+			<input type="hidden" name="options" value={JSON.stringify(options)} />
+			<input
+				name="name"
+				bind:value={name}
+				maxlength="60"
+				placeholder="Nombre, para usarla otra vez"
+				aria-label="Nombre de la configuración"
+				class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-950 py-1 text-sm"
+			/>
+			<button
+				disabled={saving || !name.trim()}
+				class="rounded-md border border-zinc-700 px-3 py-1 hover:bg-zinc-800 disabled:opacity-50"
+				>{saving ? 'Guardando…' : saved ? 'Guardada ✓' : 'Guardar'}</button
+			>
+		</form>
+	{/if}
 
 	{#if problem}
 		<p class="mb-3 text-red-400">{problem}</p>

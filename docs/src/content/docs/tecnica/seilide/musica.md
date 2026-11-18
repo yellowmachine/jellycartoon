@@ -53,11 +53,18 @@ fichero vacío y se borra), para avisar de que bastan unas de solo lectura.
   pestaña Listas, en «De Tu música»; sin casa, solo ellas. El «+» (`AddToPlaylist` con `endpoint`)
   añade por `/api/music/own/playlists`; su página (`/musica/tu-musica/listas/<id>`) reproduce,
   sube, baja, quita, renombra y borra. Una lista lleva solo canciones de una fuente.
+- **Modo DJ** con una lista de Tu música: «🎙 Con DJ» en su página abre `DjDialog` sin biblioteca
+  ni configuraciones guardadas (`library={false}`), con `playlist.own`; `dj.svelte.ts` pide entonces
+  a `/api/music/own/dj` (`random`, `clip`) en vez de a la casa, y nunca a Snapcast. Seilide es el DJ
+  (`own-music-dj.ts`): las canciones de la lista (`playlistBatch`, sin ALAC ni WMA), y la locución
+  escrita con la clave y el modelo de voz de la familia y leída por Gemini TTS (las voces del DJ de
+  la casa), a Ogg Opus con ffmpeg, guardada 12 h en el disco del contenedor y servida solo a su
+  familia (`/api/music/own/dj/clips/<id>`). Sin clave, sin botón; si falla, esa vez sin locutor.
 - **Escuchar**: cada pista entra en el reproductor con `src` = `/api/music/own/tracks/<id>`, que mira
   la familia y contesta un 302 a una URL prefirmada de 6 horas (con su `Content-Type`, por si el
   bucket dice `application/octet-stream`). El audio va del bucket al navegador; la dirección de la
   cola no caduca. Las portadas, igual en `/api/music/own/covers/<id>` (o desde el almacenamiento si
   es la incrustada). `MusicTrack.cover` y `MusicTrack.home` dan su portada y su álbum al reproductor.
-- **Fuera por ahora**: Modo DJ, sin conexión (#350, que ya salta las pistas con `src`),
+- **Fuera por ahora**: sin conexión (#350, que ya salta las pistas con `src`),
   modo carretera, voz, Snapcast y transcodificar. La cola guardada tampoco las lleva (se salta lo que
   tiene `src`).

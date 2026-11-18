@@ -1,6 +1,8 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { withFamily } from '#lib/server/family.ts';
+import { kitchenOf } from '#lib/server/fridge.ts';
+import { ownDjEnabled } from '#lib/server/own-music-dj.ts';
 import {
 	deleteOwnPlaylist,
 	moveInOwnPlaylist,
@@ -16,7 +18,8 @@ const familyOf = (locals: App.Locals) => withFamily(locals.user!.id, async (_, m
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const list = await ownPlaylistOf(await familyOf(locals), Number(params.id));
 	if (!list) error(404, 'Esa lista no está');
-	return { list };
+	/** «Con DJ»: Seilide is its DJ, with the family's OpenRouter key. */
+	return { list, dj: await ownDjEnabled(await kitchenOf(locals.user!.id)) };
 };
 
 const itemOf = async (request: Request) => Number((await request.formData()).get('itemId'));

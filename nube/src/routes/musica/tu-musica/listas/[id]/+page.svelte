@@ -2,6 +2,7 @@
 	import { mixed } from 'comun/music.ts';
 	import { vista } from '#lib/vista.svelte.ts';
 	import AddToQueue from 'comun/components/AddToQueue.svelte';
+	import DjDialog from 'comun/components/DjDialog.svelte';
 	import { enhance } from '$app/forms';
 	import AlbumCover from 'comun/components/AlbumCover.svelte';
 	import TitleForm from 'comun/components/TitleForm.svelte';
@@ -18,6 +19,7 @@
 	let { data, form }: PageProps = $props();
 
 	let renaming = $state(false);
+	let djDialog = $state<DjDialog>();
 	let confirmDelete = $state(false);
 
 	const playlist = $derived(data.list);
@@ -81,6 +83,15 @@
 			class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800"
 			onclick={() => musicTarget.play(mixed(tracks), 0, false)}>🔀 Mezclar y reproducir</button
 		>
+		{#if data.dj}
+			<!-- Modo DJ with this list's songs: Seilide is its DJ (own-music-dj.ts). -->
+			<button
+				class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800"
+				onclick={() =>
+					djDialog?.open(undefined, { id: playlist.id, name: playlist.name, own: true })}
+				>🎙 Con DJ</button
+			>
+		{/if}
 		<AddToQueue {tracks} toSnapcast={false} />
 	</div>
 
@@ -160,4 +171,8 @@
 			</button>
 		{/if}
 	</section>
+{/if}
+
+{#if data.dj}
+	<DjDialog bind:this={djDialog} artists={[]} voices library={false} />
 {/if}
