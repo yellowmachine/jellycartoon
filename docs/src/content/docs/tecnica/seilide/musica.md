@@ -29,6 +29,15 @@ fichero vacío y se borra), para avisar de que bastan unas de solo lectura.
   o la incrustada, guardada en el almacenamiento de la familia (área `musica`). Se lanza al guardar,
   con «Volver a buscar» y a medianoche (el reloj, sin esperarlo); una a la vez por familia
   (`scanning_since`, que caduca a los 30 minutos sin avanzar).
+- **Portadas de MusicBrainz**: tras leer, los discos sin imagen en la carpeta ni dentro de sus
+  canciones se buscan en MusicBrainz por título y artista (`musicbrainz.ts`, las mismas reglas de
+  títulos que la casa, `comun/album-titles.ts`) y se baja su portada del Cover Art Archive, o la de
+  otra edición; se guarda en el almacenamiento de la familia. Una cola para todo Seilide, una
+  petición por segundo. Sin artista («Desconocido») no se busca: un título solo encuentra cualquier
+  disco. El no encontrado queda en `no` y no se busca otra vez hasta «Buscar portadas otra vez».
+- **Gestión** (`/musica/tu-musica/gestion`, quien administra): la fase (`leyendo`, `portadas`) con
+  su progreso, las portadas por origen, los discos sin portada y los ficheros que fallaron
+  (`music_source.failures`, los cien primeros).
 - **Escuchar**: cada pista entra en el reproductor con `src` = `/api/music/own/tracks/<id>`, que mira
   la familia y contesta un 302 a una URL prefirmada de 6 horas (con su `Content-Type`, por si el
   bucket dice `application/octet-stream`). El audio va del bucket al navegador; la dirección de la

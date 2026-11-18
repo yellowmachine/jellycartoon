@@ -9,7 +9,8 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { listAll, readTags } from './own-music-read.ts';
-import { asc, eq, inArray, isNull, lt, notExists, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, lt, notExists, or, sql } from 'drizzle-orm';
+import { findCover } from './musicbrainz.ts';
 import { dev } from '$app/env';
 import { asFamily } from './family.ts';
 import { openFor, sealFor } from './family-secret.ts';
@@ -41,6 +42,8 @@ const SIGNED_SECONDS = 6 * 60 * 60;
 const STALE_MS = 30 * 60_000;
 /** The area of the family's storage the covers inside tracks are kept in (storage.ts). */
 const COVERS_AREA = 'musica';
+/** What a file without an album tag is in (own-music-index.ts): no album to look up. */
+const NO_ALBUM = 'Sin álbum';
 
 /** The family's bucket, opened, a while: every track asked for would otherwise open it again. */
 const buckets = new Map<string, { at: number; bucket: Promise<Bucket | null> }>();
@@ -76,8 +79,11 @@ export async function sourceView(familyId: string) {
 		label: row.label,
 		canWrite: row.canWrite,
 		scanning,
+		phase: scanning ? row.phase : null,
 		done: row.done,
 		total: row.total,
+		coversDone: row.coversDone,
+		coversTotal: row.coversTotal,
 		indexedAt: row.indexedAt,
 		tracks: row.tracks,
 		problem: row.problem
@@ -187,7 +193,15 @@ export async function indexMusic(familyId: string) {
 		const taken = await asFamily(familyId, (tx) =>
 			tx
 				.update(musicSource)
-				.set({ scanningSince: now, done: 0, total: 0, problem: null })
+				.set({
+					scanningSince: now,
+					phase: 'leyendo',
+					done: 0,
+					total: 0,
+					coversDone: 0,
+					coversTotal: 0,
+					problem: null
+				})
 				.where(
 					or(
 						isNull(musicSource.scanningSince),
@@ -202,7 +216,7 @@ export async function indexMusic(familyId: string) {
 				err instanceof Error && err.name === 'Seilide' ? err.message : readProblem(err);
 			console.warn('[tu música] No se pudo leer el bucket', { familyId, problem });
 			await asFamily(familyId, (tx) =>
-				tx.update(musicSource).set({ scanningSince: null, problem })
+				tx.update(musicSource).set({ scanningSince: null, phase: null, problem })
 			);
 		});
 	} finally {
@@ -235,17 +249,14 @@ async function scan(familyId: string) {
 	if (gone.length)
 		await asFamily(familyId, (tx) => tx.delete(ownTrack).where(inArray(ownTrack.id, gone)));
 	let done = 0;
-	let failed = 0;
+	const failures: { key: string; error: string }[] = [];
 	for (const file of read) {
 		try {
 			await indexFile(familyId, s3, b, file, covers.get(folderOf(file.key)) ?? null);
 		} catch (err) {
-			failed++;
-			console.warn('[tu música] No se pudo leer un fichero', {
-				familyId,
-				key: file.key,
-				error: err instanceof Error ? err.message : String(err)
-			});
+			const error = err instanceof Error ? err.message : String(err);
+			if (failures.length < 100) failures.push({ key: file.key, error });
+			console.warn('[tu música] No se pudo leer un fichero', { familyId, key: file.key, error });
 		}
 		done++;
 		if (done % 10 === 0) await progress(done);
@@ -255,13 +266,14 @@ async function scan(familyId: string) {
 	const [{ count }] = await asFamily(familyId, (tx) =>
 		tx.select({ count: sql<number>`count(*)::int` }).from(ownTrack)
 	).then((rows) => rows as [{ count: number }]);
+	const failed = failures.length;
 	await asFamily(familyId, (tx) =>
 		tx.update(musicSource).set({
-			scanningSince: null,
 			done,
 			total: read.length,
 			indexedAt: new Date(),
 			tracks: count,
+			failures,
 			problem: failed
 				? `${failed} ${failed === 1 ? 'fichero no se pudo' : 'ficheros no se pudieron'} leer`
 				: null
@@ -273,6 +285,127 @@ async function scan(familyId: string) {
 		gone: gone.length,
 		failed,
 		tracks: count
+	});
+	await findCovers(familyId);
+	await asFamily(familyId, (tx) =>
+		tx.update(musicSource).set({ scanningSince: null, phase: null })
+	);
+}
+
+/** Seilide's file storage missing: the covers from MusicBrainz cannot be kept, not looked up. */
+const MAX_NETWORK_FAILURES = 3;
+
+/**
+ * The albums still without a cover (no picture in their folder nor in their tracks), looked up in
+ * MusicBrainz and kept in the family's storage. One not found is not looked up again (`no`) but by
+ * «Buscar portadas otra vez»; a network failure leaves it for the next time, and a few in a row
+ * stop the search.
+ */
+async function findCovers(familyId: string) {
+	if (!storageReady) return;
+	const pending = await asFamily(familyId, (tx) =>
+		tx
+			.select({ id: ownAlbum.id, title: ownAlbum.title, artist: ownAlbum.artist })
+			.from(ownAlbum)
+			.where(
+				and(
+					eq(ownAlbum.coverStatus, 'pendiente'),
+					isNull(ownAlbum.coverKey),
+					isNull(ownAlbum.coverFile)
+				)
+			)
+			.orderBy(asc(ownAlbum.artist), asc(ownAlbum.title))
+	);
+	const progress = (coversDone: number) =>
+		asFamily(familyId, (tx) =>
+			tx.update(musicSource).set({
+				phase: 'portadas',
+				coversDone,
+				coversTotal: pending.length,
+				scanningSince: new Date()
+			})
+		);
+	await progress(0);
+	let done = 0;
+	let failing = 0;
+	for (const a of pending) {
+		try {
+			const bytes = a.title === NO_ALBUM ? null : await findCover(a.title, a.artist);
+			failing = 0;
+			if (bytes) {
+				const name = `portada-${a.id}.jpg`;
+				await putFile(familyId, COVERS_AREA, name, bytes, 'image/jpeg');
+				await asFamily(familyId, (tx) =>
+					tx
+						.update(ownAlbum)
+						.set({
+							coverFile: name,
+							coverType: 'image/jpeg',
+							coverStatus: 'encontrada',
+							coverSource: 'musicbrainz'
+						})
+						.where(eq(ownAlbum.id, a.id))
+				);
+			} else
+				await asFamily(familyId, (tx) =>
+					tx.update(ownAlbum).set({ coverStatus: 'no' }).where(eq(ownAlbum.id, a.id))
+				);
+		} catch (err) {
+			console.warn('[tu música] No se pudo buscar una portada', {
+				familyId,
+				album: `${a.artist} - ${a.title}`,
+				error: err instanceof Error ? err.message : String(err)
+			});
+			if (++failing >= MAX_NETWORK_FAILURES) break;
+		}
+		await progress(++done);
+	}
+}
+
+/** «Buscar portadas otra vez»: the albums not found before, looked up again with the next reading. */
+export async function retryCovers(familyId: string) {
+	await asFamily(familyId, (tx) =>
+		tx.update(ownAlbum).set({ coverStatus: 'pendiente' }).where(eq(ownAlbum.coverStatus, 'no'))
+	);
+	void indexMusic(familyId);
+}
+
+/** Gestión (#534): how the reading went, what could not be read, and the albums without a cover. */
+export async function management(familyId: string) {
+	const source = await sourceView(familyId);
+	if (!source) return null;
+	return asFamily(familyId, async (tx) => {
+		const [row] = await tx.select({ failures: musicSource.failures }).from(musicSource);
+		const albums = await tx
+			.select({
+				id: ownAlbum.id,
+				title: ownAlbum.title,
+				artist: ownAlbum.artist,
+				status: ownAlbum.coverStatus,
+				source: ownAlbum.coverSource
+			})
+			.from(ownAlbum)
+			.orderBy(asc(ownAlbum.artist), asc(ownAlbum.title));
+		const count = (source: string) => albums.filter((a) => a.source === source).length;
+		return {
+			source,
+			failures: row?.failures ?? [],
+			albums: albums.length,
+			covers: {
+				carpeta: count('carpeta'),
+				cancion: count('cancion'),
+				musicbrainz: count('musicbrainz')
+			},
+			withoutCover: albums
+				.filter((a) => a.status !== 'encontrada')
+				.map(({ id, title, artist, status }) => ({
+					id,
+					title,
+					artist,
+					pending: status === 'pendiente'
+				})),
+			storage: storageReady
+		};
 	});
 }
 
@@ -331,7 +464,12 @@ async function indexFile(
 		await asFamily(familyId, (tx) =>
 			tx
 				.update(ownAlbum)
-				.set({ coverFile: name, coverType: type })
+				.set({
+					coverFile: name,
+					coverType: type,
+					coverStatus: 'encontrada',
+					coverSource: 'cancion'
+				})
 				.where(eq(ownAlbum.id, albumId.id))
 		);
 	}
@@ -357,6 +495,26 @@ async function refreshCovers(familyId: string, covers: Map<string, string>) {
 			if (now !== r.coverKey)
 				await tx.update(ownAlbum).set({ coverKey: now }).where(eq(ownAlbum.id, r.id));
 		}
+		// Where each one's cover is now: its folder's first; without it, what was kept (from a
+		// track or MusicBrainz); nothing, to look up again.
+		await tx
+			.update(ownAlbum)
+			.set({ coverStatus: 'encontrada', coverSource: 'carpeta' })
+			.where(isNotNull(ownAlbum.coverKey));
+		await tx
+			.update(ownAlbum)
+			.set({ coverStatus: 'pendiente', coverSource: null })
+			.where(
+				and(
+					isNull(ownAlbum.coverKey),
+					isNull(ownAlbum.coverFile),
+					eq(ownAlbum.coverStatus, 'encontrada')
+				)
+			);
+		await tx
+			.update(ownAlbum)
+			.set({ coverSource: null })
+			.where(and(isNull(ownAlbum.coverKey), eq(ownAlbum.coverSource, 'carpeta')));
 	});
 }
 

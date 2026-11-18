@@ -59,7 +59,9 @@
 			<p class="mb-1 text-sm">En <span class="text-zinc-200">{source.label}</span></p>
 			{#if source.scanning}
 				<p class="mb-3 text-sm text-zinc-400" role="status">
-					Buscando… {source.total ? `${source.done} de ${source.total}` : ''}
+					{source.phase === 'portadas'
+						? `Buscando portadas… ${source.coversDone} de ${source.coversTotal}`
+						: `Buscando… ${source.total ? `${source.done} de ${source.total}` : ''}`}
 				</p>
 			{:else}
 				<p class="mb-3 text-sm text-zinc-400">
@@ -81,6 +83,7 @@
 				<form method="post" action="?seccion={tab}&/ownMusicIndex" use:enhance={submit}>
 					<button class={secondary} disabled={busy || source.scanning}>Volver a buscar</button>
 				</form>
+				<a href="/musica/tu-musica/gestion" class={secondary}>Gestión</a>
 				<button class={secondary} onclick={() => (editing = !editing)}>Cambiar</button>
 				<form method="post" action="?seccion={tab}&/ownMusicRemove" use:enhance={submit}>
 					<button class={secondary} disabled={busy}>Quitar</button>

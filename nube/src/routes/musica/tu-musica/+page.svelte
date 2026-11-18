@@ -105,11 +105,20 @@
 		{/if}
 	</div>
 {:else}
+	{#if data.admin}
+		<p class="mb-3 text-right text-sm">
+			<a href="/musica/tu-musica/gestion" class="text-zinc-400 hover:text-white">⚙ Gestión</a>
+		</p>
+	{/if}
 	{#if data.source.scanning}
 		<p class="mb-4 text-sm text-zinc-400" role="status">
-			Buscando música… {data.source.total
-				? `${data.source.done.toLocaleString('es-ES')} de ${data.source.total.toLocaleString('es-ES')}`
-				: ''}
+			{#if data.source.phase === 'portadas'}
+				Buscando portadas… {data.source.coversDone} de {data.source.coversTotal}
+			{:else}
+				Buscando música… {data.source.total
+					? `${data.source.done.toLocaleString('es-ES')} de ${data.source.total.toLocaleString('es-ES')}`
+					: ''}
+			{/if}
 		</p>
 	{:else if data.source.problem}
 		<p class="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
