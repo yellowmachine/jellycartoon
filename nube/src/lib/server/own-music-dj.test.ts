@@ -73,27 +73,31 @@ describe('the songs', () => {
 });
 
 describe('what the DJ says', () => {
-	test('written with the family’s key and model, read by Gemini, as Opus for its family only', async () => {
-		const clip = await ownDjClip(kitchen('A'), {
-			playlistId: 7,
-			played: [1],
-			next: 2,
-			lang: 'es',
-			voice: 'female',
-			playlist: 'Para el coche'
-		});
-		expect(clip.id).toBeLessThan(0);
-		expect(clip.clip?.text).toBe('Eso era Queen. Ahora, más Queen.');
-		expect(clip.durationSec).toBe(1);
-		const chat = asked.find((a) => a.url.endsWith('/chat/completions'))!;
-		expect(chat.body.model).toBe('modelo/prueba');
-		expect(JSON.stringify(chat.body.messages)).toContain('«Canción 1», de Queen');
-		expect(asked.find((a) => a.url.endsWith('/audio/speech'))!.body.voice).toBe('Laomedeia');
-		const id = clip.clip!.id;
-		const audio = await ownDjClipAudio('A', id);
-		expect(new TextDecoder().decode(audio!.slice(0, 4))).toBe('OggS');
-		expect(await ownDjClipAudio('B', id)).toBeNull();
-	});
+	// The Opus is made by the real ffmpeg: in Seilide's image and on a developer's machine, not in CI.
+	test.skipIf(!Bun.which('ffmpeg'))(
+		'written with the family’s key and model, read by Gemini, as Opus for its family only',
+		async () => {
+			const clip = await ownDjClip(kitchen('A'), {
+				playlistId: 7,
+				played: [1],
+				next: 2,
+				lang: 'es',
+				voice: 'female',
+				playlist: 'Para el coche'
+			});
+			expect(clip.id).toBeLessThan(0);
+			expect(clip.clip?.text).toBe('Eso era Queen. Ahora, más Queen.');
+			expect(clip.durationSec).toBe(1);
+			const chat = asked.find((a) => a.url.endsWith('/chat/completions'))!;
+			expect(chat.body.model).toBe('modelo/prueba');
+			expect(JSON.stringify(chat.body.messages)).toContain('«Canción 1», de Queen');
+			expect(asked.find((a) => a.url.endsWith('/audio/speech'))!.body.voice).toBe('Laomedeia');
+			const id = clip.clip!.id;
+			const audio = await ownDjClipAudio('A', id);
+			expect(new TextDecoder().decode(audio!.slice(0, 4))).toBe('OggS');
+			expect(await ownDjClipAudio('B', id)).toBeNull();
+		}
+	);
 
 	test('without a key, it cannot speak: the browser goes on without that talk', async () => {
 		await expect(
