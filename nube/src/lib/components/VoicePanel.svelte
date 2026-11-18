@@ -1,7 +1,7 @@
 <script lang="ts">
 	import RecipeCard from '#lib/components/RecipeCard.svelte';
 	import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
-	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
+	import { vista } from '#lib/vista.svelte.ts';
 	import { recipe } from '#lib/recipe.svelte.ts';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
@@ -182,22 +182,22 @@
 	{/snippet}
 
 	<!-- In kitchen mode, the answer is the session's first line, below: here only what is pending. -->
-	<div class={['max-w-xl text-2xl', !kitchenMode.on && 'min-h-24']} aria-live="polite">
-		{#if voice.heard && (!kitchenMode.on || voice.phase !== 'idle')}
+	<div class={['max-w-xl text-2xl', !vista.on && 'min-h-24']} aria-live="polite">
+		{#if voice.heard && (!vista.on || voice.phase !== 'idle')}
 			<p class="text-xl text-zinc-400">«{voice.heard}»</p>
 		{/if}
 		{#if voice.problem}
 			<p class="mt-3 text-amber-300">{voice.problem}</p>
-		{:else if voice.reply && !kitchenMode.on}
+		{:else if voice.reply && !vista.on}
 			<p class="mt-3 text-3xl font-semibold">{voice.reply}</p>
 		{/if}
-		{#if !kitchenMode.on}
+		{#if !vista.on}
 			{@render choices()}
 		{/if}
 	</div>
 
 	<!-- The kitchen's session (#60), the newest first and big: what was said, and when. -->
-	{#if kitchenMode.on && kitchenLog.entries.length}
+	{#if vista.on && kitchenLog.entries.length}
 		<ol class="-mt-6 w-full max-w-2xl space-y-4 text-left" aria-label="Lo hablado en la cocina">
 			{#each kitchenLog.entries as entry, i (entry.id)}
 				<li
@@ -246,18 +246,18 @@
 	</form>
 
 	{#if !kitchen}
-		<!-- The kitchen's screen (#483): the steps, and beside them the recipe, the music, the radio. -->
+		<!-- The Vista (#525): today in the house, the recipe, the music, the radio. -->
 		<button
 			class="rounded-full border border-zinc-700 px-4 py-2 text-base text-zinc-300 hover:bg-zinc-900"
-			onclick={() => kitchenMode.enter(true)}>🍳 Cocina: pasos, música y radio</button
+			onclick={() => vista.enter(true)}>🏠 Vista: pantalla de casa, recetas y música</button
 		>
 	{:else}
 		<div class="flex flex-col items-center gap-1">
-			{#if kitchenMode.problem}
-				<p class="text-sm text-amber-400">{kitchenMode.problem}</p>
+			{#if vista.problem}
+				<p class="text-sm text-amber-400">{vista.problem}</p>
 			{/if}
-			<!-- The wake word in the kitchen, on this device: off until turned on; while the kitchen is
-			     on (wake-word.svelte.ts, from the layout). -->
+			<!-- The wake word in the Vista, on this device: off until turned on; while the Vista is on
+			     (wake-word.svelte.ts, from the layout). -->
 			<div class="flex flex-wrap items-center justify-center gap-2 text-sm">
 				<button
 					class={[

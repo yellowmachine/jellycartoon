@@ -16,8 +16,10 @@ en la tuya saldrán vuestras cosas.
   en el móvil.
 - **[La nevera y la lista de la compra](/guia/nevera/):** post-its para los demás y la lista de
   todos, que se tacha sola al guardar el ticket.
-- **[Recetas y modo cocina](/guia/recetas/):** el recetario de la familia y cocinar paso a paso, con
+- **[Recetas](/guia/recetas/):** el recetario de la familia y cocinar paso a paso, con
   temporizadores y la voz.
+- **[La Vista](/guia/vista/):** una tablet como pantalla de casa, con la hora, lo de hoy, la nevera
+  y los enchufes.
 - **[Hablarle a la voz](/guia/voz/):** pedirle cosas hablando, lo que recuerda y las reglas que
   avisan solas.
 - **[El modo carretera](/guia/carretera/):** la radio, la música y los podcasts en el coche, con

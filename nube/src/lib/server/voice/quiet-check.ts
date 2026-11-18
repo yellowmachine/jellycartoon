@@ -1,27 +1,16 @@
-import { parseClock } from 'comun/clock.ts';
+import { inQuietHours, type QuietHours } from '#lib/quiet-hours.ts';
 
 /**
  * The «horas de silencio» check (saved in settings.ts), apart from where they are saved: whether an order
  * may start something sounding now.
  */
 
-export interface QuietHours {
-	/** «HH:MM», from when; with `to`, it may go past midnight. */
-	from: string;
-	to: string;
-}
+export { inQuietHours, type QuietHours } from '#lib/quiet-hours.ts';
 
 /** After the question, how long its «sí» may take. */
 const ANSWER_MS = 2 * 60_000;
 /** After a «sí», the same place may put on something else without asking again for so long. */
 const ALLOWED_MS = 30 * 60_000;
-
-/** Whether `minute` (of the day) falls in them. */
-export function inQuietHours(config: QuietHours, minute: number) {
-	const from = parseClock(config.from)!;
-	const to = parseClock(config.to)!;
-	return from < to ? minute >= from && minute < to : minute >= from || minute < to;
-}
 
 /** By family and place (a satellite, a person's devices): the order that asked, or until when it may play. */
 const asked = new Map<string, { order: string; at: number } | { until: number }>();

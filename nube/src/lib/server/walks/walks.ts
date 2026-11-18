@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { walk, walkPhoto } from '#lib/server/db/schema.ts';
 import { keepDocument, kindOf, NotADocument } from '#lib/server/expenses/income.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
@@ -159,6 +159,21 @@ export function walkPhotos(k: Kitchen, walkId: number) {
 			.where(and(eq(walkPhoto.walkId, walkId), eq(walkPhoto.userId, userId)))
 			.orderBy(asc(walkPhoto.at))
 	);
+}
+
+/** Some of one's own walks' photos, mixed: the Vista's background (#525), when they choose it. */
+export function myWalkPhotoIds(k: Kitchen, limit = 60) {
+	const userId = who(k);
+	return k
+		.run((tx) =>
+			tx
+				.select({ id: walkPhoto.id })
+				.from(walkPhoto)
+				.where(eq(walkPhoto.userId, userId))
+				.orderBy(sql`random()`)
+				.limit(limit)
+		)
+		.then((rows) => rows.map((r) => r.id));
 }
 
 /** One's own photo's file, to show it. */

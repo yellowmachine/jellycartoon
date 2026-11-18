@@ -29,6 +29,8 @@ const EMAIL = 'ana@ejemplo.es';
 const PASSWORD = 'capturas-de-ejemplo-2026';
 /** A phone (390 × 844 CSS px), twice as sharp: 780 px wide images. */
 const PHONE = { width: 390, height: 844, deviceScaleFactor: 2, mobile: true };
+/** A tablet lying down on the wall (the Vista, #525): 1280 × 800 CSS px. */
+const TABLET = { width: 1280, height: 800, deviceScaleFactor: 1.5, mobile: true };
 
 /** Where each goes: the landing page's strip, and the family's guide at docs.seilide.app. */
 const PLACES = {
@@ -40,7 +42,14 @@ const PLACES = {
  * What is shot: its file's name, its page, where it goes, and what is done on the page before (in
  * the page, with `tap` and `type` from STEPS; awaited).
  */
-const SHOTS: { name: string; path: string; to: (keyof typeof PLACES)[]; steps?: string }[] = [
+const SHOTS: {
+	name: string;
+	path: string;
+	to: (keyof typeof PLACES)[];
+	steps?: string;
+	/** On a tablet lying down instead of a phone. */
+	tablet?: boolean;
+}[] = [
 	{ name: 'gastos', path: '/gastos', to: ['portada', 'guia'] },
 	{
 		name: 'gastos-ticket',
@@ -67,6 +76,15 @@ const SHOTS: { name: string; path: string; to: (keyof typeof PLACES)[]; steps?: 
 	{ name: 'recetas', path: '/recetas', to: ['guia'] },
 	{ name: 'receta', path: '/recetas/1', to: ['guia'] },
 	{ name: 'voz', path: '/voz', to: ['guia'] },
+	{ name: 'vista', path: '/vista', to: ['guia'], tablet: true },
+	{
+		name: 'vista-reposo',
+		path: '/vista',
+		to: ['guia'],
+		tablet: true,
+		// Three minutes later, untouched: it rests.
+		steps: `const real = Date.now; Date.now = () => real() + 180_000; await new Promise((r) => setTimeout(r, 2500));`
+	},
 	{ name: 'reglas', path: '/reglas', to: ['guia'] },
 	{ name: 'paseos', path: '/paseos', to: ['guia'] },
 	{ name: 'llamadas', path: '/llamadas', to: ['guia'] },
@@ -343,7 +361,7 @@ try {
 		await cdp.send('Network.setExtraHTTPHeaders', {
 			headers: { 'x-forwarded-proto': 'http', 'x-forwarded-host': `127.0.0.1:${APP_PORT}` }
 		});
-		await cdp.send('Emulation.setDeviceMetricsOverride', PHONE);
+		await cdp.send('Emulation.setDeviceMetricsOverride', shot.tablet ? TABLET : PHONE);
 		await cdp.send('Emulation.setEmulatedMedia', {
 			features: [{ name: 'prefers-color-scheme', value: 'dark' }]
 		});

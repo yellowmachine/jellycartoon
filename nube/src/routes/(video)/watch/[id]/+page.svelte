@@ -4,7 +4,7 @@
 	import UpNext from 'comun/components/UpNext.svelte';
 	import Player, { type PlayerLinks } from 'comun/components/Player.svelte';
 	import { stillThere, tellStillThere } from '#lib/still-there.svelte.ts';
-	import { kitchenMode } from '#lib/kitchen-mode.svelte.ts';
+	import { vista } from '#lib/vista.svelte.ts';
 	import type { PageProps } from './$types';
 
 	/**
@@ -110,7 +110,7 @@
 	onautonextchange={(value) => (autoNext = value)}
 	overlay={countdown !== null ? upNext : undefined}
 	{links}
-	contained={kitchenMode.on}
+	contained={vista.on}
 	askAfter={data.askAfter ?? null}
 	onstillthere={tellStillThere}
 />

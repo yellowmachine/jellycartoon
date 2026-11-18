@@ -1,7 +1,7 @@
 import { music } from 'comun/music-player.svelte.ts';
 import { Timers } from 'comun/timers.svelte.ts';
 import { kitchenLog } from '#lib/kitchen-log.svelte.ts';
-import { pauseKitchenVideo, resumeKitchenVideo } from '#lib/kitchen-mode.svelte.ts';
+import { pauseVistaVideo, resumeVistaVideo } from '#lib/vista.svelte.ts';
 import { recipe } from '#lib/recipe.svelte.ts';
 
 /**
@@ -12,11 +12,11 @@ import { recipe } from '#lib/recipe.svelte.ts';
 export const timers = new Timers({
 	pause: () => {
 		music.pauseForVoice();
-		pauseKitchenVideo();
+		pauseVistaVideo();
 	},
 	resume: () => {
 		music.resumeAfterVoice();
-		resumeKitchenVideo();
+		resumeVistaVideo();
 	},
 	ended: (labels) => recipe.afterTimers(labels),
 	said: (text) => kitchenLog.add(null, text)

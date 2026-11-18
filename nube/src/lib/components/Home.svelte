@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '@fontsource/comic-neue/400.css';
 	import { onMount } from 'svelte';
-	import { dayName, isOver, localDay, localTime, timeOn, type Occurrence } from 'comun/agenda.ts';
+	import { dayName, localDay, localTime, type Occurrence } from 'comun/agenda.ts';
 	import type { Alarm } from 'comun/alarms.ts';
 	import { doseText, groupDoses, markValue, type Dose } from 'comun/medication.ts';
 	import { enhance } from '$app/forms';
@@ -24,6 +24,7 @@
 	import { newsShown, newsUnread, type NewsCard } from '#lib/news.ts';
 	import CarCard from '#lib/components/CarCard.svelte';
 	import { section } from '#lib/styles.ts';
+	import { todayLines } from '#lib/today-lines.ts';
 
 	/**
 	 * The home page with a session (home.ts): what there is today in the family, at a glance on the
@@ -97,56 +98,8 @@
 	const today = $derived(localDay(now));
 	const dateText = $derived(dayName(today, true));
 
-	/** One line of «Hoy»: an event of the agenda, or an alarm or timer; by its time. */
-	type Line = {
-		key: string;
-		at: string;
-		time: string;
-		title: string;
-		who: string;
-		over: boolean;
-		ringing: boolean;
-	};
-
 	const nameOf = (id: string) => fridge.today.people.find((p) => p.id === id)?.name ?? null;
-	const whoOf = (people: string[]) => people.map(nameOf).filter(Boolean).join(', ');
-
-	function clockOf(ms: number) {
-		return localTime(new Date(ms));
-	}
-
-	/** «quedan 6 min», «quedan 40 s». */
-	function left(endsAt: number) {
-		const s = Math.max(0, Math.round((endsAt - now.getTime()) / 1000));
-		return s >= 60 ? `quedan ${Math.ceil(s / 60)} min` : `quedan ${s} s`;
-	}
-
-	const lines = $derived.by<Line[]>(() => {
-		const events = fridge.today.events.map((o) => ({
-			key: `e${o.eventId}-${o.day}`,
-			// The whole day's, first.
-			at: o.day === today && o.startTime ? o.startTime : '00:00',
-			time: timeOn(o, today),
-			title: o.title,
-			who: whoOf(o.people),
-			over: isOver(o, today, localTime(now)),
-			ringing: false
-		}));
-		const alarms = home.alarms.map((a) => {
-			const timer = a.kind === 'temporizador';
-			const at = timer ? (a.endsAt ?? now.getTime()) : (a.nextAt ?? now.getTime());
-			return {
-				key: `a${a.id}`,
-				at: clockOf(at),
-				time: a.ringingSince ? 'Sonando' : timer ? `⏲️ ${left(at)}` : `⏰ ${clockOf(at)}`,
-				title: a.label,
-				who: whoOf(a.people),
-				over: false,
-				ringing: Boolean(a.ringingSince)
-			};
-		});
-		return [...events, ...alarms].sort((a, b) => a.at.localeCompare(b.at));
-	});
+	const lines = $derived(todayLines(fridge.today, home.alarms, now));
 
 	const toBuy = $derived(fridge.list.items.filter((i) => !i.done).length);
 

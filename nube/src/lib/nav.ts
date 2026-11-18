@@ -280,6 +280,7 @@ export function sectionOfPath(pathname: string): { path: string; label: string }
 
 const EXTRA_SECTIONS = [
 	{ path: '/ajustes', label: 'Ajustes' },
+	{ path: '/vista', label: 'Vista' },
 	{ path: '/cocina', label: 'Cocina' },
 	{ path: '/mapa', label: 'Mapa' }
 ];

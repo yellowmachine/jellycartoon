@@ -36,6 +36,7 @@
 	import Microfono from './Microfono.svelte';
 	import TelefonoAparato from './TelefonoAparato.svelte';
 	import FondoMusica from './FondoMusica.svelte';
+	import PantallaCasa from './PantallaCasa.svelte';
 	import BotonLlamar from './BotonLlamar.svelte';
 	import FamiliasVinculadas from './FamiliasVinculadas.svelte';
 	import Subtitulos from './Subtitulos.svelte';
@@ -207,6 +208,8 @@
 		<TelefonoAparato />
 
 		<FondoMusica />
+
+		<PantallaCasa />
 
 		<AparatoPeques {data} {form} {tab} />
 	{/if}
