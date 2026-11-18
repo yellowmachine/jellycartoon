@@ -2,13 +2,18 @@ import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { withFamily } from '#lib/server/family.ts';
 import { ownCatalog, renameAlbum } from '#lib/server/own-music.ts';
+import { ownPlaylists } from '#lib/server/own-music-lists.ts';
 
 /** An album of «Tu música» (#534), with its tracks; the grown-ups can rename it. */
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const m = await withFamily(locals.user!.id, async (_, m) => m);
 	const ownAlbum = (await ownCatalog(m.familyId)).find((a) => a.id === Number(params.id));
 	if (!ownAlbum) error(404, 'Ese álbum no está');
-	return { ownAlbum, canEdit: m.role !== 'peque' };
+	return {
+		ownAlbum,
+		canEdit: m.role !== 'peque',
+		ownLists: (await ownPlaylists(m.familyId)).map(({ id, name }) => ({ id, name }))
+	};
 };
 
 export const actions: Actions = {

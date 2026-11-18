@@ -1,11 +1,21 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import AddToPlaylist from 'comun/components/AddToPlaylist.svelte';
 	import AddToQueue from 'comun/components/AddToQueue.svelte';
+	import { vista } from '#lib/vista.svelte.ts';
+	import AlbumCover from 'comun/components/AlbumCover.svelte';
 	import { formatDuration } from 'comun/format.ts';
 	import { mixed } from 'comun/music.ts';
 	import { music } from 'comun/music-player.svelte.ts';
 	import { musicTarget } from 'comun/music-target.svelte.ts';
-	import { ownCoverUrl, ownTrackSrc, playable, playableTracks } from '#lib/own-music.ts';
+	import {
+		asAlbum,
+		OWN_LISTS_API,
+		ownArtistUrl,
+		ownTrackSrc,
+		playable,
+		playableTracks
+	} from '#lib/own-music.ts';
 	import type { PageProps } from './$types';
 
 	/**
@@ -41,22 +51,11 @@
 <nav class="flex min-w-0 items-center gap-1.5 text-sm text-zinc-400">
 	<a href="/musica/tu-musica" class="shrink-0 hover:text-white">Tu música</a>
 	<span aria-hidden="true">›</span>
-	<span class="truncate">{album.artist}</span>
+	<a href={ownArtistUrl(album.artist)} class="truncate hover:text-white">{album.artist}</a>
 </nav>
 
 <div class="mt-3 mb-6 flex flex-col gap-4 sm:flex-row sm:items-end">
-	{#if album.hasCover}
-		<img
-			src={ownCoverUrl(album.id, album.coverVersion)}
-			alt=""
-			class="aspect-square w-48 shrink-0 rounded-md bg-zinc-800 object-cover"
-		/>
-	{:else}
-		<span
-			class="flex aspect-square w-48 shrink-0 items-center justify-center rounded-md bg-zinc-800 text-5xl text-zinc-600"
-			aria-hidden="true">♪</span
-		>
-	{/if}
+	<AlbumCover album={asAlbum(album)} class="w-48 shrink-0 rounded-md" />
 	<div class="min-w-0">
 		{#if editing}
 			<form
@@ -115,14 +114,18 @@
 		{:else}
 			<h1 class="text-2xl font-bold">
 				{album.title}
-				{#if data.canEdit}<button
+				{#if data.canEdit && !vista.kiosk}<button
 						class="ml-1 align-middle text-base font-normal text-zinc-400 hover:text-white"
 						aria-label="Editar el disco y el artista"
 						title="Editar el disco y el artista"
 						onclick={() => (editing = true)}>✎</button
 					>{/if}
 			</h1>
-			<p class="text-zinc-300">{album.artist}{album.year ? ` · ${album.year}` : ''}</p>
+			<p>
+				<a href={ownArtistUrl(album.artist)} class="text-zinc-300 hover:text-white hover:underline"
+					>{album.artist}</a
+				><span class="text-zinc-400">{album.year ? ` · ${album.year}` : ''}</span>
+			</p>
 		{/if}
 		<p class="mb-3 text-sm text-zinc-400">
 			{album.tracks.length}
@@ -139,6 +142,13 @@
 					onclick={() => musicTarget.play(mixed(tracks), 0, false)}>🔀 Mezclar y reproducir</button
 				>
 				<AddToQueue {tracks} toSnapcast={false} />
+				{#if !vista.kiosk}<AddToPlaylist
+						trackIds={tracks.map((t) => t.id)}
+						key="album"
+						playlists={data.ownLists}
+						endpoint={OWN_LISTS_API}
+						text="+ Añadir a una lista"
+					/>{/if}
 			</div>
 		{/if}
 	</div>
@@ -146,11 +156,11 @@
 
 <ol class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
 	{#each album.tracks as t, i (t.id)}
-		<li>
+		<li class="flex items-center pr-1">
 			{#if playable(t.mime)}
 				<button
 					class={[
-						'flex w-full min-w-0 items-center gap-3 px-3 py-2 text-left hover:bg-zinc-900',
+						'flex min-w-0 flex-1 items-center gap-3 px-3 py-2 text-left hover:bg-zinc-900',
 						isCurrent(t.id) && 'text-amber-400'
 					]}
 					onclick={() => play(t.id)}
@@ -166,9 +176,15 @@
 					</span>
 					<span class="text-xs text-zinc-500">{formatDuration(t.durationSec)}</span>
 				</button>
+				{#if !vista.kiosk}<AddToPlaylist
+						trackId={t.id}
+						key="album-{t.id}"
+						playlists={data.ownLists}
+						endpoint={OWN_LISTS_API}
+					/>{/if}
 			{:else}
 				<div
-					class="flex min-w-0 items-center gap-3 px-3 py-2 text-zinc-600"
+					class="flex min-w-0 flex-1 items-center gap-3 px-3 py-2 text-zinc-600"
 					title="Este navegador no lo puede reproducir"
 				>
 					<span class="w-6 shrink-0 text-right font-mono text-xs tabular-nums"

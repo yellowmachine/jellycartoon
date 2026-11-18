@@ -120,3 +120,43 @@ export const ownTrack = pgTable(
 		familyRows('own_track_own', t.familyId)
 	]
 ).enableRLS();
+
+/**
+ * A playlist of «Tu música» (#534, phase 2): of the whole family, as the house's are of the whole
+ * house, but kept here, and only with the bucket's songs (the house's lists, only with the
+ * house's).
+ */
+export const ownPlaylist = pgTable(
+	'own_playlist',
+	{
+		id: serial('id').primaryKey(),
+		familyId: text('family_id')
+			.notNull()
+			.references(() => family.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [familyRows('own_playlist_own', t.familyId)]
+).enableRLS();
+
+export const ownPlaylistItem = pgTable(
+	'own_playlist_item',
+	{
+		id: serial('id').primaryKey(),
+		familyId: text('family_id')
+			.notNull()
+			.references(() => family.id, { onDelete: 'cascade' }),
+		playlistId: integer('playlist_id')
+			.notNull()
+			.references(() => ownPlaylist.id, { onDelete: 'cascade' }),
+		/** A song gone from the bucket goes from its lists too. */
+		trackId: integer('track_id')
+			.notNull()
+			.references(() => ownTrack.id, { onDelete: 'cascade' }),
+		position: integer('position').notNull()
+	},
+	(t) => [
+		index('own_playlist_item_list').on(t.playlistId, t.position),
+		familyRows('own_playlist_item_own', t.familyId)
+	]
+).enableRLS();

@@ -12,9 +12,18 @@
 		playlists: { id: number; name: string }[];
 		/** A button with this text, instead of the «+»: for several, next to «Añadir a la cola». */
 		text?: string;
+		/** Where they are added: the house's lists, or Seilide's «Tu música» ones (#534). */
+		endpoint?: string;
 	}
 
-	let { trackId, trackIds, key, playlists, text }: Props = $props();
+	let {
+		trackId,
+		trackIds,
+		key,
+		playlists,
+		text,
+		endpoint = '/api/music/playlists'
+	}: Props = $props();
 
 	/** Shown on the button for a moment after adding: where they went. */
 	let added = $state<string | null>(null);
@@ -29,7 +38,7 @@
 		close: () => void
 	) {
 		error = null;
-		const res = await fetch('/api/music/playlists', {
+		const res = await fetch(endpoint, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({ ...(trackIds ? { trackIds } : { trackId }), ...body })

@@ -5,10 +5,19 @@
 
 	let { data, children }: LayoutProps = $props();
 
-	const onLists = $derived(page.url.pathname.startsWith('/musica/listas'));
+	/** The house's lists and «Tu música»'s (#534), one tab. */
+	const onLists = $derived(
+		page.url.pathname.startsWith('/musica/listas') ||
+			page.url.pathname.startsWith('/musica/tu-musica/listas')
+	);
 	const onFolders = $derived(page.url.pathname.startsWith('/musica/carpetas'));
 	/** «Tu música» (#534): the family's own bucket, not the house's. */
-	const onOwn = $derived(page.url.pathname.startsWith('/musica/tu-musica'));
+	const onOwn = $derived(page.url.pathname.startsWith('/musica/tu-musica') && !onLists);
+	/** The house's notice, not where only «Tu música»'s is: its tab, its lists. */
+	const ownOnly = $derived(
+		page.url.pathname.startsWith('/musica/tu-musica') ||
+			(onLists && Boolean(page.data.own) && Boolean(data.houseProblem))
+	);
 	const tab = (selected: boolean) => [
 		'border-b-2 px-1 pb-2 text-sm',
 		selected ? 'border-amber-500 text-white' : 'border-transparent text-zinc-400 hover:text-white'
@@ -37,7 +46,7 @@
 	>
 </nav>
 
-{#if !onOwn && (data.houseProblem || data.passProblem)}
+{#if !ownOnly && (data.houseProblem || data.passProblem)}
 	<p class="mb-6 rounded-md border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
 		La música es la de casa: {data.houseProblem ?? data.passProblem}
 	</p>

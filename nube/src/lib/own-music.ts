@@ -1,4 +1,4 @@
-import type { MusicTrack } from 'comun/music.ts';
+import type { MusicAlbum, MusicTrack } from 'comun/music.ts';
 import type { OwnAlbumRow, OwnTrackRow } from '#lib/server/own-music.ts';
 
 /**
@@ -48,3 +48,21 @@ export function playable(mime: string) {
 /** An album's tracks this browser plays, for the player. */
 export const playableTracks = (a: OwnAlbumRow) =>
 	a.tracks.filter((t) => playable(t.mime)).map((t) => asTrack(t, a));
+
+export const ownArtistUrl = (name: string) =>
+	`/musica/tu-musica/artista/${encodeURIComponent(name)}`;
+
+/** As Música's library shows an album (MusicLibrary): only what this browser plays. */
+export const asAlbum = (a: OwnAlbumRow): MusicAlbum => ({
+	id: a.id,
+	title: a.title,
+	artist: a.artist,
+	hasCover: a.hasCover,
+	cover: a.hasCover ? ownCoverUrl(a.id, a.coverVersion) : undefined,
+	href: ownAlbumUrl(a.id),
+	tracks: playableTracks(a)
+});
+
+/** Where the «+» of its songs adds: its own lists (#534, phase 2), not the house's. */
+export const OWN_LISTS_API = '/api/music/own/playlists';
+export const ownListUrl = (id: number) => `/musica/tu-musica/listas/${id}`;
