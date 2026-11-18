@@ -7,6 +7,8 @@
 	import type { Alarm } from 'comun/alarms.ts';
 	import type { Dose } from 'comun/medication.ts';
 	import type { FridgeState } from 'comun/fridge.ts';
+	import { coverUrl } from 'comun/music.ts';
+	import { music } from 'comun/music-player.svelte.ts';
 	import type { QuietHours } from '#lib/quiet-hours.ts';
 	import { upFirst } from '#lib/planned-trips.ts';
 	import { timers } from '#lib/timers.svelte.ts';
@@ -24,7 +26,8 @@
 	 * By day, if this device chose it, its walks' photos behind, one after another. At night (the
 	 * family's «Horas de silencio», or 23:00–07:00) it rests sooner, without photos and dim: a web
 	 * page cannot lower the screen's light, so what it shows is darker (with the tablet's own
-	 * automatic brightness, the rest).
+	 * automatic brightness, the rest). While a song or an episode plays, its cover and title instead
+	 * of the photos (dimmed with the rest at night).
 	 */
 
 	type Cards = {
@@ -48,7 +51,16 @@
 	let photo = $state(0);
 
 	const night = $derived(isNight(cards?.night ?? null, now));
-	const photos = $derived(vista.photos && !night ? (cards?.photos ?? []) : []);
+	/** What sounds here, not the radio (no cover): a song or an episode, playing. */
+	const sounding = $derived.by(() => {
+		if (!music.playing || music.radio) return null;
+		const p = music.podcast;
+		if (p) return { cover: p.imageUrl ?? null, title: p.title, by: p.podcastTitle };
+		const t = music.current;
+		if (t) return { cover: t.hasCover ? coverUrl(t.albumId) : null, title: t.title, by: t.artist };
+		return null;
+	});
+	const photos = $derived(vista.photos && !night && !sounding ? (cards?.photos ?? []) : []);
 
 	async function refresh() {
 		fetchedAt = Date.now();
@@ -154,6 +166,21 @@
 			</div>
 
 			<div class="flex flex-col gap-4 text-3xl">
+				{#if sounding}
+					<div class="mb-4 flex items-center gap-6">
+						{#if sounding.cover}
+							<img
+								src={sounding.cover}
+								alt=""
+								class="h-40 w-40 shrink-0 rounded-xl bg-zinc-800 object-cover shadow-2xl"
+							/>
+						{/if}
+						<div class="min-w-0">
+							<p class="truncate text-4xl font-semibold text-zinc-100">🎵 {sounding.title}</p>
+							<p class="mt-1 truncate text-2xl text-zinc-400">{sounding.by}</p>
+						</div>
+					</div>
+				{/if}
 				{#each timers.list.toSorted((a, b) => a.endsAt - b.endsAt) as t (t.id)}
 					<p>
 						⏱ {t.label}

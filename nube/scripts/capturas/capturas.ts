@@ -85,6 +85,17 @@ const SHOTS: {
 		// Three minutes later, untouched: it rests.
 		steps: `const real = Date.now; Date.now = () => real() + 180_000; await new Promise((r) => setTimeout(r, 2500));`
 	},
+	{
+		name: 'vista-sonando',
+		path: '/vista',
+		to: ['guia'],
+		tablet: true,
+		// An album on, and the Música tab again: «Sonando», big.
+		steps: `await tap('Música', 'nav a'); document.querySelector('a[href="/musica/3"]').click();
+			await new Promise((r) => setTimeout(r, 1500)); await tap('Reproducir');
+			await new Promise((r) => setTimeout(r, 1500)); await tap('Música', 'nav a');
+			await new Promise((r) => setTimeout(r, 1500));`
+	},
 	{ name: 'reglas', path: '/reglas', to: ['guia'] },
 	{ name: 'paseos', path: '/paseos', to: ['guia'] },
 	{ name: 'llamadas', path: '/llamadas', to: ['guia'] },
