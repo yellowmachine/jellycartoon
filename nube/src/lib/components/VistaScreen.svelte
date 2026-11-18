@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/state';
+	import { music } from 'comun/music-player.svelte.ts';
 	import AlarmBanner from 'comun/components/AlarmBanner.svelte';
 	import MusicBar from 'comun/components/MusicBar.svelte';
 	import TimerBar from '#lib/components/TimerBar.svelte';
@@ -13,22 +14,28 @@
 	 * down: the whole screen, without the site's bar, as the road mode. On the left (40 %) the
 	 * microphone, the timers and the steps while cooking, always there; on the right the page that
 	 * is on, under big tabs: today in the house (/vista), the recipe (/cocina), the series, the
-	 * channels, the music, the radio and the podcasts, as they are in the site. The right side
-	 * scrolls with the window, so each page keeps its own scroll and «back» works. On a narrow
-	 * screen, one over the other. Untouched a while, it rests (VistaRest.svelte).
+	 * channels, the music («Sonando», big, while something plays), the radio and the podcasts, as
+	 * they are in the site. The right side scrolls with the window, so each page keeps its own
+	 * scroll and «back» works. On a narrow screen, one over the other. Untouched a while, it rests
+	 * (VistaRest.svelte).
 	 */
 	let { children }: { children: Snippet } = $props();
 
-	const TABS = [
-		{ href: '/vista', label: 'Inicio', icon: '🏠' },
+	/** A song or an episode on (not the radio, which has its own tab): Música opens «Sonando». */
+	const playing = $derived(Boolean((music.radio ? null : music.current) ?? music.podcast));
+	type Tab = { href: string; label: string; icon: string; also?: string; not?: string };
+	const TABS: Tab[] = $derived([
+		{ href: '/vista', label: 'Inicio', icon: '🏠', not: '/vista/sonando' },
 		{ href: '/cocina', label: 'Receta', icon: '🍳', also: '/recetas' },
 		{ href: '/series', label: 'Series', icon: '📺', also: '/watch' },
 		{ href: '/canales', label: 'Canales', icon: '📡' },
-		{ href: '/musica', label: 'Música', icon: '🎵' },
+		playing
+			? { href: '/vista/sonando', label: 'Música', icon: '🎵', also: '/musica' }
+			: { href: '/musica', label: 'Música', icon: '🎵', also: '/vista/sonando' },
 		{ href: '/radio', label: 'Radio', icon: '📻', not: '/radio/podcasts' },
 		{ href: '/radio/podcasts', label: 'Podcasts', icon: '🎙️' }
-	];
-	const current = (t: (typeof TABS)[number]) => {
+	]);
+	const current = (t: Tab) => {
 		const path = page.url.pathname;
 		const under = (p?: string) => Boolean(p) && (path === p || path.startsWith(`${p}/`));
 		const on = under(t.href) || under(t.also);
