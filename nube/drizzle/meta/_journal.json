@@ -680,6 +680,13 @@
 			"when": 1795071990870,
 			"tag": "0096_luxuriant_arclight",
 			"breakpoints": true
+		},
+		{
+			"idx": 97,
+			"version": "7",
+			"when": 1795084137349,
+			"tag": "0097_silly_apocalypse",
+			"breakpoints": true
 		}
 	]
 }

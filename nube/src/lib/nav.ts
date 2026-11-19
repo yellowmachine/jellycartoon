@@ -40,6 +40,16 @@ const SECTIONS: {
 	{ path: '/agenda', label: 'Agenda', icon: 'agenda', where: 'nube' },
 	// Calls between the family (#330): whom to call, and the history.
 	{ path: '/llamadas', label: 'Llamadas', icon: 'llamadas', where: 'nube', also: ['/llamada'] },
+	// The family's own messages, end-to-end encrypted (#551): off until the PIN backup is there.
+	{
+		path: '/mensajes',
+		label: 'Mensajes',
+		icon: 'mensajes',
+		where: 'nube',
+		startsOff: true,
+		about:
+			'Mensajes de la familia cifrados de extremo a extremo. En pruebas: sin copia de seguridad todavía, perder el aparato es perder sus mensajes.'
+	},
 	{ path: '/gastos', label: 'Dinero', icon: 'gastos', where: 'nube' },
 	{ path: '/papeles', label: 'Papeles', icon: 'papeles', where: 'nube' },
 	{ path: '/viajes', label: 'Viajes', icon: 'viajes', where: 'nube', also: ['/carretera'] },
