@@ -95,7 +95,7 @@ const SECTIONS: {
 		where: 'nube',
 		startsOff: true,
 		about:
-			'Encender y apagar aparatos desde fuera con enchufes Shelly, ver cuánto gastan y la temperatura de fuera.'
+			'Encender y apagar aparatos desde fuera con enchufes Shelly, ver cuánto gastan y la temperatura de casa (sensores Shelly H&T) y de fuera.'
 	},
 	// Homework from the cartoons watched at the house (#142), for the grown-ups and the children.
 	{

@@ -9,3 +9,30 @@ export interface TemperatureSeries {
 	color: string;
 	dashed?: boolean;
 }
+
+/** A room's sensor (#508), as Enchufes → Temperatura shows it. */
+export interface SensorView {
+	id: string;
+	name: string;
+	/** Its last reading; all null, none yet. */
+	tempC: number | null;
+	humidity: number | null;
+	battery: number | null;
+	/** On USB. */
+	external: boolean | null;
+	/** When it was read (ISO); null, never. */
+	at: string | null;
+	/** Silent longer than it should be: «sin noticias». */
+	silent: boolean;
+	points: { at: string; temperature: number }[];
+}
+
+/** The rooms' lines, in this order; «Fuera» is grey. */
+export const SENSOR_COLORS = [
+	'text-amber-400',
+	'text-sky-400',
+	'text-emerald-400',
+	'text-rose-400',
+	'text-violet-400',
+	'text-lime-400'
+];

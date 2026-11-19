@@ -600,4 +600,49 @@ describe('sensores (#508)', () => {
 		expect(others).toEqual([]);
 		ws.close();
 	});
+
+	test('Temperatura: its last reading, its line by the hour, and silent after 2 hours', async () => {
+		const { sensorsIn } = await import('./sensors.ts');
+		const made = await createPlug('ana', 'Salón', 'otro', 'shellyhtg3-aaaaaaaaaaaa');
+		const at = (iso: string, tempC: number | null) => ({
+			plugId: made.id,
+			familyId: 'A',
+			at: new Date(iso),
+			tempC,
+			humidity: 50,
+			battery: 80,
+			external: false
+		});
+		await db
+			.insert(schema.plugReading)
+			.values([
+				at('2026-11-19T09:00:00Z', 19),
+				at('2026-11-19T09:30:00Z', 20),
+				at('2026-11-19T10:10:00Z', null),
+				at('2026-11-19T10:20:00Z', 21.4)
+			]);
+		const since = new Date('2026-11-19T00:00:00Z');
+		const read = (hourly: boolean, now: string) =>
+			asFamily('A', (tx) => sensorsIn(tx, since, hourly, new Date(now)));
+		const salon = (await read(true, '2026-11-19T11:00:00Z')).find((s) => s.id === made.id)!;
+		// Spain's hours (UTC+1 in November); the failed reading left out.
+		expect(salon).toMatchObject({
+			name: 'Salón',
+			tempC: 21.4,
+			battery: 80,
+			external: false,
+			silent: false,
+			points: [
+				{ at: '2026-11-19T10:00', temperature: 19.5 },
+				{ at: '2026-11-19T11:00', temperature: 21.4 }
+			]
+		});
+		expect(
+			(await read(false, '2026-11-19T11:00:00Z')).find((s) => s.id === made.id)!.points
+		).toHaveLength(3);
+		expect((await read(true, '2026-11-19T12:21:00Z')).find((s) => s.id === made.id)!.silent).toBe(
+			true
+		);
+		expect(await asFamily('B', (tx) => sensorsIn(tx, since, true))).toEqual([]);
+	});
 });
