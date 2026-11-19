@@ -71,11 +71,26 @@ aparato nuevo entra en los grupos como cualquier otro y la copia le da lo de ant
 
 Grabados mientras se mantiene pulsado (`recorder.svelte.ts`, MediaRecorder: Opus en webm, o mp4 en
 Safari; 5 min como mucho). El aparato los cifra con una llave AES-256-GCM propia de cada audio, sube
-el fichero cifrado (`POST /api/mensajes/audio`, al almacenamiento de su familia, área `mensajes`, con
+el fichero cifrado (`POST /api/mensajes/archivo`, al almacenamiento de su familia, área `mensajes`, con
 su cuota) y manda en el mensaje MLS `{ t: 'audio', file, key, iv, mime, seconds }`: la llave solo la
 tienen los de la conversación (y la copia con PIN). `msg_file` dice de qué familia es cada fichero y
-de qué conversación; `GET /api/mensajes/audio/<id>?conversacion=` solo a quien está en ella (con una
+de qué conversación; `GET /api/mensajes/archivo/<id>?conversacion=` solo a quien está en ella (con una
 familia vinculada, del almacenamiento de quien lo mandó).
+
+## Fotos y ubicación (#555)
+
+- **Foto**: `photo.ts` la dibuja de nuevo en un `canvas` (lado largo de 1600 px como mucho, JPEG al
+  82 %), así que no lleva el EXIF de la cámara (posición, modelo); `createImageBitmap` la gira como
+  dice la cámara. Se cifra y se sube como un audio (mismo `POST /api/mensajes/archivo`, `msg_file`,
+  límite `MAX_FILE_BYTES` de 6 MB) y el mensaje MLS lleva `{ t: 'foto', file, key, iv, mime, width,
+height }`. Se descifra al enseñarla (`FotoBurbuja.svelte`).
+- **Ubicación**: `navigator.geolocation` una vez, con alta precisión. Va entera dentro del mensaje MLS,
+  `{ t: 'ubicacion', lat, lon, accuracy }` (6 decimales, metros redondeados), sin nada más en el
+  servidor. Se ve en el mapa propio (`PlacesMap` con `still`, sin arrastrar ni atribución encima: se
+  dice debajo), cuyas teselas sirve Seilide, así que nadie más sabe el sitio. «Abrir» lleva a `geo:`
+  en Android, Apple Maps en iPhone/Mac y OpenStreetMap en otros, solo si se toca.
+- Las dos se ven antes de mandarlas (enviar o cancelar). `describe()` da su texto corto («📷 Foto»,
+  «📍 Ubicación») para la lista, la notificación descifrada y la voz («X te manda una foto»).
 
 ## Transcripción en el aparato
 

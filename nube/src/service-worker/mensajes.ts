@@ -1,4 +1,4 @@
-import { Messenger } from '#lib/mensajes/messenger.ts';
+import { Messenger, describe } from '#lib/mensajes/messenger.ts';
 import { idbStore } from '#lib/mensajes/idb-store.ts';
 import { httpTransport } from '#lib/mensajes/http-transport.ts';
 import { lockFor } from '#lib/mensajes/lock.ts';
@@ -23,7 +23,7 @@ export async function decryptedText(conversationId: string): Promise<string | nu
 			const m = new Messenger(store, httpTransport, userId, undefined, lockFor(userId));
 			await m.sync();
 			const last = (await m.messages(conversationId)).filter((x) => !x.mine).at(-1);
-			if (last) return last.audio ? `🎤 Audio (${last.audio.seconds} s)` : last.text;
+			if (last) return describe(last);
 		}
 		return null;
 	};

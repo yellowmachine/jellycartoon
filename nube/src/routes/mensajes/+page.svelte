@@ -1,9 +1,13 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { MessagesClient } from '#lib/mensajes/client.svelte.ts';
-	import { MAX_TEXT } from '#lib/mensajes/messenger.ts';
+	import { MAX_TEXT, describe, type Place, type StoredMessage } from '#lib/mensajes/messenger.ts';
+	import { herePosition, shrinkPhoto } from '#lib/mensajes/photo.ts';
 	import CopiaPin from './CopiaPin.svelte';
 	import AudioBurbuja from './AudioBurbuja.svelte';
+	import FotoBurbuja from './FotoBurbuja.svelte';
+	import UbicacionBurbuja from './UbicacionBurbuja.svelte';
+	import PlacesMap from '#lib/components/PlacesMap.svelte';
 	import { VoiceRecorder } from '#lib/mensajes/recorder.svelte.ts';
 	import MediaIcon from 'comun/components/MediaIcon.svelte';
 	import type { PageProps } from './$types';
@@ -55,6 +59,65 @@
 	}
 	const clock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
+	/**
+	 * The «+» beside the text (#555): a photo or where one is, each seen before it goes (WhatsApp's
+	 * way), so nothing is sent by a slip of the finger.
+	 */
+	let menu = $state(false);
+	let menuBox = $state<HTMLElement>();
+	let picker = $state<HTMLInputElement>();
+	let attaching = $state<
+		| { kind: 'foto'; blob: Blob; width: number; height: number; url: string }
+		| { kind: 'ubicacion'; place: Place }
+		| { kind: 'buscando' }
+		| null
+	>(null);
+	let attachProblem = $state<string | null>(null);
+
+	function dropAttachment() {
+		if (attaching?.kind === 'foto') URL.revokeObjectURL(attaching.url);
+		attaching = null;
+		attachProblem = null;
+	}
+
+	async function pickedPhoto(e: Event) {
+		const input = e.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		dropAttachment();
+		try {
+			const small = await shrinkPhoto(file);
+			attaching = { kind: 'foto', ...small, url: URL.createObjectURL(small.blob) };
+		} catch (err) {
+			attachProblem = err instanceof Error ? err.message : String(err);
+		}
+	}
+
+	async function lookWhere() {
+		menu = false;
+		dropAttachment();
+		attaching = { kind: 'buscando' };
+		try {
+			attaching = { kind: 'ubicacion', place: await herePosition() };
+		} catch (err) {
+			attaching = null;
+			attachProblem = err instanceof Error ? err.message : String(err);
+		}
+	}
+
+	async function sendAttachment() {
+		const a = attaching;
+		if (!a || a.kind === 'buscando' || sending) return;
+		sending = true;
+		const ok =
+			a.kind === 'foto'
+				? await client.sendPhoto({ blob: a.blob, width: a.width, height: a.height })
+				: await client.sendPlace(a.place);
+		sending = false;
+		if (ok) dropAttachment();
+	}
+
 	const nameOf = (userId: string) => data.names[userId] ?? 'Alguien';
 	const when = (iso: string) =>
 		new Date(iso).toLocaleString('es-ES', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
@@ -69,14 +132,17 @@
 	const title = $derived(
 		!open ? '' : open.kind === 'familia' ? 'Familia' : open.with ? nameOf(open.with) : ''
 	);
-	const preview = (
-		m: { text: string; mine: boolean; userId: string; audio?: { seconds: number } } | null,
-		group: boolean
-	) =>
+	const preview = (m: StoredMessage | null, group: boolean) =>
 		!m
 			? 'Sin mensajes todavía'
-			: `${m.mine ? 'Tú: ' : group ? `${nameOf(m.userId)}: ` : ''}${m.audio ? `🎤 Audio (${clock(m.audio.seconds)})` : m.text}`;
+			: `${m.mine ? 'Tú: ' : group ? `${nameOf(m.userId)}: ` : ''}${describe(m)}`;
 </script>
+
+<!-- The «+» menu closed by a touch anywhere else, or Escape. -->
+<svelte:window
+	onpointerdown={(e) => menu && !menuBox?.contains(e.target as Node) && (menu = false)}
+	onkeydown={(e) => menu && e.key === 'Escape' && (menu = false)}
+/>
 
 <svelte:head>
 	<title>Mensajes · Seilide</title>
@@ -197,12 +263,19 @@
 				<div class={['flex flex-col', m.mine ? 'items-end' : 'items-start']}>
 					<div
 						class={[
-							'max-w-[85%] rounded-2xl px-3 py-2 break-words',
-							!m.audio && 'whitespace-pre-wrap',
+							'max-w-[85%] rounded-2xl break-words',
+							m.photo ? 'p-1' : 'px-3 py-2',
+							!m.audio && !m.photo && !m.place && 'whitespace-pre-wrap',
 							m.mine ? 'bg-amber-500 text-zinc-950' : 'bg-zinc-800 text-zinc-100'
 						]}
 					>
-						{#if m.audio}<AudioBurbuja {m} {client} />{:else}{m.text}{/if}
+						{#if m.audio}<AudioBurbuja {m} {client} />{:else if m.photo}<FotoBurbuja
+								{m}
+								{client}
+							/>{:else if m.place}<UbicacionBurbuja
+								place={m.place}
+								mine={m.mine}
+							/>{:else}{m.text}{/if}
 					</div>
 					<span class="mt-0.5 text-xs text-zinc-500"
 						>{m.mine ? 'Tú' : nameOf(m.userId)} · {when(m.at)}</span
@@ -225,7 +298,82 @@
 				desde entonces; lo de antes, solo tus aparatos.
 			</p>
 		{/if}
-		<form class="flex gap-2" onsubmit={send}>
+		{#if attaching}
+			<div class="mb-3 rounded-md border border-zinc-700 bg-zinc-900 p-3">
+				{#if attaching.kind === 'buscando'}
+					<p class="text-sm text-zinc-300" role="status">📍 Buscando dónde estás…</p>
+					<button class="mt-2 text-sm text-zinc-400 hover:text-white" onclick={dropAttachment}
+						>Cancelar</button
+					>
+				{:else}
+					{#if attaching.kind === 'foto'}
+						<img
+							src={attaching.url}
+							alt="La foto que vas a enviar"
+							class="mx-auto mb-3 max-h-72 rounded-md object-contain"
+						/>
+					{:else}
+						<PlacesMap
+							marks={[
+								{ at: [attaching.place.lon, attaching.place.lat], label: 'Aquí', current: true }
+							]}
+							height="h-56"
+						/>
+						<p class="mt-2 mb-3 text-sm text-zinc-300">
+							Tu ubicación de ahora{#if attaching.place.accuracy !== undefined}, con unos {attaching
+									.place.accuracy} m de margen{/if}. Solo la verán quienes están en esta
+							conversación.
+						</p>
+					{/if}
+					<div class="flex gap-2">
+						<button
+							class="rounded-md bg-amber-500 px-4 py-2 font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
+							disabled={sending || client.waiting}
+							onclick={sendAttachment}
+							>{sending
+								? 'Enviando…'
+								: attaching.kind === 'foto'
+									? 'Enviar la foto'
+									: 'Enviar mi ubicación'}</button
+						>
+						<button
+							class="rounded-md px-4 py-2 text-zinc-300 hover:text-white"
+							disabled={sending}
+							onclick={dropAttachment}>Cancelar</button
+						>
+					</div>
+				{/if}
+			</div>
+		{/if}
+		{#if attachProblem}
+			<p class="mb-2 text-sm text-red-400">{attachProblem}</p>
+		{/if}
+		<input bind:this={picker} type="file" accept="image/*" class="hidden" onchange={pickedPhoto} />
+		<form class="relative flex gap-2" onsubmit={send}>
+			<div bind:this={menuBox} class="contents">
+				<button
+					type="button"
+					class="rounded-md border border-zinc-700 px-3 text-xl leading-none text-zinc-200 hover:bg-zinc-800 disabled:opacity-50"
+					aria-label="Enviar una foto o tu ubicación"
+					aria-expanded={menu}
+					disabled={client.waiting}
+					onclick={() => (menu = !menu)}>+</button
+				>
+				{#if menu}
+					<div
+						class="absolute bottom-full left-0 z-10 mb-2 flex flex-col overflow-hidden rounded-md border border-zinc-700 bg-zinc-900 shadow-lg"
+					>
+						<button
+							type="button"
+							class="px-4 py-3 text-left hover:bg-zinc-800"
+							onclick={() => ((menu = false), picker?.click())}>📷 Foto</button
+						>
+						<button type="button" class="px-4 py-3 text-left hover:bg-zinc-800" onclick={lookWhere}
+							>📍 Ubicación</button
+						>
+					</div>
+				{/if}
+			</div>
 			<input
 				bind:value={text}
 				maxlength={MAX_TEXT}

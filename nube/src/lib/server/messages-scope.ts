@@ -27,10 +27,10 @@ import type { AnyDb, familyScope } from './family-scope.ts';
 export const MAX_KEY_PACKAGES = 50;
 /** What a device reads at a time. */
 const PAGE = 500;
-/** An MLS message is small; an audio goes apart (its key inside one). */
+/** An MLS message is small; a voice note or a photo goes apart (its key inside one). */
 export const MAX_EVENT_BYTES = 64 * 1024;
-/** A voice note, encrypted: some 5 minutes of Opus, with room. */
-export const MAX_AUDIO_BYTES = 6 * 1024 * 1024;
+/** A message's file, encrypted: some 5 minutes of Opus, or a photo made small, with room. */
+export const MAX_FILE_BYTES = 6 * 1024 * 1024;
 
 export interface DeviceIn {
 	id: string;
@@ -511,12 +511,12 @@ export function messagesScope(withFamily: ReturnType<typeof familyScope>, partne
 		},
 
 		/**
-		 * A voice note of a conversation, encrypted by the device: its id (its name in the family's
+		 * A file of a conversation (a voice note, a photo), encrypted by the device: its id (its name in the family's
 		 * storage, area `mensajes`), and the family whose storage keeps it.
 		 */
 		async addFile(userId: string, deviceId: string, conversationId: string, size: number) {
-			if (!Number.isInteger(size) || size <= 0 || size > MAX_AUDIO_BYTES)
-				throw new MessagesProblem('Audio demasiado largo');
+			if (!Number.isInteger(size) || size <= 0 || size > MAX_FILE_BYTES)
+				throw new MessagesProblem('Archivo demasiado grande');
 			return withFamily(userId, async (tx, m) => {
 				await ownDevice(tx, userId, deviceId);
 				await convOf(tx, userId, conversationId);
@@ -534,7 +534,7 @@ export function messagesScope(withFamily: ReturnType<typeof familyScope>, partne
 		},
 
 		/**
-		 * Where a voice note of a conversation this person is in is kept: that family's id; else a
+		 * Where a file of a conversation this person is in is kept: that family's id; else a
 		 * problem. With a linked family, it may be in the other's.
 		 */
 		async fileFor(userId: string, conversationId: string, fileId: string) {
@@ -550,7 +550,7 @@ export function messagesScope(withFamily: ReturnType<typeof familyScope>, partne
 					});
 					if (found) return found;
 				}
-				throw new MessagesProblem('No hay ese audio');
+				throw new MessagesProblem('No hay ese archivo');
 			});
 		},
 

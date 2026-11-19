@@ -16,6 +16,7 @@ import {
 } from '../mensajes/backup.ts';
 import {
 	Messenger,
+	describe as describeMessage,
 	type DeviceKeys,
 	type PrivatePackage,
 	type StoredMessage,
@@ -103,7 +104,7 @@ function memoryStore(): BackupStore & { all: StoredMessage[] } {
 	};
 }
 
-/** The families' storage (area `mensajes`), in memory: what /api/mensajes/audio keeps. */
+/** The families' storage (area `mensajes`), in memory: what /api/mensajes/archivo keeps. */
 const files = new Map<string, Uint8Array>();
 
 /** What /api/mensajes does, for this person. */
@@ -117,12 +118,12 @@ const transportOf = (userId: string): Transport => ({
 	commit: (deviceId, c) => server.postCommit(userId, deviceId, c),
 	send: (deviceId, m) => server.postMessage(userId, deviceId, m),
 	events: (deviceId, since) => server.events(userId, deviceId, since),
-	uploadAudio: async (deviceId, conversationId, sealed) => {
+	uploadFile: async (deviceId, conversationId, sealed) => {
 		const f = await server.addFile(userId, deviceId, conversationId, sealed.length);
 		files.set(`${f.familyId}/${f.id}`, sealed);
 		return { id: f.id };
 	},
-	downloadAudio: async (conversationId, file) => {
+	downloadFile: async (conversationId, file) => {
 		const familyId = await server.fileFor(userId, conversationId, file);
 		return files.get(`${familyId}/${file}`)!;
 	}
@@ -379,6 +380,36 @@ describe('voice notes', () => {
 		expect(heard).toEqual(sound);
 		// Mamá, not in that conversation, may not even download it.
 		await expect(server.fileFor('mama', conv2, sent!.audio!.file)).rejects.toThrow();
+	});
+
+	test('a photo (#555): encrypted with its own key, only those in it see it', async () => {
+		const jpeg = new Uint8Array(30_000).map((_, i) => (i * 13) & 255);
+		const sent = await mama.m.sendPhoto(conv, jpeg, 'image/jpeg', 1600, 1200);
+		expect(sent?.photo).toMatchObject({ width: 1600, height: 1200, mime: 'image/jpeg' });
+		const kept = [...files.entries()].find(([k]) => k.endsWith(sent!.photo!.file));
+		expect(Buffer.from(kept![1]).includes(Buffer.from(jpeg.subarray(0, 64)))).toBe(false);
+		await movil.m.sync();
+		const got = (await movil.m.messages(conv)).at(-1)!;
+		expect(got.photo).toMatchObject({ width: 1600, height: 1200 });
+		expect(describeMessage(got)).toBe('📷 Foto');
+		expect(new Uint8Array(await (await movil.m.photo(got)).arrayBuffer())).toEqual(jpeg);
+	});
+
+	test('where someone is (#555): inside the encrypted message, nothing else is kept', async () => {
+		const sent = await mama.m.sendPlace(conv, {
+			lat: 37.98765432,
+			lon: -1.12987654,
+			accuracy: 12.4
+		});
+		expect(sent?.place).toEqual({ lat: 37.987654, lon: -1.129877, accuracy: 12 });
+		await movil.m.sync();
+		const got = (await movil.m.messages(conv)).at(-1)!;
+		expect(got.place).toEqual({ lat: 37.987654, lon: -1.129877, accuracy: 12 });
+		expect(describeMessage(got)).toBe('📍 Ubicación');
+		expect(JSON.stringify(await db.execute(sql`select data from msg_event`))).not.toContain(
+			'37.98'
+		);
+		await expect(mama.m.sendPlace(conv, { lat: 120, lon: 0 })).rejects.toThrow();
 	});
 
 	test('with its text, made by the sender («los dos»): it comes with it, encrypted', async () => {

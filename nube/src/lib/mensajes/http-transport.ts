@@ -24,9 +24,9 @@ export const httpTransport: Transport = {
 		call({ action: 'llaves', deviceId, conversationId, deviceIds }),
 	commit: (deviceId, c) => call({ action: 'cambio', deviceId, ...c }),
 	send: (deviceId, m) => call({ action: 'enviar', deviceId, ...m }),
-	uploadAudio: async (deviceId, conversationId, sealed) => {
+	uploadFile: async (deviceId, conversationId, sealed) => {
 		const res = await fetch(
-			`/api/mensajes/audio?aparato=${encodeURIComponent(deviceId)}&conversacion=${encodeURIComponent(conversationId)}`,
+			`/api/mensajes/archivo?aparato=${encodeURIComponent(deviceId)}&conversacion=${encodeURIComponent(conversationId)}`,
 			{
 				method: 'POST',
 				headers: { 'content-type': 'application/octet-stream' },
@@ -37,11 +37,11 @@ export const httpTransport: Transport = {
 		if (!res.ok) throw new Error(answer?.message ?? 'Sin conexión');
 		return answer;
 	},
-	downloadAudio: async (conversationId, file) => {
+	downloadFile: async (conversationId, file) => {
 		const res = await fetch(
-			`/api/mensajes/audio/${encodeURIComponent(file)}?conversacion=${encodeURIComponent(conversationId)}`
+			`/api/mensajes/archivo/${encodeURIComponent(file)}?conversacion=${encodeURIComponent(conversationId)}`
 		);
-		if (!res.ok) throw new Error('No se ha podido traer el audio');
+		if (!res.ok) throw new Error('No se ha podido traer el archivo');
 		return new Uint8Array(await res.arrayBuffer());
 	},
 	events: async (deviceId, since) => {

@@ -1,5 +1,5 @@
 import { music } from 'comun/music-player.svelte.ts';
-import { Messenger, type StoredMessage } from './messenger.ts';
+import { Messenger, describe, type StoredMessage } from './messenger.ts';
 import { idbStore } from './idb-store.ts';
 import { httpTransport } from './http-transport.ts';
 import { lockFor } from './lock.ts';
@@ -179,6 +179,10 @@ class MessagesVoice {
 
 	async #announce(m: StoredMessage) {
 		const name = await this.#nameOf(m.userId);
+		if (m.photo || m.place) {
+			this.heard = [{ name, text: describe(m), at: m.at }, ...this.heard].slice(0, 20);
+			return say(`${name} te manda ${m.photo ? 'una foto' : 'su ubicación'}.`);
+		}
 		if (!m.audio) {
 			this.heard = [{ name, text: m.text, at: m.at }, ...this.heard].slice(0, 20);
 			return say(`${name}: ${m.text}`);

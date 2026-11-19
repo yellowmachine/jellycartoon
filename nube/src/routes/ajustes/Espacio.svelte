@@ -20,7 +20,7 @@
 		gastos: 'Tickets y facturas',
 		ingresos: 'Ingresos',
 		papeles: 'Papeles',
-		mensajes: 'Audios de Mensajes',
+		mensajes: 'Audios y fotos de Mensajes',
 		oracion: 'Oraciones'
 	};
 	const use = $derived(data.storage);
