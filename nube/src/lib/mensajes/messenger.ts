@@ -63,6 +63,8 @@ export interface StoredMessage {
 	mine: boolean;
 	/** A voice note: its encrypted file in the family's storage, and its key (only here). */
 	audio?: AudioMeta;
+	/** A voice note's text, made in a device of this person's (never sent). */
+	transcript?: string;
 }
 
 export interface AudioMeta {
@@ -651,6 +653,11 @@ export class Messenger {
 			await this.store.addMessage(m);
 			return m;
 		});
+	}
+
+	/** A voice note's text, kept beside it here (and in the PIN backup). */
+	async setTranscript(m: StoredMessage, text: string) {
+		await this.store.addMessage({ ...m, transcript: text });
 	}
 
 	messages(conversationId: string) {

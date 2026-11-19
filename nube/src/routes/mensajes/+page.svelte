@@ -197,7 +197,8 @@
 				<div class={['flex flex-col', m.mine ? 'items-end' : 'items-start']}>
 					<div
 						class={[
-							'max-w-[85%] rounded-2xl px-3 py-2 break-words whitespace-pre-wrap',
+							'max-w-[85%] rounded-2xl px-3 py-2 break-words',
+							!m.audio && 'whitespace-pre-wrap',
 							m.mine ? 'bg-amber-500 text-zinc-950' : 'bg-zinc-800 text-zinc-100'
 						]}
 					>

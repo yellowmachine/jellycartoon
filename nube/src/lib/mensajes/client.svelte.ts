@@ -203,6 +203,18 @@ export class MessagesClient {
 		}
 	}
 
+	/** A voice note's text, made in this device: kept beside it. */
+	async transcribe(shown: StoredMessage) {
+		// A plain copy: what the page shows is reactive, and IndexedDB keeps only plain objects.
+		const m = $state.snapshot(shown) as StoredMessage;
+		const { transcriber } = await import('./transcriber.svelte.ts');
+		const text = await transcriber.text(await this.#m.audio(m));
+		await this.#m.setTranscript(m, text);
+		await this.#reloadCurrent();
+		this.#saveSoon();
+		return text;
+	}
+
 	#sounds = new Map<string, string>();
 	/** A voice note's sound, downloaded and decrypted here once: its address to play. */
 	async sound(m: StoredMessage) {

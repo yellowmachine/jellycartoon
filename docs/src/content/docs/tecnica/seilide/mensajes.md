@@ -77,7 +77,17 @@ tienen los de la conversación (y la copia con PIN). `msg_file` dice de qué fam
 de qué conversación; `GET /api/mensajes/audio/<id>?conversacion=` solo a quien está en ella (con una
 familia vinculada, del almacenamiento de quien lo mandó).
 
+## Transcripción en el aparato
+
+`transcribe.worker.ts`: Whisper (`onnx-community/whisper-small`, 8 bits, ~240 MB bajados una vez de
+Hugging Face y guardados por el navegador) con Transformers.js 4.3.2 en un _worker_, por WASM (el
+motor de onnxruntime va en la compilación). `transcriber.svelte.ts` pasa el audio a 16 kHz mono
+(`OfflineAudioContext`). Solo al pedirlo («Aa Transcribir»), avisando de la descarga la primera vez.
+El texto se guarda junto al audio (`transcript`) y va en la copia con PIN; nunca se manda a nadie.
+Elegido frente a `whisper-base` porque base confundía frases enteras en español (probado con espeak:
+small acierta, base no).
+
 ## Pendiente (#551)
 
-Transcribir los audios en el aparato, notificación descifrada en el service worker, voz y modo
+Notificación descifrada en el service worker, voz y modo
 carretera, y quitar Telegram.

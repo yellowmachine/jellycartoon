@@ -2,8 +2,12 @@
 	import type { MessagesClient } from '#lib/mensajes/client.svelte.ts';
 	import type { StoredMessage } from '#lib/mensajes/messenger.ts';
 	import MediaIcon from 'comun/components/MediaIcon.svelte';
+	import { modelHere, transcriber } from '#lib/mensajes/transcriber.svelte.ts';
 
-	/** Mensajes (#551): a voice note, decrypted here when touched, and played. */
+	/**
+	 * Mensajes (#551): a voice note, decrypted here when touched, and played; and its text, made in
+	 * this device when asked (the first time, its model downloaded: said before).
+	 */
 	let { m, client }: { m: StoredMessage; client: MessagesClient } = $props();
 
 	let audio = $state<HTMLAudioElement>();
@@ -28,6 +32,28 @@
 		}
 		await audio.play().catch(() => (failed = true));
 	}
+	/** Asked once: the model is downloaded the first time, so it is said before. */
+	let asking = $state(false);
+	let writing = $state(false);
+	let wrong = $state<string | null>(null);
+
+	async function transcribe() {
+		wrong = null;
+		if (!asking && !(await modelHere())) {
+			asking = true;
+			return;
+		}
+		asking = false;
+		writing = true;
+		try {
+			await client.transcribe(m);
+		} catch (err) {
+			wrong = err instanceof Error ? err.message : String(err);
+		} finally {
+			writing = false;
+		}
+	}
+
 	const clock = (s: number) =>
 		`${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 </script>
@@ -56,4 +82,25 @@
 		onended={() => ((playing = false), (at = 0))}
 		ontimeupdate={(e) => (at = e.currentTarget.currentTime)}
 	></audio>
+</span>
+<span class="mt-1 block text-sm">
+	{#if m.transcript !== undefined}
+		<span class="block italic opacity-90">«{m.transcript || '…'}»</span>
+	{:else if writing}
+		<span class="block opacity-80" role="status"
+			>{transcriber.downloading !== null
+				? `Bajando el modelo… ${transcriber.downloading} %`
+				: 'Escribiendo lo que dice…'}</span
+		>
+	{:else if asking}
+		<span class="block opacity-90"
+			>La primera vez se bajan unos 240 MB a este aparato (mejor con wifi); luego, al momento y sin
+			que el audio salga de aquí.</span
+		>
+		<button class="underline" onclick={transcribe}>Sí, transcribir</button>
+		<button class="ml-2 opacity-70" onclick={() => (asking = false)}>Ahora no</button>
+	{:else}
+		<button class="opacity-80 hover:underline" onclick={transcribe}>Aa Transcribir</button>
+	{/if}
+	{#if wrong}<span class="block text-red-300">No se ha podido: {wrong}</span>{/if}
 </span>
