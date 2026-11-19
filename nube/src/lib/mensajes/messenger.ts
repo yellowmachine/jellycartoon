@@ -26,6 +26,7 @@ import {
 	type Proposal
 } from 'ts-mls';
 import { parseRecipe, type Recipe } from 'comun/recipe.ts';
+import { citaWhen, parseCita, type Cita } from '#lib/cita.ts';
 
 /**
  * Mensajes (#551) in a device: its MLS keys, its groups and what was said in them, end to end. The
@@ -78,7 +79,9 @@ export type MessageCard =
 	| { kind: 'receta'; recipe: Recipe }
 	| { kind: 'compra'; items: string[] }
 	/** One already in the family's book, to someone of the same family: only which (#555). */
-	| { kind: 'enlace-receta'; id: number; title: string };
+	| { kind: 'enlace-receta'; id: number; title: string }
+	/** A plan, to add to the Agenda. */
+	| ({ kind: 'cita' } & Cita);
 
 /**
  * A recipe of the book, as it goes in a message (#555): within the family, referred (the book is
@@ -127,6 +130,7 @@ export function describe(m: Pick<StoredMessage, 'text' | 'audio' | 'photo' | 'pl
 	if (m.place) return '📍 Ubicación';
 	if (m.card?.kind === 'receta') return `🍰 Receta: ${m.card.recipe.title}`;
 	if (m.card?.kind === 'enlace-receta') return `🍰 Receta: ${m.card.title}`;
+	if (m.card?.kind === 'cita') return `📅 ${m.card.title}, ${citaWhen(m.card)}`;
 	if (m.card?.kind === 'compra') return `🛒 Lista (${m.card.items.length})`;
 	return m.text;
 }
@@ -844,6 +848,10 @@ function cleanCard(value: unknown): MessageCard | null {
 	if (c.kind === 'receta') {
 		const recipe = parseRecipe(c.recipe);
 		return typeof recipe === 'string' ? null : { kind: 'receta', recipe };
+	}
+	if (c.kind === 'cita') {
+		const cita = parseCita(c);
+		return cita ? { kind: 'cita', ...cita } : null;
 	}
 	if (c.kind === 'enlace-receta') {
 		const id = Number(c.id);

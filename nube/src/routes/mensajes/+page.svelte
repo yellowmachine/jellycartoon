@@ -342,6 +342,7 @@
 								{m}
 								toBuy={data.toBuy}
 								saved={data.saved}
+								inAgenda={data.inAgenda}
 							/>{:else}{m.text}{/if}
 					</div>
 					<span class="mt-0.5 text-xs text-zinc-500"

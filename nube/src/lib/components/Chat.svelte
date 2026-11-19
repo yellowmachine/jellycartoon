@@ -222,7 +222,8 @@
 										</span>
 										<span class="shrink-0 text-sm text-amber-400">Abrir →</span>
 									</a>
-								{:else}
+								{:else if card.kind === 'receta'}
+									<!-- A plan (`cita`) is only made in Mensajes' panel (#555). -->
 									<ChatRecipeCard
 										{card}
 										message={m.id}

@@ -455,6 +455,25 @@ describe('voice notes', () => {
 		).rejects.toThrow();
 	});
 
+	test('a plan (#555): inside the encrypted message, checked when read', async () => {
+		const cita = {
+			kind: 'cita' as const,
+			title: 'Comida en casa de la abuela',
+			day: '2026-11-21',
+			time: '14:00',
+			endTime: null,
+			notes: null
+		};
+		await mama.m.sendCard(conv, cita);
+		await movil.m.sync();
+		const got = (await movil.m.messages(conv)).at(-1)!;
+		expect(got.card).toEqual(cita);
+		expect(describeMessage(got)).toBe(
+			'📅 Comida en casa de la abuela, sábado, 21 de noviembre, 14:00'
+		);
+		await expect(mama.m.sendCard(conv, { ...cita, day: 'sábado' })).rejects.toThrow();
+	});
+
 	test('with its text, made by the sender («los dos»): it comes with it, encrypted', async () => {
 		const sound = new Uint8Array(4_000).map((_, i) => i & 255);
 		const sent = await mama.m.sendAudio(conv, sound, 'audio/webm', 2, 'Que bajes a cenar');

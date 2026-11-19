@@ -7,6 +7,7 @@ import {
 	MAX_CHAT_QUESTION,
 	type ChatCard,
 	type ChatMessage,
+	type EventCard,
 	type RecipeCard,
 	type ShoppingCard
 } from '#lib/chat.ts';
@@ -28,6 +29,7 @@ import { MAX_PIECES, REPORT_BLOCKS, REPORT_DAYS } from '#lib/reports.ts';
 import { describePiece, makeReport } from '#lib/server/reports.ts';
 import { euros } from 'comun/expenses.ts';
 import { localDay } from 'comun/agenda.ts';
+import { citaWhen, parseCita } from '#lib/cita.ts';
 import { FALLBACK_VOICE_MODEL, voiceSettings } from '#lib/server/voice/settings.ts';
 
 /**
@@ -241,6 +243,8 @@ function cardLine(card: ChatCard) {
 					: 'No añadió nada.'
 		}]`;
 	if (card.kind === 'pagina') return `[Página abierta: ${card.label}]`;
+	if (card.kind === 'cita')
+		return `[Tarjeta de plan: ${card.title}, ${citaWhen(card)}${card.notes ? ` (${card.notes})` : ''}]`;
 	if (card.kind === 'bloque') return `[Gráfica enseñada: ${describeBlock(card.block, euros)}]`;
 	if (card.kind === 'informe')
 		return `[Informe guardado en Informes: «${card.title}», del ${card.from} al ${card.to}]`;
@@ -352,6 +356,14 @@ async function runTool(
 				card: { kind: 'informe', id: made.id, title: made.title, from: made.from, to: made.to }
 			};
 		}
+		case 'propose_event': {
+			const cita = parseCita(args);
+			if (!cita) return { result: 'Falta qué es o el día (YYYY-MM-DD).' };
+			return {
+				result: `Tarjeta del plan «${cita.title}» (${citaWhen(cita)}) enseñada; la persona decide si la manda.`,
+				card: { kind: 'cita', ...cita }
+			};
+		}
 		case 'propose_saved_recipe': {
 			const id = Number(args.id);
 			const saved = Number.isInteger(id) ? await getRecipe(k, id) : null;
@@ -429,17 +441,41 @@ const PROPOSE_SAVED_RECIPE = fn(
 	['id']
 );
 
+/** A plan to propose (#555), «¿quedamos el sábado?»: only in Mensajes' panel. */
+const PROPOSE_EVENT = fn(
+	'propose_event',
+	'Enseña un plan para proponerlo en el chat y que quien lo reciba lo apunte en su agenda con un toque: una comida, una visita, una cita.',
+	{
+		title: {
+			type: 'string',
+			description: 'Qué es, corto y con mayúscula: «Comida en casa de la abuela».'
+		},
+		day: { type: 'string', description: 'El día, YYYY-MM-DD, calculado desde hoy.' },
+		time: {
+			type: 'string',
+			description: 'La hora, HH:MM en 24 horas («a comer»: 14:00). Sin ella, todo el día.'
+		},
+		end_time: { type: 'string', description: 'Hasta qué hora, HH:MM, si se sabe.' },
+		notes: { type: 'string', description: 'Algo más, corto: dónde, qué llevar. Si no, nada.' }
+	},
+	['title', 'day']
+);
+
 /** What may be sent in a message (#555): a recipe or a list, made by the AI in its panel. */
 const MESSAGE_TOOLS = new Set(['propose_shopping', 'propose_recipe', 'read_recipe']);
 /** The panel's turns sent back each time: it is kept nowhere else. */
 export const MESSAGE_TURNS = 8;
 
 /** A card the panel sends back, checked again: only a recipe or a list. */
-export function messageCard(value: unknown): ShoppingCard | RecipeCard | null {
+export function messageCard(value: unknown): ShoppingCard | RecipeCard | EventCard | null {
 	const c = (value ?? {}) as Record<string, unknown>;
 	if (c.kind === 'compra') {
 		const items = shoppingItems(c.items);
 		return items.length ? { kind: 'compra', items, added: null } : null;
+	}
+	if (c.kind === 'cita') {
+		const cita = parseCita(c);
+		return cita ? { kind: 'cita', ...cita } : null;
 	}
 	if (c.kind === 'receta') {
 		const recipe = parseRecipe(c.recipe);
@@ -462,9 +498,12 @@ function messageSystem(c: {
 - Una receta del recetario de la familia (abajo), si la pide o si hay una que encaja: con «propose_saved_recipe», tal cual, sin reescribirla.
 - Una receta que no está en el recetario, con «propose_recipe», entera. Si no dice cuál exactamente («una tarta de chocolate»), propón dos o tres distintas (una fácil, otra sin horno o más ligera…), cada una en su tarjeta, y que el texto diga en una línea en qué se diferencian; si en el recetario hay una que encaja, que sea una de ellas. Si dice una concreta, solo esa.
 - Una lista de cosas (la compra para algo, lo que hay que llevar), con «propose_shopping», en una sola tarjeta.
+- Un plan para quedar o apuntar («proponles comer el sábado en casa de la abuela»), con «propose_event»: el día calculado desde hoy, la hora si la dice o se entiende («a comer», 14:00; «a cenar», 21:00), y en «notes» solo lo que diga de más (dónde, qué llevar). Si no está claro qué día, pregunta en una frase en vez de inventarlo.
 - El texto, muy corto (una o dos frases): las tarjetas ya lo dicen todo. Sin títulos ni negritas.
-- Si pide algo que no es una receta ni una lista, dile en una frase que de momento solo preparas recetas y listas para mandar.
+- Si pide algo que no es una receta, una lista ni un plan, dile en una frase que de momento solo preparas eso para mandar.
 ${c.style ? `- El carácter de la casa, solo el tono: «${c.style}».\n` : ''}
+Hoy es ${new Intl.DateTimeFormat('es-ES', { dateStyle: 'full', timeZone: TIME_ZONE }).format()} (${localDay()}).
+
 Recetario de la familia:
 ${c.recipes.map((r) => `- ${r.title} [receta ${r.id}]`).join('\n') || '(vacío)'}`;
 }
@@ -521,7 +560,11 @@ export async function askForMessage(
 		apiKey,
 		label: 'Mensajes',
 		model: settings.conversationModel,
-		tools: [...TOOLS.filter((t) => MESSAGE_TOOLS.has(t.function.name)), PROPOSE_SAVED_RECIPE]
+		tools: [
+			...TOOLS.filter((t) => MESSAGE_TOOLS.has(t.function.name)),
+			PROPOSE_SAVED_RECIPE,
+			PROPOSE_EVENT
+		]
 	});
 }
 

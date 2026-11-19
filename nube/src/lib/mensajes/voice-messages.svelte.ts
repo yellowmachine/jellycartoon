@@ -1,5 +1,6 @@
 import { music } from 'comun/music-player.svelte.ts';
 import { Messenger, describe, type StoredMessage } from './messenger.ts';
+import { citaWhen } from '#lib/cita.ts';
 import { idbStore } from './idb-store.ts';
 import { httpTransport } from './http-transport.ts';
 import { lockFor } from './lock.ts';
@@ -191,7 +192,9 @@ class MessagesVoice {
 								? `la receta de ${m.card.recipe.title}`
 								: m.card?.kind === 'enlace-receta'
 									? `la receta de ${m.card.title}`
-									: 'una lista'
+									: m.card?.kind === 'cita'
+										? `un plan: ${m.card.title}, ${citaWhen(m.card)}`
+										: 'una lista'
 				}.`
 			);
 		}

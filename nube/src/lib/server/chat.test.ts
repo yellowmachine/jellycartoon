@@ -527,3 +527,45 @@ test('Mensajes (#555): a recipe of the book, as it is, marked as saved', async (
 	const asked = await chat.askChat(ana, { id: 'ana', name: 'Ana' }, 'las lentejas');
 	expect(asked.at(-1)!.cards).toEqual([]);
 });
+
+test('Mensajes (#555): a plan, with today known to work out the day', async () => {
+	answers = [
+		{
+			content: null,
+			toolCalls: [
+				call('propose_event', {
+					title: 'Comida en casa de la abuela',
+					day: '2026-11-21',
+					time: '14:00',
+					notes: 'Llevamos el postre'
+				}),
+				call('propose_event', { title: 'Sin día' }, 'mal')
+			]
+		},
+		{ content: '¿Os va?', toolCalls: [] }
+	];
+	const got = await chat.askForMessage(
+		ana,
+		{ id: 'ana', name: 'Ana' },
+		{
+			question: 'proponles comer el sábado en casa de la abuela',
+			to: 'la familia',
+			assistant: 'Makoto',
+			turns: []
+		}
+	);
+	expect(got.cards).toEqual([
+		{
+			kind: 'cita',
+			title: 'Comida en casa de la abuela',
+			day: '2026-11-21',
+			time: '14:00',
+			endTime: null,
+			notes: 'Llevamos el postre'
+		}
+	]);
+	expect(String(sent[0]![0]!.content)).toMatch(/Hoy es .+\(\d{4}-\d{2}-\d{2}\)/);
+	expect(
+		String(sent[1]!.find((m) => m.role === 'tool' && m.tool_call_id === 'mal')?.content)
+	).toContain('Falta');
+});

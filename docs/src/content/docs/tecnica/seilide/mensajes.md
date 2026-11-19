@@ -117,7 +117,13 @@ items } }`, cifrada como un texto y revisada al leerla (`parseRecipe`, 30 cosas 
   familia, o de dos con un contacto sin `family`): `{ kind: 'enlace-receta', id, title }`, que se
   abre en `/recetas/<id>` (si ya no está, Recetas lo dice). Familia vinculada: la receta entera.
   Desde Recetas, «📤 Mandar» lleva a `/mensajes?receta=<id>` (solo con Mensajes en la barra); en el
-  panel, `propose_saved_recipe` (solo en Mensajes) marca la tarjeta con su `savedId`. `ChatRecipeCard` acepta otra acción (`save`) y otros botones
+  panel, `propose_saved_recipe` (solo en Mensajes) marca la tarjeta con su `savedId`.
+- **Plan** (fase 3): `propose_event` (solo en Mensajes; el sistema le dice qué día es hoy) hace una
+  tarjeta `cita` (`lib/cita.ts`: título, día, hora y hasta qué hora opcionales, nota; sin repetir).
+  Va cifrada como `{ kind: 'cita', … }` y se revisa al leerla (`parseCita`). La acción `addEvent` de
+  `/mensajes` la apunta en la Agenda de la familia de quien la recibe (para todos, sin aviso) solo si
+  no hay ya una igual ese día (`citaKey`: día, hora y título); la página trae las de la Agenda de
+  30 días atrás a 400 adelante para enseñar «En la Agenda ✓», también la apuntada por otro. `ChatRecipeCard` acepta otra acción (`save`) y otros botones
   (`actions`).
 
 ## Transcripción en el aparato

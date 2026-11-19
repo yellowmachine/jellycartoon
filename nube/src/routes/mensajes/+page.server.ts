@@ -1,7 +1,9 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { parseRecipe } from 'comun/recipe.ts';
-import { familyPeople } from '#lib/server/agenda/agenda.ts';
+import { addDays, localDay } from 'comun/agenda.ts';
+import { addEvent, agendaBetween, familyPeople } from '#lib/server/agenda/agenda.ts';
+import { citaKey, parseCita } from '#lib/cita.ts';
 import { addItems, kitchenOf, toBuy } from '#lib/server/fridge.ts';
 import { calls } from '#lib/server/calls.ts';
 import { openRouterKey } from '#lib/server/family-settings.ts';
@@ -23,12 +25,13 @@ import {
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const k = await kitchenOf(locals.user!.id);
 	const asked = Number(url.searchParams.get('receta'));
-	const [people, contacts, key, buying, saved, sharing] = await Promise.all([
+	const [people, contacts, key, buying, saved, inAgenda, sharing] = await Promise.all([
 		familyPeople(k),
 		calls.callable(locals.user!.id).catch(() => []),
 		openRouterKey(k),
 		toBuy(k),
 		recipesFromMessages(k),
+		agendaKeys(k),
 		Number.isInteger(asked) && asked > 0 ? getRecipe(k, asked) : null
 	]);
 	const recipe = sharing ? parseRecipe(sharing) : null;
@@ -43,10 +46,26 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		toBuy: buying,
 		/** In the same family, sharing is referring: saved by one, saved for all. */
 		saved,
+		inAgenda,
 		/** A recipe of the book to send, from Recetas' «Mandar» (#555). */
 		sharing: sharing && recipe && typeof recipe !== 'string' ? { id: sharing.id, recipe } : null
 	};
 };
+
+/** How far plans are looked for in the Agenda: from a while ago, to a year and a bit ahead. */
+const AGENDA_BACK = 30;
+const AGENDA_AHEAD = 400;
+
+/** What is in the family's Agenda, as plans are compared (citaKey): noted by one, noted for all. */
+async function agendaKeys(k: Awaited<ReturnType<typeof kitchenOf>>) {
+	const today = localDay();
+	const { occurrences } = await agendaBetween(
+		k,
+		addDays(today, -AGENDA_BACK),
+		addDays(today, AGENDA_AHEAD)
+	);
+	return [...new Set(occurrences.map((o) => citaKey({ ...o, time: o.startTime })))];
+}
 
 /**
  * What came in a card (#555), taken by whoever got it, into their own family: it was decrypted in
@@ -59,6 +78,37 @@ export const actions: Actions = {
 		const items = shoppingItems(form.getAll('item').map(String));
 		if (!items.length) return fail(400, { message: 'Marca algo para añadir' });
 		return { added: await addItems(await kitchenOf(locals.user!.id), items) };
+	},
+	/**
+	 * A plan, into the family's Agenda: for everyone, nothing repeated, no notice; only once (if it
+	 * is already there, by day, time and title, it stays as it is).
+	 */
+	addEvent: async ({ request, locals }) => {
+		const form = await request.formData();
+		let raw: unknown = null;
+		try {
+			raw = JSON.parse(String(form.get('cita') ?? ''));
+		} catch {
+			// Said below.
+		}
+		const cita = parseCita(raw);
+		if (!cita) return fail(400, { message: 'Ese plan no vale' });
+		const k = await kitchenOf(locals.user!.id);
+		const { occurrences } = await agendaBetween(k, cita.day, cita.day);
+		if (occurrences.some((o) => citaKey({ ...o, time: o.startTime }) === citaKey(cita)))
+			return { noted: true };
+		await addEvent(k, {
+			title: cita.title,
+			notes: cita.notes,
+			startDay: cita.day,
+			startTime: cita.time,
+			endDay: null,
+			endTime: cita.endTime,
+			repeat: { every: null },
+			remind: null,
+			people: []
+		});
+		return { noted: true };
 	},
 	/** A recipe, into the family's book: once per message (`from`), however many times it is tapped. */
 	save: async ({ request, locals }) => {

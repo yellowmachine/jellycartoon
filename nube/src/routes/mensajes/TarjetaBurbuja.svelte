@@ -1,6 +1,9 @@
 <script lang="ts">
 	import ChatRecipeCard from '#lib/components/ChatRecipeCard.svelte';
 	import ShoppingCard from '#lib/components/ShoppingCard.svelte';
+	import CitaCard from '#lib/components/CitaCard.svelte';
+	import { enhance } from '$app/forms';
+	import { citaKey } from '#lib/cita.ts';
 	import type { StoredMessage } from '#lib/mensajes/messenger.ts';
 
 	/**
@@ -13,10 +16,13 @@
 	let {
 		m,
 		toBuy,
-		saved
+		saved,
+		inAgenda
 	}: {
 		m: StoredMessage;
 		toBuy: string[];
+		/** What is in the family's Agenda (citaKey): a plan noted by anyone shows as noted. */
+		inAgenda: string[];
 		/** Which of the family's recipes came in which message: saved by anyone of the family. */
 		saved: Record<string, number>;
 	} = $props();
@@ -26,6 +32,9 @@
 	let justSaved = $state<number | null>(null);
 	const savedId = $derived(saved[from] ?? justSaved);
 	let added = $state<string[] | null>(null);
+	let noted = $state(false);
+	let noting = $state(false);
+	let notProblem = $state<string | null>(null);
 </script>
 
 {#if m.card?.kind === 'receta'}
@@ -48,6 +57,41 @@
 			>Abrir la receta</a
 		>
 	</div>
+{:else if m.card?.kind === 'cita'}
+	{@const cita = m.card}
+	<CitaCard {cita}>
+		{#if noted || inAgenda.includes(citaKey(cita))}
+			<a href="/agenda?dia={cita.day}" class="text-sm text-emerald-400 hover:underline"
+				>En la Agenda ✓</a
+			>
+		{:else}
+			<form
+				method="post"
+				action="?/addEvent"
+				use:enhance={() => {
+					noting = true;
+					notProblem = null;
+					return async ({ result }) => {
+						noting = false;
+						if (result.type === 'success') noted = true;
+						else notProblem = 'No se ha podido apuntar';
+					};
+				}}
+			>
+				<input type="hidden" name="cita" value={JSON.stringify(cita)} />
+				<button
+					class="rounded-md bg-amber-500 px-4 py-1.5 font-semibold text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
+					disabled={noting}>{noting ? 'Apuntando…' : 'Añadir a la Agenda'}</button
+				>
+			</form>
+			<a
+				href="/agenda?dia={cita.day}"
+				class="rounded-md px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white"
+				>Ver ese día</a
+			>
+		{/if}
+	</CitaCard>
+	{#if notProblem}<p class="mt-1 text-sm text-red-400">{notProblem}</p>{/if}
 {:else if m.card?.kind === 'compra'}
 	<ShoppingCard
 		items={m.card.items}

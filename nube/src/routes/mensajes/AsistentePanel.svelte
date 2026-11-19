@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ChatRecipeCard from '#lib/components/ChatRecipeCard.svelte';
+	import CitaCard from '#lib/components/CitaCard.svelte';
 	import type { ChatCard } from '#lib/chat.ts';
 	import { bookRecipeCard, type MessageCard } from '#lib/mensajes/messenger.ts';
 
@@ -92,7 +93,9 @@
 				: { kind: 'receta', recipe: c.recipe }
 			: c.kind === 'compra'
 				? { kind: 'compra', items: c.items }
-				: null;
+				: c.kind === 'cita'
+					? c
+					: null;
 
 	async function send(card: MessageCard, id: string) {
 		sending = id;
@@ -144,6 +147,15 @@
 								{/if}
 							{/snippet}
 						</ChatRecipeCard>
+					{:else if card && c.kind === 'cita'}
+						<CitaCard cita={c}>
+							<button
+								class="rounded-md bg-amber-500 px-4 py-1.5 font-semibold text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
+								disabled={sending !== null}
+								onclick={() => send(card, `${ti}/${ci}`)}
+								>{sending === `${ti}/${ci}` ? 'Enviando…' : 'Enviar esta'}</button
+							>
+						</CitaCard>
 					{:else if card && c.kind === 'compra'}
 						<div class="rounded-xl border border-zinc-700 bg-zinc-900/80 p-3">
 							<p class="mb-1 text-sm font-semibold text-zinc-300">🛒 Lista</p>
