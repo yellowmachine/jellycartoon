@@ -1,7 +1,16 @@
 import { describe, expect, test } from 'bun:test';
 import { createHub, PlugOffline, type HubDeps, type PlugSocket } from './hub.ts';
 import type { KeyPlug } from './plug-key-scope.ts';
-import { energyRise, hourOf, parseMessage, staIpOf, switchOf } from './shelly.ts';
+import {
+	energyRise,
+	hourOf,
+	isSensorDevice,
+	parseMessage,
+	sensorOf,
+	staIpOf,
+	switchOf,
+	type SensorReading
+} from './shelly.ts';
 
 /**
  * The plugs' hub (#396) with a fake Shelly: frames as a Plug M Gen3 sent them on 2026-11-07.
@@ -21,6 +30,20 @@ const FULL = JSON.stringify({
 			voltage: 234.8,
 			aenergy: { total: 10.0 }
 		},
+		ws: { connected: true }
+	}
+});
+/** A Shelly H&T Gen3 (#508) waking on USB, as its status read on 2026-11-19 at 14:30. */
+const HT_FULL = JSON.stringify({
+	src: 'shellyhtg3-d885ac153264',
+	dst: 'ws',
+	method: 'NotifyFullStatus',
+	params: {
+		ts: 1795095002.1,
+		'devicepower:0': { id: 0, battery: { V: 6.59, percent: 100 }, external: { present: true } },
+		'humidity:0': { id: 0, rh: 55.1 },
+		sys: { wakeup_reason: { boot: 'deepsleep_wake', cause: 'status_update' }, wakeup_period: 600 },
+		'temperature:0': { id: 0, tC: 19.9, tF: 67.8 },
 		ws: { connected: true }
 	}
 });
@@ -51,6 +74,23 @@ describe('shelly', () => {
 		});
 		expect(parseMessage('no json')).toBeNull();
 		expect(parseMessage('{"method":"NotifyEvent","params":{}}')).toBeNull();
+	});
+
+	test('reads a sensor, and tells it from a plug', () => {
+		expect(parseMessage(HT_FULL)).toMatchObject({
+			kind: 'status',
+			sw: null,
+			sensor: { tempC: 19.9, humidity: 55.1, battery: 100, external: true }
+		});
+		expect(sensorOf({ 'temperature:0': { id: 0, tC: null, errors: ['read'] } })).toEqual({
+			tempC: null
+		});
+		expect(sensorOf({ 'humidity:0': { id: 0, rh: 48.2 } })).toEqual({ humidity: 48.2 });
+		expect(sensorOf(JSON.parse(FULL).params)).toBeNull();
+		expect(isSensorDevice('shellyhtg3-d885ac153264')).toBe(true);
+		expect(isSensorDevice('shellyplusht-c4d8d5')).toBe(true);
+		expect(isSensorDevice('shellyplugmg3-9070696e4874')).toBe(false);
+		expect(isSensorDevice(null)).toBe(false);
 	});
 
 	test('its address in the wifi, only an IPv4 one', () => {
@@ -123,11 +163,13 @@ const LAMP: KeyPlug = { id: 'p1', familyId: 'A', name: 'Lámpara', energyWh: 10 
 function setup(plugs: Record<string, KeyPlug> = { tok: LAMP }) {
 	const saved: { plugId: string; patch: Parameters<HubDeps['save']>[2] }[] = [];
 	const energy: { plugId: string; hour: Date; wh: number }[] = [];
+	const readings: { plugId: string; at: Date; reading: SensorReading }[] = [];
 	let clock = new Date('2026-11-07T17:56:00Z');
 	const deps: HubDeps = {
 		plugOfToken: async (t) => plugs[t] ?? null,
 		save: async (_f, plugId, patch) => void saved.push({ plugId, patch }),
 		addEnergy: async (_f, plugId, hour, wh) => void energy.push({ plugId, hour, wh }),
+		addReading: async (_f, plugId, at, reading) => void readings.push({ plugId, at, reading }),
 		now: () => clock,
 		log: () => {}
 	};
@@ -136,6 +178,7 @@ function setup(plugs: Record<string, KeyPlug> = { tok: LAMP }) {
 		hub,
 		saved,
 		energy,
+		readings,
 		setClock: (d: string) => (clock = new Date(d))
 	};
 }
@@ -143,6 +186,40 @@ function setup(plugs: Record<string, KeyPlug> = { tok: LAMP }) {
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 describe('hub', () => {
+	test('a sensor: each new reading kept whole, the same one again not', async () => {
+		const { hub, readings, setClock } = setup();
+		const ws = new FakePlug();
+		const attaching = hub.attach('tok', ws);
+		ws.say(HT_FULL);
+		await attaching;
+		await tick();
+		ws.say(HT_FULL);
+		setClock('2026-11-07T17:56:01Z');
+		ws.say(
+			JSON.stringify({
+				src: 'x',
+				dst: 'ws',
+				method: 'NotifyStatus',
+				params: { 'humidity:0': { id: 0, rh: 49 } }
+			})
+		);
+		await tick();
+		expect(readings).toEqual([
+			{
+				plugId: 'p1',
+				at: new Date('2026-11-07T17:56:00Z'),
+				reading: { tempC: 19.9, humidity: 55.1, battery: 100, external: true }
+			},
+			{
+				plugId: 'p1',
+				at: new Date('2026-11-07T17:56:01Z'),
+				reading: { tempC: 19.9, humidity: 49, battery: 100, external: true }
+			}
+		]);
+		// No switch: nothing of a plug's.
+		expect(hub.liveOf('p1').output).toBeNull();
+	});
+
 	test('after Seilide starts, reconnecting until it is back, or for a while', async () => {
 		const { hub, setClock } = setup();
 		expect(hub.reconnecting('p1')).toBe(true);

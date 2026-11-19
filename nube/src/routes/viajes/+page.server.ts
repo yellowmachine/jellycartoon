@@ -34,6 +34,7 @@ import {
 } from '#lib/server/trips/route-maps.ts';
 import { isDeviceId } from 'comun/route-maps.ts';
 import { listCars, myCarId, parkCar } from '#lib/server/trips/cars.ts';
+import { sendableTo } from '#lib/server/location-share.ts';
 import { MAX_CAR_NOTE } from '#lib/cars.ts';
 import { fold } from 'comun/music.ts';
 import { isLngLat } from 'comun/road.ts';
@@ -68,19 +69,22 @@ function nameOf(form: FormData, used: { id: number; name: string }[], id: number
  */
 export const load: PageServerLoad = async ({ locals }) => {
 	const k = await kitchenOf(locals.user!.id);
-	const [planned, people, map, places, routes, routeMaps, cars, myCar] = await Promise.all([
-		listPlannedTrips(k),
-		agendaPeople(k),
-		access(path.join(MAP_DIR, 'espana.pmtiles')).then(
-			() => true,
-			() => false
-		),
-		listSavedPlaces(k),
-		listSavedRoutes(k),
-		routeMapsOf(k),
-		listCars(k),
-		myCarId(k)
-	]);
+	const [planned, people, map, places, routes, routeMaps, cars, myCar, sendable] =
+		await Promise.all([
+			listPlannedTrips(k),
+			agendaPeople(k),
+			access(path.join(MAP_DIR, 'espana.pmtiles')).then(
+				() => true,
+				() => false
+			),
+			listSavedPlaces(k),
+			listSavedRoutes(k),
+			routeMapsOf(k),
+			listCars(k),
+			myCarId(k),
+			// Who they may send their location to (#550): as they may call. Failing, no one.
+			sendableTo(locals.user!.id).catch(() => [])
+		]);
 	return {
 		planned,
 		weather: tripsWeather(k, planned).catch(() => ({})),
@@ -90,7 +94,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		routes,
 		routeMaps,
 		cars,
-		myCar
+		myCar,
+		sendable
 	};
 };
 

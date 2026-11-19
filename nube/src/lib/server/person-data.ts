@@ -174,6 +174,37 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		note: 'Their phones keep getting notices'
 	},
 
+	// Mensajes (#551): their devices' keys and their place in the family's conversations are of that
+	// family: in the new one they turn messages on again. What was said is ciphertext only the
+	// devices read (their own copy is in their devices), so nothing of it moves nor goes in the zip.
+	msg_device: {
+		leaving: 'dropped',
+		joining: 'dropped',
+		zip: false,
+		note: 'Their devices turn messages on again in the new family'
+	},
+	msg_key_package: { leaving: 'dropped', joining: 'dropped', zip: false },
+	msg_member: { leaving: 'dropped', joining: 'dropped', zip: false },
+	msg_conversation: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'Ciphertext only; each device keeps its own copy of what it read'
+	},
+	msg_event: { leaving: 'stays', joining: 'dropped', zip: false },
+	msg_file: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'Encrypted voice notes; their keys are in the devices (and in each one’s PIN backup)'
+	},
+	msg_backup: {
+		leaving: 'dropped',
+		joining: 'dropped',
+		zip: false,
+		note: 'Sealed with the old family’s key: in the new one they set a PIN again (their devices keep what they read)'
+	},
+
 	// Calls (#330): of two people, so the family keeps them; theirs, in their zip.
 	call: {
 		leaving: 'stays',
@@ -402,6 +433,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: false
 	},
 	plug_schedule: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false
+	},
+	// A sensor's readings (#508): the house's rooms, as its plugs.
+	plug_reading: {
 		leaving: 'stays',
 		joining: 'dropped',
 		zip: false

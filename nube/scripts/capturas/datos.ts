@@ -194,6 +194,23 @@ try {
 			insert into plug (id, family_id, name, kind, hash, device_id, output, last_seen_at)
 			values (${id}, ${family}, ${name}, ${kind}, ${id}, ${id}, ${output}, now())`;
 
+	// Temperatura (#508): two rooms' Shelly H&T, a reading every 10 minutes for two days.
+	for (const [id, name, base, battery] of [
+		['shellyhtg3-capturas1', 'Dormitorio', 18.5, null],
+		['shellyhtg3-capturas2', 'Salón', 21, 76]
+	] as const) {
+		await sql`
+			insert into plug (id, family_id, name, kind, hash, device_id, last_seen_at)
+			values (${id}, ${family}, ${name}, 'otro', ${id}, ${id}, now())`;
+		await sql`
+			insert into plug_reading (plug_id, family_id, at, temp_c, humidity, battery, external)
+			select ${id}, ${family}, t,
+				round((${base} + 1.5 * sin(extract(epoch from t) / 13751) + random() * 0.2)::numeric, 1),
+				round((52 + 6 * cos(extract(epoch from t) / 13751))::numeric, 1),
+				${battery}, ${battery === null}
+			from generate_series(now() - interval '2 days', now() - interval '3 minutes', interval '10 minutes') t`;
+	}
+
 	// Recetas: two saved from a (made-up) cooking site, with their steps ready for the kitchen.
 	const step = (text: string, timer: [string, number, string | null] | null = null) => ({
 		text,

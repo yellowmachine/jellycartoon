@@ -39,6 +39,7 @@ const seilide = [
 	'series',
 	'musica',
 	'carretera',
+	'mensajes',
 	'privacidad-gastos'
 ];
 const guia = [
@@ -53,6 +54,7 @@ const guia = [
 	'musica',
 	'paseos',
 	'llamadas',
+	'mensajes',
 	'coche'
 ];
 const pages = (base, slugs) => slugs.map((s) => (s ? `${base}/${s}` : base));

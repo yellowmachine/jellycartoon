@@ -80,6 +80,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 			'mi barra secciones menú ocultar quitar mostrar ver arriba series música radio canales recetas nevera agenda llamadas dinero gastos papeles viajes paseos preguntar reglas notas enchufes deberes juegos estadísticas oración'
 	},
 	{
+		id: 'aparatos-mensajes',
+		tab: 'mi',
+		title: 'Tus aparatos con mensajes',
+		words: 'mensajes cifrados aparato perdido quitar movil tablet llaves'
+	},
+	{
 		id: 'fuente-musica',
 		tab: 'mi',
 		title: 'Tu música, de dónde sale',

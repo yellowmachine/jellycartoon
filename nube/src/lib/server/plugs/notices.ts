@@ -12,7 +12,8 @@ import { voiceSettings } from '../voice/settings.ts';
 import { ruleEvent } from '../rule-events.ts';
 import { isPlugKind, PLUG_KINDS, type PlugKind } from '#lib/plugs.ts';
 import { setPlugWatcher } from './plugs.ts';
-import { PlugWatch, type CycleEvent, type WatchEvent } from './watch.ts';
+import { isSensorDevice } from './shelly.ts';
+import { PlugWatch, SENSOR_SILENT_MS, type CycleEvent, type WatchEvent } from './watch.ts';
 
 /**
  * The plugs' notices (#396, phase 3): what watch.ts reads in their watts, told to the family's
@@ -30,6 +31,8 @@ interface Watched {
 	kind: PlugKind;
 	hours: number | null;
 	aloud: boolean;
+	/** A sensor (#508): only «sin noticias», after hours asleep, and no cycles. */
+	sensor: boolean;
 	watch: PlugWatch;
 }
 
@@ -50,11 +53,18 @@ const NOTICES: Record<
 		said: `Atención: ${w.name} lleva tres horas sin funcionar.`,
 		urgent: true
 	}),
-	offline: (w) => ({
-		title: `${w.name}, sin conexión`,
-		body: 'Lleva media hora sin conectar: puede que se haya ido la luz o la wifi en casa.',
-		said: `${w.name} lleva media hora sin conexión.`
-	}),
+	offline: (w) =>
+		w.sensor
+			? {
+					title: `${w.name}, sin noticias`,
+					body: 'Lleva más de dos horas sin mandar la temperatura: puede que se haya quedado sin pilas o sin wifi.',
+					said: `${w.name} lleva dos horas sin mandar la temperatura.`
+				}
+			: {
+					title: `${w.name}, sin conexión`,
+					body: 'Lleva media hora sin conectar: puede que se haya ido la luz o la wifi en casa.',
+					said: `${w.name} lleva media hora sin conexión.`
+				},
 	longOn: (w) => ({
 		title: `${w.name} sigue encendido`,
 		body: `Lleva más de ${w.hours === 1 ? 'una hora' : `${w.hours} horas`} encendido.`,
@@ -103,7 +113,7 @@ const isCycle = (event: WatchEvent | CycleEvent): event is CycleEvent => event i
 function emit(plugId: string, w: Watched, events: (WatchEvent | CycleEvent)[]) {
 	for (const event of events)
 		if (isCycle(event)) {
-			if (w.kind !== 'nevera')
+			if (w.kind !== 'nevera' && !w.sensor)
 				ruleEvent(houseKitchen(w.familyId), 'enchufe', w.name, null, [], undefined, {
 					plugId,
 					name: w.name,
@@ -127,7 +137,8 @@ async function load(familyId: string, plugId: string) {
 				stopped: plug.notifyStopped,
 				offline: plug.notifyOffline,
 				onHours: plug.notifyOnHours,
-				aloud: plug.notifyAloud
+				aloud: plug.notifyAloud,
+				deviceId: plug.deviceId
 			})
 			.from(plug)
 			.where(eq(plug.id, plugId))
@@ -136,12 +147,10 @@ async function load(familyId: string, plugId: string) {
 		watched.delete(plugId);
 		return;
 	}
-	const settings = {
-		done: row.done,
-		stopped: row.stopped,
-		offline: row.offline,
-		onHours: row.onHours
-	};
+	const sensor = isSensorDevice(row.deviceId);
+	const settings = sensor
+		? { done: false, stopped: false, offline: true, onHours: null, offlineMs: SENSOR_SILENT_MS }
+		: { done: row.done, stopped: row.stopped, offline: row.offline, onHours: row.onHours };
 	const before = watched.get(plugId);
 	if (before) before.watch.settings = settings;
 	watched.set(plugId, {
@@ -150,6 +159,7 @@ async function load(familyId: string, plugId: string) {
 		kind: isPlugKind(row.kind) ? row.kind : 'otro',
 		hours: row.onHours,
 		aloud: row.aloud,
+		sensor,
 		watch: before?.watch ?? new PlugWatch(settings, Date.now())
 	});
 }

@@ -1,3 +1,6 @@
+import { messagesVoice } from '#lib/mensajes/voice-messages.svelte.ts';
+import { sendMyLocation } from '#lib/location-send.svelte.ts';
+import { tripShare } from '#lib/trip-share.svelte.ts';
 import { music } from 'comun/music-player.svelte.ts';
 import { musicTarget } from 'comun/music-target.svelte.ts';
 import type { LngLat, Place } from 'comun/road.ts';
@@ -56,6 +59,8 @@ export interface Road {
 	follow(id: number): void;
 	/** A photo with its camera. */
 	photo(): void;
+	/** Shares the trip (#81), with the route's destination and arrival (#550). */
+	startShare(): Promise<void>;
 }
 
 class VoiceClient {
@@ -244,7 +249,11 @@ class VoiceClient {
 				trip: this.road?.trip() ?? null,
 				ahead: this.road?.ahead() ?? null,
 				// A device that calls by phone (#330): its contacts' names, the numbers stay here.
-				phoneContacts: this.road && simPhone.on ? simPhone.names() : undefined
+				phoneContacts: this.road && simPhone.on ? simPhone.names() : undefined,
+				// Mensajes (#551): on here, and a recorded one waiting for its «sí» (never its words).
+				messages: messagesVoice.active
+					? { on: true, pending: messagesVoice.pending?.name ?? null }
+					: undefined
 			})
 		}).catch(() => null);
 		const body: VoiceReply | { message?: string } | null = await res?.json().catch(() => null);
@@ -382,6 +391,26 @@ async function act(action: VoiceAction) {
 			return timers.prepare(action.label, action.seconds, action.trigger);
 		case 'cancelTimer':
 			return void timers.cancel(action.label);
+		case 'shareLocation':
+			// Not awaited: the GPS may take a while; the reply is read meanwhile, and a failure shown.
+			return void sendMyLocation(
+				{ userId: action.userId, name: action.name },
+				action.live,
+				voice.road?.startShare
+			).catch((err) => (voice.problem = err instanceof Error ? err.message : String(err)));
+		case 'stopSharing':
+			return tripShare.stop();
+		// Not awaited: they speak and record; the reply is read meanwhile.
+		case 'recordMessage':
+			return void messagesVoice.record(action.to, action.name);
+		case 'voiceMessage':
+			return void messagesVoice.answer(action.send).catch((err) => (voice.problem = String(err)));
+		case 'messagesSettings':
+			if (action.readAloud !== undefined) messagesVoice.setReadAloud(action.readAloud);
+			if (action.sendAs) messagesVoice.setSendAs(action.sendAs);
+			return;
+		case 'readMessages':
+			return void (action.audio ? messagesVoice.playLong() : messagesVoice.readUnread());
 		case 'kitchenMode':
 			// The Vista (#525); off, out of it.
 			// Locked (#532): the voice does not close it; only «Salir», held down.

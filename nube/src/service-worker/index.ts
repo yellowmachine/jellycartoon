@@ -1,3 +1,4 @@
+import { decryptedText } from './mensajes.ts';
 import { version } from '$app/env';
 import { immutable } from '$app/manifest';
 import { self } from '$app/service-worker';
@@ -53,24 +54,34 @@ interface PushMessage {
 	url: string;
 	sticky?: boolean;
 	actions?: { action: string; title: string; post?: string; url?: string }[];
+	/** A message (#551): its conversation, to read it here, decrypted, for the notice. */
+	mensajes?: { conversationId: string };
 }
 
 self.addEventListener('push', (event) => {
 	const message: PushMessage | null = event.data?.json() ?? null;
 	if (!message) return;
 	event.waitUntil(
-		self.registration.showNotification(message.title, {
-			body: message.body,
-			tag: message.tag,
-			icon: '/icon-192.png',
-			// The status bar's small icon: Android only takes its shape, so a white silhouette.
-			badge: '/badge-96.png',
-			requireInteraction: message.sticky ?? false,
-			actions: message.actions?.map(({ action, title }) => ({ action, title })),
-			data: { url: message.url, actions: message.actions ?? [] }
-		} as NotificationOptions)
+		(async () => {
+			// A message: what it says, decrypted in this phone; failing that, the server's words.
+			const said = message.mensajes ? await decryptedText(message.mensajes.conversationId) : null;
+			await show(message, said ?? message.body);
+		})()
 	);
 });
+
+function show(message: PushMessage, body: string) {
+	return self.registration.showNotification(message.title, {
+		body,
+		tag: message.tag,
+		icon: '/icon-192.png',
+		// The status bar's small icon: Android only takes its shape, so a white silhouette.
+		badge: '/badge-96.png',
+		requireInteraction: message.sticky ?? false,
+		actions: message.actions?.map(({ action, title }) => ({ action, title })),
+		data: { url: message.url, actions: message.actions ?? [] }
+	} as NotificationOptions);
+}
 
 /** Whether the page went there itself: it answers on the channel, if it is awake and listening. */
 function wentThere(client: Client, to: string) {
@@ -109,6 +120,11 @@ self.addEventListener('notificationclick', (event) => {
 					body: '{}'
 				}).catch(() => null);
 				if (res?.ok) return;
+			}
+			// Somewhere else (a map, #550): opened apart, the maps app on a phone; the app stays.
+			if (new URL(url).origin !== self.location.origin) {
+				await self.clients.openWindow(url);
+				return;
 			}
 			const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
 			const open = windows.find((w) => new URL(w.url).origin === self.location.origin);

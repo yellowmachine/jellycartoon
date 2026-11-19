@@ -16,6 +16,7 @@
 		| 'preguntar'
 		| 'reglas'
 		| 'llamadas'
+		| 'mensajes'
 		| 'estadisticas'
 		| 'enchufes'
 		| 'nevera'
@@ -112,6 +113,10 @@
 		<path
 			d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"
 		/>
+	{:else if name === 'mensajes'}
+		<!-- Two speech bubbles (Lucide's messages-square): the family's own messages (#551). -->
+		<path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z" />
+		<path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1" />
 	{:else if name === 'preguntar'}
 		<!-- A speech bubble with three dots (Lucide's message-circle-more). -->
 		<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />

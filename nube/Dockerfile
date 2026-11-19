@@ -13,6 +13,16 @@ WORKDIR /app/nube
 # Only so that the build finds them; the real ones come at runtime.
 RUN DATABASE_URL=postgres://build/build ORIGIN=http://localhost BETTER_AUTH_SECRET=build bun run build
 
+# What runs needs only the dependencies: what is in devDependencies Vite put into the build (as
+# adapter-node documents it), such as the browser's transcriber (Transformers.js, whose Node runtime
+# alone is some 300 MB) or MLS (#551).
+FROM oven/bun:1 AS deps
+WORKDIR /app
+COPY package.json bun.lock ./
+COPY packages/comun/package.json packages/comun/
+COPY nube/package.json nube/
+RUN bun install --frozen-lockfile --filter nube --production
+
 FROM oven/bun:1-slim
 # poppler-utils: a bill's PDF read by its text (pdftotext), or its first page as a photo (pdftoppm).
 # ffmpeg: Oración's voices kept as Opus, not as Gemini's WAV (#339).
@@ -23,8 +33,8 @@ RUN apt-get update \
 # same as jellycartoon's.
 COPY --from=protomaps/go-pmtiles:v1.31.2 /go-pmtiles /usr/local/bin/pmtiles
 WORKDIR /app/nube
-COPY --from=build /app/node_modules /app/node_modules
-COPY --from=build /app/nube/node_modules ./node_modules
+COPY --from=deps /app/node_modules /app/node_modules
+COPY --from=deps /app/nube/node_modules ./node_modules
 COPY --from=build /app/nube/build ./build
 COPY --from=build /app/nube/drizzle ./drizzle
 COPY --from=build /app/nube/scripts ./scripts

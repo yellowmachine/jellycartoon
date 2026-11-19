@@ -2,13 +2,21 @@ import { randomUUID } from 'node:crypto';
 import { and, asc, count, desc, eq, gte, sql } from 'drizzle-orm';
 import { parseBillDetails } from 'comun/bills.ts';
 import { db } from '../db/index.ts';
-import { bill, expense, familySettings, plug, plugEnergy, plugSchedule } from '../db/schema.ts';
+import {
+	bill,
+	expense,
+	familySettings,
+	plug,
+	plugEnergy,
+	plugReading,
+	plugSchedule
+} from '../db/schema.ts';
 import { asFamily, withFamily } from '../family.ts';
 import type { AnyDb } from '../family-scope.ts';
 import type { Kitchen } from '../fridge.ts';
 import { createHub, PlugOffline, type Hub } from './hub.ts';
 import { newPlugToken, plugKeyScope } from './plug-key-scope.ts';
-import { SWITCH_ID } from './shelly.ts';
+import { isSensorDevice, SWITCH_ID } from './shelly.ts';
 import {
 	MAX_PLUG_NAME,
 	noticeDefaults,
@@ -80,6 +88,23 @@ function makeHub() {
 					})
 			);
 		},
+		async addReading(familyId, plugId, at, reading) {
+			const values = {
+				tempC: reading.tempC ?? null,
+				humidity: reading.humidity ?? null,
+				battery: reading.battery ?? null,
+				external: reading.external ?? null
+			};
+			await asFamily(familyId, async (tx) => {
+				await tx
+					.insert(plugReading)
+					.values({ plugId, familyId, at, ...values })
+					.onConflictDoUpdate({ target: [plugReading.plugId, plugReading.at], set: values });
+				await tx.update(plug).set({ lastSeenAt: at }).where(eq(plug.id, plugId));
+			});
+			// Heard from: its «sin noticias» counts again from now.
+			watcher()?.live(familyId, plugId, null, null);
+		},
 		onLive(familyId, plugId, live) {
 			watcher()?.live(familyId, plugId, live.power, live.output);
 		},
@@ -142,7 +167,9 @@ async function readPlugs(tx: AnyDb, withIp: boolean): Promise<PlugView[]> {
 			notifyAloud: plug.notifyAloud
 		})
 		.from(plug)
-		.orderBy(asc(plug.createdAt));
+		.orderBy(asc(plug.createdAt))
+		// Sensors (#508) are no plugs: no switch, no energy.
+		.then((rows) => rows.filter((p) => !isSensorDevice(p.deviceId)));
 	const schedules = await tx
 		.select({
 			id: plugSchedule.id,
@@ -448,7 +475,12 @@ export async function syncPlug(familyId: string, plugId: string) {
 	const { row, schedules } = await asFamily(familyId, async (tx) => ({
 		row: (
 			await tx
-				.select({ paused: plug.paused, heatUntil: plug.heatUntil, scheduleJobs: plug.scheduleJobs })
+				.select({
+					paused: plug.paused,
+					heatUntil: plug.heatUntil,
+					scheduleJobs: plug.scheduleJobs,
+					deviceId: plug.deviceId
+				})
 				.from(plug)
 				.where(eq(plug.id, plugId))
 		)[0],
@@ -458,7 +490,8 @@ export async function syncPlug(familyId: string, plugId: string) {
 			.where(eq(plugSchedule.plugId, plugId))
 			.orderBy(asc(plugSchedule.id))
 	}));
-	if (!row) return;
+	// A sensor (#508) has no switch nor schedules, and is awake only for a moment.
+	if (!row || isSensorDevice(row.deviceId)) return;
 
 	const config = (await hub.call(plugId, 'Sys.GetConfig')) as { location?: { tz?: unknown } };
 	if (config?.location?.tz !== TIME_ZONE)

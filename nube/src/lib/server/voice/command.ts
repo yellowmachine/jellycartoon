@@ -70,6 +70,8 @@ import { familyPlace, openRouterKey } from '#lib/server/family-settings.ts';
 import { chatWithTools, type Tool, type ToolChatMessage } from '#lib/server/openrouter.ts';
 import { creditProblem } from '#lib/server/ai-block.ts';
 import { inQuietHours, quietCheck } from './quiet-check.ts';
+import { locationCheck } from './location-check.ts';
+import { sharing } from '../trips/share.ts';
 import {
 	afterOrder,
 	assumedNote,
@@ -1313,7 +1315,7 @@ interface Turn {
 	memoryOf: string | null;
 	/** The family's smart plugs (#396), for `plug_switch`. */
 	plugs: PlugView[];
-	/** Who they may call (#330), for `call_person`: the road mode's only. */
+	/** Who they may call (#330, `call_person`, the road mode's) or send their location to (#550). */
 	callable: Callable[];
 	/** This device's phone contacts, by name (#330), for `call_phone`; undefined, it does not call. */
 	phoneContacts: string[] | undefined;
@@ -1463,6 +1465,75 @@ async function runTool(
 			ctx.outcome.actions.push({ kind: 'call', userId: person.userId, name: person.name });
 			return `Llamando a ${person.name}.`;
 		}
+		case 'share_location': {
+			const person = ctx.callable.find((p) => p.userId === args.id);
+			if (!person) return 'No está entre las personas a las que puede mandársela.';
+			const live = args.live === true;
+			const wait = locationCheck(
+				`${ctx.k.familyId}:${ctx.k.userId}`,
+				ctx.order.order,
+				`${person.userId}:${live}`,
+				live
+					? `¿Comparto tu viaje en directo con ${person.name}?`
+					: `¿Le mando tu ubicación a ${person.name}?`
+			);
+			if (wait) return wait;
+			ctx.outcome.actions.push({
+				kind: 'shareLocation',
+				userId: person.userId,
+				name: person.name,
+				live
+			});
+			ctx.outcome.done++;
+			return live
+				? `Compartiendo el viaje con ${person.name}: le llega el enlace.`
+				: `Mandando tu ubicación a ${person.name}.`;
+		}
+		case 'stop_sharing':
+			ctx.outcome.actions.push({ kind: 'stopSharing' });
+			ctx.outcome.done++;
+			return 'Ya no compartes el viaje.';
+		case 'voice_message': {
+			const person = args.to === 'familia' ? null : ctx.callable.find((p) => p.userId === args.to);
+			if (args.to !== 'familia' && !person)
+				return 'No está entre las personas a las que puede escribir.';
+			const name = person ? person.name : 'la familia';
+			ctx.outcome.actions.push({
+				kind: 'recordMessage',
+				to: person ? person.userId : 'familia',
+				name
+			});
+			ctx.outcome.done++;
+			return `El aparato graba en cuanto termines de hablar. Contesta solo: «Dime el mensaje para ${name}».`;
+		}
+		case 'confirm_voice_message':
+			ctx.outcome.actions.push({ kind: 'voiceMessage', send: args.send === true });
+			ctx.outcome.done++;
+			return args.send === true ? 'Mandado.' : 'Borrado, no se manda.';
+		case 'messages_settings': {
+			const readAloud = typeof args.read_aloud === 'boolean' ? args.read_aloud : undefined;
+			const sendAs = ['audio', 'texto', 'ambos'].includes(args.send_as as string)
+				? (args.send_as as 'audio' | 'texto' | 'ambos')
+				: undefined;
+			ctx.outcome.actions.push({ kind: 'messagesSettings', readAloud, sendAs });
+			ctx.outcome.done++;
+			return [
+				readAloud === undefined
+					? ''
+					: readAloud
+						? 'Leerá los mensajes que lleguen.'
+						: 'Ya no los leerá.',
+				sendAs ? `Los de voz irán como ${sendAs === 'ambos' ? 'audio y texto' : sendAs}.` : ''
+			]
+				.join(' ')
+				.trim();
+		}
+		case 'read_messages':
+			ctx.outcome.actions.push({ kind: 'readMessages', audio: args.audio === true });
+			ctx.outcome.done++;
+			return args.audio === true
+				? 'El aparato pone el audio. Contesta solo «Lo pongo».'
+				: 'El aparato los lee. Contesta solo «Te los leo».';
 		case 'call_phone': {
 			const names = ctx.phoneContacts ?? [];
 			const contact =
@@ -2040,13 +2111,122 @@ function minuteNow() {
  * Who they may call (#330), for the model: their family, then the linked ones, by name; it calls
  * by id, so two with the same name are told apart by their family.
  */
-function callableLine(people: Callable[]) {
+function callableLine(people: Callable[], car: boolean) {
 	const who = people.map(
 		(p) =>
-			`${p.name}${p.family ? ` (de la familia ${p.family})` : ''}${p.notices ? '' : ' (sin avisos en su móvil: si no tiene Seilide abierta, no le suena)'}: id ${p.userId}`
+			`${p.name}${p.family ? ` (de la familia ${p.family})` : ''}${p.notices ? '' : ' (sin avisos en su móvil: si no tiene Seilide abierta, no le suena ni le llega el aviso)'}: id ${p.userId}`
 	);
-	return `[A quién puede llamar, por Seilide (no por teléfono), con «call_person»: ${who.join('; ')}.]`;
+	return `[${car ? 'A quién puede llamar, por Seilide (no por teléfono), con «call_person», y mandar su ubicación' : 'A quién puede mandar su ubicación'} con «share_location»: ${who.join('; ')}.]`;
 }
+
+/** «Manda mi ubicación a mamá», «comparte el viaje con papá» (#550): to one of `callableLine`. */
+function shareLocationTool(people: Callable[]): Tool {
+	return {
+		type: 'function',
+		function: {
+			name: 'share_location',
+			description:
+				'Manda su ubicación a alguien de la lista: «manda mi ubicación a mamá», «dile a papá dónde estoy» (live false: dónde está ahora); «comparte el viaje con mamá», «que Pepe vea por dónde voy» (live true: en directo, hasta que llegue o lo deje). La primera vez la herramienta te dice que preguntes: hazlo y con su sí llámala otra vez igual. Si el nombre encaja con dos, pregunta cuál. Si no está en la lista, dile que no se la puede mandar desde aquí.',
+			parameters: {
+				type: 'object',
+				properties: {
+					id: {
+						type: 'string',
+						enum: people.map((p) => p.userId),
+						description: 'Su id, de la lista.'
+					},
+					live: { type: 'boolean', description: 'En directo (el viaje), no solo dónde está ahora.' }
+				},
+				required: ['id', 'live'],
+				additionalProperties: false
+			}
+		}
+	};
+}
+
+/** «Deja de compartir el viaje» (#550, #81): only while it is shared. */
+/**
+ * Mensajes (#551), end-to-end encrypted: what they say never goes through here. The order says only
+ * to whom; the device records the message apart, encrypts it and sends it with a «sí».
+ */
+function voiceMessageTool(people: Callable[]): Tool {
+	return {
+		type: 'function',
+		function: {
+			name: 'voice_message',
+			description:
+				'Mensajes de la familia (cifrados): «mándale un mensaje a papá», «manda un audio a la familia», «escríbele a la abuela». El aparato dice «Dime el mensaje» y graba aparte lo que diga después, que va cifrado: tú nunca pones ni repites el contenido. Si ya lo ha dicho en la orden («dile a papá que llego tarde»), avísale de que se lo pida otra vez el aparato para grabarlo. «A la familia», «al grupo»: to «familia». Si pide «por Telegram», es Telegram, no esto.',
+			parameters: {
+				type: 'object',
+				properties: {
+					to: {
+						type: 'string',
+						enum: ['familia', ...people.map((p) => p.userId)],
+						description: '«familia», o el id de la persona, de la lista.'
+					}
+				},
+				required: ['to'],
+				additionalProperties: false
+			}
+		}
+	};
+}
+
+const confirmVoiceMessageTool: Tool = {
+	type: 'function',
+	function: {
+		name: 'confirm_voice_message',
+		description:
+			'El mensaje grabado en el aparato espera su sí: «sí», «mándalo» → send true; «no», «bórralo», «déjalo» → send false.',
+		parameters: {
+			type: 'object',
+			properties: { send: { type: 'boolean' } },
+			required: ['send'],
+			additionalProperties: false
+		}
+	}
+};
+
+const messagesSettingsTool: Tool = {
+	type: 'function',
+	function: {
+		name: 'messages_settings',
+		description:
+			'Cómo lleva este aparato los mensajes de la familia: «léeme los mensajes que lleguen» / «deja de leerlos» (read_aloud); «mándalos como audio / como texto / los dos» (send_as). Solo lo que pida.',
+		parameters: {
+			type: 'object',
+			properties: {
+				read_aloud: { type: 'boolean' },
+				send_as: { type: 'string', enum: ['audio', 'texto', 'ambos'] }
+			},
+			additionalProperties: false
+		}
+	}
+};
+
+const readMessagesTool: Tool = {
+	type: 'function',
+	function: {
+		name: 'read_messages',
+		description:
+			'«¿Tengo mensajes?», «léeme los mensajes», «¿qué me ha dicho mamá?»: el aparato lee en voz alta los que no ha leído; tú no los ves, no digas qué dicen. «Pon el audio» (uno largo que el aparato anunció): audio true. Contesta solo que los lee o lo pone.',
+		parameters: {
+			type: 'object',
+			properties: { audio: { type: 'boolean' } },
+			additionalProperties: false
+		}
+	}
+};
+
+const stopSharingTool: Tool = {
+	type: 'function',
+	function: {
+		name: 'stop_sharing',
+		description:
+			'Deja de compartir su viaje en directo: «deja de compartir», «que ya no vean dónde estoy».',
+		parameters: { type: 'object', properties: {}, additionalProperties: false }
+	}
+};
 
 /** «Llama a mamá» (#330): a call from the road mode, to one of `callableLine`. */
 function callTool(people: Callable[]): Tool {
@@ -2212,8 +2392,8 @@ export async function runVoiceCommand(
 		familyPlace(k),
 		// The family's smart plugs (#396): what each is doing and has used. Failing, none.
 		kid ? null : plugsForVoice(k).catch(() => null),
-		// Who they may call (#330), only in the car for now. Failing, no one.
-		request.car && k.userId && !satellite ? calls.callable(k.userId).catch(() => []) : [],
+		// Who they may call (#330, only in the car) or send their location to (#550). Failing, no one.
+		k.userId && !satellite ? calls.callable(k.userId).catch(() => []) : [],
 		// «Compañía» (#469): «me voy» and «ya estoy aquí», said to a satellite.
 		satellite ? companionOn(k) : false,
 		// Where their music comes from (#534, phase 3): a satellite, the house's.
@@ -2357,7 +2537,18 @@ export async function runVoiceCommand(
 				...(assumed ? [{ type: 'text' as const, text: assumed }] : []),
 				...(profile ? [{ type: 'text' as const, text: profile }] : []),
 				...(plugs ? [{ type: 'text' as const, text: plugs.line }] : []),
-				...(callable.length ? [{ type: 'text' as const, text: callableLine(callable) }] : []),
+				...(callable.length
+					? [{ type: 'text' as const, text: callableLine(callable, Boolean(request.car)) }]
+					: []),
+				// A voice message recorded in the device (#551), waiting: «sí» is its.
+				...(request.messages?.pending
+					? [
+							{
+								type: 'text' as const,
+								text: `[En el aparato hay un mensaje grabado para ${request.messages.pending} esperando su sí: «sí», «mándalo», «no», «bórralo» son «confirm_voice_message».]`
+							}
+						]
+					: []),
 				...(request.car && request.phoneContacts
 					? [{ type: 'text' as const, text: phoneContactsLine(request.phoneContacts) }]
 					: []),
@@ -2384,7 +2575,13 @@ export async function runVoiceCommand(
 		...(kid ? [] : [plannedTripsTool]),
 		...(plugs ? [plugSwitchTool] : []),
 		...(companion ? [companionAwayTool] : []),
-		...(callable.length ? [callTool(callable)] : []),
+		...(callable.length ? [callTool(callable), shareLocationTool(callable)] : []),
+		...(k.userId && !satellite && sharing(k.userId) ? [stopSharingTool] : []),
+		// Mensajes (#551): only where this device has them on.
+		...(request.messages?.on && !satellite
+			? [voiceMessageTool(callable), messagesSettingsTool, readMessagesTool]
+			: []),
+		...(request.messages?.pending && !satellite ? [confirmVoiceMessageTool] : []),
 		...(request.car && request.phoneContacts ? [phoneTool] : []),
 		...(learned ? [usedLearnedTool] : []),
 		...(kid ? [] : memoryTools(Boolean(satellite))),

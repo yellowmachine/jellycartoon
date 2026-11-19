@@ -26,7 +26,9 @@ export type InboxKind =
 	// The family's storage almost full (#480), to who runs it.
 	| 'espacio'
 	// Butane or pellet about to run out (#513).
-	| 'energia';
+	| 'energia'
+	// Someone's location, or their trip as it goes (#550).
+	| 'ubicacion';
 
 /**
  * Something offered in the inbox, answered with yes or no (#331): to remember (phase 5; older ones

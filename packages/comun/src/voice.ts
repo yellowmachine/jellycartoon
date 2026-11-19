@@ -109,7 +109,25 @@ export type VoiceAction =
 	 * A normal phone call with this device's SIM (#330): one of its contacts by its place in
 	 * `phoneContacts`, or a number said. The device shows it to tap: a page cannot call by itself.
 	 */
-	| { kind: 'dial'; contact?: number; number?: string; name?: string };
+	| { kind: 'dial'; contact?: number; number?: string; name?: string }
+	/**
+	 * «Manda mi ubicación a mamá» (#550), already said yes to: this browser asks its GPS and sends it,
+	 * or shares the trip as it goes (`live`, #81) and sends its link.
+	 */
+	| { kind: 'shareLocation'; userId: string; name: string; live: boolean }
+	/** «Deja de compartir»: the trip shared from this browser, no longer. */
+	| { kind: 'stopSharing' }
+	/**
+	 * Mensajes (#551): a voice message to record in the device («dime el mensaje»), for the family
+	 * (`to` «familia») or a person (their account); encrypted there, never here.
+	 */
+	| { kind: 'recordMessage'; to: string; name: string }
+	/** The one recorded: sent («sí») or dropped. */
+	| { kind: 'voiceMessage'; send: boolean }
+	/** This device's way with messages: read aloud as they come, and how voice ones are sent. */
+	| { kind: 'messagesSettings'; readAloud?: boolean; sendAs?: 'audio' | 'texto' | 'ambos' }
+	/** The unread ones, read aloud in the device (their words never come here). */
+	| { kind: 'readMessages'; audio?: boolean };
 
 /** The longest timer: a day. */
 export const MAX_TIMER_SEC = 24 * 3600;
@@ -181,6 +199,11 @@ export interface VoiceRequest {
 	 * in order (their place says which one). Their numbers stay on the device.
 	 */
 	phoneContacts?: string[];
+	/**
+	 * Mensajes (#551) in this device: on (its keys here), and a voice message recorded and waiting
+	 * for its «sí» (to whom). What it says never comes here: it is encrypted in the device.
+	 */
+	messages?: { on: boolean; pending: string | null };
 }
 
 export interface VoiceReply {
@@ -277,6 +300,13 @@ const isPoint = (value: unknown): value is LngLat =>
 	Math.abs(value[0]) <= 180 &&
 	Math.abs(value[1]) <= 90;
 
+/** What the device says of its messages (#551): on, and to whom one waits for its «sí». */
+function messagesOf(v: unknown): VoiceRequest['messages'] {
+	if (!v || typeof v !== 'object') return undefined;
+	const m = v as { on?: unknown; pending?: unknown };
+	return typeof m.on === 'boolean' ? { on: m.on, pending: text(m.pending, 60) } : undefined;
+}
+
 const text = (value: unknown, max: number) =>
 	typeof value === 'string' && value.trim() ? value.trim().slice(0, max) : null;
 
@@ -330,6 +360,7 @@ export function parseVoiceRequest(body: unknown): VoiceRequest | null {
 		phoneContacts:
 			b.car === true && Array.isArray(b.phoneContacts)
 				? b.phoneContacts.slice(0, 60).map((n: unknown) => text(n, 60) ?? '?')
-				: undefined
+				: undefined,
+		messages: messagesOf(b.messages)
 	};
 }

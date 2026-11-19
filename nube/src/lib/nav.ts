@@ -40,6 +40,16 @@ const SECTIONS: {
 	{ path: '/agenda', label: 'Agenda', icon: 'agenda', where: 'nube' },
 	// Calls between the family (#330): whom to call, and the history.
 	{ path: '/llamadas', label: 'Llamadas', icon: 'llamadas', where: 'nube', also: ['/llamada'] },
+	// The family's own messages, end-to-end encrypted (#551): off until the PIN backup is there.
+	{
+		path: '/mensajes',
+		label: 'Mensajes',
+		icon: 'mensajes',
+		where: 'nube',
+		startsOff: true,
+		about:
+			'Mensajes de la familia cifrados de extremo a extremo, con copia de seguridad tras un PIN. En pruebas: aún sin auditoría externa.'
+	},
 	{ path: '/gastos', label: 'Dinero', icon: 'gastos', where: 'nube' },
 	{ path: '/papeles', label: 'Papeles', icon: 'papeles', where: 'nube' },
 	{ path: '/viajes', label: 'Viajes', icon: 'viajes', where: 'nube', also: ['/carretera'] },
@@ -85,7 +95,7 @@ const SECTIONS: {
 		where: 'nube',
 		startsOff: true,
 		about:
-			'Encender y apagar aparatos desde fuera con enchufes Shelly, ver cuánto gastan y la temperatura de fuera.'
+			'Encender y apagar aparatos desde fuera con enchufes Shelly, ver cuánto gastan y la temperatura de casa (sensores Shelly H&T) y de fuera.'
 	},
 	// Homework from the cartoons watched at the house (#142), for the grown-ups and the children.
 	{

@@ -33,6 +33,7 @@
 	import Colores from 'comun/components/Colores.svelte';
 	import GuardarViajes from './GuardarViajes.svelte';
 	import FuenteMusica from './FuenteMusica.svelte';
+	import AparatosMensajes from './AparatosMensajes.svelte';
 	import Coches from './Coches.svelte';
 	import GastoIa from './GastoIa.svelte';
 	import Microfono from './Microfono.svelte';
@@ -170,6 +171,8 @@
 		{/if}
 
 		<FuenteMusica {data} {tab} />
+
+		<AparatosMensajes {data} {tab} />
 
 		<MiBarra {data} {tab} />
 

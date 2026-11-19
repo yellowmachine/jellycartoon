@@ -22,6 +22,9 @@
 	import { roadPhotos } from '#lib/road-photos.svelte.ts';
 	import { tripRecorder } from '#lib/trip-recorder.svelte.ts';
 	import { tripShare } from '#lib/trip-share.svelte.ts';
+	import SendLocation from '#lib/components/SendLocation.svelte';
+	import MensajePendiente from '#lib/components/MensajePendiente.svelte';
+	import { messagesVoice } from '#lib/mensajes/voice-messages.svelte.ts';
 	import { distanceText, isLngLat, type LngLat, type Place, type Route } from 'comun/road.ts';
 	import { alongLine, guide, lineAhead, locate, metresBetween } from 'comun/road-guide.ts';
 	import {
@@ -71,7 +74,16 @@
 	let { data }: PageProps = $props();
 
 	type Tab =
-		'radio' | 'musica' | 'listas' | 'podcasts' | 'ruta' | 'mas' | 'llamar' | 'dj' | 'telegram';
+		| 'radio'
+		| 'musica'
+		| 'listas'
+		| 'podcasts'
+		| 'ruta'
+		| 'mas'
+		| 'llamar'
+		| 'dj'
+		| 'telegram'
+		| 'mensajes';
 	/**
 	 * The right-hand side (or the whole screen, without the map beside): Inicio (`null`), with what
 	 * plays, the microphone and a big button for each section; or a section, its list filling it, with
@@ -146,6 +158,7 @@
 	$effect(() => {
 		voice.road = {
 			position: () => here,
+			startShare: share,
 			navigation: () =>
 				destination && route
 					? `a ${destination.label}, quedan ${distanceText(guidance?.remaining ?? route.distance)}${
@@ -305,6 +318,13 @@
 		return busy(`podcast-${episodeId}`, () => playEpisode(episodeId));
 	}
 
+	// ——— Mensajes (#551): the family's own, read aloud as they come while the road mode is open ———
+	$effect(() => {
+		if (!messagesVoice.active || !messagesVoice.readAloud) return;
+		void messagesVoice.listen();
+		return () => messagesVoice.stopListening();
+	});
+
 	// ——— Telegram (#243): the messages that come, read aloud; the account is the house's (#253) ———
 
 	const TELEGRAM_KEY = 'jellycartoon:carretera-telegram';
@@ -369,7 +389,8 @@
 		mas: 'Más',
 		llamar: 'Llamar',
 		dj: 'DJ',
-		telegram: 'Telegram'
+		telegram: 'Telegram',
+		mensajes: 'Mensajes'
 	};
 	/**
 	 * Each section, its own colour: told at a glance from the seat, without reading. Shades the day
@@ -384,7 +405,8 @@
 		mas: 'bg-zinc-800 text-zinc-100',
 		llamar: 'bg-green-700 text-white',
 		dj: 'bg-orange-600 text-white',
-		telegram: 'bg-sky-600 text-white'
+		telegram: 'bg-sky-600 text-white',
+		mensajes: 'bg-emerald-600 text-white'
 	};
 	/**
 	 * Inicio's tiles: always these six, always in the same place, so the hand learns them. One with
@@ -405,7 +427,7 @@
 	]);
 	/** «←»: back to «Más» from what is inside it; to Inicio from the rest. */
 	const backTo = (t: Tab): Tab | null =>
-		t === 'dj' || t === 'telegram' || t === 'llamar' ? 'mas' : null;
+		t === 'dj' || t === 'telegram' || t === 'llamar' || t === 'mensajes' ? 'mas' : null;
 	/** What plays, as a section: its colour and drawing on the bar when it has no cover. */
 	const playingTab: Tab = $derived(music.radio ? 'radio' : music.podcast ? 'podcasts' : 'musica');
 
@@ -795,7 +817,7 @@
 	 * each position. It stops on arriving and on leaving this page.
 	 */
 	function share() {
-		void tripShare.start(() => ({
+		return tripShare.start(() => ({
 			destination: destination?.label ?? null,
 			arrivesAt: eta ? eta.arrival.getTime() : null
 		}));
@@ -1263,6 +1285,10 @@ home. -->
 			{:else if id === 'listas'}
 				<path d="M4 6h11M4 11h11M4 16h7" />
 				<path d="M18 19.5a2 2 0 1 1-2-2 2 2 0 0 1 2 2zM18 19.5V9l3-1" />
+			{:else if id === 'mensajes'}
+				<!-- Two speech bubbles: the family's own messages (#551). -->
+				<path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z" />
+				<path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1" />
 			{:else if id === 'telegram'}
 				<!-- A paper plane, as Telegram's. -->
 				<path d="M21 4 3 11l6 2 2 6 3-4 5 4z" />
@@ -1584,6 +1610,10 @@ home. -->
 										onclick={share}>{tripShare.busy ? 'Compartiendo…' : 'Compartir viaje'}</button
 									>
 								{/if}
+								<!-- To someone of the family, or of a linked one (#550): now, or the trip as it goes. -->
+								{#if data.callable.length}
+									<SendLocation people={data.callable} startShare={share} big />
+								{/if}
 								{#if route && destination}
 									<div class="rounded-2xl bg-zinc-900 p-4">
 										{#if following}
@@ -1825,6 +1855,65 @@ home. -->
 							{:else}
 								<p class="text-lg text-zinc-400">No hay listas. Se hacen en Música.</p>
 							{/each}
+						{:else if tab === 'mensajes'}
+							<!-- The family's own messages (#551): read aloud as they come, and sent by voice. -->
+							<div class="sm:col-span-2"><MensajePendiente big /></div>
+							<button
+								class={[
+									tile,
+									'sm:col-span-2',
+									messagesVoice.readAloud
+										? 'border-emerald-400 bg-emerald-500/15'
+										: 'border-zinc-50/10 bg-zinc-900'
+								]}
+								aria-pressed={messagesVoice.readAloud}
+								onclick={() => messagesVoice.setReadAloud(!messagesVoice.readAloud)}
+							>
+								<span class="text-3xl" aria-hidden="true"
+									>{messagesVoice.readAloud ? '🔊' : '🔇'}</span
+								>
+								<span class="min-w-0">
+									<span class="block text-xl font-semibold"
+										>{messagesVoice.readAloud
+											? 'Leyendo los mensajes'
+											: 'Leer los mensajes en voz alta'}</span
+									>
+									<span class="block text-base text-zinc-400"
+										>Cada uno al llegar, con la música más baja; los audios cortos suenan tal cual</span
+									>
+								</span>
+							</button>
+							<div class="rounded-2xl border-2 border-zinc-50/10 bg-zinc-900 p-3 sm:col-span-2">
+								<span class="mb-2 block text-base text-zinc-400"
+									>Al decir «mándale un mensaje a…», va como</span
+								>
+								<div class="flex flex-wrap gap-2">
+									{#each [['audio', 'Audio'], ['texto', 'Texto'], ['ambos', 'Los dos']] as [as, label] (as)}
+										<button
+											class={[
+												'rounded-xl px-4 py-2 text-lg',
+												messagesVoice.sendAs === as
+													? 'bg-emerald-500 text-zinc-950'
+													: 'border border-zinc-700'
+											]}
+											aria-pressed={messagesVoice.sendAs === as}
+											onclick={() => messagesVoice.setSendAs(as as 'audio' | 'texto' | 'ambos')}
+											>{label}</button
+										>
+									{/each}
+								</div>
+							</div>
+							{#each messagesVoice.heard as m (m.at + m.text)}
+								<div class="rounded-2xl border-2 border-zinc-50/10 bg-zinc-900 p-3 sm:col-span-2">
+									<span class="block text-base text-zinc-400"
+										>{m.name} · {new Date(m.at).toLocaleTimeString('es-ES', {
+											hour: '2-digit',
+											minute: '2-digit'
+										})}</span
+									>
+									<span class="block text-lg">{m.text}</span>
+								</div>
+							{/each}
 						{:else if tab === 'telegram'}
 							<button
 								class={[
@@ -2062,6 +2151,23 @@ home. -->
 									<span class="min-w-0">
 										<span class="block text-xl font-semibold">DJ</span>
 										<span class="block text-base text-zinc-400">Tus configuraciones de Modo DJ</span
+										>
+									</span>
+								</button>
+							{/if}
+							{#if messagesVoice.active}
+								<button
+									class={[tile, 'border-zinc-50/10 bg-zinc-900']}
+									onclick={() => (tab = 'mensajes')}
+								>
+									<span
+										class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl {COLOURS.mensajes}"
+										>{@render tabIcon('mensajes', 'h-8 w-8')}</span
+									>
+									<span class="min-w-0">
+										<span class="block text-xl font-semibold">Mensajes</span>
+										<span class="block text-base text-zinc-400"
+											>De la familia, cifrados: en voz alta y por voz</span
 										>
 									</span>
 								</button>

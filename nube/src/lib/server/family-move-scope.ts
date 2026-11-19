@@ -45,7 +45,9 @@ import {
 	walk,
 	walkPhoto,
 	walkShare,
-	watchLog
+	watchLog,
+	msgDevice,
+	msgMember
 } from './db/schema.ts';
 import type { AnyDb } from './family-scope.ts';
 import { openFileFor, openFor, sealFileFor, sealFor } from './family-secret.ts';
@@ -517,6 +519,9 @@ async function move(
 		of('medication').map((r) => r.id as number)
 	);
 	await tx.delete(pushSubscription).where(eq(pushSubscription.userId, userId));
+	// Mensajes (#551): their devices (and their key packages) and their place in the conversations.
+	await tx.delete(msgDevice).where(eq(msgDevice.userId, userId));
+	await tx.delete(msgMember).where(eq(msgMember.userId, userId));
 	await tx.delete(inbox).where(eq(inbox.userId, userId));
 	await tx.delete(heard).where(eq(heard.userId, userId));
 	await tx.delete(memory).where(eq(memory.userId, userId));

@@ -1,0 +1,1 @@
+ALTER TABLE "msg_conversation" ADD COLUMN "linked_family_id" text;

@@ -127,6 +127,7 @@ import {
 } from '#lib/server/house.ts';
 import { recordsTrips, setRecordTrips } from '#lib/server/trips/trips.ts';
 import { isMusicSource, musicSources, setMusicSource } from '#lib/server/music-source.ts';
+import { messages } from '#lib/server/messages.ts';
 import { callButtons } from '#lib/server/call-buttons.ts';
 import { familyLinks } from '#lib/server/family-links.ts';
 import { deleteCar, listCars, myCarId, saveCar, setMyCar } from '#lib/server/trips/cars.ts';
@@ -197,6 +198,8 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		ownMusic: admin ? await sourceView(membership.familyId) : null,
 		/** Where this person's Música comes from (#534, phase 3), chosen when there are both. */
 		musicSources: await musicSources(locals.user!.id),
+		/** Their devices with messages on (#551), to take out a lost one. */
+		messageDevices: await messages.myDevices(locals.user!.id),
 		storagePlace: storageReady
 			? { ...storageView(await familyStorage.of(membership.familyId)), admin }
 			: null,
@@ -543,6 +546,12 @@ export const actions: Actions = {
 		return { saved: 'callButton' };
 	},
 	/** «Guardar mis viajes»: off deletes nothing already kept. */
+	/** A device of theirs, lost or not used: out of their conversations at their next change (#551). */
+	revokeMessageDevice: async ({ request, locals }) => {
+		const id = String((await request.formData()).get('id') ?? '');
+		if (id) await messages.revokeDevice(locals.user!.id, id);
+		return { saved: 'messageDevices' };
+	},
 	/** «De dónde sale tu música» (#534, phase 3): the house's or the family's own bucket. */
 	musicSource: async ({ request, locals }) => {
 		const kind = (await request.formData()).get('source');

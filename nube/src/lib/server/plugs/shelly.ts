@@ -33,9 +33,62 @@ export function timerOf(sw: unknown): number | null {
 		: null;
 }
 
+/**
+ * What a temperature and humidity sensor says (#508, Shelly H&T Gen3, firmware 1.4.5 seen on
+ * 2026-11-19): `temperature:0` (`tC`), `humidity:0` (`rh`), `devicepower:0` (its battery and
+ * whether it is on USB), as https://shelly-api-docs.shelly.cloud/gen2/Devices/Gen3/ShellyHTG3.
+ * Only what it said: a change may bring one of them alone. `null`, it could not read it.
+ */
+export interface SensorReading {
+	tempC?: number | null;
+	humidity?: number | null;
+	battery?: number | null;
+	external?: boolean;
+}
+
 export type ShellyMessage =
 	| { kind: 'reply'; id: number; result?: unknown; error?: { code: number; message: string } }
-	| { kind: 'status'; src: string | null; full: boolean; sw: SwitchState | null };
+	| {
+			kind: 'status';
+			src: string | null;
+			full: boolean;
+			sw: SwitchState | null;
+			sensor: SensorReading | null;
+	  };
+
+/**
+ * A sensor, not a plug, by its Shelly id: H&T (Gen3 `shellyhtg3-…`, Plus `shellyplusht-…`). It
+ * sleeps between readings and has no switch.
+ */
+export const isSensorDevice = (deviceId: string | null | undefined) =>
+	!!deviceId && /^shelly(plus)?ht(g\d+)?-/i.test(deviceId);
+
+const reading = (v: unknown) =>
+	v === null ? null : typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+
+/** What its temperature, humidity and battery say; null if it says nothing of them. */
+export function sensorOf(params: unknown): SensorReading | null {
+	const p = (params ?? {}) as Record<string, unknown>;
+	const t = p['temperature:0'] as { tC?: unknown } | undefined;
+	const h = p['humidity:0'] as { rh?: unknown } | undefined;
+	const d = p['devicepower:0'] as
+		{ battery?: { percent?: unknown }; external?: { present?: unknown } } | undefined;
+	const state: SensorReading = {};
+	if (t && typeof t === 'object' && 'tC' in t) {
+		const v = reading(t.tC);
+		if (v !== undefined) state.tempC = v;
+	}
+	if (h && typeof h === 'object' && 'rh' in h) {
+		const v = reading(h.rh);
+		if (v !== undefined) state.humidity = v;
+	}
+	if (d && typeof d === 'object') {
+		const v = reading(d.battery?.percent);
+		if (v !== undefined) state.battery = v === null ? null : Math.round(v);
+		if (typeof d.external?.present === 'boolean') state.external = d.external.present;
+	}
+	return Object.keys(state).length ? state : null;
+}
 
 export function request(id: number, method: string, params?: Record<string, unknown>) {
 	return JSON.stringify({ jsonrpc: '2.0', id, src: SEILIDE_SRC, method, params });
@@ -94,7 +147,8 @@ export function parseMessage(text: string): ShellyMessage | null {
 			kind: 'status',
 			src: typeof frame.src === 'string' ? frame.src : null,
 			full: frame.method === 'NotifyFullStatus',
-			sw: switchOf(frame.params)
+			sw: switchOf(frame.params),
+			sensor: sensorOf(frame.params)
 		};
 	return null;
 }

@@ -3,6 +3,8 @@
 	import PlannedTrips from '#lib/components/PlannedTrips.svelte';
 	import RouteMaps from '#lib/components/RouteMaps.svelte';
 	import SavedPlaces from '#lib/components/SavedPlaces.svelte';
+	import SendLocation from '#lib/components/SendLocation.svelte';
+	import { section } from '#lib/styles.ts';
 	import ViajesTabs from '#lib/components/ViajesTabs.svelte';
 	import type { PageProps } from './$types';
 
@@ -36,6 +38,14 @@
 		map={data.map}
 		problem={form && 'car' in form ? (form.car ?? null) : null}
 	/>
+{/if}
+
+<!-- «Mandar mi ubicación» (#550): now, or the trip as it goes, to the family or a linked one. -->
+{#if data.sendable.length}
+	<section class="{section} mt-6" id="ubicacion">
+		<h2 class="mb-1 font-semibold">Mandar mi ubicación</h2>
+		<SendLocation people={data.sendable} />
+	</section>
 {/if}
 
 <PlannedTrips

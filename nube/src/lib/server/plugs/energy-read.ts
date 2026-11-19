@@ -7,6 +7,7 @@ import { energyText, euroText } from '#lib/plugs.ts';
 import { TIME_ZONE } from '#lib/plug-stats.ts';
 import { priceOf } from './plugs.ts';
 import { dayStart } from './stats.ts';
+import { isSensorDevice } from './shelly.ts';
 
 /**
  * Preguntar's «read_plug_energy» (#396): what the family's plugs used, day by day, from what each
@@ -39,10 +40,17 @@ export async function describePlugEnergy(k: Kitchen, args: Record<string, unknow
 		return `Como mucho ${ENERGY_DAYS} días de una vez: pide el periodo por partes.`;
 
 	return k.run(async (tx) => {
-		const plugs = await tx
-			.select({ id: plug.id, name: plug.name, createdAt: plug.createdAt })
-			.from(plug)
-			.orderBy(asc(plug.createdAt));
+		const plugs = (
+			await tx
+				.select({
+					id: plug.id,
+					name: plug.name,
+					createdAt: plug.createdAt,
+					deviceId: plug.deviceId
+				})
+				.from(plug)
+				.orderBy(asc(plug.createdAt))
+		).filter((p) => !isSensorDevice(p.deviceId));
 		if (!plugs.length) return 'La familia no tiene enchufes en Energía.';
 		const asked = typeof args.plug === 'string' ? plain(args.plug.trim()) : '';
 		const chosen = asked ? plugs.filter((p) => plain(p.name).includes(asked)) : plugs;
