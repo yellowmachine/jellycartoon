@@ -1,7 +1,7 @@
 <script lang="ts">
 	import ChatRecipeCard from '#lib/components/ChatRecipeCard.svelte';
 	import type { ChatCard } from '#lib/chat.ts';
-	import type { MessageCard } from '#lib/mensajes/messenger.ts';
+	import { bookRecipeCard, type MessageCard } from '#lib/mensajes/messenger.ts';
 
 	/**
 	 * Mensajes (#555): the AI's panel beside a conversation, by the family's wake word («Makoto»).
@@ -13,6 +13,7 @@
 		name,
 		to,
 		request,
+		sameFamily,
 		onsend,
 		onclose
 	}: {
@@ -25,6 +26,8 @@
 		 * with the panel open (its turns stay).
 		 */
 		request: { first: string | null };
+		/** With someone of the family: a recipe of the book goes as a link, not copied. */
+		sameFamily: boolean;
 		onsend: (card: MessageCard) => Promise<boolean>;
 		onclose: () => void;
 	} = $props();
@@ -84,7 +87,9 @@
 	/** Only a recipe or a list may go in a message. */
 	const sendable = (c: ChatCard): MessageCard | null =>
 		c.kind === 'receta'
-			? { kind: 'receta', recipe: c.recipe }
+			? c.savedId
+				? bookRecipeCard({ id: c.savedId, recipe: c.recipe }, sameFamily)
+				: { kind: 'receta', recipe: c.recipe }
 			: c.kind === 'compra'
 				? { kind: 'compra', items: c.items }
 				: null;
@@ -130,6 +135,13 @@
 									onclick={() => send(card, `${ti}/${ci}`)}
 									>{sending === `${ti}/${ci}` ? 'Enviando…' : 'Enviar esta'}</button
 								>
+								{#if c.savedId}
+									<span class="text-xs text-zinc-400"
+										>{card.kind === 'enlace-receta'
+											? 'Está en vuestro recetario: se manda el enlace'
+											: 'Del recetario: se manda entera, para que la guarden'}</span
+									>
+								{/if}
 							{/snippet}
 						</ChatRecipeCard>
 					{:else if card && c.kind === 'compra'}

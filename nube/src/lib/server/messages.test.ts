@@ -16,6 +16,7 @@ import {
 } from '../mensajes/backup.ts';
 import {
 	Messenger,
+	bookRecipeCard,
 	describe as describeMessage,
 	type DeviceKeys,
 	type PrivatePackage,
@@ -431,6 +432,27 @@ describe('voice notes', () => {
 			'chocolate'
 		);
 		await expect(mama.m.sendCard(conv, { kind: 'compra', items: [] })).rejects.toThrow();
+	});
+
+	test('a recipe of the book (#555): a link within the family, the whole of it to a linked one', async () => {
+		const saved = {
+			id: 7,
+			recipe: { title: 'Lentejas', servings: 4, ingredients: ['lentejas'], steps: [] }
+		};
+		expect(bookRecipeCard(saved, true)).toEqual({
+			kind: 'enlace-receta',
+			id: 7,
+			title: 'Lentejas'
+		});
+		expect(bookRecipeCard(saved, false)).toEqual({ kind: 'receta', recipe: saved.recipe });
+		await mama.m.sendCard(conv, bookRecipeCard(saved, true));
+		await movil.m.sync();
+		const got = (await movil.m.messages(conv)).at(-1)!;
+		expect(got.card).toEqual({ kind: 'enlace-receta', id: 7, title: 'Lentejas' });
+		expect(describeMessage(got)).toBe('🍰 Receta: Lentejas');
+		await expect(
+			mama.m.sendCard(conv, { kind: 'enlace-receta', id: -1, title: 'x' })
+		).rejects.toThrow();
 	});
 
 	test('with its text, made by the sender («los dos»): it comes with it, encrypted', async () => {

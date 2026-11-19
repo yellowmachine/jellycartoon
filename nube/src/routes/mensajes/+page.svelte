@@ -10,6 +10,8 @@
 	import TarjetaBurbuja from './TarjetaBurbuja.svelte';
 	import AsistentePanel from './AsistentePanel.svelte';
 	import { askedOf, assistantName, completed } from '#lib/mensajes/mention.ts';
+	import { bookRecipeCard } from '#lib/mensajes/messenger.ts';
+	import { replaceState } from '$app/navigation';
 	import { wakeWord } from '#lib/wake-word.svelte.ts';
 	import PlacesMap from '#lib/components/PlacesMap.svelte';
 	import { VoiceRecorder } from '#lib/mensajes/recorder.svelte.ts';
@@ -154,6 +156,30 @@
 			.sort((a, b) => (b.chat?.last?.at ?? '').localeCompare(a.chat?.last?.at ?? ''))
 	);
 	const open = $derived(client.chats.find((c) => c.id === client.current));
+	/**
+	 * With someone of the family (the family's own conversation, or two people of it): sharing is
+	 * referring then; with a linked family, copying (#555).
+	 */
+	const sameFamily = $derived(
+		open?.kind === 'familia' ||
+			(open?.kind === 'pareja' &&
+				data.contacts.find((c) => c.userId === open.with)?.family === null)
+	);
+
+	/** A recipe of the book to send, from Recetas' «📤 Mandar» (#555): to the conversation chosen. */
+	let sharing = $state(untrack(() => data.sharing));
+	let sharingBusy = $state(false);
+	function stopSharing() {
+		sharing = null;
+		replaceState('/mensajes', {});
+	}
+	async function sendShared() {
+		if (!sharing || sharingBusy) return;
+		sharingBusy = true;
+		const ok = await client.sendCard(bookRecipeCard(sharing, sameFamily));
+		sharingBusy = false;
+		if (ok) stopSharing();
+	}
 	const title = $derived(
 		!open ? '' : open.kind === 'familia' ? 'Familia' : open.with ? nameOf(open.with) : ''
 	);
@@ -226,6 +252,18 @@
 		</p>
 	{:else if !client.current}
 		<CopiaPin {client} />
+		{#if sharing}
+			<div
+				class="mb-3 flex items-center gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3"
+			>
+				<p class="min-w-0 flex-1 text-sm">
+					📤 Elige a quién mandar <strong>«{sharing.recipe.title}»</strong>
+				</p>
+				<button class="text-sm text-zinc-400 hover:text-white" onclick={stopSharing}
+					>Cancelar</button
+				>
+			</div>
+		{/if}
 		<ul class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
 			{#if familyChat}
 				<li>
@@ -377,11 +415,32 @@
 		{#if attachProblem}
 			<p class="mb-2 text-sm text-red-400">{attachProblem}</p>
 		{/if}
+		{#if sharing}
+			<div class="mb-3 rounded-md border border-zinc-700 bg-zinc-900 p-3">
+				<p class="font-semibold">🍰 {sharing.recipe.title}</p>
+				<p class="mb-3 text-sm text-zinc-400">
+					{sameFamily
+						? 'Está en vuestro recetario: se manda el enlace, sin copiarla.'
+						: 'Se manda entera, para que la guarden en su recetario.'}
+				</p>
+				<div class="flex gap-2">
+					<button
+						class="rounded-md bg-amber-500 px-4 py-2 font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
+						disabled={sharingBusy || client.waiting}
+						onclick={sendShared}>{sharingBusy ? 'Enviando…' : 'Enviar la receta'}</button
+					>
+					<button class="rounded-md px-4 py-2 text-zinc-300 hover:text-white" onclick={stopSharing}
+						>Cancelar</button
+					>
+				</div>
+			</div>
+		{/if}
 		{#if panel}
 			<AsistentePanel
 				name={aiName}
 				to={open?.kind === 'familia' ? 'la familia' : title}
 				request={panel}
+				{sameFamily}
 				onsend={(card) => client.sendCard(card)}
 				onclose={() => (panel = null)}
 			/>

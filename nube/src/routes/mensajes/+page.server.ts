@@ -7,6 +7,7 @@ import { calls } from '#lib/server/calls.ts';
 import { openRouterKey } from '#lib/server/family-settings.ts';
 import { shoppingItems } from '#lib/server/chat.ts';
 import {
+	getRecipe,
 	MESSAGE_SOURCE_NAME,
 	messageSource,
 	recipesFromMessages,
@@ -17,17 +18,20 @@ import {
  * Mensajes (#551): who is who, to put a name on each message, and whom one may write to (as whom one
  * may call: the family, and the adults of linked families). The messages are the device's. Whether
  * the family has an AI (#555), for its panel; what is to buy, for a list that comes; and which
- * recipes that came are already in the family's book.
+ * recipes that came are already in the family's book; and a recipe of the book to send.
  */
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
 	const k = await kitchenOf(locals.user!.id);
-	const [people, contacts, key, buying, saved] = await Promise.all([
+	const asked = Number(url.searchParams.get('receta'));
+	const [people, contacts, key, buying, saved, sharing] = await Promise.all([
 		familyPeople(k),
 		calls.callable(locals.user!.id).catch(() => []),
 		openRouterKey(k),
 		toBuy(k),
-		recipesFromMessages(k)
+		recipesFromMessages(k),
+		Number.isInteger(asked) && asked > 0 ? getRecipe(k, asked) : null
 	]);
+	const recipe = sharing ? parseRecipe(sharing) : null;
 	return {
 		userId: locals.user!.id,
 		names: {
@@ -38,7 +42,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 		hasAi: Boolean(key),
 		toBuy: buying,
 		/** In the same family, sharing is referring: saved by one, saved for all. */
-		saved
+		saved,
+		/** A recipe of the book to send, from Recetas' «Mandar» (#555). */
+		sharing: sharing && recipe && typeof recipe !== 'string' ? { id: sharing.id, recipe } : null
 	};
 };
 

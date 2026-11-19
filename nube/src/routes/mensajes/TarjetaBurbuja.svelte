@@ -37,6 +37,17 @@
 		}}
 		onsaved={(id) => (justSaved = id)}
 	/>
+{:else if m.card?.kind === 'enlace-receta'}
+	<!-- One of the family's own book: only which (the same family refers, #555). -->
+	<div class="rounded-xl border border-zinc-700 bg-zinc-900/80 p-3">
+		<p class="font-semibold">🍰 {m.card.title}</p>
+		<p class="text-sm text-zinc-400">En vuestro recetario</p>
+		<a
+			href="/recetas/{m.card.id}"
+			class="mt-2 inline-block rounded-md bg-amber-500 px-4 py-1.5 font-semibold text-zinc-950 hover:bg-amber-400"
+			>Abrir la receta</a
+		>
+	</div>
 {:else if m.card?.kind === 'compra'}
 	<ShoppingCard
 		items={m.card.items}

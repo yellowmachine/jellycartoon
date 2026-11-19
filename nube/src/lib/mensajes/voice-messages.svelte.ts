@@ -189,7 +189,9 @@ class MessagesVoice {
 							? 'su ubicación'
 							: m.card?.kind === 'receta'
 								? `la receta de ${m.card.recipe.title}`
-								: 'una lista'
+								: m.card?.kind === 'enlace-receta'
+									? `la receta de ${m.card.title}`
+									: 'una lista'
 				}.`
 			);
 		}

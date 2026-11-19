@@ -112,7 +112,12 @@ items } }`, cifrada como un texto y revisada al leerla (`parseRecipe`, 30 cosas 
   recetario, `chat:mensajes/<conversación>/<mensaje>`, «Llegó por Mensajes», una vez por mensaje) y
   `add` (lo marcado, a la lista). En la misma familia compartir es referir: `recipesFromMessages()`
   dice qué mensajes ya están en el recetario de la familia y la tarjeta sale «En Recetas ✓» para
-  todos; con una familia vinculada, cada una guarda su copia. `ChatRecipeCard` acepta otra acción (`save`) y otros botones
+  todos; con una familia vinculada, cada una guarda su copia.
+- **Receta del recetario** (fase 3): `bookRecipeCard()` decide. Misma familia (la conversación de la
+  familia, o de dos con un contacto sin `family`): `{ kind: 'enlace-receta', id, title }`, que se
+  abre en `/recetas/<id>` (si ya no está, Recetas lo dice). Familia vinculada: la receta entera.
+  Desde Recetas, «📤 Mandar» lleva a `/mensajes?receta=<id>` (solo con Mensajes en la barra); en el
+  panel, `propose_saved_recipe` (solo en Mensajes) marca la tarjeta con su `savedId`. `ChatRecipeCard` acepta otra acción (`save`) y otros botones
   (`actions`).
 
 ## Transcripción en el aparato

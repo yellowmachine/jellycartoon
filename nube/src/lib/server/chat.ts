@@ -352,6 +352,17 @@ async function runTool(
 				card: { kind: 'informe', id: made.id, title: made.title, from: made.from, to: made.to }
 			};
 		}
+		case 'propose_saved_recipe': {
+			const id = Number(args.id);
+			const saved = Number.isInteger(id) ? await getRecipe(k, id) : null;
+			if (!saved) return { result: 'Esa receta no está en el recetario.' };
+			const recipe = parseRecipe(saved);
+			if (typeof recipe === 'string') return { result: `«${saved.title}»: ${recipe}` };
+			return {
+				result: `Tarjeta de «${recipe.title}», del recetario, enseñada; la persona decide si la manda.`,
+				card: { kind: 'receta', recipe, savedId: id }
+			};
+		}
 		case 'read_recipe': {
 			const saved = await getRecipe(k, Number(args.id));
 			if (!saved) return { result: 'Esa receta no está en el recetario.' };
@@ -410,6 +421,14 @@ async function rounds(
 	return { text, cards };
 }
 
+/** A recipe of the family's book, to send as it is (#555): only in Mensajes' panel. */
+const PROPOSE_SAVED_RECIPE = fn(
+	'propose_saved_recipe',
+	'Enseña una receta del recetario de la familia, tal cual está guardada, para mandarla. Úsala en vez de «propose_recipe» cuando la receta pedida está en el recetario.',
+	{ id: { type: 'number', description: 'El número de la receta en el recetario.' } },
+	['id']
+);
+
 /** What may be sent in a message (#555): a recipe or a list, made by the AI in its panel. */
 const MESSAGE_TOOLS = new Set(['propose_shopping', 'propose_recipe', 'read_recipe']);
 /** The panel's turns sent back each time: it is kept nowhere else. */
@@ -424,7 +443,8 @@ export function messageCard(value: unknown): ShoppingCard | RecipeCard | null {
 	}
 	if (c.kind === 'receta') {
 		const recipe = parseRecipe(c.recipe);
-		return typeof recipe === 'string' ? null : { kind: 'receta', recipe, savedId: null };
+		const savedId = Number.isInteger(c.savedId) ? (c.savedId as number) : null;
+		return typeof recipe === 'string' ? null : { kind: 'receta', recipe, savedId };
 	}
 	return null;
 }
@@ -439,7 +459,8 @@ function messageSystem(c: {
 	return `Eres ${c.assistant}, el asistente de Seilide, la app de una familia. ${c.name} está en Mensajes, escribiendo a ${c.to}, y te pide algo para mandárselo. Contesta en español de España, de tú.
 
 - Tú no mandas nada: haces tarjetas, y ${c.name} elige una y pulsa «Enviar». No leas ni digas que lees la conversación: no la ves, solo lo que te pide aquí.
-- Una receta, con «propose_recipe», entera. Si no dice cuál exactamente («una tarta de chocolate»), propón dos o tres distintas (una fácil, otra sin horno o más ligera…), cada una en su tarjeta, y que el texto diga en una línea en qué se diferencian. Si dice una concreta, solo esa. Si está en el recetario de la familia (abajo), léela con «read_recipe» y propón esa.
+- Una receta del recetario de la familia (abajo), si la pide o si hay una que encaja: con «propose_saved_recipe», tal cual, sin reescribirla.
+- Una receta que no está en el recetario, con «propose_recipe», entera. Si no dice cuál exactamente («una tarta de chocolate»), propón dos o tres distintas (una fácil, otra sin horno o más ligera…), cada una en su tarjeta, y que el texto diga en una línea en qué se diferencian; si en el recetario hay una que encaja, que sea una de ellas. Si dice una concreta, solo esa.
 - Una lista de cosas (la compra para algo, lo que hay que llevar), con «propose_shopping», en una sola tarjeta.
 - El texto, muy corto (una o dos frases): las tarjetas ya lo dicen todo. Sin títulos ni negritas.
 - Si pide algo que no es una receta ni una lista, dile en una frase que de momento solo preparas recetas y listas para mandar.
@@ -500,7 +521,7 @@ export async function askForMessage(
 		apiKey,
 		label: 'Mensajes',
 		model: settings.conversationModel,
-		tools: TOOLS.filter((t) => MESSAGE_TOOLS.has(t.function.name))
+		tools: [...TOOLS.filter((t) => MESSAGE_TOOLS.has(t.function.name)), PROPOSE_SAVED_RECIPE]
 	});
 }
 

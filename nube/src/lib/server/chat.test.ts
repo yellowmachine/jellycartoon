@@ -494,3 +494,36 @@ test('Mensajes (#555): only recipes and lists, two options, nothing kept, earlie
 	// Nothing kept: no chat of Ana's.
 	expect(await chat.chatHistory(ana, 'ana')).toHaveLength(0);
 });
+
+test('Mensajes (#555): a recipe of the book, as it is, marked as saved', async () => {
+	answers = [
+		{ content: null, toolCalls: [call('propose_saved_recipe', { id: 7 })] },
+		{ content: 'La de la abuela.', toolCalls: [] }
+	];
+	const got = await chat.askForMessage(
+		ana,
+		{ id: 'ana', name: 'Ana' },
+		{
+			question: 'mándale las lentejas',
+			to: 'Papá',
+			assistant: 'Makoto',
+			turns: []
+		}
+	);
+	expect(got.cards).toEqual([
+		{
+			kind: 'receta',
+			savedId: 7,
+			recipe: {
+				title: 'Lentejas',
+				servings: 4,
+				ingredients: ['lentejas'],
+				steps: [{ text: 'Cuécelas', timer: null }]
+			}
+		}
+	]);
+	// Preguntar has no such tool: only Mensajes' panel.
+	answers = [{ content: null, toolCalls: [call('propose_saved_recipe', { id: 7 })] }];
+	const asked = await chat.askChat(ana, { id: 'ana', name: 'Ana' }, 'las lentejas');
+	expect(asked.at(-1)!.cards).toEqual([]);
+});

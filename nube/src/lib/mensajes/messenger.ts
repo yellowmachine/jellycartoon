@@ -74,7 +74,23 @@ export interface StoredMessage {
 	card?: MessageCard;
 }
 
-export type MessageCard = { kind: 'receta'; recipe: Recipe } | { kind: 'compra'; items: string[] };
+export type MessageCard =
+	| { kind: 'receta'; recipe: Recipe }
+	| { kind: 'compra'; items: string[] }
+	/** One already in the family's book, to someone of the same family: only which (#555). */
+	| { kind: 'enlace-receta'; id: number; title: string };
+
+/**
+ * A recipe of the book, as it goes in a message (#555): within the family, referred (the book is
+ * everyone's: only which one); to a linked family, copied whole, for them to keep their own.
+ */
+export const bookRecipeCard = (
+	saved: { id: number; recipe: Recipe },
+	sameFamily: boolean
+): MessageCard =>
+	sameFamily
+		? { kind: 'enlace-receta', id: saved.id, title: saved.recipe.title }
+		: { kind: 'receta', recipe: saved.recipe };
 /** Things in a list, at most (as the AI's cards). */
 const MAX_CARD_ITEMS = 30;
 
@@ -110,6 +126,7 @@ export function describe(m: Pick<StoredMessage, 'text' | 'audio' | 'photo' | 'pl
 	if (m.photo) return '📷 Foto';
 	if (m.place) return '📍 Ubicación';
 	if (m.card?.kind === 'receta') return `🍰 Receta: ${m.card.recipe.title}`;
+	if (m.card?.kind === 'enlace-receta') return `🍰 Receta: ${m.card.title}`;
 	if (m.card?.kind === 'compra') return `🛒 Lista (${m.card.items.length})`;
 	return m.text;
 }
@@ -827,6 +844,11 @@ function cleanCard(value: unknown): MessageCard | null {
 	if (c.kind === 'receta') {
 		const recipe = parseRecipe(c.recipe);
 		return typeof recipe === 'string' ? null : { kind: 'receta', recipe };
+	}
+	if (c.kind === 'enlace-receta') {
+		const id = Number(c.id);
+		const title = typeof c.title === 'string' ? c.title.trim().slice(0, 100) : '';
+		return Number.isInteger(id) && id > 0 && title ? { kind: 'enlace-receta', id, title } : null;
 	}
 	if (c.kind === 'compra' && Array.isArray(c.items)) {
 		const items = c.items
