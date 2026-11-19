@@ -1,6 +1,6 @@
 import type { DjOptions, MusicTrack } from './music.ts';
 import { music } from './music-player.svelte.ts';
-import { musicTarget } from './music-target.svelte.ts';
+import { musicTarget, showQueue } from './music-target.svelte.ts';
 
 /**
  * Modo DJ in this browser (#117): songs at random, a few more whenever few are left, and every
@@ -95,6 +95,7 @@ class Dj {
 		this.#played = [];
 		this.#seen = undefined;
 		music.play(tracks, 0, true);
+		showQueue();
 	}
 
 	/** What is queued goes on, without the DJ. */

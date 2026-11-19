@@ -1,5 +1,17 @@
+import { goto } from '$app/navigation';
+import { page } from '$app/state';
 import type { MusicTrack, SnapcastAction, SnapcastState } from './music.ts';
 import { music } from './music-player.svelte.ts';
+
+/**
+ * Something put on from the Música pages, here (Reproducir, Mezclar, a song, Modo DJ…): to its
+ * Cola tab, to see what plays and what comes next. Not from elsewhere (the road mode, the voice),
+ * nor on Snapcast, whose queue is the server's.
+ */
+export function showQueue() {
+	const path = page.url.pathname;
+	if (path.startsWith('/musica') && !path.startsWith('/musica/cola')) void goto('/musica/cola');
+}
 
 /**
  * Where albums sound when played from the Música pages: this device's browser, or Snapcast.
@@ -32,7 +44,11 @@ class MusicTarget {
 
 	/** The tracks, starting at `start`, where they are to sound. */
 	async play(tracks: MusicTrack[], start = 0, snapcast = this.value === 'snapcast') {
-		if (!snapcast) return music.play(tracks, start);
+		if (!snapcast) {
+			music.play(tracks, start);
+			showQueue();
+			return;
+		}
 		music.pause();
 		await this.send({ action: 'play', trackIds: tracks.map((t) => t.id), start });
 	}
