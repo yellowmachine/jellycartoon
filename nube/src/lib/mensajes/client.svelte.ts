@@ -3,6 +3,7 @@ import { BackupKeeper, type BackupStore } from './backup.ts';
 import { idbStore } from './idb-store.ts';
 import { httpTransport } from './http-transport.ts';
 import { httpBackup } from './http-backup.ts';
+import { lockFor } from './lock.ts';
 
 /** After something new, the backup is brought up to date this long after, once. */
 const SAVE_AFTER_MS = 5000;
@@ -68,7 +69,7 @@ export class MessagesClient {
 	constructor(userId: string) {
 		this.#userId = userId;
 		this.#store = idbStore(userId);
-		this.#m = new Messenger(this.#store, httpTransport, userId);
+		this.#m = new Messenger(this.#store, httpTransport, userId, undefined, lockFor(userId));
 		this.#b = new BackupKeeper(this.#store, httpBackup, userId);
 	}
 
@@ -287,7 +288,13 @@ export class MessagesClient {
 			this.stop();
 			indexedDB.deleteDatabase(`seilide-mensajes-${this.#userId}`);
 			this.#store = idbStore(this.#userId);
-			this.#m = new Messenger(this.#store, httpTransport, this.#userId);
+			this.#m = new Messenger(
+				this.#store,
+				httpTransport,
+				this.#userId,
+				undefined,
+				lockFor(this.#userId)
+			);
 			this.#b = new BackupKeeper(this.#store, httpBackup, this.#userId);
 			this.problem = 'Este aparato se quitó de los mensajes: actívalo de nuevo para seguir.';
 			this.phase = 'off';

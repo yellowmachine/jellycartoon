@@ -192,7 +192,12 @@ export class Messenger {
 		private store: Store,
 		private transport: Transport,
 		private userId: string,
-		private newId: () => string = () => crypto.randomUUID()
+		private newId: () => string = () => crypto.randomUUID(),
+		/**
+		 * Held while a group is touched, across the page and its service worker (Web Locks), which
+		 * both read and keep the same groups: one at a time, or one would write over the other's.
+		 */
+		private lock: <T>(fn: () => Promise<T>) => Promise<T> = (fn) => fn()
 	) {}
 
 	async #cs() {
@@ -226,7 +231,8 @@ export class Messenger {
 
 	/** One thing at a time: a sync and a send never touch a group at once. */
 	#serial<T>(fn: () => Promise<T>): Promise<T> {
-		const run = this.#busy.then(fn, fn);
+		const locked = () => this.lock(fn);
+		const run = this.#busy.then(locked, locked);
 		this.#busy = run.catch(() => {});
 		return run;
 	}

@@ -381,3 +381,38 @@ describe('voice notes', () => {
 		await expect(server.fileFor('mama', conv2, sent!.audio!.file)).rejects.toThrow();
 	});
 });
+
+describe('the page and its service worker, one device', () => {
+	test('both syncing at once, with the shared lock: nothing read twice, nothing lost', async () => {
+		// One device's store, read by two (the page and the worker), with one lock, as Web Locks.
+		let chain: Promise<unknown> = Promise.resolve();
+		const lock = <T>(fn: () => Promise<T>): Promise<T> => {
+			const run = chain.then(fn, fn);
+			chain = run.catch(() => {});
+			return run;
+		};
+		const store = memoryStore();
+		const page = new Messenger(
+			store,
+			transportOf('miguel'),
+			'miguel',
+			() => `aparato-uno-${++n}`,
+			lock
+		);
+		const worker = new Messenger(store, transportOf('miguel'), 'miguel', undefined, lock);
+		await page.setup('Móvil con su worker');
+		await page.family();
+		await mama.m.lookAll();
+		await page.sync();
+		for (const t of ['uno', 'dos', 'tres']) await mama.m.send(conv, `Seguidos ${t}`);
+		await Promise.all([page.sync(), worker.sync(), page.sync(), worker.sync()]);
+		const got = (await page.messages(conv))
+			.map((m) => m.text)
+			.filter((t) => t.startsWith('Seguidos'));
+		expect(got).toEqual(['Seguidos uno', 'Seguidos dos', 'Seguidos tres']);
+		// And the group is still right: what comes next is read too.
+		await mama.m.send(conv, 'Y otro después');
+		await worker.sync();
+		expect((await page.messages(conv)).at(-1)?.text).toBe('Y otro después');
+	});
+});

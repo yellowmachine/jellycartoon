@@ -67,6 +67,7 @@ export async function noticeOthers(
 			body: conversationId.startsWith('pareja-') ? 'Te ha escrito' : 'Ha escrito a la familia',
 			tag: `mensajes-${conversationId}`,
 			url: '/mensajes',
-			ttl: 24 * 3600
+			ttl: 24 * 3600,
+			mensajes: { conversationId }
 		});
 }

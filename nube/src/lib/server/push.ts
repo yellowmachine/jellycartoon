@@ -31,6 +31,11 @@ export interface PushMessage {
 	 * own instead opens the app there («Contestar» a call, #330).
 	 */
 	actions?: ({ action: string; title: string } & ({ post: string } | { url: string }))[];
+	/**
+	 * A message (#551): which conversation. The phone's service worker reads it there, decrypted
+	 * in the phone, to say what it says; failing that, this notice as it is.
+	 */
+	mensajes?: { conversationId: string };
 }
 
 /** A contact for the push services, as the protocol asks: the app's address, which is https. */

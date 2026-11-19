@@ -87,7 +87,17 @@ El texto se guarda junto al audio (`transcript`) y va en la copia con PIN; nunca
 Elegido frente a `whisper-base` porque base confundía frases enteras en español (probado con espeak:
 small acierta, base no).
 
+## Notificación descifrada
+
+El push lleva solo `mensajes: { conversationId }` (y el título «💬 Miguel»). El service worker
+(`service-worker/mensajes.ts`) busca las bases `seilide-mensajes-<userId>` del aparato
+(`indexedDB.databases()`), sincroniza como la página (aplica los eventos, guarda lo leído, avanza el
+cursor) y enseña el último mensaje de otro; en 8 s o si falla, el texto del servidor. Leer un mensaje
+MLS gasta su llave, así que página y worker comparten un cerrojo (`lock.ts`, Web Locks API,
+`seilide-mensajes-<userId>`): nunca tocan los grupos a la vez y lo que lee uno, el otro lo encuentra
+guardado.
+
 ## Pendiente (#551)
 
-Notificación descifrada en el service worker, voz y modo
+Voz y modo
 carretera, y quitar Telegram.
