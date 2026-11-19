@@ -16,12 +16,19 @@ import { asFamily } from './family.ts';
 import { openFor, sealFor } from './family-secret.ts';
 import { musicSource, ownAlbum, ownTrack } from './db/schema.ts';
 import { ownPlace, putFile, removeFile, storageReady } from './storage.ts';
-import { bucketProblem, endpointProblem, labelOf, type Bucket } from './storage-bucket.ts';
+import {
+	anyFolderOf,
+	bucketProblem,
+	endpointProblem,
+	labelOf,
+	type Bucket
+} from './storage-bucket.ts';
 import {
 	audioType,
 	changes,
 	folderCovers,
 	folderOf,
+	folderView,
 	mimeOf,
 	pictureType,
 	trackInfo,
@@ -653,6 +660,58 @@ export async function ownCatalog(familyId: string): Promise<OwnAlbumRow[]> {
 					a.title.localeCompare(b.title, 'es', { sensitivity: 'base' })
 			);
 	});
+}
+
+/** A track as Carpetas shows it: with its album's, for the player (own-music.ts `asTrack`). */
+export interface OwnFolderTrack extends OwnTrackRow {
+	album: Pick<OwnAlbumRow, 'id' | 'title' | 'hasCover' | 'coverVersion'>;
+}
+
+/**
+ * A folder of the bucket (#534, phase 3), as the house's Carpetas: its folders and its own tracks,
+ * from what was read of it (not listed again). `path` relative to the music's folder; null, none
+ * such, or no bucket.
+ */
+export async function ownFolder(familyId: string, path: string) {
+	const clean = anyFolderOf(path);
+	const b = clean === null ? null : await bucketOf(familyId);
+	if (clean === null || !b) return null;
+	const rows = await asFamily(familyId, (tx) =>
+		tx
+			.select({
+				id: ownTrack.id,
+				albumId: ownTrack.albumId,
+				title: ownTrack.title,
+				artist: ownTrack.artist,
+				disc: ownTrack.disc,
+				number: ownTrack.number,
+				durationSec: ownTrack.durationSec,
+				mime: ownTrack.mime,
+				key: ownTrack.key,
+				albumTitle: ownAlbum.title,
+				customTitle: ownAlbum.customTitle,
+				coverKey: ownAlbum.coverKey,
+				coverFile: ownAlbum.coverFile
+			})
+			.from(ownTrack)
+			.innerJoin(ownAlbum, eq(ownAlbum.id, ownTrack.albumId))
+	);
+	const view = folderView(rows, b.prefix, clean.replace(/\/$/, ''));
+	if (!view) return null;
+	return {
+		...view,
+		tracks: view.tracks.map(
+			({ key: _key, albumTitle, customTitle, coverKey, coverFile, ...t }): OwnFolderTrack => ({
+				...t,
+				album: {
+					id: t.albumId,
+					title: customTitle ?? albumTitle,
+					hasCover: Boolean(coverKey || coverFile),
+					coverVersion: coverKey ?? coverFile
+				}
+			})
+		)
+	};
 }
 
 /**

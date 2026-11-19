@@ -32,6 +32,7 @@
 	import { page } from '$app/state';
 	import Colores from 'comun/components/Colores.svelte';
 	import GuardarViajes from './GuardarViajes.svelte';
+	import FuenteMusica from './FuenteMusica.svelte';
 	import Coches from './Coches.svelte';
 	import GastoIa from './GastoIa.svelte';
 	import Microfono from './Microfono.svelte';
@@ -109,7 +110,11 @@
 		<SettingsSearch
 			index={SETTINGS_INDEX}
 			labels={TAB_LABELS}
-			shown={{ admin, spendLine: data.spendLine !== null }}
+			shown={{
+				admin,
+				spendLine: data.spendLine !== null,
+				twoMusicSources: data.musicSources.house && data.musicSources.own
+			}}
 			placeholder="Busca o di qué quieres hacer: colores, avisos, invitar…"
 			ask={data.openRouter ? '/api/ajustes/preguntar' : undefined}
 		/>
@@ -163,6 +168,8 @@
 				{/if}
 			{/await}
 		{/if}
+
+		<FuenteMusica {data} {tab} />
 
 		<MiBarra {data} {tab} />
 

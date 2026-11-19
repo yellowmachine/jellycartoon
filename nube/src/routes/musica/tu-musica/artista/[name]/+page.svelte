@@ -17,7 +17,7 @@
 	<title>{data.name} · Seilide</title>
 </svelte:head>
 
-<a href="/musica/tu-musica" class="text-sm text-zinc-400 hover:text-white">← Tu música</a>
+<a href="/musica/tu-musica" class="text-sm text-zinc-400 hover:text-white">← Música</a>
 
 <h1 class="mt-3 text-2xl font-bold">{data.name}</h1>
 <p class="mb-6 text-sm text-zinc-400">

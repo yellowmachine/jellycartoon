@@ -6,7 +6,7 @@
 
 	/**
 	 * «Tu música» (#534): the bucket (S3, R2, Backblaze…) where the family keeps its music, for
-	 * Música → Tu música. It can be the same as the files' (Espacio), with another folder. Read-only
+	 * Música (with the house, as each one chooses: music-source.ts). It can be the same as the files' (Espacio), with another folder. Read-only
 	 * keys are enough, and better: Seilide only lists and reads.
 	 */
 	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
@@ -51,8 +51,9 @@
 	<section class={section} id="tu-musica">
 		<h2 class="mb-1 font-semibold">Tu música</h2>
 		<p class="mb-4 text-sm text-zinc-400">
-			La música que tengáis en vuestro propio almacenamiento (S3, R2, Backblaze…), en Música → Tu
-			música, para toda la familia. Seilide solo la lee: no la copia ni la sube a ningún sitio.
+			La música que tengáis en vuestro propio almacenamiento (S3, R2, Backblaze…), en Música, para
+			toda la familia; con casa también, cada uno elige en Para mí cuál ve. Seilide solo la lee: no
+			la copia ni la sube a ningún sitio.
 		</p>
 
 		{#if source}

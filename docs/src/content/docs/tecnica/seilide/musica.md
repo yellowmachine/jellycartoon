@@ -13,7 +13,7 @@ de cada uno no va en un HTML del servidor. Suena solo en el aparato; los altavoc
 
 ## Tu música (#534)
 
-La música del propio bucket de la familia (S3, R2, Backblaze…), en su pestaña, con o sin casa. El
+La música del propio bucket de la familia (S3, R2, Backblaze…), con o sin casa. El
 bucket se guarda sellado con la clave de la familia (`music_source.bucket`, `family-secret.ts`),
 como el almacenamiento de ficheros (#480); puede ser el mismo con otra carpeta. Al guardarlo se
 comprueba que se puede listar y leer, y si las claves pueden escribir (se prueba a escribir un
@@ -50,7 +50,7 @@ fichero vacío y se borra), para avisar de que bastan unas de solo lectura.
   `AlbumCover`/`AlbumGrid`/`TrackRows` aceptan su portada y su página.
 - **Listas** (fase 2): `own_playlist` y `own_playlist_item` (posición; la pista borrada del bucket
   sale de sus listas por la clave ajena), de toda la familia, en `own-music-lists.ts`. Salen en la
-  pestaña Listas, en «De Tu música»; sin casa, solo ellas. El «+» (`AddToPlaylist` con `endpoint`)
+  pestaña Listas cuando el bucket es la fuente. El «+» (`AddToPlaylist` con `endpoint`)
   añade por `/api/music/own/playlists`; su página (`/musica/tu-musica/listas/<id>`) reproduce,
   sube, baja, quita, renombra y borra. Una lista lleva solo canciones de una fuente.
 - **Modo DJ** con una lista de Tu música: «🎙 Con DJ» en su página abre `DjDialog` sin biblioteca
@@ -65,6 +65,17 @@ fichero vacío y se borra), para avisar de que bastan unas de solo lectura.
   bucket dice `application/octet-stream`). El audio va del bucket al navegador; la dirección de la
   cola no caduca. Las portadas, igual en `/api/music/own/covers/<id>` (o desde el almacenamiento si
   es la incrustada). `MusicTrack.cover` y `MusicTrack.home` dan su portada y su álbum al reproductor.
+- **Una fuente a la vez** (fase 3): Música enseña la casa o el bucket, no los dos, con las mismas
+  tres pestañas (Álbumes, Listas, Carpetas). `music-source.ts` decide cuál (`current`): con las dos,
+  lo que eligió la persona en Ajustes → Para mí (`family_member.music_source`, `casa` o `propia`;
+  null, la casa); con una, esa. El layout de `/musica` lo lee y no pregunta nada a la casa si es el
+  bucket; `/musica` y `/musica/carpetas` redirigen a `/musica/tu-musica` y
+  `/musica/tu-musica/carpetas` (y al revés), y Listas carga solo las de esa fuente. Las páginas de
+  un disco, un artista o una lista de cualquiera de las dos siguen abriéndose por su dirección.
+  **Carpetas** del bucket (`ownFolder`, `folderView` en `own-music-index.ts`): las claves leídas,
+  relativas a la carpeta de la música, sin volver a listar el bucket; `MusicFolderView` toma `href`
+  y `listEndpoint`. La voz, con el bucket como fuente, no ofrece `search_music` ni `play_music` ni
+  la biblioteca de casa (un satélite, siempre la casa).
 - **Fuera por ahora**: sin conexión (#350, que ya salta las pistas con `src`),
-  modo carretera, voz, Snapcast y transcodificar. La cola guardada tampoco las lleva (se salta lo que
+  modo carretera, pedirla por voz, Snapcast y transcodificar. La cola guardada tampoco las lleva (se salta lo que
   tiene `src`).

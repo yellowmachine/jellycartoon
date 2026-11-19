@@ -66,3 +66,9 @@ export const asAlbum = (a: OwnAlbumRow): MusicAlbum => ({
 /** Where the «+» of its songs adds: its own lists (#534, phase 2), not the house's. */
 export const OWN_LISTS_API = '/api/music/own/playlists';
 export const ownListUrl = (id: number) => `/musica/tu-musica/listas/${id}`;
+
+/** Where a folder of the bucket is seen (Música → Carpetas, #534 phase 3). */
+export const ownFolderUrl = (path: string) =>
+	path
+		? `/musica/tu-musica/carpetas?ruta=${encodeURIComponent(path)}`
+		: '/musica/tu-musica/carpetas';

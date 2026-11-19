@@ -93,6 +93,11 @@ export const familyMember = pgTable(
 		 * those the family has; one not here, out. Children have none: theirs is the family's.
 		 */
 		sections: jsonb('sections').$type<Record<string, boolean>>().notNull().default({}),
+		/**
+		 * «De dónde sale la música» (Ajustes → Para mí, #534): the house's or the family's own bucket,
+		 * when there are both (music-source.ts); null, the house's.
+		 */
+		musicSource: text('music_source').$type<'casa' | 'propia'>(),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [

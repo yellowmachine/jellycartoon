@@ -43,7 +43,7 @@
 </svelte:head>
 
 <nav class="mb-4 flex items-center gap-1.5 text-sm text-zinc-400">
-	<a href="/musica/tu-musica" class="hover:text-white">Tu música</a>
+	<a href="/musica/tu-musica" class="hover:text-white">Música</a>
 	<span aria-hidden="true">›</span>
 	<span>Gestión</span>
 </nav>

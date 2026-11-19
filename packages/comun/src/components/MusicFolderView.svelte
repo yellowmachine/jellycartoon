@@ -19,9 +19,13 @@
 		toSnapcast: boolean;
 		/** Beside the buttons: where it plays (jellycartoon's switch). */
 		extra?: Snippet;
+		/** Where a folder is seen: Seilide's own bucket has its own (#534); else the library's. */
+		href?: (path: string) => string;
+		/** Where the «+» adds (AddToPlaylist's `endpoint`): the bucket's own lists (#534). */
+		listEndpoint?: string;
 	}
 
-	let { folder, playlists, toSnapcast, extra }: Props = $props();
+	let { folder, playlists, toSnapcast, extra, href = folderUrl, listEndpoint }: Props = $props();
 
 	/** «Música › Podcasts › Charlas», each a link but the last. */
 	const crumbs = $derived(
@@ -37,10 +41,10 @@
 
 <nav class="flex min-w-0 flex-wrap items-center gap-1.5 text-sm text-zinc-400">
 	{#if crumbs.length}
-		<a href={folderUrl('')} class="shrink-0 hover:text-white">Carpetas</a>
+		<a href={href('')} class="shrink-0 hover:text-white">Carpetas</a>
 		{#each crumbs.slice(0, -1) as c (c.path)}
 			<span aria-hidden="true">›</span>
-			<a href={folderUrl(c.path)} class="truncate hover:text-white">{c.name}</a>
+			<a href={href(c.path)} class="truncate hover:text-white">{c.name}</a>
 		{/each}
 	{/if}
 </nav>
@@ -50,7 +54,7 @@
 	<ul class="mb-6 divide-y divide-zinc-800 rounded-md border border-zinc-800">
 		{#each folder.folders as f (f.path)}
 			<li>
-				<a href={folderUrl(f.path)} class="flex items-center gap-3 p-3 hover:bg-zinc-900">
+				<a href={href(f.path)} class="flex items-center gap-3 p-3 hover:bg-zinc-900">
 					<span aria-hidden="true" class="text-xl">📁</span>
 					<span class="min-w-0 flex-1 truncate">{f.name}</span>
 					<span class="shrink-0 text-xs text-zinc-500"
@@ -81,6 +85,7 @@
 			trackIds={folder.tracks.map((t) => t.id)}
 			key="carpeta"
 			{playlists}
+			endpoint={listEndpoint}
 			text="+ Añadir a una lista"
 		/>
 		{@render extra?.()}
@@ -89,6 +94,7 @@
 		tracks={folder.tracks}
 		key="carpeta"
 		{playlists}
+		{listEndpoint}
 		onplay={(_, i) => musicTarget.play(folder.tracks, i, toSnapcast)}
 	/>
 {/if}
