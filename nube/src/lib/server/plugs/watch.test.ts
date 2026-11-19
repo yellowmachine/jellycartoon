@@ -35,7 +35,7 @@ describe('plug watch', () => {
 		expect(w.tick(60 * MIN)).toEqual([]);
 	});
 
-	test('a sensor (#508) asleep 10 minutes at a time is fine; two hours silent, told once', () => {
+	test('a sensor (#508) asleep 10 minutes or 2 hours at a time is fine; five hours silent, told once', () => {
 		const w = new PlugWatch(
 			{ done: false, stopped: false, offline: true, onHours: null, offlineMs: SENSOR_SILENT_MS },
 			0
@@ -45,10 +45,14 @@ describe('plug watch', () => {
 			w.gone((m + 0.05) * MIN);
 			expect(w.tick((m + 9) * MIN)).toEqual([]);
 		}
-		// Last heard of at 110: nothing more.
-		expect(w.tick(229 * MIN)).toEqual([]);
-		expect(w.tick(231 * MIN)).toEqual(['offline']);
-		expect(w.tick(300 * MIN)).toEqual([]);
+		// On batteries it wakes every 2 hours.
+		expect(w.seen(null, null, 230 * MIN)).toEqual([]);
+		w.gone(230.05 * MIN);
+		expect(w.tick(349 * MIN)).toEqual([]);
+		// Last heard of at 230: nothing more.
+		expect(w.tick(529 * MIN)).toEqual([]);
+		expect(w.tick(531 * MIN)).toEqual(['offline']);
+		expect(w.tick(600 * MIN)).toEqual([]);
 	});
 
 	test('a blip is not a cycle', () => {
