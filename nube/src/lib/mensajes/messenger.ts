@@ -81,7 +81,9 @@ export type MessageCard =
 	/** One already in the family's book, to someone of the same family: only which (#555). */
 	| { kind: 'enlace-receta'; id: number; title: string }
 	/** A plan, to add to the Agenda. */
-	| ({ kind: 'cita' } & Cita);
+	| ({ kind: 'cita' } & Cita)
+	/** A place kept by the sender (#151): to go there, or keep it too (each person's own). */
+	| { kind: 'sitio'; name: string; lat: number; lon: number; address: string | null };
 
 /**
  * A recipe of the book, as it goes in a message (#555): within the family, referred (the book is
@@ -131,6 +133,7 @@ export function describe(m: Pick<StoredMessage, 'text' | 'audio' | 'photo' | 'pl
 	if (m.card?.kind === 'receta') return `🍰 Receta: ${m.card.recipe.title}`;
 	if (m.card?.kind === 'enlace-receta') return `🍰 Receta: ${m.card.title}`;
 	if (m.card?.kind === 'cita') return `📅 ${m.card.title}, ${citaWhen(m.card)}`;
+	if (m.card?.kind === 'sitio') return `📌 ${m.card.name}`;
 	if (m.card?.kind === 'compra') return `🛒 Lista (${m.card.items.length})`;
 	return m.text;
 }
@@ -852,6 +855,13 @@ function cleanCard(value: unknown): MessageCard | null {
 	if (c.kind === 'cita') {
 		const cita = parseCita(c);
 		return cita ? { kind: 'cita', ...cita } : null;
+	}
+	if (c.kind === 'sitio') {
+		const at = cleanPlace(c);
+		const name = typeof c.name === 'string' ? c.name.trim().slice(0, 100) : '';
+		const address =
+			typeof c.address === 'string' && c.address.trim() ? c.address.trim().slice(0, 200) : null;
+		return at && name ? { kind: 'sitio', name, lat: at.lat, lon: at.lon, address } : null;
 	}
 	if (c.kind === 'enlace-receta') {
 		const id = Number(c.id);

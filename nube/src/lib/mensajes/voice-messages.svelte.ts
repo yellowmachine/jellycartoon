@@ -194,7 +194,9 @@ class MessagesVoice {
 									? `la receta de ${m.card.title}`
 									: m.card?.kind === 'cita'
 										? `un plan: ${m.card.title}, ${citaWhen(m.card)}`
-										: 'una lista'
+										: m.card?.kind === 'sitio'
+											? `un sitio: ${m.card.name}`
+											: 'una lista'
 				}.`
 			);
 		}

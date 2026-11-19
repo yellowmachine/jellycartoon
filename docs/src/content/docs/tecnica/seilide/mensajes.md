@@ -123,7 +123,14 @@ items } }`, cifrada como un texto y revisada al leerla (`parseRecipe`, 30 cosas 
   Va cifrada como `{ kind: 'cita', … }` y se revisa al leerla (`parseCita`). La acción `addEvent` de
   `/mensajes` la apunta en la Agenda de la familia de quien la recibe (para todos, sin aviso) solo si
   no hay ya una igual ese día (`citaKey`: día, hora y título); la página trae las de la Agenda de
-  30 días atrás a 400 adelante para enseñar «En la Agenda ✓», también la apuntada por otro. `ChatRecipeCard` acepta otra acción (`save`) y otros botones
+  30 días atrás a 400 adelante para enseñar «En la Agenda ✓», también la apuntada por otro.
+- **Sitio** (fase 3): uno de los guardados de quien lo manda (`saved_place`, #151, de cada persona):
+  desde «+ → 📌 Sitio guardado» o con `propose_place` (solo en Mensajes; el sistema lista los sitios
+  de quien pregunta y no acepta otro). `{ kind: 'sitio', name, lat, lon, address }`, cifrado.
+  Quien lo recibe: «🚗 Llevarme» (`/carretera?destino=lon,lat&nombre=`, como compartir desde
+  Google Maps), «Abrir» (`elsewhere.ts`) y «Guardar en mis sitios» (acción `savePlace`, siempre una
+  copia, ya que los sitios no son de la familia); «En mis sitios ✓» si ya tiene uno a menos de
+  30 m. La búsqueda de sitios por nombre queda para más adelante. `ChatRecipeCard` acepta otra acción (`save`) y otros botones
   (`actions`).
 
 ## Transcripción en el aparato

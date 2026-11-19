@@ -4,6 +4,7 @@ import { parseRecipe } from 'comun/recipe.ts';
 import { addDays, localDay } from 'comun/agenda.ts';
 import { addEvent, agendaBetween, familyPeople } from '#lib/server/agenda/agenda.ts';
 import { citaKey, parseCita } from '#lib/cita.ts';
+import { listSavedPlaces, savePlace } from '#lib/server/trips/places.ts';
 import { addItems, kitchenOf, toBuy } from '#lib/server/fridge.ts';
 import { calls } from '#lib/server/calls.ts';
 import { openRouterKey } from '#lib/server/family-settings.ts';
@@ -25,13 +26,14 @@ import {
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const k = await kitchenOf(locals.user!.id);
 	const asked = Number(url.searchParams.get('receta'));
-	const [people, contacts, key, buying, saved, inAgenda, sharing] = await Promise.all([
+	const [people, contacts, key, buying, saved, inAgenda, places, sharing] = await Promise.all([
 		familyPeople(k),
 		calls.callable(locals.user!.id).catch(() => []),
 		openRouterKey(k),
 		toBuy(k),
 		recipesFromMessages(k),
 		agendaKeys(k),
+		listSavedPlaces(k),
 		Number.isInteger(asked) && asked > 0 ? getRecipe(k, asked) : null
 	]);
 	const recipe = sharing ? parseRecipe(sharing) : null;
@@ -47,6 +49,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		/** In the same family, sharing is referring: saved by one, saved for all. */
 		saved,
 		inAgenda,
+		/** This person's kept places (#151): to send one, and to know one that came is kept. */
+		myPlaces: places,
 		/** A recipe of the book to send, from Recetas' «Mandar» (#555). */
 		sharing: sharing && recipe && typeof recipe !== 'string' ? { id: sharing.id, recipe } : null
 	};
@@ -109,6 +113,33 @@ export const actions: Actions = {
 			people: []
 		});
 		return { noted: true };
+	},
+	/** A place that came, among this person's own (#151): a copy, as places are each one's. */
+	savePlace: async ({ request, locals }) => {
+		const form = await request.formData();
+		let raw: Record<string, unknown> = {};
+		try {
+			raw = JSON.parse(String(form.get('sitio') ?? '{}')) ?? {};
+		} catch {
+			// Said below.
+		}
+		const name = typeof raw.name === 'string' ? raw.name.trim().slice(0, 100) : '';
+		const lat = Number(raw.lat);
+		const lon = Number(raw.lon);
+		if (
+			!name ||
+			!Number.isFinite(lat) ||
+			!Number.isFinite(lon) ||
+			Math.abs(lat) > 90 ||
+			Math.abs(lon) > 180
+		)
+			return fail(400, { message: 'Ese sitio no vale' });
+		const address =
+			typeof raw.address === 'string' && raw.address.trim()
+				? raw.address.trim().slice(0, 200)
+				: null;
+		await savePlace(await kitchenOf(locals.user!.id), { id: null, name, at: [lon, lat], address });
+		return { kept: true };
 	},
 	/** A recipe, into the family's book: once per message (`from`), however many times it is tapped. */
 	save: async ({ request, locals }) => {

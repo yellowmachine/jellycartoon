@@ -8,6 +8,7 @@ import {
 	type ChatCard,
 	type ChatMessage,
 	type EventCard,
+	type PlaceCard,
 	type RecipeCard,
 	type ShoppingCard
 } from '#lib/chat.ts';
@@ -30,6 +31,8 @@ import { describePiece, makeReport } from '#lib/server/reports.ts';
 import { euros } from 'comun/expenses.ts';
 import { localDay } from 'comun/agenda.ts';
 import { citaWhen, parseCita } from '#lib/cita.ts';
+import { listSavedPlaces } from '#lib/server/trips/places.ts';
+import type { SavedPlace } from 'comun/saved-places.ts';
 import { FALLBACK_VOICE_MODEL, voiceSettings } from '#lib/server/voice/settings.ts';
 
 /**
@@ -243,6 +246,8 @@ function cardLine(card: ChatCard) {
 					: 'No añadió nada.'
 		}]`;
 	if (card.kind === 'pagina') return `[Página abierta: ${card.label}]`;
+	if (card.kind === 'sitio')
+		return `[Tarjeta de sitio: ${card.name}${card.address ? `, ${card.address}` : ''}]`;
 	if (card.kind === 'cita')
 		return `[Tarjeta de plan: ${card.title}, ${citaWhen(card)}${card.notes ? ` (${card.notes})` : ''}]`;
 	if (card.kind === 'bloque') return `[Gráfica enseñada: ${describeBlock(card.block, euros)}]`;
@@ -364,6 +369,21 @@ async function runTool(
 				card: { kind: 'cita', ...cita }
 			};
 		}
+		case 'propose_place': {
+			const id = Number(args.id);
+			const place = (await listSavedPlaces(k)).find((p) => p.id === id);
+			if (!place) return { result: 'Ese sitio no está entre los suyos.' };
+			return {
+				result: `Tarjeta del sitio «${place.name}» enseñada; la persona decide si la manda.`,
+				card: {
+					kind: 'sitio',
+					name: place.name,
+					lon: place.at[0],
+					lat: place.at[1],
+					address: place.address
+				}
+			};
+		}
 		case 'propose_saved_recipe': {
 			const id = Number(args.id);
 			const saved = Number.isInteger(id) ? await getRecipe(k, id) : null;
@@ -461,13 +481,23 @@ const PROPOSE_EVENT = fn(
 	['title', 'day']
 );
 
+/** A place the person kept (#151), to send (#555): only in Mensajes' panel. */
+const PROPOSE_PLACE = fn(
+	'propose_place',
+	'Enseña uno de los sitios guardados de la persona (abajo), para mandarlo: quien lo recibe puede ir con el modo carretera o guardarlo.',
+	{ id: { type: 'number', description: 'El número del sitio guardado.' } },
+	['id']
+);
+
 /** What may be sent in a message (#555): a recipe or a list, made by the AI in its panel. */
 const MESSAGE_TOOLS = new Set(['propose_shopping', 'propose_recipe', 'read_recipe']);
 /** The panel's turns sent back each time: it is kept nowhere else. */
 export const MESSAGE_TURNS = 8;
 
 /** A card the panel sends back, checked again: only a recipe or a list. */
-export function messageCard(value: unknown): ShoppingCard | RecipeCard | EventCard | null {
+export function messageCard(
+	value: unknown
+): ShoppingCard | RecipeCard | EventCard | PlaceCard | null {
 	const c = (value ?? {}) as Record<string, unknown>;
 	if (c.kind === 'compra') {
 		const items = shoppingItems(c.items);
@@ -476,6 +506,14 @@ export function messageCard(value: unknown): ShoppingCard | RecipeCard | EventCa
 	if (c.kind === 'cita') {
 		const cita = parseCita(c);
 		return cita ? { kind: 'cita', ...cita } : null;
+	}
+	if (c.kind === 'sitio') {
+		const lat = Number(c.lat);
+		const lon = Number(c.lon);
+		const name = typeof c.name === 'string' ? c.name.trim().slice(0, 100) : '';
+		if (!name || !(Math.abs(lat) <= 90 && Math.abs(lon) <= 180)) return null;
+		const address = typeof c.address === 'string' ? c.address.slice(0, 200) : null;
+		return { kind: 'sitio', name, lat, lon, address };
 	}
 	if (c.kind === 'receta') {
 		const recipe = parseRecipe(c.recipe);
@@ -491,6 +529,7 @@ function messageSystem(c: {
 	to: string;
 	style: string | null;
 	recipes: { id: number; title: string }[];
+	places: SavedPlace[];
 }) {
 	return `Eres ${c.assistant}, el asistente de Seilide, la app de una familia. ${c.name} está en Mensajes, escribiendo a ${c.to}, y te pide algo para mandárselo. Contesta en español de España, de tú.
 
@@ -500,12 +539,16 @@ function messageSystem(c: {
 - Una lista de cosas (la compra para algo, lo que hay que llevar), con «propose_shopping», en una sola tarjeta.
 - Un plan para quedar o apuntar («proponles comer el sábado en casa de la abuela»), con «propose_event»: el día calculado desde hoy, la hora si la dice o se entiende («a comer», 14:00; «a cenar», 21:00), y en «notes» solo lo que diga de más (dónde, qué llevar). Si no está claro qué día, pregunta en una frase en vez de inventarlo.
 - El texto, muy corto (una o dos frases): las tarjetas ya lo dicen todo. Sin títulos ni negritas.
-- Si pide algo que no es una receta, una lista ni un plan, dile en una frase que de momento solo preparas eso para mandar.
+- Uno de sus sitios guardados (abajo), si lo pide («mándale la dirección del restaurante»), con «propose_place». Solo esos: si no está entre ellos, dile que lo guarde antes en Viajes; no inventes direcciones.
+- Si pide algo que no es una receta, una lista, un plan ni uno de sus sitios, dile en una frase que de momento solo preparas eso para mandar.
 ${c.style ? `- El carácter de la casa, solo el tono: «${c.style}».\n` : ''}
 Hoy es ${new Intl.DateTimeFormat('es-ES', { dateStyle: 'full', timeZone: TIME_ZONE }).format()} (${localDay()}).
 
 Recetario de la familia:
-${c.recipes.map((r) => `- ${r.title} [receta ${r.id}]`).join('\n') || '(vacío)'}`;
+${c.recipes.map((r) => `- ${r.title} [receta ${r.id}]`).join('\n') || '(vacío)'}
+
+Sitios guardados de ${c.name}:
+${c.places.map((p) => `- ${p.name}${p.address ? ` (${p.address})` : ''} [sitio ${p.id}]`).join('\n') || '(ninguno)'}`;
 }
 
 /**
@@ -527,10 +570,11 @@ export async function askForMessage(
 ): Promise<{ text: string; cards: ChatCard[] }> {
 	const said = ask.question.trim().slice(0, MAX_CHAT_QUESTION);
 	if (!said) throw new ChatError('Escribe qué quieres');
-	const [apiKey, settings, recipes] = await Promise.all([
+	const [apiKey, settings, recipes, places] = await Promise.all([
 		openRouterKey(k),
 		voiceSettings(k),
-		listRecipes(k)
+		listRecipes(k),
+		listSavedPlaces(k)
 	]);
 	if (!apiKey)
 		throw new ChatError('La familia no tiene clave de IA: quien administra la pone en Ajustes');
@@ -550,7 +594,8 @@ export async function askForMessage(
 				assistant: ask.assistant.slice(0, 40) || 'el asistente',
 				to: ask.to.slice(0, 80) || 'alguien',
 				style: settings.style,
-				recipes
+				recipes,
+				places
 			})
 		},
 		...turns,
@@ -563,7 +608,8 @@ export async function askForMessage(
 		tools: [
 			...TOOLS.filter((t) => MESSAGE_TOOLS.has(t.function.name)),
 			PROPOSE_SAVED_RECIPE,
-			PROPOSE_EVENT
+			PROPOSE_EVENT,
+			PROPOSE_PLACE
 		]
 	});
 }

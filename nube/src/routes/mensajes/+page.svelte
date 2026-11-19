@@ -14,6 +14,7 @@
 	import { replaceState } from '$app/navigation';
 	import { wakeWord } from '#lib/wake-word.svelte.ts';
 	import PlacesMap from '#lib/components/PlacesMap.svelte';
+	import SitioCard from './SitioCard.svelte';
 	import { VoiceRecorder } from '#lib/mensajes/recorder.svelte.ts';
 	import MediaIcon from 'comun/components/MediaIcon.svelte';
 	import type { PageProps } from './$types';
@@ -97,6 +98,9 @@
 		| { kind: 'foto'; blob: Blob; width: number; height: number; url: string }
 		| { kind: 'ubicacion'; place: Place }
 		| { kind: 'buscando' }
+		/** Choosing one of this person's kept places (#151); then, the one chosen. */
+		| { kind: 'elegir-sitio' }
+		| { kind: 'sitio'; place: { name: string; lat: number; lon: number; address: string | null } }
 		| null
 	>(null);
 	let attachProblem = $state<string | null>(null);
@@ -135,12 +139,14 @@
 
 	async function sendAttachment() {
 		const a = attaching;
-		if (!a || a.kind === 'buscando' || sending) return;
+		if (!a || a.kind === 'buscando' || a.kind === 'elegir-sitio' || sending) return;
 		sending = true;
 		const ok =
 			a.kind === 'foto'
 				? await client.sendPhoto({ blob: a.blob, width: a.width, height: a.height })
-				: await client.sendPlace(a.place);
+				: a.kind === 'sitio'
+					? await client.sendCard({ kind: 'sitio', ...a.place })
+					: await client.sendPlace(a.place);
 		sending = false;
 		if (ok) dropAttachment();
 	}
@@ -343,6 +349,7 @@
 								toBuy={data.toBuy}
 								saved={data.saved}
 								inAgenda={data.inAgenda}
+								myPlaces={data.myPlaces}
 							/>{:else}{m.text}{/if}
 					</div>
 					<span class="mt-0.5 text-xs text-zinc-500"
@@ -373,8 +380,41 @@
 					<button class="mt-2 text-sm text-zinc-400 hover:text-white" onclick={dropAttachment}
 						>Cancelar</button
 					>
+				{:else if attaching.kind === 'elegir-sitio'}
+					<p class="mb-2 text-sm font-semibold">📌 ¿Qué sitio mandas?</p>
+					{#if data.myPlaces.length}
+						<ul class="mb-2 max-h-60 divide-y divide-zinc-800 overflow-y-auto">
+							{#each data.myPlaces as p (p.id)}
+								<li>
+									<button
+										class="w-full px-1 py-2 text-left hover:bg-zinc-800"
+										onclick={() =>
+											(attaching = {
+												kind: 'sitio',
+												place: { name: p.name, lon: p.at[0], lat: p.at[1], address: p.address }
+											})}
+									>
+										<span class="block">{p.name}</span>
+										{#if p.address}<span class="block truncate text-xs text-zinc-500"
+												>{p.address}</span
+											>{/if}
+									</button>
+								</li>
+							{/each}
+						</ul>
+					{:else}
+						<p class="mb-2 text-sm text-zinc-400">
+							No tienes sitios guardados. Guárdalos en <a class="underline" href="/viajes">Viajes</a
+							> y luego podrás mandarlos.
+						</p>
+					{/if}
+					<button class="text-sm text-zinc-400 hover:text-white" onclick={dropAttachment}
+						>Cancelar</button
+					>
 				{:else}
-					{#if attaching.kind === 'foto'}
+					{#if attaching.kind === 'sitio'}
+						<div class="mb-3"><SitioCard place={attaching.place} /></div>
+					{:else if attaching.kind === 'foto'}
 						<img
 							src={attaching.url}
 							alt="La foto que vas a enviar"
@@ -402,7 +442,9 @@
 								? 'Enviando…'
 								: attaching.kind === 'foto'
 									? 'Enviar la foto'
-									: 'Enviar mi ubicación'}</button
+									: attaching.kind === 'sitio'
+										? 'Enviar el sitio'
+										: 'Enviar mi ubicación'}</button
 						>
 						<button
 							class="rounded-md px-4 py-2 text-zinc-300 hover:text-white"
@@ -479,6 +521,15 @@
 						>
 						<button type="button" class="px-4 py-3 text-left hover:bg-zinc-800" onclick={lookWhere}
 							>📍 Ubicación</button
+						>
+						<button
+							type="button"
+							class="px-4 py-3 text-left hover:bg-zinc-800"
+							onclick={() => (
+								(menu = false),
+								dropAttachment(),
+								(attaching = { kind: 'elegir-sitio' })
+							)}>📌 Sitio guardado</button
 						>
 						{#if data.hasAi}
 							<button

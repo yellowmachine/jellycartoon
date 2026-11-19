@@ -135,6 +135,20 @@ mock.module('#lib/server/reports.ts', () => ({
 	describePiece: (p: { kind: string; empty: string }) => `[${p.kind}: ${p.empty}]`
 }));
 
+// Kept places (#151), each person's own, faked: places.ts brings SvelteKit's env along.
+const keptPlaces: Record<
+	string,
+	{ id: number; name: string; at: [number, number]; address: string | null }[]
+> = {
+	ana: [
+		{ id: 3, name: 'Restaurante El Sol', at: [-1.13, 37.98], address: 'Calle Mayor 1, Murcia' }
+	],
+	pepe: [{ id: 4, name: 'Casa de Pepe', at: [-1.2, 38], address: null }]
+};
+mock.module('#lib/server/trips/places.ts', () => ({
+	listSavedPlaces: async (k: Kitchen) => keptPlaces[k.userId ?? ''] ?? []
+}));
+
 const chat = await import('./chat.ts');
 
 const ana = kitchen('A', 'ana');
@@ -568,4 +582,45 @@ test('Mensajes (#555): a plan, with today known to work out the day', async () =
 	expect(
 		String(sent[1]!.find((m) => m.role === 'tool' && m.tool_call_id === 'mal')?.content)
 	).toContain('Falta');
+});
+
+test("Mensajes (#555): only a place of the asker's own, as kept", async () => {
+	const mine = { id: 3 };
+	const pepes = { id: 4 };
+	answers = [
+		{
+			content: null,
+			toolCalls: [
+				call('propose_place', { id: mine!.id }, 'a'),
+				call('propose_place', { id: pepes!.id }, 'b')
+			]
+		},
+		{ content: 'Ahí va.', toolCalls: [] }
+	];
+	const got = await chat.askForMessage(
+		ana,
+		{ id: 'ana', name: 'Ana' },
+		{
+			question: 'mándale la dirección del restaurante',
+			to: 'Papá',
+			assistant: 'Makoto',
+			turns: []
+		}
+	);
+	expect(got.cards).toEqual([
+		{
+			kind: 'sitio',
+			name: 'Restaurante El Sol',
+			lon: -1.13,
+			lat: 37.98,
+			address: 'Calle Mayor 1, Murcia'
+		}
+	]);
+	expect(String(sent[0]![0]!.content)).toContain(
+		`Restaurante El Sol (Calle Mayor 1, Murcia) [sitio ${mine!.id}]`
+	);
+	expect(String(sent[0]![0]!.content)).not.toContain('Casa de Pepe');
+	expect(
+		String(sent[1]!.find((m) => m.role === 'tool' && m.tool_call_id === 'b')?.content)
+	).toContain('no está entre los suyos');
 });

@@ -51,7 +51,17 @@ export interface EventCard extends Cita {
 	kind: 'cita';
 }
 
-export type ChatCard = ShoppingCard | RecipeCard | PageCard | BlockCard | ReportCard | EventCard;
+/** A place the person kept (#151), to send in Mensajes (#555): only made in its panel. */
+export interface PlaceCard {
+	kind: 'sitio';
+	name: string;
+	lat: number;
+	lon: number;
+	address: string | null;
+}
+
+export type ChatCard =
+	ShoppingCard | RecipeCard | PageCard | BlockCard | ReportCard | EventCard | PlaceCard;
 
 export interface ChatMessage {
 	id: number;

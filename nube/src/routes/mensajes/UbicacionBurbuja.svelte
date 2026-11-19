@@ -1,6 +1,7 @@
 <script lang="ts">
 	import PlacesMap from '#lib/components/PlacesMap.svelte';
 	import type { Place } from '#lib/mensajes/messenger.ts';
+	import { elsewhere } from '#lib/mensajes/elsewhere.ts';
 
 	/**
 	 * Mensajes (#555): where someone was, on the app's own map (its tiles come from Seilide, so no one
@@ -8,14 +9,7 @@
 	 */
 	let { place, mine }: { place: Place; mine: boolean } = $props();
 
-	const elsewhere = $derived.by(() => {
-		const { lat, lon } = place;
-		const ua = navigator.userAgent;
-		if (/android/i.test(ua)) return `geo:${lat},${lon}?q=${lat},${lon}`;
-		if (/iphone|ipad|mac os/i.test(ua))
-			return `https://maps.apple.com/?ll=${lat},${lon}&q=${lat},${lon}`;
-		return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=17/${lat}/${lon}`;
-	});
+	const link = $derived(elsewhere(place.lat, place.lon));
 </script>
 
 <span class="block w-64 max-w-full">
@@ -30,7 +24,7 @@
 			{#if place.accuracy !== undefined}<span class="opacity-70">{` · ± ${place.accuracy} m`}</span
 				>{/if}
 		</span>
-		<a class="underline" href={elsewhere} target="_blank" rel="noopener noreferrer">Abrir</a>
+		<a class="underline" href={link} target="_blank" rel="noopener noreferrer">Abrir</a>
 	</span>
 	<span class="block text-[10px] opacity-60">Protomaps © colaboradores de OpenStreetMap</span>
 </span>

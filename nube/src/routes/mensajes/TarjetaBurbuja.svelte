@@ -2,6 +2,9 @@
 	import ChatRecipeCard from '#lib/components/ChatRecipeCard.svelte';
 	import ShoppingCard from '#lib/components/ShoppingCard.svelte';
 	import CitaCard from '#lib/components/CitaCard.svelte';
+	import SitioCard from './SitioCard.svelte';
+	import { elsewhere } from '#lib/mensajes/elsewhere.ts';
+	import { metresBetween } from 'comun/road-guide.ts';
 	import { enhance } from '$app/forms';
 	import { citaKey } from '#lib/cita.ts';
 	import type { StoredMessage } from '#lib/mensajes/messenger.ts';
@@ -17,12 +20,15 @@
 		m,
 		toBuy,
 		saved,
-		inAgenda
+		inAgenda,
+		myPlaces
 	}: {
 		m: StoredMessage;
 		toBuy: string[];
 		/** What is in the family's Agenda (citaKey): a plan noted by anyone shows as noted. */
 		inAgenda: string[];
+		/** This person's kept places: one sent that they have already shows as kept. */
+		myPlaces: { name: string; at: [number, number] }[];
 		/** Which of the family's recipes came in which message: saved by anyone of the family. */
 		saved: Record<string, number>;
 	} = $props();
@@ -33,6 +39,12 @@
 	const savedId = $derived(saved[from] ?? justSaved);
 	let added = $state<string[] | null>(null);
 	let noted = $state(false);
+	let kept = $state(false);
+	let keeping = $state(false);
+	/** Kept already: about the same point (a few metres). */
+	const NEAR_M = 30;
+	const isKept = (p: { lat: number; lon: number }) =>
+		kept || myPlaces.some((x) => metresBetween(x.at, [p.lon, p.lat]) < NEAR_M);
 	let noting = $state(false);
 	let notProblem = $state<string | null>(null);
 </script>
@@ -92,6 +104,47 @@
 		{/if}
 	</CitaCard>
 	{#if notProblem}<p class="mt-1 text-sm text-red-400">{notProblem}</p>{/if}
+{:else if m.card?.kind === 'sitio'}
+	{@const place = m.card}
+	<!-- Each person's own (#151): kept as a copy, also within the family. -->
+	<SitioCard {place}>
+		<a
+			href="/carretera?{new URLSearchParams({
+				destino: `${place.lon},${place.lat}`,
+				nombre: place.name
+			})}"
+			class="rounded-md bg-amber-500 px-4 py-1.5 font-semibold text-zinc-950 hover:bg-amber-400"
+			>🚗 Llevarme</a
+		>
+		<a
+			href={elsewhere(place.lat, place.lon)}
+			target="_blank"
+			rel="noopener noreferrer"
+			class="rounded-md px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white"
+			>Abrir</a
+		>
+		{#if isKept(place)}
+			<span class="text-sm text-emerald-400">En mis sitios ✓</span>
+		{:else}
+			<form
+				method="post"
+				action="?/savePlace"
+				use:enhance={() => {
+					keeping = true;
+					return async ({ result }) => {
+						keeping = false;
+						if (result.type === 'success') kept = true;
+					};
+				}}
+			>
+				<input type="hidden" name="sitio" value={JSON.stringify(place)} />
+				<button
+					class="rounded-md px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white"
+					disabled={keeping}>{keeping ? 'Guardando…' : 'Guardar en mis sitios'}</button
+				>
+			</form>
+		{/if}
+	</SitioCard>
 {:else if m.card?.kind === 'compra'}
 	<ShoppingCard
 		items={m.card.items}

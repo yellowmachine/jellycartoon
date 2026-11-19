@@ -474,6 +474,22 @@ describe('voice notes', () => {
 		await expect(mama.m.sendCard(conv, { ...cita, day: 'sábado' })).rejects.toThrow();
 	});
 
+	test('a kept place (#555): inside the encrypted message, checked when read', async () => {
+		const sitio = {
+			kind: 'sitio' as const,
+			name: 'Restaurante El Sol',
+			lat: 37.98,
+			lon: -1.13,
+			address: null
+		};
+		await mama.m.sendCard(conv, sitio);
+		await movil.m.sync();
+		const got = (await movil.m.messages(conv)).at(-1)!;
+		expect(got.card).toEqual(sitio);
+		expect(describeMessage(got)).toBe('📌 Restaurante El Sol');
+		await expect(mama.m.sendCard(conv, { ...sitio, lat: 200 })).rejects.toThrow();
+	});
+
 	test('with its text, made by the sender («los dos»): it comes with it, encrypted', async () => {
 		const sound = new Uint8Array(4_000).map((_, i) => i & 255);
 		const sent = await mama.m.sendAudio(conv, sound, 'audio/webm', 2, 'Que bajes a cenar');
