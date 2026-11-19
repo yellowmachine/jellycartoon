@@ -1,4 +1,5 @@
 <script lang="ts">
+	import MediaIcon from 'comun/components/MediaIcon.svelte';
 	import { enhance } from '$app/forms';
 	import AddToPlaylist from 'comun/components/AddToPlaylist.svelte';
 	import AddToQueue from 'comun/components/AddToQueue.svelte';
@@ -118,7 +119,7 @@
 						class="ml-1 align-middle text-base font-normal text-zinc-400 hover:text-white"
 						aria-label="Editar el disco y el artista"
 						title="Editar el disco y el artista"
-						onclick={() => (editing = true)}>✎</button
+						onclick={() => (editing = true)}><MediaIcon name="edit" class="h-4 w-4" /></button
 					>{/if}
 			</h1>
 			<p>
@@ -135,11 +136,14 @@
 			<div class="flex flex-wrap gap-2">
 				<button
 					class="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-zinc-950 hover:bg-amber-400"
-					onclick={() => musicTarget.play(tracks, 0, false)}>▶︎ Reproducir</button
+					onclick={() => musicTarget.play(tracks, 0, false)}
+					><MediaIcon name="play" class="mr-1.5 inline h-4 w-4 align-[-0.15em]" />Reproducir</button
 				>
 				<button
 					class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800"
-					onclick={() => musicTarget.play(mixed(tracks), 0, false)}>🔀 Mezclar y reproducir</button
+					onclick={() => musicTarget.play(mixed(tracks), 0, false)}
+					><MediaIcon name="shuffle" class="mr-1.5 inline h-4 w-4 align-[-0.15em]" />Mezclar y
+					reproducir</button
 				>
 				<AddToQueue {tracks} toSnapcast={false} />
 				{#if !vista.kiosk}<AddToPlaylist

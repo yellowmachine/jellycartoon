@@ -1,4 +1,5 @@
 <script lang="ts">
+	import MediaIcon from 'comun/components/MediaIcon.svelte';
 	import { mixed } from 'comun/music.ts';
 	import { vista } from '#lib/vista.svelte.ts';
 	import AddToQueue from 'comun/components/AddToQueue.svelte';
@@ -36,7 +37,7 @@
 					class="rounded-md px-2 py-1 text-base text-zinc-500 hover:bg-zinc-800 hover:text-white"
 					title="Cambiar nombre"
 					aria-label="Cambiar nombre"
-					onclick={() => (renaming = true)}>✎</button
+					onclick={() => (renaming = true)}><MediaIcon name="edit" class="h-4 w-4" /></button
 				>{/if}
 		</h1>
 	{/if}
@@ -57,18 +58,22 @@
 	<div class="mb-4 flex flex-wrap items-center gap-2">
 		<button
 			class="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-zinc-950 hover:bg-amber-400"
-			onclick={() => musicTarget.play(tracks, 0, false)}>▶︎ Reproducir</button
+			onclick={() => musicTarget.play(tracks, 0, false)}
+			><MediaIcon name="play" class="mr-1.5 inline h-4 w-4 align-[-0.15em]" />Reproducir</button
 		>
 		<!-- Shuffled once, then played in that order (comun/music.ts, `mixed`): here or on Snapcast. -->
 		<button
 			class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800"
-			onclick={() => musicTarget.play(mixed(tracks), 0, false)}>🔀 Mezclar y reproducir</button
+			onclick={() => musicTarget.play(mixed(tracks), 0, false)}
+			><MediaIcon name="shuffle" class="mr-1.5 inline h-4 w-4 align-[-0.15em]" />Mezclar y
+			reproducir</button
 		>
 		{#if data.dj}
 			<!-- Modo DJ with this playlist's songs: its dialog in Música (comun's DjDialog). -->
 			<a
 				href="/musica?dj={data.playlist.id}&lista={encodeURIComponent(data.playlist.name)}"
-				class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800">🎙 Con DJ</a
+				class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800"
+				><MediaIcon name="mic" class="mr-1.5 inline h-4 w-4 align-[-0.15em]" />Con DJ</a
 			>
 		{/if}
 		<AddToQueue {tracks} toSnapcast={false} />
@@ -104,20 +109,20 @@
 							disabled={i === 0}
 							class="px-2 hover:text-white disabled:invisible"
 							title="Subir"
-							aria-label="Subir">▲</button
+							aria-label="Subir"><MediaIcon name="up" class="h-3.5 w-3.5" /></button
 						>
 						<button
 							formaction="?/remove"
 							class="px-2 hover:text-red-400"
 							title="Quitar de la lista"
-							aria-label="Quitar de la lista">✕</button
+							aria-label="Quitar de la lista"><MediaIcon name="close" class="h-3.5 w-3.5" /></button
 						>
 						<button
 							formaction="?/down"
 							disabled={i === playlist.items.length - 1}
 							class="px-2 hover:text-white disabled:invisible"
 							title="Bajar"
-							aria-label="Bajar">▼</button
+							aria-label="Bajar"><MediaIcon name="down" class="h-3.5 w-3.5" /></button
 						>
 					</form>
 				{/if}

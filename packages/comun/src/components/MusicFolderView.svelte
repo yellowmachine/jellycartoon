@@ -1,4 +1,5 @@
 <script lang="ts">
+	import MediaIcon from './MediaIcon.svelte';
 	import type { Snippet } from 'svelte';
 	import { formatDuration } from '../format.ts';
 	import { folderUrl, mixed, type MusicFolder } from '../music.ts';
@@ -55,7 +56,7 @@
 		{#each folder.folders as f (f.path)}
 			<li>
 				<a href={href(f.path)} class="flex items-center gap-3 p-3 hover:bg-zinc-900">
-					<span aria-hidden="true" class="text-xl">📁</span>
+					<MediaIcon name="folder" class="h-5 w-5 shrink-0 text-amber-400" />
 					<span class="min-w-0 flex-1 truncate">{f.name}</span>
 					<span class="shrink-0 text-xs text-zinc-500"
 						>{audios(f.tracks)} · {formatDuration(f.durationSec)}</span
@@ -73,12 +74,14 @@
 	<div class="mb-4 flex flex-wrap items-center gap-2">
 		<button
 			class="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-zinc-950 hover:bg-amber-400"
-			onclick={() => musicTarget.play(folder.tracks, 0, toSnapcast)}>▶︎ Reproducir</button
+			onclick={() => musicTarget.play(folder.tracks, 0, toSnapcast)}
+			><MediaIcon name="play" class="mr-1.5 inline h-4 w-4 align-[-0.15em]" />Reproducir</button
 		>
 		<button
 			class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800"
 			onclick={() => musicTarget.play(mixed(folder.tracks), 0, toSnapcast)}
-			>🔀 Mezclar y reproducir</button
+			><MediaIcon name="shuffle" class="mr-1.5 inline h-4 w-4 align-[-0.15em]" />Mezclar y
+			reproducir</button
 		>
 		<AddToQueue tracks={folder.tracks} {toSnapcast} />
 		<AddToPlaylist

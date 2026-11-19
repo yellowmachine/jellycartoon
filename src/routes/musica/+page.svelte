@@ -1,4 +1,5 @@
 <script lang="ts">
+	import MediaIcon from 'comun/components/MediaIcon.svelte';
 	import MiniSearch from 'minisearch';
 	import { enhance } from '$app/forms';
 	import { invalidateAll, replaceState } from '$app/navigation';
@@ -162,7 +163,7 @@
 		{#if data.djPresets.length}
 			<!-- Native popover, as ActionMenu: closes with Esc or a click outside. -->
 			<button class={djClass} title={djTitle} popovertarget="dj-menu" style:anchor-name="--dj-menu"
-				>Modo DJ ▾</button
+				><MediaIcon name="mic" class="mr-1.5 inline h-4 w-4 align-[-0.15em]" />Modo DJ ▾</button
 			>
 			<div
 				bind:this={djMenu}
@@ -200,14 +201,15 @@
 								onclick={() => {
 									djMenu?.hidePopover();
 									djDialog?.open(preset);
-								}}>✎</button
+								}}><MediaIcon name="edit" class="h-4 w-4" /></button
 							>
 							<form method="post" action="?/djDelete" use:enhance>
 								<input type="hidden" name="id" value={preset.id} />
 								<button
 									class="px-2 py-1.5 text-zinc-400 hover:text-red-400"
 									title="Borrar"
-									aria-label="Borrar {preset.name}">✕</button
+									aria-label="Borrar {preset.name}"
+									><MediaIcon name="close" class="h-3.5 w-3.5" /></button
 								>
 							</form>
 						</div>
@@ -215,7 +217,9 @@
 				{/each}
 			</div>
 		{:else}
-			<button class={djClass} title={djTitle} onclick={() => djDialog?.open()}>Modo DJ</button>
+			<button class={djClass} title={djTitle} onclick={() => djDialog?.open()}
+				><MediaIcon name="mic" class="mr-1.5 inline h-4 w-4 align-[-0.15em]" />Modo DJ</button
+			>
 		{/if}
 		<DjDialog bind:this={djDialog} {artists} voices={data.djVoices} />
 	{/if}

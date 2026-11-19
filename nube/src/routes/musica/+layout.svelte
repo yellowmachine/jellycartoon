@@ -19,7 +19,9 @@
 		page.url.pathname.startsWith('/musica/carpetas') ||
 			page.url.pathname.startsWith('/musica/tu-musica/carpetas')
 	);
-	const onAlbums = $derived(!onLists && !onFolders);
+	/** What plays and comes next (it was a panel under the player). */
+	const onQueue = $derived(page.url.pathname.startsWith('/musica/cola'));
+	const onAlbums = $derived(!onLists && !onFolders && !onQueue);
 	const tab = (selected: boolean) => [
 		'border-b-2 px-1 pb-2 text-sm',
 		selected ? 'border-amber-500 text-white' : 'border-transparent text-zinc-400 hover:text-white'
@@ -39,6 +41,7 @@
 	<a href="{base}/carpetas" class={tab(onFolders)} aria-current={onFolders ? 'page' : undefined}
 		>Carpetas</a
 	>
+	<a href="/musica/cola" class={tab(onQueue)} aria-current={onQueue ? 'page' : undefined}>Cola</a>
 </nav>
 
 {#if !own && (data.houseProblem || data.passProblem)}
