@@ -33,6 +33,8 @@
 	import { themeColor, themeCss } from 'comun/themes.ts';
 	import { backKey, goBack } from 'comun/back.ts';
 	import ShareBar from '#lib/components/ShareBar.svelte';
+	import MensajePendiente from '#lib/components/MensajePendiente.svelte';
+	import { messagesVoice } from '#lib/mensajes/voice-messages.svelte.ts';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
@@ -70,6 +72,10 @@
 	let headerHeight = $state(0);
 	/** The voice is the grown-ups' (#303), and with it the Vista (#525, was the kitchen's, #60). */
 	const voiceOn = $derived(Boolean(data.user && data.family && !data.family.kid));
+	// Mensajes (#551): whether this device has them on, for the voice (its keys stay here).
+	$effect(() => {
+		if (voiceOn && data.user) void messagesVoice.init(data.user.id);
+	});
 	/** The Vista's screen (#525): on, in its own page or a section it shows on its right. */
 	const vistaShown = $derived(voiceOn && vista.on && inVista(page.url.pathname));
 	// As it was left on this device; a «pantalla de casa» starts in it.
@@ -495,6 +501,8 @@ trip's link (#81), for whoever has it, and a shared walk's (#434), with its own 
 						{/if}
 						<!-- The trip shared from here (#550), outside the road mode. -->
 						<ShareBar />
+						<!-- A voice message recorded, waiting for its «sí» (#551). -->
+						<MensajePendiente />
 						<!-- The radio and the podcasts (#253), going on from page to page, as at home. -->
 						<MusicBar />
 						<!-- The AI's spending (#193), if they asked for it in Ajustes, as at home. -->

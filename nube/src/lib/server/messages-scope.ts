@@ -475,6 +475,10 @@ export function messagesScope(withFamily: ReturnType<typeof familyScope>, partne
 				const row = await convOf(tx, userId, msg.conversationId);
 				const families = familiesOf(row);
 				await lockQueues(tx, families);
+				// Made on an epoch the group has left: nobody could read it. Said, to catch up and resend.
+				const epoch = await epochOf(tx, m.familyId, row);
+				if (epoch !== msg.epoch)
+					return { id: 0, stale: true as const, epoch, familyIds: families, to: [] };
 				let id = 0;
 				for (const f of families)
 					await inFamily(tx, m.familyId, f, async () => {

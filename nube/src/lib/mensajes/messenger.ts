@@ -136,10 +136,11 @@ export interface Transport {
 			recipients?: string[];
 		}
 	): Promise<{ ok: boolean; epoch: number }>;
+	/** `stale`: made on an epoch the group has left; caught up and made again. */
 	send(
 		deviceId: string,
 		m: { conversationId: string; epoch: number; data: string }
-	): Promise<{ id: number }>;
+	): Promise<{ id: number; stale?: boolean }>;
 	events(deviceId: string, since: number): Promise<EventIn[]>;
 	uploadAudio(
 		deviceId: string,
@@ -460,7 +461,8 @@ export class Messenger {
 						text: body.text,
 						at: ev.at,
 						mine: from.userId === this.userId,
-						...(body.audio ? { audio: body.audio } : {})
+						...(body.audio ? { audio: body.audio } : {}),
+						...(body.transcript ? { transcript: body.transcript } : {})
 					});
 			}
 		} catch (err) {
@@ -587,7 +589,14 @@ export class Messenger {
 	 * A voice note: encrypted here with a key of its own, uploaded as it is (Seilide cannot open it),
 	 * and its key in the message, which only those in the conversation read.
 	 */
-	async sendAudio(conversationId: string, audio: Uint8Array, mime: string, seconds: number) {
+	async sendAudio(
+		conversationId: string,
+		audio: Uint8Array,
+		mime: string,
+		seconds: number,
+		/** Its text, made in this device, sent with it («los dos»). */
+		transcript?: string
+	) {
 		const d = await this.#need();
 		const raw = crypto.getRandomValues(new Uint8Array(32));
 		const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -603,7 +612,12 @@ export class Messenger {
 			mime: mime.slice(0, 80),
 			seconds: Math.max(1, Math.round(seconds))
 		};
-		return this.#post(conversationId, { t: 'audio', ...meta }, { text: '', audio: meta });
+		const said = transcript?.trim().slice(0, MAX_TEXT);
+		return this.#post(
+			conversationId,
+			{ t: 'audio', ...meta, ...(said ? { transcript: said } : {}) },
+			{ text: '', audio: meta, ...(said ? { transcript: said } : {}) }
+		);
 	}
 
 	/** A voice note's sound, downloaded and decrypted here. */
@@ -622,43 +636,67 @@ export class Messenger {
 	}
 
 	/** Encrypted to the group, sent, and kept here as said. */
-	async #post(conversationId: string, body: object, local: { text: string; audio?: AudioMeta }) {
+	async #post(
+		conversationId: string,
+		body: object,
+		local: { text: string; audio?: AudioMeta; transcript?: string }
+	) {
 		const d = await this.#need();
 		return this.#serial(async () => {
 			const cs = await this.#cs();
-			const state = await this.#load(conversationId);
-			if (!state) throw new Error('Esta conversación todavía no está lista en este aparato');
-			const r = await createApplicationMessage(
-				state,
-				te.encode(JSON.stringify({ ...body, from: identityOf(this.userId, d.id) })),
-				cs
-			);
-			r.consumed.forEach(zeroOutUint8Array);
-			const sent = await this.transport.send(d.id, {
-				conversationId,
-				epoch: epochOf(state),
-				data: toB64(
-					encodeMlsMessage({
-						privateMessage: r.privateMessage,
-						wireformat: 'mls_private_message',
-						version: 'mls10'
-					})
-				)
-			});
-			await this.#save(conversationId, r.newState);
-			const m: StoredMessage = {
-				conversationId,
-				key: String(sent.id),
-				userId: this.userId,
-				deviceId: d.id,
-				text: local.text,
-				at: new Date().toISOString(),
-				mine: true,
-				...(local.audio ? { audio: local.audio } : {})
-			};
-			await this.store.addMessage(m);
-			return m;
+			// Up to date first, and again if the group changed meanwhile: on an epoch it has left,
+			// nobody would read it (the server says so: `stale`).
+			for (let tries = 0; ; tries++) {
+				await this.#syncUnlocked(d);
+				const state = await this.#load(conversationId);
+				if (!state) throw new Error('Esta conversación todavía no está lista en este aparato');
+				const r = await createApplicationMessage(
+					state,
+					te.encode(JSON.stringify({ ...body, from: identityOf(this.userId, d.id) })),
+					cs
+				);
+				const sent = await this.transport.send(d.id, {
+					conversationId,
+					epoch: epochOf(state),
+					data: toB64(
+						encodeMlsMessage({
+							privateMessage: r.privateMessage,
+							wireformat: 'mls_private_message',
+							version: 'mls10'
+						})
+					)
+				});
+				if (sent.stale) {
+					if (tries < 3) continue;
+					throw new Error('La conversación ha cambiado: inténtalo otra vez');
+				}
+				r.consumed.forEach(zeroOutUint8Array);
+				await this.#save(conversationId, r.newState);
+				return this.#kept(conversationId, d, sent.id, local);
+			}
 		});
+	}
+
+	/** What this device sent, kept here as said. */
+	async #kept(
+		conversationId: string,
+		d: DeviceKeys,
+		id: number,
+		local: { text: string; audio?: AudioMeta; transcript?: string }
+	) {
+		const m: StoredMessage = {
+			conversationId,
+			key: String(id),
+			userId: this.userId,
+			deviceId: d.id,
+			text: local.text,
+			at: new Date().toISOString(),
+			mine: true,
+			...(local.audio ? { audio: local.audio } : {}),
+			...(local.transcript ? { transcript: local.transcript } : {})
+		};
+		await this.store.addMessage(m);
+		return m;
 	}
 
 	/** A voice note's text, kept beside it here (and in the PIN backup). */
@@ -698,7 +736,7 @@ function senderIdentity(state: ClientState, deviceId: string) {
 	return membersOf(state).find((m) => m.identity.endsWith(`/${deviceId}`))?.identity ?? null;
 }
 
-type Body = { text: string; from: string; audio?: AudioMeta };
+type Body = { text: string; from: string; audio?: AudioMeta; transcript?: string };
 
 const isAudio = (b: Record<string, unknown>) =>
 	typeof b.file === 'string' &&
@@ -717,7 +755,14 @@ function parseBody(raw: string): Body | null {
 			return {
 				text: '',
 				from: b.from,
-				audio: { file: b.file, key: b.key, iv: b.iv, mime: b.mime.slice(0, 80), seconds: b.seconds }
+				audio: {
+					file: b.file,
+					key: b.key,
+					iv: b.iv,
+					mime: b.mime.slice(0, 80),
+					seconds: b.seconds
+				},
+				...(typeof b.transcript === 'string' ? { transcript: b.transcript.slice(0, MAX_TEXT) } : {})
 			};
 		return null;
 	} catch {

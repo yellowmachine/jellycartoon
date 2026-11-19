@@ -2,6 +2,9 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { messages, noticeOthers, tellNew } from '#lib/server/messages.ts';
 import { MessagesProblem } from '#lib/server/messages-scope.ts';
+import { familyPeople } from '#lib/server/agenda/agenda.ts';
+import { kitchenOf } from '#lib/server/fridge.ts';
+import { calls } from '#lib/server/calls.ts';
 
 /**
  * Mensajes (#551): what a device asks of the delivery service, always with its id (theirs, checked).
@@ -48,6 +51,18 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			});
 		case 'familia':
 			return handled(() => messages.familyConversation(userId, deviceId));
+		case 'nombres':
+			// Who is who, to say who wrote (the voice, the road mode): names only.
+			return handled(async () => {
+				const [people, contacts] = await Promise.all([
+					familyPeople(await kitchenOf(userId)),
+					calls.callable(userId).catch(() => [])
+				]);
+				return {
+					...Object.fromEntries(contacts.map((c) => [c.userId, c.name])),
+					...Object.fromEntries(people.filter((p) => p.userId).map((p) => [p.userId!, p.name]))
+				};
+			});
 		case 'conversaciones':
 			return handled(() => messages.conversations(userId));
 		case 'pareja':

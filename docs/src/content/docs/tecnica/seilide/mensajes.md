@@ -97,7 +97,23 @@ MLS gasta su llave, así que página y worker comparten un cerrojo (`lock.ts`, W
 `seilide-mensajes-<userId>`): nunca tocan los grupos a la vez y lo que lee uno, el otro lo encuentra
 guardado.
 
+## Voz y modo carretera
+
+La petición de voz lleva `messages: { on, pending }` (activados en el aparato, y a quién espera el
+«sí» uno grabado), nunca contenido. Herramientas (`command.ts`, solo con `on`): `voice_message` (a
+«familia» o a alguien de `calls.callable`), `confirm_voice_message` (con `pending`),
+`messages_settings` (leer en voz alta, mandar como audio, texto o los dos) y `read_messages` («pon el
+audio» con `audio`). Hacen acciones que ejecuta el aparato (`voice-messages.svelte.ts`): espera a
+que la voz termine su respuesta, graba hasta 1,6 s de silencio tras hablar (`recorder.svelte.ts`
+`untilSilence`), transcribe en el aparato si va como texto, pide el «sí» y manda; lee en voz alta lo
+que llega (modo carretera, interruptor por aparato) y los audios de hasta un minuto los pone tal
+cual. `MensajePendiente.svelte`: el grabado esperando, con Enviar y Borrar.
+
+**Enviar con el grupo al día**: el aparato se pone al día antes de cifrar, y el servidor rechaza un
+mensaje de una época que el grupo ya dejó (`stale`): el aparato se pone al día, lo cifra otra vez y
+lo reenvía. Sin esto, alguien que escribía justo después de que otro activara un aparato mandaba un
+mensaje que nadie podía leer.
+
 ## Pendiente (#551)
 
-Voz y modo
-carretera, y quitar Telegram.
+Quitar Telegram.

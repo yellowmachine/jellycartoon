@@ -380,6 +380,19 @@ describe('voice notes', () => {
 		// Mamá, not in that conversation, may not even download it.
 		await expect(server.fileFor('mama', conv2, sent!.audio!.file)).rejects.toThrow();
 	});
+
+	test('with its text, made by the sender («los dos»): it comes with it, encrypted', async () => {
+		const sound = new Uint8Array(4_000).map((_, i) => i & 255);
+		const sent = await mama.m.sendAudio(conv, sound, 'audio/webm', 2, 'Que bajes a cenar');
+		expect(sent?.transcript).toBe('Que bajes a cenar');
+		await movil.m.sync();
+		const got = (await movil.m.messages(conv)).at(-1)!;
+		expect(got.audio?.seconds).toBe(2);
+		expect(got.transcript).toBe('Que bajes a cenar');
+		expect(JSON.stringify(await db.execute(sql`select data from msg_event`))).not.toContain(
+			btoa('Que bajes')
+		);
+	});
 });
 
 describe('the page and its service worker, one device', () => {
@@ -414,5 +427,30 @@ describe('the page and its service worker, one device', () => {
 		await mama.m.send(conv, 'Y otro después');
 		await worker.sync();
 		expect((await page.messages(conv)).at(-1)?.text).toBe('Y otro después');
+	});
+});
+
+describe('a group changed while sending', () => {
+	test('the server says it is stale; the device catches up, makes it again, and it is read', async () => {
+		const base = transportOf('mama');
+		let once = true;
+		const racing: Transport = {
+			...base,
+			send: async (deviceId, msg) => {
+				// Right then, another device of the family comes, and Miguel's lets it in.
+				if (once) {
+					once = false;
+					const other = device('miguel');
+					await other.m.setup('Otro aparato más');
+					await movil.m.family();
+				}
+				return base.send(deviceId, msg);
+			}
+		};
+		const sender = new Messenger(mama.store, racing, 'mama');
+		const sent = await sender.send(conv, 'Llegó a pesar del cambio');
+		expect(sent?.text).toBe('Llegó a pesar del cambio');
+		await movil.m.sync();
+		expect((await movil.m.messages(conv)).at(-1)?.text).toBe('Llegó a pesar del cambio');
 	});
 });
