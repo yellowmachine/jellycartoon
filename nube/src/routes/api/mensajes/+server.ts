@@ -36,13 +36,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const deviceId = str(b.deviceId);
 	switch (b.action) {
 		case 'aparato':
-			return handled(() =>
-				messages.registerDevice(userId, {
+			return handled(async () => {
+				const r = await messages.registerDevice(userId, {
 					id: deviceId,
 					name: str(b.name),
 					keyPackages: Array.isArray(b.keyPackages) ? b.keyPackages : []
-				})
-			);
+				});
+				// A new device: the family's open ones look, and one of them lets it in.
+				tellNew(r.familyId);
+				return { keyPackages: r.keyPackages };
+			});
 		case 'familia':
 			return handled(() => messages.familyConversation(userId, deviceId));
 		case 'conversacion':

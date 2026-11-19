@@ -140,3 +140,32 @@ export const msgEvent = pgTable(
 		familyRows('msg_event_own', t.familyId)
 	]
 ).enableRLS();
+
+/**
+ * A person's backup of what their devices have read (#551): encrypted in the device with a key that
+ * comes from their PIN (at least 6 digits) through an OPRF with this row's key, so the PIN cannot be
+ * tried without the server, which counts the tries (`tries`) and wipes the backup after too many. The
+ * server keeps only the OPRF key (sealed with the family's key, family-secret.ts), the hash of the
+ * proof the device shows when it knows the PIN (`verifier`), and the ciphertext.
+ */
+export const msgBackup = pgTable(
+	'msg_backup',
+	{
+		userId: text('user_id')
+			.primaryKey()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		familyId: text('family_id')
+			.notNull()
+			.references(() => family.id, { onDelete: 'cascade' }),
+		/** The OPRF's private key (P-256), sealed. */
+		oprfKey: text('oprf_key').notNull(),
+		/** SHA-256 of the proof key the PIN gives, base64; null, no backup yet. */
+		verifier: text('verifier'),
+		/** The backup, encrypted in the device (AES-GCM, iv first), base64. */
+		blob: text('blob'),
+		/** PIN tries since the last right one. */
+		tries: integer('tries').notNull().default(0),
+		updatedAt: timestamp('updated_at').notNull().defaultNow()
+	},
+	(t) => [familyRows('msg_backup_own', t.familyId)]
+).enableRLS();

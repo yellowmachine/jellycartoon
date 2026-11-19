@@ -42,9 +42,25 @@ nuevo», nunca qué dice.
 - `idb-store.ts`: llaves, grupos e historial descifrado en IndexedDB, una base por persona.
 - `client.svelte.ts` y `/mensajes`: la página (sin SSR).
 
+## La copia con PIN (`messages-backup-scope.ts`, `lib/mensajes/backup.ts`)
+
+Se copia el historial descifrado de la persona (lo que han leído sus aparatos), no el estado MLS: un
+aparato nuevo entra en los grupos como cualquier otro y la copia le da lo de antes.
+
+- **OPRF** (RFC 9497, `@cloudflare/voprf-ts`, P-256): el aparato ciega `seilide-mensajes:<userId>:<PIN>`,
+  el servidor lo evalúa con la llave de esa persona (`msg_backup.oprf_key`, sellada con
+  `sealFor`, la llave de la familia y el KMS) y el aparato termina la cuenta. Con HKDF salen dos
+  llaves: `cifrar` (AES-256-GCM de la copia, no sale del aparato) y `probar`, de la que el servidor
+  guarda solo el SHA-256 (`verifier`).
+- **Intentos**: cada evaluación es uno; se vuelve a cero al presentar la prueba buena; al décimo
+  sin acertar, la copia se borra y la llave OPRF cambia. Solo con la base de datos no se puede probar
+  ningún PIN; con el servidor entero y el KMS sí (por eso, 6 cifras o más).
+- La copia se pone al día sola (5 s después de algo nuevo): se abre, se junta con lo del aparato y se
+  vuelve a guardar, así que ningún aparato borra lo que guardó otro.
+- `POST /api/mensajes/copia` (`estado`, `evaluar`, `crear`, `abrir`, `guardar`, `olvidar`).
+
 ## Pendiente (#551)
 
-Copia con PIN de 6 cifras (OPRF con límite de intentos y la llave del servidor sellada con el KMS),
-enlazar un aparato nuevo con uno que ya tienes, quitar aparatos desde Ajustes, conversaciones de dos
+Enlazar un aparato nuevo con uno que ya tienes, quitar aparatos desde Ajustes, conversaciones de dos
 personas y con familias vinculadas, audios, notificación descifrada en el service worker, voz y modo
 carretera, y quitar Telegram.

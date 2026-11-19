@@ -122,7 +122,7 @@ export function messagesScope(withFamily: ReturnType<typeof familyScope>) {
 					.select({ n: sql<number>`count(*)::int` })
 					.from(msgKeyPackage)
 					.where(eq(msgKeyPackage.deviceId, d.id));
-				return { keyPackages: n };
+				return { keyPackages: n, familyId: m.familyId };
 			});
 		},
 

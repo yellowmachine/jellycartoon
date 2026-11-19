@@ -7,11 +7,17 @@ import * as schema from './db/schema.ts';
 import { family, familyMember, user } from './db/schema.ts';
 import { familyScope } from './family-scope.ts';
 import { messagesScope } from './messages-scope.ts';
+import { MAX_TRIES, messagesBackupScope } from './messages-backup-scope.ts';
+import {
+	BackupKeeper,
+	type BackupKeys,
+	type BackupStore,
+	type BackupTransport
+} from '../mensajes/backup.ts';
 import {
 	Messenger,
 	type DeviceKeys,
 	type PrivatePackage,
-	type Store,
 	type StoredMessage,
 	type Transport
 } from '../mensajes/messenger.ts';
@@ -24,6 +30,11 @@ import {
 const db = drizzle(new PGlite(), { schema });
 const withFamily = familyScope(db, { role: 'app_user' });
 const server = messagesScope(withFamily);
+// The KMS, as a label: the tests look at what is done with the key, not at Scaleway.
+const backups = messagesBackupScope(withFamily, {
+	seal: async (_f, text) => `sellado:${text}`,
+	open: async (_f, sealed) => (sealed.startsWith('sellado:') ? sealed.slice(8) : null)
+});
 
 const account = (id: string) => ({
 	id,
@@ -55,14 +66,18 @@ beforeAll(async () => {
 });
 
 /** A device's IndexedDB, in memory. */
-function memoryStore(): Store & { all: StoredMessage[] } {
+function memoryStore(): BackupStore & { all: StoredMessage[] } {
 	let device: DeviceKeys | null = null;
 	let packages: PrivatePackage[] = [];
 	const groups = new Map<string, Uint8Array>();
 	let cursor = 0;
 	const all: StoredMessage[] = [];
+	let backupKeys: BackupKeys | null = null;
 	return {
 		all,
+		backupKeys: async () => backupKeys,
+		setBackupKeys: async (k) => void (backupKeys = k),
+		allMessages: async () => all,
 		device: async () => device,
 		setDevice: async (d) => void (device = d),
 		packages: async () => packages,
@@ -88,12 +103,25 @@ const transportOf = (userId: string): Transport => ({
 	events: (deviceId, since) => server.events(userId, deviceId, since)
 });
 
+const backupOf = (userId: string): BackupTransport => ({
+	status: async () => {
+		const s = await backups.status(userId);
+		return { ...s, updatedAt: s.updatedAt?.toISOString() ?? null };
+	},
+	evaluate: (blinded) => backups.evaluate(userId, blinded),
+	create: (c) => backups.create(userId, c),
+	open: (proof) => backups.open(userId, proof),
+	save: (c) => backups.save(userId, c),
+	forget: () => backups.forget(userId)
+});
+
 let n = 0;
 const device = (userId: string) => {
 	const store = memoryStore();
 	return {
 		store,
-		m: new Messenger(store, transportOf(userId), userId, () => `aparato-${userId}-${++n}`)
+		m: new Messenger(store, transportOf(userId), userId, () => `aparato-${userId}-${++n}`),
+		backup: new BackupKeeper(store, backupOf(userId), userId)
 	};
 };
 const texts = async (d: ReturnType<typeof device>, conv: string) =>
@@ -178,5 +206,67 @@ describe('the family’s conversation', () => {
 		).rejects.toThrow();
 		// Nor anyone with someone else’s device.
 		await expect(server.events('vecino', (await movil.m.device())!.id, 0)).rejects.toThrow();
+	});
+});
+
+describe('the backup behind a PIN', () => {
+	test('a PIN of fewer than 6 digits is not taken', async () => {
+		await expect(movil.backup.setPin('1234')).rejects.toThrow('6 cifras');
+	});
+
+	test('set on one device, a new one brings back what was said before', async () => {
+		await movil.backup.setPin('482193');
+		expect((await movil.backup.state()).backup).toBe(true);
+		const nuevo = device('miguel');
+		await nuevo.m.setup('Móvil nuevo');
+		await expect(nuevo.backup.restore('111111')).rejects.toThrow('no es ese');
+		expect((await nuevo.backup.state()).triesLeft).toBe(MAX_TRIES - 1);
+		const came = await nuevo.backup.restore('482193');
+		expect(came).toBeGreaterThan(0);
+		expect(await texts(nuevo, conv)).toContain('miguel: Llego en diez minutos');
+		expect((await nuevo.backup.state()).triesLeft).toBe(MAX_TRIES);
+		// Up to date from either device: both kept, nothing lost.
+		await nuevo.store.addMessage({
+			conversationId: conv,
+			key: 'local-1',
+			userId: 'miguel',
+			deviceId: 'x',
+			text: 'Solo en el nuevo',
+			at: new Date().toISOString(),
+			mine: true
+		});
+		await nuevo.backup.save();
+		await movil.backup.save();
+		const third = device('miguel');
+		await third.m.setup('Tablet');
+		await third.backup.restore('482193');
+		const all = await texts(third, conv);
+		expect(all).toContain('miguel: Solo en el nuevo');
+		expect(all).toContain('miguel: Llego en diez minutos');
+	});
+
+	test('the server holds neither the PIN nor what was said', async () => {
+		const rows = JSON.stringify(await db.execute(sql`select * from msg_backup`));
+		expect(rows).not.toContain('482193');
+		expect(rows).not.toContain('diez minutos');
+		expect(rows).not.toContain(btoa('Llego'));
+	});
+
+	test('someone else’s proof does not open it', async () => {
+		await expect(backups.open('mama', (await movil.store.backupKeys())!.proof)).rejects.toThrow();
+	});
+
+	test('too many wrong PINs wipe it', async () => {
+		const thief = device('miguel');
+		await thief.m.setup('Ladrón');
+		for (let i = 0; i < MAX_TRIES; i++)
+			await expect(thief.backup.restore(`00000${i}`)).rejects.toThrow();
+		await expect(thief.backup.restore('482193')).rejects.toThrow('Demasiados intentos');
+		expect((await thief.backup.state()).backup).toBe(false);
+		// The devices that kept it learn it at their next save, and can set a new PIN.
+		await expect(movil.backup.save()).rejects.toThrow();
+		expect((await movil.backup.state()).here).toBe(false);
+		await movil.backup.setPin('739104');
+		expect((await movil.backup.state()).backup).toBe(true);
 	});
 });

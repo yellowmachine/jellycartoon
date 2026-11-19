@@ -48,7 +48,7 @@ const SECTIONS: {
 		where: 'nube',
 		startsOff: true,
 		about:
-			'Mensajes de la familia cifrados de extremo a extremo. En pruebas: sin copia de seguridad todavía, perder el aparato es perder sus mensajes.'
+			'Mensajes de la familia cifrados de extremo a extremo, con copia de seguridad tras un PIN. En pruebas: aún sin auditoría externa.'
 	},
 	{ path: '/gastos', label: 'Dinero', icon: 'gastos', where: 'nube' },
 	{ path: '/papeles', label: 'Papeles', icon: 'papeles', where: 'nube' },

@@ -2,6 +2,7 @@
 	import { untrack } from 'svelte';
 	import { MessagesClient } from '#lib/mensajes/client.svelte.ts';
 	import { MAX_TEXT } from '#lib/mensajes/messenger.ts';
+	import CopiaPin from './CopiaPin.svelte';
 	import type { PageProps } from './$types';
 
 	/**
@@ -97,6 +98,7 @@
 			No se han podido abrir los mensajes: {client.problem}
 		</p>
 	{:else}
+		<CopiaPin {client} />
 		<div
 			bind:this={list}
 			class="mb-3 flex max-h-[60vh] min-h-48 flex-col gap-2 overflow-y-auto rounded-md border border-zinc-800 p-3"
@@ -120,7 +122,12 @@
 				<p class="m-auto text-sm text-zinc-500">Todavía no hay mensajes. Escribe el primero.</p>
 			{/each}
 		</div>
-		{#if client.alone}
+		{#if client.waiting}
+			<p class="mb-3 rounded-md border border-sky-500/40 bg-sky-500/10 p-3 text-sm" role="status">
+				Entrando en la conversación… Otro aparato de la familia que tenga Mensajes abierto te da
+				entrada en unos segundos; si no hay ninguno, en cuanto alguien lo abra.
+			</p>
+		{:else if client.alone}
 			<p class="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
 				Todavía no hay nadie más de la familia con los mensajes activados. Cuando lo activen, verán
 				lo que escribas desde entonces; lo de antes, solo tus aparatos.
@@ -136,7 +143,7 @@
 			/>
 			<button
 				class="rounded-md bg-amber-500 px-4 py-2 font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
-				disabled={sending || !text.trim()}>Enviar</button
+				disabled={sending || !text.trim() || client.waiting}>Enviar</button
 			>
 		</form>
 		{#if client.problem}

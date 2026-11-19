@@ -2,6 +2,8 @@ import { eq } from 'drizzle-orm';
 import { familyPerson, user } from './db/schema.ts';
 import { withFamily } from './family.ts';
 import { messagesScope } from './messages-scope.ts';
+import { messagesBackupScope } from './messages-backup-scope.ts';
+import { openFor, sealFor } from './family-secret.ts';
 import { notify } from './push.ts';
 
 /**
@@ -10,6 +12,9 @@ import { notify } from './push.ts';
  * of whoever is in the conversation. The notice says who, never what: Seilide cannot read it.
  */
 export const messages = messagesScope(withFamily);
+
+/** Each person's backup behind their PIN: its OPRF key sealed with the family's (and the KMS). */
+export const backups = messagesBackupScope(withFamily, { seal: sealFor, open: openFor });
 
 const listeners = new Map<string, Set<() => void>>();
 
