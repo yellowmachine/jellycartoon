@@ -71,11 +71,67 @@ aparato nuevo entra en los grupos como cualquier otro y la copia le da lo de ant
 
 Grabados mientras se mantiene pulsado (`recorder.svelte.ts`, MediaRecorder: Opus en webm, o mp4 en
 Safari; 5 min como mucho). El aparato los cifra con una llave AES-256-GCM propia de cada audio, sube
-el fichero cifrado (`POST /api/mensajes/audio`, al almacenamiento de su familia, área `mensajes`, con
+el fichero cifrado (`POST /api/mensajes/archivo`, al almacenamiento de su familia, área `mensajes`, con
 su cuota) y manda en el mensaje MLS `{ t: 'audio', file, key, iv, mime, seconds }`: la llave solo la
 tienen los de la conversación (y la copia con PIN). `msg_file` dice de qué familia es cada fichero y
-de qué conversación; `GET /api/mensajes/audio/<id>?conversacion=` solo a quien está en ella (con una
+de qué conversación; `GET /api/mensajes/archivo/<id>?conversacion=` solo a quien está en ella (con una
 familia vinculada, del almacenamiento de quien lo mandó).
+
+## Fotos y ubicación (#555)
+
+- **Foto**: `photo.ts` la dibuja de nuevo en un `canvas` (lado largo de 1600 px como mucho, JPEG al
+  82 %), así que no lleva el EXIF de la cámara (posición, modelo); `createImageBitmap` la gira como
+  dice la cámara. Se cifra y se sube como un audio (mismo `POST /api/mensajes/archivo`, `msg_file`,
+  límite `MAX_FILE_BYTES` de 6 MB) y el mensaje MLS lleva `{ t: 'foto', file, key, iv, mime, width,
+height }`. Se descifra al enseñarla (`FotoBurbuja.svelte`).
+- **Ubicación**: `navigator.geolocation` una vez, con alta precisión. Va entera dentro del mensaje MLS,
+  `{ t: 'ubicacion', lat, lon, accuracy }` (6 decimales, metros redondeados), sin nada más en el
+  servidor. Se ve en el mapa propio (`PlacesMap` con `still`, sin arrastrar ni atribución encima: se
+  dice debajo), cuyas teselas sirve Seilide, así que nadie más sabe el sitio. «Abrir» lleva a `geo:`
+  en Android, Apple Maps en iPhone/Mac y OpenStreetMap en otros, solo si se toca.
+- Las dos se ven antes de mandarlas (enviar o cancelar). `describe()` da su texto corto («📷 Foto»,
+  «📍 Ubicación») para la lista, la notificación descifrada y la voz («X te manda una foto»).
+
+## La IA en el chat (#555)
+
+- **Nombre**: la palabra de activación del aparato o de la familia (`wakeWord.word`), «Casita» para
+  «hola casita» (`mention.ts`). `askedOf()` detecta `@makoto` (o `@ia`) en cualquier sitio y
+  `Makoto,` / `Makoto:` al principio; «Makoto» suelto no cuenta. `completed()` termina `@ma`. Con
+  eso, el cuadro y el botón se ponen morados («✨ Pedir a Makoto») y el texto va al panel, no a la
+  conversación.
+- **Panel** (`AsistentePanel.svelte`): solo en el aparato; sus turnos viven en la página y se mandan
+  con cada pregunta (8 como mucho). `POST /api/mensajes/ia` → `askForMessage()` en `chat.ts`: el
+  mismo bucle que Preguntar (`rounds()`), pero solo con `propose_recipe`, `propose_shopping` y
+  `read_recipe`, y sin guardar nada (ni `chat_message`). Las tarjetas que vuelven en los turnos se
+  revisan otra vez (`messageCard()`). `rounds()` solo ejecuta las herramientas ofrecidas. La IA nunca
+  ve la conversación cifrada; sí lo que se escribe en el panel (va a OpenRouter con la clave de la
+  familia).
+- **Tarjeta en el mensaje**: `{ t: 'tarjeta', card: { kind: 'receta', recipe } | { kind: 'compra',
+items } }`, cifrada como un texto y revisada al leerla (`parseRecipe`, 30 cosas como mucho).
+  Quien la recibe la toma en su familia con las acciones de `/mensajes`: `save` (receta al
+  recetario, `chat:mensajes/<conversación>/<mensaje>`, «Llegó por Mensajes», una vez por mensaje) y
+  `add` (lo marcado, a la lista). En la misma familia compartir es referir: `recipesFromMessages()`
+  dice qué mensajes ya están en el recetario de la familia y la tarjeta sale «En Recetas ✓» para
+  todos; con una familia vinculada, cada una guarda su copia.
+- **Receta del recetario** (fase 3): `bookRecipeCard()` decide. Misma familia (la conversación de la
+  familia, o de dos con un contacto sin `family`): `{ kind: 'enlace-receta', id, title }`, que se
+  abre en `/recetas/<id>` (si ya no está, Recetas lo dice). Familia vinculada: la receta entera.
+  Desde Recetas, «📤 Mandar» lleva a `/mensajes?receta=<id>` (solo con Mensajes en la barra); en el
+  panel, `propose_saved_recipe` (solo en Mensajes) marca la tarjeta con su `savedId`.
+- **Plan** (fase 3): `propose_event` (solo en Mensajes; el sistema le dice qué día es hoy) hace una
+  tarjeta `cita` (`lib/cita.ts`: título, día, hora y hasta qué hora opcionales, nota; sin repetir).
+  Va cifrada como `{ kind: 'cita', … }` y se revisa al leerla (`parseCita`). La acción `addEvent` de
+  `/mensajes` la apunta en la Agenda de la familia de quien la recibe (para todos, sin aviso) solo si
+  no hay ya una igual ese día (`citaKey`: día, hora y título); la página trae las de la Agenda de
+  30 días atrás a 400 adelante para enseñar «En la Agenda ✓», también la apuntada por otro.
+- **Sitio** (fase 3): uno de los guardados de quien lo manda (`saved_place`, #151, de cada persona):
+  desde «+ → 📌 Sitio guardado» o con `propose_place` (solo en Mensajes; el sistema lista los sitios
+  de quien pregunta y no acepta otro). `{ kind: 'sitio', name, lat, lon, address }`, cifrado.
+  Quien lo recibe: «🚗 Llevarme» (`/carretera?destino=lon,lat&nombre=`, como compartir desde
+  Google Maps), «Abrir» (`elsewhere.ts`) y «Guardar en mis sitios» (acción `savePlace`, siempre una
+  copia, ya que los sitios no son de la familia); «En mis sitios ✓» si ya tiene uno a menos de
+  30 m. La búsqueda de sitios por nombre queda para más adelante. `ChatRecipeCard` acepta otra acción (`save`) y otros botones
+  (`actions`).
 
 ## Transcripción en el aparato
 

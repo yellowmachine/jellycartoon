@@ -7,6 +7,9 @@ import {
 	MAX_CHAT_QUESTION,
 	type ChatCard,
 	type ChatMessage,
+	type EventCard,
+	type PlaceCard,
+	type RecipeCard,
 	type ShoppingCard
 } from '#lib/chat.ts';
 import { chatMessage } from '#lib/server/db/schema.ts';
@@ -27,6 +30,9 @@ import { MAX_PIECES, REPORT_BLOCKS, REPORT_DAYS } from '#lib/reports.ts';
 import { describePiece, makeReport } from '#lib/server/reports.ts';
 import { euros } from 'comun/expenses.ts';
 import { localDay } from 'comun/agenda.ts';
+import { citaWhen, parseCita } from '#lib/cita.ts';
+import { listSavedPlaces } from '#lib/server/trips/places.ts';
+import type { SavedPlace } from 'comun/saved-places.ts';
 import { FALLBACK_VOICE_MODEL, voiceSettings } from '#lib/server/voice/settings.ts';
 
 /**
@@ -240,6 +246,10 @@ function cardLine(card: ChatCard) {
 					: 'No añadió nada.'
 		}]`;
 	if (card.kind === 'pagina') return `[Página abierta: ${card.label}]`;
+	if (card.kind === 'sitio')
+		return `[Tarjeta de sitio: ${card.name}${card.address ? `, ${card.address}` : ''}]`;
+	if (card.kind === 'cita')
+		return `[Tarjeta de plan: ${card.title}, ${citaWhen(card)}${card.notes ? ` (${card.notes})` : ''}]`;
 	if (card.kind === 'bloque') return `[Gráfica enseñada: ${describeBlock(card.block, euros)}]`;
 	if (card.kind === 'informe')
 		return `[Informe guardado en Informes: «${card.title}», del ${card.from} al ${card.to}]`;
@@ -351,6 +361,40 @@ async function runTool(
 				card: { kind: 'informe', id: made.id, title: made.title, from: made.from, to: made.to }
 			};
 		}
+		case 'propose_event': {
+			const cita = parseCita(args);
+			if (!cita) return { result: 'Falta qué es o el día (YYYY-MM-DD).' };
+			return {
+				result: `Tarjeta del plan «${cita.title}» (${citaWhen(cita)}) enseñada; la persona decide si la manda.`,
+				card: { kind: 'cita', ...cita }
+			};
+		}
+		case 'propose_place': {
+			const id = Number(args.id);
+			const place = (await listSavedPlaces(k)).find((p) => p.id === id);
+			if (!place) return { result: 'Ese sitio no está entre los suyos.' };
+			return {
+				result: `Tarjeta del sitio «${place.name}» enseñada; la persona decide si la manda.`,
+				card: {
+					kind: 'sitio',
+					name: place.name,
+					lon: place.at[0],
+					lat: place.at[1],
+					address: place.address
+				}
+			};
+		}
+		case 'propose_saved_recipe': {
+			const id = Number(args.id);
+			const saved = Number.isInteger(id) ? await getRecipe(k, id) : null;
+			if (!saved) return { result: 'Esa receta no está en el recetario.' };
+			const recipe = parseRecipe(saved);
+			if (typeof recipe === 'string') return { result: `«${saved.title}»: ${recipe}` };
+			return {
+				result: `Tarjeta de «${recipe.title}», del recetario, enseñada; la persona decide si la manda.`,
+				card: { kind: 'receta', recipe, savedId: id }
+			};
+		}
 		case 'read_recipe': {
 			const saved = await getRecipe(k, Number(args.id));
 			if (!saved) return { result: 'Esa receta no está en el recetario.' };
@@ -366,6 +410,209 @@ async function runTool(
 }
 
 export class ChatError extends Error {}
+
+/** The AI and its tools, round after round, until it answers: what it said and the cards it made. */
+async function rounds(
+	k: Kitchen,
+	userId: string,
+	messages: ToolChatMessage[],
+	o: { apiKey: string; label: string; model: string; tools: Tool[] }
+) {
+	const cards: ChatCard[] = [];
+	let text = '';
+	// Only those it was given: an AI asking for another (a read, in Mensajes) gets nothing.
+	const offered = new Set(o.tools.map((t) => t.function.name));
+	try {
+		for (let round = 0; round < MAX_ROUNDS; round++) {
+			const answer = await chatWithTools({
+				apiKey: o.apiKey,
+				label: o.label,
+				model: o.model,
+				fallbackModel: FALLBACK_VOICE_MODEL,
+				messages,
+				tools: o.tools,
+				timeoutMs: TIMEOUT_MS
+			});
+			if (answer.content) text = answer.content.trim();
+			if (!answer.toolCalls.length) break;
+			messages.push({ role: 'assistant', content: answer.content, tool_calls: answer.toolCalls });
+			for (const call of answer.toolCalls) {
+				const { result, card } = offered.has(call.function.name)
+					? await runTool(k, userId, call)
+					: { result: `No hay ninguna herramienta «${call.function.name}».`, card: undefined };
+				if (card) cards.push(card);
+				messages.push({ role: 'tool', tool_call_id: call.id, content: result });
+			}
+		}
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		console.error(`[${o.label.toLowerCase()}] ${message}`);
+		throw new ChatError(sayableError(message));
+	}
+	if (!text && !cards.length) text = 'No sé qué contestar a eso. ¿Me lo dices de otra forma?';
+	return { text, cards };
+}
+
+/** A recipe of the family's book, to send as it is (#555): only in Mensajes' panel. */
+const PROPOSE_SAVED_RECIPE = fn(
+	'propose_saved_recipe',
+	'Enseña una receta del recetario de la familia, tal cual está guardada, para mandarla. Úsala en vez de «propose_recipe» cuando la receta pedida está en el recetario.',
+	{ id: { type: 'number', description: 'El número de la receta en el recetario.' } },
+	['id']
+);
+
+/** A plan to propose (#555), «¿quedamos el sábado?»: only in Mensajes' panel. */
+const PROPOSE_EVENT = fn(
+	'propose_event',
+	'Enseña un plan para proponerlo en el chat y que quien lo reciba lo apunte en su agenda con un toque: una comida, una visita, una cita.',
+	{
+		title: {
+			type: 'string',
+			description: 'Qué es, corto y con mayúscula: «Comida en casa de la abuela».'
+		},
+		day: { type: 'string', description: 'El día, YYYY-MM-DD, calculado desde hoy.' },
+		time: {
+			type: 'string',
+			description: 'La hora, HH:MM en 24 horas («a comer»: 14:00). Sin ella, todo el día.'
+		},
+		end_time: { type: 'string', description: 'Hasta qué hora, HH:MM, si se sabe.' },
+		notes: { type: 'string', description: 'Algo más, corto: dónde, qué llevar. Si no, nada.' }
+	},
+	['title', 'day']
+);
+
+/** A place the person kept (#151), to send (#555): only in Mensajes' panel. */
+const PROPOSE_PLACE = fn(
+	'propose_place',
+	'Enseña uno de los sitios guardados de la persona (abajo), para mandarlo: quien lo recibe puede ir con el modo carretera o guardarlo.',
+	{ id: { type: 'number', description: 'El número del sitio guardado.' } },
+	['id']
+);
+
+/** What may be sent in a message (#555): a recipe or a list, made by the AI in its panel. */
+const MESSAGE_TOOLS = new Set(['propose_shopping', 'propose_recipe', 'read_recipe']);
+/** The panel's turns sent back each time: it is kept nowhere else. */
+export const MESSAGE_TURNS = 8;
+
+/** A card the panel sends back, checked again: only a recipe or a list. */
+export function messageCard(
+	value: unknown
+): ShoppingCard | RecipeCard | EventCard | PlaceCard | null {
+	const c = (value ?? {}) as Record<string, unknown>;
+	if (c.kind === 'compra') {
+		const items = shoppingItems(c.items);
+		return items.length ? { kind: 'compra', items, added: null } : null;
+	}
+	if (c.kind === 'cita') {
+		const cita = parseCita(c);
+		return cita ? { kind: 'cita', ...cita } : null;
+	}
+	if (c.kind === 'sitio') {
+		const lat = Number(c.lat);
+		const lon = Number(c.lon);
+		const name = typeof c.name === 'string' ? c.name.trim().slice(0, 100) : '';
+		if (!name || !(Math.abs(lat) <= 90 && Math.abs(lon) <= 180)) return null;
+		const address = typeof c.address === 'string' ? c.address.slice(0, 200) : null;
+		return { kind: 'sitio', name, lat, lon, address };
+	}
+	if (c.kind === 'receta') {
+		const recipe = parseRecipe(c.recipe);
+		const savedId = Number.isInteger(c.savedId) ? (c.savedId as number) : null;
+		return typeof recipe === 'string' ? null : { kind: 'receta', recipe, savedId };
+	}
+	return null;
+}
+
+function messageSystem(c: {
+	name: string;
+	assistant: string;
+	to: string;
+	style: string | null;
+	recipes: { id: number; title: string }[];
+	places: SavedPlace[];
+}) {
+	return `Eres ${c.assistant}, el asistente de Seilide, la app de una familia. ${c.name} está en Mensajes, escribiendo a ${c.to}, y te pide algo para mandárselo. Contesta en español de España, de tú.
+
+- Tú no mandas nada: haces tarjetas, y ${c.name} elige una y pulsa «Enviar». No leas ni digas que lees la conversación: no la ves, solo lo que te pide aquí.
+- Una receta del recetario de la familia (abajo), si la pide o si hay una que encaja: con «propose_saved_recipe», tal cual, sin reescribirla.
+- Una receta que no está en el recetario, con «propose_recipe», entera. Si no dice cuál exactamente («una tarta de chocolate»), propón dos o tres distintas (una fácil, otra sin horno o más ligera…), cada una en su tarjeta, y que el texto diga en una línea en qué se diferencian; si en el recetario hay una que encaja, que sea una de ellas. Si dice una concreta, solo esa.
+- Una lista de cosas (la compra para algo, lo que hay que llevar), con «propose_shopping», en una sola tarjeta.
+- Un plan para quedar o apuntar («proponles comer el sábado en casa de la abuela»), con «propose_event»: el día calculado desde hoy, la hora si la dice o se entiende («a comer», 14:00; «a cenar», 21:00), y en «notes» solo lo que diga de más (dónde, qué llevar). Si no está claro qué día, pregunta en una frase en vez de inventarlo.
+- El texto, muy corto (una o dos frases): las tarjetas ya lo dicen todo. Sin títulos ni negritas.
+- Uno de sus sitios guardados (abajo), si lo pide («mándale la dirección del restaurante»), con «propose_place». Solo esos: si no está entre ellos, dile que lo guarde antes en Viajes; no inventes direcciones.
+- Si pide algo que no es una receta, una lista, un plan ni uno de sus sitios, dile en una frase que de momento solo preparas eso para mandar.
+${c.style ? `- El carácter de la casa, solo el tono: «${c.style}».\n` : ''}
+Hoy es ${new Intl.DateTimeFormat('es-ES', { dateStyle: 'full', timeZone: TIME_ZONE }).format()} (${localDay()}).
+
+Recetario de la familia:
+${c.recipes.map((r) => `- ${r.title} [receta ${r.id}]`).join('\n') || '(vacío)'}
+
+Sitios guardados de ${c.name}:
+${c.places.map((p) => `- ${p.name}${p.address ? ` (${p.address})` : ''} [sitio ${p.id}]`).join('\n') || '(ninguno)'}`;
+}
+
+/**
+ * Mensajes (#555): something asked to the AI in its panel, beside a conversation it never sees,
+ * to send: a recipe or a list, as cards. Nothing is kept here: the panel sends its earlier turns,
+ * checked again.
+ */
+export async function askForMessage(
+	k: Kitchen,
+	who: { id: string; name: string },
+	ask: {
+		question: string;
+		/** «la familia», «Papá». */
+		to: string;
+		/** Its name, the family's wake word: «Makoto». */
+		assistant: string;
+		turns: { role: 'user' | 'assistant'; text: string; cards?: unknown[] }[];
+	}
+): Promise<{ text: string; cards: ChatCard[] }> {
+	const said = ask.question.trim().slice(0, MAX_CHAT_QUESTION);
+	if (!said) throw new ChatError('Escribe qué quieres');
+	const [apiKey, settings, recipes, places] = await Promise.all([
+		openRouterKey(k),
+		voiceSettings(k),
+		listRecipes(k),
+		listSavedPlaces(k)
+	]);
+	if (!apiKey)
+		throw new ChatError('La familia no tiene clave de IA: quien administra la pone en Ajustes');
+	const turns = ask.turns.slice(-MESSAGE_TURNS).map((t): ToolChatMessage => ({
+		role: t.role === 'assistant' ? 'assistant' : 'user',
+		content:
+			asText({
+				text: String(t.text ?? '').slice(0, MAX_CHAT_QUESTION),
+				cards: (Array.isArray(t.cards) ? t.cards : []).flatMap((c) => messageCard(c) ?? [])
+			}) || '(sin texto)'
+	}));
+	const messages: ToolChatMessage[] = [
+		{
+			role: 'system',
+			content: messageSystem({
+				name: who.name,
+				assistant: ask.assistant.slice(0, 40) || 'el asistente',
+				to: ask.to.slice(0, 80) || 'alguien',
+				style: settings.style,
+				recipes,
+				places
+			})
+		},
+		...turns,
+		{ role: 'user', content: said }
+	];
+	return rounds(k, who.id, messages, {
+		apiKey,
+		label: 'Mensajes',
+		model: settings.conversationModel,
+		tools: [
+			...TOOLS.filter((t) => MESSAGE_TOOLS.has(t.function.name)),
+			PROPOSE_SAVED_RECIPE,
+			PROPOSE_EVENT,
+			PROPOSE_PLACE
+		]
+	});
+}
 
 /**
  * A question, answered: the AI with the family's key, with their history, the shopping list and the
@@ -401,35 +648,12 @@ export async function askChat(
 			.map((m): ToolChatMessage => ({ role: m.role, content: asText(m) || '(sin texto)' })),
 		{ role: 'user', content: said }
 	];
-	const cards: ChatCard[] = [];
-	let text = '';
-	try {
-		for (let round = 0; round < MAX_ROUNDS; round++) {
-			const answer = await chatWithTools({
-				apiKey,
-				label: 'Preguntar',
-				model: settings.conversationModel,
-				fallbackModel: FALLBACK_VOICE_MODEL,
-				messages,
-				tools: [...TOOLS, ...READ_TOOLS],
-				timeoutMs: TIMEOUT_MS
-			});
-			if (answer.content) text = answer.content.trim();
-			if (!answer.toolCalls.length) break;
-			messages.push({ role: 'assistant', content: answer.content, tool_calls: answer.toolCalls });
-			for (const call of answer.toolCalls) {
-				const { result, card } = await runTool(k, who.id, call);
-				if (card) cards.push(card);
-				messages.push({ role: 'tool', tool_call_id: call.id, content: result });
-			}
-		}
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		console.error(`[preguntar] ${message}`);
-		throw new ChatError(sayableError(message));
-	}
-	if (!text && !cards.length) text = 'No sé qué contestar a eso. ¿Me lo dices de otra forma?';
-
+	const { text, cards } = await rounds(k, who.id, messages, {
+		apiKey,
+		label: 'Preguntar',
+		model: settings.conversationModel,
+		tools: [...TOOLS, ...READ_TOOLS]
+	});
 	return k.run(async (tx) => {
 		const rows = await tx
 			.insert(chatMessage)

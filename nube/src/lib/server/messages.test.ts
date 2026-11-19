@@ -16,6 +16,8 @@ import {
 } from '../mensajes/backup.ts';
 import {
 	Messenger,
+	bookRecipeCard,
+	describe as describeMessage,
 	type DeviceKeys,
 	type PrivatePackage,
 	type StoredMessage,
@@ -103,7 +105,7 @@ function memoryStore(): BackupStore & { all: StoredMessage[] } {
 	};
 }
 
-/** The families' storage (area `mensajes`), in memory: what /api/mensajes/audio keeps. */
+/** The families' storage (area `mensajes`), in memory: what /api/mensajes/archivo keeps. */
 const files = new Map<string, Uint8Array>();
 
 /** What /api/mensajes does, for this person. */
@@ -117,12 +119,12 @@ const transportOf = (userId: string): Transport => ({
 	commit: (deviceId, c) => server.postCommit(userId, deviceId, c),
 	send: (deviceId, m) => server.postMessage(userId, deviceId, m),
 	events: (deviceId, since) => server.events(userId, deviceId, since),
-	uploadAudio: async (deviceId, conversationId, sealed) => {
+	uploadFile: async (deviceId, conversationId, sealed) => {
 		const f = await server.addFile(userId, deviceId, conversationId, sealed.length);
 		files.set(`${f.familyId}/${f.id}`, sealed);
 		return { id: f.id };
 	},
-	downloadAudio: async (conversationId, file) => {
+	downloadFile: async (conversationId, file) => {
 		const familyId = await server.fileFor(userId, conversationId, file);
 		return files.get(`${familyId}/${file}`)!;
 	}
@@ -379,6 +381,113 @@ describe('voice notes', () => {
 		expect(heard).toEqual(sound);
 		// Mamá, not in that conversation, may not even download it.
 		await expect(server.fileFor('mama', conv2, sent!.audio!.file)).rejects.toThrow();
+	});
+
+	test('a photo (#555): encrypted with its own key, only those in it see it', async () => {
+		const jpeg = new Uint8Array(30_000).map((_, i) => (i * 13) & 255);
+		const sent = await mama.m.sendPhoto(conv, jpeg, 'image/jpeg', 1600, 1200);
+		expect(sent?.photo).toMatchObject({ width: 1600, height: 1200, mime: 'image/jpeg' });
+		const kept = [...files.entries()].find(([k]) => k.endsWith(sent!.photo!.file));
+		expect(Buffer.from(kept![1]).includes(Buffer.from(jpeg.subarray(0, 64)))).toBe(false);
+		await movil.m.sync();
+		const got = (await movil.m.messages(conv)).at(-1)!;
+		expect(got.photo).toMatchObject({ width: 1600, height: 1200 });
+		expect(describeMessage(got)).toBe('📷 Foto');
+		expect(new Uint8Array(await (await movil.m.photo(got)).arrayBuffer())).toEqual(jpeg);
+	});
+
+	test('where someone is (#555): inside the encrypted message, nothing else is kept', async () => {
+		const sent = await mama.m.sendPlace(conv, {
+			lat: 37.98765432,
+			lon: -1.12987654,
+			accuracy: 12.4
+		});
+		expect(sent?.place).toEqual({ lat: 37.987654, lon: -1.129877, accuracy: 12 });
+		await movil.m.sync();
+		const got = (await movil.m.messages(conv)).at(-1)!;
+		expect(got.place).toEqual({ lat: 37.987654, lon: -1.129877, accuracy: 12 });
+		expect(describeMessage(got)).toBe('📍 Ubicación');
+		expect(JSON.stringify(await db.execute(sql`select data from msg_event`))).not.toContain(
+			'37.98'
+		);
+		await expect(mama.m.sendPlace(conv, { lat: 120, lon: 0 })).rejects.toThrow();
+	});
+
+	test('a recipe or a list (#555): inside the encrypted message, checked when read', async () => {
+		const recipe = {
+			title: 'Tarta de chocolate',
+			servings: 8,
+			ingredients: ['200 g de chocolate'],
+			steps: [{ text: 'Funde el chocolate', timer: null }]
+		};
+		const sent = await mama.m.sendCard(conv, { kind: 'receta', recipe });
+		expect(sent?.card).toEqual({ kind: 'receta', recipe });
+		await mama.m.sendCard(conv, { kind: 'compra', items: [' Crema ', '', 'Toallas'] });
+		await movil.m.sync();
+		const [r, l] = (await movil.m.messages(conv)).slice(-2);
+		expect(r!.card).toEqual({ kind: 'receta', recipe });
+		expect(describeMessage(r!)).toBe('🍰 Receta: Tarta de chocolate');
+		expect(l!.card).toEqual({ kind: 'compra', items: ['Crema', 'Toallas'] });
+		expect(JSON.stringify(await db.execute(sql`select data from msg_event`))).not.toContain(
+			'chocolate'
+		);
+		await expect(mama.m.sendCard(conv, { kind: 'compra', items: [] })).rejects.toThrow();
+	});
+
+	test('a recipe of the book (#555): a link within the family, the whole of it to a linked one', async () => {
+		const saved = {
+			id: 7,
+			recipe: { title: 'Lentejas', servings: 4, ingredients: ['lentejas'], steps: [] }
+		};
+		expect(bookRecipeCard(saved, true)).toEqual({
+			kind: 'enlace-receta',
+			id: 7,
+			title: 'Lentejas'
+		});
+		expect(bookRecipeCard(saved, false)).toEqual({ kind: 'receta', recipe: saved.recipe });
+		await mama.m.sendCard(conv, bookRecipeCard(saved, true));
+		await movil.m.sync();
+		const got = (await movil.m.messages(conv)).at(-1)!;
+		expect(got.card).toEqual({ kind: 'enlace-receta', id: 7, title: 'Lentejas' });
+		expect(describeMessage(got)).toBe('🍰 Receta: Lentejas');
+		await expect(
+			mama.m.sendCard(conv, { kind: 'enlace-receta', id: -1, title: 'x' })
+		).rejects.toThrow();
+	});
+
+	test('a plan (#555): inside the encrypted message, checked when read', async () => {
+		const cita = {
+			kind: 'cita' as const,
+			title: 'Comida en casa de la abuela',
+			day: '2026-11-21',
+			time: '14:00',
+			endTime: null,
+			notes: null
+		};
+		await mama.m.sendCard(conv, cita);
+		await movil.m.sync();
+		const got = (await movil.m.messages(conv)).at(-1)!;
+		expect(got.card).toEqual(cita);
+		expect(describeMessage(got)).toBe(
+			'📅 Comida en casa de la abuela, sábado, 21 de noviembre, 14:00'
+		);
+		await expect(mama.m.sendCard(conv, { ...cita, day: 'sábado' })).rejects.toThrow();
+	});
+
+	test('a kept place (#555): inside the encrypted message, checked when read', async () => {
+		const sitio = {
+			kind: 'sitio' as const,
+			name: 'Restaurante El Sol',
+			lat: 37.98,
+			lon: -1.13,
+			address: null
+		};
+		await mama.m.sendCard(conv, sitio);
+		await movil.m.sync();
+		const got = (await movil.m.messages(conv)).at(-1)!;
+		expect(got.card).toEqual(sitio);
+		expect(describeMessage(got)).toBe('📌 Restaurante El Sol');
+		await expect(mama.m.sendCard(conv, { ...sitio, lat: 200 })).rejects.toThrow();
 	});
 
 	test('with its text, made by the sender («los dos»): it comes with it, encrypted', async () => {

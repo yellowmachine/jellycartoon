@@ -1,5 +1,6 @@
 import type { Recipe } from 'comun/recipe.ts';
 import type { Block } from '#lib/blocks.ts';
+import type { Cita } from '#lib/cita.ts';
 
 /**
  * «Preguntar» (#470): what each answer of the chat brings besides its words, as the page shows
@@ -45,7 +46,22 @@ export interface ReportCard {
 	to: string;
 }
 
-export type ChatCard = ShoppingCard | RecipeCard | PageCard | BlockCard | ReportCard;
+/** A plan to propose in Mensajes (#555): only made in its panel, to send. */
+export interface EventCard extends Cita {
+	kind: 'cita';
+}
+
+/** A place the person kept (#151), to send in Mensajes (#555): only made in its panel. */
+export interface PlaceCard {
+	kind: 'sitio';
+	name: string;
+	lat: number;
+	lon: number;
+	address: string | null;
+}
+
+export type ChatCard =
+	ShoppingCard | RecipeCard | PageCard | BlockCard | ReportCard | EventCard | PlaceCard;
 
 export interface ChatMessage {
 	id: number;

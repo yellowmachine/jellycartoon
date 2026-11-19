@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { justSaved } from '#lib/chat-saved.svelte.ts';
@@ -12,18 +13,25 @@
 	 * the family's book) and «Cocinar ahora» (the kitchen mode, as from Recetas). Saved through
 	 * /preguntar's action from any page (the side panel, #504): `onsaved` gets its number there, and
 	 * the page stays where it is, with its data read again (Recetas beside it shows the new one, and
-	 * points it out: chat-saved.svelte.ts).
+	 * points it out: chat-saved.svelte.ts). In Mensajes (#555), a recipe that came, saved through
+	 * its own action (`save`); and in the AI's panel there, only «Enviar» (`actions`).
 	 */
 	let {
 		card,
 		message,
 		index,
+		save,
+		actions,
 		onsaved
 	}: {
 		card: RecipeCard;
-		message: number;
-		index: number;
-		onsaved: (savedId: number) => void;
+		message?: number;
+		index?: number;
+		/** Another action than Preguntar's, with its fields. */
+		save?: { action: string; fields: Record<string, string> };
+		/** In place of «Cocinar ahora» and «Guardar». */
+		actions?: Snippet;
+		onsaved?: (savedId: number) => void;
 	} = $props();
 
 	const r = $derived(card.recipe);
@@ -66,7 +74,9 @@
 	</details>
 
 	<div class="mt-3 flex flex-wrap items-center gap-2">
-		{#if confirmReplace}
+		{#if actions}
+			{@render actions()}
+		{:else if confirmReplace}
 			<span class="text-sm text-zinc-300">¿Dejar «{inProgress.current?.title}» y cocinar esta?</span
 			>
 			<button
@@ -86,7 +96,9 @@
 				}}>🍳 Cocinar ahora</button
 			>
 		{/if}
-		{#if card.savedId}
+		{#if actions}
+			<!-- Only what the panel shows. -->
+		{:else if card.savedId}
 			<a
 				href="/recetas/{card.savedId}"
 				class="rounded-md px-3 py-1.5 text-sm text-emerald-400 hover:bg-zinc-800">En Recetas ✓</a
@@ -94,7 +106,7 @@
 		{:else}
 			<form
 				method="post"
-				action="/preguntar?/save"
+				action={save?.action ?? '/preguntar?/save'}
 				use:enhance={() => {
 					saving = true;
 					problem = null;
@@ -103,15 +115,21 @@
 					return async ({ result }) => {
 						saving = false;
 						if (result.type === 'success' && typeof result.data?.savedId === 'number') {
-							onsaved(result.data.savedId);
+							onsaved?.(result.data.savedId);
 							justSaved.recipeId = result.data.savedId;
 							void invalidateAll();
 						} else problem = 'No se pudo guardar';
 					};
 				}}
 			>
-				<input type="hidden" name="message" value={message} />
-				<input type="hidden" name="card" value={index} />
+				{#if save}
+					{#each Object.entries(save.fields) as [name, value] (name)}
+						<input type="hidden" {name} {value} />
+					{/each}
+				{:else}
+					<input type="hidden" name="message" value={message} />
+					<input type="hidden" name="card" value={index} />
+				{/if}
 				<button
 					class="rounded-md px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white"
 					disabled={saving}>{saving ? 'Guardando…' : 'Guardar en Recetas'}</button

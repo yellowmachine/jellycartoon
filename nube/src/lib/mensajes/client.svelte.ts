@@ -1,4 +1,4 @@
-import { Messenger, type StoredMessage } from './messenger.ts';
+import { Messenger, type MessageCard, type Place, type StoredMessage } from './messenger.ts';
 import { BackupKeeper, type BackupStore } from './backup.ts';
 import { idbStore } from './idb-store.ts';
 import { httpTransport } from './http-transport.ts';
@@ -202,6 +202,68 @@ export class MessagesClient {
 		} catch (err) {
 			this.problem = err instanceof Error ? err.message : String(err);
 		}
+	}
+
+	/** A photo to the open conversation (#555): made small here first, then encrypted. */
+	async sendPhoto(photo: { blob: Blob; width: number; height: number }) {
+		if (!this.current) return false;
+		this.problem = null;
+		try {
+			await this.#m.sendPhoto(
+				this.current,
+				new Uint8Array(await photo.blob.arrayBuffer()),
+				photo.blob.type,
+				photo.width,
+				photo.height
+			);
+			await this.#reloadCurrent();
+			this.#saveSoon();
+			return true;
+		} catch (err) {
+			this.problem = err instanceof Error ? err.message : String(err);
+			return false;
+		}
+	}
+
+	/** Where this person is, to the open conversation (#555). */
+	async sendPlace(place: Place) {
+		if (!this.current) return false;
+		this.problem = null;
+		try {
+			await this.#m.sendPlace(this.current, place);
+			await this.#reloadCurrent();
+			this.#saveSoon();
+			return true;
+		} catch (err) {
+			this.problem = err instanceof Error ? err.message : String(err);
+			return false;
+		}
+	}
+
+	/** A recipe or a list the AI made (#555), to the open conversation. */
+	async sendCard(card: MessageCard) {
+		if (!this.current) return false;
+		this.problem = null;
+		try {
+			await this.#m.sendCard(this.current, $state.snapshot(card) as MessageCard);
+			await this.#reloadCurrent();
+			this.#saveSoon();
+			return true;
+		} catch (err) {
+			this.problem = err instanceof Error ? err.message : String(err);
+			return false;
+		}
+	}
+
+	#photos = new Map<string, string>();
+	/** A photo, downloaded and decrypted here once: its address to show. */
+	async picture(m: StoredMessage) {
+		let url = this.#photos.get(m.key);
+		if (!url) {
+			url = URL.createObjectURL(await this.#m.photo(m));
+			this.#photos.set(m.key, url);
+		}
+		return url;
 	}
 
 	/** A voice note's text, made in this device: kept beside it. */

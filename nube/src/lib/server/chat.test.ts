@@ -135,6 +135,20 @@ mock.module('#lib/server/reports.ts', () => ({
 	describePiece: (p: { kind: string; empty: string }) => `[${p.kind}: ${p.empty}]`
 }));
 
+// Kept places (#151), each person's own, faked: places.ts brings SvelteKit's env along.
+const keptPlaces: Record<
+	string,
+	{ id: number; name: string; at: [number, number]; address: string | null }[]
+> = {
+	ana: [
+		{ id: 3, name: 'Restaurante El Sol', at: [-1.13, 37.98], address: 'Calle Mayor 1, Murcia' }
+	],
+	pepe: [{ id: 4, name: 'Casa de Pepe', at: [-1.2, 38], address: null }]
+};
+mock.module('#lib/server/trips/places.ts', () => ({
+	listSavedPlaces: async (k: Kitchen) => keptPlaces[k.userId ?? ''] ?? []
+}));
+
 const chat = await import('./chat.ts');
 
 const ana = kitchen('A', 'ana');
@@ -439,4 +453,174 @@ test('a report (#505): made as who asks, its card, and later the AI knows it', a
 	expect(JSON.stringify(sent.at(-1))).toContain(
 		'[Informe guardado en Informes: «Alicante, julio», del 2026-07-12 al 2026-07-14]'
 	);
+});
+
+test('Mensajes (#555): only recipes and lists, two options, nothing kept, earlier turns checked', async () => {
+	const readsBefore = reads.length;
+	answers = [
+		{
+			content: 'Dos: una clásica y otra sin horno.',
+			toolCalls: [
+				call('propose_recipe', BIZCOCHO, 'a'),
+				call('propose_recipe', { ...BIZCOCHO, title: 'Tarta sin horno' }, 'b'),
+				// Not for a message: refused.
+				call('read_spending', { from_month: '2026-10' }, 'c')
+			]
+		},
+		{ content: 'Ahí las tienes.', toolCalls: [] }
+	];
+	const got = await chat.askForMessage(
+		ana,
+		{ id: 'ana', name: 'Ana' },
+		{
+			question: 'búscame la receta de tarta de chocolate',
+			to: 'la familia',
+			assistant: 'Makoto',
+			turns: [
+				{ role: 'user', text: 'una lista para la playa' },
+				{
+					role: 'assistant',
+					text: 'Toma.',
+					cards: [
+						{ kind: 'compra', items: ['Crema', 'Toallas'] },
+						// Not a card that may come back: left out.
+						{ kind: 'informe', id: 3, title: 'x' }
+					]
+				}
+			]
+		}
+	);
+	expect(got.text).toBe('Ahí las tienes.');
+	expect(got.cards.map((c) => c.kind === 'receta' && c.recipe.title)).toEqual([
+		'Bizcocho de yogur',
+		'Tarta sin horno'
+	]);
+	// Its tools: only those for a message; its name and to whom in what it was told.
+	const first = sent[0]!;
+	expect(String(first[0]!.content)).toContain('Eres Makoto');
+	expect(String(first[0]!.content)).toContain('escribiendo a la familia');
+	expect(String(first[2]!.content)).toContain('Crema; Toallas');
+	expect(String(first[2]!.content)).not.toContain('Informe');
+	expect(reads).toHaveLength(readsBefore);
+	expect(
+		String(sent[1]!.find((m) => m.role === 'tool' && m.tool_call_id === 'c')?.content)
+	).toContain('No hay ninguna herramienta');
+	// Nothing kept: no chat of Ana's.
+	expect(await chat.chatHistory(ana, 'ana')).toHaveLength(0);
+});
+
+test('Mensajes (#555): a recipe of the book, as it is, marked as saved', async () => {
+	answers = [
+		{ content: null, toolCalls: [call('propose_saved_recipe', { id: 7 })] },
+		{ content: 'La de la abuela.', toolCalls: [] }
+	];
+	const got = await chat.askForMessage(
+		ana,
+		{ id: 'ana', name: 'Ana' },
+		{
+			question: 'mándale las lentejas',
+			to: 'Papá',
+			assistant: 'Makoto',
+			turns: []
+		}
+	);
+	expect(got.cards).toEqual([
+		{
+			kind: 'receta',
+			savedId: 7,
+			recipe: {
+				title: 'Lentejas',
+				servings: 4,
+				ingredients: ['lentejas'],
+				steps: [{ text: 'Cuécelas', timer: null }]
+			}
+		}
+	]);
+	// Preguntar has no such tool: only Mensajes' panel.
+	answers = [{ content: null, toolCalls: [call('propose_saved_recipe', { id: 7 })] }];
+	const asked = await chat.askChat(ana, { id: 'ana', name: 'Ana' }, 'las lentejas');
+	expect(asked.at(-1)!.cards).toEqual([]);
+});
+
+test('Mensajes (#555): a plan, with today known to work out the day', async () => {
+	answers = [
+		{
+			content: null,
+			toolCalls: [
+				call('propose_event', {
+					title: 'Comida en casa de la abuela',
+					day: '2026-11-21',
+					time: '14:00',
+					notes: 'Llevamos el postre'
+				}),
+				call('propose_event', { title: 'Sin día' }, 'mal')
+			]
+		},
+		{ content: '¿Os va?', toolCalls: [] }
+	];
+	const got = await chat.askForMessage(
+		ana,
+		{ id: 'ana', name: 'Ana' },
+		{
+			question: 'proponles comer el sábado en casa de la abuela',
+			to: 'la familia',
+			assistant: 'Makoto',
+			turns: []
+		}
+	);
+	expect(got.cards).toEqual([
+		{
+			kind: 'cita',
+			title: 'Comida en casa de la abuela',
+			day: '2026-11-21',
+			time: '14:00',
+			endTime: null,
+			notes: 'Llevamos el postre'
+		}
+	]);
+	expect(String(sent[0]![0]!.content)).toMatch(/Hoy es .+\(\d{4}-\d{2}-\d{2}\)/);
+	expect(
+		String(sent[1]!.find((m) => m.role === 'tool' && m.tool_call_id === 'mal')?.content)
+	).toContain('Falta');
+});
+
+test("Mensajes (#555): only a place of the asker's own, as kept", async () => {
+	const mine = { id: 3 };
+	const pepes = { id: 4 };
+	answers = [
+		{
+			content: null,
+			toolCalls: [
+				call('propose_place', { id: mine!.id }, 'a'),
+				call('propose_place', { id: pepes!.id }, 'b')
+			]
+		},
+		{ content: 'Ahí va.', toolCalls: [] }
+	];
+	const got = await chat.askForMessage(
+		ana,
+		{ id: 'ana', name: 'Ana' },
+		{
+			question: 'mándale la dirección del restaurante',
+			to: 'Papá',
+			assistant: 'Makoto',
+			turns: []
+		}
+	);
+	expect(got.cards).toEqual([
+		{
+			kind: 'sitio',
+			name: 'Restaurante El Sol',
+			lon: -1.13,
+			lat: 37.98,
+			address: 'Calle Mayor 1, Murcia'
+		}
+	]);
+	expect(String(sent[0]![0]!.content)).toContain(
+		`Restaurante El Sol (Calle Mayor 1, Murcia) [sitio ${mine!.id}]`
+	);
+	expect(String(sent[0]![0]!.content)).not.toContain('Casa de Pepe');
+	expect(
+		String(sent[1]!.find((m) => m.role === 'tool' && m.tool_call_id === 'b')?.content)
+	).toContain('no está entre los suyos');
 });

@@ -12,7 +12,9 @@
 		marks = [],
 		line = null,
 		focus = null,
-		onpick
+		onpick,
+		height = 'h-72',
+		still = false
 	}: {
 		/** Numbered (a route's stops) when `number` is given; amber the one being edited. */
 		marks?: { at: LngLat; label: string; number?: number; current?: boolean }[];
@@ -21,6 +23,13 @@
 		focus?: LngLat | null;
 		/** Touched, that point. */
 		onpick?: (at: LngLat) => void;
+		/** Its height, as a Tailwind class. */
+		height?: string;
+		/**
+		 * Only to look at (inside a message): neither dragged nor zoomed, so the page scrolls; without
+		 * its attribution, to be said beside it.
+		 */
+		still?: boolean;
 	} = $props();
 
 	let container = $state<HTMLDivElement>();
@@ -43,7 +52,10 @@
 				style: styleFor(true),
 				center: [header.centerLon, header.centerLat],
 				zoom: Math.max(header.centerZoom, 5),
-				attributionControl: { compact: true }
+				interactive: !still,
+				// A still map never moves, so a compact attribution would never fold over it: whoever
+				// shows one says it beside it (Protomaps © OpenStreetMap).
+				attributionControl: still ? false : { compact: true }
 			});
 			const ready = created;
 			ready.on('load', () => {
@@ -122,7 +134,7 @@
 	});
 </script>
 
-<div class="relative h-72 w-full overflow-hidden rounded-md bg-zinc-900">
+<div class={['relative w-full overflow-hidden rounded-md bg-zinc-900', height]}>
 	<div bind:this={container} class={['h-full w-full', onpick && 'picking']}></div>
 	{#if problem}
 		<p class="absolute inset-x-3 top-3 rounded bg-zinc-950/90 p-2 text-sm text-amber-300">

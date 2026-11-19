@@ -9,6 +9,7 @@
 	import { describeTimer, parseRecipe, type Recipe } from 'comun/recipe.ts';
 	import { vista } from '#lib/vista.svelte.ts';
 	import { recipe as inProgress } from '#lib/recipe.svelte.ts';
+	import { sectionOn } from '#lib/nav.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -129,6 +130,14 @@
 			{/if}
 			<!-- Locked Vista (#532): only cooking; nothing to manage. -->
 			{#if !vista.kiosk}
+				<!-- To someone, by Mensajes (#555): a link within the family, a copy to a linked one. -->
+				{#if sectionOn('/mensajes', data.family?.sections, data.family?.mine)}
+					<a
+						href="/mensajes?receta={r.id}"
+						class="rounded-md px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white"
+						>📤 Mandar</a
+					>
+				{/if}
 				{#if r.imageUrl}
 					<form method="post" action="?/backdrop" use:enhance>
 						<button

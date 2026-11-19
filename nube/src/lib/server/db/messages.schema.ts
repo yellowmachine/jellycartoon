@@ -173,7 +173,7 @@ export const msgBackup = pgTable(
 ).enableRLS();
 
 /**
- * A voice note of a conversation (#551): encrypted in the device with its own key, which goes inside
+ * A file of a conversation (#551: a voice note; #555: a photo): encrypted in the device with its own key, which goes inside
  * the MLS message; here only that it is, in whose family's storage (area `mensajes`, by its id) and
  * which conversation may download it. With a linked family, in the sender's family.
  */

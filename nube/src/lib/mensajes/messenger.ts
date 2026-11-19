@@ -25,6 +25,8 @@ import {
 	type PrivateKeyPackage,
 	type Proposal
 } from 'ts-mls';
+import { parseRecipe, type Recipe } from 'comun/recipe.ts';
+import { citaWhen, parseCita, type Cita } from '#lib/cita.ts';
 
 /**
  * Mensajes (#551) in a device: its MLS keys, its groups and what was said in them, end to end. The
@@ -65,15 +67,75 @@ export interface StoredMessage {
 	audio?: AudioMeta;
 	/** A voice note's text, made in a device of this person's (never sent). */
 	transcript?: string;
+	/** A photo (#555): its encrypted file, as a voice note's. */
+	photo?: PhotoMeta;
+	/** Where someone was when sending it (#555). */
+	place?: Place;
+	/** A recipe or a list the AI made for it (#555), to take with a touch. */
+	card?: MessageCard;
 }
 
-export interface AudioMeta {
+export type MessageCard =
+	| { kind: 'receta'; recipe: Recipe }
+	| { kind: 'compra'; items: string[] }
+	/** One already in the family's book, to someone of the same family: only which (#555). */
+	| { kind: 'enlace-receta'; id: number; title: string }
+	/** A plan, to add to the Agenda. */
+	| ({ kind: 'cita' } & Cita)
+	/** A place kept by the sender (#151): to go there, or keep it too (each person's own). */
+	| { kind: 'sitio'; name: string; lat: number; lon: number; address: string | null };
+
+/**
+ * A recipe of the book, as it goes in a message (#555): within the family, referred (the book is
+ * everyone's: only which one); to a linked family, copied whole, for them to keep their own.
+ */
+export const bookRecipeCard = (
+	saved: { id: number; recipe: Recipe },
+	sameFamily: boolean
+): MessageCard =>
+	sameFamily
+		? { kind: 'enlace-receta', id: saved.id, title: saved.recipe.title }
+		: { kind: 'receta', recipe: saved.recipe };
+/** Things in a list, at most (as the AI's cards). */
+const MAX_CARD_ITEMS = 30;
+
+/** A file of a message, encrypted in the device: in the family's storage, and its key (only here). */
+export interface FileMeta {
 	file: string;
 	/** AES-256-GCM's, base64. */
 	key: string;
 	iv: string;
 	mime: string;
+}
+
+export interface AudioMeta extends FileMeta {
 	seconds: number;
+}
+
+export interface PhotoMeta extends FileMeta {
+	width: number;
+	height: number;
+}
+
+export interface Place {
+	lat: number;
+	lon: number;
+	/** How sure the device was, in metres. */
+	accuracy?: number;
+}
+
+/** What a message is, in a few words: for a list, a notice or the voice. */
+export function describe(m: Pick<StoredMessage, 'text' | 'audio' | 'photo' | 'place' | 'card'>) {
+	if (m.audio)
+		return `🎤 Audio (${Math.floor(m.audio.seconds / 60)}:${String(m.audio.seconds % 60).padStart(2, '0')})`;
+	if (m.photo) return '📷 Foto';
+	if (m.place) return '📍 Ubicación';
+	if (m.card?.kind === 'receta') return `🍰 Receta: ${m.card.recipe.title}`;
+	if (m.card?.kind === 'enlace-receta') return `🍰 Receta: ${m.card.title}`;
+	if (m.card?.kind === 'cita') return `📅 ${m.card.title}, ${citaWhen(m.card)}`;
+	if (m.card?.kind === 'sitio') return `📌 ${m.card.name}`;
+	if (m.card?.kind === 'compra') return `🛒 Lista (${m.card.items.length})`;
+	return m.text;
 }
 
 export interface Store {
@@ -142,12 +204,9 @@ export interface Transport {
 		m: { conversationId: string; epoch: number; data: string }
 	): Promise<{ id: number; stale?: boolean }>;
 	events(deviceId: string, since: number): Promise<EventIn[]>;
-	uploadAudio(
-		deviceId: string,
-		conversationId: string,
-		sealed: Uint8Array
-	): Promise<{ id: string }>;
-	downloadAudio(conversationId: string, file: string): Promise<Uint8Array>;
+	/** A file of a message (a voice note, a photo), already encrypted. */
+	uploadFile(deviceId: string, conversationId: string, sealed: Uint8Array): Promise<{ id: string }>;
+	downloadFile(conversationId: string, file: string): Promise<Uint8Array>;
 }
 
 const te = new TextEncoder();
@@ -461,8 +520,7 @@ export class Messenger {
 						text: body.text,
 						at: ev.at,
 						mine: from.userId === this.userId,
-						...(body.audio ? { audio: body.audio } : {}),
-						...(body.transcript ? { transcript: body.transcript } : {})
+						...extras(body)
 					});
 			}
 		} catch (err) {
@@ -597,19 +655,8 @@ export class Messenger {
 		/** Its text, made in this device, sent with it («los dos»). */
 		transcript?: string
 	) {
-		const d = await this.#need();
-		const raw = crypto.getRandomValues(new Uint8Array(32));
-		const iv = crypto.getRandomValues(new Uint8Array(12));
-		const key = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt']);
-		const sealed = new Uint8Array(
-			await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, Uint8Array.from(audio))
-		);
-		const { id } = await this.transport.uploadAudio(d.id, conversationId, sealed);
 		const meta: AudioMeta = {
-			file: id,
-			key: toB64(raw),
-			iv: toB64(iv),
-			mime: mime.slice(0, 80),
+			...(await this.#upload(conversationId, audio, mime)),
 			seconds: Math.max(1, Math.round(seconds))
 		};
 		const said = transcript?.trim().slice(0, MAX_TEXT);
@@ -620,27 +667,80 @@ export class Messenger {
 		);
 	}
 
-	/** A voice note's sound, downloaded and decrypted here. */
-	async audio(m: StoredMessage): Promise<Blob> {
-		if (!m.audio) throw new Error('No es un audio');
-		const sealed = await this.transport.downloadAudio(m.conversationId, m.audio.file);
-		const key = await crypto.subtle.importKey('raw', fromB64(m.audio.key), 'AES-GCM', false, [
+	/**
+	 * A photo (#555), already made small in the device (which also leaves out what the camera wrote in
+	 * it, such as where it was taken): encrypted and uploaded as a voice note.
+	 */
+	async sendPhoto(
+		conversationId: string,
+		photo: Uint8Array,
+		mime: string,
+		width: number,
+		height: number
+	) {
+		const meta: PhotoMeta = {
+			...(await this.#upload(conversationId, photo, mime)),
+			width: Math.round(width),
+			height: Math.round(height)
+		};
+		return this.#post(conversationId, { t: 'foto', ...meta }, { text: '', photo: meta });
+	}
+
+	/** Where this person is (#555): only in the message, encrypted as a text. */
+	async sendPlace(conversationId: string, place: Place) {
+		const clean = cleanPlace(place);
+		if (!clean) throw new Error('Esa posición no vale');
+		return this.#post(conversationId, { t: 'ubicacion', ...clean }, { text: '', place: clean });
+	}
+
+	/** A recipe or a list (#555), inside the message, encrypted as a text. */
+	async sendCard(conversationId: string, card: MessageCard) {
+		const clean = cleanCard(card);
+		if (!clean) throw new Error('Esa tarjeta no vale');
+		return this.#post(conversationId, { t: 'tarjeta', card: clean }, { text: '', card: clean });
+	}
+
+	/** Encrypted here with a key of its own and uploaded as it is: Seilide cannot open it. */
+	async #upload(conversationId: string, bytes: Uint8Array, mime: string) {
+		const d = await this.#need();
+		const raw = crypto.getRandomValues(new Uint8Array(32));
+		const iv = crypto.getRandomValues(new Uint8Array(12));
+		const key = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt']);
+		const sealed = new Uint8Array(
+			await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, Uint8Array.from(bytes))
+		);
+		const { id } = await this.transport.uploadFile(d.id, conversationId, sealed);
+		return { file: id, key: toB64(raw), iv: toB64(iv), mime: mime.slice(0, 80) };
+	}
+
+	/** A message's file, downloaded and decrypted here. */
+	async #open(conversationId: string, meta: FileMeta): Promise<Blob> {
+		const sealed = await this.transport.downloadFile(conversationId, meta.file);
+		const key = await crypto.subtle.importKey('raw', fromB64(meta.key), 'AES-GCM', false, [
 			'decrypt'
 		]);
 		const plain = await crypto.subtle.decrypt(
-			{ name: 'AES-GCM', iv: fromB64(m.audio.iv) },
+			{ name: 'AES-GCM', iv: fromB64(meta.iv) },
 			key,
 			Uint8Array.from(sealed)
 		);
-		return new Blob([plain], { type: m.audio.mime });
+		return new Blob([plain], { type: meta.mime });
+	}
+
+	/** A voice note's sound, downloaded and decrypted here. */
+	async audio(m: StoredMessage): Promise<Blob> {
+		if (!m.audio) throw new Error('No es un audio');
+		return this.#open(m.conversationId, m.audio);
+	}
+
+	/** A photo, downloaded and decrypted here. */
+	async photo(m: StoredMessage): Promise<Blob> {
+		if (!m.photo) throw new Error('No es una foto');
+		return this.#open(m.conversationId, m.photo);
 	}
 
 	/** Encrypted to the group, sent, and kept here as said. */
-	async #post(
-		conversationId: string,
-		body: object,
-		local: { text: string; audio?: AudioMeta; transcript?: string }
-	) {
+	async #post(conversationId: string, body: object, local: Local) {
 		const d = await this.#need();
 		return this.#serial(async () => {
 			const cs = await this.#cs();
@@ -678,12 +778,7 @@ export class Messenger {
 	}
 
 	/** What this device sent, kept here as said. */
-	async #kept(
-		conversationId: string,
-		d: DeviceKeys,
-		id: number,
-		local: { text: string; audio?: AudioMeta; transcript?: string }
-	) {
+	async #kept(conversationId: string, d: DeviceKeys, id: number, local: Local) {
 		const m: StoredMessage = {
 			conversationId,
 			key: String(id),
@@ -692,8 +787,7 @@ export class Messenger {
 			text: local.text,
 			at: new Date().toISOString(),
 			mine: true,
-			...(local.audio ? { audio: local.audio } : {}),
-			...(local.transcript ? { transcript: local.transcript } : {})
+			...extras(local)
 		};
 		await this.store.addMessage(m);
 		return m;
@@ -736,14 +830,86 @@ function senderIdentity(state: ClientState, deviceId: string) {
 	return membersOf(state).find((m) => m.identity.endsWith(`/${deviceId}`))?.identity ?? null;
 }
 
-type Body = { text: string; from: string; audio?: AudioMeta; transcript?: string };
+/** What a message says besides its text. */
+type Local = Pick<StoredMessage, 'text' | 'audio' | 'transcript' | 'photo' | 'place' | 'card'>;
+type Body = Local & { from: string };
 
-const isAudio = (b: Record<string, unknown>) =>
+/** Only what it has: a message keeps no empty fields. */
+function extras(b: Local) {
+	return {
+		...(b.audio ? { audio: b.audio } : {}),
+		...(b.transcript ? { transcript: b.transcript } : {}),
+		...(b.photo ? { photo: b.photo } : {}),
+		...(b.place ? { place: b.place } : {}),
+		...(b.card ? { card: b.card } : {})
+	};
+}
+
+/** A card that is one: a whole recipe, or a list with something in it. */
+function cleanCard(value: unknown): MessageCard | null {
+	const c = (value ?? {}) as Record<string, unknown>;
+	if (c.kind === 'receta') {
+		const recipe = parseRecipe(c.recipe);
+		return typeof recipe === 'string' ? null : { kind: 'receta', recipe };
+	}
+	if (c.kind === 'cita') {
+		const cita = parseCita(c);
+		return cita ? { kind: 'cita', ...cita } : null;
+	}
+	if (c.kind === 'sitio') {
+		const at = cleanPlace(c);
+		const name = typeof c.name === 'string' ? c.name.trim().slice(0, 100) : '';
+		const address =
+			typeof c.address === 'string' && c.address.trim() ? c.address.trim().slice(0, 200) : null;
+		return at && name ? { kind: 'sitio', name, lat: at.lat, lon: at.lon, address } : null;
+	}
+	if (c.kind === 'enlace-receta') {
+		const id = Number(c.id);
+		const title = typeof c.title === 'string' ? c.title.trim().slice(0, 100) : '';
+		return Number.isInteger(id) && id > 0 && title ? { kind: 'enlace-receta', id, title } : null;
+	}
+	if (c.kind === 'compra' && Array.isArray(c.items)) {
+		const items = c.items
+			.flatMap((i) => (typeof i === 'string' && i.trim() ? [i.trim().slice(0, 100)] : []))
+			.slice(0, MAX_CARD_ITEMS);
+		return items.length ? { kind: 'compra', items } : null;
+	}
+	return null;
+}
+
+const isFile = (b: Record<string, unknown>) =>
 	typeof b.file === 'string' &&
 	typeof b.key === 'string' &&
 	typeof b.iv === 'string' &&
-	typeof b.mime === 'string' &&
-	typeof b.seconds === 'number';
+	typeof b.mime === 'string';
+const fileOf = (b: Record<string, string>): FileMeta => ({
+	file: b.file!,
+	key: b.key!,
+	iv: b.iv!,
+	mime: b.mime!.slice(0, 80)
+});
+const isAudio = (b: Record<string, unknown>) => isFile(b) && typeof b.seconds === 'number';
+const isPhoto = (b: Record<string, unknown>) =>
+	isFile(b) &&
+	Number.isFinite(b.width) &&
+	Number.isFinite(b.height) &&
+	(b.width as number) > 0 &&
+	(b.height as number) > 0;
+
+/** A place that is one: on the Earth, its accuracy if it has a sensible one. */
+function cleanPlace(p: { lat?: unknown; lon?: unknown; accuracy?: unknown }): Place | null {
+	const { lat, lon, accuracy } = p;
+	if (typeof lat !== 'number' || typeof lon !== 'number') return null;
+	if (!(Math.abs(lat) <= 90 && Math.abs(lon) <= 180)) return null;
+	const round = (n: number) => Math.round(n * 1e6) / 1e6;
+	return {
+		lat: round(lat),
+		lon: round(lon),
+		...(typeof accuracy === 'number' && accuracy >= 0 && accuracy < 1e6
+			? { accuracy: Math.round(accuracy) }
+			: {})
+	};
+}
 
 function parseBody(raw: string): Body | null {
 	try {
@@ -755,15 +921,23 @@ function parseBody(raw: string): Body | null {
 			return {
 				text: '',
 				from: b.from,
-				audio: {
-					file: b.file,
-					key: b.key,
-					iv: b.iv,
-					mime: b.mime.slice(0, 80),
-					seconds: b.seconds
-				},
+				audio: { ...fileOf(b), seconds: b.seconds },
 				...(typeof b.transcript === 'string' ? { transcript: b.transcript.slice(0, MAX_TEXT) } : {})
 			};
+		if (b.t === 'foto' && isPhoto(b))
+			return {
+				text: '',
+				from: b.from,
+				photo: { ...fileOf(b), width: Math.round(b.width), height: Math.round(b.height) }
+			};
+		if (b.t === 'tarjeta') {
+			const card = cleanCard(b.card);
+			return card ? { text: '', from: b.from, card } : null;
+		}
+		if (b.t === 'ubicacion') {
+			const place = cleanPlace(b);
+			return place ? { text: '', from: b.from, place } : null;
+		}
 		return null;
 	} catch {
 		return null;

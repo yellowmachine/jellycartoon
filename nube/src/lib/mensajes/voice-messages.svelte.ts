@@ -1,5 +1,6 @@
 import { music } from 'comun/music-player.svelte.ts';
-import { Messenger, type StoredMessage } from './messenger.ts';
+import { Messenger, describe, type StoredMessage } from './messenger.ts';
+import { citaWhen } from '#lib/cita.ts';
 import { idbStore } from './idb-store.ts';
 import { httpTransport } from './http-transport.ts';
 import { lockFor } from './lock.ts';
@@ -179,6 +180,26 @@ class MessagesVoice {
 
 	async #announce(m: StoredMessage) {
 		const name = await this.#nameOf(m.userId);
+		if (m.photo || m.place || m.card) {
+			this.heard = [{ name, text: describe(m), at: m.at }, ...this.heard].slice(0, 20);
+			return say(
+				`${name} te manda ${
+					m.photo
+						? 'una foto'
+						: m.place
+							? 'su ubicación'
+							: m.card?.kind === 'receta'
+								? `la receta de ${m.card.recipe.title}`
+								: m.card?.kind === 'enlace-receta'
+									? `la receta de ${m.card.title}`
+									: m.card?.kind === 'cita'
+										? `un plan: ${m.card.title}, ${citaWhen(m.card)}`
+										: m.card?.kind === 'sitio'
+											? `un sitio: ${m.card.name}`
+											: 'una lista'
+				}.`
+			);
+		}
 		if (!m.audio) {
 			this.heard = [{ name, text: m.text, at: m.at }, ...this.heard].slice(0, 20);
 			return say(`${name}: ${m.text}`);
