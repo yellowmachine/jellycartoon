@@ -92,6 +92,29 @@ height }`. Se descifra al enseñarla (`FotoBurbuja.svelte`).
 - Las dos se ven antes de mandarlas (enviar o cancelar). `describe()` da su texto corto («📷 Foto»,
   «📍 Ubicación») para la lista, la notificación descifrada y la voz («X te manda una foto»).
 
+## La IA en el chat (#555)
+
+- **Nombre**: la palabra de activación del aparato o de la familia (`wakeWord.word`), «Casita» para
+  «hola casita» (`mention.ts`). `askedOf()` detecta `@makoto` (o `@ia`) en cualquier sitio y
+  `Makoto,` / `Makoto:` al principio; «Makoto» suelto no cuenta. `completed()` termina `@ma`. Con
+  eso, el cuadro y el botón se ponen morados («✨ Pedir a Makoto») y el texto va al panel, no a la
+  conversación.
+- **Panel** (`AsistentePanel.svelte`): solo en el aparato; sus turnos viven en la página y se mandan
+  con cada pregunta (8 como mucho). `POST /api/mensajes/ia` → `askForMessage()` en `chat.ts`: el
+  mismo bucle que Preguntar (`rounds()`), pero solo con `propose_recipe`, `propose_shopping` y
+  `read_recipe`, y sin guardar nada (ni `chat_message`). Las tarjetas que vuelven en los turnos se
+  revisan otra vez (`messageCard()`). `rounds()` solo ejecuta las herramientas ofrecidas. La IA nunca
+  ve la conversación cifrada; sí lo que se escribe en el panel (va a OpenRouter con la clave de la
+  familia).
+- **Tarjeta en el mensaje**: `{ t: 'tarjeta', card: { kind: 'receta', recipe } | { kind: 'compra',
+items } }`, cifrada como un texto y revisada al leerla (`parseRecipe`, 30 cosas como mucho).
+  Quien la recibe la toma en su familia con las acciones de `/mensajes`: `save` (receta al
+  recetario, `chat:mensajes/<conversación>/<mensaje>`, «Llegó por Mensajes», una vez por mensaje) y
+  `add` (lo marcado, a la lista). En la misma familia compartir es referir: `recipesFromMessages()`
+  dice qué mensajes ya están en el recetario de la familia y la tarjeta sale «En Recetas ✓» para
+  todos; con una familia vinculada, cada una guarda su copia. `ChatRecipeCard` acepta otra acción (`save`) y otros botones
+  (`actions`).
+
 ## Transcripción en el aparato
 
 `transcribe.worker.ts`: Whisper (`onnx-community/whisper-small`, 8 bits, ~240 MB bajados una vez de

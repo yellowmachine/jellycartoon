@@ -179,9 +179,19 @@ class MessagesVoice {
 
 	async #announce(m: StoredMessage) {
 		const name = await this.#nameOf(m.userId);
-		if (m.photo || m.place) {
+		if (m.photo || m.place || m.card) {
 			this.heard = [{ name, text: describe(m), at: m.at }, ...this.heard].slice(0, 20);
-			return say(`${name} te manda ${m.photo ? 'una foto' : 'su ubicación'}.`);
+			return say(
+				`${name} te manda ${
+					m.photo
+						? 'una foto'
+						: m.place
+							? 'su ubicación'
+							: m.card?.kind === 'receta'
+								? `la receta de ${m.card.recipe.title}`
+								: 'una lista'
+				}.`
+			);
 		}
 		if (!m.audio) {
 			this.heard = [{ name, text: m.text, at: m.at }, ...this.heard].slice(0, 20);

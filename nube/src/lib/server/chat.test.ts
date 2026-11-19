@@ -440,3 +440,57 @@ test('a report (#505): made as who asks, its card, and later the AI knows it', a
 		'[Informe guardado en Informes: «Alicante, julio», del 2026-07-12 al 2026-07-14]'
 	);
 });
+
+test('Mensajes (#555): only recipes and lists, two options, nothing kept, earlier turns checked', async () => {
+	const readsBefore = reads.length;
+	answers = [
+		{
+			content: 'Dos: una clásica y otra sin horno.',
+			toolCalls: [
+				call('propose_recipe', BIZCOCHO, 'a'),
+				call('propose_recipe', { ...BIZCOCHO, title: 'Tarta sin horno' }, 'b'),
+				// Not for a message: refused.
+				call('read_spending', { from_month: '2026-10' }, 'c')
+			]
+		},
+		{ content: 'Ahí las tienes.', toolCalls: [] }
+	];
+	const got = await chat.askForMessage(
+		ana,
+		{ id: 'ana', name: 'Ana' },
+		{
+			question: 'búscame la receta de tarta de chocolate',
+			to: 'la familia',
+			assistant: 'Makoto',
+			turns: [
+				{ role: 'user', text: 'una lista para la playa' },
+				{
+					role: 'assistant',
+					text: 'Toma.',
+					cards: [
+						{ kind: 'compra', items: ['Crema', 'Toallas'] },
+						// Not a card that may come back: left out.
+						{ kind: 'informe', id: 3, title: 'x' }
+					]
+				}
+			]
+		}
+	);
+	expect(got.text).toBe('Ahí las tienes.');
+	expect(got.cards.map((c) => c.kind === 'receta' && c.recipe.title)).toEqual([
+		'Bizcocho de yogur',
+		'Tarta sin horno'
+	]);
+	// Its tools: only those for a message; its name and to whom in what it was told.
+	const first = sent[0]!;
+	expect(String(first[0]!.content)).toContain('Eres Makoto');
+	expect(String(first[0]!.content)).toContain('escribiendo a la familia');
+	expect(String(first[2]!.content)).toContain('Crema; Toallas');
+	expect(String(first[2]!.content)).not.toContain('Informe');
+	expect(reads).toHaveLength(readsBefore);
+	expect(
+		String(sent[1]!.find((m) => m.role === 'tool' && m.tool_call_id === 'c')?.content)
+	).toContain('No hay ninguna herramienta');
+	// Nothing kept: no chat of Ana's.
+	expect(await chat.chatHistory(ana, 'ana')).toHaveLength(0);
+});

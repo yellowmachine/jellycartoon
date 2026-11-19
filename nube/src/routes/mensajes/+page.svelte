@@ -7,6 +7,10 @@
 	import AudioBurbuja from './AudioBurbuja.svelte';
 	import FotoBurbuja from './FotoBurbuja.svelte';
 	import UbicacionBurbuja from './UbicacionBurbuja.svelte';
+	import TarjetaBurbuja from './TarjetaBurbuja.svelte';
+	import AsistentePanel from './AsistentePanel.svelte';
+	import { askedOf, assistantName, completed } from '#lib/mensajes/mention.ts';
+	import { wakeWord } from '#lib/wake-word.svelte.ts';
 	import PlacesMap from '#lib/components/PlacesMap.svelte';
 	import { VoiceRecorder } from '#lib/mensajes/recorder.svelte.ts';
 	import MediaIcon from 'comun/components/MediaIcon.svelte';
@@ -42,9 +46,30 @@
 		list?.scrollTo({ top: list.scrollHeight });
 	});
 
+	/**
+	 * The AI's panel (#555), called by the family's wake word: «@makoto…» or «Makoto, …» in the box,
+	 * or ✨ in the «+». Only with the family's AI; children have no Mensajes.
+	 */
+	const aiName = $derived(assistantName(wakeWord.word));
+	/** Open: what it was asked from the box (null, opened empty from the «+»). */
+	let panel = $state<{ first: string | null } | null>(null);
+	const forAi = $derived(data.hasAi ? askedOf(text, aiName) : null);
+	const finished = $derived(data.hasAi ? completed(text, aiName) : null);
+	let box = $state<HTMLInputElement>();
+	// Another conversation, another panel.
+	$effect(() => {
+		void client.current;
+		panel = null;
+	});
+
 	async function send(e: SubmitEvent) {
 		e.preventDefault();
 		if (!text.trim() || sending) return;
+		if (forAi !== null) {
+			panel = { first: forAi || null };
+			text = '';
+			return;
+		}
 		sending = true;
 		await client.send(text);
 		text = '';
@@ -264,9 +289,9 @@
 					<div
 						class={[
 							'max-w-[85%] rounded-2xl break-words',
-							m.photo ? 'p-1' : 'px-3 py-2',
-							!m.audio && !m.photo && !m.place && 'whitespace-pre-wrap',
-							m.mine ? 'bg-amber-500 text-zinc-950' : 'bg-zinc-800 text-zinc-100'
+							m.card ? 'w-full' : m.photo ? 'p-1' : 'px-3 py-2',
+							!m.audio && !m.photo && !m.place && !m.card && 'whitespace-pre-wrap',
+							!m.card && (m.mine ? 'bg-amber-500 text-zinc-950' : 'bg-zinc-800 text-zinc-100')
 						]}
 					>
 						{#if m.audio}<AudioBurbuja {m} {client} />{:else if m.photo}<FotoBurbuja
@@ -275,6 +300,10 @@
 							/>{:else if m.place}<UbicacionBurbuja
 								place={m.place}
 								mine={m.mine}
+							/>{:else if m.card}<TarjetaBurbuja
+								{m}
+								toBuy={data.toBuy}
+								saved={data.saved}
 							/>{:else}{m.text}{/if}
 					</div>
 					<span class="mt-0.5 text-xs text-zinc-500"
@@ -348,13 +377,33 @@
 		{#if attachProblem}
 			<p class="mb-2 text-sm text-red-400">{attachProblem}</p>
 		{/if}
+		{#if panel}
+			<AsistentePanel
+				name={aiName}
+				to={open?.kind === 'familia' ? 'la familia' : title}
+				request={panel}
+				onsend={(card) => client.sendCard(card)}
+				onclose={() => (panel = null)}
+			/>
+		{/if}
+		{#if finished !== null}
+			<button
+				type="button"
+				class="mb-2 rounded-full border border-violet-500/50 bg-violet-950/40 px-3 py-1 text-sm text-violet-200"
+				onclick={() => ((text = finished ?? text), box?.focus())}>✨ @{aiName.toLowerCase()}</button
+			>
+		{:else if forAi !== null}
+			<p id="para-la-ia" class="mb-2 text-sm text-violet-300">
+				✨ Esto se lo pides a {aiName}: no se manda a nadie. Te enseñará opciones para elegir.
+			</p>
+		{/if}
 		<input bind:this={picker} type="file" accept="image/*" class="hidden" onchange={pickedPhoto} />
 		<form class="relative flex gap-2" onsubmit={send}>
 			<div bind:this={menuBox} class="contents">
 				<button
 					type="button"
 					class="rounded-md border border-zinc-700 px-3 text-xl leading-none text-zinc-200 hover:bg-zinc-800 disabled:opacity-50"
-					aria-label="Enviar una foto o tu ubicación"
+					aria-label="Enviar una foto, tu ubicación o pedir algo a {aiName}"
 					aria-expanded={menu}
 					disabled={client.waiting}
 					onclick={() => (menu = !menu)}>+</button
@@ -371,20 +420,41 @@
 						<button type="button" class="px-4 py-3 text-left hover:bg-zinc-800" onclick={lookWhere}
 							>📍 Ubicación</button
 						>
+						{#if data.hasAi}
+							<button
+								type="button"
+								class="px-4 py-3 text-left hover:bg-zinc-800"
+								onclick={() => ((menu = false), (panel = { first: null }))}>✨ {aiName}</button
+							>
+						{/if}
 					</div>
 				{/if}
 			</div>
 			<input
+				bind:this={box}
 				bind:value={text}
 				maxlength={MAX_TEXT}
 				placeholder={open?.kind === 'familia' ? 'Escribe a la familia' : `Escribe a ${title}`}
 				aria-label="Mensaje"
-				class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-900"
+				aria-describedby={forAi !== null ? 'para-la-ia' : undefined}
+				class={[
+					'min-w-0 flex-1 rounded-md bg-zinc-900',
+					// For the AI (#555): its panel's colour, not the amber of sending.
+					forAi !== null
+						? 'border-violet-500 ring-2 ring-violet-500/60 focus:border-violet-400 focus:ring-violet-400'
+						: 'border-zinc-700'
+				]}
 			/>
 			{#if text.trim()}
 				<button
-					class="rounded-md bg-amber-500 px-4 py-2 font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
-					disabled={sending || client.waiting}>Enviar</button
+					class={[
+						'rounded-md px-4 py-2 font-medium disabled:opacity-50',
+						forAi !== null
+							? 'bg-violet-500 text-white hover:bg-violet-400'
+							: 'bg-amber-500 text-zinc-950 hover:bg-amber-400'
+					]}
+					disabled={sending || client.waiting}
+					>{forAi !== null ? `✨ Pedir a ${aiName}` : 'Enviar'}</button
 				>
 			{:else}
 				<!-- Held down to record a voice note; let go to send it; slid off, dropped. -->

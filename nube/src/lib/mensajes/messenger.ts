@@ -25,6 +25,7 @@ import {
 	type PrivateKeyPackage,
 	type Proposal
 } from 'ts-mls';
+import { parseRecipe, type Recipe } from 'comun/recipe.ts';
 
 /**
  * Mensajes (#551) in a device: its MLS keys, its groups and what was said in them, end to end. The
@@ -69,7 +70,13 @@ export interface StoredMessage {
 	photo?: PhotoMeta;
 	/** Where someone was when sending it (#555). */
 	place?: Place;
+	/** A recipe or a list the AI made for it (#555), to take with a touch. */
+	card?: MessageCard;
 }
+
+export type MessageCard = { kind: 'receta'; recipe: Recipe } | { kind: 'compra'; items: string[] };
+/** Things in a list, at most (as the AI's cards). */
+const MAX_CARD_ITEMS = 30;
 
 /** A file of a message, encrypted in the device: in the family's storage, and its key (only here). */
 export interface FileMeta {
@@ -97,11 +104,13 @@ export interface Place {
 }
 
 /** What a message is, in a few words: for a list, a notice or the voice. */
-export function describe(m: Pick<StoredMessage, 'text' | 'audio' | 'photo' | 'place'>) {
+export function describe(m: Pick<StoredMessage, 'text' | 'audio' | 'photo' | 'place' | 'card'>) {
 	if (m.audio)
 		return `🎤 Audio (${Math.floor(m.audio.seconds / 60)}:${String(m.audio.seconds % 60).padStart(2, '0')})`;
 	if (m.photo) return '📷 Foto';
 	if (m.place) return '📍 Ubicación';
+	if (m.card?.kind === 'receta') return `🍰 Receta: ${m.card.recipe.title}`;
+	if (m.card?.kind === 'compra') return `🛒 Lista (${m.card.items.length})`;
 	return m.text;
 }
 
@@ -660,6 +669,13 @@ export class Messenger {
 		return this.#post(conversationId, { t: 'ubicacion', ...clean }, { text: '', place: clean });
 	}
 
+	/** A recipe or a list (#555), inside the message, encrypted as a text. */
+	async sendCard(conversationId: string, card: MessageCard) {
+		const clean = cleanCard(card);
+		if (!clean) throw new Error('Esa tarjeta no vale');
+		return this.#post(conversationId, { t: 'tarjeta', card: clean }, { text: '', card: clean });
+	}
+
 	/** Encrypted here with a key of its own and uploaded as it is: Seilide cannot open it. */
 	async #upload(conversationId: string, bytes: Uint8Array, mime: string) {
 		const d = await this.#need();
@@ -791,7 +807,7 @@ function senderIdentity(state: ClientState, deviceId: string) {
 }
 
 /** What a message says besides its text. */
-type Local = Pick<StoredMessage, 'text' | 'audio' | 'transcript' | 'photo' | 'place'>;
+type Local = Pick<StoredMessage, 'text' | 'audio' | 'transcript' | 'photo' | 'place' | 'card'>;
 type Body = Local & { from: string };
 
 /** Only what it has: a message keeps no empty fields. */
@@ -800,8 +816,25 @@ function extras(b: Local) {
 		...(b.audio ? { audio: b.audio } : {}),
 		...(b.transcript ? { transcript: b.transcript } : {}),
 		...(b.photo ? { photo: b.photo } : {}),
-		...(b.place ? { place: b.place } : {})
+		...(b.place ? { place: b.place } : {}),
+		...(b.card ? { card: b.card } : {})
 	};
+}
+
+/** A card that is one: a whole recipe, or a list with something in it. */
+function cleanCard(value: unknown): MessageCard | null {
+	const c = (value ?? {}) as Record<string, unknown>;
+	if (c.kind === 'receta') {
+		const recipe = parseRecipe(c.recipe);
+		return typeof recipe === 'string' ? null : { kind: 'receta', recipe };
+	}
+	if (c.kind === 'compra' && Array.isArray(c.items)) {
+		const items = c.items
+			.flatMap((i) => (typeof i === 'string' && i.trim() ? [i.trim().slice(0, 100)] : []))
+			.slice(0, MAX_CARD_ITEMS);
+		return items.length ? { kind: 'compra', items } : null;
+	}
+	return null;
 }
 
 const isFile = (b: Record<string, unknown>) =>
@@ -857,6 +890,10 @@ function parseBody(raw: string): Body | null {
 				from: b.from,
 				photo: { ...fileOf(b), width: Math.round(b.width), height: Math.round(b.height) }
 			};
+		if (b.t === 'tarjeta') {
+			const card = cleanCard(b.card);
+			return card ? { text: '', from: b.from, card } : null;
+		}
 		if (b.t === 'ubicacion') {
 			const place = cleanPlace(b);
 			return place ? { text: '', from: b.from, place } : null;

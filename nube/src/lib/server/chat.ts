@@ -7,6 +7,7 @@ import {
 	MAX_CHAT_QUESTION,
 	type ChatCard,
 	type ChatMessage,
+	type RecipeCard,
 	type ShoppingCard
 } from '#lib/chat.ts';
 import { chatMessage } from '#lib/server/db/schema.ts';
@@ -367,6 +368,142 @@ async function runTool(
 
 export class ChatError extends Error {}
 
+/** The AI and its tools, round after round, until it answers: what it said and the cards it made. */
+async function rounds(
+	k: Kitchen,
+	userId: string,
+	messages: ToolChatMessage[],
+	o: { apiKey: string; label: string; model: string; tools: Tool[] }
+) {
+	const cards: ChatCard[] = [];
+	let text = '';
+	// Only those it was given: an AI asking for another (a read, in Mensajes) gets nothing.
+	const offered = new Set(o.tools.map((t) => t.function.name));
+	try {
+		for (let round = 0; round < MAX_ROUNDS; round++) {
+			const answer = await chatWithTools({
+				apiKey: o.apiKey,
+				label: o.label,
+				model: o.model,
+				fallbackModel: FALLBACK_VOICE_MODEL,
+				messages,
+				tools: o.tools,
+				timeoutMs: TIMEOUT_MS
+			});
+			if (answer.content) text = answer.content.trim();
+			if (!answer.toolCalls.length) break;
+			messages.push({ role: 'assistant', content: answer.content, tool_calls: answer.toolCalls });
+			for (const call of answer.toolCalls) {
+				const { result, card } = offered.has(call.function.name)
+					? await runTool(k, userId, call)
+					: { result: `No hay ninguna herramienta «${call.function.name}».`, card: undefined };
+				if (card) cards.push(card);
+				messages.push({ role: 'tool', tool_call_id: call.id, content: result });
+			}
+		}
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		console.error(`[${o.label.toLowerCase()}] ${message}`);
+		throw new ChatError(sayableError(message));
+	}
+	if (!text && !cards.length) text = 'No sé qué contestar a eso. ¿Me lo dices de otra forma?';
+	return { text, cards };
+}
+
+/** What may be sent in a message (#555): a recipe or a list, made by the AI in its panel. */
+const MESSAGE_TOOLS = new Set(['propose_shopping', 'propose_recipe', 'read_recipe']);
+/** The panel's turns sent back each time: it is kept nowhere else. */
+export const MESSAGE_TURNS = 8;
+
+/** A card the panel sends back, checked again: only a recipe or a list. */
+export function messageCard(value: unknown): ShoppingCard | RecipeCard | null {
+	const c = (value ?? {}) as Record<string, unknown>;
+	if (c.kind === 'compra') {
+		const items = shoppingItems(c.items);
+		return items.length ? { kind: 'compra', items, added: null } : null;
+	}
+	if (c.kind === 'receta') {
+		const recipe = parseRecipe(c.recipe);
+		return typeof recipe === 'string' ? null : { kind: 'receta', recipe, savedId: null };
+	}
+	return null;
+}
+
+function messageSystem(c: {
+	name: string;
+	assistant: string;
+	to: string;
+	style: string | null;
+	recipes: { id: number; title: string }[];
+}) {
+	return `Eres ${c.assistant}, el asistente de Seilide, la app de una familia. ${c.name} está en Mensajes, escribiendo a ${c.to}, y te pide algo para mandárselo. Contesta en español de España, de tú.
+
+- Tú no mandas nada: haces tarjetas, y ${c.name} elige una y pulsa «Enviar». No leas ni digas que lees la conversación: no la ves, solo lo que te pide aquí.
+- Una receta, con «propose_recipe», entera. Si no dice cuál exactamente («una tarta de chocolate»), propón dos o tres distintas (una fácil, otra sin horno o más ligera…), cada una en su tarjeta, y que el texto diga en una línea en qué se diferencian. Si dice una concreta, solo esa. Si está en el recetario de la familia (abajo), léela con «read_recipe» y propón esa.
+- Una lista de cosas (la compra para algo, lo que hay que llevar), con «propose_shopping», en una sola tarjeta.
+- El texto, muy corto (una o dos frases): las tarjetas ya lo dicen todo. Sin títulos ni negritas.
+- Si pide algo que no es una receta ni una lista, dile en una frase que de momento solo preparas recetas y listas para mandar.
+${c.style ? `- El carácter de la casa, solo el tono: «${c.style}».\n` : ''}
+Recetario de la familia:
+${c.recipes.map((r) => `- ${r.title} [receta ${r.id}]`).join('\n') || '(vacío)'}`;
+}
+
+/**
+ * Mensajes (#555): something asked to the AI in its panel, beside a conversation it never sees,
+ * to send: a recipe or a list, as cards. Nothing is kept here: the panel sends its earlier turns,
+ * checked again.
+ */
+export async function askForMessage(
+	k: Kitchen,
+	who: { id: string; name: string },
+	ask: {
+		question: string;
+		/** «la familia», «Papá». */
+		to: string;
+		/** Its name, the family's wake word: «Makoto». */
+		assistant: string;
+		turns: { role: 'user' | 'assistant'; text: string; cards?: unknown[] }[];
+	}
+): Promise<{ text: string; cards: ChatCard[] }> {
+	const said = ask.question.trim().slice(0, MAX_CHAT_QUESTION);
+	if (!said) throw new ChatError('Escribe qué quieres');
+	const [apiKey, settings, recipes] = await Promise.all([
+		openRouterKey(k),
+		voiceSettings(k),
+		listRecipes(k)
+	]);
+	if (!apiKey)
+		throw new ChatError('La familia no tiene clave de IA: quien administra la pone en Ajustes');
+	const turns = ask.turns.slice(-MESSAGE_TURNS).map((t): ToolChatMessage => ({
+		role: t.role === 'assistant' ? 'assistant' : 'user',
+		content:
+			asText({
+				text: String(t.text ?? '').slice(0, MAX_CHAT_QUESTION),
+				cards: (Array.isArray(t.cards) ? t.cards : []).flatMap((c) => messageCard(c) ?? [])
+			}) || '(sin texto)'
+	}));
+	const messages: ToolChatMessage[] = [
+		{
+			role: 'system',
+			content: messageSystem({
+				name: who.name,
+				assistant: ask.assistant.slice(0, 40) || 'el asistente',
+				to: ask.to.slice(0, 80) || 'alguien',
+				style: settings.style,
+				recipes
+			})
+		},
+		...turns,
+		{ role: 'user', content: said }
+	];
+	return rounds(k, who.id, messages, {
+		apiKey,
+		label: 'Mensajes',
+		model: settings.conversationModel,
+		tools: TOOLS.filter((t) => MESSAGE_TOOLS.has(t.function.name))
+	});
+}
+
 /**
  * A question, answered: the AI with the family's key, with their history, the shopping list and the
  * recipe book; both messages saved together once it answered, so a failure leaves nothing behind
@@ -401,35 +538,12 @@ export async function askChat(
 			.map((m): ToolChatMessage => ({ role: m.role, content: asText(m) || '(sin texto)' })),
 		{ role: 'user', content: said }
 	];
-	const cards: ChatCard[] = [];
-	let text = '';
-	try {
-		for (let round = 0; round < MAX_ROUNDS; round++) {
-			const answer = await chatWithTools({
-				apiKey,
-				label: 'Preguntar',
-				model: settings.conversationModel,
-				fallbackModel: FALLBACK_VOICE_MODEL,
-				messages,
-				tools: [...TOOLS, ...READ_TOOLS],
-				timeoutMs: TIMEOUT_MS
-			});
-			if (answer.content) text = answer.content.trim();
-			if (!answer.toolCalls.length) break;
-			messages.push({ role: 'assistant', content: answer.content, tool_calls: answer.toolCalls });
-			for (const call of answer.toolCalls) {
-				const { result, card } = await runTool(k, who.id, call);
-				if (card) cards.push(card);
-				messages.push({ role: 'tool', tool_call_id: call.id, content: result });
-			}
-		}
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		console.error(`[preguntar] ${message}`);
-		throw new ChatError(sayableError(message));
-	}
-	if (!text && !cards.length) text = 'No sé qué contestar a eso. ¿Me lo dices de otra forma?';
-
+	const { text, cards } = await rounds(k, who.id, messages, {
+		apiKey,
+		label: 'Preguntar',
+		model: settings.conversationModel,
+		tools: [...TOOLS, ...READ_TOOLS]
+	});
 	return k.run(async (tx) => {
 		const rows = await tx
 			.insert(chatMessage)

@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, like } from 'drizzle-orm';
 import { parseRecipe, type Recipe } from 'comun/recipe.ts';
 import { recipe } from '#lib/server/db/schema.ts';
 import { openRouterKey, recipesBackdropId } from '#lib/server/family-settings.ts';
@@ -184,6 +184,8 @@ export async function importRecipe(k: Kitchen, address: string) {
 /** Where a recipe written in «Preguntar» (#470) comes from: no page, so not a link. */
 export const CHAT_SOURCE = 'chat:';
 export const CHAT_SOURCE_NAME = 'Escrita en «Preguntar»';
+/** One that came in a message (#555), saved by whoever got it. */
+export const MESSAGE_SOURCE_NAME = 'Llegó por Mensajes';
 
 /** A web page's address, to link to; null for one written in the chat. */
 export const sourceLink = (sourceUrl: string) =>
@@ -193,7 +195,13 @@ export const sourceLink = (sourceUrl: string) =>
  * A recipe the AI wrote in «Preguntar» (#470), into the book: its own `sourceUrl` (`chat:` and the
  * message and card it came from), so saving it twice keeps one.
  */
-export async function saveWrittenRecipe(k: Kitchen, written: Recipe, from: string) {
+export async function saveWrittenRecipe(
+	k: Kitchen,
+	written: Recipe,
+	from: string,
+	/** Where it was written, as Recetas says it: Preguntar's by default; Mensajes' (#555). */
+	sourceName = CHAT_SOURCE_NAME
+) {
 	const sourceUrl = `${CHAT_SOURCE}${from}`;
 	const [row] = await k.run((tx) =>
 		tx
@@ -202,7 +210,7 @@ export async function saveWrittenRecipe(k: Kitchen, written: Recipe, from: strin
 				...recipeFields(written),
 				familyId: k.familyId,
 				sourceUrl,
-				sourceName: CHAT_SOURCE_NAME,
+				sourceName,
 				createdBy: k.userId
 			})
 			.onConflictDoNothing()
@@ -224,6 +232,24 @@ const recipeFields = (r: Recipe) => ({
 	ingredients: r.ingredients,
 	steps: r.steps
 });
+
+/** Where a recipe that came in a message is kept (#555): once per message, for the whole family. */
+const MESSAGE_SOURCE = `${CHAT_SOURCE}mensajes/`;
+export const messageSource = (from: string) => `mensajes/${from}`;
+
+/**
+ * Recipes that came in messages and are in the family's book (#555), by their message
+ * («conversación/mensaje»): saved by one, «En Recetas ✓» for all of the family.
+ */
+export async function recipesFromMessages(k: Kitchen): Promise<Record<string, number>> {
+	const rows = await k.run((tx) =>
+		tx
+			.select({ id: recipe.id, sourceUrl: recipe.sourceUrl })
+			.from(recipe)
+			.where(like(recipe.sourceUrl, `${MESSAGE_SOURCE}%`))
+	);
+	return Object.fromEntries(rows.map((r) => [r.sourceUrl.slice(MESSAGE_SOURCE.length), r.id]));
+}
 
 /** The book, by title. */
 export async function listRecipes(k: Kitchen) {

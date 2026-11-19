@@ -412,6 +412,27 @@ describe('voice notes', () => {
 		await expect(mama.m.sendPlace(conv, { lat: 120, lon: 0 })).rejects.toThrow();
 	});
 
+	test('a recipe or a list (#555): inside the encrypted message, checked when read', async () => {
+		const recipe = {
+			title: 'Tarta de chocolate',
+			servings: 8,
+			ingredients: ['200 g de chocolate'],
+			steps: [{ text: 'Funde el chocolate', timer: null }]
+		};
+		const sent = await mama.m.sendCard(conv, { kind: 'receta', recipe });
+		expect(sent?.card).toEqual({ kind: 'receta', recipe });
+		await mama.m.sendCard(conv, { kind: 'compra', items: [' Crema ', '', 'Toallas'] });
+		await movil.m.sync();
+		const [r, l] = (await movil.m.messages(conv)).slice(-2);
+		expect(r!.card).toEqual({ kind: 'receta', recipe });
+		expect(describeMessage(r!)).toBe('🍰 Receta: Tarta de chocolate');
+		expect(l!.card).toEqual({ kind: 'compra', items: ['Crema', 'Toallas'] });
+		expect(JSON.stringify(await db.execute(sql`select data from msg_event`))).not.toContain(
+			'chocolate'
+		);
+		await expect(mama.m.sendCard(conv, { kind: 'compra', items: [] })).rejects.toThrow();
+	});
+
 	test('with its text, made by the sender («los dos»): it comes with it, encrypted', async () => {
 		const sound = new Uint8Array(4_000).map((_, i) => i & 255);
 		const sent = await mama.m.sendAudio(conv, sound, 'audio/webm', 2, 'Que bajes a cenar');
