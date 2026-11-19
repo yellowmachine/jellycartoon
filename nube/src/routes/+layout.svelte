@@ -11,7 +11,7 @@
 	import AlarmBanner from 'comun/components/AlarmBanner.svelte';
 	import KidRequests from '#lib/components/KidRequests.svelte';
 	import AiStoppedBanner from '#lib/components/AiStoppedBanner.svelte';
-	import SiteNav from 'comun/components/SiteNav.svelte';
+	import SiteNav, { type UserLink } from 'comun/components/SiteNav.svelte';
 	import MusicBar from 'comun/components/MusicBar.svelte';
 	import AiSpendLine from 'comun/components/AiSpendLine.svelte';
 	import VoiceBubble from '#lib/components/VoiceBubble.svelte';
@@ -131,6 +131,29 @@
 	 */
 	const chatOn = $derived(nav.menuLinks.some((l) => l.href === '/preguntar'));
 	const chatShown = $derived(chatOn && chatPanel.open && page.url.pathname !== '/preguntar');
+	/** Wide enough for the chat beside the page (Tailwind's lg). */
+	const wide = new MediaQuery('(min-width: 1024px)', false);
+	/** The bar's sections without «Preguntar»: its button at the start is it (#470). */
+	const barLinks = $derived(nav.links.filter((l) => l.href !== '/preguntar' || !chatOn));
+	/**
+	 * The badge's menu, with the Vista (#525) for the grown-ups, after «Leer un QR»: the house's
+	 * screen, not one of the bar's buttons. From the tap, in full screen on a tablet.
+	 */
+	const userLinks = $derived.by((): UserLink[] => {
+		if (!voiceOn) return nav.userLinks;
+		const links = [...nav.userLinks];
+		const at = links.findIndex((l) => l.href === '/qr') + 1;
+		links.splice(at, 0, {
+			href: '/vista',
+			label: 'Vista',
+			icon: 'vista',
+			onclick: (e) => {
+				e.preventDefault();
+				void vista.enter(true);
+			}
+		});
+		return links;
+	});
 
 	const installed = new MediaQuery('(display-mode: standalone)', false);
 	const backShown = $derived(installed.current && page.url.pathname !== '/');
@@ -318,14 +341,14 @@ trip's link (#81), for whoever has it, and a shared walk's (#434), with its own 
 					title: data.family ? `Seilide · ${data.family.name}` : 'Seilide',
 					image: favicon
 				}}
-				links={nav.links}
+				links={barLinks}
 				menuLinks={nav.menuLinks}
 				user={{
 					name: data.user.name,
 					badge: 'bg-amber-500 text-sm font-semibold text-zinc-950 hover:bg-amber-400',
 					mark: initial
 				}}
-				userLinks={nav.userLinks}
+				{userLinks}
 			>
 				{#snippet start()}
 					{#if backShown}
@@ -395,53 +418,33 @@ trip's link (#81), for whoever has it, and a shared walk's (#434), with its own 
 									/>
 								</svg>
 							</a>
-							<!-- The Vista (#525), one tap away: today in the house, the recipe, the music. -->
-							<button
-								title="Vista: la pantalla de casa, a pantalla completa"
-								aria-label="Vista"
-								class={[
-									'shrink-0 rounded-md p-1 hover:bg-zinc-800 hover:text-white',
-									vista.on ? 'text-amber-400' : 'text-zinc-400'
-								]}
-								onclick={() => vista.enter(true)}
-							>
-								<!-- A screen on its stand with a house: the tablet on the wall. -->
-								<svg viewBox="0 0 24 24" class="h-6 w-6" aria-hidden="true">
-									<rect
-										x="2.5"
-										y="3.5"
-										width="19"
-										height="13"
-										rx="2"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="2"
-									/>
-									<path
-										d="M8.5 12.5v-3L12 7l3.5 2.5v3M9 20.5h6M12 16.5v4"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="2"
-										stroke-linecap="round"
-										stroke-linejoin="round"
-									/>
-								</svg>
-							</button>
-							<!-- «Preguntar» on the right of the page (#504): only where it fits; elsewhere, and on
-							     its own page, its section in the bar. -->
-							{#if chatOn && page.url.pathname !== '/preguntar'}
-								<button
-									title={chatShown ? 'Cerrar Preguntar' : 'Preguntar, al lado de esta página'}
-									aria-label="Preguntar al lado"
-									aria-pressed={chatShown}
+							<!-- «Preguntar» (#470), once and here at the start, not also among the sections: on a
+							     wide screen, beside the page (#504); on a phone or a tablet, and on its own page, its
+							     page. -->
+							{#if chatOn}
+								<a
+									href="/preguntar"
+									title={!wide.current || page.url.pathname === '/preguntar'
+										? 'Preguntar'
+										: chatShown
+											? 'Cerrar Preguntar'
+											: 'Preguntar, al lado de esta página'}
+									aria-label="Preguntar"
+									aria-current={page.url.pathname === '/preguntar' ? 'page' : undefined}
 									class={[
-										'hidden shrink-0 rounded-md p-1 hover:bg-zinc-800 hover:text-white lg:block',
-										chatShown ? 'text-amber-400' : 'text-zinc-400'
+										'shrink-0 rounded-md p-1 hover:bg-zinc-800 hover:text-white',
+										chatShown || page.url.pathname === '/preguntar'
+											? 'text-amber-400'
+											: 'text-zinc-400'
 									]}
-									onclick={() => chatPanel.toggle()}
+									onclick={(e) => {
+										if (!wide.current || page.url.pathname === '/preguntar') return;
+										e.preventDefault();
+										chatPanel.toggle();
+									}}
 								>
 									<SectionIcon name="preguntar" class="h-6 w-6" />
-								</button>
+								</a>
 							{/if}
 							<!-- A receipt's photo for Gastos (#194), at once: on phones and tablets, with their camera; a
 					     PC has the button in Gastos. The photo is read there. As at home. -->

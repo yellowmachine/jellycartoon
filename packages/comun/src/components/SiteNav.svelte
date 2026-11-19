@@ -18,6 +18,8 @@
 		label: string;
 		icon: Section | 'ajustes';
 		external?: boolean;
+		/** Also on its tap, before following it (it may call preventDefault): Seilide's Vista, in full screen. */
+		onclick?: (e: MouseEvent) => void;
 	}
 </script>
 
@@ -194,7 +196,13 @@
 					{#snippet children(close)}
 						<p class="truncate px-3 py-1.5 text-xs text-zinc-400">{user.name}</p>
 						{#each userLinks as link (link.href)}
-							<a href={link.href} onclick={close} class={userItem}
+							<a
+								href={link.href}
+								onclick={(e) => {
+									close();
+									link.onclick?.(e);
+								}}
+								class={userItem}
 								>{#if link.icon === 'ajustes'}<svg {...iconSvg}
 										><path
 											d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"
@@ -259,7 +267,10 @@
 					<li>
 						<a
 							href={link.href}
-							onclick={() => menu?.hidePopover()}
+							onclick={(e) => {
+								menu?.hidePopover();
+								link.onclick?.(e);
+							}}
 							class={[
 								'flex min-w-0 items-center gap-3 rounded-md px-2 py-3 text-base hover:bg-zinc-900',
 								!link.external && isCurrent(link.href) ? 'text-amber-400' : 'text-zinc-200'
