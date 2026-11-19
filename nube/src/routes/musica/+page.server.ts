@@ -1,4 +1,4 @@
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { HouseProblem } from '#lib/server/house.ts';
 import { catalog, deleteDjPreset, djInfo, saveDjPreset } from '#lib/server/music.ts';
@@ -15,7 +15,9 @@ const whoOf = (locals: App.Locals) => ({ id: locals.user!.id, email: locals.user
  * while: not awaited, the page opens meanwhile and it comes after
  * (https://svelte.dev/docs/kit/load#Streaming-with-promises).
  */
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, parent }) => {
+	// The family's own bucket as this person's source (#534, phase 3): its albums instead.
+	if ((await parent()).source === 'propia') redirect(307, '/musica/tu-musica');
 	const who = whoOf(locals);
 	// Without the house, nothing.
 	const albums = catalog(who).catch((error) => {

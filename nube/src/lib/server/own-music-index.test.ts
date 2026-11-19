@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import { audioType, changes, folderCovers, mimeOf, trackInfo } from './own-music-index.ts';
+import {
+	audioType,
+	changes,
+	folderCovers,
+	folderView,
+	mimeOf,
+	trackInfo
+} from './own-music-index.ts';
 
 /** «Tu música» (#534): what is pure of reading the family's bucket. */
 
@@ -104,5 +111,42 @@ describe('what changed', () => {
 		const { read, gone } = changes(listed, indexed);
 		expect(read.map((r) => r.key)).toEqual(['b.mp3', 'c.mp3', 'e.mp3']);
 		expect(gone).toEqual([4]);
+	});
+});
+
+describe('folders (Carpetas)', () => {
+	const t = (key: string, durationSec: number | null = 60) => ({ key, durationSec });
+	const tracks = [
+		t('Música/Queen/A Night/10 - Love.mp3'),
+		t('Música/Queen/A Night/2 - Death.mp3', 120),
+		t('Música/Queen/Jazz/1 - Mustapha.mp3', null),
+		t('Música/suelta.mp3'),
+		t('Otra/nada.mp3')
+	];
+
+	test('the music folder: its folders and its own tracks', () => {
+		const v = folderView(tracks, 'Música/', '')!;
+		expect(v.name).toBe('');
+		expect(v.folders).toEqual([{ path: 'Queen', name: 'Queen', tracks: 3, durationSec: 180 }]);
+		expect(v.tracks.map((x) => x.key)).toEqual(['Música/suelta.mp3']);
+	});
+
+	test('a folder inside, in natural order', () => {
+		const v = folderView(tracks, 'Música/', 'Queen/A Night')!;
+		expect(v.name).toBe('A Night');
+		expect(v.folders).toEqual([]);
+		expect(v.tracks.map((x) => x.key)).toEqual([
+			'Música/Queen/A Night/2 - Death.mp3',
+			'Música/Queen/A Night/10 - Love.mp3'
+		]);
+		expect(folderView(tracks, 'Música/', 'Queen')!.folders.map((f) => f.path)).toEqual([
+			'Queen/A Night',
+			'Queen/Jazz'
+		]);
+	});
+
+	test('none such, null; the whole bucket as root', () => {
+		expect(folderView(tracks, 'Música/', 'Nada')).toBeNull();
+		expect(folderView(tracks, '', '')!.folders.map((f) => f.name)).toEqual(['Música', 'Otra']);
 	});
 });

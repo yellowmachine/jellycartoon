@@ -130,3 +130,43 @@ export function changes<T extends Listed & { id: number }>(listed: Listed[], ind
 		gone: indexed.filter((t) => !there.has(t.key)).map((t) => t.id)
 	};
 }
+
+/**
+ * Música → Carpetas from the bucket (#534, phase 3): a folder of it as it is, relative to the
+ * music's folder (`root`), with the folders inside (how many tracks, how long) and its own tracks
+ * in the order of their names. `path` without slashes at the ends; '' the music's folder. Null, a
+ * folder with nothing in it (or none such).
+ */
+export function folderView<T extends { key: string; durationSec: number | null }>(
+	tracks: T[],
+	root: string,
+	path: string
+) {
+	const here = path ? `${root}${path}/` : root;
+	const inside = new Map<string, { tracks: number; durationSec: number }>();
+	const files: T[] = [];
+	for (const t of tracks) {
+		if (!t.key.startsWith(here)) continue;
+		const rest = t.key.slice(here.length);
+		const slash = rest.indexOf('/');
+		if (slash === -1) {
+			files.push(t);
+			continue;
+		}
+		const name = rest.slice(0, slash);
+		const f = inside.get(name) ?? { tracks: 0, durationSec: 0 };
+		f.tracks++;
+		f.durationSec += t.durationSec ?? 0;
+		inside.set(name, f);
+	}
+	if (path && !files.length && !inside.size) return null;
+	const byName = (a: string, b: string) => a.localeCompare(b, 'es', { numeric: true });
+	return {
+		path,
+		name: path.slice(path.lastIndexOf('/') + 1),
+		folders: [...inside]
+			.sort(([a], [b]) => byName(a, b))
+			.map(([name, f]) => ({ path: path ? `${path}/${name}` : name, name, ...f })),
+		tracks: files.sort((a, b) => byName(a.key, b.key))
+	};
+}

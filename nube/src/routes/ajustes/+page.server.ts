@@ -126,6 +126,7 @@ import {
 	saveHouse
 } from '#lib/server/house.ts';
 import { recordsTrips, setRecordTrips } from '#lib/server/trips/trips.ts';
+import { isMusicSource, musicSources, setMusicSource } from '#lib/server/music-source.ts';
 import { callButtons } from '#lib/server/call-buttons.ts';
 import { familyLinks } from '#lib/server/family-links.ts';
 import { deleteCar, listCars, myCarId, saveCar, setMyCar } from '#lib/server/trips/cars.ts';
@@ -194,6 +195,8 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		/** Where its files are (#480, phase 2): Seilide's or its own, and a move going on. */
 		/** «Tu música» (#534): the family's bucket for Música, to who runs the family. */
 		ownMusic: admin ? await sourceView(membership.familyId) : null,
+		/** Where this person's Música comes from (#534, phase 3), chosen when there are both. */
+		musicSources: await musicSources(locals.user!.id),
 		storagePlace: storageReady
 			? { ...storageView(await familyStorage.of(membership.familyId)), admin }
 			: null,
@@ -540,6 +543,13 @@ export const actions: Actions = {
 		return { saved: 'callButton' };
 	},
 	/** «Guardar mis viajes»: off deletes nothing already kept. */
+	/** «De dónde sale tu música» (#534, phase 3): the house's or the family's own bucket. */
+	musicSource: async ({ request, locals }) => {
+		const kind = (await request.formData()).get('source');
+		if (!isMusicSource(kind)) return fail(400, { musicSourceProblem: 'Elige de dónde' });
+		await setMusicSource(locals.user!.id, kind);
+		return { saved: 'musicSource' };
+	},
 	recordTrips: async ({ request, locals }) => {
 		const on = (await request.formData()).get('recordTrips') === 'on';
 		await setRecordTrips(await kitchenOf(locals.user!.id), on);

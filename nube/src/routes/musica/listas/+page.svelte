@@ -4,10 +4,9 @@
 	import { formatDuration } from 'comun/format.ts';
 	import OfflineLists from '#lib/components/OfflineLists.svelte';
 	import { ownListUrl } from '#lib/own-music.ts';
-	import { page } from '$app/state';
 	import type { PageProps } from './$types';
 
-	/** The house's playlists (#253), as jellycartoon's: the same ones, for everyone at home. */
+	/** The playlists (#253), as jellycartoon's: the house's, or the family's own bucket's (#534). */
 	let { data, form }: PageProps = $props();
 </script>
 
@@ -15,11 +14,8 @@
 	<title>Listas de música · Seilide</title>
 </svelte:head>
 
-<!-- Without the house, only «Tu música»'s lists, if the family has its bucket. -->
-{#if !(data.own && page.data.houseProblem)}
-	{#if data.own}
-		<h2 class="mb-2 text-lg font-semibold">De casa</h2>
-	{/if}
+<!-- The lists of this person's source (#534, phase 3): the house's, or the bucket's. -->
+{#if !data.own}
 	<p class="mb-4 text-sm text-zinc-400">
 		Listas de canciones de toda la casa: cualquiera puede escucharlas y cambiarlas. Se añaden
 		canciones con el «+» de cada una, en los álbumes o en el buscador.
@@ -73,22 +69,19 @@
 			problem={form && 'offline' in form ? (form.offline ?? null) : null}
 		/>
 	{/if}
-{/if}
-
-<!-- «Tu música» (#534, phase 2): its own lists, kept in Seilide, only with the bucket's songs. -->
-{#if data.own}
-	<section class={data.own && page.data.houseProblem ? '' : 'mt-10'}>
-		<h2 class="mb-2 text-lg font-semibold">De Tu música</h2>
+{:else}
+	<!-- The bucket's own (#534, phase 2), kept in Seilide, only with its songs. -->
+	<section>
 		<p class="mb-4 text-sm text-zinc-400">
-			Con las canciones de vuestro almacenamiento, para toda la familia. Se añaden con el «+» de
-			cada una en <a href="/musica/tu-musica" class="text-amber-400 hover:underline">Tu música</a>.
+			Listas de canciones de toda la familia: cualquiera puede escucharlas y cambiarlas. Se añaden
+			canciones con el «+» de cada una, en los álbumes o en el buscador.
 		</p>
 		{#if !vista.kiosk}
 			<form method="post" action="?/ownCreate" use:enhance class="mb-2 flex max-w-md gap-2">
 				<input
 					name="name"
 					placeholder="Nombre de la lista nueva"
-					aria-label="Nombre de la lista nueva de Tu música"
+					aria-label="Nombre de la lista nueva"
 					class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-900 text-sm"
 				/>
 				<button
@@ -120,7 +113,7 @@
 				{/each}
 			</ul>
 		{:else}
-			<p class="mt-6 text-zinc-400">Todavía no hay listas de Tu música.</p>
+			<p class="mt-6 text-zinc-400">Todavía no hay listas.</p>
 		{/if}
 	</section>
 {/if}

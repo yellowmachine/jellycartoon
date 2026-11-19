@@ -6,6 +6,7 @@
 	import AlarmBanner from 'comun/components/AlarmBanner.svelte';
 	import MusicBar from 'comun/components/MusicBar.svelte';
 	import TimerBar from '#lib/components/TimerBar.svelte';
+	import VistaIcon, { type VistaIconName } from '#lib/components/VistaIcon.svelte';
 	import VistaRest from '#lib/components/VistaRest.svelte';
 	import VoicePanel from '#lib/components/VoicePanel.svelte';
 	import { vista } from '#lib/vista.svelte.ts';
@@ -24,17 +25,17 @@
 
 	/** A song or an episode on (not the radio, which has its own tab): Música opens «Sonando». */
 	const playing = $derived(Boolean((music.radio ? null : music.current) ?? music.podcast));
-	type Tab = { href: string; label: string; icon: string; also?: string; not?: string };
+	type Tab = { href: string; label: string; icon: VistaIconName; also?: string; not?: string };
 	const TABS: Tab[] = $derived([
-		{ href: '/vista', label: 'Inicio', icon: '🏠', not: '/vista/sonando' },
-		{ href: '/cocina', label: 'Receta', icon: '🍳', also: '/recetas' },
-		{ href: '/series', label: 'Series', icon: '📺', also: '/watch' },
-		{ href: '/canales', label: 'Canales', icon: '📡' },
+		{ href: '/vista', label: 'Inicio', icon: 'inicio', not: '/vista/sonando' },
+		{ href: '/cocina', label: 'Receta', icon: 'receta', also: '/recetas' },
+		{ href: '/series', label: 'Series', icon: 'series', also: '/watch' },
+		{ href: '/canales', label: 'Canales', icon: 'canales' },
 		playing
-			? { href: '/vista/sonando', label: 'Música', icon: '🎵', also: '/musica' }
-			: { href: '/musica', label: 'Música', icon: '🎵', also: '/vista/sonando' },
-		{ href: '/radio', label: 'Radio', icon: '📻', not: '/radio/podcasts' },
-		{ href: '/radio/podcasts', label: 'Podcasts', icon: '🎙️' }
+			? { href: '/vista/sonando', label: 'Música', icon: 'musica', also: '/musica' }
+			: { href: '/musica', label: 'Música', icon: 'musica', also: '/vista/sonando' },
+		{ href: '/radio', label: 'Radio', icon: 'radio', not: '/radio/podcasts' },
+		{ href: '/radio/podcasts', label: 'Podcasts', icon: 'podcasts' }
 	]);
 	const current = (t: Tab) => {
 		const path = page.url.pathname;
@@ -127,10 +128,7 @@
 								current(t)
 									? 'bg-amber-500 text-zinc-950'
 									: 'bg-zinc-900 text-zinc-200 hover:bg-zinc-800'
-							]}
-							><span class="text-2xl leading-none" aria-hidden="true">{t.icon}</span><span
-								class="max-w-full truncate">{t.label}</span
-							></a
+							]}><VistaIcon name={t.icon} /><span class="max-w-full truncate">{t.label}</span></a
 						>
 					{/each}
 				</nav>
@@ -141,8 +139,7 @@
 						rel="noopener"
 						class="flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-white"
 						aria-label="Cómo se usa la Vista (guía)"
-						title="Cómo se usa la Vista"
-						><span class="text-2xl leading-none" aria-hidden="true">?</span>Ayuda</a
+						title="Cómo se usa la Vista"><VistaIcon name="ayuda" />Ayuda</a
 					>{/if}
 				<!-- Locked (#532): held down 3 s, with a ring that fills; a tap alone does nothing. Anywhere on
 				     it (its children take no touch), and as wide whatever it says: growing under the
@@ -161,8 +158,7 @@
 					onpointercancel={() => holdEnd(false)}
 					onlostpointercapture={() => holdEnd(false)}
 					oncontextmenu={(e) => e.preventDefault()}
-					><span class="relative text-2xl leading-none" aria-hidden="true">✕</span><span
-						>{held ? 'Suelta' : holding ? 'Mantén…' : 'Salir'}</span
+					><VistaIcon name="salir" /><span>{held ? 'Suelta' : holding ? 'Mantén…' : 'Salir'}</span
 					></button
 				>
 			</div>

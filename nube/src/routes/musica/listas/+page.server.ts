@@ -12,12 +12,16 @@ import { createOwnPlaylist, NAME_MAX, ownPlaylists } from '#lib/server/own-music
 const whoOf = (locals: App.Locals) => ({ id: locals.user!.id, email: locals.user!.email });
 
 /**
- * The house's playlists (#253); without the house, none. And which devices carry them (#350).
- * And «Tu música»'s (#534, phase 2), if the family has its bucket: Seilide's, apart.
+ * The playlists of this person's music source (#534, phase 3): the house's (#253; without the
+ * house, none), with which devices carry them (#350); or the family's own bucket's, kept in Seilide
+ * (#534, phase 2).
  */
-export const load: PageServerLoad = async ({ locals }) => {
-	const familyId = await withFamily(locals.user!.id, async (_, m) => m.familyId);
-	const own = (await sourceView(familyId)) ? await ownPlaylists(familyId) : null;
+export const load: PageServerLoad = async ({ locals, parent }) => {
+	if ((await parent()).source === 'propia') {
+		const familyId = await withFamily(locals.user!.id, async (_, m) => m.familyId);
+		const own = (await sourceView(familyId)) ? await ownPlaylists(familyId) : [];
+		return { own, lists: [], offline: null };
+	}
 	const [lists, offline] = await Promise.all([
 		playlists(whoOf(locals)).catch((error) => {
 			if (error instanceof HouseProblem) return [];
@@ -25,7 +29,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}),
 		kitchenOf(locals.user!.id).then(offlineListsOf)
 	]);
-	return { lists, offline, own };
+	return { own: null, lists, offline };
 };
 
 /** The list and the device of an order to carry it without coverage, if well formed. */

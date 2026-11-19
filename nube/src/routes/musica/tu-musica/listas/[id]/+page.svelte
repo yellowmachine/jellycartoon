@@ -63,14 +63,14 @@
 
 {#if !items.length}
 	<p class="mt-4 text-zinc-400">
-		Esta lista está vacía. Añade canciones con el «+» de cada una, en <a
+		Esta lista está vacía. Añade canciones con el «+» de cada una, en los <a
 			href="/musica/tu-musica"
-			class="text-amber-400 hover:underline">Tu música</a
+			class="text-amber-400 hover:underline">álbumes</a
 		>.
 	</p>
 {:else}
 	<p class="mb-4 text-sm text-zinc-400">
-		De Tu música · {items.length}
+		{items.length}
 		{items.length === 1 ? 'canción' : 'canciones'} · {formatDuration(totalSec)}
 	</p>
 	<div class="mb-4 flex flex-wrap items-center gap-2">

@@ -49,7 +49,7 @@
 </svelte:head>
 
 <nav class="flex min-w-0 items-center gap-1.5 text-sm text-zinc-400">
-	<a href="/musica/tu-musica" class="shrink-0 hover:text-white">Tu música</a>
+	<a href="/musica/tu-musica" class="shrink-0 hover:text-white">Música</a>
 	<span aria-hidden="true">›</span>
 	<a href={ownArtistUrl(album.artist)} class="truncate hover:text-white">{album.artist}</a>
 </nav>

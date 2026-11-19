@@ -1,3 +1,4 @@
+import { musicSourceOf } from '../music-source.ts';
 import { tickOffBought } from '#lib/server/expenses/bought-list.ts';
 import { STATIONS, COUNTRIES } from 'comun/radio.ts';
 import { parseRecipe } from 'comun/recipe.ts';
@@ -2195,7 +2196,8 @@ export async function runVoiceCommand(
 		home,
 		plugs,
 		callable,
-		companion
+		companion,
+		musicFrom
 	] = await Promise.all([
 		openRouterKey(k),
 		voiceSettings(k),
@@ -2213,8 +2215,13 @@ export async function runVoiceCommand(
 		// Who they may call (#330), only in the car for now. Failing, no one.
 		request.car && k.userId && !satellite ? calls.callable(k.userId).catch(() => []) : [],
 		// «Compañía» (#469): «me voy» and «ya estoy aquí», said to a satellite.
-		satellite ? companionOn(k) : false
+		satellite ? companionOn(k) : false,
+		// Where their music comes from (#534, phase 3): a satellite, the house's.
+		satellite ? 'casa' : musicSourceOf(k).catch(() => 'casa' as const)
 	]);
+	// The family's own bucket as their source: the house's music is not offered (nor its library).
+	const houseMusic = musicFrom === 'casa';
+	if (!houseMusic) without = [...without, 'search_music', 'play_music'];
 	// Always there, short: who the family is and where it lives.
 	const profile = people.length
 		? `[La familia: ${people.map((p) => p.name).join(', ')}.${home ? ` Vivís en ${placeName(home)}.` : ''}]`
@@ -2296,8 +2303,8 @@ export async function runVoiceCommand(
 				{
 					type: 'text',
 					text: instructions({
-						library: house.library,
-						playlists: house.playlists,
+						library: houseMusic ? house.library : [],
+						playlists: houseMusic ? house.playlists : [],
 						house: house.speakers,
 						salon: house.salon,
 						historyRules: house.historyRules,

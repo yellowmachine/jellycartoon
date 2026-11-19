@@ -22,6 +22,8 @@ export interface SettingsShown {
 	admin: boolean;
 	/** The AI's spending line: with the family's OpenRouter key. */
 	spendLine?: boolean;
+	/** Música's source to choose (#534, phase 3): the family has both, the house and its bucket. */
+	twoMusicSources?: boolean;
 }
 
 const onlyAdmin = (d: SettingsShown) => d.admin;
@@ -76,6 +78,13 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		title: 'Mi barra',
 		words:
 			'mi barra secciones menú ocultar quitar mostrar ver arriba series música radio canales recetas nevera agenda llamadas dinero gastos papeles viajes paseos preguntar reglas notas enchufes deberes juegos estadísticas oración'
+	},
+	{
+		id: 'fuente-musica',
+		tab: 'mi',
+		title: 'Tu música, de dónde sale',
+		words: 'musica fuente casa almacenamiento s3 r2 bucket albumes canciones listas carpetas',
+		shown: (d) => Boolean(d.twoMusicSources)
 	},
 	{
 		id: 'viajes',
