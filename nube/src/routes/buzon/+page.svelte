@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
 	import { field, primary, secondary, section } from '#lib/styles.ts';
 	import type { PageProps } from './$types';
@@ -19,6 +20,15 @@
 			minute: '2-digit'
 		});
 	};
+	/** A link out of Seilide (a map, #550): opened apart. */
+	const elsewhere = (url: string) => {
+		try {
+			return new URL(url, page.url.href).origin !== page.url.origin;
+		} catch {
+			return false;
+		}
+	};
+
 	const KIND: Record<string, string> = {
 		agenda: 'Agenda',
 		alarma: 'Alarma',
@@ -32,7 +42,8 @@
 		ia: 'La IA',
 		enchufe: 'Enchufes',
 		espacio: 'Espacio',
-		energia: 'Energía'
+		energia: 'Energía',
+		ubicacion: 'Ubicación'
 	};
 </script>
 
@@ -56,8 +67,11 @@
 				{#each data.items as n (n.id)}
 					<li class="flex items-start gap-3 py-2">
 						<div class="min-w-0 flex-1">
+							<!-- A map (#550) opens apart: the maps app on a phone; the Buzón stays. -->
 							<a
 								href={n.url}
+								target={elsewhere(n.url) ? '_blank' : undefined}
+								rel={elsewhere(n.url) ? 'noopener' : undefined}
 								class={['block hover:underline', n.readAt ? 'text-zinc-400' : 'font-semibold']}
 							>
 								{#if n.level === 'urgente'}<span class="text-red-400">¡Urgente! </span>{/if}

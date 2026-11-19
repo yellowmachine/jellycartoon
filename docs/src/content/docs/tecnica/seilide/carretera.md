@@ -127,6 +127,18 @@ llegada si hay ruta, y cuánto hace de la última posición. Nunca se activa sol
 mientras dura, y se acaba al darle a «Dejar de compartir», al llegar o al cerrar el modo carretera
 (y si la tablet calla 15 minutos). Después, el enlace dice «Este viaje ya no se comparte».
 
+Mandar la ubicación (#550): «manda mi ubicación a mamá» (dónde está ahora) o «comparte el viaje
+con mamá» (el enlace de arriba), por voz (`share_location`, `stop_sharing` solo mientras se
+comparte) o con el dedo (`SendLocation.svelte`, en Ruta y en Viajes). A quién: lo mismo que se
+puede llamar (`calls.callable`: la familia y los mayores de las familias vinculadas). Por voz nunca
+a la primera: `location-check.ts`, como las horas de silencio, pregunta y manda con la respuesta
+(la misma persona y lo mismo, otra orden, en 2 minutos). Lo hace el navegador
+(`location-send.svelte.ts`: `getCurrentPosition`, o empezar a compartir el viaje) y
+`/api/ubicacion` lo manda con `tell()` (Buzón y móvil, tipo `ubicacion`) a la familia de quien lo
+recibe; la puntual lleva un enlace de Google Maps (se abre aparte: en el Buzón y en el service
+worker, lo que no es de Seilide no se abre dentro). Fuera del modo carretera, el viaje compartido
+se ve en toda la web (`ShareBar.svelte`) hasta «Dejar de compartir» o cerrar Seilide.
+
 Seilide, que ya está en internet, guarda en memoria (sin escribirla) la última posición y se la
 enseña a quien tiene el enlace (`/s/…`, sin cuenta). Cada enlace es un token aleatorio de un solo
 viaje; la vista previa de WhatsApp solo dice de quién es, no dónde. El mapa del enlace es de

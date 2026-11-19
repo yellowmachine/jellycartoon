@@ -109,7 +109,14 @@ export type VoiceAction =
 	 * A normal phone call with this device's SIM (#330): one of its contacts by its place in
 	 * `phoneContacts`, or a number said. The device shows it to tap: a page cannot call by itself.
 	 */
-	| { kind: 'dial'; contact?: number; number?: string; name?: string };
+	| { kind: 'dial'; contact?: number; number?: string; name?: string }
+	/**
+	 * «Manda mi ubicación a mamá» (#550), already said yes to: this browser asks its GPS and sends it,
+	 * or shares the trip as it goes (`live`, #81) and sends its link.
+	 */
+	| { kind: 'shareLocation'; userId: string; name: string; live: boolean }
+	/** «Deja de compartir»: the trip shared from this browser, no longer. */
+	| { kind: 'stopSharing' };
 
 /** The longest timer: a day. */
 export const MAX_TIMER_SEC = 24 * 3600;

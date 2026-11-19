@@ -22,6 +22,7 @@
 	import { roadPhotos } from '#lib/road-photos.svelte.ts';
 	import { tripRecorder } from '#lib/trip-recorder.svelte.ts';
 	import { tripShare } from '#lib/trip-share.svelte.ts';
+	import SendLocation from '#lib/components/SendLocation.svelte';
 	import { distanceText, isLngLat, type LngLat, type Place, type Route } from 'comun/road.ts';
 	import { alongLine, guide, lineAhead, locate, metresBetween } from 'comun/road-guide.ts';
 	import {
@@ -146,6 +147,7 @@
 	$effect(() => {
 		voice.road = {
 			position: () => here,
+			startShare: share,
 			navigation: () =>
 				destination && route
 					? `a ${destination.label}, quedan ${distanceText(guidance?.remaining ?? route.distance)}${
@@ -795,7 +797,7 @@
 	 * each position. It stops on arriving and on leaving this page.
 	 */
 	function share() {
-		void tripShare.start(() => ({
+		return tripShare.start(() => ({
 			destination: destination?.label ?? null,
 			arrivesAt: eta ? eta.arrival.getTime() : null
 		}));
@@ -1583,6 +1585,10 @@ home. -->
 										disabled={tripShare.busy}
 										onclick={share}>{tripShare.busy ? 'Compartiendo…' : 'Compartir viaje'}</button
 									>
+								{/if}
+								<!-- To someone of the family, or of a linked one (#550): now, or the trip as it goes. -->
+								{#if data.callable.length}
+									<SendLocation people={data.callable} startShare={share} big />
 								{/if}
 								{#if route && destination}
 									<div class="rounded-2xl bg-zinc-900 p-4">

@@ -1,3 +1,5 @@
+import { sendMyLocation } from '#lib/location-send.svelte.ts';
+import { tripShare } from '#lib/trip-share.svelte.ts';
 import { music } from 'comun/music-player.svelte.ts';
 import { musicTarget } from 'comun/music-target.svelte.ts';
 import type { LngLat, Place } from 'comun/road.ts';
@@ -56,6 +58,8 @@ export interface Road {
 	follow(id: number): void;
 	/** A photo with its camera. */
 	photo(): void;
+	/** Shares the trip (#81), with the route's destination and arrival (#550). */
+	startShare(): Promise<void>;
 }
 
 class VoiceClient {
@@ -382,6 +386,15 @@ async function act(action: VoiceAction) {
 			return timers.prepare(action.label, action.seconds, action.trigger);
 		case 'cancelTimer':
 			return void timers.cancel(action.label);
+		case 'shareLocation':
+			// Not awaited: the GPS may take a while; the reply is read meanwhile, and a failure shown.
+			return void sendMyLocation(
+				{ userId: action.userId, name: action.name },
+				action.live,
+				voice.road?.startShare
+			).catch((err) => (voice.problem = err instanceof Error ? err.message : String(err)));
+		case 'stopSharing':
+			return tripShare.stop();
 		case 'kitchenMode':
 			// The Vista (#525); off, out of it.
 			// Locked (#532): the voice does not close it; only «Salir», held down.

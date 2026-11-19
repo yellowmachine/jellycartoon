@@ -110,6 +110,11 @@ self.addEventListener('notificationclick', (event) => {
 				}).catch(() => null);
 				if (res?.ok) return;
 			}
+			// Somewhere else (a map, #550): opened apart, the maps app on a phone; the app stays.
+			if (new URL(url).origin !== self.location.origin) {
+				await self.clients.openWindow(url);
+				return;
+			}
 			const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
 			const open = windows.find((w) => new URL(w.url).origin === self.location.origin);
 			if (open) {

@@ -32,6 +32,7 @@
 	import { navLinks, sectionOfPath } from '#lib/nav.ts';
 	import { themeColor, themeCss } from 'comun/themes.ts';
 	import { backKey, goBack } from 'comun/back.ts';
+	import ShareBar from '#lib/components/ShareBar.svelte';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
@@ -492,6 +493,8 @@ trip's link (#81), for whoever has it, and a shared walk's (#434), with its own 
 						{#if voiceOn && data.user}
 							<WalkBar userId={data.user.id} />
 						{/if}
+						<!-- The trip shared from here (#550), outside the road mode. -->
+						<ShareBar />
 						<!-- The radio and the podcasts (#253), going on from page to page, as at home. -->
 						<MusicBar />
 						<!-- The AI's spending (#193), if they asked for it in Ajustes, as at home. -->
