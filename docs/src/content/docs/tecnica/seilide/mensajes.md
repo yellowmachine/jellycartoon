@@ -67,7 +67,17 @@ aparato nuevo entra en los grupos como cualquier otro y la copia le da lo de ant
   vuelve a guardar, así que ningún aparato borra lo que guardó otro.
 - `POST /api/mensajes/copia` (`estado`, `evaluar`, `crear`, `abrir`, `guardar`, `olvidar`).
 
+## Audios
+
+Grabados mientras se mantiene pulsado (`recorder.svelte.ts`, MediaRecorder: Opus en webm, o mp4 en
+Safari; 5 min como mucho). El aparato los cifra con una llave AES-256-GCM propia de cada audio, sube
+el fichero cifrado (`POST /api/mensajes/audio`, al almacenamiento de su familia, área `mensajes`, con
+su cuota) y manda en el mensaje MLS `{ t: 'audio', file, key, iv, mime, seconds }`: la llave solo la
+tienen los de la conversación (y la copia con PIN). `msg_file` dice de qué familia es cada fichero y
+de qué conversación; `GET /api/mensajes/audio/<id>?conversacion=` solo a quien está en ella (con una
+familia vinculada, del almacenamiento de quien lo mandó).
+
 ## Pendiente (#551)
 
-Audios, notificación descifrada en el service worker, voz y modo
+Transcribir los audios en el aparato, notificación descifrada en el service worker, voz y modo
 carretera, y quitar Telegram.

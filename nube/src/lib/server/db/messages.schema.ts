@@ -171,3 +171,24 @@ export const msgBackup = pgTable(
 	},
 	(t) => [familyRows('msg_backup_own', t.familyId)]
 ).enableRLS();
+
+/**
+ * A voice note of a conversation (#551): encrypted in the device with its own key, which goes inside
+ * the MLS message; here only that it is, in whose family's storage (area `mensajes`, by its id) and
+ * which conversation may download it. With a linked family, in the sender's family.
+ */
+export const msgFile = pgTable(
+	'msg_file',
+	{
+		/** Made by the server: its name in the storage. */
+		id: text('id').primaryKey(),
+		familyId: text('family_id')
+			.notNull()
+			.references(() => family.id, { onDelete: 'cascade' }),
+		conversationId: text('conversation_id').notNull(),
+		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+		size: integer('size').notNull(),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [familyRows('msg_file_own', t.familyId)]
+).enableRLS();

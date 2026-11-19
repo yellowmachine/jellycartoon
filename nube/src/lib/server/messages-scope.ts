@@ -4,6 +4,7 @@ import {
 	msgConversation,
 	msgDevice,
 	msgEvent,
+	msgFile,
 	msgKeyPackage,
 	msgMember
 } from './db/schema.ts';
@@ -28,6 +29,8 @@ export const MAX_KEY_PACKAGES = 50;
 const PAGE = 500;
 /** An MLS message is small; an audio goes apart (its key inside one). */
 export const MAX_EVENT_BYTES = 64 * 1024;
+/** A voice note, encrypted: some 5 minutes of Opus, with room. */
+export const MAX_AUDIO_BYTES = 6 * 1024 * 1024;
 
 export interface DeviceIn {
 	id: string;
@@ -500,6 +503,50 @@ export function messagesScope(withFamily: ReturnType<typeof familyScope>, partne
 					familyId: row.linkedFamilyId ?? m.familyId
 				}));
 				return { id, familyIds: families, to };
+			});
+		},
+
+		/**
+		 * A voice note of a conversation, encrypted by the device: its id (its name in the family's
+		 * storage, area `mensajes`), and the family whose storage keeps it.
+		 */
+		async addFile(userId: string, deviceId: string, conversationId: string, size: number) {
+			if (!Number.isInteger(size) || size <= 0 || size > MAX_AUDIO_BYTES)
+				throw new MessagesProblem('Audio demasiado largo');
+			return withFamily(userId, async (tx, m) => {
+				await ownDevice(tx, userId, deviceId);
+				await convOf(tx, userId, conversationId);
+				const id = crypto.randomUUID();
+				await tx.insert(msgFile).values({ id, familyId: m.familyId, conversationId, userId, size });
+				return { id, familyId: m.familyId };
+			});
+		},
+
+		/** The upload did not go through (no room): not kept. */
+		async dropFile(userId: string, fileId: string) {
+			await withFamily(userId, (tx) =>
+				tx.delete(msgFile).where(and(eq(msgFile.id, fileId), eq(msgFile.userId, userId)))
+			);
+		},
+
+		/**
+		 * Where a voice note of a conversation this person is in is kept: that family's id; else a
+		 * problem. With a linked family, it may be in the other's.
+		 */
+		async fileFor(userId: string, conversationId: string, fileId: string) {
+			return withFamily(userId, async (tx, m) => {
+				const row = await convOf(tx, userId, conversationId);
+				for (const f of familiesOf(row)) {
+					const found = await inFamily(tx, m.familyId, f, async () => {
+						const [file] = await tx
+							.select({ familyId: msgFile.familyId })
+							.from(msgFile)
+							.where(and(eq(msgFile.id, fileId), eq(msgFile.conversationId, conversationId)));
+						return file?.familyId ?? null;
+					});
+					if (found) return found;
+				}
+				throw new MessagesProblem('No hay ese audio');
 			});
 		},
 

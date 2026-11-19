@@ -3,6 +3,9 @@
 	import { MessagesClient } from '#lib/mensajes/client.svelte.ts';
 	import { MAX_TEXT } from '#lib/mensajes/messenger.ts';
 	import CopiaPin from './CopiaPin.svelte';
+	import AudioBurbuja from './AudioBurbuja.svelte';
+	import { VoiceRecorder } from '#lib/mensajes/recorder.svelte.ts';
+	import MediaIcon from 'comun/components/MediaIcon.svelte';
 	import type { PageProps } from './$types';
 
 	/**
@@ -44,6 +47,14 @@
 		sending = false;
 	}
 
+	const recorder = new VoiceRecorder();
+	/** Held down: recording; let go: sent; slid off the button: dropped. */
+	async function release(cancel = false) {
+		const got = await recorder.stop(cancel);
+		if (got) await client.sendAudio(got.blob, got.seconds);
+	}
+	const clock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
 	const nameOf = (userId: string) => data.names[userId] ?? 'Alguien';
 	const when = (iso: string) =>
 		new Date(iso).toLocaleString('es-ES', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
@@ -58,10 +69,13 @@
 	const title = $derived(
 		!open ? '' : open.kind === 'familia' ? 'Familia' : open.with ? nameOf(open.with) : ''
 	);
-	const preview = (m: { text: string; mine: boolean; userId: string } | null, group: boolean) =>
+	const preview = (
+		m: { text: string; mine: boolean; userId: string; audio?: { seconds: number } } | null,
+		group: boolean
+	) =>
 		!m
 			? 'Sin mensajes todavía'
-			: `${m.mine ? 'Tú: ' : group ? `${nameOf(m.userId)}: ` : ''}${m.text}`;
+			: `${m.mine ? 'Tú: ' : group ? `${nameOf(m.userId)}: ` : ''}${m.audio ? `🎤 Audio (${clock(m.audio.seconds)})` : m.text}`;
 </script>
 
 <svelte:head>
@@ -187,7 +201,7 @@
 							m.mine ? 'bg-amber-500 text-zinc-950' : 'bg-zinc-800 text-zinc-100'
 						]}
 					>
-						{m.text}
+						{#if m.audio}<AudioBurbuja {m} {client} />{:else}{m.text}{/if}
 					</div>
 					<span class="mt-0.5 text-xs text-zinc-500"
 						>{m.mine ? 'Tú' : nameOf(m.userId)} · {when(m.at)}</span
@@ -218,11 +232,41 @@
 				aria-label="Mensaje"
 				class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-900"
 			/>
-			<button
-				class="rounded-md bg-amber-500 px-4 py-2 font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
-				disabled={sending || !text.trim() || client.waiting}>Enviar</button
-			>
+			{#if text.trim()}
+				<button
+					class="rounded-md bg-amber-500 px-4 py-2 font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
+					disabled={sending || client.waiting}>Enviar</button
+				>
+			{:else}
+				<!-- Held down to record a voice note; let go to send it; slid off, dropped. -->
+				<button
+					type="button"
+					class={[
+						'flex touch-none items-center gap-2 rounded-md px-4 py-2 font-medium select-none disabled:opacity-50',
+						recorder.recording
+							? 'bg-red-600 text-white'
+							: 'bg-amber-500 text-zinc-950 hover:bg-amber-400'
+					]}
+					aria-label="Mantén pulsado para grabar un audio"
+					disabled={client.waiting}
+					onpointerdown={(e) => {
+						e.currentTarget.setPointerCapture(e.pointerId);
+						void recorder.start();
+					}}
+					onpointerup={() => void release()}
+					onpointercancel={() => void release(true)}
+					oncontextmenu={(e) => e.preventDefault()}
+					><MediaIcon name="mic" class="h-5 w-5" />{#if recorder.recording}<span
+							class="font-mono tabular-nums">{clock(recorder.seconds)}</span
+						>{/if}</button
+				>
+			{/if}
 		</form>
+		{#if recorder.recording}
+			<p class="mt-2 text-sm text-red-400" role="status">● Grabando… suelta para enviarlo</p>
+		{:else if recorder.problem}
+			<p class="mt-2 text-sm text-red-400">{recorder.problem}</p>
+		{/if}
 		{#if client.problem}
 			<p class="mt-2 text-sm text-red-400">{client.problem}</p>
 		{/if}

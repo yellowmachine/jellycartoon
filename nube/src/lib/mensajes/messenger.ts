@@ -61,6 +61,17 @@ export interface StoredMessage {
 	text: string;
 	at: string;
 	mine: boolean;
+	/** A voice note: its encrypted file in the family's storage, and its key (only here). */
+	audio?: AudioMeta;
+}
+
+export interface AudioMeta {
+	file: string;
+	/** AES-256-GCM's, base64. */
+	key: string;
+	iv: string;
+	mime: string;
+	seconds: number;
 }
 
 export interface Store {
@@ -128,6 +139,12 @@ export interface Transport {
 		m: { conversationId: string; epoch: number; data: string }
 	): Promise<{ id: number }>;
 	events(deviceId: string, since: number): Promise<EventIn[]>;
+	uploadAudio(
+		deviceId: string,
+		conversationId: string,
+		sealed: Uint8Array
+	): Promise<{ id: string }>;
+	downloadAudio(conversationId: string, file: string): Promise<Uint8Array>;
 }
 
 const te = new TextEncoder();
@@ -434,7 +451,8 @@ export class Messenger {
 						deviceId: ev.senderDevice,
 						text: body.text,
 						at: ev.at,
-						mine: from.userId === this.userId
+						mine: from.userId === this.userId,
+						...(body.audio ? { audio: body.audio } : {})
 					});
 			}
 		} catch (err) {
@@ -554,6 +572,49 @@ export class Messenger {
 	async send(conversationId: string, text: string) {
 		const clean = text.trim().slice(0, MAX_TEXT);
 		if (!clean) return null;
+		return this.#post(conversationId, { t: 'texto', text: clean }, { text: clean });
+	}
+
+	/**
+	 * A voice note: encrypted here with a key of its own, uploaded as it is (Seilide cannot open it),
+	 * and its key in the message, which only those in the conversation read.
+	 */
+	async sendAudio(conversationId: string, audio: Uint8Array, mime: string, seconds: number) {
+		const d = await this.#need();
+		const raw = crypto.getRandomValues(new Uint8Array(32));
+		const iv = crypto.getRandomValues(new Uint8Array(12));
+		const key = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt']);
+		const sealed = new Uint8Array(
+			await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, Uint8Array.from(audio))
+		);
+		const { id } = await this.transport.uploadAudio(d.id, conversationId, sealed);
+		const meta: AudioMeta = {
+			file: id,
+			key: toB64(raw),
+			iv: toB64(iv),
+			mime: mime.slice(0, 80),
+			seconds: Math.max(1, Math.round(seconds))
+		};
+		return this.#post(conversationId, { t: 'audio', ...meta }, { text: '', audio: meta });
+	}
+
+	/** A voice note's sound, downloaded and decrypted here. */
+	async audio(m: StoredMessage): Promise<Blob> {
+		if (!m.audio) throw new Error('No es un audio');
+		const sealed = await this.transport.downloadAudio(m.conversationId, m.audio.file);
+		const key = await crypto.subtle.importKey('raw', fromB64(m.audio.key), 'AES-GCM', false, [
+			'decrypt'
+		]);
+		const plain = await crypto.subtle.decrypt(
+			{ name: 'AES-GCM', iv: fromB64(m.audio.iv) },
+			key,
+			Uint8Array.from(sealed)
+		);
+		return new Blob([plain], { type: m.audio.mime });
+	}
+
+	/** Encrypted to the group, sent, and kept here as said. */
+	async #post(conversationId: string, body: object, local: { text: string; audio?: AudioMeta }) {
 		const d = await this.#need();
 		return this.#serial(async () => {
 			const cs = await this.#cs();
@@ -561,7 +622,7 @@ export class Messenger {
 			if (!state) throw new Error('Esta conversación todavía no está lista en este aparato');
 			const r = await createApplicationMessage(
 				state,
-				te.encode(JSON.stringify({ t: 'texto', text: clean, from: identityOf(this.userId, d.id) })),
+				te.encode(JSON.stringify({ ...body, from: identityOf(this.userId, d.id) })),
 				cs
 			);
 			r.consumed.forEach(zeroOutUint8Array);
@@ -582,9 +643,10 @@ export class Messenger {
 				key: String(sent.id),
 				userId: this.userId,
 				deviceId: d.id,
-				text: clean,
+				text: local.text,
 				at: new Date().toISOString(),
-				mine: true
+				mine: true,
+				...(local.audio ? { audio: local.audio } : {})
 			};
 			await this.store.addMessage(m);
 			return m;
@@ -623,12 +685,28 @@ function senderIdentity(state: ClientState, deviceId: string) {
 	return membersOf(state).find((m) => m.identity.endsWith(`/${deviceId}`))?.identity ?? null;
 }
 
-function parseBody(raw: string): { t: 'texto'; text: string; from: string } | null {
+type Body = { text: string; from: string; audio?: AudioMeta };
+
+const isAudio = (b: Record<string, unknown>) =>
+	typeof b.file === 'string' &&
+	typeof b.key === 'string' &&
+	typeof b.iv === 'string' &&
+	typeof b.mime === 'string' &&
+	typeof b.seconds === 'number';
+
+function parseBody(raw: string): Body | null {
 	try {
 		const b = JSON.parse(raw);
-		return b && b.t === 'texto' && typeof b.text === 'string' && typeof b.from === 'string'
-			? { t: 'texto', text: b.text.slice(0, MAX_TEXT), from: b.from }
-			: null;
+		if (!b || typeof b.from !== 'string') return null;
+		if (b.t === 'texto' && typeof b.text === 'string')
+			return { text: b.text.slice(0, MAX_TEXT), from: b.from };
+		if (b.t === 'audio' && isAudio(b))
+			return {
+				text: '',
+				from: b.from,
+				audio: { file: b.file, key: b.key, iv: b.iv, mime: b.mime.slice(0, 80), seconds: b.seconds }
+			};
+		return null;
 	} catch {
 		return null;
 	}

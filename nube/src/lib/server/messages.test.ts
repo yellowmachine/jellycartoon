@@ -103,6 +103,9 @@ function memoryStore(): BackupStore & { all: StoredMessage[] } {
 	};
 }
 
+/** The families' storage (area `mensajes`), in memory: what /api/mensajes/audio keeps. */
+const files = new Map<string, Uint8Array>();
+
 /** What /api/mensajes does, for this person. */
 const transportOf = (userId: string): Transport => ({
 	register: (d) => server.registerDevice(userId, d),
@@ -113,7 +116,16 @@ const transportOf = (userId: string): Transport => ({
 	claim: (deviceId, id, ids) => server.claimKeyPackages(userId, deviceId, id, ids),
 	commit: (deviceId, c) => server.postCommit(userId, deviceId, c),
 	send: (deviceId, m) => server.postMessage(userId, deviceId, m),
-	events: (deviceId, since) => server.events(userId, deviceId, since)
+	events: (deviceId, since) => server.events(userId, deviceId, since),
+	uploadAudio: async (deviceId, conversationId, sealed) => {
+		const f = await server.addFile(userId, deviceId, conversationId, sealed.length);
+		files.set(`${f.familyId}/${f.id}`, sealed);
+		return { id: f.id };
+	},
+	downloadAudio: async (conversationId, file) => {
+		const familyId = await server.fileFor(userId, conversationId, file);
+		return files.get(`${familyId}/${file}`)!;
+	}
 });
 
 const backupOf = (userId: string): BackupTransport => ({
@@ -341,5 +353,31 @@ describe('two people’s conversations', () => {
 		const b = (await texts(mama, pair)).slice(-2).sort();
 		expect(a).toEqual(['mama: A la vez 2', 'miguel: A la vez 1']);
 		expect(b).toEqual(['mama: A la vez 2', 'miguel: A la vez 1']);
+	});
+});
+
+describe('voice notes', () => {
+	test('encrypted with their own key: the storage cannot open them, those in it can', async () => {
+		const sound = new Uint8Array(50_000).map((_, i) => (i * 7) & 255);
+		const abuela = device('abuela');
+		await abuela.m.setup('Tablet de la abuela');
+		await abuela.m.lookAll(); // Not in yet: Miguel's device lets her new one in.
+		await movil.m.lookAll();
+		await abuela.m.sync();
+		const conv2 = 'pareja-abuela-miguel';
+		const sent = await movil.m.sendAudio(conv2, sound, 'audio/webm;codecs=opus', 4.2);
+		expect(sent?.audio?.seconds).toBe(4);
+		// Kept in Miguel's family's storage, encrypted.
+		const kept = [...files.entries()].find(([k]) => k.endsWith(sent!.audio!.file));
+		expect(kept![0].startsWith('A/')).toBe(true);
+		expect(Buffer.from(kept![1]).includes(Buffer.from(sound.subarray(0, 64)))).toBe(false);
+		// The abuela, of a linked family, hears it.
+		await abuela.m.sync();
+		const got = (await abuela.m.messages(conv2)).at(-1)!;
+		expect(got.audio?.seconds).toBe(4);
+		const heard = new Uint8Array(await (await abuela.m.audio(got)).arrayBuffer());
+		expect(heard).toEqual(sound);
+		// Mamá, not in that conversation, may not even download it.
+		await expect(server.fileFor('mama', conv2, sent!.audio!.file)).rejects.toThrow();
 	});
 });

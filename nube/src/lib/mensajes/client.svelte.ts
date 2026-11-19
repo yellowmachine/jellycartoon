@@ -185,6 +185,35 @@ export class MessagesClient {
 		}
 	}
 
+	/** A voice note to the open conversation. */
+	async sendAudio(blob: Blob, seconds: number) {
+		if (!this.current) return;
+		this.problem = null;
+		try {
+			await this.#m.sendAudio(
+				this.current,
+				new Uint8Array(await blob.arrayBuffer()),
+				blob.type,
+				seconds
+			);
+			await this.#reloadCurrent();
+			this.#saveSoon();
+		} catch (err) {
+			this.problem = err instanceof Error ? err.message : String(err);
+		}
+	}
+
+	#sounds = new Map<string, string>();
+	/** A voice note's sound, downloaded and decrypted here once: its address to play. */
+	async sound(m: StoredMessage) {
+		let url = this.#sounds.get(m.key);
+		if (!url) {
+			url = URL.createObjectURL(await this.#m.audio(m));
+			this.#sounds.set(m.key, url);
+		}
+		return url;
+	}
+
 	async setPin(pin: string, replace = false) {
 		this.problem = null;
 		try {

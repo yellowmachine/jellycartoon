@@ -24,6 +24,26 @@ export const httpTransport: Transport = {
 		call({ action: 'llaves', deviceId, conversationId, deviceIds }),
 	commit: (deviceId, c) => call({ action: 'cambio', deviceId, ...c }),
 	send: (deviceId, m) => call({ action: 'enviar', deviceId, ...m }),
+	uploadAudio: async (deviceId, conversationId, sealed) => {
+		const res = await fetch(
+			`/api/mensajes/audio?aparato=${encodeURIComponent(deviceId)}&conversacion=${encodeURIComponent(conversationId)}`,
+			{
+				method: 'POST',
+				headers: { 'content-type': 'application/octet-stream' },
+				body: Uint8Array.from(sealed)
+			}
+		);
+		const answer = await res.json().catch(() => null);
+		if (!res.ok) throw new Error(answer?.message ?? 'Sin conexión');
+		return answer;
+	},
+	downloadAudio: async (conversationId, file) => {
+		const res = await fetch(
+			`/api/mensajes/audio/${encodeURIComponent(file)}?conversacion=${encodeURIComponent(conversationId)}`
+		);
+		if (!res.ok) throw new Error('No se ha podido traer el audio');
+		return new Uint8Array(await res.arrayBuffer());
+	},
 	events: async (deviceId, since) => {
 		const res = await fetch(`/api/mensajes?aparato=${encodeURIComponent(deviceId)}&desde=${since}`);
 		const answer = await res.json().catch(() => null);

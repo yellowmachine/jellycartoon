@@ -192,6 +192,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		note: 'Ciphertext only; each device keeps its own copy of what it read'
 	},
 	msg_event: { leaving: 'stays', joining: 'dropped', zip: false },
+	msg_file: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'Encrypted voice notes; their keys are in the devices (and in each one’s PIN backup)'
+	},
 	msg_backup: {
 		leaving: 'dropped',
 		joining: 'dropped',
