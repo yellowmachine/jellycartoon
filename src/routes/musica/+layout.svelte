@@ -7,6 +7,9 @@
 
 	const onLists = $derived(page.url.pathname.startsWith('/musica/listas'));
 	const onFolders = $derived(page.url.pathname.startsWith('/musica/carpetas'));
+	/** What plays and comes next (it was a panel under the player). */
+	const onQueue = $derived(page.url.pathname.startsWith('/musica/cola'));
+	const onAlbums = $derived(!onLists && !onFolders && !onQueue);
 	const tab = (selected: boolean) => [
 		'border-b-2 px-1 pb-2 text-sm',
 		selected ? 'border-amber-500 text-white' : 'border-transparent text-zinc-400 hover:text-white'
@@ -17,11 +20,7 @@
 
 <!-- Tabs that are links: each view has its own address, and «back» works. -->
 <nav class="mb-6 flex gap-6 border-b border-zinc-800">
-	<a
-		href="/musica"
-		class={tab(!onLists && !onFolders)}
-		aria-current={!onLists && !onFolders ? 'page' : undefined}>Álbumes</a
-	>
+	<a href="/musica" class={tab(onAlbums)} aria-current={onAlbums ? 'page' : undefined}>Álbumes</a>
 	<a href="/musica/listas" class={tab(onLists)} aria-current={onLists ? 'page' : undefined}
 		>Listas</a
 	>
@@ -29,6 +28,7 @@
 	<a href="/musica/carpetas" class={tab(onFolders)} aria-current={onFolders ? 'page' : undefined}
 		>Carpetas</a
 	>
+	<a href="/musica/cola" class={tab(onQueue)} aria-current={onQueue ? 'page' : undefined}>Cola</a>
 </nav>
 
 {@render children()}

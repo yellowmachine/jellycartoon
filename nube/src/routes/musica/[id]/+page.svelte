@@ -1,4 +1,5 @@
 <script lang="ts">
+	import MediaIcon from 'comun/components/MediaIcon.svelte';
 	import AddToQueue from 'comun/components/AddToQueue.svelte';
 	import AddToPlaylist from 'comun/components/AddToPlaylist.svelte';
 	import AlbumCover from 'comun/components/AlbumCover.svelte';
@@ -43,13 +44,15 @@
 		<div class="flex flex-wrap gap-2">
 			<button
 				class="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-zinc-950 hover:bg-amber-400"
-				onclick={() => musicTarget.play(album.tracks, 0, false)}>▶︎ Reproducir</button
+				onclick={() => musicTarget.play(album.tracks, 0, false)}
+				><MediaIcon name="play" class="mr-1.5 inline h-4 w-4 align-[-0.15em]" />Reproducir</button
 			>
 			<!-- Shuffled once, then played in that order (comun/music.ts, `mixed`): here or on Snapcast. -->
 			<button
 				class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800"
 				onclick={() => musicTarget.play(mixed(album.tracks), 0, false)}
-				>🔀 Mezclar y reproducir</button
+				><MediaIcon name="shuffle" class="mr-1.5 inline h-4 w-4 align-[-0.15em]" />Mezclar y
+				reproducir</button
 			>
 			<AddToQueue tracks={album.tracks} toSnapcast={false} />
 			<AddToPlaylist

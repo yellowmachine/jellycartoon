@@ -1,4 +1,5 @@
 <script lang="ts">
+	import MediaIcon from 'comun/components/MediaIcon.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import GuideLink from '#lib/components/GuideLink.svelte';
 	import MusicLibrary from '#lib/components/MusicLibrary.svelte';
@@ -49,10 +50,14 @@
 	{#snippet title()}Música<GuideLink page="musica" label="la música" />{/snippet}
 	{#snippet actions()}
 		{#if albums.length}
-			<button class={button} onclick={playAll}>🔀 Todo aleatorio</button>
+			<button class={button} onclick={playAll}
+				><MediaIcon name="shuffle" class="mr-1.5 inline h-4 w-4 align-[-0.15em]" />Todo aleatorio</button
+			>
 		{/if}
 		{#if data.admin}
-			<a href="/musica/tu-musica/gestion" class={button}>⚙ Gestión</a>
+			<a href="/musica/tu-musica/gestion" class={button}
+				><MediaIcon name="gear" class="mr-1.5 inline h-4 w-4 align-[-0.15em]" />Gestión</a
+			>
 		{/if}
 	{/snippet}
 	{#snippet notice()}

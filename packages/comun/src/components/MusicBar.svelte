@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import MediaIcon from './MediaIcon.svelte';
 	import LyricsView from './Lyrics.svelte';
@@ -62,8 +61,6 @@
 	/** Reconnections of a station played as is (not HLS) since it last played. */
 	let tries = 0;
 	let retryTimer: ReturnType<typeof setTimeout> | undefined;
-	/** The queue, open under the bar: what is on, what comes next and what already played. */
-	let showQueue = $state(false);
 	/** The song's lyrics, if it has some (lyrics.ts): «Letra» opens them under the bar. */
 	let songLyrics = $state<Lyrics | null>(null);
 	let showLyrics = $state(false);
@@ -78,44 +75,6 @@
 		return () => {
 			gone = true;
 		};
-	});
-
-	/**
-	 * The queue saved as a new list, as it is now (albums added, songs taken away or moved): its
-	 * songs only, not the DJ's words nor what is not the library's (Oración).
-	 */
-	const queueSongs = $derived(music.queue.filter((t) => !t.clip && !t.src));
-	let savingQueue = $state<'naming' | 'saving' | null>(null);
-	let queueSaved = $state<{ id: number; name: string } | null>(null);
-	let queueProblem = $state<string | null>(null);
-
-	async function saveQueue(e: SubmitEvent) {
-		e.preventDefault();
-		const name = String(new FormData(e.currentTarget as HTMLFormElement).get('name') ?? '').trim();
-		if (!name) return;
-		savingQueue = 'saving';
-		queueProblem = null;
-		const res = await fetch('/api/music/playlists', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ name, trackIds: queueSongs.map((t) => t.id) })
-		}).catch(() => null);
-		const body = await res?.json().catch(() => null);
-		if (!res?.ok) {
-			savingQueue = 'naming';
-			queueProblem = body?.message ?? 'Sin conexión';
-			return;
-		}
-		savingQueue = null;
-		queueSaved = { id: body.playlistId, name };
-		// The new list shows up in every «+» and in Listas.
-		await invalidateAll();
-	}
-	let queueList = $state<HTMLElement>();
-
-	// Opened: the one on in view, not the start of a long queue.
-	$effect(() => {
-		if (showQueue) queueList?.querySelector('[aria-current]')?.scrollIntoView({ block: 'nearest' });
 	});
 
 	keepQueue();
@@ -959,16 +918,6 @@ and the speed. -->
 				>
 			{/if}
 			{@render volume('order-7')}
-			<button
-				class={[ghost, 'order-2 sm:order-8', showQueue && 'bg-zinc-800 text-white']}
-				aria-label="Cola"
-				aria-expanded={showQueue}
-				title="Cola: lo que suena y lo que viene"
-				onclick={() => {
-					showQueue = !showQueue;
-					showLyrics = false;
-				}}><MediaIcon name="queue" /></button
-			>
 			{#if songLyrics}
 				<button
 					class={[ghost, 'order-2 sm:order-8', showLyrics && 'bg-zinc-800 text-white']}
@@ -977,7 +926,6 @@ and the speed. -->
 					title="Letra de la canción"
 					onclick={() => {
 						showLyrics = !showLyrics;
-						showQueue = false;
 					}}><MediaIcon name="lyrics" /></button
 				>
 			{/if}
@@ -1023,90 +971,6 @@ and the speed. -->
 				positionSec={music.positionSec}
 				class="mt-2 max-h-[50vh] border-t border-zinc-800 px-2 pt-2 pb-[25vh] text-center"
 			/>
-		{/if}
-		{#if showQueue}
-			<!-- «+ Añadir a la cola» of an album adds at the end. What played stays, dimmed: it is
-			     still the queue, and «anterior» or repeat go back to it. -->
-			<ol
-				bind:this={queueList}
-				class="mt-2 max-h-[50vh] overflow-y-auto border-t border-zinc-800 pt-1"
-				aria-label="Cola"
-			>
-				{#each music.queue as t, i (`${i}:${t.id}`)}
-					<li class="flex items-center">
-						<button
-							class={[
-								'flex min-w-0 flex-1 items-center gap-3 rounded px-2 py-1.5 text-left hover:bg-zinc-800',
-								i === music.index ? 'text-amber-400' : i < music.index && 'text-zinc-500'
-							]}
-							aria-current={i === music.index ? 'true' : undefined}
-							onclick={() => music.jumpTo(i)}
-						>
-							<span class="w-6 shrink-0 text-right font-mono text-xs tabular-nums"
-								>{i === music.index ? '♪' : i + 1}</span
-							>
-							<span class="min-w-0 flex-1 truncate text-sm"
-								>{t.title} <span class="text-zinc-500">· {t.artist}</span></span
-							>
-							<span class="font-mono text-xs text-zinc-500 tabular-nums"
-								>{formatDuration(t.durationSec)}</span
-							>
-						</button>
-						{#if i !== music.index}
-							<button
-								class="{ghost} h-7! w-7!"
-								aria-label="Quitar {t.title} de la cola"
-								title="Quitar de la cola"
-								onclick={() => music.remove(i)}><MediaIcon name="close" class="h-3 w-3" /></button
-							>
-						{:else}
-							<span class="w-7 shrink-0" aria-hidden="true"></span>
-						{/if}
-					</li>
-				{/each}
-			</ol>
-			{#if queueSongs.length}
-				<div class="flex flex-wrap items-center gap-2 border-t border-zinc-800 px-2 pt-2 text-sm">
-					{#if savingQueue}
-						<form class="flex min-w-0 flex-1 gap-2" onsubmit={saveQueue}>
-							<!-- svelte-ignore a11y_autofocus -->
-							<input
-								name="name"
-								placeholder="Nombre de la lista"
-								aria-label="Nombre de la lista nueva"
-								maxlength="100"
-								autofocus
-								class="min-w-0 flex-1 rounded border-zinc-700 bg-zinc-950 py-1 text-sm"
-							/>
-							<button
-								class="rounded bg-amber-500 px-3 font-medium text-zinc-950 disabled:opacity-50"
-								disabled={savingQueue === 'saving'}
-								>{savingQueue === 'saving' ? 'Guardando…' : 'Guardar'}</button
-							>
-							<button
-								type="button"
-								class="text-zinc-400 hover:text-white"
-								onclick={() => ((savingQueue = null), (queueProblem = null))}>Cancelar</button
-							>
-						</form>
-					{:else}
-						<button
-							class="text-amber-400 hover:text-amber-300"
-							onclick={() => ((savingQueue = 'naming'), (queueSaved = null))}
-							>Guardar la cola como lista nueva ({queueSongs.length}
-							{queueSongs.length === 1 ? 'canción' : 'canciones'})</button
-						>
-						{#if queueSaved}
-							<a href="/musica/listas/{queueSaved.id}" class="text-zinc-400 hover:text-white"
-								>✓ Guardada: {queueSaved.name}</a
-							>
-						{/if}
-					{/if}
-					{#if queueProblem}
-						<p class="w-full text-xs text-red-400">{queueProblem}</p>
-					{/if}
-				</div>
-			{/if}
 		{/if}
 	</div>
 {/if}
