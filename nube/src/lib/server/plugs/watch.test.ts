@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { PlugWatch, type WatchSettings } from './watch.ts';
+import { PlugWatch, SENSOR_SILENT_MS, type WatchSettings } from './watch.ts';
 
 /** What a plug's watts say (#396, phase 3), on a clock of its own. */
 const ALL: WatchSettings = { done: true, stopped: true, offline: true, onHours: 1 };
@@ -33,6 +33,22 @@ describe('plug watch', () => {
 		expect(w.seen(1, true, 50 * MIN)).toEqual([]);
 		expect(w.tick(53 * MIN)).toEqual(['finished']);
 		expect(w.tick(60 * MIN)).toEqual([]);
+	});
+
+	test('a sensor (#508) asleep 10 minutes at a time is fine; two hours silent, told once', () => {
+		const w = new PlugWatch(
+			{ done: false, stopped: false, offline: true, onHours: null, offlineMs: SENSOR_SILENT_MS },
+			0
+		);
+		for (let m = 0; m < 120; m += 10) {
+			expect(w.seen(null, null, m * MIN)).toEqual([]);
+			w.gone((m + 0.05) * MIN);
+			expect(w.tick((m + 9) * MIN)).toEqual([]);
+		}
+		// Last heard of at 110: nothing more.
+		expect(w.tick(229 * MIN)).toEqual([]);
+		expect(w.tick(231 * MIN)).toEqual(['offline']);
+		expect(w.tick(300 * MIN)).toEqual([]);
 	});
 
 	test('a blip is not a cycle', () => {

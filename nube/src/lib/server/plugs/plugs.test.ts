@@ -563,3 +563,41 @@ describe('consumo', () => {
 		await deletePlug('ana', fan.id);
 	});
 });
+
+describe('sensores (#508)', () => {
+	test('a Shelly H&T: each reading kept, its plug heard from; not a plug, nor scheduled', async () => {
+		const made = await createPlug('ana', 'Dormitorio', 'otro', 'shellyhtg3-d885ac153264');
+		const ws = new FakePlug();
+		await hub.attach(made.token, ws);
+		ws.say({
+			src: 'shellyhtg3-d885ac153264',
+			dst: 'ws',
+			method: 'NotifyFullStatus',
+			params: {
+				'devicepower:0': { id: 0, battery: { V: 6.59, percent: 100 }, external: { present: true } },
+				'humidity:0': { id: 0, rh: 55.1 },
+				'temperature:0': { id: 0, tC: 19.9, tF: 67.8 }
+			}
+		});
+		await settle();
+		const rows = await db
+			.select()
+			.from(schema.plugReading)
+			.where(sql`${schema.plugReading.plugId} = ${made.id}`);
+		expect(rows).toMatchObject([
+			{ familyId: 'A', tempC: 19.9, humidity: 55.1, battery: 100, external: true }
+		]);
+		const [row] = await db
+			.select({ lastSeenAt: schema.plug.lastSeenAt })
+			.from(schema.plug)
+			.where(sql`${schema.plug.id} = ${made.id}`);
+		expect(row!.lastSeenAt).not.toBeNull();
+		expect((await listPlugs('ana')).some((p) => p.id === made.id)).toBe(false);
+		expect(ws.sent.map((f) => f.method)).not.toContain('Schedule.List');
+		expect(ws.sent.map((f) => f.method)).not.toContain('Sys.GetConfig');
+		// Another family's role does not see its readings.
+		const others = await asFamily('B', (tx) => tx.select().from(schema.plugReading));
+		expect(others).toEqual([]);
+		ws.close();
+	});
+});

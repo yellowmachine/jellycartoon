@@ -7,6 +7,7 @@ import {
 	staIpOf,
 	SWITCH_ID,
 	timerOf,
+	type SensorReading,
 	type SwitchState
 } from './shelly.ts';
 
@@ -49,6 +50,11 @@ export interface HubDeps {
 	): Promise<void>;
 	/** What it used in that hour, added. */
 	addEnergy(familyId: string, plugId: string, hour: Date, wh: number): Promise<void>;
+	/**
+	 * A sensor's reading (#508), whole: what it said now over what it said before on the same
+	 * connection, as a change may bring one value alone.
+	 */
+	addReading(familyId: string, plugId: string, at: Date, reading: SensorReading): Promise<void>;
 	/** Just connected: its schedules and the rest put right (plugs.ts). */
 	onConnect?(familyId: string, plugId: string): void;
 	/** Each reading of its, and when its connection is gone: for its notices (watch.ts). */
@@ -100,7 +106,15 @@ interface Connection {
 	alive: boolean;
 	/** When something of it was last saved (ms). */
 	savedAt: number;
+	/** A sensor's last reading on this connection: one that says the same again is not kept. */
+	reading: SensorReading | null;
 }
+
+const sameReading = (a: SensorReading, b: SensorReading) =>
+	a.tempC === b.tempC &&
+	a.humidity === b.humidity &&
+	a.battery === b.battery &&
+	a.external === b.external;
 
 export function createHub(deps: HubDeps) {
 	const now = deps.now ?? (() => new Date());
@@ -187,6 +201,18 @@ export function createHub(deps: HubDeps) {
 		}
 		if (message.sw)
 			onStatus(c, message.sw, message.full).catch((e) => log(`${c.plug.id}: no guardado`, e));
+		if (message.sensor)
+			onReading(c, message.sensor).catch((e) => log(`${c.plug.id}: lectura no guardada`, e));
+	}
+
+	/** A sensor's temperature, humidity or battery: kept when it says something new. */
+	async function onReading(c: Connection, said: SensorReading) {
+		const reading = { ...c.reading, ...said };
+		if (c.reading && sameReading(c.reading, reading)) return;
+		c.reading = reading;
+		c.savedAt = now().getTime();
+		await deps.addReading(c.plug.familyId, c.plug.id, now(), reading);
+		tell(c.plug.familyId);
 	}
 
 	function forget(c: Connection) {
@@ -267,7 +293,8 @@ export function createHub(deps: HubDeps) {
 			nextId: 1,
 			pending: new Map(),
 			alive: true,
-			savedAt: 0
+			savedAt: 0,
+			reading: null
 		};
 		connections.set(plug.id, c);
 		live.set(plug.id, { ...liveOf(plug.id), online: true });

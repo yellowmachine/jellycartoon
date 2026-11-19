@@ -11,6 +11,8 @@ export interface WatchSettings {
 	offline: boolean;
 	/** On longer than this many hours; null, never. */
 	onHours: number | null;
+	/** Without connection this long is «offline»: OFFLINE_MS, unless said (a sensor, #508). */
+	offlineMs?: number;
 }
 
 export type WatchEvent = 'done' | 'stopped' | 'offline' | 'longOn';
@@ -28,6 +30,11 @@ export const DONE_MS = 3 * 60_000;
 export const STOPPED_MS = 3 * 3_600_000;
 /** Without connection this long: the power or the wifi. */
 export const OFFLINE_MS = 30 * 60_000;
+/**
+ * A sensor (#508) sleeps between readings, so being away is normal: it wakes every 10 minutes
+ * (wakeup_period 600 on USB, 2026-11-19). Silent this long, something is wrong.
+ */
+export const SENSOR_SILENT_MS = 2 * 3_600_000;
 
 export class PlugWatch {
 	private runningSince: number | null = null;
@@ -98,7 +105,8 @@ export class PlugWatch {
 	tick(now: number): (WatchEvent | CycleEvent)[] {
 		const events: (WatchEvent | CycleEvent)[] = [];
 		if (this.offlineSince !== null) {
-			if (this.settings.offline && !this.offlineTold && now - this.offlineSince >= OFFLINE_MS) {
+			const long = this.settings.offlineMs ?? OFFLINE_MS;
+			if (this.settings.offline && !this.offlineTold && now - this.offlineSince >= long) {
 				this.offlineTold = true;
 				events.push('offline');
 			}

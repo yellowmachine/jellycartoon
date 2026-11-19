@@ -437,6 +437,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		joining: 'dropped',
 		zip: false
 	},
+	// A sensor's readings (#508): the house's rooms, as its plugs.
+	plug_reading: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false
+	},
 	// Butane and pellet (#513): the house's, as its plugs.
 	fuel: {
 		leaving: 'stays',

@@ -12,6 +12,7 @@ import {
 	type PlugStats
 } from '#lib/plug-stats.ts';
 import { priceOf } from './plugs.ts';
+import { isSensorDevice } from './shelly.ts';
 
 /**
  * Enchufes → Consumo (#396): what the plugs used by day, week, month and year, from what each
@@ -76,10 +77,15 @@ export async function statsIn(
 	const today = localOf(now).day;
 	const view = isView(ask.view) ? ask.view : 'semana';
 	const day = isDay(ask.day) && ask.day <= today ? ask.day : today;
-	const plugs = await tx
-		.select({ id: plug.id, name: plug.name, kind: plug.kind })
-		.from(plug)
-		.orderBy(asc(plug.createdAt));
+	const plugs = (
+		await tx
+			.select({ id: plug.id, name: plug.name, kind: plug.kind, deviceId: plug.deviceId })
+			.from(plug)
+			.orderBy(asc(plug.createdAt))
+	)
+		// Sensors (#508) use nothing.
+		.filter((p) => !isSensorDevice(p.deviceId))
+		.map(({ deviceId: _, ...p }) => p);
 	const plugId = typeof ask.plugId === 'string' && ask.plugId ? ask.plugId : null;
 	if (plugId && !plugs.some((p) => p.id === plugId)) return null;
 

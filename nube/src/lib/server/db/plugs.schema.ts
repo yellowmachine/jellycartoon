@@ -131,3 +131,34 @@ export const plugSchedule = pgTable(
 	},
 	(t) => [index('plug_schedule_plug_idx').on(t.plugId), familyRows('plug_schedule_own', t.familyId)]
 ).enableRLS();
+
+/**
+ * What each sensor read (#508, a Shelly H&T): its temperature, humidity and battery, at the moment
+ * it woke to send them (every 10 minutes on USB, or when they change). Kept on the plug row it was
+ * added as: the same token and connection.
+ */
+export const plugReading = pgTable(
+	'plug_reading',
+	{
+		plugId: text('plug_id')
+			.notNull()
+			.references(() => plug.id, { onDelete: 'cascade' }),
+		familyId: text('family_id')
+			.notNull()
+			.references(() => family.id, { onDelete: 'cascade' }),
+		at: timestamp('at').notNull(),
+		/** °C; null, it could not read it (out of range, or failed). */
+		tempC: real('temp_c'),
+		/** Relative humidity, in %. */
+		humidity: real('humidity'),
+		/** Its battery, in %; null, it did not say. */
+		battery: integer('battery'),
+		/** Powered by USB. */
+		external: boolean('external')
+	},
+	(t) => [
+		primaryKey({ columns: [t.plugId, t.at] }),
+		index('plug_reading_family_at_idx').on(t.familyId, t.at),
+		familyRows('plug_reading_own', t.familyId)
+	]
+).enableRLS();
