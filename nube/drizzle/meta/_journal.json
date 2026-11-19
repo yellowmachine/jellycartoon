@@ -694,6 +694,13 @@
 			"when": 1795085744001,
 			"tag": "0098_sloppy_deadpool",
 			"breakpoints": true
+		},
+		{
+			"idx": 99,
+			"version": "7",
+			"when": 1795086724871,
+			"tag": "0099_dry_meteorite",
+			"breakpoints": true
 		}
 	]
 }

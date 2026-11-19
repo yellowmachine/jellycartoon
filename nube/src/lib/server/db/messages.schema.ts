@@ -83,6 +83,8 @@ export const msgConversation = pgTable(
 			.references(() => family.id, { onDelete: 'cascade' }),
 		kind: text('kind').$type<'familia' | 'pareja'>().notNull(),
 		homeFamilyId: text('home_family_id').notNull(),
+		/** Two people of linked families (#464): the other family, which has the same rows. */
+		linkedFamilyId: text('linked_family_id'),
 		epoch: integer('epoch').notNull().default(0),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},

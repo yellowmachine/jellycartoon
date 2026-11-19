@@ -48,6 +48,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			});
 		case 'familia':
 			return handled(() => messages.familyConversation(userId, deviceId));
+		case 'conversaciones':
+			return handled(() => messages.conversations(userId));
+		case 'pareja':
+			return handled(() => messages.pairConversation(userId, deviceId, str(b.otherId)));
 		case 'conversacion':
 			return handled(() => messages.conversation(userId, deviceId, str(b.conversationId)));
 		case 'llaves':
@@ -72,7 +76,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 							}
 						: {})
 				});
-				if (r.ok) tellNew(r.familyId);
+				if (r.ok) r.familyIds.forEach(tellNew);
 				return { ok: r.ok, epoch: r.epoch };
 			});
 		case 'enviar':
@@ -83,8 +87,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 					epoch: int(b.epoch),
 					data: str(b.data)
 				});
-				tellNew(sent.familyId);
-				void noticeOthers(userId, sent.familyId, conversationId, sent.to).catch((err) =>
+				sent.familyIds.forEach(tellNew);
+				void noticeOthers(userId, conversationId, sent.to).catch((err) =>
 					console.warn('[mensajes] Aviso no mandado', err)
 				);
 				return { id: sent.id };

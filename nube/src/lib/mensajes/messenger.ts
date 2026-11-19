@@ -103,6 +103,10 @@ export interface Transport {
 		keyPackages: string[];
 	}): Promise<{ keyPackages: number }>;
 	familyConversation(deviceId: string): Promise<ConversationView & { created: boolean }>;
+	pairConversation(deviceId: string, otherId: string): Promise<ConversationView>;
+	conversations(
+		deviceId: string
+	): Promise<{ id: string; kind: 'familia' | 'pareja'; with: string | null }[]>;
 	conversation(deviceId: string, id: string): Promise<ConversationView>;
 	claim(
 		deviceId: string,
@@ -301,6 +305,28 @@ export class Messenger {
 		await this.sync();
 		await this.#serial(() => this.#reconcile(d, view.id));
 		return view.id;
+	}
+
+	/** Two people's conversation, made the first time (in both families, if linked ones). */
+	async pair(otherId: string) {
+		const d = await this.#need();
+		const view = await this.transport.pairConversation(d.id, otherId);
+		this.#learn(view);
+		await this.sync();
+		await this.#serial(() => this.#reconcile(d, view.id));
+		return view.id;
+	}
+
+	/**
+	 * Every conversation this person is in, each group as the server says it should be (a new device
+	 * in, a lost one out; a two people's one made by the other, joined): what there is, to list.
+	 */
+	async lookAll() {
+		const d = await this.#need();
+		await this.sync();
+		const list = await this.transport.conversations(d.id);
+		for (const c of list) await this.#serial(() => this.#reconcile(d, c.id));
+		return list;
 	}
 
 	async #need() {

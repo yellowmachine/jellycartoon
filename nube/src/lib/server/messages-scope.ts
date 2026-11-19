@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
 import {
 	familyMember,
 	msgConversation,
@@ -11,10 +11,15 @@ import type { AnyDb, familyScope } from './family-scope.ts';
 
 /**
  * Mensajes (#551): Seilide as MLS's delivery service. It keeps the devices' public key packages, the
- * conversations and who is in each, and a queue of encrypted events, and hands each device what is
- * its own, in order. One change of a group per epoch is accepted (`postCommit`): the others are told
- * to catch up and try again. Nothing here can read a message. Apart from the app's database, to be
- * tested on PGlite as family-scope.ts; the app's are messages.ts.
+ * conversations and who is in each, and a queue of encrypted events per family, and hands each device
+ * what is its own, in order. One change of a group per epoch is accepted (`postCommit`): the others
+ * are told to catch up and try again. Nothing here can read a message.
+ *
+ * Conversations: the family's, and two people's: of the same family, or of two linked ones (#464),
+ * kept in both families with the same id, every event in both queues in one transaction. A queue is
+ * written under its family's lock, so its ids are in the order they are committed and a device never
+ * reads past one still being written. Apart from the app's database, to be tested on PGlite as
+ * family-scope.ts; the app's are messages.ts.
  */
 
 /** At most this many key packages per device: enough for the groups it may be added to meanwhile. */
@@ -38,6 +43,13 @@ export interface ConversationView {
 	devices: { deviceId: string; userId: string }[];
 }
 
+export interface ConversationListed {
+	id: string;
+	kind: 'familia' | 'pareja';
+	/** Two people's: the other one. */
+	with: string | null;
+}
+
 export interface EventOut {
 	id: number;
 	conversationId: string;
@@ -48,7 +60,13 @@ export interface EventOut {
 	at: string;
 }
 
-export type CommitResult = { ok: boolean; epoch: number; familyId: string };
+export type CommitResult = { ok: boolean; epoch: number; familyIds: string[] };
+
+/**
+ * Whom this person may write to on their own (as they may call, #330): someone of their family, or an
+ * adult of a linked family; that one's family, or null.
+ */
+export type PartnerOf = (userId: string, otherId: string) => Promise<{ familyId: string } | null>;
 
 const isId = (v: unknown): v is string => typeof v === 'string' && /^[\w-]{8,64}$/.test(v);
 const isB64 = (v: unknown): v is string =>
@@ -61,8 +79,35 @@ export class MessagesProblem extends Error {}
 
 /** The family's conversation: one per family. */
 export const familyConversationId = (familyId: string) => `familia-${familyId}`;
+/** Two people's: the same whoever opens it first. */
+export const pairConversationId = (a: string, b: string) => `pareja-${[a, b].sort().join('-')}`;
 
-export function messagesScope(withFamily: ReturnType<typeof familyScope>) {
+type Row = typeof msgConversation.$inferSelect;
+type Device = { deviceId: string; userId: string; familyId: string };
+
+/** The rows of another family, within the same transaction, by its policies; then one's own again. */
+async function inFamily<T>(tx: AnyDb, own: string, familyId: string, fn: () => Promise<T>) {
+	if (familyId === own) return fn();
+	await tx.execute(sql`select set_config('app.family_id', ${familyId}, true)`);
+	try {
+		return await fn();
+	} finally {
+		await tx.execute(sql`select set_config('app.family_id', ${own}, true)`);
+	}
+}
+
+/** The families' queues, locked in the same order always: their ids then come in commit order. */
+async function lockQueues(tx: AnyDb, familyIds: string[]) {
+	for (const f of [...familyIds].sort())
+		await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`mensajes:${f}`}))`);
+}
+
+const familiesOf = (row: Row) => [
+	row.familyId,
+	...(row.linkedFamilyId ? [row.linkedFamilyId] : [])
+];
+
+export function messagesScope(withFamily: ReturnType<typeof familyScope>, partnerOf: PartnerOf) {
 	/** This person's device, not revoked: else a problem. */
 	async function ownDevice(tx: AnyDb, userId: string, deviceId: string) {
 		const [d] = await tx
@@ -74,25 +119,84 @@ export function messagesScope(withFamily: ReturnType<typeof familyScope>) {
 		if (!d) throw new MessagesProblem('Este aparato no tiene los mensajes activados');
 	}
 
-	/** In it: else a problem. */
-	async function member(tx: AnyDb, userId: string, conversationId: string) {
+	/** Its row in this family, with this person in it: else a problem. */
+	async function convOf(tx: AnyDb, userId: string, conversationId: string): Promise<Row> {
 		const [m] = await tx
 			.select({ userId: msgMember.userId })
 			.from(msgMember)
 			.where(and(eq(msgMember.conversationId, conversationId), eq(msgMember.userId, userId)));
 		if (!m) throw new MessagesProblem('No estás en esa conversación');
+		const [row] = await tx
+			.select()
+			.from(msgConversation)
+			.where(eq(msgConversation.id, conversationId));
+		if (!row) throw new MessagesProblem('No hay esa conversación');
+		return row;
 	}
 
-	async function devicesOf(tx: AnyDb, conversationId: string) {
-		return tx
-			.select({ deviceId: msgDevice.id, userId: msgDevice.userId })
-			.from(msgDevice)
-			.innerJoin(
-				msgMember,
-				and(eq(msgMember.userId, msgDevice.userId), eq(msgMember.conversationId, conversationId))
-			)
-			.where(isNull(msgDevice.revokedAt))
-			.orderBy(asc(msgDevice.createdAt));
+	/**
+	 * Two people of linked families: still linked, or a problem. Asked before the transaction that
+	 * writes (and locks the queues): the link is another family's matter, read apart.
+	 */
+	async function stillLinked(userId: string, conversationId: string) {
+		const other = await withFamily(userId, async (tx) => {
+			const [row] = await tx
+				.select({ linked: msgConversation.linkedFamilyId })
+				.from(msgConversation)
+				.where(eq(msgConversation.id, conversationId));
+			if (!row?.linked) return null;
+			const [o] = await tx
+				.select({ userId: msgMember.userId })
+				.from(msgMember)
+				.where(and(eq(msgMember.conversationId, conversationId), ne(msgMember.userId, userId)));
+			return o?.userId ?? '';
+		});
+		if (other !== null && !(other && (await partnerOf(userId, other))))
+			throw new MessagesProblem('Esa familia ya no está vinculada');
+	}
+
+	/** Its people's devices, not revoked, in every family it is in. */
+	async function devicesOf(tx: AnyDb, own: string, row: Row): Promise<Device[]> {
+		const out: Device[] = [];
+		for (const f of familiesOf(row))
+			out.push(
+				...(await inFamily(tx, own, f, () =>
+					tx
+						.select({
+							deviceId: msgDevice.id,
+							userId: msgDevice.userId,
+							familyId: msgDevice.familyId
+						})
+						.from(msgDevice)
+						.innerJoin(
+							msgMember,
+							and(eq(msgMember.userId, msgDevice.userId), eq(msgMember.conversationId, row.id))
+						)
+						.where(isNull(msgDevice.revokedAt))
+						.orderBy(asc(msgDevice.createdAt))
+				))
+			);
+		return out;
+	}
+
+	const view = (row: Row, epoch: number, devices: Device[]): ConversationView => ({
+		id: row.id,
+		kind: row.kind,
+		epoch,
+		devices: devices.map(({ deviceId, userId }) => ({ deviceId, userId }))
+	});
+
+	/** Its epoch, in the family that keeps it (locked for update if asked). */
+	async function epochOf(tx: AnyDb, own: string, row: Row, lock = false) {
+		return inFamily(tx, own, row.homeFamilyId, async () => {
+			const q = tx
+				.select({ epoch: msgConversation.epoch })
+				.from(msgConversation)
+				.where(eq(msgConversation.id, row.id));
+			const [r] = lock ? await q.for('update') : await q;
+			if (!r) throw new MessagesProblem('No hay esa conversación');
+			return r.epoch;
+		});
 	}
 
 	return {
@@ -153,6 +257,27 @@ export function messagesScope(withFamily: ReturnType<typeof familyScope>) {
 			);
 		},
 
+		/** The conversations this person is in, here. */
+		async conversations(userId: string): Promise<ConversationListed[]> {
+			return withFamily(userId, async (tx) => {
+				const mine = await tx
+					.select({ id: msgConversation.id, kind: msgConversation.kind })
+					.from(msgConversation)
+					.innerJoin(
+						msgMember,
+						and(eq(msgMember.conversationId, msgConversation.id), eq(msgMember.userId, userId))
+					);
+				const ids = mine.filter((c) => c.kind === 'pareja').map((c) => c.id);
+				const others = ids.length
+					? await tx
+							.select({ id: msgMember.conversationId, userId: msgMember.userId })
+							.from(msgMember)
+							.where(and(inArray(msgMember.conversationId, ids), ne(msgMember.userId, userId)))
+					: [];
+				return mine.map((c) => ({ ...c, with: others.find((o) => o.id === c.id)?.userId ?? null }));
+			});
+		},
+
 		/**
 		 * The family's conversation, made the first time; its people, as the family is now (those who
 		 * left, out; those who came, in). Who made it has to make its group (`created`).
@@ -179,17 +304,52 @@ export function messagesScope(withFamily: ReturnType<typeof familyScope>) {
 					.insert(msgMember)
 					.values(people.map((p) => ({ conversationId: id, familyId: m.familyId, userId: p })))
 					.onConflictDoNothing();
-				const [conv] = await tx
-					.select({ epoch: msgConversation.epoch })
-					.from(msgConversation)
-					.where(eq(msgConversation.id, id));
+				const row = await convOf(tx, userId, id);
 				return {
-					id,
-					kind: 'familia',
-					epoch: conv!.epoch,
-					devices: await devicesOf(tx, id),
+					...view(row, row.epoch, await devicesOf(tx, m.familyId, row)),
 					created: made.length > 0
 				};
+			});
+		},
+
+		/**
+		 * Two people's conversation, made the first time: of the same family, or of linked ones, kept in
+		 * both. Only with someone this person may write to.
+		 */
+		async pairConversation(
+			userId: string,
+			deviceId: string,
+			otherId: string
+		): Promise<ConversationView> {
+			if (otherId === userId) throw new MessagesProblem('Contigo mismo, no');
+			const partner = await partnerOf(userId, otherId);
+			if (!partner) throw new MessagesProblem('No puedes escribir a esa persona desde aquí');
+			const id = pairConversationId(userId, otherId);
+			return withFamily(userId, async (tx, m) => {
+				await ownDevice(tx, userId, deviceId);
+				const linked = partner.familyId === m.familyId ? null : partner.familyId;
+				const home = linked ? [m.familyId, linked].sort()[0]! : m.familyId;
+				for (const f of [m.familyId, ...(linked ? [linked] : [])])
+					await inFamily(tx, m.familyId, f, async () => {
+						await tx
+							.insert(msgConversation)
+							.values({
+								id,
+								familyId: f,
+								kind: 'pareja',
+								homeFamilyId: home,
+								linkedFamilyId: linked ? (f === m.familyId ? linked : m.familyId) : null
+							})
+							.onConflictDoNothing();
+						await tx
+							.insert(msgMember)
+							.values(
+								[userId, otherId].map((u) => ({ conversationId: id, familyId: f, userId: u }))
+							)
+							.onConflictDoNothing();
+					});
+				const row = await convOf(tx, userId, id);
+				return view(row, await epochOf(tx, m.familyId, row), await devicesOf(tx, m.familyId, row));
 			});
 		},
 
@@ -199,20 +359,10 @@ export function messagesScope(withFamily: ReturnType<typeof familyScope>) {
 			deviceId: string,
 			conversationId: string
 		): Promise<ConversationView> {
-			return withFamily(userId, async (tx) => {
+			return withFamily(userId, async (tx, m) => {
 				await ownDevice(tx, userId, deviceId);
-				await member(tx, userId, conversationId);
-				const [conv] = await tx
-					.select()
-					.from(msgConversation)
-					.where(eq(msgConversation.id, conversationId));
-				if (!conv) throw new MessagesProblem('No hay esa conversación');
-				return {
-					id: conv.id,
-					kind: conv.kind,
-					epoch: conv.epoch,
-					devices: await devicesOf(tx, conversationId)
-				};
+				const row = await convOf(tx, userId, conversationId);
+				return view(row, await epochOf(tx, m.familyId, row), await devicesOf(tx, m.familyId, row));
 			});
 		},
 
@@ -226,22 +376,29 @@ export function messagesScope(withFamily: ReturnType<typeof familyScope>) {
 			conversationId: string,
 			deviceIds: string[]
 		) {
-			return withFamily(userId, async (tx) => {
+			await stillLinked(userId, conversationId);
+			return withFamily(userId, async (tx, m) => {
 				await ownDevice(tx, userId, deviceId);
-				await member(tx, userId, conversationId);
-				const allowed = new Set((await devicesOf(tx, conversationId)).map((d) => d.deviceId));
+				const row = await convOf(tx, userId, conversationId);
+				const allowed = new Map(
+					(await devicesOf(tx, m.familyId, row)).map((d) => [d.deviceId, d.familyId])
+				);
 				const out: Record<string, string> = {};
-				for (const id of deviceIds.filter((d) => allowed.has(d))) {
-					const [kp] = await tx
-						.select({ id: msgKeyPackage.id, data: msgKeyPackage.data })
-						.from(msgKeyPackage)
-						.where(eq(msgKeyPackage.deviceId, id))
-						.orderBy(asc(msgKeyPackage.id))
-						.limit(1)
-						.for('update', { skipLocked: true });
-					if (!kp) continue;
-					await tx.delete(msgKeyPackage).where(eq(msgKeyPackage.id, kp.id));
-					out[id] = kp.data;
+				for (const id of deviceIds) {
+					const f = allowed.get(id);
+					if (!f) continue;
+					const data = await inFamily(tx, m.familyId, f, async () => {
+						const [kp] = await tx
+							.select({ id: msgKeyPackage.id, data: msgKeyPackage.data })
+							.from(msgKeyPackage)
+							.where(eq(msgKeyPackage.deviceId, id))
+							.orderBy(asc(msgKeyPackage.id))
+							.limit(1)
+							.for('update', { skipLocked: true });
+						if (kp) await tx.delete(msgKeyPackage).where(eq(msgKeyPackage.id, kp.id));
+						return kp?.data;
+					});
+					if (data) out[id] = data;
 				}
 				return out;
 			});
@@ -264,74 +421,85 @@ export function messagesScope(withFamily: ReturnType<typeof familyScope>) {
 		): Promise<CommitResult> {
 			if (!isB64(c.commit) || (c.welcome !== undefined && !isB64(c.welcome)))
 				throw new MessagesProblem('Cambio no válido');
+			await stillLinked(userId, c.conversationId);
 			return withFamily(userId, async (tx, m) => {
 				await ownDevice(tx, userId, deviceId);
-				await member(tx, userId, c.conversationId);
-				const [conv] = await tx
-					.select({ epoch: msgConversation.epoch })
-					.from(msgConversation)
-					.where(eq(msgConversation.id, c.conversationId))
-					.for('update');
-				if (!conv) throw new MessagesProblem('No hay esa conversación');
-				if (conv.epoch !== c.epoch) return { ok: false, epoch: conv.epoch, familyId: m.familyId };
+				const row = await convOf(tx, userId, c.conversationId);
+				const families = familiesOf(row);
+				await lockQueues(tx, families);
+				const epoch = await epochOf(tx, m.familyId, row, true);
+				if (epoch !== c.epoch) return { ok: false, epoch, familyIds: families };
 				const next = c.epoch + 1;
-				await tx
-					.update(msgConversation)
-					.set({ epoch: next })
-					.where(eq(msgConversation.id, c.conversationId));
-				await tx.insert(msgEvent).values({
-					familyId: m.familyId,
-					conversationId: c.conversationId,
-					kind: 'commit',
-					epoch: c.epoch,
-					senderDevice: deviceId,
-					data: c.commit
-				});
-				if (c.welcome && c.recipients?.length)
-					await tx.insert(msgEvent).values({
-						familyId: m.familyId,
-						conversationId: c.conversationId,
-						kind: 'welcome',
-						epoch: next,
-						senderDevice: deviceId,
-						recipients: c.recipients.filter(isId),
-						data: c.welcome
+				for (const f of families)
+					await inFamily(tx, m.familyId, f, async () => {
+						await tx
+							.update(msgConversation)
+							.set({ epoch: next })
+							.where(eq(msgConversation.id, c.conversationId));
+						await tx.insert(msgEvent).values({
+							familyId: f,
+							conversationId: c.conversationId,
+							kind: 'commit',
+							epoch: c.epoch,
+							senderDevice: deviceId,
+							data: c.commit
+						});
+						if (c.welcome && c.recipients?.length)
+							await tx.insert(msgEvent).values({
+								familyId: f,
+								conversationId: c.conversationId,
+								kind: 'welcome',
+								epoch: next,
+								senderDevice: deviceId,
+								recipients: c.recipients.filter(isId),
+								data: c.welcome
+							});
 					});
-				return { ok: true, epoch: next, familyId: m.familyId };
+				return { ok: true, epoch: next, familyIds: families };
 			});
 		},
 
-		/** A message, encrypted by the device: who else is in it, to tell them. */
+		/** A message, encrypted by the device: in every family it is in; who else is in it, to tell them. */
 		async postMessage(
 			userId: string,
 			deviceId: string,
-			m: { conversationId: string; epoch: number; data: string }
+			msg: { conversationId: string; epoch: number; data: string }
 		) {
-			if (!isB64(m.data)) throw new MessagesProblem('Mensaje no válido');
-			return withFamily(userId, async (tx, f) => {
+			if (!isB64(msg.data)) throw new MessagesProblem('Mensaje no válido');
+			await stillLinked(userId, msg.conversationId);
+			return withFamily(userId, async (tx, m) => {
 				await ownDevice(tx, userId, deviceId);
-				await member(tx, userId, m.conversationId);
-				const [ev] = await tx
-					.insert(msgEvent)
-					.values({
-						familyId: f.familyId,
-						conversationId: m.conversationId,
-						kind: 'app',
-						epoch: m.epoch,
-						senderDevice: deviceId,
-						data: m.data
-					})
-					.returning({ id: msgEvent.id });
+				const row = await convOf(tx, userId, msg.conversationId);
+				const families = familiesOf(row);
+				await lockQueues(tx, families);
+				let id = 0;
+				for (const f of families)
+					await inFamily(tx, m.familyId, f, async () => {
+						const [ev] = await tx
+							.insert(msgEvent)
+							.values({
+								familyId: f,
+								conversationId: msg.conversationId,
+								kind: 'app',
+								epoch: msg.epoch,
+								senderDevice: deviceId,
+								data: msg.data
+							})
+							.returning({ id: msgEvent.id });
+						if (f === m.familyId) id = ev!.id;
+					});
 				const others = await tx
 					.select({ userId: msgMember.userId })
 					.from(msgMember)
 					.where(
-						and(
-							eq(msgMember.conversationId, m.conversationId),
-							sql`${msgMember.userId} <> ${userId}`
-						)
+						and(eq(msgMember.conversationId, msg.conversationId), ne(msgMember.userId, userId))
 					);
-				return { id: ev!.id, familyId: f.familyId, to: others.map((o) => o.userId) };
+				// With a linked family, the other one is of it, and told in theirs.
+				const to = others.map((o) => ({
+					userId: o.userId,
+					familyId: row.linkedFamilyId ?? m.familyId
+				}));
+				return { id, familyIds: families, to };
 			});
 		},
 

@@ -16,6 +16,8 @@ export const httpTransport: Transport = {
 	register: (d) =>
 		call({ action: 'aparato', deviceId: d.id, name: d.name, keyPackages: d.keyPackages }),
 	familyConversation: (deviceId) => call({ action: 'familia', deviceId }),
+	pairConversation: (deviceId, otherId) => call({ action: 'pareja', deviceId, otherId }),
+	conversations: (deviceId) => call({ action: 'conversaciones', deviceId }),
 	conversation: (deviceId, conversationId) =>
 		call({ action: 'conversacion', deviceId, conversationId }),
 	claim: (deviceId, conversationId, deviceIds) =>

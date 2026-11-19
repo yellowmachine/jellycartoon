@@ -16,14 +16,22 @@ de siempre; una conversación con una familia vinculada estará en las dos, con 
   `<userId>/<deviceId>`. `revoked_at`: perdido o quitado.
 - `msg_key_package`: los _key packages_ públicos de cada aparato; cada uno se usa una vez para
   añadirlo a un grupo (`claimKeyPackages`).
-- `msg_conversation` (+ `msg_member`): la de la familia (`familia-<familyId>`) y, más adelante, las de
-  dos personas. `epoch` cuenta los cambios del grupo: **un commit por época** (`postCommit`, con
+- `msg_conversation` (+ `msg_member`): la de la familia (`familia-<familyId>`) y las de dos personas
+  (`pareja-<a>-<b>`, ordenados): de la misma familia, o de dos vinculadas (#464), guardada en las dos
+  familias con el mismo id (`linked_family_id`, la otra) y la época en una sola (`home_family_id`).
+  Con quién se puede: lo mismo que se puede llamar (`calls.callable`, `PartnerOf`), comprobado de
+  nuevo antes de cada cambio o mensaje (desvincularse corta la conversación). `epoch` cuenta los cambios del grupo: **un commit por época** (`postCommit`, con
   `select … for update`); el que llega tarde recibe `ok: false` y se pone al día.
 - `msg_event`: la cola, en orden (`welcome` para los aparatos que añade, `commit` y `app` para todos).
   Todo cifrado por los aparatos; el servidor solo sabe quién manda qué a qué conversación y cuándo.
 
-Rutas: `POST /api/mensajes` (`action`: `aparato`, `familia`, `conversacion`, `llaves`, `cambio`,
-`enviar`, `quitar`), `GET /api/mensajes?aparato=&desde=` (lo que no ha leído) y `GET /api/mensajes/vivo`
+**Orden de la cola**: cada cola se escribe con el cerrojo de su familia (`pg_advisory_xact_lock`), así
+que sus ids van en el orden en que se confirman y ningún aparato lee más allá de uno que se está
+escribiendo. Un evento de una conversación con familia vinculada se escribe en las dos colas en la
+misma transacción, con los cerrojos tomados siempre en el mismo orden.
+
+Rutas: `POST /api/mensajes` (`action`: `aparato`, `familia`, `pareja`, `conversaciones`,
+`conversacion`, `llaves`, `cambio`, `enviar`, `quitar`), `GET /api/mensajes?aparato=&desde=` (lo que no ha leído) y `GET /api/mensajes/vivo`
 (SSE: «hay algo nuevo», sin contenido). Un mensaje avisa por push a los demás: «💬 Miguel · Mensaje
 nuevo», nunca qué dice.
 
@@ -61,6 +69,5 @@ aparato nuevo entra en los grupos como cualquier otro y la copia le da lo de ant
 
 ## Pendiente (#551)
 
-Enlazar un aparato nuevo con uno que ya tienes, quitar aparatos desde Ajustes, conversaciones de dos
-personas y con familias vinculadas, audios, notificación descifrada en el service worker, voz y modo
+Audios, notificación descifrada en el service worker, voz y modo
 carretera, y quitar Telegram.

@@ -6,8 +6,9 @@
 	import type { PageProps } from './$types';
 
 	/**
-	 * Mensajes (#551): the family's conversation, end-to-end encrypted. This device's keys are made
-	 * here the first time; what is said is encrypted and read only in the family's devices.
+	 * Mensajes (#551): the family's conversation and two people's (of the family, or of a linked one),
+	 * end-to-end encrypted. This device's keys are made here the first time; what is said is encrypted
+	 * and read only in the devices of those in each conversation.
 	 */
 	let { data }: PageProps = $props();
 
@@ -45,11 +46,22 @@
 
 	const nameOf = (userId: string) => data.names[userId] ?? 'Alguien';
 	const when = (iso: string) =>
-		new Date(iso).toLocaleString('es-ES', {
-			weekday: 'short',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
+		new Date(iso).toLocaleString('es-ES', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+	const familyChat = $derived(client.chats.find((c) => c.kind === 'familia'));
+	/** Each person one may write to, with their conversation if there is one. */
+	const people = $derived(
+		data.contacts
+			.map((p) => ({ ...p, chat: client.chats.find((c) => c.with === p.userId) ?? null }))
+			.sort((a, b) => (b.chat?.last?.at ?? '').localeCompare(a.chat?.last?.at ?? ''))
+	);
+	const open = $derived(client.chats.find((c) => c.id === client.current));
+	const title = $derived(
+		!open ? '' : open.kind === 'familia' ? 'Familia' : open.with ? nameOf(open.with) : ''
+	);
+	const preview = (m: { text: string; mine: boolean; userId: string } | null, group: boolean) =>
+		!m
+			? 'Sin mensajes todavía'
+			: `${m.mine ? 'Tú: ' : group ? `${nameOf(m.userId)}: ` : ''}${m.text}`;
 </script>
 
 <svelte:head>
@@ -57,11 +69,21 @@
 </svelte:head>
 
 <div class="mx-auto flex max-w-2xl flex-col">
-	<h1 class="mb-1 text-2xl font-bold">Mensajes</h1>
-	<p class="mb-4 text-sm text-zinc-400">
-		🔒 Cifrados de extremo a extremo: solo los leen los aparatos de la familia. Seilide los reparte
-		sin poder leerlos.
-	</p>
+	{#if client.phase === 'ready' && client.current}
+		<div class="mb-3 flex items-center gap-3">
+			<button
+				class="text-sm text-zinc-400 hover:text-white"
+				onclick={() => void client.select(null)}>← Volver</button
+			>
+			<h1 class="min-w-0 flex-1 truncate text-xl font-bold">{title}</h1>
+		</div>
+	{:else}
+		<h1 class="mb-1 text-2xl font-bold">Mensajes</h1>
+		<p class="mb-4 text-sm text-zinc-400">
+			🔒 Cifrados de extremo a extremo: solo los leen los aparatos de quienes están en cada
+			conversación. Seilide los reparte sin poder leerlos.
+		</p>
+	{/if}
 
 	{#if client.phase === 'loading'}
 		<p class="text-zinc-400" role="status">Preparando los mensajes…</p>
@@ -78,8 +100,8 @@
 			{/if}
 			<h2 class="mb-1 font-semibold">Activar los mensajes en este aparato</h2>
 			<p class="mb-3 text-sm text-zinc-400">
-				Se crean aquí sus llaves, que no salen de este aparato. Los mensajes de antes de activarlo
-				no se ven aquí.
+				Se crean aquí sus llaves, que no salen de este aparato. Lo de antes de activarlo, con tu PIN
+				si tienes copia.
 			</p>
 			<label class="mb-3 block text-sm">
 				Nombre de este aparato
@@ -97,8 +119,61 @@
 		<p class="rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm">
 			No se han podido abrir los mensajes: {client.problem}
 		</p>
-	{:else}
+	{:else if !client.current}
 		<CopiaPin {client} />
+		<ul class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
+			{#if familyChat}
+				<li>
+					<button
+						class="flex w-full items-center gap-3 p-3 text-left hover:bg-zinc-900"
+						onclick={() => void client.select(familyChat.id)}
+					>
+						<span class="text-2xl" aria-hidden="true">🏠</span>
+						<span class="min-w-0 flex-1">
+							<span class="block font-semibold">Familia</span>
+							<span class="block truncate text-sm text-zinc-400"
+								>{preview(familyChat.last, true)}</span
+							>
+						</span>
+						{#if familyChat.unread}<span
+								class="h-2.5 w-2.5 rounded-full bg-amber-500"
+								aria-label="Sin leer"
+							></span>{/if}
+					</button>
+				</li>
+			{/if}
+			{#each people as p (p.userId)}
+				<li>
+					<button
+						class="flex w-full items-center gap-3 p-3 text-left hover:bg-zinc-900"
+						onclick={() => void (p.chat ? client.select(p.chat.id) : client.openWith(p.userId))}
+					>
+						<span
+							class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-sm font-semibold"
+							aria-hidden="true">{p.name.slice(0, 1)}</span
+						>
+						<span class="min-w-0 flex-1">
+							<span class="block font-semibold"
+								>{p.name}{#if p.family}<span class="font-normal text-zinc-500">
+										· {p.family}</span
+									>{/if}</span
+							>
+							<span class="block truncate text-sm text-zinc-400"
+								>{preview(p.chat?.last ?? null, false)}</span
+							>
+						</span>
+						{#if p.chat?.unread}<span
+								class="h-2.5 w-2.5 rounded-full bg-amber-500"
+								aria-label="Sin leer"
+							></span>{/if}
+					</button>
+				</li>
+			{/each}
+		</ul>
+		{#if client.problem}
+			<p class="mt-2 text-sm text-red-400">{client.problem}</p>
+		{/if}
+	{:else}
 		<div
 			bind:this={list}
 			class="mb-3 flex max-h-[60vh] min-h-48 flex-col gap-2 overflow-y-auto rounded-md border border-zinc-800 p-3"
@@ -124,20 +199,22 @@
 		</div>
 		{#if client.waiting}
 			<p class="mb-3 rounded-md border border-sky-500/40 bg-sky-500/10 p-3 text-sm" role="status">
-				Entrando en la conversación… Otro aparato de la familia que tenga Mensajes abierto te da
-				entrada en unos segundos; si no hay ninguno, en cuanto alguien lo abra.
+				Entrando en la conversación… Otro aparato que tenga Mensajes abierto te da entrada en unos
+				segundos; si no hay ninguno, en cuanto alguien lo abra.
 			</p>
 		{:else if client.alone}
 			<p class="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-				Todavía no hay nadie más de la familia con los mensajes activados. Cuando lo activen, verán
-				lo que escribas desde entonces; lo de antes, solo tus aparatos.
+				{open?.kind === 'familia'
+					? 'Todavía no hay nadie más de la familia con los mensajes activados.'
+					: `${title} todavía no tiene los mensajes activados.`} Cuando los active, verá lo que escribas
+				desde entonces; lo de antes, solo tus aparatos.
 			</p>
 		{/if}
 		<form class="flex gap-2" onsubmit={send}>
 			<input
 				bind:value={text}
 				maxlength={MAX_TEXT}
-				placeholder="Escribe a la familia"
+				placeholder={open?.kind === 'familia' ? 'Escribe a la familia' : `Escribe a ${title}`}
 				aria-label="Mensaje"
 				class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-900"
 			/>

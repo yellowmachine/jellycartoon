@@ -7,28 +7,56 @@ import { httpBackup } from './http-backup.ts';
 /** After something new, the backup is brought up to date this long after, once. */
 const SAVE_AFTER_MS = 5000;
 
+export interface Chat {
+	id: string;
+	kind: 'familia' | 'pareja';
+	/** Two people's: the other one. */
+	with: string | null;
+	last: StoredMessage | null;
+	unread: boolean;
+}
+
+/** When this device last saw each conversation: what came after, and not its own, is unread. */
+const readKey = (userId: string, id: string) => `seilide:mensajes:${userId}:leido:${id}`;
+function lastRead(userId: string, id: string) {
+	try {
+		return localStorage.getItem(readKey(userId, id)) ?? '';
+	} catch {
+		return '';
+	}
+}
+function markRead(userId: string, id: string, at: string) {
+	try {
+		localStorage.setItem(readKey(userId, id), at);
+	} catch {
+		// Private window: only forgotten.
+	}
+}
+
 /**
- * Mensajes (#551) in this browser: whether this device has them on, the family's conversation and
- * what was said in it, kept up to date while the page is open («hay algo nuevo», then it asks), and
- * the backup behind the PIN: asked for, brought back in a new device, and kept up to date.
+ * Mensajes (#551) in this browser: whether this device has them on, its conversations (the family's
+ * and two people's) and what was said in them, kept up to date while the page is open («hay algo
+ * nuevo», then it asks), and the backup behind the PIN.
  */
 export class MessagesClient {
 	phase = $state<'loading' | 'off' | 'ready' | 'failed'>('loading');
 	problem = $state<string | null>(null);
-	conversation = $state<string | null>(null);
+	/** The family's conversation. */
+	family = $state<string | null>(null);
+	chats = $state<Chat[]>([]);
+	/** The one open; null, the list. */
+	current = $state<string | null>(null);
 	list = $state<StoredMessage[]>([]);
-	/** Nobody else with messages on yet: what is written now, only this person's devices read. */
+	/** Nobody else in the open one yet: what is written now, only this person's devices read. */
 	alone = $state(false);
-	/** Not in the conversation's group yet: another device of the family lets it in when it looks. */
+	/** Not in the open one's group yet: another device lets it in when it looks. */
 	waiting = $state(false);
-	/** The backup: whether there is one, whether this device keeps it, tries left. */
 	backup = $state<{
 		backup: boolean;
 		here: boolean;
 		triesLeft: number;
 		updatedAt: string | null;
 	} | null>(null);
-	/** «Ahora no» to bringing it back here. */
 	skipped = $state(false);
 	#m: Messenger;
 	#b: BackupKeeper;
@@ -70,90 +98,128 @@ export class MessagesClient {
 	}
 
 	async #open() {
-		this.conversation = await this.#m.family();
-		await this.#reload();
-		await this.#backupState();
+		this.family = await this.#m.family();
+		await this.#look();
+		this.backup = await this.#b.state().catch(() => null);
 		this.phase = 'ready';
 		this.#live?.close();
 		this.#live = new EventSource('/api/mensajes/vivo');
 		this.#live.onmessage = () => void this.refresh();
-		// Open, or back after a cut: what came meanwhile (another device may have let this one in).
-		this.#live.onopen = () => void this.refresh();
 	}
 
-	async #backupState() {
-		this.backup = await this.#b.state().catch(() => null);
+	/** Every conversation looked at (groups as they should be), and the list as it is now. */
+	async #look() {
+		const listed = await this.#m.lookAll();
+		const chats: Chat[] = [];
+		for (const c of listed) {
+			const all = await this.#m.messages(c.id);
+			const last = all.at(-1) ?? null;
+			const seen = this.current === c.id ? (last?.at ?? '') : lastRead(this.#userId, c.id);
+			chats.push({ ...c, last, unread: all.some((m) => !m.mine && m.at > seen) });
+		}
+		// The family's first, then the most recent.
+		chats.sort((a, b) =>
+			a.kind !== b.kind
+				? a.kind === 'familia'
+					? -1
+					: 1
+				: (b.last?.at ?? '').localeCompare(a.last?.at ?? '')
+		);
+		this.chats = chats;
+		await this.#reloadCurrent();
 	}
 
-	/** What came, and the group as it should be (someone's new device, one taken out). */
+	async #reloadCurrent() {
+		if (!this.current) return;
+		this.list = await this.#m.messages(this.current);
+		const people = await this.#m.people(this.current);
+		this.waiting = people.length === 0;
+		this.alone = people.length === 1;
+		const last = this.list.at(-1);
+		if (last) markRead(this.#userId, this.current, last.at);
+	}
+
+	/** What came, and every group as it should be (someone's new device, one taken out). */
 	async refresh() {
 		try {
 			const got = await this.#m.sync();
-			if (this.conversation) await this.#m.family();
-			await this.#reload();
+			await this.#look();
 			if (got) this.#saveSoon();
 		} catch (err) {
 			this.#failed(err);
 		}
 	}
 
-	async #reload() {
-		if (!this.conversation) return;
-		this.list = await this.#m.messages(this.conversation);
-		const people = await this.#m.people(this.conversation);
-		this.waiting = people.length === 0;
-		this.alone = people.length === 1;
+	/** A conversation open; null, back to the list. */
+	async select(id: string | null) {
+		this.current = id;
+		this.problem = null;
+		this.list = [];
+		if (id) {
+			await this.#reloadCurrent();
+			this.chats = this.chats.map((c) => (c.id === id ? { ...c, unread: false } : c));
+		}
+	}
+
+	/** Two people's: made the first time, then open. */
+	async openWith(userId: string) {
+		this.problem = null;
+		try {
+			const id = await this.#m.pair(userId);
+			await this.#look();
+			await this.select(id);
+		} catch (err) {
+			this.problem = err instanceof Error ? err.message : String(err);
+		}
 	}
 
 	async send(text: string) {
-		if (!this.conversation) return;
+		if (!this.current) return;
 		this.problem = null;
 		try {
-			await this.#m.send(this.conversation, text);
-			await this.#reload();
+			await this.#m.send(this.current, text);
+			await this.#reloadCurrent();
 			this.#saveSoon();
 		} catch (err) {
 			this.problem = err instanceof Error ? err.message : String(err);
 		}
 	}
 
-	/** A PIN for the backup (`replace`: another one instead of the one there was). */
 	async setPin(pin: string, replace = false) {
 		this.problem = null;
 		try {
 			await this.#b.setPin(pin, replace);
-			await this.#backupState();
 			return true;
 		} catch (err) {
 			this.problem = err instanceof Error ? err.message : String(err);
-			await this.#backupState();
 			return false;
+		} finally {
+			this.backup = await this.#b.state().catch(() => null);
 		}
 	}
 
-	/** In a new device: what was said before, from the backup. */
 	async restore(pin: string) {
 		this.problem = null;
 		try {
 			const n = await this.#b.restore(pin);
-			await this.#reload();
-			await this.#backupState();
+			await this.#look();
 			return n;
 		} catch (err) {
 			this.problem = err instanceof Error ? err.message : String(err);
-			await this.#backupState();
 			return null;
+		} finally {
+			this.backup = await this.#b.state().catch(() => null);
 		}
 	}
 
-	/** «He olvidado el PIN»: the backup gone, to set a new one with what this device holds. */
 	async forgetPin() {
 		this.problem = null;
 		try {
 			await this.#b.forget();
-			await this.#backupState();
 		} catch (err) {
 			this.problem = err instanceof Error ? err.message : String(err);
+		} finally {
+			this.backup = await this.#b.state().catch(() => null);
 		}
 	}
 
@@ -163,7 +229,7 @@ export class MessagesClient {
 			void this.#b
 				.save()
 				.catch(() => {})
-				.then(() => this.#backupState());
+				.then(async () => (this.backup = await this.#b.state().catch(() => null)));
 		}, SAVE_AFTER_MS);
 	}
 

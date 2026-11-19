@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, test } from 'bun:test';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import * as schema from './db/schema.ts';
 import { family, familyMember, user } from './db/schema.ts';
 import { familyScope } from './family-scope.ts';
@@ -29,7 +29,16 @@ import {
  */
 const db = drizzle(new PGlite(), { schema });
 const withFamily = familyScope(db, { role: 'app_user' });
-const server = messagesScope(withFamily);
+/** Whom one may write to, as calls.callable says it in the app: the family, and the linked abuela. */
+const LINKED: Record<string, string> = { miguel: 'abuela', abuela: 'miguel' };
+const server = messagesScope(withFamily, async (userId, otherId) => {
+	const [me] = await db.select().from(familyMember).where(eq(familyMember.userId, userId));
+	const [other] = await db.select().from(familyMember).where(eq(familyMember.userId, otherId));
+	if (!me || !other) return null;
+	if (me.familyId === other.familyId || LINKED[userId] === otherId)
+		return { familyId: other.familyId };
+	return null;
+});
 // The KMS, as a label: the tests look at what is done with the key, not at Scaleway.
 const backups = messagesBackupScope(withFamily, {
 	seal: async (_f, text) => `sellado:${text}`,
@@ -54,14 +63,16 @@ beforeAll(async () => {
 	await db.execute(sql`grant usage, select on all sequences in schema public to app_user`);
 	await db.insert(family).values([
 		{ id: 'A', name: 'Casa' },
-		{ id: 'B', name: 'Otra' }
+		{ id: 'B', name: 'Otra' },
+		{ id: 'C', name: 'Casa abuela' }
 	]);
-	await db.insert(user).values(['miguel', 'mama', 'nino', 'vecino'].map(account));
+	await db.insert(user).values(['miguel', 'mama', 'nino', 'vecino', 'abuela'].map(account));
 	await db.insert(familyMember).values([
 		{ userId: 'miguel', familyId: 'A', role: 'admin' },
 		{ userId: 'mama', familyId: 'A', role: 'member' },
 		{ userId: 'nino', familyId: 'A', role: 'peque' },
-		{ userId: 'vecino', familyId: 'B', role: 'admin' }
+		{ userId: 'vecino', familyId: 'B', role: 'admin' },
+		{ userId: 'abuela', familyId: 'C', role: 'admin' }
 	]);
 });
 
@@ -96,6 +107,8 @@ function memoryStore(): BackupStore & { all: StoredMessage[] } {
 const transportOf = (userId: string): Transport => ({
 	register: (d) => server.registerDevice(userId, d),
 	familyConversation: (deviceId) => server.familyConversation(userId, deviceId),
+	pairConversation: (deviceId, otherId) => server.pairConversation(userId, deviceId, otherId),
+	conversations: () => server.conversations(userId),
 	conversation: (deviceId, id) => server.conversation(userId, deviceId, id),
 	claim: (deviceId, id, ids) => server.claimKeyPackages(userId, deviceId, id, ids),
 	commit: (deviceId, c) => server.postCommit(userId, deviceId, c),
@@ -268,5 +281,65 @@ describe('the backup behind a PIN', () => {
 		expect((await movil.backup.state()).here).toBe(false);
 		await movil.backup.setPin('739104');
 		expect((await movil.backup.state()).backup).toBe(true);
+	});
+});
+
+describe('two people’s conversations', () => {
+	let pair = '';
+	test('Miguel and Mamá: only they read it, not the rest of the family', async () => {
+		pair = await movil.m.pair('mama');
+		await mama.m.lookAll(); // She makes its group, with Miguel's devices.
+		await movil.m.sync();
+		await mama.m.send(pair, 'Esto solo para ti');
+		await movil.m.sync();
+		expect(await texts(movil, pair)).toEqual(['mama: Esto solo para ti']);
+		const nino = device('nino');
+		await nino.m.setup('Otra tablet del niño');
+		await nino.m.lookAll();
+		await nino.m.sync();
+		expect(await texts(nino, pair)).toEqual([]);
+		await expect(server.conversation('nino', (await nino.m.device())!.id, pair)).rejects.toThrow(
+			'No estás'
+		);
+	});
+
+	test('with a linked family: kept in both, read by both, by no one else', async () => {
+		const abuela = device('abuela');
+		await abuela.m.setup('Móvil de la abuela');
+		const conv2 = await movil.m.pair('abuela');
+		expect(conv2).toBe('pareja-abuela-miguel');
+		await abuela.m.lookAll();
+		await movil.m.sync();
+		await movil.m.send(conv2, 'Abuela, llegamos el sábado');
+		await abuela.m.sync();
+		expect(await texts(abuela, conv2)).toEqual(['miguel: Abuela, llegamos el sábado']);
+		await abuela.m.send(conv2, '¡Qué bien, hijo!');
+		await movil.m.sync();
+		expect((await texts(movil, conv2)).at(-1)).toBe('abuela: ¡Qué bien, hijo!');
+		// Each family's queue has it; Mamá, in Miguel's family but not in it, reads nothing of it.
+		await mama.m.sync();
+		expect(await texts(mama, conv2)).toEqual([]);
+		const both = await db.execute(
+			sql`select distinct family_id from msg_event where conversation_id = ${conv2}`
+		);
+		expect(JSON.stringify(both)).toContain('"C"');
+		expect(JSON.stringify(both)).toContain('"A"');
+	});
+
+	test('nobody else may open one with them', async () => {
+		const other = device('vecino');
+		await other.m.setup('Otro móvil del vecino');
+		await expect(other.m.pair('miguel')).rejects.toThrow('No puedes escribir');
+		await expect(movil.m.pair('miguel')).rejects.toThrow();
+	});
+
+	test('two sending at once: both read, in the same order everywhere', async () => {
+		await Promise.all([movil.m.send(pair, 'A la vez 1'), mama.m.send(pair, 'A la vez 2')]);
+		await movil.m.sync();
+		await mama.m.sync();
+		const a = (await texts(movil, pair)).slice(-2).sort();
+		const b = (await texts(mama, pair)).slice(-2).sort();
+		expect(a).toEqual(['mama: A la vez 2', 'miguel: A la vez 1']);
+		expect(b).toEqual(['mama: A la vez 2', 'miguel: A la vez 1']);
 	});
 });
