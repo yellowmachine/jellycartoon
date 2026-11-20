@@ -4,7 +4,7 @@ import { parseVoiceRequest, type VoiceReply } from 'comun/voice.ts';
 import type { HouseVoiceOrder, VoiceTiming } from 'comun/house-voice.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { familyHasHouse, HouseProblem, tellHouse } from '#lib/server/house.ts';
-import { describeTimersAt } from '#lib/server/alarms/alarms.ts';
+import { describeHouseTimers, describeTimersAt } from '#lib/server/alarms/alarms.ts';
 import { companionHeard } from '#lib/server/companion.ts';
 import { sayableError } from '#lib/server/openrouter.ts';
 import {
@@ -61,10 +61,12 @@ export const POST: RequestHandler = async ({ request }) => {
 		} satisfies VoiceReply);
 	}
 	const place = `satelite:${satellite.id}` as const;
-	const [timers, snapserver] = await Promise.all([
+	const [own, house, snapserver] = await Promise.all([
 		describeTimersAt(k, place),
+		describeHouseTimers(k),
 		snapserverOf(k, satellite.id)
 	]);
+	const timers = [...own, ...house];
 	let fromHouse: HouseVoiceOrder | null = null;
 	let note = SATELLITE_WITHOUT_HOUSE;
 	/** How long the house took to open the order: none, without it. */

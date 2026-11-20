@@ -692,6 +692,44 @@ export async function describeTimersAt(k: Kitchen, place: AlarmPlace) {
 	);
 }
 
+/**
+ * The whole house's timers (a rule's, «sacar las bebidas del congelador»; one said «en casa»), for
+ * the AI wherever it is spoken to (#557): they ring on every satellite, so any of them, the Vista or
+ * a phone may be asked about them, or to stop them (`cancel_timer` with `house_timer`).
+ */
+export async function describeHouseTimers(k: Kitchen) {
+	return (await describeTimersAt(k, 'casa')).map((line) => `${line} (de toda la casa)`);
+}
+
+/**
+ * The whole house's timers counting or ringing (#557), for the Vista: what, when they end (null,
+ * ringing), and whether it rings.
+ */
+export async function houseTimers(k: Kitchen) {
+	return (await timersAt(k, 'casa'))
+		.filter((r) => !r.doneAt && (r.ringingSince || r.nextAt))
+		.map((r) => ({
+			id: r.id,
+			label: r.label,
+			endsAt: r.ringingSince ? null : r.nextAt!.getTime(),
+			ringing: Boolean(r.ringingSince)
+		}))
+		.sort((a, b) => (a.endsAt ?? 0) - (b.endsAt ?? 0));
+}
+
+/** One of the whole house's timers taken away (or stopped) by its id, from the Vista. Whether it was. */
+export async function cancelHouseTimer(k: Kitchen, id: number) {
+	if (!(await timersAt(k, 'casa')).some((r) => r.id === id && !r.doneAt)) return false;
+	await k.run((tx) =>
+		tx
+			.update(alarm)
+			.set({ ringingSince: null, nextAt: null, doneAt: new Date() })
+			.where(eq(alarm.id, id))
+	);
+	changed(k.familyId);
+	return true;
+}
+
 /** Ringing there: its own and the whole house's. */
 async function ringingAt(k: Kitchen, place: AlarmPlace) {
 	return k.run((tx) =>

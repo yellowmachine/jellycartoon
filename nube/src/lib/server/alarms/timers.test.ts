@@ -45,7 +45,10 @@ mock.module('#lib/server/telegram/bot.ts', () => ({ tellGroup: async () => {} })
 mock.module('#lib/server/agenda/agenda.ts', () => ({ toldOf: async () => [] }));
 
 const {
+	cancelHouseTimer,
 	cancelTimers,
+	describeHouseTimers,
+	houseTimers,
 	describeTimersOf,
 	listAlarms,
 	ringDue,
@@ -167,5 +170,41 @@ describe('the whole house, where a satellite of Seilide is (2026-11-13)', () => 
 			play: ['la siesta']
 		});
 		snapserver.value = null;
+	});
+});
+
+describe('the whole house’s timers, seen from anywhere (#557)', () => {
+	test('a rule’s: counting and ringing for the Vista, told to the AI as the house’s, taken away by its id', async () => {
+		await db.delete(alarm).where(eq(alarm.place, 'casa'));
+		await startTimerAt(k, 'casa', { label: 'Sacar las bebidas del congelador', seconds: 3600 });
+		await startTimerAt(k, 'casa', { label: 'Regar', seconds: 600 });
+		// Someone's own is not the house's.
+		await startTimer(k, me, { label: 'mío', seconds: 600, place: 'casa' });
+		let list = await houseTimers(k);
+		expect(list.map((t) => [t.label, t.ringing])).toEqual([
+			['Regar', false],
+			['Sacar las bebidas del congelador', false]
+		]);
+		expect(list[0]!.endsAt).toBeGreaterThan(Date.now());
+		expect((await describeHouseTimers(k)).toSorted()).toEqual([
+			'Regar, quedan 10 min (de toda la casa)',
+			'Sacar las bebidas del congelador, quedan 60 min (de toda la casa)'
+		]);
+
+		await due('Sacar las bebidas del congelador');
+		await ringDue(k);
+		list = await houseTimers(k);
+		const drinks = list.find((t) => t.label === 'Sacar las bebidas del congelador')!;
+		expect(drinks).toMatchObject({ ringing: true, endsAt: null });
+		// It rings on the satellites too: stopped from the Vista, it stops there.
+		expect((await ringingFor(k, 'dormitorio')).ringing).toContain(
+			'Sacar las bebidas del congelador'
+		);
+		expect(await cancelHouseTimer(k, drinks.id)).toBe(true);
+		expect(await cancelHouseTimer(k, drinks.id)).toBe(false);
+		expect((await ringingFor(k, 'dormitorio')).ringing).not.toContain(
+			'Sacar las bebidas del congelador'
+		);
+		expect((await houseTimers(k)).map((t) => t.label)).toEqual(['Regar']);
 	});
 });
