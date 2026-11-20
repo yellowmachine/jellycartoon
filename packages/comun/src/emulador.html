@@ -168,7 +168,8 @@
 			};
 
 			async function loadCartridge(emulator) {
-				if (!cartridge.startsWith('/api/juegos/cartucho/')) return;
+				// The house's, or Seilide's own games' (#564).
+				if (!/^\/api\/juegos\/(propios\/)?cartucho\//.test(cartridge)) return;
 				const manager = emulator.gameManager;
 				const file = manager.getSaveFilePath();
 				const here = manager.FS.analyzePath(file).exists ? manager.FS.readFile(file) : null;

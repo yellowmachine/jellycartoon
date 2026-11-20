@@ -10,6 +10,7 @@
 	import TelegramBot from './TelegramBot.svelte';
 	import Espacio from './Espacio.svelte';
 	import TuMusica from './TuMusica.svelte';
+	import TusJuegos from './TusJuegos.svelte';
 	import Invitaciones from './Invitaciones.svelte';
 	import PasarAdministracion from './PasarAdministracion.svelte';
 	import AparatoPeques from './AparatoPeques.svelte';
@@ -33,6 +34,7 @@
 	import Colores from 'comun/components/Colores.svelte';
 	import GuardarViajes from './GuardarViajes.svelte';
 	import FuenteMusica from './FuenteMusica.svelte';
+	import FuenteJuegos from './FuenteJuegos.svelte';
 	import AparatosMensajes from './AparatosMensajes.svelte';
 	import Coches from './Coches.svelte';
 	import GastoIa from './GastoIa.svelte';
@@ -114,7 +116,8 @@
 			shown={{
 				admin,
 				spendLine: data.spendLine !== null,
-				twoMusicSources: data.musicSources.house && data.musicSources.own
+				twoMusicSources: data.musicSources.house && data.musicSources.own,
+				twoGameSources: data.gameSources.house && data.gameSources.own
 			}}
 			placeholder="Busca o di qué quieres hacer: colores, avisos, invitar…"
 			ask={data.openRouter ? '/api/ajustes/preguntar' : undefined}
@@ -171,6 +174,8 @@
 		{/if}
 
 		<FuenteMusica {data} {tab} />
+
+		<FuenteJuegos {data} {tab} />
 
 		<AparatosMensajes {data} {tab} />
 
@@ -853,6 +858,8 @@
 		<EntrarConLaNube {data} {form} {tab} />
 
 		<TuMusica {data} {form} {tab} />
+
+		<TusJuegos {data} {form} {tab} />
 	{/if}
 
 	{#if tab === 'cuenta'}

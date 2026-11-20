@@ -8,69 +8,20 @@ import { log } from '#lib/server/log.ts';
 import { normalize, pick, queries } from '#lib/server/cinema/match.ts';
 import { describeGames, gameDetails, searchGames } from '#lib/server/cinema/wikidata.ts';
 import { arcadeGames, biosOf, type ArcadeGame } from '#lib/server/fbneo.ts';
+import {
+	libretroPicture,
+	mayBeGame,
+	nameOf,
+	SYSTEMS,
+	titleOf,
+	type LibretroPicture
+} from 'comun/game-systems.ts';
 
 /**
- * The folders of GAMES_DIR that are played (#176), each with one system of EmulatorJS
- * (https://emulatorjs.org/docs/systems), which picks its default core, the platforms in Wikidata
- * (P400) to look its games up among, and its folder in libretro's thumbnails, for their pictures.
- * Only the light consoles, and the arcade games of FinalBurn Neo: other folders are left out.
+ * The folders of GAMES_DIR that are played (#176): one per console of SYSTEMS (comun, shared with
+ * Seilide's games in the family's bucket, #564).
  */
-export const SYSTEMS: Record<
-	string,
-	{ name: string; core: string; wikidata: string[]; libretro: string }
-> = {
-	nes: {
-		name: 'NES',
-		core: 'nes',
-		wikidata: ['Q172742'],
-		libretro: 'Nintendo - Nintendo Entertainment System'
-	},
-	snes: {
-		name: 'Super Nintendo',
-		core: 'snes',
-		wikidata: ['Q183259'],
-		libretro: 'Nintendo - Super Nintendo Entertainment System'
-	},
-	gb: { name: 'Game Boy', core: 'gb', wikidata: ['Q186437'], libretro: 'Nintendo - Game Boy' },
-	gbc: {
-		name: 'Game Boy Color',
-		core: 'gb',
-		wikidata: ['Q203992'],
-		libretro: 'Nintendo - Game Boy Color'
-	},
-	gba: {
-		name: 'Game Boy Advance',
-		core: 'gba',
-		wikidata: ['Q188642'],
-		libretro: 'Nintendo - Game Boy Advance'
-	},
-	mastersystem: {
-		name: 'Master System',
-		core: 'segaMS',
-		wikidata: ['Q209868'],
-		libretro: 'Sega - Master System - Mark III'
-	},
-	megadrive: {
-		name: 'Mega Drive',
-		core: 'segaMD',
-		wikidata: ['Q10676'],
-		libretro: 'Sega - Mega Drive - Genesis'
-	},
-	atari2600: {
-		name: 'Atari 2600',
-		core: 'atari2600',
-		wikidata: ['Q206261'],
-		libretro: 'Atari - 2600'
-	},
-	// FinalBurn Neo, EmulatorJS' core for `arcade`: its ROMs as FBNeo names them (fbneo.ts). Arcade
-	// games, or Neo-Geo's, in Wikidata.
-	arcade: {
-		name: 'Recreativas',
-		core: 'arcade',
-		wikidata: ['Q192851', 'Q1054350'],
-		libretro: 'FBNeo - Arcade Games'
-	}
-};
+export { SYSTEMS };
 
 export type Game = {
 	system: string;
@@ -81,23 +32,6 @@ export type Game = {
 	/** The BIOS's file it needs (`neogeo.zip`), when it is in the folder too. */
 	bios: string | null;
 };
-
-/** What comes with downloaded collections and is not a game: pictures, lists, databases. */
-const NOT_GAMES = new Set([
-	'.jpg',
-	'.jpeg',
-	'.png',
-	'.gif',
-	'.txt',
-	'.nfo',
-	'.xml',
-	'.sqlite',
-	'.pdf',
-	'.torrent'
-]);
-
-/** «Super Mario World (Europe)» → «Super Mario World»: no region or version. */
-const titleOf = (name: string) => name.replace(/(\s*[([][^)\]]*[)\]])+$/, '').trim() || name;
 
 /** FBNeo's list, or none if it cannot be had now: the short names then. */
 const arcadeList = () =>
@@ -111,16 +45,11 @@ async function gamesIn(system: string): Promise<Game[]> {
 	const entries = await readdir(path.join(gamesRoot!, system), { withFileTypes: true }).catch(
 		() => []
 	);
-	const files = entries
-		.filter(
-			(e) =>
-				e.isFile() && !e.name.startsWith('.') && !NOT_GAMES.has(path.extname(e.name).toLowerCase())
-		)
-		.map((e) => e.name);
+	const files = entries.filter((e) => e.isFile() && mayBeGame(e.name)).map((e) => e.name);
 	const arcade = system === 'arcade' && files.length ? await arcadeList() : null;
 	return files
 		.flatMap((file): Game[] => {
-			const name = path.parse(file).name;
+			const name = nameOf(file);
 			if (!arcade) return [{ system, file, title: titleOf(name), fullName: name, bios: null }];
 			const known = arcade[name];
 			// A BIOS is not a game: it goes with the games that need it.
@@ -255,8 +184,6 @@ async function save(gameId: number, values: Partial<typeof game.$inferInsert>) {
  */
 export const PICTURES = ['titulo', 'captura', 'caratula', 'mia'] as const;
 export type Picture = (typeof PICTURES)[number];
-const LIBRETRO = { titulo: 'Named_Titles', captura: 'Named_Snaps', caratula: 'Named_Boxarts' };
-type LibretroPicture = keyof typeof LIBRETRO;
 
 const gameDir = (gameId: number) => path.join(dataRoot, 'juegos', String(gameId));
 export const pictureFile = (gameId: number, kind: Picture) =>
@@ -281,20 +208,13 @@ async function writeWhole(file: string, write: (part: string) => Promise<void>) 
 /** A game with its row, to fetch its pictures. */
 type Target = { id: number; system: string; fullName: string; title: string };
 
-/** libretro's name for a game: its full name, with these characters as `_`. */
-const libretroName = (fullName: string) => fullName.replace(/[&*/:`<>?\\|"]/g, '_');
-
 /** One of libretro's pictures of the game, unless it is here already or libretro has none. */
 async function fetchPicture(row: Target, kind: LibretroPicture) {
 	const file = pictureFile(row.id, kind);
 	if ((await exists(file)) || (await exists(missingMark(row.id, kind)))) return;
-	const url = [
-		'https://thumbnails.libretro.com',
-		encodeURIComponent(SYSTEMS[row.system].libretro),
-		LIBRETRO[kind],
-		`${encodeURIComponent(libretroName(row.fullName))}.png`
-	].join('/');
-	const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+	const res = await fetch(libretroPicture(row.system, row.fullName, kind), {
+		signal: AbortSignal.timeout(20_000)
+	});
 	if (res.status === 404) {
 		await mkdir(gameDir(row.id), { recursive: true });
 		await writeFile(missingMark(row.id, kind), '');

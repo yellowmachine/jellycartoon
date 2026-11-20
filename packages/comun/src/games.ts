@@ -48,6 +48,11 @@ export interface PlayerData {
 	cartridge: string;
 	controls: unknown;
 	shader: { own: Shader | null; inherited: Shader };
+	/**
+	 * Where its saved games, sessions and shader are asked for: `/api/juegos` (the house's) by
+	 * default; Seilide's own games, from the family's bucket (#564), at `/api/juegos/propios`.
+	 */
+	api?: string;
 }
 
 /** What the player needs from the app's router, which a shared component cannot import. */

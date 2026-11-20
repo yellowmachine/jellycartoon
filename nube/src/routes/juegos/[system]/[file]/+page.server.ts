@@ -3,11 +3,26 @@ import type { Actions, PageServerLoad } from './$types';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { gameDetails, gameSummary } from '#lib/server/games.ts';
 import { offlineGamesOf, orderOfflineGame } from '#lib/server/games-offline.ts';
+import { playsOwnGames } from '#lib/server/game-source.ts';
 import { HouseProblem } from '#lib/server/house.ts';
+import { ownGameDetails, ownGameSummary } from '#lib/server/own-games.ts';
 import { isDeviceId } from 'comun/route-maps.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const who = locals.user!;
+	// The family's bucket (#564): nothing to carry away yet, and no card (phase 2).
+	if (await playsOwnGames(who.id)) {
+		const k = await kitchenOf(who.id);
+		const game = await ownGameSummary(k.familyId, who.id, params.system, params.file);
+		const details = ownGameDetails(k.familyId, params.system, params.file).catch(() => null);
+		return {
+			own: true,
+			game,
+			offline: await offlineGamesOf(k),
+			backdrop: details.then((d) => d?.backdrop ?? null),
+			info: Promise.resolve(null)
+		};
+	}
 	try {
 		const [game, offline] = await Promise.all([
 			gameSummary(who, params.system, params.file),
@@ -16,6 +31,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		// Looked up the first time, while the page is already shown.
 		const details = gameDetails(who, params.system, params.file).catch(() => null);
 		return {
+			own: false,
 			game,
 			offline,
 			backdrop: details.then((d) => d?.backdrop ?? null),

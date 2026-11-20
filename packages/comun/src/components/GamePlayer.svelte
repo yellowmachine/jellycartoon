@@ -23,6 +23,8 @@
 		saveId?: number;
 		web?: boolean;
 	} = $props();
+	/** The house's, or Seilide's own games' (#564). */
+	const api = $derived(data.api ?? '/api/juegos');
 	let frame = $state<HTMLIFrameElement>();
 	let menuBox = $state<HTMLElement>();
 
@@ -79,7 +81,7 @@
 
 	/** A saved game into the emulator: its state, gzipped on the server as it was saved. */
 	async function loadState(running: Emulator, saveId: number) {
-		const res = await fetch(`/api/juegos/partida/${saveId}/estado`);
+		const res = await fetch(`${api}/partida/${saveId}/estado`);
 		if (!res.ok || !res.body) throw new Error(await res.text());
 		const state = res.body.pipeThrough(new DecompressionStream('gzip'));
 		running.gameManager.loadState(new Uint8Array(await new Response(state).arrayBuffer()));
@@ -147,7 +149,7 @@
 	let unreported = 0;
 	function report(leaving = false) {
 		if (!sessionId || !unreported) return;
-		const url = `/api/juegos/sesiones/${sessionId}`;
+		const url = `${api}/sesiones/${sessionId}`;
 		const body = JSON.stringify({ seconds: unreported });
 		unreported = 0;
 		// Leaving, the page may be gone before a fetch ends: the browser sends a beacon all the same.
@@ -167,7 +169,7 @@
 			if (!running) return;
 			if (!started) {
 				started = true;
-				const res = await fetch('/api/juegos/sesiones', {
+				const res = await fetch(`${api}/sesiones`, {
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ gameId: data.gameId })
@@ -320,7 +322,7 @@
 			);
 			// Without one, it is saved all the same: the list shows the gamepad instead.
 			if (shot) form.append('imagen', shot);
-			const res = await fetch(`/api/juegos/partidas/${data.gameId}`, {
+			const res = await fetch(`${api}/partidas/${data.gameId}`, {
 				method: 'POST',
 				body: form
 			});
@@ -345,7 +347,7 @@
 		message = '';
 		nav.pushState('', { gameMenu: 'partidas' } as never);
 		menu = 'partidas';
-		const res = await fetch(`/api/juegos/partidas/${data.gameId}`).catch(() => null);
+		const res = await fetch(`${api}/partidas/${data.gameId}`).catch(() => null);
 		saves = res?.ok ? await res.json() : [];
 		if (!res?.ok) message = 'No se pudieron leer las partidas';
 		await tick();
@@ -372,9 +374,7 @@
 			deleting = save.id;
 			return;
 		}
-		const res = await fetch(`/api/juegos/partida/${save.id}`, { method: 'DELETE' }).catch(
-			() => null
-		);
+		const res = await fetch(`${api}/partida/${save.id}`, { method: 'DELETE' }).catch(() => null);
 		if (!res?.ok) {
 			message = 'No se pudo borrar la partida';
 			return;
@@ -421,7 +421,7 @@
 		if (busy) return;
 		busy = true;
 		try {
-			const res = await fetch(`/api/juegos/shader/${data.gameId}`, {
+			const res = await fetch(`${api}/shader/${data.gameId}`, {
 				method: 'PUT',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({ shader: id })

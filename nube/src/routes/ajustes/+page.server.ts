@@ -5,6 +5,7 @@ import { fileQuota } from '#lib/server/file-quota.ts';
 import { familyStorage, storageReady } from '#lib/server/storage.ts';
 import { bucketFrom } from '#lib/server/storage-bucket.ts';
 import { indexMusic, removeSource, saveSource, sourceView } from '#lib/server/own-music.ts';
+import * as ownGames from '#lib/server/own-games.ts';
 import {
 	cancelMove,
 	changeKeys,
@@ -127,6 +128,7 @@ import {
 } from '#lib/server/house.ts';
 import { recordsTrips, setRecordTrips } from '#lib/server/trips/trips.ts';
 import { isMusicSource, musicSources, setMusicSource } from '#lib/server/music-source.ts';
+import { gameSources, isGameSource, setGameSource } from '#lib/server/game-source.ts';
 import { messages } from '#lib/server/messages.ts';
 import { callButtons } from '#lib/server/call-buttons.ts';
 import { familyLinks } from '#lib/server/family-links.ts';
@@ -198,6 +200,10 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		ownMusic: admin ? await sourceView(membership.familyId) : null,
 		/** Where this person's Música comes from (#534, phase 3), chosen when there are both. */
 		musicSources: await musicSources(locals.user!.id),
+		/** «Tus juegos» (#564): the family's bucket for Juegos, to who runs the family. */
+		ownGames: admin ? await ownGames.sourceView(membership.familyId) : null,
+		/** And where this person's Juegos come from, chosen when there are both. */
+		gameSources: await gameSources(locals.user!.id),
 		/** Their devices with messages on (#551), to take out a lost one. */
 		messageDevices: await messages.myDevices(locals.user!.id),
 		storagePlace: storageReady
@@ -454,6 +460,37 @@ export const actions: Actions = {
 		await removeSource(familyId);
 		return { ownMusicOk: 'Quitado. Vuestro almacenamiento sigue como estaba' };
 	},
+	/** «Tus juegos» (#564): its bucket for Juegos, tried and saved; the listing begins. */
+	ownGamesSave: async ({ locals, request }) => {
+		const familyId = await adminFamily(locals.user!.id);
+		if (!familyId) return fail(403, { ownGamesProblem: 'Solo quien administra la familia' });
+		const b = bucketFrom(await request.formData(), { anyFolder: true });
+		if ('problem' in b) return fail(400, { ownGamesProblem: b.problem });
+		const problem = await ownGames.saveSource(familyId, b);
+		if (problem) return fail(400, { ownGamesProblem: problem });
+		return { ownGamesOk: 'Guardado: buscando los juegos' };
+	},
+	/** «Usar el de Tu música»: its bucket and keys, with the games in Juegos/. */
+	ownGamesUseMusic: async ({ locals }) => {
+		const familyId = await adminFamily(locals.user!.id);
+		if (!familyId) return fail(403, { ownGamesProblem: 'Solo quien administra la familia' });
+		const problem = await ownGames.useMusicBucket(familyId);
+		if (problem) return fail(400, { ownGamesProblem: problem });
+		return { ownGamesOk: 'Guardado: buscando los juegos en Juegos/' };
+	},
+	ownGamesIndex: async ({ locals }) => {
+		const familyId = await adminFamily(locals.user!.id);
+		if (!familyId) return fail(403, { ownGamesProblem: 'Solo quien administra la familia' });
+		void ownGames.indexGames(familyId);
+		return { ownGamesOk: 'Buscando' };
+	},
+	/** «Quitar»: its keys go; the partidas stay, for when it comes back; the bucket as it is. */
+	ownGamesRemove: async ({ locals }) => {
+		const familyId = await adminFamily(locals.user!.id);
+		if (!familyId) return fail(403, { ownGamesProblem: 'Solo quien administra la familia' });
+		await ownGames.removeSource(familyId);
+		return { ownGamesOk: 'Quitado. Vuestro almacenamiento sigue como estaba' };
+	},
 	/** Other keys for the bucket it is already in. */
 	storageKeys: ({ locals, request }) =>
 		storageAction(locals, request, async (familyId, form) => {
@@ -558,6 +595,13 @@ export const actions: Actions = {
 		if (!isMusicSource(kind)) return fail(400, { musicSourceProblem: 'Elige de dónde' });
 		await setMusicSource(locals.user!.id, kind);
 		return { saved: 'musicSource' };
+	},
+	/** «Tus juegos, de dónde salen» (#564): the house's or the family's own bucket. */
+	gameSource: async ({ request, locals }) => {
+		const kind = (await request.formData()).get('source');
+		if (!isGameSource(kind)) return fail(400, { gameSourceProblem: 'Elige de dónde' });
+		await setGameSource(locals.user!.id, kind);
+		return { saved: 'gameSource' };
 	},
 	recordTrips: async ({ request, locals }) => {
 		const on = (await request.formData()).get('recordTrips') === 'on';

@@ -736,6 +736,13 @@
       "when": 1795170241118,
       "tag": "0104_brown_komodo",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1795172487407,
+      "tag": "0105_abandoned_sugar_man",
+      "breakpoints": true
     }
   ]
 }
