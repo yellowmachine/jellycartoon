@@ -10,8 +10,10 @@ import {
 	PLAYER_PAGE,
 	emulatorFiles,
 	gameFiles,
+	offlineGameKey,
 	type OfflineGameOrder,
-	type OfflineGameReport
+	type OfflineGameReport,
+	type OfflineGameSource
 } from '#lib/offline-games.ts';
 
 /**
@@ -30,7 +32,7 @@ const RETRY_MS = 5000;
 const GIVE_UP = 3;
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-const keyOf = (g: { system: string; file: string }) => `${g.system}/${g.file}`;
+const keyOf = offlineGameKey;
 
 const supported = () =>
 	typeof caches !== 'undefined' &&
@@ -61,15 +63,22 @@ class OfflineGames {
 	/** What its games take here (not the player's files, shared by them all). */
 	bytes = $state(0);
 	/** Downloading now: which game, and how far in its files. */
-	current = $state<{ system: string; file: string; held: number; total: number } | null>(null);
+	current = $state<{
+		system: string;
+		file: string;
+		source: OfflineGameSource;
+		held: number;
+		total: number;
+	} | null>(null);
 	/** Told when something changed: the page asks the server again. */
 	onchange: (() => void) | null = null;
 	#opened: Promise<void> | null = null;
 	#syncing: Promise<void> | null = null;
 
-	isReady = (g: { system: string; file: string }) => this.ready.includes(keyOf(g));
-	find = (system: string, file: string) =>
-		this.games.find((g) => g.system === system && g.file === file);
+	isReady = (g: { system: string; file: string; source: OfflineGameSource }) =>
+		this.ready.includes(keyOf(g));
+	find = (system: string, file: string, source: OfflineGameSource = 'casa') =>
+		this.games.find((g) => keyOf(g) === keyOf({ system, file, source }));
 
 	/** What there is here, read once; again after each sync. */
 	whenOpen() {
@@ -81,7 +90,9 @@ class OfflineGames {
 		if (!this.supported) return;
 		const [games, emulator] = await Promise.all([caches.open(GAMES_CACHE), caches.open(EJS_CACHE)]);
 		const manifest = await games.match(MANIFEST_KEY);
-		const list: OfflineGameOrder[] = manifest ? await manifest.json().catch(() => []) : [];
+		const kept: OfflineGameOrder[] = manifest ? await manifest.json().catch(() => []) : [];
+		// A list kept by the app of before has no source: the house's.
+		const list = kept.map((g) => ({ ...g, source: g.source ?? 'casa' }));
 		const ready: string[] = [];
 		let bytes = 0;
 		for (const game of list) {
@@ -167,6 +178,7 @@ class OfflineGames {
 				id: deviceId,
 				system: order.system,
 				file: order.file,
+				source: order.source,
 				state,
 				bytes: bytesOf(order),
 				...(problem && { problem })
@@ -187,7 +199,13 @@ class OfflineGames {
 				let missed = 0;
 				let full: string | null = null;
 				for (const [i, { url, cache }] of files.entries()) {
-					this.current = { system: order.system, file: order.file, held: i, total: files.length };
+					this.current = {
+						system: order.system,
+						file: order.file,
+						source: order.source,
+						held: i,
+						total: files.length
+					};
 					if (await cache.match(url)) continue;
 					const ownFile = cache === games;
 					// Its music, in the same 2 GB.

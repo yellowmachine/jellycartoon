@@ -1,5 +1,6 @@
 import { and, desc, eq, gte, inArray, max, or, sql } from 'drizzle-orm';
 import { familyMember, user, watchLog } from './db/schema.ts';
+import type { AnyDb } from './family-scope.ts';
 import type { Kitchen } from './fridge.ts';
 import { localDay } from 'comun/agenda.ts';
 import { WatchSteps } from 'comun/watch-steps.ts';
@@ -173,6 +174,42 @@ export async function addListened(
 				}
 			})
 	);
+}
+
+/**
+ * Seconds already measured (a game of «Tus juegos», #564, in reportSession), added to their slot
+ * inside the caller's transaction, under the family's RLS. Whether the person keeps history is
+ * the caller's to know (its session is only started then).
+ */
+export async function addPlayed(
+	tx: AnyDb,
+	familyId: string,
+	userId: string,
+	what: Listened,
+	seconds: number,
+	now = new Date()
+) {
+	if (!(seconds > 0)) return;
+	const minute = now.getHours() * 60 + now.getMinutes();
+	await tx
+		.insert(watchLog)
+		.values({
+			...what,
+			familyId,
+			userId,
+			day: localDay(now),
+			minute: minute - (minute % SLOT_MINUTES),
+			season: null,
+			number: null,
+			seconds
+		})
+		.onConflictDoUpdate({
+			target: [watchLog.userId, watchLog.day, watchLog.minute, watchLog.item],
+			set: {
+				title: sql`excluded.title`,
+				seconds: sql`${watchLog.seconds} + excluded.seconds`
+			}
+		});
 }
 
 /** The Monday of a `YYYY-MM-DD`'s week. */

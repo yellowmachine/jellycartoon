@@ -5,7 +5,7 @@
 	import { routeMaps } from 'comun/route-maps.svelte.ts';
 	import { MAX_DEVICE_NAME, sizeText } from 'comun/route-maps.ts';
 	import { offlineGames } from '#lib/offline-games.svelte.ts';
-	import type { OfflineGamesView } from '#lib/offline-games.ts';
+	import { offlineGameKey, type OfflineGamesView } from '#lib/offline-games.ts';
 
 	/**
 	 * Games without coverage (offline-games.ts): which games each device carries, such as the car's
@@ -92,7 +92,8 @@
 				{#if offlineGames.current}
 					{@const now = offlineGames.current}
 					<span class="text-amber-300">
-						Bajando {offlineGames.find(now.system, now.file)?.title ?? ''}: {now.held} de {now.total}
+						Bajando {offlineGames.find(now.system, now.file, now.source)?.title ?? ''}: {now.held} de
+						{now.total}
 						ficheros
 					</span>
 				{/if}
@@ -130,7 +131,7 @@
 		<p class="text-sm text-zinc-500">Ningún dispositivo lleva juegos todavía.</p>
 	{:else}
 		<ul class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
-			{#each view.games as g (`${g.deviceId}/${g.system}/${g.file}`)}
+			{#each view.games as g (`${g.deviceId}/${offlineGameKey(g)}`)}
 				<li class="flex flex-wrap items-center gap-x-3 gap-y-1 p-3 text-sm">
 					<a
 						href="/juegos/{encodeURIComponent(g.system)}/{encodeURIComponent(g.file)}"
@@ -153,6 +154,7 @@
 						<input type="hidden" name="system" value={g.system} />
 						<input type="hidden" name="file" value={g.file} />
 						<input type="hidden" name="device" value={g.deviceId} />
+						<input type="hidden" name="source" value={g.source} />
 						<button class="text-sm text-zinc-400 hover:text-amber-300">Quitar</button>
 					</form>
 				</li>

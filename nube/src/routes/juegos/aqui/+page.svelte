@@ -26,8 +26,8 @@
 {/if}
 
 <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-	{#each ready as g (`${g.system}/${g.file}`)}
-		<a href={offlineGameHref(g.system, g.file)} class="group block">
+	{#each ready as g (`${g.source}:${g.system}/${g.file}`)}
+		<a href={offlineGameHref(g)} class="group block">
 			<div class="aspect-square overflow-hidden rounded-lg bg-zinc-800">
 				{#if g.cover}
 					<img src={g.cover} alt="" loading="lazy" class="h-full w-full object-contain" />
@@ -46,7 +46,7 @@
 {#if coming.length}
 	<h2 class="mt-8 mb-2 font-semibold">Todavía bajando</h2>
 	<ul class="flex flex-col gap-1 text-sm text-zinc-400">
-		{#each coming as g (`${g.system}/${g.file}`)}
+		{#each coming as g (`${g.source}:${g.system}/${g.file}`)}
 			{@const now =
 				offlineGames.current?.system === g.system && offlineGames.current.file === g.file
 					? offlineGames.current

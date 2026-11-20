@@ -4,7 +4,7 @@
 	import { routeMaps } from 'comun/route-maps.svelte.ts';
 	import { sizeText } from 'comun/route-maps.ts';
 	import { offlineGames } from '#lib/offline-games.svelte.ts';
-	import type { OfflineGamesView } from '#lib/offline-games.ts';
+	import type { OfflineGameSource, OfflineGamesView } from '#lib/offline-games.ts';
 
 	/**
 	 * A game to carry on a device, such as the car's tablet, to play it without coverage
@@ -13,15 +13,24 @@
 	let {
 		system,
 		file,
+		source,
 		view,
 		problem
-	}: { system: string; file: string; view: OfflineGamesView; problem: string | null } = $props();
+	}: {
+		system: string;
+		file: string;
+		source: OfflineGameSource;
+		view: OfflineGamesView;
+		problem: string | null;
+	} = $props();
 
 	let mounted = $state(false);
 	onMount(() => (mounted = true));
 	const here = $derived(mounted ? routeMaps.device : null);
 
-	const carried = $derived(view.games.filter((g) => g.system === system && g.file === file));
+	const carried = $derived(
+		view.games.filter((g) => g.system === system && g.file === file && g.source === source)
+	);
 	const free = $derived(view.devices.filter((d) => !carried.some((c) => c.deviceId === d.id)));
 	let chosen = $state<string | null>(null);
 	const deviceName = (id: string) => view.devices.find((d) => d.id === id)?.name ?? '?';

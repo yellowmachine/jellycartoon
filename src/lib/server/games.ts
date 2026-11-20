@@ -5,8 +5,8 @@ import { db } from '#lib/server/db/index.ts';
 import { game } from '#lib/server/db/schema.ts';
 import { dataRoot, gamesRoot } from '#lib/server/library/paths.ts';
 import { log } from '#lib/server/log.ts';
-import { normalize, pick, queries } from '#lib/server/cinema/match.ts';
-import { describeGames, gameDetails, searchGames } from '#lib/server/cinema/wikidata.ts';
+import { lookUpGameInfo } from 'comun/wikidata/game-lookup.ts';
+import { gameDetails } from 'comun/wikidata/wikidata.ts';
 import { arcadeGames, biosOf, type ArcadeGame } from '#lib/server/fbneo.ts';
 import {
 	libretroPicture,
@@ -120,31 +120,20 @@ export function lookUpGame(row: GameRow, title: string) {
 	return lookup;
 }
 
-/** By its title, among the games of its console: No-Intro names are clean enough without the AI. */
+/** By its title, among the games of its console (comun's lookUpGameInfo). */
 async function identifyGame(row: GameRow, title: string): Promise<GameRow> {
-	const known = { title, year: null, minutes: null };
-	const platform = SYSTEMS[row.system].wikidata;
-	const ids = [
-		...new Set((await Promise.all(queries(known).map((q) => searchGames(q, platform)))).flat())
-	];
-	const candidates = await describeGames(ids);
-	const { match: likely, ranked } = pick(candidates, known);
-	// Without a year to compare, the films' rule doubts too much: a game with exactly that name, if
-	// it is the only one, is it («Super Mario World», not «Super Mario World 2: Yoshi's Island»).
-	const exact = candidates.filter((c) =>
-		c.names.some((n) => normalize(n) === normalize(known.title))
-	);
-	const match = likely ?? (exact.length === 1 ? exact[0] : null);
+	const found = await lookUpGameInfo(title, SYSTEMS[row.system].wikidata);
 	log.info(
 		'juegos',
-		`Ficha del juego «${known.title}»: ${match ? `${match.title} (${match.year})` : ranked.length ? `${ranked.length} candidatos` : 'no encontrado'}`,
-		{ gameId: row.id, candidates: ranked.map((c) => c.id) }
+		`Ficha del juego «${title}»: ${found.status === 'found' ? `${found.details.title} (${found.details.year})` : found.candidates.length ? `${found.candidates.length} candidatos` : 'no encontrado'}`,
+		{
+			gameId: row.id,
+			candidates: found.status === 'found' ? [] : found.candidates.map((c) => c.id)
+		}
 	);
-	if (match) return chooseGame(row.id, match.id);
-	return save(row.id, {
-		status: ranked.length ? 'ambiguous' : 'not_found',
-		candidates: ranked.map(({ id, title, year, description }) => ({ id, title, year, description }))
-	});
+	if (found.status === 'found')
+		return save(row.id, { status: 'found', ...found.details, candidates: [] });
+	return save(row.id, { status: found.status, candidates: found.candidates });
 }
 
 /** The game is this Wikidata item: its details, saved. */

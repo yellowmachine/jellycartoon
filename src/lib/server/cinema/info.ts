@@ -4,8 +4,13 @@ import { movie, movieInfo, movieTitle } from '#lib/server/db/schema.ts';
 import { openRouterConfig } from '#lib/server/app-settings.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
 import { log } from '#lib/server/log.ts';
-import { pick, queries, type Clues } from './match.ts';
-import { describeCandidates, filmDetails, filmsExtras, searchFilms } from './wikidata.ts';
+import { pick, queries, type Clues } from 'comun/wikidata/match.ts';
+import {
+	describeCandidates,
+	filmDetails,
+	filmsExtras,
+	searchFilms
+} from 'comun/wikidata/wikidata.ts';
 
 /**
  * What a film's info has from Wikidata: 1, awards, sagas, screenwriters, composers,

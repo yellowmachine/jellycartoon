@@ -287,10 +287,12 @@ export const offlineGame = pgTable(
 	'offline_game',
 	{
 		familyId: familyId(),
-		/** The house's console folder and file (jellycartoon's games.ts): no key to it here. */
+		/** The console folder and file: the house's (jellycartoon's games.ts) or the bucket's. */
 		system: text('system').notNull(),
 		file: text('file').notNull(),
 		deviceId: text('device_id').notNull(),
+		/** Whose game: the house's, or the family's bucket's («Tus juegos», #564). */
+		source: text('source').$type<'casa' | 'propia'>().notNull().default('casa'),
 		/** Its title when ordered: for the panel, the house away. */
 		title: text('title').notNull(),
 		state: offlineListState('state').notNull().default('pending'),
@@ -302,7 +304,7 @@ export const offlineGame = pgTable(
 		updatedAt: timestamp('updated_at').notNull().defaultNow()
 	},
 	(t) => [
-		primaryKey({ columns: [t.system, t.file, t.deviceId] }),
+		primaryKey({ columns: [t.system, t.file, t.deviceId, t.source] }),
 		foreignKey({
 			name: 'offline_game_device_fk',
 			columns: [t.familyId, t.deviceId],

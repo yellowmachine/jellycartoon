@@ -1,22 +1,26 @@
+import { isHttpError } from '@sveltejs/kit';
 import { and, asc, eq, sum } from 'drizzle-orm';
 import { mapDevice, offlineGame, offlineList } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { consoleCovers, gameConsoles, gamePlayer, gameSummary } from '#lib/server/games.ts';
 import { HouseProblem, passToHouse } from '#lib/server/house.ts';
 import { playlists } from '#lib/server/music.ts';
+import { ownCarry } from '#lib/server/own-games.ts';
 import { MAX_OFFLINE_BYTES, estimatedBytes, noRoomText } from '#lib/offline-music.ts';
 import {
 	emulatorFiles,
 	type OfflineGameOrder,
 	type OfflineGameReport,
+	type OfflineGameSource,
 	type OfflineGamesView
 } from '#lib/offline-games.ts';
 
 /**
- * Games without coverage (offline-games.ts): which of the house's games each device carries,
- * ordered from any of the family's, and how it goes as the device says. The files themselves the
- * device takes through Seilide's /api/juegos/…, as when the game is played, when the app opens on
- * it (offline-games.svelte.ts).
+ * Games without coverage (offline-games.ts): which games each device carries, the house's or the
+ * family's bucket's («Tus juegos», #564), ordered from any of the family's, and how it goes as the
+ * device says. The files themselves the device takes through Seilide's /api/juegos/… (the bucket's,
+ * /api/juegos/propios/…), as when the game is played, when the app opens on it
+ * (offline-games.svelte.ts).
  */
 
 interface Who {
@@ -24,10 +28,18 @@ interface Who {
 	email: string;
 }
 
-const where = (system: string, file: string, deviceId: string) =>
+/** One game of a device: by its folder and file, and whose. */
+export interface CarriedGame {
+	system: string;
+	file: string;
+	source: OfflineGameSource;
+}
+
+const where = ({ system, file, source }: CarriedGame, deviceId: string) =>
 	and(
 		eq(offlineGame.system, system),
 		eq(offlineGame.file, file),
+		eq(offlineGame.source, source),
 		eq(offlineGame.deviceId, deviceId)
 	);
 
@@ -45,6 +57,7 @@ export async function offlineGamesOf(k: Kitchen): Promise<OfflineGamesView> {
 				.select({
 					system: offlineGame.system,
 					file: offlineGame.file,
+					source: offlineGame.source,
 					deviceId: offlineGame.deviceId,
 					title: offlineGame.title,
 					state: offlineGame.state,
@@ -100,26 +113,28 @@ async function sizeAtHouse(who: Who, address: string) {
  * To carry on the device; not if, with what it already carries (its music too), it would go over
  * 2 GB, nor a console the player cannot be had for without coverage. Back, why not; null, ordered.
  */
-export async function orderOfflineGame(
-	k: Kitchen,
-	who: Who,
-	system: string,
-	file: string,
-	deviceId: string
-) {
+export async function orderOfflineGame(k: Kitchen, who: Who, game: CarriedGame, deviceId: string) {
+	const { system, file, source } = game;
 	const [device] = await k.run((tx) =>
 		tx.select({ id: mapDevice.id }).from(mapDevice).where(eq(mapDevice.id, deviceId))
 	);
 	if (!device) return 'Ese dispositivo ya no está';
-	const [summary, player] = await Promise.all([
-		gameSummary(who, system, file),
-		gamePlayer(who, system, file)
-	]);
-	if (!emulatorFiles(player.core)) return 'Los juegos de esta consola no se pueden llevar';
-	const sizes = await Promise.all(
-		[player.rom, player.bios].filter((f): f is string => Boolean(f)).map((f) => sizeAtHouse(who, f))
-	);
-	const bytes = sizes.reduce((a, b) => a + b, 0);
+	const { title, core, bytes } = await (async () => {
+		if (source === 'propia') {
+			const carry = await ownCarry(k.familyId, system, file);
+			return { title: carry.title, core: carry.player.core, bytes: carry.bytes };
+		}
+		const [summary, player] = await Promise.all([
+			gameSummary(who, system, file),
+			gamePlayer(who, system, file)
+		]);
+		const files = [player.rom, player.bios].filter((f): f is string => Boolean(f));
+		const sizes = emulatorFiles(player.core)
+			? await Promise.all(files.map((f) => sizeAtHouse(who, f)))
+			: [];
+		return { title: summary.title, core: player.core, bytes: sizes.reduce((a, b) => a + b, 0) };
+	})();
+	if (!emulatorFiles(core)) return 'Los juegos de esta consola no se pueden llevar';
 	const [games, music] = await Promise.all([
 		gameBytesOn(k, deviceId),
 		musicBytesOn(k, who, deviceId)
@@ -128,26 +143,21 @@ export async function orderOfflineGame(
 	await k.run((tx) =>
 		tx
 			.insert(offlineGame)
-			.values({ familyId: k.familyId, system, file, deviceId, title: summary.title, bytes })
+			.values({ familyId: k.familyId, system, file, source, deviceId, title, bytes })
 			.onConflictDoNothing()
 	);
 	return null;
 }
 
 /** Away: the row now; its files, from the device the next time it opens. */
-export async function removeOfflineGame(
-	k: Kitchen,
-	system: string,
-	file: string,
-	deviceId: string
-) {
-	await k.run((tx) => tx.delete(offlineGame).where(where(system, file, deviceId)));
+export async function removeOfflineGame(k: Kitchen, game: CarriedGame, deviceId: string) {
+	await k.run((tx) => tx.delete(offlineGame).where(where(game, deviceId)));
 }
 
 /**
  * The device, as the app opens on it: the games it carries, each with what its player needs as it
- * is now at the house (the person's buttons, its cartridge), the first ordered first. A game gone
- * from the house goes from here too. Null, the device is not known (forgotten from another
+ * is now at the house or in the bucket (the person's buttons, its cartridge), the first ordered
+ * first. A game gone from the house or the bucket goes from here too. Null, the device is not known (forgotten from another
  * device): what it keeps, it removes.
  */
 export async function syncOfflineGames(
@@ -161,14 +171,21 @@ export async function syncOfflineGames(
 	if (!device) return null;
 	const rows = await k.run((tx) =>
 		tx
-			.select({ system: offlineGame.system, file: offlineGame.file, title: offlineGame.title })
+			.select({
+				system: offlineGame.system,
+				file: offlineGame.file,
+				source: offlineGame.source,
+				title: offlineGame.title
+			})
 			.from(offlineGame)
 			.where(eq(offlineGame.deviceId, deviceId))
 			.orderBy(asc(offlineGame.createdAt))
 	);
 	if (!rows.length) return [];
 	// Once for all: each game asks the house only for its player (the key has a limit).
-	const consoles = new Map((await gameConsoles(who)).map((c) => [c.id, c.name]));
+	const consoles = rows.some((r) => r.source === 'casa')
+		? new Map((await gameConsoles(who)).map((c) => [c.id, c.name]))
+		: new Map<string, string>();
 	const covers = new Map<string, Promise<Record<string, string>>>();
 	const coversOf = (system: string) => {
 		if (!covers.has(system))
@@ -179,35 +196,55 @@ export async function syncOfflineGames(
 		return covers.get(system)!;
 	};
 	const orders: OfflineGameOrder[] = [];
-	for (const { system, file, title } of rows) {
-		let player;
+	for (const row of rows) {
+		let order: OfflineGameOrder;
 		try {
-			player = await gamePlayer(who, system, file);
+			order =
+				row.source === 'propia'
+					? await ownOrder(k, row)
+					: await houseOrder(who, row, consoles, coversOf);
 		} catch (problem) {
-			// Removed at the house.
-			if (problem instanceof HouseProblem && problem.status === 404) {
-				await removeOfflineGame(k, system, file, deviceId);
+			// Removed at the house, or from the bucket.
+			if (isGone(problem)) {
+				await removeOfflineGame(k, row, deviceId);
 				continue;
 			}
 			throw problem;
 		}
-		orders.push({
-			system,
-			file,
-			title: player.title,
-			consoleName: consoles.get(system) ?? system,
-			cover: (await coversOf(system))[file] ?? null,
-			player
-		});
-		if (player.title !== title)
+		orders.push(order);
+		if (order.title !== row.title)
 			await k.run((tx) =>
-				tx
-					.update(offlineGame)
-					.set({ title: player.title })
-					.where(where(system, file, deviceId))
+				tx.update(offlineGame).set({ title: order.title }).where(where(row, deviceId))
 			);
 	}
 	return orders;
+}
+
+/** A game gone: the house's 404, or the bucket's (SvelteKit's error from findGame). */
+const isGone = (problem: unknown) =>
+	(problem instanceof HouseProblem && problem.status === 404) || isHttpError(problem, 404);
+
+async function houseOrder(
+	who: Who,
+	{ system, file }: CarriedGame,
+	consoles: Map<string, string>,
+	coversOf: (system: string) => Promise<Record<string, string>>
+): Promise<OfflineGameOrder> {
+	const player = await gamePlayer(who, system, file);
+	return {
+		system,
+		file,
+		source: 'casa',
+		title: player.title,
+		consoleName: consoles.get(system) ?? system,
+		cover: (await coversOf(system))[file] ?? null,
+		player
+	};
+}
+
+async function ownOrder(k: Kitchen, { system, file }: CarriedGame): Promise<OfflineGameOrder> {
+	const { title, consoleName, cover, player } = await ownCarry(k.familyId, system, file);
+	return { system, file, source: 'propia', title, consoleName, cover, player };
 }
 
 /** How it is going, as the device says: only for what it was ordered. */
@@ -221,6 +258,6 @@ export async function reportOfflineGame(k: Kitchen, deviceId: string, r: Offline
 				problem: r.state === 'failed' ? (r.problem ?? 'Error') : null,
 				updatedAt: new Date()
 			})
-			.where(where(r.system, r.file, deviceId))
+			.where(where(r, deviceId))
 	);
 }

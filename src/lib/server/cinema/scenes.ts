@@ -8,7 +8,7 @@ import { FRAME_WIDTHS } from '#lib/birds-eye.ts';
 import { formatDuration } from 'comun/format.ts';
 import { sceneFrameAt, type SceneName } from '#lib/scenes.ts';
 import { movieFrame } from './frames.ts';
-import { filmArticles } from './wikidata.ts';
+import { filmArticles } from 'comun/wikidata/wikidata.ts';
 
 /**
  * Films whose scenes are being named, in the background: it takes a minute or two (a frame of

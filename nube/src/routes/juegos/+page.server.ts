@@ -7,6 +7,7 @@ import { gameSources } from '#lib/server/game-source.ts';
 import { HouseProblem } from '#lib/server/house.ts';
 import { ownConsoles, sourceView } from '#lib/server/own-games.ts';
 import { isDeviceId } from 'comun/route-maps.ts';
+import { isOfflineGameSource } from '#lib/offline-games.ts';
 
 /**
  * The consoles (#405): the house's, or the family's bucket's (#564), as the person chose in
@@ -37,9 +38,16 @@ export const actions: Actions = {
 	/** A game a device no longer carries; it lets its files go when the app opens there. */
 	offlineRemove: async ({ request, locals }) => {
 		const form = await request.formData();
-		const [system, file, device] = ['system', 'file', 'device'].map((k) => form.get(k));
-		if (typeof system !== 'string' || typeof file !== 'string' || !isDeviceId(device))
+		const [system, file, device, source] = ['system', 'file', 'device', 'source'].map((k) =>
+			form.get(k)
+		);
+		if (
+			typeof system !== 'string' ||
+			typeof file !== 'string' ||
+			!isDeviceId(device) ||
+			!isOfflineGameSource(source)
+		)
 			return fail(400, { offline: 'Juego no válido' });
-		await removeOfflineGame(await kitchenOf(locals.user!.id), system, file, device);
+		await removeOfflineGame(await kitchenOf(locals.user!.id), { system, file, source }, device);
 	}
 };

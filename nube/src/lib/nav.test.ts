@@ -141,3 +141,20 @@ test("«Mi barra»'s list: only what the family has; saved, only what it showed"
 	);
 	expect(after).toEqual({ '/recetas': false, '/nevera': true, '/agenda': false });
 });
+
+test('Música and Juegos also without a house, with the family’s own bucket of each', () => {
+	const on = { '/juegos': true };
+	const labels = (reach: Parameters<typeof navLinks>[1]) =>
+		navLinks(false, reach, false, false, false, on).links.map((l) => l.label);
+	expect(labels({ house: false, games: true })).toContain('Juegos');
+	expect(labels({ house: false, games: true })).not.toContain('Música');
+	expect(labels({ house: false, music: true })).toContain('Música');
+	expect(labels({ house: false, music: true, games: true })).not.toContain('Series');
+	expect(sectionList({ house: false, games: true }, {}, false).map((s) => s.path)).toContain(
+		'/juegos'
+	);
+	// No QR for the house's TV without a house.
+	expect(
+		navLinks(false, { house: false, games: true }).userLinks.map((l) => l.label)
+	).not.toContain('Leer un QR');
+});

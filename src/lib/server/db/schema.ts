@@ -21,7 +21,7 @@ import { sql } from 'drizzle-orm';
 import type { AudioTrack, SubtitleTrack } from 'comun/languages.ts';
 import type { Chapter, SceneName } from '#lib/scenes.ts';
 import type { SubtitleStyle } from 'comun/subtitle-style.ts';
-import type { WikiPage } from '#lib/server/cinema/wikidata.ts';
+import type { WikiPage } from 'comun/wikidata/wikidata.ts';
 import type { TitleProposal } from '#lib/episode-titles.ts';
 import type { DjOptions } from 'comun/music.ts';
 import { session, user } from './auth.schema';

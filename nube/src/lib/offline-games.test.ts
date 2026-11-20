@@ -52,8 +52,11 @@ test("a game's files: the game, its BIOS and its box, those it has", () => {
 	]);
 });
 
-test('its page on the device, escaped', () => {
-	expect(offlineGameHref('snes', 'Mario & Luigi.sfc')).toBe(
+test('its page on the device, escaped; the bucket’s with `?de=propia`', () => {
+	expect(offlineGameHref({ system: 'snes', file: 'Mario & Luigi.sfc', source: 'casa' })).toBe(
 		'/juegos/aqui/snes/Mario%20%26%20Luigi.sfc'
+	);
+	expect(offlineGameHref({ system: 'snes', file: 'Zelda.sfc', source: 'propia' })).toBe(
+		'/juegos/aqui/snes/Zelda.sfc?de=propia'
 	);
 });

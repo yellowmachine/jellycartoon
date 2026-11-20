@@ -5,7 +5,7 @@ import { chatConfig } from '#lib/server/app-settings.ts';
 import { streamChat, type ChatEvent, type ChatMessage } from '#lib/server/openrouter.ts';
 import { formatDuration } from 'comun/format.ts';
 import { savedMovieInfo, type MovieInfo } from './info.ts';
-import { filmArticles, type Article } from './wikidata.ts';
+import { filmArticles, type Article } from 'comun/wikidata/wikidata.ts';
 
 export type ChatEntry = Pick<
 	typeof movieChatMessage.$inferSelect,

@@ -55,7 +55,10 @@
 			los adultos de la familia; con casa también, cada uno elige en Para mí cuáles ve. Van en una
 			carpeta por consola: <code>nes/</code>, <code>snes/</code>, <code>gb/</code>,
 			<code>gbc/</code>, <code>gba/</code>, <code>mastersystem/</code>, <code>megadrive/</code>,
-			<code>atari2600/</code>. Las recreativas, más adelante.
+			<code>atari2600/</code>, y las recreativas en <code>arcade/</code>, los <code>.zip</code> con
+			el nombre corto de FinalBurn Neo (<code>mslug.zip</code>) y su BIOS al lado (<code
+				>neogeo.zip</code
+			>).
 		</p>
 
 		{#if source}
