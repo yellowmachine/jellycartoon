@@ -13,7 +13,7 @@ import { familyHasHouse, sendHouse } from '#lib/server/house.ts';
 import { dosesFor, listMedication } from '#lib/server/medication.ts';
 import { hoursAhead, type HourAhead } from 'comun/weather.ts';
 import { fridgeState, houseKitchen, kitchenOf, type Kitchen } from '#lib/server/fridge.ts';
-import { tell } from '#lib/server/inbox.ts';
+import { keepQuietly, tell } from '#lib/server/inbox.ts';
 import { startTimerAt } from '#lib/server/alarms/alarms.ts';
 import { listMemories, remember } from '#lib/server/memory.ts';
 import { completeJson, DEFAULT_MODEL, guessCost } from '#lib/server/openrouter.ts';
@@ -59,6 +59,7 @@ import {
 	MAX_PLUG_MIN,
 	MAX_RULE,
 	plugSaid,
+	ruleSaid,
 	RULE_SCHEMA,
 	specOf,
 	timerSaid,
@@ -81,6 +82,8 @@ export { sameName, type Rule };
  * everyone's. Whether they hold, in rule-check.ts, in a «world» (#389): here the real one, now;
  * and `simulateRules`, «¿Qué pasaría…?» in Ajustes, a moment to come, with nothing told.
  */
+
+const capital = (text: string) => `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 
 /** More than this and none is added: a family's rules, not a program. */
 const MAX_RULES = 100;
@@ -191,6 +194,84 @@ export async function deleteRule(k: Kitchen, userId: string | null, id: number) 
 	return gone?.understood ?? null;
 }
 
+// ——— Errands (#557, phase 3) ———
+
+/** Done or missed errands go after this many days: a list, not an archive (and MAX_RULES). */
+const ERRAND_KEEP_DAYS = 7;
+
+const isErrand = (r: Pick<Rule, 'spec'>) => r.spec.when.kind === 'en_fecha';
+const momentKey = (r: Pick<Rule, 'spec'>) => `${r.spec.when.day} ${r.spec.when.time}`;
+
+/** The errands `userId` sees (null, a satellite: the house's): the coming ones first, by their moment. */
+export async function listErrands(k: Kitchen, userId: string | null) {
+	const errands = (await listRules(k, userId)).filter(isErrand);
+	const coming = errands
+		.filter((r) => !r.paused)
+		.sort((a, b) => (momentKey(a) < momentKey(b) ? -1 : 1));
+	const past = errands
+		.filter((r) => r.paused)
+		.sort((a, b) => (momentKey(a) < momentKey(b) ? 1 : -1));
+	return { coming, past };
+}
+
+/** The errands in words, for the voice and Preguntar: each with its number. */
+export async function describeErrands(k: Kitchen, userId: string | null) {
+	const { coming, past } = await listErrands(k, userId);
+	const line = (r: Rule) => `${r.id}: ${ruleSaid(r)}`;
+	const done = (r: Rule) =>
+		`${line(r)} (${r.lastFiredAt ? `hecho: ${r.lastWhy ?? ''}` : `no se hizo: ${r.lastWhy ?? ''}`})`;
+	return [
+		coming.length
+			? `Encargos pendientes: ${coming.map(line).join(' · ')}`
+			: 'No hay encargos pendientes.',
+		past.length ? `Últimos hechos o pasados: ${past.slice(0, 5).map(done).join(' · ')}` : ''
+	]
+		.filter(Boolean)
+		.join('\n');
+}
+
+/**
+ * An errand moved to another day or time, if they see it and it is to come or it can come again:
+ * waiting afresh. Its sentence carries no day nor time (`ruleSaid`), so the AI is not asked. Why
+ * not, or null.
+ */
+export async function moveErrand(
+	k: Kitchen,
+	userId: string | null,
+	id: number,
+	day: string,
+	time: string
+) {
+	const r = (await listRules(k, userId)).find((x) => x.id === id);
+	if (!r || !isErrand(r)) return 'No hay ese encargo.';
+	if (!parseClock(time) || !/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(day)))
+		return 'Falta el día (AAAA-MM-DD) o la hora (HH:MM).';
+	if (`${day} ${time}` < `${localDay()} ${localTime()}`) return 'Esa hora ya ha pasado.';
+	const spec: RuleSpec = { ...r.spec, when: { ...r.spec.when, day, time } };
+	await k.run((tx) =>
+		tx
+			.update(rule)
+			.set({
+				spec,
+				paused: false,
+				fired: [],
+				lastFiredAt: null,
+				lastWhy: null,
+				updatedAt: new Date()
+			})
+			.where(and(eq(rule.familyId, k.familyId), eq(rule.id, id), visibleTo(userId)))
+	);
+	return null;
+}
+
+/** Done or missed errands over `ERRAND_KEEP_DAYS` days ago, gone: from the clock's look, each minute. */
+async function forgetOldErrands(k: Kitchen, rules: Rule[]) {
+	const before = addDays(localDay(), -ERRAND_KEEP_DAYS);
+	const old = rules.filter((r) => isErrand(r) && r.paused && (r.spec.when.day ?? '') < before);
+	for (const r of old)
+		await k.run((tx) => tx.delete(rule).where(and(eq(rule.id, r.id), eq(rule.paused, true))));
+}
+
 // ——— Understanding it ———
 
 const SYSTEM = (
@@ -235,7 +316,7 @@ Qué hace («then»): «avisar» (con «notice»), «temporizador», «enchufe»
 A quién y qué («notice», al avisar; al deducir, «text» vacío): «to» es «yo» (quien habla; en la casa, toda la familia), «casa» (toda la familia) o «personas» con sus nombres en «people», de los de la familia. «text» es el aviso tal como lo leerá quien lo recibe, corto y en segunda persona («Recuérdales a tus padres que rieguen las plantas»). «level» es «urgente» solo si lo pide o es un peligro.
 «once»: true si es para una sola vez («la próxima vez que…», «este viernes»; «en_fecha», siempre).
 «say»: true si además hay que decirlo en voz alta en casa, por los altavoces de la voz: si lo pide («dímelo en voz alta», «avisa en casa», «que lo diga Alexa») o si es de toda la casa; false si es solo para el móvil de quien habla.
-«understood»: la regla en una frase, como la comprobará el programa, para leérsela a quien la dijo («Cuando empiece en la Agenda algo con «padres», si estás de viaje, te avisaré: …»).
+«understood»: la regla en una frase, como la comprobará el programa, para leérsela a quien la dijo («Cuando empiece en la Agenda algo con «padres», si estás de viaje, te avisaré: …»). En «en_fecha», sin el día ni la hora, que el programa pone delante y se pueden cambiar luego: «Si en casa hay menos de 15 °C, encenderé «Termo» 1 hora».
 Si no se puede con esto (otra familia, otros aparatos que no sean los enchufes y los sensores de temperatura, algo sin cuándo), «possible» false y en «why_not» por qué, corto; lo demás, lo más parecido posible.`;
 
 /**
@@ -703,14 +784,26 @@ async function switchFor(k: Kitchen, r: Rule, p: RulePlug, why: string) {
 		: `${why}: ${plugSaid(p, ['encendido', 'apagado'])}`;
 	await k.run((tx) => tx.update(rule).set({ lastWhy: did }).where(eq(rule.id, r.id)));
 	console.info(`[reglas] «${r.understood}»: ${did}`, { id: r.id });
-	if (!failed) return;
+	if (!failed) {
+		// What it did, to look at later (#557, phase 3): in the Buzón, not on the phone.
+		await keepQuietly(k.familyId, await recipients(k, r), {
+			kind: 'regla',
+			level: 'normal',
+			title: `🔌 ${capital(plugSaid(p, ['encendido', 'apagado']))}`,
+			body: `Porque ${why}. Era para: ${ruleSaid(r)}`,
+			tag: `regla-${r.id}-hecho`,
+			url: '/reglas?ver=encargos',
+			ttl: 6 * 3600
+		});
+		return;
+	}
 	await tell(k.familyId, await recipients(k, r), {
 		kind: 'regla',
 		level: 'normal',
 		title: `🔌 No he podido ${p.on ? 'encender' : 'apagar'} «${p.name}»`,
-		body: `«${p.name}» ${failed}. Era para: ${r.understood}`,
+		body: `«${p.name}» ${failed}. Era para: ${ruleSaid(r)}`,
 		tag: `regla-${r.id}-enchufe`,
-		url: '/reglas',
+		url: '/reglas?ver=encargos',
 		ttl: 6 * 3600
 	});
 }
@@ -825,19 +918,33 @@ async function missedMoment(k: Kitchen, r: Rule) {
 			level: 'normal',
 			title: p
 				? `🔌 No he ${p.on ? 'encendido' : 'apagado'} «${p.name}»`
-				: `🔔 No he podido mirar: ${r.understood}`,
-			body: `${why.charAt(0).toUpperCase()}${why.slice(1)}. Era para: ${r.understood}${p ? ' Si quieres, hazlo desde Enchufes.' : ''}`,
+				: `🔔 No he podido mirar: ${ruleSaid(r)}`,
+			body: `${capital(why)}. Era para: ${ruleSaid(r)}${p ? ' Si quieres, hazlo desde Enchufes.' : ''}`,
 			tag: `regla-${r.id}-sin-saber`,
 			url: p ? '/enchufes' : '/reglas',
 			ttl: 6 * 3600
 		});
 	}
-	await k.run((tx) =>
+	const [paused] = await k.run((tx) =>
 		tx
 			.update(rule)
 			.set({ paused: true, lastWhy: why })
 			.where(and(eq(rule.id, r.id), eq(rule.paused, false)))
+			.returning({ id: rule.id })
 	);
+	// What did not hold (#557, phase 3): in the Buzón, quietly; not known was told above.
+	if (paused && !unknown) {
+		const p = r.spec.then === 'enchufe' ? r.spec.plug : null;
+		await keepQuietly(k.familyId, await recipients(k, r), {
+			kind: 'regla',
+			level: 'normal',
+			title: p ? `🔌 No he ${p.on ? 'encendido' : 'apagado'} «${p.name}»` : '🔔 No ha hecho falta',
+			body: `${capital(why)}. Era para: ${ruleSaid(r)}`,
+			tag: `regla-${r.id}-no-hecho`,
+			url: '/reglas?ver=encargos',
+			ttl: 6 * 3600
+		});
+	}
 	console.info(`[reglas] «${r.understood}»: pasó su hora sin hacerse (${why})`, { id: r.id });
 }
 
@@ -971,7 +1078,9 @@ async function setFired(k: Kitchen, r: Rule, fired: string[]) {
 
 /** Every minute, for a family (scheduler.ts): the rules that wait for the clock. */
 export async function checkTimedRules(familyId: string) {
-	const rules = (await allRules(houseKitchen(familyId))).filter(
+	const every = await allRules(houseKitchen(familyId));
+	await forgetOldErrands(houseKitchen(familyId), every);
+	const rules = every.filter(
 		(r) =>
 			!r.paused && !['nevera', 'recuerdo', 'dicho', 'compra', 'enchufe'].includes(r.spec.when.kind)
 	);

@@ -178,7 +178,35 @@ const ERRAND = {
 	},
 	savedId: null
 };
+const changesDone: { userId: string; ruleId: number; cancel: boolean }[] = [];
+let changeProblem: string | null = null;
 mock.module('#lib/server/encargos.ts', () => ({
+	readErrands: async (_k: Kitchen, userId: string) =>
+		`Encargos pendientes de ${userId}: 9: El sábado 21 a las 09:00: encenderé «Termo» 1 hora`,
+	proposeErrandChange: async (_k: Kitchen, _u: string, args: Record<string, unknown>) =>
+		args.id === 9
+			? {
+					result: 'Tarjeta enseñada.',
+					card: {
+						kind: 'cambio-encargo',
+						ruleId: 9,
+						said: 'El sábado 21 a las 09:00: encenderé «Termo» 1 hora',
+						cancel: args.cancel === true,
+						day: args.cancel ? null : '2026-11-21',
+						time: args.cancel ? null : '08:00',
+						done: false
+					}
+				}
+			: { result: 'No hay ese encargo.' },
+	applyErrandChange: async (
+		_k: Kitchen,
+		userId: string,
+		card: { ruleId: number; cancel: boolean; done: boolean }
+	) => {
+		if (changeProblem) return changeProblem;
+		if (!card.done) changesDone.push({ userId, ruleId: card.ruleId, cancel: card.cancel });
+		return null;
+	},
 	proposePlan: async (_k: Kitchen, name: string | null, args: Record<string, unknown>) => {
 		planAsked.push({ name, args });
 		return {
@@ -693,6 +721,44 @@ test('errands (#557): proposed with who asks, kept only by «Guardar» and only 
 		{ question: 'x', to: 'y', assistant: 'z', turns: [] }
 	);
 	expect(offered.at(-1)).not.toContain('propose_plan');
+});
+
+test('errands (#557, phase 3): read, a change proposed in a card, done only on «Confirmar», once', async () => {
+	answers = [
+		{ content: null, toolCalls: [call('read_errands', {})] },
+		{
+			content: null,
+			toolCalls: [
+				call('propose_errand_change', { id: 9, cancel: false, day: '2026-11-21', time: '08:00' })
+			]
+		},
+		{ content: '¿Lo paso a las 8?', toolCalls: [] }
+	];
+	const [, a] = await chat.askChat(ana, { id: 'ana', name: 'Ana' }, 'el termo mejor a las 8');
+	expect(String(sent[1]!.at(-1)!.content)).toContain('Encargos pendientes de ana');
+	expect(a!.cards).toMatchObject([
+		{ kind: 'cambio-encargo', ruleId: 9, time: '08:00', done: false }
+	]);
+	expect(changesDone).toEqual([]);
+	expect(await chat.applyChangeFromCard(pepe, 'pepe', a!.id, 0)).toBeNull();
+	changeProblem = 'Esa hora ya ha pasado.';
+	expect(await chat.applyChangeFromCard(ana, 'ana', a!.id, 0)).toEqual({
+		problem: 'Esa hora ya ha pasado.'
+	});
+	changeProblem = null;
+	expect(await chat.applyChangeFromCard(ana, 'ana', a!.id, 0)).toMatchObject({
+		card: { done: true }
+	});
+	await chat.applyChangeFromCard(ana, 'ana', a!.id, 0);
+	expect(changesDone).toEqual([{ userId: 'ana', ruleId: 9, cancel: false }]);
+	answers = [];
+	await chat.askChat(ana, { id: 'ana', name: 'Ana' }, '¿hecho?');
+	expect(
+		sent
+			.at(-1)!
+			.map((m) => String(m.content))
+			.join('\n')
+	).toContain('pasarlo al sábado 21 a las 08:00 (hecho)');
 });
 
 test("Mensajes (#555): only a place of the asker's own, as kept", async () => {

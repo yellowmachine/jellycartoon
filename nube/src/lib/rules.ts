@@ -5,6 +5,7 @@
  * memory does: accents and case aside, the same first five letters («tendida», «tendido»).
  */
 
+import { dayName } from 'comun/agenda.ts';
 import { timeLabel } from 'comun/timer-names.ts';
 
 /**
@@ -224,6 +225,22 @@ export interface RuleSpec {
 	say?: boolean;
 	/** Activated from one ready (rule-templates.ts, phase 7): which. */
 	template?: string;
+}
+
+/** An errand's moment (#557): «el sábado 21 a las 09:00»; empty for other rules. */
+export const errandWhen = (when: Pick<Trigger, 'kind' | 'day' | 'time'>) =>
+	when.kind === 'en_fecha' && when.day && when.time
+		? `el ${dayName(when.day)} a las ${when.time}`
+		: '';
+
+/**
+ * A rule as it is read (#557, phase 3): an errand's sentence carries no day nor time, so it can be
+ * moved without the AI; they go first, from its data: «El sábado 21 a las 09:00: si en casa…».
+ */
+export function ruleSaid(r: { understood: string; spec: Pick<RuleSpec, 'when'> }) {
+	const at = errandWhen(r.spec.when);
+	if (!at) return r.understood;
+	return `${at.charAt(0).toUpperCase()}${at.slice(1)}: ${r.understood.charAt(0).toLowerCase()}${r.understood.slice(1)}`;
 }
 
 export const MAX_RULE = 500;

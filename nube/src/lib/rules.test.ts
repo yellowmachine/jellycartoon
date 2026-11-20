@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { specOf, type TranslatedRule } from './rules.ts';
+import { ruleSaid, specOf, type TranslatedRule } from './rules.ts';
 
 const none = { what: 'ninguno', hours: 0, threshold: null, where: 'casa' };
 
@@ -434,5 +434,26 @@ describe('specOf', () => {
 		expect('day' in (specOf(answer(), resolve) as { spec: { when: object } }).spec.when).toBe(
 			false
 		);
+	});
+});
+
+describe('ruleSaid', () => {
+	test('an errand with its day and time first (#557, phase 3); another rule as understood', () => {
+		const when = {
+			kind: 'en_fecha' as const,
+			words: [],
+			minutesBefore: 0,
+			time: '09:00',
+			day: '2026-11-21'
+		};
+		expect(
+			ruleSaid({ understood: 'Si en casa hay frío, encenderé «Termo».', spec: { when } })
+		).toBe('El sábado 21 a las 09:00: si en casa hay frío, encenderé «Termo».');
+		expect(
+			ruleSaid({
+				understood: 'Cada día a las 9, avisaré.',
+				spec: { when: { ...when, kind: 'cada_dia' } }
+			})
+		).toBe('Cada día a las 9, avisaré.');
 	});
 });

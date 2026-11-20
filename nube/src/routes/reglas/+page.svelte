@@ -2,6 +2,7 @@
 	import GuideLink from '#lib/components/GuideLink.svelte';
 	import { page } from '$app/state';
 	import Reglas from './Reglas.svelte';
+	import Encargos from './Encargos.svelte';
 	import VozRecuerda from './VozRecuerda.svelte';
 	import VozAprendido from './VozAprendido.svelte';
 	import type { PageProps } from './$types';
@@ -15,6 +16,7 @@
 
 	const tabs = [
 		{ id: 'reglas', label: 'Reglas' },
+		{ id: 'encargos', label: 'Encargos' },
 		{ id: 'memoria', label: 'Memoria' }
 	] as const;
 	const tab = $derived(tabs.find((t) => t.id === page.url.searchParams.get('ver'))?.id ?? 'reglas');
@@ -46,6 +48,8 @@
 
 	{#if tab === 'reglas'}
 		<Reglas {data} {form} {tab} />
+	{:else if tab === 'encargos'}
+		<Encargos {data} {form} {tab} />
 	{:else}
 		<VozRecuerda {data} {form} {tab} />
 

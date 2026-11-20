@@ -105,9 +105,17 @@ import { leaveMessage, MAX_MESSAGE } from '#lib/server/inbox.ts';
 import { ruleEvent } from '#lib/server/rule-events.ts';
 import { HEARD_MIN_CHARS } from '#lib/server/learn.ts';
 import { keepHeard } from '#lib/server/heard.ts';
-import { deleteRule, listRules, saveRule, sameName, translateRule } from '#lib/server/rules.ts';
+import {
+	deleteRule,
+	describeErrands,
+	listRules,
+	moveErrand,
+	saveRule,
+	sameName,
+	translateRule
+} from '#lib/server/rules.ts';
 import { dosesFor, listMedication, markDose } from '#lib/server/medication.ts';
-import { MAX_RULE } from '#lib/rules.ts';
+import { MAX_RULE, ruleSaid } from '#lib/rules.ts';
 import { localDay, localTime } from 'comun/agenda.ts';
 
 /**
@@ -154,6 +162,7 @@ const ASKED_TO_KEEP = new Set([
 	'take_note',
 	'create_rule',
 	'delete_rule',
+	'move_errand',
 	'leave_message'
 ]);
 const SAY = {
@@ -1047,9 +1056,28 @@ function ruleTools(satellite: boolean): Tool[] {
 		),
 		tool(
 			'delete_rule',
-			'Borra una regla por su número (de «list_rules»).',
+			'Borra una regla, o cancela un encargo, por su número (de «list_rules» o «list_errands»): «cancela lo del termo».',
 			{ id: { type: 'integer' } },
 			['id']
+		),
+		tool(
+			'list_errands',
+			'Los encargos de una vez (un día y una hora, de «create_rule») pendientes y los últimos hechos, con su número: «¿qué tienes para mañana?», «¿has encendido el termo?», o para cambiar o cancelar uno.',
+			{},
+			[]
+		),
+		tool(
+			'move_errand',
+			'Cambia el día o la hora de un encargo por su número (de «list_errands»): «el termo mejor a las 8». Para cambiar otra cosa (la condición, el enchufe), bórralo y créalo de nuevo.',
+			{
+				id: { type: 'integer' },
+				day: {
+					type: 'string',
+					description: 'El día, AAAA-MM-DD (el mismo si solo cambia la hora).'
+				},
+				time: { type: 'string', description: 'La hora, HH:MM.' }
+			},
+			['id', 'day', 'time']
 		)
 	];
 }
@@ -1442,12 +1470,12 @@ async function runTool(
 			if (!id)
 				return 'No se ha creado: la familia ya tiene demasiadas reglas (se borran en Ajustes).';
 			ctx.outcome.done++;
-			return `Regla ${id} creada, ${whose ? 'solo de quien habla' : 'de toda la casa'}. Así la ha entendido: «${made.understood}». Díselo corto, para que pueda corregirla.`;
+			return `Regla ${id} creada, ${whose ? 'solo de quien habla' : 'de toda la casa'}. Así la ha entendido: «${ruleSaid(made)}». Díselo corto, para que pueda corregirla.`;
 		}
 		case 'list_rules': {
 			const rules = await listRules(ctx.k, ctx.memoryOf);
 			return rules.length
-				? `Sus reglas: ${rules.map((r) => `${r.id}${r.paused ? ' (en pausa)' : ''}: ${r.understood}`).join(' · ')}`
+				? `Sus reglas: ${rules.map((r) => `${r.id}${r.paused ? ' (en pausa)' : ''}: ${ruleSaid(r)}`).join(' · ')}`
 				: 'No hay ninguna regla todavía.';
 		}
 		case 'delete_rule': {
@@ -1456,6 +1484,18 @@ async function runTool(
 			if (!gone) return `No hay ninguna regla con el número ${args.id} que pueda ver quien habla.`;
 			ctx.outcome.done++;
 			return `Borrada: «${gone}».`;
+		}
+		case 'list_errands':
+			return describeErrands(ctx.k, ctx.memoryOf);
+		case 'move_errand': {
+			const id = Number(args.id);
+			const problem = Number.isInteger(id)
+				? await moveErrand(ctx.k, ctx.memoryOf, id, String(args.day ?? ''), String(args.time ?? ''))
+				: 'No hay ese encargo.';
+			if (problem) return `No se ha cambiado: ${problem}`;
+			ctx.outcome.done++;
+			const r = (await listRules(ctx.k, ctx.memoryOf)).find((x) => x.id === id);
+			return `Cambiado: «${r ? ruleSaid(r) : ''}».`;
 		}
 		case 'planned_trips':
 			return plannedTripsByVoice(ctx.k);

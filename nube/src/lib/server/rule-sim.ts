@@ -19,7 +19,7 @@ import {
 import { addDays, dayName } from 'comun/agenda.ts';
 import { hasWords } from '#lib/server/voice/learned.ts';
 import type { HourAhead } from 'comun/weather.ts';
-import { plugSaid, timerSaid, type RuleSpec } from '#lib/rules.ts';
+import { plugSaid, ruleSaid, timerSaid, type RuleSpec } from '#lib/rules.ts';
 
 /**
  * «¿Qué pasaría…?» (#389): a family's rules (#331) looked at in a span of a day to come, in the
@@ -259,7 +259,7 @@ export async function simulate({
 	const said = (r: Rule, minute: number | null, does: Outcome['does'], text: string) =>
 		outcomes.push({
 			id: r.id === DRAFT_ID ? null : r.id,
-			understood: r.understood,
+			understood: ruleSaid(r),
 			at: minute === null ? null : momentOf(minute).time,
 			does,
 			said: text,

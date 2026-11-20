@@ -6,6 +6,7 @@
 	import Caracol from '#lib/components/Caracol.svelte';
 	import ChatRecipeCard from '#lib/components/ChatRecipeCard.svelte';
 	import EncargosCard from '#lib/components/EncargosCard.svelte';
+	import CambioEncargoCard from '#lib/components/CambioEncargoCard.svelte';
 	import ShoppingCard from '#lib/components/ShoppingCard.svelte';
 	import { firstRead, MAX_CHAT_QUESTION, type ChatMessage } from '#lib/chat.ts';
 
@@ -229,6 +230,13 @@
 										message={m.id}
 										index={i}
 										onsaved={(saved) => setCard(m.id, i, () => saved)}
+									/>
+								{:else if card.kind === 'cambio-encargo'}
+									<CambioEncargoCard
+										{card}
+										message={m.id}
+										index={i}
+										ondone={(done) => setCard(m.id, i, () => done)}
 									/>
 								{:else if card.kind === 'receta'}
 									<!-- A plan (`cita`) is only made in Mensajes' panel (#555). -->

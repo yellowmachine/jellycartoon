@@ -4,8 +4,18 @@ import { MAX_ALARM_LABEL, parseAlarmInput } from 'comun/alarms.ts';
 import { personOf } from '#lib/server/agenda/agenda.ts';
 import { addAlarm } from '#lib/server/alarms/alarms.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
-import { saveRule, translateRule } from '#lib/server/rules.ts';
 import {
+	deleteRule,
+	describeErrands,
+	listErrands,
+	moveErrand,
+	saveRule,
+	translateRule
+} from '#lib/server/rules.ts';
+import { ruleSaid } from '#lib/rules.ts';
+import {
+	changeSaid,
+	type ErrandChangeCard,
 	alarmSaid,
 	MAX_PLAN_ITEMS,
 	type PlanAlarm,
@@ -117,4 +127,52 @@ export async function savePlan(
 		else items[i] = { ...item, savedId: id };
 	}
 	return { card: { ...card, items }, problems };
+}
+
+/** `read_errands` (#557, phase 3): theirs and the house's, in words. */
+export const readErrands = (k: Kitchen, userId: string) => describeErrands(k, userId);
+
+/**
+ * `propose_errand_change`: a card to move or cancel one of the errands they see, still to come;
+ * nothing done yet.
+ */
+export async function proposeErrandChange(
+	k: Kitchen,
+	userId: string,
+	args: Record<string, unknown>
+): Promise<{ result: string; card?: ErrandChangeCard }> {
+	const id = Number(args.id);
+	const r = (await listErrands(k, userId)).coming.find((x) => x.id === id);
+	if (!r)
+		return { result: `No hay un encargo pendiente con el número ${args.id}: mira «read_errands».` };
+	const cancel = args.cancel === true;
+	const day = cancel ? null : String(args.day ?? '');
+	const time = cancel ? null : String(args.time ?? '');
+	if (!cancel) {
+		if (!isDay(day) || !isTime(time))
+			return { result: 'Falta el día (YYYY-MM-DD) o la hora (HH:MM).' };
+		if (`${day} ${time}` < `${localDay()} ${localTime()}`)
+			return { result: 'Esa hora ya ha pasado.' };
+	}
+	const card: ErrandChangeCard = {
+		kind: 'cambio-encargo',
+		ruleId: id,
+		said: ruleSaid(r),
+		cancel,
+		day,
+		time,
+		done: false
+	};
+	return {
+		result: `Tarjeta enseñada: «${card.said}» → ${changeSaid(card).toLowerCase()}. La persona lo confirma; no digas que está hecho.`,
+		card
+	};
+}
+
+/** The card's change, done as theirs: why not, or null. Done twice, nothing more. */
+export async function applyErrandChange(k: Kitchen, userId: string, card: ErrandChangeCard) {
+	if (card.done) return null;
+	if (card.cancel)
+		return (await deleteRule(k, userId, card.ruleId)) ? null : 'Ese encargo ya no está.';
+	return moveErrand(k, userId, card.ruleId, card.day ?? '', card.time ?? '');
 }

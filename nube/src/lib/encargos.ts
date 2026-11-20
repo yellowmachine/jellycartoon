@@ -1,5 +1,5 @@
 import { dayName } from 'comun/agenda.ts';
-import type { RuleSpec } from '#lib/rules.ts';
+import { ruleSaid, type RuleSpec } from '#lib/rules.ts';
 import type { Tool } from '#lib/server/openrouter.ts';
 
 /**
@@ -41,9 +41,29 @@ export const MAX_PLAN_ITEMS = 6;
 export const alarmSaid = (a: Pick<PlanAlarm, 'day' | 'time' | 'label'>) =>
 	`${dayName(a.day)} a las ${a.time}: ${a.label}`;
 
-/** Each line as the person reads it. */
+/** Each line as the person reads it: an errand with its day and time first. */
 export const itemSaid = (item: PlanItem) =>
-	item.kind === 'aviso' ? alarmSaid(item) : item.understood;
+	item.kind === 'aviso' ? alarmSaid(item) : ruleSaid(item);
+
+/**
+ * A change to an errand already kept (#557, phase 3), proposed in Preguntar: moved to another day
+ * or time, or cancelled. Done only when tapped (`done`).
+ */
+export interface ErrandChangeCard {
+	kind: 'cambio-encargo';
+	ruleId: number;
+	/** The errand as it is read now. */
+	said: string;
+	cancel: boolean;
+	/** Moved to: `YYYY-MM-DD` and `HH:MM`; null when cancelling. */
+	day: string | null;
+	time: string | null;
+	done: boolean;
+}
+
+/** «Pasar al sábado 21 a las 08:00», «Cancelar». */
+export const changeSaid = (c: Pick<ErrandChangeCard, 'cancel' | 'day' | 'time'>) =>
+	c.cancel || !c.day || !c.time ? 'Cancelarlo' : `Pasarlo al ${dayName(c.day)} a las ${c.time}`;
 
 /** The AI's tool to propose them, in Preguntar (server/encargos.ts makes the card). */
 export const PROPOSE_PLAN: Tool = {
@@ -95,3 +115,41 @@ export function planLine(card: PlanCard) {
 		.map((it) => `${itemSaid(it)} (${it.savedId ? 'guardado' : 'sin guardar'})`)
 		.join('; ')}]`;
 }
+
+/** The errands in Preguntar (#557, phase 3): read them, and propose a change in a card. */
+export const READ_ERRANDS: Tool = {
+	type: 'function',
+	function: {
+		name: 'read_errands',
+		description:
+			'Los encargos de la persona (los de una vez, para un día y una hora: encender el termo, avisar si llueve) pendientes y los últimos hechos o que no hicieron falta, con su número y por qué: «¿qué tengo programado?», «¿se encendió el termo?», o antes de cambiar o cancelar uno.',
+		parameters: { type: 'object', properties: {}, required: [], additionalProperties: false }
+	}
+};
+
+export const PROPOSE_ERRAND_CHANGE: Tool = {
+	type: 'function',
+	function: {
+		name: 'propose_errand_change',
+		description:
+			'Enseña una tarjeta para cambiar el día o la hora de un encargo pendiente, o cancelarlo, por su número (de «read_errands»); la persona lo confirma con un toque. Para cambiar otra cosa (la condición, el enchufe), propón cancelarlo y uno nuevo con «propose_plan».',
+		parameters: {
+			type: 'object',
+			properties: {
+				id: { type: 'integer', description: 'Su número.' },
+				cancel: { type: 'boolean', description: 'true para cancelarlo.' },
+				day: {
+					type: 'string',
+					description: 'Al moverlo: el día, YYYY-MM-DD (el mismo si solo cambia la hora).'
+				},
+				time: { type: 'string', description: 'Al moverlo: la hora, HH:MM.' }
+			},
+			required: ['id', 'cancel'],
+			additionalProperties: false
+		}
+	}
+};
+
+/** What the AI is told of a change card later. */
+export const changeLine = (c: ErrandChangeCard) =>
+	`[Tarjeta de cambio del encargo ${c.ruleId} («${c.said}»): ${changeSaid(c).toLowerCase()} (${c.done ? 'hecho' : 'sin confirmar'})]`;

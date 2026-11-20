@@ -24,7 +24,22 @@ const specAt = (day: string, time: string): RuleSpec => ({
 	once: true
 });
 
+const errandsComing = [
+	{ id: 9, understood: 'Encenderé «Termo» 1 hora.', spec: specAt(TOMORROW, '09:00') }
+];
+const moved: unknown[] = [];
+const deleted: number[] = [];
 mock.module('#lib/server/rules.ts', () => ({
+	listErrands: async () => ({ coming: errandsComing, past: [] }),
+	describeErrands: async () => 'Encargos pendientes: …',
+	moveErrand: async (_k: Kitchen, userId: string, id: number, day: string, time: string) => {
+		moved.push({ userId, id, day, time });
+		return null;
+	},
+	deleteRule: async (_k: Kitchen, _u: string, id: number) => {
+		deleted.push(id);
+		return id === 9 ? 'algo' : null;
+	},
 	translateRule: async (_k: Kitchen, text: string, who: string | null) => {
 		understood.push({ text, who });
 		if (text.includes('estufa')) return { problem: 'No hay un enchufe «estufa».' };
@@ -51,7 +66,8 @@ mock.module('#lib/server/agenda/agenda.ts', () => ({
 	personOf: async (_k: Kitchen, userId: string) => (userId === 'ana' ? '7' : null)
 }));
 
-const { proposePlan, savePlan } = await import('./encargos.ts');
+const { applyErrandChange, proposeErrandChange, proposePlan, savePlan } =
+	await import('./encargos.ts');
 const ana = { familyId: 'A', userId: 'ana', run: async () => [] } as unknown as Kitchen;
 
 beforeEach(() => {
@@ -155,4 +171,50 @@ test('a moment gone by between the card and «Guardar»: not kept, said', async 
 	expect(saved.card).toEqual(gone);
 	expect(rules).toEqual([]);
 	expect(alarms).toEqual([]);
+});
+
+test('a change (#557, phase 3): only to an errand to come, checked; done as theirs, once', async () => {
+	moved.length = 0;
+	deleted.length = 0;
+	const move = await proposeErrandChange(ana, 'ana', {
+		id: 9,
+		cancel: false,
+		day: TOMORROW,
+		time: '08:00'
+	});
+	expect(move.card).toEqual({
+		kind: 'cambio-encargo',
+		ruleId: 9,
+		said: expect.stringMatching(/^El .+ a las 09:00: encenderé «Termo» 1 hora\.$/),
+		cancel: false,
+		day: TOMORROW,
+		time: '08:00',
+		done: false
+	});
+	expect((await proposeErrandChange(ana, 'ana', { id: 3, cancel: true })).card).toBeUndefined();
+	expect(
+		(await proposeErrandChange(ana, 'ana', { id: 9, cancel: false, day: TOMORROW })).result
+	).toContain('Falta');
+	expect(
+		(
+			await proposeErrandChange(ana, 'ana', {
+				id: 9,
+				cancel: false,
+				day: localDay(),
+				time: '00:00'
+			})
+		).result
+	).toBe(localTime() === '00:00' ? expect.any(String) : 'Esa hora ya ha pasado.');
+	const cancel = await proposeErrandChange(ana, 'ana', { id: 9, cancel: true, day: TOMORROW });
+	expect(cancel.card).toMatchObject({ cancel: true, day: null, time: null });
+
+	expect(await applyErrandChange(ana, 'ana', move.card!)).toBeNull();
+	expect(moved).toEqual([{ userId: 'ana', id: 9, day: TOMORROW, time: '08:00' }]);
+	expect(await applyErrandChange(ana, 'ana', { ...move.card!, done: true })).toBeNull();
+	expect(moved).toHaveLength(1);
+	expect(await applyErrandChange(ana, 'ana', cancel.card!)).toBeNull();
+	expect(await applyErrandChange(ana, 'ana', { ...cancel.card!, ruleId: 4 })).toBe(
+		'Ese encargo ya no está.'
+	);
+	expect(deleted).toEqual([9, 4]);
 });

@@ -6,6 +6,7 @@ description: Pedirle cosas a Seilide hablando o escribiendo, desde el micrófono
 import Capturas from '../../../components/Capturas.astro';
 import voz from '../../../assets/guia/voz.webp';
 import reglas from '../../../assets/guia/reglas.webp';
+import encargos from '../../../assets/guia/reglas-encargos.webp';
 
 Casi todo lo que se hace en Seilide se puede pedir hablando: apuntar un gasto, algo en la agenda o
 en la lista de la compra, poner música, un temporizador… Se habla como a una persona, sin frases
@@ -22,6 +23,11 @@ especiales. La voz es de los adultos: los peques no la tienen.
 			src: reglas,
 			alt: 'La página Reglas: la explicación con ejemplos, «Reglas listas para activar», el cuadro para escribir una regla con «Solo mía» y «Crear la regla», y «¿Qué pasaría…?»',
 			caption: 'Reglas'
+		},
+		{
+			src: encargos,
+			alt: 'Reglas → Encargos: los programados por días (mañana, más adelante), cada uno con su día y su hora delante, «Cambiar la hora» y «Cancelar…», y el cuadro para programar otro',
+			caption: 'Encargos'
 		}
 	]}
 />
@@ -113,6 +119,13 @@ alarma.
 
 En **Preguntar** sale una tarjeta con cada cosa en su línea: marca las que quieras y toca
 **Guardar**. Hasta entonces no se guarda nada.
+
+Todos están en **Reglas → Encargos**, por días: **Cambiar la hora** lo pasa a otro momento, y
+tocando el texto se reescribe o se cancela. También se le puede decir: «¿qué tienes para mañana?»,
+«el termo mejor a las 8», «cancela lo de la ropa»; en Preguntar te enseña el cambio en una tarjeta
+para que lo confirmes. Lo que hizo («Encendido «Termo» 1 hora, en casa había 13 °C») o por qué no
+hizo falta queda en tu **Buzón**, sin avisar al móvil; los que ya pasaron se quitan solos a la
+semana.
 
 La temperatura de casa la dicen los sensores de **Enchufes → Temperatura**. Con varios, marca en
 uno **Es el de casa**: es el que se mira cuando dices «en casa»; para otro, di la habitación («si

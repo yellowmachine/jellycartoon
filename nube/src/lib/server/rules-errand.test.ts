@@ -53,7 +53,12 @@ let sensorsNow: {
 mock.module('#lib/server/plugs/sensors.ts', () => ({
 	sensorsIn: async () => sensorsNow
 }));
+/** In the Buzón only, without the phone (#557, phase 3). */
+const kept: { to: string[]; title: string; body: string }[] = [];
 mock.module('#lib/server/inbox.ts', () => ({
+	keepQuietly: async (_f: string, to: string[], n: { title: string; body: string }) => {
+		kept.push({ to, title: n.title, body: n.body });
+	},
 	tell: async (_f: string, to: string[], n: { title: string; body: string; url: string }) => {
 		told.push({ to, title: n.title, body: n.body, url: n.url });
 	}
@@ -99,7 +104,7 @@ mock.module('#lib/server/voice/settings.ts', () => ({
 	voiceSettings: async () => ({ model: 'm', quiet: null })
 }));
 
-const { checkTimedRules } = await import('./rules.ts');
+const { checkTimedRules, listErrands, moveErrand } = await import('./rules.ts');
 
 /** `minutes` from now on the wall's clock (negative, ago): its day and time. */
 const fromNow = (minutes: number) => momentOf(minutesOf(localDay(), localTime()) + minutes);
@@ -143,6 +148,7 @@ beforeAll(async () => {
 beforeEach(async () => {
 	switched.length = 0;
 	told.length = 0;
+	kept.length = 0;
 	memories.length = 0;
 	plugAnswer = 'ok';
 	sensorsNow = [];
@@ -181,8 +187,10 @@ test('a plug that cannot: whom it is for told why, and kept so', async () => {
 		{
 			to: ['ana'],
 			title: '🔌 No he podido encender «Termo»',
-			body: '«Termo» tiene el candado puesto. Era para: Encenderé «Termo» 1 hora.',
-			url: '/reglas'
+			body: expect.stringMatching(
+				/^«Termo» tiene el candado puesto\. Era para: El .+ a las \d\d:\d\d: encenderé «Termo» 1 hora\.$/
+			),
+			url: '/reglas?ver=encargos'
 		}
 	]);
 	expect((await ruleRow(id)).lastWhy).toContain(
@@ -272,7 +280,9 @@ test('a reading too old (#557): not switched, and when its hour is over, told to
 		{
 			to: ['ana'],
 			title: '🔌 No he encendido «Termo»',
-			body: 'No sé la temperatura de casa: la última lectura de «Salón» es de hace 4 h. Era para: Encenderé «Termo» 1 hora. Si quieres, hazlo desde Enchufes.',
+			body: expect.stringMatching(
+				/^No sé la temperatura de casa: la última lectura de «Salón» es de hace 4 h\. Era para: El .+: encenderé «Termo» 1 hora\. Si quieres, hazlo desde Enchufes\.$/
+			),
 			url: '/enchufes'
 		}
 	]);
@@ -291,4 +301,86 @@ test('warm enough (#557): not switched, and its hour over, paused quietly with w
 	expect(after!.paused).toBe(true);
 	expect(after!.lastWhy).toBe('en casa hay 17 °C, no menos de 15 °C');
 	expect(told).toEqual([]);
+});
+
+test('what it did and what did not hold (#557, phase 3): in the Buzón, quietly; with its day first', async () => {
+	await db.insert(rule).values(errand(fromNow(-1)));
+	await checkTimedRules('A');
+	expect(told).toEqual([]);
+	expect(kept).toEqual([
+		{
+			to: ['ana'],
+			title: '🔌 Encendido «Termo» 1 hora',
+			body: expect.stringMatching(
+				/^Porque son las .+\. Era para: El .+ a las \d\d:\d\d: encenderé «Termo» 1 hora\.$/
+			)
+		}
+	]);
+	kept.length = 0;
+	await db.delete(rule);
+	await db.insert(rule).values({
+		...errand(fromNow(-90), COLD_AT_HOME),
+		lastWhy: 'no se cumple: en casa hay 17 °C, no menos de 15 °C'
+	});
+	await checkTimedRules('A');
+	expect(told).toEqual([]);
+	expect(kept).toMatchObject([
+		{
+			title: '🔌 No he encendido «Termo»',
+			body: expect.stringMatching(/^En casa hay 17 °C, no menos de 15 °C\. Era para: /)
+		}
+	]);
+});
+
+test('listed and moved (#557, phase 3): by their moment; moved, waiting afresh; a past moment refused', async () => {
+	const ana = kitchen('A', 'ana');
+	const later = fromNow(120);
+	const sooner = fromNow(30);
+	const [{ id: a }] = await db.insert(rule).values(errand(later)).returning({ id: rule.id });
+	const [{ id: b }] = await db.insert(rule).values(errand(sooner)).returning({ id: rule.id });
+	const [{ id: done }] = await db
+		.insert(rule)
+		.values({ ...errand(fromNow(-200)), paused: true, lastWhy: 'x', lastFiredAt: new Date() })
+		.returning({ id: rule.id });
+	// A rule that stays is no errand.
+	await db.insert(rule).values({
+		...errand(later),
+		spec: {
+			...errand(later).spec,
+			when: { kind: 'cada_dia', words: [], minutesBefore: 0, time: '09:00' }
+		}
+	});
+	let list = await listErrands(ana, 'ana');
+	expect(list.coming.map((r) => r.id)).toEqual([b, a]);
+	expect(list.past.map((r) => r.id)).toEqual([done]);
+	// Another person of the family does not see hers.
+	expect((await listErrands(kitchen('A', 'otro'), 'otro')).coming).toEqual([]);
+
+	expect(await moveErrand(ana, 'ana', a, fromNow(-5).day, fromNow(-5).time)).toBe(
+		'Esa hora ya ha pasado.'
+	);
+	expect(await moveErrand(ana, 'ana', a, 'mañana', '08:00')).toContain('Falta');
+	expect(await moveErrand(ana, 'otro', a, later.day, later.time)).toBe('No hay ese encargo.');
+	const soon = fromNow(10);
+	expect(await moveErrand(ana, 'ana', done, soon.day, soon.time)).toBeNull();
+	const again = await ruleRow(done);
+	expect(again).toMatchObject({ paused: false, lastWhy: null, lastFiredAt: null, fired: [] });
+	expect(again.spec.when).toMatchObject({ day: soon.day, time: soon.time });
+	list = await listErrands(ana, 'ana');
+	expect(list.coming.map((r) => r.id)).toEqual([done, b, a]);
+});
+
+test('past errands go after a week, the ones to come stay (#557, phase 3)', async () => {
+	const old = momentOf(minutesOf(localDay(), '12:00') - 8 * 24 * 60);
+	const recent = momentOf(minutesOf(localDay(), '12:00') - 2 * 24 * 60);
+	await db
+		.insert(rule)
+		.values([
+			{ ...errand(old), paused: true, lastWhy: 'x' },
+			{ ...errand(recent), paused: true, lastWhy: 'y' },
+			errand(fromNow(60))
+		]);
+	await checkTimedRules('A');
+	const left = await db.select({ lastWhy: rule.lastWhy, paused: rule.paused }).from(rule);
+	expect(left.map((r) => r.lastWhy).sort()).toEqual([null, 'y']);
 });

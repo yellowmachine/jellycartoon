@@ -35,6 +35,20 @@ export async function tell(familyId: string, userIds: string[], notice: Notice) 
 	if (notice.kind === 'recado' || level === 'urgente') await mail(familyId, to, notice, level);
 }
 
+/**
+ * Only in their inboxes, without their phones (#557: what an errand did, to look at later, not to
+ * be told). Never fails.
+ */
+export async function keepQuietly(familyId: string, userIds: string[], notice: Notice) {
+	const to = [...new Set(userIds)];
+	if (!to.length) return;
+	try {
+		await keepInInbox(houseKitchen(familyId), to, notice);
+	} catch (error) {
+		console.error('[buzón] No se pudo guardar', { kind: notice.kind, error });
+	}
+}
+
 /** By email, to those who chose it (urgent: to all); not to children (their address is none). */
 async function mail(familyId: string, userIds: string[], notice: Notice, level: InboxLevel) {
 	try {
