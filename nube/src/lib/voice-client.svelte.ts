@@ -227,6 +227,8 @@ class VoiceClient {
 		// Typed or tapped: that touch lets a timer set now ring later.
 		timers.unlockSound();
 		if (Date.now() - this.#historyAt > HISTORY_IDLE_MS) this.#history = [];
+		// In the Vista, the house's voice (#525): one of its phrases while the AI thinks, as a satellite.
+		if (vista.on && !this.road) void this.#filler();
 		const res = await fetch('/api/voz/orden', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
@@ -294,8 +296,64 @@ class VoiceClient {
 	 * Read aloud with the device's own voice; the episode that was paused plays again once it ends:
 	 * https://developer.mozilla.org/docs/Web/API/SpeechSynthesis
 	 */
+	/** Each answer said: one said after it wins, and the earlier one touches nothing more. */
+	#turn = 0;
+
 	#speak(text: string) {
-		if (!('speechSynthesis' in window)) return resumeAfterVoice();
+		const turn = ++this.#turn;
+		if (vista.on && !this.road) return void this.#speakAsHouse(text, turn);
+		houseVoice.stop();
+		this.#speakHere(text);
+	}
+
+	/** A phrase said while the AI thinks, if the family has it recorded and the answer is not here yet. */
+	async #filler() {
+		const res = await fetch('/api/voz/decir', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ filler: true })
+		}).catch(() => null);
+		if (res?.status !== 200 || this.phase !== 'thinking') return;
+		const wav = await res.blob().catch(() => null);
+		if (wav && this.phase === 'thinking') houseVoice.play(wav, { filler: true });
+	}
+
+	/**
+	 * In the Vista: in the family's voice, the satellites' (Ajustes → Familia), recorded by Seilide,
+	 * so it sounds as soon and the same as them; after the phrase said meanwhile. If it cannot (no
+	 * key or credit, no connection), with the device's own.
+	 */
+	async #speakAsHouse(text: string, turn: number) {
+		if ('speechSynthesis' in window) speechSynthesis.cancel();
+		this.speaking = true;
+		music.duck(true);
+		const res = await fetch('/api/voz/decir', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ text })
+		}).catch(() => null);
+		const wav = res?.ok ? await res.blob().catch(() => null) : null;
+		if (turn !== this.#turn) return;
+		if (!wav) {
+			houseVoice.stop();
+			return this.#speakHere(text);
+		}
+		const played = await houseVoice.play(wav);
+		if (turn !== this.#turn) return;
+		if (played === 'failed') return this.#speakHere(text);
+		this.speaking = false;
+		music.duck(false);
+		// Stopped to listen again: what was paused stays paused for it.
+		if (played === 'ended') resumeAfterVoice();
+	}
+
+	/** Read aloud with the device's own voice. */
+	#speakHere(text: string) {
+		if (!('speechSynthesis' in window)) {
+			this.speaking = false;
+			music.duck(false);
+			return resumeAfterVoice();
+		}
 		speechSynthesis.cancel();
 		const utterance = new SpeechSynthesisUtterance(text);
 		utterance.lang = 'es-ES';
@@ -313,10 +371,60 @@ class VoiceClient {
 }
 
 /**
+ * The family's voice in the Vista (#525), through one <audio> in the page (a detached one does not
+ * always sound, plasma-extension-audio): a phrase while the AI thinks, then the answer, after it.
+ * Something said anew, or listening again, stops it.
+ */
+const houseVoice = {
+	el: null as HTMLAudioElement | null,
+	/** The phrase playing, to let the answer wait for its end. */
+	filler: null as Promise<unknown> | null,
+	/** The one playing, ended as stopped when another takes its place. */
+	settle: null as ((how: 'stopped') => void) | null,
+	audio() {
+		if (!this.el) {
+			this.el = document.createElement('audio');
+			this.el.hidden = true;
+			document.body.append(this.el);
+		}
+		return this.el;
+	},
+	/** How it went: ended, stopped by something newer, or not played (then: the device's voice). */
+	async play(wav: Blob, { filler = false } = {}): Promise<'ended' | 'stopped' | 'failed'> {
+		if (!filler && this.filler) await this.filler;
+		const el = this.audio();
+		this.settle?.('stopped');
+		const url = URL.createObjectURL(wav);
+		el.src = url;
+		const done = new Promise<'ended' | 'stopped' | 'failed'>((resolve) => {
+			this.settle = resolve;
+			el.onended = () => resolve('ended');
+			el.onerror = () => resolve('failed');
+			el.onpause = () => resolve(el.ended ? 'ended' : 'stopped');
+		}).finally(() => URL.revokeObjectURL(url));
+		try {
+			await el.play();
+		} catch {
+			URL.revokeObjectURL(url);
+			return 'failed';
+		}
+		if (filler) this.filler = done.finally(() => (this.filler = null));
+		return done;
+	},
+	stop() {
+		this.filler = null;
+		if (this.el && !this.el.paused) this.el.pause();
+		this.settle?.('stopped');
+		this.settle = null;
+	}
+};
+
+/**
  * About to listen: a timer ringing stops (and what it paused plays again, to pause it now for the
  * voice), and what plays here pauses. A press also lets the timers about to be set ring later.
  */
 function pauseForVoice() {
+	houseVoice.stop();
 	timers.silence();
 	timers.unlockSound();
 	music.pauseForVoice();
