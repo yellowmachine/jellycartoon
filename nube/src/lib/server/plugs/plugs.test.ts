@@ -500,6 +500,67 @@ describe('horarios, pausa y calentamiento', () => {
 		expect(await switchPlug('ana', termo, false)).toBe(true);
 	});
 
+	test('its pause by voice and in Preguntar (#557): as on its card, once; the padlock stops it', async () => {
+		const k = { familyId: 'A', run: (fn: never) => asFamily('A', fn) } as never;
+		const { pauseByVoice } = await import('./voice.ts');
+		const { applyPlugPause, proposePlugPause } = await import('./pause-card.ts');
+		const plugs = async () => (await plugsForVoice(k))!.plugs;
+		expect((await plugsForVoice(k))!.line).toContain('«plug_pause»');
+		ws.output = true;
+		expect(await pauseByVoice(k, await plugs(), { name: 'termo', paused: true })).toEqual({
+			done: true,
+			result: 'Termo en pausa: apagado y sin sus horarios hasta que se quite.'
+		});
+		expect(ws.output).toBe(false);
+		expect(ours().every((j) => !j.enable)).toBe(true);
+		expect(await pauseByVoice(k, await plugs(), { name: 'termo', paused: true })).toEqual({
+			done: false,
+			result: 'Termo ya está en pausa.'
+		});
+		expect((await pauseByVoice(k, await plugs(), { name: 'nada', paused: true })).result).toContain(
+			'Los hay: '
+		);
+
+		// Preguntar: a card, done only when confirmed, and only once.
+		const { card } = await proposePlugPause(k, { name: 'termo', paused: false });
+		expect(card).toEqual({
+			kind: 'pausa-enchufe',
+			plugId: termo,
+			name: 'Termo',
+			paused: false,
+			done: false,
+			result: null
+		});
+		expect((await listPlugs('ana')).find((p) => p.id === termo)!.paused).toBe(true);
+		const done = await applyPlugPause(k, card!);
+		expect(done).toEqual({
+			card: {
+				...card!,
+				done: true,
+				result:
+					'Termo sin pausa: calienta 4 horas seguidas, contra la legionela, y luego vuelven sus horarios.'
+			}
+		});
+		expect((await listPlugs('ana')).find((p) => p.id === termo)!.paused).toBe(false);
+		expect(await applyPlugPause(k, (done as { card: typeof card & object }).card)).toEqual(done);
+		expect((await proposePlugPause(k, { name: 'termo', paused: false })).result).toBe(
+			'Termo ya no está en pausa.'
+		);
+
+		// With its padlock: no card, and an old one not done.
+		await setLocked('ana', termo, true);
+		expect((await proposePlugPause(k, { name: 'termo', paused: true })).card).toBeUndefined();
+		expect(await applyPlugPause(k, { ...card!, paused: true })).toEqual({
+			problem: expect.stringContaining('candado')
+		});
+		expect(await pauseByVoice(k, await plugs(), { name: 'termo', paused: true })).toMatchObject({
+			done: false
+		});
+		await setLocked('ana', termo, false);
+		// The heat over by hand, as the tests after expect it.
+		expect(await switchPlug('ana', termo, false)).toBe(true);
+	});
+
 	test('a schedule removed: its jobs gone from the plug', async () => {
 		const [view] = (await listPlugs('ana')).filter((p) => p.id === termo);
 		await deleteSchedule('ana', termo, view!.schedules[0]!.id);

@@ -7,6 +7,7 @@
 	import ChatRecipeCard from '#lib/components/ChatRecipeCard.svelte';
 	import EncargosCard from '#lib/components/EncargosCard.svelte';
 	import CambioEncargoCard from '#lib/components/CambioEncargoCard.svelte';
+	import PausaEnchufeCard from '#lib/components/PausaEnchufeCard.svelte';
 	import ShoppingCard from '#lib/components/ShoppingCard.svelte';
 	import { firstRead, MAX_CHAT_QUESTION, type ChatMessage } from '#lib/chat.ts';
 
@@ -233,6 +234,13 @@
 									/>
 								{:else if card.kind === 'cambio-encargo'}
 									<CambioEncargoCard
+										{card}
+										message={m.id}
+										index={i}
+										ondone={(done) => setCard(m.id, i, () => done)}
+									/>
+								{:else if card.kind === 'pausa-enchufe'}
+									<PausaEnchufeCard
 										{card}
 										message={m.id}
 										index={i}

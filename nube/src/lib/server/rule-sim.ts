@@ -227,7 +227,7 @@ const doesSaid = (r: Rule) =>
 		: r.spec.then === 'temporizador' && r.spec.timer
 			? timerSaid(r.spec.timer, 'pondría')
 			: r.spec.then === 'enchufe' && r.spec.plug
-				? plugSaid(r.spec.plug, ['encendería', 'apagaría'])
+				? plugSaid(r.spec.plug, 'haria')
 				: 'avisaría';
 
 /**
@@ -302,12 +302,7 @@ export async function simulate({
 			return;
 		}
 		if (r.spec.then === 'enchufe' && r.spec.plug) {
-			said(
-				r,
-				minute,
-				'enchufe',
-				`${capital(plugSaid(r.spec.plug, ['encendería', 'apagaría']))}. Porque ${why}.`
-			);
+			said(r, minute, 'enchufe', `${capital(plugSaid(r.spec.plug, 'haria'))}. Porque ${why}.`);
 			return;
 		}
 		const { how, after } = await tells(r, w);

@@ -2,7 +2,7 @@ import type { Kitchen } from '../fridge.ts';
 import { kwhPriceText } from '#lib/kwh-price.ts';
 import type { Tool } from '../openrouter.ts';
 import { PlugOffline } from './hub.ts';
-import { kwhPriceIn, plugsOf, switchIn } from './plugs.ts';
+import { HEAT_MS, kwhPriceIn, plugsOf, setPausedIn, switchIn } from './plugs.ts';
 import {
 	energyText,
 	euroText,
@@ -39,7 +39,7 @@ export async function plugsForVoice(k: Kitchen) {
 	});
 	return {
 		plugs,
-		line: `[Enchufes de la familia (encender y apagar con «plug_switch», también un rato; lo gastado, de aquí): ${lines.join('. ')}.${price === null ? ' Sin precio del kWh: en euros no se sabe.' : ` Precio del kWh: ${kwhPriceText(price)}.`}]`
+		line: `[Enchufes de la familia (encender y apagar con «plug_switch», también un rato; poner o quitar la pausa con «plug_pause»; lo gastado, de aquí): ${lines.join('. ')}.${price === null ? ' Sin precio del kWh: en euros no se sabe.' : ` Precio del kWh: ${kwhPriceText(price)}.`}]`
 	};
 }
 
@@ -151,4 +151,66 @@ export async function switchByVoice(
 			};
 		throw e;
 	}
+}
+
+export const plugPauseTool: Tool = {
+	type: 'function',
+	function: {
+		name: 'plug_pause',
+		description:
+			'Pone o quita la pausa de un enchufe de la familia por su nombre: «pon el termo en pausa» (en verano, de vacaciones), «quita la pausa del termo». En pausa se apaga y no siguen sus horarios hasta quitarla; un termo que vuelve de una pausa larga calienta unas horas seguidas, contra la legionela. No para apagar un rato: eso es «plug_switch».',
+		parameters: {
+			type: 'object',
+			properties: {
+				name: { type: 'string', description: 'Su nombre, como está en la lista.' },
+				paused: { type: 'boolean', description: 'true para ponerla, false para quitarla.' }
+			},
+			required: ['name', 'paused'],
+			additionalProperties: false
+		}
+	}
+};
+
+/**
+ * A plug paused or not (#557: by voice, in Preguntar, by an errand), with its padlock looked at as
+ * on its card; what happened, in words, and whether it was done.
+ */
+export async function pausePlug(
+	k: Kitchen,
+	p: Pick<PlugView, 'id' | 'name'>,
+	paused: boolean
+): Promise<{ result: string; done: boolean }> {
+	const done = await setPausedIn(k, p.id, paused);
+	if (done.gone) return { result: `${p.name} ya no está en Enchufes.`, done: false };
+	if (done.locked)
+		return {
+			result: `${p.name} tiene el candado puesto: la pausa no se cambia así, se quita el candado desde Energía.`,
+			done: false
+		};
+	if (paused)
+		return {
+			result: `${p.name} en pausa: apagado y sin sus horarios hasta que se quite.`,
+			done: true
+		};
+	return {
+		result: done.heats
+			? `${p.name} sin pausa: calienta ${HEAT_MS / 3_600_000} horas seguidas, contra la legionela, y luego vuelven sus horarios.`
+			: `${p.name} sin pausa: vuelven sus horarios.`,
+		done: true
+	};
+}
+
+/** What `plug_pause` did, in words for the model. */
+export async function pauseByVoice(k: Kitchen, plugs: PlugView[], args: Record<string, unknown>) {
+	const said = typeof args.name === 'string' ? args.name : '';
+	const p = plugNamed(plugs, said);
+	if (!p)
+		return {
+			result: `No hay un enchufe claro con el nombre «${said}». Los hay: ${plugs.map((x) => x.name).join(', ')}.`,
+			done: false
+		};
+	const paused = args.paused === true;
+	if (p.paused === paused)
+		return { result: `${p.name} ya ${paused ? 'está' : 'no está'} en pausa.`, done: false };
+	return pausePlug(k, p, paused);
 }

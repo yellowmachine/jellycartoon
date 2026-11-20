@@ -84,7 +84,13 @@ import { FALLBACK_VOICE_MODEL, personVoiceStyle, voiceSettings } from './setting
 import { converse, CONVERSE_SENTENCES } from './converse.ts';
 import { voiceFellBack } from './alarm.ts';
 import { searchWeb, WEB_TOOL, webSearchTool } from './web-search.ts';
-import { plugsForVoice, plugSwitchTool, switchByVoice } from '#lib/server/plugs/voice.ts';
+import {
+	pauseByVoice,
+	plugPauseTool,
+	plugsForVoice,
+	plugSwitchTool,
+	switchByVoice
+} from '#lib/server/plugs/voice.ts';
 import { companionAway, companionOn } from '#lib/server/companion.ts';
 import { calls } from '#lib/server/calls.ts';
 import type { Callable } from '#lib/calls.ts';
@@ -1602,6 +1608,11 @@ async function runTool(
 			if (done) ctx.outcome.done++;
 			return result;
 		}
+		case 'plug_pause': {
+			const { result, done } = await pauseByVoice(ctx.k, ctx.plugs, args);
+			if (done) ctx.outcome.done++;
+			return result;
+		}
 		case 'mark_dose': {
 			const me = ctx.k.userId ? await personOf(ctx.k, ctx.k.userId) : null;
 			if (!me) return 'No sé quién habla: la medicación se marca desde su móvil.';
@@ -2613,7 +2624,7 @@ export async function runVoiceCommand(
 		...(kid ? [] : ruleTools(Boolean(satellite))),
 		...(kid || satellite ? [] : [markDoseTool]),
 		...(kid ? [] : [plannedTripsTool]),
-		...(plugs ? [plugSwitchTool] : []),
+		...(plugs ? [plugSwitchTool, plugPauseTool] : []),
 		...(companion ? [companionAwayTool] : []),
 		...(callable.length ? [callTool(callable), shareLocationTool(callable)] : []),
 		...(k.userId && !satellite && sharing(k.userId) ? [stopSharingTool] : []),

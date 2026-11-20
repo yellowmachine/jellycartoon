@@ -186,14 +186,42 @@ export interface RulePlug {
 	name: string;
 	on: boolean;
 	minutes: number | null;
+	/**
+	 * Set: its pause put (true) or taken off (false) instead of switching it («pon el termo en pausa
+	 * el lunes»); `on` and `minutes`, then, unused. Unset (older ones): switched.
+	 */
+	pause?: boolean;
 }
 
 /** A rule switches a plug for at most this long: a misunderstood one is a heater on all day. */
 export const MAX_PLUG_MIN = 4 * 60;
 
-/** «encendería «Termo» 1 hora», «apagaría «Tele»». */
-export const plugSaid = (p: RulePlug, [on, off]: [string, string]) =>
-	`${p.on ? on : off} «${p.name}»${p.minutes ? ` ${timeLabel(p.minutes * 60)}` : ''}`;
+/** How a plug's action is said: done, would do, will do, or to do. */
+export type PlugTense = 'hecho' | 'haria' | 'hara' | 'hacer';
+const PLUG_VERBS: Record<'on' | 'off' | 'pause' | 'unpause', Record<PlugTense, string>> = {
+	on: { hecho: 'encendido', haria: 'encendería', hara: 'encenderá', hacer: 'encender' },
+	off: { hecho: 'apagado', haria: 'apagaría', hara: 'apagará', hacer: 'apagar' },
+	pause: {
+		hecho: 'puesto en pausa',
+		haria: 'pondría en pausa',
+		hara: 'pondrá en pausa',
+		hacer: 'poner en pausa'
+	},
+	unpause: {
+		hecho: 'quitado la pausa de',
+		haria: 'quitaría la pausa de',
+		hara: 'quitará la pausa de',
+		hacer: 'quitar la pausa de'
+	}
+};
+
+/** «encendería», «puesto en pausa», «quitar la pausa de»: the verb, without the plug. */
+export const plugVerb = (p: RulePlug, tense: PlugTense) =>
+	PLUG_VERBS[p.pause === undefined ? (p.on ? 'on' : 'off') : p.pause ? 'pause' : 'unpause'][tense];
+
+/** «encendería «Termo» 1 hora», «apagado «Tele»», «pondrá en pausa «Termo»». */
+export const plugSaid = (p: RulePlug, tense: PlugTense) =>
+	`${plugVerb(p, tense)} «${p.name}»${p.pause === undefined && p.minutes ? ` ${timeLabel(p.minutes * 60)}` : ''}`;
 
 /** A rule's timer lasts at most a day (`MAX_TIMER_SEC`). */
 const MAX_TIMER_MIN = 24 * 60;
@@ -343,8 +371,11 @@ export interface TranslatedRule {
 	then: string;
 	deduce: { text: string; days: number };
 	timer: { minutes: number; label: string };
-	/** For «enchufe»: the plug's name as in the list, on or off, and minutes (0, it stays so). */
-	plug_switch?: { plug: string; on: boolean; minutes: number };
+	/**
+	 * For «enchufe»: the plug's name as in the list, on or off, and minutes (0, it stays so); or its
+	 * pause put or taken off (`ninguno`, switched).
+	 */
+	plug_switch?: { plug: string; on: boolean; minutes: number; pause?: string };
 	notice: { to: string; people: string[]; text: string; level: string };
 	once: boolean;
 	say: boolean;
@@ -396,7 +427,8 @@ export function specOf(
 	);
 	const wrong = temperatures.find((x) => typeof x === 'string');
 	if (wrong) return { problem: wrong };
-	const plugMinutes = Math.round(Number(asked?.minutes) || 0);
+	const pause = asked?.pause === 'poner' ? true : asked?.pause === 'quitar' ? false : undefined;
+	const plugMinutes = pause === undefined ? Math.round(Number(asked?.minutes) || 0) : 0;
 	if (then === 'enchufe' && (plugMinutes < 0 || plugMinutes > MAX_PLUG_MIN))
 		return { problem: `Un enchufe se programa como mucho ${timeLabel(MAX_PLUG_MIN * 60)}.` };
 	const deduced = (t.deduce?.text ?? '').trim().slice(0, MAX_RULE);
@@ -466,8 +498,9 @@ export function specOf(
 						plug: {
 							plugId: switched.id,
 							name: switched.name,
-							on: asked?.on !== false,
-							minutes: plugMinutes || null
+							on: pause === undefined && asked?.on !== false,
+							minutes: plugMinutes || null,
+							...(pause === undefined ? {} : { pause })
 						}
 					}
 				: {}),
@@ -586,11 +619,12 @@ export const RULE_SCHEMA = {
 		plug_switch: {
 			type: 'object',
 			additionalProperties: false,
-			required: ['plug', 'on', 'minutes'],
+			required: ['plug', 'on', 'minutes', 'pause'],
 			properties: {
 				plug: { type: 'string' },
 				on: { type: 'boolean' },
-				minutes: { type: 'integer' }
+				minutes: { type: 'integer' },
+				pause: { type: 'string', enum: ['ninguno', 'poner', 'quitar'] }
 			}
 		},
 		notice: {

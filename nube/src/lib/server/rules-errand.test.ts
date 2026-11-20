@@ -33,7 +33,14 @@ const told: { to: string[]; title: string; body: string; url: string }[] = [];
 const memories: string[] = [];
 
 mock.module('#lib/server/plugs/hub.ts', () => ({ PlugOffline }));
+const pauses: { id: string; paused: boolean }[] = [];
 mock.module('#lib/server/plugs/plugs.ts', () => ({
+	HEAT_MS: 4 * 3_600_000,
+	setPausedIn: async (_k: Kitchen, id: string, paused: boolean) => {
+		if (plugAnswer === 'locked') return { heats: false, locked: true };
+		pauses.push({ id, paused });
+		return { heats: !paused };
+	},
 	plugsOf: async () => [],
 	switchIn: async (_k: Kitchen, id: string, on: boolean, backAfterS?: number) => {
 		if (plugAnswer === 'offline') throw new PlugOffline('sin conexión');
@@ -147,6 +154,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
 	switched.length = 0;
+	pauses.length = 0;
 	told.length = 0;
 	kept.length = 0;
 	memories.length = 0;
@@ -383,4 +391,36 @@ test('past errands go after a week, the ones to come stay (#557, phase 3)', asyn
 	await checkTimedRules('A');
 	const left = await db.select({ lastWhy: rule.lastWhy, paused: rule.paused }).from(rule);
 	expect(left.map((r) => r.lastWhy).sort()).toEqual([null, 'y']);
+});
+
+test('an errand that pauses (#557): its pause put, or taken off with the long heat said; the padlock told', async () => {
+	const pausing = (paused: boolean) => {
+		const e = errand(fromNow(-1));
+		return {
+			...e,
+			spec: { ...e.spec, plug: { ...e.spec.plug, on: false, minutes: null, pause: paused } }
+		};
+	};
+	const [{ id }] = await db.insert(rule).values(pausing(true)).returning({ id: rule.id });
+	await checkTimedRules('A');
+	expect(pauses).toEqual([{ id: 'p1', paused: true }]);
+	expect(switched).toEqual([]);
+	expect((await ruleRow(id)).lastWhy).toMatch(/: puesto en pausa «Termo»$/);
+	expect(kept.at(-1)?.title).toBe('🔌 Puesto en pausa «Termo»');
+
+	await db.delete(rule);
+	const [{ id: back }] = await db.insert(rule).values(pausing(false)).returning({ id: rule.id });
+	await checkTimedRules('A');
+	expect((await ruleRow(back)).lastWhy).toMatch(
+		/: quitado la pausa de «Termo», y calienta 4 horas seguidas contra la legionela$/
+	);
+
+	await db.delete(rule);
+	plugAnswer = 'locked';
+	await db.insert(rule).values(pausing(true));
+	await checkTimedRules('A');
+	expect(told.at(-1)).toMatchObject({
+		title: '🔌 No he podido poner en pausa «Termo»',
+		body: expect.stringMatching(/^«Termo» tiene el candado puesto\./)
+	});
 });
