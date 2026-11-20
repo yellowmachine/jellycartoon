@@ -318,6 +318,7 @@ A quién y qué («notice», al avisar; al deducir, «text» vacío): «to» es 
 «once»: true si es para una sola vez («la próxima vez que…», «este viernes»; «en_fecha», siempre).
 «say»: true si además hay que decirlo en voz alta en casa, por los altavoces de la voz: si lo pide («dímelo en voz alta», «avisa en casa», «que lo diga Alexa») o si es de toda la casa; false si es solo para el móvil de quien habla.
 «understood»: la regla en una frase, como la comprobará el programa, para leérsela a quien la dijo («Cuando empiece en la Agenda algo con «padres», si estás de viaje, te avisaré: …»). En «en_fecha», sin el día ni la hora, que el programa pone delante y se pueden cambiar luego: «Si en casa hay menos de 15 °C, encenderé «Termo» 1 hora».
+Si solo pide que un enchufe no se encienda solo durante un rato («que no se encienda el termo esta tarde»), no es una regla: «possible» false y en «why_not»: «Eso es saltarse su horario: dilo así ("que no se encienda el termo esta tarde"), sin crear una regla».
 Si no se puede con esto (otra familia, otros aparatos que no sean los enchufes y los sensores de temperatura, algo sin cuándo), «possible» false y en «why_not» por qué, corto; lo demás, lo más parecido posible.`;
 
 /**

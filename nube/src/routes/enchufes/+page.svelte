@@ -51,6 +51,11 @@
 		data.manual === null ? '' : data.manual.toLocaleString('es-ES', { maximumFractionDigits: 4 })
 	);
 	const hourFormat = new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit' });
+	const skipFormat = new Intl.DateTimeFormat('es', {
+		weekday: 'short',
+		hour: '2-digit',
+		minute: '2-digit'
+	});
 
 	const kinds = Object.entries(PLUG_KINDS) as [PlugKind, { label: string; icon: string }][];
 
@@ -307,6 +312,20 @@
 									</li>
 								{/each}
 							</ul>
+						{/if}
+						{#if p.skipFrom && p.skipUntil}
+							<!-- «Que no se encienda solo esta tarde» (#557), by voice or Preguntar. -->
+							<div class="mb-2 flex items-center gap-2 text-amber-300">
+								<span class="min-w-0 flex-1"
+									>⏭ No se enciende solo de {skipFormat.format(new Date(p.skipFrom))} a {skipFormat.format(
+										new Date(p.skipUntil)
+									)}</span
+								>
+								<form method="post" action="?/unskip" use:enhance>
+									<input type="hidden" name="id" value={p.id} />
+									<button class="px-2 text-zinc-400 hover:text-white">Quitar</button>
+								</form>
+							</div>
 						{/if}
 						{#if scheduling === p.id}
 							<form

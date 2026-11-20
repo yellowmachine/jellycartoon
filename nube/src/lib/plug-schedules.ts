@@ -79,16 +79,67 @@ const cron = (time: string, days: number[]) => {
 
 /**
  * The jobs that carry these schedules out: one on and one off each. An off that comes before its
- * on is the next day's. All off while `enable` is false (paused, or heating).
+ * on is the next day's. All off while `enable` is false (paused, or heating); with `skipping`
+ * (#557, «que no se encienda solo esta tarde»), only the «on» ones, so nothing is left on.
  */
-export function jobsFor(schedules: PlugScheduleInput[], enable: boolean): PlugJob[] {
+export function jobsFor(
+	schedules: PlugScheduleInput[],
+	enable: boolean,
+	skipping = false
+): PlugJob[] {
 	return schedules.flatMap((s) => {
 		const offDays = s.end < s.start ? s.days.map((d) => (d + 1) % 7).sort((a, b) => a - b) : s.days;
 		return [
-			{ timespec: cron(s.start, s.days), on: true, enable },
+			{ timespec: cron(s.start, s.days), on: true, enable: enable && !skipping },
 			{ timespec: cron(s.end, offDays), on: false, enable }
 		];
 	});
+}
+
+/** A wall-clock moment: `YYYY-MM-DD` and `HH:MM`, in the family's time. */
+export interface WallMoment {
+	day: string;
+	time: string;
+}
+
+const weekdayOf = (day: string) => new Date(`${day}T12:00:00Z`).getUTCDay();
+const nextDay = (day: string) => {
+	const d = new Date(`${day}T12:00:00Z`);
+	d.setUTCDate(d.getUTCDate() + 1);
+	return d.toISOString().slice(0, 10);
+};
+/** At most this many days are looked through: a skip is for a while, not for good. */
+export const MAX_SKIP_DAYS = 14;
+
+/**
+ * When the schedules switch it on by themselves from `from` (included) to `to` (not), in order
+ * (#557): what a skip in that while leaves out.
+ */
+export function startsBetween(schedules: PlugScheduleInput[], from: WallMoment, to: WallMoment) {
+	const found: WallMoment[] = [];
+	const a = `${from.day} ${from.time}`;
+	const b = `${to.day} ${to.time}`;
+	for (let day = from.day, n = 0; day <= to.day && n <= MAX_SKIP_DAYS; day = nextDay(day), n++) {
+		const weekday = weekdayOf(day);
+		for (const time of [
+			...new Set(schedules.filter((s) => s.days.includes(weekday)).map((s) => s.start))
+		].sort()) {
+			const at = `${day} ${time}`;
+			if (at >= a && at < b) found.push({ day, time });
+		}
+	}
+	return found;
+}
+
+/** The next time the schedules switch it on, from `now` (not included), within a week; null, none. */
+export function nextStart(schedules: PlugScheduleInput[], now: WallMoment): WallMoment | null {
+	let end = now.day;
+	for (let i = 0; i < 7; i++) end = nextDay(end);
+	return (
+		startsBetween(schedules, now, { day: end, time: now.time }).find(
+			(m) => `${m.day} ${m.time}` > `${now.day} ${now.time}`
+		) ?? null
+	);
 }
 
 /** Its timespec as the plug gives it back, with its own zeros: «0 05 20 * * 6» is «0 5 20 * * 6». */

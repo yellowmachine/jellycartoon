@@ -257,6 +257,8 @@ mock.module('#lib/server/plugs/pause-card.ts', () => ({
 			result: null
 		}
 	}),
+	proposePlugSkip: async () => ({ result: 'No hace falta nada.' }),
+	applyPlugSkip: async (_k: Kitchen, card: unknown) => ({ card }),
 	applyPlugPause: async (_k: Kitchen, card: { name: string; done: boolean }) => {
 		if (card.done) return { card };
 		pausesDone.push(card.name);
@@ -789,6 +791,7 @@ test('a plug’s pause (#557): proposed in a card, done once on «Confirmar», o
 	];
 	const [, a] = await chat.askChat(ana, { id: 'ana', name: 'Ana' }, 'pon el termo en pausa');
 	expect(offered.at(-1)).toContain('propose_plug_pause');
+	expect(offered.at(-1)).toContain('propose_plug_skip');
 	expect(a!.cards).toMatchObject([
 		{ kind: 'pausa-enchufe', name: 'Termo', paused: true, done: false }
 	]);
