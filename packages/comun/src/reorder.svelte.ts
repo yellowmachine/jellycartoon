@@ -39,16 +39,41 @@ export function sortable(onmove: (itemId: number, beforeId: number | null) => vo
 }
 
 /**
- * The rows of a playlist page in the order the person left them, sent to the page's `move` action
- * (`itemId`, `beforeId`) and shown at once, before the house or the database answers. If it fails,
- * the list comes back as the server has it, with `problem`.
+ * Sends a move to the page's `move` action (`itemId`, `beforeId`), then loads the page again; the
+ * problem back, or null.
+ */
+async function toFormAction(itemId: number, beforeId: number | null): Promise<string | null> {
+	const body = new FormData();
+	body.set('itemId', String(itemId));
+	body.set('beforeId', beforeId === null ? '' : String(beforeId));
+	const res = await fetch(`${location.pathname}?/move`, {
+		method: 'POST',
+		body,
+		headers: { 'x-sveltekit-action': 'true' }
+	});
+	const result = deserialize(await res.text());
+	await invalidateAll();
+	if (result.type === 'failure') return String(result.data?.message ?? 'No se pudo mover');
+	return result.type === 'error' ? 'No se pudo mover' : null;
+}
+
+/**
+ * Rows dragged into place, shown at once in the order the person left them while `send` takes the
+ * move where it goes (a playlist page's `move` action, by default) and the rows come back from
+ * there. If it fails, they come back as they were, with `problem`.
  */
 export class Reorder<T extends { itemId: number }> {
 	#order = $state<number[] | null>(null);
 	#pending = 0;
 	problem = $state('');
 
-	constructor(private readonly items: () => T[]) {}
+	constructor(
+		private readonly items: () => T[],
+		private readonly send: (
+			itemId: number,
+			beforeId: number | null
+		) => Promise<string | null> = toFormAction
+	) {}
 
 	get shown(): T[] {
 		const items = this.items();
@@ -68,20 +93,8 @@ export class Reorder<T extends { itemId: number }> {
 			beforeId
 		);
 		this.#pending++;
-		const body = new FormData();
-		body.set('itemId', String(itemId));
-		body.set('beforeId', beforeId === null ? '' : String(beforeId));
 		try {
-			const res = await fetch(`${location.pathname}?/move`, {
-				method: 'POST',
-				body,
-				headers: { 'x-sveltekit-action': 'true' }
-			});
-			const result = deserialize(await res.text());
-			if (result.type === 'failure')
-				this.problem = String(result.data?.message ?? 'No se pudo mover');
-			else if (result.type === 'error') this.problem = 'No se pudo mover';
-			await invalidateAll();
+			this.problem = (await this.send(itemId, beforeId)) ?? '';
 		} catch {
 			this.problem = 'Sin conexión: no se ha movido';
 		} finally {

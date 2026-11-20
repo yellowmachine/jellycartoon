@@ -76,6 +76,17 @@ function parse(body: Record<string, unknown>): SnapcastAction | null {
 			return typeof speakerId === 'string' && typeof value === 'boolean'
 				? { action, speakerId, value }
 				: null;
+		case 'jump':
+		case 'removeEntry': {
+			const entryId = (body as { entryId?: unknown }).entryId;
+			return Number.isInteger(entryId) ? { action, entryId: entryId as number } : null;
+		}
+		case 'moveEntry': {
+			const { entryId, beforeId } = body as { entryId?: unknown; beforeId?: unknown };
+			return Number.isInteger(entryId) && (beforeId === null || Number.isInteger(beforeId))
+				? { action, entryId: entryId as number, beforeId: beforeId as number | null }
+				: null;
+		}
 		case 'rename':
 			return typeof speakerId === 'string' && typeof name === 'string'
 				? { action, speakerId, name: name.trim().slice(0, 100) }

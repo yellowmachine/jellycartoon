@@ -5,8 +5,8 @@ import { music } from './music-player.svelte.ts';
 
 /**
  * Something put on from the Música pages, here (Reproducir, Mezclar, a song, Modo DJ…): to its
- * Cola tab, to see what plays and what comes next. Not from elsewhere (the road mode, the voice),
- * nor on Snapcast, whose queue is the server's.
+ * Cola tab, to see what plays and what comes next, here or on Snapcast (whose Cola shows mpv's).
+ * Not from elsewhere (the road mode, the voice).
  */
 export function showQueue() {
 	const path = page.url.pathname;
@@ -51,6 +51,7 @@ class MusicTarget {
 		}
 		music.pause();
 		await this.send({ action: 'play', trackIds: tracks.map((t) => t.id), start });
+		if (!this.error) showQueue();
 	}
 
 	/** A radio station: its stream is asked for when it is played, on the server for Snapcast. */

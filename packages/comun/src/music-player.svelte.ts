@@ -3,6 +3,7 @@ import type { PodcastPlaying, Speed } from './podcasts.ts';
 import type { RadioStream } from './radio.ts';
 import type { EpisodeListening } from './episode-audio.ts';
 import { watchPlay } from './media-diagnostics.ts';
+import { moveBefore } from './reorder.ts';
 
 /** The volume under spoken directions. */
 const DUCKED_VOLUME = 0.25;
@@ -279,6 +280,24 @@ class MusicPlayer {
 		const k = this.shuffle ? this.#ordered.findIndex((t) => t.id === track.id) : i;
 		if (k >= 0) this.#ordered = this.#ordered.filter((_, j) => j !== k);
 		if (i < this.index) this.index--;
+	}
+
+	/**
+	 * Dragged in the queue (Música → Cola): `i` just before `before` (the queue's length: to the
+	 * end). The one on stays on; unshuffled, its own order is this one too.
+	 */
+	move(i: number, before: number) {
+		if (!this.queue[i]) return;
+		const current = this.current;
+		const places = moveBefore(
+			this.queue.map((_, k) => k),
+			i,
+			before < this.queue.length ? before : null
+		);
+		this.queue = places.map((k) => this.queue[k]!);
+		if (!this.shuffle) this.#ordered = this.queue;
+		const index = this.queue.indexOf(current!);
+		if (index >= 0) this.index = index;
 	}
 
 	toggle() {
