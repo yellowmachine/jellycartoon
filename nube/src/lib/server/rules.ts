@@ -52,13 +52,14 @@ import { DRAFT_ID, simulate, withIfs, type Deduced, type WhatIf } from '#lib/ser
 import { voiceSettings } from '#lib/server/voice/settings.ts';
 import { solarState } from '#lib/server/energy/solar.ts';
 import { PlugOffline } from '#lib/server/plugs/hub.ts';
-import { plugsOf, switchIn } from '#lib/server/plugs/plugs.ts';
+import { HEAT_MS, plugsOf, setPausedIn, switchIn } from '#lib/server/plugs/plugs.ts';
 import { sensorsIn } from '#lib/server/plugs/sensors.ts';
 import { PLUG_KINDS } from '#lib/plugs.ts';
 import {
 	MAX_PLUG_MIN,
 	MAX_RULE,
 	plugSaid,
+	plugVerb,
 	ruleSaid,
 	RULE_SCHEMA,
 	specOf,
@@ -312,7 +313,7 @@ Qué tiene que cumplirse además («conditions», puede estar vacío), cada una 
 
 Qué hace («then»): «avisar» (con «notice»), «temporizador», «enchufe» o «deducir»: guardar un dato que luego sirve a otras reglas, sin avisar a nadie («si pongo la lavadora, ese día hay ropa tendida» → «deduce»: {"text": "Hay ropa tendida", "days": 0}). «deduce.text», el dato en una frase que se entienda sola, sin fechas; «deduce.days», cuántos días más vale (0, solo ese día; en «compra», 7 si no lo dice). Si la regla dice que es probable («probablemente», «seguramente»), el dato también: «Probablemente hay bebida en la nevera». Sin deducir, «deduce» {"text": "", "days": 0}.
 «temporizador»: pone un temporizador de la casa que suena en toda la casa al acabar, cuando la regla pide esperar un rato después de lo que pasa («una hora después», «a los 20 minutos», «ponme un temporizador»): «timer.minutes», cuántos minutos; «timer.label», para qué, corto y como se diría al sonar («Sacar las bebidas del congelador»). «notice.text» vacío y «say» false: el temporizador ya suena. Sin temporizador, «timer» {"minutes": 0, "label": ""}.
-«enchufe»: enciende o apaga uno de los enchufes de la familia (arriba) cuando llega su momento: «a las 9 pon el termo una hora», «mañana a las 7 apaga la tele». «plug_switch.plug», su nombre exactamente como está en la lista (el que se entiende: «el termo» → el del termo); «on», true para encender y false para apagar; «minutes», cuánto rato y luego vuelve como estaba («una hora», 60; «media hora», 30), como mucho ${MAX_PLUG_MIN}, o 0 si no lo dice (se queda así). Si no hay un enchufe que encaje, «possible» false. «notice.to» como al avisar (a quién decirle si no se puede), «notice.text» vacío y «say» false. Sin enchufe, «plug_switch» {"plug": "", "on": false, "minutes": 0}.
+«enchufe»: enciende o apaga uno de los enchufes de la familia (arriba) cuando llega su momento: «a las 9 pon el termo una hora», «mañana a las 7 apaga la tele». «plug_switch.plug», su nombre exactamente como está en la lista (el que se entiende: «el termo» → el del termo); «on», true para encender y false para apagar; «minutes», cuánto rato y luego vuelve como estaba («una hora», 60; «media hora», 30), como mucho ${MAX_PLUG_MIN}, o 0 si no lo dice (se queda así). «pause» es «ninguno» al encender o apagar; «poner» o «quitar» para poner o quitar su pausa («el lunes a las 8 pon el termo en pausa», «el viernes quita la pausa del termo»: en pausa se apaga y no siguen sus horarios), y entonces «on» false y «minutes» 0. Si no hay un enchufe que encaje, «possible» false. «notice.to» como al avisar (a quién decirle si no se puede), «notice.text» vacío y «say» false. Sin enchufe, «plug_switch» {"plug": "", "on": false, "minutes": 0, "pause": "ninguno"}.
 A quién y qué («notice», al avisar; al deducir, «text» vacío): «to» es «yo» (quien habla; en la casa, toda la familia), «casa» (toda la familia) o «personas» con sus nombres en «people», de los de la familia. «text» es el aviso tal como lo leerá quien lo recibe, corto y en segunda persona («Recuérdales a tus padres que rieguen las plantas»). «level» es «urgente» solo si lo pide o es un peligro.
 «once»: true si es para una sola vez («la próxima vez que…», «este viernes»; «en_fecha», siempre).
 «say»: true si además hay que decirlo en voz alta en casa, por los altavoces de la voz: si lo pide («dímelo en voz alta», «avisa en casa», «que lo diga Alexa») o si es de toda la casa; false si es solo para el móvil de quien habla.
@@ -761,18 +762,30 @@ async function fire(k: Kitchen, r: Rule, key: string, why: string, chain: number
  */
 async function switchFor(k: Kitchen, r: Rule, p: RulePlug, why: string) {
 	let failed: string | null;
+	let heats = false;
 	try {
-		const done = await switchIn(k, p.plugId, p.on, p.minutes ? p.minutes * 60 : undefined);
-		failed =
-			done === 'locked'
+		if (p.pause !== undefined) {
+			// Its pause (#557): as on its card; already so, nothing to do but it is done.
+			const done = await setPausedIn(k, p.plugId, p.pause);
+			heats = done.heats;
+			failed = done.locked
 				? 'tiene el candado puesto'
-				: done === 'paused'
-					? 'está en pausa'
-					: done === 'heating'
-						? 'está calentando largo tras la pausa'
-						: !done
-							? 'ya no está en Enchufes'
-							: null;
+				: done.gone
+					? 'ya no está en Enchufes'
+					: null;
+		} else {
+			const done = await switchIn(k, p.plugId, p.on, p.minutes ? p.minutes * 60 : undefined);
+			failed =
+				done === 'locked'
+					? 'tiene el candado puesto'
+					: done === 'paused'
+						? 'está en pausa'
+						: done === 'heating'
+							? 'está calentando largo tras la pausa'
+							: !done
+								? 'ya no está en Enchufes'
+								: null;
+		}
 	} catch (error) {
 		failed =
 			error instanceof PlugOffline
@@ -781,7 +794,7 @@ async function switchFor(k: Kitchen, r: Rule, p: RulePlug, why: string) {
 	}
 	const did = failed
 		? `${why}, pero no he podido: «${p.name}» ${failed}`
-		: `${why}: ${plugSaid(p, ['encendido', 'apagado'])}`;
+		: `${why}: ${plugSaid(p, 'hecho')}${heats ? `, y calienta ${HEAT_MS / 3_600_000} horas seguidas contra la legionela` : ''}`;
 	await k.run((tx) => tx.update(rule).set({ lastWhy: did }).where(eq(rule.id, r.id)));
 	console.info(`[reglas] «${r.understood}»: ${did}`, { id: r.id });
 	if (!failed) {
@@ -789,7 +802,7 @@ async function switchFor(k: Kitchen, r: Rule, p: RulePlug, why: string) {
 		await keepQuietly(k.familyId, await recipients(k, r), {
 			kind: 'regla',
 			level: 'normal',
-			title: `🔌 ${capital(plugSaid(p, ['encendido', 'apagado']))}`,
+			title: `🔌 ${capital(plugSaid(p, 'hecho'))}`,
 			body: `Porque ${why}. Era para: ${ruleSaid(r)}`,
 			tag: `regla-${r.id}-hecho`,
 			url: '/reglas?ver=encargos',
@@ -800,7 +813,7 @@ async function switchFor(k: Kitchen, r: Rule, p: RulePlug, why: string) {
 	await tell(k.familyId, await recipients(k, r), {
 		kind: 'regla',
 		level: 'normal',
-		title: `🔌 No he podido ${p.on ? 'encender' : 'apagar'} «${p.name}»`,
+		title: `🔌 No he podido ${plugVerb(p, 'hacer')} «${p.name}»`,
 		body: `«${p.name}» ${failed}. Era para: ${ruleSaid(r)}`,
 		tag: `regla-${r.id}-enchufe`,
 		url: '/reglas?ver=encargos',
@@ -917,7 +930,7 @@ async function missedMoment(k: Kitchen, r: Rule) {
 			kind: 'regla',
 			level: 'normal',
 			title: p
-				? `🔌 No he ${p.on ? 'encendido' : 'apagado'} «${p.name}»`
+				? `🔌 No he ${plugVerb(p, 'hecho')} «${p.name}»`
 				: `🔔 No he podido mirar: ${ruleSaid(r)}`,
 			body: `${capital(why)}. Era para: ${ruleSaid(r)}${p ? ' Si quieres, hazlo desde Enchufes.' : ''}`,
 			tag: `regla-${r.id}-sin-saber`,
@@ -938,7 +951,7 @@ async function missedMoment(k: Kitchen, r: Rule) {
 		await keepQuietly(k.familyId, await recipients(k, r), {
 			kind: 'regla',
 			level: 'normal',
-			title: p ? `🔌 No he ${p.on ? 'encendido' : 'apagado'} «${p.name}»` : '🔔 No ha hecho falta',
+			title: p ? `🔌 No he ${plugVerb(p, 'hecho')} «${p.name}»` : '🔔 No ha hecho falta',
 			body: `${capital(why)}. Era para: ${ruleSaid(r)}`,
 			tag: `regla-${r.id}-no-hecho`,
 			url: '/reglas?ver=encargos',
@@ -1118,10 +1131,7 @@ export async function tryRule(k: Kitchen, userId: string | null, id: number) {
 			: r.spec.then === 'temporizador' && r.spec.timer
 				? [timerSaid(r.spec.timer, 'pondría'), timerSaid(r.spec.timer, 'pondrá')]
 				: r.spec.then === 'enchufe' && r.spec.plug
-					? [
-							plugSaid(r.spec.plug, ['encendería', 'apagaría']),
-							plugSaid(r.spec.plug, ['encenderá', 'apagará'])
-						]
+					? [plugSaid(r.spec.plug, 'haria'), plugSaid(r.spec.plug, 'hara')]
 					: ['avisaría', 'avisará'];
 	if (!r.spec.conditions.length)
 		return `No tiene condiciones: ${will} siempre que llegue su momento.`;

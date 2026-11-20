@@ -6,6 +6,7 @@ import {
 	chatHistory,
 	ChatError,
 	applyChangeFromCard,
+	applyPauseFromCard,
 	clearChat,
 	savePlanFromCard,
 	saveRecipeFromCard
@@ -110,6 +111,18 @@ export const actions: Actions = {
 		if (done === null) return fail(404, { message: 'Esa tarjeta ya no está' });
 		if ('problem' in done) return fail(400, { message: done.problem });
 		return { change: done.card };
+	},
+	/** A plug pause card (#557): its pause put or taken off. */
+	pause: async ({ request, locals }) => {
+		const form = await request.formData();
+		const message = numberOf(form, 'message');
+		const card = numberOf(form, 'card');
+		if (message === null || card === null) return fail(400, { message: 'Falta la tarjeta' });
+		const k = await kitchenOf(locals.user!.id);
+		const done = await applyPauseFromCard(k, locals.user!.id, message, card);
+		if (done === null) return fail(404, { message: 'Esa tarjeta ya no está' });
+		if ('problem' in done) return fail(400, { message: done.problem });
+		return { pause: done.card };
 	},
 	/** «Empezar de nuevo». */
 	clear: async ({ locals }) => {

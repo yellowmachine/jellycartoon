@@ -41,6 +41,8 @@ import {
 	readErrands,
 	savePlan
 } from '#lib/server/encargos.ts';
+import { applyPlugPause, proposePlugPause } from '#lib/server/plugs/pause-card.ts';
+import { pauseLine, PROPOSE_PLUG_PAUSE } from '#lib/plug-pause.ts';
 import {
 	changeLine,
 	planLine,
@@ -270,6 +272,7 @@ function cardLine(card: ChatCard) {
 		return `[Informe guardado en Informes: «${card.title}», del ${card.from} al ${card.to}]`;
 	if (card.kind === 'encargos') return planLine(card);
 	if (card.kind === 'cambio-encargo') return changeLine(card);
+	if (card.kind === 'pausa-enchufe') return pauseLine(card);
 	return `[Tarjeta de receta${card.savedId ? `, guardada en el recetario (receta ${card.savedId})` : ', sin guardar'}:\n${describeRecipe(card.recipe, -1)}]`;
 }
 
@@ -420,6 +423,8 @@ async function runTool(
 			return { result: await readErrands(k, userId) };
 		case 'propose_errand_change':
 			return proposeErrandChange(k, userId, args);
+		case 'propose_plug_pause':
+			return proposePlugPause(k, args);
 		case 'read_recipe': {
 			const saved = await getRecipe(k, Number(args.id));
 			if (!saved) return { result: 'Esa receta no está en el recetario.' };
@@ -678,7 +683,14 @@ export async function askChat(
 		label: 'Preguntar',
 		name: who.name,
 		model: settings.conversationModel,
-		tools: [...TOOLS, PROPOSE_PLAN, READ_ERRANDS, PROPOSE_ERRAND_CHANGE, ...READ_TOOLS]
+		tools: [
+			...TOOLS,
+			PROPOSE_PLAN,
+			READ_ERRANDS,
+			PROPOSE_ERRAND_CHANGE,
+			PROPOSE_PLUG_PAUSE,
+			...READ_TOOLS
+		]
 	});
 	return k.run(async (tx) => {
 		const rows = await tx
@@ -784,6 +796,25 @@ export async function applyChangeFromCard(
 	found.cards[index] = card;
 	await saveCards(k, userId, messageId, found.cards);
 	return { card };
+}
+
+/**
+ * «Confirmar» on a plug pause card (#557): done once, as on the plug's card. The card, or why not;
+ * null if no card.
+ */
+export async function applyPauseFromCard(
+	k: Kitchen,
+	userId: string,
+	messageId: number,
+	index: number
+) {
+	const found = await cardOf(k, userId, messageId, index);
+	if (found?.card.kind !== 'pausa-enchufe') return null;
+	const done = await applyPlugPause(k, found.card);
+	if ('problem' in done) return done;
+	found.cards[index] = done.card;
+	await saveCards(k, userId, messageId, found.cards);
+	return done;
 }
 
 /** A recipe card into the family's recipe book: its number there, or null if no card. */

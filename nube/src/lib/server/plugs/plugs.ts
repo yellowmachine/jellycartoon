@@ -606,19 +606,38 @@ export async function deleteSchedule(userId: string, plugId: string, id: number)
  * and its schedules come back after. Whether it heats, said back; `locked`, not done (either way:
  * both switch it).
  */
-export async function setPaused(
-	userId: string,
+export async function setPaused(userId: string, plugId: string, paused: boolean) {
+	return setPausedIn(await kitchenOfUser(userId), plugId, paused);
+}
+
+/**
+ * The same in a kitchen (#557: the voice, a satellite's too, Preguntar, an errand). False if it is
+ * not the family's; already so, nothing done.
+ */
+export async function setPausedIn(
+	k: Pick<Kitchen, 'familyId' | 'run'>,
 	plugId: string,
 	paused: boolean
-): Promise<{ heats: boolean; locked?: true }> {
-	const p = await familyPlug(userId, plugId);
-	if (!p || p.paused === paused) return { heats: false };
+): Promise<{ heats: boolean; locked?: true; gone?: true }> {
+	const [p] = await k.run((tx) =>
+		tx
+			.select({
+				kind: plug.kind,
+				paused: plug.paused,
+				pausedAt: plug.pausedAt,
+				locked: plug.locked
+			})
+			.from(plug)
+			.where(eq(plug.id, plugId))
+	);
+	if (!p) return { heats: false, gone: true };
+	if (p.paused === paused) return { heats: false };
 	if (p.locked) return { heats: false, locked: true };
 	const now = new Date();
 	let heatUntil: Date | null = null;
 	if (!paused && p.kind === 'termo') {
 		const longPause = p.pausedAt !== null && now.getTime() - p.pausedAt.getTime() >= LONG_PAUSE_MS;
-		const [{ wh }] = (await withFamily(userId, (tx) =>
+		const [{ wh }] = (await k.run((tx) =>
 			tx
 				.select({ wh: sql<number>`coalesce(sum(${plugEnergy.wh}), 0)` })
 				.from(plugEnergy)
@@ -631,14 +650,14 @@ export async function setPaused(
 		)) as [{ wh: number }];
 		if (longPause || Number(wh) < NOTHING_WH) heatUntil = new Date(now.getTime() + HEAT_MS);
 	}
-	await withFamily(userId, (tx) =>
+	await k.run((tx) =>
 		tx
 			.update(plug)
 			.set({ paused, pausedAt: paused ? now : null, heatUntil })
 			.where(eq(plug.id, plugId))
 	);
-	hub.changed(p.familyId);
-	await trySync(p.familyId, plugId);
+	hub.changed(k.familyId);
+	await trySync(k.familyId, plugId);
 	return { heats: heatUntil !== null };
 }
 

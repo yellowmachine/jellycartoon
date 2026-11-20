@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { ruleSaid, specOf, type TranslatedRule } from './rules.ts';
+import { plugSaid, ruleSaid, specOf, type TranslatedRule } from './rules.ts';
 
 const none = { what: 'ninguno', hours: 0, threshold: null, where: 'casa' };
 
@@ -455,5 +455,43 @@ describe('ruleSaid', () => {
 				spec: { when: { ...when, kind: 'cada_dia' } }
 			})
 		).toBe('Cada día a las 9, avisaré.');
+	});
+});
+
+describe('a plug’s pause (#557)', () => {
+	test('understood: put or taken off, no while; said in each tense', () => {
+		const made = (pause: string, minutes = 0) =>
+			specOf(
+				answer({
+					when: {
+						kind: 'en_fecha',
+						words: [],
+						minutes_before: 0,
+						minutes_after: 0,
+						time: '08:00',
+						day: '2026-11-23',
+						weather: none
+					},
+					conditions: [],
+					then: 'enchufe',
+					plug_switch: { plug: 'Termo', on: false, minutes, pause },
+					notice: { to: 'yo', people: [], text: '', level: 'normal' }
+				}),
+				resolve,
+				{ plugs: [{ id: 'p1', name: 'Termo' }] }
+			);
+		expect(made('poner', 90)).toMatchObject({
+			spec: { plug: { plugId: 'p1', on: false, minutes: null, pause: true } }
+		});
+		expect(made('quitar')).toMatchObject({ spec: { plug: { pause: false } } });
+		const switched = made('ninguno', 60) as { spec: { plug: object } };
+		expect('pause' in switched.spec.plug).toBe(false);
+
+		const p = { plugId: 'p1', name: 'Termo', on: true, minutes: 60 };
+		expect(plugSaid(p, 'haria')).toBe('encendería «Termo» 1 hora');
+		expect(plugSaid({ ...p, on: false, minutes: null }, 'hecho')).toBe('apagado «Termo»');
+		expect(plugSaid({ ...p, pause: true }, 'hara')).toBe('pondrá en pausa «Termo»');
+		expect(plugSaid({ ...p, pause: false }, 'hecho')).toBe('quitado la pausa de «Termo»');
+		expect(plugSaid({ ...p, pause: false }, 'hacer')).toBe('quitar la pausa de «Termo»');
 	});
 });

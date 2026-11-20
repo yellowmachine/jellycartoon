@@ -243,6 +243,27 @@ mock.module('#lib/server/encargos.ts', () => ({
 	}
 }));
 
+// A plug's pause (#557), faked: plugs.test.ts tests it; here, the card and «Confirmar».
+const pausesDone: string[] = [];
+mock.module('#lib/server/plugs/pause-card.ts', () => ({
+	proposePlugPause: async (_k: Kitchen, args: Record<string, unknown>) => ({
+		result: 'Tarjeta enseñada.',
+		card: {
+			kind: 'pausa-enchufe',
+			plugId: 'p1',
+			name: String(args.name),
+			paused: args.paused === true,
+			done: false,
+			result: null
+		}
+	}),
+	applyPlugPause: async (_k: Kitchen, card: { name: string; done: boolean }) => {
+		if (card.done) return { card };
+		pausesDone.push(card.name);
+		return { card: { ...card, done: true, result: `${card.name} en pausa.` } };
+	}
+}));
+
 const chat = await import('./chat.ts');
 
 const ana = kitchen('A', 'ana');
@@ -759,6 +780,33 @@ test('errands (#557, phase 3): read, a change proposed in a card, done only on �
 			.map((m) => String(m.content))
 			.join('\n')
 	).toContain('pasarlo al sábado 21 a las 08:00 (hecho)');
+});
+
+test('a plug’s pause (#557): proposed in a card, done once on «Confirmar», only by who has it', async () => {
+	answers = [
+		{ content: null, toolCalls: [call('propose_plug_pause', { name: 'Termo', paused: true })] },
+		{ content: '¿La pongo?', toolCalls: [] }
+	];
+	const [, a] = await chat.askChat(ana, { id: 'ana', name: 'Ana' }, 'pon el termo en pausa');
+	expect(offered.at(-1)).toContain('propose_plug_pause');
+	expect(a!.cards).toMatchObject([
+		{ kind: 'pausa-enchufe', name: 'Termo', paused: true, done: false }
+	]);
+	expect(pausesDone).toEqual([]);
+	expect(await chat.applyPauseFromCard(pepe, 'pepe', a!.id, 0)).toBeNull();
+	expect(await chat.applyPauseFromCard(ana, 'ana', a!.id, 0)).toMatchObject({
+		card: { done: true }
+	});
+	await chat.applyPauseFromCard(ana, 'ana', a!.id, 0);
+	expect(pausesDone).toEqual(['Termo']);
+	answers = [];
+	await chat.askChat(ana, { id: 'ana', name: 'Ana' }, '¿hecho?');
+	expect(
+		sent
+			.at(-1)!
+			.map((m) => String(m.content))
+			.join('\n')
+	).toContain('poner «termo» en pausa (hecho: Termo en pausa.)');
 });
 
 test("Mensajes (#555): only a place of the asker's own, as kept", async () => {
