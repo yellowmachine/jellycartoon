@@ -5,7 +5,9 @@ import {
 	askChat,
 	chatHistory,
 	ChatError,
+	applyChangeFromCard,
 	clearChat,
+	savePlanFromCard,
 	saveRecipeFromCard
 } from '#lib/server/chat.ts';
 import { openRouterKey } from '#lib/server/family-settings.ts';
@@ -80,6 +82,34 @@ export const actions: Actions = {
 		const id = await saveRecipeFromCard(k, locals.user!.id, message, card);
 		if (id === null) return fail(404, { message: 'Esa tarjeta ya no está' });
 		return { savedId: id };
+	},
+	/** The ticked lines of an errands card (#557): alarms in the Agenda, rules in Reglas. */
+	plan: async ({ request, locals }) => {
+		const form = await request.formData();
+		const message = numberOf(form, 'message');
+		const card = numberOf(form, 'card');
+		if (message === null || card === null) return fail(400, { message: 'Falta la tarjeta' });
+		const ticked = form
+			.getAll('item')
+			.map(Number)
+			.filter((n) => Number.isInteger(n) && n >= 0);
+		if (!ticked.length) return fail(400, { message: 'Marca algo para guardar' });
+		const k = await kitchenOf(locals.user!.id);
+		const saved = await savePlanFromCard(k, locals.user!.id, message, card, ticked);
+		if (saved === null) return fail(404, { message: 'Esa tarjeta ya no está' });
+		return { plan: saved.card, problems: saved.problems };
+	},
+	/** An errand change card (#557, phase 3): moved or cancelled. */
+	change: async ({ request, locals }) => {
+		const form = await request.formData();
+		const message = numberOf(form, 'message');
+		const card = numberOf(form, 'card');
+		if (message === null || card === null) return fail(400, { message: 'Falta la tarjeta' });
+		const k = await kitchenOf(locals.user!.id);
+		const done = await applyChangeFromCard(k, locals.user!.id, message, card);
+		if (done === null) return fail(404, { message: 'Esa tarjeta ya no está' });
+		if ('problem' in done) return fail(400, { message: done.problem });
+		return { change: done.card };
 	},
 	/** «Empezar de nuevo». */
 	clear: async ({ locals }) => {

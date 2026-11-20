@@ -6,6 +6,7 @@ description: Pedirle cosas a Seilide hablando o escribiendo, desde el micrófono
 import Capturas from '../../../components/Capturas.astro';
 import voz from '../../../assets/guia/voz.webp';
 import reglas from '../../../assets/guia/reglas.webp';
+import encargos from '../../../assets/guia/reglas-encargos.webp';
 
 Casi todo lo que se hace en Seilide se puede pedir hablando: apuntar un gasto, algo en la agenda o
 en la lista de la compra, poner música, un temporizador… Se habla como a una persona, sin frases
@@ -22,6 +23,11 @@ especiales. La voz es de los adultos: los peques no la tienen.
 			src: reglas,
 			alt: 'La página Reglas: la explicación con ejemplos, «Reglas listas para activar», el cuadro para escribir una regla con «Solo mía» y «Crear la regla», y «¿Qué pasaría…?»',
 			caption: 'Reglas'
+		},
+		{
+			src: encargos,
+			alt: 'Reglas → Encargos: los programados por días (mañana, más adelante), cada uno con su día y su hora delante, «Cambiar la hora» y «Cancelar…», y el cuadro para programar otro',
+			caption: 'Encargos'
 		}
 	]}
 />
@@ -93,6 +99,39 @@ situación para ver qué reglas saltarían. La lista **Ropa tendida y lluvia** u
 acabar, si no va a llover pronto, recuerda que hay ropa tendida y te avisa para recogerla si luego
 viene lluvia; si va a llover, te dice que mejor no la tiendas fuera. Si ya la tenías activada,
 desactívala y vuelve a activarla para que use el enchufe.
+
+## Encargos: dejar algo programado
+
+Para un día y una hora, una sola vez, díselo o escríbelo en **Preguntar**:
+
+- «Mañana a las 9 pon el termo una hora».
+- «El sábado a las 8, si va a llover, avísame para recoger la ropa».
+- «Esta noche a las 12 apaga la tele».
+- «Mañana a las 9, si en casa hay menos de 15 grados, pon el termo una hora».
+
+Si lleva un enchufe de **Enchufes** o una condición, queda en **Reglas** como regla de una sola vez:
+a su hora enciende o apaga el enchufe (si es «una hora», luego vuelve como estaba, aunque se corte
+internet) y se pausa sola. Un enchufe con **candado** no se toca; si no se ha podido, te avisa en el
+**Buzón** y en el móvil. Si a su hora no se cumple la condición, lo vuelve a mirar durante una hora
+y, si sigue sin cumplirse, se queda en pausa con el porqué. Un enchufe se programa como mucho 4 horas
+seguidas. Un aviso sin más («a las 3 avísame para poner la lavadora») va a la **Agenda** como
+alarma.
+
+En **Preguntar** sale una tarjeta con cada cosa en su línea: marca las que quieras y toca
+**Guardar**. Hasta entonces no se guarda nada.
+
+Todos están en **Reglas → Encargos**, por días: **Cambiar la hora** lo pasa a otro momento, y
+tocando el texto se reescribe o se cancela. También se le puede decir: «¿qué tienes para mañana?»,
+«el termo mejor a las 8», «cancela lo de la ropa»; en Preguntar te enseña el cambio en una tarjeta
+para que lo confirmes. Lo que hizo («Encendido «Termo» 1 hora, en casa había 13 °C») o por qué no
+hizo falta queda en tu **Buzón**, sin avisar al móvil; los que ya pasaron se quitan solos a la
+semana.
+
+La temperatura de casa la dicen los sensores de **Enchufes → Temperatura**. Con varios, marca en
+uno **Es el de casa**: es el que se mira cuando dices «en casa»; para otro, di la habitación («si
+en el dormitorio hay más de 25 grados»). Solo vale una lectura de las últimas 3 horas: con pilas el
+sensor despierta cada 2 horas, o antes si cambia la temperatura. Si no hay una reciente, no se
+enciende nada; si sigue así cuando pasa la hora, te avisa para que lo hagas tú desde **Enchufes**.
 
 ## Sin tocar nada: la palabra
 

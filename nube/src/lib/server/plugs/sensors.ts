@@ -51,7 +51,7 @@ export async function sensorsIn(
 ): Promise<SensorView[]> {
 	const sensors = (
 		await tx
-			.select({ id: plug.id, name: plug.name, deviceId: plug.deviceId })
+			.select({ id: plug.id, name: plug.name, deviceId: plug.deviceId, home: plug.home })
 			.from(plug)
 			.orderBy(asc(plug.createdAt))
 	).filter((p) => isSensorDevice(p.deviceId));
@@ -80,6 +80,7 @@ export async function sensorsIn(
 			external: l?.external ?? null,
 			at: l?.at.toISOString() ?? null,
 			silent: !!l && now.getTime() - l.at.getTime() > SENSOR_SILENT_MS,
+			home: s.home || sensors.length === 1,
 			points: pointsOf(
 				readings.filter((r) => r.plugId === s.id),
 				hourly

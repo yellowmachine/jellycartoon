@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { specOf, type TranslatedRule } from './rules.ts';
+import { ruleSaid, specOf, type TranslatedRule } from './rules.ts';
 
 const none = { what: 'ninguno', hours: 0, threshold: null, where: 'casa' };
 
@@ -297,5 +297,163 @@ describe('specOf', () => {
 		});
 		expect(timer(30, ' ')).toEqual({ problem: 'Falta para qué es el temporizador.' });
 		expect(timer(5000, 'Algo')).toMatchObject({ spec: { timer: { minutes: 1440 } } });
+	});
+
+	test('a sensor’s temperature (#557): «la casa» or a room by its name; one there is not, said', () => {
+		const sensors = [
+			{ id: 's1', name: 'Salón' },
+			{ id: 's2', name: 'Dormitorio' }
+		];
+		const cold = (temperature: { sensor: string; compare: string; degrees: number }) =>
+			specOf(
+				answer({
+					conditions: [
+						{ kind: 'temperatura', words: [], negate: false, weather: none, temperature }
+					]
+				}),
+				resolve,
+				{ sensors }
+			);
+		expect(cold({ sensor: 'casa', compare: 'menos_de', degrees: 15 })).toMatchObject({
+			spec: {
+				conditions: [
+					{
+						kind: 'temperatura',
+						temperature: { sensorId: null, name: null, below: true, degrees: 15 }
+					}
+				]
+			}
+		});
+		expect(cold({ sensor: 'Dormitorio', compare: 'mas_de', degrees: 25.55 })).toMatchObject({
+			spec: {
+				conditions: [
+					{ temperature: { sensorId: 's2', name: 'Dormitorio', below: false, degrees: 25.6 } }
+				]
+			}
+		});
+		expect(cold({ sensor: 'Cocina', compare: 'menos_de', degrees: 15 })).toEqual({
+			problem: 'No hay un sensor «Cocina»: los hay «Salón», «Dormitorio».'
+		});
+		expect(cold({ sensor: 'casa', compare: 'ninguno', degrees: 0 })).toEqual({
+			problem: 'Falta qué temperatura esperar.'
+		});
+		expect(
+			specOf(
+				answer({
+					conditions: [
+						{
+							kind: 'temperatura',
+							words: [],
+							negate: false,
+							weather: none,
+							temperature: { sensor: 'casa', compare: 'menos_de', degrees: 15 }
+						}
+					]
+				}),
+				resolve
+			)
+		).toEqual({ problem: 'La familia no tiene sensores de temperatura en Enchufes.' });
+		// Another condition keeps no temperature.
+		expect(specOf(answer(), resolve, { sensors })).toMatchObject({
+			spec: { conditions: [{ kind: 'de_viaje' }] }
+		});
+	});
+
+	test('an errand (#557): one day at one time, once, switching a plug of the family by its name', () => {
+		const plugs = [
+			{ id: 'p1', name: 'Termo' },
+			{ id: 'p2', name: 'Tele del salón' }
+		];
+		const now = { day: '2026-11-20', time: '18:00' };
+		const errand = (over: Partial<TranslatedRule> = {}) =>
+			specOf(
+				answer({
+					when: {
+						kind: 'en_fecha',
+						words: [],
+						minutes_before: 0,
+						minutes_after: 0,
+						time: '09:00',
+						day: '2026-11-21',
+						weather: none
+					},
+					conditions: [],
+					then: 'enchufe',
+					plug_switch: { plug: 'Termo', on: true, minutes: 60 },
+					notice: { to: 'yo', people: [], text: '', level: 'normal' },
+					once: false,
+					say: true,
+					...over
+				}),
+				resolve,
+				{ plugs, now }
+			);
+		expect(errand()).toMatchObject({
+			spec: {
+				when: { kind: 'en_fecha', day: '2026-11-21', time: '09:00' },
+				then: 'enchufe',
+				plug: { plugId: 'p1', name: 'Termo', on: true, minutes: 60 },
+				timer: null,
+				once: true,
+				say: false
+			}
+		});
+		// Off, and for no while: it stays so.
+		expect(
+			errand({ plug_switch: { plug: 'Tele del salón', on: false, minutes: 0 } })
+		).toMatchObject({ spec: { plug: { plugId: 'p2', on: false, minutes: null } } });
+		expect(errand({ plug_switch: { plug: 'Estufa', on: true, minutes: 30 } })).toEqual({
+			problem: 'No hay un enchufe «Estufa»: los hay «Termo», «Tele del salón».'
+		});
+		expect(errand({ plug_switch: { plug: 'Termo', on: true, minutes: 300 } })).toEqual({
+			problem: 'Un enchufe se programa como mucho 4 horas.'
+		});
+		const at = (day: string | null, time: string | null) =>
+			errand({
+				when: {
+					kind: 'en_fecha',
+					words: [],
+					minutes_before: 0,
+					minutes_after: 0,
+					time,
+					day,
+					weather: none
+				}
+			});
+		expect(at('2026-11-20', '17:59')).toEqual({
+			problem: 'Las 17:59 del 2026-11-20 ya han pasado.'
+		});
+		expect(at('2026-11-20', '18:00')).toMatchObject({ spec: { when: { day: '2026-11-20' } } });
+		expect(at('2026-02-30', '09:00')).toEqual({ problem: 'Falta qué día.' });
+		expect(at('2026-11-21', null)).toEqual({ problem: 'Falta a qué hora mirarla.' });
+		// Without plugs, said so; and a day only in «en_fecha».
+		expect(specOf(answer({ then: 'enchufe' }), resolve)).toEqual({
+			problem: 'La familia no tiene enchufes en Enchufes.'
+		});
+		expect(specOf(answer(), resolve)).toMatchObject({ spec: { when: { kind: 'agenda' } } });
+		expect('day' in (specOf(answer(), resolve) as { spec: { when: object } }).spec.when).toBe(
+			false
+		);
+	});
+});
+
+describe('ruleSaid', () => {
+	test('an errand with its day and time first (#557, phase 3); another rule as understood', () => {
+		const when = {
+			kind: 'en_fecha' as const,
+			words: [],
+			minutesBefore: 0,
+			time: '09:00',
+			day: '2026-11-21'
+		};
+		expect(
+			ruleSaid({ understood: 'Si en casa hay frío, encenderé «Termo».', spec: { when } })
+		).toBe('El sábado 21 a las 09:00: si en casa hay frío, encenderé «Termo».');
+		expect(
+			ruleSaid({
+				understood: 'Cada día a las 9, avisaré.',
+				spec: { when: { ...when, kind: 'cada_dia' } }
+			})
+		).toBe('Cada día a las 9, avisaré.');
 	});
 });

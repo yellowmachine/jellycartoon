@@ -130,7 +130,11 @@ test('as a condition, negated too', async () => {
 			w,
 			rule([{ kind: 'placas', words: [], negate: false, solar: 'sobra_sol' }])
 		)
-	).toEqual({ ok: true, why: ['hoy sobra sol de las placas de 11 a 15 (unos 6 kWh)'] });
+	).toEqual({
+		ok: true,
+		why: ['hoy sobra sol de las placas de 11 a 15 (unos 6 kWh)'],
+		unknown: false
+	});
 	expect(
 		(
 			await conditionsHold(

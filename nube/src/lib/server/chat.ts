@@ -34,6 +34,20 @@ import { citaWhen, parseCita } from '#lib/cita.ts';
 import { listSavedPlaces } from '#lib/server/trips/places.ts';
 import type { SavedPlace } from 'comun/saved-places.ts';
 import { FALLBACK_VOICE_MODEL, voiceSettings } from '#lib/server/voice/settings.ts';
+import {
+	applyErrandChange,
+	proposeErrandChange,
+	proposePlan,
+	readErrands,
+	savePlan
+} from '#lib/server/encargos.ts';
+import {
+	changeLine,
+	planLine,
+	PROPOSE_ERRAND_CHANGE,
+	PROPOSE_PLAN,
+	READ_ERRANDS
+} from '#lib/encargos.ts';
 
 /**
  * «Preguntar» (#470): each adult's chat with the family's AI, with their history. The same AI as
@@ -216,6 +230,7 @@ Cómo escribir:
 - Es un chat en el móvil o en un panel estrecho al lado de la app: párrafos cortos. Sin títulos, negritas ni tablas (no se ven). Para enumerar, líneas que empiecen por «- ».
 - Lo que se puede hacer con un toque va en tarjetas, no en el texto:
   - Si hace falta comprar algo (ingredientes, utensilios para empezar), propónlo con «propose_shopping», en una sola tarjeta, y no repitas la lista en el texto. No propongas lo que ya está en la lista de la compra (abajo) ni lo que la persona ha dicho que tiene; si alguna de esas hace falta, dilo en una frase.
+  - Lo que quiere dejar programado para un día y una hora («mañana a las 9 pon el termo una hora si…, y a las 3 avísame para poner la lavadora»), con «propose_plan», todo en una sola tarjeta: los avisos sin más, en «avisos»; lo que enciende o apaga un enchufe o lleva condición, en «encargos», cada uno en su frase con su día y su hora. Si no está claro el día o la hora, pregunta antes en una frase. Para ver lo programado, «read_errands»; para cambiar el día o la hora de uno o cancelarlo, «propose_errand_change» con su número, en una tarjeta que la persona confirma.
   - Una receta para hacer, con «propose_recipe», entera; no la escribas también en el texto. Ajústala a lo que ha dicho (su molde, su horno, cuántos son). Si está en el recetario (abajo), léela con «read_recipe» antes de hablar de ella.
 - Para enseñar algo que se ve mejor que con palabras: una gráfica de gastos («show_spending_chart») o la propia página de la sección ya filtrada («open_page»), que se abre en grande al lado del chat. Solo cuando ayuda; no las dos para lo mismo.
 - Los datos de la familia (agenda, gastos, notas, lo que recuerda la voz, reglas, viajes) no vienen en este mensaje: léelos con sus herramientas antes de contestar, y cruza varias si la pregunta lo pide. Las cifras y las fechas, solo las que te den las herramientas; si no hay datos, dilo. Di de qué días o meses hablas.
@@ -253,6 +268,8 @@ function cardLine(card: ChatCard) {
 	if (card.kind === 'bloque') return `[Gráfica enseñada: ${describeBlock(card.block, euros)}]`;
 	if (card.kind === 'informe')
 		return `[Informe guardado en Informes: «${card.title}», del ${card.from} al ${card.to}]`;
+	if (card.kind === 'encargos') return planLine(card);
+	if (card.kind === 'cambio-encargo') return changeLine(card);
 	return `[Tarjeta de receta${card.savedId ? `, guardada en el recetario (receta ${card.savedId})` : ', sin guardar'}:\n${describeRecipe(card.recipe, -1)}]`;
 }
 
@@ -309,7 +326,9 @@ export function shoppingItems(value: unknown): string[] {
 async function runTool(
 	k: Kitchen,
 	userId: string,
-	call: ToolCall
+	call: ToolCall,
+	/** Who asks, by name: to understand an errand (#557). */
+	name: string | null = null
 ): Promise<{ result: string; card?: ChatCard }> {
 	const args = parseArgs(call);
 	// The sections' reads (#504): what the person may see of them.
@@ -395,6 +414,12 @@ async function runTool(
 				card: { kind: 'receta', recipe, savedId: id }
 			};
 		}
+		case 'propose_plan':
+			return proposePlan(k, name, args);
+		case 'read_errands':
+			return { result: await readErrands(k, userId) };
+		case 'propose_errand_change':
+			return proposeErrandChange(k, userId, args);
 		case 'read_recipe': {
 			const saved = await getRecipe(k, Number(args.id));
 			if (!saved) return { result: 'Esa receta no está en el recetario.' };
@@ -416,7 +441,7 @@ async function rounds(
 	k: Kitchen,
 	userId: string,
 	messages: ToolChatMessage[],
-	o: { apiKey: string; label: string; model: string; tools: Tool[] }
+	o: { apiKey: string; label: string; model: string; tools: Tool[]; name?: string }
 ) {
 	const cards: ChatCard[] = [];
 	let text = '';
@@ -438,7 +463,7 @@ async function rounds(
 			messages.push({ role: 'assistant', content: answer.content, tool_calls: answer.toolCalls });
 			for (const call of answer.toolCalls) {
 				const { result, card } = offered.has(call.function.name)
-					? await runTool(k, userId, call)
+					? await runTool(k, userId, call, o.name ?? null)
 					: { result: `No hay ninguna herramienta «${call.function.name}».`, card: undefined };
 				if (card) cards.push(card);
 				messages.push({ role: 'tool', tool_call_id: call.id, content: result });
@@ -651,8 +676,9 @@ export async function askChat(
 	const { text, cards } = await rounds(k, who.id, messages, {
 		apiKey,
 		label: 'Preguntar',
+		name: who.name,
 		model: settings.conversationModel,
-		tools: [...TOOLS, ...READ_TOOLS]
+		tools: [...TOOLS, PROPOSE_PLAN, READ_ERRANDS, PROPOSE_ERRAND_CHANGE, ...READ_TOOLS]
 	});
 	return k.run(async (tx) => {
 		const rows = await tx
@@ -719,6 +745,45 @@ export async function addFromCard(
 	found.cards[index] = { ...card, added };
 	await saveCards(k, userId, messageId, found.cards);
 	return chosen;
+}
+
+/**
+ * «Guardar» on an errands card (#557): the ticked ones kept (encargos.ts) and the card saved as it
+ * is now. The card and what could not be kept, or null if no card.
+ */
+export async function savePlanFromCard(
+	k: Kitchen,
+	userId: string,
+	messageId: number,
+	index: number,
+	ticked: number[]
+) {
+	const found = await cardOf(k, userId, messageId, index);
+	if (found?.card.kind !== 'encargos') return null;
+	const saved = await savePlan(k, userId, found.card, ticked);
+	found.cards[index] = saved.card;
+	await saveCards(k, userId, messageId, found.cards);
+	return saved;
+}
+
+/**
+ * «Confirmar» on an errand change card (#557, phase 3): done (encargos.ts) and marked so. The card,
+ * or why not; null if no card.
+ */
+export async function applyChangeFromCard(
+	k: Kitchen,
+	userId: string,
+	messageId: number,
+	index: number
+) {
+	const found = await cardOf(k, userId, messageId, index);
+	if (found?.card.kind !== 'cambio-encargo') return null;
+	const problem = await applyErrandChange(k, userId, found.card);
+	if (problem) return { problem };
+	const card = { ...found.card, done: true };
+	found.cards[index] = card;
+	await saveCards(k, userId, messageId, found.cards);
+	return { card };
 }
 
 /** A recipe card into the family's recipe book: its number there, or null if no card. */

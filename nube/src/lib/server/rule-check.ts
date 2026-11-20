@@ -10,6 +10,7 @@ import {
 	type PlugMoment,
 	type RuleSpec,
 	type SolarCheck,
+	type TemperatureCheck,
 	type WeatherCheck
 } from '#lib/rules.ts';
 import type { SolarDay } from '#lib/solar.ts';
@@ -21,6 +22,23 @@ import type { SolarDay } from '#lib/solar.ts';
  * one, now, and does what a rule says; rule-sim.ts gives it a moment to come, and only tells what
  * it would do. Nothing here writes or tells anything.
  */
+
+/**
+ * A sensor's reading counts this long (#557): older, the temperature now is not known (a battery H&T
+ * wakes every 2 hours, or when it changes).
+ */
+export const SENSOR_FRESH_MIN = 3 * 60;
+
+/** A temperature sensor (#508) as a rule looks at it: its last reading, and how long ago. */
+export interface SensorNow {
+	id: string;
+	name: string;
+	/** The one of «la casa»: marked, or the only one. */
+	home: boolean;
+	tempC: number | null;
+	/** Minutes since its last reading; null, never read. */
+	ageMin: number | null;
+}
 
 /** A deduction feeds the next rule, at most this many in a row (#331, phase 4). */
 export const MAX_CHAIN = 3;
@@ -88,6 +106,8 @@ export interface World {
 	 * no panels or no forecast (with why). Unset: not known.
 	 */
 	solar?(r: Rule): Promise<SolarDay[] | string | null>;
+	/** The family's temperature sensors, as they read now (#557). Unset: not known. */
+	sensors?(r: Rule): Promise<SensorNow[]>;
 	/**
 	 * Whether `text` is what `r` waits for, by its meaning, when its words do not find it: kept,
 	 * or asked; null, not known (words only).
@@ -233,8 +253,15 @@ export const plugWhy = (p: PlugHappened, time: string) =>
 export const awayOn = (trips: Trip[], day: string) =>
 	trips.find((t) => t.first.day <= day && day <= t.last.day);
 
-/** A condition: whether it holds (negated already), and why in words. */
-async function holds(w: World, r: Rule, c: Condition): Promise<{ ok: boolean; why: string }> {
+/**
+ * A condition: whether it holds (negated already), and why in words; `unknown`, what it needs is not
+ * known now (a sensor's temperature with no recent reading), so it does not hold either way.
+ */
+async function holds(
+	w: World,
+	r: Rule,
+	c: Condition
+): Promise<{ ok: boolean; why: string; unknown?: boolean }> {
 	const today = w.today;
 	const mine = Boolean(r.userId);
 	let found: string | null = null;
@@ -274,6 +301,14 @@ async function holds(w: World, r: Rule, c: Condition): Promise<{ ok: boolean; wh
 			none = said.none;
 			break;
 		}
+		case 'temperatura': {
+			if (!c.temperature) break;
+			const t = await temperatureFor(w, r, c.temperature);
+			if (t.unknown) return { ok: false, why: t.unknown, unknown: true };
+			found = t.hit ?? null;
+			none = t.none ?? '';
+			break;
+		}
 		case 'agenda_hoy': {
 			const o = await firstFitting(
 				w,
@@ -292,11 +327,52 @@ async function holds(w: World, r: Rule, c: Condition): Promise<{ ok: boolean; wh
 	return { ok, why: found ?? none };
 }
 
-/** All of its conditions: whether they hold, and why. */
+/**
+ * All of its conditions: whether they hold, and why; `unknown`, one could not be known now (and
+ * the others hold: what is missing is only that).
+ */
 export async function conditionsHold(w: World, r: Rule) {
 	const checked = [];
 	for (const c of r.spec.conditions) checked.push(await holds(w, r, c));
-	return { ok: checked.every((c) => c.ok), why: checked.map((c) => c.why) };
+	return {
+		ok: checked.every((c) => c.ok),
+		why: checked.map((c) => c.why),
+		unknown: checked.some((c) => c.unknown) && checked.every((c) => c.ok || c.unknown)
+	};
+}
+
+const degreesSaid = (c: number) => `${c.toLocaleString('es-ES', { maximumFractionDigits: 1 })} °C`;
+const agoSaid = (min: number) => (min < 90 ? `hace ${min} min` : `hace ${Math.round(min / 60)} h`);
+
+/**
+ * A sensor's temperature (#557): the one it names or «la casa»'s, its recent reading over or under
+ * what it waits for (in words, either way); `unknown`, why it is not known now.
+ */
+export async function temperatureFor(w: World, r: Rule, t: TemperatureCheck) {
+	const sensors = w.sensors ? await w.sensors(r) : null;
+	if (!sensors) return { unknown: 'no sé la temperatura de los sensores' };
+	const s = t.sensorId
+		? sensors.find((x) => x.id === t.sensorId)
+		: (sensors.find((x) => x.home) ?? null);
+	const label = t.name ? `«${t.name}»` : 'casa';
+	if (!s)
+		return {
+			unknown: t.sensorId
+				? `el sensor ${label} ya no está en Enchufes`
+				: 'no sé cuál es el sensor de casa (se marca en Enchufes → Temperatura)'
+		};
+	if (s.tempC === null || s.ageMin === null)
+		return { unknown: `el sensor «${s.name}» todavía no ha mandado la temperatura` };
+	if (s.ageMin > SENSOR_FRESH_MIN)
+		return {
+			unknown: `no sé la temperatura de ${label}: la última lectura de «${s.name}» es de ${agoSaid(s.ageMin)}`
+		};
+	const now = `en ${label} hay ${degreesSaid(s.tempC)}`;
+	const hit = t.below ? s.tempC < t.degrees : s.tempC > t.degrees;
+	return {
+		hit: hit ? `${now}, ${t.below ? 'menos' : 'más'} de ${degreesSaid(t.degrees)}` : null,
+		none: `${now}, no ${t.below ? 'menos' : 'más'} de ${degreesSaid(t.degrees)}`
+	};
 }
 
 /**
@@ -403,6 +479,15 @@ export interface Due {
 	why: string;
 }
 
+/**
+ * One day at one time (#557) gone by more than `LATE_MINUTES` without being done (its conditions
+ * did not hold then, or the server was off): never to be done.
+ */
+export const pastItsMoment = (r: Rule, now: number) =>
+	r.spec.when.kind === 'en_fecha' &&
+	Boolean(r.spec.when.day && r.spec.when.time) &&
+	now > minutesOf(r.spec.when.day!, r.spec.when.time!) + LATE_MINUTES;
+
 /** What it waits for by the clock (not the weather), due in the world's span: each with its key and why. */
 export async function dueIn(w: World, r: Rule): Promise<Due[]> {
 	const today = w.today;
@@ -413,6 +498,15 @@ export async function dueIn(w: World, r: Rule): Promise<Due[]> {
 	if (when.kind === 'cada_dia' && when.time) {
 		const at = atOf(today, when.time);
 		if (due(at)) found.push({ at, key: `cada_dia:${today}`, why: `son las ${when.time}` });
+	}
+	if (when.kind === 'en_fecha' && when.day && when.time) {
+		const at = atOf(when.day, when.time);
+		if (due(at))
+			found.push({
+				at,
+				key: `en_fecha:${when.day}`,
+				why: `son las ${when.time} del ${dayName(when.day)}`
+			});
 	}
 	if (when.kind === 'agenda') {
 		const ahead = Math.ceil(when.minutesBefore / (24 * 60)) + 1;

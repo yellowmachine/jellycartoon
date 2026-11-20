@@ -58,7 +58,7 @@ export const plugSwitchTool: Tool = {
 	function: {
 		name: 'plug_switch',
 		description:
-			'Enciende o apaga un enchufe de la familia por su nombre («enciende la lámpara», «apaga el termo»). Solo los de la lista de enchufes. Para un rato: for_minutes, ahora y vuelve como estaba después («enciende la estufa media hora»); in_minutes, cambia pasado ese tiempo («apaga la tele dentro de una hora»). Uno de los dos, o ninguno.',
+			'Enciende o apaga un enchufe de la familia por su nombre («enciende la lámpara», «apaga el termo»). Solo los de la lista de enchufes. Para un rato: for_minutes, ahora y vuelve como estaba después («enciende la estufa media hora»); in_minutes, cambia pasado ese tiempo («apaga la tele dentro de una hora»). Uno de los dos, o ninguno. A una hora del reloj («a las 9», «mañana») o con condiciones, no: create_rule.',
 		parameters: {
 			type: 'object',
 			properties: {

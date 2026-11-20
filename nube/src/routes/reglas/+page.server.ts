@@ -12,9 +12,12 @@ import {
 	type HappensKind,
 	type WhatIf
 } from '#lib/server/rule-sim.ts';
+import { ruleSaid } from '#lib/rules.ts';
 import {
 	deleteRule,
+	listErrands,
 	listRules,
+	moveErrand,
 	saveRule,
 	setRulePaused,
 	simulateRules,
@@ -53,7 +56,24 @@ function ifsOf(form: FormData): WhatIf {
 export const load: PageServerLoad = async ({ locals }) => {
 	const k = await kitchenOf(locals.user!.id);
 	const admin = await withFamily(locals.user!.id, async (_, m) => m.role === 'admin');
-	const rules = await listRules(k, locals.user!.id);
+	const [all, errands] = await Promise.all([
+		listRules(k, locals.user!.id),
+		listErrands(k, locals.user!.id)
+	]);
+	// The errands (#557, phase 3), in their own tab: one day at one time, not a rule that stays.
+	const rules = all.filter((r) => r.spec.when.kind !== 'en_fecha');
+	const errand = (r: (typeof all)[number]) => ({
+		id: r.id,
+		mine: Boolean(r.userId),
+		said: r.said,
+		read: ruleSaid(r),
+		understood: r.understood,
+		day: r.spec.when.day ?? '',
+		time: r.spec.when.time ?? '',
+		plug: r.spec.then === 'enchufe' && r.spec.plug ? r.spec.plug.name : null,
+		lastFiredAt: r.lastFiredAt,
+		lastWhy: r.lastWhy
+	});
 	return {
 		/** What the voice remembers: theirs (no one else sees it) and the house's. */
 		memories: await listMemories(k, locals.user!.id, true),
@@ -68,6 +88,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			does: t.does,
 			on: rules.some((r) => r.userId === locals.user!.id && r.spec.template === t.id)
 		})),
+		/** Their errands and the house's (#557): to come, by their moment; and the last ones past. */
+		errands: { coming: errands.coming.map(errand), past: errands.past.map(errand) },
 		/** Their rules and the house's (#331): as understood, and the last time each told. */
 		rules: rules.map((r) => ({
 			id: r.id,
@@ -75,8 +97,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 			said: r.said,
 			understood: r.understood,
 			paused: r.paused,
-			aloud: r.spec.then !== 'temporizador' && (r.spec.say ?? !r.userId),
+			aloud:
+				r.spec.then !== 'temporizador' && r.spec.then !== 'enchufe' && (r.spec.say ?? !r.userId),
 			timer: r.spec.then === 'temporizador' && r.spec.timer ? r.spec.timer : null,
+			/** The plug it switches (#557). */
+			plug: r.spec.then === 'enchufe' && r.spec.plug ? r.spec.plug : null,
 			lastFiredAt: r.lastFiredAt,
 			lastWhy: r.lastWhy
 		}))
@@ -201,6 +226,20 @@ export const actions: Actions = {
 		);
 		if ('problem' in result) return fail(400, { simulation: { asked, problem: result.problem } });
 		return { simulation: { asked, ...result } };
+	},
+	/** An errand to another day or time (#557, phase 3), without the AI. */
+	moveErrand: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = Number(form.get('id'));
+		const problem = await moveErrand(
+			await kitchenOf(locals.user!.id),
+			locals.user!.id,
+			id,
+			String(form.get('day') ?? ''),
+			String(form.get('time') ?? '')
+		);
+		if (problem) return fail(400, { ruleProblem: problem, ruleId: id });
+		return { saved: 'rule', ruleId: id };
 	},
 	deleteRule: async ({ request, locals }) => {
 		const id = Number((await request.formData()).get('id'));

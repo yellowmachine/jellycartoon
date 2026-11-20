@@ -35,6 +35,7 @@ const {
 	kwhPrice,
 	listPlugs,
 	renewPlugToken,
+	setHomeSensor,
 	setKwhPrice,
 	setLocked,
 	setPaused,
@@ -601,7 +602,7 @@ describe('sensores (#508)', () => {
 		ws.close();
 	});
 
-	test('Temperatura: its last reading, its line by the hour, and silent after 2 hours', async () => {
+	test('Temperatura: its last reading, its line by the hour, and silent after 5 hours', async () => {
 		const { sensorsIn } = await import('./sensors.ts');
 		const made = await createPlug('ana', 'Salón', 'otro', 'shellyhtg3-aaaaaaaaaaaa');
 		const at = (iso: string, tempC: number | null) => ({
@@ -640,9 +641,35 @@ describe('sensores (#508)', () => {
 		expect(
 			(await read(false, '2026-11-19T11:00:00Z')).find((s) => s.id === made.id)!.points
 		).toHaveLength(3);
-		expect((await read(true, '2026-11-19T12:21:00Z')).find((s) => s.id === made.id)!.silent).toBe(
-			true
-		);
+		const silentAt = async (now: string) =>
+			(await read(true, now)).find((s) => s.id === made.id)!.silent;
+		// Asleep two hours at a time on batteries: one missed wake is not silence yet.
+		expect(await silentAt('2026-11-19T15:19:00Z')).toBe(false);
+		expect(await silentAt('2026-11-19T15:21:00Z')).toBe(true);
 		expect(await asFamily('B', (tx) => sensorsIn(tx, since, true))).toEqual([]);
+	});
+
+	test('the sensor of «la casa» (#557): the only one; with several, the one marked, one at most', async () => {
+		const { sensorsIn } = await import('./sensors.ts');
+		const homes = async (family = 'A') =>
+			(await asFamily(family, (tx) => sensorsIn(tx, new Date(), false)))
+				.filter((s) => s.home)
+				.map((s) => s.name);
+		const sensors = (await asFamily('A', (tx) => sensorsIn(tx, new Date(), false))).length;
+		const bedroom = await createPlug('ana', 'Dormitorio', 'otro', 'shellyhtg3-bbbbbbbbbbbb');
+		const kitchen = await createPlug('ana', 'Cocina', 'otro', 'shellyhtg3-cccccccccccc');
+		expect(sensors).toBeGreaterThan(0);
+		expect(await homes()).toEqual([]);
+		expect(await setHomeSensor('ana', bedroom.id, true)).toBe(true);
+		expect(await homes()).toEqual(['Dormitorio']);
+		expect(await setHomeSensor('ana', kitchen.id, true)).toBe(true);
+		expect(await homes()).toEqual(['Cocina']);
+		// Another family's cannot touch it.
+		expect(await setHomeSensor('otra', bedroom.id, true)).toBe(false);
+		expect(await homes()).toEqual(['Cocina']);
+		expect(await setHomeSensor('ana', kitchen.id, false)).toBe(true);
+		expect(await homes()).toEqual([]);
+		await deletePlug('ana', bedroom.id);
+		await deletePlug('ana', kitchen.id);
 	});
 });

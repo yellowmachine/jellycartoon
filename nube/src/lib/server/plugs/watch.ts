@@ -31,10 +31,12 @@ export const STOPPED_MS = 3 * 3_600_000;
 /** Without connection this long: the power or the wifi. */
 export const OFFLINE_MS = 30 * 60_000;
 /**
- * A sensor (#508) sleeps between readings, so being away is normal: it wakes every 10 minutes
- * (wakeup_period 600 on USB, 2026-11-19). Silent this long, something is wrong.
+ * A sensor (#508) sleeps between readings, so being away is normal: it wakes every 10 minutes on
+ * USB and every 2 hours on batteries (wakeup_period 600 and 7200, seen 2026-11-19), or sooner if
+ * the temperature or humidity changes. Silent this long (two missed wakes on batteries and some
+ * margin), something is wrong.
  */
-export const SENSOR_SILENT_MS = 2 * 3_600_000;
+export const SENSOR_SILENT_MS = 5 * 3_600_000;
 
 export class PlugWatch {
 	private runningSince: number | null = null;

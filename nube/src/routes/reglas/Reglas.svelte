@@ -49,7 +49,7 @@
 	);
 	const today = localDay();
 	const nextHour = `${String((new Date().getHours() + 1) % 24).padStart(2, '0')}:00`;
-	const DOES = { avisa: '🔔', deduce: '💡', temporizador: '⏲️' } as const;
+	const DOES = { avisa: '🔔', deduce: '💡', temporizador: '⏲️', enchufe: '🔌' } as const;
 	let simulating = $state(false);
 	/** While the AI understands one that is saved: the snail, as when Gastos reads a ticket. */
 	let understanding = $state(false);
@@ -161,13 +161,17 @@
 									>
 									{#if r.aloud}<span>🔊 También en voz alta</span>{/if}
 									{#if r.timer}<span>⏲️ Temporizador en casa</span>{/if}
+									{#if r.plug}<span>🔌 Enchufe «{r.plug.name}»</span>{/if}
 									{#if r.paused}<span class="uppercase">En pausa</span>{/if}
 								</p>
 								{#if r.lastFiredAt}
 									<p class="mt-1 text-xs text-zinc-500">
-										{r.timer ? 'Puso el temporizador el' : 'Avisó el'}
+										{r.timer ? 'Puso el temporizador el' : r.plug ? 'Fue el' : 'Avisó el'}
 										{when(r.lastFiredAt)}{r.lastWhy ? `, porque ${r.lastWhy}` : ''}.
 									</p>
+								{:else if r.paused && r.lastWhy}
+									<!-- One day at one time gone by without being done (#557). -->
+									<p class="mt-1 text-xs text-zinc-500">No se hizo a su hora: {r.lastWhy}.</p>
 								{/if}
 								{#if tried?.id === r.id}
 									<p class="mt-1 text-xs text-amber-400">{tried.said}</p>

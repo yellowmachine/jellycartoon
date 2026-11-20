@@ -97,6 +97,7 @@ const SHOTS: {
 			await new Promise((r) => setTimeout(r, 1500));`
 	},
 	{ name: 'reglas', path: '/reglas', to: ['guia'] },
+	{ name: 'reglas-encargos', path: '/reglas?ver=encargos', to: ['guia'] },
 	{ name: 'paseos', path: '/paseos', to: ['guia'] },
 	{ name: 'llamadas', path: '/llamadas', to: ['guia'] },
 	// Without «Primeros pasos» (hidden as Ana would): the car's card first.

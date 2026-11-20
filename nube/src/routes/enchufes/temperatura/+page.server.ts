@@ -2,7 +2,7 @@ import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { outsideOf } from '#lib/server/outside.ts';
-import { deletePlug, updatePlug } from '#lib/server/plugs/plugs.ts';
+import { deletePlug, setHomeSensor, updatePlug } from '#lib/server/plugs/plugs.ts';
 import { sensorsIn } from '#lib/server/plugs/sensors.ts';
 import { TEMPERATURE_RANGES } from '#lib/temperature.ts';
 
@@ -35,6 +35,11 @@ export const actions: Actions = {
 		const name = String(form.get('name') ?? '').trim();
 		if (!name) return fail(400, { problem: 'Ponle el nombre de la habitación' });
 		await updatePlug(locals.user!.id, String(form.get('id') ?? ''), name, 'otro');
+	},
+	/** The sensor of «la casa» (#557), for the rules: this one, or none. */
+	home: async ({ request, locals }) => {
+		const form = await request.formData();
+		await setHomeSensor(locals.user!.id, String(form.get('id') ?? ''), form.get('home') === 'true');
 	},
 	remove: async ({ request, locals }) => {
 		const form = await request.formData();

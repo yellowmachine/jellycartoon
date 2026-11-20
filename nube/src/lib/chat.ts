@@ -1,6 +1,7 @@
 import type { Recipe } from 'comun/recipe.ts';
 import type { Block } from '#lib/blocks.ts';
 import type { Cita } from '#lib/cita.ts';
+import type { ErrandChangeCard, PlanCard } from '#lib/encargos.ts';
 
 /**
  * «Preguntar» (#470): what each answer of the chat brings besides its words, as the page shows
@@ -61,7 +62,15 @@ export interface PlaceCard {
 }
 
 export type ChatCard =
-	ShoppingCard | RecipeCard | PageCard | BlockCard | ReportCard | EventCard | PlaceCard;
+	| ShoppingCard
+	| RecipeCard
+	| PageCard
+	| BlockCard
+	| ReportCard
+	| EventCard
+	| PlaceCard
+	| PlanCard
+	| ErrandChangeCard;
 
 export interface ChatMessage {
 	id: number;

@@ -26,6 +26,7 @@
 		| 'musica'
 		| 'juegos'
 		| 'salon'
+		| 'vista'
 		| 'infantil'
 		| 'oracion'
 		| 'gestion';
@@ -153,6 +154,10 @@
 		/>
 		<path d="M16 17h4" />
 		<path d="M4 13h4" />
+	{:else if name === 'vista'}
+		<!-- A screen on its stand with a house: the tablet on the wall (Seilide's Vista, #525). -->
+		<rect x="2.5" y="3.5" width="19" height="13" rx="2" />
+		<path d="M8.5 12.5v-3L12 7l3.5 2.5v3M9 20.5h6M12 16.5v4" />
 	{:else if name === 'salon'}
 		<!-- A sofa. -->
 		<path d="M5 11V8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3" />

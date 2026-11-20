@@ -63,6 +63,11 @@ export const plug = pgTable(
 		 */
 		locked: boolean('locked').notNull().default(false),
 		/**
+		 * A temperature sensor's (#508): the one of «la casa», for the rules that say «si en casa hay
+		 * menos de 15 grados» (#557). One per family at most (setHomeSensor).
+		 */
+		home: boolean('home').notNull().default(false),
+		/**
 		 * Its notices (#396, phase 3), set by its kind when added: a washing machine done, a fridge
 		 * stopped, gone without connection (the power or the wifi), on longer than these hours (null,
 		 * never); and said out loud by the satellites too.

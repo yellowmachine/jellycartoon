@@ -24,6 +24,8 @@ export interface SensorView {
 	at: string | null;
 	/** Silent longer than it should be: «sin noticias». */
 	silent: boolean;
+	/** The one of «la casa» (#557), for the rules: marked, or the only one. */
+	home: boolean;
 	points: { at: string; temperature: number }[];
 }
 

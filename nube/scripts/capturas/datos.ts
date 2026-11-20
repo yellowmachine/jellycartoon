@@ -211,6 +211,103 @@ try {
 			from generate_series(now() - interval '2 days', now() - interval '3 minutes', interval '10 minutes') t`;
 	}
 
+	// The Salón is the house's sensor (#557), for the errands below.
+	await sql`update plug set home = true where id = 'shellyhtg3-capturas2'`;
+
+	// Encargos (#557): two to come, one done yesterday and one that was not needed.
+	const notice = (text: string) => ({ to: 'yo', userIds: [], names: [], text, level: 'normal' });
+	const cold = [
+		{
+			kind: 'temperatura',
+			words: [],
+			negate: false,
+			temperature: { sensorId: null, name: null, below: true, degrees: 15 }
+		}
+	];
+	const termo = { plugId: 'capturas-termo', name: 'Termo', on: true, minutes: 60 };
+	const at = (d: string, time: string) => ({
+		kind: 'en_fecha',
+		words: [],
+		minutesBefore: 0,
+		time,
+		day: d
+	});
+	for (const [said, understood, spec, paused, firedAt, why] of [
+		[
+			'Mañana a las 9, si en casa hay menos de 15 grados, pon el termo una hora',
+			'Si en casa hay menos de 15 °C, encenderé «Termo» 1 hora.',
+			{
+				when: at(day(1), '09:00'),
+				conditions: cold,
+				then: 'enchufe',
+				plug: termo,
+				notice: notice(''),
+				once: true,
+				say: false
+			},
+			false,
+			null,
+			null
+		],
+		[
+			'Dentro de tres días a las 8, si va a llover, avísame para recoger la ropa',
+			'Si va a llover en las próximas 12 h, te avisaré: «Recoge la ropa del tendedero».',
+			{
+				when: at(day(3), '08:00'),
+				conditions: [
+					{
+						kind: 'tiempo',
+						words: [],
+						negate: false,
+						weather: { what: 'lluvia', hours: 12, threshold: 60, where: 'casa' }
+					}
+				],
+				then: 'avisar',
+				notice: notice('Recoge la ropa del tendedero'),
+				once: true,
+				say: false
+			},
+			false,
+			null,
+			null
+		],
+		[
+			'Ayer a las 9 pon el termo si hace frío',
+			'Si en casa hay menos de 15 °C, encenderé «Termo» 1 hora.',
+			{
+				when: at(day(-1), '09:00'),
+				conditions: cold,
+				then: 'enchufe',
+				plug: termo,
+				notice: notice(''),
+				once: true,
+				say: false
+			},
+			true,
+			`${day(-1)} 09:00`,
+			'en casa hay 13,8 °C, menos de 15 °C: encendido «Termo» 1 hora'
+		],
+		[
+			'Antes de ayer a las 7:30 pon el termo si hace frío',
+			'Si en casa hay menos de 15 °C, encenderé «Termo» 1 hora.',
+			{
+				when: at(day(-2), '07:30'),
+				conditions: cold,
+				then: 'enchufe',
+				plug: termo,
+				notice: notice(''),
+				once: true,
+				say: false
+			},
+			true,
+			null,
+			'en casa hay 17,2 °C, no menos de 15 °C'
+		]
+	] as const)
+		await sql`
+			insert into rule (family_id, user_id, said, understood, spec, paused, last_fired_at, last_why)
+			values (${family}, ${userId}, ${said}, ${understood}, ${sql.json(spec)}, ${paused}, ${firedAt}, ${why})`;
+
 	// Recetas: two saved from a (made-up) cooking site, with their steps ready for the kitchen.
 	const step = (text: string, timer: [string, number, string | null] | null = null) => ({
 		text,
