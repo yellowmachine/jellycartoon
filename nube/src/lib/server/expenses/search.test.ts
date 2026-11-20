@@ -23,6 +23,8 @@ const k: Kitchen = {
 };
 // Bun's module mocks are the whole run's: the same as ai-costs.test.ts's.
 mock.module('#lib/server/fridge.ts', () => ({
+	// calories.ts's (#562), unused here.
+	dayOf: (d: Date) => d.toISOString().slice(0, 10),
 	houseKitchen: () => k,
 	today: localDay, // chat.test.ts's, unused here: a mock's names are fixed by the first one.
 	toBuy: async () => [],

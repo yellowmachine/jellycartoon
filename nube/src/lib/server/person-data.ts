@@ -516,6 +516,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: false,
 		note: 'Line text → own tag (#459), with its tags'
 	},
+	food_estimate: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'Each product’s kcal (#562), estimated by the AI or corrected: the family’s; estimated again'
+	},
 	expense_favorite: {
 		leaving: 'stays',
 		joining: 'moves',

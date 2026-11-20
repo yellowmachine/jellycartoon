@@ -1,4 +1,5 @@
 import {
+	boolean,
 	date,
 	doublePrecision,
 	foreignKey,
@@ -8,6 +9,7 @@ import {
 	pgEnum,
 	pgTable,
 	primaryKey,
+	real,
 	serial,
 	text,
 	timestamp,
@@ -310,6 +312,33 @@ export const expenseTagRule = pgTable(
 			foreignColumns: [expenseTag.familyId, expenseTag.id]
 		}).onDelete('cascade'),
 		familyRows('expense_tag_rule_own', t.familyId)
+	]
+).enableRLS();
+
+/**
+ * Calorías (#562): what each product of the receipts is, by its text as lineKey leaves it (as
+ * expenseTagRule): estimated once by the AI, for every receipt, before or after, or corrected by
+ * hand. Looked up when read, never copied to the lines.
+ */
+export const foodEstimate = pgTable(
+	'food_estimate',
+	{
+		familyId: familyId(),
+		text: text('text').notNull(),
+		/** Eaten or drunk; false, it does not count (a bag, a gift card). */
+		food: boolean('food').notNull(),
+		/** Sold by weight: its line's quantity is kg. */
+		byWeight: boolean('by_weight').notNull().default(false),
+		/** Grams of one, as bought (a pack of six litres, about 6000); by weight, a usual purchase. */
+		grams: real('grams').notNull().default(0),
+		kcal100: real('kcal100').notNull().default(0),
+		/** Corrected by a person: the AI does not touch it again. */
+		byHand: boolean('by_hand').notNull().default(false),
+		updatedAt: timestamp('updated_at').notNull().defaultNow()
+	},
+	(t) => [
+		primaryKey({ columns: [t.familyId, t.text] }),
+		familyRows('food_estimate_own', t.familyId)
 	]
 ).enableRLS();
 

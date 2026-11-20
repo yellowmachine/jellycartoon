@@ -26,6 +26,8 @@ const kitchen = (familyId: string): Kitchen => ({
 });
 // As search.test.ts: what expenses.ts brings with it, without a database of its own nor AI.
 mock.module('#lib/server/fridge.ts', () => ({
+	// calories.ts's (#562), unused here.
+	dayOf: (d: Date) => d.toISOString().slice(0, 10),
 	houseKitchen: () => k,
 	today: localDay,
 	toBuy: async () => [],
