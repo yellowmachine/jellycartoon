@@ -16,6 +16,7 @@ import { hasBot, startBot } from '#lib/server/telegram/bot.ts';
 import { refreshAll, REFRESH_HOURS } from '#lib/server/podcasts/podcasts.ts';
 import { cleanupCopies } from '#lib/server/storage-move.ts';
 import { indexAll } from '#lib/server/own-music.ts';
+import { indexAll as indexAllGames } from '#lib/server/own-games.ts';
 import { syncFamily } from '#lib/server/banks/bank.ts';
 import { visits } from '#lib/server/section-visits.ts';
 
@@ -117,6 +118,10 @@ export function startScheduler() {
 				void families()
 					.then(indexAll)
 					.catch((error) => console.error('[reloj] Tu música', error));
+				// «Tus juegos» (#564): the same, each family's games' bucket listed again.
+				void families()
+					.then(indexAllGames)
+					.catch((error) => console.error('[reloj] Tus juegos', error));
 				// Their copies in Seilide's storage, a week after moving to their own (#480).
 				await cleanupCopies().catch((error) =>
 					console.error('[reloj] Copias de ficheros en Seilide', error)

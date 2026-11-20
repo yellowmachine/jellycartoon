@@ -32,4 +32,5 @@ export * from './banks.schema.ts';
 export * from './fuel.schema.ts';
 export * from './solar.schema.ts';
 export * from './own-music.schema.ts';
+export * from './own-games.schema.ts';
 export * from './messages.schema.ts';

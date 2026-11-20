@@ -19,9 +19,12 @@
 	info={data.info}
 />
 
-<CarryGame
-	system={page.params.system!}
-	file={page.params.file!}
-	view={data.offline}
-	problem={form?.offline ?? null}
-/>
+<!-- Carried away, only the house's for now (#564, phase 2). -->
+{#if !data.own}
+	<CarryGame
+		system={page.params.system!}
+		file={page.params.file!}
+		view={data.offline}
+		problem={form?.offline ?? null}
+	/>
+{/if}

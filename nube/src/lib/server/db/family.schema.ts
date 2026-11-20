@@ -98,6 +98,8 @@ export const familyMember = pgTable(
 		 * when there are both (music-source.ts); null, the house's.
 		 */
 		musicSource: text('music_source').$type<'casa' | 'propia'>(),
+		/** And where Juegos' games come from (#564), the same way (game-source.ts); null, the house's. */
+		gameSource: text('game_source').$type<'casa' | 'propia'>(),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [

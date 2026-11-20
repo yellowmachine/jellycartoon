@@ -155,6 +155,46 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: false,
 		note: 'Follows its list'
 	},
+	// «Tus juegos» (#564): the family's bucket and its list of games; what each one keeps of them
+	// refers to that list, so it stays with the bucket too.
+	game_source: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'The family’s bucket for Juegos; its keys are not to be read'
+	},
+	own_game: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: false,
+		note: 'A list of the family’s bucket, read again from it'
+	},
+	own_game_cartridge: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: {
+			file: 'juegos-cartuchos',
+			where: [mine()],
+			stored: { area: 'juegos-cartuchos', column: 'id', suffix: '.srm.gz' }
+		},
+		note: 'Of a game of the family’s bucket, which stays: in the zip, with its file'
+	},
+	own_game_save: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: {
+			file: 'juegos-partidas',
+			where: [mine()],
+			stored: { area: 'juegos-partidas', column: 'id', suffix: '.state' }
+		},
+		note: 'Of a game of the family’s bucket, which stays: in the zip, with its state'
+	},
+	own_game_session: {
+		leaving: 'stays',
+		joining: 'dropped',
+		zip: { file: 'juegos-tiempo', where: [mine()] },
+		note: 'Of a game of the family’s bucket, which stays'
+	},
 	storage_quota: {
 		leaving: 'stays',
 		joining: 'dropped',

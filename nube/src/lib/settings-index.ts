@@ -24,6 +24,8 @@ export interface SettingsShown {
 	spendLine?: boolean;
 	/** Música's source to choose (#534, phase 3): the family has both, the house and its bucket. */
 	twoMusicSources?: boolean;
+	/** And Juegos' (#564): the house and the family's bucket. */
+	twoGameSources?: boolean;
 }
 
 const onlyAdmin = (d: SettingsShown) => d.admin;
@@ -93,6 +95,13 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		shown: (d) => Boolean(d.twoMusicSources)
 	},
 	{
+		id: 'fuente-juegos',
+		tab: 'mi',
+		title: 'Tus juegos, de dónde salen',
+		words: 'juegos roms consolas fuente casa almacenamiento s3 r2 bucket partidas',
+		shown: (d) => Boolean(d.twoGameSources)
+	},
+	{
 		id: 'viajes',
 		tab: 'mi',
 		title: 'Tus viajes',
@@ -152,6 +161,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		tab: 'conexiones',
 		title: 'Tu música',
 		words: 'musica canciones s3 r2 backblaze bucket almacenamiento albumes mp3 flac'
+	},
+	{
+		id: 'tus-juegos',
+		tab: 'conexiones',
+		title: 'Tus juegos',
+		words: 'juegos roms consolas nes snes game boy mega drive s3 r2 backblaze bucket almacenamiento'
 	},
 	{
 		id: 'donde-vivis',
