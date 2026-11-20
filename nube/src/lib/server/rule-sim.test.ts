@@ -8,7 +8,9 @@ import {
 	itemsSaid,
 	minutesOf,
 	momentOf,
+	conditionsHold,
 	type Rule,
+	type SensorNow,
 	type World
 } from './rule-check.ts';
 import { madeUpWeather, NO_IFS, simulate, withIfs, type Deduced, type WhatIf } from './rule-sim.ts';
@@ -161,6 +163,65 @@ describe('¿Qué pasaría…?', () => {
 		]);
 		expect(out[0]!.said).toBe('Encendería «Termo» 1 hora. Porque son las 09:00 del miércoles 4.');
 		expect(out[1]!.said).toBe('Entonces no le toca: se mira el jueves 5 a las 09:00.');
+	});
+
+	test('a sensor’s temperature (#557): only a recent reading; «la casa», the one marked', async () => {
+		const cold = (degrees: number, below = true, sensorId: string | null = null) =>
+			ruleOf({
+				when: when({ kind: 'cada_dia', time: '09:00' }),
+				conditions: [
+					{
+						kind: 'temperatura',
+						words: [],
+						negate: false,
+						temperature: { sensorId, name: sensorId ? 'Dormitorio' : null, below, degrees }
+					}
+				]
+			});
+		const sensors: SensorNow[] = [
+			{ id: 's1', name: 'Salón', home: true, tempC: 13.4, ageMin: 20 },
+			{ id: 's2', name: 'Dormitorio', home: false, tempC: 19, ageMin: 200 }
+		];
+		const w = { ...worldAt(minutesOf(DAY, '09:00'), []), sensors: async () => sensors };
+		expect(await conditionsHold(w, cold(15))).toEqual({
+			ok: true,
+			why: ['en casa hay 13,4 °C, menos de 15 °C'],
+			unknown: false
+		});
+		expect(await conditionsHold(w, cold(26, false))).toEqual({
+			ok: false,
+			why: ['en casa hay 13,4 °C, no más de 26 °C'],
+			unknown: false
+		});
+		expect(await conditionsHold(w, cold(25, true, 's2'))).toEqual({
+			ok: false,
+			why: [
+				'no sé la temperatura de «Dormitorio»: la última lectura de «Dormitorio» es de hace 3 h'
+			],
+			unknown: true
+		});
+		// Not known: not even negated.
+		const negated = cold(15);
+		negated.spec.conditions[0]!.negate = true;
+		expect((await conditionsHold(w, negated)).ok).toBe(false);
+		expect(
+			await conditionsHold(
+				{ ...w, sensors: async () => sensors.map((x) => ({ ...x, home: false })) },
+				cold(15)
+			)
+		).toMatchObject({
+			ok: false,
+			unknown: true,
+			why: [expect.stringContaining('se marca en Enchufes → Temperatura')]
+		});
+		expect(await conditionsHold(worldAt(minutesOf(DAY, '09:00'), []), cold(15))).toMatchObject({
+			unknown: true,
+			why: ['no sé la temperatura de los sensores']
+		});
+		// A condition that does not hold besides: not «unknown», it would not do it anyway.
+		const both = cold(25, true, 's2');
+		both.spec.conditions.push({ kind: 'nevera', words: ['pan'], negate: false });
+		expect((await conditionsHold(w, both)).unknown).toBe(false);
 	});
 
 	test('the weather: the first half hour it comes, once', async () => {

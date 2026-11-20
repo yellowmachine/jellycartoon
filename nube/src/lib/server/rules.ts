@@ -53,6 +53,7 @@ import { voiceSettings } from '#lib/server/voice/settings.ts';
 import { solarState } from '#lib/server/energy/solar.ts';
 import { PlugOffline } from '#lib/server/plugs/hub.ts';
 import { plugsOf, switchIn } from '#lib/server/plugs/plugs.ts';
+import { sensorsIn } from '#lib/server/plugs/sensors.ts';
 import { PLUG_KINDS } from '#lib/plugs.ts';
 import {
 	MAX_PLUG_MIN,
@@ -192,9 +193,17 @@ export async function deleteRule(k: Kitchen, userId: string | null, id: number) 
 
 // ——— Understanding it ———
 
-const SYSTEM = (today: string, now: string, people: string[], who: string, plugs: string[]) =>
+const SYSTEM = (
+	today: string,
+	now: string,
+	people: string[],
+	who: string,
+	plugs: string[],
+	sensors: string[]
+) =>
 	`Conviertes una regla de una familia, dicha en español, en datos que un programa comprueba solo, sin IA. Hoy es ${dayName(today, true)} (${today}), son las ${now}. La familia: ${people.join(', ') || 'nadie más'}. ${who}
 Enchufes de la familia (Enchufes): ${plugs.join(', ') || 'ninguno'}.
+Sensores de temperatura de la familia: ${sensors.join(', ') || 'ninguno'}.
 
 Cuándo se mira («when.kind»), solo una:
 - «agenda»: cuando empieza una cita de la Agenda cuyo título tiene «words» («cuando vengan mis padres» → ["padres"]); «minutes_before» antes (0, al empezar; «la víspera», 1440).
@@ -218,6 +227,7 @@ Qué tiene que cumplirse además («conditions», puede estar vacío), cada una 
 - «agenda_hoy»: que haya hoy en la Agenda algo con «words».
 - «tiempo»: que en las próximas horas haga el tiempo de su «weather» («si mañana hiela»).
 - «placas»: lo que harán las placas solares de la familia según Energía → Previsión, en «solar»: «sobra_sol» (hoy, en las horas que quedan, sobra sol de las placas: buen momento para la lavadora o el termo), «bateria_no_llega» (esta noche la batería se acaba antes de que salga el sol) o «poco_sol_manana» (mañana darán menos de la mitad que hoy). «solar» es «ninguno» en las demás condiciones.
+- «temperatura»: la temperatura que mide ahora un sensor de casa (arriba), en «temperature»: «sensor», su nombre exactamente como está en la lista si dice la habitación («en el dormitorio»), o «casa» si dice la casa o no dice dónde; «compare», «menos_de» o «mas_de»; «degrees», los grados («si en casa hay menos de 15 grados» → {"sensor": "casa", "compare": "menos_de", "degrees": 15}; «si hace frío en casa», menos de 18; «si hace calor en casa», más de 26). Si no hay sensores, «possible» false. En las demás condiciones, {"sensor": "", "compare": "ninguno", "degrees": 0}.
 
 Qué hace («then»): «avisar» (con «notice»), «temporizador», «enchufe» o «deducir»: guardar un dato que luego sirve a otras reglas, sin avisar a nadie («si pongo la lavadora, ese día hay ropa tendida» → «deduce»: {"text": "Hay ropa tendida", "days": 0}). «deduce.text», el dato en una frase que se entienda sola, sin fechas; «deduce.days», cuántos días más vale (0, solo ese día; en «compra», 7 si no lo dice). Si la regla dice que es probable («probablemente», «seguramente»), el dato también: «Probablemente hay bebida en la nevera». Sin deducir, «deduce» {"text": "", "days": 0}.
 «temporizador»: pone un temporizador de la casa que suena en toda la casa al acabar, cuando la regla pide esperar un rato después de lo que pasa («una hora después», «a los 20 minutos», «ponme un temporizador»): «timer.minutes», cuántos minutos; «timer.label», para qué, corto y como se diría al sonar («Sacar las bebidas del congelador»). «notice.text» vacío y «say» false: el temporizador ya suena. Sin temporizador, «timer» {"minutes": 0, "label": ""}.
@@ -226,7 +236,7 @@ A quién y qué («notice», al avisar; al deducir, «text» vacío): «to» es 
 «once»: true si es para una sola vez («la próxima vez que…», «este viernes»; «en_fecha», siempre).
 «say»: true si además hay que decirlo en voz alta en casa, por los altavoces de la voz: si lo pide («dímelo en voz alta», «avisa en casa», «que lo diga Alexa») o si es de toda la casa; false si es solo para el móvil de quien habla.
 «understood»: la regla en una frase, como la comprobará el programa, para leérsela a quien la dijo («Cuando empiece en la Agenda algo con «padres», si estás de viaje, te avisaré: …»).
-Si no se puede con esto (otra familia, otros sensores que no sean los enchufes, algo sin cuándo), «possible» false y en «why_not» por qué, corto; lo demás, lo más parecido posible.`;
+Si no se puede con esto (otra familia, otros aparatos que no sean los enchufes y los sensores de temperatura, algo sin cuándo), «possible» false y en «why_not» por qué, corto; lo demás, lo más parecido posible.`;
 
 /**
  * What was said, understood by the AI as a rule the server can check: its sentence and its data,
@@ -239,11 +249,12 @@ export async function translateRule(
 ): Promise<{ spec: RuleSpec; understood: string } | { problem: string }> {
 	const text = said.trim().slice(0, MAX_RULE);
 	if (!text) return { problem: 'Falta la regla.' };
-	const [apiKey, settings, people, plugs] = await Promise.all([
+	const [apiKey, settings, people, plugs, sensors] = await Promise.all([
 		openRouterKey(k),
 		voiceSettings(k),
 		familyPeople(k),
-		plugsOf(k)
+		plugsOf(k),
+		k.run((tx) => sensorsIn(tx, new Date(), false))
 	]);
 	if (!apiKey)
 		return { problem: 'Sin la clave de OpenRouter de la familia no sé entender reglas.' };
@@ -258,7 +269,8 @@ export async function translateRule(
 				localTime(),
 				people.map((p) => p.name),
 				who ? `Quien habla es ${who}.` : 'Se dice en un satélite: es una regla de la casa.',
-				plugs.map((p) => `${p.name} (${PLUG_KINDS[p.kind].label.toLowerCase()})`)
+				plugs.map((p) => `${p.name} (${PLUG_KINDS[p.kind].label.toLowerCase()})`),
+				sensors.map((s) => (s.home && sensors.length > 1 ? `${s.name} (el de casa)` : s.name))
 			),
 			prompt: text,
 			name: 'rule',
@@ -278,7 +290,7 @@ export async function translateRule(
 			const p = accounts.find((a) => sameName(a.name, name));
 			return p ? { userId: p.userId!, name: p.name } : null;
 		},
-		{ plugs, now: { day: localDay(), time: localTime() } }
+		{ plugs, sensors, now: { day: localDay(), time: localTime() } }
 	);
 	return 'problem' in made ? made : { spec: made.spec, understood: t.understood || text };
 }
@@ -294,6 +306,7 @@ export async function translateCost(k: Kitchen, chars = 150) {
 		localTime(),
 		people.map((p) => p.name),
 		'',
+		[],
 		[]
 	);
 	return guessCost(settings.model, system.length + chars, 450);
@@ -559,6 +572,17 @@ function worldOf(
 				? s.forecast.days
 				: 'falta lo que gasta la casa al día (Energía → Previsión → Placas)';
 		},
+		sensors: async (r) => {
+			const now = Date.now();
+			const sensors = await (await kitchen(r)).run((tx) => sensorsIn(tx, new Date(now), false));
+			return sensors.map((s) => ({
+				id: s.id,
+				name: s.name,
+				home: s.home,
+				tempC: s.tempC,
+				ageMin: s.at === null ? null : Math.round((now - Date.parse(s.at)) / 60_000)
+			}));
+		},
 		forecast: async (lat, lon, day, time) => {
 			const from = `${day}T${time.slice(0, 2)}:00`;
 			const hours = (await forecastAt(lat, lon)).filter((h) => h.at >= from);
@@ -765,10 +789,10 @@ async function tryFire(
 		if (chain.length) console.info('[reglas] Cadena cortada', { id: r.id, chain });
 		return false;
 	}
-	const { ok, why } = await conditionsHold(w, r);
+	const { ok, why, unknown } = await conditionsHold(w, r);
 	if (!ok) {
 		// One day at one time (#557): why not, kept, in case its moment goes by so.
-		const not = `no se cumple: ${why.join(' y ')}`;
+		const not = `${unknown ? NOT_KNOWN : HELD_NOT}${why.join(' y ')}`;
 		if (r.spec.when.kind === 'en_fecha' && r.lastWhy !== not) {
 			r.lastWhy = not;
 			await k.run((tx) => tx.update(rule).set({ lastWhy: not }).where(eq(rule.id, r.id)));
@@ -778,15 +802,36 @@ async function tryFire(
 	return fire(k, r, key, [because, ...why].join(' y '), chain);
 }
 
+/** In `lastWhy`, while its moment lasts (#557): what did not hold, or what was not known. */
+const HELD_NOT = 'no se cumple: ';
+const NOT_KNOWN = 'sin saber: ';
+
 /**
  * One day at one time gone by without being done (#557): paused for good, with why (what did not
- * hold then; else, that the server could not look). Left in the list, to be seen.
+ * hold then; else, that the server could not look). Left in the list, to be seen. Not done for
+ * what was not known (a sensor with no recent reading): whom it is for told, to do it by hand.
  */
 async function missedMoment(k: Kitchen, r: Rule) {
-	const held = 'no se cumple: ';
-	const why = r.lastWhy?.startsWith(held)
-		? r.lastWhy.slice(held.length)
-		: 'no se pudo mirar a su hora';
+	const unknown = r.lastWhy?.startsWith(NOT_KNOWN);
+	const why = r.lastWhy?.startsWith(HELD_NOT)
+		? r.lastWhy.slice(HELD_NOT.length)
+		: unknown
+			? r.lastWhy!.slice(NOT_KNOWN.length)
+			: 'no se pudo mirar a su hora';
+	if (unknown) {
+		const p = r.spec.then === 'enchufe' ? r.spec.plug : null;
+		await tell(k.familyId, await recipients(k, r), {
+			kind: 'regla',
+			level: 'normal',
+			title: p
+				? `🔌 No he ${p.on ? 'encendido' : 'apagado'} «${p.name}»`
+				: `🔔 No he podido mirar: ${r.understood}`,
+			body: `${why.charAt(0).toUpperCase()}${why.slice(1)}. Era para: ${r.understood}${p ? ' Si quieres, hazlo desde Enchufes.' : ''}`,
+			tag: `regla-${r.id}-sin-saber`,
+			url: p ? '/enchufes' : '/reglas',
+			ttl: 6 * 3600
+		});
+	}
 	await k.run((tx) =>
 		tx
 			.update(rule)

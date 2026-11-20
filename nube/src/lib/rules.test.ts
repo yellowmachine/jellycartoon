@@ -299,6 +299,66 @@ describe('specOf', () => {
 		expect(timer(5000, 'Algo')).toMatchObject({ spec: { timer: { minutes: 1440 } } });
 	});
 
+	test('a sensor’s temperature (#557): «la casa» or a room by its name; one there is not, said', () => {
+		const sensors = [
+			{ id: 's1', name: 'Salón' },
+			{ id: 's2', name: 'Dormitorio' }
+		];
+		const cold = (temperature: { sensor: string; compare: string; degrees: number }) =>
+			specOf(
+				answer({
+					conditions: [
+						{ kind: 'temperatura', words: [], negate: false, weather: none, temperature }
+					]
+				}),
+				resolve,
+				{ sensors }
+			);
+		expect(cold({ sensor: 'casa', compare: 'menos_de', degrees: 15 })).toMatchObject({
+			spec: {
+				conditions: [
+					{
+						kind: 'temperatura',
+						temperature: { sensorId: null, name: null, below: true, degrees: 15 }
+					}
+				]
+			}
+		});
+		expect(cold({ sensor: 'Dormitorio', compare: 'mas_de', degrees: 25.55 })).toMatchObject({
+			spec: {
+				conditions: [
+					{ temperature: { sensorId: 's2', name: 'Dormitorio', below: false, degrees: 25.6 } }
+				]
+			}
+		});
+		expect(cold({ sensor: 'Cocina', compare: 'menos_de', degrees: 15 })).toEqual({
+			problem: 'No hay un sensor «Cocina»: los hay «Salón», «Dormitorio».'
+		});
+		expect(cold({ sensor: 'casa', compare: 'ninguno', degrees: 0 })).toEqual({
+			problem: 'Falta qué temperatura esperar.'
+		});
+		expect(
+			specOf(
+				answer({
+					conditions: [
+						{
+							kind: 'temperatura',
+							words: [],
+							negate: false,
+							weather: none,
+							temperature: { sensor: 'casa', compare: 'menos_de', degrees: 15 }
+						}
+					]
+				}),
+				resolve
+			)
+		).toEqual({ problem: 'La familia no tiene sensores de temperatura en Enchufes.' });
+		// Another condition keeps no temperature.
+		expect(specOf(answer(), resolve, { sensors })).toMatchObject({
+			spec: { conditions: [{ kind: 'de_viaje' }] }
+		});
+	});
+
 	test('an errand (#557): one day at one time, once, switching a plug of the family by its name', () => {
 		const plugs = [
 			{ id: 'p1', name: 'Termo' },

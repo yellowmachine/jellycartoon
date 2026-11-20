@@ -29,7 +29,7 @@ const kitchen = (familyId: string, userId: string | null): Kitchen => ({
 class PlugOffline extends Error {}
 const switched: { id: string; on: boolean; backAfterS?: number }[] = [];
 let plugAnswer: 'ok' | 'locked' | 'offline' = 'ok';
-const told: { to: string[]; title: string; body: string }[] = [];
+const told: { to: string[]; title: string; body: string; url: string }[] = [];
 const memories: string[] = [];
 
 mock.module('#lib/server/plugs/hub.ts', () => ({ PlugOffline }));
@@ -42,9 +42,20 @@ mock.module('#lib/server/plugs/plugs.ts', () => ({
 		return true;
 	}
 }));
+/** The family's sensors as they read now (#508), faked: the last reading and when. */
+let sensorsNow: {
+	id: string;
+	name: string;
+	home: boolean;
+	tempC: number | null;
+	at: string | null;
+}[] = [];
+mock.module('#lib/server/plugs/sensors.ts', () => ({
+	sensorsIn: async () => sensorsNow
+}));
 mock.module('#lib/server/inbox.ts', () => ({
-	tell: async (_f: string, to: string[], n: { title: string; body: string }) => {
-		told.push({ to, title: n.title, body: n.body });
+	tell: async (_f: string, to: string[], n: { title: string; body: string; url: string }) => {
+		told.push({ to, title: n.title, body: n.body, url: n.url });
 	}
 }));
 mock.module('#lib/server/fridge.ts', () => ({
@@ -134,6 +145,7 @@ beforeEach(async () => {
 	told.length = 0;
 	memories.length = 0;
 	plugAnswer = 'ok';
+	sensorsNow = [];
 	await db.delete(rule);
 });
 
@@ -169,7 +181,8 @@ test('a plug that cannot: whom it is for told why, and kept so', async () => {
 		{
 			to: ['ana'],
 			title: '🔌 No he podido encender «Termo»',
-			body: '«Termo» tiene el candado puesto. Era para: Encenderé «Termo» 1 hora.'
+			body: '«Termo» tiene el candado puesto. Era para: Encenderé «Termo» 1 hora.',
+			url: '/reglas'
 		}
 	]);
 	expect((await ruleRow(id)).lastWhy).toContain(
@@ -214,4 +227,68 @@ test('a condition that does not hold: tried again within the hour, then paused f
 	expect(row.lastFiredAt).toBeNull();
 	expect(row.lastWhy).toBe('no recuerdo nada con «frio»');
 	expect(switched).toHaveLength(1);
+});
+
+const COLD_AT_HOME: RuleSpec['conditions'] = [
+	{
+		kind: 'temperatura',
+		words: [],
+		negate: false,
+		temperature: { sensorId: null, name: null, below: true, degrees: 15 }
+	}
+];
+const readAgo = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+
+test('«si en casa hay menos de 15 grados» (#557): a recent reading under it switches the plug', async () => {
+	sensorsNow = [{ id: 's1', name: 'Salón', home: true, tempC: 13.2, at: readAgo(25) }];
+	const [{ id }] = await db
+		.insert(rule)
+		.values(errand(fromNow(-1), COLD_AT_HOME))
+		.returning({ id: rule.id });
+	await checkTimedRules('A');
+	expect(switched).toEqual([{ id: 'p1', on: true, backAfterS: 3600 }]);
+	expect((await ruleRow(id)).lastWhy).toContain('en casa hay 13,2 °C, menos de 15 °C');
+});
+
+test('a reading too old (#557): not switched, and when its hour is over, told to do it by hand', async () => {
+	sensorsNow = [{ id: 's1', name: 'Salón', home: true, tempC: 13.2, at: readAgo(4 * 60) }];
+	const [{ id }] = await db
+		.insert(rule)
+		.values(errand(fromNow(-3), COLD_AT_HOME))
+		.returning({ id: rule.id });
+	await checkTimedRules('A');
+	expect(switched).toEqual([]);
+	expect(told).toEqual([]);
+	expect((await ruleRow(id)).lastWhy).toStartWith('sin saber: no sé la temperatura de casa');
+
+	await db.delete(rule);
+	await db.insert(rule).values({
+		...errand(fromNow(-90), COLD_AT_HOME),
+		lastWhy: 'sin saber: no sé la temperatura de casa: la última lectura de «Salón» es de hace 4 h'
+	});
+	await checkTimedRules('A');
+	expect(switched).toEqual([]);
+	expect(told).toEqual([
+		{
+			to: ['ana'],
+			title: '🔌 No he encendido «Termo»',
+			body: 'No sé la temperatura de casa: la última lectura de «Salón» es de hace 4 h. Era para: Encenderé «Termo» 1 hora. Si quieres, hazlo desde Enchufes.',
+			url: '/enchufes'
+		}
+	]);
+});
+
+test('warm enough (#557): not switched, and its hour over, paused quietly with why', async () => {
+	sensorsNow = [{ id: 's1', name: 'Salón', home: true, tempC: 17, at: readAgo(10) }];
+	await db.insert(rule).values(errand(fromNow(-2), COLD_AT_HOME));
+	await checkTimedRules('A');
+	expect(switched).toEqual([]);
+	const [row] = await db.select().from(rule);
+	expect(row!.lastWhy).toBe('no se cumple: en casa hay 17 °C, no menos de 15 °C');
+	await db.update(rule).set({ spec: errand(fromNow(-90), COLD_AT_HOME).spec });
+	await checkTimedRules('A');
+	const [after] = await db.select().from(rule);
+	expect(after!.paused).toBe(true);
+	expect(after!.lastWhy).toBe('en casa hay 17 °C, no menos de 15 °C');
+	expect(told).toEqual([]);
 });

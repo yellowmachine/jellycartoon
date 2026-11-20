@@ -1,0 +1,1 @@
+ALTER TABLE "plug" ADD COLUMN "home" boolean DEFAULT false NOT NULL;

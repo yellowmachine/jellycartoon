@@ -43,7 +43,8 @@ export type PlugMoment = (typeof PLUG_MOMENTS)[number];
 /**
  * What has to hold too (or not, `negate`): being away on a trip today, something remembered, a
  * post-it or something on the list, something in today's agenda, the weather in the next hours,
- * or what the solar panels will do (Energía → Previsión, #513).
+ * what the solar panels will do (Energía → Previsión, #513), or the temperature a sensor reads at
+ * home (#508, #557: «si en casa hay menos de 15 grados»).
  */
 export const CONDITIONS = [
 	'de_viaje',
@@ -51,7 +52,8 @@ export const CONDITIONS = [
 	'nevera',
 	'agenda_hoy',
 	'tiempo',
-	'placas'
+	'placas',
+	'temperatura'
 ] as const;
 export type ConditionKind = (typeof CONDITIONS)[number];
 
@@ -111,6 +113,22 @@ export interface Trigger {
 	plug?: PlugMoment;
 }
 
+/**
+ * A sensor's temperature (#557): under or over `degrees` °C, in that sensor (its id, and its name
+ * then, to show) or, with none, in the one of «la casa» (marked in Enchufes → Temperatura, or the
+ * only one), as it is when looked at. Only a recent reading counts (rule-check.ts).
+ */
+export interface TemperatureCheck {
+	sensorId: string | null;
+	name: string | null;
+	below: boolean;
+	degrees: number;
+}
+
+/** «en casa hay menos de 15 °C», «en «Dormitorio» hay más de 25 °C». */
+export const temperatureSaid = (t: TemperatureCheck) =>
+	`en ${t.name ? `«${t.name}»` : 'casa'} hay ${t.below ? 'menos' : 'más'} de ${t.degrees.toLocaleString('es-ES')} °C`;
+
 export interface Condition {
 	kind: ConditionKind;
 	words: string[];
@@ -119,6 +137,8 @@ export interface Condition {
 	weather?: WeatherCheck | null;
 	/** For placas. */
 	solar?: SolarCheck | null;
+	/** For temperatura. */
+	temperature?: TemperatureCheck | null;
 }
 
 export interface RuleNotice {
@@ -255,6 +275,27 @@ function weatherOf(w: TranslatedWeather | undefined): WeatherCheck | null {
 	};
 }
 
+/** The AI's temperature, checked: the sensor by its name, or why not. */
+function temperatureOf(
+	v: { sensor: string; compare: string; degrees: number } | undefined,
+	sensors: { id: string; name: string }[]
+): TemperatureCheck | string {
+	if (!sensors.length) return 'La familia no tiene sensores de temperatura en Enchufes.';
+	const degrees = Number(v?.degrees);
+	if (!v || !['menos_de', 'mas_de'].includes(v.compare) || !Number.isFinite(degrees))
+		return 'Falta qué temperatura esperar.';
+	const said = (v.sensor ?? '').trim();
+	const sensor = /^(la )?casa$/i.test(said) || !said ? null : sensors.find((s) => s.name === said);
+	if (sensor === undefined)
+		return `No hay un sensor «${said}»: los hay ${sensors.map((s) => `«${s.name}»`).join(', ')}.`;
+	return {
+		sensorId: sensor?.id ?? null,
+		name: sensor?.name ?? null,
+		below: v.compare === 'menos_de',
+		degrees: Math.round(degrees * 10) / 10
+	};
+}
+
 /** What the AI answered, as the AI's schema has it (`RULE_SCHEMA`). */
 export interface TranslatedRule {
 	possible: boolean;
@@ -279,6 +320,8 @@ export interface TranslatedRule {
 		weather: TranslatedWeather;
 		/** `ninguno` where there is none. */
 		solar?: string;
+		/** For temperatura: the sensor's name as in the list or «casa», and `ninguno` elsewhere. */
+		temperature?: { sensor: string; compare: string; degrees: number };
 	}[];
 	then: string;
 	deduce: { text: string; days: number };
@@ -299,10 +342,13 @@ export function specOf(
 	resolve: (name: string) => { userId: string; name: string } | null,
 	{
 		plugs = [],
+		sensors = [],
 		now = null
 	}: {
 		/** The family's plugs (#557), to switch one by its name. */
 		plugs?: { id: string; name: string }[];
+		/** Its temperature sensors (#557), to look at one by its name. */
+		sensors?: { id: string; name: string }[];
 		/** The wall's day and time: a moment already gone is not one to wait for. */
 		now?: { day: string; time: string } | null;
 	} = {}
@@ -327,6 +373,12 @@ export function specOf(
 				? `No hay un enchufe «${asked?.plug ?? ''}»: los hay ${plugs.map((p) => `«${p.name}»`).join(', ')}.`
 				: 'La familia no tiene enchufes en Enchufes.'
 		};
+	// A sensor's temperature (#557): by its name, or «la casa»'s; one there is not, said.
+	const temperatures = (Array.isArray(t.conditions) ? t.conditions : []).map((c) =>
+		c?.kind === 'temperatura' ? temperatureOf(c.temperature, sensors) : null
+	);
+	const wrong = temperatures.find((x) => typeof x === 'string');
+	if (wrong) return { problem: wrong };
 	const plugMinutes = Math.round(Number(asked?.minutes) || 0);
 	if (then === 'enchufe' && (plugMinutes < 0 || plugMinutes > MAX_PLUG_MIN))
 		return { problem: `Un enchufe se programa como mucho ${timeLabel(MAX_PLUG_MIN * 60)}.` };
@@ -368,19 +420,23 @@ export function specOf(
 					: {})
 			},
 			conditions: (Array.isArray(t.conditions) ? t.conditions : [])
+				.map((c, i) => ({ c, temperature: temperatures[i] }))
 				.filter(
-					(c) =>
+					({ c }) =>
 						isOneOf(CONDITIONS, c?.kind) &&
 						(c.kind !== 'tiempo' || weatherOf(c.weather)) &&
 						(c.kind !== 'placas' || isOneOf(SOLAR_CHECKS, c.solar))
 				)
 				.slice(0, MAX_CONDITIONS)
-				.map((c) => ({
+				.map(({ c, temperature }) => ({
 					kind: c.kind as ConditionKind,
 					words: wordList(c.words),
 					negate: c.negate === true,
 					...(c.kind === 'tiempo' ? { weather: weatherOf(c.weather) } : {}),
-					...(c.kind === 'placas' ? { solar: c.solar as SolarCheck } : {})
+					...(c.kind === 'placas' ? { solar: c.solar as SolarCheck } : {}),
+					...(c.kind === 'temperatura' && temperature && typeof temperature !== 'string'
+						? { temperature }
+						: {})
 				})),
 			then,
 			deduce:
@@ -477,13 +533,23 @@ export const RULE_SCHEMA = {
 			items: {
 				type: 'object',
 				additionalProperties: false,
-				required: ['kind', 'words', 'negate', 'weather', 'solar'],
+				required: ['kind', 'words', 'negate', 'weather', 'solar', 'temperature'],
 				properties: {
 					kind: { type: 'string', enum: [...CONDITIONS] },
 					words,
 					negate: { type: 'boolean' },
 					weather: weatherSchema,
-					solar: { type: 'string', enum: ['ninguno', ...SOLAR_CHECKS] }
+					solar: { type: 'string', enum: ['ninguno', ...SOLAR_CHECKS] },
+					temperature: {
+						type: 'object',
+						additionalProperties: false,
+						required: ['sensor', 'compare', 'degrees'],
+						properties: {
+							sensor: { type: 'string' },
+							compare: { type: 'string', enum: ['ninguno', 'menos_de', 'mas_de'] },
+							degrees: { type: 'number' }
+						}
+					}
 				}
 			}
 		},

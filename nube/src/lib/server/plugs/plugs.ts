@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, count, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, ne, sql } from 'drizzle-orm';
 import { parseBillDetails } from 'comun/bills.ts';
 import { db } from '../db/index.ts';
 import {
@@ -659,6 +659,23 @@ export async function setLocked(userId: string, plugId: string, locked: boolean)
 	);
 	if (row) hub.changed(row.familyId);
 	return !!row;
+}
+
+/**
+ * The sensor of «la casa» (#557): this one, and no other of the family; `home` false, none (with
+ * one sensor only, it is that one anyway). Any adult of the family.
+ */
+export async function setHomeSensor(userId: string, plugId: string, home: boolean) {
+	return withFamily(userId, async (tx) => {
+		const [row] = await tx.select({ id: plug.id }).from(plug).where(eq(plug.id, plugId));
+		if (!row) return false;
+		await tx
+			.update(plug)
+			.set({ home: false })
+			.where(and(eq(plug.home, true), ne(plug.id, plugId)));
+		await tx.update(plug).set({ home }).where(eq(plug.id, plugId));
+		return true;
+	});
 }
 
 /** Its notices as chosen (#396, phase 3): watched from now on. */

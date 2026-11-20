@@ -92,6 +92,11 @@
 						aria-hidden="true"
 					></span>
 					{s.name}
+					{#if s.home && data.sensors.length > 1}
+						<span class="ml-auto rounded-full bg-amber-950 px-2 py-0.5 text-xs text-amber-300"
+							>🏠 El de casa</span
+						>
+					{/if}
 				</p>
 				{#if s.at === null}
 					<p class="mt-1 text-zinc-400">Esperando su primera lectura…</p>
@@ -137,6 +142,17 @@
 							class="text-sm text-zinc-500 hover:text-white"
 							onclick={() => (renaming = s.id)}>Cambiar nombre</button
 						>
+						{#if data.sensors.length > 1}
+							<form method="POST" action="?/home" use:enhance>
+								<input type="hidden" name="id" value={s.id} />
+								<input type="hidden" name="home" value={String(!s.home)} />
+								<button
+									class="text-sm text-zinc-500 hover:text-white"
+									title="El que miran las reglas que dicen «si en casa hay menos de 15 grados»"
+									>{s.home ? 'Ya no es el de casa' : 'Es el de casa'}</button
+								>
+							</form>
+						{/if}
 						<ConfirmForm
 							action="?/remove"
 							fields={{ id: s.id }}
