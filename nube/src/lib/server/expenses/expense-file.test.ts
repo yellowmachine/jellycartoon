@@ -116,6 +116,8 @@ async function fixedOn(date: string, store: string, total: number) {
 const luzBill = {
 	date: '2026-12-02',
 	store: 'Iberdrola',
+	category: 'Facturas' as const,
+	lines: [],
 	total: 6234,
 	bill: {
 		kind: 'Luz' as const,
@@ -175,11 +177,18 @@ test('the best fixed one: by name, then its own month, then the nearest amount',
 		category: 'Casa' as const,
 		total
 	});
-	const ticket = { date: '2026-11-10', store: 'Gimnasio Fit', total: 3500, bill: null };
+	const ticket = {
+		date: '2026-11-10',
+		store: 'Gimnasio Fit',
+		category: 'Casa' as const,
+		lines: [],
+		total: 3500,
+		bill: null
+	};
 	// By its name, in the shop.
 	expect(bestFixed(ticket, [c(1, '2026-11-01', 'Gimnasio', 3000)])?.id).toBe(1);
 	// A receipt of the shop far from it is another purchase: the order is not Prime.
-	const order = { date: '2026-11-11', store: 'Amazon', total: 4250, bill: null };
+	const order = { ...ticket, date: '2026-11-11', store: 'Amazon', total: 4250 };
 	expect(bestFixed(order, [c(8, '2026-11-11', 'Amazon Prime', 499)])).toBeNull();
 	expect(bestFixed({ ...order, total: 499 }, [c(8, '2026-11-11', 'Amazon Prime', 499)])?.id).toBe(
 		8
@@ -197,4 +206,51 @@ test('the best fixed one: by name, then its own month, then the nearest amount',
 			c(7, '2026-12-01', 'Luz', 5000)
 		])?.id
 	).toBe(7);
+});
+
+test('by an amount alone, only if nothing says it is something else: not a supermarket’s ticket', () => {
+	const ocaso = {
+		id: 9,
+		date: '2026-11-05',
+		store: 'Seguro Ocaso',
+		category: 'Seguros' as const,
+		total: 6200
+	};
+	const line = (text: string, amount: number) => ({
+		text,
+		quantity: null,
+		amount,
+		tag: 'Despensa' as const
+	});
+	const donmarket = {
+		date: '2026-11-20',
+		store: 'Donmarket',
+		category: 'Supermercado' as const,
+		lines: [line('Leche', 1200), line('Pan', 300), line('Aceite', 4700)],
+		total: 6200,
+		bill: null
+	};
+	// Another category: not the insurance, however near its amount.
+	expect(bestFixed(donmarket, [ocaso])).toBeNull();
+	// Read as Seguros, with another issuer's name and one line: the insurance's receipt.
+	const receipt = {
+		...donmarket,
+		store: 'Ocaso S.A.',
+		category: 'Seguros' as const,
+		lines: [line('Prima', 6200)]
+	};
+	expect(bestFixed({ ...receipt, store: 'Aseguradora' }, [ocaso])?.id).toBe(9);
+	// The same category but several things bought: a shop's ticket, not a fixed one's receipt.
+	expect(
+		bestFixed({ ...receipt, store: 'Aseguradora', lines: donmarket.lines }, [ocaso])
+	).toBeNull();
+	// A discount is no line bought.
+	expect(
+		bestFixed(
+			{ ...receipt, store: 'Aseguradora', lines: [line('Prima', 6500), line('Descuento', -300)] },
+			[ocaso]
+		)?.id
+	).toBe(9);
+	// By its name it still is, whatever its category and lines (the gym's ticket of the month).
+	expect(bestFixed({ ...donmarket, store: 'Seguro Ocaso' }, [ocaso])?.id).toBe(9);
 });

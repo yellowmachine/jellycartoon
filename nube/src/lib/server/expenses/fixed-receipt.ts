@@ -91,13 +91,26 @@ function sameName(fixedName: string, draft: Pick<ExpenseDraft, 'store' | 'bill'>
 	return name.split(/[^\p{L}\p{N}]+/u).includes(kind);
 }
 
+/** What was bought: its lines that cost something (a discount is not one). */
+const boughtLines = (lines: ExpenseDraft['lines']) => lines.filter((l) => l.amount > 0).length;
+
+/**
+ * By an amount alone, without its name: only if nothing says it is something else. A bill of the
+ * supplies (its issuer may not be how the family named it), or read in the fixed one's category
+ * («Ocaso S.A.» as Seguros for «Seguro hogar»), and not a shop's ticket of several things: a
+ * supermarket's 62 € is not the insurance's 62 €.
+ */
+const mayBeByAmount = (draft: Pick<ExpenseDraft, 'bill' | 'category' | 'lines'>, c: FixedMatch) =>
+	draft.bill !== null || (draft.category === c.category && boughtLines(draft.lines) <= 1);
+
 /**
  * Of those fixed ones' expenses, the one the receipt or bill read is likely of: by its name (the
- * shop, or the bill's supply; a receipt's with an amount not far), else by an amount near enough; of its own month before the one
- * before; then the nearest amount. Null, none.
+ * shop, or the bill's supply; a receipt's with an amount not far), else by an amount near enough
+ * when nothing says it is something else (`mayBeByAmount`); of its own month before the one before;
+ * then the nearest amount. Null, none.
  */
 export function bestFixed(
-	draft: Pick<ExpenseDraft, 'date' | 'store' | 'total' | 'bill'>,
+	draft: Pick<ExpenseDraft, 'date' | 'store' | 'total' | 'bill' | 'category' | 'lines'>,
 	candidates: FixedMatch[]
 ): FixedMatch | null {
 	const month = monthOf(draft.date);
@@ -106,7 +119,7 @@ export function bestFixed(
 		.filter(({ c, named }) =>
 			named
 				? draft.bill !== null || namedAmount(draft.total, c.total)
-				: nearAmount(draft.total, c.total)
+				: nearAmount(draft.total, c.total) && mayBeByAmount(draft, c)
 		)
 		.sort(
 			(a, b) =>
@@ -123,7 +136,7 @@ export function bestFixed(
  */
 export async function fixedMatchOf(
 	k: Kitchen,
-	draft: Pick<ExpenseDraft, 'date' | 'store' | 'total' | 'bill'>
+	draft: Pick<ExpenseDraft, 'date' | 'store' | 'total' | 'bill' | 'category' | 'lines'>
 ): Promise<FixedMatch | null> {
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.date)) return null;
 	const month = monthOf(draft.date);
