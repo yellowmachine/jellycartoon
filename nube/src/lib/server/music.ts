@@ -7,6 +7,7 @@ import type {
 	ProgressSave,
 	QueueSave
 } from 'comun/music.ts';
+import { moveBefore } from 'comun/reorder.ts';
 import { askHouse, HouseProblem } from './house.ts';
 
 /**
@@ -112,11 +113,15 @@ export async function createPlaylist(who: Who, name: string, trackIds: number[] 
 	return id;
 }
 
-/** `rename` (`name`), `add` (`trackId`), `remove`, `up` or `down` (`itemId`). */
+/**
+ * `rename` (`name`), `add` (`trackId`), `remove`, `up` or `down` (`itemId`), `move` (`itemId` just
+ * before `beforeId`, null: at the end).
+ */
 export type PlaylistChange =
 	| { action: 'rename'; name: string }
 	| { action: 'add'; trackId: number }
-	| { action: 'remove' | 'up' | 'down'; itemId: number };
+	| { action: 'remove' | 'up' | 'down'; itemId: number }
+	| { action: 'move'; itemId: number; beforeId: number | null };
 
 export const changePlaylist = (who: Who, id: number, change: PlaylistChange) =>
 	askHouse(who.id, who.email, `/musica/listas/${id}`, {
@@ -137,6 +142,30 @@ export async function addManyToPlaylist(who: Who, id: number, trackIds: number[]
 	} catch (err) {
 		if (!(err instanceof HouseProblem && err.status === 400)) throw err;
 		for (const trackId of trackIds) await changePlaylist(who, id, { action: 'add', trackId });
+	}
+}
+
+/**
+ * Dragged into place: at once; a house from before that does not know `move` (400), up or down
+ * one step at a time, as many as the songs it shows in between.
+ */
+export async function movePlaylistItem(
+	who: Who,
+	id: number,
+	itemId: number,
+	beforeId: number | null
+) {
+	try {
+		await changePlaylist(who, id, { action: 'move', itemId, beforeId });
+	} catch (err) {
+		if (!(err instanceof HouseProblem && err.status === 400)) throw err;
+		const ids = (await playlist(who, id)).items.map((i) => i.itemId);
+		const from = ids.indexOf(itemId);
+		const to = moveBefore(ids, itemId, beforeId).indexOf(itemId);
+		if (from < 0) return;
+		const action = to < from ? 'up' : 'down';
+		for (let step = 0; step < Math.abs(to - from); step++)
+			await changePlaylist(who, id, { action, itemId });
 	}
 }
 

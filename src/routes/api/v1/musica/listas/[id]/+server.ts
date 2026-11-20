@@ -7,6 +7,7 @@ import {
 	deletePlaylist,
 	getPlaylist,
 	moveInPlaylist,
+	moveInPlaylistBefore,
 	removeFromPlaylist,
 	renamePlaylist,
 	trackIdsOf
@@ -30,7 +31,7 @@ export const GET: RequestHandler = async ({ request, params }) => {
 /**
  * Changed from the cloud's Música, as from the house's: `{ action }`, `rename` (`name`), `add`
  * (`trackId`), `addMany` (`trackIds`, in that order: a whole album), `remove`, `up` or `down`
- * (`itemId`).
+ * (`itemId`), `move` (`itemId` dragged just before `beforeId`, null: at the end).
  */
 export const POST: RequestHandler = async ({ request, params }) => {
 	await cloudViewer(request);
@@ -60,6 +61,14 @@ export const POST: RequestHandler = async ({ request, params }) => {
 			if (!Number.isInteger(itemId)) error(400, 'Canción no válida');
 			if (body.action === 'remove') await removeFromPlaylist(id, itemId);
 			else await moveInPlaylist(id, itemId, body.action === 'up' ? -1 : 1);
+			break;
+		}
+		case 'move': {
+			const itemId = Number(body.itemId);
+			const beforeId = body.beforeId == null ? null : Number(body.beforeId);
+			if (!Number.isInteger(itemId) || (beforeId !== null && !Number.isInteger(beforeId)))
+				error(400, 'Canción no válida');
+			await moveInPlaylistBefore(id, itemId, beforeId);
 			break;
 		}
 		default:

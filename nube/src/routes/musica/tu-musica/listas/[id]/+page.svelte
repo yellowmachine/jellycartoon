@@ -11,6 +11,7 @@
 	import { music } from 'comun/music-player.svelte.ts';
 	import { asTrack, playable } from '#lib/own-music.ts';
 	import { musicTarget } from 'comun/music-target.svelte.ts';
+	import { Reorder, sortable } from 'comun/reorder.svelte.ts';
 	import type { PageProps } from './$types';
 
 	/**
@@ -24,9 +25,11 @@
 	let confirmDelete = $state(false);
 
 	const playlist = $derived(data.list);
+	/** Shown in the order dragged, before Seilide answers. */
+	const reorder = new Reorder(() => playlist.items);
 	/** Each item as the player takes it, or null if this browser cannot play it. */
 	const items = $derived(
-		playlist.items.map((i) => ({
+		reorder.shown.map((i) => ({
 			itemId: i.itemId,
 			track: asTrack(i.track, i.album),
 			playable: playable(i.track.mime)
@@ -99,10 +102,16 @@
 		<AddToQueue {tracks} toSnapcast={false} />
 	</div>
 
-	<ol class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
+	{#if reorder.problem}
+		<p class="mb-2 text-sm text-red-400">{reorder.problem}</p>
+	{/if}
+	<ol
+		class="divide-y divide-zinc-800 rounded-md border border-zinc-800"
+		{@attach sortable(reorder.move)}
+	>
 		{#each items as item, i (item.itemId)}
 			{@const t = item.track}
-			<li class="flex items-center">
+			<li class="flex items-center" data-id={item.itemId}>
 				<button
 					class={[
 						'flex min-w-0 flex-1 items-center gap-3 p-2 text-left hover:bg-zinc-900 disabled:text-zinc-600',
@@ -124,12 +133,19 @@
 				</button>
 				<!-- Locked Vista (#532): listened to as it is. -->
 				{#if !vista.kiosk}
+					<!-- Dragged into place, with the mouse or a finger (comun/reorder.svelte.ts); not on a TV
+						     remote, which has the arrows. -->
+					<span
+						class="drag-handle hidden cursor-grab touch-none items-center self-stretch px-3 text-zinc-500 hover:text-white pointer-coarse:flex pointer-fine:flex"
+						title="Arrastra para moverla"
+						aria-hidden="true"><MediaIcon name="grip" class="h-5 w-5" /></span
+					>
 					<form method="post" use:enhance class="flex shrink-0 flex-col text-xs text-zinc-500">
 						<input type="hidden" name="itemId" value={item.itemId} />
 						<button
 							formaction="?/up"
 							disabled={i === 0}
-							class="px-2 hover:text-white disabled:invisible"
+							class="px-2 hover:text-white disabled:invisible pointer-coarse:hidden"
 							title="Subir"
 							aria-label="Subir"><MediaIcon name="up" class="h-3.5 w-3.5" /></button
 						>
@@ -142,7 +158,7 @@
 						<button
 							formaction="?/down"
 							disabled={i === items.length - 1}
-							class="px-2 hover:text-white disabled:invisible"
+							class="px-2 hover:text-white disabled:invisible pointer-coarse:hidden"
 							title="Bajar"
 							aria-label="Bajar"><MediaIcon name="down" class="h-3.5 w-3.5" /></button
 						>

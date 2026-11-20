@@ -18,7 +18,8 @@
 		| 'folder'
 		| 'edit'
 		| 'up'
-		| 'down';
+		| 'down'
+		| 'grip';
 </script>
 
 <script lang="ts">
@@ -117,6 +118,12 @@
 			stroke-width="2"
 			stroke-linecap="round"
 		/>
+	{:else if name === 'grip'}
+		<!-- A playlist row's handle, to drag it into place. -->
+		{#each [6, 12, 18] as y (y)}
+			<circle cx="9" cy={y} r="1.6" />
+			<circle cx="15" cy={y} r="1.6" />
+		{/each}
 	{:else if name === 'up' || name === 'down'}
 		<path
 			d={name === 'up' ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'}

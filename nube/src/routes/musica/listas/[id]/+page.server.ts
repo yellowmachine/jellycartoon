@@ -1,10 +1,12 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { moveOf } from 'comun/reorder.ts';
 import { HouseProblem } from '#lib/server/house.ts';
 import {
 	changePlaylist,
 	deletePlaylist,
 	djInfo,
+	movePlaylistItem,
 	playlist,
 	type PlaylistChange
 } from '#lib/server/music.ts';
@@ -60,5 +62,16 @@ export const actions: Actions = {
 	up: async ({ params, request, locals }) =>
 		change(locals, Number(params.id), { action: 'up', itemId: await itemId(request) }),
 	down: async ({ params, request, locals }) =>
-		change(locals, Number(params.id), { action: 'down', itemId: await itemId(request) })
+		change(locals, Number(params.id), { action: 'down', itemId: await itemId(request) }),
+	/** Dragged into place (comun/reorder.svelte.ts). */
+	move: async ({ params, request, locals }) => {
+		const move = moveOf(await request.formData());
+		if (!move) return fail(400, { message: 'Canción no válida' });
+		try {
+			await movePlaylistItem(whoOf(locals), Number(params.id), move.itemId, move.beforeId);
+		} catch (err) {
+			if (!(err instanceof HouseProblem)) throw err;
+			return fail(502, { message: err.message });
+		}
+	}
 };

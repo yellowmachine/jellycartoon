@@ -1,11 +1,13 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { moveOf } from 'comun/reorder.ts';
 import { withFamily } from '#lib/server/family.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { ownDjEnabled } from '#lib/server/own-music-dj.ts';
 import {
 	deleteOwnPlaylist,
 	moveInOwnPlaylist,
+	moveInOwnPlaylistBefore,
 	NAME_MAX,
 	ownPlaylistOf,
 	removeFromOwnPlaylist,
@@ -46,6 +48,17 @@ export const actions: Actions = {
 			Number(params.id),
 			await itemOf(request),
 			'down'
+		);
+	},
+	/** Dragged into place (comun/reorder.svelte.ts). */
+	move: async ({ params, request, locals }) => {
+		const move = moveOf(await request.formData());
+		if (!move) return fail(400, { message: 'Canción no válida' });
+		await moveInOwnPlaylistBefore(
+			await familyOf(locals),
+			Number(params.id),
+			move.itemId,
+			move.beforeId
 		);
 	}
 };

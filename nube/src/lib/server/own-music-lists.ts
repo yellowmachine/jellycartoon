@@ -2,6 +2,7 @@ import { and, asc, count, eq, gt, inArray, lt, desc, sql } from 'drizzle-orm';
 import { asFamily } from './family.ts';
 import { ownAlbum, ownPlaylist, ownPlaylistItem, ownTrack } from './db/schema.ts';
 import type { OwnAlbumRow, OwnTrackRow } from './own-music.ts';
+import { moveBefore } from 'comun/reorder.ts';
 
 /**
  * The playlists of «Tu música» (#534, phase 2): the whole family's, kept in Seilide, only with the
@@ -189,5 +190,29 @@ export async function moveInOwnPlaylist(
 			.update(ownPlaylistItem)
 			.set({ position: item.position })
 			.where(eq(ownPlaylistItem.id, other.id));
+	});
+}
+
+/** Dragged into place: just before `beforeId` (null: at the end); positions numbered from 0. */
+export async function moveInOwnPlaylistBefore(
+	familyId: string,
+	id: number,
+	itemId: number,
+	beforeId: number | null
+) {
+	await asFamily(familyId, async (tx) => {
+		const rows = await tx
+			.select({ id: ownPlaylistItem.id, position: ownPlaylistItem.position })
+			.from(ownPlaylistItem)
+			.where(eq(ownPlaylistItem.playlistId, id))
+			.orderBy(asc(ownPlaylistItem.position), asc(ownPlaylistItem.id));
+		const order = moveBefore(
+			rows.map((r) => r.id),
+			itemId,
+			beforeId
+		);
+		for (const [position, rowId] of order.entries())
+			if (rows.find((r) => r.id === rowId)?.position !== position)
+				await tx.update(ownPlaylistItem).set({ position }).where(eq(ownPlaylistItem.id, rowId));
 	});
 }

@@ -18,6 +18,7 @@ import { db } from '#lib/server/db/index.ts';
 import { isKidAccount } from '#lib/server/kids.ts';
 import { keepsHistory } from '#lib/server/settings.ts';
 import { addHeard, type Heard } from './listen-time.ts';
+import { moveIndexes, queueOf, type MpvEntry } from './snapcast-queue.ts';
 import type {
 	MusicTrack,
 	SnapcastAction,
@@ -357,6 +358,19 @@ export const queuedOnSnapcast = () =>
 		'track' in e && !e.track.clip && !e.track.src ? [e.track.id] : []
 	);
 
+/** mpv's playlist now, each entry with its id (and `current`, the one on). */
+const mpvPlaylist = async () =>
+	((await mpv.command(['get_property', 'playlist'])) as MpvEntry[] | null) ?? [];
+
+/** Música → Cola on Snapcast: its queue in mpv's order now (shuffled, moved, taken out). */
+export async function snapcastQueue() {
+	return queueOf(await mpvPlaylist(), (id) => entries.get(id), state.radio !== null);
+}
+
+/** That entry, by its id: its index in mpv's playlist now, or -1. */
+const indexOfEntry = async (entryId: number) =>
+	(await mpvPlaylist()).findIndex((e) => e.id === entryId);
+
 /** Modo DJ is on, or off: the remotes say it. */
 export function setSnapcastDj(on: boolean) {
 	if (state.dj === on) return;
@@ -593,6 +607,28 @@ export async function controlSnapcast(
 			return speakers().setGroupsMuted(action.value);
 		case 'rename':
 			return speakers().setName(action.speakerId, action.name);
+		case 'jump': {
+			// The one on: only on again if it was paused.
+			if (action.entryId === current) return mpv.command(['set_property', 'pause', false]);
+			const at = await indexOfEntry(action.entryId);
+			if (at < 0) return;
+			await mpv.command(['set_property', 'pause', false]);
+			return mpv.command(['playlist-play-index', at]);
+		}
+		case 'removeEntry': {
+			// Not the one on, as in the browser's queue: «siguiente» or stop are for it.
+			if (action.entryId === current) return;
+			const at = await indexOfEntry(action.entryId);
+			if (at < 0) return;
+			await mpv.command(['playlist-remove', at]);
+			entries.delete(action.entryId);
+			return;
+		}
+		case 'moveEntry': {
+			const move = moveIndexes(await mpvPlaylist(), action.entryId, action.beforeId);
+			if (move) await mpv.command(['playlist-move', ...move]);
+			return;
+		}
 	}
 }
 

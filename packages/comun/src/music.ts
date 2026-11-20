@@ -361,7 +361,23 @@ export type SnapcastAction =
 	| { action: 'mute'; speakerId: string; value: boolean }
 	| { action: 'masterVolume'; value: number }
 	| { action: 'masterMute'; value: boolean }
-	| { action: 'rename'; speakerId: string; name: string };
+	| { action: 'rename'; speakerId: string; name: string }
+	/** Música → Cola on Snapcast: that entry of mpv's queue now, out of it, or dragged before another. */
+	| { action: 'jump'; entryId: number }
+	| { action: 'removeEntry'; entryId: number }
+	| { action: 'moveEntry'; entryId: number; beforeId: number | null };
+
+/**
+ * Snapcast's queue as mpv has it now, for Música → Cola: each entry by its id in mpv's playlist,
+ * as a track (a station or an episode's audio too, with `src` so that it is not saved in a list),
+ * and the one on.
+ */
+export interface SnapcastQueue {
+	items: { itemId: number; track: MusicTrack }[];
+	/** Index in `items`; -1, nothing on. */
+	index: number;
+	radio: boolean;
+}
 
 /** What a browser saves of what it plays (music_queue), to go on with it on any device. */
 export interface QueueSave {
