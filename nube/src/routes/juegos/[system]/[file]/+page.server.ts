@@ -5,12 +5,13 @@ import { gameDetails, gameSummary } from '#lib/server/games.ts';
 import { offlineGamesOf, orderOfflineGame } from '#lib/server/games-offline.ts';
 import { playsOwnGames } from '#lib/server/game-source.ts';
 import { HouseProblem } from '#lib/server/house.ts';
-import { ownGameDetails, ownGameSummary } from '#lib/server/own-games.ts';
+import { ownGameDetails, ownGameInfo, ownGameSummary } from '#lib/server/own-games.ts';
 import { isDeviceId } from 'comun/route-maps.ts';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const who = locals.user!;
-	// The family's bucket (#564): nothing to carry away yet, and no card (phase 2).
+	// The family's bucket (#564): its card looked up the first time, while the page is shown; it
+	// may be carried away too.
 	if (await playsOwnGames(who.id)) {
 		const k = await kitchenOf(who.id);
 		const game = await ownGameSummary(k.familyId, who.id, params.system, params.file);
@@ -20,7 +21,10 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			game,
 			offline: await offlineGamesOf(k),
 			backdrop: details.then((d) => d?.backdrop ?? null),
-			info: Promise.resolve(null)
+			info: ownGameInfo(k.familyId, params.system, params.file).catch((problem) => {
+				console.warn('[juegos] Sin la ficha de', params.system, params.file, String(problem));
+				return null;
+			})
 		};
 	}
 	try {
@@ -49,13 +53,14 @@ export const actions: Actions = {
 		const device = (await request.formData()).get('device');
 		if (!isDeviceId(device)) return fail(400, { offline: 'Elige el dispositivo' });
 		const who = { id: locals.user!.id, email: locals.user!.email };
+		// The game of the page: the house's, or the bucket's (#564), as the person sees Juegos.
+		const source = (await playsOwnGames(who.id)) ? 'propia' : 'casa';
 		let why: string | null;
 		try {
 			why = await orderOfflineGame(
 				await kitchenOf(who.id),
 				who,
-				params.system,
-				params.file,
+				{ system: params.system, file: params.file, source },
 				device
 			);
 		} catch (err) {

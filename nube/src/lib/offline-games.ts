@@ -1,9 +1,9 @@
 import type { PlayerData } from 'comun/games.ts';
 
 /**
- * Games without coverage: the house's games carried on a device, such as the car's tablet, the
- * same devices as the routes' maps (#164) and the music (#350), and in the same 2 GB as its music
- * (MAX_OFFLINE_BYTES). What the server and the pages share; the work itself, games-offline.ts on
+ * Games without coverage: the house's games, or the bucket's («Tus juegos», #564), carried on a
+ * device, such as the car's tablet, the same devices as the routes' maps (#164) and the music
+ * (#350), and in the same 2 GB as its music (MAX_OFFLINE_BYTES). What the server and the pages share; the work itself, games-offline.ts on
  * the server and offline-games.svelte.ts on the device.
  */
 
@@ -54,20 +54,24 @@ export function emulatorFiles(system: string): string[] | null {
 	].map((file) => EJS_DATA + file);
 }
 
-/** A game's own files at the house: the game, its BIOS and its box. */
+/** A game's own files, through Seilide: the game, its BIOS and its box. */
 export const gameFiles = (order: Pick<OfflineGameOrder, 'player' | 'cover'>) =>
 	[order.player.rom, order.player.bios, order.cover].filter((f): f is string => Boolean(f));
+
+/** Whose game: the house's, or the family's bucket's («Tus juegos», #564). */
+export type OfflineGameSource = 'casa' | 'propia';
 
 /** What the device is told to keep, in order: the first ordered first, if not all fit. */
 export interface OfflineGameOrder {
 	system: string;
 	file: string;
+	source: OfflineGameSource;
 	title: string;
 	/** Its console's name, for the list on the device. */
 	consoleName: string;
-	/** Its box, at the house, if it has one. */
+	/** Its box, through Seilide, if it has one. */
 	cover: string | null;
-	/** What the player needs, as the house said it when ordered (GamePlayer.svelte). */
+	/** What the player needs, as the house (or Seilide) says it now (GamePlayer.svelte). */
 	player: PlayerData;
 }
 
@@ -75,6 +79,7 @@ export interface OfflineGameOrder {
 export interface OfflineGameReport {
 	system: string;
 	file: string;
+	source: OfflineGameSource;
 	state: 'downloading' | 'ready' | 'failed';
 	bytes: number;
 	problem?: string;
@@ -85,6 +90,7 @@ export interface OfflineGamesView {
 	games: {
 		system: string;
 		file: string;
+		source: OfflineGameSource;
 		deviceId: string;
 		title: string;
 		state: 'pending' | 'downloading' | 'ready' | 'failed';
@@ -94,6 +100,14 @@ export interface OfflineGamesView {
 	}[];
 }
 
-/** Its page on the device, without coverage. */
-export const offlineGameHref = (system: string, file: string) =>
-	`/juegos/aqui/${encodeURIComponent(system)}/${encodeURIComponent(file)}`;
+/** Its page on the device, without coverage; a bucket's game, with `?de=propia`. */
+export const offlineGameHref = (g: { system: string; file: string; source: OfflineGameSource }) =>
+	`/juegos/aqui/${encodeURIComponent(g.system)}/${encodeURIComponent(g.file)}` +
+	(g.source === 'propia' ? '?de=propia' : '');
+
+export const isOfflineGameSource = (v: unknown): v is OfflineGameSource =>
+	v === 'casa' || v === 'propia';
+
+/** One game of the device's, from both sources: its key in lists and maps. */
+export const offlineGameKey = (g: { system: string; file: string; source: OfflineGameSource }) =>
+	`${g.source}:${g.system}/${g.file}`;

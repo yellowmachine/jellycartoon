@@ -4,7 +4,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { eq, sql } from 'drizzle-orm';
 import * as schema from './db/schema.ts';
-import { family, familyMember, gameSource, ownGame, user } from './db/schema.ts';
+import { family, familyMember, gameSource, ownGame, user, watchLog } from './db/schema.ts';
 import { familyOnlyScope, familyScope, NoFamily, userScope } from './family-scope.ts';
 
 /**
@@ -50,6 +50,36 @@ mock.module('#lib/server/storage.ts', () => ({
 		files.get(`${f}/${area}/${name}`) ?? null,
 	removeFile: async (f: string, area: string, name: string) =>
 		void files.delete(`${f}/${area}/${name}`)
+}));
+
+mock.module('./fbneo.ts', () => ({
+	arcadeGames: async () => ({
+		mslug: { description: 'Metal Slug', romof: 'neogeo' },
+		neogeo: { description: 'Neo Geo', isBios: true }
+	})
+}));
+
+let lookups = 0;
+mock.module('comun/wikidata/game-lookup.ts', () => ({
+	lookUpGameInfo: async (title: string, platforms: string[]) => {
+		lookups++;
+		expect(platforms).toEqual(['Q183259']);
+		return {
+			status: 'found',
+			details: {
+				wikidataId: 'Q1',
+				title,
+				year: 1991,
+				developers: ['Nintendo'],
+				publishers: [],
+				genres: ['Aventura'],
+				modes: [],
+				composers: [],
+				synopsis: 'Link…',
+				wikipediaUrl: null
+			}
+		};
+	}
 }));
 
 const games = await import('./own-games.ts');
@@ -125,6 +155,20 @@ describe('«Tus juegos» (#564)', () => {
 		expect(p.core).toBe('snes');
 	});
 
+	test('an arcade game, with its BIOS from the same folder', async () => {
+		const before = keys;
+		keys = [...keys, 'Juegos/arcade/neogeo.zip', 'Juegos/arcade/mslug.zip'];
+		await games.indexGames('A');
+		const p = await games.ownPlayer('A', 'arcade', 'mslug.zip');
+		expect(p.title).toBe('Metal Slug');
+		expect(p.bios).toBe(`/api/juegos/propios/rom/${p.gameId}/neogeo.zip`);
+		await expect(games.ownPlayer('A', 'arcade', 'neogeo.zip')).rejects.toMatchObject({
+			status: 404
+		});
+		keys = before;
+		await games.indexGames('A');
+	});
+
 	test('cartridge, saved games and time: each one’s own', async () => {
 		const { gameId } = await games.ownPlayer('A', 'snes', 'Zelda.sfc');
 		expect(await games.cartridgeOf('A', 'ana', gameId)).toEqual({ bytes: null, nobody: true });
@@ -147,10 +191,20 @@ describe('«Tus juegos» (#564)', () => {
 		const summary = await games.ownGameSummary('A', 'ana', 'snes', 'Zelda.sfc');
 		expect(summary.played.seconds).toBe(3);
 		expect(summary.saves).toHaveLength(1);
+		// And in Estadísticas → Jugar, as the bucket's game.
+		const logged = await db.select().from(watchLog).where(eq(watchLog.userId, 'ana'));
+		expect(logged.map((r) => [r.item, r.kind, r.seconds])).toEqual([[`pj${gameId}`, 'juego', 3]]);
 
 		await games.removeSave('A', saveId);
 		expect(await games.savesOf('A', 'ana', gameId)).toEqual([]);
 		expect(await games.saveState('A', saveId)).toBeNull();
+	});
+
+	test('its card from Wikidata, looked up once and kept', async () => {
+		const card = await games.ownGameInfo('A', 'snes', 'Zelda.sfc');
+		expect(card).toMatchObject({ status: 'found', year: 1991, developers: ['Nintendo'] });
+		expect(await games.ownGameInfo('A', 'snes', 'Zelda.sfc')).toEqual(card);
+		expect(lookups).toBe(1);
 	});
 
 	test('a game gone from the bucket is not found, and comes back with its cartridge', async () => {

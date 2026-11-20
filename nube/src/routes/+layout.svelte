@@ -59,7 +59,7 @@
 	const nav = $derived(
 		navLinks(
 			data.user?.serviceAdmin,
-			data.hasHouse,
+			data.family?.reach ?? data.hasHouse,
 			data.family?.kid ?? false,
 			data.guardian,
 			data.family?.prayer ?? false,

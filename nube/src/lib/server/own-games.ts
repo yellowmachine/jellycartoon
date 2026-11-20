@@ -1,7 +1,15 @@
-import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { error } from '@sveltejs/kit';
 import { and, asc, desc, eq, isNull, lt, max, notInArray, or, sql, sum } from 'drizzle-orm';
-import type { ConsoleCard, ConsoleGame, GameSave, GameSummary, PlayerData } from 'comun/games.ts';
+import type {
+	ConsoleCard,
+	ConsoleGame,
+	GameInfo,
+	GameSave,
+	GameSummary,
+	PlayerData
+} from 'comun/games.ts';
+import { lookUpGameInfo, type GameLookup } from 'comun/wikidata/game-lookup.ts';
 import { libretroPicture, SYSTEMS, type LibretroPicture } from 'comun/game-systems.ts';
 import { asFamily } from './family.ts';
 import { openFor, sealFor } from './family-secret.ts';
@@ -15,8 +23,10 @@ import {
 } from './db/schema.ts';
 import { bucketOf as musicBucketOf, testSource } from './own-music.ts';
 import { listAll } from './own-music-read.ts';
-import { gamesOf } from './own-games-index.ts';
+import { gamesOf, hasArcade } from './own-games-index.ts';
+import { arcadeGames } from './fbneo.ts';
 import { ownPlace, putFile, readFile, removeFile } from './storage.ts';
+import { addPlayed } from './watch-log.ts';
 import { bucketProblem, labelOf, type Bucket } from './storage-bucket.ts';
 
 /**
@@ -36,6 +46,9 @@ const SAVES = 'juegos-partidas';
 const STALE_MS = 30 * 60_000;
 /** «Usar el de Tu música»: its bucket, with this folder for the games. */
 export const GAMES_FOLDER = 'Juegos/';
+/** A key's file name, after its last `/`. */
+const fileOf = (key: string) => key.slice(key.lastIndexOf('/') + 1);
+
 /** Tiles in each console's mosaic: 3 × 2, as the house's. */
 const MOSAIC = 6;
 /** How many boxes are asked libretro for at a time, and at most each time a console is opened. */
@@ -154,7 +167,15 @@ const BATCH = 500;
 async function scan(familyId: string) {
 	const b = await bucketOf(familyId);
 	if (!b) throw new Error('No se pudo abrir el bucket');
-	const listed = gamesOf(await listAll(await ownPlace(b).client(), b), b.prefix);
+	const keys = await listAll(await ownPlace(b).client(), b);
+	// The arcade games' titles and BIOS by FBNeo's list; without it, by their short names.
+	const arcade = hasArcade(keys, b.prefix)
+		? await arcadeGames().catch((problem) => {
+				console.warn('[tus juegos] Sin la lista de recreativas de FBNeo', String(problem));
+				return null;
+			})
+		: null;
+	const listed = gamesOf(keys, b.prefix, arcade);
 	await asFamily(familyId, async (tx) => {
 		for (let i = 0; i < listed.length; i += BATCH)
 			await tx
@@ -167,6 +188,7 @@ async function scan(familyId: string) {
 						size: sql`excluded.size`,
 						title: sql`excluded.title`,
 						fullName: sql`excluded.full_name`,
+						biosKey: sql`excluded.bios_key`,
 						present: true
 					}
 				});
@@ -312,7 +334,80 @@ export async function ownGameDetails(familyId: string, system: string, file: str
 				tx.update(ownGame).set({ titleScreen: has }).where(eq(ownGame.id, row.id))
 			);
 	}
-	return { backdrop: has === 'si' ? pictureUrl(row.id, 'titulo') : null, info: null };
+	return { backdrop: has === 'si' ? pictureUrl(row.id, 'titulo') : null };
+}
+
+/** Lookups in progress, so opening the page twice does not look the game up twice. */
+const lookingUp = new Map<number, Promise<GameLookup>>();
+
+/** The card as the game's page shows it (comun's GameInfo), as the house's. */
+function cardOf(found: GameLookup): GameInfo {
+	if (found.status !== 'found')
+		return {
+			status: found.status,
+			year: null,
+			developers: [],
+			genres: [],
+			modes: [],
+			composers: [],
+			synopsis: null
+		};
+	const d = found.details;
+	return {
+		status: 'found',
+		year: d.year,
+		developers: d.developers,
+		genres: d.genres,
+		modes: d.modes,
+		composers: d.composers,
+		synopsis: d.synopsis
+	};
+}
+
+/**
+ * Its card from Wikidata, by its title among its console's games (#564, phase 2): looked up the
+ * first time its page is opened, and kept with the game (also when it leaves the bucket).
+ */
+export async function ownGameInfo(familyId: string, system: string, file: string) {
+	const row = await findGame(familyId, system, file);
+	if (row.info) return cardOf(row.info);
+	let lookup = lookingUp.get(row.id);
+	if (!lookup) {
+		lookup = lookUpGameInfo(row.title, SYSTEMS[row.system].wikidata)
+			.then(async (found) => {
+				await asFamily(familyId, (tx) =>
+					tx.update(ownGame).set({ info: found }).where(eq(ownGame.id, row.id))
+				);
+				return found;
+			})
+			.finally(() => lookingUp.delete(row.id));
+		lookingUp.set(row.id, lookup);
+	}
+	return cardOf(await lookup);
+}
+
+/**
+ * A game to carry on a device without coverage (games-offline.ts): what its player needs, its box if
+ * libretro has it, and what its files take (the game's, and its BIOS's asked to the bucket).
+ */
+export async function ownCarry(familyId: string, system: string, file: string) {
+	const row = await findGame(familyId, system, file);
+	let biosBytes = 0;
+	const b = row.biosKey ? await bucketOf(familyId) : null;
+	if (b && row.biosKey) {
+		const s3 = await ownPlace(b).client();
+		const head = await s3
+			.send(new HeadObjectCommand({ Bucket: b.bucket, Key: row.biosKey }))
+			.catch(() => null);
+		biosBytes = head?.ContentLength ?? 0;
+	}
+	return {
+		title: row.title,
+		consoleName: SYSTEMS[row.system].name,
+		cover: row.cover === 'si' ? pictureUrl(row.id, 'caratula') : null,
+		player: await ownPlayer(familyId, system, file),
+		bytes: row.size + biosBytes
+	};
 }
 
 /** What the player needs (comun's GamePlayer.svelte), with the rest asked at OWN_API. */
@@ -327,7 +422,10 @@ export async function ownPlayer(
 		core: SYSTEMS[row.system].core,
 		// Its name at the end, as the house's: EmulatorJS looks at it.
 		rom: `${OWN_API}/rom/${row.id}/${encodeURIComponent(row.file)}`,
-		bios: null,
+		// An arcade game's BIOS, in its folder: asked by its name, as the house's.
+		bios: row.biosKey
+			? `${OWN_API}/rom/${row.id}/${encodeURIComponent(fileOf(row.biosKey))}`
+			: null,
 		gameId: row.id,
 		// The remote's Play/Pause capture is the house's TV's: none here.
 		backdrop: '',
@@ -357,15 +455,25 @@ export async function libretroImage(familyId: string, id: number, kind: Libretro
 }
 
 /** The ROM, from the bucket as the emulator asks for it (a range, or whole). */
-export async function romResponse(familyId: string, id: number, range: string | null) {
+/**
+ * A game's file (`file`, as the address ends), or its BIOS (an arcade game's, by its name): nothing
+ * else of the bucket.
+ */
+export async function romResponse(
+	familyId: string,
+	id: number,
+	file: string,
+	range: string | null
+) {
 	const row = await gameById(familyId, id);
 	const b = await bucketOf(familyId);
 	if (!b || !row.present) error(404, 'Juego no encontrado');
+	const key = row.biosKey && file === fileOf(row.biosKey) ? row.biosKey : row.key;
 	const s3 = await ownPlace(b).client();
 	const valid = range && /^bytes=\d*-\d*$/.test(range) ? range : undefined;
 	let got;
 	try {
-		got = await s3.send(new GetObjectCommand({ Bucket: b.bucket, Key: row.key, Range: valid }));
+		got = await s3.send(new GetObjectCommand({ Bucket: b.bucket, Key: key, Range: valid }));
 	} catch (err) {
 		console.warn('[tus juegos] No se pudo leer la ROM', {
 			familyId,
@@ -517,8 +625,9 @@ export async function reportSession(
 	if (!Number.isSafeInteger(sessionId)) return false;
 	return asFamily(familyId, async (tx) => {
 		const [row] = await tx
-			.select({ endedAt: ownGameSession.endedAt })
+			.select({ endedAt: ownGameSession.endedAt, gameId: ownGame.id, title: ownGame.title })
 			.from(ownGameSession)
+			.innerJoin(ownGame, eq(ownGame.id, ownGameSession.gameId))
 			.where(and(eq(ownGameSession.id, sessionId), eq(ownGameSession.userId, userId)));
 		if (!row) return false;
 		const now = new Date();
@@ -528,6 +637,14 @@ export async function reportSession(
 			.update(ownGameSession)
 			.set({ seconds: sql`${ownGameSession.seconds} + ${played}`, endedAt: now })
 			.where(eq(ownGameSession.id, sessionId));
+		// Estadísticas → Jugar (#421), beside the house's (`j<id>`): `pj<id>`, the bucket's game.
+		const what = {
+			item: `pj${row.gameId}`,
+			kind: 'juego',
+			seriesTitle: null,
+			title: row.title
+		} as const;
+		await addPlayed(tx, familyId, userId, what, played, now);
 		return true;
 	});
 }

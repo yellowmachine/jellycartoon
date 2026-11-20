@@ -743,6 +743,20 @@
       "when": 1795172487407,
       "tag": "0105_abandoned_sugar_man",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1795181149906,
+      "tag": "0106_cheerful_gargoyle",
+      "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1795181150520,
+      "tag": "0107_elite_morlocks",
+      "breakpoints": true
     }
   ]
 }

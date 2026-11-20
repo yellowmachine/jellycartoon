@@ -3,6 +3,7 @@ import {
 	boolean,
 	index,
 	integer,
+	jsonb,
 	pgTable,
 	serial,
 	text,
@@ -11,6 +12,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { user } from './auth.schema.ts';
 import { family, familyRows } from './family.schema.ts';
+import type { GameLookup } from 'comun/wikidata/game-lookup.ts';
 
 /**
  * «Tus juegos» (#564): the games a family keeps in its own S3/R2/Backblaze…, one folder per
@@ -60,6 +62,8 @@ export const ownGame = pgTable(
 		/** Its key in the bucket, whole (the folder included). */
 		key: text('key').notNull(),
 		size: bigint('size', { mode: 'number' }).notNull(),
+		/** An arcade game's BIOS (`Juegos/arcade/neogeo.zip`), as FBNeo's list says; null, none. */
+		biosKey: text('bios_key'),
 		/** «Super Mario World», without region or version. */
 		title: text('title').notNull(),
 		/** Its file's name without extension: No-Intro's, as libretro names its pictures. */
@@ -69,7 +73,9 @@ export const ownGame = pgTable(
 		/** Whether libretro has its box (`si`, `no`); null, not asked yet. */
 		cover: text('cover').$type<'si' | 'no'>(),
 		/** And its title screen, for the top of its page. */
-		titleScreen: text('title_screen').$type<'si' | 'no'>()
+		titleScreen: text('title_screen').$type<'si' | 'no'>(),
+		/** Its card from Wikidata (comun's lookUpGameInfo), looked up the first time its page opens. */
+		info: jsonb('info').$type<GameLookup>()
 	},
 	(t) => [
 		uniqueIndex('own_game_family_system_file').on(t.familyId, t.system, t.file),

@@ -72,6 +72,7 @@ import {
 	setFamilySections
 } from '#lib/server/family-settings.ts';
 import { mySectionList, savedMine, savedSections, sectionList } from '#lib/nav.ts';
+import { sectionReach } from '#lib/server/section-reach.ts';
 import { placeName, type Place } from 'comun/weather.ts';
 import { findPlacesFor } from '#lib/server/places.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
@@ -263,7 +264,11 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 			: null,
 		/** The bar's sections, on or off, Oración (#339) too: only its administrator. */
 		sections: admin
-			? sectionList(await hasHouse(locals.user!.id), await familySections(k), await prayerModeOn(k))
+			? sectionList(
+					await sectionReach(locals.user!.id),
+					await familySections(k),
+					await prayerModeOn(k)
+				)
 			: null,
 		/** «Avisos en las páginas» (#440): any adult, as anyone may say «No me lo vuelvas a decir». */
 		pageNotices: await pageNoticesOf(k),
@@ -295,7 +300,7 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		myCar: await myCarId(k),
 		/** «Mi barra»: what the family has, and which of it they keep in their own bar. */
 		mySections: mySectionList(
-			await hasHouse(locals.user!.id),
+			await sectionReach(locals.user!.id),
 			await familySections(k),
 			await prayerModeOn(k),
 			await mySections(locals.user!.id)
@@ -743,7 +748,7 @@ export const actions: Actions = {
 		await setPrayerMode(k, ticked.includes('/oracion'));
 		await setFamilySections(
 			k,
-			savedSections(await hasHouse(locals.user!.id), await familySections(k), ticked)
+			savedSections(await sectionReach(locals.user!.id), await familySections(k), ticked)
 		);
 		return { saved: 'sections' };
 	},

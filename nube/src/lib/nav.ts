@@ -17,6 +17,8 @@ const SECTIONS: {
 	where: Where;
 	also?: string[];
 	house?: true;
+	/** Also without a house, with the family's own bucket of it (#534, #564). */
+	orOwn?: 'music' | 'games';
 	/** Only with Oración on (#339, Ajustes → Familia → Secciones). */
 	prayer?: true;
 	/** Out of the bar until the family turns it on. */
@@ -32,7 +34,14 @@ const SECTIONS: {
 		also: ['/watch'],
 		house: true
 	},
-	{ path: '/musica', label: 'Música', icon: 'musica', where: 'nube', house: true },
+	{
+		path: '/musica',
+		label: 'Música',
+		icon: 'musica',
+		where: 'nube',
+		house: true,
+		orOwn: 'music'
+	},
 	{ path: '/radio', label: 'Radio', icon: 'radio', where: 'nube' },
 	{ path: '/canales', label: 'Canales', icon: 'canales', where: 'nube' },
 	{ path: '/recetas', label: 'Recetas', icon: 'recetas', where: 'nube' },
@@ -113,9 +122,10 @@ const SECTIONS: {
 		icon: 'juegos',
 		where: 'nube',
 		house: true,
+		orOwn: 'games',
 		startsOff: true,
 		about:
-			'Los juegos retro de la casa, en el navegador: las mismas partidas que en la tele. Solo adultos.'
+			'Los juegos retro de la casa o de vuestro almacenamiento (Tus juegos), en el navegador: con casa, las mismas partidas que en la tele. Solo adultos.'
 	},
 	// What is watched at home (#421), from a copy the house sends: adults only.
 	{
@@ -138,6 +148,19 @@ const SECTIONS: {
 			'Para pegar oraciones y letanías, darles voz con la IA y rezarlas en listas. Los peques solo las escuchan. Apagada, tampoco se abre.'
 	}
 ];
+
+/**
+ * What the family has to fill the house's sections: a house connected, and its own buckets of music
+ * and of games. Just `true`/`false`, the house alone (and no buckets).
+ */
+export type Reach = boolean | { house: boolean; music?: boolean; games?: boolean };
+
+/** Whether the family has what this section needs: no house needed, a house, or its own bucket. */
+const reaches = (s: (typeof SECTIONS)[number], reach: Reach) => {
+	if (!s.house) return true;
+	if (typeof reach === 'boolean') return reach;
+	return reach.house || Boolean(s.orOwn && reach[s.orOwn]);
+};
 
 /** What the family chose in Ajustes, section by section; one it never touched goes by its default. */
 export type SectionChoices = Record<string, boolean>;
@@ -166,8 +189,8 @@ export const sectionOn = (path: string, saved: SectionChoices = {}, mine: Sectio
 };
 
 /** Ajustes' list: without a house, nothing of it (as in the bar). Oración, with its own on or off. */
-export const sectionList = (hasHouse: boolean, saved: SectionChoices, prayer: boolean) =>
-	SECTIONS.filter((s) => hasHouse || !s.house).map((s) => ({
+export const sectionList = (reach: Reach, saved: SectionChoices, prayer: boolean) =>
+	SECTIONS.filter((s) => reaches(s, reach)).map((s) => ({
 		path: s.path,
 		label: s.label,
 		about: s.about,
@@ -178,23 +201,25 @@ export const sectionList = (hasHouse: boolean, saved: SectionChoices, prayer: bo
  * What to keep from Ajustes' form, whose ticked ones are `ticked`: those it showed, and as they
  * were those it did not (a house's, without a house now). Oración is not here: its own on or off.
  */
-export function savedSections(hasHouse: boolean, before: SectionChoices, ticked: string[]) {
+export function savedSections(reach: Reach, before: SectionChoices, ticked: string[]) {
 	const after = { ...before };
 	for (const s of SECTIONS)
-		if (!s.prayer && (hasHouse || !s.house)) after[s.path] = ticked.includes(s.path);
+		if (!s.prayer && reaches(s, reach)) after[s.path] = ticked.includes(s.path);
 	return after;
 }
 
 /** «Mi barra»: what the family has (with or without a house, Oración by its own on), each as theirs. */
 export const mySectionList = (
-	hasHouse: boolean,
+	reach: Reach,
 	saved: SectionChoices,
 	prayer: boolean,
 	mine: SectionChoices
 ) =>
-	SECTIONS.filter((s) => (hasHouse || !s.house) && (s.prayer ? prayer : chosen(s, saved))).map(
-		(s) => ({ path: s.path, label: s.label, on: mineOn(s.path, mine) })
-	);
+	SECTIONS.filter((s) => reaches(s, reach) && (s.prayer ? prayer : chosen(s, saved))).map((s) => ({
+		path: s.path,
+		label: s.label,
+		on: mineOn(s.path, mine)
+	}));
 
 /**
  * What to keep from «Mi barra», whose ticked ones are `ticked` among the `shown` it had: the rest as
@@ -212,6 +237,8 @@ export const PENDING = SECTIONS.filter((s) => s.where === 'pendiente').map((s) =
 /** Where a section of the house is: jellycartoon itself, or a page asking for its address. */
 export const atHome = (webUrl: string | null, path: string) =>
 	webUrl ? `${webUrl}${path === '/series' ? '/' : path}` : `/en-casa${path}`;
+
+const houseIn = (reach: Reach) => (typeof reach === 'boolean' ? reach : reach.house);
 
 const link = (s: (typeof SECTIONS)[number]): NavLink => ({
 	href: s.path,
@@ -232,13 +259,14 @@ const KID_SECTIONS = [
 ];
 
 /**
- * With `hasHouse` false (no house connected), nothing of the house; `prayer`, Oración's on;
+ * With `reach` false (no house connected, nor buckets), nothing of the house; with a bucket, its
+ * section (Música, Juegos); `prayer`, Oración's on;
  * `sections`, what the family has out (Ajustes); `mine`, what this adult took out of their own
  * bar (a child's is the family's). Only the bar: their pages still open.
  */
 export function navLinks(
 	serviceAdmin = false,
-	hasHouse = true,
+	reach: Reach = true,
 	kid = false,
 	guardian = false,
 	prayer = false,
@@ -248,14 +276,14 @@ export function navLinks(
 	const links = SECTIONS.filter(
 		(s) =>
 			(!kid || KID_SECTIONS.includes(s.path)) &&
-			(hasHouse || !s.house) &&
+			reaches(s, reach) &&
 			shown(s, sections, prayer, kid ? {} : mine)
 	).map(link);
 	if (kid) return { links, menuLinks: links, userLinks: [] };
 	const userLinks: UserLink[] = [
 		// A QR read to let someone in (/qr): a child on its device (#303), for who lets some child in;
 		// oneself on the house's TV (#172), with a house.
-		...(guardian || hasHouse
+		...(guardian || houseIn(reach)
 			? [
 					{
 						href: '/qr',

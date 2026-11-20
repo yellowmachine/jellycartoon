@@ -1,0 +1,2 @@
+ALTER TABLE "offline_game" DROP CONSTRAINT "offline_game_system_file_device_id_pk";--> statement-breakpoint
+ALTER TABLE "offline_game" ADD CONSTRAINT "offline_game_system_file_device_id_source_pk" PRIMARY KEY("system","file","device_id","source");

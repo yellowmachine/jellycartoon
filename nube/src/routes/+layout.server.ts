@@ -3,7 +3,7 @@ import type { LayoutServerLoad } from './$types';
 import { family, familyMember } from '#lib/server/db/schema.ts';
 import { DEFAULT_THEME, isTheme } from 'comun/themes.ts';
 import { NoFamily, withFamily } from '#lib/server/family.ts';
-import { house } from '#lib/server/db/schema.ts';
+import { gameSource, house, musicSource } from '#lib/server/db/schema.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { satelliteVoiceOf } from '#lib/server/voice/satellite-voice.ts';
 import { aiBlockOf, familySections } from '#lib/server/family-settings.ts';
@@ -38,6 +38,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	try {
 		const found = await withFamily(locals.user.id, async (tx, m) => {
 			const [h] = await tx.select({ webUrl: house.webUrl }).from(house);
+			const [ownMusic] = await tx.select({ id: musicSource.familyId }).from(musicSource);
+			const [ownGames] = await tx.select({ id: gameSource.familyId }).from(gameSource);
 			const [f] = await tx
 				.select({ name: family.name })
 				.from(family)
@@ -57,6 +59,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 				kid: m.role === 'peque',
 				webUrl: h?.webUrl ?? null,
 				hasHouse: Boolean(h),
+				/** Música and Juegos also from the family's own buckets, without a house (nav.ts). */
+				reach: { house: Boolean(h), music: Boolean(ownMusic), games: Boolean(ownGames) },
 				theme: isTheme(me?.theme) ? me.theme : DEFAULT_THEME,
 				spendLine: Boolean(me?.spendLine),
 				/** «Mi barra»: what they took out of their own bar (nav.ts); a child, none. */

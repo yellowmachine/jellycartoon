@@ -10,8 +10,8 @@ import { FRAME_WIDTHS } from '#lib/birds-eye.ts';
 import { formatDuration } from 'comun/format.ts';
 import { BATCH_SIZE, titleBatches, type TitleProposal } from '#lib/episode-titles.ts';
 import { inTurn } from '#lib/server/cinema/frames.ts';
-import { wikipediaPageText } from '#lib/server/cinema/wikidata.ts';
-import { withoutProse } from '#lib/server/cinema/html-text.ts';
+import { wikipediaPageText } from 'comun/wikidata/wikidata.ts';
+import { withoutProse } from 'comun/wikidata/html-text.ts';
 import { frame, probe } from './ffmpeg.ts';
 import { hlsDir, thumbFile } from './paths.ts';
 

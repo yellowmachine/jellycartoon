@@ -1,4 +1,17 @@
-/** Reading FinalBurn Neo's list of games (fbneo.ts), apart so it can be tested on its own. */
+/**
+ * FinalBurn Neo's list of arcade games (#176): its ROMs are named by FBNeo's short names
+ * (`sf2.zip`), and this gives their titles and which BIOS each one needs (`neogeo.zip`). Read by
+ * the house (fbneo.ts, kept in DATA_DIR) and by Seilide for «Tus juegos» (#564, in memory).
+ */
+
+/**
+ * The list of the same days as EmulatorJS 4.2.3's FBNeo core (built 2025-06-14): its games change
+ * while its version stays 1.0.0.03.
+ */
+export const DAT_COMMIT = 'e8291a39f637d23900d6998ea7f67648856201f9';
+export const DAT_URL =
+	`https://raw.githubusercontent.com/libretro/FBNeo/${DAT_COMMIT}/dats/` +
+	encodeURIComponent('FinalBurn Neo (ClrMame Pro XML, Arcade only).dat');
 
 export interface ArcadeGame {
 	/** «Street Fighter II: The World Warrior (World 910522)». */
@@ -48,4 +61,11 @@ export function biosOf(games: Record<string, ArcadeGame>, name: string) {
 		set = parent;
 	}
 	return null;
+}
+
+/** The list fetched (13 MB) and read; a failed answer, an error. */
+export async function fetchArcadeGames() {
+	const res = await fetch(DAT_URL, { signal: AbortSignal.timeout(120_000) });
+	if (!res.ok) throw new Error(`Lista de FBNeo: ${res.status} ${res.statusText}`);
+	return parse(await res.text());
 }
