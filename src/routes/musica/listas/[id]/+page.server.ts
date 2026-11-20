@@ -1,11 +1,13 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { moveOf } from 'comun/reorder.ts';
 import { isKid } from '#lib/server/kids.ts';
 import { djEnabled } from '#lib/server/music/dj.ts';
 import {
 	deletePlaylist,
 	getPlaylist,
 	moveInPlaylist,
+	moveInPlaylistBefore,
 	removeFromPlaylist,
 	renamePlaylist
 } from '#lib/server/music/playlists.ts';
@@ -39,5 +41,11 @@ export const actions: Actions = {
 	},
 	down: async ({ params, request }) => {
 		await moveInPlaylist(Number(params.id), await itemId(request), 1);
+	},
+	/** Dragged into place (comun/reorder.svelte.ts). */
+	move: async ({ params, request }) => {
+		const move = moveOf(await request.formData());
+		if (!move) return fail(400, { message: 'Canción no válida' });
+		await moveInPlaylistBefore(Number(params.id), move.itemId, move.beforeId);
 	}
 };

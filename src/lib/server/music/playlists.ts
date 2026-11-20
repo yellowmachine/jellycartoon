@@ -10,6 +10,7 @@ import {
 	trackTitle
 } from '#lib/server/db/schema.ts';
 import type { MusicTrack } from 'comun/music.ts';
+import { moveBefore } from 'comun/reorder.ts';
 import path from 'node:path';
 import { folderOf } from './albums.ts';
 
@@ -173,6 +174,33 @@ export async function moveInPlaylist(playlistId: number, itemId: number, directi
 			.update(musicPlaylistItem)
 			.set({ position: item.position })
 			.where(eq(musicPlaylistItem.id, neighbour.id));
+	});
+}
+
+/**
+ * Dragged into place: just before `beforeId` (null: at the end). Every item counts, also those
+ * hidden because their track is not playable now, so they keep their place among the rest; the
+ * positions are numbered again from 0.
+ */
+export async function moveInPlaylistBefore(
+	playlistId: number,
+	itemId: number,
+	beforeId: number | null
+) {
+	await db.transaction(async (tx) => {
+		const rows = await tx
+			.select({ id: musicPlaylistItem.id, position: musicPlaylistItem.position })
+			.from(musicPlaylistItem)
+			.where(eq(musicPlaylistItem.playlistId, playlistId))
+			.orderBy(asc(musicPlaylistItem.position), asc(musicPlaylistItem.id));
+		const order = moveBefore(
+			rows.map((r) => r.id),
+			itemId,
+			beforeId
+		);
+		for (const [position, id] of order.entries())
+			if (rows.find((r) => r.id === id)?.position !== position)
+				await tx.update(musicPlaylistItem).set({ position }).where(eq(musicPlaylistItem.id, id));
 	});
 }
 
