@@ -298,4 +298,81 @@ describe('specOf', () => {
 		expect(timer(30, ' ')).toEqual({ problem: 'Falta para qué es el temporizador.' });
 		expect(timer(5000, 'Algo')).toMatchObject({ spec: { timer: { minutes: 1440 } } });
 	});
+
+	test('an errand (#557): one day at one time, once, switching a plug of the family by its name', () => {
+		const plugs = [
+			{ id: 'p1', name: 'Termo' },
+			{ id: 'p2', name: 'Tele del salón' }
+		];
+		const now = { day: '2026-11-20', time: '18:00' };
+		const errand = (over: Partial<TranslatedRule> = {}) =>
+			specOf(
+				answer({
+					when: {
+						kind: 'en_fecha',
+						words: [],
+						minutes_before: 0,
+						minutes_after: 0,
+						time: '09:00',
+						day: '2026-11-21',
+						weather: none
+					},
+					conditions: [],
+					then: 'enchufe',
+					plug_switch: { plug: 'Termo', on: true, minutes: 60 },
+					notice: { to: 'yo', people: [], text: '', level: 'normal' },
+					once: false,
+					say: true,
+					...over
+				}),
+				resolve,
+				{ plugs, now }
+			);
+		expect(errand()).toMatchObject({
+			spec: {
+				when: { kind: 'en_fecha', day: '2026-11-21', time: '09:00' },
+				then: 'enchufe',
+				plug: { plugId: 'p1', name: 'Termo', on: true, minutes: 60 },
+				timer: null,
+				once: true,
+				say: false
+			}
+		});
+		// Off, and for no while: it stays so.
+		expect(
+			errand({ plug_switch: { plug: 'Tele del salón', on: false, minutes: 0 } })
+		).toMatchObject({ spec: { plug: { plugId: 'p2', on: false, minutes: null } } });
+		expect(errand({ plug_switch: { plug: 'Estufa', on: true, minutes: 30 } })).toEqual({
+			problem: 'No hay un enchufe «Estufa»: los hay «Termo», «Tele del salón».'
+		});
+		expect(errand({ plug_switch: { plug: 'Termo', on: true, minutes: 300 } })).toEqual({
+			problem: 'Un enchufe se programa como mucho 4 horas.'
+		});
+		const at = (day: string | null, time: string | null) =>
+			errand({
+				when: {
+					kind: 'en_fecha',
+					words: [],
+					minutes_before: 0,
+					minutes_after: 0,
+					time,
+					day,
+					weather: none
+				}
+			});
+		expect(at('2026-11-20', '17:59')).toEqual({
+			problem: 'Las 17:59 del 2026-11-20 ya han pasado.'
+		});
+		expect(at('2026-11-20', '18:00')).toMatchObject({ spec: { when: { day: '2026-11-20' } } });
+		expect(at('2026-02-30', '09:00')).toEqual({ problem: 'Falta qué día.' });
+		expect(at('2026-11-21', null)).toEqual({ problem: 'Falta a qué hora mirarla.' });
+		// Without plugs, said so; and a day only in «en_fecha».
+		expect(specOf(answer({ then: 'enchufe' }), resolve)).toEqual({
+			problem: 'La familia no tiene enchufes en Enchufes.'
+		});
+		expect(specOf(answer(), resolve)).toMatchObject({ spec: { when: { kind: 'agenda' } } });
+		expect('day' in (specOf(answer(), resolve) as { spec: { when: object } }).spec.when).toBe(
+			false
+		);
+	});
 });

@@ -136,6 +136,33 @@ describe('¿Qué pasaría…?', () => {
 		expect(o!.said).toBe('Entonces no le toca: se mira cada día a las 21:00.');
 	});
 
+	test('an errand (#557): that day at its time, switching its plug; another day, not its time', async () => {
+		const plug = { plugId: 'p1', name: 'Termo', on: true, minutes: 60 };
+		const out = await run(
+			[
+				ruleOf({
+					when: when({ kind: 'en_fecha', day: DAY, time: '09:00' }),
+					then: 'enchufe',
+					plug,
+					once: true
+				}),
+				ruleOf({
+					when: when({ kind: 'en_fecha', day: '2026-11-05', time: '09:00' }),
+					then: 'enchufe',
+					plug: { ...plug, on: false, minutes: null }
+				})
+			],
+			'08:00',
+			'23:59'
+		);
+		expect(out.map((o) => [o.at, o.does])).toEqual([
+			['09:00', 'enchufe'],
+			[null, null]
+		]);
+		expect(out[0]!.said).toBe('Encendería «Termo» 1 hora. Porque son las 09:00 del miércoles 4.');
+		expect(out[1]!.said).toBe('Entonces no le toca: se mira el jueves 5 a las 09:00.');
+	});
+
 	test('the weather: the first half hour it comes, once', async () => {
 		const rain = { what: 'lluvia', hours: 3, threshold: 60, where: 'casa' } as const;
 		const out = await run(

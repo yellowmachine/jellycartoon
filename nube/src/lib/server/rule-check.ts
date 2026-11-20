@@ -403,6 +403,15 @@ export interface Due {
 	why: string;
 }
 
+/**
+ * One day at one time (#557) gone by more than `LATE_MINUTES` without being done (its conditions
+ * did not hold then, or the server was off): never to be done.
+ */
+export const pastItsMoment = (r: Rule, now: number) =>
+	r.spec.when.kind === 'en_fecha' &&
+	Boolean(r.spec.when.day && r.spec.when.time) &&
+	now > minutesOf(r.spec.when.day!, r.spec.when.time!) + LATE_MINUTES;
+
 /** What it waits for by the clock (not the weather), due in the world's span: each with its key and why. */
 export async function dueIn(w: World, r: Rule): Promise<Due[]> {
 	const today = w.today;
@@ -413,6 +422,15 @@ export async function dueIn(w: World, r: Rule): Promise<Due[]> {
 	if (when.kind === 'cada_dia' && when.time) {
 		const at = atOf(today, when.time);
 		if (due(at)) found.push({ at, key: `cada_dia:${today}`, why: `son las ${when.time}` });
+	}
+	if (when.kind === 'en_fecha' && when.day && when.time) {
+		const at = atOf(when.day, when.time);
+		if (due(at))
+			found.push({
+				at,
+				key: `en_fecha:${when.day}`,
+				why: `son las ${when.time} del ${dayName(when.day)}`
+			});
 	}
 	if (when.kind === 'agenda') {
 		const ahead = Math.ceil(when.minutesBefore / (24 * 60)) + 1;

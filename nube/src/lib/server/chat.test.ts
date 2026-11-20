@@ -27,6 +27,8 @@ const kitchen = (familyId: string, userId: string): Kitchen => ({
 type Answer = { content: string | null; toolCalls: ToolCall[] };
 let answers: Answer[] = [];
 const sent: ToolChatMessage[][] = [];
+/** The tools' names each call was offered. */
+const offered: string[][] = [];
 let fails: string | null = null;
 const onList: string[] = [];
 const added: string[][] = [];
@@ -36,8 +38,12 @@ const savedRecipes: { title: string; from: string }[] = [];
 const openrouter = await import('#lib/server/openrouter.ts');
 mock.module('#lib/server/openrouter.ts', () => ({
 	...openrouter,
-	chatWithTools: async (r: { messages: ToolChatMessage[] }) => {
+	chatWithTools: async (r: {
+		messages: ToolChatMessage[];
+		tools: { function: { name: string } }[];
+	}) => {
 		sent.push(structuredClone(r.messages));
+		offered.push(r.tools.map((t) => t.function.name));
 		if (fails) throw new Error(fails);
 		return {
 			...(answers.shift() ?? { content: 'Vale.', toolCalls: [] }),
@@ -147,6 +153,66 @@ const keptPlaces: Record<
 };
 mock.module('#lib/server/trips/places.ts', () => ({
 	listSavedPlaces: async (k: Kitchen) => keptPlaces[k.userId ?? ''] ?? []
+}));
+
+// Errands (#557), faked: encargos.test.ts tests them; here, the card, who asks and «Guardar».
+const planAsked: { name: string | null; args: Record<string, unknown> }[] = [];
+const planSaved: { userId: string; ticked: number[] }[] = [];
+const ERRAND = {
+	kind: 'encargo' as const,
+	said: 'El viernes a las 9 enciende el termo una hora',
+	understood: 'El viernes 21 a las 9:00, encenderé «Termo» 1 hora.',
+	spec: {
+		when: {
+			kind: 'en_fecha' as const,
+			words: [],
+			minutesBefore: 0,
+			time: '09:00',
+			day: '2026-11-21'
+		},
+		conditions: [],
+		then: 'enchufe' as const,
+		plug: { plugId: 'p1', name: 'Termo', on: true, minutes: 60 },
+		notice: { to: 'yo' as const, userIds: [], names: [], text: '', level: 'normal' as const },
+		once: true
+	},
+	savedId: null
+};
+mock.module('#lib/server/encargos.ts', () => ({
+	proposePlan: async (_k: Kitchen, name: string | null, args: Record<string, unknown>) => {
+		planAsked.push({ name, args });
+		return {
+			result: 'Tarjeta enseñada con 2.',
+			card: {
+				kind: 'encargos',
+				items: [
+					{
+						kind: 'aviso',
+						day: '2026-11-21',
+						time: '15:00',
+						label: 'Poner la lavadora',
+						savedId: null
+					},
+					ERRAND
+				]
+			}
+		};
+	},
+	savePlan: async (
+		_k: Kitchen,
+		userId: string,
+		card: { items: { savedId: number | null }[] },
+		ticked: number[]
+	) => {
+		planSaved.push({ userId, ticked });
+		return {
+			card: {
+				...card,
+				items: card.items.map((it, i) => (ticked.includes(i) ? { ...it, savedId: 50 + i } : it))
+			},
+			problems: []
+		};
+	}
 }));
 
 const chat = await import('./chat.ts');
@@ -582,6 +648,51 @@ test('Mensajes (#555): a plan, with today known to work out the day', async () =
 	expect(
 		String(sent[1]!.find((m) => m.role === 'tool' && m.tool_call_id === 'mal')?.content)
 	).toContain('Falta');
+});
+
+test('errands (#557): proposed with who asks, kept only by «Guardar» and only the card’s own; told later', async () => {
+	answers = [
+		{
+			content: null,
+			toolCalls: [
+				call('propose_plan', {
+					avisos: [{ day: '2026-11-21', time: '15:00', label: 'Poner la lavadora' }],
+					encargos: ['El viernes a las 9 enciende el termo una hora']
+				})
+			]
+		},
+		{ content: 'Ahí lo tienes.', toolCalls: [] }
+	];
+	const [, a] = await chat.askChat(ana, { id: 'ana', name: 'Ana' }, 'mañana pon el termo…');
+	expect(planAsked.at(-1)?.name).toBe('Ana');
+	expect(offered.at(-1)).toContain('propose_plan');
+	expect(a!.cards[0]?.kind).toBe('encargos');
+	expect(planSaved).toEqual([]);
+	// Another person cannot keep it, nor a card that is not one.
+	expect(await chat.savePlanFromCard(pepe, 'pepe', a!.id, 0, [0])).toBeNull();
+	expect(await chat.savePlanFromCard(ana, 'ana', a!.id, 1, [0])).toBeNull();
+	const saved = await chat.savePlanFromCard(ana, 'ana', a!.id, 0, [1]);
+	expect(planSaved).toEqual([{ userId: 'ana', ticked: [1] }]);
+	expect(saved?.card.items.map((it) => it.savedId)).toEqual([null, 51]);
+	// Kept with its message: the page and the AI see it so.
+	const [, again] = (await chat.chatHistory(ana, 'ana')).slice(-2);
+	expect(again!.cards[0]).toEqual(saved!.card);
+	answers = [];
+	await chat.askChat(ana, { id: 'ana', name: 'Ana' }, '¿y lo otro?');
+	const told = sent
+		.at(-1)!
+		.map((m) => String(m.content))
+		.join('\n');
+	expect(told).toContain('Tarjeta de encargos');
+	expect(told).toContain('«Termo» 1 hora. (guardado)');
+	expect(told).toContain('Poner la lavadora (sin guardar)');
+	// Not offered in Mensajes.
+	await chat.askForMessage(
+		ana,
+		{ id: 'ana', name: 'Ana' },
+		{ question: 'x', to: 'y', assistant: 'z', turns: [] }
+	);
+	expect(offered.at(-1)).not.toContain('propose_plan');
 });
 
 test("Mensajes (#555): only a place of the asker's own, as kept", async () => {

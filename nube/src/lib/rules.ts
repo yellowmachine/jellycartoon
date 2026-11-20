@@ -13,8 +13,9 @@ import { timeLabel } from 'comun/timer-names.ts';
  * house's, anyone's), every day at `time`; the weather that comes to be (looked at every half
  * hour), a dose still not marked `minutesAfter` its time, something said to the voice (phase 4:
  * «cuando diga que pongo la lavadora», by its words only), a purchase saved in Gastos (#451:
- * «si compro bebida», by what it has), or a plug's appliance that starts or ends a cycle (#528:
- * «cuando acabe la lavadora», by the plug's name or kind).
+ * «si compro bebida», by what it has), a plug's appliance that starts or ends a cycle (#528:
+ * «cuando acabe la lavadora», by the plug's name or kind), or one day at one time (#557, an
+ * errand: «mañana a las 9», once).
  */
 export const TRIGGERS = [
 	'agenda',
@@ -27,7 +28,8 @@ export const TRIGGERS = [
 	'tiempo',
 	'toma_sin_marcar',
 	'compra',
-	'enchufe'
+	'enchufe',
+	'en_fecha'
 ] as const;
 export type TriggerKind = (typeof TRIGGERS)[number];
 
@@ -97,8 +99,10 @@ export interface Trigger {
 	words: string[];
 	/** For agenda and the trips: this long before it starts; 0, when it starts. */
 	minutesBefore: number;
-	/** For cada_dia: `HH:MM`. */
+	/** For cada_dia and en_fecha: `HH:MM`. */
 	time: string | null;
+	/** For en_fecha (#557): `YYYY-MM-DD`. */
+	day?: string | null;
 	/** For tiempo. */
 	weather?: WeatherCheck | null;
 	/** For toma_sin_marcar: this long after its time (unset: `DOSE_LATE_MIN`). */
@@ -150,22 +154,46 @@ export interface RuleTimer {
 export const timerSaid = (t: RuleTimer, verb: string) =>
 	`${verb} un temporizador de ${timeLabel(t.minutes * 60)} en casa: «${t.label}»`;
 
+/**
+ * What a rule that switches a plug keeps (#557, an errand: «a las 9 pon el termo una hora»): which
+ * plug of Enchufes (its id, and its name as it was then, to show), on or off, and for how long
+ * (null, it stays so), with the plug's own timer (`toggle_after`), so it goes back even without
+ * Seilide. Its padlock and its pause are looked at when it is done, as by voice.
+ */
+export interface RulePlug {
+	plugId: string;
+	name: string;
+	on: boolean;
+	minutes: number | null;
+}
+
+/** A rule switches a plug for at most this long: a misunderstood one is a heater on all day. */
+export const MAX_PLUG_MIN = 4 * 60;
+
+/** «encendería «Termo» 1 hora», «apagaría «Tele»». */
+export const plugSaid = (p: RulePlug, [on, off]: [string, string]) =>
+	`${p.on ? on : off} «${p.name}»${p.minutes ? ` ${timeLabel(p.minutes * 60)}` : ''}`;
+
 /** A rule's timer lasts at most a day (`MAX_TIMER_SEC`). */
 const MAX_TIMER_MIN = 24 * 60;
 
 /** A deduction lasts at most this long. */
 const MAX_DEDUCED_DAYS = 30;
 
+export const ACTIONS = ['avisar', 'deducir', 'temporizador', 'enchufe'] as const;
+export type RuleAction = (typeof ACTIONS)[number];
+
 export interface RuleSpec {
 	when: Trigger;
 	conditions: Condition[];
 	/**
-	 * What it does: tell (`notice`), deduce (`deduce`) or start a timer in the house (`timer`);
-	 * unset (older ones), tell.
+	 * What it does: tell (`notice`), deduce (`deduce`), start a timer in the house (`timer`) or
+	 * switch a plug (`plug`, #557; its notice, only if it cannot); unset (older ones), tell.
 	 */
-	then?: 'avisar' | 'deducir' | 'temporizador';
+	then?: RuleAction;
 	deduce?: Deduction | null;
 	timer?: RuleTimer | null;
+	plug?: RulePlug | null;
 	notice: RuleNotice;
 	/** Told once, and then paused. */
 	once: boolean;
@@ -193,6 +221,13 @@ const wordList = (v: unknown) =>
 
 const clock = (v: unknown) =>
 	typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : null;
+
+/** `YYYY-MM-DD`, a real day. */
+const dayOf = (v: unknown) => {
+	if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+	const d = new Date(`${v}T12:00:00Z`);
+	return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v ? v : null;
+};
 
 const within = (n: unknown, min: number, max: number, otherwise: number) => {
 	const v = Math.round(Number(n));
@@ -234,6 +269,8 @@ export interface TranslatedRule {
 		weather: TranslatedWeather;
 		/** `ninguno` where there is none. */
 		plug?: string;
+		/** For en_fecha: `YYYY-MM-DD`; null in the others. */
+		day?: string | null;
 	};
 	conditions: {
 		kind: string;
@@ -246,6 +283,8 @@ export interface TranslatedRule {
 	then: string;
 	deduce: { text: string; days: number };
 	timer: { minutes: number; label: string };
+	/** For «enchufe»: the plug's name as in the list, on or off, and minutes (0, it stays so). */
+	plug_switch?: { plug: string; on: boolean; minutes: number };
 	notice: { to: string; people: string[]; text: string; level: string };
 	once: boolean;
 	say: boolean;
@@ -257,15 +296,40 @@ export interface TranslatedRule {
  */
 export function specOf(
 	t: TranslatedRule,
-	resolve: (name: string) => { userId: string; name: string } | null
+	resolve: (name: string) => { userId: string; name: string } | null,
+	{
+		plugs = [],
+		now = null
+	}: {
+		/** The family's plugs (#557), to switch one by its name. */
+		plugs?: { id: string; name: string }[];
+		/** The wall's day and time: a moment already gone is not one to wait for. */
+		now?: { day: string; time: string } | null;
+	} = {}
 ): { spec: RuleSpec } | { problem: string } {
 	if (!t.possible) return { problem: t.why_not || 'Esa regla no la sé comprobar todavía.' };
 	if (!isOneOf(TRIGGERS, t.when?.kind)) return { problem: 'No he entendido cuándo mirarla.' };
 	const time = clock(t.when.time);
-	if (t.when.kind === 'cada_dia' && !time) return { problem: 'Falta a qué hora mirarla.' };
+	if ((t.when.kind === 'cada_dia' || t.when.kind === 'en_fecha') && !time)
+		return { problem: 'Falta a qué hora mirarla.' };
+	const day = dayOf(t.when.day);
+	if (t.when.kind === 'en_fecha' && !day) return { problem: 'Falta qué día.' };
+	if (t.when.kind === 'en_fecha' && now && `${day} ${time}` < `${now.day} ${now.time}`)
+		return { problem: `Las ${time} del ${day} ya han pasado.` };
 	const weather = weatherOf(t.when.weather);
 	if (t.when.kind === 'tiempo' && !weather) return { problem: 'Falta qué tiempo esperar.' };
-	const then = isOneOf(['deducir', 'temporizador'] as const, t.then) ? t.then : 'avisar';
+	const then = isOneOf(ACTIONS, t.then) ? t.then : 'avisar';
+	const asked = t.plug_switch;
+	const switched = then === 'enchufe' ? (plugs.find((p) => p.name === asked?.plug) ?? null) : null;
+	if (then === 'enchufe' && !switched)
+		return {
+			problem: plugs.length
+				? `No hay un enchufe «${asked?.plug ?? ''}»: los hay ${plugs.map((p) => `«${p.name}»`).join(', ')}.`
+				: 'La familia no tiene enchufes en Enchufes.'
+		};
+	const plugMinutes = Math.round(Number(asked?.minutes) || 0);
+	if (then === 'enchufe' && (plugMinutes < 0 || plugMinutes > MAX_PLUG_MIN))
+		return { problem: `Un enchufe se programa como mucho ${timeLabel(MAX_PLUG_MIN * 60)}.` };
 	const deduced = (t.deduce?.text ?? '').trim().slice(0, MAX_RULE);
 	if (then === 'deducir' && !deduced) return { problem: 'Falta qué deducir.' };
 	const minutes = Math.round(Number(t.timer?.minutes));
@@ -293,6 +357,7 @@ export function specOf(
 					Math.min(7 * 24 * 60, Math.round(Number(t.when.minutes_before) || 0))
 				),
 				time,
+				...(t.when.kind === 'en_fecha' ? { day } : {}),
 				...(t.when.kind === 'tiempo' ? { weather } : {}),
 				...(t.when.kind === 'toma_sin_marcar'
 					? { minutesAfter: within(t.when.minutes_after, 1, 24 * 60, DOSE_LATE_MIN) }
@@ -323,6 +388,16 @@ export function specOf(
 					? { text: deduced, days: within(t.deduce.days, 0, MAX_DEDUCED_DAYS, 0) }
 					: null,
 			timer: then === 'temporizador' ? { minutes: Math.min(minutes, MAX_TIMER_MIN), label } : null,
+			...(then === 'enchufe' && switched
+				? {
+						plug: {
+							plugId: switched.id,
+							name: switched.name,
+							on: asked?.on !== false,
+							minutes: plugMinutes || null
+						}
+					}
+				: {}),
 			notice: {
 				to,
 				userIds: people.map((x) => x.p!.userId),
@@ -330,9 +405,10 @@ export function specOf(
 				text,
 				level: t.notice.level === 'urgente' ? 'urgente' : 'normal'
 			},
-			once: t.once === true,
-			// A timer rings in the whole house by itself.
-			say: then === 'temporizador' ? false : t.say === true
+			// One day at one time: once, whatever it said.
+			once: t.once === true || t.when.kind === 'en_fecha',
+			// A timer rings in the whole house by itself; a plug only tells if it cannot.
+			say: then === 'temporizador' || then === 'enchufe' ? false : t.say === true
 		}
 	};
 }
@@ -363,6 +439,7 @@ export const RULE_SCHEMA = {
 		'then',
 		'deduce',
 		'timer',
+		'plug_switch',
 		'notice',
 		'once',
 		'say'
@@ -374,13 +451,23 @@ export const RULE_SCHEMA = {
 		when: {
 			type: 'object',
 			additionalProperties: false,
-			required: ['kind', 'words', 'minutes_before', 'minutes_after', 'time', 'weather', 'plug'],
+			required: [
+				'kind',
+				'words',
+				'minutes_before',
+				'minutes_after',
+				'time',
+				'day',
+				'weather',
+				'plug'
+			],
 			properties: {
 				kind: { type: 'string', enum: [...TRIGGERS] },
 				words,
 				minutes_before: { type: 'integer' },
 				minutes_after: { type: 'integer' },
 				time: { type: ['string', 'null'] },
+				day: { type: ['string', 'null'] },
 				weather: weatherSchema,
 				plug: { type: 'string', enum: ['ninguno', ...PLUG_MOMENTS] }
 			}
@@ -400,7 +487,7 @@ export const RULE_SCHEMA = {
 				}
 			}
 		},
-		then: { type: 'string', enum: ['avisar', 'deducir', 'temporizador'] },
+		then: { type: 'string', enum: [...ACTIONS] },
 		deduce: {
 			type: 'object',
 			additionalProperties: false,
@@ -412,6 +499,16 @@ export const RULE_SCHEMA = {
 			additionalProperties: false,
 			required: ['minutes', 'label'],
 			properties: { minutes: { type: 'integer' }, label: { type: 'string' } }
+		},
+		plug_switch: {
+			type: 'object',
+			additionalProperties: false,
+			required: ['plug', 'on', 'minutes'],
+			properties: {
+				plug: { type: 'string' },
+				on: { type: 'boolean' },
+				minutes: { type: 'integer' }
+			}
 		},
 		notice: {
 			type: 'object',

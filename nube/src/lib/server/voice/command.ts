@@ -1020,7 +1020,7 @@ function ruleTools(satellite: boolean): Tool[] {
 	return [
 		tool(
 			'create_rule',
-			'Crea una regla que se comprueba sola y avisa: «cuando vengan mis padres, recuérdame que les diga lo de las plantas», «si pongo leche en la lista y estoy de viaje, avísame», «todos los días a las diez, si no hay nada en la agenda, dime que descanse». No para un aviso a una hora fija (la agenda), ni para recordar algo (remember). Contesta con cómo la has entendido.',
+			'Crea una regla que se comprueba sola y avisa: «cuando vengan mis padres, recuérdame que les diga lo de las plantas», «si pongo leche en la lista y estoy de viaje, avísame», «todos los días a las diez, si no hay nada en la agenda, dime que descanse». También un encargo de una vez para un día y una hora, que enciende o apaga un enchufe o lleva condición: «mañana a las 9 pon el termo una hora», «el sábado a las 8 avísame si va a llover». No para un aviso a una hora fija sin condición (set_alarm), ni para recordar algo (remember). Si en una frase pide varias cosas, una llamada por cada una, cada una con su día y su hora. Contesta con cómo la has entendido.',
 			{
 				text: {
 					type: 'string',
