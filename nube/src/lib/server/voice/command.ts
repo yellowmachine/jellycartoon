@@ -87,8 +87,10 @@ import { searchWeb, WEB_TOOL, webSearchTool } from './web-search.ts';
 import {
 	pauseByVoice,
 	plugPauseTool,
+	plugSkipTool,
 	plugsForVoice,
 	plugSwitchTool,
+	skipByVoice,
 	switchByVoice
 } from '#lib/server/plugs/voice.ts';
 import { companionAway, companionOn } from '#lib/server/companion.ts';
@@ -1613,6 +1615,11 @@ async function runTool(
 			if (done) ctx.outcome.done++;
 			return result;
 		}
+		case 'plug_skip': {
+			const { result, done } = await skipByVoice(ctx.k, ctx.plugs, args);
+			if (done) ctx.outcome.done++;
+			return result;
+		}
 		case 'mark_dose': {
 			const me = ctx.k.userId ? await personOf(ctx.k, ctx.k.userId) : null;
 			if (!me) return 'No sé quién habla: la medicación se marca desde su móvil.';
@@ -2624,7 +2631,7 @@ export async function runVoiceCommand(
 		...(kid ? [] : ruleTools(Boolean(satellite))),
 		...(kid || satellite ? [] : [markDoseTool]),
 		...(kid ? [] : [plannedTripsTool]),
-		...(plugs ? [plugSwitchTool, plugPauseTool] : []),
+		...(plugs ? [plugSwitchTool, plugPauseTool, plugSkipTool] : []),
 		...(companion ? [companionAwayTool] : []),
 		...(callable.length ? [callTool(callable), shareLocationTool(callable)] : []),
 		...(k.userId && !satellite && sharing(k.userId) ? [stopSharingTool] : []),

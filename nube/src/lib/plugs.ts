@@ -93,6 +93,9 @@ export interface PlugView {
 	heatUntil: string | null;
 	/** Its own timer (by voice, «media hora»): when it switches back by itself. */
 	timerUntil: string | null;
+	/** Its schedules' «on» skipped (#557) from then until then (ISO); null, none to come. */
+	skipFrom: string | null;
+	skipUntil: string | null;
 	schedules: PlugScheduleView[];
 }
 

@@ -57,6 +57,12 @@ export const plug = pgTable(
 		/** That long heat, on until then; null, none. */
 		heatUntil: timestamp('heat_until'),
 		/**
+		 * «Que no se encienda solo esta tarde» (#557): its schedules' «on» jobs off from `skipFrom` to
+		 * `skipUntil` (their «off» jobs keep running: never left on); null, none. One at a time.
+		 */
+		skipFrom: timestamp('skip_from'),
+		skipUntil: timestamp('skip_until'),
+		/**
 		 * «Con candado»: not switched on or off from Seilide (the card, the voice), nor paused, nor
 		 * given new schedules, against a slip (an office computer, measured only). Its schedules keep
 		 * going: they were set on purpose.

@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { PlugOffline } from '#lib/server/plugs/hub.ts';
+import { kitchenOf } from '#lib/server/fridge.ts';
 import {
 	addSchedule,
 	createPlug,
@@ -16,6 +17,7 @@ import {
 	setLocked,
 	setNotices,
 	setPaused,
+	setSkipIn,
 	switchPlug,
 	updatePlug
 } from '#lib/server/plugs/plugs.ts';
@@ -159,6 +161,12 @@ export const actions: Actions = {
 		const { heats, locked } = await setPaused(locals.user!.id, id, form.get('paused') === 'true');
 		if (locked) return fail(409, { switchProblem: id, problem: LOCKED_PROBLEM });
 		return { pausedId: id, heats };
+	},
+	/** A skip taken off (#557): its schedules switch it on again from now. */
+	unskip: async ({ request, locals }) => {
+		const id = String((await request.formData()).get('id') ?? '');
+		const { locked } = await setSkipIn(await kitchenOf(locals.user!.id), id, null, null);
+		if (locked) return fail(409, { switchProblem: id, problem: LOCKED_PROBLEM });
 	},
 	/** «Con candado» or without (any adult), against switching it off by a slip. */
 	lock: async ({ request, locals }) => {

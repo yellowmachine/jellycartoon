@@ -131,6 +131,7 @@ if (!flags[PINGING]) {
 	setInterval(() => {
 		globals[HUB_KEY]?.checkAlive();
 		endHeats();
+		crossSkips();
 		watcher()?.tick();
 	}, 30_000).unref?.();
 }
@@ -160,6 +161,8 @@ async function readPlugs(tx: AnyDb, withIp: boolean): Promise<PlugView[]> {
 			paused: plug.paused,
 			locked: plug.locked,
 			heatUntil: plug.heatUntil,
+			skipFrom: plug.skipFrom,
+			skipUntil: plug.skipUntil,
 			notifyDone: plug.notifyDone,
 			notifyStopped: plug.notifyStopped,
 			notifyOffline: plug.notifyOffline,
@@ -235,6 +238,9 @@ async function readPlugs(tx: AnyDb, withIp: boolean): Promise<PlugView[]> {
 				aloud: p.notifyAloud
 			},
 			heatUntil: p.heatUntil && p.heatUntil > new Date() ? p.heatUntil.toISOString() : null,
+			...(p.skipFrom && p.skipUntil && p.skipUntil > new Date()
+				? { skipFrom: p.skipFrom.toISOString(), skipUntil: p.skipUntil.toISOString() }
+				: { skipFrom: null, skipUntil: null }),
 			timerUntil:
 				now.online && now.timerUntil && now.timerUntil > Date.now()
 					? new Date(now.timerUntil).toISOString()
@@ -441,6 +447,28 @@ const heatGlobals = globalThis as unknown as Record<
 >;
 const heats = (heatGlobals[HEATS] ??= new Map());
 
+/**
+ * Skips known (#557), by plug: when each starts and ends, and whether it was on at the last look; at
+ * each edge the plug is synced, its «on» jobs off or back. Filled by `syncPlug` (on connecting too).
+ */
+const SKIPS = Symbol.for('seilide.enchufes.saltos');
+const skipGlobals = globalThis as unknown as Record<
+	symbol,
+	Map<string, { familyId: string; from: number; until: number; inside: boolean }>
+>;
+const skips = (skipGlobals[SKIPS] ??= new Map());
+
+function crossSkips() {
+	const now = Date.now();
+	for (const [plugId, s] of skips) {
+		const inside = s.from <= now && now < s.until;
+		if (inside === s.inside && now < s.until) continue;
+		if (now >= s.until) skips.delete(plugId);
+		else s.inside = inside;
+		void syncPlug(s.familyId, plugId).catch(() => {});
+	}
+}
+
 function endHeats() {
 	const now = Date.now();
 	for (const [plugId, heat] of heats)
@@ -479,7 +507,9 @@ export async function syncPlug(familyId: string, plugId: string) {
 					paused: plug.paused,
 					heatUntil: plug.heatUntil,
 					scheduleJobs: plug.scheduleJobs,
-					deviceId: plug.deviceId
+					deviceId: plug.deviceId,
+					skipFrom: plug.skipFrom,
+					skipUntil: plug.skipUntil
 				})
 				.from(plug)
 				.where(eq(plug.id, plugId))
@@ -514,7 +544,19 @@ export async function syncPlug(familyId: string, plugId: string) {
 	}
 	if (row.paused) await hub.call(plugId, 'Switch.Set', { id: SWITCH_ID, on: false });
 
-	const want = jobsFor(schedules, !row.paused && heatLeft <= 0);
+	// A skip (#557): kept to sync again at its edges; inside it, its «on» jobs off.
+	const skipping = Boolean(
+		row.skipFrom && row.skipUntil && row.skipFrom.getTime() <= now && now < row.skipUntil.getTime()
+	);
+	if (row.skipFrom && row.skipUntil && row.skipUntil.getTime() > now)
+		skips.set(plugId, {
+			familyId,
+			from: row.skipFrom.getTime(),
+			until: row.skipUntil.getTime(),
+			inside: skipping
+		});
+	else skips.delete(plugId);
+	const want = jobsFor(schedules, !row.paused && heatLeft <= 0, skipping);
 	const { jobs } = (await hub.call(plugId, 'Schedule.List')) as { jobs: ShellyJob[] };
 	// Only those it made: a reset plug may give their numbers to its own (its updates).
 	const ours = jobs.filter(
@@ -659,6 +701,34 @@ export async function setPausedIn(
 	hub.changed(k.familyId);
 	await trySync(k.familyId, plugId);
 	return { heats: heatUntil !== null };
+}
+
+/**
+ * Its schedules' «on» skipped from `from` to `until` (#557: «que no se encienda solo esta tarde»),
+ * replacing any it had; both null, none (its schedules back now). Not with its padlock, as no new
+ * schedules then. `gone`, not the family's.
+ */
+export async function setSkipIn(
+	k: Pick<Kitchen, 'familyId' | 'run'>,
+	plugId: string,
+	from: Date | null,
+	until: Date | null
+): Promise<{ locked?: true; gone?: true }> {
+	const [p] = await k.run((tx) =>
+		tx.select({ locked: plug.locked }).from(plug).where(eq(plug.id, plugId))
+	);
+	if (!p) return { gone: true };
+	if (p.locked) return { locked: true };
+	await k.run((tx) =>
+		tx
+			.update(plug)
+			.set({ skipFrom: from && until ? from : null, skipUntil: from && until ? until : null })
+			.where(eq(plug.id, plugId))
+	);
+	if (!from || !until) skips.delete(plugId);
+	hub.changed(k.familyId);
+	await trySync(k.familyId, plugId);
+	return {};
 }
 
 /** What is said when the padlock stops something. */

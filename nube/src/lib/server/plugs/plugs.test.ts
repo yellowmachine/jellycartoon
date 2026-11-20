@@ -561,6 +561,162 @@ describe('horarios, pausa y calentamiento', () => {
 		expect(await switchPlug('ana', termo, false)).toBe(true);
 	});
 
+	test('its schedules skipped for a while (#557): only their «on» off, by voice and in Preguntar', async () => {
+		const k = { familyId: 'A', run: (fn: never) => asFamily('A', fn) } as never;
+		const { momentSaid, skipByVoice, skipPlug } = await import('./voice.ts');
+		const { addDays, localDay } = await import('comun/agenda.ts');
+		const { applyPlugSkip, proposePlugSkip } = await import('./pause-card.ts');
+		const plugs = async () => (await plugsForVoice(k))!.plugs;
+		const today = localDay();
+		// It is weekdays from 4:00 to 7:00: the voice sees them, and when it switches on next.
+		const line = (await plugsForVoice(k))!.line;
+		expect(line).toContain('«plug_skip»');
+		expect(line).toMatch(
+			/Termo \(termo\): [^;]*; horarios: L a V, de 4:00 a 7:00; se enciende solo (hoy|mañana|el [^;]+) a las 04:00/
+		);
+
+		// A while going on now (from today's start to three days on: some weekday's 4:00 in it).
+		const p = (await plugs()).find((x) => x.id === termo)!;
+		const going = {
+			from: { day: today, time: '00:00' },
+			to: { day: addDays(today, 3), time: '23:59' }
+		};
+		const done = await skipPlug(k, p, going);
+		expect(done).toMatchObject({
+			done: true,
+			result: expect.stringMatching(
+				/^Termo: no se enciende solo de hoy a las 00:00 a .+; se salta(n)? .+\. Luego vuelven sus horarios\.$/
+			)
+		});
+		await settleLong();
+		expect(ours().map((j) => [j.timespec, j.enable])).toEqual([
+			['0 00 4 * * 1,2,3,4,5', false],
+			['0 00 7 * * 1,2,3,4,5', true]
+		]);
+		const view = (await listPlugs('ana')).find((x) => x.id === termo)!;
+		expect(view.skipFrom).not.toBeNull();
+		expect((await plugsForVoice(k))!.line).toContain('(saltados)');
+		// Not switched off, nor kept from being switched on by hand.
+		expect(await switchPlug('ana', termo, true)).toBe(true);
+		expect(await switchPlug('ana', termo, false)).toBe(true);
+
+		// Back by voice: its jobs on again.
+		expect(await skipByVoice(k, await plugs(), { name: 'termo', cancel: true })).toEqual({
+			done: true,
+			result: 'Termo: vuelven ya sus horarios.'
+		});
+		await settleLong();
+		expect(ours().every((j) => j.enable)).toBe(true);
+		expect(await skipByVoice(k, await plugs(), { name: 'termo', cancel: true })).toMatchObject({
+			done: false
+		});
+
+		// A while with no switch-on in it: nothing done, said.
+		const sunday = (() => {
+			let d = addDays(today, 1);
+			while (new Date(`${d}T12:00:00Z`).getUTCDay() !== 0) d = addDays(d, 1);
+			return d;
+		})();
+		expect(
+			await skipByVoice(k, await plugs(), {
+				name: 'termo',
+				from_day: sunday,
+				from_time: '00:00',
+				to_day: sunday,
+				to_time: '23:59'
+			})
+		).toEqual({
+			done: false,
+			result: 'En ese rato los horarios de Termo no lo encienden: no hace falta nada.'
+		});
+		// Wrong whiles refused.
+		expect(
+			(await skipByVoice(k, await plugs(), { name: 'termo', from_day: today })).result
+		).toContain('Falta');
+		expect(
+			(
+				await skipByVoice(k, await plugs(), {
+					name: 'termo',
+					from_day: today,
+					from_time: '00:00',
+					to_day: addDays(today, 20),
+					to_time: '00:00'
+				})
+			).result
+		).toContain('Como mucho 14 días');
+
+		// One to come (next Monday 3:00 to 8:00): its jobs stay on until then.
+		const monday = (() => {
+			let d = addDays(today, 1);
+			while (new Date(`${d}T12:00:00Z`).getUTCDay() !== 1) d = addDays(d, 1);
+			return d;
+		})();
+		const { card } = await proposePlugSkip(k, {
+			name: 'termo',
+			from_day: monday,
+			from_time: '03:00',
+			to_day: monday,
+			to_time: '08:00'
+		});
+		expect(card).toEqual({
+			kind: 'saltar-horario',
+			plugId: termo,
+			name: 'Termo',
+			from: { day: monday, time: '03:00' },
+			to: { day: monday, time: '08:00' },
+			skipped: `de ${momentSaid({ day: monday, time: '03:00' })} a ${momentSaid({ day: monday, time: '08:00' })}; se salta su encendido de ${momentSaid({ day: monday, time: '04:00' })}`,
+			done: false,
+			result: null
+		});
+		expect((await listPlugs('ana')).find((x) => x.id === termo)!.skipFrom).toBeNull();
+		const applied = await applyPlugSkip(k, card!);
+		expect(applied).toMatchObject({
+			card: { done: true, result: expect.stringContaining('se salta su encendido') }
+		});
+		await settleLong();
+		expect(ours().every((j) => j.enable)).toBe(true);
+		expect((await listPlugs('ana')).find((x) => x.id === termo)!.skipFrom).not.toBeNull();
+		// Its time comes: synced at its edge, its «on» off.
+		await asFamily('A', (tx) =>
+			tx.execute(sql`update plug set skip_from = now() - interval '1 minute' where id = ${termo}`)
+		);
+		await hub.attach(token, ws);
+		await settleLong();
+		expect(ours().map((j) => j.enable)).toEqual([false, true]);
+		// It ends: its jobs back.
+		await asFamily('A', (tx) =>
+			tx.execute(sql`update plug set skip_until = now() - interval '1 minute' where id = ${termo}`)
+		);
+		await hub.attach(token, ws);
+		await settleLong();
+		expect(ours().every((j) => j.enable)).toBe(true);
+		expect((await listPlugs('ana')).find((x) => x.id === termo)!.skipFrom).toBeNull();
+
+		// With its padlock: no card, not done by voice.
+		await setLocked('ana', termo, true);
+		expect(
+			(
+				await proposePlugSkip(k, {
+					name: 'termo',
+					from_day: monday,
+					from_time: '03:00',
+					to_day: monday,
+					to_time: '08:00'
+				})
+			).card
+		).toBeUndefined();
+		expect(
+			await skipByVoice(k, await plugs(), {
+				name: 'termo',
+				from_day: monday,
+				from_time: '03:00',
+				to_day: monday,
+				to_time: '08:00'
+			})
+		).toMatchObject({ done: false, result: expect.stringContaining('candado') });
+		await setLocked('ana', termo, false);
+	});
+
 	test('a schedule removed: its jobs gone from the plug', async () => {
 		const [view] = (await listPlugs('ana')).filter((p) => p.id === termo);
 		await deleteSchedule('ana', termo, view!.schedules[0]!.id);

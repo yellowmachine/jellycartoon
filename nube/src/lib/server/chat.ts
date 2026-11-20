@@ -41,8 +41,13 @@ import {
 	readErrands,
 	savePlan
 } from '#lib/server/encargos.ts';
-import { applyPlugPause, proposePlugPause } from '#lib/server/plugs/pause-card.ts';
-import { pauseLine, PROPOSE_PLUG_PAUSE } from '#lib/plug-pause.ts';
+import {
+	applyPlugPause,
+	applyPlugSkip,
+	proposePlugPause,
+	proposePlugSkip
+} from '#lib/server/plugs/pause-card.ts';
+import { pauseLine, PROPOSE_PLUG_PAUSE, PROPOSE_PLUG_SKIP, skipLine } from '#lib/plug-pause.ts';
 import {
 	changeLine,
 	planLine,
@@ -232,7 +237,7 @@ Cómo escribir:
 - Es un chat en el móvil o en un panel estrecho al lado de la app: párrafos cortos. Sin títulos, negritas ni tablas (no se ven). Para enumerar, líneas que empiecen por «- ».
 - Lo que se puede hacer con un toque va en tarjetas, no en el texto:
   - Si hace falta comprar algo (ingredientes, utensilios para empezar), propónlo con «propose_shopping», en una sola tarjeta, y no repitas la lista en el texto. No propongas lo que ya está en la lista de la compra (abajo) ni lo que la persona ha dicho que tiene; si alguna de esas hace falta, dilo en una frase.
-  - Lo que quiere dejar programado para un día y una hora («mañana a las 9 pon el termo una hora si…, y a las 3 avísame para poner la lavadora»), con «propose_plan», todo en una sola tarjeta: los avisos sin más, en «avisos»; lo que enciende o apaga un enchufe o lleva condición, en «encargos», cada uno en su frase con su día y su hora. Si no está claro el día o la hora, pregunta antes en una frase. Para ver lo programado, «read_errands»; para cambiar el día o la hora de uno o cancelarlo, «propose_errand_change» con su número, en una tarjeta que la persona confirma.
+  - Lo que quiere dejar programado para un día y una hora («mañana a las 9 pon el termo una hora si…, y a las 3 avísame para poner la lavadora»), con «propose_plan», todo en una sola tarjeta: los avisos sin más, en «avisos»; lo que enciende o apaga un enchufe o lleva condición, en «encargos», cada uno en su frase con su día y su hora. Si no está claro el día o la hora, pregunta antes en una frase. Para que un enchufe no se encienda solo un rato («que no se encienda el termo esta tarde»), «propose_plug_skip», no un encargo. Para ver lo programado, «read_errands»; para cambiar el día o la hora de uno o cancelarlo, «propose_errand_change» con su número, en una tarjeta que la persona confirma.
   - Una receta para hacer, con «propose_recipe», entera; no la escribas también en el texto. Ajústala a lo que ha dicho (su molde, su horno, cuántos son). Si está en el recetario (abajo), léela con «read_recipe» antes de hablar de ella.
 - Para enseñar algo que se ve mejor que con palabras: una gráfica de gastos («show_spending_chart») o la propia página de la sección ya filtrada («open_page»), que se abre en grande al lado del chat. Solo cuando ayuda; no las dos para lo mismo.
 - Los datos de la familia (agenda, gastos, notas, lo que recuerda la voz, reglas, viajes) no vienen en este mensaje: léelos con sus herramientas antes de contestar, y cruza varias si la pregunta lo pide. Las cifras y las fechas, solo las que te den las herramientas; si no hay datos, dilo. Di de qué días o meses hablas.
@@ -273,6 +278,7 @@ function cardLine(card: ChatCard) {
 	if (card.kind === 'encargos') return planLine(card);
 	if (card.kind === 'cambio-encargo') return changeLine(card);
 	if (card.kind === 'pausa-enchufe') return pauseLine(card);
+	if (card.kind === 'saltar-horario') return skipLine(card);
 	return `[Tarjeta de receta${card.savedId ? `, guardada en el recetario (receta ${card.savedId})` : ', sin guardar'}:\n${describeRecipe(card.recipe, -1)}]`;
 }
 
@@ -425,6 +431,8 @@ async function runTool(
 			return proposeErrandChange(k, userId, args);
 		case 'propose_plug_pause':
 			return proposePlugPause(k, args);
+		case 'propose_plug_skip':
+			return proposePlugSkip(k, args);
 		case 'read_recipe': {
 			const saved = await getRecipe(k, Number(args.id));
 			if (!saved) return { result: 'Esa receta no está en el recetario.' };
@@ -689,6 +697,7 @@ export async function askChat(
 			READ_ERRANDS,
 			PROPOSE_ERRAND_CHANGE,
 			PROPOSE_PLUG_PAUSE,
+			PROPOSE_PLUG_SKIP,
 			...READ_TOOLS
 		]
 	});
@@ -811,6 +820,24 @@ export async function applyPauseFromCard(
 	const found = await cardOf(k, userId, messageId, index);
 	if (found?.card.kind !== 'pausa-enchufe') return null;
 	const done = await applyPlugPause(k, found.card);
+	if ('problem' in done) return done;
+	found.cards[index] = done.card;
+	await saveCards(k, userId, messageId, found.cards);
+	return done;
+}
+
+/**
+ * «Confirmar» on a skip card (#557): done once. The card, or why not; null if no card.
+ */
+export async function applySkipFromCard(
+	k: Kitchen,
+	userId: string,
+	messageId: number,
+	index: number
+) {
+	const found = await cardOf(k, userId, messageId, index);
+	if (found?.card.kind !== 'saltar-horario') return null;
+	const done = await applyPlugSkip(k, found.card);
 	if ('problem' in done) return done;
 	found.cards[index] = done.card;
 	await saveCards(k, userId, messageId, found.cards);

@@ -2,7 +2,7 @@ import type { Recipe } from 'comun/recipe.ts';
 import type { Block } from '#lib/blocks.ts';
 import type { Cita } from '#lib/cita.ts';
 import type { ErrandChangeCard, PlanCard } from '#lib/encargos.ts';
-import type { PlugPauseCard } from '#lib/plug-pause.ts';
+import type { PlugPauseCard, PlugSkipCard } from '#lib/plug-pause.ts';
 
 /**
  * «Preguntar» (#470): what each answer of the chat brings besides its words, as the page shows
@@ -72,7 +72,8 @@ export type ChatCard =
 	| PlaceCard
 	| PlanCard
 	| ErrandChangeCard
-	| PlugPauseCard;
+	| PlugPauseCard
+	| PlugSkipCard;
 
 export interface ChatMessage {
 	id: number;
