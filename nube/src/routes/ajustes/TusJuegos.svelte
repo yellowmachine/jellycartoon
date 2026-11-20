@@ -104,6 +104,12 @@
 					<button class={primary} disabled={busy}>
 						{busy ? 'Comprobando…' : 'Usar el de Tu música'}
 					</button>
+					<!-- Said here, by the button: under the whole form below, it went unseen. -->
+					{#if problem}
+						<p class="mt-2 text-sm text-red-400">{problem}</p>
+					{:else if ok}
+						<p class="mt-2 text-sm text-emerald-400">{ok}</p>
+					{/if}
 				</form>
 				<p class="mt-4 text-sm text-zinc-400">O en otro sitio:</p>
 			{/if}
@@ -164,10 +170,12 @@
 			</form>
 		{/if}
 
-		{#if problem}
-			<p class="mt-3 text-sm text-red-400">{problem}</p>
-		{:else if ok}
-			<p class="mt-3 text-sm text-emerald-400">{ok}</p>
+		{#if !(data.ownMusic && (!source || editing))}
+			{#if problem}
+				<p class="mt-3 text-sm text-red-400">{problem}</p>
+			{:else if ok}
+				<p class="mt-3 text-sm text-emerald-400">{ok}</p>
+			{/if}
 		{/if}
 	</section>
 {/if}

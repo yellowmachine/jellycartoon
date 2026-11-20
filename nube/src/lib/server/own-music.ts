@@ -122,7 +122,12 @@ export async function testSource(b: Bucket): Promise<{ problem: string } | { can
 		const page = await s3.send(
 			new ListObjectsV2Command({ Bucket: b.bucket, Prefix: b.prefix, MaxKeys: 1000 })
 		);
-		const first = page.Contents?.find((o) => o.Key && audioType(o.Key)) ?? page.Contents?.[0];
+		// A file with something in it: a folder made in the provider's panel is an empty object
+		// (`Juegos/`), and a range of nothing is refused (R2: «invalid range»).
+		const files = (page.Contents ?? []).filter(
+			(o) => o.Key && !o.Key.endsWith('/') && (o.Size ?? 0) > 0
+		);
+		const first = files.find((o) => audioType(o.Key!)) ?? files[0];
 		if (first?.Key)
 			await s3.send(
 				new GetObjectCommand({ Bucket: b.bucket, Key: first.Key, Range: 'bytes=0-15' })
