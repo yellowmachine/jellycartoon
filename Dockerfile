@@ -15,11 +15,11 @@ COPY . .
 RUN DATABASE_URL=postgres://build/build ORIGIN=http://localhost BETTER_AUTH_SECRET=build bun run build
 
 FROM oven/bun:1-slim
-# mpv, snapserver and pulseaudio are only for the optional Snapcast services of compose.prod.yaml,
-# which run this same image with another command; pulseaudio-utils (paplay), for the app to say the
+# mpv, snapserver, snapclient and pulseaudio are only for the optional Snapcast services of
+# compose.prod.yaml, which run this same image with another command; pulseaudio-utils (paplay), for the app to say the
 # satellites' answers there. poppler-utils: a bill's PDF read by its text (#232).
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends ffmpeg mpv snapserver pulseaudio pulseaudio-utils \
+	&& apt-get install -y --no-install-recommends ffmpeg mpv snapserver snapclient pulseaudio pulseaudio-utils \
 	poppler-utils \
 	&& rm -rf /var/lib/apt/lists/*
 WORKDIR /app

@@ -311,6 +311,30 @@ services:
       # Where the app sees it too: the app sends it the files by their path.
       - ${HOST_MUSIC_DIR:-./no-music}:/music:ro
 
+  # Optional, with `snapclient` in COMPOSE_PROFILES (beside `snapcast`): the PC that runs the house
+  # is a Snapcast speaker too, out of its desktop's default output. The same image, so it is always
+  # snapserver's version (Debian's). Into the desktop session's PulseAudio (PipeWire's pulse): its
+  # folder, not the socket, so that it is found again when PipeWire restarts. Without a session (no
+  # one logged in) there is no socket: it fails and restarts until there is.
+  snapclient:
+    image: ghcr.io/yellowmachine/jellycartoon:${IMAGE_TAG:-stable}
+    profiles: [snapclient]
+    restart: unless-stopped
+    user: '${PUID:-1000}:${PGID:-1000}'
+    # The host's network: snapserver on localhost, and the host's name as the client's.
+    network_mode: host
+    labels:
+      - wud.watch=true
+    environment:
+      PULSE_SERVER: unix:/run/host-pulse/native
+    # The image's is the app's, which does not run here.
+    healthcheck:
+      disable: true
+    # Debian's 0.31 takes the server with -h, not as a tcp:// URL (it would look for it by mDNS).
+    command: ['snapclient', '--player', 'pulse', '-h', '127.0.0.1']
+    volumes:
+      - ${HOST_PULSE_DIR:-/run/user/${PUID:-1000}/pulse}:/run/host-pulse
+
   # Optional, with `voz` in COMPOSE_PROFILES and WHISPER_MODEL in the .env: speech to text for voice
   # commands (#33), with whisper.cpp's own server on the GPU (Vulkan, /dev/dri). Only the app
   # reaches it, on the compose network: its README asks not to expose it, as it takes files and

@@ -22,6 +22,12 @@ altavoces que tengan snapclient (una Raspberry, Snapdroid en el móvil…). Con
   `sudo ufw allow from 172.18.0.0/16 to any port 1705 proto tcp`. Si no, el panel 🔈 dice que no
   puede conectar con el control de snapserver.
 - En un PC con PipeWire, el cliente va mejor con su salida por defecto: `snapclient -s default …`.
+- Para que **el propio PC de la casa** sea un altavoz más, sin instalar nada en él:
+  `COMPOSE_PROFILES="snapcast,snapclient"`. El servicio `snapclient` usa la misma imagen (así
+  tiene siempre la versión de snapserver) y suena por la salida por defecto del escritorio, en el
+  PulseAudio de la sesión (el de PipeWire): monta `/run/user/<PUID>/pulse`, u otra carpeta con
+  `HOST_PULSE_DIR`. Sin nadie con la sesión abierta no hay dónde sonar, y se reinicia hasta que la
+  haya. En Música, en ese PC, elige Snapcast y no «Este dispositivo», o se oiría dos veces.
 - `pulseaudio`, que escribe la música en esa FIFO, como en la
   [guía de Snapcast](https://github.com/badaix/snapcast/blob/develop/doc/player_setup.md)
   (`module-pipe-sink`), y mezcla encima lo que dice la casa: sus avisos (más abajo).
