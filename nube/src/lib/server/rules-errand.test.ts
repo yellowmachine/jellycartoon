@@ -71,6 +71,8 @@ mock.module('#lib/server/inbox.ts', () => ({
 	}
 }));
 mock.module('#lib/server/fridge.ts', () => ({
+	// calories.ts's (#562), unused here.
+	dayOf: (d: Date) => d.toISOString().slice(0, 10),
 	houseKitchen: (familyId: string) => kitchen(familyId, null),
 	kitchenOf: async (userId: string) => kitchen('A', userId),
 	fridgeState: async () => ({ notes: [], list: { items: [] } })

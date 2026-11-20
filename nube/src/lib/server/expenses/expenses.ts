@@ -40,6 +40,7 @@ import {
 } from 'comun/expenses.ts';
 import { boughtOf } from './bought.ts';
 import { keepReceipt, removeReceipt } from './receipt.ts';
+import { estimateAfterReceipt } from './calories.ts';
 import { ruleEvent } from '#lib/server/rule-events.ts';
 
 /**
@@ -238,6 +239,8 @@ export async function addExpense(
 		// year brought in at once would set off a rule for each.
 		if (source !== 'fijo' && source !== 'banco')
 			ruleEvent(k, 'compra', input.store, userId, [], boughtOf(id, input));
+		// Its new products' kcal (#562), if the family uses Calorías.
+		if (input.lines.length) void estimateAfterReceipt(k);
 		return id;
 	} catch (err) {
 		await removeReceipt(k, receipt);

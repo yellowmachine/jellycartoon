@@ -6,6 +6,7 @@
 	import AlarmBanner from 'comun/components/AlarmBanner.svelte';
 	import MusicBar from 'comun/components/MusicBar.svelte';
 	import TimerBar from '#lib/components/TimerBar.svelte';
+	import HouseTimers from '#lib/components/HouseTimers.svelte';
 	import VistaIcon, { type VistaIconName } from '#lib/components/VistaIcon.svelte';
 	import VistaRest from '#lib/components/VistaRest.svelte';
 	import VoicePanel from '#lib/components/VoicePanel.svelte';
@@ -106,6 +107,7 @@
 		<div class="flex flex-col gap-2 px-4 has-[>*]:pt-3">
 			<AlarmBanner />
 			<TimerBar />
+			<HouseTimers />
 		</div>
 		<VoicePanel kitchen />
 	</aside>

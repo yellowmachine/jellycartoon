@@ -44,6 +44,8 @@ const notHere = () => {
 	throw new Error('No en esta prueba');
 };
 mock.module('#lib/server/fridge.ts', () => ({
+	// calories.ts's (#562), unused here.
+	dayOf: (d: Date) => d.toISOString().slice(0, 10),
 	houseKitchen: (familyId: string) => ({
 		familyId,
 		userId: null,

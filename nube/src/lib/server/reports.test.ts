@@ -36,6 +36,8 @@ const kitchen = (familyId: string, userId: string): Kitchen => ({
 		})
 });
 mock.module('#lib/server/fridge.ts', () => ({
+	// calories.ts's (#562), unused here.
+	dayOf: (d: Date) => d.toISOString().slice(0, 10),
 	houseKitchen: () => k,
 	today: localDay,
 	toBuy: async () => [],

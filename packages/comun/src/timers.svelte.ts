@@ -196,6 +196,14 @@ export class Timers {
 		return count;
 	}
 
+	/**
+	 * One «din-don» now, if sound is unlocked: for what rings elsewhere and should be heard here too
+	 * (the house's timers in the Vista without satellites, #557).
+	 */
+	chime() {
+		this.#playChime();
+	}
+
 	/** Touched, or the microphone pressed: the ringing ones stop. */
 	silence() {
 		if (!this.ringing.length) return;

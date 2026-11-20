@@ -1,6 +1,6 @@
 <script lang="ts">
 	/**
-	 * Dinero's views (#194): a month's expenses, what came in (#384), the analysis of several, the
+	 * Dinero's views (#194): a month's expenses, what came in (#384), the analysis of several, the kcal bought (#562), the
 	 * bills' supplies (#232), a search by words and dates, the own tags (#459), what the AI costs (#193) and
 	 * each one's bank (#502).
 	 */
@@ -8,13 +8,22 @@
 		current
 	}: {
 		current:
-			'mes' | 'ingresos' | 'analisis' | 'facturas' | 'busqueda' | 'etiquetas' | 'ia' | 'banco';
+			| 'mes'
+			| 'ingresos'
+			| 'analisis'
+			| 'calorias'
+			| 'facturas'
+			| 'busqueda'
+			| 'etiquetas'
+			| 'ia'
+			| 'banco';
 	} = $props();
 
 	const TABS = [
 		{ id: 'mes', href: '/gastos', label: 'Gastos' },
 		{ id: 'ingresos', href: '/gastos/ingresos', label: 'Ingresos' },
 		{ id: 'analisis', href: '/gastos/analisis', label: 'Análisis' },
+		{ id: 'calorias', href: '/gastos/calorias', label: 'Calorías' },
 		{ id: 'facturas', href: '/gastos/facturas', label: 'Facturas' },
 		{ id: 'busqueda', href: '/gastos/busqueda', label: 'Búsqueda' },
 		{ id: 'etiquetas', href: '/gastos/etiquetas', label: 'Etiquetas' },

@@ -55,6 +55,7 @@ import {
 import {
 	cancelTimers,
 	cancelTimersAt,
+	describeHouseTimers,
 	describeAlarms,
 	describeTimersOf,
 	startTimer,
@@ -649,11 +650,16 @@ function tools(house: boolean, rooms: Room[], salon: boolean, clipMinutes: numbe
 		),
 		fn(
 			'cancel_timer',
-			'Quita un temporizador de este dispositivo por su nombre, o todos: en marcha, preparados o el que está sonando.',
+			'Quita un temporizador de este dispositivo por su nombre, o todos: en marcha, preparados o el que está sonando. También uno de los de toda la casa (los que dicen «de toda la casa»), con house_timer.',
 			{
 				label: {
 					type: 'string',
 					description: 'El nombre de la lista de temporizadores; vacío: todos.'
+				},
+				house_timer: {
+					type: 'boolean',
+					description:
+						'true si es uno de los temporizadores «de toda la casa» (el de una regla, uno puesto en casa): se quita en toda la casa.'
 				}
 			},
 			[]
@@ -1389,6 +1395,15 @@ async function runTool(
 		const who = ctx.place ?? `user:${ctx.k.userId}`;
 		const wait = quietCheck(quiet, `${ctx.k.familyId}:${who}`, ctx.order.order, minuteNow());
 		if (wait) return wait;
+	}
+	// One of the whole house's (#557), from anywhere: stopped there, on every satellite too.
+	if (name === 'cancel_timer' && args.house_timer === true) {
+		ctx.outcome.done++;
+		const label = typeof args.label === 'string' && args.label.trim() ? args.label.trim() : null;
+		const count = await cancelTimersAt(ctx.k, 'casa', label);
+		return count
+			? `Quitados de toda la casa: ${count}.`
+			: 'No había ninguno de toda la casa con ese nombre.';
 	}
 	if (ctx.cookHere && TIMER_TOOLS.has(name)) {
 		// Waiting for «ya hierve» is cooking: the kitchen comes on, and its timers with it.
@@ -2481,9 +2496,11 @@ export async function runVoiceCommand(
 			...without,
 			...ONLY_THE_HOUSE.filter((name) => !(cookHere && name === 'prepare_timer'))
 		];
-	const [alarmLines, timerLines] = await Promise.all([
+	const [alarmLines, timerLines, houseTimerLines] = await Promise.all([
 		describeAlarms(k, me),
-		timersOf && !kitchen ? describeTimersOf(k, timersOf) : request.timers
+		timersOf && !kitchen ? describeTimersOf(k, timersOf) : request.timers,
+		// A satellite has them among its own (api/voice/command).
+		satellite ? [] : describeHouseTimers(k)
 	]);
 	const timing: VoiceTiming = { prepareMs: Math.round(performance.now() - started), rounds: [] };
 	const outcome: Outcome = { actions: [], options: [], asked: null, done: 0, usedLearned: [] };
@@ -2572,7 +2589,7 @@ export async function runVoiceCommand(
 					type: 'text',
 					text: satellite
 						? `[Temporizadores y alarmas: ${[...house.timers, ...alarmLines].join('; ') || 'ninguno'}.]`
-						: `[Temporizadores ${timersOf && !kitchen ? 'suyos' : 'aquí'}: ${timerLines.length ? timerLines.join('; ') : 'ninguno'}.] [Alarmas (de la casa y suyas; suenan en toda la casa o en un satélite): ${alarmLines.length ? alarmLines.join('; ') : 'ninguna'}.]`
+						: `[Temporizadores ${timersOf && !kitchen ? 'suyos' : 'aquí'}: ${timerLines.length ? timerLines.join('; ') : 'ninguno'}.]${houseTimerLines.length ? ` [Temporizadores de toda la casa (suenan en los satélites; se quitan con «cancel_timer» y house_timer): ${houseTimerLines.join('; ')}.]` : ''} [Alarmas (de la casa y suyas; suenan en toda la casa o en un satélite): ${alarmLines.length ? alarmLines.join('; ') : 'ninguna'}.]`
 				},
 				...(request.recipe
 					? [{ type: 'text' as const, text: `[Receta en marcha aquí:\n${request.recipe}]` }]

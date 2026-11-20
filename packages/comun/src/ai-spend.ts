@@ -107,6 +107,7 @@ const KINDS: [RegExp, string][] = [
 	[/^Ajustes/, 'Ajustes: preguntar'],
 	[/^Leer un ticket/, 'Tickets'],
 	[/^Leer una factura/, 'Facturas'],
+	[/^Calorías de la compra/, 'Calorías de la compra'],
 	[/^(Pasos de|Receta de)/, 'Recetas'],
 	[/^Infantil/, 'Preguntas de los peques'],
 	[/^Frases para el rótulo/, 'Series: rótulos'],
