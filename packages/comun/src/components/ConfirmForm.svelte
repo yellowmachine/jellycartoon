@@ -3,7 +3,9 @@
 
 	/**
 	 * A button for what cannot be undone: pressed, it says what is lost and asks; only «Sí» sends the
-	 * form to `action`, with `fields`.
+	 * form to `action`, with `fields`. In its place by default; with `below`, the button stays and the
+	 * question takes a line of its own under the row, as wide as it (the row must wrap: `flex-wrap`),
+	 * so a row full of text is not squeezed (Paseos).
 	 */
 	let {
 		action,
@@ -11,6 +13,7 @@
 		label,
 		question,
 		yes = 'Sí, borrar',
+		below = false,
 		class: className = ''
 	}: {
 		action: string;
@@ -19,6 +22,8 @@
 		/** What is lost, in words. */
 		question: string;
 		yes?: string;
+		/** The question on its own line under the row, not in the button's place. */
+		below?: boolean;
 		/** The first button's. */
 		class?: string;
 	} = $props();
@@ -26,11 +31,19 @@
 	let asking = $state(false);
 </script>
 
+{#if asking && below}
+	<button type="button" class="text-sm text-red-400" onclick={() => (asking = false)}
+		>{label}</button
+	>
+{/if}
 {#if asking}
 	<form
 		method="post"
 		{action}
-		class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm"
+		class={[
+			'flex flex-wrap items-center gap-x-3 gap-y-1 text-sm',
+			below && 'order-last basis-full rounded-md bg-red-950/40 px-3 py-2'
+		]}
 		use:enhance={() =>
 			async ({ update }) => {
 				asking = false;

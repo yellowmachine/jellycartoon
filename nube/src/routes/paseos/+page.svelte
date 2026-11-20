@@ -309,7 +309,7 @@
 	<ul class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
 		{#each data.walks as w (w.id)}
 			<li id="paseo-{w.id}" class="p-3">
-				<div class="flex items-center gap-4">
+				<div class="flex flex-wrap items-center gap-x-4 gap-y-2">
 					<button class="min-w-0 flex-1 text-left hover:text-amber-300" onclick={() => open(w.id)}>
 						<span class="block font-medium">
 							{day.format(new Date(w.startedAt))}, {time.format(new Date(w.startedAt))}
@@ -337,6 +337,7 @@
 						fields={{ id: w.id }}
 						label="Borrar"
 						question="¿Borrar este paseo y sus fotos? Sus notas se quedan."
+						below
 						class="text-sm text-zinc-500 hover:text-red-400"
 					/>
 				</div>
