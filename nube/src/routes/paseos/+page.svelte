@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
+	import { openedInUrl } from '#lib/opened-in-url.ts';
 	import GuideLink from '#lib/components/GuideLink.svelte';
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import WalkLock from './WalkLock.svelte';
@@ -91,8 +92,12 @@
 	let photos = $state<{ id: number; lon: number | null; lat: number | null }[]>([]);
 	let notes = $state<Note[]>([]);
 	async function open(id: number) {
-		if (opened === id) return void (opened = null);
+		if (opened === id) {
+			opened = null;
+			return openedInUrl('paseo', null);
+		}
 		opened = id;
+		openedInUrl('paseo', id);
 		line = null;
 		photos = [];
 		notes = [];

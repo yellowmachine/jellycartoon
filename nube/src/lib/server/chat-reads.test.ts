@@ -164,7 +164,17 @@ beforeAll(async () => {
 		details: parseBillDetails({})
 	});
 	// Another family's: never seen.
-	await put('B', '2026-10-03', 'Carrefour', 'Supermercado', 99900);
+	carrefour = await put('B', '2026-10-03', 'Carrefour', 'Supermercado', 99900);
+	mercadonaId = mercadona;
+});
+let mercadonaId = 0;
+let carrefour = 0;
+
+test('one expense open beside Preguntar: all its lines with their amounts; another family’s, none', async () => {
+	const said = await reads.describeExpense(k, mercadonaId);
+	expect(said).toStartWith('el gasto del 2026-09-05 en «Mercadona», 45,20 € (Supermercado)');
+	expect(said).toContain('- Leche: 1,20 € (Otros)\n- Pan: 0,90 € (Otros)');
+	expect(await reads.describeExpense(k, carrefour)).toBeNull();
 });
 
 test('what was spent, month by month and by category, the biggest first; and the total', async () => {

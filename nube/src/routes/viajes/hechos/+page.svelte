@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
+	import { openedInUrl } from '#lib/opened-in-url.ts';
 	import { enhance } from '$app/forms';
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import ViajesTabs from '#lib/components/ViajesTabs.svelte';
@@ -46,8 +47,12 @@
 	let line = $state<StoredPoint[] | null>(null);
 	let photosOfTrip = $state<{ id: number; lon: number | null; lat: number | null }[]>([]);
 	async function open(id: number) {
-		if (opened === id) return void (opened = null);
+		if (opened === id) {
+			opened = null;
+			return openedInUrl('viaje', null);
+		}
 		opened = id;
+		openedInUrl('viaje', id);
 		line = null;
 		const res = await fetch(`/viajes/${id}/recorrido`).catch(() => null);
 		if (opened !== id || !res?.ok) return;
