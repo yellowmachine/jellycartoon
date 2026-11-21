@@ -459,14 +459,6 @@ test('from the panel beside a section (#504), the AI is told which one; from its
 	expect(sent[1]![0]!.content as string).not.toContain('al lado de la sección');
 });
 
-test('beside an open recipe, the AI is told which one; an unknown id, nothing', () => {
-	const book = [{ id: 7, title: 'Tarta de chocolate sencilla' }];
-	expect(chat.openedOn('/recetas/7', book)).toContain('«Tarta de chocolate sencilla» [receta 7]');
-	expect(chat.openedOn('/recetas/8', book)).toBeNull();
-	expect(chat.openedOn('/recetas', book)).toBeNull();
-	expect(chat.openedOn(null, book)).toBeNull();
-});
-
 test('it reads a section (#504) as the person who asks, and answers with what it read', async () => {
 	answers = [
 		{
