@@ -41,11 +41,10 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const question = String(form.get('question') ?? '');
 		// From the panel: the page it is beside, told to the AI by its section's name.
-		const section = sectionOfPath(
-			String(form.get('path') ?? '')
-				.split('?')[0]!
-				.slice(0, 200)
-		);
+		const path = String(form.get('path') ?? '')
+			.split('?')[0]!
+			.slice(0, 200);
+		const section = sectionOfPath(path);
 		const user = locals.user!;
 		try {
 			const k = await kitchenOf(user.id);
@@ -53,7 +52,8 @@ export const actions: Actions = {
 				k,
 				{ id: user.id, name: user.name },
 				question,
-				section && section.path !== '/preguntar' ? section.label : null
+				section && section.path !== '/preguntar' ? section.label : null,
+				path
 			);
 			return { messages };
 		} catch (err) {
