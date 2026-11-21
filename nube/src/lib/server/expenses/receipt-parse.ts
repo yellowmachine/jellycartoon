@@ -2,6 +2,7 @@ import {
 	EXPENSE_CATEGORIES,
 	LINE_TAGS,
 	isCategory,
+	isCurrency,
 	isDay,
 	isTag,
 	linesSum,
@@ -20,6 +21,7 @@ export const RECEIPT_SCHEMA = {
 		store: { type: 'string' },
 		date: { type: 'string' },
 		total: { type: 'number' },
+		currency: { type: 'string' },
 		category: { type: 'string', enum: [...EXPENSE_CATEGORIES] },
 		lines: {
 			type: 'array',
@@ -36,21 +38,24 @@ export const RECEIPT_SCHEMA = {
 			}
 		}
 	},
-	required: ['store', 'date', 'total', 'category', 'lines'],
+	required: ['store', 'date', 'total', 'currency', 'category', 'lines'],
 	additionalProperties: false
 };
 
 const RECEIPT_PROMPT =
 	'Es la foto de un ticket de compra, casi siempre español. Extrae: la tienda (su nombre ' +
-	'comercial, sin «S.A.» ni la dirección), la fecha (YYYY-MM-DD), el total pagado en euros, la ' +
+	'comercial, sin «S.A.» ni la dirección), la fecha (YYYY-MM-DD), el total pagado, la moneda ' +
+	'del ticket (código ISO de tres letras: EUR, USD, GBP…; sin símbolo ni moneda escrita, EUR), la ' +
 	`categoría que mejor le va de estas: ${EXPENSE_CATEGORIES.join(', ')} (Restaurantes es también ` +
 	'bares y cafeterías); y cada línea de producto con su texto tal cual, la cantidad (unidades o ' +
-	'kg), el importe de la línea en euros y qué es, de estas: ' +
+	'kg), el importe de la línea y qué es, de estas: ' +
 	`${LINE_TAGS.join(', ')}. Comida preparada son platos hechos, pizzas, y en un bar o restaurante ` +
 	'los platos, menús, raciones y bocadillos. Alcohol es cerveza, vino y licores con alcohol; la ' +
 	'cerveza sin alcohol o 0,0 y el café son Bebidas. Caprichos son dulces, snacks, helados y ' +
 	'chucherías. Los descuentos, como líneas con importe negativo y Otros. No pongas como líneas el total, el subtotal, el ' +
-	'IVA, la forma de pago ni el cambio. Los números del ticket usan coma decimal: 6,12 es 6.12. Sin ' +
+	'IVA, la forma de pago ni el cambio. Los importes, tal cual en la moneda del ticket, sin ' +
+	'convertirlos. Los números de un ticket español usan coma decimal (6,12 es 6.12); los de uno ' +
+	'de EE. UU. o del Reino Unido, punto decimal y coma de miles (1,234.50 es 1234.50). Sin ' +
 	'líneas que leer (una gasolinera, un restaurante), una sola con lo que fue y el total.';
 
 /**
@@ -63,6 +68,13 @@ export function receiptPrompt(knownStores: string[]) {
 		`${RECEIPT_PROMPT} Tiendas donde ya se ha comprado: ${knownStores.join(', ')}. Si el ticket ` +
 		'es de una de ellas, escribe su nombre exactamente así; si es de otra, el que ponga el ticket.'
 	);
+}
+
+/** The receipt's currency, as the model says it: none or nonsense, euros. */
+export function currencyOf(answer: unknown) {
+	const c = (answer as { currency?: unknown } | null)?.currency;
+	const code = typeof c === 'string' ? c.trim().toUpperCase() : '';
+	return isCurrency(code) ? code : 'EUR';
 }
 
 /** Euros as the model says them, to cents; nonsense, null. */

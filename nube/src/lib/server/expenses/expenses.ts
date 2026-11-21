@@ -118,6 +118,9 @@ function expensesWhere(k: Kitchen, where: SQL | undefined, limit?: number): Prom
 				source: expense.source,
 				receipt: expense.receipt,
 				recurringId: expense.recurringId,
+				currency: expense.currency,
+				originalTotal: expense.originalTotal,
+				rate: expense.rate,
 				by: user.name,
 				bill
 			})
@@ -140,21 +143,25 @@ function expensesWhere(k: Kitchen, where: SQL | undefined, limit?: number): Prom
 					)
 					.orderBy(asc(expenseLine.position))
 			: [];
-		return rows.map(({ receipt, category, bill, recurringId, ...r }) => ({
-			...r,
-			category: isCategory(category) ? category : 'Otros',
-			hasReceipt: Boolean(receipt),
-			fixed: recurringId !== null,
-			bill: bill ? billOf(bill) : null,
-			lines: lines
-				.filter((l) => l.expenseId === r.id)
-				.map((l) => ({
-					text: l.text,
-					quantity: l.quantity,
-					amount: l.amount,
-					tag: isTag(l.tag) ? l.tag : 'Otros'
-				}))
-		}));
+		return rows.map(
+			({ receipt, category, bill, recurringId, currency, originalTotal, rate, ...r }) => ({
+				...r,
+				foreign:
+					currency && originalTotal !== null ? { currency, total: originalTotal, rate } : null,
+				category: isCategory(category) ? category : 'Otros',
+				hasReceipt: Boolean(receipt),
+				fixed: recurringId !== null,
+				bill: bill ? billOf(bill) : null,
+				lines: lines
+					.filter((l) => l.expenseId === r.id)
+					.map((l) => ({
+						text: l.text,
+						quantity: l.quantity,
+						amount: l.amount,
+						tag: isTag(l.tag) ? l.tag : 'Otros'
+					}))
+			})
+		);
 	});
 }
 
@@ -192,6 +199,16 @@ async function writeBill(tx: AnyDb, familyId: string, expenseId: number, b: Bill
 		.onConflictDoUpdate({ target: bill.expenseId, set: b });
 }
 
+/** Its columns: in euros, all null; `foreign` not said, none (left as it is on updating). */
+function foreignColumns(foreign: ExpenseInput['foreign']) {
+	if (foreign === undefined) return {};
+	return {
+		currency: foreign?.currency ?? null,
+		originalTotal: foreign?.total ?? null,
+		rate: foreign?.rate ?? null
+	};
+}
+
 async function writeLines(tx: AnyDb, familyId: string, expenseId: number, input: ExpenseInput) {
 	await tx.delete(expenseLine).where(eq(expenseLine.expenseId, expenseId));
 	if (input.lines.length)
@@ -215,7 +232,7 @@ export async function addExpense(
 	/** Its file's, as chosen (#440): to see it put in again. */
 	fileHash: string | null = null
 ) {
-	const { lines: _, ...values } = input;
+	const { lines: _, foreign, ...values } = input;
 	const receipt = file ? await keepReceipt(k, file) : null;
 	try {
 		const id = await k.run(async (tx) => {
@@ -223,6 +240,7 @@ export async function addExpense(
 				.insert(expense)
 				.values({
 					...values,
+					...foreignColumns(foreign),
 					familyId: k.familyId,
 					source,
 					userId,
@@ -255,11 +273,11 @@ export function updateExpense(
 	input: ExpenseInput,
 	billInput: BillInput | null
 ) {
-	const { lines: _, ...values } = input;
+	const { lines: _, foreign, ...values } = input;
 	return k.run(async (tx) => {
 		const done = await tx
 			.update(expense)
-			.set(values)
+			.set({ ...values, ...foreignColumns(foreign) })
 			.where(eq(expense.id, id))
 			.returning({ id: expense.id });
 		if (!done.length) return false;

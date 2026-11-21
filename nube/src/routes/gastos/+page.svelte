@@ -23,6 +23,7 @@
 		byTag,
 		euros,
 		favoriteOf,
+		foreignText,
 		isFavorite,
 		linesSum,
 		MONTH_NAMES,
@@ -35,6 +36,7 @@
 		type ExpenseDraft,
 		type ExpenseFavorite,
 		type FixedMatch,
+		type ForeignAmount,
 		type LineTag,
 		type RecurringExpense
 	} from 'comun/expenses.ts';
@@ -76,6 +78,8 @@
 		category: ExpenseCategory;
 		total: string;
 		lines: { text: string; quantity: number | null; amount: string; tag: LineTag }[];
+		/** Paid in another currency: the boxes already in euros, what the receipt said kept beside. */
+		foreign: ForeignAmount | null;
 		/** A bill's (#232): its supply, the consumption as written. */
 		bill: {
 			kind: BillKind;
@@ -144,6 +148,7 @@
 			category: 'Supermercado',
 			total: '',
 			lines: [],
+			foreign: null,
 			bill: null
 		};
 	}
@@ -205,6 +210,7 @@
 			category: e.category,
 			total: typed(e.total),
 			lines: e.lines.map((l) => ({ ...l, amount: typed(l.amount) })),
+			foreign: e.foreign,
 			bill: billBoxes(e.bill)
 		};
 		await tick();
@@ -313,6 +319,7 @@
 			category: draft.category,
 			total: draft.total ? typed(draft.total) : '',
 			lines: draft.lines.map((l) => ({ ...l, amount: typed(l.amount) })),
+			foreign: draft.foreign ?? null,
 			bill: billBoxes(draft.bill),
 			fixed: into ? null : draft.fixed
 		};
@@ -419,10 +426,30 @@
 				category: editing.category,
 				total,
 				lines: lines.filter((l) => l.text.trim()).map((l) => ({ ...l, amount: l.amount ?? 0 })),
+				foreign: editing.foreign,
 				bill
 			}
 		};
 	});
+
+	/**
+	 * «Era en euros»: the currency misread, back to the receipt's amounts (the lines, undone by the
+	 * rate, maybe a cent off).
+	 */
+	function inEurosAfterAll() {
+		const f = editing?.foreign;
+		if (!editing || !f) return;
+		const back = (text: string) => {
+			const cents = parseEuros(text);
+			return cents === null || f.rate === null ? text : typed(Math.round(cents / f.rate));
+		};
+		editing = {
+			...editing,
+			total: f.rate === null ? editing.total : typed(f.total),
+			lines: editing.lines.map((l) => ({ ...l, amount: back(l.amount) })),
+			foreign: null
+		};
+	}
 
 	/** The lines that do not add up to the total: something misread, or a discount missing. */
 	const mismatch = $derived.by(() => {
@@ -638,6 +665,26 @@
 				<p class="mb-3 text-xs text-zinc-500">
 					Leído {e.readBy === 'ollama' ? 'en casa (Ollama)' : 'con OpenRouter'}. Corrige lo que haga
 					falta y guarda.
+				</p>
+			{/if}
+			{#if e.foreign}
+				{@const f = e.foreign}
+				<p
+					class="mb-3 rounded-md border p-2 text-sm {f.rate === null
+						? 'border-amber-500/40 bg-amber-950/40 text-amber-200'
+						: 'border-zinc-700 text-zinc-300'}"
+				>
+					{#if f.rate === null}
+						El ticket está en {f.currency} y no se ha podido pasar a euros: las cifras son las del ticket,
+						en {f.currency}. Cámbialas a euros si quieres que sumen bien.
+					{:else}
+						Pagado en {f.currency}: {foreignText(f)}, ya en euros con el cambio del día (1 {f.currency}
+						= {f.rate.toLocaleString('es-ES', { maximumFractionDigits: 4 })} €, del BCE). Tu banco puede
+						cobrar algo distinto.
+					{/if}
+					<button type="button" class="ml-1 underline hover:text-white" onclick={inEurosAfterAll}
+						>Era en euros</button
+					>
 				</p>
 			{/if}
 			<div class="flex flex-col gap-4 sm:flex-row">
@@ -1050,7 +1097,12 @@
 								: ''}</span
 						>
 					</span>
-					<span class="shrink-0 tabular-nums">{euros(e.total)}</span>
+					<span class="shrink-0 text-right tabular-nums"
+						>{euros(e.total)}{#if e.foreign}<span
+								class="block text-xs {e.foreign.rate === null ? 'text-amber-400' : 'text-zinc-500'}"
+								>{foreignText(e.foreign)}</span
+							>{/if}</span
+					>
 				</button>
 				{#if data.repeated[e.id]}
 					{@const twin = data.repeated[e.id]}

@@ -14,6 +14,7 @@ const base: Expense = {
 	hasReceipt: true,
 	bill: null,
 	fixed: false,
+	foreign: null,
 	lines: [
 		{ text: 'Barra picos', quantity: 2, amount: 250, tag: 'Panadería' },
 		{ text: 'Leche', quantity: null, amount: 1000, tag: 'Lácteos y huevos' }
