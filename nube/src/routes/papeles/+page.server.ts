@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { parsePaperInput } from 'comun/papers.ts';
+import { MAX_PAPER_MB, parsePaperInput } from 'comun/papers.ts';
 import { agendaPeople } from '#lib/server/agenda/agenda.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import {
@@ -44,7 +44,7 @@ export const actions: Actions = {
 		const file =
 			sent instanceof File && sent.size ? new Uint8Array(await sent.arrayBuffer()) : null;
 		if (file && file.length > MAX_PAPER_BYTES)
-			return fail(413, { message: 'El fichero pasa de 10 MB' });
+			return fail(413, { message: `El fichero pasa de ${MAX_PAPER_MB} MB` });
 		const id = Number(form.get('id'));
 		if (!id && !file) return fail(400, { message: 'Falta el fichero' });
 		try {

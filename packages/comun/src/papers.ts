@@ -80,6 +80,9 @@ export type EventPaper = Pick<Paper, 'id' | 'name' | 'file'>;
 export const MAX_PAPER_NAME = 120;
 export const MAX_PAPER_NOTES = 5000;
 
+/** What one paper's file can be, in MB: of several sheets, one PDF (#384). */
+export const MAX_PAPER_MB = 15;
+
 /** What a page sends to be saved, only if well formed. */
 export function parsePaperInput(body: unknown): PaperInput | null {
 	if (!body || typeof body !== 'object') return null;
