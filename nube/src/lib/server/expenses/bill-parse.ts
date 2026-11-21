@@ -46,6 +46,7 @@ export const BILL_SCHEMA = {
 		category: { type: 'string', enum: [...EXPENSE_CATEGORIES] },
 		date: { type: 'string' },
 		total: { type: 'number' },
+		currency: { type: 'string' },
 		parts: {
 			type: 'array',
 			items: {
@@ -78,6 +79,7 @@ export const BILL_SCHEMA = {
 		'category',
 		'date',
 		'total',
+		'currency',
 		'parts',
 		'periodStart',
 		'periodEnd',
@@ -105,8 +107,10 @@ export const BILL_PROMPT =
 	'un justificante del banco, la del concepto, no el banco); qué es (Luz, Agua o Gas; si no es ' +
 	`ninguno, ${NOT_SUPPLY}); su categoría de estas: ${EXPENSE_CATEGORIES.join(', ')} (un seguro, ` +
 	'Seguros; un suministro, Facturas); la fecha del ' +
-	'cargo en el banco, o si no la de emisión (YYYY-MM-DD); el total a pagar en euros; y las partes ' +
-	'del desglose que suman ese total, cada una con su importe en euros: en la luz, potencia, energía, ' +
+	'cargo en el banco, o si no la de emisión (YYYY-MM-DD); el total a pagar; la moneda en que se ' +
+	'paga (código ISO de tres letras: EUR, USD, GBP…; la del total a pagar, aunque dé otra cifra ' +
+	'entre paréntesis en euros; sin moneda escrita, EUR); y las partes del desglose que suman ese ' +
+	'total, cada una con su importe: en la luz, potencia, energía, ' +
 	'cuotas, otros costes, impuesto eléctrico, IVA, y los descuentos con importe negativo. Toma los ' +
 	'importes del desglose detallado, no los del resumen de la primera página, que a veces no ' +
 	'coinciden: las partes tienen que sumar el total. No pongas el total como parte. El periodo ' +
@@ -123,8 +127,10 @@ export const BILL_PROMPT =
 	'valle; indexado, el PVPC o una tarifa indexada al mercado, que cambia cada hora); el precio de ' +
 	'la energía de cada periodo en €/kWh sin impuestos, solo si cambia de un periodo a otro ' +
 	'(«P1: 0,21»); y el porcentaje del impuesto eléctrico (5,1127) y del IVA (21) que aplica. Si no es un suministro, del periodo, el consumo y la tarifa solo lo que ' +
-	'diga, y sin desglose, ninguna parte. Lo que no diga: null, o la lista vacía. Los números usan ' +
-	'coma decimal: 8,18 es 8.18. Sin datos personales: ni nombre, ni DNI, ni cuenta, ni dirección.';
+	'diga, y sin desglose, ninguna parte. Lo que no diga: null, o la lista vacía. Los importes, tal ' +
+	'cual en la moneda de la factura, sin convertirlos. Los números de una factura española usan ' +
+	'coma decimal (8,18 es 8.18); los de una de EE. UU. o del Reino Unido, punto decimal y coma de ' +
+	'miles (1,234.50 es 1234.50). Sin datos personales: ni nombre, ni DNI, ni cuenta, ni dirección.';
 
 /**
  * The bill's text without what identifies the house (#232): DNI or NIE, IBAN, CUPS (the supply
