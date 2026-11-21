@@ -3,6 +3,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { music } from 'comun/music-player.svelte.ts';
+	import MediaIcon from 'comun/components/MediaIcon.svelte';
 	import {
 		prayerQueue,
 		STATUS_COLOR,
@@ -127,7 +128,7 @@
 					class="{primary} shrink-0"
 					disabled={!list.items.length}
 					onclick={() => pray(list)}
-					aria-label="Rezar {list.title}">▶</button
+					aria-label="Rezar {list.title}"><MediaIcon name="play" /></button
 				>
 				<span class="min-w-0 flex-1">
 					<span class="block truncate">{list.title}</span>
@@ -141,7 +142,8 @@
 					<form method="post" action="?/house" use:enhance={fromHouse}>
 						<input type="hidden" name="id" value={list.id} />
 						<button class="text-sm text-amber-400 hover:underline" title="Por Snapcast"
-							>▶ En toda la casa</button
+							><MediaIcon name="volume" class="mr-1.5 inline h-4 w-4 align-[-0.15em]" />En toda la
+							casa</button
 						>
 					</form>
 				{/if}
@@ -173,7 +175,7 @@
 					class="{secondary} shrink-0"
 					disabled={!p.audioUrl}
 					onclick={() => listen(p)}
-					aria-label="Escuchar {p.title}">▶</button
+					aria-label="Escuchar {p.title}"><MediaIcon name="play" /></button
 				>
 				<span class="min-w-0 flex-1">
 					<span class="block truncate">{p.title}</span>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { music } from 'comun/music-player.svelte.ts';
+	import MediaIcon from 'comun/components/MediaIcon.svelte';
 	import { secondary } from '#lib/styles.ts';
 
 	/**
@@ -11,7 +12,7 @@
 		voice,
 		tone,
 		text,
-		label = '▶ Probar'
+		label = 'Probar'
 	}: { voice: string; tone: string; text: string; label?: string } = $props();
 
 	let step = $state<'idle' | 'asking' | 'playing'>('idle');
@@ -63,7 +64,10 @@
 
 <span class="inline-flex flex-wrap items-center gap-2">
 	<button type="button" class={secondary} disabled={!text.trim()} onclick={play}
-		>{step === 'asking' ? 'Generando la prueba…' : step === 'playing' ? '■ Parar' : label}</button
+		>{#if step === 'asking'}Generando la prueba…{:else}<MediaIcon
+				name={step === 'playing' ? 'stop' : 'play'}
+				class="mr-1.5 inline h-4 w-4 align-[-0.15em]"
+			/>{step === 'playing' ? 'Parar' : label}{/if}</button
 	>
 	<audio bind:this={audio} onended={stop} hidden></audio>
 	{#if problem}<span class="text-sm text-red-400">{problem}</span>{/if}

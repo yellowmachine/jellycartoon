@@ -1,5 +1,6 @@
 <script lang="ts">
 	import MediaIcon from 'comun/components/MediaIcon.svelte';
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { formatDuration } from 'comun/format.ts';
 	import type { HouseNow } from '#lib/prayers.ts';
 
@@ -68,7 +69,9 @@
 	/>
 	<div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 sm:flex-nowrap sm:gap-3">
 		<div class="order-1 flex min-w-0 flex-1 items-center gap-3">
-			<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-zinc-800">🔊</span
+			<span
+				class="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-zinc-800 text-amber-400"
+				><SectionIcon name="oracion" class="h-6 w-6" /></span
 			>
 			<span class="min-w-0">
 				<span class="block truncate text-sm">{now.title}</span>

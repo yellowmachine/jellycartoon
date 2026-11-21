@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import MediaIcon from 'comun/components/MediaIcon.svelte';
 	import { MAX_ITEMS, MAX_PAUSE, MAX_TIMES, MAX_TITLE } from '#lib/prayers.ts';
 	import { field, primary, secondary, select } from '#lib/styles.ts';
 	import type { PageProps } from './$types';
@@ -86,20 +87,20 @@
 						class="px-1 text-zinc-400 hover:text-zinc-100 disabled:opacity-30"
 						disabled={i === 0}
 						onclick={() => move(i, -1)}
-						aria-label="Subir">↑</button
+						aria-label="Subir"><MediaIcon name="up" class="h-3.5 w-3.5" /></button
 					>
 					<button
 						type="button"
 						class="px-1 text-zinc-400 hover:text-zinc-100 disabled:opacity-30"
 						disabled={i === items.length - 1}
 						onclick={() => move(i, 1)}
-						aria-label="Bajar">↓</button
+						aria-label="Bajar"><MediaIcon name="down" class="h-3.5 w-3.5" /></button
 					>
 					<button
 						type="button"
 						class="px-1 text-zinc-400 hover:text-red-400"
 						onclick={() => items.splice(i, 1)}
-						aria-label="Quitar">✕</button
+						aria-label="Quitar"><MediaIcon name="close" class="h-3.5 w-3.5" /></button
 					>
 				</li>
 			{:else}

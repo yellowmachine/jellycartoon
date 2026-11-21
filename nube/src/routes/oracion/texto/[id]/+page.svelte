@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { music } from 'comun/music-player.svelte.ts';
+	import MediaIcon from 'comun/components/MediaIcon.svelte';
 	import TryVoice from '#lib/components/TryVoice.svelte';
 	import {
 		LONG_TEXT,
@@ -119,7 +120,7 @@
 						voice={chosen.voice}
 						tone={chosen.tone}
 						text={tryPiece(text)}
-						label="▶ Probar las primeras líneas"
+						label="Probar las primeras líneas"
 					/>
 				</div>
 			{/if}
@@ -153,7 +154,9 @@
 				{STATUS_LABEL[p.status]}{#if p.error}: {p.error}{/if}
 			</p>
 			<div class="flex flex-wrap gap-2">
-				<button class={secondary} disabled={!p.audioUrl} onclick={listen}>▶ Escuchar</button>
+				<button class={secondary} disabled={!p.audioUrl} onclick={listen}
+					><MediaIcon name="play" class="mr-1.5 inline h-4 w-4 align-[-0.15em]" />Escuchar</button
+				>>
 				{#if p.status !== 'generando' && !changed}
 					<form method="post" action="?/generate" use:enhance>
 						<button class={secondary}>{p.audioUrl ? 'Regenerar' : 'Generar'}</button>
