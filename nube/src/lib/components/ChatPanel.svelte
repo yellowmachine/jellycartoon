@@ -31,7 +31,7 @@
 
 <aside
 	aria-label="Preguntar"
-	class="fixed inset-y-0 right-0 z-20 hidden w-96 flex-col overflow-y-auto overscroll-contain border-l border-zinc-800 bg-zinc-950 px-4 pt-4 lg:flex"
+	class="fixed inset-y-0 right-0 z-20 hidden w-96 [scrollbar-width:thin] flex-col overflow-y-auto overscroll-contain border-l border-zinc-800 bg-zinc-950 px-4 lg:flex"
 >
 	{#if data}
 		<Chat
@@ -81,12 +81,12 @@
 			{/snippet}
 		</Chat>
 	{:else if problem}
-		<p class="text-sm text-red-400">{problem}</p>
+		<p class="mt-4 text-sm text-red-400">{problem}</p>
 		<button
 			class="mt-2 self-start rounded-md px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
 			onclick={() => void load()}>Probar otra vez</button
 		>
 	{:else}
-		<Caracol modo="reptar" class="mx-auto mt-10 w-12 text-emerald-500" />
+		<Caracol modo="reptar" class="mx-auto mt-14 w-12 text-emerald-500" />
 	{/if}
 </aside>

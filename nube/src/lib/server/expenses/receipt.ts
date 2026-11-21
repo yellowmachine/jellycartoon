@@ -92,8 +92,11 @@ export async function readBill(k: Kitchen, file: Buffer, isPdf: boolean): Promis
 		image: (image as Buffer | null)?.toString('base64') ?? null,
 		...BILL
 	});
-	const draft = billDraftFromAnswer(answer, today());
-	return { ...draft, readBy: 'openrouter' };
+	const { bill, ...draft } = billDraftFromAnswer(answer, today());
+	// In another currency (a service paid in dollars): in euros, with that day's rate.
+	const currency = currencyOf(answer);
+	const rate = currency === 'EUR' ? null : await eurosPerUnit(currency, draft.date);
+	return { ...inEuros(draft, currency, rate), bill, readBy: 'openrouter' };
 }
 
 /** Less than this in a PDF: scanned, with no text to read. */

@@ -92,12 +92,14 @@
 	}
 </script>
 
-<!-- In the panel, as tall as it: the box to write in at its foot, as in any chat. -->
+<!-- In the panel, as tall as it: its title at the top and the box to write in at its foot, as in any chat. -->
 <div class={['flex flex-col', compact && 'flex-1']}>
 	<header
 		class={[
 			'flex flex-wrap items-center gap-2',
-			heading ? 'mb-4 justify-between' : 'mb-2 justify-end'
+			heading ? 'justify-between' : 'justify-end',
+			// In the panel, always at the top: the conversation scrolls under it.
+			compact ? 'sticky top-0 z-10 mb-2 bg-zinc-950 pt-4 pb-2' : heading ? 'mb-4' : 'mb-2'
 		]}
 	>
 		{@render heading?.()}
