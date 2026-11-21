@@ -6,7 +6,9 @@
 	"scripts": {
 		"dev": "bun --bun astro dev",
 		"build": "bun --bun astro build",
-		"preview": "bun --bun astro preview"
+		"preview": "bun --bun astro preview",
+		"codigo": "CODIGO=1 bun --bun astro dev",
+		"codigo:build": "CODIGO=1 bun --bun astro build && bun --bun astro preview"
 	},
 	"dependencies": {
 		"@astrojs/starlight": "^0.42.8",
@@ -14,5 +16,10 @@
 		"sharp": "^0.35.5",
 		"starlight-links-validator": "^0.27.0",
 		"starlight-theme-gruvbox": "2.0.0"
+	},
+	"devDependencies": {
+		"starlight-typedoc": "0.23.3",
+		"typedoc": "0.28.20",
+		"typedoc-plugin-markdown": "^4.14.1"
 	}
 }
