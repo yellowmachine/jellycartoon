@@ -1,11 +1,12 @@
 import { and, eq } from 'drizzle-orm';
 import { addDays, isDay, localDay, mondayOf } from 'comun/agenda.ts';
+import { describeExpense } from '#lib/server/chat-reads.ts';
 import { trip, walk } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 
 /**
  * What the page beside Preguntar's panel has open (#504), so «esta», «aquí» or a bare question is
- * of it: a recipe of the book, a trip or a walk opened, the month of Dinero or the days of Agenda
+ * of it: a recipe of the book, a trip, a walk or an expense (its ticket) opened, the month of Dinero or the days of Agenda
  * it shows. Read from its path and query, as the page itself reads them.
  */
 
@@ -13,6 +14,7 @@ export type Opened =
 	| { kind: 'receta'; id: number }
 	| { kind: 'trayecto'; id: number }
 	| { kind: 'paseo'; id: number }
+	| { kind: 'gasto'; id: number }
 	| { kind: 'mes'; month: string; income: boolean }
 	| { kind: 'dias'; from: string; to: string; month: boolean };
 
@@ -44,6 +46,8 @@ export function openedOf(path: string | null, today: string): Opened | null {
 		const id = idOf(q('paseo'));
 		return id ? { kind: 'paseo', id } : null;
 	}
+	const expense = at === '/gastos' ? idOf(q('gasto')) : null;
+	if (expense) return { kind: 'gasto', id: expense };
 	if (at === '/gastos' || at === '/gastos/ingresos') {
 		const current = today.slice(0, 7);
 		const asked = q('mes');
@@ -120,6 +124,8 @@ export async function describeOpened(
 			if (!one) return null;
 			return `su paseo del ${localDay(one.startedAt)}, de ${km(one.distance)} (lo de ese día, con «read_period»)`;
 		}
+		case 'gasto':
+			return describeExpense(k, opened.id);
 		case 'mes':
 			return `${opened.income ? 'los ingresos' : 'los gastos'} de ${monthName(opened.month)} (${opened.month}): una pregunta sin mes es de ese`;
 		case 'dias':

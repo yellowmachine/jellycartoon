@@ -5,6 +5,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
+	import { openedInUrl } from '#lib/opened-in-url.ts';
 	import {
 		BILL_KINDS,
 		BILL_UNITS,
@@ -105,6 +106,11 @@
 	let ticked = $state<{ id: number; text: string }[]>([]);
 	/** The one open in the list, with its lines: from Búsqueda, `?gasto=`. */
 	let open = $state<number | null>(Number(page.url.searchParams.get('gasto')) || null);
+	// Kept in the address, so Preguntar's panel beside it knows which one is open.
+	$effect(() => {
+		const id = open;
+		untrack(() => openedInUrl('gasto', id));
+	});
 	/**
 	 * The line of the open expense whose own tag (#459) is being chosen: `tag` as the form's select
 	 * has it (an id, `nueva` or empty), `name` a new one's.

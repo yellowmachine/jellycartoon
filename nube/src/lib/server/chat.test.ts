@@ -120,7 +120,8 @@ mock.module('#lib/server/chat-reads.ts', () => ({
 	runRead: async (_k: Kitchen, userId: string, name: string, args: Record<string, unknown>) => {
 		reads.push({ userId, name, args });
 		return '2026-10: 412,30 € (Comida 300,00 €, Casa 112,30 €)';
-	}
+	},
+	describeExpense: async () => null
 }));
 
 // Reports (#505), faked: reports.test.ts tests them; here, the card and what the AI is told.

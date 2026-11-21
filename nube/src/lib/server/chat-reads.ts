@@ -226,6 +226,23 @@ export async function describeExpenses(k: Kitchen, args: Record<string, unknown>
 		.join('\n');
 }
 
+/**
+ * One expense, all of it, as the AI is told of it when it is open beside Preguntar (chat-opened.ts):
+ * its shop, day, total and every line, with its amount. Null if it is not the family's.
+ */
+export async function describeExpense(k: Kitchen, id: number) {
+	const [e] = await searchExpenses(k, { text: '', from: null, to: null }, { ids: [id], limit: 1 });
+	if (!e) return null;
+	const bill = e.bill
+		? `, factura del ${e.bill.periodStart} al ${e.bill.periodEnd}${e.bill.consumption !== null ? `, consumo ${e.bill.consumption} ${e.bill.unit}` : ''}`
+		: '';
+	const lines = e.lines
+		.slice(0, 80)
+		.map((l) => `- ${l.quantity ? `${l.quantity} × ` : ''}${l.text}: ${euros(l.amount)} (${l.tag})`)
+		.join('\n');
+	return `el gasto del ${e.date} en «${e.store}», ${euros(e.total)} (${e.category}${e.fixed ? ', fijo' : ''}${bill}), apuntado por ${e.by ?? 'alguien'}${lines ? `, con estas líneas del ticket:\n${lines}\n` : ', sin líneas'}`;
+}
+
 /** A read, done: what the AI is told. `userId`, whose notes, memories and rules. */
 export async function runRead(
 	k: Kitchen,
