@@ -4,7 +4,7 @@
 	import { onMount } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { version } from '$app/env';
-	import { afterNavigate, goto, pushState } from '$app/navigation';
+	import { afterNavigate, beforeNavigate, goto, pushState } from '$app/navigation';
 	import { navigating, page } from '$app/state';
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import { installApp } from '#lib/install-app.svelte.ts';
@@ -24,7 +24,12 @@
 	import ChatPanel from '#lib/components/ChatPanel.svelte';
 	import { chatPanel } from '#lib/chat-panel.svelte.ts';
 	import { inVista, videoPlaying, vista } from '#lib/vista.svelte.ts';
-	import { shouldGoBack } from '#lib/vista-idle.ts';
+	import { shouldGoBack, shouldUpdateVista } from '#lib/vista-idle.ts';
+	import { appUpdate } from '#lib/app-update.svelte.ts';
+	import { updatesOnNavigation } from '#lib/app-update.ts';
+	import { music } from 'comun/music-player.svelte.ts';
+	import { walkRecorder } from '#lib/walk-recorder.svelte.ts';
+	import { recipe } from '#lib/recipe.svelte.ts';
 	import { wakeWord } from '#lib/wake-word.svelte.ts';
 	import { micMode } from '#lib/mic-mode.svelte.ts';
 	import { voice } from '#lib/voice-client.svelte.ts';
@@ -96,6 +101,48 @@
 			if (goBack) void vista.enter();
 		}, 5000);
 		return () => clearInterval(check);
+	});
+	/**
+	 * A new version of the app (#579), never asked. In the Vista, once it has been untouched and
+	 * quiet a while (vista-idle.ts), loaded again on its home (or the recipe being cooked).
+	 */
+	onMount(() => void appUpdate.watch());
+	$effect(() => {
+		if (!vistaShown) return;
+		const check = setInterval(() => {
+			if (!appUpdate.pending || !appUpdate.mayTry) return;
+			const quiet = shouldUpdateVista({
+				idleMs: Date.now() - vista.touchedAt,
+				videoPlaying: videoPlaying(),
+				voiceBusy: voice.phase !== 'idle' || voice.speaking,
+				ringing: timers.ringing.length > 0,
+				musicPlaying: music.playing
+			});
+			if (quiet)
+				void appUpdate.take(new URL(recipe.current ? '/cocina' : '/vista', location.href).href);
+		}, 30_000);
+		return () => clearInterval(check);
+	});
+	// Anywhere else, on the next page (app-update.ts): a whole load to it, instead of the app's own
+	// change of page, as SvelteKit documents (https://svelte.dev/docs/kit/configuration#version).
+	beforeNavigate(({ from, to, willUnload, cancel }) => {
+		if (willUnload || !to?.url || to.url.origin !== location.origin) return;
+		if (!appUpdate.pending || !appUpdate.mayTry) return;
+		const now = updatesOnNavigation({
+			from: from?.url.pathname ?? '/',
+			to: to.url.pathname,
+			vistaShown,
+			inVista,
+			busy:
+				music.playing ||
+				walkRecorder.recording ||
+				voice.phase !== 'idle' ||
+				voice.speaking ||
+				timers.ringing.length > 0
+		});
+		if (!now) return;
+		cancel();
+		void appUpdate.take(to.url.href);
 	});
 	// Locked (#532): Android's back on the Vista's home or recipe would close the installed app.
 	// One more entry there, put back each time back takes it.

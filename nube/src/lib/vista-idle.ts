@@ -34,6 +34,16 @@ export const shouldRest = (s: IdleState, night = false) =>
 /** Out of the Vista on a «pantalla de casa»: whether it goes back to it now. */
 export const shouldGoBack = (s: IdleState) => !busy(s) && s.idleMs >= BACK_MS;
 
+/** A new version of the app (#579) waiting: in the Vista this long untouched and quiet, taken. */
+export const UPDATE_MS = 10 * 60_000;
+
+/**
+ * In the Vista, with a new version waiting: whether it loads it now. Nothing playing either (the
+ * music, the radio, a podcast), which a load would cut; the timers are kept in the browser.
+ */
+export const shouldUpdateVista = (s: IdleState & { musicPlaying: boolean }) =>
+	!busy(s) && !s.musicPlaying && s.idleMs >= UPDATE_MS;
+
 /** Whether it is night now, by the family's «Horas de silencio» (or DEFAULT_NIGHT). */
 export const isNight = (hours: QuietHours | null, now: Date) =>
 	inQuietHours(hours ?? DEFAULT_NIGHT, now.getHours() * 60 + now.getMinutes());

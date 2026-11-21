@@ -5,7 +5,9 @@ import {
 	REST_MS,
 	REST_NIGHT_MS,
 	shouldGoBack,
-	shouldRest
+	shouldRest,
+	shouldUpdateVista,
+	UPDATE_MS
 } from './vista-idle.ts';
 
 const idle = (idleMs: number) => ({
@@ -42,5 +44,21 @@ describe('Vista (#525): resting and coming back', () => {
 		expect(isNight({ from: '22:00', to: '08:00' }, at(22, 15))).toBe(true);
 		expect(isNight({ from: '22:00', to: '08:00' }, at(7, 30))).toBe(true);
 		expect(isNight({ from: '01:00', to: '06:00' }, at(23, 30))).toBe(false);
+	});
+});
+
+describe('a new version in the Vista (#579)', () => {
+	const quiet = (idleMs: number, more = {}) => ({ ...idle(idleMs), musicPlaying: false, ...more });
+
+	test('untouched long enough and quiet: loaded', () => {
+		expect(shouldUpdateVista(quiet(UPDATE_MS - 1))).toBe(false);
+		expect(shouldUpdateVista(quiet(UPDATE_MS))).toBe(true);
+	});
+
+	test('not while anything plays, listens or rings', () => {
+		expect(shouldUpdateVista(quiet(UPDATE_MS, { musicPlaying: true }))).toBe(false);
+		expect(shouldUpdateVista(quiet(UPDATE_MS, { videoPlaying: true }))).toBe(false);
+		expect(shouldUpdateVista(quiet(UPDATE_MS, { voiceBusy: true }))).toBe(false);
+		expect(shouldUpdateVista(quiet(UPDATE_MS, { ringing: true }))).toBe(false);
 	});
 });

@@ -179,6 +179,14 @@ self.addEventListener('install', (event) => {
 	event.waitUntil(Promise.all([keepCode(), keepPages().catch(() => {})]));
 });
 
+/**
+ * A new version waits until the page says (app-update.svelte.ts, #579): it chooses the moment by
+ * the mode it is in (the Vista quiet, out of the road mode, the next page), and loads itself again.
+ */
+self.addEventListener('message', (event) => {
+	if (event.data?.type === 'skip-waiting') void self.skipWaiting();
+});
+
 self.addEventListener('activate', (event) => {
 	event.waitUntil(
 		(async () => {
