@@ -235,6 +235,31 @@ export interface CaloriesProduct {
 }
 
 /**
+ * Paseos' card: the kcal bought by day and person, the average of the last RECENT_WEEKS whole
+ * weeks, as the page's headline. Null if the family has not used Calorías (no estimate yet) or
+ * nothing of it was food; it does not ask the AI for what is missing.
+ */
+export async function recentCalories(k: Kitchen, today: string): Promise<number | null> {
+	const thisWeek = mondayOf(today);
+	const first = addDays(thisWeek, -7 * RECENT_WEEKS);
+	const [people, { lines, estimates }] = await Promise.all([
+		familyPeople(k),
+		k.run(async (tx) => {
+			const [lines, estimates] = await Promise.all([foodLines(tx, first), estimatesOf(tx)]);
+			return { lines, estimates };
+		})
+	]);
+	if (!estimates.size) return null;
+	let kcal = 0;
+	for (const l of lines) {
+		if (l.date >= thisWeek) continue;
+		const row = estimates.get(lineKey(l.text));
+		if (row) kcal += lineKcal(row, l.quantity);
+	}
+	return kcal > 0 ? kcal / (7 * RECENT_WEEKS) / peopleWeight(people) : null;
+}
+
+/**
  * The page's: the last WEEKS weeks by day and person, beside `userId`'s walks; the average of the
  * last whole ones; kcal by tag and by product; and what is still to estimate.
  */

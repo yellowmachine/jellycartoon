@@ -310,7 +310,25 @@
 			</div>
 		{/each}
 	</section>
+{/if}
 
+{#if data.kcal !== null}
+	<a
+		href="/gastos/calorias"
+		class="mb-8 block rounded-md border border-zinc-800 p-3 hover:border-amber-500/60"
+	>
+		<p class="mb-1 text-sm text-zinc-400">Comida comprada</p>
+		<p class="text-xl font-semibold">
+			{Math.round(data.kcal).toLocaleString('es')} kcal al día por persona
+		</p>
+		<p class="text-sm text-zinc-300">
+			Media de las 4 últimas semanas, por los tickets ·
+			<span class="text-amber-400">Ver en Dinero → Calorías</span>
+		</p>
+	</a>
+{/if}
+
+{#if data.walks.length}
 	<ul class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
 		{#each data.walks as w (w.id)}
 			<li id="paseo-{w.id}" class="p-3">

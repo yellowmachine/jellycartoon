@@ -54,8 +54,14 @@ mock.module('#lib/server/fridge.ts', () => ({
 	houseKitchen: (familyId: string) => kitchenOf(familyId)
 }));
 
-const { caloriesView, correctEstimate, estimateMissing, familyPeople, pendingProducts } =
-	await import('./calories.ts');
+const {
+	caloriesView,
+	correctEstimate,
+	estimateMissing,
+	familyPeople,
+	pendingProducts,
+	recentCalories
+} = await import('./calories.ts');
 
 const person = (id: string) => ({
 	id,
@@ -285,4 +291,13 @@ test('estimated by the AI once; one corrected by hand stays; the view adds it up
 
 	// The other family sees none of it.
 	expect(await kitchenOf('B').run((tx) => tx.select().from(foodEstimate))).toEqual([]);
+});
+
+test("Paseos' card: the last 4 whole weeks; nothing this week or without Calorías", async () => {
+	// The week of the 16th is still going on the 20th: no whole week yet.
+	expect(await recentCalories(kitchenOf('A'), '2026-11-20')).toBeNull();
+	// A week later it is one of the 4 (only the bananas, the bread now not food).
+	expect(await recentCalories(kitchenOf('A'), '2026-11-27')).toBeCloseTo(1350 / 28 / 3.2);
+	// A family that has not used Calorías: no card.
+	expect(await recentCalories(kitchenOf('B'), '2026-11-27')).toBeNull();
 });
