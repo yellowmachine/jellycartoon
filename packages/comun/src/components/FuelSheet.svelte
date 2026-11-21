@@ -1,24 +1,35 @@
+<!--
+@component
+Fuel, from the road mode (#194): stopped at the petrol station, what was paid, big for a
+thumb, or the receipt's photo read here without leaving the road mode. Saved in Gastos, today,
+as «Gasolina»: typed, named after where we are (GPS); read, as the receipt says.
+-->
+<script lang="ts" module>
+	import type { LngLat } from 'comun/road.ts';
+
+	export interface FuelSheetProps {
+		/** Where we are (GPS): a typed amount is named after it. */
+		position: LngLat | null;
+		/** Closed: by hand, or a moment after saving. */
+		onclose: () => void;
+		/**
+		 * Where it reads and saves: each app says its own. At home, through its server to the cloud;
+		 * in the cloud, there.
+		 */
+		urls?: { read: string; save: string };
+	}
+</script>
+
 <script lang="ts">
 	import { page } from '$app/state';
 	import { euros, parseEuros, type ExpenseDraft, type ExpenseLine } from 'comun/expenses.ts';
 	import { smallerPhoto } from 'comun/receipt-photo.ts';
-	import type { LngLat } from 'comun/road.ts';
 
-	/**
-	 * Fuel, from the road mode (#194): stopped at the petrol station, what was paid, big for a
-	 * thumb, or the receipt's photo read here without leaving the road mode. Saved in Gastos, today,
-	 * as «Gasolina»: typed, named after where we are (GPS); read, as the receipt says. Each app says
-	 * where it reads and saves (`urls`): at home, through its server to the cloud; in the cloud, there.
-	 */
 	let {
 		position,
 		onclose,
 		urls = { read: '/api/gastos/leer', save: '/api/gastos/gasolina' }
-	}: {
-		position: LngLat | null;
-		onclose: () => void;
-		urls?: { read: string; save: string };
-	} = $props();
+	}: FuelSheetProps = $props();
 
 	/** As written in the box, «50,30». */
 	let amount = $state('');

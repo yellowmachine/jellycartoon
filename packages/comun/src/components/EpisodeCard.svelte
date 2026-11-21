@@ -1,18 +1,13 @@
-<script lang="ts">
+<!--
+@component
+An episode as its series' page shows it, as a link to watch it: thumbnail with how far it
+was watched, the series and its number, its title and length.
+-->
+<script lang="ts" module>
 	import type { Snippet } from 'svelte';
-	import { formatDuration } from 'comun/format.ts';
-	import { thumbUrl } from 'comun/thumb.svelte.ts';
 
-	/**
-	 * An episode as its series' page shows it, as a link to watch it: thumbnail with how far it
-	 * was watched, the series and its number, its title and length.
-	 */
-
-	let {
-		episode,
-		label,
-		preview
-	}: {
+	export interface EpisodeCardProps {
+		/** The episode, with how far it was watched. */
 		episode: {
 			id: number;
 			seriesTitle: string;
@@ -27,7 +22,14 @@
 		label?: string;
 		/** Over its thumbnail on hover: the house's moving preview (EpisodePreview), where there is one. */
 		preview?: Snippet<[{ id: number; durationSec: number | null }]>;
-	} = $props();
+	}
+</script>
+
+<script lang="ts">
+	import { formatDuration } from 'comun/format.ts';
+	import { thumbUrl } from 'comun/thumb.svelte.ts';
+
+	let { episode, label, preview }: EpisodeCardProps = $props();
 </script>
 
 <a href="/watch/{episode.id}" class="group block rounded-md hover:bg-zinc-900">

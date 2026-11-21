@@ -1,20 +1,29 @@
-<script lang="ts">
-	import { invalidateAll } from '$app/navigation';
-	import ActionMenu from './ActionMenu.svelte';
-	import { menuItem } from './menu.ts';
-
-	interface Props {
+<!--
+@component
+«Añadir a una lista»: a menu with the playlists and «Nueva lista…», for one track or several.
+After adding, the button says for a moment where they went.
+-->
+<script lang="ts" module>
+	export interface AddToPlaylistProps {
 		/** One track (the «+» of its row), or `trackIds`: several, in that order (a whole album). */
 		trackId?: number;
+		/** Several tracks, in that order (a whole album), instead of `trackId`. */
 		trackIds?: number[];
 		/** Unique on the page, with the track: the same track can be shown twice. */
 		key: string;
+		/** The lists offered in the menu. */
 		playlists: { id: number; name: string }[];
 		/** A button with this text, instead of the «+»: for several, next to «Añadir a la cola». */
 		text?: string;
 		/** Where they are added: the house's lists, or Seilide's «Tu música» ones (#534). */
 		endpoint?: string;
 	}
+</script>
+
+<script lang="ts">
+	import { invalidateAll } from '$app/navigation';
+	import ActionMenu from './ActionMenu.svelte';
+	import { menuItem } from './menu.ts';
 
 	let {
 		trackId,
@@ -23,7 +32,7 @@
 		playlists,
 		text,
 		endpoint = '/api/music/playlists'
-	}: Props = $props();
+	}: AddToPlaylistProps = $props();
 
 	/** Shown on the button for a moment after adding: where they went. */
 	let added = $state<string | null>(null);

@@ -1,3 +1,30 @@
+<!--
+@component
+A TV channel, live, in this browser: its own audios (the original version) and subtitles, as the
+stream brings them, with the user's subtitle style. In both apps (#253); what only the house
+does, it lends through `here` and `report`.
+-->
+<script lang="ts" module>
+	import type { SubtitleStyle } from 'comun/subtitle-style.ts';
+
+	export interface LivePlayerProps {
+		/** The channel's HLS stream. */
+		url: string;
+		/** The user's subtitle style. */
+		subtitleStyle: SubtitleStyle;
+		/**
+		 * It plays in this element: what stops that, back. Lent by the house: the microphone and the
+		 * kitchen knowing it plays.
+		 */
+		here?: (element: HTMLVideoElement) => () => void;
+		/**
+		 * Where it is, playing; called every EVERY_MS. Lent by the house: a child's time (#18), and
+		 * what is watched.
+		 */
+		report?: (positionSec: number) => Promise<void>;
+	}
+</script>
+
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import type Hls from 'hls.js';
@@ -5,28 +32,9 @@
 	import '@fontsource/comic-neue/400.css';
 	import { recoverFromErrors } from 'comun/hls-recovery.ts';
 	import { BROADCAST_TRACKS, languageLabel } from 'comun/languages.ts';
-	import { placeCues, subtitleCss, type SubtitleStyle } from 'comun/subtitle-style.ts';
+	import { placeCues, subtitleCss } from 'comun/subtitle-style.ts';
 
-	/**
-	 * A TV channel, live, in this browser: its own audios (the original version) and subtitles, as the
-	 * stream brings them, with the user's subtitle style. In both apps (#253); what only the house
-	 * does, it lends: `here`, the microphone and the kitchen knowing it plays; `report`, where it is
-	 * every few seconds (a child's time, #18, and what is watched).
-	 */
-
-	let {
-		url,
-		subtitleStyle,
-		here,
-		report
-	}: {
-		url: string;
-		subtitleStyle: SubtitleStyle;
-		/** It plays in this element: what stops that, back. */
-		here?: (element: HTMLVideoElement) => () => void;
-		/** Where it is, playing; called every EVERY_MS. */
-		report?: (positionSec: number) => Promise<void>;
-	} = $props();
+	let { url, subtitleStyle, here, report }: LivePlayerProps = $props();
 
 	/** As often as the episodes' player saves: a child's time is counted from these. */
 	const EVERY_MS = 10_000;

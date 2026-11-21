@@ -1,9 +1,19 @@
+<!--
+@component
+The arrow of a route's step (#78), by openrouteservice's maneuver type: a straight arrow
+turned as the maneuver turns; a roundabout and the arrival, their own.
+-->
+<script lang="ts" module>
+	export interface ManeuverIconProps {
+		/** openrouteservice's maneuver type (0 left, 1 right… 7 and 8 roundabout, 10 arrival). */
+		type: number;
+		/** Classes for the icon (its size by default). */
+		class?: string;
+	}
+</script>
+
 <script lang="ts">
-	/**
-	 * The arrow of a route's step (#78), by openrouteservice's maneuver type: a straight arrow
-	 * turned as the maneuver turns; a roundabout and the arrival, their own.
-	 */
-	let { type, class: className = 'h-16 w-16' }: { type: number; class?: string } = $props();
+	let { type, class: className = 'h-16 w-16' }: ManeuverIconProps = $props();
 
 	// 0 left, 1 right, 2 sharp left, 3 sharp right, 4 slight left, 5 slight right, 6 straight on,
 	// 9 U-turn, 11 setting off, 12 keep left, 13 keep right.

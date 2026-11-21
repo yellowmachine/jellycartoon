@@ -1,19 +1,24 @@
-<script lang="ts">
-	/** The bin on a saved game's card (the TV view and the browser's): it goes at once, unasked. */
-	let {
-		saveId,
-		label,
-		ondeleted,
-		onfailed,
-		class: className
-	}: {
+<!--
+@component
+The bin on a saved game's card (the TV view and the browser's): it goes at once, unasked.
+-->
+<script lang="ts" module>
+	export interface SaveDeleteButtonProps {
+		/** The saved game to delete. */
 		saveId: number;
 		/** Which one, for screen readers: all the cards have the same bin. */
 		label: string;
+		/** Called once the server has deleted it. */
 		ondeleted: () => void;
+		/** Called when it could not be deleted. */
 		onfailed: () => void;
+		/** Classes for the button (e.g. its size). */
 		class?: string;
-	} = $props();
+	}
+</script>
+
+<script lang="ts">
+	let { saveId, label, ondeleted, onfailed, class: className }: SaveDeleteButtonProps = $props();
 
 	/** Not `disabled`: that would take the focus away from the remote while it is asked. */
 	let busy = false;

@@ -1,3 +1,17 @@
+<!--
+@component
+Behind the Música pages: an aurora with the colours of the cover of what is playing, here or
+on Snapcast; with nothing on, the album being looked at. It drifts only while music plays.
+Or, in the «Portada» style, that cover itself, from the top left corner fading to the bottom
+right, where the text goes (also a podcast's image, which the aurora cannot read: CORS).
+-->
+<script lang="ts" module>
+	export interface MusicBackgroundProps {
+		/** The house has Snapcast: what plays there colours it too. */
+		snapcast: boolean;
+	}
+</script>
+
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { fade } from 'svelte/transition';
@@ -14,13 +28,7 @@
 	import { music } from 'comun/music-player.svelte.ts';
 	import { watchSnapcast } from 'comun/music-target.svelte.ts';
 
-	/**
-	 * Behind the Música pages: an aurora with the colours of the cover of what is playing, here or
-	 * on Snapcast; with nothing on, the album being looked at. It drifts only while music plays.
-	 * Or, in the «Portada» style, that cover itself, from the top left corner fading to the bottom
-	 * right, where the text goes (also a podcast's image, which the aurora cannot read: CORS).
-	 */
-	let { snapcast }: { snapcast: boolean } = $props();
+	let { snapcast }: MusicBackgroundProps = $props();
 	// svelte-ignore state_referenced_locally
 	const snap = snapcast ? watchSnapcast() : null;
 

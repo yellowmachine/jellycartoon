@@ -1,3 +1,25 @@
+<!--
+@component
+Modo DJ (#117): which artists (none, the whole library) or one playlist (opened from it, mixed
+or in order), the DJ's language and how often it speaks; then it starts where the music sounds
+(this browser or Snapcast). A setup can be saved with a name, to start it again from the menu.
+-->
+<script lang="ts" module>
+	import type { MusicArtist } from 'comun/music.ts';
+
+	export interface DjDialogProps {
+		/** The artists to choose from. */
+		artists: MusicArtist[];
+		/** Whether the DJ's voice (man or woman) can be chosen. */
+		voices: boolean;
+		/**
+		 * The house's: its whole library to choose from, and setups saved there. Without it (a list
+		 * of Seilide's «Tu música», #534), only that list, and nothing saved.
+		 */
+		library?: boolean;
+	}
+</script>
+
 <script lang="ts">
 	import { enhance, type SubmitFunction } from '$app/forms';
 	import { dj } from 'comun/dj.svelte.ts';
@@ -7,29 +29,11 @@
 		fold,
 		type DjOptions,
 		type DjPlaylist,
-		type DjPreset,
-		type MusicArtist
+		type DjPreset
 	} from 'comun/music.ts';
 	import { musicTarget } from 'comun/music-target.svelte.ts';
 
-	/**
-	 * Modo DJ (#117): which artists (none, the whole library) or one playlist (opened from it, mixed
-	 * or in order), the DJ's language and how often it speaks; then it starts where the music sounds
-	 * (this browser or Snapcast). A setup can be saved with a name, to start it again from the menu.
-	 */
-	let {
-		artists,
-		voices,
-		library = true
-	}: {
-		artists: MusicArtist[];
-		voices: boolean;
-		/**
-		 * The house's: its whole library to choose from, and setups saved there. Without it (a list
-		 * of Seilide's «Tu música», #534), only that list, and nothing saved.
-		 */
-		library?: boolean;
-	} = $props();
+	let { artists, voices, library = true }: DjDialogProps = $props();
 
 	let dialog = $state<HTMLDialogElement>();
 	let chosen = $state<string[]>([]);

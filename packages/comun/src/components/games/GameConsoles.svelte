@@ -1,9 +1,20 @@
-<script lang="ts">
-	import SectionIcon from 'comun/components/SectionIcon.svelte';
+<!--
+@component
+The consoles with games, to play in the browser (#405), in the house and in Seilide.
+-->
+<script lang="ts" module>
 	import type { ConsoleCard } from 'comun/games.ts';
 
-	/** The consoles with games, to play in the browser (#405), in the house and in Seilide. */
-	let { systems }: { systems: ConsoleCard[] } = $props();
+	export interface GameConsolesProps {
+		/** Each console with its name, how many games and some of their pictures. */
+		systems: ConsoleCard[];
+	}
+</script>
+
+<script lang="ts">
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
+
+	let { systems }: GameConsolesProps = $props();
 	const plural = (n: number) => `${n} ${n === 1 ? 'juego' : 'juegos'}`;
 </script>
 

@@ -1,3 +1,23 @@
+<!--
+@component
+The fridge's door (#131): the house's post-its, crooked, in each person's colour and in a hand's
+letter, with a magnet; the shopping list, on squared paper, with its items to tick off; and the
+agenda's «Hoy» (#200), a calendar's sheet only to look at. To write on it, or only to look at
+it (the TV, `big`).
+-->
+<script lang="ts" module>
+	import type { FridgeState } from 'comun/fridge.ts';
+
+	export interface FridgeBoardProps {
+		/** The post-its, the shopping list and today's agenda. */
+		fridge: FridgeState;
+		/** Only to look at: no forms nor editing, and the list without what was bought. */
+		readonly?: boolean;
+		/** Bigger, for the TV. */
+		big?: boolean;
+	}
+</script>
+
 <script lang="ts">
 	import '@fontsource/comic-neue/400.css';
 	import '@fontsource/comic-neue/700.css';
@@ -8,22 +28,11 @@
 		PAPERS,
 		tiltFor,
 		untilChoices,
-		untilText,
-		type FridgeState
+		untilText
 	} from 'comun/fridge.ts';
 	import { dayEvents, dayName, isOver, localTime, timeOn } from 'comun/agenda.ts';
 
-	/**
-	 * The fridge's door (#131): the house's post-its, crooked, in each person's colour and in a hand's
-	 * letter, with a magnet; the shopping list, on squared paper, with its items to tick off; and the
-	 * agenda's «Hoy» (#200), a calendar's sheet only to look at. To write on it, or only to look at
-	 * it (the TV, `big`).
-	 */
-	let {
-		fridge,
-		readonly = false,
-		big = false
-	}: { fridge: FridgeState; readonly?: boolean; big?: boolean } = $props();
+	let { fridge, readonly = false, big = false }: FridgeBoardProps = $props();
 
 	let problem = $state<string | null>(null);
 

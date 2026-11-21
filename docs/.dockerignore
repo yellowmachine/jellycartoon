@@ -6,3 +6,4 @@ Dockerfile
 compose.prod.yaml
 # «Código», generated only in local (bun run codigo)
 src/content/docs/codigo
+.componentes

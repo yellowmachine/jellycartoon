@@ -22,6 +22,7 @@ if (!codigo)
 const [casaCodigo, casaCodigoGrupo] = createStarlightTypeDocPlugin();
 const [comunCodigo, comunCodigoGrupo] = createStarlightTypeDocPlugin();
 const [nubeCodigo, nubeCodigoGrupo] = createStarlightTypeDocPlugin();
+const [componentesCodigo, componentesCodigoGrupo] = createStarlightTypeDocPlugin();
 const typeDoc = {
 	entryPointStrategy: 'expand',
 	exclude: ['**/*.test.ts', '**/*.spec.ts', '**/node_modules/**'],
@@ -55,6 +56,15 @@ const codigoPlugins = codigo
 				tsconfig: '../nube/tsconfig.json',
 				output: 'codigo/seilide',
 				sidebar: { label: 'Seilide (nube/src/lib)', collapsed: true },
+				typeDoc
+			}),
+			// The Svelte components, from the .d.ts that scripts/componentes.mjs writes (TypeDoc does not
+			// read .svelte): each one's `<!-- @component -->` and its exported `XxxProps`.
+			componentesCodigo({
+				entryPoints: ['.componentes/comun/components'],
+				tsconfig: 'tsconfig.componentes.json',
+				output: 'codigo/componentes',
+				sidebar: { label: 'Componentes (packages/comun)', collapsed: true },
 				typeDoc
 			})
 		]
@@ -135,7 +145,12 @@ export default defineConfig({
 				{ label: 'Seilide, la nube', items: pages('tecnica/seilide', seilide) },
 				{ label: 'Satélite de voz', items: ['tecnica/satelite'] },
 				...(codigo
-					? [{ label: 'Código', items: [casaCodigoGrupo, comunCodigoGrupo, nubeCodigoGrupo] }]
+					? [
+							{
+								label: 'Código',
+								items: [casaCodigoGrupo, comunCodigoGrupo, nubeCodigoGrupo, componentesCodigoGrupo]
+							}
+						]
 					: [])
 			]
 		})

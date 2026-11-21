@@ -1,13 +1,24 @@
-<script lang="ts">
+<!--
+@component
+«✓ Guardado» y parecidos: un momento después de cada envío, y se va. Con cada envío vuelve a
+salir (un `form` nuevo), así que al guardar otra vez se ve que se ha guardado.
+-->
+<script lang="ts" module>
 	import type { Snippet } from 'svelte';
+
+	export interface GuardadoProps {
+		/** What is shown (e.g. «✓ Guardado»). */
+		children: Snippet;
+		/** Classes for the text. */
+		class?: string;
+	}
+</script>
+
+<script lang="ts">
 	import { fade } from 'svelte/transition';
 	import { page } from '$app/state';
 
-	/**
-	 * «✓ Guardado» y parecidos: un momento después de cada envío, y se va. Con cada envío vuelve a
-	 * salir (un `form` nuevo), así que al guardar otra vez se ve que se ha guardado.
-	 */
-	let { children, class: classes = '' }: { children: Snippet; class?: string } = $props();
+	let { children, class: classes = '' }: GuardadoProps = $props();
 
 	const SHOWN_MS = 2500;
 	let visible = $state(false);

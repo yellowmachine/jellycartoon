@@ -1,27 +1,41 @@
+<!--
+@component
+«Buscar en Ajustes», above its tabs, in the house and in the cloud (#253): a word, and the
+sections that have it in any tab (each app's `index`); one chosen, its tab opens on it, lit for
+a moment.
+-->
+<script lang="ts" module>
+	import type { SettingsEntry } from '../settings-search.ts';
+
+	export interface SettingsSearchProps<Tab extends string, Shown> {
+		/** The app's sections of Ajustes that can be found. */
+		index: SettingsEntry<Tab, Shown>[];
+		/** Each tab's name, shown before a section found in it. */
+		labels: Record<Tab, string>;
+		/** The page's data, for the sections only shown by it (their `shown`). */
+		shown: Shown;
+		/** The field's placeholder. */
+		placeholder?: string;
+		/**
+		 * An app's endpoint (Seilide's): «Preguntar a la IA» for what the words do not find: what was
+		 * written, and back the sections that do it and why.
+		 */
+		ask?: string;
+	}
+</script>
+
 <script lang="ts" generics="Tab extends string, Shown">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { searchSettings, type SettingsEntry } from '../settings-search.ts';
+	import { searchSettings } from '../settings-search.ts';
 
-	/**
-	 * «Buscar en Ajustes», above its tabs, in the house and in the cloud (#253): a word, and the
-	 * sections that have it in any tab (each app's `index`); one chosen, its tab opens on it, lit for
-	 * a moment. With `ask` (an app's endpoint, Seilide's), «Preguntar a la IA» for what the words do
-	 * not find: what was written, and back the sections that do it and why.
-	 */
 	let {
 		index,
 		labels,
 		shown,
 		placeholder = 'Buscar en Ajustes: subtítulos, niños, clave…',
 		ask
-	}: {
-		index: SettingsEntry<Tab, Shown>[];
-		labels: Record<Tab, string>;
-		shown: Shown;
-		placeholder?: string;
-		ask?: string;
-	} = $props();
+	}: SettingsSearchProps<Tab, Shown> = $props();
 
 	/** Frames to wait, at most, for the layout to measure its bar. */
 	const MEASURE_FRAMES = 30;

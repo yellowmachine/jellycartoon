@@ -1,3 +1,9 @@
+<!--
+@component
+An episode in this browser, in both apps (#253): hls.js in our own <video> under Media Chrome's
+controls, its audios and subtitles with the user's style, the ⚙ menu, and where it is and the
+choices saved through `links`.
+-->
 <script lang="ts" module>
 	import { onMount, tick, untrack, type Snippet } from 'svelte';
 	import type Hls from 'hls.js';
@@ -56,22 +62,26 @@
 		/** Its audio goes on elsewhere: the video stops here, and saves nothing more. */
 		handOver: () => void;
 	}
-</script>
 
-<script lang="ts">
-	interface Props {
+	export interface PlayerProps {
+		/** The episode that plays: where it is is saved by it. */
 		episodeId: number;
 		/** «Friends · T1 E2 · El de la boda»: what plays, for the kitchen panel. */
 		title: string;
+		/** Where to start, in seconds (from 5 s on; before that, from the beginning). */
 		startAt?: number | null;
+		/** Its audio tracks, in the order of the HLS. */
 		audioTracks: AudioTrack[];
+		/** Its subtitle files. */
 		subtitles: SubtitleTrack[];
+		/** The user's saved choices; changed here, they are saved through `links`. */
 		settings: {
 			audioLang: string | null;
 			subtitleLang: string | null;
 			subtitleStyle: SubtitleStyle;
 			autoNext: boolean;
 		};
+		/** Starts playing as soon as it can. */
 		autoplay?: boolean;
 		/**
 		 * Called after the final position has been saved, with whether the next episode should
@@ -82,13 +92,15 @@
 		onautonextchange?: (autoNext: boolean) => void;
 		/** Over the video while it is given, e.g. the next episode with a countdown. */
 		overlay?: Snippet;
+		/** Where this app has the episode, and how it saves. */
 		links: PlayerLinks;
 		/** It plays in this element (the house's microphone and kitchen): what stops that, back. */
 		here?: (element: HTMLVideoElement, handOver: () => void) => () => void;
 		/** Its pieces refused (403): out of a child's time at home (#18). */
 		onrefused?: () => void;
-		/** In the ⚙ menu, what only one app has: after the subtitles, and last (folded each). */
+		/** In the ⚙ menu, what only one app has: after the subtitles (folded). */
 		menuTop?: Snippet<[PlayerMenu]>;
+		/** In the ⚙ menu, what only one app has: last (folded). */
 		menuBottom?: Snippet<[PlayerMenu]>;
 		/** In a part of the screen (Seilide's kitchen, #483): never wider than it, whatever the size. */
 		contained?: boolean;
@@ -101,7 +113,9 @@
 		/** The question asked, answered, or stopped for nobody answering. */
 		onstillthere?: (state: 'asking' | 'answered' | 'stopped') => void;
 	}
+</script>
 
+<script lang="ts">
 	let {
 		episodeId,
 		title,
@@ -121,7 +135,7 @@
 		contained = false,
 		askAfter,
 		onstillthere
-	}: Props = $props();
+	}: PlayerProps = $props();
 
 	/**
 	 * «¿Sigues ahí?» (#77): decided once per episode, as it opens (the page stays the same from one

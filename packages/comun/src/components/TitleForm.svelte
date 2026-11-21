@@ -1,9 +1,13 @@
-<script lang="ts">
-	import { enhance } from '$app/forms';
-
-	interface Props {
+<!--
+@component
+A title edited in place: a field with «Guardar» and «Cancelar» that posts it as `title` to a
+form action, then closes. Esc closes it too.
+-->
+<script lang="ts" module>
+	export interface TitleFormProps {
 		/** Form action, e.g. `?/renameSeries`. */
 		action: string;
+		/** The title it starts with, selected. */
 		value: string;
 		/** Shown when the field is empty; also what an empty field goes back to, if anything. */
 		placeholder?: string;
@@ -11,10 +15,22 @@
 		hidden?: Record<string, string | number>;
 		/** For screen readers: what is being changed. */
 		label?: string;
+		/** Called after saving, on «Cancelar» and on Esc. */
 		onclose: () => void;
 	}
+</script>
 
-	let { action, value, placeholder, hidden = {}, label = 'Título', onclose }: Props = $props();
+<script lang="ts">
+	import { enhance } from '$app/forms';
+
+	let {
+		action,
+		value,
+		placeholder,
+		hidden = {},
+		label = 'Título',
+		onclose
+	}: TitleFormProps = $props();
 
 	let input = $state<HTMLInputElement>();
 	$effect(() => input?.select());

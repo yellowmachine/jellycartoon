@@ -1,27 +1,18 @@
-<script lang="ts">
-	import 'maplibre-gl/dist/maplibre-gl.css';
-	import { untrack, type Snippet } from 'svelte';
-	import type { GeoJSONSource, Map as MapLibreMap, Marker } from 'maplibre-gl';
-	import { loadOurMap } from 'comun/our-map.ts';
+<!--
+@component
+The road mode's map (#78, phase 3a): Spain's map served by the app itself (DATA_DIR/mapa, see
+scripts/mapa.sh) with MapLibre (https://maplibre.org), and where we are, from the browser's
+GPS, the map following it and turning with the way we go. Dragging it stops following until
+«Recentrar».
+-->
+<script lang="ts" module>
+	import type { Snippet } from 'svelte';
 	import type { LngLat, Route } from 'comun/road.ts';
 
-	/**
-	 * The road mode's map (#78, phase 3a): Spain's map served by the app itself (DATA_DIR/mapa, see
-	 * scripts/mapa.sh) with MapLibre (https://maplibre.org), and where we are, from the browser's
-	 * GPS, the map following it and turning with the way we go. Dragging it stops following until
-	 * «Recentrar».
-	 */
-
-	let {
-		route = null,
-		destination = null,
-		stops = [],
-		onposition,
-		light = true,
-		corner
-	}: {
+	export interface RoadMapProps {
 		/** Drawn, and the map fitted to it when it is new (phase 3b). */
 		route?: Route | null;
+		/** Where the route goes: a flag on the map. */
 		destination?: LngLat | null;
 		/** The stops on the way still ahead (#312), in order: each with its number on the map. */
 		stops?: { name: string; at: LngLat }[];
@@ -31,7 +22,23 @@
 		light?: boolean;
 		/** Bottom left, over the map: the road mode's day/night button. */
 		corner?: Snippet;
-	} = $props();
+	}
+</script>
+
+<script lang="ts">
+	import 'maplibre-gl/dist/maplibre-gl.css';
+	import { untrack } from 'svelte';
+	import type { GeoJSONSource, Map as MapLibreMap, Marker } from 'maplibre-gl';
+	import { loadOurMap } from 'comun/our-map.ts';
+
+	let {
+		route = null,
+		destination = null,
+		stops = [],
+		onposition,
+		light = true,
+		corner
+	}: RoadMapProps = $props();
 
 	/** Moving faster than this (m/s, ~11 km/h), the heading is the way we go; slower, it jumps. */
 	const HEADING_SPEED = 3;

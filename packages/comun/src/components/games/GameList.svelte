@@ -1,19 +1,26 @@
-<script lang="ts">
-	import SectionIcon from 'comun/components/SectionIcon.svelte';
+<!--
+@component
+A console's games (#405), each with its box, which may come later.
+-->
+<script lang="ts" module>
 	import type { ConsoleGame } from 'comun/games.ts';
 
-	/** A console's games (#405), each with its box, which may come later. */
-	let {
-		system,
-		name,
-		games,
-		covers
-	}: {
+	export interface GameListProps {
+		/** The console's id, for each game's link. */
 		system: string;
+		/** The console's name, as the title. */
 		name: string;
+		/** Its games. */
 		games: ConsoleGame[];
+		/** Each game's box picture by its file; until it comes, an icon. */
 		covers: Promise<Record<string, string>>;
-	} = $props();
+	}
+</script>
+
+<script lang="ts">
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
+
+	let { system, name, games, covers }: GameListProps = $props();
 </script>
 
 <a href="/juegos" class="text-sm text-zinc-400 hover:text-white">← Juegos</a>
