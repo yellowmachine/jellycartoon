@@ -2,11 +2,7 @@
 	import { enhance } from '$app/forms';
 	import type { AgendaPerson } from 'comun/agenda.ts';
 	import type { EventPaper } from 'comun/papers.ts';
-	import PaperForm, {
-		afterPaperAction,
-		asPaperFile,
-		type PaperDraft
-	} from '#lib/components/PaperForm.svelte';
+	import PaperForm, { afterPaperAction, type PaperDraft } from '#lib/components/PaperForm.svelte';
 	import PaperPick from '#lib/components/PaperPick.svelte';
 
 	/**
@@ -29,7 +25,7 @@
 	} = $props();
 
 	let draft = $state<PaperDraft | null>(null);
-	let file = $state<File | null>(null);
+	let files = $state<File[]>([]);
 	/** Those to choose from; null, not asked for. */
 	let choices = $state<{ id: number; name: string }[] | null>(null);
 	let loading = $state(false);
@@ -37,10 +33,10 @@
 
 	const others = $derived(choices?.filter((c) => !papers.some((p) => p.id === c.id)) ?? []);
 
-	async function fromFile(original: File) {
+	function fromFiles(picked: File[]) {
 		problem = null;
 		choices = null;
-		file = null;
+		files = picked;
 		draft = {
 			id: null,
 			name: title.trim(),
@@ -48,7 +44,6 @@
 			notes: '',
 			people: [...eventPeople]
 		};
-		file = await asPaperFile(original);
 	}
 
 	async function choose() {
@@ -126,15 +121,15 @@
 			{draft}
 			{people}
 			{eventId}
-			{file}
+			{files}
 			onclose={() => {
 				draft = null;
-				file = null;
+				files = [];
 			}}
 		/>
 	{:else}
 		<div class="flex flex-wrap items-center gap-2">
-			<PaperPick onpick={fromFile} />
+			<PaperPick onpick={fromFiles} />
 			{#if !choices}
 				<button
 					type="button"

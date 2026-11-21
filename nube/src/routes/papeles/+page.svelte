@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { euros } from 'comun/expenses.ts';
 	import type { MoneyDocument, Paper, PaperCategory, PaperEvent } from 'comun/papers.ts';
-	import PaperForm, { asPaperFile, type PaperDraft } from '#lib/components/PaperForm.svelte';
+	import PaperForm, { type PaperDraft } from '#lib/components/PaperForm.svelte';
 	import PaperPick from '#lib/components/PaperPick.svelte';
 	import type { PageProps } from './$types';
 
@@ -14,8 +14,8 @@
 
 	/** The one being written. */
 	let draft = $state<PaperDraft | null>(null);
-	/** The photo or file a new one was opened with. */
-	let file = $state<File | null>(null);
+	/** The photos or files a new one was opened with. */
+	let files = $state<File[]>([]);
 	let search = $state('');
 	/** The one asked «¿Borrar?» about. */
 	let deleting = $state<number | null>(null);
@@ -103,7 +103,7 @@
 		});
 
 	function edit(p: Paper) {
-		file = null;
+		files = [];
 		draft = {
 			id: p.id,
 			name: p.name ?? '',
@@ -114,10 +114,9 @@
 	}
 
 	/** A new one from a photo or a file: the form open with it, to give it a name. */
-	async function fromFile(original: File) {
-		file = null;
+	function fromFiles(picked: File[]) {
+		files = picked;
 		draft = { id: null, name: '', category: 'Casa', notes: '', people: [] };
-		file = await asPaperFile(original);
 	}
 
 	/** «Médico, 12 nov 2026»; one that repeats, by its name. */
@@ -160,17 +159,17 @@
 						action="?/save"
 						{draft}
 						people={data.people}
-						{file}
+						{files}
 						onclose={() => {
 							draft = null;
-							file = null;
+							files = [];
 						}}
 					/>
 				</div>
 			{/key}
 		{:else}
 			<div class="mb-6 flex flex-wrap gap-2">
-				<PaperPick onpick={fromFile} />
+				<PaperPick onpick={fromFiles} />
 			</div>
 		{/if}
 

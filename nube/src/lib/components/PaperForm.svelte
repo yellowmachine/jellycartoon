@@ -1,7 +1,6 @@
 <script module lang="ts">
 	import { goto, refreshAll } from '$app/navigation';
 	import type { ActionResult } from '$app/forms';
-	import { smallerPhoto } from 'comun/receipt-photo.ts';
 	import type { PaperCategory } from 'comun/papers.ts';
 
 	/** A paper being written: new (`id` null) or corrected. */
@@ -11,16 +10,6 @@
 		category: PaperCategory;
 		notes: string;
 		people: string[];
-	}
-
-	/**
-	 * More kept than a receipt's, as it is read later, and by a person. A picture the browser
-	 * cannot draw, as it is, for the server to refuse it with its reason.
-	 */
-	export async function asPaperFile(file: File) {
-		if (file.type === 'application/pdf') return file;
-		const photo = await smallerPhoto(file, { longest: 3000, quality: 0.9 });
-		return photo instanceof File ? photo : new File([photo], 'papel.jpg', { type: photo.type });
 	}
 
 	/**
@@ -37,7 +26,9 @@
 	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import type { AgendaPerson } from 'comun/agenda.ts';
-	import { MAX_PAPER_NAME, MAX_PAPER_NOTES, PAPER_CATEGORIES } from 'comun/papers.ts';
+	import { MAX_PAPER_MB, MAX_PAPER_NAME, MAX_PAPER_NOTES, PAPER_CATEGORIES } from 'comun/papers.ts';
+	import PaperPick from '#lib/components/PaperPick.svelte';
+	import { NotASheet, paperFile, PaperTooBig } from '#lib/paper-pages.ts';
 
 	/**
 	 * The form of a paper (#384), in Papeles and in an event of the agenda (#399), which sends it to
@@ -48,7 +39,7 @@
 		draft,
 		people,
 		eventId = null,
-		file = null,
+		files = [],
 		onclose
 	}: {
 		action: string;
@@ -57,8 +48,8 @@
 		people: AgendaPerson[];
 		/** New, it belongs to this event of the agenda. */
 		eventId?: number | null;
-		/** The photo or file it was opened with, when it is ready. */
-		file?: File | null;
+		/** The photos or files it was opened with: its first pages. */
+		files?: File[];
 		onclose: () => void;
 	} = $props();
 
@@ -69,16 +60,26 @@
 	let owners = $state([...start.people]);
 	let problem = $state<string | null>(null);
 	let sending = $state(false);
-	let fileInput = $state<HTMLInputElement>();
-	let hasFile = $state(false);
+	/** Its pages are being put together, before it is sent. */
+	let joining = $state(false);
+	/** Its pages, in their order: one is sent as it is, several as one PDF (paper-pages.ts). */
+	let pages = $state(untrack(() => [...files]));
 
+	/** A small picture of each page that is a photo. */
+	const previews = $derived(
+		pages.map((p) => (p.type.startsWith('image/') ? URL.createObjectURL(p) : null))
+	);
 	$effect(() => {
-		if (!file || !fileInput) return;
-		const picked = new DataTransfer();
-		picked.items.add(file);
-		fileInput.files = picked.files;
-		hasFile = true;
+		const urls = previews;
+		return () => urls.forEach((url) => url && URL.revokeObjectURL(url));
 	});
+
+	/** The page at `i` swapped with the one `by` beside it. */
+	function move(i: number, by: -1 | 1) {
+		const next = [...pages];
+		[next[i], next[i + by]] = [next[i + by]!, next[i]!];
+		pages = next;
+	}
 
 	const field =
 		'rounded-md border-zinc-700 bg-zinc-950 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500';
@@ -90,9 +91,25 @@
 	{action}
 	enctype="multipart/form-data"
 	class="flex flex-col gap-3 rounded-lg bg-zinc-900 p-3"
-	use:enhance={() => {
-		sending = true;
+	use:enhance={async ({ formData, cancel }) => {
 		problem = null;
+		sending = true;
+		if (pages.length) {
+			joining = pages.length > 1;
+			try {
+				formData.set('fichero', await paperFile(pages));
+			} catch (err) {
+				problem =
+					err instanceof PaperTooBig || err instanceof NotASheet
+						? err.message
+						: 'No se han podido juntar las páginas';
+				sending = false;
+				cancel();
+				return;
+			} finally {
+				joining = false;
+			}
+		}
 		return async ({ result }) => {
 			sending = false;
 			if (result.type === 'failure') problem = String(result.data?.message ?? 'No se pudo guardar');
@@ -161,24 +178,65 @@
 			placeholder="Lo que quieras recordar: la fianza, cuándo se renueva, con quién hablar…"
 		></textarea>
 	</label>
-	<label class="flex flex-col gap-1 text-xs text-zinc-400">
-		{start.id ? 'Otro fichero (si quieres cambiarlo)' : 'Fichero (PDF o foto, hasta 10 MB)'}
-		<input
-			bind:this={fileInput}
-			name="fichero"
-			type="file"
-			accept="application/pdf,image/jpeg,image/png,image/webp"
-			required={!start.id}
-			class="text-sm text-zinc-300 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-zinc-100"
-			onchange={(e) => (hasFile = Boolean(e.currentTarget.files?.length))}
-		/>
-	</label>
+	<div>
+		<p class="mb-1 text-xs text-zinc-400">
+			{start.id ? 'Otro fichero (si quieres cambiarlo)' : 'Páginas'}: fotos o PDF; si son varias, se
+			guardan juntas en un PDF (hasta {MAX_PAPER_MB} MB)
+		</p>
+		{#if pages.length}
+			<ol class="mb-2 flex flex-wrap gap-2">
+				{#each pages as page, i (i)}
+					<li class="flex w-24 flex-col items-center gap-1 rounded-md bg-zinc-950 p-1">
+						{#if previews[i]}
+							<img
+								src={previews[i]}
+								alt="Página {i + 1}"
+								class="h-28 w-full rounded object-cover"
+							/>
+						{:else}
+							<div class="flex h-28 w-full items-center justify-center text-3xl" aria-hidden="true">
+								📄
+							</div>
+						{/if}
+						<span class="w-full truncate text-center text-xs text-zinc-400" title={page.name}
+							>{i + 1}{previews[i] ? '' : ` · ${page.name}`}</span
+						>
+						<div class="flex">
+							<button
+								type="button"
+								class="{button} px-2 text-zinc-300 hover:bg-zinc-800"
+								disabled={i === 0}
+								aria-label="Pasar la página {i + 1} antes"
+								onclick={() => move(i, -1)}>←</button
+							>
+							<button
+								type="button"
+								class="{button} px-2 text-zinc-300 hover:bg-zinc-800"
+								aria-label="Quitar la página {i + 1}"
+								onclick={() => (pages = pages.filter((_, j) => j !== i))}>✕</button
+							>
+							<button
+								type="button"
+								class="{button} px-2 text-zinc-300 hover:bg-zinc-800"
+								disabled={i === pages.length - 1}
+								aria-label="Pasar la página {i + 1} después"
+								onclick={() => move(i, 1)}>→</button
+							>
+						</div>
+					</li>
+				{/each}
+			</ol>
+		{/if}
+		<div class="flex flex-wrap gap-2">
+			<PaperPick adding={pages.length > 0} onpick={(more) => (pages = [...pages, ...more])} />
+		</div>
+	</div>
 	<div class="flex gap-2">
 		<button
 			class="{button} bg-amber-500 font-medium text-zinc-950 hover:bg-amber-400"
-			disabled={sending || (!start.id && !hasFile)}
+			disabled={sending || (!start.id && !pages.length)}
 		>
-			{sending ? 'Guardando…' : 'Guardar'}
+			{joining ? 'Juntando las páginas…' : sending ? 'Guardando…' : 'Guardar'}
 		</button>
 		<button type="button" class="{button} text-zinc-400 hover:bg-zinc-800" onclick={onclose}
 			>Cancelar</button

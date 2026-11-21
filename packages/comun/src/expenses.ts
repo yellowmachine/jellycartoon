@@ -66,6 +66,22 @@ export interface ExpenseLine {
 	tag: LineTag;
 }
 
+/**
+ * Paid in another currency: what the receipt said, in its currency's cents, and the euros one of it
+ * was worth that day (the ECB's, by Frankfurter). `rate` null, not changed into euros (no
+ * connection, a currency without a rate): the amounts are still the receipt's.
+ */
+export interface ForeignAmount {
+	/** ISO 4217, «USD». */
+	currency: string;
+	total: number;
+	rate: number | null;
+}
+
+/** «USD», «GBP»: three capital letters, as ISO 4217 writes them. */
+export const isCurrency = (value: unknown): value is string =>
+	typeof value === 'string' && /^[A-Z]{3}$/.test(value);
+
 /** What is saved: read from a receipt and corrected, or written by hand. */
 export interface ExpenseInput {
 	date: string;
@@ -73,6 +89,8 @@ export interface ExpenseInput {
 	category: ExpenseCategory;
 	total: number;
 	lines: ExpenseLine[];
+	/** Paid in another currency, its amounts already in euros; not said, as it was. */
+	foreign?: ForeignAmount | null;
 }
 
 export interface Expense extends ExpenseInput {
@@ -85,6 +103,7 @@ export interface Expense extends ExpenseInput {
 	bill: BillInput | null;
 	/** Added by a fixed one, or made one («🔁 Hacer fijo»). */
 	fixed: boolean;
+	foreign: ForeignAmount | null;
 }
 
 /**
@@ -164,6 +183,31 @@ export function euros(cents: number) {
 	return `${(cents / 100).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 }
 
+/** Cents of another currency, as it writes itself in Spanish: «25,00 US$», «12,00 £». */
+export function money(cents: number, currency: string) {
+	try {
+		return (cents / 100).toLocaleString('es-ES', { style: 'currency', currency });
+	} catch {
+		return `${(cents / 100).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+	}
+}
+
+/** «12,00 US$», or «12,00 US$, sin pasar a euros». */
+export const foreignText = (f: ForeignAmount) =>
+	`${money(f.total, f.currency)}${f.rate === null ? ', sin pasar a euros' : ''}`;
+
+/** A ForeignAmount sent by a page, if well formed. */
+function parseForeign(value: unknown): ForeignAmount | null | undefined {
+	if (value === undefined) return undefined;
+	if (!value || typeof value !== 'object') return null;
+	const { currency, total, rate } = value as Record<string, unknown>;
+	const sum = cents(total);
+	if (!isCurrency(currency) || currency === 'EUR' || sum === null) return null;
+	if (rate !== null && (typeof rate !== 'number' || !(rate > 0) || !Number.isFinite(rate)))
+		return null;
+	return { currency, total: sum, rate };
+}
+
 /** «12,30», «12.30», «12» or «1.234,50» written in a box: cents; null if it is not an amount. */
 export function parseEuros(text: string): number | null {
 	let t = text.trim().replace(/\s|€/g, '');
@@ -187,7 +231,7 @@ const cents = (value: unknown) =>
 /** What a page sends to be saved, only if well formed; lines without text are left out. */
 export function parseExpenseInput(body: unknown): ExpenseInput | null {
 	if (!body || typeof body !== 'object') return null;
-	const { date, store, category, total, lines } = body as Record<string, unknown>;
+	const { date, store, category, total, lines, foreign } = body as Record<string, unknown>;
 	if (!isDay(date) || typeof store !== 'string' || !store.trim() || !isCategory(category))
 		return null;
 	const sum = cents(total);
@@ -208,7 +252,17 @@ export function parseExpenseInput(body: unknown): ExpenseInput | null {
 				tag: isTag(tag) ? tag : 'Otros'
 			});
 	}
-	return { date, store: store.trim().slice(0, 120), category, total: sum, lines: parsed };
+	const input: ExpenseInput = {
+		date,
+		store: store.trim().slice(0, 120),
+		category,
+		total: sum,
+		lines: parsed
+	};
+	// Not sent, left as it is on correcting; null, in euros.
+	const paid = parseForeign(foreign);
+	if (paid !== undefined) input.foreign = paid;
+	return input;
 }
 
 /**

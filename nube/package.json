@@ -70,6 +70,7 @@
 		"minisearch": "^7.2.0",
 		"music-metadata": "12.3.4",
 		"nodemailer": "^8.0.5",
+		"pdf-lib": "1.17.1",
 		"postgres": "^3.4.9",
 		"qrcode": "^1.5.4",
 		"rrule": "^2.8.1",

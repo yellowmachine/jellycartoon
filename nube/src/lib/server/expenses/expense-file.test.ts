@@ -46,7 +46,7 @@ mock.module('#lib/server/fridge.ts', () => ({
 	addItems: async () => []
 }));
 
-const { addExpense } = await import('./expenses.ts');
+const { addExpense, searchExpenses, updateExpense } = await import('./expenses.ts');
 const { NotADocument } = await import('./income.ts');
 
 const db = drizzle(new PGlite(), { schema });
@@ -253,4 +253,19 @@ test('by an amount alone, only if nothing says it is something else: not a super
 	).toBe(9);
 	// By its name it still is, whatever its category and lines (the gym's ticket of the month).
 	expect(bestFixed({ ...donmarket, store: 'Seguro Ocaso' }, [ocaso])?.id).toBe(9);
+});
+
+test('paid in another currency: kept beside its euros, left as it is on correcting', async () => {
+	const foreign = { currency: 'USD', total: 2500, rate: 0.91 };
+	const id = await addExpense(k, { ...lunch, store: 'Diner', total: 2275, foreign }, 'ticket');
+	const found = async () =>
+		(await searchExpenses(k, { text: '', from: null, to: null }, { ids: [id] }))[0];
+	expect((await found())?.foreign).toEqual(foreign);
+	// Corrected without saying it: as it was.
+	await updateExpense(k, id, { ...lunch, store: 'Diner', total: 2300 }, null);
+	expect((await found())?.foreign).toEqual(foreign);
+	// «Era en euros».
+	await updateExpense(k, id, { ...lunch, store: 'Diner', total: 2500, foreign: null }, null);
+	expect((await found())?.foreign).toBeNull();
+	expect((await found())?.total).toBe(2500);
 });

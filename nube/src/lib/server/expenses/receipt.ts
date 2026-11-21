@@ -13,7 +13,8 @@ import { today } from '#lib/server/fridge.ts';
 import { removeFile } from '#lib/server/storage.ts';
 import { keepDocument, MAX_DOCUMENT_BYTES } from './income.ts';
 import { BILL_PROMPT, BILL_SCHEMA, billDraftFromAnswer, redact } from './bill-parse.ts';
-import { draftFromAnswer, RECEIPT_SCHEMA, receiptPrompt } from './receipt-parse.ts';
+import { currencyOf, draftFromAnswer, RECEIPT_SCHEMA, receiptPrompt } from './receipt-parse.ts';
+import { eurosPerUnit, inEuros } from './fx.ts';
 import { INCOME_PROMPT, INCOME_SCHEMA, incomeDraftFromAnswer } from './income-parse.ts';
 
 const run = promisify(execFile);
@@ -61,7 +62,10 @@ export async function readReceipt(k: Kitchen, image: Buffer): Promise<ExpenseDra
 		...TICKET
 	});
 	const draft = draftFromAnswer(answer, today());
-	return { ...draft, readBy: 'openrouter', bill: null };
+	// In another currency: in euros, with that day's rate.
+	const currency = currencyOf(answer);
+	const rate = currency === 'EUR' ? null : await eurosPerUnit(currency, draft.date);
+	return { ...inEuros(draft, currency, rate), readBy: 'openrouter', bill: null };
 }
 
 /**

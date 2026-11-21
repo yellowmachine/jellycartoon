@@ -91,6 +91,14 @@ export const expense = pgTable(
 		 * the same file put in twice. Null, none or before there were.
 		 */
 		fileHash: text('file_hash'),
+		/**
+		 * Paid in another currency (ISO 4217, «USD»): `total` and the lines are in euros, and here what
+		 * the receipt said, in its cents, and the euros one of it was worth that day. `rate` null, not
+		 * changed (the amounts are the receipt's). Null, paid in euros.
+		 */
+		currency: text('currency'),
+		originalTotal: integer('original_total'),
+		rate: doublePrecision('rate'),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [

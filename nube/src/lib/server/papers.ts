@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { and, eq, inArray } from 'drizzle-orm';
 import {
 	isPaperCategory,
+	MAX_PAPER_MB,
 	type EventPaper,
 	type Paper,
 	type PaperEvent,
@@ -16,7 +17,7 @@ import {
 	user
 } from '#lib/server/db/schema.ts';
 import type { AnyDb } from '#lib/server/family-scope.ts';
-import { kindOf, MAX_DOCUMENT_BYTES, typeOf } from '#lib/server/expenses/income.ts';
+import { kindOf, typeOf } from '#lib/server/expenses/income.ts';
 import { kmsOn, openFileFor, openFor, sealFileFor, sealFor } from '#lib/server/family-secret.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { putFile, readFile, removeFile, storageReady } from '#lib/server/storage.ts';
@@ -31,7 +32,11 @@ import { putFile, readFile, removeFile, storageReady } from '#lib/server/storage
 
 export const PAPERS_AREA = 'papeles';
 
-export const MAX_PAPER_BYTES = MAX_DOCUMENT_BYTES;
+/**
+ * More than an invoice's: a paper of several sheets is one PDF (paper-pages.ts). Below the 16 MB
+ * a request and a kept file can be (storage.ts), with room for its seal.
+ */
+export const MAX_PAPER_BYTES = MAX_PAPER_MB * 1024 * 1024;
 
 /** Only with the KMS and somewhere to keep the files. */
 export const papersReady = () => kmsOn && storageReady;

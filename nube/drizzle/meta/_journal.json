@@ -757,6 +757,13 @@
       "when": 1795181150520,
       "tag": "0107_elite_morlocks",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1795276117029,
+      "tag": "0108_wide_kabuki",
+      "breakpoints": true
     }
   ]
 }
