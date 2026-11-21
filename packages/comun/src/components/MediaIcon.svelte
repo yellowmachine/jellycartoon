@@ -1,3 +1,8 @@
+<!--
+@component
+The player's controls, drawn the same everywhere instead of font glyphs that each system
+renders its own way.
+-->
 <script lang="ts" module>
 	export type MediaIconName =
 		| 'play'
@@ -20,14 +25,19 @@
 		| 'up'
 		| 'down'
 		| 'grip';
+
+	export interface MediaIconProps {
+		/** Which control. */
+		name: MediaIconName;
+		/** Classes for the icon (its size by default). */
+		class?: string;
+	}
 </script>
 
 <script lang="ts">
-	let { name, class: className = 'h-4 w-4' }: { name: MediaIconName; class?: string } = $props();
+	let { name, class: className = 'h-4 w-4' }: MediaIconProps = $props();
 </script>
 
-<!-- The player's controls, drawn the same everywhere instead of font glyphs that each system
-     renders its own way. -->
 <svg viewBox="0 0 24 24" class={className} fill="currentColor" aria-hidden="true">
 	{#if name === 'play'}
 		<path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" />

@@ -1,20 +1,17 @@
-<script lang="ts">
-	import MediaIcon from './MediaIcon.svelte';
+<!--
+@component
+Música → Carpetas, in jellycartoon and in Seilide: the music as it is on disk, folder by
+folder, with what has no album too (a podcast downloaded, a talk). Its own audios play in
+order from the one touched; the folders inside, opened.
+-->
+<script lang="ts" module>
 	import type { Snippet } from 'svelte';
-	import { formatDuration } from '../format.ts';
-	import { folderUrl, mixed, type MusicFolder } from '../music.ts';
-	import { musicTarget } from '../music-target.svelte.ts';
-	import AddToPlaylist from './AddToPlaylist.svelte';
-	import AddToQueue from './AddToQueue.svelte';
-	import TrackRows from './TrackRows.svelte';
+	import type { MusicFolder } from '../music.ts';
 
-	/**
-	 * Música → Carpetas, in jellycartoon and in Seilide: the music as it is on disk, folder by
-	 * folder, with what has no album too (a podcast downloaded, a talk). Its own audios play in
-	 * order from the one touched; the folders inside, opened.
-	 */
-	interface Props {
+	export interface MusicFolderViewProps {
+		/** The folder shown: its path, the folders inside and its own audios. */
 		folder: MusicFolder;
+		/** The lists the «+» of each audio can add it to. */
 		playlists: { id: number; name: string }[];
 		/** Played on the house's speakers (jellycartoon, when chosen); else on this device. */
 		toSnapcast: boolean;
@@ -25,8 +22,25 @@
 		/** Where the «+» adds (AddToPlaylist's `endpoint`): the bucket's own lists (#534). */
 		listEndpoint?: string;
 	}
+</script>
 
-	let { folder, playlists, toSnapcast, extra, href = folderUrl, listEndpoint }: Props = $props();
+<script lang="ts">
+	import MediaIcon from './MediaIcon.svelte';
+	import { formatDuration } from '../format.ts';
+	import { folderUrl, mixed } from '../music.ts';
+	import { musicTarget } from '../music-target.svelte.ts';
+	import AddToPlaylist from './AddToPlaylist.svelte';
+	import AddToQueue from './AddToQueue.svelte';
+	import TrackRows from './TrackRows.svelte';
+
+	let {
+		folder,
+		playlists,
+		toSnapcast,
+		extra,
+		href = folderUrl,
+		listEndpoint
+	}: MusicFolderViewProps = $props();
 
 	/** «Música › Podcasts › Charlas», each a link but the last. */
 	const crumbs = $derived(

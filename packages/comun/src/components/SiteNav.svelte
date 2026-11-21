@@ -1,3 +1,10 @@
+<!--
+@component
+The app's bar (jellycartoon's, #253): the same in the house and in the cloud. From a tablet up,
+as a tab bar, each icon over its name; on a phone, the section you are in and a menu with all
+of them. The user's round badge opens their menu. What only one app has goes in its snippets
+(`start`, `leading`, `account`, `below`).
+-->
 <script lang="ts" module>
 	import type { Snippet } from 'svelte';
 	import type { Section } from './SectionIcon.svelte';
@@ -21,6 +28,33 @@
 		/** Also on its tap, before following it (it may call preventDefault): Seilide's Vista, in full screen. */
 		onclick?: (e: MouseEvent) => void;
 	}
+
+	export interface SiteNavProps {
+		/** The app's name and picture, a link to its start. */
+		brand: { href: string; title: string; image: string };
+		/** The sections in the bar. */
+		links: NavLink[];
+		/** In the phone's menu: the sections and the rest (Gestión). */
+		menuLinks?: NavLink[];
+		/** Who is in: their name and round badge (its classes and its letter). */
+		user: { name: string; badge: string; mark: string };
+		/** In the badge's menu, after its name; «Salir» always last. */
+		userLinks: UserLink[];
+		/** The phone's menu offers «Salir» (not to a child, who could not get back in). */
+		canLeave?: boolean;
+		/** Bindable: the bar's height in pixels, for the page's layout. */
+		headerHeight?: number;
+		/** The brand's name on a phone too; without it, only its picture (room for Seilide's «Atrás»). */
+		brandOnPhone?: boolean;
+		/** Before the name: Seilide's «Atrás». */
+		start?: Snippet;
+		/** After the name: the microphone, the receipt's photo. */
+		leading?: Snippet;
+		/** Instead of the badge's menu: a child's. */
+		account?: Snippet<[{ isCurrent: (href: string) => boolean }]>;
+		/** Under the bar: what plays, the timers… */
+		below?: Snippet;
+	}
 </script>
 
 <script lang="ts">
@@ -28,45 +62,20 @@
 	import ActionMenu from './ActionMenu.svelte';
 	import SectionIcon from './SectionIcon.svelte';
 
-	/**
-	 * The app's bar (jellycartoon's, #253): the same in the house and in the cloud. From a tablet up,
-	 * as a tab bar, each icon over its name; on a phone, the section you are in and a menu with all
-	 * of them. The user's round badge opens their menu. What
-	 * only one app has goes in its snippets: before the name (`start`: Seilide's «Atrás»), after it (`leading`: the microphone, the
-	 * receipt's photo), instead of the badge's menu (`account`: a child's), and under the bar
-	 * (`below`: what plays, the timers…).
-	 */
 	let {
 		brand,
 		links,
-		/** In the phone's menu: the sections and the rest (Gestión). */
 		menuLinks = links,
 		user,
-		/** In the badge's menu, after its name; «Salir» always last. */
 		userLinks,
-		/** The phone's menu offers «Salir» (not to a child, who could not get back in). */
 		canLeave = true,
 		headerHeight = $bindable(0),
-		/** The brand's name on a phone too; without it, only its picture (room for Seilide's «Atrás»). */
 		brandOnPhone = true,
 		start,
 		leading,
 		account,
 		below
-	}: {
-		brand: { href: string; title: string; image: string };
-		links: NavLink[];
-		menuLinks?: NavLink[];
-		user: { name: string; badge: string; mark: string };
-		userLinks: UserLink[];
-		canLeave?: boolean;
-		headerHeight?: number;
-		brandOnPhone?: boolean;
-		start?: Snippet;
-		leading?: Snippet;
-		account?: Snippet<[{ isCurrent: (href: string) => boolean }]>;
-		below?: Snippet;
-	} = $props();
+	}: SiteNavProps = $props();
 
 	let menu = $state<HTMLElement>();
 	let bar = $state<HTMLElement>();

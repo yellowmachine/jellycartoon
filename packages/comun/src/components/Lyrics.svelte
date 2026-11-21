@@ -1,16 +1,27 @@
-<script lang="ts">
-	import { lineAt, type Lyrics } from '../lyrics.ts';
+<!--
+@component
+A song's lyrics: with times, the line being sung lit and kept in the middle, as it goes; without,
+all of it to read.
+-->
+<script lang="ts" module>
+	import type { Lyrics } from '../lyrics.ts';
 
-	/**
-	 * A song's lyrics: with times, the line being sung lit and kept in the middle, as it goes; without,
-	 * all of it to read. `big`, /tv's, from the sofa.
-	 */
-	let {
-		lyrics,
-		positionSec,
-		big = false,
-		class: className = ''
-	}: { lyrics: Lyrics; positionSec: number; big?: boolean; class?: string } = $props();
+	export interface LyricsProps {
+		/** The lyrics, with times (synced) or without. */
+		lyrics: Lyrics;
+		/** Where the song is, to light its line. */
+		positionSec: number;
+		/** /tv's, from the sofa. */
+		big?: boolean;
+		/** Classes for the box. */
+		class?: string;
+	}
+</script>
+
+<script lang="ts">
+	import { lineAt } from '../lyrics.ts';
+
+	let { lyrics, positionSec, big = false, class: className = '' }: LyricsProps = $props();
 
 	const now = $derived(lyrics.kind === 'synced' ? lineAt(lyrics.lines, positionSec) : -1);
 	let box = $state<HTMLElement>();

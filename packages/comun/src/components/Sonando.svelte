@@ -1,3 +1,22 @@
+<!--
+@component
+What sounds, big, with its controls: a song or a podcast episode. /tv's from the sofa
+(`size="tv"`, for the remote), and the Vista's on the salon's tablet (#525, `size="tablet"`,
+in its 60 %, for a finger). Behind it, the page puts its MusicBackground.
+-->
+<script lang="ts" module>
+	export interface SonandoProps {
+		/** `tv` from the sofa, for the remote; `tablet`, the Vista's on the salon's tablet, for a finger. */
+		size: 'tv' | 'tablet';
+		/** Where «Elegir música» goes when nothing sounds. */
+		chooseHref: string;
+		/** Bindable: the play/pause button, so /tv can give it the remote's focus. */
+		toggle?: HTMLElement;
+		/** Bindable: the «Elegir música» link, so /tv can give it the remote's focus. */
+		choose?: HTMLElement;
+	}
+</script>
+
 <script lang="ts">
 	import MediaIcon from './MediaIcon.svelte';
 	import SectionIcon from './SectionIcon.svelte';
@@ -10,24 +29,7 @@
 	import { loadLyrics } from '../lyrics-store.svelte.ts';
 	import type { Lyrics } from '../lyrics.ts';
 
-	/**
-	 * What sounds, big, with its controls: a song or a podcast episode. /tv's from the sofa
-	 * (`size="tv"`, for the remote), and the Vista's on the salon's tablet (#525, `size="tablet"`,
-	 * in its 60 %, for a finger). Behind it, the page puts its MusicBackground. `toggle` and
-	 * `choose` are there so /tv can give them the remote's focus.
-	 */
-	let {
-		size,
-		chooseHref,
-		toggle = $bindable(),
-		choose = $bindable()
-	}: {
-		size: 'tv' | 'tablet';
-		/** Where «Elegir música» goes when nothing sounds. */
-		chooseHref: string;
-		toggle?: HTMLElement;
-		choose?: HTMLElement;
-	} = $props();
+	let { size, chooseHref, toggle = $bindable(), choose = $bindable() }: SonandoProps = $props();
 
 	const current = $derived(music.radio ? undefined : music.current);
 	const podcast = $derived(music.podcast);

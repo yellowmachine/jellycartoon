@@ -1,16 +1,19 @@
-<script lang="ts">
+<!--
+@component
+A password field with an eye on its right to see what is being typed, and hide it again. The
+rest of its attributes (name, autocomplete, required…) go to the input.
+-->
+<script lang="ts" module>
 	import type { HTMLInputAttributes } from 'svelte/elements';
 
-	/**
-	 * A password field with an eye on its right to see what is being typed, and hide it again. The
-	 * rest of its attributes (name, autocomplete, required…) go to the input; `box`, the classes of
-	 * the box around both (e.g. its margin, so the eye stays centred on the input).
-	 */
-	let {
-		class: className = '',
-		box = '',
-		...rest
-	}: Omit<HTMLInputAttributes, 'type'> & { box?: string } = $props();
+	export interface PasswordInputProps extends Omit<HTMLInputAttributes, 'type'> {
+		/** The classes of the box around both (e.g. its margin, so the eye stays centred on the input). */
+		box?: string;
+	}
+</script>
+
+<script lang="ts">
+	let { class: className = '', box = '', ...rest }: PasswordInputProps = $props();
 	let shown = $state(false);
 </script>
 

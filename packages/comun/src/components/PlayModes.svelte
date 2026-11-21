@@ -1,18 +1,27 @@
+<!--
+@component
+The music's play modes (shuffle, repeat, only this song) as toggles, lit while on; the same in the
+browser's bar and in Snapcast's.
+-->
+<script lang="ts" module>
+	type Mode = 'shuffle' | 'repeat' | 'single';
+
+	export interface PlayModesProps {
+		/** Whether shuffle is on. */
+		shuffle: boolean;
+		/** Whether repeat is on. */
+		repeat: boolean;
+		/** Whether only this song plays (with repeat, the song again). */
+		single: boolean;
+		/** A toggle pressed: which mode, and its new value. */
+		onchange: (mode: Mode, value: boolean) => void;
+	}
+</script>
+
 <script lang="ts">
 	import MediaIcon from './MediaIcon.svelte';
 
-	type Mode = 'shuffle' | 'repeat' | 'single';
-	let {
-		shuffle,
-		repeat,
-		single,
-		onchange
-	}: {
-		shuffle: boolean;
-		repeat: boolean;
-		single: boolean;
-		onchange: (mode: Mode, value: boolean) => void;
-	} = $props();
+	let { shuffle, repeat, single, onchange }: PlayModesProps = $props();
 
 	const modes = $derived([
 		{ mode: 'shuffle', on: shuffle, label: 'Mezclar' },
@@ -21,7 +30,6 @@
 	] satisfies { mode: Mode; on: boolean; label: string }[]);
 </script>
 
-<!-- Toggles, lit while on; the same in the browser's bar and in Snapcast's. -->
 {#each modes as { mode, on, label } (mode)}
 	<button
 		class={[

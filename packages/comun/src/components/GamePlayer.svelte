@@ -1,28 +1,31 @@
-<script lang="ts">
-	import { onMount, tick } from 'svelte';
-	import SectionIcon from 'comun/components/SectionIcon.svelte';
-	import { SHADERS, shaderName, type Shader } from 'comun/game-shaders.ts';
-	import { music } from 'comun/music-player.svelte.ts';
+<!--
+@component
+A game being played (#176), over the page: in the TV view with the remote, or in a browser
+(`web`, #405) on a phone, a tablet or a computer: with a button for its menu, as there may be
+nothing else to open it with, and the screen kept on, as a gamepad does not touch it.
+-->
+<script lang="ts" module>
 	import type { PlayerData, PlayerNavigation } from 'comun/games.ts';
 
-	/**
-	 * A game being played (#176), over the page: in the TV view with the remote, or in a browser
-	 * (`web`, #405) on a phone, a tablet or a computer: with a button for its menu, as there may be
-	 * nothing else to open it with, and the screen kept on, as a gamepad does not touch it.
-	 */
-	let {
-		data,
-		nav,
-		saveId = 0,
-		web = false
-	}: {
+	export interface GamePlayerProps {
+		/** The game to play: its ROM, core, controls, shader and the API it saves to. */
 		data: PlayerData;
 		/** The app's router (`$app/navigation`). */
 		nav: PlayerNavigation;
 		/** A saved game to open it at (`?partida=`). */
 		saveId?: number;
+		/** In a browser (#405), not the TV: a menu button, fullscreen, the screen kept on, no shader. */
 		web?: boolean;
-	} = $props();
+	}
+</script>
+
+<script lang="ts">
+	import { onMount, tick } from 'svelte';
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
+	import { SHADERS, shaderName, type Shader } from 'comun/game-shaders.ts';
+	import { music } from 'comun/music-player.svelte.ts';
+
+	let { data, nav, saveId = 0, web = false }: GamePlayerProps = $props();
 	/** The house's, or Seilide's own games' (#564). */
 	const api = $derived(data.api ?? '/api/juegos');
 	let frame = $state<HTMLIFrameElement>();

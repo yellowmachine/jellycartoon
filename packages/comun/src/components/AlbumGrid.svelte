@@ -1,8 +1,20 @@
-<script lang="ts">
+<!--
+@component
+A grid of albums, each one a link to its page with its cover, title and artist.
+-->
+<script lang="ts" module>
 	import type { MusicAlbum } from '../music.ts';
+
+	export interface AlbumGridProps {
+		/** The albums shown; each links to its `href`, or to `/musica/<id>`. */
+		albums: MusicAlbum[];
+	}
+</script>
+
+<script lang="ts">
 	import AlbumCover from './AlbumCover.svelte';
 
-	let { albums }: { albums: MusicAlbum[] } = $props();
+	let { albums }: AlbumGridProps = $props();
 </script>
 
 <div class="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">

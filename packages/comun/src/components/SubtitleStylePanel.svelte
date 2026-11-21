@@ -1,20 +1,30 @@
+<!--
+@component
+How subtitles look: a preview over a frame, ready-made presets and each option (font, size,
+colours…). Every change is handed to `onchange`; the parent keeps and saves the style.
+-->
+<script lang="ts" module>
+	import type { SubtitleStyle } from 'comun/subtitle-style.ts';
+
+	export interface SubtitleStylePanelProps {
+		/** The style shown and edited. */
+		style: SubtitleStyle;
+		/** Thumbnail shown behind the preview text; without one, a plain grey. */
+		previewImage?: string;
+		/** Called with the whole new style on each change. */
+		onchange: (style: SubtitleStyle) => void;
+	}
+</script>
+
 <script lang="ts">
 	import {
 		DEFAULT_SUBTITLE_STYLE,
 		SUBTITLE_OPTIONS,
 		SUBTITLE_PRESETS,
-		subtitleCss,
-		type SubtitleStyle
+		subtitleCss
 	} from 'comun/subtitle-style.ts';
 
-	interface Props {
-		style: SubtitleStyle;
-		/** Thumbnail shown behind the preview text; without one, a plain grey. */
-		previewImage?: string;
-		onchange: (style: SubtitleStyle) => void;
-	}
-
-	let { style, previewImage, onchange }: Props = $props();
+	let { style, previewImage, onchange }: SubtitleStylePanelProps = $props();
 
 	const css = $derived(subtitleCss(style));
 	const options = Object.entries(SUBTITLE_OPTIONS) as [

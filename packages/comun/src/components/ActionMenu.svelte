@@ -1,7 +1,12 @@
-<script lang="ts">
+<!--
+@component
+A round «⋯» button (or one of your own look) that opens a menu of actions next to it, as a
+native popover: it closes with Esc, a click outside or the `close` its rows are given.
+-->
+<script lang="ts" module>
 	import type { Snippet } from 'svelte';
 
-	interface Props {
+	export interface ActionMenuProps {
 		/** Unique on the page: links the button with its menu. */
 		id: string;
 		/** The menu's rows, given a function that closes it. */
@@ -17,7 +22,9 @@
 		/** Instead of the round button's look, e.g. a button with text (`icon` gives the text). */
 		buttonClass?: string;
 	}
+</script>
 
+<script lang="ts">
 	let {
 		id,
 		children,
@@ -26,7 +33,7 @@
 		label = 'Más acciones',
 		width = 'w-64',
 		buttonClass
-	}: Props = $props();
+	}: ActionMenuProps = $props();
 
 	let menu = $state<HTMLElement>();
 	const close = () => menu?.hidePopover();

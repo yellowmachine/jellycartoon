@@ -1,12 +1,12 @@
-<script lang="ts">
-	import { formatDuration } from '../format.ts';
+<!--
+@component
+Tracks from different albums as rows, each one with its cover, artist and album, its length and
+its «+» for the playlists; the one playing is marked. Tapping a row plays it.
+-->
+<script lang="ts" module>
 	import type { MusicTrack } from '../music.ts';
-	import { music } from '../music-player.svelte.ts';
-	import AddToPlaylist from './AddToPlaylist.svelte';
-	import AlbumCover from './AlbumCover.svelte';
-	import { resumeAt } from '../track-progress.svelte.ts';
 
-	interface Props {
+	export interface TrackRowsProps {
 		/** From different albums: each one with its cover, artist and album. */
 		tracks: MusicTrack[];
 		/** Unique on the page, for the playlist menus. */
@@ -15,10 +15,19 @@
 		playlists?: { id: number; name: string }[] | null;
 		/** Where their «+» adds (AddToPlaylist's `endpoint`). */
 		listEndpoint?: string;
+		/** A row tapped: its track and its place in `tracks`. */
 		onplay: (track: MusicTrack, index: number) => void;
 	}
+</script>
 
-	let { tracks, key, playlists, listEndpoint, onplay }: Props = $props();
+<script lang="ts">
+	import { formatDuration } from '../format.ts';
+	import { music } from '../music-player.svelte.ts';
+	import AddToPlaylist from './AddToPlaylist.svelte';
+	import AlbumCover from './AlbumCover.svelte';
+	import { resumeAt } from '../track-progress.svelte.ts';
+
+	let { tracks, key, playlists, listEndpoint, onplay }: TrackRowsProps = $props();
 </script>
 
 <ol class="divide-y divide-zinc-800 rounded-md border border-zinc-800">

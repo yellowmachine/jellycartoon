@@ -1,4 +1,12 @@
+<!--
+@component
+Música → Cola, in jellycartoon and in Seilide: what is on, what comes next and what already
+played (dimmed: it is still the queue, and «anterior» or repeat go back to it). A song touched
+plays; ✕ takes it out; its handle drags it into place. It was a panel under the player, opened
+by an icon that was missed.
+-->
 <script lang="ts" module>
+	import type { Snippet } from 'svelte';
 	import type { MusicTrack } from '../music.ts';
 
 	/**
@@ -15,24 +23,23 @@
 		/** Dragged just before `beforeId` (null: to the end); the problem back, or null. */
 		move(itemId: number, beforeId: number | null): Promise<string | null>;
 	}
+
+	export interface MusicQueueProps {
+		/** Another queue than this browser's (Snapcast's, at home). */
+		source?: QueueSource;
+		/** Under the title. */
+		children?: Snippet;
+	}
 </script>
 
 <script lang="ts">
-	import type { Snippet } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { formatDuration } from '../format.ts';
 	import { music } from '../music-player.svelte.ts';
 	import { Reorder, sortable } from '../reorder.svelte.ts';
 	import MediaIcon from './MediaIcon.svelte';
 
-	/**
-	 * Música → Cola, in jellycartoon and in Seilide: what is on, what comes next and what already
-	 * played (dimmed: it is still the queue, and «anterior» or repeat go back to it). A song touched
-	 * plays; ✕ takes it out; its handle drags it into place. It was a panel under the player, opened
-	 * by an icon that was missed. `source`, another queue than this browser's (Snapcast's, at home);
-	 * `children`, under the title.
-	 */
-	let { source, children }: { source?: QueueSource; children?: Snippet } = $props();
+	let { source, children }: MusicQueueProps = $props();
 
 	const here: QueueSource = {
 		get rows() {

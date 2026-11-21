@@ -1,3 +1,7 @@
+<!--
+@component
+The Música background on this device: its style, how strong and how fast, with a preview.
+-->
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import {
@@ -9,8 +13,6 @@
 	import { musicBackground } from 'comun/music-background-settings.svelte.ts';
 	import { trackCover } from 'comun/music.ts';
 	import { music } from 'comun/music-player.svelte.ts';
-
-	/** The Música background on this device: its style, how strong and how fast, with a preview. */
 
 	const styles = [
 		{ key: 'none' as const, label: 'Ninguno' },

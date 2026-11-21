@@ -1,25 +1,33 @@
+<!--
+@component
+Los colores de la app, en todas tus pantallas: la misma sección en casa y en la nube (#253).
+-->
+<script lang="ts" module>
+	export interface ColoresProps {
+		/** El que tienes. */
+		theme: string;
+		/** La pestaña de Ajustes, para seguir en ella al guardar. */
+		tab: string;
+		/** Si no se pudo. */
+		problem?: string | null;
+		/** The classes of the section's box. */
+		section?: string;
+		/** Where the colours apply, said after «Los de toda la app». */
+		where?: string;
+	}
+</script>
+
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { THEMES, themeSwatches } from '../themes.ts';
 
-	/**
-	 * Los colores de la app, en todas tus pantallas: la misma sección en casa y en la nube (#253).
-	 * `theme`, el que tienes; `tab`, la pestaña de Ajustes, para seguir en ella al guardar;
-	 * `problem`, si no se pudo.
-	 */
 	let {
 		theme: current,
 		tab,
 		problem = null,
 		section = 'mb-8 rounded-md border border-zinc-800 p-4',
 		where = 'en todas tus pantallas, también en la tele del salón'
-	}: {
-		theme: string;
-		tab: string;
-		problem?: string | null;
-		section?: string;
-		where?: string;
-	} = $props();
+	}: ColoresProps = $props();
 </script>
 
 <section class={section} id="colores">

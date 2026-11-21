@@ -1,11 +1,21 @@
+<!--
+@component
+The drawings to choose from (#141, #157): a child's, an adult's, one's own; in the cloud, a
+person's of the family (#253).
+-->
+<script lang="ts" module>
+	export interface AvatarPickerProps {
+		/** The drawing checked at first (its id), sent as the form's `avatar`. */
+		chosen: string | null;
+		/** For screen readers: whose drawing it is. */
+		label: string;
+	}
+</script>
+
 <script lang="ts">
 	import { AVATARS } from 'comun/avatars.ts';
 
-	/**
-	 * The drawings to choose from (#141, #157): a child's, an adult's, one's own; in the cloud, a
-	 * person's of the family (#253).
-	 */
-	let { chosen, label }: { chosen: string | null; label: string } = $props();
+	let { chosen, label }: AvatarPickerProps = $props();
 </script>
 
 <div class="flex flex-wrap gap-1.5" role="radiogroup" aria-label={label}>

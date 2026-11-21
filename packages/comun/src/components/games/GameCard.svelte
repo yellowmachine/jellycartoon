@@ -1,24 +1,31 @@
+<!--
+@component
+A game's page in the browser (#405): «Jugar», going on from a saved game, and what it is.
+-->
+<script lang="ts" module>
+	import type { GameInfo, GameSummary } from 'comun/games.ts';
+
+	export interface GameCardProps {
+		/** The console's id, for the links (back to its list, and to play). */
+		system: string;
+		/** The game's file in that console, for the links. */
+		file: string;
+		/** Its title, console, play time and saved games. */
+		game: GameSummary;
+		/** The picture behind the page, when there is one; it may come later. */
+		backdrop: Promise<string | null>;
+		/** What it is (year, makers, genres, synopsis), shown when found; it may come later. */
+		info: Promise<GameInfo | null> | GameInfo | null;
+	}
+</script>
+
 <script lang="ts">
 	import Backdrop from 'comun/components/Backdrop.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import SaveDeleteButton from 'comun/components/games/SaveDeleteButton.svelte';
 	import { formatPlayed } from 'comun/format.ts';
-	import type { GameInfo, GameSummary } from 'comun/games.ts';
 
-	/** A game's page in the browser (#405): «Jugar», going on from a saved game, and what it is. */
-	let {
-		system,
-		file,
-		game,
-		backdrop,
-		info
-	}: {
-		system: string;
-		file: string;
-		game: GameSummary;
-		backdrop: Promise<string | null>;
-		info: Promise<GameInfo | null> | GameInfo | null;
-	} = $props();
+	let { system, file, game, backdrop, info }: GameCardProps = $props();
 
 	/** The saved games deleted here, until the page is read again. */
 	let deleted = $state<number[]>([]);

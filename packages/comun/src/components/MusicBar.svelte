@@ -1,3 +1,8 @@
+<!--
+@component
+The bar at the bottom that plays what `music` has on in this browser: songs, radio stations,
+podcast episodes and episodes only listened to, with their controls, lyrics and the DJ's words.
+-->
 <script lang="ts">
 	import { page } from '$app/state';
 	import MediaIcon from './MediaIcon.svelte';

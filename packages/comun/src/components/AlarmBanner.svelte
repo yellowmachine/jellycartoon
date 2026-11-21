@@ -1,10 +1,10 @@
+<!--
+@component
+The alarms and timers ringing now (#241), on every page: what and where, and «Parar». Live,
+with the Agenda's channel: stopped anywhere (another device, «Alexa» on a satellite), it goes.
+-->
 <script lang="ts">
 	import { onMount } from 'svelte';
-
-	/**
-	 * The alarms and timers ringing now (#241), on every page: what and where, and «Parar». Live,
-	 * with the Agenda's channel: stopped anywhere (another device, «Alexa» on a satellite), it goes.
-	 */
 
 	interface Ringing {
 		id: number;

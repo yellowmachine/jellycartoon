@@ -1,10 +1,11 @@
+<!--
+@component
+Seilide's stations and podcasts, as tabs that are links (like Ajustes). Podcasts are not for
+children yet.
+-->
 <script lang="ts">
 	import { page } from '$app/state';
 
-	/**
-	 * Seilide's stations and podcasts, as tabs that are links (like Ajustes). Podcasts are not for
-	 * children yet.
-	 */
 	const podcasts = '/radio/podcasts';
 	const tabs = $derived([
 		{ href: '/radio', label: 'Emisoras' },

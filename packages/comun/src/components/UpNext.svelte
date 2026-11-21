@@ -1,19 +1,12 @@
-<script lang="ts">
-	import { formatDuration } from 'comun/format.ts';
-	import { thumbUrl } from 'comun/thumb.svelte.ts';
-
-	/**
-	 * «Siguiente en 8 s» over the video when an episode ends, at home and in Seilide. Compact, the
-	 * thumbnail beside its title: it is drawn inside the video, which out of full screen is only as
-	 * tall as 16:9 of its width (a tablet), and a full card left the buttons below, cut off.
-	 */
-
-	let {
-		episode,
-		countdown,
-		onplay,
-		oncancel
-	}: {
+<!--
+@component
+«Siguiente en 8 s» over the video when an episode ends, at home and in Seilide. Compact, the
+thumbnail beside its title: it is drawn inside the video, which out of full screen is only as
+tall as 16:9 of its width (a tablet), and a full card left the buttons below, cut off.
+-->
+<script lang="ts" module>
+	export interface UpNextProps {
+		/** The next episode: its thumbnail, title, season, number and length. */
 		episode: {
 			id: number;
 			season: number;
@@ -21,10 +14,20 @@
 			title: string;
 			durationSec: number | null;
 		};
+		/** Seconds left before it starts, shown in «Siguiente en … s». */
 		countdown: number | null;
+		/** «Ver ahora», or a tap on the episode. */
 		onplay: () => void;
+		/** The cancel button: stay on this one. */
 		oncancel: () => void;
-	} = $props();
+	}
+</script>
+
+<script lang="ts">
+	import { formatDuration } from 'comun/format.ts';
+	import { thumbUrl } from 'comun/thumb.svelte.ts';
+
+	let { episode, countdown, onplay, oncancel }: UpNextProps = $props();
 </script>
 
 <div class="w-full max-w-sm text-center">

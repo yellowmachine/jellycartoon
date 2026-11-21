@@ -1,37 +1,44 @@
-<script lang="ts">
+<!--
+@component
+The stations (#58), the same in the house and in the cloud (#253): each one played here, or in
+the whole house (`snapcast`, at home, with its `switcher`).
+-->
+<script lang="ts" module>
 	import type { Snippet } from 'svelte';
+	import type { RadioStationInfo } from '../radio.ts';
+
+	export interface RadioStationsProps {
+		/** How each did in Radio Browser's last check; null, it could not be asked. */
+		info: Record<string, RadioStationInfo> | null;
+		/** Played in the whole house (at home, with its `switcher`). */
+		snapcast?: boolean;
+		/** Where it plays: here or the whole house (at home). */
+		switcher?: Snippet;
+		/**
+		 * Where the playing station's headlines are asked for (#387, Seilide's `/radio/titulares`):
+		 * without it, none are shown.
+		 */
+		headlines?: string;
+		/**
+		 * False (Seilide's locked Vista, #532): the headlines and Radio Browser without their links to
+		 * other sites.
+		 */
+		external?: boolean;
+	}
+</script>
+
+<script lang="ts">
 	import { music } from '../music-player.svelte.ts';
 	import { musicTarget } from '../music-target.svelte.ts';
-	import {
-		COUNTRIES,
-		LANGUAGES,
-		STATIONS,
-		type Headline,
-		type RadioStation,
-		type RadioStationInfo
-	} from '../radio.ts';
+	import { COUNTRIES, LANGUAGES, STATIONS, type Headline, type RadioStation } from '../radio.ts';
 
-	/**
-	 * The stations (#58), the same in the house and in the cloud (#253): each one played here, or in
-	 * the whole house (`snapcast`, at home, with its `switcher`). `info`, how each did in Radio
-	 * Browser's last check; null, it could not be asked. `headlines`, where the playing station's
-	 * headlines are asked for (#387, Seilide's `/radio/titulares`): without it, none are shown.
-	 * `external` false (Seilide's locked Vista, #532): the headlines and Radio Browser without their
-	 * links to other sites.
-	 */
 	let {
 		info,
 		snapcast = false,
 		switcher,
 		headlines,
 		external = true
-	}: {
-		info: Record<string, RadioStationInfo> | null;
-		snapcast?: boolean;
-		switcher?: Snippet;
-		headlines?: string;
-		external?: boolean;
-	} = $props();
+	}: RadioStationsProps = $props();
 
 	/** The station playing, if it has its broadcaster's feed. */
 	const withNews = $derived(

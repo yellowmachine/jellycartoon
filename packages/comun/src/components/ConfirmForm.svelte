@@ -1,12 +1,32 @@
+<!--
+@component
+A button for what cannot be undone: pressed, it says what is lost and asks; only «Sí» sends the
+form to `action`, with `fields`. In its place by default; with `below`, the button stays and the
+question takes a line of its own under the row, as wide as it (the row must wrap: `flex-wrap`),
+so a row full of text is not squeezed (Paseos).
+-->
+<script lang="ts" module>
+	export interface ConfirmFormProps {
+		/** The form action «Sí» posts to. */
+		action: string;
+		/** Hidden fields sent with it, e.g. the id. */
+		fields?: Record<string, string | number>;
+		/** The first button's text. */
+		label: string;
+		/** What is lost, in words. */
+		question: string;
+		/** The confirming button's text. */
+		yes?: string;
+		/** The question on its own line under the row, not in the button's place. */
+		below?: boolean;
+		/** The first button's. */
+		class?: string;
+	}
+</script>
+
 <script lang="ts">
 	import { enhance } from '$app/forms';
 
-	/**
-	 * A button for what cannot be undone: pressed, it says what is lost and asks; only «Sí» sends the
-	 * form to `action`, with `fields`. In its place by default; with `below`, the button stays and the
-	 * question takes a line of its own under the row, as wide as it (the row must wrap: `flex-wrap`),
-	 * so a row full of text is not squeezed (Paseos).
-	 */
 	let {
 		action,
 		fields = {},
@@ -15,18 +35,7 @@
 		yes = 'Sí, borrar',
 		below = false,
 		class: className = ''
-	}: {
-		action: string;
-		fields?: Record<string, string | number>;
-		label: string;
-		/** What is lost, in words. */
-		question: string;
-		yes?: string;
-		/** The question on its own line under the row, not in the button's place. */
-		below?: boolean;
-		/** The first button's. */
-		class?: string;
-	} = $props();
+	}: ConfirmFormProps = $props();
 
 	let asking = $state(false);
 </script>

@@ -1,12 +1,12 @@
+<!--
+@component
+The AI's spending (#193), in a line under the header when one turns it on in Ajustes, at home
+and in the cloud: on the left, OpenRouter's total, month and week for the key; on the right,
+the last requests. Live (SSE, `/api/gasto-ia`), as each request comes back and as OpenRouter
+says every few minutes.
+-->
 <script lang="ts">
 	import { cost, dollars, type AiSpend } from '../ai-spend.ts';
-
-	/**
-	 * The AI's spending (#193), in a line under the header when one turns it on in Ajustes, at home
-	 * and in the cloud: on the left, OpenRouter's total, month and week for the key; on the right,
-	 * the last requests. Live (SSE, `/api/gasto-ia`), as each request comes back and as OpenRouter
-	 * says every few minutes.
-	 */
 
 	let spend = $state<AiSpend | null>(null);
 	$effect(() => {

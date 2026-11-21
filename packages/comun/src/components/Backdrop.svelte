@@ -1,14 +1,23 @@
+<!--
+@component
+A frame behind the top of a series' or a film's page, as the platforms do (from under the
+app's bar, the page's <main> being its box; the whole screen in the TV view): sharp at the top,
+more and more blurred and dark going down, until it is the page's own background. Two copies
+of the image: the sharp one fades out over the blurred one. As wide as the page's content,
+fading out at its sides on a wide screen: a frame is not made for a whole wide screen. Shown
+once loaded; with none (not made yet, or no episode to take it from), nothing.
+-->
+<script lang="ts" module>
+	export interface BackdropProps {
+		/** The frame's address. */
+		src: string;
+		/** A small image, such as a game console's screen, enlarged without smoothing. */
+		pixelated?: boolean;
+	}
+</script>
+
 <script lang="ts">
-	/**
-	 * A frame behind the top of a series' or a film's page, as the platforms do (from under the
-	 * app's bar, the page's <main> being its box; the whole screen in the TV view): sharp at the top,
-	 * more and more blurred and dark going down, until it is the page's own background. Two copies
-	 * of the image: the sharp one fades out over the blurred one. As wide as the page's content,
-	 * fading out at its sides on a wide screen: a frame is not made for a whole wide screen. Shown
-	 * once loaded; with none (not made yet, or no episode to take it from), nothing.
-	 */
-	/** `pixelated`: a small image, such as a game console's screen, enlarged without smoothing. */
-	let { src, pixelated = false }: { src: string; pixelated?: boolean } = $props();
+	let { src, pixelated = false }: BackdropProps = $props();
 
 	let loaded = $state(false);
 	let failed = $state(false);

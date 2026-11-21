@@ -1,12 +1,19 @@
+<!--
+@component
+The notices on this phone with the app closed (Web Push, each app's push.ts). The browser asks
+for permission; the service worker shows them.
+-->
+<script lang="ts" module>
+	export interface PushNoticesProps {
+		/** Which notices, at home (a child asking to enter, #141) and in the cloud (an alarm, the agenda, #253). */
+		about: string;
+	}
+</script>
+
 <script lang="ts">
 	import { onMount } from 'svelte';
 
-	/**
-	 * The notices on this phone with the app closed (Web Push, each app's push.ts): `about` says
-	 * which, at home (a child asking to enter, #141) and in the cloud (an alarm, the agenda, #253).
-	 * The browser asks for permission; the service worker shows them.
-	 */
-	let { about }: { about: string } = $props();
+	let { about }: PushNoticesProps = $props();
 	type Status = 'loading' | 'unsupported' | 'blocked' | 'off' | 'on' | 'busy';
 
 	let status = $state<Status>('loading');

@@ -1,8 +1,10 @@
+<!--
+@component
+The app's sections, drawn: by their names in the header and its menu, and big in the TV view.
+Drawn rather than emoji, which depend on the fonts of the PC in the living room.
+-->
 <script lang="ts" module>
-	/**
-	 * The app's sections, drawn: by their names in the header and its menu, and big in the TV view.
-	 * Drawn rather than emoji, which depend on the fonts of the PC in the living room.
-	 */
+	/** A section of the app, by the name of its drawing. */
 	export type Section =
 		| 'series'
 		| 'cine'
@@ -30,10 +32,17 @@
 		| 'infantil'
 		| 'oracion'
 		| 'gestion';
+
+	export interface SectionIconProps {
+		/** Which section's drawing. */
+		name: Section;
+		/** Extra classes for the drawing, e.g. its size. */
+		class?: string;
+	}
 </script>
 
 <script lang="ts">
-	let { name, class: className = '' }: { name: Section; class?: string } = $props();
+	let { name, class: className = '' }: SectionIconProps = $props();
 </script>
 
 <svg

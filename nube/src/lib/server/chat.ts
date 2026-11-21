@@ -223,6 +223,8 @@ function system(context: {
 	style: string | null;
 	/** The section they are looking at, with the chat beside it (#504); none from Preguntar itself. */
 	section?: string | null;
+	/** What is open on that page, when it is one thing (a recipe), as the AI should be told of it. */
+	opened?: string | null;
 	toBuy: string[];
 	recipes: { id: number; title: string }[];
 }) {
@@ -248,13 +250,22 @@ Cómo escribir:
 - Nada se guarda sin que la persona lo toque, salvo los informes que pide («make_report» los guarda): no digas que has añadido o guardado nada más. Si después aparece en lo hablado que lo añadió o guardó, ya está hecho.
 ${context.style ? `- El carácter de la casa, solo el tono: «${context.style}».\n` : ''}
 Ahora es ${today} (${localDay()}).
-${context.section ? `\nEscribe desde el panel de Preguntar abierto al lado de la sección «${context.section}» de Seilide, que está mirando: si la pregunta no dice de qué habla, seguramente va de eso. Si es de una sección que tus herramientas no leen, dilo en una frase, sin inventar sus datos.\n` : ''}
+${context.section ? `\nEscribe desde el panel de Preguntar abierto al lado de la sección «${context.section}» de Seilide, que está mirando: si la pregunta no dice de qué habla, seguramente va de eso. Si es de una sección que tus herramientas no leen, dilo en una frase, sin inventar sus datos.${context.opened ? ` Tiene abierta ${context.opened}: «esta», «aquí» o una pregunta sin más es de eso.` : ''}\n` : ''}
 
 Lista de la compra de la familia, por comprar:
 ${context.toBuy.map((t) => `- ${t}`).join('\n') || '(vacía)'}
 
 Recetario de la familia:
 ${context.recipes.map((r) => `- ${r.title} [receta ${r.id}]`).join('\n') || '(vacío)'}`;
+}
+
+/** The one thing open on the page beside the panel, as the AI is told of it: a recipe of the book. */
+export function openedOn(path: string | null, recipes: { id: number; title: string }[]) {
+	const id = Number(/^\/recetas\/(\d+)\/?$/.exec(path ?? '')?.[1]);
+	const recipe = recipes.find((r) => r.id === id);
+	return recipe
+		? `la receta «${recipe.title}» [receta ${recipe.id}] (léela con «read_recipe»)`
+		: null;
 }
 
 /** A card as the AI is told of it later: what it proposed and what the person took. */
@@ -662,7 +673,9 @@ export async function askChat(
 	who: { id: string; name: string },
 	question: string,
 	/** The section's name, when asked from the panel beside it (#504). */
-	section: string | null = null
+	section: string | null = null,
+	/** The page beside the panel (its path, no query), to tell what is open on it. */
+	path: string | null = null
 ): Promise<ChatMessage[]> {
 	const said = question.trim().slice(0, MAX_CHAT_QUESTION);
 	if (!said) throw new ChatError('Escribe algo');
@@ -679,7 +692,14 @@ export async function askChat(
 	const messages: ToolChatMessage[] = [
 		{
 			role: 'system',
-			content: system({ name: who.name, style: settings.style, section, toBuy: buying, recipes })
+			content: system({
+				name: who.name,
+				style: settings.style,
+				section,
+				opened: section ? openedOn(path, recipes) : null,
+				toBuy: buying,
+				recipes
+			})
 		},
 		...history
 			.slice(firstRead(history))

@@ -1,13 +1,24 @@
-<script lang="ts">
+<!--
+@component
+«+ Añadir a la cola» of an album or a list: at the end of what plays. Said on the button for a
+moment, as the queue itself is out of sight (the bar's queue button opens it).
+-->
+<script lang="ts" module>
 	import type { MusicTrack } from 'comun/music.ts';
+
+	export interface AddToQueueProps {
+		/** The tracks added, in order. */
+		tracks: MusicTrack[];
+		/** To Snapcast's queue (the whole house) instead of this browser's. */
+		toSnapcast: boolean;
+	}
+</script>
+
+<script lang="ts">
 	import { music } from 'comun/music-player.svelte.ts';
 	import { musicTarget } from 'comun/music-target.svelte.ts';
 
-	/**
-	 * «+ Añadir a la cola» of an album or a list: at the end of what plays. Said on the button for a
-	 * moment, as the queue itself is out of sight (the bar's queue button opens it).
-	 */
-	let { tracks, toSnapcast }: { tracks: MusicTrack[]; toSnapcast: boolean } = $props();
+	let { tracks, toSnapcast }: AddToQueueProps = $props();
 
 	/** How long the button says what it did. */
 	const SAID_MS = 2500;
