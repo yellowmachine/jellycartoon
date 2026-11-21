@@ -1,5 +1,5 @@
 import { MAX_PAPER_MB } from 'comun/papers.ts';
-import { smallerPhoto } from 'comun/receipt-photo.ts';
+import { smallerPhoto, type Turn } from 'comun/receipt-photo.ts';
 
 /**
  * A paper of several sheets (#384), from the phone without a scanner: its photos (and PDFs) put
@@ -30,31 +30,37 @@ export class NotASheet extends Error {
 	}
 }
 
+/** A page as chosen: its file, and how much it is turned by hand (photos only). */
+export interface Sheet {
+	file: File;
+	turn: Turn;
+}
+
 const isPdf = (file: File) => file.type === 'application/pdf';
 
 /** A picture the browser cannot draw (HEIC on some), as it is, for the server to say why not. */
-async function photo(file: File, size: typeof ALONE) {
-	const smaller = await smallerPhoto(file, size);
+async function photo({ file, turn }: Sheet, size: typeof ALONE) {
+	const smaller = await smallerPhoto(file, { ...size, turn });
 	return smaller instanceof File
 		? smaller
 		: new File([smaller], 'papel.jpg', { type: smaller.type });
 }
 
 /** The file to send for these pages, in this order: one as it is (a photo smaller), several as a PDF. */
-export async function paperFile(pages: File[]): Promise<File> {
+export async function paperFile(pages: Sheet[]): Promise<File> {
 	if (pages.length === 1) {
-		const [only] = pages as [File];
-		const file = isPdf(only) ? only : await photo(only, ALONE);
+		const [only] = pages as [Sheet];
+		const file = isPdf(only.file) ? only.file : await photo(only, ALONE);
 		if (file.size > MAX_BYTES) throw new PaperTooBig();
 		return file;
 	}
 	const { PDFDocument } = await import('pdf-lib');
 	const pdf = await PDFDocument.create();
 	for (const page of pages) {
-		if (isPdf(page)) {
+		if (isPdf(page.file)) {
 			// One with a password cannot be copied from.
-			const other = await PDFDocument.load(await page.arrayBuffer()).catch(() => {
-				throw new NotASheet(page.name);
+			const other = await PDFDocument.load(await page.file.arrayBuffer()).catch(() => {
+				throw new NotASheet(page.file.name);
 			});
 			for (const copied of await pdf.copyPages(other, other.getPageIndices())) pdf.addPage(copied);
 			continue;
@@ -67,7 +73,7 @@ export async function paperFile(pages: File[]): Promise<File> {
 				: sheet.type === 'image/png'
 					? await pdf.embedPng(bytes)
 					: null;
-		if (!image) throw new NotASheet(page.name);
+		if (!image) throw new NotASheet(page.file.name);
 		const height = (PAGE_WIDTH * image.height) / image.width;
 		pdf.addPage([PAGE_WIDTH, height]).drawImage(image, { x: 0, y: 0, width: PAGE_WIDTH, height });
 	}

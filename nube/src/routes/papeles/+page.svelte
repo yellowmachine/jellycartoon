@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { euros } from 'comun/expenses.ts';
 	import type { MoneyDocument, Paper, PaperCategory, PaperEvent } from 'comun/papers.ts';
@@ -32,6 +33,52 @@
 		]
 			.filter(Boolean)
 			.join(' · ');
+
+	// ——— Download and share: the browser's own viewer, in its tab, has no room for them ———
+
+	/** Where files can be shared (phones; not Firefox nor Linux's desktop): known once in the browser. */
+	let canShareFiles = $state(false);
+	onMount(() => {
+		const probe = new File([''], 'papel.pdf', { type: 'application/pdf' });
+		canShareFiles = Boolean(navigator.canShare?.({ files: [probe] }));
+	});
+	/** The one being fetched to share; then, kept for a second tap if the first was too late. */
+	let sharing = $state<number | null>(null);
+	let ready = $state<{ id: number; file: File } | null>(null);
+	let shareProblem = $state<{ id: number; text: string } | null>(null);
+
+	/**
+	 * To WhatsApp, the mail…: the file itself, not a link (only the family can open it). Fetching it
+	 * may take long enough for the browser to stop counting it as the tap (Safari): then it is kept,
+	 * and a second tap shares it at once.
+	 */
+	async function share(p: Paper) {
+		shareProblem = null;
+		let file = ready?.id === p.id ? ready.file : null;
+		if (!file) {
+			sharing = p.id;
+			try {
+				const res = await fetch(`/papeles/${p.id}/fichero`);
+				if (!res.ok) throw new Error(String(res.status));
+				const blob = await res.blob();
+				const extension = blob.type === 'application/pdf' ? 'pdf' : blob.type.split('/')[1];
+				file = new File([blob], `${p.name}.${extension}`, { type: blob.type });
+			} catch {
+				shareProblem = { id: p.id, text: 'No se ha podido abrir para compartirlo' };
+				return;
+			} finally {
+				sharing = null;
+			}
+		}
+		try {
+			await navigator.share({ files: [file], title: p.name ?? 'Papel' });
+			ready = null;
+		} catch (err) {
+			// Too late after fetching it: ready for a second tap. Closed by the person: nothing.
+			if (err instanceof DOMException && err.name === 'NotAllowedError') ready = { id: p.id, file };
+			else ready = null;
+		}
+	}
 
 	// ——— Filters: only those there is something to filter by ———
 
@@ -236,6 +283,51 @@
 									</p>
 								{/if}
 							</div>
+							<a
+								href="/papeles/{p.id}/fichero?descargar"
+								download
+								class="{button} shrink-0 px-2 text-zinc-400 hover:bg-zinc-800"
+								aria-label="Descargar {p.name}"
+								title="Descargar"
+								><svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									class="h-4 w-4"
+									aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg
+								></a
+							>
+							{#if canShareFiles}
+								<button
+									class={[
+										button,
+										'shrink-0 px-2 hover:bg-zinc-800',
+										ready?.id === p.id ? 'text-amber-400' : 'text-zinc-400'
+									]}
+									aria-label="Compartir {p.name}"
+									title={ready?.id === p.id ? 'Listo: toca otra vez para compartir' : 'Compartir'}
+									disabled={sharing === p.id}
+									onclick={() => share(p)}
+									><svg
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										class={['h-4 w-4', sharing === p.id && 'animate-pulse']}
+										aria-hidden="true"
+										><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle
+											cx="18"
+											cy="19"
+											r="3"
+										/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" /></svg
+									></button
+								>
+							{/if}
 							<button
 								class="{button} shrink-0 px-2 text-zinc-400 hover:bg-zinc-800"
 								aria-label="Cambiar {p.name}"
@@ -249,6 +341,11 @@
 								onclick={() => (deleting = p.id)}>✕</button
 							>
 						</div>
+						{#if ready?.id === p.id}
+							<p class="mt-1 text-xs text-amber-300">Listo: toca otra vez Compartir.</p>
+						{:else if shareProblem?.id === p.id}
+							<p class="mt-1 text-xs text-red-400">{shareProblem.text}</p>
+						{/if}
 						{#if p.notes}
 							<p class="mt-1 text-sm break-words whitespace-pre-wrap text-zinc-300">{p.notes}</p>
 						{/if}

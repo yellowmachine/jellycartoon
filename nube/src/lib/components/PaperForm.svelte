@@ -28,7 +28,7 @@
 	import type { AgendaPerson } from 'comun/agenda.ts';
 	import { MAX_PAPER_MB, MAX_PAPER_NAME, MAX_PAPER_NOTES, PAPER_CATEGORIES } from 'comun/papers.ts';
 	import PaperPick from '#lib/components/PaperPick.svelte';
-	import { NotASheet, paperFile, PaperTooBig } from '#lib/paper-pages.ts';
+	import { NotASheet, paperFile, PaperTooBig, type Sheet } from '#lib/paper-pages.ts';
 
 	/**
 	 * The form of a paper (#384), in Papeles and in an event of the agenda (#399), which sends it to
@@ -62,12 +62,15 @@
 	let sending = $state(false);
 	/** Its pages are being put together, before it is sent. */
 	let joining = $state(false);
-	/** Its pages, in their order: one is sent as it is, several as one PDF (paper-pages.ts). */
-	let pages = $state(untrack(() => [...files]));
+	/**
+	 * Its pages, in their order: one is sent as it is, several as one PDF (paper-pages.ts). A photo
+	 * can be turned by hand (↻): one taken flat on a table, its EXIF often wrong.
+	 */
+	let pages = $state<Sheet[]>(untrack(() => files.map((file) => ({ file, turn: 0 }))));
 
 	/** A small picture of each page that is a photo. */
 	const previews = $derived(
-		pages.map((p) => (p.type.startsWith('image/') ? URL.createObjectURL(p) : null))
+		pages.map(({ file }) => (file.type.startsWith('image/') ? URL.createObjectURL(file) : null))
 	);
 	$effect(() => {
 		const urls = previews;
@@ -186,20 +189,21 @@
 		{#if pages.length}
 			<ol class="mb-2 flex flex-wrap gap-2">
 				{#each pages as page, i (i)}
-					<li class="flex w-24 flex-col items-center gap-1 rounded-md bg-zinc-950 p-1">
+					<li class="flex w-32 flex-col items-center gap-1 rounded-md bg-zinc-950 p-1">
 						{#if previews[i]}
 							<img
 								src={previews[i]}
 								alt="Página {i + 1}"
-								class="h-28 w-full rounded object-cover"
+								style:rotate="{page.turn}deg"
+								class="h-28 w-full rounded object-contain transition-[rotate]"
 							/>
 						{:else}
 							<div class="flex h-28 w-full items-center justify-center text-3xl" aria-hidden="true">
 								📄
 							</div>
 						{/if}
-						<span class="w-full truncate text-center text-xs text-zinc-400" title={page.name}
-							>{i + 1}{previews[i] ? '' : ` · ${page.name}`}</span
+						<span class="w-full truncate text-center text-xs text-zinc-400" title={page.file.name}
+							>{i + 1}{previews[i] ? '' : ` · ${page.file.name}`}</span
 						>
 						<div class="flex">
 							<button
@@ -215,6 +219,15 @@
 								aria-label="Quitar la página {i + 1}"
 								onclick={() => (pages = pages.filter((_, j) => j !== i))}>✕</button
 							>
+							{#if previews[i]}
+								<button
+									type="button"
+									class="{button} px-2 text-zinc-300 hover:bg-zinc-800"
+									aria-label="Girar la página {i + 1}"
+									title="Girar"
+									onclick={() => (page.turn = ((page.turn + 90) % 360) as Sheet['turn'])}>↻</button
+								>
+							{/if}
 							<button
 								type="button"
 								class="{button} px-2 text-zinc-300 hover:bg-zinc-800"
@@ -228,7 +241,10 @@
 			</ol>
 		{/if}
 		<div class="flex flex-wrap gap-2">
-			<PaperPick adding={pages.length > 0} onpick={(more) => (pages = [...pages, ...more])} />
+			<PaperPick
+				adding={pages.length > 0}
+				onpick={(more) => (pages = [...pages, ...more.map((file) => ({ file, turn: 0 as const }))])}
+			/>
 		</div>
 	</div>
 	<div class="flex gap-2">

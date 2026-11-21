@@ -23,14 +23,17 @@ const png = new File(
 	{ type: 'image/png' }
 );
 
+/** As chosen, not turned. */
+const sheet = (file: File) => ({ file, turn: 0 as const });
+
 describe('paperFile', () => {
 	test('one PDF, as it is', async () => {
 		const only = await pdf(2);
-		expect(await paperFile([only])).toBe(only);
+		expect(await paperFile([sheet(only)])).toBe(only);
 	});
 
 	test('several, one PDF with all their pages in order', async () => {
-		const joined = await paperFile([await pdf(2), png, await pdf(1)]);
+		const joined = await paperFile([sheet(await pdf(2)), sheet(png), sheet(await pdf(1))]);
 		expect(joined.type).toBe('application/pdf');
 		const doc = await PDFDocument.load(await joined.arrayBuffer());
 		expect(doc.getPageCount()).toBe(4);
@@ -42,7 +45,7 @@ describe('paperFile', () => {
 
 	test('a file that is not a PDF nor a photo it can put in, said by its name', async () => {
 		const bad = new File([new Uint8Array([1, 2, 3])], 'roto.pdf', { type: 'application/pdf' });
-		await expect(paperFile([png, bad])).rejects.toThrow(NotASheet);
-		await expect(paperFile([png, bad])).rejects.toThrow('«roto.pdf»');
+		await expect(paperFile([sheet(png), sheet(bad)])).rejects.toThrow(NotASheet);
+		await expect(paperFile([sheet(png), sheet(bad)])).rejects.toThrow('«roto.pdf»');
 	});
 });
