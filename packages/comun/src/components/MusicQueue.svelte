@@ -192,10 +192,12 @@ by an icon that was missed.
 					<span class="w-6 shrink-0 text-right font-mono text-xs tabular-nums"
 						>{on ? '♪' : i + 1}</span
 					>
-					<span class="min-w-0 flex-1">
-						<span class="block truncate">{t.title}</span>
-						<span class="block truncate text-sm text-zinc-500">{t.artist}</span>
-					</span>
+					<!-- One line: a long title cuts the artist, not the other way round. -->
+					<span class="min-w-0 flex-1 truncate"
+						>{t.title}{#if t.artist}<span class="text-sm text-zinc-500">
+								· {t.artist}</span
+							>{/if}</span
+					>
 					<span class="font-mono text-xs text-zinc-500 tabular-nums"
 						>{formatDuration(t.durationSec)}</span
 					>
