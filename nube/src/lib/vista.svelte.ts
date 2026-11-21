@@ -89,6 +89,17 @@ class Vista {
 		const touched = () => (this.touchedAt = Date.now());
 		for (const type of ['pointerdown', 'keydown', 'wheel'])
 			addEventListener(type, touched, { passive: true, capture: true });
+		// Full screen lost or never had (in by itself, loaded again, back from another app or the
+		// screen off): asked again on the next touch, which the browser requires. On pointerup, not
+		// pointerdown: a finger's pointerdown does not count as the touch
+		// (https://html.spec.whatwg.org/multipage/interaction.html#activation-triggering-input-event).
+		addEventListener(
+			'pointerup',
+			() => {
+				if (this.on && inVista(location.pathname)) fullScreen();
+			},
+			{ passive: true, capture: true }
+		);
 		try {
 			this.homeScreen = localStorage.getItem(HOME_SCREEN_KEY) === 'on';
 			this.photos = localStorage.getItem(PHOTOS_KEY) === 'on';
@@ -162,8 +173,8 @@ class Vista {
 
 	/**
 	 * Into the Vista: its home, or the recipe while cooking. From a tap (`tap`), on a tablet or
-	 * phone the browser's full screen too, without its bar: it only allows it from a touch, and an
-	 * installed app has no bar. Already in it (the music on the right), it stays where it is.
+	 * phone full screen too, without the browser's or Android's bars: it only allows it from a
+	 * touch (by itself, on the next one). Already in it (the music on the right), it stays where it is.
 	 */
 	enter(tap = false) {
 		if (tap) fullScreen();
@@ -230,11 +241,13 @@ class Vista {
 	}
 }
 
-/** Full screen on a touch screen not installed as an app: the tablet on the wall. */
+/**
+ * Full screen on a touch screen: the tablet on the wall. Installed as an app too: Android keeps its
+ * own bars (status above, navigation below) in a «standalone» app, and only full screen hides them.
+ */
 function fullScreen() {
 	if (!document.fullscreenEnabled || document.fullscreenElement) return;
 	if (!matchMedia('(pointer: coarse)').matches) return;
-	if (matchMedia('(display-mode: standalone)').matches) return;
 	void document.documentElement.requestFullscreen().catch(() => {});
 }
 
