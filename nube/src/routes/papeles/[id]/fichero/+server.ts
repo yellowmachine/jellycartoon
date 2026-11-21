@@ -5,9 +5,9 @@ import { paperFile } from '#lib/server/papers.ts';
 
 /**
  * A paper's file (#384), read back: only the family's own, as it is found through its family.
- * Nothing of it stays in the browser's cache.
+ * Nothing of it stays in the browser's cache. With `?descargar`, saved instead of shown.
  */
-export const GET: RequestHandler = async ({ params, locals }) => {
+export const GET: RequestHandler = async ({ params, url, locals }) => {
 	const k = await kitchenOf(locals.user!.id);
 	const file = await paperFile(k, Number(params.id));
 	if (!file) error(404, 'No se puede abrir este papel ahora');
@@ -15,7 +15,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	return new Response(file.bytes, {
 		headers: {
 			'Content-Type': file.type,
-			'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(`${file.name ?? 'papel'}.${extension}`)}`,
+			'Content-Disposition': `${url.searchParams.has('descargar') ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(`${file.name ?? 'papel'}.${extension}`)}`,
 			'Cache-Control': 'private, no-store',
 			'X-Content-Type-Options': 'nosniff'
 		}
