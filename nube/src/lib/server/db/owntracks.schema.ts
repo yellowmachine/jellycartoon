@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm';
-import { integer, pgPolicy, pgTable, primaryKey, real, text, timestamp } from 'drizzle-orm/pg-core';
+import {
+	date,
+	integer,
+	pgPolicy,
+	pgTable,
+	primaryKey,
+	real,
+	text,
+	timestamp
+} from 'drizzle-orm/pg-core';
 import { user } from './auth.schema.ts';
 import { userRows } from './user.schema.ts';
 
@@ -59,4 +68,27 @@ export const locationPoint = pgTable(
 		receivedAt: timestamp('received_at').notNull().defaultNow()
 	},
 	(t) => [primaryKey({ columns: [t.userId, t.at] }), userRows('location_point_own', t.userId)]
+).enableRLS();
+
+/**
+ * What is left of a day once its positions are forgotten (phase 3, after KEEP_DAYS): how much
+ * was walked, as Paseos → OwnTracks worked it out (owntracks-walking.ts). Only days with positions.
+ */
+export const owntracksDay = pgTable(
+	'owntracks_day',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		/** The house's day. */
+		day: date('day').notNull(),
+		/** Metres walking. */
+		distance: real('distance').notNull().default(0),
+		/** Seconds walking. */
+		seconds: integer('seconds').notNull().default(0),
+		outings: integer('outings').notNull().default(0),
+		/** How many positions came that day. */
+		points: integer('points').notNull().default(0)
+	},
+	(t) => [primaryKey({ columns: [t.userId, t.day] }), userRows('owntracks_day_own', t.userId)]
 ).enableRLS();

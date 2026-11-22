@@ -1,9 +1,10 @@
 import { randomBytes } from 'node:crypto';
-import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
-import { locationPoint, owntracksLink } from '../db/owntracks.schema.ts';
+import { and, asc, desc, eq, gte, lt, min, sql } from 'drizzle-orm';
+import { locationPoint, owntracksDay, owntracksLink } from '../db/owntracks.schema.ts';
 import { userScope, type AnyDb } from '../family-scope.ts';
 import { hashOf } from '../house-key-scope.ts';
 import type { OwntracksPoint } from '#lib/owntracks.ts';
+import { walkingOutings } from '#lib/owntracks-walking.ts';
 
 /**
  * OwnTracks (#593) on the database: a person's connection and their positions, theirs only
@@ -53,9 +54,12 @@ export function owntracksScope(db: AnyDb, { role }: { role?: string } = {}) {
 		return asUser(userId, (tx) => tx.delete(owntracksLink).where(eq(owntracksLink.userId, userId)));
 	}
 
-	/** All their positions, gone. */
+	/** All their positions, and what was left of the old days, gone. */
 	function forget(userId: string) {
-		return asUser(userId, (tx) => tx.delete(locationPoint).where(eq(locationPoint.userId, userId)));
+		return asUser(userId, async (tx) => {
+			await tx.delete(locationPoint).where(eq(locationPoint.userId, userId));
+			await tx.delete(owntracksDay).where(eq(owntracksDay.userId, userId));
+		});
 	}
 
 	/** One position; the same moment again (sent twice), kept once. */
@@ -68,7 +72,7 @@ export function owntracksScope(db: AnyDb, { role }: { role?: string } = {}) {
 		);
 	}
 
-	/** Whether they are connected and since when, and their last position as it came. */
+	/** Whether they are connected and since when, their last position as it came, and if anything is kept. */
 	function status(userId: string) {
 		return asUser(userId, async (tx) => {
 			const [link] = await tx
@@ -86,7 +90,17 @@ export function owntracksScope(db: AnyDb, { role }: { role?: string } = {}) {
 				.where(eq(locationPoint.userId, userId))
 				.orderBy(desc(locationPoint.at))
 				.limit(1);
-			return { connectedAt: link?.createdAt ?? null, last: last ?? null };
+			const [old] = await tx
+				.select({ day: owntracksDay.day })
+				.from(owntracksDay)
+				.where(eq(owntracksDay.userId, userId))
+				.limit(1);
+			return {
+				connectedAt: link?.createdAt ?? null,
+				last: last ?? null,
+				/** Whether anything of theirs is kept: positions, or old days summed up. */
+				kept: !!last || !!old
+			};
 		});
 	}
 
@@ -113,5 +127,103 @@ export function owntracksScope(db: AnyDb, { role }: { role?: string } = {}) {
 		);
 	}
 
-	return { userOf, connect, disconnect, forget, save, status, between };
+	/** What is left of a day whose positions were forgotten, or null. */
+	async function summaryOf(userId: string, day: string) {
+		const [row] = await asUser(userId, (tx) =>
+			tx
+				.select()
+				.from(owntracksDay)
+				.where(and(eq(owntracksDay.userId, userId), eq(owntracksDay.day, day)))
+		);
+		return row ?? null;
+	}
+
+	/** Their first day with anything: a summary's, or a position's. */
+	async function firstDay(userId: string, dayOf: (at: Date) => string) {
+		return asUser(userId, async (tx) => {
+			const [summary] = await tx
+				.select({ day: min(owntracksDay.day) })
+				.from(owntracksDay)
+				.where(eq(owntracksDay.userId, userId));
+			const [point] = await tx
+				.select({ at: min(locationPoint.at) })
+				.from(locationPoint)
+				.where(eq(locationPoint.userId, userId));
+			const days = [summary?.day, point?.at && dayOf(point.at)].filter((d): d is string => !!d);
+			return days.sort()[0] ?? null;
+		});
+	}
+
+	/**
+	 * Every night (phase 3): the positions of the days before `firstKept`, summed up by day and
+	 * forgotten. A day already summed up keeps its summary: a night that failed half way, or a
+	 * position of that day that came late, would leave it with fewer than it had.
+	 */
+	async function summarizeOld(
+		userId: string,
+		firstKept: string,
+		{
+			dayStart,
+			dayOf,
+			nextDay,
+			appWalks
+		}: {
+			/** The instant a house's day starts. */
+			dayStart: (day: string) => Date;
+			dayOf: (at: Date) => string;
+			nextDay: (day: string) => string;
+			/** Their walks in the app, left out as on the page. */
+			appWalks: () => Promise<{ startedAt: Date; endedAt: Date }[]>;
+		}
+	) {
+		const cutoff = dayStart(firstKept);
+		const [oldest] = await asUser(userId, (tx) =>
+			tx
+				.select({ at: min(locationPoint.at) })
+				.from(locationPoint)
+				.where(and(eq(locationPoint.userId, userId), lt(locationPoint.at, cutoff)))
+		);
+		if (!oldest?.at) return 0;
+		const walks = await appWalks();
+		let days = 0;
+		for (let day = dayOf(oldest.at); day < firstKept; day = nextDay(day)) {
+			const points = await between(userId, dayStart(day), dayStart(nextDay(day)));
+			if (!points.length) continue;
+			const outings = walkingOutings(points, walks);
+			const summary = {
+				distance: outings.reduce((sum, o) => sum + o.distance, 0),
+				seconds: Math.round(
+					outings.reduce((sum, o) => sum + (o.endedAt.getTime() - o.startedAt.getTime()) / 1000, 0)
+				),
+				outings: outings.length,
+				points: points.length
+			};
+			await asUser(userId, (tx) =>
+				tx
+					.insert(owntracksDay)
+					.values({ userId, day, ...summary })
+					.onConflictDoNothing()
+			);
+			days++;
+		}
+		await asUser(userId, (tx) =>
+			tx
+				.delete(locationPoint)
+				.where(and(eq(locationPoint.userId, userId), lt(locationPoint.at, cutoff)))
+		);
+		return days;
+	}
+
+	return {
+		userOf,
+		connect,
+		disconnect,
+		forget,
+		save,
+		status,
+		between,
+		summaryOf,
+		firstDay,
+		summarizeOld
+	};
 }

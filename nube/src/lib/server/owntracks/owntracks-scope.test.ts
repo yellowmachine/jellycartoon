@@ -87,3 +87,66 @@ describe('OwnTracks', () => {
 		expect((await ot.status('luis')).last).not.toBeNull();
 	});
 });
+
+describe('the old days (phase 3)', () => {
+	const day = (d: string) => new Date(`${d}T00:00:00Z`);
+	const nextDay = (d: string) => {
+		const x = day(d);
+		x.setUTCDate(x.getUTCDate() + 1);
+		return x.toISOString().slice(0, 10);
+	};
+	const options = (walks: { startedAt: Date; endedAt: Date }[] = []) => ({
+		dayStart: day,
+		dayOf: (at: Date) => at.toISOString().slice(0, 10),
+		nextDay,
+		appWalks: async () => walks
+	});
+	/** Half an hour at 5 km/h from 9:00 that day, a position each minute. */
+	const walkOn = (d: string) =>
+		Array.from({ length: 31 }, (_, i) => ({
+			at: new Date(day(d).getTime() + (9 * 60 + i) * 60_000),
+			lon: -1.13,
+			lat: 37.98 + ((5000 / 60) * i) / 111_195,
+			accuracy: 10,
+			speed: null,
+			altitude: null,
+			battery: null,
+			device: null
+		}));
+
+	test('summed up by day, then forgotten; the days kept, untouched', async () => {
+		for (const p of [...walkOn('2026-08-01'), ...walkOn('2026-08-03'), ...walkOn('2026-11-20')])
+			await ot.save('ana', p);
+		// An app walk over half of 3 August: that half is not counted.
+		const appWalk = {
+			startedAt: new Date('2026-08-03T09:15:00Z'),
+			endedAt: new Date('2026-08-03T10:00:00Z')
+		};
+		expect(await ot.summarizeOld('ana', '2026-08-25', options([appWalk]))).toBe(2);
+
+		const first = await ot.summaryOf('ana', '2026-08-01');
+		expect(first).toMatchObject({ outings: 1, points: 31, seconds: 1800 });
+		expect(first!.distance).toBeCloseTo(2500, -1);
+		expect((await ot.summaryOf('ana', '2026-08-03'))!.distance).toBeCloseTo(1250, -1);
+		expect(await ot.summaryOf('ana', '2026-08-02')).toBeNull();
+
+		const left = await ot.between('ana', day('2026-01-01'), day('2027-01-01'));
+		expect(left).toHaveLength(31);
+		expect(await ot.firstDay('ana', options().dayOf)).toBe('2026-08-01');
+		expect((await ot.status('ana')).kept).toBe(true);
+	});
+
+	test('a position of a summed-up day that comes late does not spoil it', async () => {
+		await ot.save('ana', walkOn('2026-08-01')[0]!);
+		expect(await ot.summarizeOld('ana', '2026-08-25', options())).toBe(1);
+		expect((await ot.summaryOf('ana', '2026-08-01'))!.points).toBe(31);
+		expect(await ot.summarizeOld('ana', '2026-08-25', options())).toBe(0);
+	});
+
+	test("forget takes the summaries too, and only one's own", async () => {
+		await ot.forget('ana');
+		expect(await ot.summaryOf('ana', '2026-08-01')).toBeNull();
+		expect((await ot.status('ana')).kept).toBe(false);
+		expect(await ot.firstDay('ana', options().dayOf)).toBeNull();
+	});
+});

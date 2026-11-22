@@ -33,7 +33,7 @@
 		gastando poca batería. Lo que manda solo lo ves tú, en <a
 			href="/paseos/owntracks"
 			class="text-amber-400 hover:underline">Paseos → OwnTracks</a
-		>, y se guarda 90 días.
+		>: las posiciones se guardan 90 días; de los días anteriores queda solo lo andado.
 	</p>
 
 	{#if made}
@@ -113,12 +113,12 @@
 		</form>
 	{/if}
 
-	{#if status.last}
+	{#if status.kept}
 		<div class="mt-4">
 			<ConfirmForm
 				action="?seccion={tab}&/owntracksForget"
 				label="Borrar todas mis posiciones"
-				question="¿Borrar todo lo que ha mandado OwnTracks? No se puede deshacer."
+				question="¿Borrar todo lo que ha mandado OwnTracks, también lo andado de los días antiguos? No se puede deshacer."
 				yes="Sí, borrar"
 				class="text-sm text-zinc-500 hover:text-red-400"
 			/>

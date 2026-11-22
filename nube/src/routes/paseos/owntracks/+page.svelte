@@ -42,7 +42,7 @@
 
 <PaseosTabs current="owntracks" />
 
-{#if !data.status.connectedAt && !data.status.last}
+{#if !data.status.connectedAt && !data.status.kept}
 	<section class="rounded-md border border-zinc-800 p-6 text-center">
 		<p class="mb-2 text-lg">📍 Tu móvil, sin abrir Seilide</p>
 		<p class="mx-auto mb-4 max-w-md text-sm text-zinc-400">
@@ -62,7 +62,7 @@
 				.battery !== null
 				? `, con la batería al ${data.status.last.battery} %`
 				: ''}{data.status.last.device ? ` (${data.status.last.device})` : ''}.
-		{:else}
+		{:else if data.status.connectedAt}
 			Conectado, pero aún no ha llegado nada: abre OwnTracks en el móvil y mira que diga
 			«Conectado».
 		{/if}
@@ -163,9 +163,21 @@
 		{#key `${data.day}-${shown}`}
 			<TripMap line={shown === null ? data.line : data.outings[shown]!.line} />
 		{/key}
+	{:else if data.summary}
+		<section class="mb-4 rounded-md border border-zinc-800 p-3">
+			<p class="mb-1 text-sm text-zinc-400">Andando</p>
+			<p class="text-xl font-semibold">{walkDistanceText(data.summary.distance)}</p>
+			<p class="text-sm text-zinc-300">
+				{data.summary.outings}
+				{data.summary.outings === 1 ? 'salida' : 'salidas'} · {durationText(data.summary.seconds)}
+			</p>
+		</section>
+		<p class="text-sm text-zinc-500">
+			Las posiciones se guardan 90 días: de este día solo queda lo andado.
+		</p>
 	{:else}
 		<p class="rounded-md border border-zinc-800 p-4 text-sm text-zinc-500">
-			Ese día no llegó nada.
+			{data.forgotten ? 'De ese día no queda nada.' : 'Ese día no llegó nada.'}
 		</p>
 	{/if}
 {/if}

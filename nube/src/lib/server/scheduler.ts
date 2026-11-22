@@ -19,6 +19,7 @@ import { indexAll } from '#lib/server/own-music.ts';
 import { indexAll as indexAllGames } from '#lib/server/own-games.ts';
 import { syncFamily } from '#lib/server/banks/bank.ts';
 import { visits } from '#lib/server/section-visits.ts';
+import { summarizeOldPositions } from '#lib/server/owntracks/retention.ts';
 
 /**
  * The cloud's own clock (#253): every few seconds, each family's alarms whose time has come; every
@@ -114,6 +115,8 @@ export function startScheduler() {
 				await visits
 					.forgetOld()
 					.catch((error) => console.error('[reloj] Secciones usadas antiguas', error));
+				// OwnTracks' positions over 90 days old (#593): each day summed up, then forgotten.
+				await eachFamily('Posiciones de OwnTracks antiguas', summarizeOldPositions);
 				// «Tu música» (#534): each family's bucket read again, not waited for (it takes long).
 				void families()
 					.then(indexAll)
