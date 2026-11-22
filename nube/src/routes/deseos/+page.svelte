@@ -312,5 +312,37 @@
 			onclick={(e) => e.preventDefault()}
 			title="Arrástralo a la barra de marcadores">🎁 Deseos</a
 		>
+		<!-- What any bookmark of code may do, this one or another site's: said before it is dragged. -->
+		<div
+			class="mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-zinc-300"
+			role="note"
+		>
+			<p class="mb-2 font-semibold text-amber-300">
+				Antes de arrastrar un marcador, este o el de cualquier web
+			</p>
+			<ul class="list-disc space-y-1 pl-5">
+				<li>
+					Un marcador así es código: al pulsarlo se ejecuta dentro de la página que tienes abierta,
+					con tu sesión iniciada en ella.
+				</li>
+				<li>
+					Puede leer y cambiar todo lo que ves en esa página, también lo que escribes, y hacer cosas
+					en esa web como si fueras tú: en una tienda, ver tus pedidos; en tu banco, lo que veas
+					allí.
+				</li>
+				<li>
+					No llega a otras pestañas, ni a tus contraseñas guardadas, ni a tus ficheros, y solo hace
+					algo cuando lo pulsas.
+				</li>
+				<li>
+					Arrastra solo marcadores de quien te fíes, y no pegues nunca en el navegador código que te
+					pidan en un mensaje o en una web.
+				</li>
+				<li>
+					Este solo lee el nombre, la foto, el precio y la dirección del producto y abre Seilide con
+					ellos. Su código se puede ver con el botón derecho sobre el marcador → Editar.
+				</li>
+			</ul>
+		</div>
 	</section>
 {/if}
