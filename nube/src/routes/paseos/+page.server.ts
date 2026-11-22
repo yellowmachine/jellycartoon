@@ -6,7 +6,9 @@ import { MAP_DIR } from '$app/env/private';
 import { dayOf, kitchenOf, today } from '#lib/server/fridge.ts';
 import { recentCalories } from '#lib/server/expenses/calories.ts';
 import { deleteWalk, listWalks } from '#lib/server/walks/walks.ts';
-import { walkTotals } from '#lib/walks.ts';
+import { mondayOf, walkTotals } from '#lib/walks.ts';
+import { dayStart } from '#lib/server/plugs/stats.ts';
+import { owntracksOutings } from '#lib/server/owntracks/walking.ts';
 
 /**
  * Paseos (#410): one's own walks, with this week's and this month's added up. `?paseo=`, that one
@@ -31,15 +33,28 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			return null;
 		})
 	]);
-	const totals = walkTotals(
-		walks.map((w) => ({
-			day: dayOf(w.startedAt),
-			distance: w.distance,
-			seconds: (w.endedAt.getTime() - w.startedAt.getTime()) / 1000
-		})),
-		today()
-	);
-	return { walks, totals, map, kcal };
+	// This week's and this month's outings by OwnTracks (#593), added to the walks.
+	const now = today();
+	const monday = mondayOf(now);
+	const monthStart = `${now.slice(0, 7)}-01`;
+	const outings = await owntracksOutings(
+		locals.user!.id,
+		dayStart(monday < monthStart ? monday : monthStart),
+		new Date(),
+		walks
+	).catch((error) => {
+		console.warn('[paseos] Sin OwnTracks', String(error));
+		return [];
+	});
+	const row = (w: { startedAt: Date; endedAt: Date; distance: number }) => ({
+		day: dayOf(w.startedAt),
+		distance: w.distance,
+		seconds: (w.endedAt.getTime() - w.startedAt.getTime()) / 1000
+	});
+	const totals = walkTotals([...walks.map(row), ...outings.map(row)], now);
+	/** What of those totals came from OwnTracks, to say so. */
+	const fromOwntracks = walkTotals(outings.map(row), now);
+	return { walks, totals, fromOwntracks, map, kcal };
 };
 
 export const actions: Actions = {

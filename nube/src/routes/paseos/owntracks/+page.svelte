@@ -3,6 +3,8 @@
 	import PaseosTabs from '#lib/components/PaseosTabs.svelte';
 	import TripMap from '#lib/components/TripMap.svelte';
 	import { agoText } from '#lib/cars.ts';
+	import { durationText } from '#lib/trips.ts';
+	import { walkDistanceText } from '#lib/walks.ts';
 	import type { PageProps } from './$types';
 
 	/** Paseos → OwnTracks (#593): empty until it is connected; then a day's way, as it came. */
@@ -18,6 +20,16 @@
 	const shownDay = $derived(
 		data.day === data.today ? 'Hoy' : dayName.format(new Date(`${data.day}T12:00:00Z`))
 	);
+	const seconds = (o: { startedAt: Date; endedAt: Date }) =>
+		(new Date(o.endedAt).getTime() - new Date(o.startedAt).getTime()) / 1000;
+	const walked = $derived(data.outings.reduce((sum, o) => sum + o.distance, 0));
+	const walkedSeconds = $derived(data.outings.reduce((sum, o) => sum + seconds(o), 0));
+	/** The outing on the map, or the whole day. */
+	let shown = $state<number | null>(null);
+	$effect(() => {
+		void data.day;
+		shown = null;
+	});
 	const arrow = 'rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900';
 </script>
 
@@ -80,13 +92,76 @@
 	</nav>
 
 	{#if data.line.length}
+		<section class="mb-4 grid grid-cols-2 gap-3">
+			<div class="rounded-md border border-zinc-800 p-3">
+				<p class="mb-1 text-sm text-zinc-400">Andando</p>
+				<p class="text-xl font-semibold">{walkDistanceText(walked)}</p>
+				<p class="text-sm text-zinc-300">
+					{data.outings.length}
+					{data.outings.length === 1 ? 'salida' : 'salidas'} · {durationText(walkedSeconds)}
+				</p>
+			</div>
+			<div class="rounded-md border border-zinc-800 p-3">
+				<p class="mb-1 text-sm text-zinc-400">Lo que llegó</p>
+				<p class="text-xl font-semibold">
+					{data.line.length}
+					{data.line.length === 1 ? 'posición' : 'posiciones'}
+				</p>
+				<p class="text-sm text-zinc-300">
+					de {time.format(new Date(data.first!))} a {time.format(new Date(data.last!))}
+				</p>
+			</div>
+		</section>
+
+		{#if data.outings.length}
+			<ul class="mb-4 divide-y divide-zinc-800 rounded-md border border-zinc-800">
+				{#each data.outings as o, i (o.startedAt)}
+					<li>
+						<button
+							class={[
+								'flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-zinc-900',
+								shown === i && 'bg-zinc-900'
+							]}
+							aria-pressed={shown === i}
+							onclick={() => (shown = shown === i ? null : i)}
+						>
+							<span class="min-w-0 flex-1"
+								>🚶 {time.format(new Date(o.startedAt))} – {time.format(new Date(o.endedAt))}</span
+							>
+							<span class="text-zinc-300">{walkDistanceText(o.distance)}</span>
+							<span class="w-16 text-right text-zinc-500">{durationText(seconds(o))}</span>
+						</button>
+					</li>
+				{/each}
+			</ul>
+		{:else}
+			<p class="mb-4 text-sm text-zinc-500">Ese día no se ve ningún rato andando.</p>
+		{/if}
+
+		{#if data.appWalks.length}
+			<p class="mb-4 text-sm text-zinc-400">
+				Ese día también
+				{#each data.appWalks as w, i (w.id)}{i ? ', ' : ' '}<a
+						href="/paseos?paseo={w.id}"
+						class="text-amber-400 hover:underline"
+						>el paseo de las {time.format(new Date(w.startedAt))} ({walkDistanceText(
+							w.distance
+						)})</a
+					>{/each}, desde la app: lo que coincide con {data.appWalks.length === 1 ? 'él' : 'ellos'}
+				cuenta allí, no aquí.
+			</p>
+		{/if}
+
 		<p class="mb-2 text-sm text-zinc-400">
-			{data.line.length}
-			{data.line.length === 1 ? 'posición' : 'posiciones'}, de {time.format(new Date(data.first!))} a
-			{time.format(new Date(data.last!))}.
+			{shown === null ? 'Todo el día, también en coche.' : 'Esa salida.'}
+			{#if shown !== null}
+				<button class="text-amber-400 hover:underline" onclick={() => (shown = null)}
+					>Ver todo el día</button
+				>
+			{/if}
 		</p>
-		{#key data.day}
-			<TripMap line={data.line} />
+		{#key `${data.day}-${shown}`}
+			<TripMap line={shown === null ? data.line : data.outings[shown]!.line} />
 		{/key}
 	{:else}
 		<p class="rounded-md border border-zinc-800 p-4 text-sm text-zinc-500">
