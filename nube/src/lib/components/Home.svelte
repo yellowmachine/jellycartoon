@@ -24,6 +24,8 @@
 	import type { CarView } from '#lib/cars.ts';
 	import { newsShown, newsUnread, type NewsCard } from '#lib/news.ts';
 	import CarCard from '#lib/components/CarCard.svelte';
+	import CardIcon from '#lib/components/CardIcon.svelte';
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { section } from '#lib/styles.ts';
 	import { todayLines } from '#lib/today-lines.ts';
 
@@ -286,7 +288,8 @@
 		{@const arrival = arrivalOf(next.leg)}
 		<a href="/viajes" class="{section} block border-amber-500/40 hover:border-amber-500/70">
 			<h2 class="font-semibold">
-				🚗 {next.trip.name}
+				<SectionIcon name="viajes" class="mr-1.5 inline-block h-5 w-5 align-[-0.25em]" />{next.trip
+					.name}
 				<span class="font-normal text-zinc-400">· {whenText(next.leg.day, today)}</span>
 			</h2>
 			<p class="text-sm">
@@ -330,8 +333,8 @@
 	<section class="{section} border-amber-500/40">
 		<div class="mb-3 flex items-baseline justify-between">
 			<h2 class="font-semibold">
-				📬 Buzón <span class="text-sm font-normal text-zinc-400">· {home.inbox.count} sin leer</span
-				>
+				<SectionIcon name="buzon" class="mr-1.5 inline-block h-5 w-5 align-[-0.25em]" />Buzón
+				<span class="text-sm font-normal text-zinc-400">· {home.inbox.count} sin leer</span>
 			</h2>
 			<a href="/buzon" class="text-sm text-amber-400 hover:underline">Ver todo</a>
 		</div>
@@ -456,7 +459,9 @@
 			</ul>
 		{/if}
 		<a href="/nevera" class="text-sm hover:underline"
-			>🛒 {toBuy ? `Compra: ${toBuy} ${toBuy === 1 ? 'cosa' : 'cosas'}` : 'La compra está vacía'} →</a
+			><CardIcon name="compra" class="mr-1 inline-block h-4 w-4 align-[-0.2em]" />{toBuy
+				? `Compra: ${toBuy} ${toBuy === 1 ? 'cosa' : 'cosas'}`
+				: 'La compra está vacía'} →</a
 		>
 		{#if adding}
 			<form onsubmit={add} class="mt-3 flex gap-2">
@@ -500,7 +505,9 @@
 		{@const items = newsShown(card, group, readNews)}
 		<section class={section}>
 			<div class="mb-3 flex items-baseline justify-between">
-				<h2 class="font-semibold">📰 Noticias</h2>
+				<h2 class="font-semibold">
+					<CardIcon name="noticias" class="mr-1.5 inline-block h-5 w-5 align-[-0.25em]" />Noticias
+				</h2>
 				<a
 					href={card.url}
 					target="_blank"

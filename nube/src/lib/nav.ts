@@ -293,7 +293,7 @@ export function navLinks(
 				]
 			: []),
 		// What the app told them and the messages left for them (#331).
-		{ href: '/buzon', label: 'Buzón', icon: 'agenda' },
+		{ href: '/buzon', label: 'Buzón', icon: 'buzon' },
 		{ href: '/ajustes', label: 'Ajustes', icon: 'ajustes' },
 		// Their phone, handed to one of their children (#303).
 		...(guardian ? [{ href: '/pasar', label: 'Pasar a un peque', icon: 'infantil' as const }] : []),

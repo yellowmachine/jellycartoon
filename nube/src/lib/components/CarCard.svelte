@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { refreshAll } from '$app/navigation';
 	import { agoText, isMoving, walkTo, whereAmI, type CarPlace, type CarView } from '#lib/cars.ts';
+	import CardIcon from '#lib/components/CardIcon.svelte';
 	import { section } from '#lib/styles.ts';
 
 	/**
@@ -37,7 +38,9 @@
 <section class="{section} flex items-start justify-between gap-3">
 	<div class="min-w-0">
 		<a href="/viajes#coches" class="block">
-			<h2 class="font-semibold">🚗 {car.name}</h2>
+			<h2 class="font-semibold">
+				<CardIcon name="coche" class="mr-1.5 inline-block h-5 w-5 align-[-0.25em]" />{car.name}
+			</h2>
 			{#if place.street && !moving}
 				<p class="truncate text-sm">{place.street}</p>
 			{/if}
