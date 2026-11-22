@@ -202,6 +202,32 @@ describe('specOf', () => {
 		expect(dose(45)).toMatchObject({ spec: { when: { minutesAfter: 45 } } });
 	});
 
+	test('a place (#593): arriving or leaving; without saying, arriving', () => {
+		const place = (moment: string) =>
+			specOf(
+				answer({
+					when: {
+						kind: 'lugar',
+						words: ['casa'],
+						minutes_before: 0,
+						minutes_after: 0,
+						time: null,
+						weather: none,
+						place: moment
+					}
+				}),
+				resolve
+			);
+		expect(place('sale')).toMatchObject({
+			spec: { when: { kind: 'lugar', words: ['casa'], place: 'sale' } }
+		});
+		expect(place('llega')).toMatchObject({ spec: { when: { place: 'llega' } } });
+		expect(place('ninguno')).toMatchObject({ spec: { when: { place: 'llega' } } });
+		expect('place' in (specOf(answer(), resolve) as { spec: { when: object } }).spec.when).toBe(
+			false
+		);
+	});
+
 	test('a plug (#528): when it starts or ends; without saying, when it ends', () => {
 		const plug = (moment: string) =>
 			specOf(

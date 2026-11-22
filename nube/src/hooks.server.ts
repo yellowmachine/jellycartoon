@@ -68,7 +68,9 @@ const PUBLIC_PATHS = [
 	'/quien',
 	'/api/quien/',
 	// bunq's calls on each movement (#502), with the token in their address (banks/bank.ts).
-	'/api/bancos/'
+	'/api/bancos/',
+	// OwnTracks on a person's phone (#593), with their password as Basic auth (owntracks-scope.ts).
+	'/api/owntracks'
 ];
 
 /**
@@ -96,6 +98,8 @@ const checkCsrf: Handle = ({ event, resolve }) => {
 		!CLIENT_POSTS.includes(url.pathname) &&
 		// bunq's calls (#502): from its servers, without an Origin; only a token, nothing read.
 		!url.pathname.startsWith('/api/bancos/') &&
+		// OwnTracks (#593): from the phone's app, without an Origin; its password says whose.
+		url.pathname !== '/api/owntracks' &&
 		['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method) &&
 		(!type || FORM_TYPES.includes(type)) &&
 		request.headers.get('origin') !== url.origin;

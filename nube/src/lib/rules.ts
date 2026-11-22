@@ -15,8 +15,9 @@ import { timeLabel } from 'comun/timer-names.ts';
  * hour), a dose still not marked `minutesAfter` its time, something said to the voice (phase 4:
  * «cuando diga que pongo la lavadora», by its words only), a purchase saved in Gastos (#451:
  * «si compro bebida», by what it has), a plug's appliance that starts or ends a cycle (#528:
- * «cuando acabe la lavadora», by the plug's name or kind), or one day at one time (#557, an
- * errand: «mañana a las 9», once).
+ * «cuando acabe la lavadora», by the plug's name or kind), one day at one time (#557, an
+ * errand: «mañana a las 9», once), or arriving at or leaving a place (#593: «cuando llegue a
+ * casa», by OwnTracks on the person's phone; only their own rules).
  */
 export const TRIGGERS = [
 	'agenda',
@@ -30,7 +31,8 @@ export const TRIGGERS = [
 	'toma_sin_marcar',
 	'compra',
 	'enchufe',
-	'en_fecha'
+	'en_fecha',
+	'lugar'
 ] as const;
 export type TriggerKind = (typeof TRIGGERS)[number];
 
@@ -40,6 +42,10 @@ export type TriggerKind = (typeof TRIGGERS)[number];
  */
 export const PLUG_MOMENTS = ['empieza', 'termina'] as const;
 export type PlugMoment = (typeof PLUG_MOMENTS)[number];
+
+/** A place's moment (#593), as OwnTracks tells it from the phone: arriving or leaving. */
+export const PLACE_MOMENTS = ['llega', 'sale'] as const;
+export type PlaceMoment = (typeof PLACE_MOMENTS)[number];
 
 /**
  * What has to hold too (or not, `negate`): being away on a trip today, something remembered, a
@@ -112,6 +118,8 @@ export interface Trigger {
 	minutesAfter?: number;
 	/** For enchufe: when its cycle starts or ends. */
 	plug?: PlugMoment;
+	/** For lugar (#593): arriving or leaving; its words, the place's name («casa»). */
+	place?: PlaceMoment;
 }
 
 /**
@@ -357,6 +365,8 @@ export interface TranslatedRule {
 		plug?: string;
 		/** For en_fecha: `YYYY-MM-DD`; null in the others. */
 		day?: string | null;
+		/** For lugar: `llega` or `sale`; `ninguno` in the others. */
+		place?: string;
 	};
 	conditions: {
 		kind: string;
@@ -466,6 +476,10 @@ export function specOf(
 				// «Cuando la lavadora…», without saying which: when it ends, as the template's.
 				...(t.when.kind === 'enchufe'
 					? { plug: isOneOf(PLUG_MOMENTS, t.when.plug) ? t.when.plug : 'termina' }
+					: {}),
+				// «Cuando llegue a casa…»: arriving, unless it says leaving.
+				...(t.when.kind === 'lugar'
+					? { place: isOneOf(PLACE_MOMENTS, t.when.place) ? t.when.place : 'llega' }
 					: {})
 			},
 			conditions: (Array.isArray(t.conditions) ? t.conditions : [])
@@ -565,7 +579,8 @@ export const RULE_SCHEMA = {
 				'time',
 				'day',
 				'weather',
-				'plug'
+				'plug',
+				'place'
 			],
 			properties: {
 				kind: { type: 'string', enum: [...TRIGGERS] },
@@ -575,7 +590,8 @@ export const RULE_SCHEMA = {
 				time: { type: ['string', 'null'] },
 				day: { type: ['string', 'null'] },
 				weather: weatherSchema,
-				plug: { type: 'string', enum: ['ninguno', ...PLUG_MOMENTS] }
+				plug: { type: 'string', enum: ['ninguno', ...PLUG_MOMENTS] },
+				place: { type: 'string', enum: ['ninguno', ...PLACE_MOMENTS] }
 			}
 		},
 		conditions: {

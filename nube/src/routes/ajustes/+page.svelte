@@ -37,6 +37,7 @@
 	import FuenteJuegos from './FuenteJuegos.svelte';
 	import AparatosMensajes from './AparatosMensajes.svelte';
 	import Coches from './Coches.svelte';
+	import OwnTracks from './OwnTracks.svelte';
 	import GastoIa from './GastoIa.svelte';
 	import Microfono from './Microfono.svelte';
 	import TelefonoAparato from './TelefonoAparato.svelte';
@@ -201,6 +202,8 @@
 		<ComoTeAviso {data} {tab} />
 
 		<GuardarViajes {data} {tab} />
+
+		<OwnTracks {data} {form} {tab} />
 
 		{#if data.user}
 			<BotonLlamar {data} {tab} userId={data.user.id} />

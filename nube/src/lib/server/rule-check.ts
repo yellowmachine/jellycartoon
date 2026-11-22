@@ -7,6 +7,7 @@ import { hasWords } from '#lib/server/voice/learned.ts';
 import {
 	DOSE_LATE_MIN,
 	type Condition,
+	type PlaceMoment,
 	type PlugMoment,
 	type RuleSpec,
 	type SolarCheck,
@@ -248,6 +249,30 @@ export const plugFits = (r: Rule, p: PlugHappened) =>
 /** ««Lavadora» ha terminado a las 10:05». */
 export const plugWhy = (p: PlugHappened, time: string) =>
 	`«${p.name}» ha ${p.moment === 'empieza' ? 'empezado' : 'terminado'} a las ${time}`;
+
+/**
+ * Arriving at or leaving a place (#593), as OwnTracks on a person's phone told it: whose, the
+ * place's name («Casa»), and which.
+ */
+export interface PlaceHappened {
+	userId: string;
+	name: string;
+	moment: PlaceMoment;
+}
+
+/**
+ * Whether a rule waits for this: only the person's own rules (a house's rule, or another
+ * person's, never learns where one is), its moment (unset, «llega»), and its words in the name.
+ */
+export const placeFits = (r: Rule, p: PlaceHappened) =>
+	r.spec.when.kind === 'lugar' &&
+	r.userId === p.userId &&
+	(r.spec.when.place ?? 'llega') === p.moment &&
+	hasWords(r.spec.when.words, p.name);
+
+/** «has llegado a «Casa» a las 19:42». */
+export const placeWhy = (p: PlaceHappened, time: string) =>
+	`has ${p.moment === 'llega' ? 'llegado a' : 'salido de'} «${p.name}» a las ${time}`;
 
 /** Its person's trip that day, if any. */
 export const awayOn = (trips: Trip[], day: string) =>

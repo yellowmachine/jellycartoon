@@ -6,6 +6,7 @@
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import WalkLock from './WalkLock.svelte';
 	import WalkShare from './WalkShare.svelte';
+	import PaseosTabs from '#lib/components/PaseosTabs.svelte';
 	import NoteButton from '#lib/components/NoteButton.svelte';
 	import TripMap from '#lib/components/TripMap.svelte';
 	import WalkUploads from '#lib/components/WalkUploads.svelte';
@@ -134,7 +135,9 @@
 </svelte:head>
 
 <h1 class="mb-1 text-2xl font-bold">Paseos<GuideLink page="paseos" label="los paseos" /></h1>
-<p class="mb-6 text-sm text-zinc-400">Tiempo, km y recorrido al salir a andar, solo para ti.</p>
+<p class="mb-4 text-sm text-zinc-400">Tiempo, km y recorrido al salir a andar, solo para ti.</p>
+
+<PaseosTabs current="app" />
 
 <WalkUploads />
 
@@ -297,9 +300,9 @@
 	{/if}
 {/snippet}
 
-{#if data.walks.length}
+{#if data.walks.length || data.fromOwntracks.month.walks}
 	<section class="mb-8 grid grid-cols-2 gap-3">
-		{#each [{ label: 'Esta semana', s: data.totals.week }, { label: 'Este mes', s: data.totals.month }] as box (box.label)}
+		{#each [{ label: 'Esta semana', s: data.totals.week, ot: data.fromOwntracks.week }, { label: 'Este mes', s: data.totals.month, ot: data.fromOwntracks.month }] as box (box.label)}
 			<div class="rounded-md border border-zinc-800 p-3">
 				<p class="mb-1 text-sm text-zinc-400">{box.label}</p>
 				<p class="text-xl font-semibold">{walkDistanceText(box.s.distance)}</p>
@@ -307,6 +310,11 @@
 					{box.s.walks}
 					{box.s.walks === 1 ? 'paseo' : 'paseos'} · {durationText(box.s.seconds)}
 				</p>
+				{#if box.ot.walks}
+					<a href="/paseos/owntracks" class="text-xs text-zinc-500 hover:text-amber-300"
+						>{walkDistanceText(box.ot.distance)} con OwnTracks</a
+					>
+				{/if}
 			</div>
 		{/each}
 	</section>

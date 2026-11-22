@@ -386,6 +386,24 @@ describe('y si…', () => {
 		expect(of(dishes).said).toBe('No avisaría: «Lavadora» no es «lavavajillas».');
 	});
 
+	test("arriving at a place (#593): only one's own rules, by its moment and name", async () => {
+		const home = ruleOf({ when: when({ kind: 'lugar', words: ['casa'], place: 'llega' }) });
+		const leaving = ruleOf({ when: when({ kind: 'lugar', words: ['casa'], place: 'sale' }) });
+		const work = ruleOf({ when: when({ kind: 'lugar', words: ['trabajo'] }) });
+		const others = ruleOf({ when: when({ kind: 'lugar', words: ['casa'] }) }, { userId: 'ana' });
+		const house = ruleOf({ when: when({ kind: 'lugar', words: ['casa'] }) }, { userId: null });
+		const out = await run([home, leaving, work, others, house], '19:00', '19:59', {
+			happens: { kind: 'lugar_llega', text: 'Casa' }
+		});
+		const of = (r: Rule) => out.find((o) => o.id === r.id)!;
+		expect(of(home).does).toBe('avisa');
+		expect(of(home).said).toContain('has llegado a «Casa» a las 19:00');
+		expect(of(leaving).said).toBe('No avisaría: espera a que salgas.');
+		expect(of(work).said).toBe('No avisaría: «Casa» no es «trabajo».');
+		expect(of(others).does).toBeNull();
+		expect(of(house).does).toBeNull();
+	});
+
 	test('the ready one for the washing (#528): rain soon, not out; dry, hung and then picked up', async () => {
 		const ready = RULE_TEMPLATES.find((t) => t.id === 'ropa-lluvia')!;
 		const rules = ready.rules.map((t) => ruleOf(t.spec));

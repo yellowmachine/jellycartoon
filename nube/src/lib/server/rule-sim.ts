@@ -6,11 +6,14 @@ import {
 	fits,
 	MAX_CHAIN,
 	momentOf,
+	placeFits,
+	placeWhy,
 	plugFits,
 	plugWhy,
 	quoted,
 	waitsFor,
 	weatherFor,
+	type PlaceHappened,
 	type PlugHappened,
 	type Rule,
 	type Trip,
@@ -40,7 +43,8 @@ const WEATHER_EVERY_MIN = 30;
  * span instead of the forecast; the one who looks, away on a trip that day; Medicación's doses, all
  * marked or none; and something that happens at its start: said to the voice, put on the fridge,
  * asked to remember, by the one who looks; bought (#451: what, separated by commas); or a plug's
- * appliance that starts or ends (#528: its name, «lavadora»).
+ * appliance that starts or ends (#528: its name, «lavadora»); or the one who looks arriving at
+ * or leaving one of their places (#593: its name, «casa»).
  */
 export interface WhatIf {
 	weather: WeatherIf;
@@ -56,7 +60,9 @@ export const HAPPENS = [
 	'recuerdo',
 	'compra',
 	'enchufe_empieza',
-	'enchufe_termina'
+	'enchufe_termina',
+	'lugar_llega',
+	'lugar_sale'
 ] as const;
 export type HappensKind = (typeof HAPPENS)[number];
 
@@ -204,12 +210,14 @@ export function whenSaid(when: RuleSpec['when']) {
 			return `cuando se guarda una compra con ${about}`;
 		case 'enchufe':
 			return `cuando ${when.words.length ? `${quoted(when.words)}` : 'un aparato de Enchufes'} ${when.plug === 'empieza' ? 'empieza' : 'termina'}`;
+		case 'lugar':
+			return `cuando ${when.place === 'sale' ? 'sales de' : 'llegas a'} ${when.words.length ? quoted(when.words) : 'un sitio'}`;
 		case 'tiempo':
 			return 'cuando cambia el tiempo';
 	}
 }
 
-const EVENT_KINDS = new Set(['nevera', 'recuerdo', 'dicho', 'compra', 'enchufe']);
+const EVENT_KINDS = new Set(['nevera', 'recuerdo', 'dicho', 'compra', 'enchufe', 'lugar']);
 
 /** What a made-up purchase has: «cerveza, leche» is two lines. */
 export const boughtItems = (text: string) =>
@@ -341,6 +349,29 @@ export async function simulate({
 					continue;
 				}
 				const because = plugWhy(p, time);
+				const holds = await conditionsHold(start, r);
+				if (holds.ok) await act(r, start, from, [because, ...holds.why].join(' y '), []);
+				else missed.set(r.id, { minute: from, why: [because, ...holds.why].join(' pero ') });
+				continue;
+			}
+			if (kind === 'lugar_llega' || kind === 'lugar_sale') {
+				if (r.spec.when.kind !== 'lugar' || !ownerId || r.userId !== ownerId) continue;
+				const p: PlaceHappened = {
+					userId: ownerId,
+					name: text.trim(),
+					moment: kind === 'lugar_llega' ? 'llega' : 'sale'
+				};
+				if (!placeFits(r, p)) {
+					missed.set(r.id, {
+						minute: from,
+						why:
+							(r.spec.when.place ?? 'llega') !== p.moment
+								? `espera a que ${r.spec.when.place === 'sale' ? 'salgas' : 'llegues'}`
+								: `«${p.name}» no es ${quoted(r.spec.when.words)}`
+					});
+					continue;
+				}
+				const because = placeWhy(p, time);
 				const holds = await conditionsHold(start, r);
 				if (holds.ok) await act(r, start, from, [because, ...holds.why].join(' y '), []);
 				else missed.set(r.id, { minute: from, why: [because, ...holds.why].join(' pero ') });

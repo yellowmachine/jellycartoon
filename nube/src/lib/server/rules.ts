@@ -40,9 +40,12 @@ import {
 	sameName,
 	weatherFor,
 	waitsFor,
+	placeFits,
+	placeWhy,
 	plugFits,
 	plugWhy,
 	type Fitted,
+	type PlaceHappened,
 	type PlugHappened,
 	type Rule,
 	type Trip,
@@ -55,6 +58,7 @@ import { PlugOffline } from '#lib/server/plugs/hub.ts';
 import { HEAT_MS, plugsOf, setPausedIn, switchIn } from '#lib/server/plugs/plugs.ts';
 import { sensorsIn } from '#lib/server/plugs/sensors.ts';
 import { PLUG_KINDS } from '#lib/plugs.ts';
+import { owntracksPlaceNames } from '#lib/server/owntracks/places.ts';
 import {
 	MAX_PLUG_MIN,
 	MAX_RULE,
@@ -281,11 +285,13 @@ const SYSTEM = (
 	people: string[],
 	who: string,
 	plugs: string[],
-	sensors: string[]
+	sensors: string[],
+	places: string[]
 ) =>
 	`Conviertes una regla de una familia, dicha en español, en datos que un programa comprueba solo, sin IA. Hoy es ${dayName(today, true)} (${today}), son las ${now}. La familia: ${people.join(', ') || 'nadie más'}. ${who}
 Enchufes de la familia (Enchufes): ${plugs.join(', ') || 'ninguno'}.
 Sensores de temperatura de la familia: ${sensors.join(', ') || 'ninguno'}.
+Sitios de quien habla, para «lugar»: ${places.join(', ') || 'ninguno'}.
 
 Cuándo se mira («when.kind»), solo una:
 - «agenda»: cuando empieza una cita de la Agenda cuyo título tiene «words» («cuando vengan mis padres» → ["padres"]); «minutes_before» antes (0, al empezar; «la víspera», 1440).
@@ -299,6 +305,7 @@ Cuándo se mira («when.kind»), solo una:
 - «toma_sin_marcar»: cuando una toma de Medicación sigue sin marcar «minutes_after» minutos después de su hora (0: media hora); «words», el nombre de la persona que la toma (vacío: cualquiera).
 - «compra»: cuando se guarda en Gastos una compra (un ticket, una factura, un gasto dicho) con algo de «words» («si compro bebida» → ["bebida"]; «words», lo comprado en una o dos palabras, sin «comprar»); se mira una vez por compra.
 - «enchufe»: cuando un aparato enchufado a un enchufe de Enchufes empieza o acaba de funcionar (un lavado, no un momento): «plug» «empieza» o «termina» («cuando acabe la lavadora», «cuando la lavadora termine» → «termina»; «cuando ponga la lavadora», «cuando arranque» → «empieza»; sin decirlo, «termina»); «words», el aparato en una palabra («lavadora», «lavavajillas», «secadora»; vacío: cualquiera). «plug» es «ninguno» en los demás.
+- «lugar»: cuando quien habla llega a uno de sus sitios (arriba) o sale de él, según su móvil con OwnTracks: «place» «llega» («cuando llegue a casa», «al llegar al trabajo») o «sale» («cuando salga del trabajo», «al irme de casa»; sin decirlo, «llega»); «words», el nombre del sitio en una o dos palabras («casa», «trabajo»; vacío: cualquiera). Solo de quien habla: no vale para otra persona («cuando llegue Ana») ni en una regla de la casa; entonces «possible» false. «place» es «ninguno» en los demás.
 «words» son pocas palabras clave sueltas, tal como se escribirían en la cita o la nota, sin artículos; «time» es null salvo en «cada_dia».
 «weather» (en «when» y en cada condición; «what» «ninguno» si no hace falta): «what» es «lluvia», «helada», «calor», «viento» o «nieve»; «hours», las próximas horas que mirar («esta tarde» desde ahora, «mañana» hasta mañana por la noche); «threshold», el número si lo dice (lluvia en %, 60 si no; helada y calor en °C, 0 y 35 si no; viento en km/h, 50 si no; nieve, null) o null; «where», «casa» o «donde_este» (donde esté quien habla si está de viaje: «si en Lisboa llueve»).
 
@@ -332,12 +339,14 @@ export async function translateRule(
 ): Promise<{ spec: RuleSpec; understood: string } | { problem: string }> {
 	const text = said.trim().slice(0, MAX_RULE);
 	if (!text) return { problem: 'Falta la regla.' };
-	const [apiKey, settings, people, plugs, sensors] = await Promise.all([
+	const [apiKey, settings, people, plugs, sensors, places] = await Promise.all([
 		openRouterKey(k),
 		voiceSettings(k),
 		familyPeople(k),
 		plugsOf(k),
-		k.run((tx) => sensorsIn(tx, new Date(), false))
+		k.run((tx) => sensorsIn(tx, new Date(), false)),
+		// Theirs (#593), as OwnTracks has them: Casa and their saved places.
+		who && k.userId ? owntracksPlaceNames(k) : []
 	]);
 	if (!apiKey)
 		return { problem: 'Sin la clave de OpenRouter de la familia no sé entender reglas.' };
@@ -353,7 +362,8 @@ export async function translateRule(
 				people.map((p) => p.name),
 				who ? `Quien habla es ${who}.` : 'Se dice en un satélite: es una regla de la casa.',
 				plugs.map((p) => `${p.name} (${PLUG_KINDS[p.kind].label.toLowerCase()})`),
-				sensors.map((s) => (s.home && sensors.length > 1 ? `${s.name} (el de casa)` : s.name))
+				sensors.map((s) => (s.home && sensors.length > 1 ? `${s.name} (el de casa)` : s.name)),
+				places
 			),
 			prompt: text,
 			name: 'rule',
@@ -375,7 +385,13 @@ export async function translateRule(
 		},
 		{ plugs, sensors, now: { day: localDay(), time: localTime() } }
 	);
-	return 'problem' in made ? made : { spec: made.spec, understood: t.understood || text };
+	if ('problem' in made) return made;
+	// A place is the person's own (#593): a house's rule never learns where one is.
+	if (made.spec.when.kind === 'lugar' && !who)
+		return {
+			problem: 'Llegar a un sitio solo vale en las reglas de cada uno, no en las de la casa.'
+		};
+	return { spec: made.spec, understood: t.understood || text };
 }
 
 /**
@@ -389,6 +405,7 @@ export async function translateCost(k: Kitchen, chars = 150) {
 		localTime(),
 		people.map((p) => p.name),
 		'',
+		[],
 		[],
 		[]
 	);
@@ -967,7 +984,8 @@ async function missedMoment(k: Kitchen, r: Rule) {
  * every rule), something remembered or deduced (`recuerdo`: a person's, only for their rules; the
  * house's, for all), something said to the voice (`dicho`: by a person, for their rules and the
  * house's; on a satellite, the house's; by its words only, as it is every order), a purchase
- * (`compra`, #451: `onPurchase`), a plug's cycle that starts or ends (`enchufe`, #528: `onPlug`).
+ * (`compra`, #451: `onPurchase`), a plug's cycle that starts or ends (`enchufe`, #528: `onPlug`),
+ * a person arriving at or leaving a place (`lugar`, #593: `onPlace`).
  * From rule-events.ts, after it is saved; `chain`, the rules it came through.
  */
 export async function onEvent(
@@ -977,10 +995,12 @@ export async function onEvent(
 	ownerId: string | null = null,
 	chain: number[] = [],
 	bought?: Bought,
-	plug?: PlugHappened
+	plug?: PlugHappened,
+	place?: PlaceHappened
 ) {
 	if (kind === 'compra') return bought ? onPurchase(k, text, bought) : undefined;
 	if (kind === 'enchufe') return plug ? onPlug(k, plug) : undefined;
+	if (kind === 'lugar') return place ? onPlace(k, place) : undefined;
 	const rules = (await allRules(houseKitchen(k.familyId))).filter(
 		(r) => !r.paused && r.spec.when.kind === kind && waitsFor(r, kind, ownerId)
 	);
@@ -1042,6 +1062,19 @@ async function onPlug(k: Kitchen, p: PlugHappened) {
 	}
 }
 
+/** Arriving at or leaving a place (#593): the person's own rules waiting for it. */
+async function onPlace(k: Kitchen, p: PlaceHappened) {
+	const rules = (await allRules(houseKitchen(k.familyId))).filter(
+		(r) => !r.paused && placeFits(r, p)
+	);
+	if (!rules.length) return;
+	const w = worldNow(k.familyId);
+	for (const r of rules) {
+		const rk = await kitchenFor(k.familyId, r.userId);
+		await tryFire(w, rk, r, `lugar:${p.moment}:${Date.now()}`, placeWhy(p, w.time));
+	}
+}
+
 listenRules(onEvent);
 
 /** The weather a rule waits for (`tiempo`), looked at this often. */
@@ -1096,7 +1129,8 @@ export async function checkTimedRules(familyId: string) {
 	await forgetOldErrands(houseKitchen(familyId), every);
 	const rules = every.filter(
 		(r) =>
-			!r.paused && !['nevera', 'recuerdo', 'dicho', 'compra', 'enchufe'].includes(r.spec.when.kind)
+			!r.paused &&
+			!['nevera', 'recuerdo', 'dicho', 'compra', 'enchufe', 'lugar'].includes(r.spec.when.kind)
 	);
 	const w = worldNow(familyId);
 	const now = minutesOf(w.today, w.time);

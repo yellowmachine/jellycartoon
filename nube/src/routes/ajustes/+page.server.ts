@@ -135,6 +135,9 @@ import { callButtons } from '#lib/server/call-buttons.ts';
 import { familyLinks } from '#lib/server/family-links.ts';
 import { deleteCar, listCars, myCarId, saveCar, setMyCar } from '#lib/server/trips/cars.ts';
 import { MAX_CAR_NAME } from '#lib/cars.ts';
+import { owntracks } from '#lib/server/owntracks/owntracks.ts';
+import { owntracksConfig, owntracksLink } from '#lib/owntracks.ts';
+import { owntracksRegions } from '#lib/server/owntracks/places.ts';
 import { fold } from 'comun/music.ts';
 import { subtitleStyleOf } from '#lib/server/subtitles.ts';
 import { prayerModeOn, setPrayerMode } from '#lib/server/prayers.ts';
@@ -295,6 +298,15 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 							})
 						)
 					})),
+		/** Their OwnTracks (#593): connected or not, and what last came. */
+		owntracks: {
+			...(await owntracks.status(locals.user!.id)),
+			// Its places (phase 4): what the link takes to the phone.
+			...(await owntracksRegions(k).then(({ regions, homeInexact }) => ({
+				places: regions.map((r) => r.desc),
+				homeInexact
+			})))
+		},
 		/** The family's cars (#317), and theirs. */
 		cars: (await listCars(k)).map(({ id, name }) => ({ id, name })),
 		myCar: await myCarId(k),
@@ -386,6 +398,33 @@ const sentBucket = (form: FormData) => {
 };
 
 export const actions: Actions = {
+	/**
+	 * OwnTracks (#593): a new password, the old one stops working; shown once, in the link that
+	 * configures the app, its QR (from a computer) and written out to put by hand.
+	 */
+	owntracksConnect: async ({ locals }) => {
+		const [password, { regions }] = await Promise.all([
+			owntracks.connect(locals.user!.id),
+			kitchenOf(locals.user!.id).then(owntracksRegions)
+		]);
+		const config = owntracksConfig({ origin: ORIGIN, password, name: locals.user!.name, regions });
+		const link = owntracksLink(config);
+		return {
+			owntracksMade: {
+				link,
+				qr: await QRCode.toDataURL(link, { margin: 1 }),
+				url: config.url,
+				username: config.username,
+				password
+			}
+		};
+	},
+	owntracksDisconnect: async ({ locals }) => {
+		await owntracks.disconnect(locals.user!.id);
+	},
+	owntracksForget: async ({ locals }) => {
+		await owntracks.forget(locals.user!.id);
+	},
 	/** «¿Sigues ahí?» (#77): theirs, or a child's (`kidId`) by who runs the family. Empty, never. */
 	askAfter: async ({ request, locals }) => {
 		const form = await request.formData();

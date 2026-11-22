@@ -789,6 +789,30 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: { file: 'miniflux', where: [mine()] },
 		note: 'Its address; the key is a user_secret'
 	},
+	owntracks_link: {
+		leaving: 'account',
+		joining: 'account',
+		zip: false,
+		note: 'OwnTracks (#593): only the hash of its password'
+	},
+	location_point: {
+		leaving: 'account',
+		joining: 'account',
+		zip: { file: 'owntracks', where: [mine()] },
+		note: 'Where their phone was, sent by OwnTracks (#593)'
+	},
+	owntracks_day: {
+		leaving: 'account',
+		joining: 'account',
+		zip: { file: 'owntracks-dias', where: [mine()] },
+		note: 'What is left of a day once its positions are forgotten (#593)'
+	},
+	owntracks_event: {
+		leaving: 'account',
+		joining: 'account',
+		zip: { file: 'owntracks-llegadas', where: [mine()] },
+		note: 'Arriving at or leaving their places, told by OwnTracks (#593)'
+	},
 	session: {
 		leaving: 'account',
 		joining: 'account',

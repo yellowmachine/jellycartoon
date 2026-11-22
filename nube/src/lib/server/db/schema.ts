@@ -35,3 +35,4 @@ export * from './own-music.schema.ts';
 export * from './own-games.schema.ts';
 export * from './messages.schema.ts';
 export * from './wishes.schema.ts';
+export * from './owntracks.schema.ts';
