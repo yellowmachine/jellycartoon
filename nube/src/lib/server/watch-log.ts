@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, max, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, max, or, sql, type AnyColumn } from 'drizzle-orm';
 import { familyMember, user, watchLog } from './db/schema.ts';
 import type { AnyDb } from './family-scope.ts';
 import type { Kitchen } from './fridge.ts';
@@ -213,6 +213,10 @@ export async function addPlayed(
 }
 
 /** The Monday of a `YYYY-MM-DD`'s week. */
+/** In a grouped query, the value of the group's latest row. */
+const newest = <T>(column: AnyColumn) =>
+	sql<T>`(array_agg(${column} order by ${watchLog.day} desc, ${watchLog.minute} desc))[1]`;
+
 export function mondayOf(day: string) {
 	const date = new Date(`${day}T00:00:00Z`);
 	date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
@@ -315,24 +319,17 @@ export async function watchStats(
 				userId: watchLog.userId,
 				item: watchLog.item,
 				kind: watchLog.kind,
-				seriesTitle: watchLog.seriesTitle,
-				title: watchLog.title,
-				season: watchLog.season,
-				number: watchLog.number,
+				seriesTitle: newest<string | null>(watchLog.seriesTitle),
+				title: newest<string>(watchLog.title),
+				season: newest<number | null>(watchLog.season),
+				number: newest<number | null>(watchLog.number),
 				seconds,
 				lastDay
 			})
 			.from(watchLog)
 			.where(recent)
-			.groupBy(
-				watchLog.userId,
-				watchLog.item,
-				watchLog.kind,
-				watchLog.seriesTitle,
-				watchLog.title,
-				watchLog.season,
-				watchLog.number
-			)
+			// One row per item, as the page keys them: its titles as last sent, which may have changed.
+			.groupBy(watchLog.userId, watchLog.item, watchLog.kind)
 			.orderBy(
 				desc(sql`max(${watchLog.day}::timestamp + ${watchLog.minute} * interval '1 minute')`),
 				sql`sum(${watchLog.seconds}) desc`
