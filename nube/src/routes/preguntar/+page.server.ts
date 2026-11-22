@@ -8,6 +8,7 @@ import {
 	applyChangeFromCard,
 	applyPauseFromCard,
 	applySkipFromCard,
+	applyWishFromCard,
 	clearChat,
 	savePlanFromCard,
 	saveRecipeFromCard
@@ -134,6 +135,18 @@ export const actions: Actions = {
 		if (done === null) return fail(404, { message: 'Esa tarjeta ya no está' });
 		if ('problem' in done) return fail(400, { message: done.problem });
 		return { skip: done.card };
+	},
+	/** A wish card (#586): the product into that person's list. */
+	wish: async ({ request, locals }) => {
+		const form = await request.formData();
+		const message = numberOf(form, 'message');
+		const card = numberOf(form, 'card');
+		if (message === null || card === null) return fail(400, { message: 'Falta la tarjeta' });
+		const k = await kitchenOf(locals.user!.id);
+		const done = await applyWishFromCard(k, locals.user!.id, message, card);
+		if (done === null) return fail(404, { message: 'Esa tarjeta ya no está' });
+		if ('problem' in done) return fail(403, { message: done.problem });
+		return { wish: done.card };
 	},
 	/** «Empezar de nuevo». */
 	clear: async ({ locals }) => {

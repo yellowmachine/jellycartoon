@@ -41,7 +41,7 @@ export const actions: Actions = {
 		if (!personId) return fail(400, { message: 'Falta para quién es' });
 		const product = await readProduct(url, text(form, 'texto'));
 		const kid = await isKidAccount(userId);
-		const added = await addWish(
+		const done = await addWish(
 			await kitchenOf(userId),
 			userId,
 			kid,
@@ -49,8 +49,10 @@ export const actions: Actions = {
 			product,
 			text(form, 'note')
 		);
-		if (!added) return fail(403, { message: 'En esa lista no puedes añadir' });
-		return { added: personId };
+		if ('refused' in done) return fail(403, { message: 'En esa lista no puedes añadir' });
+		if ('already' in done)
+			return fail(409, { message: 'Ya está en esa lista', already: done.already });
+		return { added: done.added };
 	},
 	update: async ({ request, locals }) => {
 		const userId = locals.user!.id;

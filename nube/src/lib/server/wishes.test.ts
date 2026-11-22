@@ -7,7 +7,15 @@ import * as schema from './db/schema.ts';
 import { family, familyMember, familyPerson, user, wish } from './db/schema.ts';
 import { familyScope } from './family-scope.ts';
 import type { Kitchen } from './fridge.ts';
-import { knownShop, priceText, shopOf } from '#lib/wishes.ts';
+import {
+	bookmarklet,
+	cleanLink,
+	knownShop,
+	priceFromText,
+	priceText,
+	seenOn,
+	shopOf
+} from '#lib/wishes.ts';
 import type { Product } from './wishes.ts';
 
 /** Lista de deseos (#586): shops by address, and who sees and writes what, on PGlite as the app's role. */
@@ -40,6 +48,48 @@ describe('a link and its shop', () => {
 		expect(titleFromShared('https://amzn.eu/d/abc')).toBe('');
 	});
 
+	test('the name in Amazon’s long address; a page with only the site’s name is not one', () => {
+		expect(
+			titleFromAddress(
+				'https://www.amazon.es/Sony-WH-1000XM5-Auriculares-Inal%C3%A1mbricos/dp/B09XS7JWHH/ref=sr_1_1?th=1'
+			)
+		).toBe('Sony WH 1000XM5 Auriculares Inalámbricos');
+		expect(titleFromAddress('https://www.amazon.es/dp/B09XS7JWHH')).toBe('');
+		expect(titleFromAddress('https://amzn.eu/d/abc')).toBe('');
+		expect(onlySiteName('Amazon.es', 'https://www.amazon.es/dp/B09XS7JWHH')).toBe(true);
+		expect(onlySiteName('Amazon', 'https://www.amazon.es/dp/B09XS7JWHH')).toBe(true);
+		expect(onlySiteName('Auriculares Sony', 'https://www.amazon.es/dp/B09XS7JWHH')).toBe(false);
+	});
+
+	test('the address kept: Amazon’s by its ASIN, others without what only tracks', () => {
+		expect(
+			cleanLink(
+				'https://www.amazon.es/Sony-WH-1000XM5/dp/b09xs7jwhh/ref=sr_1_1?th=1&psc=1&tag=x-21'
+			)
+		).toEqual({ url: 'https://www.amazon.es/dp/B09XS7JWHH', key: 'amazon:B09XS7JWHH' });
+		expect(cleanLink('https://www.amazon.es/gp/product/B09XS7JWHH?smid=A1').key).toBe(
+			'amazon:B09XS7JWHH'
+		);
+		expect(cleanLink('https://es.aliexpress.com/item/1005006.html?spm=a2g0o&algo_pvid=9')).toEqual({
+			url: 'https://es.aliexpress.com/item/1005006.html',
+			key: 'aliexpress:1005006'
+		});
+		expect(
+			cleanLink(
+				'https://www.ikea.com/es/es/p/billy-00263850/?utm_source=x&fbclid=y&color=blanco#top'
+			)
+		).toEqual({
+			url: 'https://www.ikea.com/es/es/p/billy-00263850/?color=blanco',
+			key: 'url:ikea.com/es/es/p/billy-00263850/?color=blanco'
+		});
+		expect(cleanLink('https://tienda.es/p/1?utm_campaign=z').url).toBe('https://tienda.es/p/1');
+	});
+
+	test('the day a price was seen', () => {
+		expect(seenOn(new Date(2026, 10, 22, 12))).toBe('el 22 nov');
+		expect(seenOn(null)).toBeNull();
+	});
+
 	test('prices as pages write them, and as Spain reads them', () => {
 		expect(centsOf('29.99')).toBe(2999);
 		expect(centsOf(29.9)).toBe(2990);
@@ -62,10 +112,16 @@ mock.module('#lib/server/telegram/bot.ts', () => ({ tellGroup: async () => {} })
 const {
 	addWish,
 	centsOf,
+	addWishFromCard,
 	deleteWish,
+	describeWishes,
+	productFromBrowser,
+	proposeWish,
 	giveWish,
 	linkOf,
 	listWishes,
+	onlySiteName,
+	titleFromAddress,
 	titleFromShared,
 	tidyTitle,
 	updateWish
@@ -81,8 +137,11 @@ const lucia = kitchen('lucia');
 const otro = kitchen('otro', 'B');
 const people: Record<string, number> = {};
 
-const product = (title = 'Auriculares'): Product => ({
+let made = 0;
+/** A different product each time, unless said. */
+const product = (title = 'Auriculares', productKey = `amazon:B0C${++made}`): Product => ({
 	url: 'https://www.amazon.es/dp/B0C',
+	productKey,
 	shop: 'Amazon',
 	title,
 	imageUrl: null,
@@ -139,18 +198,30 @@ const titles = async (k: Kitchen, userId: string, kid = false) =>
 
 describe('whose list', () => {
 	test('an adult writes in their own and the children’s, not in another adult’s', async () => {
-		expect(await addWish(ana, 'ana', false, people.Ana!, product('De Ana'), null)).toBe(true);
-		expect(await addWish(ana, 'ana', false, people.Bebé!, product('Del bebé'), null)).toBe(true);
-		expect(await addWish(ana, 'ana', false, people.Lucía!, product('De Lucía'), null)).toBe(true);
-		expect(await addWish(ana, 'ana', false, people.Pepe!, product('De Pepe'), null)).toBe(false);
+		expect(await addWish(ana, 'ana', false, people.Ana!, product('De Ana'), null)).toHaveProperty(
+			'added'
+		);
+		expect(
+			await addWish(ana, 'ana', false, people.Bebé!, product('Del bebé'), null)
+		).toHaveProperty('added');
+		expect(
+			await addWish(ana, 'ana', false, people.Lucía!, product('De Lucía'), null)
+		).toHaveProperty('added');
+		expect(await addWish(ana, 'ana', false, people.Pepe!, product('De Pepe'), null)).toEqual({
+			refused: true
+		});
 		// The whole family sees them.
 		expect(await titles(pepe, 'pepe')).toEqual(['De Ana', 'De Lucía', 'Del bebé']);
 	});
 
 	test('a child sees and writes only in its own', async () => {
 		await addWish(ana, 'ana', false, people.Ana!, product('De Ana'), null);
-		expect(await addWish(lucia, 'lucia', true, people.Lucía!, product('Bici'), null)).toBe(true);
-		expect(await addWish(lucia, 'lucia', true, people.Bebé!, product('Otra'), null)).toBe(false);
+		expect(
+			await addWish(lucia, 'lucia', true, people.Lucía!, product('Bici'), null)
+		).toHaveProperty('added');
+		expect(await addWish(lucia, 'lucia', true, people.Bebé!, product('Otra'), null)).toEqual({
+			refused: true
+		});
 		expect(await titles(lucia, 'lucia', true)).toEqual(['Bici']);
 		const { people: seen } = await listWishes(lucia, 'lucia', true);
 		// Its account's name.
@@ -160,7 +231,9 @@ describe('whose list', () => {
 	test('another family sees none of them', async () => {
 		await addWish(ana, 'ana', false, people.Ana!, product('De Ana'), null);
 		expect(await titles(otro, 'otro')).toEqual([]);
-		expect(await addWish(otro, 'otro', false, people.Ana!, product('Colado'), null)).toBe(false);
+		expect(await addWish(otro, 'otro', false, people.Ana!, product('Colado'), null)).toEqual({
+			refused: true
+		});
 	});
 
 	test('corrected and removed only by who writes in that list', async () => {
@@ -177,6 +250,46 @@ describe('whose list', () => {
 		});
 		expect(await deleteWish(ana, 'ana', false, w!.id)).toBe(true);
 		expect(await titles(ana, 'ana')).toEqual([]);
+	});
+});
+
+describe('the same product again', () => {
+	test('told it is there, in that person’s list only; its price with the day it was seen', async () => {
+		const first = await addWish(
+			ana,
+			'ana',
+			false,
+			people.Ana!,
+			product('Sony', 'amazon:B09'),
+			null
+		);
+		expect(first).toHaveProperty('added');
+		expect(
+			await addWish(ana, 'ana', false, people.Ana!, product('Sony otra vez', 'amazon:B09'), null)
+		).toEqual({
+			already: (first as { added: number }).added
+		});
+		// For someone else, it is another wish.
+		expect(
+			await addWish(ana, 'ana', false, people.Bebé!, product('Sony', 'amazon:B09'), null)
+		).toHaveProperty('added');
+		const mine = (await listWishes(ana, 'ana', false)).wishes.filter(
+			(w) => w.personId === String(people.Ana)
+		);
+		expect(mine.map((w) => w.title)).toEqual(['Sony']);
+		expect(mine[0]!.priceAt).toBeInstanceOf(Date);
+		const noPrice = await addWish(
+			ana,
+			'ana',
+			false,
+			people.Ana!,
+			{ ...product('Sin precio'), priceCents: null },
+			null
+		);
+		const row = (await listWishes(ana, 'ana', false)).wishes.find(
+			(w) => w.id === (noPrice as { added: number }).added
+		);
+		expect(row!.priceAt).toBeNull();
 	});
 });
 
@@ -211,5 +324,168 @@ describe('«Lo regalo yo»', () => {
 		expect(
 			(await listWishes(pepe, 'pepe', false)).wishes.find((w) => w.id === baby.id)!.gift
 		).toBeNull();
+	});
+});
+
+describe('what Preguntar is told', () => {
+	test('by person and shop; the one asking does not learn who gives them theirs', async () => {
+		await addWish(ana, 'ana', false, people.Ana!, product('Auriculares'), 'Negros');
+		await addWish(
+			ana,
+			'ana',
+			false,
+			people.Bebé!,
+			{ ...product('Peluche'), shop: 'IKEA', priceCents: null },
+			null
+		);
+		const [own] = (await listWishes(ana, 'ana', false)).wishes.filter(
+			(w) => w.title === 'Auriculares'
+		);
+		await giveWish(pepe, 'pepe', false, own!.id, true);
+		const toAna = await describeWishes(ana, 'ana');
+		expect(toAna).toContain('Ana (quien pregunta): «Auriculares» (Amazon, 29,99');
+		expect(toAna).toContain('nota: Negros');
+		expect(toAna).not.toContain('lo regala');
+		expect(toAna).toContain('Bebé: «Peluche» (IKEA, sin precio)');
+		expect(await describeWishes(pepe, 'pepe', { person: 'ana' })).toContain(
+			'lo regala quien pregunta'
+		);
+		expect(await describeWishes(pepe, 'pepe', { shop: 'ikea' })).not.toContain('Auriculares');
+		expect(await describeWishes(pepe, 'pepe', { person: 'Juan' })).toContain(
+			'No hay nadie llamado'
+		);
+	});
+});
+
+describe('the card in Preguntar', () => {
+	const card = (personId: number, personName: string, productKey = 'amazon:CARD1') => ({
+		kind: 'deseo' as const,
+		...product('Lámpara', productKey),
+		personId: String(personId),
+		personName,
+		added: null,
+		already: null
+	});
+
+	test('added once; the same product again, «ya estaba»', async () => {
+		const first = await addWishFromCard(ana, 'ana', card(people.Ana!, 'Ana'));
+		expect('card' in first && first.card.added).toBeGreaterThan(0);
+		// Tapped again: nothing new.
+		expect(await addWishFromCard(ana, 'ana', 'card' in first ? first.card : card(0, ''))).toEqual(
+			first
+		);
+		const again = await addWishFromCard(ana, 'ana', card(people.Ana!, 'Ana'));
+		expect('card' in again && again.card.already).toBe('card' in first ? first.card.added : -1);
+		expect(await titles(ana, 'ana')).toEqual(['Lámpara']);
+	});
+
+	test('not into another adult’s list, nor proposed for it', async () => {
+		expect(await addWishFromCard(ana, 'ana', card(people.Pepe!, 'Pepe'))).toEqual({
+			problem: 'En esa lista no puedes añadir'
+		});
+		expect(
+			(await proposeWish(ana, 'ana', { url: 'https://amzn.eu/d/x', person: 'Pepe' })).result
+		).toContain('no puede añadir');
+		expect((await proposeWish(ana, 'ana', { url: 'no es un enlace' })).result).toContain(
+			'no es un enlace'
+		);
+	});
+});
+
+describe('the computer’s bookmark', () => {
+	test('prices as people read them', () => {
+		expect(priceFromText('29,99 €')).toEqual({ cents: 2999, currency: 'EUR' });
+		expect(priceFromText('1.299,00 €')).toEqual({ cents: 129900, currency: 'EUR' });
+		expect(priceFromText('$29.99')).toEqual({ cents: 2999, currency: 'USD' });
+		expect(priceFromText('35 €')).toEqual({ cents: 3500, currency: 'EUR' });
+		expect(priceFromText('')).toBeNull();
+		expect(priceFromText('Sin stock')).toBeNull();
+	});
+
+	test('what the browser read, checked: the address clean, no picture that is not a web one', () => {
+		const sent: Record<string, string> = {
+			url: 'https://www.amazon.es/Sony/dp/B09XS7JWHH?th=1',
+			titulo: '  Auriculares   Sony  ',
+			precio: '29,99 €',
+			foto: 'javascript:alert(1)'
+		};
+		expect(productFromBrowser((n) => sent[n] ?? null)).toEqual({
+			url: 'https://www.amazon.es/dp/B09XS7JWHH',
+			productKey: 'amazon:B09XS7JWHH',
+			shop: 'Amazon',
+			title: 'Auriculares Sony',
+			imageUrl: null,
+			priceCents: 2999,
+			currency: 'EUR'
+		});
+		// Only the site's name, or nothing: not read, the page is asked for instead.
+		expect(productFromBrowser((n) => ({ ...sent, titulo: 'Amazon.es' })[n] ?? null)).toBeNull();
+		expect(productFromBrowser((n) => (n === 'url' ? sent.url! : null))).toBeNull();
+	});
+
+	test('run on an Amazon page, it opens Seilide with its name, price and picture', () => {
+		const els: Record<string, unknown> = {
+			'#productTitle': { textContent: '  Auriculares Sony  ' },
+			'.a-price .a-offscreen': { textContent: '29,99 €' },
+			'#landingImage': { dataset: { oldHires: 'https://m.media-amazon.com/x.jpg' } }
+		};
+		let opened = '';
+		const run = new Function(
+			'document',
+			'location',
+			'window',
+			decodeURIComponent(bookmarklet('https://seilide.app').slice('javascript:'.length))
+		);
+		run(
+			{
+				querySelector: (s: string) => els[s] ?? null,
+				querySelectorAll: () => [],
+				title: 'Amazon.es'
+			},
+			{ href: 'https://www.amazon.es/dp/B09XS7JWHH?th=1' },
+			{ open: (u: string) => (opened = u) }
+		);
+		const asked = new URL(opened);
+		expect(asked.origin + asked.pathname).toBe('https://seilide.app/compartido/enlace');
+		expect(Object.fromEntries(asked.searchParams)).toEqual({
+			url: 'https://www.amazon.es/dp/B09XS7JWHH?th=1',
+			titulo: 'Auriculares Sony',
+			precio: '29,99 €',
+			foto: 'https://m.media-amazon.com/x.jpg'
+		});
+	});
+
+	test('run on another shop, from its schema.org Product', () => {
+		const ld = {
+			textContent: JSON.stringify({
+				'@graph': [
+					{ '@type': 'WebPage' },
+					{
+						'@type': 'Product',
+						name: 'Estantería Billy',
+						image: ['https://ikea.example/billy.jpg'],
+						offers: { price: '59.99', priceCurrency: 'EUR' }
+					}
+				]
+			})
+		};
+		let opened = '';
+		new Function(
+			'document',
+			'location',
+			'window',
+			decodeURIComponent(bookmarklet('https://seilide.app').slice('javascript:'.length))
+		)(
+			{ querySelector: () => null, querySelectorAll: () => [ld], title: 'Billy | IKEA' },
+			{ href: 'https://www.ikea.com/es/es/p/billy-00263850/' },
+			{ open: (u: string) => (opened = u) }
+		);
+		const read = Object.fromEntries(new URL(opened).searchParams);
+		expect(read).toMatchObject({
+			titulo: 'Estantería Billy',
+			precio: '59.99 €',
+			foto: 'https://ikea.example/billy.jpg'
+		});
+		expect(priceFromText(read.precio)).toEqual({ cents: 5999, currency: 'EUR' });
 	});
 });

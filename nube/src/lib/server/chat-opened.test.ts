@@ -5,6 +5,10 @@ import type { Kitchen } from '#lib/server/fridge.ts';
 mock.module('#lib/server/chat-reads.ts', () => ({
 	describeExpense: async (_k: Kitchen, id: number) => (id === 5 ? 'el gasto del 2026-11-20' : null)
 }));
+// The wishes' people, in wishes.ts.
+mock.module('#lib/server/wishes.ts', () => ({
+	wishPersonName: async (_k: Kitchen, _u: string, id: string) => (id === '3' ? 'Lucía' : null)
+}));
 const { describeOpened, openedOf } = await import('./chat-opened.ts');
 
 const today = '2026-11-21';
@@ -64,4 +68,21 @@ test('told to the AI: a recipe of the book by its title; one not in it, nothing'
 			book
 		)
 	).toContain('semana del 2026-11-16 al 2026-11-22');
+});
+
+test('the wishes open beside the panel, of a person and a shop', async () => {
+	expect(openedOf('/deseos?persona=3&tienda=Amazon', today)).toEqual({
+		kind: 'deseos',
+		person: '3',
+		shop: 'Amazon'
+	});
+	expect(openedOf('/deseos?persona=x', today)).toEqual({
+		kind: 'deseos',
+		person: null,
+		shop: null
+	});
+	const k = {} as Kitchen;
+	expect(await describeOpened(k, 'ana', openedOf('/deseos?persona=3&tienda=IKEA', today), [])).toBe(
+		'la lista de deseos de Lucía, solo lo de IKEA: una pregunta sin más es de esa (léela con «read_wishes»)'
+	);
 });

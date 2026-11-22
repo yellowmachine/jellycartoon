@@ -3,6 +3,7 @@
 	import ShoppingCard from '#lib/components/ShoppingCard.svelte';
 	import CitaCard from '#lib/components/CitaCard.svelte';
 	import SitioCard from './SitioCard.svelte';
+	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { elsewhere } from '#lib/mensajes/elsewhere.ts';
 	import { metresBetween } from 'comun/road-guide.ts';
 	import { enhance } from '$app/forms';
@@ -145,6 +146,43 @@
 			</form>
 		{/if}
 	</SitioCard>
+{:else if m.card?.kind === 'enlace'}
+	{@const link = m.card}
+	<div class="flex gap-3 rounded-lg border border-zinc-700 bg-zinc-900 p-3">
+		<a
+			href={link.url}
+			target="_blank"
+			rel="noopener noreferrer"
+			class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white"
+			tabindex="-1"
+			aria-hidden="true"
+		>
+			{#if link.imageUrl}
+				<img
+					src={link.imageUrl}
+					alt=""
+					loading="lazy"
+					referrerpolicy="no-referrer"
+					class="h-full w-full object-contain"
+				/>
+			{:else}
+				<SectionIcon name="deseos" class="h-8 w-8 text-zinc-400" />
+			{/if}
+		</a>
+		<div class="min-w-0 flex-1">
+			<a
+				href={link.url}
+				target="_blank"
+				rel="noopener noreferrer"
+				class="line-clamp-2 font-medium hover:underline">{link.title}</a
+			>
+			<p class="text-sm text-zinc-400">{link.shop}{link.price ? ` · ${link.price}` : ''}</p>
+			<a
+				href="/compartido/enlace?{new URLSearchParams({ url: link.url, texto: link.title })}"
+				class="text-sm text-amber-400 hover:underline">A la lista de deseos</a
+			>
+		</div>
+	</div>
 {:else if m.card?.kind === 'compra'}
 	<ShoppingCard
 		items={m.card.items}

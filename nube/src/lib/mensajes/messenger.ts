@@ -83,7 +83,19 @@ export type MessageCard =
 	/** A plan, to add to the Agenda. */
 	| ({ kind: 'cita' } & Cita)
 	/** A place kept by the sender (#151): to go there, or keep it too (each person's own). */
-	| { kind: 'sitio'; name: string; lat: number; lon: number; address: string | null };
+	| { kind: 'sitio'; name: string; lat: number; lon: number; address: string | null }
+	/**
+	 * A link with what its page says (#586): read by the sender's Seilide before it goes, so the
+	 * message stays encrypted; its picture shown from the shop.
+	 */
+	| {
+			kind: 'enlace';
+			url: string;
+			title: string;
+			shop: string;
+			imageUrl: string | null;
+			price: string | null;
+	  };
 
 /**
  * A recipe of the book, as it goes in a message (#555): within the family, referred (the book is
@@ -135,6 +147,7 @@ export function describe(m: Pick<StoredMessage, 'text' | 'audio' | 'photo' | 'pl
 	if (m.card?.kind === 'cita') return `📅 ${m.card.title}, ${citaWhen(m.card)}`;
 	if (m.card?.kind === 'sitio') return `📌 ${m.card.name}`;
 	if (m.card?.kind === 'compra') return `🛒 Lista (${m.card.items.length})`;
+	if (m.card?.kind === 'enlace') return `🔗 ${m.card.title}`;
 	return m.text;
 }
 
@@ -867,6 +880,32 @@ function cleanCard(value: unknown): MessageCard | null {
 		const id = Number(c.id);
 		const title = typeof c.title === 'string' ? c.title.trim().slice(0, 100) : '';
 		return Number.isInteger(id) && id > 0 && title ? { kind: 'enlace-receta', id, title } : null;
+	}
+	if (c.kind === 'enlace') {
+		const web = (v: unknown) => {
+			if (typeof v !== 'string' || v.length > 2000) return null;
+			try {
+				const u = new URL(v);
+				return /^https?:$/.test(u.protocol) ? u.href : null;
+			} catch {
+				return null;
+			}
+		};
+		const url = web(c.url);
+		const title = typeof c.title === 'string' ? c.title.trim().slice(0, 300) : '';
+		const shop = typeof c.shop === 'string' ? c.shop.trim().slice(0, 60) : '';
+		const price =
+			typeof c.price === 'string' && c.price.trim() ? c.price.trim().slice(0, 30) : null;
+		return url && title
+			? {
+					kind: 'enlace',
+					url,
+					title,
+					shop: shop || new URL(url).hostname,
+					imageUrl: web(c.imageUrl),
+					price
+				}
+			: null;
 	}
 	if (c.kind === 'compra' && Array.isArray(c.items)) {
 		const items = c.items

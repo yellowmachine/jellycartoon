@@ -4,7 +4,7 @@
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { field, primary, secondary, select } from '#lib/styles.ts';
-	import { MAX_WISH_NOTE, MAX_WISH_TITLE, priceText } from '#lib/wishes.ts';
+	import { bookmarklet, MAX_WISH_NOTE, MAX_WISH_TITLE, priceText, seenOn } from '#lib/wishes.ts';
 	import type { PageProps } from './$types';
 
 	/**
@@ -58,6 +58,13 @@
 	});
 	let editing = $state<number | null>(null);
 	let problem = $state<string | null>(null);
+	/** The one that was already there when the same product was added again (#586). */
+	let already = $state<number | null>(null);
+	const shownAlready = $derived(already ?? (Number(page.url.searchParams.get('ya')) || null));
+	$effect(() => {
+		if (shownAlready)
+			document.getElementById(`deseo-${shownAlready}`)?.scrollIntoView({ block: 'center' });
+	});
 </script>
 
 <svelte:head><title>Deseos</title></svelte:head>
@@ -84,9 +91,11 @@
 			problem = null;
 			return async ({ result, update }) => {
 				adding = false;
-				if (result.type === 'failure')
+				already = null;
+				if (result.type === 'failure') {
 					problem = String(result.data?.message ?? 'No se pudo añadir');
-				else if (result.type === 'error') problem = 'No se pudo añadir';
+					if (typeof result.data?.already === 'number') already = result.data.already;
+				} else if (result.type === 'error') problem = 'No se pudo añadir';
 				else address = '';
 				await update({ reset: false });
 			};
@@ -118,8 +127,12 @@
 		<button class={primary} disabled={adding}>{adding ? 'Leyendo la página…' : 'Añadir'}</button>
 	</form>
 {/if}
-{#if problem ?? form?.message}
-	<p class="mb-4 text-sm text-red-400" role="alert">{problem ?? form?.message}</p>
+{#if shownAlready && !problem}
+	<p class="mb-4 text-sm text-amber-300" role="status">Ya estaba en la lista: es este.</p>
+{:else if problem ?? form?.message}
+	<p class="mb-4 text-sm {already ? 'text-amber-300' : 'text-red-400'}" role="alert">
+		{problem ?? form?.message}{already ? ': es este.' : ''}
+	</p>
 {/if}
 
 {#if data.people.length > 1}
@@ -167,7 +180,12 @@
 			{@const price = priceText(w.priceCents, w.currency)}
 			{@const writes = data.people.some((p) => p.id === w.personId && p.writes)}
 			{@const forMe = data.people.some((p) => p.id === w.personId && p.me)}
-			<li class="flex gap-3 rounded-lg border border-zinc-800 bg-zinc-900 p-3">
+			<li
+				id="deseo-{w.id}"
+				class="flex gap-3 rounded-lg border bg-zinc-900 p-3 {shownAlready === w.id
+					? 'border-amber-500'
+					: 'border-zinc-800'}"
+			>
 				<a
 					href={w.url}
 					target="_blank"
@@ -233,8 +251,10 @@
 						>
 						<p class="text-sm text-zinc-400">
 							{w.shop}{#if price}
-								· <span class="text-zinc-200">{price}</span
-								>{/if}{#if !chosenPerson && data.people.length > 1}
+								· <span class="text-zinc-200">{price}</span>{#if seenOn(w.priceAt)}
+									<span class="text-xs">
+										{seenOn(w.priceAt)}</span
+									>{/if}{/if}{#if !chosenPerson && data.people.length > 1}
 								· {nameOf(w.personId)}{/if}
 						</p>
 						{#if w.note}<p class="text-sm text-zinc-300">{w.note}</p>{/if}
@@ -273,4 +293,23 @@
 			</li>
 		{/each}
 	</ul>
+{/if}
+
+{#if writable.length}
+	<!-- The computer's bookmark (#586): on a phone, sharing from the shop's app does it. -->
+	<section class="mt-10 hidden rounded-md border border-zinc-800 p-4 sm:block">
+		<h2 class="mb-1 font-semibold">En el ordenador</h2>
+		<p class="mb-3 text-sm text-zinc-400">
+			Arrastra este botón a la barra de marcadores. En la página de un producto de cualquier tienda,
+			púlsalo: tu navegador lee el nombre, la foto y el precio (también en Amazon) y te lo trae
+			aquí.
+		</p>
+		<a
+			href={bookmarklet(page.url.origin)}
+			class="inline-flex items-center gap-2 rounded-md border border-amber-500/60 px-3 py-1.5 text-sm font-medium text-amber-300"
+			onclick={(e) => e.preventDefault()}
+			title="Arrástralo a la barra de marcadores"
+			><SectionIcon name="deseos" class="h-4 w-4" />A Deseos</a
+		>
+	</section>
 {/if}

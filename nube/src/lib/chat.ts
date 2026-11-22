@@ -3,6 +3,7 @@ import type { Block } from '#lib/blocks.ts';
 import type { Cita } from '#lib/cita.ts';
 import type { ErrandChangeCard, PlanCard } from '#lib/encargos.ts';
 import type { PlugPauseCard, PlugSkipCard } from '#lib/plug-pause.ts';
+import type { WishCard } from '#lib/wishes.ts';
 
 /**
  * «Preguntar» (#470): what each answer of the chat brings besides its words, as the page shows
@@ -73,7 +74,8 @@ export type ChatCard =
 	| PlanCard
 	| ErrandChangeCard
 	| PlugPauseCard
-	| PlugSkipCard;
+	| PlugSkipCard
+	| WishCard;
 
 export interface ChatMessage {
 	id: number;

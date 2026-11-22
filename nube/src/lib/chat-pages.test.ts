@@ -51,3 +51,11 @@ test('what is wrong, in words for the AI; never an address it wrote', () => {
 	for (const name of Object.keys(PAGES))
 		expect(typeof openPage(name, { month: '2026-10', words: 'x' })).toBe('object');
 });
+
+test('the wishes, of a shop if said', () => {
+	expect(openPage('deseos', {})).toEqual({ href: '/deseos', label: 'Deseos' });
+	expect(openPage('deseos', { shop: 'Amazon' })).toEqual({
+		href: '/deseos?tienda=Amazon',
+		label: 'Deseos de Amazon'
+	});
+});

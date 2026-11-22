@@ -14,7 +14,8 @@ export const PAGES = {
 	ingresos_mes: 'Los ingresos de un mes (Dinero → Ingresos)',
 	agenda: 'La agenda de una semana o de un mes',
 	notas: 'Las notas de esta persona, buscadas por palabras',
-	viajes: 'Viajes: los planeados y los hechos'
+	viajes: 'Viajes: los planeados y los hechos',
+	deseos: 'La lista de deseos de la familia, de una tienda si se dice'
 } as const;
 export type PageName = keyof typeof PAGES;
 export const isPageName = (v: unknown): v is PageName =>
@@ -96,5 +97,12 @@ export function openPage(name: unknown, args: Record<string, unknown>): OpenPage
 		}
 		case 'viajes':
 			return { href: '/viajes', label: 'Viajes' };
+		case 'deseos': {
+			const shop = words(args.shop);
+			return {
+				href: withQuery('/deseos', { tienda: shop }),
+				label: shop ? `Deseos de ${shop}` : 'Deseos'
+			};
+		}
 	}
 }
