@@ -6,6 +6,7 @@
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import WalkLock from './WalkLock.svelte';
 	import WalkShare from './WalkShare.svelte';
+	import PaseosTabs from '#lib/components/PaseosTabs.svelte';
 	import NoteButton from '#lib/components/NoteButton.svelte';
 	import TripMap from '#lib/components/TripMap.svelte';
 	import WalkUploads from '#lib/components/WalkUploads.svelte';
@@ -134,7 +135,9 @@
 </svelte:head>
 
 <h1 class="mb-1 text-2xl font-bold">Paseos<GuideLink page="paseos" label="los paseos" /></h1>
-<p class="mb-6 text-sm text-zinc-400">Tiempo, km y recorrido al salir a andar, solo para ti.</p>
+<p class="mb-4 text-sm text-zinc-400">Tiempo, km y recorrido al salir a andar, solo para ti.</p>
+
+<PaseosTabs current="app" />
 
 <WalkUploads />
 
