@@ -764,6 +764,13 @@
       "when": 1795276117029,
       "tag": "0108_wide_kabuki",
       "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 1795333775519,
+      "tag": "0109_smooth_garia",
+      "breakpoints": true
     }
   ]
 }

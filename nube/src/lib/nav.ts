@@ -46,6 +46,16 @@ const SECTIONS: {
 	{ path: '/canales', label: 'Canales', icon: 'canales', where: 'nube' },
 	{ path: '/recetas', label: 'Recetas', icon: 'recetas', where: 'nube' },
 	{ path: '/nevera', label: 'Nevera', icon: 'nevera', where: 'nube' },
+	// Each person's wishes, from any shop (#586).
+	{
+		path: '/deseos',
+		label: 'Deseos',
+		icon: 'deseos',
+		where: 'nube',
+		startsOff: true,
+		about:
+			'La lista de deseos de cada uno, con cosas de cualquier tienda: se comparte el enlace desde el móvil. La ve toda la familia, y «Lo regalo yo» no lo ve a quien es el regalo.'
+	},
 	{ path: '/agenda', label: 'Agenda', icon: 'agenda', where: 'nube' },
 	// Calls between the family (#330): whom to call, and the history.
 	{ path: '/llamadas', label: 'Llamadas', icon: 'llamadas', where: 'nube', also: ['/llamada'] },
@@ -252,6 +262,7 @@ const KID_SECTIONS = [
 	'/series',
 	'/musica',
 	'/deberes',
+	'/deseos',
 	'/agenda',
 	'/nevera',
 	'/llamadas',

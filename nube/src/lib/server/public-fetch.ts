@@ -63,7 +63,11 @@ const MAX_REDIRECTS = 5;
 
 /** The site answered with an error: its HTTP status, to tell «stop for a while» (429…) apart. */
 export class FetchError extends Error {
-	constructor(readonly status: number) {
+	/** `url`: where it ended, after the redirects (a short link that led to a page that refused). */
+	constructor(
+		readonly status: number,
+		readonly url?: string
+	) {
 		super(`La web respondió ${status}`);
 	}
 }
@@ -138,7 +142,7 @@ export async function fetchPublic(
 			url = new URL(location, url);
 			continue;
 		}
-		if (!res.ok) throw new FetchError(res.status);
+		if (!res.ok) throw new FetchError(res.status, url.href);
 		if (Number(res.headers.get('content-length') ?? 0) > options.maxBytes)
 			throw new Error('La página es demasiado grande');
 		const bytes = new Uint8Array(await res.arrayBuffer());

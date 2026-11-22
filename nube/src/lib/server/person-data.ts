@@ -267,6 +267,14 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		note: 'Follows its medication'
 	},
 
+	// Lista de deseos (#586): each person's.
+	wish: {
+		leaving: 'moves',
+		joining: 'moves',
+		zip: { file: 'deseos', where: [forMe()] },
+		note: 'By person_id; «Lo regalo yo» of others not taken'
+	},
+
 	// Papeles: sealed with the family key, so what leaves is sealed again with the new one.
 	paper: {
 		leaving: 'onlyTheirsOrCopy',

@@ -7,8 +7,8 @@ import { ownPath } from '#lib/own-link.ts';
 
 /**
  * Where «Compartir → Nube» lands (the manifest's share_target): a place from a map goes to
- * Carretera, with its route at once (jellycartoon's, #78); another link (a recipe's page), to
- * Recetas, waiting in its box; a link of Seilide itself (an invitation to link families, #464), to
+ * Carretera, with its route at once (jellycartoon's, #78); another link, to the question of what to
+ * do with it (/compartido/enlace: a wish, #586, or a recipe); a link of Seilide itself (an invitation to link families, #464), to
  * its page; a file, through the service worker, to Gastos. From Android the
  * shared address comes inside `text`, not in `url`.
  */
@@ -25,7 +25,9 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	// Not `/compartido` itself, which would come back here.
 	if (own && !own.startsWith('/compartido')) redirect(303, own);
 	if (isMapShare(text)) redirect(303, await toRoad(text, locals.user!.id));
-	redirect(303, shared ? `/recetas?url=${encodeURIComponent(shared)}` : '/');
+	if (!shared) redirect(303, '/');
+	// Another link: what to do with it, a product's or a recipe's (#586).
+	redirect(303, `/compartido/enlace?${new URLSearchParams({ url: shared, texto: text })}`);
 };
 
 /**

@@ -182,6 +182,8 @@ export async function isKidAccount(userId: string) {
 const KID_PAGES = ['/', '/agenda'];
 const KID_SECTIONS = [
 	'/nevera',
+	// Its own wishes (#586): Reyes, its birthday.
+	'/deseos',
 	'/deberes',
 	'/series',
 	'/watch',
