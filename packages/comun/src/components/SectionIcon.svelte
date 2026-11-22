@@ -31,7 +31,8 @@ Drawn rather than emoji, which depend on the fonts of the PC in the living room.
 		| 'vista'
 		| 'infantil'
 		| 'oracion'
-		| 'gestion';
+		| 'gestion'
+		| 'buzon';
 
 	export interface SectionIconProps {
 		/** Which section's drawing. */
@@ -183,6 +184,12 @@ Drawn rather than emoji, which depend on the fonts of the PC in the living room.
 		<path d="M12 9.5V11" />
 		<rect x="9" y="11" width="6" height="9" rx="1" />
 		<path d="M6 21h12" />
+	{:else if name === 'buzon'}
+		<!-- A tray (Lucide's inbox): the notices, not Mensajes' chat. -->
+		<path d="M22 12h-6l-2 3h-4l-2-3H2" />
+		<path
+			d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"
+		/>
 	{:else if name === 'gestion'}
 		<!-- A gear. -->
 		<circle cx="12" cy="12" r="3" />

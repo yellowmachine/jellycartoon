@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Landing from '#lib/components/Landing.svelte';
 	import Home from '#lib/components/Home.svelte';
+	import CardIcon from '#lib/components/CardIcon.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { sectionOn } from '#lib/nav.ts';
 	import type { PageProps } from './$types';
@@ -23,7 +24,7 @@
 			href="/deberes/hacer/{h.id}"
 			class="mb-4 flex items-center gap-4 rounded-lg border border-sky-700/60 bg-gradient-to-r from-sky-500/20 to-transparent p-4 hover:border-sky-400"
 		>
-			<span class="text-4xl" aria-hidden="true">📚</span>
+			<CardIcon name="deberes" class="h-10 w-10 shrink-0 text-sky-300" />
 			<div class="min-w-0">
 				<p class="font-semibold text-sky-300">Tienes deberes</p>
 				<p class="truncate text-sm">{h.title} · {h.count} preguntas</p>
@@ -35,7 +36,7 @@
 			href="/buzon"
 			class="mb-4 flex items-center gap-4 rounded-lg border border-amber-700/60 bg-gradient-to-r from-amber-500/20 to-transparent p-4 hover:border-amber-400"
 		>
-			<span class="text-4xl" aria-hidden="true">📬</span>
+			<SectionIcon name="buzon" class="h-10 w-10 shrink-0 text-amber-300" />
 			<div class="min-w-0">
 				<p class="font-semibold text-amber-300">
 					{data.inbox.count === 1 ? 'Tienes un aviso' : `Tienes ${data.inbox.count} avisos`}
@@ -71,7 +72,10 @@
 					: 'border-zinc-800 hover:border-amber-500/60'
 			]}
 		>
-			<span class="text-3xl" aria-hidden="true">{c.alert ? '⚠️' : c.paused ? '⏸' : '🫶'}</span>
+			<CardIcon
+				name={c.alert ? 'aviso' : c.paused ? 'pausa' : 'compania'}
+				class="h-8 w-8 shrink-0 {c.alert ? 'text-red-300' : 'text-amber-400'}"
+			/>
 			<div class="min-w-0">
 				<p class={['font-semibold', c.alert ? 'text-red-300' : '']}>{c.name}</p>
 				<p class="truncate text-sm text-zinc-400">
