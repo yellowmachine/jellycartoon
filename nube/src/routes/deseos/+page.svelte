@@ -304,12 +304,13 @@
 			púlsalo: tu navegador lee el nombre, la foto y el precio (también en Amazon) y te lo trae
 			aquí.
 		</p>
+		<!-- Its text is the bookmark's name: a bookmark of code has no icon of its own, so the emoji
+		is what tells it apart in the bar. -->
 		<a
 			href={bookmarklet(page.url.origin)}
-			class="inline-flex items-center gap-2 rounded-md border border-amber-500/60 px-3 py-1.5 text-sm font-medium text-amber-300"
+			class="inline-flex items-center rounded-md border border-amber-500/60 px-3 py-1.5 text-sm font-medium text-amber-300"
 			onclick={(e) => e.preventDefault()}
-			title="Arrástralo a la barra de marcadores"
-			><SectionIcon name="deseos" class="h-4 w-4" />A Deseos</a
+			title="Arrástralo a la barra de marcadores">🎁 Deseos</a
 		>
 	</section>
 {/if}
