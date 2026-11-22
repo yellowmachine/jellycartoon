@@ -173,6 +173,17 @@ test('the last days one by one, and what was watched in them, the latest first',
 	expect(stats.latest[0]).toMatchObject({ userId: 'peque', seriesTitle: 'Bluey', season: 1 });
 });
 
+test('the latest, once per item even if its title changed, with the newest title', async () => {
+	await saveWatched(k, 'ana', [
+		row({ seconds: 300, minute: 600, title: 'Antes' }),
+		row({ seconds: 200, minute: 700, title: 'Después', number: 3 })
+	]);
+	const stats = await watchStats(k, 'ana', TODAY, 4, null);
+	expect(stats.latest.map((w) => [w.item, w.title, w.number, w.seconds])).toEqual([
+		['e1', 'Después', 3, 500]
+	]);
+});
+
 test('the latest of all of them: another adult’s is not there', async () => {
 	await saveWatched(k, 'luis', [row({ item: 'e5', seriesTitle: 'De Luis' })]);
 	await saveWatched(k, 'ana', [row({ minute: 600 })]);
