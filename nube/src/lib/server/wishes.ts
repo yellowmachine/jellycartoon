@@ -59,6 +59,40 @@ export function tidyTitle(title: string) {
 		.slice(0, MAX_WISH_TITLE);
 }
 
+/**
+ * The product's name in its address, where the shop writes it: Amazon's long links
+ * (`/Sony-WH-1000XM5-Auriculares/dp/B09…`, the one copied on a computer). Empty if there is none.
+ */
+export function titleFromAddress(address: string) {
+	let path: string;
+	try {
+		path = new URL(address).pathname;
+	} catch {
+		return '';
+	}
+	const slug = path.match(/\/([^/]+)\/(?:dp|gp\/product)\/[A-Z0-9]{10}(?:[/?]|$)/i)?.[1];
+	if (!slug) return '';
+	let words: string;
+	try {
+		words = decodeURIComponent(slug);
+	} catch {
+		return '';
+	}
+	words = words
+		.replace(/[-_+]+/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+	return /\p{L}{3}/u.test(words) ? words.slice(0, MAX_WISH_TITLE) : '';
+}
+
+/**
+ * A page's title that is only its site's name («Amazon.es»): what a shop that will not answer a
+ * server shows instead of the product (Amazon's, with a 200), not a product's name.
+ */
+export const onlySiteName = (title: string, address: string) =>
+	/^(www\.)?[\p{L}\d-]+(\.[a-z]{2,})+$/iu.test(title.trim()) ||
+	title.trim().toLowerCase() === shopOf(address).toLowerCase();
+
 /** schema.org's `image`: a string, a list, or an ImageObject. */
 function imageOf(value: unknown, base: string): string | null {
 	const first = Array.isArray(value) ? value[0] : value;
@@ -99,8 +133,9 @@ function priceOf(product: Record<string, unknown>) {
 
 /**
  * The product at that address: its page read for its schema.org Product, or its og:… tags. A shop
- * that will not answer a server (Amazon, often): with what was shared with it as its name, and its
- * shop by where its short link led.
+ * that will not answer a server (Amazon: a page with only its name, asking to use its API): with
+ * what was shared with it as its name, or the one in its address, and its shop by where its short
+ * link led.
  */
 export async function readProduct(address: string, shared: string | null): Promise<Product> {
 	const fallback = titleFromShared(shared);
@@ -119,7 +154,7 @@ export async function readProduct(address: string, shared: string | null): Promi
 		return {
 			url,
 			shop: shopOf(url),
-			title: fallback || shopOf(url),
+			title: fallback || titleFromAddress(url) || titleFromAddress(address) || shopOf(url),
 			imageUrl: null,
 			priceCents: null,
 			currency: null
@@ -134,7 +169,13 @@ export async function readProduct(address: string, shared: string | null): Promi
 	const metaCents = read
 		? centsOf(read.meta['product:price:amount'] ?? read.meta['og:price:amount'])
 		: null;
-	const title = tidyTitle(clean(product?.name) || read?.title || '') || fallback || shopOf(url);
+	const pageTitle = tidyTitle(clean(product?.name) || read?.title || '');
+	const title =
+		(pageTitle && (product || !onlySiteName(pageTitle, url)) ? pageTitle : '') ||
+		fallback ||
+		titleFromAddress(url) ||
+		titleFromAddress(address) ||
+		shopOf(url);
 	return {
 		url,
 		shop: shopOf(url),

@@ -40,6 +40,19 @@ describe('a link and its shop', () => {
 		expect(titleFromShared('https://amzn.eu/d/abc')).toBe('');
 	});
 
+	test('the name in Amazon’s long address; a page with only the site’s name is not one', () => {
+		expect(
+			titleFromAddress(
+				'https://www.amazon.es/Sony-WH-1000XM5-Auriculares-Inal%C3%A1mbricos/dp/B09XS7JWHH/ref=sr_1_1?th=1'
+			)
+		).toBe('Sony WH 1000XM5 Auriculares Inalámbricos');
+		expect(titleFromAddress('https://www.amazon.es/dp/B09XS7JWHH')).toBe('');
+		expect(titleFromAddress('https://amzn.eu/d/abc')).toBe('');
+		expect(onlySiteName('Amazon.es', 'https://www.amazon.es/dp/B09XS7JWHH')).toBe(true);
+		expect(onlySiteName('Amazon', 'https://www.amazon.es/dp/B09XS7JWHH')).toBe(true);
+		expect(onlySiteName('Auriculares Sony', 'https://www.amazon.es/dp/B09XS7JWHH')).toBe(false);
+	});
+
 	test('prices as pages write them, and as Spain reads them', () => {
 		expect(centsOf('29.99')).toBe(2999);
 		expect(centsOf(29.9)).toBe(2990);
@@ -66,6 +79,8 @@ const {
 	giveWish,
 	linkOf,
 	listWishes,
+	onlySiteName,
+	titleFromAddress,
 	titleFromShared,
 	tidyTitle,
 	updateWish
