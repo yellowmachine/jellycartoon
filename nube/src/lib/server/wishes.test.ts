@@ -76,6 +76,7 @@ const {
 	addWish,
 	centsOf,
 	deleteWish,
+	describeWishes,
 	giveWish,
 	linkOf,
 	listWishes,
@@ -226,5 +227,35 @@ describe('«Lo regalo yo»', () => {
 		expect(
 			(await listWishes(pepe, 'pepe', false)).wishes.find((w) => w.id === baby.id)!.gift
 		).toBeNull();
+	});
+});
+
+describe('what Preguntar is told', () => {
+	test('by person and shop; the one asking does not learn who gives them theirs', async () => {
+		await addWish(ana, 'ana', false, people.Ana!, product('Auriculares'), 'Negros');
+		await addWish(
+			ana,
+			'ana',
+			false,
+			people.Bebé!,
+			{ ...product('Peluche'), shop: 'IKEA', priceCents: null },
+			null
+		);
+		const [own] = (await listWishes(ana, 'ana', false)).wishes.filter(
+			(w) => w.title === 'Auriculares'
+		);
+		await giveWish(pepe, 'pepe', false, own!.id, true);
+		const toAna = await describeWishes(ana, 'ana');
+		expect(toAna).toContain('Ana (quien pregunta): «Auriculares» (Amazon, 29,99');
+		expect(toAna).toContain('nota: Negros');
+		expect(toAna).not.toContain('lo regala');
+		expect(toAna).toContain('Bebé: «Peluche» (IKEA, sin precio)');
+		expect(await describeWishes(pepe, 'pepe', { person: 'ana' })).toContain(
+			'lo regala quien pregunta'
+		);
+		expect(await describeWishes(pepe, 'pepe', { shop: 'ikea' })).not.toContain('Auriculares');
+		expect(await describeWishes(pepe, 'pepe', { person: 'Juan' })).toContain(
+			'No hay nadie llamado'
+		);
 	});
 });

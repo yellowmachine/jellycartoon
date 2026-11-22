@@ -12,6 +12,7 @@ import { plannedTripsByVoice } from '#lib/server/trips/voice.ts';
 import { describeWeather, WEATHER_DAYS } from '#lib/server/weather-read.ts';
 import { describePlugEnergy, ENERGY_DAYS } from '#lib/server/plugs/energy-read.ts';
 import { describeEnergyForecast } from '#lib/server/energy/forecast-read.ts';
+import { describeWishes } from '#lib/server/wishes.ts';
 
 /**
  * What «Preguntar» can read of the family's sections (#504, phase 2), to answer and to cross them:
@@ -170,6 +171,18 @@ export const READ_TOOLS: Tool[] = [
 			to_day: { type: 'string', description: 'El último día, AAAA-MM-DD.' }
 		},
 		['from_day', 'to_day']
+	),
+	fn(
+		'read_wishes',
+		'La lista de deseos de la familia (Deseos): lo que le gustaría a cada uno, de cualquier tienda, con su precio si se sabe y quién lo regala («Lo regalo yo»). Para «¿qué le regalo a mamá?», «¿qué hay de IKEA?», «¿cuánto suma la lista de Lucía?». Lo que regalan a quien pregunta no sale: es una sorpresa, no lo adivines ni lo insinúes.',
+		{
+			person: {
+				type: 'string',
+				description: 'De quién, por su nombre. Vacío, de todos.'
+			},
+			shop: { type: 'string', description: 'De qué tienda («Amazon»). Vacío, de todas.' }
+		},
+		[]
 	)
 ];
 
@@ -283,6 +296,8 @@ export async function runRead(
 			return describePlugEnergy(k, args);
 		case 'read_energy_forecast':
 			return describeEnergyForecast(k);
+		case 'read_wishes':
+			return describeWishes(k, userId, { person: text(args.person), shop: text(args.shop) });
 		default:
 			return `No hay ninguna herramienta «${name}».`;
 	}

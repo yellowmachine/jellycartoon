@@ -42,6 +42,11 @@ mock.module('#lib/server/openrouter.ts', () => ({
 	sayableError: (message: string) => message
 }));
 mock.module('#lib/server/family-settings.ts', () => ({ openRouterKey: async () => null }));
+// The wishes (#586) read the agenda's people through the app's database: tested in wishes.test.ts.
+mock.module('#lib/server/wishes.ts', () => ({
+	describeWishes: async () => 'Ana: «Auriculares» (Amazon, 29,99 €)',
+	wishPersonName: async () => null
+}));
 mock.module('#lib/server/storage.ts', () => ({
 	storageReady: true,
 	putFile: async () => {},

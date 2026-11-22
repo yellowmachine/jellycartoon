@@ -4,7 +4,7 @@ import { familyPerson, user, wish } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { FetchError, fetchPublic } from '#lib/server/public-fetch.ts';
 import { clean, findOfType, readPage } from '#lib/server/recipes/schema-org.ts';
-import { MAX_WISH_NOTE, MAX_WISH_TITLE, MAX_WISH_URL, shopOf } from '#lib/wishes.ts';
+import { MAX_WISH_NOTE, MAX_WISH_TITLE, MAX_WISH_URL, priceText, shopOf } from '#lib/wishes.ts';
 
 /**
  * Lista de deseos (#586): each person's, seen by the whole family. An adult writes in their own
@@ -346,4 +346,51 @@ export async function giveWish(k: Kitchen, userId: string, kid: boolean, id: num
 			.returning({ id: wish.id })
 	);
 	return Boolean(done);
+}
+
+/** Wishes said to the AI, at most: the newest. */
+const SAID_WISHES = 80;
+
+/**
+ * The wishes as Preguntar is told of them (#586): as the one asking may see them, so their own
+ * «Lo regalo yo» stays hidden from them too. `person`, by name; `shop`, by its name.
+ */
+export async function describeWishes(
+	k: Kitchen,
+	userId: string,
+	filter: { person?: string | null; shop?: string | null } = {}
+) {
+	const { people, wishes } = await listWishes(k, userId, false);
+	const same = (a: string, b: string) =>
+		a.localeCompare(b, 'es', { sensitivity: 'base' }) === 0 ||
+		a.toLowerCase().includes(b.toLowerCase());
+	const asked = filter.person?.trim();
+	const who = asked
+		? people.filter((p) => same(p.name, asked) || (p.me && /^(yo|m[ií])$/i.test(asked)))
+		: people;
+	if (asked && !who.length)
+		return `No hay nadie llamado «${asked}» en la familia. Personas: ${people.map((p) => p.name).join(', ')}.`;
+	const ids = new Set(who.map((p) => p.id));
+	const shop = filter.shop?.trim();
+	const found = wishes.filter((w) => ids.has(w.personId) && (!shop || same(w.shop, shop)));
+	if (!found.length) return 'No hay ningún deseo así en la lista.';
+	const nameOf = new Map(people.map((p) => [p.id, p.me ? `${p.name} (quien pregunta)` : p.name]));
+	return found
+		.slice(0, SAID_WISHES)
+		.map((w) => {
+			const price = priceText(w.priceCents, w.currency);
+			const gift = w.gift
+				? w.gift.mine
+					? '; lo regala quien pregunta'
+					: `; lo regala ${w.gift.name}`
+				: '';
+			return `${nameOf.get(w.personId)}: «${w.title}» (${w.shop}${price ? `, ${price}` : ', sin precio'})${w.note ? `, nota: ${w.note}` : ''}${gift}`;
+		})
+		.join('\n');
+}
+
+/** The name of a person of the family, for what Preguntar is told is open. */
+export async function wishPersonName(k: Kitchen, userId: string, personId: string) {
+	const { people } = await listWishes(k, userId, false);
+	return people.find((p) => p.id === personId)?.name ?? null;
 }

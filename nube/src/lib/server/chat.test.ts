@@ -53,6 +53,11 @@ mock.module('#lib/server/openrouter.ts', () => ({
 	}
 }));
 mock.module('#lib/server/family-settings.ts', () => ({ openRouterKey: async () => 'clave' }));
+// The wishes (#586) read the agenda's people through the app's database: tested in wishes.test.ts.
+mock.module('#lib/server/wishes.ts', () => ({
+	describeWishes: async () => 'Ana: «Auriculares» (Amazon, 29,99 €)',
+	wishPersonName: async () => null
+}));
 // Tested in plugs/energy-read.test.ts.
 mock.module('#lib/server/plugs/energy-read.ts', () => ({
 	ENERGY_DAYS: 92,

@@ -3,11 +3,12 @@ import { addDays, isDay, localDay, mondayOf } from 'comun/agenda.ts';
 import { describeExpense } from '#lib/server/chat-reads.ts';
 import { trip, walk } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
+import { wishPersonName } from '#lib/server/wishes.ts';
 
 /**
  * What the page beside Preguntar's panel has open (#504), so «esta», «aquí» or a bare question is
  * of it: a recipe of the book, a trip, a walk or an expense (its ticket) opened, the month of Dinero or the days of Agenda
- * it shows. Read from its path and query, as the page itself reads them.
+ * it shows, or the wishes (#586). Read from its path and query, as the page itself reads them.
  */
 
 export type Opened =
@@ -16,7 +17,8 @@ export type Opened =
 	| { kind: 'paseo'; id: number }
 	| { kind: 'gasto'; id: number }
 	| { kind: 'mes'; month: string; income: boolean }
-	| { kind: 'dias'; from: string; to: string; month: boolean };
+	| { kind: 'dias'; from: string; to: string; month: boolean }
+	| { kind: 'deseos'; person: string | null; shop: string | null };
 
 const isMonth = (v: string | null): v is string => !!v && /^\d{4}-(0[1-9]|1[0-2])$/.test(v);
 const idOf = (v: string | null | undefined) => {
@@ -53,6 +55,14 @@ export function openedOf(path: string | null, today: string): Opened | null {
 		const asked = q('mes');
 		const month = isMonth(asked) && asked <= current ? asked : current;
 		return { kind: 'mes', month, income: at === '/gastos/ingresos' };
+	}
+	if (at === '/deseos') {
+		const person = q('persona');
+		return {
+			kind: 'deseos',
+			person: person && /^\d+$/.test(person) ? person : null,
+			shop: q('tienda')?.slice(0, 100) || null
+		};
 	}
 	if (at === '/agenda') {
 		const asked = q('dia');
@@ -128,6 +138,12 @@ export async function describeOpened(
 			return describeExpense(k, opened.id);
 		case 'mes':
 			return `${opened.income ? 'los ingresos' : 'los gastos'} de ${monthName(opened.month)} (${opened.month}): una pregunta sin mes es de ese`;
+		case 'deseos': {
+			const name = opened.person ? await wishPersonName(k, userId, opened.person) : null;
+			const whose = name ? ` de ${name}` : '';
+			const shop = opened.shop ? `, solo lo de ${opened.shop}` : '';
+			return `la lista de deseos${whose}${shop}: una pregunta sin más es de esa (léela con «read_wishes»)`;
+		}
 		case 'dias':
 			return opened.month
 				? `la agenda del mes de ${monthName(opened.from.slice(0, 7))} (del ${opened.from} al ${opened.to}): una pregunta sin días es de esos`

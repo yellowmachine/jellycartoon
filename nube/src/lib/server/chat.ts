@@ -170,7 +170,8 @@ const TOOLS: Tool[] = [
 			to_day: { type: 'string', description: 'busqueda: hasta qué día, AAAA-MM-DD.' },
 			kind: { type: 'string', description: 'facturas: «Luz», «Agua» o «Gas».' },
 			day: { type: 'string', description: 'agenda: un día de la semana o del mes, AAAA-MM-DD.' },
-			month_view: { type: 'boolean', description: 'agenda: el mes entero en vez de la semana.' }
+			month_view: { type: 'boolean', description: 'agenda: el mes entero en vez de la semana.' },
+			shop: { type: 'string', description: 'deseos: la tienda, como sale en la lista («Amazon»).' }
 		},
 		['page']
 	),
