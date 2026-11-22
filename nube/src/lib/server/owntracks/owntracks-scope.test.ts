@@ -150,3 +150,53 @@ describe('the old days (phase 3)', () => {
 		expect(await ot.firstDay('ana', options().dayOf)).toBeNull();
 	});
 });
+
+describe('arrivals (phase 4)', () => {
+	const arrive = (iso: string, place = 'Casa', moment: 'llega' | 'sale' = 'llega') => ({
+		at: new Date(iso),
+		place,
+		moment
+	});
+
+	test("the same one sent twice, kept once; a day in order; only one's own", async () => {
+		expect(await ot.saveTransition('ana', arrive('2026-11-22T19:42:00Z'))).toBe(true);
+		expect(await ot.saveTransition('ana', arrive('2026-11-22T19:42:00Z'))).toBe(false);
+		expect(await ot.saveTransition('ana', arrive('2026-11-22T08:10:00Z', 'Casa', 'sale'))).toBe(
+			true
+		);
+		expect(await ot.saveTransition('luis', arrive('2026-11-22T12:00:00Z', 'Trabajo'))).toBe(true);
+		const day = await ot.transitionsBetween(
+			'ana',
+			new Date('2026-11-22T00:00:00Z'),
+			new Date('2026-11-23T00:00:00Z')
+		);
+		expect(day.map((a) => `${a.at.toISOString().slice(11, 16)} ${a.moment} ${a.place}`)).toEqual([
+			'08:10 sale Casa',
+			'19:42 llega Casa'
+		]);
+	});
+
+	test('forgotten with the old days, and with «Borrar todo»', async () => {
+		await ot.saveTransition('ana', arrive('2026-08-01T19:00:00Z'));
+		await ot.summarizeOld('ana', '2026-08-25', {
+			dayStart: (d) => new Date(`${d}T00:00:00Z`),
+			dayOf: (at) => at.toISOString().slice(0, 10),
+			nextDay: (d) =>
+				new Date(new Date(`${d}T12:00:00Z`).getTime() + 86_400_000).toISOString().slice(0, 10),
+			appWalks: async () => []
+		});
+		const all = (who: string) =>
+			ot.transitionsBetween(
+				who,
+				new Date('2026-01-01T00:00:00Z'),
+				new Date('2027-01-01T00:00:00Z')
+			);
+		expect((await all('ana')).map((a) => a.at.toISOString().slice(0, 10))).toEqual([
+			'2026-11-22',
+			'2026-11-22'
+		]);
+		await ot.forget('ana');
+		expect(await all('ana')).toEqual([]);
+		expect(await all('luis')).toHaveLength(1);
+	});
+});

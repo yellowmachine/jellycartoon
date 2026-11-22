@@ -3,6 +3,7 @@
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import { agoText } from '#lib/cars.ts';
 	import { primary, secondary, section } from '#lib/styles.ts';
+	import { REGION_RADIUS } from '#lib/owntracks.ts';
 	import type { ActionData, PageData } from './$types';
 
 	/**
@@ -76,6 +77,21 @@
 					: ''}.
 			{:else}
 				Aún no ha llegado nada.
+			{/if}
+		</p>
+		<p class="mb-3 text-sm text-zinc-400">
+			{#if status.places.length}
+				Te avisa al llegar y al salir de {status.places.join(', ')} (a {REGION_RADIUS} m), para las reglas
+				«cuando llegue a…» de
+				<a href="/reglas" class="text-amber-400 hover:underline">Reglas</a>. Si guardas otro sitio
+				en Viajes, pide otro enlace para que lo lleve.
+			{:else}
+				Con sitios guardados en Viajes, te avisa al llegar y salir de ellos, para las reglas «cuando
+				llegue a…».
+			{/if}
+			{#if status.homeInexact}
+				Casa no va: en Ajustes → Casa → Dónde vivís está solo el pueblo; quien administra puede
+				pulsar allí «Usar mi ubicación» estando en casa.
 			{/if}
 		</p>
 		<p class="mb-3 text-xs text-zinc-500">

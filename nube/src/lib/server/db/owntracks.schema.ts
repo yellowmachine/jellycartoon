@@ -92,3 +92,25 @@ export const owntracksDay = pgTable(
 	},
 	(t) => [primaryKey({ columns: [t.userId, t.day] }), userRows('owntracks_day_own', t.userId)]
 ).enableRLS();
+
+/**
+ * Arriving at or leaving one of their places (phase 4), as the phone told it (`transition`): what
+ * fires their rules «lugar», and what the day shows. The same one sent twice, kept once.
+ */
+export const owntracksEvent = pgTable(
+	'owntracks_event',
+	{
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		/** When it happened on the phone (`tst`). */
+		at: timestamp('at').notNull(),
+		/** The place's name, as the phone has it (`desc`): «Casa». */
+		place: text('place').notNull(),
+		moment: text('moment').$type<'llega' | 'sale'>().notNull()
+	},
+	(t) => [
+		primaryKey({ columns: [t.userId, t.at, t.place] }),
+		userRows('owntracks_event_own', t.userId)
+	]
+).enableRLS();

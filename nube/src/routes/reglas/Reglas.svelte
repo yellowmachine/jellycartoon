@@ -326,6 +326,8 @@
 							<option value="compra">Que se compre (separado por comas)</option>
 							<option value="enchufe_empieza">Que empiece un aparato (su nombre)</option>
 							<option value="enchufe_termina">Que termine un aparato (su nombre)</option>
+							<option value="lugar_llega">Que llegue a un sitio (su nombre)</option>
+							<option value="lugar_sale">Que salga de un sitio (su nombre)</option>
 						</select>
 						<input
 							name="ifText"
@@ -336,8 +338,8 @@
 						/>
 					</div>
 					<p class="text-xs text-zinc-500">
-						Lo que digas, pongas, se compre o haga un aparato de Enchufes, a la hora elegida. El
-						tiempo inventado vale para todo el rato que miras.
+						Lo que digas, pongas, se compre, haga un aparato de Enchufes o adonde llegues, a la hora
+						elegida. El tiempo inventado vale para todo el rato que miras.
 					</p>
 				</div>
 			</details>

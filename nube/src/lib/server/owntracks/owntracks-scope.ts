@@ -1,9 +1,14 @@
 import { randomBytes } from 'node:crypto';
 import { and, asc, desc, eq, gte, lt, min, sql } from 'drizzle-orm';
-import { locationPoint, owntracksDay, owntracksLink } from '../db/owntracks.schema.ts';
+import {
+	locationPoint,
+	owntracksDay,
+	owntracksEvent,
+	owntracksLink
+} from '../db/owntracks.schema.ts';
 import { userScope, type AnyDb } from '../family-scope.ts';
 import { hashOf } from '../house-key-scope.ts';
-import type { OwntracksPoint } from '#lib/owntracks.ts';
+import type { OwntracksPoint, OwntracksTransition } from '#lib/owntracks.ts';
 import { walkingOutings } from '#lib/owntracks-walking.ts';
 
 /**
@@ -54,11 +59,12 @@ export function owntracksScope(db: AnyDb, { role }: { role?: string } = {}) {
 		return asUser(userId, (tx) => tx.delete(owntracksLink).where(eq(owntracksLink.userId, userId)));
 	}
 
-	/** All their positions, and what was left of the old days, gone. */
+	/** All their positions, arrivals, and what was left of the old days, gone. */
 	function forget(userId: string) {
 		return asUser(userId, async (tx) => {
 			await tx.delete(locationPoint).where(eq(locationPoint.userId, userId));
 			await tx.delete(owntracksDay).where(eq(owntracksDay.userId, userId));
+			await tx.delete(owntracksEvent).where(eq(owntracksEvent.userId, userId));
 		});
 	}
 
@@ -127,6 +133,39 @@ export function owntracksScope(db: AnyDb, { role }: { role?: string } = {}) {
 		);
 	}
 
+	/** Arriving at or leaving a place (phase 4): true if new, false if it had come already. */
+	async function saveTransition(userId: string, t: OwntracksTransition) {
+		const added = await asUser(userId, (tx) =>
+			tx
+				.insert(owntracksEvent)
+				.values({ userId, ...t })
+				.onConflictDoNothing()
+				.returning({ at: owntracksEvent.at })
+		);
+		return added.length > 0;
+	}
+
+	/** Their arrivals and leavings between two moments, in order. */
+	function transitionsBetween(userId: string, from: Date, to: Date) {
+		return asUser(userId, (tx) =>
+			tx
+				.select({
+					at: owntracksEvent.at,
+					place: owntracksEvent.place,
+					moment: owntracksEvent.moment
+				})
+				.from(owntracksEvent)
+				.where(
+					and(
+						eq(owntracksEvent.userId, userId),
+						gte(owntracksEvent.at, from),
+						lt(owntracksEvent.at, to)
+					)
+				)
+				.orderBy(asc(owntracksEvent.at))
+		);
+	}
+
 	/** What is left of a day whose positions were forgotten, or null. */
 	async function summaryOf(userId: string, day: string) {
 		const [row] = await asUser(userId, (tx) =>
@@ -177,6 +216,12 @@ export function owntracksScope(db: AnyDb, { role }: { role?: string } = {}) {
 		}
 	) {
 		const cutoff = dayStart(firstKept);
+		// Their arrivals of those days (phase 4): nothing is left of them in the summary.
+		await asUser(userId, (tx) =>
+			tx
+				.delete(owntracksEvent)
+				.where(and(eq(owntracksEvent.userId, userId), lt(owntracksEvent.at, cutoff)))
+		);
 		const [oldest] = await asUser(userId, (tx) =>
 			tx
 				.select({ at: min(locationPoint.at) })
@@ -224,6 +269,8 @@ export function owntracksScope(db: AnyDb, { role }: { role?: string } = {}) {
 		between,
 		summaryOf,
 		firstDay,
-		summarizeOld
+		summarizeOld,
+		saveTransition,
+		transitionsBetween
 	};
 }

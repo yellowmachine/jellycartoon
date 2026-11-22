@@ -138,6 +138,18 @@
 			<p class="mb-4 text-sm text-zinc-500">Ese día no se ve ningún rato andando.</p>
 		{/if}
 
+		{#if data.arrivals.length}
+			<ul class="mb-4 flex flex-wrap gap-2 text-sm">
+				{#each data.arrivals as a (`${a.at}-${a.place}`)}
+					<li class="rounded-md border border-zinc-800 px-2 py-1">
+						{time.format(new Date(a.at))}
+						{a.moment === 'llega' ? 'llegas a' : 'sales de'}
+						<b>{a.place}</b>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+
 		{#if data.appWalks.length}
 			<p class="mb-4 text-sm text-zinc-400">
 				Ese día también

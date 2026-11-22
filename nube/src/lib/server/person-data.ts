@@ -807,6 +807,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: { file: 'owntracks-dias', where: [mine()] },
 		note: 'What is left of a day once its positions are forgotten (#593)'
 	},
+	owntracks_event: {
+		leaving: 'account',
+		joining: 'account',
+		zip: { file: 'owntracks-llegadas', where: [mine()] },
+		note: 'Arriving at or leaving their places, told by OwnTracks (#593)'
+	},
 	session: {
 		leaving: 'account',
 		joining: 'account',

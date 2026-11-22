@@ -13,7 +13,8 @@ const isDay = (v: string | null): v is string =>
 
 /**
  * Paseos → OwnTracks (#593): whether it is connected, and a day's way as it came (`?dia=`, today
- * by default), on the map, with its outings walking and their km (phase 2). A day over 90 days
+ * by default), on the map, with its outings walking and their km (phase 2) and its arrivals at
+ * and leavings of their places (phase 4). A day over 90 days
  * old, only what was left of it (phase 3).
  */
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -25,11 +26,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const day = isDay(asked) && asked <= now && asked >= oldest ? asked : now;
 	const from = dayStart(day);
 	const to = dayStart(addDays(day, 1));
-	const [status, points, walks, summary] = await Promise.all([
+	const [status, points, walks, summary, arrivals] = await Promise.all([
 		owntracks.status(userId),
 		owntracks.between(userId, from, to),
 		kitchenOf(userId).then((k) => listWalks(k, 1000)),
-		day < firstKept ? owntracks.summaryOf(userId, day) : null
+		day < firstKept ? owntracks.summaryOf(userId, day) : null,
+		owntracks.transitionsBetween(userId, from, to)
 	]);
 	// The app's walks that day: theirs what they overlap (phase 2), said apart.
 	const appWalks = walks.filter((w) => w.startedAt < to && w.endedAt > from);
@@ -53,6 +55,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			outings: summary.outings,
 			points: summary.points
 		},
-		forgotten: day < firstKept
+		forgotten: day < firstKept,
+		/** Arriving at and leaving their places (phase 4). */
+		arrivals
 	};
 };

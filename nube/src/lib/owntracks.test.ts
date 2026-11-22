@@ -4,6 +4,8 @@ import {
 	owntracksConfig,
 	owntracksLink,
 	parseLocation,
+	parseTransition,
+	regionWaypoint,
 	trackerId
 } from './owntracks.ts';
 
@@ -103,4 +105,52 @@ test('the link carries the configuration, safe in an address', () => {
 	expect(link.split('inline=')[1]).not.toMatch(/[+/=]/);
 	const json = new TextDecoder().decode(Uint8Array.from(atob(inline), (c) => c.charCodeAt(0)));
 	expect(JSON.parse(json)).toEqual(config);
+});
+
+describe('places (phase 4)', () => {
+	test('a transition: arriving or leaving, by its name', () => {
+		const t = { _type: 'transition', event: 'enter', desc: ' Casa ', tst, rid: 'casa', wtst: 1 };
+		expect(parseTransition(t, now)).toEqual({
+			at: new Date(tst * 1000),
+			place: 'Casa',
+			moment: 'llega'
+		});
+		expect(parseTransition({ ...t, event: 'leave' }, now)?.moment).toBe('sale');
+		expect(parseTransition({ ...t, event: 'otro' }, now)).toBeNull();
+		expect(parseTransition({ ...t, desc: '' }, now)).toBeNull();
+		expect(parseTransition({ ...t, _type: 'location' }, now)).toBeNull();
+		expect(parseTransition({ ...t, tst: now / 1000 + 7200 }, now)).toBeNull();
+	});
+
+	test('its regions go in the link, each with the same key every time', () => {
+		const regions = [
+			{ rid: 'casa', desc: 'Casa', lat: 37.98, lon: -1.13 },
+			{ rid: 'sitio-12', desc: 'Trabajo', lat: 37.99, lon: -1.12 }
+		];
+		const config = owntracksConfig({ origin: 'https://x', password: 'p', name: 'Ana', regions });
+		expect(config.waypoints).toEqual([
+			{
+				_type: 'waypoint',
+				desc: 'Casa',
+				lat: 37.98,
+				lon: -1.13,
+				rad: 150,
+				rid: 'casa',
+				tst: 1_700_000_000
+			},
+			{
+				_type: 'waypoint',
+				desc: 'Trabajo',
+				lat: 37.99,
+				lon: -1.12,
+				rad: 150,
+				rid: 'sitio-12',
+				tst: 1_700_000_012
+			}
+		]);
+		expect(regionWaypoint(regions[1]!)).toEqual(config.waypoints[1]!);
+		expect(owntracksConfig({ origin: 'https://x', password: 'p', name: 'Ana' }).waypoints).toEqual(
+			[]
+		);
+	});
 });
