@@ -49,6 +49,7 @@ import {
 	proposePlugSkip
 } from '#lib/server/plugs/pause-card.ts';
 import { pauseLine, PROPOSE_PLUG_PAUSE, PROPOSE_PLUG_SKIP, skipLine } from '#lib/plug-pause.ts';
+import { addWishFromCard, PROPOSE_WISH, proposeWish, wishLine } from '#lib/server/wishes.ts';
 import {
 	changeLine,
 	planLine,
@@ -283,6 +284,7 @@ function cardLine(card: ChatCard) {
 	if (card.kind === 'cambio-encargo') return changeLine(card);
 	if (card.kind === 'pausa-enchufe') return pauseLine(card);
 	if (card.kind === 'saltar-horario') return skipLine(card);
+	if (card.kind === 'deseo') return wishLine(card);
 	return `[Tarjeta de receta${card.savedId ? `, guardada en el recetario (receta ${card.savedId})` : ', sin guardar'}:\n${describeRecipe(card.recipe, -1)}]`;
 }
 
@@ -437,6 +439,8 @@ async function runTool(
 			return proposePlugPause(k, args);
 		case 'propose_plug_skip':
 			return proposePlugSkip(k, args);
+		case 'propose_wish':
+			return proposeWish(k, userId, args);
 		case 'read_recipe': {
 			const saved = await getRecipe(k, Number(args.id));
 			if (!saved) return { result: 'Esa receta no está en el recetario.' };
@@ -713,6 +717,7 @@ export async function askChat(
 			PROPOSE_ERRAND_CHANGE,
 			PROPOSE_PLUG_PAUSE,
 			PROPOSE_PLUG_SKIP,
+			PROPOSE_WISH,
 			...READ_TOOLS
 		]
 	});
@@ -853,6 +858,22 @@ export async function applySkipFromCard(
 	const found = await cardOf(k, userId, messageId, index);
 	if (found?.card.kind !== 'saltar-horario') return null;
 	const done = await applyPlugSkip(k, found.card);
+	if ('problem' in done) return done;
+	found.cards[index] = done.card;
+	await saveCards(k, userId, messageId, found.cards);
+	return done;
+}
+
+/** «Añadir» on a wish card (#586): into that list, once. The card, or why not; null if no card. */
+export async function applyWishFromCard(
+	k: Kitchen,
+	userId: string,
+	messageId: number,
+	index: number
+) {
+	const found = await cardOf(k, userId, messageId, index);
+	if (found?.card.kind !== 'deseo') return null;
+	const done = await addWishFromCard(k, userId, found.card);
 	if ('problem' in done) return done;
 	found.cards[index] = done.card;
 	await saveCards(k, userId, messageId, found.cards);

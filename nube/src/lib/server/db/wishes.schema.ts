@@ -33,9 +33,16 @@ export const wish = pgTable(
 		title: text('title').notNull(),
 		/** The shop's own picture, shown from there. */
 		imageUrl: text('image_url'),
+		/**
+		 * The same for one product however it was shared (lib/wishes.ts cleanLink): `amazon:<ASIN>`,
+		 * or its address without tracking. Null, kept before it.
+		 */
+		productKey: text('product_key'),
 		/** As the page said it, in cents of `currency`; null, not said. */
 		priceCents: integer('price_cents'),
 		currency: text('currency'),
+		/** When that price was seen: it changes, and is not watched. */
+		priceAt: timestamp('price_at'),
 		/** A size, a colour: what the shop's page does not say. */
 		note: text('note'),
 		/** Who added it; gone, the wish stays. */
@@ -45,7 +52,7 @@ export const wish = pgTable(
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [
-		index('wish_person_idx').on(t.familyId, t.personId),
+		index('wish_person_idx').on(t.familyId, t.personId, t.productKey),
 		unique('wish_family_id').on(t.familyId, t.id),
 		foreignKey({
 			name: 'wish_person_fk',

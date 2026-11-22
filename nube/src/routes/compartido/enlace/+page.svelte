@@ -34,6 +34,24 @@
 	{said ? `${said} · ` : ''}{data.shop ?? host}
 </p>
 
+{#if data.read}
+	<!-- Read by the computer's bookmark, in the person's own browser. -->
+	<div class="mb-6 flex gap-3 rounded-lg border border-zinc-800 bg-zinc-900 p-3">
+		{#if data.read.imageUrl}
+			<img
+				src={data.read.imageUrl}
+				alt=""
+				referrerpolicy="no-referrer"
+				class="h-20 w-20 shrink-0 rounded-md bg-white object-contain"
+			/>
+		{/if}
+		<div class="min-w-0">
+			<p class="line-clamp-2 font-medium">{data.read.title}</p>
+			{#if data.read.price}<p class="text-sm text-zinc-300">{data.read.price}</p>{/if}
+		</div>
+	</div>
+{/if}
+
 <div class="flex gap-4 {shopFirst ? 'flex-col' : 'flex-col-reverse'}">
 	{#if data.people.length}
 		<form
@@ -50,6 +68,11 @@
 		>
 			<input type="hidden" name="url" value={data.link} />
 			<input type="hidden" name="texto" value={data.text} />
+			{#if data.read}
+				<input type="hidden" name="titulo" value={data.read.title} />
+				<input type="hidden" name="precio" value={data.read.precio} />
+				<input type="hidden" name="foto" value={data.read.foto} />
+			{/if}
 			<h2 class="flex items-center gap-2 font-semibold">
 				<SectionIcon name="deseos" class="h-6 w-6" />A la lista de deseos
 			</h2>
@@ -72,6 +95,26 @@
 			</div>
 			{#if form?.message}<p class="text-sm text-red-400" role="alert">{form.message}</p>{/if}
 		</form>
+	{/if}
+
+	{#if data.messages}
+		<div class="{card} border-zinc-800">
+			<h2 class="flex items-center gap-2 font-semibold">
+				<SectionIcon name="mensajes" class="h-6 w-6" />Mandarlo a alguien
+			</h2>
+			<div>
+				<a
+					href="/mensajes?{new URLSearchParams({
+						enlace: data.link,
+						texto: data.text,
+						...(data.read
+							? { titulo: data.read.title, precio: data.read.precio, foto: data.read.foto }
+							: {})
+					})}"
+					class="inline-block {secondary}">Mandar por Mensajes</a
+				>
+			</div>
+		</div>
 	{/if}
 
 	<div class="{card} {shopFirst ? 'border-zinc-800' : 'border-amber-500/60 bg-amber-500/5'}">

@@ -9,6 +9,8 @@ import { addItems, kitchenOf, toBuy } from '#lib/server/fridge.ts';
 import { calls } from '#lib/server/calls.ts';
 import { openRouterKey } from '#lib/server/family-settings.ts';
 import { shoppingItems } from '#lib/server/chat.ts';
+import { linkOf, productFromBrowser, readProduct } from '#lib/server/wishes.ts';
+import { priceText } from '#lib/wishes.ts';
 import {
 	getRecipe,
 	MESSAGE_SOURCE_NAME,
@@ -37,6 +39,15 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		Number.isInteger(asked) && asked > 0 ? getRecipe(k, asked) : null
 	]);
 	const recipe = sharing ? parseRecipe(sharing) : null;
+	// A link to send, from the question of a shared link (#586): its page read here, before it goes
+	// encrypted.
+	const link = linkOf(url.searchParams.get('enlace'));
+	const fromBrowser = link
+		? productFromBrowser((name) => (name === 'url' ? link : url.searchParams.get(name)))
+		: null;
+	const product = link
+		? (fromBrowser ?? (await readProduct(link, url.searchParams.get('texto'))))
+		: null;
 	return {
 		userId: locals.user!.id,
 		names: {
@@ -52,7 +63,18 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		/** This person's kept places (#151): to send one, and to know one that came is kept. */
 		myPlaces: places,
 		/** A recipe of the book to send, from Recetas' «Mandar» (#555). */
-		sharing: sharing && recipe && typeof recipe !== 'string' ? { id: sharing.id, recipe } : null
+		sharing: sharing && recipe && typeof recipe !== 'string' ? { id: sharing.id, recipe } : null,
+		/** A link to send (#586), as its card. */
+		sharingLink: product
+			? {
+					kind: 'enlace' as const,
+					url: product.url,
+					title: product.title,
+					shop: product.shop,
+					imageUrl: product.imageUrl,
+					price: priceText(product.priceCents, product.currency)
+				}
+			: null
 	};
 };
 

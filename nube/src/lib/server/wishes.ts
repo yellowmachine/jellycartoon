@@ -2,9 +2,20 @@ import { and, desc, eq, isNull } from 'drizzle-orm';
 import { agendaPeople, personOf } from '#lib/server/agenda/agenda.ts';
 import { familyPerson, user, wish } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
+import type { Tool } from '#lib/server/openrouter.ts';
 import { FetchError, fetchPublic } from '#lib/server/public-fetch.ts';
 import { clean, findOfType, readPage } from '#lib/server/recipes/schema-org.ts';
-import { MAX_WISH_NOTE, MAX_WISH_TITLE, MAX_WISH_URL, priceText, shopOf } from '#lib/wishes.ts';
+import {
+	cleanLink,
+	MAX_WISH_NOTE,
+	MAX_WISH_TITLE,
+	MAX_WISH_URL,
+	priceText,
+	priceFromText,
+	seenOn,
+	shopOf,
+	type WishCard
+} from '#lib/wishes.ts';
 
 /**
  * Lista de deseos (#586): each person's, seen by the whole family. An adult writes in their own
@@ -16,7 +27,10 @@ const USER_AGENT = 'Seilide/1.0 (https://github.com/yellowmachine/jellycartoon)'
 const MAX_PAGE_BYTES = 5_000_000;
 
 export interface Product {
+	/** Clean (cleanLink): without tracking, Amazon's as /dp/<ASIN>. */
 	url: string;
+	/** The same for one product however it was shared. */
+	productKey: string;
 	shop: string;
 	title: string;
 	imageUrl: string | null;
@@ -151,8 +165,10 @@ export async function readProduct(address: string, shared: string | null): Promi
 		});
 	} catch (err) {
 		const url = err instanceof FetchError && err.url ? (linkOf(err.url) ?? address) : address;
+		const kept = cleanLink(url);
 		return {
-			url,
+			url: kept.url,
+			productKey: kept.key,
 			shop: shopOf(url),
 			title: fallback || titleFromAddress(url) || titleFromAddress(address) || shopOf(url),
 			imageUrl: null,
@@ -176,8 +192,10 @@ export async function readProduct(address: string, shared: string | null): Promi
 		titleFromAddress(url) ||
 		titleFromAddress(address) ||
 		shopOf(url);
+	const kept = cleanLink(url);
 	return {
-		url,
+		url: kept.url,
+		productKey: kept.key,
 		shop: shopOf(url),
 		title,
 		imageUrl: (product && imageOf(product.image, url)) ?? imageOf(read?.imageUrl, url),
@@ -211,6 +229,8 @@ export interface WishView {
 	imageUrl: string | null;
 	priceCents: number | null;
 	currency: string | null;
+	/** When the price was seen. */
+	priceAt: Date | null;
 	note: string | null;
 	/** «Lo regalo yo»: by whom, and whether by the one looking; null for the person it is for. */
 	gift: { mine: boolean; name: string } | null;
@@ -246,6 +266,7 @@ export async function listWishes(k: Kitchen, userId: string, kid: boolean) {
 			imageUrl: w.imageUrl,
 			priceCents: w.priceCents,
 			currency: w.currency,
+			priceAt: w.priceAt,
 			note: w.note,
 			gift:
 				String(w.personId) === mine || kid || !w.giftBy
@@ -279,7 +300,10 @@ async function wishPerson(k: Kitchen, id: number) {
 	return row?.personId ?? null;
 }
 
-/** A product into that person's list: false if the one looking may not write in it. */
+/**
+ * A product into that person's list: `added`; `refused` if the one looking may not write in it;
+ * `already`, with the one there, if the same product (by its key) is in that list.
+ */
 export async function addWish(
 	k: Kitchen,
 	userId: string,
@@ -287,19 +311,28 @@ export async function addWish(
 	personId: number,
 	product: Product,
 	note: string | null
-) {
-	if (!(await writesIn(k, userId, kid, personId))) return false;
-	await k.run((tx) =>
-		tx.insert(wish).values({
-			familyId: k.familyId,
-			personId,
-			...product,
-			title: product.title.slice(0, MAX_WISH_TITLE),
-			note: note?.trim().slice(0, MAX_WISH_NOTE) || null,
-			addedBy: userId
-		})
-	);
-	return true;
+): Promise<{ added: number } | { refused: true } | { already: number }> {
+	if (!(await writesIn(k, userId, kid, personId))) return { refused: true };
+	return k.run(async (tx) => {
+		const [there] = await tx
+			.select({ id: wish.id })
+			.from(wish)
+			.where(and(eq(wish.personId, personId), eq(wish.productKey, product.productKey)));
+		if (there) return { already: there.id };
+		const [made] = await tx
+			.insert(wish)
+			.values({
+				familyId: k.familyId,
+				personId,
+				...product,
+				title: product.title.slice(0, MAX_WISH_TITLE),
+				priceAt: product.priceCents !== null ? new Date() : null,
+				note: note?.trim().slice(0, MAX_WISH_NOTE) || null,
+				addedBy: userId
+			})
+			.returning({ id: wish.id });
+		return { added: made!.id };
+	});
 }
 
 /** Its name and note corrected; false if it is not there or not theirs to write. */
@@ -378,13 +411,15 @@ export async function describeWishes(
 	return found
 		.slice(0, SAID_WISHES)
 		.map((w) => {
+			const seen = seenOn(w.priceAt);
 			const price = priceText(w.priceCents, w.currency);
+			const priced = price ? `, ${price}${seen ? ` visto ${seen}` : ''}` : ', sin precio';
 			const gift = w.gift
 				? w.gift.mine
 					? '; lo regala quien pregunta'
 					: `; lo regala ${w.gift.name}`
 				: '';
-			return `${nameOf.get(w.personId)}: «${w.title}» (${w.shop}${price ? `, ${price}` : ', sin precio'})${w.note ? `, nota: ${w.note}` : ''}${gift}`;
+			return `${nameOf.get(w.personId)}: «${w.title}» (${w.shop}${priced})${w.note ? `, nota: ${w.note}` : ''}${gift}`;
 		})
 		.join('\n');
 }
@@ -393,4 +428,120 @@ export async function describeWishes(
 export async function wishPersonName(k: Kitchen, userId: string, personId: string) {
 	const { people } = await listWishes(k, userId, false);
 	return people.find((p) => p.id === personId)?.name ?? null;
+}
+
+export const PROPOSE_WISH: Tool = {
+	type: 'function',
+	function: {
+		name: 'propose_wish',
+		description:
+			'Enseña una tarjeta para añadir a la lista de deseos (Deseos) un producto del que la persona ha pegado el enlace en el chat; Seilide lee la página y la persona lo añade con un toque. Solo con un enlace que ella haya dado, nunca uno inventado. Para su lista o la de un peque; en la de otro adulto no se puede.',
+		parameters: {
+			type: 'object',
+			properties: {
+				url: { type: 'string', description: 'El enlace del producto, tal cual lo pegó.' },
+				person: {
+					type: 'string',
+					description: 'Para quién, por su nombre. Vacío, para quien pregunta.'
+				}
+			},
+			required: ['url'],
+			additionalProperties: false
+		}
+	}
+};
+
+/** `propose_wish`: the product read, for a list the one asking writes in; what is wrong, in words. */
+export async function proposeWish(
+	k: Kitchen,
+	userId: string,
+	args: Record<string, unknown>
+): Promise<{ result: string; card?: WishCard }> {
+	const link = linkOf(args.url);
+	if (!link) return { result: 'Eso no es un enlace: pídele que lo pegue.' };
+	const { people } = await listWishes(k, userId, false);
+	const writable = people.filter((p) => p.writes);
+	const asked = typeof args.person === 'string' ? args.person.trim() : '';
+	const person = asked
+		? (writable.find((p) => p.name.localeCompare(asked, 'es', { sensitivity: 'base' }) === 0) ??
+			writable.find((p) => p.name.toLowerCase().includes(asked.toLowerCase())))
+		: writable.find((p) => p.me);
+	if (!person)
+		return {
+			result: asked
+				? `En la lista de «${asked}» no puede añadir. Puede en la de: ${writable.map((p) => p.name).join(', ')}.`
+				: 'No tiene lista de deseos todavía.'
+		};
+	const product = await readProduct(link, null);
+	const price = priceText(product.priceCents, product.currency);
+	return {
+		result: `Tarjeta enseñada: «${product.title}» (${product.shop}${price ? `, ${price}` : ', sin precio'}) para la lista de ${person.me ? 'quien pregunta' : person.name}. La persona la añade con un toque; no digas que está añadido.`,
+		card: {
+			kind: 'deseo',
+			...product,
+			personId: person.id,
+			personName: person.name,
+			added: null,
+			already: null
+		}
+	};
+}
+
+/** What the AI is told of a wish card later. */
+export const wishLine = (c: WishCard) =>
+	`[Tarjeta de deseo: «${c.title}» (${c.shop}) para la lista de ${c.personName}: ${c.added ? 'añadido' : c.already ? 'ya estaba en la lista' : 'sin añadir'}]`;
+
+/** «Añadir» on a wish card: into that list, once; the card as it is then, or why not. */
+export async function addWishFromCard(
+	k: Kitchen,
+	userId: string,
+	card: WishCard
+): Promise<{ card: WishCard } | { problem: string }> {
+	if (card.added || card.already) return { card };
+	const done = await addWish(
+		k,
+		userId,
+		false,
+		Number(card.personId),
+		{
+			url: card.url,
+			productKey: card.productKey,
+			shop: card.shop,
+			title: card.title,
+			imageUrl: card.imageUrl,
+			priceCents: card.priceCents,
+			currency: card.currency
+		},
+		null
+	);
+	if ('refused' in done) return { problem: 'En esa lista no puedes añadir' };
+	return {
+		card: {
+			...card,
+			added: 'added' in done ? done.added : null,
+			already: 'already' in done ? done.already : null
+		}
+	};
+}
+
+/**
+ * What the computer's bookmark read in the person's own browser (lib/wishes.ts bookmarklet):
+ * `url`, `titulo`, `precio` and `foto`, checked. Null without a link and a name: then the page is
+ * read here, as for a link shared from a phone.
+ */
+export function productFromBrowser(get: (name: string) => string | null): Product | null {
+	const link = linkOf(get('url'));
+	const title = tidyTitle((get('titulo') ?? '').replace(/\s+/g, ' ').trim());
+	if (!link || !title || onlySiteName(title, link)) return null;
+	const kept = cleanLink(link);
+	const price = priceFromText(get('precio'));
+	return {
+		url: kept.url,
+		productKey: kept.key,
+		shop: shopOf(link),
+		title,
+		imageUrl: imageOf(get('foto'), link),
+		priceCents: price?.cents ?? null,
+		currency: price?.currency ?? null
+	};
 }

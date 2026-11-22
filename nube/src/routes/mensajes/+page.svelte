@@ -186,6 +186,19 @@
 		sharingBusy = false;
 		if (ok) stopSharing();
 	}
+	/** A link to send, from the question of a shared link (#586): to the conversation chosen. */
+	let sharingLink = $state(untrack(() => data.sharingLink));
+	function stopSharingLink() {
+		sharingLink = null;
+		replaceState('/mensajes', {});
+	}
+	async function sendSharedLink() {
+		if (!sharingLink || sharingBusy) return;
+		sharingBusy = true;
+		const ok = await client.sendCard(sharingLink);
+		sharingBusy = false;
+		if (ok) stopSharingLink();
+	}
 	const title = $derived(
 		!open ? '' : open.kind === 'familia' ? 'Familia' : open.with ? nameOf(open.with) : ''
 	);
@@ -258,6 +271,18 @@
 		</p>
 	{:else if !client.current}
 		<CopiaPin {client} />
+		{#if sharingLink}
+			<div
+				class="mb-3 flex items-center gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3"
+			>
+				<p class="min-w-0 flex-1 text-sm">
+					Elige a quién mandar <strong>«{sharingLink.title}»</strong>
+				</p>
+				<button class="text-sm text-zinc-400 hover:text-white" onclick={stopSharingLink}
+					>Cancelar</button
+				>
+			</div>
+		{/if}
 		{#if sharing}
 			<div
 				class="mb-3 flex items-center gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3"
@@ -457,6 +482,25 @@
 		{/if}
 		{#if attachProblem}
 			<p class="mb-2 text-sm text-red-400">{attachProblem}</p>
+		{/if}
+		{#if sharingLink}
+			<div class="mb-3 rounded-md border border-zinc-700 bg-zinc-900 p-3">
+				<p class="font-semibold">{sharingLink.title}</p>
+				<p class="mb-3 text-sm text-zinc-400">
+					{sharingLink.shop}{sharingLink.price ? ` · ${sharingLink.price}` : ''}
+				</p>
+				<div class="flex gap-2">
+					<button
+						class="rounded-md bg-amber-500 px-4 py-2 font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
+						disabled={sharingBusy || client.waiting}
+						onclick={sendSharedLink}>{sharingBusy ? 'Enviando…' : 'Enviar el enlace'}</button
+					>
+					<button
+						class="rounded-md px-4 py-2 text-zinc-300 hover:text-white"
+						onclick={stopSharingLink}>Cancelar</button
+					>
+				</div>
+			</div>
 		{/if}
 		{#if sharing}
 			<div class="mb-3 rounded-md border border-zinc-700 bg-zinc-900 p-3">

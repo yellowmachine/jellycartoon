@@ -490,6 +490,28 @@ describe('voice notes', () => {
 		await expect(mama.m.sendCard(conv, { ...sitio, lat: 200 })).rejects.toThrow();
 	});
 
+	test('a link with what its page says (#586): inside the encrypted message, checked', async () => {
+		const enlace = {
+			kind: 'enlace' as const,
+			url: 'https://www.amazon.es/dp/B09XS7JWHH',
+			title: 'Auriculares Sony',
+			shop: 'Amazon',
+			imageUrl: null,
+			price: '29,99 €'
+		};
+		await mama.m.sendCard(conv, enlace);
+		await movil.m.sync();
+		const got = (await movil.m.messages(conv)).at(-1)!;
+		expect(got.card).toEqual(enlace);
+		expect(describeMessage(got)).toBe('🔗 Auriculares Sony');
+		await expect(
+			mama.m.sendCard(conv, { ...enlace, url: 'javascript:alert(1)' })
+		).rejects.toThrow();
+		await mama.m.sendCard(conv, { ...enlace, imageUrl: 'javascript:x' });
+		await movil.m.sync();
+		expect((await movil.m.messages(conv)).at(-1)!.card).toMatchObject({ imageUrl: null });
+	});
+
 	test('with its text, made by the sender («los dos»): it comes with it, encrypted', async () => {
 		const sound = new Uint8Array(4_000).map((_, i) => i & 255);
 		const sent = await mama.m.sendAudio(conv, sound, 'audio/webm', 2, 'Que bajes a cenar');
