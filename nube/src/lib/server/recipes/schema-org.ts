@@ -25,6 +25,8 @@ export interface Page {
 	imageUrl: string | null;
 	/** Its visible text, for the AI when there is no Recipe: no scripts, styles nor menus. */
 	text: string;
+	/** Its <meta> by property or name, the first of each (a shop's `product:price:amount`). */
+	meta: Record<string, string>;
 }
 
 const MAX_TEXT = 30_000;
@@ -101,29 +103,36 @@ export async function readPage(html: string): Promise<Page> {
 		siteName: clean(meta['og:site_name']) || null,
 		title: clean(meta['og:title'] || title) || null,
 		imageUrl: meta['og:image'] || null,
-		text: decode(text.join('')).replace(/\s+/g, ' ').trim().slice(0, MAX_TEXT)
+		text: decode(text.join('')).replace(/\s+/g, ' ').trim().slice(0, MAX_TEXT),
+		meta
 	};
 }
 
-const isRecipe = (node: Record<string, unknown>) => {
+const isType = (node: Record<string, unknown>, name: string) => {
 	const type = node['@type'];
-	return type === 'Recipe' || (Array.isArray(type) && type.includes('Recipe'));
+	return type === name || (Array.isArray(type) && type.includes(name));
 };
 
-/** The first Recipe in the JSON-LD, wherever it is: alone, in a list or in an @graph. */
-export function findRecipe(jsonLd: unknown[]): Record<string, unknown> | null {
+/**
+ * The first node of that schema.org type in the JSON-LD, wherever it is: alone, in a list or in an
+ * @graph. A shop's Product (#586) too.
+ */
+export function findOfType(jsonLd: unknown[], name: string): Record<string, unknown> | null {
 	const queue = [...jsonLd];
 	while (queue.length) {
 		const node = queue.shift();
 		if (Array.isArray(node)) queue.push(...node);
 		else if (node && typeof node === 'object') {
 			const obj = node as Record<string, unknown>;
-			if (isRecipe(obj)) return obj;
+			if (isType(obj, name)) return obj;
 			if (obj['@graph']) queue.push(obj['@graph']);
 		}
 	}
 	return null;
 }
+
+/** The first Recipe in the JSON-LD. */
+export const findRecipe = (jsonLd: unknown[]) => findOfType(jsonLd, 'Recipe');
 
 /** The HTML entities sites leave in JSON-LD strings, and tags. */
 function decode(value: string) {
@@ -157,7 +166,7 @@ function decode(value: string) {
  * A string from JSON-LD as text: entities decoded, tags out, spaces together. Some sites write
  * Markdown's bold in it (`**Derretir la mantequilla**`): out too, it is read aloud.
  */
-function clean(value: unknown) {
+export function clean(value: unknown) {
 	if (typeof value !== 'string') return '';
 	return decode(value.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' '))
 		.replace(/\*\*|__/g, '')

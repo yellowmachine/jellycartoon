@@ -34,3 +34,4 @@ export * from './solar.schema.ts';
 export * from './own-music.schema.ts';
 export * from './own-games.schema.ts';
 export * from './messages.schema.ts';
+export * from './wishes.schema.ts';

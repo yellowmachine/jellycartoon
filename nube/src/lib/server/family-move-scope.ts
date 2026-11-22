@@ -47,7 +47,8 @@ import {
 	walkShare,
 	watchLog,
 	msgDevice,
-	msgMember
+	msgMember,
+	wish
 } from './db/schema.ts';
 import type { AnyDb } from './family-scope.ts';
 import { openFileFor, openFor, sealFileFor, sealFor } from './family-secret.ts';
@@ -86,7 +87,8 @@ export const MOVED_IN_ORDER = [
 	'medication',
 	'medication_dose',
 	'podcast_subscription',
-	'podcast_progress'
+	'podcast_progress',
+	'wish'
 ] as const;
 
 /** All the rest the move answers for: a table here or above, or person-data.test.ts fails. */
@@ -188,6 +190,12 @@ async function pick(tx: AnyDb, userId: string): Promise<Picked> {
 			? []
 			: ((await tx.select().from(medication).where(eq(medication.personId, personId))) as Row[]);
 	moved.set('medication', medications);
+	moved.set(
+		'wish',
+		personId === null
+			? []
+			: ((await tx.select().from(wish).where(eq(wish.personId, personId))) as Row[])
+	);
 	moved.set(
 		'medication_dose',
 		medications.length
@@ -518,6 +526,11 @@ async function move(
 		medication.id,
 		of('medication').map((r) => r.id as number)
 	);
+	await gone(
+		wish,
+		wish.id,
+		of('wish').map((r) => r.id as number)
+	);
 	await tx.delete(pushSubscription).where(eq(pushSubscription.userId, userId));
 	// Mensajes (#551): their devices (and their key packages) and their place in the conversations.
 	await tx.delete(msgDevice).where(eq(msgDevice.userId, userId));
@@ -637,6 +650,12 @@ async function move(
 	}));
 	await write(medicationDose, of('medication_dose'), (r) => ({
 		takenBy: onlyMine(r.takenBy, userId)
+	}));
+	// Who was to give it stays behind: in the new family no one is yet.
+	await write(wish, of('wish'), (r) => ({
+		personId,
+		addedBy: onlyMine(r.addedBy, userId),
+		giftBy: null
 	}));
 
 	/**
