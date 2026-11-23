@@ -120,6 +120,9 @@ export function owntracksConfig({
 		locatorDisplacement: 500,
 		locatorInterval: 900,
 		moveModeLocatorInterval: 15,
+		// Without it the phone hands over a position every second while another app (Maps) asks for
+		// the GPS: no faster than the interval.
+		pegLocatorFastestIntervalToInterval: true,
 		waypoints: regions.map(regionWaypoint)
 	};
 }

@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, test } from 'bun:test';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
-import { sql } from 'drizzle-orm';
+import { gte, sql } from 'drizzle-orm';
 import * as schema from '../db/schema.ts';
 import { locationPoint, owntracksLink, user } from '../db/schema.ts';
 import { userScope } from '../family-scope.ts';
@@ -69,6 +69,30 @@ describe('OwnTracks', () => {
 		// Luis sees nothing of Ana's, even asking for her rows.
 		const seen = await asUser('luis', (tx) => tx.select().from(locationPoint));
 		expect(seen.map((p) => p.userId)).toEqual(['luis']);
+	});
+
+	test('a phone sending every second: one kept every 10 s, late ones too', async () => {
+		const at = (s: number) => ({ ...point(30), at: new Date(Date.UTC(2026, 10, 22, 11, 0, s)) });
+		const kept = [];
+		for (let s = 0; s < 25; s++) kept.push(await ot.save('luis', at(s)));
+		expect(kept.filter(Boolean).length).toBe(3); // 0, 10 and 20
+		expect(await ot.save('luis', at(-5))).toBe(false); // queued, 5 s before
+		expect(await ot.save('luis', at(-10))).toBe(true);
+		expect(await ot.save('ana', at(5))).toBe(true); // someone else's
+		const all = await ot.between(
+			'luis',
+			new Date(Date.UTC(2026, 10, 22, 10, 59)),
+			new Date(Date.UTC(2026, 10, 22, 12))
+		);
+		expect(all.map((p) => p.at.getUTCSeconds())).toEqual([50, 0, 10, 20]);
+		await asUser('luis', (tx) =>
+			tx
+				.delete(locationPoint)
+				.where(gte(locationPoint.at, new Date(Date.UTC(2026, 10, 22, 10, 59))))
+		);
+		await asUser('ana', (tx) =>
+			tx.delete(locationPoint).where(gte(locationPoint.at, new Date(Date.UTC(2026, 10, 22, 11))))
+		);
 	});
 
 	test('status, disconnect and forget', async () => {
