@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { basicPassword, parseLocation, parseTransition } from '#lib/owntracks.ts';
-import { kitchenOf } from '#lib/server/fridge.ts';
+import { dayOf, kitchenOf } from '#lib/server/fridge.ts';
 import { owntracks } from '#lib/server/owntracks/owntracks.ts';
 import { ruleEvent } from '#lib/server/rule-events.ts';
 
@@ -37,7 +37,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		return new Response('Bad JSON', { status: 400 });
 	}
 	const point = parseLocation(body, request.headers.get('x-limit-d'));
-	if (point) await owntracks.save(userId, point);
+	if (point) await owntracks.save(userId, point, dayOf);
 	const transition = parseTransition(body);
 	if (
 		transition &&

@@ -6,6 +6,7 @@ import { gte, sql } from 'drizzle-orm';
 import * as schema from '../db/schema.ts';
 import { locationPoint, owntracksLink, user } from '../db/schema.ts';
 import { userScope } from '../family-scope.ts';
+import { walkingOutings } from '#lib/owntracks-walking.ts';
 import { owntracksScope } from './owntracks-scope.ts';
 
 /** OwnTracks (#593) on a real Postgres (PGlite), as the app's role: each one's, and by password. */
@@ -20,6 +21,7 @@ const person = (id: string) => ({
 	createdAt: new Date(),
 	updatedAt: new Date()
 });
+const utcDay = (at: Date) => at.toISOString().slice(0, 10);
 const point = (minute: number) => ({
 	at: new Date(Date.UTC(2026, 10, 22, 10, minute)),
 	lon: -1.13,
@@ -56,10 +58,10 @@ describe('OwnTracks', () => {
 	});
 
 	test("positions: the same moment once, a day in order, only one's own", async () => {
-		await ot.save('ana', point(5));
-		await ot.save('ana', point(1));
-		await ot.save('ana', point(1));
-		await ot.save('luis', point(3));
+		await ot.save('ana', point(5), utcDay);
+		await ot.save('ana', point(1), utcDay);
+		await ot.save('ana', point(1), utcDay);
+		await ot.save('luis', point(3), utcDay);
 		const day = await ot.between(
 			'ana',
 			new Date(Date.UTC(2026, 10, 22)),
@@ -72,13 +74,17 @@ describe('OwnTracks', () => {
 	});
 
 	test('a phone sending every second: one kept every 10 s, late ones too', async () => {
-		const at = (s: number) => ({ ...point(30), at: new Date(Date.UTC(2026, 10, 22, 11, 0, s)) });
+		const at = (s: number) => ({
+			...point(30),
+			lat: 38 + s / 1000,
+			at: new Date(Date.UTC(2026, 10, 22, 11, 0, s))
+		});
 		const kept = [];
-		for (let s = 0; s < 25; s++) kept.push(await ot.save('luis', at(s)));
+		for (let s = 0; s < 25; s++) kept.push(await ot.save('luis', at(s), utcDay));
 		expect(kept.filter(Boolean).length).toBe(3); // 0, 10 and 20
-		expect(await ot.save('luis', at(-5))).toBe(false); // queued, 5 s before
-		expect(await ot.save('luis', at(-10))).toBe(true);
-		expect(await ot.save('ana', at(5))).toBe(true); // someone else's
+		expect(await ot.save('luis', at(-5), utcDay)).toBe(false); // queued, 5 s before
+		expect(await ot.save('luis', at(-10), utcDay)).toBe(true);
+		expect(await ot.save('ana', at(5), utcDay)).toBe(true); // someone else's
 		const all = await ot.between(
 			'luis',
 			new Date(Date.UTC(2026, 10, 22, 10, 59)),
@@ -93,6 +99,68 @@ describe('OwnTracks', () => {
 		await asUser('ana', (tx) =>
 			tx.delete(locationPoint).where(gte(locationPoint.at, new Date(Date.UTC(2026, 10, 22, 11))))
 		);
+	});
+
+	test('standing still, only its first and last; leaving, late ones and another day', async () => {
+		await db.insert(user).values(person('eva'));
+		/** Metres north of home, at a time. */
+		const at = (time: string, metres = 0, accuracy = 10, day = '22') => ({
+			...point(0),
+			at: new Date(`2026-11-${day}T${time}Z`),
+			lat: 37.98 + metres / 111_195,
+			accuracy
+		});
+		const save = (p: ReturnType<typeof at>) => ot.save('eva', p, utcDay);
+		const kept = async () =>
+			(await ot.between('eva', new Date('2026-11-01'), new Date('2026-12-01'))).map(
+				(p) =>
+					`${p.at.toISOString().slice(8, 16)} ${Math.round((p.lat - 37.98) * 111_195)} ${p.accuracy}`
+			);
+		await save(at('19:00:00'));
+		await save(at('19:15:00', 12));
+		await save(at('19:30:00', 20));
+		expect(await kept()).toEqual(['22T19:00 0 10', '22T19:30 20 10']);
+		// Inaccurate, indoors: still there, where it was known; not a move.
+		await save(at('19:45:00', 80, 90));
+		expect(await kept()).toEqual(['22T19:00 0 10', '22T19:45 20 10']);
+		// Late, in the middle of the stay.
+		expect(await save(at('19:20:00', 5))).toBe(false);
+		// Late, and somewhere else: kept.
+		expect(await save(at('19:25:00', 400))).toBe(true);
+		await asUser('eva', (tx) => tx.delete(locationPoint).where(sql`${locationPoint.lat} > 37.982`));
+		// Another day has its own first and last.
+		await save(at('08:00:00', 0, 10, '23'));
+		await save(at('08:04:00', 0, 10, '23'));
+		await save(at('08:05:00', 0, 10, '23'));
+		// Leaving: 40 m a minute, each one kept.
+		await save(at('08:06:00', 40, 10, '23'));
+		await save(at('08:07:00', 80, 10, '23'));
+		expect(await kept()).toEqual([
+			'22T19:00 0 10',
+			'22T19:45 20 10',
+			'23T08:00 0 10',
+			'23T08:05 0 10',
+			'23T08:06 40 10',
+			'23T08:07 80 10'
+		]);
+	});
+
+	test('walking slowly with Move is not standing still; a long stop cuts the outing', async () => {
+		await db.insert(user).values(person('leo'));
+		// 3 km/h for 15 min, 20 min stopped, 15 min more; one each 15 s.
+		let metres = 0;
+		const start = Date.UTC(2026, 10, 22, 9);
+		for (let i = 0; i <= 200; i++) {
+			if (i > 0 && (i <= 60 || i > 140)) metres += 12.5;
+			const p = { ...point(0), at: new Date(start + i * 15_000), lat: 37.98 + metres / 111_195 };
+			await ot.save('leo', p, utcDay);
+		}
+		const points = await ot.between('leo', new Date('2026-11-22'), new Date('2026-11-23'));
+		expect(points.length).toBeLessThan(130);
+		const outings = walkingOutings(points);
+		expect(outings).toHaveLength(2);
+		const sum = outings.reduce((s, o) => s + o.distance, 0);
+		expect(Math.abs(sum - 1500)).toBeLessThan(60);
 	});
 
 	test('status, disconnect and forget', async () => {
@@ -140,7 +208,7 @@ describe('the old days (phase 3)', () => {
 
 	test('summed up by day, then forgotten; the days kept, untouched', async () => {
 		for (const p of [...walkOn('2026-08-01'), ...walkOn('2026-08-03'), ...walkOn('2026-11-20')])
-			await ot.save('ana', p);
+			await ot.save('ana', p, utcDay);
 		// An app walk over half of 3 August: that half is not counted.
 		const appWalk = {
 			startedAt: new Date('2026-08-03T09:15:00Z'),
@@ -161,7 +229,7 @@ describe('the old days (phase 3)', () => {
 	});
 
 	test('a position of a summed-up day that comes late does not spoil it', async () => {
-		await ot.save('ana', walkOn('2026-08-01')[0]!);
+		await ot.save('ana', walkOn('2026-08-01')[0]!, utcDay);
 		expect(await ot.summarizeOld('ana', '2026-08-25', options())).toBe(1);
 		expect((await ot.summaryOf('ana', '2026-08-01'))!.points).toBe(31);
 		expect(await ot.summarizeOld('ana', '2026-08-25', options())).toBe(0);

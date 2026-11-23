@@ -102,7 +102,7 @@
 				</p>
 			</div>
 			<div class="rounded-md border border-zinc-800 p-3">
-				<p class="mb-1 text-sm text-zinc-400">Lo que llegó</p>
+				<p class="mb-1 text-sm text-zinc-400">Lo guardado</p>
 				<p class="text-xl font-semibold">
 					{data.line.length}
 					{data.line.length === 1 ? 'posición' : 'posiciones'}

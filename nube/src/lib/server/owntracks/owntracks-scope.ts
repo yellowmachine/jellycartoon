@@ -9,6 +9,7 @@ import {
 import { userScope, type AnyDb } from '../family-scope.ts';
 import { hashOf } from '../house-key-scope.ts';
 import type { OwntracksPoint, OwntracksTransition } from '#lib/owntracks.ts';
+import { inaccurate, stillAt } from '#lib/owntracks-still.ts';
 import { walkingOutings } from '#lib/owntracks-walking.ts';
 
 /**
@@ -74,29 +75,62 @@ export function owntracksScope(db: AnyDb, { role }: { role?: string } = {}) {
 		});
 	}
 
-	/** One position; the same moment again (sent twice), kept once. */
 	/**
 	 * Keeps a position, unless one of theirs is less than MIN_GAP_MS from it (either side, as queued
 	 * ones arrive late): a phone sending every second (another app asking for the GPS) fills nothing.
+	 * Standing still (owntracks-still.ts), it takes the place of the last one, and a late one
+	 * between two of the same stay is not kept; never across two days, so each has its own.
 	 * Whether it was kept.
 	 */
-	function save(userId: string, p: OwntracksPoint) {
+	function save(userId: string, p: OwntracksPoint, dayOf: (at: Date) => string) {
 		return asUser(userId, async (tx) => {
+			const own = eq(locationPoint.userId, userId);
 			const [near] = await tx
 				.select({ at: locationPoint.at })
 				.from(locationPoint)
 				.where(
 					and(
-						eq(locationPoint.userId, userId),
+						own,
 						gt(locationPoint.at, new Date(p.at.getTime() - MIN_GAP_MS)),
 						lt(locationPoint.at, new Date(p.at.getTime() + MIN_GAP_MS))
 					)
 				)
 				.limit(1);
 			if (near) return false;
+			const [before, first] = await tx
+				.select()
+				.from(locationPoint)
+				.where(and(own, lt(locationPoint.at, p.at)))
+				.orderBy(desc(locationPoint.at))
+				.limit(2);
+			const [after] = await tx
+				.select()
+				.from(locationPoint)
+				.where(and(own, gt(locationPoint.at, p.at)))
+				.orderBy(asc(locationPoint.at))
+				.limit(1);
+			const sameDay = (o: { at: Date }) => dayOf(o.at) === dayOf(p.at);
+			let row = { userId, ...p };
+			if (after) {
+				if (
+					before &&
+					sameDay(before) &&
+					sameDay(after) &&
+					stillAt(before, p) &&
+					stillAt(before, after)
+				)
+					return false;
+			} else if (before && first && sameDay(first) && stillAt(first, before) && stillAt(first, p)) {
+				// An inaccurate one says they are still there, not where better than what was known.
+				if (inaccurate(p) && !inaccurate(before)) {
+					const { lon, lat, accuracy, altitude, speed } = before;
+					row = { ...row, lon, lat, accuracy, altitude, speed };
+				}
+				await tx.delete(locationPoint).where(and(own, eq(locationPoint.at, before.at)));
+			}
 			const kept = await tx
 				.insert(locationPoint)
-				.values({ userId, ...p })
+				.values(row)
 				.onConflictDoNothing()
 				.returning({ at: locationPoint.at });
 			return kept.length > 0;
