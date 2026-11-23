@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { primary, secondary, select } from '#lib/styles.ts';
 	import type { PageProps } from './$types';
@@ -24,10 +26,40 @@
 		if (!forWhom) forWhom = data.people.find((p) => p.me)?.id ?? data.people[0]?.id ?? '';
 	});
 	let saving = $state(false);
+	/** Kept from the computer's bookmark: its list, said for a moment before the tab closes. */
+	let kept = $state<{ list: string; already: boolean } | null>(null);
+	let closing: ReturnType<typeof setTimeout> | undefined;
+	onDestroy(() => clearTimeout(closing));
+
+	/**
+	 * The bookmark opened this tab over the shop's: closed, the shop is back and tabs do not pile up.
+	 * A browser that does not let it close (a shop that cuts the link, a tab with history) stays
+	 * here, so on to the list as always.
+	 */
+	function keptFromBookmark(list: string) {
+		kept = { list, already: new URL(list, location.href).searchParams.has('ya') };
+		closing = setTimeout(() => {
+			window.close();
+			closing = setTimeout(() => void goto(list), 400);
+		}, 2000);
+	}
 	const card = 'rounded-lg border p-4 flex flex-col gap-3';
 </script>
 
 <svelte:head><title>Enlace compartido</title></svelte:head>
+
+{#if kept}
+	<div
+		class="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-emerald-500/60 bg-emerald-500/10 p-4"
+		role="status"
+	>
+		<p class="font-semibold">
+			{kept.already ? 'Ya estaba en la lista de deseos' : 'Añadido a la lista de deseos'}
+		</p>
+		<p class="text-sm text-zinc-400">Esta pestaña se cierra sola.</p>
+		<a href={kept.list} onclick={() => clearTimeout(closing)} class={secondary}>Ver la lista</a>
+	</div>
+{/if}
 
 <h1 class="mb-1 text-2xl font-bold">¿Qué hago con este enlace?</h1>
 <p class="mb-6 truncate text-sm text-zinc-400" title={data.link}>
@@ -60,8 +92,10 @@
 			class="{card} {shopFirst ? 'border-amber-500/60 bg-amber-500/5' : 'border-zinc-800'}"
 			use:enhance={() => {
 				saving = true;
-				return async ({ update }) => {
+				return async ({ result, update }) => {
 					saving = false;
+					if (data.read && result.type === 'redirect' && result.location.startsWith('/deseos?'))
+						return keptFromBookmark(result.location);
 					await update();
 				};
 			}}
@@ -89,7 +123,7 @@
 				{:else}
 					<input type="hidden" name="persona" value={forWhom} />
 				{/if}
-				<button class={shopFirst ? primary : secondary} disabled={saving}
+				<button class={shopFirst ? primary : secondary} disabled={saving || Boolean(kept)}
 					>{saving ? 'Leyendo la página…' : 'Guardar en deseos'}</button
 				>
 			</div>
