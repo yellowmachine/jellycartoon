@@ -28,8 +28,14 @@
 	let saving = $state(false);
 	/** Kept from the computer's bookmark: its list, said for a moment before the tab closes. */
 	let kept = $state<{ list: string; already: boolean } | null>(null);
+	/** Seconds until it closes, counted down on its button. */
+	let left = $state(6);
 	let closing: ReturnType<typeof setTimeout> | undefined;
-	onDestroy(() => clearTimeout(closing));
+	onDestroy(stay);
+
+	function stay() {
+		clearTimeout(closing);
+	}
 
 	/**
 	 * The bookmark opened this tab over the shop's: closed, the shop is back and tabs do not pile up.
@@ -38,10 +44,21 @@
 	 */
 	function keptFromBookmark(list: string) {
 		kept = { list, already: new URL(list, location.href).searchParams.has('ya') };
+		countDown();
+	}
+
+	function countDown() {
 		closing = setTimeout(() => {
-			window.close();
-			closing = setTimeout(() => void goto(list), 400);
-		}, 2000);
+			left -= 1;
+			if (left > 0) countDown();
+			else backToShop(kept!.list);
+		}, 1000);
+	}
+
+	function backToShop(list: string) {
+		stay();
+		window.close();
+		closing = setTimeout(() => void goto(list), 400);
 	}
 	const card = 'rounded-lg border p-4 flex flex-col gap-3';
 </script>
@@ -49,15 +66,24 @@
 <svelte:head><title>Enlace compartido</title></svelte:head>
 
 {#if kept}
-	<div
-		class="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-emerald-500/60 bg-emerald-500/10 p-4"
-		role="status"
-	>
-		<p class="font-semibold">
-			{kept.already ? 'Ya estaba en la lista de deseos' : 'Añadido a la lista de deseos'}
-		</p>
-		<p class="text-sm text-zinc-400">Esta pestaña se cierra sola.</p>
-		<a href={kept.list} onclick={() => clearTimeout(closing)} class={secondary}>Ver la lista</a>
+	{@const list = kept.list}
+	<div class="mb-6 rounded-lg border border-emerald-500/60 bg-emerald-500/10 p-4">
+		<!-- Only this is announced: not each second of the count. -->
+		<div role="status">
+			<p class="text-lg font-semibold">
+				{kept.already ? 'Ya estaba en la lista de deseos' : 'Añadido a la lista de deseos'}
+			</p>
+			<p class="mb-3 text-sm text-zinc-300">
+				Esta pestaña se cierra sola y vuelves a la tienda. Si prefieres quedarte en Seilide, pulsa
+				«Ver la lista».
+			</p>
+		</div>
+		<div class="flex flex-wrap gap-3">
+			<button type="button" class={primary} onclick={() => backToShop(list)}
+				>Volver a la tienda <span class="tabular-nums" aria-hidden="true">({left})</span></button
+			>
+			<a href={list} onclick={stay} class={secondary}>Ver la lista</a>
+		</div>
 	</div>
 {/if}
 
