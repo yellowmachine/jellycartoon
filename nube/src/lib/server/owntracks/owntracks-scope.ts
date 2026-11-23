@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { and, asc, desc, eq, gte, lt, min, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, lt, min, sql } from 'drizzle-orm';
 import {
 	locationPoint,
 	owntracksDay,
@@ -16,6 +16,12 @@ import { walkingOutings } from '#lib/owntracks-walking.ts';
  * (`asUser`). Whose a password is, found by its hash alone, as the bank's calls (bank-key-scope.ts).
  * Apart from the app's database, to be tested on PGlite.
  */
+
+/**
+ * The least time between two kept positions of a person: Move asks for one every 15 s, and the
+ * walking sums (owntracks-walking.ts) need nothing closer.
+ */
+export const MIN_GAP_MS = 10_000;
 
 /** base64url of 32 random bytes. */
 export const PASSWORD = /^[\w-]{43}$/;
@@ -69,13 +75,32 @@ export function owntracksScope(db: AnyDb, { role }: { role?: string } = {}) {
 	}
 
 	/** One position; the same moment again (sent twice), kept once. */
+	/**
+	 * Keeps a position, unless one of theirs is less than MIN_GAP_MS from it (either side, as queued
+	 * ones arrive late): a phone sending every second (another app asking for the GPS) fills nothing.
+	 * Whether it was kept.
+	 */
 	function save(userId: string, p: OwntracksPoint) {
-		return asUser(userId, (tx) =>
-			tx
+		return asUser(userId, async (tx) => {
+			const [near] = await tx
+				.select({ at: locationPoint.at })
+				.from(locationPoint)
+				.where(
+					and(
+						eq(locationPoint.userId, userId),
+						gt(locationPoint.at, new Date(p.at.getTime() - MIN_GAP_MS)),
+						lt(locationPoint.at, new Date(p.at.getTime() + MIN_GAP_MS))
+					)
+				)
+				.limit(1);
+			if (near) return false;
+			const kept = await tx
 				.insert(locationPoint)
 				.values({ userId, ...p })
 				.onConflictDoNothing()
-		);
+				.returning({ at: locationPoint.at });
+			return kept.length > 0;
+		});
 	}
 
 	/** Whether they are connected and since when, their last position as it came, and if anything is kept. */
