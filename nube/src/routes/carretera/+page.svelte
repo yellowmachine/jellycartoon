@@ -9,9 +9,11 @@
 	import ManeuverIcon from 'comun/components/ManeuverIcon.svelte';
 	import RoadMap from 'comun/components/RoadMap.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
-	import { coverUrl, type DjOptions, type MusicTrack } from 'comun/music.ts';
+	import { coverUrl, DJ_DEFAULT_VOICE, DJ_EVERY, trackCover, type DjOptions } from 'comun/music.ts';
+	import { playable } from '#lib/own-music.ts';
+	import type { RoadTrack } from '#lib/server/road-music.ts';
 	import { dj } from 'comun/dj.svelte.ts';
-	import { useKept, usePass } from '#lib/music-pass.svelte.ts';
+	import { useKept, useKeptMeanwhile, usePass } from '#lib/music-pass.svelte.ts';
 	import { offlineMusic } from '#lib/offline-music.svelte.ts';
 	import { music } from 'comun/music-player.svelte.ts';
 	import { musicTarget } from 'comun/music-target.svelte.ts';
@@ -110,18 +112,31 @@
 	/** The house's songs and covers, by the pass (music-pass.svelte.ts). */
 	$effect(() => {
 		if (data.pass) usePass(data.pass);
+		else if (data.own && data.house) useKeptMeanwhile();
 		else useKept();
 	});
 
 	/**
 	 * The lists this device carries (#350): from its disk, as last updated. Without the house, the
-	 * only ones, and only the songs it has.
+	 * only ones, and only the songs it has. With the family's own bucket (#534), after its own.
 	 */
-	const playlists = $derived(
-		data.pass
-			? data.playlists
-			: offlineMusic.lists.map((l) => ({ id: l.id, name: l.name, total: l.tracks.length }))
+	const carried = $derived(
+		offlineMusic.lists.map((l) => ({
+			id: l.id,
+			name: l.name,
+			total: l.tracks.length,
+			own: false
+		}))
 	);
+	const playlists = $derived(
+		data.own
+			? [...data.playlists.map((l) => ({ ...l, own: true })), ...carried]
+			: data.pass
+				? data.playlists.map((l) => ({ ...l, own: false }))
+				: carried
+	);
+	/** The bucket's are asked for so: another source's id may be the same. */
+	const from = $derived(data.own ? '?de=propia' : '');
 
 	/**
 	 * The map (phase 3a), on the left with the screen wide enough: the tablet whole, sideways. In
@@ -216,7 +231,7 @@
 					? {
 							title: music.current.title,
 							detail: `${music.current.artist} · ${music.current.album}`,
-							image: music.current.hasCover ? coverUrl(music.current.albumId) : null
+							image: trackCover(music.current)
 						}
 					: null
 	);
@@ -256,15 +271,26 @@
 		if (playingHere(id)) return music.toggle();
 		return busy(id, async () => {
 			const res = await fetch(url).catch(() => null);
-			if (!res?.ok) return 'No se pudo cargar: ¿está la casa encendida?';
-			const tracks: MusicTrack[] = await res.json();
+			if (!res?.ok)
+				return data.own
+					? 'No se pudo cargar: ¿hay cobertura?'
+					: 'No se pudo cargar: ¿está la casa encendida?';
+			const all: RoadTrack[] = await res.json();
+			// The bucket's, as they are: not those this browser does not play.
+			const tracks = all.filter((t) => !t.mime || playable(t.mime));
 			if (!tracks.length) return empty;
 			music.play(tracks, 0);
 			playingFrom = id;
 		});
 	}
 
-	function list(id: number) {
+	function list({ id, own }: { id: number; own: boolean }) {
+		if (own)
+			return playFrom(
+				`lista-propia-${id}`,
+				`/carretera/listas/${id}?de=propia`,
+				'La lista está vacía.'
+			);
 		const kept = offlineMusic.lists.find((l) => l.id === id);
 		if (!kept) return playFrom(`lista-${id}`, `/carretera/listas/${id}`, 'La lista está vacía.');
 		if (playingHere(`lista-${id}`)) return music.toggle();
@@ -278,9 +304,9 @@
 	}
 
 	const album = (id: number) =>
-		playFrom(`album-${id}`, `/carretera/album/${id}`, 'El álbum está vacío.');
+		playFrom(`album-${id}`, `/carretera/album/${id}${from}`, 'El álbum está vacío.');
 
-	const everything = () => playFrom('aleatorio', '/carretera/aleatorio', 'No hay música.');
+	const everything = () => playFrom('aleatorio', `/carretera/aleatorio${from}`, 'No hay música.');
 
 	/**
 	 * Modo DJ (#117), only to choose: the setups saved in Música, and first the last one started on
@@ -292,6 +318,9 @@
 	$effect(() => {
 		lastDj = dj.remembered();
 	});
+
+	/** Only of the music there is now: the house's, or the own bucket's. */
+	const djLast = $derived(lastDj && Boolean(lastDj.playlist?.own) === data.own ? lastDj : null);
 
 	function startDj(id: string, options: DjOptions) {
 		if (playingHere(id) && music.dj) return music.toggle();
@@ -415,10 +444,10 @@
 	 */
 	const HOME: { id: Tab; off: string | null }[] = $derived([
 		{ id: 'radio', off: null },
-		// The house's music, by its pass: without the house, only the radio.
-		{ id: 'musica', off: data.pass ? null : 'Sin la casa' },
+		// The house's music, by its pass: without the house, only the radio. Or the own bucket's.
+		{ id: 'musica', off: data.pass || data.own ? null : 'Sin la casa' },
 		// Without the house, those this device carries (#350).
-		{ id: 'listas', off: playlists.length || data.pass ? null : 'Aún no hay' },
+		{ id: 'listas', off: playlists.length || data.pass || data.own ? null : 'Aún no hay' },
 		// The family's, here (#253).
 		{ id: 'podcasts', off: null },
 		// Only with the map beside, or a phone's own tab for it: where the route is drawn.
@@ -1815,7 +1844,7 @@ home. -->
 								>
 									{#if a.hasCover}
 										<img
-											src={coverUrl(a.id)}
+											src={('cover' in a ? a.cover : undefined) ?? coverUrl(a.id)}
 											alt=""
 											loading="lazy"
 											class="h-14 w-14 shrink-0 rounded-lg bg-zinc-800 object-cover"
@@ -1839,17 +1868,22 @@ home. -->
 								<p class="text-lg text-zinc-400">No hay música todavía.</p>
 							{/each}
 						{:else if tab === 'listas'}
-							{#each playlists as playlist (playlist.id)}
+							{#each playlists as playlist (`${playlist.own}-${playlist.id}`)}
+								{@const listId = `lista-${playlist.own ? 'propia-' : ''}${playlist.id}`}
 								<button
 									class="{tile} border-zinc-50/10 bg-zinc-900"
 									disabled={loading !== null}
-									onclick={() => list(playlist.id)}
+									onclick={() => list(playlist)}
 								>
 									<span class="min-w-0">
 										<span class="block truncate text-xl font-semibold">
-											{loading === `lista-${playlist.id}` ? 'Cargando…' : playlist.name}
+											{loading === listId ? 'Cargando…' : playlist.name}
 										</span>
-										<span class="block text-base text-zinc-400">{playlist.total} canciones</span>
+										<span class="block text-base text-zinc-400"
+											>{playlist.total} canciones{data.own && !playlist.own
+												? ' · de casa, en este aparato'
+												: ''}</span
+										>
 									</span>
 								</button>
 							{:else}
@@ -1948,11 +1982,23 @@ home. -->
 							{/each}
 						{:else if tab === 'dj'}
 							{@const setups = [
-								...(lastDj ? [{ id: 'dj-ultima', name: 'La última', options: lastDj }] : []),
+								...(djLast ? [{ id: 'dj-ultima', name: 'La última', options: djLast }] : []),
 								...data.djPresets.map((p) => ({
 									id: `dj-${p.id}`,
 									name: p.name,
 									options: p.options
+								})),
+								// The bucket's lists, each with the DJ, as it was last set up.
+								...(data.own ? data.playlists : []).map(({ id, name }) => ({
+									id: `dj-propia-${id}`,
+									name,
+									options: {
+										artists: [],
+										lang: djLast?.lang ?? 'es',
+										every: djLast?.every ?? DJ_EVERY.default,
+										voice: djLast?.voice ?? DJ_DEFAULT_VOICE,
+										playlist: { id, name, own: true }
+									} satisfies DjOptions
 								}))
 							]}
 							{#each setups as setup (setup.id)}
@@ -1974,12 +2020,12 @@ home. -->
 												? music.playing
 													? '● Sonando'
 													: 'En pausa'
-												: djArtists(setup.options.artists)}</span
+												: (setup.options.playlist?.name ?? djArtists(setup.options.artists))}</span
 										>
 									</span>
 								</button>
 							{/each}
-							{#if !data.djPresets.length}
+							{#if !data.own && !data.djPresets.length}
 								<p class="text-lg text-zinc-400">
 									Guarda una configuración en Música → Modo DJ para tenerla aquí.
 								</p>
@@ -2150,7 +2196,10 @@ home. -->
 									>
 									<span class="min-w-0">
 										<span class="block text-xl font-semibold">DJ</span>
-										<span class="block text-base text-zinc-400">Tus configuraciones de Modo DJ</span
+										<span class="block text-base text-zinc-400"
+											>{data.own
+												? 'Tus listas, con locutor'
+												: 'Tus configuraciones de Modo DJ'}</span
 										>
 									</span>
 								</button>

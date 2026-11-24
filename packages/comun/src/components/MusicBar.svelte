@@ -158,8 +158,8 @@ podcast episodes and episodes only listened to, with their controls, lyrics and 
 			song &&
 			!music.restored &&
 			!song.clip &&
-			!heldHere(song.id) &&
-			music.nextWhere((t) => heldHere(t.id))
+			(song.src || !heldHere(song.id)) &&
+			music.nextWhere((t) => !t.src && heldHere(t.id))
 		) {
 			tries = 0;
 			problem = null;

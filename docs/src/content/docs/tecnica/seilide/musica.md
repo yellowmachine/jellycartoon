@@ -76,6 +76,8 @@ fichero vacío y se borra), para avisar de que bastan unas de solo lectura.
   relativas a la carpeta de la música, sin volver a listar el bucket; `MusicFolderView` toma `href`
   y `listEndpoint`. La voz, con el bucket como fuente, no ofrece `search_music` ni `play_music` ni
   la biblioteca de casa (un satélite, siempre la casa).
-- **Fuera por ahora**: sin conexión (#350, que ya salta las pistas con `src`),
-  modo carretera, pedirla por voz, Snapcast y transcodificar. La cola guardada tampoco las lleva (se salta lo que
+- **Modo carretera**: la misma fuente que Música. Con el bucket no espera a la casa, los álbumes y las
+  listas se piden con `?de=propia` (`road-music.ts`), y cada lista suya se puede poner con DJ. Las
+  listas de casa guardadas en el aparato (#350) siguen saliendo, detrás.
+- **Fuera por ahora**: sin conexión (#350, que ya salta las pistas con `src`), pedirla por voz, Snapcast y transcodificar. La cola guardada tampoco las lleva (se salta lo que
   tiene `src`).
