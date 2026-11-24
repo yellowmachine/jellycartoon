@@ -1,12 +1,14 @@
 import { expect, test } from 'bun:test';
 import {
 	daysText,
+	doseAt,
 	dosesOn,
 	groupDoses,
 	markValue,
 	parseMark,
 	parseMedicationInput,
-	takenOn
+	takenOn,
+	timesText
 } from './medication.ts';
 
 const pill = {
@@ -15,6 +17,7 @@ const pill = {
 	name: 'Sintrom',
 	dose: '½ pastilla',
 	times: ['20:00'],
+	doses: [],
 	days: [],
 	startDay: '2026-10-01',
 	endDay: null
@@ -58,12 +61,31 @@ test('as the page sends it', () => {
 		name: 'Dalsy',
 		dose: null,
 		times: ['08:00', '22:00'],
+		doses: [],
 		days: [],
 		startDay: '2026-10-30',
 		endDay: null
 	});
 	expect(parseMedicationInput({ ...pill, personId: '3', times: [] })).toBeNull();
 	expect(parseMedicationInput({ ...pill, personId: '3', name: ' ' })).toBeNull();
+});
+
+test('each time with its own dose: sorted with it, or as the one for all', () => {
+	const m = parseMedicationInput({
+		...pill,
+		dose: '1 pastilla',
+		times: ['21:00', '09:00', '25:00', '21:00'],
+		doses: [' 2 pastillas ', '', 'x', '3 pastillas']
+	})!;
+	expect(m.times).toEqual(['09:00', '21:00']);
+	expect(m.doses).toEqual(['', '2 pastillas']);
+	expect(doseAt(m, '09:00')).toBe('1 pastilla');
+	expect(doseAt(m, '21:00')).toBe('2 pastillas');
+	expect(timesText(m)).toBe('09:00, 21:00 (2 pastillas)');
+	expect(dosesOn([{ ...m, id: 9 }], '2026-10-30').map((d) => d.dose)).toEqual([
+		'1 pastilla',
+		'2 pastillas'
+	]);
 });
 
 test('its days, as said', () => {

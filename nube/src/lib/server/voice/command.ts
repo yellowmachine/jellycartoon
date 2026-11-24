@@ -123,6 +123,7 @@ import {
 	sameName,
 	translateRule
 } from '#lib/server/rules.ts';
+import { doseText } from 'comun/medication.ts';
 import { dosesFor, listMedication, markDose } from '#lib/server/medication.ts';
 import { MAX_RULE, ruleSaid } from '#lib/rules.ts';
 import { localDay, localTime } from 'comun/agenda.ts';
@@ -1651,7 +1652,7 @@ async function runTool(
 					: 'No tiene ninguna toma pendiente ahora.';
 			for (const d of due) await markDose(ctx.k, d.medicationId, today, d.time, true);
 			ctx.outcome.done++;
-			return `Marcado como tomado: ${due.map((d) => `${d.name} de las ${d.time}`).join(', ')}.`;
+			return `Marcado como tomado: ${due.map((d) => `${doseText(d)} de las ${d.time}`).join(', ')}.`;
 		}
 		case 'forget_memory': {
 			const id = Number(args.id);

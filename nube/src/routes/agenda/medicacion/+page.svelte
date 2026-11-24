@@ -10,6 +10,7 @@
 		MAX_DOSE,
 		MAX_NAME,
 		MAX_TIMES,
+		timesText,
 		type Dose,
 		type Medication
 	} from 'comun/medication.ts';
@@ -36,7 +37,8 @@
 		personId: string;
 		name: string;
 		dose: string;
-		times: string[];
+		/** Its times, each with how much; '', as `dose`. */
+		slots: { time: string; dose: string }[];
 		days: number[];
 		startDay: string;
 		ends: boolean;
@@ -63,7 +65,7 @@
 			personId: data.person ?? data.me ?? data.people[0]?.id ?? '',
 			name: '',
 			dose: '',
-			times: ['08:00'],
+			slots: [{ time: '08:00', dose: '' }],
 			days: [],
 			startDay: data.today,
 			ends: false,
@@ -77,7 +79,7 @@
 			personId: m.personId,
 			name: m.name,
 			dose: m.dose ?? '',
-			times: [...m.times],
+			slots: m.times.map((time, i) => ({ time, dose: m.doses[i] ?? '' })),
 			days: [...m.days],
 			startDay: m.startDay,
 			ends: Boolean(m.endDay),
@@ -93,7 +95,8 @@
 			personId: e.personId,
 			name: e.name,
 			dose: e.dose,
-			times: e.times,
+			times: e.slots.map((s) => s.time),
+			doses: e.slots.map((s) => s.dose),
 			days: e.days,
 			startDay: e.startDay,
 			endDay: e.ends ? e.endDay : null
@@ -271,23 +274,34 @@
 
 				<div>
 					<p class="mb-1 text-xs text-zinc-400">A las</p>
-					<div class="flex flex-wrap items-center gap-2">
-						{#each e.times as _, i (i)}
-							<span class="flex items-center">
-								<input type="time" bind:value={e.times[i]} required class={field} />
-								{#if e.times.length > 1}
+					<div class="flex flex-col items-start gap-2">
+						{#each e.slots as slot (slot)}
+							<span class="flex w-full items-center gap-2">
+								<input type="time" bind:value={slot.time} required class="{field} shrink-0" />
+								{#if e.slots.length > 1 || slot.dose}
+									<input
+										bind:value={slot.dose}
+										maxlength={MAX_DOSE}
+										class="{field} max-w-48 min-w-0 flex-1"
+										aria-label="Cuánto a esta hora"
+										placeholder={e.dose.trim() || 'Cuánto a esta hora'}
+									/>
+								{/if}
+								{#if e.slots.length > 1}
 									<button
 										type="button"
 										class="rounded px-2 text-zinc-500 hover:bg-zinc-800 hover:text-white"
 										aria-label="Quitar esta hora"
-										onclick={() => e.times.splice(i, 1)}>✕</button
+										onclick={() => e.slots.splice(e.slots.indexOf(slot), 1)}>✕</button
 									>
 								{/if}
 							</span>
 						{/each}
-						{#if e.times.length < MAX_TIMES}
-							<button type="button" class={chip(false)} onclick={() => e.times.push('')}
-								>+ Otra hora</button
+						{#if e.slots.length < MAX_TIMES}
+							<button
+								type="button"
+								class={chip(false)}
+								onclick={() => e.slots.push({ time: '', dose: '' })}>+ Otra hora</button
 							>
 						{/if}
 					</div>
@@ -404,9 +418,11 @@
 				>
 					{@render badge(m.personId)}
 					<span class="min-w-0 flex-1">
-						<span class="block truncate">{m.name}{m.dose ? ` · ${m.dose}` : ''}</span>
+						<span class="block truncate"
+							>{m.name}{m.dose && m.times.some((_, i) => !m.doses[i]) ? ` · ${m.dose}` : ''}</span
+						>
 						<span class="block truncate text-xs text-zinc-500">
-							{m.times.join(', ')} · {daysText(m.days)}{m.endDay
+							{timesText(m)} · {daysText(m.days)}{m.endDay
 								? ` · hasta el ${dayName(m.endDay)}`
 								: ''}{m.startDay > data.today ? ` · desde el ${dayName(m.startDay)}` : ''}
 						</span>

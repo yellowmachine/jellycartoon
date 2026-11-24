@@ -37,6 +37,11 @@ export const medication = pgTable(
 		dose: text('dose'),
 		/** Its doses' times, in order. */
 		times: time('times').array().notNull(),
+		/** How much at each of `times`, in their order; '' (or none), as `dose`. */
+		doses: text('doses')
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`),
 		/** The weekdays it is taken (0, Monday); none, every day. */
 		days: integer('days')
 			.array()
@@ -72,6 +77,8 @@ export const medicationDose = pgTable(
 		time: time('time').notNull(),
 		notifiedAt: timestamp('notified_at'),
 		takenAt: timestamp('taken_at'),
+		/** How much, as it was when marked ('' none): a later change does not rewrite it. */
+		dose: text('dose'),
 		takenBy: text('taken_by').references(() => user.id, { onDelete: 'set null' })
 	},
 	(t) => [

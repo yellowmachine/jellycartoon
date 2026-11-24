@@ -12,9 +12,12 @@ export const MAX_TIMES = 8;
 export interface MedicationInput {
 	personId: string;
 	name: string;
+	/** How much, at every time without its own. */
 	dose: string | null;
 	/** `HH:MM`, in order. */
 	times: string[];
+	/** How much at each of `times`, in their order («2 pastillas»); '', as `dose`. None, all so. */
+	doses: string[];
 	/** Weekdays (0, Monday); none, every day. */
 	days: number[];
 	startDay: string;
@@ -43,11 +46,19 @@ export const takenOn = (m: Pick<MedicationInput, 'days' | 'startDay' | 'endDay'>
 	(m.endDay === null || day <= m.endDay) &&
 	(m.days.length === 0 || m.days.includes(weekday(day)));
 
+/** How much at one of its times: that time's own, or the one for all. */
+export const doseAt = (m: Pick<MedicationInput, 'dose' | 'times' | 'doses'>, time: string) =>
+	m.doses[m.times.indexOf(time)] || m.dose;
+
+/** «09:00 (1 pastilla), 21:00 (2 pastillas)»: its times, each with how much if it has its own. */
+export const timesText = (m: Pick<MedicationInput, 'times' | 'doses'>) =>
+	m.times.map((t, i) => (m.doses[i] ? `${t} (${m.doses[i]})` : t)).join(', ');
+
 /** The day's doses of these, by time; without what was marked. */
 export function dosesOn(meds: Medication[], day: string) {
 	return meds
 		.filter((m) => takenOn(m, day))
-		.flatMap((m) => m.times.map((time) => ({ medication: m, time })))
+		.flatMap((m) => m.times.map((time) => ({ medication: m, time, dose: doseAt(m, time) })))
 		.sort((a, b) => a.time.localeCompare(b.time) || a.medication.id - b.medication.id);
 }
 
@@ -67,9 +78,17 @@ export function parseMedicationInput(body: unknown): MedicationInput | null {
 	const b = body as Record<string, unknown>;
 	const name = typeof b.name === 'string' ? b.name.trim().slice(0, MAX_NAME) : '';
 	const dose = typeof b.dose === 'string' ? b.dose.trim().slice(0, MAX_DOSE) : '';
-	const times = Array.isArray(b.times)
-		? [...new Set(b.times.filter(isTime).map((t) => t.slice(0, 5)))].sort().slice(0, MAX_TIMES)
-		: [];
+	// Each time with its own dose, kept together: sorted, and a repeated time once (its first).
+	const own = Array.isArray(b.doses) ? b.doses : [];
+	const slots = new Map<string, string>();
+	if (Array.isArray(b.times))
+		b.times.forEach((t, i) => {
+			if (!isTime(t) || slots.has(t.slice(0, 5))) return;
+			const d: unknown = own[i];
+			slots.set(t.slice(0, 5), typeof d === 'string' ? d.trim().slice(0, MAX_DOSE) : '');
+		});
+	const times = [...slots.keys()].sort().slice(0, MAX_TIMES);
+	const doses = times.map((t) => slots.get(t)!);
 	const days = Array.isArray(b.days)
 		? [...new Set(b.days.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6))].sort(
 				(a, b) => a - b
@@ -83,6 +102,7 @@ export function parseMedicationInput(body: unknown): MedicationInput | null {
 		name,
 		dose: dose || null,
 		times,
+		doses: doses.some(Boolean) ? doses : [],
 		days: days.length === 7 ? [] : days,
 		startDay: b.startDay,
 		endDay
