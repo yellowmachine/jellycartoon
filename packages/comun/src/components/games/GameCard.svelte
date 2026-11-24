@@ -52,7 +52,9 @@ A game's page in the browser (#405): «Jugar», going on from a saved game, and 
 <a href="/juegos/{encodeURIComponent(system)}" class="text-sm text-zinc-400 hover:text-white"
 	>← {game.system}</a
 >
-<h1 class="mt-2 mb-4 text-2xl font-bold [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]">{game.title}</h1>
+<h1 class="mt-2 mb-4 text-2xl font-bold [text-shadow:0_1px_10px_var(--color-zinc-950)]">
+	{game.title}
+</h1>
 
 <a
 	href="{here}/jugar"

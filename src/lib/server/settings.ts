@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { gameSession, listenTime, userSettings, watchTime } from '#lib/server/db/schema.ts';
 import { sanitizeSubtitleStyle, type SubtitleStyle } from 'comun/subtitle-style.ts';
-import { DEFAULT_THEME, isTheme, type ThemeId } from 'comun/themes.ts';
+import { DEFAULT_THEME, isDarkTheme, type ThemeId } from 'comun/themes.ts';
 
 export interface PlaybackSettings {
 	audioLang: string | null;
@@ -29,7 +29,7 @@ export async function getSettings(userId: string): Promise<PlaybackSettings> {
 		subtitleStyle: sanitizeSubtitleStyle(row?.subtitleStyle),
 		autoNext: row?.autoNext ?? true,
 		intro: row?.intro ?? true,
-		theme: isTheme(row?.theme) ? row.theme : DEFAULT_THEME,
+		theme: isDarkTheme(row?.theme) ? row.theme : DEFAULT_THEME,
 		keepHistory: row?.keepHistory ?? true,
 		openingQuote: row?.openingQuote ?? true,
 		djMix: row?.djMix ?? false,

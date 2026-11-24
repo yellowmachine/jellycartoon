@@ -96,7 +96,7 @@
 							>
 								<span
 									class={[
-										'flex shrink-0 items-center justify-center rounded-full bg-emerald-700 font-bold text-white',
+										'flex shrink-0 items-center justify-center rounded-full bg-emerald-700 font-bold text-claro',
 										favorite ? 'h-14 w-14 text-2xl' : 'h-10 w-10'
 									]}
 									aria-hidden="true">{p.name.slice(0, 1).toUpperCase()}</span

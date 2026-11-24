@@ -121,7 +121,7 @@
 								autofocus
 								class="{field} basis-full"
 							/>
-							<button class="{button} bg-amber-600 font-semibold text-white hover:bg-amber-500"
+							<button class="{button} bg-amber-600 font-semibold text-zinc-950 hover:bg-amber-500"
 								>Guardar</button
 							>
 							<button
@@ -159,7 +159,7 @@
 						{#if deleting === t.id}
 							<form method="post" action="?/delete" use:enhance={done(() => (deleting = null))}>
 								<input type="hidden" name="id" value={t.id} />
-								<button class="{button} bg-red-700 font-semibold text-white hover:bg-red-600"
+								<button class="{button} bg-red-700 font-semibold text-claro hover:bg-red-600"
 									>Sí, borrar</button
 								>
 							</form>
@@ -288,7 +288,7 @@
 					class="{field} basis-full"
 				/>
 			{/if}
-			<button class="{button} bg-amber-600 font-semibold text-white hover:bg-amber-500"
+			<button class="{button} bg-amber-600 font-semibold text-zinc-950 hover:bg-amber-500"
 				>Guardar</button
 			>
 			<button

@@ -216,7 +216,7 @@
 						{#each route.stops as stop, i (i)}
 							<li class="flex items-center gap-2 rounded-md bg-zinc-900 px-2 py-1.5 text-sm">
 								<span
-									class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-white"
+									class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-500 text-xs font-semibold text-claro"
 									>{i + 1}</span
 								>
 								<span class="w-14 shrink-0 text-xs text-zinc-400"

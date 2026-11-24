@@ -4,6 +4,11 @@
 /* A window of little height: a phone in split screen, the other app above or beside. */
 @custom-variant short (@media (max-height: 500px));
 
+/* Always white, whatever the theme (comun/themes.ts). */
+@theme static {
+	--color-claro: #fff;
+}
+
 @layer base {
 	html {
 		color-scheme: dark;

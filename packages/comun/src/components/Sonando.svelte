@@ -121,7 +121,7 @@ in its 60 %, for a finger). Behind it, the page puts its MusicBackground.
 {/snippet}
 
 {#snippet bar(colour: string, total: number | null | undefined)}
-	<div class={[s.bar, 'h-2 overflow-hidden rounded-full bg-white/15']}>
+	<div class={[s.bar, 'h-2 overflow-hidden rounded-full bg-claro/15']}>
 		<div class={['h-full', colour]} style:width="{progress * 100}%"></div>
 	</div>
 	<p class={[s.times, 'mt-2 flex justify-between text-zinc-400 tabular-nums']}>

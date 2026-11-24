@@ -14,19 +14,22 @@ Los colores de la app, en todas tus pantallas: la misma sección en casa y en la
 		section?: string;
 		/** Where the colours apply, said after «Los de toda la app». */
 		where?: string;
+		/** The light ones too: Seilide's. */
+		light?: boolean;
 	}
 </script>
 
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { THEMES, themeSwatches } from '../themes.ts';
+	import { isDarkTheme, THEMES, themeSwatches } from '../themes.ts';
 
 	let {
 		theme: current,
 		tab,
 		problem = null,
 		section = 'mb-8 rounded-md border border-zinc-800 p-4',
-		where = 'en todas tus pantallas, también en la tele del salón'
+		where = 'en todas tus pantallas, también en la tele del salón',
+		light = false
 	}: ColoresProps = $props();
 </script>
 
@@ -43,7 +46,7 @@ Los colores de la app, en todas tus pantallas: la misma sección en casa y en la
 				update({ reset: false })}
 		class="grid gap-2 sm:grid-cols-2"
 	>
-		{#each THEMES as theme (theme.id)}
+		{#each THEMES.filter((t) => light || isDarkTheme(t.id)) as theme (theme.id)}
 			{@const on = current === theme.id}
 			<button
 				name="theme"

@@ -209,7 +209,7 @@ right, where the text goes (also a podcast's image, which the aurora cannot read
 				style:animation-duration="{zoomSec}s"
 				style:animation-play-state={coverPlaying ? 'running' : 'paused'}
 			/>
-			<div class="absolute inset-0 bg-zinc-950/35"></div>
+			<div class="veil absolute inset-0"></div>
 		</div>
 	{/key}
 {/if}
@@ -223,10 +223,14 @@ right, where the text goes (also a podcast's image, which the aurora cannot read
 	aria-hidden="true"
 >
 	<canvas bind:this={canvas} class="h-full w-full"></canvas>
-	<div class="absolute inset-0 bg-zinc-950/35"></div>
+	<div class="veil absolute inset-0"></div>
 </div>
 
 <style>
+	/* Thicker with a light theme (themes.ts), whose text is dark. */
+	.veil {
+		background: color-mix(in oklab, var(--color-zinc-950) var(--velo, 35%), transparent);
+	}
 	/* Strong in the top left corner, gone by the bottom right one. */
 	.cover-zoom {
 		mask-image: linear-gradient(to bottom right, black 15%, rgb(0 0 0 / 0.5) 45%, transparent 85%);

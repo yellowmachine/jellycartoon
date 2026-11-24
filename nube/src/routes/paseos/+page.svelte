@@ -225,7 +225,7 @@
 		{/if}
 		<div class="mt-8 flex flex-wrap items-center gap-3">
 			<button
-				class="rounded-md bg-red-600 px-4 py-2 font-semibold text-white"
+				class="rounded-md bg-red-600 px-4 py-2 font-semibold text-claro"
 				onclick={() => walk.finish()}>Terminar</button
 			>
 			{@render discard()}
@@ -273,7 +273,7 @@
 			</p>
 		{/if}
 		<button
-			class="rounded-md bg-emerald-600 px-6 py-3 text-lg font-semibold text-white"
+			class="rounded-md bg-emerald-600 px-6 py-3 text-lg font-semibold text-claro"
 			onclick={start}>Empezar</button
 		>
 	{/if}

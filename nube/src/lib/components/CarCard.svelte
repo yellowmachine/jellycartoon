@@ -93,7 +93,7 @@
 					>
 					<button
 						type="button"
-						class="rounded-md bg-amber-500 px-3 py-1 text-sm font-medium text-black hover:bg-amber-400 disabled:opacity-50"
+						class="rounded-md bg-amber-500 px-3 py-1 text-sm font-medium text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
 						disabled={locating}
 						onclick={here}>{locating ? 'Buscando…' : 'Sí, márcalo'}</button
 					>

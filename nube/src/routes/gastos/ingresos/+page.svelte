@@ -421,7 +421,7 @@
 					<form method="post" action="?/delete" use:enhance class="flex items-center gap-2">
 						<input type="hidden" name="id" value={i.id} />
 						<span class="text-sm">¿Borrar «{i.concept}»{i.document ? ' y su factura' : ''}?</span>
-						<button class="{button} bg-red-700 hover:bg-red-600">Sí</button>
+						<button class="{button} bg-red-700 text-claro hover:bg-red-600">Sí</button>
 						<button
 							type="button"
 							class="{button} hover:bg-zinc-800"
@@ -473,7 +473,7 @@
 					{#if removing === r.id}
 						<form method="post" action="?/deleteRecurring" use:enhance class="flex gap-1">
 							<input type="hidden" name="id" value={r.id} />
-							<button class="{button} bg-red-700 hover:bg-red-600">Quitar</button>
+							<button class="{button} bg-red-700 text-claro hover:bg-red-600">Quitar</button>
 							<button
 								type="button"
 								class="{button} hover:bg-zinc-800"

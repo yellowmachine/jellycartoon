@@ -51,7 +51,7 @@
 		</p>
 		<a
 			href="/ajustes?seccion=mi#owntracks"
-			class="inline-block rounded-md bg-amber-500 px-4 py-2 text-sm font-semibold text-black hover:bg-amber-400"
+			class="inline-block rounded-md bg-amber-500 px-4 py-2 text-sm font-semibold text-zinc-950 hover:bg-amber-400"
 			>Conectar en Ajustes</a
 		>
 	</section>

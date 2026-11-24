@@ -223,7 +223,7 @@
 				<button
 					class={[
 						'rounded-full px-4 py-1.5',
-						wakeWord.on.cocina ? 'bg-amber-500 text-black' : 'bg-zinc-800 text-zinc-200'
+						wakeWord.on.cocina ? 'bg-amber-500 text-zinc-950' : 'bg-zinc-800 text-zinc-200'
 					]}
 					aria-pressed={wakeWord.on.cocina}
 					onclick={() => wakeWord.set('cocina', !wakeWord.on.cocina)}

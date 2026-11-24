@@ -141,7 +141,7 @@
 				<img
 					src="data:image/svg+xml;charset=utf-8,{encodeURIComponent(now.qr)}"
 					alt="QR para dejar entrar a {now.kid.name}"
-					class="h-44 w-44 rounded-xl bg-white p-2"
+					class="h-44 w-44 rounded-xl bg-claro p-2"
 				/>
 				<p class="max-w-xs text-center text-sm text-zinc-400">
 					Si hay un mayor contigo, que lo lea con su móvil para dejarte entrar.

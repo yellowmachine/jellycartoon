@@ -129,7 +129,7 @@ it (the TV, `big`).
 	></span>
 {/snippet}
 
-<div class={['door rounded-2xl p-4 sm:p-6', big && 'p-8']}>
+<div class={['door tema-oscuro rounded-2xl p-4 sm:p-6', big && 'p-8']}>
 	{#if !readonly}
 		<form onsubmit={stick} class="mb-6 flex flex-col gap-2">
 			<textarea
@@ -180,7 +180,7 @@ it (the TV, `big`).
 				>
 					<p
 						class={[
-							'-mx-4 -mt-5 mb-3 bg-red-600 px-4 pt-4 pb-1 font-bold text-white uppercase',
+							'-mx-4 -mt-5 mb-3 bg-red-600 px-4 pt-4 pb-1 font-bold text-claro uppercase',
 							big ? 'text-2xl' : 'text-base'
 						]}
 					>
@@ -269,10 +269,10 @@ it (the TV, `big`).
 							maxlength={MAX_ITEM * 5}
 							placeholder="Añadir: leche, pan…"
 							aria-label="Añadir a la lista"
-							class="hand min-w-0 flex-1 rounded border-stone-300 bg-white/70 px-2 py-1 text-lg"
+							class="hand min-w-0 flex-1 rounded border-stone-300 bg-claro/70 px-2 py-1 text-lg"
 						/>
 						<button
-							class="rounded bg-stone-700 px-3 text-sm text-white disabled:opacity-40"
+							class="rounded bg-stone-700 px-3 text-sm text-claro disabled:opacity-40"
 							disabled={!item.trim()}>Añadir</button
 						>
 					</form>

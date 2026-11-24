@@ -272,7 +272,7 @@
 	<form method="post" action="?/deleteAll" use:enhance class="mt-6">
 		{#if sure}
 			<span class="mr-2 text-sm text-red-300">Se borran todos, sin vuelta atrás.</span>
-			<button class="rounded-md bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-500"
+			<button class="rounded-md bg-red-600 px-3 py-1.5 text-sm text-claro hover:bg-red-500"
 				>Sí, borrar todos</button
 			>
 			<button type="button" class="ml-2 text-sm text-zinc-400" onclick={() => (sure = false)}

@@ -117,7 +117,7 @@
 			</label>
 		{/if}
 		<button
-			class="{button} col-span-2 self-end bg-amber-600 font-semibold text-white hover:bg-amber-500 sm:col-span-1"
+			class="{button} col-span-2 self-end bg-amber-600 font-semibold text-zinc-950 hover:bg-amber-500 sm:col-span-1"
 			>Buscar</button
 		>
 		<!-- Straight to the file, without drawing a whole year here first. -->

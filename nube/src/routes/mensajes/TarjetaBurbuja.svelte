@@ -153,7 +153,7 @@
 			href={link.url}
 			target="_blank"
 			rel="noopener noreferrer"
-			class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white"
+			class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-claro"
 			tabindex="-1"
 			aria-hidden="true"
 		>

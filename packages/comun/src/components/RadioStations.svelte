@@ -147,7 +147,7 @@ the whole house (`snapcast`, at home, with its `switcher`).
 						<img
 							src={checked.favicon}
 							alt=""
-							class="h-12 w-12 shrink-0 rounded bg-white object-contain p-1"
+							class="h-12 w-12 shrink-0 rounded bg-claro object-contain p-1"
 							onerror={(e) => e.currentTarget.classList.add('invisible')}
 						/>
 					{:else}

@@ -563,7 +563,7 @@ same look in every browser, the app's colours, and the player's options in its â
 		<media-controller
 			lang="es"
 			class={[
-				'jc-player block w-full overflow-hidden bg-black',
+				'jc-player tema-oscuro block w-full overflow-hidden bg-black',
 				cinema ? 'mx-auto max-h-[calc(100dvh-3.5rem)]' : 'aspect-video rounded-md'
 			]}
 		>

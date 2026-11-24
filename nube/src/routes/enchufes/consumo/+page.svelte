@@ -115,14 +115,14 @@
 	<nav class="mb-3 flex flex-wrap gap-1" aria-label="Qué enchufe">
 		<a
 			href={link({ enchufe: null })}
-			class="{tab} {s.plugId ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-amber-600 text-white'}"
+			class="{tab} {s.plugId ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-amber-600 text-zinc-950'}"
 			aria-current={s.plugId ? undefined : 'page'}>Todos</a
 		>
 		{#each s.plugs as p (p.id)}
 			<a
 				href={link({ enchufe: p.id })}
 				class="{tab} {s.plugId === p.id
-					? 'bg-amber-600 text-white'
+					? 'bg-amber-600 text-zinc-950'
 					: 'bg-zinc-800 hover:bg-zinc-700'}"
 				aria-current={s.plugId === p.id ? 'page' : undefined}>{p.icon} {p.name}</a
 			>

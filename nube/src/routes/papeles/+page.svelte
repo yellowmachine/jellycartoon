@@ -362,7 +362,7 @@
 							>
 								<input type="hidden" name="id" value={p.id} />
 								<span class="text-sm">¿Borrar «{p.name}» y su fichero? No se puede deshacer.</span>
-								<button class="{button} bg-red-700 hover:bg-red-600">Sí</button>
+								<button class="{button} bg-red-700 text-claro hover:bg-red-600">Sí</button>
 								<button
 									type="button"
 									class="{button} hover:bg-zinc-800"

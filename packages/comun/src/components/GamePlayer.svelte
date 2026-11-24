@@ -513,12 +513,12 @@ nothing else to open it with, and the screen kept on, as a gamepad does not touc
 		class="fixed top-[max(0.5rem,env(safe-area-inset-top))] left-1/2 z-[55] flex -translate-x-1/2 gap-2"
 	>
 		<button
-			class="rounded-full bg-black/60 px-3 py-1 text-sm text-white hover:bg-black/80"
+			class="rounded-full bg-black/60 px-3 py-1 text-sm text-claro hover:bg-black/80"
 			onclick={() => dispatchEvent(new Event('juegos:menu'))}>Menú</button
 		>
 		{#if canFullscreen}
 			<button
-				class="rounded-full bg-black/60 px-3 py-1 text-sm text-white hover:bg-black/80"
+				class="rounded-full bg-black/60 px-3 py-1 text-sm text-claro hover:bg-black/80"
 				onclick={fullscreen}>Pantalla completa</button
 			>
 		{/if}
@@ -529,7 +529,7 @@ nothing else to open it with, and the screen kept on, as a gamepad does not touc
 	<div
 		bind:this={menuBox}
 		class={[
-			'fixed inset-0 z-[60] flex items-center overflow-y-auto p-12',
+			'tema-oscuro fixed inset-0 z-[60] flex items-center overflow-y-auto p-12',
 			web && 'web-menu',
 			// The shaders at one side, the game to be seen as it is.
 			menu === 'imagen' ? 'justify-end' : 'justify-center bg-zinc-950/80 backdrop-blur-sm'

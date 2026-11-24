@@ -87,7 +87,9 @@
 <Backdrop src={seriesBackdropUrl(data.series.id)} />
 
 <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
-	<h1 class="text-2xl font-bold [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]">{data.series.title}</h1>
+	<h1 class="text-2xl font-bold [text-shadow:0_1px_10px_var(--color-zinc-950)]">
+		{data.series.title}
+	</h1>
 </div>
 {#if form?.message}
 	<p class="-mt-4 mb-4 text-sm text-red-400">{form.message}</p>
@@ -176,7 +178,7 @@
 						<img src={thumbUrl(ep.id)} alt="" class="h-full w-full object-cover" loading="lazy" />
 						{#if ep.completed}
 							<span
-								class="absolute top-1 left-1 rounded bg-zinc-950/80 px-1.5 py-0.5 text-xs font-medium text-amber-400"
+								class="tema-oscuro absolute top-1 left-1 rounded bg-zinc-950/80 px-1.5 py-0.5 text-xs font-medium text-amber-400"
 								>✓ Visto</span
 							>
 						{/if}

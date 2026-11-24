@@ -197,7 +197,7 @@
 											: 'bg-amber-500'}"
 									>
 										<span
-											class="inline-block size-5 rounded-full bg-white shadow transition-transform {r.paused
+											class="inline-block size-5 rounded-full bg-claro shadow transition-transform {r.paused
 												? 'translate-x-0.5'
 												: 'translate-x-[22px]'}"
 										></span>

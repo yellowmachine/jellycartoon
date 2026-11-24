@@ -241,7 +241,7 @@
 					use:enhance={sending('disconnect')}
 					class="flex gap-2"
 				>
-					<button class="{primary} bg-red-700 hover:bg-red-600" disabled={busy !== null}
+					<button class="{primary} bg-red-700 text-claro hover:bg-red-600" disabled={busy !== null}
 						>Sí, desconectar bunq</button
 					>
 					<button type="button" class={secondary} onclick={() => (confirmOff = false)}

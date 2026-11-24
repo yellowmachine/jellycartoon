@@ -48,7 +48,7 @@
 	<input type="hidden" name="message" value={message} />
 	<input type="hidden" name="card" value={index} />
 	<div
-		class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white"
+		class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-claro"
 		aria-hidden="true"
 	>
 		{#if card.imageUrl}

@@ -35,7 +35,7 @@
 	import { voice } from '#lib/voice-client.svelte.ts';
 	import { timers } from '#lib/timers.svelte.ts';
 	import { navLinks, sectionOfPath } from '#lib/nav.ts';
-	import { themeColor, themeCss } from 'comun/themes.ts';
+	import { DEFAULT_THEME, themeColor, themeCss, themeIsLight } from 'comun/themes.ts';
 	import { backKey, goBack } from 'comun/back.ts';
 	import ShareBar from '#lib/components/ShareBar.svelte';
 	import MensajePendiente from '#lib/components/MensajePendiente.svelte';
@@ -123,6 +123,14 @@
 		}, 30_000);
 		return () => clearInterval(check);
 	});
+	// Their colours; but with a light theme, the road mode and the games stay dark: at night in the
+	// car a white screen dazzles (its own day mode, aside).
+	const theme = $derived(
+		themeIsLight(data.theme) && /^\/(carretera|juegos)(\/|$)/.test(page.url.pathname)
+			? DEFAULT_THEME
+			: data.theme
+	);
+
 	// Anywhere else, on the next page (app-update.ts): a whole load to it, instead of the app's own
 	// change of page, as SvelteKit documents (https://svelte.dev/docs/kit/configuration#version).
 	beforeNavigate(({ from, to, willUnload, cancel }) => {
@@ -352,10 +360,10 @@
 	<!-- From static/, not inlined: some browsers show no icon for a data: URL (the snail, the same file). -->
 	<link rel="icon" href="/icon.svg" type="image/svg+xml" />
 	<link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png" />
-	<meta name="theme-color" content={themeColor(data.theme)} />
+	<meta name="theme-color" content={themeColor(theme)} />
 	<!-- Their colours (Ajustes), as at home: values only from the themes' table. -->
 	<!-- eslint-disable-next-line svelte/no-at-html-tags -- a <style> made from the themes' own table, never from what was typed. -->
-	{@html themeCss(data.theme)}
+	{@html themeCss(theme)}
 </svelte:head>
 
 {#if slow}
@@ -436,7 +444,7 @@ trip's link (#81), for whoever has it, and a shared walk's (#434), with its own 
 								class={[
 									'shrink-0 touch-none rounded-md p-1 select-none hover:bg-zinc-800 hover:text-white',
 									voice.phase === 'listening'
-										? 'bg-red-500 text-white hover:bg-red-500'
+										? 'bg-red-500 text-claro hover:bg-red-500'
 										: page.url.pathname === '/voz'
 											? 'text-amber-400'
 											: 'text-zinc-400'

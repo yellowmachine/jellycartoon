@@ -149,6 +149,7 @@
 
 		<Colores
 			theme={data.theme}
+			light
 			{tab}
 			{section}
 			where="en todas tus pantallas"
@@ -1008,7 +1009,7 @@
 				<img
 					src={form.totpQr}
 					alt="Código QR para la app de verificación"
-					class="mb-2 rounded bg-white p-2"
+					class="mb-2 rounded bg-claro p-2"
 				/>
 				<p class="mb-4 font-mono text-xs break-all text-zinc-500 select-all">{form.totpURI}</p>
 				<p class="mb-2 text-sm">

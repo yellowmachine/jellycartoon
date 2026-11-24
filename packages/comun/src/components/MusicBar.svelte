@@ -802,7 +802,7 @@ and the speed. -->
 				<img
 					src={radio.favicon}
 					alt=""
-					class="h-10 w-10 shrink-0 rounded bg-white object-contain p-0.5"
+					class="h-10 w-10 shrink-0 rounded bg-claro object-contain p-0.5"
 					onerror={(e) => e.currentTarget.classList.add('hidden')}
 				/>
 			{/if}

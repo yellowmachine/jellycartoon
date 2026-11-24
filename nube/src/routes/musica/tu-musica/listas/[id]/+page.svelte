@@ -173,7 +173,7 @@
 	<section class="mt-10 border-t border-zinc-800 pt-6">
 		{#if confirmDelete}
 			<form method="post" action="?/delete" use:enhance class="flex items-center gap-2">
-				<button class="rounded-md bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-500">
+				<button class="rounded-md bg-red-600 px-4 py-2 font-medium text-claro hover:bg-red-500">
 					Sí, borrar la lista
 				</button>
 				<button
