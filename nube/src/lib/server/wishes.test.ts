@@ -8,6 +8,7 @@ import { family, familyMember, familyPerson, user, wish } from './db/schema.ts';
 import { familyScope } from './family-scope.ts';
 import type { Kitchen } from './fridge.ts';
 import {
+	BOOKMARK_VERSION,
 	bookmarklet,
 	cleanLink,
 	knownShop,
@@ -633,6 +634,16 @@ describe('the computer’s bookmark', () => {
 		expect(productFromBrowser((n) => (n === 'url' ? sent.url! : null))).toBeNull();
 	});
 
+	test('its code changed, its version too: then both here', async () => {
+		const source = await Bun.file(`${import.meta.dir}/../wishes.ts`).text();
+		const code = source
+			.split('\n')
+			.filter((l) => /^(const PAGE_TEXT = |\tconst code = )/.test(l))
+			.join('\n');
+		const hash = new Bun.CryptoHasher('sha256').update(code).digest('hex').slice(0, 12);
+		expect({ version: BOOKMARK_VERSION, hash }).toEqual({ version: 1, hash: '2edf4d1b3479' });
+	});
+
 	test('run on an Amazon page, it opens Seilide with its name, price and picture', () => {
 		const els: Record<string, unknown> = {
 			'#productTitle': { textContent: '  Auriculares Sony  ' },
@@ -666,6 +677,7 @@ describe('the computer’s bookmark', () => {
 		expect(asked.origin + asked.pathname).toBe('https://seilide.app/compartido/enlace');
 		expect(Object.fromEntries(asked.searchParams)).toEqual({
 			url: 'https://www.amazon.es/dp/B09XS7JWHH?th=1',
+			v: String(BOOKMARK_VERSION),
 			titulo: 'Auriculares Sony',
 			precio: '29,99 €',
 			foto: 'https://m.media-amazon.com/x.jpg'

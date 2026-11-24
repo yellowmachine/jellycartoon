@@ -7,6 +7,7 @@ import { FetchError, fetchPublic } from '#lib/server/public-fetch.ts';
 import { clean, findOfType, readPage } from '#lib/server/recipes/schema-org.ts';
 import {
 	cleanLink,
+	knownShop,
 	MAX_WISH_NOTE,
 	MAX_WISH_TITLE,
 	MAX_WISH_URL,
@@ -297,7 +298,8 @@ export async function listWishes(k: Kitchen, userId: string, kid: boolean) {
 			id: w.id,
 			personId: String(w.personId),
 			url: w.url,
-			shop: w.shop,
+			// Kept by its address, when it was not known yet: with the rest of its shop's.
+			shop: (w.shop.includes('.') && knownShop(w.url)) || w.shop,
 			title: w.title,
 			imageUrl: w.imageUrl,
 			priceCents: w.priceCents,

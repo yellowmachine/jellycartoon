@@ -13,6 +13,7 @@ import {
 } from '#lib/server/wishes.ts';
 import {
 	knownShop,
+	BOOKMARK_VERSION,
 	MAX_PAGE_TEXT,
 	MAX_WISH_NOTE,
 	priceChangeParam,
@@ -49,6 +50,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 			: null,
 		shop,
 		people: people.filter((p) => p.writes),
+		/** Read by an earlier bookmark than today's. */
+		oldBookmark: Boolean(read) && Number(url.searchParams.get('v') ?? 0) < BOOKMARK_VERSION,
 		/** «Analizar con IA»: the grown-ups', with the family's key. */
 		ai: Boolean(read) && !kid && Boolean(await openRouterKey(k)),
 		/** Mensajes is the grown-ups' (#551). */

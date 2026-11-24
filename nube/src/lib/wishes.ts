@@ -45,7 +45,8 @@ const SHOPS: [RegExp, string][] = [
 	[/(^|\.)miravia\.[a-z.]+$/, 'Miravia'],
 	[/(^|\.)wallapop\.[a-z.]+$/, 'Wallapop'],
 	[/(^|\.)toysrus\.[a-z.]+$/, 'Toys "R" Us'],
-	[/(^|\.)apple\.com$/, 'Apple']
+	[/(^|\.)apple\.com$/, 'Apple'],
+	[/(^|\.)(steampowered\.com|s\.team)$/, 'Steam']
 ];
 
 const hostOf = (address: string) => {
@@ -238,6 +239,12 @@ export function wishesSummary(
 		: `${count} · ${priced} con precio, ${total}`;
 }
 
+/**
+ * The bookmark's, told by it: an earlier one (dragged before, or from a page not reloaded) is told
+ * to be dragged again. One more whenever its code changes (a test checks it).
+ */
+export const BOOKMARK_VERSION = 1;
+
 /** A shop's page read by the bookmark for «Analizar con IA», at most. */
 export const MAX_PAGE_TEXT = 14_000;
 
@@ -281,6 +288,6 @@ const PAGE_TEXT = String.raw`(()=>{try{const D=document,c=s=>(s||'').replace(/\s
  * page's text: it goes to Seilide only with «Analizar con IA».
  */
 export function bookmarklet(origin: string) {
-	const code = `(()=>{const q=s=>document.querySelector(s),m=n=>q('meta[property="'+n+'"],meta[name="'+n+'"]')?.content,t=e=>e?.textContent?.trim();let p=null;for(const s of document.querySelectorAll('script[type="application/ld+json"]')){try{const w=[JSON.parse(s.textContent)];while(w.length&&!p){const n=w.shift();if(Array.isArray(n))w.push(...n);else if(n&&typeof n==='object'){const y=[].concat(n['@type']);if(y.includes('Product'))p=n;else if(n['@graph'])w.push(n['@graph'])}}}catch(e){}if(p)break}const of=n=>n&&(n.price||n.lowPrice),o=p&&[].concat(p.offers||[]).flatMap(n=>[n,...[].concat(n?.priceSpecification||[])]).find(of),i=p&&[].concat(p.image||[])[0],g=q('#landingImage'),x=n=>{const e=q('[itemtype*="schema.org/Product"] [itemprop="'+n+'"]');return e?.content||t(e)||''},u=x('price')||x('lowPrice'),b=[...new Set([...document.querySelectorAll('button,[role="button"],input[type="submit"]')].filter(e=>e.getClientRects?.().length).map(e=>(e.textContent||e.value||'').replace(/\\s+/g,' ').trim()).filter(s=>s.length<80&&/add to (cart|bag|basket)|(añadir|agregar) (al|a la|a tu) (carrito|cesta|bolsa)|comprar/i.test(s)).map(s=>s.match(/[€$£] ?\\d[\\d.,]*|\\d[\\d.,]* ?[€$£]/)?.[0]).filter(s=>s&&/[1-9]/.test(s)))],w2=(n,c)=>!n?'':/[€$£]/.test(n)?n:n+' '+(c==='USD'?'$':c==='GBP'?'£':'€'),r=q('[id*="ccordionRow"].a-accordion-active'),az=[...(r||document).querySelectorAll('.a-price:not(.a-text-price)')].filter(e=>e.getClientRects?.().length).map(e=>t(e.querySelector('.a-offscreen'))||t(e.querySelector('[aria-hidden]'))).find(Boolean)||'',rt=r&&/used/i.test(r.id)&&r.querySelector('h5,[role="button"],[role="radio"],.a-accordion-row'),d={url:location.href,titulo:t(q('#productTitle'))||p?.name||m('og:title')||document.title,precio:az||(b.length===1?b[0]:'')||(of(o)?w2(of(o),o.priceCurrency):w2(m('product:price:amount'),m('product:price:currency'))||w2(m('og:price:amount'),m('og:price:currency'))||w2(u,x('priceCurrency'))),foto:g?.dataset?.oldHires||(g?.dataset?.aDynamicImage&&Object.keys(JSON.parse(g.dataset.aDynamicImage))[0])||(typeof i==='string'?i:i?.url)||m('og:image')||''};if(rt)d.nota=(rt.innerText||rt.textContent||'').replace(/\\s+/g,' ').trim().slice(0,80);for(const k in d)d[k]=String(d[k]||'').slice(0,2000);window.open(${JSON.stringify(origin)}+'/compartido/enlace?'+new URLSearchParams(d)+${PAGE_TEXT})})()`;
+	const code = `(()=>{const q=s=>document.querySelector(s),m=n=>q('meta[property="'+n+'"],meta[name="'+n+'"]')?.content,t=e=>e?.textContent?.trim();let p=null;for(const s of document.querySelectorAll('script[type="application/ld+json"]')){try{const w=[JSON.parse(s.textContent)];while(w.length&&!p){const n=w.shift();if(Array.isArray(n))w.push(...n);else if(n&&typeof n==='object'){const y=[].concat(n['@type']);if(y.includes('Product'))p=n;else if(n['@graph'])w.push(n['@graph'])}}}catch(e){}if(p)break}const of=n=>n&&(n.price||n.lowPrice),o=p&&[].concat(p.offers||[]).flatMap(n=>[n,...[].concat(n?.priceSpecification||[])]).find(of),i=p&&[].concat(p.image||[])[0],g=q('#landingImage'),x=n=>{const e=q('[itemtype*="schema.org/Product"] [itemprop="'+n+'"]');return e?.content||t(e)||''},u=x('price')||x('lowPrice'),b=[...new Set([...document.querySelectorAll('button,[role="button"],input[type="submit"]')].filter(e=>e.getClientRects?.().length).map(e=>(e.textContent||e.value||'').replace(/\\s+/g,' ').trim()).filter(s=>s.length<80&&/add to (cart|bag|basket)|(añadir|agregar) (al|a la|a tu) (carrito|cesta|bolsa)|comprar/i.test(s)).map(s=>s.match(/[€$£] ?\\d[\\d.,]*|\\d[\\d.,]* ?[€$£]/)?.[0]).filter(s=>s&&/[1-9]/.test(s)))],w2=(n,c)=>!n?'':/[€$£]/.test(n)?n:n+' '+(c==='USD'?'$':c==='GBP'?'£':'€'),r=q('[id*="ccordionRow"].a-accordion-active'),az=[...(r||document).querySelectorAll('.a-price:not(.a-text-price)')].filter(e=>e.getClientRects?.().length).map(e=>t(e.querySelector('.a-offscreen'))||t(e.querySelector('[aria-hidden]'))).find(Boolean)||'',rt=r&&/used/i.test(r.id)&&r.querySelector('h5,[role="button"],[role="radio"],.a-accordion-row'),d={url:location.href,titulo:t(q('#productTitle'))||p?.name||m('og:title')||document.title,precio:az||(b.length===1?b[0]:'')||(of(o)?w2(of(o),o.priceCurrency):w2(m('product:price:amount'),m('product:price:currency'))||w2(m('og:price:amount'),m('og:price:currency'))||w2(u,x('priceCurrency'))),foto:g?.dataset?.oldHires||(g?.dataset?.aDynamicImage&&Object.keys(JSON.parse(g.dataset.aDynamicImage))[0])||(typeof i==='string'?i:i?.url)||m('og:image')||''};if(rt)d.nota=(rt.innerText||rt.textContent||'').replace(/\\s+/g,' ').trim().slice(0,80);for(const k in d)d[k]=String(d[k]||'').slice(0,2000);window.open(${JSON.stringify(origin)}+'/compartido/enlace?v=${BOOKMARK_VERSION}&'+new URLSearchParams(d)+${PAGE_TEXT})})()`;
 	return `javascript:${encodeURIComponent(code)}`;
 }
