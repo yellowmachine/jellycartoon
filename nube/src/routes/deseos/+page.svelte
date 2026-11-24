@@ -101,6 +101,7 @@
 	function setSelecting(on: boolean) {
 		selecting = on;
 		selected.clear();
+		op = '';
 		editing = null;
 	}
 	const picked = (list: typeof shown) => list.filter((w) => selected.has(w.id));
@@ -114,13 +115,19 @@
 	const canWrite = $derived(picks.filter(writesOf));
 	const canBuy = $derived(picks.filter((w) => w.buys));
 	const canGive = $derived(data.kid ? [] : picks.filter((w) => !isMine(w) && !w.gift));
+	/** What is chosen to do, and the ones it is done to. */
+	let op = $state('');
+	const targets = $derived(
+		op === 'regalar' ? canGive : op === 'comprar' ? canBuy : op ? canWrite : []
+	);
 	const idsOf = (list: typeof shown) => list.map((w) => w.id).join(',');
 	const summary = (list: typeof shown) =>
 		selecting ? wishesSummary(picked(list), list.length) : wishesSummary(list);
 	const bulk: SubmitFunction = () => {
 		problem = null;
 		return async ({ result, update }) => {
-			await update({ reset: true });
+			await update({ reset: false });
+			op = '';
 			if (result.type === 'success') selected.clear();
 			// Some done, some not: the list as it is now.
 			else await invalidateAll();
@@ -259,12 +266,9 @@
 							class="line-clamp-2 font-medium hover:underline">{w.title}</a
 						>
 						<p class="text-sm text-zinc-400">
-							{w.shop}{#if price}
-								· <span class="text-zinc-200">{price}</span>{#if seenOn(w.priceAt)}
-									<span class="text-xs">
-										{seenOn(w.priceAt)}</span
-									>{/if}{/if}{#if !chosenPerson && data.people.length > 1}
-								· {nameOf(w.personId)}{/if}
+							{w.shop}{#if price}{' · '}<span class="text-zinc-200">{price}</span
+								>{#if seenOn(w.priceAt)}{' '}<span class="text-xs">{seenOn(w.priceAt)}</span
+									>{/if}{/if}{#if !chosenPerson && data.people.length > 1}{` · ${nameOf(w.personId)}`}{/if}
 						</p>
 						{#if w.note}<p class="text-sm text-zinc-300">{w.note}</p>{/if}
 						<div
@@ -301,7 +305,7 @@
 										name="priority"
 										value={w.priority}
 										aria-label="Para cuándo"
-										class="{select} border-transparent bg-transparent pl-0 text-zinc-400"
+										class="rounded-md border-0 bg-transparent py-1 pr-7 pl-0 text-sm text-zinc-400 hover:underline focus:ring-amber-400"
 										onchange={(e) => e.currentTarget.form?.requestSubmit()}
 									>
 										{#each WISH_PRIORITIES as p (p)}
@@ -515,54 +519,49 @@
 		{#if form?.message && !problem}
 			<p class="mb-2 text-sm text-red-400" role="alert">{form.message}</p>
 		{/if}
-		<div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-			{#if canWrite.length}
-				<form method="post" action="?/bulk" use:enhance={bulk}>
-					<input type="hidden" name="ids" value={idsOf(canWrite)} />
-					<select
-						name="op"
-						aria-label="Para cuándo"
-						class={select}
-						onchange={(e) => e.currentTarget.value && e.currentTarget.form?.requestSubmit()}
-					>
-						<option value="">Para cuándo ({canWrite.length})…</option>
-						{#each WISH_PRIORITIES as p (p)}
-							<option value={p}>{WISH_PRIORITY_LABELS[p]}</option>
-						{/each}
-					</select>
-				</form>
-			{/if}
-			{#if canGive.length}
-				<form method="post" action="?/bulk" use:enhance={bulk}>
-					<input type="hidden" name="ids" value={idsOf(canGive)} />
-					<button name="op" value="regalar" class="text-amber-400 hover:underline"
-						>Los regalo yo ({canGive.length})</button
-					>
-				</form>
-			{/if}
-			{#if canBuy.length}
-				<form method="post" action="?/bulk" use:enhance={bulk}>
-					<input type="hidden" name="ids" value={idsOf(canBuy)} />
+		{#if picks.length}
+			<form
+				method="post"
+				action="?/bulk"
+				use:enhance={bulk}
+				class="flex items-center gap-2 text-sm"
+			>
+				<input type="hidden" name="ids" value={idsOf(targets)} />
+				<select
+					name="op"
+					bind:value={op}
+					aria-label="Qué hacer con lo seleccionado"
+					class="{select} min-w-0 flex-1 sm:max-w-64"
+				>
+					<option value="">Hacer con ellos…</option>
+					{#if canWrite.length}
+						<optgroup label="Para cuándo">
+							{#each WISH_PRIORITIES as p (p)}
+								<option value={p}>{WISH_PRIORITY_LABELS[p]} ({canWrite.length})</option>
+							{/each}
+						</optgroup>
+					{/if}
+					{#if canGive.length}
+						<option value="regalar">Los regalo yo ({canGive.length})</option>
+					{/if}
+					{#if canBuy.length}
+						<option value="comprar">Marcar como comprados ({canBuy.length})</option>
+					{/if}
+					{#if canWrite.length}
+						<option value="quitar">Quitar de la lista ({canWrite.length})</option>
+					{/if}
+				</select>
+				{#if op && targets.length}
 					<button
-						name="op"
-						value="comprar"
-						class="text-zinc-300 hover:underline"
-						title="Con fecha de hoy, sin añadirlos a Dinero"
-						>Marcar como comprados ({canBuy.length})</button
+						class={op === 'quitar'
+							? 'shrink-0 rounded-md bg-red-700 px-3 py-1 font-medium hover:bg-red-600'
+							: `${primary} shrink-0`}
+						title={op === 'comprar' ? 'Con fecha de hoy, sin añadirlos a Dinero' : undefined}
+						>{op === 'quitar' ? `Sí, quitar ${targets.length}` : 'Aplicar'}</button
 					>
-				</form>
-			{/if}
-			{#if canWrite.length}
-				<ConfirmForm
-					action="?/bulk"
-					fields={{ ids: idsOf(canWrite), op: 'quitar' }}
-					label="Quitar ({canWrite.length})"
-					question="¿Quitar {canWrite.length} de la lista?"
-					yes="Sí, quitar"
-					class="text-zinc-300 hover:underline"
-				/>
-			{/if}
-		</div>
+				{/if}
+			</form>
+		{/if}
 	</div>
 {/if}
 

@@ -355,8 +355,8 @@ async function wishPerson(k: Kitchen, id: number) {
 /**
  * A product into that person's list: `added`; `refused` if the one looking may not write in it;
  * `already`, with the one there, if the same product (by its key) is in that list: its price
- * brought up to date if it was read now (`change`), and its picture if it had none; not its name or
- * note, which may have been corrected.
+ * brought up to date if it was read now (`change`), and its picture or note if it had none; not its
+ * name, nor another note, which may have been corrected.
  */
 export async function addWish(
 	k: Kitchen,
@@ -403,6 +403,7 @@ export async function addWish(
 							priceAt: new Date()
 						}
 					: {}),
+				...(!there.note && note?.trim() ? { note: note.trim().slice(0, MAX_WISH_NOTE) } : {}),
 				...(!there.imageUrl && product.imageUrl ? { imageUrl: product.imageUrl } : {})
 			};
 			if (Object.keys(set).length) await tx.update(wish).set(set).where(eq(wish.id, there.id));

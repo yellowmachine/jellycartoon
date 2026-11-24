@@ -14,6 +14,7 @@ import {
 import {
 	knownShop,
 	MAX_PAGE_TEXT,
+	MAX_WISH_NOTE,
 	priceChangeParam,
 	priceFromText,
 	priceText
@@ -42,7 +43,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 					imageUrl: read.imageUrl,
 					price: priceText(read.priceCents, read.currency),
 					precio: url.searchParams.get('precio') ?? '',
-					foto: read.imageUrl ?? ''
+					foto: read.imageUrl ?? '',
+					nota: (url.searchParams.get('nota') ?? '').slice(0, MAX_WISH_NOTE)
 				}
 			: null,
 		shop,
