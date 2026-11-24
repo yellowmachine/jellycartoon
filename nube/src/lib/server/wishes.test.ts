@@ -641,7 +641,7 @@ describe('the computer’s bookmark', () => {
 			.filter((l) => /^(const PAGE_TEXT = |\tconst code = )/.test(l))
 			.join('\n');
 		const hash = new Bun.CryptoHasher('sha256').update(code).digest('hex').slice(0, 12);
-		expect({ version: BOOKMARK_VERSION, hash }).toEqual({ version: 1, hash: '2edf4d1b3479' });
+		expect({ version: BOOKMARK_VERSION, hash }).toEqual({ version: 2, hash: '7e8ea7fa89b3' });
 	});
 
 	test('run on an Amazon page, it opens Seilide with its name, price and picture', () => {
@@ -817,6 +817,45 @@ describe('the computer’s bookmark', () => {
 			'87,32€',
 			null
 		]);
+	});
+
+	test('a page that says no picture (Kobo): the one seen with its name, else the biggest', () => {
+		const img = (src: string, alt: string, width: number, height: number, inside = '') => ({
+			src,
+			alt,
+			getBoundingClientRect: () => ({ width, height, top: 100 }),
+			getClientRects: () => [{}],
+			closest: (s: string) => (inside && s.split(',').includes(inside) ? {} : null)
+		});
+		const run = (images: unknown[]) => {
+			let opened = '';
+			new Function(
+				'document',
+				'location',
+				'window',
+				'scrollY',
+				decodeURIComponent(bookmarklet('https://seilide.app').slice('javascript:'.length))
+			)(
+				{
+					querySelector: (s: string) =>
+						s === 'h1' ? { textContent: ' A la sombra  de las espadas ' } : null,
+					querySelectorAll: (s: string) => (s === 'img' ? images : []),
+					title: 'A la sombra de las espadas eBook'
+				},
+				{ href: 'https://www.kobo.com/es/es/ebook/a-la-sombra-de-las-espadas' },
+				{ open: (u: string) => (opened = u) },
+				0
+			);
+			return new URL(opened).searchParams.get('foto');
+		};
+		const other = img('https://cdn.example/otra.jpg', 'Otra', 400, 400);
+		const badge = img('https://cdn.example/app.svg', 'Google Play', 159, 47);
+		const footer = img('https://cdn.example/pie.jpg', '', 900, 900, 'footer');
+		const alt = 'A la sombra de las espadas - eBook de Tom Holland';
+		const cover = img('https://cdn.example/portada.jpg', alt, 244, 380);
+		expect(run([badge, other, footer, cover])).toBe('https://cdn.example/portada.jpg');
+		expect(run([badge, footer, other])).toBe('https://cdn.example/otra.jpg');
+		expect(run([badge, footer])).toBe('');
 	});
 
 	test('run on another shop, from its schema.org Product', () => {
