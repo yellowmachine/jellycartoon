@@ -11,10 +11,15 @@ import {
 	bookmarklet,
 	cleanLink,
 	knownShop,
+	priceChangeParam,
+	priceChangeText,
 	priceFromText,
 	priceText,
+	readPriceChange,
 	seenOn,
-	shopOf
+	shopOf,
+	wishesSummary,
+	type PriceChange
 } from '#lib/wishes.ts';
 import type { Product } from './wishes.ts';
 
@@ -271,7 +276,11 @@ describe('the same product again', () => {
 		expect(
 			await addWish(ana, 'ana', false, people.Ana!, product('Sony otra vez', 'amazon:B09'), null)
 		).toEqual({
-			already: (first as { added: number }).added
+			already: (first as { added: number }).added,
+			change: {
+				before: { cents: 2999, currency: 'EUR' },
+				now: { cents: 2999, currency: 'EUR' }
+			}
 		});
 		// For someone else, it is another wish.
 		expect(
@@ -295,6 +304,107 @@ describe('the same product again', () => {
 		);
 		expect(row!.priceAt).toBeNull();
 	});
+});
+
+describe('added again: its price', () => {
+	const at = (priceCents: number | null, imageUrl: string | null = null) => ({
+		...product('Juego', 'url:steam/1'),
+		priceCents,
+		imageUrl
+	});
+	const add = (p: Product, who: [Kitchen, string] = [ana, 'ana'], person = people.Ana!) =>
+		addWish(who[0], who[1], false, person, p, null);
+	const one = async () => (await listWishes(ana, 'ana', false)).wishes[0]!;
+
+	test('brought up to date, or kept if not read; the picture if it had none', async () => {
+		await add(at(null));
+		expect(await add(at(1999, 'https://x.es/a.jpg'))).toMatchObject({
+			change: { before: null, now: { cents: 1999 } }
+		});
+		expect(await add(at(1399, 'https://x.es/b.jpg'))).toMatchObject({
+			change: { before: { cents: 1999 }, now: { cents: 1399 } }
+		});
+		expect(await add(at(null))).toMatchObject({ change: null });
+		expect(await one()).toMatchObject({ priceCents: 1399, imageUrl: 'https://x.es/a.jpg' });
+	});
+
+	test('bought by another: kept as it was, but for who it is for, who must not notice', async () => {
+		await add(at(1999), [ana, 'ana'], people['Bebé']!);
+		await buyWish(ana, 'ana', false, (await one()).id, '2026-11-24');
+		expect(await add(at(1399), [pepe, 'pepe'], people['Bebé']!)).toMatchObject({ change: null });
+		await db.delete(wish);
+		await add(at(1999));
+		const { id } = await one();
+		await giveWish(pepe, 'pepe', false, id, true);
+		await buyWish(pepe, 'pepe', false, id, '2026-11-24');
+		expect(await add(at(1399))).toMatchObject({
+			already: id,
+			change: { before: { cents: 1999 }, now: { cents: 1399 } }
+		});
+	});
+
+	test('by the bookmark or by hand: not replaced by what the server reads', async () => {
+		const marked = (cents: number) => ({ ...at(cents), priceSource: 'marcador' as const });
+		await add(at(5854));
+		await add(marked(8420));
+		expect(await add(at(5854))).toMatchObject({
+			change: { before: { cents: 8420 }, now: { cents: 5854 }, kept: true }
+		});
+		expect((await one()).priceCents).toBe(8420);
+		await add(marked(9000));
+		const { id } = await one();
+		const edit = (price?: { cents: number; currency: string } | null) =>
+			updateWish(ana, 'ana', false, id, { title: 'Lámina', note: '55 cm', price });
+		// The form sent back as it was: still the bookmark's.
+		await edit({ cents: 9000, currency: 'EUR' });
+		await add(marked(9100));
+		expect((await one()).priceCents).toBe(9100);
+		await edit({ cents: 7500, currency: 'EUR' });
+		expect(await add(marked(9100))).toMatchObject({ change: { kept: true } });
+		expect((await one()).priceCents).toBe(7500);
+		await edit();
+		expect((await one()).priceCents).toBe(7500);
+		// Taken out: the next one read counts.
+		await edit(null);
+		expect((await one()).priceCents).toBeNull();
+		await add(at(5854));
+		expect((await one()).priceCents).toBe(5854);
+	});
+
+	test('in words, and through an address', () => {
+		const said = (c: PriceChange) => priceChangeText(c).replace(/\s/g, ' ');
+		const eur = (cents: number) => ({ cents, currency: 'EUR' });
+		expect(said({ before: eur(1999), now: eur(1399) })).toBe(
+			'precio actualizado, de 19,99 € a 13,99 €'
+		);
+		expect(said({ before: eur(1399), now: eur(1399) })).toBe('sigue a 13,99 €');
+		expect(said({ before: null, now: eur(1399) })).toBe('ahora con precio, 13,99 €');
+		expect(said({ before: eur(8420), now: eur(5854), kept: true })).toBe(
+			'ahora se lee 58,54 €; se queda en 84,20 €'
+		);
+		for (const c of [
+			{ before: eur(1999), now: eur(1399) },
+			{ before: null, now: { cents: 5, currency: null } },
+			{ before: eur(8420), now: eur(5854), kept: true }
+		])
+			expect(readPriceChange(priceChangeParam(c))).toEqual(c);
+		expect(readPriceChange('<b>')).toBeNull();
+	});
+});
+
+test('what a list has, and what it costs', () => {
+	const w = (priceCents: number | null, currency: string | null = 'EUR') => ({
+		priceCents,
+		currency
+	});
+	const said = (...list: ReturnType<typeof w>[]) => wishesSummary(list).replace(/\s/g, ' ');
+	expect(wishesSummary([], 8)).toBe('0 de 8 productos');
+	expect(wishesSummary([w(1000)], 8).replace(/\s/g, ' ')).toBe('1 de 8 productos · 10,00 €');
+	expect(said(w(null))).toBe('1 producto · sin precio');
+	expect(said(w(1000), w(250, null))).toBe('2 productos · 12,50 €');
+	expect(said(w(1000), w(null), w(500, 'GBP'))).toBe(
+		'3 productos · 2 con precio, 10,00 € + 5,00 GBP'
+	);
 });
 
 describe('«Lo regalo yo»', () => {
@@ -370,7 +480,9 @@ describe('«Comprado»', () => {
 		expect(await describeWishes(ana, 'ana')).not.toContain('comprado');
 		expect(await describeWishes(pepe, 'pepe')).toContain('comprado el 2026-11-24');
 		// Added again by Ana, it is there: nothing given away.
-		expect(await addWish(ana, 'ana', false, people.Ana!, product('Reloj', 'reloj'), null)).toEqual({
+		expect(
+			await addWish(ana, 'ana', false, people.Ana!, product('Reloj', 'reloj'), null)
+		).toMatchObject({
 			already: id
 		});
 		// Ana buys it herself: Pepe sees it.
@@ -504,7 +616,8 @@ describe('the computer’s bookmark', () => {
 			title: 'Auriculares Sony',
 			imageUrl: null,
 			priceCents: 2999,
-			currency: 'EUR'
+			currency: 'EUR',
+			priceSource: 'marcador'
 		});
 		// Only the site's name, or nothing: not read, the page is asked for instead.
 		expect(productFromBrowser((n) => ({ ...sent, titulo: 'Amazon.es' })[n] ?? null)).toBeNull();
@@ -541,6 +654,96 @@ describe('the computer’s bookmark', () => {
 			precio: '29,99 €',
 			foto: 'https://m.media-amazon.com/x.jpg'
 		});
+	});
+
+	test('run on a page whose offers say no price, from its og: tags', () => {
+		const meta = (n: string) => `meta[property="${n}"],meta[name="${n}"]`;
+		const els: Record<string, unknown> = {
+			[meta('og:price:amount')]: { content: '113.26' },
+			[meta('og:price:currency')]: { content: 'GBP' }
+		};
+		const offers: Record<string, unknown>[] = [{ '@type': 'Offer', availability: 'InStock' }];
+		const run = () => {
+			let opened = '';
+			new Function(
+				'document',
+				'location',
+				'window',
+				decodeURIComponent(bookmarklet('https://seilide.app').slice('javascript:'.length))
+			)(
+				{
+					querySelector: (s: string) => els[s] ?? null,
+					querySelectorAll: () => [
+						{ textContent: JSON.stringify({ '@type': 'Product', name: 'Camiseta', offers }) }
+					],
+					title: 'x'
+				},
+				{ href: 'https://www.nbastore.eu/es/x' },
+				{ open: (u: string) => (opened = u) }
+			);
+			return new URL(opened).searchParams.get('precio');
+		};
+		expect(run()).toBe('113.26 £');
+		// Not in the first offer, but in another's specification.
+		offers.push({ priceSpecification: { price: 99.5, priceCurrency: 'EUR' } });
+		expect(run()).toBe('99.5 €');
+	});
+
+	test('made to measure: the price in the button that adds it to the cart', () => {
+		const button = (textContent: string, shown = true) => ({
+			textContent,
+			getClientRects: () => (shown ? [{}] : [])
+		});
+		const run = (buttons: unknown[]) => {
+			let opened = '';
+			new Function(
+				'document',
+				'location',
+				'window',
+				decodeURIComponent(bookmarklet('https://seilide.app').slice('javascript:'.length))
+			)(
+				{
+					querySelector: (s: string) =>
+						s.includes('"product:price:amount"') ? { content: '58.54' } : null,
+					querySelectorAll: (s: string) => (s.startsWith('button') ? buttons : []),
+					title: 'Composition 8'
+				},
+				{ href: 'https://www.topartprint.com/x' },
+				{ open: (u: string) => (opened = u) }
+			);
+			return new URL(opened).searchParams.get('precio');
+		};
+		const add = '\n  Add to Cart\n  €84.20\n';
+		expect(run([button('Buscar'), button(add)])).toBe('€84.20');
+		expect(run([button('Añadir a la cesta 1.084,20 €')])).toBe('1.084,20 €');
+		// Another tab's, hidden; not worked out yet; or several: the page's own.
+		expect(run([button('Add to Cart €99', false), button(add)])).toBe('€84.20');
+		expect(run([button('Add to Cart €0')])).toBe('58.54 €');
+		expect(run([button(add), button('Add to cart €12')])).toBe('58.54 €');
+	});
+
+	test('run on Steam, from its microdata', () => {
+		const inside = '[itemtype*="schema.org/Product"] ';
+		const els: Record<string, unknown> = {
+			[`${inside}[itemprop="price"]`]: { content: '13,99' },
+			[`${inside}[itemprop="priceCurrency"]`]: { content: 'EUR' }
+		};
+		let opened = '';
+		new Function(
+			'document',
+			'location',
+			'window',
+			decodeURIComponent(bookmarklet('https://seilide.app').slice('javascript:'.length))
+		)(
+			{
+				querySelector: (s: string) => els[s] ?? null,
+				querySelectorAll: () => [],
+				title: 'Stardew Valley en Steam'
+			},
+			{ href: 'https://store.steampowered.com/app/413150/Stardew_Valley/' },
+			{ open: (u: string) => (opened = u) }
+		);
+		expect(new URL(opened).searchParams.get('precio')).toBe('13,99 €');
 	});
 
 	test('run on another shop, from its schema.org Product', () => {

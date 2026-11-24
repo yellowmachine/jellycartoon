@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
-	import { priceText, type WishCard } from '#lib/wishes.ts';
+	import { priceChangeText, priceText, type WishCard } from '#lib/wishes.ts';
 
 	/**
 	 * A wish proposed by the AI in Preguntar (#586): a pasted link, read, and «Añadir» into whose list,
@@ -73,7 +73,9 @@
 		<p class="text-sm text-zinc-400">{card.shop}{price ? ` · ${price}` : ''}</p>
 		{#if there}
 			<p class="mt-1 text-sm text-emerald-400">
-				✓ {card.added ? 'Añadido' : 'Ya estaba'} en la lista de {card.personName}
+				✓ {card.added ? 'Añadido' : 'Ya estaba'} en la lista de {card.personName}{card.change
+					? `: ${priceChangeText(card.change)}`
+					: ''}
 			</p>
 			<a
 				href="/deseos?persona={card.personId}&ya={there}"

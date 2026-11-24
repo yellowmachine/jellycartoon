@@ -27,7 +27,12 @@ export interface Page {
 	text: string;
 	/** Its <meta> by property or name, the first of each (a shop's `product:price:amount`). */
 	meta: Record<string, string>;
+	/** The first price of a schema.org Product written as microdata (Steam's), as it says it. */
+	microdata: { price: string | null; currency: string | null };
 }
+
+/** An itemprop inside a Product's microdata. */
+const inProduct = (prop: string) => `[itemtype*="schema.org/Product"] [itemprop="${prop}"]`;
 
 const MAX_TEXT = 30_000;
 
@@ -40,6 +45,10 @@ export async function readPage(html: string): Promise<Page> {
 	let skipping = 0;
 	const text: string[] = [];
 	let textLength = 0;
+
+	let price: string | null = null;
+	let inPrice = false;
+	let currency: string | null = null;
 
 	// One handler per element: a second onEndTag on the same one replaces the first.
 	const rewriter = new HTMLRewriter()
@@ -65,6 +74,22 @@ export async function readPage(html: string): Promise<Page> {
 				const key = el.getAttribute('property') ?? el.getAttribute('name');
 				const content = el.getAttribute('content');
 				if (key && content && !(key in meta)) meta[key] = content;
+			}
+		})
+		.on(`${inProduct('price')}, ${inProduct('lowPrice')}`, {
+			element(el) {
+				// Without `content`, the price is its text. (No onEndTag: <meta> has no end.)
+				inPrice = price === null;
+				if (inPrice) price = el.getAttribute('content')?.trim() ?? '';
+				if (price) inPrice = false;
+			},
+			text(chunk) {
+				if (inPrice && price !== null && price.length < 40) price += chunk.text;
+			}
+		})
+		.on(inProduct('priceCurrency'), {
+			element(el) {
+				currency ??= el.getAttribute('content')?.trim() || null;
 			}
 		})
 		.on('title', {
@@ -104,7 +129,8 @@ export async function readPage(html: string): Promise<Page> {
 		title: clean(meta['og:title'] || title) || null,
 		imageUrl: meta['og:image'] || null,
 		text: decode(text.join('')).replace(/\s+/g, ' ').trim().slice(0, MAX_TEXT),
-		meta
+		meta,
+		microdata: { price: clean(price) || null, currency }
 	};
 }
 

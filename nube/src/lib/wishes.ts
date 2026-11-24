@@ -144,6 +144,8 @@ export interface WishCard {
 	personName: string;
 	added: number | null;
 	already: number | null;
+	/** `already`: what it did to its price. */
+	change?: PriceChange | null;
 }
 
 /**
@@ -166,13 +168,86 @@ export function priceFromText(text: string | null | undefined) {
 	return { cents, currency };
 }
 
+/** A price as a wish keeps it. */
+export interface Price {
+	cents: number;
+	currency: string | null;
+}
+
+/** Who said a price, from the one that counts least: a later one is not replaced by an earlier one. */
+export const PRICE_SOURCES = ['servidor', 'marcador', 'mano'] as const;
+export type PriceSource = (typeof PRICE_SOURCES)[number];
+
+/**
+ * What adding a product again did to its price in the list: `before` null, it had none; `kept`, it
+ * stays as it was (by hand, or by the bookmark), though now another is read.
+ */
+export interface PriceChange {
+	before: Price | null;
+	now: Price;
+	kept?: boolean;
+}
+
+/** «precio actualizado, de 19,99 € a 13,99 €», after «Ya estaba en la lista». */
+export function priceChangeText({ before, now, kept }: PriceChange) {
+	const to = priceText(now.cents, now.currency);
+	const from = before && priceText(before.cents, before.currency);
+	if (!from) return `ahora con precio, ${to}`;
+	if (from === to) return `sigue a ${to}`;
+	return kept
+		? `ahora se lee ${to}; se queda en ${from}`
+		: `precio actualizado, de ${from} a ${to}`;
+}
+
+/** The same in an address (`1999EUR-1399EUR`, `-1399EUR`), and back; null if it is not one. */
+export const priceChangeParam = ({ before, now, kept }: PriceChange) =>
+	[before, now].map((p) => (p ? `${p.cents}${p.currency ?? ''}` : '')).join('-') +
+	(kept ? '-k' : '');
+export function readPriceChange(param: string | null): PriceChange | null {
+	const m = param?.match(/^(?:(\d{1,8})([A-Z]{3})?)?-(\d{1,8})([A-Z]{3})?(-k)?$/);
+	if (!m) return null;
+	return {
+		before: m[1] ? { cents: Number(m[1]), currency: m[2] ?? null } : null,
+		now: { cents: Number(m[3]), currency: m[4] ?? null },
+		...(m[5] ? { kept: true } : {})
+	};
+}
+
+/**
+ * «5 productos · 3 con precio, 120,50 €»: how many, and what those with a price cost together (each
+ * currency on its own). Some picked `of` a list: «3 de 8 productos · …».
+ */
+export function wishesSummary(
+	list: { priceCents: number | null; currency: string | null }[],
+	of?: number
+) {
+	const count = `${of === undefined ? list.length : `${list.length} de ${of}`} ${(of ?? list.length) === 1 ? 'producto' : 'productos'}`;
+	if (!list.length) return count;
+	const sums = new Map<string, number>();
+	let priced = 0;
+	for (const w of list) {
+		if (w.priceCents === null) continue;
+		priced++;
+		const currency = w.currency || 'EUR';
+		sums.set(currency, (sums.get(currency) ?? 0) + w.priceCents);
+	}
+	if (!priced) return `${count} · sin precio`;
+	const total = [...sums].map(([currency, cents]) => priceText(cents, currency)).join(' + ');
+	return priced === list.length
+		? `${count} · ${total}`
+		: `${count} · ${priced} con precio, ${total}`;
+}
+
 /**
  * The bookmark for a computer's browser (#586): run on a shop's page, it reads what the browser
- * already shows (the page's schema.org Product and og:… tags; Amazon's own title, price and
- * picture) and opens Seilide's question of a shared link with it. Nothing is read by the server: a
- * shop that blocks servers (Amazon) is read by the person's own browser.
+ * already shows (the page's schema.org Product, as JSON-LD or microdata, and its price tags;
+ * Amazon's own title, price and picture) and opens Seilide's question of a shared link with it.
+ * The price in the button that adds it to the cart goes first: of a product made to measure, it is
+ * the one of what was chosen, and the others the cheapest's; unless several such buttons say
+ * different ones (a list of other products). Nothing is read by the server: a shop that blocks
+ * servers (Amazon) is read by the person's own browser.
  */
 export function bookmarklet(origin: string) {
-	const code = `(()=>{const q=s=>document.querySelector(s),m=n=>q('meta[property="'+n+'"],meta[name="'+n+'"]')?.content,t=e=>e?.textContent?.trim();let p=null;for(const s of document.querySelectorAll('script[type="application/ld+json"]')){try{const w=[JSON.parse(s.textContent)];while(w.length&&!p){const n=w.shift();if(Array.isArray(n))w.push(...n);else if(n&&typeof n==='object'){const y=[].concat(n['@type']);if(y.includes('Product'))p=n;else if(n['@graph'])w.push(n['@graph'])}}}catch(e){}if(p)break}const o=p&&[].concat(p.offers||[])[0],i=p&&[].concat(p.image||[])[0],g=q('#landingImage'),d={url:location.href,titulo:t(q('#productTitle'))||p?.name||m('og:title')||document.title,precio:t(q('.a-price .a-offscreen'))||(o&&(o.price||o.lowPrice)?(o.price||o.lowPrice)+' '+(o.priceCurrency==='USD'?'$':o.priceCurrency==='GBP'?'£':'€'):m('product:price:amount')||''),foto:g?.dataset?.oldHires||(g?.dataset?.aDynamicImage&&Object.keys(JSON.parse(g.dataset.aDynamicImage))[0])||(typeof i==='string'?i:i?.url)||m('og:image')||''};for(const k in d)d[k]=String(d[k]||'').slice(0,2000);window.open(${JSON.stringify(origin)}+'/compartido/enlace?'+new URLSearchParams(d))})()`;
+	const code = `(()=>{const q=s=>document.querySelector(s),m=n=>q('meta[property="'+n+'"],meta[name="'+n+'"]')?.content,t=e=>e?.textContent?.trim();let p=null;for(const s of document.querySelectorAll('script[type="application/ld+json"]')){try{const w=[JSON.parse(s.textContent)];while(w.length&&!p){const n=w.shift();if(Array.isArray(n))w.push(...n);else if(n&&typeof n==='object'){const y=[].concat(n['@type']);if(y.includes('Product'))p=n;else if(n['@graph'])w.push(n['@graph'])}}}catch(e){}if(p)break}const of=n=>n&&(n.price||n.lowPrice),o=p&&[].concat(p.offers||[]).flatMap(n=>[n,...[].concat(n?.priceSpecification||[])]).find(of),i=p&&[].concat(p.image||[])[0],g=q('#landingImage'),x=n=>{const e=q('[itemtype*="schema.org/Product"] [itemprop="'+n+'"]');return e?.content||t(e)||''},u=x('price')||x('lowPrice'),b=[...new Set([...document.querySelectorAll('button,[role="button"],input[type="submit"]')].filter(e=>e.getClientRects?.().length).map(e=>(e.textContent||e.value||'').replace(/\\s+/g,' ').trim()).filter(s=>s.length<80&&/add to (cart|bag|basket)|(añadir|agregar) (al|a la|a tu) (carrito|cesta|bolsa)|comprar/i.test(s)).map(s=>s.match(/[€$£] ?\\d[\\d.,]*|\\d[\\d.,]* ?[€$£]/)?.[0]).filter(s=>s&&/[1-9]/.test(s)))],w2=(n,c)=>!n?'':/[€$£]/.test(n)?n:n+' '+(c==='USD'?'$':c==='GBP'?'£':'€'),d={url:location.href,titulo:t(q('#productTitle'))||p?.name||m('og:title')||document.title,precio:t(q('.a-price .a-offscreen'))||(b.length===1?b[0]:'')||(of(o)?w2(of(o),o.priceCurrency):w2(m('product:price:amount'),m('product:price:currency'))||w2(m('og:price:amount'),m('og:price:currency'))||w2(u,x('priceCurrency'))),foto:g?.dataset?.oldHires||(g?.dataset?.aDynamicImage&&Object.keys(JSON.parse(g.dataset.aDynamicImage))[0])||(typeof i==='string'?i:i?.url)||m('og:image')||''};for(const k in d)d[k]=String(d[k]||'').slice(0,2000);window.open(${JSON.stringify(origin)}+'/compartido/enlace?'+new URLSearchParams(d))})()`;
 	return `javascript:${encodeURIComponent(code)}`;
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { priceChangeText, readPriceChange, type PriceChange } from '#lib/wishes.ts';
 	import { onDestroy } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
@@ -27,7 +28,7 @@
 	});
 	let saving = $state(false);
 	/** Kept from the computer's bookmark: its list, said for a moment before the tab closes. */
-	let kept = $state<{ list: string; already: boolean } | null>(null);
+	let kept = $state<{ list: string; already: boolean; change: PriceChange | null } | null>(null);
 	/** Seconds until it closes, counted down on its button. */
 	let left = $state(6);
 	let closing: ReturnType<typeof setTimeout> | undefined;
@@ -43,7 +44,12 @@
 	 * here, so on to the list as always.
 	 */
 	function keptFromBookmark(list: string) {
-		kept = { list, already: new URL(list, location.href).searchParams.has('ya') };
+		const params = new URL(list, location.href).searchParams;
+		kept = {
+			list,
+			already: params.has('ya'),
+			change: readPriceChange(params.get('precio'))
+		};
 		countDown();
 	}
 
@@ -71,7 +77,9 @@
 		<!-- Only this is announced: not each second of the count. -->
 		<div role="status">
 			<p class="text-lg font-semibold">
-				{kept.already ? 'Ya estaba en la lista de deseos' : 'Añadido a la lista de deseos'}
+				{kept.already
+					? 'Ya estaba en la lista de deseos'
+					: 'Añadido a la lista de deseos'}{kept.change ? `: ${priceChangeText(kept.change)}` : ''}
 			</p>
 			<p class="mb-3 text-sm text-zinc-300">
 				Esta pestaña se cierra sola y vuelves a la tienda. Si prefieres quedarte en Seilide, pulsa

@@ -9,7 +9,7 @@ import {
 	productFromBrowser,
 	readProduct
 } from '#lib/server/wishes.ts';
-import { knownShop, priceText } from '#lib/wishes.ts';
+import { knownShop, priceChangeParam, priceText } from '#lib/wishes.ts';
 
 /**
  * A link shared with Seilide that is not a map's nor its own (#586): into someone's wishes, a
@@ -72,7 +72,7 @@ export const actions: Actions = {
 		redirect(
 			303,
 			'already' in done
-				? `/deseos?persona=${personId}&ya=${done.already}`
+				? `/deseos?persona=${personId}&ya=${done.already}${done.change ? `&precio=${priceChangeParam(done.change)}` : ''}`
 				: `/deseos?persona=${personId}`
 		);
 	}

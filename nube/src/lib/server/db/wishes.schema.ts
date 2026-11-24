@@ -43,6 +43,13 @@ export const wish = pgTable(
 		/** As the page said it, in cents of `currency`; null, not said. */
 		priceCents: integer('price_cents'),
 		currency: text('currency'),
+		/**
+		 * Who said it: the page read by the server, the computer's bookmark (what was chosen of a
+		 * product made to measure), or written by hand. One is not replaced by an earlier one here.
+		 */
+		priceSource: text('price_source', { enum: ['servidor', 'marcador', 'mano'] })
+			.notNull()
+			.default('servidor'),
 		/** When that price was seen: it changes, and is not watched. */
 		priceAt: timestamp('price_at'),
 		/** A size, a colour: what the shop's page does not say. */

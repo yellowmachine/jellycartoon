@@ -16,6 +16,10 @@ import {
 	shopOf,
 	WISH_PRIORITIES,
 	WISH_PRIORITY_LABELS,
+	PRICE_SOURCES,
+	type Price,
+	type PriceChange,
+	type PriceSource,
 	type WishCard,
 	type WishPriority
 } from '#lib/wishes.ts';
@@ -39,6 +43,8 @@ export interface Product {
 	imageUrl: string | null;
 	priceCents: number | null;
 	currency: string | null;
+	/** Who read it; not said, the server. */
+	priceSource?: PriceSource;
 }
 
 /** A link's address, or null: http(s) only, without its #. */
@@ -137,15 +143,18 @@ export function centsOf(value: unknown): number | null {
 	return cents > 0 && cents < 100_000_000 ? cents : null;
 }
 
-/** A Product's offers: one, a list, or an AggregateOffer with its lowest price. */
+/** A Product's first price: in its offers (one, a list, an AggregateOffer), or their specification. */
 function priceOf(product: Record<string, unknown>) {
-	const offers = Array.isArray(product.offers) ? product.offers[0] : product.offers;
-	if (!offers || typeof offers !== 'object') return null;
-	const o = offers as Record<string, unknown>;
-	const cents = centsOf(o.price) ?? centsOf(o.lowPrice);
-	return cents === null
-		? null
-		: { cents, currency: typeof o.priceCurrency === 'string' ? o.priceCurrency : null };
+	const nodes = (v: unknown) =>
+		[v].flat().filter((n): n is Record<string, unknown> => Boolean(n) && typeof n === 'object');
+	for (const offer of nodes(product.offers))
+		for (const o of [offer, ...nodes(offer.priceSpecification)]) {
+			const cents = centsOf(o.price) ?? centsOf(o.lowPrice);
+			if (cents === null) continue;
+			const currency = o.priceCurrency ?? offer.priceCurrency;
+			return { cents, currency: typeof currency === 'string' ? currency : null };
+		}
+	return null;
 }
 
 /**
@@ -188,6 +197,9 @@ export async function readProduct(address: string, shared: string | null): Promi
 	const metaCents = read
 		? centsOf(read.meta['product:price:amount'] ?? read.meta['og:price:amount'])
 		: null;
+	// Its microdata: «13,99» in its attribute, or «13,99 €» as its text.
+	const said = read?.microdata.price ?? null;
+	const microCents = centsOf(said) ?? priceFromText(said)?.cents ?? null;
 	const pageTitle = tidyTitle(clean(product?.name) || read?.title || '');
 	const title =
 		(pageTitle && (product || !onlySiteName(pageTitle, url)) ? pageTitle : '') ||
@@ -202,12 +214,14 @@ export async function readProduct(address: string, shared: string | null): Promi
 		shop: shopOf(url),
 		title,
 		imageUrl: (product && imageOf(product.image, url)) ?? imageOf(read?.imageUrl, url),
-		priceCents: offer?.cents ?? metaCents,
+		priceCents: offer?.cents ?? metaCents ?? microCents,
 		currency:
 			offer?.currency ??
 			(metaCents !== null
 				? (read?.meta['product:price:currency'] ?? read?.meta['og:price:currency'] ?? null)
-				: null)
+				: microCents !== null
+					? (read?.microdata.currency ?? priceFromText(said)?.currency ?? null)
+					: null)
 	};
 }
 
@@ -340,7 +354,9 @@ async function wishPerson(k: Kitchen, id: number) {
 
 /**
  * A product into that person's list: `added`; `refused` if the one looking may not write in it;
- * `already`, with the one there, if the same product (by its key) is in that list.
+ * `already`, with the one there, if the same product (by its key) is in that list: its price
+ * brought up to date if it was read now (`change`), and its picture if it had none; not its name or
+ * note, which may have been corrected.
  */
 export async function addWish(
 	k: Kitchen,
@@ -349,11 +365,15 @@ export async function addWish(
 	personId: number,
 	product: Product,
 	note: string | null
-): Promise<{ added: number } | { refused: true } | { already: number }> {
-	if (!(await writesIn(k, userId, kid, personId))) return { refused: true };
+): Promise<
+	{ added: number } | { refused: true } | { already: number; change: PriceChange | null }
+> {
+	const { people } = await viewer(k, userId, kid);
+	const person = people.find((p) => p.id === String(personId) && p.writes);
+	if (!person) return { refused: true };
 	return k.run(async (tx) => {
 		const [there] = await tx
-			.select({ id: wish.id })
+			.select()
 			.from(wish)
 			.where(
 				and(
@@ -363,7 +383,41 @@ export async function addWish(
 					or(isNull(wish.boughtOn), isNull(wish.boughtBy), ne(wish.boughtBy, userId))
 				)
 			);
-		if (there) return { already: there.id };
+		if (there) {
+			// Bought: as it was noted. Not so for the person it is for, who must not learn it was.
+			if (there.boughtOn && !person.me) return { already: there.id, change: null };
+			const now =
+				product.priceCents === null
+					? null
+					: { cents: product.priceCents, currency: product.currency };
+			const rank = (s: PriceSource) => PRICE_SOURCES.indexOf(s);
+			// By hand, or by the bookmark: not replaced by what the page says to the server.
+			const source = product.priceSource ?? 'servidor';
+			const kept = there.priceCents !== null && rank(source) < rank(there.priceSource);
+			const set = {
+				...(now && !kept
+					? {
+							priceCents: now.cents,
+							currency: now.currency,
+							priceSource: source,
+							priceAt: new Date()
+						}
+					: {}),
+				...(!there.imageUrl && product.imageUrl ? { imageUrl: product.imageUrl } : {})
+			};
+			if (Object.keys(set).length) await tx.update(wish).set(set).where(eq(wish.id, there.id));
+			return {
+				already: there.id,
+				change: now && {
+					before:
+						there.priceCents === null
+							? null
+							: { cents: there.priceCents, currency: there.currency },
+					now,
+					...(kept ? { kept } : {})
+				}
+			};
+		}
 		const [made] = await tx
 			.insert(wish)
 			.values({
@@ -380,24 +434,41 @@ export async function addWish(
 	});
 }
 
-/** Its name and note corrected; false if it is not there or not theirs to write. */
+/** Its name, note and price (not said, as it was; null, none) corrected; false if it is not there or not theirs to write. */
 export async function updateWish(
 	k: Kitchen,
 	userId: string,
 	kid: boolean,
 	id: number,
-	change: { title: string; note: string | null }
+	change: { title: string; note: string | null; price?: Price | null }
 ) {
 	const personId = await wishPerson(k, id);
 	if (personId === null || !(await writesIn(k, userId, kid, personId))) return false;
 	const title = change.title.trim().slice(0, MAX_WISH_TITLE);
 	if (!title) return false;
-	await k.run((tx) =>
-		tx
+	const { price } = change;
+	await k.run(async (tx) => {
+		const [w] = await tx.select().from(wish).where(eq(wish.id, id));
+		// The same one sent back with the form: still said by who said it, then.
+		const same =
+			price === undefined ||
+			(price === null ? w?.priceCents === null : price.cents === w?.priceCents);
+		await tx
 			.update(wish)
-			.set({ title, note: change.note?.trim().slice(0, MAX_WISH_NOTE) || null })
-			.where(eq(wish.id, id))
-	);
+			.set({
+				title,
+				note: change.note?.trim().slice(0, MAX_WISH_NOTE) || null,
+				...(same
+					? {}
+					: {
+							priceCents: price?.cents ?? null,
+							currency: price?.currency ?? null,
+							priceSource: price ? ('mano' as const) : ('servidor' as const),
+							priceAt: price ? new Date() : null
+						})
+			})
+			.where(eq(wish.id, id));
+	});
 	return true;
 }
 
@@ -659,7 +730,8 @@ export async function addWishFromCard(
 		card: {
 			...card,
 			added: 'added' in done ? done.added : null,
-			already: 'already' in done ? done.already : null
+			already: 'already' in done ? done.already : null,
+			change: 'already' in done ? done.change : null
 		}
 	};
 }
@@ -682,6 +754,7 @@ export function productFromBrowser(get: (name: string) => string | null): Produc
 		title,
 		imageUrl: imageOf(get('foto'), link),
 		priceCents: price?.cents ?? null,
-		currency: price?.currency ?? null
+		currency: price?.currency ?? null,
+		priceSource: 'marcador'
 	};
 }
