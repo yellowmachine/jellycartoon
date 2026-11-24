@@ -4,7 +4,7 @@ import { isCategory, isDay, MAX_CENTS, parseEuros } from 'comun/expenses.ts';
 import { lookingSame } from '#lib/server/expenses/duplicates.ts';
 import { addExpense } from '#lib/server/expenses/expenses.ts';
 import { kitchenOf, today } from '#lib/server/fridge.ts';
-import { isWishPriority } from '#lib/wishes.ts';
+import { isWishPriority, priceChangeText, priceFromText } from '#lib/wishes.ts';
 import { isKidAccount } from '#lib/server/kids.ts';
 import {
 	addWish,
@@ -28,6 +28,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const { people, wishes } = await listWishes(await kitchenOf(userId), userId, kid);
 	return { kid, people, wishes, today: today() };
 };
+
+/** Wishes in one «Seleccionar», at most. */
+const MAX_BULK = 200;
 
 const idOf = (form: FormData, key = 'id') => {
 	const n = Number(form.get(key));
@@ -60,7 +63,11 @@ export const actions: Actions = {
 		);
 		if ('refused' in done) return fail(403, { message: 'En esa lista no puedes añadir' });
 		if ('already' in done)
-			return fail(409, { message: 'Ya está en esa lista', already: done.already });
+			return fail(409, {
+				message: 'Ya está en esa lista',
+				already: done.already,
+				change: done.change && priceChangeText(done.change)
+			});
 		return { added: done.added };
 	},
 	update: async ({ request, locals }) => {
@@ -69,9 +76,22 @@ export const actions: Actions = {
 		const id = idOf(form);
 		const title = text(form, 'title') ?? '';
 		if (!id || !title.trim()) return fail(400, { message: 'Falta el nombre' });
+		const said = text(form, 'price');
+		const read = priceFromText(said);
+		if (said?.trim() && !read) return fail(400, { message: 'Ese precio no se entiende: 12,30' });
+		const currency = text(form, 'currency') || 'EUR';
+		const price =
+			said === null
+				? undefined
+				: read && {
+						cents: read.cents,
+						// Its own, unless another is written with it.
+						currency: /[€$£]/.test(said) || !/^[A-Z]{3}$/.test(currency) ? read.currency : currency
+					};
 		const done = await updateWish(await kitchenOf(userId), userId, await isKidAccount(userId), id, {
 			title,
-			note: text(form, 'note')
+			note: text(form, 'note'),
+			price
 		});
 		if (!done) return fail(404, { message: 'Ese deseo ya no está' });
 	},
@@ -173,6 +193,38 @@ export const actions: Actions = {
 		}
 		await setWishExpense(k, userId, id, expense);
 		return { bought: id, expense };
+	},
+	/**
+	 * «Seleccionar»: one thing done to several (`ids`, `op`): for when, given, bought (not into
+	 * Dinero) or removed. Each as alone: what cannot be is left, and said.
+	 */
+	bulk: async ({ request, locals }) => {
+		const userId = locals.user!.id;
+		const form = await request.formData();
+		const ids = [...new Set((text(form, 'ids') ?? '').split(',').map(Number))].filter(
+			(n) => Number.isInteger(n) && n > 0
+		);
+		if (!ids.length || ids.length > MAX_BULK) return fail(400, { message: 'Falta cuáles' });
+		const k = await kitchenOf(userId);
+		const kid = await isKidAccount(userId);
+		const op = form.get('op');
+		const each =
+			op === 'quitar'
+				? (id: number) => deleteWish(k, userId, kid, id)
+				: op === 'regalar'
+					? (id: number) => giveWish(k, userId, kid, id, true)
+					: op === 'comprar'
+						? (id: number) => buyWish(k, userId, kid, id, today())
+						: isWishPriority(op)
+							? (id: number) => setWishPriority(k, userId, kid, id, op)
+							: null;
+		if (!each) return fail(400, { message: 'Falta qué hacer' });
+		let done = 0;
+		for (const id of ids) if (await each(id)) done++;
+		if (done < ids.length)
+			return fail(409, {
+				message: `Hecho en ${done} de ${ids.length}: los demás han cambiado o ya no están`
+			});
 	},
 	unbuy: async ({ request, locals }) => {
 		const userId = locals.user!.id;

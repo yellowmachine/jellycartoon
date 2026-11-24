@@ -1,0 +1,1 @@
+ALTER TABLE "wish" ADD COLUMN "price_source" text DEFAULT 'servidor' NOT NULL;

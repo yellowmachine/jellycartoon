@@ -28,6 +28,16 @@ describe('readPage', () => {
 		expect(read.title).toBe('Macarrones gratinados | Recetas de prueba');
 		expect(read.imageUrl).toBe('https://example.com/og.jpg');
 		expect(read.text).toBe('Macarrones gratinados Un clásico de casa.');
+		expect(read.microdata).toEqual({ price: null, currency: null });
+	});
+
+	test('a Product’s price as microdata, in its attribute or its text; not another’s', async () => {
+		const steam = `<meta itemprop="price" content="1"><div itemscope itemtype="http://schema.org/Product">
+			<div itemprop="offers" itemscope itemtype="http://schema.org/Offer"><meta itemprop="priceCurrency" content="EUR"><meta itemprop="price" content="13,99"></div>
+			<p>Juego</p><meta itemprop="price" content="19,99"></div>`;
+		expect((await readPage(steam)).microdata).toEqual({ price: '13,99', currency: 'EUR' });
+		const text = `<div itemscope itemtype="https://schema.org/Product"><span itemprop="price">29,90&nbsp;€</span><b>9 uds.</b></div>`;
+		expect((await readPage(text)).microdata).toEqual({ price: '29,90 €', currency: null });
 	});
 });
 

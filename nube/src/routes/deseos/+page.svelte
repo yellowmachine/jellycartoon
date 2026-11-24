@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { SvelteSet } from 'svelte/reactivity';
 	import { enhance, type SubmitFunction } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
@@ -10,10 +12,13 @@
 		bookmarklet,
 		MAX_WISH_NOTE,
 		MAX_WISH_TITLE,
+		priceChangeText,
 		priceText,
+		readPriceChange,
 		seenOn,
 		WISH_PRIORITIES,
-		WISH_PRIORITY_LABELS
+		WISH_PRIORITY_LABELS,
+		wishesSummary
 	} from '#lib/wishes.ts';
 	import type { PageProps } from './$types';
 
@@ -88,15 +93,66 @@
 		async ({ update }) =>
 			update({ reset: false });
 	let editing = $state<number | null>(null);
+
+	// ——— «Seleccionar»: to see what some cost together, or to do one thing to all ———
+
+	let selecting = $state(false);
+	const selected = new SvelteSet<number>();
+	function setSelecting(on: boolean) {
+		selecting = on;
+		selected.clear();
+		editing = null;
+	}
+	const picked = (list: typeof shown) => list.filter((w) => selected.has(w.id));
+	/** Only those shown: what a filter hides is not counted, nor touched. */
+	const picks = $derived(picked(shown));
+	const writesOf = (w: (typeof shown)[number]) =>
+		data.people.some((p) => p.id === w.personId && p.writes);
+	const isMine = (w: (typeof shown)[number]) =>
+		data.people.some((p) => p.id === w.personId && p.me);
+	/** Which of them each thing can be done to. */
+	const canWrite = $derived(picks.filter(writesOf));
+	const canBuy = $derived(picks.filter((w) => w.buys));
+	const canGive = $derived(data.kid ? [] : picks.filter((w) => !isMine(w) && !w.gift));
+	const idsOf = (list: typeof shown) => list.map((w) => w.id).join(',');
+	const summary = (list: typeof shown) =>
+		selecting ? wishesSummary(picked(list), list.length) : wishesSummary(list);
+	const bulk: SubmitFunction = () => {
+		problem = null;
+		return async ({ result, update }) => {
+			await update({ reset: true });
+			if (result.type === 'success') selected.clear();
+			// Some done, some not: the list as it is now.
+			else await invalidateAll();
+		};
+	};
 	let problem = $state<string | null>(null);
 	/** The one that was already there when the same product was added again (#586). */
 	let already = $state<number | null>(null);
+	/** And what that did to its price, in words; shared, from the address. */
+	let change = $state<string | null>(null);
+	const sharedChange = $derived(readPriceChange(page.url.searchParams.get('precio')));
 	const shownAlready = $derived(already ?? (Number(page.url.searchParams.get('ya')) || null));
 	$effect(() => {
 		if (shownAlready)
 			document.getElementById(`deseo-${shownAlready}`)?.scrollIntoView({ block: 'center' });
 	});
 </script>
+
+{#snippet all(list: PageProps['data']['wishes'])}
+	{#if selecting}
+		{@const every = list.every((w) => selected.has(w.id))}
+		<button
+			type="button"
+			class="mb-3 text-sm text-amber-400 hover:underline"
+			onclick={() => {
+				for (const w of list)
+					if (every) selected.delete(w.id);
+					else selected.add(w.id);
+			}}>{every ? 'Ninguno' : 'Todos'}</button
+		>
+	{/if}
+{/snippet}
 
 {#snippet cards(list: PageProps['data']['wishes'])}
 	<ul class="grid gap-4 sm:grid-cols-2">
@@ -106,14 +162,29 @@
 			{@const forMe = data.people.some((p) => p.id === w.personId && p.me)}
 			<li
 				id="deseo-{w.id}"
-				class="flex gap-3 rounded-lg border bg-zinc-900 p-3 {shownAlready === w.id
+				class="relative flex gap-3 rounded-lg border bg-zinc-900 p-3 {shownAlready === w.id ||
+				(selecting && selected.has(w.id))
 					? 'border-amber-500'
 					: w.priority === 'primero'
 						? 'border-amber-500/50'
 						: 'border-zinc-800'}"
 			>
+				{#if selecting}
+					<!-- The whole card is the checkbox; what is under it, out of reach meanwhile. -->
+					<label class="absolute inset-0 z-10 cursor-pointer rounded-lg p-2 text-right">
+						<input
+							type="checkbox"
+							checked={selected.has(w.id)}
+							onchange={(e) =>
+								e.currentTarget.checked ? selected.add(w.id) : selected.delete(w.id)}
+							class="h-5 w-5 rounded border-zinc-500 bg-zinc-950 text-amber-500 focus:ring-amber-400"
+						/>
+						<span class="sr-only">{w.title}{price ? `, ${price}` : ''}</span>
+					</label>
+				{/if}
 				<a
 					href={w.url}
+					inert={selecting}
 					target="_blank"
 					rel="noopener noreferrer"
 					class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white"
@@ -132,7 +203,7 @@
 						<SectionIcon name="deseos" class="h-10 w-10 text-zinc-400" />
 					{/if}
 				</a>
-				<div class="min-w-0 flex-1">
+				<div class="min-w-0 flex-1" class:pr-6={selecting} inert={selecting}>
 					{#if editing === w.id}
 						<form
 							method="post"
@@ -161,6 +232,18 @@
 								aria-label="Nota"
 								class="{field} py-1 text-sm"
 							/>
+							<input type="hidden" name="currency" value={w.currency ?? ''} />
+							<input
+								name="price"
+								value={w.priceCents === null
+									? ''
+									: (w.priceCents / 100).toFixed(2).replace('.', ',')}
+								inputmode="decimal"
+								maxlength="20"
+								placeholder="Precio: 12,30"
+								aria-label="Precio{w.currency && w.currency !== 'EUR' ? ` (${w.currency})` : ''}"
+								class="{field} py-1 text-sm"
+							/>
 							<div class="flex gap-2">
 								<button class={primary}>Guardar</button>
 								<button type="button" class={secondary} onclick={() => (editing = null)}
@@ -184,7 +267,10 @@
 								· {nameOf(w.personId)}{/if}
 						</p>
 						{#if w.note}<p class="text-sm text-zinc-300">{w.note}</p>{/if}
-						<div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+						<div
+							class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm"
+							class:hidden={selecting}
+						>
 							{#if w.gift?.mine}
 								<span class="text-emerald-400">Lo regalas tú</span>
 								<form method="post" action="?/give" use:enhance>
@@ -268,12 +354,16 @@
 			return async ({ result, update }) => {
 				adding = false;
 				already = null;
+				change = null;
 				if (result.type === 'failure') {
 					problem = String(result.data?.message ?? 'No se pudo añadir');
 					if (typeof result.data?.already === 'number') already = result.data.already;
+					change = typeof result.data?.change === 'string' ? result.data.change : null;
 				} else if (result.type === 'error') problem = 'No se pudo añadir';
 				else address = '';
 				await update({ reset: false });
+				// Its price may be another now: a failure does not bring the list again.
+				if (change) await invalidateAll();
 			};
 		}}
 	>
@@ -304,10 +394,12 @@
 	</form>
 {/if}
 {#if shownAlready && !problem}
-	<p class="mb-4 text-sm text-amber-300" role="status">Ya estaba en la lista: es este.</p>
+	<p class="mb-4 text-sm text-amber-300" role="status">
+		Ya estaba en la lista: es este{sharedChange ? `, ${priceChangeText(sharedChange)}` : ''}.
+	</p>
 {:else if problem ?? form?.message}
 	<p class="mb-4 text-sm {already ? 'text-amber-300' : 'text-red-400'}" role="alert">
-		{problem ?? form?.message}{already ? ': es este.' : ''}
+		{problem ?? form?.message}{already ? `: es este${change ? `, ${change}` : ''}.` : ''}
 	</p>
 {/if}
 
@@ -337,6 +429,18 @@
 			>
 		{/each}
 	</nav>
+{/if}
+
+{#if shown.length}
+	<div class="mb-4 flex justify-end">
+		<button
+			type="button"
+			class={secondary}
+			aria-pressed={selecting}
+			onclick={() => setSelecting(!selecting)}
+			>{selecting ? 'Dejar de seleccionar' : 'Seleccionar'}</button
+		>
+	</div>
 {/if}
 
 {#if justBought}
@@ -369,6 +473,8 @@
 {:else}
 	{#each sections as s (s.priority)}
 		{#if !titled}
+			<p class="mb-3 text-sm text-zinc-400">{summary(s.list)}</p>
+			{@render all(s.list)}
 			{@render cards(s.list)}
 		{:else if s.priority === 'mas_adelante'}
 			<!-- Folded, unless there is nothing else, or the one looked for is in it. -->
@@ -377,17 +483,87 @@
 				open={sections.length === 1 || s.list.some((w) => w.id === shownAlready)}
 			>
 				<summary class="cursor-pointer font-semibold">
-					{WISH_PRIORITY_LABELS[s.priority]} <span class="text-zinc-400">{s.list.length}</span>
+					{WISH_PRIORITY_LABELS[s.priority]}
+					<span class="text-sm font-normal text-zinc-400">{summary(s.list)}</span>
 				</summary>
-				<div class="mt-3">{@render cards(s.list)}</div>
+				<div class="mt-3">
+					{@render all(s.list)}
+					{@render cards(s.list)}
+				</div>
 			</details>
 		{:else}
 			<section class="mt-6 first:mt-0">
-				<h2 class="mb-3 font-semibold">{WISH_PRIORITY_LABELS[s.priority]}</h2>
+				<h2 class="mb-3 font-semibold">
+					{WISH_PRIORITY_LABELS[s.priority]}
+					<span class="text-sm font-normal text-zinc-400">{summary(s.list)}</span>
+				</h2>
+				{@render all(s.list)}
 				{@render cards(s.list)}
 			</section>
 		{/if}
 	{/each}
+{/if}
+
+{#if selecting && shown.length}
+	<!-- Over the cards while choosing. Room at its right for the call button (#330). -->
+	<div
+		class="sticky bottom-0 z-20 mt-6 rounded-t-lg border border-b-0 border-zinc-700 bg-zinc-900 py-3 pr-20 pl-4"
+	>
+		<p class="mb-2 font-semibold tabular-nums" role="status">
+			{wishesSummary(picks, shown.length)}
+		</p>
+		{#if form?.message && !problem}
+			<p class="mb-2 text-sm text-red-400" role="alert">{form.message}</p>
+		{/if}
+		<div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+			{#if canWrite.length}
+				<form method="post" action="?/bulk" use:enhance={bulk}>
+					<input type="hidden" name="ids" value={idsOf(canWrite)} />
+					<select
+						name="op"
+						aria-label="Para cuándo"
+						class={select}
+						onchange={(e) => e.currentTarget.value && e.currentTarget.form?.requestSubmit()}
+					>
+						<option value="">Para cuándo ({canWrite.length})…</option>
+						{#each WISH_PRIORITIES as p (p)}
+							<option value={p}>{WISH_PRIORITY_LABELS[p]}</option>
+						{/each}
+					</select>
+				</form>
+			{/if}
+			{#if canGive.length}
+				<form method="post" action="?/bulk" use:enhance={bulk}>
+					<input type="hidden" name="ids" value={idsOf(canGive)} />
+					<button name="op" value="regalar" class="text-amber-400 hover:underline"
+						>Los regalo yo ({canGive.length})</button
+					>
+				</form>
+			{/if}
+			{#if canBuy.length}
+				<form method="post" action="?/bulk" use:enhance={bulk}>
+					<input type="hidden" name="ids" value={idsOf(canBuy)} />
+					<button
+						name="op"
+						value="comprar"
+						class="text-zinc-300 hover:underline"
+						title="Con fecha de hoy, sin añadirlos a Dinero"
+						>Marcar como comprados ({canBuy.length})</button
+					>
+				</form>
+			{/if}
+			{#if canWrite.length}
+				<ConfirmForm
+					action="?/bulk"
+					fields={{ ids: idsOf(canWrite), op: 'quitar' }}
+					label="Quitar ({canWrite.length})"
+					question="¿Quitar {canWrite.length} de la lista?"
+					yes="Sí, quitar"
+					class="text-zinc-300 hover:underline"
+				/>
+			{/if}
+		</div>
+	</div>
 {/if}
 
 {#if bought.length}
@@ -496,8 +672,10 @@
 					pidan en un mensaje o en una web.
 				</li>
 				<li>
-					Este solo lee el nombre, la foto, el precio y la dirección del producto y abre Seilide con
-					ellos. Su código se puede ver con el botón derecho sobre el marcador → Editar.
+					Este lee el nombre, la foto, el precio y la dirección del producto y abre Seilide con
+					ellos. También recoge el texto visible del producto y las opciones elegidas (nunca lo que
+					escribes), que no salen de tu ordenador si no pulsas «Analizar con IA». Su código se puede
+					ver con el botón derecho sobre el marcador → Editar.
 				</li>
 			</ul>
 		</div>

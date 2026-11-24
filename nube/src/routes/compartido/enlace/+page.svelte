@@ -1,9 +1,21 @@
 <script lang="ts">
+	import {
+		cleanPageText,
+		MAX_WISH_NOTE,
+		MAX_WISH_TITLE,
+		priceChangeText,
+		readPageText,
+		readPriceChange,
+		type PriceChange
+	} from '#lib/wishes.ts';
 	import { onDestroy } from 'svelte';
-	import { enhance } from '$app/forms';
-	import { goto } from '$app/navigation';
+	import { untrack } from 'svelte';
+	import { enhance, type SubmitFunction } from '$app/forms';
+	import { afterNavigate, goto, replaceState } from '$app/navigation';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
-	import { primary, secondary, select } from '#lib/styles.ts';
+	import { field, primary, secondary, select } from '#lib/styles.ts';
+	import Espera from '#lib/components/Espera.svelte';
+	import type { WishAnalysis } from '#lib/server/wish-analysis.ts';
 	import type { PageProps } from './$types';
 
 	/**
@@ -26,8 +38,47 @@
 		if (!forWhom) forWhom = data.people.find((p) => p.me)?.id ?? data.people[0]?.id ?? '';
 	});
 	let saving = $state(false);
+
+	// ——— From the bookmark: what it read, to correct; and «Analizar con IA» ———
+
+	let title = $state(untrack(() => data.read?.title ?? ''));
+	let price = $state(untrack(() => (data.read?.price && data.read.precio) || ''));
+	let note = $state('');
+	/** The page's text, after the #: here only, until «Analizar con IA» sends it. */
+	let pageText = $state<string | null>(null);
+	let analyzing = $state(false);
+	/** What the AI said, or why not. */
+	let analyzed = $state<string | null>(null);
+	afterNavigate(() => {
+		const text = readPageText(location.hash);
+		if (!text) return;
+		pageText = cleanPageText(text);
+		// Out of the address, so it does not stay in it.
+		replaceState(location.pathname + location.search, {});
+	});
+	const analyze: SubmitFunction = () => {
+		analyzing = true;
+		analyzed = null;
+		return async ({ result }) => {
+			analyzing = false;
+			if (result.type !== 'success') {
+				analyzed =
+					result.type === 'failure'
+						? String(result.data?.message ?? 'La IA no ha podido leerla')
+						: 'La IA no ha podido leerla';
+				return;
+			}
+			const a = result.data?.analysis as WishAnalysis;
+			if (a.title) title = a.title;
+			if (a.price) price = a.price;
+			if (a.options) note = a.options;
+			analyzed = a.price
+				? 'Leído por la IA: compruébalo antes de guardar.'
+				: 'Leído por la IA, sin encontrar un precio claro: compruébalo antes de guardar.';
+		};
+	};
 	/** Kept from the computer's bookmark: its list, said for a moment before the tab closes. */
-	let kept = $state<{ list: string; already: boolean } | null>(null);
+	let kept = $state<{ list: string; already: boolean; change: PriceChange | null } | null>(null);
 	/** Seconds until it closes, counted down on its button. */
 	let left = $state(6);
 	let closing: ReturnType<typeof setTimeout> | undefined;
@@ -43,7 +94,12 @@
 	 * here, so on to the list as always.
 	 */
 	function keptFromBookmark(list: string) {
-		kept = { list, already: new URL(list, location.href).searchParams.has('ya') };
+		const params = new URL(list, location.href).searchParams;
+		kept = {
+			list,
+			already: params.has('ya'),
+			change: readPriceChange(params.get('precio'))
+		};
 		countDown();
 	}
 
@@ -65,13 +121,17 @@
 
 <svelte:head><title>Enlace compartido</title></svelte:head>
 
+{#if analyzing}<Espera>La IA está leyendo la página…</Espera>{/if}
+
 {#if kept}
 	{@const list = kept.list}
 	<div class="mb-6 rounded-lg border border-emerald-500/60 bg-emerald-500/10 p-4">
 		<!-- Only this is announced: not each second of the count. -->
 		<div role="status">
 			<p class="text-lg font-semibold">
-				{kept.already ? 'Ya estaba en la lista de deseos' : 'Añadido a la lista de deseos'}
+				{kept.already
+					? 'Ya estaba en la lista de deseos'
+					: 'Añadido a la lista de deseos'}{kept.change ? `: ${priceChangeText(kept.change)}` : ''}
 			</p>
 			<p class="mb-3 text-sm text-zinc-300">
 				Esta pestaña se cierra sola y vuelves a la tienda. Si prefieres quedarte en Seilide, pulsa
@@ -103,9 +163,43 @@
 				class="h-20 w-20 shrink-0 rounded-md bg-white object-contain"
 			/>
 		{/if}
-		<div class="min-w-0">
-			<p class="line-clamp-2 font-medium">{data.read.title}</p>
-			{#if data.read.price}<p class="text-sm text-zinc-300">{data.read.price}</p>{/if}
+		<div class="min-w-0 flex-1">
+			<div class="flex flex-col gap-2">
+				<input
+					bind:value={title}
+					maxlength={MAX_WISH_TITLE}
+					aria-label="Nombre"
+					class="{field} py-1 text-sm"
+				/>
+				<input
+					bind:value={price}
+					maxlength="20"
+					placeholder="Precio: 12,30 €"
+					aria-label="Precio"
+					class="{field} max-w-40 py-1 text-sm"
+				/>
+				<input
+					bind:value={note}
+					maxlength={MAX_WISH_NOTE}
+					placeholder="Nota: talla, color…"
+					aria-label="Nota"
+					class="{field} py-1 text-sm"
+				/>
+			</div>
+			{#if data.ai && pageText}
+				<form method="post" action="?/analyze" use:enhance={analyze} class="mt-3">
+					<input type="hidden" name="pagina" value={pageText} />
+					<button class={price ? secondary : primary} disabled={analyzing || Boolean(kept)}
+						>Analizar con IA</button
+					>
+					<p class="mt-1 text-xs text-zinc-400">
+						{price
+							? '¿No es el precio, o falta lo que elegiste?'
+							: 'No se ha encontrado el precio.'} Le manda el texto de la página a la IA de la familia.
+					</p>
+				</form>
+			{/if}
+			{#if analyzed}<p class="mt-2 text-sm text-amber-300" role="status">{analyzed}</p>{/if}
 		</div>
 	</div>
 {/if}
@@ -129,8 +223,9 @@
 			<input type="hidden" name="url" value={data.link} />
 			<input type="hidden" name="texto" value={data.text} />
 			{#if data.read}
-				<input type="hidden" name="titulo" value={data.read.title} />
-				<input type="hidden" name="precio" value={data.read.precio} />
+				<input type="hidden" name="titulo" value={title} />
+				<input type="hidden" name="precio" value={price} />
+				<input type="hidden" name="nota" value={note} />
 				<input type="hidden" name="foto" value={data.read.foto} />
 			{/if}
 			<h2 class="flex items-center gap-2 font-semibold">
@@ -167,9 +262,7 @@
 					href="/mensajes?{new URLSearchParams({
 						enlace: data.link,
 						texto: data.text,
-						...(data.read
-							? { titulo: data.read.title, precio: data.read.precio, foto: data.read.foto }
-							: {})
+						...(data.read ? { titulo: title, precio: price, foto: data.read.foto } : {})
 					})}"
 					class="inline-block {secondary}">Mandar por Mensajes</a
 				>
