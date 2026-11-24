@@ -1,10 +1,12 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { HouseProblem } from '#lib/server/house.ts';
+import { isOwn, ownListTracks } from '#lib/server/road-music.ts';
 import { playlistTracks } from '#lib/server/music.ts';
 
 /** A playlist's tracks, in order, to play from the road mode (as jellycartoon's). */
-export const GET: RequestHandler = async ({ params, locals }) => {
+export const GET: RequestHandler = async ({ params, locals, url }) => {
+	if (isOwn(url)) return json(await ownListTracks(locals.user!.id, Number(params.id)));
 	const who = { id: locals.user!.id, email: locals.user!.email };
 	try {
 		return json(await playlistTracks(who, Number(params.id)));

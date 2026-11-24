@@ -1,14 +1,21 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { kitchenOf } from '#lib/server/fridge.ts';
+import { isCategory, isDay, MAX_CENTS, parseEuros } from 'comun/expenses.ts';
+import { lookingSame } from '#lib/server/expenses/duplicates.ts';
+import { addExpense } from '#lib/server/expenses/expenses.ts';
+import { kitchenOf, today } from '#lib/server/fridge.ts';
 import { isKidAccount } from '#lib/server/kids.ts';
 import {
 	addWish,
+	buyableWish,
+	buyWish,
 	deleteWish,
 	giveWish,
 	linkOf,
 	listWishes,
 	readProduct,
+	setWishExpense,
+	unbuyWish,
 	updateWish
 } from '#lib/server/wishes.ts';
 
@@ -17,7 +24,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
 	const kid = await isKidAccount(userId);
 	const { people, wishes } = await listWishes(await kitchenOf(userId), userId, kid);
-	return { kid, people, wishes };
+	return { kid, people, wishes, today: today() };
 };
 
 const idOf = (form: FormData, key = 'id') => {
@@ -86,5 +93,74 @@ export const actions: Actions = {
 			form.get('on') === '1'
 		);
 		if (!done) return fail(409, { message: 'Alguien se ha adelantado: ya lo regala otro' });
+	},
+	/** «Comprado»: into Dinero too, unless `solo`. Put in twice (#440), asked first, unless `igual`. */
+	buy: async ({ request, locals }) => {
+		const userId = locals.user!.id;
+		const form = await request.formData();
+		const id = idOf(form);
+		const date = text(form, 'date');
+		if (!id) return fail(400, { message: 'Falta cuál' });
+		if (!isDay(date)) return fail(400, { message: 'Falta la fecha' });
+		const k = await kitchenOf(userId);
+		const kid = await isKidAccount(userId);
+		const gone = () => fail(409, { message: 'Ese deseo ya no está, o ya lo ha comprado otro' });
+		const found = await buyableWish(k, userId, kid, id);
+		if (!found) return gone();
+		if (form.get('solo') === '1')
+			return (await buyWish(k, userId, kid, id, date)) ? { bought: id, expense: null } : gone();
+
+		const total = parseEuros(text(form, 'price') ?? '');
+		if (total === null || total <= 0 || total > MAX_CENTS)
+			return fail(400, { message: 'Falta el precio, en euros: 12,30' });
+		const store = (text(form, 'store') ?? '').trim().slice(0, 120);
+		const category = form.get('category');
+		if (!store || !isCategory(category))
+			return fail(400, { message: 'Falta la tienda o la categoría' });
+		const input = {
+			date,
+			store,
+			category,
+			total,
+			// Another adult's gift: without its name, as they see Dinero too.
+			lines: found.secret
+				? []
+				: [
+						{
+							text: found.title.slice(0, 200),
+							quantity: null,
+							amount: total,
+							tag: 'Otros' as const
+						}
+					]
+		};
+		if (form.get('igual') !== '1') {
+			const repeated = await lookingSame(k, {
+				id: null,
+				...input,
+				source: 'mano',
+				fileHash: null,
+				bill: null
+			});
+			if (repeated) return fail(409, { message: 'Parece repetido', repeated });
+		}
+		// First, so two pages at once put it in Dinero once.
+		if (!(await buyWish(k, userId, kid, id, date))) return gone();
+		let expense: number;
+		try {
+			expense = await addExpense(k, input, 'mano');
+		} catch (err) {
+			await unbuyWish(k, userId, id);
+			throw err;
+		}
+		await setWishExpense(k, userId, id, expense);
+		return { bought: id, expense };
+	},
+	unbuy: async ({ request, locals }) => {
+		const userId = locals.user!.id;
+		const id = idOf(await request.formData());
+		if (!id) return fail(400, { message: 'Falta cuál' });
+		if (!(await unbuyWish(await kitchenOf(userId), userId, id)))
+			return fail(404, { message: 'Ese deseo ya no está' });
 	}
 };

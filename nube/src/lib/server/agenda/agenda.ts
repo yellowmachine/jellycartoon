@@ -191,6 +191,7 @@ const cols = {
 	endTime: calendarEvent.endTime,
 	repeat: calendarEvent.repeat,
 	skipDays: calendarEvent.skipDays,
+	doneDays: calendarEvent.doneDays,
 	remind: calendarEvent.remind,
 	remindedDay: calendarEvent.remindedDay,
 	userId: calendarEvent.userId,
@@ -230,6 +231,7 @@ async function withPeople(
 		remind: r.remind,
 		people: people.get(r.id) ?? [],
 		skipDays: r.skipDays,
+		doneDays: r.doneDays,
 		by: r.by ?? null
 	}));
 }
@@ -389,6 +391,31 @@ export async function deleteEvent(k: Kitchen, id: number) {
 	);
 	changed(k.familyId);
 	return gone.length > 0;
+}
+
+/**
+ * «Hecha» (#600), or no longer: the repetition that starts on `day`, once it has come. What it was,
+ * if it changed; null if it is not there, is still to come or was so already.
+ */
+export async function setEventDone(k: Kitchen, id: number, day: string, done: boolean) {
+	const changedTo = await k.run(async (tx) => {
+		const [row] = await tx.select(cols).from(calendarEvent).where(eq(calendarEvent.id, id));
+		if (!row) return null;
+		if (done && (day > localDay() || !startDays(row, day, day).includes(day))) return null;
+		const marked = sql`${calendarEvent.doneDays} @> array[${day}]::date[]`;
+		const [now] = await tx
+			.update(calendarEvent)
+			.set({
+				doneDays: done
+					? sql`array_append(${calendarEvent.doneDays}, ${day}::date)`
+					: sql`array_remove(${calendarEvent.doneDays}, ${day}::date)`
+			})
+			.where(and(eq(calendarEvent.id, id), done ? sql`not (${marked})` : marked))
+			.returning({ title: calendarEvent.title });
+		return now ?? null;
+	});
+	if (changedTo) changed(k.familyId);
+	return changedTo;
 }
 
 /** «Esta vez no»: the repetition that starts on `day`, skipped. A single one, deleted. */

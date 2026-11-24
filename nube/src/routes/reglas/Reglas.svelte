@@ -49,7 +49,13 @@
 	);
 	const today = localDay();
 	const nextHour = `${String((new Date().getHours() + 1) % 24).padStart(2, '0')}:00`;
-	const DOES = { avisa: '🔔', deduce: '💡', temporizador: '⏲️', enchufe: '🔌' } as const;
+	const DOES = {
+		avisa: '🔔',
+		deduce: '💡',
+		temporizador: '⏲️',
+		enchufe: '🔌',
+		gasto: '💶'
+	} as const;
 	let simulating = $state(false);
 	/** While the AI understands one that is saved: the snail, as when Gastos reads a ticket. */
 	let understanding = $state(false);
@@ -328,6 +334,7 @@
 							<option value="enchufe_termina">Que termine un aparato (su nombre)</option>
 							<option value="lugar_llega">Que llegue a un sitio (su nombre)</option>
 							<option value="lugar_sale">Que salga de un sitio (su nombre)</option>
+							<option value="cita_hecha">Que se marque como hecha una cita</option>
 						</select>
 						<input
 							name="ifText"

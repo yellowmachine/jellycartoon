@@ -1,4 +1,5 @@
 import {
+	date,
 	foreignKey,
 	index,
 	integer,
@@ -10,6 +11,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { familyPerson } from './agenda.schema.ts';
 import { user } from './auth.schema.ts';
+import { expense } from './expenses.schema.ts';
 import { family, familyRows } from './family.schema.ts';
 
 /**
@@ -49,6 +51,13 @@ export const wish = pgTable(
 		addedBy: text('added_by').references(() => user.id, { onDelete: 'set null' }),
 		/** «Lo regalo yo»: who will give it, hidden from the person it is for. */
 		giftBy: text('gift_by').references(() => user.id, { onDelete: 'set null' }),
+		/**
+		 * «Comprado»: the day, by whom, and what it is in Dinero, if put in. Bought by another, the
+		 * person it is for still sees it as not bought, as a gift.
+		 */
+		boughtOn: date('bought_on'),
+		boughtBy: text('bought_by').references(() => user.id, { onDelete: 'set null' }),
+		expenseId: integer('expense_id').references(() => expense.id, { onDelete: 'set null' }),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [

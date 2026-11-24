@@ -77,6 +77,11 @@ export const calendarEvent = pgTable(
 			.array()
 			.notNull()
 			.default(sql`'{}'::date[]`),
+		/** «Hecha» (#600): the days of the repetitions marked as done. */
+		doneDays: date('done_days')
+			.array()
+			.notNull()
+			.default(sql`'{}'::date[]`),
 		/** Its one notice: an hour before, or the day before; null, none. */
 		remind: calendarRemind('remind'),
 		/** The day of the last repetition told, so it is told once. */

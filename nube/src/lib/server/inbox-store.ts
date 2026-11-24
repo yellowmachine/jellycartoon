@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { inbox } from '#lib/server/db/schema.ts';
+import type { ExpenseCategory } from 'comun/expenses.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import type { PushMessage } from '#lib/server/push.ts';
 
@@ -37,7 +38,21 @@ export type InboxKind =
 export type Proposal =
 	| { type?: 'recuerdo'; text: string; untilDay: string | null; because: string }
 	| { type: 'regla'; said: string; because: string }
+	| ExpenseProposal
 	| { type: 'cita'; title: string; day: string; time: string | null; because: string };
+
+/** An expense a rule proposes (#600), by an event of the Agenda marked as done. */
+export interface ExpenseProposal {
+	type: 'gasto';
+	ruleId: number;
+	eventId: number;
+	/** The repetition's: the expense's day too. */
+	day: string;
+	total: number;
+	store: string;
+	category: ExpenseCategory;
+	because: string;
+}
 
 export type InboxLevel = 'normal' | 'urgente';
 
@@ -199,7 +214,9 @@ export async function answerProposal(k: Kitchen, userId: string, id: number, kep
 						? '✓ Regla creada'
 						: row.proposal.type === 'cita'
 							? '✓ Añadido a la Agenda'
-							: '✓ Guardado en lo que la voz recuerda'
+							: row.proposal.type === 'gasto'
+								? '✓ Añadido a Dinero'
+								: '✓ Guardado en lo que la voz recuerda'
 					: '✗ No'
 			})
 			.where(eq(inbox.id, id));

@@ -25,7 +25,7 @@
 	<section class={section} id="fuente-musica">
 		<h2 class="mb-1 font-semibold">Tu música, de dónde sale</h2>
 		<p class="mb-3 text-sm text-zinc-400">
-			En Música, sus álbumes, listas y carpetas; y lo que pides por voz. Solo para ti.
+			En Música y en el modo carretera, sus álbumes y listas; y lo que pides por voz. Solo para ti.
 		</p>
 		<form
 			method="post"

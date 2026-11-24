@@ -30,6 +30,7 @@ import {
 	dueIn,
 	fits,
 	boughtWhy,
+	doneKey,
 	fittingAll,
 	LATE_MINUTES,
 	matchKey,
@@ -44,6 +45,7 @@ import {
 	placeWhy,
 	plugFits,
 	plugWhy,
+	type DoneEvent,
 	type Fitted,
 	type PlaceHappened,
 	type PlugHappened,
@@ -58,6 +60,8 @@ import { PlugOffline } from '#lib/server/plugs/hub.ts';
 import { HEAT_MS, plugsOf, setPausedIn, switchIn } from '#lib/server/plugs/plugs.ts';
 import { sensorsIn } from '#lib/server/plugs/sensors.ts';
 import { PLUG_KINDS } from '#lib/plugs.ts';
+import { EXPENSE_CATEGORIES } from 'comun/expenses.ts';
+import { proposeExpense } from '#lib/server/propose-expense.ts';
 import { owntracksPlaceNames } from '#lib/server/owntracks/places.ts';
 import {
 	MAX_PLUG_MIN,
@@ -69,6 +73,7 @@ import {
 	specOf,
 	timerSaid,
 	type RulePlug,
+	expenseSaid,
 	type RuleSpec,
 	type TranslatedRule
 } from '#lib/rules.ts';
@@ -306,6 +311,7 @@ Cuándo se mira («when.kind»), solo una:
 - «compra»: cuando se guarda en Gastos una compra (un ticket, una factura, un gasto dicho) con algo de «words» («si compro bebida» → ["bebida"]; «words», lo comprado en una o dos palabras, sin «comprar»); se mira una vez por compra.
 - «enchufe»: cuando un aparato enchufado a un enchufe de Enchufes empieza o acaba de funcionar (un lavado, no un momento): «plug» «empieza» o «termina» («cuando acabe la lavadora», «cuando la lavadora termine» → «termina»; «cuando ponga la lavadora», «cuando arranque» → «empieza»; sin decirlo, «termina»); «words», el aparato en una palabra («lavadora», «lavavajillas», «secadora»; vacío: cualquiera). «plug» es «ninguno» en los demás.
 - «lugar»: cuando quien habla llega a uno de sus sitios (arriba) o sale de él, según su móvil con OwnTracks: «place» «llega» («cuando llegue a casa», «al llegar al trabajo») o «sale» («cuando salga del trabajo», «al irme de casa»; sin decirlo, «llega»); «words», el nombre del sitio en una o dos palabras («casa», «trabajo»; vacío: cualquiera). Solo de quien habla: no vale para otra persona («cuando llegue Ana») ni en una regla de la casa; entonces «possible» false. «place» es «ninguno» en los demás.
+- «cita_hecha»: cuando alguien marca como hecha una cita de la Agenda cuyo título tiene «words» («cuando marque como hecha una cita de peluquería», «cuando haya ido a la peluquería» → ["peluquería"]); una vez por cita y día.
 «words» son pocas palabras clave sueltas, tal como se escribirían en la cita o la nota, sin artículos; «time» es null salvo en «cada_dia».
 «weather» (en «when» y en cada condición; «what» «ninguno» si no hace falta): «what» es «lluvia», «helada», «calor», «viento» o «nieve»; «hours», las próximas horas que mirar («esta tarde» desde ahora, «mañana» hasta mañana por la noche); «threshold», el número si lo dice (lluvia en %, 60 si no; helada y calor en °C, 0 y 35 si no; viento en km/h, 50 si no; nieve, null) o null; «where», «casa» o «donde_este» (donde esté quien habla si está de viaje: «si en Lisboa llueve»).
 
@@ -321,6 +327,7 @@ Qué tiene que cumplirse además («conditions», puede estar vacío), cada una 
 Qué hace («then»): «avisar» (con «notice»), «temporizador», «enchufe» o «deducir»: guardar un dato que luego sirve a otras reglas, sin avisar a nadie («si pongo la lavadora, ese día hay ropa tendida» → «deduce»: {"text": "Hay ropa tendida", "days": 0}). «deduce.text», el dato en una frase que se entienda sola, sin fechas; «deduce.days», cuántos días más vale (0, solo ese día; en «compra», 7 si no lo dice). Si la regla dice que es probable («probablemente», «seguramente»), el dato también: «Probablemente hay bebida en la nevera». Sin deducir, «deduce» {"text": "", "days": 0}.
 «temporizador»: pone un temporizador de la casa que suena en toda la casa al acabar, cuando la regla pide esperar un rato después de lo que pasa («una hora después», «a los 20 minutos», «ponme un temporizador»): «timer.minutes», cuántos minutos; «timer.label», para qué, corto y como se diría al sonar («Sacar las bebidas del congelador»). «notice.text» vacío y «say» false: el temporizador ya suena. Sin temporizador, «timer» {"minutes": 0, "label": ""}.
 «enchufe»: enciende o apaga uno de los enchufes de la familia (arriba) cuando llega su momento: «a las 9 pon el termo una hora», «mañana a las 7 apaga la tele». «plug_switch.plug», su nombre exactamente como está en la lista (el que se entiende: «el termo» → el del termo); «on», true para encender y false para apagar; «minutes», cuánto rato y luego vuelve como estaba («una hora», 60; «media hora», 30), como mucho ${MAX_PLUG_MIN}, o 0 si no lo dice (se queda así). «pause» es «ninguno» al encender o apagar; «poner» o «quitar» para poner o quitar su pausa («el lunes a las 8 pon el termo en pausa», «el viernes quita la pausa del termo»: en pausa se apaga y no siguen sus horarios), y entonces «on» false y «minutes» 0. Si no hay un enchufe que encaje, «possible» false. «notice.to» como al avisar (a quién decirle si no se puede), «notice.text» vacío y «say» false. Sin enchufe, «plug_switch» {"plug": "", "on": false, "minutes": 0, "pause": "ninguno"}.
+«gasto»: propone un gasto para Dinero a quien marca la cita, que lo confirma con un toque; nunca se apunta solo. Solo con «cita_hecha» («cuando marque como hecha una cita de peluquería, mete 10 euros en gastos»); con otro «when», «possible» false. «expense.amount», los euros (10); «expense.store», dónde o en qué, corto («Peluquería»); «expense.category», la que más se acerque de ${EXPENSE_CATEGORIES.join(', ')} («Otros» si ninguna). «notice.to» «yo», «notice.text» vacío y «say» false. En «understood», que lo propondrás («Cuando marquéis como hecha una cita con «peluquería», propondré un gasto de 10 € en Peluquería»). Sin gasto, «expense» {"amount": 0, "store": "", "category": "Otros"}.
 A quién y qué («notice», al avisar; al deducir, «text» vacío): «to» es «yo» (quien habla; en la casa, toda la familia), «casa» (toda la familia) o «personas» con sus nombres en «people», de los de la familia. «text» es el aviso tal como lo leerá quien lo recibe, corto y en segunda persona («Recuérdales a tus padres que rieguen las plantas»). «level» es «urgente» solo si lo pide o es un peligro.
 «once»: true si es para una sola vez («la próxima vez que…», «este viernes»; «en_fecha», siempre).
 «say»: true si además hay que decirlo en voz alta en casa, por los altavoces de la voz: si lo pide («dímelo en voz alta», «avisa en casa», «que lo diga Alexa») o si es de toda la casa; false si es solo para el móvil de quien habla.
@@ -720,7 +727,14 @@ async function recipients(k: Kitchen, r: Rule) {
 }
 
 /** Told: once for `key` (two servers, or a minute again, tell nothing), to whom it says. */
-async function fire(k: Kitchen, r: Rule, key: string, why: string, chain: number[]) {
+async function fire(
+	k: Kitchen,
+	r: Rule,
+	key: string,
+	why: string,
+	chain: number[],
+	done?: DoneEvent
+) {
 	const fired = [...r.fired.filter((f) => f !== key), key].slice(-KEEP_FIRED);
 	const [claimed] = await k.run((tx) =>
 		tx
@@ -755,6 +769,10 @@ async function fire(k: Kitchen, r: Rule, key: string, why: string, chain: number
 	}
 	if (r.spec.then === 'enchufe' && r.spec.plug) {
 		await switchFor(k, r, r.spec.plug, why);
+		return true;
+	}
+	if (r.spec.then === 'gasto') {
+		if (r.spec.expense && done) await proposeExpense(k, r.id, r.spec.expense, done);
 		return true;
 	}
 	const { notice } = r.spec;
@@ -906,7 +924,8 @@ async function tryFire(
 	r: Rule,
 	key: string,
 	because: string,
-	chain: number[] = []
+	chain: number[] = [],
+	done?: DoneEvent
 ) {
 	if (r.paused || r.fired.includes(key)) return false;
 	if (chain.includes(r.id) || chain.length >= MAX_CHAIN) {
@@ -923,7 +942,7 @@ async function tryFire(
 		}
 		return false;
 	}
-	return fire(k, r, key, [because, ...why].join(' y '), chain);
+	return fire(k, r, key, [because, ...why].join(' y '), chain, done);
 }
 
 /** In `lastWhy`, while its moment lasts (#557): what did not hold, or what was not known. */
@@ -985,7 +1004,8 @@ async function missedMoment(k: Kitchen, r: Rule) {
  * house's, for all), something said to the voice (`dicho`: by a person, for their rules and the
  * house's; on a satellite, the house's; by its words only, as it is every order), a purchase
  * (`compra`, #451: `onPurchase`), a plug's cycle that starts or ends (`enchufe`, #528: `onPlug`),
- * a person arriving at or leaving a place (`lugar`, #593: `onPlace`).
+ * a person arriving at or leaving a place (`lugar`, #593: `onPlace`), an event marked as done
+ * (`cita_hecha`, #600: `onDone`).
  * From rule-events.ts, after it is saved; `chain`, the rules it came through.
  */
 export async function onEvent(
@@ -996,8 +1016,10 @@ export async function onEvent(
 	chain: number[] = [],
 	bought?: Bought,
 	plug?: PlugHappened,
-	place?: PlaceHappened
+	place?: PlaceHappened,
+	done?: DoneEvent
 ) {
+	if (kind === 'cita_hecha') return done ? onDone(k, done) : undefined;
 	if (kind === 'compra') return bought ? onPurchase(k, text, bought) : undefined;
 	if (kind === 'enchufe') return plug ? onPlug(k, plug) : undefined;
 	if (kind === 'lugar') return place ? onPlace(k, place) : undefined;
@@ -1075,6 +1097,47 @@ async function onPlace(k: Kitchen, p: PlaceHappened) {
 	}
 }
 
+/** An event of the Agenda marked as done (#600), for every rule that waits for it: once each. */
+async function onDone(k: Kitchen, done: DoneEvent) {
+	const rules = (await allRules(houseKitchen(k.familyId))).filter(
+		(r) => !r.paused && r.spec.when.kind === 'cita_hecha'
+	);
+	if (!rules.length) return;
+	const w = worldNow(k.familyId);
+	for (const r of rules) {
+		if (r.fired.includes(doneKey(done))) continue;
+		const fit = await fits(w, r, r.spec.when.words, 'agenda', done.title);
+		if (!fit.ok) continue;
+		const rk = await kitchenFor(k.familyId, r.userId);
+		const because = `está hecho «${done.title}» del ${dayName(done.day)}${fit.why}`;
+		await tryFire(w, rk, r, doneKey(done), because, [], done);
+	}
+}
+
+/**
+ * An event no longer done (#600): these rules' proposals, withdrawn unanswered, may come again if it
+ * is marked again.
+ */
+export async function forgetDone(
+	k: Kitchen,
+	ruleIds: number[],
+	done: Pick<DoneEvent, 'eventId' | 'day'>
+) {
+	const key = doneKey(done);
+	for (const r of await allRules(houseKitchen(k.familyId)))
+		if (ruleIds.includes(r.id) && r.fired.includes(key))
+			await k.run((tx) =>
+				tx
+					.update(rule)
+					.set({
+						fired: r.fired.filter((f) => f !== key),
+						// For once, and it was withdrawn: still to come.
+						...(r.spec.once ? { paused: false } : {})
+					})
+					.where(eq(rule.id, r.id))
+			);
+}
+
 listenRules(onEvent);
 
 /** The weather a rule waits for (`tiempo`), looked at this often. */
@@ -1130,7 +1193,9 @@ export async function checkTimedRules(familyId: string) {
 	const rules = every.filter(
 		(r) =>
 			!r.paused &&
-			!['nevera', 'recuerdo', 'dicho', 'compra', 'enchufe', 'lugar'].includes(r.spec.when.kind)
+			!['nevera', 'recuerdo', 'dicho', 'compra', 'enchufe', 'lugar', 'cita_hecha'].includes(
+				r.spec.when.kind
+			)
 	);
 	const w = worldNow(familyId);
 	const now = minutesOf(w.today, w.time);
@@ -1167,7 +1232,9 @@ export async function tryRule(k: Kitchen, userId: string | null, id: number) {
 				? [timerSaid(r.spec.timer, 'pondría'), timerSaid(r.spec.timer, 'pondrá')]
 				: r.spec.then === 'enchufe' && r.spec.plug
 					? [plugSaid(r.spec.plug, 'haria'), plugSaid(r.spec.plug, 'hara')]
-					: ['avisaría', 'avisará'];
+					: r.spec.then === 'gasto' && r.spec.expense
+						? [expenseSaid(r.spec.expense, 'propondría'), expenseSaid(r.spec.expense, 'propondrá')]
+						: ['avisaría', 'avisará'];
 	if (!r.spec.conditions.length)
 		return `No tiene condiciones: ${will} siempre que llegue su momento.`;
 	return ok

@@ -1,0 +1,1 @@
+ALTER TABLE "calendar_event" ADD COLUMN "done_days" date[] DEFAULT '{}'::date[] NOT NULL;

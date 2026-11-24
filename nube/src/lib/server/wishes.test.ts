@@ -111,6 +111,9 @@ mock.module('#lib/server/inbox.ts', () => ({ tell: async () => {} }));
 mock.module('#lib/server/telegram/bot.ts', () => ({ tellGroup: async () => {} }));
 const {
 	addWish,
+	buyableWish,
+	buyWish,
+	unbuyWish,
 	centsOf,
 	addWishFromCard,
 	deleteWish,
@@ -324,6 +327,69 @@ describe('«Lo regalo yo»', () => {
 		expect(
 			(await listWishes(pepe, 'pepe', false)).wishes.find((w) => w.id === baby.id)!.gift
 		).toBeNull();
+	});
+});
+
+describe('«Comprado»', () => {
+	const seen = async (k: Kitchen, who: string, kid = false) =>
+		(await listWishes(k, who, kid)).wishes[0]!;
+
+	test('a child’s: it is the buyer’s gift, and the child does not know', async () => {
+		await addWish(ana, 'ana', false, people.Lucía!, product('Bici'), null);
+		const { id } = await seen(ana, 'ana');
+		expect(await buyableWish(ana, 'ana', false, id)).toEqual({
+			title: 'Bici',
+			mine: false,
+			secret: false
+		});
+		expect(await buyWish(lucia, 'lucia', true, id, '2026-11-24')).toBe(false);
+		expect(await buyWish(ana, 'ana', false, id, '2026-11-24')).toBe(true);
+		expect(await seen(pepe, 'pepe')).toMatchObject({
+			bought: { mine: false, name: 'Ana', on: '2026-11-24' },
+			gift: { mine: false, name: 'Ana' },
+			buys: false
+		});
+		expect(await seen(lucia, 'lucia', true)).toMatchObject({ bought: null, gift: null });
+		expect(await buyWish(pepe, 'pepe', false, id, '2026-11-24')).toBe(false);
+		// Not given up while bought; undone only by who bought it.
+		expect(await giveWish(ana, 'ana', false, id, false)).toBe(false);
+		expect(await unbuyWish(pepe, 'pepe', id)).toBe(false);
+		expect(await unbuyWish(ana, 'ana', id)).toBe(true);
+		expect((await seen(ana, 'ana')).bought).toBeNull();
+	});
+
+	test('another adult’s: only by who gives it, in secret', async () => {
+		await addWish(ana, 'ana', false, people.Ana!, product('Reloj', 'reloj'), null);
+		const { id } = await seen(pepe, 'pepe');
+		expect(await buyWish(pepe, 'pepe', false, id, '2026-11-24')).toBe(false);
+		await giveWish(pepe, 'pepe', false, id, true);
+		expect((await buyableWish(pepe, 'pepe', false, id))!.secret).toBe(true);
+		expect(await buyWish(pepe, 'pepe', false, id, '2026-11-24')).toBe(true);
+		expect(await seen(ana, 'ana')).toMatchObject({ bought: null, gift: null, buys: true });
+		expect(await describeWishes(ana, 'ana')).not.toContain('comprado');
+		expect(await describeWishes(pepe, 'pepe')).toContain('comprado el 2026-11-24');
+		// Added again by Ana, it is there: nothing given away.
+		expect(await addWish(ana, 'ana', false, people.Ana!, product('Reloj', 'reloj'), null)).toEqual({
+			already: id
+		});
+		// Ana buys it herself: Pepe sees it.
+		expect(await buyWish(ana, 'ana', false, id, '2026-11-25')).toBe(true);
+		expect((await seen(pepe, 'pepe')).bought).toMatchObject({ mine: false, name: 'Ana' });
+	});
+
+	test('one’s own: seen as bought, and may be wanted again', async () => {
+		await addWish(ana, 'ana', false, people.Ana!, product('Libro', 'libro'), null);
+		const { id } = await seen(ana, 'ana');
+		expect(await buyWish(otro, 'otro', false, id, '2026-11-24')).toBe(false);
+		expect(await buyWish(ana, 'ana', false, id, '2026-11-24')).toBe(true);
+		expect(await seen(ana, 'ana')).toMatchObject({
+			bought: { mine: true, on: '2026-11-24' },
+			gift: null,
+			buys: false
+		});
+		expect(
+			await addWish(ana, 'ana', false, people.Ana!, product('Libro', 'libro'), null)
+		).toHaveProperty('added');
 	});
 });
 

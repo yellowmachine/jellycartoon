@@ -48,10 +48,13 @@ async function load(
 				.where(or(...conditions))) as Row[])
 		: [];
 	const hidden = zip.hiddenIf;
-	rows.set(
-		name,
-		hidden ? found.filter((r) => !r[hidden.column] || r[hidden.notMine] === me.userId) : found
-	);
+	const kept = hidden
+		? found.filter((r) => !r[hidden.column] || r[hidden.notMine] === me.userId)
+		: found;
+	for (const r of kept)
+		for (const { columns: names, notMine } of zip.blank ?? [])
+			if (r[notMine] !== me.userId) for (const c of names) r[c] = null;
+	rows.set(name, kept);
 }
 
 async function conditionOf(

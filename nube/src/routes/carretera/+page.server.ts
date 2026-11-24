@@ -3,6 +3,12 @@ import path from 'node:path';
 import type { PageServerLoad } from './$types';
 import { MAP_DIR } from '$app/env/private';
 import { askHouse, HouseProblem } from '#lib/server/house.ts';
+import { withFamily } from '#lib/server/family.ts';
+import { musicSources } from '#lib/server/music-source.ts';
+import { ownCatalog } from '#lib/server/own-music.ts';
+import { ownDjEnabled } from '#lib/server/own-music-dj.ts';
+import { ownPlaylists } from '#lib/server/own-music-lists.ts';
+import { ownCoverUrl } from '#lib/own-music.ts';
 import { albums, djInfo, musicPass, playlists } from '#lib/server/music.ts';
 import { stationsInfo } from '#lib/server/radio.ts';
 import { kitchenOf } from '#lib/server/fridge.ts';
@@ -19,11 +25,48 @@ const hasMap = () =>
 		() => false
 	);
 
+/** Their own Telegram, the house's (#243): its messages read aloud here. */
+const telegramOn = (who: { id: string; email: string }) =>
+	askHouse<{ connected: boolean }>(who.id, who.email, '/telegram').then(
+		(t) => t.connected,
+		() => false
+	);
+
+/** With the music not the house's, it is not waited for longer than this. */
+const HOUSE_WAIT_MS = 1500;
+
+/**
+ * The music of the family's own bucket (#534), when it is this person's source: its albums (the
+ * tracks, when put on), its lists, and each list with the DJ.
+ */
+async function ownMusic(userId: string) {
+	const familyId = await withFamily(userId, async (_, m) => m.familyId);
+	const [catalog, lists, dj] = await Promise.all([
+		ownCatalog(familyId),
+		ownPlaylists(familyId),
+		kitchenOf(userId).then(ownDjEnabled)
+	]);
+	return {
+		albums: catalog.map((a) => ({
+			id: a.id,
+			title: a.title,
+			artist: a.artist,
+			hasCover: a.hasCover,
+			cover: a.hasCover ? ownCoverUrl(a.id, a.coverVersion) : undefined
+		})),
+		playlists: lists.map(({ id, name, total }) => ({ id, name, total })),
+		dj: dj && lists.length > 0
+	};
+}
+
 /**
  * The road mode (#253), as jellycartoon's: the house's albums and playlists (through its tunnel),
  * the radio, the family's podcasts (each with its newest episode), and the map. Without the house
  * (off, or not connected), the radio, the podcasts and the map still work. And Viajes': the
  * places and routes kept with a name, and whether this trip is kept (#81).
+ *
+ * The music, from the person's source (Ajustes → Para mí, #534): the house, or the family's bucket,
+ * then without waiting for the house.
  *
  * `?guardada`: as the service worker keeps it, to open with no network (offline-pages.ts): only
  * what works without, the lists this device carries, the map (along the routes it keeps), the
@@ -40,6 +83,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			recordsTrips(k)
 		]);
 		return {
+			own: false,
+			house: false,
 			albums: [],
 			playlists: [],
 			pass: null,
@@ -57,7 +102,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			callable: []
 		};
 	}
-	const [info, map, lists, places, routes, recordTrips, callable] = await Promise.all([
+	const [info, map, lists, places, routes, recordTrips, callable, sources] = await Promise.all([
 		stationsInfo(),
 		hasMap(),
 		podcastLists(k),
@@ -65,9 +110,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		listSavedRoutes(k),
 		recordsTrips(k),
 		// Who of the family to call from the car (#330).
-		calls.callable(locals.user!.id)
+		calls.callable(locals.user!.id),
+		musicSources(locals.user!.id)
 	]);
+	const own = sources.current === 'propia';
 	const kept = {
+		own,
+		/** Whether there is one: with the music not its, to still play what was put on before. */
+		house: sources.house,
 		places,
 		routes,
 		recordTrips,
@@ -75,6 +125,18 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		podcasts: lists.podcasts.flatMap((p) => (p.latest ? [{ ...p, latest: p.latest }] : [])),
 		inProgress: lists.inProgress
 	};
+	if (own) {
+		const [music, telegram] = await Promise.all([
+			ownMusic(who.id),
+			sources.house
+				? Promise.race([
+						telegramOn(who),
+						new Promise<false>((done) => setTimeout(() => done(false), HOUSE_WAIT_MS))
+					])
+				: false
+		]);
+		return { ...music, pass: null, djPresets: [], telegram, problem: null, info, map, ...kept };
+	}
 	try {
 		const [albumList, playlistList, pass, dj, telegram] = await Promise.all([
 			albums(who),
@@ -82,11 +144,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			musicPass(who),
 			// Modo DJ, the house's, with this person's saved setups.
 			djInfo(who),
-			// Their own Telegram, the house's (#243): its messages read aloud here.
-			askHouse<{ connected: boolean }>(who.id, who.email, '/telegram').then(
-				(t) => t.connected,
-				() => false
-			)
+			telegramOn(who)
 		]);
 		return {
 			albums: albumList,

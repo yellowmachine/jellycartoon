@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
+	import GastoPropuesto from '#lib/components/GastoPropuesto.svelte';
 	import { field, primary, secondary, section } from '#lib/styles.ts';
 	import type { PageProps } from './$types';
 
@@ -101,7 +102,10 @@
 								<p class={['text-sm', n.readAt ? 'text-zinc-500' : 'text-zinc-300']}>{n.body}</p>
 							{/if}
 							<p class="text-xs text-zinc-500">{KIND[n.kind] ?? n.kind} · {when(n.createdAt)}</p>
-							{#if n.proposal}
+							{#if n.proposal?.type === 'gasto'}
+								{@const waiting = data.expenses.find((x) => x.id === n.id)}
+								{#if waiting}<GastoPropuesto {waiting} today={data.today} />{/if}
+							{:else if n.proposal}
 								{@const p = n.proposal}
 								<p class="text-xs text-zinc-500">
 									{p.because[0]?.toUpperCase()}{p.because.slice(1)}{p.type === 'cita'

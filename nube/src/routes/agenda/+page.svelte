@@ -22,6 +22,7 @@
 	import type { PageProps } from './$types';
 	import { goto } from '$app/navigation';
 	import AgendaTabs from '#lib/components/AgendaTabs.svelte';
+	import GastoPropuesto from '#lib/components/GastoPropuesto.svelte';
 	import EventPapers from '#lib/components/EventPapers.svelte';
 
 	let { data }: PageProps = $props();
@@ -147,6 +148,11 @@
 		{ remind: 'dia', label: 'El día antes' }
 	];
 
+	// ——— «Hecha» (#600) ———
+
+	/** Just put into Dinero, to see it. */
+	let added = $state<{ expense: number; month: string } | null>(null);
+
 	// ——— What is shown ———
 
 	const days = $derived(
@@ -228,14 +234,48 @@
 		</span>
 		{@render badges(o.people)}
 	{/snippet}
+	{@const done = e?.doneDays?.includes(o.day) ?? false}
 	{#if data.readonly || !e}
 		<div class="flex items-center gap-3 px-2 py-1.5">{@render inside()}</div>
 	{:else}
-		<button
-			type="button"
-			class="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left hover:bg-zinc-800"
-			onclick={() => change(e, o.day)}>{@render inside()}</button
-		>
+		<div class={['flex items-center', done && 'opacity-60']}>
+			<button
+				type="button"
+				class="flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1.5 text-left hover:bg-zinc-800"
+				onclick={() => change(e, o.day)}>{@render inside()}</button
+			>
+			{#if day === o.day && o.day <= data.today}
+				<form
+					method="post"
+					action="?/done"
+					use:enhance={() =>
+						async ({ update }) =>
+							update()}
+				>
+					<input type="hidden" name="id" value={o.eventId} />
+					<input type="hidden" name="day" value={o.day} />
+					{#if !done}<input type="hidden" name="on" value="1" />{/if}
+					<button
+						class={[
+							'ml-2 flex h-8 w-8 items-center justify-center rounded-full border text-sm',
+							done
+								? 'border-emerald-500 text-emerald-400'
+								: 'border-zinc-700 text-transparent hover:text-zinc-300'
+						]}
+						aria-pressed={done}
+						aria-label="Hecha: {o.title}"
+						title={done ? 'Hecha; toca para deshacer' : 'Marcar como hecha'}>✓</button
+					>
+				</form>
+			{/if}
+		</div>
+		{#if day === o.day}
+			{#each data.expenses.filter((x) => x.proposal.eventId === o.eventId && x.proposal.day === o.day) as waiting (waiting.id)}
+				<div class="mb-2 ml-2">
+					<GastoPropuesto {waiting} today={data.today} onadded={(a) => (added = a)} />
+				</div>
+			{/each}
+		{/if}
 	{/if}
 {/snippet}
 
@@ -532,6 +572,16 @@
 				{/if}
 			</div>
 		</section>
+	{/if}
+
+	{#if added}
+		<p class="mb-4 text-sm text-emerald-400" role="status">
+			Añadido a Dinero.
+			<a
+				href="/gastos?mes={added.month}&gasto={added.expense}"
+				class="text-amber-400 hover:underline">Ver el gasto</a
+			>
+		</p>
 	{/if}
 
 	<nav class="mb-2 flex items-center justify-between gap-2">

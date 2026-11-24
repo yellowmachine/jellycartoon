@@ -6,6 +6,13 @@
  */
 
 import { dayName } from 'comun/agenda.ts';
+import {
+	euros,
+	EXPENSE_CATEGORIES,
+	isCategory,
+	MAX_CENTS,
+	type ExpenseCategory
+} from 'comun/expenses.ts';
 import { timeLabel } from 'comun/timer-names.ts';
 
 /**
@@ -17,7 +24,8 @@ import { timeLabel } from 'comun/timer-names.ts';
  * «si compro bebida», by what it has), a plug's appliance that starts or ends a cycle (#528:
  * «cuando acabe la lavadora», by the plug's name or kind), one day at one time (#557, an
  * errand: «mañana a las 9», once), or arriving at or leaving a place (#593: «cuando llegue a
- * casa», by OwnTracks on the person's phone; only their own rules).
+ * casa», by OwnTracks on the person's phone; only their own rules), or an event of the Agenda
+ * marked as done (#600: «cuando marque como hecha la peluquería», by its title).
  */
 export const TRIGGERS = [
 	'agenda',
@@ -32,7 +40,8 @@ export const TRIGGERS = [
 	'compra',
 	'enchufe',
 	'en_fecha',
-	'lugar'
+	'lugar',
+	'cita_hecha'
 ] as const;
 export type TriggerKind = (typeof TRIGGERS)[number];
 
@@ -102,7 +111,7 @@ export const DOSE_LATE_MIN = 30;
 export interface Trigger {
 	kind: TriggerKind;
 	/**
-	 * For agenda, nevera, recuerdo and compra: the words it has to have («padres»); for toma_sin_marcar,
+	 * For agenda, cita_hecha, nevera, recuerdo and compra: the words it has to have («padres»); for toma_sin_marcar,
 	 * whose doses (their names); for enchufe, the plug's name or kind («lavadora»); none, any.
 	 */
 	words: string[];
@@ -231,13 +240,27 @@ export const plugVerb = (p: RulePlug, tense: PlugTense) =>
 export const plugSaid = (p: RulePlug, tense: PlugTense) =>
 	`${plugVerb(p, tense)} «${p.name}»${p.pause === undefined && p.minutes ? ` ${timeLabel(p.minutes * 60)}` : ''}`;
 
+/**
+ * What a rule that proposes an expense keeps (#600): offered to who marked the event as done, under
+ * it and in their Buzón; nothing goes into Dinero without their yes. `total` in cents.
+ */
+export interface RuleExpense {
+	total: number;
+	store: string;
+	category: ExpenseCategory;
+}
+
+/** What it would do, in words: «propondría un gasto de 10,00 € en «Peluquería»». */
+export const expenseSaid = (e: RuleExpense, verb: string) =>
+	`${verb} un gasto de ${euros(e.total)} en «${e.store}»`;
+
 /** A rule's timer lasts at most a day (`MAX_TIMER_SEC`). */
 const MAX_TIMER_MIN = 24 * 60;
 
 /** A deduction lasts at most this long. */
 const MAX_DEDUCED_DAYS = 30;
 
-export const ACTIONS = ['avisar', 'deducir', 'temporizador', 'enchufe'] as const;
+export const ACTIONS = ['avisar', 'deducir', 'temporizador', 'enchufe', 'gasto'] as const;
 export type RuleAction = (typeof ACTIONS)[number];
 
 export interface RuleSpec {
@@ -245,12 +268,14 @@ export interface RuleSpec {
 	conditions: Condition[];
 	/**
 	 * What it does: tell (`notice`), deduce (`deduce`), start a timer in the house (`timer`) or
-	 * switch a plug (`plug`, #557; its notice, only if it cannot); unset (older ones), tell.
+	 * switch a plug (`plug`, #557; its notice, only if it cannot) or propose an expense (`expense`,
+	 * #600); unset (older ones), tell.
 	 */
 	then?: RuleAction;
 	deduce?: Deduction | null;
 	timer?: RuleTimer | null;
 	plug?: RulePlug | null;
+	expense?: RuleExpense | null;
 	notice: RuleNotice;
 	/** Told once, and then paused. */
 	once: boolean;
@@ -386,6 +411,8 @@ export interface TranslatedRule {
 	 * pause put or taken off (`ninguno`, switched).
 	 */
 	plug_switch?: { plug: string; on: boolean; minutes: number; pause?: string };
+	/** For «gasto»: in euros. */
+	expense?: { amount: number; store: string; category: string };
 	notice: { to: string; people: string[]; text: string; level: string };
 	once: boolean;
 	say: boolean;
@@ -448,6 +475,14 @@ export function specOf(
 		return { problem: 'Falta cuánto tiene que durar el temporizador.' };
 	const label = (t.timer?.label ?? '').trim().slice(0, 60);
 	if (then === 'temporizador' && !label) return { problem: 'Falta para qué es el temporizador.' };
+	const total = Math.round(Number(t.expense?.amount) * 100);
+	const store = (t.expense?.store ?? '').trim().slice(0, 120);
+	if (then === 'gasto') {
+		if (t.when.kind !== 'cita_hecha')
+			return { problem: 'Un gasto solo se propone al marcar como hecha una cita de la Agenda.' };
+		if (!(total > 0) || total > MAX_CENTS) return { problem: 'Falta de cuánto es el gasto.' };
+		if (!store) return { problem: 'Falta en qué es el gasto.' };
+	}
 	const text = (t.notice?.text ?? '').trim().slice(0, MAX_RULE);
 	if (then === 'avisar' && !text) return { problem: 'Falta qué avisar.' };
 	const to = isOneOf(['yo', 'casa', 'personas'] as const, t.notice.to) ? t.notice.to : 'yo';
@@ -518,6 +553,15 @@ export function specOf(
 						}
 					}
 				: {}),
+			...(then === 'gasto'
+				? {
+						expense: {
+							total,
+							store,
+							category: isCategory(t.expense?.category) ? t.expense.category : 'Otros'
+						}
+					}
+				: {}),
 			notice: {
 				to,
 				userIds: people.map((x) => x.p!.userId),
@@ -528,7 +572,8 @@ export function specOf(
 			// One day at one time: once, whatever it said.
 			once: t.once === true || t.when.kind === 'en_fecha',
 			// A timer rings in the whole house by itself; a plug only tells if it cannot.
-			say: then === 'temporizador' || then === 'enchufe' ? false : t.say === true
+			say:
+				then === 'temporizador' || then === 'enchufe' || then === 'gasto' ? false : t.say === true
 		}
 	};
 }
@@ -560,6 +605,7 @@ export const RULE_SCHEMA = {
 		'deduce',
 		'timer',
 		'plug_switch',
+		'expense',
 		'notice',
 		'once',
 		'say'
@@ -641,6 +687,16 @@ export const RULE_SCHEMA = {
 				on: { type: 'boolean' },
 				minutes: { type: 'integer' },
 				pause: { type: 'string', enum: ['ninguno', 'poner', 'quitar'] }
+			}
+		},
+		expense: {
+			type: 'object',
+			additionalProperties: false,
+			required: ['amount', 'store', 'category'],
+			properties: {
+				amount: { type: 'number' },
+				store: { type: 'string' },
+				category: { type: 'string', enum: [...EXPENSE_CATEGORIES] }
 			}
 		},
 		notice: {

@@ -46,6 +46,16 @@ export function useKept() {
 	});
 }
 
+/**
+ * With the family's own bucket as the source (#534), the road mode has no pass: what this device
+ * keeps, and what still plays of the house's (put on before) by a pass asked for behind.
+ */
+export function useKeptMeanwhile() {
+	if (images) return;
+	useKept();
+	void askPass();
+}
+
 /** A pass asked for now, and used; why not, if the house does not give one. */
 export async function askPass(fetcher: typeof fetch = fetch): Promise<string | null> {
 	const res = await fetcher('/api/musica/pase', { method: 'POST' }).catch(() => null);

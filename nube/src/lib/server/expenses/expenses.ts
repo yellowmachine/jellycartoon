@@ -230,7 +230,9 @@ export async function addExpense(
 	billInput: BillInput | null = null,
 	userId: string | null = k.userId,
 	/** Its file's, as chosen (#440): to see it put in again. */
-	fileHash: string | null = null
+	fileHash: string | null = null,
+	/** False, one a rule proposed (#600): no rule waits for it, so they never chain. */
+	tellsRules = true
 ) {
 	const { lines: _, foreign, ...values } = input;
 	const receipt = file ? await keepReceipt(k, file) : null;
@@ -255,7 +257,7 @@ export async function addExpense(
 		});
 		// Not a fixed one's; a bank's payment (#502), by banks/bank.ts, only when just made: a whole
 		// year brought in at once would set off a rule for each.
-		if (source !== 'fijo' && source !== 'banco')
+		if (tellsRules && source !== 'fijo' && source !== 'banco')
 			ruleEvent(k, 'compra', input.store, userId, [], boughtOf(id, input));
 		// Its new products' kcal (#562), if the family uses Calorías.
 		if (input.lines.length) void estimateAfterReceipt(k);
