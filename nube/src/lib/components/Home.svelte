@@ -394,8 +394,9 @@
 								g.doses.map((d) => d.medicationId),
 								true
 							)}
+							title="Marcar como {g.doses.length > 1 ? 'tomadas' : 'tomada'}"
 							class="shrink-0 rounded-md bg-amber-500 px-3 py-1 text-sm font-semibold text-zinc-950 hover:bg-amber-400"
-							>{g.doses.length > 1 ? 'Tomadas' : 'Tomada'}</button
+							>Tomar</button
 						>
 					</form>
 				</li>

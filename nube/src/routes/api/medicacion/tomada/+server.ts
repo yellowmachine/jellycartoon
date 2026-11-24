@@ -5,7 +5,7 @@ import { kitchenOf } from '#lib/server/fridge.ts';
 import { markDose } from '#lib/server/medication.ts';
 
 /**
- * «✓ Tomada» in a notice (#308), from the service worker with the session's cookie: its doses
+ * «Tomar» in a notice (#308), from the service worker with the session's cookie: its doses
  * (one person's at one time, `id` once for each), marked by whoever's phone it is. A child cannot
  * (hooks.server.ts).
  */

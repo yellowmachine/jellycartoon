@@ -158,7 +158,7 @@ describe('medication', () => {
 			body: 'Dalsy (5 ml) · Apiretal'
 		});
 		expect(told[0]!.actions?.[0]).toMatchObject({
-			title: '✓ Tomadas',
+			title: 'Tomar',
 			post: `/api/medicacion/tomada?dia=${today}&hora=${encodeURIComponent(now)}&id=${id}&id=${other}`
 		});
 	});

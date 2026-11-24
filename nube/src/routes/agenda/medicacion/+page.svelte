@@ -137,8 +137,8 @@
 	<h1 class="mb-3 text-2xl font-bold">Agenda</h1>
 	<AgendaTabs current="medicacion" />
 	<p class="mb-4 text-sm text-zinc-400">
-		Las tomas de cada uno. A su hora llega un aviso al móvil con «✓ Tomada»: el tuyo a tu móvil, el
-		de un peque a los de sus adultos.
+		Las tomas de cada uno. A su hora llega un aviso al móvil con «Tomar»: el tuyo a tu móvil, el de
+		un peque a los de sus adultos.
 	</p>
 
 	<div class="mb-4 flex flex-wrap gap-2">
@@ -195,7 +195,7 @@
 								true
 							)}
 							class="{button} shrink-0 bg-amber-500 font-semibold text-zinc-950 hover:bg-amber-400"
-							>{pending.length > 1 ? 'Tomadas' : 'Tomada'}</button
+							title="Marcar como {pending.length > 1 ? 'tomadas' : 'tomada'}">Tomar</button
 						>
 					{:else}
 						<button

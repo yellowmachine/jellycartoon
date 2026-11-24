@@ -22,7 +22,7 @@ import {
 
 /**
  * The family's medication (#308): each person's, seen by every grown-up of the family, and marked
- * by them. At each dose's time, a notice with «✓ Tomada» in it: a grown-up's to their phones; a
+ * by them. At each dose's time, a notice with «Tomar» in it: a grown-up's to their phones; a
  * child's to its adults' (those who let it in, #303), or to every grown-up if it has none.
  */
 
@@ -263,7 +263,7 @@ export async function sendDueDoses(k: Kitchen) {
 			actions: [
 				{
 					action: 'tomada',
-					title: these.length > 1 ? '✓ Tomadas' : '✓ Tomada',
+					title: 'Tomar',
 					post: `/api/medicacion/tomada?${query}`
 				}
 			]

@@ -1,6 +1,6 @@
 <!--
 @component
-«Comprado» on a wish (#586): a popover with the day and the price, ready to go into Dinero; or only
+«Marcar como comprado» on a wish (#586): a popover with the day and the price, ready to go into Dinero; or only
 marked, when the receipt or the bank will bring the expense.
 -->
 <script lang="ts">
@@ -54,9 +54,9 @@ marked, when the receipt or the bank will bring the expense.
 
 <button
 	type="button"
-	class="text-emerald-400 hover:underline"
+	class="text-zinc-400 hover:underline"
 	popovertarget="comprado-{wish.id}"
-	style:anchor-name="--comprado-{wish.id}">Comprado</button
+	style:anchor-name="--comprado-{wish.id}">Marcar como comprado</button
 >
 <!-- Native popover, as Música's «Modo DJ»: closes with Esc or a click outside. -->
 <div
@@ -64,7 +64,7 @@ marked, when the receipt or the bank will bring the expense.
 	id="comprado-{wish.id}"
 	popover="auto"
 	role="dialog"
-	aria-label="Comprado: {wish.title}"
+	aria-label="Marcar como comprado: {wish.title}"
 	style:position-anchor="--comprado-{wish.id}"
 	class="comprado inset-auto m-0 my-1 w-72 max-w-[calc(100vw-2rem)] rounded-md border border-zinc-700 bg-zinc-900 p-3 text-sm text-zinc-100 shadow-lg"
 	onbeforetoggle={(e) => e.newState === 'open' && fill()}
