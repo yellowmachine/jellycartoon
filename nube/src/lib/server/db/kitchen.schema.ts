@@ -84,6 +84,30 @@ export const fridgeItem = pgTable(
 ).enableRLS();
 
 /**
+ * A thing to buy's photo, so that whoever buys it sees which one it is. By its name and not by its
+ * item, which goes when it is bought: put on the list again, it has its photo.
+ */
+export const shoppingPhoto = pgTable(
+	'shopping_photo',
+	{
+		id: serial('id').primaryKey(),
+		familyId: familyId(),
+		/** As it is compared: lower case and without accents (fridge.ts, `itemKey`). */
+		name: text('name').notNull(),
+		/** Its file in the family's storage (area `compra`): a new photo, a new name. */
+		photo: text('photo').notNull(),
+		/** «El de tapa azul, sin alcohol». */
+		note: text('note').notNull().default(''),
+		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [
+		unique('shopping_photo_family_name').on(t.familyId, t.name),
+		familyRows('shopping_photo_own', t.familyId)
+	]
+).enableRLS();
+
+/**
  * The family's recipe book: recipes saved from a cooking site's page, its schema.org Recipe read
  * and its steps made ready for the kitchen (short, with their timers). The whole family's; who
  * saved it, for the credits.

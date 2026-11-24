@@ -628,6 +628,16 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		joining: 'moves',
 		zip: { file: 'nevera-lista', where: [mine()] }
 	},
+	shopping_photo: {
+		leaving: 'stays',
+		joining: 'moves',
+		zip: {
+			file: 'nevera-fotos',
+			where: [mine()],
+			stored: { area: 'compra', column: 'photo' }
+		},
+		note: 'One per thing to buy: joining, the new family’s is kept'
+	},
 	recipe: {
 		leaving: 'stays',
 		joining: 'moves',

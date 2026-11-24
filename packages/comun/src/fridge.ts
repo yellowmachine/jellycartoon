@@ -24,6 +24,8 @@ export interface FridgeItem {
 	text: string;
 	done: boolean;
 	author: FridgeAuthor | null;
+	/** Which one it is, remembered by its name; only Seilide's pages can open it. */
+	photo?: { url: string; note: string } | null;
 }
 
 /** All of it, as it is now: sent whole on every change (SSE). */
@@ -61,6 +63,7 @@ export const tiltFor = (id: number) => ((hash(`nota${id}`) % 61) - 30) / 10;
 
 export const MAX_NOTE = 280;
 export const MAX_ITEM = 80;
+export const MAX_PHOTO_NOTE = 140;
 
 /** `YYYY-MM-DD` of `date`, as it is in that place (not in UTC). */
 const day = (date: Date) =>

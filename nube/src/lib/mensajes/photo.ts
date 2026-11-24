@@ -6,12 +6,12 @@
 const MAX_SIDE = 1600;
 const QUALITY = 0.82;
 
-export async function shrinkPhoto(file: Blob) {
+export async function shrinkPhoto(file: Blob, maxSide = MAX_SIDE) {
 	const bitmap = await createImageBitmap(file).catch(() => {
 		throw new Error('Esa imagen no se puede abrir');
 	});
 	try {
-		const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+		const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
 		const width = Math.max(1, Math.round(bitmap.width * scale));
 		const height = Math.max(1, Math.round(bitmap.height * scale));
 		const canvas = document.createElement('canvas');

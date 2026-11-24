@@ -834,6 +834,13 @@
       "when": 1795528503504,
       "tag": "0118_skinny_shinko_yamashiro",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1795547799106,
+      "tag": "0119_good_rockslide",
+      "breakpoints": true
     }
   ]
 }
