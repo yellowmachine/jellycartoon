@@ -12,12 +12,14 @@ import { plannedTripsByVoice } from '#lib/server/trips/voice.ts';
 import { describeWeather, WEATHER_DAYS } from '#lib/server/weather-read.ts';
 import { describePlugEnergy, ENERGY_DAYS } from '#lib/server/plugs/energy-read.ts';
 import { describeEnergyForecast } from '#lib/server/energy/forecast-read.ts';
+import { describeAiSpending } from '#lib/server/expenses/ai-costs.ts';
 import { describeWishes } from '#lib/server/wishes.ts';
 
 /**
  * What «Preguntar» can read of the family's sections (#504, phase 2), to answer and to cross them:
  * the agenda, the money, the notes, what the voice remembers, the rules, the trips, and everything
- * of a few days (#505: periods.ts), and the weather (Open-Meteo, with degree-days: weather-read.ts) and what the plugs used (energy-read.ts), and Energía's forecast (forecast-read.ts). The same reads as the voice (command.ts) where it has them,
+ * of a few days (#505: periods.ts), and the weather (Open-Meteo, with degree-days: weather-read.ts) and what the plugs used (energy-read.ts), and Energía's forecast (forecast-read.ts), and what
+ * the AI costs (ai-costs.ts). The same reads as the voice (command.ts) where it has them,
  * with what each person may see: their own notes and memories, the family's agenda and money. Only
  * reading: what is done, the chat proposes as cards.
  */
@@ -178,6 +180,12 @@ export const READ_TOOLS: Tool[] = [
 		['from_day', 'to_day']
 	),
 	fn(
+		'read_ai_spending',
+		'Lo que cuesta la inteligencia artificial de la familia (Dinero → IA), en dólares: esta semana, este mes y en total, por tipo (Voz, Preguntar, Tickets…) y por meses. Para «¿en qué se va la IA este mes?», «¿cuánto llevamos gastado en IA?». No son los gastos de la casa.',
+		{},
+		[]
+	),
+	fn(
 		'read_wishes',
 		'La lista de deseos de la familia (Deseos): lo que le gustaría a cada uno, de cualquier tienda, con su precio si se sabe, quién lo regala («Lo regalo yo») y si es para lo primero o para más adelante (sin decirlo, para pronto). Para «¿qué le regalo a mamá?», «¿qué hay de IKEA?», «¿cuánto suma la lista de Lucía?», «¿qué es lo primero que quiere Ana?». Lo que regalan a quien pregunta no sale: es una sorpresa, no lo adivines ni lo insinúes.',
 		{
@@ -301,6 +309,8 @@ export async function runRead(
 			return describePlugEnergy(k, args);
 		case 'read_energy_forecast':
 			return describeEnergyForecast(k);
+		case 'read_ai_spending':
+			return describeAiSpending(k);
 		case 'read_wishes':
 			return describeWishes(k, userId, { person: text(args.person), shop: text(args.shop) });
 		default:

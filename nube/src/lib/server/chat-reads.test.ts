@@ -100,6 +100,10 @@ mock.module('#lib/server/periods.ts', () => ({
 		''
 	)
 }));
+// Tested in expenses/ai-costs.test.ts.
+mock.module('#lib/server/expenses/ai-costs.ts', () => ({
+	describeAiSpending: async () => (called.push('ai'), '')
+}));
 // Tested in plugs/energy-read.test.ts.
 mock.module('#lib/server/plugs/energy-read.ts', () => ({
 	ENERGY_DAYS: 92,

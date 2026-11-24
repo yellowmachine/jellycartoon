@@ -65,6 +65,8 @@ mock.module('#lib/server/wishes.ts', () => ({
 	wishLine: () => '[Tarjeta de deseo]',
 	addWishFromCard: async (_k: unknown, _u: string, card: unknown) => ({ card })
 }));
+// Tested in expenses/ai-costs.test.ts.
+mock.module('#lib/server/expenses/ai-costs.ts', () => ({ describeAiSpending: async () => '' }));
 // Tested in plugs/energy-read.test.ts.
 mock.module('#lib/server/plugs/energy-read.ts', () => ({
 	ENERGY_DAYS: 92,

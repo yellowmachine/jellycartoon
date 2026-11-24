@@ -549,9 +549,11 @@
 					target="_blank"
 					rel="noreferrer"
 					class="text-amber-400 hover:underline">OpenRouter</a
-				> de la familia: con ella piensa la voz (la de los móviles y la de los satélites), se leen los
-				tickets y las facturas, y las recetas quedan con pasos cortos y sus temporizadores. Lo que se
-				usa se paga con el crédito de esa cuenta. Se guarda cifrada.
+				>
+				de la familia: con ella piensa la voz (la de los móviles y la de los satélites), se leen los tickets
+				y las facturas, y las recetas quedan con pasos cortos y sus temporizadores. Lo que se usa se paga
+				con el crédito de esa cuenta. Se guarda cifrada.
+				<a href="/gastos/ia" class="text-amber-400 hover:underline">En qué se gasta</a>
 			</p>
 			{#if data.openRouter}
 				<p class="mb-3 font-mono text-sm">{data.openRouter}</p>

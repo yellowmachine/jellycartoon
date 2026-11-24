@@ -28,7 +28,11 @@ mock.module('#lib/server/fridge.ts', () => ({
 	toBuy: async () => [],
 	addItems: async () => []
 }));
-const { addAiCost, aiCostStats } = await import('./ai-costs.ts');
+mock.module('#lib/server/family-settings.ts', () => ({ openRouterKey: async () => 'clave' }));
+mock.module('#lib/server/openrouter-usage.ts', () => ({
+	keyUsage: async () => ({ total: 9, month: 2, week: 1 })
+}));
+const { addAiCost, aiCostStats, describeAiSpending, unnoted } = await import('./ai-costs.ts');
 
 // A fixed day and hour, whenever it runs: «today» here must not change halfway through at midnight.
 setSystemTime(new Date(2026, 10, 11, 12, 0));
@@ -105,4 +109,49 @@ describe('the house’s, sent again', () => {
 		expect(s.count).toBe(8);
 		expect(s.total).toBeCloseTo(2.092);
 	});
+});
+
+describe('those noted as «Otros»', () => {
+	test('by their label now, together with the ones already named', async () => {
+		const otros = (label: string, cost: number) => ({
+			familyId: 'A',
+			app: 'nube',
+			kind: 'Otros',
+			label,
+			cost,
+			at: at(today, 14)
+		});
+		await db
+			.insert(aiCost)
+			.values([otros('Preguntar', 0.2), otros('Preguntar', 0.1), otros('Cosa rara', 0.01)]);
+		await addAiCost('A', 'nube', 'Preguntar', 0.1, at(today, 15));
+		const s = await aiCostStats(k);
+		const asked = s.kinds.month.find((r) => r.kind === 'Preguntar')!;
+		expect(asked.count).toBe(3);
+		expect(asked.cost).toBeCloseTo(0.4);
+		expect(s.kinds.month.find((r) => r.kind === 'Otros')!.cost).toBeCloseTo(0.01);
+		expect(s.recent.filter((r) => r.label === 'Preguntar').map((r) => r.kind)).toEqual([
+			'Preguntar',
+			'Preguntar',
+			'Preguntar'
+		]);
+	});
+
+	test('what Preguntar is told, with what is not noted', async () => {
+		const said = await describeAiSpending(k);
+		expect(said).toContain('Preguntar 0,400 $ (3 veces)');
+		expect(said).toContain('sin apuntar');
+		expect(said).not.toContain('9,00');
+	});
+});
+
+test('what is not noted: only known from before the month, and more than a trifle', () => {
+	const since = '2020-01-01T10:00:00Z';
+	expect(unnoted({ month: 1, since }, 1.5)).toBeCloseTo(0.5);
+	expect(unnoted({ month: 1, since }, 1.005)).toBeNull();
+	expect(unnoted({ month: 2, since }, 1.5)).toBeNull();
+	expect(unnoted({ month: 1, since }, null)).toBeNull();
+	expect(
+		unnoted({ month: 1, since: at(addDays(`${today.slice(0, 7)}-01`, 4)).toISOString() }, 2)
+	).toBeNull();
 });
