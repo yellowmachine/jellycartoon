@@ -101,6 +101,19 @@
 				{:else}
 					<li class="text-sm text-zinc-400">Nada este mes.</li>
 				{/each}
+				{#if span === 'month' && data.unnoted}
+					<li class="rounded-md border border-dashed border-zinc-700 px-3 py-2">
+						<div class="flex items-baseline gap-3">
+							<span class="min-w-0 flex-1">Voz hablada y otros sin apuntar</span>
+							<span class="text-right font-semibold tabular-nums">≈ {cost(data.unnoted)}</span>
+						</div>
+						<p class="mt-1 text-xs text-zinc-400">
+							Lo que falta hasta lo que dice OpenRouter: no da el precio de la voz que se oye
+							(satélites, Vista, modo DJ, Langua) y cuenta todo lo que use la clave. No está en las
+							sumas de arriba.
+						</p>
+					</li>
+				{/if}
 			</ul>
 		</section>
 
