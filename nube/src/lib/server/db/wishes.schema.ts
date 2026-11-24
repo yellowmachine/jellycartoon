@@ -47,6 +47,10 @@ export const wish = pgTable(
 		priceAt: timestamp('price_at'),
 		/** A size, a colour: what the shop's page does not say. */
 		note: text('note'),
+		/** For when: «Lo primero», «Pronto» or «Más adelante» (lib/wishes.ts). */
+		priority: text('priority', { enum: ['primero', 'pronto', 'mas_adelante'] })
+			.notNull()
+			.default('pronto'),
 		/** Who added it; gone, the wish stays. */
 		addedBy: text('added_by').references(() => user.id, { onDelete: 'set null' }),
 		/** «Lo regalo yo»: who will give it, hidden from the person it is for. */

@@ -1,12 +1,20 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { enhance, type SubmitFunction } from '$app/forms';
 	import { page } from '$app/state';
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { monthOf } from 'comun/expenses.ts';
 	import Comprado from './Comprado.svelte';
 	import { field, primary, secondary, select } from '#lib/styles.ts';
-	import { bookmarklet, MAX_WISH_NOTE, MAX_WISH_TITLE, priceText, seenOn } from '#lib/wishes.ts';
+	import {
+		bookmarklet,
+		MAX_WISH_NOTE,
+		MAX_WISH_TITLE,
+		priceText,
+		seenOn,
+		WISH_PRIORITIES,
+		WISH_PRIORITY_LABELS
+	} from '#lib/wishes.ts';
 	import type { PageProps } from './$types';
 
 	/**
@@ -34,6 +42,14 @@
 	});
 	const filtered = $derived(ofPerson.filter((w) => !chosenShop || w.shop === chosenShop));
 	const shown = $derived(filtered.filter((w) => !w.bought));
+	/** By when each is for, those with any; titled only if some is not the usual «Pronto». */
+	const sections = $derived(
+		WISH_PRIORITIES.map((priority) => ({
+			priority,
+			list: shown.filter((w) => w.priority === priority)
+		})).filter((s) => s.list.length)
+	);
+	const titled = $derived(sections.some((s) => s.priority !== 'pronto'));
 	const bought = $derived(
 		filtered
 			.filter((w) => w.bought)
@@ -66,6 +82,11 @@
 				writable[0]?.id ??
 				'';
 	});
+	/** Saved without resetting the form: its select keeps what was chosen. */
+	const keepForm: SubmitFunction =
+		() =>
+		async ({ update }) =>
+			update({ reset: false });
 	let editing = $state<number | null>(null);
 	let problem = $state<string | null>(null);
 	/** The one that was already there when the same product was added again (#586). */
@@ -76,6 +97,151 @@
 			document.getElementById(`deseo-${shownAlready}`)?.scrollIntoView({ block: 'center' });
 	});
 </script>
+
+{#snippet cards(list: PageProps['data']['wishes'])}
+	<ul class="grid gap-4 sm:grid-cols-2">
+		{#each list as w (w.id)}
+			{@const price = priceText(w.priceCents, w.currency)}
+			{@const writes = data.people.some((p) => p.id === w.personId && p.writes)}
+			{@const forMe = data.people.some((p) => p.id === w.personId && p.me)}
+			<li
+				id="deseo-{w.id}"
+				class="flex gap-3 rounded-lg border bg-zinc-900 p-3 {shownAlready === w.id
+					? 'border-amber-500'
+					: w.priority === 'primero'
+						? 'border-amber-500/50'
+						: 'border-zinc-800'}"
+			>
+				<a
+					href={w.url}
+					target="_blank"
+					rel="noopener noreferrer"
+					class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white"
+					tabindex="-1"
+					aria-hidden="true"
+				>
+					{#if w.imageUrl}
+						<img
+							src={w.imageUrl}
+							alt=""
+							loading="lazy"
+							referrerpolicy="no-referrer"
+							class="h-full w-full object-contain"
+						/>
+					{:else}
+						<SectionIcon name="deseos" class="h-10 w-10 text-zinc-400" />
+					{/if}
+				</a>
+				<div class="min-w-0 flex-1">
+					{#if editing === w.id}
+						<form
+							method="post"
+							action="?/update"
+							class="flex flex-col gap-2"
+							use:enhance={() =>
+								async ({ result, update }) => {
+									if (result.type === 'success') editing = null;
+									await update({ reset: false });
+								}}
+						>
+							<input type="hidden" name="id" value={w.id} />
+							<input
+								name="title"
+								value={w.title}
+								required
+								maxlength={MAX_WISH_TITLE}
+								aria-label="Nombre"
+								class="{field} py-1 text-sm"
+							/>
+							<input
+								name="note"
+								value={w.note ?? ''}
+								maxlength={MAX_WISH_NOTE}
+								placeholder="Talla, color…"
+								aria-label="Nota"
+								class="{field} py-1 text-sm"
+							/>
+							<div class="flex gap-2">
+								<button class={primary}>Guardar</button>
+								<button type="button" class={secondary} onclick={() => (editing = null)}
+									>Cancelar</button
+								>
+							</div>
+						</form>
+					{:else}
+						<a
+							href={w.url}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="line-clamp-2 font-medium hover:underline">{w.title}</a
+						>
+						<p class="text-sm text-zinc-400">
+							{w.shop}{#if price}
+								· <span class="text-zinc-200">{price}</span>{#if seenOn(w.priceAt)}
+									<span class="text-xs">
+										{seenOn(w.priceAt)}</span
+									>{/if}{/if}{#if !chosenPerson && data.people.length > 1}
+								· {nameOf(w.personId)}{/if}
+						</p>
+						{#if w.note}<p class="text-sm text-zinc-300">{w.note}</p>{/if}
+						<div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+							{#if w.gift?.mine}
+								<span class="text-emerald-400">Lo regalas tú</span>
+								<form method="post" action="?/give" use:enhance>
+									<input type="hidden" name="id" value={w.id} />
+									<button class="text-zinc-400 hover:underline">Ya no</button>
+								</form>
+							{:else if w.gift}
+								<span class="text-zinc-400">Lo regala {w.gift.name}</span>
+							{:else if !forMe && !data.kid}
+								<form method="post" action="?/give" use:enhance>
+									<input type="hidden" name="id" value={w.id} />
+									<input type="hidden" name="on" value="1" />
+									<button class="text-amber-400 hover:underline">Lo regalo yo</button>
+								</form>
+							{/if}
+							{#if w.buys}
+								<Comprado
+									wish={w}
+									today={data.today}
+									secret={!forMe && !writes}
+									onbought={(done) => (justBought = done)}
+								/>
+							{/if}
+							{#if writes}
+								<form method="post" action="?/priority" use:enhance={keepForm}>
+									<input type="hidden" name="id" value={w.id} />
+									<select
+										name="priority"
+										value={w.priority}
+										aria-label="Para cuándo"
+										class="{select} border-transparent bg-transparent pl-0 text-zinc-400"
+										onchange={(e) => e.currentTarget.form?.requestSubmit()}
+									>
+										{#each WISH_PRIORITIES as p (p)}
+											<option value={p} class="bg-zinc-900">{WISH_PRIORITY_LABELS[p]}</option>
+										{/each}
+									</select>
+								</form>
+								<button class="text-zinc-400 hover:underline" onclick={() => (editing = w.id)}
+									>Editar</button
+								>
+								<ConfirmForm
+									action="?/delete"
+									fields={{ id: w.id }}
+									label="Quitar"
+									question="¿Quitar de la lista?"
+									yes="Sí, quitar"
+									class="text-zinc-400 hover:underline"
+								/>
+							{/if}
+						</div>
+					{/if}
+				</div>
+			</li>
+		{/each}
+	</ul>
+{/snippet}
 
 <svelte:head><title>Deseos</title></svelte:head>
 
@@ -201,132 +367,27 @@
 		{/if}
 	</p>
 {:else}
-	<ul class="grid gap-4 sm:grid-cols-2">
-		{#each shown as w (w.id)}
-			{@const price = priceText(w.priceCents, w.currency)}
-			{@const writes = data.people.some((p) => p.id === w.personId && p.writes)}
-			{@const forMe = data.people.some((p) => p.id === w.personId && p.me)}
-			<li
-				id="deseo-{w.id}"
-				class="flex gap-3 rounded-lg border bg-zinc-900 p-3 {shownAlready === w.id
-					? 'border-amber-500'
-					: 'border-zinc-800'}"
+	{#each sections as s (s.priority)}
+		{#if !titled}
+			{@render cards(s.list)}
+		{:else if s.priority === 'mas_adelante'}
+			<!-- Folded, unless there is nothing else, or the one looked for is in it. -->
+			<details
+				class="mt-8"
+				open={sections.length === 1 || s.list.some((w) => w.id === shownAlready)}
 			>
-				<a
-					href={w.url}
-					target="_blank"
-					rel="noopener noreferrer"
-					class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white"
-					tabindex="-1"
-					aria-hidden="true"
-				>
-					{#if w.imageUrl}
-						<img
-							src={w.imageUrl}
-							alt=""
-							loading="lazy"
-							referrerpolicy="no-referrer"
-							class="h-full w-full object-contain"
-						/>
-					{:else}
-						<SectionIcon name="deseos" class="h-10 w-10 text-zinc-400" />
-					{/if}
-				</a>
-				<div class="min-w-0 flex-1">
-					{#if editing === w.id}
-						<form
-							method="post"
-							action="?/update"
-							class="flex flex-col gap-2"
-							use:enhance={() =>
-								async ({ result, update }) => {
-									if (result.type === 'success') editing = null;
-									await update({ reset: false });
-								}}
-						>
-							<input type="hidden" name="id" value={w.id} />
-							<input
-								name="title"
-								value={w.title}
-								required
-								maxlength={MAX_WISH_TITLE}
-								aria-label="Nombre"
-								class="{field} py-1 text-sm"
-							/>
-							<input
-								name="note"
-								value={w.note ?? ''}
-								maxlength={MAX_WISH_NOTE}
-								placeholder="Talla, color…"
-								aria-label="Nota"
-								class="{field} py-1 text-sm"
-							/>
-							<div class="flex gap-2">
-								<button class={primary}>Guardar</button>
-								<button type="button" class={secondary} onclick={() => (editing = null)}
-									>Cancelar</button
-								>
-							</div>
-						</form>
-					{:else}
-						<a
-							href={w.url}
-							target="_blank"
-							rel="noopener noreferrer"
-							class="line-clamp-2 font-medium hover:underline">{w.title}</a
-						>
-						<p class="text-sm text-zinc-400">
-							{w.shop}{#if price}
-								· <span class="text-zinc-200">{price}</span>{#if seenOn(w.priceAt)}
-									<span class="text-xs">
-										{seenOn(w.priceAt)}</span
-									>{/if}{/if}{#if !chosenPerson && data.people.length > 1}
-								· {nameOf(w.personId)}{/if}
-						</p>
-						{#if w.note}<p class="text-sm text-zinc-300">{w.note}</p>{/if}
-						<div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-							{#if w.gift?.mine}
-								<span class="text-emerald-400">Lo regalas tú</span>
-								<form method="post" action="?/give" use:enhance>
-									<input type="hidden" name="id" value={w.id} />
-									<button class="text-zinc-400 hover:underline">Ya no</button>
-								</form>
-							{:else if w.gift}
-								<span class="text-zinc-400">Lo regala {w.gift.name}</span>
-							{:else if !forMe && !data.kid}
-								<form method="post" action="?/give" use:enhance>
-									<input type="hidden" name="id" value={w.id} />
-									<input type="hidden" name="on" value="1" />
-									<button class="text-amber-400 hover:underline">Lo regalo yo</button>
-								</form>
-							{/if}
-							{#if w.buys}
-								<Comprado
-									wish={w}
-									today={data.today}
-									secret={!forMe && !writes}
-									onbought={(done) => (justBought = done)}
-								/>
-							{/if}
-							{#if writes}
-								<button class="text-zinc-400 hover:underline" onclick={() => (editing = w.id)}
-									>Editar</button
-								>
-								<ConfirmForm
-									action="?/delete"
-									fields={{ id: w.id }}
-									label="Quitar"
-									question="¿Quitar de la lista?"
-									yes="Sí, quitar"
-									class="text-zinc-400 hover:underline"
-								/>
-							{/if}
-						</div>
-					{/if}
-				</div>
-			</li>
-		{/each}
-	</ul>
+				<summary class="cursor-pointer font-semibold">
+					{WISH_PRIORITY_LABELS[s.priority]} <span class="text-zinc-400">{s.list.length}</span>
+				</summary>
+				<div class="mt-3">{@render cards(s.list)}</div>
+			</details>
+		{:else}
+			<section class="mt-6 first:mt-0">
+				<h2 class="mb-3 font-semibold">{WISH_PRIORITY_LABELS[s.priority]}</h2>
+				{@render cards(s.list)}
+			</section>
+		{/if}
+	{/each}
 {/if}
 
 {#if bought.length}

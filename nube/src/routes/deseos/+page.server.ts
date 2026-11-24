@@ -4,6 +4,7 @@ import { isCategory, isDay, MAX_CENTS, parseEuros } from 'comun/expenses.ts';
 import { lookingSame } from '#lib/server/expenses/duplicates.ts';
 import { addExpense } from '#lib/server/expenses/expenses.ts';
 import { kitchenOf, today } from '#lib/server/fridge.ts';
+import { isWishPriority } from '#lib/wishes.ts';
 import { isKidAccount } from '#lib/server/kids.ts';
 import {
 	addWish,
@@ -15,6 +16,7 @@ import {
 	listWishes,
 	readProduct,
 	setWishExpense,
+	setWishPriority,
 	unbuyWish,
 	updateWish
 } from '#lib/server/wishes.ts';
@@ -71,6 +73,22 @@ export const actions: Actions = {
 			title,
 			note: text(form, 'note')
 		});
+		if (!done) return fail(404, { message: 'Ese deseo ya no está' });
+	},
+	/** «Lo primero», «Pronto» or «Más adelante». */
+	priority: async ({ request, locals }) => {
+		const userId = locals.user!.id;
+		const form = await request.formData();
+		const id = idOf(form);
+		const priority = form.get('priority');
+		if (!id || !isWishPriority(priority)) return fail(400, { message: 'Falta cuál' });
+		const done = await setWishPriority(
+			await kitchenOf(userId),
+			userId,
+			await isKidAccount(userId),
+			id,
+			priority
+		);
 		if (!done) return fail(404, { message: 'Ese deseo ya no está' });
 	},
 	delete: async ({ request, locals }) => {

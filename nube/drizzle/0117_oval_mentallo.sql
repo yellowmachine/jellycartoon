@@ -1,0 +1,1 @@
+ALTER TABLE "wish" ADD COLUMN "priority" text DEFAULT 'pronto' NOT NULL;

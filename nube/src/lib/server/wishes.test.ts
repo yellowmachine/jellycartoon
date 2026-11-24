@@ -127,6 +127,7 @@ const {
 	titleFromAddress,
 	titleFromShared,
 	tidyTitle,
+	setWishPriority,
 	updateWish
 } = await import('./wishes.ts');
 const kitchen = (userId: string, familyId = 'A'): Kitchen => ({
@@ -390,6 +391,27 @@ describe('«Comprado»', () => {
 		expect(
 			await addWish(ana, 'ana', false, people.Ana!, product('Libro', 'libro'), null)
 		).toHaveProperty('added');
+	});
+});
+
+describe('for when', () => {
+	test('set by who writes in the list, seen by the family; Preguntar is told what is first', async () => {
+		await addWish(ana, 'ana', false, people.Ana!, product('Libro'), null);
+		await addWish(ana, 'ana', false, people.Ana!, product('Cámara'), null);
+		await addWish(ana, 'ana', false, people.Ana!, product('Bici'), null);
+		const all = (await listWishes(ana, 'ana', false)).wishes;
+		const id = (title: string) => all.find((w) => w.title === title)!.id;
+		expect(all.every((w) => w.priority === 'pronto')).toBe(true);
+		expect(await setWishPriority(pepe, 'pepe', false, id('Libro'), 'primero')).toBe(false);
+		expect(await setWishPriority(otro, 'otro', false, id('Libro'), 'primero')).toBe(false);
+		expect(await setWishPriority(ana, 'ana', false, id('Libro'), 'primero')).toBe(true);
+		expect(await setWishPriority(ana, 'ana', false, id('Bici'), 'mas_adelante')).toBe(true);
+		const said = (await describeWishes(pepe, 'pepe')).split('\n');
+		expect(said[0]).toContain('«Libro»');
+		expect(said[0]).toContain('para: lo primero');
+		expect(said[1]).toContain('«Cámara»');
+		expect(said[1]).not.toContain('para:');
+		expect(said[2]).toContain('para: más adelante');
 	});
 });
 

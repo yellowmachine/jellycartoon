@@ -14,7 +14,10 @@ import {
 	priceFromText,
 	seenOn,
 	shopOf,
-	type WishCard
+	WISH_PRIORITIES,
+	WISH_PRIORITY_LABELS,
+	type WishCard,
+	type WishPriority
 } from '#lib/wishes.ts';
 
 /**
@@ -232,6 +235,7 @@ export interface WishView {
 	/** When the price was seen. */
 	priceAt: Date | null;
 	note: string | null;
+	priority: WishPriority;
 	/** «Lo regalo yo»: by whom, and whether by the one looking; null for the person it is for. */
 	gift: { mine: boolean; name: string } | null;
 	/** «Comprado»: null also for the person it is for, if another bought it. */
@@ -286,6 +290,7 @@ export async function listWishes(k: Kitchen, userId: string, kid: boolean) {
 			currency: w.currency,
 			priceAt: w.priceAt,
 			note: w.note,
+			priority: w.priority,
 			gift:
 				String(w.personId) === mine || kid || !w.giftBy
 					? null
@@ -396,6 +401,20 @@ export async function updateWish(
 	return true;
 }
 
+/** For when it is; false if it is not there or not theirs to write. */
+export async function setWishPriority(
+	k: Kitchen,
+	userId: string,
+	kid: boolean,
+	id: number,
+	priority: WishPriority
+) {
+	const personId = await wishPerson(k, id);
+	if (personId === null || !(await writesIn(k, userId, kid, personId))) return false;
+	await k.run((tx) => tx.update(wish).set({ priority }).where(eq(wish.id, id)));
+	return true;
+}
+
 export async function deleteWish(k: Kitchen, userId: string, kid: boolean, id: number) {
 	const personId = await wishPerson(k, id);
 	if (personId === null || !(await writesIn(k, userId, kid, personId))) return false;
@@ -493,7 +512,7 @@ export async function unbuyWish(k: Kitchen, userId: string, id: number) {
 	return Boolean(done);
 }
 
-/** Wishes said to the AI, at most: the newest. */
+/** Wishes said to the AI, at most: what is wanted first, the newest. */
 const SAID_WISHES = 80;
 
 /**
@@ -520,7 +539,9 @@ export async function describeWishes(
 	const found = wishes.filter((w) => ids.has(w.personId) && (!shop || same(w.shop, shop)));
 	if (!found.length) return 'No hay ningún deseo así en la lista.';
 	const nameOf = new Map(people.map((p) => [p.id, p.me ? `${p.name} (quien pregunta)` : p.name]));
+	const order = (w: WishView) => WISH_PRIORITIES.indexOf(w.priority);
 	return found
+		.sort((a, b) => Number(Boolean(a.bought)) - Number(Boolean(b.bought)) || order(a) - order(b))
 		.slice(0, SAID_WISHES)
 		.map((w) => {
 			const seen = seenOn(w.priceAt);
@@ -531,10 +552,14 @@ export async function describeWishes(
 					? '; lo regala quien pregunta'
 					: `; lo regala ${w.gift.name}`
 				: '';
+			const when =
+				w.priority === 'pronto' || w.bought
+					? ''
+					: `; para: ${WISH_PRIORITY_LABELS[w.priority].toLowerCase()}`;
 			const bought = w.bought
 				? `; comprado el ${w.bought.on} por ${w.bought.mine ? 'quien pregunta' : w.bought.name}`
 				: '';
-			return `${nameOf.get(w.personId)}: «${w.title}» (${w.shop}${priced})${w.note ? `, nota: ${w.note}` : ''}${gift}${bought}`;
+			return `${nameOf.get(w.personId)}: «${w.title}» (${w.shop}${priced})${w.note ? `, nota: ${w.note}` : ''}${when}${gift}${bought}`;
 		})
 		.join('\n');
 }
