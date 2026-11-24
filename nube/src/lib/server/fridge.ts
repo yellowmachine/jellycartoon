@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, isNull, or } from 'drizzle-orm';
 import { user } from '#lib/server/db/auth.schema.ts';
-import { fridgeItem, fridgeNote } from '#lib/server/db/schema.ts';
+import { fridgeItem, fridgeNote, shoppingPhoto } from '#lib/server/db/schema.ts';
 import { asFamily, withFamily } from '#lib/server/family.ts';
 import type { AnyDb } from '#lib/server/family-scope.ts';
 import { agendaToday } from '#lib/server/agenda/agenda.ts';
@@ -44,7 +44,8 @@ export function watchFridge(familyId: string, listener: () => void) {
 	return () => void set.delete(listener);
 }
 
-function changed(familyId: string) {
+/** The family's open pages are told that it changed. */
+export function changed(familyId: string) {
 	for (const listener of listeners.get(familyId) ?? []) listener();
 }
 
@@ -57,7 +58,9 @@ export const dayOf = (moment: Date) => dayFormat.format(moment);
 
 /** Lower case and without accents: «Cebolla» is the «cebolla» already there. */
 const fold = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
-const same = (a: string, b: string) => fold(a).trim() === fold(b).trim();
+/** An item by its name: what its photo is remembered by (shopping-photos.ts). */
+export const itemKey = (text: string) => fold(text).trim();
+const same = (a: string, b: string) => itemKey(a) === itemKey(b);
 
 const author = (id: string | null, name: string | null): FridgeAuthor | null =>
 	id && name ? { name, paper: paperFor(id) } : null;
@@ -117,6 +120,14 @@ function fridgeOnly(k: Kitchen): Promise<Omit<FridgeState, 'today'>> {
 			.leftJoin(user, eq(user.id, fridgeItem.userId))
 			.where(eq(fridgeItem.noteId, list))
 			.orderBy(asc(fridgeItem.done), asc(fridgeItem.createdAt), asc(fridgeItem.id));
+		const keys = items.map((i) => itemKey(i.text));
+		const photos = keys.length
+			? await tx.select().from(shoppingPhoto).where(inArray(shoppingPhoto.name, keys))
+			: [];
+		const photoOf = (text: string) => {
+			const p = photos.find((p) => p.name === itemKey(text));
+			return p ? { url: `/nevera/fotos/${p.id}?v=${p.photo}`, note: p.note } : null;
+		};
 		return {
 			notes: notes.map((n) => ({
 				id: n.id,
@@ -131,7 +142,8 @@ function fridgeOnly(k: Kitchen): Promise<Omit<FridgeState, 'today'>> {
 					id: i.id,
 					text: i.text,
 					done: i.done,
-					author: author(i.userId, i.name)
+					author: author(i.userId, i.name),
+					photo: photoOf(i.text)
 				}))
 			}
 		};

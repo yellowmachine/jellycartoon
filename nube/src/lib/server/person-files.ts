@@ -15,13 +15,15 @@ const WALK_PHOTOS = 'paseos';
 export async function personFiles(k: Kitchen, userId: string) {
 	const [notes, walks, trips] = await k.run((tx) =>
 		Promise.all([
-			tx.select({ audio: note.audio }).from(note).where(eq(note.userId, userId)),
+			tx.select({ audio: note.audio, photo: note.photo }).from(note).where(eq(note.userId, userId)),
 			tx.select({ file: walkPhoto.file }).from(walkPhoto).where(eq(walkPhoto.userId, userId)),
 			tx.select({ id: tripPhoto.id }).from(tripPhoto).where(eq(tripPhoto.userId, userId))
 		])
 	);
 	return [
-		...notes.flatMap((n) => (n.audio ? [{ area: NOTES, name: n.audio }] : [])),
+		...notes.flatMap((n) =>
+			[n.audio, n.photo].flatMap((name) => (name ? [{ area: NOTES, name }] : []))
+		),
 		...walks.map((w) => ({ area: WALK_PHOTOS, name: w.file })),
 		...trips.map((t) => ({ area: PHOTOS, name: photoName(t.id) }))
 	];

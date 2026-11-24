@@ -1,5 +1,6 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { removeShoppingPhoto, setPhotoNote } from '#lib/server/shopping-photos.ts';
 import {
 	addItems,
 	addNote,
@@ -34,7 +35,8 @@ const id = (value: unknown) => {
 
 /**
  * What is done on the family's fridge: a post-it up, changed or peeled off; items onto the list,
- * ticked off, removed, or what was bought cleared. The open pages learn it by /api/nevera/events.
+ * ticked off, removed, or what was bought cleared; the note of an item's photo, or the photo gone
+ * (put, by /api/nevera/foto). The open pages learn it by /api/nevera/events.
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const k = await kitchenOf(locals.user!.id);
@@ -67,6 +69,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			return json({ ok: true });
 		case 'clear':
 			await clearDone(k);
+			return json({ ok: true });
+		case 'photoNote':
+			if (typeof body.note !== 'string') error(400, 'Petición no válida');
+			if (!(await setPhotoNote(k, id(body.id), body.note))) error(404, 'Esa foto ya no está');
+			return json({ ok: true });
+		case 'photoRemove':
+			await removeShoppingPhoto(k, id(body.id));
 			return json({ ok: true });
 		default:
 			error(400, 'Petición no válida');

@@ -6,7 +6,8 @@ agenda's «Hoy» (#200), a calendar's sheet only to look at. To write on it, or 
 it (the TV, `big`).
 -->
 <script lang="ts" module>
-	import type { FridgeState } from 'comun/fridge.ts';
+	import type { Snippet } from 'svelte';
+	import type { FridgeItem, FridgeState } from 'comun/fridge.ts';
 
 	export interface FridgeBoardProps {
 		/** The post-its, the shopping list and today's agenda. */
@@ -15,6 +16,8 @@ it (the TV, `big`).
 		readonly?: boolean;
 		/** Bigger, for the TV. */
 		big?: boolean;
+		/** Beside each item of the list, when it can be changed: its photo. */
+		itemExtra?: Snippet<[FridgeItem]>;
 	}
 </script>
 
@@ -32,7 +35,7 @@ it (the TV, `big`).
 	} from 'comun/fridge.ts';
 	import { dayEvents, dayName, isOver, localTime, timeOn } from 'comun/agenda.ts';
 
-	let { fridge, readonly = false, big = false }: FridgeBoardProps = $props();
+	let { fridge, readonly = false, big = false, itemExtra }: FridgeBoardProps = $props();
 
 	let problem = $state<string | null>(null);
 
@@ -250,6 +253,7 @@ it (the TV, `big`).
 										>{i.text}</span
 									>
 								</label>
+								{@render itemExtra?.(i)}
 								<button
 									type="button"
 									class="shrink-0 px-1 text-stone-400 hover:text-red-600"

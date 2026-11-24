@@ -46,8 +46,8 @@ export interface InZip {
 	where: ZipWhere[];
 	/** Its columns sealed with the family key: opened for the zip. */
 	sealed?: string[];
-	/** Its file in the family's storage, by a column of the row. */
-	stored?: { area: string; column: string; suffix?: string; sealed?: boolean };
+	/** Its file in the family's storage, by a column of the row; `also`, others with one each. */
+	stored?: { area: string; column: string; also?: string[]; suffix?: string; sealed?: boolean };
 	/** Of those rows, not this one's: another's private, seen by no one else. */
 	hiddenIf?: { column: string; notMine: string };
 	/** Columns left empty unless `notMine` says they are theirs: a surprise for them. */
@@ -65,6 +65,9 @@ export interface PersonData {
 	/** What the rule alone does not say. */
 	note?: string;
 }
+
+/** The columns of a row with a file each. */
+export const storedColumns = (s: NonNullable<InZip['stored']>) => [s.column, ...(s.also ?? [])];
 
 const mine = (column = 'userId'): ZipWhere => ({ column, is: 'me' });
 const forMe = (column = 'personId'): ZipWhere => ({ column, is: 'myPerson' });
@@ -423,8 +426,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 	note: {
 		leaving: 'moves',
 		joining: 'moves',
-		zip: { file: 'notas', where: [mine()], stored: { area: 'notas', column: 'audio' } },
-		note: 'Its audio too'
+		zip: {
+			file: 'notas',
+			where: [mine()],
+			stored: { area: 'notas', column: 'audio', also: ['photo'] }
+		},
+		note: 'Its audio and its photo too; joining, no longer shared with the house'
 	},
 	watch_log: {
 		leaving: 'moves',
@@ -627,6 +634,16 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		leaving: 'stays',
 		joining: 'moves',
 		zip: { file: 'nevera-lista', where: [mine()] }
+	},
+	shopping_photo: {
+		leaving: 'stays',
+		joining: 'moves',
+		zip: {
+			file: 'nevera-fotos',
+			where: [mine()],
+			stored: { area: 'compra', column: 'photo' }
+		},
+		note: 'One per thing to buy: joining, the new family’s is kept'
 	},
 	recipe: {
 		leaving: 'stays',

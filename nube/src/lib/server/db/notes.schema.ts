@@ -1,4 +1,5 @@
 import {
+	boolean,
 	index,
 	integer,
 	pgTable,
@@ -15,8 +16,8 @@ import { walk } from './walks.schema.ts';
 /**
  * Notes (#416): what someone dictates, to look it up when they ask for it; the voice does not use
  * them by itself, as it does with its memory. Recorded here or on a walk, with their audio and what
- * was heard in it; or said to the voice, only as text. A person's, only theirs; without a person
- * (said to a satellite), the whole house's.
+ * was heard in it; said to the voice, only as text; or written, with a photo or without. A person's, only
+ * theirs unless they share it with the house; without a person (said to a satellite), the house's.
  */
 export const note = pgTable(
 	'note',
@@ -36,6 +37,10 @@ export const note = pgTable(
 			.default('ready'),
 		/** Its file in the family's storage, if it was recorded. */
 		audio: text('audio'),
+		/** Its photo's, if it has one. */
+		photo: text('photo'),
+		/** Seen by the whole house, though only its person changes it. */
+		shared: boolean('shared').notNull().default(false),
 		source: text('source', { enum: ['pagina', 'paseo', 'voz', 'escrita'] }).notNull(),
 		/** The walk it was recorded on: the walk gone, the note stays, with its place. */
 		walkId: integer('walk_id').references(() => walk.id, { onDelete: 'set null' }),

@@ -5,7 +5,7 @@ import { noteAudio, NOTES_AREA } from '#lib/server/notes.ts';
 import { fileResponse } from '#lib/server/storage.ts';
 import { audioTypeOf } from '#lib/notes.ts';
 
-/** A note's recording (#416): only one's own. */
+/** A note's recording (#416): one's own, or shared with the house. */
 export const GET: RequestHandler = async ({ params, locals }) => {
 	const k = await kitchenOf(locals.user!.id);
 	const file = await noteAudio(k, locals.user!.id, Number(params.id));

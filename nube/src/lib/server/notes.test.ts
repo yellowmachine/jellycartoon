@@ -43,12 +43,16 @@ mock.module('#lib/server/family-settings.ts', () => ({ openRouterKey: async () =
 const {
 	addRecordedNote,
 	addSaidNote,
+	addWrittenNote,
 	deleteNote,
 	describeNotes,
 	editNote,
 	hearAgain,
 	listNotes,
 	noteAudio,
+	notePhoto,
+	NotAPhoto,
+	shareNote,
 	NotAudio,
 	walkNotes
 } = await import('./notes.ts');
@@ -211,7 +215,7 @@ test('found without caring for accents, also by its days; said only with text', 
 	});
 	expect(said).toBe('2026-11-04: Revisión del Coche');
 	expect(await addSaidNote(ana, 'ana', '   ')).toBeNull();
-	expect(await addSaidNote(ana, 'ana', '   ', 'escrita')).toBeNull();
+	expect(await addWrittenNote(ana, 'ana', { text: '   ', photo: null, shared: false })).toBeNull();
 });
 
 test('deleted: its audio goes', async () => {
@@ -282,7 +286,7 @@ test('an account taken: the files of what was only theirs, and no one else’s',
 });
 
 test('written by hand: own, found, marked as written, with nothing to hear', async () => {
-	await addSaidNote(ana, 'ana', '  Comprar sellos  ', 'escrita');
+	await addWrittenNote(ana, 'ana', { text: '  Comprar sellos  ', photo: null, shared: false });
 	const [found] = await listNotes(ana, 'ana', 'sellos');
 	expect(found).toMatchObject({
 		text: 'Comprar sellos',
@@ -291,4 +295,45 @@ test('written by hand: own, found, marked as written, with nothing to hear', asy
 		mine: true
 	});
 	expect(await listNotes(kitchen('luis'), 'luis', 'sellos')).toEqual([]);
+});
+
+test('with a photo: its words may be missing; deleted, its file goes', async () => {
+	await addWrittenNote(ana, 'ana', { text: '', photo: JPEG, shared: false });
+	const [n] = await listNotes(ana, 'ana', null);
+	expect(n).toMatchObject({ text: '', mine: true, shared: false, canEdit: true });
+	expect(n!.photo).toStartWith(`/notas/${n!.id}/foto?v=`);
+	expect(files.has(`notas/${await notePhoto(ana, 'ana', n!.id)}`)).toBe(true);
+	expect(await notePhoto(kitchen('luis'), 'luis', n!.id)).toBeNull();
+	expect((await personFiles(ana, 'ana')).map((f) => f.area)).toEqual(['notas']);
+	await deleteNote(ana, 'ana', n!.id);
+	expect(files.size).toBe(0);
+	await expect(
+		addWrittenNote(ana, 'ana', {
+			text: 'x',
+			photo: new TextEncoder().encode('%PDF-1.7'),
+			shared: false
+		})
+	).rejects.toThrow(NotAPhoto);
+});
+
+test('shared: the house sees it, only its person changes it, and can take it back', async () => {
+	const luis = kitchen('luis');
+	await addWrittenNote(ana, 'ana', { text: 'La caldera', photo: JPEG, shared: true });
+	await addWrittenNote(ana, 'ana', { text: 'Privada', photo: null, shared: false });
+	const [n] = await listNotes(luis, 'luis', null);
+	expect(await listNotes(luis, 'luis', null)).toHaveLength(1);
+	expect(n).toMatchObject({ mine: false, shared: true, author: 'ana', canEdit: false });
+	expect(await notePhoto(luis, 'luis', n!.id)).not.toBeNull();
+	expect((await listNotes(ana, 'ana', null, { house: true })).map((x) => x.text)).toEqual([
+		'La caldera'
+	]);
+	const asked = { words: null, fromDay: null, untilDay: null };
+	expect(await describeNotes(luis, 'luis', asked)).toEndWith(' (de ana): La caldera (con foto)');
+	expect(await editNote(luis, 'luis', n!.id, 'Otra')).toBe(false);
+	expect(await shareNote(luis, 'luis', n!.id, false)).toBe(false);
+	await deleteNote(luis, 'luis', n!.id);
+	expect(files.size).toBe(1);
+	expect(await shareNote(ana, 'ana', n!.id, false)).toBe(true);
+	expect(await listNotes(luis, 'luis', null)).toHaveLength(0);
+	expect(await notePhoto(luis, 'luis', n!.id)).toBeNull();
 });

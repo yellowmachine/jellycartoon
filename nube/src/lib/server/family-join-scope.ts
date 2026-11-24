@@ -17,6 +17,7 @@ import {
 	familyPerson,
 	fridgeItem,
 	fridgeNote,
+	shoppingPhoto,
 	heard,
 	house,
 	houseKey,
@@ -94,6 +95,7 @@ const TABLES: [string, PgTable][] = [
 	['income', income],
 	['fridge_note', fridgeNote],
 	['fridge_item', fridgeItem],
+	['shopping_photo', shoppingPhoto],
 	['recipe', recipe],
 	['recipe_site', recipeSite],
 	['recipe_site_page', recipeSitePage],
@@ -364,10 +366,15 @@ export function familyJoinScope(
 			(await tx.select({ url: recipe.sourceUrl }).from(recipe)).map((r) => r.url)
 		);
 
+		const pictured = new Set(
+			(await tx.select({ name: shoppingPhoto.name }).from(shoppingPhoto)).map((p) => p.name)
+		);
+
 		// A call with the new family while linked (#464): it already has its own row of it.
 		const calls = new Set((await tx.select({ id: call.id }).from(call)).map((c) => c.id));
 
 		const skip: Record<string, (row: Row) => boolean> = {
+			shopping_photo: (r) => pictured.has(r.name as string),
 			call: (r) => calls.has(r.id as string),
 			podcast: (r) => sameShow.has(r.id as number),
 			podcast_episode: (r) => sameEpisode.has(r.id as number),
@@ -378,6 +385,8 @@ export function familyJoinScope(
 		};
 		const change: Record<string, (row: Row) => Row> = {
 			paper: (r) => ({ ...m.sealed.get(r.id as number) }),
+			// Shared with the house they had alone, not with this one.
+			note: () => ({ shared: false }),
 			alarm: () => ({ place: 'movil', ringingSince: null }),
 			podcast_episode: (r) => ({
 				podcastId: sameShow.get(r.podcastId as number) ?? r.podcastId

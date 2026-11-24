@@ -4,7 +4,8 @@
 	import NoteButton from '#lib/components/NoteButton.svelte';
 	import WalkUploads from '#lib/components/WalkUploads.svelte';
 	import { noteRecorder } from '#lib/note-recorder.svelte.ts';
-	import { MAX_NOTE_TEXT } from '#lib/notes.ts';
+	import { shrinkPhoto } from '#lib/mensajes/photo.ts';
+	import { MAX_NOTE_TEXT, type Note } from '#lib/notes.ts';
 	import { keepAttachment } from '#lib/walk-attachments.ts';
 	import { walkUploads } from '#lib/walk-uploads.svelte.ts';
 	import type { PageProps } from './$types';
@@ -23,6 +24,41 @@
 	let editing = $state<number | null>(null);
 	let deleting = $state<number | null>(null);
 	let problem = $state<string | null>(null);
+
+	/** The photo of the note being written, already small, and to see it. */
+	let photo = $state<Blob | null>(null);
+	let photoUrl = $state<string | null>(null);
+	let saving = $state(false);
+	/** The note whose photo is open. */
+	let open = $state<Note | null>(null);
+
+	$effect(() => {
+		if (!photo) return;
+		const url = URL.createObjectURL(photo);
+		photoUrl = url;
+		return () => {
+			URL.revokeObjectURL(url);
+			photoUrl = null;
+		};
+	});
+
+	async function picked(input: HTMLInputElement) {
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		problem = null;
+		try {
+			photo = (await shrinkPhoto(file)).blob;
+			writing = true;
+		} catch (err) {
+			problem = (err as Error).message;
+		}
+	}
+
+	function stopWriting() {
+		writing = false;
+		photo = null;
+	}
 
 	// What a walk going on or not sent yet took, it sends itself afterwards.
 	const send = () => walkUploads.send(data.user!.id);
@@ -52,10 +88,30 @@
 	<title>Notas · Seilide</title>
 </svelte:head>
 
+{#snippet pick(text: string, camera: boolean)}
+	<label
+		class={[
+			'cursor-pointer rounded-md bg-zinc-800 px-4 py-2 focus-within:ring-2 focus-within:ring-amber-300 hover:bg-zinc-700',
+			saving && 'pointer-events-none opacity-50'
+		]}
+	>
+		{text}
+		<input
+			type="file"
+			accept="image/*"
+			capture={camera ? 'environment' : undefined}
+			class="sr-only"
+			disabled={saving}
+			onchange={(e) => picked(e.currentTarget)}
+		/>
+	</label>
+{/snippet}
+
 <h1 class="mb-1 text-2xl font-bold">Notas</h1>
 <p class="mb-6 text-sm text-zinc-400">
 	Lo que escribes o dictas, para buscarlo luego: aquí, en un paseo o diciéndole a la voz «toma
-	nota». Solo para ti; las dichas a un altavoz, para toda la casa.
+	nota». Con una foto, si quieres. Solo para ti, si no la compartes con la casa; las dichas a un
+	altavoz, para todos.
 </p>
 
 <div class="mb-4 flex flex-wrap items-center gap-3">
@@ -67,33 +123,67 @@
 		class="rounded-md bg-zinc-800 px-4 py-2 hover:bg-zinc-700"
 		onclick={() => (writing = true)}>✍️ Escribir</button
 	>
+	{@render pick('📷 Foto', true)}
+	{@render pick('🖼️ Elegir una foto', false)}
 </div>
 {#if writing}
 	<form
 		method="post"
 		action="?/write"
+		enctype="multipart/form-data"
 		class="mb-4"
-		use:enhance={() =>
-			async ({ result, update }) => {
+		use:enhance={({ formData }) => {
+			if (photo) formData.set('photo', photo, 'foto.jpg');
+			saving = true;
+			problem = null;
+			return async ({ result, update }) => {
+				saving = false;
+				// Without coverage: what is written stays here, to try again.
+				if (result.type === 'error') {
+					problem = 'No se ha podido guardar. Prueba otra vez.';
+					return;
+				}
 				await update();
-				if (result.type === 'success') writing = false;
-			}}
+				if (result.type === 'success') stopWriting();
+			};
+		}}
 	>
+		{#if photoUrl}
+			<div class="mb-2 flex items-end gap-3">
+				<img src={photoUrl} alt="Foto de la nota" class="max-h-48 rounded-md" />
+				<button
+					type="button"
+					class="text-sm text-zinc-400 hover:text-white"
+					onclick={() => (photo = null)}>Quitar la foto</button
+				>
+			</div>
+		{/if}
 		<!-- svelte-ignore a11y_autofocus -->
 		<textarea
 			name="text"
 			rows="3"
-			required
+			required={!photo}
 			autofocus
 			maxlength={MAX_NOTE_TEXT}
 			aria-label="Nota"
-			placeholder="Escribe la nota"
+			placeholder={photo ? 'Qué es (para encontrarla luego)' : 'Escribe la nota'}
 			class="mb-2 w-full rounded-md border-zinc-700 bg-zinc-950 text-sm focus:border-amber-500 focus:ring-amber-500"
 		></textarea>
-		<div class="flex gap-3 text-sm">
-			<button class="rounded-md bg-amber-500 px-3 py-1 font-medium text-zinc-950">Guardar</button>
-			<button type="button" class="text-zinc-400" onclick={() => (writing = false)}>Cancelar</button
+		<div class="flex flex-wrap items-center gap-3 text-sm">
+			<label class="flex items-center gap-2">
+				<input
+					type="checkbox"
+					name="shared"
+					checked={data.house}
+					class="rounded border-zinc-600 bg-zinc-950 text-amber-500"
+				/>
+				Para toda la casa
+			</label>
+			<button
+				class="rounded-md bg-amber-500 px-3 py-1 font-medium text-zinc-950 disabled:opacity-50"
+				disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</button
 			>
+			<button type="button" class="text-zinc-400" onclick={stopWriting}>Cancelar</button>
 		</div>
 	</form>
 {/if}
@@ -105,12 +195,25 @@
 	<p class="mb-4 text-sm text-red-400" role="alert">{form.message}</p>
 {/if}
 
+<nav class="mb-3 flex gap-2 text-sm" aria-label="Qué notas">
+	{#each [{ house: false, href: '/notas', label: 'Todas' }, { house: true, href: '/notas?casa', label: 'De la casa' }] as tab (tab.href)}
+		<a
+			href={tab.href}
+			aria-current={data.house === tab.house ? 'page' : undefined}
+			class={[
+				'rounded-full px-3 py-1',
+				data.house === tab.house ? 'bg-zinc-700 text-white' : 'bg-zinc-900 text-zinc-400'
+			]}>{tab.label}</a
+		>
+	{/each}
+</nav>
 <form method="get" class="mb-6 flex gap-2">
+	{#if data.house}<input type="hidden" name="casa" value="" />{/if}
 	<input
 		name="q"
 		type="search"
 		value={data.q ?? ''}
-		placeholder="Buscar en las notas"
+		placeholder={data.house ? 'Buscar en las de la casa' : 'Buscar en las notas'}
 		class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-950 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500"
 	/>
 	<button class="rounded-md bg-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-700">Buscar</button>
@@ -121,7 +224,11 @@
 		{#each data.notes as n (n.id)}
 			<li class="p-3">
 				<p class="mb-1 text-xs text-zinc-500">
-					{when.format(new Date(n.at))} · {SOURCE[n.source]}{n.mine ? '' : ' · de toda la casa'}
+					{when.format(new Date(n.at))} · {n.photo && n.source === 'escrita'
+						? 'Con foto'
+						: SOURCE[n.source]}{n.author ? ` · de ${n.author}` : ''}{n.shared
+						? ' · para toda la casa'
+						: ''}
 				</p>
 				{#if editing === n.id}
 					<form
@@ -151,16 +258,33 @@
 						</div>
 					</form>
 				{:else if n.hearing === 'ready'}
-					<p class="break-words whitespace-pre-wrap">{n.text || '(sin palabras)'}</p>
+					{#if n.text || !n.photo}
+						<p class="break-words whitespace-pre-wrap">{n.text || '(sin palabras)'}</p>
+					{/if}
 				{:else if n.hearing === 'pending'}
 					<p class="text-sm text-zinc-400">Transcribiendo…</p>
 				{:else}
 					<p class="text-sm text-amber-300">No se pudo transcribir.</p>
 				{/if}
+				{#if n.photo}
+					<button
+						type="button"
+						class="mt-2 block"
+						aria-label="Ver la foto en grande"
+						onclick={() => (open = n)}
+					>
+						<img
+							src={n.photo}
+							alt={n.text || 'Foto'}
+							loading="lazy"
+							class="max-h-48 max-w-full rounded-md"
+						/>
+					</button>
+				{/if}
 				{#if n.hasAudio}
 					<audio controls preload="none" src="/notas/{n.id}/audio" class="mt-2 w-full"></audio>
 				{/if}
-				{#if editing !== n.id}
+				{#if editing !== n.id && n.canEdit}
 					<div class="mt-2 flex flex-wrap items-center gap-3 text-sm">
 						{#if n.hearing !== 'ready' && n.hasAudio && n.mine}
 							<form method="post" action="?/hear" use:enhance>
@@ -171,6 +295,15 @@
 						<button class="text-zinc-400 hover:text-white" onclick={() => (editing = n.id)}
 							>Corregir</button
 						>
+						{#if n.mine}
+							<form method="post" action="?/share" use:enhance>
+								<input type="hidden" name="id" value={n.id} />
+								<input type="hidden" name="shared" value={n.shared ? '0' : '1'} />
+								<button class="text-zinc-400 hover:text-white"
+									>{n.shared ? 'Solo para mí' : 'Compartir con la casa'}</button
+								>
+							</form>
+						{/if}
 						{#if deleting === n.id}
 							<form method="post" action="?/delete" use:enhance class="flex gap-3">
 								<input type="hidden" name="id" value={n.id} />
@@ -192,5 +325,28 @@
 {:else if data.q}
 	<p class="text-zinc-400">Ninguna nota dice «{data.q}».</p>
 {:else}
-	<p class="text-zinc-400">Todavía no hay notas.</p>
+	<p class="text-zinc-400">
+		{data.house ? 'Todavía no hay notas de toda la casa.' : 'Todavía no hay notas.'}
+	</p>
+{/if}
+
+{#if open}
+	<dialog
+		{@attach (el) => el.showModal()}
+		onclose={() => (open = null)}
+		onclick={(e) => e.target === e.currentTarget && e.currentTarget.close()}
+		aria-label="Foto"
+		class="tema-oscuro m-auto max-h-none max-w-none bg-transparent p-0 backdrop:bg-black/95"
+	>
+		<img
+			src={open.photo}
+			alt={open.text || 'Foto'}
+			class="max-h-[95dvh] max-w-[95vw] object-contain"
+		/>
+		<form method="dialog">
+			<button class="fixed top-3 right-3 rounded-full bg-zinc-800 px-4 py-2 text-white"
+				>✕ Cerrar</button
+			>
+		</form>
+	</dialog>
 {/if}

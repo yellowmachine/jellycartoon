@@ -5,7 +5,7 @@ import { familyPerson, user } from '#lib/server/db/schema.ts';
 import type { AnyDb } from '#lib/server/family-scope.ts';
 import { openFileFor, openFor } from '#lib/server/family-secret.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
-import { PERSON_DATA, type InZip, type ZipWhere } from '#lib/server/person-data.ts';
+import { PERSON_DATA, storedColumns, type InZip, type ZipWhere } from '#lib/server/person-data.ts';
 import { readFile } from '#lib/server/storage.ts';
 
 /**
@@ -167,18 +167,19 @@ export async function* myDataFiles(k: Kitchen, data: MyData): AsyncGenerator<Zip
 	for (const { table, zip } of zips) {
 		const stored = zip.stored;
 		if (!stored) continue;
-		for (const row of rowsOf(data.rows, table)) {
-			const value = row[stored.column];
-			if (value === null || value === undefined) continue;
-			// A receipt's name may have come with a path: only its last part is its name.
-			const name = `${String(value).split('/').pop()}${stored.suffix ?? ''}`;
-			const path = `archivos/${stored.area}/${name}`;
-			const bytes = await readFile(k.familyId, stored.area, name).catch(() => null);
-			const file =
-				bytes && stored.sealed ? await openFileFor(k.familyId, bytes).catch(() => null) : bytes;
-			if (file) yield entry(path, file);
-			else missing.push(path);
-		}
+		for (const row of rowsOf(data.rows, table))
+			for (const column of storedColumns(stored)) {
+				const value = row[column];
+				if (value === null || value === undefined) continue;
+				// A receipt's name may have come with a path: only its last part is its name.
+				const name = `${String(value).split('/').pop()}${stored.suffix ?? ''}`;
+				const path = `archivos/${stored.area}/${name}`;
+				const bytes = await readFile(k.familyId, stored.area, name).catch(() => null);
+				const file =
+					bytes && stored.sealed ? await openFileFor(k.familyId, bytes).catch(() => null) : bytes;
+				if (file) yield entry(path, file);
+				else missing.push(path);
+			}
 	}
 
 	if (missing.length)
