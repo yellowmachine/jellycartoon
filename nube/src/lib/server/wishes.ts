@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, ne, or } from 'drizzle-orm';
 import { agendaPeople, personOf } from '#lib/server/agenda/agenda.ts';
 import { familyPerson, user, wish } from '#lib/server/db/schema.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
@@ -234,6 +234,24 @@ export interface WishView {
 	note: string | null;
 	/** «Lo regalo yo»: by whom, and whether by the one looking; null for the person it is for. */
 	gift: { mine: boolean; name: string } | null;
+	/** «Comprado»: null also for the person it is for, if another bought it. */
+	bought: { mine: boolean; name: string; on: string; expenseId: number | null } | null;
+	/** Whether the one looking may say «Comprado». */
+	buys: boolean;
+}
+
+/** A wish the one looking may say «Comprado» of: an adult; theirs, a child's, or one they give. */
+function mayBuy(
+	w: typeof wish.$inferSelect,
+	userId: string,
+	kid: boolean,
+	person: WishPerson | undefined
+) {
+	if (kid || !person) return false;
+	// Their own, also when another bought it in secret: it looks to them as not bought.
+	if (person.me) return !w.boughtOn || w.boughtBy !== userId;
+	if (w.boughtOn) return false;
+	return w.giftBy ? w.giftBy === userId : person.writes;
 }
 
 /** Whose lists the one looking sees, and in which they write. */
@@ -271,7 +289,22 @@ export async function listWishes(k: Kitchen, userId: string, kid: boolean) {
 			gift:
 				String(w.personId) === mine || kid || !w.giftBy
 					? null
-					: { mine: w.giftBy === userId, name: names.get(w.giftBy) ?? 'Alguien' }
+					: { mine: w.giftBy === userId, name: names.get(w.giftBy) ?? 'Alguien' },
+			bought:
+				!w.boughtOn || ((kid || String(w.personId) === mine) && w.boughtBy !== userId)
+					? null
+					: {
+							mine: w.boughtBy === userId,
+							name: names.get(w.boughtBy ?? '') ?? 'Alguien',
+							on: w.boughtOn,
+							expenseId: w.expenseId
+						},
+			buys: mayBuy(
+				w,
+				userId,
+				kid,
+				people.find((p) => p.id === String(w.personId))
+			)
 		}));
 	return { people, wishes };
 }
@@ -317,7 +350,14 @@ export async function addWish(
 		const [there] = await tx
 			.select({ id: wish.id })
 			.from(wish)
-			.where(and(eq(wish.personId, personId), eq(wish.productKey, product.productKey)));
+			.where(
+				and(
+					eq(wish.personId, personId),
+					eq(wish.productKey, product.productKey),
+					// Bought by the one adding it, it may be wanted again; by another, it may be a surprise.
+					or(isNull(wish.boughtOn), isNull(wish.boughtBy), ne(wish.boughtBy, userId))
+				)
+			);
 		if (there) return { already: there.id };
 		const [made] = await tx
 			.insert(wish)
@@ -375,7 +415,79 @@ export async function giveWish(k: Kitchen, userId: string, kid: boolean, id: num
 		tx
 			.update(wish)
 			.set({ giftBy: on ? userId : null })
-			.where(and(eq(wish.id, id), on ? isNull(wish.giftBy) : eq(wish.giftBy, userId)))
+			.where(
+				and(
+					eq(wish.id, id),
+					isNull(wish.boughtOn),
+					on ? isNull(wish.giftBy) : eq(wish.giftBy, userId)
+				)
+			)
+			.returning({ id: wish.id })
+	);
+	return Boolean(done);
+}
+
+/** What «Comprado» needs of a wish; null if it is not there or not theirs to buy. */
+export async function buyableWish(k: Kitchen, userId: string, kid: boolean, id: number) {
+	const { people } = await viewer(k, userId, kid);
+	const [w] = await k.run((tx) => tx.select().from(wish).where(eq(wish.id, id)));
+	const person = people.find((p) => p.id === String(w?.personId));
+	if (!w || !person || !mayBuy(w, userId, kid, person)) return null;
+	return {
+		title: w.title,
+		mine: person.me,
+		/** Another adult's: its name is not said in Dinero, which they see. */
+		secret: !person.me && !person.kid
+	};
+}
+
+/**
+ * «Comprado», the day `on`: for another, it is their gift. False if it cannot be, or someone was
+ * first.
+ */
+export async function buyWish(k: Kitchen, userId: string, kid: boolean, id: number, on: string) {
+	const found = await buyableWish(k, userId, kid, id);
+	if (!found) return false;
+	const [done] = await k.run((tx) =>
+		tx
+			.update(wish)
+			.set({
+				boughtOn: on,
+				boughtBy: userId,
+				expenseId: null,
+				...(found.mine ? {} : { giftBy: userId })
+			})
+			.where(
+				and(
+					eq(wish.id, id),
+					// One's own may be bought in secret by another: theirs counts.
+					found.mine
+						? undefined
+						: and(isNull(wish.boughtOn), or(isNull(wish.giftBy), eq(wish.giftBy, userId)))
+				)
+			)
+			.returning({ id: wish.id })
+	);
+	return Boolean(done);
+}
+
+/** What it is in Dinero. */
+export async function setWishExpense(k: Kitchen, userId: string, id: number, expenseId: number) {
+	await k.run((tx) =>
+		tx
+			.update(wish)
+			.set({ expenseId })
+			.where(and(eq(wish.id, id), eq(wish.boughtBy, userId)))
+	);
+}
+
+/** «Deshacer», by who bought it: back in the list. Its expense stays in Dinero. */
+export async function unbuyWish(k: Kitchen, userId: string, id: number) {
+	const [done] = await k.run((tx) =>
+		tx
+			.update(wish)
+			.set({ boughtOn: null, boughtBy: null, expenseId: null })
+			.where(and(eq(wish.id, id), eq(wish.boughtBy, userId)))
 			.returning({ id: wish.id })
 	);
 	return Boolean(done);
@@ -419,7 +531,10 @@ export async function describeWishes(
 					? '; lo regala quien pregunta'
 					: `; lo regala ${w.gift.name}`
 				: '';
-			return `${nameOf.get(w.personId)}: «${w.title}» (${w.shop}${priced})${w.note ? `, nota: ${w.note}` : ''}${gift}`;
+			const bought = w.bought
+				? `; comprado el ${w.bought.on} por ${w.bought.mine ? 'quien pregunta' : w.bought.name}`
+				: '';
+			return `${nameOf.get(w.personId)}: «${w.title}» (${w.shop}${priced})${w.note ? `, nota: ${w.note}` : ''}${gift}${bought}`;
 		})
 		.join('\n');
 }

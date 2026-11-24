@@ -50,6 +50,8 @@ export interface InZip {
 	stored?: { area: string; column: string; suffix?: string; sealed?: boolean };
 	/** Of those rows, not this one's: another's private, seen by no one else. */
 	hiddenIf?: { column: string; notMine: string };
+	/** Columns left empty unless `notMine` says they are theirs: a surprise for them. */
+	blank?: { columns: string[]; notMine: string }[];
 }
 
 export interface PersonData {
@@ -271,7 +273,15 @@ export const PERSON_DATA: Record<string, PersonData> = {
 	wish: {
 		leaving: 'moves',
 		joining: 'moves',
-		zip: { file: 'deseos', where: [forMe()] },
+		zip: {
+			file: 'deseos',
+			where: [forMe()],
+			// Who gives it to them and that it is bought, as on the page.
+			blank: [
+				{ columns: ['giftBy'], notMine: 'giftBy' },
+				{ columns: ['boughtOn', 'boughtBy', 'expenseId'], notMine: 'boughtBy' }
+			]
+		},
 		note: 'By person_id; «Lo regalo yo» of others not taken'
 	},
 

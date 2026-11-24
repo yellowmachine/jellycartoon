@@ -3,6 +3,8 @@
 	import { page } from '$app/state';
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
+	import { monthOf } from 'comun/expenses.ts';
+	import Comprado from './Comprado.svelte';
 	import { field, primary, secondary, select } from '#lib/styles.ts';
 	import { bookmarklet, MAX_WISH_NOTE, MAX_WISH_TITLE, priceText, seenOn } from '#lib/wishes.ts';
 	import type { PageProps } from './$types';
@@ -30,7 +32,15 @@
 		for (const w of ofPerson) count.set(w.shop, (count.get(w.shop) ?? 0) + 1);
 		return [...count].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'es'));
 	});
-	const shown = $derived(ofPerson.filter((w) => !chosenShop || w.shop === chosenShop));
+	const filtered = $derived(ofPerson.filter((w) => !chosenShop || w.shop === chosenShop));
+	const shown = $derived(filtered.filter((w) => !w.bought));
+	const bought = $derived(
+		filtered
+			.filter((w) => w.bought)
+			.sort((a, b) => (b.bought?.on ?? '').localeCompare(a.bought?.on ?? ''))
+	);
+	/** Just said «Comprado»: told so, with its expense in Dinero if put in. */
+	let justBought = $state<{ expense: number | null; month: string } | null>(null);
 
 	/** This page with what is chosen now, but for what changes. */
 	const link = (change: { persona?: string | null; tienda?: string | null }) => {
@@ -163,9 +173,25 @@
 	</nav>
 {/if}
 
+{#if justBought}
+	<p class="mb-4 text-sm text-emerald-400" role="status">
+		{#if justBought.expense}
+			Comprado y añadido a Dinero.
+			<a
+				href="/gastos?mes={justBought.month}&gasto={justBought.expense}"
+				class="text-amber-400 hover:underline">Ver el gasto</a
+			>
+		{:else}
+			Marcado como comprado.
+		{/if}
+	</p>
+{/if}
+
 {#if !shown.length}
 	<p class="mt-6 text-zinc-400">
-		{#if chosenShop}
+		{#if bought.length}
+			Nada por comprar aquí.
+		{:else if chosenShop}
 			Nada de {chosenShop} aquí.
 		{:else if chosenPerson}
 			Su lista está vacía.
@@ -274,6 +300,14 @@
 									<button class="text-amber-400 hover:underline">Lo regalo yo</button>
 								</form>
 							{/if}
+							{#if w.buys}
+								<Comprado
+									wish={w}
+									today={data.today}
+									secret={!forMe && !writes}
+									onbought={(done) => (justBought = done)}
+								/>
+							{/if}
 							{#if writes}
 								<button class="text-zinc-400 hover:underline" onclick={() => (editing = w.id)}
 									>Editar</button
@@ -293,6 +327,68 @@
 			</li>
 		{/each}
 	</ul>
+{/if}
+
+{#if bought.length}
+	<details class="mt-8" open={bought.some((w) => w.id === shownAlready)}>
+		<summary class="cursor-pointer font-semibold">
+			Comprados <span class="text-zinc-400">{bought.length}</span>
+		</summary>
+		<ul class="mt-3 divide-y divide-zinc-800 rounded-lg border border-zinc-800">
+			{#each bought as w (w.id)}
+				{#if w.bought}
+					<li id="deseo-{w.id}" class="flex flex-wrap items-center gap-x-3 gap-y-1 p-3 text-sm">
+						<div class="min-w-40 flex-1">
+							<a
+								href={w.url}
+								target="_blank"
+								rel="noopener noreferrer"
+								class="line-clamp-2 hover:underline">{w.title}</a
+							>
+							<p class="text-zinc-400">
+								{w.shop} · {nameOf(w.personId)} · comprado {seenOn(`${w.bought.on}T12:00:00`)}
+								{w.bought.mine ? 'por ti' : `por ${w.bought.name}`}
+							</p>
+						</div>
+						{#if w.bought.expenseId && !data.kid}
+							<a
+								href="/gastos?mes={monthOf(w.bought.on)}&gasto={w.bought.expenseId}"
+								class="text-amber-400 hover:underline">Ver el gasto</a
+							>
+						{/if}
+						{#if w.bought.mine}
+							<form
+								method="post"
+								action="?/unbuy"
+								use:enhance={() => {
+									justBought = null;
+									return async ({ update }) => update();
+								}}
+							>
+								<input type="hidden" name="id" value={w.id} />
+								<button
+									class="text-zinc-400 hover:underline"
+									title={w.bought.expenseId
+										? 'Vuelve a la lista; el gasto sigue en Dinero'
+										: 'Vuelve a la lista'}>Deshacer</button
+								>
+							</form>
+						{/if}
+						{#if data.people.some((p) => p.id === w.personId && p.writes)}
+							<ConfirmForm
+								action="?/delete"
+								fields={{ id: w.id }}
+								label="Quitar"
+								question="¿Quitar de la lista?"
+								yes="Sí, quitar"
+								class="text-zinc-400 hover:underline"
+							/>
+						{/if}
+					</li>
+				{/if}
+			{/each}
+		</ul>
+	</details>
 {/if}
 
 {#if writable.length}

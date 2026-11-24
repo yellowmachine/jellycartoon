@@ -655,7 +655,11 @@ async function move(
 	await write(wish, of('wish'), (r) => ({
 		personId,
 		addedBy: onlyMine(r.addedBy, userId),
-		giftBy: null
+		giftBy: null,
+		// Bought by another, a surprise: not bought, as they saw it. The expense stays in its family.
+		boughtOn: onlyMine(r.boughtBy, userId) ? r.boughtOn : null,
+		boughtBy: onlyMine(r.boughtBy, userId),
+		expenseId: null
 	}));
 
 	/**
