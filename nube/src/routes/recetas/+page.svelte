@@ -55,7 +55,7 @@
 
 {#if data.backdrop}<Backdrop src={data.backdrop} />{/if}
 
-<h1 class="mb-1 text-2xl font-bold [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]">
+<h1 class="mb-1 text-2xl font-bold [text-shadow:0_1px_10px_var(--color-zinc-950)]">
 	Recetario<GuideLink page="recetas" label="el recetario" />
 </h1>
 <!-- Locked Vista (#532): nothing to save from other sites. -->

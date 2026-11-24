@@ -535,7 +535,7 @@
 									>{eventOf(id)?.repeat.every ? '¿Borrarlo, todas las veces?' : '¿Borrarlo?'}
 									{#if data.papers[id]?.length}Sus papeles se quedan en Papeles.{/if}</span
 								>
-								<button class="{button} bg-red-700 hover:bg-red-600">Sí</button>
+								<button class="{button} bg-red-700 text-claro hover:bg-red-600">Sí</button>
 								<button
 									type="button"
 									class="{button} hover:bg-zinc-800"
@@ -635,8 +635,9 @@
 					{#each list.slice(0, 3) as o (`${o.eventId}-${o.day}`)}
 						{@const p = person(o.people[0] ?? '')}
 						<span
-							class="truncate rounded px-1 text-[11px] leading-4 text-zinc-950 {p?.color ??
-								'bg-zinc-300'}">{o.title}</span
+							class="truncate rounded px-1 text-[11px] leading-4 {p?.color
+								? `${p.color} text-black`
+								: 'bg-zinc-300 text-zinc-950'}">{o.title}</span
 						>
 					{/each}
 					{#if list.length > 3}

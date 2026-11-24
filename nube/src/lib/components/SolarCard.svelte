@@ -261,7 +261,7 @@
 			</p>
 			{#if problem}<p class="text-sm text-red-400">{problem}</p>{/if}
 			<div class="flex gap-2">
-				<button class="rounded-md bg-amber-600 px-3 py-1 text-white hover:bg-amber-500"
+				<button class="rounded-md bg-amber-600 px-3 py-1 text-zinc-950 hover:bg-amber-500"
 					>Guardar</button
 				>
 			</div>

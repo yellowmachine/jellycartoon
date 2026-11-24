@@ -63,14 +63,21 @@ once loaded; with none (not made yet, or no episode to take it from), nothing.
 				onerror={() => (failed = true)}
 			/>
 			<!-- Darker going down, so the page's text reads over it, ending in the page's own colour. -->
-			<div
-				class="absolute inset-0 bg-gradient-to-b from-zinc-950/45 via-zinc-950/75 to-zinc-950"
-			></div>
+			<div class="veil absolute inset-0"></div>
 		</div>
 	</div>
 {/if}
 
 <style>
+	/* Thicker with a light theme (themes.ts), whose text is dark. */
+	.veil {
+		background: linear-gradient(
+			to bottom,
+			color-mix(in oklab, var(--color-zinc-950) var(--velo-alto, 45%), transparent),
+			color-mix(in oklab, var(--color-zinc-950) var(--velo-medio, 75%), transparent),
+			var(--color-zinc-950)
+		);
+	}
 	img {
 		object-position: center 30%;
 	}

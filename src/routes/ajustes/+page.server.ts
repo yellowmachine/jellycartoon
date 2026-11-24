@@ -71,7 +71,7 @@ import {
 } from '#lib/server/tv-shortcut-icons.ts';
 import { hasIntro } from '#lib/server/library/paths.ts';
 import { KNOWN_LANGUAGES, normalizeLang } from 'comun/languages.ts';
-import { isTheme } from 'comun/themes.ts';
+import { isDarkTheme } from 'comun/themes.ts';
 import { log } from '#lib/server/log.ts';
 import { startUpdateOnce, versionInfo } from '#lib/server/updates.ts';
 import {
@@ -656,7 +656,7 @@ export const actions: Actions = {
 	/** The whole app changes at once: the layout reloads with it. */
 	theme: async ({ request, locals }) => {
 		const theme = (await request.formData()).get('theme');
-		if (!isTheme(theme)) return fail(400, { section: 'theme', message: 'Tema no válido' });
+		if (!isDarkTheme(theme)) return fail(400, { section: 'theme', message: 'Tema no válido' });
 		await db
 			.insert(userSettings)
 			.values({ userId: locals.user!.id, theme })

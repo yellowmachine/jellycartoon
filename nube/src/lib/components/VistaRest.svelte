@@ -117,7 +117,7 @@
 
 {#if resting}
 	<button
-		class="fixed inset-0 z-50 cursor-default overflow-hidden bg-black text-left text-zinc-300"
+		class="tema-oscuro fixed inset-0 z-50 cursor-default overflow-hidden bg-black text-left text-zinc-300"
 		aria-label="Despertar la Vista"
 		onclick={wake}
 	>

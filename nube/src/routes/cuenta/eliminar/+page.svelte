@@ -87,7 +87,7 @@
 				</label>
 				<button
 					disabled={!ready || busy}
-					class="self-start rounded-lg bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-500 disabled:opacity-40"
+					class="self-start rounded-lg bg-red-600 px-4 py-2 font-medium text-claro hover:bg-red-500 disabled:opacity-40"
 				>
 					{busy ? 'Eliminando…' : 'Eliminar mi cuenta para siempre'}
 				</button>

@@ -22,7 +22,7 @@ The consoles with games, to play in the browser (#405), in the house and in Seil
 	{#each systems as s (s.id)}
 		<a
 			href="/juegos/{encodeURIComponent(s.id)}"
-			class="group relative flex h-36 flex-col justify-end overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 p-4 hover:border-lime-400/60"
+			class="group tema-oscuro relative flex h-36 flex-col justify-end overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 p-4 hover:border-lime-400/60"
 		>
 			{#if s.images.length}
 				<span

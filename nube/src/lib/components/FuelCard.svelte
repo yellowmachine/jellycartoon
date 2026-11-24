@@ -119,7 +119,7 @@
 					/>
 					{meta.units}</label
 				>
-				<button class="rounded-md bg-amber-600 px-3 py-1 text-sm text-white hover:bg-amber-500"
+				<button class="rounded-md bg-amber-600 px-3 py-1 text-sm text-zinc-950 hover:bg-amber-500"
 					>Apuntar</button
 				>
 				<button
@@ -194,7 +194,7 @@
 				días antes de que se acabe
 			</label>
 			<div class="flex gap-2">
-				<button class="rounded-md bg-amber-600 px-3 py-1 text-white hover:bg-amber-500"
+				<button class="rounded-md bg-amber-600 px-3 py-1 text-zinc-950 hover:bg-amber-500"
 					>Guardar</button
 				>
 			</div>

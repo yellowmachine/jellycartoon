@@ -50,7 +50,7 @@
 	);
 
 	const round =
-		'flex h-24 w-24 items-center justify-center rounded-full text-white shadow-xl active:scale-95 short:h-16 short:w-16';
+		'flex h-24 w-24 items-center justify-center rounded-full text-claro shadow-xl active:scale-95 short:h-16 short:w-16';
 </script>
 
 <section
@@ -59,7 +59,7 @@
 >
 	<audio bind:this={audio} autoplay></audio>
 	<div
-		class="flex h-24 w-24 items-center justify-center rounded-full bg-emerald-700 text-5xl font-bold text-white short:h-14 short:w-14 short:text-3xl"
+		class="flex h-24 w-24 items-center justify-center rounded-full bg-emerald-700 text-5xl font-bold text-claro short:h-14 short:w-14 short:text-3xl"
 		aria-hidden="true"
 	>
 		{phone.otherName.slice(0, 1).toUpperCase()}
@@ -78,7 +78,7 @@
 	{/if}
 	{#if blocked}
 		<button
-			class="rounded-xl bg-amber-500 px-5 py-3 text-xl font-semibold text-black"
+			class="rounded-xl bg-amber-500 px-5 py-3 text-xl font-semibold text-zinc-950"
 			onclick={() => audio?.play().then(() => (blocked = false))}>Toca para oír</button
 		>
 	{/if}

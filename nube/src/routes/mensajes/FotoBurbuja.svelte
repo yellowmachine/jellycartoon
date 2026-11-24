@@ -46,7 +46,7 @@
 
 {#if big && url}
 	<div
-		class="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-2"
+		class="tema-oscuro fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-2"
 		role="dialog"
 		aria-modal="true"
 		aria-label="Foto"

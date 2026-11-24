@@ -858,7 +858,7 @@
 							</p>
 							<div class="mt-2 flex flex-wrap gap-2">
 								<button
-									class="{button} bg-sky-700 font-semibold text-white hover:bg-sky-600"
+									class="{button} bg-sky-700 font-semibold text-claro hover:bg-sky-600"
 									onclick={() => onFixed(f)}>Sí, ponerlo ahí</button
 								>
 								<button
@@ -1129,7 +1129,7 @@
 								<form method="post" action="?/delete" use:enhance class="flex gap-2">
 									<input type="hidden" name="id" value={e.id} />
 									<span class="py-1.5">¿Borrar este?</span>
-									<button class="{button} bg-red-700 text-white hover:bg-red-600">Sí</button>
+									<button class="{button} bg-red-700 text-claro hover:bg-red-600">Sí</button>
 									<button
 										type="button"
 										class="{button} hover:bg-zinc-800"
@@ -1236,7 +1236,7 @@
 													</label>
 												{/if}
 												<button
-													class="{button} bg-amber-600 font-semibold text-white hover:bg-amber-500"
+													class="{button} bg-amber-600 font-semibold text-zinc-950 hover:bg-amber-500"
 													>Guardar</button
 												>
 												<p class="w-full text-xs text-zinc-500">
@@ -1296,7 +1296,7 @@
 										>
 											<input type="hidden" name="id" value={e.id} />
 											<span class="py-1.5">¿Quitar el recibo?</span>
-											<button class="{button} bg-red-700 hover:bg-red-600">Sí</button>
+											<button class="{button} bg-red-700 text-claro hover:bg-red-600">Sí</button>
 											<button
 												type="button"
 												class="{button} hover:bg-zinc-800"
@@ -1401,7 +1401,7 @@
 								<form method="post" action="?/delete" use:enhance class="flex gap-2">
 									<input type="hidden" name="id" value={e.id} />
 									<span class="py-1.5">¿Borrarlo?</span>
-									<button class="{button} bg-red-700 hover:bg-red-600">Sí</button>
+									<button class="{button} bg-red-700 text-claro hover:bg-red-600">Sí</button>
 									<button
 										type="button"
 										class="{button} hover:bg-zinc-800"
@@ -1471,7 +1471,7 @@
 					{#if deleting === `fijo-${r.id}`}
 						<form method="post" action="?/deleteRecurring" use:enhance class="flex gap-1">
 							<input type="hidden" name="id" value={r.id} />
-							<button class="{button} bg-red-700 hover:bg-red-600">Quitar</button>
+							<button class="{button} bg-red-700 text-claro hover:bg-red-600">Quitar</button>
 							<button
 								type="button"
 								class="{button} hover:bg-zinc-800"

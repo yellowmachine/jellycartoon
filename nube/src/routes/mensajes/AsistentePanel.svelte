@@ -203,7 +203,7 @@
 			class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-900"
 		/>
 		<button
-			class="rounded-md bg-violet-500 px-4 py-2 font-medium text-white hover:bg-violet-400 disabled:opacity-50"
+			class="rounded-md bg-violet-500 px-4 py-2 font-medium text-claro hover:bg-violet-400 disabled:opacity-50"
 			disabled={asking || !question.trim()}>Pedir</button
 		>
 	</form>

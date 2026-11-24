@@ -130,7 +130,7 @@
 <dialog
 	bind:this={dialog}
 	aria-label="Pantalla bloqueada"
-	class="lock m-0 h-dvh max-h-none w-dvw max-w-none border-0 bg-black p-0 text-zinc-500"
+	class="lock tema-oscuro m-0 h-dvh max-h-none w-dvw max-w-none border-0 bg-black p-0 text-zinc-500"
 	oncancel={(e) => e.preventDefault()}
 	onclose={unlock}
 	onpointerdown={press}

@@ -46,7 +46,7 @@ was watched, the series and its number, its title and length.
 		{@render preview?.({ id: episode.id, durationSec: episode.durationSec })}
 		{#if episode.completed}
 			<span
-				class="absolute top-1 left-1 rounded bg-zinc-950/80 px-1.5 py-0.5 text-xs font-medium text-amber-400"
+				class="tema-oscuro absolute top-1 left-1 rounded bg-zinc-950/80 px-1.5 py-0.5 text-xs font-medium text-amber-400"
 				>✓ Visto</span
 			>
 		{/if}

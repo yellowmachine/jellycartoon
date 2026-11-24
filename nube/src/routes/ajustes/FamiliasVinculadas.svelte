@@ -126,7 +126,7 @@
 							<img
 								src={w.qr}
 								alt="QR del enlace para vincular"
-								class="mt-3 h-56 w-56 rounded-md bg-white"
+								class="mt-3 h-56 w-56 rounded-md bg-claro"
 							/>
 						{/if}
 					</li>

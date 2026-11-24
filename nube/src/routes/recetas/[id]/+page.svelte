@@ -93,8 +93,8 @@
 
 <header class="mt-2 mb-6">
 	<div class="min-w-0">
-		<h1 class="text-2xl font-bold [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]">{r.title}</h1>
-		<p class="text-zinc-400 [text-shadow:0_1px_10px_rgb(0_0_0/0.9)]">
+		<h1 class="text-2xl font-bold [text-shadow:0_1px_10px_var(--color-zinc-950)]">{r.title}</h1>
+		<p class="text-zinc-400 [text-shadow:0_1px_10px_var(--color-zinc-950)]">
 			{r.servings ? `Para ${r.servings} · ` : ''}{#if data.link && !vista.kiosk}De
 				<a href={data.link} target="_blank" rel="noreferrer" class="hover:underline"
 					>{r.sourceName}</a
@@ -203,7 +203,7 @@
 				{#if confirmDelete}
 					<form method="post" action="?/delete" use:enhance class="flex items-center gap-2">
 						<span class="text-sm text-zinc-400">¿Quitarla del recetario?</span>
-						<button class="rounded-md bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-500"
+						<button class="rounded-md bg-red-600 px-3 py-1.5 text-sm text-claro hover:bg-red-500"
 							>Quitar</button
 						>
 						<button

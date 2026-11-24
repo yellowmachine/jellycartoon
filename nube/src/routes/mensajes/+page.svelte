@@ -605,7 +605,7 @@
 					class={[
 						'rounded-md px-4 py-2 font-medium disabled:opacity-50',
 						forAi !== null
-							? 'bg-violet-500 text-white hover:bg-violet-400'
+							? 'bg-violet-500 text-claro hover:bg-violet-400'
 							: 'bg-amber-500 text-zinc-950 hover:bg-amber-400'
 					]}
 					disabled={sending || client.waiting}
@@ -618,7 +618,7 @@
 					class={[
 						'flex touch-none items-center gap-2 rounded-md px-4 py-2 font-medium select-none disabled:opacity-50',
 						recorder.recording
-							? 'bg-red-600 text-white'
+							? 'bg-red-600 text-claro'
 							: 'bg-amber-500 text-zinc-950 hover:bg-amber-400'
 					]}
 					aria-label="Mantén pulsado para grabar un audio"

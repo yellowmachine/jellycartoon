@@ -39,7 +39,7 @@
 		'relative isolate flex shrink-0 touch-none items-center justify-center rounded-full shadow-2xl transition duration-150 select-none',
 		size,
 		voice.phase === 'listening'
-			? 'scale-110 bg-red-500 text-white'
+			? 'scale-110 bg-red-500 text-claro'
 			: 'bg-amber-500 text-zinc-950 active:scale-95',
 		voice.phase === 'thinking' && 'opacity-60'
 	]}

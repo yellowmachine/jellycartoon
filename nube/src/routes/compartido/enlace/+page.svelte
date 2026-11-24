@@ -170,7 +170,7 @@
 				src={data.read.imageUrl}
 				alt=""
 				referrerpolicy="no-referrer"
-				class="h-20 w-20 shrink-0 rounded-md bg-white object-contain"
+				class="h-20 w-20 shrink-0 rounded-md bg-claro object-contain"
 			/>
 		{/if}
 		<div class="min-w-0 flex-1">

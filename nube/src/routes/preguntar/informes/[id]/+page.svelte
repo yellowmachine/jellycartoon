@@ -58,7 +58,7 @@
 					aria-label="Nombre del informe"
 					class="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-xl font-semibold"
 				/>
-				<button class="rounded-md bg-amber-500 px-3 py-1 text-sm font-medium text-black"
+				<button class="rounded-md bg-amber-500 px-3 py-1 text-sm font-medium text-zinc-950"
 					>Guardar</button
 				>
 				<button type="button" class="text-sm text-zinc-400" onclick={() => (renaming = false)}
@@ -105,7 +105,7 @@
 			{#if confirmDelete}
 				<form method="post" action="?/borrar" use:enhance class="flex items-center gap-2">
 					<span class="text-sm text-zinc-400">¿Borrar este informe?</span>
-					<button class="rounded-md bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-500"
+					<button class="rounded-md bg-red-600 px-3 py-1 text-sm text-claro hover:bg-red-500"
 						>Borrar</button
 					>
 					<button

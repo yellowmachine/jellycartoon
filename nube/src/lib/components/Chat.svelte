@@ -118,7 +118,7 @@
 					}}
 				>
 					<span class="text-sm text-zinc-400">¿Borrar toda la conversación?</span>
-					<button class="rounded-md bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-500"
+					<button class="rounded-md bg-red-600 px-3 py-1 text-sm text-claro hover:bg-red-500"
 						>Borrar</button
 					>
 					<button

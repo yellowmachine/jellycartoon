@@ -49,7 +49,7 @@
 			</p>
 			<a href={made.link} class="{primary} mb-3 inline-block">Abrir en OwnTracks</a>
 			<p class="mb-1 text-zinc-400">Desde el ordenador, con la cámara del móvil:</p>
-			<img src={made.qr} alt="Código QR para configurar OwnTracks" class="mb-3 size-48 bg-white" />
+			<img src={made.qr} alt="Código QR para configurar OwnTracks" class="mb-3 size-48 bg-claro" />
 			<details class="text-zinc-400">
 				<summary class="cursor-pointer">Ponerlo a mano</summary>
 				<p class="mt-2">
