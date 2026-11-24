@@ -146,6 +146,19 @@
 	});
 </script>
 
+{#snippet act(what: string, label: string, list: PageProps['data']['wishes'])}
+	<form method="post" action="?/bulk" use:enhance={bulk}>
+		<input type="hidden" name="ids" value={idsOf(list)} />
+		<button
+			name="op"
+			value={what}
+			class={secondary}
+			title={what === 'comprar' ? 'Con fecha de hoy, sin añadirlos a Dinero' : undefined}
+			>{label}</button
+		>
+	</form>
+{/snippet}
+
 {#snippet all(list: PageProps['data']['wishes'])}
 	{#if selecting}
 		{@const every = list.every((w) => selected.has(w.id))}
@@ -519,12 +532,37 @@
 		{#if form?.message && !problem}
 			<p class="mb-2 text-sm text-red-400" role="alert">{form.message}</p>
 		{/if}
-		{#if picks.length}
+		{#if picks.length && (canWrite.length || canGive.length || canBuy.length)}
+			<!-- With room, each thing in sight; on a phone, in one menu. -->
+			<div class="hidden flex-wrap items-center gap-2 text-sm sm:flex">
+				{#if canWrite.length}
+					<span class="text-zinc-400">Para cuándo ({canWrite.length}):</span>
+					{#each WISH_PRIORITIES as p (p)}
+						{@render act(p, WISH_PRIORITY_LABELS[p], canWrite)}
+					{/each}
+				{/if}
+				{#if canGive.length}
+					{@render act('regalar', `Los regalo yo (${canGive.length})`, canGive)}
+				{/if}
+				{#if canBuy.length}
+					{@render act('comprar', `Marcar como comprados (${canBuy.length})`, canBuy)}
+				{/if}
+				{#if canWrite.length}
+					<ConfirmForm
+						action="?/bulk"
+						fields={{ ids: idsOf(canWrite), op: 'quitar' }}
+						label="Quitar ({canWrite.length})"
+						question="¿Quitar {canWrite.length} de la lista?"
+						yes="Sí, quitar"
+						class="rounded-md border border-red-900 px-3 py-1 text-sm text-red-300 hover:bg-red-950"
+					/>
+				{/if}
+			</div>
 			<form
 				method="post"
 				action="?/bulk"
 				use:enhance={bulk}
-				class="flex items-center gap-2 text-sm"
+				class="flex items-center gap-2 text-sm sm:hidden"
 			>
 				<input type="hidden" name="ids" value={idsOf(targets)} />
 				<select
@@ -629,7 +667,7 @@
 
 {#if writable.length}
 	<!-- The computer's bookmark (#586): on a phone, sharing from the shop's app does it. -->
-	<section class="mt-10 hidden rounded-md border border-zinc-800 p-4 sm:block">
+	<section id="marcador" class="mt-10 hidden rounded-md border border-zinc-800 p-4 sm:block">
 		<h2 class="mb-1 font-semibold">En el ordenador</h2>
 		<p class="mb-3 text-sm text-zinc-400">
 			Arrastra este botón a la barra de marcadores. En la página de un producto de cualquier tienda,

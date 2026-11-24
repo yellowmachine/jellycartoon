@@ -24,7 +24,8 @@
 	 */
 	let { data, form }: PageProps = $props();
 
-	const shopFirst = $derived(Boolean(data.shop));
+	/** A known shop's, or brought by the wishes' own bookmark. */
+	const shopFirst = $derived(Boolean(data.shop || data.read));
 	const host = $derived(new URL(data.link).hostname.replace(/^www\./, ''));
 	/** What came with it (Android puts the address in the text too): without addresses. */
 	const said = $derived(
@@ -151,6 +152,15 @@
 <p class="mb-6 truncate text-sm text-zinc-400" title={data.link}>
 	{said ? `${said} · ` : ''}{data.shop ?? host}
 </p>
+
+{#if data.oldBookmark}
+	<p class="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm" role="status">
+		Tu marcador es de una versión anterior y lee peor los precios. Bórralo y arrastra el de
+		<a href="/deseos#marcador" data-sveltekit-reload class="text-amber-400 hover:underline"
+			>Deseos</a
+		>.
+	</p>
+{/if}
 
 {#if data.read}
 	<!-- Read by the computer's bookmark, in the person's own browser. -->
