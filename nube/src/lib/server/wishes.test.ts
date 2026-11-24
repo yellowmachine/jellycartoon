@@ -328,6 +328,15 @@ describe('added again: its price', () => {
 		expect(await one()).toMatchObject({ priceCents: 1399, imageUrl: 'https://x.es/a.jpg' });
 	});
 
+	test('a note if it had none; another one, kept', async () => {
+		const noted = (note: string | null) => addWish(ana, 'ana', false, people.Ana!, at(1999), note);
+		await noted(null);
+		await noted('De segunda mano');
+		expect((await one()).note).toBe('De segunda mano');
+		await noted('Otra');
+		expect((await one()).note).toBe('De segunda mano');
+	});
+
 	test('bought by another: kept as it was, but for who it is for, who must not notice', async () => {
 		await add(at(1999), [ana, 'ana'], people['Bebé']!);
 		await buyWish(ana, 'ana', false, (await one()).id, '2026-11-24');
@@ -627,7 +636,6 @@ describe('the computer’s bookmark', () => {
 	test('run on an Amazon page, it opens Seilide with its name, price and picture', () => {
 		const els: Record<string, unknown> = {
 			'#productTitle': { textContent: '  Auriculares Sony  ' },
-			'.a-price .a-offscreen': { textContent: '29,99 €' },
 			'#landingImage': { dataset: { oldHires: 'https://m.media-amazon.com/x.jpg' } }
 		};
 		let opened = '';
@@ -640,7 +648,15 @@ describe('the computer’s bookmark', () => {
 		run(
 			{
 				querySelector: (s: string) => els[s] ?? null,
-				querySelectorAll: () => [],
+				querySelectorAll: (s: string) =>
+					s.startsWith('.a-price')
+						? [
+								{
+									getClientRects: () => [{}],
+									querySelector: () => ({ textContent: '29,99 €' })
+								}
+							]
+						: [],
 				title: 'Amazon.es'
 			},
 			{ href: 'https://www.amazon.es/dp/B09XS7JWHH?th=1' },
@@ -744,6 +760,51 @@ describe('the computer’s bookmark', () => {
 			{ open: (u: string) => (opened = u) }
 		);
 		expect(new URL(opened).searchParams.get('precio')).toBe('13,99 €');
+	});
+
+	test('run on Amazon, the price of the buying option chosen; second-hand, in the note', () => {
+		const price = (off: string, shown: string, seen = true) => ({
+			getClientRects: () => (seen ? [{}] : []),
+			querySelector: (s: string) => ({ textContent: s === '.a-offscreen' ? off : shown })
+		});
+		const row = (id: string, title: string, prices: unknown[]) => ({
+			id,
+			querySelectorAll: () => prices,
+			querySelector: () => ({ textContent: title })
+		});
+		const run = (chosen: unknown) => {
+			let opened = '';
+			new Function(
+				'document',
+				'location',
+				'window',
+				decodeURIComponent(bookmarklet('https://seilide.app').slice('javascript:'.length))
+			)(
+				{
+					querySelector: (s: string) => (s.includes('a-accordion-active') ? chosen : null),
+					querySelectorAll: () => [],
+					title: 'Libro'
+				},
+				{ href: 'https://www.amazon.es/dp/B09XS7JWHH' },
+				{ open: (u: string) => (opened = u) }
+			);
+			const asked = new URL(opened).searchParams;
+			return [asked.get('precio'), asked.get('nota')];
+		};
+		// As Amazon has it: one hidden, and the one seen blank but for its pieces.
+		expect(
+			run(
+				row('usedAccordionRow', 'De segunda mano: buen estado', [
+					price('26,83€', '26,83€', false),
+					price(' ', '26,83€'),
+					price('87,32 €', '87,32', false)
+				])
+			)
+		).toEqual(['26,83€', 'De segunda mano: buen estado']);
+		expect(run(row('newAccordionRow_0', 'Comprar nuevo', [price('87,32€', '87,32€')]))).toEqual([
+			'87,32€',
+			null
+		]);
 	});
 
 	test('run on another shop, from its schema.org Product', () => {

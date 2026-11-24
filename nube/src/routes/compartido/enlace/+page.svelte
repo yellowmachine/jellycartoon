@@ -43,7 +43,7 @@
 
 	let title = $state(untrack(() => data.read?.title ?? ''));
 	let price = $state(untrack(() => (data.read?.price && data.read.precio) || ''));
-	let note = $state('');
+	let note = $state(untrack(() => data.read?.nota ?? ''));
 	/** The page's text, after the #: here only, until «Analizar con IA» sends it. */
 	let pageText = $state<string | null>(null);
 	let analyzing = $state(false);
