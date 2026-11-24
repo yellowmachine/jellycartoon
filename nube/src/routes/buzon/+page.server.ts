@@ -2,7 +2,8 @@ import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { addEvent, familyPeople } from '#lib/server/agenda/agenda.ts';
 import { saveRule, translateRule } from '#lib/server/rules.ts';
-import { kitchenOf } from '#lib/server/fridge.ts';
+import { answerExpense, waitingExpenses } from '#lib/server/expense-proposals.ts';
+import { kitchenOf, today } from '#lib/server/fridge.ts';
 import { leaveMessage, MAX_MESSAGE } from '#lib/server/inbox.ts';
 import {
 	answerProposal,
@@ -20,8 +21,13 @@ import { forget, remember } from '#lib/server/memory.ts';
 export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
 	const k = await kitchenOf(userId);
+	// Before the list: the old ones go.
+	const expenses = await waitingExpenses(k, userId);
 	const [items, people] = await Promise.all([listInbox(k, userId), familyPeople(k)]);
 	return {
+		/** The expenses proposed (#600). */
+		expenses,
+		today: today(),
 		items,
 		/** Who a message may be left for: the others with an account. */
 		people: people
@@ -59,7 +65,7 @@ export const actions: Actions = {
 		const userId = locals.user!.id;
 		const k = await kitchenOf(userId);
 		const waiting = (await listInbox(k, userId)).find((n) => n.id === id)?.proposal;
-		if (!waiting) return;
+		if (!waiting || waiting.type === 'gasto') return;
 		// A rule: understood first; if it cannot be, it stays offered, with why.
 		if (kept && waiting.type === 'regla') {
 			const made = await translateRule(k, waiting.said, locals.user!.name);
@@ -67,7 +73,7 @@ export const actions: Actions = {
 			await saveRule(k, userId, waiting.said, made.understood, made.spec);
 		}
 		const offered = await answerProposal(k, userId, id, kept);
-		if (!offered || !kept) return;
+		if (!offered || !kept || offered.type === 'gasto') return;
 		if (offered.type === 'cita')
 			await addEvent(k, {
 				title: offered.title,
@@ -89,6 +95,9 @@ export const actions: Actions = {
 				{ source: 'telegram', ruleId: null, because: offered.because, chain: [] }
 			);
 	},
+	/** An expense proposed (#600): «Añadir a Dinero», or «No». */
+	gasto: async ({ request, locals }) =>
+		answerExpense(await kitchenOf(locals.user!.id), locals.user!.id, await request.formData()),
 	/** One of «Hoy he aprendido» taken out (#331, phase 6): forgotten. */
 	unlearn: async ({ request, locals }) => {
 		const form = await request.formData();

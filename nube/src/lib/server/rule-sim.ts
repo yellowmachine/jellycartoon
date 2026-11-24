@@ -22,7 +22,7 @@ import {
 import { addDays, dayName } from 'comun/agenda.ts';
 import { hasWords } from '#lib/server/voice/learned.ts';
 import type { HourAhead } from 'comun/weather.ts';
-import { plugSaid, ruleSaid, timerSaid, type RuleSpec } from '#lib/rules.ts';
+import { expenseSaid, plugSaid, ruleSaid, timerSaid, type RuleSpec } from '#lib/rules.ts';
 
 /**
  * «¿Qué pasaría…?» (#389): a family's rules (#331) looked at in a span of a day to come, in the
@@ -44,7 +44,7 @@ const WEATHER_EVERY_MIN = 30;
  * marked or none; and something that happens at its start: said to the voice, put on the fridge,
  * asked to remember, by the one who looks; bought (#451: what, separated by commas); or a plug's
  * appliance that starts or ends (#528: its name, «lavadora»); or the one who looks arriving at
- * or leaving one of their places (#593: its name, «casa»).
+ * or leaving one of their places (#593: its name, «casa»); or an event marked as done (#600).
  */
 export interface WhatIf {
 	weather: WeatherIf;
@@ -62,7 +62,8 @@ export const HAPPENS = [
 	'enchufe_empieza',
 	'enchufe_termina',
 	'lugar_llega',
-	'lugar_sale'
+	'lugar_sale',
+	'cita_hecha'
 ] as const;
 export type HappensKind = (typeof HAPPENS)[number];
 
@@ -175,7 +176,7 @@ export interface Outcome {
 	/** `HH:MM` it would do it, or holds at; null, it does not wait for the clock. */
 	at: string | null;
 	/** What it would do: tell, keep a fact; null, nothing. */
-	does: 'avisa' | 'deduce' | 'temporizador' | 'enchufe' | null;
+	does: 'avisa' | 'deduce' | 'temporizador' | 'enchufe' | 'gasto' | null;
 	said: string;
 }
 
@@ -212,12 +213,22 @@ export function whenSaid(when: RuleSpec['when']) {
 			return `cuando ${when.words.length ? `${quoted(when.words)}` : 'un aparato de Enchufes'} ${when.plug === 'empieza' ? 'empieza' : 'termina'}`;
 		case 'lugar':
 			return `cuando ${when.place === 'sale' ? 'sales de' : 'llegas a'} ${when.words.length ? quoted(when.words) : 'un sitio'}`;
+		case 'cita_hecha':
+			return `cuando se marca como hecho en la Agenda ${about}`;
 		case 'tiempo':
 			return 'cuando cambia el tiempo';
 	}
 }
 
-const EVENT_KINDS = new Set(['nevera', 'recuerdo', 'dicho', 'compra', 'enchufe', 'lugar']);
+const EVENT_KINDS = new Set([
+	'nevera',
+	'recuerdo',
+	'dicho',
+	'compra',
+	'enchufe',
+	'lugar',
+	'cita_hecha'
+]);
 
 /** What a made-up purchase has: «cerveza, leche» is two lines. */
 export const boughtItems = (text: string) =>
@@ -236,7 +247,9 @@ const doesSaid = (r: Rule) =>
 			? timerSaid(r.spec.timer, 'pondría')
 			: r.spec.then === 'enchufe' && r.spec.plug
 				? plugSaid(r.spec.plug, 'haria')
-				: 'avisaría';
+				: r.spec.then === 'gasto' && r.spec.expense
+					? expenseSaid(r.spec.expense, 'propondría')
+					: 'avisaría';
 
 /**
  * The rules, in the span `from`…`to` (minutes, as `minutesOf`, the same day). `world`, the world
@@ -311,6 +324,15 @@ export async function simulate({
 		}
 		if (r.spec.then === 'enchufe' && r.spec.plug) {
 			said(r, minute, 'enchufe', `${capital(plugSaid(r.spec.plug, 'haria'))}. Porque ${why}.`);
+			return;
+		}
+		if (r.spec.then === 'gasto' && r.spec.expense) {
+			said(
+				r,
+				minute,
+				'gasto',
+				`${capital(expenseSaid(r.spec.expense, 'propondría'))}. Porque ${why}.`
+			);
 			return;
 		}
 		const { how, after } = await tells(r, w);
@@ -396,7 +418,7 @@ export async function simulate({
 			const fit =
 				kind === 'dicho'
 					? { ok: hasWords(r.spec.when.words, text), why: '' }
-					: await fits(start, r, r.spec.when.words, kind, text);
+					: await fits(start, r, r.spec.when.words, kind === 'cita_hecha' ? 'agenda' : kind, text);
 			if (!fit.ok) {
 				missed.set(r.id, { minute: from, why: `«${text}» no dice ${quoted(r.spec.when.words)}` });
 				continue;
@@ -406,7 +428,9 @@ export async function simulate({
 					? `ponen en la nevera «${text}»`
 					: kind === 'dicho'
 						? `dicen «${text}» a las ${time}`
-						: `piden recordar «${text}»`) + fit.why;
+						: kind === 'cita_hecha'
+							? `está hecho «${text}»`
+							: `piden recordar «${text}»`) + fit.why;
 			const holds = await conditionsHold(start, r);
 			if (holds.ok) await act(r, start, from, [because, ...holds.why].join(' y '), []);
 			else missed.set(r.id, { minute: from, why: [because, ...holds.why].join(' pero ') });

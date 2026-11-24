@@ -5,9 +5,10 @@ marked, when the receipt or the bank will bring the expense.
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { EXPENSE_CATEGORIES, monthOf } from 'comun/expenses.ts';
+	import { monthOf } from 'comun/expenses.ts';
 	import { sameText, type LooksSame } from 'comun/page-notices.ts';
-	import { field, primary, secondary } from '#lib/styles.ts';
+	import ExpenseFields from '#lib/components/ExpenseFields.svelte';
+	import { primary, secondary } from '#lib/styles.ts';
 
 	interface Props {
 		wish: {
@@ -92,45 +93,12 @@ marked, when the receipt or the bank will bring the expense.
 	>
 		<input type="hidden" name="id" value={wish.id} />
 		{#if repeated}<input type="hidden" name="igual" value="1" />{/if}
-		<div class="flex gap-2">
-			<label class="flex-1 text-xs text-zinc-400">
-				Fecha
-				<input
-					type="date"
-					name="date"
-					required
-					bind:value={date}
-					oninput={changed}
-					class="{field} mt-1 py-1 text-sm"
-				/>
-			</label>
-			<label class="w-24 text-xs text-zinc-400">
-				Precio (€)
-				<input
-					name="price"
-					inputmode="decimal"
-					bind:value={price}
-					oninput={changed}
-					placeholder="12,30"
-					class="{field} mt-1 py-1 text-sm"
-				/>
-			</label>
-		</div>
+		<ExpenseFields bind:date bind:price bind:store bind:category onchanged={changed} />
 		{#if otherCurrency}
 			<p class="text-xs text-zinc-400">
 				Su precio está en {otherCurrency}: escribe lo que has pagado en euros.
 			</p>
 		{/if}
-		<label class="text-xs text-zinc-400">
-			Tienda
-			<input name="store" maxlength="120" bind:value={store} class="{field} mt-1 py-1 text-sm" />
-		</label>
-		<label class="text-xs text-zinc-400">
-			Categoría
-			<select name="category" bind:value={category} class="{field} mt-1 py-1 text-sm">
-				{#each EXPENSE_CATEGORIES as c (c)}<option>{c}</option>{/each}
-			</select>
-		</label>
 		{#if secret}
 			<p class="text-xs text-amber-200">
 				Es un regalo: en Dinero la familia verá la tienda y el importe, no qué es.

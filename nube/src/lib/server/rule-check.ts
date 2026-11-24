@@ -224,11 +224,12 @@ async function firstFitting<T>(
  */
 export const waitsFor = (
 	r: Rule,
-	kind: 'nevera' | 'recuerdo' | 'dicho' | 'compra',
+	kind: 'nevera' | 'recuerdo' | 'dicho' | 'compra' | 'cita_hecha',
 	ownerId: string | null
 ) =>
 	kind === 'nevera' ||
 	kind === 'compra' ||
+	kind === 'cita_hecha' ||
 	(kind === 'dicho' ? !r.userId || r.userId === ownerId : !ownerId || r.userId === ownerId);
 
 /** A plug's cycle that started or ended (#528): which plug, its name and kind, and when. */
@@ -273,6 +274,18 @@ export const placeFits = (r: Rule, p: PlaceHappened) =>
 /** «has llegado a «Casa» a las 19:42». */
 export const placeWhy = (p: PlaceHappened, time: string) =>
 	`has ${p.moment === 'llega' ? 'llegado a' : 'salido de'} «${p.name}» a las ${time}`;
+
+/** An event of the Agenda marked as done (#600): which repetition, and by whom. */
+export interface DoneEvent {
+	eventId: number;
+	title: string;
+	day: string;
+	userId: string;
+}
+
+/** In `fired`: that repetition, once. */
+export const doneKey = (d: Pick<DoneEvent, 'eventId' | 'day'>) =>
+	`cita_hecha:${d.eventId}:${d.day}`;
 
 /** Its person's trip that day, if any. */
 export const awayOn = (trips: Trip[], day: string) =>

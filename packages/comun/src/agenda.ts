@@ -43,6 +43,8 @@ export interface AgendaEvent extends EventInput {
 	id: number;
 	/** The repetitions skipped, «esta vez no». */
 	skipDays: string[];
+	/** The repetitions marked as done (Seilide's, #600). */
+	doneDays?: string[];
 	/** Who wrote it down. */
 	by: string | null;
 }

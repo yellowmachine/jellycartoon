@@ -53,6 +53,28 @@ describe('specOf', () => {
 		});
 	});
 
+	test('an expense, only for an event done, with how much and where (#600)', () => {
+		const when = { ...answer().when, kind: 'cita_hecha', words: ['peluquería'] };
+		const expense = { amount: 10, store: 'Peluquería', category: 'Otros' };
+		const made = (over: Partial<TranslatedRule>) =>
+			specOf(answer({ when, conditions: [], then: 'gasto', expense, say: true, ...over }), resolve);
+		expect(made({})).toMatchObject({
+			spec: {
+				when: { kind: 'cita_hecha', words: ['peluquería'] },
+				then: 'gasto',
+				expense: { total: 1000, store: 'Peluquería', category: 'Otros' },
+				say: false
+			}
+		});
+		expect(made({ expense: { ...expense, category: 'Pelo' } })).toMatchObject({
+			spec: { expense: { category: 'Otros' } }
+		});
+		expect(made({ expense: { ...expense, amount: 0 } })).toEqual({
+			problem: 'Falta de cuánto es el gasto.'
+		});
+		expect(made({ when: answer().when })).toHaveProperty('problem');
+	});
+
 	test('people become their accounts; one not in the family, said', () => {
 		const to = (people: string[]) =>
 			specOf(
