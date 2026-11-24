@@ -123,3 +123,74 @@ test('what cannot be read is said', async () => {
 		'La familia no tiene enchufes en Energía.'
 	);
 });
+
+/** A computer: 4 Wh an hour suspended, 80 in use from 9 to 17; two days, and 3 hours of the third. */
+async function computer() {
+	await db.insert(family).values({ id: 'D', name: 'Casa D' }).onConflictDoNothing();
+	await db.insert(familySettings).values({ familyId: 'D', kwhPrice: 0.25 }).onConflictDoNothing();
+	await db
+		.insert(plug)
+		.values({
+			id: 'pc',
+			familyId: 'D',
+			name: 'Ordenador',
+			kind: 'otro',
+			hash: 'hd',
+			createdAt: at('2026-01-13', 1)
+		})
+		.onConflictDoNothing();
+	const start = at('2026-01-13', 1).getTime() - 3_600_000;
+	const rows = [];
+	for (let i = 1; i < 51; i++) {
+		const hour = i % 24;
+		// Two hours without connection; the next carries what it had saved up.
+		if (i === 27 || i === 28) continue;
+		const wh = i === 29 ? 12 : hour >= 9 && hour < 17 ? 80 : 4;
+		rows.push({ plugId: 'pc', familyId: 'D', hour: new Date(start + i * 3_600_000), wh });
+	}
+	await db.insert(plugEnergy).values(rows).onConflictDoNothing();
+}
+const NOW = new Date(at('2026-01-15', 2).getTime() + 30 * 60_000);
+
+test('by the hour: each one, what it uses at rest, and its periods', async () => {
+	await computer();
+	const said = await read(
+		kitchen('D'),
+		{ from_day: '2026-01-13', to_day: '2026-01-15', detail: 'horas' },
+		NOW
+	);
+	const lines = said.replaceAll('\u00a0', ' ').split('\n');
+	expect(lines.find((l) => l.startsWith('2026-01-13: 01h'))).toContain('08h 4 · 09h 80 · 10h 80');
+	expect(lines.find((l) => l.startsWith('2026-01-14: 00h'))).toContain(
+		'02h 4 · 03h – · 04h – · 05h 12 · 06h 4'
+	);
+	// The hour going on (02) is left out.
+	expect(lines).toContain('2026-01-15: 00h 4 · 01h 4');
+	const rest = lines.find((l) => l.startsWith('en reposo'))!;
+	expect(lines).toContain('ahora: sin conexión.');
+	expect(rest).toContain('unos 4 W de media');
+	expect(rest).toContain('35 kWh, 8,76 €');
+	expect(said).toContain('horas sin nada registrado: 2 de 49.');
+	expect(lines.find((l) => l.startsWith('Por periodos'))).toBe(
+		'Por periodos (2.0TD): punta 672 Wh, llano 672 Wh, valle 72 Wh.'
+	);
+});
+
+test('by the hour, many days: the usual day; and without being asked, no hours', async () => {
+	await computer();
+	const ask = { from_day: '2026-01-13', to_day: '2026-01-25' };
+	const said = await read(kitchen('D'), { ...ask, detail: 'horas' }, NOW);
+	expect(said).toContain('de lunes a viernes: 00h 4 ·');
+	expect(said).toContain('09h 80 ·');
+	expect(said).not.toContain('fin de semana:');
+	expect(await read(kitchen('D'), ask, NOW)).not.toContain('en reposo');
+});
+
+test('by the hour, too few hours in a row: nothing at rest', async () => {
+	const said = await describePlugEnergy(kitchen('A'), {
+		plug: 'termo',
+		from_day: '2026-01-01',
+		detail: 'horas'
+	});
+	expect(said).toContain('en reposo: no hay bastantes horas seguidas');
+});

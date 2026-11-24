@@ -5,19 +5,31 @@ import type { Kitchen } from '../fridge.ts';
 import { priceAt } from '#lib/kwh-price.ts';
 import { energyText, euroText } from '#lib/plugs.ts';
 import { TIME_ZONE } from '#lib/plug-stats.ts';
-import { priceOf } from './plugs.ts';
+import { hub, priceOf } from './plugs.ts';
 import { dayStart } from './stats.ts';
 import { isSensorDevice } from './shelly.ts';
+import {
+	byPeriod,
+	hoursBetween,
+	hoursText,
+	profileText,
+	restOf,
+	wattsText,
+	type HourlyWh
+} from './energy-hours.ts';
 
 /**
  * Preguntar's «read_plug_energy» (#396): what the family's plugs used, day by day, from what each
  * keeps by the hour (plug_energy), with euros at the price Enchufes uses (each hour at its own with
  * a tariff by periods). To cross with the weather (read_weather's degree-days) or the light bills.
- * Of one plug by its name, or of all.
+ * Of one plug by its name, or of all. With `detail: 'horas'`, also by the hour (energy-hours.ts): a
+ * few days' hours one by one, more days as the usual day, and what each uses at rest.
  */
 
 /** Days at once, at most: as read_weather, so both cover the same days. */
 export const ENERGY_DAYS = 92;
+/** Hour by hour up to these days (one plug; several share them): 24 figures each. Then, the usual day. */
+export const HOURS_DAYS = 7;
 
 const isDay = (v: unknown): v is string =>
 	typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
@@ -31,7 +43,11 @@ const dayOf = new Intl.DateTimeFormat('en-CA', {
 	day: '2-digit'
 });
 
-export async function describePlugEnergy(k: Kitchen, args: Record<string, unknown>) {
+export async function describePlugEnergy(
+	k: Kitchen,
+	args: Record<string, unknown>,
+	now = new Date()
+) {
 	const from = args.from_day;
 	const to = args.to_day ?? from;
 	if (!isDay(from) || !isDay(to)) return 'Faltan los días, AAAA-MM-DD.';
@@ -72,10 +88,12 @@ export async function describePlugEnergy(k: Kitchen, args: Record<string, unknow
 		]);
 		const euros = (wh: number, at: Date) => (price ? (wh / 1000) * priceAt(price, at) : 0);
 		const byDay = new Map<string, { wh: number; euros: number; plugs: Map<string, number> }>();
+		const hourly = new Map<string, HourlyWh>(chosen.map((p) => [p.id, new Map()]));
 		const byPlug = new Map<string, { wh: number; euros: number }>();
 		for (const r of rows) {
 			if (!ids.has(r.plugId) || !r.wh) continue;
 			const day = dayOf.format(r.hour);
+			hourly.get(r.plugId)!.set(r.hour.getTime(), r.wh);
 			const eur = euros(r.wh, r.hour);
 			const d = byDay.get(day) ?? { wh: 0, euros: 0, plugs: new Map() };
 			d.wh += r.wh;
@@ -125,6 +143,62 @@ export async function describePlugEnergy(k: Kitchen, args: Record<string, unknow
 					: ''
 			}.`
 		);
+		for (const p of chosen) {
+			const rows = hourly.get(p.id)!;
+			if (!rows.size) continue;
+			const sums = byPeriod(rows);
+			lines.push(
+				`${several ? `${p.name}, por` : 'Por'} periodos (2.0TD): punta ${energyText(sums.P1)}, llano ${energyText(sums.P2)}, valle ${energyText(sums.P3)}.`
+			);
+		}
+		if (args.detail === 'horas') {
+			const oneByOne = daysBetween(first, last) * chosen.length <= HOURS_DAYS;
+			lines.push(
+				oneByOne
+					? 'Por horas, en Wh (los Wh de una hora son también sus vatios de media; «–», nada registrado):'
+					: `Por horas, la media de cada hora del día en Wh (son sus vatios de media). Hora a hora, hasta ${HOURS_DAYS} días de un enchufe:`
+			);
+			for (const p of chosen) {
+				const rows = hourly.get(p.id)!;
+				const tag = several ? `${p.name}, ` : '';
+				const live = hub.liveOf(p.id);
+				lines.push(
+					`${tag}ahora: ${
+						!live.online
+							? 'sin conexión'
+							: `enchufe ${live.output === false ? 'apagado' : 'encendido'}${live.power === null ? '' : `, ${wattsText(live.power)}`}`
+					}.`
+				);
+				// Only whole hours: not the one it was added in, nor the one going on.
+				const start = Math.max(p.createdAt.getTime(), dayStart(first).getTime());
+				const until = (day: string) =>
+					Math.min(
+						dayStart(addDays(day, 1)).getTime(),
+						Math.floor(now.getTime() / 3_600_000) * 3_600_000
+					);
+				const hours = hoursBetween(start, until(last));
+				if (!hours.length) continue;
+				if (oneByOne)
+					for (let day = first; day <= last; day = addDays(day, 1)) {
+						const those = hoursBetween(Math.max(start, dayStart(day).getTime()), until(day));
+						if (those.length) lines.push(`${tag}${day}: ${hoursText(rows, those)}`);
+					}
+				else lines.push(...profileText(rows, hours).map((l) => `${tag}${l}`));
+				const rest = restOf(rows, hours);
+				if (rest) {
+					const yearWh = rest.watts * 24 * 365;
+					lines.push(
+						`${tag}en reposo (sus horas más bajas): unos ${wattsText(rest.watts)} de media en ${rest.hours} de las ${rest.of} horas completas con datos, ${energyText(rest.wh)} en ellas. Si estuviera así las 24 horas, al año ${energyText(yearWh)}${price ? `, ${euroText((yearWh / 1000) * price.flat)}` : ''}.`
+					);
+				} else
+					lines.push(`${tag}en reposo: no hay bastantes horas seguidas con datos para saberlo.`);
+				const missing = hours.filter((h) => !rows.get(h)).length;
+				if (missing) lines.push(`${tag}horas sin nada registrado: ${missing} de ${hours.length}.`);
+			}
+			lines.push(
+				'El enchufe ve vatios, no el estado del aparato: en reposo puede ser suspendido, apagado o, si son muchos vatios, encendido sin uso; dilo así. Tras un rato sin conexión, lo gastado cae entero en la hora en que vuelve: un pico tras horas sin nada puede ser eso. La hora en curso no sale.'
+			);
+		}
 		const since = chosen.filter((p) => dayOf.format(p.createdAt) > first);
 		if (since.length)
 			lines.push(
