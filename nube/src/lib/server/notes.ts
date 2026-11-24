@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, isNull, like, or, type SQL } from 'drizzle-orm';
-import { note } from '#lib/server/db/schema.ts';
+import { note, user } from '#lib/server/db/schema.ts';
+import { kindOf } from '#lib/server/expenses/income.ts';
 import { likeOf, plain, plainText } from '#lib/server/expenses/plain.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { dayOf } from '#lib/server/fridge.ts';
@@ -11,8 +12,8 @@ import { audioKind, audioTypeOf, MAX_NOTE_TEXT, type Note } from '#lib/notes.ts'
 
 /**
  * Notes (#416): what someone dictates, to look it up when they ask for it. Not the voice's memory,
- * which it uses by itself when answering. A person's, only theirs; those said to a satellite (no one
- * known), of the whole house.
+ * which it uses by itself when answering. A person's, only theirs unless they share it with the house;
+ * those said to a satellite (no one known), of the whole house.
  */
 
 /** In the family's storage. */
@@ -24,9 +25,19 @@ const SAID_TO_VOICE = 10;
 /** The latest ones looked through for the days asked. */
 const LOOKED_THROUGH = 500;
 
+/** The whole house's: without a person, or shared by its own. */
+const ofTheHouse = () => or(isNull(note.userId), eq(note.shared, true));
 /** Those `userId` may see: their own and the house's; without a person, the house's. */
 const visibleTo = (userId: string | null) =>
-	userId ? or(eq(note.userId, userId), isNull(note.userId)) : isNull(note.userId);
+	userId ? or(eq(note.userId, userId), ofTheHouse()) : ofTheHouse();
+/** Those they may change: their own and the house's without a person, not what another shares. */
+const changeableBy = (userId: string) => or(eq(note.userId, userId), isNull(note.userId));
+
+const IMAGES = {
+	'image/jpeg': 'jpg',
+	'image/png': 'png',
+	'image/webp': 'webp'
+} as const;
 
 const VIEW = {
 	id: note.id,
@@ -34,36 +45,100 @@ const VIEW = {
 	text: note.text,
 	hearing: note.hearing,
 	audio: note.audio,
+	photo: note.photo,
+	shared: note.shared,
+	author: user.name,
 	source: note.source,
 	userId: note.userId,
 	lon: note.lon,
 	lat: note.lat
 };
 
-function viewOf({
-	audio,
-	userId,
-	...n
-}: { audio: string | null; userId: string | null } & Omit<Note, 'hasAudio' | 'mine'>): Note {
-	return { ...n, hasAudio: audio !== null, mine: userId !== null };
+type Row = Omit<Note, 'hasAudio' | 'mine' | 'canEdit'> & {
+	audio: string | null;
+	userId: string | null;
+};
+
+/** As `viewer` sees it. */
+function viewOf({ audio, userId, author, photo, shared, ...n }: Row, viewer: string | null): Note {
+	const mine = userId !== null && userId === viewer;
+	return {
+		...n,
+		hasAudio: audio !== null,
+		photo: photo && `/notas/${n.id}/foto?v=${photo}`,
+		mine,
+		shared: shared || userId === null,
+		author: mine ? null : author,
+		canEdit: mine || userId === null
+	};
 }
 
-/** Said to the voice, or written by hand: only its words. Null if there are none. */
-export async function addSaidNote(
-	k: Kitchen,
-	userId: string | null,
-	said: string,
-	source: 'voz' | 'escrita' = 'voz'
-) {
+/** Said to the voice: only its words. Null if there are none. */
+export async function addSaidNote(k: Kitchen, userId: string | null, said: string) {
 	const text = said.trim().slice(0, MAX_NOTE_TEXT);
 	if (!text) return null;
 	const [row] = await k.run((tx) =>
 		tx
 			.insert(note)
-			.values({ familyId: k.familyId, userId, text, source })
+			.values({ familyId: k.familyId, userId, text, source: 'voz' })
 			.returning({ id: note.id })
 	);
 	return row!.id;
+}
+
+/** Thrown for a file that is not a photo. */
+export class NotAPhoto extends Error {
+	constructor() {
+		super('Tiene que ser una foto (JPG, PNG o WebP)');
+	}
+}
+
+/** Written by hand, with a photo or without; `shared`, for the whole house. Null if it has nothing. */
+export async function addWrittenNote(
+	k: Kitchen,
+	userId: string,
+	sent: { text: string; photo: Uint8Array | null; shared: boolean }
+) {
+	const text = sent.text.trim().slice(0, MAX_NOTE_TEXT);
+	if (!text && !sent.photo) return null;
+	let photo: string | null = null;
+	if (sent.photo) {
+		const kind = kindOf(sent.photo);
+		if (!kind || !(kind in IMAGES)) throw new NotAPhoto();
+		photo = `${randomUUID()}.${IMAGES[kind as keyof typeof IMAGES]}`;
+		await putFile(k.familyId, AREA, photo, sent.photo, kind);
+	}
+	try {
+		const [row] = await k.run((tx) =>
+			tx
+				.insert(note)
+				.values({
+					familyId: k.familyId,
+					userId,
+					text,
+					photo,
+					shared: sent.shared,
+					source: 'escrita'
+				})
+				.returning({ id: note.id })
+		);
+		return row!.id;
+	} catch (err) {
+		if (photo) await removeFile(k.familyId, AREA, photo).catch(() => {});
+		throw err;
+	}
+}
+
+/** Shown to the whole house, or only to its person again: false if it is not one's own. */
+export async function shareNote(k: Kitchen, userId: string, id: number, shared: boolean) {
+	const done = await k.run((tx) =>
+		tx
+			.update(note)
+			.set({ shared })
+			.where(and(eq(note.id, id), eq(note.userId, userId)))
+			.returning({ id: note.id })
+	);
+	return done.length > 0;
 }
 
 export class NotAudio extends Error {
@@ -172,21 +247,34 @@ export async function hearAgain(k: Kitchen, who: { id: string; email: string }, 
 }
 
 /** Those found, the latest first; `words`, without caring for accents or capitals. */
-function find(k: Kitchen, userId: string | null, words: string | null, limit: number) {
-	const where: (SQL | undefined)[] = [visibleTo(userId)];
+function find(
+	k: Kitchen,
+	userId: string | null,
+	words: string | null,
+	limit: number,
+	house = false
+) {
+	const where: (SQL | undefined)[] = [house ? ofTheHouse() : visibleTo(userId)];
 	if (words?.trim()) where.push(like(plain(note.text), likeOf(plainText(words.trim()))));
 	return k.run((tx) =>
 		tx
 			.select(VIEW)
 			.from(note)
+			.leftJoin(user, eq(user.id, note.userId))
 			.where(and(...where))
 			.orderBy(desc(note.at))
 			.limit(limit)
 	);
 }
 
-export async function listNotes(k: Kitchen, userId: string, words: string | null, limit = 200) {
-	return (await find(k, userId, words, limit)).map(viewOf);
+/** Those a person sees; `house`, only the whole house's. */
+export async function listNotes(
+	k: Kitchen,
+	userId: string,
+	words: string | null,
+	{ house = false, limit = 200 } = {}
+) {
+	return (await find(k, userId, words, limit, house)).map((n) => viewOf(n, userId));
 }
 
 /** One's own walk's notes, in order. */
@@ -195,10 +283,11 @@ export async function walkNotes(k: Kitchen, walkId: number) {
 		tx
 			.select(VIEW)
 			.from(note)
+			.leftJoin(user, eq(user.id, note.userId))
 			.where(and(eq(note.walkId, walkId), eq(note.userId, k.userId!)))
 			.orderBy(note.at)
 	);
-	return rows.map(viewOf);
+	return rows.map((n) => viewOf(n, k.userId));
 }
 
 /** For the voice, when asked: with their day, the latest first; days in the family's time. */
@@ -214,7 +303,14 @@ export async function describeNotes(
 		})
 		.slice(0, SAID_TO_VOICE);
 	if (!rows.length) return 'No hay ninguna nota así.';
-	return rows.map((n) => `${dayOf(n.at)}: ${n.text || '(grabada, sin transcribir)'}`).join('\n');
+	return rows
+		.map((n) => {
+			// Another's: «mi coche» is theirs, not who asks'.
+			const whose = n.userId && n.userId !== userId && n.author ? ` (de ${n.author})` : '';
+			const photo = n.photo ? ' (con foto)' : '';
+			return `${dayOf(n.at)}${whose}: ${n.text || (n.photo ? 'solo una foto' : '(grabada, sin transcribir)')}${n.text ? photo : ''}`;
+		})
+		.join('\n');
 }
 
 /** What it says, corrected by hand: the transcription can mishear names. */
@@ -223,7 +319,7 @@ export async function editNote(k: Kitchen, userId: string, id: number, text: str
 		tx
 			.update(note)
 			.set({ text: text.trim().slice(0, MAX_NOTE_TEXT), hearing: 'ready' })
-			.where(and(eq(note.id, id), visibleTo(userId)))
+			.where(and(eq(note.id, id), changeableBy(userId)))
 			.returning({ id: note.id })
 	);
 	return done.length > 0;
@@ -233,24 +329,37 @@ export async function deleteNote(k: Kitchen, userId: string, id: number) {
 	const [gone] = await k.run((tx) =>
 		tx
 			.delete(note)
-			.where(and(eq(note.id, id), visibleTo(userId)))
-			.returning({ audio: note.audio })
+			.where(and(eq(note.id, id), changeableBy(userId)))
+			.returning({ audio: note.audio, photo: note.photo })
 	);
-	if (gone?.audio)
-		await removeFile(k.familyId, AREA, gone.audio).catch((err) =>
-			console.warn('[notas] No se pudo borrar un audio', String(err))
-		);
+	for (const file of [gone?.audio, gone?.photo])
+		if (file)
+			await removeFile(k.familyId, AREA, file).catch((err) =>
+				console.warn('[notas] No se pudo borrar un fichero', String(err))
+			);
 }
 
-/** Its audio, to listen to it: only one's own. */
+/** Its audio, to listen to it: of those they may see. */
 export async function noteAudio(k: Kitchen, userId: string, id: number) {
 	const [row] = await k.run((tx) =>
 		tx
 			.select({ audio: note.audio })
 			.from(note)
-			.where(and(eq(note.id, id), eq(note.userId, userId)))
+			.where(and(eq(note.id, id), visibleTo(userId)))
 	);
 	return row?.audio ?? null;
+}
+
+/** Its photo's file, of those they may see. */
+export async function notePhoto(k: Kitchen, userId: string, id: number) {
+	if (!Number.isInteger(id)) return null;
+	const [row] = await k.run((tx) =>
+		tx
+			.select({ photo: note.photo })
+			.from(note)
+			.where(and(eq(note.id, id), visibleTo(userId)))
+	);
+	return row?.photo ?? null;
 }
 
 export const NOTES_AREA = AREA;

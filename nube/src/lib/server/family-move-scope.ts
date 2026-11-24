@@ -52,7 +52,7 @@ import {
 } from './db/schema.ts';
 import type { AnyDb } from './family-scope.ts';
 import { openFileFor, openFor, sealFileFor, sealFor } from './family-secret.ts';
-import { PAPERS_AREA_NAME, PERSON_DATA } from './person-data.ts';
+import { PAPERS_AREA_NAME, PERSON_DATA, storedColumns } from './person-data.ts';
 import * as realStorage from './storage.ts';
 
 /**
@@ -274,14 +274,15 @@ function filesOf(picked: Picked) {
 	for (const table of MOVED_IN_ORDER) {
 		const stored = PERSON_DATA[table].zip && PERSON_DATA[table].zip.stored;
 		if (!stored) continue;
-		for (const row of picked.moved.get(table) ?? []) {
-			const value = row[stored.column];
-			if (value === null || value === undefined) continue;
-			files.push({
-				area: stored.area,
-				name: `${String(value).split('/').pop()}${stored.suffix ?? ''}`
-			});
-		}
+		for (const row of picked.moved.get(table) ?? [])
+			for (const column of storedColumns(stored)) {
+				const value = row[column];
+				if (value === null || value === undefined) continue;
+				files.push({
+					area: stored.area,
+					name: `${String(value).split('/').pop()}${stored.suffix ?? ''}`
+				});
+			}
 	}
 	return files;
 }

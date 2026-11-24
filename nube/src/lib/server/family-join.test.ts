@@ -238,7 +238,7 @@ describe('joining (#315)', () => {
 		await db.insert(memory).values({ familyId: 'L', userId: null, text: 'De la casa', words: [] });
 		await db
 			.insert(note)
-			.values({ familyId: 'L', userId: null, text: 'Del altavoz', source: 'voz' });
+			.values({ familyId: 'L', userId: null, text: 'Del altavoz', source: 'voz', shared: true });
 		await db
 			.insert(calendarEvent)
 			.values({ id: 1, familyId: 'L', title: 'Sin nadie', startDay: '2026-11-02' });
@@ -252,7 +252,11 @@ describe('joining (#315)', () => {
 		});
 		await joins.join('t', luis);
 		expect((await db.select().from(memory))[0]).toMatchObject({ familyId: 'A', userId: 'luis' });
-		expect((await db.select().from(note))[0]).toMatchObject({ familyId: 'A', userId: 'luis' });
+		expect((await db.select().from(note))[0]).toMatchObject({
+			familyId: 'A',
+			userId: 'luis',
+			shared: false
+		});
 		expect((await db.select().from(calendarEventPerson))[0]).toMatchObject({
 			eventId: 1,
 			personId: 2

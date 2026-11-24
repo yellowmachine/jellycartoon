@@ -3,7 +3,7 @@ import { getTableColumns, is } from 'drizzle-orm';
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import * as schema from './db/schema.ts';
 import { user } from './db/schema.ts';
-import { PERSON_DATA } from './person-data.ts';
+import { PERSON_DATA, storedColumns } from './person-data.ts';
 
 const pgTables = (Object.values(schema) as unknown[]).filter((value): value is PgTable =>
 	is(value, PgTable)
@@ -41,7 +41,7 @@ describe('what leaving does to each table (#315)', () => {
 			const names = [
 				...zip.where.map((w) => w.column),
 				...(zip.sealed ?? []),
-				...(zip.stored ? [zip.stored.column] : [])
+				...(zip.stored ? storedColumns(zip.stored) : [])
 			];
 			const among = zip.where.flatMap((w) => ('among' in w ? [w.among] : []));
 			return [

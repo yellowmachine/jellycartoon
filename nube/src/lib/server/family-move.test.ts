@@ -244,6 +244,7 @@ describe('what goes (#315)', () => {
 				userId: 'luis',
 				text: 'De Luis',
 				audio: 'n.webm',
+				photo: 'n.jpg',
 				source: 'pagina',
 				walkId: 3
 			},
@@ -284,6 +285,7 @@ describe('what goes (#315)', () => {
 		files.set('A/paseos/p.jpg', 'paseo');
 		files.set('A/notas/n.webm', 'audio');
 		files.set('A/notas/a.webm', 'de ana');
+		files.set('A/notas/n.jpg', 'foto');
 
 		const { familyId } = await leftOk('ana', 'luis');
 
@@ -292,6 +294,7 @@ describe('what goes (#315)', () => {
 		expect(log.find((r) => r.userId === 'luis')?.familyId).not.toBe('A');
 		const [n] = await db.select().from(note).where(eq(note.id, 8));
 		expect(n).toMatchObject({ familyId, walkId: 3, audio: 'n.webm' });
+		expect(files.get(`${familyId}/notas/n.jpg`)).toBe('foto');
 		expect((await db.select().from(note).where(eq(note.id, 9)))[0].familyId).toBe('A');
 		expect((await db.select().from(tripPhoto).where(eq(tripPhoto.id, 7)))[0]).toMatchObject({
 			familyId,

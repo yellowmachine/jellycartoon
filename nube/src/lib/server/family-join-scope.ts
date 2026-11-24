@@ -385,6 +385,8 @@ export function familyJoinScope(
 		};
 		const change: Record<string, (row: Row) => Row> = {
 			paper: (r) => ({ ...m.sealed.get(r.id as number) }),
+			// Shared with the house they had alone, not with this one.
+			note: () => ({ shared: false }),
 			alarm: () => ({ place: 'movil', ringingSince: null }),
 			podcast_episode: (r) => ({
 				podcastId: sameShow.get(r.podcastId as number) ?? r.podcastId

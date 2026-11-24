@@ -103,7 +103,8 @@ const SECTIONS: {
 		label: 'Notas',
 		icon: 'notas',
 		where: 'nube',
-		about: 'Notas dictadas, privadas de cada persona, para buscarlas luego. Solo adultos.'
+		about:
+			'Notas dictadas, escritas o con foto, para buscarlas luego: privadas, o para toda la casa. Solo adultos.'
 	},
 	// Energía (#396, #508): Shelly plugs that connect to Seilide by themselves, the temperature, and
 	// what is to come. Its address stays /enchufes: the families' sections and the notices use it.
