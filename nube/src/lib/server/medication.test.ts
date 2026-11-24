@@ -103,6 +103,7 @@ const pill = (personId: string, times: string[]): MedicationInput => ({
 	name: 'Sintrom',
 	dose: '½ pastilla',
 	times,
+	doses: [],
 	days: [],
 	startDay: today,
 	endDay: null
@@ -158,9 +159,40 @@ describe('medication', () => {
 			body: 'Dalsy (5 ml) · Apiretal'
 		});
 		expect(told[0]!.actions?.[0]).toMatchObject({
-			title: '✓ Tomadas',
+			title: 'Tomar',
 			post: `/api/medicacion/tomada?dia=${today}&hora=${encodeURIComponent(now)}&id=${id}&id=${other}`
 		});
+	});
+
+	test('each time its own dose; what was taken stays as it was', async () => {
+		const input: MedicationInput = {
+			...pill(people.Ana!, ['09:00', '21:00']),
+			name: 'Equis',
+			dose: '1 pastilla',
+			doses: ['', '2 pastillas']
+		};
+		const id = (await saveMedication(ana, null, input))!;
+		const doses = async () => {
+			const m = (await listMedication(ana)).find((m) => m.id === id)!;
+			return (await dosesFor(ana, [m], today)).map((d) => d.dose);
+		};
+		expect(await doses()).toEqual(['1 pastilla', '2 pastillas']);
+		await markDose(ana, id, today, '09:00', true);
+		await saveMedication(ana, id, { ...input, dose: '3 pastillas', doses: [] });
+		expect(await doses()).toEqual(['1 pastilla', '3 pastillas']);
+		await markDose(ana, id, today, '09:00', false);
+		expect(await doses()).toEqual(['3 pastillas', '3 pastillas']);
+		// Its notice says how much at that time.
+		const now = localTime();
+		await saveMedication(ana, id, {
+			...input,
+			times: [now, '21:00'],
+			doses: ['4 pastillas', '']
+		});
+		told.length = 0;
+		await sendDueDoses(house);
+		expect(told.map((t) => t.body)).toEqual(['Equis (4 pastillas)']);
+		await db.delete(schema.medication).where(sql`id = ${id}`);
 	});
 
 	test("the home page's: only what is told to each grown-up, not taken yet", async () => {

@@ -111,7 +111,7 @@ self.addEventListener('notificationclick', (event) => {
 	const url = new URL(to, self.location.origin).href;
 	event.waitUntil(
 		(async () => {
-			// A button of its own («✓ Tomada», #308): done here, with the session's cookie. Failed (the
+			// A button of its own («Tomar», #308): done here, with the session's cookie. Failed (the
 			// session gone, no network), the app opens, to do it there.
 			if (button?.post) {
 				const res = await fetch(button.post, {

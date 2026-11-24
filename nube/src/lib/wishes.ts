@@ -7,6 +7,17 @@ export const MAX_WISH_TITLE = 300;
 export const MAX_WISH_NOTE = 500;
 export const MAX_WISH_URL = 2000;
 
+/** For when a wish is, in the list's order; new ones, «pronto». */
+export const WISH_PRIORITIES = ['primero', 'pronto', 'mas_adelante'] as const;
+export type WishPriority = (typeof WISH_PRIORITIES)[number];
+export const WISH_PRIORITY_LABELS: Record<WishPriority, string> = {
+	primero: 'Lo primero',
+	pronto: 'Pronto',
+	mas_adelante: 'Más adelante'
+};
+export const isWishPriority = (v: unknown): v is WishPriority =>
+	WISH_PRIORITIES.includes(v as WishPriority);
+
 /** Shops known by a word of their address, and how they are called. */
 const SHOPS: [RegExp, string][] = [
 	// Its short links (shared from its app) too, before they are followed.

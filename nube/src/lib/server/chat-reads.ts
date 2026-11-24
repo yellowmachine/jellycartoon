@@ -124,14 +124,19 @@ export const READ_TOOLS: Tool[] = [
 	),
 	fn(
 		'read_plug_energy',
-		`Lo que gastaron los enchufes de la familia (Energía → Enchufes), día a día: kWh y euros, de uno por su nombre o de todos, con el total. Para «¿cuánto gastó el termo esta semana?» o, junto con read_weather, «¿el radiador gastó más los días fríos?». Como mucho ${ENERGY_DAYS} días por llamada.`,
+		`Lo que gastaron los enchufes de la familia (Energía → Enchufes), día a día: kWh y euros, de uno por su nombre o de todos, con el total y el reparto en punta, llano y valle. Con detail «horas», además por horas (hasta 7 días de un enchufe, hora a hora; más, la media de cada hora) y lo que gasta en reposo. Para «¿cuánto gasta el ordenador en suspensión?», «¿a qué horas gasta más?», «¿cuánto gastó el termo esta semana?» o, junto con read_weather, «¿el radiador gastó más los días fríos?». Como mucho ${ENERGY_DAYS} días por llamada.`,
 		{
 			plug: {
 				type: 'string',
 				description: 'El enchufe, por su nombre o parte («termo»). Vacío, todos.'
 			},
 			from_day: { type: 'string', description: 'El primer día, AAAA-MM-DD.' },
-			to_day: { type: 'string', description: 'El último día, AAAA-MM-DD. Vacío, solo el primero.' }
+			to_day: { type: 'string', description: 'El último día, AAAA-MM-DD. Vacío, solo el primero.' },
+			detail: {
+				type: 'string',
+				enum: ['dias', 'horas'],
+				description: '«horas» para lo de las horas o el reposo. Vacío, solo por días.'
+			}
 		},
 		['from_day']
 	),
@@ -174,7 +179,7 @@ export const READ_TOOLS: Tool[] = [
 	),
 	fn(
 		'read_wishes',
-		'La lista de deseos de la familia (Deseos): lo que le gustaría a cada uno, de cualquier tienda, con su precio si se sabe y quién lo regala («Lo regalo yo»). Para «¿qué le regalo a mamá?», «¿qué hay de IKEA?», «¿cuánto suma la lista de Lucía?». Lo que regalan a quien pregunta no sale: es una sorpresa, no lo adivines ni lo insinúes.',
+		'La lista de deseos de la familia (Deseos): lo que le gustaría a cada uno, de cualquier tienda, con su precio si se sabe, quién lo regala («Lo regalo yo») y si es para lo primero o para más adelante (sin decirlo, para pronto). Para «¿qué le regalo a mamá?», «¿qué hay de IKEA?», «¿cuánto suma la lista de Lucía?», «¿qué es lo primero que quiere Ana?». Lo que regalan a quien pregunta no sale: es una sorpresa, no lo adivines ni lo insinúes.',
 		{
 			person: {
 				type: 'string',

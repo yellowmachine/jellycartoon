@@ -12,6 +12,7 @@ import type { Kitchen } from '#lib/server/fridge.ts';
 import { tell } from '#lib/server/inbox.ts';
 import { localDay, localTime } from 'comun/agenda.ts';
 import {
+	doseAt,
 	doseText,
 	dosesOn,
 	takenOn,
@@ -22,7 +23,7 @@ import {
 
 /**
  * The family's medication (#308): each person's, seen by every grown-up of the family, and marked
- * by them. At each dose's time, a notice with «✓ Tomada» in it: a grown-up's to their phones; a
+ * by them. At each dose's time, a notice with «Tomar» in it: a grown-up's to their phones; a
  * child's to its adults' (those who let it in, #303), or to every grown-up if it has none.
  */
 
@@ -39,6 +40,7 @@ function asMedication(r: typeof medication.$inferSelect): Medication {
 		name: r.name,
 		dose: r.dose,
 		times: r.times.map(hhmm),
+		doses: r.doses,
 		days: r.days,
 		startDay: r.startDay,
 		endDay: r.endDay
@@ -67,6 +69,7 @@ export function dosesFor(k: Kitchen, meds: Medication[], day: string): Promise<D
 						medicationId: medicationDose.medicationId,
 						time: medicationDose.time,
 						takenAt: medicationDose.takenAt,
+						dose: medicationDose.dose,
 						by: user.name
 					})
 					.from(medicationDose)
@@ -79,13 +82,14 @@ export function dosesFor(k: Kitchen, meds: Medication[], day: string): Promise<D
 						)
 					)
 			: [];
-		return dosesOn(meds, day).map(({ medication: m, time }) => {
+		return dosesOn(meds, day).map(({ medication: m, time, dose }) => {
 			const taken = marked.find((d) => d.medicationId === m.id && hhmm(d.time) === time);
 			return {
 				medicationId: m.id,
 				personId: m.personId,
 				name: m.name,
-				dose: m.dose,
+				// Marked before it was kept (null): as it is now.
+				dose: taken && taken.dose !== null ? taken.dose || null : dose,
 				day,
 				time,
 				takenAt: taken?.takenAt ? localTime(taken.takenAt) : null,
@@ -101,6 +105,7 @@ function values(input: MedicationInput) {
 		name: input.name,
 		dose: input.dose,
 		times: input.times,
+		doses: input.doses,
 		days: input.days,
 		startDay: input.startDay,
 		endDay: input.endDay
@@ -151,7 +156,11 @@ export function markDose(k: Kitchen, id: number, day: string, time: string, take
 		if (!row) return false;
 		const m = asMedication(row);
 		if (!takenOn(m, day) || !m.times.includes(time)) return false;
-		const set = { takenAt: taken ? new Date() : null, takenBy: taken ? k.userId : null };
+		const set = {
+			takenAt: taken ? new Date() : null,
+			takenBy: taken ? k.userId : null,
+			dose: taken ? (doseAt(m, time) ?? '') : null
+		};
 		await tx
 			.insert(medicationDose)
 			.values({ familyId: k.familyId, medicationId: id, day, time, ...set })
@@ -255,7 +264,7 @@ export async function sendDueDoses(k: Kitchen) {
 		await tell(k.familyId, await toldFor(k, Number(personId)), {
 			kind: 'medicacion',
 			title: `💊 ${who ? `${who}, ` : ''}${time}`,
-			body: these.map(doseText).join(' · '),
+			body: these.map((m) => doseText({ name: m.name, dose: doseAt(m, time) })).join(' · '),
 			tag: `toma-${personId}-${day}-${time}`,
 			url: `/agenda/medicacion?persona=${personId}`,
 			ttl: LATE_MINUTES * 60,
@@ -263,7 +272,7 @@ export async function sendDueDoses(k: Kitchen) {
 			actions: [
 				{
 					action: 'tomada',
-					title: these.length > 1 ? '✓ Tomadas' : '✓ Tomada',
+					title: 'Tomar',
 					post: `/api/medicacion/tomada?${query}`
 				}
 			]

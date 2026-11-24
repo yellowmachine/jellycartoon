@@ -190,7 +190,7 @@
 									true
 								)}
 								class="shrink-0 rounded-xl bg-amber-500 px-5 py-3 text-lg font-semibold text-zinc-950 active:scale-95"
-								>✓ {g.doses.length > 1 ? 'Tomadas' : 'Tomada'}</button
+								title="Marcar como {g.doses.length > 1 ? 'tomadas' : 'tomada'}">Tomar</button
 							>
 						</form>
 					</li>
