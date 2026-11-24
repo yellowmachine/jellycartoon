@@ -672,8 +672,10 @@
 					pidan en un mensaje o en una web.
 				</li>
 				<li>
-					Este solo lee el nombre, la foto, el precio y la dirección del producto y abre Seilide con
-					ellos. Su código se puede ver con el botón derecho sobre el marcador → Editar.
+					Este lee el nombre, la foto, el precio y la dirección del producto y abre Seilide con
+					ellos. También recoge el texto visible del producto y las opciones elegidas (nunca lo que
+					escribes), que no salen de tu ordenador si no pulsas «Analizar con IA». Su código se puede
+					ver con el botón derecho sobre el marcador → Editar.
 				</li>
 			</ul>
 		</div>
