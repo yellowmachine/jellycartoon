@@ -1,7 +1,14 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { parseBillInput } from 'comun/bills.ts';
-import { addMonths, isCategory, monthOf, parseExpenseInput } from 'comun/expenses.ts';
+import {
+	addMonths,
+	isCategory,
+	isEvery,
+	monthOf,
+	parseExpenseInput,
+	whenOf
+} from 'comun/expenses.ts';
 import { kitchenOf, setItemsDone, today, type Kitchen } from '#lib/server/fridge.ts';
 import { tickOffBought } from '#lib/server/expenses/bought-list.ts';
 import {
@@ -118,11 +125,13 @@ function recurringFrom(form: FormData) {
 	const category = form.get('category');
 	const amount = Number(form.get('amount'));
 	const day = Number(form.get('day'));
-	// Every year, in its month; else every month.
-	const month = form.get('every') === 'año' ? Number(form.get('month')) : null;
+	// Every month; else, one of its months.
+	const often = form.get('every');
+	if (!isEvery(often)) return null;
+	const inMonth = often === 'mes' ? 1 : Number(form.get('month'));
 	if (!name || !isCategory(category) || !Number.isInteger(amount) || amount <= 0) return null;
 	if (!Number.isInteger(day) || day < 1 || day > 28) return null;
-	if (month !== null && (!Number.isInteger(month) || month < 1 || month > 12)) return null;
+	if (!Number.isInteger(inMonth) || inMonth < 1 || inMonth > 12) return null;
 	const paidFrom =
 		String(form.get('paidFrom') ?? '')
 			.trim()
@@ -135,7 +144,7 @@ function recurringFrom(form: FormData) {
 		category,
 		amount,
 		day,
-		month,
+		...whenOf(often, inMonth),
 		paidFrom,
 		notice,
 		noticeAll: form.get('noticeAll') === 'on'
@@ -348,11 +357,13 @@ export const actions: Actions = {
 		if (!list.length || list.length > 100) return fail(400, { message: 'Falta cuál' });
 		await closeCharges(await kitchen(locals), locals.user!.id, list, today());
 	},
-	/** «🔁 Hacer fijo»: an expense written down, every month or every year from its day. */
+	/** «🔁 Hacer fijo»: an expense written down, every month, some months or year from its day. */
 	makeRecurring: async ({ request, locals }) => {
 		const k = await kitchen(locals);
 		const form = await request.formData();
-		if (!(await makeRecurring(k, Number(form.get('id')), form.get('every') === 'año')))
+		const every = form.get('every');
+		if (!isEvery(every)) return fail(400, { message: 'Falta cada cuánto' });
+		if (!(await makeRecurring(k, Number(form.get('id')), every)))
 			return fail(404, { message: 'Ese gasto ya no está' });
 		await addDueRecurring(k);
 	},

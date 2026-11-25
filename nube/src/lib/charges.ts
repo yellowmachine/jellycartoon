@@ -19,7 +19,7 @@ export interface ChargeNotices {
 	/** The fixed one's id → the day (`YYYY-MM-DD`) of the charge they closed. */
 	closed: Record<string, string>;
 }
-/** Those of every month are known by heart; a year later, forgotten. */
+/** Those of every month are known by heart; the rest (`yearly`), forgotten. */
 export const noChoice = (): ChargeNotices => ({ on: true, monthly: 0, yearly: 7, closed: {} });
 
 /** One coming. */

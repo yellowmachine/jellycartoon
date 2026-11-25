@@ -883,6 +883,13 @@
       "when": 1795600240361,
       "tag": "0125_elite_greymalkin",
       "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1795601352438,
+      "tag": "0126_clumsy_sinister_six",
+      "breakpoints": true
     }
   ]
 }

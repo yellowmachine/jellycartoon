@@ -54,7 +54,7 @@
 				{@render days('monthly', data.chargeNotices.monthly)}
 			</label>
 			<label class="ml-6 flex flex-wrap items-center gap-2">
-				Los de cada año
+				Los demás (de cada varios meses o de cada año)
 				{@render days('yearly', data.chargeNotices.yearly)}
 			</label>
 		{/if}

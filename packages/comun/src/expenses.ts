@@ -139,6 +139,8 @@ export interface RecurringExpense {
 	day: number;
 	/** Every year, in this month (1 to 12): Prime, an insurance, the IBI. Null, every month. */
 	month: number | null;
+	/** With `month`, every so many months from it: 2, 3, 4 or 6; null, every year. */
+	every?: number | null;
 	/** «Se paga desde»: the account to keep money in; null, not said. */
 	paidFrom?: string | null;
 	/** «Avísame», days before; 0, never; null, each one's usual (Ajustes). */
@@ -354,44 +356,75 @@ export function addMonths(month: string, by: number) {
 	return at.toISOString().slice(0, 7);
 }
 
+/** How often a fixed one comes, in months. */
+export const EVERY = {
+	mes: { months: 1, label: 'mes', short: 'cada mes', by: 'al mes' },
+	bimestre: { months: 2, label: 'bimestre', short: 'bim.', by: 'al bimestre' },
+	trimestre: { months: 3, label: 'trimestre', short: 'trim.', by: 'al trimestre' },
+	cuatrimestre: { months: 4, label: 'cuatrimestre', short: 'cuatr.', by: 'al cuatrimestre' },
+	semestre: { months: 6, label: 'semestre', short: 'sem.', by: 'al semestre' },
+	año: { months: 12, label: 'año', short: '', by: 'al año' }
+} as const;
+export type Every = keyof typeof EVERY;
+export const isEvery = (v: unknown): v is Every => typeof v === 'string' && Object.hasOwn(EVERY, v);
+
+/** When it falls due: its day, and its month if it is not every month's. */
+export interface FixedWhen {
+	day: number;
+	month: number | null;
+	every?: number | null;
+}
+export const everyOf = (r: Pick<FixedWhen, 'month' | 'every'>): Every =>
+	r.month === null
+		? 'mes'
+		: ((Object.keys(EVERY) as Every[]).find((e) => EVERY[e].months === r.every) ?? 'año');
+
+/** As it is kept: every `every`, one of its months being `month`. */
+export const whenOf = (every: Every, month: number) =>
+	every === 'mes'
+		? { month: null, every: null }
+		: every === 'año'
+			? { month, every: null }
+			: { month: ((month - 1) % EVERY[every].months) + 1, every: EVERY[every].months as number };
+
+/** Its months of the year, 1 to 12, from January: [2, 5, 8, 11]. */
+export function monthsOf(r: Pick<FixedWhen, 'month' | 'every'>) {
+	const step = EVERY[everyOf(r)].months;
+	const first = r.month === null ? 1 : ((r.month - 1) % step) + 1;
+	return Array.from({ length: 12 / step }, (_, i) => first + i * step);
+}
+
+/** Whether it falls due in that month (`YYYY-MM`). */
+const fallsIn = (r: FixedWhen, month: string) => monthsOf(r).includes(Number(month.slice(5, 7)));
+
 /**
  * The month (`YYYY-MM`) a fixed one last fell due by `today` (`YYYY-MM-DD`), its day included:
- * monthly, this month or the one before; yearly, this year's or last year's.
+ * the last of its months whose day has come.
  */
-export function lastDue(r: { day: number; month: number | null }, today: string) {
-	const thisMonth = monthOf(today);
+export function lastDue(r: FixedWhen, today: string) {
 	const passed = (month: string) => `${month}-${String(r.day).padStart(2, '0')}` <= today;
-	if (r.month === null) return passed(thisMonth) ? thisMonth : addMonths(thisMonth, -1);
-	const thisYear = `${today.slice(0, 4)}-${String(r.month).padStart(2, '0')}`;
-	return passed(thisYear) ? thisYear : addMonths(thisYear, -12);
+	let month = monthOf(today);
+	while (!fallsIn(r, month) || !passed(month)) month = addMonths(month, -1);
+	return month;
 }
 
 /**
  * The months a fixed one is to be added in by `today`, after `lastMonth` (the last added; null,
  * none yet: from this month on): also the ones missed while nobody looked.
  */
-export function dueMonths(
-	r: { day: number; month: number | null },
-	lastMonth: string | null,
-	today: string
-) {
+export function dueMonths(r: FixedWhen, lastMonth: string | null, today: string) {
 	const last = lastDue(r, today);
 	const due: string[] = [];
 	let month = lastMonth ? addMonths(lastMonth, 1) : monthOf(today);
-	for (; month <= last; month = addMonths(month, 1))
-		if (r.month === null || Number(month.slice(5, 7)) === r.month) due.push(month);
+	for (; month <= last; month = addMonths(month, 1)) if (fallsIn(r, month)) due.push(month);
 	return due;
 }
 
 /** The next day a fixed one falls due from `today`, its day included; not a month already added. */
-export function nextDue(
-	r: { day: number; month: number | null },
-	lastMonth: string | null,
-	today: string
-) {
+export function nextDue(r: FixedWhen, lastMonth: string | null, today: string) {
 	const day = String(r.day).padStart(2, '0');
 	for (let month = monthOf(today), i = 0; i < 14; month = addMonths(month, 1), i++) {
-		if (r.month !== null && Number(month.slice(5, 7)) !== r.month) continue;
+		if (!fallsIn(r, month)) continue;
 		if (lastMonth !== null && month <= lastMonth) continue;
 		if (`${month}-${day}` >= today) return `${month}-${day}`;
 	}

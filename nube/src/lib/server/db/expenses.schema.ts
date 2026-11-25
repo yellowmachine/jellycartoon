@@ -56,6 +56,8 @@ export const recurringExpense = pgTable(
 		day: integer('day').notNull(),
 		/** Every year, in this month (1 to 12); null, every month. */
 		month: integer('month'),
+		/** With `month`, every so many months from it: 2, 3, 4 or 6; null, every year. */
+		every: integer('every'),
 		/** The last month it was added, `YYYY-MM`; null, none yet. */
 		lastMonth: text('last_month'),
 		/** «Se paga desde»: the account to keep money in, as they call it; null, not said. */
