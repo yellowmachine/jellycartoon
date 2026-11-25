@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Landing from '#lib/components/Landing.svelte';
 	import Home from '#lib/components/Home.svelte';
+	import ChargesNotice from '#lib/components/ChargesNotice.svelte';
 	import CardIcon from '#lib/components/CardIcon.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { sectionOn } from '#lib/nav.ts';
@@ -61,6 +62,7 @@
 		{/if}
 	</div>
 {:else if data.home}
+	{#if shows('/gastos')}<ChargesNotice charges={data.charges ?? []} />{/if}
 	{#each data.companions ?? [] as c (c.familyId)}
 		<!-- «Compañía» (#469): someone who lives alone in a linked family. -->
 		<a

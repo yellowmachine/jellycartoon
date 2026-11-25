@@ -1,7 +1,14 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { parseBillInput } from 'comun/bills.ts';
-import { addMonths, isCategory, monthOf, parseExpenseInput } from 'comun/expenses.ts';
+import {
+	addMonths,
+	isCategory,
+	isEvery,
+	monthOf,
+	parseExpenseInput,
+	whenOf
+} from 'comun/expenses.ts';
 import { kitchenOf, setItemsDone, today, type Kitchen } from '#lib/server/fridge.ts';
 import { tickOffBought } from '#lib/server/expenses/bought-list.ts';
 import {
@@ -27,6 +34,9 @@ import {
 	markNotSame,
 	monthRepeated
 } from '#lib/server/expenses/duplicates.ts';
+import { mergeInto, monthMerged, monthMerges, splitMerge } from '#lib/server/expenses/merge.ts';
+import { closeCharges, comingCharges } from '#lib/server/expenses/charges.ts';
+import { isNoticeDays, MAX_ACCOUNT } from '#lib/charges.ts';
 import { setNoticeKind } from '#lib/server/page-notices.ts';
 import { ownTags, tagLine } from '#lib/server/expenses/own-tags.ts';
 import { isPageNoticeKind } from 'comun/page-notices.ts';
@@ -49,23 +59,40 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const month =
 		asked && /^\d{4}-(0[1-9]|1[0-2])$/.test(asked) && asked <= current ? asked : current;
 	await Promise.all([addDueRecurring(k), addDueRecurringIncome(k, today())]);
-	const [expenses, previous, recurring, favorites, canRead, income, repeated, own] =
-		await Promise.all([
-			monthExpenses(k, month),
-			monthTotal(k, addMonths(month, -1)),
-			recurringExpenses(k),
-			favoriteExpenses(k),
-			canReadReceipts(k),
-			monthIncomeTotal(k, month),
-			monthRepeated(k, month),
-			ownTags(k)
-		]);
+	const [
+		expenses,
+		previous,
+		recurring,
+		favorites,
+		canRead,
+		income,
+		repeated,
+		own,
+		charges,
+		merges,
+		merged
+	] = await Promise.all([
+		monthExpenses(k, month),
+		monthTotal(k, addMonths(month, -1)),
+		recurringExpenses(k),
+		favoriteExpenses(k),
+		canReadReceipts(k),
+		monthIncomeTotal(k, month),
+		monthRepeated(k, month),
+		ownTags(k),
+		comingCharges(k, locals.user!.id, today()),
+		monthMerges(k, month),
+		monthMerged(k, month)
+	]);
 	return {
 		month,
 		current,
 		expenses,
 		/** Put in twice (#440): each newer one's id, with the one it looks the same as. */
 		repeated,
+		/** Those that seem to gather others, put in one by one; and what they gathered. */
+		merges,
+		merged,
 		previous,
 		recurring,
 		favorites,
@@ -73,9 +100,19 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		income,
 		/** The family's own tags for the lines (#459), and which text has which. */
 		own,
+		/** The fixed ones about to be paid, to have money for them. */
+		charges,
 		today: today()
 	};
 };
+
+/** A few expenses' ids, sent apart. */
+const idsOf = (form: FormData, key: string) =>
+	form
+		.getAll(key)
+		.map(Number)
+		.filter((n) => Number.isInteger(n) && n > 0)
+		.slice(0, 5);
 
 /** The family's, of who is in. */
 const kitchen = (locals: App.Locals) => kitchenOf(locals.user!.id);
@@ -88,12 +125,30 @@ function recurringFrom(form: FormData) {
 	const category = form.get('category');
 	const amount = Number(form.get('amount'));
 	const day = Number(form.get('day'));
-	// Every year, in its month; else every month.
-	const month = form.get('every') === 'año' ? Number(form.get('month')) : null;
+	// Every month; else, one of its months.
+	const often = form.get('every');
+	if (!isEvery(often)) return null;
+	const inMonth = often === 'mes' ? 1 : Number(form.get('month'));
 	if (!name || !isCategory(category) || !Number.isInteger(amount) || amount <= 0) return null;
 	if (!Number.isInteger(day) || day < 1 || day > 28) return null;
-	if (month !== null && (!Number.isInteger(month) || month < 1 || month > 12)) return null;
-	return { name, category, amount, day, month };
+	if (!Number.isInteger(inMonth) || inMonth < 1 || inMonth > 12) return null;
+	const paidFrom =
+		String(form.get('paidFrom') ?? '')
+			.trim()
+			.slice(0, MAX_ACCOUNT) || null;
+	const said = String(form.get('notice') ?? '');
+	const notice = said === '' ? null : Number(said);
+	if (notice !== null && !isNoticeDays(notice)) return null;
+	return {
+		name,
+		category,
+		amount,
+		day,
+		...whenOf(often, inMonth),
+		paidFrom,
+		notice,
+		noticeAll: form.get('noticeAll') === 'on'
+	};
 }
 
 /** A receipt kept on the expense `id` (#501); why not, as the page says it. */
@@ -148,8 +203,10 @@ export const actions: Actions = {
 			return { saved: id };
 		}
 		const source = bill ? 'factura' : receipt.file ? 'ticket' : 'mano';
+		// Those it gathers, said yes to: they are not it put in twice.
+		const gathers = idsOf(form, 'juntar');
 		// Put in twice (#440)? Asked before saving, unless «Guardar igual».
-		if (form.get('igual') !== 'on') {
+		if (form.get('igual') !== 'on' && !gathers.length) {
 			const repeated = await lookingSame(k, { id: null, ...input, source, fileHash, bill });
 			if (repeated) return fail(409, { message: 'Parece repetido', repeated });
 		}
@@ -162,9 +219,11 @@ export const actions: Actions = {
 			if (no) return fail(no.status, { message: no.message });
 			throw err;
 		}
+		// Saved even so if they changed meanwhile: told, as it would count twice.
+		const gathered = gathers.length ? await mergeInto(k, saved, gathers) : null;
 		// What it has, off the shopping list (#451); a supply's bill has nothing of it.
 		const ticked = bill ? [] : await tickOffBought(k, input);
-		return { saved, ticked };
+		return { saved, ticked, gathered };
 	},
 	/**
 	 * «📎 Recibo» on a fixed one (#501) without reading it (no AI, or it could not): `fichero` kept
@@ -199,6 +258,27 @@ export const actions: Actions = {
 	delete: async ({ request, locals }) => {
 		const k = await kitchen(locals);
 		await deleteExpense(k, Number((await request.formData()).get('id')));
+	},
+	/** «Juntarlos»: `juntar`, those an expense already saved (`id`) gathers. */
+	merge: async ({ request, locals }) => {
+		const form = await request.formData();
+		const done = await mergeInto(
+			await kitchen(locals),
+			Number(form.get('id')),
+			idsOf(form, 'juntar')
+		);
+		if (!done) return fail(409, { message: 'Esos gastos han cambiado: no se ha juntado nada' });
+	},
+	/** «Separarlos»: put back as they were. */
+	split: async ({ request, locals }) => {
+		if (!(await splitMerge(await kitchen(locals), Number((await request.formData()).get('id')))))
+			return fail(404, { message: 'Ya están separados' });
+	},
+	/** «No, son otros»: not proposed again for that expense. */
+	notMerge: async ({ request, locals }) => {
+		const form = await request.formData();
+		const k = await kitchen(locals);
+		for (const other of idsOf(form, 'juntar')) await markNotSame(k, Number(form.get('id')), other);
 	},
 	/** «No es repetido» (#440): this one and the one it looked the same as. */
 	notRepeated: async ({ request, locals }) => {
@@ -268,11 +348,22 @@ export const actions: Actions = {
 		else await addRecurring(k, r);
 		await addDueRecurring(k);
 	},
-	/** «🔁 Hacer fijo»: an expense written down, every month or every year from its day. */
+	/** «✕» on charges that come (from the home page too): `cargo`, `<id>:<day>`, each. */
+	closeCharges: async ({ request, locals }) => {
+		const list = (await request.formData()).getAll('cargo').flatMap((v) => {
+			const m = String(v).match(/^(\d{1,9}):(\d{4}-\d{2}-\d{2})$/);
+			return m ? [{ id: Number(m[1]), day: m[2]! }] : [];
+		});
+		if (!list.length || list.length > 100) return fail(400, { message: 'Falta cuál' });
+		await closeCharges(await kitchen(locals), locals.user!.id, list, today());
+	},
+	/** «🔁 Hacer fijo»: an expense written down, every month, some months or year from its day. */
 	makeRecurring: async ({ request, locals }) => {
 		const k = await kitchen(locals);
 		const form = await request.formData();
-		if (!(await makeRecurring(k, Number(form.get('id')), form.get('every') === 'año')))
+		const every = form.get('every');
+		if (!isEvery(every)) return fail(400, { message: 'Falta cada cuánto' });
+		if (!(await makeRecurring(k, Number(form.get('id')), every)))
 			return fail(404, { message: 'Ese gasto ya no está' });
 		await addDueRecurring(k);
 	},

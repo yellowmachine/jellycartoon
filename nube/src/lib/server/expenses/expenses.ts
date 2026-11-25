@@ -36,7 +36,9 @@ import {
 	type ExpenseFavorite,
 	type ExpenseInput,
 	type ExpenseSource,
-	type RecurringExpense
+	type Every,
+	type RecurringExpense,
+	whenOf
 } from 'comun/expenses.ts';
 import { boughtOf } from './bought.ts';
 import { keepReceipt, removeReceipt } from './receipt.ts';
@@ -348,7 +350,11 @@ export async function recurringExpenses(k: Kitchen): Promise<RecurringExpense[]>
 		category: isCategory(r.category) ? r.category : 'Otros',
 		amount: r.amount,
 		day: r.day,
-		month: r.month
+		month: r.month,
+		every: r.every,
+		paidFrom: r.paidFrom,
+		notice: r.notice,
+		noticeAll: r.noticeAll
 	}));
 }
 
@@ -382,10 +388,10 @@ export async function updateRecurring(k: Kitchen, id: number, r: Omit<RecurringE
 
 /**
  * «🔁 Hacer fijo»: an expense already written down (Prime, by hand) made a fixed one, every month
- * or every year from its day (28 at most). It is the first: the next ones, from the next time on.
+ * (or every some months, or year) from its day (28 at most). It is the first: the next ones, from the next time on.
  * False if it is not there; already one, nothing new.
  */
-export async function makeRecurring(k: Kitchen, expenseId: number, yearly: boolean) {
+export async function makeRecurring(k: Kitchen, expenseId: number, every: Every) {
 	return k.run(async (tx) => {
 		const [e] = await tx
 			.select({
@@ -404,7 +410,7 @@ export async function makeRecurring(k: Kitchen, expenseId: number, yearly: boole
 			category: isCategory(e.category) ? e.category : 'Otros',
 			amount: e.total,
 			day: Math.min(28, Number(e.date.slice(8, 10))),
-			month: yearly ? Number(e.date.slice(5, 7)) : null
+			...whenOf(every, Number(e.date.slice(5, 7)))
 		};
 		const [row] = await tx
 			.insert(recurringExpense)

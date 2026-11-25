@@ -11,6 +11,7 @@ import {
 	expense,
 	expenseFavorite,
 	expenseLine,
+	expenseMerge,
 	expenseNotDuplicate,
 	family,
 	familyMember,
@@ -88,6 +89,7 @@ const TABLES: [string, PgTable][] = [
 	['expense_line', expenseLine],
 	['bill', bill],
 	['expense_not_duplicate', expenseNotDuplicate],
+	['expense_merge', expenseMerge],
 	['expense_favorite', expenseFavorite],
 	// Which bank payment made which expense (#502): so they do not come in again there.
 	['bank_payment', bankPayment],

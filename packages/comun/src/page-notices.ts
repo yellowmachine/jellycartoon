@@ -7,7 +7,8 @@ import { euros } from './expenses.ts';
  */
 
 export const PAGE_NOTICE_KINDS = {
-	repetido: 'Gastos y facturas repetidos'
+	repetido: 'Gastos y facturas repetidos',
+	junta: 'Una factura o un pago que reúne varios gastos apuntados'
 } as const;
 
 export type PageNoticeKind = keyof typeof PAGE_NOTICE_KINDS;
@@ -28,6 +29,24 @@ export interface LooksSame {
 	store: string;
 	total: number;
 	by: SameBy;
+}
+
+/** The expenses another seems to gather: to leave them in one. */
+export type MergeNotice = { id: number; date: string; total: number; text: string }[];
+
+/** What an expense gathered (`id`, of that gathering). */
+export interface MergedNotice {
+	id: number;
+	expenseId: number;
+	parts: { date: string; total: number; text: string }[];
+}
+
+/** «Parece reunir 2 gastos que ya tienes: «Libro A», 18,11 €, y «Libro B», 17,89 € (36,00 €).» */
+export function mergeText(parts: MergeNotice) {
+	const each = parts.map((p) => `«${p.text}», ${euros(p.total)}`);
+	if (each.length === 1) return `Parece ser de un gasto que ya tienes: ${each[0]}.`;
+	const total = parts.reduce((s, p) => s + p.total, 0);
+	return `Parece reunir ${parts.length} gastos que ya tienes: ${each.slice(0, -1).join(', ')} y ${each.at(-1)} (${euros(total)} en total).`;
 }
 
 const BY: Record<SameBy, string> = {

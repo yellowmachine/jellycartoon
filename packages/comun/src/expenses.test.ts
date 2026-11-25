@@ -1,6 +1,10 @@
 import { expect, test } from 'bun:test';
 import {
 	dueMonths,
+	everyOf,
+	monthsOf,
+	nextDue,
+	whenOf,
 	lastDue,
 	addMonths,
 	byStore,
@@ -152,4 +156,32 @@ test('dueMonths: monthly, each one missed; yearly, only its month', () => {
 	expect(dueMonths({ day: 10, month: 3 }, '2026-03', '2027-03-10')).toEqual(['2027-03']);
 	expect(dueMonths({ day: 10, month: 11 }, null, '2026-11-10')).toEqual(['2026-11']);
 	expect(dueMonths({ day: 10, month: 3 }, '2024-03', '2026-11-01')).toEqual(['2025-03', '2026-03']);
+});
+
+test('every quarter and four months: their months, the last due, the missed and the next', () => {
+	const q = { day: 10, ...whenOf('trimestre', 11) };
+	expect(q).toEqual({ day: 10, month: 2, every: 3 });
+	expect(everyOf(q)).toBe('trimestre');
+	expect(monthsOf(q)).toEqual([2, 5, 8, 11]);
+	expect(lastDue(q, '2026-11-09')).toBe('2026-08');
+	expect(lastDue(q, '2026-11-10')).toBe('2026-11');
+	expect(lastDue(q, '2026-01-20')).toBe('2025-11');
+	expect(dueMonths(q, '2026-02', '2026-11-10')).toEqual(['2026-05', '2026-08', '2026-11']);
+	expect(nextDue(q, '2026-11', '2026-11-25')).toBe('2027-02-10');
+	const c = { day: 5, ...whenOf('cuatrimestre', 12) };
+	expect(monthsOf(c)).toEqual([4, 8, 12]);
+	expect(everyOf(c)).toBe('cuatrimestre');
+	expect(lastDue(c, '2026-11-25')).toBe('2026-08');
+	expect(nextDue(c, '2026-08', '2026-11-25')).toBe('2026-12-05');
+	const b = { day: 5, ...whenOf('bimestre', 11) };
+	expect(monthsOf(b)).toEqual([1, 3, 5, 7, 9, 11]);
+	expect(nextDue(b, '2026-11', '2026-11-25')).toBe('2027-01-05');
+	const s = { day: 5, ...whenOf('semestre', 11) };
+	expect(everyOf(s)).toBe('semestre');
+	expect(monthsOf(s)).toEqual([5, 11]);
+	expect(lastDue(s, '2026-11-01')).toBe('2026-05');
+	expect(whenOf('mes', 7)).toEqual({ month: null, every: null });
+	expect(everyOf(whenOf('año', 7))).toBe('año');
+	expect(monthsOf(whenOf('año', 7))).toEqual([7]);
+	expect(monthsOf(whenOf('mes', 7))).toHaveLength(12);
 });

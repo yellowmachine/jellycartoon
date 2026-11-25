@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { kitchenOf } from '#lib/server/fridge.ts';
 import { readReceipt } from '#lib/server/expenses/receipt.ts';
 import { isFileHash, lookingSame } from '#lib/server/expenses/duplicates.ts';
+import { mergeOfDraft } from '#lib/server/expenses/merge.ts';
 import { fixedMatchOf } from '#lib/server/expenses/fixed-receipt.ts';
 
 /** Already made smaller in the browser (to 2000 px); a phone's photo as is, still under this. */
@@ -30,7 +31,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}).catch(() => null);
 		// A fixed one's of that month or the one before, without its receipt yet (#501)?
 		const fixed = await fixedMatchOf(k, draft).catch(() => null);
-		return json({ ...draft, repeated, fixed });
+		// Expenses put in one by one that this gathers?
+		const merge = await mergeOfDraft(k, draft).catch(() => null);
+		return json({ ...draft, repeated, fixed, merge });
 	} catch (err) {
 		error(502, err instanceof Error ? err.message : 'No se pudo leer el ticket');
 	}

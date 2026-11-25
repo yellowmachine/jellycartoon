@@ -569,6 +569,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: false,
 		note: 'Pairs of expenses said not to be the same (#440)'
 	},
+	expense_merge: {
+		leaving: 'stays',
+		joining: 'moves',
+		zip: false,
+		note: 'The expenses a bill gathers, as they were, to put them back: its own is in the zip'
+	},
 	expense_tag: {
 		leaving: 'stays',
 		joining: 'dropped',
@@ -839,6 +845,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		joining: 'account',
 		zip: { file: 'owntracks-llegadas', where: [mine()] },
 		note: 'Arriving at or leaving their places, told by OwnTracks (#593)'
+	},
+	body_weight: {
+		leaving: 'account',
+		joining: 'account',
+		zip: { file: 'peso', where: [mine()] },
+		note: 'What they weigh, for the kcal of their walks'
 	},
 	session: {
 		leaving: 'account',

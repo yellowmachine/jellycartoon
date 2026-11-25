@@ -108,6 +108,18 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		words: 'guardar mis viajes recorrido kilómetros km gps carretera privacidad historial'
 	},
 	{
+		id: 'peso',
+		tab: 'mi',
+		title: 'Tu peso',
+		words: 'peso kilos kg kcal calorías gastadas andando paseos salud'
+	},
+	{
+		id: 'cargos',
+		tab: 'mi',
+		title: 'Cargos que vienen',
+		words: 'avisos gastos fijos suscripción recibo saldo banco cuenta prime días antes dinero'
+	},
+	{
 		id: 'gasto-ia',
 		tab: 'mi',
 		title: 'Línea de gasto',

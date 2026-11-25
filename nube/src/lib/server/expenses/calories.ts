@@ -6,12 +6,11 @@ import {
 	expenseLine,
 	familyMember,
 	familyPerson,
-	foodEstimate,
-	walk
+	foodEstimate
 } from '#lib/server/db/schema.ts';
 import type { AnyDb } from '#lib/server/family-scope.ts';
 import { openRouterKey } from '#lib/server/family-settings.ts';
-import { dayOf, houseKitchen, type Kitchen } from '#lib/server/fridge.ts';
+import { houseKitchen, type Kitchen } from '#lib/server/fridge.ts';
 import { completeJson } from '#lib/server/openrouter.ts';
 import {
 	isFoodTag,
@@ -215,13 +214,14 @@ export const familyPeople = (k: Kitchen): Promise<People> =>
 export const WEEKS = 12;
 const RECENT_WEEKS = 4;
 
+/** The Monday of the first of the WEEKS. */
+export const firstWeek = (today: string) => addDays(mondayOf(today), -7 * (WEEKS - 1));
+
 export interface CaloriesWeek {
 	/** Its Monday. */
 	week: string;
 	/** Bought, divided by its days (so far, this week) and the people. */
 	perDay: number;
-	/** The person's own walks, in km. */
-	km: number;
 	/** The days it has had: 7, or this week's so far. */
 	days: number;
 }
@@ -260,24 +260,17 @@ export async function recentCalories(k: Kitchen, today: string): Promise<number 
 }
 
 /**
- * The page's: the last WEEKS weeks by day and person, beside `userId`'s walks; the average of the
+ * The page's: the last WEEKS weeks by day and person; the average of the
  * last whole ones; kcal by tag and by product; and what is still to estimate.
  */
-export async function caloriesView(k: Kitchen, userId: string, today: string) {
+export async function caloriesView(k: Kitchen, today: string) {
 	const thisWeek = mondayOf(today);
-	const first = addDays(thisWeek, -7 * (WEEKS - 1));
+	const first = firstWeek(today);
 	const people = await familyPeople(k);
 	const weight = peopleWeight(people);
-	const { lines, estimates, walks } = await k.run(async (tx) => {
-		const [lines, estimates, walks] = await Promise.all([
-			foodLines(tx, first),
-			estimatesOf(tx),
-			tx
-				.select({ startedAt: walk.startedAt, distance: walk.distance })
-				.from(walk)
-				.where(and(eq(walk.userId, userId), gte(walk.startedAt, new Date(`${first}T00:00:00Z`))))
-		]);
-		return { lines, estimates, walks };
+	const { lines, estimates } = await k.run(async (tx) => {
+		const [lines, estimates] = await Promise.all([foodLines(tx, first), estimatesOf(tx)]);
+		return { lines, estimates };
 	});
 
 	const byWeek = new Map<string, number>();
@@ -319,20 +312,13 @@ export async function caloriesView(k: Kitchen, userId: string, today: string) {
 		products.set(key, p);
 	}
 
-	const kmByWeek = new Map<string, number>();
-	for (const w of walks) {
-		const week = mondayOf(dayOf(w.startedAt));
-		kmByWeek.set(week, (kmByWeek.get(week) ?? 0) + w.distance / 1000);
-	}
-
 	const weeks: CaloriesWeek[] = Array.from({ length: WEEKS }, (_, i) => {
 		const week = addDays(first, 7 * i);
 		const days = week === thisWeek ? daysBetween(week, today) + 1 : 7;
 		return {
 			week,
 			days,
-			perDay: (byWeek.get(week) ?? 0) / days / weight,
-			km: kmByWeek.get(week) ?? 0
+			perDay: (byWeek.get(week) ?? 0) / days / weight
 		};
 	});
 	const whole = weeks.slice(-1 - RECENT_WEEKS, -1);

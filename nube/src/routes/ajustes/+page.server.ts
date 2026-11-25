@@ -75,7 +75,7 @@ import { mySectionList, savedMine, savedSections, sectionList } from '#lib/nav.t
 import { sectionReach } from '#lib/server/section-reach.ts';
 import { placeName, type Place } from 'comun/weather.ts';
 import { findPlacesFor } from '#lib/server/places.ts';
-import { kitchenOf } from '#lib/server/fridge.ts';
+import { kitchenOf, today } from '#lib/server/fridge.ts';
 import { news } from '#lib/server/news.ts';
 import {
 	DEFAULT_CONVERSATION_MODEL,
@@ -135,6 +135,11 @@ import { callButtons } from '#lib/server/call-buttons.ts';
 import { familyLinks } from '#lib/server/family-links.ts';
 import { deleteCar, listCars, myCarId, saveCar, setMyCar } from '#lib/server/trips/cars.ts';
 import { MAX_CAR_NAME } from '#lib/cars.ts';
+import { chargeNotices, setChargeNotices } from '#lib/server/expenses/charges.ts';
+import { isNoticeDays } from '#lib/charges.ts';
+import { weight } from '#lib/server/walks/weight.ts';
+import { isDay } from 'comun/expenses.ts';
+import { weightFromText } from '#lib/walk-kcal.ts';
 import { owntracks } from '#lib/server/owntracks/owntracks.ts';
 import { owntracksConfig, owntracksLink } from '#lib/owntracks.ts';
 import { owntracksRegions } from '#lib/server/owntracks/places.ts';
@@ -307,6 +312,10 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 				homeInexact
 			})))
 		},
+		/** «Cargos que vienen»: their usual. */
+		chargeNotices: await chargeNotices(k, locals.user!.id),
+		/** What they weigh, by day, the last first: for the kcal of their walks. */
+		weights: (await weight.list(locals.user!.id)).reverse(),
 		/** The family's cars (#317), and theirs. */
 		cars: (await listCars(k)).map(({ id, name }) => ({ id, name })),
 		myCar: await myCarId(k),
@@ -424,6 +433,34 @@ export const actions: Actions = {
 	},
 	owntracksForget: async ({ locals }) => {
 		await owntracks.forget(locals.user!.id);
+	},
+	/** «Cargos que vienen», theirs: off, the days stay as they were. */
+	saveChargeNotices: async ({ request, locals }) => {
+		const form = await request.formData();
+		const k = await kitchenOf(locals.user!.id);
+		const now = await chargeNotices(k, locals.user!.id);
+		const days = (name: 'monthly' | 'yearly') => {
+			const said = form.get(name);
+			const n = said === null ? now[name] : Number(said);
+			return isNoticeDays(n) ? n : now[name];
+		};
+		await setChargeNotices(k, locals.user!.id, {
+			on: form.get('on') === 'on',
+			monthly: days('monthly'),
+			yearly: days('yearly')
+		});
+	},
+	/** Their weight, as of today. */
+	saveWeight: async ({ request, locals }) => {
+		const kg = weightFromText(String((await request.formData()).get('kg') ?? ''));
+		if (kg === null) return fail(400, { weightProblem: 'Pon tu peso en kg: 72 o 72,5' });
+		await weight.save(locals.user!.id, { day: today(), kg });
+		return { saved: 'weight' };
+	},
+	deleteWeight: async ({ request, locals }) => {
+		const day = String((await request.formData()).get('day') ?? '');
+		if (!isDay(day)) return fail(400, { weightProblem: 'Falta cuál' });
+		await weight.remove(locals.user!.id, day);
 	},
 	/** «¿Sigues ahí?» (#77): theirs, or a child's (`kidId`) by who runs the family. Empty, never. */
 	askAfter: async ({ request, locals }) => {

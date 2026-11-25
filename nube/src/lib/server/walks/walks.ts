@@ -51,6 +51,17 @@ export function listWalks(k: Kitchen, limit = 100, only?: number) {
 	);
 }
 
+/** One's own walks since a moment, without their positions. */
+export function walksSince(k: Kitchen, from: Date) {
+	const userId = who(k);
+	return k.run((tx) =>
+		tx
+			.select({ startedAt: walk.startedAt, endedAt: walk.endedAt, distance: walk.distance })
+			.from(walk)
+			.where(and(eq(walk.userId, userId), gte(walk.startedAt, from)))
+	);
+}
+
 /** One walk's positions, to draw it. */
 export async function walkLine(k: Kitchen, id: number) {
 	const userId = who(k);

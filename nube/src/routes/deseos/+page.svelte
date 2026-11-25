@@ -9,6 +9,7 @@
 	import Comprado from './Comprado.svelte';
 	import { field, primary, secondary, select } from '#lib/styles.ts';
 	import {
+		amountField,
 		bookmarklet,
 		MAX_WISH_NOTE,
 		MAX_WISH_TITLE,
@@ -299,25 +300,50 @@
 								class="{field} py-1 text-sm"
 							/>
 							<input type="hidden" name="currency" value={w.currency ?? ''} />
-							<input
-								name="price"
-								value={w.priceCents === null
-									? ''
-									: (w.priceCents / 100).toFixed(2).replace('.', ',')}
-								inputmode="decimal"
-								maxlength="20"
-								placeholder="Precio: 12,30"
-								aria-label="Precio{w.currency && w.currency !== 'EUR' ? ` (${w.currency})` : ''}"
-								class="{field} py-1 text-sm"
-							/>
-							<input
-								name="shipping"
-								value={shippingField(w.shippingCents)}
-								maxlength="20"
-								placeholder="Envío: 4,99 o gratis"
-								aria-label="Envío{w.currency && w.currency !== 'EUR' ? ` (${w.currency})` : ''}"
-								class="{field} py-1 text-sm"
-							/>
+							<div class="grid grid-cols-3 items-end gap-2">
+								<label class="text-xs text-zinc-400"
+									>Precio
+									<input
+										name="price"
+										value={w.priceCents === null
+											? ''
+											: (w.priceCents / 100).toFixed(2).replace('.', ',')}
+										inputmode="decimal"
+										maxlength="20"
+										placeholder="12,30"
+										aria-label="Precio{w.currency && w.currency !== 'EUR'
+											? ` (${w.currency})`
+											: ''}"
+										class="{field} mt-1 px-2 py-1 text-sm"
+									/>
+								</label>
+								<label class="text-xs text-zinc-400"
+									>Envío
+									<input
+										name="shipping"
+										value={shippingField(w.shippingCents)}
+										maxlength="20"
+										placeholder="o gratis"
+										aria-label="Envío{w.currency && w.currency !== 'EUR' ? ` (${w.currency})` : ''}"
+										class="{field} mt-1 px-2 py-1 text-sm"
+									/>
+								</label>
+								<label class="text-xs text-zinc-400"
+									>IVA y otros
+									<input
+										name="extra"
+										value={amountField(w.extraCents)}
+										maxlength="20"
+										placeholder="1,34 o 4 %"
+										title="Lo que la tienda añade al final: IVA, aduanas… Un porcentaje, sobre el precio con su envío"
+										aria-label="IVA y otros que añade la tienda al final{w.currency &&
+										w.currency !== 'EUR'
+											? ` (${w.currency})`
+											: ''}"
+										class="{field} mt-1 px-2 py-1 text-sm"
+									/>
+								</label>
+							</div>
 							<div class="flex gap-2">
 								<button class={primary}>Guardar</button>
 								<button type="button" class={secondary} onclick={() => (editing = null)}

@@ -862,6 +862,34 @@
       "when": 1795592788623,
       "tag": "0122_violet_reptil",
       "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1795598308706,
+      "tag": "0123_curious_captain_marvel",
+      "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1795599145803,
+      "tag": "0124_rapid_purple_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1795600240361,
+      "tag": "0125_elite_greymalkin",
+      "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1795601352438,
+      "tag": "0126_clumsy_sinister_six",
+      "breakpoints": true
     }
   ]
 }

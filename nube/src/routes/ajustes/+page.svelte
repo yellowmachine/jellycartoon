@@ -37,6 +37,8 @@
 	import FuenteJuegos from './FuenteJuegos.svelte';
 	import AparatosMensajes from './AparatosMensajes.svelte';
 	import Coches from './Coches.svelte';
+	import CargosQueVienen from './CargosQueVienen.svelte';
+	import Peso from './Peso.svelte';
 	import OwnTracks from './OwnTracks.svelte';
 	import GastoIa from './GastoIa.svelte';
 	import Microfono from './Microfono.svelte';
@@ -205,6 +207,10 @@
 		<GuardarViajes {data} {tab} />
 
 		<OwnTracks {data} {form} {tab} />
+
+		<Peso {data} {form} {tab} />
+
+		<CargosQueVienen {data} {tab} />
 
 		{#if data.user}
 			<BotonLlamar {data} {tab} userId={data.user.id} />

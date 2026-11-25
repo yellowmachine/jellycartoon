@@ -25,9 +25,16 @@
 		favoriteOf,
 		foreignText,
 		isFavorite,
+		lineKey,
 		linesSum,
 		MONTH_NAMES,
 		monthName,
+		everyOf,
+		EVERY,
+		monthsOf,
+		whenOf,
+		type Every,
+		NO_STORE,
 		monthOf,
 		ownTagOf,
 		parseEuros,
@@ -41,9 +48,12 @@
 		type RecurringExpense
 	} from 'comun/expenses.ts';
 	import Espera from '#lib/components/Espera.svelte';
+	import ChargesNotice from '#lib/components/ChargesNotice.svelte';
+	import { MAX_ACCOUNT, NOTICE_DAYS } from '#lib/charges.ts';
 	import ExpenseTabs from '#lib/components/ExpenseTabs.svelte';
 	import { fileHash, smallerPhoto } from 'comun/receipt-photo.ts';
-	import { sameText, type LooksSame } from 'comun/page-notices.ts';
+	import { mergeText, type MergeNotice, sameText, type LooksSame } from 'comun/page-notices.ts';
+	import { filterExpenses, isFiltered, noFilter } from '#lib/expense-filter.ts';
 	import { takeSharedFile } from '#lib/shared-file.ts';
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import type { PageProps } from './$types';
@@ -69,6 +79,9 @@
 		fileHash?: string | null;
 		/** The one it looks the same as (#440): asked before saving. */
 		repeated?: LooksSame | null;
+		/** The expenses it seems to gather: asked; `gathers`, said yes to. */
+		merge?: MergeNotice | null;
+		gathers?: boolean;
 		/** The fixed one it may be the month's receipt of (#501): asked, «¿Es el recibo de…?». */
 		fixed?: FixedMatch | null;
 		/** The fixed one it is the month's receipt of (#501): said in the title. */
@@ -102,6 +115,8 @@
 	/** The form, at the top of the page: brought into view when an expense down the list opens in it. */
 	let editForm = $state<HTMLElement>();
 	let problem = $state<string | null>(null);
+	/** What went wrong on one of the list (its id) or in the fixed one's form: said there. */
+	let problemAt = $state<{ at: number | 'fijo'; text: string } | null>(null);
 	/** Done, but not all (#501): a receipt kept without being read. Amber, neither error nor ok. */
 	let notice = $state<string | null>(null);
 	let reading = $state<'ticket' | 'factura' | null>(null);
@@ -189,8 +204,18 @@
 	 * One in the list, in the middle of the screen. A jump, not smooth: the form opening or closing
 	 * up there moves the page meanwhile, and the browser's scroll anchoring cuts a smooth one short.
 	 */
-	const showExpense = (id: number) =>
+	async function showExpense(id: number) {
+		// Out of the filter: without it, to be seen.
+		if (
+			filtered &&
+			data.expenses.some((e) => e.id === id) &&
+			!shownExpenses.some((e) => e.id === id)
+		) {
+			filter = noFilter();
+			await tick();
+		}
 		document.getElementById(`gasto-${id}`)?.scrollIntoView({ block: 'center' });
+	}
 
 	/** Corrected in the form, up there; back to it in the list when done. */
 	async function edit(e: Expense) {
@@ -305,6 +330,7 @@
 		const draft = body as ExpenseDraft & {
 			repeated: LooksSame | null;
 			fixed: FixedMatch | null;
+			merge: MergeNotice | null;
 		};
 		editing = {
 			id: null,
@@ -321,7 +347,8 @@
 			lines: draft.lines.map((l) => ({ ...l, amount: typed(l.amount) })),
 			foreign: draft.foreign ?? null,
 			bill: billBoxes(draft.bill),
-			fixed: into ? null : draft.fixed
+			fixed: into ? null : draft.fixed,
+			merge: into ? null : draft.merge
 		};
 		if (!into) return;
 		onFixed(into);
@@ -342,6 +369,7 @@
 		editing.date = f.date;
 		if (!parseEuros(editing.total)) editing.total = typed(f.total);
 		editing.repeated = null;
+		editing.merge = null;
 		editing.fixed = null;
 		editing.receiptOf = f.store;
 	}
@@ -459,6 +487,28 @@
 		return sum === input.total ? null : { sum, total: input.total };
 	});
 
+	// ——— The month's list, filtered ———
+
+	/** Few are seen at a glance. */
+	const FILTER_FROM = 8;
+	let filter = $state(noFilter());
+	// Another month's days and shops are others.
+	$effect(() => {
+		void data.month;
+		untrack(() => (filter = noFilter()));
+	});
+	const filtered = $derived(isFiltered(filter));
+	const shownExpenses = $derived(
+		filtered ? filterExpenses(data.expenses, filter, data.own) : data.expenses
+	);
+	const listDays = $derived([...new Set(data.expenses.map((e) => e.date))]);
+	const listStores = $derived(
+		byStore(data.expenses)
+			.filter((s) => s.store !== NO_STORE)
+			.map((s) => ({ key: lineKey(s.store), name: s.store }))
+			.sort((a, b) => a.name.localeCompare(b.name, 'es'))
+	);
+
 	const total = $derived(data.expenses.reduce((sum, e) => sum + e.total, 0));
 	const byCategory = $derived(
 		EXPENSE_CATEGORIES.map((category) => {
@@ -506,12 +556,20 @@
 	let fixed = $state<
 		(Omit<RecurringExpense, 'id' | 'amount'> & { id: number | null; amount: string }) | null
 	>(null);
+	/** «feb, may, ago y nov». */
+	const monthsText = (months: number[]) =>
+		new Intl.ListFormat('es').format(months.map((m) => MONTH_NAMES[m - 1]!.slice(0, 3)));
+	/** The accounts already said in others. */
+	const accounts = $derived([
+		...new Set(data.recurring.flatMap((r) => (r.paidFrom ? [r.paidFrom] : [])))
+	]);
 	let fixedForm = $state<HTMLFormElement>();
 	/** Where the page was when it opened: back there on closing it. */
 	let fixedFrom = 0;
 
 	/** Its form goes under the list: brought into view, with many it would be out of sight. */
 	async function openFixed(value: NonNullable<typeof fixed>) {
+		problemAt = null;
 		if (!fixed) fixedFrom = window.scrollY;
 		fixed = value;
 		await tick();
@@ -520,6 +578,7 @@
 
 	function closeFixed() {
 		fixed = null;
+		problemAt = null;
 		window.scrollTo({ top: fixedFrom, behavior: 'smooth' });
 	}
 
@@ -538,9 +597,10 @@
 <div class="mx-auto max-w-3xl">
 	<h1 class="mb-3 text-2xl font-bold">Dinero<GuideLink page="dinero" label="los gastos" /></h1>
 	<ExpenseTabs current="mes" />
+	<ChargesNotice charges={data.charges} />
 	<p class="mb-4 text-sm text-zinc-400">
 		Los de la casa, para todos los adultos. Con una foto del ticket, a mano, por voz («he gastado 40
-		euros en gasolina») o fijos, de cada mes o de cada año.
+		euros en gasolina») o fijos, que se apuntan solos.
 	</p>
 
 	<div class="mb-6 flex flex-wrap gap-2">
@@ -868,7 +928,34 @@
 							</div>
 						</div>
 					{/if}
-					{#if e.repeated}
+					{#if e.merge && !e.id && e.receipt && !(e.fixed && !e.gathers)}
+						<div class="mt-4 rounded-md border border-sky-500/40 bg-sky-950/40 p-3 text-sm">
+							<p class="text-sky-100">{mergeText(e.merge)}</p>
+							{#if e.gathers}
+								<p class="mt-1 text-sky-100">
+									Al guardar {e.merge.length === 1 ? 'quedará' : 'quedarán'} en este gasto, sin contar
+									dos veces.
+								</p>
+								<button
+									class="{button} mt-2 hover:bg-zinc-800"
+									onclick={() => editing && (editing.gathers = false)}>No juntar</button
+								>
+							{:else}
+								<div class="mt-2 flex flex-wrap gap-2">
+									<button
+										class="{button} bg-sky-700 font-semibold text-claro hover:bg-sky-600"
+										onclick={() => editing && (editing.gathers = true)}
+										>{e.merge.length === 1 ? 'Juntarlo aquí' : 'Juntarlos aquí'}</button
+									>
+									<button
+										class="{button} hover:bg-zinc-800"
+										onclick={() => editing && (editing.merge = null)}>No, es otro gasto</button
+									>
+								</div>
+							{/if}
+						</div>
+					{/if}
+					{#if e.repeated && !e.gathers}
 						<div class="mt-4 rounded-md border border-amber-500/40 bg-amber-950/40 p-3 text-sm">
 							<p class="text-amber-200">{sameText(e.repeated, data.today)} ¿Lo guardo igual?</p>
 							<a
@@ -897,6 +984,9 @@
 									open = Number(result.data?.saved) || null;
 									ticked = (result.data?.ticked as typeof ticked | undefined) ?? [];
 									close();
+									if (result.data?.gathered === false)
+										notice =
+											'Guardado, sin juntar: esos gastos han cambiado. Mira que no cuente dos veces.';
 								} else if (result.type === 'failure' && result.data?.repeated && editing) {
 									// Put in before (#440): asked, nothing saved.
 									editing.repeated = result.data.repeated as LooksSame;
@@ -918,7 +1008,10 @@
 								name="huella"
 								value={e.fileHash}
 							/>{/if}
-						{#if e.repeated}<input type="hidden" name="igual" value="on" />{/if}
+						{#each e.gathers && e.merge ? e.merge : [] as p (p.id)}
+							<input type="hidden" name="juntar" value={p.id} />
+						{/each}
+						{#if e.repeated && !e.gathers}<input type="hidden" name="igual" value="on" />{/if}
 						<input
 							type="hidden"
 							name="expense"
@@ -927,7 +1020,11 @@
 						<button
 							class="{button} bg-amber-500 font-semibold text-zinc-950 hover:bg-amber-400"
 							disabled={saving}
-							>{saving ? 'Guardando…' : e.repeated ? 'Guardar igual' : 'Guardar'}</button
+							>{saving
+								? 'Guardando…'
+								: e.repeated && !e.gathers
+									? 'Guardar igual'
+									: 'Guardar'}</button
 						>
 						<button type="button" class="{button} hover:bg-zinc-800" onclick={cancel}
 							>Cancelar</button
@@ -1076,8 +1173,40 @@
 		{/if}
 	</section>
 
+	{#if data.expenses.length >= FILTER_FROM}
+		<div class="mb-3 flex flex-wrap items-center gap-2">
+			<input
+				type="search"
+				bind:value={filter.text}
+				placeholder="Filtrar los de este mes…"
+				aria-label="Filtrar los gastos de este mes: tienda, producto, categoría o importe"
+				class="{field} min-w-0 flex-1 basis-full sm:basis-48"
+			/>
+			<select bind:value={filter.store} aria-label="Tienda" class="{field} min-w-0 flex-1">
+				<option value="">Todas las tiendas</option>
+				{#each listStores as s (s.key)}<option value={s.key}>{s.name}</option>{/each}
+			</select>
+			<select bind:value={filter.day} aria-label="Día" class={field}>
+				<option value="">Todos los días</option>
+				{#each listDays as d (d)}<option value={d}>{dayText(d)}</option>{/each}
+			</select>
+		</div>
+		{#if filtered}
+			<p class="mb-2 flex flex-wrap items-center gap-x-3 text-sm text-zinc-400">
+				<span role="status"
+					>{shownExpenses.length} de {data.expenses.length} gastos · {euros(
+						shownExpenses.reduce((sum, e) => sum + e.total, 0)
+					)}</span
+				>
+				<button class="text-amber-400 hover:underline" onclick={() => (filter = noFilter())}
+					>Quitar el filtro</button
+				>
+			</p>
+		{/if}
+	{/if}
+
 	<ul class="mb-10 divide-y divide-zinc-800">
-		{#each data.expenses as e (e.id)}
+		{#each shownExpenses as e (e.id)}
 			<li id="gasto-{e.id}">
 				<button
 					class="flex w-full items-center gap-3 py-2 text-left hover:bg-zinc-900"
@@ -1104,7 +1233,49 @@
 							>{/if}</span
 					>
 				</button>
-				{#if data.repeated[e.id]}
+				{#if problemAt?.at === e.id}
+					<p class="mb-3 rounded-md bg-red-950 p-3 text-sm text-red-200" role="alert">
+						{problemAt.text}
+					</p>
+				{/if}
+				{#if data.merges[e.id]}
+					{@const parts = data.merges[e.id]}
+					<div
+						class="mb-3 rounded-md border border-sky-500/40 bg-sky-950/40 p-3 text-sm text-sky-100"
+					>
+						<p>{mergeText(parts)}</p>
+						<form
+							method="post"
+							action="?/merge"
+							class="mt-2 flex flex-wrap items-center gap-2"
+							use:enhance={() =>
+								async ({ result, update }) => {
+									problemAt =
+										result.type === 'failure'
+											? { at: e.id, text: String(result.data?.message ?? 'No se pudo juntar') }
+											: null;
+									await update({ reset: false });
+								}}
+						>
+							<input type="hidden" name="id" value={e.id} />
+							{#each parts as p (p.id)}<input type="hidden" name="juntar" value={p.id} />{/each}
+							<button class="{button} bg-sky-700 font-semibold text-claro hover:bg-sky-600"
+								>{parts.length === 1 ? 'Juntarlo aquí' : 'Juntarlos aquí'}</button
+							>
+							<button
+								formaction="?/notMerge"
+								class="{button} bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
+								>{parts.length === 1 ? 'No, es otro' : 'No, son otros'}</button
+							>
+							<button
+								formaction="?/quietNotice"
+								name="kind"
+								value="junta"
+								class="{button} text-zinc-400 hover:bg-zinc-800">No me lo vuelvas a decir</button
+							>
+						</form>
+					</div>
+				{:else if data.repeated[e.id]}
 					{@const twin = data.repeated[e.id]}
 					<div
 						class="mb-3 rounded-md border border-amber-500/40 bg-amber-950/40 p-3 text-sm text-amber-200"
@@ -1160,6 +1331,24 @@
 				{/if}
 				{#if open === e.id}
 					<div class="mb-3 rounded-md bg-zinc-900 p-3 text-sm">
+						{#each data.merged.filter((m) => m.expenseId === e.id) as m (m.id)}
+							<form
+								method="post"
+								action="?/split"
+								use:enhance
+								class="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-zinc-400"
+							>
+								<input type="hidden" name="id" value={m.id} />
+								<span
+									>Reúne {m.parts
+										.map((p) => `«${p.text}» (${shortDay(p.date)}, ${euros(p.total)})`)
+										.join(' y ')}.</span
+								>
+								<button class="text-amber-400 hover:underline"
+									>{m.parts.length === 1 ? 'Separarlo' : 'Separarlos'}</button
+								>
+							</form>
+						{/each}
 						{#if e.bill}
 							{@const b = e.bill}
 							<p class="mb-2 text-zinc-300">
@@ -1204,9 +1393,12 @@
 													async ({ result, update }) => {
 														if (result.type === 'success') {
 															tagging = null;
-															problem = null;
+															problemAt = null;
 														} else if (result.type === 'failure')
-															problem = String(result.data?.message ?? 'No se pudo guardar');
+															problemAt = {
+																at: e.id,
+																text: String(result.data?.message ?? 'No se pudo guardar')
+															};
 														await update({ reset: false });
 													}}
 											>
@@ -1370,8 +1562,14 @@
 									use:enhance={() =>
 										async ({ result, update }) => {
 											if (result.type === 'failure')
-												problem = String(result.data?.message ?? 'No se pudo hacer fijo');
-											else making = null;
+												problemAt = {
+													at: e.id,
+													text: String(result.data?.message ?? 'No se pudo hacer fijo')
+												};
+											else {
+												making = null;
+												problemAt = null;
+											}
 											await update({ reset: false });
 										}}
 								>
@@ -1379,12 +1577,11 @@
 									<span class="py-1.5"
 										>🔁 Fijo, el día {Math.min(28, Number(e.date.slice(8, 10)))}:</span
 									>
-									<button name="every" value="mes" class="{button} bg-zinc-800 hover:bg-zinc-700"
-										>Cada mes</button
-									>
-									<button name="every" value="año" class="{button} bg-zinc-800 hover:bg-zinc-700"
-										>Cada año ({MONTH_NAMES[Number(e.date.slice(5, 7)) - 1]})</button
-									>
+									{#each Object.entries(EVERY) as [value, { label }] (value)}
+										<button name="every" {value} class="{button} bg-zinc-800 hover:bg-zinc-700"
+											>Cada {label}</button
+										>
+									{/each}
 									<button
 										type="button"
 										class="{button} hover:bg-zinc-800"
@@ -1426,8 +1623,9 @@
 	<section class="mb-10">
 		<h2 class="mb-1 font-semibold">Fijos</h2>
 		<p class="mb-3 text-sm text-zinc-400">
-			De cada mes o de cada año: se apuntan solos el día que toca. Uno nuevo empieza la próxima vez
-			que llegue su día. Uno ya apuntado se hace fijo con «🔁 Hacer fijo», al abrirlo.
+			De cada mes, de cada varios meses o de cada año: se apuntan solos el día que toca. Uno nuevo
+			empieza la próxima vez que llegue su día. Uno ya apuntado se hace fijo con «🔁 Hacer fijo», al
+			abrirlo.
 		</p>
 		<ul class="mb-3 divide-y divide-zinc-800">
 			{#each data.recurring as r (r.id)}
@@ -1436,16 +1634,19 @@
 					<span class="w-10 shrink-0 text-center leading-tight text-zinc-400">
 						<span class="block text-base tabular-nums">{r.day}</span>
 						<span class="block text-xs"
-							>{r.month === null ? 'cada mes' : MONTH_NAMES[r.month - 1]!.slice(0, 3)}</span
+							>{EVERY[everyOf(r)].short || MONTH_NAMES[(r.month ?? 1) - 1]!.slice(0, 3)}</span
 						>
 					</span>
 					<span class="min-w-0 flex-1">
 						<span class="block truncate">{r.name}</span>
-						<span class="block text-xs text-zinc-500">{r.category}</span>
+						<span class="block text-xs text-zinc-500"
+							>{r.category}{r.every ? ` · ${monthsText(monthsOf(r))}` : ''}{r.paidFrom
+								? ` · ${r.paidFrom}`
+								: ''}</span
+						>
 					</span>
 					<span class="shrink-0 text-right tabular-nums"
-						>{euros(r.amount)}<span class="block text-xs text-zinc-500"
-							>{r.month === null ? 'al mes' : 'al año'}</span
+						>{euros(r.amount)}<span class="block text-xs text-zinc-500">{EVERY[everyOf(r)].by}</span
 						></span
 					>
 					<button
@@ -1495,13 +1696,24 @@
 				action="?/saveRecurring"
 				bind:this={fixedForm}
 				class="flex flex-wrap items-end gap-2 rounded-lg bg-zinc-900 p-3"
-				use:enhance={() =>
-					async ({ result, update }) => {
+				use:enhance={({ cancel }) => {
+					const missing = !f.name.trim()
+						? 'Falta qué es'
+						: !((parseEuros(f.amount) ?? 0) > 0)
+							? 'Falta el importe, en euros: 12,30'
+							: null;
+					problemAt = missing ? { at: 'fijo', text: missing } : null;
+					if (missing) return cancel();
+					return async ({ result, update }) => {
 						if (result.type === 'failure')
-							problem = String(result.data?.message ?? 'No se pudo guardar');
+							problemAt = {
+								at: 'fijo',
+								text: String(result.data?.message ?? 'No se pudo guardar')
+							};
 						await update({ reset: false });
 						if (result.type === 'success') closeFixed();
-					}}
+					};
+				}}
 			>
 				{#if f.id}<input type="hidden" name="id" value={f.id} />{/if}
 				<input type="hidden" name="amount" value={parseEuros(f.amount) ?? ''} />
@@ -1542,31 +1754,80 @@
 					Cada
 					<select
 						name="every"
-						value={f.month === null ? 'mes' : 'año'}
-						onchange={(e) =>
-							(f.month = e.currentTarget.value === 'año' ? Number(data.today.slice(5, 7)) : null)}
+						value={everyOf(f)}
+						onchange={(e) => {
+							const often = e.currentTarget.value as Every;
+							Object.assign(f, whenOf(often, f.month ?? Number(data.today.slice(5, 7))));
+						}}
 						class={field}
 					>
-						<option value="mes">mes</option>
-						<option value="año">año</option>
+						{#each Object.entries(EVERY) as [value, { label }] (value)}
+							<option {value}>{label}</option>
+						{/each}
 					</select>
 				</label>
 				{#if f.month !== null}
 					<label class="flex flex-col gap-1 text-xs text-zinc-400">
-						Mes
+						{everyOf(f) === 'año' ? 'Mes' : 'Meses'}
 						<select name="month" bind:value={f.month} class={field}>
-							{#each MONTH_NAMES as name, i (i)}
-								<option value={i + 1}>{name}</option>
+							{#each MONTH_NAMES.slice(0, EVERY[everyOf(f)].months) as name, i (i)}
+								<option value={i + 1}
+									>{everyOf(f) === 'año'
+										? name
+										: monthsText(monthsOf({ month: i + 1, every: f.every }))}</option
+								>
 							{/each}
 						</select>
 					</label>
 				{/if}
+				<label class="flex min-w-40 flex-1 flex-col gap-1 text-xs text-zinc-400">
+					Se paga desde (si quieres)
+					<input
+						name="paidFrom"
+						bind:value={f.paidFrom}
+						maxlength={MAX_ACCOUNT}
+						list="cuentas"
+						placeholder="Santander"
+						class={field}
+					/>
+				</label>
+				<datalist id="cuentas">
+					{#each accounts as a (a)}<option value={a}></option>{/each}
+				</datalist>
+				<label class="flex flex-col gap-1 text-xs text-zinc-400">
+					Avisar
+					<select name="notice" value={f.notice ?? ''} class={field}>
+						<option value="">Lo de siempre (Ajustes)</option>
+						<option value={0}>No</option>
+						{#each NOTICE_DAYS as n (n)}
+							<option value={n}>{n === 1 ? 'El día antes' : `${n} días antes`}</option>
+						{/each}
+					</select>
+				</label>
+				<label class="flex items-center gap-2 py-1.5 text-xs text-zinc-400">
+					<input
+						type="checkbox"
+						name="noticeAll"
+						checked={f.noticeAll}
+						class="rounded border-zinc-700 bg-zinc-950 text-amber-500"
+					/>
+					Avisar a los demás adultos
+				</label>
 				<button class="{button} bg-amber-500 font-semibold text-zinc-950 hover:bg-amber-400"
 					>Guardar</button
 				>
 				<button type="button" class="{button} hover:bg-zinc-800" onclick={closeFixed}
 					>Cancelar</button
 				>
+				{#if problemAt?.at === 'fijo'}
+					<p
+						class="w-full text-sm text-red-400"
+						role="alert"
+						{@attach (el) => el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })}
+					>
+						{problemAt.text}
+					</p>
+				{/if}
 			</form>
 		{:else}
 			<button
@@ -1578,7 +1839,8 @@
 						category: 'Facturas',
 						amount: '',
 						day: 1,
-						month: null
+						month: null,
+						every: null
 					})}>+ Fijo</button
 			>
 		{/if}

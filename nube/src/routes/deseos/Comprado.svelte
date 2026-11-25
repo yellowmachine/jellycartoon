@@ -6,11 +6,11 @@ marked, when the receipt or the bank will bring the expense.
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { enhance } from '$app/forms';
-	import { monthOf } from 'comun/expenses.ts';
+	import { monthOf, parseEuros } from 'comun/expenses.ts';
 	import { sameText, type LooksSame } from 'comun/page-notices.ts';
 	import ExpenseFields from '#lib/components/ExpenseFields.svelte';
-	import { priceText } from '#lib/wishes.ts';
-	import { primary, secondary } from '#lib/styles.ts';
+	import { amountField, extraFromText, priceText } from '#lib/wishes.ts';
+	import { field, primary, secondary } from '#lib/styles.ts';
 
 	interface Props {
 		wish: {
@@ -20,6 +20,7 @@ marked, when the receipt or the bank will bring the expense.
 			priceCents: number | null;
 			currency: string | null;
 			shippingCents: number | null;
+			extraCents: number | null;
 		};
 		today: string;
 		/** Another adult's gift: they see Dinero too. */
@@ -33,6 +34,9 @@ marked, when the receipt or the bank will bring the expense.
 	let popover = $state<HTMLElement>();
 	let date = $state('');
 	let price = $state('');
+	/** «IVA y otros», as written, and what of `price` is it, in cents. */
+	let extra = $state('');
+	let extraCents = $state(0);
 	let store = $state('');
 	let category = $state('Otros');
 	let saving = $state(false);
@@ -41,13 +45,18 @@ marked, when the receipt or the bank will bring the expense.
 
 	const otherCurrency = $derived(wish.currency && wish.currency !== 'EUR' ? wish.currency : null);
 
+	/** Its price in euros is known: only then are its extras added to it. */
+	const priced = $derived(wish.priceCents !== null && !otherCurrency);
+
 	/** As the wish has it, each time it opens. */
 	function fill() {
 		date = today;
 		price =
 			wish.priceCents !== null && !otherCurrency
-				? ((wish.priceCents + (wish.shippingCents ?? 0)) / 100).toFixed(2).replace('.', ',')
+				? amountField(wish.priceCents + (wish.shippingCents ?? 0) + (wish.extraCents ?? 0))
 				: '';
+		extra = amountField(wish.extraCents);
+		extraCents = wish.extraCents ?? 0;
 		store = wish.shop;
 		category = 'Otros';
 		problem = null;
@@ -63,6 +72,18 @@ marked, when the receipt or the bank will bring the expense.
 	onDestroy(() => setOpen(false));
 	/** Another day or price: whether it is put in twice is asked again. */
 	const changed = () => (repeated = null);
+	/** Another «IVA y otros»: the price with it, in place of the one it had. */
+	function setExtra() {
+		const total = parseEuros(price);
+		if (total === null) return;
+		const base = total - extraCents;
+		const read = extraFromText(extra, base);
+		// Half written («4,»), or in another currency: none yet.
+		const now = read && (read.currency ?? 'EUR') === 'EUR' ? read.cents : 0;
+		extraCents = now;
+		price = amountField(base + now);
+		changed();
+	}
 </script>
 
 <button
@@ -110,7 +131,25 @@ marked, when the receipt or the bank will bring the expense.
 		<input type="hidden" name="id" value={wish.id} />
 		{#if repeated}<input type="hidden" name="igual" value="1" />{/if}
 		<ExpenseFields bind:date bind:price bind:store bind:category onchanged={changed} />
-		{#if wish.shippingCents && wish.priceCents !== null && !otherCurrency}
+		{#if priced}
+			<input type="hidden" name="extra" value={extraCents} />
+			<label class="text-xs text-zinc-400">
+				IVA y otros que añade la tienda
+				<input
+					bind:value={extra}
+					oninput={setExtra}
+					maxlength="20"
+					placeholder="1,34 o 4 %"
+					class="{field} mt-1 py-1 text-sm"
+				/>
+			</label>
+			{#if extraCents}
+				<p class="text-xs text-zinc-400">
+					En el precio de arriba, {priceText(extraCents, 'EUR')} de IVA y otros.
+				</p>
+			{/if}
+		{/if}
+		{#if wish.shippingCents && priced}
 			<p class="text-xs text-zinc-400">
 				Con su envío, {priceText(wish.shippingCents, wish.currency)}: corrígelo si has pagado otro.
 			</p>
