@@ -367,10 +367,19 @@
 						action="?/delete"
 						fields={{ id: w.id }}
 						label="Borrar"
-						question="¿Borrar este paseo y sus fotos? Sus notas se quedan."
+						question="¿Borrar este paseo? Sus fotos y notas se quedan en Notas."
 						below
 						class="text-sm text-zinc-500 hover:text-red-400"
-					/>
+					>
+						<label class="flex items-center gap-2 text-zinc-300">
+							<input
+								type="checkbox"
+								name="todo"
+								class="rounded border-zinc-600 bg-zinc-950 text-amber-500"
+							/>
+							Borrar también sus fotos y notas
+						</label>
+					</ConfirmForm>
 				</div>
 				{#if opened === w.id}
 					<div class="mt-3">

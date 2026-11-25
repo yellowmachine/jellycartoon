@@ -5,7 +5,8 @@ import type { Actions, PageServerLoad } from './$types';
 import { MAP_DIR } from '$app/env/private';
 import { dayOf, kitchenOf, today } from '#lib/server/fridge.ts';
 import { recentCalories } from '#lib/server/expenses/calories.ts';
-import { deleteWalk, listWalks } from '#lib/server/walks/walks.ts';
+import { deleteWalkNotes } from '#lib/server/notes.ts';
+import { deleteWalk, deleteWalkPhotos, listWalks } from '#lib/server/walks/walks.ts';
 import { mondayOf, walkTotals } from '#lib/walks.ts';
 import { dayStart } from '#lib/server/plugs/stats.ts';
 import { owntracksOutings } from '#lib/server/owntracks/walking.ts';
@@ -59,8 +60,15 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 export const actions: Actions = {
 	delete: async ({ request, locals }) => {
-		const id = Number((await request.formData()).get('id'));
+		const form = await request.formData();
+		const id = Number(form.get('id'));
 		if (!Number.isInteger(id)) return fail(400, { message: 'Paseo no válido' });
-		await deleteWalk(await kitchenOf(locals.user!.id), id);
+		const k = await kitchenOf(locals.user!.id);
+		// First: afterwards, which were its notes is not known.
+		if (form.has('todo')) {
+			await deleteWalkNotes(k, locals.user!.id, id);
+			await deleteWalkPhotos(k, id);
+		}
+		await deleteWalk(k, id);
 	}
 };

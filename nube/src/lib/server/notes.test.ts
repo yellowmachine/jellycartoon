@@ -5,6 +5,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { sql } from 'drizzle-orm';
 import * as schema from '#lib/server/db/schema.ts';
 import { family, note, user, walk, walkPhoto } from '#lib/server/db/schema.ts';
+import { notesAndPhotos, photoMoment, type Note } from '#lib/notes.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 
 /** Notes (#416) and a walk's photos on PGlite, with the files and the hearing faked. */
@@ -45,6 +46,7 @@ const {
 	addSaidNote,
 	addWrittenNote,
 	deleteNote,
+	deleteWalkNotes,
 	describeNotes,
 	editNote,
 	hearAgain,
@@ -56,7 +58,15 @@ const {
 	NotAudio,
 	walkNotes
 } = await import('./notes.ts');
-const { addWalkPhoto, deleteWalk, walkPhotoFile, walkPhotos } = await import('./walks/walks.ts');
+const {
+	addWalkPhoto,
+	deleteWalk,
+	deleteWalkPhoto,
+	deleteWalkPhotos,
+	listWalkPhotos,
+	walkPhotoFile,
+	walkPhotos
+} = await import('./walks/walks.ts');
 const { NotADocument } = await import('./expenses/income.ts');
 const { personFiles, removePersonFiles } = await import('./person-files.ts');
 
@@ -226,7 +236,7 @@ test('deleted: its audio goes', async () => {
 	expect(files.size).toBe(0);
 });
 
-test('a walk: its photos go with it, its notes stay with their place', async () => {
+test('a walk deleted: its photos and notes stay; or go, if it is asked (#613)', async () => {
 	const id = await aWalk();
 	const base = { at: new Date('2026-11-05T10:10:00Z'), lon: -1.1, lat: 37.9, startedAt: STARTED };
 	expect(await addWalkPhoto(ana, { ...base, clientId: 'foto-una-1', file: JPEG })).toBe(true);
@@ -243,10 +253,74 @@ test('a walk: its photos go with it, its notes stay with their place', async () 
 	expect(files.size).toBe(2);
 
 	await deleteWalk(ana, id);
+	expect(await listWalkPhotos(ana)).toMatchObject([{ id: photo!.id, walkId: null }]);
+	expect(await listWalkPhotos(kitchen('luis'))).toHaveLength(0);
+	expect(files.size).toBe(2);
+	await deleteWalkPhoto(kitchen('luis'), photo!.id);
+	expect(await listWalkPhotos(ana)).toHaveLength(1);
+	await deleteWalkPhoto(ana, photo!.id);
 	expect(await db.select().from(walkPhoto)).toHaveLength(0);
 	const [kept] = await listNotes(ana, 'ana', null);
 	expect(kept).toMatchObject({ text: 'Llamar al fontanero', lon: -1.1, hasAudio: true });
 	expect([...files.keys()].every((name) => name.startsWith('notas/'))).toBe(true);
+
+	const again = await aWalk();
+	await addWalkPhoto(ana, { ...base, clientId: 'foto-dos-22', file: JPEG });
+	await addRecordedNote(ana, anaWho, recording({ walkStarted: STARTED, clientId: 'otra-nota-2' }));
+	await deleteWalkNotes(kitchen('luis'), 'luis', again);
+	await deleteWalkPhotos(kitchen('luis'), again);
+	expect(await walkNotes(ana, again)).toHaveLength(1);
+	expect(await walkPhotos(ana, again)).toHaveLength(1);
+	await deleteWalkNotes(ana, 'ana', again);
+	await deleteWalkPhotos(ana, again);
+	expect(await walkPhotos(ana, again)).toHaveLength(0);
+	// Only the first walk's note is left.
+	expect(await listNotes(ana, 'ana', null)).toHaveLength(1);
+	expect(files.size).toBe(1);
+});
+
+test('a photo note: when and where it was taken; shared, where is only told to its person', async () => {
+	const at = new Date('2026-11-03T11:00:00Z');
+	await addWrittenNote(ana, 'ana', {
+		text: 'Mirador',
+		photo: JPEG,
+		shared: true,
+		at,
+		position: [-1.1, 37.9]
+	});
+	const [mine] = await listNotes(ana, 'ana', null);
+	expect(mine).toMatchObject({ at, lat: expect.closeTo(37.9, 3) });
+	const [theirs] = await listNotes(kitchen('luis'), 'luis', null);
+	expect(theirs).toMatchObject({ text: 'Mirador', lon: null, lat: null });
+});
+
+test('Notas: the walks’ photos by walk, where their latest is', () => {
+	const at = (h: number) => new Date(Date.UTC(2026, 10, 5, h));
+	const note = (id: number, h: number) => ({ id, at: at(h) }) as Note;
+	const items = notesAndPhotos(
+		[note(1, 12), note(2, 8)],
+		[
+			{ id: 1, walkId: 7, at: at(11) },
+			{ id: 2, walkId: 7, at: at(10) },
+			{ id: 3, walkId: null, at: at(9) },
+			{ id: 4, walkId: 8, at: at(6) }
+		],
+		(d) => d.toISOString().slice(0, 10)
+	);
+	expect(items.map((i) => i.key)).toEqual([
+		'nota-1',
+		'paseo-7',
+		'dia-2026-11-05',
+		'nota-2',
+		'paseo-8'
+	]);
+	expect(items[1]).toMatchObject({ photos: [{ id: 2 }, { id: 1 }] });
+	expect(
+		notesAndPhotos([note(1, 12), note(2, 8)], [{ id: 4, walkId: 8, at: at(6) }], String, 2)
+	).toHaveLength(2);
+	expect(photoMoment(Date.now() + 3_600_000)).toBeNull();
+	expect(photoMoment(Number('x'))).toBeNull();
+	expect(photoMoment(at(6).getTime())).toEqual(at(6));
 });
 
 test('a photo: only a picture, and only of a walk that is there', async () => {
