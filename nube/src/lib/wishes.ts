@@ -83,19 +83,30 @@ export function priceText(cents: number | null, currency: string | null) {
 	}
 }
 
-/** «5,22 € + 12,19 € de envío = 17,41 €», «5,22 €, envío gratis», «5,22 €»; null, nothing known. */
+/** «5,22 € + 12,19 € de envío + 0,70 € de IVA y otros = 18,11 €», «5,22 €, envío gratis», «5,22 €»; null, nothing known. */
 export function costText(w: {
 	priceCents: number | null;
 	shippingCents?: number | null;
+	extraCents?: number | null;
 	currency: string | null;
 }) {
 	const price = priceText(w.priceCents, w.currency);
 	const shipping = w.shippingCents ?? null;
-	if (shipping === null) return price;
-	if (shipping === 0) return price ? `${price}, envío gratis` : 'envío gratis';
-	const sending = priceText(shipping, w.currency);
-	if (w.priceCents === null) return `envío: ${sending}`;
-	return `${price} + ${sending} de envío = ${priceText(w.priceCents + shipping, w.currency)}`;
+	const extra = w.extraCents || 0;
+	const added = [
+		shipping ? { said: 'envío', cents: shipping } : null,
+		extra ? { said: 'IVA y otros', cents: extra } : null
+	].filter((a) => a !== null);
+	const free = shipping === 0 ? ['envío gratis'] : [];
+	if (w.priceCents === null)
+		return (
+			[...added.map((a) => `${a.said}: ${priceText(a.cents, w.currency)}`), ...free].join(', ') ||
+			null
+		);
+	const total = added.length
+		? `${[price, ...added.map((a) => `${priceText(a.cents, w.currency)} de ${a.said}`)].join(' + ')} = ${priceText(w.priceCents + (shipping ?? 0) + extra, w.currency)}`
+		: price;
+	return [total, ...free].join(', ');
 }
 
 /** Its shipping as it is written to be corrected: «12,19», «gratis», or empty. */
@@ -203,6 +214,27 @@ export function shippingFromText(text: string | null | undefined) {
 	return read && { cents: read.cents, currency: /[€$£]/.test(said) ? read.currency : null };
 }
 
+/**
+ * «IVA y otros» as written: an amount («1,34 €»), or a percentage («4 %») of the price with its
+ * shipping (`base`, in cents). Its currency, null if not said; none, 0 cents. Null, not understood.
+ */
+export function extraFromText(text: string | null | undefined, base: number | null) {
+	const said = (text ?? '').replace(/\u00a0/g, ' ').trim();
+	if (!said || /^0+([.,]0+)? ?[€$£%]?$/.test(said)) return { cents: 0, currency: null };
+	const percent = said.match(/^(\d{1,2}(?:[.,]\d{1,2})?) ?%$/)?.[1];
+	if (percent)
+		return base === null
+			? null
+			: { cents: Math.round((base * Number(percent.replace(',', '.'))) / 100), currency: null };
+	if (!/^[€$£]? ?\d[\d.,]* ?[€$£]?$/.test(said)) return null;
+	const read = priceFromText(said);
+	return read && { cents: read.cents, currency: /[€$£]/.test(said) ? read.currency : null };
+}
+
+/** An amount as it is written to be corrected: «12,19», or empty. */
+export const amountField = (cents: number | null | undefined) =>
+	cents ? (cents / 100).toFixed(2).replace('.', ',') : '';
+
 /** Not said, euros: as they are shown. */
 export const sameCurrency = (a: string | null, b: string | null) => (a || 'EUR') === (b || 'EUR');
 
@@ -226,6 +258,8 @@ export interface PriceChange {
 	kept?: boolean;
 	/** Its shipping, if read too: in cents of `now`'s currency, and `kept` as the price. */
 	shipping?: { before: number | null; now: number; kept?: boolean };
+	/** Its «IVA y otros», in cents of the price before: it was for that one, so it is gone. */
+	extraGone?: number;
 }
 
 /** «; envío, de 4,99 € a gratis», after the price's; empty if it is the same. */
@@ -241,7 +275,11 @@ function shippingChangeText({ shipping, now }: PriceChange) {
 /** «precio actualizado, de 19,99 € a 13,99 €», after «Ya estaba en la lista». */
 export function priceChangeText(change: PriceChange) {
 	const { before, now, kept } = change;
-	const sending = shippingChangeText(change);
+	const sending =
+		shippingChangeText(change) +
+		(change.extraGone
+			? `; se quita el IVA y otros apuntado (${priceText(change.extraGone, (before ?? now).currency)}), que era para lo de antes`
+			: '');
 	const to = priceText(now.cents, now.currency);
 	const from = before && priceText(before.cents, before.currency);
 	if (!from) return `ahora con precio, ${to}${sending}`;
@@ -251,14 +289,15 @@ export function priceChangeText(change: PriceChange) {
 		: `precio actualizado, de ${from} a ${to}${sending}`;
 }
 
-/** The same in an address (`1999EUR-1399EUR`, `-1399EUR`, `…-e499.0` its shipping), and back; null if it is not one. */
-export const priceChangeParam = ({ before, now, kept, shipping }: PriceChange) =>
+/** The same in an address (`1999EUR-1399EUR`, `-1399EUR`, `…-e499.0` its shipping, `…-i70` the extra gone), and back; null if it is not one. */
+export const priceChangeParam = ({ before, now, kept, shipping, extraGone }: PriceChange) =>
 	[before, now].map((p) => (p ? `${p.cents}${p.currency ?? ''}` : '')).join('-') +
 	(kept ? '-k' : '') +
-	(shipping ? `-e${shipping.before ?? ''}.${shipping.now}${shipping.kept ? 'k' : ''}` : '');
+	(shipping ? `-e${shipping.before ?? ''}.${shipping.now}${shipping.kept ? 'k' : ''}` : '') +
+	(extraGone ? `-i${extraGone}` : '');
 export function readPriceChange(param: string | null): PriceChange | null {
 	const m = param?.match(
-		/^(?:(\d{1,8})([A-Z]{3})?)?-(\d{1,8})([A-Z]{3})?(-k)?(?:-e(\d{1,8})?\.(\d{1,8})(k)?)?$/
+		/^(?:(\d{1,8})([A-Z]{3})?)?-(\d{1,8})([A-Z]{3})?(-k)?(?:-e(\d{1,8})?\.(\d{1,8})(k)?)?(?:-i(\d{1,8}))?$/
 	);
 	if (!m) return null;
 	return {
@@ -273,25 +312,32 @@ export function readPriceChange(param: string | null): PriceChange | null {
 						...(m[8] ? { kept: true } : {})
 					}
 				}
-			: {})
+			: {}),
+		...(Number(m[9]) ? { extraGone: Number(m[9]) } : {})
 	};
 }
 
 /**
  * «5 productos · 3 con precio, 120,50 €»: how many, and what those with a price cost together (each
- * currency on its own), their shipping apart: several of one shop may come together. Some picked `of` a list: «3 de 8 productos · …».
+ * currency on its own), their shipping and extras apart: several of one shop may come together. Some picked `of` a list: «3 de 8 productos · …».
  */
 export function wishesSummary(
-	list: { priceCents: number | null; currency: string | null; shippingCents?: number | null }[],
+	list: {
+		priceCents: number | null;
+		currency: string | null;
+		shippingCents?: number | null;
+		extraCents?: number | null;
+	}[],
 	of?: number
 ) {
 	const count = `${of === undefined ? list.length : `${list.length} de ${of}`} ${(of ?? list.length) === 1 ? 'producto' : 'productos'}`;
 	if (!list.length) return count;
 	const sums = new Map<string, number>();
 	const sendings = new Map<string, number>();
+	const extras = new Map<string, number>();
 	let priced = 0;
 	for (const w of list) {
-		const { shippingCents } = w;
+		const { shippingCents, extraCents } = w;
 		if (shippingCents && w.priceCents !== null) {
 			const currency = w.currency || 'EUR';
 			sendings.set(currency, (sendings.get(currency) ?? 0) + shippingCents);
@@ -299,12 +345,17 @@ export function wishesSummary(
 		if (w.priceCents === null) continue;
 		priced++;
 		const currency = w.currency || 'EUR';
+		if (extraCents) extras.set(currency, (extras.get(currency) ?? 0) + extraCents);
 		sums.set(currency, (sums.get(currency) ?? 0) + w.priceCents);
 	}
 	if (!priced) return `${count} · sin precio`;
 	const told = (m: typeof sums) =>
 		[...m].map(([currency, cents]) => priceText(cents, currency)).join(' + ');
-	const total = told(sums) + (sendings.size ? `, más ${told(sendings)} de envíos` : '');
+	const more = [
+		...(sendings.size ? [`${told(sendings)} de envíos`] : []),
+		...(extras.size ? [`${told(extras)} de IVA y otros`] : [])
+	].join(' y ');
+	const total = told(sums) + (more ? `, más ${more}` : '');
 	return priced === list.length
 		? `${count} · ${total}`
 		: `${count} · ${priced} con precio, ${total}`;

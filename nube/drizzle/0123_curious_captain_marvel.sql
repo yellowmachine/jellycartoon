@@ -1,0 +1,1 @@
+ALTER TABLE "wish" ADD COLUMN "extra_cents" integer;

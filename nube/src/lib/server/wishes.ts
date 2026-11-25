@@ -326,6 +326,8 @@ export interface WishView {
 	currency: string | null;
 	/** In that currency: 0, free; null, not known. */
 	shippingCents: number | null;
+	/** «IVA y otros». */
+	extraCents: number | null;
 	/** When the price was seen. */
 	priceAt: Date | null;
 	note: string | null;
@@ -384,6 +386,7 @@ export async function listWishes(k: Kitchen, userId: string, kid: boolean) {
 			priceCents: w.priceCents,
 			currency: w.currency,
 			shippingCents: w.shippingCents,
+			extraCents: w.extraCents,
 			priceAt: w.priceAt,
 			note: w.note,
 			priority: w.priority,
@@ -488,7 +491,17 @@ export async function addWish(
 					? product.shippingCents
 					: null;
 			const keptSent = wasSent !== null && rank(source) < rank(there.shippingSource);
+			// «IVA y otros» was for the price and the shipping there were.
+			const priceNow = now && !kept ? now.cents : there.priceCents;
+			const sentNow = sent !== null && !keptSent ? sent : sameMoney ? there.shippingCents : null;
+			const extraGone =
+				there.extraCents &&
+				there.priceCents !== null &&
+				(!sameMoney || priceNow !== there.priceCents || sentNow !== there.shippingCents)
+					? there.extraCents
+					: null;
 			const set = {
+				...(extraGone ? { extraCents: null } : {}),
 				...(sent !== null && !keptSent
 					? { shippingCents: sent, shippingSource: source }
 					: sameMoney
@@ -520,7 +533,8 @@ export async function addWish(
 					...(kept ? { kept } : {}),
 					...(sent !== null
 						? { shipping: { before: wasSent, now: sent, ...(keptSent ? { kept: true } : {}) } }
-						: {})
+						: {}),
+					...(extraGone ? { extraGone } : {})
 				}
 			};
 		}
@@ -544,7 +558,7 @@ export async function addWish(
 	return done;
 }
 
-/** Its name, note, price and shipping (not said, as it was; null, none) corrected; false if it is not there or not theirs to write. */
+/** Its name, note, price, shipping and extra (not said, as it was; null, none) corrected; false if it is not there or not theirs to write. */
 export async function updateWish(
 	k: Kitchen,
 	userId: string,
@@ -556,13 +570,15 @@ export async function updateWish(
 		price?: Price | null;
 		/** In its price's currency. */
 		shipping?: number | null;
+		/** As its shipping. */
+		extra?: number | null;
 	}
 ) {
 	const personId = await wishPerson(k, id);
 	if (personId === null || !(await writesIn(k, userId, kid, personId))) return false;
 	const title = change.title.trim().slice(0, MAX_WISH_TITLE);
 	if (!title) return false;
-	const { price, shipping } = change;
+	const { price, shipping, extra } = change;
 	await k.run(async (tx) => {
 		const [w] = await tx.select().from(wish).where(eq(wish.id, id));
 		// The same one sent back with the form: still said by who said it, then.
@@ -574,6 +590,7 @@ export async function updateWish(
 			.set({
 				title,
 				note: change.note?.trim().slice(0, MAX_WISH_NOTE) || null,
+				...(extra === undefined ? {} : { extraCents: extra || null }),
 				...(shipping === undefined || shipping === w?.shippingCents
 					? {}
 					: {
@@ -659,9 +676,16 @@ export async function buyableWish(k: Kitchen, userId: string, kid: boolean, id: 
 
 /**
  * «Comprado», the day `on`: for another, it is their gift. False if it cannot be, or someone was
- * first.
+ * first. `extra`, its «IVA y otros»: kept only in one's own, as in another's it would tell them.
  */
-export async function buyWish(k: Kitchen, userId: string, kid: boolean, id: number, on: string) {
+export async function buyWish(
+	k: Kitchen,
+	userId: string,
+	kid: boolean,
+	id: number,
+	on: string,
+	extra?: number
+) {
 	const found = await buyableWish(k, userId, kid, id);
 	if (!found) return false;
 	const [done] = await k.run((tx) =>
@@ -671,6 +695,7 @@ export async function buyWish(k: Kitchen, userId: string, kid: boolean, id: numb
 				boughtOn: on,
 				boughtBy: userId,
 				expenseId: null,
+				...(found.mine && extra !== undefined ? { extraCents: extra || null } : {}),
 				...(found.mine ? {} : { giftBy: userId })
 			})
 			.where(

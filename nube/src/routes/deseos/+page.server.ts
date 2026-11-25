@@ -5,6 +5,7 @@ import { lookingSame } from '#lib/server/expenses/duplicates.ts';
 import { addExpense } from '#lib/server/expenses/expenses.ts';
 import { kitchenOf, today } from '#lib/server/fridge.ts';
 import {
+	extraFromText,
 	isWishPriority,
 	priceChangeText,
 	priceFromText,
@@ -100,11 +101,24 @@ export const actions: Actions = {
 			return fail(400, { message: 'Ese envío no se entiende: 4,99 o gratis' });
 		if (shipping?.currency && !sameCurrency(shipping.currency, price?.currency ?? currency))
 			return fail(400, { message: 'El envío, en la misma moneda que el precio' });
+		const added = text(form, 'extra');
+		const base = read ? read.cents + (shipping?.cents ?? 0) : null;
+		const extra = extraFromText(added, base);
+		if (!extra)
+			return fail(400, {
+				message:
+					base === null && added?.includes('%')
+						? 'Un porcentaje de IVA necesita el precio'
+						: 'Ese IVA no se entiende: 1,34 o 4 %'
+			});
+		if (extra.currency && !sameCurrency(extra.currency, price?.currency ?? currency))
+			return fail(400, { message: 'El IVA y otros, en la misma moneda que el precio' });
 		const done = await updateWish(await kitchenOf(userId), userId, await isKidAccount(userId), id, {
 			title,
 			note: text(form, 'note'),
 			price,
-			shipping: sent === null ? undefined : (shipping?.cents ?? null)
+			shipping: sent === null ? undefined : (shipping?.cents ?? null),
+			extra: added === null ? undefined : extra.cents
 		});
 		if (!done) return fail(404, { message: 'Ese deseo ya no está' });
 	},
@@ -153,13 +167,18 @@ export const actions: Actions = {
 		const date = text(form, 'date');
 		if (!id) return fail(400, { message: 'Falta cuál' });
 		if (!isDay(date)) return fail(400, { message: 'Falta la fecha' });
+		// In cents, as the page worked it out: kept with the wish, not added to the price again.
+		const added = text(form, 'extra');
+		const extra = added !== null && /^\d{1,8}$/.test(added) ? Number(added) : undefined;
 		const k = await kitchenOf(userId);
 		const kid = await isKidAccount(userId);
 		const gone = () => fail(409, { message: 'Ese deseo ya no está, o ya lo ha comprado otro' });
 		const found = await buyableWish(k, userId, kid, id);
 		if (!found) return gone();
 		if (form.get('solo') === '1')
-			return (await buyWish(k, userId, kid, id, date)) ? { bought: id, expense: null } : gone();
+			return (await buyWish(k, userId, kid, id, date, extra))
+				? { bought: id, expense: null }
+				: gone();
 
 		const total = parseEuros(text(form, 'price') ?? '');
 		if (total === null || total <= 0 || total > MAX_CENTS)
@@ -196,7 +215,7 @@ export const actions: Actions = {
 			if (repeated) return fail(409, { message: 'Parece repetido', repeated });
 		}
 		// First, so two pages at once put it in Dinero once.
-		if (!(await buyWish(k, userId, kid, id, date))) return gone();
+		if (!(await buyWish(k, userId, kid, id, date, extra))) return gone();
 		let expense: number;
 		try {
 			expense = await addExpense(k, input, 'mano');

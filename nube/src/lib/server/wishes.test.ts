@@ -12,6 +12,7 @@ import {
 	bookmarklet,
 	cleanLink,
 	costText,
+	extraFromText,
 	knownShop,
 	priceChangeParam,
 	priceChangeText,
@@ -1070,5 +1071,74 @@ describe('told to the open pages', () => {
 		expect(others).toBe(0);
 		stop.forEach((s) => s());
 		await steps(0, addWish(ana, 'ana', false, people.Ana!, product('Libro'), null));
+	});
+});
+
+describe('«IVA y otros»', () => {
+	test('as written, an amount or a percentage of the price with its shipping', () => {
+		expect(extraFromText('1,34 €', null)).toEqual({ cents: 134, currency: 'EUR' });
+		expect(extraFromText('1,34', 1741)).toEqual({ cents: 134, currency: null });
+		expect(extraFromText('4 %', 1741)).toEqual({ cents: 70, currency: null });
+		expect(extraFromText('10,5%', 1000)).toEqual({ cents: 105, currency: null });
+		for (const none of ['', '0', '0 %', null]) expect(extraFromText(none, 1)?.cents).toBe(0);
+		expect(extraFromText('4 %', null)).toBeNull();
+		for (const bad of ['ni idea', '400 %', '4 % 2']) expect(extraFromText(bad, 100)).toBeNull();
+	});
+
+	test('in the total and in the sum', () => {
+		const said = (priceCents: number | null, shippingCents: number | null, extraCents: number) =>
+			costText({ priceCents, shippingCents, extraCents, currency: 'EUR' })?.replace(/\s/g, ' ');
+		expect(said(522, 1219, 70)).toBe('5,22 € + 12,19 € de envío + 0,70 € de IVA y otros = 18,11 €');
+		expect(said(522, 0, 21)).toBe('5,22 € + 0,21 € de IVA y otros = 5,43 €, envío gratis');
+		expect(said(522, null, 21)).toBe('5,22 € + 0,21 € de IVA y otros = 5,43 €');
+		expect(said(null, null, 21)).toBe('IVA y otros: 0,21 €');
+		expect(
+			wishesSummary([
+				{ priceCents: 522, shippingCents: 1219, extraCents: 70, currency: 'EUR' },
+				{ priceCents: 100, currency: 'EUR' }
+			]).replace(/\s/g, ' ')
+		).toBe('2 productos · 6,22 €, más 12,19 € de envíos y 0,70 € de IVA y otros');
+	});
+
+	test('gone, and said, when the price it was for changes; kept while it does not', async () => {
+		const book = (priceCents: number | null, shippingCents: number | null = 1219): Product => ({
+			...product('Libro', 'amazon:IVA'),
+			priceCents,
+			currency: 'EUR',
+			shippingCents,
+			priceSource: 'marcador'
+		});
+		const add = (p: Product) => addWish(ana, 'ana', false, people.Ana!, p, null);
+		const one = async () => (await listWishes(ana, 'ana', false)).wishes[0]!;
+		await add(book(522));
+		const { id } = await one();
+		await updateWish(ana, 'ana', false, id, { title: 'Libro', note: null, extra: 70 });
+		expect((await one()).extraCents).toBe(70);
+		await add(book(522));
+		await add(book(null, null));
+		await updateWish(ana, 'ana', false, id, { title: 'Libro', note: null });
+		expect((await one()).extraCents).toBe(70);
+		const again = await add(book(600));
+		expect(again).toMatchObject({ change: { extraGone: 70 } });
+		expect((await one()).extraCents).toBeNull();
+		const change = (again as { change: PriceChange }).change;
+		expect(readPriceChange(priceChangeParam(change))).toEqual(change);
+		expect(priceChangeText(change).replace(/\s/g, ' ')).toBe(
+			'precio actualizado, de 5,22 € a 6,00 €; se quita el IVA y otros apuntado (0,70 €), que era para lo de antes'
+		);
+		// Its shipping too is part of what it was for.
+		await updateWish(ana, 'ana', false, id, { title: 'Libro', note: null, extra: 72 });
+		expect(await add(book(600, 300))).toMatchObject({ change: { extraGone: 72 } });
+	});
+
+	test('bought: kept with one’s own; in another’s it would tell them', async () => {
+		await addWish(ana, 'ana', false, people.Ana!, product('Libro'), null);
+		const { id } = (await listWishes(ana, 'ana', false)).wishes[0]!;
+		const extra = async () => (await listWishes(ana, 'ana', false)).wishes[0]!.extraCents;
+		expect(await giveWish(pepe, 'pepe', false, id, true)).toBe(true);
+		expect(await buyWish(pepe, 'pepe', false, id, '2026-11-25', 134)).toBe(true);
+		expect(await extra()).toBeNull();
+		expect(await buyWish(ana, 'ana', false, id, '2026-11-25', 134)).toBe(true);
+		expect(await extra()).toBe(134);
 	});
 });

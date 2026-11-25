@@ -61,6 +61,11 @@ export const wish = pgTable(
 		shippingSource: text('shipping_source', { enum: ['servidor', 'marcador', 'mano'] })
 			.notNull()
 			.default('servidor'),
+		/**
+		 * «IVA y otros»: what the shop adds at the end (taxes, customs), in cents of `currency`, always
+		 * written by hand. For that price and shipping: gone if they change by adding it again.
+		 */
+		extraCents: integer('extra_cents'),
 		/** A size, a colour: what the shop's page does not say. */
 		note: text('note'),
 		/** For when: «Lo primero», «Pronto» or «Más adelante» (lib/wishes.ts). */
