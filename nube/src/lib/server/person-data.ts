@@ -569,6 +569,12 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: false,
 		note: 'Pairs of expenses said not to be the same (#440)'
 	},
+	expense_merge: {
+		leaving: 'stays',
+		joining: 'moves',
+		zip: false,
+		note: 'The expenses a bill gathers, as they were, to put them back: its own is in the zip'
+	},
 	expense_tag: {
 		leaving: 'stays',
 		joining: 'dropped',

@@ -4,7 +4,8 @@ import { isKidAccount } from '#lib/server/kids.ts';
 import { homeworkToDo } from '#lib/server/homework.ts';
 import { hasHouse } from '#lib/server/house.ts';
 import { NoFamily, withFamily } from '#lib/server/family.ts';
-import { kitchenOf } from '#lib/server/fridge.ts';
+import { kitchenOf, today } from '#lib/server/fridge.ts';
+import { comingCharges } from '#lib/server/expenses/charges.ts';
 import { homeOf, homeWeather, unreadInbox } from '#lib/server/home.ts';
 import { nextTrip } from '#lib/server/trips/planned.ts';
 import { myCar } from '#lib/server/trips/cars.ts';
@@ -41,6 +42,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 		const admin = await withFamily(userId, async (_, m) => m.role === 'admin');
 		return {
 			home: await homeOf(k, userId, admin),
+			// The fixed expenses about to be paid, to have money for them.
+			charges: await comingCharges(k, userId, today()).catch((error) => {
+				console.warn('[portada] Sin los cargos que vienen', String(error));
+				return [];
+			}),
 			// «Compañía» (#469): the linked families' people who live alone, first if one does not answer.
 			companions: await companionsFor(userId).catch((error) => {
 				console.warn('[portada] Sin Compañía', String(error));

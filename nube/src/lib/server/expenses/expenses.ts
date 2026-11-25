@@ -348,7 +348,10 @@ export async function recurringExpenses(k: Kitchen): Promise<RecurringExpense[]>
 		category: isCategory(r.category) ? r.category : 'Otros',
 		amount: r.amount,
 		day: r.day,
-		month: r.month
+		month: r.month,
+		paidFrom: r.paidFrom,
+		notice: r.notice,
+		noticeAll: r.noticeAll
 	}));
 }
 

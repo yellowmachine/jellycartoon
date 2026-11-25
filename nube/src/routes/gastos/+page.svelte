@@ -41,9 +41,11 @@
 		type RecurringExpense
 	} from 'comun/expenses.ts';
 	import Espera from '#lib/components/Espera.svelte';
+	import ChargesNotice from '#lib/components/ChargesNotice.svelte';
+	import { MAX_ACCOUNT, NOTICE_DAYS } from '#lib/charges.ts';
 	import ExpenseTabs from '#lib/components/ExpenseTabs.svelte';
 	import { fileHash, smallerPhoto } from 'comun/receipt-photo.ts';
-	import { sameText, type LooksSame } from 'comun/page-notices.ts';
+	import { mergeText, type MergeNotice, sameText, type LooksSame } from 'comun/page-notices.ts';
 	import { takeSharedFile } from '#lib/shared-file.ts';
 	import { pendingReceipt } from '#lib/pending-receipt.svelte.ts';
 	import type { PageProps } from './$types';
@@ -69,6 +71,9 @@
 		fileHash?: string | null;
 		/** The one it looks the same as (#440): asked before saving. */
 		repeated?: LooksSame | null;
+		/** The expenses it seems to gather: asked; `gathers`, said yes to. */
+		merge?: MergeNotice | null;
+		gathers?: boolean;
 		/** The fixed one it may be the month's receipt of (#501): asked, «¿Es el recibo de…?». */
 		fixed?: FixedMatch | null;
 		/** The fixed one it is the month's receipt of (#501): said in the title. */
@@ -305,6 +310,7 @@
 		const draft = body as ExpenseDraft & {
 			repeated: LooksSame | null;
 			fixed: FixedMatch | null;
+			merge: MergeNotice | null;
 		};
 		editing = {
 			id: null,
@@ -321,7 +327,8 @@
 			lines: draft.lines.map((l) => ({ ...l, amount: typed(l.amount) })),
 			foreign: draft.foreign ?? null,
 			bill: billBoxes(draft.bill),
-			fixed: into ? null : draft.fixed
+			fixed: into ? null : draft.fixed,
+			merge: into ? null : draft.merge
 		};
 		if (!into) return;
 		onFixed(into);
@@ -342,6 +349,7 @@
 		editing.date = f.date;
 		if (!parseEuros(editing.total)) editing.total = typed(f.total);
 		editing.repeated = null;
+		editing.merge = null;
 		editing.fixed = null;
 		editing.receiptOf = f.store;
 	}
@@ -506,6 +514,10 @@
 	let fixed = $state<
 		(Omit<RecurringExpense, 'id' | 'amount'> & { id: number | null; amount: string }) | null
 	>(null);
+	/** The accounts already said in others. */
+	const accounts = $derived([
+		...new Set(data.recurring.flatMap((r) => (r.paidFrom ? [r.paidFrom] : [])))
+	]);
 	let fixedForm = $state<HTMLFormElement>();
 	/** Where the page was when it opened: back there on closing it. */
 	let fixedFrom = 0;
@@ -538,6 +550,7 @@
 <div class="mx-auto max-w-3xl">
 	<h1 class="mb-3 text-2xl font-bold">Dinero<GuideLink page="dinero" label="los gastos" /></h1>
 	<ExpenseTabs current="mes" />
+	<ChargesNotice charges={data.charges} />
 	<p class="mb-4 text-sm text-zinc-400">
 		Los de la casa, para todos los adultos. Con una foto del ticket, a mano, por voz («he gastado 40
 		euros en gasolina») o fijos, de cada mes o de cada año.
@@ -868,7 +881,34 @@
 							</div>
 						</div>
 					{/if}
-					{#if e.repeated}
+					{#if e.merge && !e.id && e.receipt && !(e.fixed && !e.gathers)}
+						<div class="mt-4 rounded-md border border-sky-500/40 bg-sky-950/40 p-3 text-sm">
+							<p class="text-sky-100">{mergeText(e.merge)}</p>
+							{#if e.gathers}
+								<p class="mt-1 text-sky-100">
+									Al guardar {e.merge.length === 1 ? 'quedará' : 'quedarán'} en este gasto, sin contar
+									dos veces.
+								</p>
+								<button
+									class="{button} mt-2 hover:bg-zinc-800"
+									onclick={() => editing && (editing.gathers = false)}>No juntar</button
+								>
+							{:else}
+								<div class="mt-2 flex flex-wrap gap-2">
+									<button
+										class="{button} bg-sky-700 font-semibold text-claro hover:bg-sky-600"
+										onclick={() => editing && (editing.gathers = true)}
+										>{e.merge.length === 1 ? 'Juntarlo aquí' : 'Juntarlos aquí'}</button
+									>
+									<button
+										class="{button} hover:bg-zinc-800"
+										onclick={() => editing && (editing.merge = null)}>No, es otro gasto</button
+									>
+								</div>
+							{/if}
+						</div>
+					{/if}
+					{#if e.repeated && !e.gathers}
 						<div class="mt-4 rounded-md border border-amber-500/40 bg-amber-950/40 p-3 text-sm">
 							<p class="text-amber-200">{sameText(e.repeated, data.today)} ¿Lo guardo igual?</p>
 							<a
@@ -897,6 +937,9 @@
 									open = Number(result.data?.saved) || null;
 									ticked = (result.data?.ticked as typeof ticked | undefined) ?? [];
 									close();
+									if (result.data?.gathered === false)
+										notice =
+											'Guardado, sin juntar: esos gastos han cambiado. Mira que no cuente dos veces.';
 								} else if (result.type === 'failure' && result.data?.repeated && editing) {
 									// Put in before (#440): asked, nothing saved.
 									editing.repeated = result.data.repeated as LooksSame;
@@ -918,7 +961,10 @@
 								name="huella"
 								value={e.fileHash}
 							/>{/if}
-						{#if e.repeated}<input type="hidden" name="igual" value="on" />{/if}
+						{#each e.gathers && e.merge ? e.merge : [] as p (p.id)}
+							<input type="hidden" name="juntar" value={p.id} />
+						{/each}
+						{#if e.repeated && !e.gathers}<input type="hidden" name="igual" value="on" />{/if}
 						<input
 							type="hidden"
 							name="expense"
@@ -927,7 +973,11 @@
 						<button
 							class="{button} bg-amber-500 font-semibold text-zinc-950 hover:bg-amber-400"
 							disabled={saving}
-							>{saving ? 'Guardando…' : e.repeated ? 'Guardar igual' : 'Guardar'}</button
+							>{saving
+								? 'Guardando…'
+								: e.repeated && !e.gathers
+									? 'Guardar igual'
+									: 'Guardar'}</button
 						>
 						<button type="button" class="{button} hover:bg-zinc-800" onclick={cancel}
 							>Cancelar</button
@@ -1104,7 +1154,44 @@
 							>{/if}</span
 					>
 				</button>
-				{#if data.repeated[e.id]}
+				{#if data.merges[e.id]}
+					{@const parts = data.merges[e.id]}
+					<div
+						class="mb-3 rounded-md border border-sky-500/40 bg-sky-950/40 p-3 text-sm text-sky-100"
+					>
+						<p>{mergeText(parts)}</p>
+						<form
+							method="post"
+							action="?/merge"
+							class="mt-2 flex flex-wrap items-center gap-2"
+							use:enhance={() =>
+								async ({ result, update }) => {
+									problem =
+										result.type === 'failure'
+											? String(result.data?.message ?? 'No se pudo juntar')
+											: null;
+									await update({ reset: false });
+								}}
+						>
+							<input type="hidden" name="id" value={e.id} />
+							{#each parts as p (p.id)}<input type="hidden" name="juntar" value={p.id} />{/each}
+							<button class="{button} bg-sky-700 font-semibold text-claro hover:bg-sky-600"
+								>{parts.length === 1 ? 'Juntarlo aquí' : 'Juntarlos aquí'}</button
+							>
+							<button
+								formaction="?/notMerge"
+								class="{button} bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
+								>{parts.length === 1 ? 'No, es otro' : 'No, son otros'}</button
+							>
+							<button
+								formaction="?/quietNotice"
+								name="kind"
+								value="junta"
+								class="{button} text-zinc-400 hover:bg-zinc-800">No me lo vuelvas a decir</button
+							>
+						</form>
+					</div>
+				{:else if data.repeated[e.id]}
 					{@const twin = data.repeated[e.id]}
 					<div
 						class="mb-3 rounded-md border border-amber-500/40 bg-amber-950/40 p-3 text-sm text-amber-200"
@@ -1160,6 +1247,24 @@
 				{/if}
 				{#if open === e.id}
 					<div class="mb-3 rounded-md bg-zinc-900 p-3 text-sm">
+						{#each data.merged.filter((m) => m.expenseId === e.id) as m (m.id)}
+							<form
+								method="post"
+								action="?/split"
+								use:enhance
+								class="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-zinc-400"
+							>
+								<input type="hidden" name="id" value={m.id} />
+								<span
+									>Reúne {m.parts
+										.map((p) => `«${p.text}» (${shortDay(p.date)}, ${euros(p.total)})`)
+										.join(' y ')}.</span
+								>
+								<button class="text-amber-400 hover:underline"
+									>{m.parts.length === 1 ? 'Separarlo' : 'Separarlos'}</button
+								>
+							</form>
+						{/each}
 						{#if e.bill}
 							{@const b = e.bill}
 							<p class="mb-2 text-zinc-300">
@@ -1441,7 +1546,9 @@
 					</span>
 					<span class="min-w-0 flex-1">
 						<span class="block truncate">{r.name}</span>
-						<span class="block text-xs text-zinc-500">{r.category}</span>
+						<span class="block text-xs text-zinc-500"
+							>{r.category}{r.paidFrom ? ` · ${r.paidFrom}` : ''}</span
+						>
 					</span>
 					<span class="shrink-0 text-right tabular-nums"
 						>{euros(r.amount)}<span class="block text-xs text-zinc-500"
@@ -1561,6 +1668,39 @@
 						</select>
 					</label>
 				{/if}
+				<label class="flex min-w-40 flex-1 flex-col gap-1 text-xs text-zinc-400">
+					Se paga desde (si quieres)
+					<input
+						name="paidFrom"
+						bind:value={f.paidFrom}
+						maxlength={MAX_ACCOUNT}
+						list="cuentas"
+						placeholder="Santander"
+						class={field}
+					/>
+				</label>
+				<datalist id="cuentas">
+					{#each accounts as a (a)}<option value={a}></option>{/each}
+				</datalist>
+				<label class="flex flex-col gap-1 text-xs text-zinc-400">
+					Avisar
+					<select name="notice" value={f.notice ?? ''} class={field}>
+						<option value="">Lo de siempre (Ajustes)</option>
+						<option value={0}>No</option>
+						{#each NOTICE_DAYS as n (n)}
+							<option value={n}>{n === 1 ? 'El día antes' : `${n} días antes`}</option>
+						{/each}
+					</select>
+				</label>
+				<label class="flex items-center gap-2 py-1.5 text-xs text-zinc-400">
+					<input
+						type="checkbox"
+						name="noticeAll"
+						checked={f.noticeAll}
+						class="rounded border-zinc-700 bg-zinc-950 text-amber-500"
+					/>
+					Avisar a los demás adultos
+				</label>
 				<button class="{button} bg-amber-500 font-semibold text-zinc-950 hover:bg-amber-400"
 					>Guardar</button
 				>

@@ -58,6 +58,12 @@ export const recurringExpense = pgTable(
 		month: integer('month'),
 		/** The last month it was added, `YYYY-MM`; null, none yet. */
 		lastMonth: text('last_month'),
+		/** «Se paga desde»: the account to keep money in, as they call it; null, not said. */
+		paidFrom: text('paid_from'),
+		/** «Avísame», days before; 0, never; null, each one's usual (family_member). */
+		notice: integer('notice'),
+		/** Told to the other adults too. */
+		noticeAll: boolean('notice_all').notNull().default(false),
 		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
@@ -257,6 +263,46 @@ export const expenseNotDuplicate = pgTable(
 			foreignColumns: [expense.familyId, expense.id]
 		}).onDelete('cascade'),
 		familyRows('expense_not_duplicate_own', t.familyId)
+	]
+).enableRLS();
+
+/** One of the expenses a bill or a payment gathers, as it was: to put it back. */
+export interface MergedPart {
+	date: string;
+	store: string;
+	category: string;
+	total: number;
+	source: 'mano' | 'voz';
+	userId: string | null;
+	lines: { text: string; quantity: number | null; amount: number; tag: string }[];
+	/** What pointed at it, and now at the one that gathers it. */
+	wishes: number[];
+	payments: number[];
+}
+
+/**
+ * «Juntarlos»: the expenses put in one by one that a bill (or a bank's payment) turned out to gather,
+ * deleted so as not to count twice; kept here, as they were, for «Separarlos».
+ */
+export const expenseMerge = pgTable(
+	'expense_merge',
+	{
+		id: serial('id').primaryKey(),
+		familyId: familyId(),
+		expenseId: integer('expense_id').notNull(),
+		parts: jsonb('parts').$type<MergedPart[]>().notNull(),
+		/** It had no lines (a payment): it has theirs. */
+		tookLines: boolean('took_lines').notNull().default(false),
+		createdAt: timestamp('created_at').notNull().defaultNow()
+	},
+	(t) => [
+		index('expense_merge_expense_idx').on(t.expenseId),
+		foreignKey({
+			name: 'expense_merge_expense_fk',
+			columns: [t.familyId, t.expenseId],
+			foreignColumns: [expense.familyId, expense.id]
+		}).onDelete('cascade'),
+		familyRows('expense_merge_own', t.familyId)
 	]
 ).enableRLS();
 

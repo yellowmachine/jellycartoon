@@ -139,6 +139,12 @@ export interface RecurringExpense {
 	day: number;
 	/** Every year, in this month (1 to 12): Prime, an insurance, the IBI. Null, every month. */
 	month: number | null;
+	/** «Se paga desde»: the account to keep money in; null, not said. */
+	paidFrom?: string | null;
+	/** «Avísame», days before; 0, never; null, each one's usual (Ajustes). */
+	notice?: number | null;
+	/** Told to the other adults too, not only to who put it in. */
+	noticeAll?: boolean;
 }
 
 /** A favourite (#194): an expense to put in again, its amount changeable; `total` null, none. */
@@ -375,6 +381,21 @@ export function dueMonths(
 	for (; month <= last; month = addMonths(month, 1))
 		if (r.month === null || Number(month.slice(5, 7)) === r.month) due.push(month);
 	return due;
+}
+
+/** The next day a fixed one falls due from `today`, its day included; not a month already added. */
+export function nextDue(
+	r: { day: number; month: number | null },
+	lastMonth: string | null,
+	today: string
+) {
+	const day = String(r.day).padStart(2, '0');
+	for (let month = monthOf(today), i = 0; i < 14; month = addMonths(month, 1), i++) {
+		if (r.month !== null && Number(month.slice(5, 7)) !== r.month) continue;
+		if (lastMonth !== null && month <= lastMonth) continue;
+		if (`${month}-${day}` >= today) return `${month}-${day}`;
+	}
+	return null;
 }
 
 /** The later of two `YYYY-MM`. */

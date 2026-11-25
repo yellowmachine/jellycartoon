@@ -10,6 +10,7 @@ import {
 	uniqueIndex
 } from 'drizzle-orm/pg-core';
 import type { SubtitleStyle } from 'comun/subtitle-style.ts';
+import type { ChargeNotices } from '#lib/charges.ts';
 import { user } from './auth.schema.ts';
 
 /**
@@ -100,6 +101,8 @@ export const familyMember = pgTable(
 		musicSource: text('music_source').$type<'casa' | 'propia'>(),
 		/** And where Juegos' games come from (#564), the same way (game-source.ts); null, the house's. */
 		gameSource: text('game_source').$type<'casa' | 'propia'>(),
+		/** «Cargos que vienen» (Ajustes → Para mí, charges.ts): their usual, and those they closed. */
+		chargeNotices: jsonb('charge_notices').$type<Partial<ChargeNotices>>().notNull().default({}),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [
