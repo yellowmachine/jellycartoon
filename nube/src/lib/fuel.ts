@@ -149,16 +149,15 @@ export function fuelOutlook(
 				s.now++;
 			}
 			s.now -= use;
+			// Before a full one takes its place: the one going ends this day.
+			if (s.now <= EMPTY) s.ends ??= a.day;
 			while (s.now < -EMPTY) {
 				refill(s, a.day);
 				if (s.now >= -EMPTY) break;
 				toBuy++;
 				s.now++;
 			}
-			if (s.now <= EMPTY) {
-				s.ends ??= a.day;
-				refill(s, a.day);
-			}
+			if (s.now <= EMPTY) refill(s, a.day);
 		}
 	const each = going.map((s) =>
 		expect(

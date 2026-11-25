@@ -82,6 +82,11 @@ export const fuelEvent = pgTable(
 		kind: text('kind', { enum: ['compra', 'ajuste', 'empezada', 'descartada'] }).notNull(),
 		day: date('day').notNull(),
 		quantity: integer('quantity').notNull().default(1),
+		/**
+		 * What all of it cost, in cents, as the family wrote it; null, what its expense says
+		 * (fuel-cost.ts), or not known.
+		 */
+		total: integer('total'),
 		expenseId: integer('expense_id').references(() => expense.id, { onDelete: 'set null' }),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
