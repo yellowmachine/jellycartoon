@@ -65,6 +65,16 @@ fichero vacío y se borra), para avisar de que bastan unas de solo lectura.
   bucket dice `application/octet-stream`). El audio va del bucket al navegador; la dirección de la
   cola no caduca. Las portadas, igual en `/api/music/own/covers/<id>` (o desde el almacenamiento si
   es la incrustada). `MusicTrack.cover` y `MusicTrack.home` dan su portada y su álbum al reproductor.
+- **En apps Subsonic** (#625): `/rest/<método>`, pública en `hooks.server.ts`, con el correo de la
+  cuenta y una contraseña solo para apps (Ajustes → Para mí → Música en apps), que se guarda sellada
+  entre los secretos de la persona (`user_secret`, `subsonic`): el protocolo manda
+  `md5(contraseña + sal)`, así que hay que poder leerla. Solo los mayores de la familia, y solo GET.
+  Los intentos fallidos se cuentan en memoria por dirección, y por dirección y cuenta
+  (`subsonic/attempts.ts`); nunca solo por cuenta, que dejaría sin música a su dueño. Los métodos de
+  mirar la biblioteca son los de la casa (`comun/server/subsonic/`). `stream`, `download` y la
+  portada contestan un 302 a una URL prefirmada, sin guardar (`no-store`): el audio no pasa por
+  Seilide. Los ids llevan `s-` delante, distintos de los de la casa, porque Tempus guarda sus
+  descargas por el id de la canción sin decir de qué servidor. Sin listas, favoritos ni cola todavía.
 - **Una fuente a la vez** (fase 3): Música enseña la casa o el bucket, no los dos, con las mismas
   tres pestañas (Álbumes, Listas, Carpetas). `music-source.ts` decide cuál (`current`): con las dos,
   lo que eligió la persona en Ajustes → Para mí (`family_member.music_source`, `casa` o `propia`;

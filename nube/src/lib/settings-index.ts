@@ -24,6 +24,8 @@ export interface SettingsShown {
 	spendLine?: boolean;
 	/** Música's source to choose (#534, phase 3): the family has both, the house and its bucket. */
 	twoMusicSources?: boolean;
+	/** Música en apps (#625): the family has a bucket with music, and this is not a child. */
+	musicApps?: boolean;
 	/** And Juegos' (#564): the house and the family's bucket. */
 	twoGameSources?: boolean;
 }
@@ -93,6 +95,13 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		title: 'Tu música, de dónde sale',
 		words: 'musica fuente casa almacenamiento s3 r2 bucket albumes canciones listas carpetas',
 		shown: (d) => Boolean(d.twoMusicSources)
+	},
+	{
+		id: 'musica-en-apps',
+		tab: 'mi',
+		title: 'Música en apps',
+		words: 'musica subsonic tempus app movil android auto coche contraseña bucket',
+		shown: (d) => Boolean(d.musicApps)
 	},
 	{
 		id: 'fuente-juegos',
