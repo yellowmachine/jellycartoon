@@ -14,7 +14,34 @@
 	const made = $derived((form as { appPassword?: string } | null)?.appPassword ?? null);
 	/** «Generar otra», asked before: the apps with the old one stop working. */
 	let again = $state(false);
+
+	/** What was last copied, and whether it could be: said on its button a while. */
+	let copied = $state<{ text: string; ok: boolean } | null>(null);
+	let timer: ReturnType<typeof setTimeout>;
+	async function copy(text: string) {
+		const ok = await navigator.clipboard.writeText(text).then(
+			() => true,
+			() => false
+		);
+		copied = { text, ok };
+		clearTimeout(timer);
+		timer = setTimeout(() => (copied = null), 2500);
+	}
+	$effect(() => () => clearTimeout(timer));
 </script>
+
+{#snippet copyButton(text: string, what: string)}
+	<button
+		type="button"
+		class="ml-2 inline-block min-h-9 px-2 font-sans text-sm text-amber-400 hover:underline"
+		title="Copiar {what}"
+		onclick={() => copy(text)}
+	>
+		<span role="status">
+			{copied?.text === text ? (copied.ok ? 'Copiado ✓' : 'No se pudo: cópialo a mano') : 'Copiar'}
+		</span>
+	</button>
+{/snippet}
 
 {#if data.musicSources.own && data.musicApps}
 	{@const apps = data.musicApps}
@@ -32,13 +59,20 @@
 		</p>
 		<dl class="mb-4 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
 			<dt class="text-zinc-400">Servidor</dt>
-			<dd class="font-mono break-all">{apps.server}</dd>
+			<dd class="font-mono break-all">
+				{apps.server}{@render copyButton(apps.server, 'el servidor')}
+			</dd>
 			<dt class="text-zinc-400">Usuario</dt>
-			<dd class="font-mono break-all">{apps.username}</dd>
+			<dd class="font-mono break-all">
+				{apps.username}{@render copyButton(apps.username, 'el usuario')}
+			</dd>
 			<dt class="text-zinc-400">Contraseña</dt>
 			<dd>
 				{#if made}
-					<span class="font-mono text-amber-300 select-all">{made}</span>
+					<span class="font-mono text-amber-300 select-all">{made}</span>{@render copyButton(
+						made,
+						'la contraseña'
+					)}
 					<span class="block text-xs text-zinc-400">
 						Cópiala ahora en la app: no se vuelve a enseñar.
 					</span>

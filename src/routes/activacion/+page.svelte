@@ -20,7 +20,8 @@
 		{ model: 'okapi', label: 'Okapi' },
 		{ model: 'ocarina', label: 'Ocarina' },
 		{ model: 'kusanagi', label: 'Kusanagi' },
-		{ model: 'makoto', label: 'Makoto' }
+		{ model: 'makoto', label: 'Makoto' },
+		{ model: 'oye_alizee', label: 'Oye, Alizée' }
 	];
 	/** After a detection, the same word is not counted again for this long. */
 	const QUIET_MS = 2000;

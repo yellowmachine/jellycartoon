@@ -10,6 +10,9 @@
  * comparison, to be tried with our voices and with the TV on.
  * «Makoto», ours too (2026-11-07, 100.000 examples), ma-KO-to, from Makoto Konno: below «Kusanagi»
  * in that comparison (73 % against 94 % without music), wanted by the user anyway, to be tried.
+ * «Oye, Alizée», ours too (2026-11-25, 100.000 examples), with «s», «c» or the French «z»: over
+ * «Kusanagi» with music in that comparison (83 % against 79 %), below without it (90 % against 94 %)
+ * and with voices it was not trained on (67 % against 98 %), to be tried with ours.
  */
 export const WAKE_WORDS = {
 	hola_casita: 'hola casita',
@@ -17,7 +20,8 @@ export const WAKE_WORDS = {
 	okapi: 'Okapi',
 	ocarina: 'Ocarina',
 	kusanagi: 'Kusanagi',
-	makoto: 'Makoto'
+	makoto: 'Makoto',
+	oye_alizee: 'Oye, Alizée'
 } as const;
 
 export type WakeWordModel = keyof typeof WAKE_WORDS;
