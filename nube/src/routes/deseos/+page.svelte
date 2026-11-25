@@ -13,7 +13,8 @@
 		MAX_WISH_NOTE,
 		MAX_WISH_TITLE,
 		priceChangeText,
-		priceText,
+		costText,
+		shippingField,
 		readPriceChange,
 		seenOn,
 		WISH_PRIORITIES,
@@ -177,7 +178,7 @@
 {#snippet cards(list: PageProps['data']['wishes'])}
 	<ul class="grid gap-4 sm:grid-cols-2">
 		{#each list as w (w.id)}
-			{@const price = priceText(w.priceCents, w.currency)}
+			{@const price = costText(w)}
 			{@const writes = data.people.some((p) => p.id === w.personId && p.writes)}
 			{@const forMe = data.people.some((p) => p.id === w.personId && p.me)}
 			<li
@@ -262,6 +263,14 @@
 								maxlength="20"
 								placeholder="Precio: 12,30"
 								aria-label="Precio{w.currency && w.currency !== 'EUR' ? ` (${w.currency})` : ''}"
+								class="{field} py-1 text-sm"
+							/>
+							<input
+								name="shipping"
+								value={shippingField(w.shippingCents)}
+								maxlength="20"
+								placeholder="Envío: 4,99 o gratis"
+								aria-label="Envío{w.currency && w.currency !== 'EUR' ? ` (${w.currency})` : ''}"
 								class="{field} py-1 text-sm"
 							/>
 							<div class="flex gap-2">
@@ -671,8 +680,8 @@
 		<h2 class="mb-1 font-semibold">En el ordenador</h2>
 		<p class="mb-3 text-sm text-zinc-400">
 			Arrastra este botón a la barra de marcadores. En la página de un producto de cualquier tienda,
-			púlsalo: tu navegador lee el nombre, la foto y el precio (también en Amazon) y te lo trae
-			aquí.
+			púlsalo: tu navegador lee el nombre, la foto, el precio (también en Amazon) y el envío, si la
+			tienda lo dice, y te lo trae aquí.
 		</p>
 		<!-- Its text is the bookmark's name: a bookmark of code has no icon of its own, so the emoji
 		is what tells it apart in the bar. -->
@@ -709,10 +718,10 @@
 					pidan en un mensaje o en una web.
 				</li>
 				<li>
-					Este lee el nombre, la foto, el precio y la dirección del producto y abre Seilide con
-					ellos. También recoge el texto visible del producto y las opciones elegidas (nunca lo que
-					escribes), que no salen de tu ordenador si no pulsas «Analizar con IA». Su código se puede
-					ver con el botón derecho sobre el marcador → Editar.
+					Este lee el nombre, la foto, el precio, el envío y la dirección del producto y abre
+					Seilide con ellos. También recoge el texto visible del producto y las opciones elegidas
+					(nunca lo que escribes), que no salen de tu ordenador si no pulsas «Analizar con IA». Su
+					código se puede ver con el botón derecho sobre el marcador → Editar.
 				</li>
 			</ul>
 		</div>

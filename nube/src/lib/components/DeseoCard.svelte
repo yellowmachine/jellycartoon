@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { refreshAll } from '$app/navigation';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
-	import { priceChangeText, priceText, type WishCard } from '#lib/wishes.ts';
+	import { costText, priceChangeText, type WishCard } from '#lib/wishes.ts';
 
 	/**
 	 * A wish proposed by the AI in Preguntar (#586): a pasted link, read, and «Añadir» into whose list,
@@ -22,7 +22,7 @@
 
 	let sending = $state(false);
 	let problem = $state<string | null>(null);
-	const price = $derived(priceText(card.priceCents, card.currency));
+	const price = $derived(costText(card));
 	const there = $derived(card.added ?? card.already);
 </script>
 

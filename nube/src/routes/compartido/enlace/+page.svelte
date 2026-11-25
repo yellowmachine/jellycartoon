@@ -44,6 +44,7 @@
 
 	let title = $state(untrack(() => data.read?.title ?? ''));
 	let price = $state(untrack(() => (data.read?.price && data.read.precio) || ''));
+	let shipping = $state(untrack(() => data.read?.envio ?? ''));
 	let note = $state(untrack(() => data.read?.nota ?? ''));
 	/** The page's text, after the #: here only, until «Analizar con IA» sends it. */
 	let pageText = $state<string | null>(null);
@@ -72,6 +73,7 @@
 			const a = result.data?.analysis as WishAnalysis;
 			if (a.title) title = a.title;
 			if (a.price) price = a.price;
+			if (a.shipping) shipping = a.shipping;
 			if (a.options) note = a.options;
 			analyzed = a.price
 				? 'Leído por la IA: compruébalo antes de guardar.'
@@ -181,13 +183,25 @@
 					aria-label="Nombre"
 					class="{field} py-1 text-sm"
 				/>
-				<input
-					bind:value={price}
-					maxlength="20"
-					placeholder="Precio: 12,30 €"
-					aria-label="Precio"
-					class="{field} max-w-40 py-1 text-sm"
-				/>
+				<div class="flex flex-wrap gap-2">
+					<input
+						bind:value={price}
+						maxlength="20"
+						placeholder="Precio: 12,30 €"
+						aria-label="Precio"
+						class="{field} max-w-36 py-1 text-sm"
+					/>
+					<!-- Beside the price it would look like another one: said. -->
+					<label class="flex items-center gap-2 text-sm text-zinc-400">
+						Envío
+						<input
+							bind:value={shipping}
+							maxlength="20"
+							placeholder="4,99 o gratis"
+							class="{field} max-w-32 py-1 text-sm"
+						/>
+					</label>
+				</div>
 				<input
 					bind:value={note}
 					maxlength={MAX_WISH_NOTE}
@@ -235,6 +249,7 @@
 			{#if data.read}
 				<input type="hidden" name="titulo" value={title} />
 				<input type="hidden" name="precio" value={price} />
+				<input type="hidden" name="envio" value={shipping} />
 				<input type="hidden" name="nota" value={note} />
 				<input type="hidden" name="foto" value={data.read.foto} />
 			{/if}

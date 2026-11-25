@@ -11,8 +11,10 @@ import {
 	MAX_WISH_NOTE,
 	MAX_WISH_TITLE,
 	MAX_WISH_URL,
-	priceText,
+	costText,
 	priceFromText,
+	sameCurrency,
+	shippingFromText,
 	seenOn,
 	shopOf,
 	WISH_PRIORITIES,
@@ -44,6 +46,8 @@ export interface Product {
 	imageUrl: string | null;
 	priceCents: number | null;
 	currency: string | null;
+	/** What sending it costs, in that currency: 0, free; not said, not known. */
+	shippingCents?: number | null;
 	/** Who read it; not said, the server. */
 	priceSource?: PriceSource;
 }
@@ -144,16 +148,70 @@ export function centsOf(value: unknown): number | null {
 	return cents > 0 && cents < 100_000_000 ? cents : null;
 }
 
-/** A Product's first price: in its offers (one, a list, an AggregateOffer), or their specification. */
+type Node = Record<string, unknown>;
+const nodes = (v: unknown) =>
+	[v].flat().filter((n): n is Node => Boolean(n) && typeof n === 'object');
+
+const SPAIN = ['es', 'esp', 'spain', 'españa'];
+
+/** 2, a shipping to all of Spain; 1, to nowhere said; 0, elsewhere, or only to a part of it. */
+function reach(details: Node) {
+	const destinations = nodes(details.shippingDestination);
+	if (!destinations.length) return 1;
+	return destinations.some(
+		(d) =>
+			!(d.addressRegion || d.postalCode || d.postalCodePrefix || d.postalCodeRange) &&
+			[d.addressCountry].flat().some((c) => {
+				const node = nodes(c)[0];
+				return SPAIN.includes(
+					String(node ? (node.name ?? node.identifier) : c)
+						.trim()
+						.toLowerCase()
+				);
+			})
+	)
+		? 2
+		: 0;
+}
+
+/**
+ * What its offer says sending it to Spain costs (schema.org `shippingDetails`), in cents: 0, free;
+ * null if it is not clear: several that differ, with conditions, or in another currency. The
+ * bookmark's is the same (lib/wishes.ts SHIPPING).
+ */
+export function shippingOf(offer: Node, product: Node, currency: string | null): number | null {
+	const own = nodes(offer.shippingDetails);
+	const all = (own.length ? own : nodes(product.shippingDetails))
+		.filter((d) => String(d.doesNotShip) !== 'true')
+		.map((details) => ({ details, to: reach(details) }));
+	const best = all.some((a) => a.to === 2) ? 2 : 1;
+	const costs = new Set<number | null>(
+		all
+			.filter((a) => a.to === best)
+			.map(({ details: d }) => {
+				const rates = nodes(d.shippingRate);
+				const rate = rates[0];
+				if (rates.length !== 1 || d.shippingConditions || d.orderValue || d.weight) return null;
+				if (typeof rate!.currency === 'string' && !sameCurrency(rate!.currency, currency))
+					return null;
+				const plain = String(rate!.value ?? '').trim();
+				if (!/^\d+([.,]\d{1,2})?$/.test(plain)) return null;
+				const cents = Math.round(Number(plain.replace(',', '.')) * 100);
+				return cents < 100_000_000 ? cents : null;
+			})
+	);
+	return costs.size === 1 ? [...costs][0]! : null;
+}
+
+/** A Product's first price: in its offers (one, a list, an AggregateOffer), or their specification; and its shipping. */
 function priceOf(product: Record<string, unknown>) {
-	const nodes = (v: unknown) =>
-		[v].flat().filter((n): n is Record<string, unknown> => Boolean(n) && typeof n === 'object');
 	for (const offer of nodes(product.offers))
 		for (const o of [offer, ...nodes(offer.priceSpecification)]) {
 			const cents = centsOf(o.price) ?? centsOf(o.lowPrice);
 			if (cents === null) continue;
-			const currency = o.priceCurrency ?? offer.priceCurrency;
-			return { cents, currency: typeof currency === 'string' ? currency : null };
+			const said = o.priceCurrency ?? offer.priceCurrency;
+			const currency = typeof said === 'string' ? said : null;
+			return { cents, currency, shipping: shippingOf(offer, product, currency) };
 		}
 	return null;
 }
@@ -222,7 +280,8 @@ export async function readProduct(address: string, shared: string | null): Promi
 				? (read?.meta['product:price:currency'] ?? read?.meta['og:price:currency'] ?? null)
 				: microCents !== null
 					? (read?.microdata.currency ?? priceFromText(said)?.currency ?? null)
-					: null)
+					: null),
+		shippingCents: offer?.shipping ?? null
 	};
 }
 
@@ -247,6 +306,8 @@ export interface WishView {
 	imageUrl: string | null;
 	priceCents: number | null;
 	currency: string | null;
+	/** In that currency: 0, free; null, not known. */
+	shippingCents: number | null;
 	/** When the price was seen. */
 	priceAt: Date | null;
 	note: string | null;
@@ -304,6 +365,7 @@ export async function listWishes(k: Kitchen, userId: string, kid: boolean) {
 			imageUrl: w.imageUrl,
 			priceCents: w.priceCents,
 			currency: w.currency,
+			shippingCents: w.shippingCents,
 			priceAt: w.priceAt,
 			note: w.note,
 			priority: w.priority,
@@ -396,7 +458,23 @@ export async function addWish(
 			// By hand, or by the bookmark: not replaced by what the page says to the server.
 			const source = product.priceSource ?? 'servidor';
 			const kept = there.priceCents !== null && rank(source) < rank(there.priceSource);
+			// Its shipping, in the currency its price ends in; one not read now, kept as it was, unless
+			// the price changes its currency.
+			const currency = now && !kept ? now.currency : there.currency;
+			const sameMoney = sameCurrency(there.currency, currency);
+			const wasSent = sameMoney ? there.shippingCents : null;
+			const sent =
+				product.shippingCents != null &&
+				(product.priceCents === null || sameCurrency(product.currency, currency))
+					? product.shippingCents
+					: null;
+			const keptSent = wasSent !== null && rank(source) < rank(there.shippingSource);
 			const set = {
+				...(sent !== null && !keptSent
+					? { shippingCents: sent, shippingSource: source }
+					: sameMoney
+						? {}
+						: { shippingCents: null, shippingSource: 'servidor' as const }),
 				...(now && !kept
 					? {
 							priceCents: now.cents,
@@ -417,7 +495,10 @@ export async function addWish(
 							? null
 							: { cents: there.priceCents, currency: there.currency },
 					now,
-					...(kept ? { kept } : {})
+					...(kept ? { kept } : {}),
+					...(sent !== null
+						? { shipping: { before: wasSent, now: sent, ...(keptSent ? { kept: true } : {}) } }
+						: {})
 				}
 			};
 		}
@@ -427,6 +508,7 @@ export async function addWish(
 				familyId: k.familyId,
 				personId,
 				...product,
+				shippingSource: product.priceSource ?? 'servidor',
 				title: product.title.slice(0, MAX_WISH_TITLE),
 				priceAt: product.priceCents !== null ? new Date() : null,
 				note: note?.trim().slice(0, MAX_WISH_NOTE) || null,
@@ -437,19 +519,25 @@ export async function addWish(
 	});
 }
 
-/** Its name, note and price (not said, as it was; null, none) corrected; false if it is not there or not theirs to write. */
+/** Its name, note, price and shipping (not said, as it was; null, none) corrected; false if it is not there or not theirs to write. */
 export async function updateWish(
 	k: Kitchen,
 	userId: string,
 	kid: boolean,
 	id: number,
-	change: { title: string; note: string | null; price?: Price | null }
+	change: {
+		title: string;
+		note: string | null;
+		price?: Price | null;
+		/** In its price's currency. */
+		shipping?: number | null;
+	}
 ) {
 	const personId = await wishPerson(k, id);
 	if (personId === null || !(await writesIn(k, userId, kid, personId))) return false;
 	const title = change.title.trim().slice(0, MAX_WISH_TITLE);
 	if (!title) return false;
-	const { price } = change;
+	const { price, shipping } = change;
 	await k.run(async (tx) => {
 		const [w] = await tx.select().from(wish).where(eq(wish.id, id));
 		// The same one sent back with the form: still said by who said it, then.
@@ -461,6 +549,12 @@ export async function updateWish(
 			.set({
 				title,
 				note: change.note?.trim().slice(0, MAX_WISH_NOTE) || null,
+				...(shipping === undefined || shipping === w?.shippingCents
+					? {}
+					: {
+							shippingCents: shipping,
+							shippingSource: shipping === null ? ('servidor' as const) : ('mano' as const)
+						}),
 				...(same
 					? {}
 					: {
@@ -619,7 +713,7 @@ export async function describeWishes(
 		.slice(0, SAID_WISHES)
 		.map((w) => {
 			const seen = seenOn(w.priceAt);
-			const price = priceText(w.priceCents, w.currency);
+			const price = costText(w);
 			const priced = price ? `, ${price}${seen ? ` visto ${seen}` : ''}` : ', sin precio';
 			const gift = w.gift
 				? w.gift.mine
@@ -684,7 +778,7 @@ export async function proposeWish(
 				: 'No tiene lista de deseos todavía.'
 		};
 	const product = await readProduct(link, null);
-	const price = priceText(product.priceCents, product.currency);
+	const price = costText(product);
 	return {
 		result: `Tarjeta enseñada: «${product.title}» (${product.shop}${price ? `, ${price}` : ', sin precio'}) para la lista de ${person.me ? 'quien pregunta' : person.name}. La persona la añade con un toque; no digas que está añadido.`,
 		card: {
@@ -721,7 +815,8 @@ export async function addWishFromCard(
 			title: card.title,
 			imageUrl: card.imageUrl,
 			priceCents: card.priceCents,
-			currency: card.currency
+			currency: card.currency,
+			shippingCents: card.shippingCents ?? null
 		},
 		null
 	);
@@ -738,7 +833,7 @@ export async function addWishFromCard(
 
 /**
  * What the computer's bookmark read in the person's own browser (lib/wishes.ts bookmarklet):
- * `url`, `titulo`, `precio` and `foto`, checked. Null without a link and a name: then the page is
+ * `url`, `titulo`, `precio`, `envio` and `foto`, checked. Null without a link and a name: then the page is
  * read here, as for a link shared from a phone.
  */
 export function productFromBrowser(get: (name: string) => string | null): Product | null {
@@ -747,6 +842,7 @@ export function productFromBrowser(get: (name: string) => string | null): Produc
 	if (!link || !title || onlySiteName(title, link)) return null;
 	const kept = cleanLink(link);
 	const price = priceFromText(get('precio'));
+	const shipping = shippingFromText(get('envio'));
 	return {
 		url: kept.url,
 		productKey: kept.key,
@@ -755,6 +851,11 @@ export function productFromBrowser(get: (name: string) => string | null): Produc
 		imageUrl: imageOf(get('foto'), link),
 		priceCents: price?.cents ?? null,
 		currency: price?.currency ?? null,
+		// Of another currency than its price's: not added to it.
+		shippingCents:
+			shipping && (!shipping.currency || sameCurrency(shipping.currency, price?.currency ?? null))
+				? shipping.cents
+				: null,
 		priceSource: 'marcador'
 	};
 }

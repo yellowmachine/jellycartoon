@@ -8,6 +8,7 @@ marked, when the receipt or the bank will bring the expense.
 	import { monthOf } from 'comun/expenses.ts';
 	import { sameText, type LooksSame } from 'comun/page-notices.ts';
 	import ExpenseFields from '#lib/components/ExpenseFields.svelte';
+	import { priceText } from '#lib/wishes.ts';
 	import { primary, secondary } from '#lib/styles.ts';
 
 	interface Props {
@@ -17,6 +18,7 @@ marked, when the receipt or the bank will bring the expense.
 			shop: string;
 			priceCents: number | null;
 			currency: string | null;
+			shippingCents: number | null;
 		};
 		today: string;
 		/** Another adult's gift: they see Dinero too. */
@@ -41,7 +43,7 @@ marked, when the receipt or the bank will bring the expense.
 		date = today;
 		price =
 			wish.priceCents !== null && !otherCurrency
-				? (wish.priceCents / 100).toFixed(2).replace('.', ',')
+				? ((wish.priceCents + (wish.shippingCents ?? 0)) / 100).toFixed(2).replace('.', ',')
 				: '';
 		store = wish.shop;
 		category = 'Otros';
@@ -94,6 +96,11 @@ marked, when the receipt or the bank will bring the expense.
 		<input type="hidden" name="id" value={wish.id} />
 		{#if repeated}<input type="hidden" name="igual" value="1" />{/if}
 		<ExpenseFields bind:date bind:price bind:store bind:category onchanged={changed} />
+		{#if wish.shippingCents && wish.priceCents !== null && !otherCurrency}
+			<p class="text-xs text-zinc-400">
+				Con su envío, {priceText(wish.shippingCents, wish.currency)}: corrígelo si has pagado otro.
+			</p>
+		{/if}
 		{#if otherCurrency}
 			<p class="text-xs text-zinc-400">
 				Su precio está en {otherCurrency}: escribe lo que has pagado en euros.
