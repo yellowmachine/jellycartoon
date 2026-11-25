@@ -1,0 +1,1 @@
+ALTER TABLE "family_member" ADD COLUMN "summary" jsonb DEFAULT '{}'::jsonb NOT NULL;

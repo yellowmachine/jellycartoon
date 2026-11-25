@@ -2,7 +2,7 @@ import { isDay } from 'comun/agenda.ts';
 import type { PageServerLoad } from './$types';
 import { addDueRecurring } from '#lib/server/expenses/expenses.ts';
 import { kitchenOf, today } from '#lib/server/fridge.ts';
-import { summaryOf } from '#lib/server/summary.ts';
+import { summaryChoice, summaryOf } from '#lib/server/summary.ts';
 import { isSummaryView } from '#lib/summary.ts';
 
 /**
@@ -20,6 +20,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		locals.user!.id,
 		isSummaryView(ver) ? ver : 'dias',
 		isDay(de) ? de : null,
-		today()
+		today(),
+		(await summaryChoice(k, locals.user!.id)).off
 	);
 };

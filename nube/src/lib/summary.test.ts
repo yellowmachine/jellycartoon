@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { Expense, ExpenseCategory } from 'comun/expenses.ts';
-import { changeText, moneyOf, summaryPeriod } from './summary.ts';
+import { cardLines, changeText, moneyOf, summaryPeriod } from './summary.ts';
 
 // A Wednesday.
 const TODAY = '2026-11-25';
@@ -79,4 +79,17 @@ test('a percentage only when it says something', () => {
 	expect(changeText(10000, 10001, 2000)).toBe('igual');
 	expect(changeText(1000, 200, 2000)).toBeNull();
 	expect(changeText(1000, null, 2000)).toBeNull();
+});
+
+test('the card: only what there is', () => {
+	const as = { euros: (c: number) => `${c / 100} €`, distance: (m: number) => `${m / 1000} km` };
+	expect(
+		cardLines({
+			money: { total: 14200, before: 17300 },
+			walks: { metres: 12400, before: { metres: 1000 } },
+			next: { count: 4 },
+			...as
+		}).map((l) => l.text)
+	).toEqual(['142 € (−18 %)', '12.4 km', '4 citas por venir']);
+	expect(cardLines({ money: null, walks: null, next: { count: 0 }, ...as })).toEqual([]);
 });

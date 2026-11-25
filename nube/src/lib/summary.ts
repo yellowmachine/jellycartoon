@@ -21,6 +21,24 @@ export type SummaryView = keyof typeof SUMMARY_VIEWS;
 export const isSummaryView = (v: unknown): v is SummaryView =>
 	typeof v === 'string' && Object.hasOwn(SUMMARY_VIEWS, v);
 
+/** What it may tell, and the section each comes from (nav.ts). */
+export const SUMMARY_BLOCKS = {
+	dinero: { label: 'Dinero', section: '/gastos' },
+	fijos: { label: 'Fijos que vienen', section: '/gastos' },
+	paseos: { label: 'Tus paseos', section: '/paseos' },
+	agenda: { label: 'Agenda', section: '/agenda' }
+} as const;
+export type SummaryBlock = keyof typeof SUMMARY_BLOCKS;
+export const isSummaryBlock = (v: unknown): v is SummaryBlock =>
+	typeof v === 'string' && Object.hasOwn(SUMMARY_BLOCKS, v);
+
+/** A person's (Ajustes → Para mí): the card on the home page, and the blocks they took out. */
+export interface SummaryChoice {
+	card: boolean;
+	off: SummaryBlock[];
+}
+export const noSummaryChoice = (): SummaryChoice => ({ card: true, off: [] });
+
 export interface SummaryPeriod {
 	view: SummaryView;
 	/** Its days, both included, and those of the one it is compared with. */
@@ -99,6 +117,9 @@ export interface Money {
 /** Cents: less, it is not told as a change. */
 const CHANGED = 1000;
 const LARGEST = 3;
+/** With less before, no percentage: 20 €, 2 km. */
+export const LEAST_MONEY = 2000;
+export const LEAST_METRES = 2000;
 const MOST_CHANGES = 2;
 
 export function moneyOf(now: Expense[], before: Expense[]): Money | null {
@@ -144,4 +165,40 @@ export function changeText(now: number, before: number | null, least: number) {
 	const by = Math.round(((now - before) / before) * 100);
 	if (by === 0) return 'igual';
 	return `${by > 0 ? '+' : '−'}${Math.abs(by)} %`;
+}
+
+/** The home page's card: each thing in a few words. */
+export function cardLines(s: {
+	money: Pick<Money, 'total' | 'before'> | null;
+	walks: { metres: number; before: { metres: number } } | null;
+	next: { count: number } | null;
+	/** How they are written here. */
+	euros: (cents: number) => string;
+	distance: (metres: number) => string;
+}): { block: SummaryBlock; text: string }[] {
+	const lines: { block: SummaryBlock; text: string }[] = [];
+	const withChange = (text: string, change: string | null) =>
+		change ? `${text} (${change})` : text;
+	if (s.money)
+		lines.push({
+			block: 'dinero',
+			text: withChange(
+				s.euros(s.money.total),
+				changeText(s.money.total, s.money.before, LEAST_MONEY)
+			)
+		});
+	if (s.walks)
+		lines.push({
+			block: 'paseos',
+			text: withChange(
+				s.distance(s.walks.metres),
+				changeText(s.walks.metres, s.walks.before.metres, LEAST_METRES)
+			)
+		});
+	if (s.next?.count)
+		lines.push({
+			block: 'agenda',
+			text: s.next.count === 1 ? '1 cita por venir' : `${s.next.count} citas por venir`
+		});
+	return lines;
 }

@@ -1,9 +1,18 @@
 <script lang="ts">
 	import { euros, monthName, monthOf } from 'comun/expenses.ts';
+	import { sectionOn } from '#lib/nav.ts';
 	import PreguntarTabs from '#lib/components/PreguntarTabs.svelte';
 	import { chargesSummary, chargeText, inDays } from '#lib/charges.ts';
 	import { daysText } from '#lib/report-days.ts';
-	import { changeText, SUMMARY_VIEWS, type SummaryView } from '#lib/summary.ts';
+	import {
+		changeText,
+		LEAST_METRES,
+		LEAST_MONEY,
+		SUMMARY_BLOCKS,
+		SUMMARY_VIEWS,
+		type SummaryBlock,
+		type SummaryView
+	} from '#lib/summary.ts';
 	import { durationText } from '#lib/trips.ts';
 	import { kcalText } from '#lib/walk-kcal.ts';
 	import { walkDistanceText } from '#lib/walks.ts';
@@ -12,6 +21,14 @@
 	/** Preguntar → Resumen: figures, beside the period before; only what has something to say. */
 	let { data }: PageProps = $props();
 
+	/** Of a section the family, or they, took out: nor here. */
+	const shows = (b: SummaryBlock) =>
+		sectionOn(SUMMARY_BLOCKS[b].section, data.family?.sections, data.family?.mine);
+	const money = $derived(shows('dinero') ? data.money : null);
+	const walks = $derived(shows('paseos') ? data.walks : null);
+	const charges = $derived(shows('fijos') ? data.charges : []);
+	const past = $derived(shows('agenda') ? data.past : null);
+	const next = $derived(shows('agenda') ? data.next : null);
 	const p = $derived(data.period);
 	const views = Object.entries(SUMMARY_VIEWS) as [SummaryView, string][];
 	const name = $derived(
@@ -46,10 +63,8 @@
 			month: p.view === 'mes' ? undefined : 'short',
 			timeZone: 'UTC'
 		});
-	const largest = $derived(Math.max(1, ...(data.money?.categories ?? []).map((c) => c.total)));
-	const empty = $derived(
-		!data.money && !data.walks && !data.past.count && !data.next?.count && !data.charges.length
-	);
+	const largest = $derived(Math.max(1, ...(money?.categories ?? []).map((c) => c.total)));
+	const empty = $derived(!money && !walks && !past?.count && !next?.count && !charges.length);
 	const card = 'mb-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4';
 	const arrow = 'rounded-md border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-900';
 </script>
@@ -113,14 +128,19 @@
 		<p class="text-zinc-400">No hay nada apuntado en esos días.</p>
 	{/if}
 
-	{#if data.money}
-		{@const m = data.money}
+	{#if money}
+		{@const m = money}
 		<section class={card}>
 			<h3 class="mb-1 text-sm text-zinc-400">Dinero, de toda la familia</h3>
 			<p class="text-2xl font-semibold tabular-nums">{euros(m.total)}</p>
 			<p class="mb-3 text-sm text-zinc-400">
-				{m.count === 1 ? '1 gasto' : `${m.count} gastos`}{against(m.total, m.before, 2000, euros)
-					? ` · ${against(m.total, m.before, 2000, euros)}`
+				{m.count === 1 ? '1 gasto' : `${m.count} gastos`}{against(
+					m.total,
+					m.before,
+					LEAST_MONEY,
+					euros
+				)
+					? ` · ${against(m.total, m.before, LEAST_MONEY, euros)}`
 					: ''}{m.fixed ? ` · y ${euros(m.fixed)} de fijos, aparte` : ''}
 			</p>
 			{#if m.categories.length}
@@ -166,7 +186,7 @@
 		</section>
 	{/if}
 
-	{#if data.charges.length}
+	{#if charges.length}
 		<section class={card}>
 			<h3 class="mb-1 text-sm text-zinc-400">
 				{p.view === 'dias'
@@ -176,11 +196,11 @@
 						: 'Fijos que quedan este mes'}
 			</h3>
 			<p>
-				{data.charges.length === 1 ? chargeText(data.charges[0]!) : chargesSummary(data.charges)}
+				{charges.length === 1 ? chargeText(charges[0]!) : chargesSummary(charges)}
 			</p>
-			{#if data.charges.length > 1}
+			{#if charges.length > 1}
 				<ul class="mt-2 divide-y divide-zinc-800 text-sm">
-					{#each data.charges as c (c.id)}
+					{#each charges as c (c.id)}
 						<li class="flex gap-3 py-1">
 							<span class="min-w-0 flex-1">{inDays(c.left)}, {c.name}</span>
 							<span class="tabular-nums">{euros(c.amount)}</span>
@@ -191,8 +211,8 @@
 		</section>
 	{/if}
 
-	{#if data.walks}
-		{@const w = data.walks}
+	{#if walks}
+		{@const w = walks}
 		<section class={card}>
 			<h3 class="mb-1 text-sm text-zinc-400">Tus paseos</h3>
 			<p class="text-2xl font-semibold">{walkDistanceText(w.metres)}</p>
@@ -200,7 +220,7 @@
 				{w.outings === 1 ? '1 salida' : `${w.outings} salidas`} · {durationText(
 					w.seconds
 				)}{w.kcal !== null ? ` · ${kcalText(w.kcal)}` : ''}{w.before.outings
-					? ` · ${against(w.metres, w.before.metres, 2000, walkDistanceText)}`
+					? ` · ${against(w.metres, w.before.metres, LEAST_METRES, walkDistanceText)}`
 					: ''}
 			</p>
 			<a href="/paseos" class="mt-2 inline-block text-sm text-amber-400 hover:underline"
@@ -209,16 +229,20 @@
 		</section>
 	{/if}
 
-	{#if data.next?.count}
+	{#if next?.count}
 		<section class={card}>
 			<h3 class="mb-2 text-sm text-zinc-400">Agenda, los próximos 7 días</h3>
-			{@render events(data.next.days, data.next.more)}
+			{@render events(next.days, next.more)}
 		</section>
 	{/if}
-	{#if data.past.count}
+	{#if past?.count}
 		<section class={card}>
 			<h3 class="mb-2 text-sm text-zinc-400">Agenda, lo que hubo</h3>
-			{@render events(data.past.days, data.past.more)}
+			{@render events(past.days, past.more)}
 		</section>
 	{/if}
+	<p class="text-sm text-zinc-500">
+		Qué sale aquí, y la tarjeta de la portada, en
+		<a href="/ajustes?seccion=mi#resumen" class="text-amber-400 hover:underline">Ajustes</a>.
+	</p>
 </div>

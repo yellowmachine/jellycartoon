@@ -135,6 +135,8 @@ import { callButtons } from '#lib/server/call-buttons.ts';
 import { familyLinks } from '#lib/server/family-links.ts';
 import { deleteCar, listCars, myCarId, saveCar, setMyCar } from '#lib/server/trips/cars.ts';
 import { MAX_CAR_NAME } from '#lib/cars.ts';
+import { setSummaryChoice, summaryChoice } from '#lib/server/summary.ts';
+import { SUMMARY_BLOCKS, type SummaryBlock } from '#lib/summary.ts';
 import { chargeNotices, setChargeNotices } from '#lib/server/expenses/charges.ts';
 import { isNoticeDays } from '#lib/charges.ts';
 import { weight } from '#lib/server/walks/weight.ts';
@@ -312,6 +314,8 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 				homeInexact
 			})))
 		},
+		/** Preguntar → Resumen: its card, and what it tells them. */
+		summaryChoice: await summaryChoice(k, locals.user!.id),
 		/** «Cargos que vienen»: their usual. */
 		chargeNotices: await chargeNotices(k, locals.user!.id),
 		/** What they weigh, by day, the last first: for the kcal of their walks. */
@@ -433,6 +437,15 @@ export const actions: Actions = {
 	},
 	owntracksForget: async ({ locals }) => {
 		await owntracks.forget(locals.user!.id);
+	},
+	/** Resumen, theirs: its card, and the blocks ticked. */
+	saveSummary: async ({ request, locals }) => {
+		const form = await request.formData();
+		const on = form.getAll('block');
+		await setSummaryChoice(await kitchenOf(locals.user!.id), locals.user!.id, {
+			card: form.get('card') === 'on',
+			off: (Object.keys(SUMMARY_BLOCKS) as SummaryBlock[]).filter((b) => !on.includes(b))
+		});
 	},
 	/** «Cargos que vienen», theirs: off, the days stay as they were. */
 	saveChargeNotices: async ({ request, locals }) => {

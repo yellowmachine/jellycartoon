@@ -1,12 +1,38 @@
 import { addDays, dayEvents, daysBetween, timeOn } from 'comun/agenda.ts';
 import { nextDue } from 'comun/expenses.ts';
-import { recurringExpense } from '#lib/server/db/schema.ts';
+import { eq } from 'drizzle-orm';
+import { familyMember, recurringExpense } from '#lib/server/db/schema.ts';
 import { agendaBetween } from '#lib/server/agenda/agenda.ts';
 import { searchExpenses } from '#lib/server/expenses/expenses.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { onFootBetween } from '#lib/server/walks/on-foot.ts';
 import { addKcal } from '#lib/walk-kcal.ts';
-import { moneyOf, summaryPeriod, type SummaryView } from '#lib/summary.ts';
+import {
+	isSummaryBlock,
+	moneyOf,
+	noSummaryChoice,
+	summaryPeriod,
+	type SummaryBlock,
+	type SummaryChoice,
+	type SummaryView
+} from '#lib/summary.ts';
+
+export async function summaryChoice(k: Kitchen, userId: string): Promise<SummaryChoice> {
+	const [row] = await k.run((tx) =>
+		tx
+			.select({ choice: familyMember.summary })
+			.from(familyMember)
+			.where(eq(familyMember.userId, userId))
+	);
+	const choice = { ...noSummaryChoice(), ...row?.choice };
+	return { ...choice, off: choice.off.filter(isSummaryBlock) };
+}
+
+export async function setSummaryChoice(k: Kitchen, userId: string, summary: SummaryChoice) {
+	await k.run((tx) =>
+		tx.update(familyMember).set({ summary }).where(eq(familyMember.userId, userId))
+	);
+}
 
 /** Events told one by one; the rest, counted. */
 const EVENTS_TOLD = 20;
@@ -63,16 +89,22 @@ export async function summaryOf(
 	userId: string,
 	view: SummaryView,
 	de: string | null,
-	today: string
+	today: string,
+	off: SummaryBlock[] = []
 ) {
+	const has = (b: SummaryBlock) => !off.includes(b);
 	const p = summaryPeriod(view, de, today);
 	const [expenses, foot, past, next, charges] = await Promise.all([
-		searchExpenses(k, { text: '', from: p.prevFrom, to: p.to }, { limit: null }),
-		onFootBetween(k, userId, p.prevFrom, p.to),
+		has('dinero')
+			? searchExpenses(k, { text: '', from: p.prevFrom, to: p.to }, { limit: null })
+			: [],
+		has('paseos') ? onFootBetween(k, userId, p.prevFrom, p.to) : [],
 		// Today's, with what is to come.
-		agendaOf(k, p.from, p.view === 'dias' ? addDays(today, -1) : p.to),
-		p.view === 'dias' ? agendaOf(k, today, p.until!) : null,
-		p.until ? chargesUntil(k, today, p.until) : []
+		has('agenda')
+			? agendaOf(k, p.from, p.view === 'dias' ? addDays(today, -1) : p.to)
+			: { days: [], more: 0, count: 0 },
+		has('agenda') && p.view === 'dias' ? agendaOf(k, today, p.until!) : null,
+		has('fijos') && p.until ? chargesUntil(k, today, p.until) : []
 	]);
 	const walked = (from: string, to: string) => {
 		const those = foot.filter((o) => o.day >= from && o.day <= to);
@@ -96,4 +128,10 @@ export async function summaryOf(
 		next,
 		charges
 	};
+}
+
+/** The home page's card; null, they took it out. */
+export async function homeSummary(k: Kitchen, userId: string, today: string) {
+	const { card, off } = await summaryChoice(k, userId);
+	return card ? summaryOf(k, userId, 'dias', null, today, off) : null;
 }
