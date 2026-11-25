@@ -137,7 +137,8 @@ const {
 	tidyTitle,
 	setWishPriority,
 	shippingOf,
-	updateWish
+	updateWish,
+	watchWishes
 } = await import('./wishes.ts');
 const kitchen = (userId: string, familyId = 'A'): Kitchen => ({
 	familyId,
@@ -1041,5 +1042,33 @@ describe('the computer’s bookmark', () => {
 			foto: 'https://ikea.example/billy.jpg'
 		});
 		expect(priceFromText(read.precio)).toEqual({ cents: 5999, currency: 'EUR' });
+	});
+});
+
+describe('told to the open pages', () => {
+	test('each change, to that family only; nothing for what is refused', async () => {
+		let told = 0;
+		let others = 0;
+		const stop = [watchWishes('A', () => told++), watchWishes('B', () => others++)];
+		const steps = async (n: number, what: Promise<unknown>) => {
+			told = 0;
+			await what;
+			expect(told).toBe(n);
+		};
+		await steps(1, addWish(ana, 'ana', false, people.Ana!, product('Libro'), null));
+		const id = (await listWishes(ana, 'ana', false)).wishes[0]!.id;
+		await steps(0, addWish(ana, 'ana', false, people.Pepe!, product('Colado'), null));
+		await steps(1, updateWish(ana, 'ana', false, id, { title: 'Otro', note: null }));
+		await steps(1, setWishPriority(ana, 'ana', false, id, 'primero'));
+		await steps(0, giveWish(ana, 'ana', false, id, true));
+		await steps(1, giveWish(pepe, 'pepe', false, id, true));
+		await steps(1, buyWish(pepe, 'pepe', false, id, '2026-11-25'));
+		await steps(0, unbuyWish(ana, 'ana', id));
+		await steps(1, unbuyWish(pepe, 'pepe', id));
+		await steps(0, deleteWish(pepe, 'pepe', false, id));
+		await steps(1, deleteWish(ana, 'ana', false, id));
+		expect(others).toBe(0);
+		stop.forEach((s) => s());
+		await steps(0, addWish(ana, 'ana', false, people.Ana!, product('Libro'), null));
 	});
 });
