@@ -638,10 +638,10 @@ describe('the computer’s bookmark', () => {
 		const source = await Bun.file(`${import.meta.dir}/../wishes.ts`).text();
 		const code = source
 			.split('\n')
-			.filter((l) => /^(const PAGE_TEXT = |\tconst code = )/.test(l))
+			.filter((l) => /^(const (PAGE_TEXT|NEAR_PRICE) = |\tconst code = )/.test(l))
 			.join('\n');
 		const hash = new Bun.CryptoHasher('sha256').update(code).digest('hex').slice(0, 12);
-		expect({ version: BOOKMARK_VERSION, hash }).toEqual({ version: 2, hash: '7e8ea7fa89b3' });
+		expect({ version: BOOKMARK_VERSION, hash }).toEqual({ version: 3, hash: 'ae0fb571ac9c' });
 	});
 
 	test('run on an Amazon page, it opens Seilide with its name, price and picture', () => {
