@@ -3,6 +3,7 @@ import { fuelStates } from './fuel.ts';
 import { solarState } from './solar.ts';
 import type { Kitchen } from '../fridge.ts';
 import { FUEL_KINDS } from '#lib/fuel.ts';
+import { euros } from 'comun/expenses.ts';
 import { euroText } from '#lib/plugs.ts';
 import type { SolarDay } from '#lib/solar.ts';
 
@@ -78,6 +79,22 @@ export async function describeEnergyForecast(k: Kitchen) {
 			(s) =>
 				`${many ? `en ${s.name}, ` : 'la de ahora, '}empezada el ${s.unit!.startedOn}${s.left !== null ? `, le queda un ${n0(s.left * 100)} %` : ''}${many && s.ends ? `, hasta el ${s.ends}` : ''}`
 		);
+		const cost = [
+			...f.spots.flatMap((s) =>
+				s.sums
+					? [
+							`${many ? `${s.name}: e` : 'E'}n el último año, ${s.sums.units} ${s.sums.units === 1 ? meta.unit : meta.units}, ${n0(s.sums.days)} días de media${s.sums.perDay !== null ? `, ${euros(s.sums.perDay)} al día` : ''}.`
+						]
+					: []
+			),
+			...(f.unitCost !== null ? [`La última costó ${euros(f.unitCost)} (cada ${meta.unit}).`] : []),
+			...(f.spent
+				? [
+						`Comprado en el último año: ${euros(f.spent.total)}${f.spent.unpriced ? `, sin contar ${f.spent.unpriced} compras sin precio` : ''}.`
+					]
+				: [])
+		].join(' ');
+		if (cost) lines.push(`${meta.name}, lo que dura y cuesta. ${cost}`);
 		if (!o) {
 			lines.push(
 				`${meta.name}: ${home}${each.length ? `; ${each.join('; ')}` : ''}. Aún no se puede calcular cuánto llega (falta cuándo se empezó la de ahora o cuánto dura).`

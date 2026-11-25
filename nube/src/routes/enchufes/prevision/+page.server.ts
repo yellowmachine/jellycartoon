@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { localDay } from 'comun/agenda.ts';
+import { MAX_CENTS, parseEuros } from 'comun/expenses.ts';
 import { kitchenOf, type Kitchen } from '#lib/server/fridge.ts';
 import { energyForecast } from '#lib/server/energy/forecast.ts';
 import {
@@ -60,6 +61,16 @@ const positive = (v: FormDataEntryValue | null) => {
 	const n = Number(v);
 	return Number.isFinite(n) && n > 0 ? n : null;
 };
+
+/** A price as it is written; nothing written, null. */
+function priceOf(form: FormData) {
+	const text = String(form.get('price') ?? '').trim();
+	if (!text) return null;
+	const cents = parseEuros(text);
+	if (cents === null || cents < 0 || cents > MAX_CENTS)
+		throw new FuelProblem('El precio no se entiende');
+	return cents;
+}
 
 /** Said on the card of that fuel (`fuel`): what was done and how to undo it, or why it could not be. */
 async function onFuel(
@@ -180,7 +191,8 @@ export const actions: Actions = {
 				throw new FuelProblem('¿Cuántas?');
 			const done = await boughtFuel(k, idOf(form), dayOf(form), quantity, {
 				expenseId,
-				use: quantity ? useOf(form.get('use')) : null
+				use: quantity ? useOf(form.get('use')) : null,
+				total: priceOf(form)
 			});
 			return done ?? 'Ese gasto ya estaba apuntado.';
 		}),
@@ -207,7 +219,8 @@ export const actions: Actions = {
 		onFuel(locals, request, async (k, form) => {
 			await editPurchase(k, idOf(form), {
 				day: dayOf(form),
-				quantity: Number(form.get('quantity')) || 0
+				quantity: Number(form.get('quantity')) || 0,
+				total: priceOf(form)
 			});
 			return 'Guardado.';
 		}),

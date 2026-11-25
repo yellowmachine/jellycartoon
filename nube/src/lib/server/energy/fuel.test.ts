@@ -181,6 +181,21 @@ test('taken and put on: how long one lasts, learned; when it ends', async () => 
 	expect(now.outlook!.allEnds).toBe(TODAY);
 });
 
+test('what each cost, from its expense; a day of it, and the last price', async () => {
+	const f = await state('A', 'butano');
+	expect(f.spots[0]!.sums).toMatchObject({ units: 2, days: 12, priced: 2 });
+	expect(f.spots[0]!.sums!.perDay).toBeCloseTo(1850 / 12, 6);
+	expect(f.unitCost).toBe(1850);
+	expect(f.spent).toEqual({ total: 5550, unpriced: 0 });
+	expect(f.history.units.map((u) => u.perDay !== null)).toEqual([false, true, true]);
+	// Written by hand, in place of its expense's; taken away, its expense's again.
+	const p = f.history.purchases[0]!;
+	await fuels.editPurchase(kitchen('A'), p.id, { day: p.day, quantity: 1, total: 2000 });
+	expect(await state('A', 'butano')).toMatchObject({ unitCost: 2000, spent: { total: 5700 } });
+	await fuels.editPurchase(kitchen('A'), p.id, { day: p.day, quantity: 1, total: null });
+	expect((await state('A', 'butano')).unitCost).toBe(1850);
+});
+
 test('told once before it runs out; a new bottle starts over', async () => {
 	await fuels.fuelAlerts('A');
 	await fuels.fuelAlerts('A');
@@ -215,7 +230,7 @@ test('pellet bought kept full; pressed twice, one; the full ones put right', asy
 	let p = await state('A', 'pellet');
 	expect(p.startsOnBuy).toBe(false);
 	const spotId = p.spots[0]!.id;
-	await fuels.boughtFuel(k, p.id, TODAY, 6);
+	await fuels.boughtFuel(k, p.id, TODAY, 6, { total: 2700 });
 	const [first, second] = await Promise.all([
 		problem(fuels.startedFuel(k, p.id, spotId, TODAY)),
 		problem(fuels.startedFuel(k, p.id, spotId, TODAY))
@@ -224,7 +239,8 @@ test('pellet bought kept full; pressed twice, one; the full ones put right', asy
 	expect([first, second].find((x) => x !== null)).toContain('Ya estaba apuntada');
 	await fuels.saveSpot(k, spotId, { name: '', heats: true, guessDays: 2 });
 	p = await state('A', 'pellet');
-	expect(p).toMatchObject({ full: 5, fresh: false });
+	expect(p).toMatchObject({ full: 5, fresh: false, unitCost: 450 });
+	expect(p.history.units[0]!.cost).toBe(450);
 	expect(p.spots[0]).toMatchObject({ by: 'dicho', guessDays: 2 });
 	// 2 days a sack in winter: today's and 5 more last 12 days.
 	expect(p.outlook!.allEnds).toBe(addDays(TODAY, 11));
@@ -257,10 +273,12 @@ test('never before its purchase, nor ahead; with none noted, any day', async () 
 	// Nor its purchase after it, nor fewer than were put on.
 	const bought = now.history.purchases[0]!;
 	expect(
-		await problem(fuels.editPurchase(k, bought.id, { day: addDays(TODAY, -4), quantity: 1 }))
+		await problem(
+			fuels.editPurchase(k, bought.id, { day: addDays(TODAY, -4), quantity: 1, total: null })
+		)
 	).toContain('no pudo comprarse después');
 	expect(
-		await problem(fuels.editPurchase(k, bought.id, { day: bought.day, quantity: 0 }))
+		await problem(fuels.editPurchase(k, bought.id, { day: bought.day, quantity: 0, total: null }))
 	).toContain('se han empezado 1');
 	// None left, none noted: put on, with no limit, and it takes nothing from those bought later.
 	await fuels.startedFuel(k, p.id, spotId, TODAY);

@@ -1,7 +1,7 @@
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull } from 'drizzle-orm';
 import { addDays, localDay } from 'comun/agenda.ts';
 import { euros } from 'comun/expenses.ts';
-import { fuel, fuelEvent, fuelSpot, fuelUnit } from '../db/schema.ts';
+import { expense, expenseLine, fuel, fuelEvent, fuelSpot, fuelUnit } from '../db/schema.ts';
 import { searchExpenses } from '../expenses/expenses.ts';
 import { familyPlace } from '../family-settings.ts';
 import type { AnyDb } from '../family-scope.ts';
@@ -19,6 +19,7 @@ import {
 	wholeUnits,
 	type FuelKind
 } from '#lib/fuel.ts';
+import { costIn, fuelSums, perDay, type FuelSums, type PaidExpense } from '#lib/fuel-cost.ts';
 import { FORECAST_AHEAD, type Expected, type Fit } from '#lib/energy-forecast.ts';
 
 /**
@@ -52,6 +53,8 @@ export interface SpotState {
 	/** Of the one going, what is left (0 to 1), and the day it runs out, if within the days. */
 	left: number | null;
 	ends: string | null;
+	/** What those of the last year lasted and cost; null, none ended yet. */
+	sums: FuelSums | null;
 }
 
 export interface FuelState {
@@ -66,6 +69,10 @@ export interface FuelState {
 	spots: SpotState[];
 	/** Of the spots with one going and something to reckon with; null, none such. */
 	outlook: { allEnds: string | null; needed: Expected; toBuy: number } | null;
+	/** Cents one cost, of the last purchase whose price is known. */
+	unitCost: number | null;
+	/** Cents of the purchases of the last year whose price is known, and how many are not. */
+	spent: { total: number; unpriced: number } | null;
 	/** Names of those going that cannot be reckoned yet. */
 	uncounted: string[];
 	/** Expenses in Dinero that look like it, not yet taken nor left out. */
@@ -86,8 +93,20 @@ export interface FuelState {
 			whole: boolean;
 			/** The day it was bought, if known: it cannot be put on before. */
 			boughtOn: string | null;
+			/** Cents it cost, and a day of it; null, not known. */
+			cost: number | null;
+			perDay: number | null;
 		}[];
-		purchases: { id: number; day: string; quantity: number; fromExpense: boolean }[];
+		purchases: {
+			id: number;
+			day: string;
+			quantity: number;
+			fromExpense: boolean;
+			/** Cents all of it cost; null, not known. */
+			cost: number | null;
+			/** It was written here, not what its expense says. */
+			written: boolean;
+		}[];
 	};
 }
 
@@ -112,6 +131,35 @@ const remaining = (e: Purchase, units: Unit[]) =>
 const spotLabel = (s: { name: string } | undefined, kind: FuelKind) =>
 	s?.name || FUEL_KINDS[kind].name;
 
+/** The expenses the purchases came from, by id; one in another currency, not in euros yet, is left out. */
+async function paidExpenses(tx: AnyDb) {
+	const ids = tx
+		.select({ id: fuelEvent.expenseId })
+		.from(fuelEvent)
+		.where(and(eq(fuelEvent.kind, 'compra'), isNotNull(fuelEvent.expenseId)));
+	const rows = await tx
+		.select({
+			id: expense.id,
+			store: expense.store,
+			total: expense.total,
+			currency: expense.currency,
+			rate: expense.rate
+		})
+		.from(expense)
+		.where(inArray(expense.id, ids));
+	const paid = new Map<number, PaidExpense>();
+	for (const e of rows)
+		if (!e.currency || e.rate !== null)
+			paid.set(e.id, { store: e.store, total: e.total, lines: [] });
+	if (!paid.size) return paid;
+	const lines = await tx
+		.select({ id: expenseLine.expenseId, text: expenseLine.text, amount: expenseLine.amount })
+		.from(expenseLine)
+		.where(inArray(expenseLine.expenseId, [...paid.keys()]));
+	for (const l of lines) paid.get(l.id)!.lines.push({ text: l.text, amount: l.amount });
+	return paid;
+}
+
 /** The family's fuels, each with what is at home and how long it lasts; empty, none. */
 export async function fuelStates(k: Kitchen): Promise<FuelState[]> {
 	const rows = await k.run(async (tx) => {
@@ -121,7 +169,8 @@ export async function fuelStates(k: Kitchen): Promise<FuelState[]> {
 			fuels,
 			spots: await tx.select().from(fuelSpot).orderBy(asc(fuelSpot.id)),
 			units: await tx.select().from(fuelUnit).orderBy(asc(fuelUnit.startedOn), asc(fuelUnit.id)),
-			events: await tx.select().from(fuelEvent).orderBy(asc(fuelEvent.day), asc(fuelEvent.id))
+			events: await tx.select().from(fuelEvent).orderBy(asc(fuelEvent.day), asc(fuelEvent.id)),
+			paid: await paidExpenses(tx)
 		};
 	});
 	if (!rows) return [];
@@ -164,6 +213,18 @@ export async function fuelStates(k: Kitchen): Promise<FuelState[]> {
 					f.kind
 				);
 			const full = fullOf(events, units);
+			const costOf = (e: Purchase): number | null => {
+				if (e.total !== null) return e.total;
+				const paid = e.expenseId === null ? undefined : rows.paid.get(e.expenseId);
+				return paid ? costIn(paid, f.kind) : null;
+			};
+			const purchases = new Map(events.map((e) => [e.id, e]));
+			const costed = units.map((u) => {
+				const from = u.purchaseId ? purchases.get(u.purchaseId) : undefined;
+				const all = from ? costOf(from) : null;
+				return { ...u, cost: all === null ? null : all / from!.quantity };
+			});
+			const bought = events.filter((e) => e.kind === 'compra');
 			const spots = allSpots
 				.filter((s) => !s.archivedAt)
 				.map((s): SpotState => {
@@ -181,7 +242,8 @@ export async function fuelStates(k: Kitchen): Promise<FuelState[]> {
 						by: learned ? 'aprendido' : fit ? 'dicho' : null,
 						fit,
 						left: null,
-						ends: null
+						ends: null,
+						sums: fuelSums(costed.filter((u) => u.spotId === s.id && recent(u)))
 					};
 				});
 			const counted = spots.filter((s) => s.unit && s.fit && (weather || !s.heats));
@@ -193,7 +255,10 @@ export async function fuelStates(k: Kitchen): Promise<FuelState[]> {
 			);
 			counted.forEach((s, i) => Object.assign(s, o.spots[i]!));
 			const loose = units.filter((u) => !u.purchaseId);
-			const purchases = new Map(events.map((e) => [e.id, e]));
+			const year = bought.filter((e) => e.day >= since);
+			const prices = year.map(costOf);
+			const known = prices.filter((c) => c !== null);
+			const last = bought.findLast((e) => costOf(e) !== null);
 			return {
 				id: f.id,
 				kind: f.kind,
@@ -203,6 +268,10 @@ export async function fuelStates(k: Kitchen): Promise<FuelState[]> {
 				fresh: !units.length && !events.some((e) => e.kind === 'compra' || e.kind === 'ajuste'),
 				spots,
 				outlook: counted.length ? { allEnds: o.allEnds, needed: o.needed, toBuy: o.toBuy } : null,
+				unitCost: last ? costOf(last)! / last.quantity : null,
+				spent: known.length
+					? { total: known.reduce((t, c) => t + c, 0), unpriced: prices.length - known.length }
+					: null,
 				uncounted: spots
 					.filter((s) => s.unit && !counted.includes(s))
 					.map((s) => spotLabel(s, f.kind)),
@@ -213,23 +282,26 @@ export async function fuelStates(k: Kitchen): Promise<FuelState[]> {
 						.map((u) => ({ id: u.id, spot: label(u.spotId), startedOn: u.startedOn }))
 				})),
 				history: {
-					units: units
+					units: costed
 						.map((u) => ({
 							id: u.id,
 							spot: label(u.spotId),
 							startedOn: u.startedOn,
 							endedOn: u.endedOn,
 							whole: u.whole,
-							boughtOn: (u.purchaseId && purchases.get(u.purchaseId)?.day) || null
+							boughtOn: (u.purchaseId && purchases.get(u.purchaseId)?.day) || null,
+							cost: u.cost,
+							perDay: perDay(u)
 						}))
 						.reverse(),
-					purchases: events
-						.filter((e) => e.kind === 'compra')
+					purchases: bought
 						.map((e) => ({
 							id: e.id,
 							day: e.day,
 							quantity: e.quantity,
-							fromExpense: e.expenseId !== null
+							fromExpense: e.expenseId !== null,
+							cost: costOf(e),
+							written: e.total !== null
 						}))
 						.reverse()
 				}
@@ -550,7 +622,11 @@ export function boughtFuel(
 	fuelId: number,
 	day: string,
 	quantity: number,
-	{ expenseId = null, use = null }: { expenseId?: number | null; use?: BoughtFor } = {}
+	{
+		expenseId = null,
+		use = null,
+		total = null
+	}: { expenseId?: number | null; use?: BoughtFor; total?: number | null } = {}
 ): Promise<FuelDone | null> {
 	return k.run(async (tx) => {
 		const now = await held(tx, fuelId);
@@ -572,6 +648,7 @@ export function boughtFuel(
 				kind: out ? 'descartada' : 'compra',
 				day,
 				quantity: out ? 0 : n,
+				total: out ? null : total,
 				expenseId
 			})
 			.returning();
@@ -693,7 +770,11 @@ export async function removeUnit(k: Kitchen, id: number) {
 }
 
 /** A purchase put right: never after what was put on from it, nor fewer than those. */
-export async function editPurchase(k: Kitchen, id: number, set: { day: string; quantity: number }) {
+export async function editPurchase(
+	k: Kitchen,
+	id: number,
+	set: { day: string; quantity: number; total: number | null }
+) {
 	await k.run(async (tx) => {
 		const [found] = await tx.select().from(fuelEvent).where(eq(fuelEvent.id, id));
 		if (!found || found.kind !== 'compra') throw new FuelProblem('Ya no está');
@@ -709,7 +790,11 @@ export async function editPurchase(k: Kitchen, id: number, set: { day: string; q
 			throw new FuelProblem(`De esa compra se han empezado ${own.length}`);
 		await tx
 			.update(fuelEvent)
-			.set({ day: set.day, quantity: Math.min(Math.round(set.quantity), 50) })
+			.set({
+				day: set.day,
+				quantity: Math.min(Math.round(set.quantity), 50),
+				total: set.total
+			})
 			.where(eq(fuelEvent.id, id));
 	});
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "fuel_event" ADD COLUMN "total" integer;

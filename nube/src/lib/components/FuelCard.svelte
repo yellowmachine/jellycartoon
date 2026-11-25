@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
+	import { euros } from 'comun/expenses.ts';
 	import { FUEL_KINDS, MIN_UNITS, WINTER_DEGREES } from '#lib/fuel.ts';
 	import type { FuelState } from '#lib/server/energy/fuel.ts';
 
@@ -50,6 +51,15 @@
 			k <= 1 ? `${fem ? 'una' : 'un'} ${meta.unit}` : `${fem ? 'unas' : 'unos'} ${k} ${meta.units}`;
 		return low === high ? some(low) : `${some(mid)} (entre ${low} y ${high})`;
 	}
+	/** What the next days take, at the last price; whole euros are enough. */
+	const needCost = $derived(
+		o && f.unitCost !== null && Math.round(o.needed.kwh * 10)
+			? (o.needed.kwh * f.unitCost) / 100
+			: null
+	);
+	/** «18,50 €» as it is written in a box: «18,50». */
+	const boxed = (cents: number | null) =>
+		cents === null ? '' : (cents / 100).toFixed(2).replace('.', ',');
 	let settings = $state(false);
 	let history = $state(false);
 	let buying = $state(false);
@@ -140,7 +150,9 @@
 					? 'tendrás que pedir'
 					: 'compra'}
 				{o.toBuy}
-				{plural(o.toBuy)}{/if}.
+				{plural(o.toBuy)}{/if}{#if needCost !== null}. Al último precio, unos {euros(
+					needCost
+				)}{/if}.
 			{#if f.uncounted.length}Sin contar {f.uncounted.join(', ')}: aún no sé cuánto dura.{/if}
 		</p>
 	{/if}
@@ -179,6 +191,17 @@
 					{meta.units} enteras (llevas {s.learnedFrom}).
 				{/if}
 			</p>
+			{#if s.sums}
+				<p class="mt-1 text-xs text-zinc-400">
+					En el último año, {s.sums.units}
+					{plural(s.sums.units)}{s.sums.units > 1
+						? `, ${n0(s.sums.days)} días cada ${one} de media`
+						: ` de ${n0(s.sums.days)} días`}{#if s.sums.perDay !== null}: {euros(s.sums.perDay)} al día{s
+							.sums.priced < s.sums.units
+							? ` (con precio, ${s.sums.priced})`
+							: ''}{/if}.
+				</p>
+			{/if}
 			<form
 				method="post"
 				action="?/started"
@@ -284,6 +307,11 @@
 				aria-label="Qué día"
 				class={input}
 			/>
+			<label class="flex items-center gap-1"
+				>por
+				<input name="price" inputmode="decimal" placeholder="opcional" class="w-24 {input}" />
+				€</label
+			>
 			{@render useSelect([])}
 			<button class={main}>Apuntar</button>
 			<span class="text-xs text-zinc-500">Si está en Gastos, se ofrece solo: apúntalo allí.</span>
@@ -345,7 +373,11 @@
 								{#if many}<b>{u.spot}</b>,{/if}
 								{dayName(u.startedOn)} → {u.endedOn ? dayName(u.endedOn) : 'ahora'}
 								{#if u.endedOn}
-									({n0(daysBetween(u.startedOn, u.endedOn))} días{u.whole ? '' : ', a medias'})
+									({n0(daysBetween(u.startedOn, u.endedOn))} días{u.whole
+										? ''
+										: ', a medias'}{u.cost !== null ? `, ${euros(u.cost)}` : ''}{u.perDay !== null
+										? `, ${euros(u.perDay)} al día`
+										: ''})
 								{/if}
 							</span>
 							<button class={small} onclick={() => (editing = `u${u.id}`)}>Editar</button>
@@ -362,7 +394,11 @@
 			{:else}
 				<p class="py-1 text-zinc-500">Nada aún.</p>
 			{/each}
-			<h4 class="mt-3 text-xs text-zinc-500">Compras</h4>
+			<h4 class="mt-3 text-xs text-zinc-500">
+				Compras{#if f.spent}: {euros(f.spent.total)} en el último año{f.spent.unpriced
+						? ` (${f.spent.unpriced} sin precio)`
+						: ''}{/if}
+			</h4>
 			{#each f.history.purchases as p (p.id)}
 				<div class="border-b border-zinc-800/60 py-2">
 					{#if editing === `p${p.id}`}
@@ -392,6 +428,20 @@
 								aria-label="Qué día"
 								class={input}
 							/>
+							<label class="flex items-center gap-1"
+								>Precio
+								<input
+									name="price"
+									inputmode="decimal"
+									defaultValue={p.written ? boxed(p.cost) : ''}
+									placeholder={p.written ? '' : boxed(p.cost)}
+									class="w-20 {input}"
+								/>
+								€</label
+							>
+							{#if p.fromExpense}
+								<span class="w-full text-xs text-zinc-500">Vacío, lo que diga su gasto.</span>
+							{/if}
 							<button class={main}>Guardar</button>
 							<button type="button" class={small} onclick={() => (editing = null)}>Cancelar</button>
 						</form>
@@ -399,7 +449,9 @@
 						<div class="flex flex-wrap items-baseline gap-x-3">
 							<span
 								>{dayName(p.day)}: {p.quantity}
-								{plural(p.quantity)}{p.fromExpense ? ' (de Gastos)' : ''}</span
+								{plural(p.quantity)}{p.cost !== null
+									? `, ${euros(p.cost)}`
+									: ', sin precio'}{p.fromExpense && !p.written ? ' (de Gastos)' : ''}</span
 							>
 							<button class={small} onclick={() => (editing = `p${p.id}`)}>Editar</button>
 							<ConfirmForm

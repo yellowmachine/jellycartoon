@@ -113,3 +113,22 @@ test('two at once: each ends on its day, the full one is for the first, then one
 	want(alone.spots[1]).toEqual({ left: null, ends: null });
 	want(alone.toBuy).toBe(1);
 });
+
+test('it runs out in the middle of a day, a full one taking over: it ends that day, not the last', () => {
+	const ahead = Array.from({ length: 15 }, (_, i) => ({
+		day: addDays('2026-11-15', i),
+		degrees: 10
+	}));
+	const spot = {
+		fit: { base: 0.07, perDegree: 0, spread: 0, n: 3 },
+		heats: false,
+		startedOn: '2026-11-02'
+	};
+	// 13 days gone: 0,09 left, gone in the second day; the full one, 14 and a bit more.
+	const o = fuelOutlook([spot], 1, new Map(), ahead);
+	want(o.spots[0]!.left).toBeCloseTo(0.09, 6);
+	want(o.spots[0]!.ends).toBe('2026-11-16');
+	want([o.allEnds, o.toBuy]).toEqual([null, 0]);
+	const none = fuelOutlook([spot], 0, new Map(), ahead);
+	want([none.spots[0]!.ends, none.allEnds, none.toBuy]).toEqual(['2026-11-16', '2026-11-16', 1]);
+});

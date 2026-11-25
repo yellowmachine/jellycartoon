@@ -55,9 +55,12 @@ test('the cold, the light learned and still learning, butane and the panels', as
 					unit: { id: 1, startedOn: '2026-11-10' },
 					by: 'aprendido',
 					left: 0.4,
-					ends: '2026-11-18'
+					ends: '2026-11-18',
+					sums: { units: 4, days: 15.2, perDay: 121.7, priced: 4 }
 				}
 			],
+			unitCost: 1850,
+			spent: { total: 7400, unpriced: 0 },
 			uncounted: [],
 			outlook: {
 				allEnds: '2026-11-29',
