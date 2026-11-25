@@ -22,6 +22,8 @@ import {
 	seenOn,
 	shippingFromText,
 	shopOf,
+	togetherLines,
+	togetherTotal,
 	wishesSummary,
 	type PriceChange
 } from '#lib/wishes.ts';
@@ -609,7 +611,7 @@ describe('«Comprado»', () => {
 	test('a child’s: it is the buyer’s gift, and the child does not know', async () => {
 		await addWish(ana, 'ana', false, people.Lucía!, product('Bici'), null);
 		const { id } = await seen(ana, 'ana');
-		expect(await buyableWish(ana, 'ana', false, id)).toEqual({
+		expect(await buyableWish(ana, 'ana', false, id)).toMatchObject({
 			title: 'Bici',
 			mine: false,
 			secret: false
@@ -1140,5 +1142,42 @@ describe('«IVA y otros»', () => {
 		expect(await extra()).toBeNull();
 		expect(await buyWish(ana, 'ana', false, id, '2026-11-25', 134)).toBe(true);
 		expect(await extra()).toBe(134);
+	});
+});
+
+describe('several bought together', () => {
+	const w = (title: string, priceCents: number | null, more = {}) => ({
+		title,
+		priceCents,
+		currency: 'EUR',
+		shippingCents: null,
+		extraCents: null,
+		...more
+	});
+	const a = w('Rosa', 522, { shippingCents: 1219, extraCents: 70 });
+	const b = w('Cien', 500, { shippingCents: 300 });
+	const said = (list: Parameters<typeof togetherLines>[0], total: number) =>
+		togetherLines(list, total).map((l) => `${l.text} ${l.amount}`);
+
+	test('what they cost, all in; not known, or in another currency, none', () => {
+		expect(togetherTotal([a, b])).toBe(2611);
+		expect(togetherTotal([a, w('x', null)])).toBeNull();
+		expect(togetherTotal([a, w('x', 100, { currency: 'USD' })])).toBeNull();
+	});
+
+	test('its lines add up to what was paid', () => {
+		expect(said([a, b], 2611)).toEqual(['Rosa 522', 'Cien 500', 'Envío 1519', 'IVA y otros 70']);
+		expect(said([a, b], 2700).at(-1)).toBe('Sin repartir 89');
+		expect(said([a, b], 2600).at(-1)).toBe('Descuento -11');
+		// The only one not known, what is left.
+		expect(said([a, w('x', null)], 3000)).toEqual([
+			'Rosa 522',
+			'x 1189',
+			'Envío 1219',
+			'IVA y otros 70'
+		]);
+		expect(said([w('x', null), w('y', null)], 900)).toEqual(['x 0', 'y 0', 'Sin repartir 900']);
+		for (const total of [1, 2611, 5000])
+			expect(togetherLines([a, b], total).reduce((s, l) => s + l.amount, 0)).toBe(total);
 	});
 });

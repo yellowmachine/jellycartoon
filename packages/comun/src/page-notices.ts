@@ -32,7 +32,13 @@ export interface LooksSame {
 }
 
 /** The expenses another seems to gather: to leave them in one. */
-export type MergeNotice = { id: number; date: string; total: number; text: string }[];
+export type MergeNotice = {
+	id: number;
+	date: string;
+	total: number;
+	text: string;
+	store: string;
+}[];
 
 /** What an expense gathered (`id`, of that gathering). */
 export interface MergedNotice {

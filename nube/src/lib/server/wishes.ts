@@ -668,6 +668,11 @@ export async function buyableWish(k: Kitchen, userId: string, kid: boolean, id: 
 	if (!w || !person || !mayBuy(w, userId, kid, person)) return null;
 	return {
 		title: w.title,
+		shop: (w.shop.includes('.') && knownShop(w.url)) || w.shop,
+		priceCents: w.priceCents,
+		currency: w.currency,
+		shippingCents: w.shippingCents,
+		extraCents: w.extraCents,
 		mine: person.me,
 		/** Another adult's: its name is not said in Dinero, which they see. */
 		secret: !person.me && !person.kid

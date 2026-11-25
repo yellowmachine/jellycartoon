@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { isCategory, isDay, MAX_CENTS, parseEuros } from 'comun/expenses.ts';
+import { isCategory, isDay, MAX_CENTS, parseEuros, type ExpenseInput } from 'comun/expenses.ts';
 import { lookingSame } from '#lib/server/expenses/duplicates.ts';
 import { addExpense } from '#lib/server/expenses/expenses.ts';
 import { kitchenOf, today } from '#lib/server/fridge.ts';
@@ -10,7 +10,8 @@ import {
 	priceChangeText,
 	priceFromText,
 	sameCurrency,
-	shippingFromText
+	shippingFromText,
+	togetherLines
 } from '#lib/wishes.ts';
 import { isKidAccount } from '#lib/server/kids.ts';
 import {
@@ -43,6 +44,16 @@ const idOf = (form: FormData, key = 'id') => {
 	const n = Number(form.get(key));
 	return Number.isInteger(n) && n > 0 ? n : null;
 };
+
+/** `ids`, «1,2,3». */
+const idList = (form: FormData) =>
+	[
+		...new Set(
+			String(form.get('ids') ?? '')
+				.split(',')
+				.map(Number)
+		)
+	].filter((n) => Number.isInteger(n) && n > 0);
 
 const text = (form: FormData, key: string) => {
 	const v = form.get(key);
@@ -227,15 +238,113 @@ export const actions: Actions = {
 		return { bought: id, expense };
 	},
 	/**
-	 * «Seleccionar»: one thing done to several (`ids`, `op`): for when, given, bought (not into
-	 * Dinero) or removed. Each as alone: what cannot be is left, and said.
+	 * «Seleccionar» → bought together (`ids`): one expense in Dinero for each shop, with what was paid
+	 * there (`shop`, `store` and `price`, one of each); or only marked (`solo`). All or none.
+	 */
+	buyTogether: async ({ request, locals }) => {
+		const userId = locals.user!.id;
+		const form = await request.formData();
+		const ids = idList(form);
+		const date = text(form, 'date');
+		if (!ids.length || ids.length > MAX_BULK) return fail(400, { message: 'Falta cuáles' });
+		if (!isDay(date)) return fail(400, { message: 'Falta la fecha' });
+		const k = await kitchenOf(userId);
+		const kid = await isKidAccount(userId);
+		const gone = () =>
+			fail(409, { message: 'Alguno ya no está, o ya lo ha comprado otro: no se ha marcado nada' });
+		const found: { id: number; w: NonNullable<Awaited<ReturnType<typeof buyableWish>>> }[] = [];
+		for (const id of ids) {
+			const w = await buyableWish(k, userId, kid, id);
+			if (!w) return gone();
+			found.push({ id, w });
+		}
+
+		const solo = form.get('solo') === '1';
+		const category = form.get('category');
+		const paid: { ids: number[]; input: ExpenseInput }[] = [];
+		if (!solo) {
+			if (!isCategory(category)) return fail(400, { message: 'Falta la categoría' });
+			const all = (key: string) => form.getAll(key).map(String);
+			const [shops, stores, prices] = [all('shop'), all('store'), all('price')];
+			for (const shop of new Set(found.map((f) => f.w.shop))) {
+				const at = shops.indexOf(shop);
+				const total = parseEuros(prices[at] ?? '');
+				if (total === null || total <= 0 || total > MAX_CENTS)
+					return fail(400, { message: `Falta lo pagado en ${shop}, en euros: 12,30` });
+				const store = (stores[at] ?? '').trim().slice(0, 120);
+				if (!store) return fail(400, { message: 'Falta la tienda' });
+				const theirs = found.filter((f) => f.w.shop === shop);
+				paid.push({
+					ids: theirs.map((f) => f.id),
+					input: {
+						date,
+						store,
+						category,
+						total,
+						// With another adult's gift among them: without names, as they see Dinero too.
+						lines: theirs.some((f) => f.w.secret)
+							? []
+							: togetherLines(
+									theirs.map((f) => f.w),
+									total
+								).map((l) => ({
+									text: l.text.slice(0, 200),
+									quantity: null,
+									amount: l.amount,
+									tag: 'Otros' as const
+								}))
+					}
+				});
+			}
+			if (form.get('igual') !== '1')
+				for (const { input } of paid) {
+					const repeated = await lookingSame(k, {
+						id: null,
+						...input,
+						source: 'mano',
+						fileHash: null,
+						bill: null
+					});
+					if (repeated) return fail(409, { message: 'Parece repetido', repeated });
+				}
+		}
+
+		// First, so two pages at once put it in Dinero once.
+		const done: number[] = [];
+		const undo = async (those: number[]) => {
+			for (const id of those) await unbuyWish(k, userId, id);
+		};
+		for (const { id } of found) {
+			if (!(await buyWish(k, userId, kid, id, date))) {
+				await undo(done);
+				return gone();
+			}
+			done.push(id);
+		}
+		const expenses: number[] = [];
+		const left = [...paid];
+		try {
+			while (left.length) {
+				const { ids: theirs, input } = left[0]!;
+				const expense = await addExpense(k, input, 'mano');
+				expenses.push(expense);
+				left.shift();
+				for (const id of theirs) await setWishExpense(k, userId, id, expense);
+			}
+		} catch (err) {
+			// Those of the shops not put in, back; those put in, bought.
+			await undo(left.flatMap((p) => p.ids));
+			throw err;
+		}
+		return { bought: done.length, expenses };
+	},
+	/**
+	 * «Seleccionar»: one thing done to several (`ids`, `op`): for when, given or removed. Each as alone: what cannot be is left, and said.
 	 */
 	bulk: async ({ request, locals }) => {
 		const userId = locals.user!.id;
 		const form = await request.formData();
-		const ids = [...new Set((text(form, 'ids') ?? '').split(',').map(Number))].filter(
-			(n) => Number.isInteger(n) && n > 0
-		);
+		const ids = idList(form);
 		if (!ids.length || ids.length > MAX_BULK) return fail(400, { message: 'Falta cuáles' });
 		const k = await kitchenOf(userId);
 		const kid = await isKidAccount(userId);
@@ -245,11 +354,9 @@ export const actions: Actions = {
 				? (id: number) => deleteWish(k, userId, kid, id)
 				: op === 'regalar'
 					? (id: number) => giveWish(k, userId, kid, id, true)
-					: op === 'comprar'
-						? (id: number) => buyWish(k, userId, kid, id, today())
-						: isWishPriority(op)
-							? (id: number) => setWishPriority(k, userId, kid, id, op)
-							: null;
+					: isWishPriority(op)
+						? (id: number) => setWishPriority(k, userId, kid, id, op)
+						: null;
 		if (!each) return fail(400, { message: 'Falta qué hacer' });
 		let done = 0;
 		for (const id of ids) if (await each(id)) done++;

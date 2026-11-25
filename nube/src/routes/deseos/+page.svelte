@@ -6,6 +6,7 @@
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { monthOf } from 'comun/expenses.ts';
+	import Juntos from './Juntos.svelte';
 	import Comprado from './Comprado.svelte';
 	import { field, primary, secondary, select } from '#lib/styles.ts';
 	import {
@@ -99,12 +100,15 @@
 	// ——— «Seleccionar»: to see what some cost together, or to do one thing to all ———
 
 	let selecting = $state(false);
+	/** «Marcar como comprados» open, with what is paid. */
+	let together = $state(false);
 	const selected = new SvelteSet<number>();
 	function setSelecting(on: boolean) {
 		selecting = on;
 		selected.clear();
 		op = '';
 		editing = null;
+		together = false;
 	}
 	const picked = (list: typeof shown) => list.filter((w) => selected.has(w.id));
 	/** Only those shown: what a filter hides is not counted, nor touched. */
@@ -196,13 +200,7 @@
 {#snippet act(what: string, label: string, list: PageProps['data']['wishes'])}
 	<form method="post" action="?/bulk" use:enhance={bulk}>
 		<input type="hidden" name="ids" value={idsOf(list)} />
-		<button
-			name="op"
-			value={what}
-			class={secondary}
-			title={what === 'comprar' ? 'Con fecha de hoy, sin añadirlos a Dinero' : undefined}
-			>{label}</button
-		>
+		<button name="op" value={what} class={secondary}>{label}</button>
 	</form>
 {/snippet}
 
@@ -613,7 +611,18 @@
 		{#if form?.message && !problem}
 			<p class="mb-2 text-sm text-red-400" role="alert">{form.message}</p>
 		{/if}
-		{#if picks.length && (canWrite.length || canGive.length || canBuy.length)}
+		{#if together && canBuy.length}
+			<Juntos
+				list={canBuy}
+				today={data.today}
+				secret={canBuy.some((w) => !isMine(w) && !writesOf(w))}
+				onbought={(done) => {
+					justBought = done;
+					setSelecting(false);
+				}}
+				oncancel={() => (together = false)}
+			/>
+		{:else if picks.length && (canWrite.length || canGive.length || canBuy.length)}
 			<!-- With room, each thing in sight; on a phone, in one menu. -->
 			<div class="hidden flex-wrap items-center gap-2 text-sm sm:flex">
 				{#if canWrite.length}
@@ -626,7 +635,9 @@
 					{@render act('regalar', `Los regalo yo (${canGive.length})`, canGive)}
 				{/if}
 				{#if canBuy.length}
-					{@render act('comprar', `Marcar como comprados (${canBuy.length})`, canBuy)}
+					<button type="button" class={secondary} onclick={() => (together = true)}
+						>Marcar como comprados ({canBuy.length})</button
+					>
 				{/if}
 				{#if canWrite.length}
 					<ConfirmForm
@@ -642,7 +653,15 @@
 			<form
 				method="post"
 				action="?/bulk"
-				use:enhance={bulk}
+				use:enhance={(form) => {
+					if (op === 'comprar') {
+						form.cancel();
+						op = '';
+						together = true;
+						return;
+					}
+					return bulk(form);
+				}}
 				class="flex items-center gap-2 text-sm sm:hidden"
 			>
 				<input type="hidden" name="ids" value={idsOf(targets)} />
@@ -675,7 +694,6 @@
 						class={op === 'quitar'
 							? 'shrink-0 rounded-md bg-red-700 px-3 py-1 font-medium hover:bg-red-600'
 							: `${primary} shrink-0`}
-						title={op === 'comprar' ? 'Con fecha de hoy, sin añadirlos a Dinero' : undefined}
 						>{op === 'quitar' ? `Sí, quitar ${targets.length}` : 'Aplicar'}</button
 					>
 				{/if}

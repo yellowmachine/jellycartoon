@@ -1,5 +1,5 @@
 import { and, asc, eq, gte, inArray, isNotNull, isNull, lte, notExists, or } from 'drizzle-orm';
-import { addDays } from 'comun/agenda.ts';
+import { addDays, daysBetween } from 'comun/agenda.ts';
 import { addMonths } from 'comun/expenses.ts';
 import type { MergeNotice, MergedNotice } from 'comun/page-notices.ts';
 import {
@@ -17,7 +17,7 @@ import {
 import type { AnyDb } from '#lib/server/family-scope.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { noticeOn } from '#lib/server/page-notices.ts';
-import { MERGE_DAYS, partsOf, type Part, type Whole } from './merge-match.ts';
+import { CHOOSE_DAYS, MERGE_DAYS, partsOf, type Part, type Whole } from './merge-match.ts';
 
 /**
  * A bill, a receipt or a bank's payment that gathers expenses already put in one by one (bought from
@@ -88,16 +88,24 @@ async function partsWhere(tx: AnyDb, where: ReturnType<typeof and>): Promise<Par
 		}));
 }
 
-const near = (from: string, to: string) =>
-	and(gte(expense.date, addDays(from, -MERGE_DAYS)), lte(expense.date, addDays(to, MERGE_DAYS)));
+const near = (from: string, to: string, days = MERGE_DAYS) =>
+	and(gte(expense.date, addDays(from, -days)), lte(expense.date, addDays(to, days)));
 
 const said = (parts: Part[]): MergeNotice =>
 	parts.map((p) => ({
 		id: p.id,
 		date: p.date,
 		total: p.total,
-		text: p.titles[0] ?? p.store
+		text: p.titles[0] ?? p.store,
+		store: p.store
 	}));
+
+/** Those that may be gathered by one of that day, to choose by hand: the nearest day first. */
+export async function mergeable(k: Kitchen, day: string): Promise<MergeNotice> {
+	const parts = await k.run((tx) => partsWhere(tx, near(day, day, CHOOSE_DAYS)));
+	const apart = (p: Part) => Math.abs(daysBetween(day, p.date));
+	return said(parts.sort((a, b) => apart(a) - apart(b) || b.id - a.id));
+}
 
 /** Those a bill or receipt just read gathers, to ask; null, none or with the notice off. */
 export async function mergeOfDraft(

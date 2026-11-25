@@ -28,6 +28,20 @@ test('by the titles in its lines, also of another shop and not to the cent', () 
 		'Librería Pérez'
 	);
 	expect(ids(partsOf(b, [A, B, part(3, 900, 'Otra cosa distinta')]))).toEqual([1, 2]);
+	// Each book in three lines: its price, its sending and its VAT.
+	const six = bill(
+		3740,
+		[
+			['El nombre de la rosa', 522],
+			['Envío - El nombre de la rosa', 1219],
+			['IVA - El nombre de la rosa', 70],
+			['Cien años de soledad', 500],
+			['Envío - Cien años de soledad', 1219],
+			['IVA - Cien años de soledad', 210]
+		],
+		'AbeBooks'
+	);
+	expect(ids(partsOf(six, [A, B]))).toEqual([1, 2]);
 	// One book of an order of many is not all of it.
 	expect(partsOf(bill(9000, [['El nombre de la rosa', 1811]]), [A])).toBeNull();
 	// Two that could be the same line: a doubt.
