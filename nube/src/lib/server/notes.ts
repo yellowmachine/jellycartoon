@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, isNull, like, or, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, isNull, like, lt, or, type SQL } from 'drizzle-orm';
 import { note, user } from '#lib/server/db/schema.ts';
 import { kindOf } from '#lib/server/expenses/income.ts';
 import { likeOf, plain, plainText } from '#lib/server/expenses/plain.ts';
@@ -64,6 +64,9 @@ function viewOf({ audio, userId, author, photo, shared, ...n }: Row, viewer: str
 	const mine = userId !== null && userId === viewer;
 	return {
 		...n,
+		// Where, only to whose it is: sharing a note does not say where they were.
+		lon: mine ? n.lon : null,
+		lat: mine ? n.lat : null,
 		hasAudio: audio !== null,
 		photo: photo && `/notas/${n.id}/foto?v=${photo}`,
 		mine,
@@ -97,7 +100,14 @@ export class NotAPhoto extends Error {
 export async function addWrittenNote(
 	k: Kitchen,
 	userId: string,
-	sent: { text: string; photo: Uint8Array | null; shared: boolean }
+	sent: {
+		text: string;
+		photo: Uint8Array | null;
+		shared: boolean;
+		/** When and where its photo was taken (#613), if known. */
+		at?: Date | null;
+		position?: [number, number] | null;
+	}
 ) {
 	const text = sent.text.trim().slice(0, MAX_NOTE_TEXT);
 	if (!text && !sent.photo) return null;
@@ -118,6 +128,9 @@ export async function addWrittenNote(
 					text,
 					photo,
 					shared: sent.shared,
+					...(sent.at ? { at: sent.at } : {}),
+					lon: sent.position?.[0] ?? null,
+					lat: sent.position?.[1] ?? null,
 					source: 'escrita'
 				})
 				.returning({ id: note.id })
@@ -288,6 +301,30 @@ export async function walkNotes(k: Kitchen, walkId: number) {
 			.orderBy(note.at)
 	);
 	return rows.map((n) => viewOf(n, k.userId));
+}
+
+/** One's own between two moments, in order (#613): the day's, beside where one was. */
+export async function notesBetween(k: Kitchen, userId: string, from: Date, to: Date) {
+	const rows = await k.run((tx) =>
+		tx
+			.select(VIEW)
+			.from(note)
+			.leftJoin(user, eq(user.id, note.userId))
+			.where(and(eq(note.userId, userId), gte(note.at, from), lt(note.at, to)))
+			.orderBy(note.at)
+	);
+	return rows.map((n) => viewOf(n, userId));
+}
+
+/** With a walk, if it is asked (#613): its notes and their files. */
+export async function deleteWalkNotes(k: Kitchen, userId: string, walkId: number) {
+	const rows = await k.run((tx) =>
+		tx
+			.select({ id: note.id })
+			.from(note)
+			.where(and(eq(note.walkId, walkId), eq(note.userId, userId)))
+	);
+	for (const { id } of rows) await deleteNote(k, userId, id);
 }
 
 /** For the voice, when asked: with their day, the latest first; days in the family's time. */

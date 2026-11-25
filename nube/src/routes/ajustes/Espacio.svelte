@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import { field, primary, secondary, section } from '#lib/styles.ts';
 	import { sizeText } from '#lib/storage-size.ts';
 	import type { ActionData, PageData } from './$types';
@@ -38,7 +38,7 @@
 	// While moving, how far it goes, every few seconds.
 	$effect(() => {
 		if (place?.state !== 'pasando' || place.problem) return;
-		const every = setInterval(() => void invalidateAll(), 3000);
+		const every = setInterval(() => void refreshAll(), 3000);
 		return () => clearInterval(every);
 	});
 

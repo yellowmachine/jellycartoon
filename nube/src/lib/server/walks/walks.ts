@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, lt, sql, type SQL } from 'drizzle-orm';
 import { walk, walkPhoto } from '#lib/server/db/schema.ts';
 import { keepDocument, kindOf, NotADocument } from '#lib/server/expenses/income.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
@@ -63,17 +63,40 @@ export async function walkLine(k: Kitchen, id: number) {
 	return row?.line ?? null;
 }
 
-/** Its photos go with it; its notes stay, as they are something of their own (notes.ts). */
+/** Its photos and its notes stay, in Notas, as something of their own (#613). */
 export async function deleteWalk(k: Kitchen, id: number) {
 	const userId = who(k);
-	const photos = await walkPhotos(k, id);
 	await k.run((tx) => tx.delete(walk).where(and(eq(walk.id, id), eq(walk.userId, userId))));
-	const [still] = await k.run((tx) => tx.select({ id: walk.id }).from(walk).where(eq(walk.id, id)));
-	if (still) return;
-	for (const photo of photos)
-		await removeFile(k.familyId, PHOTOS_AREA, photo.file).catch((err) =>
+}
+
+const isPhotoOf = (userId: string, where: SQL) => and(eq(walkPhoto.userId, userId), where);
+
+async function deletePhotos(k: Kitchen, where: SQL) {
+	const gone = await k.run((tx) =>
+		tx
+			.delete(walkPhoto)
+			.where(isPhotoOf(who(k), where))
+			.returning({ file: walkPhoto.file })
+	);
+	for (const { file } of gone)
+		await removeFile(k.familyId, PHOTOS_AREA, file).catch((err) =>
 			console.warn('[paseos] No se pudo borrar una foto', String(err))
 		);
+}
+export const deleteWalkPhotos = (k: Kitchen, walkId: number) =>
+	deletePhotos(k, eq(walkPhoto.walkId, walkId));
+export const deleteWalkPhoto = (k: Kitchen, id: number) => deletePhotos(k, eq(walkPhoto.id, id));
+
+/** One's own walks' photos, the latest first, for Notas (#613): those of a deleted walk too. */
+export function listWalkPhotos(k: Kitchen, limit = 200) {
+	return k.run((tx) =>
+		tx
+			.select({ id: walkPhoto.id, walkId: walkPhoto.walkId, at: walkPhoto.at })
+			.from(walkPhoto)
+			.where(eq(walkPhoto.userId, who(k)))
+			.orderBy(desc(walkPhoto.at))
+			.limit(limit)
+	);
 }
 
 /** Its id, by when it started: what a device knows of a walk it sent. */
@@ -157,6 +180,17 @@ export function walkPhotos(k: Kitchen, walkId: number) {
 			})
 			.from(walkPhoto)
 			.where(and(eq(walkPhoto.walkId, walkId), eq(walkPhoto.userId, userId)))
+			.orderBy(asc(walkPhoto.at))
+	);
+}
+
+/** One's own between two moments, in order (#613). */
+export function walkPhotosBetween(k: Kitchen, from: Date, to: Date) {
+	return k.run((tx) =>
+		tx
+			.select({ id: walkPhoto.id, at: walkPhoto.at, lon: walkPhoto.lon, lat: walkPhoto.lat })
+			.from(walkPhoto)
+			.where(and(eq(walkPhoto.userId, who(k)), gte(walkPhoto.at, from), lt(walkPhoto.at, to)))
 			.orderBy(asc(walkPhoto.at))
 	);
 }

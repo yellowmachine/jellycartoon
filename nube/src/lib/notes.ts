@@ -48,3 +48,52 @@ export interface Note {
 	lon: number | null;
 	lat: number | null;
 }
+
+/** When a photo says it was taken, if it makes sense: not to come, nor before there were any. */
+export function photoMoment(ms: number, now = Date.now()) {
+	return Number.isFinite(ms) && ms > Date.UTC(1990, 0, 1) && ms <= now + 5 * 60_000
+		? new Date(ms)
+		: null;
+}
+
+/** A walk's photo as Notas shows it (#613). */
+export interface WalkPhotoItem {
+	id: number;
+	/** Null, its walk was deleted. */
+	walkId: number | null;
+	at: Date;
+}
+
+/** What Notas lists: a note, or a walk's photos together (those of deleted walks, by day). */
+export type NotesItem =
+	| { key: string; at: Date; note: Note }
+	| { key: string; at: Date; walkId: number | null; photos: WalkPhotoItem[] };
+
+/**
+ * Notes and walks' photos, the latest first; each group where its latest photo is. With the notes cut
+ * at `limit`, photos older than the last one shown wait too: there would be notes between.
+ */
+export function notesAndPhotos(
+	notes: Note[],
+	photos: WalkPhotoItem[],
+	dayOf: (d: Date) => string,
+	limit = 200
+): NotesItem[] {
+	const oldest = notes.length >= limit ? new Date(notes.at(-1)!.at).getTime() : -Infinity;
+	const groups = new Map<string, WalkPhotoItem[]>();
+	for (const p of photos) {
+		if (new Date(p.at).getTime() < oldest) continue;
+		const key = p.walkId === null ? `dia-${dayOf(new Date(p.at))}` : `paseo-${p.walkId}`;
+		groups.set(key, [...(groups.get(key) ?? []), p]);
+	}
+	const items: NotesItem[] = [
+		...notes.map((n) => ({ key: `nota-${n.id}`, at: new Date(n.at), note: n })),
+		...[...groups].map(([key, list]) => ({
+			key,
+			at: new Date(Math.max(...list.map((p) => new Date(p.at).getTime()))),
+			walkId: list[0]!.walkId,
+			photos: list.toSorted((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+		}))
+	];
+	return items.sort((a, b) => b.at.getTime() - a.at.getTime());
+}

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import { justSaved } from '#lib/chat-saved.svelte.ts';
 	import { describeTimer } from 'comun/recipe.ts';
 	import type { RecipeCard } from '#lib/chat.ts';
@@ -110,14 +110,14 @@
 				use:enhance={() => {
 					saving = true;
 					problem = null;
-					// Not update(): from another page it would take there (Kit 3). invalidateAll() reads
+					// Not update(): from another page it would take there (Kit 3). refreshAll() reads
 					// the page beside it again without moving.
 					return async ({ result }) => {
 						saving = false;
 						if (result.type === 'success' && typeof result.data?.savedId === 'number') {
 							onsaved?.(result.data.savedId);
 							justSaved.recipeId = result.data.savedId;
-							void invalidateAll();
+							void refreshAll();
 						} else problem = 'No se pudo guardar';
 					};
 				}}

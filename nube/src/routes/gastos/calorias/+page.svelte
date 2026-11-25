@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import ExpenseTabs from '#lib/components/ExpenseTabs.svelte';
 	import GuideLink from '#lib/components/GuideLink.svelte';
 	import { ADULT_KCAL, CHILD_SHARE, kcal, peopleText } from '#lib/calories.ts';
@@ -34,7 +34,7 @@
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	$effect(() => {
 		clearTimeout(timer);
-		if (data.estimating) timer = setTimeout(() => invalidateAll(), 8_000);
+		if (data.estimating) timer = setTimeout(() => refreshAll(), 8_000);
 	});
 	onDestroy(() => clearTimeout(timer));
 

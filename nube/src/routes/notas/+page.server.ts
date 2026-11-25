@@ -10,6 +10,9 @@ import {
 	NotAPhoto,
 	shareNote
 } from '#lib/server/notes.ts';
+import { deleteWalkPhoto, listWalkPhotos } from '#lib/server/walks/walks.ts';
+import { photoMoment } from '#lib/notes.ts';
+import { isLngLat } from 'comun/road.ts';
 import { refused } from '#lib/server/storage.ts';
 import { MAX_NOTE_PHOTO_BYTES } from '#lib/notes.ts';
 
@@ -21,7 +24,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const q = url.searchParams.get('q')?.trim() || null;
 	const house = url.searchParams.has('casa');
 	const k = await kitchenOf(locals.user!.id);
-	return { notes: await listNotes(k, locals.user!.id, q, { house }), q, house };
+	// The walks' photos (#613), one's own: they say nothing to be searched by.
+	const [notes, photos] = await Promise.all([
+		listNotes(k, locals.user!.id, q, { house }),
+		q || house ? [] : listWalkPhotos(k)
+	]);
+	return { notes, photos, q, house };
 };
 
 const idOf = (form: FormData) => {
@@ -36,12 +44,15 @@ export const actions: Actions = {
 		const photo = file instanceof File && file.size ? file : null;
 		if (photo && photo.size > MAX_NOTE_PHOTO_BYTES)
 			return fail(413, { message: 'La foto es demasiado grande' });
+		const position: [number, number] = [Number(form.get('lon')), Number(form.get('lat'))];
 		const k = await kitchenOf(locals.user!.id);
 		try {
 			const id = await addWrittenNote(k, locals.user!.id, {
 				text: String(form.get('text') ?? ''),
 				photo: photo && new Uint8Array(await photo.arrayBuffer()),
-				shared: form.has('shared')
+				shared: form.has('shared'),
+				at: photo ? photoMoment(Number(form.get('at'))) : null,
+				position: photo && form.has('lon') && isLngLat(position) ? position : null
 			});
 			if (!id) return fail(400, { message: 'Una nota necesita algo escrito o una foto' });
 		} catch (err) {
@@ -71,6 +82,11 @@ export const actions: Actions = {
 	delete: async ({ request, locals }) => {
 		const id = idOf(await request.formData());
 		if (id) await deleteNote(await kitchenOf(locals.user!.id), locals.user!.id, id);
+	},
+	/** A walk's photo (#613). */
+	deletePhoto: async ({ request, locals }) => {
+		const id = idOf(await request.formData());
+		if (id) await deleteWalkPhoto(await kitchenOf(locals.user!.id), id);
 	},
 	/** One that could not be heard, again. */
 	hear: async ({ request, locals }) => {

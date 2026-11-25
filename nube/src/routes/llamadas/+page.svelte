@@ -1,6 +1,6 @@
 <script lang="ts">
 	import GuideLink from '#lib/components/GuideLink.svelte';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import CallPanel from '#lib/components/CallPanel.svelte';
 	import { OUTCOME_TEXT, talkTime } from '#lib/calls.ts';
@@ -50,7 +50,7 @@
 	// Over: the history again, with this one.
 	let was = $state(phone.state);
 	$effect(() => {
-		if (was !== 'ended' && phone.state === 'ended') void invalidateAll();
+		if (was !== 'ended' && phone.state === 'ended') void refreshAll();
 		was = phone.state;
 	});
 </script>

@@ -30,6 +30,8 @@ const sent: ToolChatMessage[][] = [];
 /** The tools' names each call was offered. */
 const offered: string[][] = [];
 let fails: string | null = null;
+let webOn = false;
+const webAsked: { system: string; prompt: string }[] = [];
 const onList: string[] = [];
 const added: string[][] = [];
 const savedRecipes: { title: string; from: string }[] = [];
@@ -38,6 +40,10 @@ const savedRecipes: { title: string; from: string }[] = [];
 const openrouter = await import('#lib/server/openrouter.ts');
 mock.module('#lib/server/openrouter.ts', () => ({
 	...openrouter,
+	askWeb: async (r: { system: string; prompt: string }) => {
+		webAsked.push(r);
+		return { text: 'Va con nota Gold.', sources: [{ url: 'https://ejemplo.es/a', title: 'A' }] };
+	},
 	chatWithTools: async (r: {
 		messages: ToolChatMessage[];
 		tools: { function: { name: string } }[];
@@ -83,7 +89,12 @@ mock.module('#lib/server/weather-read.ts', () => ({
 }));
 mock.module('#lib/server/voice/settings.ts', () => ({
 	FALLBACK_VOICE_MODEL: 'otro/modelo',
-	voiceSettings: async () => ({ conversationModel: 'modelo', style: null })
+	voiceSettings: async () => ({
+		model: 'rapido',
+		conversationModel: 'modelo',
+		style: null,
+		web: { on: webOn, hints: 'Mira ProtonDB' }
+	})
 }));
 // As other tests fake it (a mock is the process's), with what this module uses of it.
 const fridge = () => ({
@@ -866,4 +877,59 @@ test("Mensajes (#555): only a place of the asker's own, as kept", async () => {
 	expect(
 		String(sent[1]!.find((m) => m.role === 'tool' && m.tool_call_id === 'b')?.content)
 	).toContain('no está entre los suyos');
+});
+
+test('«Buscar en internet»: only when on, three times at most, and what was searched is shown', async () => {
+	answers = [{ content: 'No puedo buscar.', toolCalls: [] }];
+	await chat.askChat(ana, { id: 'ana', name: 'Ana' }, '¿va en Linux?');
+	expect(offered[0]).not.toContain('web_search');
+	expect(String(sent[0]![0]!.content)).toContain('está apagado');
+
+	webOn = true;
+	try {
+		sent.length = offered.length = 0;
+		answers = [
+			{
+				content: null,
+				toolCalls: ['a', 'b', 'c', 'd'].map((id) =>
+					call('web_search', { query: `juego ${id}` }, id)
+				)
+			},
+			{ content: 'Va bien.', toolCalls: [] }
+		];
+		const [, answer] = await chat.askChat(ana, { id: 'ana', name: 'Ana' }, '¿va en Linux?');
+		expect(offered[0]).toContain('web_search');
+		expect(webAsked.map((w) => w.prompt)).toEqual(['juego a', 'juego b', 'juego c']);
+		expect(webAsked[0]!.system).toContain('Mira ProtonDB');
+		expect(answer!.cards).toHaveLength(3);
+		expect(answer!.cards[0]).toEqual({
+			kind: 'busqueda',
+			query: 'juego a',
+			sources: [{ url: 'https://ejemplo.es/a', title: 'A' }]
+		});
+		const last = sent[1]!.find((m) => m.role === 'tool' && m.tool_call_id === 'd');
+		expect(String(last?.content)).toContain('no se puede buscar más');
+	} finally {
+		webOn = false;
+	}
+});
+
+test('the sources: web addresses only, each once', () => {
+	const cite = (url: string, title = '') => ({
+		type: 'url_citation',
+		url_citation: { url, title }
+	});
+	expect(
+		openrouter.webSources([
+			cite('https://a.es/x', 'X'),
+			cite('https://a.es/x', 'Otra vez'),
+			cite('javascript:alert(1)'),
+			cite('no es'),
+			cite('https://b.es/'),
+			null
+		])
+	).toEqual([
+		{ url: 'https://a.es/x', title: 'X' },
+		{ url: 'https://b.es/', title: 'b.es' }
+	]);
 });

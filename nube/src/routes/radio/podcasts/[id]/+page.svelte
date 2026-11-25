@@ -2,7 +2,7 @@
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import { vista } from '#lib/vista.svelte.ts';
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import { formatDuration } from 'comun/format.ts';
 	import { music } from 'comun/music-player.svelte.ts';
 	import { playEpisode } from 'comun/podcast-player.svelte.ts';
@@ -27,7 +27,7 @@
 	let lastEpisode = $state<number | null>(null);
 	$effect(() => {
 		const id = music.podcast?.id ?? null;
-		if (lastEpisode !== null && id !== lastEpisode) void invalidateAll();
+		if (lastEpisode !== null && id !== lastEpisode) void refreshAll();
 		lastEpisode = id;
 	});
 

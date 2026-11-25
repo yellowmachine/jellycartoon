@@ -1,4 +1,4 @@
-import { invalidateAll } from '$app/navigation';
+import { refreshAll } from '$app/navigation';
 import { music } from 'comun/music-player.svelte.ts';
 import { metresBetween } from 'comun/road-guide.ts';
 import { noteRecorder } from '#lib/note-recorder.svelte.ts';
@@ -280,7 +280,7 @@ class WalkRecorder {
 		const userId = this.#userId;
 		this.#forget();
 		// Its photos and notes now: one by one, so as not to hold up the walk being kept.
-		await invalidateAll();
+		await refreshAll();
 		if (userId) await walkUploads.send(userId);
 	}
 

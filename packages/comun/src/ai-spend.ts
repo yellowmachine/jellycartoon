@@ -105,6 +105,7 @@ const KINDS: [RegExp, string][] = [
 	[/^Voz, en internet/, 'Voz: buscar en internet'],
 	[/^Voz/, 'Voz'],
 	[/^Ajustes/, 'Ajustes: preguntar'],
+	[/^Preguntar, en internet/, 'Preguntar: buscar en internet'],
 	[/^Preguntar/, 'Preguntar'],
 	[/^Mensajes/, 'Mensajes: asistente'],
 	[/^(Entender una regla|Encajar una regla|Proponer reglas)/, 'Reglas y encargos'],

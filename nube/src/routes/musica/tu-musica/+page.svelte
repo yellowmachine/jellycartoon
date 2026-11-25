@@ -1,6 +1,6 @@
 <script lang="ts">
 	import MediaIcon from 'comun/components/MediaIcon.svelte';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import GuideLink from '#lib/components/GuideLink.svelte';
 	import MusicLibrary from '#lib/components/MusicLibrary.svelte';
 	import { mixed } from 'comun/music.ts';
@@ -28,7 +28,7 @@
 	// Reading the bucket: how far, every few seconds, until it ends.
 	$effect(() => {
 		if (!data.source?.scanning) return;
-		const every = setInterval(() => void invalidateAll(), 3000);
+		const every = setInterval(() => void refreshAll(), 3000);
 		return () => clearInterval(every);
 	});
 

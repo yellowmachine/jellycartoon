@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import { ownAlbumUrl } from '#lib/own-music.ts';
 	import type { PageProps } from './$types';
 
@@ -25,7 +25,7 @@
 
 	$effect(() => {
 		if (!s?.scanning) return;
-		const every = setInterval(() => void invalidateAll(), 3000);
+		const every = setInterval(() => void refreshAll(), 3000);
 		return () => clearInterval(every);
 	});
 

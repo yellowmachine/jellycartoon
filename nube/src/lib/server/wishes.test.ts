@@ -11,6 +11,7 @@ import {
 	BOOKMARK_VERSION,
 	bookmarklet,
 	cleanLink,
+	costText,
 	knownShop,
 	priceChangeParam,
 	priceChangeText,
@@ -18,6 +19,7 @@ import {
 	priceText,
 	readPriceChange,
 	seenOn,
+	shippingFromText,
 	shopOf,
 	wishesSummary,
 	type PriceChange
@@ -134,6 +136,7 @@ const {
 	titleFromShared,
 	tidyTitle,
 	setWishPriority,
+	shippingOf,
 	updateWish
 } = await import('./wishes.ts');
 const kitchen = (userId: string, familyId = 'A'): Kitchen => ({
@@ -400,6 +403,58 @@ describe('added again: its price', () => {
 			expect(readPriceChange(priceChangeParam(c))).toEqual(c);
 		expect(readPriceChange('<b>')).toBeNull();
 	});
+
+	test('its shipping apart: kept if not read, or said by hand; gone with another currency', async () => {
+		const sent = (shippingCents: number | null, more: Partial<Product> = {}) => ({
+			...at(522),
+			shippingCents,
+			...more
+		});
+		await add(sent(1219));
+		expect((await one()).shippingCents).toBe(1219);
+		expect(await add(sent(0))).toMatchObject({
+			change: { shipping: { before: 1219, now: 0 } }
+		});
+		await add(sent(null));
+		expect((await one()).shippingCents).toBe(0);
+		const { id } = await one();
+		const edit = (shipping?: number | null) =>
+			updateWish(ana, 'ana', false, id, { title: 'Libro', note: null, shipping });
+		await edit(300);
+		expect(await add(sent(1219))).toMatchObject({
+			change: { shipping: { before: 300, now: 1219, kept: true } }
+		});
+		await edit();
+		expect((await one()).shippingCents).toBe(300);
+		await add(sent(null, { currency: 'GBP' }));
+		expect(await one()).toMatchObject({ currency: 'GBP', shippingCents: null });
+		// Read in the currency of the price, though another's was by hand.
+		await add(sent(450, { currency: 'GBP' }));
+		expect((await one()).shippingCents).toBe(450);
+		await edit(null);
+		await add(sent(1219, { currency: 'GBP' }));
+		expect((await one()).shippingCents).toBe(1219);
+	});
+
+	test('its shipping in words, and through an address', () => {
+		const eur = (cents: number) => ({ cents, currency: 'EUR' });
+		const c = (shipping: PriceChange['shipping'], kept?: true): PriceChange => ({
+			before: eur(522),
+			now: eur(522),
+			...(kept ? { kept } : {}),
+			shipping
+		});
+		const said = (p: PriceChange) => priceChangeText(p).replace(/\s/g, ' ');
+		expect(said(c({ before: 1219, now: 0 }))).toBe('sigue a 5,22 €; envío, de 12,19 € a gratis');
+		expect(said(c({ before: null, now: 1219 }))).toBe('sigue a 5,22 €; envío, 12,19 €');
+		expect(said(c({ before: 5, now: 5 }))).toBe('sigue a 5,22 €');
+		for (const p of [
+			c({ before: 1219, now: 0 }),
+			c({ before: null, now: 1219 }),
+			c({ before: 0, now: 7, kept: true }, true)
+		])
+			expect(readPriceChange(priceChangeParam(p))).toEqual(p);
+	});
 });
 
 test('what a list has, and what it costs', () => {
@@ -415,6 +470,100 @@ test('what a list has, and what it costs', () => {
 	expect(said(w(1000), w(null), w(500, 'GBP'))).toBe(
 		'3 productos · 2 con precio, 10,00 € + 5,00 GBP'
 	);
+});
+
+describe('shipping', () => {
+	const es = { shippingDestination: { addressCountry: 'ES' } };
+	const rate = (value: unknown, currency = 'EUR') => ({ shippingRate: { value, currency } });
+	const CASES: [unknown, number | null][] = [
+		[{ ...rate(12.19), ...es }, 1219],
+		[rate('0'), 0],
+		[
+			[
+				{ ...rate(3), ...es },
+				{ ...rate(9), shippingDestination: { addressCountry: ['FR', 'PT'] } }
+			],
+			300
+		],
+		// All of Spain before nowhere said, and before only a part of it.
+		[[rate(9), { ...rate(3), shippingDestination: [{ addressCountry: { name: 'ES' } }] }], 300],
+		[
+			[
+				{ ...rate(3), ...es },
+				{ ...rate(20), shippingDestination: { addressCountry: 'ES', addressRegion: 'CN' } }
+			],
+			300
+		],
+		// Not clear.
+		[[rate(3), rate(9)], null],
+		[rate(3, 'GBP'), null],
+		[{ ...rate(3), shippingDestination: { addressCountry: 'US' } }, null],
+		[{ shippingRate: { minValue: 3, maxValue: 9 } }, null],
+		[{ ...rate(0), orderValue: { minValue: 30 } }, null],
+		[{ ...rate(3), doesNotShip: true }, null],
+		[undefined, null]
+	];
+
+	test('what the offer says, for Spain, only if clear; the bookmark reads the same', () => {
+		for (const [shippingDetails, cents] of CASES) {
+			const offers = { price: 5.22, priceCurrency: 'EUR', shippingDetails };
+			expect(shippingOf(offers, {}, 'EUR')).toBe(cents);
+			let opened = '';
+			new Function(
+				'document',
+				'location',
+				'window',
+				decodeURIComponent(bookmarklet('https://seilide.app').slice('javascript:'.length))
+			)(
+				{
+					querySelector: () => null,
+					querySelectorAll: () => [
+						{ textContent: JSON.stringify({ '@type': 'Product', name: 'Libro', offers }) }
+					],
+					title: 'Libro'
+				},
+				{ href: 'https://www.iberlibro.com/x/1/bd' },
+				{ open: (u: string) => (opened = u) }
+			);
+			const params = new URL(opened).searchParams;
+			expect(productFromBrowser((n) => params.get(n))).toMatchObject({
+				priceCents: 522,
+				shippingCents: cents,
+				shop: 'IberLibro'
+			});
+		}
+	});
+
+	test('as written, and in words', () => {
+		expect(shippingFromText('12,19 €')).toEqual({ cents: 1219, currency: 'EUR' });
+		expect(shippingFromText('4,99')).toEqual({ cents: 499, currency: null });
+		for (const free of ['gratis', '0', '0,00 €', 'Envío gratis'])
+			expect(shippingFromText(free)).toEqual({ cents: 0, currency: null });
+		for (const none of ['', 'ni idea', null]) expect(shippingFromText(none)).toBeNull();
+		const said = (priceCents: number | null, shippingCents?: number | null) =>
+			costText({ priceCents, shippingCents, currency: 'EUR' })?.replace(/\s/g, ' ');
+		expect(said(522, 1219)).toBe('5,22 € + 12,19 € de envío = 17,41 €');
+		expect(said(522, 0)).toBe('5,22 €, envío gratis');
+		expect(said(522)).toBe('5,22 €');
+		expect(said(null, 499)).toBe('envío: 4,99 €');
+		expect(said(null)).toBeUndefined();
+		expect(
+			wishesSummary([
+				{ priceCents: 522, shippingCents: 1219, currency: 'EUR' },
+				{ priceCents: 100, shippingCents: 0, currency: 'EUR' }
+			]).replace(/\s/g, ' ')
+		).toBe('2 productos · 6,22 €, más 12,19 € de envíos');
+	});
+
+	test('from the browser, of another currency: not kept', () => {
+		const sent: Record<string, string> = {
+			url: 'https://tienda.es/p/1',
+			titulo: 'Libro',
+			precio: '5 €',
+			envio: '£4'
+		};
+		expect(productFromBrowser((n) => sent[n] ?? null)?.shippingCents).toBeNull();
+	});
 });
 
 describe('«Lo regalo yo»', () => {
@@ -530,10 +679,10 @@ describe('for when', () => {
 		expect(await setWishPriority(ana, 'ana', false, id('Bici'), 'mas_adelante')).toBe(true);
 		const said = (await describeWishes(pepe, 'pepe')).split('\n');
 		expect(said[0]).toContain('«Libro»');
-		expect(said[0]).toContain('para: lo primero');
+		expect(said[0]).toContain('para: «Lo primero»');
 		expect(said[1]).toContain('«Cámara»');
-		expect(said[1]).not.toContain('para:');
-		expect(said[2]).toContain('para: más adelante');
+		expect(said[1]).toContain('para: «Pronto»');
+		expect(said[2]).toContain('para: «Más adelante»');
 	});
 });
 
@@ -627,6 +776,7 @@ describe('the computer’s bookmark', () => {
 			imageUrl: null,
 			priceCents: 2999,
 			currency: 'EUR',
+			shippingCents: null,
 			priceSource: 'marcador'
 		});
 		// Only the site's name, or nothing: not read, the page is asked for instead.
@@ -638,10 +788,10 @@ describe('the computer’s bookmark', () => {
 		const source = await Bun.file(`${import.meta.dir}/../wishes.ts`).text();
 		const code = source
 			.split('\n')
-			.filter((l) => /^(const PAGE_TEXT = |\tconst code = )/.test(l))
+			.filter((l) => /^(const (PAGE_TEXT|NEAR_PRICE|SHIPPING) = |\tconst code = )/.test(l))
 			.join('\n');
 		const hash = new Bun.CryptoHasher('sha256').update(code).digest('hex').slice(0, 12);
-		expect({ version: BOOKMARK_VERSION, hash }).toEqual({ version: 2, hash: '7e8ea7fa89b3' });
+		expect({ version: BOOKMARK_VERSION, hash }).toEqual({ version: 4, hash: '7af8dfecccf1' });
 	});
 
 	test('run on an Amazon page, it opens Seilide with its name, price and picture', () => {
@@ -676,6 +826,7 @@ describe('the computer’s bookmark', () => {
 		const asked = new URL(opened);
 		expect(asked.origin + asked.pathname).toBe('https://seilide.app/compartido/enlace');
 		expect(Object.fromEntries(asked.searchParams)).toEqual({
+			envio: '',
 			url: 'https://www.amazon.es/dp/B09XS7JWHH?th=1',
 			v: String(BOOKMARK_VERSION),
 			titulo: 'Auriculares Sony',

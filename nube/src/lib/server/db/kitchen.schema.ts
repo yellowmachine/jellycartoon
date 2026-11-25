@@ -170,7 +170,7 @@ export const familySettings = pgTable(
 		conversationModel: text('conversation_model'),
 		/** «Cómo es la voz de la casa», free text in its instructions; null, none. */
 		voiceStyle: text('voice_style'),
-		/** «Buscar en internet desde la voz»: on or off, and where to look. */
+		/** «Buscar en internet» (the voice and Preguntar): on or off, and where to look. */
 		voiceWeb: jsonb('voice_web').$type<{ on: boolean; hints: string }>(),
 		/** «Horas de silencio», «HH:MM» to «HH:MM»; null, none. */
 		voiceQuiet: jsonb('voice_quiet').$type<{ from: string; to: string }>(),

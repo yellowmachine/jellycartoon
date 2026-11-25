@@ -60,9 +60,8 @@ export const walkPhoto = pgTable(
 		userId: text('user_id')
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
-		walkId: integer('walk_id')
-			.notNull()
-			.references(() => walk.id, { onDelete: 'cascade' }),
+		/** The walk gone, the photo stays, in Notas (#613). */
+		walkId: integer('walk_id').references(() => walk.id, { onDelete: 'set null' }),
 		/** The device's own id for it: sent twice (the answer got lost), it is kept once. */
 		clientId: text('client_id').notNull(),
 		/** Its file in the family's storage. */

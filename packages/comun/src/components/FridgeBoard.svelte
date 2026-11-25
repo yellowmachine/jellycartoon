@@ -247,7 +247,7 @@ it (the TV, `big`).
 										checked={i.done}
 										onchange={(e) =>
 											send({ action: 'done', id: i.id, done: e.currentTarget.checked })}
-										class="h-5 w-5 shrink-0 rounded border-stone-400 text-stone-700"
+										class="h-5 w-5 shrink-0 rounded border-stone-400 text-stone-700 [--marca:#fff]"
 									/>
 									<span class={['hand truncate text-lg', i.done && 'text-stone-400 line-through']}
 										>{i.text}</span

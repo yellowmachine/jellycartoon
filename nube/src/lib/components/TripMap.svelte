@@ -10,6 +10,8 @@
 	let {
 		line = [],
 		pieces,
+		coloured,
+		marks = [],
 		photos = [],
 		photoBase = '/viajes/fotos',
 		openMap = false,
@@ -18,6 +20,15 @@
 		line?: StoredPoint[];
 		/** Its way in pieces, instead of `line`: a shared walk's, without its ends (#434). */
 		pieces?: [number, number][][];
+		/** Its way in pieces of their own colour (a day's, #613), drawn in order. */
+		coloured?: { line: [number, number][]; color: string }[];
+		/** What was made on the way: a photo, a recording or words, shown when touched. */
+		marks?: {
+			position: [number, number];
+			text: string;
+			photo: string | null;
+			audio: string | null;
+		}[];
 		photos?: { id: number; lon: number | null; lat: number | null }[];
 		/** Where the photos are: a trip's, unless said. */
 		photoBase?: string;
@@ -35,9 +46,14 @@
 
 	$effect(() => {
 		const el = container;
-		const ways = (pieces ?? [line.map((p): [number, number] => [p[0], p[1]])]).filter(
-			(w) => w.length
-		);
+		const drawn = (
+			coloured ??
+			(pieces ?? [line.map((p): [number, number] => [p[0], p[1]])]).map((w) => ({
+				line: w,
+				color: '#f59e0b'
+			}))
+		).filter((w) => w.line.length);
+		const ways = drawn.map((w) => w.line);
 		const points = ways.flat();
 		if (!el || !points.length) return;
 		let cancelled = false;
@@ -61,8 +77,9 @@
 				style = ours.styleFor(true);
 			}
 			if (cancelled) return;
-			const lons = points.map((p) => p[0]);
-			const lats = points.map((p) => p[1]);
+			const seen = [...points, ...marks.map((m) => m.position)];
+			const lons = seen.map((p) => p[0]);
+			const lats = seen.map((p) => p[1]);
 			map = new maplibregl.Map({
 				container: el,
 				style,
@@ -78,9 +95,14 @@
 				created.addSource('viaje', {
 					type: 'geojson',
 					data: {
-						type: 'Feature',
-						properties: {},
-						geometry: { type: 'MultiLineString', coordinates: ways }
+						type: 'FeatureCollection',
+						features: drawn
+							.filter((w) => w.line.length > 1)
+							.map(({ line, color }) => ({
+								type: 'Feature',
+								properties: { color },
+								geometry: { type: 'LineString', coordinates: line }
+							}))
 					}
 				});
 				created.addLayer({
@@ -88,7 +110,7 @@
 					type: 'line',
 					source: 'viaje',
 					layout: { 'line-join': 'round', 'line-cap': 'round' },
-					paint: { 'line-color': '#f59e0b', 'line-width': 5 }
+					paint: { 'line-color': ['get', 'color'], 'line-width': 5 }
 				});
 			});
 			if (ends) {
@@ -104,6 +126,33 @@
 				new maplibregl.Marker({ color: '#0ea5e9', scale: 0.8 })
 					.setLngLat([photo.lon, photo.lat])
 					.setPopup(new maplibregl.Popup({ offset: 24, maxWidth: '320px' }).setDOMContent(img))
+					.addTo(created);
+			}
+			for (const mark of marks) {
+				const box = document.createElement('div');
+				box.className = 'trip-mark';
+				if (mark.photo) {
+					const img = document.createElement('img');
+					img.src = mark.photo;
+					img.alt = '';
+					img.className = 'trip-photo';
+					box.append(img);
+				}
+				if (mark.text) {
+					const p = document.createElement('p');
+					p.textContent = mark.text;
+					box.append(p);
+				}
+				if (mark.audio) {
+					const audio = document.createElement('audio');
+					audio.controls = true;
+					audio.preload = 'none';
+					audio.src = mark.audio;
+					box.append(audio);
+				}
+				new maplibregl.Marker({ color: mark.photo ? '#0ea5e9' : '#a855f7', scale: 0.8 })
+					.setLngLat(mark.position)
+					.setPopup(new maplibregl.Popup({ offset: 24, maxWidth: '320px' }).setDOMContent(box))
 					.addTo(created);
 			}
 		})();
@@ -129,5 +178,14 @@
 		width: 280px;
 		max-width: 70vw;
 		border-radius: 6px;
+	}
+	:global(.trip-mark) {
+		max-width: 280px;
+		color: #18181b;
+		white-space: pre-wrap;
+	}
+	:global(.trip-mark audio) {
+		width: 260px;
+		max-width: 70vw;
 	}
 </style>

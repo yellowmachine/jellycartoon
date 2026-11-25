@@ -7,7 +7,7 @@ mock.module('#lib/server/openrouter.ts', () => ({
 	completeJson: async () => ({}),
 	sayableError: (m: string) => m
 }));
-const { analysisFromAnswer, priceInText } = await import('./wish-analysis.ts');
+const { analysisFromAnswer, priceInText, shippingInText } = await import('./wish-analysis.ts');
 
 /** «Analizar con IA» on a wish (#586): what is sent, and the answer checked against it. */
 
@@ -29,13 +29,32 @@ test('the answer: what it does not say, missing', () => {
 			{ title: '  Composición  8 ', price: '84,20 €', options: '55 × 38,4 cm' },
 			'Añadir 84,20 €'
 		)
-	).toEqual({ title: 'Composición 8', price: '84,20 €', options: '55 × 38,4 cm' });
+	).toEqual({ title: 'Composición 8', price: '84,20 €', shipping: null, options: '55 × 38,4 cm' });
 	expect(analysisFromAnswer({ title: '', price: '9 €', options: 3 }, 'nada')).toEqual({
 		title: null,
 		price: null,
+		shipping: null,
 		options: null
 	});
-	expect(analysisFromAnswer(null, '')).toEqual({ title: null, price: null, options: null });
+	expect(analysisFromAnswer(null, '')).toEqual({
+		title: null,
+		price: null,
+		shipping: null,
+		options: null
+	});
+});
+
+test('its shipping, checked too: in the text, and in the price’s currency', () => {
+	const text = 'Precio 5,22 €\nGastos de envío: 12,19 €\n£4.00';
+	expect(shippingInText('12,19 €', text)).toBe('12,19 €');
+	expect(shippingInText('9 €', text)).toBeNull();
+	expect(shippingInText('gratis', text)).toBeNull();
+	expect(shippingInText('gratis', 'Envío a domicilio gratis')).toBe('gratis');
+	expect(shippingInText('0 €', 'Envío: 0,00 €')).toBe('gratis');
+	expect(analysisFromAnswer({ price: '5,22 €', shipping: '£4.00' }, text)).toMatchObject({
+		price: '5,22 €',
+		shipping: null
+	});
 });
 
 test('without e-mails or phones, and no longer than it may be', () => {

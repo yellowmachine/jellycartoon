@@ -87,7 +87,7 @@ const SECTIONS: {
 		icon: 'preguntar',
 		where: 'nube',
 		about:
-			'Un chat con la IA, privado de cada persona, que mira la agenda, el dinero, tus notas y tus viajes para contestar, y propone qué comprar o una receta para guardar con un toque. En el ordenador, también al lado de cualquier página. Solo adultos.'
+			'Un chat con la IA, privado de cada persona, que mira la agenda, el dinero, tus notas y tus viajes para contestar, y propone qué comprar o una receta para guardar con un toque. Se abre al lado de cualquier página o, en el móvil, encima. Solo adultos.'
 	},
 	// Rules and what the voice remembers (#331, #389), out of Ajustes: adults only.
 	{
@@ -327,6 +327,9 @@ export function sectionOfPath(pathname: string): { path: string; label: string }
 	if (s) return { path: s.path, label: s.label };
 	return EXTRA_SECTIONS.find((x) => x.path === first) ?? null;
 }
+
+/** A section's icon, by its path; none for those out of the bar. */
+export const sectionIcon = (path: string) => SECTIONS.find((s) => s.path === path)?.icon ?? null;
 
 const EXTRA_SECTIONS = [
 	{ path: '/ajustes', label: 'Ajustes' },

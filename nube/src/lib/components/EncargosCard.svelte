@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import { itemSaid, type PlanCard } from '#lib/encargos.ts';
 
 	/**
@@ -47,7 +47,7 @@
 				ticked = {};
 				onsaved?.(result.data.plan as PlanCard);
 				problems = Array.isArray(result.data.problems) ? result.data.problems.map(String) : [];
-				void invalidateAll();
+				void refreshAll();
 			} else problems = ['No se pudo guardar'];
 		};
 	}}

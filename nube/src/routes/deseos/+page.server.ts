@@ -4,7 +4,13 @@ import { isCategory, isDay, MAX_CENTS, parseEuros } from 'comun/expenses.ts';
 import { lookingSame } from '#lib/server/expenses/duplicates.ts';
 import { addExpense } from '#lib/server/expenses/expenses.ts';
 import { kitchenOf, today } from '#lib/server/fridge.ts';
-import { isWishPriority, priceChangeText, priceFromText } from '#lib/wishes.ts';
+import {
+	isWishPriority,
+	priceChangeText,
+	priceFromText,
+	sameCurrency,
+	shippingFromText
+} from '#lib/wishes.ts';
 import { isKidAccount } from '#lib/server/kids.ts';
 import {
 	addWish,
@@ -88,10 +94,17 @@ export const actions: Actions = {
 						// Its own, unless another is written with it.
 						currency: /[€$£]/.test(said) || !/^[A-Z]{3}$/.test(currency) ? read.currency : currency
 					};
+		const sent = text(form, 'shipping');
+		const shipping = shippingFromText(sent);
+		if (sent?.trim() && !shipping)
+			return fail(400, { message: 'Ese envío no se entiende: 4,99 o gratis' });
+		if (shipping?.currency && !sameCurrency(shipping.currency, price?.currency ?? currency))
+			return fail(400, { message: 'El envío, en la misma moneda que el precio' });
 		const done = await updateWish(await kitchenOf(userId), userId, await isKidAccount(userId), id, {
 			title,
 			note: text(form, 'note'),
-			price
+			price,
+			shipping: sent === null ? undefined : (shipping?.cents ?? null)
 		});
 		if (!done) return fail(404, { message: 'Ese deseo ya no está' });
 	},

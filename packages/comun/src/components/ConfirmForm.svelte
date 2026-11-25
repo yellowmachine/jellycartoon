@@ -6,6 +6,8 @@ question takes a line of its own under the row, as wide as it (the row must wrap
 so a row full of text is not squeezed (Paseos).
 -->
 <script lang="ts" module>
+	import type { Snippet } from 'svelte';
+
 	export interface ConfirmFormProps {
 		/** The form action «Sí» posts to. */
 		action: string;
@@ -21,6 +23,8 @@ so a row full of text is not squeezed (Paseos).
 		below?: boolean;
 		/** The first button's. */
 		class?: string;
+		/** More to choose before «Sí»: fields of the form. */
+		children?: Snippet;
 	}
 </script>
 
@@ -34,7 +38,8 @@ so a row full of text is not squeezed (Paseos).
 		question,
 		yes = 'Sí, borrar',
 		below = false,
-		class: className = ''
+		class: className = '',
+		children
 	}: ConfirmFormProps = $props();
 
 	let asking = $state(false);
@@ -63,6 +68,7 @@ so a row full of text is not squeezed (Paseos).
 			<input type="hidden" {name} {value} />
 		{/each}
 		<span class="text-red-300">{question}</span>
+		{@render children?.()}
 		<button class="font-medium text-red-400 hover:underline">{yes}</button>
 		<button type="button" class="text-zinc-400 hover:text-white" onclick={() => (asking = false)}
 			>No</button

@@ -2,8 +2,7 @@
 	import { page } from '$app/state';
 	import Caracol from '#lib/components/Caracol.svelte';
 	import Chat from '#lib/components/Chat.svelte';
-	import { chatPanel } from '#lib/chat-panel.svelte.ts';
-	import type { ChatMessage } from '#lib/chat.ts';
+	import { chatPanel, readChat, type ChatData } from '#lib/chat-panel.svelte.ts';
 	import { onMount } from 'svelte';
 
 	/**
@@ -12,15 +11,13 @@
 	 * chat is read each time the panel appears (its page may have changed it), and kept while it
 	 * stays open from page to page.
 	 */
-	let data = $state<{ messages: ChatMessage[]; toBuy: string[]; hasAi: boolean } | null>(null);
+	let data = $state<ChatData | null>(null);
 	let problem = $state<string | null>(null);
 
 	async function load() {
 		problem = null;
 		try {
-			const res = await fetch('/api/preguntar');
-			if (!res.ok) throw new Error(String(res.status));
-			data = await res.json();
+			data = await readChat();
 		} catch {
 			problem = 'No se pudo abrir la conversación.';
 		}

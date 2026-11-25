@@ -18,7 +18,10 @@ import {
 	MAX_WISH_NOTE,
 	priceChangeParam,
 	priceFromText,
-	priceText
+	priceText,
+	sameCurrency,
+	shippingField,
+	shippingFromText
 } from '#lib/wishes.ts';
 
 /**
@@ -44,6 +47,7 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 					imageUrl: read.imageUrl,
 					price: priceText(read.priceCents, read.currency),
 					precio: url.searchParams.get('precio') ?? '',
+					envio: shippingField(read.shippingCents),
 					foto: read.imageUrl ?? '',
 					nota: (url.searchParams.get('nota') ?? '').slice(0, MAX_WISH_NOTE)
 				}
@@ -86,6 +90,11 @@ export const actions: Actions = {
 		const precio = field('precio');
 		if (precio?.trim() && !priceFromText(precio))
 			return fail(400, { message: 'Ese precio no se entiende: 12,30' });
+		const envio = shippingFromText(field('envio'));
+		if (field('envio')?.trim() && !envio)
+			return fail(400, { message: 'Ese envío no se entiende: 4,99 o gratis' });
+		if (envio?.currency && !sameCurrency(envio.currency, priceFromText(precio)?.currency ?? null))
+			return fail(400, { message: 'El envío, en la misma moneda que el precio' });
 		const product =
 			productFromBrowser(field) ??
 			(await readProduct(link, typeof texto === 'string' ? texto : null));

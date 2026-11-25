@@ -52,6 +52,15 @@ export const wish = pgTable(
 			.default('servidor'),
 		/** When that price was seen: it changes, and is not watched. */
 		priceAt: timestamp('price_at'),
+		/**
+		 * What sending it costs, in cents of `currency`: 0, free; null, not known. Only a guide: for
+		 * this product alone. Apart from the price, so that one going down is not the other.
+		 */
+		shippingCents: integer('shipping_cents'),
+		/** Who said it, as `priceSource`. */
+		shippingSource: text('shipping_source', { enum: ['servidor', 'marcador', 'mano'] })
+			.notNull()
+			.default('servidor'),
 		/** A size, a colour: what the shop's page does not say. */
 		note: text('note'),
 		/** For when: «Lo primero», «Pronto» or «Más adelante» (lib/wishes.ts). */

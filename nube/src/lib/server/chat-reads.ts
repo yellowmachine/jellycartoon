@@ -187,7 +187,7 @@ export const READ_TOOLS: Tool[] = [
 	),
 	fn(
 		'read_wishes',
-		'La lista de deseos de la familia (Deseos): lo que le gustaría a cada uno, de cualquier tienda, con su precio si se sabe, quién lo regala («Lo regalo yo») y si es para lo primero o para más adelante (sin decirlo, para pronto). Para «¿qué le regalo a mamá?», «¿qué hay de IKEA?», «¿cuánto suma la lista de Lucía?», «¿qué es lo primero que quiere Ana?». Lo que regalan a quien pregunta no sale: es una sorpresa, no lo adivines ni lo insinúes.',
+		'La lista de deseos de la familia (Deseos): lo que le gustaría a cada uno, de cualquier tienda, con su precio y lo que cuesta su envío si se saben (orientativo, para uno solo), quién lo regala («Lo regalo yo») y para cuándo: «Lo primero», «Pronto» o «Más adelante», los grupos que se ven en la sección (lo comprado, en ninguno). Para «¿qué le regalo a mamá?», «¿qué hay de IKEA?», «¿cuánto suma la lista de Lucía?», «¿qué es lo primero que quiere Ana?». Lo que regalan a quien pregunta no sale: es una sorpresa, no lo adivines ni lo insinúes.',
 		{
 			person: {
 				type: 'string',

@@ -63,6 +63,19 @@ export interface PlaceCard {
 	address: string | null;
 }
 
+/** A page found on the internet. */
+export interface WebSource {
+	url: string;
+	title: string;
+}
+
+/** A search on the internet: what left Seilide, as it was asked, and where the answer came from. */
+export interface WebCard {
+	kind: 'busqueda';
+	query: string;
+	sources: WebSource[];
+}
+
 export type ChatCard =
 	| ShoppingCard
 	| RecipeCard
@@ -75,7 +88,8 @@ export type ChatCard =
 	| ErrandChangeCard
 	| PlugPauseCard
 	| PlugSkipCard
-	| WishCard;
+	| WishCard
+	| WebCard;
 
 export interface ChatMessage {
 	id: number;
@@ -106,5 +120,9 @@ export function firstRead(messages: Pick<ChatMessage, 'createdAt'>[], now = Date
 
 /** A question, not a letter. */
 export const MAX_CHAT_QUESTION = 2_000;
+/** Searches on the internet for one question, at most. */
+export const MAX_WEB_SEARCHES = 3;
+/** What is searched, this long at most. */
+export const MAX_WEB_QUERY = 300;
 /** Items in a card: more than this is not a list to tick. */
 export const MAX_CARD_ITEMS = 30;

@@ -1,4 +1,4 @@
-import { invalidateAll } from '$app/navigation';
+import { refreshAll } from '$app/navigation';
 import {
 	attachmentsOf,
 	discardAttachment,
@@ -75,7 +75,7 @@ class WalkUploads {
 		this.sending = false;
 		this.done = this.total = 0;
 		// Only then: without coverage, asking for the page again would leave the browser's error.
-		if (sent) await invalidateAll().catch(() => {});
+		if (sent) await refreshAll().catch(() => {});
 	}
 
 	/** Once more: the connection is back, or the page, or someone asks. */

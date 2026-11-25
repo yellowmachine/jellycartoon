@@ -22,6 +22,7 @@
 	import Caracol from '#lib/components/Caracol.svelte';
 	import CallButton from '#lib/components/CallButton.svelte';
 	import ChatPanel from '#lib/components/ChatPanel.svelte';
+	import ChatSheet from '#lib/components/ChatSheet.svelte';
 	import { chatPanel } from '#lib/chat-panel.svelte.ts';
 	import { inVista, videoPlaying, vista } from '#lib/vista.svelte.ts';
 	import { shouldGoBack, shouldUpdateVista } from '#lib/vista-idle.ts';
@@ -188,6 +189,26 @@
 	const chatShown = $derived(chatOn && chatPanel.open && page.url.pathname !== '/preguntar');
 	/** Wide enough for the chat beside the page (Tailwind's lg). */
 	const wide = new MediaQuery('(min-width: 1024px)', false);
+	/**
+	 * Narrower, the chat in a sheet over the page, with its own history entry (SvelteKit's shallow
+	 * routing): back closes it. Kept once opened, hidden, so an answer on its way arrives.
+	 */
+	const sheetAble = $derived(chatOn && !wide.current && page.url.pathname !== '/preguntar');
+	const sheetShown = $derived(sheetAble && Boolean(page.state.chatSheet));
+	let sheetUsed = $state(false);
+	$effect(() => {
+		if (sheetShown) sheetUsed = true;
+	});
+	let sheetClosing = false;
+	$effect(() => {
+		if (!sheetShown) sheetClosing = false;
+	});
+	/** Once: a drag down ends in a click too, and a second back would leave the page. */
+	function closeSheet() {
+		if (sheetClosing || !page.state.chatSheet) return;
+		sheetClosing = true;
+		history.back();
+	}
 	/** The bar's sections without «Preguntar»: its button at the start is it (#470). */
 	const barLinks = $derived(nav.links.filter((l) => l.href !== '/preguntar' || !chatOn));
 	/**
@@ -474,12 +495,12 @@ trip's link (#81), for whoever has it, and a shared walk's (#434), with its own 
 								</svg>
 							</a>
 							<!-- «Preguntar» (#470), once and here at the start, not also among the sections: on a
-							     wide screen, beside the page (#504); on a phone or a tablet, and on its own page, its
-							     page. -->
+							     wide screen, beside the page (#504); on a phone or a tablet, over it; on its own page,
+							     its page. -->
 							{#if chatOn}
 								<a
 									href="/preguntar"
-									title={!wide.current || page.url.pathname === '/preguntar'
+									title={sheetAble || page.url.pathname === '/preguntar'
 										? 'Preguntar'
 										: chatShown
 											? 'Cerrar Preguntar'
@@ -488,14 +509,18 @@ trip's link (#81), for whoever has it, and a shared walk's (#434), with its own 
 									aria-current={page.url.pathname === '/preguntar' ? 'page' : undefined}
 									class={[
 										'shrink-0 rounded-md p-1 hover:bg-zinc-800 hover:text-white',
-										chatShown || page.url.pathname === '/preguntar'
+										(chatShown && wide.current) || page.url.pathname === '/preguntar'
 											? 'text-amber-400'
 											: 'text-zinc-400'
 									]}
 									onclick={(e) => {
-										if (!wide.current || page.url.pathname === '/preguntar') return;
+										if (page.url.pathname === '/preguntar') return;
+										// Ctrl, the wheel's button…: the browser's, its page in another tab.
+										if (e.ctrlKey || e.metaKey || e.shiftKey) return;
 										e.preventDefault();
-										chatPanel.toggle();
+										if (wide.current) chatPanel.toggle();
+										else if (!page.state.chatSheet)
+											void pushState('', { ...page.state, chatSheet: true });
 									}}
 								>
 									<SectionIcon name="preguntar" class="h-6 w-6" />
@@ -614,7 +639,11 @@ trip's link (#81), for whoever has it, and a shared walk's (#434), with its own 
 		</button>
 	{/if}
 
-	{#if callButtonShown && data.callButton}
+	{#if sheetAble && (sheetShown || sheetUsed)}
+		<ChatSheet shown={sheetShown} onclose={closeSheet} />
+	{/if}
+
+	{#if callButtonShown && data.callButton && !sheetShown}
 		<CallButton favorites={data.callButton.favorites} beside={chatShown} />
 	{/if}
 {/if}

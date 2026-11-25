@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import EnchufesTabs from '#lib/components/EnchufesTabs.svelte';
 	import TemperatureChart from '#lib/components/TemperatureChart.svelte';
@@ -22,7 +22,7 @@
 	const o = $derived(data.outside);
 
 	$effect(() => {
-		const every = setInterval(() => void invalidateAll(), 60_000);
+		const every = setInterval(() => void refreshAll(), 60_000);
 		return () => clearInterval(every);
 	});
 
