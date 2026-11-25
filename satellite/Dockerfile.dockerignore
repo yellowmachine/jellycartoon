@@ -17,4 +17,5 @@
 !static/wakeword/ocarina.onnx
 !static/wakeword/kusanagi.onnx
 !static/wakeword/makoto.onnx
+!static/wakeword/oye_alizee.onnx
 !static/wakeword/silero_vad.onnx

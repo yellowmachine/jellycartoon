@@ -25,6 +25,16 @@ describe('calling the AI in Mensajes (#555)', () => {
 		expect(assistantName('makoto')).toBe('Makoto');
 		expect(assistantName('hola_casita')).toBe('Casita');
 		expect(askedOf('@casita una tarta', assistantName('hola_casita'))).toBe('una tarta');
+		const alizee = assistantName('oye_alizee');
+		expect(alizee).toBe('Alizée');
+		for (const text of [
+			'@alizee una tarta',
+			'@Alizée una tarta',
+			'Alizée, una tarta',
+			'alizee: una tarta'
+		])
+			expect(askedOf(text, alizee)).toBe('una tarta');
+		expect(completed('@ali', alizee)).toBe('@alizee ');
 	});
 
 	test('«@ma» is finished as «@makoto »', () => {

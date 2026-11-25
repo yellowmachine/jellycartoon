@@ -6,9 +6,9 @@ import { WAKE_WORDS, type WakeWordModel } from 'comun/wake-words.ts';
  * «@ia» works too, whatever the word.
  */
 
-/** Its name: the wake word, «Casita» for «hola casita». */
+/** Its name: the wake word, without its greeting («hola casita», «Oye, Alizée»). */
 export const assistantName = (word: WakeWordModel) =>
-	word === 'hola_casita' ? 'Casita' : WAKE_WORDS[word];
+	word === 'hola_casita' ? 'Casita' : word === 'oye_alizee' ? 'Alizée' : WAKE_WORDS[word];
 
 /** How it is written after «@»: «makoto». */
 export const handleOf = (name: string) =>
@@ -23,9 +23,11 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /** What is asked of the AI, without its name; null if the text is not for it. */
 export function askedOf(text: string, name: string): string | null {
 	const handle = handleOf(name);
-	const at = new RegExp(`(^|\\s)@(${escape(handle)}|ia)(?![\\p{L}\\p{N}])[,:]?`, 'iu');
+	// With its accents or without: «@alizée», «@alizee».
+	const either = `${escape(name)}|${escape(handle)}`;
+	const at = new RegExp(`(^|\\s)@(${either}|ia)(?![\\p{L}\\p{N}])[,:]?`, 'iu');
 	if (at.test(text)) return text.replace(at, '$1').replace(/\s+/g, ' ').trim();
-	const start = new RegExp(`^\\s*${escape(name)}\\s*[,:]\\s*`, 'iu');
+	const start = new RegExp(`^\\s*(?:${either})\\s*[,:]\\s*`, 'iu');
 	if (start.test(text)) return text.replace(start, '').trim();
 	return null;
 }
