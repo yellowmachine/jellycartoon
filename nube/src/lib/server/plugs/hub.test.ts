@@ -4,6 +4,7 @@ import type { KeyPlug } from './plug-key-scope.ts';
 import {
 	energyRise,
 	hourOf,
+	hoursOfRise,
 	isSensorDevice,
 	parseMessage,
 	sensorOf,
@@ -108,6 +109,21 @@ describe('shelly', () => {
 		// A rounding, not a reset.
 		expect(energyRise(29150.479, 29150.478)).toBe(0);
 		expect(energyRise(0.414001, 0.414)).toBe(0);
+	});
+
+	test('a rise by its hours: now; shared out after being away; impossible, none', () => {
+		const at = (t: string) => new Date(`2026-11-25T${t}:00Z`);
+		const said = (wh: number, since: string | null, now: string) =>
+			hoursOfRise(wh, since ? at(since) : null, at(now)).map(
+				(p) => `${p.hour.toISOString().slice(11, 13)} ${p.wh}`
+			);
+		expect(said(300, null, '10:30')).toEqual(['10 300']);
+		expect(said(300, '10:20', '10:30')).toEqual(['10 300']);
+		expect(said(3000, '08:30', '10:30')).toEqual(['08 750', '09 1500', '10 750']);
+		expect(said(29150, '10:20', '10:30')).toEqual([]);
+		expect(said(29150, null, '10:30')).toEqual([]);
+		// A day away: it may be.
+		expect(hoursOfRise(29150, new Date('2026-11-24T10:30:00Z'), at('10:30'))).toHaveLength(25);
 	});
 
 	test('hours by their start', () => {
@@ -335,6 +351,24 @@ describe('hub', () => {
 		ws.say(status({ aenergy: { total: 10.207 } }));
 		await tick();
 		expect(energy).toHaveLength(1);
+	});
+
+	test('back after hours away: its rise shared out; from then on, of now', async () => {
+		const { hub, energy, setClock } = setup({
+			tok: { ...LAMP, lastSeenAt: new Date('2026-11-07T15:56:00Z') }
+		});
+		const ws = new FakePlug();
+		await hub.attach('tok', ws);
+		ws.say(status({ aenergy: { total: 130 } }));
+		await tick();
+		expect(energy.map((e) => Math.round(e.wh))).toEqual([4, 60, 56]);
+		energy.length = 0;
+		setClock('2026-11-07T20:30:00Z');
+		ws.say(status({ aenergy: { total: 190 } }));
+		await tick();
+		expect(energy.map((e) => [e.hour.toISOString(), e.wh])).toEqual([
+			['2026-11-07T20:00:00.000Z', 60]
+		]);
 	});
 
 	test('its timer: said when it starts; after a switch without one, asked, and gone', async () => {

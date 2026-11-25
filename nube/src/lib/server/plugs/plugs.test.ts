@@ -728,6 +728,7 @@ describe('horarios, pausa y calentamiento', () => {
 describe('consumo', () => {
 	test('a week: by day, the one before as far in, each plug’s part; another family’s, no', async () => {
 		const { plugStats, dayStart } = await import('./stats.ts');
+
 		expect(dayStart('2026-11-08').toISOString()).toBe('2026-11-07T23:00:00.000Z');
 		// The night the clocks go back: 25 hours, from midnight in summer time.
 		expect(dayStart('2026-10-25').toISOString()).toBe('2026-10-24T22:00:00.000Z');
@@ -779,6 +780,51 @@ describe('consumo', () => {
 		expect((await plugStats('ana', { day: '2027-01-01' }, now))!.day).toBe('2026-11-08');
 		await deletePlug('ana', heater.id);
 		await deletePlug('ana', fan.id);
+	});
+});
+
+describe('wrong hours', () => {
+	test('the impossible taken out, not the one going on; by hand, and back; only the family’s', async () => {
+		const { plugStats } = await import('./stats.ts');
+		const { fixHour, takeOutImpossible } = await import('./energy-fix.ts');
+		const heater = await createPlug('ana', 'Termo malo', 'termo');
+		const now = new Date('2026-11-25T11:30:00Z');
+		const at = (h: string) => new Date(`2026-11-25T${h}:00:00Z`);
+		await asFamily('A', (tx) =>
+			tx.insert(plugEnergy).values([
+				{ plugId: heater.id, familyId: 'A', hour: at('08'), wh: 58300 },
+				{ plugId: heater.id, familyId: 'A', hour: at('09'), wh: 3600 },
+				{ plugId: heater.id, familyId: 'A', hour: at('11'), wh: 9000 }
+			])
+		);
+		const day = async () =>
+			(await plugStats('ana', { view: 'dia', plugId: heater.id, day: '2026-11-25' }, now))!;
+		expect(await asFamily('B', (tx) => takeOutImpossible(tx, now))).toBe(0);
+		expect(await asFamily('A', (tx) => takeOutImpossible(tx, now))).toBe(1);
+		expect(await day()).toMatchObject({ total: { wh: 12600 }, noData: 1 });
+		const cell = (await day()).buckets[9]!.hours![heater.id]!;
+		expect(cell).toMatchObject({ mark: 'sin_dato', raw: 58300, over: true });
+		const fix = (who: string, hour: Date, f: Parameters<typeof fixHour>[3]) =>
+			asFamily(who, (tx) => fixHour(tx, heater.id, hour, f, now));
+		expect(await fix('B', at('08'), { to: 'valor', wh: 1 })).toBe(false);
+		// Said to be right: not taken out again.
+		expect(await fix('A', at('08'), { to: 'original' })).toBe(true);
+		expect(await asFamily('A', (tx) => takeOutImpossible(tx, now))).toBe(0);
+		expect((await day()).total.wh).toBe(70900);
+		expect(await fix('A', at('08'), { to: 'sin_dato' })).toBe(true);
+		// Corrected twice: as it came is still the first.
+		expect(await fix('A', at('09'), { to: 'valor', wh: 100 })).toBe(true);
+		expect(await fix('A', at('09'), { to: 'valor', wh: 200 })).toBe(true);
+		expect((await day()).buckets[10]).toMatchObject({
+			wh: 200,
+			hours: { [heater.id]: { mark: 'corregido', raw: 3600 } }
+		});
+		expect(await fix('A', at('09'), { to: 'original' })).toBe(true);
+		expect((await day()).buckets[10]!.hours![heater.id]).toMatchObject({ mark: null, raw: null });
+		// Going on, or not there.
+		expect(await fix('A', at('11'), { to: 'sin_dato' })).toBe(false);
+		expect(await fix('A', at('03'), { to: 'sin_dato' })).toBe(false);
+		await deletePlug('ana', heater.id);
 	});
 });
 

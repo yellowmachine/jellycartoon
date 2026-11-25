@@ -24,6 +24,8 @@ export interface KeyPlug {
 	familyId: string;
 	name: string;
 	energyWh: number | null;
+	/** When it was last heard, before connecting now. */
+	lastSeenAt?: Date | null;
 }
 
 /**
@@ -42,7 +44,8 @@ export function plugKeyScope(db: AnyDb, { role }: { role?: string } = {}) {
 					id: plug.id,
 					familyId: plug.familyId,
 					name: plug.name,
-					energyWh: plug.energyWh
+					energyWh: plug.energyWh,
+					lastSeenAt: plug.lastSeenAt
 				})
 				.from(plug)
 				.where(eq(plug.hash, hash));

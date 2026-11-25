@@ -112,7 +112,14 @@ export const plugEnergy = pgTable(
 			.notNull()
 			.references(() => family.id, { onDelete: 'cascade' }),
 		hour: timestamp('hour').notNull(),
-		wh: real('wh').notNull().default(0)
+		wh: real('wh').notNull().default(0),
+		/**
+		 * Looked at (energy-fix.ts): taken out as impossible or wrong (`wh` 0), corrected by hand, or
+		 * said to be right. Null, as it came.
+		 */
+		mark: text('mark', { enum: ['sin_dato', 'corregido', 'confirmado'] }),
+		/** As it came, taken out or corrected. */
+		rawWh: real('raw_wh')
 	},
 	(t) => [
 		primaryKey({ columns: [t.plugId, t.hour] }),

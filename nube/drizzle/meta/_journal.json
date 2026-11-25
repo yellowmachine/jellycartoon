@@ -904,6 +904,13 @@
       "when": 1795606884261,
       "tag": "0128_chemical_malice",
       "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1795608112819,
+      "tag": "0129_daffy_longshot",
+      "breakpoints": true
     }
   ]
 }

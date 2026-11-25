@@ -9,10 +9,11 @@ import {
 	STATS_VIEWS,
 	TIME_ZONE,
 	type StatsView,
+	type PlugHour,
 	type PlugStats
 } from '#lib/plug-stats.ts';
 import { priceOf } from './plugs.ts';
-import { isSensorDevice } from './shelly.ts';
+import { hourOf, isSensorDevice } from './shelly.ts';
 
 /**
  * Enchufes → Consumo (#396): what the plugs used by day, week, month and year, from what each
@@ -58,6 +59,8 @@ interface Row {
 	plugId: string;
 	hour: Date;
 	wh: number;
+	mark: PlugHour['mark'];
+	rawWh: number | null;
 }
 
 /** The family's use in a view around a day, of one plug or all; null if that plug is not its. */
@@ -101,7 +104,13 @@ export async function statsIn(
 
 	const [rows, price] = await Promise.all([
 		tx
-			.select({ plugId: plugEnergy.plugId, hour: plugEnergy.hour, wh: plugEnergy.wh })
+			.select({
+				plugId: plugEnergy.plugId,
+				hour: plugEnergy.hour,
+				wh: plugEnergy.wh,
+				mark: plugEnergy.mark,
+				rawWh: plugEnergy.rawWh
+			})
 			.from(plugEnergy)
 			.where(and(gte(plugEnergy.hour, prevStart), lt(plugEnergy.hour, end))),
 		priceOf(tx)
@@ -113,8 +122,12 @@ export async function statsIn(
 		...bucket,
 		wh: 0,
 		euros: 0,
-		parts: {} as Record<string, number>
+		parts: {} as Record<string, number>,
+		...(view === 'dia' ? { hours: {} as Record<string, PlugHour> } : {})
 	}));
+	const thisHour = hourOf(now);
+	const marked = new Set<string>();
+	let noData = 0;
 	const index = new Map(buckets.map((x, i) => [x.key, i]));
 	const byPlug = new Map<string, { wh: number; euros: number }>();
 	const byPeriod: Record<PeriodName, { wh: number; euros: number }> = {
@@ -138,6 +151,15 @@ export async function statsIn(
 		const i = index.get(key);
 		if (i === undefined) continue;
 		const bucket = buckets[i]!;
+		if (r.mark) marked.add(r.plugId);
+		if (r.mark === 'sin_dato') noData++;
+		if (bucket.hours)
+			bucket.hours[r.plugId] = {
+				hour: r.hour.toISOString(),
+				mark: r.mark,
+				raw: r.rawWh,
+				over: r.hour < thisHour
+			};
 		bucket.wh += r.wh;
 		bucket.euros += eur;
 		bucket.parts[r.plugId] = (bucket.parts[r.plugId] ?? 0) + r.wh;
@@ -172,6 +194,7 @@ export async function statsIn(
 		})),
 		buckets: buckets.map(withPrice),
 		total: withPrice(total),
+		noData,
 		before: withPrice(before),
 		byPlug: plugId
 			? []
@@ -181,7 +204,8 @@ export async function statsIn(
 						name: p.name,
 						...withPrice(byPlug.get(p.id) ?? { wh: 0, euros: 0 })
 					}))
-					.filter((p) => p.wh > 0)
+					// One with all its hours taken out, too: to put them back.
+					.filter((p) => p.wh > 0 || marked.has(p.id))
 					.sort((x, y) => y.wh - x.wh),
 		byPeriod: price?.periods
 			? (Object.entries(byPeriod) as [PeriodName, { wh: number; euros: number }][]).map(
