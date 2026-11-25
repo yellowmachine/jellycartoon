@@ -22,6 +22,10 @@
 	const missing = $derived(
 		(Object.keys(FUEL_KINDS) as FuelKind[]).filter((k) => !data.fuels.some((f) => f.kind === k))
 	);
+	const fuelDone = $derived(form && 'fuelDone' in form ? (form.fuelDone ?? null) : null);
+	const fuelProblem = $derived(form && 'fuelProblem' in form ? (form.fuelProblem ?? null) : null);
+	/** The fuel being added: what is at home is asked first. */
+	let adding = $state<FuelKind | null>(null);
 	const colder = $derived.by(() => {
 		if (!f || f.degreesBefore === null) return null;
 		const diff = f.degrees - f.degreesBefore;
@@ -157,7 +161,14 @@
 		<h2 class="mb-2 font-semibold">Butano y pellet</h2>
 		{#if data.fuels.length}
 			<div class="flex flex-col gap-2">
-				{#each data.fuels as fuel (fuel.id)}<FuelCard f={fuel} />{/each}
+				{#each data.fuels as fuel (fuel.id)}
+					<FuelCard
+						f={fuel}
+						today={data.today}
+						done={fuelDone?.fuel === fuel.id ? fuelDone : null}
+						problem={fuelProblem?.fuel === fuel.id ? fuelProblem.text : null}
+					/>
+				{/each}
 			</div>
 		{:else}
 			<p class="mb-2 text-sm text-zinc-400">
@@ -168,15 +179,58 @@
 		{#if missing.length}
 			<div class="mt-3 flex flex-wrap gap-2">
 				{#each missing as kind (kind)}
-					<form method="post" action="?/addFuel" use:enhance>
-						<input type="hidden" name="kind" value={kind} />
-						<button
-							class="rounded-md border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
-							>+ {FUEL_KINDS[kind].icon} {FUEL_KINDS[kind].name}</button
-						>
-					</form>
+					<button
+						class="rounded-md border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
+						aria-expanded={adding === kind}
+						onclick={() => (adding = adding === kind ? null : kind)}
+						>+ {FUEL_KINDS[kind].icon} {FUEL_KINDS[kind].name}</button
+					>
 				{/each}
 			</div>
+			{#if adding}
+				{@const meta = FUEL_KINDS[adding]}
+				<form
+					method="post"
+					action="?/addFuel"
+					use:enhance={() =>
+						async ({ update, result }) => {
+							await update();
+							if (result.type === 'success') adding = null;
+						}}
+					class="mt-3 flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4 text-sm"
+				>
+					<input type="hidden" name="kind" value={adding} />
+					<label class="flex flex-wrap items-center gap-2">
+						Llen{adding === 'butano' ? 'as' : 'os'} en casa ahora, sin empezar
+						<input
+							type="number"
+							name="full"
+							value="0"
+							min="0"
+							max="200"
+							class="w-16 rounded-md border-zinc-700 bg-zinc-950 py-1 text-sm"
+						/>
+					</label>
+					<label class="flex flex-wrap items-center gap-2">
+						{adding === 'butano' ? 'La puesta' : 'El puesto'}, si hay, se empezó el
+						<input
+							type="date"
+							name="startedOn"
+							max={data.today}
+							class="rounded-md border-zinc-700 bg-zinc-950 py-1 text-sm"
+						/>
+						<span class="text-zinc-500">(si no lo sabes, déjalo vacío)</span>
+					</label>
+					{#if fuelProblem?.fuel === 0}
+						<p class="text-red-400" role="alert">{fuelProblem.text}</p>
+					{/if}
+					<div>
+						<button class="rounded-md bg-amber-600 px-3 py-1 text-zinc-950 hover:bg-amber-500"
+							>Añadir {meta.name.toLowerCase()}</button
+						>
+					</div>
+				</form>
+			{/if}
 		{/if}
 	</section>
 {/if}

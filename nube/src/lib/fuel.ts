@@ -2,9 +2,10 @@ import { addDays } from 'comun/agenda.ts';
 import { expect, fitLine, type Expected, type Fit } from './energy-forecast.ts';
 
 /**
- * Butane and pellet (Energía → Previsión, #513 phase 2): what comes in units. Each unit started
- * and the next one started say how long one lasted with the cold of those days: the same line as
- * the light (energy-forecast.ts), in units a day.
+ * Butane and pellet (Energía → Previsión, #513 phase 2): what comes in units. Each unit
+ * says, by its days, how long one lasted with the cold of those days: the same line as the light
+ * (energy-forecast.ts), in units a day. Several can be going at once, each in its spot (#628), which
+ * learns its own: the stove by the cold, the cooker not.
  */
 
 export const FUEL_KINDS = {
@@ -34,7 +35,7 @@ export const isFuelKind = (v: unknown): v is FuelKind =>
 export const MIN_UNITS = 2;
 /** A unit lasting less or more than this is not one (forgotten, or bought twice the same day). */
 const SHORTEST = 2;
-const LONGEST = 120;
+const LONGEST = 200;
 /** Gone, a hair above none: sums of fractions are not exact. */
 const EMPTY = 1e-9;
 /** A winter's day, in heating degree-days (a mean of 8 °C): what «in winter it lasts…» means. */
@@ -43,42 +44,64 @@ export const WINTER_DEGREES = 10;
 const daysBetween = (a: string, b: string) =>
 	Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
 
+/** A unit put on: since when, and until when (null, going). */
+export interface UnitDays {
+	startedOn: string;
+	endedOn: string | null;
+	whole: boolean;
+}
+
+/** How many of them say how long one lasts: ended, all used, and neither too short nor too long. */
+export const wholeUnits = (units: UnitDays[]) =>
+	units.filter((u) => {
+		if (!u.endedOn || !u.whole) return false;
+		const n = daysBetween(u.startedOn, u.endedOn);
+		return n >= SHORTEST && n <= LONGEST;
+	});
+
 /**
- * What the units started on `starts` (days) say: each one until the next, its days and its cold
- * (`degrees` of each day; a day without it leaves that unit out).
+ * What a spot's units say: each one's days and its cold (`degrees` of each day; a day without it
+ * leaves that unit out). Without `heats`, the cold is nothing to it.
  */
-export function learnFuel(starts: string[], degrees: Map<string, number>): Fit | null {
-	const days = [...new Set(starts)].sort();
+export function learnFuel(units: UnitDays[], degrees: Map<string, number>, heats = true) {
 	const points: { x: number; y: number; w: number }[] = [];
-	for (let i = 1; i < days.length; i++) {
-		const from = days[i - 1]!;
-		const n = daysBetween(from, days[i]!);
-		if (n < SHORTEST || n > LONGEST) continue;
+	for (const u of wholeUnits(units)) {
+		const n = daysBetween(u.startedOn, u.endedOn!);
 		let cold = 0;
 		let known = true;
-		for (let d = from; d < days[i]!; d = addDays(d, 1)) {
-			const c = degrees.get(d);
-			if (c === undefined) known = false;
-			cold += c ?? 0;
-		}
+		if (heats)
+			for (let d = u.startedOn; d < u.endedOn!; d = addDays(d, 1)) {
+				const c = degrees.get(d);
+				if (c === undefined) known = false;
+				cold += c ?? 0;
+			}
 		if (known) points.push({ x: cold / n, y: 1 / n, w: n });
 	}
 	return points.length >= MIN_UNITS ? fitLine(points) : null;
 }
 
-/** Until it is learned: what the family said one lasts in winter, all of it by the cold. */
-export const guessedFuel = (guessDays: number): Fit => ({
-	base: 0,
-	perDegree: 1 / (guessDays * WINTER_DEGREES),
+/**
+ * Until it is learned: what the family said one lasts, in winter and all of it by the cold if it
+ * heats; if not, each day the same.
+ */
+export const guessedFuel = (guessDays: number, heats = true): Fit => ({
+	base: heats ? 0 : 1 / guessDays,
+	perDegree: heats ? 1 / (guessDays * WINTER_DEGREES) : 0,
 	spread: 0.25 / guessDays,
 	n: 0
 });
 
+export interface SpotUse {
+	fit: Fit;
+	heats: boolean;
+	/** The day the one going was put on; null, none going. */
+	startedOn: string | null;
+}
+
 export interface FuelOutlook {
-	/** Of the one going, what is left (0 to 1); null if none is known to be going. */
-	left: number | null;
-	/** The day the one going runs out, and the day all at home do; null, not within the days. */
-	currentEnds: string | null;
+	/** Of each spot, in order: what is left of the one going (0 to 1; null, none), and its end. */
+	spots: { left: number | null; ends: string | null }[];
+	/** The first day a spot is left with none, nothing full at home; null, not within the days. */
 	allEnds: string | null;
 	/** Units the next days take, and how many to buy beyond what is at home. */
 	needed: Expected;
@@ -86,44 +109,68 @@ export interface FuelOutlook {
 }
 
 /**
- * With `fit`, the one going started on `startedOn` (its days until yesterday in `degrees`),
- * `full` more at home, and the next days' cold (`ahead`, today first).
+ * The spots with one going, `full` more at home for any of them, and the next days' cold (`ahead`,
+ * today first; the days gone, in `degrees`). One that runs out takes a full one at once.
  */
 export function fuelOutlook(
-	fit: Fit,
-	startedOn: string | null,
+	spots: SpotUse[],
 	full: number,
 	degrees: Map<string, number>,
 	ahead: { day: string; degrees: number }[]
 ): FuelOutlook {
-	const rate = (cold: number) => fit.base + fit.perDegree * cold;
-	let left: number | null = null;
-	if (startedOn && ahead.length) {
+	const rate = (s: SpotUse, cold: number) => s.fit.base + (s.heats ? s.fit.perDegree * cold : 0);
+	const today = ahead[0]?.day ?? null;
+	let stock = full;
+	let allEnds: string | null = null;
+	let toBuy = 0;
+	const state = spots.map((s) => {
+		if (!s.startedOn || !today) return { use: s, left: null, now: 0, ends: null as string | null };
 		let used = 0;
-		for (let d = startedOn; d < ahead[0]!.day; d = addDays(d, 1)) used += rate(degrees.get(d) ?? 0);
-		left = Math.max(0, 1 - used);
-	}
-	let stock = (left ?? 0) + full;
-	let current = left ?? 0;
-	let currentEnds: string | null =
-		left === null ? null : left <= EMPTY ? (ahead[0]?.day ?? null) : null;
-	let allEnds: string | null = stock <= EMPTY ? (ahead[0]?.day ?? null) : null;
-	for (const a of ahead) {
-		const use = rate(a.degrees);
-		if (!currentEnds && left !== null && current - use <= EMPTY) currentEnds = a.day;
-		current -= use;
-		if (!allEnds && stock - use <= EMPTY) allEnds = a.day;
-		stock -= use;
-	}
-	const needed = expect(
-		fit,
-		ahead.map((a) => a.degrees)
+		for (let d = s.startedOn; d < today; d = addDays(d, 1)) used += rate(s, degrees.get(d) ?? 0);
+		const left = Math.max(0, 1 - used);
+		return { use: s, left, now: left, ends: left <= EMPTY ? today : (null as string | null) };
+	});
+	const going = state.filter((s) => s.left !== null);
+	const refill = (s: (typeof state)[number], day: string) => {
+		while (s.now <= EMPTY && stock > 0) {
+			stock--;
+			s.now++;
+		}
+		if (s.now <= EMPTY) allEnds ??= day;
+	};
+	for (const a of ahead)
+		for (const s of going) {
+			refill(s, a.day);
+			const use = rate(s.use, a.degrees);
+			if (use <= 0) continue;
+			// What is needed and is not there has to be bought.
+			if (s.now <= EMPTY) {
+				toBuy++;
+				s.now++;
+			}
+			s.now -= use;
+			while (s.now < -EMPTY) {
+				refill(s, a.day);
+				if (s.now >= -EMPTY) break;
+				toBuy++;
+				s.now++;
+			}
+			if (s.now <= EMPTY) {
+				s.ends ??= a.day;
+				refill(s, a.day);
+			}
+		}
+	const each = going.map((s) =>
+		expect(
+			s.use.fit,
+			ahead.map((a) => (s.use.heats ? a.degrees : 0))
+		)
 	);
+	const sum = (pick: (e: Expected) => number) => each.reduce((t, e) => t + pick(e), 0);
 	return {
-		left,
-		currentEnds,
+		spots: state.map(({ left, ends }) => ({ left, ends })),
 		allEnds,
-		needed,
-		toBuy: Math.max(0, Math.ceil(needed.kwh - (left ?? 0) - full - 1e-9))
+		needed: { kwh: sum((e) => e.kwh), low: sum((e) => e.low), high: sum((e) => e.high) },
+		toBuy
 	};
 }

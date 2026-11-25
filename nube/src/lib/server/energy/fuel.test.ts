@@ -4,7 +4,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { sql } from 'drizzle-orm';
 import * as schema from '../db/schema.ts';
-import { expense, family, familySettings, fuelEvent } from '../db/schema.ts';
+import { expense, family, familySettings, fuelEvent, fuelUnit } from '../db/schema.ts';
 import { familyOnlyScope, familyScope, NoFamily } from '../family-scope.ts';
 import type { Kitchen } from '../fridge.ts';
 
@@ -89,10 +89,14 @@ beforeAll(async () => {
 	await db.execute(sql`grant usage on all sequences in schema public to app_user`);
 	await db.insert(family).values([
 		{ id: 'A', name: 'Casa A' },
-		{ id: 'B', name: 'Casa B' }
+		{ id: 'B', name: 'Casa B' },
+		{ id: 'C', name: 'Casa C' }
 	]);
 	const place = { name: 'Pueblo', region: null, country: null, lat: 37.6, lon: -2.1 };
-	await db.insert(familySettings).values([{ familyId: 'A', place }]);
+	await db.insert(familySettings).values([
+		{ familyId: 'A', place },
+		{ familyId: 'C', place }
+	]);
 	// Bottles from the delivery man, every 12 days; and one of another family.
 	for (const [familyId, date] of [
 		['A', addDays(TODAY, -36)],
@@ -121,13 +125,30 @@ afterAll(() => {
 	globalThis.fetch = realFetch;
 });
 
+const state = async (familyId: string, kind: 'butano' | 'pellet') =>
+	(await fuels.fuelStates(kitchen(familyId))).find((s) => s.kind === kind)!;
+const problem = (p: Promise<unknown>) =>
+	p.then(
+		() => null,
+		(e: Error) => (e instanceof fuels.FuelProblem ? e.message : `otro: ${e.message}`)
+	);
+
 test('butane added: its bottles in Dinero offered, none of another family', async () => {
 	const k = kitchen('A');
 	expect(await fuels.fuelStates(k)).toEqual([]);
 	await fuels.addFuel(k, 'butano');
 	await fuels.addFuel(k, 'butano');
-	const [f] = await fuels.fuelStates(k);
-	expect(f).toMatchObject({ kind: 'butano', startsOnBuy: true, startedOn: null, by: null });
+	const [f, ...rest] = await fuels.fuelStates(k);
+	expect(rest).toEqual([]);
+	expect(f).toMatchObject({
+		kind: 'butano',
+		startsOnBuy: true,
+		fresh: true,
+		full: 0,
+		outlook: null
+	});
+	expect(f!.spots).toHaveLength(1);
+	expect(f!.spots[0]).toMatchObject({ name: '', unit: null, by: null });
 	expect(f!.pending.map((p) => p.date)).toEqual([
 		addDays(TODAY, -36),
 		addDays(TODAY, -24),
@@ -135,26 +156,32 @@ test('butane added: its bottles in Dinero offered, none of another family', asyn
 	]);
 });
 
-test('taken: each bottle bought is one started; how long one lasts, learned; when it ends', async () => {
+test('taken and put on: how long one lasts, learned; when it ends', async () => {
 	const k = kitchen('A');
-	const [f] = await fuels.fuelStates(k);
-	for (const p of f!.pending) await fuels.boughtFuel(k, f!.id, p.date, 1, p.id);
+	const f = await state('A', 'butano');
+	const spotId = f.spots[0]!.id;
+	// In whatever order they are taken.
+	for (const p of [f.pending[2]!, f.pending[0]!, f.pending[1]!])
+		await fuels.boughtFuel(k, f.id, p.date, 1, { expenseId: p.id, use: { spotId } });
 	// Taken twice: once.
-	await fuels.boughtFuel(k, f!.id, f!.pending[0]!.date, 1, f!.pending[0]!.id);
-	const [now] = await fuels.fuelStates(k);
-	expect(now!.pending).toEqual([]);
-	expect(now!.startedOn).toBe(addDays(TODAY, -12));
-	expect(now!.full).toBe(0);
-	expect(now!.learnedFrom).toBe(2);
-	expect(now!.by).toBe('aprendido');
+	expect(
+		await fuels.boughtFuel(k, f.id, f.pending[0]!.date, 1, { expenseId: f.pending[0]!.id })
+	).toBeNull();
+	const now = await state('A', 'butano');
+	expect(now.pending).toEqual([]);
+	expect(now.full).toBe(0);
+	const spot = now.spots[0]!;
+	expect(spot.unit!.startedOn).toBe(addDays(TODAY, -12));
+	expect(spot.learnedFrom).toBe(2);
+	expect(spot.by).toBe('aprendido');
 	// 12 days at 10 degree-days: 1/120 a degree-day.
-	expect(1 / (now!.fit!.base + now!.fit!.perDegree * 10)).toBeCloseTo(12, 6);
+	expect(1 / (spot.fit!.base + spot.fit!.perDegree * 10)).toBeCloseTo(12, 6);
 	// The one going, 12 days in: gone today.
-	expect(now!.outlook!.left).toBeCloseTo(0, 6);
-	expect(now!.outlook!.allEnds).toBe(TODAY);
+	expect(spot.left).toBeCloseTo(0, 6);
+	expect(now.outlook!.allEnds).toBe(TODAY);
 });
 
-test('told once before it runs out; again only if sooner; a new bottle starts over', async () => {
+test('told once before it runs out; a new bottle starts over', async () => {
 	await fuels.fuelAlerts('A');
 	await fuels.fuelAlerts('A');
 	expect(told).toEqual([
@@ -166,35 +193,214 @@ test('told once before it runs out; again only if sooner; a new bottle starts ov
 		}
 	]);
 	const k = kitchen('A');
-	const [f] = await fuels.fuelStates(k);
-	await fuels.boughtFuel(k, f!.id, TODAY, 1);
-	const [fresh] = await fuels.fuelStates(k);
-	expect(fresh!.outlook!.allEnds).toBe(addDays(TODAY, 11));
+	const f = await state('A', 'butano');
+	const done = await fuels.boughtFuel(k, f.id, TODAY, 1, { use: { spotId: f.spots[0]!.id } });
+	expect(done!.text).toBe(
+		'Apuntado: 1 bombona, del 15 de noviembre. Bombona empezada hoy; la anterior duró 12 días.'
+	);
+	expect((await state('A', 'butano')).outlook!.allEnds).toBe(addDays(TODAY, 11));
 	await fuels.fuelAlerts('A');
 	expect(told).toHaveLength(1);
+	// Undone: as it was, the purchase too.
+	await fuels.undoFuel(k, done!.undo);
+	const back = await state('A', 'butano');
+	expect(back.spots[0]!.unit!.startedOn).toBe(addDays(TODAY, -12));
+	expect(back.history.purchases).toHaveLength(3);
+	expect(back.full).toBe(0);
 });
 
-test('an expense that is not one: not offered again; the setting kept; pellet bought kept full', async () => {
+test('pellet bought kept full; pressed twice, one; the full ones put right', async () => {
 	const k = kitchen('A');
 	await fuels.addFuel(k, 'pellet');
-	const states = await fuels.fuelStates(k);
-	const pellet = states.find((s) => s.kind === 'pellet')!;
-	expect(pellet.startsOnBuy).toBe(false);
-	await fuels.boughtFuel(k, pellet.id, TODAY, 6);
-	await fuels.startedFuel(k, pellet.id, TODAY);
-	await fuels.saveFuel(k, pellet.id, { startsOnBuy: false, alertDays: 3, guessDays: 2 });
-	const after = (await fuels.fuelStates(k)).find((s) => s.kind === 'pellet')!;
-	expect(after).toMatchObject({
-		full: 5,
-		startedOn: TODAY,
-		by: 'dicho',
-		guessDays: 2,
-		alertDays: 3
-	});
+	let p = await state('A', 'pellet');
+	expect(p.startsOnBuy).toBe(false);
+	const spotId = p.spots[0]!.id;
+	await fuels.boughtFuel(k, p.id, TODAY, 6);
+	const [first, second] = await Promise.all([
+		problem(fuels.startedFuel(k, p.id, spotId, TODAY)),
+		problem(fuels.startedFuel(k, p.id, spotId, TODAY))
+	]);
+	expect([first, second].filter((x) => x === null)).toHaveLength(1);
+	expect([first, second].find((x) => x !== null)).toContain('Ya estaba apuntada');
+	await fuels.saveSpot(k, spotId, { name: '', heats: true, guessDays: 2 });
+	p = await state('A', 'pellet');
+	expect(p).toMatchObject({ full: 5, fresh: false });
+	expect(p.spots[0]).toMatchObject({ by: 'dicho', guessDays: 2 });
 	// 2 days a sack in winter: today's and 5 more last 12 days.
-	expect(after.outlook!.allEnds).toBe(addDays(TODAY, 11));
+	expect(p.outlook!.allEnds).toBe(addDays(TODAY, 11));
+	await fuels.saveFuel(k, p.id, { startsOnBuy: false, alertDays: 3, full: 2 });
+	expect(await state('A', 'pellet')).toMatchObject({ full: 2, alertDays: 3 });
+});
 
-	const butane = (await fuels.fuelStates(kitchen('A'))).find((s) => s.kind === 'butano')!;
+test('never before its purchase, nor ahead; with none noted, any day', async () => {
+	const k = kitchen('B');
+	await fuels.addFuel(k, 'pellet');
+	const p = await state('B', 'pellet');
+	const spotId = p.spots[0]!.id;
+	expect(await problem(fuels.startedFuel(k, p.id, spotId, addDays(TODAY, 1)))).toContain(
+		'aún no ha llegado'
+	);
+	await fuels.boughtFuel(k, p.id, addDays(TODAY, -5), 1);
+	expect(await problem(fuels.startedFuel(k, p.id, spotId, addDays(TODAY, -6)))).toContain(
+		'se compró el 10 de noviembre'
+	);
+	await fuels.startedFuel(k, p.id, spotId, addDays(TODAY, -4));
+	const now = await state('B', 'pellet');
+	const unit = now.history.units[0]!;
+	expect(unit.boughtOn).toBe(addDays(TODAY, -5));
+	const edit = (startedOn: string, endedOn: string | null = null) =>
+		problem(fuels.editUnit(k, unit.id, { startedOn, endedOn, whole: true }));
+	expect(await edit(addDays(TODAY, -6))).toContain('no puede empezar antes');
+	expect(await edit(addDays(TODAY, 1))).toContain('aún no ha llegado');
+	expect(await edit(addDays(TODAY, -3), addDays(TODAY, -4))).toContain('antes de empezar');
+	expect(await edit(addDays(TODAY, -5))).toBeNull();
+	// Nor its purchase after it, nor fewer than were put on.
+	const bought = now.history.purchases[0]!;
+	expect(
+		await problem(fuels.editPurchase(k, bought.id, { day: addDays(TODAY, -4), quantity: 1 }))
+	).toContain('no pudo comprarse después');
+	expect(
+		await problem(fuels.editPurchase(k, bought.id, { day: bought.day, quantity: 0 }))
+	).toContain('se han empezado 1');
+	// None left, none noted: put on, with no limit, and it takes nothing from those bought later.
+	await fuels.startedFuel(k, p.id, spotId, TODAY);
+	await fuels.boughtFuel(k, p.id, TODAY, 2);
+	expect((await state('B', 'pellet')).full).toBe(2);
+});
+
+test('the one at home before anything was bought takes nothing from what is bought after', async () => {
+	const k = kitchen('C');
+	await fuels.addFuel(k, 'butano', { full: 1, startedOn: addDays(TODAY, -3) });
+	let f = await state('C', 'butano');
+	expect(f).toMatchObject({ full: 1, fresh: false });
+	expect(f.spots[0]!.unit!.startedOn).toBe(addDays(TODAY, -3));
+	await fuels.boughtFuel(k, f.id, TODAY, 2);
+	f = await state('C', 'butano');
+	expect(f.full).toBe(3);
+	// The one that was full already may be put on any day, before that purchase.
+	await fuels.startedFuel(k, f.id, f.spots[0]!.id, addDays(TODAY, -1));
+	expect((await state('C', 'butano')).full).toBe(2);
+});
+
+test('put on and its expense taken after: joined, not two', async () => {
+	const k = kitchen('B');
+	await fuels.addFuel(k, 'butano');
+	let f = await state('B', 'butano');
+	const spotId = f.spots[0]!.id;
+	await fuels.startedFuel(k, f.id, spotId, addDays(TODAY, -2));
+	f = await state('B', 'butano');
+	const [e] = f.pending;
+	expect(e!.units).toHaveLength(1);
+	await fuels.boughtFuel(k, f.id, e!.date, 1, {
+		expenseId: e!.id,
+		use: { unitId: e!.units[0]!.id }
+	});
+	f = await state('B', 'butano');
+	expect(f.history.units).toHaveLength(1);
+	expect(f.history.units[0]!.boughtOn).toBe(addDays(TODAY, -3));
+	expect(f.full).toBe(0);
+	// Its purchase taken away: it stays, without it; the expense, offered again.
+	await fuels.removePurchase(k, f.history.purchases[0]!.id);
+	f = await state('B', 'butano');
+	expect(f.history.units[0]!.boughtOn).toBeNull();
+	expect(f.full).toBe(0);
+	expect(f.pending).toHaveLength(1);
+});
+
+test('several at once: each spot its own; run out, the days without it do not count', async () => {
+	const k = kitchen('C');
+	let f = await state('C', 'butano');
+	const stove = f.spots[0]!.id;
+	await fuels.saveSpot(k, stove, { name: 'Estufa', heats: true, guessDays: 10 });
+	await fuels.addSpot(k, f.id, 'Cocina');
+	expect(await problem(fuels.addSpot(k, f.id, 'cocina'))).toContain('Ya hay uno');
+	f = await state('C', 'butano');
+	const kitchenSpot = f.spots[1]!.id;
+	await fuels.startedFuel(k, f.id, kitchenSpot, TODAY);
+	f = await state('C', 'butano');
+	// The stove's goes on; the cooker's is not reckoned yet.
+	expect(f.spots[0]!.unit!.startedOn).toBe(addDays(TODAY, -1));
+	expect(f.uncounted).toEqual(['Cocina']);
+	expect(f.full).toBe(1);
+	await fuels.saveSpot(k, kitchenSpot, { name: 'Cocina', heats: false, guessDays: 60 });
+	f = await state('C', 'butano');
+	expect(f.uncounted).toEqual([]);
+	expect(f.spots[0]!.ends).toBe(addDays(TODAY, 8));
+	expect(f.spots[1]!.ends).toBeNull();
+	// The full one goes to the stove: 9 days and 10 more, beyond the 15.
+	expect(f.outlook).toMatchObject({ allEnds: null, toBuy: 0 });
+
+	const going = f.spots[0]!.unit!.id;
+	expect(await problem(fuels.endedFuel(k, going, addDays(TODAY, -2)))).toContain('antes');
+	const done = await fuels.endedFuel(k, going, TODAY);
+	expect(done.text).toBe('Apuntado que se acabó hoy; duró 1 día.');
+	expect((await state('C', 'butano')).spots[0]!.unit).toBeNull();
+	expect(await problem(fuels.endedFuel(k, going, TODAY))).toContain('Ya estaba');
+	await fuels.undoFuel(k, done.undo);
+	expect((await state('C', 'butano')).spots[0]!.unit!.id).toBe(going);
+
+	// Put away: not shown; added again with its name, back.
+	await fuels.archiveSpot(k, stove);
+	f = await state('C', 'butano');
+	expect(f.spots.map((s) => s.name)).toEqual(['Cocina']);
+	expect(f.history.units.find((u) => u.id === going)).toMatchObject({
+		endedOn: TODAY,
+		whole: false
+	});
+	expect(await problem(fuels.archiveSpot(k, kitchenSpot))).toContain('único');
+	await fuels.addSpot(k, f.id, 'estufa');
+	f = await state('C', 'butano');
+	expect(f.spots.find((s) => s.name === 'Estufa')).toMatchObject({ id: stove, guessDays: 10 });
+});
+
+test('the history: one taken away, the one before goes on; none over another', async () => {
+	const k = kitchen('A');
+	const p = await state('A', 'pellet');
+	const spotId = p.spots[0]!.id;
+	const [first] = await db
+		.select()
+		.from(fuelUnit)
+		.where(sql`${fuelUnit.spotId} = ${spotId}`);
+	await db
+		.update(fuelUnit)
+		.set({ startedOn: addDays(TODAY, -6), purchaseId: null })
+		.where(sql`${fuelUnit.id} = ${first!.id}`);
+	const done = await fuels.startedFuel(k, p.id, spotId, TODAY);
+	const now = await state('A', 'pellet');
+	expect(now.history.units.map((u) => u.endedOn)).toEqual([null, TODAY]);
+	expect(
+		await problem(
+			fuels.editUnit(k, first!.id, {
+				startedOn: addDays(TODAY, -6),
+				endedOn: null,
+				whole: true
+			})
+		)
+	).toContain('Se pisa');
+	await fuels.removeUnit(k, done.undo.started!);
+	expect((await state('A', 'pellet')).history.units.map((u) => u.endedOn)).toEqual([null]);
+});
+
+test("another family's: nothing can be touched", async () => {
+	const a = await state('A', 'butano');
+	const k = kitchen('B');
+	const unit = a.history.units[0]!;
+	expect(await problem(fuels.startedFuel(k, a.id, a.spots[0]!.id, TODAY))).toBe('Ya no está');
+	expect(await problem(fuels.endedFuel(k, unit.id, TODAY))).toBe('Ya no está');
+	expect(
+		await problem(fuels.editUnit(k, unit.id, { startedOn: TODAY, endedOn: null, whole: true }))
+	).toBe('Ya no está');
+	expect(await problem(fuels.addSpot(k, a.id, 'Mía'))).toBe('Ya no está');
+	// One's own fuel, another's spot.
+	const mine = await state('B', 'pellet');
+	expect(await problem(fuels.startedFuel(k, mine.id, a.spots[0]!.id, TODAY))).toBe('Ya no está');
+	await fuels.removeUnit(k, unit.id);
+	expect((await state('A', 'butano')).history.units).toHaveLength(a.history.units.length);
+});
+
+test('an expense that is not one: not offered again', async () => {
+	const k = kitchen('A');
+	const f = await state('A', 'butano');
 	const [other] = await db
 		.insert(expense)
 		.values({
@@ -206,9 +412,11 @@ test('an expense that is not one: not offered again; the setting kept; pellet bo
 			source: 'mano'
 		})
 		.returning({ id: expense.id });
-	expect((await fuels.fuelStates(k)).find((s) => s.kind === 'butano')!.pending).toHaveLength(1);
-	await fuels.boughtFuel(k, butane.id, TODAY, 0, other!.id);
-	expect((await fuels.fuelStates(k)).find((s) => s.kind === 'butano')!.pending).toEqual([]);
+	expect((await state('A', 'butano')).pending).toHaveLength(1);
+	const done = await fuels.boughtFuel(k, f.id, TODAY, 0, { expenseId: other!.id });
+	expect((await state('A', 'butano')).pending).toEqual([]);
 	const events = await asFamily('A', (tx) => tx.select().from(fuelEvent));
 	expect(events.filter((e) => e.kind === 'descartada')).toHaveLength(1);
+	await fuels.undoFuel(k, done!.undo);
+	expect((await state('A', 'butano')).pending).toHaveLength(1);
 });

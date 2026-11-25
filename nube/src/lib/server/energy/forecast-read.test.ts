@@ -49,11 +49,17 @@ test('the cold, the light learned and still learning, butane and the panels', as
 		{
 			kind: 'butano',
 			full: 1,
-			startedOn: '2026-11-10',
-			by: 'aprendido',
+			spots: [
+				{
+					name: '',
+					unit: { id: 1, startedOn: '2026-11-10' },
+					by: 'aprendido',
+					left: 0.4,
+					ends: '2026-11-18'
+				}
+			],
+			uncounted: [],
 			outlook: {
-				left: 0.4,
-				currentEnds: '2026-11-18',
 				allEnds: '2026-11-29',
 				needed: { kwh: 1.6, low: 1, high: 2 },
 				toBuy: 1
