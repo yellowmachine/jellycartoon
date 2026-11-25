@@ -1,4 +1,7 @@
-import { mondayOf } from 'comun/agenda.ts';
+import { addDays, mondayOf } from 'comun/agenda.ts';
+import { owntracks } from '#lib/server/owntracks/owntracks.ts';
+import { firstKeptDay } from '#lib/server/owntracks/retention.ts';
+import { dayStart } from '#lib/server/plugs/stats.ts';
 import { dayOf, type Kitchen } from '#lib/server/fridge.ts';
 import { owntracksOutings } from '#lib/server/owntracks/walking.ts';
 import { walkKcal, weightOn } from '#lib/walk-kcal.ts';
@@ -28,4 +31,38 @@ export async function onFootSince(k: Kitchen, userId: string, from: Date) {
 		};
 	};
 	return { weights, list: [...walks.map(row(false)), ...outings.map(row(true))] };
+}
+
+/**
+ * The same between two days (both included), however old: of those whose positions are forgotten
+ * (OwnTracks', after 90 days), what was left of each, as one.
+ */
+export async function onFootBetween(k: Kitchen, userId: string, from: string, to: string) {
+	const start = dayStart(from);
+	const end = dayStart(addDays(to, 1));
+	const kept = firstKeptDay();
+	const [walks, weights, old] = await Promise.all([
+		walksSince(k, start),
+		weight.list(userId),
+		from < kept ? owntracks.summariesBetween(userId, from, to) : []
+	]);
+	const outings = await owntracksOutings(userId, start, end, walks).catch((error) => {
+		console.warn('[paseos] Sin OwnTracks', String(error));
+		return [];
+	});
+	const forgotten = new Set(old.map((d) => d.day));
+	const row = (day: string, distance: number, seconds: number, outings = 1) => ({
+		day,
+		distance,
+		seconds,
+		outings,
+		kcal: walkKcal(distance, seconds, weightOn(weights, day))
+	});
+	const timed = (w: { startedAt: Date; endedAt: Date; distance: number }) =>
+		row(dayOf(w.startedAt), w.distance, (w.endedAt.getTime() - w.startedAt.getTime()) / 1000);
+	return [
+		...walks.filter((w) => w.startedAt < end).map(timed),
+		...outings.map(timed).filter((o) => !forgotten.has(o.day)),
+		...old.filter((d) => d.outings).map((d) => row(d.day, d.distance, d.seconds, d.outings))
+	];
 }
