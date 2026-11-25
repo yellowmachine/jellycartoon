@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Landing from '#lib/components/Landing.svelte';
 	import Home from '#lib/components/Home.svelte';
+	import SummaryCard from '#lib/components/SummaryCard.svelte';
 	import ChargesNotice from '#lib/components/ChargesNotice.svelte';
 	import CardIcon from '#lib/components/CardIcon.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
@@ -106,6 +107,9 @@
 		sections={data.family?.sections}
 		mine={data.family?.mine}
 	/>
+	{#if data.summary && shows('/preguntar')}
+		<SummaryCard summary={data.summary} sections={data.family?.sections} mine={data.family?.mine} />
+	{/if}
 {:else}
 	<h1 class="mb-2 text-2xl font-bold">Hola, {data.user.name}</h1>
 	<p class="text-sm text-zinc-400">Tu cuenta aún no está en ninguna familia.</p>

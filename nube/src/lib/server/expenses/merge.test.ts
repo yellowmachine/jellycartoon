@@ -27,7 +27,7 @@ const kitchenOf = (familyId: string, userId: string): Kitchen => ({
 	userId,
 	run: (fn) => withFamily(userId, (tx) => fn(tx))
 });
-const { mergeInto, mergeOfDraft, monthMerged, monthMerges, splitMerge } =
+const { mergeable, mergeInto, mergeOfDraft, monthMerged, monthMerges, splitMerge } =
 	await import('./merge.ts');
 const { chargeNotices, closeCharges, comingCharges, setChargeNotices } =
 	await import('./charges.ts');
@@ -173,6 +173,16 @@ test('not another adult’s gift, nor what has its own receipt, is fixed or is f
 	await put(1811, { date: '2026-11-01' });
 	await put(1789, { date: '2026-11-01' });
 	expect(await mergeOfDraft(ana, bill)).toBeNull();
+});
+
+test('to choose by hand: further in time, the nearest first; not gifts nor with a receipt', async () => {
+	const far = await put(900, { date: '2026-10-25' });
+	const near = await put(1811);
+	await put(500, { date: '2026-08-01' });
+	await put(700, { receipt: 'x.jpg' });
+	await wished(await put(1789), 'ana', 'Luis');
+	expect((await mergeable(ana, '2026-11-24')).map((p) => p.id)).toEqual([near, far]);
+	expect(await mergeable(otro, '2026-11-24')).toEqual([]);
 });
 
 test('a bank’s payment gathers them, and what their own payments pointed at', async () => {

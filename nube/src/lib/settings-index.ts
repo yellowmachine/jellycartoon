@@ -120,6 +120,12 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		words: 'avisos gastos fijos suscripción recibo saldo banco cuenta prime días antes dinero'
 	},
 	{
+		id: 'resumen',
+		tab: 'mi',
+		title: 'Resumen',
+		words: 'informe semanal mensual últimos 7 días portada tarjeta bloques semana mes'
+	},
+	{
 		id: 'gasto-ia',
 		tab: 'mi',
 		title: 'Línea de gasto',

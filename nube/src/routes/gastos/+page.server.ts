@@ -106,13 +106,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	};
 };
 
-/** A few expenses' ids, sent apart. */
+/** Some expenses' ids, sent apart. */
 const idsOf = (form: FormData, key: string) =>
 	form
 		.getAll(key)
 		.map(Number)
 		.filter((n) => Number.isInteger(n) && n > 0)
-		.slice(0, 5);
+		.slice(0, 20);
 
 /** The family's, of who is in. */
 const kitchen = (locals: App.Locals) => kitchenOf(locals.user!.id);

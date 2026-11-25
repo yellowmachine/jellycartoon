@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { and, asc, desc, eq, gt, gte, lt, min, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, lt, lte, min, sql } from 'drizzle-orm';
 import {
 	locationPoint,
 	owntracksDay,
@@ -225,6 +225,22 @@ export function owntracksScope(db: AnyDb, { role }: { role?: string } = {}) {
 		);
 	}
 
+	/** What is left of the days between two, both included. */
+	function summariesBetween(userId: string, from: string, to: string) {
+		return asUser(userId, (tx) =>
+			tx
+				.select()
+				.from(owntracksDay)
+				.where(
+					and(
+						eq(owntracksDay.userId, userId),
+						gte(owntracksDay.day, from),
+						lte(owntracksDay.day, to)
+					)
+				)
+		);
+	}
+
 	/** What is left of a day whose positions were forgotten, or null. */
 	async function summaryOf(userId: string, day: string) {
 		const [row] = await asUser(userId, (tx) =>
@@ -327,6 +343,7 @@ export function owntracksScope(db: AnyDb, { role }: { role?: string } = {}) {
 		status,
 		between,
 		summaryOf,
+		summariesBetween,
 		firstDay,
 		summarizeOld,
 		saveTransition,

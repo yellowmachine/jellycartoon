@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/state';
 
-	/** Preguntar's two tabs (#505): the chat and the reports made from it. Links: «back» works. */
+	/** Preguntar's tabs (#505): the chat, the summary and the reports made from the chat. Links: «back» works. */
 	const TABS = [
 		{ href: '/preguntar', label: 'Conversación' },
+		{ href: '/preguntar/resumen', label: 'Resumen' },
 		{ href: '/preguntar/informes', label: 'Informes' }
 	];
 	const current = $derived(
-		page.url.pathname.startsWith('/preguntar/informes') ? '/preguntar/informes' : '/preguntar'
+		TABS.findLast((t) => page.url.pathname.startsWith(t.href))?.href ?? '/preguntar'
 	);
 </script>
 

@@ -22,6 +22,8 @@ export interface Whole {
 
 /** Days before or after it. */
 export const MERGE_DAYS = 10;
+/** Those offered to choose by hand: a book may take a month to come. */
+export const CHOOSE_DAYS = 45;
 const MOST_PARTS = 5;
 /** Of one shop, tried together at most. */
 const MOST_TRIED = 12;
@@ -50,7 +52,7 @@ function titleIn(title: string, line: string) {
 
 const sum = (parts: Part[]) => parts.reduce((s, p) => s + p.total, 0);
 
-/** Those said one by one in its lines, each in a line of its own; null with a doubt. */
+/** Those said in its lines, each in its own (its price, its sending, its VAT); null with a doubt: two in one line. */
 function byTitle(whole: Whole, parts: Part[]) {
 	const lines = whole.lines.filter((l) => l.amount > 0);
 	const used = new Set<number>();
@@ -58,8 +60,8 @@ function byTitle(whole: Whole, parts: Part[]) {
 	for (const p of parts) {
 		const at = lines.flatMap((l, i) => (p.titles.some((t) => titleIn(t, l.text)) ? [i] : []));
 		if (!at.length) continue;
-		if (at.length > 1 || used.has(at[0]!)) return null;
-		used.add(at[0]!);
+		if (at.some((i) => used.has(i))) return null;
+		for (const i of at) used.add(i);
 		found.push(p);
 	}
 	if (!found.length || found.length > MOST_PARTS) return null;

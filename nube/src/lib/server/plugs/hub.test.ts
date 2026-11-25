@@ -105,6 +105,9 @@ describe('shelly', () => {
 		expect(energyRise(null, 34)).toBe(0);
 		expect(energyRise(0.207, 0.414)).toBeCloseTo(0.207);
 		expect(energyRise(34, 2)).toBe(2);
+		// A rounding, not a reset.
+		expect(energyRise(29150.479, 29150.478)).toBe(0);
+		expect(energyRise(0.414001, 0.414)).toBe(0);
 	});
 
 	test('hours by their start', () => {

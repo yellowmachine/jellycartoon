@@ -361,6 +361,44 @@ export function wishesSummary(
 		: `${count} · ${priced} con precio, ${total}`;
 }
 
+/** What one of several bought together says of its price. */
+export interface Bought {
+	title: string;
+	priceCents: number | null;
+	currency: string | null;
+	shippingCents: number | null;
+	extraCents: number | null;
+}
+const inEuros = (w: Pick<Bought, 'priceCents' | 'currency'>) =>
+	w.priceCents !== null && sameCurrency(w.currency, 'EUR');
+
+/** What they cost together in euros, all in; null if any is not known in euros. */
+export const togetherTotal = (list: Bought[]) =>
+	list.every(inEuros)
+		? list.reduce((s, w) => s + w.priceCents! + (w.shippingCents ?? 0) + (w.extraCents ?? 0), 0)
+		: null;
+
+/**
+ * The lines of the one expense for several bought together, adding up to what was paid: each with
+ * its price, their sending, their taxes, and what is left over or taken off. The only one with no
+ * price in euros, what is left.
+ */
+export function togetherLines(list: Bought[], total: number) {
+	const known = list.filter(inEuros);
+	const lines = list.map((w) => ({ text: w.title, amount: inEuros(w) ? w.priceCents! : 0 }));
+	const sum = (key: 'shippingCents' | 'extraCents') => known.reduce((s, w) => s + (w[key] ?? 0), 0);
+	for (const [text, amount] of [
+		['Envío', sum('shippingCents')],
+		['IVA y otros', sum('extraCents')]
+	] as const)
+		if (amount) lines.push({ text, amount });
+	const left = total - lines.reduce((s, l) => s + l.amount, 0);
+	const unknown = list.findIndex((w) => !inEuros(w));
+	if (left > 0 && known.length === list.length - 1) lines[unknown]!.amount = left;
+	else if (left) lines.push({ text: left > 0 ? 'Sin repartir' : 'Descuento', amount: left });
+	return lines;
+}
+
 /**
  * The bookmark's, told by it: an earlier one (dragged before, or from a page not reloaded) is told
  * to be dragged again. One more whenever its code changes (a test checks it).

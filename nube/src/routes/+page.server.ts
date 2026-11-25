@@ -7,6 +7,7 @@ import { NoFamily, withFamily } from '#lib/server/family.ts';
 import { kitchenOf, today } from '#lib/server/fridge.ts';
 import { comingCharges } from '#lib/server/expenses/charges.ts';
 import { homeOf, homeWeather, unreadInbox } from '#lib/server/home.ts';
+import { homeSummary } from '#lib/server/summary.ts';
 import { nextTrip } from '#lib/server/trips/planned.ts';
 import { myCar } from '#lib/server/trips/cars.ts';
 import { carWithStreet } from '#lib/server/trips/car-street.ts';
@@ -51,6 +52,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 			companions: await companionsFor(userId).catch((error) => {
 				console.warn('[portada] Sin Compañía', String(error));
 				return [];
+			}),
+			// Their last 7 days: after the page, as it adds up a lot.
+			summary: homeSummary(k, userId, today()).catch((error) => {
+				console.warn('[portada] Sin el resumen', String(error));
+				return null;
 			}),
 			weather: homeWeather(k).catch(() => null),
 			news: news.newsOf(userId).catch((error) => {

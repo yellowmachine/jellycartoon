@@ -48,6 +48,7 @@
 		type RecurringExpense
 	} from 'comun/expenses.ts';
 	import Espera from '#lib/components/Espera.svelte';
+	import Juntar from './Juntar.svelte';
 	import ChargesNotice from '#lib/components/ChargesNotice.svelte';
 	import { MAX_ACCOUNT, NOTICE_DAYS } from '#lib/charges.ts';
 	import ExpenseTabs from '#lib/components/ExpenseTabs.svelte';
@@ -488,6 +489,10 @@
 	});
 
 	// ——— The month's list, filtered ———
+
+	/** «Juntar» on one already saved: those chosen by hand, sent with its form. */
+	let byHandMerge = $state<{ id: number; parts: MergeNotice } | null>(null);
+	const mergeForms = $state<Record<number, HTMLFormElement | null>>({});
 
 	/** Few are seen at a glance. */
 	const FILTER_FROM = 8;
@@ -955,6 +960,20 @@
 							{/if}
 						</div>
 					{/if}
+					{#if e.receipt && !e.id && !e.bill && !e.merge}
+						<div class="mt-4">
+							<Juntar
+								day={e.date}
+								total={parseEuros(e.total)}
+								onchosen={(parts) => {
+									if (!editing) return;
+									editing.merge = parts;
+									editing.gathers = true;
+									editing.fixed = null;
+								}}
+							/>
+						</div>
+					{/if}
 					{#if e.repeated && !e.gathers}
 						<div class="mt-4 rounded-md border border-amber-500/40 bg-amber-950/40 p-3 text-sm">
 							<p class="text-amber-200">{sameText(e.repeated, data.today)} ¿Lo guardo igual?</p>
@@ -1255,6 +1274,8 @@
 											? { at: e.id, text: String(result.data?.message ?? 'No se pudo juntar') }
 											: null;
 									await update({ reset: false });
+									await tick();
+									void showExpense(e.id);
 								}}
 						>
 							<input type="hidden" name="id" value={e.id} />
@@ -1444,6 +1465,40 @@
 									Las líneas suman {euros(linesSum(e.lines))}.
 								</p>
 							{/if}
+						{/if}
+						{#if (e.hasReceipt || e.source === 'banco') && !e.bill && !e.fixed && !data.merges[e.id]}
+							<form
+								method="post"
+								action="?/merge"
+								class="mb-2"
+								bind:this={mergeForms[e.id]}
+								use:enhance={() =>
+									async ({ result, update }) => {
+										problemAt =
+											result.type === 'failure'
+												? { at: e.id, text: String(result.data?.message ?? 'No se pudo juntar') }
+												: null;
+										byHandMerge = null;
+										await update({ reset: false });
+										await tick();
+										void showExpense(e.id);
+									}}
+							>
+								<input type="hidden" name="id" value={e.id} />
+								{#each byHandMerge?.id === e.id ? byHandMerge.parts : [] as p (p.id)}
+									<input type="hidden" name="juntar" value={p.id} />
+								{/each}
+								<Juntar
+									day={e.date}
+									total={e.total}
+									except={e.id}
+									onchosen={async (parts) => {
+										byHandMerge = { id: e.id, parts };
+										await tick();
+										mergeForms[e.id]?.requestSubmit();
+									}}
+								/>
+							</form>
 						{/if}
 						<div class="flex flex-wrap items-center gap-2">
 							{#if e.hasReceipt}

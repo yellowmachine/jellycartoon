@@ -11,6 +11,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { SubtitleStyle } from 'comun/subtitle-style.ts';
 import type { ChargeNotices } from '#lib/charges.ts';
+import type { SummaryChoice } from '#lib/summary.ts';
 import { user } from './auth.schema.ts';
 
 /**
@@ -103,6 +104,8 @@ export const familyMember = pgTable(
 		gameSource: text('game_source').$type<'casa' | 'propia'>(),
 		/** «Cargos que vienen» (Ajustes → Para mí, charges.ts): their usual, and those they closed. */
 		chargeNotices: jsonb('charge_notices').$type<Partial<ChargeNotices>>().notNull().default({}),
+		/** «Resumen» (Ajustes → Para mí, summary.ts): its card, and the blocks they took out. */
+		summary: jsonb('summary').$type<Partial<SummaryChoice>>().notNull().default({}),
 		createdAt: timestamp('created_at').notNull().defaultNow()
 	},
 	(t) => [
