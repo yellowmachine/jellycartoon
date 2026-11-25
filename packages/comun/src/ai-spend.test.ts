@@ -5,6 +5,7 @@ describe('aiKind', () => {
 	test('each app’s labels, grouped', () => {
 		expect(aiKind('Voz: «pon música»')).toBe('Voz');
 		expect(aiKind('Voz, en internet: «el tiempo»')).toBe('Voz: buscar en internet');
+		expect(aiKind('Preguntar, en internet: «Proton»')).toBe('Preguntar: buscar en internet');
 		expect(aiKind('Leer un ticket')).toBe('Tickets');
 		expect(aiKind('Pasos de «Carbonara»')).toBe('Recetas');
 		expect(aiKind('Identificar la serie «Bluey»')).toBe('Series: identificar');

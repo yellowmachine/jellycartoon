@@ -244,8 +244,9 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 	{
 		id: 'voz-internet',
 		tab: 'familia',
-		title: 'Buscar en internet desde la voz',
-		words: 'internet web buscar google noticias resultados deportes fútbol actualidad',
+		title: 'Buscar en internet',
+		words:
+			'internet web buscar voz preguntar google noticias resultados deportes fútbol actualidad',
 		shown: onlyAdmin
 	},
 	{

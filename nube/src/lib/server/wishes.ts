@@ -626,10 +626,7 @@ export async function describeWishes(
 					? '; lo regala quien pregunta'
 					: `; lo regala ${w.gift.name}`
 				: '';
-			const when =
-				w.priority === 'pronto' || w.bought
-					? ''
-					: `; para: ${WISH_PRIORITY_LABELS[w.priority].toLowerCase()}`;
+			const when = w.bought ? '' : `; para: «${WISH_PRIORITY_LABELS[w.priority]}»`;
 			const bought = w.bought
 				? `; comprado el ${w.bought.on} por ${w.bought.mine ? 'quien pregunta' : w.bought.name}`
 				: '';

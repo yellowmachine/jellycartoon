@@ -260,6 +260,31 @@
 										index={i}
 										ondone={(done) => setCard(m.id, i, () => done)}
 									/>
+								{:else if card.kind === 'busqueda'}
+									<!-- What left Seilide, as it was asked, and where the answer came from. -->
+									<div
+										class="mt-2 rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-300"
+									>
+										<p class="break-words">🔎 Buscado en internet: «{card.query}»</p>
+										{#if card.sources.length}
+											<ul class="mt-1 flex flex-col gap-1">
+												{#each card.sources as s (s.url)}
+													<li class="min-w-0">
+														<a
+															href={s.url}
+															target="_blank"
+															rel="noopener noreferrer"
+															class="block truncate text-amber-400 hover:underline"
+															>{s.title}
+															<span class="text-zinc-500">· {new URL(s.url).hostname}</span></a
+														>
+													</li>
+												{/each}
+											</ul>
+										{:else}
+											<p class="mt-1 text-zinc-500">Sin fuentes: tómalo con cautela.</p>
+										{/if}
+									</div>
 								{:else if card.kind === 'deseo'}
 									<DeseoCard
 										{card}

@@ -738,7 +738,7 @@ export const actions: Actions = {
 		await setVoiceModel(await kitchenOf(locals.user!.id), model || null, conversation || null);
 		return { saved: 'voiceModel' };
 	},
-	/** «Buscar en internet desde la voz»: on or off, and where. */
+	/** «Buscar en internet»: on or off, and where. */
 	saveVoiceWeb: async ({ request, locals }) => {
 		const denied = await requireAdmin(locals.user!.id, 'voiceProblem');
 		if (denied) return denied;

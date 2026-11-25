@@ -530,10 +530,10 @@ describe('for when', () => {
 		expect(await setWishPriority(ana, 'ana', false, id('Bici'), 'mas_adelante')).toBe(true);
 		const said = (await describeWishes(pepe, 'pepe')).split('\n');
 		expect(said[0]).toContain('«Libro»');
-		expect(said[0]).toContain('para: lo primero');
+		expect(said[0]).toContain('para: «Lo primero»');
 		expect(said[1]).toContain('«Cámara»');
-		expect(said[1]).not.toContain('para:');
-		expect(said[2]).toContain('para: más adelante');
+		expect(said[1]).toContain('para: «Pronto»');
+		expect(said[2]).toContain('para: «Más adelante»');
 	});
 });
 

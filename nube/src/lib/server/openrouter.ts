@@ -1,3 +1,4 @@
+import type { WebSource } from '#lib/chat.ts';
 import {
 	accountProblem,
 	keyRefused,
@@ -322,7 +323,7 @@ async function chatOnce(
 /**
  * A question answered with the web (#243, the voice's `web_search`), through OpenRouter's web plugin:
  * https://openrouter.ai/docs/guides/features/plugins/web-search. Its words, short; about a cent
- * each and some seconds more.
+ * each and some seconds more. With the pages it came from, as the answer cites them.
  */
 export async function askWeb(request: {
 	apiKey: string;
@@ -351,11 +352,27 @@ export async function askWeb(request: {
 	const body = await res.json().catch(() => null);
 	if (!res.ok) throw refused(res.status, body);
 	noteCost(request.apiKey, request.label, body);
-	const content = body?.choices?.[0]?.message?.content;
+	const message = body?.choices?.[0]?.message;
+	const content = message?.content;
 	if (typeof content !== 'string' || !content.trim())
 		throw new Error(`OpenRouter no ha contestado (${request.label})`);
-	return content.trim();
+	return { text: content.trim(), sources: webSources(message.annotations) };
 }
+
+/** The pages an answer cites (its `url_citation` annotations), each once: only web addresses. */
+export function webSources(annotations: unknown): WebSource[] {
+	const found = new Map<string, WebSource>();
+	for (const a of Array.isArray(annotations) ? annotations : []) {
+		const cited = a?.type === 'url_citation' ? a.url_citation : null;
+		if (typeof cited?.url !== 'string' || !URL.canParse(cited.url)) continue;
+		const url = new URL(cited.url);
+		if (!/^https?:$/.test(url.protocol) || found.has(url.href)) continue;
+		const title = typeof cited.title === 'string' ? cited.title.trim().slice(0, 200) : '';
+		found.set(url.href, { url: url.href, title: title || url.hostname });
+	}
+	return [...found.values()].slice(0, MAX_WEB_SOURCES);
+}
+const MAX_WEB_SOURCES = 8;
 
 /**
  * The cost in a streamed answer: OpenRouter sends the usage in its last event

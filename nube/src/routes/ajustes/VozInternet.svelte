@@ -5,7 +5,7 @@
 	import type { PageData, ActionData } from './$types';
 
 	/**
-	 * La voz buscando en internet (#243): solo si se activa, y solo cuando necesita algo de
+	 * La voz y Preguntar buscando en internet (#243): solo si se activa, y solo cuando necesita algo de
 	 * actualidad que no sabe. Dónde buscar, en texto libre; vacío, donde mejor encaje.
 	 */
 	let { data, form, tab }: { data: PageData; form: ActionData; tab: string } = $props();
@@ -13,11 +13,12 @@
 
 {#if data.voiceWeb}
 	<section class={section} id="voz-internet">
-		<h2 class="mb-1 font-semibold">Buscar en internet desde la voz</h2>
+		<h2 class="mb-1 font-semibold">Buscar en internet</h2>
 		<p class="mb-3 text-sm text-zinc-400">
-			Para lo que la IA no sabe porque es de hoy: un resultado, una noticia, el horario de una
-			tienda. Solo busca cuando hace falta; cada búsqueda cuesta algo más de un céntimo y tarda unos
-			segundos.
+			La voz y Preguntar, para lo que la IA no sabe o ha cambiado: un resultado, una noticia, el
+			horario de una tienda. Solo busca cuando hace falta; cada búsqueda cuesta algo más de un
+			céntimo y tarda unos segundos. Preguntar enseña lo que ha buscado y las fuentes, con un máximo
+			de 3 búsquedas por pregunta.
 		</p>
 		<form
 			method="post"
@@ -41,8 +42,8 @@
 					placeholder="Para deportes, Marca o ESPN; nada de webs de apuestas; si pregunto por tiendas, cerca de casa…"
 					class="{select} w-full"></textarea>
 				<span class="text-xs text-zinc-500"
-					>Vacío: busca donde mejor encaje. Siempre contesta corto, dice de qué día es lo que
-					encuentra y no se inventa nada.</span
+					>Vacío: busca donde mejor encaje. Se le pide que no busque nada personal, que diga de
+					cuándo es lo que encuentra y que no se invente nada.</span
 				>
 			</label>
 			<div class="flex items-center gap-3">
