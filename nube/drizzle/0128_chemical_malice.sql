@@ -1,0 +1,1 @@
+ALTER TABLE "plug" ALTER COLUMN "energy_wh" SET DATA TYPE double precision;

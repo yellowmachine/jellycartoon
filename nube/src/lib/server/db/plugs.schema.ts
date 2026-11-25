@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
 	boolean,
+	doublePrecision,
 	index,
 	integer,
 	pgPolicy,
@@ -47,7 +48,7 @@ export const plug = pgTable(
 		/** Watts, as last told. */
 		power: real('power'),
 		/** Its own energy counter, in Wh, as last told: what each hour used comes from its rise. */
-		energyWh: real('energy_wh'),
+		energyWh: doublePrecision('energy_wh'),
 		/**
 		 * «En pausa» (#396, a water heater in summer): off, and its schedules off; since when. A long
 		 * pause ends with a long heat, against legionella.

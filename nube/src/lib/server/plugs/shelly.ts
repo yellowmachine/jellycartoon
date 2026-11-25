@@ -155,11 +155,14 @@ export function parseMessage(text: string): ShellyMessage | null {
 
 /**
  * What was used since the counter was last seen, in Wh. The first time, nothing: only where it
- * stands. Lower than before, it started again from zero (reset), so all it says now is new.
+ * stands. Much lower than before, it started again from zero (reset), so all it says now is new;
+ * a little lower is a rounding (kept as a float4, 29150.478 came back as 29150.479, and each
+ * reconnection counted the whole counter again), so nothing.
  */
 export function energyRise(before: number | null, now: number) {
 	if (before === null) return 0;
-	return now >= before ? now - before : now;
+	if (now >= before) return now - before;
+	return now < before / 2 ? now : 0;
 }
 
 /** The hour a moment falls in, by its start: what each hour used is kept by it. */
