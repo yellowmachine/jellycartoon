@@ -71,14 +71,26 @@ export async function describeEnergyForecast(k: Kitchen) {
 	for (const f of fuels) {
 		const meta = FUEL_KINDS[f.kind];
 		const o = f.outlook;
-		if (!o || !f.startedOn) {
+		const many = f.spots.length > 1;
+		const home = `${f.full} ${f.full === 1 ? `${meta.unit} llena` : `${meta.units} llenas`} en casa`;
+		const going = f.spots.filter((s) => s.unit);
+		const each = going.map(
+			(s) =>
+				`${many ? `en ${s.name}, ` : 'la de ahora, '}empezada el ${s.unit!.startedOn}${s.left !== null ? `, le queda un ${n0(s.left * 100)} %` : ''}${many && s.ends ? `, hasta el ${s.ends}` : ''}`
+		);
+		if (!o) {
 			lines.push(
-				`${meta.name}: aún no se puede calcular (falta cuándo se empezó la de ahora o cuánto dura).`
+				`${meta.name}: ${home}${each.length ? `; ${each.join('; ')}` : ''}. Aún no se puede calcular cuánto llega (falta cuándo se empezó la de ahora o cuánto dura).`
 			);
 			continue;
 		}
+		const how = going.some((s) => s.by === 'aprendido')
+			? going.every((s) => s.by === 'aprendido')
+				? 'Aprendido de lo gastado.'
+				: 'En parte aprendido, en parte lo que dijo la familia.'
+			: 'Con lo que dijo la familia.';
 		lines.push(
-			`${meta.name}: ${f.full} ${f.full === 1 ? `${meta.unit} llena` : `${meta.units} llenas`} en casa; la de ahora, empezada el ${f.startedOn}${o.left !== null ? `, le queda un ${n0(o.left * 100)} %` : ''}. ${o.allEnds ? `Lo que hay llega hasta el ${o.allEnds}` : 'Llega para más de dos semanas'}; en ${n} días harán falta unas ${n1(o.needed.kwh)} ${meta.units}${o.toBuy ? `, hay que comprar ${o.toBuy}` : ''}. ${f.by === 'aprendido' ? 'Aprendido de lo gastado.' : 'Con lo que dijo la familia.'}`
+			`${meta.name}: ${home}; ${each.join('; ')}. ${o.allEnds ? `Lo que hay llega hasta el ${o.allEnds}` : 'Llega para más de dos semanas'}; en ${n} días harán falta unas ${n1(o.needed.kwh)} ${meta.units}${o.toBuy ? `, hay que comprar ${o.toBuy}` : ''}. ${how}${f.uncounted.length ? ` Sin contar ${f.uncounted.join(', ')}: aún no se sabe cuánto dura.` : ''}`
 		);
 	}
 

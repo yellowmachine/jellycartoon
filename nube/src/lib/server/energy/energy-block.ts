@@ -1,7 +1,7 @@
-import { and, eq, gte, lte, lt } from 'drizzle-orm';
+import { and, gte, lte, lt } from 'drizzle-orm';
 import { addDays, localDay } from 'comun/agenda.ts';
 import { placeName } from 'comun/weather.ts';
-import { fuel, fuelEvent, plug, plugEnergy } from '../db/schema.ts';
+import { fuel, fuelUnit, plug, plugEnergy } from '../db/schema.ts';
 import { familyPlace } from '../family-settings.ts';
 import type { Kitchen } from '../fridge.ts';
 import { kwhPriceIn } from '../plugs/plugs.ts';
@@ -38,11 +38,9 @@ export async function energyBlock(
 		k.run((tx) => tx.select({ id: fuel.id, kind: fuel.kind }).from(fuel)),
 		k.run((tx) =>
 			tx
-				.select({ fuelId: fuelEvent.fuelId })
-				.from(fuelEvent)
-				.where(
-					and(eq(fuelEvent.kind, 'empezada'), gte(fuelEvent.day, from), lte(fuelEvent.day, last))
-				)
+				.select({ fuelId: fuelUnit.fuelId })
+				.from(fuelUnit)
+				.where(and(gte(fuelUnit.startedOn, from), lte(fuelUnit.startedOn, last)))
 		),
 		k.run((tx) =>
 			tx

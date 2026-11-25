@@ -4,7 +4,15 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { sql } from 'drizzle-orm';
 import * as schema from '../db/schema.ts';
-import { family, familySettings, fuel, fuelEvent, plug, plugEnergy } from '../db/schema.ts';
+import {
+	family,
+	familySettings,
+	fuel,
+	fuelSpot,
+	fuelUnit,
+	plug,
+	plugEnergy
+} from '../db/schema.ts';
 import { familyOnlyScope, familyScope, NoFamily } from '../family-scope.ts';
 import type { Kitchen } from '../fridge.ts';
 
@@ -92,10 +100,14 @@ beforeAll(async () => {
 		.insert(fuel)
 		.values({ familyId: 'A', kind: 'butano', startsOnBuy: true })
 		.returning({ id: fuel.id });
-	await db.insert(fuelEvent).values([
-		{ familyId: 'A', fuelId: butane!.id, kind: 'empezada', day: '2026-11-12' },
-		{ familyId: 'A', fuelId: butane!.id, kind: 'empezada', day: '2026-11-01' },
-		{ familyId: 'A', fuelId: butane!.id, kind: 'compra', day: '2026-11-13' }
+	const [spot] = await db
+		.insert(fuelSpot)
+		.values({ familyId: 'A', fuelId: butane!.id })
+		.returning({ id: fuelSpot.id });
+	const unit = { familyId: 'A', fuelId: butane!.id, spotId: spot!.id };
+	await db.insert(fuelUnit).values([
+		{ ...unit, startedOn: '2026-11-12' },
+		{ ...unit, startedOn: '2026-11-01', endedOn: '2026-11-12' }
 	]);
 });
 afterAll(() => {
