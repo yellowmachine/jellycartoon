@@ -266,15 +266,13 @@ test('estimated by the AI once; one corrected by hand stays; the view adds it up
 	expect(asked).toHaveLength(1);
 	expect(await pendingProducts(a)).toEqual([]);
 
-	const view = await caloriesView(a, 'ana', '2026-11-20');
+	const view = await caloriesView(a, '2026-11-20');
 	// Bread 3 × 1000 g × 100 kcal/100 g, bananas 1,5 kg × 90: 4350, from Monday the 16th to
 	// Friday the 20th, among 2 adults and 2 children.
 	const week = view.weeks.at(-1)!;
 	expect(week.week).toBe('2026-11-16');
 	expect(week.days).toBe(5);
 	expect(week.perDay).toBeCloseTo(4350 / 5 / 3.2);
-	// Only Ana's walks.
-	expect(week.km).toBe(4.5);
 	expect(view.tags.map((t) => t.tag)).toEqual(['Panadería', 'Fruta y verdura']);
 	expect(view.products.map((p) => [p.key, p.kcal, p.estimate?.byHand])).toEqual([
 		['pan barra', 3000, false],
@@ -285,7 +283,7 @@ test('estimated by the AI once; one corrected by hand stays; the view adds it up
 	expect(view.recent).toBeNull();
 
 	await correctEstimate(a, 'pan barra', { food: false, byWeight: false, grams: 0, kcal100: 0 });
-	const after = await caloriesView(a, 'ana', '2026-11-20');
+	const after = await caloriesView(a, '2026-11-20');
 	expect(after.notFood.map((p) => p.key)).toEqual(['pan barra']);
 	expect(after.weeks.at(-1)!.perDay).toBeCloseTo(1350 / 5 / 3.2);
 

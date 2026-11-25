@@ -5,6 +5,7 @@
 	import ExpenseTabs from '#lib/components/ExpenseTabs.svelte';
 	import GuideLink from '#lib/components/GuideLink.svelte';
 	import { ADULT_KCAL, CHILD_SHARE, kcal, peopleText } from '#lib/calories.ts';
+	import { kcalText } from '#lib/walk-kcal.ts';
 	import type { PageProps } from './$types';
 
 	/**
@@ -174,9 +175,9 @@
 		<p class="mb-2 text-sm text-zinc-400">
 			Semana del {shortDay(shown.week)}{shown.week === thisWeek ? ' (va por aquí)' : ''}:
 			<span class="font-semibold text-white tabular-nums">{kcal(shown.perDay)}</span>
-			al día{#if anyWalk}
-				· tus paseos, <span class="font-semibold text-sky-300 tabular-nums">{km(shown.km)}</span
-				>{/if}
+			al día{#if anyWalk}{' · '}tus paseos,
+				<span class="font-semibold text-sky-300 tabular-nums">{km(shown.km)}</span
+				>{#if shown.burnt !== null}{` ${kcalText(shown.burnt)} gastadas en la semana`}{/if}{/if}
 		</p>
 		<div class="relative flex h-40 items-end gap-1">
 			<div
@@ -229,7 +230,10 @@
 		</div>
 		<p class="mt-3 text-xs text-zinc-500">
 			La compra grande de una semana la sube y baja la siguiente: mejor mirar varias juntas. Tus
-			paseos solo los ves tú.
+			paseos solo los ves tú{data.weeks.some((w) => w.burnt !== null)
+				? ', y lo que gastas con ellos es tuyo: no se resta de la compra, que es de todos'
+				: ''}.
+			{#if anyWalk}<a href="/paseos" class="text-amber-400 hover:underline">Ver en Paseos</a>{/if}
 		</p>
 	</section>
 

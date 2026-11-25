@@ -1,11 +1,15 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { kitchenOf, today } from '#lib/server/fridge.ts';
+import { dayStart } from '#lib/server/plugs/stats.ts';
+import { onFootSince } from '#lib/server/walks/on-foot.ts';
+import { footWeeks } from '#lib/walk-kcal.ts';
 import {
 	caloriesView,
 	correctEstimate,
 	estimateMissing,
 	estimateProblem,
+	firstWeek,
 	isEstimating
 } from '#lib/server/expenses/calories.ts';
 
@@ -17,9 +21,18 @@ import {
 export const load: PageServerLoad = async ({ locals }) => {
 	const k = await kitchenOf(locals.user!.id);
 	void estimateMissing(k.familyId);
-	const view = await caloriesView(k, locals.user!.id, today());
+	const now = today();
+	const [view, foot] = await Promise.all([
+		caloriesView(k, now),
+		onFootSince(k, locals.user!.id, dayStart(firstWeek(now)))
+	]);
+	const walked = footWeeks(
+		view.weeks.map((w) => w.week),
+		foot.list
+	);
 	return {
 		...view,
+		weeks: view.weeks.map((w, i) => ({ ...w, km: walked[i]!.km, burnt: walked[i]!.kcal })),
 		estimating: isEstimating(k.familyId),
 		problem: estimateProblem(k.familyId)
 	};

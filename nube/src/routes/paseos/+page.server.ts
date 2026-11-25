@@ -4,12 +4,14 @@ import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { MAP_DIR } from '$app/env/private';
 import { dayOf, kitchenOf, today } from '#lib/server/fridge.ts';
-import { recentCalories } from '#lib/server/expenses/calories.ts';
+import { addDays } from 'comun/agenda.ts';
+import { firstWeek, recentCalories, WEEKS } from '#lib/server/expenses/calories.ts';
 import { deleteWalkNotes } from '#lib/server/notes.ts';
 import { deleteWalk, deleteWalkPhotos, listWalks } from '#lib/server/walks/walks.ts';
+import { onFootSince } from '#lib/server/walks/on-foot.ts';
+import { addKcal, footWeeks, walkKcal, weightOn } from '#lib/walk-kcal.ts';
 import { mondayOf, walkTotals } from '#lib/walks.ts';
 import { dayStart } from '#lib/server/plugs/stats.ts';
-import { owntracksOutings } from '#lib/server/owntracks/walking.ts';
 
 /**
  * Paseos (#410): one's own walks, with this week's and this month's added up. `?paseo=`, that one
@@ -19,7 +21,8 @@ import { owntracksOutings } from '#lib/server/owntracks/walking.ts';
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const k = await kitchenOf(locals.user!.id);
 	const asked = Number(url.searchParams.get('paseo')) || null;
-	const [walks, map, kcal] = await Promise.all([
+	const now = today();
+	const [walks, map, kcal, foot] = await Promise.all([
 		listWalks(k).then(async (list) =>
 			asked && !list.some((w) => w.id === asked)
 				? [...list, ...(await listWalks(k, 1, asked))]
@@ -32,30 +35,41 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		recentCalories(k, today()).catch((error) => {
 			console.warn('[paseos] Sin calorías', String(error));
 			return null;
-		})
+		}),
+		// Those weeks' hold the whole month too.
+		onFootSince(k, locals.user!.id, dayStart(firstWeek(now)))
 	]);
-	// This week's and this month's outings by OwnTracks (#593), added to the walks.
-	const now = today();
-	const monday = mondayOf(now);
-	const monthStart = `${now.slice(0, 7)}-01`;
-	const outings = await owntracksOutings(
-		locals.user!.id,
-		dayStart(monday < monthStart ? monday : monthStart),
-		new Date(),
-		walks
-	).catch((error) => {
-		console.warn('[paseos] Sin OwnTracks', String(error));
-		return [];
-	});
-	const row = (w: { startedAt: Date; endedAt: Date; distance: number }) => ({
-		day: dayOf(w.startedAt),
-		distance: w.distance,
-		seconds: (w.endedAt.getTime() - w.startedAt.getTime()) / 1000
-	});
-	const totals = walkTotals([...walks.map(row), ...outings.map(row)], now);
+	// This week's and this month's, the outings by OwnTracks (#593) added to the walks.
+	const totals = walkTotals(foot.list, now);
 	/** What of those totals came from OwnTracks, to say so. */
-	const fromOwntracks = walkTotals(outings.map(row), now);
-	return { walks, totals, fromOwntracks, map, kcal };
+	const fromOwntracks = walkTotals(
+		foot.list.filter((o) => o.owntracks),
+		now
+	);
+	const burntSince = (from: string) =>
+		addKcal(foot.list.filter((o) => o.day >= from && o.day <= now).map((o) => o.kcal));
+	const weeks = footWeeks(
+		Array.from({ length: WEEKS }, (_, i) => addDays(firstWeek(now), 7 * i)),
+		foot.list
+	);
+	return {
+		walks: walks.map((w) => ({
+			...w,
+			kcal: walkKcal(
+				w.distance,
+				(w.endedAt.getTime() - w.startedAt.getTime()) / 1000,
+				weightOn(foot.weights, dayOf(w.startedAt))
+			)
+		})),
+		totals,
+		fromOwntracks,
+		map,
+		kcal,
+		/** Whether they noted their weight: without it, no kcal. */
+		weighed: foot.weights.length > 0,
+		burnt: { week: burntSince(mondayOf(now)), month: burntSince(`${now.slice(0, 7)}-01`) },
+		weeks
+	};
 };
 
 export const actions: Actions = {

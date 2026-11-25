@@ -29,6 +29,8 @@
 		type CueEvery,
 		type WalkDiagnosis
 	} from '#lib/walks.ts';
+	import { kcalText } from '#lib/walk-kcal.ts';
+	import KcalAndando from './KcalAndando.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -302,7 +304,7 @@
 
 {#if data.walks.length || data.fromOwntracks.month.walks}
 	<section class="mb-8 grid grid-cols-2 gap-3">
-		{#each [{ label: 'Esta semana', s: data.totals.week, ot: data.fromOwntracks.week }, { label: 'Este mes', s: data.totals.month, ot: data.fromOwntracks.month }] as box (box.label)}
+		{#each [{ label: 'Esta semana', s: data.totals.week, burnt: data.burnt.week, ot: data.fromOwntracks.week }, { label: 'Este mes', s: data.totals.month, burnt: data.burnt.month, ot: data.fromOwntracks.month }] as box (box.label)}
 			<div class="rounded-md border border-zinc-800 p-3">
 				<p class="mb-1 text-sm text-zinc-400">{box.label}</p>
 				<p class="text-xl font-semibold">{walkDistanceText(box.s.distance)}</p>
@@ -310,6 +312,7 @@
 					{box.s.walks}
 					{box.s.walks === 1 ? 'paseo' : 'paseos'} · {durationText(box.s.seconds)}
 				</p>
+				{#if box.burnt !== null}<p class="text-sm text-zinc-300">{kcalText(box.burnt)}</p>{/if}
 				{#if box.ot.walks}
 					<a href="/paseos/owntracks" class="text-xs text-zinc-500 hover:text-amber-300"
 						>{walkDistanceText(box.ot.distance)} con OwnTracks</a
@@ -318,6 +321,18 @@
 			</div>
 		{/each}
 	</section>
+{/if}
+
+{#if data.weeks.some((w) => w.km > 0)}
+	{#if data.weighed}
+		<KcalAndando weeks={data.weeks} />
+	{:else}
+		<p class="mb-8 text-sm text-zinc-400">
+			Con tu peso, aquí verías las kcal que gastas andando. Es opcional y solo lo ves tú:
+			<a href="/ajustes?seccion=mi#peso" class="text-amber-400 hover:underline">ponlo en Ajustes</a
+			>.
+		</p>
+	{/if}
 {/if}
 
 {#if data.kcal !== null}
@@ -351,7 +366,7 @@
 								seconds(w)
 							)
 								? ` · ${paceText(w.distance, seconds(w))}`
-								: ''}
+								: ''}{w.kcal !== null ? ` · ${kcalText(w.kcal)}` : ''}
 						</span>
 						{#if w.diagnosis.gaps.length}
 							<span class="block text-sm text-amber-300">

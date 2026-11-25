@@ -4,6 +4,7 @@
 	import TripMap from '#lib/components/TripMap.svelte';
 	import { agoText } from '#lib/cars.ts';
 	import { durationText } from '#lib/trips.ts';
+	import { kcalText } from '#lib/walk-kcal.ts';
 	import { walkDistanceText } from '#lib/walks.ts';
 	import type { PageProps } from './$types';
 
@@ -169,7 +170,9 @@
 				<p class="text-xl font-semibold">{walkDistanceText(walked)}</p>
 				<p class="text-sm text-zinc-300">
 					{data.outings.length}
-					{data.outings.length === 1 ? 'salida' : 'salidas'} · {durationText(walkedSeconds)}
+					{data.outings.length === 1 ? 'salida' : 'salidas'} · {durationText(
+						walkedSeconds
+					)}{data.kcal !== null ? ` · ${kcalText(data.kcal)}` : ''}
 				</p>
 			</div>
 			<div class="rounded-md border border-zinc-800 p-3">

@@ -6,6 +6,8 @@ import { firstKeptDay } from '#lib/server/owntracks/retention.ts';
 import type { StoredPoint } from '#lib/trips.ts';
 import { dayStretches, stretchAt, whereAt } from '#lib/owntracks-day.ts';
 import { walkingOutings } from '#lib/owntracks-walking.ts';
+import { weight } from '#lib/server/walks/weight.ts';
+import { addKcal, walkKcal, weightOn } from '#lib/walk-kcal.ts';
 import { dayOf, kitchenOf, today } from '#lib/server/fridge.ts';
 import { notesBetween } from '#lib/server/notes.ts';
 import { listWalks, walkPhotosBetween } from '#lib/server/walks/walks.ts';
@@ -30,18 +32,20 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const from = dayStart(day);
 	const to = dayStart(addDays(day, 1));
 	const k = await kitchenOf(userId);
-	const [status, points, walks, summary, arrivals, notes, photos] = await Promise.all([
+	const [status, points, walks, summary, arrivals, notes, photos, weights] = await Promise.all([
 		owntracks.status(userId),
 		owntracks.between(userId, from, to),
 		listWalks(k, 1000),
 		day < firstKept ? owntracks.summaryOf(userId, day) : null,
 		owntracks.transitionsBetween(userId, from, to),
 		notesBetween(k, userId, from, to),
-		walkPhotosBetween(k, from, to)
+		walkPhotosBetween(k, from, to),
+		weight.list(userId)
 	]);
 	// The app's walks that day: theirs what they overlap (phase 2), said apart.
 	const appWalks = walks.filter((w) => w.startedAt < to && w.endedAt > from);
 	const outings = walkingOutings(points, appWalks);
+	const kg = weightOn(weights, day);
 	const stretches = dayStretches(points, outings, appWalks);
 	/** What was kept that day, where it was made or, without that, where the phone was then. */
 	const kept = [
@@ -81,6 +85,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		first: points[0]?.at ?? null,
 		last: points.at(-1)?.at ?? null,
 		outings,
+		/** The outings' kcal; null without their weight. */
+		kcal: addKcal(
+			outings.map((o) =>
+				walkKcal(o.distance, (o.endedAt.getTime() - o.startedAt.getTime()) / 1000, kg)
+			)
+		),
 		stretches,
 		kept,
 		appWalks: appWalks.map(({ id, startedAt, distance }) => ({ id, startedAt, distance })),
