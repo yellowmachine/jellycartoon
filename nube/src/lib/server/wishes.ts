@@ -33,6 +33,24 @@ import {
  * only «Lo regalo yo», which the person it is for never sees. A child sees and writes in its own.
  */
 
+const listeners = new Map<string, Set<() => void>>();
+
+/** The family's open pages, told when any wish changes; not which: each loads what it may see. */
+export function watchWishes(familyId: string, listener: () => void) {
+	const set = listeners.get(familyId) ?? new Set();
+	set.add(listener);
+	listeners.set(familyId, set);
+	return () => {
+		set.delete(listener);
+		if (!set.size && listeners.get(familyId) === set) listeners.delete(familyId);
+	};
+}
+
+/** Once it is in the database: they load it again at once. */
+function changed(familyId: string) {
+	for (const listener of listeners.get(familyId) ?? []) listener();
+}
+
 const USER_AGENT = 'Seilide/1.0 (https://github.com/yellowmachine/jellycartoon)';
 const MAX_PAGE_BYTES = 5_000_000;
 
@@ -435,7 +453,8 @@ export async function addWish(
 	const { people } = await viewer(k, userId, kid);
 	const person = people.find((p) => p.id === String(personId) && p.writes);
 	if (!person) return { refused: true };
-	return k.run(async (tx) => {
+	let touched = false;
+	const done = await k.run(async (tx) => {
 		const [there] = await tx
 			.select()
 			.from(wish)
@@ -486,7 +505,10 @@ export async function addWish(
 				...(!there.note && note?.trim() ? { note: note.trim().slice(0, MAX_WISH_NOTE) } : {}),
 				...(!there.imageUrl && product.imageUrl ? { imageUrl: product.imageUrl } : {})
 			};
-			if (Object.keys(set).length) await tx.update(wish).set(set).where(eq(wish.id, there.id));
+			if (Object.keys(set).length) {
+				await tx.update(wish).set(set).where(eq(wish.id, there.id));
+				touched = true;
+			}
 			return {
 				already: there.id,
 				change: now && {
@@ -515,8 +537,11 @@ export async function addWish(
 				addedBy: userId
 			})
 			.returning({ id: wish.id });
+		touched = true;
 		return { added: made!.id };
 	});
+	if (touched) changed(k.familyId);
+	return done;
 }
 
 /** Its name, note, price and shipping (not said, as it was; null, none) corrected; false if it is not there or not theirs to write. */
@@ -566,6 +591,7 @@ export async function updateWish(
 			})
 			.where(eq(wish.id, id));
 	});
+	changed(k.familyId);
 	return true;
 }
 
@@ -580,6 +606,7 @@ export async function setWishPriority(
 	const personId = await wishPerson(k, id);
 	if (personId === null || !(await writesIn(k, userId, kid, personId))) return false;
 	await k.run((tx) => tx.update(wish).set({ priority }).where(eq(wish.id, id)));
+	changed(k.familyId);
 	return true;
 }
 
@@ -587,6 +614,7 @@ export async function deleteWish(k: Kitchen, userId: string, kid: boolean, id: n
 	const personId = await wishPerson(k, id);
 	if (personId === null || !(await writesIn(k, userId, kid, personId))) return false;
 	await k.run((tx) => tx.delete(wish).where(eq(wish.id, id)));
+	changed(k.familyId);
 	return true;
 }
 
@@ -611,6 +639,7 @@ export async function giveWish(k: Kitchen, userId: string, kid: boolean, id: num
 			)
 			.returning({ id: wish.id })
 	);
+	if (done) changed(k.familyId);
 	return Boolean(done);
 }
 
@@ -655,6 +684,7 @@ export async function buyWish(k: Kitchen, userId: string, kid: boolean, id: numb
 			)
 			.returning({ id: wish.id })
 	);
+	if (done) changed(k.familyId);
 	return Boolean(done);
 }
 
@@ -666,6 +696,7 @@ export async function setWishExpense(k: Kitchen, userId: string, id: number, exp
 			.set({ expenseId })
 			.where(and(eq(wish.id, id), eq(wish.boughtBy, userId)))
 	);
+	changed(k.familyId);
 }
 
 /** «Deshacer», by who bought it: back in the list. Its expense stays in Dinero. */
@@ -677,6 +708,7 @@ export async function unbuyWish(k: Kitchen, userId: string, id: number) {
 			.where(and(eq(wish.id, id), eq(wish.boughtBy, userId)))
 			.returning({ id: wish.id })
 	);
+	if (done) changed(k.familyId);
 	return Boolean(done);
 }
 

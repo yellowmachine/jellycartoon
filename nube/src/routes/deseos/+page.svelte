@@ -135,6 +135,51 @@
 		};
 	};
 	let problem = $state<string | null>(null);
+
+	// ——— What is added elsewhere (the bookmark, the family), here at once ———
+
+	/** The wish whose «Marcar como comprado» is open. */
+	let buying = $state<number | null>(null);
+	/** Changed since it was last loaded. */
+	let stale = $state(false);
+	/** Something half done here, that a list moving under it would spoil: it waits. */
+	const busy = $derived(editing !== null || selecting || buying !== null || adding);
+	$effect(() => {
+		if (!stale || busy) return;
+		// Several changes at once («Seleccionar») are loaded once.
+		const timer = setTimeout(() => {
+			stale = false;
+			void refreshAll().catch(() => {});
+		}, 200);
+		return () => clearTimeout(timer);
+	});
+	$effect(() => {
+		let events: EventSource | undefined;
+		let opened = false;
+		let hiddenAt = 0;
+		function connect() {
+			events?.close();
+			events = new EventSource('/api/deseos/events');
+			events.onmessage = () => (stale = true);
+			// Again, after a cut: what changed meanwhile was not told.
+			events.onopen = () => {
+				if (opened) stale = true;
+				opened = true;
+			};
+		}
+		// A phone may cut it, or leave it dead, while the page is hidden.
+		function onVisible() {
+			if (document.hidden) hiddenAt = Date.now();
+			else if (events?.readyState === EventSource.CLOSED || Date.now() - hiddenAt > 60_000)
+				connect();
+		}
+		connect();
+		document.addEventListener('visibilitychange', onVisible);
+		return () => {
+			document.removeEventListener('visibilitychange', onVisible);
+			events?.close();
+		};
+	});
 	/** The one that was already there when the same product was added again (#586). */
 	let already = $state<number | null>(null);
 	/** And what that did to its price, in words; shared, from the address. */
@@ -317,6 +362,7 @@
 									wish={w}
 									today={data.today}
 									secret={!forMe && !writes}
+									onopen={(open) => (buying = open ? w.id : buying === w.id ? null : buying)}
 									onbought={(done) => (justBought = done)}
 								/>
 							{/if}

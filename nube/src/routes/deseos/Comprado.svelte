@@ -4,6 +4,7 @@
 marked, when the receipt or the bank will bring the expense.
 -->
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { monthOf } from 'comun/expenses.ts';
 	import { sameText, type LooksSame } from 'comun/page-notices.ts';
@@ -23,9 +24,11 @@ marked, when the receipt or the bank will bring the expense.
 		today: string;
 		/** Another adult's gift: they see Dinero too. */
 		secret: boolean;
+		/** Its popover, open or closed. */
+		onopen: (open: boolean) => void;
 		onbought: (done: { expense: number | null; month: string }) => void;
 	}
-	let { wish, today, secret, onbought }: Props = $props();
+	let { wish, today, secret, onopen, onbought }: Props = $props();
 
 	let popover = $state<HTMLElement>();
 	let date = $state('');
@@ -50,6 +53,14 @@ marked, when the receipt or the bank will bring the expense.
 		problem = null;
 		repeated = null;
 	}
+	let open = false;
+	function setOpen(now: boolean) {
+		if (now === open) return;
+		open = now;
+		onopen(now);
+	}
+	// Its card gone while open: no toggle comes.
+	onDestroy(() => setOpen(false));
 	/** Another day or price: whether it is put in twice is asked again. */
 	const changed = () => (repeated = null);
 </script>
@@ -69,7 +80,10 @@ marked, when the receipt or the bank will bring the expense.
 	aria-label="Marcar como comprado: {wish.title}"
 	style:position-anchor="--comprado-{wish.id}"
 	class="comprado inset-auto m-0 my-1 w-72 max-w-[calc(100vw-2rem)] rounded-md border border-zinc-700 bg-zinc-900 p-3 text-sm text-zinc-100 shadow-lg"
-	onbeforetoggle={(e) => e.newState === 'open' && fill()}
+	onbeforetoggle={(e) => {
+		if (e.newState === 'open') fill();
+		setOpen(e.newState === 'open');
+	}}
 >
 	<form
 		method="post"
