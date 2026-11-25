@@ -19,7 +19,7 @@
 	/** By day: the hour being corrected, and what went wrong. */
 	let fixing = $state<{ key: string; plug: string } | null>(null);
 	let problem = $state<string | null>(null);
-	const fixed = $derived.by(() => {
+	const current = $derived.by(() => {
 		const b = fixing && s.buckets.find((x) => x.key === fixing!.key);
 		const hour = b && b.hours?.[fixing!.plug];
 		const plug = s.plugs.find((p) => p.id === fixing?.plug);
@@ -122,13 +122,67 @@
 <h1 class="mb-3 text-2xl font-bold">Energía</h1>
 <EnchufesTabs current="consumo" />
 
+<!-- The hour being corrected, under its row. -->
+{#snippet fixForm(fixed: NonNullable<typeof current>)}
+	<form
+		method="post"
+		action="{page.url.search ? `${page.url.search}&` : '?'}/fix"
+		{@attach (el) => el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })}
+		class="sticky left-0 my-2 flex w-[calc(100vw-2rem)] flex-col gap-2 rounded-md border border-amber-500/60 bg-zinc-900 p-3 text-zinc-200 {series.length
+			? 'max-w-xl'
+			: 'max-w-sm'}"
+		use:enhance={() =>
+			async ({ result, update }) => {
+				problem =
+					result.type === 'failure' ? String(result.data?.message ?? 'No se pudo guardar') : null;
+				await update({ reset: false });
+				if (result.type === 'success') fixing = null;
+			}}
+	>
+		<input type="hidden" name="plug" value={fixed.plug.id} />
+		<input type="hidden" name="hour" value={fixed.hour.hour} />
+		<p>
+			{fixed.plug.name}, de {fixed.b.label}: {fixed.hour.mark === 'sin_dato'
+				? 'sin dato'
+				: energyText(fixed.wh)}{#if fixed.hour.raw !== null}{' '}<span class="text-zinc-400"
+					>(llegó {energyText(fixed.hour.raw)})</span
+				>{/if}
+		</p>
+		<div class="flex flex-wrap items-center gap-2">
+			{#if fixed.hour.mark !== 'sin_dato'}
+				<button name="to" value="sin_dato" class={secondary} formnovalidate
+					>Está mal: sin dato</button
+				>
+			{/if}
+			{#if fixed.hour.raw !== null}
+				<button name="to" value="original" class={secondary} formnovalidate>Como llegó</button>
+			{/if}
+			<label class="flex items-center gap-2">
+				<input
+					name="wh"
+					inputmode="decimal"
+					maxlength="8"
+					placeholder="850"
+					aria-label="Consumo de esa hora, en Wh"
+					class="{field} w-24! py-1 text-sm"
+				/> Wh
+			</label>
+			<button name="to" value="valor" class={primary}>Poner este</button>
+			<button type="button" class={secondary} onclick={() => (fixing = null)}>Cerrar</button>
+		</div>
+		{#if problem}<p class="text-red-400" role="alert">{problem}</p>{/if}
+	</form>
+{/snippet}
+
 <!-- By day, an hour of a plug that is over: to be corrected. -->
 {#snippet hourCell(b: (typeof s.buckets)[number], plug: string, text: string)}
 	{@const hour = b.hours?.[plug]}
 	{#if hour?.over}
 		<button
 			type="button"
-			class="hover:underline {hour.mark === 'sin_dato'
+			class="hover:underline {fixing?.key === b.key && fixing.plug === plug
+				? 'font-semibold underline '
+				: ''}{hour.mark === 'sin_dato'
 				? 'text-amber-400'
 				: hour.mark === 'corregido'
 					? 'text-sky-300'
@@ -272,7 +326,7 @@
 					{#if series.length}
 						<thead>
 							<tr class="border-b border-zinc-700 text-xs">
-								<td></td>
+								<td class="sticky left-0 bg-zinc-950"></td>
 								{#each series as x (x.id)}
 									<th scope="col" class="px-2 py-1 text-right font-normal whitespace-nowrap"
 										>{x.name}</th
@@ -284,9 +338,22 @@
 					{/if}
 					<tbody>
 						{#each s.buckets as b (b.key)}
-							<tr class="border-b border-zinc-800">
-								<th scope="row" class="py-1 pr-3 text-left font-normal whitespace-nowrap"
-									>{b.label}</th
+							{@const open = current?.b.key === b.key}
+							<tr
+								class={[
+									'border-b border-zinc-800',
+									open && 'bg-amber-500/15 outline outline-amber-500/60'
+								]}
+							>
+								<th
+									scope="row"
+									class={[
+										// In sight with the table scrolled; opaque, the rest goes under it.
+										'sticky left-0 py-1 pr-3 text-left font-normal whitespace-nowrap',
+										open
+											? 'bg-[color-mix(in_srgb,var(--color-amber-500)_15%,var(--color-zinc-950))]'
+											: 'bg-zinc-950'
+									]}>{b.label}</th
 								>
 								{#each series as x (x.id)}
 									<td class="px-2 py-1 text-right whitespace-nowrap tabular-nums"
@@ -304,61 +371,19 @@
 										)}{/if}</td
 								>
 							</tr>
+							{#if open && current}
+								<tr>
+									<td colspan={series.length ? series.length + 2 : 2}>
+										<!-- Another one chosen: its own, and into view. -->
+										{#key `${fixing?.key}-${fixing?.plug}`}{@render fixForm(current)}{/key}
+									</td>
+								</tr>
+							{/if}
 						{/each}
 					</tbody>
 				</table>
 			</div>
-			{#if fixed}
-				<form
-					method="post"
-					action="{page.url.search ? `${page.url.search}&` : '?'}/fix"
-					{@attach (el) => el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })}
-					class="mt-3 flex flex-col gap-2 rounded-md border border-zinc-700 bg-zinc-900 p-3 text-zinc-200"
-					use:enhance={() =>
-						async ({ result, update }) => {
-							problem =
-								result.type === 'failure'
-									? String(result.data?.message ?? 'No se pudo guardar')
-									: null;
-							await update({ reset: false });
-							if (result.type === 'success') fixing = null;
-						}}
-				>
-					<input type="hidden" name="plug" value={fixed.plug.id} />
-					<input type="hidden" name="hour" value={fixed.hour.hour} />
-					<p>
-						{fixed.plug.name}, de {fixed.b.label}: {fixed.hour.mark === 'sin_dato'
-							? 'sin dato'
-							: energyText(fixed.wh)}{#if fixed.hour.raw !== null}{' '}<span class="text-zinc-400"
-								>(llegó {energyText(fixed.hour.raw)})</span
-							>{/if}
-					</p>
-					<div class="flex flex-wrap items-center gap-2">
-						{#if fixed.hour.mark !== 'sin_dato'}
-							<button name="to" value="sin_dato" class={secondary} formnovalidate
-								>Está mal: sin dato</button
-							>
-						{/if}
-						{#if fixed.hour.raw !== null}
-							<button name="to" value="original" class={secondary} formnovalidate>Como llegó</button
-							>
-						{/if}
-						<label class="flex items-center gap-2">
-							<input
-								name="wh"
-								inputmode="decimal"
-								maxlength="8"
-								placeholder="850"
-								aria-label="Consumo de esa hora, en Wh"
-								class="{field} w-24! py-1 text-sm"
-							/> Wh
-						</label>
-						<button name="to" value="valor" class={primary}>Poner este</button>
-						<button type="button" class={secondary} onclick={() => (fixing = null)}>Cerrar</button>
-					</div>
-					{#if problem}<p class="text-red-400" role="alert">{problem}</p>{/if}
-				</form>
-			{:else if s.view === 'dia'}
+			{#if s.view === 'dia'}
 				<p class="mt-2 text-xs">Toca una hora para corregirla, si está mal.</p>
 			{/if}
 		</details>
