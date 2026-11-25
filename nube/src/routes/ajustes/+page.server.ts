@@ -142,6 +142,7 @@ import { isNoticeDays } from '#lib/charges.ts';
 import { weight } from '#lib/server/walks/weight.ts';
 import { isDay } from 'comun/expenses.ts';
 import { weightFromText } from '#lib/walk-kcal.ts';
+import { musicApps } from '#lib/server/subsonic/subsonic.ts';
 import { owntracks } from '#lib/server/owntracks/owntracks.ts';
 import { owntracksConfig, owntracksLink } from '#lib/owntracks.ts';
 import { owntracksRegions } from '#lib/server/owntracks/places.ts';
@@ -211,6 +212,15 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 		ownMusic: admin ? await sourceView(membership.familyId) : null,
 		/** Where this person's Música comes from (#534, phase 3), chosen when there are both. */
 		musicSources: await musicSources(locals.user!.id),
+		/** Their password for music apps (#625): when it was made. Not for a child. */
+		musicApps:
+			membership.role === 'peque'
+				? null
+				: {
+						server: ORIGIN,
+						username: locals.user!.email,
+						since: await musicApps.since(locals.user!.id)
+					},
 		/** «Tus juegos» (#564): the family's bucket for Juegos, to who runs the family. */
 		ownGames: admin ? await ownGames.sourceView(membership.familyId) : null,
 		/** And where this person's Juegos come from, chosen when there are both. */
@@ -431,6 +441,14 @@ export const actions: Actions = {
 				password
 			}
 		};
+	},
+	/** Música en apps (#625): a new password for them, shown once; the old one stops working. */
+	appPassword: async ({ locals }) => {
+		const appPassword = await musicApps.make(locals.user!.id);
+		return appPassword ? { appPassword } : fail(403);
+	},
+	revokeAppPassword: async ({ locals }) => {
+		await musicApps.revoke(locals.user!.id);
 	},
 	owntracksDisconnect: async ({ locals }) => {
 		await owntracks.disconnect(locals.user!.id);

@@ -1,16 +1,12 @@
-import { randomInt } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { db } from '#lib/server/db/index.ts';
 import { appPassword, user } from '#lib/server/db/schema.ts';
+import { newAppPassword } from 'comun/server/subsonic/protocol.ts';
 import { passwordMatches } from './protocol.ts';
-
-/** Without letters that are mistaken for one another when typed in a phone (0/O, 1/l/I). */
-const ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
 
 /** A new password for apps, replacing the one before: 20 characters, in groups to type it. */
 export async function generateAppPassword(userId: string) {
-	const chars = Array.from({ length: 20 }, () => ALPHABET[randomInt(ALPHABET.length)]).join('');
-	const password = chars.match(/.{5}/g)!.join('-');
+	const password = newAppPassword();
 	await db
 		.insert(appPassword)
 		.values({ userId, password })

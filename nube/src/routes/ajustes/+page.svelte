@@ -34,6 +34,7 @@
 	import Colores from 'comun/components/Colores.svelte';
 	import GuardarViajes from './GuardarViajes.svelte';
 	import FuenteMusica from './FuenteMusica.svelte';
+	import MusicaEnApps from './MusicaEnApps.svelte';
 	import FuenteJuegos from './FuenteJuegos.svelte';
 	import AparatosMensajes from './AparatosMensajes.svelte';
 	import Coches from './Coches.svelte';
@@ -121,6 +122,7 @@
 				admin,
 				spendLine: data.spendLine !== null,
 				twoMusicSources: data.musicSources.house && data.musicSources.own,
+				musicApps: Boolean(data.musicSources.own && data.musicApps),
 				twoGameSources: data.gameSources.house && data.gameSources.own
 			}}
 			placeholder="Busca o di qué quieres hacer: colores, avisos, invitar…"
@@ -179,6 +181,8 @@
 		{/if}
 
 		<FuenteMusica {data} {tab} />
+
+		<MusicaEnApps {data} {form} {tab} />
 
 		<FuenteJuegos {data} {tab} />
 

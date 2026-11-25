@@ -66,6 +66,8 @@ test('buildLibrary: albums with their tracks, artists by name without accents no
 		durationSec: 200,
 		size: 1000,
 		path: `${albumId}/${id}.flac`,
+		contentType: 'audio/flac',
+		suffix: 'flac',
 		mtime: new Date(mtime),
 		albumTitle: `Álbum ${albumId}`,
 		albumArtist,

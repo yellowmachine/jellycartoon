@@ -70,7 +70,9 @@ const PUBLIC_PATHS = [
 	// bunq's calls on each movement (#502), with the token in their address (banks/bank.ts).
 	'/api/bancos/',
 	// OwnTracks on a person's phone (#593), with their password as Basic auth (owntracks-scope.ts).
-	'/api/owntracks'
+	'/api/owntracks',
+	// Music apps (#625, Subsonic), with the person's email and password for apps (subsonic/auth.ts).
+	'/rest/'
 ];
 
 /**
