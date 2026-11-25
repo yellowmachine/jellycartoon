@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import {
 		addDays,
 		dayName,
@@ -57,7 +57,7 @@
 	// Live: one starts ringing, or is stopped somewhere else.
 	onMount(() => {
 		const events = new EventSource('/api/avisos/events');
-		events.onmessage = () => void invalidateAll();
+		events.onmessage = () => void refreshAll();
 		return () => events.close();
 	});
 

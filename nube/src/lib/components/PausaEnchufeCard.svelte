@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import { pauseSaid, type PlugPauseCard } from '#lib/plug-pause.ts';
 
 	/**
@@ -36,7 +36,7 @@
 			sending = false;
 			if (result.type === 'success' && result.data?.pause) {
 				ondone?.(result.data.pause as PlugPauseCard);
-				void invalidateAll();
+				void refreshAll();
 			} else
 				problem =
 					result.type === 'failure' ? String(result.data?.message ?? 'No se pudo') : 'No se pudo';

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
 	import { enhance, type SubmitFunction } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import ConfirmForm from 'comun/components/ConfirmForm.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
@@ -130,7 +130,7 @@
 			op = '';
 			if (result.type === 'success') selected.clear();
 			// Some done, some not: the list as it is now.
-			else await invalidateAll();
+			else await refreshAll();
 		};
 	};
 	let problem = $state<string | null>(null);
@@ -380,7 +380,7 @@
 				else address = '';
 				await update({ reset: false });
 				// Its price may be another now: a failure does not bring the list again.
-				if (change) await invalidateAll();
+				if (change) await refreshAll();
 			};
 		}}
 	>

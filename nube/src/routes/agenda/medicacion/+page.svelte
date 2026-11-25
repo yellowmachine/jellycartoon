@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import { dayName, WEEKDAYS } from 'comun/agenda.ts';
 	import {
 		daysText,
@@ -22,7 +22,7 @@
 	// Marked from a notice while the page was in the background: seen on coming back.
 	onMount(() => {
 		const back = () => {
-			if (document.visibilityState === 'visible') void invalidateAll();
+			if (document.visibilityState === 'visible') void refreshAll();
 		};
 		document.addEventListener('visibilitychange', back);
 		return () => document.removeEventListener('visibilitychange', back);

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import GuideLink from '#lib/components/GuideLink.svelte';
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import Backdrop from 'comun/components/Backdrop.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { poll } from 'comun/poll.ts';
@@ -23,7 +23,7 @@
 	// A site's map being read: the page follows it.
 	$effect(() => {
 		if (!data.sites.some((s) => s.indexing)) return;
-		return poll(invalidateAll, 3000);
+		return poll(refreshAll, 3000);
 	});
 
 	/**

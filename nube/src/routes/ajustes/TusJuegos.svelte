@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import { field, primary, secondary, section } from '#lib/styles.ts';
 	import type { ActionData, PageData } from './$types';
 
@@ -27,7 +27,7 @@
 	// Listing the bucket: until it ends.
 	$effect(() => {
 		if (!source?.scanning) return;
-		const every = setInterval(() => void invalidateAll(), 3000);
+		const every = setInterval(() => void refreshAll(), 3000);
 		return () => clearInterval(every);
 	});
 

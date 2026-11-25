@@ -2,7 +2,7 @@
 	import GuideLink from '#lib/components/GuideLink.svelte';
 	import { onMount, tick, untrack } from 'svelte';
 	import { applyAction, deserialize, enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import { afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { openedInUrl } from '#lib/opened-in-url.ts';
@@ -284,7 +284,7 @@
 		if (result?.type === 'success') {
 			notice = done;
 			open = e.id;
-			await invalidateAll();
+			await refreshAll();
 		} else if (result?.type === 'failure')
 			problem = String(result.data?.message ?? 'No se pudo guardar el recibo');
 		else if (result) await applyAction(result);

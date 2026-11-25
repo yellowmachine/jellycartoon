@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance, type SubmitFunction } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { routeMaps } from 'comun/route-maps.svelte.ts';
 	import { MAX_DEVICE_NAME, sizeText, type RouteMapsView } from 'comun/route-maps.ts';
@@ -29,7 +29,7 @@
 
 	onMount(() => {
 		mounted = true;
-		routeMaps.onchange = () => void invalidateAll();
+		routeMaps.onchange = () => void refreshAll();
 		return () => (routeMaps.onchange = null);
 	});
 
@@ -40,7 +40,7 @@
 				(m.state === 'downloading' || m.state === 'pending') && m.deviceId !== routeMaps.device?.id
 		);
 		if (!away) return;
-		const timer = setInterval(() => void invalidateAll(), 5000);
+		const timer = setInterval(() => void refreshAll(), 5000);
 		return () => clearInterval(timer);
 	});
 
@@ -50,7 +50,7 @@
 		naming = true;
 		try {
 			await routeMaps.register(name.trim());
-			await invalidateAll();
+			await refreshAll();
 		} finally {
 			naming = false;
 		}

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { music } from 'comun/music-player.svelte.ts';
 	import MediaIcon from 'comun/components/MediaIcon.svelte';
@@ -25,7 +25,7 @@
 	// While a voice is being made, how it goes, every few seconds.
 	$effect(() => {
 		if (!data.prayers.some((p) => p.status === 'generando')) return;
-		const timer = setInterval(() => void invalidateAll(), 4000);
+		const timer = setInterval(() => void refreshAll(), 4000);
 		return () => clearInterval(timer);
 	});
 

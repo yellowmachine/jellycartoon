@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 
 	/**
 	 * The family's AI stopped (ai-block.ts), to who runs it: why, where to recharge and «Ya he
@@ -16,7 +16,7 @@
 	async function recharged() {
 		sending = true;
 		await fetch('/api/ajustes/ia-recargada', { method: 'POST' }).catch(() => {});
-		await invalidateAll();
+		await refreshAll();
 		sending = false;
 	}
 </script>

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance, type SubmitFunction } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { routeMaps } from 'comun/route-maps.svelte.ts';
 	import { MAX_DEVICE_NAME, sizeText } from 'comun/route-maps.ts';
@@ -50,7 +50,7 @@
 		naming = true;
 		try {
 			await routeMaps.register(name.trim());
-			await invalidateAll();
+			await refreshAll();
 		} finally {
 			naming = false;
 		}

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import { changeSaid, type ErrandChangeCard } from '#lib/encargos.ts';
 
 	/**
@@ -36,7 +36,7 @@
 			sending = false;
 			if (result.type === 'success' && result.data?.change) {
 				ondone?.(result.data.change as ErrandChangeCard);
-				void invalidateAll();
+				void refreshAll();
 			} else
 				problem =
 					result.type === 'failure' ? String(result.data?.message ?? 'No se pudo') : 'No se pudo';

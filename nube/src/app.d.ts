@@ -13,6 +13,8 @@ declare global {
 		interface PageState {
 			/** The locked Vista's extra entry (#532): Android's back takes it, not the app. */
 			vistaGuard?: boolean;
+			/** Preguntar's sheet open over the page, on a phone: back closes it. */
+			chatSheet?: boolean;
 		}
 	}
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { priceChangeText, priceText, type WishCard } from '#lib/wishes.ts';
 
@@ -38,7 +38,7 @@
 			sending = false;
 			if (result.type === 'success' && result.data?.wish) {
 				ondone?.(result.data.wish as WishCard);
-				void invalidateAll();
+				void refreshAll();
 			} else
 				problem =
 					result.type === 'failure' ? String(result.data?.message ?? 'No se pudo') : 'No se pudo';
