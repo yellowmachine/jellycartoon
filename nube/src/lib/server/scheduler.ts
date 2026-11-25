@@ -1,3 +1,5 @@
+import { asFamily } from '#lib/server/family.ts';
+import { takeOutImpossible } from '#lib/server/plugs/energy-fix.ts';
 import { sql } from 'drizzle-orm';
 import { localDay, localTime } from 'comun/agenda.ts';
 import { db } from '#lib/server/db/index.ts';
@@ -63,6 +65,13 @@ export function startScheduler() {
 	const podcasts = () => void eachFamily('Podcasts', refreshAll);
 	setTimeout(podcasts, 5 * 60_000).unref();
 	setInterval(podcasts, REFRESH_HOURS * 60 * 60_000).unref();
+	// The plugs' impossible hours (energy-fix.ts), a minute after starting and every night.
+	const impossible = () =>
+		void eachFamily('Consumo imposible', async (id) => {
+			const n = await asFamily(id, (tx) => takeOutImpossible(tx));
+			if (n) console.info(`[enchufes] ${n} horas imposibles, sin dato`);
+		});
+	setTimeout(impossible, 60_000).unref();
 	// Dinero's bank (#502): what bunq's calls missed, every hour, a while after starting.
 	const banks = () => void eachFamily('Banco', syncFamily);
 	setTimeout(banks, 10 * 60_000).unref();
@@ -116,6 +125,7 @@ export function startScheduler() {
 					.forgetOld()
 					.catch((error) => console.error('[reloj] Secciones usadas antiguas', error));
 				// OwnTracks' positions over 90 days old (#593): each day summed up, then forgotten.
+				impossible();
 				await eachFamily('Posiciones de OwnTracks antiguas', summarizeOldPositions);
 				// «Tu música» (#534): each family's bucket read again, not waited for (it takes long).
 				void families()

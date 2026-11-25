@@ -165,6 +165,34 @@ export function energyRise(before: number | null, now: number) {
 	return now < before / 2 ? now : 0;
 }
 
+/** What a plug may use in an hour, in Wh: 16 A at 230 V are 3680, and a little over. */
+export const MAX_HOUR_WH = 4000;
+const HOUR_MS = 3_600_000;
+
+/**
+ * A rise, by the hours it is of: while connected, of now. The first after connecting, of the time
+ * since it was last heard (`since`), shared out among its hours: it is not known which. More than
+ * a plug may use in that time is the counter's mistake: nothing.
+ */
+export function hoursOfRise(
+	wh: number,
+	since: Date | null,
+	now: Date
+): { hour: Date; wh: number }[] {
+	const from = Math.min(since?.getTime() ?? now.getTime(), now.getTime());
+	const gone = now.getTime() - from;
+	if (wh > MAX_HOUR_WH * (gone / HOUR_MS + 1)) return [];
+	if (gone < HOUR_MS) return [{ hour: hourOf(now), wh }];
+	const parts: { hour: Date; wh: number }[] = [];
+	for (let at = from; at < now.getTime();) {
+		const hour = hourOf(new Date(at));
+		const end = Math.min(hour.getTime() + HOUR_MS, now.getTime());
+		parts.push({ hour, wh: (wh * (end - at)) / gone });
+		at = end;
+	}
+	return parts;
+}
+
 /** The hour a moment falls in, by its start: what each hour used is kept by it. */
 export function hourOf(moment: Date) {
 	const hour = new Date(moment);

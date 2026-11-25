@@ -27,6 +27,18 @@ export interface StatsBucket {
 	euros: number | null;
 	/** Each plug's Wh in it, by its id: the column's coloured parts with all of them. */
 	parts: Record<string, number>;
+	/** By day: each plug's hour as it is kept, to correct it. */
+	hours?: Record<string, PlugHour>;
+}
+
+export interface PlugHour {
+	/** Its start, ISO. */
+	hour: string;
+	mark: 'sin_dato' | 'corregido' | 'confirmado' | null;
+	/** As it came, if it was taken out or corrected. */
+	raw: number | null;
+	/** Over: it may be corrected. */
+	over: boolean;
 }
 
 export interface PlugStats {
@@ -45,6 +57,8 @@ export interface PlugStats {
 	plugs: { id: string; name: string; icon: string }[];
 	buckets: StatsBucket[];
 	total: { wh: number; euros: number | null };
+	/** Hours taken out as wrong in it. */
+	noData: number;
 	/** The period before, as far in as this one. */
 	before: { wh: number; euros: number | null };
 	/** All of them: each one's part, most first. */

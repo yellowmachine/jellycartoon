@@ -1,7 +1,7 @@
 import type { KeyPlug } from './plug-key-scope.ts';
 import {
 	energyRise,
-	hourOf,
+	hoursOfRise,
 	parseMessage,
 	request,
 	staIpOf,
@@ -94,6 +94,8 @@ interface Connection {
 	ws: PlugSocket;
 	plug: KeyPlug;
 	energyWh: number | null;
+	/** Its counter not heard yet on this connection: since when its first rise is. */
+	awaySince: Date | null;
 	nextId: number;
 	pending: Map<
 		number,
@@ -180,7 +182,13 @@ export function createHub(deps: HubDeps) {
 			rise > 0
 		)
 			tell(c.plug.familyId);
-		if (rise > 0) await deps.addEnergy(c.plug.familyId, c.plug.id, hourOf(now()), rise);
+		const since = c.awaySince;
+		if (sw.energyWh !== undefined) c.awaySince = null;
+		if (rise > 0) {
+			const hours = hoursOfRise(rise, since, now());
+			if (!hours.length) log(`${c.plug.id}: subida imposible del contador, ${rise} Wh`);
+			for (const { hour, wh } of hours) await deps.addEnergy(c.plug.familyId, c.plug.id, hour, wh);
+		}
 		const at = now().getTime();
 		if (!Object.keys(patch).length && at - c.savedAt < SEEN_MS) return;
 		c.savedAt = at;
@@ -290,6 +298,7 @@ export function createHub(deps: HubDeps) {
 			ws,
 			plug,
 			energyWh: plug.energyWh,
+			awaySince: plug.lastSeenAt ?? null,
 			nextId: 1,
 			pending: new Map(),
 			alive: true,

@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
+	import { primary, secondary, field } from '#lib/styles.ts';
 	import { energyText, euroText } from '#lib/plugs.ts';
 	import { kwhPriceText } from '#lib/kwh-price.ts';
 	import { STATS_VIEWS, VIEW_LABELS, type StatsView } from '#lib/plug-stats.ts';
@@ -12,6 +15,16 @@
 	 */
 	let { data }: PageProps = $props();
 	const s = $derived(data.stats);
+
+	/** By day: the hour being corrected, and what went wrong. */
+	let fixing = $state<{ key: string; plug: string } | null>(null);
+	let problem = $state<string | null>(null);
+	const fixed = $derived.by(() => {
+		const b = fixing && s.buckets.find((x) => x.key === fixing!.key);
+		const hour = b && b.hours?.[fixing!.plug];
+		const plug = s.plugs.find((p) => p.id === fixing?.plug);
+		return b && hour?.over && plug ? { b, hour, plug, wh: b.parts[plug.id] ?? 0 } : null;
+	});
 
 	let picked = $state<string | null>(null);
 	const top = $derived(Math.max(...s.buckets.map((b) => b.wh), 1));
@@ -109,6 +122,26 @@
 <h1 class="mb-3 text-2xl font-bold">Energía</h1>
 <EnchufesTabs current="consumo" />
 
+<!-- By day, an hour of a plug that is over: to be corrected. -->
+{#snippet hourCell(b: (typeof s.buckets)[number], plug: string, text: string)}
+	{@const hour = b.hours?.[plug]}
+	{#if hour?.over}
+		<button
+			type="button"
+			class="hover:underline {hour.mark === 'sin_dato'
+				? 'text-amber-400'
+				: hour.mark === 'corregido'
+					? 'text-sky-300'
+					: ''}"
+			title={hour.mark === 'corregido' ? 'Corregido a mano' : undefined}
+			onclick={() => {
+				problem = null;
+				fixing = { key: b.key, plug };
+			}}>{hour.mark === 'sin_dato' ? 'sin dato' : text}</button
+		>
+	{:else}{text}{/if}
+{/snippet}
+
 {#if !s.plugs.length}
 	<p class="text-zinc-400">Todavía no hay enchufes: añade uno en Enchufes.</p>
 {:else}
@@ -164,6 +197,11 @@
 		{#if change}
 			<br />{change}
 			{beforeName}{s.goingOn ? ' hasta este punto' : ''} ({both(s.before.wh, s.before.euros)})
+		{/if}
+		{#if s.noData}
+			<br /><span class="text-amber-400"
+				>Sin dato en {s.noData === 1 ? 'una hora' : `${s.noData} horas`}, que no cuentan</span
+			>
 		{/if}
 	</p>
 
@@ -252,17 +290,77 @@
 								>
 								{#each series as x (x.id)}
 									<td class="px-2 py-1 text-right whitespace-nowrap tabular-nums"
-										>{energyText(whOf(b, x.ids))}</td
+										>{#if x.ids.length === 1}{@render hourCell(
+												b,
+												x.ids[0]!,
+												energyText(whOf(b, x.ids))
+											)}{:else}{energyText(whOf(b, x.ids))}{/if}</td
 									>
 								{/each}
 								<td class="py-1 pl-2 text-right whitespace-nowrap text-zinc-200 tabular-nums"
-									>{both(b.wh, b.euros)}</td
+									>{#if s.plugId}{@render hourCell(b, s.plugId, both(b.wh, b.euros))}{:else}{both(
+											b.wh,
+											b.euros
+										)}{/if}</td
 								>
 							</tr>
 						{/each}
 					</tbody>
 				</table>
 			</div>
+			{#if fixed}
+				<form
+					method="post"
+					action="{page.url.search ? `${page.url.search}&` : '?'}/fix"
+					{@attach (el) => el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })}
+					class="mt-3 flex flex-col gap-2 rounded-md border border-zinc-700 bg-zinc-900 p-3 text-zinc-200"
+					use:enhance={() =>
+						async ({ result, update }) => {
+							problem =
+								result.type === 'failure'
+									? String(result.data?.message ?? 'No se pudo guardar')
+									: null;
+							await update({ reset: false });
+							if (result.type === 'success') fixing = null;
+						}}
+				>
+					<input type="hidden" name="plug" value={fixed.plug.id} />
+					<input type="hidden" name="hour" value={fixed.hour.hour} />
+					<p>
+						{fixed.plug.name}, de {fixed.b.label}: {fixed.hour.mark === 'sin_dato'
+							? 'sin dato'
+							: energyText(fixed.wh)}{#if fixed.hour.raw !== null}{' '}<span class="text-zinc-400"
+								>(llegó {energyText(fixed.hour.raw)})</span
+							>{/if}
+					</p>
+					<div class="flex flex-wrap items-center gap-2">
+						{#if fixed.hour.mark !== 'sin_dato'}
+							<button name="to" value="sin_dato" class={secondary} formnovalidate
+								>Está mal: sin dato</button
+							>
+						{/if}
+						{#if fixed.hour.raw !== null}
+							<button name="to" value="original" class={secondary} formnovalidate>Como llegó</button
+							>
+						{/if}
+						<label class="flex items-center gap-2">
+							<input
+								name="wh"
+								inputmode="decimal"
+								maxlength="8"
+								placeholder="850"
+								aria-label="Consumo de esa hora, en Wh"
+								class="{field} w-24! py-1 text-sm"
+							/> Wh
+						</label>
+						<button name="to" value="valor" class={primary}>Poner este</button>
+						<button type="button" class={secondary} onclick={() => (fixing = null)}>Cerrar</button>
+					</div>
+					{#if problem}<p class="text-red-400" role="alert">{problem}</p>{/if}
+				</form>
+			{:else if s.view === 'dia'}
+				<p class="mt-2 text-xs">Toca una hora para corregirla, si está mal.</p>
+			{/if}
 		</details>
 	</section>
 
@@ -275,7 +373,7 @@
 						<div class="flex justify-between gap-2">
 							<a href={link({ enchufe: p.id })} class="hover:underline">{p.name}</a>
 							<span class="text-zinc-400 tabular-nums"
-								>{both(p.wh, p.euros)} · {Math.round((p.wh / s.total.wh) * 100)} %</span
+								>{both(p.wh, p.euros)} · {s.total.wh ? Math.round((p.wh / s.total.wh) * 100) : 0} %</span
 							>
 						</div>
 						<div class="mt-1 h-2 rounded bg-zinc-800">
