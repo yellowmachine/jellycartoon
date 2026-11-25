@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, lt, sql, type SQL } from 'drizzle-orm';
 import { walk, walkPhoto } from '#lib/server/db/schema.ts';
 import { keepDocument, kindOf, NotADocument } from '#lib/server/expenses/income.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
@@ -180,6 +180,17 @@ export function walkPhotos(k: Kitchen, walkId: number) {
 			})
 			.from(walkPhoto)
 			.where(and(eq(walkPhoto.walkId, walkId), eq(walkPhoto.userId, userId)))
+			.orderBy(asc(walkPhoto.at))
+	);
+}
+
+/** One's own between two moments, in order (#613). */
+export function walkPhotosBetween(k: Kitchen, from: Date, to: Date) {
+	return k.run((tx) =>
+		tx
+			.select({ id: walkPhoto.id, at: walkPhoto.at, lon: walkPhoto.lon, lat: walkPhoto.lat })
+			.from(walkPhoto)
+			.where(and(eq(walkPhoto.userId, who(k)), gte(walkPhoto.at, from), lt(walkPhoto.at, to)))
 			.orderBy(asc(walkPhoto.at))
 	);
 }

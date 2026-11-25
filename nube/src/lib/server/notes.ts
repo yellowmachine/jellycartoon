@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, isNull, like, or, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, isNull, like, lt, or, type SQL } from 'drizzle-orm';
 import { note, user } from '#lib/server/db/schema.ts';
 import { kindOf } from '#lib/server/expenses/income.ts';
 import { likeOf, plain, plainText } from '#lib/server/expenses/plain.ts';
@@ -301,6 +301,19 @@ export async function walkNotes(k: Kitchen, walkId: number) {
 			.orderBy(note.at)
 	);
 	return rows.map((n) => viewOf(n, k.userId));
+}
+
+/** One's own between two moments, in order (#613): the day's, beside where one was. */
+export async function notesBetween(k: Kitchen, userId: string, from: Date, to: Date) {
+	const rows = await k.run((tx) =>
+		tx
+			.select(VIEW)
+			.from(note)
+			.leftJoin(user, eq(user.id, note.userId))
+			.where(and(eq(note.userId, userId), gte(note.at, from), lt(note.at, to)))
+			.orderBy(note.at)
+	);
+	return rows.map((n) => viewOf(n, userId));
 }
 
 /** With a walk, if it is asked (#613): its notes and their files. */
