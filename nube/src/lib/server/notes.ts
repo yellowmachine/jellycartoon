@@ -9,6 +9,7 @@ import {
 	isNull,
 	like,
 	lt,
+	ne,
 	or,
 	sql,
 	type SQL
@@ -21,7 +22,14 @@ import { dayOf } from '#lib/server/fridge.ts';
 import { putFile, readFile, removeFile } from '#lib/server/storage.ts';
 import { hearAudio } from '#lib/server/voice/hear.ts';
 import { walkStartedAt } from '#lib/server/walks/walks.ts';
-import { audioKind, audioTypeOf, MAX_NOTE_TEXT, type Note, type NoteArticle } from '#lib/notes.ts';
+import {
+	audioKind,
+	audioTypeOf,
+	MAX_NOTE_TEXT,
+	type Note,
+	type NoteArticle,
+	type NoteKind
+} from '#lib/notes.ts';
 import { readArticle } from '#lib/server/notes-reader.ts';
 
 /**
@@ -284,9 +292,21 @@ export async function hearAgain(k: Kitchen, who: { id: string; email: string }, 
 
 /** Of «Notas» or «Para leer» (#634), and with a tag; undefined, any. */
 export interface NoteFilter {
-	pages?: boolean;
+	/** Notas' tabs: only the notes of that kind (`noteKind`). */
+	kind?: NoteKind;
 	tag?: string | null;
 }
+
+/**
+ * Which tab a note is in, as `noteKind` says it: a web, to read; with a photo; said (recorded, on a
+ * walk or to the voice); and written.
+ */
+const OF_KIND: Record<NoteKind, () => SQL | undefined> = {
+	leer: () => isNotNull(note.link),
+	foto: () => and(isNull(note.link), isNotNull(note.photo)),
+	voz: () => and(isNull(note.link), isNull(note.photo), ne(note.source, 'escrita')),
+	texto: () => and(isNull(note.link), isNull(note.photo), eq(note.source, 'escrita'))
+};
 
 /**
  * Those found, the latest first; `words`, without caring for accents or capitals, in what it says
@@ -310,8 +330,7 @@ function find(
 			)
 		);
 	}
-	if (filter.pages !== undefined)
-		where.push(filter.pages ? isNotNull(note.link) : isNull(note.link));
+	if (filter.kind) where.push(OF_KIND[filter.kind]());
 	if (filter.tag) where.push(arrayContains(note.tags, [filter.tag]));
 	return k.run((tx) =>
 		tx

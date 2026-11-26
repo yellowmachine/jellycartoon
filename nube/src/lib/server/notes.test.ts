@@ -5,7 +5,14 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { sql } from 'drizzle-orm';
 import * as schema from '#lib/server/db/schema.ts';
 import { family, note, user, walk, walkPhoto } from '#lib/server/db/schema.ts';
-import { notesAndPhotos, photoMoment, type Note, type NoteArticle } from '#lib/notes.ts';
+import {
+	NOTE_KINDS,
+	noteKind,
+	notesAndPhotos,
+	photoMoment,
+	type Note,
+	type NoteArticle
+} from '#lib/notes.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 
 /** Notes (#416) and a walk's photos on PGlite, with the files and the hearing faked. */
@@ -450,13 +457,14 @@ test('«Para leer» (#634): a web with its article, apart; found by what it says
 
 	const titles = async (filter: Parameters<typeof listNotes>[3], words: string | null = null) =>
 		(await listNotes(ana, 'ana', words, filter)).map((x) => x.text).sort();
-	expect(await titles({ pages: true })).toEqual(['De pago', 'Pan de masa madre']);
-	expect(await titles({ pages: false })).toEqual(['Comprar centeno']);
+	expect(await titles({ kind: 'leer' })).toEqual(['De pago', 'Pan de masa madre']);
+	expect(await titles({ kind: 'texto' })).toEqual(['Comprar centeno']);
+	expect(await titles({ kind: 'voz' })).toEqual([]);
 	// What the article says, too; accents aside.
 	expect(await titles({}, 'CENTÉNO')).toEqual(['Comprar centeno', 'Pan de masa madre']);
 	expect(await titles({ tag: 'compra' })).toEqual(['Comprar centeno']);
 
-	const [web] = await listNotes(ana, 'ana', null, { pages: true, tag: 'cocina' });
+	const [web] = await listNotes(ana, 'ana', null, { kind: 'leer', tag: 'cocina' });
 	expect(web).toMatchObject({
 		link: 'https://pan.es/masa-madre',
 		article: { minutes: 4, site: 'Pan' },
@@ -472,4 +480,19 @@ test('«Para leer» (#634): a web with its article, apart; found by what it says
 
 	expect(await noteTags(ana, 'ana')).toEqual(['cocina', 'compra']);
 	expect(await noteTags(kitchen('luis'), 'luis')).toEqual([]);
+});
+
+test('Notas’ tabs: each note in one, as the page says it', async () => {
+	await addSaidNote(ana, 'ana', 'Llamar al fontanero');
+	await addWrittenNote(ana, 'ana', { text: 'La caldera', photo: JPEG, shared: false });
+	await addWrittenNote(ana, 'ana', { text: 'Comprar centeno', photo: null, shared: false });
+	await addWebNote(ana, 'ana', { link: 'https://diario.es/pago', title: 'De pago' });
+
+	const all = await listNotes(ana, 'ana', null);
+	for (const kind of NOTE_KINDS) {
+		const listed = await listNotes(ana, 'ana', null, { kind });
+		expect(listed).toHaveLength(1);
+		expect(noteKind(listed[0]!)).toBe(kind);
+	}
+	expect(all.map((n) => noteKind(n)).sort()).toEqual(['foto', 'leer', 'texto', 'voz']);
 });

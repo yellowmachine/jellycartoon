@@ -2,10 +2,17 @@
 	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
 	import NoteButton from '#lib/components/NoteButton.svelte';
+	import NoteIcon from '#lib/components/NoteIcon.svelte';
 	import WalkUploads from '#lib/components/WalkUploads.svelte';
 	import { noteRecorder } from '#lib/note-recorder.svelte.ts';
 	import { herePosition, shrinkPhoto } from '#lib/mensajes/photo.ts';
-	import { MAX_NOTE_TEXT, MAX_NOTE_TAGS, notesAndPhotos, photoMoment } from '#lib/notes.ts';
+	import {
+		MAX_NOTE_TEXT,
+		MAX_NOTE_TAGS,
+		notesAndPhotos,
+		photoMoment,
+		type NoteKind
+	} from '#lib/notes.ts';
 	import { photoTaken } from '#lib/photo-taken.ts';
 	import { keepAttachment } from '#lib/walk-attachments.ts';
 	import { walkUploads } from '#lib/walk-uploads.svelte.ts';
@@ -13,15 +20,14 @@
 
 	/**
 	 * Notas (#416): what is dictated, recorded here or on a walk, or said to the voice. Heard by
-	 * itself; the text can be corrected, and the recording is still there to listen to.
+	 * itself; the text can be corrected, and the recording is still there to listen to. By tabs:
+	 * said, with a photo, written and webs to read (#634), each with its own way of making one.
 	 */
 	let { data, form }: PageProps = $props();
 
 	const when = new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeStyle: 'short' });
 	const SOURCE = { pagina: 'Grabada', paseo: 'En un paseo', voz: 'Por voz', escrita: 'Escrita' };
 
-	/** The form for a note written by hand. */
-	let writing = $state(false);
 	let editing = $state<number | null>(null);
 	let deleting = $state<number | null>(null);
 	let problem = $state<string | null>(null);
@@ -44,15 +50,31 @@
 			.then((p): [number, number] => [p.lon, p.lat])
 			.catch(() => null);
 
-	/** This page with what is chosen now, but for what changes (#634). */
-	const link = (change: { tab?: 'todas' | 'casa' | 'leer'; etiqueta?: string | null }) => {
-		const tab = change.tab ?? (data.reading ? 'leer' : data.house ? 'casa' : 'todas');
+	const TABS: { kind: NoteKind; label: string }[] = [
+		{ kind: 'voz', label: 'Voz' },
+		{ kind: 'foto', label: 'Foto' },
+		{ kind: 'texto', label: 'Texto' },
+		{ kind: 'leer', label: 'Para leer' }
+	];
+
+	/** This page with what is chosen now, but for what changes; without the search (#634). */
+	const link = (change: { kind?: NoteKind; casa?: boolean; etiqueta?: string | null }) => {
+		const kind = change.kind ?? data.kind;
 		const params = new URLSearchParams();
-		if (tab !== 'todas') params.set(tab, '');
+		if (kind !== 'voz') params.set(kind, '');
+		if (change.casa ?? data.house) params.set('casa', '');
 		const tag = change.etiqueta === undefined ? data.tag : change.etiqueta;
 		if (tag) params.set('etiqueta', tag);
 		const query = `${params}`.replace(/=(&|$)/g, '$1');
 		return query ? `/notas?${query}` : '/notas';
+	};
+	/** The form for a note written by hand: always in Texto, and with the photo just picked. */
+	const writing = $derived(data.kind === 'texto' || (data.kind === 'foto' && photo !== null));
+	const EMPTY: Record<NoteKind, string> = {
+		voz: 'Todavía no hay notas dichas.',
+		foto: 'Todavía no hay notas con foto.',
+		texto: 'Todavía no hay notas escritas.',
+		leer: 'Nada guardado para leer todavía.'
 	};
 	const chip = (on: boolean) =>
 		on ? 'bg-zinc-700 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-white';
@@ -82,7 +104,6 @@
 			// Read before it is made small: that leaves it out.
 			const taken = photoTaken(await file.arrayBuffer());
 			photo = (await shrinkPhoto(file)).blob;
-			writing = true;
 			placed = true;
 			takenAt = camera ? now : taken.at && photoMoment(taken.at.getTime());
 			takenHere = camera ? null : taken.position;
@@ -99,7 +120,6 @@
 	}
 
 	function stopWriting() {
-		writing = false;
 		photo = null;
 		takenAt = takenHere = null;
 	}
@@ -148,11 +168,12 @@
 {#snippet pick(text: string, camera: boolean)}
 	<label
 		class={[
-			'cursor-pointer rounded-md bg-zinc-800 px-4 py-2 focus-within:ring-2 focus-within:ring-amber-300 hover:bg-zinc-700',
+			'inline-flex cursor-pointer items-center gap-2 rounded-md px-4 py-2 focus-within:ring-2 focus-within:ring-amber-300',
+			camera ? 'bg-amber-500 font-semibold text-zinc-950' : 'bg-zinc-800 hover:bg-zinc-700',
 			saving && 'pointer-events-none opacity-50'
 		]}
 	>
-		{text}
+		<NoteIcon name={camera ? 'foto' : 'galeria'} class="h-5 w-5" />{text}
 		<input
 			type="file"
 			accept="image/*"
@@ -165,24 +186,87 @@
 {/snippet}
 
 <h1 class="mb-1 text-2xl font-bold">Notas</h1>
-<p class="mb-6 text-sm text-zinc-400">
-	Lo que escribes o dictas, para buscarlo luego: aquí, en un paseo o diciéndole a la voz «toma
-	nota». Con una foto, si quieres, y también las de los paseos. Solo para ti, si no la compartes con
-	la casa; las dichas a un altavoz, para todos.
+<p class="mb-4 text-sm text-zinc-400">
+	Lo que dices, fotografías o escribes, y las webs para leer luego. Solo para ti, si no la compartes
+	con la casa; las dichas a un altavoz, para todos.
 </p>
 
-<div class="mb-4 flex flex-wrap items-center gap-3">
-	<NoteButton
-		onrecorded={recorded}
-		class="rounded-md bg-amber-500 px-4 py-2 font-semibold text-zinc-950"
-	/>
-	<button
-		class="rounded-md bg-zinc-800 px-4 py-2 hover:bg-zinc-700"
-		onclick={() => (writing = true)}>✍️ Escribir</button
+<!-- As PaseosTabs. -->
+<nav
+	class="mb-4 flex gap-1 overflow-x-auto shadow-[inset_0_-1px_0] shadow-zinc-800"
+	aria-label="Qué notas"
+>
+	{#each TABS as t (t.kind)}
+		{@const on = t.kind === data.kind && !data.q}
+		<a
+			href={link({ kind: t.kind })}
+			aria-current={on ? 'page' : undefined}
+			class={[
+				'inline-flex shrink-0 items-center gap-2 border-b-2 px-4 py-2 text-sm',
+				on
+					? 'border-amber-500 font-semibold text-white'
+					: 'border-transparent text-zinc-400 hover:text-white'
+			]}><NoteIcon name={t.kind} />{t.label}</a
+		>
+	{/each}
+</nav>
+
+{#if data.kind === 'voz'}
+	<div class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+		<NoteButton
+			onrecorded={recorded}
+			class="rounded-md bg-amber-500 px-4 py-2 font-semibold text-zinc-950"
+		/>
+		<p class="text-sm text-zinc-400">
+			Graba aquí, en un paseo o dile a la voz «toma nota»: se escribe sola.
+		</p>
+	</div>
+{:else if data.kind === 'foto' && !photo}
+	<div class="mb-4 flex flex-wrap items-center gap-3">
+		{@render pick('Hacer una foto', true)}
+		{@render pick('Elegir una foto', false)}
+	</div>
+{:else if data.kind === 'leer'}
+	<form
+		method="post"
+		action="?/link"
+		class="mb-2 flex flex-wrap gap-2"
+		use:enhance={() => {
+			pasting = true;
+			return async ({ update }) => {
+				await update();
+				pasting = false;
+			};
+		}}
 	>
-	{@render pick('📷 Foto', true)}
-	{@render pick('🖼️ Elegir una foto', false)}
-</div>
+		<input
+			name="url"
+			type="url"
+			required
+			placeholder="Pega el enlace de una web para leerla luego"
+			aria-label="Enlace de la web"
+			class="min-w-0 flex-1 basis-64 rounded-md border-zinc-700 bg-zinc-950 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500"
+		/>
+		<input
+			name="tags"
+			list="etiquetas"
+			placeholder="Etiquetas"
+			aria-label="Etiquetas, separadas por comas"
+			class="w-36 rounded-md border-zinc-700 bg-zinc-950 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500"
+		/>
+		<button
+			class="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-zinc-950 disabled:opacity-50"
+			disabled={pasting}>{pasting ? 'Leyendo la web…' : 'Guardar'}</button
+		>
+	</form>
+	{#if form && 'saved' in form && form.saved}
+		<p class="mb-2 text-sm text-emerald-300" role="status">{form.saved}</p>
+	{/if}
+	<p class="mb-4 text-xs text-zinc-500">
+		Se guarda limpia, como en el modo lectura del navegador: el texto, sin anuncios ni fotos.
+		También desde el marcador «A Seilide» o compartiendo el enlace con Seilide en el móvil.
+	</p>
+{/if}
 {#if writing}
 	<form
 		method="post"
@@ -215,10 +299,8 @@
 		{#if photoUrl}
 			<div class="mb-2 flex items-end gap-3">
 				<img src={photoUrl} alt="Foto de la nota" class="max-h-48 rounded-md" />
-				<button
-					type="button"
-					class="text-sm text-zinc-400 hover:text-white"
-					onclick={() => (photo = null)}>Quitar la foto</button
+				<button type="button" class="text-sm text-zinc-400 hover:text-white" onclick={stopWriting}
+					>Quitar la foto</button
 				>
 			</div>
 		{/if}
@@ -227,7 +309,7 @@
 			name="text"
 			rows="3"
 			required={!photo}
-			autofocus
+			autofocus={photo !== null}
 			maxlength={MAX_NOTE_TEXT}
 			aria-label="Nota"
 			placeholder={photo ? 'Qué es (para encontrarla luego)' : 'Escribe la nota'}
@@ -245,7 +327,8 @@
 					bind:checked={placed}
 					class="rounded border-zinc-600 bg-zinc-950 text-amber-500"
 				/>
-				📍 Guardar dónde se hizo (solo lo ves tú)
+				<NoteIcon name="lugar" class="h-4 w-4 text-zinc-400" />Guardar dónde se hizo (solo lo ves
+				tú)
 			</label>
 		{/if}
 		<input
@@ -269,7 +352,9 @@
 				class="rounded-md bg-amber-500 px-3 py-1 font-medium text-zinc-950 disabled:opacity-50"
 				disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</button
 			>
-			<button type="button" class="text-zinc-400" onclick={stopWriting}>Cancelar</button>
+			{#if photo}
+				<button type="button" class="text-zinc-400" onclick={stopWriting}>Cancelar</button>
+			{/if}
 		</div>
 	</form>
 {/if}
@@ -285,20 +370,33 @@
 	{#each data.tags as t (t)}<option value={t}></option>{/each}
 </datalist>
 
-<nav class="mb-3 flex flex-wrap gap-2 text-sm" aria-label="Qué notas">
-	{#each [{ tab: 'todas', on: !data.house && !data.reading, label: 'Todas' }, { tab: 'casa', on: data.house, label: 'De la casa' }, { tab: 'leer', on: data.reading, label: '📖 Para leer' }] as const as t (t.tab)}
-		<a
-			href={link({ tab: t.tab })}
-			aria-current={t.on ? 'page' : undefined}
-			class={[
-				'rounded-full px-3 py-1',
-				t.on ? 'bg-zinc-700 text-white' : 'bg-zinc-900 text-zinc-400'
-			]}>{t.label}</a
-		>
-	{/each}
-</nav>
-{#if data.tags.length}
-	<nav class="mb-3 flex flex-wrap gap-2 text-xs" aria-label="Etiquetas">
+<form method="get" class="mb-3 flex gap-2">
+	{#if data.kind !== 'voz'}<input type="hidden" name={data.kind} value="" />{/if}
+	{#if data.house}<input type="hidden" name="casa" value="" />{/if}
+	{#if data.tag}<input type="hidden" name="etiqueta" value={data.tag} />{/if}
+	<input
+		name="q"
+		type="search"
+		value={data.q ?? ''}
+		placeholder="Buscar en todas las notas"
+		class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-950 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500"
+	/>
+	<button class="rounded-md bg-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-700">Buscar</button>
+</form>
+{#if data.q}
+	<p class="mb-3 text-sm text-zinc-400">
+		Buscando «{data.q}» en todas las notas ·
+		<a href={link({})} class="text-amber-400 hover:underline">Quitar la búsqueda</a>
+	</p>
+{/if}
+<nav class="mb-4 flex flex-wrap gap-2 text-xs" aria-label="Filtros">
+	<a
+		href={link({ casa: !data.house })}
+		aria-current={data.house ? 'page' : undefined}
+		class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 {chip(data.house)}"
+		><NoteIcon name="casa" class="h-3.5 w-3.5" />Solo de la casa</a
+	>
+	{#if data.tags.length}
 		<a href={link({ etiqueta: null })} class="rounded-full px-2.5 py-1 {chip(!data.tag)}"
 			>Todas las etiquetas</a
 		>
@@ -309,66 +407,8 @@
 				class="rounded-full px-2.5 py-1 {chip(data.tag === t)}">#{t}</a
 			>
 		{/each}
-	</nav>
-{/if}
-{#if data.reading}
-	<form
-		method="post"
-		action="?/link"
-		class="mb-4 flex flex-wrap gap-2"
-		use:enhance={() => {
-			pasting = true;
-			return async ({ update }) => {
-				await update();
-				pasting = false;
-			};
-		}}
-	>
-		<input
-			name="url"
-			type="url"
-			required
-			placeholder="Pega el enlace de una web para leerla luego"
-			aria-label="Enlace de la web"
-			class="min-w-0 flex-1 basis-64 rounded-md border-zinc-700 bg-zinc-950 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500"
-		/>
-		<input
-			name="tags"
-			list="etiquetas"
-			placeholder="Etiquetas"
-			aria-label="Etiquetas, separadas por comas"
-			class="w-36 rounded-md border-zinc-700 bg-zinc-950 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500"
-		/>
-		<button
-			class="rounded-md bg-amber-500 px-3 py-1.5 text-sm font-medium text-zinc-950 disabled:opacity-50"
-			disabled={pasting}>{pasting ? 'Leyendo la web…' : 'Guardar'}</button
-		>
-	</form>
-	{#if form && 'saved' in form && form.saved}
-		<p class="mb-4 text-sm text-emerald-300" role="status">{form.saved}</p>
 	{/if}
-	<p class="mb-4 text-xs text-zinc-500">
-		Se guarda limpia, como en el modo lectura del navegador: el texto, sin anuncios ni fotos.
-		También desde el marcador «📥 A Seilide» o compartiendo el enlace con Seilide en el móvil.
-	</p>
-{/if}
-<form method="get" class="mb-6 flex gap-2">
-	{#if data.house}<input type="hidden" name="casa" value="" />{/if}
-	{#if data.reading}<input type="hidden" name="leer" value="" />{/if}
-	{#if data.tag}<input type="hidden" name="etiqueta" value={data.tag} />{/if}
-	<input
-		name="q"
-		type="search"
-		value={data.q ?? ''}
-		placeholder={data.reading
-			? 'Buscar en lo guardado para leer'
-			: data.house
-				? 'Buscar en las de la casa'
-				: 'Buscar en las notas'}
-		class="min-w-0 flex-1 rounded-md border-zinc-700 bg-zinc-950 py-1.5 text-sm focus:border-amber-500 focus:ring-amber-500"
-	/>
-	<button class="rounded-md bg-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-700">Buscar</button>
-</form>
+</nav>
 
 {#if items.length}
 	<ul class="divide-y divide-zinc-800 rounded-md border border-zinc-800">
@@ -427,7 +467,8 @@
 								? 'Con foto'
 								: SOURCE[n.source]}{n.author ? ` · de ${n.author}` : ''}{n.shared
 							? ' · para toda la casa'
-							: ''}{n.lon !== null ? ' · 📍' : ''}
+							: ''}{#if n.lon !== null}
+							· <NoteIcon name="lugar" class="inline h-3.5 w-3.5 align-[-2px]" />{/if}
 					</p>
 					{#if editing === n.id}
 						<form
@@ -476,8 +517,10 @@
 					{#if n.link && editing !== n.id}
 						<p class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
 							{#if n.article}
-								<a href="/notas/{n.id}/leer" class="font-medium text-amber-400 hover:underline"
-									>📖 Leer</a
+								<a
+									href="/notas/{n.id}/leer"
+									class="inline-flex items-center gap-1.5 font-medium text-amber-400 hover:underline"
+									><NoteIcon name="leer" />Leer</a
 								>
 								<span class="text-zinc-500"
 									>{n.article.minutes} min{n.article.site ? ` · ${n.article.site}` : ''}</span
@@ -568,12 +611,10 @@
 {:else}
 	<p class="text-zinc-400">
 		{data.tag
-			? `Ninguna nota con #${data.tag}.`
-			: data.reading
-				? 'Nada guardado para leer todavía.'
-				: data.house
-					? 'Todavía no hay notas de toda la casa.'
-					: 'Todavía no hay notas.'}
+			? `Ninguna nota aquí con #${data.tag}.`
+			: data.house
+				? 'Aquí todavía no hay notas de toda la casa.'
+				: EMPTY[data.kind]}
 	</p>
 {/if}
 

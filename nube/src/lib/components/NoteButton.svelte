@@ -1,4 +1,5 @@
 <script lang="ts">
+	import NoteIcon from '#lib/components/NoteIcon.svelte';
 	import { noteRecorder as recorder } from '#lib/note-recorder.svelte.ts';
 	import { clockText } from '#lib/walks.ts';
 
@@ -9,8 +10,12 @@
 
 <button
 	type="button"
-	class={[className, recorder.recording && 'animate-pulse']}
+	class={['inline-flex items-center gap-2', className, recorder.recording && 'animate-pulse']}
 	onclick={() => (recorder.recording ? recorder.stop() : recorder.start(onrecorded))}
 >
-	{recorder.recording ? `⏹ Parar ${clockText(recorder.seconds)}` : '🎙️ Nota'}
+	{#if recorder.recording}
+		<NoteIcon name="parar" class="h-5 w-5" />Parar {clockText(recorder.seconds)}
+	{:else}
+		<NoteIcon name="voz" class="h-5 w-5" />Nota
+	{/if}
 </button>

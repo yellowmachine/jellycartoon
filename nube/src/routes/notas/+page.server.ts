@@ -14,7 +14,7 @@ import {
 	shareNote
 } from '#lib/server/notes.ts';
 import { linkOf } from '#lib/server/wishes.ts';
-import { parseTags } from '#lib/notes.ts';
+import { NOTE_KINDS, parseTags } from '#lib/notes.ts';
 import { deleteWalkPhoto, listWalkPhotos } from '#lib/server/walks/walks.ts';
 import { photoMoment } from '#lib/notes.ts';
 import { isLngLat } from 'comun/road.ts';
@@ -22,23 +22,23 @@ import { refused } from '#lib/server/storage.ts';
 import { MAX_NOTE_PHOTO_BYTES } from '#lib/notes.ts';
 
 /**
- * Notas (#416): one's own and those of the whole house, the latest first; `?q=`, searched; `?casa`, only
- * the house's; `?leer`, «Para leer» (#634): the webs saved to read later; `?etiqueta=`, those with
- * that tag.
+ * Notas (#416): one's own and those of the whole house, the latest first, by tabs: said (the
+ * default), `?foto`, `?texto` and `?leer`, «Para leer» (#634), the webs saved to read later. `?q=`,
+ * searched in all of them; `?casa`, only the house's; `?etiqueta=`, those with that tag.
  */
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const q = url.searchParams.get('q')?.trim() || null;
-	const reading = url.searchParams.has('leer');
-	const house = !reading && url.searchParams.has('casa');
+	const kind = NOTE_KINDS.find((k) => url.searchParams.has(k)) ?? 'voz';
+	const house = url.searchParams.has('casa');
 	const tag = url.searchParams.get('etiqueta')?.trim().toLowerCase() || null;
 	const k = await kitchenOf(locals.user!.id);
-	// The walks' photos (#613), one's own: they say nothing to be searched by.
+	// The walks' photos (#613), one's own: they say nothing to be searched by, nor have tags.
 	const [notes, photos, tags] = await Promise.all([
-		listNotes(k, locals.user!.id, q, { house, pages: reading, tag }),
-		q || house || reading || tag ? [] : listWalkPhotos(k),
+		listNotes(k, locals.user!.id, q, { house, kind: q ? undefined : kind, tag }),
+		kind !== 'foto' || q || house || tag ? [] : listWalkPhotos(k),
 		noteTags(k, locals.user!.id)
 	]);
-	return { notes, photos, q, house, reading, tag, tags };
+	return { notes, photos, q, kind, house, tag, tags };
 };
 
 const idOf = (form: FormData) => {
