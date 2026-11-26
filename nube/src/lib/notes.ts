@@ -54,6 +54,14 @@ export interface Note {
 	tags: string[];
 }
 
+/** Notas' tabs, in their order: said, with a photo, written, and webs to read. */
+export const NOTE_KINDS = ['voz', 'foto', 'texto', 'leer'] as const;
+export type NoteKind = (typeof NOTE_KINDS)[number];
+
+/** Which tab a note is in: a web first, then a photo, then whether it was said or written. */
+export const noteKind = (n: Pick<Note, 'link' | 'photo' | 'source'>): NoteKind =>
+	n.link ? 'leer' : n.photo ? 'foto' : n.source === 'escrita' ? 'texto' : 'voz';
+
 /** When a photo says it was taken, if it makes sense: not to come, nor before there were any. */
 export function photoMoment(ms: number, now = Date.now()) {
 	return Number.isFinite(ms) && ms > Date.UTC(1990, 0, 1) && ms <= now + 5 * 60_000

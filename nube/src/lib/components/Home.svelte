@@ -8,7 +8,8 @@
 	import { refreshAll } from '$app/navigation';
 	import { MAX_ITEM, MAX_NOTE, PAPERS, tiltFor, type FridgeState } from 'comun/fridge.ts';
 	import { distanceText } from 'comun/road.ts';
-	import { skyIcon, type HourWeather, type WeatherGlance } from 'comun/weather.ts';
+	import type { DayGlance, HourWeather, WeatherGlance } from 'comun/weather.ts';
+	import WeatherIcon from '#lib/components/WeatherIcon.svelte';
 	import {
 		arrivalOf,
 		upFirst,
@@ -21,9 +22,7 @@
 	import { durationText } from '#lib/trips.ts';
 	import { installApp } from '#lib/install-app.svelte.ts';
 	import InstallApp from '#lib/components/InstallApp.svelte';
-	import type { CarView } from '#lib/cars.ts';
 	import { newsShown, newsUnread, type NewsCard } from '#lib/news.ts';
-	import CarCard from '#lib/components/CarCard.svelte';
 	import CardIcon from '#lib/components/CardIcon.svelte';
 	import SectionIcon from 'comun/components/SectionIcon.svelte';
 	import { section } from '#lib/styles.ts';
@@ -33,7 +32,8 @@
 	 * The home page with a session (home.ts): what there is today in the family, at a glance on the
 	 * phone. A new family's first steps, until done; the doses still to take (#308), theirs and their
 	 * children's, to mark here; today's agenda with the alarms and timers that
-	 * ring today; their «Buzón» still unread (#331); the fridge's post-its and the list, live.
+	 * ring today, and the fridge's post-its and the list, live: those two only with something in
+	 * them. Neither the car nor the «Buzón»: they have their own pages.
 	 */
 	let {
 		name,
@@ -41,7 +41,6 @@
 		weather,
 		news,
 		trip,
-		car,
 		sections,
 		mine
 	}: {
@@ -56,7 +55,6 @@
 			fridge: FridgeState;
 			tomorrow: Occurrence[];
 			alarms: Alarm[];
-			inbox: { count: number; latest: { id: number; title: string; body: string }[] };
 			steps: { key: boolean; invited: boolean } | null;
 		};
 		weather: Promise<(WeatherGlance & { place: string }) | null>;
@@ -69,8 +67,6 @@
 			weather: LegWeather;
 			then: PlannedLeg | null;
 		} | null>;
-		/** Their car and where it is (#317), if they have one. */
-		car: Promise<CarView | null>;
 		/** A receipt's photo can be read (the family's AI). */
 	} = $props();
 
@@ -223,8 +219,17 @@
 			: d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 	}
 
+	/** «Vie», of a day YYYY-MM-DD. */
+	const weekdayShort = (day: string) =>
+		upFirst(
+			new Date(`${day}T12:00:00`).toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', '')
+		);
+	/** One of the next days, said: «Viernes: de 8 a 17 °C, lluvia 60 %». */
+	const dayGlanceText = (d: DayGlance, i: number) =>
+		`${i === 0 ? 'Hoy' : upFirst(dayName(d.day))}: de ${d.min} a ${d.max} °C${d.rain >= 30 ? `, lluvia ${d.rain} %` : ''}`;
+
 	const tripWeather = (w: HourWeather) =>
-		`${skyIcon(w.code)} ${w.temperature} °C${w.rain >= 30 ? `, lluvia ${w.rain} %` : ''}${w.wind >= 40 ? `, viento ${w.wind} km/h` : ''}`;
+		`${w.temperature} °C${w.rain >= 30 ? `, lluvia ${w.rain} %` : ''}${w.wind >= 40 ? `, viento ${w.wind} km/h` : ''}`;
 </script>
 
 <header class="mb-6">
@@ -234,7 +239,7 @@
 		{#await weather then w}
 			{#if w}
 				<span title={w.place}>
-					· {skyIcon(w.code)}
+					· <WeatherIcon code={w.code} class="h-5 w-5 align-[-0.25em]" />
 					{w.temperature} °C
 					<span class="text-sm"
 						>({w.min}–{w.max} °C{w.rain >= 30 ? `, lluvia ${w.rain} %` : ''})</span
@@ -243,6 +248,24 @@
 			{/if}
 		{/await}
 	</p>
+	{#await weather then w}
+		{#if w && w.days.length > 1}
+			<ol class="mt-3 grid grid-cols-7 gap-1 text-center text-sm" aria-label="Los próximos días">
+				{#each w.days as d, i (d.day)}
+					<li
+						class={['flex flex-col items-center gap-1 rounded-lg py-2', i === 0 && 'bg-zinc-900']}
+						aria-label={dayGlanceText(d, i)}
+					>
+						<span class="text-xs text-zinc-400">{i === 0 ? 'Hoy' : weekdayShort(d.day)}</span>
+						<WeatherIcon code={d.code} class="h-6 w-6" />
+						<span class="font-semibold tabular-nums">{d.max}°</span>
+						<span class="text-zinc-500 tabular-nums">{d.min}°</span>
+						{#if d.rain >= 30}<span class="text-xs text-sky-400 tabular-nums">{d.rain} %</span>{/if}
+					</li>
+				{/each}
+			</ol>
+		{/if}
+	{/await}
 </header>
 
 {#if pending && !stepsClosed}
@@ -277,12 +300,6 @@
 	</section>
 {/if}
 
-{#await car then c}
-	{#if c?.place}
-		<CarCard car={c} place={c.place} {now} />
-	{/if}
-{/await}
-
 {#await trip then next}
 	{#if next}
 		{@const arrival = arrivalOf(next.leg)}
@@ -303,11 +320,17 @@
 				<dl class="grid grid-cols-[auto_1fr] gap-x-3 text-sm">
 					{#if next.weather.depart}
 						<dt class="text-zinc-400">Salida</dt>
-						<dd>{tripWeather(next.weather.depart)}</dd>
+						<dd>
+							<WeatherIcon code={next.weather.depart.code} class="h-4 w-4 align-[-0.2em]" />
+							{tripWeather(next.weather.depart)}
+						</dd>
 					{/if}
 					{#if next.weather.arrive}
 						<dt class="text-zinc-400">Llegada</dt>
-						<dd>{tripWeather(next.weather.arrive)}</dd>
+						<dd>
+							<WeatherIcon code={next.weather.arrive.code} class="h-4 w-4 align-[-0.2em]" />
+							{tripWeather(next.weather.arrive)}
+						</dd>
 					{/if}
 				</dl>
 			{:else}
@@ -328,28 +351,6 @@
 		</a>
 	{/if}
 {/await}
-
-{#if home.inbox.count}
-	<section class="{section} border-amber-500/40">
-		<div class="mb-3 flex items-baseline justify-between">
-			<h2 class="font-semibold">
-				<SectionIcon name="buzon" class="mr-1.5 inline-block h-5 w-5 align-[-0.25em]" />Buzón
-				<span class="text-sm font-normal text-zinc-400">· {home.inbox.count} sin leer</span>
-			</h2>
-			<a href="/buzon" class="text-sm text-amber-400 hover:underline">Ver todo</a>
-		</div>
-		<ul class="flex flex-col gap-1 text-sm">
-			{#each home.inbox.latest as n (n.id)}
-				<li class="truncate">
-					<a href="/buzon" class="hover:underline"
-						><span class="font-medium">{n.title}</span>
-						<span class="text-zinc-400">· {n.body}</span></a
-					>
-				</li>
-			{/each}
-		</ul>
-	</section>
-{/if}
 
 {#if home.doses.length}
 	<section class={section}>
@@ -405,7 +406,7 @@
 	</section>
 {/if}
 
-{#if sectionOn('/agenda', sections, mine)}
+{#if sectionOn('/agenda', sections, mine) && (lines.length || home.tomorrow.length)}
 	<section class={section}>
 		<div class="mb-3 flex items-baseline justify-between">
 			<h2 class="font-semibold">Hoy</h2>
@@ -440,7 +441,7 @@
 	</section>
 {/if}
 
-{#if sectionOn('/nevera', sections, mine)}
+{#if sectionOn('/nevera', sections, mine) && (fridge.notes.length || toBuy)}
 	<section class={section}>
 		<div class="mb-3 flex items-baseline justify-between">
 			<h2 class="font-semibold">En la nevera</h2>
