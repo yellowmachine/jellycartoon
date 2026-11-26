@@ -796,7 +796,7 @@ describe('the computer’s bookmark', () => {
 			.filter((l) => /^(const (PAGE_TEXT|NEAR_PRICE|SHIPPING) = |\tconst code = )/.test(l))
 			.join('\n');
 		const hash = new Bun.CryptoHasher('sha256').update(code).digest('hex').slice(0, 12);
-		expect({ version: BOOKMARK_VERSION, hash }).toEqual({ version: 4, hash: '7af8dfecccf1' });
+		expect({ version: BOOKMARK_VERSION, hash }).toEqual({ version: 5, hash: 'bc4b0f4d8ee3' });
 	});
 
 	test('run on an Amazon page, it opens Seilide with its name, price and picture', () => {
@@ -838,6 +838,32 @@ describe('the computer’s bookmark', () => {
 			precio: '29,99 €',
 			foto: 'https://m.media-amazon.com/x.jpg'
 		});
+	});
+
+	test('«📥 A Seilide» (#633): it says whether the page has a recipe, and the feed it links to', () => {
+		let opened = '';
+		const scripts = [
+			{ textContent: '{"@context":"https://schema.org","@type":["Recipe"],"name":"Pan"}' }
+		];
+		new Function(
+			'document',
+			'location',
+			'window',
+			decodeURIComponent(bookmarklet('https://seilide.app').slice('javascript:'.length))
+		)(
+			{
+				querySelector: (s: string) =>
+					s.includes('application/rss+xml') ? { href: 'https://cocina.es/feed.xml' } : null,
+				querySelectorAll: (s: string) => (s.includes('ld+json') ? scripts : []),
+				title: 'Pan de masa madre'
+			},
+			{ href: 'https://cocina.es/pan' },
+			{ open: (u: string) => (opened = u) }
+		);
+		const asked = new URL(opened).searchParams;
+		expect(asked.get('receta')).toBe('1');
+		expect(asked.get('feed')).toBe('https://cocina.es/feed.xml');
+		expect(asked.get('titulo')).toBe('Pan de masa madre');
 	});
 
 	test('run on a page whose offers say no price, from its og: tags', () => {

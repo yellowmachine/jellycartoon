@@ -19,13 +19,16 @@
 	import type { PageProps } from './$types';
 
 	/**
-	 * What to do with a shared link (#586): a wish of someone's, or a recipe. A known shop's, with the
-	 * wish first and marked; any other, the recipe.
+	 * What to do with a shared link (#586, #633): a wish of someone's, a recipe, a podcast to follow,
+	 * a note to read later, or sent to someone. The likeliest first and marked (lib/shared-link.ts).
 	 */
 	let { data, form }: PageProps = $props();
 
-	/** A known shop's, or brought by the wishes' own bookmark. */
-	const shopFirst = $derived(Boolean(data.shop || data.read));
+	const first = $derived(data.order[0]);
+	const marked = (place: string) =>
+		first === place ? 'border-amber-500/60 bg-amber-500/5' : 'border-zinc-800';
+	const button = (place: string) => (first === place ? primary : secondary);
+	let following = $state(false);
 	const host = $derived(new URL(data.link).hostname.replace(/^www\./, ''));
 	/** What came with it (Android puts the address in the text too): without addresses. */
 	const said = $derived(
@@ -157,9 +160,12 @@
 
 {#if data.oldBookmark}
 	<p class="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm" role="status">
-		Tu marcador es de una versión anterior y lee peor los precios. Bórralo y arrastra el de
-		<a href="/deseos#marcador" data-sveltekit-reload class="text-amber-400 hover:underline"
-			>Deseos</a
+		Tu marcador es de una versión anterior: lee peor los precios y no sabe si la página es una
+		receta o un podcast. Bórralo y arrastra «📥 A Seilide» desde
+		<a
+			href="/ajustes?seccion=aparato#marcador"
+			data-sveltekit-reload
+			class="text-amber-400 hover:underline">Ajustes → Este aparato</a
 		>.
 	</p>
 {/if}
@@ -228,54 +234,124 @@
 	</div>
 {/if}
 
-<div class="flex gap-4 {shopFirst ? 'flex-col' : 'flex-col-reverse'}">
-	{#if data.people.length}
-		<form
-			method="post"
-			action="?/wish"
-			class="{card} {shopFirst ? 'border-amber-500/60 bg-amber-500/5' : 'border-zinc-800'}"
-			use:enhance={() => {
-				saving = true;
-				return async ({ result, update }) => {
-					saving = false;
-					if (data.read && result.type === 'redirect' && result.location.startsWith('/deseos?'))
-						return keptFromBookmark(result.location);
-					await update();
-				};
-			}}
-		>
-			<input type="hidden" name="url" value={data.link} />
-			<input type="hidden" name="texto" value={data.text} />
-			{#if data.read}
-				<input type="hidden" name="titulo" value={title} />
-				<input type="hidden" name="precio" value={price} />
-				<input type="hidden" name="envio" value={shipping} />
-				<input type="hidden" name="nota" value={note} />
-				<input type="hidden" name="foto" value={data.read.foto} />
-			{/if}
-			<h2 class="flex items-center gap-2 font-semibold">
-				<SectionIcon name="deseos" class="h-6 w-6" />A la lista de deseos
-			</h2>
-			<div class="flex flex-wrap items-center gap-2">
-				{#if data.people.length > 1}
-					<label class="text-sm text-zinc-400">
-						De
-						<select name="persona" bind:value={forWhom} class="{select} ml-1">
-							{#each data.people as p (p.id)}
-								<option value={p.id}>{p.me ? 'mí' : p.name}</option>
-							{/each}
-						</select>
-					</label>
-				{:else}
-					<input type="hidden" name="persona" value={forWhom} />
+{#if form?.message}<p class="mb-4 text-sm text-red-400" role="alert">{form.message}</p>{/if}
+
+<div class="flex flex-col gap-4">
+	{#each data.order as place (place)}
+		{#if place === 'deseos'}
+			<form
+				method="post"
+				action="?/wish"
+				class="{card} {marked('deseos')}"
+				use:enhance={() => {
+					saving = true;
+					return async ({ result, update }) => {
+						saving = false;
+						if (data.read && result.type === 'redirect' && result.location.startsWith('/deseos?'))
+							return keptFromBookmark(result.location);
+						await update();
+					};
+				}}
+			>
+				<input type="hidden" name="url" value={data.link} />
+				<input type="hidden" name="texto" value={data.text} />
+				{#if data.read}
+					<input type="hidden" name="titulo" value={title} />
+					<input type="hidden" name="precio" value={price} />
+					<input type="hidden" name="envio" value={shipping} />
+					<input type="hidden" name="nota" value={note} />
+					<input type="hidden" name="foto" value={data.read.foto} />
 				{/if}
-				<button class={shopFirst ? primary : secondary} disabled={saving || Boolean(kept)}
-					>{saving ? 'Leyendo la página…' : 'Guardar en deseos'}</button
-				>
+				<h2 class="flex items-center gap-2 font-semibold">
+					<SectionIcon name="deseos" class="h-6 w-6" />A la lista de deseos
+				</h2>
+				<div class="flex flex-wrap items-center gap-2">
+					{#if data.people.length > 1}
+						<label class="text-sm text-zinc-400">
+							De
+							<select name="persona" bind:value={forWhom} class="{select} ml-1">
+								{#each data.people as p (p.id)}
+									<option value={p.id}>{p.me ? 'mí' : p.name}</option>
+								{/each}
+							</select>
+						</label>
+					{:else}
+						<input type="hidden" name="persona" value={forWhom} />
+					{/if}
+					<button class={button('deseos')} disabled={saving || Boolean(kept)}
+						>{saving ? 'Leyendo la página…' : 'Guardar en deseos'}</button
+					>
+				</div>
+			</form>
+		{:else if place === 'receta'}
+			<div class="{card} {marked('receta')}">
+				<h2 class="flex items-center gap-2 font-semibold">
+					<SectionIcon name="recetas" class="h-6 w-6" />Es una receta
+				</h2>
+				<div>
+					<a
+						href="/recetas?url={encodeURIComponent(data.link)}"
+						class="inline-block {button('receta')}">Guardar en Recetas</a
+					>
+				</div>
 			</div>
-			{#if form?.message}<p class="text-sm text-red-400" role="alert">{form.message}</p>{/if}
-		</form>
-	{/if}
+		{:else if place === 'podcast' && data.podcast}
+			{@const pod = data.podcast}
+			<div class="{card} {marked('podcast')}">
+				<h2 class="flex items-center gap-2 font-semibold">
+					<SectionIcon name="radio" class="h-6 w-6" />Es un podcast
+				</h2>
+				<div class="flex items-center gap-3">
+					{#if pod.imageUrl}
+						<img
+							src={pod.imageUrl}
+							alt=""
+							referrerpolicy="no-referrer"
+							class="h-14 w-14 shrink-0 rounded-md object-cover"
+						/>
+					{/if}
+					<p class="min-w-0 flex-1 font-medium">{pod.title}</p>
+				</div>
+				{#if pod.followed}
+					<p class="text-sm" role="status">
+						Ya lo tienes.
+						<a href="/radio/podcasts/{pod.followed}" class="text-amber-400 hover:underline"
+							>Verlo en Podcasts</a
+						>
+					</p>
+				{:else}
+					<form
+						method="post"
+						action="?/podcast"
+						use:enhance={() => {
+							following = true;
+							return async ({ update }) => {
+								await update();
+								following = false;
+							};
+						}}
+					>
+						<input type="hidden" name="feed" value={pod.feedUrl} />
+						<button class={button('podcast')} disabled={following}
+							>{following ? 'Leyendo sus episodios…' : 'Suscribirme al podcast'}</button
+						>
+					</form>
+				{/if}
+			</div>
+		{:else if place === 'notas'}
+			<form method="post" action="?/note" class="{card} {marked('notas')}">
+				<input type="hidden" name="url" value={data.link} />
+				<input type="hidden" name="titulo" value={data.read ? title : said} />
+				<h2 class="flex items-center gap-2 font-semibold">
+					<SectionIcon name="notas" class="h-6 w-6" />Para leerlo luego
+				</h2>
+				<div>
+					<button class={button('notas')}>Guardar en Notas</button>
+					<p class="mt-1 text-xs text-zinc-400">Su nombre y el enlace, solo para ti.</p>
+				</div>
+			</form>
+		{/if}
+	{/each}
 
 	{#if data.messages}
 		<div class="{card} border-zinc-800">
@@ -294,16 +370,4 @@
 			</div>
 		</div>
 	{/if}
-
-	<div class="{card} {shopFirst ? 'border-zinc-800' : 'border-amber-500/60 bg-amber-500/5'}">
-		<h2 class="flex items-center gap-2 font-semibold">
-			<SectionIcon name="recetas" class="h-6 w-6" />Es una receta
-		</h2>
-		<div>
-			<a
-				href="/recetas?url={encodeURIComponent(data.link)}"
-				class="inline-block {shopFirst ? secondary : primary}">Guardar en Recetas</a
-			>
-		</div>
-	</div>
 </div>

@@ -43,6 +43,7 @@
 	import Peso from './Peso.svelte';
 	import OwnTracks from './OwnTracks.svelte';
 	import GastoIa from './GastoIa.svelte';
+	import Marcador from '#lib/components/Marcador.svelte';
 	import Microfono from './Microfono.svelte';
 	import TelefonoAparato from './TelefonoAparato.svelte';
 	import FondoMusica from './FondoMusica.svelte';
@@ -237,6 +238,8 @@
 		</section>
 
 		<Microfono />
+
+		<Marcador />
 
 		<TelefonoAparato />
 

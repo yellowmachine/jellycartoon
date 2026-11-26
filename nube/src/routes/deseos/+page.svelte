@@ -12,7 +12,6 @@
 	import { field, primary, secondary, select } from '#lib/styles.ts';
 	import {
 		amountField,
-		bookmarklet,
 		MAX_WISH_NOTE,
 		MAX_WISH_TITLE,
 		priceChangeText,
@@ -888,55 +887,11 @@
 {/if}
 
 {#if writable.length}
-	<!-- The computer's bookmark (#586): on a phone, sharing from the shop's app does it. -->
-	<section id="marcador" class="mt-10 hidden rounded-md border border-zinc-800 p-4 sm:block">
-		<h2 class="mb-1 font-semibold">En el ordenador</h2>
-		<p class="mb-3 text-sm text-zinc-400">
-			Arrastra este botón a la barra de marcadores. En la página de un producto de cualquier tienda,
-			púlsalo: tu navegador lee el nombre, la foto, el precio (también en Amazon) y el envío, si la
-			tienda lo dice, y te lo trae aquí.
-		</p>
-		<!-- Its text is the bookmark's name: a bookmark of code has no icon of its own, so the emoji
-		is what tells it apart in the bar. -->
-		<a
-			href={bookmarklet(page.url.origin)}
-			class="inline-flex items-center rounded-md border border-amber-500/60 px-3 py-1.5 text-sm font-medium text-amber-300"
-			onclick={(e) => e.preventDefault()}
-			title="Arrástralo a la barra de marcadores">🎁 Deseos</a
-		>
-		<!-- What any bookmark of code may do, this one or another site's: said before it is dragged. -->
-		<div
-			class="mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-zinc-300"
-			role="note"
-		>
-			<p class="mb-2 font-semibold text-amber-300">
-				Antes de arrastrar un marcador, este o el de cualquier web
-			</p>
-			<ul class="list-disc space-y-1 pl-5">
-				<li>
-					Un marcador así es código: al pulsarlo se ejecuta dentro de la página que tienes abierta,
-					con tu sesión iniciada en ella.
-				</li>
-				<li>
-					Puede leer y cambiar todo lo que ves en esa página, también lo que escribes, y hacer cosas
-					en esa web como si fueras tú: en una tienda, ver tus pedidos; en tu banco, lo que veas
-					allí.
-				</li>
-				<li>
-					No llega a otras pestañas, ni a tus contraseñas guardadas, ni a tus ficheros, y solo hace
-					algo cuando lo pulsas.
-				</li>
-				<li>
-					Arrastra solo marcadores de quien te fíes, y no pegues nunca en el navegador código que te
-					pidan en un mensaje o en una web.
-				</li>
-				<li>
-					Este lee el nombre, la foto, el precio, el envío y la dirección del producto y abre
-					Seilide con ellos. También recoge el texto visible del producto y las opciones elegidas
-					(nunca lo que escribes), que no salen de tu ordenador si no pulsas «Analizar con IA». Su
-					código se puede ver con el botón derecho sobre el marcador → Editar.
-				</li>
-			</ul>
-		</div>
-	</section>
+	<!-- The computer's bookmark (#586, #633): now in Ajustes, for any page. -->
+	<p id="marcador" class="mt-10 hidden text-sm text-zinc-400 sm:block">
+		En el ordenador, el marcador
+		<a href="/ajustes?seccion=aparato#marcador" class="text-amber-400 hover:underline"
+			>«📥 A Seilide»</a
+		> trae aquí el producto de cualquier tienda, con su precio.
+	</p>
 {/if}
