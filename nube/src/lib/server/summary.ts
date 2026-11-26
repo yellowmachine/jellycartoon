@@ -13,6 +13,8 @@ import {
 import { agendaBetween, agendaPeople } from '#lib/server/agenda/agenda.ts';
 import { listMedication, toldFor } from '#lib/server/medication.ts';
 import { listWishes } from '#lib/server/wishes.ts';
+import { familySections } from '#lib/server/family-settings.ts';
+import { sectionOn } from '#lib/nav.ts';
 import { searchExpenses } from '#lib/server/expenses/expenses.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { onFootBetween } from '#lib/server/walks/on-foot.ts';
@@ -28,6 +30,7 @@ import {
 	noSummaryChoice,
 	PRICE_LOOK_BACK_DAYS,
 	shoppingOf,
+	SUMMARY_BLOCKS,
 	wishesOf,
 	type Car,
 	summaryPeriod,
@@ -51,6 +54,26 @@ export async function summaryChoice(k: Kitchen, userId: string): Promise<Summary
 export async function setSummaryChoice(k: Kitchen, userId: string, summary: SummaryChoice) {
 	await k.run((tx) =>
 		tx.update(familyMember).set({ summary }).where(eq(familyMember.userId, userId))
+	);
+}
+
+/**
+ * The blocks not to show them: those they took out, and those of a section the family or they took
+ * out (nav.ts sectionOn, as the page leaves them out).
+ */
+export async function summaryOff(k: Kitchen, userId: string): Promise<SummaryBlock[]> {
+	const [{ off }, sections, [me]] = await Promise.all([
+		summaryChoice(k, userId),
+		familySections(k),
+		k.run((tx) =>
+			tx
+				.select({ mine: familyMember.sections })
+				.from(familyMember)
+				.where(eq(familyMember.userId, userId))
+		)
+	]);
+	return (Object.keys(SUMMARY_BLOCKS) as SummaryBlock[]).filter(
+		(b) => off.includes(b) || !sectionOn(SUMMARY_BLOCKS[b].section, sections, me?.mine ?? {})
 	);
 }
 

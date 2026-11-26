@@ -11,8 +11,10 @@ import { searchExpenses } from '#lib/server/expenses/expenses.ts';
 import type { Kitchen } from '#lib/server/fridge.ts';
 import { listPlannedTrips } from '#lib/server/trips/planned.ts';
 import { energyBlock } from '#lib/server/energy/energy-block.ts';
+import { summaryTitle, type SummaryData } from '#lib/summary.ts';
 import {
 	isReportBlockKind,
+	isSummaryReport,
 	keptExpenses,
 	MAX_PIECE_TEXT,
 	MAX_PIECES,
@@ -264,6 +266,19 @@ export async function buildBlock(
 
 /** A block in words, for the AI to comment on: its figures, never more. */
 export function describePiece(p: ReportPiece, excluded: number[] = []): string {
+	if (p.block?.kind === 'resumen') {
+		const r = p.block.summary;
+		const parts = [
+			r.money && `dinero ${euros(r.money.total)} en ${r.money.count} gastos, sin fijos`,
+			r.energy && `enchufes ${(r.energy.wh / 1000).toFixed(1)} kWh`,
+			r.car && `coche ${Math.round(r.car.metres / 1000)} km`,
+			r.walks && `paseos ${Math.round(r.walks.metres / 1000)} km`,
+			r.medication.length &&
+				`medicación ${r.medication.map((m) => `${m.name} ${m.taken}/${m.due}`).join(', ')}`,
+			r.wishes && `deseos comprados ${r.wishes.count}, ${euros(r.wishes.total)}`
+		].filter(Boolean);
+		return `[resumen guardado: ${parts.join('; ')}]`;
+	}
 	if (!p.kind) return '';
 	const b = p.block;
 	if (!b) return `[${p.kind}: ${p.empty}]`;
@@ -363,6 +378,28 @@ export async function makeReport(
 	return { ...toSummary(row!), pieces: row!.pieces, excluded: row!.excluded };
 }
 
+/**
+ * «Guardar como informe» (#624): a week's or a month's Resumen, already over, kept as it is now
+ * with the blocks they have on. Without what is to come (fixed ones, the agenda's next days).
+ */
+export async function keepSummary(k: Kitchen, userId: string, summary: SummaryData) {
+	const kept: SummaryData = { ...summary, charges: [], next: null };
+	const [row] = await k.run((tx) =>
+		tx
+			.insert(report)
+			.values({
+				familyId: k.familyId,
+				userId,
+				title: summaryTitle(summary.period),
+				fromDay: summary.period.from,
+				toDay: summary.period.to,
+				pieces: [{ text: '', kind: null, block: { kind: 'resumen', summary: kept }, empty: null }]
+			})
+			.returning({ id: report.id })
+	);
+	return row!.id;
+}
+
 /** Their reports, the newest first. */
 export async function listReports(k: Kitchen, userId: string): Promise<ReportSummary[]> {
 	const rows = await k.run((tx) =>
@@ -384,7 +421,8 @@ export async function getReport(k: Kitchen, userId: string, id: number): Promise
 /** «Actualizar»: its blocks taken again; the words and the expenses taken away stay. */
 export async function refreshReport(k: Kitchen, userId: string, id: number) {
 	const current = await getReport(k, userId, id);
-	if (!current) return false;
+	// A Resumen kept stays as it was.
+	if (!current || isSummaryReport(current)) return false;
 	const pieces = await fill(k, userId, current.pieces, current.from, current.to);
 	await k.run((tx) =>
 		tx

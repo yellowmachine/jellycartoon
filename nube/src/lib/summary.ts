@@ -9,6 +9,7 @@ import {
 } from 'comun/expenses.ts';
 import { dosesOn, type Medication } from 'comun/medication.ts';
 import { priceAt, type KwhPrice } from '#lib/kwh-price.ts';
+import type { summaryOf } from '#lib/server/summary.ts';
 
 /**
  * Resumen: what there was in the last 7 days, always up to date, or in a week or a month already
@@ -521,4 +522,41 @@ export function cardLines(s: {
 			text: s.next.count === 1 ? '1 cita por venir' : `${s.next.count} citas por venir`
 		});
 	return lines;
+}
+
+/** What Resumen shows: live, or kept in a report. */
+export type SummaryData = Awaited<ReturnType<typeof summaryOf>>;
+
+/** Nothing in any block. */
+export const summaryEmpty = (s: SummaryData) =>
+	!s.money &&
+	!s.shopping &&
+	!s.energy &&
+	!s.car &&
+	!s.medication.length &&
+	!s.wishes &&
+	!s.walks &&
+	!s.past?.count &&
+	!s.next?.count &&
+	!s.charges.length;
+
+/** «Resumen de octubre de 2026», «Resumen, semana del 16 al 22 de noviembre». */
+export function summaryTitle(p: SummaryPeriod) {
+	if (p.view === 'mes') {
+		const [y, m] = p.from.split('-').map(Number) as [number, number];
+		const month = new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString('es-ES', {
+			month: 'long',
+			year: 'numeric',
+			timeZone: 'UTC'
+		});
+		return `Resumen de ${month}`;
+	}
+	const day = (d: string, month: boolean) =>
+		new Date(`${d}T12:00:00Z`).toLocaleDateString('es-ES', {
+			day: 'numeric',
+			...(month ? { month: 'long' } : {}),
+			timeZone: 'UTC'
+		});
+	const sameMonth = p.from.slice(0, 7) === p.to.slice(0, 7);
+	return `Resumen, semana del ${day(p.from, !sameMonth)} al ${day(p.to, true)}`;
 }

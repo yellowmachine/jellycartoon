@@ -54,9 +54,21 @@ mock.module('#lib/server/openrouter.ts', () => ({
 	},
 	sayableError: (message: string) => message
 }));
-mock.module('#lib/server/family-settings.ts', () => ({ openRouterKey: async () => null }));
+mock.module('#lib/server/family-secret.ts', () => ({
+	kmsOn: false,
+	scaleway: async () => {
+		throw new Error('Sin KMS en esta prueba');
+	},
+	checkKms: async () => null,
+	sealFor: async (_: string, text: string) => text,
+	openFor: async (_: string, value: string) => value,
+	sealFileFor: async (_: string, bytes: Uint8Array) => bytes,
+	openFileFor: async (_: string, sealed: Uint8Array) => sealed,
+	sealedNow: () => true
+}));
 
-const { summaryOf } = await import('./summary.ts');
+const { summaryOf, summaryOff } = await import('./summary.ts');
+const { getReport, keepSummary, refreshReport } = await import('./reports.ts');
 
 const kitchen = (userId: string): Kitchen => ({
 	familyId: 'A',
@@ -226,4 +238,41 @@ test('each block, only what the one looking may see', async () => {
 		NOW
 	);
 	expect(off).toMatchObject({ car: null, medication: [], wishes: null, energy: null });
+});
+
+test('«Guardar como informe»: the blocks they see, without what is to come, never taken again', async () => {
+	const ana = kitchen('ana');
+	await db
+		.update(familyMember)
+		.set({ summary: { card: true, off: ['coche'] } })
+		.where(sql`${familyMember.userId} = 'ana'`);
+	// Energía, Deseos and Paseos start off for a family (nav.ts): not shown, not kept.
+	const off = await summaryOff(ana, 'ana');
+	expect(off).toEqual(['energia', 'coche', 'deseos', 'paseos']);
+
+	const live = await summaryOf(ana, 'ana', 'semana', '2026-11-16', '2026-11-25', off, NOW);
+	const id = await keepSummary(ana, 'ana', live);
+	const kept = (await getReport(ana, 'ana', id))!;
+	expect(kept).toMatchObject({
+		title: 'Resumen, semana del 16 al 22 de noviembre',
+		from: '2026-11-16',
+		to: '2026-11-22'
+	});
+	const block = kept.pieces[0]!.block;
+	if (block?.kind !== 'resumen') throw new Error('Sin el resumen');
+	expect(block.summary).toMatchObject({
+		car: null,
+		energy: null,
+		wishes: null,
+		charges: [],
+		next: null
+	});
+	// The family's fuel of the 21st and 22nd; Lucía's doses start on the 24th, after that week.
+	expect(block.summary.money).toMatchObject({ total: 11_000, count: 2 });
+	expect(block.summary.medication).toEqual([]);
+
+	// A dose marked later does not change it.
+	expect(await refreshReport(ana, 'ana', id)).toBe(false);
+	// Not another's.
+	expect(await getReport(kitchen('pepe'), 'pepe', id)).toBeNull();
 });

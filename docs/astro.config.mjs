@@ -118,7 +118,8 @@ const guia = [
 	'paseos',
 	'llamadas',
 	'mensajes',
-	'coche'
+	'coche',
+	'preguntar'
 ];
 const pages = (base, slugs) => slugs.map((s) => (s ? `${base}/${s}` : base));
 
