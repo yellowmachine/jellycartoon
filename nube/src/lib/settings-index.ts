@@ -56,7 +56,8 @@ export const SETTINGS_INDEX: SettingsEntry<SettingsTab, SettingsShown>[] = [
 		id: 'noticias',
 		tab: 'mi',
 		title: 'Noticias',
-		words: 'miniflux rss feeds agregador titulares periódico inicio clave api'
+		words:
+			'miniflux freshrss google reader lector rss feeds agregador titulares periódico inicio contraseña api'
 	},
 	{
 		id: 'como-te-aviso',

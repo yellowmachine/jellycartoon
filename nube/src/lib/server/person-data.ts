@@ -826,11 +826,11 @@ export const PERSON_DATA: Record<string, PersonData> = {
 		zip: { file: 'secciones-usadas', where: [mine()] },
 		note: 'Which sections they opened and how often (/admin), kept 90 days'
 	},
-	miniflux_link: {
+	news_link: {
 		leaving: 'account',
 		joining: 'account',
-		zip: { file: 'miniflux', where: [mine()] },
-		note: 'Its address; the key is a user_secret'
+		zip: { file: 'lector-de-noticias', where: [mine()] },
+		note: 'Its address and user (#638); the login token is a user_secret'
 	},
 	owntracks_link: {
 		leaving: 'account',

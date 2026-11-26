@@ -51,20 +51,24 @@ export const userSecret = pgTable(
 	(t) => [primaryKey({ columns: [t.userId, t.name] }), userRows('user_secret_own', t.userId)]
 ).enableRLS();
 
-/** Their Miniflux (Noticias, #428): its address. Its API key, a secret of theirs. */
-export const minifluxLink = pgTable(
-	'miniflux_link',
+/**
+ * Their news reader (Noticias, #428, #638), by the Google Reader API: its address (Miniflux's own,
+ * FreshRSS's `/api/greader.php`) and the user in it. Its login token, a secret of theirs.
+ */
+export const newsLink = pgTable(
+	'news_link',
 	{
 		userId: text('user_id')
 			.primaryKey()
 			.references(() => user.id, { onDelete: 'cascade' }),
 		url: text('url').notNull(),
+		username: text('username').notNull(),
 		updatedAt: timestamp('updated_at')
 			.notNull()
 			.defaultNow()
 			.$onUpdate(() => new Date())
 	},
-	(t) => [userRows('miniflux_link_own', t.userId)]
+	(t) => [userRows('news_link_own', t.userId)]
 ).enableRLS();
 
 /**

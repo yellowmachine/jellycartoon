@@ -18,7 +18,7 @@ import { companionsFor } from '#lib/server/companion.ts';
 /**
  * Without a session, the landing page (hooks.server.ts lets `/` through); with one, what there is
  * today in the family (home.ts). The weather, the next trip and the news come after the page, as
- * they ask outside (Open-Meteo, their Miniflux).
+ * they ask outside (Open-Meteo, their news reader).
  */
 export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) return { home: null };

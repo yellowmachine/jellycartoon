@@ -193,7 +193,7 @@ export const load: PageServerLoad = async ({ locals, request, cookies, url }) =>
 						kids.map((kid) => kid.id)
 					)
 				: null,
-		/** Their Miniflux's address (#428). */
+		/** Their news reader's address and user (#428, #638). */
 		news: await news.linkOf(locals.user!.id),
 		house: await houseLink(locals.user!.id),
 		openRouter: await openRouterKeyStart(k),
@@ -764,15 +764,16 @@ export const actions: Actions = {
 	},
 	/** «Mostrar el gasto en IA bajo la cabecera». */
 	/** «Cómo te aviso» (#331): the messages left for them, by email too. */
-	/** Noticias (#428): their Miniflux, once it has accepted the key. */
+	/** Noticias (#428, #638): their news reader, once it has let them in. */
 	saveNews: async ({ request, locals }) => {
 		const form = await request.formData();
 		const newsUrl = String(form.get('url') ?? '').slice(0, 500);
-		const key = String(form.get('key') ?? '')
+		const newsUser = String(form.get('username') ?? '')
 			.trim()
-			.slice(0, 500);
-		const newsProblem = await news.save(locals.user!.id, newsUrl, key);
-		return newsProblem ? fail(400, { newsProblem, newsUrl }) : { saved: 'news' };
+			.slice(0, 200);
+		const password = String(form.get('password') ?? '').slice(0, 500);
+		const newsProblem = await news.save(locals.user!.id, newsUrl, newsUser, password);
+		return newsProblem ? fail(400, { newsProblem, newsUrl, newsUser }) : { saved: 'news' };
 	},
 	removeNews: async ({ locals }) => {
 		await news.remove(locals.user!.id);
